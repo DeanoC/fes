@@ -234,7 +234,10 @@ print_value:
         ld a,(hl)
         inc hl
         ld (X_PTR),hl
-        rst 0x10
+        cp 0xc0                 ; the quote image prints as one quote
+        jr nz,.p
+        ld a,C_QUOTE
+.p:     rst 0x10
         dec bc
         jr .s
 

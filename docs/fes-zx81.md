@@ -144,7 +144,8 @@ report 4 on a 1 KiB or 2 KiB machine: the report is printed with a smaller
 memory margin. A `GOSUB` that would leave too little room stops with report
 4, keeping enough to type NEW or RUN. A slice assignment copies its source
 first, so `LET A$(2 TO 4)=A$(1 TO 3)` gives `AABCE`. `PLOT` and `UNPLOT` take
-|x| and |y|, as on the ZX81.
+|x| and |y|, as on the ZX81. The quote image (SHIFT+Q) in a string prints as
+one quote and lists as two, and G mode gives the graphics drawn on the keys.
 
 No Sinclair ROM image or file is used to build it. A few short sequences are
 nevertheless byte-for-byte the same as in Sinclair's ROM, because the display
@@ -214,11 +215,15 @@ Best-effort differences:
 - **Arithmetic.** Results can differ beyond the digits `PRINT` shows. An
   integer `**` with an exponent of 2^32 or more gives report 6. So does one
   with a negative exponent whose positive power overflows (`10**-40`), where
-  the ZX81 gives 0 or a tiny number.
+  the ZX81 gives 0 or a tiny number, and so does a number written with more
+  than 38 digits after the decimal point.
 - **CONT after a command's report.** Such a report shows line 0, but CONT
   still goes where the last program report left it, not to line 0.
 - **Machine code and spare memory.** Only the entry points listed above are
-  supported. This ROM keeps its flags in SPARE1 (`$4021`) and a pointer in
+  supported. Of the key tables, only the unshifted one at `$007E` is the same
+  byte for byte. The shifted, function and graphics tables at `$00A5`,
+  `$00CC` and `$00F3` give the ZX81's character for each key, but their
+  layout is this ROM's own. This ROM keeps its flags in SPARE1 (`$4021`) and a pointer in
   SPARE2 (`$407B`), and uses the printer buffer (`$403C`) and `MEMBOT` as
   scratch. A program that keeps data or machine code there can fail. Printing
   follows the print position in `S_POSN`, so setting `DF_CC` alone (by `POKE`
@@ -240,8 +245,9 @@ key and with Q held, a BREAK held past its report, `PAUSE` started with the
 FUNCTION followed by a key with no function, an overlapping slice assignment,
 a `GOSUB` that recurses until report 4, BREAK then CONT on `10 GOTO 10` (also
 after a report 0 in between), CONT after STOP typed at `INPUT`, a FAST
-`PAUSE` with a key already down, and an expression nested deeper than the
-machine stack can go (report 4, then NEW). It enters
+`PAUSE` with a key already down, an expression nested deeper than the
+machine stack can go (report 4, then NEW), the quote image in a printed
+string, and the graphics from each G-mode key. It enters
 and runs programs, saves and loads them in both FAST and SLOW modes through the
 tape trap, scrolls the screen, and exercises the FAST/SLOW end-of-frame loop.
 On 1 KiB and 2 KiB it checks that a program that runs out of memory while

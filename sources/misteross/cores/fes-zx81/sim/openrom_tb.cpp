@@ -643,6 +643,25 @@ void test_cont_fast_pause(Machine &m) {
     std::cout << "FAST PAUSE: a key down before it ignored, W ended it\n";
 }
 
+// The quote image (SHIFT+Q) in a string prints as one quote; G mode gives the
+// graphics drawn on the keys.
+void test_quote_graphics(Machine &m) {
+    type(m, "A NL");
+    type(m, "1 0 P SHIFT+P A SHIFT+Q B SHIFT+P NL");
+    type(m, "R NL");
+    require(wait_for_row(m, 23, "0/10") && row_text(m, 0) == "A\"B",
+            "the quote image did not print as one quote");
+    type(m, "A NL");
+    type(m, "1 0 E SHIFT+9 SHIFT+1 SHIFT+2 SHIFT+3 SHIFT+4 SHIFT+5 SHIFT+6 SHIFT+7 SHIFT+8 "
+            "SHIFT+Q SHIFT+W SHIFT+E SHIFT+R SHIFT+T SHIFT+Y "
+            "SHIFT+A SHIFT+S SHIFT+D SHIFT+F SHIFT+G SHIFT+H SHIFT+9 NL");
+    static const uint8_t graphics[] = {0x01, 0x02, 0x87, 0x04, 0x05, 0x83, 0x03, 0x85, 0x81, 0x82,
+                                       0x07, 0x84, 0x06, 0x86, 0x08, 0x0a, 0x09, 0x8a, 0x89, 0x88};
+    for (unsigned i = 0; i != sizeof graphics; ++i)
+        require(m.peek(kProgram + 5 + i) == graphics[i], "a G-mode key did not give its graphic");
+    std::cout << "quote image printed as one quote; G mode gave the key graphics\n";
+}
+
 // Programs loaded as images, too long to type: an expression nested deeper
 // than the machine stack can go stops with report 4 (and NEW still resets
 // the stack). On 16 KiB, a 255-character name stores and prints, a
@@ -670,13 +689,16 @@ void test_deep_long_wide(Machine &m) {
         let.push_back(0x14);
         let.insert(let.end(), one.begin(), one.end());
         print.insert(print.end(), length, 0x26);
-        auto program = program_line(10, let);
-        const auto line20 = program_line(20, print);
-        program.insert(program.end(), line20.begin(), line20.end());
+        auto program = program_line(5, {0xfb});  // CLS: the image prints from the editor's position
+        for (const auto &line : {program_line(10, let), program_line(20, print)})
+            program.insert(program.end(), line.begin(), line.end());
         type(m, "A NL");
         load_image(m, image_with_program(m, program, 10, true));
         const bool ok = length == 255 ? wait_for_row(m, 23, "0/20") && row_text(m, 0) == "1"
                                       : wait_for_row(m, 23, "C/10");
+        if (!ok)
+            std::cerr << "name " << length << ": row0='" << row_text(m, 0) << "' row23='"
+                      << row_text(m, 23) << "' end=" << unsigned(m.peek(m.word(0x4014) - 1)) << '\n';
         require(ok && m.peek(m.word(0x4014) - 1) == 0x80,
                 length == 255 ? "a 255-character name did not store and print"
                               : "a 256-character name did not give report C");
@@ -841,6 +863,7 @@ int main(int argc, char **argv) {
         m.acknowledge_keys = true;
         test_cont_fast_pause(m);
         test_deep_long_wide(m);
+        test_quote_graphics(m);
         return 0;
     }
     if (mode == "lowmem") {
@@ -1123,6 +1146,7 @@ int main(int argc, char **argv) {
     test_slice_copy_gosub_room(m);
     test_cont_fast_pause(m);
     test_deep_long_wide(m);
+    test_quote_graphics(m);
 
     // Exercise the display start/stop boundary repeatedly. The original
     // frame-sampling order could wait forever after the NMI stopped frames.
@@ -1158,7 +1182,7 @@ int main(int argc, char **argv) {
 
     std::cout << "FES ZX81 open ROM: display, keyboard and rollover, edit, PRINT AT, INPUT, RETURN, INKEY$, "
                  "FAST/SLOW SAVE/LOAD, SCROLL, PAUSE, DIM, report 4 while printing, PLOT, FUNCTION, "
-                 "overlapping slices, GOSUB room, BREAK/CONT, FAST PAUSE, deep and wide expressions and "
-                 "NMI-boundary loop pass\n";
+                 "overlapping slices, GOSUB room, BREAK/CONT, FAST PAUSE, deep and wide expressions, the quote "
+                 "image, G-mode graphics and NMI-boundary loop pass\n";
     return 0;
 }

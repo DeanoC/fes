@@ -81,16 +81,21 @@ stk_one:
         ld hl,const_one
 ; Push the five bytes at HL.
 stk_push:
-        set 6,(iy+Y_FLAGS)      ; a number
         push bc
         push de
-        ld bc,5
-        call test_room
-        ld de,(STKEND)
+        call num_room
         ldir
         ld (STKEND),de
         pop de
         pop bc
+        ret
+
+; Room for a number on the calculator stack; DE = STKEND, BC = 5.
+num_room:
+        set 6,(iy+Y_FLAGS)      ; a number
+        ld bc,5
+        call test_room
+        ld de,(STKEND)
         ret
 
 ; HL -> top item (DE = -5).
@@ -127,10 +132,7 @@ stk_swap:
 
 ; Push FA, packed.
 stk_push_fa:
-        set 6,(iy+Y_FLAGS)
-        ld bc,5
-        call test_room
-        ld de,(STKEND)
+        call num_room
         call fp_pack_fa
         ld (STKEND),de
         ret
