@@ -8,7 +8,9 @@ passes on the fixed sealed package. The opt-in `--selected-programs` native
 frontend reads package choices and retained metadata from SD against a
 compiled board contract. It now serves persistent serial launch/return requests
 through `ProgramService`, preserving the same contained loader and control
-operations. The service revision still needs its matched-image hardware test. Its different-package lifecycle is tested in software. Its
+operations. Its
+[matched service hardware test](../../../docs/validation/2026-11-03-de25-service-hardware/README.md)
+now passes three command-driven sessions and final Park on the same package. Its different-package lifecycle is tested in software. Its
 [matched SD-selected board test](../../../docs/validation/2026-11-03-de25-selected-upload/README.md)
 passes on its recorded two-cycle frontend: one owned Ethernet session writes all four files and freshly reads
 them back before two native same-package load/Run/return cycles with fresh SD
@@ -1140,4 +1142,7 @@ Any uncertain I/O, deadline, protocol, transfer, closure or fetch observation
 retires the client and stops the sequence. No native command follows Park or a
 failed proof. Serial identity is the service publication after its internally
 checked live opening; it is not a separate GP register dump or ordinary runtime
-admission. These host checks still require a matched-image board trial.
+admission. The
+[matched board trial](../../../docs/validation/2026-11-03-de25-service-hardware/README.md)
+now passes all three same-package sessions and final Park; different physical
+payloads and ordinary runtime admission remain open.

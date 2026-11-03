@@ -62,8 +62,10 @@ discards the entire line. `Park` is for the diagnostic handoff; the usual Return
 keeps the native service available for another selection. The cross-builder
 exports example `PROGRAM.JSN` and `CORESEL.JSN` files for the sealed package.
 Changing an eligible selection requires no per-core firmware/native rebuild.
-This new service has software tests and needs a new matched-image hardware test;
-the earlier two-cycle physical result applies only to its recorded old frontend.
+The [matched service hardware test](../../../../docs/validation/2026-11-03-de25-service-hardware/README.md)
+now passes three request-driven load/Run/Hold/return sessions, stale-request
+rejection and final Park. All three use the same sealed package; different
+physical payloads and ordinary runtime admission remain open.
 
 Host tests execute three different canonical packages, builds, core IDs and
 payload sizes through retained selection, publication, transfer, Run, owned

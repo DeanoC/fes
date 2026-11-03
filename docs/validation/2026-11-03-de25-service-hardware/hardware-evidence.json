@@ -1,0 +1,399 @@
+{
+  "verification_status": "passed",
+  "source_commit": "4be141f96f946ec536af3f358a0e05e341d875df",
+  "native_build_source_commit": "af37a76aed47e049b0a70909026dd55cce567b1a",
+  "hardware_result": "native-request-service-three-load-run-return-with-final-park",
+  "experiment_passed": true,
+  "configuration_cycles": 3,
+  "native_boot_id": "916b895d55afba6e",
+  "raw_console_sha256": "c6abc7aa5372a1e991a613cecd79d38c7dee361980a8ce6a655d74a2f160638c",
+  "raw_bytes": 31080,
+  "configuration_intervals_seconds": [
+    13.3468223475,
+    13.34685698,
+    13.3484815125
+  ],
+  "cycles": [
+    {
+      "cycle": 1,
+      "selection": 0,
+      "session_generation": 1,
+      "fetches": [
+        {
+          "Cycles": 102326,
+          "Address": 975
+        },
+        {
+          "Cycles": 230070,
+          "Address": 983
+        },
+        {
+          "Cycles": 317544,
+          "Address": 992
+        },
+        {
+          "Cycles": 317544,
+          "Address": 992
+        },
+        {
+          "Cycles": 411948,
+          "Address": 979
+        },
+        {
+          "Cycles": 545464,
+          "Address": 989
+        }
+      ],
+      "returned_state": "ready",
+      "return_generation": 2,
+      "runtime_admission": false
+    },
+    {
+      "cycle": 2,
+      "selection": 1,
+      "session_generation": 3,
+      "fetches": [
+        {
+          "Cycles": 103860,
+          "Address": 979
+        },
+        {
+          "Cycles": 238460,
+          "Address": 989
+        },
+        {
+          "Cycles": 333730,
+          "Address": 983
+        },
+        {
+          "Cycles": 333730,
+          "Address": 983
+        },
+        {
+          "Cycles": 464020,
+          "Address": 978
+        },
+        {
+          "Cycles": 598922,
+          "Address": 984
+        }
+      ],
+      "returned_state": "ready",
+      "return_generation": 4,
+      "runtime_admission": false
+    },
+    {
+      "cycle": 3,
+      "selection": 0,
+      "session_generation": 5,
+      "fetches": [
+        {
+          "Cycles": 104674,
+          "Address": 978
+        },
+        {
+          "Cycles": 244730,
+          "Address": 983
+        },
+        {
+          "Cycles": 334512,
+          "Address": 984
+        },
+        {
+          "Cycles": 334512,
+          "Address": 984
+        },
+        {
+          "Cycles": 433804,
+          "Address": 979
+        },
+        {
+          "Cycles": 570162,
+          "Address": 983
+        }
+      ],
+      "returned_state": "parked",
+      "return_generation": 6,
+      "runtime_admission": false
+    }
+  ],
+  "final_state": {
+    "scope": "nano-contained-program-service-v1",
+    "op": "park",
+    "ok": true,
+    "state": "parked",
+    "owner": "3668639a78ff4be1",
+    "generation": 6,
+    "held": true
+  },
+  "command_count": 44,
+  "saved_capture_rejections": [
+    {
+      "case": "startup-owner",
+      "accepted": false
+    },
+    {
+      "case": "startup-generation",
+      "accepted": false
+    },
+    {
+      "case": "startup-state",
+      "accepted": false
+    },
+    {
+      "case": "startup-held",
+      "accepted": false
+    },
+    {
+      "case": "4-owner",
+      "accepted": false
+    },
+    {
+      "case": "4-generation",
+      "accepted": false
+    },
+    {
+      "case": "4-missing-activation",
+      "accepted": false
+    },
+    {
+      "case": "5-owner",
+      "accepted": false
+    },
+    {
+      "case": "5-generation",
+      "accepted": false
+    },
+    {
+      "case": "6-owner",
+      "accepted": false
+    },
+    {
+      "case": "6-generation",
+      "accepted": false
+    },
+    {
+      "case": "8-owner",
+      "accepted": false
+    },
+    {
+      "case": "8-generation",
+      "accepted": false
+    },
+    {
+      "case": "9-owner",
+      "accepted": false
+    },
+    {
+      "case": "9-generation",
+      "accepted": false
+    },
+    {
+      "case": "13-owner",
+      "accepted": false
+    },
+    {
+      "case": "13-generation",
+      "accepted": false
+    },
+    {
+      "case": "14-owner",
+      "accepted": false
+    },
+    {
+      "case": "14-generation",
+      "accepted": false
+    },
+    {
+      "case": "15-owner",
+      "accepted": false
+    },
+    {
+      "case": "15-generation",
+      "accepted": false
+    },
+    {
+      "case": "15-failed-stop",
+      "accepted": false
+    },
+    {
+      "case": "18-owner",
+      "accepted": false
+    },
+    {
+      "case": "18-generation",
+      "accepted": false
+    },
+    {
+      "case": "18-missing-activation",
+      "accepted": false
+    },
+    {
+      "case": "19-owner",
+      "accepted": false
+    },
+    {
+      "case": "19-generation",
+      "accepted": false
+    },
+    {
+      "case": "20-owner",
+      "accepted": false
+    },
+    {
+      "case": "20-generation",
+      "accepted": false
+    },
+    {
+      "case": "22-owner",
+      "accepted": false
+    },
+    {
+      "case": "22-generation",
+      "accepted": false
+    },
+    {
+      "case": "23-owner",
+      "accepted": false
+    },
+    {
+      "case": "23-generation",
+      "accepted": false
+    },
+    {
+      "case": "27-owner",
+      "accepted": false
+    },
+    {
+      "case": "27-generation",
+      "accepted": false
+    },
+    {
+      "case": "28-owner",
+      "accepted": false
+    },
+    {
+      "case": "28-generation",
+      "accepted": false
+    },
+    {
+      "case": "29-owner",
+      "accepted": false
+    },
+    {
+      "case": "29-generation",
+      "accepted": false
+    },
+    {
+      "case": "29-failed-stop",
+      "accepted": false
+    },
+    {
+      "case": "32-owner",
+      "accepted": false
+    },
+    {
+      "case": "32-generation",
+      "accepted": false
+    },
+    {
+      "case": "32-missing-activation",
+      "accepted": false
+    },
+    {
+      "case": "33-owner",
+      "accepted": false
+    },
+    {
+      "case": "33-generation",
+      "accepted": false
+    },
+    {
+      "case": "34-owner",
+      "accepted": false
+    },
+    {
+      "case": "34-generation",
+      "accepted": false
+    },
+    {
+      "case": "36-owner",
+      "accepted": false
+    },
+    {
+      "case": "36-generation",
+      "accepted": false
+    },
+    {
+      "case": "37-owner",
+      "accepted": false
+    },
+    {
+      "case": "37-generation",
+      "accepted": false
+    },
+    {
+      "case": "41-owner",
+      "accepted": false
+    },
+    {
+      "case": "41-generation",
+      "accepted": false
+    },
+    {
+      "case": "42-owner",
+      "accepted": false
+    },
+    {
+      "case": "42-generation",
+      "accepted": false
+    },
+    {
+      "case": "43-owner",
+      "accepted": false
+    },
+    {
+      "case": "43-generation",
+      "accepted": false
+    },
+    {
+      "case": "43-failed-stop",
+      "accepted": false
+    }
+  ],
+  "native_identity_evidence": "matched native source checks live identity internally; serial identity is the service publication",
+  "cpu_mapping_evidence": "linked platform mapping checks bracket actual reservations/MMIO; no separate mapping serial dump in this frontend",
+  "ordinary_runtime_admission": false,
+  "runtime_admission": false,
+  "core_load_acceptance": false,
+  "different_physical_packages": false,
+  "physical_ddr_drain_qualified": false,
+  "original_clock_restored": true,
+  "usb_permissions_restored": true,
+  "private_server_stopped": true,
+  "uart_free": true,
+  "claim_retained": true,
+  "spare_retained": true,
+  "factory_restored": false,
+  "serial_recovery_upgrade": false,
+  "upload_receipts_sha256": {
+    "boot": "0ad53c9bc74e0640d756d33588ced91de8a2e9a02e32d3a4e054be5d67727964",
+    "package": "c79821a6e1266057a73348c037a7887b49b80e0c851b54f500aa2a4c32772187",
+    "metadata": "4554e8e1508197f096285abfcf9fd54b8b5d010aacef388f7348975034fa8e14",
+    "selection": "8157c3caabbd1e230acf440682ca70a4deb307bc0763d2f965caa42f43ad6e4e"
+  },
+  "fresh_receipts_sha256": {
+    "boot": "3c59993bee82811750f2894b27a159cbf51b83c9e7fe580541d26d8a7c425df1",
+    "package": "5bae79b6f0909a2469ac7466bda671802a20710d84586d05d99288b7a9fae804",
+    "metadata": "55b43675461cc63aec611e4b7c007732ec161fb6b08d8c8b3847fa58121f0aba",
+    "selection": "25a1d5e645aae9802b1d7d497f1e8727213e35ea67b43502e6aa9eb353f73bee"
+  },
+  "input_sha256": {
+    "/home/deano/fes/out/dev/de25-embedded-os/out/nano-service-trial-20261103/trial/native-console.log": "c6abc7aa5372a1e991a613cecd79d38c7dee361980a8ce6a655d74a2f160638c",
+    "/home/deano/fes/out/dev/de25-embedded-os/out/nano-service-trial-20261103/trial/native-result.json": "e312ad95d234094156dbb83a2ab8cabb4645b095b7bfbda2c3d6ca81822b01b8",
+    "/home/deano/fes/out/dev/de25-embedded-os/out/nano-service-trial-20261103/trial/experiment-result.json": "085389c733f1f6e72fc22eb6841078a3485a4fe13a3a384b00e6a81a56c3447e",
+    "/home/deano/fes/out/dev/de25-embedded-os/out/nano-service-trial-20261103/trial/preflight.json": "8a88ea7c1288368c764e7206710ba8a4a7435be2e7cfaf52c111d9c2aac3c804",
+    "/home/deano/fes/out/dev/de25-embedded-os/out/nano-service-trial-20261103/trial/transport.json": "1cda0624ccac9cfa9bb624d0db4800cf7fe47536c56194afcb420868af9fca9e",
+    "/home/deano/fes/out/dev/de25-embedded-os/out/nano-service-trial-20261103/hardware-result.json": "755964c6f4b9b54cbd4676133c96a6bf668efe98aaa58a7d3c07efb85f75b9fd"
+  }
+}

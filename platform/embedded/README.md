@@ -10,8 +10,8 @@ The experimental [native computer driver](tamago/computer/README.md) now checks
 the captured DE25 ZX81 Avalon/GP interface through injected platform I/O. Its
 explicit host model tests cover release, input, tape transfer, hold, relaunch
 and faults against the actual captured core RTL. A matched
-[SD-selected native diagnostic](../../docs/validation/2026-11-03-de25-selected-upload/README.md)
-now loads/runs/returns the same sealed ZX81 package twice on TRWU8CBL. Physical
+[persistent native service diagnostic](../../docs/validation/2026-11-03-de25-service-hardware/README.md)
+now completes three same-package ZX81 load/Run/Hold/return sessions on TRWU8CBL. Physical
 input/video and ordinary runtime core admission remain open.
 
 The [contained firmware/RTL prototype](firmware/README.md) prepares a pinned
@@ -120,7 +120,7 @@ The independent [Zephyr reference](zephyr/README.md) owns separate tests.
 | Separate Zephyr storage reference | NVMe FAT32 mount and boot-config read |
 | Separate Zephyr TCP reference | Builds/starts; E1000 packet exchange remains unverified |
 | Physical CPU and read-only SD | Bounded native boot, FAT32/package retention and secure SD stop/resume pass |
-| Physical contained FPGA loading | SD-selected same-package load/Run/return twice, with fresh retention and guarded control; diagnostic profile only |
+| Physical contained FPGA loading | Persistent same-package load/Run/Hold/return across three sessions, with fresh retention and guarded control; diagnostic profile only |
 | Physical USB, native Ethernet and display | Require board verification and qualified lifecycle integration |
 
 The native software renderer yields in small raster/copy chunks on TamaGo,

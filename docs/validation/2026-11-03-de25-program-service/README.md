@@ -1,5 +1,9 @@
 # Persistent native selected-program service
 
+The subsequent [matched hardware trial](../2026-11-03-de25-service-hardware/README.md)
+passes three request-driven same-package sessions and final Park. This checkpoint
+below records the earlier software/candidate state.
+
 The Nano selected-program frontend now accepts successive launch, return and
 control requests through a persistent native `ProgramService`. It uses the
 existing retained store, guarded transfer engine, live computer identity checks,
