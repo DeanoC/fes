@@ -963,11 +963,19 @@ def run_game(runner, owned, args, rec, input_session_id, font, *, probe=None, vi
             error.add_note('game observer cleanup failed: '+repr(cleanup))
         raise
     if getattr(video, 'observer_guard', None) is not probe:
+        mismatch = pa.AcceptanceError('game recorder does not feed the playback probe; no game keys sent')
         try:
             video.stop()
-        finally:
+        except BaseException as cleanup:
+            if getattr(cleanup, 'source_cleanup_incomplete', False):
+                mismatch.source_cleanup_incomplete = True
+            mismatch.add_note('recorder cleanup failed: '+repr(cleanup))
+        try:
             observer.close()
-        raise pa.AcceptanceError('game recorder does not feed the playback probe; no game keys sent')
+        except BaseException as cleanup:
+            mismatch.source_cleanup_incomplete = True
+            mismatch.add_note('game observer cleanup failed: '+repr(cleanup))
+        raise mismatch
     rec['video_start'] = {'requested_monotonic_ns': video.started_ns,
                           'first_progress_observed_monotonic_ns': video.first_progress_ns,
                           'frame_converter':video.converter_identity,
@@ -1050,10 +1058,11 @@ def run_game(runner, owned, args, rec, input_session_id, font, *, probe=None, vi
             video.stop()
         except BaseException as cleanup:
             if error is None:
-                raise
-            if getattr(cleanup, 'source_cleanup_incomplete', False):
-                error.source_cleanup_incomplete = True
-            error.add_note('recorder cleanup failed: '+repr(cleanup))
+                error = cleanup
+            else:
+                if getattr(cleanup, 'source_cleanup_incomplete', False):
+                    error.source_cleanup_incomplete = True
+                error.add_note('recorder cleanup failed: '+repr(cleanup))
         try:
             observer.close()
         except BaseException as cleanup:

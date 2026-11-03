@@ -17,6 +17,44 @@ from scripts.pcxt_gameplay_probe import PlaybackProbe
 
 
 class GameCaptureTests(unittest.TestCase):
+    def test_video_stop_failure_still_closes_observer_and_retains_uncertainty(self):
+        for observer_fails in (False, True):
+            with self.subTest(observer_fails=observer_fails), tempfile.TemporaryDirectory() as tmp:
+                root=Path(tmp);probe=mock.Mock(spec=PlaybackProbe);probe.fault=threading.Event();probe.sent=[]
+                video=mock.Mock();video.observer_guard=probe;video.proc.poll.return_value=None
+                video.started_ns=1;video.first_progress_ns=2;video.converter_identity={}
+                video.stop.side_effect=RuntimeError('video stop failed')
+                audio=mock.Mock(mapping={'hil_video':'synthetic'});audio.proc.poll.return_value=None
+                audio.stop.return_value={'file':'audio.wav'}
+                observer=mock.Mock()
+                if observer_fails:observer.close.side_effect=RuntimeError('observer cleanup failed')
+                args=SimpleNamespace(evidence=root,capture_device='synthetic',kit='A')
+                with mock.patch.object(app,'capture_owned',return_value=((1,1,b'x'),{'file':'before'})), \
+                     mock.patch.object(app,'prompt',return_value={}),mock.patch.object(app,'type_keys'), \
+                     mock.patch.object(app,'wait_owned'),mock.patch.object(app.time,'sleep'):
+                    with self.assertRaisesRegex(RuntimeError,'video stop failed') as caught:
+                        app.run_game(None,None,args,{'captures':[],'hid_events':[]},'input',b'font',
+                            probe=probe,video_factory=lambda *_:video,audio_factory=lambda *_:audio,
+                            observer_factory=lambda *_:observer)
+                observer.close.assert_called_once()
+                self.assertEqual(bool(getattr(caught.exception,'source_cleanup_incomplete',False)),observer_fails)
+
+    def test_mismatched_stream_preserves_both_cleanup_failures(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            probe=mock.Mock(spec=PlaybackProbe);video=mock.Mock(spec=['stop'])
+            video.stop.side_effect=RuntimeError('video cleanup')
+            observer=mock.Mock();observer.close.side_effect=RuntimeError('observer cleanup')
+            args=SimpleNamespace(evidence=Path(tmp),capture_device='synthetic',kit='A')
+            with mock.patch.object(app,'capture_owned',return_value=((1,1,b'x'),{'file':'before'})), \
+                 mock.patch.object(app,'prompt',return_value={}),mock.patch.object(app,'type_keys') as keys:
+                with self.assertRaisesRegex(app.pa.AcceptanceError,'no game keys sent') as caught:
+                    app.run_game(None,None,args,{'captures':[],'hid_events':[]},'input',b'font',
+                        probe=probe,video_factory=lambda *_:video,audio_factory=mock.Mock(),
+                        observer_factory=lambda *_:observer)
+            self.assertTrue(caught.exception.source_cleanup_incomplete)
+            self.assertEqual(len(caught.exception.__notes__),2)
+            observer.close.assert_called_once();keys.assert_not_called()
+
     def test_build_binds_source_compiler_and_binary(self):
         with tempfile.TemporaryDirectory() as tmp:
             source = Path(capture_module.__file__).with_name('pcxt_v4l2_capture.c')
