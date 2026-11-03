@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"github.com/DeanoC/FogCast/appliance/software"
 	"github.com/DeanoC/FogCast/appliance/softwarecontrol"
+	"slices"
 	"strings"
 	"unicode"
 	"unicode/utf8"
@@ -38,8 +39,40 @@ func validateState(s State) error {
 	return softwarecontrol.ValidateState(s)
 }
 
+// retainedGenerations bounds the receipt ledger. Status reads the whole ledger
+// on every request, and the host asks for it constantly.
+const retainedGenerations = 64
+
+// pruneReceipts keeps the receipts that replays of recent operations need:
+// every receipt at the current generation (the only one Queue accepts), the
+// unreleased completion's, and every receipt of the retainedGenerations newest
+// older generations. Whole generations are kept, so the receipt of the
+// operation that ended a generation stays with any cancellations beside it.
+// A replay of a pruned operation carries its past generation and is refused as
+// a conflict. The ID itself is forgotten: a hand-made request that reuses it
+// with the current generation is new work.
+func pruneReceipts(s *State) {
+	var older []uint64
+	for _, r := range s.Receipts {
+		if r.Generation < s.Generation {
+			older = append(older, r.Generation)
+		}
+	}
+	slices.Sort(older)
+	older = slices.Compact(older)
+	if len(older) <= retainedGenerations {
+		return
+	}
+	floor := older[len(older)-retainedGenerations]
+	for id, r := range s.Receipts {
+		if r.Generation < floor && (s.Unreleased == nil || id != s.Unreleased.ID) {
+			delete(s.Receipts, id)
+		}
+	}
+}
+
 // Queue is idempotent by the complete request, including its original expected
-// generation. A completed or cancelled identifier is never reused.
+// generation. An identifier with a retained receipt is never reused.
 func Queue(r Repository, req Request) error {
 	if !software.ValidID(req.ID) || !software.ValidID(req.Candidate) || !validOwner(req.Requester) {
 		return errors.New("invalid software activation request")

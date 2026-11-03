@@ -358,8 +358,27 @@ class PersistenceAdmissionTest(unittest.TestCase):
             args=SimpleNamespace(evidence=Path(tmp))
             rec={'captures':[]}
             with mock.patch.object(p.app,'capture_owned',return_value=(output,{'phase':'test'})):
-                proof=p.wait_for_output(None,None,args,rec,font,anchor,start[:2],p.MARKER,'test')
+                proof=p.wait_for_output(None,None,args,rec,font,anchor,start[:2],'TYPE FESXT.TXT',p.MARKER,'test')
+            self.assertLess(proof['command_row'],proof['marker_row'])
             self.assertLess(proof['marker_row'],proof['prompt_row'])
+
+    def test_output_requires_exact_command_marker_and_prompt(self):
+        for command in ('TYPE FESXT.TXT', 'TYPE FESSAVE.TXT'):
+            good=['A:\\>'+command, p.MARKER, 'A:\\>']
+            with self.subTest(command=command):
+                proof=p.output_proof(good,command,p.MARKER)
+                self.assertEqual((proof['command_row'],proof['marker_row'],proof['prompt_row']),(0,1,2))
+                for bad in (
+                    [p.MARKER, 'A:\\>'+command, 'A:\\>'],
+                    ['A:\\>TYPE WRONG.TXT', p.MARKER, 'A:\\>'],
+                    ['A:\\>'+command+'X', p.MARKER, 'A:\\>'],
+                    ['A:\\>'+command+' '+p.MARKER, 'A:\\>'],
+                    ['A:\\>'+command, 'prefix '+p.MARKER, 'A:\\>'],
+                    ['A:\\>'+command, p.MARKER, 'OTHER A:\\>'],
+                    ['A:\\>'+command, 'A:\\>TYPE WRONG.TXT', p.MARKER, 'A:\\>'],
+                    ['A:\\>'+command, 'A:\\>', p.MARKER],
+                ):
+                    with self.subTest(bad=bad): self.assertIsNone(p.output_proof(bad,command,p.MARKER))
 
     def test_copy_requires_exact_command_mapping_and_later_prompt(self):
         command='A:\\>COPY FESXT.TXT FESSAVE.TXT'
@@ -434,6 +453,12 @@ class CursorProof(unittest.TestCase):
   self.assertEqual(lines[4].strip(),'A:\\>?');self.assertIsNotNone(proof)
   literal=frame(self.font,{2:self.command,3:self.mapping,4:'A:\\>?'})
   lines,proof=self.proof(literal);self.assertEqual(lines[4].strip(),'A:\\>?');self.assertIsNone(proof)
+ def test_output_prompt_cursor_requires_actual_underline(self):
+  command='TYPE FESSAVE.TXT'
+  lines=['','', 'A:\\>'+command, p.MARKER, 'A:\\>?']
+  self.assertIsNotNone(p.output_proof(lines,command,p.MARKER,frame=self.cursor_frame(),anchor=self.anchor))
+  literal=frame(self.font,{2:'A:\\>'+command,3:p.MARKER,4:'A:\\>?'})
+  self.assertIsNone(p.output_proof(lines,command,p.MARKER,frame=literal,anchor=self.anchor))
  def test_cursor_shape_must_match_exactly(self):
   for extra in ((0,0,self.anchor['foreground_rgb']),(6,0,self.anchor['background_rgb'])):
    with self.subTest(extra=extra):
