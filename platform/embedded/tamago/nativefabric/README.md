@@ -78,7 +78,9 @@ uses one fixed diagnostic package twice. The later
 [SD-selected frontend test](../../../../docs/validation/2026-11-03-de25-selected-upload/README.md)
 passes four Ethernet uploads and fresh readbacks followed by two native load/Run/return
 cycles with fresh SD selection between them. Both physical choices use that same
-package; different physical packages remain untested. The current compiled contract still names the
+package. The later [distinct-package board test](../../../../docs/validation/2026-11-03-de25-distinct-hardware/README.md)
+passes ZX81 → ZX80 → ZX81 against the same compiled platform, with six verified
+uploads and fresh SD retention between sessions. The current compiled contract still names the
 diagnostic ABI/profile. Normal Nano admission, ROM linking and native Tenfoot
 remain open.
 

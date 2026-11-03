@@ -1,5 +1,9 @@
 # Two distinct Nano diagnostic packages and matched native boot files
 
+The subsequent [board test](../2026-11-03-de25-distinct-hardware/README.md)
+passes the three-session switch. This earlier record retains its original
+software/artifact checkpoint scope.
+
 The Linux-free native service now has two real sealed package choices for its
 next bounded test: the previously tested ZX81 payload and a newly compiled ZX80
 payload. This record is software, simulation and artifact evidence. Neither the

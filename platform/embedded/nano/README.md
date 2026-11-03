@@ -10,12 +10,14 @@ compiled board contract. It now serves persistent serial launch/return requests
 through `ProgramService`, preserving the same contained loader and control
 operations. Its
 [matched service hardware test](../../../docs/validation/2026-11-03-de25-service-hardware/README.md)
-now passes three command-driven sessions and final Park on the same package. Its different-package lifecycle is tested in software. Its
+passes three command-driven sessions and final Park on the same package. The
+[distinct-package board test](../../../docs/validation/2026-11-03-de25-distinct-hardware/README.md)
+now passes ZX81 → ZX80 → ZX81 after one owned six-file Ethernet upload and six
+fresh readbacks, including native SD retention between sessions. Its
 [matched SD-selected board test](../../../docs/validation/2026-11-03-de25-selected-upload/README.md)
 passes on its recorded two-cycle frontend: one owned Ethernet session writes all four files and freshly reads
 them back before two native same-package load/Run/return cycles with fresh SD
-retention. Different physical packages and ordinary runtime admission remain
-open. The earlier physical results below apply to
+retention. Ordinary FES admission remains open. Earlier physical results below apply to
 their named source and artifacts.
 
 The [serial drain/recovery/warm-SD hardware sequence](../../../docs/validation/2026-11-03-de25-uart-drain-warm-sd/README.md)
