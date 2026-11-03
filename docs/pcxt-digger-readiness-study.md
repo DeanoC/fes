@@ -113,14 +113,22 @@ host, capture device, build and tool identities:
 No physical calibration, live game input, or hardware qualification has been
 performed by this study.
 
-`pcxt_game_input_guard.py` is a guarded dispatch prototype. It requires a
-separately pinned calibration document and evidence, checks the target and
-capture identity, rechecks the latest observation after the existing ownership
-and input-attachment checks, and consumes one observation before each planned
-key. Its calibration parser checks provenance and numerical structure; it
-cannot decide whether the underlying measurements justify the claimed bounds.
-An uncertain key response or missed deadline terminates the plan. The game CLI
-currently cannot construct a qualified guard or connect its recorder to one;
-it therefore rejects the game scenario before issuing game keys. The existing
-COM scenario is unaffected. The guarded game path does not yet capture speaker
-audio or establish audio/video synchronization.
+The game diagnostic uses one source for both the retained FFV1 recording and
+the opening-scene observer. It checks for a completed observation of the most
+recent acquired frame after the normal ownership and input checks, records a
+neutral interval, and issues the predeclared left/right/left sequence. The local
+host-age policy rejects obviously stale observations; it is not a bound on the
+age of the target image or on key delivery. The diagnostic requires an
+explicitly hashed native capture helper and private opening-player templates.
+It preserves per-frame source metadata and input requests and receipts.
+
+The result is always **review pending**. A reviewer must inspect the video and
+input trace independently and establish an active player, a neutral control,
+and the ordered left/right/left responses. Ambiguous timing, a death, an
+obscured player, continued autonomous motion, missing frames or an uncertain
+input response makes the attempt inconclusive. The diagnostic does not capture
+speaker audio and cannot establish audio/video synchronization. Historical
+failed and inconclusive attempts remain part of the lineage.
+
+The input transport does not enforce a deadline before delivery. The gameplay
+probe does not claim that host timestamps establish when the guest saw a key.

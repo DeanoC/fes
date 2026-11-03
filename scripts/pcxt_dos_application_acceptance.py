@@ -33,14 +33,16 @@ from pathlib import Path
 if __package__:
     from . import package_acceptance as pa
     from . import pcxt_dos_hil_acceptance as visual
-    from . import pcxt_game_input_guard as game_guard
+    from . import pcxt_gameplay_capture as game_capture
+    from . import pcxt_gameplay_probe as gameplay
 else:
     # Isolated mode omits the script directory from sys.path. Load only
     # the helpers adjacent to this diagnostic, even under python -I.
     sys.path.insert(0, str(Path(__file__).resolve().parent))
     import package_acceptance as pa
     import pcxt_dos_hil_acceptance as visual
-    import pcxt_game_input_guard as game_guard
+    import pcxt_gameplay_capture as game_capture
+    import pcxt_gameplay_probe as gameplay
 
 FLOPPY_SIZE = 368640
 COM_SHA = '475054504cb7e96268576bcc97db4fdcbf4cf66063673145df2f69f8ff859c02'
@@ -491,7 +493,9 @@ def source_provenance(args, font):
             or software.get('base_image_sha256') != args.image_sha256):
         raise pa.AcceptanceError('software receipt does not match bundle and base image')
     root = Path(__file__).resolve().parents[1]
-    paths = ['scripts/pcxt_dos_application_acceptance.py', 'scripts/pcxt_game_input_guard.py',
+    paths = ['scripts/pcxt_dos_application_acceptance.py',
+             'scripts/pcxt_gameplay_capture.py', 'scripts/pcxt_gameplay_probe.py',
+             'scripts/pcxt_capture_fanout.py', 'scripts/pcxt_v4l2_capture.c',
              'scripts/pcxt_digger_readiness.py', 'scripts/package_acceptance.py',
              'scripts/diagnostic_identity.py', 'scripts/input_diagnostic.py',
              'scripts/pcxt_dos_hil_acceptance.py', 'sources/misteross/scripts/core_package.py',
@@ -817,25 +821,33 @@ def run_com(runner, owned, args, rec, input_session_id, font):
     rec['classification'] = 'owned-session COM execution diagnostic passed'
 
 
-def run_game(runner, owned, args, rec, input_session_id, font, *, dispatch_guard=None):
-    if not isinstance(dispatch_guard, game_guard.GameInputGuard):
-        raise pa.AcceptanceError('game input requires calibrated live readiness guard; no game keys sent')
-    dispatch_guard.require_identity({'kit':args.kit, 'target_id':args.target_id,
-        'source_commit':args.source_commit, 'package_id':owned.package_id,
-        'capture_device':args.capture_device, 'capture_producer_sha256':args.capture_producer_sha256})
+def check_source_coverage(path, first_input_ns, last_input_ns):
+    rows = [json.loads(line) for line in path.read_text().splitlines()]
+    if not rows or not 0 < first_input_ns <= last_input_ns:
+        raise pa.AcceptanceError('game capture or input interval is missing')
+    if not (rows[0]['arrival_ns'] <= first_input_ns <= last_input_ns <= rows[-1]['arrival_ns']):
+        raise pa.AcceptanceError('game capture does not cover the host input interval')
+    return {'first_sequence': rows[0]['sequence'], 'last_sequence': rows[-1]['sequence'],
+            'first_arrival_ns': rows[0]['arrival_ns'], 'last_arrival_ns': rows[-1]['arrival_ns'],
+            'note': 'host and V4L2 timestamps do not establish guest-input or upstream video timing'}
+
+
+def run_game(runner, owned, args, rec, input_session_id, font, *, probe=None, video_factory=None):
+    if not isinstance(probe, gameplay.PlaybackProbe) or video_factory is None:
+        raise pa.AcceptanceError('game requires an owned single-source playback probe; no game keys sent')
     disk_sha = SCENARIOS['game']['floppy']
     before, info = capture_owned(runner, owned, args, disk_sha,
                                  args.evidence/'before.png', 'before Digger input')
     rec['captures'].append(info)
     if prompt(before, font) is None:
         raise pa.AcceptanceError('DOS prompt not observed before the game')
-    video = VideoCapture(args.capture_device, args.evidence)
-    if getattr(video, 'observer_guard', None) is not dispatch_guard:
+    video = video_factory(args.capture_device, args.evidence, probe)
+    if getattr(video, 'observer_guard', None) is not probe:
         video.stop()
-        raise pa.AcceptanceError('game recorder does not feed the guarded observation stream; no game keys sent')
+        raise pa.AcceptanceError('game recorder does not feed the playback probe; no game keys sent')
     rec['video_start'] = {'requested_monotonic_ns': video.started_ns,
                           'first_progress_observed_monotonic_ns': video.first_progress_ns,
-                          'note': 'progress timestamps are host observations, not exact capture times'}
+                          'note': 'host timestamps are not exact target capture times'}
     error = None
     try:
         check_interrupted()
@@ -844,17 +856,34 @@ def run_game(runner, owned, args, rec, input_session_id, font, *, dispatch_guard
         wait_owned(runner, owned, args, disk_sha, 30, video)
         rec['title_start_monotonic_ns'] = time.monotonic_ns()
         type_keys(runner, owned, args, disk_sha, input_session_id, rec['hid_events'], (0x28,))
-        wait_owned(runner, owned, args, disk_sha, 15, video)
-        rec['neutral_start_monotonic_ns'] = time.monotonic_ns()
-        wait_owned(runner, owned, args, disk_sha, 8, video)
-        for direction, usage in DIRECTIONS:
-            rec.setdefault('direction_intervals', []).append(
-                {'direction': direction, 'started_monotonic_ns': time.monotonic_ns()})
-            type_keys(runner, owned, args, disk_sha, input_session_id, rec['hid_events'], (usage,)*4,
-                      dispatch_guard=dispatch_guard)
-            wait_owned(runner, owned, args, disk_sha, 5, video)
-            rec['direction_intervals'][-1]['finished_monotonic_ns'] = time.monotonic_ns()
-        wait_owned(runner, owned, args, disk_sha, 8, video)
+        probe.arm(time.monotonic_ns())
+        deadline = time.monotonic()+30
+        next_claim = time.monotonic()
+        while True:
+            check_interrupted()
+            if video.proc.poll() is not None or probe.fault.is_set():
+                raise pa.AcceptanceError('game capture or observation failed')
+            try:
+                rec['neutral_observation'] = probe.snapshot(require_player=True)
+                break
+            except gameplay.ProbeError:
+                if time.monotonic() >= deadline:
+                    raise pa.AcceptanceError('active game observation was not available') from None
+            if time.monotonic() >= next_claim:
+                validate_active(runner, owned, args, disk_sha)
+                next_claim = time.monotonic()+3
+            time.sleep(.05)
+        rec['neutral_started_monotonic_ns'] = time.monotonic_ns()
+        time.sleep(.5)
+        for direction, usage in (('left',0x50), ('right',0x4f), ('left',0x50)):
+            interval = {'direction':direction, 'started_monotonic_ns':time.monotonic_ns()}
+            rec.setdefault('direction_intervals', []).append(interval)
+            type_keys(runner, owned, args, disk_sha, input_session_id, rec['hid_events'], (usage,),
+                      dispatch_guard=probe)
+            interval['finished_monotonic_ns'] = time.monotonic_ns()
+            time.sleep(1)
+        rec['direction_observations'] = probe.sent
+        wait_owned(runner, owned, args, disk_sha, 3, video)
     except BaseException as exc:
         error = exc
         raise
@@ -865,17 +894,18 @@ def run_game(runner, owned, args, rec, input_session_id, font, *, dispatch_guard
         except BaseException as cleanup:
             if error is None:
                 raise
+            if getattr(cleanup, 'source_cleanup_incomplete', False):
+                error.source_cleanup_incomplete = True
             error.add_note('recorder cleanup failed: '+repr(cleanup))
     check_interrupted()
     metadata = check_video(video.path)
-    coverage = check_video_coverage(metadata, video.progress_path, video.first_progress_ns,
-                                    rec['video_stop_requested_monotonic_ns'],
+    coverage = check_source_coverage(video.progress_path, rec['game_command_started_monotonic_ns'],
                                     rec['direction_intervals'][-1]['finished_monotonic_ns'])
     with video.path.open('rb') as stream:
         digest = hashlib.file_digest(stream, 'sha256').hexdigest()
-    rec['game_video'] = {'file': video.path.name, 'sha256': digest, 'metadata': metadata,
-                         'coverage': coverage, 'progress_file': video.progress_path.name,
-                         'classification': 'recorded; gameplay and movement need independent visual review'}
+    rec['game_video'] = {'file':video.path.name, 'sha256':digest, 'metadata':metadata,
+                         'coverage':coverage, 'frame_metadata_file':video.progress_path.name,
+                         'classification':'recorded; neutral and left/right/left need independent visual review'}
     rec['classification'] = 'game capture complete; gameplay and movement review pending'
 
 
@@ -905,6 +935,11 @@ def parser():
     ap.add_argument('--expected-boot', required=True)
     ap.add_argument('--disk', type=Path, required=True)
     ap.add_argument('--capture-device', required=True)
+    ap.add_argument('--game-capture-helper', type=Path, help='native V4L2 capture helper for the game scenario')
+    ap.add_argument('--game-capture-helper-sha256', help='SHA-256 of the capture helper')
+    ap.add_argument('--game-template', type=Path, action='append', help='private 32x34 RGB opening-player template')
+    ap.add_argument('--game-template-sha256', action='append', help='corresponding private template SHA-256')
+    ap.add_argument('--game-max-host-age-ms', type=int, help='maximum local observation age; not a target timing bound')
     ap.add_argument('--evidence', type=Path, required=True, help='new, private output directory')
     ap.add_argument('--execute', action='store_true')
     return ap
@@ -914,6 +949,21 @@ def main(argv=None):
     args = parser().parse_args(argv)
     if not args.execute:
         raise pa.AcceptanceError('--execute is required inside an already owned session')
+    templates = []
+    if args.scenario == 'game':
+        if (args.game_capture_helper is None or not args.game_capture_helper_sha256
+                or not args.game_template or len(args.game_template) != len(args.game_template_sha256 or [])
+                or type(args.game_max_host_age_ms) is not int or args.game_max_host_age_ms <= 0):
+            raise pa.AcceptanceError('game requires a pinned capture helper, private templates and local age policy')
+        pa._require_sha256(args.game_capture_helper_sha256, 'game capture helper SHA-256')
+        for path, expected in zip(args.game_template, args.game_template_sha256):
+            pa._require_sha256(expected, 'game template SHA-256')
+            if path.is_symlink() or not path.is_file() or path.stat().st_size != 32*34*3:
+                raise pa.AcceptanceError('game template must be a regular file')
+            data = path.read_bytes()
+            if len(data) != 32*34*3 or hashlib.sha256(data).hexdigest() != expected:
+                raise pa.AcceptanceError('game template size or digest differs')
+            templates.append(data)
     if not re.fullmatch('[0-9a-f]{40}', args.source_commit):
         raise pa.AcceptanceError('source commit must be a full lowercase SHA')
     for value, name in ((args.archive_sha256, 'archive'), (args.rbf_sha256, 'RBF'),
@@ -990,7 +1040,16 @@ def main(argv=None):
         if args.scenario == 'com':
             run_com(runner, owned, args, rec, input_session_id, font)
         else:
-            run_game(runner, owned, args, rec, input_session_id, font)
+            probe = gameplay.PlaybackProbe(threading.Event(), max_host_age_ns=args.game_max_host_age_ms*1000000)
+            rec['game_probe'] = {'capture_helper_sha256':args.game_capture_helper_sha256,
+                                 'template_sha256':args.game_template_sha256,
+                                 'max_host_age_ms':args.game_max_host_age_ms,
+                                 'controls':['neutral','left','right','left'],
+                                 'note':'host age is not a target timing bound; audio is not captured'}
+            def factory(device, evidence, selected_probe):
+                return game_capture.GameCapture(device, evidence, selected_probe, args.game_capture_helper,
+                                                 args.game_capture_helper_sha256, templates)
+            run_game(runner, owned, args, rec, input_session_id, font, probe=probe, video_factory=factory)
         validate_active(runner, owned, args, disk['floppy_sha256'])
         input_status(runner, input_session_id, rec['hid_events'], 0, 'final input')
         verify_disk(args.disk, args.scenario)
@@ -1005,6 +1064,7 @@ def main(argv=None):
     except BaseException as exc:
         rec['classification'] = 'failed; owned session and kit cleanup remain with caller'
         rec['failed_at_utc'] = stamp(); rec['failure'] = repr(exc)
+        rec['source_cleanup_incomplete'] = bool(getattr(exc, 'source_cleanup_incomplete', False))
         with (args.evidence/'failure.json').open('x') as output:
             json.dump(rec, output, indent=2); output.write('\n')
         raise
@@ -1014,6 +1074,7 @@ if __name__ == '__main__':
     install_signal_handler()
     try:
         main()
-    except (pa.AcceptanceError, ValueError, OSError, subprocess.CalledProcessError,
+    except (pa.AcceptanceError, gameplay.ProbeError, game_capture.capture.CaptureError,
+            ValueError, OSError, subprocess.CalledProcessError,
             subprocess.TimeoutExpired, json.JSONDecodeError) as error:
         raise SystemExit(str(error)) from error

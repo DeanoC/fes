@@ -42,11 +42,14 @@ class CaptureProcess:
         self.completed = False
         self.closed = False
 
-    def take(self, count):
+    def take(self, count, stop_event=None):
         if type(count) is not int or count <= 0:
             raise ValueError('invalid capture frame count')
         source = iter(v4l2_frames(self.proc.stdout, self.frame_size))
-        for _ in range(count):
+        for index in range(count):
+            if stop_event is not None and stop_event.is_set() and index:
+                self.completed = True
+                return
             try:
                 yield next(source)
             except StopIteration:
@@ -296,7 +299,8 @@ class FanoutResult:
 
 
 def fanout_frames(frames, record, detect, *, sample_every, record_capacity=8, join_timeout=2,
-                  source_timeout=5, allow_source_eof=False, on_recorder_stall=None, on_source_stop=None):
+                  source_timeout=5, allow_source_eof=False, on_recorder_stall=None, on_source_stop=None,
+                  detector_fault=None, on_source_frame=None):
     """Record every source frame and send selected frames to a latest-only observer.
 
     Detector overload or failure never blocks recording. The returned detector
@@ -325,6 +329,8 @@ def fanout_frames(frames, record, detect, *, sample_every, record_capacity=8, jo
     def source_reader():
         try:
             for frame in frames:
+                if on_source_frame is not None:
+                    on_source_frame(frame)
                 while not stopping.is_set():
                     try:
                         source_queue.put(frame, timeout=.05)
@@ -335,6 +341,8 @@ def fanout_frames(frames, record, detect, *, sample_every, record_capacity=8, jo
                     return
         except BaseException as exc:
             source_error.append(repr(exc))
+            if detector_fault is not None:
+                detector_fault.set()
         finally:
             while not stopping.is_set():
                 try:
@@ -353,6 +361,8 @@ def fanout_frames(frames, record, detect, *, sample_every, record_capacity=8, jo
                 recorded[0] += 1
         except BaseException as exc:
             record_error.append(repr(exc))
+            if detector_fault is not None:
+                detector_fault.set()
 
     def observer():
         try:
@@ -363,6 +373,8 @@ def fanout_frames(frames, record, detect, *, sample_every, record_capacity=8, jo
                 detect(frame)
         except BaseException as exc:
             detector_error.append(repr(exc))
+            if detector_fault is not None:
+                detector_fault.set()
 
     wt = threading.Thread(target=writer, daemon=True, name='pcxt-recorder')
     dt = threading.Thread(target=observer, daemon=True, name='pcxt-detector')
@@ -400,6 +412,8 @@ def fanout_frames(frames, record, detect, *, sample_every, record_capacity=8, jo
                 try:
                     observations.put_nowait(frame)
                 except queue.Full:
+                    if detector_fault is not None:
+                        detector_fault.set()
                     try:
                         observations.get_nowait()
                     except queue.Empty:
@@ -412,6 +426,8 @@ def fanout_frames(frames, record, detect, *, sample_every, record_capacity=8, jo
             index += 1
     except BaseException as exc:
         failure = exc
+        if detector_fault is not None:
+            detector_fault.set()
     finally:
         stopping.set()
         if failure is not None and on_source_stop is not None:
@@ -427,6 +443,8 @@ def fanout_frames(frames, record, detect, *, sample_every, record_capacity=8, jo
         try:
             records.put(sentinel, timeout=join_timeout)
         except queue.Full:
+            if detector_fault is not None:
+                detector_fault.set()
             failure = failure or CaptureError('recorder did not drain')
         wt.join(timeout=join_timeout)
         if wt.is_alive():
@@ -461,7 +479,8 @@ def fanout_frames(frames, record, detect, *, sample_every, record_capacity=8, jo
                         detector_error[0] if detector_error else None, not dt.is_alive())
 
 
-def capture_experiment(source, recorder, count, detect, *, sample_every, source_timeout=5, join_timeout=2):
+def capture_experiment(source, recorder, count, detect, *, sample_every, source_timeout=5, join_timeout=2,
+                       detector_fault=None, on_source_frame=None, stop_event=None):
     """Run a bounded capture without target input and clean up both processes.
 
     The capture is valid only if all requested frames were received, the source
@@ -469,11 +488,13 @@ def capture_experiment(source, recorder, count, detect, *, sample_every, source_
     verification. A false detector_valid result cannot authorize observations.
     """
     try:
-        result = fanout_frames(source.take(count), recorder.write, detect,
+        result = fanout_frames(source.take(count, stop_event), recorder.write, detect,
             sample_every=sample_every, source_timeout=source_timeout, join_timeout=join_timeout,
             allow_source_eof=True, on_recorder_stall=recorder.interrupt,
-            on_source_stop=lambda: source.stop(require_complete=False))
-        if result.frames_recorded != count:
+            on_source_stop=lambda: source.stop(require_complete=False),
+            detector_fault=detector_fault, on_source_frame=on_source_frame)
+        if result.frames_recorded != count and not (stop_event is not None and stop_event.is_set()
+                                                    and result.frames_recorded > 0):
             raise CaptureError('recorded frame count differs from planned count')
         source.stop()
         recorder.finish()

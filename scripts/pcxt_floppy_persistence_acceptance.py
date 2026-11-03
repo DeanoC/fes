@@ -91,7 +91,9 @@ def require_pr_head(args, deadline=None):
             raise ValueError('local source changed')
         paths = ['scripts/pcxt_floppy_persistence_acceptance.py', 'scripts/pcxt_health_evidence.py',
                  'scripts/pcxt_dos_application_acceptance.py', 'scripts/pcxt_dos_hil_acceptance.py',
-                 'scripts/pcxt_game_input_guard.py', 'scripts/pcxt_digger_readiness.py',
+                 'scripts/pcxt_digger_readiness.py',
+                 'scripts/pcxt_gameplay_capture.py', 'scripts/pcxt_gameplay_probe.py',
+                 'scripts/pcxt_capture_fanout.py', 'scripts/pcxt_v4l2_capture.c',
                  'scripts/package_acceptance.py', 'scripts/diagnostic_identity.py', 'scripts/input_diagnostic.py',
                  'sources/misteross/scripts/core_package.py', 'sources/misteross/scripts/rfc3986_validator.py',
                  'sources/misteross/cores/fes-pcxt/firmware/hardware-dos.json',

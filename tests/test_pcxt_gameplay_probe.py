@@ -1,0 +1,65 @@
+import threading
+import unittest
+from unittest import mock
+from dataclasses import replace
+
+from scripts.pcxt_capture_fanout import CapturedFrame
+from scripts.pcxt_digger_readiness import Observation
+from scripts.pcxt_gameplay_probe import PlaybackProbe, ProbeError
+
+
+class PlaybackProbeTests(unittest.TestCase):
+    def setUp(self):
+        self.fault = threading.Event()
+        self.clock = [110]
+        self.probe = PlaybackProbe(self.fault, max_host_age_ns=50, clock=lambda:self.clock[0])
+        self.obs = Observation(True, False, True, 0, 0, 50, 50)
+        self.probe.arm(90)
+
+    def frame(self, seq, ns):
+        return CapturedFrame(seq, ns, ns+1, ns+2, 0x2000, b'frame')
+
+    def publish(self, seq, ns, obs=None):
+        frame = self.frame(seq, ns)
+        self.probe.source_frame(frame)
+        self.probe.processed(frame, obs or self.obs)
+
+    def test_only_planned_left_right_left_and_record_observations(self):
+        action = mock.Mock()
+        for sequence, usage in enumerate((0x50, 0x4f, 0x50), start=1):
+            self.publish(sequence, 100+sequence)
+            self.clock[0] = 110+sequence
+            self.probe.dispatch(usage, action)
+        self.assertEqual(action.call_count, 3)
+        self.assertEqual([entry['usage'] for entry in self.probe.sent], [0x50, 0x4f, 0x50])
+        with self.assertRaises(ProbeError): self.probe.dispatch(0x50, action)
+
+    def test_pending_or_stale_frame_cannot_dispatch(self):
+        for mode in ('pending', 'stale', 'fault', 'threat', 'wrong'):
+            with self.subTest(mode=mode):
+                self.setUp(); self.publish(1, 100)
+                if mode == 'pending': self.probe.source_frame(self.frame(2, 105))
+                if mode == 'stale': self.clock[0] = 153
+                if mode == 'fault': self.fault.set()
+                if mode == 'threat':
+                    self.publish(2, 105, replace(self.obs, threat=True))
+                action = mock.Mock()
+                with self.assertRaises(ProbeError):
+                    self.probe.dispatch(0x4f if mode == 'wrong' else 0x50, action)
+                action.assert_not_called()
+
+    def test_initial_player_and_post_start_frame_required(self):
+        self.publish(1, 100, replace(self.obs, player=False))
+        with self.assertRaises(ProbeError): self.probe.dispatch(0x50, mock.Mock())
+        probe = PlaybackProbe(threading.Event(), max_host_age_ns=50, clock=lambda:110)
+        frame = self.frame(1, 80); probe.source_frame(frame); probe.processed(frame, self.obs); probe.arm(90)
+        with self.assertRaises(ProbeError): probe.dispatch(0x50, mock.Mock())
+
+    def test_uncertain_action_prevents_later_keys(self):
+        self.publish(1, 100)
+        with self.assertRaises(RuntimeError):
+            self.probe.dispatch(0x50, mock.Mock(side_effect=RuntimeError('lost reply')))
+        with self.assertRaises(ProbeError): self.probe.dispatch(0x4f, mock.Mock())
+
+
+if __name__ == '__main__': unittest.main()
