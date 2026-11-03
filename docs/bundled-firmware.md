@@ -155,11 +155,11 @@ the empty ID as no saved choice and can select a user ROM; newer clients use
 the separate digest for compare-and-swap. A real saved selection remains in
 `media_id`.
 
-Not built yet: the Home family tiles and their Details
+Settings › Firmware ([#1349](https://github.com/DeanoC/fes/issues/1349))
+lists each v1 family as Built in or Needs your files and opens the family's
+card. Not built yet: the Home family tiles and their Details
 ([#1347](https://github.com/DeanoC/fes/issues/1347)) will open the card from
-there, and Settings › Firmware ([#1349](https://github.com/DeanoC/fes/issues/1349))
-will list each family's firmware and offer to return a title to the built-in
-image.
+there, and nothing yet returns a title to the built-in image.
 
 ## Kit check
 

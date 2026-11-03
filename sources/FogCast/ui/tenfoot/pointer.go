@@ -427,6 +427,10 @@ func (a *App) applyPointerFocusLocked(hit PointerHit) {
 		}
 	case PointerSettings:
 		if hit.Index >= 0 {
+			if hit.Index != a.settingsIndex {
+				// Moving off Factory reset cancels its confirm, as Up/Down do.
+				a.settingsConfirm = ""
+			}
 			a.settingsIndex = hit.Index
 		}
 	case PointerFilters:

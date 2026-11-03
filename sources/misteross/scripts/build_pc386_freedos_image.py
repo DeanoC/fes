@@ -15,14 +15,14 @@ Two profiles:
          else. The simulation suites boot it.
   games  build/sim/fes-pc386/freedos-games.img: the setup the acceptance games
          run in, as the FogCast builder's image will be. FDCONFIG.SYS loads
-         HIMEMX and DOS=HIGH; AUTOEXEC.BAT sets BLASTER from CMOS 60h-62h with
-         FESENV.COM (cores/fes-pc386/sim/fesenv.asm) and loads CuteMouse. MEM
-         is in C:\\FDOS\\BIN with them. HIMEMX runs with /MAX=0, so it manages
-         the HMA and no extended memory: every XMS block move (function 0Bh)
-         runs SMSW and enters unreal mode, and fes_i386_cpu has no protected
-         mode yet. With no free XMS, FreeCOM (the FreeDOS 1.4 build swaps
-         through XMS) and Wolfenstein 3D's page manager never move a block.
-         The limit goes when the CPU has protected mode.
+         UMBM, which hands the machine's upper RAM (C800h-EFFFh) to DOS as
+         upper memory blocks (DOS=UMB), then HIMEMX high with all extended
+         memory as XMS. POST leaves A20 off, so HIMEMX picks a real A20
+         method by itself. The kernel stays low (no DOS=HIGH), so Ultima
+         VII's Voodoo memory manager can turn A20 off again on exit.
+         AUTOEXEC.BAT sets BLASTER from CMOS 60h-62h with FESENV.COM
+         (cores/fes-pc386/sim/fesenv.asm) and loads CuteMouse high. MEM is in
+         C:\\FDOS\\BIN with them.
 
 No network access occurs unless --download is given. The packages are fetched
 at the commits in cores/fes-pc386/sim/freedos.lock (each package repository's
@@ -33,6 +33,7 @@ FreeDOS-v1.4 tag) and every file used is checked against its pinned SHA-256:
   freecom  COMMAND.COM
   fdisk    bootnorm.c, the bytes of Free FDISK's master boot record
   himemx   HIMEMX.EXE (games)
+  jemm     UMBM.EXE (games)
   ctmouse  CTMOUSE.EXE (games)
   mem      MEM.EXE (games)
 
@@ -90,13 +91,15 @@ PROFILES = {
     },
     'games': {
         'image': ROOT / 'build/sim/fes-pc386/freedos-games.img',
-        'packages': ('kernel', 'freecom', 'fdisk', 'himemx', 'ctmouse', 'mem'),
-        'fdconfig': ('FILES=20\r\nBUFFERS=20\r\nDOS=HIGH\r\n'
-                     'DEVICE=C:\\FDOS\\BIN\\HIMEMX.EXE /MAX=0 /VERBOSE\r\n' + SHELL),
+        'packages': ('kernel', 'freecom', 'fdisk', 'himemx', 'jemm', 'ctmouse', 'mem'),
+        'fdconfig': ('FILES=20\r\nBUFFERS=16\r\nDOS=UMB\r\n'
+                     'DEVICE=C:\\FDOS\\BIN\\UMBM.EXE /I=C800-EFFF\r\n'
+                     'DEVICEHIGH=C:\\FDOS\\BIN\\HIMEMX.EXE /VERBOSE\r\n' + SHELL),
         'autoexec': ('@ECHO OFF\r\nPROMPT $P$G\r\nPATH C:\\FDOS\\BIN;C:\\\r\n'
-                     'FESENV > C:\\FDOS\\FESENV.BAT\r\nCALL C:\\FDOS\\FESENV.BAT\r\nCTMOUSE\r\nVER\r\n'),
-        'bin': {'HIMEMX.EXE': ('himemx', 'BIN/HimemX.exe'), 'CTMOUSE.EXE': ('ctmouse', 'BIN/CTMOUSE.EXE'),
-                'MEM.EXE': ('mem', 'BIN/MEM.EXE'), 'FESENV.COM': None},
+                     'FESENV > C:\\FDOS\\FESENV.BAT\r\nCALL C:\\FDOS\\FESENV.BAT\r\nLH CTMOUSE\r\nVER\r\n'),
+        'bin': {'HIMEMX.EXE': ('himemx', 'BIN/HimemX.exe'), 'UMBM.EXE': ('jemm', 'BIN/UMBM.EXE'),
+                'CTMOUSE.EXE': ('ctmouse', 'BIN/CTMOUSE.EXE'), 'MEM.EXE': ('mem', 'BIN/MEM.EXE'),
+                'FESENV.COM': None},
     },
 }
 

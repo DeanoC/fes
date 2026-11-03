@@ -149,22 +149,24 @@ func collectionHintFor(kind InputKind, confirm bool) string {
 	return selectWord(kind) + " select  " + backWord(kind) + " back"
 }
 
-func settingsDefaultHint(kind InputKind) string {
-	return selectWord(kind) + " confirm  " + backWord(kind) + " close  Left/Right change"
+// The settings hints end with what Back does: "close" on the section list,
+// "back" inside a section.
+func settingsDefaultHint(kind InputKind, leave string) string {
+	return selectWord(kind) + " confirm  " + backWord(kind) + " " + leave + "  Left/Right change"
 }
 
-func settingsActionHint(kind InputKind, action, extra string) string {
-	hint := selectWord(kind) + " " + action + "  " + backWord(kind) + " close"
+func settingsActionHint(kind InputKind, action, extra, leave string) string {
+	hint := selectWord(kind) + " " + action + "  " + backWord(kind) + " " + leave
 	if extra != "" {
-		hint = selectWord(kind) + " " + action + "  " + extra + "  " + backWord(kind) + " close"
+		hint = selectWord(kind) + " " + action + "  " + extra + "  " + backWord(kind) + " " + leave
 	}
 	return hint
 }
 
-func settingsRemoveHint(kind InputKind, action, extra string) string {
-	hint := selectWord(kind) + " " + action + "  " + westWord(kind) + " remove  " + backWord(kind) + " close"
+func settingsRemoveHint(kind InputKind, action, extra, leave string) string {
+	hint := selectWord(kind) + " " + action + "  " + westWord(kind) + " remove  " + backWord(kind) + " " + leave
 	if extra != "" {
-		hint = selectWord(kind) + " " + action + "  " + extra + "  " + westWord(kind) + " remove  " + backWord(kind) + " close"
+		hint = selectWord(kind) + " " + action + "  " + extra + "  " + westWord(kind) + " remove  " + backWord(kind) + " " + leave
 	}
 	return hint
 }

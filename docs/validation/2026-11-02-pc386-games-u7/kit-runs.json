@@ -1,0 +1,688 @@
+{
+ "package": "c7e06e042a045b9c453be36b1e4874497dba99132fe043d68f39545ca3b1727c",
+ "baseline": "main 305956672189b5c97df5465e9f6007b49842694f, software f786f7b38f206b7159cad4c5047b71b0ee0be27a8fbca868b7cca70f9e885839, OS f904961e008a972db8f06f1bb47aff9631123d67215b9f4157ea1fbee83b98d4 (core-only runs, nothing installed)",
+ "games_image_sha256": "504015dc38358c21d1e5d5dfc7d5376e220dea925b4e93a0834494eca6cdfd9f",
+ "disks": {
+  "g-u7bg": {
+   "sha256": "bae385689b1b5add1272579ae78f251cd4fedb8346de2d658101ff5891b00a2b",
+   "games": {
+    "u7bg": {
+     "directory": "ULTIMA7",
+     "zip": "/mnt/emuhd/Games/PC DOS/Collections/eXoDOS 6.04 Full/eXoDOS/eXo/eXoDOS/Ultima VII Part 1 - The Black Gate + Forge of Virtue (1992).zip",
+     "sha256": "75e6eb68636aec0e06ffb9683f03b9be5dbb8de0a121da43935163d1d7c6659f",
+     "files": 399
+    }
+   }
+  },
+  "g-u7si-noxmm": {
+   "sha256": "24e5e938fc4e7fe1e1937f16662fc91d06847e52f13dc7fde7e5c024090f80f2",
+   "games": {
+    "u7si": {
+     "directory": "SERPENT",
+     "zip": "/mnt/emuhd/Games/PC DOS/Collections/eXoDOS 6.04 Full/eXoDOS/eXo/eXoDOS/Ultima VII Part 2 - Serpent Isle + The Silver Seed (1993).zip",
+     "sha256": "5601ca4e2e2d23865046fbfe9c775fa5df896aa0ba4f8a66bb95521ffd1c2c1c",
+     "files": 432
+    }
+   }
+  },
+  "g-u7si": {
+   "sha256": "b0c722fb4e420b9b3e2ee3efd07fdcb5d80fb9bdaa79fbdb05ec7a8c2d9fbf6b",
+   "games": {
+    "u7si": {
+     "directory": "SERPENT",
+     "zip": "/mnt/emuhd/Games/PC DOS/Collections/eXoDOS 6.04 Full/eXoDOS/eXo/eXoDOS/Ultima VII Part 2 - Serpent Isle + The Silver Seed (1993).zip",
+     "sha256": "5601ca4e2e2d23865046fbfe9c775fa5df896aa0ba4f8a66bb95521ffd1c2c1c",
+     "files": 433
+    }
+   }
+  },
+  "g-ultima6": {
+   "sha256": "7d097cd7ecaebd2f07d5e9c2cc41a52dd8fefdb2be7a2ce46040ae2d0d7bcee3",
+   "games": {
+    "ultima6": {
+     "directory": "ULTIMA6",
+     "zip": "/mnt/emuhd/Games/PC DOS/Collections/eXoDOS 6.04 Full/eXoDOS/eXo/eXoDOS/Ultima VI - The False Prophet (1990).zip",
+     "sha256": "5ec54a045d18ccea63fe35e857e9c0294427e06d397370433d4a7c5add881cb9",
+     "files": 324
+    }
+   }
+  },
+  "g-wolf3d": {
+   "sha256": "e47fbab15adf26d1007c387c7cde02b9f609e9f5946d3aaf419c4cfd5d2f1c9e",
+   "games": {
+    "wolf3d": {
+     "directory": "WOLF3D",
+     "zip": "/mnt/emuhd/Games/PC DOS/Collections/eXoDOS 6.04 Full/eXoDOS/eXo/eXoDOS/Wolfenstein 3D (1992).zip",
+     "sha256": "f451d8538266fb9f12a4fa8909a671b37d354de388a9b76d1c1033a6a541ed37",
+     "files": 11
+    }
+   }
+  },
+  "g-u7si-kbc": {
+   "sha256": "31442dc102872e3ec965fec03c4d29b241d85962165e0de1823fa3abf8e38550",
+   "note": "scratch diagnostic copy of g-u7si with HIMEMX /METHOD:KBC in FDCONFIG.SYS"
+  },
+  "g-u7si-max6144": {
+   "sha256": "fb5a4580ffe01041c8a77655faf0cb35bfadd97777ca23b6cb57795d05c731e6",
+   "note": "scratch diagnostic copy of g-u7si with HIMEMX /MAX=6144 in FDCONFIG.SYS"
+  },
+  "g-u7si-max2048": {
+   "sha256": "41f37d3df711981b65c5a4a5ae983c27ba49802f9a9cd1690126be97ba32b1cb",
+   "note": "scratch diagnostic copy of g-u7si with HIMEMX /MAX=2048 in FDCONFIG.SYS"
+  },
+  "scrub": {
+   "sha256": "8538495aedc52a76db41cfbc56bbf89b50e0f84a99addbf6eeba0a788b98c5bf",
+   "note": "FreeDOS boot disk running SCRUBX (all regions: video, UMB, extended, conventional); copy of ~/fes-scratch/p2/kit/disk/scrubx-kit.img"
+  }
+ },
+ "runs": [
+  {
+   "run": "g1409-k1",
+   "kit": "B",
+   "claimed": "2026-11-02 13:22:13 EET",
+   "released": "2026-11-02 13:35:09 EET",
+   "before": "## 13:08 EET KIT B FREE \u2014 Claude i386 Phase 2 MS-DOS core-data removal done, baseline unchanged",
+   "settings": [],
+   "loads": [
+    {
+     "game": "g1409-k1-scrub",
+     "disk": "scrub.img",
+     "at": "2026-11-02 13:22:38"
+    },
+    {
+     "game": "g1409-k1-u7bg",
+     "disk": "g-u7bg.img",
+     "at": "2026-11-02 13:24:07"
+    }
+   ],
+   "kit_paths_left": [
+    "/media/fat/fogcast/core-data/games/1c8820b76bea7ced0fe8cbdac0f913599e25913f6426aab048565f197132c3bb",
+    "/media/fat/fogcast/core-data/games/1c8820b76bea7ced0fe8cbdac0f913599e25913f6426aab048565f197132c3bb/record.bin",
+    "/media/fat/fogcast/core-data/games/ca115fadc846848c404afae7b59ca3ad6550f893239216a021538ef43d20d7a7",
+    "/media/fat/fogcast/core-data/games/ca115fadc846848c404afae7b59ca3ad6550f893239216a021538ef43d20d7a7/record.bin",
+    "/media/fat/fogcast/core-data/media/3a38ef6ba54c67c8b571ee0d4862fb39250ec6fdaf9fd7ef93e5b40322c1293f",
+    "/media/fat/fogcast/core-data/media/3a38ef6ba54c67c8b571ee0d4862fb39250ec6fdaf9fd7ef93e5b40322c1293f/chunk-0497eb414cb85aea4d8a42018065517dd9128a9f9ae27b6561fbf903911c8eb2",
+    "/media/fat/fogcast/core-data/media/3a38ef6ba54c67c8b571ee0d4862fb39250ec6fdaf9fd7ef93e5b40322c1293f/chunk-095ac8b1f0d6ec15e9dfdb875ec0582510d71069b34aa893ed8e8d142595f623",
+    "/media/fat/fogcast/core-data/media/3a38ef6ba54c67c8b571ee0d4862fb39250ec6fdaf9fd7ef93e5b40322c1293f/chunk-1466ced7cea5c625770a655402930c4426eaf9843c17fd6d0352596e6ebfa4ec",
+    "/media/fat/fogcast/core-data/media/3a38ef6ba54c67c8b571ee0d4862fb39250ec6fdaf9fd7ef93e5b40322c1293f/chunk-1bc956004cfeb58528ad7e7f518bab38ce44b09ab5a819f8c99a967688ce78d6",
+    "/media/fat/fogcast/core-data/media/3a38ef6ba54c67c8b571ee0d4862fb39250ec6fdaf9fd7ef93e5b40322c1293f/chunk-1f20f8908bb536aea9a64cc7bcbd3fd6ef71477f84c5a90a5f71ce2aefce39be",
+    "/media/fat/fogcast/core-data/media/3a38ef6ba54c67c8b571ee0d4862fb39250ec6fdaf9fd7ef93e5b40322c1293f/chunk-30beab5349d518c5f8acc9f247d2a35bbf2e931a963358c2532a304e1b56d573",
+    "/media/fat/fogcast/core-data/media/3a38ef6ba54c67c8b571ee0d4862fb39250ec6fdaf9fd7ef93e5b40322c1293f/chunk-30c4107586bb972d8fce145e1326a4c141e295e7b0edf132238bed3fc95d1372",
+    "/media/fat/fogcast/core-data/media/3a38ef6ba54c67c8b571ee0d4862fb39250ec6fdaf9fd7ef93e5b40322c1293f/chunk-457d4a256f19e5d99c434688584b87ed6eb8c382b8d9c67bb932ce32c829ce0f",
+    "/media/fat/fogcast/core-data/media/3a38ef6ba54c67c8b571ee0d4862fb39250ec6fdaf9fd7ef93e5b40322c1293f/chunk-4f87625bf2a8964033b8152fd65ae5bb3440fac690ac7c04fc3ef730d36e740d",
+    "/media/fat/fogcast/core-data/media/3a38ef6ba54c67c8b571ee0d4862fb39250ec6fdaf9fd7ef93e5b40322c1293f/chunk-623988008d88b46aead048ffe88ab65b4dd8549c3ef6e6a317fc4923e0b4124f",
+    "/media/fat/fogcast/core-data/media/3a38ef6ba54c67c8b571ee0d4862fb39250ec6fdaf9fd7ef93e5b40322c1293f/chunk-7577d6fcc42f6edfc1cae38ff83ada616e0eabe3919a9b361f546eab7b4e44a1",
+    "/media/fat/fogcast/core-data/media/3a38ef6ba54c67c8b571ee0d4862fb39250ec6fdaf9fd7ef93e5b40322c1293f/chunk-8fae6f074b34eafb411506449a0047f8d0d12eb27827b887a266197ec814751d",
+    "/media/fat/fogcast/core-data/media/3a38ef6ba54c67c8b571ee0d4862fb39250ec6fdaf9fd7ef93e5b40322c1293f/chunk-cb8a485dbcbe8fe782a87b5add3e8af19f233eb6a8353d2ed94cb1d50f3b0d63",
+    "/media/fat/fogcast/core-data/media/3a38ef6ba54c67c8b571ee0d4862fb39250ec6fdaf9fd7ef93e5b40322c1293f/chunk-cdfa4d1503a0d3c963a8351f7048674ed012034305c2fdcaf296f45b85a0d0de",
+    "/media/fat/fogcast/core-data/media/3a38ef6ba54c67c8b571ee0d4862fb39250ec6fdaf9fd7ef93e5b40322c1293f/chunk-fb03b6d8bff20141ac5a33f09b38af0030b58227585cc9b47fc71e1b4d07aa8f",
+    "/media/fat/fogcast/core-data/media/3a38ef6ba54c67c8b571ee0d4862fb39250ec6fdaf9fd7ef93e5b40322c1293f/chunk-fbfb7ba302bacec92df8cc82e5f664a75d4c268fec92d58247c71f1a21010511",
+    "/media/fat/fogcast/core-data/media/3a38ef6ba54c67c8b571ee0d4862fb39250ec6fdaf9fd7ef93e5b40322c1293f/record.bin",
+    "/media/fat/fogcast/core-data/media/4e309af4375626a5c8df79634647694ceeb5b8c922598b9e1b16d80558e2f468",
+    "/media/fat/fogcast/disk-images/8538495aedc52a76db41cfbc56bbf89b50e0f84a99addbf6eeba0a788b98c5bf.img",
+    "/media/fat/fogcast/disk-images/bae385689b1b5add1272579ae78f251cd4fedb8346de2d658101ff5891b00a2b.img"
+   ]
+  },
+  {
+   "run": "g1409-k2",
+   "kit": "B",
+   "claimed": "2026-11-02 13:35:33 EET",
+   "released": "2026-11-02 13:41:32 EET",
+   "before": "## 13:35 EET KIT B FREE \u2014 Claude pc386 games PR fes#1409 g1409-k1 done, baseline restored",
+   "settings": [],
+   "loads": [
+    {
+     "game": "g1409-k2-scrub",
+     "disk": "scrub.img",
+     "at": "2026-11-02 13:35:42"
+    },
+    {
+     "game": "g1409-k2-u7si",
+     "disk": "g-u7si.img",
+     "at": "2026-11-02 13:37:00"
+    }
+   ],
+   "kit_paths_left": [
+    "/media/fat/fogcast/core-data/games/67e46ea79279599ba836bb7d5be0e9f3749d660db4bdf8886aebe9c39ccb37c6",
+    "/media/fat/fogcast/core-data/games/67e46ea79279599ba836bb7d5be0e9f3749d660db4bdf8886aebe9c39ccb37c6/record.bin",
+    "/media/fat/fogcast/core-data/games/705657693b5c8b3888b9744aab6fa478b4aaaef023e72244f81c23fb11c050dd",
+    "/media/fat/fogcast/core-data/games/705657693b5c8b3888b9744aab6fa478b4aaaef023e72244f81c23fb11c050dd/record.bin",
+    "/media/fat/fogcast/core-data/media/004aff8c0f90c9350ff86211a3582788ab2c0879c0cdda0c2dad9b1f99bc3f75",
+    "/media/fat/fogcast/core-data/media/43658c4435157e5e1f13f51ab153baff3d704aed897247ee00238b9a9cdd7d45",
+    "/media/fat/fogcast/core-data/media/43658c4435157e5e1f13f51ab153baff3d704aed897247ee00238b9a9cdd7d45/chunk-10f743d8ed49714102789daa46afdfcee6d06840ae335cf4ab6e51deab3faa59",
+    "/media/fat/fogcast/core-data/media/43658c4435157e5e1f13f51ab153baff3d704aed897247ee00238b9a9cdd7d45/chunk-2db012bb895cb96b7e9d3c093624500458c322f7d8341bcefdf75e4de0df2ca2",
+    "/media/fat/fogcast/core-data/media/43658c4435157e5e1f13f51ab153baff3d704aed897247ee00238b9a9cdd7d45/chunk-4bbe00d1cb7fb6188ef9edb4727ae8940f79fc301789a40aafc2c42952cb6670",
+    "/media/fat/fogcast/core-data/media/43658c4435157e5e1f13f51ab153baff3d704aed897247ee00238b9a9cdd7d45/chunk-5163d17ea03d4ab245768910eb185b72280646997e867b7200650a1c3e649be7",
+    "/media/fat/fogcast/core-data/media/43658c4435157e5e1f13f51ab153baff3d704aed897247ee00238b9a9cdd7d45/chunk-9797c95063756c7d170035ae907220b2913267076a4b23068a9c4f3086bf9342",
+    "/media/fat/fogcast/core-data/media/43658c4435157e5e1f13f51ab153baff3d704aed897247ee00238b9a9cdd7d45/record.bin",
+    "/media/fat/fogcast/disk-images/b0c722fb4e420b9b3e2ee3efd07fdcb5d80fb9bdaa79fbdb05ec7a8c2d9fbf6b.img"
+   ]
+  },
+  {
+   "run": "g1409-k3",
+   "kit": "B",
+   "claimed": "2026-11-02 13:52:21 EET",
+   "released": "2026-11-02 13:55:32 EET",
+   "before": "## 13:41 EET KIT B FREE \u2014 Claude pc386 games PR fes#1409 g1409-k2 done, baseline restored",
+   "settings": [],
+   "loads": [
+    {
+     "game": "g1409-k3-scrub",
+     "disk": "scrub.img",
+     "at": "2026-11-02 13:52:31"
+    },
+    {
+     "game": "g1409-k3-u7si",
+     "disk": "g-u7si.img",
+     "at": "2026-11-02 13:53:52"
+    }
+   ],
+   "kit_paths_left": [
+    "/media/fat/fogcast/core-data/games/1a9c635ebf3957cdf44c2c51bd5ffbf96b345315f34d87727ceddf07e414197d",
+    "/media/fat/fogcast/core-data/games/1a9c635ebf3957cdf44c2c51bd5ffbf96b345315f34d87727ceddf07e414197d/record.bin",
+    "/media/fat/fogcast/core-data/games/4293970eeb0312f8f876cc5ac7ff247c024fb888fd77213fefe6faf8ca8cedd1",
+    "/media/fat/fogcast/core-data/games/4293970eeb0312f8f876cc5ac7ff247c024fb888fd77213fefe6faf8ca8cedd1/record.bin",
+    "/media/fat/fogcast/core-data/media/6ed23aed249fbbb039aced01450c933d077dd82362bd3b37c48b19d9e6f3d491",
+    "/media/fat/fogcast/core-data/media/96829cb6ba2710b20f94d0075c10f71e9b7ee2d60f8a9a1da640de376c9b65ce",
+    "/media/fat/fogcast/core-data/media/96829cb6ba2710b20f94d0075c10f71e9b7ee2d60f8a9a1da640de376c9b65ce/chunk-1b379a54bf0b212a9fa3722105260e7275058b6f145efe3975f12d167ca12160",
+    "/media/fat/fogcast/core-data/media/96829cb6ba2710b20f94d0075c10f71e9b7ee2d60f8a9a1da640de376c9b65ce/chunk-1e766829a24ba007718a8e62dc237a0e7858a2784f38b614f5b7ccbad3e9794b",
+    "/media/fat/fogcast/core-data/media/96829cb6ba2710b20f94d0075c10f71e9b7ee2d60f8a9a1da640de376c9b65ce/chunk-1f9161a00a464f927fe568e50e8724f32b7a1b169a068b878575f554b804a3a8",
+    "/media/fat/fogcast/core-data/media/96829cb6ba2710b20f94d0075c10f71e9b7ee2d60f8a9a1da640de376c9b65ce/chunk-c90dca5ee278166ceb552113a3d1608f15122cb4c1975ff6efd65f1643247241",
+    "/media/fat/fogcast/core-data/media/96829cb6ba2710b20f94d0075c10f71e9b7ee2d60f8a9a1da640de376c9b65ce/record.bin",
+    "/media/fat/fogcast/disk-images/24e5e938fc4e7fe1e1937f16662fc91d06847e52f13dc7fde7e5c024090f80f2.img"
+   ]
+  },
+  {
+   "run": "g1409-k4",
+   "kit": "B",
+   "claimed": "2026-11-02 14:00:10 EET",
+   "released": "2026-11-02 14:04:50 EET",
+   "before": "## 13:55 EET KIT B FREE \u2014 Claude pc386 games PR fes#1409 g1409-k3 done, baseline restored",
+   "settings": [],
+   "loads": [
+    {
+     "game": "g1409-k4-scrub",
+     "disk": "scrub.img",
+     "at": "2026-11-02 14:00:20"
+    },
+    {
+     "game": "g1409-k4-wolf3d",
+     "disk": "g-wolf3d.img",
+     "at": "2026-11-02 14:01:47"
+    }
+   ],
+   "kit_paths_left": [
+    "/media/fat/fogcast/core-data/games/6b56d0ab5a0ceaa8c5eb2b357deb5076689fdc58cd7c1f851ffb5a45ea305942",
+    "/media/fat/fogcast/core-data/games/6b56d0ab5a0ceaa8c5eb2b357deb5076689fdc58cd7c1f851ffb5a45ea305942/record.bin",
+    "/media/fat/fogcast/core-data/games/ecbdca4b661f32c6dbf68f54cb08232bbdc7dd00739a4b784dc8c062ae430fbd",
+    "/media/fat/fogcast/core-data/games/ecbdca4b661f32c6dbf68f54cb08232bbdc7dd00739a4b784dc8c062ae430fbd/record.bin",
+    "/media/fat/fogcast/core-data/media/19118b3cd930933ff22d0c542df550fca1b67ca352b6798f8eb952a87e1133f9",
+    "/media/fat/fogcast/core-data/media/35b7e75ff05a3035eb7304e86d494ccaab41aa23f972ef5c1e3091b2ba7ddec9",
+    "/media/fat/fogcast/core-data/media/35b7e75ff05a3035eb7304e86d494ccaab41aa23f972ef5c1e3091b2ba7ddec9/chunk-7bc13ec4b97d0458d131cfdfe020ae5fb45e02fdf3fa440a2e90213237e5871b",
+    "/media/fat/fogcast/core-data/media/35b7e75ff05a3035eb7304e86d494ccaab41aa23f972ef5c1e3091b2ba7ddec9/chunk-998ba778c55a949502920b6caf31e5f4660965d29f855ca6e4d943a18d3b8e43",
+    "/media/fat/fogcast/core-data/media/35b7e75ff05a3035eb7304e86d494ccaab41aa23f972ef5c1e3091b2ba7ddec9/chunk-99c2fb86d69c3ada6f1cc5c2f12c4e4aa52c55329b940fc405c89d390367d223",
+    "/media/fat/fogcast/core-data/media/35b7e75ff05a3035eb7304e86d494ccaab41aa23f972ef5c1e3091b2ba7ddec9/chunk-a819178e9dca8c4101d35c9009266d203f6d85653e92384b005ea0d7d615029a",
+    "/media/fat/fogcast/core-data/media/35b7e75ff05a3035eb7304e86d494ccaab41aa23f972ef5c1e3091b2ba7ddec9/chunk-ddb77633d2c625649cdda7726a761c266226e666a566d9695fa4d4396b85e282",
+    "/media/fat/fogcast/core-data/media/35b7e75ff05a3035eb7304e86d494ccaab41aa23f972ef5c1e3091b2ba7ddec9/chunk-e4150d2b400b7ebd463857ae4bf3d3bb0a821975c857a8155b2d4420ccbabbc7",
+    "/media/fat/fogcast/core-data/media/35b7e75ff05a3035eb7304e86d494ccaab41aa23f972ef5c1e3091b2ba7ddec9/record.bin",
+    "/media/fat/fogcast/disk-images/e47fbab15adf26d1007c387c7cde02b9f609e9f5946d3aaf419c4cfd5d2f1c9e.img"
+   ]
+  },
+  {
+   "run": "g1409-k5",
+   "kit": "B",
+   "claimed": "2026-11-02 14:06:29 EET",
+   "released": "2026-11-02 14:13:30 EET",
+   "before": "## 14:04 EET KIT B FREE \u2014 Claude pc386 games PR fes#1409 g1409-k4 done, baseline restored",
+   "settings": [],
+   "loads": [
+    {
+     "game": "g1409-k5-scrub",
+     "disk": "scrub.img",
+     "at": "2026-11-02 14:06:39"
+    },
+    {
+     "game": "g1409-k5-ultima6",
+     "disk": "g-ultima6.img",
+     "at": "2026-11-02 14:08:06"
+    }
+   ],
+   "kit_paths_left": [
+    "/media/fat/fogcast/core-data/games/98219ffe27180cd9bd7effd690b3f09e2c959a44e535c59e712a0157610506bb",
+    "/media/fat/fogcast/core-data/games/98219ffe27180cd9bd7effd690b3f09e2c959a44e535c59e712a0157610506bb/record.bin",
+    "/media/fat/fogcast/core-data/games/b3274c78c5d3a5feb8ccac312e2d78339d86792cadc13837f1c0dd4c7fc51a48",
+    "/media/fat/fogcast/core-data/games/b3274c78c5d3a5feb8ccac312e2d78339d86792cadc13837f1c0dd4c7fc51a48/record.bin",
+    "/media/fat/fogcast/core-data/media/7d9e95a9abda1a62cc758d5d0519638d4a0e10f507994292979bdc9cbaf8d947",
+    "/media/fat/fogcast/core-data/media/7d9e95a9abda1a62cc758d5d0519638d4a0e10f507994292979bdc9cbaf8d947/chunk-1c497e4b65c957fa2c8b87a4d17ea70d9493d6753d294ac9e63d9af85e0fc9ac",
+    "/media/fat/fogcast/core-data/media/7d9e95a9abda1a62cc758d5d0519638d4a0e10f507994292979bdc9cbaf8d947/chunk-27c736fe55d6e4c5a0423cc15bec7878aceb8fdf131415a6650829f2df945965",
+    "/media/fat/fogcast/core-data/media/7d9e95a9abda1a62cc758d5d0519638d4a0e10f507994292979bdc9cbaf8d947/chunk-a075332a03b4a860e0fcd9de7c2255f6dbef90827ceee046789ce53885d9d898",
+    "/media/fat/fogcast/core-data/media/7d9e95a9abda1a62cc758d5d0519638d4a0e10f507994292979bdc9cbaf8d947/chunk-a412aaf9b04b941cf5a6b68ab3171be80c0c1b881d9bd7570b6ef312f2162c98",
+    "/media/fat/fogcast/core-data/media/7d9e95a9abda1a62cc758d5d0519638d4a0e10f507994292979bdc9cbaf8d947/chunk-b0427e4210b86eb451bfed18157d2dc3171c231acbc0dea592db07da085b125c",
+    "/media/fat/fogcast/core-data/media/7d9e95a9abda1a62cc758d5d0519638d4a0e10f507994292979bdc9cbaf8d947/chunk-e6dad2123693e98edba1a3fe873bf30802a5f540b445227a55e3f2957f8f28d8",
+    "/media/fat/fogcast/core-data/media/7d9e95a9abda1a62cc758d5d0519638d4a0e10f507994292979bdc9cbaf8d947/record.bin",
+    "/media/fat/fogcast/core-data/media/800cc1cc9a5bbe848d5ae86290e70b63114cbfc7ef2a741a7b7527bfaf40696e",
+    "/media/fat/fogcast/disk-images/7d097cd7ecaebd2f07d5e9c2cc41a52dd8fefdb2be7a2ce46040ae2d0d7bcee3.img"
+   ]
+  },
+  {
+   "run": "g1409-k6",
+   "kit": "B",
+   "claimed": "2026-11-02 14:14:06 EET",
+   "released": "2026-11-02 14:24:50 EET",
+   "before": "## 14:13 EET KIT B FREE \u2014 Claude pc386 games PR fes#1409 g1409-k5 done, baseline restored",
+   "settings": [
+    {
+     "game": "g1409-k6-ultima6",
+     "machine": {
+      "preset": 1,
+      "frequency": 0,
+      "code_profile": 0,
+      "turbo": 0,
+      "sb_base": 544,
+      "sb_irq": 7,
+      "sb_dma": 1
+     }
+    }
+   ],
+   "loads": [
+    {
+     "game": "g1409-k6-scrub",
+     "disk": "scrub.img",
+     "at": "2026-11-02 14:14:16"
+    },
+    {
+     "game": "g1409-k6-ultima6",
+     "disk": "g-ultima6.img",
+     "at": "2026-11-02 14:15:26"
+    }
+   ],
+   "kit_paths_left": [
+    "/media/fat/fogcast/core-data/games/4fce816d33b2305d4730a25b628a0cd1d9551abffd98ff181106e5c2664f25bc",
+    "/media/fat/fogcast/core-data/games/4fce816d33b2305d4730a25b628a0cd1d9551abffd98ff181106e5c2664f25bc/record.bin",
+    "/media/fat/fogcast/core-data/games/9f48e058d0c8eff329ba1992b1d3cc6857dbf162660117f6acfdf5729daa802e",
+    "/media/fat/fogcast/core-data/games/9f48e058d0c8eff329ba1992b1d3cc6857dbf162660117f6acfdf5729daa802e/record.bin",
+    "/media/fat/fogcast/core-data/media/0decbf0627c09d622aee25b97ff2340fe24eba7788b32fba7ec4723a60c17747",
+    "/media/fat/fogcast/core-data/media/846080856665ee1a85ca06fd4daa7400492b64f7054168264985411e6d53e821",
+    "/media/fat/fogcast/core-data/media/846080856665ee1a85ca06fd4daa7400492b64f7054168264985411e6d53e821/chunk-1c497e4b65c957fa2c8b87a4d17ea70d9493d6753d294ac9e63d9af85e0fc9ac",
+    "/media/fat/fogcast/core-data/media/846080856665ee1a85ca06fd4daa7400492b64f7054168264985411e6d53e821/chunk-27c736fe55d6e4c5a0423cc15bec7878aceb8fdf131415a6650829f2df945965",
+    "/media/fat/fogcast/core-data/media/846080856665ee1a85ca06fd4daa7400492b64f7054168264985411e6d53e821/chunk-5261512e0048f0836a2a3419af2209480f6213a68983f2a6cb781ae3915cf64c",
+    "/media/fat/fogcast/core-data/media/846080856665ee1a85ca06fd4daa7400492b64f7054168264985411e6d53e821/chunk-56894bfc239d13d178016b6b70826eb8a0600f8f1160730735c96f3fc286ca46",
+    "/media/fat/fogcast/core-data/media/846080856665ee1a85ca06fd4daa7400492b64f7054168264985411e6d53e821/chunk-83232ae65a76fda122d7ee245674aab60f4148cb1e911f45672939c6b5c317ea",
+    "/media/fat/fogcast/core-data/media/846080856665ee1a85ca06fd4daa7400492b64f7054168264985411e6d53e821/chunk-a075332a03b4a860e0fcd9de7c2255f6dbef90827ceee046789ce53885d9d898",
+    "/media/fat/fogcast/core-data/media/846080856665ee1a85ca06fd4daa7400492b64f7054168264985411e6d53e821/record.bin"
+   ]
+  },
+  {
+   "run": "g1409-k7",
+   "kit": "B",
+   "claimed": "2026-11-02 14:25:09 EET",
+   "released": "2026-11-02 15:06:52 EET",
+   "before": "## 14:24 EET KIT B FREE \u2014 Claude pc386 games PR fes#1409 g1409-k6 done, baseline restored",
+   "settings": [
+    {
+     "game": "g1409-k7-u7bg",
+     "machine": {
+      "preset": 3,
+      "frequency": 0,
+      "code_profile": 0,
+      "turbo": 0,
+      "sb_base": 544,
+      "sb_irq": 7,
+      "sb_dma": 1
+     }
+    }
+   ],
+   "loads": [
+    {
+     "game": "g1409-k7-scrub",
+     "disk": "scrub.img",
+     "at": "2026-11-02 14:25:18"
+    },
+    {
+     "game": "g1409-k7-u7bg",
+     "disk": "g-u7bg.img",
+     "at": "2026-11-02 14:26:43"
+    }
+   ],
+   "kit_paths_left": [
+    "/media/fat/fogcast/core-data/games/0cd73c481be03b8686d6e2d1188e730a5ba5e609dd535808c8f9aeeb9a7117f9",
+    "/media/fat/fogcast/core-data/games/0cd73c481be03b8686d6e2d1188e730a5ba5e609dd535808c8f9aeeb9a7117f9/record.bin",
+    "/media/fat/fogcast/core-data/games/3bb5421aadac3731670ddcf7618bcba4284cc8a3de4d936f3728ddb8e1c70293",
+    "/media/fat/fogcast/core-data/games/3bb5421aadac3731670ddcf7618bcba4284cc8a3de4d936f3728ddb8e1c70293/record.bin",
+    "/media/fat/fogcast/core-data/media/339f75e8cd5fa0fbaabf3cf0df760eff94f49d24c58cd730dede1b6b39ed7167",
+    "/media/fat/fogcast/core-data/media/339f75e8cd5fa0fbaabf3cf0df760eff94f49d24c58cd730dede1b6b39ed7167/chunk-213bd91178041470db581a052aa6b77b74b9b00a6f94c63eab9b272e008c5a7f",
+    "/media/fat/fogcast/core-data/media/339f75e8cd5fa0fbaabf3cf0df760eff94f49d24c58cd730dede1b6b39ed7167/chunk-2b3fb230e553a059a745eb44cadfa108ce3ef21f37d54a71a82807f0f91298ee",
+    "/media/fat/fogcast/core-data/media/339f75e8cd5fa0fbaabf3cf0df760eff94f49d24c58cd730dede1b6b39ed7167/chunk-baf0289fff8a1db44499252f1ff57c9aae57f9cd3a84ec0815afcb79156a3e90",
+    "/media/fat/fogcast/core-data/media/339f75e8cd5fa0fbaabf3cf0df760eff94f49d24c58cd730dede1b6b39ed7167/chunk-f2a2a28564e369c8639f7ce4bea6eacfb723ba7e1d1d1048a4162605d4099726",
+    "/media/fat/fogcast/core-data/media/339f75e8cd5fa0fbaabf3cf0df760eff94f49d24c58cd730dede1b6b39ed7167/record.bin",
+    "/media/fat/fogcast/core-data/media/f67fc7b4a981b728d1937145a5d22b682b3031556aa1e63bb943d747799de76d",
+    "/media/fat/fogcast/disk-images/bae385689b1b5add1272579ae78f251cd4fedb8346de2d658101ff5891b00a2b.img"
+   ]
+  },
+  {
+   "run": "g1409-k8",
+   "kit": "B",
+   "claimed": "2026-11-02 15:11:18 EET",
+   "released": "2026-11-02 15:15:56 EET",
+   "before": "## 15:06 EET KIT B FREE \u2014 Claude pc386 games PR fes#1409 g1409-k7 done, baseline restored",
+   "settings": [],
+   "loads": [
+    {
+     "game": "g1409-k8-scrub",
+     "disk": "scrub.img",
+     "at": "2026-11-02 15:11:28"
+    },
+    {
+     "game": "g1409-k8-u7si",
+     "disk": "g-u7si.img",
+     "at": "2026-11-02 15:12:50"
+    },
+    {
+     "game": "g1409-k8-u7si-kbc",
+     "disk": "g-u7si-kbc.img",
+     "at": "2026-11-02 15:14:03"
+    }
+   ],
+   "kit_paths_left": [
+    "/media/fat/fogcast/core-data/games/4f0f54f3d7fc121833fdbe8036cac4087803ea49d0d8edc7142fcb607cd04b87",
+    "/media/fat/fogcast/core-data/games/4f0f54f3d7fc121833fdbe8036cac4087803ea49d0d8edc7142fcb607cd04b87/record.bin",
+    "/media/fat/fogcast/core-data/games/96be5f10ee55b0c8d7565a4145941cbfa69baab7f23672d9e10dbfa31a4c0a10",
+    "/media/fat/fogcast/core-data/games/96be5f10ee55b0c8d7565a4145941cbfa69baab7f23672d9e10dbfa31a4c0a10/record.bin",
+    "/media/fat/fogcast/core-data/games/b55fe9ce2cdd31554f3321732c1cd97961796559b6648fa9eba4dd35058060eb",
+    "/media/fat/fogcast/core-data/games/b55fe9ce2cdd31554f3321732c1cd97961796559b6648fa9eba4dd35058060eb/record.bin",
+    "/media/fat/fogcast/core-data/media/0caf15553c43ed0fc0ee33cd5fa1198bc3d0beac805aa305b87bdf252595c17e",
+    "/media/fat/fogcast/core-data/media/0caf15553c43ed0fc0ee33cd5fa1198bc3d0beac805aa305b87bdf252595c17e/chunk-2db012bb895cb96b7e9d3c093624500458c322f7d8341bcefdf75e4de0df2ca2",
+    "/media/fat/fogcast/core-data/media/0caf15553c43ed0fc0ee33cd5fa1198bc3d0beac805aa305b87bdf252595c17e/chunk-4bbe00d1cb7fb6188ef9edb4727ae8940f79fc301789a40aafc2c42952cb6670",
+    "/media/fat/fogcast/core-data/media/0caf15553c43ed0fc0ee33cd5fa1198bc3d0beac805aa305b87bdf252595c17e/chunk-5163d17ea03d4ab245768910eb185b72280646997e867b7200650a1c3e649be7",
+    "/media/fat/fogcast/core-data/media/0caf15553c43ed0fc0ee33cd5fa1198bc3d0beac805aa305b87bdf252595c17e/chunk-904269a19d4f529ff347d7ae76c21fc296171490ff08083637e1b25052e1bfa4",
+    "/media/fat/fogcast/core-data/media/0caf15553c43ed0fc0ee33cd5fa1198bc3d0beac805aa305b87bdf252595c17e/chunk-9797c95063756c7d170035ae907220b2913267076a4b23068a9c4f3086bf9342",
+    "/media/fat/fogcast/core-data/media/0caf15553c43ed0fc0ee33cd5fa1198bc3d0beac805aa305b87bdf252595c17e/record.bin",
+    "/media/fat/fogcast/core-data/media/393ec5998f032d615a0d1ffd029b375d5562486254e02783f122d6434ce6b2d4",
+    "/media/fat/fogcast/core-data/media/9249741684c4eb17860d0c485cbaf3b5377acbf168d08dffd0bdf40d9ca6ee79",
+    "/media/fat/fogcast/core-data/media/9249741684c4eb17860d0c485cbaf3b5377acbf168d08dffd0bdf40d9ca6ee79/chunk-0d2c1769acb0323d8dbb1a0d36edd2fc1e008fe17d63a6d2d7c518cd25e52d56",
+    "/media/fat/fogcast/core-data/media/9249741684c4eb17860d0c485cbaf3b5377acbf168d08dffd0bdf40d9ca6ee79/chunk-5163d17ea03d4ab245768910eb185b72280646997e867b7200650a1c3e649be7",
+    "/media/fat/fogcast/core-data/media/9249741684c4eb17860d0c485cbaf3b5377acbf168d08dffd0bdf40d9ca6ee79/chunk-aada50b81e603bd7c3ced2c69a2f07092a5352c17109d75f25d8b7ea4f2ba674",
+    "/media/fat/fogcast/core-data/media/9249741684c4eb17860d0c485cbaf3b5377acbf168d08dffd0bdf40d9ca6ee79/chunk-dc1f327387ac40c32f31060427800ca74f73bc1766b7c69cc9bb0ac9eedefb11",
+    "/media/fat/fogcast/core-data/media/9249741684c4eb17860d0c485cbaf3b5377acbf168d08dffd0bdf40d9ca6ee79/chunk-f9bed31a8834ad59ef9522b0f2b5fcb1f58fc2da1df491b854f6e836be1f138f",
+    "/media/fat/fogcast/core-data/media/9249741684c4eb17860d0c485cbaf3b5377acbf168d08dffd0bdf40d9ca6ee79/record.bin",
+    "/media/fat/fogcast/disk-images/31442dc102872e3ec965fec03c4d29b241d85962165e0de1823fa3abf8e38550.img",
+    "/media/fat/fogcast/disk-images/b0c722fb4e420b9b3e2ee3efd07fdcb5d80fb9bdaa79fbdb05ec7a8c2d9fbf6b.img"
+   ]
+  },
+  {
+   "run": "g1409-k9",
+   "kit": "B",
+   "claimed": "2026-11-02 15:18:17 EET",
+   "released": "2026-11-02 15:26:55 EET",
+   "before": "## 15:17 EET KIT B FREE \u2014 Claude pc386 games PR fes#1409 g1409-clean (disk-image cleanup) done, baseline unchanged",
+   "settings": [],
+   "loads": [
+    {
+     "game": "g1409-k9-scrub",
+     "disk": "scrub.img",
+     "at": "2026-11-02 15:18:43"
+    },
+    {
+     "game": "g1409-k9-u7si-max6144",
+     "disk": "g-u7si-max6144.img",
+     "at": "2026-11-02 15:20:04"
+    },
+    {
+     "game": "g1409-k9-scrub2",
+     "disk": "scrub.img",
+     "at": "2026-11-02 15:23:27"
+    },
+    {
+     "game": "g1409-k9-u7si-max2048",
+     "disk": "g-u7si-max2048.img",
+     "at": "2026-11-02 15:24:49"
+    }
+   ],
+   "kit_paths_left": [
+    "/media/fat/fogcast/core-data/games/507a077eacbfb83b3c3a1ab5ea16eb2e29cf68d412bad25909901405d7b50a39",
+    "/media/fat/fogcast/core-data/games/507a077eacbfb83b3c3a1ab5ea16eb2e29cf68d412bad25909901405d7b50a39/record.bin",
+    "/media/fat/fogcast/core-data/games/5b0e2377381b6e3bfc0962bd47dd249e54307acd06c88d12db19970061506ffa",
+    "/media/fat/fogcast/core-data/games/5b0e2377381b6e3bfc0962bd47dd249e54307acd06c88d12db19970061506ffa/record.bin",
+    "/media/fat/fogcast/core-data/games/b5263e6ff1d8cbec92bf30fe5dc2c9e106f9a166d2734a896315e16a851bc26b",
+    "/media/fat/fogcast/core-data/games/b5263e6ff1d8cbec92bf30fe5dc2c9e106f9a166d2734a896315e16a851bc26b/record.bin",
+    "/media/fat/fogcast/core-data/games/eea0e526d1c75ef6f7694efbbb25d975514e6bf5248ec073034baca31cd56115",
+    "/media/fat/fogcast/core-data/games/eea0e526d1c75ef6f7694efbbb25d975514e6bf5248ec073034baca31cd56115/record.bin",
+    "/media/fat/fogcast/core-data/media/2790bfcd53407e54b38ee862caa60b6a8caca201660fbfa452800e34d1e49d7e",
+    "/media/fat/fogcast/core-data/media/2790bfcd53407e54b38ee862caa60b6a8caca201660fbfa452800e34d1e49d7e/chunk-4585edaf168747b50c2288eea36640ecd335c341efcf0601f2aa523a730e7657",
+    "/media/fat/fogcast/core-data/media/2790bfcd53407e54b38ee862caa60b6a8caca201660fbfa452800e34d1e49d7e/chunk-50a5655dab2338d93dcc8c3ec92a6202e4a683abd844b94e699d7ebc2d372f99",
+    "/media/fat/fogcast/core-data/media/2790bfcd53407e54b38ee862caa60b6a8caca201660fbfa452800e34d1e49d7e/chunk-5163d17ea03d4ab245768910eb185b72280646997e867b7200650a1c3e649be7",
+    "/media/fat/fogcast/core-data/media/2790bfcd53407e54b38ee862caa60b6a8caca201660fbfa452800e34d1e49d7e/chunk-68942f4ea75a1683575bae20eabff30faec60a2dc1d9c657e4559b6a22a825b5",
+    "/media/fat/fogcast/core-data/media/2790bfcd53407e54b38ee862caa60b6a8caca201660fbfa452800e34d1e49d7e/chunk-f9bed31a8834ad59ef9522b0f2b5fcb1f58fc2da1df491b854f6e836be1f138f",
+    "/media/fat/fogcast/core-data/media/2790bfcd53407e54b38ee862caa60b6a8caca201660fbfa452800e34d1e49d7e/record.bin",
+    "/media/fat/fogcast/core-data/media/47c49302de8dc516cb07c831babaf79db3351edf086d0596a44b3d244b22d51a",
+    "/media/fat/fogcast/core-data/media/6edf395a7ce3a1f9d47ef0bc007c115e10c190425d7af0e8a7ad653e10c7daeb",
+    "/media/fat/fogcast/core-data/media/b65c669102b451b3eeb2128ba586e9c0fa9c5bd2452c9245ab0efaea5c731ba1",
+    "/media/fat/fogcast/core-data/media/b65c669102b451b3eeb2128ba586e9c0fa9c5bd2452c9245ab0efaea5c731ba1/chunk-0d2c1769acb0323d8dbb1a0d36edd2fc1e008fe17d63a6d2d7c518cd25e52d56",
+    "/media/fat/fogcast/core-data/media/b65c669102b451b3eeb2128ba586e9c0fa9c5bd2452c9245ab0efaea5c731ba1/chunk-5163d17ea03d4ab245768910eb185b72280646997e867b7200650a1c3e649be7",
+    "/media/fat/fogcast/core-data/media/b65c669102b451b3eeb2128ba586e9c0fa9c5bd2452c9245ab0efaea5c731ba1/chunk-9c58c4666fdae64074955ccb223fe76824f7234e80ab6029eb455749ab608c25",
+    "/media/fat/fogcast/core-data/media/b65c669102b451b3eeb2128ba586e9c0fa9c5bd2452c9245ab0efaea5c731ba1/chunk-df89745d938abceb9842f1d410047130f943aeec0fd417ec2a126fb260f0519c",
+    "/media/fat/fogcast/core-data/media/b65c669102b451b3eeb2128ba586e9c0fa9c5bd2452c9245ab0efaea5c731ba1/chunk-f9bed31a8834ad59ef9522b0f2b5fcb1f58fc2da1df491b854f6e836be1f138f",
+    "/media/fat/fogcast/core-data/media/b65c669102b451b3eeb2128ba586e9c0fa9c5bd2452c9245ab0efaea5c731ba1/record.bin",
+    "/media/fat/fogcast/disk-images/41f37d3df711981b65c5a4a5ae983c27ba49802f9a9cd1690126be97ba32b1cb.img",
+    "/media/fat/fogcast/disk-images/8538495aedc52a76db41cfbc56bbf89b50e0f84a99addbf6eeba0a788b98c5bf.img",
+    "/media/fat/fogcast/disk-images/fb5a4580ffe01041c8a77655faf0cb35bfadd97777ca23b6cb57795d05c731e6.img"
+   ]
+  },
+  {
+   "run": "g1409-clean",
+   "kit": "B",
+   "claimed": "2026-11-02 15:16:51 EET",
+   "released": "2026-11-02 15:17:01 EET",
+   "before": "## 15:15 EET KIT B FREE \u2014 Claude pc386 games PR fes#1409 g1409-k8 done, baseline restored",
+   "settings": [],
+   "loads": [],
+   "kit_paths_left": [
+    "/media/fat/fogcast/disk-images/a332efffe161c21eb45e820bb49ff6d9bc3f7e121fa0e90424704cfd35b9e450.img",
+    "/media/fat/fogcast/disk-images/e50b09daf2d84c40d85f20b7643f803178a434f42bb12b3e5b7fb6804de73df1.img",
+    "/media/fat/fogcast/disk-images/fa551de5c705d01f8244dbc3bd36ae8e27f8f01bd76a046f86235f5f1c6d547c.img"
+   ],
+   "staged_fillers": [
+    "40d3c037893eeabfa6dd39899c0fc97673fcce902dc025021733adf88a7461f0",
+    "fa551de5c705d01f8244dbc3bd36ae8e27f8f01bd76a046f86235f5f1c6d547c",
+    "e50b09daf2d84c40d85f20b7643f803178a434f42bb12b3e5b7fb6804de73df1",
+    "a332efffe161c21eb45e820bb49ff6d9bc3f7e121fa0e90424704cfd35b9e450"
+   ],
+   "probes": {
+    "bae385689b1b5add1272579ae78f251cd4fedb8346de2d658101ff5891b00a2b": false,
+    "b0c722fb4e420b9b3e2ee3efd07fdcb5d80fb9bdaa79fbdb05ec7a8c2d9fbf6b": false,
+    "24e5e938fc4e7fe1e1937f16662fc91d06847e52f13dc7fde7e5c024090f80f2": false,
+    "e47fbab15adf26d1007c387c7cde02b9f609e9f5946d3aaf419c4cfd5d2f1c9e": false,
+    "7d097cd7ecaebd2f07d5e9c2cc41a52dd8fefdb2be7a2ce46040ae2d0d7bcee3": false,
+    "31442dc102872e3ec965fec03c4d29b241d85962165e0de1823fa3abf8e38550": false,
+    "8538495aedc52a76db41cfbc56bbf89b50e0f84a99addbf6eeba0a788b98c5bf": false
+   }
+  },
+  {
+   "run": "g1409-clean2",
+   "kit": "B",
+   "claimed": "2026-11-02 15:31:07 EET",
+   "released": "2026-11-02 15:31:16 EET",
+   "before": "## 15:26 EET KIT B FREE \u2014 Claude pc386 games PR fes#1409 g1409-k9 done, baseline restored",
+   "settings": [],
+   "loads": [],
+   "kit_paths_left": [
+    "/media/fat/fogcast/disk-images/3a98ce08f01f8145df5ae37f7dd2ef08283e2575ba5cf24f31137344e7de9134.img",
+    "/media/fat/fogcast/disk-images/b4c94fef3ac50f404d72ce5e469361110f288107e5cf0b3f5566c2baac09e336.img",
+    "/media/fat/fogcast/disk-images/f597986ece635e26c49905cb89de4afbe0cc6387cbb6c610df00dd8fda44502b.img"
+   ],
+   "staged_fillers": [
+    "3a98ce08f01f8145df5ae37f7dd2ef08283e2575ba5cf24f31137344e7de9134",
+    "b4c94fef3ac50f404d72ce5e469361110f288107e5cf0b3f5566c2baac09e336",
+    "e5ccaf092953d3645391963311eb2c70aac1f9b2bae692b0ae47afa81009ecf0",
+    "f597986ece635e26c49905cb89de4afbe0cc6387cbb6c610df00dd8fda44502b"
+   ],
+   "probes": {
+    "fb5a4580ffe01041c8a77655faf0cb35bfadd97777ca23b6cb57795d05c731e6": false,
+    "41f37d3df711981b65c5a4a5ae983c27ba49802f9a9cd1690126be97ba32b1cb": false,
+    "8538495aedc52a76db41cfbc56bbf89b50e0f84a99addbf6eeba0a788b98c5bf": false,
+    "bae385689b1b5add1272579ae78f251cd4fedb8346de2d658101ff5891b00a2b": false,
+    "b0c722fb4e420b9b3e2ee3efd07fdcb5d80fb9bdaa79fbdb05ec7a8c2d9fbf6b": false,
+    "24e5e938fc4e7fe1e1937f16662fc91d06847e52f13dc7fde7e5c024090f80f2": false,
+    "e47fbab15adf26d1007c387c7cde02b9f609e9f5946d3aaf419c4cfd5d2f1c9e": false,
+    "7d097cd7ecaebd2f07d5e9c2cc41a52dd8fefdb2be7a2ce46040ae2d0d7bcee3": false,
+    "31442dc102872e3ec965fec03c4d29b241d85962165e0de1823fa3abf8e38550": false
+   }
+  }
+ ],
+ "frames": [
+  {
+   "run": "g1409-k1",
+   "grab": "g1409-k1/fr/b07.png",
+   "sha256": "b3589173ebe2fa08c86b20f41f95e65b20fe8e9aedb9c579a78b30d4a369e2e5",
+   "record_file": "kit-k1-boot-fast-a20.png",
+   "on_screen": "FreeDOS boot on the games image: UMBM, HIMEMX \"Fast A20 method used\", FreeCOM, CuteMouse, the prompt."
+  },
+  {
+   "run": "g1409-k1",
+   "grab": "g1409-k1/fr/h23.png",
+   "sha256": "3228bb170a72022abb455da647061c39fd4930bee2d644828ec363620b87bb00",
+   "record_file": null,
+   "on_screen": "The Black Gate new game: the Avatar beside the red moongate in Trinsic, with Iolo's portrait and his opening line.",
+   "note": "game output: not committed"
+  },
+  {
+   "run": "g1409-k1",
+   "grab": "g1409-k1/fr/i17.png",
+   "sha256": "050237f8849cab910bb5ab7f51579046997903b05a07a28a6e1e9ff7fc011013",
+   "record_file": null,
+   "on_screen": "The Black Gate introduction: the Guardian's face speaking, about 70 s in.",
+   "note": "game output: not committed"
+  },
+  {
+   "run": "g1409-k1",
+   "grab": "g1409-k1/fr/i36.png",
+   "sha256": "4248faccbc28f63aafe55be1b099b56ac92e6fab93a5289acbcf311ca9ee542f",
+   "record_file": null,
+   "on_screen": "The Black Gate main menu after the whole introduction: View Introduction, Start New Game, Journey Onward, View Credits.",
+   "note": "game output: not committed"
+  },
+  {
+   "run": "g1409-k1",
+   "grab": "g1409-k1/fr/mem.png",
+   "sha256": "98828e441d6d8222d5cbf1b9dda79e43f04db7da2e033e6f6c266d7065c8c287",
+   "record_file": "kit-k1-mem.png",
+   "on_screen": "FreeDOS MEM on the games image: 573K conventional, 154K upper, 15,360K XMS."
+  },
+  {
+   "run": "g1409-k1",
+   "grab": "g1409-k1/fr/s09.png",
+   "sha256": "4c27ea57cb159f5f499c40abfa93c9f44455fef87bd3579cf7704884554bd42e",
+   "record_file": "kit-k1-scrub.png",
+   "on_screen": "SCRUBX report: each region counted and zeroed, conventional memory nz=4D1B4h before."
+  },
+  {
+   "run": "g1409-k3",
+   "grab": "g1409-k3/fr/dir.png",
+   "sha256": "7e16e91a38ea57432ef9b32889cdece4839136b9eb4d93fb39e0f7884278f0b3",
+   "record_file": null,
+   "on_screen": "Serpent Isle: a second MAINMENU prints \"Serpent Isle requires 1024000 bytes of extended memory! You only have 0 available.\", then a DIR /W of C:\\SERPENT.",
+   "note": "game output: not committed"
+  },
+  {
+   "run": "g1409-k4",
+   "grab": "g1409-k4/fr/p3.png",
+   "sha256": "4bf603c63c59949210b1f8c906f1da7ccc1c1a69ce59765e9c50689bfc7a5003",
+   "record_file": null,
+   "on_screen": "Wolfenstein 3D E1L1 after moving, firing and turning: floor 1, score 0, 3 lives, health 100%, ammo 7.",
+   "note": "game output: not committed"
+  },
+  {
+   "run": "g1409-k4",
+   "grab": "g1409-k4/fr/q2.png",
+   "sha256": "300e68e8e138a6ce3396d3cc53ae328b6a97aadd19228f543280448b81c727e8",
+   "record_file": "kit-k4-mem-after-wolf3d.png",
+   "on_screen": "FreeDOS MEM after Wolfenstein 3D quit: 15,201K XMS free."
+  },
+  {
+   "run": "g1409-k4",
+   "grab": "g1409-k4/fr/w01.png",
+   "sha256": "57a8838cbb5975d2de66cf6e5108b92ff05609e2486cde6fc02261fc36ea7096",
+   "record_file": null,
+   "on_screen": "Wolfenstein 3D sign-on: main memory to 256K, EMS none, XMS all ten bars (1,000K); Mouse and Sound Blaster lit.",
+   "note": "game output: not committed"
+  },
+  {
+   "run": "g1409-k5",
+   "grab": "g1409-k5/fr/after-walk.png",
+   "sha256": "9fa1f1749156332a2891d9659cc8d44f1f9d6519343e473c7e6824924f0659ab",
+   "record_file": null,
+   "on_screen": "Ultima VI at max after 3 s Down and 3 s Right: the Avatar in the room south of the throne room.",
+   "note": "game output: not committed"
+  },
+  {
+   "run": "g1409-k5",
+   "grab": "g1409-k5/fr/start.png",
+   "sha256": "ba063754f8309b55e7c421889d545a3d6df1dc6646cdbf8abf636a3bb0104565",
+   "record_file": null,
+   "on_screen": "Ultima VI at max: the game's start in Lord British's throne room, party of four at 90 HP, gargoyles present.",
+   "note": "game output: not committed"
+  },
+  {
+   "run": "g1409-k6",
+   "grab": "g1409-k6/fr/after-walk.png",
+   "sha256": "5b30a255fe3d3568663bb558feb034b41c224ca766eb32dfbadde9958ed3d068",
+   "record_file": null,
+   "on_screen": "Ultima VI at 286-12 after the same keys: the Avatar about two tiles south and east of the start, still in the throne room.",
+   "note": "game output: not committed"
+  },
+  {
+   "run": "g1409-k6",
+   "grab": "g1409-k6/fr/menu.png",
+   "sha256": "32d393953a3a9fe98477412f04e0010081794130a6d53028eaf660871d76e41c",
+   "record_file": null,
+   "on_screen": "Ultima VI at 286-12: the main menu (Introduction, Create a Character, Transfer, Acknowledgements, Journey Onward).",
+   "note": "game output: not committed"
+  },
+  {
+   "run": "g1409-k7",
+   "grab": "g1409-k7/fr/esc1.png",
+   "sha256": "9f1b72a8ad944e9f6b015eae6217fcb9f459f7e351719b933fd48745242155c4",
+   "record_file": null,
+   "on_screen": "The Black Gate at 386DX-25: the same screen 25 minutes later; the name field reads \"Avatarx\" (typed keys arrive), the cursor is over Return to Menu.",
+   "note": "game output: not committed"
+  },
+  {
+   "run": "g1409-k7",
+   "grab": "g1409-k7/fr/f4.png",
+   "sha256": "073a496c156b1cfd2a047df33886d059ee9da1fb915607d8eaa47eec338817d4",
+   "record_file": null,
+   "on_screen": "The Black Gate at 386DX-25: the character screen (Name, Sex: Male, portrait, Journey Onward, Return to Menu) after the menu click.",
+   "note": "game output: not committed"
+  },
+  {
+   "run": "g1409-k8",
+   "grab": "g1409-k8/fr/a-mainmenu2.png",
+   "sha256": "48e151e9ad32038f1f339262fded109ebb5efe0147f4da96282f101b6940bb32",
+   "record_file": null,
+   "on_screen": "Serpent Isle: MAINMENU run alone on a fresh boot prints \"Type SERPENT to play Serpent Isle.\" and returns to the prompt.",
+   "note": "game output: not committed"
+  },
+  {
+   "run": "g1409-k8",
+   "grab": "g1409-k8/fr/b-boot.png",
+   "sha256": "a16e8d98ae5f20c5ad9bfe1331f1a8b657ffeb08ae43ba7345dc993862a1b869",
+   "record_file": "kit-k8-si-kbc-boot.png",
+   "on_screen": "FreeDOS boot of the /METHOD:KBC diagnostic disk: HIMEMX \"KBC A20 method used\"."
+  },
+  {
+   "run": "g1409-k8",
+   "grab": "g1409-k8/fr/b-mem.png",
+   "sha256": "1849fa25be0d79cc6353174feca1db0c3a4bef2194e9b6f09b0dc70f94a4eae4",
+   "record_file": null,
+   "on_screen": "Serpent Isle, /METHOD:KBC disk, after `serpent`: MEM in the game's loaded text font shows Extended (XMS) 15,360K used, 0K free.",
+   "note": "game output: not committed"
+  },
+  {
+   "run": "g1409-k9",
+   "grab": "g1409-k9/fr/c-boot.png",
+   "sha256": "251bc1a91516c37e640433c4251c4e6ea473ff45fb71a245542d3a552b1a1b11",
+   "record_file": "kit-k9-si-max2048-boot.png",
+   "on_screen": "FreeDOS boot of the /MAX=2048 diagnostic disk: HIMEMX \"Maximum XMS: 2048K\"."
+  }
+ ]
+}
