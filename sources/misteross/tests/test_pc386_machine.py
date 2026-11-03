@@ -95,6 +95,13 @@ class FreedosImageTest(unittest.TestCase):
                     self.assertIn(package_name, spec['packages'])
                     self.assertIn(package_path, lock[package_name]['files'])
 
+    def test_volume_has_dos_format_fat16_clusters(self):
+        # 2 KiB, as DOS FORMAT picks from 16 to 128 MiB; still FAT16 at this size.
+        self.assertEqual(freedos.CLUSTER_SECTORS * 512, 2048)
+        clusters = freedos.PARTITION_SECTORS // freedos.CLUSTER_SECTORS
+        self.assertGreater(clusters, 4084)
+        self.assertLess(clusters, 65525)
+
     def test_geometry_and_partition_addresses(self):
         self.assertEqual(freedos.TOTAL_SECTORS, 65 * 16 * 63)
         self.assertEqual(freedos.chs(freedos.PARTITION_START), bytes((1, 1, 0)))
