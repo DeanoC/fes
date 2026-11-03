@@ -1811,7 +1811,7 @@ Outcome lockstep(fes_i386::Oracle &oracle, OracleBus &bus, Rtl &rtl, const std::
             ++summary.pm_deliveries[int(rtl.top.trace_vector) + (interrupted && !nested && external != 2 ? 256 : 0)];
         if (const uint32_t limit = before.seg[fes_i386::SEG_CS].limit; limit != 0xffff && limit != 0xffffffff) {
             const std::string mode = before.cr0 & 1 ? "pm" : "real";
-            if (!delivered) ++summary.cs_limit[mode + "-retired"];
+            if (event == Rtl::Event::Retired && !delivered) ++summary.cs_limit[mode + "-retired"];
             else if (rtl.top.trace_vector == 13 && !interrupted) ++summary.cs_limit[mode + "-gp"];
         }
         if (event == Rtl::Event::Unimplemented) {
