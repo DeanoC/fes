@@ -66,6 +66,32 @@ void RetainOnIdentityFaultAndUseKernelRetirement() {
  assert(!m.Submit(1,1,100).ok()&&o.published.size()==2);
  o.drain_waits=2;assert(m.Revoke().ok()&&o.reaps==3);
 }
+void FailedPollReportsCachedFaultWithoutRecovery() {
+ for(unsigned kind=0;kind<5;++kind) {
+  Operations o;LinuxDe25Menu m(o.clock,o);Start(m,o);
+  o.poll_error=true;o.state.state|=4;o.state.hardware_status|=FesDe25ScanoutStatusFault;
+  o.state.hardware_errors=0x20;o.state.underflows=7;o.state.outstanding=2;
+  if(kind==1)o.info_error=true;
+  if(kind==2)o.wrong_build=true;
+  if(kind==3)o.state.version=2;
+  if(kind==4)o.poll_error_delay=1000;
+  const auto infos=o.infos,polls=o.polls,closes=o.closes;
+  MenuDisplayInfo info;const auto error=m.ReadInfo(o.clock.now+100,&info);
+  assert(error.code==ErrorCode::io_failed&&error.phase=="menu");
+  assert(error.message.find("DE25 grant poll: Input/output error")==0);
+  if(kind==0) {
+   assert(error.message.find("cached grant generation="+std::to_string(o.state.generation))!=std::string::npos);
+   assert(error.message.find("hardware_errors=0x20 underflows=7 outstanding=2")!=std::string::npos);
+  } else assert(error.message.find("cached grant")==std::string::npos);
+  assert(o.infos==infos+(kind==4?0:1)&&o.polls==polls+1);
+  assert(o.published.size()==2&&o.reaps==0&&o.closes==closes);
+  const auto final_infos=o.infos,final_polls=o.polls;int peer=-1;
+  assert(!m.ReadInfo(o.clock.now+100,&info).ok()&&!m.Share(&peer).ok());
+  assert(!m.Submit(1,1,o.clock.now+100).ok()&&peer==-1);
+  assert(o.infos==final_infos&&o.polls==final_polls&&o.published.size()==2&&o.reaps==0);
+  assert(m.Revoke().ok());
+ }
+}
 void LatePublicationDoesNotAcknowledgeOrReplay() {
  Operations o;LinuxDe25Menu m(o.clock,o);Start(m,o);o.late_publish=true;
  assert(!m.Submit(1,1,o.clock.now+10).ok());const auto count=o.published.size();
@@ -140,4 +166,4 @@ void AllocatedMenuContractRejectsFixedDdrAndOldIdentity() {
 }
 
 }
-int main(){SelectedMenuDriverUsesItsOwnReadiness();AllocatedMenuContractRejectsFixedDdrAndOldIdentity();AbiAndIdentityBeforeExposure();ConfirmBlackAndReuseOneAllocation();WaitForReadyBeforeAnyDma();RetainOnIdentityFaultAndUseKernelRetirement();LatePublicationDoesNotAcknowledgeOrReplay();FailedRetirementRemainsSticky();PeerReferencesCannotBecomeIdleByClosingRuntimeFd();UnsupportedPathsAndBounds();}
+int main(){SelectedMenuDriverUsesItsOwnReadiness();AllocatedMenuContractRejectsFixedDdrAndOldIdentity();AbiAndIdentityBeforeExposure();ConfirmBlackAndReuseOneAllocation();WaitForReadyBeforeAnyDma();RetainOnIdentityFaultAndUseKernelRetirement();FailedPollReportsCachedFaultWithoutRecovery();LatePublicationDoesNotAcknowledgeOrReplay();FailedRetirementRemainsSticky();PeerReferencesCannotBecomeIdleByClosingRuntimeFd();UnsupportedPathsAndBounds();}

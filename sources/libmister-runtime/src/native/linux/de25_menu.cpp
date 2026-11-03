@@ -7,6 +7,7 @@
 #include <cstring>
 #include <fcntl.h>
 #include <limits>
+#include <sstream>
 #include <sys/stat.h>
 #include <time.h>
 #include <unistd.h>
@@ -148,7 +149,23 @@ Error LinuxDe25Menu::Refresh(std::uint64_t d) {
  Error e=Deadline(d);if(!e.ok())return Fault(e);
  if(grant_<0||faulted_)return Failed("DE25 MENU has no healthy allocation");
  De25MenuGrant next{};next.generation=info_.generation;next.version=kAbi;
- e=operations_->Poll(grant_,&next);if(e.ok())e=Deadline(d);if(e.ok())e=Validate(next);
+ e=operations_->Poll(grant_,&next);
+ if(!e.ok()&&clock_.NowMs()<d) {
+  // INFO copies cached metadata without a register read, including after POLL
+  // latches uncertainty. Keep the original failure and never adopt this tuple.
+  De25MenuGrant cached{};
+  const auto diagnostic=operations_->Info(grant_,&cached);
+  if(diagnostic.ok()&&cached.version==kAbi&&cached.generation==info_.generation&&cached.build_id==expected_) {
+   std::ostringstream detail;
+   detail<<"; cached grant generation="<<cached.generation
+    <<" state=0x"<<std::hex<<cached.state<<" hardware_status=0x"<<cached.hardware_status
+    <<" hardware_errors=0x"<<cached.hardware_errors<<std::dec
+    <<" underflows="<<cached.underflows<<" outstanding="<<cached.outstanding;
+   e.message+=detail.str();
+  }
+ }
+ if(e.ok())e=Deadline(d);
+ if(e.ok())e=Validate(next);
  if(!e.ok())return Fault(e);
  info_=next;
  if(exposure_possible_&&info_.displayed_sequence==submitted_) {completed_=submitted_;completed_slot_=submitted_slot_;}

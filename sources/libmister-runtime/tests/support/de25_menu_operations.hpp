@@ -19,10 +19,12 @@ struct Operations final : De25MenuOperations {
  TestClock clock;
  De25MenuGrant state;
  std::uint32_t abi=3;
- int abi_calls=0,allocations=0,polls=0,reaps=0,closes=0,shares=0;
+ int abi_calls=0,allocations=0,infos=0,polls=0,reaps=0,closes=0,shares=0;
  int drain_waits=0,peer_waits=0,peers=0,ready_waits=0,pending_polls=0;
  bool allocated=false,grant_open=false,ready=true,wrong_build=false;
  bool never_complete=false,reap_error=false,late_publish=false;
+ bool poll_error=false,info_error=false;
+ std::uint32_t poll_error_delay=0;
  std::vector<std::pair<std::uint32_t,std::uint32_t>> published;
  Operations(){Reset();}
  void Reset() {
@@ -36,9 +38,14 @@ struct Operations final : De25MenuOperations {
  }
  Error OwnerAbi(std::uint32_t* out) override {++abi_calls;*out=abi;return {};}
  Error Allocate(int* out) override {assert(!allocated&&!grant_open);++allocations;allocated=grant_open=true;Reset();*out=100;return {};}
- Error Info(int fd,De25MenuGrant* out) override {assert(fd==100&&grant_open);*out=state;if(wrong_build)++out->build_id[2];return {};}
+ Error Info(int fd,De25MenuGrant* out) override {
+  assert(fd==100&&grant_open);++infos;
+  if(info_error)return {ErrorCode::io_failed,"cached metadata unavailable","menu"};
+  *out=state;if(wrong_build)++out->build_id[2];return {};
+ }
  Error Poll(int fd,De25MenuGrant* out) override {
   assert(fd==100&&grant_open&&out->version==3&&out->generation==state.generation);++polls;
+  if(poll_error){clock.now+=poll_error_delay;return {ErrorCode::io_failed,"DE25 grant poll: Input/output error","menu"};}
   if(!never_complete&&(state.state&8)&&++pending_polls>=3) {
    state.displayed_sequence=state.accepted_sequence;state.displayed_slot=state.pending_slot;
    state.pending_slot=~std::uint32_t(0);state.pending_sequence=0;state.back_slot=state.displayed_slot^1;

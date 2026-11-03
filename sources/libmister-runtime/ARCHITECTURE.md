@@ -336,6 +336,14 @@ slots1/0), establishing logical sequence0/front0. Later submissions add2 with
 checked exhaustion. ReadInfo reports observed running/pending/completion state;
 there is no synthetic enable register or frame acknowledgement.
 
+A failed POLL preserves its original error. If its deadline still permits,
+INFO reads the kernel's cached grant tuple without MMIO and appends the health
+counters only for the same ABI, generation and build. These values are labelled
+cached; they do not replace a failed snapshot or become accepted runtime state.
+Missing or mismatched diagnostic metadata leaves the original error intact.
+The allocation still faults immediately, with no publication, retry or recovery
+authorized by the diagnostic read.
+
 Its memory clean validates the back slot and rectangles; coherent CPU writes
 are ordered by kernel PUBLISH, without runtime mmap, PL310 calls or copies.
 Clients require the per-frame mapping agreement. Retirement polls only the

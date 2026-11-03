@@ -52,6 +52,9 @@ board's video backend asks the selected core driver for readiness, so MENU
 never reads the computer endpoint. Subsequent publication uses coherent slots
 and actual full-frame completion, without physical addresses, PL310 operations,
 frame copies, a GP mailbox or invented execution commands.
+On a failed grant poll, remaining deadline permitting, the error also reports
+same-generation cached kernel health counters. This read performs no register
+access and neither accepts the failed frame nor clears the fault/retirement gate.
 
 The MENU package declares application1.0 with fixed video1.0, menu-display1.0
 and `fes.fabric.de25-scanout`1.1. It declares no boot-latched HPS DDR window,
