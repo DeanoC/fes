@@ -41,6 +41,9 @@ held. Native entry and cold firmware carry the same opt-in and map. This mode
 cannot use `--ddr-read` or the computer-control modes, and grants no display,
 buffer reuse or ordinary runtime admission.
 
+Nano images omit ELF symbols and DWARF sections to fit the sealed 8 MiB FIT
+loading window. Go's runtime PC/line metadata remains in the native image.
+
 The Nano-only `fpga` program cross-builds a read-only TF-A SDM mailbox probe.
 It reports silicon IDCODE and configuration status, without programming,
 opening bridges or establishing a live package identity. See [SDM](sdm/README.md).

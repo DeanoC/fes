@@ -353,7 +353,7 @@ def build(args):
                 files.update(directory / f for f in p.get(field, []))
     sources = {str(p.relative_to(ROOT)): sha(p) for p in sorted(files)}
     elf = output / (args.program + ".elf")
-    link_flags=f"-T {entry:#x} -R 0x1000"
+    link_flags=f"-s -w -T {entry:#x} -R 0x1000"
     if expected_package_id:link_flags+=' -X main.expectedPackageID='+expected_package_id
     if context is not None:link_flags+=' -X main.expectedBootContext='+base64.b64encode(hps.encode(context)).decode()
     if io_map is not None:link_flags+=' -X main.expectedHPSIO='+base64.b64encode(hps.encode(io_map)).decode()
