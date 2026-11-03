@@ -18,9 +18,11 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/DeanoC/FogCast/catalog"
 	"github.com/DeanoC/FogCast/fogcast"
 	"github.com/DeanoC/FogCast/host"
 	"github.com/DeanoC/FogCast/internal/hostapi"
+	"github.com/DeanoC/FogCast/internal/kithost"
 	"github.com/DeanoC/FogCast/internal/mediasession"
 	"github.com/DeanoC/FogCast/internal/metadata"
 	"github.com/DeanoC/FogCast/internal/remotemedia"
@@ -69,6 +71,9 @@ const (
 )
 
 var errFolderWatchStopTimeout = errors.New("folder-watch stop timed out")
+
+// prepareKitHost is replaced by tests.
+var prepareKitHost = kithost.Prepare
 
 // stopFolderWatch cancels the watch loop and waits up to timeout. A stuck
 // SMB Lstat is not interruptible; Service.Close still waits for an in-flight
@@ -1170,6 +1175,10 @@ func runWithComposer(ctx context.Context, args []string, stdout, stderr io.Write
 	headless := flags.Bool("headless", false, "API-only: do not start local capture or session preview")
 	cpuProfile := flags.String("cpu-profile", "", "write CPU pprof to this file until exit")
 	heapProfile := flags.String("heap-profile", "", "write heap/allocation pprof on SIGUSR1 and at exit")
+	kitMode := flags.Bool("kit", false, "kit host: generate the config from the kit's agent config, keep state on FESDATA3, and drive only the kit's own agent")
+	kitAgentConfig := flags.String("kit-agent-config", kithost.DefaultAgentConfig, "kit mode: the agent's config")
+	kitTemplate := flags.String("kit-template", kithost.DefaultTemplate, "kit mode: the image's catalog config, the template for a first start")
+	kitState := flags.String("kit-state", kithost.DefaultStateRoot, "kit mode: the state root, which must be on FESDATA3")
 	if err := flags.Parse(args); err != nil || flags.NArg() != 0 {
 		return 2
 	}
@@ -1205,6 +1214,21 @@ func runWithComposer(ctx context.Context, args []string, stdout, stderr io.Write
 	// honors absolute state and staging in that file; the canonical user config
 	// keeps default stores when a service overrides HOME.
 	configFile := strings.TrimSpace(*configPath)
+	if *kitMode {
+		if configFile != "" {
+			fmt.Fprintln(stderr, "fogcast-api: -kit generates its own configuration; do not pass -config")
+			return 2
+		}
+		generated, err := prepareKitHost(ctx, kithost.Options{
+			AgentConfig: *kitAgentConfig, Template: *kitTemplate, StateRoot: *kitState,
+			Logf: func(format string, args ...any) { fmt.Fprintf(stderr, format+"\n", args...) },
+		})
+		if err != nil {
+			fmt.Fprintf(stderr, "fogcast-api: %v\n", err)
+			return 2
+		}
+		configFile = generated
+	}
 	var paths fogcast.Paths
 	if configFile != "" {
 		paths, err = fogcast.PathsForConfig(configFile)
@@ -1243,6 +1267,16 @@ func runWithComposer(ctx context.Context, args []string, stdout, stderr io.Write
 		return 1
 	}
 	closers = append(closers, runCloser{label: "service cleanup", close: fogcastService.Close})
+	if *kitMode {
+		// Kit mode turns the folder watch off, so this is its one library scan.
+		if scanner, ok := fogcastService.(interface {
+			Scan(context.Context) (catalog.ScanReport, error)
+		}); ok {
+			if _, err := scanner.Scan(ctx); err != nil {
+				fmt.Fprintf(stderr, "fogcast-api: kit library scan failed: %v\n", err)
+			}
+		}
+	}
 	watchCtx, watchCancel := context.WithCancel(ctx)
 	watchDone := make(chan struct{})
 	go func() {

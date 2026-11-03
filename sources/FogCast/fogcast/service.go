@@ -308,6 +308,7 @@ type Service struct {
 	metadataScope           string
 	watchRoot               string
 	folderWatchInterval     time.Duration
+	folderWatchOff          bool
 	folderWatchFailureMu    sync.Mutex
 	folderWatchFailureCount int
 	catalogAdmission        chan struct{}
@@ -566,6 +567,8 @@ func newService(config Config, paths Paths, store serviceCatalog, scanner servic
 		metadataRoot:             paths.MetadataRoot,
 		metadataScope:            config.Metadata.ClientID,
 		watchRoot:                strings.TrimSpace(config.Library.WatchRoot),
+		folderWatchInterval:      config.FolderWatch.Interval,
+		folderWatchOff:           config.FolderWatch.Off,
 		catalogAdmission:         make(chan struct{}, 1),
 	}
 	if len(service.targets) == 0 {
@@ -1584,7 +1587,13 @@ func (s *Service) retireSupersededLibrariesWithAdmission(ctx context.Context) er
 
 // RunFolderWatch reconciles every configured table-mapped root immediately
 // and then on a poll interval until ctx is cancelled. Polling is SMB-safe.
+// With the watch off ([library] folder_watch_seconds = 0) it only waits for
+// ctx.
 func (s *Service) RunFolderWatch(ctx context.Context) error {
+	if s.folderWatchOff {
+		<-ctx.Done()
+		return nil
+	}
 	interval := s.folderWatchInterval
 	if interval <= 0 {
 		interval = catalog.DefaultFolderWatchInterval
