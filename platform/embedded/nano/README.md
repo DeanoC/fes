@@ -61,9 +61,9 @@ paired vendor/changed C test and recovery cross-build pass; its new board test
 is pending.
 
 `upload.UploadSession` owns one live recovery console and supports repeated
-fixed boot/package uploads before native boot. Keep the same session and
-exclusive console for both files, then use `session.verify` for the fresh
-firmware reread. Each upload still checks the card, prefix, protected recovery
+fixed boot/package/metadata/selection uploads before native boot. Keep the same
+session and exclusive console for all files, then use `session.verify` to
+freshly reread every file after the final write. Each upload still checks the card, prefix, protected recovery
 FIT/manifest, Ethernet identity/link, complete download, SD readback and byte
 comparison. The command-line uploader uses a single session for its one file.
 
@@ -332,9 +332,14 @@ source-bound diagnostic sequencing, not signed or measured secure boot.
 ## Repeatable network upload
 
 `upload.py` defaults to a file-only plan. It supports one fixed diagnostic file
-per invocation, of 1 byte through 8 MiB. The default `--purpose boot` writes
-`FES/UPLOAD.BIN`; `--purpose package` writes only `FES/PKGTEST.BIN` for the
-read-only package probe. Arbitrary destination paths are rejected. For a native candidate, supply the
+per invocation. The default `--purpose boot` writes `FES/UPLOAD.BIN`;
+`--purpose package` writes `FES/PKGTEST.BIN`, each bounded to 8 MiB.
+`--purpose metadata` writes `FES/PROGRAM.JSN` with a 16 KiB bound, and
+`--purpose selection` writes `FES/CORESEL.JSN` with an 8 KiB bound. These limits
+match native retention and selection parsing. Arbitrary destination paths are
+rejected. Use one `UploadSession` for a multi-file update and fresh readbacks;
+separate CLI sessions cannot adopt the preceding live RAM reservations.
+For a native candidate, supply the
 matched build's `build/u-boot.itb`:
 
 ```sh

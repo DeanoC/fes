@@ -28,7 +28,8 @@ from upload_memory import ScratchMemory
 ROOT = Path(__file__).resolve().parents[3]
 BOARD = 'TRWU8CBL'
 LIMIT = MAX_FIT_SIZE
-DESTINATIONS = {'boot':EXPERIMENTAL_FILE, 'package':'FES/PKGTEST.BIN'}
+DESTINATIONS = {'boot':EXPERIMENTAL_FILE, 'package':'FES/PKGTEST.BIN',
+                'metadata':'FES/PROGRAM.JSN', 'selection':'FES/CORESEL.JSN'}
 PREFIX_SIZE = 32768 * 512
 
 
@@ -77,6 +78,11 @@ def destination(purpose):
     return DESTINATIONS[purpose]
 
 
+def payload_limit(purpose):
+    destination(purpose)
+    return {'boot': LIMIT, 'package': LIMIT, 'metadata': 16<<10, 'selection': 8192}[purpose]
+
+
 class UploadSession:
     """One exclusive live console and volatile boot marker own their scratch loads.
 
@@ -103,9 +109,8 @@ class UploadSession:
             self.guard.release()
 
     def upload(self, payload, receipt, *, purpose='boot'):
-        destination(purpose)
-        if not 0 < len(payload) <= LIMIT:
-            raise ValueError('payload must be 1 byte through 8 MiB')
+        if not 0 < len(payload) <= payload_limit(purpose):
+            raise ValueError('payload exceeds the fixed purpose limit')
         payload = bytes(payload)
         with self._operation(receipt):
             self._upload(payload, receipt, purpose)
@@ -114,8 +119,8 @@ class UploadSession:
     def verify(self, payload, receipt, *, purpose='boot'):
         """Freshly read/hash a fixed file already verified in this live session."""
         target = destination(purpose)
-        if not 0 < len(payload) <= LIMIT:
-            raise ValueError('payload must be 1 byte through 8 MiB')
+        if not 0 < len(payload) <= payload_limit(purpose):
+            raise ValueError('payload exceeds the fixed purpose limit')
         expected = (len(payload), sha(bytes(payload)))
         with self._operation(receipt):
             receipt.update(read_only=True, fresh_readback=False, purpose=purpose,
@@ -353,8 +358,9 @@ def main():
     status_file=args.kit_status or authoritative
     if args.execute and (status_file.resolve()!=authoritative.resolve() or not status_file.is_file()):
         parser.error('--execute requires the authoritative de25-TRWU8CBL-STATUS.md in the operator kit-status directory')
-    with args.payload.open('rb') as src: payload=src.read(LIMIT+1)
-    if not 0<len(payload)<=LIMIT: parser.error('payload must be 1 byte through 8 MiB')
+    limit=payload_limit(args.purpose)
+    with args.payload.open('rb') as src: payload=src.read(limit+1)
+    if not 0<len(payload)<=limit: parser.error('payload exceeds the fixed purpose limit')
     kit=load_kit(args.recovery_kit.resolve(strict=True))
     settings(args.host_ip,args.mac.lower())
     output.mkdir(parents=True)
