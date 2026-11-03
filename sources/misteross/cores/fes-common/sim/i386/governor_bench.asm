@@ -300,7 +300,9 @@ start:
     mov es, ax
 
     ; 18: I/O by width and port: word and dword at the 16-bit ATA data port
-    ; (1F0h), at an 8-bit one (300h), and REP INSW and OUTSB.
+    ; (1F0h), REP INSW, a byte there, dwords across it from 1EEh and 1EFh
+    ; (pc386_io splits each into 8-bit cycles and one 16-bit), at an 8-bit
+    ; port (300h), and REP OUTSB.
     mov si, DATA
     mov di, DATA + 0x1000
     mark 36
@@ -312,6 +314,11 @@ start:
     in eax, dx
     mov cx, 4
     rep insw
+    in al, dx
+    mov dx, 0x1ee
+    in eax, dx
+    mov dx, 0x1ef
+    out dx, eax
     mov dx, 0x300
     out dx, ax
     in eax, dx

@@ -9,8 +9,10 @@
 // (0 286, 1 386, 2 486), frequency in 100 kHz, wait states per memory bus
 // cycle and a 16-bit bus. cost_rom_index() is the ROM's address. The ISA
 // bus: an ISA clock is frequency * ISA_STEP / 2**ISA_FRAC reference clocks;
-// an 8-bit I/O cycle ISA_IO8 of them, a 16-bit one (a port16() port)
-// ISA_IO16, and an MMIO access ISA_VGA per 16-bit half.
+// an 8-bit I/O cycle ISA_IO8 of them, a 16-bit one ISA_IO16, and an MMIO
+// access ISA_VGA per 16-bit half. word16() is whether an I/O access of size
+// (0 byte, 1 word, 2 dword) at port has a 16-bit cycle, as pc386_io splits it:
+// a 16-bit port among its bytes with another byte after it.
 package fes_i386_gov_pkg;
     localparam int CLASS_BITS = 8;
     localparam int ROM_ABITS = 10;
@@ -526,8 +528,8 @@ package fes_i386_gov_pkg;
         endcase
     endfunction
 
-    function automatic logic port16(input logic [15:0] port);
-        port16 = port == 16'h01f0;
+    function automatic logic word16(input logic [15:0] port, input logic [1:0] size);
+        word16 = size == 2'd1 ? port == 16'h01f0 : size == 2'd2 ? port >= 16'h01ee && port <= 16'h01f0 : 1'b0;
     endfunction
 
     function automatic logic [ROM_ABITS-1:0] cost_rom_index(input logic [1:0] tbl, input logic [CLASS_BITS-1:0] cls);

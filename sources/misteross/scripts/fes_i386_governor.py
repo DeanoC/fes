@@ -13,7 +13,7 @@ it:
   fes_i386_gov_pkg.sv  classify(), an instruction's class from its
                        fes_i386_pkg::gov_t; preset(), a preset's table,
                        frequency, wait states and bus; the ISA cycles and
-                       port16(), the ports with 16-bit I/O cycles
+                       word16(), whether an I/O access has a 16-bit cycle
   fes_i386_gov_rom.sv  the cost ROM, {column 1, column 0} by {table, class},
                        an M10K-shaped array whose contents are initial
                        assignments, so every flow reads them without a path
@@ -88,6 +88,21 @@ class Isa:
         """A cycle of this many ISA clocks, in reference clocks at frequency
         (100 kHz units), rounded as the RTL rounds it."""
         return (cycle * frequency * self.step + (1 << (self.frac - 1))) >> self.frac
+
+    def cycles(self, port: int, size: int) -> tuple[int, int]:
+        """The 16-bit and 8-bit cycles an I/O access of size (0 byte, 1 word,
+        2 dword) at port takes, as the machine's pc386_io splits it: from its
+        first port up, a 16-bit cycle at a ports16 port with two or more bytes
+        left, else an 8-bit cycle."""
+        words = singles = 0
+        left = 1 << size
+        while left:
+            width = 2 if port in self.ports16 and left >= 2 else 1
+            words += width == 2
+            singles += width == 1
+            port = (port + width) & 0xFFFF
+            left -= width
+        return words, singles
 
 
 @dataclass(frozen=True)
@@ -245,6 +260,10 @@ def _isa(entry) -> Isa:
     if not isinstance(ports, list) or not all(isinstance(p, str) and re.fullmatch(r'[0-9A-F]{1,4}', p) for p in ports):
         raise GovernorError('isa: ports16 lists ports in hex')
     ports16 = tuple(sorted({int(p, 16) for p in ports}))
+    # 4 apart, an access reaches at most one of them, so word16() is whether
+    # one is among its bytes with another after it.
+    if any(not 2 <= p <= 0xFFFE for p in ports16) or any(b - a < 4 for a, b in zip(ports16, ports16[1:])):
+        raise GovernorError('isa: ports16 ports are 2h to FFFEh, at least 4 apart')
     # The smallest fixed point at which every cycle, at every frequency the
     # RTL can hold, rounds as the exact figure does (halves up).
     top = 1 << FREQUENCY_BITS
@@ -277,10 +296,8 @@ def io_charge(table: Table, frequency: int, port: int, size: int) -> int:
     """An I/O access's ISA charge at frequency (100 kHz units), size 0, 1 or 2
     for a byte, word or dword: its cycles less the data sheet's bus cycle."""
     isa = table.isa
-    if port in isa.ports16:
-        clocks = (2 if size == 2 else 1) * isa.clocks(frequency, isa.io16)
-    else:
-        clocks = (1 << size) * isa.clocks(frequency, isa.io8)
+    words, singles = isa.cycles(port, size)
+    clocks = words * isa.clocks(frequency, isa.io16) + singles * isa.clocks(frequency, isa.io8)
     return max(0, clocks - BUS_CLOCKS)
 
 
@@ -344,8 +361,10 @@ def render(table: Table) -> dict[Path, str]:
         '// (0 286, 1 386, 2 486), frequency in 100 kHz, wait states per memory bus',
         '// cycle and a 16-bit bus. cost_rom_index() is the ROM\'s address. The ISA',
         '// bus: an ISA clock is frequency * ISA_STEP / 2**ISA_FRAC reference clocks;',
-        '// an 8-bit I/O cycle ISA_IO8 of them, a 16-bit one (a port16() port)',
-        '// ISA_IO16, and an MMIO access ISA_VGA per 16-bit half.',
+        '// an 8-bit I/O cycle ISA_IO8 of them, a 16-bit one ISA_IO16, and an MMIO',
+        '// access ISA_VGA per 16-bit half. word16() is whether an I/O access of size',
+        '// (0 byte, 1 word, 2 dword) at port has a 16-bit cycle, as pc386_io splits it:',
+        '// a 16-bit port among its bytes with another byte after it.',
         'package fes_i386_gov_pkg;',
         f'    localparam int CLASS_BITS = {bits};',
         f'    localparam int ROM_ABITS = {abits};',
@@ -398,14 +417,15 @@ def render(table: Table) -> dict[Path, str]:
     for p in table.presets:
         package.append(f"            3'd{p.id}: preset = '{{tbl: 2'd{p.table}, frequency: 10'd{p.frequency}, "
                        f"wait_states: 2'd{p.wait}, bus16: 1'b{int(p.bus16)}}};  // {p.name}")
-    ports = ' || '.join(f"port == 16'h{p:04x}" for p in table.isa.ports16) or "1'b0"
+    words = ' || '.join(f"port == 16'h{p:04x}" for p in table.isa.ports16) or "1'b0"
+    dwords = ' || '.join(f"port >= 16'h{p - 2:04x} && port <= 16'h{p:04x}" for p in table.isa.ports16) or "1'b0"
     package += [
         '            default: ;',
         '        endcase',
         '    endfunction',
         '',
-        '    function automatic logic port16(input logic [15:0] port);',
-        f'        port16 = {ports};',
+        '    function automatic logic word16(input logic [15:0] port, input logic [1:0] size);',
+        f"        word16 = size == 2'd1 ? {words} : size == 2'd2 ? {dwords} : 1'b0;",
         '    endfunction',
         '',
         '    function automatic logic [ROM_ABITS-1:0] cost_rom_index(input logic [1:0] tbl, input logic [CLASS_BITS-1:0] cls);',

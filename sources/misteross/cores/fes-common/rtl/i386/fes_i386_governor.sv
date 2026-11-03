@@ -17,9 +17,10 @@
 //
 // The data sheets' counts assume a zero-wait-state local bus, so a uop's I/O
 // and MMIO (the machine's VGA memory) accesses also charge the period AT's
-// ISA bus time (governor.toml, [isa]). An I/O access takes 8-bit cycles, a
-// byte each, or at a port16() port 16-bit ones, a word each; it charges them
-// less the two clocks of the bus cycle its instruction's count holds. An
+// ISA bus time (governor.toml, [isa]). An I/O access takes the cycles the
+// machine's pc386_io splits it into: one 16-bit cycle if word16() says so,
+// and an 8-bit cycle for each of its other bytes; it charges them less the
+// two clocks of the bus cycle its instruction's count holds. An
 // MMIO access takes a VGA cycle per 16-bit half it touches, less what its
 // table count and wait-state charge already give it. Neither goes below
 // zero. A cycle's reference clocks follow the frequency the governor runs
@@ -151,7 +152,8 @@ module fes_i386_governor #(
     // The ISA charges: the I/O access's cycles less the data sheet's bus
     // cycle; an MMIO access's VGA cycles less its bus cycle and per_access.
     logic [9:0]  io_clocks, io_extra;
-    assign io_clocks = fes_i386_gov_pkg::port16(s1_io_port) ? (s1_io_size == 2'd2 ? {1'b0, isa16, 1'b0} : {2'd0, isa16})
+    assign io_clocks = fes_i386_gov_pkg::word16(s1_io_port, s1_io_size)
+                     ? {2'd0, isa16} + (s1_io_size == 2'd2 ? {1'b0, isa8, 1'b0} : 10'd0)
                      : {2'd0, isa8} << s1_io_size;
     assign io_extra = io_clocks > 10'd2 ? io_clocks - 10'd2 : 10'd0;
     function automatic logic [10:0] mmio_extra(input logic [2:0] halves, input logic [7:0] vga, input logic [3:0] local_bus);

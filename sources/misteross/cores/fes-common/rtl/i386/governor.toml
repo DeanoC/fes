@@ -33,11 +33,15 @@
 # period AT's ISA bus time, which the governor charges on top for each I/O
 # access and each MMIO access (the machine's VGA memory, A0000h-BFFFFh).
 #
-#   I/O    an access to a port in ports16 takes one 16-bit cycle per word
-#          (a byte, a word: one; a dword: two); to any other port one 8-bit
-#          cycle per byte, as the AT's bus controller splits it. It is
-#          charged its cycles less the 2 clocks of the bus cycle the I/O
-#          instruction's count holds.
+#   I/O    an access takes the cycles the AT's bus controller splits it
+#          into, as the machine's pc386_io does: from its first port up, a
+#          16-bit cycle at a ports16 port with two or more bytes left, else
+#          an 8-bit cycle per byte. A word at 1F0h is one 16-bit cycle; a
+#          byte there one 8-bit cycle; a dword there a 16-bit cycle and two
+#          8-bit ones (1F2h, 1F3h). ports16 ports are at least 4 apart, so
+#          an access has a 16-bit cycle when one of them is among its bytes
+#          with another byte after it. It is charged its cycles less the 2
+#          clocks of the bus cycle the I/O instruction's count holds.
 #   MMIO   each access takes one VGA cycle per 16-bit half of the bus it
 #          touches (an aligned byte or word one, a dword two, a word at an
 #          odd address two), less what the table and the wait-state charge

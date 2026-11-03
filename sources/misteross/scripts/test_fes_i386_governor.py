@@ -173,6 +173,7 @@ BENCHES: list[tuple[str, list[tuple[int, list[Op]]]]] = [
     # I/O by width against the port: 1F0h takes 16-bit cycles, 300h 8-bit ones.
     ('iobus', loop(1000, [r('mov_r'), io('in_dx', 0x1f0, 1), io('out_dx', 0x1f0, 1), io('in_dx', 0x1f0, 2),
                           r('mov_r'), m('rep_ins', 0), *[element('rep_ins', 1, port=0x1f0, size=1)] * 4,
+                          io('in_dx', 0x1f0, 0), r('mov_r'), io('in_dx', 0x1ee, 2), r('mov_r'), io('out_dx', 0x1ef, 2),
                           r('mov_r'), io('out_dx', 0x300, 1), io('in_dx', 0x300, 2),
                           r('mov_r'), m('rep_outs', 0), *[element('rep_outs', 1, port=0x300)] * 4,
                           r('alu_ri'), r('alu_ri')])),

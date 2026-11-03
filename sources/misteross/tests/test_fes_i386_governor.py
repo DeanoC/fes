@@ -94,9 +94,16 @@ class TableTest(unittest.TestCase):
         self.assertEqual(governor.io_charge(table, 120, 0x61, 0), 7)
         self.assertEqual(governor.io_charge(table, 120, 0x61, 1), 16)       # a word: two byte cycles
         self.assertEqual(governor.io_charge(table, 250, 0x300, 2), 70)      # a dword: four
-        self.assertEqual(governor.io_charge(table, 250, 0x1F0, 1), 7)       # one 16-bit cycle
-        self.assertEqual(governor.io_charge(table, 250, 0x1F0, 2), 16)      # two
-        self.assertEqual(governor.io_charge(table, 10, 0x1F0, 0), 0)        # never below zero
+        # At the ATA data port, as pc386_io splits it: a word one 16-bit
+        # cycle, a byte one 8-bit cycle, a dword a 16-bit cycle and 8-bit
+        # ones at 1F2h and 1F3h; from 1EEh two 8-bit cycles, then 1F0h's.
+        self.assertEqual(governor.io_charge(table, 250, 0x1F0, 1), 7)
+        self.assertEqual(governor.io_charge(table, 250, 0x1F0, 0), 16)
+        self.assertEqual(governor.io_charge(table, 250, 0x1F0, 2), 43)
+        self.assertEqual(governor.io_charge(table, 250, 0x1EE, 2), 43)
+        self.assertEqual(governor.io_charge(table, 250, 0x1ED, 2), 70)      # 1F0h is its last byte
+        self.assertEqual(governor.io_charge(table, 250, 0x1F1, 1), 34)
+        self.assertEqual(governor.io_charge(table, 10, 0x1F0, 1), 0)        # never below zero
         # MMIO: a cycle per 16-bit half, less the bus cycle and the wait states
         # (and a dword's second cycle on a 16-bit bus) already charged.
         self.assertEqual(governor.mmio_charge(table, p286, 120, 1, False), 6)
@@ -106,9 +113,19 @@ class TableTest(unittest.TestCase):
         self.assertEqual([governor.halves(a, n) for a, n in ((0, 1), (1, 1), (0, 2), (1, 2), (0, 4), (2, 4), (1, 4))],
                          [1, 1, 1, 2, 2, 2, 3])
 
-    def test_port16_is_generated(self):
+    def test_word16_is_pc386_io_split(self):
+        # The RTL's word16(): a 16-bit port among an access's bytes with
+        # another byte after it. It has a 16-bit cycle exactly when the
+        # machine's walk over the access does.
+        isa = governor.load().isa
         package = governor.PACKAGE.read_text()
-        self.assertIn("port16 = port == 16'h01f0;", package)
+        self.assertIn("word16 = size == 2'd1 ? port == 16'h01f0 : size == 2'd2 ? port >= 16'h01ee && port <= 16'h01f0 : 1'b0;",
+                      package)
+        for port in [*range(0x1E0, 0x200), 0, 0x61, 0x300, 0xFFFF]:
+            for size in (0, 1, 2):
+                word16 = any(p <= port + (1 << size) - 2 and port <= p for p in isa.ports16) and size > 0
+                with self.subTest(port=hex(port), size=size):
+                    self.assertEqual(isa.cycles(port, size), (int(word16), (1 << size) - 2 * word16))
         self.assertIn(f"ISA_STEP = {governor.load().isa.step.bit_length()}'d{governor.load().isa.step};", package)
 
     def test_bad_isa_is_refused(self):
@@ -117,6 +134,7 @@ class TableTest(unittest.TestCase):
                 (lambda s: s['isa'].pop('vga'), 'isa has'),
                 (lambda s: s['isa'].update(io8=0), 'io8 is 1 to'),
                 (lambda s: s['isa'].update(ports16=['1G0']), 'ports16'),
+                (lambda s: s['isa'].update(ports16=['1F0', '1F2']), 'at least 4 apart'),
                 (lambda s: s['isa'].update(clock_ns=1000, vga=15), 'over 255 clocks')):
             bad = source()
             change(bad)

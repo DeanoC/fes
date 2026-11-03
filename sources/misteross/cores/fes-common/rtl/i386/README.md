@@ -1073,8 +1073,9 @@ Classes that cost the same share a ROM row. Run it after editing the table;
   two, a `st2` store one more; a `nodata` probe none) times the preset's wait
   states, and on a 16-bit bus a dword access's second cycle.
 - **ISA bus time.** Also on every uop WB commits: its I/O access's ISA cycles
-  (8-bit ones a byte each, or at a `port16()` port 16-bit ones a word each)
-  less the data sheet's two-clock bus cycle; and for each of its memory
+  as the machine's `pc386_io` splits it (an 8-bit one a byte, and a 16-bit
+  one where `word16()` finds the ATA data port among its bytes with another
+  after it) less the data sheet's two-clock bus cycle; and for each of its memory
   accesses that is MMIO (`attr` of `wb_mp`, the operand's physical address,
   or of `wb_p0` for a `st2` store) a VGA cycle per 16-bit half it touches,
   less the bus cycle and wait-state charge it already has. Neither goes

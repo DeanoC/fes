@@ -1224,11 +1224,14 @@ slows the CPU without changing any result.
   one three, and an ISA VGA held the CPU on every display memory access, so
   the governor charges that time too ([#1362](https://github.com/DeanoC/fes/issues/1362),
   `governor.toml`'s `[isa]`):
-  - an I/O access takes 8-bit cycles of 720 ns, one a byte, as the AT's bus
-    controller splits it, or at the ATA data port 1F0h 16-bit ones of
-    360 ns, one a word. It charges them less the two clocks of the bus cycle
-    its instruction's count holds. VGA ports are 8-bit ports here, as they
-    were on ISA VGAs;
+  - an I/O access takes the cycles the AT's bus controller splits it into,
+    as the machine's `pc386_io` does: from its first port up, a 16-bit cycle
+    of 360 ns at the ATA data port 1F0h with two or more bytes left, else an
+    8-bit cycle of 720 ns a byte. A word at 1F0h is one 16-bit cycle, a byte
+    there one 8-bit cycle, a dword there a 16-bit cycle and 8-bit ones at
+    1F2h and 1F3h. It charges them less the two clocks of the bus cycle its
+    instruction's count holds. VGA ports are 8-bit ports here, as they were
+    on ISA VGAs;
   - an access to VGA memory (MMIO in the attribute map) takes a 720 ns cycle
     per 16-bit half of the bus it touches, in place of the local bus cycle
     its count and the wait-state charge give it.
