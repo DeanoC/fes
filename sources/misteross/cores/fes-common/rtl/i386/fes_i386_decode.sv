@@ -60,9 +60,9 @@
 // BTC, MOV to CS or to segment register 6 or 7, LEA of a register, C6h/C7h
 // with reg != 0);
 // an instruction over 15 bytes raises #GP(0). Everything else decodes as
-// FAULT_UNIMPLEMENTED. In 16-bit code an instruction
-// whose next EIP passes FFFFh is FAULT_UNIMPLEMENTED too, but D applies
-// that, since only D knows the instruction's EIP (fes_i386_cpu, wrap16).
+// FAULT_UNIMPLEMENTED. An instruction that runs past CS's limit raises
+// #GP(0) ahead of all of these, but D applies that, since only D knows the
+// instruction's EIP (fes_i386_cpu, cs_gp).
 //
 // src1 is always the destination's register: a byte or word result merges
 // into its old value. A LOOP or JCXZ counts in CX or ECX by address size, which

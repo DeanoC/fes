@@ -198,9 +198,9 @@ RET imm16, EBP plus it for LEAVE), and WB writes it beside the main
 destination, which wins when it is ESP too (POP ESP). A 32-bit PUSH or POP of
 a segment register moves ESP by 4 and transfers the selector's word only, as
 the 386EX does. RET and JMP r/m take their target from EX's adder (CS's base
-plus the EIP) and redirect from WB like any taken branch; in 16-bit code a
-target past FFFFh raises #GP(0) at the branch. ENTER runs on the string
-engine (below).
+plus the EIP) and redirect from WB like any taken branch; a target past CS's
+limit raises #GP(0) at the branch (see D). ENTER runs on the string engine
+(below).
 
 **Fixed sequences.** An instruction of several uops, decoded without the
 microcode ROM, keeps its place in `dc` while they issue: as D issues each but
@@ -235,8 +235,12 @@ them, so a uop reads one at WB, or waits in D until its writers retire.
 - RETF and RETF imm16 load the offset into T1 and the selector into T0
   without moving ESP; the jump steps ESP at WB, as it flushes every younger
   uop and nothing needs the new ESP sooner.
-- In 16-bit code an offset past FFFFh raises #GP(0) at the first uop that
-  could write anything: the far jump, or a far call's probe.
+- An offset past CS's limit, the limit CS has before the transfer, as Bochs
+  checks a real-mode one, raises #GP(0) before anything is written
+  (`far_chk`): at a far call's probe, ahead of the probe's own check, as
+  Bochs checks before it pushes; at RETF's jump and IRET's FLAGS read after
+  their own reads, at M1 (`cs_late`), as Bochs pops first. CALL r/m near's
+  push checks T1 the same way, after its own check.
 - Far transfers are taken branches, with no prediction yet: each redirects
   from WB.
 
@@ -500,7 +504,10 @@ every field and routine.
   real-mode limit, FFFFh, a slot faults only by straddling the 64 KiB wrap,
   which one does when they wrap at an odd offset. M1 flags that (`pbad`), and
   M2 raises #SS(0) from the register, before INT writes anything. Under any
-  other SS limit INT is unimplemented.
+  other SS limit INT is unimplemented. EX then checks the vector's offset,
+  in T1, against CS's limit (the limit CS has before the jump, as Bochs's
+  `real_mode_int` checks it after its pushes): T1's load, two uops ahead,
+  has retired by then.
 - **The routines:**
   - PUSHA and PUSHAD store each register in its own slot below ESP, from the
     lowest address up, ESP's being the unmoved original, and step ESP at the
@@ -588,14 +595,20 @@ between the unit and EX:
   divide too, so its retirement shows the wait.
 
 **D** keeps the instruction's EIP with an incrementer. In 16-bit code EIP is
-not cut to 16 bits, as on the 386: an instruction that ends at offset FFFFh
-leaves EIP 10000h. Real-mode CS loads leave CS's limit at FFFFh, and an
-instruction that starts or runs past it raises #GP(0) at its fetch, before
-any fault its decode found; under a larger limit that is unimplemented, as
-the general CS-limit check is not built. So is 16-bit code under a limit
-below FFFFh, and 32-bit code under any limit but FFFFFFFFh (`cs_odd`), which
-only a protected-mode far jump can give. D applies these, since only D knows
-the EIP. D also picks the memory operand's access check (`seg_chk_t`): its
+not cut to 16 bits, as on the 386 and in Bochs: an instruction that ends at
+offset FFFFh leaves EIP 10000h, which faults next under a 64 KiB limit and
+runs on under a larger one. An instruction that starts or runs past CS's
+limit raises #GP(0) at its fetch, at its first byte, before any fault its
+decode found, as Bochs's prefetch does, under any limit and in either mode:
+D compares EIP plus the length with the limit plus one (`cs_gp`), which a
+delivery's entry at length 0 passes at the EIP of an instruction that starts
+just past the limit. The compare is split at bit 4 so it runs beside the
+incrementer: the low nibble plus the length carries at most 1 into EIP's
+upper 28 bits, which are compared with the limit plus one's upper bits and
+those less 1, registered as CS is written (`cs_fl`). A near branch, call or
+return whose target is past the limit raises #GP(0) at the branch, as
+Bochs's `branch_near` does, only when it is taken: AG, M1 and EX check it
+(below). Real-mode CS loads set CS's limit to FFFFh. D also picks the memory operand's access check (`seg_chk_t`): its
 segment's limit less the access's bytes but one, or an expand-down
 segment's upper bound so less and its limit below, and whether the segment
 refuses the read or the write.
@@ -630,11 +643,17 @@ load, which is in EX when that load is in M2.
 
 **AG** runs `fes_i386_agu` for a memory operand's linear address and offset,
 for LEA's offset, or for a branch's target: CS.base + EIP + length +
-displacement in one carry chain, wrapped by operand size.
+displacement in one carry chain, wrapped by operand size. For CALL rel's
+push, a fourth chain beside them gives the call's target, the next EIP plus
+the displacement, wrapped by operand size (`ag_call`).
 
 **M1** checks the segment limit with one compare, the offset against D's
 limit, raising #SS(0) for SS and #GP(0) otherwise, and sends a load's address
-to the data port. It also takes the load's distance from the stores in EX and
+to the data port. It checks a near branch's target, or CALL rel's push's,
+against CS's limit (`tchk`): the push raises #GP(0) here, after its own
+checks, as Bochs pushes before it checks; a branch carries the result to EX.
+A far transfer's offset that D found past the limit (`cs_late`) raises
+#GP(0) here when the uop's own checks pass. It also takes the load's distance from the stores in EX and
 WB, which have not written when the port reads: the one in EX will be in WB
 when the load is in M2, and the one in WB writes on the edge the port reads.
 
@@ -650,7 +669,10 @@ bypass selects, the ones a WB result uses, so EX's front stays one LUT
 level.
 
 **EX** (`fes_i386_ex`) takes its selects registered: M2 decodes them from
-the uop (`fes_i386_exctl`), so no opcode compare sits on EX's data paths. M2
+the uop (`fes_i386_exctl`), so no opcode compare sits on EX's data paths. A
+branch whose target is past CS's limit raises #GP(0) here and does not
+redirect: RET's and JMP r/m's from EX's operand, a taken one by a
+displacement from M1's check. M2
 also prepares the operands: x and y cut to the operation's size with a high
 byte moved down, y inverted for a subtract, and an add's operands filled
 above its size so that its carry out is the chain's bit 32 at every size. An
@@ -719,11 +741,11 @@ retires and stops it. A fault is delivered:
   DC's skid takes the exception's entry (`dc_exc`): a NOP, at length 0,
   that starts the ROM's `vector` routine with the fault's vector, the one
   INTO enters.
-- **The frame.** D's EIP is the faulting instruction's, in real mode cut to
-  16 bits, so the routine pushes FLAGS, CS and that IP, and D's CS-limit
-  check passes an EIP of 10000h left by an instruction that ends at FFFFh.
-  The front end refetches from where it was, and the routine's far jump
-  discards that. In protected mode the routine is the delivery through the
+- **The frame.** D's EIP identifies the faulting instruction's first byte.
+  Every real-mode exception or external-interrupt delivery redirect
+  zero-extends EIP's low 16-bit IP before entry. Protected-mode deliveries
+  keep the full EIP. The front end refetches from where it was, and the
+  routine's far jump discards that. Protected-mode delivery goes through the
   IDT (see [Protected mode](#protected-mode)).
 - **A fault in a delivery** is delivered in its place, as Bochs's
   `exception()` does: with EXT (bit 0) set in its error code, or as a double
@@ -896,9 +918,8 @@ instruction, so DC decodes with it (`pe`) and every stage sees one mode.
   it runs IRET's first uop, over that uop's stack fault, since Bochs
   returns from the task before it reads the stack); paging (CR0 with PG
   set); a protected-mode 16-bit stack slot past 64 KiB
-  under a limit that reaches there; code under a CS limit other than FFFFh
-  (16-bit) or FFFFFFFFh (32-bit), whose general check is not built. CPL is
-  always 0: nothing changes privilege.
+  under a limit that reaches there. CPL is always 0: nothing changes
+  privilege.
 
 ## Memory
 

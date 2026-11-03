@@ -232,14 +232,15 @@ def run_unreal(testbench: str, env: dict) -> dict:
     """The directed unreal-mode cases (lockstep_tb.cpp's run_unreal_cases):
     extended DS, ES, FS, GS and SS limits that survive real-mode reloads, a
     normal GS and SS that fault at FFFFh, the 386 real-mode CS rule, and a
-    protected-mode MOV Sreg reading its selector from a segment's last word."""
+    protected-mode MOV Sreg reading its selector from a segment's last word;
+    and #GP delivery after a 32-bit real-mode far jump beyond the new CS limit."""
     env = dict(env, FES_I386_MODE='unreal', FES_I386_LATENCY='1')
     result = subprocess.run([testbench], env=env, capture_output=True, text=True)
     if result.returncode not in (0, 1):
         raise LockstepError(f'unreal cases: testbench exited with {result.returncode}\n{result.stderr[-4000:]}')
     summary, failures = parse_output(result.stdout)
-    if summary['runs'] != 6:
-        raise LockstepError(f'unreal cases: testbench ran {summary["runs"]} of 6 cases')
+    if summary['runs'] != 7:
+        raise LockstepError(f'unreal cases: testbench ran {summary["runs"]} of 7 cases')
     return {'summary': summary, 'failures': failures}
 
 
@@ -248,8 +249,10 @@ def run_pmode(testbench: str, env: dict) -> dict:
     each fault's vector and error code, EXT, a double fault and shutdown,
     INT n, INT3, INTO and IRET through interrupt and trap gates, far CALL and
     RETF, LLDT, LTR, SLDT, STR, LAR, LSL, VERR, VERW, ARPL, their #UD in real
-    mode, and what stops as not built (a task gate, a return to an outer
-    privilege)."""
+    mode, what stops as not built (a task gate, a return to an outer
+    privilege), and CS's limit: code that runs to it and past it, and near
+    branches, calls and returns to its last byte and past it, in 16- and
+    32-bit code and in real mode under a limit CS kept."""
     env = dict(env, FES_I386_MODE='pmode', FES_I386_LATENCY='1')
     result = subprocess.run([testbench], env=env, capture_output=True, text=True)
     if result.returncode not in (0, 1):
@@ -260,7 +263,7 @@ def run_pmode(testbench: str, env: dict) -> dict:
     return {'summary': summary, 'failures': failures}
 
 
-PMODE_CASES = 51
+PMODE_CASES = 92
 
 
 def run_no387(testbench: str, env: dict) -> dict:
@@ -362,7 +365,7 @@ SAME_RANDOM = ('runs', 'passed', 'retirements', 'halts', 'faults', 'shutdowns', 
                'code_store_stops', 'stray_stops', 'mmio_runs', 'mmio_accesses', 'pm_retirements', 'cs_rule')
 SAME_MODE = ('runs', 'passed', 'failed', 'retirements', 'halts', 'interrupts', 'faults', 'fault_vectors',
              'shutdowns', 'nested', 'io_accesses', 'external_interrupts', 'nmis', 'rep_interrupts', 'divergence_retirements',
-             'pm_retirements', 'cs_rule', 'trace_hash')
+             'pm_retirements', 'cs_rule', 'cs_limit', 'trace_hash')
 
 
 def same_as(report: dict, other: dict) -> list[str]:
@@ -387,7 +390,7 @@ def same_as(report: dict, other: dict) -> list[str]:
         compare(f'random {key}', report['random'].get(key), other['random'].get(key))
     for key in SAME_RANDOM:
         compare(f'pmode {key}', report['pmode']['totals'].get(key), other['pmode']['totals'].get(key))
-    for key in ('seeds', 'programs_per_seed', 'trace_hashes', 'pm_deliveries', 'unbuilt_stops', 'pm_kinds'):
+    for key in ('seeds', 'programs_per_seed', 'trace_hashes', 'pm_deliveries', 'unbuilt_stops', 'pm_kinds', 'cs_limit'):
         compare(f'pmode {key}', report['pmode'].get(key), other['pmode'].get(key))
     for mode in ('directed_cases', 'unreal_cases', 'pmode_cases', 'no387_cases', 'memory_cases', 'reset_store'):
         for key in SAME_MODE:
@@ -590,6 +593,7 @@ def main() -> int:
     unbuilt_stops = sum((Counter(result['summary']['unbuilt_stops']) for result in random_results + pmode_results),
                         Counter())
     pm_kinds = sum((Counter(result['summary']['pm_kinds']) for result in random_results + pmode_results), Counter())
+    cs_limit = sum((Counter(result['summary']['cs_limit']) for result in random_results + pmode_results), Counter())
     random_failures = [line for result in random_results + steady_results + pmode_results
                        for line in result['failures']]
     hash_mismatches = [result['seed'] for result in steady_results
@@ -637,6 +641,7 @@ def main() -> int:
         'pmode': {'seeds': [result['seed'] for result in pmode_results], 'programs_per_seed': args.pm_programs,
                   'pm_weight': PM_WEIGHT, 'totals': dict(pmode_totals), 'pm_deliveries': dict(pm_deliveries),
                   'unbuilt_stops': dict(unbuilt_stops), 'pm_kinds': dict(sorted(pm_kinds.items())),
+                  'cs_limit': dict(sorted(cs_limit.items())),
                   'trace_hashes': {str(result['seed']): result['summary']['trace_hash'] for result in pmode_results}},
     })
     if args.same_as is not None:
@@ -680,7 +685,8 @@ def main() -> int:
               f"{pmode_totals['shutdowns']} shutdowns, {pmode_totals['nested']} faults in a delivery delivered; "
               f"{sum(unbuilt_stops.values())} stopped at what is not built, by reason "
               f"{dict(sorted(unbuilt_stops.items()))}; retired with PE set {dict(sorted(pm_kinds.items()))}; "
-              f"{pmode_totals['cs_rule'] + random_totals['cs_rule']} real-mode CS loads under the 386 rule")
+              f"{pmode_totals['cs_rule'] + random_totals['cs_rule']} real-mode CS loads under the 386 rule; "
+              f"under a CS limit but 64 KiB and 4 GiB, retirements and #GP deliveries {dict(sorted(cs_limit.items()))}")
         def share(histogram: dict, cycles: int) -> str:
             total = sum(histogram.values())
             return f'{100 * histogram.get(cycles, 0) / total:.1f}%' if total else '-'
