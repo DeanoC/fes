@@ -8,7 +8,7 @@ It is not acceptance.
 - **Software.** Kit A stayed on baseline software `b3444abf…` and image
   `f904961e…`: no bundle install, no image change, no reboot. Slice 4 changes
   only the host, and slice 3's agent-side changes are not needed for kit mode.
-- **Host.** The branch's ARMv7 `fogcast-api` at `b5a0be1af`, run by hand as
+- **Host.** The branch's ARMv7 `fogcast-api`, run by hand as
   `fogcast-api -kit -kit-state /run/fogcast/fesdata3/k863s4/fogcast-host
   -headless -listen 127.0.0.1:8797`, with the kit's real
   `/media/fat/fogcast/agent.toml` and the image's
@@ -29,24 +29,27 @@ It is not acceptance.
 
 ## Results
 
+Two runs: k1 at `b5a0be1af`, and k2 at `e07331633` after the review fixes
+(no mDNS fallback, target edits refused, background startup scan, FESDATA3
+check after the wait). The table gives k1 / k2.
+
 | Check | Result |
 | --- | --- |
-| Agent wait | Reached the agent in 54 ms (76 ms on restart) |
+| Agent wait | Reached the agent in 54 / 50 ms (76 / 60 ms on restart) |
 | Generated target | One row `kit`, `http://127.0.0.1:8182`, enabled, Kit A's own target ID `73dc9f5f…`, the agent's token |
 | State | On FESDATA3 under the given root; the tmpfs fallback was not used |
 | Managed keys | `[core_packages] kit = true`, `folder_watch_seconds = 0`, 300 s upload timeout, firmware `/usr/share/fogcast/firmware` |
 | Libraries | `sms-main` from the template; after the restart also the added `k863s4-extra` |
-| Durable store open | 23.7 s and 23.6 s; the package list answered 503 until then |
-| Title of the ST package | 28.6 s |
-| Diskless ST launch | **46.8 s** (stop line under 60 s: **met**) |
-| Host CPU / RSS peak during launch | 8.8 CPU-s / 80 MiB |
-| Agent CPU during launch | 21.5 CPU-s |
-| MemAvailable minimum, launch / whole run | 256 / 246 MiB (stop line at least 200 MiB: **met**) |
-| Host idle CPU, watch off | 1.9% of a core over 60 s |
+| Durable store open | 23.7 / 23.3 s, and 23.6 / 23.8 s on restart; the package list answered 503 until then |
+| Title of the ST package | 28.6 / 29.1 s |
+| Diskless ST launch | **46.8 / 46.2 s** (stop line under 60 s: **met**) |
+| Host CPU / RSS peak during launch | 8.8 / 8.9 CPU-s, 80 / 82 MiB |
+| Agent CPU during launch | 21.5 / 21.7 CPU-s |
+| MemAvailable minimum, launch / whole run | 256 / 250 and 246 / 235 MiB (stop line at least 200 MiB: **met**) |
+| Host idle CPU, watch off | 1.9 / 2.2% of a core over 60 s |
 
-[`k1-results.json`](k1-results.json) is the run record,
-[`k1-samples.tsv`](k1-samples.tsv) the samples (launch window in kit uptime) and
-[`k1-api.log`](k1-api.log) the host's log.
+`k1-` and `k2-results.json` are the run records, `-samples.tsv` the samples
+(launch window in kit uptime) and `-api.log` the host's logs.
 
 ## Findings
 
