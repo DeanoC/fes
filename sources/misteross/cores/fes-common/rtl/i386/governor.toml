@@ -902,6 +902,115 @@ name = "mov_to_cr"
 stems = ["0F22.1", "0F22.2", "0F22.3", "0F22.4", "0F22.5", "0F22.6", "0F22.7"]
 cost = [4, 4, 4]
 
+# Group 6, LAR, LSL and ARPL (Phase 2), which run only in protected mode
+# (#UD in real mode, charged as INT's delivery): their protected-mode
+# counts, the only ones. LSL's 386 count is 20 or 25 by the descriptor's
+# granularity (21 or 26 from memory), so its middle, rounded up.
+[[class]]
+name = "sldt_r"
+stems = ["0F00.0/r"]
+cost = [2, 2, 2]
+
+[[class]]
+name = "sldt_m"
+stems = ["0F00.0/m"]
+memory = true
+cost = [3, 2, 3]
+
+[[class]]
+name = "str_r"
+stems = ["0F00.1/r"]
+cost = [2, 2, 2]
+
+[[class]]
+name = "str_m"
+stems = ["0F00.1/m"]
+memory = true
+cost = [3, 2, 3]
+
+[[class]]
+name = "lldt_r"
+stems = ["0F00.2/r"]
+cost = [17, 20, 11]
+
+[[class]]
+name = "lldt_m"
+stems = ["0F00.2/m"]
+memory = true
+cost = [19, 24, 11]
+
+[[class]]
+name = "ltr_r"
+stems = ["0F00.3/r"]
+cost = [17, 23, 20]
+
+[[class]]
+name = "ltr_m"
+stems = ["0F00.3/m"]
+memory = true
+cost = [19, 27, 20]
+
+[[class]]
+name = "verr_r"
+stems = ["0F00.4/r"]
+cost = [14, 10, 11]
+
+[[class]]
+name = "verr_m"
+stems = ["0F00.4/m"]
+memory = true
+cost = [16, 11, 11]
+
+[[class]]
+name = "verw_r"
+stems = ["0F00.5/r"]
+cost = [14, 15, 11]
+
+[[class]]
+name = "verw_m"
+stems = ["0F00.5/m"]
+memory = true
+cost = [16, 16, 11]
+
+# 0F00h /6 and /7 raise #UD on the 386: never charged, as group 7's.
+[[class]]
+name = "group6_ud"
+stems = ["0F00.6", "0F00.7"]
+cost = [2, 2, 1]
+
+[[class]]
+name = "lar_r"
+stems = ["0F02/r"]
+cost = [14, 15, 11]
+
+[[class]]
+name = "lar_m"
+stems = ["0F02/m"]
+memory = true
+cost = [16, 16, 11]
+
+[[class]]
+name = "lsl_r"
+stems = ["0F03/r"]
+cost = [14, 23, 10]
+
+[[class]]
+name = "lsl_m"
+stems = ["0F03/m"]
+memory = true
+cost = [16, 24, 10]
+
+[[class]]
+name = "arpl_r"
+stems = ["63/r"]
+cost = [10, 20, 9]
+
+[[class]]
+name = "arpl_m"
+stems = ["63/m"]
+memory = true
+cost = [11, 21, 9]
+
 # SALC (D6h), which the data sheets leave out: a register ALU operation's cost.
 [[class]]
 name = "salc"

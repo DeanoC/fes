@@ -56,18 +56,25 @@
 // --cpu rtl runs fes_i386_cpu in the oracle's place, clocked with the
 // machine at the system clock (RtlCpu), with its caches on HPS DDR port 0
 // (pc386_ddr_model.h's Port0) and the machine's MMIO, DMA and FLUSH ports
-// wired to it. An encoding it has
+// wired to it. What it has
 // not built stops it; the bench prints the stop, runs that one instruction
 // on the oracle from the RTL's state, and restarts the RTL from the oracle's
-// state after it, or after the whole stretch the oracle runs in protected
-// mode or V86. It prints, besides the lines above:
+// state after it, or after the whole stretch the oracle runs where the RTL
+// cannot: above CPL 0, with paging, or in V86. A shutdown of the RTL is the
+// machine's CPU reset, as an AT makes it. It prints, besides the lines above:
 //   STOP <kind> <cycle> <cs>:<eip> <bytes> <stem>   the first stops of each stem
-//   PMODE <from> <to> <steps> <entry cs:eip> <exit cs:eip>   a stretch on the oracle
+//   SHUTDOWN <cycle> <cs>:<eip>                      the RTL shut down
+//   PMODE <from> <to> <steps> <entry cs:eip> <exit cs:eip>   a stretch on the oracle with PE set
 //   GAP <kind> <stem> <stops> <sites> <executed> <first cs:eip> <first cycle>
 //   RTL <counter>=<n> ...                       retirements, oracle steps, waits
 // --census F writes each stem the oracle retired, its count and its first
-// CS:EIP to F, ":pm" after a stem run in protected mode or V86: the whole
-// boot's instruction mix with the oracle as the CPU, the RTL's stops with it.
+// CS:EIP to F, ":pm<CPL>" after a stem run in protected mode and ":v86" in
+// V86: the whole boot's instruction mix with the oracle as the CPU, the RTL's
+// stops with it. With PE set it also counts each event the oracle delivered
+// (event:<kind>:<vector>:gate=<type>:dpl=<n>:sel=<selector>[:err=<code>]:
+// cpl=<before>><after>, the gate read from the IDT unless paging is on),
+// each CPL change an instruction made (cpl:<before>><after>:<stem>), and
+// the stems that changed PG, set VM, loaded LDTR or TR, or changed IOPL.
 // --profile F writes where the oracle's steps from --profile-from seconds to
 // --profile-to seconds (default 0 and the end of the run) went, when the window
 // closes:
@@ -652,6 +659,15 @@ public:
         cpu.init_gdtr_limit = s.gdtr.limit;
         cpu.init_idtr_base = s.idtr.base;
         cpu.init_idtr_limit = s.idtr.limit;
+        cpu.init_ldtr_sel = s.ldtr.selector;
+        cpu.init_ldtr_base = s.ldtr.base;
+        cpu.init_ldtr_limit = s.ldtr.limit;
+        cpu.init_ldtr_ar = s.ldtr.ar;
+        cpu.init_ldtr_valid = s.ldtr.valid;
+        cpu.init_tr_sel = s.tr.selector;
+        cpu.init_tr_base = s.tr.base;
+        cpu.init_tr_limit = s.tr.limit;
+        cpu.init_tr_ar = s.tr.ar;
         for (int n = 0; n < 6; ++n) {
             set16(cpu.init_sel, n, s.seg[n].selector);
             cpu.init_base[n] = s.seg[n].base;
@@ -659,6 +675,7 @@ public:
             set16(cpu.init_ar, n, s.seg[n].ar);
         }
         cpu.nmi = 0;
+        shutdown_told = false;
         m.cpu_memory = true;
         cpu.reset = 1;
         resetting = true;
@@ -681,6 +698,9 @@ public:
         s.cr3 = cpu.arch_cr3;
         s.gdtr = {cpu.arch_gdtr_base, uint16_t(cpu.arch_gdtr_limit)};
         s.idtr = {cpu.arch_idtr_base, uint16_t(cpu.arch_idtr_limit)};
+        s.ldtr = {uint16_t(cpu.arch_ldtr_sel), cpu.arch_ldtr_base, cpu.arch_ldtr_limit, uint16_t(cpu.arch_ldtr_ar),
+                  bool(cpu.arch_ldtr_valid)};
+        s.tr = {uint16_t(cpu.arch_tr_sel), cpu.arch_tr_base, cpu.arch_tr_limit, uint16_t(cpu.arch_tr_ar), s.tr.valid};
         s.cpl = 0;  // no privilege transition is built
         s.eip = cpu.arch_eip;
         for (int n = 0; n < 6; ++n) {
@@ -693,7 +713,7 @@ public:
         return s;
     }
 
-    enum class Event { Budget, Stopped, HaltedForGood, Reset, Stall };
+    enum class Event { Budget, Stopped, HaltedForGood, Reset, Stall, Shutdown };
     // Up to budget clocks, until the CPU stops, the machine resets it, or
     // nothing retires for STALL_CLOCKS. The CPU parks once it has made no
     // request on any port for PARK_CLOCKS, with its memory idle (so it is
@@ -704,7 +724,11 @@ public:
     Event run(unsigned budget) {
         for (unsigned n = 0; n < budget; ++n) {
             if (cpu.trace_unimplemented) return Event::Stopped;
-            if (cpu.trace_halt && !(cpu.arch_eflags & 0x200)) return Event::HaltedForGood;
+            if (cpu.shutdown && !shutdown_told) {
+                shutdown_told = true;
+                return Event::Shutdown;
+            }
+            if (cpu.trace_halt && !cpu.shutdown && !(cpu.arch_eflags & 0x200)) return Event::HaltedForGood;
             const bool waiting = io == Pending::Issued || inta == Pending::Issued;
             const bool asleep = cpu.trace_halt && io == Pending::Idle && inta == Pending::Idle && !m.top.intr;
             if (still >= PARK_CLOCKS && cpu.trace_mem_idle && port0.idle() && !m.top.dma_valid
@@ -886,6 +910,7 @@ private:
     enum class Pending { Idle, Want, Issued, Done };
     Pending io = Pending::Idle, inta = Pending::Idle;
     bool resetting = false;
+    bool shutdown_told = false;  // Event::Shutdown went out for this shutdown
     bool io_write = false;
     uint16_t io_port = 0;
     unsigned io_length = 1;
@@ -1402,11 +1427,59 @@ int main(int argc, char **argv) {
                     const uint32_t linear = before.seg[fes_i386::SEG_CS].base + before.eip;
                     for (unsigned n = 0; n < 15; ++n) bytes[n] = guest_byte(linear + n);
                     census_stem = stem(bytes, 15);
-                    if ((before.cr0 & 1) || (before.eflags & 0x20000)) census_stem += ":pm";
+                    if (before.eflags & 0x20000) census_stem += ":v86";
+                    else if (before.cr0 & 1) census_stem += ":pm" + std::to_string(before.cpl);
                     if (!census.count(census_stem)) census_first[census_stem] = site(before);
                 }
                 fes_i386::StepResult result = oracle->step();
                 if (!census_stem.empty() && result.retired) ++census[census_stem];
+                if (!census_stem.empty() && (before.cr0 & 1)) {
+                    // Protected mode's use: each event with its gate and
+                    // the CPLs, each CPL change by its stem, and the
+                    // system state an instruction left changed.
+                    const fes_i386::State after = oracle->get_state();
+                    auto count = [&](const std::string &key) {
+                        if (!census.count(key)) census_first[key] = site(before);
+                        ++census[key];
+                    };
+                    auto hex = [](unsigned value, int digits) {
+                        char text[16];
+                        std::snprintf(text, sizeof text, "%0*x", digits, value);
+                        return std::string(text);
+                    };
+                    for (const fes_i386::Event &event : result.events) {
+                        static const char *kinds[] = {"exception", "intr", "nmi", "int"};
+                        std::string key = std::string("event:") + kinds[unsigned(event.kind)] + ':' +
+                                          std::to_string(event.vector);
+                        if (before.cr0 & 0x80000000u) {
+                            key += ":paged";
+                        } else {
+                            uint8_t gate[8] = {};
+                            const fes_i386::Table &idt = before.idtr;
+                            const uint32_t at = idt.base + event.vector * 8u;
+                            for (unsigned n = 0; n < 8; ++n) {
+                                uint8_t *page = machine.page(RtlCpu::physical(at + n, a20m), false);
+                                gate[n] = page ? page[(at + n) & 0xfff] : 0xff;
+                            }
+                            key += ":gate=" + hex(gate[5] & 0x1f, 2) + ":dpl=" + std::to_string((gate[5] >> 5) & 3) +
+                                   ":sel=" + hex(gate[2] | gate[3] << 8, 4);
+                        }
+                        if (event.kind == fes_i386::EventKind::Exception) key += ":err=" + hex(event.error_code, 4);
+                        key += ":cpl=" + std::to_string(before.cpl) + '>' + std::to_string(after.cpl);
+                        count(key);
+                    }
+                    if (after.cpl != before.cpl && result.events.empty())
+                        count("cpl:" + std::to_string(before.cpl) + '>' + std::to_string(after.cpl) + ':' +
+                              census_stem);
+                    if ((after.cr0 ^ before.cr0) & 0x80000000u) count("cr0.pg:" + census_stem);
+                    if (after.eflags & 0x20000) count("vm:" + census_stem);
+                    if (after.ldtr.selector != before.ldtr.selector)
+                        count("ldtr:" + hex(after.ldtr.selector, 4) + ':' + census_stem);
+                    if (after.tr.selector != before.tr.selector)
+                        count("tr:" + hex(after.tr.selector, 4) + ':' + census_stem);
+                    if ((after.eflags ^ before.eflags) & 0x3000)
+                        count("iopl:" + std::to_string((after.eflags >> 12) & 3) + ':' + census_stem);
+                }
                 ++steps;
                 for (unsigned n = 0; n < options.cycles_per_instruction; ++n) machine.clock();
                 if (machine.cycles >= pixel_from) machine.start_pixel_clock();
@@ -1428,14 +1501,19 @@ int main(int argc, char **argv) {
                 if (bool(machine.top.intr) != intr) { intr = machine.top.intr; oracle->set_intr(intr); }
                 if (bool(machine.top.a20m) != a20m) { a20m = machine.top.a20m; oracle->set_a20(!a20m); }
                 if (rtl) {
-                    // Back to the RTL once the oracle is in real mode again.
+                    // Back to the RTL once the oracle is where the RTL runs:
+                    // real mode, or protected mode at CPL 0 without paging
+                    // or V86. The oracle's steps with PE set (or VM) make a
+                    // stretch.
                     ++oracle_steps;
                     if (skipping && result.retired) ++skipping->executed;
                     skipping = nullptr;
                     fes_i386::State state = oracle->get_state();
-                    if ((state.cr0 & 1) || (state.eflags & 0x20000)) {
-                        if (!stretch_steps++) { stretch_from = machine.cycles; stretch_entry = site(state); }
-                    } else {
+                    if (((state.cr0 & 1) || (state.eflags & 0x20000)) && !stretch_steps++) {
+                        stretch_from = machine.cycles;
+                        stretch_entry = site(state);
+                    }
+                    if (!(state.eflags & 0x20000) && !(state.cr0 & 0x80000000u) && (!(state.cr0 & 1) || state.cpl == 0)) {
                         if (stretch_steps) {
                             std::printf("PMODE %llu %llu %llu %s %s\n", (unsigned long long)stretch_from,
                                         (unsigned long long)machine.cycles, (unsigned long long)stretch_steps,
@@ -1450,13 +1528,12 @@ int main(int argc, char **argv) {
             } else {
                 RtlCpu::Event event = rtl->run(64);
                 if (machine.cycles >= pixel_from) machine.start_pixel_clock();
-                if (event == RtlCpu::Event::Stopped && rtl->cpu.trace_vector == 8 && !rtl->cpu.trace_pm_stop) {
-                    // A fault while an exception was delivered: the delivery
-                    // has partly retired, so the oracle cannot take over.
+                if (event == RtlCpu::Event::Shutdown) {
+                    // A fault in a double fault's delivery: the machine turns
+                    // the CPU's shutdown into a reset, as an AT does.
                     fes_i386::State state = rtl->state(oracle->get_state());
-                    std::printf("STOP delivery-fault %llu %s\n", (unsigned long long)machine.cycles, site(state).c_str());
-                    reason = "rtl-delivery-fault";
-                    break;
+                    std::printf("SHUTDOWN %llu %s\n", (unsigned long long)machine.cycles, site(state).c_str());
+                    machine.top.cpu_shutdown = 1;
                 }
                 if (event == RtlCpu::Event::Stopped) stop("unimplemented");
                 else if (event == RtlCpu::Event::Stall) stop("stall");

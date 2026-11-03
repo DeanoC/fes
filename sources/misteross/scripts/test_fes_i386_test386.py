@@ -307,6 +307,35 @@ def run_rom(testbench: Path, rom: Path, error: int, forgive: dict[int, int]) -> 
     return run
 
 
+def run_rtl(rom: Path, error: int, forgive: dict[int, int], jobs: int) -> dict:
+    """test386 on fes_i386_cpu alone (lockstep_tb.cpp's test386 mode): how far
+    the RTL gets, and what stops it."""
+    from scripts import test_fes_i386_lockstep as lockstep
+    testbench = lockstep.verilate(os.environ.get('VERILATOR', 'verilator'), oracle.link_inputs(jobs, False), jobs, None)
+    env = dict(os.environ, FES_I386_MODE='test386', FES_I386_ROM=str(rom / 'test386.bin'), FES_I386_POST=hex(POST_PORT),
+               FES_I386_OUTPUT=hex(OUTPUT_PORT), FES_I386_TEXT=str(BUILD / 'test386-rtl-output.txt'),
+               FES_I386_ERROR=hex(error), FES_I386_LATENCY='1',
+               FES_I386_FORGIVE=','.join(f'{address:#x}:{length}' for address, length in sorted(forgive.items())))
+    result = subprocess.run([str(testbench)], env=env, capture_output=True, text=True)
+    if result.returncode:
+        raise Test386Error('test386 RTL run failed:\n' + result.stderr[-4000:])
+    run = {'posts': [], 'errors': [], 'forgiven': [], 'stop': None, 'end': None}
+    for line in result.stdout.splitlines():
+        words = line.split()
+        if words[0] == 'POST':
+            run['posts'].append(int(words[1], 16))
+        elif words[0] == 'ERROR':
+            run['errors'].append(int(words[1], 16))
+        elif words[0] == 'FORGIVEN':
+            run['forgiven'].append(int(words[1], 16))
+        elif words[0] == 'STOP':
+            run['stop'] = {'why': int(words[1]), 'vector': int(words[2], 16), 'linear': words[3], 'bytes': words[4]}
+        elif words[0] == 'END':
+            run['end'] = {'reason': words[1], 'retirements': int(words[2]), 'cs': words[3], 'eip': words[4]}
+    run['text'] = (BUILD / 'test386-rtl-output.txt').read_text(errors='replace')
+    return run
+
+
 def ee_lines(text: str) -> list[str]:
     return [line.rstrip() for line in text.splitlines() if line.strip()]
 
@@ -642,6 +671,8 @@ def main() -> int:
                         help='explicitly fetch pinned test386.asm, NASM and the oracle into ignored build/')
     parser.add_argument('--vectors-corpus', type=Path, help='SingleStepTests/80386 data for the cross-check')
     parser.add_argument('--no-cross-check', action='store_true')
+    parser.add_argument('--cpu', choices=('oracle', 'rtl'), default='oracle',
+                        help='rtl: run the ROM on fes_i386_cpu alone and report how far it gets (rtl-report.json)')
     parser.add_argument('--jobs', type=int, default=os.cpu_count() or 2)
     args = parser.parse_args()
     if not 1 <= args.jobs <= 64:
@@ -658,6 +689,16 @@ def main() -> int:
         if 'error' not in labels:
             raise Test386Error('the listing has no error label')
         entries = load_divergences(instructions)
+        if args.cpu == 'rtl':
+            forgive = {address: length for entry in entries if entry['kind'] != 'ee'
+                       for address, (_, length) in entry['checks'].items()}
+            run = run_rtl(rom, labels['error'], forgive, args.jobs)
+            stop = run['stop'] or {}
+            run['stop_listing'] = instructions.get(int(stop['linear'], 16), {}).get('source') if stop else None
+            (BUILD / 'rtl-report.json').write_text(json.dumps(run, indent=1) + '\n')
+            print(f"RTL: POST {' '.join(f'{code:02x}' for code in run['posts'])}; end {run['end']}; "
+                  f"stop {stop} {run['stop_listing']!r}; errors {[hex(a) for a in run['errors']]}")
+            return 0
         testbench = oracle.build_testbench('i386-test386', oracle.SIM / 'test386_tb.cpp',
                                            jobs=args.jobs, download=args.download)
         forgive = {address: length for entry in entries if entry['kind'] != 'ee'

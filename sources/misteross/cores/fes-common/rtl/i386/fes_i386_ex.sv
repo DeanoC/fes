@@ -291,7 +291,8 @@ module fes_i386_ex (
                    | ({32{exc.r_setcc}} & {31'b0, cc_true})
                    | ({32{exc.r_lahf}} & {24'b0, flags_in[7:6], 1'b0, flags_in[4], 1'b0, flags_in[2], 1'b1, flags_in[0]})
                    | ({32{exc.r_sign}} & {32{exc.src8 ? y[7] : exc.src16 ? y[15] : y[31]}})
-                   | ({32{exc.r_flags}} & {16'b0, flags_in[15:0]})
+                   | ({32{exc.r_flags}} & {15'b0, exc.f_clrpm && u.imm[4], flags_in[15:0]})
+                   | ({32{exc.r_zf}} & (u.imm[0] ? y : x))
                    | ({32{exc.r_scan}} & (scan_z ? af : {27'b0, scan_n}))
                    | ({32{exc.r_bcd}} & {16'b0, bcd_r})
                    | ({32{exc.r_bt}} & r_bt)
@@ -358,6 +359,19 @@ module fes_i386_ex (
                 rest[IF] = 1'b0;
                 rest[TF] = 1'b0;
             end
+            // A protected-mode delivery: TF and NT, and IF through an
+            // interrupt gate (imm[5] clear).
+            if (exc.f_clrpm) begin
+                if (!u.imm[5]) rest[IF] = 1'b0;
+                rest[TF] = 1'b0;
+                rest[14] = 1'b0;
+            end
+            // LAR, LSL, VERR, VERW and ARPL: ZF alone.
+            if (exc.r_zf) rest[ZF] = u.imm[0];
+            // RF: IRETD's image sets it, IRET's last uop keeps it, and any
+            // other uop clears it, as Bochs clears it before the next
+            // instruction runs.
+            rest[16] = exc.f_rf ? y[16] : u.iret && flags_keep[16];
             // The adjusts' flags take the multiply unit's select, which adds
             // no step to the older flags' chain.
             if (exc.md_fl || exc.r_bcd) begin
