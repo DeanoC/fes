@@ -132,8 +132,10 @@ preserve its implementation, and NativeHardware routes these calls through the
 active driver. CoreDriver also owns optional unit-media observation/insert/eject operations;
 NativeHardware consults the active driver before snapshotting or ejecting a
 unit. The DE25 implementation exposes only the live limits/state proven during
-identity. Its bounded BRAM-tape snapshot is read under the operation deadline;
-insert never resets execution. Successful completion records ready/empty,
+identity. The DE25 capabilities branch publishes that selected driver's live media units
+before returning, so the agent can bind unit 0 after Start. An idle or MENU
+driver exposes no computer units. Its bounded BRAM-tape snapshot is read under
+the operation deadline; insertion never resets execution. Successful completion records ready/empty,
 while transport uncertainty records loading and permits no cleanup/replay.
 The BRAM contract has no tape-write bit, so its unit is not saveable. FesGp
 retains its existing unit transfer/recovery behavior through overrides.

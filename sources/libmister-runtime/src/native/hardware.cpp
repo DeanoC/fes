@@ -822,6 +822,7 @@ Capabilities NativeHardware::capabilities() const
    // the computer first; the application belongs before it on the wire.
    result.abis.insert(result.abis.begin(), std::move(application));
   }
+  if (active_driver_) result.media_units = active_driver_->media_units();
   return result;
  }
 	result.rom_linking = 1;

@@ -1393,6 +1393,15 @@ func validActivePackage(active Protocol2ActivePackage, capabilities Protocol2Cap
 		if active.Observed.ABI == nil {
 			return false
 		}
+	case "de25-hps-first-v1", "de25-linux-menu-v1":
+		wantABI := "fes.computer"
+		if active.Descriptor.Target.ProgrammingProfile == "de25-linux-menu-v1" {
+			wantABI = "fes.application"
+		}
+		if active.Observed.ABI == nil || active.Descriptor.Target.Platform != "de25_nano" ||
+			active.Descriptor.ABI != (corepackage.Contract{ID: wantABI, Major: 1, Minor: 0}) {
+			return false
+		}
 	default:
 		return false
 	}

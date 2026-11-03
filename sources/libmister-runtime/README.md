@@ -28,6 +28,10 @@ The first managed catalog trial exposed the missing address translation and
 invalid error phase. Its MENU recovery and clean service restart passed without
 a reboot; repaired catalog acceptance remains pending a new software bundle.
 
+DE25 active capabilities include the selected driver's live tape-unit report,
+including its limits and ready/empty state. MENU and idle report no computer
+units. This uses the same driver observation as media insertion and ejection.
+
 DE25 advertises application and computer ABIs in ascending identity order,
 as required by the target agent's protocol-2 decoder. The native MENU fixture
 exports the production serialized status for an independent agent-client test;

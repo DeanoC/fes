@@ -15,6 +15,7 @@
 #include "native/fes_gp.hpp"
 #include "native/generated/fes_gp.hpp"
 #include "native/generated/de10_nano.hpp"
+#include "native/generated/fes_de25_computer.hpp"
 #include "native/generated/fes_application.hpp"
 #include "native/generated/fes_simple_computer.hpp"
 #include "native/hardware.hpp"
@@ -5141,6 +5142,12 @@ void TestDe25SelectedPlatformLifecycle()
   std::vector<std::string>({"de25-hps-first-v1"}));
  assert(capabilities.abis.size() == 1 && capabilities.abis[0].id == "fes.computer" &&
   capabilities.abis[0].interfaces.size() == 3);
+ assert(capabilities.media_units.empty());
+ MediaUnitCapability tape;
+ tape.unit = 0; tape.interface = {"fes.media.zx81-tape",1,0};
+ tape.min_bytes = 1; tape.max_bytes = generated::FesDe25ComputerZx81TapeMaxBytes;
+ tape.chunk_bytes = 512; tape.state = MediaUnitState::empty; tape.saveable = false;
+ selected.units.push_back(tape);
  for (unsigned generation = 1; generation <= 2; ++generation) {
   std::unique_ptr<AdmittedCorePackage> admitted;
   assert(hardware->AdmitCorePackage(package.path, opened.package_id, &admitted).ok());
@@ -5151,6 +5158,12 @@ void TestDe25SelectedPlatformLifecycle()
   assert(Find(events, "de25.video.ready") < Find(events, "driver.start"));
   assert(base.fpga.profiles.back() == ProgrammingProfile::de25_hps_first_v1);
   assert(base.fpga.hps_ddr_calls == 0 && base.input.open_calls == 0);
+  const auto live = hardware->capabilities();
+  assert(live.media_units.size() == 1 && live.media_units[0].unit == 0 &&
+   live.media_units[0].max_bytes == tape.max_bytes && !live.media_units[0].saveable);
+  selected.units[0].state = MediaUnitState::ready;
+  assert(hardware->capabilities().media_units[0].state == MediaUnitState::ready);
+  selected.units[0].state = MediaUnitState::empty;
  }
  video.failure = {ErrorCode::io_failed, "injected FPGA video not ready"};
  std::unique_ptr<AdmittedCorePackage> admitted;

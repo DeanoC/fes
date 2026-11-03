@@ -59,6 +59,45 @@ func TestProtocol2DE25ProducerIdleStatus(t *testing.T) {
 	}
 }
 
+func TestProtocol2DE25ProducerComputerStatus(t *testing.T) {
+	// Actual production daemon response after native catalog loading. The CPU
+	// had started; rejecting its declared profile stranded agent cleanup.
+	lines := fixtureLines(t, "protocol-v2-de25-computer.jsonl")
+	if len(lines) != 1 {
+		t.Fatalf("producer responses=%d, want one active response", len(lines))
+	}
+	server := newSequenceSocketFixture(t, []string{lines[0] + "\n"})
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+	defer cancel()
+	response, err := NewClient(server.path).Protocol2Status(ctx)
+	if err != nil || response.State != "running_development" || response.ActivePackage == nil {
+		t.Fatalf("DE25 active producer was refused: response=%+v error=%v", response, err)
+	}
+	active := response.ActivePackage
+	if active.Descriptor.Target.ProgrammingProfile != "de25-hps-first-v1" || active.Observed.BuildID == nil || *active.Observed.BuildID != active.Descriptor.Build.ID {
+		t.Fatalf("not the selected DE25 computer: %+v", active)
+	}
+	server.wait(t)
+}
+
+func TestProtocol2DE25ActiveStatusRefusesChangedIdentity(t *testing.T) {
+	line := fixtureLines(t, "protocol-v2-de25-computer.jsonl")[0]
+	for name, raw := range map[string]string{
+		"foreign profile":     strings.ReplaceAll(line, "de25-hps-first-v1", "unknown-profile"),
+		"crossed board":       strings.ReplaceAll(line, "de25_nano", "de10_nano"),
+		"unobserved identity": strings.Replace(line, `"observed":{"abi":{"id":"fes.computer","major":1,"minor":0},"build_id":"a689d5a85cfe5b44c1c96501958f6516"}`, `"observed":{"abi":null,"build_id":null}`, 1),
+	} {
+		t.Run(name, func(t *testing.T) {
+			if raw == line {
+				t.Fatal("negative control did not change the producer response")
+			}
+			if _, err := decodeProtocol2Response([]byte(raw)); !errors.Is(err, errInvalidRuntimeResponse) {
+				t.Fatalf("changed DE25 identity was accepted: %v", err)
+			}
+		})
+	}
+}
+
 func TestProtocol2DecoderConsumesFrozenRuntimeFixturesExactly(t *testing.T) {
 	lines := fixtureLines(t, "protocol-v2.jsonl")
 	for index := 1; index < len(lines); index += 2 {
