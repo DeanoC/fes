@@ -195,6 +195,7 @@ class SimulationMatrixTests(unittest.TestCase):
         self.assertEqual(smoke, ['sim-fes-pcxt-smoke', 'sim-fes-pcxt-machine', 'sim-fes-pcxt-fdc', 'sim-fes-pcxt-write',
                                  'sim-fes-pcxt-media', 'sim-fes-pcxt-mailbox'])
         self.assertNotIn('sim-fes-pcxt-dos', smoke)
+        self.assertNotIn('sim-fes-pcxt-com', smoke)
 
     def test_coleco_smoke_is_five_jobs_and_oss_board_twins_are_full_only(self):
         from scripts.ci_simulations import simulation_matrix

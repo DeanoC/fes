@@ -11,11 +11,119 @@ permissions:
 jobs:
   regression:
     uses: ./.github/workflows/check.yml
+  pcxt-com:
+    # Configure this environment to allow protected main only before enabling
+    # this job. A dispatchable workflow on another ref must not use this host.
+    if: >-
+      github.repository == 'DeanoC/fes' && github.ref == 'refs/heads/main' &&
+      (github.event_name == 'schedule' || github.event_name == 'workflow_dispatch')
+    environment: pcxt-nightly-main
+    runs-on: [self-hosted, linux, x64, chip-3090]
+    timeout-minutes: 240
+    concurrency:
+      group: fes-pcxt-com-nightly
+      cancel-in-progress: false
+    steps:
+      - name: Create isolated directories and check free space
+        id: dirs
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$GITHUB_REF" = refs/heads/main
+          python3 -c '
+          import os, shutil
+          for name in ("GITHUB_WORKSPACE", "RUNNER_TEMP"):
+              path = os.environ[name]
+              free = shutil.disk_usage(path).free
+              print(f"{name}: {free} bytes free")
+              if free < 30 * 1024**3:
+                  raise SystemExit("PC/XT COM needs 30 GiB free")
+          '
+          private=$(mktemp -d "$RUNNER_TEMP/pcxt-com-$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT-XXXXXXXX")
+          trap 'rm -rf -- "$private"' EXIT
+          workspace="$GITHUB_WORKSPACE/.pcxt-com-$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT"
+          test ! -e "$workspace"
+          mkdir -m 700 "$workspace"
+          trap 'rm -rf -- "$workspace" "$private"' EXIT
+          echo "workspace=$workspace" >> "$GITHUB_OUTPUT"
+          echo "private=$private" >> "$GITHUB_OUTPUT"
+          trap - EXIT
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          ref: ${{ github.sha }}
+          path: .pcxt-com-${{ github.run_id }}-${{ github.run_attempt }}
+          persist-credentials: false
+      - name: Prepare private simulation tools
+        shell: bash
+        working-directory: ${{ steps.dirs.outputs.workspace }}
+        env:
+          PRIVATE: ${{ steps.dirs.outputs.private }}
+          FES_CI_JOBS: 2
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$GITHUB_SHA"
+          test -z "$(git status --porcelain --untracked-files=no)"
+          mkdir "$PRIVATE/packages"
+          (cd "$PRIVATE/packages" && apt-get download mtools)
+          packages=("$PRIVATE"/packages/mtools_*.deb)
+          test "${#packages[@]}" -eq 1 && test -f "${packages[0]}"
+          dpkg-deb -x "${packages[0]}" "$PRIVATE/mtools"
+          test -x "$PRIVATE/mtools/usr/bin/mcopy"
+          test -x "$PRIVATE/mtools/usr/bin/mformat"
+          bash scripts/ci_verilator.sh "$PRIVATE/verilator" "$PRIVATE/verilator-build"
+      - name: Run the PC/XT COM simulation
+        shell: bash
+        working-directory: ${{ steps.dirs.outputs.workspace }}
+        env:
+          PRIVATE: ${{ steps.dirs.outputs.private }}
+        run: |
+          set -euo pipefail
+          unset FES_TOOLCHAIN_CACHE_ROOT CACHE_ROOT
+          export PATH="$PRIVATE/mtools/usr/bin:$PRIVATE/verilator/bin:$PATH"
+          export VERILATOR_ROOT="$PRIVATE/verilator/share/verilator"
+          timeout --signal=TERM --kill-after=30s 11700s make -C sources/misteross sim-fes-pcxt-com 2>&1 | tee "$PRIVATE/simulation.log"
+          test -s sources/misteross/build/sim/fes-pcxt/dos-com/inputs.json
+          test -s sources/misteross/build/sim/fes-pcxt/dos-com/result.json
+      - name: Collect COM diagnostics
+        if: always() && steps.dirs.outputs.private != ''
+        shell: bash
+        env:
+          PRIVATE: ${{ steps.dirs.outputs.private }}
+          WORKSPACE: ${{ steps.dirs.outputs.workspace }}
+        run: |
+          set -euo pipefail
+          mkdir "$PRIVATE/evidence"
+          for file in "$PRIVATE/simulation.log" \
+              "$WORKSPACE/sources/misteross/build/sim/fes-pcxt/dos-com/inputs.json" \
+              "$WORKSPACE/sources/misteross/build/sim/fes-pcxt/dos-com/result.json" \
+              "$WORKSPACE/sources/misteross/build/sim/fes-pcxt/dos-com/result-pending.json"; do
+            if [ -f "$file" ]; then cp -- "$file" "$PRIVATE/evidence/"; fi
+          done
+      - name: Retain COM diagnostics
+        if: always() && steps.dirs.outputs.private != ''
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: pcxt-com-evidence-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ steps.dirs.outputs.private }}/evidence/
+          if-no-files-found: warn
+          retention-days: 7
+      - name: Remove only this job's directories
+        if: always() && steps.dirs.outputs.workspace != ''
+        shell: bash
+        env:
+          WORKSPACE: ${{ steps.dirs.outputs.workspace }}
+          PRIVATE: ${{ steps.dirs.outputs.private }}
+        run: |
+          set -euo pipefail
+          case "$WORKSPACE" in "$GITHUB_WORKSPACE"/.pcxt-com-*) rm -rf -- "$WORKSPACE" ;; *) exit 1 ;; esac
+          if [ -n "$PRIVATE" ]; then
+            case "$PRIVATE" in "$RUNNER_TEMP"/pcxt-com-*) rm -rf -- "$PRIVATE" ;; *) exit 1 ;; esac
+          fi
   report:
     # Lander owns nightly triage: open or update one tracking issue on failure.
     # A cancelled run is not a regression, so it files nothing.
-    needs: regression
-    if: failure()
+    needs: [regression, pcxt-com]
+    if: ${{ always() && (needs.regression.result == 'failure' || needs.pcxt-com.result == 'failure') }}
     runs-on: ubuntu-24.04
     timeout-minutes: 5
     permissions:
@@ -29,7 +137,7 @@ jobs:
           GH_REPO: ${{ github.repository }}
           RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
           SHA: ${{ github.sha }}
-          RESULT: ${{ needs.regression.result }}
+          RESULT: regression=${{ needs.regression.result }} pcxt-com=${{ needs.pcxt-com.result }}
         run: |
           title='Nightly regression failing on main'
           since=$(gh api "repos/$GH_REPO/commits?sha=$SHA&since=$(date -u -d '-1 day' +%Y-%m-%dT%H:%M:%SZ)" \
