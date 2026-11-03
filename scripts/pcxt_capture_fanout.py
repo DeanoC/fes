@@ -34,7 +34,7 @@ class CaptureProcess:
         self.stderr = os.fdopen(os.open(stderr_path, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600), 'w')
         try:
             self.proc = subprocess.Popen(command, stdin=subprocess.DEVNULL, stdout=subprocess.PIPE,
-                                         stderr=self.stderr, bufsize=0)
+                                         stderr=self.stderr, bufsize=0, start_new_session=True)
         except BaseException:
             self.stderr.close()
             raise
@@ -58,13 +58,25 @@ class CaptureProcess:
             raise CaptureError('capture child already closed')
         running = self.proc.poll() is None
         try:
-            if running:
-                self.proc.terminate()
+            try:
+                os.killpg(self.proc.pid, signal.SIGTERM)
+            except ProcessLookupError:
+                pass
             try:
                 result = self.proc.wait(timeout=timeout)
             except subprocess.TimeoutExpired:
-                self.proc.kill(); self.proc.wait(timeout=5)
+                try:
+                    os.killpg(self.proc.pid, signal.SIGKILL)
+                except ProcessLookupError:
+                    pass
+                self.proc.wait(timeout=5)
                 raise CaptureError('capture child did not stop') from None
+            # A descendant may have inherited the pipe even after the leader
+            # exits. Kill the owned group as a whole, not only its leader.
+            try:
+                os.killpg(self.proc.pid, signal.SIGKILL)
+            except ProcessLookupError:
+                pass
             if require_complete and (not self.completed or not running or result != -signal.SIGTERM):
                 raise CaptureError('capture child did not reach its planned stop')
             return result
@@ -396,9 +408,11 @@ def fanout_frames(frames, record, detect, *, sample_every, record_capacity=8, jo
                 on_source_stop()
             except BaseException as exc:
                 failure.add_note('source interruption failed: '+repr(exc))
+                failure.source_cleanup_incomplete = True
         st.join(timeout=join_timeout)
         if st.is_alive() and failure is not None:
             failure.add_note('source worker is still running; source cleanup is incomplete')
+            failure.source_cleanup_incomplete = True
         try:
             records.put(sentinel, timeout=join_timeout)
         except queue.Full:

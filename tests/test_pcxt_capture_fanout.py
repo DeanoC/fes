@@ -108,6 +108,27 @@ class SourceTests(unittest.TestCase):
             self.assertIsNotNone(source.proc.poll())
             self.assertIsNotNone(recorder.proc.poll())
 
+    def test_source_stop_kills_descendant_holding_capture_pipe(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            pid_file = Path(tmp)/'descendant.pid'
+            code = ("import subprocess,sys,time,pathlib\n"
+                    "child=subprocess.Popen([sys.executable,'-c','import time; time.sleep(30)'])\n"
+                    f"pathlib.Path({str(pid_file)!r}).write_text(str(child.pid))\n"
+                    "time.sleep(30)\n")
+            source = capture.CaptureProcess([sys.executable, '-c', code], Path(tmp)/'stderr', 4)
+            with self.assertRaises(capture.CaptureError) as caught:
+                capture.fanout_frames(source.take(1), lambda _: None, lambda _: None, sample_every=1,
+                    source_timeout=.25, join_timeout=.5,
+                    on_source_stop=lambda: source.stop(require_complete=False))
+            self.assertFalse(getattr(caught.exception, 'source_cleanup_incomplete', False))
+            self.assertTrue(source.closed)
+            self.assertIsNotNone(source.proc.poll())
+            pid = int(pid_file.read_text())
+            stat = Path(f'/proc/{pid}/stat')
+            if stat.exists():
+                # An orphaned zombie may await init's reap, but has no open pipe.
+                self.assertEqual(stat.read_text().split(') ', 1)[1][0], 'Z')
+
 
 class FanoutTests(unittest.TestCase):
     @staticmethod
