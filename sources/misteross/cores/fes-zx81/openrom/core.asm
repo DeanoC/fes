@@ -42,10 +42,7 @@ new_entry:
         ld (hl),0x80
         inc hl
         ld (E_LINE),hl
-        ld (hl),C_NL
-        inc hl
-        ld (WORKSP),hl
-        call line_workspace
+        call eline_end
         call kscan
         call cls
         call slow
@@ -75,14 +72,19 @@ error_2:                        ; RST 8 continues here
         ret
 
 ; Show the report as code/line at the bottom. CONT goes back to the line
-; that failed, or on past a STOP, a BREAK or the end.
+; that failed, or on past a STOP, a BREAK or the end. The report is printed
+; with test_room's smaller margin, so report 4 has room for itself; if even
+; that runs out, what was printed of it stays.
 main_report:
         ld sp,(ERR_SP)          ; restore atomically; NMI may land here
         call line_workspace     ; discard temporary strings and calculator stack
         ld iy,0x4000
+        ld a,(OFLAGS)
+        cp 1<<OF_LOWER|1<<OF_REPORT
+        jr z,.shown             ; printing the report ran out of memory too
         xor a
         ld (iy+Y_MODE),a
-        ld (iy+Y_OFLAGS),1<<OF_LOWER
+        ld (iy+Y_OFLAGS),1<<OF_LOWER|1<<OF_REPORT
         ld hl,(PPC)
         bit 7,h
         jr z,.prog
@@ -114,7 +116,7 @@ main_report:
         pop hl
         ld c,0
         call print_uint
-        ld (iy+Y_OFLAGS),1<<OF_REPORT
+.shown: ld (iy+Y_OFLAGS),1<<OF_REPORT
         call sync_keys          ; a key still down is not typed over the report
         jr edit_main
 
@@ -177,8 +179,11 @@ test_room:
         ld hl,(STKEND)
         add hl,bc
         jr c,.full
-        ld de,40
-        add hl,de
+        ld de,40                ; the callers' stack and the interrupts
+        bit OF_REPORT,(iy+Y_OFLAGS)
+        jr z,.m
+        ld e,24                 ; a report and the editor reset need less
+.m:     add hl,de
         jr c,.full
         ex de,hl
         ld hl,0
@@ -219,11 +224,17 @@ make_room:
 .moved: ld hl,(MR_A)
         ld bc,(MR_B)
 mr_tail:
-        call pointers
-        ld hl,(MR_A)
+        call pointers           ; HL kept
         ld bc,(MR_B)
         ret
 
+; Delete the bytes from DE up to HL.
+reclaim_de:
+        and a
+        sbc hl,de
+        ld b,h
+        ld c,l
+        ex de,hl
 ; Delete BC bytes at HL.
 reclaim:
         ld a,b
@@ -418,6 +429,12 @@ line_end:
         add hl,de
         jr line_end
 
+; NEWLINE at HL ends the edit line; the workspace and calculator stack start
+; after it, empty.
+eline_end:
+        ld (hl),C_NL
+        inc hl
+        ld (WORKSP),hl
 line_workspace:
         ld hl,(WORKSP)
         ld (STKBOT),hl

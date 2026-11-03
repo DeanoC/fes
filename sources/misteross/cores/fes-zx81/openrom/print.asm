@@ -115,6 +115,9 @@ print_at_cc:
         call print_at
         jr print_at.cc
 
+; Print position to line B, column 0 (row0) or C (at_row); HL = its row.
+row0:   ld c,0
+at_row: call print_at
 ; HL = start of the print position's row.
 row_addr:
         ld a,(S_POSN+1)
@@ -182,8 +185,7 @@ row_len:
 
 ; Character at line B column C (0 past a collapsed row's end).
 read_char:
-        call print_at
-        call row_addr
+        call at_row
         call cur_col
         inc a
         ld b,a
@@ -288,9 +290,7 @@ fp_print:
 ; Clear C rows starting at line B: blank (expanded) or empty (collapsed).
 clear_rows:
         push bc
-        ld c,0
-        call print_at
-        call row_addr
+        call row0
         pop bc
 .row:   push bc
         push hl
@@ -375,9 +375,7 @@ scroll: ld a,24
         ret z                   ; no upper screen
         ret c
         ld b,a
-        ld c,0
-        call print_at
-        call row_addr           ; the first row below the upper screen
+        call row0               ; the first row below the upper screen
         dec hl
         ld bc,1
         call collapsed

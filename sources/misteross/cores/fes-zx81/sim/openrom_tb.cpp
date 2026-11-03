@@ -519,6 +519,71 @@ void test_pause_scroll_dim(Machine &m) {
     require(wait_for_row(m, 23, "0/10"), "DIM A (5) did not run");
 }
 
+// A program that runs out of memory while printing on a collapsed display
+// still gets report 4: the report is printed with test_room's smaller margin.
+// PLOT takes |x| and |y|. FUNCTION, then a key with no function, redraws the
+// K cursor.
+void test_report_room_plot_function(Machine &m) {
+    const uint16_t ramtop = m.word(0x4004);
+    if (ramtop != 0x8000) {
+        type(m, "A NL");
+        type(m, ramtop == 0x4400 ? "1 0 D A SHIFT+I 1 0 0 SHIFT+O NL"
+                                 : "1 0 D A SHIFT+I 3 2 0 SHIFT+O NL");
+        type(m, "2 0 P SHIFT+P X X X X X X X X X X SHIFT+P SHIFT+X NL");
+        type(m, "3 0 G 2 0 NL");
+        type(m, "R NL");
+        const bool reported = wait_for_row(m, 23, "4/20", 6000);
+        std::cout << "PRINT out of memory: report '" << row_text(m, 23) << "'\n";
+        require(reported, "running out of memory while printing did not show 4/20");
+        type(m, "NL");
+        require(wait_for_row(m, 2, "  30>GOTO 20"), "the editor did not list after report 4");
+    }
+
+    type(m, "Q SHIFT+J 1 SHIFT+. SHIFT+J 1 NL");
+    require(wait_for_row(m, 23, "0/0") && row_text(m, 21) == "#", "PLOT -1,-1 did not plot 1,1");
+
+    type(m, "SHIFT+NL");
+    m.run_frames(6);
+    require(row_text(m, 23) == "F", "FUNCTION did not show the F cursor");
+    type(m, "V");
+    m.run_frames(6);
+    require(row_text(m, 23) == "K", "a key with no function left the F cursor");
+    std::cout << "PLOT -1,-1 plotted; FUNCTION then V back to K\n";
+}
+
+// A slice takes a copy of its source first, so LET A$(2 TO 4)=A$(1 TO 3)
+// gives AABCE. A GOSUB that recurses until memory runs out stops with report
+// 4, and NEW still runs.
+void test_slice_copy_gosub_room(Machine &m) {
+    type(m, "A NL");
+    type(m, "1 0 L A SHIFT+U SHIFT+L SHIFT+P A B C D E SHIFT+P NL");
+    type(m, "2 0 L A SHIFT+U SHIFT+I 2 SHIFT+4 4 SHIFT+O SHIFT+L A SHIFT+U SHIFT+I 1 SHIFT+4 3 SHIFT+O NL");
+    type(m, "3 0 P A SHIFT+U NL");
+    type(m, "R NL");
+    require(wait_for_row(m, 23, "0/30") && row_text(m, 0) == "AABCE",
+            "an overlapping slice assignment overwrote its own source");
+
+    type(m, "A NL");
+    type(m, "1 0 H 1 0 NL");
+    type(m, "R NL");
+    const bool reported = wait_for_row(m, 23, "4/10", 3000);
+    std::cout << "GOSUB recursion: report '" << row_text(m, 23) << "'\n";
+    require(reported, "a recursive GOSUB did not stop with report 4");
+    type(m, "A NL");
+    require(m.word(0x4002) == m.word(0x4004) - 4,
+            "NEW after the GOSUB report did not reset the machine stack");
+
+    // Only GOSUB needs the room: RETURN after a subroutine that filled
+    // memory still returns. CLEAR then frees it for the checks that follow.
+    type(m, "1 0 H 1 0 0 NL");
+    type(m, "2 0 X NL");
+    type(m, "3 0 SHIFT+A NL");
+    type(m, "1 0 0 D A SHIFT+I 1 5 0 SHIFT+O NL");
+    type(m, "1 1 0 Y NL");
+    type(m, "R NL");
+    require(wait_for_row(m, 23, "9/30"), "RETURN after a full subroutine did not reach STOP");
+}
+
 void test_16k_regressions(Machine &m) {
     require(m.word(0x4004) == 0x8000, "16 KiB regressions need the 16 KiB ZX81 profile");
     m.acknowledge_keys = true;
@@ -655,6 +720,12 @@ int main(int argc, char **argv) {
         test_pause_scroll_dim(m);
         return 0;
     }
+    if (mode == "printmem") {
+        m.acknowledge_keys = true;
+        test_report_room_plot_function(m);
+        test_slice_copy_gosub_room(m);
+        return 0;
+    }
     if (mode == "lowmem") {
         test_low_memory_report(m);
         return 0;
@@ -670,7 +741,7 @@ int main(int argc, char **argv) {
         test_overlong_edit_line(m);
         return 0;
     }
-    require(mode == "check", "usage: geometry | check | load TAPE.p | lowmem | pause | regress | overlong | shot OUT.pgm KEYS");
+    require(mode == "check", "usage: geometry | check | load TAPE.p | lowmem | pause | printmem | regress | overlong | shot OUT.pgm KEYS");
 
     // Boot: the same frame and picture position as the Sinclair ROM on this
     // core. PAL: 310 lines, the K cursor's cell at lines 243-250, pixels
@@ -931,6 +1002,8 @@ int main(int argc, char **argv) {
     require(row_text(m, 21) == "30" && row_text(m, 20) == "29", "SCROLL lost the screen");
     require(row_text(m, 23) == "0/40", "the SCROLL loop did not end with 0/40");
     test_pause_scroll_dim(m);
+    test_report_room_plot_function(m);
+    test_slice_copy_gosub_room(m);
 
     // Exercise the display start/stop boundary repeatedly. The original
     // frame-sampling order could wait forever after the NMI stopped frames.
@@ -965,6 +1038,7 @@ int main(int argc, char **argv) {
     if (ramtop == 0x8000) test_16k_regressions(m);
 
     std::cout << "FES ZX81 open ROM: display, keyboard and rollover, edit, PRINT AT, INPUT, RETURN, INKEY$, "
-                 "FAST/SLOW SAVE/LOAD, SCROLL, PAUSE, DIM and NMI-boundary loop pass\n";
+                 "FAST/SLOW SAVE/LOAD, SCROLL, PAUSE, DIM, report 4 while printing, PLOT, FUNCTION, "
+                 "overlapping slices, GOSUB room and NMI-boundary loop pass\n";
     return 0;
 }

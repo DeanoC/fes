@@ -29,25 +29,16 @@ edit_main:
 
 ; E_LINE = cursor, NEWLINE; workspace and calculator stack empty.
 edit_reset:
-        ld hl,(E_LINE)
-        ld de,(STKEND)
-        ex de,hl
-        and a
-        sbc hl,de
-        ld b,h
-        ld c,l
-        ex de,hl
-        call reclaim
+        ld de,(E_LINE)
+        ld hl,(STKEND)
+        call reclaim_de
         ld bc,2
         call test_room
+        ld (iy+Y_MODE),0
         ld hl,(E_LINE)
         ld (hl),C_CURSOR
         inc hl
-        ld (hl),C_NL
-        inc hl
-        ld (WORKSP),hl
-        ld (iy+Y_MODE),0
-        jr line_workspace
+        jr eline_end
 
 ; Edit until NEWLINE; the cursor is removed on return.
 edit_line:
@@ -224,10 +215,7 @@ get_key:
         ret
 .func:  ld (iy+Y_MODE),a
         ld de,key_func-key_plain
-        call .at
-        cp 0x78
-        jr z,get_key
-        ret
+        jr .at                  ; 0x78, no function: the editor redraws the cursor
 .graph: dec b
         jr nz,.ginv
         ld de,key_graph-key_plain
@@ -391,12 +379,7 @@ enter_line:
         push hl
         call next_line
         pop de
-        and a
-        sbc hl,de
-        ld b,h
-        ld c,l
-        ex de,hl
-        call reclaim
+        call reclaim_de
 .noold: pop af
         ret z
         call find_e_ppc

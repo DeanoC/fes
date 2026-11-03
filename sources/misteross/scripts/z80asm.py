@@ -12,14 +12,18 @@ overwritten by floating code. A `jr` whose target is out of range is
 assembled as the equivalent `jp`.
 
 Code between `float` and `endfloat` has no fixed address: after each pass
-the sections are placed, largest first and best fit, into the bytes below
-`floatlimit` that no fixed (org) code uses. A section must not fall
-through into the next one. Between `autofloat` and `endautofloat` a new
+the sections are placed into the bytes below `floatlimit` that no fixed (org)
+code uses. Two layouts are tried and the one that fits, and then is smallest,
+is kept: largest first and best fit; or the sections joined by a `jr` in
+source order through the largest gaps (so the `jr` stays short), with the
+rest filling the holes left, smallest hole first, each with the sections
+that fill it best. A section must not fall through into the next one. Between `autofloat` and `endautofloat` a new
 section starts at every global label that follows an unconditional
 jump or return (a label after data continues the same table).
 """
 from __future__ import annotations
 import argparse
+import bisect
 import re
 import sys
 from pathlib import Path
@@ -271,6 +275,8 @@ class Assembler:
             if len(ops) == 2 and lows[0] not in ('nz', 'z', 'nc', 'c'):
                 raise AsmError(f'jr cannot test {ops[0]}')
             target = ops[-1]
+            if self.in_float is not None:
+                self.jr_edges.add((self.in_float[0], self.value(target)))
             if self.where not in self.long_jumps:
                 offset = self.value(target) - (self.pc + 2)
                 if -128 <= offset <= 127 or not self.symbols_settled:
@@ -297,6 +303,8 @@ class Assembler:
                 pre = 0xdd if lows[0] == 'ix' else 0xfd
                 reg = {'bc': 0, 'de': 1, lows[0]: 2, 'sp': 3}[lows[1]]
                 return [pre, 0x09 | reg << 4]
+            if lows[0] != 'hl':
+                raise AsmError(f'{m} {ops[0]},{ops[1]} cannot be encoded')   # only add takes IX, IY
             return [0xed, (0x4a if m == 'adc' else 0x42) | RP[lows[1]] << 4]
         operand = ops[-1]
         if len(ops) == 2 and lows[0] != 'a':
@@ -384,7 +392,7 @@ class Assembler:
         lines = []
         self.read(source, lines)
         best = None
-        for strategy in ('size', 'order'):
+        for strategy in ('size', 'linked'):
             self.strategy = strategy
             self.float_at = {}
             self.float_size = {}
@@ -457,23 +465,61 @@ class Assembler:
             elif start is not None:
                 free.append([start, a])
                 start = None
+        sizes = self.float_size
         placement = {}
-        scratch = 0x10000
         if self.strategy == 'size':
-            order = sorted(self.float_size, key=lambda i: (-self.float_size[i], i))
+            for index in sorted(sizes, key=lambda i: (-sizes[i], i)):
+                fits = [g for g in free if g[1] - g[0] >= sizes[index]]
+                if fits:
+                    gap = min(fits, key=lambda g: g[1] - g[0])
+                    placement[index] = gap[0]
+                    gap[0] += sizes[index]
+            left = [i for i in sizes if i not in placement]
         else:
-            order = sorted(self.float_size)
-        for index in order:
-            need = self.float_size[index]
-            fits = [g for g in free if g[1] - g[0] >= need]
-            if not fits:
-                placement[index] = scratch      # does not fit
-                scratch += need
-                continue
-            gap = min(fits, key=lambda g: g[1] - g[0]) if self.strategy == 'size' else fits[0]
-            placement[index] = gap[0]
-            gap[0] += need
+            left = self.place_linked(free, placement)
+        scratch = 0x10000
+        for index in sorted(left):
+            placement[index] = scratch          # does not fit
+            scratch += sizes[index]
         self.float_at = placement
+
+    def place_linked(self, free, placement):
+        """The 'linked' layout; returns the sections that did not fit."""
+        sizes = self.float_size
+        starts = sorted((at, i) for i, at in self.float_pc.items())
+        addresses = [at for at, _ in starts]
+        linked = set()
+        for i, target in self.jr_edges:
+            k = bisect.bisect_right(addresses, target) - 1
+            if k >= 0:
+                at, j = starts[k]
+                if j != i and target < at + sizes[j]:
+                    linked |= {i, j}
+        gaps = sorted(free, key=lambda g: (g[0] - g[1], g[0]))     # largest first
+        k, left = 0, []
+        for i in sorted(linked):
+            while k < len(gaps) and gaps[k][1] - gaps[k][0] < sizes[i]:
+                k += 1
+            if k == len(gaps):
+                left.append(i)
+                continue
+            placement[i] = gaps[k][0]
+            gaps[k][0] += sizes[i]
+        left += [i for i in sizes if i not in linked]
+        left.sort(key=lambda i: (-sizes[i], i))
+        for gap in sorted(free, key=lambda g: (g[1] - g[0], g[0])):
+            room = gap[1] - gap[0]
+            best = {0: ()}                      # bytes filled -> sections
+            for i in left:
+                for filled, chosen in list(best.items()):
+                    total = filled + sizes[i]
+                    if total <= room and total not in best:
+                        best[total] = chosen + (i,)
+            for i in best[max(best)]:
+                placement[i] = gap[0]
+                gap[0] += sizes[i]
+                left.remove(i)
+        return left
 
     def _pass(self, lines, size, fill):
         if True:
@@ -483,6 +529,8 @@ class Assembler:
             self.fixed_owner = [None] * size
             self.in_float = None
             self.float_count = 0
+            self.float_pc = {}                  # section index -> address this pass
+            self.jr_edges = set()               # (section, jr target address)
             self.scratch_next = 0x10000
             self.auto = False
             self.flow_ended = True
@@ -570,6 +618,7 @@ class Assembler:
             else:
                 self.pc = self.scratch_next
             self.float_start = self.pc
+            self.float_pc[index] = self.pc
             return
         if mnemonic == 'endfloat':
             index, saved = self.in_float

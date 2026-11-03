@@ -58,6 +58,8 @@ var_delete:
 ; with SP at ERR_SP, so GOSUB and RETURN rebuild the stack from there and
 ; carry on with the loop.
 st_gosub:
+        ld bc,40                ; room for the entry, or else for report 4
+        call test_room          ; and a command such as NEW or RUN
         call expr_uint
         ld hl,(PPC)
         inc hl                  ; RETURN goes to the line after
@@ -243,12 +245,12 @@ st_unplot:
         xor a
 plot_common:
         push af
-        call expr_byte
+        call expr_abs_byte
         cp 64
         jr nc,range_error
         push af
         call expect_comma
-        call expr_byte
+        call expr_abs_byte
         cp 44
         jr nc,range_error
         ld d,a                  ; D = y, E = x
@@ -495,6 +497,15 @@ assign: ld a,(TG_KIND)
         ld hl,(DEST)
         jr reclaim
 .fixed: call pop_str_ae
+        push de                 ; copy the text to the workspace first: it may
+        rst 0x30                ; overlap the destination, LET A$(2 TO)=A$
+        pop hl
+        ld (AE_OFF),de
+        ld a,b
+        or c
+        jr z,.cpy
+        ldir
+.cpy:   ld bc,(AE_DIMS)
         ld hl,(STRLEN)
         ld de,(DEST)
 .cp:    ld a,h
@@ -808,10 +819,7 @@ st_load:
 after_load:
         call reset_stack
         ld hl,(E_LINE)
-        ld (hl),C_NL
-        inc hl
-        ld (WORKSP),hl
-        call line_workspace
+        call eline_end
         ld (iy+Y_OFLAGS),0
         ld (iy+Y_DF_SZ),2
         ld a,(iy+Y_CDFLAG)

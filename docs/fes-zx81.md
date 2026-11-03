@@ -139,7 +139,12 @@ ended, NEW goes FAST before it clears memory, and the editor restores SLOW
 after an error, including one while a line is being entered. A key that is
 still down when a report appears or `INPUT` starts is not typed, and `PAUSE`
 ends only on a key pressed during it. `FRAMES` keeps bit 15 set while bits 0
-to 14 count down.
+to 14 count down. A program that runs out of memory while it prints still gets
+report 4 on a 1 KiB or 2 KiB machine: the report is printed with a smaller
+memory margin. A `GOSUB` that would leave too little room stops with report
+4, keeping enough to type NEW or RUN. A slice assignment copies its source
+first, so `LET A$(2 TO 4)=A$(1 TO 3)` gives `AABCE`. `PLOT` and `UNPLOT` take
+|x| and |y|, as on the ZX81.
 
 No Sinclair ROM image or file is used to build it. A few short sequences are
 nevertheless byte-for-byte the same as in Sinclair's ROM, because the display
@@ -158,6 +163,8 @@ ordinary programs, strings and slicing, numeric arrays, `FOR`/`GOSUB`, `RND`,
 - No string arrays; a `FOR` loop that should run zero times runs once.
 - A variable name ends at a space, so `LET MY VAR=1` gives report C.
 - `PAUSE 0` returns at once.
+- Printing follows the print position in `S_POSN`; setting `DF_CC` alone (by
+  `POKE` or machine code) does not move it. PRINT-AT `$08F5` sets both.
 - No up/down listing cursor keys (use `LIST n` and EDIT); no E-notation input
   (output is supported); `POKE` takes 0 to 255 only.
 - No syntax check on entry: errors are reported when the line runs.
@@ -171,10 +178,15 @@ checks the display geometry against the original, key rollover, the display
 mode after a line-entry error, DF_CC after `PRINT AT`, `INPUT` into an existing
 variable over two rows, repeated `RETURN` without `GOSUB`, `INKEY$` with no
 key and with Q held, a BREAK held past its report, `PAUSE` started with the
-`RUN` NEWLINE still down, `SCROLL` with `DF_SZ` 0 and `DIM A (5)`. It enters
+`RUN` NEWLINE still down, `SCROLL` with `DF_SZ` 0, `DIM A (5)`, `PLOT -1,-1`,
+FUNCTION followed by a key with no function, an overlapping slice assignment,
+a `GOSUB` that recurses until report 4, and `RETURN` from a subroutine that
+filled memory. It enters
 and runs programs, saves and loads them in both FAST and SLOW modes through the
 tape trap, scrolls the screen, and exercises the FAST/SLOW end-of-frame loop.
-On 1 KiB it checks that a `DIM` that runs out of memory reports 4. On 16 KiB it
+On 1 KiB and 2 KiB it checks that a program that runs out of memory while
+printing shows report 4 and returns to the editor, and on 1 KiB that a `DIM`
+that runs out of memory reports 4. On 16 KiB it
 checks EDIT of a line longer than the screen, 20 STOP/CONT reports in SLOW
 mode, and a NEWLINE held through an autorun LOAD. When the FogCast starter
 tapes are in the checkout, it also loads and lists two `.p` files made by other

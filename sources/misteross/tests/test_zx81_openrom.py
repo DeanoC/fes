@@ -50,7 +50,7 @@ class AssemblerTest(unittest.TestCase):
                      "rst 1", "rst 0x40", "bit 8,a", "set 9,(hl)",
                      "ld (hl),(hl)", "ld (ix+1),(hl)", "ld (ix+1),(iy+1)",
                      "ld h,ixl", "ld ixh,l", "ld ixh,(hl)", "ld ixh,(ix+1)",
-                     "ld ixh,iyl"):
+                     "ld ixh,iyl", "adc ix,bc", "sbc iy,de", "add ix,iy"):
             with self.subTest(line=line), self.assertRaises(z80asm.AsmError):
                 assemble(f"        org 0\n        {line}\nx:      ret\n")
 
@@ -103,6 +103,25 @@ b:      ret
         # a (3 bytes) and b (1 byte) fit the gap between the fixed blocks.
         self.assertEqual(image[:7], bytes([0xc3, 0x03, 0x00, 0xc3, 0x06, 0x00, 0xc9]))
         self.assertEqual(image[8], 0xc9)
+
+    def test_sections_joined_by_jr_stay_together(self):
+        # Largest first and best fit would put b alone in the first gap,
+        # too far from a for its jr.
+        image = assemble("""
+        floatlimit 0x200
+        org 0
+        jp a
+        org 0x90
+        ret
+        autofloat
+a:      ds 128
+        jr b
+b:      ret
+        ds 139
+        endautofloat
+        """, 0x200)
+        self.assertEqual(image[:3], bytes([0xc3, 0x91, 0x00]))      # jp a
+        self.assertEqual(image[0x111:0x114], bytes([0x18, 0x00, 0xc9]))   # jr b, b: ret
 
 
 class OpenRomImageTest(unittest.TestCase):

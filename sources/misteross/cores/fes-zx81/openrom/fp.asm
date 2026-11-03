@@ -708,6 +708,15 @@ range_bad:
 ; Pop an integer 0..255 into A.
 get_byte_pop:
         call get_uint_pop
+        jr byte_bc
+
+; An expression 0..255 or -255..0 into A, the sign ignored: PLOT and UNPLOT
+; take |x| and |y|, as on the ZX81.
+expr_abs_byte:
+        call expr_num
+        call fp_to_bc
+        jr c,range_bad
+byte_bc:
         ld a,b
         and a
         ld a,c
