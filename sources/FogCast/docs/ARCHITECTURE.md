@@ -2695,6 +2695,33 @@ The existing local execution mode remains volatile for settings/progress.
 See [durable kit library](../../../docs/kit-core-library.md) for the operator
 workflow and explicit storage/recovery boundaries.
 
+### The kit host's packages
+
+A host whose config sets `[core_packages] kit = true` is a kit host (#863
+slice 3). Its installed packages are `kitpackages.View`, not the state
+directory's `core-packages` store. The view opens the durable store with the
+agent's checks (`OpenPersistent` on `/run/fogcast/fesdata3/core-library`)
+and reads the image's factory packages under
+`/usr/share/mister-runtime/core-packages`. Imports go to the durable store.
+List, inspect and read look in the durable store first, then in the factory
+packages. A package in both is the same bytes and is listed once.
+
+A factory package is an unpacked directory named by its package ID. It hashes
+to the same ID as its canonical archive, so the host reads it as that archive
+(`corepackage.ReadPackage`). A directory that does not hash to its name is
+omitted from the list and refused by ID. The factory reader is independent of
+the selection files: catalog entries name package IDs, so the host needs the
+packages, not the per-core selections.
+
+The host and `mister-agent` open the durable store as two processes, coordinated
+by its flock. That lock waits until the caller's context ends, so a view call
+without a deadline is bounded to one minute. Durable and factory inspections are
+cached by stat fingerprint, as above. If the durable store cannot be opened,
+the host follows the agent: it withholds the factory packages too and reports
+HTTP 503 `CORE_PACKAGE_STORE_UNAVAILABLE` for list, inspect, read and import.
+It retries the open at most every five seconds, so a host that starts before
+FESDATA3 is ready recovers without a restart.
+
 ## Installed core packages and library entries
 
 Coleco firmware and optional ZX81/Coleco CPU expansion-bus modules use the normal library launch

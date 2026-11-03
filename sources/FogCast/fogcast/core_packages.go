@@ -11,6 +11,7 @@ import (
 
 	"github.com/DeanoC/FogCast/catalog"
 	"github.com/DeanoC/FogCast/corepackage"
+	"github.com/DeanoC/FogCast/internal/kitpackages"
 	"github.com/DeanoC/FogCast/internal/meshcontent"
 	"github.com/DeanoC/FogCast/protocol"
 	"github.com/DeanoC/FogCast/targetclient"
@@ -47,6 +48,18 @@ type coreFirmwareCatalog interface {
 	HouseholdFirmwareFilled(context.Context) (bool, error)
 }
 
+// corePackageStore holds the installed core packages. A desktop host uses its
+// own corepackage.Store. A kit host ([core_packages] kit = true) uses
+// kitpackages.View: the kit's durable store, then its factory packages.
+type corePackageStore interface {
+	Import(context.Context, int64, io.Reader) (corepackage.Inspection, bool, error)
+	List(context.Context) ([]corepackage.Inspection, error)
+	Inspect(context.Context, string) (corepackage.Inspection, error)
+	Read(context.Context, string) (corepackage.Inspection, []byte, error)
+}
+
+const coreStoreUnavailableMessage = "core package storage is unavailable"
+
 type coreInspectionClient interface {
 	InspectCore(context.Context, int64, io.Reader) (protocol.CoreInspection, error)
 }
@@ -61,6 +74,9 @@ func (s *Service) ImportCorePackage(ctx context.Context, size int64, body io.Rea
 		if errors.Is(err, corepackage.ErrInvalidPackage) {
 			code = protocol.CodeInvalidArchive
 		}
+		if errors.Is(err, kitpackages.ErrStoreUnavailable) {
+			code = protocol.CodeCorePackageStoreUnavailable
+		}
 		return corepackage.Inspection{}, false, canonicalError(code, safeContextError(err))
 	}
 	return inspection, created, nil
@@ -71,6 +87,9 @@ func (s *Service) CorePackages(ctx context.Context) ([]InstalledCorePackage, err
 		return nil, canonicalError(protocol.CodeUnsupportedOperation, nil)
 	}
 	values, err := s.corePackages.List(ctx)
+	if errors.Is(err, kitpackages.ErrStoreUnavailable) {
+		return nil, canonicalError(protocol.CodeCorePackageStoreUnavailable, nil)
+	}
 	if err != nil {
 		return nil, canonicalError(protocol.CodeInternal, safeContextError(err))
 	}
@@ -132,6 +151,9 @@ func (s *Service) installedCoreRequest(id string) error {
 func installedCoreError(err error) error {
 	if errors.Is(err, corepackage.ErrPackageNotFound) {
 		return canonicalError(protocol.CodeROMNotFound, nil)
+	}
+	if errors.Is(err, kitpackages.ErrStoreUnavailable) {
+		return canonicalError(protocol.CodeCorePackageStoreUnavailable, nil)
 	}
 	return canonicalError(protocol.CodeInternal, safeContextError(err))
 }

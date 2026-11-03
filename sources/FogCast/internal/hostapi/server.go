@@ -986,6 +986,8 @@ func publicErrorMessage(code protocol.ErrorCode) string {
 		return "target ROM path is invalid"
 	case protocol.CodeSourceUnavailable:
 		return "game source is unavailable"
+	case protocol.CodeCorePackageStoreUnavailable:
+		return "core package storage is unavailable"
 	case protocol.CodeTransferFailed:
 		return "content transfer failed"
 	case protocol.CodeKitLeaseDenied:
@@ -1180,7 +1182,7 @@ func writeSessionError(w http.ResponseWriter, err error) {
 		if apiErr.Code == protocol.CodeBusy || apiErr.Code == protocol.CodeKitLeaseBusy {
 			status = http.StatusConflict
 		}
-		if apiErr.Code == protocol.CodeUnavailable {
+		if apiErr.Code == protocol.CodeUnavailable || apiErr.Code == protocol.CodeCorePackageStoreUnavailable {
 			status = http.StatusServiceUnavailable
 		}
 		if apiErr.Code == protocol.CodeKitLeaseDenied {

@@ -281,6 +281,20 @@ func (s *Store) Read(ctx context.Context, id string) (corepackage.Inspection, []
 	return s.read(ctx, r, id)
 }
 
+// Inspect is Read without the archive bytes. An unchanged package is not
+// read or hashed again.
+func (s *Store) Inspect(ctx context.Context, id string) (corepackage.Inspection, error) {
+	if !packageIDRE.MatchString(id) {
+		return corepackage.Inspection{}, ErrInvalidPackageID
+	}
+	r, unlock, err := s.lock(ctx)
+	if err != nil {
+		return corepackage.Inspection{}, err
+	}
+	defer unlock()
+	return s.listingInspection(ctx, r, id)
+}
+
 // Path returns a local launch path only after authenticating both retained
 // representations. Network callers never choose or receive filesystem paths.
 func (s *Store) Path(ctx context.Context, id string) (string, error) {
@@ -461,7 +475,7 @@ func (s *Store) rememberVerified(id, key string, inspection corepackage.Inspecti
 	if s.verified == nil {
 		s.verified = make(map[string]verifiedPackage)
 	}
-	s.verified[id] = verifiedPackage{key: key, inspection: inspection}
+	s.verified[id] = verifiedPackage{key: key, inspection: inspection.Clone()}
 }
 
 func (s *Store) cachedVerified(id, key string) (corepackage.Inspection, bool) {
@@ -471,7 +485,7 @@ func (s *Store) cachedVerified(id, key string) (corepackage.Inspection, bool) {
 	if !ok || hit.key != key {
 		return corepackage.Inspection{}, false
 	}
-	return hit.inspection, true
+	return hit.inspection.Clone(), true
 }
 
 func packageStatKey(r *os.Root, id string) (string, error) {

@@ -21,6 +21,7 @@ import (
 	"github.com/DeanoC/FogCast/corepackage"
 	"github.com/DeanoC/FogCast/internal/discovery"
 	"github.com/DeanoC/FogCast/internal/hostexec"
+	"github.com/DeanoC/FogCast/internal/kitpackages"
 	"github.com/DeanoC/FogCast/internal/meshcontent"
 	"github.com/DeanoC/FogCast/internal/meshplace"
 	"github.com/DeanoC/FogCast/internal/meshpref"
@@ -253,7 +254,7 @@ type Service struct {
 	closeKitLeases      func(context.Context) error
 	coreCatalogPath     string
 	coreLibrarySourceID string
-	corePackages        *corepackage.Store
+	corePackages        corePackageStore
 	catalog             serviceCatalog
 	scanner             serviceScanner
 	preparer            servicePreparer
@@ -517,13 +518,20 @@ func OpenWithHostProcessStarter(ctx context.Context, paths Paths, httpClient *ht
 			Image: config.ZX81MachineROM.Image, MistralCV: config.ZX81MachineROM.MistralCV,
 		})
 	}
-	packageRoot := paths.CorePackages
-	if packageRoot == "" {
-		packageRoot = filepath.Join(filepath.Dir(paths.Index), "core-packages")
-	}
-	service.corePackages, err = corepackage.NewStore(packageRoot)
-	if err != nil {
-		return fail("open installed core packages", err)
+	if config.CorePackages.Kit {
+		service.corePackages = kitpackages.NewView(func() (*kitpackages.Store, error) {
+			return kitpackages.OpenPersistent(kitpackages.DefaultRoot)
+		}, kitpackages.NewFactory(kitpackages.FactoryRoot))
+	} else {
+		packageRoot := paths.CorePackages
+		if packageRoot == "" {
+			packageRoot = filepath.Join(filepath.Dir(paths.Index), "core-packages")
+		}
+		packages, err := corepackage.NewStore(packageRoot)
+		if err != nil {
+			return fail("open installed core packages", err)
+		}
+		service.corePackages = packages
 	}
 
 	if err := service.retireSupersededLibraries(ctx); err != nil {
@@ -3358,6 +3366,8 @@ func canonicalError(code protocol.ErrorCode, cause error) error {
 		message = "target ROM path is invalid"
 	case protocol.CodeSourceUnavailable:
 		message = "game source is unavailable"
+	case protocol.CodeCorePackageStoreUnavailable:
+		message = coreStoreUnavailableMessage
 	case protocol.CodeInvalidArchive:
 		message = "game archive is invalid"
 	case protocol.CodeTransferFailed:
