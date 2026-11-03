@@ -232,6 +232,54 @@ class PersistenceAdmissionTest(unittest.TestCase):
             args.source_repository='Example/fes'; args.source_main=False
             with self.assertRaises(p.pa.AcceptanceError): p.require_source(args)
 
+    def test_historical_main_binds_live_tip_first_parent_and_reviewed_diff(self):
+        raw_diff=b':100644 100644 old new M\0changed\0'
+        args=SimpleNamespace(source_repository='Example/fes', source_pr=None, source_base='main',
+            source_commit='a'*40,source_tool_commit='b'*40,source_main=False,source_historical_main=True,
+            source_observed_tip='c'*40,source_diff_sha256=hashlib.sha256(raw_diff).hexdigest())
+        root=Path(p.__file__).resolve().parent.parent
+        live={'sha':'c'*40,'parents':[{'sha':'a'*40}]}; changed=[]; gh_calls=[]
+        def command(argv,deadline,cwd=None):
+            if argv[:3]==['git','rev-parse','HEAD']:return b'b'*40+b'\n'
+            if argv[:2]==['git','show']:
+                commit,path=argv[2].split(':',1);data=(root/path).read_bytes()
+                return data+b'bad' if (commit,path) in changed else data
+            if argv[:2]==['git','diff']:return raw_diff
+            if argv==['gh','api','repos/Example/fes/commits/'+'d'*40]:
+                return json.dumps({'sha':'d'*40,'parents':[]}).encode()
+            self.assertEqual(argv,['gh','api','repos/Example/fes/commits/main'])
+            gh_calls.append(1)
+            return json.dumps(live).encode()
+        with mock.patch.object(p,'bounded_source_command',side_effect=command):
+            p.require_source(args)
+            self.assertEqual(len(gh_calls),2)
+            evidence=p.main_source_evidence(args)
+            self.assertEqual((evidence['producer_commit'],evidence['observed_tip']),('a'*40,'c'*40))
+            self.assertIn('later changes were not hardware-tested',evidence['scope'])
+            live['sha']='d'*40
+            with self.assertRaises(p.pa.AcceptanceError):p.require_source(args)
+            live['sha']='c'*40;live['parents']=[{'sha':'d'*40},{'sha':'a'*40}]
+            with self.assertRaises(p.pa.AcceptanceError):p.require_source(args)
+            live['parents']=[{'sha':'a'*40}];args.source_diff_sha256='d'*64
+            with self.assertRaises(p.pa.AcceptanceError):p.require_source(args)
+            args.source_diff_sha256=hashlib.sha256(raw_diff).hexdigest()
+            changed.append(('b'*40,'scripts/pcxt_health_evidence.py'))
+            with self.assertRaises(p.pa.AcceptanceError):p.require_source(args)
+            changed.clear();changed.append(('a'*40,p.SOURCE_PATHS[-1]))
+            with self.assertRaises(p.pa.AcceptanceError):p.require_source(args)
+            changed.clear();args.source_observed_tip=None
+            with self.assertRaises(p.pa.AcceptanceError):p.require_source(args)
+            args.source_observed_tip='c'*40;args.source_main=True
+            with self.assertRaises(p.pa.AcceptanceError):p.require_source(args)
+        args.source_main=False
+        def moved_during_check(argv,deadline,cwd=None):
+            result=command(argv,deadline,cwd=cwd)
+            if argv[0]=='gh' and len(gh_calls)%2==0:return json.dumps({'sha':'d'*40}).encode()
+            return result
+        gh_calls.clear()
+        with mock.patch.object(p,'bounded_source_command',side_effect=moved_during_check):
+            with self.assertRaises(p.pa.AcceptanceError):p.require_source(args)
+
     def test_main_write_then_restart_requires_same_producer_and_tools(self):
         root=Path(p.__file__).resolve().parent.parent
         args=SimpleNamespace(source_repository='Example/fes',source_pr=None,source_base='main',

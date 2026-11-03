@@ -48,7 +48,8 @@ def bounded_source_command(argv, deadline, *, cwd=None):
     """Bound and reap an owned Git/GitHub process group without pipe hangs."""
     deadline.remaining(1)
     with tempfile.TemporaryFile() as output:
-        proc=subprocess.Popen(argv,cwd=cwd,stdout=output,stderr=subprocess.DEVNULL,start_new_session=True)
+        environment = dict(os.environ, GIT_NO_REPLACE_OBJECTS='1')
+        proc=subprocess.Popen(argv,cwd=cwd,stdout=output,stderr=subprocess.DEVNULL,start_new_session=True,env=environment)
         try:
             # Keep the leader unreaped until its entire group is killed. This
             # prevents PID/group reuse when an exited leader leaves children.
@@ -156,11 +157,86 @@ def require_main_head(args, deadline=None):
         raise pa.AcceptanceError('cannot verify the requested main head and exact diagnostic source') from None
 
 
+def require_historical_main(args, deadline=None):
+    """Admit one reviewed historical main commit, never the later tip as tested."""
+    try:
+        deadline = deadline or PhaseDeadline(time.monotonic()+21)
+        repo, producer, tool = args.source_repository, args.source_commit, args.source_tool_commit
+        tip, diff_sha = args.source_observed_tip, args.source_diff_sha256
+        parts = repo.split('/') if isinstance(repo, str) else []
+        if (len(parts) != 2 or any(not re.fullmatch(r'[A-Za-z0-9_.-]{1,100}', part)
+                                   or part in ('.', '..') for part in parts)
+                or args.source_base != 'main' or getattr(args, 'source_pr', None) is not None
+                or getattr(args, 'source_main', False)
+                or any(not isinstance(value, str) or not re.fullmatch(r'[0-9a-f]{40}', value)
+                       for value in (producer, tool, tip))
+                or producer == tip or not isinstance(diff_sha, str) or not HEX64.fullmatch(diff_sha)):
+            raise ValueError('invalid historical source identity')
+        root = Path(__file__).resolve().parent.parent
+        current = bounded_source_command(['git', 'rev-parse', 'HEAD'], deadline, cwd=root).decode('ascii').strip()
+        if current != tool:
+            raise ValueError('local diagnostic commit changed')
+        for path in SOURCE_PATHS + ['scripts/pcxt_main_application_acceptance.py']:
+            committed = bounded_source_command(['git', 'show', f'{tool}:{path}'], deadline, cwd=root)
+            if (root / path).read_bytes() != committed:
+                raise ValueError('diagnostic source changed')
+        for path in SOURCE_PATHS[-2:]:
+            if bounded_source_command(['git', 'show', f'{producer}:{path}'], deadline, cwd=root) != (root / path).read_bytes():
+                raise ValueError('producer BIOS inputs differ')
+        live = json.loads(bounded_source_command(['gh', 'api', f'repos/{repo}/commits/main'], deadline))
+        if not isinstance(live, dict) or live.get('sha') != tip:
+            raise ValueError('observed main tip changed')
+        # Authenticate the first-parent chain from GitHub itself. A local
+        # replace ref or graft must not manufacture main-branch ancestry.
+        cursor, commit = tip, live
+        for _ in range(32):
+            parents = commit.get('parents') if isinstance(commit, dict) else None
+            if (not isinstance(parents, list) or not parents or not isinstance(parents[0], dict)
+                    or not isinstance(parents[0].get('sha'), str)
+                    or not re.fullmatch(r'[0-9a-f]{40}', parents[0]['sha'])):
+                raise ValueError('main first-parent chain is unavailable')
+            cursor = parents[0]['sha']
+            if cursor == producer:
+                break
+            commit = json.loads(bounded_source_command(['gh', 'api', f'repos/{repo}/commits/{cursor}'], deadline))
+            if not isinstance(commit, dict) or commit.get('sha') != cursor:
+                raise ValueError('main first-parent commit differs')
+        else:
+            raise ValueError('producer is not on bounded main first-parent chain')
+        diff = bounded_source_command(['git', 'diff', '--raw', '-z', '--no-abbrev', '--no-renames',
+                                       '--no-ext-diff', producer, tip, '--'], deadline, cwd=root)
+        if hashlib.sha256(diff).hexdigest() != diff_sha:
+            raise ValueError('reviewed source diff changed')
+        # Bind the observation across the local ancestry and diff checks.
+        live = json.loads(bounded_source_command(['gh', 'api', f'repos/{repo}/commits/main'], deadline))
+        if not isinstance(live, dict) or live.get('sha') != tip:
+            raise ValueError('observed main tip changed during admission')
+        deadline.remaining(1)
+    except (OSError, ValueError, TypeError, UnicodeError, subprocess.CalledProcessError,
+            subprocess.TimeoutExpired, json.JSONDecodeError):
+        raise pa.AcceptanceError('cannot verify historical main, reviewed tip and exact diagnostic source') from None
+
+
+def main_source_evidence(args):
+    if getattr(args, 'source_historical_main', False):
+        return {'repository': args.source_repository, 'branch': 'main', 'producer_commit': args.source_commit,
+                'tool_commit': args.source_tool_commit, 'observed_tip': args.source_observed_tip,
+                'raw_diff_sha256': args.source_diff_sha256,
+                'scope': 'hardware diagnostic tests producer commit only; later changes were not hardware-tested'}
+    return {'repository': args.source_repository, 'branch': args.source_base,
+            'producer_commit': args.source_commit, 'tool_commit': args.source_tool_commit}
+
+
 def require_source(args, deadline=None):
-    if getattr(args, 'source_main', False):
+    if getattr(args, 'source_historical_main', False):
+        require_historical_main(args, deadline)
+    elif getattr(args, 'source_main', False):
+        if getattr(args, 'source_observed_tip', None) is not None or getattr(args, 'source_diff_sha256', None) is not None:
+            raise pa.AcceptanceError('historical source arguments require historical mode')
         require_main_head(args, deadline)
     else:
-        if getattr(args, 'source_tool_commit', None) is not None:
+        if (getattr(args, 'source_tool_commit', None) is not None or getattr(args, 'source_observed_tip', None) is not None
+                or getattr(args, 'source_diff_sha256', None) is not None):
             raise pa.AcceptanceError('tool commit is only valid for main source mode')
         require_pr_head(args, deadline)
 
@@ -537,8 +613,11 @@ def main(argv=None):
         source_mode = p.add_mutually_exclusive_group(required=True)
         source_mode.add_argument('--source-pr', type=int, help='open pull request number')
         source_mode.add_argument('--source-main', action='store_true', help='require the producer commit to be the live main head')
+        source_mode.add_argument('--source-historical-main', action='store_true', help='test a pinned historical main commit only')
         p.add_argument('--source-base', required=True, help='expected PR base branch, or main')
         p.add_argument('--source-tool-commit', help='full diagnostic checkout commit, required in main mode')
+        p.add_argument('--source-observed-tip', help='reviewed full live main tip in historical mode')
+        p.add_argument('--source-diff-sha256', help='reviewed raw producer-to-tip diff SHA-256 in historical mode')
         p.add_argument('--phase-deadline-monotonic', required=True, type=float)
         p.add_argument('--host-pid', required=True, type=int)
         p.add_argument('--write-receipt', type=Path)
@@ -547,9 +626,8 @@ def main(argv=None):
     def source(args, font):
         result, host_raw, software_raw = original_source(args, font)
         check_matching_sources(result, args.source_commit)
-        if args.source_main:
-            result['main_source'] = {'repository': args.source_repository, 'branch': args.source_base,
-                                     'producer_commit': args.source_commit, 'tool_commit': args.source_tool_commit}
+        if args.source_main or args.source_historical_main:
+            result['main_source'] = main_source_evidence(args)
         result['diagnostic_file_sha256']['scripts/pcxt_floppy_persistence_acceptance.py'] = hashlib.sha256(Path(__file__).read_bytes()).hexdigest()
         result['diagnostic_file_sha256']['scripts/pcxt_health_evidence.py'] = hashlib.sha256(Path(health_evidence.__file__).read_bytes()).hexdigest()
         return result, host_raw, software_raw
