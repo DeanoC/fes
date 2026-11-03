@@ -238,14 +238,15 @@ class PersistenceAdmissionTest(unittest.TestCase):
             source_commit='a'*40,source_tool_commit='b'*40,source_main=False,source_historical_main=True,
             source_observed_tip='c'*40,source_diff_sha256=hashlib.sha256(raw_diff).hexdigest())
         root=Path(p.__file__).resolve().parent.parent
-        live={'sha':'c'*40}; ancestry=['c'*40,'a'*40]; changed=[]; gh_calls=[]
+        live={'sha':'c'*40,'parents':[{'sha':'a'*40}]}; changed=[]; gh_calls=[]
         def command(argv,deadline,cwd=None):
             if argv[:3]==['git','rev-parse','HEAD']:return b'b'*40+b'\n'
             if argv[:2]==['git','show']:
                 commit,path=argv[2].split(':',1);data=(root/path).read_bytes()
                 return data+b'bad' if (commit,path) in changed else data
-            if argv[:3]==['git','rev-list','--first-parent']:return ('\n'.join(ancestry)+'\n').encode()
             if argv[:2]==['git','diff']:return raw_diff
+            if argv==['gh','api','repos/Example/fes/commits/'+'d'*40]:
+                return json.dumps({'sha':'d'*40,'parents':[]}).encode()
             self.assertEqual(argv,['gh','api','repos/Example/fes/commits/main'])
             gh_calls.append(1)
             return json.dumps(live).encode()
@@ -257,9 +258,9 @@ class PersistenceAdmissionTest(unittest.TestCase):
             self.assertIn('later changes were not hardware-tested',evidence['scope'])
             live['sha']='d'*40
             with self.assertRaises(p.pa.AcceptanceError):p.require_source(args)
-            live['sha']='c'*40;ancestry[:]=['c'*40,'d'*40]
+            live['sha']='c'*40;live['parents']=[{'sha':'d'*40},{'sha':'a'*40}]
             with self.assertRaises(p.pa.AcceptanceError):p.require_source(args)
-            ancestry[:]=['c'*40,'a'*40];args.source_diff_sha256='d'*64
+            live['parents']=[{'sha':'a'*40}];args.source_diff_sha256='d'*64
             with self.assertRaises(p.pa.AcceptanceError):p.require_source(args)
             args.source_diff_sha256=hashlib.sha256(raw_diff).hexdigest()
             changed.append(('b'*40,'scripts/pcxt_health_evidence.py'))

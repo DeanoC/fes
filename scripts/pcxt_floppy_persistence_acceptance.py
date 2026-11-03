@@ -48,7 +48,8 @@ def bounded_source_command(argv, deadline, *, cwd=None):
     """Bound and reap an owned Git/GitHub process group without pipe hangs."""
     deadline.remaining(1)
     with tempfile.TemporaryFile() as output:
-        proc=subprocess.Popen(argv,cwd=cwd,stdout=output,stderr=subprocess.DEVNULL,start_new_session=True)
+        environment = dict(os.environ, GIT_NO_REPLACE_OBJECTS='1')
+        proc=subprocess.Popen(argv,cwd=cwd,stdout=output,stderr=subprocess.DEVNULL,start_new_session=True,env=environment)
         try:
             # Keep the leader unreaped until its entire group is killed. This
             # prevents PID/group reuse when an exited leader leaves children.
@@ -182,9 +183,23 @@ def require_historical_main(args, deadline=None):
         live = json.loads(bounded_source_command(['gh', 'api', f'repos/{repo}/commits/main'], deadline))
         if not isinstance(live, dict) or live.get('sha') != tip:
             raise ValueError('observed main tip changed')
-        ancestry = bounded_source_command(['git', 'rev-list', '--first-parent', tip], deadline, cwd=root).decode('ascii').splitlines()
-        if not ancestry or ancestry[0] != tip or producer not in ancestry:
-            raise ValueError('producer is not on main first-parent chain')
+        # Authenticate the first-parent chain from GitHub itself. A local
+        # replace ref or graft must not manufacture main-branch ancestry.
+        cursor, commit = tip, live
+        for _ in range(32):
+            parents = commit.get('parents') if isinstance(commit, dict) else None
+            if (not isinstance(parents, list) or not parents or not isinstance(parents[0], dict)
+                    or not isinstance(parents[0].get('sha'), str)
+                    or not re.fullmatch(r'[0-9a-f]{40}', parents[0]['sha'])):
+                raise ValueError('main first-parent chain is unavailable')
+            cursor = parents[0]['sha']
+            if cursor == producer:
+                break
+            commit = json.loads(bounded_source_command(['gh', 'api', f'repos/{repo}/commits/{cursor}'], deadline))
+            if not isinstance(commit, dict) or commit.get('sha') != cursor:
+                raise ValueError('main first-parent commit differs')
+        else:
+            raise ValueError('producer is not on bounded main first-parent chain')
         diff = bounded_source_command(['git', 'diff', '--raw', '-z', '--no-abbrev', '--no-renames',
                                        '--no-ext-diff', producer, tip, '--'], deadline, cwd=root)
         if hashlib.sha256(diff).hexdigest() != diff_sha:
