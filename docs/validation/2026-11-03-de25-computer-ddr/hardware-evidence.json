@@ -1,0 +1,72 @@
+{
+  "status": "passed",
+  "source_commit": "668b1c733155025e10a235dab8f6a82b5767017a",
+  "classification": "current sealed computer fixed32-byte DDR read/drain/reclose hardware diagnostic",
+  "prior_failed_attempt_sha256": "c5ee02d2929e9dca25bd6a252b4dc1452fed3ca2129027e85c4a083f9b4347e5",
+  "hardware_attempts": 2,
+  "hardware_failures": 1,
+  "cpu_mapping": {
+    "control_base": 536937472,
+    "control_bytes": 256,
+    "dma_base": 2491416576,
+    "dma_bytes": 8388608,
+    "format": 1,
+    "ram_base": 2214592512,
+    "ram_bytes": 268435456,
+    "reader_base": 2499805184,
+    "reader_bytes": 2097152,
+    "scope": "pinned-tamago-el1-resources-v1"
+  },
+  "boot_id": "cd19cf6e053fe413",
+  "package_id": "b2353f540cc81b9896db86867248880aceffce8c81314042b02317f76f947f37",
+  "build_id": "dda236646bb868e63c72bd0e777f3dd6",
+  "configuration": {
+    "base": 2491416576,
+    "build_id": "dda236646bb868e63c72bd0e777f3dd6",
+    "chunk_bytes": 1048512,
+    "chunk_sha384": [
+      "87974f75e7d4132a4a1c214881be42736a22e333e393c3673cd733fbf126e8dcaf42dabbbcc1c3a57eef9f1511e9466f",
+      "f5a0d1746d7d0206eb4b231e0fdf4d3e2d38e417463ce9170d2f5b20782fff856431d5bde5e9398ae5909e2b43cb93da"
+    ],
+    "core_sha256": "e9255d3dc149e7db17f012c3032f8c1da245d913ded3947a2342034eb1927ac0",
+    "core_sha384": "82af3f15d7bb41aa102c9cc8e7414b7588e202433c47a7a177ca5d49a8648474e23ea8a48f27c99d672950115b18def2",
+    "core_size": 1646592,
+    "dram_base": 2147483648,
+    "format": 1,
+    "package_id": "b2353f540cc81b9896db86867248880aceffce8c81314042b02317f76f947f37",
+    "scope": "sealed-cold-configuration-v1",
+    "size": 8388608
+  },
+  "ddr": {
+    "read_bytes": 32,
+    "reader_generation": 1,
+    "cookie": 7,
+    "checksum": "f1ffefc0",
+    "owner": 2543405674959033093,
+    "closed_generation": 7,
+    "bridge_reset": 15,
+    "hardware_drained": 8,
+    "configuration_seconds": 13.3654937675,
+    "data_continuously_held": false,
+    "runtime_admission": false
+  },
+  "raw_console_bytes": 47866,
+  "raw_console_sha256": "a623e8d60b1e8d586874045c3d823c3d37410d321498d25d696a0878582e09b9",
+  "independent_raw_replay_matches": true,
+  "missing_marker_captures_rejected": 5,
+  "exact_usb_permissions_restored": true,
+  "clock_restored": "15M",
+  "private_server_stopped": true,
+  "uart_free": true,
+  "claim_retained": true,
+  "native_sd_write": false,
+  "normal_admission": false,
+  "fpga_writes_qualified": false,
+  "general_ddr_qualified": false,
+  "input_sha256": {
+    "/home/deano/fes/out/dev/de25-embedded-os/out/nano-computer-ddr-20261103/trial-cpu-map/experiment-result.json": "6870065ba32a62fc3008991ef4c673c982dc6552e617a146dca9a71906075704",
+    "/home/deano/fes/out/dev/de25-embedded-os/out/nano-computer-ddr-20261103/trial-cpu-map/native-result.json": "1dafca102f28360429334ddc51072d5d0e37fde310bdf1099a476f47193805b6",
+    "/home/deano/fes/out/dev/de25-embedded-os/out/nano-computer-ddr-20261103/trial-cpu-map/native-console.log": "a623e8d60b1e8d586874045c3d823c3d37410d321498d25d696a0878582e09b9",
+    "/home/deano/fes/out/dev/de25-embedded-os/out/nano-computer-ddr-20261103/trial-cpu-map/preflight.json": "ae1ab32d7cd4175119d3b18f3fd02f3bd2d53efe7d81f7c8d002ff81b2061137"
+  }
+}

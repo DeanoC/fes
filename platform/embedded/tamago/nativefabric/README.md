@@ -120,6 +120,11 @@ with fresh closed ownership checks and retains any returned region on failure.
 The board hook keeps its entire 2 MiB uncached arena until reboot; no completion
 reclaims it. The descriptor explicitly leaves FPGA physical addressing
 unqualified. It grants no bridge release, translation setup or runtime admission.
+The separate fixed firmware read now has a
+[current-payload physical result](../../../../docs/validation/2026-11-03-de25-computer-ddr/README.md):
+one 32-byte read, forced reader drain, complete master stop and bridge reclosure.
+That result grants no wider window access, buffer reclamation or ordinary
+runtime admission.
 
 Before an injected actor retires its current owner, it checks that the retained
 package's exact target, programming profile and ABI version have an explicitly

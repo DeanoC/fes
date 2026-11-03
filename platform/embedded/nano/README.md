@@ -1083,13 +1083,21 @@ records. The firmware reports the stop's owner/generation/reset scope. Neither
 firewall coverage nor clear translation controls grants access in this mode;
 the final record must still report unqualified translation/drain and held data.
 
-This new DDR profile remains a hardware-qualification candidate. It enables
-neither an active reader nor data bridges, secondary CPUs, runtime package
-admission or repeated core launch/return. The callbacks' software evidence
-does not establish physical DDR drain, memory attributes or firewalls. A matched
-DDR hardware observation and bounded read/drain/reclose remain open; prior
-on-chip evidence does not qualify this profile. The production oracle continues to
-reject this diagnostic target, and `HPSContextVerifier` does not implement
+The separate opt-in `--ddr-read` mode has a
+[fixed-read hardware pass](../../../docs/validation/2026-11-02-de25-contained-console/README.md)
+and a [current computer-payload pass](../../../docs/validation/2026-11-03-de25-computer-ddr/README.md).
+It verifies the full pinned CPU pattern and fresh SMMU/firewall observations,
+then releases DDR for one 32-byte/two-beat read and checks reader/master drain
+and bridge reclosure. The current image's independently checked CPU mapping
+must be passed to the trace decoder. The first current-payload attempt stopped
+because its reused observer omitted that argument; its failed capture stays
+retained, and the corrected observer passes a fresh bounded attempt.
+
+This qualifies the fixed read-only contract. The 8 KiB window and 2 MiB arena
+remain pinned until reboot, including on failure. General DDR access, FPGA
+writes, scanout and repeated active-DDR launches remain unqualified; the
+held-data computer-switching test is separate. The production oracle continues
+to reject this diagnostic target, and `HPSContextVerifier` does not implement
 `BootHandoffVerifier`.
 
 ## Contained native boot procedure
@@ -1120,9 +1128,9 @@ reject this diagnostic target, and `HPSContextVerifier` does not implement
    and `recovery-reference.sof`, verify the factory identity and release it.
    A physical power cycle remains a recovery option if volatile recovery fails.
 
-This trial qualifies only serial CPU/RAM and the observed handoff. Native
-USB/network, active master stop/drain, HDMI and runtime FPGA programming still
-need physical qualification. Read-only SD/package retention has its separate
+The basic serial trial qualifies CPU/RAM and the observed handoff. Broader native
+USB/network/HDMI, general active-DDR ownership and ordinary runtime admission
+still need physical qualification. Read-only SD/package retention has its separate
 tested profile; this serial-only procedure supplies no active SD drain proof.
 
 ## Persistent native request-service checks

@@ -17,8 +17,10 @@ input/video and ordinary runtime core admission remain open.
 The [two-package board test](../../docs/validation/2026-11-03-de25-distinct-hardware/README.md)
 now passes ZX81 → ZX80 → ZX81 with six verified Ethernet uploads, fresh native
 SD retention and request-driven Run/Hold/return. Both sealed payloads use the
-same contained platform. Native tenfoot/input/video, active FPGA DDR traffic
-and ordinary FES admission remain open.
+same contained platform. The [current-payload DDR test](../../docs/validation/2026-11-03-de25-computer-ddr/README.md)
+now also passes one fixed 32-byte FPGA read, reader/master drain and bridge
+reclosure. Native tenfoot/input/video, general DDR use and ordinary FES admission
+remain open.
 
 The [contained firmware/RTL prototype](firmware/README.md) prepares a pinned
 TF-A source variant and an FPGA identity/read-drain endpoint. The experimental
