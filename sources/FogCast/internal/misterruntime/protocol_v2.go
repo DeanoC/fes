@@ -1234,6 +1234,9 @@ func validMediaUnits(response Protocol2Response) bool {
 			(index > 0 && response.Capabilities.MediaUnits[index-1].Unit >= unit.Unit) {
 			return false
 		}
+		if unit.Interface == protocol.Zx81TapeInterface() && int64(unit.MaxBytes) != protocol.Zx81TapeMaxBytesFor(active.Descriptor) {
+			return false
+		}
 		if unit.Interface == protocol.PcxtFloppyInterface() && active.Descriptor.ABI.Minor < protocol.ComputerExtendedMinor {
 			return false
 		}

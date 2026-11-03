@@ -39,7 +39,9 @@ defines the standalone HPS-to-ZX81 command transport. [DE25 computer](docs/de25-
 describes atomic GPO submission, retained ACK state, keyboard/tape delivery and
 permanent fault containment. Its generated C++ consumer also serves the
 scripted-register native runtime diagnostic client. It adds no runtime
-programming or MMIO admission.
+programming or MMIO admission. Its Go consumer gives FogCast the same exact
+16,375-byte BRAM tape limit; the agent binds that report to the DE25 target
+instead of applying another computer's 16,384-byte window.
 
 The fabric-only `emit-c` command supplies standalone constant headers for C
 consumers such as the DE25 kernel diagnostic. From this module:

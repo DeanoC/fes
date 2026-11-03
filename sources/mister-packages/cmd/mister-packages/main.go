@@ -194,6 +194,12 @@ func emitGoPath(path string) (string, error) {
 		return "", err
 	}
 	switch kind {
+	case "fabric":
+		fabric, err := pack.LoadFabric(path)
+		if err != nil {
+			return "", err
+		}
+		return emitgo.GenerateFabric(fabric)
 	case "abi":
 		abi, err := pack.LoadABI(path)
 		if err != nil {
@@ -207,7 +213,7 @@ func emitGoPath(path string) (string, error) {
 		}
 		return emitgo.GenerateProgrammingProfiles(profiles)
 	default:
-		return "", fmt.Errorf("%s: emit-go expects kind abi, or programming_profiles, got %q", path, kind)
+		return "", fmt.Errorf("%s: emit-go expects kind abi, fabric, or programming_profiles, got %q", path, kind)
 	}
 }
 
@@ -316,7 +322,7 @@ Commands:
   report [package.yaml]
   emit-c <fabric.yaml>
   emit-cpp [package.yaml]
-  emit-go [abi.yaml|programming.yaml]
+  emit-go [abi.yaml|fabric.yaml|programming.yaml]
 	emit-verilog [abi.yaml|fabric.yaml]
   diff-oracle <package.yaml> <oracle.yaml>
 

@@ -304,6 +304,8 @@ fields. `validate` accepts fabric packages and `emit-verilog` emits guarded
 constant includes using the existing naming rules. `emit-cpp` emits the same
 constants for a fabric contract the runtime also reads, such as
 [`fes.fabric.video.display-plane`](../packages/fabric/fes_fabric_video_display_plane.yaml).
+`emit-go` emits the fabric's typed `uint32` constants for host consumers, using
+the same YAML values without declaring a host ABI or capability bits.
 `emit-c` accepts only fabric packages and emits standalone guarded C headers,
 with no system includes. Constant names use the existing uppercase Verilog
 macro naming rule; each value is an unsigned 32-bit hexadecimal literal such

@@ -12,6 +12,8 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/DeanoC/FogCast/protocol"
 )
 
 const fixturePackageID = "b131f98291e946c63d94a4b73f13f7ef9efe1bafda9f96ae1a13a2bff5f2a2f0"
@@ -77,15 +79,21 @@ func TestProtocol2DE25ProducerComputerStatus(t *testing.T) {
 	if active.Descriptor.Target.ProgrammingProfile != "de25-hps-first-v1" || active.Observed.BuildID == nil || *active.Observed.BuildID != active.Descriptor.Build.ID {
 		t.Fatalf("not the selected DE25 computer: %+v", active)
 	}
+	status := computerMediaStatus(response)
+	binding := protocol.MediaUnitBinding{PackageID: active.PackageID, Generation: *response.Generation, Unit: 0}
+	if !binding.AcceptsSize(status, 16375) || binding.AcceptsSize(status, 16376) {
+		t.Fatalf("native DE25 media limit was lost during agent status conversion: %+v", status)
+	}
 	server.wait(t)
 }
 
 func TestProtocol2DE25ActiveStatusRefusesChangedIdentity(t *testing.T) {
 	line := fixtureLines(t, "protocol-v2-de25-computer.jsonl")[0]
 	for name, raw := range map[string]string{
-		"foreign profile":     strings.ReplaceAll(line, "de25-hps-first-v1", "unknown-profile"),
-		"crossed board":       strings.ReplaceAll(line, "de25_nano", "de10_nano"),
-		"unobserved identity": strings.Replace(line, `"observed":{"abi":{"id":"fes.computer","major":1,"minor":0},"build_id":"a689d5a85cfe5b44c1c96501958f6516"}`, `"observed":{"abi":null,"build_id":null}`, 1),
+		"foreign profile":        strings.ReplaceAll(line, "de25-hps-first-v1", "unknown-profile"),
+		"crossed board":          strings.ReplaceAll(line, "de25_nano", "de10_nano"),
+		"other board tape limit": strings.Replace(line, `"max_bytes":16375`, `"max_bytes":16384`, 1),
+		"unobserved identity":    strings.Replace(line, `"observed":{"abi":{"id":"fes.computer","major":1,"minor":0},"build_id":"a689d5a85cfe5b44c1c96501958f6516"}`, `"observed":{"abi":null,"build_id":null}`, 1),
 	} {
 		t.Run(name, func(t *testing.T) {
 			if raw == line {
