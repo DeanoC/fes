@@ -52,8 +52,20 @@ parent build, software bundle and environment recipes and `core-recipes.toml`.
 This is a bounded diff review, not proof that a later-tip build would produce
 identical binaries, manifests, receipts, or physical behavior.
 
-The historical diagnostic requires this exact live tip and raw diff identity;
-a main advance, force-push, missing local history, or first-parent ancestry
-failure rejects admission. A different tip needs a new full-range review and
-an explicitly supplied new diff identity. It does not change the existing
-exact-tip main mode or waive artifact, target ownership or restoration checks.
+The historical diagnostic pins this reviewed tip and raw diff identity, and
+records each actual observed main tip. It accepts a later first-parent
+fast-forward only after authenticating its ancestry from both the reviewed tip
+and the last accepted observation. A rollback, sibling force-push, missing
+history, or main movement during a check rejects admission. The restart phase
+must continue from the write receipt's last observed tip. Commits after the
+reviewed tip are neither covered by this audit nor hardware-tested. This does
+not change the existing exact-tip main mode or waive artifact, target
+ownership or restoration checks.
+
+The explicit historical arguments are `--source-historical-main`,
+`--source-observed-tip` (the reviewed tip), `--source-diff-sha256`, and
+`--source-minimum-tip` (the latest tip accepted by the preceding phase, or the
+reviewed tip for the first phase). A persistence restart additionally requires
+the minimum tip to equal the hashed write receipt's final accepted observation.
+The caller must carry the last accepted tip between other separately invoked
+phases as well; these tools do not claim to coordinate those external phases.

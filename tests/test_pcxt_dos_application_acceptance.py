@@ -558,6 +558,48 @@ class PrestartedObserverTest(unittest.TestCase):
 
 
 class MainOwnershipTest(unittest.TestCase):
+    def test_initial_validation_failure_retains_historical_tip_observations(self):
+        with tempfile.TemporaryDirectory() as temp:
+            root=Path(temp);archive=root/'core.fcore';archive.write_bytes(b'archive')
+            session_path=root/'owned.json';fake=FakeRunner()
+            fake.value['input']={'state':'attached','ready':True,'session_id':'input-1'}
+            session_path.write_text(json.dumps(fake.value));evidence=root/'evidence'
+            args=['com','--execute','--kit','A','--owner','owner','--queue-lock-fd','42',
+                  '--host-receipt',str(root/'host.json'),'--host-receipt-sha256','1'*64,
+                  '--host-binary',str(root/'fogcast-api'),'--software-receipt',str(root/'software.json'),
+                  '--software-receipt-sha256','2'*64,'--host-api','http://127.0.0.1:1234',
+                  '--config',str(root/'host.toml'),'--owned-session',str(session_path),'--archive',str(archive),
+                  '--archive-sha256',hashlib.sha256(archive.read_bytes()).hexdigest(),'--rbf-sha256','d'*64,
+                  '--package-id',fake.package_id,'--source-commit','e'*40,'--bundle-id','a'*64,
+                  '--image-sha256','b'*64,'--target-id','target-1','--expected-boot','boot-1',
+                  '--disk',str(root/'disk.img'),'--capture-device','/dev/v4l/by-id/fes-shadowcast-hil',
+                  '--evidence',str(evidence)]
+            manifest={'build':{'id':'f'*32},'abi':{'id':'fes.computer','major':1,'minor':1},
+                      'interfaces':[{'id':'fes.keyboard.hid','major':1,'minor':0,'required':True}]}
+            old_parser=app.parser
+            observations=[{'tip':'c'*40,'monotonic_ns':123,'accepted':True}]
+            def parser():
+                p=old_parser();p.set_defaults(source_historical_main=True,source_minimum_tip='b'*40,
+                                               source_tip_observations=observations)
+                return p
+            with mock.patch.object(app,'parser',side_effect=parser), \
+                 mock.patch.object(app,'check_claim',return_value={'owner':'owner'}), \
+                 mock.patch.object(app,'check_private_config',return_value={}), \
+                 mock.patch.object(app,'inspect_archive',return_value=manifest), \
+                 mock.patch.object(app,'canonical_package_id',return_value=fake.package_id), \
+                 mock.patch.object(app,'verify_disk',return_value={'floppy_sha256':app.SCENARIOS['com']['floppy']}), \
+                 mock.patch.object(app.visual,'load_font',return_value=b'font'), \
+                 mock.patch.object(app,'source_provenance',return_value=({},b'host',b'software')), \
+                 mock.patch.object(app.shutil,'disk_usage') as space, \
+                 mock.patch.object(app.pa,'Runner',return_value=fake), \
+                 mock.patch.object(app,'validate_active',side_effect=app.pa.AcceptanceError('injected initial failure')):
+                space.return_value=type('Disk',(),{'free':31*1024**3})()
+                with self.assertRaises(app.pa.AcceptanceError):app.main(args)
+            failure=json.loads((evidence/'failure.json').read_text())
+            self.assertEqual(failure['source_minimum_tip'],'b'*40)
+            self.assertEqual(failure['source_tip_observations'],observations)
+            self.assertFalse(any(call[0]=='POST' for call in fake.api.calls))
+
     def test_owned_session_success_and_failure_never_stop_or_release(self):
         for mode in ('ok', 'capture', 'cleanup', 'audio_cleanup', 'interrupt'):
             with self.subTest(mode=mode), tempfile.TemporaryDirectory() as temp:

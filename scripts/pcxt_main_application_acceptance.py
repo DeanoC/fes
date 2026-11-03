@@ -36,6 +36,7 @@ def main(argv=None):
         p.add_argument('--source-historical-main', action='store_true', help='test a pinned historical main commit only')
         p.add_argument('--source-observed-tip', help='reviewed live main tip in historical mode')
         p.add_argument('--source-diff-sha256', help='reviewed raw producer-to-tip diff SHA-256')
+        p.add_argument('--source-minimum-tip', help='last accepted main tip in historical mode')
         p.add_argument('--host-pid', type=int, required=True)
         return p
 
@@ -66,43 +67,48 @@ def main(argv=None):
 
     def scenario(original, *, game=False):
         def run(runner, owned, args, rec, input_session_id, font, **kwargs):
-            floppy.require_source(args)
-            if game:
-                if 'observer_factory' in kwargs:
-                    raise app.pa.AcceptanceError('game observer factory is owned by the main wrapper')
-                def observer_factory(observe):
-                    global HEALTH_UNSAFE
-                    try:
-                        observer.prepare()
-                        def traced(deadline):
-                            observer.begin_trace()
-                            try:
-                                return observe(deadline)
-                            finally:
-                                observer.end_trace()
-                        delegate = app.PrestartedObserver(traced)
-                    except BaseException:
-                        HEALTH_UNSAFE = True
-                        raise
-                    class GuardedObserver:
-                        def check(self):
-                            global HEALTH_UNSAFE
-                            try:
-                                return delegate.check()
-                            except BaseException:
-                                HEALTH_UNSAFE = True
-                                raise
-                        def close(self):
-                            global HEALTH_UNSAFE
-                            try:
-                                return delegate.close()
-                            except BaseException:
-                                HEALTH_UNSAFE = True
-                                raise
-                    return GuardedObserver()
-                kwargs['observer_factory'] = observer_factory
-            original(runner, owned, args, rec, input_session_id, font, **kwargs)
-            floppy.require_source(args)
+            try:
+                floppy.require_source(args)
+                if game:
+                    if 'observer_factory' in kwargs:
+                        raise app.pa.AcceptanceError('game observer factory is owned by the main wrapper')
+                    def observer_factory(observe):
+                        global HEALTH_UNSAFE
+                        try:
+                            observer.prepare()
+                            def traced(deadline):
+                                observer.begin_trace()
+                                try:
+                                    return observe(deadline)
+                                finally:
+                                    observer.end_trace()
+                            delegate = app.PrestartedObserver(traced)
+                        except BaseException:
+                            HEALTH_UNSAFE = True
+                            raise
+                        class GuardedObserver:
+                            def check(self):
+                                global HEALTH_UNSAFE
+                                try:
+                                    return delegate.check()
+                                except BaseException:
+                                    HEALTH_UNSAFE = True
+                                    raise
+                            def close(self):
+                                global HEALTH_UNSAFE
+                                try:
+                                    return delegate.close()
+                                except BaseException:
+                                    HEALTH_UNSAFE = True
+                                    raise
+                        return GuardedObserver()
+                    kwargs['observer_factory'] = observer_factory
+                original(runner, owned, args, rec, input_session_id, font, **kwargs)
+                floppy.require_source(args)
+            finally:
+                if getattr(args, 'source_historical_main', False):
+                    rec['source_minimum_tip'] = args.source_minimum_tip
+                    rec['source_tip_observations'] = list(getattr(args, 'source_tip_observations', []))
         return run
 
     # Fail before the application diagnostic's first interaction with a kit.
@@ -141,6 +147,9 @@ def main(argv=None):
     def prepared_parser():
         p = parser()
         p.set_defaults(source_main=not getattr(parsed, 'source_historical_main', False), source_pr=None, source_base='main')
+        if getattr(parsed, 'source_historical_main', False):
+            p.set_defaults(source_last_observed_tip=parsed.source_last_observed_tip,
+                           source_tip_observations=list(parsed.source_tip_observations))
         return p
     app.parser = prepared_parser
     try:

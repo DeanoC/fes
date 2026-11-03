@@ -143,7 +143,7 @@ class MainApplicationTest(unittest.TestCase):
             application.assert_not_called()
 
     def test_historical_mode_records_producer_tip_and_rechecks_each_scenario(self):
-        args=SimpleNamespace(source_historical_main=True,source_observed_tip='c'*40,
+        args=SimpleNamespace(source_historical_main=True,source_observed_tip='c'*40,source_minimum_tip='c'*40,
             source_diff_sha256='d'*64,source_repository='Example/fes',source_commit='a'*40,
             source_tool_commit='b'*40,evidence='/tmp/unused',target_id='target',expected_boot='boot',
             bundle_id='e'*64,image_sha256='f'*64)
@@ -158,7 +158,7 @@ class MainApplicationTest(unittest.TestCase):
             parsed=main.app.parser().parse_args([])
             value,_,_=main.app.source_provenance(parsed,b'font')
             self.assertEqual(value['main_source']['producer_commit'],'a'*40)
-            self.assertEqual(value['main_source']['observed_tip'],'c'*40)
+            self.assertEqual(value['main_source']['reviewed_tip'],'c'*40)
             self.assertIn('later changes were not hardware-tested',value['main_source']['scope'])
             main.app.run_com(None,None,parsed,{},'input',b'font')
         with mock.patch.object(main.app,'parser',return_value=Parser()), \
@@ -167,6 +167,10 @@ class MainApplicationTest(unittest.TestCase):
              mock.patch.object(main.app,'run_com'), \
              mock.patch.object(main.floppy.health_evidence,'HealthEvidence',return_value=observer), \
              mock.patch.object(main.floppy,'require_historical_main') as check:
+            def observe(namespace, *_):
+                namespace.source_last_observed_tip='c'*40
+                namespace.source_tip_observations=getattr(namespace,'source_tip_observations',[])+[{'tip':'c'*40,'monotonic_ns':1,'accepted':True}]
+            check.side_effect=observe
             main.main([])
             self.assertEqual(check.call_count,3)
 
