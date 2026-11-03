@@ -160,13 +160,14 @@ def require_historical_main(args, deadline=None):
         deadline = deadline or PhaseDeadline(time.monotonic()+21)
         repo, producer, tool = args.source_repository, args.source_commit, args.source_tool_commit
         tip, diff_sha = args.source_observed_tip, args.source_diff_sha256
+        minimum = getattr(args, 'source_last_observed_tip', None) or args.source_minimum_tip
         parts = repo.split('/') if isinstance(repo, str) else []
         if (len(parts) != 2 or any(not re.fullmatch(r'[A-Za-z0-9_.-]{1,100}', part)
                                    or part in ('.', '..') for part in parts)
                 or args.source_base != 'main' or getattr(args, 'source_pr', None) is not None
                 or getattr(args, 'source_main', False)
                 or any(not isinstance(value, str) or not re.fullmatch(r'[0-9a-f]{40}', value)
-                       for value in (producer, tool, tip))
+                       for value in (producer, tool, tip, minimum))
                 or producer == tip or not isinstance(diff_sha, str) or not HEX64.fullmatch(diff_sha)):
             raise ValueError('invalid historical source identity')
         root = Path(__file__).resolve().parent.parent
@@ -181,11 +182,20 @@ def require_historical_main(args, deadline=None):
             if bounded_source_command(['git', 'show', f'{producer}:{path}'], deadline, cwd=root) != (root / path).read_bytes():
                 raise ValueError('producer BIOS inputs differ')
         live = json.loads(bounded_source_command(['gh', 'api', f'repos/{repo}/commits/main'], deadline))
-        if not isinstance(live, dict) or live.get('sha') != tip:
-            raise ValueError('observed main tip changed')
+        actual_tip = live.get('sha') if isinstance(live, dict) else None
+        if not isinstance(actual_tip, str) or not re.fullmatch(r'[0-9a-f]{40}', actual_tip):
+            raise ValueError('live main tip is malformed')
+        observations = getattr(args, 'source_tip_observations', None)
+        if observations is None:
+            observations = []
+            args.source_tip_observations = observations
+        if not isinstance(observations, list) or len(observations) > 254:
+            raise ValueError('source observation history is invalid or full')
+        first = {'tip': actual_tip, 'monotonic_ns': time.monotonic_ns(), 'accepted': False}
+        observations.append(first)
         # Authenticate the first-parent chain from GitHub itself. A local
         # replace ref or graft must not manufacture main-branch ancestry.
-        cursor, commit = tip, live
+        cursor, commit, ancestry = actual_tip, live, [actual_tip]
         for _ in range(32):
             parents = commit.get('parents') if isinstance(commit, dict) else None
             if (not isinstance(parents, list) or not parents or not isinstance(parents[0], dict)
@@ -193,6 +203,7 @@ def require_historical_main(args, deadline=None):
                     or not re.fullmatch(r'[0-9a-f]{40}', parents[0]['sha'])):
                 raise ValueError('main first-parent chain is unavailable')
             cursor = parents[0]['sha']
+            ancestry.append(cursor)
             if cursor == producer:
                 break
             commit = json.loads(bounded_source_command(['gh', 'api', f'repos/{repo}/commits/{cursor}'], deadline))
@@ -200,15 +211,26 @@ def require_historical_main(args, deadline=None):
                 raise ValueError('main first-parent commit differs')
         else:
             raise ValueError('producer is not on bounded main first-parent chain')
+        if (tip not in ancestry or minimum not in ancestry
+                or ancestry.index(minimum) > ancestry.index(tip)):
+            raise ValueError('live main rolled back or diverged from reviewed history')
         diff = bounded_source_command(['git', 'diff', '--raw', '-z', '--no-abbrev', '--no-renames',
                                        '--no-ext-diff', producer, tip, '--'], deadline, cwd=root)
         if hashlib.sha256(diff).hexdigest() != diff_sha:
             raise ValueError('reviewed source diff changed')
         # Bind the observation across the local ancestry and diff checks.
         live = json.loads(bounded_source_command(['gh', 'api', f'repos/{repo}/commits/main'], deadline))
-        if not isinstance(live, dict) or live.get('sha') != tip:
+        final_tip = live.get('sha') if isinstance(live, dict) else None
+        if isinstance(final_tip, str) and re.fullmatch(r'[0-9a-f]{40}', final_tip):
+            final = {'tip': final_tip, 'monotonic_ns': time.monotonic_ns(), 'accepted': False}
+            observations.append(final)
+        else:
+            raise ValueError('live main tip is malformed')
+        if final_tip != actual_tip:
             raise ValueError('observed main tip changed during admission')
         deadline.remaining(1)
+        first['accepted'] = final['accepted'] = True
+        args.source_last_observed_tip = actual_tip
     except (OSError, ValueError, TypeError, UnicodeError, subprocess.CalledProcessError,
             subprocess.TimeoutExpired, json.JSONDecodeError):
         raise pa.AcceptanceError('cannot verify historical main, reviewed tip and exact diagnostic source') from None
@@ -217,7 +239,7 @@ def require_historical_main(args, deadline=None):
 def main_source_evidence(args):
     if getattr(args, 'source_historical_main', False):
         return {'repository': args.source_repository, 'branch': 'main', 'producer_commit': args.source_commit,
-                'tool_commit': args.source_tool_commit, 'observed_tip': args.source_observed_tip,
+                'tool_commit': args.source_tool_commit, 'reviewed_tip': args.source_observed_tip,
                 'raw_diff_sha256': args.source_diff_sha256,
                 'scope': 'hardware diagnostic tests producer commit only; later changes were not hardware-tested'}
     return {'repository': args.source_repository, 'branch': args.source_base,
@@ -228,12 +250,13 @@ def require_source(args, deadline=None):
     if getattr(args, 'source_historical_main', False):
         require_historical_main(args, deadline)
     elif getattr(args, 'source_main', False):
-        if getattr(args, 'source_observed_tip', None) is not None or getattr(args, 'source_diff_sha256', None) is not None:
+        if (getattr(args, 'source_observed_tip', None) is not None or getattr(args, 'source_diff_sha256', None) is not None
+                or getattr(args, 'source_minimum_tip', None) is not None):
             raise pa.AcceptanceError('historical source arguments require historical mode')
         require_main_head(args, deadline)
     else:
         if (getattr(args, 'source_tool_commit', None) is not None or getattr(args, 'source_observed_tip', None) is not None
-                or getattr(args, 'source_diff_sha256', None) is not None):
+                or getattr(args, 'source_diff_sha256', None) is not None or getattr(args, 'source_minimum_tip', None) is not None):
             raise pa.AcceptanceError('tool commit is only valid for main source mode')
         require_pr_head(args, deadline)
 
@@ -332,6 +355,14 @@ def previous_receipt(path, expected_sha, args, owned, current_provenance):
                 not isinstance(sess['flight_id'], str) or not sess['flight_id'] or sess['flight_id'] == owned.flight_id or
                 not isinstance(rec['saved_revision'], str) or not HEX64.fullmatch(rec['saved_revision'])):
             raise ValueError('write receipt does not bind a distinct restart')
+        if getattr(args, 'source_historical_main', False):
+            observed = rec['source_tip_observations']
+            if (not isinstance(observed, list) or not observed
+                    or any(not isinstance(item, dict) or set(item) != {'tip', 'monotonic_ns', 'accepted'}
+                           or not isinstance(item['tip'], str) or not re.fullmatch(r'[0-9a-f]{40}', item['tip'])
+                           or type(item['monotonic_ns']) is not int or item['accepted'] is not True for item in observed)
+                    or observed[-1]['tip'] != args.source_minimum_tip):
+                raise ValueError('restart does not continue from the write receipt main tip')
     except (KeyError, TypeError, ValueError, json.JSONDecodeError):
         raise pa.AcceptanceError('write-phase receipt does not bind this exact restart') from None
     return rec, digest
@@ -561,6 +592,9 @@ def run_phase(runner, owned, args, rec, input_session_id, font):
         unit_binding(runner.session(), owned, rec['saved_revision'])
         rec['classification'] = 'physical diagnostic: DOS saved file restored after restart'
     require_source(args,PhaseDeadline(args.phase_deadline_monotonic))
+    if getattr(args, 'source_historical_main', False):
+        rec['source_minimum_tip'] = args.source_minimum_tip
+        rec['source_tip_observations'] = list(args.source_tip_observations)
     rec['limitations'] = ['physical diagnostic only; not hil-queue acceptance',
                           'caller owns Stop, restart, restoration and kit release',
                           'does not establish whole-board timing or general DOS compatibility']
@@ -615,6 +649,7 @@ def main(argv=None):
         p.add_argument('--source-tool-commit', help='full diagnostic checkout commit, required in main mode')
         p.add_argument('--source-observed-tip', help='reviewed full live main tip in historical mode')
         p.add_argument('--source-diff-sha256', help='reviewed raw producer-to-tip diff SHA-256 in historical mode')
+        p.add_argument('--source-minimum-tip', help='last accepted main tip; write receipt tip on restart')
         p.add_argument('--phase-deadline-monotonic', required=True, type=float)
         p.add_argument('--host-pid', required=True, type=int)
         p.add_argument('--write-receipt', type=Path)
@@ -631,22 +666,27 @@ def main(argv=None):
     def guarded(runner, owned, args, disk_sha):
         return guarded_observation(original_validate_once, runner, owned, args, disk_sha, observer)
     def scenario(runner, owned, args, rec, input_session_id, font):
-        if not math.isfinite(args.phase_deadline_monotonic) or args.phase_deadline_monotonic <= time.monotonic()+1:
-            raise pa.AcceptanceError('valid floppy phase deadline required')
-        require_source(args, PhaseDeadline(args.phase_deadline_monotonic))
-        if args.scenario != 'com':
-            raise pa.AcceptanceError('only the pinned COM base image is admitted')
-        if args.phase == 'write' and (args.write_receipt is not None or args.write_receipt_sha256 is not None):
-            raise pa.AcceptanceError('write phase cannot take a prior receipt')
-        if args.phase == 'verify' and (args.write_receipt is None or not isinstance(args.write_receipt_sha256,str) or not HEX64.fullmatch(args.write_receipt_sha256)):
-            raise pa.AcceptanceError('verify requires a hashed write-phase receipt')
-        archive, _ = pa._read_archive(args.archive)
-        manifest = app.inspect_archive(archive, args)
-        interfaces = manifest.get('interfaces', [])
-        for name in ('fes.media.pcxt-floppy', 'fes.media.pcxt-floppy-write'):
-            if not any(i.get('id') == name and i.get('major') == 1 and i.get('minor') == 0 and i.get('required') is True for i in interfaces if isinstance(i, dict)):
-                raise pa.AcceptanceError('archive lacks the writable PC/XT floppy contract')
-        return run_phase(runner, owned, args, rec, input_session_id, font)
+        try:
+            if not math.isfinite(args.phase_deadline_monotonic) or args.phase_deadline_monotonic <= time.monotonic()+1:
+                raise pa.AcceptanceError('valid floppy phase deadline required')
+            require_source(args, PhaseDeadline(args.phase_deadline_monotonic))
+            if args.scenario != 'com':
+                raise pa.AcceptanceError('only the pinned COM base image is admitted')
+            if args.phase == 'write' and (args.write_receipt is not None or args.write_receipt_sha256 is not None):
+                raise pa.AcceptanceError('write phase cannot take a prior receipt')
+            if args.phase == 'verify' and (args.write_receipt is None or not isinstance(args.write_receipt_sha256,str) or not HEX64.fullmatch(args.write_receipt_sha256)):
+                raise pa.AcceptanceError('verify requires a hashed write-phase receipt')
+            archive, _ = pa._read_archive(args.archive)
+            manifest = app.inspect_archive(archive, args)
+            interfaces = manifest.get('interfaces', [])
+            for name in ('fes.media.pcxt-floppy', 'fes.media.pcxt-floppy-write'):
+                if not any(i.get('id') == name and i.get('major') == 1 and i.get('minor') == 0 and i.get('required') is True for i in interfaces if isinstance(i, dict)):
+                    raise pa.AcceptanceError('archive lacks the writable PC/XT floppy contract')
+            return run_phase(runner, owned, args, rec, input_session_id, font)
+        finally:
+            if getattr(args, 'source_historical_main', False):
+                rec['source_minimum_tip'] = args.source_minimum_tip
+                rec['source_tip_observations'] = list(getattr(args, 'source_tip_observations', []))
     parsed=parser().parse_args(argv)
     observer=health_evidence.HealthEvidence(parsed.evidence,parsed.target_id,parsed.expected_boot,parsed.bundle_id,parsed.image_sha256)
     class ObservedRunner(original_runner):

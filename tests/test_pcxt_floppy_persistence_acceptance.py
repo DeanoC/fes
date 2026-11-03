@@ -236,7 +236,7 @@ class PersistenceAdmissionTest(unittest.TestCase):
         raw_diff=b':100644 100644 old new M\0changed\0'
         args=SimpleNamespace(source_repository='Example/fes', source_pr=None, source_base='main',
             source_commit='a'*40,source_tool_commit='b'*40,source_main=False,source_historical_main=True,
-            source_observed_tip='c'*40,source_diff_sha256=hashlib.sha256(raw_diff).hexdigest())
+            source_observed_tip='c'*40,source_minimum_tip='c'*40,source_diff_sha256=hashlib.sha256(raw_diff).hexdigest())
         root=Path(p.__file__).resolve().parent.parent
         live={'sha':'c'*40,'parents':[{'sha':'a'*40}]}; changed=[]; gh_calls=[]
         def command(argv,deadline,cwd=None):
@@ -245,6 +245,8 @@ class PersistenceAdmissionTest(unittest.TestCase):
                 commit,path=argv[2].split(':',1);data=(root/path).read_bytes()
                 return data+b'bad' if (commit,path) in changed else data
             if argv[:2]==['git','diff']:return raw_diff
+            if argv==['gh','api','repos/Example/fes/commits/'+'c'*40]:
+                return json.dumps({'sha':'c'*40,'parents':[{'sha':'a'*40}]}).encode()
             if argv==['gh','api','repos/Example/fes/commits/'+'d'*40]:
                 return json.dumps({'sha':'d'*40,'parents':[]}).encode()
             self.assertEqual(argv,['gh','api','repos/Example/fes/commits/main'])
@@ -254,10 +256,19 @@ class PersistenceAdmissionTest(unittest.TestCase):
             p.require_source(args)
             self.assertEqual(len(gh_calls),2)
             evidence=p.main_source_evidence(args)
-            self.assertEqual((evidence['producer_commit'],evidence['observed_tip']),('a'*40,'c'*40))
+            self.assertEqual((evidence['producer_commit'],evidence['reviewed_tip']),('a'*40,'c'*40))
             self.assertIn('later changes were not hardware-tested',evidence['scope'])
             live['sha']='d'*40
             with self.assertRaises(p.pa.AcceptanceError):p.require_source(args)
+            live['parents']=[{'sha':'c'*40}]
+            p.require_source(args)
+            self.assertEqual([item['tip'] for item in args.source_tip_observations if item['accepted']],
+                             ['c'*40,'c'*40,'d'*40,'d'*40])
+            live['sha']='c'*40;live['parents']=[{'sha':'a'*40}]
+            with self.assertRaises(p.pa.AcceptanceError):p.require_source(args) # rollback
+            live['sha']='e'*40;live['parents']=[{'sha':'c'*40}]
+            with self.assertRaises(p.pa.AcceptanceError):p.require_source(args) # sibling force-push
+            args.source_last_observed_tip='c'*40
             live['sha']='c'*40;live['parents']=[{'sha':'d'*40},{'sha':'a'*40}]
             with self.assertRaises(p.pa.AcceptanceError):p.require_source(args)
             live['parents']=[{'sha':'a'*40}];args.source_diff_sha256='d'*64
@@ -377,6 +388,27 @@ class PersistenceAdmissionTest(unittest.TestCase):
                 rec['session'][name]=old
             rec['saved_revision']='absent'
             with self.assertRaises(p.pa.AcceptanceError): check()
+
+    def test_historical_restart_continues_from_write_receipt_tip(self):
+        args=SimpleNamespace(source_commit='c'*40,archive_sha256='d'*64,package_id='a'*64,
+                             rbf_sha256='e'*64,bundle_id='f'*64,image_sha256='1'*64,
+                             target_id='target',expected_boot='boot',source_historical_main=True,
+                             source_minimum_tip='9'*40)
+        rec={'classification':'physical diagnostic: saved; restart pending','scenario':'com',
+             'source_commit':args.source_commit,'archive_sha256':args.archive_sha256,'package_id':args.package_id,
+             'rbf_sha256':args.rbf_sha256,'bundle_id':args.bundle_id,'base_image_sha256':args.image_sha256,
+             'target_id':'target','boot_id':'boot','disk':{'floppy_sha256':p.DISK_SHA},
+             'saved_revision':'9'*64,'provenance':{'same':True},
+             'source_tip_observations':[{'tip':'8'*40,'monotonic_ns':1,'accepted':True},
+                                        {'tip':'9'*40,'monotonic_ns':2,'accepted':True}],
+             'session':{'id':'oldsession','target':'kit','target_id':'target','game_id':owned().game_id,
+                        'package_id':'a'*64,'generation':8,'flight_id':'oldflight'}}
+        with tempfile.TemporaryDirectory() as tmp:
+            path=Path(tmp)/'receipt.json'
+            raw=json.dumps(rec).encode();path.write_bytes(raw);sha=hashlib.sha256(raw).hexdigest()
+            p.previous_receipt(path,sha,args,owned(),{'same':True})
+            args.source_minimum_tip='8'*40
+            with self.assertRaises(p.pa.AcceptanceError):p.previous_receipt(path,sha,args,owned(),{'same':True})
 
     def test_save_uses_exact_binding_once_and_checks_revision(self):
         expected=owned(); after=session('9'*64)
