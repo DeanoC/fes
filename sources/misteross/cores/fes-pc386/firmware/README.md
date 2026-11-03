@@ -56,6 +56,14 @@ a modified library:
   counter, and on pc386 every AH=86h wait that needed a toggle never returned
   ([#1150](https://github.com/DeanoC/fes/issues/1150)). `rombios.h` names port
   41h `PORT_PIT_COUNTER1`.
+- `rombios.c`, `rombios.h`: POST programs PIT counter 2, the speaker timer, in
+  the mode an AT BIOS's POST beep leaves it: binary, LSB then MSB, mode 3, with
+  the IBM BIOS BEEP routine's count 0533h (896 Hz). Port 61h's gate and speaker bits stay off, so it does not beep. Games such as
+  Ultima VI write only a count to port 42h and toggle port 61h bits 0 and 1,
+  so they need that mode. Upstream never programs the counter, which then stays
+  in KF8253's reset state (mode 0, MSB-only counts), and those games' speaker
+  effects were silent ([#1457](https://github.com/DeanoC/fes/issues/1457)).
+  `rombios.h` names port 42h `PORT_PIT_COUNTER2`.
 
 The boot order and disk-only boot need no patch: the machine writes CMOS 2Dh,
 38h, 3Dh and 3Fh. The floppy POST and INT 13h floppy paths stay; CMOS 10h says
