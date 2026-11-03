@@ -79,7 +79,7 @@ type reprobeFixture struct {
 	healthStatus                    atomic.Int32
 }
 
-func newReprobeFixture(t *testing.T) *reprobeFixture {
+func newReprobeFixture(t testing.TB) *reprobeFixture {
 	t.Helper()
 	f := &reprobeFixture{}
 	f.boot.Store("boot-1")

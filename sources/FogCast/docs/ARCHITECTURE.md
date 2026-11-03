@@ -4098,3 +4098,7 @@ archive on the launcher's machine:
 fogcast-tenfoot room-export --output my-room.room.zip /path/to/my-room
 fogcast-tenfoot room-install --rooms /path/to/rooms my-room.room.zip
 ```
+
+Private diagnostic hosts can opt into the bounded observation timing described
+in [DEVELOPMENT.md](DEVELOPMENT.md#private-host-observation-timing). It adds no
+health or session requests and is disabled in normal operation.

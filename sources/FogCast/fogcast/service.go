@@ -15,6 +15,7 @@ import (
 	"sort"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/DeanoC/FogCast/catalog"
@@ -183,6 +184,10 @@ func WithExecutionPolicy(policy ExecutionPolicy) ServiceOption {
 }
 
 type Service struct {
+	timingClosed      bool
+	timingOpen        func(string) (*os.File, error)
+	timingEnableMu    sync.Mutex
+	timing            atomic.Pointer[observationTiming]
 	targetReset       func(string)
 	connectionMu      sync.Mutex
 	connection        TargetConnection
@@ -1280,6 +1285,7 @@ func (s *Service) LaunchOn(ctx context.Context, gameID, target string, progress 
 
 func (s *Service) Close() error {
 	s.closeOnce.Do(func() {
+		s.stopObservationTiming()
 		if s.monitorCancel != nil {
 			s.monitorCancel()
 		}
@@ -1754,6 +1760,8 @@ func (s *Service) Platforms(ctx context.Context) ([]catalog.PlatformInfo, error)
 }
 
 func (s *Service) Health(parent context.Context) (protocol.Health, error) {
+	parent, done := s.beginObservation(parent, timingHealth)
+	defer done()
 	if targetID, _ := parent.Value(pairedTargetContextKey{}).(string); targetID != "" {
 		ctx, cancel := serviceTimeout(parent, s.requestTimeout)
 		defer cancel()
@@ -1765,7 +1773,9 @@ func (s *Service) Health(parent context.Context) (protocol.Health, error) {
 	}
 	ctx, cancel := serviceTimeout(parent, s.requestTimeout)
 	defer cancel()
+	endLifecycle := observationStage(ctx, timingLifecycle)
 	release, err := s.acquireLifecycle(ctx)
+	endLifecycle()
 	if err != nil {
 		return protocol.Health{}, err
 	}
@@ -2382,12 +2392,16 @@ func (s *Service) HostExecutionStatus(parent context.Context) (hostexec.Status, 
 }
 
 func (s *Service) statusTarget(parent context.Context, target string) (protocol.Status, error) {
+	parent, done := s.beginObservation(parent, timingSession)
+	defer done()
 	if target != "" {
 		parent = WithSessionTarget(parent, target)
 	}
 	ctx, cancel := serviceTimeout(parent, s.requestTimeout)
 	defer cancel()
+	endLifecycle := observationStage(ctx, timingLifecycle)
 	releaseLifecycle, err := s.acquireLifecycle(ctx)
+	endLifecycle()
 	if err != nil {
 		return protocol.Status{}, err
 	}
@@ -2459,7 +2473,9 @@ func (s *Service) statusTarget(parent context.Context, target string) (protocol.
 		s.allowSelectedTargetRepair(parent)
 		return protocol.Status{}, canonicalError(protocol.CodeMiSTerUnavailable, nil)
 	}
+	endStatus := observationStage(ctx, timingFinalStatus)
 	status, err := client.Status(ctx)
+	endStatus()
 	if err != nil {
 		if target == "" && s.hostEmulator.Binary != "" && (localExecution || !knownFPGA) {
 			return protocol.Status{State: protocol.StateIdle}, nil

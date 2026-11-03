@@ -133,7 +133,9 @@ func (s *Service) refreshTargetConnection(ctx context.Context) (protocol.Health,
 }
 
 func (s *Service) refreshTargetConnectionWithBackoff(ctx context.Context, respectBackoff bool) (result protocol.Health, resultErr error) {
+	endLock := observationStage(ctx, timingTargetLock)
 	s.targetMu.Lock()
+	endLock()
 	defer s.targetMu.Unlock()
 	currentName := s.sessionTargetNameLocked()
 	name := SessionTargetFromContext(ctx)
@@ -194,7 +196,9 @@ func (s *Service) refreshTargetConnectionWithBackoff(ctx context.Context, respec
 	}
 	s.connectionMu.Unlock()
 	defer cancel()
+	endProbe := observationStage(ctx, timingProbe)
 	health, address, err := s.probeTarget(lookupCtx, concrete, selected)
+	endProbe()
 	if err != nil {
 		return s.connectionFailedForTarget(name, previous, &targetObservationError{"admission_health", err}, current)
 	}
@@ -220,7 +224,9 @@ func (s *Service) refreshTargetConnectionWithBackoff(ctx context.Context, respec
 	}
 	// Address-only older agents need not expose the discovery/lease extensions.
 	if selected.TargetID == "" {
+		endStatus := observationStage(ctx, timingReconcileStatus)
 		status, err := concrete.Status(lookupCtx)
+		endStatus()
 		if err != nil {
 			return s.connectionFailedForTarget(name, previous, &targetObservationError{"admission_status", errors.New("Target status could not be reconciled.")}, current)
 		}
@@ -239,7 +245,9 @@ func (s *Service) refreshTargetConnectionWithBackoff(ctx context.Context, respec
 		s.invalidateTargetSession(concrete)
 		s.resetTargetInputsOutsideTargetMu(name)
 	}
+	endOwnership := observationStage(ctx, timingOwnership)
 	ownership, err := concrete.AdoptEndpoint(lookupCtx, base, reboot)
+	endOwnership()
 	if err != nil {
 		return s.connectionFailedForTarget(name, previous, &targetObservationError{"admission_ownership", errors.New("Target ownership could not be reconciled.")}, current)
 	}
@@ -255,14 +263,18 @@ func (s *Service) refreshTargetConnectionWithBackoff(ctx context.Context, respec
 		// Invalidation discards the stale grant, but also marks the lease lost.
 		// Reconcile once more after that reset so readiness includes a clean
 		// lease state from which an explicit launch can claim immediately.
+		endOwnership = observationStage(ctx, timingOwnership)
 		ownership, err = concrete.AdoptEndpoint(lookupCtx, base, false)
+		endOwnership()
 		if err != nil {
 			return s.connectionFailedForTarget(name, previous, &targetObservationError{"admission_ownership", errors.New("Target ownership could not be reconciled.")}, current)
 		}
 	} else if !reboot && previous.Address != address {
 		s.resetTargetInputsOutsideTargetMu(name)
 	}
+	endStatus := observationStage(ctx, timingReconcileStatus)
 	status, err := concrete.Status(lookupCtx)
+	endStatus()
 	if err != nil {
 		return s.connectionFailedForTarget(name, previous, &targetObservationError{"admission_status", errors.New("Target status could not be reconciled.")}, current)
 	}
@@ -521,13 +533,17 @@ func (s *Service) probeTarget(ctx context.Context, client *targetclient.Client, 
 	current := client.EndpointURL()
 	peer := client.Peer(current)
 	healthCtx, cancel := context.WithTimeout(ctx, 750*time.Millisecond)
+	endHealth := observationStage(ctx, timingProbeHealth)
 	health, err := peer.Health(healthCtx)
+	endHealth()
 	// A short transport interruption does not by itself establish that the
 	// target has moved. Re-probe the same authenticated endpoint once before
 	// discovery, within the existing caller deadline. Identity, protocol and
 	// ownership failures must not be retried as transport errors.
 	if selected.TargetID != "" && healthCtx.Err() == nil && transientHealthTransport(err) {
+		endHealth = observationStage(ctx, timingProbeHealth)
 		health, err = peer.Health(healthCtx)
+		endHealth()
 	}
 	cancel()
 	if err := ctx.Err(); err != nil {
@@ -553,7 +569,9 @@ func (s *Service) probeTarget(ctx context.Context, client *targetclient.Client, 
 	// Resolve parses mesh-protocol version and the capability bag additively.
 	// Phase 0 announcements that omit them still return an endpoint. Parsed
 	// advertisement TTL does not release the kit lease.
+	endDiscovery := observationStage(ctx, timingDiscovery)
 	candidates, err := resolve(browseCtx, selected.TargetID)
+	endDiscovery()
 	browseCancel()
 	unique := map[string]bool{}
 	for _, candidate := range candidates {
@@ -570,7 +588,9 @@ func (s *Service) probeTarget(ctx context.Context, client *targetclient.Client, 
 	}
 	base, _ := url.Parse(address)
 	healthCtx, cancel = context.WithTimeout(ctx, 750*time.Millisecond)
+	endHealth = observationStage(ctx, timingProbeHealth)
 	health, err = client.Peer(base).Health(healthCtx)
+	endHealth()
 	cancel()
 	if err != nil || !valid(health) {
 		return protocol.Health{}, "", errors.New("Discovered kit failed identity, authentication, or protocol validation.")
