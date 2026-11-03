@@ -382,7 +382,15 @@ also reports managed software independently of that sealed base-image record.
 Target health carries only `software.active_bundle`, `base_identity`,
 `selected` and `generation`, and the host forwards them as `target.software`;
 the operation journal, requester labels and diagnostic error strings stay on
-the target's `GET /v1/kit/software`. Unmanaged targets omit `target.software`, and
+the target's `GET /v1/kit/software`. Before exposing a selection, the agent
+checks that the complete bounded supervisor response has an unambiguous,
+well-formed status envelope and no storage error. If it cannot do so, health
+retains only the active bundle and base identity supplied at launch. The
+supervisor validates its repository and journal invariants; the agent does not
+rebuild the receipt map or independently attest those invariants on each poll.
+This is an agent-side check: hosts remain wire-compatible with older agents,
+which do not gain the check until their kit software is updated.
+Unmanaged targets omit `target.software`, and
 failed health does not retain a previous identity. Public unauthenticated target
 health never exposes software status.
 
