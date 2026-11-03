@@ -156,6 +156,7 @@ def main():
     native = None
     recovery = None
     recovery_hash = None
+    recovery_sources = None
     if args.network_recovery:
         recovery_path = HERE.parent / "nano/recovery.py"
         spec = importlib.util.spec_from_file_location("fes_nano_recovery", recovery_path)
@@ -163,14 +164,17 @@ def main():
         spec.loader.exec_module(recovery)
         recovery_hash = sha(recovery_path)
     build_repo = repo
-    if args.native_entry_build is not None:
-        entry_build = args.native_entry_build.absolute()
-        if not private_path(entry_build):
-            raise ValueError("native entry must be a private build under out/")
+    if args.native_entry_build is not None or recovery is not None:
         build_repo = output / "source"
         build_repo.mkdir()
         with tarfile.open(fileobj=io.BytesIO(git(repo, "archive", revision))) as archive:
             archive.extractall(build_repo, filter="data")
+    if recovery is not None:
+        recovery_sources = recovery.prepare_phy_sources(build_repo)
+    if args.native_entry_build is not None:
+        entry_build = args.native_entry_build.absolute()
+        if not private_path(entry_build):
+            raise ValueError("native entry must be a private build under out/")
         spec = importlib.util.spec_from_file_location("fes_nano_prepare", HERE.parent / "nano/prepare_uboot.py")
         nano_prepare = importlib.util.module_from_spec(spec)
         spec.loader.exec_module(nano_prepare)
@@ -321,6 +325,7 @@ def main():
     if recovery is not None:
         if sha(recovery_path) != recovery_hash:
             raise ValueError("recovery profile changed during compilation")
+        recovery.check_phy_sources(build_repo, recovery_sources)
         recovery_symbols=subprocess.check_output([tools['readelf']['path'],'-Ws',build/'u-boot'],env=env,text=True,timeout=30)
         recovery.check_linked(recovery_symbols)
         report['uboot_elf_sha256']=sha(build/'u-boot')
@@ -328,7 +333,8 @@ def main():
         report["network_recovery"] = {"profile_sha256": recovery_hash, "manual_prompt": True,
                                        "automatic_writes": False, "random_mac": False,
                                        "sd_dma": False, "native_handoff": False,
-                                       "phy":recovery.PHY, "phy_driver_linked":True}
+                                       "phy":recovery.PHY, "phy_driver_linked":True,
+                                       "phy_sources":recovery_sources}
         report["config_sha256"] = sha(build / ".config")
         report["limitations"] = ["requires matching SPL/SOF and explicit test-card preparation",
                                   "Ethernet PHY/link, supplied stable MAC and SD writes remain untested on Nano",

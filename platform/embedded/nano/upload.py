@@ -209,7 +209,8 @@ class UploadSession:
                 raise ValueError('wrong recovery card manifest')
             digest(address,len(kit['manifest']),sha(kit['manifest']))
             self.memory.loaded(address, len(kit['manifest']))
-        if 'U-Boot 2025.01'+recovery.LOCALVERSION+'-' not in command('version'):
+        version='U-Boot 2025.01'+recovery.LOCALVERSION+recovery.SOURCE_SUFFIX
+        if not re.search(r'(?m)^'+re.escape(version)+r'(?: \([^\r\n]{1,100}\))?\r?$',command('version')):
             raise ValueError('not the expected recovery loader')
         self._observe_memory(command, receipt, 'admit')
         command('mmc dev 0')
@@ -238,6 +239,14 @@ class UploadSession:
         # a positive link observation must precede DHCP, not a fixed startup delay.
         if 'ethernet@10810000' not in command('net list'):
             raise ValueError('expected recovery Ethernet device absent')
+        # phy_connect resets the PHY. It must finish before the readiness
+        # samples, and DHCP must reuse that same prepared object.
+        prepared=command(recovery.PHY['prepare_command'],5)
+        expected='FES_RECOVERY_PHY PREPARED address=1 id=00221622 configured=1 reset=0'
+        if prepared.splitlines().count(expected)!=1 or any(
+                line.startswith('FES_RECOVERY_PHY ') and line!=expected for line in prepared.splitlines()):
+            raise ValueError('recovery PHY preparation observation differs')
+        receipt['phy_prepared_before_link']=True
         def phy_read(register):
             samples = re.findall(r'(?m)^([0-9a-fA-F]{4})\r?$', command(f'mii read {recovery.PHY["address"]:x} {register:x}',5))
             if len(samples)!=1 or int(samples[0],16)==0xffff:raise ValueError('unknown recovery PHY register')

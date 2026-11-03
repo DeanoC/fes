@@ -27,7 +27,7 @@ class Model:
     def command(self,c,timeout):
         self.commands.append(c)
         if c=='version':
-            return 'U-Boot 2025.01-fes-nano-recovery-'+('' if self.fault=='old-loader' else 'ksz9031-')+'gd0f8813fd6bf'
+            return 'U-Boot 2025.01'+('-fes-nano-recovery-ksz9031' if self.fault=='old-loader' else upload.recovery.LOCALVERSION)+'-gd0f8813fd6bf'
         if c=='echo FES_UPLOAD_SESSION=${fes_upload_session}':return 'FES_UPLOAD_SESSION='+self.marker+'\r\n'
         if c.startswith('setenv fes_upload_session '):self.marker=c.split()[2];return ''
         if c=='bdinfo':
@@ -75,6 +75,15 @@ class Model:
             if self.mac:raise ValueError('loader MAC is write-once')
             self.mac=c.split()[2];return ''
         if c=='net list':return 'absent' if self.fault=='ethernet-device' else 'eth0 : ethernet@10810000'
+        if c=='fesphy':
+            line='FES_RECOVERY_PHY PREPARED address=1 id=00221622 configured=1 reset=0'
+            if self.fault=='prepare-timeout':raise TimeoutError('uncertain recovery PHY preparation')
+            if self.fault=='prepare-reject':raise ValueError('recovery PHY preparation rejected')
+            if self.fault=='prepare-missing':return ''
+            if self.fault=='prepare-duplicate':return line+'\n'+line
+            if self.fault=='prepare-wrong-id':return line.replace('00221622','00221621')
+            if self.fault=='prepare-reset':return line.replace('reset=0','reset=1')
+            return line
         if c=='mii read 1 2':return 'FFFF\r\n' if self.fault=='phy-id-missing' else '0022\r\n'
         if c=='mii read 1 3':return '1621\r\n' if self.fault=='wrong-phy' else '1622\r\n'
         if c=='mii read 1 1':
@@ -394,12 +403,20 @@ class NanoUploadTests(unittest.TestCase):
             self.assertFalse(any(c.startswith('setenv ethaddr ') for c in model.commands))
         model,r=self.run_upload()
         self.assertEqual(sum(c.startswith('setenv ethaddr ') for c in model.commands),1)
-    def test_ethernet_probe_and_two_consecutive_link_reads_precede_dhcp(self):
+    def test_preparation_and_two_consecutive_link_reads_precede_dhcp(self):
         for fault,reads in (('',2),('link-transient',4)):
             model,r=self.run_upload(fault)
             self.assertTrue(r['phy_link_verified']);self.assertEqual(model.phy_reads,reads)
-            self.assertLess(model.commands.index('net list'),model.commands.index('mii read 1 1'))
+            self.assertTrue(r['phy_prepared_before_link'])
+            self.assertLess(model.commands.index('net list'),model.commands.index('fesphy'))
+            self.assertLess(model.commands.index('fesphy'),model.commands.index('mii read 1 1'))
             self.assertLess(max(i for i,c in enumerate(model.commands) if c=='mii read 1 1'),model.commands.index('dhcp'))
+    def test_uncertain_or_changed_preparation_never_samples_link_downloads_or_writes(self):
+        for fault in ('prepare-timeout','prepare-reject','prepare-missing','prepare-duplicate','prepare-wrong-id','prepare-reset'):
+            with self.subTest(fault=fault),self.assertRaises((ValueError,TimeoutError)):self.run_upload(fault)
+            model=self.last_model
+            self.assertNotIn('dhcp',model.commands);self.assertNotIn('mii read 1 1',model.commands)
+            self.assertFalse(any(c.startswith('tftpboot') for c in model.commands));self.assertEqual(model.writes,0)
     def test_phy_deadline_never_downloads_or_writes(self):
         tick=iter(range(0,100,5))
         with patch.object(upload.time,'monotonic',side_effect=lambda:next(tick)),self.assertRaisesRegex(TimeoutError,'PHY'):

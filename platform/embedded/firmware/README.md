@@ -6,6 +6,17 @@ adapter, and verification against actual FPGA RTL. These tools build firmware
 components; the Nano tools assemble the matched experimental boot images.
 Software tests and cross-builds remain distinct from hardware acceptance.
 
+The separate network-recovery build now uses a private vendor source copy and
+an explicit `fesphy` command. It resets/configures the known KSZ9031 before the
+host accepts link readiness. Network startup consumes that prepared object;
+it cannot reset the PHY after the host's samples. Failed preparation is retained
+and cannot replay. The transformer locks and reconstructs the complete original
+driver/header/Makefile, and packaging checks its actual prepared source hashes
+and linked command/function. Paired C tests reproduce the old first-start reset
+and exercise the changed path and preparation failures. The 4,000 ms vendor
+negotiation deadline is unchanged. This repair has off-board evidence and still
+requires its own matched recovery boot/network test.
+
 The opt-in `fpgaload --computer-storage-return` profile now permits a read-only SD
 lease after the computer's verified held-data return. Bridge control publishes
 its private closure only after producer stop and exact reset readback. Opening,

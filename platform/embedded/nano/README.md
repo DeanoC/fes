@@ -1,5 +1,16 @@
 # Nano recovery uploads and cold serial boot
 
+The current recovery profile provides `fesphy`. After selecting the stable MAC
+and probing Ethernet, the uploader invokes this command before checking PHY
+identity and two consecutive link/negotiation-ready samples. It prepares the
+pinned KSZ9031 once; subsequent calls only check that preparation. DHCP's first
+XGMAC start requires the prepared object and performs no PHY reset/configuration.
+Unknown preparation retires that object. The link gate remains 20 seconds and
+the vendor's internal negotiation timeout remains 4,000 ms. Earlier recovery
+images lack this command and cannot qualify this path. The source transformation,
+paired vendor/changed C test and recovery cross-build pass; its new board test
+is pending.
+
 `upload.UploadSession` owns one live recovery console and supports repeated
 fixed boot/package uploads before native boot. Keep the same session and
 exclusive console for both files, then use `session.verify` for the fresh

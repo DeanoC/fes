@@ -26,10 +26,12 @@ def checked_build(directory):
     fit, spl, config = (directory / name for name in
                        ('build/u-boot.itb', 'build/spl/u-boot-spl-dtb.hex', 'build/.config'))
     mode = receipt.get('network_recovery', {})
+    phy_sources=mode.get('phy_sources')
+    recovery.check_phy_sources(directory/'source',phy_sources)
     if (receipt.get('status') != 'built' or receipt.get('native_handoff') is not None or
             mode != {'profile_sha256': sha(HERE / 'recovery.py'), 'manual_prompt': True,
                      'automatic_writes': False, 'random_mac': False, 'sd_dma': False, 'native_handoff': False,
-                     'phy':recovery.PHY, 'phy_driver_linked':True} or
+                     'phy':recovery.PHY, 'phy_driver_linked':True, 'phy_sources':phy_sources} or
             receipt.get('producer_sha256') != sha(HERE.parent / 'firmware/build_terasic_uboot.py') or
             receipt.get('uboot_elf_sha256') != sha(directory/'build/u-boot') or
             receipt.get('fit_sha256') != sha(fit) or receipt.get('spl_sha256') != sha(spl) or
@@ -105,6 +107,7 @@ def main():
     inputs = {str(p): sha(p) for p in (fit, spl, config, directory/'build/u-boot', directory/'result.json', vendor, pfg,
                                        Path(__file__), HERE/'recovery.py', HERE.parent/'firmware/build_terasic_uboot.py')}
     inputs.update({str(p): sha(p) for p in tools.values()})
+    inputs.update({str(directory/'source'/name):expected for name,expected in receipt['network_recovery']['phy_sources']['prepared'].items()})
     output.mkdir(parents=True)
     commands = []
     def run(label, argv):
