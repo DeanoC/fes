@@ -55,7 +55,8 @@ def run(bench):
                     "-Wno-WIDTHEXPAND", "-Wno-PINCONNECTEMPTY", "-Wno-IMPLICITSTATIC",
                     "-Wno-CASEX", "-I" + str(HERE), "-I" + str(HERE / "generated"),
                     "-I" + str(COMMON / "generated"), "-I" + str(ZX81), "-I" + str(Z80),
-                    "-CFLAGS", "-O2 -I" + str(output) + " -I" + str(HERE) + " -I" + str(HERE / "generated"),
+                    "-MAKEFLAGS", "OPT_FAST=-O3",
+                    "-CFLAGS", "-O3 -I" + str(output) + " -I" + str(HERE) + " -I" + str(HERE / "generated"),
                     "--Mdir", str(output), *parameters, *map(str, sources), str(testbench)],
                    cwd=ROOT, check=True)
     started = time.monotonic()
