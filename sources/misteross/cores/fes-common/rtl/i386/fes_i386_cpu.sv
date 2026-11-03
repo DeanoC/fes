@@ -623,6 +623,10 @@ module fes_i386_cpu #(
 
     uop_t        u;
     logic        opsize32, lea, lea_early, consumes, reads_seg, stop;
+    logic        d_next_instruction;
+    assign d_next_instruction = u.eoi_taken
+                             || (u.cls == fes_i386_pkg::UOP_SYSTEM
+                                 && u.op != 5'(fes_i386_pkg::SYSOP_GATE));
     // The string engine's copies (see below).
     logic [31:0] r_src, r_dst, r_fp, r_cnt, s_tgt;
     logic        s_down;
@@ -1286,14 +1290,16 @@ module fes_i386_cpu #(
             ag_seg_hi_plus1 <= lea || dc.uop.mem.system ? 16'd0 : seg_hi1[mseg];
         end else begin
             // A branch's target: CS.base + EIP + length + displacement,
-            // wrapped by operand size.
-            ag_addr32 <= opsize32;
-            ag_row <= opsize32 ? d_eip : {16'b0, d_eip[15:0]};
+            // wrapped by operand size. System uops and INTO's JNO target
+            // the next instruction with full EIP, regardless of operand size.
+            ag_addr32 <= opsize32 || d_next_instruction;
+            ag_row <= opsize32 || d_next_instruction ? d_eip : {16'b0, d_eip[15:0]};
             ag_last <= {28'd0, dc.length};
             ag_late <= 2'd0;
             ag_late_hi <= 2'd0;
-            ag_disp <= u.imm;
-            ag_seg_term <= opsize32 ? seg_base[SEG_CS] : {16'b0, seg_base[SEG_CS][15:0]};
+            ag_disp <= d_next_instruction ? 32'd0 : u.imm;
+            ag_seg_term <= opsize32 || d_next_instruction ? seg_base[SEG_CS]
+                                                          : {16'b0, seg_base[SEG_CS][15:0]};
             ag_seg_hi <= seg_base[SEG_CS][31:16];
             ag_seg_hi_plus1 <= seg_hi1[SEG_CS];
         end
@@ -1343,6 +1349,10 @@ module fes_i386_cpu #(
     assign call_tgt = ag_s.b + ag_s.uop.imm;
 
     pipe_t ag_out;
+    logic ag_next_instruction;
+    assign ag_next_instruction = ag_s.uop.rep_stop != 2'd0 || ag_s.uop.eoi_taken
+                              || (ag_s.uop.cls == fes_i386_pkg::UOP_SYSTEM
+                                  && ag_s.uop.op != 5'(fes_i386_pkg::SYSOP_GATE));
     always_comb begin
         ag_out = capture(ag_s, 3'd4, wb_s.result);
         // A stack operation's result until EX is its new ESP, so ESP forwards
@@ -1352,7 +1362,7 @@ module fes_i386_cpu #(
         // D's target for a st2 uop (its store) or a REPE or REPNE element
         // (the next instruction, also its EIP); CALL rel's push's target EIP.
         ag_out.target = ag_s.uop.st2 || ag_s.uop.rep_stop != 2'd0 ? ag_s.target : linear;
-        ag_out.target_eip = ag_s.uop.rep_stop != 2'd0 ? ag_s.eip_next
+        ag_out.target_eip = ag_next_instruction ? ag_s.eip_next
                           : ag_call ? {ag_o32 ? call_tgt[31:16] : 16'd0, call_tgt[15:0]} : offset;
         ag_out.maddr = linear;
         ag_out.moff = offset;

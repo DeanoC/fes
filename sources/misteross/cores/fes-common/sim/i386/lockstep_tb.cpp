@@ -5141,8 +5141,19 @@ int run_pmode_cases(fes_i386::Oracle &oracle, OracleBus &bus, Rtl &rtl, const st
     past("cs16-g-prefix-cross", 0x90, 0x1ff0, fill({}, 0x0f, {0x66}));                        // 66h at 1FFFh
     // 16-bit code under a 4 GiB limit runs on past offset FFFFh, as EIP
     // 10000h: CS's base FFFF1C08h puts offset FFF8h at 1C00h.
+    const uint64_t cs16_big = desc(0xffff1c08, 0xfffff, 0x9b, true, false);
     cases.push_back(Case{"cs16-big-past-64k", jmpf(0x78, 0xfff8), -1, -1, {}, false, -1, TAIL, fill({}, 0x10, {HLT}),
-                         {{15, desc(0xffff1c08, 0xfffff, 0x9b, true, false)}}});
+                         {{15, cs16_big}}});
+    // At a 64 KiB limit, these uops end exactly at 10000h. The next fetch,
+    // rather than a wrapped jump to offset 0, must deliver #GP(0).
+    cases.push_back(Case{"cs16-sysop-next-limit", jmpf(0x08, 0xfffd), 13, 0, {}, false, -1,
+                         0xfffd, {0x0f, 0x22, 0xc0}});                                  // MOV CR0, EAX
+    cases.push_back(Case{"cs16-into-next-limit", jmpf(0x08, 0xffff), 13, 0, {}, false, -1,
+                         0xffff, {0xce}});                                              // INTO, OF clear
+    // A system uop after sequential execution crossed 10000h keeps the full
+    // next EIP in 16-bit code with a larger CS limit.
+    cases.push_back(Case{"cs16-sysop-past-64k", jmpf(0x78, 0xfff8), -1, -1, {}, false, -1, TAIL,
+                         fill({}, 0x08, {0x0f, 0x20, 0xc0, 0x0f, 0x22, 0xc0, HLT}), {{15, cs16_big}}});
     // Real mode under the limit CS kept (1Fh), after LIDT of the real-mode
     // table and PE clear (13 bytes): off the end, INT n past it and under
     // it, JMP rel8, and far JMP, CALL, RETF and IRET past it.
