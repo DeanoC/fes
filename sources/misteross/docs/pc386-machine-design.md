@@ -1414,7 +1414,7 @@ the exact sealed package. Games are user-supplied.
 | Wolfenstein 3D | Sound Blaster and AdLib selected in setup. Title, menus with mouse and keyboard, a level played through. Digitised effects (single-cycle DMA) and AdLib music audible. Page flips without tearing; frame rate recorded from captured frames. A saved game loads after relaunch. |
 | Ultima VI | VGA and AdLib selected. Music plays; PC speaker effects play at the reference pitch under the 286-class preset; walking speed matches the reference. A saved game loads after relaunch. |
 | Ultima VII: The Black Gate | Voodoo memory manager starts: unreal mode, A20, 2 MiB XMS free with HIMEMX, no EMM386. Sound Blaster digitised speech and music. 386-class preset; NPC pace matches the reference. Save and load across relaunch. |
-| Ultima VII Part Two: Serpent Isle | As The Black Gate, at `max`. |
+| Ultima VII Part Two: Serpent Isle | As The Black Gate, at `max`. Its `INSTALL`, run from the game directory, changes only the sound setup: Sound Blaster, not Sound Blaster Pro, at 220h and IRQ 7, because the machine's card is a Sound Blaster 2.0 (the Pro is [#1441](https://github.com/DeanoC/fes/issues/1441)). eXoDOS's copy ships set up for the Sound Blaster Pro, with which the game exits as it starts ([#1426](https://github.com/DeanoC/fes/issues/1426)). |
 
 "Reference" means recordings from period hardware or a configured emulator,
 named in the acceptance record, as the CPU design's speed presets are.
