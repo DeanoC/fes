@@ -114,7 +114,16 @@ func (s *Session) Quiesce() error {
 
 // Resume obtains a new lease, prepares the clock at the host-reset boundary and
 // rediscovers the same card before allowing access to the retained filesystem.
-func (s *Session) Resume() error {
+func (s *Session) Resume() error { return s.resume(0, 0, false) }
+
+// ResumeAfterReturn accepts an explicit expected closed fabric return. Secure
+// firmware independently checks that provenance before granting SD access;
+// controller/card reinitialization still requires the original CID/capacity.
+func (s *Session) ResumeAfterReturn(owner, generation uint64) error {
+	return s.resume(owner, generation, true)
+}
+
+func (s *Session) resume(owner, generation uint64, returned bool) error {
 	if s == nil {
 		return ErrRetired
 	}
@@ -126,7 +135,20 @@ func (s *Session) Resume() error {
 	if s.active {
 		return ErrTransition
 	}
-	if err := s.firmware.Resume(); err != nil {
+	var err error
+	if returned {
+		last, valid := s.firmware.LastReceipt()
+		if !valid {
+			return s.fail(ErrRetired)
+		}
+		if owner != last.Owner || generation <= last.Generation || generation > ^uint64(0)-3 {
+			return ErrTransition
+		}
+		err = s.firmware.ResumeAfterReturn(owner, generation)
+	} else {
+		err = s.firmware.Resume()
+	}
+	if err != nil {
 		return s.fail(err)
 	}
 	if err := s.device.Resume(); err != nil {

@@ -132,6 +132,7 @@ static unsigned reconfiguration_cases(void)
         reply(&f,FES_NANO_CONFIG_COMPLETED,0,0,1,0,0x14800040,0,0);
         reply(&f,FES_NANO_CONFIG_ISDONE,0,0,1,0,0,0,0);
         assert(f.configuration.finished && !fes_nano_configuration_busy(&f.configuration));
+        assert(!f.bridges.closure_valid); /* Old stop cannot authorize the new image. */
         assert(f.completions==cycle+2);
         fes_nano_configuration_rearm(&f.configuration,17,generation,0,r);
         assert(r[0]==2); /* completion alone is not a new close */

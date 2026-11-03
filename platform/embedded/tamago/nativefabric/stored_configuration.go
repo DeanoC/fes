@@ -8,6 +8,7 @@ import (
 	"io"
 
 	"github.com/DeanoC/fes/platform/embedded/tamago/packagestore"
+	"github.com/DeanoC/fes/platform/embedded/tamago/sdcontrol"
 )
 
 // NewStoredConfigurationTransfer joins owned storage containment to the cold
@@ -59,9 +60,17 @@ func (v *HPSContextVerifier) newStoredConfigurationTransfer(control, configurati
 	if rearm {
 		v.computerMu.Lock()
 		returned := v.computerClosed && source.Bridges.Generation > 2 && v.computerGeneration == source.Bridges.Generation-2
+		fromReturn := handoff.ReturnedFrom()
+		if receipt.Generation == source.Bridges.Generation && v.computerClosed && v.computerSDResumed &&
+			v.computerReturn.Generation > 0 && v.computerReturn.Generation < source.Bridges.Generation &&
+			fromReturn == (sdcontrol.Receipt{Owner: v.computerReturn.Owner, Generation: v.computerReturn.Generation}) {
+			returned = true
+			generation = true
+		} else {
+			generation = receipt.Generation < source.Bridges.Generation
+		}
 		v.computerMu.Unlock()
 		held = v.reconfigurationSource(source) && returned
-		generation = receipt.Generation < source.Bridges.Generation
 	}
 	if !held || !generation || receipt.Active || receipt.Prepared || receipt.Owner != source.Bridges.Owner {
 		return nil, HPSBootObservation{}, errors.New("native fabric: retained storage or computer return differs from live ownership")

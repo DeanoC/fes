@@ -105,8 +105,9 @@ TEXT = {'id', 'phase', 'sha256', 'cid', 'package_id', 'payload_sha256', 'build_i
 class _ComputerContinuation:
     # Created only after the first fully decoded boot/configuration/return.
     # A continuation proves a phase; it never grants loader readiness.
-    def __init__(self,owner,generation,previous):
+    def __init__(self,owner,generation,previous,storage_return=False):
         self.owner,self.generation,self.previous=owner,generation,previous
+        self.storage_return=storage_return
 
 
 def decode_native_boot(data, build_id, owner_seed, *, storage=None, package=None, hps_context=None, hps_io=None, fpga_identity=None,
@@ -132,7 +133,8 @@ def decode_native_boot(data, build_id, owner_seed, *, storage=None, package=None
     if continued and (type(_continuation) is not _ComputerContinuation or
             any(type(v) is not int for v in (_continuation.owner,_continuation.generation,_continuation.previous)) or
             not 0<_continuation.owner<1<<64 or not 0<_continuation.previous<_continuation.generation<=(1<<64)-3 or
-            _continuation.generation!=_continuation.previous+2 or computer is None or reader_memory is None or
+            type(_continuation.storage_return) is not bool or
+            _continuation.generation!=_continuation.previous+(5 if _continuation.storage_return else 2) or computer is None or reader_memory is None or
             not configuration_storage or not computer_activity or smmu_observe):
         raise ValueError('checked preceding computer return required for a reload continuation')
     # Current cold builds always emit the pair. Archived captures made before
@@ -593,7 +595,7 @@ def decode_native_boot(data, build_id, owner_seed, *, storage=None, package=None
 
 
 def decode_native_configuration(data, build_id, owner_seed, *, fpga_identity, configuration, from_storage=False, reader_memory=None, ddr_read=None, computer=None, computer_activity=False, cpu_mapping=None, atf=None,
-                                computer_reload=False, _continuation=None, _require_activation=False):
+                                computer_reload=False, computer_storage_return=False, _continuation=None, _require_activation=False):
     """Observe a contained transfer followed by the selected reclosed probe.
 
     The maps come from independently checked build receipts. Variable-length
@@ -605,12 +607,15 @@ def decode_native_configuration(data, build_id, owner_seed, *, fpga_identity, co
     """
     if type(computer_reload) is not bool:
         raise ValueError('computer reload must come from the checked build selection')
+    if type(computer_storage_return) is not bool or computer_storage_return and not computer_reload:
+        raise ValueError('computer storage return requires the selected two-load diagnostic')
     if computer_reload:
         if (from_storage is not True or reader_memory is None or computer is None or not computer_activity or
                 ddr_read is not None or _continuation is not None or _require_activation):
             raise ValueError('two-load diagnostic requires the selected stored held-data computer path')
         return decode_native_computer_reload(data,build_id,owner_seed,fpga_identity=fpga_identity,
-            configuration=configuration,reader_memory=reader_memory,computer=computer,cpu_mapping=cpu_mapping,atf=atf)
+            configuration=configuration,reader_memory=reader_memory,computer=computer,cpu_mapping=cpu_mapping,
+            computer_storage_return=computer_storage_return,atf=atf)
     if ddr_read is not None:
         if from_storage is not True or reader_memory is None or computer is not None or computer_activity:
             raise ValueError('active DDR read requires the exact stored configuration and pinned memory')
@@ -800,20 +805,26 @@ def decode_native_configuration(data, build_id, owner_seed, *, fpga_identity, co
     return report
 
 
-def decode_native_computer_reload(data, build_id, owner_seed, *, fpga_identity, configuration, reader_memory, computer, cpu_mapping=None, atf=None):
+def decode_native_computer_reload(data, build_id, owner_seed, *, fpga_identity, configuration, reader_memory, computer, cpu_mapping=None, computer_storage_return=False, atf=None):
     """Check one cold boot and two framed fixed-package computer load/returns.
 
     The second phase inherits only the first verified return's owner and exact
     generation. It must provide new transfer, activation, readiness, master-stop
     and fetch evidence; it cannot substitute an earlier boot or receipt.
     """
+    if type(computer_storage_return) is not bool or computer_storage_return and cpu_mapping is None:
+        raise ValueError('storage return requires its explicit build selection and CPU mapping contract')
     if not isinstance(data,(str,bytes,bytearray,memoryview)):raise TypeError('serial bytes or text required')
     raw=data.encode() if isinstance(data,str) else bytes(data)
     report={'complete':False,'loader_ready':False,'records':[],'errors':[],
             'last_checkpoint':None,'core_load_acceptance':False,'execution_observed':False,'cycles':[]}
     if len(raw)>MAX_BYTES:
         report['errors'].append('capture exceeds byte bound');return report
-    parts=raw.split(b'\n');active=None;frames=[]
+    parts=raw.split(b'\n');active=None;frames=[];storage=[]
+    storage_rules=(
+        ('begin',re.compile(rf'FES_NATIVE_STORAGE_RETURN BEGIN owner=(?P<owner>{H}) generation=(?P<generation>[0-9]{{1,20}}) package_id=(?P<package_id>[0-9a-f]{{64}}) data_held=1')),
+        ('active',re.compile(rf'FES_NATIVE_STORAGE_RETURN ACTIVE owner=(?P<owner>{H}) generation=(?P<generation>[0-9]{{1,20}}) return_generation=(?P<return_generation>[0-9]{{1,20}}) writes=disabled')),
+        ('contained',re.compile(rf'FES_NATIVE_STORAGE_RETURN CONTAINED owner=(?P<owner>{H}) generation=(?P<generation>[0-9]{{1,20}}) return_generation=(?P<return_generation>[0-9]{{1,20}}) package_id=(?P<package_id>[0-9a-f]{{64}}) source=sd writes=disabled')))
     begin=re.compile(rf'FES_NATIVE_FPGA_CYCLE BEGIN cycle=(?P<cycle>[12]) count=2 owner=(?P<owner>{H}) generation=(?P<generation>[0-9]{{1,20}})')
     end=re.compile(r'FES_NATIVE_FPGA_CYCLE END cycle=(?P<cycle>[12]) count=2')
     options=dict(fpga_identity=fpga_identity,configuration=configuration,from_storage=True,
@@ -827,7 +838,12 @@ def decode_native_computer_reload(data, build_id, owner_seed, *, fpga_identity, 
             if not frames[0]['verified'] or closed is None:
                 require(False,'second reload lacks a fully verified preceding return');return None
             previous=first['fabric_activation']['generation']
-            continued=_ComputerContinuation(closed['owner'],closed['generation'],previous)
+            generation=closed['generation']
+            if computer_storage_return:
+                if len(storage)!=3 or report['errors']:
+                    require(False,'second reload lacks its complete owned SD return/reselection');return None
+                generation=storage[-1]['values']['generation']
+            continued=_ComputerContinuation(closed['owner'],generation,previous,computer_storage_return)
         wanted_generation=continued.generation if continued is not None else 4
         require(frame['cycle']==len(frames)+1 and frame['generation']==wanted_generation,
                 'reload marker changed cycle or returned generation')
@@ -873,6 +889,33 @@ def decode_native_computer_reload(data, build_id, owner_seed, *, fpga_identity, 
             continue
         if line.startswith('FES_NATIVE_FPGA_CYCLE'):
             require(False,'malformed reload marker at line '+str(index+1));continue
+        if line.startswith('FES_NATIVE_STORAGE_RETURN'):
+            require(computer_storage_return,'unexpected storage-return observation')
+            eligible=active is None and len(frames)==1 and frames[0]['verified']
+            require(eligible,'storage return is outside its verified first-core return')
+            matched=False
+            for position,(kind,pattern) in enumerate(storage_rules):
+                found=pattern.fullmatch(line)
+                if found is None:continue
+                matched=True
+                require(len(storage)==position,'storage return observation repeated or reordered')
+                values={key:value if key=='package_id' else int(value,16 if key=='owner' else 10)
+                        for key,value in found.groupdict().items()}
+                if eligible:
+                    closed=frames[0]['report']['computer_control_observation']
+                    require(values['owner']==closed['owner'] and closed['generation']<=(1<<64)-4,
+                            'storage return changed its core-return owner or exhausted generations')
+                    delta=(0,2,3)[position]
+                    require(values['generation']==closed['generation']+delta and
+                            values.get('return_generation',closed['generation'])==closed['generation'],
+                            'storage lease is not the exact returned/query/prepare/contain sequence')
+                    require(values.get('package_id',configuration['package_id'])==configuration['package_id'],
+                            'storage reselection changed the compiled package')
+                if len(storage)==position and len(storage)<3:
+                    storage.append({'stage':'storage_return_'+kind,'line':index+1,'values':values})
+                break
+            require(matched,'malformed storage-return observation at line '+str(index+1))
+            continue
         if active is None:
             critical=line.removeprefix('NOTICE:').lstrip()
             if frames:
@@ -892,11 +935,16 @@ def decode_native_computer_reload(data, build_id, owner_seed, *, fpga_identity, 
     if report['cycles']:
         report['loader_ready']=report['cycles'][0]['report']['loader_ready']
         report['records']=[row for cycle in report['cycles'] for row in cycle['report']['records']]
+    if computer_storage_return:
+        report['records']=sorted(report['records']+storage,key=lambda row:row['line'])
     if len(frames)==2:
         a=frames[0]['report'].get('configuration_timing');b=frames[1]['report'].get('configuration_timing')
         require(a is not None and b is not None and b['first_counter']>a['last_counter'] and
                 b['hash_ticks']-b['interval_hash_ticks']>=a['hash_ticks'],'reload timing or digest counter regressed across configurations')
-    report['complete']=len(frames)==2 and active is None and not parts[-1] and not report['errors'] and all(f['report']['complete'] for f in frames)
+    if computer_storage_return:
+        report['storage_return_observation']={'complete':len(storage)==3 and not report['errors'],
+            'records':storage,'runtime_admission':False}
+    report['complete']=len(frames)==2 and active is None and not parts[-1] and not report['errors'] and all(f['report']['complete'] for f in frames) and (not computer_storage_return or len(storage)==3)
     report['execution_observed']=report['complete']
     report['last_checkpoint']='reload_complete' if report['complete'] else report['records'][-1]['stage'] if report['records'] else None
     return report

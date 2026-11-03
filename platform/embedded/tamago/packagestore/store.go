@@ -30,6 +30,14 @@ type Lease interface {
 	Resume() error
 }
 
+// ReturnLease explicitly supports crossing a completed fabric return. The
+// provider must check that return in secure firmware before releasing SD;
+// cold-only leases have no automatic adoption path.
+type ReturnLease interface {
+	Lease
+	ResumeAfterReturn(owner, generation uint64) error
+}
+
 type Source struct{ ID, Role, Path, SHA256 string }
 type Part struct{ ID, Path, SHA256 string }
 type Request struct {
@@ -44,11 +52,12 @@ var (
 )
 
 type Store struct {
-	mu      sync.Mutex
-	files   fs.FS
-	lease   Lease
-	last    sdcontrol.Receipt
-	retired bool
+	mu       sync.Mutex
+	files    fs.FS
+	lease    Lease
+	last     sdcontrol.Receipt
+	returned sdcontrol.Receipt
+	retired  bool
 }
 
 // Selection contains only privately retained archive/linker bytes. No open
@@ -85,6 +94,7 @@ type Handoff struct {
 	store     *Store
 	selection *Selection
 	receipt   sdcontrol.Receipt
+	returned  sdcontrol.Receipt
 }
 
 func (h *Handoff) Receipt() sdcontrol.Receipt {
@@ -92,6 +102,15 @@ func (h *Handoff) Receipt() sdcontrol.Receipt {
 		return sdcontrol.Receipt{}
 	}
 	return h.receipt
+}
+
+// ReturnedFrom identifies the closed fabric return that preceded this store's
+// SD cycle. It is cached provenance, not a live bridge or activation grant.
+func (h *Handoff) ReturnedFrom() sdcontrol.Receipt {
+	if h == nil {
+		return sdcontrol.Receipt{}
+	}
+	return h.returned
 }
 func (h *Handoff) Selection() (*Selection, error) {
 	if h == nil || h.store == nil {
@@ -103,7 +122,7 @@ func (h *Handoff) Selection() (*Selection, error) {
 	if s.retired {
 		return nil, ErrRetired
 	}
-	if s.last.Active || s.last != h.receipt || h.selection == nil {
+	if s.last.Active || s.last != h.receipt || s.returned != h.returned || h.selection == nil {
 		return nil, ErrState
 	}
 	if err := s.observe(); err != nil {
@@ -352,7 +371,7 @@ func (s *Store) Contain(selection *Selection) (*Handoff, error) {
 		return nil, s.retire(ErrState)
 	}
 	s.last = after
-	return &Handoff{store: s, selection: selection, receipt: after}, nil
+	return &Handoff{store: s, selection: selection, receipt: after, returned: s.returned}, nil
 }
 
 // Resume explicitly reopens the same controller/card. Previous storage
@@ -381,5 +400,38 @@ func (s *Store) Resume() error {
 		return s.retire(ErrState)
 	}
 	s.last = after
+	return nil
+}
+
+// ResumeAfterReturn explicitly changes from retained-package/core ownership
+// to a new SD lease. The exact returned owner/generation must come from the
+// runtime's successful core closure. The real lease independently validates it
+// in firmware and rediscovers the same card before any filesystem access.
+func (s *Store) ResumeAfterReturn(owner, generation uint64) error {
+	if s == nil {
+		return ErrState
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if err := s.observe(); err != nil {
+		return err
+	}
+	if s.last.Active || s.last.Prepared || owner != s.last.Owner ||
+		generation <= s.last.Generation || generation > ^uint64(0)-3 {
+		return ErrState
+	}
+	lease, supported := s.lease.(ReturnLease)
+	if !supported {
+		return ErrState
+	}
+	if err := lease.ResumeAfterReturn(owner, generation); err != nil {
+		return s.retire(err)
+	}
+	after, valid := lease.LastReceipt()
+	if !valid || after != (sdcontrol.Receipt{Owner: owner, Generation: generation + 2, Active: true, Prepared: true}) {
+		return s.retire(ErrState)
+	}
+	s.last = after
+	s.returned = sdcontrol.Receipt{Owner: owner, Generation: generation}
 	return nil
 }

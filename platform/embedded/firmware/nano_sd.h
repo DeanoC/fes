@@ -25,6 +25,7 @@ struct fes_nano_sd {
     struct fes_nano_bridges *bridges;
     struct fes_nano_sd_ops ops;
     uint64_t owner, epoch;
+    uint64_t return_generation, grant_generation, stopped_generation;
     unsigned attempted, initialized, failed, active, prepared;
     int first_error;
 };
@@ -37,6 +38,10 @@ int fes_nano_sd_init(struct fes_nano_sd *, struct fes_nano_bridges *,
 /* Caller holds the same lock as bridge/configuration operations. */
 void fes_nano_sd_sip(struct fes_nano_sd *, uint64_t operation, uint64_t owner,
                      uint64_t generation, unsigned configuring, uint64_t result[4]);
+/* Check a completed SD cycle against its retained held-data core return.
+ * Used only by trusted configuration completion under the shared lock. */
+int fes_nano_sd_returned(struct fes_nano_sd *, uint64_t owner,
+                         uint64_t return_generation, uint64_t generation);
 #ifdef __cplusplus
 }
 #endif

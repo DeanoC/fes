@@ -154,7 +154,7 @@ address or firmware assumption is a DE25 board constant.
 | CPU/RAM/time | AArch64 runtime; separate QEMU and Nano UART/counter hooks; validated Nano RAM profile | Actual Nano firmware/DDR/EL1/cache handoff and IRQ qualification |
 | Display | Shared RGBA-to-XRGB copier; QEMU RAMFB; optional Nano boot-owned window | Matching Nano scanout firmware, HDMI qualification and proven drain/handoff |
 | Input | QEMU xHCI, real USB boot-keyboard control/interrupt transfers; optional PL011; Nano DWC2 PIO direct keyboard | Nano PHY/VBUS and real input qualification, hubs and gamepads |
-| Storage | VirtIO reads/writes/FLUSH; Nano hardware-tested read-only SD/FAT32/package retention with secure stop/resume | Native writes and storage return across FPGA transitions |
+| Storage | VirtIO reads/writes/FLUSH; Nano hardware-tested cold read-only SD/FAT32/package retention; software-tested reopening after a verified core return | Native writes and hardware qualification of returned-core SD access |
 | Preferences | Existing preallocated FAT32 JSON file; data and metadata flushes | Allocation/update strategy and power-loss-safe publication |
 | Network | Shared IPv4/TCP/HTTP; QEMU VirtIO; Nano XGMAC 2.10 with explicit DMA/PHY profile | Nano RGMII/PHY/cache/SMMU qualification, throughput and qualified entropy |
 | FPGA | Retained-package lifecycle connected to tenfoot Play/Back; source-bound Nano first-load prototype and read-only probes | Physical runtime admission, active drain, repeated launch/return and DMA revocation |

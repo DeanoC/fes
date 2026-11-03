@@ -14,6 +14,7 @@ import (
 
 	"github.com/DeanoC/fes/platform/embedded/tamago/computer"
 	cg "github.com/DeanoC/fes/platform/embedded/tamago/computer/generated"
+	"github.com/DeanoC/fes/platform/embedded/tamago/packagestore"
 )
 
 type computerMap struct {
@@ -178,6 +179,7 @@ func (v *HPSContextVerifier) OpenComputer(ctx context.Context, control, raw []by
 		return nil, errors.New("native fabric: computer configuration consumed or prior return incomplete")
 	}
 	v.computerGeneration, v.computerClosed = binding.source.Bridges.Generation, false
+	v.computerReturn, v.computerSDResumed = BridgeSnapshot{}, false
 	v.computerMu.Unlock()
 	if err := ctx.Err(); err != nil {
 		return nil, err
@@ -263,8 +265,36 @@ func (s *ComputerSession) Close(ctx context.Context) (out ComputerObservation, e
 		s.v.computerMu.Lock()
 		if s.v.computerGeneration == s.source.Bridges.Generation {
 			s.v.computerClosed = true
+			s.v.computerReturn = want
 		}
 		s.v.computerMu.Unlock()
 	}
 	return out, err
+}
+
+// ResumeStorageAfterReturn consumes this verifier's successful owned computer
+// return before reopening storage. No public observation can manufacture that
+// return, and an uncertain query/grant is never retried. The SD service still
+// independently validates its secure producer-stop/closure record.
+func (v *HPSContextVerifier) ResumeStorageAfterReturn(store *packagestore.Store) error {
+	if v == nil || store == nil {
+		return errors.New("native fabric: owned computer return and store required")
+	}
+	v.computerMu.Lock()
+	if !v.computerClosed || v.computerSDResumed || v.computerGeneration > math.MaxUint64-2 ||
+		v.computerReturn.Generation != v.computerGeneration+2 {
+		v.computerMu.Unlock()
+		return errors.New("native fabric: successful computer return unavailable or already consumed for SD")
+	}
+	returned := v.computerReturn
+	v.computerSDResumed = true
+	v.computerMu.Unlock()
+	observed, err := v.Verify(v.Identity())
+	if err != nil {
+		return err
+	}
+	if observed.Bridges != returned || !v.reconfigurationSource(observed) {
+		return errors.New("native fabric: live closure changed before SD ownership transfer")
+	}
+	return store.ResumeAfterReturn(returned.Owner, returned.Generation)
 }

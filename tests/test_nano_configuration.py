@@ -192,6 +192,24 @@ class NanoConfigurationTests(unittest.TestCase):
                     if mutation in (146,148):
                         self.assertEqual(result.stdout.count('FES_NANO_MASTER_STOP status=0 '),2)
                         self.assertIn('PASS fresh configuration inventory epochs=2 ',result.stdout)
+            # The existing matched two-load profile does not enable SD return.
+            result=subprocess.run([activation,'153'],capture_output=True,text=True,timeout=15)
+            self.assertEqual(result.returncode,0,result.stderr+'\n'+result.stdout[-6000:])
+            self.assertIn('storage return absent without matched opt-in',result.stdout)
+            (inc/'fes_nano_cold_profile.h').write_text(reader_profile+'\n#define FES_NANO_COMPUTER_STORAGE_RETURN 1\n')
+            storage_activation=base/'strong-storage-return'
+            storage_command=[str(storage_activation) if str(arg)==str(activation) else arg for arg in command]
+            compiled=subprocess.run(storage_command,capture_output=True,text=True,timeout=30)
+            self.assertEqual(compiled.returncode,0,compiled.stderr)
+            for mutation in range(153,157):
+                with self.subTest(storage_computer_reload=mutation):
+                    result=subprocess.run([storage_activation,str(mutation)],capture_output=True,text=True,timeout=15)
+                    if evidence:(target/('storage-activation-'+str(mutation)+'.log')).write_text(result.stdout+result.stderr)
+                    self.assertEqual(result.returncode,0,result.stderr+'\n'+result.stdout[-6000:])
+                    self.assertIn('PASS strong computer',result.stdout)
+                    self.assertEqual(result.stdout.count('FES_NANO_FABRIC_ACTIVATION '),1 if mutation==156 else 2)
+            # The independent reader-RTL fixture keeps the original selection.
+            (inc/'fes_nano_cold_profile.h').write_text(reader_profile)
             (inc/'fes_nano_cold_profile.h').write_text(computer_profile)
             # Reuse that exact strong provider, dispatcher, digest and SD lease,
             # replacing only the FPGA register model with its actual Avalon RTL.

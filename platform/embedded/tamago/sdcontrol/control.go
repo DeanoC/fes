@@ -106,6 +106,10 @@ func (c *Client) transition(op uint32) error {
 	}
 	c.mu.Lock()
 	defer c.mu.Unlock()
+	return c.transitionLocked(op)
+}
+
+func (c *Client) transitionLocked(op uint32) error {
 	if c.retired || c.cpu == nil || c.last.Owner == 0 || c.last.Generation == 0 {
 		return ErrRetired
 	}
@@ -147,6 +151,40 @@ func (c *Client) transition(op uint32) error {
 	}
 	c.last = after
 	return nil
+}
+
+// ResumeAfterReturn explicitly crosses a verified fabric return in the shared
+// generation namespace. The caller supplies the expected closed return; the
+// secure provider must independently confirm its retained producer-stop and
+// bridge-closure proof before this query or any controller release succeeds.
+// A value supplied by the caller alone grants no hardware access.
+func (c *Client) ResumeAfterReturn(owner, generation uint64) error {
+	if c == nil {
+		return ErrRetired
+	}
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	if c.retired || c.cpu == nil || c.last.Owner == 0 {
+		return ErrRetired
+	}
+	if c.last.Active || c.last.Prepared || owner != c.last.Owner ||
+		generation <= c.last.Generation || generation > ^uint64(0)-3 {
+		return ErrTransition
+	}
+	fail := func(err error) error { c.retired = true; return errors.Join(ErrRetired, err) }
+	raw, err := c.cpu.Invoke([7]uint64{uint64(g.FesEmbeddedSdCall), uint64(g.FesEmbeddedSdQuery), 0, uint64(g.FesEmbeddedSdCookie)})
+	if err != nil {
+		return fail(err)
+	}
+	observed, err := decode(raw)
+	if err != nil {
+		return fail(err)
+	}
+	if observed != (Receipt{Owner: owner, Generation: generation}) {
+		return fail(errors.New("sdcontrol: live SD containment differs from the expected fabric return"))
+	}
+	c.last = observed
+	return c.transitionLocked(g.FesEmbeddedSdResume)
 }
 func (c *Client) Resume() error  { return c.transition(g.FesEmbeddedSdResume) }
 func (c *Client) Prepare() error { return c.transition(g.FesEmbeddedSdPrepare) }

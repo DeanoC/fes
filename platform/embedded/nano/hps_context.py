@@ -544,6 +544,9 @@ def checked_computer(record, program_key='program'):
     reload=record.get('computer_reload',False)
     if type(reload) is not bool or reload and record.get('hps_computer') is None:
         raise ValueError('computer reload requires an explicit boolean and sealed computer contract')
+    storage_return=record.get('computer_storage_return',False)
+    if type(storage_return) is not bool or storage_return and not reload:
+        raise ValueError('computer storage return requires the explicit two-load computer selection')
     if all(record.get(key) is None for key in keys):return None
     if record.get(program_key)!='fpgaload' or any(record.get(key) is None for key in keys) or record.get('hps_ddr_read') is not None:
         raise ValueError('computer control requires its dedicated control-only cold configuration')

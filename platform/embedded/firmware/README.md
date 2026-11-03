@@ -6,6 +6,17 @@ adapter, and verification against actual FPGA RTL. These tools build firmware
 components; the Nano tools assemble the matched experimental boot images.
 Software tests and cross-builds remain distinct from hardware acceptance.
 
+The opt-in `fpgaload --computer-storage-return` profile now permits a read-only SD
+lease after the computer's verified held-data return. Bridge control publishes
+its private closure only after producer stop and exact reset readback. Opening,
+failure or a completed new configuration invalidates that closure. The SD service
+requires that closure, the same secure owner and the unchanged live platform
+scope; an active lease blocks FPGA operations. Rearm completion independently
+checks that SD stopped under the same return. No request supplies a closure or
+digest, and data bridges stay reset. Strong provider/dispatcher tests exercise
+warm success, wrong ownership, active SD and corrupted return provenance. These
+checks are software evidence; the matched warm-return board trial is pending.
+
 The separate `hpsio` cold serial profile compiles a fixed map from the sealed
 FPGA build's `hps_bootloader_handoff.bin`. Its read-only provider samples all
 164 Agilex 5 pinmux registers twice, checking the expected owner/generation,

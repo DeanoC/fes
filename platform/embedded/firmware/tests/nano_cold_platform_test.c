@@ -490,6 +490,10 @@ static void barrier(void *p) { (void)p; }
 int main(int argc,char **argv)
 {
     assert(argc==2);unsigned mutation=atoi(argv[1]);
+    unsigned sd_return_case=0;(void)sd_return_case;
+#if defined(FES_NANO_COLD_COMPUTER) && FES_NANO_COLD_COMPUTER && defined(FES_NANO_READER_CPU_BASE)
+    if(mutation>=153 && mutation<=156){sd_return_case=mutation-152;mutation=146;}
+#endif
     struct fes_nano_cold_record *r=mmap((void *)0x10000,4096,PROT_READ|PROT_WRITE,MAP_ANONYMOUS|MAP_PRIVATE|MAP_FIXED_NOREPLACE,-1,0);
     assert(r==(void *)0x10000);
     static const uint8_t chain[32]=FES_NANO_COLD_CHAIN;
@@ -788,6 +792,40 @@ configured_bytes:
                 unsigned calls=engine_calls;
                 uint64_t previous=configuration_generation;
                 configuration_generation+=2;
+                if(sd_return_case) {
+                    uint64_t returned=configuration_generation;
+                    fes_nano_owned_call(FES_EMBEDDED_SD_CALL,FES_EMBEDDED_SD_QUERY,
+                                       0,FES_EMBEDDED_SD_COOKIE,0,reply);
+#if !defined(FES_NANO_COMPUTER_STORAGE_RETURN) || !FES_NANO_COMPUTER_STORAGE_RETURN
+                    assert(reply[0] && bridge==15 && !fes_nano_owned_sd.active && !fes_nano_owned_bridges.device_lease);
+                    puts("PASS strong computer storage return absent without matched opt-in");return 0;
+#endif
+                    assert(!reply[0] && reply[2]==record.owner && reply[3]==returned);
+                    if(sd_return_case==2) {
+                        unsigned reads=sd_mmio;
+                        fes_nano_owned_call(FES_EMBEDDED_SD_CALL,FES_EMBEDDED_SD_RESUME,
+                                           record.owner+1,FES_EMBEDDED_SD_COOKIE,returned,reply);
+                        assert(reply[0]==2 && !fes_nano_owned_sd.active && sd_mmio==reads);
+                    }
+                    fes_nano_owned_call(FES_EMBEDDED_SD_CALL,FES_EMBEDDED_SD_RESUME,
+                                       record.owner,FES_EMBEDDED_SD_COOKIE,returned,reply);
+                    assert(!reply[0] && reply[3]==returned+1 && fes_nano_owned_bridges.device_lease);
+                    if(sd_return_case==3) {
+                        fes_nano_owned_call(FES_EMBEDDED_BRIDGE_CALL,FES_EMBEDDED_BRIDGE_REARM_CONFIGURATION,
+                                           record.owner,FES_EMBEDDED_BRIDGE_COOKIE,returned+1,reply);
+                        assert(reply[0] && c->finished && engine_calls==calls);
+                    }
+                    sd_registers[0x22c/4]=FES_NANO_SD_IDENT_CLOCK;
+                    fes_nano_owned_call(FES_EMBEDDED_SD_CALL,FES_EMBEDDED_SD_PREPARE,
+                                       record.owner,FES_EMBEDDED_SD_COOKIE,returned+1,reply);
+                    assert(!reply[0] && reply[3]==returned+2 && fes_nano_owned_sd.prepared);
+                    fes_nano_owned_call(FES_EMBEDDED_SD_CALL,FES_EMBEDDED_SD_STOP,
+                                       record.owner,FES_EMBEDDED_SD_COOKIE,returned+2,reply);
+                    assert(!reply[0] && reply[3]==returned+3 && !fes_nano_owned_bridges.device_lease);
+                    assert(!fes_nano_sd_returned(&fes_nano_owned_sd,record.owner,returned,returned+3));
+                    configuration_generation=returned+3;
+                    if(sd_return_case==4)fes_nano_owned_sd.return_generation++;
+                }
                 /* Neither old preparation nor an unarmed raw START can reuse
                  * the completed computer scope. */
                 fes_nano_owned_call(FES_EMBEDDED_BRIDGE_CALL,FES_EMBEDDED_BRIDGE_PREPARE_CONFIGURATION,
@@ -828,6 +866,14 @@ configured_bytes:
                     offset+=bytes;
                 }
                 fes_nano_owned_call(INTEL_SIP_SMC_FPGA_CONFIG_ISDONE,0,0,0,0,reply);
+                if(sd_return_case==4) {
+                    assert(reply[0]==4 && c->failed && !c->finished && bridge==15 &&
+                           fes_nano_owned_bridges.failed);
+#ifdef FES_TEST_CONFIGURATION_EPOCHS
+                    assert(configuration_epoch==2); /* Hardware transfer finished; secure activation was rejected. */
+#endif
+                    puts("PASS strong computer rejected changed SD-return provenance before new activation");return 0;
+                }
                 assert(!reply[0] && c->finished && !c->failed && c->completed==FES_NANO_CONFIG_BYTES && !c->pending);
                 calls=engine_calls;
                 fes_nano_owned_call(FES_EMBEDDED_BRIDGE_CALL,FES_EMBEDDED_BRIDGE_REARM_CONFIGURATION,

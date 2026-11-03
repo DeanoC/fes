@@ -101,3 +101,107 @@ func TestConcurrentResumeIssuesOneGrant(t *testing.T) {
 		t.Fatal("incorrect Stop receipt accepted")
 	}
 }
+
+func TestResumeAfterVerifiedReturnBindsLiveClosureBeforeOneGrant(t *testing.T) {
+	calls := 0
+	c := &Client{last: Receipt{Owner: 17, Generation: 4}}
+	c.cpu = callFunc(func(a [7]uint64) ([4]uint64, error) {
+		calls++
+		requests := [][7]uint64{
+			{uint64(g.FesEmbeddedSdCall), 0, 0, uint64(g.FesEmbeddedSdCookie)},
+			{uint64(g.FesEmbeddedSdCall), 1, 17, uint64(g.FesEmbeddedSdCookie), 6},
+			{uint64(g.FesEmbeddedSdCall), 2, 17, uint64(g.FesEmbeddedSdCookie), 7},
+			{uint64(g.FesEmbeddedSdCall), 3, 17, uint64(g.FesEmbeddedSdCookie), 8},
+		}
+		if calls > len(requests) || a != requests[calls-1] {
+			t.Fatalf("unexpected transition %d: %#v", calls, a)
+		}
+		return wireReply([]uint32{0x39, 0x33, 0x37, 0x39}[calls-1], uint64(calls+5)), nil
+	})
+	if err := c.ResumeAfterReturn(17, 6); err != nil {
+		t.Fatal(err)
+	}
+	if err := c.Prepare(); err != nil {
+		t.Fatal(err)
+	}
+	if err := c.Stop(); err != nil {
+		t.Fatal(err)
+	}
+	if receipt, ok := c.LastReceipt(); !ok || receipt != (Receipt{Owner: 17, Generation: 9}) {
+		t.Fatal(receipt, ok)
+	}
+	if err := c.ResumeAfterReturn(17, 6); !errors.Is(err, ErrTransition) || calls != 4 {
+		t.Fatal("stale return was reused", err, calls)
+	}
+}
+
+func TestReturnResumeRejectsChangedQueryOrUncertainGrantWithoutReplay(t *testing.T) {
+	for _, fault := range []string{"query-error", "query-tag", "query-owner", "query-stale", "query-ahead", "query-active", "grant-error", "grant-owner", "grant-generation"} {
+		t.Run(fault, func(t *testing.T) {
+			calls := 0
+			c := &Client{last: Receipt{Owner: 17, Generation: 4}}
+			c.cpu = callFunc(func(a [7]uint64) ([4]uint64, error) {
+				calls++
+				r := wireReply(0x39, 6)
+				if a[1] == 0 {
+					switch fault {
+					case "query-error":
+						return [4]uint64{}, errors.New("uncertain query")
+					case "query-tag":
+						r[1] ^= 1 << 63
+					case "query-owner":
+						r[2]++
+					case "query-stale":
+						r[3]--
+					case "query-ahead":
+						r[3]++
+					case "query-active":
+						r = wireReply(0x33, 6)
+					}
+				} else {
+					r = wireReply(0x33, 7)
+					switch fault {
+					case "grant-error":
+						return [4]uint64{}, errors.New("unknown grant")
+					case "grant-owner":
+						r[2]++
+					case "grant-generation":
+						r[3]++
+					}
+				}
+				return r, nil
+			})
+			if err := c.ResumeAfterReturn(17, 6); !errors.Is(err, ErrRetired) {
+				t.Fatal(err)
+			}
+			before := calls
+			if !errors.Is(c.ResumeAfterReturn(17, 6), ErrRetired) || !errors.Is(c.Resume(), ErrRetired) || calls != before {
+				t.Fatal("retired grant was replayed", calls)
+			}
+			last, ok := c.LastReceipt()
+			wanted := uint64(4)
+			if fault[:5] == "grant" {
+				wanted = 6
+			}
+			if ok || last != (Receipt{Owner: 17, Generation: wanted}) {
+				t.Fatal(last, ok)
+			}
+		})
+	}
+}
+
+func TestInvalidLocalReturnDoesNotQueryOrRetireHealthyContainment(t *testing.T) {
+	for _, returned := range []Receipt{{Owner: 18, Generation: 6}, {Owner: 17, Generation: 4},
+		{Owner: 17, Generation: 3}, {Owner: 17, Generation: ^uint64(0) - 2}} {
+		c := &Client{last: Receipt{Owner: 17, Generation: 4}, cpu: callFunc(func([7]uint64) ([4]uint64, error) {
+			t.Fatal("invalid return reached firmware")
+			return [4]uint64{}, nil
+		})}
+		if err := c.ResumeAfterReturn(returned.Owner, returned.Generation); !errors.Is(err, ErrTransition) {
+			t.Fatal(returned, err)
+		}
+		if _, ok := c.LastReceipt(); !ok {
+			t.Fatal("invalid local request retired an intact lease")
+		}
+	}
+}

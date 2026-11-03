@@ -179,6 +179,9 @@ void fes_nano_configuration_after(struct fes_nano_configuration *s, uint32_t fid
         int error=s->io.complete(s->io.context,s->owner,s->generation,s->rearmed);
         if(error){fail(s,error);goto failed;}
         if(!scope(s))goto failed;
+        /* The preceding core's stop cannot authorize this newly configured
+         * fabric. Its own opening and verified return must publish a new one. */
+        s->bridges->closure_valid=0;
         s->finished=1;trace(s,FES_CONFIG_COMPLETE);
     } else goto failed;
     return;

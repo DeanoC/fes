@@ -38,6 +38,10 @@ struct fes_nano_bridge_closure {
 struct fes_nano_bridges {
     struct fes_nano_bridge_ops ops;
     struct fes_nano_bridge_snapshot state;
+    /* Only close publishes this receipt. Opening or a new configuration
+     * invalidates it; reset bits alone cannot recreate a returned core. */
+    struct fes_nano_bridge_closure closure;
+    unsigned closure_valid;
     uint64_t epoch;
     /* A trusted device lease blocks observations/mutations until independent
      * containment restores the cached all-master state. */
@@ -63,6 +67,9 @@ int fes_nano_bridges_open(struct fes_nano_bridges *, uint64_t owner, uint64_t ge
 /* Used by configuration START instead of a redundant shutdown. It performs no
  * bridge writes and accepts only this owner's still-proven closed state. */
 int fes_nano_bridges_configuration_guard(struct fes_nano_bridges *);
+/* Cached held-data return provenance, under the shared platform lock. This
+ * performs no I/O; device scope callbacks must still verify live hardware. */
+int fes_nano_bridges_held_return(const struct fes_nano_bridges *, uint64_t *generation);
 #ifdef __cplusplus
 }
 #endif

@@ -200,6 +200,54 @@ func TestFirmwareAndPIOReadQuiesceResume(t *testing.T) {
 		t.Fatal(firmware.stats)
 	}
 }
+
+func TestActualFirmwareClosureAllowsPIOReopenWithSameCardAndNoGrantReplay(t *testing.T) {
+	firmware, card := newRPC(t, "returned")
+	s, err := Open(firmware, card, 200000000)
+	if err != nil {
+		t.Fatal(err)
+	}
+	identity := s.Identity()
+	if err := s.Quiesce(); err != nil {
+		t.Fatal(err)
+	}
+	for cycle := uint64(0); cycle < 3; cycle++ {
+		// Only the host fixture handles this private model instruction. It uses
+		// the real C bridge open/stop/close functions and publishes their receipt.
+		r, err := firmware.Invoke([7]uint64{0xf0250001})
+		if err != nil || r[0] != 0 || r[2] != 17 || r[3] != 6+5*cycle {
+			t.Fatal(r, err)
+		}
+		before := len(firmware.requests)
+		if err := s.ResumeAfterReturn(r[2]+1, r[3]); !errors.Is(err, ErrTransition) || len(firmware.requests) != before {
+			t.Fatal("wrong owner reached firmware", err)
+		}
+		if err := s.ResumeAfterReturn(r[2], r[3]); err != nil {
+			t.Fatal(err)
+		}
+		if s.Identity() != identity {
+			t.Fatal("changed card adopted")
+		}
+		data := make([]byte, 512)
+		if err := s.ReadSectors(2, data); err != nil {
+			t.Fatal(err)
+		}
+		if !bytes.Equal(data, bytes.Repeat([]byte{0, 1, 2, 3}, 128)) {
+			t.Fatal("wrong PIO contents after return")
+		}
+		before = len(firmware.requests)
+		if err := s.ResumeAfterReturn(r[2], r[3]); !errors.Is(err, ErrTransition) || len(firmware.requests) != before {
+			t.Fatal("active lease return replay", err)
+		}
+		if err := s.Quiesce(); err != nil {
+			t.Fatal(err)
+		}
+		last, valid := s.LastReceipt()
+		if !valid || last != (Receipt{Owner: 17, Generation: r[3] + 3}) {
+			t.Fatal(last, valid)
+		}
+	}
+}
 func assertRetired(t *testing.T, s *Session, firmware *rpc, c *card) {
 	t.Helper()
 	accesses, calls := c.accesses, len(firmware.requests)

@@ -6,7 +6,7 @@ enum { INVALID = -22, UNPROVEN = -1, IO_ERROR = -5 };
 
 static int fail(struct fes_nano_bridges *b, int result)
 {
-    if (b) b->failed = 1;
+    if (b) { b->failed = 1; b->closure_valid = 0; }
     return result < 0 ? result : IO_ERROR;
 }
 
@@ -42,6 +42,7 @@ int fes_nano_bridges_init(struct fes_nano_bridges *b, struct fes_nano_bridge_ops
         (fabric != FES_NANO_FABRIC_ABSENT && fabric != FES_NANO_FABRIC_PRESENT))
         return fail(b, INVALID);
     b->ops = ops;
+    b->closure_valid = 0;
     b->epoch = epoch;
     b->state.owner = owner;
     if (read_state(b, &reset, &masters) != 0) return UNPROVEN;
@@ -105,6 +106,7 @@ int fes_nano_bridges_close(struct fes_nano_bridges *b, uint64_t owner, uint64_t 
         b->state.generation == UINT64_MAX)
         return fail(b, INVALID);
     active = FES_NANO_BRIDGES_ALL & ~b->state.reset;
+    b->closure_valid = 0;
     b->access = UNKNOWN;
     result = b->ops.stop_producers(b->ops.context);
     if (result != 0) return fail(b, result);
@@ -123,6 +125,8 @@ int fes_nano_bridges_close(struct fes_nano_bridges *b, uint64_t owner, uint64_t 
     /* Only paths opened by this owner needed a fresh hardware drain. Reset
      * paths retain their preceding containment; never poll or invent ACKs. */
     out->hardware_drained = active & FES_NANO_BRIDGES_DRAIN;
+    b->closure = *out;
+    b->closure_valid = 1;
     return 0;
 }
 
@@ -139,6 +143,7 @@ int fes_nano_bridges_open(struct fes_nano_bridges *b, uint64_t owner, uint64_t g
                    (!mask || (mask & ~FES_NANO_BRIDGES_DATA))) ||
         b->state.generation == UINT64_MAX || !b->state.masters_contained)
         return fail(b, INVALID);
+    b->closure_valid = 0;
     b->access = UNKNOWN;
     result = b->ops.enable(b->ops.context, mask, b->state.fabric);
     if (result != 0) return fail(b, result);
@@ -155,4 +160,21 @@ int fes_nano_bridges_configuration_guard(struct fes_nano_bridges *b)
     if (b->access != CLOSED || current.reset != FES_NANO_BRIDGES_ALL || !current.masters_contained)
         return fail(b, UNPROVEN);
     return 0;
+}
+
+int fes_nano_bridges_held_return(const struct fes_nano_bridges *b, uint64_t *generation)
+{
+    if (!b || !generation || !b->initialized || b->failed || !b->closure_valid ||
+        b->access != CLOSED || b->state.never_enabled || !b->state.masters_contained ||
+        b->state.reset != FES_NANO_BRIDGES_ALL || b->state.fabric != FES_NANO_FABRIC_ABSENT)
+        return 0;
+    const struct fes_nano_bridge_closure *c = &b->closure;
+    if (c->after.owner != b->state.owner || c->after.generation > b->state.generation ||
+        !c->after.generation || c->after.never_enabled || !c->after.masters_contained ||
+        c->after.reset != FES_NANO_BRIDGES_ALL || c->after.fabric != b->state.fabric ||
+        c->producers_quiescent != 1 || c->data_remained_contained != 1 ||
+        c->fabric_acknowledged || c->hardware_drained)
+        return 0;
+    *generation = c->after.generation;
+    return 1;
 }

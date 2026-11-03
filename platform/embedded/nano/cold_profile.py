@@ -110,7 +110,8 @@ def make(entry_build):
               'hps_reader_memory':reader_memory,'hps_reader_memory_sha256':hps_context.digest(reader_memory) if reader_memory else None,
               'hps_ddr_read':ddr_read,'hps_ddr_read_sha256':hps_context.digest(ddr_read) if ddr_read else None,
               'hps_computer':computer,'hps_computer_sha256':hps_context.digest(computer) if computer else None,
-              'computer_reload':build.get('computer_reload',False)}
+              'computer_reload':build.get('computer_reload',False),
+              'computer_storage_return':build.get('computer_storage_return',False)}
     identity['chain_sha256']=hashlib.sha256(json.dumps(identity,sort_keys=True).encode()).hexdigest()
     identity['owner_seed']=int(identity['chain_sha256'][:16],16)|1
     identity['entry_receipt_sha256']=sha(receipt)
@@ -219,6 +220,10 @@ def header(profile):
     if type(reload) is not bool or reload and computer is None:
         raise ValueError('computer reload requires its selected sealed computer contract')
     extra+='#define FES_NANO_COMPUTER_RELOAD '+str(int(reload))+'\n'
+    storage_return=profile.get('computer_storage_return',False)
+    if type(storage_return) is not bool or storage_return and (not reload or not profile['sd_pio']):
+        raise ValueError('computer storage return requires its selected two-load owned SD profile')
+    extra+='#define FES_NANO_COMPUTER_STORAGE_RETURN '+str(int(storage_return))+'\n'
     return ('/* Generated, same source-bound diagnostic chain in SPL and BL31. */\n'
             +extra+
             '#define FES_NANO_SMMU_BOOT_OBSERVE '+str(int(smmu))+'\n'

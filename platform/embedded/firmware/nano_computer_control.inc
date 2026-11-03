@@ -23,10 +23,21 @@ static int fes_nano_computer_control(uint32_t fid, uint64_t operation,
     unsigned control = bridge && operation == FES_EMBEDDED_BRIDGE_CONTROL;
     if (fes_nano_computer_phase == 2 && !control) {
         unsigned rearm = bridge && operation == FES_EMBEDDED_BRIDGE_REARM_CONFIGURATION;
+#if defined(FES_NANO_COMPUTER_STORAGE_RETURN) && FES_NANO_COMPUTER_STORAGE_RETURN
+        uint64_t returned=0;
+        unsigned storage = fid==FES_EMBEDDED_SD_CALL && cookie==FES_EMBEDDED_SD_COOKIE &&
+            !busy && c && c->initialized && c->finished && !c->failed &&
+            c->generation<=UINT64_MAX-2 && p && p->attempted && !p->active &&
+            !p->failed && !p->first_error && !p->cleanup_error && p->stage==FES_ID_COMPLETE &&
+            p->bridges==c->bridges && fes_nano_bridges_held_return(c->bridges,&returned)==1 &&
+            returned==c->generation+2;
+#else
+        unsigned storage=0;
+#endif
         unsigned transfer = c && c->rearmed && c->prepared && !c->finished && !c->failed &&
             (fid == FES_NANO_CONFIG_START || fid == FES_NANO_CONFIG_WRITE ||
              fid == FES_NANO_CONFIG_COMPLETED || fid == FES_NANO_CONFIG_ISDONE);
-        return !(snapshot || context || rearm || transfer);
+        return !(snapshot || context || rearm || transfer || storage);
     }
     if (fes_nano_computer_phase == 1) {
         if (snapshot) return 0;

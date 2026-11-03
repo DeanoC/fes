@@ -26,8 +26,13 @@ Content rejection leaves a healthy active lease unchanged.
 The handoff receipt is cached SD evidence, not a live hardware observation or
 FPGA permission. Actual runtime transitions must separately check live secure
 firmware ownership, compatibility, identity and containment. The current physical
-SD service requires closed, never-enabled bridges and absent fabric. It cannot
-yet resume across a real FPGA activation or supply concurrent core/SD access.
+SD service accepts either closed, never-enabled bridges or its own successful
+held-data core-return record. The new `ResumeAfterReturn` operation requires an
+explicit returned owner/generation and a lease with that capability. It runs
+controller/card reinitialization before another package read. Previous handoffs
+are invalidated; the next `Handoff.ReturnedFrom()` retains the exact return as
+cached provenance. It supplies no concurrent core/SD access. Warm return is
+software-qualified and still needs its matched hardware test.
 
 Host tests include read-only FAT32 with an unchanged disk hash, retention after
 source mutation, the existing format-3/4 linker against its independent output
@@ -46,8 +51,8 @@ that diagnostic. A synthetic package proves retention only, never a playable
 or programmable core.
 
 The [bounded TRWU8CBL trial](../../../../docs/validation/2026-11-01-de25-ksz9031-packages/README.md)
-now passes that real SD retention/contain/resume/reread cycle. Active-fabric
-storage return and physical runtime admission remain unqualified.
+now passes that real cold SD retention/contain/resume/reread cycle. Returned-core
+storage access and physical runtime admission remain unqualified.
 
 The `fpgaload` consumer now joins a contained `Handoff` to the native cold
 configuration engine. It selects the exact compiled sealed package and copies

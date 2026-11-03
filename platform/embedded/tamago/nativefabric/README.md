@@ -124,6 +124,18 @@ close paths. The separate
 passes two configurations and owned Run/return cycles for its exact fixed
 package. Arbitrary compatible packages and normal runtime admission remain open.
 
+`ResumeStorageAfterReturn` consumes this verifier's private successful computer
+Close, checks the exact live source/closure again, then requests the store's SD
+return operation once. A public observation cannot manufacture that authority.
+Fresh retention and containment carry the return into
+`NewStoredReconfigurationTransfer`, which checks the newer SD generation against
+the current secure snapshot. Failed or uncertain grants cannot replay. Joined
+software tests cover three configuration/Run/return cycles, two SD reopens and
+fresh selections. The secure provider separately verifies its own closure and
+stopped SD provenance before accepting the next activation. This path still
+selects the compiled diagnostic package; its hardware test and ordinary Nano
+admission remain open.
+
 `HPSContextVerifier.ProbeReader` adds a distinct owned firmware operation for
 the sealed diagnostic's on-chip reader. It checks the same compiled source and
 control map, requires the reader-specific reply tag and verifies same-owner

@@ -800,7 +800,7 @@ Add `--computer-reload` to the native `fpgaload --computer-control` build for a
 bounded two-load diagnostic. The SDK, entry and SPL/BL31 chain carry that exact
 boolean. Each load uses the same retained sealed package and keeps the original
 20-second transfer deadline; each Run/return probe keeps its five-second bound.
-The data bridges remain held and the SD filesystem is not reopened for the
+The data bridges remain held and, without storage return selected, the SD filesystem is not reopened for the
 second load. This mode grants no arbitrary-package or ordinary runtime admission.
 
 Select `decode_native_configuration(..., computer_activity=True,
@@ -814,7 +814,27 @@ The second phase cannot repeat the boot or reuse a preceding activation,
 master-stop, counter or completion. Missing, overlapping or partial cycles
 cannot complete. `loader_ready` comes only from the first verified boot;
 `core_load_acceptance` stays false. The source and software checks do not qualify
-a two-load physical boot.
+a changed two-load physical boot.
+
+Add `--computer-storage-return` with `--computer-reload` to select a fresh SD
+read between the two core cycles. SDK, entry and secure cold-profile receipts
+bind the selection. After the first successful Run/Close, native code checks
+its private return, requests a new firmware SD lease, rediscovers the original
+card and retains `FES/PKGTEST.BIN` again before containing SD. The second transfer
+uses those newly retained bytes. Firmware requires its own producer-stop/held-data
+closure and completed SD stop before the next activation. Active or uncertain
+ownership prevents the operation; no native SD writes are added.
+
+Pass `computer_storage_return=True` and the checked CPU mapping contract to the
+serial decoder only for that selected build. It requires ordered
+`FES_NATIVE_STORAGE_RETURN BEGIN`, `ACTIVE` and `CONTAINED` records strictly
+between the first verified return and the next cycle. Generations are activation
+4, return 6, prepared SD 8, contained SD/activation 9 and final return 11. The
+20-second configuration bound, 50-second prompt and 45-second core observer
+bounds remain; the additional SD read has its own 100-second phase. The current
+warm-return implementation has software/PIO-model checks and a cross-build.
+Physical warm-return qualification, arbitrary package selection and normal
+runtime admission remain open.
 
 The current block-size comparison selects `0xfffc0` (1,048,512) bytes: the
 pinned vendor client's `0xffff0` limit rounded down to a 64-byte boundary.

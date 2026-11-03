@@ -14,10 +14,24 @@ static int healthy(struct fes_nano_sd *s)
     if (s->failed) return -1;
     if (!b || !b->initialized || b->failed || b->state.owner != s->owner ||
         b->epoch != s->epoch || b->state.reset != FES_NANO_BRIDGES_ALL ||
-        b->state.fabric != FES_NANO_FABRIC_ABSENT || !b->state.never_enabled ||
+        b->state.fabric != FES_NANO_FABRIC_ABSENT ||
         !b->state.masters_contained || b->device_lease != s->active ||
         !b->state.generation)
         return retire(s, -1);
+    if (!b->state.never_enabled) {
+        uint64_t returned;
+        if (!fes_nano_bridges_held_return(b, &returned)) return retire(s, -1);
+        if (s->active) {
+            if (s->return_generation != returned || !s->grant_generation ||
+                s->grant_generation > UINT64_MAX-2 ||
+                b->state.generation < s->grant_generation ||
+                b->state.generation > s->grant_generation+2)
+                return retire(s, -1);
+        } else if (b->state.generation != returned &&
+                   (s->return_generation != returned || s->stopped_generation != b->state.generation)) {
+            return retire(s, -1);
+        }
+    }
     return 0;
 }
 static int scope(struct fes_nano_sd *s)
@@ -45,6 +59,7 @@ int fes_nano_sd_init(struct fes_nano_sd *s, struct fes_nano_bridges *b,
     s->ops = ops;
     s->owner = b->state.owner;
     s->epoch = b->epoch;
+    s->stopped_generation = b->state.generation;
     if (scope(s)) return -1;
     s->initialized = 1;
     return 0;
@@ -84,10 +99,18 @@ void fes_nano_sd_sip(struct fes_nano_sd *s, uint64_t operation, uint64_t owner,
         (operation == FES_EMBEDDED_SD_PREPARE && (!s->active || s->prepared)) ||
         (operation == FES_EMBEDDED_SD_STOP && !s->active)) return;
     result[0] = FES_EMBEDDED_SD_ERROR;
-    if (s->bridges->state.generation == UINT64_MAX) { retire(s, -75); return; }
+    if (s->bridges->state.generation == UINT64_MAX ||
+        (operation == FES_EMBEDDED_SD_RESUME && s->bridges->state.generation > UINT64_MAX-3)) {
+        retire(s, -75); return;
+    }
     if (scope(s)) return;
     if (operation == FES_EMBEDDED_SD_RESUME) {
         /* Reserve before the first write; a partial release retains this lease. */
+        if (!s->bridges->state.never_enabled &&
+            !fes_nano_bridges_held_return(s->bridges, &s->return_generation)) {
+            retire(s, -1); return;
+        }
+        s->grant_generation = s->bridges->state.generation;
         s->active = s->bridges->device_lease = 1;
         error = s->ops.resume(s->ops.context);
         if (error) { retire(s, error); return; }
@@ -113,5 +136,21 @@ void fes_nano_sd_sip(struct fes_nano_sd *s, uint64_t operation, uint64_t owner,
         s->active = s->prepared = 0;
     }
     s->bridges->state.generation++;
+    if (operation == FES_EMBEDDED_SD_STOP)
+        s->stopped_generation = s->bridges->state.generation;
     success(s, result);
+}
+
+int fes_nano_sd_returned(struct fes_nano_sd *s, uint64_t owner,
+                         uint64_t return_generation, uint64_t generation)
+{
+    if (!s || !s->initialized || s->active || s->prepared || !return_generation ||
+        s->owner != owner || s->return_generation != return_generation ||
+        s->stopped_generation != generation || generation <= return_generation ||
+        !s->bridges || s->bridges->state.generation != generation)
+        return -1;
+    uint64_t returned;
+    if (!fes_nano_bridges_held_return(s->bridges, &returned) || returned != return_generation)
+        return -1;
+    return scope(s);
 }

@@ -37,6 +37,11 @@ class ComputerTests(unittest.TestCase):
             self.assertEqual(context.checked_computer(record),m)
             checked.assert_called_once_with(record,'program')
             self.assertEqual(context.checked_computer(dict(record,computer_reload=True)),m)
+            self.assertEqual(context.checked_computer(dict(record,computer_reload=True,computer_storage_return=True)),m)
+            with self.assertRaises(ValueError):context.checked_computer(dict(record,computer_storage_return=True))
+            for storage_return in (None,0,1,'true'):
+                with self.subTest(storage_return=storage_return),self.assertRaises(ValueError):
+                    context.checked_computer(dict(record,computer_reload=True,computer_storage_return=storage_return))
             for flag in (None,0,1,'true'):
                 with self.subTest(reload=flag),self.assertRaises(ValueError):
                     context.checked_computer(dict(record,computer_reload=flag))
@@ -59,6 +64,8 @@ class ComputerTests(unittest.TestCase):
         p['cpu_mapping_sha256']=context.digest(p['cpu_mapping'])
         self.assertIn('#define FES_NANO_COLD_COMPUTER 1',cold.header(p))
         self.assertIn('#define FES_NANO_COMPUTER_RELOAD 1',cold.header(dict(p,computer_reload=True)))
+        self.assertIn('#define FES_NANO_COMPUTER_STORAGE_RETURN 1',cold.header(dict(p,computer_reload=True,computer_storage_return=True)))
+        with self.assertRaises(ValueError):cold.header(dict(p,computer_storage_return=True))
         for flag in (None,0,1,'true'):
             with self.subTest(reload=flag),self.assertRaises(ValueError):cold.header(dict(p,computer_reload=flag))
         with self.assertRaises(ValueError):cold.header(dict(p,hps_computer=None,computer_reload=True))

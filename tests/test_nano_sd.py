@@ -11,6 +11,15 @@ FW = ROOT / "platform/embedded/firmware"
 
 
 class NanoSDTests(unittest.TestCase):
+    def test_reopen_requires_the_retained_verified_core_return(self):
+        with tempfile.TemporaryDirectory(prefix="fes-nano-sd-return-") as temp:
+            binary=Path(temp)/"sd-return"
+            flags=["-std=c11","-Wall","-Wextra","-Werror","-fsanitize=undefined","-fno-sanitize-recover=all","-I"+str(FW)]
+            subprocess.run(["cc",*flags,str(FW/"nano_bridges.c"),str(FW/"nano_sd.c"),
+                            str(FW/"tests/nano_sd_return_test.c"),"-o",str(binary)],check=True,capture_output=True,text=True,timeout=30)
+            result=subprocess.run([str(binary)],check=True,capture_output=True,text=True,timeout=10)
+            self.assertIn("PASS verified held-data return",result.stdout)
+
     def test_engine_lifecycle_and_failure_retention(self):
         with tempfile.TemporaryDirectory(prefix="fes-nano-sd-") as temp:
             binary = Path(temp) / "sd"

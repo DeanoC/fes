@@ -105,6 +105,8 @@ type HPSContextVerifier struct {
 	computerMu            sync.Mutex
 	computerGeneration    uint64
 	computerClosed        bool
+	computerReturn        BridgeSnapshot
+	computerSDResumed     bool
 }
 
 func NewHPSContextVerifier(cpu FirmwareCaller, source []byte) (*HPSContextVerifier, error) {

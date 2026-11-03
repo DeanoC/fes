@@ -66,6 +66,7 @@ def main():
     native_sources = None
     native_context = native_io = native_cpu_map = native_control = native_configuration = native_reader_memory = native_ddr_read = native_computer = None
     native_reload = False
+    native_storage_return = False
     if args.target == "qemu":
         if args.nano_build or args.profile or args.image_address is not None:
             parser.error("Nano receipt, profile and load address are only valid with --target de25-nano")
@@ -101,10 +102,13 @@ def main():
         native_ddr_read=hps.checked_ddr_read(receipt)
         native_computer=hps.checked_computer(receipt)
         native_reload=receipt.get('computer_reload',False)
+        native_storage_return=receipt.get('computer_storage_return',False)
         command=receipt.get('command',[])
         flags=command[command.index('-ldflags')+1] if isinstance(command,list) and '-ldflags' in command and command.index('-ldflags')+1<len(command) else ''
         if not isinstance(flags,str) or native_reload!=('-X main.expectedComputerReload=1' in flags):
             raise ValueError('computer reload selection differs from the native link command')
+        if native_storage_return!=('-X main.expectedComputerStorageReturn=1' in flags):
+            raise ValueError('computer storage-return selection differs from the native link command')
         if native_context is not None and base64.b64encode(hps.encode(native_context)) not in payload.read_bytes():
             raise ValueError('HPS context is absent from the selected native ELF')
         if native_io is not None and base64.b64encode(hps.encode(native_io)) not in payload.read_bytes():
@@ -265,6 +269,7 @@ def main():
               "hps_computer":native_computer,
               "hps_computer_sha256":hps.digest(native_computer) if native_computer is not None else None,
               "computer_reload":native_reload,
+              "computer_storage_return":native_storage_return,
               "hps_project":receipt['hps_project'] if native_context is not None else None,
               "sources": frozen, "tools": tools, "environment": env, "commands": commands,
               "limitations": ["no physical Nano, DDR, peripheral, DMA, bridge or reset proof",

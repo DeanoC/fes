@@ -24,6 +24,7 @@ import (
 var expectedBootContext, expectedControlMap, expectedConfigurationMap, expectedReaderMemoryMap string
 var expectedDDRReadMap string
 var expectedComputerMap, expectedComputerReload string
+var expectedComputerStorageReturn string
 var retained *nativefabric.ConfigurationTransfer
 
 func decoded(s string, limit int) []byte {
@@ -43,6 +44,9 @@ func main() {
 	}
 	if expectedComputerReload != "" && (expectedComputerReload != "1" || expectedComputerMap == "" || expectedDDRReadMap != "") {
 		panic("computer reload requires the selected held-data computer diagnostic")
+	}
+	if expectedComputerStorageReturn != "" && (expectedComputerStorageReturn != "1" || expectedComputerReload != "1") {
+		panic("storage return requires the selected two-load computer diagnostic")
 	}
 	cpu := de25nano.FabricCPUTransport{}
 	v, err := nativefabric.NewHPSContextVerifier(cpu, decoded(expectedBootContext, 8192))
@@ -132,6 +136,37 @@ func main() {
 				fmt.Printf("FES_NATIVE_FPGA_CYCLE END cycle=%d count=2\n", cycle)
 			}
 			if cycle < count {
+				if expectedComputerStorageReturn == "1" {
+					returned, err := v.Verify(id)
+					if err != nil {
+						panic(err)
+					}
+					fmt.Printf("FES_NATIVE_STORAGE_RETURN BEGIN owner=%x generation=%d package_id=%s data_held=1\n",
+						returned.Bridges.Owner, returned.Bridges.Generation, id.PackageID)
+					if err := v.ResumeStorageAfterReturn(store); err != nil {
+						panic(err)
+					}
+					active, valid := lease.LastReceipt()
+					if !valid || !active.Active || !active.Prepared || active.Owner != returned.Bridges.Owner || active.Generation != returned.Bridges.Generation+2 {
+						panic("storage resume lost the owned return")
+					}
+					fmt.Printf("FES_NATIVE_STORAGE_RETURN ACTIVE owner=%x generation=%d return_generation=%d writes=disabled\n",
+						active.Owner, active.Generation, returned.Bridges.Generation)
+					selection, err = store.Retain(context.Background(), packagestore.Request{Path: "FES/PKGTEST.BIN", PackageID: id.PackageID})
+					if err != nil {
+						panic(err)
+					}
+					handoff, err = store.Contain(selection)
+					if err != nil {
+						panic(err)
+					}
+					held := handoff.Receipt()
+					if held.Owner != active.Owner || held.Generation != active.Generation+1 || handoff.ReturnedFrom().Generation != returned.Bridges.Generation {
+						panic("fresh package containment lost its core return")
+					}
+					fmt.Printf("FES_NATIVE_STORAGE_RETURN CONTAINED owner=%x generation=%d return_generation=%d package_id=%s source=sd writes=disabled\n",
+						held.Owner, held.Generation, returned.Bridges.Generation, selection.Inspection().PackageID)
+				}
 				retained, source, err = v.NewStoredReconfigurationTransfer(control, configuration, handoff, de25nano.ReserveConfiguration)
 				if err != nil {
 					panic(err)

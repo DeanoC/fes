@@ -1,5 +1,6 @@
 """Source-bound EL1 mapping observations, without board or admission claims."""
 import copy
+import re
 import unittest
 from unittest.mock import patch
 
@@ -131,6 +132,105 @@ class CPUMappingTraceTests(unittest.TestCase):
                         raw.replace('FES_NATIVE_FPGA_CYCLE BEGIN cycle=2',self.marker()+'FES_NATIVE_FPGA_CYCLE BEGIN cycle=2')):
             with self.subTest(length=len(changed)):
                 self.assertFalse(trace.decode_native_computer_reload(changed,BUILD,SEED,**options)['complete'])
+
+
+class StorageReturnTraceTests(unittest.TestCase):
+    """Fresh SD ownership must join the two independently verified core cycles."""
+    def setUp(self):
+        self.mapping_fixture=CPUMappingTraceTests();self.mapping_fixture.setUp()
+        self.reload=fixtures.NativeComputerReloadTraceTests();self.reload.setUp()
+        base=self.mapping_fixture.base
+        self.options=dict(fpga_identity=base.identity,configuration=base.configuration,
+            reader_memory=base.memory,computer=base.computer,cpu_mapping=self.mapping_fixture.mapping)
+        self.package_id=base.configuration['package_id']
+
+    def markers(self):
+        return (
+            f'FES_NATIVE_STORAGE_RETURN BEGIN owner={OWNER:x} generation=6 package_id={self.package_id} data_held=1\r\n'
+            f'FES_NATIVE_STORAGE_RETURN ACTIVE owner={OWNER:x} generation=8 return_generation=6 writes=disabled\r\n'
+            f'FES_NATIVE_STORAGE_RETURN CONTAINED owner={OWNER:x} generation=9 return_generation=6 package_id={self.package_id} source=sd writes=disabled\r\n')
+
+    def capture(self):
+        raw=self.reload.capture().replace('FES_NATIVE_FPGA_CYCLE BEGIN cycle=1',
+            self.mapping_fixture.marker()+'FES_NATIVE_FPGA_CYCLE BEGIN cycle=1',1)
+        start=raw.index('FES_NATIVE_FPGA_CYCLE BEGIN cycle=2')
+        # The new SD grant, prepare and stop consume three additional generations.
+        second=re.sub(r'\bgeneration=([678])\b',lambda m:'generation='+str(int(m[1])+3),raw[start:])
+        return raw[:start]+self.markers()+second
+
+    def decode(self,raw,**changes):
+        return trace.decode_native_computer_reload(raw,BUILD,SEED,
+            **(dict(self.options,computer_storage_return=True)|changes))
+
+    def test_owned_return_reselection_and_reconfiguration_have_exact_lineage(self):
+        report=self.decode(self.capture())
+        self.assertTrue(report['complete'],report)
+        observation=report['storage_return_observation']
+        self.assertTrue(observation['complete']);self.assertFalse(observation['runtime_admission'])
+        self.assertEqual([r['values']['generation'] for r in observation['records']],[6,8,9])
+        self.assertEqual([c['report']['fabric_activation']['generation'] for c in report['cycles']],[4,9])
+        self.assertEqual([c['report']['master_stop_observation']['generation'] for c in report['cycles']],[5,10])
+        self.assertEqual([c['report']['computer_control_observation']['generation'] for c in report['cycles']],[6,11])
+        self.assertFalse(report['core_load_acceptance'])
+        self.assertTrue(trace.decode_native_configuration(self.capture(),BUILD,SEED,**self.options,
+            from_storage=True,computer_activity=True,computer_reload=True,computer_storage_return=True)['complete'])
+
+    def test_partial_captures_cannot_complete_or_invent_failure(self):
+        raw=self.capture();offset=0
+        for line in raw.splitlines(keepends=True)[:-1]:
+            offset+=len(line)
+            with self.subTest(offset=offset):
+                report=self.decode(raw[:offset])
+                self.assertFalse(report['complete']);self.assertEqual(report['errors'],[])
+        start=raw.index('FES_NATIVE_STORAGE_RETURN')
+        end=start+len(self.markers())
+        for position in range(start,end):
+            if raw[position:position+1]!='\n':continue
+            with self.subTest(fragment=position):self.assertFalse(self.decode(raw[:position])['complete'])
+        self.assertFalse(self.decode(raw.rstrip())['complete'])
+
+    def test_each_missing_duplicate_or_reordered_storage_stage_rejects(self):
+        raw=self.capture();markers=self.markers().splitlines(keepends=True)
+        for line in markers:
+            for replacement in ('',line+line):
+                with self.subTest(line=line,replacement=replacement):
+                    self.assertFalse(self.decode(raw.replace(line,replacement))['complete'])
+        for order in ((1,0,2),(0,2,1),(2,1,0)):
+            with self.subTest(order=order):
+                self.assertFalse(self.decode(raw.replace(self.markers(),''.join(markers[i] for i in order)))['complete'])
+
+    def test_storage_markers_cannot_escape_the_verified_return_interval(self):
+        raw=self.capture();stripped=raw.replace(self.markers(),'')
+        for position in (0,stripped.index('FES_NATIVE_FPGA_CYCLE END cycle=1'),
+                         stripped.index('FES_NATIVE_FPGA_CYCLE END cycle=2'),len(stripped)):
+            with self.subTest(position=position):
+                self.assertFalse(self.decode(stripped[:position]+self.markers()+stripped[position:])['complete'])
+
+    def test_changed_storage_owner_receipt_package_or_scope_rejects(self):
+        raw=self.capture();markers=self.markers()
+        changes=((f'owner={OWNER:x}',f'owner={OWNER+2:x}'),('generation=6 package_id','generation=5 package_id'),
+                 ('generation=8 return_generation=6','generation=7 return_generation=6'),
+                 ('generation=9 return_generation=6','generation=9 return_generation=8'),
+                 ('generation=9 return_generation=6','generation=8 return_generation=6'),
+                 (self.package_id,'0'*64),('data_held=1','data_held=0'),('writes=disabled','writes=enabled'),
+                 ('source=sd','source=ram'),(' ACTIVE ',' READY '))
+        for old,new in changes:
+            self.assertIn(old,markers)
+            with self.subTest(change=new):
+                self.assertFalse(self.decode(raw.replace(markers,markers.replace(old,new)))['complete'])
+        old_mode=self.reload.capture().replace('FES_NATIVE_FPGA_CYCLE BEGIN cycle=1',
+            self.mapping_fixture.marker()+'FES_NATIVE_FPGA_CYCLE BEGIN cycle=1',1)
+        self.assertFalse(self.decode(old_mode)['complete'])
+
+    def test_explicit_build_selection_and_cpu_mapping_are_required(self):
+        self.assertFalse(self.decode(self.capture(),computer_storage_return=False)['complete'])
+        with self.assertRaises(ValueError):self.decode(self.capture(),cpu_mapping=None)
+        for invalid in (None,0,1,'true'):
+            with self.subTest(invalid=invalid),self.assertRaises(ValueError):
+                self.decode(self.capture(),computer_storage_return=invalid)
+        with self.assertRaises(ValueError):
+            trace.decode_native_configuration(self.capture(),BUILD,SEED,**self.options,
+                from_storage=True,computer_activity=True,computer_storage_return=True)
 
 
 if __name__=='__main__':unittest.main()

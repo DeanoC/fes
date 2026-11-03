@@ -611,6 +611,21 @@ static int configuration_check(void *context, uint64_t address, uint32_t bytes, 
     return (read_sctlr_el3()&5U) || fes_nano_cold_owns(s,s->record.boot.owner,s->record.boot.epoch)!=1 ||
            memcmp(expected,observed,48) ? -1 : 0;
 }
+#ifdef FES_NANO_READER_CPU_BASE
+static int configuration_return_generation(uint64_t owner,uint64_t generation)
+{
+    uint64_t returned;
+    if(fabric_generation==UINT64_MAX ||
+       !fes_nano_bridges_held_return(&fes_nano_owned_bridges,&returned) ||
+       returned!=fabric_generation+1)return 0;
+    if(generation==returned)return 1;
+#if defined(FES_NANO_CONTROLLED_SD) && FES_NANO_CONTROLLED_SD
+    return fes_nano_sd_returned(&fes_nano_owned_sd,owner,returned,generation)==0;
+#else
+    (void)owner;return 0;
+#endif
+}
+#endif
 static int configuration_complete(void *context, uint64_t owner, uint64_t generation, unsigned rearmed)
 {
     struct fes_nano_bridge_snapshot current;
@@ -632,7 +647,7 @@ static int configuration_complete(void *context, uint64_t owner, uint64_t genera
 #endif
     if(rearmed ? (!fabric_configuration_generation || generation<=fabric_configuration_generation ||
                   !fabric_stop.attempted || !fabric_stop.done || !fabric_stop.probe.done ||
-                  fabric_generation==UINT64_MAX || generation!=fabric_generation+1 ||
+                  !configuration_return_generation(owner,generation) ||
                   identity_probe.stage!=FES_ID_COMPLETE) :
                  (fabric_configuration_generation || fabric_stop.attempted || fabric_stop.done))return -1;
     uint64_t previous=fabric_configuration_generation;
