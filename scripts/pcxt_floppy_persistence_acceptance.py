@@ -196,6 +196,18 @@ def previous_receipt(path, expected_sha, args, owned, current_provenance):
     try:
         rec = json.loads(raw)
         sess = rec['session']
+        identity = {
+            'same_target_name': sess['target'] == owned.target_name,
+            'same_target_id': sess['target_id'] == owned.target_id,
+            'same_game': sess['game_id'] == owned.game_id,
+            'same_package': sess['package_id'] == owned.package_id,
+            # The host ID identifies the per-target coordinator, not a launch.
+            'same_coordinator': isinstance(sess['id'], str) and bool(sess['id']) and sess['id'] == owned.session_id,
+            'new_flight': isinstance(sess['flight_id'], str) and bool(sess['flight_id']) and sess['flight_id'] != owned.flight_id,
+            'new_generation': type(sess['generation']) is int and sess['generation'] > 0 and sess['generation'] != owned.generation,
+        }
+        if not all(identity.values()):
+            raise pa.AcceptanceError('write-phase restart identity mismatch: '+json.dumps(identity,sort_keys=True))
         if (rec['classification'] != 'physical diagnostic: saved; restart pending' or
                 rec['scenario'] != 'com' or rec['source_commit'] != args.source_commit or
                 rec['archive_sha256'] != args.archive_sha256 or rec['package_id'] != args.package_id or
@@ -203,11 +215,6 @@ def previous_receipt(path, expected_sha, args, owned, current_provenance):
                 rec['base_image_sha256'] != args.image_sha256 or rec['target_id'] != args.target_id or
                 rec['boot_id'] != args.expected_boot or rec['disk']['floppy_sha256'] != DISK_SHA or
                 rec['provenance'] != current_provenance or
-                sess['target'] != owned.target_name or sess['target_id'] != owned.target_id or
-                sess['game_id'] != owned.game_id or sess['package_id'] != owned.package_id or
-                type(sess['generation']) is not int or sess['generation'] == owned.generation or
-                not isinstance(sess['id'], str) or not sess['id'] or sess['id'] == owned.session_id or
-                not isinstance(sess['flight_id'], str) or not sess['flight_id'] or sess['flight_id'] == owned.flight_id or
                 not isinstance(rec['saved_revision'], str) or not HEX64.fullmatch(rec['saved_revision'])):
             raise ValueError('write receipt does not bind a distinct restart')
     except (KeyError, TypeError, ValueError, json.JSONDecodeError):

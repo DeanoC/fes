@@ -150,8 +150,10 @@ Preserve `receipt.json` and its SHA-256, stop the owned session, and start a new
 owned session with the same isolated library entry and saved revision. Use a new
 private evidence directory and rerun with `--phase verify`, supplying
 `--write-receipt <path>` and `--write-receipt-sha256 <sha256>`. The verify
-phase requires a different session/flight and generation, checks the saved
-revision, then reads the copied file after the restart.
+phase requires the same target session coordinator with a different launch
+flight and package generation, checks the saved revision, then reads the copied
+file after the restart. A coordinator ID can persist across launches; it is not
+a per-launch identifier.
 
 The tool records sanitized host-health observations and bounded timing stages
 without extra identity requests. A full timing pipe or an evidence write failure
