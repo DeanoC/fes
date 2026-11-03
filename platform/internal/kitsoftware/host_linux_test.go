@@ -1,13 +1,18 @@
 package kitsoftware
 
 import (
+	"bytes"
 	"context"
+	"net/http"
+	"net/http/httptest"
 	"os"
 	"path/filepath"
 	"strings"
 	"syscall"
 	"testing"
 	"time"
+
+	"github.com/DeanoC/FogCast/appliance/software"
 )
 
 func writeManifest(t *testing.T, root, interfaces string) {
@@ -80,8 +85,8 @@ func TestHostStartsAfterLauncherReadinessAndRestartsAlone(t *testing.T) {
 		t.Fatal(err)
 	}
 	<-first.done
-	if !strings.Contains(c.ServiceFault(), "restarting the host") {
-		t.Fatal(c.ServiceFault())
+	if !strings.Contains(c.HostFault(), "restarting the host") || c.ServiceFault() != "" {
+		t.Fatalf("host fault %q, service fault %q", c.HostFault(), c.ServiceFault())
 	}
 	deadline := time.Now().Add(5 * time.Second)
 	for c.host == first && time.Now().Before(deadline) {
@@ -188,5 +193,118 @@ func TestWithoutHostDropsOnlyTheHostExecutable(t *testing.T) {
 	}
 	if got, err := withoutHost([]int{service.cmd.Process.Pid}, t.TempDir()); err != nil || len(got) != 1 {
 		t.Fatalf("release without a host: %v %v", got, err)
+	}
+}
+
+// A host that crashes at start backs off up to launcherRestartMax instead of
+// restarting every one or two seconds.
+func TestHostBackoffGrowsWhileItKeepsCrashing(t *testing.T) {
+	c := &ProcessController{RunDir: t.TempDir(), active: "accepted"}
+	defer func() { _ = c.Stop(context.Background()) }()
+	startSleepTrio(t, c)
+	publishLauncherReady(t, c, "accepted")
+	c.hostPlan = &hostPlan{path: "/bin/true"}
+	var delays []time.Duration
+	deadline := time.Now().Add(9 * time.Second)
+	for time.Now().Before(deadline) {
+		before := c.host
+		if err := c.RecoverAcceptedExits(context.Background(), Request{}, true); err != nil {
+			t.Fatal(err)
+		}
+		if c.host != before && before != nil {
+			delays = append(delays, c.hostDelay)
+		}
+		time.Sleep(50 * time.Millisecond)
+	}
+	if len(delays) < 3 || delays[len(delays)-1] < 4*time.Second {
+		t.Fatalf("delays after crashes %v, want growth past 2 s", delays)
+	}
+}
+
+// A process left in the exited host's group is killed after the grace, so
+// the host still restarts, and Stop does not wait on it.
+func TestHostLeftoverInItsGroupDoesNotStallRestartOrStop(t *testing.T) {
+	if testing.Short() {
+		t.Skip("waits out the stop grace")
+	}
+	c := &ProcessController{RunDir: t.TempDir(), active: "accepted"}
+	defer func() { _ = c.Stop(context.Background()) }()
+	startSleepTrio(t, c)
+	publishLauncherReady(t, c, "accepted")
+	// The host leaves a child in its group that ignores SIGTERM, then exits.
+	c.hostPlan = &hostPlan{path: "/bin/sh", args: []string{"-c", "(trap '' TERM; exec sleep 60) & sleep 0.2"}}
+	if err := c.RecoverAcceptedExits(context.Background(), Request{}, true); err != nil || c.host == nil {
+		t.Fatalf("host not started: %v", err)
+	}
+	first := c.host
+	<-first.done
+	c.hostPlan = &hostPlan{path: "/bin/sleep", args: []string{"60"}}
+	deadline := time.Now().Add(StopTermGrace + StopKillGrace + 5*time.Second)
+	for c.host == first && time.Now().Before(deadline) {
+		_ = c.RecoverAcceptedExits(context.Background(), Request{}, true)
+		time.Sleep(100 * time.Millisecond)
+	}
+	if c.host == first {
+		t.Fatal("host never restarted past the leftover in its group")
+	}
+	if err := syscall.Kill(-first.cmd.Process.Pid, 0); err == nil {
+		t.Fatal("leftover in the old host group survived")
+	}
+	// An exited host whose group still has a member does not block Stop.
+	c.hostPlan = &hostPlan{path: "/bin/sh", args: []string{"-c", "(trap '' TERM; exec sleep 60) & sleep 0.2"}}
+	_ = c.host.cmd.Process.Kill()
+	<-c.host.done
+	c.hostRestart = time.Time{}
+	if err := c.RecoverAcceptedExits(context.Background(), Request{}, true); err != nil {
+		t.Logf("tick: %v", err)
+	}
+	for c.host != nil && c.host.args[0] != "-c" && time.Now().Before(deadline.Add(10*time.Second)) {
+		_ = c.RecoverAcceptedExits(context.Background(), Request{}, true)
+		time.Sleep(100 * time.Millisecond)
+	}
+	leaving := c.host
+	<-leaving.done
+	started := time.Now()
+	if err := c.Stop(context.Background()); err != nil {
+		t.Fatalf("Stop with an exited host's leftover: %v", err)
+	}
+	if elapsed := time.Since(started); elapsed > StopTermGrace+StopKillGrace+2*time.Second {
+		t.Fatalf("Stop took %s", elapsed)
+	}
+	if err := syscall.Kill(-leaving.cmd.Process.Pid, 0); err == nil {
+		t.Fatal("Stop left the exited host's group alive")
+	}
+}
+
+// A restarting host is reported by status, but it does not refuse uploads or
+// activations the way a service-group fault does.
+func TestServerReportsAHostFaultWithoutRefusingSoftwareRequests(t *testing.T) {
+	release, _, archive := softwareFixture(t, "base")
+	base := software.Compatibility{Board: "de10-nano", Architecture: "armv7", BaseContract: "base", Interfaces: map[string]string{"runtime": "1"}}
+	store, err := software.New(filepath.Join(t.TempDir(), "store"), base)
+	if err != nil {
+		t.Fatal(err)
+	}
+	repo, err := OpenRepository(filepath.Join(t.TempDir(), "state"), release.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer repo.Close()
+	controller := &ProcessController{active: release.ID}
+	host, err := controller.spawn("/bin/true", nil, nil, roleHost)
+	if err != nil {
+		t.Fatal(err)
+	}
+	<-host.done
+	controller.host = host
+	server := &Server{Repository: repo, Store: store, Controller: controller}
+	status, err := server.status()
+	if err != nil || !strings.Contains(status.ServiceFault, "restarting the host") {
+		t.Fatalf("status fault %q err %v", status.ServiceFault, err)
+	}
+	w := httptest.NewRecorder()
+	server.ServeHTTP(w, httptest.NewRequest(http.MethodPost, "/v1/kit/software/releases", bytes.NewReader(archive)))
+	if w.Code == http.StatusServiceUnavailable {
+		t.Fatalf("a host fault refused an upload: %d %s", w.Code, w.Body.String())
 	}
 }

@@ -206,13 +206,18 @@ apart from the service group above:
   compete with the agent and launcher.
 - **Not part of activation.** Its exit restarts it alone, with the launcher's
   one-to-thirty-second backoff, and never stops the agent, runtime or a running
-  core. `GET /v1/kit/software`'s service fault reports it while it restarts.
+  core. `GET /v1/kit/software`'s `service_fault` reports it while it
+  restarts, when the service group has no fault of its own; unlike a group
+  fault, it does not refuse uploads or activations.
   Activation, recovery and their readiness window do not include it, so a host
   that cannot start does not fail an activation. It receives the group
   environment without `FES_SOFTWARE_REQUEST`, `FES_SOFTWARE_READY_FILE` and
   `FES_SOFTWARE_RECOVERY_FENCE`.
+- **Backoff.** A host that keeps exiting within two seconds of starting backs
+  off from one to thirty seconds, measured on the life it had. The launcher's
+  backoff is measured the same way.
 - **Stop.** It stops alongside the launcher, so four processes still fit three
-  sequential stop slots.
+  sequential stop slots. A process left in an exited host's group is killed.
 - **Proofs.** The operator acknowledgement and power-cycle proofs check the
   same three services whether a host is running, restarting or absent.
 

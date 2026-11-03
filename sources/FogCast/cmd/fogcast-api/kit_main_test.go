@@ -26,6 +26,9 @@ func TestOtherKitInvocationsFail(t *testing.T) {
 
 // fogcast-kit host is fogcast-api -kit -headless.
 func TestKitHostRunsTheAPIInKitMode(t *testing.T) {
+	// A set GOMEMLIMIT wins over kitmemory.SetLimit, so this test does not
+	// lower the memory limit of the whole test binary.
+	t.Setenv("GOMEMLIMIT", "off")
 	var got kithost.Options
 	stubKitHost(t, func(_ context.Context, options kithost.Options) (string, error) {
 		got = options

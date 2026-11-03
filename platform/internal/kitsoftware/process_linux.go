@@ -71,6 +71,8 @@ type child struct {
 	env     []string
 	role    string
 	started time.Time
+	// exited is when Wait returned. It is written before done closes.
+	exited time.Time
 }
 
 // ProcessController directly parents the kit processes. It never relies on
@@ -210,7 +212,7 @@ func (c *ProcessController) stopLocked(ctx context.Context) error {
 	var hostStopped chan error
 	if c.host != nil {
 		hostStopped = make(chan error, 1)
-		go func(host *child) { hostStopped <- stopChild(ctx, host) }(c.host)
+		go func(host *child) { hostStopped <- stopHost(ctx, host) }(c.host)
 	}
 	for i := len(c.children) - 1; i >= 0; i-- {
 		if err := stopChild(ctx, c.children[i]); err != nil {
@@ -230,6 +232,37 @@ func (c *ProcessController) stopLocked(ctx context.Context) error {
 	c.children = nil
 	c.active = ""
 	return os.RemoveAll(filepath.Join(c.RunDir, "launcher-ready.json"))
+}
+
+// stopHost is stopChild for the host, plus a host that already exited and
+// left a process in its group: that group is killed instead of waited on.
+func stopHost(ctx context.Context, p *child) error {
+	select {
+	case <-p.done:
+	default:
+		return stopChild(ctx, p)
+	}
+	pid := p.cmd.Process.Pid
+	if err := syscall.Kill(-pid, syscall.SIGKILL); err != nil {
+		if errors.Is(err, syscall.ESRCH) {
+			return nil
+		}
+		return err
+	}
+	deadline := time.NewTimer(StopKillGrace)
+	defer deadline.Stop()
+	for {
+		if err := syscall.Kill(-pid, 0); errors.Is(err, syscall.ESRCH) {
+			return nil
+		}
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		case <-deadline.C:
+			return fmt.Errorf("process group %d still exists", pid)
+		case <-time.After(20 * time.Millisecond):
+		}
+	}
 }
 
 // stopChild terminates p's process group: SIGTERM, then SIGKILL after
@@ -334,6 +367,7 @@ func (c *ProcessController) spawn(path string, args []string, env []string, role
 	pid := cmd.Process.Pid
 	go func() {
 		p.err = cmd.Wait()
+		p.exited = time.Now()
 		name := filepath.Base(path)
 		if role != "" {
 			name = role + " " + name
@@ -703,14 +737,24 @@ func (c *ProcessController) ServiceFault() string {
 	if c.active == "" {
 		return "kit software services are not running"
 	}
-	if c.host != nil {
-		select {
-		case <-c.host.done:
-			return fmt.Sprintf("%s host exited: %v; supervisor is restarting the host", filepath.Base(c.host.path), c.host.err)
-		default:
-		}
-	}
 	return ""
+}
+
+// HostFault reports a kit host that exited and is being restarted. It is
+// kept apart from ServiceFault: the host is not part of activation, so its
+// fault must not refuse software uploads or activations.
+func (c *ProcessController) HostFault() string {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	if c.host == nil {
+		return ""
+	}
+	select {
+	case <-c.host.done:
+		return fmt.Sprintf("%s host exited: %v; supervisor is restarting the host", filepath.Base(c.host.path), c.host.err)
+	default:
+		return ""
+	}
 }
 
 func launcherPeersAlive(children []*child) bool {
@@ -779,7 +823,9 @@ func (c *ProcessController) restartExitedLauncherLocked() error {
 		return nil
 	}
 	log.Printf("restarting launcher after %s exited: %v", filepath.Base(launcher.path), launcher.err)
-	lived := time.Since(launcher.started)
+	// Measure the life the launcher had, not the time since it started: the
+	// backoff wait itself would otherwise count as stable life.
+	lived := launcher.exited.Sub(launcher.started)
 	c.children = c.children[:2]
 	if err := c.start(launcher.path, launcher.args, launcher.env, roleLauncher); err != nil {
 		c.children = append(c.children, launcher)
@@ -817,8 +863,15 @@ func exitedLauncher(children []*child) *child {
 	return nil
 }
 
+// clearLauncherReap forgets the service groups' reap deadlines once the
+// launcher is settled. The host's deadline is kept: its group is reaped by
+// superviseHostLocked on the same tick.
 func (c *ProcessController) clearLauncherReap() {
-	c.reaps = nil
+	for pid := range c.reaps {
+		if c.host == nil || pid != c.host.cmd.Process.Pid {
+			delete(c.reaps, pid)
+		}
+	}
 }
 
 func (c *ProcessController) clearReap(pid int) {

@@ -81,51 +81,55 @@ func (c *ProcessController) superviseHostLocked() error {
 	if c.active == "" || c.hostPlan == nil {
 		return nil
 	}
-	if c.host != nil {
+	previous := c.host
+	if previous != nil {
 		select {
-		case <-c.host.done:
+		case <-previous.done:
 		default:
-			if time.Since(c.host.started) >= launcherStableLife {
+			if time.Since(previous.started) >= launcherStableLife {
 				c.hostDelay = launcherRestartMin
 			}
 			return nil
 		}
-		if err := c.confirmLauncherGroup(c.host); err != nil {
+		if err := c.confirmLauncherGroup(previous); err != nil {
 			return err
 		}
 	} else if !c.launcherReadyLocked() {
 		return nil
 	}
-	delay := c.hostDelay
-	if delay < launcherRestartMin {
-		delay = launcherRestartMin
-	}
-	if c.host != nil && !c.hostRestart.IsZero() && time.Since(c.hostRestart) < delay {
+	if !c.hostRestart.IsZero() && time.Since(c.hostRestart) < max(c.hostDelay, launcherRestartMin) {
 		return nil
 	}
-	previous := c.host
 	if previous != nil {
-		log.Printf("restarting host after %s exited: %v", filepath.Base(previous.path), previous.err)
-	}
-	host, err := c.spawn(c.hostPlan.path, c.hostPlan.args, c.hostPlan.env, roleHost)
-	if err != nil {
-		return err
-	}
-	c.host = host
-	c.hostRestart = time.Now()
-	if previous != nil {
-		c.clearReap(previous.cmd.Process.Pid)
-		if time.Since(previous.started) < launcherStableLife {
-			if c.hostDelay < launcherRestartMin {
-				c.hostDelay = launcherRestartMin
-			} else if c.hostDelay < launcherRestartMax {
-				c.hostDelay *= 2
-			}
+		// Grow the backoff on the life the host had; the wait before this
+		// restart is not stable life.
+		if previous.exited.Sub(previous.started) < launcherStableLife {
+			c.growHostDelay()
 		} else {
 			c.hostDelay = launcherRestartMin
 		}
+		log.Printf("restarting host after %s exited: %v", filepath.Base(previous.path), previous.err)
 	}
+	c.hostRestart = time.Now()
+	host, err := c.spawn(c.hostPlan.path, c.hostPlan.args, c.hostPlan.env, roleHost)
+	if err != nil {
+		c.growHostDelay()
+		return err
+	}
+	if previous != nil {
+		c.clearReap(previous.cmd.Process.Pid)
+	}
+	c.host = host
 	return nil
+}
+
+func (c *ProcessController) growHostDelay() {
+	switch {
+	case c.hostDelay < launcherRestartMin:
+		c.hostDelay = launcherRestartMin
+	case c.hostDelay < launcherRestartMax:
+		c.hostDelay = min(2*c.hostDelay, launcherRestartMax)
+	}
 }
 
 // launcherReadyLocked reports whether the launcher published readiness for
