@@ -135,7 +135,7 @@ def require_main_head(args, deadline=None):
         current = bounded_source_command(['git', 'rev-parse', 'HEAD'], deadline, cwd=root).decode('ascii').strip()
         if current != tool:
             raise ValueError('local diagnostic commit changed')
-        for path in SOURCE_PATHS:
+        for path in SOURCE_PATHS + ['scripts/pcxt_main_application_acceptance.py']:
             committed = bounded_source_command(['git', 'show', f'{tool}:{path}'], deadline, cwd=root)
             if (root / path).read_bytes() != committed:
                 raise ValueError('diagnostic source changed')
