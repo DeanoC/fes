@@ -42,9 +42,7 @@ func (b blobSource) Open(ctx context.Context, id meshcontent.ContentID) (io.Read
 
 type meshLeaseAPI struct{}
 
-func (meshLeaseAPI) HealthContext(context.Context, string) protocol.Health {
-	return protocol.Health{Ready: true}
-}
+func (meshLeaseAPI) Health(string) protocol.Health { return protocol.Health{Ready: true} }
 func (meshLeaseAPI) Status() protocol.Status {
 	return protocol.Status{State: protocol.StateIdle}
 }

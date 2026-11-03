@@ -16,8 +16,6 @@ import (
 	"time"
 	"unicode/utf8"
 
-	"github.com/DeanoC/FogCast/appliance/software"
-	"github.com/DeanoC/FogCast/appliance/softwarecontrol"
 	"github.com/DeanoC/FogCast/catalog"
 	"github.com/DeanoC/FogCast/corepackage"
 	"github.com/DeanoC/FogCast/fogcast"
@@ -150,16 +148,7 @@ type targetHealth struct {
 	Ready      bool                      `json:"ready"`
 	APIVersion string                    `json:"api_version,omitempty"`
 	Artifacts  *protocol.Artifacts       `json:"artifacts,omitempty"`
-	Software   *targetSoftwareIdentity   `json:"software,omitempty"`
-}
-
-// Host health exposes release identity, not the authenticated supervisor's
-// operation journal, requester labels or diagnostic error strings.
-type targetSoftwareIdentity struct {
-	ActiveBundle string `json:"active_bundle"`
-	BaseIdentity string `json:"base_identity"`
-	Selected     string `json:"selected"`
-	Generation   uint64 `json:"generation"`
+	Software   *protocol.Identity        `json:"software,omitempty"`
 }
 
 type errorResult struct {
@@ -598,23 +587,7 @@ func New(service Service, options ...ServerOption) http.Handler {
 		if err == nil {
 			result.Target.APIVersion = target.APIVersion
 			result.Target.Artifacts = target.Artifacts
-			if identity := target.SoftwareIdentityV1; identity != nil {
-				result.Target.Software = &targetSoftwareIdentity{ActiveBundle: identity.ActiveBundle, BaseIdentity: identity.BaseIdentity}
-				if target.Software == nil && software.ValidID(identity.Selected) {
-					result.Target.Software.Selected = identity.Selected
-					result.Target.Software.Generation = identity.Generation
-				}
-			} else if softwareStatus := target.Software; softwareStatus != nil {
-				result.Target.Software = &targetSoftwareIdentity{
-					ActiveBundle: softwareStatus.ActiveBundle, BaseIdentity: softwareStatus.BaseIdentity,
-				}
-				// Older agents can report partially decoded state alongside a
-				// supervisor error; never expose that as a verified selection.
-				if softwareStatus.StorageError == "" && softwarecontrol.ValidateState(softwareStatus.State) == nil {
-					result.Target.Software.Selected = softwareStatus.Selected
-					result.Target.Software.Generation = softwareStatus.Generation
-				}
-			}
+			result.Target.Software = target.Software
 		}
 		writeJSON(w, http.StatusOK, result)
 	})

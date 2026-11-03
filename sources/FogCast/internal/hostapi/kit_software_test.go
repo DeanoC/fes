@@ -6,26 +6,22 @@ import (
 	"errors"
 	"net/http"
 	"net/http/httptest"
-	"net/url"
 	"reflect"
 	"strings"
 	"testing"
 
 	"github.com/DeanoC/FogCast/appliance/software"
-	"github.com/DeanoC/FogCast/appliance/softwarecontrol"
 	"github.com/DeanoC/FogCast/fogcast"
 	"github.com/DeanoC/FogCast/internal/hostapi"
 	"github.com/DeanoC/FogCast/protocol"
-	"github.com/DeanoC/FogCast/targetclient"
 )
 
 func TestHealthProjectsActiveSoftwareWithoutOperationDetails(t *testing.T) {
 	active, base, selected := strings.Repeat("a", 64), strings.Repeat("b", 64), strings.Repeat("c", 64)
-	private := "private-operation-detail"
-	status := &softwarecontrol.Status{State: softwarecontrol.State{Version: 1, Selected: selected, Generation: 9, Receipts: map[string]softwarecontrol.Receipt{}}, ActiveBundle: active, BaseIdentity: base, ServiceFault: private}
+	status := &protocol.Identity{Selected: selected, Generation: 9, ActiveBundle: active, BaseIdentity: base}
 	for _, tc := range []struct {
 		name     string
-		software *softwarecontrol.Status
+		software *protocol.Identity
 		err      error
 		want     bool
 	}{
@@ -34,9 +30,6 @@ func TestHealthProjectsActiveSoftwareWithoutOperationDetails(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			service := &fakeService{health: protocol.Health{APIVersion: "v1", Software: tc.software, Artifacts: &protocol.Artifacts{RuntimeCommit: strings.Repeat("d", 40)}}, healthErr: tc.err}
 			response := serve(t, hostapi.New(service), http.MethodGet, "/api/v1/health")
-			if strings.Contains(response.Body.String(), private) {
-				t.Fatal("private supervisor status leaked")
-			}
 			var out struct {
 				Target struct {
 					APIVersion string         `json:"api_version"`
@@ -137,111 +130,4 @@ func TestSoftwareInventoryPairedListenerAuthenticatesAndScopes(t *testing.T) {
 
 func (s *inventoryService) LibrarySettings() fogcast.LibraryConfig {
 	return fogcast.LibraryConfig{SelectedTarget: "other", Targets: []fogcast.TargetConfig{{Name: "other", Enabled: true, TargetID: launcherIDB}, {Name: "paired", Enabled: true, TargetID: launcherID}}}
-}
-
-func TestHealthSuppressesUnverifiedSelectionFromOlderAgents(t *testing.T) {
-	active, base, selected := strings.Repeat("a", 64), strings.Repeat("b", 64), strings.Repeat("c", 64)
-	valid := softwarecontrol.Status{State: softwarecontrol.State{Version: 1, Selected: selected, Generation: 9, Receipts: map[string]softwarecontrol.Receipt{}}, ActiveBundle: active, BaseIdentity: base}
-	for name, mutate := range map[string]func(*softwarecontrol.Status){
-		"storage error":       func(s *softwarecontrol.Status) { s.StorageError = "private storage failure" },
-		"missing version":     func(s *softwarecontrol.Status) { s.Version = 0 },
-		"missing receipts":    func(s *softwarecontrol.Status) { s.Receipts = nil },
-		"invalid selected id": func(s *softwarecontrol.Status) { s.Selected = "invalid" },
-		"invalid receipt": func(s *softwarecontrol.Status) {
-			s.Receipts = map[string]softwarecontrol.Receipt{"bad": {}}
-		},
-		"invalid pending operation": func(s *softwarecontrol.Status) {
-			s.Pending = &softwarecontrol.Operation{Phase: "queued"}
-		},
-	} {
-		t.Run(name, func(t *testing.T) {
-			status := valid
-			mutate(&status)
-			service := &fakeService{health: protocol.Health{APIVersion: "v1", Software: &status}}
-			response := serve(t, hostapi.New(service), http.MethodGet, "/api/v1/health")
-			var out struct {
-				Target struct {
-					Software struct {
-						ActiveBundle string `json:"active_bundle"`
-						BaseIdentity string `json:"base_identity"`
-						Selected     string `json:"selected"`
-						Generation   uint64 `json:"generation"`
-					} `json:"software"`
-				} `json:"target"`
-			}
-			if err := json.Unmarshal(response.Body.Bytes(), &out); err != nil {
-				t.Fatal(err)
-			}
-			got := out.Target.Software
-			if got.ActiveBundle != active || got.BaseIdentity != base || got.Selected != "" || got.Generation != 0 || strings.Contains(response.Body.String(), "private") {
-				t.Fatalf("unverified selection published: %+v", got)
-			}
-		})
-	}
-}
-
-// healthWireService exercises the actual target JSON decoder before the host
-// projection; an unnegotiated compact response is intentionally not treated as
-// evidence that the supervisor's full state passed validation.
-type healthWireService struct {
-	*fakeService
-	client *targetclient.Client
-}
-
-func (s *healthWireService) Health(ctx context.Context) (protocol.Health, error) {
-	return s.client.Health(ctx)
-}
-
-func TestHealthVersionSkewRequiresValidatedFullState(t *testing.T) {
-	active, base, selected := strings.Repeat("a", 64), strings.Repeat("b", 64), strings.Repeat("c", 64)
-	for _, tc := range []struct {
-		name, software string
-		selected       bool
-	}{
-		{"full-valid", `{"version":1,"generation":7,"selected":"` + selected + `","receipts":{},"active_bundle":"` + active + `","base_identity":"` + base + `"}`, true},
-		{"full-invalid-storage", `{"version":1,"generation":7,"selected":"` + selected + `","receipts":{},"storage_error":"private","active_bundle":"` + active + `","base_identity":"` + base + `"}`, false},
-		{"compact-unnegotiated", `{"selected":"` + selected + `","generation":7,"active_bundle":"` + active + `","base_identity":"` + base + `"}`, false},
-	} {
-		t.Run(tc.name, func(t *testing.T) {
-			peer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-				if r.URL.Path != "/v1/health" || r.Header.Get("Authorization") != "Bearer agent-token" {
-					t.Error("unexpected target request")
-					http.Error(w, "unexpected request", http.StatusBadRequest)
-					return
-				}
-				_, _ = w.Write([]byte(`{"api_version":"v1","ready":true,"software":` + tc.software + `}`))
-			}))
-			defer peer.Close()
-			endpoint, err := url.Parse(peer.URL)
-			if err != nil {
-				t.Fatal(err)
-			}
-			service := &healthWireService{fakeService: &fakeService{}, client: targetclient.NewClient(endpoint, "agent-token", peer.Client())}
-			response := serve(t, hostapi.New(service), http.MethodGet, "/api/v1/health")
-			var out struct {
-				Target struct {
-					Software struct {
-						ActiveBundle string `json:"active_bundle"`
-						BaseIdentity string `json:"base_identity"`
-						Selected     string `json:"selected"`
-						Generation   uint64 `json:"generation"`
-					} `json:"software"`
-				} `json:"target"`
-			}
-			if err := json.Unmarshal(response.Body.Bytes(), &out); err != nil {
-				t.Fatal(err)
-			}
-			got := out.Target.Software
-			if got.ActiveBundle != active || got.BaseIdentity != base {
-				t.Fatalf("independent launch identity lost: %+v", got)
-			}
-			if tc.selected {
-				if got.Selected != selected || got.Generation != 7 {
-					t.Fatalf("valid full status rejected: %+v", got)
-				}
-			} else if got.Selected != "" || got.Generation != 0 || strings.Contains(response.Body.String(), "private") {
-				t.Fatalf("unverified selection exposed: %+v", got)
-			}
-		})
-	}
 }

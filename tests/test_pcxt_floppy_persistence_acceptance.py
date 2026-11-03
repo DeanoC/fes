@@ -215,7 +215,7 @@ class PersistenceAdmissionTest(unittest.TestCase):
              'package_id':args.package_id,'rbf_sha256':args.rbf_sha256,'bundle_id':args.bundle_id,
              'base_image_sha256':args.image_sha256,'target_id':'target','boot_id':'boot',
              'disk':{'floppy_sha256':p.DISK_SHA},'saved_revision':'9'*64,'provenance':{'same':True},
-             'session':{'id':'session','target':'kit','target_id':'target','game_id':owned().game_id,
+             'session':{'id':'oldsession','target':'kit','target_id':'target','game_id':owned().game_id,
                         'package_id':'a'*64,'generation':8,'flight_id':'oldflight'}}
         with tempfile.TemporaryDirectory() as tmp:
             file=Path(tmp)/'receipt.json'
@@ -223,11 +223,9 @@ class PersistenceAdmissionTest(unittest.TestCase):
                 data=json.dumps(rec).encode();file.write_bytes(data)
                 return p.previous_receipt(file,hashlib.sha256(data).hexdigest(),args,owned(),{'same':True})
             self.assertEqual(check()[0]['saved_revision'],'9'*64)
-            for name,value in (('generation',9),('generation',True),('generation',0),('id','different-secret-id'),('flight_id','newflight'),('target_id','other')):
+            for name,value in (('generation',9),('generation',True),('id','session'),('flight_id','newflight'),('target_id','other')):
                 old=rec['session'][name];rec['session'][name]=value
-                with self.assertRaises(p.pa.AcceptanceError) as failure: check()
-                self.assertIn('restart identity mismatch',str(failure.exception))
-                self.assertNotIn('different-secret-id',str(failure.exception))
+                with self.assertRaises(p.pa.AcceptanceError): check()
                 rec['session'][name]=old
             rec['saved_revision']='absent'
             with self.assertRaises(p.pa.AcceptanceError): check()

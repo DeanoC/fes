@@ -88,11 +88,6 @@ uses read-only ownership/status observations to discard stale local authority;
 it never stops or releases the replacement owner's session. A subsequent
 explicit launch uses an ordinary claim, which still refuses a foreign holder.
 Input reconnect stops immediately on an explicit lease-denied or busy response.
-When an identified target's current endpoint has a transient health transport
-failure, the host probes that same authenticated endpoint once more within the
-existing observation deadline before discovery. An identity, protocol or
-ownership failure is never retried as a transport failure; an actual endpoint,
-boot or lease change still invalidates the old input attachment.
 A CONNECT `/v1/input/stream` refusal of 403 `KIT_LEASE_REQUIRED` — the kit has
 already revoked, expired, or superseded the grant — is read from a bounded
 response and mapped to the same sanitized `KIT_LEASE_DENIED` before reconnect
@@ -384,31 +379,12 @@ that identity was rewritten. Host `GET /api/v1/health` adds a `host` identity
 (`version`, `revision`, `os`, `arch`) and forwards `target.artifacts` and
 `target.api_version` when the target is reachable. Authenticated target health
 also reports managed software independently of that sealed base-image record.
-Upgraded hosts request the compact, versioned `software_identity_v1` field
-in the same health request. It is emitted only after the agent validates the
-complete supervisor state. Hosts without the negotiation header receive the
-legacy full status. New hosts validate the raw legacy status and reject a compact
-field accompanied by a legacy status before projecting an identity. This keeps
-older hosts compatible, while upgraded pairs avoid sending the receipt ledger.
-The agent still reads and validates the full ledger.
-The unmarked compact-only `software` response from #1445 does not attest
-full-state validation: the upgraded host suppresses its selection until the
-agent is upgraded. The `protocol.Health.Software` Go field uses the legacy
-full-status type; this changes Go source compatibility with #1445's identity
-field while retaining HTTP compatibility for legacy full-status peers.
-The host projects only `target.software.active_bundle`, `base_identity`,
-`selected` and `generation`; it omits the operation journal, requester labels
-and diagnostic error strings. Unmanaged targets omit `target.software`, and
-failed health does not retain a previous identity. The agent publishes a
-selection only after a complete, validated supervisor response; on failure it
-keeps the independent running-bundle and base identities. Host health also
-clears selection when an older agent reports a supervisor storage error or
-invalid selection state. Public
-unauthenticated target health never exposes software status. The HTTP request
-context bounds its native runtime observation and any failed-state idle
-confirmation; a canceled probe does not continue into the software supervisor.
-Runtime health is observed before the authenticated software snapshot.
-Non-HTTP health callers retain their existing process-owned context.
+Target health carries only `software.active_bundle`, `base_identity`,
+`selected` and `generation`, and the host forwards them as `target.software`;
+the operation journal, requester labels and diagnostic error strings stay on
+the target's `GET /v1/kit/software`. Unmanaged targets omit `target.software`, and
+failed health does not retain a previous identity. Public unauthenticated target
+health never exposes software status.
 
 `GET /api/v1/kit/software/releases` reads the selected target's immutable release
 inventory through the authenticated target client, without acquiring a lease or
@@ -4127,7 +4103,3 @@ archive on the launcher's machine:
 fogcast-tenfoot room-export --output my-room.room.zip /path/to/my-room
 fogcast-tenfoot room-install --rooms /path/to/rooms my-room.room.zip
 ```
-
-Private diagnostic hosts can opt into the bounded observation timing described
-in [DEVELOPMENT.md](DEVELOPMENT.md#private-host-observation-timing). It adds no
-health or session requests and is disabled in normal operation.

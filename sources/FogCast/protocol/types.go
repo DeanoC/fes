@@ -1,7 +1,6 @@
 package protocol
 
 import (
-	"github.com/DeanoC/FogCast/appliance/softwarecontrol"
 	"github.com/DeanoC/FogCast/corepackage"
 	"github.com/DeanoC/misteross/expansion"
 )
@@ -110,24 +109,18 @@ type PartsInspection struct {
 }
 
 type Health struct {
-	TargetID           string                  `json:"target_id,omitempty"`
-	APIVersion         string                  `json:"api_version"`
-	AgentVersion       string                  `json:"agent_version"`
-	Ready              bool                    `json:"ready"`
-	BootID             string                  `json:"boot_id,omitempty"`
-	Artifacts          *Artifacts              `json:"artifacts,omitempty"`
-	Software           *softwarecontrol.Status `json:"software,omitempty"`
-	SoftwareIdentityV1 *SoftwareIdentityV1     `json:"software_identity_v1,omitempty"`
+	TargetID     string     `json:"target_id,omitempty"`
+	APIVersion   string     `json:"api_version"`
+	AgentVersion string     `json:"agent_version"`
+	Ready        bool       `json:"ready"`
+	BootID       string     `json:"boot_id,omitempty"`
+	Artifacts    *Artifacts `json:"artifacts,omitempty"`
+	Software     *Identity  `json:"software,omitempty"`
 }
 
-// SoftwareIdentityHeader requests a validated compact software identity in health.
-// Agents that do not understand it return the legacy full software status.
-const SoftwareIdentityHeader = "X-FES-Software-Identity"
-const SoftwareIdentityVersion = "1"
-
-// SoftwareIdentityV1 is emitted only after validation of the full supervisor
-// status. The authenticated agent attests that the selected identity is valid.
-type SoftwareIdentityV1 struct {
+// Identity is the kit software identity reported by authenticated agent health.
+// Operation details remain on the kit software control endpoint.
+type Identity struct {
 	ActiveBundle string `json:"active_bundle"`
 	BaseIdentity string `json:"base_identity"`
 	Selected     string `json:"selected"`

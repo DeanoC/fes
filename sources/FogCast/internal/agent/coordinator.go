@@ -16,7 +16,7 @@ import (
 )
 
 type Runtime interface {
-	HealthContext(context.Context, string) protocol.Health
+	Health(string) protocol.Health
 	Reconcile(context.Context) protocol.Status
 	LoadDevelopmentRBF(context.Context, int64, io.Reader) (observed string, dispatchAttempted bool, apiErr *protocol.APIError)
 	RecoverDevelopment(context.Context) (observed string, apiErr *protocol.APIError)
@@ -163,15 +163,7 @@ func (c *Coordinator) Status() protocol.Status {
 }
 
 func (c *Coordinator) Health(version string) protocol.Health {
-	return c.HealthContext(context.Background(), version)
-}
-
-func (c *Coordinator) HealthContext(parent context.Context, version string) protocol.Health {
-	health := c.runtime.HealthContext(parent, version)
-	if parent.Err() != nil {
-		health.Ready = false
-		return health
-	}
+	health := c.runtime.Health(version)
 	c.mu.RLock()
 	blocked := c.updateBlocked
 	artifacts := cloneArtifacts(c.artifacts)
@@ -188,19 +180,15 @@ func (c *Coordinator) HealthContext(parent context.Context, version string) prot
 			// Startup reconciliation can race a temporarily unavailable local
 			// runtime socket. A later health probe must be allowed to recover,
 			// but only after independently confirming physical idle.
-			ctx, cancel := context.WithTimeout(parent, time.Second)
+			ctx, cancel := context.WithTimeout(context.Background(), time.Second)
 			idle := runtime.ConfirmIdle(ctx)
 			cancel()
 			if idle {
 				c.mu.Lock()
-				if parent.Err() == nil {
-					if c.status.State == protocol.StateFailed {
-						c.status = protocol.Status{State: protocol.StateIdle}
-					}
-					health.Ready = !c.updateBlocked
-				} else {
-					health.Ready = false
+				if c.status.State == protocol.StateFailed {
+					c.status = protocol.Status{State: protocol.StateIdle}
 				}
+				health.Ready = !c.updateBlocked
 				c.mu.Unlock()
 			} else {
 				health.Ready = false
@@ -528,7 +516,7 @@ func runtimeStopReady(runtime Runtime) bool {
 	if operationReady, ok := runtime.(stopReadyRuntime); ok {
 		return operationReady.StopReady()
 	}
-	return runtime.HealthContext(context.Background(), "").Ready
+	return runtime.Health("").Ready
 }
 
 func (c *Coordinator) RebootDevelopment(parent context.Context) (protocol.Status, *protocol.APIError) {

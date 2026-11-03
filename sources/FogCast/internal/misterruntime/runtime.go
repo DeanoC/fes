@@ -871,22 +871,13 @@ func (r *Runtime) cleanupCorePackages() *protocol.APIError {
 }
 
 func (r *Runtime) Health(version string) protocol.Health {
-	return r.HealthContext(context.Background(), version)
-}
-
-func (r *Runtime) HealthContext(parent context.Context, version string) protocol.Health {
 	health := protocol.Health{APIVersion: "v1", AgentVersion: version}
-	if parent.Err() != nil {
-		return health
-	}
 	if bootID, err := os.ReadFile(r.bootIDFile); err == nil {
 		health.BootID = strings.TrimSpace(string(bootID))
 	}
-	response, err := r.boundedStatus(parent)
-	health.Ready = err == nil && parent.Err() == nil && validIdle(response)
-	if parent.Err() == nil {
-		r.drainEvents()
-	}
+	response, err := r.boundedStatus(context.Background())
+	health.Ready = err == nil && validIdle(response)
+	r.drainEvents()
 	return health
 }
 

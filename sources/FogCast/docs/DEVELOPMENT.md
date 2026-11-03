@@ -358,34 +358,3 @@ Names in the active tree describe current use: the image toolchain is
 `target-image`, the target FAT directory is `fogcast`, and the sender command
 is `remote-play-sender`. Do not introduce numbered experiment names into
 active code or docs.
-
-### Private host observation timing
-
-For an isolated diagnostic host, set `FES_HOST_OBSERVATION_TIMING` to an
-absolute, unused filename in an existing `0700` directory owned by the host
-user. The directory path must contain no symlinks and must be under trusted
-ancestors that other users cannot rename or replace. The operator must pin
-and verify the directory and file identities and the collected file digest;
-the path checks alone do not prevent an ancestor from being replaced. The
-host creates the file exclusively with mode `0600`; an invalid destination prevents the diagnostic
-host from starting. A concurrent shutdown or second enable can leave an empty
-file at a destination it created. Leave the variable unset for normal operation.
-
-The file records only fixed stage labels, per-observation IDs, event direction,
-and monotonic offsets from host startup of the recorder. It contains no target
-identity, endpoint, token, request, response, or error text. Observation IDs
-are local to one process. Health and session observations include lifecycle
-admission, target connection lock, probe/discovery, lease ownership and status
-reconciliation when those stages run. This adds no target requests and does
-not change admission, ownership, timeouts or recovery behavior.
-
-Recording is best effort: the queue and output are capped and recording never
-waits for disk in the observed request. A missing final summary, nonzero
-`active` or `dropped`, `write_error: true`, or `truncated: true` means the
-trace is incomplete; missing events then do not establish that a stage did
-not happen. Disk errors and abrupt exit can leave incomplete output. Recorder
-shutdown waits at most 200 ms for active observations and the recorder.
-Concurrent file preparation does not block it; unrelated service cleanup may
-take longer. Timing does not alter target cleanup. Measured latencies include
-tracing overhead and do not establish the cause of an older uninstrumented
-failure.

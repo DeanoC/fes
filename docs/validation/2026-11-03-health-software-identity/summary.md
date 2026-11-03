@@ -1,6 +1,6 @@
 # 2026-11-03: agent health without the software receipts
 
-This is a Kit A check of scratch source `4ae587093` for #1438. Its compact-only protocol and measurements are historical: the current negotiated protocol validates the full supervisor state and was not measured in this run, so these CPU and bandwidth figures do not qualify it. Evidence class: hardware diagnostic on Kit A, not acceptance.
+This is a Kit A check of the change for #1438. Agent health now reports the software identity instead of the supervisor's whole status. Evidence class: hardware diagnostic on Kit A, not acceptance.
 
 ## Method
 

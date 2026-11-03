@@ -87,7 +87,7 @@ type compositionRuntime struct {
 	developmentBody []byte
 }
 
-func (*compositionRuntime) HealthContext(context.Context, string) protocol.Health {
+func (*compositionRuntime) Health(string) protocol.Health {
 	return protocol.Health{Ready: true}
 }
 

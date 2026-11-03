@@ -39,7 +39,7 @@ type contentRuntime struct {
 	log          *callLog
 }
 
-func (f *contentRuntime) HealthContext(context.Context, string) protocol.Health {
+func (f *contentRuntime) Health(string) protocol.Health {
 	return f.health
 }
 

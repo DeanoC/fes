@@ -77,9 +77,7 @@ type colecoCoordinatorRuntime struct {
 	activation misterruntime.CoreActivation
 }
 
-func (*colecoCoordinatorRuntime) HealthContext(context.Context, string) protocol.Health {
-	return protocol.Health{Ready: true}
-}
+func (*colecoCoordinatorRuntime) Health(string) protocol.Health { return protocol.Health{Ready: true} }
 func (*colecoCoordinatorRuntime) Reconcile(context.Context) protocol.Status {
 	return protocol.Status{State: protocol.StateIdle}
 }

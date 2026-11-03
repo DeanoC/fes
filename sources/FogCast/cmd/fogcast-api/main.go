@@ -1095,12 +1095,6 @@ func main() {
 		if err != nil {
 			return nil, err
 		}
-		if path := os.Getenv("FES_HOST_OBSERVATION_TIMING"); path != "" {
-			if err := opened.EnableObservationTiming(path); err != nil {
-				_ = opened.Close()
-				return nil, fmt.Errorf("enable observation timing: %w", err)
-			}
-		}
 		opened.EnableMeshContent()
 		opened.EnableMeshPlacement()
 		return opened, nil
