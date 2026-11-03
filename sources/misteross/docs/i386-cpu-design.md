@@ -64,9 +64,9 @@ Fast means x86 instructions retired per second on that code. It does not mean
 clock rate, and it does not mean cycle fidelity. Games that depend on period
 speed get a governor that slows the CPU to a chosen reference machine
 ([speed control](#speed-control)). Architectural results never depend on speed.
-Wolfenstein 3D, Ultima VI and the DOS editions of Ultima VII: The Black Gate
-and Ultima VII Part Two: Serpent Isle from The Ultima Collection are the first
-titles it must play ([first acceptance games](#first-acceptance-games)).
+Wolfenstein 3D, Ultima VI, DOOM and the DOS editions of Ultima VII: The Black
+Gate and Ultima VII Part Two: Serpent Isle from The Ultima Collection are the
+first titles it must play ([first acceptance games](#first-acceptance-games)).
 
 ### Yardstick
 
@@ -103,20 +103,22 @@ published period-hardware results:
 
 ## First acceptance games
 
-Wolfenstein 3D, Ultima VI and the DOS editions of Ultima VII: The Black Gate
-and Ultima VII Part Two: Serpent Isle from The Ultima Collection are the first
-titles the CPU and its machine must play. They set the machine's scope, its
-firmware and the speed defaults. Games are user-supplied; none ships.
+Wolfenstein 3D, Ultima VI, DOOM and the DOS editions of Ultima VII: The Black
+Gate and Ultima VII Part Two: Serpent Isle from The Ultima Collection are the
+first titles the CPU and its machine must play. They set the machine's scope,
+its firmware and the speed defaults. Games are user-supplied; none ships.
 
 | Title | CPU and memory | Video | Sound | Speed |
 | --- | --- | --- | --- | --- |
 | Wolfenstein 3D | 286 or better, real mode; 575 KiB free conventional memory; EMS or XMS optional, recommended for speed | VGA, unchained 256-colour | AdLib music; Sound Blaster or Sound Source effects | Paced by the timer: a faster CPU gives a smoother frame rate. Runs at `max`. |
 | Ultima VI | Real mode, 640 KiB | MCGA/VGA 256-colour; EGA, CGA, Hercules and Tandy also supported | AdLib or Roland music; PC speaker effects | Tuned for a roughly 10 MHz machine. Much faster breaks walking speed and the speaker effects. Needs a 286-class preset. |
+| DOOM (v1.9) | 386 or better, 4 MiB RAM. The DOS/4GW extender in flat protected mode: under HIMEM, with no EMS manager, it runs at CPL 0 through 386 interrupt gates, with far CALL and RETF, LDT loads, LAR and LSL and 16-bit code segments whose limits are below FFFFh, and no paging, V86, task switch or IOPL ([#1411](https://github.com/DeanoC/fes/pull/1411)'s census). It probes for an FPU and runs without one | VGA, unchained 256-colour | Sound Blaster effects and its OPL for music; its set-up program offers other cards too | Game logic runs at a fixed 35 tics a second and rendering as fast as the CPU allows, so a faster CPU gives a smoother frame rate. Runs at `max`. |
 | Ultima VII: The Black Gate (DOS edition from The Ultima Collection) | 386SX or better; unreal mode (the Voodoo memory manager); 548 KiB conventional and 2 MiB XMS free; HIMEM is fine, an EMS manager such as EMM386 must not be loaded | VGA 256-colour | AdLib, Sound Blaster, Sound Blaster Pro or MT-32 | Has no frame limiter and runs as fast as the CPU, so it needs a 386-class preset. |
 | Ultima VII Part Two: Serpent Isle (DOS edition from The Ultima Collection) | 386SX or better; unreal mode (the Voodoo memory manager); 573 KiB conventional and 2 MiB XMS free; HIMEM is fine, an EMS manager such as EMM386 must not be loaded | VGA 256-colour | AdLib, Sound Blaster, Sound Blaster Pro or MT-32 | Caps its own speed and runs at `max`. |
 
 Sources: the Wolfenstein 3D v1.4 help file (`W3DHELP.TXT`);
 [Ultima Codex on Ultima VI](https://wiki.ultimacodex.com/wiki/Computer_ports_of_Ultima_VI);
+the DOOM v1.9 `README.TXT`;
 the [original Ultima VII: The Black Gate install guide](https://www.mocagh.org/origin/u7-install.pdf)
 and [Ultima Collection reference card](https://www.mocagh.org/origin/u9dragon-ucollrefcard.pdf);
 the [DOSBox wiki on The Black Gate](https://dosbox.com/wiki/GAMES:Ultima_VII:_The_Black_Gate).
@@ -128,9 +130,14 @@ and that edition's separate memory figures above.
 What the set decides:
 
 - **CPU modes.** Real mode, plus the protected-mode entry and segment loads that
-  unreal mode uses. None of the three needs V86 or paging; Wolfenstein 3D uses
-  them only when EMM386 supplies its EMS. The [milestones](#milestones) put V86
-  and paging after the first playable machine.
+  unreal mode uses, and the flat protected mode DOOM's DOS/4GW runs at CPL 0:
+  delivery through interrupt and trap gates with its exceptions, far CALL and
+  RETF, LDT loads, LAR and LSL, and the general CS-limit check. None of the five
+  needs V86 or paging. Wolfenstein 3D uses them only when EMM386 supplies its
+  EMS, and DOS/4GW only through VCPI when an EMS manager is loaded. None needs
+  an FPU: DOOM probes for one and runs without it, as on a 386 with an empty
+  387 socket ([FPU](#fpu)). The [milestones](#milestones) put V86 and paging
+  after the first playable machine.
 - **Machine scope (`fes.pc386`):**
   - AT core: two 8259 PICs, an 8254 PIT, two 8237 DMA controllers, an 8042
     keyboard controller with A20 gate, CPU reset and a PS/2 mouse port, port
@@ -142,11 +149,11 @@ What the set decides:
     and a Sound Blaster 2.0-class DSP with 8-bit DMA.
   - Mouse: PS/2 through the 8042, fed from `fes.mouse.relative`.
   - Storage: one ATA hard-disk image in HPS DDR, where other cores already keep
-    their media. All three titles install to a hard disk.
+    their media. All five titles install to a hard disk.
   - Deferred until a title needs them: floppy controller, game port, serial
     and parallel ports, OPL3 and Sound Blaster Pro stereo, MT-32, CMS, Sound
     Source and CD-ROM.
-- **Firmware.** The three use only standard BIOS services: INT 10h modes, INT
+- **Firmware.** They use only standard BIOS services: INT 10h modes, INT
   13h disk, INT 15h extended memory and A20 for HIMEM, INT 16h, INT 1Ah and
   PS/2 mouse services. The package ships an open system BIOS and VGA BIOS,
   vendored with a source and licence record as the PC/XT's imports are. Start
@@ -155,8 +162,9 @@ What the set decides:
   fit. User-linked firmware through a ROM map stays possible. FreeDOS is the
   open test OS. The disk image is user content, so a player may install
   another DOS.
-- **Speed.** No single setting suits all three. Wolfenstein 3D and Serpent Isle
-  want `max`, The Black Gate a 386-class preset and Ultima VI a 286-class one.
+- **Speed.** No single setting suits them all. Wolfenstein 3D, DOOM and Serpent
+  Isle want `max`, The Black Gate a 386-class preset and Ultima VI a 286-class
+  one.
   The default stays `max`, and Ultima VI and The Black Gate carry per-game
   presets in their library entries. The preset list gains a 286-class entry.
   Phase 3 tunes both presets on a kit by play (walking speed, speaker effects, NPC
@@ -1347,9 +1355,9 @@ below are the plan for the complete CPU and machine.
 8. **System (planned):** in the `fes.pc386` simulation and then on a kit, FreeDOS and the
    [first acceptance games](#first-acceptance-games), each in the setup its
    install guide names and at its recorded speed. Later breadth: JEMM386 (V86
-   with paging) with Wolfenstein 3D using its EMS, and DOS32A- or
-   CWSDPMI-based test programs and a DOS/4GW game (Doom) for flat protected
-   mode. Commercial games are user-supplied like any ROM.
+   with paging) with Wolfenstein 3D using its EMS and DOOM's DOS/4GW through
+   VCPI, and DOS32A- or CWSDPMI-based test programs for flat protected mode.
+   Commercial games are user-supplied like any ROM.
 9. **Performance (planned):** one microbenchmark per row of the latency table, plus Doom
    `-timedemo demo3`, 3DBench, PCPBench and a cache and memory benchmark
    (Speedsys or CACHECHK) against published period results. Every performance
@@ -1367,7 +1375,7 @@ below are the plan for the complete CPU and machine.
 | Phase 0 | Oracle adapter and corpus runners | **Complete:** Bochs is selected; both corpora run against it and known divergences have deciding cases |
 | Phase 1 | Real-mode pipeline: twelve stages, data-port latency model, static not-taken prediction and real-mode microcode | **In progress:** the first [memory slice](#memory-slices) puts L1I, L1D and the bus interface on DDR port 0, with uncached MMIO, DMA and FLUSH ([record](validation/2026-10-28-i386-memory-path.md)). That record covers 1,744,099 corpus states, 32,000 random programs, and an RTL machine boot of FreeDOS. DC decodes ahead of D; the current slice includes register, immediate and memory-operand forms, a D–WB load freeze, near stack operations, real-mode far JMP/CALL/RETF and LES/LDS/LSS/LFS/LGS. The record's Quartus fits and nextpnr routes time this memory slice as diagnostics, not package or hardware acceptance. L2, real-mode microcode and measurements of DDR and SDRAM line fills through the CPU remain. Extend lockstep and route coverage as slices land. Exit requires full real-mode lockstep, whole-CPU routed fmax and area, and DDR and SDRAM line-fill measurements through the CPU path against the [DDR check](#l2-and-coherence) ([far-transfer record](https://github.com/DeanoC/fes/blob/main/sources/misteross/docs/validation/2026-10-26-i386-far.md#result)) |
 | Phase 2 | Protected mode without V86 or paging: descriptor loads, privilege, gates, exceptions, debug registers. Enough for unreal mode and DOS extenders | **In progress:** the first slice ([#1369](https://github.com/DeanoC/fes/issues/1369)) builds MOV to and from CR0, CR2 and CR3, LMSW, SMSW, LGDT, SGDT, LIDT and SIDT, protected-mode segment loads from the GDT with their checks, error codes and accessed bit, and far JMP to a code segment at CPL 0: enough for unreal mode, which HIMEMX's XMS moves and Ultima VII's Voodoo memory manager use ([record](../../../docs/validation/2026-11-01-i386-phase2-unreal/summary.md)). The second slice ([#1406](https://github.com/DeanoC/fes/issues/1406)) delivers exceptions, INTR and NMI at CPL 0 through interrupt and trap gates with their error codes, EXT, double fault and shutdown, and builds INT n, INT3, INTO and IRET, far CALL and RETF to the same privilege, LLDT and TI=1 loads, LTR, SLDT, STR, LAR, LSL, VERR, VERW and ARPL ([record](../../../docs/validation/2026-11-02-i386-phase2-idt/summary.md)). Privilege transitions, call and task gates, IOPL and the I/O bitmap, and debug registers remain (a third slice), each stopping the CPU as not built with its reason, as does the general CS-limit check, which DOS/4GW's 16-bit kernel segments need before DOOM can run. test386.asm enters protected mode with paging on, so its protected-mode part waits for Phase 5's paging. Exit: test386.asm's real- and protected-mode parts pass in RTL; random protected-mode lockstep clean |
-| Phase 3 | First playable: the CPU in `fes.pc386` with the scope the acceptance games set, L2 on DDR, the open BIOS, the governor | FreeDOS boots in simulation; first sealed package; Wolfenstein 3D, Ultima VI and both Ultima VII games play on a kit, with the two presets recorded |
+| Phase 3 | First playable: the CPU in `fes.pc386` with the scope the acceptance games set, L2 on DDR, the open BIOS, the governor | FreeDOS boots in simulation; first sealed package; Wolfenstein 3D, Ultima VI, DOOM and both Ultima VII games play on a kit, with the two presets recorded |
 | Phase 4 | Speed: BTB, return stack, early ALU, real-mode far-branch prediction | Each feature with its microbenchmark and period-benchmark change, and the Wolfenstein 3D frame rate from captured frames before and after |
 | Phase 5 | V86, paging and task switches | test386.asm passes completely; JEMM386 boots; Wolfenstein 3D runs with EMS under it |
 | Phase 6 | x87 | An x87 corpus (to choose) and FPU-using games |
