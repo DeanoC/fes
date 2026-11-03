@@ -297,7 +297,7 @@ def main():
                                "definition": sha(ROOT / "sources/misteross/cores/fes-common/generated/fes_embedded_control.vh")}:
             raise ValueError("standalone sources changed during verification")
         run('ddr-model',[sys.executable,HERE/'verify_ddr.py','--output',output/'ddr'],ROOT,env,output,
-            marker='PASS23 DDR reader cases and3 identity/window rejection cases')
+            marker='PASS25 DDR reader cases and3 identity/window rejection cases')
         report = {"status": "passed", "classification": "generated DE25 diagnostic Avalon RTL and native adapter in host simulation" if project else "standalone Avalon RTL and native adapter in host simulation",
                   "board_revision": inputs["embedded_control"]["board_fes_revision"] if project else None,
                   "overlay_revision": inputs["embedded_control"]["overlay_fes_revision"] if project else None,
