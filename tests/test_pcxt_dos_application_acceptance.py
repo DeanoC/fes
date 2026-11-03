@@ -527,7 +527,7 @@ class InputSafetyTest(unittest.TestCase):
 
 class MainOwnershipTest(unittest.TestCase):
     def test_owned_session_success_and_failure_never_stop_or_release(self):
-        for mode in ('ok', 'capture', 'interrupt'):
+        for mode in ('ok', 'capture', 'cleanup', 'audio_cleanup', 'interrupt'):
             with self.subTest(mode=mode), tempfile.TemporaryDirectory() as temp:
                 root = Path(temp)
                 archive = root/'core.fcore'; archive.write_bytes(b'archive')
@@ -553,6 +553,14 @@ class MainOwnershipTest(unittest.TestCase):
                             'interfaces': [{'id': 'fes.keyboard.hid', 'major': 1, 'minor': 0, 'required': True}]}
                 def run_com(_runner, _owned, _args, rec, _input, _font):
                     if mode == 'capture': raise app.pa.AcceptanceError('injected capture error')
+                    if mode == 'cleanup':
+                        error = app.pa.AcceptanceError('injected cleanup uncertainty')
+                        error.source_cleanup_incomplete = True
+                        raise error
+                    if mode == 'audio_cleanup':
+                        error = app.pa.AcceptanceError('injected audio cleanup uncertainty')
+                        error.audio_cleanup_incomplete = True
+                        raise error
                     rec['classification'] = 'owned-session COM execution diagnostic passed'
                 disk = {'floppy_sha256': app.SCENARIOS['com']['floppy'], 'executable_sha256': app.COM_SHA}
                 verification_count = 0
@@ -586,6 +594,10 @@ class MainOwnershipTest(unittest.TestCase):
                         app.main(args)
                 self.assertEqual((evidence/'receipt.json').exists(), mode == 'ok')
                 self.assertEqual((evidence/'failure.json').exists(), mode != 'ok')
+                if mode == 'cleanup':
+                    self.assertTrue(json.loads((evidence/'failure.json').read_text())['source_cleanup_incomplete'])
+                if mode == 'audio_cleanup':
+                    self.assertTrue(json.loads((evidence/'failure.json').read_text())['audio_cleanup_incomplete'])
                 self.assertFalse(any(call[0] == 'POST' for call in fake.api.calls))
                 app._INTERRUPTED = 0
                 with self.assertRaises(FileExistsError):
@@ -644,6 +656,9 @@ class VideoEvidenceTest(unittest.TestCase):
                         'capture_producer_sha256':'b'*64})()
             runner = FakeRunner(); owned = runner.session_identity(runner.value, 'fixture')
             rec = {'captures': [], 'hid_events': []}
+            audio = mock.Mock(mapping={'hil_video':'synthetic'})
+            audio.proc.poll.return_value = None
+            audio.stop.return_value = {'file':'hdmi-audio.wav'}
             with mock.patch.object(app, 'capture_owned', return_value=((1, 1, b'abc'), {'file': 'before.png'})), \
                  mock.patch.object(app, 'prompt', return_value={}), \
                  mock.patch.object(app, 'type_keys') as keys, \
@@ -652,10 +667,11 @@ class VideoEvidenceTest(unittest.TestCase):
                  mock.patch.object(app, 'check_video', return_value={}), \
                  mock.patch.object(app, 'check_source_coverage', return_value={}):
                 app.run_game(runner, owned, args, rec, 'input-1', b'font',
-                             probe=test_guard, video_factory=Recorder)
-            self.assertEqual(rec['classification'], 'game capture complete; gameplay and movement review pending')
+                             probe=test_guard, video_factory=Recorder, audio_factory=lambda *_:audio)
+            self.assertEqual(rec['classification'], 'game and audio captured; independent gameplay and speaker review pending')
             self.assertIn('independent visual review', rec['game_video']['classification'])
-            self.assertEqual(keys.call_count, 5)
+            self.assertEqual(keys.call_count, 8)
+            audio.stop.assert_called_once()
 
     def test_game_without_calibrated_guard_stops_before_capture_or_input(self):
         with mock.patch.object(app, 'capture_owned') as take, mock.patch.object(app, 'type_keys') as keys:
@@ -675,7 +691,7 @@ class VideoEvidenceTest(unittest.TestCase):
             with self.assertRaisesRegex(app.pa.AcceptanceError, 'no game keys sent'):
                 app.run_game(None, owner, args, {'captures': []}, 'input', b'font',
                              probe=mock.Mock(spec=app.gameplay.PlaybackProbe),
-                             video_factory=lambda *_: video)
+                             video_factory=lambda *_: video, audio_factory=mock.Mock())
         video.stop.assert_called_once()
         keys.assert_not_called()
 

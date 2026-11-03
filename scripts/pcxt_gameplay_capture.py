@@ -7,7 +7,11 @@ whether the game responded to the ordered inputs.
 import ctypes
 import ctypes.util
 import hashlib
+import os
 from pathlib import Path
+import shutil
+import signal
+import subprocess
 import threading
 import time
 
@@ -17,6 +21,62 @@ if __package__:
 else:
     import pcxt_capture_fanout as capture
     import pcxt_digger_readiness as readiness
+
+
+def build_capture_helper(evidence, source, expected_source_sha256, *, check_interrupted=lambda:None):
+    """Compile a pinned source snapshot and retain compiler/source/binary hashes."""
+    evidence, source = Path(evidence), Path(source)
+    data = source.read_bytes()
+    if hashlib.sha256(data).hexdigest() != expected_source_sha256:
+        raise capture.CaptureError('capture helper source differs from diagnostic provenance')
+    compiler_path = shutil.which('gcc')
+    if compiler_path is None:
+        raise capture.CaptureError('capture helper compiler is unavailable')
+    compiler = Path(compiler_path).resolve(strict=True)
+    with compiler.open('rb') as f:
+        compiler_sha = hashlib.file_digest(f, 'sha256').hexdigest()
+    snapshot, binary, log = evidence/'pcxt-v4l2-source.c', evidence/'pcxt-v4l2-capture', evidence/'pcxt-v4l2-build.log'
+    with snapshot.open('xb') as f:
+        f.write(data)
+    args = [str(compiler), '-Wall', '-Wextra', '-Werror', '-std=c11', '-O2', str(snapshot), '-o', str(binary)]
+    with log.open('xb') as output:
+        proc = subprocess.Popen(args, stdin=subprocess.DEVNULL, stdout=output, stderr=output, start_new_session=True)
+        observed = None
+        try:
+            deadline = time.monotonic()+60
+            while observed is None:
+                check_interrupted()
+                observed = os.waitid(os.P_PID, proc.pid, os.WEXITED | os.WNOHANG | os.WNOWAIT)
+                if observed is None:
+                    if time.monotonic() >= deadline:
+                        raise capture.CaptureError('capture helper build timed out')
+                    time.sleep(.02)
+        finally:
+            try:
+                os.killpg(proc.pid, signal.SIGKILL)
+            except ProcessLookupError:
+                pass
+            try:
+                result = proc.wait(timeout=5)
+            except subprocess.TimeoutExpired:
+                raise capture.CaptureError('capture helper build cleanup unverified') from None
+        try:
+            os.killpg(proc.pid, 0)
+        except ProcessLookupError:
+            pass
+        else:
+            raise capture.CaptureError('capture helper build group cleanup unverified')
+    if result != 0 or not binary.is_file() or not binary.stat().st_size:
+        raise capture.CaptureError('capture helper build failed')
+    if source.read_bytes() != data:
+        raise capture.CaptureError('capture helper source changed during build')
+    with binary.open('rb') as f:
+        binary_sha = hashlib.file_digest(f, 'sha256').hexdigest()
+    return binary, {'source_sha256':expected_source_sha256, 'compiler':str(compiler),
+                    'compiler_sha256':compiler_sha, 'binary_sha256':binary_sha,
+                    'flags':['-Wall','-Wextra','-Werror','-std=c11','-O2'],
+                    'source_snapshot':snapshot.name, 'binary':binary.name, 'log':log.name,
+                    'note':'built from the pinned source with the identified host compiler; system headers and libraries are host inputs'}
 
 
 class RGBConverter:
@@ -89,8 +149,14 @@ class GameCapture:
             raise
         try:
             self.recorder = capture.FFV1Recorder(evidence)
-        except BaseException:
-            self.source.stop(require_complete=False); self.converter.close(); raise
+        except BaseException as error:
+            try:
+                self.source.stop(require_complete=False)
+            except BaseException as cleanup:
+                error.source_cleanup_incomplete = True
+                error.add_note('capture source cleanup failed: '+repr(cleanup))
+            self.converter.close()
+            raise
         self.path = self.recorder.video
         self.progress_path = self.recorder.sidecar_path
         self.proc = self  # poll() reports our coordinator, without reaping the source leader.
@@ -111,13 +177,28 @@ class GameCapture:
             finally:
                 self.done.set()
         self.worker = threading.Thread(target=run, daemon=True, name='pcxt-game-capture')
-        self.worker.start()
+        try:
+            self.worker.start()
+        except BaseException as error:
+            for cleanup in (lambda: self.source.stop(require_complete=False), self.recorder.abort):
+                try:
+                    cleanup()
+                except BaseException as failure:
+                    error.source_cleanup_incomplete = True
+                    error.add_note('capture startup cleanup failed: '+repr(failure))
+            self.converter.close()
+            raise
         end = time.monotonic()+startup_timeout
         while not self.started.is_set() and not self.done.is_set() and time.monotonic() < end:
             self.started.wait(min(.1, max(0, end-time.monotonic())))
         if not self.started.is_set() or self.done.is_set():
             self.stop_requested.set(); self.worker.join(timeout=10)
-            raise capture.CaptureError('continuous game capture did not start')
+            error = capture.CaptureError('continuous game capture did not start')
+            if (self.worker.is_alive() or getattr(self.error, 'source_cleanup_incomplete', False)
+                    or getattr(self.error, 'recorder_worker_running', False)):
+                error.source_cleanup_incomplete = True
+                error.add_note('capture startup cleanup is unverified; retain the kit claim')
+            raise error
 
     def poll(self):
         return 1 if self.done.is_set() else None
@@ -129,6 +210,8 @@ class GameCapture:
             error.source_cleanup_incomplete = True
             raise error
         if self.error is not None:
+            if getattr(self.error, 'recorder_worker_running', False):
+                self.error.source_cleanup_incomplete = True
             raise self.error
         if self.result is None or not self.result.detector_valid:
             if self.result is not None and self.result.detector_stopped:

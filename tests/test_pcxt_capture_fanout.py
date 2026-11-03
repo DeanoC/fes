@@ -114,6 +114,24 @@ class SourceTests(unittest.TestCase):
             self.assertIsNotNone(source.proc.poll())
             self.assertLess(time.monotonic()-start, 2)
 
+    def test_experiment_propagates_unverified_source_cleanup(self):
+        class Source:
+            closed = False
+            def take(self, count, stop_event):
+                yield capture.CapturedFrame(0, 1, 2, 3, 0x2000, b'x')
+            def stop(self, require_complete=True):
+                self.closed = True
+                raise capture.CaptureError('unverified group')
+        class Recorder:
+            closed = False
+            def write(self, frame): pass
+            def abort(self): self.closed = True
+            def interrupt(self): pass
+        with self.assertRaises(capture.CaptureError) as caught:
+            capture.capture_experiment(Source(), Recorder(), 1, lambda _: None,
+                                       sample_every=1, join_timeout=.05)
+        self.assertTrue(caught.exception.source_cleanup_incomplete)
+
     def test_experiment_rejects_early_source_exit_and_reaps_processes(self):
         with tempfile.TemporaryDirectory() as tmp:
             code = ('import os,struct; '

@@ -94,6 +94,9 @@ class CaptureProcess:
             if require_complete and (not self.completed or not running or result != -signal.SIGTERM):
                 raise CaptureError('capture child did not reach its planned stop')
             return result
+        except BaseException as error:
+            error.source_cleanup_incomplete = True
+            raise
         finally:
             self.proc.stdout.close()
             self.stderr.close()
@@ -496,7 +499,11 @@ def capture_experiment(source, recorder, count, detect, *, sample_every, source_
         if result.frames_recorded != count and not (stop_event is not None and stop_event.is_set()
                                                     and result.frames_recorded > 0):
             raise CaptureError('recorded frame count differs from planned count')
-        source.stop()
+        try:
+            source.stop()
+        except BaseException as error:
+            error.source_cleanup_incomplete = True
+            raise
         recorder.finish()
         return result
     except BaseException as error:
@@ -504,10 +511,12 @@ def capture_experiment(source, recorder, count, detect, *, sample_every, source_
             try:
                 source.stop(require_complete=False)
             except BaseException as cleanup:
+                error.source_cleanup_incomplete = True
                 error.add_note('capture source cleanup failed: '+repr(cleanup))
         if not recorder.closed and not getattr(error, 'recorder_worker_running', False):
             try:
                 recorder.abort()
             except BaseException as cleanup:
+                error.source_cleanup_incomplete = True
                 error.add_note('recorder cleanup failed: '+repr(cleanup))
         raise
