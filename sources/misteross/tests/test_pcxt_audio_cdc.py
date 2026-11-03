@@ -87,7 +87,8 @@ class AudioCdcProofTests(unittest.TestCase):
             work = Path(directory)
             (work / 'proof.v').write_text(source)
             command = ('read_verilog -formal -sv proof.v; prep -top fes_audio_output; async2sync; '
-                       'clk2fflogic; opt; techmap; opt; aigmap; write_aiger -zinit -symbols proof.aig')
+                       'clk2fflogic; opt; techmap; opt; setundef -undriven -anyseq; '
+                       'aigmap; write_aiger -zinit -symbols proof.aig')
             self.run_tool([YOSYS, '-T', '-p', command], work)
             out = self.run_tool([ABC, '-c', 'read_aiger proof.aig; strash; pdr' +
                                  ('; write_cex mutant.cex' if mutant else '')], work)

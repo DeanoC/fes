@@ -185,13 +185,13 @@ class SimulationMatrixTests(unittest.TestCase):
         self.assertEqual({row['target'] for row in rows}, expected)
         self.assertTrue(all(row['core'] == 'coleco' for row in rows))
 
-    def test_pcxt_pr_smoke_covers_floppy_writer_fdc_media_and_mailbox(self):
+    def test_pcxt_pr_smoke_covers_machine_and_floppy_paths(self):
         from scripts.ci_simulations import simulation_matrix
         full = [row['target'] for row in simulation_matrix(['pcxt'], 'full')['include']]
         smoke = [row['target'] for row in simulation_matrix(['pcxt'], 'smoke')['include']]
         self.assertEqual(full, ['sim-fes-pcxt', 'sim-fes-pcxt-fdc', 'sim-fes-pcxt-write',
                                 'sim-fes-pcxt-media', 'sim-fes-pcxt-mailbox', 'sim-fes-pcxt-dos'])
-        self.assertEqual(smoke, ['sim-fes-pcxt-smoke', 'sim-fes-pcxt-fdc', 'sim-fes-pcxt-write',
+        self.assertEqual(smoke, ['sim-fes-pcxt-smoke', 'sim-fes-pcxt-machine', 'sim-fes-pcxt-fdc', 'sim-fes-pcxt-write',
                                  'sim-fes-pcxt-media', 'sim-fes-pcxt-mailbox'])
         self.assertNotIn('sim-fes-pcxt-dos', smoke)
 

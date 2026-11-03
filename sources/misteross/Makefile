@@ -142,6 +142,7 @@ help:
 		"  sim-fes-c64-sid  Check digital SID state and staged MOS6581 audio" \
 		"  sim-fes-c64-ba-timing  Check CPU retirement at VIC BA phase boundaries" \
 		"  sim-fes-pcxt  Test the PC/XT ISA fabric, waits, IRQ and DMA transactions" \
+		"  sim-fes-pcxt-machine  Test the XT machine, including speaker output and recovery" \
 		"  sim-fes-pcxt-fdc  Test the XT floppy adapter over ISA/DMA" \
 		"  sim-fes-pcxt-write  Test floppy sector staging and disk arbitration" \
 		"  sim-fes-pcxt-dos-write  Test guest writes and floppy snapshot restore" \
@@ -2781,10 +2782,14 @@ sim-fes-c64-sprite-pal:
 		"$(CURDIR)/cores/fes-c64/sim/sprite_pal_tb.cpp" -CFLAGS '-O2 -std=c++17'
 	@build/sim/fes-c64-sprite-pal/Vc64_vic_sprite_pixels
 
-.PHONY: sim-fes-pcxt
+.PHONY: sim-fes-pcxt sim-fes-pcxt-machine
 sim-fes-pcxt:
 	$(require_local_sim)
 	$(PYTHON) scripts/sim_fes_pcxt.py --verilator "$(VERILATOR)"
+
+sim-fes-pcxt-machine:
+	$(require_local_sim)
+	$(PYTHON) scripts/sim_fes_pcxt.py --suite machine --verilator "$(VERILATOR)"
 
 .PHONY: sim-fes-pcxt-fdc sim-fes-pcxt-write sim-fes-pcxt-media sim-fes-pcxt-mailbox sim-fes-pcxt-dos sim-fes-pcxt-dos-write sim-fes-pcxt-com sim-fes-pcxt-game
 sim-fes-pcxt-fdc:

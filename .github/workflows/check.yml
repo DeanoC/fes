@@ -225,6 +225,14 @@ jobs:
                               '-s', 'tests', '-p', pattern, '-v'],
                              cwd='sources/misteross', check=True)
           PYCODE
+      - name: Install formal proof tools
+        run: sudo apt-get update && sudo apt-get install -y yosys
+      - name: Prove PC/XT audio clock crossing and mutation
+        run: |
+          command -v yosys
+          command -v yosys-abc
+          python3 -m unittest discover -s tests -p test_pcxt_audio_cdc.py -v
+        working-directory: sources/misteross
   simulation-tools:
     needs: plan
     if: needs.plan.outputs.cores != '[]'
