@@ -3,10 +3,12 @@
 package kitsoftware
 
 import (
+	"cmp"
 	"errors"
 	"fmt"
 	"github.com/DeanoC/FogCast/appliance/software"
 	"github.com/DeanoC/FogCast/appliance/softwarecontrol"
+	"slices"
 	"strings"
 	"unicode"
 	"unicode/utf8"
@@ -69,6 +71,33 @@ func validateState(s State) error {
 		}
 	}
 	return nil
+}
+
+// retainedReceipts bounds the receipts kept for past generations. Status reads
+// the whole ledger on every request, and the host asks for it constantly.
+const retainedReceipts = 64
+
+// pruneReceipts drops receipts no request can still need. Queue accepts only the
+// current generation, so every receipt at that generation stays, and so does
+// the unreleased completion's. Of the rest, the newest retainedReceipts stay for
+// replays of recently finished operations. A replay of an older one is refused
+// as a conflict, like any other request for a past generation.
+func pruneReceipts(s *State) {
+	older := make([]Receipt, 0, len(s.Receipts))
+	for id, r := range s.Receipts {
+		if r.Generation < s.Generation && (s.Unreleased == nil || id != s.Unreleased.ID) {
+			older = append(older, r)
+		}
+	}
+	if len(older) <= retainedReceipts {
+		return
+	}
+	slices.SortFunc(older, func(a, b Receipt) int {
+		return cmp.Or(cmp.Compare(b.Generation, a.Generation), strings.Compare(a.ID, b.ID))
+	})
+	for _, r := range older[retainedReceipts:] {
+		delete(s.Receipts, r.ID)
+	}
 }
 
 // Queue is idempotent by the complete request, including its original expected

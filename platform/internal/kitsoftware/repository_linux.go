@@ -284,6 +284,7 @@ func (r *FileRepository) Update(fn func(*State) error) error {
 		if err := fn(&s); err != nil {
 			return err
 		}
+		pruneReceipts(&s)
 		return r.write(s)
 	})
 }
