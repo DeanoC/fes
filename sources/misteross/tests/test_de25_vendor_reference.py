@@ -24,7 +24,8 @@ class VendorReferenceTests(unittest.TestCase):
             assignments += [f'set_location_assignment PIN_{pin["pin"]} -to {name}',
                             f'set_instance_assignment -name IO_STANDARD "{pin["standard"]}" -to {name}']
             fitted.append(f'{name} : {pin["pin"]} : output : {pin["standard"]} : bank voltage : bank')
-        (self.project / 'golden_top.qsf').write_text('\n'.join(assignments) + '\n')
+        (self.project / 'golden_top.qsf').write_text('\n'.join(assignments) + '\n' +
+            'set_global_assignment -name IP_FILE fes_combined/sys_pll.ip\n')
         (self.project / 'output_files/golden_top.pin').write_text('\n'.join(fitted) + '\n')
         ns = 'http://www.accellera.org/XMLSchema/IPXACT/1685-2014'
         extension = 'http://www.altera.com/XMLSchema/IPXact2014/extensions'
@@ -35,6 +36,7 @@ class VendorReferenceTests(unittest.TestCase):
             param = ET.SubElement(params, '{' + ns + '}parameter', parameterId=name)
             ET.SubElement(param, '{' + ns + '}value').text = value
         (self.project / 'fes_combined/sys_pll.ip').write_bytes(ET.tostring(root))
+        (self.project / 'sys_pll.ip').write_bytes(ET.tostring(root))
         board = ('sys_pll video_clock (.refclk(CLOCK0_50), .outclk_0(pixel_clk));\n'
                  'assign HDMI_TX_CLK = pixel_clk;\n')
         for name in ('fes_de25_scanout_board.v', 'board.v'):
@@ -55,11 +57,29 @@ class VendorReferenceTests(unittest.TestCase):
 
     def test_the_two_supported_cores_bind_the_complete_reference_profile(self):
         for core in ('fes.menu', 'fes.zx81'):
+            qsf = self.project / 'golden_top.qsf'
+            if core == 'fes.zx81':
+                qsf.write_text(qsf.read_text().replace('IP_FILE fes_combined/sys_pll.ip',
+                                                       'IP_FILE sys_pll.ip'))
             result = self.validate(core)
             self.assertEqual(len(result['pins']), 37)
             self.assertEqual(len(result['transmitter_lut']), 33)
             self.assertFalse(result['independent_pcb_timing_qualified'])
             self.assertFalse(result['hardware_acceptance'])
+
+    def test_the_selected_core_must_compile_the_checked_pll(self):
+        qsf = self.project / 'golden_top.qsf'
+        original = qsf.read_text()
+        for text in [original.replace('IP_FILE fes_combined/sys_pll.ip', 'IP_FILE sys_pll.ip'),
+                     original.replace('IP_FILE fes_combined/sys_pll.ip', 'IP_FILE other.ip'),
+                     original + 'set_global_assignment -name IP_FILE sys_pll.ip\n']:
+            qsf.write_text(text)
+            with self.assertRaises(reference.BuildError):
+                self.validate()
+        qsf.write_text(original.replace('IP_FILE fes_combined/sys_pll.ip', 'IP_FILE sys_pll.ip'))
+        (self.project / 'sys_pll.ip').unlink()
+        with self.assertRaises(FileNotFoundError):
+            self.validate('fes.zx81')
 
     def test_source_and_actual_fitted_pin_drift_are_rejected_independently(self):
         for name, before, after in [

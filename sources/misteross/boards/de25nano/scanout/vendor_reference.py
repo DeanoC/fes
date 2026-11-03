@@ -95,11 +95,18 @@ def validate_project(project, expected, core_id):
     require(actual_pins == {n: {'pin': v['pin'], 'standard': normalize(v['standard'])}
                             for n, v in expected['pins'].items()},
             'actual fitted pin locations/I/O standards differ from Terasic')
-    pll = project / 'fes_combined/sys_pll.ip'
+    board_name, pixel, pll_name = {
+        'fes.menu': ('fes_de25_scanout_board.v', 'pixel_clk', 'fes_combined/sys_pll.ip'),
+        'fes.zx81': ('board.v', 'pixel_clk', 'sys_pll.ip'),
+    }[core_id]
+    assigned = re.findall(r'^\s*set_global_assignment\s+-name IP_FILE\s+(\S+)\s*$',
+                          (project / 'golden_top.qsf').read_text(), re.M)
+    require([name.strip('"') for name in assigned
+             if Path(name.strip('"')).name == 'sys_pll.ip'] == [pll_name],
+            'project does not select the checked video PLL')
+    pll = project / pll_name
     require(display.pll_parameters(pll.read_bytes()) == expected['pll_parameters'],
             'vendor pixel PLL parameters changed')
-    board_name, pixel = {'fes.menu': ('fes_de25_scanout_board.v', 'pixel_clk'),
-                         'fes.zx81': ('board.v', 'pixel_clk')}[core_id]
     board = project / 'fes_mailbox' / board_name
     text = board.read_text()
     require(len(re.findall(r'assign\s+HDMI_TX_CLK\s*=\s*' + pixel + r'\s*;', text)) == 1 and
