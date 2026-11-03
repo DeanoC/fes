@@ -27,10 +27,14 @@ WINDOW_FILES = tuple(prefix + name for prefix in (
     "fes_mailbox/",
     "peripheral_subsys/ip/peripheral_subsys/peripheral_subsys_fes_embedded/fes_de25_embedded_10/synth/",
 ) for name in ("fes_embedded_window_reader.sv", "fes_embedded_window_control.sv"))
+COMPUTER_FILES = tuple(prefix + name for prefix in (
+    "fes_mailbox/",
+    "peripheral_subsys/ip/peripheral_subsys/peripheral_subsys_fes_computer/fes_de25_computer_10/synth/",
+) for name in ("fes_de25_computer.v", "generated/fes_de25_computer.vh"))
 
 
 def copy_project(source, target):
-    for name in FILES + WINDOW_FILES:
+    for name in FILES + WINDOW_FILES + COMPUTER_FILES:
         dst = target / name
         dst.parent.mkdir(parents=True, exist_ok=True)
         shutil.copyfile(source / name, dst)
@@ -134,7 +138,8 @@ def main():
         cases = (("wrong-base", "peripheral base differs"), ("missing-jtag", "subsys_debug_fpga_m.master"),
                  ("wrong-span", "embedded lw map differs"), ("changed-generated-source", "generated embedded source differs"),
                  ("changed-window-source", "generated embedded source differs"))
-        cases += (("changed-width-source","generated embedded source differs"),)
+        cases += (("changed-width-source","generated embedded source differs"),
+                  ("changed-computer-source", "generated computer source differs"))
         if BUILD.reader_memory.mode(memory):
             cases += tuple((name,'embedded DDR route differs') for name in ('missing-ddr','duplicate-ddr','wrong-ddr-target'))
             cases += (('ddr-port-width','DDR AXI interface differs'),
@@ -163,6 +168,9 @@ def main():
             elif name == "changed-width-source":
                 target=trial/'peripheral_subsys/ip/peripheral_subsys/peripheral_subsys_fes_embedded/fes_de25_embedded_10/synth/fes_de25_read_width.sv'
                 target.write_bytes(target.read_bytes()+b'\n// altered for negative test\n')
+            elif name == "changed-computer-source":
+                target = trial / COMPUTER_FILES[-2]
+                target.write_bytes(target.read_bytes() + b"\n// altered for negative test\n")
             elif name=='wrong-forwarded-window':
                 target=trial/'peripheral_subsys/ip/peripheral_subsys/peripheral_subsys_fes_embedded/synth/peripheral_subsys_fes_embedded.v'
                 text=target.read_text()
