@@ -1,5 +1,18 @@
 # Nano recovery uploads and cold serial boot
 
+`uart_transfer.send` supplies a bounded Kermit RAM transfer to an already owned
+exclusive recovery console. Its caller must first establish the complete live
+LMB ledger and reserve the window with a verified FAT load. The sender may exit
+successfully while its stdout pipe or UART transmit queue still holds bytes;
+the relay drains both within the original deadline before accepting the loader
+size, return-rate and current prompt acknowledgement. The caller still verifies
+the RAM hash and current ownership before using the result. A sender failure,
+claim loss or exceeded bound stops the attempt and retains status/packet logs;
+the caller handles target recovery. The fixed-pattern hardware capture under
+`tests/fixtures/nano-kermit-exit/` reproduces the successful-exit/queued-CRLF race.
+This transport issues no SD write or activation operation. Physical transfer
+qualification remains separate from SD update, native boot and core admission.
+
 The recovery version check requires the complete pinned profile banner,
 including the build date and Terasic's `socfpga_agilex5` board suffix. The
 selected configuration must contain that exact `CONFIG_IDENT_STRING`.
