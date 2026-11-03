@@ -79,7 +79,15 @@ func kitHostService(t *testing.T) (*Service, *packageLibraryClient, string, *kit
 	}
 	client := &packageLibraryClient{fakeServiceClient: &fakeServiceClient{statusResult: protocol.Status{State: protocol.StateIdle}}}
 	s := newService(Config{RequestTimeout: time.Second, UploadTimeout: time.Second}, Paths{}, store, &fakeServiceScanner{}, &fakeServicePreparer{}, client)
-	s.corePackages = kitpackages.NewView(func() (*kitpackages.Store, error) { return durable, nil }, kitpackages.NewFactory(factory))
+	view := kitpackages.NewView(func() (*kitpackages.Store, error) { return durable, nil }, kitpackages.NewFactory(factory))
+	for deadline := time.Now().Add(5 * time.Second); ; time.Sleep(time.Millisecond) {
+		if _, err := view.List(context.Background()); err == nil {
+			break
+		} else if time.Now().After(deadline) {
+			t.Fatalf("view did not open: %v", err)
+		}
+	}
+	s.corePackages = view
 	return s, client, factory, durable
 }
 

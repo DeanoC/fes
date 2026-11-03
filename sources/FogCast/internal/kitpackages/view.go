@@ -14,9 +14,9 @@ import (
 // ErrStoreUnavailable reports that the durable store could not be opened.
 var ErrStoreUnavailable = errors.New("kit packages: durable store unavailable")
 
-// viewLockWait bounds a call that arrives without a deadline. The store lock
-// waits until its context ends, and another process can hold it for a whole
-// archive install.
+// viewLockWait bounds a list, inspect or read that arrives without a
+// deadline. The store lock waits until its context ends, and another process
+// can hold it for a whole archive install.
 var viewLockWait = time.Minute
 
 // viewReopenDelay spaces attempts to open an unavailable durable store.
@@ -27,9 +27,12 @@ const viewReopenDelay = 5 * time.Second
 // packages. A package in both is the same bytes, so it is listed once.
 //
 // As in mister-agent, an unavailable durable store withholds the factory
-// packages too: every call returns ErrStoreUnavailable. A failed open is
-// retried at most every viewReopenDelay, so a host that starts before
-// FESDATA3 is ready recovers without a restart.
+// packages too: every call returns ErrStoreUnavailable. The store opens in
+// the background, because opening takes its lock and verifies every durable
+// package, and mister-agent can hold that lock for a whole install. Calls
+// made while it opens return ErrStoreUnavailable at once and never wait for
+// it. A failed open is retried at most every viewReopenDelay, so a host that
+// starts before FESDATA3 is ready recovers without a restart.
 type View struct {
 	open    func() (*Store, error)
 	factory *Factory
@@ -37,42 +40,60 @@ type View struct {
 
 	mu      sync.Mutex
 	durable *Store
+	opening bool
+	openErr error
 	retryAt time.Time
 }
 
-// NewView opens the durable store with open, now and on later calls while
-// it is unavailable.
+// NewView starts opening the durable store with open.
 func NewView(open func() (*Store, error), factory *Factory) *View {
 	v := &View{open: open, factory: factory, now: time.Now}
 	_, _ = v.store()
 	return v
 }
 
+// store returns the open durable store, or ErrStoreUnavailable joined with
+// the last open error while it is opening or after an open failed.
 func (v *View) store() (*Store, error) {
 	v.mu.Lock()
 	defer v.mu.Unlock()
 	if v.durable != nil {
 		return v.durable, nil
 	}
-	if now := v.now(); now.Before(v.retryAt) {
-		return nil, ErrStoreUnavailable
+	if !v.opening && !v.now().Before(v.retryAt) {
+		v.opening = true
+		go v.openInBackground()
 	}
-	store, err := v.open()
-	if err != nil || store == nil {
-		v.retryAt = v.now().Add(viewReopenDelay)
-		return nil, ErrStoreUnavailable
+	if v.openErr != nil {
+		return nil, errors.Join(ErrStoreUnavailable, v.openErr)
 	}
-	v.durable = store
-	return store, nil
+	return nil, ErrStoreUnavailable
 }
 
+func (v *View) openInBackground() {
+	store, err := v.open()
+	if err == nil && store == nil {
+		err = errors.New("kit packages: open returned no store")
+	}
+	v.mu.Lock()
+	defer v.mu.Unlock()
+	v.opening = false
+	if err != nil {
+		v.openErr = err
+		v.retryAt = v.now().Add(viewReopenDelay)
+		return
+	}
+	v.durable, v.openErr = store, nil
+}
+
+// Import reads the whole archive while it holds the store lock, so it uses
+// the caller's context unbounded, as the agent's own install does: a slow
+// upload must not fail at viewLockWait.
 func (v *View) Import(ctx context.Context, length int64, reader io.Reader) (corepackage.Inspection, bool, error) {
 	store, err := v.store()
 	if err != nil {
 		return corepackage.Inspection{}, false, err
 	}
-	ctx, cancel := boundedContext(ctx)
-	defer cancel()
 	return store.Install(ctx, length, reader)
 }
 

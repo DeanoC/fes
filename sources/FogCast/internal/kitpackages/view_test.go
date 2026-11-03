@@ -7,6 +7,8 @@ import (
 	"os"
 	"path/filepath"
 	"reflect"
+	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -61,7 +63,21 @@ func newFactoryRoot(t *testing.T) string {
 }
 
 func openedView(s *Store, factory *Factory) *View {
-	return NewView(func() (*Store, error) { return s, nil }, factory)
+	return &View{durable: s, factory: factory, now: time.Now}
+}
+
+// settled waits for a background open to finish.
+func settled(t *testing.T, v *View) {
+	t.Helper()
+	for deadline := time.Now().Add(5 * time.Second); time.Now().Before(deadline); time.Sleep(time.Millisecond) {
+		v.mu.Lock()
+		opening := v.opening
+		v.mu.Unlock()
+		if !opening {
+			return
+		}
+	}
+	t.Fatal("open did not finish")
 }
 
 func TestFactoryReadIsTheCanonicalArchive(t *testing.T) {
@@ -252,20 +268,27 @@ func TestViewWithholdsFactoryPackagesWhileTheDurableStoreIsUnavailable(t *testin
 	root := newFactoryRoot(t)
 	_, factoryOnly := factoryPackage(t, root, "1.0.0", "fes.pong")
 	durable := newStore(t)
+	var mu sync.Mutex
 	opens := 0
 	available := false
 	now := time.Unix(1000, 0)
-	view := &View{factory: NewFactory(root), now: func() time.Time { return now }}
+	view := &View{factory: NewFactory(root), now: func() time.Time { mu.Lock(); defer mu.Unlock(); return now }}
 	view.open = func() (*Store, error) {
+		mu.Lock()
+		defer mu.Unlock()
 		opens++
 		if !available {
 			return nil, errors.New("FESDATA3 is not mounted")
 		}
 		return durable, nil
 	}
-	archive := []byte("ignored")
 	if _, err := view.List(ctx); !errors.Is(err, ErrStoreUnavailable) {
-		t.Fatalf("list = %v", err)
+		t.Fatalf("first list = %v", err)
+	}
+	settled(t, view)
+	archive := []byte("ignored")
+	if _, err := view.List(ctx); !errors.Is(err, ErrStoreUnavailable) || !strings.Contains(err.Error(), "FESDATA3 is not mounted") {
+		t.Fatalf("list = %v, want unavailable with the open error", err)
 	}
 	if _, err := view.Inspect(ctx, factoryOnly.PackageID); !errors.Is(err, ErrStoreUnavailable) {
 		t.Fatalf("inspect = %v", err)
@@ -276,17 +299,127 @@ func TestViewWithholdsFactoryPackagesWhileTheDurableStoreIsUnavailable(t *testin
 	if _, _, err := view.Import(ctx, int64(len(archive)), bytes.NewReader(archive)); !errors.Is(err, ErrStoreUnavailable) {
 		t.Fatalf("import = %v", err)
 	}
-	if opens != 1 {
-		t.Fatalf("opens before the retry delay = %d, want 1", opens)
-	}
+	mu.Lock()
 	available = true
-	if _, err := view.List(ctx); !errors.Is(err, ErrStoreUnavailable) || opens != 1 {
-		t.Fatalf("list inside the retry delay = %v opens=%d", err, opens)
+	got := opens
+	mu.Unlock()
+	if got != 1 {
+		t.Fatalf("opens inside the retry delay = %d, want 1", got)
 	}
+	mu.Lock()
 	now = now.Add(viewReopenDelay)
+	mu.Unlock()
+	if _, err := view.List(ctx); !errors.Is(err, ErrStoreUnavailable) {
+		t.Fatalf("list that starts the retry = %v", err)
+	}
+	settled(t, view)
 	listed, err := view.List(ctx)
-	if err != nil || len(listed) != 1 || listed[0].PackageID != factoryOnly.PackageID || opens != 2 {
-		t.Fatalf("list after the delay = %+v %v opens=%d", listed, err, opens)
+	mu.Lock()
+	got = opens
+	mu.Unlock()
+	if err != nil || len(listed) != 1 || listed[0].PackageID != factoryOnly.PackageID || got != 2 {
+		t.Fatalf("list after the delay = %+v %v opens=%d", listed, err, got)
+	}
+}
+
+// Opening takes the store lock and verifies every package. Calls made while
+// it runs do not wait for it.
+func TestViewCallsDoNotWaitForTheOpen(t *testing.T) {
+	durable := newStore(t)
+	release := make(chan struct{})
+	view := NewView(func() (*Store, error) { <-release; return durable, nil }, NewFactory(newFactoryRoot(t)))
+	started := time.Now()
+	if _, err := view.List(context.Background()); !errors.Is(err, ErrStoreUnavailable) {
+		t.Fatalf("list while opening = %v", err)
+	}
+	if elapsed := time.Since(started); elapsed > time.Second {
+		t.Fatalf("list waited %v for the open", elapsed)
+	}
+	close(release)
+	settled(t, view)
+	if _, err := view.List(context.Background()); err != nil {
+		t.Fatalf("list after the open = %v", err)
+	}
+}
+
+// An import reads its whole body under the lock, so viewLockWait must not
+// cut a slow one short.
+func TestViewImportIsNotBoundedByTheLockWait(t *testing.T) {
+	agent := newStore(t)
+	host, err := New(agent.root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	view := openedView(host, NewFactory(newFactoryRoot(t)))
+	previous := viewLockWait
+	viewLockWait = 50 * time.Millisecond
+	defer func() { viewLockWait = previous }()
+	_, unlock, err := agent.lock(context.Background())
+	if err != nil {
+		t.Fatal(err)
+	}
+	archive, want := fixture(t, "1.0.0", "fes.pong")
+	done := make(chan error, 1)
+	go func() {
+		got, _, err := view.Import(context.Background(), int64(len(archive)), bytes.NewReader(archive))
+		if err == nil && got.PackageID != want.PackageID {
+			err = errors.New("imported another package")
+		}
+		done <- err
+	}()
+	time.Sleep(4 * viewLockWait)
+	unlock()
+	if err := <-done; err != nil {
+		t.Fatalf("import after a long lock wait = %v", err)
+	}
+}
+
+func TestFactoryRejectsAPackageChangedAfterItWasCached(t *testing.T) {
+	ctx := context.Background()
+	root := newFactoryRoot(t)
+	_, want := factoryPackage(t, root, "1.0.0", "fes.pong")
+	factory := NewFactory(root)
+	if _, err := factory.Inspect(ctx, want.PackageID); err != nil {
+		t.Fatal(err)
+	}
+	directory := filepath.Join(root, want.PackageID)
+	manifest := filepath.Join(directory, "manifest.toml")
+	data, err := os.ReadFile(manifest)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Chmod(directory, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Remove(manifest); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(manifest, bytes.Replace(data, []byte(`version = "1.0.0"`), []byte(`version = "1.0.1"`), 1), 0o444); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Chmod(directory, 0o555); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := factory.Inspect(ctx, want.PackageID); !errors.Is(err, ErrInvalidPackage) {
+		t.Fatalf("inspect after change = %v, want ErrInvalidPackage", err)
+	}
+	if listed, err := factory.List(ctx); err != nil || len(listed) != 0 {
+		t.Fatalf("list after change = %+v %v", listed, err)
+	}
+}
+
+func TestFactoryListLeavesOutTheMenuPackage(t *testing.T) {
+	ctx := context.Background()
+	root := newFactoryRoot(t)
+	_, menu := factoryPackage(t, root, "1.0.0", "fes.menu")
+	_, pong := factoryPackage(t, root, "1.0.0", "fes.pong")
+	factory := NewFactory(root)
+	listed, err := factory.List(ctx)
+	if err != nil || len(listed) != 1 || listed[0].PackageID != pong.PackageID {
+		t.Fatalf("list %+v %v", listed, err)
+	}
+	if got, err := factory.Inspect(ctx, menu.PackageID); err != nil || got.PackageID != menu.PackageID {
+		t.Fatalf("menu by ID %+v %v", got, err)
 	}
 }
 

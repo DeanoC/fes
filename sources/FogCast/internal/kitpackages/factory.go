@@ -18,6 +18,8 @@ import (
 // directory per package, named by its package ID.
 const FactoryRoot = "/usr/share/mister-runtime/core-packages"
 
+const menuCoreID = "fes.menu"
+
 // Factory reads the read-only factory packages under one root. A package
 // directory hashes to the same ID as its canonical archive, so the kit host
 // can serve it as if it were an installed archive.
@@ -35,9 +37,10 @@ func NewFactory(root string) *Factory {
 	return &Factory{root: root, verified: make(map[string]verifiedPackage)}
 }
 
-// List returns every factory package sorted by ID. An absent root is an
-// empty list. A directory that fails inspection or does not hash to its name
-// is omitted, as kit-local inventory omits it.
+// List returns the factory packages sorted by ID. An absent root is an empty
+// list. As in kit-local inventory, the menu package is not listed, and a
+// directory that fails inspection or does not hash to its name is omitted.
+// Inspect and Read still find the menu package by ID.
 func (f *Factory) List(ctx context.Context) ([]corepackage.Inspection, error) {
 	entries, err := os.ReadDir(f.root)
 	if errors.Is(err, os.ErrNotExist) {
@@ -56,6 +59,9 @@ func (f *Factory) List(ctx context.Context) ([]corepackage.Inspection, error) {
 			if ctx.Err() != nil {
 				return nil, ctx.Err()
 			}
+			continue
+		}
+		if inspection.Descriptor.Core.ID == menuCoreID {
 			continue
 		}
 		result = append(result, inspection)
