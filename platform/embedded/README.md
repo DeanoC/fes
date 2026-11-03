@@ -14,6 +14,12 @@ and faults against the actual captured core RTL. A matched
 now completes three same-package ZX81 load/Run/Hold/return sessions on TRWU8CBL. Physical
 input/video and ordinary runtime core admission remain open.
 
+The [two-package artifact check](../../docs/validation/2026-11-03-de25-distinct-packages/README.md)
+adds a genuinely different sealed ZX80 diagnostic beside ZX81, a second fixed
+SD upload slot, and a refreshed matched native boot chain. Both real archives
+pass native preflight against one platform; distinct physical switching has
+not yet been tested.
+
 The [contained firmware/RTL prototype](firmware/README.md) prepares a pinned
 TF-A source variant and an FPGA identity/read-drain endpoint. The experimental
 [native endpoint](tamago/nativefabric/README.md) now connects their protocols
