@@ -40,7 +40,9 @@ daemon can then program its selected MENU. A running computer, pinned peer,
 changed artifact or uncertain context refuses this handoff. Destruction and
 unexpected process death preserve the configuration; inherited configurations
 remain refused. Whole-load failure bounds and unexpected-death adoption remain
-unfinished. The clean shutdown path requires its own native acceptance.
+unfinished. The [dated clean-restart diagnostic](../../docs/validation/2026-11-03-de25-watchdog/README.md#exact-normal-menu-package-and-clean-daemon-replacement)
+passes two production-daemon contexts, each with 90 frames and zero underflows,
+in one native boot. Full managed software/image acceptance remains open.
 
 The [programmer diagnostic](../../docs/validation/2026-10-31-de25-runtime-programmer/README.md)
 and [shared computer lifecycle diagnostic](../../docs/validation/2026-11-01-de25-shared-lifecycle/README.md)

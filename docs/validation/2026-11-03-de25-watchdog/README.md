@@ -146,3 +146,51 @@ from that same diagnostic.
 ![A changing native MENU test frame](menu-frame-during.png)
 
 ![Final native MENU test frame](menu-frame-final.png)
+
+
+## Exact normal MENU package and clean daemon replacement
+
+The actual Powerboat package from the normal source build is `a06df2be...`,
+RBF `31919f1e...`, build ID `d2b70e3f45e7c8c9f74073040b615e71`.
+It differs from the earlier 3090-produced `80689b9c...` package, so it received
+its own independent identical rebuild, timing checks, all 95 generated-system
+model cases and paired fitted checks at four corners. No timing gate changed.
+The normal factory build at `a4fb6209f...` also passes its final verifier after
+the package verification cache was scoped by the recorded artifact-set digest.
+
+Runtime source `c1e9eaf2564b215f96e7ae19ede4aa91ab19369d` adds explicit DE25
+idle shutdown. TERM/INT stop the socket server on a normal waiter thread. Once
+workers and frame peers have ended, the existing retirement boundary requires
+kernel REAP and OWNER_IDLE. Only then may the programmer release its own
+verified overlay and staged firmware. Destruction, an inherited configuration,
+a changed payload, a pinned peer or uncertainty cannot authorize cleanup.
+The runtime refuses this process handoff while a computer is active.
+
+Two fresh actual production-daemon processes each draw 90 full frames through
+the canonical tenfoot client, with sequence90 and zero underflows. Both run in
+boot `75872687-af6f-4927-89b2-57339a57655f`. Their clean TERM shutdowns take
+0.035779 and 0.035365 seconds, within the existing five-second supervisor grace.
+Each exits successfully with no overlay or staged firmware remaining; the
+second process acquires the normal lease and loads MENU afresh without reboot.
+The actual runtime SHA256 is `bf933608c63ae57a20572cfa65d9ce3ad1bff89506d0c35d0ef584fed7dc905a`.
+
+The shared USB stream shows changing colored frames during the first process.
+The second capture starts after both stops; it supplies no separate visual
+acceptance of the second active process. The representative drawing below is
+from the first process. There is no exact pixel comparison claim.
+
+![Normal package drawing during the clean-restart diagnostic](clean-restart-drawing.png)
+
+The bounded stock watchdog then returns to authenticated Good Linux in boot
+`79037402-2704-4f52-80b5-e8116460d859`. Card identity, kernel, approved selector
+executable/factory, clear image gates and saved-data probe all match. Services
+stop normally and no owner or overlay remains. [clean-restart.json](clean-restart.json)
+records the exact bytes and events, including the preparation refusals.
+
+This is an isolated production-daemon diagnostic. The new managed image build at the shutdown source passes final verification
+in 303.232 seconds. Its compatible userspace bundle builds in 38.333 seconds;
+neither has been deployed. The actual combined ZX81/PR controller and RTL proof
+also passes all 14 native/AArch64 scenarios in 697.022 seconds, refreshing the
+source fixture from that full run. Permanent image confirmation, full
+managed software activation, catalog ZX81/BASIC/input/media/persistence and
+unexpected-process-death recovery remain separate acceptance work.
