@@ -2,6 +2,10 @@ package fogcast
 
 import (
 	"context"
+	"errors"
+	"net/http"
+	"net/http/httptest"
+	"net/url"
 	"os"
 	"path/filepath"
 	"strings"
@@ -9,6 +13,8 @@ import (
 	"time"
 
 	"github.com/DeanoC/FogCast/catalog"
+	"github.com/DeanoC/FogCast/protocol"
+	"github.com/DeanoC/FogCast/targetclient"
 )
 
 func shippedKitTemplate(t *testing.T) []byte {
@@ -84,6 +90,9 @@ func TestKitHostConfigRestartKeepsLibrariesAndRewritesTheTarget(t *testing.T) {
 		KitHostTargetName); err != nil {
 		t.Fatal(err)
 	}
+	if rewritten, err := LoadConfig(path); err != nil || !rewritten.CorePackages.Kit || !rewritten.FolderWatch.Off {
+		t.Fatalf("a settings rewrite dropped kit keys: %+v %+v %v", rewritten.CorePackages, rewritten.FolderWatch, err)
+	}
 	existing, err := os.ReadFile(path)
 	if err != nil {
 		t.Fatal(err)
@@ -154,5 +163,87 @@ func TestRunFolderWatchOffNeverReconciles(t *testing.T) {
 	// With the watch on, a zero Service would panic on its first reconcile.
 	if err := service.RunFolderWatch(ctx); err != nil {
 		t.Fatal(err)
+	}
+}
+
+func kitModeService(t *testing.T, address string) *Service {
+	t.Helper()
+	return newService(
+		Config{
+			Targets:        []TargetConfig{{Name: KitHostTargetName, Enabled: true, Address: address, Agent: "agent-token", TargetID: "73dc9f5f-1a12-4a95-a820-a9b4e600769a"}},
+			SelectedTarget: KitHostTargetName,
+			CorePackages:   CorePackagesConfig{Kit: true},
+			Library:        LibraryConfig{AttractIdleSeconds: 60, PreferredRegions: []string{"usa"}},
+			RequestTimeout: time.Second,
+		},
+		Paths{}, &fakeServiceCatalog{}, &fakeServiceScanner{}, &fakeServicePreparer{}, &fakeServiceClient{},
+	)
+}
+
+// A slow or absent loopback agent must not move a kit host onto whatever
+// answers mDNS for its target ID.
+func TestKitHostNeverResolvesItsAgentByMDNS(t *testing.T) {
+	closed := httptest.NewServer(http.NotFoundHandler())
+	closed.Close()
+	service := kitModeService(t, closed.URL)
+	resolved := 0
+	service.resolveTarget = func(context.Context, string) ([]string, error) {
+		resolved++
+		return []string{"http://192.0.2.50:8182"}, nil
+	}
+	base, err := url.Parse(closed.URL)
+	if err != nil {
+		t.Fatal(err)
+	}
+	selected := service.targets[0]
+	if _, address, err := service.probeTarget(context.Background(), targetclient.NewClient(base, "agent-token", http.DefaultClient), selected); err == nil || address != "" {
+		t.Fatalf("probe = %q %v, want an error", address, err)
+	}
+	if resolved != 0 {
+		t.Fatalf("resolved by mDNS %d times", resolved)
+	}
+	service.kitHost = false
+	_, _, _ = service.probeTarget(context.Background(), targetclient.NewClient(base, "agent-token", http.DefaultClient), selected)
+	if resolved != 1 {
+		t.Fatalf("a desktop host resolved %d times, want 1", resolved)
+	}
+}
+
+func TestKitHostRefusesSettingsEditsToItsTarget(t *testing.T) {
+	ctx := context.Background()
+	service := kitModeService(t, "http://127.0.0.1:8182")
+	kit := service.targets[0]
+	for name, next := range map[string]LibraryConfig{
+		"another target": {Targets: []TargetConfig{kit, {Name: "lan", Enabled: true, Address: "http://192.0.2.50:8182", Agent: "other"}}, SelectedTarget: KitHostTargetName},
+		"moved address":  {Targets: []TargetConfig{{Name: KitHostTargetName, Enabled: true, Address: "http://192.0.2.50:8182", Agent: kit.Agent, TargetID: kit.TargetID}}, SelectedTarget: KitHostTargetName},
+	} {
+		next.AttractIdleSeconds, next.PreferredRegions = 60, []string{"usa"}
+		var apiErr *protocol.APIError
+		if err := service.SetLibrarySettings(ctx, next); !errors.As(err, &apiErr) || apiErr.Code != protocol.CodeBadRequest {
+			t.Fatalf("%s: err = %v, want bad request", name, err)
+		}
+	}
+	if len(service.targets) != 1 || service.targets[0].Address != kit.Address {
+		t.Fatalf("targets changed: %+v", service.targets)
+	}
+	// The same target, sent back unchanged, still lets other settings change.
+	if err := service.SetLibrarySettings(ctx, LibraryConfig{AttractIdleSeconds: 90, PreferredRegions: []string{"usa"}, Targets: []TargetConfig{kit}, SelectedTarget: KitHostTargetName}); err != nil {
+		t.Fatalf("unchanged target: %v", err)
+	}
+}
+
+func TestKitHostConfigKeepsALearnedTargetIDWhenTheAgentIsSlow(t *testing.T) {
+	root := t.TempDir()
+	learned := "73dc9f5f-1a12-4a95-a820-a9b4e600769a"
+	first, err := KitHostConfig(shippedKitTemplate(t), nil, kitHostFixture(root, "token", learned))
+	if err != nil {
+		t.Fatal(err)
+	}
+	again, err := KitHostConfig(shippedKitTemplate(t), first, kitHostFixture(root, "token", ""))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if config := loadRendered(t, again); config.Targets[0].TargetID != learned {
+		t.Fatalf("target ID %q, want %q kept", config.Targets[0].TargetID, learned)
 	}
 }

@@ -105,7 +105,7 @@ func TestKitModeStopsWhenItCannotPrepare(t *testing.T) {
 		return "", errors.New("kit host: agent config /media/fat/fogcast/agent.toml: missing")
 	})
 	code, _, stderr := runKit(t, []string{"-kit", "-listen", "127.0.0.1:0"}, &scanCompositionService{})
-	if code != 2 || !strings.Contains(stderr, "agent.toml") {
+	if code != 1 || !strings.Contains(stderr, "agent.toml") {
 		t.Fatalf("exit %d: %s", code, stderr)
 	}
 }

@@ -344,6 +344,10 @@ type Service struct {
 	// bundledFirmware is the imported default firmware, by core and ROM.
 	bundledFirmwareMu sync.Mutex
 	bundledFirmware   []protocol.BundledFirmware
+	// kitHost is [core_packages] kit: this host drives only the kit's own
+	// agent at its loopback address. It never looks the agent up by mDNS
+	// and refuses settings edits to its target.
+	kitHost bool
 }
 
 const catalogCloseScanTimeout = 2 * time.Second
@@ -569,6 +573,7 @@ func newService(config Config, paths Paths, store serviceCatalog, scanner servic
 		watchRoot:                strings.TrimSpace(config.Library.WatchRoot),
 		folderWatchInterval:      config.FolderWatch.Interval,
 		folderWatchOff:           config.FolderWatch.Off,
+		kitHost:                  config.CorePackages.Kit,
 		catalogAdmission:         make(chan struct{}, 1),
 	}
 	if len(service.targets) == 0 {

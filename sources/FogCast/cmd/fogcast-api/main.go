@@ -72,6 +72,18 @@ const (
 
 var errFolderWatchStopTimeout = errors.New("folder-watch stop timed out")
 
+func kitLibraryScan(ctx context.Context, candidate service, stderr io.Writer) {
+	scanner, ok := candidate.(interface {
+		Scan(context.Context) (catalog.ScanReport, error)
+	})
+	if !ok {
+		return
+	}
+	if _, err := scanner.Scan(ctx); err != nil && ctx.Err() == nil {
+		fmt.Fprintf(stderr, "fogcast-api: kit library scan failed: %v\n", err)
+	}
+}
+
 // prepareKitHost is replaced by tests.
 var prepareKitHost = kithost.Prepare
 
@@ -1225,7 +1237,7 @@ func runWithComposer(ctx context.Context, args []string, stdout, stderr io.Write
 		})
 		if err != nil {
 			fmt.Fprintf(stderr, "fogcast-api: %v\n", err)
-			return 2
+			return 1
 		}
 		configFile = generated
 	}
@@ -1267,20 +1279,15 @@ func runWithComposer(ctx context.Context, args []string, stdout, stderr io.Write
 		return 1
 	}
 	closers = append(closers, runCloser{label: "service cleanup", close: fogcastService.Close})
-	if *kitMode {
-		// Kit mode turns the folder watch off, so this is its one library scan.
-		if scanner, ok := fogcastService.(interface {
-			Scan(context.Context) (catalog.ScanReport, error)
-		}); ok {
-			if _, err := scanner.Scan(ctx); err != nil {
-				fmt.Fprintf(stderr, "fogcast-api: kit library scan failed: %v\n", err)
-			}
-		}
-	}
 	watchCtx, watchCancel := context.WithCancel(ctx)
 	watchDone := make(chan struct{})
 	go func() {
 		defer close(watchDone)
+		if *kitMode {
+			// Kit mode turns the folder watch off, so this is its one
+			// library scan. It runs here so the API serves meanwhile.
+			kitLibraryScan(watchCtx, fogcastService, stderr)
+		}
 		runFolderWatch(watchCtx, fogcastService, stderr, folderWatchLogInterval)
 	}()
 	closers = append(closers, runCloser{label: "folder-watch stop", close: func() error {

@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"path/filepath"
 
+	"github.com/DeanoC/FogCast/internal/discovery"
 	"github.com/pelletier/go-toml/v2"
 )
 
@@ -21,8 +22,9 @@ type KitHost struct {
 	// AgentAddress is the agent's loopback origin, such as http://127.0.0.1:8182.
 	AgentAddress string
 	AgentToken   string
-	// TargetID is the agent's target ID, or empty when it is not known yet;
-	// the host then learns it from the first authenticated health.
+	// TargetID is the agent's target ID, or empty when the agent did not
+	// answer: the existing config's ID is then kept, or the host learns it
+	// from the first authenticated health.
 	TargetID string
 	State    string
 	Staging  string
@@ -55,10 +57,20 @@ func KitHostConfig(template, existing []byte, kit KitHost) ([]byte, error) {
 			return nil, fmt.Errorf("decode existing kit host config: %w", err)
 		}
 	}
+	targetID := kit.TargetID
+	if targetID == "" {
+		// The agent did not answer in time: keep the ID the host learned
+		// before rather than starting without one.
+		for _, target := range raw.Targets {
+			if target.Name == KitHostTargetName && discovery.ValidID(target.TargetID) {
+				targetID = target.TargetID
+			}
+		}
+	}
 	raw.TargetID, raw.BaseURL, raw.Token = "", "", ""
 	raw.SelectedTarget = KitHostTargetName
 	raw.Targets = []fileTarget{{
-		TargetID: kit.TargetID, Name: KitHostTargetName, Enabled: true,
+		TargetID: targetID, Name: KitHostTargetName, Enabled: true,
 		Address: kit.AgentAddress, Agent: kit.AgentToken,
 	}}
 	raw.State, raw.Staging = kit.State, kit.Staging

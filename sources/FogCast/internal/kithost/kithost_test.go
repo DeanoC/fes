@@ -122,14 +122,19 @@ func TestPrepareStartsWithoutATargetIDWhenTheAgentStaysAway(t *testing.T) {
 	}
 }
 
-// A wrong token never yields a target ID, so kit mode does not guess one.
+// A wrong token never yields a target ID, so kit mode does not guess one,
+// and it stops waiting at the first answer.
 func TestPrepareDoesNotTakeATargetIDWithoutTheBearer(t *testing.T) {
-	agent, _ := fakeAgent(t, "agent-token", 0)
+	agent, probes := fakeAgent(t, "agent-token", 0)
 	f := newFixture(t, listenOf(agent), "other-token")
-	f.options.AgentWait = 600 * time.Millisecond
+	f.options.AgentWait = 10 * time.Second
+	started := time.Now()
 	path, err := Prepare(context.Background(), f.options)
 	if err != nil {
 		t.Fatal(err)
+	}
+	if elapsed := time.Since(started); elapsed > 2*time.Second || probes.Load() != 1 {
+		t.Fatalf("waited %s over %d probes for a rejected token", elapsed, probes.Load())
 	}
 	if config, err := fogcast.LoadConfig(path); err != nil || config.Targets[0].TargetID != "" {
 		t.Fatalf("target %+v %v", config.Targets, err)
@@ -152,6 +157,10 @@ func TestPrepareFallsBackToTmpfsWithoutFESDATA3(t *testing.T) {
 		if path != f.root {
 			t.Errorf("checked %s", path)
 		}
+		// mister-agent prepares FESDATA3, so the check follows the wait.
+		if !strings.Contains(strings.Join(f.logs, "|"), "reached the agent") {
+			t.Error("FESDATA3 checked before the agent wait")
+		}
 		return errors.New("FESDATA3 is not mounted")
 	}
 	path, err := Prepare(context.Background(), f.options)
@@ -164,7 +173,7 @@ func TestPrepareFallsBackToTmpfsWithoutFESDATA3(t *testing.T) {
 	if _, err := os.Stat(f.root); !errors.Is(err, os.ErrNotExist) {
 		t.Fatalf("created the unverified root: %v", err)
 	}
-	if len(f.logs) == 0 || !strings.Contains(f.logs[0], "not on FESDATA3") {
+	if !strings.Contains(strings.Join(f.logs, "|"), "not on FESDATA3") {
 		t.Fatalf("logs %q", f.logs)
 	}
 }
@@ -199,6 +208,43 @@ func TestPrepareKeepsAnAddedLibraryAcrossRestarts(t *testing.T) {
 	}
 }
 
+func TestPrepareMovesAnUnreadableConfigAside(t *testing.T) {
+	agent, _ := fakeAgent(t, "agent-token", 0)
+	f := newFixture(t, listenOf(agent), "agent-token")
+	if err := os.MkdirAll(f.root, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	writeFile(t, filepath.Join(f.root, "config.toml"), "key_from_a_newer_bundle = true\n")
+	path, err := Prepare(context.Background(), f.options)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := fogcast.LoadConfig(path); err != nil {
+		t.Fatal(err)
+	}
+	aside, _ := filepath.Glob(filepath.Join(f.root, "config.toml.unreadable-*"))
+	if len(aside) != 1 {
+		t.Fatalf("aside = %v", aside)
+	}
+	if data, err := os.ReadFile(aside[0]); err != nil || !strings.Contains(string(data), "newer_bundle") {
+		t.Fatalf("kept %q %v", data, err)
+	}
+}
+
+func TestPrepareStopsWhenCancelledDuringTheWait(t *testing.T) {
+	agent, _ := fakeAgent(t, "agent-token", 1<<30)
+	f := newFixture(t, listenOf(agent), "agent-token")
+	f.options.AgentWait = time.Minute
+	ctx, cancel := context.WithTimeout(context.Background(), 300*time.Millisecond)
+	defer cancel()
+	if _, err := Prepare(ctx, f.options); !errors.Is(err, context.DeadlineExceeded) {
+		t.Fatalf("err = %v", err)
+	}
+	if _, err := os.Stat(f.root); !errors.Is(err, os.ErrNotExist) {
+		t.Fatalf("state created after cancellation: %v", err)
+	}
+}
+
 func TestAgentAddressStaysOnLoopback(t *testing.T) {
 	for listen, want := range map[string]string{
 		"0.0.0.0:8182":   "http://127.0.0.1:8182",
@@ -206,6 +252,8 @@ func TestAgentAddressStaysOnLoopback(t *testing.T) {
 		"[::]:9000":      "http://127.0.0.1:9000",
 		"127.0.0.1:8182": "http://127.0.0.1:8182",
 		"localhost:8182": "http://127.0.0.1:8182",
+		"[::1]:8182":     "http://[::1]:8182",
+		"127.0.0.2:8182": "http://127.0.0.2:8182",
 	} {
 		if got, err := AgentAddress(listen); err != nil || got != want {
 			t.Fatalf("%s: %s %v", listen, got, err)
