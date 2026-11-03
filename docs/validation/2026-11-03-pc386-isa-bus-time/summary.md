@@ -68,6 +68,15 @@ registers them with the rest of the retirement, classifies the port
 that forms the ROM address, so the hold still follows a retirement by five
 clocks. `trace_gov_charge` widens to 13 bits.
 
+**Not covered: an access across the window's edge.** The MMIO class is the
+access's first byte's. An unaligned word or dword that crosses A0000h or
+C0000h counts whole: one starting at 9FFFFh is not charged, and one at
+BFFFFh is charged as VGA memory although its tail is in the VGA BIOS's ROM.
+Codex raised this in review. Splitting it would need the operand's next-line
+attribute, as the store path has (`wb_at1`), and a post-seal RTL change. No
+period program is known to make such an access, so it is documented in the
+design's "Speed control" and left.
+
 **Device time.** The machine's own device time is unchanged: 720 ns for an
 8-bit port, local-bus time for VGA memory and ports. While the governed CPU
 is ahead of the reference, device time spends that lead, so a loop of port

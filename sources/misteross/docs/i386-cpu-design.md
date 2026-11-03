@@ -1237,7 +1237,11 @@ slows the CPU without changing any result.
   clocks at the frequency the governor runs at, rounded: an 8-bit cycle is
   9 clocks at 286-12 and 18 at 386DX-25. The WB uop's I/O port and size
   give the I/O cycles; the attribute of its operand's address and of a
-  `st2` store's give the MMIO ones.
+  `st2` store's give the MMIO ones. That attribute is the access's first
+  byte's, so an unaligned access across the window's edge counts whole: a
+  word at 9FFFFh is not charged and one at BFFFFh is charged as VGA memory.
+  The governor does not split such an access; no period program is known to
+  make one.
 - **Timing:** the class lookup, the cost ROM, the charge, the debt and its
   compare are each a register, five clocks from a retirement to the hold, so
   none of it is on D's or WB's paths; D's issue gains one registered term.
