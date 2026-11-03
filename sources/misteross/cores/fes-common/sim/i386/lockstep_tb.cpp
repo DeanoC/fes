@@ -99,6 +99,10 @@
 //             frames past a 16-bit stack's limit in the MMIO window, which
 //             fault before any read), LLDT, LTR, LAR, LSL, VERR, VERW, ARPL,
 //             and what stops as not built.
+//   no387     the directed cases of the ESC instructions with no 387
+//             (run_no387_cases): every form in real and protected mode,
+//             their faults, #NM, FNSTENV's and FNSAVE's layouts and FPU
+//             detection routines, under the no-387 rule (EscStep).
 // Output: "FAIL <label> <field> <expected> <actual>..." per failing run, then
 // one JSON summary line. Exit status 1 on any failure.
 #include "Vfes_i386_cpu.h"
@@ -1161,6 +1165,9 @@ struct Summary {
     uint64_t pm_retirements = 0, cs_rule = 0, ss_error_rule = 0;
     std::map<int, uint64_t> pm_deliveries, unbuilt;
     std::map<std::string, uint64_t> pm_kinds;  // retirements with PE set of this slice's instructions, by kind
+    // no387_rule: ESC instructions stepped under the no-387 rule, and those
+    // of them the oracle moved past without stepping (EscStep).
+    uint64_t no387_rule = 0, no387_skips = 0;
 };
 
 void hash_state(Summary &summary, const State &s) {
@@ -1449,6 +1456,138 @@ struct Code {
     std::set<uint32_t> rewritten;
 };
 
+// An ESC instruction's memory operand: its offset, wrapped by address size,
+// and its segment (fes_i386::SEG_*), from the bytes at code and the state.
+// The 386EX's scaled base for a SIB index of 100b (the divergence
+// invalid-sib-scales-base) is not modelled: no case here uses one.
+struct EscOperand {
+    uint32_t offset = 0;
+    int seg = fes_i386::SEG_DS;
+};
+EscOperand esc_operand(const uint8_t *code, bool code32, const State &state) {
+    unsigned i = 0;
+    bool adsize = false;
+    int seg = -1;
+    while (i < 15 && is_prefix(code[i])) {
+        if (code[i] == 0x67) adsize = true;
+        const uint8_t segs[] = {0x26, 0x2e, 0x36, 0x3e, 0x64, 0x65};
+        for (int k = 0; k < 6; ++k)
+            if (code[i] == segs[k]) seg = k;
+        ++i;
+    }
+    const uint8_t modrm = code[i + 1];
+    const unsigned mod = modrm >> 6, rm = modrm & 7;
+    const uint32_t *r = state.gpr;
+    auto d8 = [&](unsigned at) { return uint32_t(int32_t(int8_t(code[at]))); };
+    auto d16 = [&](unsigned at) { return uint32_t(code[at] | code[at + 1] << 8); };
+    auto d32 = [&](unsigned at) { return d16(at) | d16(at + 2) << 16; };
+    EscOperand o;
+    bool stack = false;
+    if (code32 == adsize) {  // 16-bit addressing
+        static const int base16[8] = {fes_i386::REG_EBX, fes_i386::REG_EBX, fes_i386::REG_EBP, fes_i386::REG_EBP,
+                                      -1, -1, fes_i386::REG_EBP, fes_i386::REG_EBX};
+        static const int index16[8] = {fes_i386::REG_ESI, fes_i386::REG_EDI, fes_i386::REG_ESI, fes_i386::REG_EDI,
+                                       fes_i386::REG_ESI, fes_i386::REG_EDI, -1, -1};
+        uint32_t sum = 0;
+        if (mod == 0 && rm == 6) {
+            sum = d16(i + 2);
+        } else {
+            if (base16[rm] >= 0) sum += r[base16[rm]];
+            if (index16[rm] >= 0) sum += r[index16[rm]];
+            stack = base16[rm] == fes_i386::REG_EBP;
+            if (mod == 1) sum += d8(i + 2);
+            if (mod == 2) sum += d16(i + 2);
+        }
+        o.offset = sum & 0xffff;
+    } else {
+        unsigned at = i + 2;
+        uint32_t sum = 0;
+        if (rm == 4) {
+            const uint8_t sib = code[at++];
+            const unsigned base = sib & 7, index = (sib >> 3) & 7;
+            if (index != 4) sum += r[index] << (sib >> 6);
+            if (base == 5 && mod == 0) {
+                sum += d32(at);
+                at += 4;
+            } else {
+                sum += r[base];
+                stack = base == fes_i386::REG_ESP || base == fes_i386::REG_EBP;
+            }
+        } else if (rm == 5 && mod == 0) {
+            sum = d32(at);
+            at += 4;
+        } else {
+            sum = r[rm];
+            stack = rm == fes_i386::REG_EBP;
+        }
+        if (mod == 1) sum += d8(at);
+        if (mod == 2) sum += d32(at);
+        o.offset = sum;
+    }
+    o.seg = seg >= 0 ? seg : stack ? fes_i386::SEG_SS : fes_i386::SEG_DS;
+    return o;
+}
+
+// The no-387 rule (no387_rule). Bochs, the oracle, models a 387; the FES CPU
+// is a 386 with an empty socket (docs/i386-cpu-design.md, FPU). For an ESC
+// instruction (D8h-DFh) with CR0.EM and CR0.TS clear and no LOCK (whose
+// #NM and #UD Bochs raises as the FES CPU does):
+//   - Bochs's 387 reads as an empty socket for the step (empty_socket): it
+//     stores all ones for FNSTSW, FNSTCW and the 387's fields of FNSTENV and
+//     FNSAVE, and FNSTSW AX gives FFFFh. After it, no exception is pending.
+//   - FNINIT, FNSAVE, FLDENV and FRSTOR keep the x87 pointers (keep), which
+//     Bochs clears or loads and the FES CPU leaves.
+//   - A memory form that accesses nothing (FST, FSTP, FIST, FISTP, FBSTP,
+//     the reserved ones) and a register form Bochs's 386 rejects as #UD are
+//     not stepped (skip): the oracle moves past it and takes the x87
+//     pointers the instruction writes, its CS and EIP and a memory form's
+//     segment selector and offset.
+// Bochs's own x87 pointer updates (FPU_update_last_instruction) follow the
+// FES CPU's for every other form, so FNSTENV's and FNSAVE's pointer fields
+// are compared with Bochs's. With EM or TS set every ESC form raises #NM on
+// both sides, but for those Bochs's 386 rejects as #UD (nm_patch): there the
+// oracle steps a defined form of the same length in its place, FNOP for a
+// register form and FLD m32real with the same ModRM for a memory form,
+// which raises the #NM.
+struct EscStep {
+    bool esc = false;
+    bool status = false;
+    bool keep = false;
+    bool skip = false;
+    bool mem = false;
+    bool nm_patch = false;
+    unsigned at = 0;  // the opcode's byte, after the prefixes
+    uint8_t length = 0;
+    EscOperand operand;
+};
+EscStep esc_step(const uint8_t *code, bool code32, const State &state, const fes_i386::Oracle &oracle) {
+    EscStep e;
+    unsigned i = 0;
+    bool lock = false;
+    for (; i < 15 && is_prefix(code[i]); ++i) lock = lock || code[i] == 0xf0;
+    const uint8_t op = code[i];
+    if (i >= 15 || (op & 0xf8) != 0xd8 || lock) return e;
+    const uint8_t modrm = code[i + 1];
+    const unsigned reg = (modrm >> 3) & 7;
+    const fes_i386::Decoded decoded = oracle.decode(code, 16, code32);
+    e.at = i;
+    if (state.cr0 & 0xc) {
+        e.nm_patch = decoded.undefined;
+        return e;
+    }
+    e.esc = true;
+    e.mem = modrm < 0xc0;
+    e.length = decoded.length;
+    e.status = e.mem ? (op == 0xdd && (reg == 7 || reg == 6)) || (op == 0xd9 && reg == 6) : op == 0xdf && modrm == 0xe0;
+    e.keep = e.mem ? (op == 0xdd && (reg == 6 || reg == 4)) || (op == 0xd9 && reg == 4) : op == 0xdb && modrm == 0xe3;
+    const bool no_access = e.mem && ((op == 0xd9 && reg >= 1 && reg <= 3) || (op == 0xdb && reg != 0 && reg != 5)
+                                     || (op == 0xdd && (reg == 1 || reg == 2 || reg == 3 || reg == 5))
+                                     || (op == 0xdf && (reg == 1 || reg == 2 || reg == 3 || reg == 6 || reg == 7)));
+    e.skip = no_access || decoded.undefined;
+    if (e.mem) e.operand = esc_operand(code, code32, state);
+    return e;
+}
+
 Outcome lockstep(fes_i386::Oracle &oracle, OracleBus &bus, Rtl &rtl, const std::vector<Entry> &entries,
                  const Fields &label_corpus, uint64_t retire_limit, bool stop_at_exception, Summary &summary,
                  Mismatches &out, uint32_t code_hi = 0, Irq *irq = nullptr, const Code *own = nullptr) {
@@ -1636,7 +1775,51 @@ Outcome lockstep(fes_i386::Oracle &oracle, OracleBus &bus, Rtl &rtl, const std::
                 }
             });
         bus.io.log.clear();
-        fes_i386::StepResult result = oracle.step();
+        // The no-387 rule (EscStep). A step it moves past retires nothing
+        // but the instruction: no event may be due at its boundary.
+        const EscStep esc = esc_step(code, code32, before, oracle);
+        fes_i386::StepResult result;
+        if (esc.esc && esc.skip) {
+            if (irq || (before.eflags & 0x100) || !esc.length)
+                out.add(hex(before.eip) + ".no387-skip-unsupported", 0, 1);
+            State next = before;
+            next.eip = before.eip + esc.length;
+            oracle.set_state(next);
+            fes_i386::X87Pointers pointers = oracle.x87_pointers();
+            pointers.ip = before.eip;
+            pointers.cs = before.seg[fes_i386::SEG_CS].selector;
+            if (esc.mem) {
+                pointers.dp = esc.operand.offset;
+                pointers.ds = before.seg[esc.operand.seg].selector;
+            }
+            oracle.set_x87_pointers(pointers);
+            result.retired = true;
+            result.eip_before = before.eip;
+            ++summary.no387_skips;
+        } else if (esc.nm_patch) {
+            const uint32_t at = linear + esc.at;
+            const uint8_t was[2] = {bus.ram[at], bus.ram[at + 1]};
+            if (was[1] >= 0xc0) {
+                bus.ram[at] = 0xd9;
+                bus.ram[at + 1] = 0xd0;
+            } else {
+                bus.ram[at] = 0xd9;
+                bus.ram[at + 1] = uint8_t(was[1] & 0xc7);
+            }
+            oracle.invalidate(at, 2);
+            result = oracle.step();
+            bus.ram[at] = was[0];
+            bus.ram[at + 1] = was[1];
+            oracle.invalidate(at, 2);
+            ++summary.no387_rule;
+        } else {
+            const fes_i386::X87Pointers kept = oracle.x87_pointers();
+            if (esc.esc) oracle.empty_socket(esc.status);
+            result = oracle.step();
+            if (esc.keep) oracle.set_x87_pointers(kept);
+            if (esc.esc) oracle.empty_socket(false);
+        }
+        if (esc.esc) ++summary.no387_rule;
         if (irq) {
             oracle.set_iteration_hook({});
             irq->intr_next = irq->intr_at >= 0;
@@ -4861,6 +5044,527 @@ int run_pmode_cases(fes_i386::Oracle &oracle, OracleBus &bus, Rtl &rtl, const st
     return 0;
 }
 
+// ---- The ESC instructions with no 387 (directed) -------------------------------------
+// docs/i386-cpu-design.md's FPU section, which no corpus covers. Every case
+// runs in lockstep with Bochs under the no-387 rule (EscStep), and the bench
+// also checks what the empty socket gives, worked out here apart from the
+// oracle. Three environments: real mode (CS 0FF0h, code at 0200h, so the
+// instruction pointer's linear address has bit 16 set; DS 0700h, ES 8000h,
+// SS 0, SP 0F00h); 16-bit protected mode (CS 08h; DS 20h, base 7000h; ES
+// 28h, base 18000h; SS 10h), and 32-bit (CS 18h, flat, 32-bit; the same
+// data segments), each entered from 0000:1000 as run_pmode_cases does, with
+// every IDT gate (or real-mode vector) at a HLT. The cases:
+//   form.<env>.<op><modrm>  MOV AX, 1234h; FLD dword [180h], which sets the
+//       x87 pointers; the form, a memory form's operand at [100h]; FNSTENV
+//       [300h]; HLT. Checked: the form's stores at 100h (FNSTSW and FNSTCW
+//       FFFFh, FNSTENV's and FNSAVE's layouts) and nothing else there; AX
+//       (FFFFh after FNSTSW AX); the pointers FNSTENV stores at 300h, the
+//       form's CS and EIP and a memory form's DS and offset, but a control
+//       form's, which leaves them. Every ModRM of every opcode: register
+//       forms by their byte, memory forms by their reg field.
+//   fault.*  An operand past a limit: real mode at DS:FFFFh, every memory
+//       form, raises #GP(0) when the form accesses memory and retires when
+//       it does not (FST, FIST, FBSTP, the reserved ones); at SS:FFFFh
+//       (BP-based), #SS(0); in 16-bit protected mode a read-only DS
+//       refuses the stores, a 256-byte DS the reads, and FNSAVE's register
+//       image past it faults after the environment's stores.
+//   wrap.*  FNSTENV with a 32-bit layout at DS:FFF0h in real mode: each
+//       field wraps at 64 KiB, as Bochs wraps them.
+//   nm.<form>.<cr0>  EM, MP and TS in each combination: an ESC form raises
+//       #NM when EM or TS is set, WAIT when MP and TS are; otherwise each
+//       retires.
+//   lock.*  LOCK raises #UD on an ESC form, before EM's #NM.
+//   layout.*  FNSTENV and FNSAVE in both operand sizes in each environment,
+//       after a load through ES (and a 32-bit SIB address, and a 32-bit
+//       address in real mode).
+//   detect.*  FPU detection routines, which must find no coprocessor: the
+//       FNSTSW low byte and FNSTCW 103Fh test (Intel's), the FNSTCW high
+//       byte, the WAIT forms (FINIT, FSTSW), FNSTSW AX, and DOS/4GW's
+//       FNINIT, FNSTSW, FNSTCW at its start; BL is 1 for a coprocessor and
+//       0 for none.
+int run_no387_cases(fes_i386::Oracle &oracle, OracleBus &bus, Rtl &rtl, const std::vector<Entry> &entries,
+                    Summary &summary) {
+    struct Asm {
+        bool c32 = false;
+        std::vector<uint8_t> b;
+        void op(std::initializer_list<uint8_t> bytes) { b.insert(b.end(), bytes); }
+        void w(uint16_t v) { b.push_back(uint8_t(v)); b.push_back(uint8_t(v >> 8)); }
+        void d(uint32_t v) { w(uint16_t(v)); w(uint16_t(v >> 16)); }
+        size_t here() const { return b.size(); }
+        // A ModRM memory operand at [off]: disp16 in 16-bit code, disp32 in 32-bit.
+        void m(unsigned reg, uint32_t off) {
+            b.push_back(uint8_t(reg << 3 | (c32 ? 5 : 6)));
+            if (c32) d(off); else w(uint16_t(off));
+        }
+        void esc(uint8_t opcode, unsigned reg, uint32_t off) { b.push_back(opcode); m(reg, off); }
+        void ax(uint16_t v) { if (c32) b.push_back(0x66); b.push_back(0xb8); w(v); }  // MOV AX, v
+    };
+    constexpr uint32_t CODE = 0x1000, GDT = 0x2000, IDT = 0x3000, HANDLER = 0x1800, DATA = 0x7000, EXTRA = 0x18000;
+    auto desc = [](uint32_t base, uint32_t limit, uint8_t ar, bool g, bool db) {
+        return uint64_t(limit & 0xffff) | uint64_t(base & 0xffff) << 16 | uint64_t((base >> 16) & 0xff) << 32
+             | uint64_t(ar) << 40 | uint64_t((limit >> 16) & 0xf) << 48 | uint64_t(db) << 54 | uint64_t(g) << 55
+             | uint64_t(base >> 24) << 56;
+    };
+    auto gate = [](uint16_t sel, uint32_t off, uint8_t ar) {
+        return (off & 0xffff) | uint64_t(sel) << 16 | uint64_t(ar) << 40 | uint64_t(off >> 16) << 48;
+    };
+    //   08h code 16-bit, base 0, 64K      20h data, base 7000h, 64K     30h data read-only, base 7000h
+    //   10h data, base 0, 64K             28h data, base 18000h, 64K    38h data, base 7000h, limit FFh
+    //   18h code 32-bit, flat
+    const uint64_t gdt[8] = {0, desc(0, 0xffff, 0x9b, false, false), desc(0, 0xffff, 0x93, false, false),
+                             desc(0, 0xfffff, 0x9b, true, true), desc(DATA, 0xffff, 0x93, false, false),
+                             desc(EXTRA, 0xffff, 0x93, false, false), desc(DATA, 0xffff, 0x91, false, false),
+                             desc(DATA, 0xff, 0x93, false, false)};
+    enum EnvKind { REAL, PM16, PM32 };
+    struct Env { EnvKind kind; const char *name; uint16_t cs, ds, es; };
+    const Env envs[3] = {{REAL, "real", 0x0ff0, 0x0700, 0x8000}, {PM16, "pm16", 0x08, 0x20, 0x28},
+                         {PM32, "pm32", 0x18, 0x20, 0x28}};
+    constexpr uint32_t REAL_IP = 0x0200;
+
+    // The x87 pointers' words in the 387's layouts (the FES CPU's "x87
+    // pointers"): all ones for the 387's fields, its opcode and the 32-bit
+    // layouts' reserved halves; in real mode, the selector times 16 plus the
+    // offset.
+    auto env_image = [](bool pe, bool o32, const fes_i386::X87Pointers &p) {
+        uint32_t f[7] = {0xffffffffu, 0xffffffffu, 0xffffffffu, 0, 0, 0, 0};
+        if (pe) {
+            f[3] = p.ip;
+            f[4] = 0x07ff0000u | p.cs;
+            f[5] = p.dp;
+            f[6] = 0xffff0000u | p.ds;
+        } else {
+            const uint32_t lip = (uint32_t(p.cs) << 4) + p.ip, ldp = (uint32_t(p.ds) << 4) + p.dp;
+            f[3] = 0xffff0000u | (lip & 0xffff);
+            f[4] = ((lip & 0xffff0000u) >> 4) | 0x7ff;
+            f[5] = 0xffff0000u | (ldp & 0xffff);
+            f[6] = (ldp & 0xffff0000u) >> 4;
+        }
+        std::vector<uint8_t> image;
+        for (uint32_t v : f)
+            for (unsigned i = 0; i < (o32 ? 4u : 2u); ++i) image.push_back(uint8_t(v >> (8 * i)));
+        return image;
+    };
+    // The 387's control forms, which leave the x87 pointers, and the forms
+    // that access memory.
+    auto control = [](uint8_t op, uint8_t modrm) {
+        const unsigned reg = (modrm >> 3) & 7;
+        if (modrm < 0xc0) return (op == 0xd9 && reg >= 4) || (op == 0xdd && (reg == 4 || reg == 6 || reg == 7));
+        return (op == 0xdb && modrm >= 0xe0 && modrm <= 0xe4) || (op == 0xdf && modrm == 0xe0);
+    };
+    auto accesses = [](uint8_t op, uint8_t modrm) {
+        const unsigned reg = (modrm >> 3) & 7;
+        if (modrm >= 0xc0) return false;
+        switch (op) {
+        case 0xd9: return reg == 0 || reg >= 4;
+        case 0xdb: return reg == 0 || reg == 5;
+        case 0xdd: return reg == 0 || reg == 4 || reg == 6 || reg == 7;
+        case 0xdf: return reg == 0 || reg == 4 || reg == 5;
+        default: return true;  // D8, DA, DC, DE: arithmetic with a memory operand
+        }
+    };
+
+    struct Check { uint32_t address; std::vector<uint8_t> bytes; };
+    struct Case {
+        std::string label;
+        const Env *env;
+        std::vector<uint8_t> body;      // after the environment's prologue
+        uint32_t cr0 = 0;               // MP, EM, TS (bits 1-3)
+        int vector = -1;                // the exception the run must end in, else HLT
+        std::vector<Check> checks;      // bytes the run must leave, at linear addresses
+        int ax = -1, bl = -1;           // AX and BL after the run, if checked
+        uint16_t bp = 0;
+    };
+    std::vector<Case> cases;
+    auto prologue = [&](Asm &a, const Env &e) {
+        if (e.kind == REAL) return;
+        a.c32 = false;
+        a.op({0xfa, 0x31, 0xc0, 0x8e, 0xd8});                    // CLI; XOR AX, AX; MOV DS, AX
+        a.op({0x0f, 0x01, 0x16}); a.w(0x2100);                  // LGDT [2100h]
+        a.op({0x0f, 0x01, 0x1e}); a.w(0x2108);                  // LIDT [2108h]
+        a.op({0x0f, 0x20, 0xc0, 0x0c, 0x01, 0x0f, 0x22, 0xc0});  // MOV EAX, CR0; OR AL, 1; MOV CR0, EAX
+        const size_t jmp = a.here();
+        a.op({0xea}); a.w(0); a.w(e.cs);                        // JMP cs:pm
+        const uint16_t pm = uint16_t(CODE + a.here());
+        a.b[jmp + 1] = uint8_t(pm); a.b[jmp + 2] = uint8_t(pm >> 8);
+        a.c32 = e.kind == PM32;
+        a.ax(e.ds); a.op({0x8e, 0xd8});                          // MOV DS, AX
+        a.ax(e.es); a.op({0x8e, 0xc0});                          // MOV ES, AX
+        a.ax(0x10); a.op({0x8e, 0xd0});                          // MOV SS, AX
+        a.op({0xbc}); if (a.c32) a.d(0x0f00); else a.w(0x0f00);  // MOV (E)SP, 0F00h
+    };
+    // Where the case's body starts: its CS offset, and the pointers' model.
+    auto start = [&](const Env &e, Asm &a) { return e.kind == REAL ? REAL_IP + uint32_t(a.here()) : CODE + uint32_t(a.here()); };
+    auto data = [&](const Env &e) { return e.kind == REAL ? uint32_t(e.ds) << 4 : DATA; };
+
+    // form.*: every ModRM of every ESC opcode in each environment.
+    for (const Env &e : envs) {
+        for (unsigned op = 0xd8; op <= 0xdf; ++op) {
+            for (unsigned modrm = 0; modrm < 0x100; ++modrm) {
+                const bool mem = modrm < 0xc0;
+                if (mem && (modrm & 0xc7) != 0) continue;  // one memory form per reg field
+                Asm a;
+                prologue(a, e);
+                a.c32 = e.kind == PM32;
+                Asm body;
+                body.c32 = a.c32;
+                const uint32_t base = start(e, a);
+                body.ax(0x1234);
+                const uint32_t fld_ip = base + uint32_t(body.here());
+                body.esc(0xd9, 0, 0x180);                       // FLD dword [180h]
+                const uint32_t form_ip = base + uint32_t(body.here());
+                if (mem) body.esc(uint8_t(op), (modrm >> 3) & 7, 0x100);
+                else body.op({uint8_t(op), uint8_t(modrm)});
+                body.esc(0xd9, 6, 0x300);                       // FNSTENV [300h]
+                const bool pe = e.kind != REAL, o32 = e.kind == PM32;
+                fes_i386::X87Pointers before{fld_ip, 0x180, e.cs, e.ds};
+                fes_i386::X87Pointers after = before;
+                const uint8_t form_modrm = mem ? uint8_t(modrm | (o32 ? 5 : 6)) : uint8_t(modrm);
+                if (!control(uint8_t(op), form_modrm)) {
+                    after.ip = form_ip;
+                    if (mem) after.dp = 0x100;
+                }
+                Case c;
+                c.label = std::string("form.") + e.name + "." + hex(op).substr(hex(op).size() - 2) + "." +
+                          (mem ? "m" + std::to_string((modrm >> 3) & 7) : hex(modrm | 0x100).substr(1));
+                c.env = &e;
+                c.body = body.b;
+                // The form's operand at 100h, a pattern but for what it stores.
+                std::vector<uint8_t> operand(0x70);
+                for (unsigned i = 0; i < operand.size(); ++i) operand[i] = uint8_t(0x10 + i);
+                if (mem && op == 0xd9 && ((modrm >> 3) & 7) == 7) operand[0] = operand[1] = 0xff;      // FNSTCW
+                if (mem && op == 0xdd && ((modrm >> 3) & 7) == 7) operand[0] = operand[1] = 0xff;      // FNSTSW
+                if (mem && (op == 0xd9 || op == 0xdd) && ((modrm >> 3) & 7) == 6) {                    // FNSTENV, FNSAVE
+                    const std::vector<uint8_t> image = env_image(pe, o32, before);
+                    std::copy(image.begin(), image.end(), operand.begin());
+                    if (op == 0xdd) std::fill(operand.begin() + long(image.size()), operand.begin() + long(image.size()) + 80, 0xff);
+                }
+                c.checks.push_back({data(e) + 0x100, operand});
+                c.checks.push_back({data(e) + 0x300, env_image(pe, o32, after)});
+                c.ax = op == 0xdf && modrm == 0xe0 ? 0xffff : 0x1234;
+                cases.push_back(c);
+            }
+        }
+    }
+    // fault.*: every memory form with its operand at DS:FFFFh, in real mode.
+    for (unsigned op = 0xd8; op <= 0xdf; ++op) {
+        for (unsigned reg = 0; reg < 8; ++reg) {
+            Asm body;
+            body.esc(uint8_t(op), reg, 0xffff);
+            Case c;
+            c.label = "fault.real." + hex(op).substr(hex(op).size() - 2) + ".m" + std::to_string(reg);
+            c.env = &envs[REAL];
+            c.body = body.b;
+            c.vector = accesses(uint8_t(op), uint8_t(reg << 3 | 6)) ? 13 : -1;
+            cases.push_back(c);
+        }
+    }
+    // At SS:FFFFh through BP: #SS(0) for FLD, FNSTSW, FNSTENV; FST retires.
+    for (auto [name, op, reg, vector] : std::initializer_list<std::tuple<const char *, uint8_t, unsigned, int>>{
+             {"fld", 0xd9, 0, 12}, {"fnstsw", 0xdd, 7, 12}, {"fnstenv", 0xd9, 6, 12}, {"fst", 0xd9, 2, -1}}) {
+        Case c;
+        c.label = std::string("fault.real.ss.") + name;
+        c.env = &envs[REAL];
+        c.body = {op, uint8_t(0x46 | reg << 3), 0x00};  // op [BP+0]
+        c.bp = 0xffff;
+        c.vector = vector;
+        cases.push_back(c);
+    }
+    // 16-bit protected mode: DS read-only (30h), then DS of 256 bytes (38h).
+    for (auto [name, op, reg, sel, off, vector] :
+         std::initializer_list<std::tuple<const char *, uint8_t, unsigned, uint16_t, uint16_t, int>>{
+             {"ro.fnstsw", 0xdd, 7, 0x30, 0x100, 13}, {"ro.fnstcw", 0xd9, 7, 0x30, 0x100, 13},
+             {"ro.fnstenv", 0xd9, 6, 0x30, 0x100, 13}, {"ro.fnsave", 0xdd, 6, 0x30, 0x100, 13},
+             {"ro.fst", 0xd9, 2, 0x30, 0x100, -1}, {"ro.fld", 0xd9, 0, 0x30, 0x100, -1},
+             {"small.fld", 0xd9, 0, 0x38, 0x100, 13}, {"small.fst", 0xd9, 2, 0x38, 0x100, -1},
+             {"small.fld-m64", 0xdd, 0, 0x38, 0xfc, 13}, {"small.fldenv", 0xd9, 4, 0x38, 0xf8, 13},
+             {"small.fnstenv", 0xd9, 6, 0x38, 0xf0, -1}, {"small.fnsave-partial", 0xdd, 6, 0x38, 0xf0, 13}}) {
+        Asm body;
+        body.ax(sel); body.op({0x8e, 0xd8});  // MOV DS, AX
+        body.esc(op, reg, off);
+        Case c;
+        c.label = std::string("fault.pm16.") + name;
+        c.env = &envs[PM16];
+        c.body = body.b;
+        c.vector = vector;
+        cases.push_back(c);
+    }
+    // wrap.*: a 32-bit FNSTENV at DS:FFF0h in real mode.
+    {
+        Asm body;
+        body.op({0x66}); body.esc(0xd9, 6, 0xfff0);
+        Case c;
+        c.label = "wrap.real.fnstenv-o32";
+        c.env = &envs[REAL];
+        c.body = body.b;
+        const std::vector<uint8_t> image = env_image(false, true, fes_i386::X87Pointers{});
+        const uint32_t ds = uint32_t(envs[REAL].ds) << 4;
+        c.checks.push_back({ds + 0xfff0, std::vector<uint8_t>(image.begin(), image.begin() + 16)});
+        c.checks.push_back({ds, std::vector<uint8_t>(image.begin() + 16, image.end())});
+        cases.push_back(c);
+    }
+    // nm.*: each form under each combination of EM, MP and TS.
+    const std::vector<std::pair<const char *, std::vector<uint8_t>>> nm_forms = {
+        {"fninit", {0xdb, 0xe3}}, {"fnstsw-ax", {0xdf, 0xe0}}, {"fnop", {0xd9, 0xd0}}, {"fcmovb", {0xda, 0xc0}},
+        {"db-e7", {0xdb, 0xe7}}, {"fld", {0xd9, 0x06, 0x00, 0x01}}, {"fst", {0xd9, 0x16, 0x00, 0x01}},
+        {"d9-m1", {0xd9, 0x0e, 0x00, 0x01}}, {"fnstenv", {0xd9, 0x36, 0x00, 0x01}},
+        {"fnsave", {0xdd, 0x36, 0x00, 0x01}}, {"frstor", {0xdd, 0x26, 0x00, 0x01}}, {"wait", {0x9b}}};
+    for (const auto &[name, bytes] : nm_forms) {
+        for (uint32_t bits = 0; bits < 8; ++bits) {
+            const bool mp = bits & 1, em = bits & 2, ts = bits & 4;
+            Case c;
+            c.label = std::string("nm.") + name + "." + (mp ? "mp" : "") + (em ? "em" : "") + (ts ? "ts" : "") +
+                      (bits ? "" : "none");
+            c.env = &envs[REAL];
+            c.body = bytes;
+            c.cr0 = bits << 1;
+            c.vector = (bytes[0] == 0x9b ? mp && ts : em || ts) ? 7 : -1;
+            cases.push_back(c);
+        }
+    }
+    // LOCK raises #UD on every ESC form, before EM's #NM.
+    for (auto [name, cr0, bytes] : std::initializer_list<std::tuple<const char *, uint32_t, std::vector<uint8_t>>>{
+             {"lock.fninit", 0, {0xf0, 0xdb, 0xe3}}, {"lock.fld", 0, {0xf0, 0xd9, 0x06, 0x00, 0x01}},
+             {"lock.fninit-em", 4, {0xf0, 0xdb, 0xe3}}, {"lock.es-fld", 0, {0xf0, 0x26, 0xd9, 0x06, 0x00, 0x01}}}) {
+        Case c;
+        c.label = name;
+        c.env = &envs[REAL];
+        c.body = bytes;
+        c.cr0 = cr0;
+        c.vector = 6;
+        cases.push_back(c);
+    }
+    {
+        // Real mode, a 32-bit address (67h): FLD dword [00000120h].
+        Asm body;
+        const uint32_t fld_ip = REAL_IP;
+        body.op({0x67, 0xd9, 0x05}); body.d(0x120);
+        body.esc(0xd9, 6, 0x200);
+        Case c;
+        c.label = "layout.real.a32";
+        c.env = &envs[REAL];
+        c.body = body.b;
+        c.checks.push_back({(uint32_t(envs[REAL].ds) << 4) + 0x200,
+                            env_image(false, false, fes_i386::X87Pointers{fld_ip, 0x120, envs[REAL].cs, envs[REAL].ds})});
+        cases.push_back(c);
+    }
+    // layout.*: FNSTENV and FNSAVE in each size, after FLD dword ES:[120h].
+    for (const Env &e : envs) {
+        for (bool o32 : {false, true}) {
+            for (bool save : {false, true}) {
+                Asm a;
+                prologue(a, e);
+                a.c32 = e.kind == PM32;
+                Asm body;
+                body.c32 = a.c32;
+                const uint32_t base = start(e, a);
+                const uint32_t fld_ip = base;
+                body.op({0x26}); body.esc(0xd9, 0, 0x120);   // FLD dword ES:[120h]
+                if (o32 != body.c32) body.op({0x66});
+                body.esc(save ? 0xdd : 0xd9, 6, 0x200);     // FNSAVE or FNSTENV [200h]
+                Case c;
+                c.label = std::string("layout.") + e.name + (o32 ? ".o32." : ".o16.") + (save ? "fnsave" : "fnstenv");
+                c.env = &e;
+                c.body = body.b;
+                std::vector<uint8_t> image = env_image(e.kind != REAL, o32, fes_i386::X87Pointers{fld_ip, 0x120, e.cs, e.es});
+                if (save) image.insert(image.end(), 80, 0xff);
+                c.checks.push_back({data(e) + 0x200, image});
+                cases.push_back(c);
+            }
+        }
+    }
+    {
+        // 32-bit protected mode, a SIB address: FLD dword [EAX+ECX*4+10h]
+        // with EAX 100h and ECX 8: the data pointer 130h.
+        Asm a;
+        prologue(a, envs[PM32]);
+        Asm body;
+        body.c32 = true;
+        const uint32_t base = start(envs[PM32], a);
+        body.op({0xb8}); body.d(0x100); body.op({0xb9}); body.d(8);   // MOV EAX, 100h; MOV ECX, 8
+        const uint32_t fld_ip = base + uint32_t(body.here());
+        body.op({0xd9, 0x44, 0x88, 0x10});                            // FLD dword [EAX+ECX*4+10h]
+        body.esc(0xd9, 6, 0x200);
+        Case c;
+        c.label = "layout.pm32.sib";
+        c.env = &envs[PM32];
+        c.body = body.b;
+        c.checks.push_back({DATA + 0x200, env_image(true, true, fes_i386::X87Pointers{fld_ip, 0x130, 0x18, 0x20})});
+        cases.push_back(c);
+    }
+    // detect.*: FPU detection routines, in real mode and 32-bit protected
+    // mode. Each ends with BL 1 (a coprocessor) or 0 (none) and a HLT.
+    for (EnvKind kind : {REAL, PM32}) {
+        const Env &e = envs[kind];
+        auto routine = [&](const char *name, std::function<void(Asm &, std::vector<size_t> &)> test) {
+            Asm body;
+            body.c32 = kind == PM32;
+            std::vector<size_t> to_none;  // rel8 jumps to the no-coprocessor ending
+            test(body, to_none);
+            body.op({0xb3, 0x01, 0xf4});  // MOV BL, 1; HLT
+            const size_t none = body.here();
+            body.op({0xb3, 0x00});        // MOV BL, 0 (HLT follows)
+            for (size_t at : to_none) body.b[at] = uint8_t(none - (at + 1));
+            Case c;
+            c.label = std::string("detect.") + e.name + "." + name;
+            c.env = &e;
+            c.body = body.b;
+            c.bl = 0;
+            cases.push_back(c);
+        };
+        auto jne = [](Asm &a, std::vector<size_t> &to) { a.op({0x75, 0}); to.push_back(a.here() - 1); };
+        auto movw = [](Asm &a, uint32_t off, uint16_t v) {  // MOV word [off], v
+            if (a.c32) a.op({0x66});
+            a.op({0xc7}); a.m(0, off); a.w(v);
+        };
+        routine("intel", [&](Asm &a, std::vector<size_t> &to) {
+            a.op({0xdb, 0xe3});                                   // FNINIT
+            movw(a, 0x100, 0x5a5a);
+            a.esc(0xdd, 7, 0x100);                                // FNSTSW [100h]
+            a.op({0x80}); a.m(7, 0x100); a.op({0x00});            // CMP byte [100h], 0
+            jne(a, to);
+            a.esc(0xd9, 7, 0x100);                                // FNSTCW [100h]
+            if (a.c32) a.op({0x66});
+            a.op({0xa1}); if (a.c32) a.d(0x100); else a.w(0x100); // MOV AX, [100h]
+            if (a.c32) a.op({0x66});
+            a.op({0x25}); a.w(0x103f);                            // AND AX, 103Fh
+            if (a.c32) a.op({0x66});
+            a.op({0x3d}); a.w(0x003f);                            // CMP AX, 3Fh
+            jne(a, to);
+        });
+        routine("cw-high", [&](Asm &a, std::vector<size_t> &to) {
+            a.op({0xdb, 0xe3});                                   // FNINIT
+            movw(a, 0x102, 0);
+            a.esc(0xd9, 7, 0x102);                                // FNSTCW [102h]
+            a.op({0x80}); a.m(7, 0x103); a.op({0x03});            // CMP byte [103h], 3
+            jne(a, to);
+        });
+        routine("wait-forms", [&](Asm &a, std::vector<size_t> &to) {
+            a.op({0x9b, 0xdb, 0xe3});                             // FINIT
+            movw(a, 0x100, 0x5a5a);
+            a.op({0x9b}); a.esc(0xdd, 7, 0x100);                  // FSTSW [100h]
+            a.op({0x9b});                                         // WAIT
+            a.op({0x80}); a.m(7, 0x100); a.op({0x00});            // CMP byte [100h], 0
+            jne(a, to);
+        });
+        routine("fnstsw-ax", [&](Asm &a, std::vector<size_t> &to) {
+            a.op({0xdb, 0xe3});                                   // FNINIT
+            a.ax(0x5a5a);
+            a.op({0xdf, 0xe0});                                   // FNSTSW AX
+            a.op({0x84, 0xc0});                                   // TEST AL, AL
+            jne(a, to);
+        });
+        routine("dos4gw", [&](Asm &a, std::vector<size_t> &to) {
+            a.op({0xdb, 0xe3});                                   // FNINIT
+            a.esc(0xdd, 7, 0x100);                                // FNSTSW [100h]
+            a.esc(0xd9, 7, 0x102);                                // FNSTCW [102h]
+            a.op({0x80}); a.m(7, 0x100); a.op({0x00});            // CMP byte [100h], 0
+            jne(a, to);
+            if (a.c32) a.op({0x66});
+            a.op({0x81}); a.m(7, 0x102); a.w(0x037f);             // CMP word [102h], 037Fh
+            jne(a, to);
+            a.op({0xdb, 0xe3});                                   // FNINIT
+        });
+    }
+
+    for (const Case &c : cases) {
+        const Env &e = *c.env;
+        Asm a;
+        prologue(a, e);
+        a.b.insert(a.b.end(), c.body.begin(), c.body.end());
+        a.op({0xf4});
+        const uint32_t code_base = e.kind == REAL ? (uint32_t(e.cs) << 4) + REAL_IP : CODE;
+        std::vector<std::pair<uint32_t, uint8_t>> image;
+        for (size_t i = 0; i < a.b.size(); ++i) image.emplace_back(code_base + uint32_t(i), a.b[i]);
+        for (unsigned n = 0; n < 8; ++n)
+            for (unsigned i = 0; i < 8; ++i) image.emplace_back(GDT + 8 * n + i, uint8_t(gdt[n] >> (8 * i)));
+        for (unsigned v = 0; v < 32; ++v) {
+            const uint64_t g = gate(0x08, HANDLER, 0x8e);
+            for (unsigned i = 0; i < 8; ++i) image.emplace_back(IDT + 8 * v + i, uint8_t(g >> (8 * i)));
+            image.emplace_back(v * 4, uint8_t(HANDLER)); image.emplace_back(v * 4 + 1, uint8_t(HANDLER >> 8));
+            image.emplace_back(v * 4 + 2, 0); image.emplace_back(v * 4 + 3, 0);
+        }
+        for (unsigned i = 0; i < 6; ++i) {
+            image.emplace_back(0x2100 + i, uint8_t((uint64_t(GDT) << 16 | 0x3f) >> (8 * i)));
+            image.emplace_back(0x2108 + i, uint8_t((uint64_t(IDT) << 16 | (32 * 8 - 1)) >> (8 * i)));
+        }
+        image.emplace_back(HANDLER, 0xf4);
+        // The data: a pattern at 100h-1FFh of DS and ES, 300h-36Bh 0CCh.
+        const uint32_t ds = data(e), es = e.kind == REAL ? uint32_t(e.es) << 4 : EXTRA;
+        for (uint32_t i = 0x100; i < 0x200; ++i) {
+            image.emplace_back(ds + i, uint8_t(0x10 + i - 0x100));
+            image.emplace_back(es + i, uint8_t(0x90 + i - 0x100));
+        }
+        for (uint32_t i = 0x300; i < 0x36c; ++i) image.emplace_back(ds + i, 0xcc);
+        for (auto [address, value] : image) {
+            bus.ram[address] = rtl.poke(address, value);
+            oracle.invalidate(address, 1);
+        }
+        State state;
+        for (int k = 0; k < 6; ++k) state.seg[k] = fes_i386::real_mode_segment(0);
+        if (e.kind == REAL) {
+            state.seg[fes_i386::SEG_CS] = fes_i386::real_mode_segment(e.cs);
+            state.seg[fes_i386::SEG_DS] = fes_i386::real_mode_segment(e.ds);
+            state.seg[fes_i386::SEG_ES] = fes_i386::real_mode_segment(e.es);
+            state.eip = REAL_IP;
+        } else {
+            state.eip = CODE;
+        }
+        state.gpr[fes_i386::REG_ESP] = 0x0f00;
+        state.gpr[fes_i386::REG_EBP] = c.bp;
+        state.cr0 = 0x7ffffff0 | c.cr0;
+        oracle.reset();
+        oracle.set_state(state);
+        rtl.start(state);
+        Mismatches out;
+        Outcome outcome;
+        try {
+            outcome = lockstep(oracle, bus, rtl, entries, Fields{}, 200, true, summary, out, code_base + uint32_t(a.b.size()));
+        } catch (const std::exception &error) {
+            out.add(c.label + ".oracle-error:" + error.what(), 0, 1);
+            oracle.reset();
+        }
+        const State s = rtl.state();
+        if (c.vector < 0) {
+            if (!outcome.halted) out.add(c.label + ".halt", 1, 0);
+            if (outcome.exception >= 0) out.add(c.label + ".exception", 0xff, uint32_t(outcome.exception));
+        } else if (outcome.exception != c.vector) {
+            out.add(c.label + ".exception", uint32_t(c.vector), outcome.exception < 0 ? 0xffu : uint32_t(outcome.exception));
+        }
+        for (const Check &check : c.checks)
+            for (size_t i = 0; i < check.bytes.size(); ++i)
+                if (rtl.ram[check.address + i] != check.bytes[i]) {
+                    out.add(c.label + ".byte." + hex(check.address + uint32_t(i)), check.bytes[i], rtl.ram[check.address + i]);
+                    break;
+                }
+        if (c.ax >= 0 && (s.gpr[fes_i386::REG_EAX] & 0xffff) != uint32_t(c.ax))
+            out.add(c.label + ".ax", uint32_t(c.ax), s.gpr[fes_i386::REG_EAX] & 0xffff);
+        if (c.bl >= 0 && (s.gpr[fes_i386::REG_EBX] & 0xff) != uint32_t(c.bl))
+            out.add(c.label + ".bl", uint32_t(c.bl), s.gpr[fes_i386::REG_EBX] & 0xff);
+        end_run(bus, rtl, outcome.halted, out);
+        summary.cycles += rtl.cycles;
+        rtl.cycles = 0;
+        for (auto [address, value] : image) {
+            bus.ram[address] = rtl.poke(address, 0);
+            oracle.invalidate(address, 1);
+        }
+        for (uint32_t address : rtl.written) {
+            if (address < RAM_BYTES) bus.ram[address] = rtl.poke(address, 0);
+            oracle.invalidate(address, 1);
+        }
+        rtl.written.clear();
+        ++summary.runs;
+        if (out.items.empty()) {
+            ++summary.passed;
+        } else {
+            ++summary.failed;
+            std::cout << "FAIL no387:" << c.label;
+            for (const auto &item : out.items) std::cout << ' ' << item;
+            std::cout << '\n';
+        }
+    }
+    return 0;
+}
+
 // 0000:1000 in real mode with a GDT at 2000h (LGDT's pointer at 2100h):
 //   08h code, 16-bit, base 0, 64K      18h data, base 0, 64K
 //   10h data, base 0, 4 GiB (G)        20h code, 16-bit, base 0, 4 GiB (G)
@@ -5604,6 +6308,8 @@ int main(int argc, char **argv) {
         run_unreal_cases(*oracle, bus, rtl, entries, summary);
     } else if (mode == "pmode") {
         run_pmode_cases(*oracle, bus, rtl, entries, summary);
+    } else if (mode == "no387") {
+        run_no387_cases(*oracle, bus, rtl, entries, summary);
     } else if (mode == "test386") {
         return run_test386(*oracle, rtl);
     } else if (mode == "unbuilt") {
@@ -5660,7 +6366,7 @@ int main(int argc, char **argv) {
                 "\"window_code_stops\": %llu, \"code_store_stops\": %llu, \"stray_stops\": %llu, "
                 "\"port0_reads\": %llu, \"port0_writes\": %llu, "
                 "\"pm_retirements\": %llu, \"cs_rule\": %llu, \"ss_error_rule\": %llu, \"pm_deliveries\": {%s}, "
-                "\"unbuilt_stops\": {%s}, \"pm_kinds\": {%s}}\n",
+                "\"unbuilt_stops\": {%s}, \"pm_kinds\": {%s}, \"no387_rule\": %llu, \"no387_skips\": %llu}\n",
                 mode.c_str(), (unsigned long long)seed, latency ? "true" : "false",
                 (unsigned long long)summary.runs, (unsigned long long)summary.passed,
                 (unsigned long long)summary.failed, (unsigned long long)summary.retirements,
@@ -5691,6 +6397,7 @@ int main(int argc, char **argv) {
                 (unsigned long long)rtl.port0.beats_written,
                 (unsigned long long)summary.pm_retirements, (unsigned long long)summary.cs_rule,
                 (unsigned long long)summary.ss_error_rule, pm_deliveries.c_str(),
-                unbuilt.c_str(), pm_kinds.c_str());
+                unbuilt.c_str(), pm_kinds.c_str(), (unsigned long long)summary.no387_rule,
+                (unsigned long long)summary.no387_skips);
     return summary.failed ? 1 : 0;
 }

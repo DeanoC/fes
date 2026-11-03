@@ -136,6 +136,9 @@ SCOPE: frozenset[str] = frozenset([
     # LAR, LSL and ARPL, #UD in real mode. The corpus has none of them
     # either.
     '0F00', '0F02', '0F03', '63',
+    # The ESC instructions with no 387. The corpus has none; the directed
+    # no-387 cases run every form.
+    *(f'{opcode:02X}' for opcode in range(0xD8, 0xE0)),
 ])
 
 
@@ -260,6 +263,26 @@ def run_pmode(testbench: str, env: dict) -> dict:
 PMODE_CASES = 51
 
 
+def run_no387(testbench: str, env: dict) -> dict:
+    """The directed cases of the ESC instructions with no 387 (lockstep_tb.cpp's
+    run_no387_cases), against the oracle under the no-387 rule and against
+    what the bench works out the empty socket gives: every ESC form in real,
+    16-bit and 32-bit protected mode with the x87 pointers FNSTENV stores
+    after it, their faults, #NM under each combination of EM, MP and TS,
+    FNSTENV's and FNSAVE's layouts, and FPU detection routines."""
+    env = dict(env, FES_I386_MODE='no387', FES_I386_LATENCY='1')
+    result = subprocess.run([testbench], env=env, capture_output=True, text=True)
+    if result.returncode not in (0, 1):
+        raise LockstepError(f'no-387 cases: testbench exited with {result.returncode}\n{result.stderr[-4000:]}')
+    summary, failures = parse_output(result.stdout)
+    if summary['runs'] != NO387_CASES:
+        raise LockstepError(f'no-387 cases: testbench ran {summary["runs"]} of {NO387_CASES} cases')
+    return {'summary': summary, 'failures': failures}
+
+
+NO387_CASES = 1933
+
+
 def divergence_table(entries: list[dict], path: Path) -> None:
     """The opcode-class entries, for the testbench to apply per retirement."""
     lines = []
@@ -366,7 +389,7 @@ def same_as(report: dict, other: dict) -> list[str]:
         compare(f'pmode {key}', report['pmode']['totals'].get(key), other['pmode']['totals'].get(key))
     for key in ('seeds', 'programs_per_seed', 'trace_hashes', 'pm_deliveries', 'unbuilt_stops', 'pm_kinds'):
         compare(f'pmode {key}', report['pmode'].get(key), other['pmode'].get(key))
-    for mode in ('directed_cases', 'unreal_cases', 'pmode_cases', 'memory_cases', 'reset_store'):
+    for mode in ('directed_cases', 'unreal_cases', 'pmode_cases', 'no387_cases', 'memory_cases', 'reset_store'):
         for key in SAME_MODE:
             compare(f'{mode} {key}', report[mode]['summary'].get(key), other[mode]['summary'].get(key))
     compare('unbuilt encodings', report['unbuilt']['encodings'], other['unbuilt']['encodings'])
@@ -492,6 +515,7 @@ def main() -> int:
         directed = run_directed(testbench, env)
         unreal = run_unreal(testbench, env)
         pmode_cases = run_pmode(testbench, env)
+        no387 = run_no387(testbench, env)
         memory = run_memory(testbench, env)
 
         corpus = args.corpus or vectors.OUTPUT / 'corpus' / vectors.REVISION
@@ -585,7 +609,7 @@ def main() -> int:
     unbuilt_runs = sum(result['summary']['runs'] for result in unbuilt_results)
     random_failures += held
     reset_store_failures = reset_store['failures']
-    directed_failures = directed['failures'] + unreal['failures'] + pmode_cases['failures']
+    directed_failures = directed['failures'] + unreal['failures'] + pmode_cases['failures'] + no387['failures']
     memory_failures = memory['failures']
     if (biu_dma_failures or corpus_failures or random_failures or hash_mismatches or unbuilt_failures or reset_store_failures
             or directed_failures or memory_failures):
@@ -596,6 +620,7 @@ def main() -> int:
         'directed_cases': directed,
         'unreal_cases': unreal,
         'pmode_cases': pmode_cases,
+        'no387_cases': no387,
         'memory_cases': memory,
         'governor': {'preset': args.preset},
         'corpus': {'revision': vectors.REVISION, 'files': len(corpus_results), 'totals': dict(totals),
@@ -679,6 +704,9 @@ def main() -> int:
           f"({unreal['summary']['cs_rule']} real-mode CS loads under the 386 rule)")
     print(f"protected-mode cases: {pmode_cases['summary']['passed']} pass, {pmode_cases['summary']['failed']} fail "
           f"({pmode_cases['summary']['nested']} faults in a delivery delivered)")
+    print(f"no-387 cases: {no387['summary']['passed']} pass, {no387['summary']['failed']} fail "
+          f"({no387['summary']['no387_rule']} ESC instructions under the no-387 rule, "
+          f"{no387['summary']['no387_skips']} of them not stepped on the oracle)")
     print(f"memory cases (DMA, FLUSH): {memory['summary']['passed']} pass, {memory['summary']['failed']} fail")
     if args.preset:
         print(f'governor preset {args.preset}: the latency-free holds are not checked')

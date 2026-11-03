@@ -178,12 +178,23 @@ package fes_i386_pkg;
 
     // A system register D reads as src2's value (decoded_t b_sys): MOV r32,
     // CRn, SMSW, SGDT, SIDT, SLDT and STR; a delivery's error code (ERR);
-    // ARPL's adjusted selector (from T1 and T2). LAR, LSL, VERR and VERW
-    // name their result here; M1 puts it in from the staged descriptor.
-    typedef enum logic [3:0] {
+    // all ones, for the fields an absent 387 supplies (ONES); the x87
+    // instruction and data pointers' words of FNSTENV's and FNSAVE's
+    // layouts (FIP, FCS, FDP, FDS; fes_i386_cpu, "x87 pointers"); ARPL's
+    // adjusted selector (from T1 and T2). LAR, LSL, VERR and VERW name
+    // their result here; M1 puts it in from the staged descriptor. Those
+    // from FIP on are read in D behind the uops that write them (t_rd).
+    typedef enum logic [4:0] {
         SYS_RD_CR0, SYS_RD_CR2, SYS_RD_CR3, SYS_RD_GDTL, SYS_RD_GDTB, SYS_RD_IDTL, SYS_RD_IDTB, SYS_RD_LDTR,
-        SYS_RD_TR, SYS_RD_ERR, SYS_RD_ARPL, SYS_RD_LAR, SYS_RD_LSL, SYS_RD_VERR, SYS_RD_VERW
+        SYS_RD_TR, SYS_RD_ERR, SYS_RD_ONES, SYS_RD_FIP, SYS_RD_FCS, SYS_RD_FDP, SYS_RD_FDS, SYS_RD_ARPL,
+        SYS_RD_LAR, SYS_RD_LSL, SYS_RD_VERR, SYS_RD_VERW
     } sys_rd_e;
+
+    // The x87 pointers an ESC instruction's last uop writes as it retires
+    // (uop_t x87p): none (the control forms), the instruction pointer (CS
+    // and EIP), or both it and the data pointer (the memory operand's
+    // segment selector and offset).
+    typedef enum logic [1:0] { X87P_NONE, X87P_IP, X87P_IPDP } x87p_e;
 
     // A register operand. hi8 selects AH, CH, DH or BH for a byte-sized GPR.
     typedef struct packed {
@@ -318,8 +329,10 @@ package fes_i386_pkg;
     // reads and writes it (M1). vmchk: IRETD's EFLAGS image, a protected-mode
     // IRET's first uop, whose VM bit stops it as not built (EX). ntchk: the
     // same uop, which EFLAGS.NT set stops as not built, a return from a
-    // nested task (EX).
+    // nested task (EX). x87p: the uop is an ESC instruction's last, which
+    // writes the x87 pointers as it retires (x87p_e).
     typedef struct packed {
+        logic [1:0]  x87p;
         logic [2:0]  desc;
         logic [3:0]  segchk;
         logic        nwrap;
@@ -524,9 +537,10 @@ package fes_i386_pkg;
         logic        x_prev;
             // src2's value is the far pointer's selector (b_far: a protected-mode
         // far jump's T0), the system register sys_idx names (b_sys,
-        // sys_rd_e), or T4 (b_t4, IRET's EFLAGS image). plus2: the memory
-        // operand is 2 bytes past the ModRM operand's, wrapped by address
-        // size (LGDT's and SGDT's base). nochk: the uop steps ESP after a
+        // sys_rd_e), or T4 (b_t4, IRET's EFLAGS image). moff: the memory
+        // operand is moff bytes past the ModRM operand's, wrapped by address
+        // size (LGDT's and SGDT's base, 2; a part of an x87 operand, or a
+        // field of an x87 environment or save image). nochk: the uop steps ESP after a
         // protected-mode POP Sreg, with no access and no limit check, as
         // Bochs pops after the load.
         // A protected-mode delivery's uops (fes_i386_cpu, "Protected-mode
@@ -538,8 +552,8 @@ package fes_i386_pkg;
         logic        b_far;
         logic        b_sys;
         logic        b_t4;
-        logic [3:0]  sys_idx;
-        logic        plus2;
+        logic [4:0]  sys_idx;
+        logic [6:0]  moff;
         logic        nochk;
         logic        gsz;
         logic        errp;
@@ -661,7 +675,10 @@ package fes_i386_pkg;
         logic        shadow;     // uop_t shadow, when the segment is SS
         logic        nochk;      // ESP's step after a POP Sreg: no access, no limit check
         logic        plus2;      // the address is the ModRM operand's plus 2 (LGDT's and SGDT's base)
-        logic [3:0]  sys;        // b = "sys": the system register sys_rd_e names
+        logic [2:0]  fpn;        // ... plus fpn operand-sized fields (an x87 environment's)
+        logic [4:0]  fpj;        // ... plus fpj dwords (an x87 save image's registers, an x87 operand's part)
+        logic [1:0]  x87p;       // uop_t x87p
+        logic [4:0]  sys;        // b = "sys": the system register sys_rd_e names
         logic [1:0]  dmode;      // decoded_t dmode
         logic        gsz;        // decoded_t gsz: the gate's operand size
         logic        errp;       // decoded_t errp: the error code's slot
