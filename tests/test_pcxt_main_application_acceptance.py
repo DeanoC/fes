@@ -3,6 +3,7 @@ import hashlib
 import json
 from pathlib import Path
 import tempfile
+import threading
 import time
 import unittest
 from types import SimpleNamespace
@@ -13,6 +14,26 @@ from tests.test_pcxt_dos_application_acceptance import FakeRunner
 
 
 class MainApplicationTest(unittest.TestCase):
+    def test_prestarted_worker_persists_real_health_stage_trace(self):
+        with tempfile.TemporaryDirectory() as temp:
+            evidence=main.floppy.health_evidence.HealthEvidence(Path(temp),'target','boot','a'*64,'b'*64)
+            evidence.prepare()
+            def observe(_deadline):
+                evidence.begin_trace()
+                try:
+                    return evidence.run_stage('host_guard', lambda:{'owner':'fixture'})
+                finally:
+                    evidence.end_trace()
+            worker=main.app.PrestartedObserver(observe, seconds=1)
+            stop=threading.Event(); capture_thread=threading.Thread(target=stop.wait,daemon=True); capture_thread.start()
+            try:
+                self.assertEqual(worker.check(),{'owner':'fixture'})
+            finally:
+                stop.set(); capture_thread.join(timeout=1); worker.close(); evidence.close()
+            rows=[json.loads(line) for line in (Path(temp)/evidence.TRACE_FILE).read_text().splitlines()]
+            self.assertEqual([row['event'] for row in rows],['start','finish'])
+            self.assertTrue(rows[-1]['ok'])
+
     def test_real_app_main_forwards_game_factories_and_worker_trace(self):
         with tempfile.TemporaryDirectory() as temp:
             root=Path(temp); archive=root/'core.fcore'; archive.write_bytes(b'archive')

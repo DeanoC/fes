@@ -35,6 +35,7 @@ GROUPS = {
         atari_st_io_diagnostic atari_st_memory_diagnostic atari_st_ram_write_trace
         atari_st_raster_trace atari_st_rendered_capture frame_trace_summary gpu_lease
         input_diagnostic kit_software_acceptance package_acceptance pcxt_main_application_acceptance
+        pcxt_capture_fanout pcxt_digger_readiness pcxt_game_audio_capture pcxt_gameplay_capture pcxt_gameplay_probe
         package_acceptance_isolated ramtest_notices target_acceptance'''),
 }
 
