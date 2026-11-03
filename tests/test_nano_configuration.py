@@ -230,6 +230,7 @@ class NanoConfigurationTests(unittest.TestCase):
                 '-LDFLAGS','-fsanitize=undefined '+' '.join(str(p) for p in objects),
                 str(fpga/'cores/fes-common/rtl/fes_embedded_control.sv'),
                 str(fpga/'prototypes/de25_board_control/fes_de25_embedded.sv'),
+                str(fpga/'prototypes/de25_board_control/fes_de25_read_width.sv'),
                 str(FW/'tests/nano_reader_rtl_test.cpp')],capture_output=True,text=True,timeout=90)
             self.assertEqual(compiled.returncode,0,compiled.stdout+'\n'+compiled.stderr)
             for mutation in range(74,82):
@@ -289,7 +290,8 @@ class NanoConfigurationTests(unittest.TestCase):
                     ' '+str(probe/'Vfes_de25_ddr_probe__ALL.a'),
                 str(fpga/'cores/fes-common/rtl/fes_embedded_control.sv'),
                 *(str(fpga/'prototypes/embedded_control'/name) for name in ('fes_embedded_window_reader.sv','fes_embedded_window_control.sv')),
-                str(fpga/'prototypes/de25_board_control/fes_de25_embedded.sv'),str(FW/'tests/nano_window_runtime_test.cpp')]
+                str(fpga/'prototypes/de25_board_control/fes_de25_embedded.sv'),
+                str(fpga/'prototypes/de25_board_control/fes_de25_read_width.sv'),str(FW/'tests/nano_window_runtime_test.cpp')]
             compiled=subprocess.run(command,capture_output=True,text=True,timeout=90)
             self.assertEqual(compiled.returncode,0,compiled.stdout+'\n'+compiled.stderr)
             if evidence:

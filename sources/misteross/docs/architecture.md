@@ -102,7 +102,13 @@ window and one 4 KiB page, permits one burst at a time, and uses actual AXI
 response/error/backpressure signals. Backend, window and distinct control ABI
 enter the source/vendor fingerprint and canonical functional identity. Its
 generated interface and HPS route are checked separately from its external-bus
-RTL model. DDR mode disables the unused coherent F2H hard interface and removes
+RTL model. The board's read-width adapter emits aligned 256-bit HPS transfers
+and returns each response as two ordered 128-bit beats to the portable reader.
+Its buffered upper half remains in the original reader's outstanding ledger;
+raw response validity remains visible while empty so it cannot create a false
+drain acknowledgement. Manual DDR requests require 32-byte alignment and an
+even number of reader beats. The fixed frame retains its full byte count and
+CRC contract. DDR mode disables the unused coherent F2H hard interface and removes
 its maintenance manager/translator. Holding that manager in reset otherwise
 lets synthesis prune its connection while leaving an enabled hard port
 unconnected. Both remaining maintenance JTAG managers stay in reset through

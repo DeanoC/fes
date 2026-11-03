@@ -47,12 +47,13 @@ struct Fixture {
     }
     void tick() {
         d.clk=0;d.ddr_arready=!stall;
-        d.ddr_rvalid=responses && !pending.empty();d.ddr_rlast=!pending.empty() && pending.front().left==1;
+        bool extra=fault=="extra-response" && beats!=0;
+        d.ddr_rvalid=responses && (!pending.empty() || extra);d.ddr_rlast=extra || (!pending.empty() && pending.front().left==1);
         d.ddr_rresp=fault=="response"?2:0;d.ddr_rid=fault=="response-id"?1:0;
         if(fault=="early-last")d.ddr_rlast=1;
         if(fault=="missing-last")d.ddr_rlast=0;
-        for(unsigned i=0;i<4;i++)d.ddr_rdata[i]=golden ?
-            golden_data[((pending.empty()?0:pending.front().index)*4+i)%8]:0x12345678;
+        for(unsigned i=0;i<8;i++)d.ddr_rdata[i]=golden ?
+            golden_data[((pending.empty()?0:pending.front().index)*8+i)%8]:0x12345678;
         if(fault=="wrong-data")d.ddr_rdata[2]^=1;
         d.eval();bool ar=d.ddr_arvalid && d.ddr_arready,r=d.ddr_rvalid && d.ddr_rready;
         require(!d.ddr_awvalid && !d.ddr_wvalid && !d.ddr_wstrb,"reader issued a DDR write");
@@ -60,12 +61,16 @@ struct Fixture {
         if(ar) {
             uint32_t expected=window?0x95000000+request_row*5120+request_offset:0x95000000;
             unsigned bytes=window?std::min(5120-request_offset,4096-(expected&4095)):32;
-            require(d.ddr_araddr==expected && d.ddr_arsize==4 && count*16==bytes,"reader address/length differs");
+            require(d.ddr_araddr==expected && d.ddr_arsize==5 && count*32==bytes,"reader address/length differs");
             if(window) {request_offset+=bytes;if(request_offset==5120){request_offset=0;request_row++;}}
             addresses++;
         }
         d.clk=1;d.eval();
-        if(r) { beats++;pending.front().index++;if(!--pending.front().left)pending.pop_front(); }
+        if(r) {
+            beats++;
+            if(!pending.empty()) {pending.front().index++;if(!--pending.front().left)pending.pop_front();}
+            else require(extra,"unsolicited model response was not injected deliberately");
+        }
         if(ar)pending.push_back({count});
         d.clk=0;d.eval();
     }

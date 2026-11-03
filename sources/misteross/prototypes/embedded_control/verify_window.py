@@ -28,7 +28,9 @@ SOURCES = [RECIPE, CONTRACT,
     'sources/misteross/prototypes/embedded_control/fes_embedded_window_reader.sv',
     'sources/misteross/prototypes/embedded_control/fes_embedded_window_control.sv',
     'sources/misteross/prototypes/de25_board_control/fes_de25_embedded.sv',
+    'sources/misteross/prototypes/de25_board_control/fes_de25_read_width.sv',
     'sources/misteross/prototypes/de25_board_control/aperture_window_probe.cpp',
+    'sources/misteross/prototypes/de25_board_control/read_width_probe.cpp',
     'sources/misteross/prototypes/de25_board_control/verify.py',
     'sources/misteross/prototypes/de25_board_control/build.py',
     'sources/misteross/prototypes/de25_board_control/reader_memory.py',
@@ -228,15 +230,23 @@ def main():
     cpu_id = project_identity['build_id'] if project_identity else rows[0]['build_id']
     rtl = local if local else HERE
     board_rtl = local/'fes_de25_embedded.sv' if local else HERE.parent/'de25_board_control/fes_de25_embedded.sv'
+    width_rtl = local/'fes_de25_read_width.sv' if local else HERE.parent/'de25_board_control/fes_de25_read_width.sv'
     endpoint = local/'fes_embedded_control.sv' if local else FES/'sources/misteross/cores/fes-common/rtl/fes_embedded_control.sv'
     includes = local/'generated' if local else FES/Path(CONTRACT).parent
     command = [paths['verilator'], '--cc', '--exe', '--build', '-j', '2', '--top-module', 'fes_de25_embedded',
         '-Wall', '-Wno-UNUSEDSIGNAL', '--Mdir', aperture/'obj', '-I'+str(includes),
         "-DFES_DE25_COMPUTER_BUILD_ID=128'h"+cpu_id, '-GMEMORY_BACKEND=2',
         '-GDDR_BASE='+str(cpu_base), '-GDDR_BYTES='+str(4<<20), '-CFLAGS', '-std=c++17 -O2',
-        endpoint, rtl/'fes_embedded_window_reader.sv', rtl/'fes_embedded_window_control.sv', board_rtl,
+        endpoint, rtl/'fes_embedded_window_reader.sv', rtl/'fes_embedded_window_control.sv', width_rtl, board_rtl,
         HERE.parent/'de25_board_control/aperture_window_probe.cpp']
     run(aperture, 'build', command, model_env)
+    width = output/'read-width'
+    width.mkdir()
+    run(width,'build',[paths['verilator'],'--cc','--exe','--build','-j','2',
+        '--top-module','fes_de25_read_width','-Wall','--Mdir',width/'obj',
+        '-CFLAGS','-std=c++17 -O2',width_rtl,HERE.parent/'de25_board_control/read_width_probe.cpp'],model_env)
+    width_observed=json.loads(run(width,'model',[width/'obj/Vfes_de25_read_width'],model_env,cap=30))
+    assert width_observed==dict(status='passed',groups=4,invalid_descriptors=6,page_bytes=4096,hps_data_bits=256,reader_data_bits=128)
     executable = aperture/'obj/Vfes_de25_embedded'
     descriptor = dict(build_id=cpu_id, base=cpu_base, bytes=4<<20,
         frames=[str(output/f'packed/frames/frame-{i}.bin') for i in range(2)])
@@ -264,7 +274,7 @@ def main():
     report = dict(status='passed', classification='tenfoot/native-XRGB/owned-AXI-window host simulation',
         source_commit=producer.git('rev-parse', 'HEAD').stdout.strip(), source_state='working-tree' if dirty else 'committed',
         source_sha256=source, renderer_executable_sha256=sha(output/'frame-renderer'), variants=rows,
-        native_aperture=native_aperture,
+        native_aperture=native_aperture,read_width=width_observed,
         physical_ddr=False, pixel_clock_and_hdmi=False, bridge_release=False, runtime_admission=False)
     (output/'result.json').write_text(json.dumps(report, indent=2)+'\n')
     print(f'PASS actual tenfoot frames,30 source lifecycle/fault cases,16 invalid windows and{len(passed)} native Avalon cases:', output, flush=True)

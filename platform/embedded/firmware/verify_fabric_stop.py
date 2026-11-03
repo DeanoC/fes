@@ -19,6 +19,7 @@ def main():
     inputs.update({name:board/name for name in ('fes_de25_ddr_probe.v','generated/fes_de25_ddr_probe.vh',
                                               'generated/fes_de25_ddr_probe.hpp','probe_tb.cpp')})
     inputs.update({'fes_de25_embedded.sv':ROOT/'sources/misteross/prototypes/de25_board_control/fes_de25_embedded.sv',
+                   'fes_de25_read_width.sv':ROOT/'sources/misteross/prototypes/de25_board_control/fes_de25_read_width.sv',
         'fes_embedded_control.sv':ROOT/'sources/misteross/cores/fes-common/rtl/fes_embedded_control.sv',
         'fes_embedded_control.vh':ROOT/'sources/misteross/cores/fes-common/generated/fes_embedded_control.vh'})
     for name in ('fes_embedded_window_reader.sv','fes_embedded_window_control.sv'):
@@ -49,7 +50,7 @@ def main():
         '-GMEMORY_BACKEND=1','-GDDR_BASE=32\'h95000000','-GDDR_BYTES=8192',
         '-CFLAGS','-std=c++17 -O2 -fsanitize=undefined -fno-sanitize-recover=all -I'+str(captured)+' -I'+str(probe),
         '-LDFLAGS',' '.join(str(x) for x in objects)+' '+str(probe/'Vfes_de25_ddr_probe__ALL.a')+' -fsanitize=undefined',
-        captured/'fes_de25_embedded.sv',captured/'fes_embedded_control.sv',captured/'tests/nano_fabric_stop_test.cpp'])
+        captured/'fes_de25_embedded.sv',captured/'fes_de25_read_width.sv',captured/'fes_embedded_control.sv',captured/'tests/nano_fabric_stop_test.cpp'])
     observed=json.loads(run('cases',[model/'Vfes_de25_embedded']))
     if (observed['status']!='passed' or observed['cases']<50 or observed['read_failure_points']<88 or
         observed['ddr_read_cases']<50 or observed['ddr_read_failure_points']<56):
@@ -60,7 +61,7 @@ def main():
         '-GMEMORY_BACKEND=2','-GDDR_BASE=32\'h95000000','-GDDR_BYTES=4194304',
         '-CFLAGS','-std=c++17 -O2 -fsanitize=undefined -fno-sanitize-recover=all -I'+str(captured)+' -I'+str(probe),
         '-LDFLAGS',' '.join(str(x) for x in objects)+' '+str(probe/'Vfes_de25_ddr_probe__ALL.a')+' -fsanitize=undefined',
-        captured/'fes_de25_embedded.sv',captured/'fes_embedded_control.sv',captured/'fes_embedded_window_reader.sv',
+        captured/'fes_de25_embedded.sv',captured/'fes_de25_read_width.sv',captured/'fes_embedded_control.sv',captured/'fes_embedded_window_reader.sv',
         captured/'fes_embedded_window_control.sv',captured/'tests/nano_window_stop_test.cpp'])
     window_observed=json.loads(run('window-cases',[window/'Vfes_de25_embedded']))
     if (window_observed['status']!='passed' or window_observed['cases']<120 or

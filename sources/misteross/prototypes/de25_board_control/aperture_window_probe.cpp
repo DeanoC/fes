@@ -32,7 +32,7 @@ struct Bench {
         d.clk=0;d.reset_n=0;d.read=0;d.write=0;d.address=0;d.byteenable=15;d.writedata=0;
         d.ddr_arready=0;d.ddr_rvalid=0;d.ddr_rlast=0;d.ddr_rresp=0;d.ddr_rid=0;
         d.ddr_awready=1;d.ddr_wready=1;d.ddr_bvalid=0;d.ddr_bresp=0;d.ddr_bid=0;
-        for(unsigned i=0;i<4;i++)d.ddr_rdata[i]=0;
+        for(unsigned i=0;i<8;i++)d.ddr_rdata[i]=0;
         tick();tick();d.reset_n=1;tick();
     }
     uint32_t word(uint32_t address) const {
@@ -48,10 +48,10 @@ struct Bench {
         if(!r_held) {
             d.ddr_rvalid=mode!=2 && !queue.empty() && cycles%5!=1;
             d.ddr_rlast=0;d.ddr_rresp=0;d.ddr_rid=0;
-            for(unsigned i=0;i<4;i++)d.ddr_rdata[i]=0;
+            for(unsigned i=0;i<8;i++)d.ddr_rdata[i]=0;
             if(d.ddr_rvalid) {
                 const auto &q=queue.front();d.ddr_rlast=q.index+1==q.beats;
-                for(unsigned i=0;i<4;i++)d.ddr_rdata[i]=word(q.address+q.index*16+i*4);
+                for(unsigned i=0;i<8;i++)d.ddr_rdata[i]=word(q.address+q.index*32+i*4);
                 if(frame_responses==7) {
                     if(mode==3)d.ddr_rresp=2;
                     if(mode==4)d.ddr_rid=1;
@@ -68,11 +68,11 @@ struct Bench {
         bool ar=d.ddr_arvalid && d.ddr_arready,r=d.ddr_rvalid && d.ddr_rready;
         Burst offered{d.ddr_araddr,unsigned(d.ddr_arlen)+1,0};
         if(ar) {
-            require(d.ddr_arsize==4 && d.ddr_arburst==1 && d.ddr_arid==0 && d.ddr_arprot==2 &&
+            require(d.ddr_arsize==5 && d.ddr_arburst==1 && d.ddr_arid==0 && d.ddr_arprot==2 &&
                 d.ddr_arcache==0 && !d.ddr_arlock && !d.ddr_arqos,"AXI read attributes differ");
             uint32_t expected=base+request_row*5120+request_offset;
             unsigned bytes=5120-request_offset,page=4096-(expected&4095);if(bytes>page)bytes=page;
-            require(requested<5120*720 && offered.address==expected && offered.beats*16==bytes,
+            require(requested<5120*720 && offered.address==expected && offered.beats*32==bytes,
                 "AXI request skipped, replayed or crossed the expected row/page");
             request_offset+=bytes;requested+=bytes;
             if(request_offset==5120){request_offset=0;++request_row;}

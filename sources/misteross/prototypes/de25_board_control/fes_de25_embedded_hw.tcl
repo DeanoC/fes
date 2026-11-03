@@ -18,6 +18,7 @@ set_parameter_property DDR_BYTES HDL_PARAMETER true
 add_fileset QUARTUS_SYNTH QUARTUS_SYNTH
 set_fileset_property QUARTUS_SYNTH TOP_LEVEL fes_de25_embedded
 add_fileset_file fes_de25_embedded.sv SYSTEM_VERILOG PATH fes_de25_embedded.sv TOP_LEVEL_FILE
+add_fileset_file fes_de25_read_width.sv SYSTEM_VERILOG PATH fes_de25_read_width.sv
 add_fileset_file fes_embedded_control.sv SYSTEM_VERILOG PATH fes_embedded_control.sv
 add_fileset_file fes_embedded_window_reader.sv SYSTEM_VERILOG PATH fes_embedded_window_reader.sv
 add_fileset_file fes_embedded_window_control.sv SYSTEM_VERILOG PATH fes_embedded_window_control.sv
@@ -57,7 +58,8 @@ add_interface_port avs writeresponsevalid writeresponsevalid Output 1
 add_interface_port avs response response Output 2
 
 # The required AXI write pins are hardwired inactive in RTL. Platform Designer
-# supplies interconnect/width conversion; reads consume real AXI backpressure.
+# supplies interconnect; the RTL exports full-width HPS direct-DDR reads and
+# splits each 256-bit response into two beats for the portable 128-bit reader.
 add_interface mem axi4 start
 set_interface_property mem associatedClock clk
 set_interface_property mem associatedReset reset
@@ -73,7 +75,7 @@ foreach {name role direction width} {
     ddr_arlock arlock Output 1 ddr_arcache arcache Output 4
     ddr_arprot arprot Output 3 ddr_arqos arqos Output 4
     ddr_arready arready Input 1 ddr_rvalid rvalid Input 1
-    ddr_rdata rdata Input 128 ddr_rlast rlast Input 1
+    ddr_rdata rdata Input 256 ddr_rlast rlast Input 1
     ddr_rresp rresp Input 2 ddr_rid rid Input 1
     ddr_rready rready Output 1
     ddr_awvalid awvalid Output 1 ddr_awaddr awaddr Output 32
@@ -82,7 +84,7 @@ foreach {name role direction width} {
     ddr_awlock awlock Output 1 ddr_awcache awcache Output 4
     ddr_awprot awprot Output 3 ddr_awqos awqos Output 4
     ddr_awready awready Input 1 ddr_wvalid wvalid Output 1
-    ddr_wdata wdata Output 128 ddr_wstrb wstrb Output 16
+    ddr_wdata wdata Output 256 ddr_wstrb wstrb Output 32
     ddr_wlast wlast Output 1 ddr_wready wready Input 1
     ddr_bvalid bvalid Input 1 ddr_bresp bresp Input 2
     ddr_bid bid Input 1 ddr_bready bready Output 1

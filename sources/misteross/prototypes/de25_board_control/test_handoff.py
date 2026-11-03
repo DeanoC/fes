@@ -15,10 +15,12 @@ BUILD = importlib.util.module_from_spec(SPEC)
 SPEC.loader.exec_module(BUILD)
 
 FILES = ("qsys_top/qsys_top.sopcinfo", "fes_mailbox/fes_de25_embedded.sv",
+         "fes_mailbox/fes_de25_read_width.sv",
          "peripheral_subsys/peripheral_subsys/synth/peripheral_subsys.v",
          "fes_mailbox/fes_embedded_control.sv", "fes_mailbox/generated/fes_embedded_control.vh",
          "peripheral_subsys/ip/peripheral_subsys/peripheral_subsys_fes_embedded/synth/peripheral_subsys_fes_embedded.v",
          "peripheral_subsys/ip/peripheral_subsys/peripheral_subsys_fes_embedded/fes_de25_embedded_10/synth/fes_de25_embedded.sv",
+         "peripheral_subsys/ip/peripheral_subsys/peripheral_subsys_fes_embedded/fes_de25_embedded_10/synth/fes_de25_read_width.sv",
          "peripheral_subsys/ip/peripheral_subsys/peripheral_subsys_fes_embedded/fes_de25_embedded_10/synth/fes_embedded_control.sv",
          "peripheral_subsys/ip/peripheral_subsys/peripheral_subsys_fes_embedded/fes_de25_embedded_10/synth/fes_embedded_control.vh")
 WINDOW_FILES = tuple(prefix + name for prefix in (
@@ -57,13 +59,14 @@ def mutate(project, kind):
         if kind=='missing-ddr':root.remove(connection)
         elif kind=='duplicate-ddr':root.append(ET.fromstring(ET.tostring(connection)))
         else:connection.set('end','unqualified.memory')
-    elif kind=='ddr-port-width':
+    elif kind in ('ddr-port-width','ddr-narrow-read'):
         component=next(m for m in root.findall('module') if m.get('path')=='subsys_periph.fes_embedded')
         value=component.find("parameter[@name='componentDefinition']/value")
         definition=ET.fromstring(value.text)
         interface=next(i for i in definition.findall('boundary/interfaces/interface') if i.findtext('name')=='mem')
-        port=next(p for p in interface.findall('ports/port') if p.findtext('role')=='wdata')
-        port.find('width').text='129'
+        role='rdata' if kind=='ddr-narrow-read' else 'wdata'
+        port=next(p for p in interface.findall('ports/port') if p.findtext('role')==role)
+        port.find('width').text='128' if kind=='ddr-narrow-read' else '129'
         value.text=ET.tostring(definition,encoding='unicode')
     elif kind in ('ddr-read-issuing','ddr-combined-issuing'):
         component=next(m for m in root.findall('module') if m.get('path')=='subsys_periph.fes_embedded')
@@ -131,9 +134,11 @@ def main():
         cases = (("wrong-base", "peripheral base differs"), ("missing-jtag", "subsys_debug_fpga_m.master"),
                  ("wrong-span", "embedded lw map differs"), ("changed-generated-source", "generated embedded source differs"),
                  ("changed-window-source", "generated embedded source differs"))
+        cases += (("changed-width-source","generated embedded source differs"),)
         if BUILD.reader_memory.mode(memory):
             cases += tuple((name,'embedded DDR route differs') for name in ('missing-ddr','duplicate-ddr','wrong-ddr-target'))
             cases += (('ddr-port-width','DDR AXI interface differs'),
+                      ('ddr-narrow-read','DDR AXI interface differs'),
                       ('ddr-read-issuing','DDR issuing contract differs'),
                       ('ddr-combined-issuing','DDR issuing contract differs'),
                       ('wrong-forwarded-window','memory parameters differ'),
@@ -150,13 +155,16 @@ def main():
             trial = out / name
             copy_project(source, trial)
             if name == "changed-generated-source":
-                target = trial / FILES[-2]
+                target = trial / 'peripheral_subsys/ip/peripheral_subsys/peripheral_subsys_fes_embedded/fes_de25_embedded_10/synth/fes_embedded_control.sv'
                 target.write_bytes(target.read_bytes() + b"\n// altered for negative test\n")
             elif name == "changed-window-source":
                 target = trial / WINDOW_FILES[-1]
                 target.write_bytes(target.read_bytes() + b"\n// altered for negative test\n")
+            elif name == "changed-width-source":
+                target=trial/'peripheral_subsys/ip/peripheral_subsys/peripheral_subsys_fes_embedded/fes_de25_embedded_10/synth/fes_de25_read_width.sv'
+                target.write_bytes(target.read_bytes()+b'\n// altered for negative test\n')
             elif name=='wrong-forwarded-window':
-                target=trial/FILES[-4]
+                target=trial/'peripheral_subsys/ip/peripheral_subsys/peripheral_subsys_fes_embedded/synth/peripheral_subsys_fes_embedded.v'
                 text=target.read_text()
                 # The wrapper forwards this name, rather than a literal.
                 import re
@@ -164,16 +172,16 @@ def main():
                 if count!=1:raise ValueError('generated window forwarding anchor differs')
                 target.write_text(text)
             elif name=='parent-override':
-                target=trial/FILES[2]
+                target=trial/'peripheral_subsys/peripheral_subsys/synth/peripheral_subsys.v'
                 target.write_text(target.read_text().replace('peripheral_subsys_fes_embedded fes_embedded (',
                     'peripheral_subsys_fes_embedded #(.MEMORY_BACKEND(0)) fes_embedded ('))
             elif name=='untied-write':
-                target=trial/FILES[-3]
+                target=trial/'peripheral_subsys/ip/peripheral_subsys/peripheral_subsys_fes_embedded/fes_de25_embedded_10/synth/fes_de25_embedded.sv'
                 text=target.read_text();anchor="assign ddr_awvalid = 1'b0;"
                 if text.count(anchor)!=1:raise ValueError('write tie anchor differs')
                 target.write_text(text.replace(anchor,"assign ddr_awvalid = 1'b1;"))
             elif name=='untied-maintenance':
-                target=trial/FILES[-3]
+                target=trial/'peripheral_subsys/ip/peripheral_subsys/peripheral_subsys_fes_embedded/fes_de25_embedded_10/synth/fes_de25_embedded.sv'
                 text=target.read_text();anchor='assign maintenance_reset_n = !DDR_MODE;'
                 if text.count(anchor)!=1:raise ValueError('maintenance hold anchor differs')
                 target.write_text(text.replace(anchor,"assign maintenance_reset_n = 1'b1;"))

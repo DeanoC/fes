@@ -148,6 +148,7 @@ def main():
                           "--output", out / "window-stream", *extra])
     window = json.loads((out / "window-stream/result.json").read_text())
     if (window["status"] != "passed" or window["physical_ddr"] or window["runtime_admission"] or
+            window.get('read_width')!=dict(status='passed',groups=4,invalid_descriptors=6,page_bytes=4096,hps_data_bits=256,reader_data_bits=128) or
             window['native_aperture']['status']!='passed' or len(window['native_aperture']['cases'])!=20 or
             not {'TestWindowReaderActualAvalon/partial-snapshot-1','TestWindowReaderActualAvalon/partial-snapshot-2'} <= set(window['native_aperture']['cases'])):
         raise RuntimeError("window stream did not remain a checked host model")
@@ -157,7 +158,7 @@ def main():
               "tool_search_order": "passed", "commands": commands, "first": first, "second": second, "go_sha256": sha(go.resolve()),
               "native_source_sha256": sources,
               "window_stream": {"receipt_sha256": sha(out / "window-stream/result.json"), "variants": window["variants"],
-                                "native_aperture": window['native_aperture']},
+                                "native_aperture": window['native_aperture'],"read_width":window['read_width']},
               "logs_sha256": {name: sha(out / (name + ".log")) for name in ("first-build", "second-build", "first-verify", "wrong-live-id", "wrong-live-abi", "wrong-descriptor", "wrong-record", "wrong-live-binding", "wrong-artifact", "native-binding", "window-stream")},
               "limitations": ["host executables are not RBFs or FES packages", "no Nano source pinout, actual producer, physical timing or hardware qualification", "record/tool hashes are diagnostic correlations, not authenticated production seals"]}
     (out / "result.json").write_text(json.dumps(report, indent=2) + "\n")

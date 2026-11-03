@@ -105,6 +105,17 @@ to that check for window mode. Default/labelled working-tree runs remain host
 models. The existing native cold firmware rejects this new profile until its
 trusted 4 MiB handoff and physical DDR test are supplied.
 
+The HPS memory port uses 256-bit transfers, as required by the direct-DDR
+[transfer-width contract](https://docs.altera.com/r/docs/814346/26.1/hard-processor-system-technical-reference-manual-agilex-5-socs/fpga-to-sdram-direct-cache-non-allocate).
+`fes_de25_read_width` combines each aligned pair of 128-bit reader beats into
+one 32-byte address transfer and splits the response in memory byte order.
+Manual descriptors use 32-byte alignment and an even number of reader beats;
+the frame geometry, byte counts and CRC remain the same. DISABLE retains the
+buffered upper half until consumed, and raw response validity remains visible
+to the endpoint even while the adapter is empty. Error responses and IDs pass
+through both halves. The window verifier tests held halves, response errors,
+unsolicited responses and a complete page alongside full-frame native reads.
+
 DDR mode disables the unused coherent F2H hard interface and removes its JTAG
 manager and translator. The DDR-only generator requires exactly the
 `f2s_data_width=256` to `0` change and the five known Quartus 26.3 defaults,

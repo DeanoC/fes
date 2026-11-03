@@ -38,7 +38,7 @@ extern "C" void fes_test_window_frame(unsigned which)
         unsigned ticks=0;
         while(!(f.access(false,0x90)&4) && ticks++<300000)f.tick();
         require(ticks<300000 && f.access(false,0xa0)==3686400 &&
-                f.access(false,0xa4)==3686400 && f.beats*16==3686400,"full window was not delivered");
+                f.access(false,0xa4)==3686400 && f.beats*32==3686400,"full window was not delivered");
         printf("FES_TEST_WINDOW_FRAME bytes=%u crc32=%08x\n",3686400,f.access(false,0xa8));
     } else {
         for(unsigned i=0;i<20;i++)f.tick();

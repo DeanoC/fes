@@ -59,7 +59,7 @@ static std::array<unsigned,2> ddr_read_cases() {
         int result=fes_nano_ddr_read(&f.reader,&f.output);
         require(!result && f.reader.done,"bounded DDR read failed phase="+std::to_string(f.reader.phase)+
                 " error="+std::to_string(result)+" polls="+std::to_string(f.reader.polls));
-        require(f.addresses==1 && f.beats==2 && f.pending.empty() && !f.d.ddr_arvalid,"DDR receipt did not consume the real burst");
+        require(f.addresses==1 && f.beats==1 && f.pending.empty() && !f.d.ddr_arvalid,"DDR receipt did not consume the real burst");
         require(f.output.returned_bytes==32 && f.output.generation==1 && f.output.cookie==7,"DDR receipt differs");
         auto counts=std::array<unsigned,4>{f.reads,f.writes,f.waits,f.scope_calls};
         require(fes_nano_ddr_read(&f.reader,&f.output)==-1 && f.reader.done,"completed DDR read replayed");
@@ -72,7 +72,7 @@ static std::array<unsigned,2> ddr_read_cases() {
     }
     for(const std::string fault:{"scope","scope-two","identity","version","abi","build","base","span","maintenance",
         "stale-ack","request","read-positive","owner-after-read","write-before","write-after","write-positive",
-        "owner-after-write","held","no-response","response","response-id","early-last","missing-last","wrong-data",
+        "owner-after-write","held","no-response","response","response-id","extra-response","missing-last","wrong-data",
         "returned-bytes","checksum","last-data"}) {
         DDRReadFixture f(fault);
         require(fes_nano_ddr_read(&f.reader,&f.output)<0,"invalid DDR read accepted: "+fault);f.retired();cases++;

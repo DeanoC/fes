@@ -149,6 +149,7 @@ def inputs_for(project):
         raise ValueError("invalid or inconsistent build ID")
     local = board / "hps/project/fes_mailbox"
     mapped = {"fes_de25_embedded.sv": "sources/misteross/prototypes/de25_board_control/fes_de25_embedded.sv",
+              "fes_de25_read_width.sv": "sources/misteross/prototypes/de25_board_control/fes_de25_read_width.sv",
               "fes_de25_embedded_hw.tcl": "sources/misteross/prototypes/de25_board_control/fes_de25_embedded_hw.tcl",
               "fes_embedded_control.sv": "sources/misteross/cores/fes-common/rtl/fes_embedded_control.sv",
               "generated/fes_embedded_control.vh": "sources/misteross/cores/fes-common/generated/fes_embedded_control.vh"}
@@ -238,15 +239,17 @@ def main():
             wrapper = local / "fes_de25_embedded.sv"
             endpoint.write_bytes((ROOT / "sources/misteross/cores/fes-common/rtl/fes_embedded_control.sv").read_bytes())
             wrapper.write_bytes((HERE / "fes_de25_embedded.sv").read_bytes())
+            (local/'fes_de25_read_width.sv').write_bytes((HERE/'fes_de25_read_width.sv').read_bytes())
             (includes / "fes_embedded_control.vh").write_bytes((ROOT / "sources/misteross/cores/fes-common/generated/fes_embedded_control.vh").read_bytes())
             build_id, abi = "00112233445566778899aabbccddeeff", 0x10203040
-        source_sha256 = {"endpoint": sha(endpoint), "wrapper": sha(wrapper), "definition": sha(includes / "fes_embedded_control.vh")}
+        width_adapter=local/'fes_de25_read_width.sv'
+        source_sha256 = {"endpoint": sha(endpoint), "wrapper": sha(wrapper), "read_width": sha(width_adapter), "definition": sha(includes / "fes_embedded_control.vh")}
         tools, paths = PRODUCER.tools_snapshot()
         obj = output / "obj"
         command = [paths["verilator"], "--cc", "--exe", "--build", "--top-module", "fes_de25_embedded",
                    "-Wall", "-Wno-UNUSEDSIGNAL", "--Mdir", obj, "-I" + str(includes),
                    "-DFES_DE25_COMPUTER_BUILD_ID=128'h" + build_id, "-CFLAGS", "-std=c++17 -O2",
-                   endpoint, wrapper, output / "probe.cpp"]
+                   endpoint, width_adapter, wrapper, output / "probe.cpp"]
         env = PRODUCER.build_environment(paths)
         run("build", command, ROOT, env, output)
         executable = obj / "Vfes_de25_embedded"
@@ -290,6 +293,7 @@ def main():
             inputs_for(project)
         elif source_sha256 != {"endpoint": sha(ROOT / "sources/misteross/cores/fes-common/rtl/fes_embedded_control.sv"),
                                "wrapper": sha(HERE / "fes_de25_embedded.sv"),
+                               "read_width": sha(HERE / "fes_de25_read_width.sv"),
                                "definition": sha(ROOT / "sources/misteross/cores/fes-common/generated/fes_embedded_control.vh")}:
             raise ValueError("standalone sources changed during verification")
         run('ddr-model',[sys.executable,HERE/'verify_ddr.py','--output',output/'ddr'],ROOT,env,output,

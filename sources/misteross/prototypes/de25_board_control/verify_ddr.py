@@ -28,6 +28,7 @@ def main():
         output.mkdir(parents=True)
         captured=output/'source';(captured/'generated').mkdir(parents=True)
         selected={'fes_de25_embedded.sv':local/'fes_de25_embedded.sv' if local else HERE/'fes_de25_embedded.sv',
+                  'fes_de25_read_width.sv':local/'fes_de25_read_width.sv' if local else HERE/'fes_de25_read_width.sv',
                   'fes_embedded_control.sv':local/'fes_embedded_control.sv' if local else ROOT/'sources/misteross/cores/fes-common/rtl/fes_embedded_control.sv',
                   'generated/fes_embedded_control.vh':local/'generated/fes_embedded_control.vh' if local else ROOT/'sources/misteross/cores/fes-common/generated/fes_embedded_control.vh',
                   'ddr_probe.cpp':HERE/'ddr_probe.cpp'}
@@ -40,7 +41,7 @@ def main():
           '-Wall','-Wno-UNUSEDSIGNAL','--Mdir',obj,'-I'+str(captured/'generated'),
           "-DFES_DE25_COMPUTER_BUILD_ID=128'h"+build_id,'-GMEMORY_BACKEND=1',
           '-GDDR_BASE='+str(memory['bus_base']),'-GDDR_BYTES='+str(memory['bytes']),
-          '-CFLAGS','-std=c++17 -O2',captured/'fes_embedded_control.sv',captured/'fes_de25_embedded.sv',captured/'ddr_probe.cpp']
+          '-CFLAGS','-std=c++17 -O2',captured/'fes_embedded_control.sv',captured/'fes_de25_read_width.sv',captured/'fes_de25_embedded.sv',captured/'ddr_probe.cpp']
         run('build',command,ROOT,env,output)
         executable=obj/'Vfes_de25_embedded';abi=reader_memory.control_abi(memory)
         argv=[executable,build_id,str(abi),str(memory['bus_base']),str(memory['bytes'])]
@@ -48,7 +49,7 @@ def main():
         if (observed.get('status')!='passed' or observed.get('backend')!='hps-ddr' or
             observed.get('build_id')!=build_id or observed.get('control_abi')!=abi or
             observed.get('bus_base')!=memory['bus_base'] or observed.get('bytes')!=memory['bytes'] or
-            len(observed.get('cases',[]))!=23 or observed.get('physical_ddr') is not False or
+            len(observed.get('cases',[]))!=25 or observed.get('physical_ddr') is not False or
             observed.get('runtime_admission') is not False):
             raise ValueError('DDR reader model observations differ')
         wrong=('0' if build_id[0]!='0' else '1')+build_id[1:]
@@ -65,7 +66,7 @@ def main():
           'reader_memory':memory,'observed':observed,'negative_identity_cases':3,
           'inherited_probe_stop':stop_result,'hardware_access':False,'bridge_release':False,'runtime_admission':False}
         (output/'result.json').write_text(json.dumps(record,indent=2)+'\n')
-        print('PASS23 DDR reader cases and3 identity/window rejection cases:',output)
+        print('PASS25 DDR reader cases and3 identity/window rejection cases:',output)
         return 0
     except (OSError,ValueError,KeyError,subprocess.SubprocessError) as error:
         print('DDR reader check:',error,file=sys.stderr);return 1

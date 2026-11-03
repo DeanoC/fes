@@ -32,7 +32,7 @@ ENDPOINT = "sources/misteross/cores/fes-common/rtl/fes_embedded_control.sv"
 WINDOW_READER = "sources/misteross/prototypes/embedded_control/fes_embedded_window_reader.sv"
 WINDOW_CONTROL = "sources/misteross/prototypes/embedded_control/fes_embedded_window_control.sv"
 DEFINITION = "sources/misteross/cores/fes-common/generated/fes_embedded_control.vh"
-INPUTS = (OVERLAY + "build.py", OVERLAY + "fes_de25_embedded.sv",
+INPUTS = (OVERLAY + "build.py", OVERLAY + "fes_de25_embedded.sv", OVERLAY + "fes_de25_read_width.sv",
           OVERLAY + "fes_de25_embedded_hw.tcl", OVERLAY + "integrate.tcl", OVERLAY + "seal.py",
           OVERLAY + "fes_de25_computer.v", OVERLAY + "generated/fes_de25_computer.vh",
           OVERLAY + "generated/fes_de25_computer.hpp",
@@ -191,6 +191,7 @@ def overlay_project(output, board, sources, identity, record=None):
             re.findall(r"parameter\s+\[31:0\]\s+CONTROL_ABI\s*=\s*32'h([0-9a-fA-F]{8})", wrapper) != [f"{CONTROL_ABI:08x}"]):
         raise ValueError("embedded wrapper default build ID or ABI differs")
     for source, target in ((OVERLAY + "fes_de25_embedded.sv", "fes_de25_embedded.sv"),
+                           (OVERLAY + "fes_de25_read_width.sv", "fes_de25_read_width.sv"),
                            (OVERLAY + "fes_de25_embedded_hw.tcl", "fes_de25_embedded_hw.tcl"),
                            (OVERLAY + "fes_de25_computer.v", "fes_de25_computer.v"),
                            (OVERLAY + "generated/fes_de25_computer.vh", "generated/fes_de25_computer.vh"),
@@ -305,6 +306,7 @@ def verify_control(project, hps, board, memory=None):
     material = generated / "fes_de25_embedded_10/synth"
     local = project / "fes_mailbox"
     for generated_name, source_name in (("fes_de25_embedded.sv", "fes_de25_embedded.sv"),
+                                        ("fes_de25_read_width.sv", "fes_de25_read_width.sv"),
                                         ("fes_embedded_control.sv", "fes_embedded_control.sv"),
                                         ("fes_embedded_window_reader.sv", "fes_embedded_window_reader.sv"),
                                         ("fes_embedded_window_control.sv", "fes_embedded_window_control.sv"),
@@ -348,12 +350,12 @@ def verify_control(project, hps, board, memory=None):
         expected_mem={'arvalid':('Output',1),'araddr':('Output',32),'arlen':('Output',8),
           'arsize':('Output',3),'arburst':('Output',2),'arid':('Output',1),'arlock':('Output',1),
           'arcache':('Output',4),'arprot':('Output',3),'arqos':('Output',4),'arready':('Input',1),
-          'rvalid':('Input',1),'rdata':('Input',128),'rlast':('Input',1),'rresp':('Input',2),
+          'rvalid':('Input',1),'rdata':('Input',256),'rlast':('Input',1),'rresp':('Input',2),
           'rid':('Input',1),'rready':('Output',1),
           'awvalid':('Output',1),'awaddr':('Output',32),'awlen':('Output',8),'awsize':('Output',3),
           'awburst':('Output',2),'awid':('Output',1),'awlock':('Output',1),'awcache':('Output',4),
           'awprot':('Output',3),'awqos':('Output',4),'awready':('Input',1),'wvalid':('Output',1),
-          'wdata':('Output',128),'wstrb':('Output',16),'wlast':('Output',1),'wready':('Input',1),
+          'wdata':('Output',256),'wstrb':('Output',32),'wlast':('Output',1),'wready':('Input',1),
           'bvalid':('Input',1),'bresp':('Input',2),'bid':('Input',1),'bready':('Output',1)}
         if hps.component_ports(component,'mem')!=expected_mem:
             raise ValueError('generated embedded DDR AXI interface differs')

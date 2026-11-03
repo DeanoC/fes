@@ -37,7 +37,7 @@ module fes_de25_embedded #(
     output wire [3:0] ddr_arqos,
     input wire ddr_arready,
     input wire ddr_rvalid,
-    input wire [127:0] ddr_rdata,
+    input wire [255:0] ddr_rdata,
     input wire ddr_rlast,
     input wire [1:0] ddr_rresp,
     input wire ddr_rid,
@@ -53,8 +53,8 @@ module fes_de25_embedded #(
     output wire [3:0] ddr_awqos,
     input wire ddr_awready,
     output wire ddr_wvalid,
-    output wire [127:0] ddr_wdata,
-    output wire [15:0] ddr_wstrb,
+    output wire [255:0] ddr_wdata,
+    output wire [31:0] ddr_wstrb,
     output wire ddr_wlast,
     input wire ddr_wready,
     input wire ddr_bvalid,
@@ -102,35 +102,60 @@ module fes_de25_embedded #(
     reg [1:0] memory_response;
     reg [31:0] returned_bytes, checksum;
     reg [127:0] last_data;
-    wire m_arready = DDR_MODE ? ddr_arready : allow_address && !memory_active;
+    wire m_arready;
+    wire packed_rvalid, packed_rlast;
+    wire [127:0] packed_rdata;
+    wire [1:0] packed_rresp;
+    wire packed_rid;
     wire memory_last = beats_left == 9'd1;
     // There can be no legal B response: AWVALID/WVALID/WSTRB are hard zero.
     // An unsolicited write response retires the same reader as a bus error.
-    wire response_valid = DDR_MODE ? (ddr_rvalid || ddr_bvalid) : memory_valid;
-    wire [127:0] response_data = DDR_MODE ? ddr_rdata : {4{32'hde250001}};
-    wire response_last = DDR_MODE ? ddr_rlast : memory_last;
-    wire [1:0] response_code = DDR_MODE ? (ddr_bvalid ? 2'b10 : ddr_rresp) : memory_response;
-    wire [3:0] response_id = DDR_MODE ? {3'd0,ddr_rid} : 4'd0;
+    wire response_valid = DDR_MODE ? (packed_rvalid || ddr_bvalid) : memory_valid;
+    wire [127:0] response_data = DDR_MODE ? packed_rdata : {4{32'hde250001}};
+    wire response_last = DDR_MODE ? packed_rlast : memory_last;
+    wire [1:0] response_code = DDR_MODE ? (ddr_bvalid ? 2'b10 : packed_rresp) : memory_response;
+    wire [3:0] response_id = DDR_MODE ? {3'd0,packed_rid} : 4'd0;
     wire [32:0] window_end = {1'b0,DDR_BASE} + {1'b0,DDR_BYTES};
     wire [32:0] request_bytes = ({25'd0,staged_length} + 33'd1) << 4;
     wire [32:0] request_end = {1'b0,staged_address} + request_bytes;
     wire ddr_descriptor_valid = DDR_BYTES != 0 && DDR_BASE[3:0] == 0 && DDR_BYTES[3:0] == 0 &&
-        window_end <= 33'h100000000 && staged_address[3:0] == 0 &&
+        window_end <= 33'h100000000 && staged_address[4:0] == 0 && staged_length[0] &&
         staged_address >= DDR_BASE && request_end <= window_end &&
         {21'd0,staged_address[11:0]} + request_bytes <= 33'd4096;
     // VALID, address and length are held by the control endpoint. Do not gate
     // a real address offer with a software-controlled READY substitute.
-    assign ddr_arvalid = DDR_MODE && m_arvalid;
-    assign ddr_araddr = m_araddr;
-    assign ddr_arlen = m_arlen;
-    assign ddr_arsize = m_arsize;
+    // HPS direct DDR requires full-width beats. Keep the portable reader's
+    // 128-bit ledger while converting pairs into one aligned 256-bit beat.
+    generate if (DDR_MODE) begin : full_width_ddr
+        fes_de25_read_width width_adapter (
+            .clk(clk),.reset_n(reset_n),
+            .reader_arvalid(m_arvalid),.reader_araddr(m_araddr),.reader_arlen(m_arlen),
+            .reader_arsize(m_arsize),.reader_arburst(m_arburst),.reader_arid(m_arid),.reader_arready(m_arready),
+            .reader_rvalid(packed_rvalid),.reader_rdata(packed_rdata),.reader_rlast(packed_rlast),
+            .reader_rresp(packed_rresp),.reader_rid(packed_rid),.reader_rready(m_rready),
+            .ddr_arvalid(ddr_arvalid),.ddr_araddr(ddr_araddr),.ddr_arlen(ddr_arlen),.ddr_arready(ddr_arready),
+            .ddr_rvalid(ddr_rvalid),.ddr_rdata(ddr_rdata),.ddr_rlast(ddr_rlast),
+            .ddr_rresp(ddr_rresp),.ddr_rid(ddr_rid),.ddr_rready(ddr_rready)
+        );
+    end else begin : local_memory
+        assign m_arready=allow_address && !memory_active;
+        assign packed_rvalid=1'b0;
+        assign packed_rdata=128'd0;
+        assign packed_rlast=1'b0;
+        assign packed_rresp=2'd0;
+        assign packed_rid=1'b0;
+        assign ddr_arvalid=1'b0;
+        assign ddr_araddr=32'd0;
+        assign ddr_arlen=8'd0;
+        assign ddr_rready=1'b0;
+    end endgenerate
+    assign ddr_arsize = DDR_MODE ? 3'd5 : m_arsize;
     assign ddr_arburst = m_arburst;
     assign ddr_arid = m_arid[0];
     assign ddr_arlock = 1'b0;
     assign ddr_arcache = 4'd0;
     assign ddr_arprot = 3'b010; // Non-secure data read; no instruction access.
     assign ddr_arqos = 4'd0;
-    assign ddr_rready = DDR_MODE && m_rready;
     // Platform Designer requires a complete AXI port set. These are ties,
     // not another producer or a software-selectable write path.
     assign ddr_awvalid = 1'b0;
@@ -144,8 +169,8 @@ module fes_de25_embedded #(
     assign ddr_awprot = 3'd0;
     assign ddr_awqos = 4'd0;
     assign ddr_wvalid = 1'b0;
-    assign ddr_wdata = 128'd0;
-    assign ddr_wstrb = 16'd0;
+    assign ddr_wdata = 256'd0;
+    assign ddr_wstrb = 32'd0;
     assign ddr_wlast = 1'b0;
     assign ddr_bready = 1'b1;
     wire [31:0] status = {7'd0, beats_left, 8'd0, reader_rvalid, m_rready,
@@ -209,7 +234,7 @@ module fes_de25_embedded #(
                 memory_active <= 1;
                 beats_left <= {1'b0, m_arlen} + 9'd1;
             end
-            if ((DDR_MODE ? ddr_rvalid : memory_valid) && m_rready) begin
+            if ((DDR_MODE ? packed_rvalid : memory_valid) && m_rready) begin
                 memory_valid <= 0;
                 returned_bytes <= returned_bytes + 32'd16;
                 checksum <= checksum ^ response_data[31:0] ^ response_data[63:32] ^
