@@ -883,6 +883,9 @@ static void           enable_mouse_int_and_events();
 static Bit8u          send_to_mouse_ctrl();
 static Bit8u          get_mouse_data();
 static void           set_kbd_command_byte();
+static Bit8u          get_kbd_command_byte();
+static void           mouse_exchange_begin();
+static void           mouse_exchange_end();
 
 static void           int09_function();
 static void           int13_harddisk();
@@ -5155,6 +5158,69 @@ dequeue_key(scan_code, ascii_code, incr)
 
 static char panic_msg_keyb_buffer_full[] = "%s: keyboard input buffer full\n";
 
+// FES 2026-11-03: the C2xx services exchange bytes with the aux device
+// through the 8042 with interrupts off, and read port 60h for the command
+// byte and for each of the device's replies. A keyboard byte in the output
+// buffer was read as the command byte, or held the device's reply behind it
+// while get_mouse_data spun forever (#1330). So, as production BIOSes do,
+// int15_handler_mouse runs each call with the keyboard interface disabled
+// (ADh) and enables it again (AEh) on the way out, whichever path the call
+// takes. A byte already in the output buffer goes first to its interrupt
+// handler, INT 09h or INT 74h, with interrupts on, so a key is not lost; one
+// that no handler takes in a few milliseconds (its IRQ masked, or a higher
+// one in service) is discarded. INT 09h enables the keyboard as it exits, so
+// the disable is repeated until the buffer is empty behind it.
+  void
+mouse_exchange_begin()
+{
+  Bit8u  status;
+  Bit16u wait;
+
+  for (;;) {
+    while ( inb(PORT_PS2_STATUS) & 0x02 );
+    outb(PORT_PS2_STATUS, 0xAD); // disable keyboard interface
+    while ( inb(PORT_PS2_STATUS) & 0x02 );
+    status = inb(PORT_PS2_STATUS);
+    if ( (status & 0x01) == 0 )
+      return;
+    wait = 0x1000;
+ASM_START
+    sti
+ASM_END
+    while ( (inb(PORT_PS2_STATUS) & 0x01) && (--wait > 0) );
+ASM_START
+    cli
+ASM_END
+    if (wait == 0)
+      inb(PORT_PS2_DATA);
+  }
+}
+
+  void
+mouse_exchange_end()
+{
+  while ( inb(PORT_PS2_STATUS) & 0x02 );
+  outb(PORT_PS2_STATUS, 0xAE); // enable keyboard interface
+}
+
+// FES 2026-11-03: the command byte (20h). With the keyboard interface
+// disabled, the first byte that is not the aux device's is the reply; an aux
+// byte ahead of it, from a mouse still streaming, is discarded (#1330).
+  Bit8u
+get_kbd_command_byte()
+{
+  Bit8u status;
+
+  outb(PORT_PS2_STATUS, 0x20); // get command byte
+  for (;;) {
+    status = inb(PORT_PS2_STATUS);
+    if ( (status & 0x21) == 0x01 )
+      return inb(PORT_PS2_DATA);
+    if (status & 0x01)
+      inb(PORT_PS2_DATA);
+  }
+}
+
   Bit8u
 inhibit_mouse_int_and_events()
 {
@@ -5163,9 +5229,7 @@ inhibit_mouse_int_and_events()
   // Turn off IRQ generation and aux data line
   if ( inb(PORT_PS2_STATUS) & 0x02 )
     BX_PANIC(panic_msg_keyb_buffer_full,"inhibmouse");
-  outb(PORT_PS2_STATUS, 0x20); // get command byte
-  while ( (inb(PORT_PS2_STATUS) & 0x01) != 0x01 );
-  prev_command_byte = inb(PORT_PS2_DATA);
+  prev_command_byte = get_kbd_command_byte();
   command_byte = prev_command_byte;
   //while ( (inb(PORT_PS2_STATUS) & 0x02) );
   if ( inb(PORT_PS2_STATUS) & 0x02 )
@@ -5185,9 +5249,7 @@ enable_mouse_int_and_events()
   // Turn on IRQ generation and aux data line
   if ( inb(PORT_PS2_STATUS) & 0x02 )
     BX_PANIC(panic_msg_keyb_buffer_full,"enabmouse");
-  outb(PORT_PS2_STATUS, 0x20); // get command byte
-  while ( (inb(PORT_PS2_STATUS) & 0x01) != 0x01 );
-  command_byte = inb(PORT_PS2_DATA);
+  command_byte = get_kbd_command_byte();
   //while ( (inb(PORT_PS2_STATUS) & 0x02) );
   if ( inb(PORT_PS2_STATUS) & 0x02 )
     BX_PANIC(panic_msg_keyb_buffer_full,"enabmouse");
@@ -11969,7 +12031,10 @@ int15_stub:
 
 #if BX_USE_PS2_MOUSE
 int15_handler_mouse:
+  ;; FES 2026-11-03: the keyboard interface is off for the exchange (#1330).
+  call _mouse_exchange_begin
   call _int15_function_mouse
+  call _mouse_exchange_end
   jmp int15_handler_mouse_ret
 #endif
 
