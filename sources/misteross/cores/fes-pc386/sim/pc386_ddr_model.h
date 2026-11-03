@@ -144,6 +144,7 @@ public:
     }
 
     bool idle() const { return reads.empty() && write_left == 0; }
+    unsigned beats_owed() const { return write_left; }  // of the write burst open
     uint64_t commands = 0, beats_read = 0, beats_written = 0;
 
 private:
@@ -255,6 +256,7 @@ public:
     }
 
     bool idle() const { return reads.empty() && write_left == 0; }
+    unsigned beats_owed() const { return write_left; }  // of the write burst open
     uint64_t commands = 0, beats_read = 0, beats_written = 0;
 
 private:

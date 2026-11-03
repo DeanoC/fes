@@ -30,11 +30,14 @@
 // DataReads; Execution hold. Every chunk the guest changed must be dirty.
 // Last it restores that record into the held machine, releases it until the
 // RTC's CMOS setup is done, and reads the record back, so the CMOS RAM bytes
-// make the round trip through the RTC. Nothing else reaches inside the
-// system, and no oracle backs the CPU: a CPU stop ends the run. fes_hps_ddr is
-// two synchronising flops from ddr_hold to each port's reset; a held port is
-// not driven, as its guard takes over. The pixel clock runs throughout, so
-// the presenter and plane load port 2 as on a kit.
+// make the round trip through the RTC. Then it sweeps holds across port 2's
+// write bursts, the capture's (#1372): each of HOLD_TRIALS trials releases
+// the machine, runs it 37 clocks longer than the last and holds it again, and
+// port 2 must go on writing after a hold that cut a burst. Nothing else
+// reaches inside the system, and no oracle backs the CPU: a CPU stop ends the
+// run. fes_hps_ddr is two synchronising flops from ddr_hold to each port's
+// reset; a held port is not driven, as its guard takes over. The pixel clock
+// runs throughout, so the presenter and plane load port 2 as on a kit.
 //
 // It prints:
 //   WRITE-TEST <offset>|absent              where the AUTOEXEC.BAT change went
@@ -56,7 +59,11 @@
 //                                            the Stop's disk save
 //   RECORD <72 words>                        the Stop's record
 //   ROUNDTRIP <72 words>                     the record after the restore and setup
-//   CHECK <PASS|FAIL> <what>                 the record and round-trip checks
+//   HOLD <cycle> owed=<p0>,<p1>,<p2>         each hold as the ports take it: the write
+//                                            beats of each port's open burst
+//   HOLD-TRIAL <n> run=<clocks> owed=<n>     a swept hold: clocks run since release,
+//                                            port 2's beats owed
+//   CHECK <PASS|FAIL> <what>                 the record, round-trip and hold checks
 //   END <reason> cycles=<n> seconds=<simulated>
 // reason: prompt, stopped (the CPU stopped for good), stalled (no
 // instruction retired for 2 s: a hang, or HLT with interrupts off), limit,
@@ -97,6 +104,8 @@ enum : uint16_t { PREPARE = 0, COMMIT = 1, FREEZE = 3, SAVED = 5 };
 enum : uint16_t { DATA_FREEZE = 0, DATA_BEGIN = 1, DATA_COMMIT = 2 };
 constexpr uint16_t READY = 3, LOADING = 2, VERIFYING = 4, FLAG_ERROR = 8;
 constexpr unsigned WORDS = 72;
+// Holds swept across port 2's write bursts after the round trip.
+constexpr unsigned HOLD_TRIALS = 24;
 // The record the bench restores: preset max unless --preset says, the Sound
 // Blaster at 240h, IRQ 5, DMA 1, and a byte in the free CMOS (50h) that only
 // the record writes.
@@ -220,6 +229,8 @@ private:
     uint16_t cylinders = 0;
     uint8_t heads = 0, spt = 0;
     uint8_t hold_sync[2] = {1, 1};  // fes_hps_ddr's synchroniser from ddr_hold
+    bool port_held = true, hold_rose = false;
+    unsigned hold_owed = 0;          // port 2's write beats owed at the last hold
     double sys_ps = 0, now_ps = 0, pixel_ps = 0;
     uint64_t cycles = 0, limit = 0, progress_at = 0, retired = 0, last_screen = 0;
     int last_post = -1, checks_failed = 0;
@@ -241,7 +252,6 @@ private:
         cylinders = uint16_t(std::min<uint64_t>(image.size() / 512 / per_cylinder, 16383));
     }
 
-    // A held port is not driven: its guard answers the master.
     // The fixture's AUTOEXEC.BAT (build_pc386_freedos_image.py) with MD C:\M5
     // for PATH C:\: the directory's entry and cluster are guest sector writes.
     void write_test() {
@@ -257,6 +267,13 @@ private:
 
     void clock() {
         bool held = hold_sync[1];
+        if (held && !port_held) {
+            hold_owed = ddr2.beats_owed();
+            hold_rose = true;
+            std::printf("HOLD %llu owed=%u,%u,%u\n", (unsigned long long)cycles, ddr0.beats_owed(),
+                        ddr1.beats_owed(), hold_owed);
+        }
+        port_held = held;
         top.p0_reset = top.p1_reset = top.p2_reset = held;
         if (held) {
             top.p0_readdatavalid = 0; top.p0_waitrequest = 1;
@@ -582,6 +599,34 @@ private:
                   valid_bcd(cmos(again, 0x04), 2) && cmos(again, 0x04) <= 0x23 && cmos(again, 0x06) == 7 &&
                   cmos(again, 0x07) == 0x31 && cmos(again, 0x08) == 0x10 && cmos(again, 0x09) == 0x26,
               "the running clock keeps valid seconds, minutes, hours, weekday and date after restore");
+        hold_trials();
+    }
+
+    // Holds swept across port 2's write bursts. The trial after one whose
+    // hold cut a burst must see port 2 take write beats again; the last trial
+    // only follows up.
+    void hold_trials() {
+        unsigned cuts = 0, resumed = 0;
+        bool cut = false;
+        for (unsigned trial = 0; trial <= HOLD_TRIALS; ++trial) {
+            exchange(OP_EXECUTION, 0, 1);
+            uint64_t written = ddr2.beats_written;
+            unsigned run = 1024 + 37 * trial;
+            for (unsigned n = 0; n < run; ++n) clock();
+            resumed += cut && ddr2.beats_written > written;
+            hold_rose = false;
+            exchange(OP_EXECUTION, 0, 0);
+            for (unsigned n = 0; !hold_rose; ++n) {
+                if (n == 100000) throw MailboxError("Execution hold did not hold the DDR ports");
+                clock();
+            }
+            std::printf("HOLD-TRIAL %u run=%u owed=%u\n", trial, run, hold_owed);
+            cut = trial < HOLD_TRIALS && hold_owed != 0;
+            cuts += cut;
+        }
+        check(cuts != 0 && resumed == cuts, "holds cut a port 2 write burst in " + std::to_string(cuts) + " of " +
+                                                std::to_string(HOLD_TRIALS) +
+                                                " trials, and port 2 took write beats after each release");
     }
 
     // Text mode: character n at planar offset 2n in plane 0.
