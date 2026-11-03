@@ -342,10 +342,16 @@ source-bound diagnostic sequencing, not signed or measured secure boot.
 per invocation. The default `--purpose boot` writes `FES/UPLOAD.BIN`;
 `--purpose package` writes `FES/PKGTEST.BIN`, each bounded to 8 MiB.
 `--purpose metadata` writes `FES/PROGRAM.JSN` with a 16 KiB bound, and
-`--purpose selection` writes `FES/CORESEL.JSN` with an 8 KiB bound. These limits
+`--purpose selection` writes `FES/CORESEL.JSN` with an 8 KiB bound.
+The second fixed package slot uses `--purpose package-alt` for `FES/PKGALT.BIN`
+(8 MiB) and `--purpose metadata-alt` for `FES/PROGALT.JSN` (16 KiB). A selection
+catalogue can refer to both slots. These limits
 match native retention and selection parsing. Arbitrary destination paths are
 rejected. Use one `UploadSession` for a multi-file update and fresh readbacks;
-separate CLI sessions cannot adopt the preceding live RAM reservations.
+separate CLI sessions cannot adopt the preceding live RAM reservations. For two
+packages, write the FIT, both archives and their metadata, then the selection;
+freshly verify all six files after the final write. The native service still
+retains and checks the selected archive and metadata before every load.
 For a native candidate, supply the
 matched build's `build/u-boot.itb`:
 

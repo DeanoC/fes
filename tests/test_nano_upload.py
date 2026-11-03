@@ -170,7 +170,7 @@ class NanoUploadTests(unittest.TestCase):
                 self.run_upload(fault,purpose='package')
             self.assertEqual(self.last_model.writes,1)
     def test_arbitrary_upload_destinations_reject_before_console_access(self):
-        for purpose in ('FES/RECOVERY.JSON','../u-boot.itb','package; boot','',None):
+        for purpose in ('FES/RECOVERY.JSON','../u-boot.itb','package; boot','FES/PKGALT.BIN','package-third','',None):
             model=Model(self.kit,self.payload)
             with self.subTest(purpose=purpose),self.assertRaises(ValueError):
                 upload.UploadSession(model,self.kit,'192.168.10.202','02:fe:25:08:cb:01').upload(self.payload,{},purpose=purpose)
@@ -230,7 +230,8 @@ class NanoUploadTests(unittest.TestCase):
         self.assertEqual(sum(c.startswith('setenv fes_upload_session ') for c in model.commands),1)
 
     def test_selected_program_files_use_fixed_destinations_and_smaller_bounds(self):
-        for purpose,target,limit in (('metadata','FES/PROGRAM.JSN',16<<10),('selection','FES/CORESEL.JSN',8192)):
+        for purpose,target,limit in (('metadata','FES/PROGRAM.JSN',16<<10),('selection','FES/CORESEL.JSN',8192),
+                                    ('package-alt','FES/PKGALT.BIN',upload.LIMIT),('metadata-alt','FES/PROGALT.JSN',16<<10)):
             for size in (1,limit):
                 with self.subTest(purpose=purpose,size=size):
                     self.payload=b'x'*size
@@ -248,23 +249,24 @@ class NanoUploadTests(unittest.TestCase):
                 with self.assertRaises(ValueError):session.verify(b'x'*size,{'commands':[]},purpose=purpose)
                 self.assertEqual(model.commands,[])
 
-    def test_four_fixed_files_and_fresh_readbacks_share_one_live_session(self):
+    def test_two_packages_metadata_and_selection_share_one_live_session_and_fresh_readbacks(self):
         model,session=self.session()
-        payloads={'boot':b'b'*6144,'package':b'p'*2048,'metadata':b'm'*(16<<10),'selection':b's'*8192}
+        payloads={'boot':b'b'*6144,'package':b'p'*2048,'metadata':b'm'*(16<<10),
+                  'package-alt':b'q'*4096,'metadata-alt':b'n'*(16<<10),'selection':b's'*8192}
         written={};fresh={}
         with patch('builtins.print'):
             for purpose,payload in payloads.items():
                 model.payload=payload
                 written[purpose]={'commands':[]}
                 session.upload(payload,written[purpose],purpose=purpose)
-            self.assertEqual(model.writes,4)
+            self.assertEqual(model.writes,len(payloads))
             for purpose,payload in payloads.items():
                 fresh[purpose]={'commands':[]}
                 session.verify(payload,fresh[purpose],purpose=purpose)
                 self.assertTrue(fresh[purpose]['fresh_readback'] and fresh[purpose]['read_only'])
                 self.assertFalse(fresh[purpose]['sd_write_attempted'])
                 self.assertEqual([r['stage'] for r in fresh[purpose]['memory_observations']],['admit','complete'])
-        self.assertEqual(model.writes,4)
+        self.assertEqual(model.writes,len(payloads))
         self.assertEqual(len({r['upload_session'] for r in [*written.values(),*fresh.values()]}),1)
         self.assertEqual(sum(c.startswith('setenv fes_upload_session ') for c in model.commands),1)
         self.assertEqual(model.files,{upload.destination(k):v for k,v in payloads.items()})

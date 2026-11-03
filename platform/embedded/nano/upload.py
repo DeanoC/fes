@@ -29,7 +29,8 @@ ROOT = Path(__file__).resolve().parents[3]
 BOARD = 'TRWU8CBL'
 LIMIT = MAX_FIT_SIZE
 DESTINATIONS = {'boot':EXPERIMENTAL_FILE, 'package':'FES/PKGTEST.BIN',
-                'metadata':'FES/PROGRAM.JSN', 'selection':'FES/CORESEL.JSN'}
+                'metadata':'FES/PROGRAM.JSN', 'selection':'FES/CORESEL.JSN',
+                'package-alt':'FES/PKGALT.BIN', 'metadata-alt':'FES/PROGALT.JSN'}
 PREFIX_SIZE = 32768 * 512
 
 
@@ -80,7 +81,8 @@ def destination(purpose):
 
 def payload_limit(purpose):
     destination(purpose)
-    return {'boot': LIMIT, 'package': LIMIT, 'metadata': 16<<10, 'selection': 8192}[purpose]
+    return {'boot': LIMIT, 'package': LIMIT, 'metadata': 16<<10, 'selection': 8192,
+            'package-alt': LIMIT, 'metadata-alt': 16<<10}[purpose]
 
 
 class UploadSession:
