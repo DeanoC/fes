@@ -1,5 +1,14 @@
 # Nano recovery uploads and cold serial boot
 
+The [serial drain/recovery/warm-SD hardware sequence](../../../docs/validation/2026-11-03-de25-uart-drain-warm-sd/README.md)
+passes on TRWU8CBL. The spare now contains the matched `phy-prepare` recovery
+FIT; its serial upgrade, protected-file readbacks and repeated Ethernet uploads
+pass. Native code loads/runs/returns the fixed sealed core twice, reopening SD
+and freshly retaining its package between the loads. Normal Nano runtime
+admission, arbitrary package selection and physical Tenfoot remain open. The
+updated spare requires its matched `phy-prepare` recovery SOF; retain the old
+FIT/manifest rollback copies and the safe factory card.
+
 `uart_transfer.send` supplies a bounded Kermit RAM transfer to an already owned
 exclusive recovery console. Its caller must first establish the complete live
 LMB ledger and reserve the window with a verified FAT load. The sender may exit
