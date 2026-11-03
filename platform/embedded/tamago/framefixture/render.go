@@ -7,7 +7,6 @@ import (
 	"errors"
 	"image"
 	"strconv"
-	"time"
 
 	"github.com/DeanoC/FogCast/ui/gfx"
 	"github.com/DeanoC/FogCast/ui/tenfoot"
@@ -29,14 +28,14 @@ func Render(count int, present func(int, *image.RGBA) error) error {
 	defer presenter.Close()
 	app := tenfoot.NewApp(nil, 1280, 720, 100)
 	for index := 0; index < count; index++ {
-		if index == 1 {
-			app.HandleCommand(tenfoot.CmdSearch, time.Unix(1, 0))
-			app.TypeText("ZX81", time.Unix(1, 0))
+		snapshot := app.Snapshot()
+		if index > 0 {
+			// Exercise the real renderer with bounded view states. The memory
+			// diagnostic does not run the UI's network or launch actions.
+			snapshot.SearchOpen = true
+			snapshot.Query = "ZX81 " + strconv.Itoa(index)
 		}
-		if index >= 2 {
-			app.TypeText(" "+strconv.Itoa(index), time.Unix(int64(index), 0))
-		}
-		if err = presenter.Draw(app.Snapshot()); err != nil {
+		if err = presenter.Draw(snapshot); err != nil {
 			return err
 		}
 		if err = present(index, device.Framebuffer()); err != nil {

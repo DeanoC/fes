@@ -101,6 +101,7 @@ def native_fabric_input(path):
                              'platform/embedded/tamago/nativefabric/',
                              'platform/embedded/tamago/nativefabriccheck/',
                              'platform/embedded/tamago/fabricmodel/',
+                             'platform/embedded/tamago/framefixture/',
                              'platform/embedded/tamago/modelbackend/',
                              'platform/embedded/tamago/runtimeadmission/',
                              'sources/mister-packages/internal/emitgo/')) or
