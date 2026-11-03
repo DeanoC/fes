@@ -75,14 +75,15 @@
 // cpl=<before>><after>, the gate read from the IDT unless paging is on),
 // each CPL change an instruction made (cpl:<before>><after>:<stem>), and
 // the stems that changed PG, set VM, loaded LDTR or TR, or changed IOPL.
-// --profile F writes where the oracle's steps from --profile-from seconds to
-// --profile-to seconds (default 0 and the end of the run) went, when the window
-// closes:
+// --profile F (with --cpu oracle) writes where the oracle's steps from
+// --profile-from seconds to --profile-to seconds (default 0 and the end of the
+// run) went, when the window closes:
 //   WINDOW <from> <to> steps=<n> clocks=<n> rm=<n> pm=<n> v86=<n>
 //   SITE <linear> <rm|pm|v86> <steps> <clocks> <first cs:eip> <bytes>   most clocks first
 //   INT <event> <calls> <steps> <clocks> <fewest> <most>
 //   STRETCH <event> <stretches> <steps> <clocks> <fewest> <most>
-// A step's clocks run from its start to the next, a halt's wait included.
+// A step's clocks run from its start to the next, a halt's wait included; a
+// step that only stays halted adds its clocks and no step.
 // INT is each interrupt delivered in real mode ("intvv.ah" for INT vv with
 // that AH, "irqvv", "excvv", "nmi"), with the steps and clocks from its
 // delivery to the IRET to the stack and CS:IP it interrupted, its handler's
@@ -1078,9 +1079,10 @@ struct Profile {
                 break;
             }
         }
+        const bool idle = result.halted && !result.retired && result.events.empty();
         const uint32_t linear = before.seg[fes_i386::SEG_CS].base + before.eip;
         Site &site = sites[uint64_t(m) << 32 | linear];
-        if (!site.steps) {
+        if (site.first.empty()) {
             char text[24];
             std::snprintf(text, sizeof text, "%04x:%08x", cs, before.eip);
             site.first = text;
@@ -1089,18 +1091,18 @@ struct Profile {
                 site.bytes += text;
             }
         }
-        ++site.steps;
+        site.steps += !idle;
         site.clocks += step_clocks;
-        ++steps;
+        steps += !idle;
         clocks += step_clocks;
-        ++mode_steps[m];
+        mode_steps[m] += !idle;
         if (m == 0) {
             if (!in_stretch) {
                 in_stretch = true;
                 stretch_interrupt.clear(); stretch_irq.clear();
                 stretch_steps = stretch_clocks = 0;
             }
-            ++stretch_steps;
+            stretch_steps += !idle;
             stretch_clocks += step_clocks;
         } else end_stretch();
         if (result.events.empty() || m != 0 || mode(after) != 0) return;
@@ -1288,6 +1290,8 @@ Options parse(int argc, char **argv) {
     if (options.bios.empty() || options.vgabios.empty() || options.disk.empty())
         throw std::runtime_error("--bios, --vgabios and --disk are required");
     if (options.cpu != "oracle" && options.cpu != "rtl") throw std::runtime_error("--cpu is oracle or rtl");
+    // With the RTL running, the oracle's steps are only its stops and stretches.
+    if (!options.profile.empty() && options.cpu != "oracle") throw std::runtime_error("--profile needs --cpu oracle");
     for (char &c : options.type) if (c == '|') c = '\n';
     for (auto &key : options.keys) for (char &c : key.second) if (c == '|') c = '\n';
     return options;
