@@ -1,7 +1,7 @@
 {
   "status": "passed",
   "kind": "actual-dual-client-combined-ZX81-PR-RTL",
-  "source_revision": "c1e9eaf2564b215f96e7ae19ede4aa91ab19369d",
+  "source_revision": "f1a848d22b2cb79ea3e1f26d25daeb84bb85f513",
   "production_source_committed": true,
   "test_source_committed": true,
   "compiler_source_sha256": {
@@ -115,6 +115,7 @@
     "sources/libmister-runtime/src/native/generated/de10_nano.hpp": "2cd0ae00763c8a35377a1f6f1429c5248dc2667bbd63b49339417ca75a0ec34d",
     "sources/libmister-runtime/src/native/generated/de25_nano_programming.hpp": "e5718c2535e99311e6f3ea84fdc4db2bc8a2fd10f13c5dabff7d6acc11dc981e",
     "sources/libmister-runtime/src/native/generated/fes_computer.hpp": "2c20c27db27238aa289feb2e902afc842b4593e4991941eb00e8c8346a06fd0e",
+    "sources/libmister-runtime/src/native/linux/de25_computer_mmio.hpp": "6ac559f0c82da094f720dc660c6a51fceb9814ea7a671b6148a291512e62a6da",
     "sources/libmister-runtime/src/native/linux/menu_window.hpp": "272703b763a84f2fb280101645bba5eb52eb7f2959c1e29adb39f092ee095e73",
     "sources/libmister-runtime/src/native/linux/mmio.hpp": "fcf064a53334c7e7d3d804245282cdba1f6d2f4a2fdffb61d0e1c12aca299eca",
     "sources/libmister-runtime/src/native/linux/de25_menu.hpp": "9f8997c5395e47207fe8d01daa02fc6960e7910855b0e7ad7da1fa29c0a5ad23",
@@ -127,7 +128,7 @@
     "sources/misteross/boards/de25nano/zx81-hps/cosim/wire.hpp": "6c4163f395e78f46d897fcc005e6486c5ecc49666e6bf05a00e5279a8f9fcee9",
     "sources/misteross/boards/de25nano/zx81-hps/cosim/basic.hpp": "c11fee9d475e29f35d90d795ab1b435938f30f97e3fd52f7af3752498b6aa952",
     "sources/libmister-runtime/include/libmister-runtime/runtime.h": "190a9afca2dd1bee96f0aeb4831a74a742488955d720142be185786ae2ef9925",
-    "sources/libmister-runtime/src/native/de25_computer.cpp": "154a51d1a60c5a6940fdc76653787d973c7d998b259c0bd8770215e9b839f2d6",
+    "sources/libmister-runtime/src/native/de25_computer.cpp": "2f63d82082bcd98f281d6e01cd16e6de6f9affe3fa247a8b332be5d51096dd20",
     "sources/libmister-runtime/src/native/de25_pr_control.cpp": "99938d34482403ba61be766ecfb1ad1e8b23ad8de4ca507386abeb91aa258904",
     "sources/misteross/boards/de25nano/zx81-hps/client_proof.py": "a399f5653a01cb8b0be9595be3666b88c0fd3525f3ce341bbcc8b0fb611c8d67"
   },
@@ -311,7 +312,7 @@
     "verilator": "Verilator 5.032 2025-01-01 rev (Debian 5.032-1+b2)",
     "cxx": "c++ (Debian 14.2.0-19) 14.2.0\nCopyright (C) 2024 Free Software Foundation, Inc.\nThis is free software; see the source for copying conditions.  There is NO\nwarranty; not even for MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.",
     "builder_image": "sha256:ea200655b92ab1211bc8b326c6e799815f1d648b2d5e5a6c982f597cb2b9650d",
-    "sdk_volume": "fes-de25-clean-shutdown-sdk-20261103",
+    "sdk_volume": "fes-de25-cpu-mmio-sdk-20261103",
     "sdk_before": "7af69c8ea2248a756f2b697992e9ff6207a7392c499551f8c18536da7f29d799  /build/sdk/bin/aarch64-buildroot-linux-gnu-g++\n29f631250421bf3c2fbe113fadf1cc1b89e8714c3530a43db06b507ada50145f  /build/sdk/bin/aarch64-buildroot-linux-gnu-g++.br_real\n",
     "qemu_sha256": "4f55e2e88dc05dc0f619562d5795b8eb25ed2ad2547504fb4835207a6911c350",
     "qemu_version": "qemu-aarch64 version 7.2.22 (Debian 1:7.2+dfsg-7+deb12u18+b3)\nCopyright (c) 2003-2022 Fabrice Bellard and the QEMU Project developers\n",
@@ -322,9 +323,9 @@
   },
   "selected_build_id": "00112233445566778899aabbccddeeff",
   "binaries_sha256": {
-    "client-native": "c2694097c5a9c0b24a75add751a1a2458b0de4a924b614284333648c474e1186",
-    "Vfes_de25_combined_sim": "285f834288eef257ae8bee7aaa5ed708a82b43e9ae7dd1bcd7eb81fdb70bbd05",
-    "client-aarch64": "bf434ac3968116d6f8adfe6ff04e1f18187ad25f6cd45846d30996d7d646359f"
+    "client-native": "6fba6aea95ea27e14de2b6b7e5d7e98d3b580855c85f3a79271de7056440b5d4",
+    "Vfes_de25_combined_sim": "3661b18c91697e3e59384f6f0d0aa8663a3a61416cabbaf2f1edb577d39a5c1c",
+    "client-aarch64": "426f4ab83ce6f87a52a925368d1cf5ab89dcb659f24d9a28286d670b73648af9"
   },
   "physical_PR": "selection-mux-model-only",
   "memory": "behavioral",
