@@ -213,7 +213,10 @@ Unclaimed ports read FFh and drop writes, like a floating ISA bus.
 3 store the parity and I/O check enables. Reads return bit 4 toggling on each
 rising edge of PIT channel 1's output, bit 5 PIT channel 2's output, and bits
 6–7 zero (no NMI sources). The Bochs BIOS's INT 15h AH=86h wait counts bit 4
-changes as 15 µs each, so bit 4 must follow channel 1 as the BIOS programs it.
+changes as 15 µs each. POST programs channel 1 as an AT BIOS does, mode 2 with
+count 18, so bit 4 changes every 15.09 µs
+([firmware](../cores/fes-pc386/firmware/README.md#local-changes),
+[#1150](https://github.com/DeanoC/fes/issues/1150)).
 
 **NMI.** No device raises NMI before the x87 milestone. The mask bit is stored.
 
@@ -1181,6 +1184,7 @@ Alternatives not taken, kept as later options:
 | --- | --- | --- |
 | POST | PIC, PIT, DMA and 8042 init; keyboard self-test; CMOS memory size; option ROM scan at C0000; ATA detect by IDENTIFY | Present |
 | POST A20 | A20 gated off through the 8042 and port 92h before INT 19h | Local patch ([#1386](https://github.com/DeanoC/fes/issues/1386)) |
+| POST PIT channel 1 | Mode 2, count 18 (15.09 µs), the refresh rate the INT 15h AH=86h wait counts on port 61h bit 4 | Local patch ([#1150](https://github.com/DeanoC/fes/issues/1150)) |
 | INT 10h | Modes 03h and 13h, font load, DAC and palette calls, cursor, scrolling. Games then reprogram registers for mode Y themselves | VGABIOS |
 | INT 13h | AH=00h–08h, 0Ah–0Dh, 10h, 11h, 15h; EDD 41h–48h, which FreeDOS uses for LBA | Present (`int13_harddisk`, EDD cases) |
 | INT 15h | 24h A20 (through the 8042 and port 92h; local patch), 87h block move and 88h extended size for HIMEM, E801h and E820h, C0h configuration, C2h PS/2 pointing device for CuteMouse, 86h wait (counts port 61h bit 4), 83h event wait (RTC periodic interrupt), 4Fh keyboard intercept | Present |
