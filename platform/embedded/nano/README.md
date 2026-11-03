@@ -835,6 +835,10 @@ bounds remain; the additional SD read has its own 100-second phase. The current
 warm-return implementation has software/PIO-model checks and a cross-build.
 Physical warm-return qualification, arbitrary package selection and normal
 runtime admission remain open.
+The [first bounded warm-return sequence](../../../docs/validation/2026-11-03-de25-returned-sd/README.md)
+stopped at recovery PHY autonegotiation before any SD write or native attempt.
+Its failure, read-only PHY follow-up and verified cleanup are retained. The
+next recovery repair must prepare the PHY before accepting link readiness.
 
 The current block-size comparison selects `0xfffc0` (1,048,512) bytes: the
 pinned vendor client's `0xffff0` limit rounded down to a 64-byte boundary.
