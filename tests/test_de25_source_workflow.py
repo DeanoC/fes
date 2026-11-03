@@ -90,6 +90,7 @@ class DE25SourceWorkflowTests(unittest.TestCase):
         self.patch(kit_software, 'de25_sdk', side_effect=lambda *a: dict(self.sdk))
         self.go = self.patch(kit_software, 'build_go', side_effect=self.build_go)
         self.runtime = self.patch(kit_software, 'build_runtime', side_effect=self.build_runtime)
+        self.normalization = self.patch(native_dev, 'run', side_effect=self.normalize_runtime)
         self.supervisor = self.patch(platform_build, 'build_kit_software', side_effect=self.build_supervisor)
         self.kit_data = self.patch(kit_software, 'run', side_effect=self.build_kit_data)
         self.patch(module_sources, 'materialize', side_effect=self.materialize)
@@ -136,6 +137,19 @@ class DE25SourceWorkflowTests(unittest.TestCase):
         self.assertEqual(env, self.go.call_args.args[3])
         (fogcast / 'bin/fes-kit-software-linux-aarch64').write_bytes(b'fixture supervisor')
 
+    def normalize_runtime(self, command, *, env):
+        native = self.go.call_args.args[0] / 'image/build/software'
+        self.assertEqual(command, ['docker', 'run', '--rm', '--platform', 'linux/amd64',
+            '--network', 'none', '--user', f'{os.getuid()}:{os.getgid()}',
+            '--volume', str(native) + ':/work/build/software', self.sdk['builder_image'],
+            '/work/build/software/sdk/host/bin/aarch64-buildroot-linux-gnu-strip',
+            '--remove-section=.comment', '--remove-section=.note',
+            '/work/build/software/runtime/build/mister-runtime'])
+        self.assertEqual(env, self.go.call_args.args[3])
+        runtime = native / 'runtime/build/mister-runtime'
+        self.assertTrue(runtime.read_bytes().endswith(b' ELF comments'))
+        runtime.write_bytes(runtime.read_bytes().removesuffix(b' ELF comments'))
+
     def build_kit_data(self, command, *, env):
         self.assertEqual(command[:2], ['make', '-C'])
         self.assertEqual(command[3:], ['build-fes-kit-data', 'FES_KIT_DATA_ARCH=aarch64'])
@@ -150,7 +164,7 @@ class DE25SourceWorkflowTests(unittest.TestCase):
         self.assertNotIn('GOARM', env)
         destination = snapshot / 'image/build/software/runtime/build'
         destination.mkdir(parents=True)
-        (destination / 'mister-runtime').write_bytes(('fixture runtime ' + revision).encode())
+        (destination / 'mister-runtime').write_bytes(('fixture runtime ' + revision).encode() + b' ELF comments')
         return {'key': self.sdk['key'], 'archive_sha256': self.sdk['archive_sha256'],
                 'container_id': self.sdk['builder_image'], 'de25_image_sdk': dict(self.sdk)}
 
@@ -160,6 +174,7 @@ class DE25SourceWorkflowTests(unittest.TestCase):
             'mister-agent', 'fogcast-kit', 'fogcast-tenfoot', 'mister-runtime',
             'fes-kit-software', 'fes-kit-data'})
         self.assertTrue(all(path.stat().st_mode & 0o777 == 0o555 for path in binary.iterdir()))
+        self.assertEqual((binary / 'mister-runtime').read_bytes(), ('fixture runtime ' + runtime).encode())
         output.mkdir()
         data = {'provenance': {'fogcast': fogcast, 'runtime': runtime},
                 'packages': [self.package['inputs']]}
@@ -219,6 +234,7 @@ class DE25SourceWorkflowTests(unittest.TestCase):
         self.assertEqual((output / 'linux.img').read_bytes(), original)
         self.go.assert_called_once()
         self.runtime.assert_called_once()
+        self.normalization.assert_called_once()
         self.supervisor.assert_called_once()
         self.kit_data.assert_called_once()
         self.factory.assert_called_once()
@@ -232,7 +248,7 @@ class DE25SourceWorkflowTests(unittest.TestCase):
         previous = (output / 'development.json').read_bytes()
         previous_image = (output / 'linux.img').read_bytes()
         self.revisions['FogCast'] = '2' * 40
-        for helper in (self.supervisor, self.kit_data):
+        for helper in (self.normalization, self.supervisor, self.kit_data):
             with self.subTest(helper=helper):
                 original = helper.side_effect
                 helper.side_effect = RuntimeError('helper compile failure')

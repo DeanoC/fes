@@ -280,6 +280,14 @@ def build_de25_development(root, args):
                     runtime_record = software.build_runtime(snapshot, Path(args.de25_image),
                         revisions['libmister-runtime'], env, None, 'de25-nano',
                         runtime_source=staged['libmister-runtime'], base_factory=False, provision=True)
+                    # Match Buildroot's final strip policy before sealing the
+                    # selected runtime. Image assembly must retain these bytes.
+                    run([container, 'run', '--rm', '--platform', 'linux/amd64', '--network', 'none',
+                         '--user', f'{os.getuid()}:{os.getgid()}',
+                         '--volume', str(native) + ':/work/build/software', runtime_record['container_id'],
+                         '/work/build/software/sdk/host/bin/aarch64-buildroot-linux-gnu-strip',
+                         '--remove-section=.comment', '--remove-section=.note',
+                         '/work/build/software/runtime/build/mister-runtime'], env=env)
                     platform_build.build_kit_software(snapshot, staged['FogCast'], env, 'aarch64')
                     software.run(['make', '-C', staged['FogCast'], 'build-fes-kit-data',
                                   'FES_KIT_DATA_ARCH=aarch64'], env=env)
