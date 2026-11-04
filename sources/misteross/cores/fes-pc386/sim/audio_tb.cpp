@@ -596,6 +596,47 @@ void adpcm_auto(const AdpcmKind &k, uint8_t command) {
           std::to_string(b.link.dacks - before) + " more acknowledges");
 }
 
+// A plain block started at the reference block's IRQ, as Serpent Isle's
+// driver chains 75h and 74h: the first block's last codes still play, and the
+// second continues from them.
+void adpcm_chain(const AdpcmKind &k, uint8_t with_ref, uint8_t plain) {
+    Bench b(0x220, 7);
+    b.dsp_reset();
+    b.pic_init();
+    b.speaker_on();
+    const uint64_t period = 200 * US;
+    const size_t first = 26, second = 12;     // the boundary in the stream's random part
+    std::vector<uint8_t> bytes = adpcm_stream(k, first + second, 0xc4a1u + with_ref);
+    std::copy(bytes.begin(), bytes.end(), b.memory.begin() + 0x58000);
+    b.dma1(0x58000, uint16_t(first + second - 1), 0x49);   // one 8237 block for both
+    b.dsp_write(0x40); b.dsp_write(256 - 200);   // 5 kHz
+    b.dac_changes.clear(); b.dac_times.clear(); b.dack_times.clear();
+    b.dsp_write(with_ref); b.dsp_write(uint8_t(first - 1)); b.dsp_write(0);
+    bool raised = b.take_irq((first + 2) * k.codes * period);
+    b.dsp_write(plain); b.dsp_write(uint8_t(second - 1)); b.dsp_write(0);
+    uint64_t chained = b.cycles;
+    bool again = b.take_irq((second + 4) * k.codes * period);
+    b.run((k.codes + 4) * period);
+    std::string name = hex(with_ref) + "h then " + hex(plain) + "h (" + k.name + ") at the IRQ";
+    check(name + ": chained within the last byte's periods", raised && chained - b.dack_times[first - 1] < period,
+          std::to_string(b.dack_times.size() >= first ? chained - b.dack_times[first - 1] : 0) + " clocks");
+    AdpcmReference reference;
+    std::vector<uint8_t> want;
+    reference.play(bytes, true, k, want);
+    std::vector<uint8_t> got;
+    size_t acked = b.dack_times.size();
+    if (acked == first + second) {
+        got = dac_periods(b, b.dack_times[0], period, first * k.codes, 0x80);
+        std::vector<uint8_t> rest = dac_periods(b, b.dack_times[first], period, second * k.codes, 0x80);
+        got.insert(got.end(), rest.begin(), rest.end());
+    }
+    check(name + ": the second block continues the first's last codes", again && got == want,
+          std::to_string(acked) + " acknowledges; " + first_difference(got, want));
+    check(name + ": its first acknowledge waits for them",
+          acked == first + second && b.dack_times[first] - b.dack_times[first - 1] + 30 >= k.codes * period,
+          acked == first + second ? std::to_string(b.dack_times[first] - b.dack_times[first - 1]) + " clocks" : "");
+}
+
 void adpcm() {
     adpcm_single(adpcm4, 0x75, 0x74);
     adpcm_single(adpcm3, 0x77, 0x76);
@@ -603,6 +644,9 @@ void adpcm() {
     adpcm_auto(adpcm4, 0x7d);
     adpcm_auto(adpcm3, 0x7f);
     adpcm_auto(adpcm2, 0x1f);
+    adpcm_chain(adpcm4, 0x75, 0x74);
+    adpcm_chain(adpcm3, 0x77, 0x76);
+    adpcm_chain(adpcm2, 0x17, 0x16);
 }
 
 // AdLib detection and the OPL2 timers, at 388h.

@@ -908,7 +908,8 @@ cases the guide leaves open.
   #1455), and the game waits for each block's IRQ. The card takes one byte
   per 2, 3 or 4 sample periods; the first code plays as its byte arrives.
   The IRQ comes with the block's last byte, after length + 1 bytes, and that
-  byte's later codes still play. A reference byte plays as itself for its
+  byte's later codes still play: a block started at that IRQ, as Serpent
+  Isle's driver chains them, takes its first byte after them. A reference byte plays as itself for its
   byte's periods (DOSBox-X plays no sample for it), and auto-init takes one
   only at the start. Forms without one continue the previous reference and
   step, which a DSP reset sets to 80h and 0 (DOSBox-X keeps them). Creative's
