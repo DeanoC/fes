@@ -413,9 +413,10 @@ func (h *Host) step() (bool, []byte, bool, error) {
 				p.data = append(p.data, word[:min(4, count-i)]...)
 			}
 		case 3, 7:
-			if count != 0 {
-				return false, nil, false, h.rxFault("payload on RX status", irq, peek, v)
-			}
+			// Transfer-complete and channel-halted entries carry no FIFO
+			// payload. BCNT/DPID are meaningful for IN-data status2 only;
+			// hardware may retain the preceding packet's values here.
+			// HCINT and channel retirement still govern completion below.
 		default:
 			return false, nil, false, h.rxFault(fmt.Sprintf("unsupported RX status %d", kind), irq, peek, v)
 		}

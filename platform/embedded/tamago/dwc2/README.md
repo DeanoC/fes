@@ -22,6 +22,10 @@ new attempts. All waits have time and poll limits, including frozen-clock cases.
 and the complete hub traversal share a four-second deadline, inside the native
 caller’s five-second startup context; per-request limits cannot extend it.
 Reports remain private until both transfer completion and channel retirement.
+Only IN-data receive entries supply payload byte count and PID. Completion and
+channel-halted entries may retain those fields from a preceding packet; the
+driver consumes no additional FIFO payload for them. HCINT completion, a real
+IN-data entry and channel retirement remain required before reporting input.
 
 Disconnect, STALL, unexpected RX status/channel/PID, overflow, missing or short
 reports, hardware errors and ambiguous timeout retire the host. It attempts a

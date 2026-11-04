@@ -92,14 +92,14 @@ class USBTraceTests(unittest.TestCase):
         self.assertEqual(result['errors'],[])
         self.assertFalse(self.decode(prompt[:-1])['boot']['loader_ready'])
 
-    def test_pinned_runtime_clean_halt_follows_pass_once(self):
+    def test_arm64_terminal_proof_is_program_pass_not_generic_runtime_output(self):
         raw, _, _ = fixture()
-        halt = usb.HALT+'\r\n'
-        result = self.decode(raw+halt)
-        self.assertTrue(result['complete'],result['errors']);self.assertTrue(result['halted'])
-        self.assertFalse(self.decode(raw)['halted'])
-        for changed in (halt+raw,raw+halt+halt,raw+halt.replace('code 0','code 1'),
-                        raw.replace(usb.PASS,usb.HALT+'\r\n'+usb.PASS)):
+        # CPU.Init installs arm64.exit before runtime.exit's generic print.
+        # That hook parks silently. It is not observable as a UART halt proof.
+        halt = 'exit with code 0 halting\r\n'
+        self.assertTrue(self.decode(raw)['complete'])
+        for changed in (halt+raw,raw+halt,raw+halt.replace('code 0','code 1'),
+                        raw.replace(usb.PASS,halt+usb.PASS)):
             self.assertFalse(self.decode(changed)['complete'])
         self.assertFalse(self.decode(raw+halt.rstrip('\r\n'))['complete'])
 

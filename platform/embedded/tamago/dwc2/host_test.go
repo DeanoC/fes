@@ -29,22 +29,23 @@ type controller struct {
 	classRequest func(*control) bool
 	classFinish  func(*control)
 
-	controlNAKs           int
-	regs                  map[uint32]uint32
-	tick                  time.Time
-	rx, words             []uint32
-	active                transaction
-	request               *control
-	address               uint32
-	configured, protocol  bool
-	device, configuration []byte
-	reports               [][]byte
-	reportPID             uint32
-	mode                  string
-	frozen                bool
-	accesses              int
-	starts                []transaction
-	requests              []control
+	controlNAKs                  int
+	regs                         map[uint32]uint32
+	tick                         time.Time
+	rx, words                    []uint32
+	active                       transaction
+	request                      *control
+	address                      uint32
+	configured, protocol         bool
+	device, configuration        []byte
+	reports                      [][]byte
+	reportPID                    uint32
+	mode                         string
+	completionFields, haltFields uint32
+	frozen                       bool
+	accesses                     int
+	starts                       []transaction
+	requests                     []control
 }
 
 func newController() *controller {
@@ -283,7 +284,7 @@ func (c *controller) complete(data []byte, in bool) {
 	if c.mode == "missing" {
 		return
 	}
-	c.rx = append(c.rx, uint32(size)<<4|pid<<15|2<<17, 3<<17, 7<<17)
+	c.rx = append(c.rx, uint32(size)<<4|pid<<15|2<<17, 3<<17|c.completionFields, 7<<17|c.haltFields)
 	for i := 0; i < len(data); i += 4 {
 		var word [4]byte
 		copy(word[:], data[i:min(i+4, len(data))])
