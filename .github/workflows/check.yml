@@ -294,7 +294,8 @@ jobs:
       - name: Install PC/XT and PC386 image tools
         if: >-
           matrix.target == 'sim-fes-pcxt-dos' || matrix.target == 'sim-fes-pc386-fesenv' ||
-          matrix.target == 'sim-fes-pc386-a20' || matrix.target == 'sim-fes-pc386-wait' ||
+          matrix.target == 'sim-fes-pc386-a20' || matrix.target == 'sim-fes-pc386-c2xx' ||
+          matrix.target == 'sim-fes-pc386-wait' ||
           matrix.target == 'sim-fes-pc386-speaker'
         run: sudo apt-get update && sudo apt-get install -y mtools
       - name: Simulate selected core scenarios
