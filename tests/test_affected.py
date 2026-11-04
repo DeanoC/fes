@@ -294,6 +294,7 @@ class AffectedTests(unittest.TestCase):
             'scripts/sim_fes_pcxt_mailbox.py': {'pcxt'},
             'scripts/sim_fes_pcxt_dos.py': {'pcxt'},
             'scripts/build_pcxt_freedos_image.py': {'pcxt'},
+            'scripts/pcxt_acceptance_media.py': {'pcxt'},
             'cores/fes-common/vendor/kf8259/KF8259.sv': {'pcxt', 'pc386'},
             'cores/fes-common/vendor/kf8253/read_back.patch': {'pcxt', 'pc386'},
             'cores/fes-common/rtl/fes_dma8237.sv': {'pcxt', 'pc386'},

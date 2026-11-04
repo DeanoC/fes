@@ -273,8 +273,8 @@ def project_qsf(source: Path, seed: int, threads: int, *, package_profile=False,
 
 def validate_audio_clock_audit(clock_records, counts, fmax, corners):
     # Bind the PLL's elaborated 12.288 MHz output to the measured TimeQuest
-    # inventory, then require real same-clock and both directions of board-clock
-    # paths at every operating condition. No clock group or path is waived.
+    # inventory, then require audio-to-audio and board-to-audio paths at every
+    # operating condition. No clock group or path is waived.
     audio = [r['name'] for r in clock_records
              if abs(float(r['period_ns']) - 1e9 / 12288000) < 0.01
              and int(r['positive_registers']) > 0]

@@ -120,7 +120,7 @@ module spike_cpu (
     logic [15:0]      trace_error;
     logic             trace_gov_hold;
     logic [11:0]      trace_gov_debt;
-    logic [8:0]       trace_gov_charge;
+    logic [12:0]      trace_gov_charge;
     logic             trace_fetch, trace_dread, trace_mem_wait, trace_mem_idle, trace_replay, trace_smc, trace_smc_open,
                       trace_store, trace_ex_store;
     logic [31:0]      trace_dread_addr;
@@ -162,7 +162,7 @@ module spike_cpu (
         observed = arch_eflags ^ arch_eip ^ {20'b0, trace_retire, trace_halt, trace_exception, trace_unimplemented, trace_vector}
                  ^ {trace_fetch_block, trace_fetch, trace_dread, trace_mem_wait, trace_replay ^ trace_smc ^ trace_smc_open}
                  ^ arch_cr0 ^ arch_cr2 ^ arch_cr3 ^ arch_gdtr_base ^ arch_idtr_base ^ {arch_gdtr_limit, arch_idtr_limit}
-                 ^ {11'd0, shutdown, trace_unbuilt, trace_error} ^ trace_dread_addr ^ {22'd0, trace_gov_charge, trace_ex_store}
+                 ^ {11'd0, shutdown, trace_unbuilt, trace_error} ^ trace_dread_addr ^ {18'd0, trace_gov_charge, trace_ex_store}
                  ^ trace_store_addr ^ trace_store_data[3:0] ^ trace_store_data[7:4] ^ {23'b0, trace_store, trace_store_mask}
                  ^ {ddr_address, ddr_read, ddr_write, trace_mem_idle, trace_issue} ^ {ddr_burstcount, 8'd0, ddr_byteenable}
                  ^ ddr_writedata[31:0] ^ ddr_writedata[63:32] ^ ddr_writedata[95:64] ^ ddr_writedata[127:96]

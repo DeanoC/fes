@@ -294,6 +294,44 @@ class WaitTestTest(unittest.TestCase):
         self.assertTrue(failures[0].startswith('RTL oracle_steps=3'))
 
 
+class SpeakerTestTest(unittest.TestCase):
+    def test_suite_checks_are_the_programs_names(self):
+        source = (sim.CORE / 'sim/speaker_test.asm').read_text()
+        names = [line.split("'")[1].rstrip('$') for line in source.splitlines() if line.startswith('name_')]
+        self.assertEqual(names, list(sim.SPEAKER_CHECKS))
+
+    @staticmethod
+    def suite(lines, cpu='oracle', oracle_steps=0):
+        def run_machine(testbench, name, arguments, images):
+            return {'debug': [{'port': '0e9', 'text': line} for line in lines], 'failures': [],
+                    'rtl': {'counters': {'retired': 1000, 'oracle_steps': oracle_steps, 'protected_steps': 0},
+                            'stops': [], 'gaps': []}}
+        args = mock.Mock(cpu=cpu, download=False, jobs=1, limit_seconds=8)
+        with mock.patch.object(sim.firmware, 'images', return_value={}), \
+                mock.patch.object(sim, 'machine_testbench'), mock.patch.object(sim, 'fixture_with'), \
+                mock.patch.object(sim, 'run_machine', run_machine), mock.patch('builtins.print'):
+            return sim.run_speaker(args, [])['failures']
+
+    PASSING = ['SPK post 36h ok', 'SPK rise 64/64 ok', 'SPK carrier 19886Hz ok', 'SPK DONE ok']
+
+    def test_every_check_must_print_ok(self):
+        self.assertEqual(self.suite(self.PASSING), [])
+        self.assertEqual(self.suite(['SPK post 20h FAIL', 'SPK rise 0/64 FAIL', 'SPK carrier 0Hz FAIL',
+                                     'SPK DONE FAIL']),
+                         ['SPK post 20h FAIL', 'SPK rise 0/64 FAIL', 'SPK carrier 0Hz FAIL', 'SPK DONE FAIL'])
+
+    def test_a_run_that_stops_early_fails(self):
+        failures = self.suite(self.PASSING[:1])
+        self.assertEqual(len(failures), 1)
+        self.assertIn("SPKTEST.COM ran ['post']", failures[0])
+
+    def test_rtl_runs_fail_on_oracle_steps(self):
+        self.assertEqual(self.suite(self.PASSING, 'rtl'), [])
+        failures = self.suite(self.PASSING, 'rtl', oracle_steps=3)
+        self.assertEqual(len(failures), 1)
+        self.assertTrue(failures[0].startswith('RTL oracle_steps=3'))
+
+
 class BootReportTest(unittest.TestCase):
     def test_games_mem_requires_exact_serpent_isle_memory_with_headroom(self):
         old_mem = ['Largest executable program size       573K (586,416 bytes)']
