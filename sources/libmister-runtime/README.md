@@ -33,6 +33,14 @@ DE25 active capabilities include the selected driver's live tape-unit report,
 including its limits and ready/empty state. MENU and idle report no computer
 units. This uses the same driver observation as media insertion and ejection.
 
+The shared `FesGp` client also has an explicit DE25 atomic-register transport
+for the standard-core port. It consumes the same resource-relative MMIO adapter,
+validates bridge identity/status/fault and retained words, and submits one word
+per command. Standard HID, live cassette and SAVE behavior use the existing
+`FesGpCoreDriver`. Transport uncertainty cannot be cleared by BeginSession or
+Realign. This is an internal, injected transport: production construction still
+selects the bring-up driver, and no standard DE25 package/profile is admitted yet.
+
 DE25 advertises application and computer ABIs in ascending identity order,
 as required by the target agent's protocol-2 decoder. The native MENU fixture
 exports the production serialized status for an independent agent-client test;

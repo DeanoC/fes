@@ -294,6 +294,17 @@ bound prevents a stalled runtime clock from extending response sampling.
 This software sampling policy does not establish the cause of a physical
 failure or qualify a package, runtime image or appliance.
 
+`FesGpTransport::de25_computer` selects the atomic register bridge through the
+existing injected Mmio interface. The DE10 default keeps its settling preload;
+DE25 sends exactly one toggled word. Each exchange validates the bridge ID and
+version, ready/idle state, fault word, initial request/ACK agreement, retained
+submission and final idle/fault state. It uses the shared stable response sampler,
+with runtime and wall-clock bounds and no command replay. Known acknowledged
+rejections preserve the link; uncertainty remains poisoned across BeginSession
+and Realign. The ordinary FesGpCoreDriver supplies identity, input, cassette and
+SAVE semantics. This option is not wired into production construction or package
+admission yet, and establishes no standard DE25 hardware support.
+
 `fes.simple-computer` also accepts mid-session `replace_live_media` /
 `clear_media` on an active generation without holding execution reset. Tape
 loader busy is GP error 4 (invalid state) and rejects with retryable busy.

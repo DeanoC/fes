@@ -10,6 +10,7 @@
 #include "native/generated/fes_simple_computer.hpp"
 #include "native/generated/fes_application.hpp"
 #include "native/generated/fes_computer.hpp"
+#include "native/linux/de25_computer_mmio.hpp"
 #include "native/hardware.hpp"
 #include "native/artifacts.hpp"
 
@@ -2598,6 +2599,125 @@ void TestZx81SaveStaysDirtyUntilAcknowledged()
 	assert(!clean.endpoint.frozen);
 }
 
+// A register bridge around the independent computer model. Every write must
+// change the request toggle: the DE10 preload is deliberately rejected here.
+class AtomicComputerBridge final : public mister::native::Mmio {
+public:
+	mister_test::ComputerEndpoint endpoint{
+		FesComputerCapabilityVideoFixed720p60 | FesComputerCapabilityKeyboardHid |
+		FesComputerCapabilityMediaZx81Tape | FesComputerCapabilityMediaZx81TapeWrite,
+		{{0, {1, FesComputerZx81TapeMaxBytes}}}};
+	std::uint32_t id = FesDe25ComputerIdentity, version = FesDe25ComputerVersion;
+	std::uint32_t status = FesDe25ComputerStatusReady, fault = 0, held = 0;
+	bool changed_word = false, write_error = false, post_fault = false, post_busy = false;
+	unsigned writes = 0;
+	mister::Error Read32(std::uint32_t address, std::uint32_t* value) override
+	{
+		using mister::native::De25ComputerCpuBase;
+		assert(address >= De25ComputerCpuBase);
+		switch (address - De25ComputerCpuBase) {
+		case FesDe25ComputerIdOffset: *value = id; break;
+		case FesDe25ComputerVersionOffset: *value = version; break;
+		case FesDe25ComputerStatusOffset:
+			*value = status | (post_busy && writes ? FesDe25ComputerStatusBusy : 0); break;
+		case FesDe25ComputerFaultOffset:
+			*value = fault | (post_fault && writes ? FesDe25ComputerFaultReset : 0); break;
+		case FesDe25ComputerGpoOffset: *value = held ^ (changed_word && writes ? 1u : 0u); break;
+		case FesDe25ComputerGpiOffset: return endpoint.Read32(kSpiGpiAddress, value);
+		default: assert(false && "unexpected physical DE25 register");
+		}
+		return {};
+	}
+	mister::Error Write32(std::uint32_t address, std::uint32_t value) override
+	{
+		assert(address == mister::native::De25ComputerCpuBase + FesDe25ComputerGpoOffset);
+		std::uint32_t previous = 0;
+		assert(endpoint.Read32(kSpiGpiAddress, &previous).ok());
+		assert(((value & FesGpRequestMask) != 0) != ((previous & FesGpAckMask) != 0));
+		held = value;
+		++writes;
+		const auto error = endpoint.Write32(kFpgaGpoAddress, value);
+		return write_error ? mister::Error{mister::ErrorCode::io_failed, "uncertain write"} : error;
+	}
+};
+
+void TestStandardZx81DriverThroughAtomicDe25Transport()
+{
+	AtomicComputerBridge bridge;
+	mister::native::De25ComputerMmio registers(bridge);
+	TickClock clock;
+	mister::native::FesGp gp(registers, clock, mister::native::FesGpTransport::de25_computer);
+	mister::native::FesGpCoreDriver driver(gp);
+	auto descriptor = ComputerDescriptor({FesComputerInterfaceVideoFixed720p60ID,
+		FesComputerInterfaceKeyboardHidID, FesComputerInterfaceMediaZx81TapeID,
+		FesComputerInterfaceMediaZx81TapeWriteID});
+	descriptor.core.id = "fes.zx81";
+	mister::native::CoreDriverContext context;
+	context.descriptor = &descriptor;
+	assert(driver.Identify(context, kComputerDeadline).error.ok());
+	assert(driver.TapeWriteCapable());
+	assert(driver.Start(context, kComputerDeadline).error.ok() && !bridge.endpoint.held);
+	mister::KeyboardHidRows rows{};
+	rows[0] = 0x10; // HID usage 0x04, A; low four bits are reserved.
+	assert(driver.SetKeyboardHid(rows, kComputerDeadline).ok());
+	assert(bridge.endpoint.rows[0] == 0x10);
+	ComputerMediaFile tape(std::string("\x00\x0a\x76", 3));
+	mister::native::ComputerMediaSnapshot media;
+	assert(media.Prepare(tape.path, 1, FesComputerZx81TapeMaxBytes, clock, kComputerDeadline).ok());
+	assert(driver.InsertMedia(0, media, clock, kComputerDeadline, 10000).ok());
+	assert(!bridge.endpoint.held && bridge.endpoint.unit(0).state == FesComputerMediaStateReady);
+	assert(driver.EjectMedia(0, kComputerDeadline).ok() && !bridge.endpoint.held);
+	bridge.endpoint.SetZx81Snapshot({0x00, 0x0a, 0x76});
+	std::vector<unsigned char> saved;
+	assert(driver.CaptureZx81Tape(clock, kComputerDeadline, &saved).ok());
+	assert(saved == std::vector<unsigned char>({0x00, 0x0a, 0x76}));
+	assert(driver.EnsureZx81TapeSaved(kComputerDeadline).code == mister::ErrorCode::save_failed);
+	assert(driver.AcknowledgeZx81Tape(kComputerDeadline).ok());
+	assert(driver.EnsureZx81TapeSaved(kComputerDeadline).ok());
+	assert(bridge.writes == bridge.endpoint.requests.size());
+}
+
+void TestAtomicDe25TransportFailsClosed()
+{
+	for (unsigned failure = 0; failure < 12; ++failure) {
+		AtomicComputerBridge bridge;
+		if (failure == 0) bridge.id ^= 1;
+		if (failure == 1) bridge.version ^= 1;
+		if (failure == 2) bridge.status = FesDe25ComputerStatusBusy | FesDe25ComputerStatusReady;
+		if (failure == 3) bridge.status = 0;
+		if (failure == 4) bridge.status |= 8;
+		if (failure == 5) bridge.fault = FesDe25ComputerFaultReset;
+		if (failure == 6) bridge.held = FesGpRequestMask;
+		if (failure == 7) bridge.changed_word = true;
+		if (failure == 8) bridge.post_fault = true;
+		if (failure == 9) bridge.post_busy = true;
+		if (failure == 10) bridge.write_error = true;
+		if (failure == 11) bridge.endpoint.lose_request = [](const mister_test::ComputerEndpoint::Request&) { return true; };
+		mister::native::De25ComputerMmio registers(bridge);
+		TickClock clock;
+		mister::native::FesGp gp(registers, clock, mister::native::FesGpTransport::de25_computer);
+		std::uint16_t reply = 0;
+		assert(!gp.Exchange(FesGpOpcodeIdentity, 0, 0, 10000, &reply).ok());
+		assert(gp.Poisoned() && bridge.writes == (failure < 7 ? 0u : 1u));
+		const auto writes = bridge.writes;
+		assert(!gp.Exchange(FesGpOpcodeIdentity, 0, 0, 10000, &reply).ok());
+		assert(!gp.Realign(10000).ok());
+		gp.BeginSession();
+		assert(gp.Poisoned());
+		assert(!gp.Exchange(FesGpOpcodeIdentity, 0, 0, 10000, &reply).ok());
+		assert(bridge.writes == writes);
+	}
+	// A known acknowledged rejection leaves transport usable, without replay.
+	AtomicComputerBridge bridge;
+	mister::native::De25ComputerMmio registers(bridge);
+	TickClock clock;
+	mister::native::FesGp gp(registers, clock, mister::native::FesGpTransport::de25_computer);
+	std::uint16_t reply = 0;
+	assert(!gp.Exchange(127, 0, 0, 10000, &reply).ok() && !gp.Poisoned());
+	assert(gp.Exchange(FesGpOpcodeIdentity, 0, 0, 10000, &reply).ok());
+	assert(reply == FesGpIdentityMagic0 && bridge.writes == 2);
+}
+
 void TestAtariStFloppyDiscoveryAndLiveInsert()
 {
 	auto descriptor = ComputerDescriptor({FesComputerInterfaceVideoFixed720p60ID,
@@ -3321,6 +3441,8 @@ void TestPc386AtaDiskCommitPollAndDirtyMap()
 
 int main()
 {
+	TestStandardZx81DriverThroughAtomicDe25Transport();
+	TestAtomicDe25TransportFailsClosed();
  TestMediaSnapshotFrozenCaptureAndRecovery();
  TestMouseRelativeSplittingAndUncertainDelivery();
  TestAtariStFloppyDiscoveryAndLiveInsert();

@@ -18,6 +18,8 @@ class Clock;
 class Mmio;
 class ComputerMediaSnapshot;
 
+enum class FesGpTransport { de10_gp, de25_computer };
+
 struct MediaStreamInfo {
 	std::uint32_t minimum = 0;
 	std::uint32_t maximum = 0;
@@ -26,7 +28,7 @@ struct MediaStreamInfo {
 
 class FesGp final {
 public:
-	FesGp(Mmio&, Clock&);
+	FesGp(Mmio&, Clock&, FesGpTransport = FesGpTransport::de10_gp);
 	void BeginSession();
 	bool Poisoned();
 	// Sample a stable ACK, align the host toggle to it, and drop poison.
@@ -48,8 +50,12 @@ private:
 	// Caller holds mutex_. Read only; never reissues the outstanding request.
 	Error ReadSettledResponse(bool acknowledged, std::uint64_t deadline,
 		std::uint32_t* response);
+	Error ExchangeDe25(std::uint32_t fields, std::uint64_t deadline,
+		std::uint16_t* response);
 	Mmio& mmio_;
 	Clock& clock_;
+	const FesGpTransport transport_;
+	const std::uint32_t command_address_, response_address_;
 	std::mutex mutex_;
 	bool request_toggle_ = false;
 	bool poisoned_ = false;
