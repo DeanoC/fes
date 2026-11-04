@@ -20,11 +20,12 @@ set_fileset_property QUARTUS_SYNTH TOP_LEVEL fes_de25_zx81_standard
 add_fileset_file fes_de25_zx81_standard.v VERILOG PATH fes_de25_zx81_standard.v TOP_LEVEL_FILE
 foreach file {fes_de25_computer.v fes_zx81_core.v zx81_machine_clock.v zx81_keyboard.v
     zx81_tape_store_de25.v zx81_dpram_de25.v zx81_video_720p_de25.v
-    fes_de25_session_display.v fes_de25_scanout.v fes_display_plane.v fes_display_cdc.v
-    fes_menu_control.v fes_menu_video.v fes_menu_reader_de25.v} {
+    fes_de25_scanout.v fes_display_cdc.v fes_menu_video.v fes_menu_reader_de25.v} {
     add_fileset_file $file VERILOG PATH $file
 }
-foreach file {zx81_machine.sv fes_computer_mailbox.v fes_z80_alu.sv fes_z80_engine.sv fes_z80_bus.sv fes_z80_nmos.sv} {
+# The portable .v display/control sources use SystemVerilog sized casts too.
+foreach file {zx81_machine.sv fes_computer_mailbox.v fes_de25_session_display.v fes_display_plane.v
+    fes_menu_control.v fes_z80_alu.sv fes_z80_engine.sv fes_z80_bus.sv fes_z80_nmos.sv} {
     add_fileset_file $file SYSTEM_VERILOG PATH $file
 }
 foreach file {fes_de25_computer.vh fes_de25_scanout.vh} {
