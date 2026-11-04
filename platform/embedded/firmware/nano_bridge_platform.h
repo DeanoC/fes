@@ -30,4 +30,9 @@ void fes_nano_platform_hps_io_sip(uint64_t operation, uint64_t owner,
                                  uint64_t generation, unsigned busy, uint64_t result[4]);
 int fes_nano_bridge_platform_handoff(const struct fes_nano_boot_record *,
                                      const struct fes_nano_boot_policy *, struct fes_nano_master_ops);
+/* Trusted setup only, before releasing NS execution. The initializer must
+ * serialize construction of its retained platform objects under this lock.
+ * This binding function expects that lock already held, like device setup. */
+int fes_nano_bridge_platform_bind_usb_pio(uint64_t owner,uint64_t epoch,
+    struct fes_nano_retained_master_ops);
 #endif

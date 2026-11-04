@@ -17,4 +17,17 @@ struct fes_nano_usb_composition {
 };
 int fes_nano_usb_composition_init(struct fes_nano_usb_composition *,
     struct fes_nano_cold *,struct fes_nano_usb_platform *,struct fes_nano_sd_platform *);
+/* Optional master provider over the existing independent FPGA producer stop
+ * callbacks. Those callbacks must not reset USB or fabricate a fabric receipt.
+ * Does not replace the old cold all-reset quiescence API. */
+struct fes_nano_usb_master {
+    struct fes_nano_usb_composition *composition;
+    struct fes_nano_master_ops producers;
+    uint64_t owner,epoch;
+    unsigned attempted,initialized,failed;
+    int first_error;
+};
+int fes_nano_usb_master_init(struct fes_nano_usb_master *,struct fes_nano_usb_composition *,
+    struct fes_nano_master_ops);
+struct fes_nano_retained_master_ops fes_nano_usb_master_ops(struct fes_nano_usb_master *);
 #endif

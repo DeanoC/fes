@@ -141,6 +141,14 @@ int fes_nano_usb_platform_confirm(struct fes_nano_usb_platform *p, uint64_t owne
     p->confirmed=1;p->generation++;
     return 0;
 }
+int fes_nano_usb_platform_idle(struct fes_nano_usb_platform *p,uint64_t owner,uint64_t generation)
+{
+    if (admit(p,owner,generation) || !p->active || !p->confirmed) return -1;
+    if (fes_nano_usb_platform_observe(p,owner,generation) ||
+        poll(p,RESET,ENABLE,ENABLE) || fes_nano_usb_platform_observe(p,owner,generation)) return -1;
+    if (p->generation!=generation || !p->active || !p->confirmed) return fail(p,-5);
+    return 0;
+}
 int fes_nano_usb_platform_stop(struct fes_nano_usb_platform *p, uint64_t owner,
                               uint64_t generation)
 {

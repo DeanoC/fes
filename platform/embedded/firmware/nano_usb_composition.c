@@ -54,3 +54,76 @@ int fes_nano_usb_composition_init(struct fes_nano_usb_composition *s,
     s->initialized=1;
     return 0;
 }
+
+_Static_assert(FES_NANO_MASTER_USB0_PIO_RESET==FES_NANO_COLD_USB_RESET,"retained USB reset pair");
+static int master_fail(struct fes_nano_usb_master *m,int error)
+{
+    if (!m->first_error) m->first_error=error<0 ? error : -1;
+    m->failed=1;
+    if (m->composition) retire(m->composition);
+    return m->first_error;
+}
+static int master_observe(void *context,uint64_t owner,uint64_t epoch,uint32_t *keep)
+{
+    struct fes_nano_usb_master *m=context;
+    if (!m || !keep || !m->initialized || m->failed || owner!=m->owner || epoch!=m->epoch) return -1;
+    struct fes_nano_usb_composition *s=m->composition;
+    if (!s || !s->usb) return master_fail(m,-1);
+    uint32_t before,after;
+    uint64_t generation=s->usb->generation;
+    if (snapshot(s,&before)!=1 || (before & FES_NANO_COLD_SD_RESET) ||
+        m->producers.owns(m->producers.context,owner,epoch)!=1) return master_fail(m,-1);
+    if ((before & FES_NANO_COLD_USB_RESET) && fes_nano_usb_platform_idle(s->usb,owner,generation))
+        return master_fail(m,s->usb->first_error);
+    if (m->producers.owns(m->producers.context,owner,epoch)!=1 || snapshot(s,&after)!=1 ||
+        before!=after || s->usb->generation!=generation) return master_fail(m,-1);
+    *keep=before;
+    return 0;
+}
+static int master_stop(void *context,uint32_t producers)
+{
+    struct fes_nano_usb_master *m=context;
+    if (!m || !m->initialized || m->failed || producers!=FES_NANO_PRODUCERS_ALL) return -1;
+    uint32_t before,after;
+    uint64_t generation=m->composition->usb->generation;
+    if (master_observe(m,m->owner,m->epoch,&before)) return -1;
+    int error=m->producers.quiesce(m->producers.context,producers);
+    if (error) return master_fail(m,error);
+    if (master_observe(m,m->owner,m->epoch,&after) || before!=after ||
+        m->composition->usb->generation!=generation) return master_fail(m,-1);
+    return 0;
+}
+static int master_quiet(void *context,uint32_t *producers)
+{
+    struct fes_nano_usb_master *m=context;
+    if (!m || !producers || !m->initialized || m->failed) return -1;
+    uint32_t before,after,bits;
+    uint64_t generation=m->composition->usb->generation;
+    if (master_observe(m,m->owner,m->epoch,&before)) return -1;
+    int error=m->producers.quiescent(m->producers.context,&bits);
+    if (error) return master_fail(m,error);
+    if ((bits & ~FES_NANO_PRODUCERS_ALL) ||
+        master_observe(m,m->owner,m->epoch,&after) || before!=after ||
+        m->composition->usb->generation!=generation) return master_fail(m,-1);
+    *producers=bits;
+    return 0;
+}
+int fes_nano_usb_master_init(struct fes_nano_usb_master *m,struct fes_nano_usb_composition *s,
+    struct fes_nano_master_ops producers)
+{
+    if (!m || m->attempted) return -1;
+    m->attempted=1;
+    if (!s || !s->initialized || s->failed || !s->cold || !s->usb || !s->sd ||
+        !s->cold->devices_bound || s->cold->devices.context!=s || s->usb->active ||
+        s->usb->generation || s->sd->active || !producers.owns || !producers.quiesce ||
+        !producers.quiescent) {m->failed=1;m->first_error=-1;return -1;}
+    m->composition=s;m->producers=producers;m->owner=s->owner;m->epoch=s->epoch;
+    m->initialized=1;
+    uint32_t keep;
+    if (master_observe(m,m->owner,m->epoch,&keep) || keep) return master_fail(m,-1);
+    return 0;
+}
+struct fes_nano_retained_master_ops fes_nano_usb_master_ops(struct fes_nano_usb_master *m)
+{
+    return (struct fes_nano_retained_master_ops){m,master_observe,master_stop,master_quiet};
+}

@@ -28,35 +28,52 @@ static int reset(void *p, uint32_t *value)
 static int quiet(struct fes_nano_boot *s, uint32_t *bits)
 {
     if (scope(s)) return -1;
-    if (s->masters.quiescent(s->masters.context, bits) || (*bits & ~FES_NANO_PRODUCERS_ALL))
+    int status=s->retained_bound ? s->retained.quiescent(s->retained.context,bits) :
+        s->masters.quiescent(s->masters.context,bits);
+    if (status && s->retained_bound) return failed(s,status);
+    if (status || (*bits & ~FES_NANO_PRODUCERS_ALL))
         return failed(s, -5);
+    return scope(s);
+}
+static int retained(struct fes_nano_boot *s,uint32_t *mask)
+{
+    *mask=0;
+    if (!s->retained_bound) return 0;
+    if (scope(s) || !s->retained.observe) return failed(s,-1);
+    int error=s->retained.observe(s->retained.context,s->owner,s->epoch,mask);
+    if (error) return failed(s,error);
+    if (*mask && *mask!=FES_NANO_MASTER_USB0_PIO_RESET) return failed(s,-1);
     return scope(s);
 }
 static int contained(void *p)
 {
     struct fes_nano_boot *s = p;
-    uint32_t bridge, first, second, bits;
+    uint32_t bridge, first, second, bits,keep,after;
     if (reset(s, &bridge)) return -1;
     unsigned data_held = (bridge & FES_NANO_BRIDGES_DATA) == FES_NANO_BRIDGES_DATA;
     if (!data_held && !s->producers_stopped) return 0;
-    if (s->masters.read_per0(s->masters.context, &first) || quiet(s, &bits)) return failed(s, -5);
+    if (retained(s,&keep) || s->masters.read_per0(s->masters.context, &first) || quiet(s, &bits)) return failed(s, -5);
     s->masters.barrier(s->masters.context);
-    if (s->masters.read_per0(s->masters.context, &second) || first != second || scope(s))
+    if (s->masters.read_per0(s->masters.context, &second) || first != second ||
+        retained(s,&after) || keep!=after || scope(s))
         return failed(s, -1);
     /* Reset alone never proves peripheral drain. Fabric traffic stays held
      * by the data bridges; a new reader may be armed through control-only. */
-    return (first & FES_NANO_MASTER_RESET) == FES_NANO_MASTER_RESET &&
+    return (first & FES_NANO_MASTER_RESET) == (FES_NANO_MASTER_RESET & ~keep) &&
            (bits & FES_NANO_PRODUCERS_HPS) == FES_NANO_PRODUCERS_HPS &&
-           (data_held || bits == FES_NANO_PRODUCERS_ALL);
+           ((data_held && !s->producers_stopped) || bits == FES_NANO_PRODUCERS_ALL);
 }
-static int hold_reset(struct fes_nano_boot *s, uint32_t mask)
+static int hold_reset(struct fes_nano_boot *s, uint32_t mask,uint32_t keep)
 {
-    uint32_t value;
-    if (scope(s) || s->masters.read_per0(s->masters.context, &value)) return failed(s, -5);
+    uint32_t value,now;
+    mask &= ~keep;
+    if (scope(s) || retained(s,&now) || now!=keep ||
+        s->masters.read_per0(s->masters.context, &value)) return failed(s, -5);
     if ((value & mask) != mask && s->masters.assert_per0(s->masters.context, mask)) return failed(s, -5);
     s->masters.barrier(s->masters.context);
     for (unsigned i = 0; i < FES_NANO_MASTER_POLLS; i++) {
-        if (scope(s) || s->masters.read_per0(s->masters.context, &value)) return failed(s, -5);
+        if (scope(s) || retained(s,&now) || now!=keep ||
+            s->masters.read_per0(s->masters.context, &value)) return failed(s, -5);
         if ((value & mask) == mask) return scope(s);
         s->masters.wait(s->masters.context);
     }
@@ -65,17 +82,20 @@ static int hold_reset(struct fes_nano_boot *s, uint32_t mask)
 static int stop(void *p)
 {
     struct fes_nano_boot *s = p;
-    uint32_t bits;
-    if (scope(s)) return -1;
-    int status = s->masters.quiesce(s->masters.context, FES_NANO_PRODUCERS_ALL);
+    uint32_t bits,keep,now;
+    if (scope(s) || retained(s,&keep)) return -1;
+    int status = s->retained_bound ?
+        s->retained.quiesce(s->retained.context,FES_NANO_PRODUCERS_ALL) :
+        s->masters.quiesce(s->masters.context, FES_NANO_PRODUCERS_ALL);
     if (status) return failed(s, status);
     for (unsigned i = 0; i < FES_NANO_MASTER_POLLS; i++) {
-        if (quiet(s, &bits)) return -1;
+        if (quiet(s, &bits) || retained(s,&now) || now!=keep) return failed(s,-1);
         if (bits == FES_NANO_PRODUCERS_ALL) {
-            if (hold_reset(s, FES_NANO_MASTER_FUNCTION) || hold_reset(s, FES_NANO_MASTER_RESET)) return -1;
+            if (hold_reset(s, FES_NANO_MASTER_FUNCTION,keep) || hold_reset(s, FES_NANO_MASTER_RESET,keep)) return -1;
             /* A late producer restart or lost scope cannot become a receipt. */
             s->producers_stopped = 1;
-            if (quiet(s, &bits) || bits != FES_NANO_PRODUCERS_ALL || contained(s) != 1)
+            if (quiet(s, &bits) || bits != FES_NANO_PRODUCERS_ALL || contained(s) != 1 ||
+                retained(s,&now) || now!=keep)
                 return failed(s, -1);
             return scope(s);
         }
@@ -125,4 +145,20 @@ int fes_nano_boot_accept(struct fes_nano_boot *s, struct fes_nano_bridges *b,
     int status = fes_nano_bridges_init(b, ops, s->owner, s->epoch, policy->fabric,
                                      policy->history == FES_NANO_BOOT_NEVER_ENABLED);
     return status ? failed(s, status) : 0;
+}
+int fes_nano_boot_bind_usb_pio(struct fes_nano_boot *s,struct fes_nano_bridges *b,
+    uint64_t owner,uint64_t epoch,struct fes_nano_retained_master_ops ops)
+{
+    if (!s || !b || !s->attempted || s->failed || s->retained_attempted ||
+        owner!=s->owner || epoch!=s->epoch || b->ops.context!=s || b->ops.owns!=owns ||
+        b->state.owner!=owner || b->epoch!=epoch) return -1;
+    s->retained_attempted=1;
+    struct fes_nano_bridge_snapshot state;
+    uint32_t keep;
+    if (!ops.observe || !ops.quiesce || !ops.quiescent || b->device_lease ||
+        fes_nano_bridges_observe(b,&state) || state.generation!=1 || !state.never_enabled ||
+        state.reset!=FES_NANO_BRIDGES_ALL || state.fabric!=FES_NANO_FABRIC_ABSENT ||
+        !state.masters_contained || ops.observe(ops.context,owner,epoch,&keep) || keep) return failed(s,-1);
+    s->retained=ops;s->retained_bound=1;
+    return fes_nano_bridges_observe(b,&state) ? failed(s,-1) : 0;
 }

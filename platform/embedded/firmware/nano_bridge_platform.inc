@@ -98,6 +98,13 @@ __attribute__((weak)) int fes_nano_platform_boot_record(struct fes_nano_boot_rec
     (void)record; (void)policy; (void)masters;
     return 0;
 }
+int fes_nano_bridge_platform_bind_usb_pio(uint64_t owner,uint64_t epoch,
+    struct fes_nano_retained_master_ops ops)
+{
+    /* Secure startup shares the same lock with the future SiP dispatcher.
+     * Keep the private boot authority inaccessible to NS callers. */
+    return fes_nano_boot_bind_usb_pio(&fes_nano_owned_boot,&fes_nano_owned_bridges,owner,epoch,ops);
+}
 __attribute__((weak)) int fes_nano_platform_sd_setup(void) { return 0; }
 __attribute__((weak)) int fes_nano_platform_usb_setup(void) { return 0; }
 __attribute__((weak)) void fes_nano_platform_sd_report(void) {}
