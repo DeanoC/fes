@@ -1,5 +1,5 @@
 {
-  "build_id": "1c080129abed249df6803ccb5ab25f74",
+  "build_id": "61d5f899af0335f46b961e4ffbb8b421",
   "device": "5CSEBA6U23I7",
   "firmware": {
     "bios": "26b37cca11e390175cc3c9ccb7755f806e5ceb3aaf24aae157b5d01b73e1b4b0",
@@ -72,7 +72,7 @@
     "cores/fes-common/rtl/pixel_pll.v": "cae38e16a40d3e14dddb3053c63c8f0fb0f128ac1ebe6ae9d45e0a8f3a407ab5",
     "cores/fes-common/vendor/kf8253/KF8253.sv": "8eafce840403773204b3162317d6c773d7352daf2e994a7520161a611427c9e8",
     "cores/fes-common/vendor/kf8253/KF8253_Control_Logic.sv": "db11635d34159622e43cd996c3ea101b84eb0e3abae4f8ccb9556cf4351a4837",
-    "cores/fes-common/vendor/kf8253/KF8253_Counter.sv": "87b3df9e59b75c0102aed1d592e6be23ba732e9d80c9c6f154355729b450dba8",
+    "cores/fes-common/vendor/kf8253/KF8253_Counter.sv": "0e38f4a79474ff1e3c002432465abd414e158465326147c29e43bf2cfeb9c4fc",
     "cores/fes-common/vendor/kf8253/KF8253_Definitions.svh": "e6ac7b4eb0c8236f6b7923d38abeab2f9b2ec0b3b652536e53fc1be840fdebbf",
     "cores/fes-common/vendor/kf8259/KF8259.sv": "c5ee6e8ce7223204745370af7007541083da10e88974a3d3804c999914896f03",
     "cores/fes-common/vendor/kf8259/KF8259_Bus_Control_Logic.sv": "8a79e4708b4f68da13626b8c88672978ba364ba548dfe2d54fad49412dfc8d1c",
@@ -141,13 +141,13 @@
     "scripts/source_provenance.py": "4ea875fb576bbe00d833fb2a78fcf938367bda0a6cb49f65b9c1735fcf832155"
   },
   "rbf": {
-    "sha256": "7696be9c82a2551cc124ae63418093ae9fa10dfea24eb23d4ca8d69036f26bdf",
-    "size": 3669892
+    "sha256": "4b093c3d0456ffd0703742302bd0cf64cc9e4a5fd898390f17adc5e2833bbdc5",
+    "size": 3656288
   },
   "resources": {
     "alms": {
       "available": 41910,
-      "used": 29211
+      "used": 29166
     },
     "block_memory_bits": {
       "available": 5662720,
@@ -162,7 +162,7 @@
       "used": 259
     },
     "registers": {
-      "used": 26314
+      "used": 26257
     }
   },
   "seed": 1,
@@ -171,7 +171,7 @@
     "analyses": {
       "hold": {
         "tns_ns": 0.0,
-        "worst_slack_ns": 0.088
+        "worst_slack_ns": 0.061
       },
       "minimum_pulse_width": {
         "tns_ns": 0.0,
@@ -179,15 +179,15 @@
       },
       "recovery": {
         "tns_ns": 0.0,
-        "worst_slack_ns": 6.903
+        "worst_slack_ns": 8.159
       },
       "removal": {
         "tns_ns": 0.0,
-        "worst_slack_ns": 0.44
+        "worst_slack_ns": 0.768
       },
       "setup": {
         "tns_ns": 0.0,
-        "worst_slack_ns": 1.174
+        "worst_slack_ns": 1.081
       }
     },
     "clocks": {
