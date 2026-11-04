@@ -1,0 +1,10 @@
+{
+  "status": "passed",
+  "scope": "independent replay of a failed physical capture; no hardware acceptance",
+  "full_capture_matches_native_receipt": true,
+  "native_complete": false,
+  "native_last_checkpoint": "el1",
+  "startup_last_checkpoint": "retain_begin",
+  "errors": [],
+  "raw_capture_sha256": "0207b1a2330c53e48ad1261a2788a26342b92e0993e187a34114e21778edcad8"
+}
