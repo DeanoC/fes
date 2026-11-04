@@ -634,6 +634,27 @@ class HilPlanTest(unittest.TestCase):
         self.assertEqual(result['class'], 'overlay')
         self.assertEqual(planner.plan([zx81], texts={})['decision'], 'OVERLAY core:de25-zx81')
 
+    def test_core_root_declarations_include_de25_package_consumers(self):
+        planner = hil_module()
+        texts = planner.script_texts()
+        for path, component in (
+                ('cores/fes-zx81/rtl/fes_zx81_core.v', 'core:de25-zx81'),
+                ('cores/fes-menu/rtl/fes_menu_reader.v', 'core:de25-menu')):
+            with self.subTest(path=path):
+                components = {row['component'] for row in planner.core_consumers(
+                    'sources/misteross/' + path, texts)}
+                self.assertIn(component, components)
+        # A producer naming the core root reads descendants, but not its
+        # similarly named neighbour. No "cores"-wide literal is inferred.
+        producer = 'sources/misteross/scripts/build_fes_alpha.py'
+        texts = {producer: 'SOURCE_ROOTS = ["cores/fes-beta"]\n'}
+        self.assertEqual(planner.plan([
+            'sources/misteross/cores/fes-beta/rtl/core.v'], texts)['components'],
+            ['core:alpha', 'core:beta'])
+        self.assertEqual(planner.plan([
+            'sources/misteross/cores/fes-beta-other/rtl/core.v'], texts)['components'],
+            ['core:beta-other'])
+
     def test_native_de25_kernel_and_image_recipe_inputs_require_boot(self):
         from scripts import de25_kernel_platform, de25_owner_image
         planner = hil_module()

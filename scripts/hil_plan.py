@@ -434,7 +434,7 @@ def core_consumers(path, texts):
     cannot be resolved to a misteross script fails closed as a full image."""
     relative = path.removeprefix(MISTEROSS)
     parts = relative.split('/')
-    candidates = {'/'.join(parts[:index]) for index in range(3, len(parts) + 1)}
+    candidates = {'/'.join(parts[:index]) for index in range(2, len(parts) + 1)}
     modules = script_modules(texts)
     found = []
     for stem, module in sorted(modules.items()):
