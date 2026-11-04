@@ -180,7 +180,10 @@ static void copied_policy_and_admission(void)
         assert(t.accesses==before && t.board.failed);
     }
 }
-int main(void)
+#ifndef FES_NANO_USB_BOARD_ENTRY
+#define FES_NANO_USB_BOARD_ENTRY main
+#endif
+int FES_NANO_USB_BOARD_ENTRY(void)
 {
     completed();live_failures();changed_policy();interruptions();copied_policy_and_admission();
     puts("PASS actual USB board clocks/pins, two-phase host confirmation and USB3320 ULPI/VBUS failures; model only");return 0;

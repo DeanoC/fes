@@ -959,8 +959,9 @@ strict `hps_io.derive` parser and the actual compiled handoff/build receipt. It
 never imports register expectations from an edited saved policy descriptor.
 The selecting boot producer must first verify the sealed project and context;
 the policy digest identifies those compiled expectations and is not a signature
-or runtime authority. No default MMIO binding, SiP command, selecting boot profile
-or physical USB readiness is installed. Current native images keep USB disabled.
+or runtime authority. The USB SiP dispatcher is installed with an unbound default provider, which
+returns NotReady. No default MMIO binding, selecting boot profile or physical
+USB readiness is installed. Current native images keep USB disabled.
 Next integration needs the selected secure/native binding and a fresh matched
 boot chain before a bounded USB test; mixed SD/USB/core operation remains open.
 
@@ -980,3 +981,27 @@ acquire/drain/reset cycles, preparation/confirmation/abort, stale generations,
 every pin/clock mutation, live-mode/VBUS/viewport failures, copied policy and
 interrupted I/O. Existing SD tests cover the shared cold scope. Host register
 models and freestanding objects supply no hardware USB acceptance.
+
+## USB lease wire and native driver binding
+
+`nano_usb_service.c` connects trusted USB callbacks to the generated
+[`fes.fabric.embedded.usb`](../../../sources/mister-packages/docs/embedded-usb.md)
+channel. Trusted initialization supplies the original cold owner/epoch and
+callbacks; non-secure callers cannot initialize it. The dispatcher reserves the
+shared device lease before acquisition and blocks SD, bridge and configuration
+calls until a checked stop. Lost or inconsistent state retires ownership and
+retains the reservation. A successful callback must also produce the expected
+generation and phase before firmware returns a receipt.
+
+The native `usbcontrol` client validates those receipts and wraps one synchronous
+report driver. `OpenKeyboardWithControl` binds it to DWC2 without a fallback
+when firmware refuses ownership. Driver enumeration precedes live confirmation;
+reports follow confirmation. Startup failures stop a known prepared lease once;
+ambiguous replies retain resources until reboot. The default boot profile does
+not select this path.
+
+The C RPC fixture runs the actual dispatcher, USB service, cold policy and board
+checks against modeled registers/PHY responses. Separate Go tests run the actual
+DWC2 driver with a modeled USB device and firmware replies. These checks cover
+prepare/confirm/stop, stale sources, failed enumeration, lost replies and blocked
+SD/FPGA calls. They do not establish physical USB or simultaneous USB/core access.

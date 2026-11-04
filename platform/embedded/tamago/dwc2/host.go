@@ -83,10 +83,10 @@ func Open(io Registers, config Config) (*Host, error) {
 	}
 	h := &Host{io: io, ep0: 8}
 	if err := h.initialize(); err != nil {
-		return nil, h.fail(err)
+		return h, h.fail(err)
 	}
 	if err := h.enumerate(); err != nil {
-		return nil, h.fail(err)
+		return h, h.fail(err)
 	}
 	return h, nil
 }
@@ -127,6 +127,11 @@ func (h *Host) fail(err error) error {
 	h.fault = err
 	if !h.owned {
 		return err
+	}
+	if h.io.Read32(gahb)&(1<<5) != 0 {
+		// DMA state no longer belongs to this PIO driver. Do not halt or
+		// rewrite a channel whose address/ownership is now uncertain.
+		return h.fault
 	}
 	h.io.Write32(gintmask, 0)
 	// Do not touch a firmware-owned active DMA/channel on admission failure.
@@ -228,6 +233,9 @@ func (h *Host) initialize() error {
 }
 
 func (h *Host) begin(ep uint8, mps uint16, kind uint32, in bool, pid uint32, out []byte, limit int, deadline time.Time) error {
+	if err := h.pio(); err != nil {
+		return err
+	}
 	if h.pending.active || h.io.Read32(hcchar)&channelEnable != 0 {
 		return fmt.Errorf("dwc2: channel not retired")
 	}
@@ -269,9 +277,19 @@ func (h *Host) begin(ep uint8, mps uint16, kind uint32, in bool, pid uint32, out
 	return nil
 }
 
+func (h *Host) pio() error {
+	if h.io.Read32(gahb)&(1<<5|1) != 0 || h.io.Read32(gintmask) != 0 || h.io.Read32(hcfg)&(1<<23) != 0 {
+		return fmt.Errorf("dwc2: PIO/interrupt ownership changed")
+	}
+	return nil
+}
+
 // step consumes a fixed number of RX entries and register reads. Completion
 // includes channel retirement; it never hands a still-owned buffer to callers.
 func (h *Host) step() (bool, []byte, bool, error) {
+	if err := h.pio(); err != nil {
+		return false, nil, false, err
+	}
 	p := &h.pending
 	if !p.active {
 		return false, nil, false, fmt.Errorf("dwc2: no active packet")

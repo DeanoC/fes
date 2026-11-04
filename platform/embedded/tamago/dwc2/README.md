@@ -43,3 +43,9 @@ is an independent exploratory implementation; neither a Linux driver nor a
 vendor BSP is linked into the native image. The validation receipt records
 reference file hashes. Register/device model tests prove software behavior,
 not PHY timing, electrical safety or physical USB compatibility.
+
+The controlled Nano entry point wraps this host in `usbcontrol.Source`. `Open`
+returns a partial host on initialization or enumeration failure so its owner can
+retain it through lease cleanup. Every transfer step rechecks polling PIO mode,
+interrupt masking and descriptor-DMA disable. If DMA unexpectedly becomes
+enabled, the host retires without rewriting or halting an uncertain channel.

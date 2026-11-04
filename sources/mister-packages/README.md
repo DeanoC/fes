@@ -69,6 +69,9 @@ grant no boot or programming authority.
 The [firmware-owned SD lease](docs/embedded-sd.md) supplies a separate C/Go
 channel sharing that owner and generation. It remains unready without trusted
 platform initialization and permits only closed-bridge PIO.
+The [firmware-owned USB lease](docs/embedded-usb.md) uses an independent
+generation, prepared and confirmed phases, and a checked stop. It permits USB
+PIO only while SD and FPGA data paths remain held; its default provider is unbound.
 
 Run `make test` with Python `jsonschema` available and Go installed.
 Use `make fixtures` to regenerate canonical fixtures and `make check-fixtures`

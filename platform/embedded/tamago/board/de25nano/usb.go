@@ -4,9 +4,11 @@
 package de25nano
 
 import (
+	"context"
 	"fmt"
 	"github.com/DeanoC/fes/platform/embedded/tamago/dwc2"
 	"github.com/DeanoC/fes/platform/embedded/tamago/input"
+	"github.com/DeanoC/fes/platform/embedded/tamago/usbcontrol"
 	"time"
 )
 
@@ -17,6 +19,28 @@ func (usbRegisters) Write32(offset, value uint32) { store32(0x10b00000+uintptr(o
 func (usbRegisters) Now() time.Time               { return time.Now() }
 
 var usbAttempted bool
+var ownedUSBSource *usbcontrol.Source // Retain failed/closed resources until reboot.
+
+// OpenKeyboardWithControl uses an explicitly supplied secure USB client. There
+// is no fallback to direct controller access if its lease/confirmation fails.
+// A selecting boot profile must supply this client's independent boot owner.
+func OpenKeyboardWithControl(ctx context.Context, client *usbcontrol.Client) (input.USBReports, error) {
+	if profileUSBPHYClockHz == 0 || client == nil {
+		return nil, fmt.Errorf("de25-nano: controlled USB profile and client required")
+	}
+	if usbAttempted {
+		return nil, fmt.Errorf("de25-nano: USB initialization already attempted")
+	}
+	usbAttempted = true
+	var err error
+	ownedUSBSource, err = usbcontrol.Open(ctx, client, func() (input.USBReports, error) {
+		return dwc2.Open(usbRegisters{}, dwc2.Config{PHYClockHz: profileUSBPHYClockHz})
+	})
+	if err != nil {
+		return nil, err
+	}
+	return ownedUSBSource, nil
+}
 
 func OpenKeyboard() (*input.USBKeyboard, error) {
 	host, err := OpenKeyboardReports()

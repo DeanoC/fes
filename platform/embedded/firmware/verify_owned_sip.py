@@ -16,7 +16,9 @@ def build(reference, subset, output, run):
 #define INTEL_SIP_SMC_FPGA_CONFIG_COMPLETED_WRITE 0xc2000003U
 #define INTEL_SIP_SMC_FPGA_CONFIG_ISDONE 0xc2000004U
 #include "nano_sd.h"
+#include "nano_usb_service.h"
 struct fes_nano_sd fes_nano_owned_sd;
+struct fes_nano_usb_service fes_nano_owned_usb;
 #include "nano_owned_sip.inc"
 typedef uint64_t u_register_t;
 typedef struct { uint64_t r[4]; } Reply;
@@ -53,8 +55,10 @@ unsigned fes_tfa_legacy_routes(void) { return legacy_routes; }
     run("owned-codec-compile", ["cc", *flags, "-c", HERE / "nano_bridge_sip.c", "-o", codec])
     sd = output / "nano_sd.o"
     run("owned-sd-compile", ["cc", *flags, "-c", HERE / "nano_sd.c", "-o", sd])
+    usb = output / "nano_usb_service.o"
+    run("owned-usb-compile", ["cc", *flags, "-c", HERE / "nano_usb_service.c", "-o", usb])
     identity = output / "nano_identity.o"
     run("owned-identity-compile", ["cc", *flags, "-c", HERE / "nano_identity.c", "-o", identity])
     configuration = output / "nano_configuration.o"
     run("owned-configuration-compile", ["cc", *flags, "-c", HERE / "nano_configuration.c", "-o", configuration])
-    return [engine, codec, sd, identity, configuration], {"controlled_service_sha256": hashlib.sha256(owned.encode()).hexdigest(), "host_subset_sha256": hashlib.sha256(path.read_bytes()).hexdigest()}
+    return [engine, codec, sd, usb, identity, configuration], {"controlled_service_sha256": hashlib.sha256(owned.encode()).hexdigest(), "host_subset_sha256": hashlib.sha256(path.read_bytes()).hexdigest()}

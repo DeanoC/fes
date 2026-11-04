@@ -28,6 +28,8 @@ EMBEDDED_BRIDGE_INPUTS = frozenset({
     'sources/mister-packages/packages/fabric/fes_fabric_embedded_bridges.yaml',
     'sources/mister-packages/testdata/oracles/fes-embedded-bridges.json',
     'sources/mister-packages/packages/fabric/fes_fabric_embedded_sd.yaml',
+    'sources/mister-packages/packages/fabric/fes_fabric_embedded_usb.yaml',
+    'sources/mister-packages/testdata/oracles/fes-embedded-usb.json',
     'sources/mister-packages/testdata/oracles/fes-embedded-sd.json',
 })
 
@@ -99,6 +101,7 @@ def native_fabric_input(path):
                              'platform/embedded/tamago/board/arm64map/',
                              'platform/embedded/tamago/board/de25nano/',
                              'platform/embedded/tamago/nativefabric/',
+                             'platform/embedded/tamago/usbcontrol/',
                              'platform/embedded/tamago/nativefabriccheck/',
                              'platform/embedded/tamago/fabricmodel/',
                              'platform/embedded/tamago/framefixture/',

@@ -1,0 +1,30 @@
+schema: mister-packages.v1
+kind: fabric
+id: fes.fabric.embedded.usb
+major: 1
+minor: 0
+description: >-
+  Experimental firmware-owned USB-only PIO lease. Independent USB generation,
+  original cold boot owner, prepare then live confirmation, and checked stop.
+  SD and FPGA bridges remain held. No non-secure initialization, mixed device
+  permission, physical qualification or production admission is supplied.
+constants:
+  - {name: FesEmbeddedUsbCall, value: 0xc2000303}
+  - {name: FesEmbeddedUsbCookie, value: 0x46455355}
+  - {name: FesEmbeddedUsbTag, value: 0x46555331}
+  - {name: FesEmbeddedUsbQuery, value: 0x0}
+  - {name: FesEmbeddedUsbAcquire, value: 0x1}
+  - {name: FesEmbeddedUsbConfirm, value: 0x2}
+  - {name: FesEmbeddedUsbStop, value: 0x3}
+  - {name: FesEmbeddedUsbOK, value: 0x0}
+  - {name: FesEmbeddedUsbBusy, value: 0x1}
+  - {name: FesEmbeddedUsbRejected, value: 0x2}
+  - {name: FesEmbeddedUsbError, value: 0x4}
+  - {name: FesEmbeddedUsbNotReady, value: 0x5}
+  - {name: FesEmbeddedUsbSupported, value: 0x1}
+  - {name: FesEmbeddedUsbActive, value: 0x2}
+  - {name: FesEmbeddedUsbConfirmed, value: 0x4}
+  - {name: FesEmbeddedUsbContained, value: 0x8}
+  - {name: FesEmbeddedUsbDataHeld, value: 0x10}
+  - {name: FesEmbeddedUsbClosedOnly, value: 0x20}
+  - {name: FesEmbeddedUsbFlags, value: 0x3f}

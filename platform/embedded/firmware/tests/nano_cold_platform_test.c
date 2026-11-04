@@ -110,6 +110,7 @@ static unsigned sd_phy_index(uint32_t address) {
 int fes_nano_cold_cpu_release_locked(void) { return release_locked; }
 struct fes_nano_bridges fes_nano_owned_bridges;
 struct fes_nano_sd fes_nano_owned_sd;
+struct fes_nano_usb_service fes_nano_owned_usb;
 void fes_nano_bridge_platform_lock(void) {}
 void fes_nano_bridge_platform_unlock(void) {}
 #define FES_NANO_COLD_SERIAL 1

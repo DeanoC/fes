@@ -1,0 +1,34 @@
+{
+  "source": {
+    "repository": "DeanoC/fes",
+    "commit": "ecc90090cfe14d9e806a1b1b196edac91f1a064a",
+    "file": "platform/embedded/firmware/generated/fes_embedded_usb.h",
+    "note": "Base FES revision before the private USB-only C/Go lease channel. No default board binding or physical qualification."
+  },
+  "fabric": {
+    "id": "fes.fabric.embedded.usb",
+    "major": 1,
+    "minor": 0
+  },
+  "constants": {
+    "FesEmbeddedUsbCall": 3254780675,
+    "FesEmbeddedUsbCookie": 1178948437,
+    "FesEmbeddedUsbTag": 1179996977,
+    "FesEmbeddedUsbQuery": 0,
+    "FesEmbeddedUsbAcquire": 1,
+    "FesEmbeddedUsbConfirm": 2,
+    "FesEmbeddedUsbStop": 3,
+    "FesEmbeddedUsbOK": 0,
+    "FesEmbeddedUsbBusy": 1,
+    "FesEmbeddedUsbRejected": 2,
+    "FesEmbeddedUsbError": 4,
+    "FesEmbeddedUsbNotReady": 5,
+    "FesEmbeddedUsbSupported": 1,
+    "FesEmbeddedUsbActive": 2,
+    "FesEmbeddedUsbConfirmed": 4,
+    "FesEmbeddedUsbContained": 8,
+    "FesEmbeddedUsbDataHeld": 16,
+    "FesEmbeddedUsbClosedOnly": 32,
+    "FesEmbeddedUsbFlags": 63
+  }
+}
