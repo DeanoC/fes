@@ -95,6 +95,17 @@ On a failed grant poll, remaining deadline permitting, the error also reports
 same-generation cached kernel health counters. This read performs no register
 access and neither accepts the failed frame nor clears the fault/retirement gate.
 
+The same allocation adapter also accepts an injected standard-core GP display
+control. In that mode Configure/Enable/Quiesce use the existing display commands;
+frames are published only through the kernel grant. Closing proves kernel drain,
+the end of peer references and GP plane quiescence before another allocation.
+Reopening allocates cleared storage with hardware front slot0 and restarts its
+physical frame sequence, while the runtime's logical completion count continues.
+Session status negotiates per-frame mappings, and its first back slot is1 after
+each fresh allocation. Focus and machine execution remain in the shared lifecycle.
+This path has injected-operation coverage only; the production factory/profile
+still selects the bring-up computer and has not admitted a standard-core package.
+
 The MENU package declares application1.0 with fixed video1.0, menu-display1.0
 and `fes.fabric.de25-scanout`1.1. It declares no boot-latched HPS DDR window,
 blitter or retained session plane. The runtime's ELF menu-interface records are

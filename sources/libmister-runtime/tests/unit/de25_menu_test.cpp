@@ -32,7 +32,7 @@ void AbiAndIdentityBeforeExposure() {
 }
 void ConfirmBlackAndReuseOneAllocation() {
  Operations o;LinuxDe25Menu m(o.clock,o);int fd=-1;
- assert(m.FrameMapping()&&!m.Share(&fd).ok());Start(m,o);
+ assert(m.FrameMapping()&&m.FreshSlotsOnActivate()&&!m.Share(&fd).ok());Start(m,o);
  assert(o.allocations==1&&(o.published==decltype(o.published){{1,1},{2,0}}));
  MenuDisplayInfo initial;assert(m.ReadInfo(100,&initial).ok()&&initial.displayed_sequence==0);
  assert(m.Share(&fd).ok()&&fd==200);o.Close(fd);
@@ -120,6 +120,88 @@ void UnsupportedPathsAndBounds() {
  assert(!m.CleanBlit(0,1,{}).ok()&&!m.RunBlit(0,1,0,100).ok());
  assert(o.published.size()==2);assert(m.Revoke().ok());
 }
+// Visibility remains the existing GP display contract. Only Operations::Publish
+// below can expose a kernel allocation; the GP submit path must never run.
+struct SessionControl final : MenuDisplay {
+ Operations& operations;
+ bool configured=false,enabled=false,quiesced=true,fail_quiesce=false;
+ unsigned enables=0,quiesces=0,submits=0;
+ explicit SessionControl(Operations& o):operations(o) {}
+ Error ReadInfo(std::uint64_t,MenuDisplayInfo* out) override {
+  *out={};out->configured=configured;out->enabled=enabled;out->quiesced=quiesced;
+  out->pending=operations.state.state&8;
+  out->displayed_sequence=operations.state.displayed_sequence;
+  out->pixel_format=2;out->picture={312,90,656,540};
+  return {};
+ }
+ Error Configure(std::uint64_t) override {assert(!enabled&&quiesced);configured=true;return {};}
+ Error Enable(std::uint64_t) override {assert(configured);++enables;enabled=true;quiesced=false;return {};}
+ Error Submit(std::uint8_t,std::uint32_t,std::uint64_t) override {++submits;assert(false);return {};}
+ Error Quiesce(std::uint64_t d,const CoreDescriptor*,MenuDisplayInfo* out) override {
+  assert(!operations.allocated&&!operations.grant_open&&!operations.peers);
+  ++quiesces;
+  if(fail_quiesce)return {ErrorCode::io_failed,"uncertain GP quiescence","menu"};
+  enabled=false;quiesced=true;return ReadInfo(d,out);
+ }
+ Error RunBlit(std::uint32_t,std::uint32_t,std::uint8_t,std::uint64_t) override {assert(false);return {};}
+ Error ReadBlit(std::uint64_t,MenuBlitState*) override {assert(false);return {};}
+};
+void SessionReopenUsesNewStorageAndMonotonicLogicalFrames() {
+ Operations o;SessionControl gp(o);LinuxDe25Menu m(o.clock,o);MenuDisplayInfo info;
+ assert(m.Bind(build,100,&gp).ok()&&m.Activate(true,false).ok()&&m.Configure(100).ok());
+ assert(o.published.empty()&&m.ReadInfo(100,&info).ok());
+ assert(info.configured&&!info.enabled&&info.quiesced&&info.pixel_format==2&&info.displayed_sequence==0);
+ assert(m.Enable(100).ok()&&o.published.empty());
+ int peer=-1;assert(m.Share(&peer).ok());o.Close(peer);
+ std::uint32_t logical=0;
+ for(unsigned cycle=0;cycle<3;++cycle) {
+  const auto generation=o.state.generation;
+  // Odd counts force the old logical front slot to differ from the new
+  // allocation's slot0. Each new grant must nevertheless publish slot1 first.
+  for(std::uint32_t physical=1;physical<=3;++physical) {
+   const auto slot=std::uint8_t(physical&1U);
+   assert(m.Clean(slot,{}).ok()&&m.Submit(slot,++logical,100).ok());
+   do {assert(m.ReadInfo(100,&info).ok());} while(info.pending);
+   assert(info.displayed_sequence==logical&&info.enabled&&!info.quiesced);
+   assert(o.published.back()==std::make_pair(physical,std::uint32_t(slot)));
+  }
+  o.drain_waits=2;assert(m.Revoke().ok());
+  assert(!m.Activate(false,false).ok()); // STOP alone does not prove the plane hidden.
+  assert(m.Quiesce(100,nullptr,&info).ok()&&info.displayed_sequence==logical&&info.quiesced);
+  assert(!m.Share(&peer).ok()&&!m.Clean(1,{}).ok());
+  if(cycle!=2) {
+   assert(m.Activate(false,false).ok()&&o.state.generation>generation);
+   assert(o.state.displayed_sequence==0&&o.state.back_slot==1);
+   assert(m.Enable(100).ok()&&m.ReadInfo(100,&info).ok());
+   assert(info.displayed_sequence==logical&&!info.quiesced);
+   const auto count=o.published.size();
+   assert(!m.Submit(1,logical,100).ok()&&o.published.size()==count);
+  }
+ }
+ assert(o.allocations==3&&gp.quiesces==3&&gp.enables==3&&gp.submits==0);
+}
+void SessionPinnedPeerAndUncertainCloseBlockReopen() {
+ for(bool pinned:{false,true}) {
+  Operations o;SessionControl gp(o);LinuxDe25Menu m(o.clock,o,5);MenuDisplayInfo info;
+  assert(m.Bind(build,100,&gp).ok()&&m.Activate(true,false).ok()&&m.Configure(100).ok()&&m.Enable(100).ok());
+  int peer=-1;
+  if(pinned)assert(m.Share(&peer).ok());else gp.fail_quiesce=true;
+  assert(!m.Quiesce(10,nullptr,&info).ok());
+  if(pinned)o.Close(peer);
+  assert(!m.Activate(false,false).ok()&&o.allocations==1&&o.published.empty());
+  assert(gp.quiesces==(pinned?0u:1u));
+ }
+}
+void SessionUncertainPublicationIsNotRetried() {
+ Operations o;SessionControl gp(o);LinuxDe25Menu m(o.clock,o);MenuDisplayInfo info;
+ assert(m.Bind(build,100,&gp).ok()&&m.Activate(true,false).ok()&&m.Configure(100).ok()&&m.Enable(100).ok());
+ o.late_publish=true;
+ assert(!m.Submit(1,1,10).ok());
+ assert(!m.Submit(1,1,o.clock.now+100).ok()&&o.published.size()==1&&gp.submits==0);
+ assert(!m.Activate(false,false).ok()&&o.allocations==1);
+ assert(m.Revoke().ok());
+}
+
 CoreDescriptor MenuDescriptor() {
  CoreDescriptor d;d.format=2;d.core.id="fes.menu";
  d.target.platform="de25_nano";d.target.device="A5EB013BB23BE4SCS";
@@ -166,4 +248,4 @@ void AllocatedMenuContractRejectsFixedDdrAndOldIdentity() {
 }
 
 }
-int main(){SelectedMenuDriverUsesItsOwnReadiness();AllocatedMenuContractRejectsFixedDdrAndOldIdentity();AbiAndIdentityBeforeExposure();ConfirmBlackAndReuseOneAllocation();WaitForReadyBeforeAnyDma();RetainOnIdentityFaultAndUseKernelRetirement();FailedPollReportsCachedFaultWithoutRecovery();LatePublicationDoesNotAcknowledgeOrReplay();FailedRetirementRemainsSticky();PeerReferencesCannotBecomeIdleByClosingRuntimeFd();UnsupportedPathsAndBounds();}
+int main(){SessionReopenUsesNewStorageAndMonotonicLogicalFrames();SessionPinnedPeerAndUncertainCloseBlockReopen();SessionUncertainPublicationIsNotRetried();SelectedMenuDriverUsesItsOwnReadiness();AllocatedMenuContractRejectsFixedDdrAndOldIdentity();AbiAndIdentityBeforeExposure();ConfirmBlackAndReuseOneAllocation();WaitForReadyBeforeAnyDma();RetainOnIdentityFaultAndUseKernelRetirement();FailedPollReportsCachedFaultWithoutRecovery();LatePublicationDoesNotAcknowledgeOrReplay();FailedRetirementRemainsSticky();PeerReferencesCannotBecomeIdleByClosingRuntimeFd();UnsupportedPathsAndBounds();}

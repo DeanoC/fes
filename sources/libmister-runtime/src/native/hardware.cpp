@@ -1940,7 +1940,8 @@ HardwareResult NativeHardware::LoadCoreInternal(
     error={ErrorCode::io_failed,"session display must blend premultiplied RGBA","menu"};
    if(!error.ok())return {error,true,identified.observed_core};
    menu_status_={};menu_status_.session=true;menu_status_.core_generation=generation;
-   menu_status_.package_id=admitted->opened_.package_id;menu_status_.geometry=info.geometry;menu_slot_=0;
+   menu_status_.package_id=admitted->opened_.package_id;menu_status_.geometry=info.geometry;
+   menu_status_.frame_mapping=menu_window_->FrameMapping();menu_slot_=0;
    menu_status_.picture=info.picture;
   }
 		if (fes_gamepad) {
@@ -2004,8 +2005,10 @@ Error NativeHardware::SetSessionDisplay(bool visible,bool launcher_focus)
   }
   // Moving focus on a shown plane keeps its grant and frames.
   if(menu_status_.available){SetSessionDisplayInputFocus(launcher_focus);return {};}
-  // Hiding revoked the grant. The plane's slots keep their pixels.
+  // DE10 regrants retained pixels. A per-frame DE25 allocation starts with
+  // cleared slots and hardware front slot0, while its logical sequence continues.
   Error error=menu_window_->Activate(false,false);
+  if(error.ok()&&menu_window_->FreshSlotsOnActivate())menu_slot_=0;
   if(error.ok())error=menu_display_->Enable(deadline);
   if(!error.ok())return FailMenuPresent(error);
   SetSessionDisplayInputFocus(launcher_focus);

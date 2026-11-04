@@ -45,9 +45,11 @@ public:
  LinuxDe25Menu(Clock&,De25MenuOperations&,std::uint32_t revoke_ms=10000);
  ~LinuxDe25Menu() override;
  Error CheckOwnerAbi(std::uint64_t deadline);
- Error Bind(const std::array<std::uint32_t,4>&,std::uint64_t deadline);
+ Error Bind(const std::array<std::uint32_t,4>&,std::uint64_t deadline,
+            MenuDisplay* session_control=nullptr);
  Error Activate(bool clear,bool blitter) override;
  bool FrameMapping() const override {return true;}
+ bool FreshSlotsOnActivate() const override {return true;}
  Error Revoke() override;
  Error Share(int*) const override;
  Error Clean(std::uint8_t,const std::vector<MenuRect>&) const override;
@@ -60,6 +62,8 @@ public:
  Error RunBlit(std::uint32_t,std::uint32_t,std::uint8_t,std::uint64_t) override;
  Error ReadBlit(std::uint64_t,MenuBlitState*) override;
 private:
+ Error BindLocked(const std::array<std::uint32_t,4>&,std::uint64_t,MenuDisplay*);
+ Error SessionInfo(std::uint64_t,MenuDisplayInfo*);
  Error Deadline(std::uint64_t) const;
  Error Fault(Error);
  Error Validate(const De25MenuGrant&) const;
@@ -76,6 +80,10 @@ private:
  int grant_=-1;
  De25MenuGrant info_;
  std::array<std::uint32_t,4> expected_{};
+ // Session GP control owns visibility; the kernel remains the sole publisher.
+ MenuDisplay* session_control_=nullptr;
+ bool session_quiesced_=false;
+ std::uint32_t sequence_base_=0;
  std::uint32_t submitted_=0,completed_=0;
  std::uint8_t submitted_slot_=0,completed_slot_=0;
  bool activated_=false,bootstrapped_=false,exposure_possible_=false,reap_done_=false;

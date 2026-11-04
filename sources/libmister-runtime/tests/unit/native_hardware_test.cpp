@@ -1835,7 +1835,7 @@ struct MenuGpScript {
   Info(3,sequence+1,final_underflows);
  }
 };
-void TestSessionDisplayPreservesMachineOnCloseAndPlaneFailure()
+void TestSessionDisplayPreservesMachineOnCloseAndPlaneFailure(bool frame_mapping=false)
 {
  using namespace mister::native;using namespace mister::native::generated;
  TempDirectory package;
@@ -1848,12 +1848,26 @@ void TestSessionDisplayPreservesMachineOnCloseAndPlaneFailure()
  std::vector<std::string> events;RecordingOpener opener(events);RecordingFpga fpga(events);
  mister_test::FakeMmio mmio;FixedClock clock(100);FesGp gp(mmio,clock);FesGpCoreDriver driver(gp);
  MenuDisplayDriver display(gp,clock);MenuOperations operations;MenuWindow memory(operations);
+ // Exercise the lifecycle's explicit per-frame agreement independently of
+ // the board adapter's allocation/publication tests.
+ struct MappedMemory final : MenuMemory {
+  MenuMemory& underlying;
+  explicit MappedMemory(MenuMemory& m):underlying(m) {}
+  bool FrameMapping() const override {return true;}
+  bool FreshSlotsOnActivate() const override {return true;}
+  mister::Error Activate(bool c,bool b) override {return underlying.Activate(c,b);}
+  mister::Error Revoke() override {return underlying.Revoke();}
+  mister::Error Share(int* fd) const override {return underlying.Share(fd);}
+  mister::Error Clean(std::uint8_t slot,const std::vector<mister::MenuRect>& r) const override {return underlying.Clean(slot,r);}
+  mister::Error CleanBlit(std::uint32_t f,std::uint32_t n,const std::vector<mister::MenuSpan>& r) const override {return underlying.CleanBlit(f,n,r);}
+ } mapped(memory);
+ MenuMemory* selected_memory=frame_mapping?static_cast<MenuMemory*>(&mapped):&memory;
  RecordingI2c i2c(events);RecordingVideo idle_video(events);LedgerLog log(events);
  FixedVideoBringup video(i2c,clock,log,Menu720p60Recipe());RecordingInput input(events,clock);
  TempDirectory splash;const auto idle=splash.File("idle.rbf","idle");
  const InputDeviceIdentity identity={"test",0,0,0,0};
  NativeHardware hardware(opener,fpga,idle_video,video,input,identity,clock,log,
-  idle,{30000,10000,10000},&driver,{"/tmp"},SplashIdle(),&display,&memory);
+  idle,{30000,10000,10000},&driver,{"/tmp"},SplashIdle(),&display,selected_memory);
  std::unique_ptr<mister::AdmittedCorePackage> admitted;
  fpga.boot_hps_ddr_layout=false;
  assert(!hardware.AdmitCorePackage(package.path,opened.package_id,&admitted).ok());
@@ -1880,6 +1894,7 @@ void TestSessionDisplayPreservesMachineOnCloseAndPlaneFailure()
  assert(loaded.error.ok()&&fpga.calls==1&&fpga.hps_ddr_calls==1);
  assert(!hardware.menu_display().available&&hardware.menu_display().session&&hardware.menu_display().core_generation==17);
  assert(hardware.menu_display().package_id==opened.package_id);
+ assert(hardware.menu_display().frame_mapping==frame_mapping);
  const auto begin=mmio.writes.size();
  const auto open_plane=[&] {
   for(unsigned row=0;row<8;++row){script.Reply();}
@@ -1899,6 +1914,8 @@ void TestSessionDisplayPreservesMachineOnCloseAndPlaneFailure()
  script.Reply();script.Info(3,1);
  assert(hardware.SetSessionDisplay(true,false).ok()&&hardware.menu_display().available);
  assert(!hardware.menu_display().launcher_focus);
+ std::uint8_t reopened_slot=0;assert(hardware.MenuBackSlot(&reopened_slot).ok());
+ assert(reopened_slot==(frame_mapping?1:0));
  auto keys=mmio.writes.size();for(unsigned row=0;row<8;++row){script.Reply();}
  assert(hardware.SetComputerKeyboard(0).ok()&&mmio.writes.size()>keys);
  // Taking focus on the shown plane neutralizes keys without touching the plane.
@@ -5267,6 +5284,7 @@ int main()
 	TestLibraryPartsChecksCoreNamespaceBeforeProgramming();
 	TestLibraryPartsChecksCoreNamespaceBeforeProgramming(true);
  TestSessionDisplayPreservesMachineOnCloseAndPlaneFailure();
+ TestSessionDisplayPreservesMachineOnCloseAndPlaneFailure(true);
  TestSessionDisplayRejectsPlaneWithoutBlend();
  TestApplicationSessionDisplayReleasesControllers();
  TestApplicationSessionDisplayMutesSingleGamepad();

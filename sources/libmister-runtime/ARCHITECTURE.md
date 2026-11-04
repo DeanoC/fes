@@ -1006,5 +1006,19 @@ inherited overlays; neither closure nor a new process authorizes adoption.
 
 ELF menu-interface records describe the union of the two board-specific
 contracts, not one package containing all interfaces. Package target/profile
-admission still separates those contracts. This implementation is not installed
-on the physical ABI2 board, and adds no native MENU/catalog or timing acceptance.
+admission still separates those contracts. The dated
+[2026-11-04 managed diagnostic](../../docs/validation/2026-11-04-de25-normal-zx81/README.md)
+records MENU/catalog behavior on its named ABI3 image and bring-up ZX81 package;
+it does not accept later standard-core artifacts.
+
+The existing LinuxDe25Menu allocation adapter can bind a separate GP display
+control for the standard session plane. GP owns Configure/Enable/Quiesce and
+observations; kernel PUBLISH remains the sole frame submission path. No GP
+SUBMIT or physical-address window is used. Revoke proves kernel STOP/drain and
+all peer references gone before GP quiescence can authorize a fresh allocation.
+OWNER_ALLOC clears physical sequence/slot state. The adapter offsets that new
+physical sequence by the last completed logical sequence; runtime back-slot
+ownership starts at1 again. Per-frame mapping is negotiated for session grants
+as well as idle MENU. The machine stays running throughout visibility changes.
+This binding is injected and software-tested; production selection, package
+admission and native standard-core acceptance remain unfinished.

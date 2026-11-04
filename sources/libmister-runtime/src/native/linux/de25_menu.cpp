@@ -21,7 +21,7 @@ using namespace generated;
 constexpr std::uint32_t kAbi=3,kExposed=2,kPending=8,kNoSlot=~std::uint32_t(0),kBlackFrames=2;
 Error Invalid(const char* s){return {ErrorCode::invalid_request,s,"menu"};}
 Error Failed(const char* s){return {ErrorCode::io_failed,s,"menu"};}
-Error Unsupported(){return {ErrorCode::unsupported_interface,"DE25 allocated MENU has no blitter or retained session plane","menu"};}
+Error Unsupported(){return {ErrorCode::unsupported_interface,"DE25 allocated display has no blitter; reopening requires selected session control","menu"};}
 #if defined(__linux__)
 static_assert(FES_DE25_DMA_ABI_VERSION==kAbi&&FES_DE25_DMA_EXPOSED==kExposed&&FES_DE25_DMA_PENDING==kPending,"kernel UAPI differs");
 static_assert(sizeof(fes_de25_dma_info)==104&&sizeof(fes_de25_dma_publish)==24,"kernel ioctl layout differs");
@@ -171,8 +171,12 @@ Error LinuxDe25Menu::Refresh(std::uint64_t d) {
  if(exposure_possible_&&info_.displayed_sequence==submitted_) {completed_=submitted_;completed_slot_=submitted_slot_;}
  return {};
 }
-Error LinuxDe25Menu::Bind(const std::array<std::uint32_t,4>& expected,std::uint64_t d) {
+Error LinuxDe25Menu::Bind(const std::array<std::uint32_t,4>& expected,std::uint64_t d,MenuDisplay* session_control) {
  std::lock_guard<std::mutex> lock(mutex_);
+ if(session_control==this)return Invalid("DE25 session control must be a separate GP endpoint");
+ return BindLocked(expected,d,session_control);
+}
+Error LinuxDe25Menu::BindLocked(const std::array<std::uint32_t,4>& expected,std::uint64_t d,MenuDisplay* session_control) {
  if(grant_>=0||revoke_failed_)return Failed("DE25 allocation must retire before another bind");
  if(!(expected[0]|expected[1]|expected[2]|expected[3]))return Invalid("DE25 MENU requires a selected nonzero build identity");
  Error e=Deadline(d);if(!e.ok())return e;
@@ -182,7 +186,8 @@ Error LinuxDe25Menu::Bind(const std::array<std::uint32_t,4>& expected,std::uint6
  bool idle=false;e=operations_->Idle(&idle);if(e.ok())e=Deadline(d);
  if(!e.ok())return e;
  if(!idle)return {ErrorCode::busy,"DE25 owner retains another allocation or peer mapping","menu"};
- expected_=expected;info_={};submitted_=completed_=0;submitted_slot_=completed_slot_=0;
+ expected_=expected;session_control_=session_control;session_quiesced_=false;sequence_base_=0;
+ info_={};submitted_=completed_=0;submitted_slot_=completed_slot_=0;
  activated_=bootstrapped_=exposure_possible_=reap_done_=faulted_=false;
  e=operations_->Allocate(&grant_);if(e.ok())e=Deadline(d);
  if(!e.ok())return Fault(e);
@@ -192,7 +197,20 @@ Error LinuxDe25Menu::Bind(const std::array<std::uint32_t,4>& expected,std::uint6
 }
 Error LinuxDe25Menu::Activate(bool clear,bool blitter) {
  std::lock_guard<std::mutex> lock(mutex_);
- if(!clear||blitter)return Unsupported();
+ if(blitter||(!clear&&!session_control_))return Unsupported();
+ if(!clear) {
+  if(grant_>=0||!bootstrapped_||!session_quiesced_||faulted_||revoke_failed_)
+   return Failed("DE25 session reopen requires a successfully retired allocation");
+  // OWNER_ALLOC clears hardware sequence/slot ownership. Preserve only the
+  // logical completion count; storage and pixels belong to a fresh grant.
+  const auto base=sequence_base_+completed_;
+  const auto now=clock_.NowMs();
+  if(now>std::numeric_limits<std::uint64_t>::max()-revoke_ms_)
+   return Failed("DE25 session allocation deadline overflow");
+  const auto expected=expected_;auto* control=session_control_;
+  Error e=BindLocked(expected,now+revoke_ms_,control);if(!e.ok())return e;
+  sequence_base_=base;bootstrapped_=true;
+ }
  if(grant_<0||activated_||faulted_)return Failed("DE25 MENU activation needs one freshly bound allocation");
  activated_=true;return {};
 }
@@ -216,6 +234,11 @@ Error LinuxDe25Menu::Complete(std::uint64_t d) {
 Error LinuxDe25Menu::Configure(std::uint64_t d) {
  std::lock_guard<std::mutex> lock(mutex_);
  if(!activated_||bootstrapped_||faulted_)return Failed("DE25 MENU configure requires a fresh activation");
+ if(session_control_) {
+  Error e=Refresh(d);if(e.ok())e=session_control_->Configure(d);if(e.ok())e=Deadline(d);
+  if(!e.ok())return Fault(e);
+  bootstrapped_=true;return {};
+ }
  for(;;) {
   Error e=Refresh(d);if(!e.ok())return e;
   if(info_.hardware_status&FesDe25ScanoutStatusDisplayReady)break;
@@ -232,6 +255,11 @@ Error LinuxDe25Menu::Configure(std::uint64_t d) {
 Error LinuxDe25Menu::Enable(std::uint64_t d) {
  std::lock_guard<std::mutex> lock(mutex_);
  if(!bootstrapped_)return Failed("DE25 MENU needs confirmed safe black before enabling");
+ if(session_control_) {
+  Error e=Refresh(d);if(e.ok()){session_quiesced_=false;e=session_control_->Enable(d);}
+  if(e.ok())e=Deadline(d);
+  return Fault(e);
+ }
  // SUBMIT starts refresh on this endpoint. Observe that state instead of
  // inventing a separate enable register or acknowledging an undisplayed frame.
  return Refresh(d);
@@ -247,13 +275,27 @@ void LinuxDe25Menu::Observation(MenuDisplayInfo* out,bool retired) const {
  out->displayed_sequence=bootstrapped_?completed_-kBlackFrames:0;
  out->underflows=info_.underflows;
 }
+Error LinuxDe25Menu::SessionInfo(std::uint64_t d,MenuDisplayInfo* out) {
+ MenuDisplayInfo observed;Error e=session_control_->ReadInfo(d,&observed);
+ if(e.ok())e=Deadline(d);
+ if(e.ok()&&(observed.displayed_sequence>submitted_||observed.underflows||observed.faulted))
+  e=Failed("DE25 session control exceeds the kernel publication or has faulted");
+ if(!e.ok())return Fault(e);
+ observed.displayed_sequence+=sequence_base_;*out=observed;return {};
+}
 Error LinuxDe25Menu::ReadInfo(std::uint64_t d,MenuDisplayInfo* out) {
  std::lock_guard<std::mutex> lock(mutex_);if(!out)return Invalid("missing DE25 MENU observation output");
- Error e=Refresh(d);if(e.ok())Observation(out);return e;
+ Error e=Refresh(d);
+ if(e.ok()) {if(session_control_)e=SessionInfo(d,out);else Observation(out);}
+ return e;
 }
 Error LinuxDe25Menu::Submit(std::uint8_t slot,std::uint32_t sequence,std::uint64_t d) {
  std::lock_guard<std::mutex> lock(mutex_);
  if(!bootstrapped_)return Failed("DE25 MENU is not configured");
+ if(session_control_) {
+  if(sequence<=sequence_base_)return Invalid("DE25 session requires an increasing logical sequence");
+  return Publish(sequence-sequence_base_,slot,d);
+ }
  if(!sequence||sequence>std::numeric_limits<std::uint32_t>::max()-kBlackFrames)return Invalid("DE25 MENU sequence exhausted; retire this allocation");
  return Publish(sequence+kBlackFrames,slot,d);
 }
@@ -301,7 +343,21 @@ Error LinuxDe25Menu::Revoke() {
  if(now>std::numeric_limits<std::uint64_t>::max()-revoke_ms_)return Failed("DE25 revocation deadline overflow");
  return Retire(now+revoke_ms_);
 }
-Error LinuxDe25Menu::Quiesce(std::uint64_t d,const CoreDescriptor*,MenuDisplayInfo* out) {
- std::lock_guard<std::mutex> lock(mutex_);Error e=Retire(d);if(e.ok()&&out)Observation(out,true);return e;
+Error LinuxDe25Menu::Quiesce(std::uint64_t d,const CoreDescriptor* identity,MenuDisplayInfo* out) {
+ std::lock_guard<std::mutex> lock(mutex_);Error e=Retire(d);
+ if(!e.ok())return e;
+ if(session_control_) {
+  MenuDisplayInfo observed;e=session_control_->Quiesce(d,identity,&observed);
+  if(e.ok())e=Deadline(d);
+  // Kernel retirement may complete an already accepted frame. The GP endpoint
+  // samples the final counter after STOP/drain, before the next allocation's CLEAR.
+  if(e.ok()&&(observed.displayed_sequence<completed_||observed.displayed_sequence>submitted_||
+      observed.displayed_sequence>std::numeric_limits<std::uint32_t>::max()-sequence_base_))
+   e=Failed("DE25 retired session completion differs from its kernel publication");
+  if(!e.ok())return Fault(e);
+  completed_=observed.displayed_sequence;session_quiesced_=true;
+  observed.displayed_sequence+=sequence_base_;if(out)*out=observed;
+ } else if(out)Observation(out,true);
+ return {};
 }
 } }
