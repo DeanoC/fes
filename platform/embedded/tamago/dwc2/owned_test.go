@@ -15,6 +15,7 @@ import (
 // its descriptor/FIFO/channel model, using a modeled firmware reply source.
 type ownedFirmware struct {
 	expectedAddress uint32
+	gamepad         bool
 
 	t                 *testing.T
 	controller        *controller
@@ -40,7 +41,11 @@ func (f *ownedFirmware) Invoke(a [7]uint64) ([4]uint64, error) {
 		if want == 0 {
 			want = 1
 		}
-		if !f.controller.configured || !f.controller.protocol || f.controller.address != want {
+		ready := f.controller.protocol
+		if f.gamepad {
+			ready = f.controller.reportFetched && !f.controller.protocol
+		}
+		if !f.controller.configured || !ready || f.controller.address != want {
 			f.t.Fatal("confirmation before actual driver enumeration")
 		}
 		f.confirmed = true

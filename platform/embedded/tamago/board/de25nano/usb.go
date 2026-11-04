@@ -21,6 +21,34 @@ func (usbRegisters) Now() time.Time               { return time.Now() }
 
 var usbAttempted bool
 var ownedUSBSource *usbcontrol.Source // Retain failed/closed resources until reboot.
+var ownedGamepadSource *usbcontrol.GamepadSource
+var ownedGamepadHost *dwc2.GamepadHost
+
+// OpenGamepadWithControl selects descriptor-driven HID input under the same
+// exclusive controller guard as the keyboard. It retains partial resources on
+// failure and never falls back to direct access or a different input protocol.
+func OpenGamepadWithControl(ctx context.Context, client *usbcontrol.Client) (*usbcontrol.GamepadSource, []byte, error) {
+	if !profileUSBControlEnabled || client == nil {
+		return nil, nil, fmt.Errorf("de25-nano: controlled USB profile and client required")
+	}
+	if usbAttempted {
+		return nil, nil, fmt.Errorf("de25-nano: USB initialization already attempted")
+	}
+	usbAttempted = true
+	if _, err := arm64map.Verify(profileRAMStart, profileRAMSize, []arm64map.Range{{Base: 0x10b00000, Bytes: 0x20000, Kind: arm64map.Device}}); err != nil {
+		return nil, nil, err
+	}
+	var err error
+	ownedGamepadSource, err = usbcontrol.OpenGamepad(ctx, client, func() (input.USBGamepadReports, error) {
+		var err error
+		ownedGamepadHost, err = dwc2.OpenGamepad(usbRegisters{}, dwc2.Config{PHYClockHz: 60000000})
+		return ownedGamepadHost, err
+	})
+	if err != nil {
+		return ownedGamepadSource, nil, err
+	}
+	return ownedGamepadSource, ownedGamepadHost.ReportDescriptor(), nil
+}
 
 // OpenKeyboardWithControl uses an explicitly supplied secure USB client. There
 // is no fallback to direct controller access if its lease/confirmation fails.

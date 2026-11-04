@@ -71,8 +71,12 @@ type packet struct {
 	polls                                    int
 }
 type Host struct {
-	initializing bool
-	bootDeadline time.Time
+	gamepadMode           bool
+	gamepad               *usb.Gamepad
+	reportDescriptor      []byte
+	reportDescriptorBytes uint16
+	initializing          bool
+	bootDeadline          time.Time
 
 	keyboard                 target
 	keyboardFound            bool
@@ -103,10 +107,13 @@ type Host struct {
 }
 
 func Open(io Registers, config Config) (*Host, error) {
+	return openInput(io, config, false)
+}
+func openInput(io Registers, config Config, gamepad bool) (*Host, error) {
 	if io == nil || config.PHYClockHz != 60000000 {
 		return nil, fmt.Errorf("dwc2: requires firmware-configured 60 MHz ULPI PHY")
 	}
-	h := &Host{io: io, ep0: 8, initializing: true, bootDeadline: io.Now().Add(4 * time.Second)}
+	h := &Host{io: io, ep0: 8, gamepadMode: gamepad, initializing: true, bootDeadline: io.Now().Add(4 * time.Second)}
 	if err := h.initialize(); err != nil {
 		return h, h.fail(err)
 	}
@@ -552,6 +559,12 @@ func (h *Host) enumerate() error {
 // PollKeyboard never spins waiting for device input. NAK retires the current
 // attempt and preserves the interrupt data toggle. Call regularly to progress.
 func (h *Host) PollKeyboard() ([]byte, error) {
+	if h.gamepadMode {
+		return nil, fmt.Errorf("dwc2: gamepad cannot supply keyboard reports")
+	}
+	return h.pollInput()
+}
+func (h *Host) pollInput() ([]byte, error) {
 	if h.fault != nil {
 		return nil, h.fault
 	}
@@ -572,7 +585,11 @@ func (h *Host) PollKeyboard() ([]byte, error) {
 		if h.io.Now().Before(h.next) {
 			return nil, nil
 		}
-		if err := h.begin(h.config.Endpoint, h.config.MaxPacketSize, 3, true, h.toggle, nil, 8, h.io.Now().Add(500*time.Millisecond)); err != nil {
+		limit := 8
+		if h.gamepadMode {
+			limit = h.gamepad.MaxReportBytes()
+		}
+		if err := h.begin(h.config.Endpoint, h.config.MaxPacketSize, 3, true, h.toggle, nil, limit, h.io.Now().Add(500*time.Millisecond)); err != nil {
 			return nil, h.fail(err)
 		}
 		return nil, nil
@@ -588,7 +605,11 @@ func (h *Host) PollKeyboard() ([]byte, error) {
 	if nak {
 		return nil, nil
 	}
-	if len(data) != 8 {
+	if h.gamepadMode {
+		if _, _, err := h.gamepad.Feed(data); err != nil {
+			return nil, h.fail(err)
+		}
+	} else if len(data) != 8 {
 		return nil, h.fail(fmt.Errorf("dwc2: short boot keyboard report"))
 	}
 	h.toggle ^= 2

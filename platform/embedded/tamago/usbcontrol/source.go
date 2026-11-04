@@ -8,23 +8,22 @@ import (
 	"time"
 
 	g "github.com/DeanoC/fes/platform/embedded/tamago/embeddedcontrol/generated"
-	"github.com/DeanoC/fes/platform/embedded/tamago/input"
 )
 
-// Source binds an exclusive synchronous report driver to its confirmed lease.
+// reportLease binds an exclusive synchronous typed report driver to its lease.
 // Retain the Source, Client and failed driver until reboot, including when Open
 // returns an error. Driver factories must retain/return partial resources and
 // must not start background polling or re-enter Client mutation methods.
-type Source struct {
+type reportLease struct {
 	operation sync.Mutex
 	client    *Client
-	driver    input.USBReports
+	driver    reportDriver
 	receipt   Receipt
 	closed    bool
 	fault     error
 }
 
-func Open(ctx context.Context, c *Client, factory func() (input.USBReports, error)) (*Source, error) {
+func openReports(ctx context.Context, c *Client, factory func() (reportDriver, error)) (*reportLease, error) {
 	if c == nil || ctx == nil || factory == nil {
 		return nil, ErrTransition
 	}
@@ -39,7 +38,7 @@ func Open(ctx context.Context, c *Client, factory func() (input.USBReports, erro
 	if before.Active {
 		return nil, ErrTransition
 	}
-	s := &Source{client: c}
+	s := &reportLease{client: c}
 	err := c.transitionLocked(ctx, g.FesEmbeddedUsbAcquire)
 	if err == nil {
 		if err = ctx.Err(); err == nil {
@@ -70,7 +69,7 @@ func Open(ctx context.Context, c *Client, factory func() (input.USBReports, erro
 	s.receipt, _ = c.LastReceipt()
 	return s, nil
 }
-func (s *Source) PollKeyboard() ([]byte, error) {
+func (s *reportLease) poll() ([]byte, error) {
 	if s == nil {
 		return nil, ErrRetired
 	}
@@ -93,7 +92,7 @@ func (s *Source) PollKeyboard() ([]byte, error) {
 	if !valid || current != s.receipt || !current.Active || !current.Confirmed {
 		return nil, ErrRetired
 	}
-	report, err := s.driver.PollKeyboard()
+	report, err := s.driver.pollReport()
 	if err != nil {
 		s.fault = err
 		return nil, err
@@ -103,7 +102,7 @@ func (s *Source) PollKeyboard() ([]byte, error) {
 
 // Close revokes local polling before one firmware stop. Copies of a pointer
 // share closed state; an old source cannot stop a replacement generation.
-func (s *Source) Close(ctx context.Context) error {
+func (s *reportLease) close(ctx context.Context) error {
 	if s == nil {
 		return ErrRetired
 	}

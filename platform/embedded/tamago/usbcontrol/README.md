@@ -21,8 +21,18 @@ stop. `Close` revokes polling before invoking firmware.
 Tests use the actual C dispatcher/service/platform/board/cold policy through a
 register-model process. DWC2 tests separately exercise the real host driver with
 a modeled device and firmware replies. Neither is physical USB acceptance.
+`OpenGamepad` uses the same lease lifecycle through a separate typed source;
+it supplies `PollGamepad`, never `PollKeyboard`. Copies of either public source
+share the private lease, so closing a copy revokes the original too. The Nano
+BSP exposes `OpenGamepadWithControl`, returning a copied HID report descriptor
+and retaining partial sources/hosts on failure. Keyboard and gamepad share the
+single controller attempt guard; there is no protocol fallback.
+
 The Nano BSP exposes `OpenKeyboardWithControl`; existing cold SD boot profiles
 keep USB disabled. The explicit `usbcheck` program selects the matched secure
 provider while entering with USB held, and obtains its owner through the actual
 boot-context/pin verifier. It polls a direct boot keyboard for five seconds and
-closes the lease; hub support and mixed storage/core permission remain open.
+closes the lease. DWC2 now supports bounded hub discovery and a separately
+selected descriptor-driven gamepad transport in models; the native program
+still selects keyboard. Physical gamepad input and mixed storage/core permission
+remain open.

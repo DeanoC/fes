@@ -19,7 +19,7 @@ buffers. It reserves 64 KiB of the board's existing noncacheable DMA arena.
 Control commands have deadlines and yield to the cooperative runtime; interrupt
 polls consume at most 16 events. Transfer and event rings implement cycle-bit
 wrap. No interrupts, hub routing, device replacement, suspend, bulk transfers,
-USB storage, mouse, gamepad or general report-descriptor interpreter are
+USB storage, mouse, gamepad transport or general report-descriptor interpreter are
 implemented. Unsupported descriptors and controller capabilities fail explicitly.
 Short control transfers fail; this profile requests the exact descriptor size.
 
@@ -33,6 +33,20 @@ PHY, reset, clock, power, interrupt, cache-coherency or board routing behavior i
 inferred from QEMU. A board port must establish those resources before adapting
 the xHCI transport, and must check the controller capabilities against this
 restricted profile.
+
+`ParseGamepad` is a separate controller-independent HID 1.11 parser used by
+the Nano DWC2 gamepad transport. It supports one Joystick/Game Pad application,
+absolute variable X/Y/Z/Rx/Ry/Rz axes, up to 32 buttons, four/eight-position
+hats, report IDs, signed fields and constant padding. It bounds descriptors to
+4096 bytes, input reports to 64 bytes and nesting/report-ID counts. Invalid
+reports preserve the complete prior state, including fields belonging to other
+report IDs. Unsupported arrays, relative controls and ambiguous layouts fail.
+Tests use synthetic descriptors; the connected 081f:e401 schema is not captured.
+
+`input.NewUSBGamepad` adapts that state to menu press edges using an explicit
+confirm/back button mapping and an axis deadzone. Its state snapshot is available
+for a future core-specific route. It does not fabricate keyboard reports, and
+neither this parser nor its model tests establish physical input acceptance.
 
 References used for implementation:
 

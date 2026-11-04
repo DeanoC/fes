@@ -226,17 +226,39 @@ func (h *Host) discover() error {
 		return err
 	}
 	if !h.keyboardFound {
+		if h.gamepadMode {
+			return fmt.Errorf("dwc2: %w; discovered %s", usb.ErrNoGamepadInterface, strings.Join(h.devices, ", "))
+		}
 		return fmt.Errorf("dwc2: %w; discovered %s", usb.ErrNoBootKeyboard, strings.Join(h.devices, ", "))
 	}
 	h.selectTarget(h.keyboard)
 	if _, err := h.request(0, 9, uint16(h.config.Value), 0, 0); err != nil {
 		return err
 	}
-	if _, err := h.request(0x21, 11, 0, uint16(h.config.Interface), 0); err != nil {
-		return err
-	}
-	if _, err := h.request(0x21, 10, 0, uint16(h.config.Interface), 0); err != nil {
-		return err
+	if h.gamepadMode {
+		data, err := h.request(0x81, 6, 0x2200, uint16(h.config.Interface), int(h.reportDescriptorBytes))
+		if err != nil {
+			return err
+		}
+		if len(data) != int(h.reportDescriptorBytes) {
+			return fmt.Errorf("dwc2: short HID report descriptor")
+		}
+		layout, err := usb.ParseGamepad(data)
+		if err != nil {
+			return err
+		}
+		if layout.MaxReportBytes() > int(h.config.MaxPacketSize) {
+			return fmt.Errorf("dwc2: gamepad report exceeds endpoint packet")
+		}
+		h.gamepad = layout
+		h.reportDescriptor = append([]byte(nil), data...)
+	} else {
+		if _, err := h.request(0x21, 11, 0, uint16(h.config.Interface), 0); err != nil {
+			return err
+		}
+		if _, err := h.request(0x21, 10, 0, uint16(h.config.Interface), 0); err != nil {
+			return err
+		}
 	}
 	h.interval = time.Duration(h.config.Interval) * time.Millisecond
 	if h.speed == 0 {
@@ -264,8 +286,17 @@ func (h *Host) scan(path []hubPort, depth int) error {
 		return err
 	}
 	if device[4] != 9 {
-		selected, err := usb.ParseConfiguration(config)
-		if errors.Is(err, usb.ErrNoBootKeyboard) {
+		var selected usb.Configuration
+		var reportBytes uint16
+		if h.gamepadMode {
+			var c usb.GamepadConfiguration
+			c, err = usb.ParseGamepadConfiguration(config)
+			selected = c.Configuration
+			reportBytes = c.ReportDescriptorBytes
+		} else {
+			selected, err = usb.ParseConfiguration(config)
+		}
+		if errors.Is(err, usb.ErrNoBootKeyboard) || errors.Is(err, usb.ErrNoGamepadInterface) {
 			return nil
 		}
 		if err != nil {
@@ -275,11 +306,15 @@ func (h *Host) scan(path []hubPort, depth int) error {
 			return fmt.Errorf("dwc2: unsupported keyboard packet size")
 		}
 		if h.keyboardFound {
+			if h.gamepadMode {
+				return fmt.Errorf("dwc2: ambiguous gamepad HID interfaces")
+			}
 			return fmt.Errorf("dwc2: ambiguous boot keyboards")
 		}
 		h.keyboardFound = true
 		h.keyboard = h.target()
 		h.config = selected
+		h.reportDescriptorBytes = reportBytes
 		h.path = append([]hubPort(nil), path...)
 		return nil
 	}

@@ -38,6 +38,8 @@ type controller struct {
 	address                      uint32
 	configured, protocol         bool
 	device, configuration        []byte
+	reportDescriptor             []byte
+	reportFetched                bool
 	reports                      [][]byte
 	reportPID                    uint32
 	mode                         string
@@ -187,6 +189,11 @@ func (c *controller) setup(data []byte) {
 			r.data = bytes.Clone(c.device)
 		} else if r.value == 0x200 {
 			r.data = bytes.Clone(c.configuration)
+		} else if r.value == 0x2200 {
+			if !c.configured || r.typ != 0x81 || r.index != 0 {
+				panic("invalid gamepad descriptor request")
+			}
+			r.data = bytes.Clone(c.reportDescriptor)
 		} else {
 			panic("unknown descriptor")
 		}
@@ -216,6 +223,10 @@ func (c *controller) finishControl() {
 		c.classFinish(r)
 	}
 	switch r.request {
+	case 6:
+		if r.value == 0x2200 {
+			c.reportFetched = true
+		}
 	case 5:
 		c.address = uint32(r.value)
 	case 9:
@@ -228,7 +239,7 @@ func (c *controller) finishControl() {
 }
 func (c *controller) receive() {
 	if c.active.ep != 0 {
-		if !c.configured || !c.protocol || c.active.pid != c.reportPID {
+		if !c.configured || (!c.protocol && !c.reportFetched) || c.active.pid != c.reportPID {
 			panic("invalid interrupt state/toggle")
 		}
 		if len(c.reports) == 0 {
