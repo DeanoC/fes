@@ -40,6 +40,12 @@ profile. The identity regression exercises the real mailbox and standard core,
 including unchanged default/windowed identities. DE25 runtime admission remains
 restricted until its complete standard-core adapter exists.
 
+The shared display plane exposes its reader burst limit, FIFO size and read-ahead
+selection as integration parameters, with unchanged DE10 defaults. The standard
+ZX81 session test also runs a sixteen-beat/read-ahead case and observes the actual
+guard-side request size while checking full-frame completion, guest state and
+fault drain. Its memory remains the modeled window, not a DE25 allocation.
+
 DE25 currently uses the separate bring-up wrapper described below. Porting the
 standard core's board adapters replaces that reduced wrapper; adding more
 guest features to the bring-up implementation is not the standard-core path.

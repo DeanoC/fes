@@ -18,6 +18,7 @@ struct Bench {
     unsigned last_sequence = 0;
     uint64_t full_frame_pixels = 0;
     bool last_ui = false;
+    unsigned max_burst = 0;
     std::deque<uint32_t> history;
     Bench() {
         t.clk_sys=0; t.pixel_clk=0; t.reset_hold=1; t.gpo=0;
@@ -33,6 +34,13 @@ struct Bench {
     // The output carries the machine word captured two edges ago.
     bool machine_output() const { return history.size()==3 && t.hdmi_word==history.front(); }
     void tick() {
+#ifdef FES_ZX81_BOUNDED_READER
+        if (t.rootp->zx81_session_harness__DOT__memory__DOT__port0__DOT__m_read) {
+            unsigned burst=t.rootp->zx81_session_harness__DOT__memory__DOT__port0__DOT__m_burstcount;
+            check(burst>0 && burst<=16,"board memory request exceeded sixteen beats");
+            if (burst>max_burst) max_burst=burst;
+        }
+#endif
         // Unrelated system/pixel clocks; request timing walks across phases.
 #ifdef FES_ZX81_STANDARD_CORE
         sys_phase += 100000000;
@@ -162,6 +170,9 @@ int main(int argc,char **argv) {
     b.submit(1,0);
     check(b.command(21,0,2)==0x400004,"second frame bypassed pending completion");
     b.wait_sequence(1);
+#ifdef FES_ZX81_BOUNDED_READER
+    check(b.max_burst==16,"bounded-reader case did not exercise a full sixteen-beat request");
+#endif
     check(b.t.underflows==0 && !b.t.faulted,"initial scanout underflowed");
     check(b.t.cpu_writes>writes,"Z80 stopped while launcher was active");
     check(b.peek(0x5000)==0x5a,"opening altered retained RAM");
@@ -329,6 +340,9 @@ int main(int argc,char **argv) {
     std::cout << "standard computer at 100 MHz, full identity, CRC cassette insert/eject, ";
 #else
     std::cout << "legacy cassette busy/replace/eject, ";
+#endif
+#ifdef FES_ZX81_BOUNDED_READER
+    std::cout << "observed sixteen-beat limit/read-ahead, ";
 #endif
     std::cout << "drain/reopen/hidden-underrun recovery, modeled held-response/queued-command fault drain\n";
 }

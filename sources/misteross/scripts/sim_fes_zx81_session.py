@@ -11,13 +11,25 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--verilator', default='verilator')
     parser.add_argument('--standard-core', action='store_true', help='run only the standard computer ABI/core at the DE25 100 MHz system clock')
+    parser.add_argument('--bounded-reader', action='store_true', help='run only the standard core with sixteen-beat read-ahead memory requests')
     args = parser.parse_args()
-    for standard_core in ((True,) if args.standard_core else (False, True)):
-        run(args.verilator, standard_core)
+    if args.bounded_reader:
+        modes = ((True, True),)
+    elif args.standard_core:
+        modes = ((True, False),)
+    else:
+        modes = ((False, False), (True, False), (True, True))
+    for standard_core, bounded_reader in modes:
+        run(args.verilator, standard_core, bounded_reader)
 
 
-def run(verilator, standard_core):
-    output = ROOT / ('build/sim/fes-zx81-standard-session' if standard_core else 'build/sim/fes-zx81-session')
+def run(verilator, standard_core, bounded_reader):
+    if bounded_reader:
+        output = ROOT / 'build/sim/fes-zx81-bounded-session'
+    elif standard_core:
+        output = ROOT / 'build/sim/fes-zx81-standard-session'
+    else:
+        output = ROOT / 'build/sim/fes-zx81-session'
     output.mkdir(parents=True, exist_ok=True)
     # DI; SP=7fff; retain marker=5a; increment a RAM counter forever.
     # The actual Z80, machine memory and capture run throughout UI operations.
@@ -46,7 +58,8 @@ def run(verilator, standard_core):
     if standard_core:
         sources += ('cores/fes-zx81/rtl/fes_zx81_core.v', 'cores/fes-common/rtl/fes_computer_mailbox.v',
                     'cores/fes-zx81/rtl/zx81_keyboard.v', 'cores/fes-zx81/rtl/zx81_tape_store.v')
-    defines = ['-DFES_ZX81_STANDARD_CORE', '-CFLAGS', '-DFES_ZX81_STANDARD_CORE'] if standard_core else []
+    names = (['FES_ZX81_STANDARD_CORE'] if standard_core else []) + (['FES_ZX81_BOUNDED_READER'] if bounded_reader else [])
+    defines = [flag for name in names for flag in ('-D'+name, '-CFLAGS', '-D'+name)]
     subprocess.run([verilator, *defines, '--cc', '--exe', '--build', '--top-module', 'zx81_session_harness',
         '--public-flat-rw', '-Wall',
         *('-Wno-'+name for name in waivers),

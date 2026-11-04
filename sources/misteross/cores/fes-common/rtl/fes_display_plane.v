@@ -16,6 +16,11 @@
 // ddr_hold as that wrapper's hold and returns port 0's reset and drained.
 module fes_display_plane #(
     parameter [31:0] WINDOW_BASE = `FES_APPLICATION_HPS_DDR_WINDOW_BASE,
+    // Board memory adapters may use shorter bursts and independent reads.
+    // Defaults preserve the DE10 transport and its buffer reservation.
+    parameter [7:0] MEMORY_MAX_BURST_BEATS = 8'd128,
+    parameter [0:0] MEMORY_READ_AHEAD = 1'b0,
+    parameter integer MEMORY_FIFO_ADDR_BITS = 8,
     // Where the machine picture lands in the 1280x720 raster, for surrounds.
     parameter [15:0] PICTURE_LEFT = 16'd0,
     parameter [15:0] PICTURE_TOP = 16'd0,
@@ -151,6 +156,8 @@ module fes_display_plane #(
         end
     end
     fes_menu_video #(.WINDOW_BASE(WINDOW_BASE),
+                    .MAX_BURST_BEATS(MEMORY_MAX_BURST_BEATS),
+                    .READ_AHEAD(MEMORY_READ_AHEAD), .FIFO_ADDR_BITS(MEMORY_FIFO_ADDR_BITS),
                     .EXTERNAL_RASTER(1'b1), .COMPLETE_FRAME_ACK(1'b1)) scanout (
         .window_base(32'd0), .window_base_valid(1'b0), .response(2'b00),
         .current_sequence(), .current_slot(), .memory_errors(), .outstanding_beats(),

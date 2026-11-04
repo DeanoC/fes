@@ -84,6 +84,9 @@ module zx81_session_harness (
     wire [7:0] ddr_burstcount;
     wire [127:0] ddr_readdata;
     fes_display_plane #(
+`ifdef FES_ZX81_BOUNDED_READER
+        .MEMORY_MAX_BURST_BEATS(8'd16), .MEMORY_READ_AHEAD(1'b1), .MEMORY_FIFO_ADDR_BITS(11),
+`endif
         .PICTURE_LEFT(16'd312), .PICTURE_TOP(16'd90),
         .PICTURE_WIDTH(16'd656), .PICTURE_HEIGHT(16'd540)
     ) display (
