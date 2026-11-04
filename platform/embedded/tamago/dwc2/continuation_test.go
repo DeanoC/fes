@@ -125,6 +125,22 @@ func TestContinuationCannotRestartCompletedOrAbortedTransfers(t *testing.T) {
 			if (err != nil) != wantError || len(io.writes) != 0 || h.pending.deadline != deadline || h.pending.pid != pid {
 				t.Fatal(err, io.writes)
 			}
+			wantReason, wantSamples := "ineligible", uint32(0)
+			switch mode {
+			case "new-RX":
+				wantReason, wantSamples = "RX", 3
+			case "new-status":
+				wantReason, wantSamples = "status", 7
+			case "zero-count":
+				wantReason, wantSamples = "completion", 31
+			case "bad-count":
+				wantReason, wantSamples = "count", 31
+			case "disabled", "disable-pending":
+				wantReason, wantSamples = "channel", 15
+			}
+			if h.pending.lastContinue.reason != wantReason || h.pending.lastContinue.samples != wantSamples {
+				t.Fatal("incorrect sampled continuation evidence", h.pending.lastContinue)
+			}
 		})
 	}
 }

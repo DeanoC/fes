@@ -71,8 +71,10 @@ type packet struct {
 	deadline                                 time.Time
 	polls                                    int
 	toggleRX, toggleIRQs                     uint32
+	ackIRQs                                  uint32
 	continuations                            uint32
 	requestAfter                             time.Time
+	lastContinue                             continuationState
 	firstToggle                              error
 }
 type Host struct {
@@ -359,8 +361,8 @@ func (h *Host) step() (done bool, data []byte, nak bool, err error) {
 	defer func() {
 		if err != nil {
 			p := &h.pending
-			err = fmt.Errorf("dwc2: packet address=%d endpoint=%d in=%t pid=%d split=%t complete_split=%t received=%t polls=%d toggle_rx=%d toggle_irqs=%d continuations=%d: %w",
-				h.address, (p.char>>11)&15, p.in, p.pid, p.split, p.completeSplit, p.received, p.polls, p.toggleRX, p.toggleIRQs, p.continuations, err)
+			err = fmt.Errorf("dwc2: packet address=%d endpoint=%d in=%t pid=%d split=%t complete_split=%t received=%t done=%t nak=%t halting=%t polls=%d toggle_rx=%d toggle_irqs=%d ack_irqs=%d continuations=%d interval=%s last_continue={%s}: %w",
+				h.address, (p.char>>11)&15, p.in, p.pid, p.split, p.completeSplit, p.received, p.done, p.nak, p.halting, p.polls, p.toggleRX, p.toggleIRQs, p.ackIRQs, p.continuations, h.interval, p.lastContinue, err)
 			if p.firstToggle != nil {
 				err = fmt.Errorf("%w; first toggle observation: %v", err, p.firstToggle)
 			}
@@ -473,6 +475,14 @@ func (h *Host) step() (done bool, data []byte, nak bool, err error) {
 		p.toggleIRQs++
 		h.io.Write32(hcint, dataToggle) // W1C only this notification.
 		ints &^= dataToggle
+	}
+	// Non-split IN ACK-after-error notifications are not completion. Clear
+	// only that notification so it cannot indefinitely block PIO continuation.
+	// Split ACK keeps its translator state machine below; OUT/PING is unchanged.
+	if p.in && !p.split && ints&(1<<5) != 0 {
+		p.ackIRQs++
+		h.io.Write32(hcint, 1<<5)
+		ints &^= 1 << 5
 	}
 	if ints&1 != 0 {
 		p.done = true

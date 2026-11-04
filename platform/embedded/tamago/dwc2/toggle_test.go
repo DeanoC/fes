@@ -185,6 +185,8 @@ type notifyingController struct {
 	waiting, acknowledged               bool
 	injected, injectedAt, continuations int
 	sizeWrites, fifoWrites              int
+	lateACK                             bool
+	ackClears                           int
 }
 
 func (c *notifyingController) Read32(reg uint32) uint32 {
@@ -201,7 +203,7 @@ func (c *notifyingController) Write32(reg, value uint32) {
 		panic("continuation rewrote transfer size/PID or setup")
 	}
 	if c.waiting && reg == hcchar && value&channelEnable != 0 && value&channelDisable == 0 {
-		if !c.acknowledged {
+		if !c.acknowledged || c.regs[hcint]&(1<<5) != 0 {
 			panic("continuation before notification acknowledgement")
 		}
 		c.continuations++
@@ -210,6 +212,68 @@ func (c *notifyingController) Write32(reg, value uint32) {
 	c.controller.Write32(reg, value)
 	if reg == hcint && value == dataToggle && c.waiting {
 		c.acknowledged = true
+		if c.lateACK {
+			c.regs[hcint] |= 1 << 5
+		}
+	}
+	if reg == hcint && value == 1<<5 && c.waiting {
+		c.ackClears++
+	}
+}
+
+func TestPeriodicInputContinuesAfterLateACKWithoutInventingReports(t *testing.T) {
+	c := &notifyingController{controller: gamepadController(t), lateACK: true}
+	idle := []byte{128, 128, 0, 0}
+	changed := []byte{255, 0, 1, 0}
+	c.reports = [][]byte{idle, idle, changed}
+	c.beforeIN = func(hw *controller) bool {
+		if c.injected == 0 && hw.active.ep == 1 && len(hw.reports) == 1 {
+			c.injected++
+			c.waiting = true
+			c.injectedAt = len(hw.starts) - 1
+			hw.rx = append(hw.rx, 5<<17|2<<15)
+			hw.regs[hcint] = dataToggle
+			return true
+		}
+		return false
+	}
+	fw := &ownedFirmware{t: t, controller: c.controller, gamepad: true}
+	client, err := usbcontrol.New(context.Background(), fw, 17)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var host *GamepadHost
+	source, err := usbcontrol.OpenGamepad(context.Background(), client, func() (input.USBGamepadReports, error) {
+		var err error
+		host, err = OpenGamepad(c, Config{PHYClockHz: 60000000})
+		return host, err
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	var reports [][]byte
+	for n := 0; n < 10000; n++ {
+		r, err := source.PollGamepad()
+		if err != nil {
+			t.Fatal(err)
+		}
+		if r != nil {
+			reports = append(reports, append([]byte(nil), r...))
+		}
+		if len(reports) == 3 {
+			break
+		}
+	}
+	if len(reports) != 3 || !bytes.Equal(reports[0], idle) || !bytes.Equal(reports[1], idle) || !bytes.Equal(reports[2], changed) ||
+		c.injected != 1 || c.continuations != 1 || c.ackClears != 1 {
+		t.Fatal(reports, c.injected, c.continuations, c.ackClears)
+	}
+	if err := source.Close(context.Background()); err != nil || fw.confirms != 1 || fw.stops != 1 {
+		t.Fatal(err, fw)
+	}
+	accesses := c.accesses
+	if _, err := source.PollGamepad(); err == nil || c.accesses != accesses {
+		t.Fatal("closed owner resumed", err)
 	}
 }
 func TestCapturedDescriptorControlTransferSurvivesNotificationWithoutSetupReplay(t *testing.T) {
@@ -339,6 +403,35 @@ func TestToggleInterruptCannotHideOUTSplitOrOtherFatalErrors(t *testing.T) {
 		}
 		if done, data, nak, err := h.step(); err == nil || done || nak || len(data) != 0 {
 			t.Fatal(mode, done, data, nak, err)
+		}
+	}
+}
+
+func TestDirectINACKCannotSupplyDataOrHideFatalStatus(t *testing.T) {
+	for _, fatal := range []bool{false, true} {
+		h, c, o := pendingIN(t)
+		c.regs[hcint] = 1 << 5
+		if fatal {
+			c.regs[hcint] |= 1 << 3
+		}
+		done, data, nak, err := h.step()
+		if done || nak || len(data) != 0 || o.fifos != 0 || (err != nil) != fatal {
+			t.Fatal(done, data, nak, err)
+		}
+		if fatal {
+			if h.pending.ackIRQs != 0 || c.regs[hcint]&(1<<3) == 0 {
+				t.Fatal("fatal status was acknowledged away")
+			}
+		} else {
+			if h.pending.ackIRQs != 1 || h.pending.received || h.pending.pid != 2 || c.regs[hcint] != 0 {
+				t.Fatal("ACK changed packet state")
+			}
+			h.pending.deadline = c.tick
+			_, _, _, err = h.step()
+			if err == nil || !strings.Contains(err.Error(), "packet timeout") || !strings.Contains(err.Error(), "ack_irqs=1") ||
+				!strings.Contains(err.Error(), "last_continue={reason=queued sampled=0x1f") {
+				t.Fatal(err)
+			}
 		}
 	}
 }

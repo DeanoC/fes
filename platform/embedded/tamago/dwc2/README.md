@@ -130,3 +130,16 @@ phase and byte offset. Packet failures add endpoint, expected PID, split state
 and notification counts. A later failure preserves the first RX toggle snapshot,
 including both transmit queue states and frame number. These observations
 cannot authorize reports, bypass closure or release uncertain ownership.
+
+Non-split IN ACK-after-error notifications are cleared without completing the
+packet, changing its PID or resetting its deadline. A late ACK must not keep
+the continuation helper waiting forever; split ACK retains its translator
+state machine and OUT/PING behavior is unchanged. Fatal status still takes
+precedence and ACK alone cannot supply a report.
+
+Failures include current done/NAK/halting flags, ACK counts and the last
+continuation decision. Its sample bitmap identifies actual queue/global IRQ/
+channel IRQ/channel/transfer/frame reads (bits0–5); unsampled fields are not
+observations. Interval waits retain their measured wait time. These historical
+samples identify which check blocked progress without additional destructive
+register reads on the failure path.
