@@ -1,0 +1,10 @@
+{
+  "status": "passed",
+  "source": "aaa45acfc708ed8fa5b177d6daac1ebcaf88adaf",
+  "native_sources_match_commit": true,
+  "actual_ELF_hub_split_health_paths": true,
+  "matched_USB_only_selection": true,
+  "chain_sha256": "49679d09a2475e6bbeaa7c5f3e9b4778496017c08e9db0a7fc692486a99d8005",
+  "fit_bytes": 2682768,
+  "hardware_execution": false
+}
