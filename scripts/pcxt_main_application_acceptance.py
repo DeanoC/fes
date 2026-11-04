@@ -33,11 +33,15 @@ def main(argv=None):
         p = original_parser()
         p.add_argument('--source-repository', required=True)
         p.add_argument('--source-tool-commit', required=True)
+        p.add_argument('--source-historical-main', action='store_true', help='test a pinned historical main commit only')
+        p.add_argument('--source-observed-tip', help='reviewed live main tip in historical mode')
+        p.add_argument('--source-diff-sha256', help='reviewed raw producer-to-tip diff SHA-256')
+        p.add_argument('--source-minimum-tip', help='last accepted main tip in historical mode')
         p.add_argument('--host-pid', type=int, required=True)
         return p
 
     def prepare(args):
-        args.source_main = True
+        args.source_main = not getattr(args, 'source_historical_main', False)
         args.source_pr = None
         args.source_base = 'main'
         return args
@@ -45,8 +49,7 @@ def main(argv=None):
     def source(args, font):
         result, host_raw, software_raw = original_source(args, font)
         floppy.check_matching_sources(result, args.source_commit)
-        result['main_source'] = {'repository': args.source_repository, 'branch': 'main',
-                                 'producer_commit': args.source_commit, 'tool_commit': args.source_tool_commit}
+        result['main_source'] = floppy.main_source_evidence(args)
         for module in (floppy, floppy.health_evidence, sys.modules[__name__]):
             path = Path(module.__file__).resolve()
             result['diagnostic_file_sha256'][str(path.relative_to(Path(__file__).resolve().parents[1]))] = hashlib.sha256(path.read_bytes()).hexdigest()
@@ -62,16 +65,55 @@ def main(argv=None):
         finally:
             observer.tracing = previous
 
-    def scenario(original):
-        def run(runner, owned, args, rec, input_session_id, font):
-            floppy.require_main_head(args)
-            original(runner, owned, args, rec, input_session_id, font)
-            floppy.require_main_head(args)
+    def scenario(original, *, game=False):
+        def run(runner, owned, args, rec, input_session_id, font, **kwargs):
+            try:
+                floppy.require_source(args)
+                if game:
+                    if 'observer_factory' in kwargs:
+                        raise app.pa.AcceptanceError('game observer factory is owned by the main wrapper')
+                    def observer_factory(observe):
+                        global HEALTH_UNSAFE
+                        try:
+                            observer.prepare()
+                            def traced(deadline):
+                                observer.begin_trace()
+                                try:
+                                    return observe(deadline)
+                                finally:
+                                    observer.end_trace()
+                            delegate = app.PrestartedObserver(traced)
+                        except BaseException:
+                            HEALTH_UNSAFE = True
+                            raise
+                        class GuardedObserver:
+                            def check(self):
+                                global HEALTH_UNSAFE
+                                try:
+                                    return delegate.check()
+                                except BaseException:
+                                    HEALTH_UNSAFE = True
+                                    raise
+                            def close(self):
+                                global HEALTH_UNSAFE
+                                try:
+                                    return delegate.close()
+                                except BaseException:
+                                    HEALTH_UNSAFE = True
+                                    raise
+                        return GuardedObserver()
+                    kwargs['observer_factory'] = observer_factory
+                original(runner, owned, args, rec, input_session_id, font, **kwargs)
+                floppy.require_source(args)
+            finally:
+                if getattr(args, 'source_historical_main', False):
+                    rec['source_minimum_tip'] = args.source_minimum_tip
+                    rec['source_tip_observations'] = list(getattr(args, 'source_tip_observations', []))
         return run
 
     # Fail before the application diagnostic's first interaction with a kit.
     parsed = prepare(parser().parse_args(argv))
-    floppy.require_main_head(parsed)
+    floppy.require_source(parsed)
     observer = floppy.health_evidence.HealthEvidence(parsed.evidence, parsed.target_id, parsed.expected_boot,
                                                       parsed.bundle_id, parsed.image_sha256)
     class ObservedRunner(original_runner):
@@ -98,13 +140,16 @@ def main(argv=None):
             raise
     app.parser, app.source_provenance = parser, source
     app._validate_active_once = guarded
-    app.run_com, app.run_game = scenario(original_com), scenario(original_game)
+    app.run_com, app.run_game = scenario(original_com), scenario(original_game, game=True)
     app.pa.Runner, app.validate_active = ObservedRunner, observed_validate
     # app.main parses its own args; the main-only defaults must be applied to
     # that namespace too, including every nested active-session observation.
     def prepared_parser():
         p = parser()
-        p.set_defaults(source_main=True, source_pr=None, source_base='main')
+        p.set_defaults(source_main=not getattr(parsed, 'source_historical_main', False), source_pr=None, source_base='main')
+        if getattr(parsed, 'source_historical_main', False):
+            p.set_defaults(source_last_observed_tip=parsed.source_last_observed_tip,
+                           source_tip_observations=list(parsed.source_tip_observations))
         return p
     app.parser = prepared_parser
     try:

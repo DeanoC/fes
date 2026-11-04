@@ -35,9 +35,11 @@ GROUPS = {
         atari_st_io_diagnostic atari_st_memory_diagnostic atari_st_ram_write_trace
         atari_st_raster_trace atari_st_rendered_capture frame_trace_summary gpu_lease
         input_diagnostic kit_software_acceptance package_acceptance
-        package_acceptance_isolated pcxt_diagnostic_acceptance pcxt_dos_application_acceptance
+        package_acceptance_isolated pcxt_capture_fanout pcxt_diagnostic_acceptance
+        pcxt_digger_readiness pcxt_dos_application_acceptance
         pcxt_dos_hil_acceptance pcxt_dos_keyboard_acceptance pcxt_floppy_diagnostic_acceptance
-        pcxt_floppy_persistence_acceptance pcxt_health_evidence pcxt_main_application_acceptance
+        pcxt_floppy_persistence_acceptance pcxt_game_audio_capture pcxt_gameplay_capture
+        pcxt_gameplay_probe pcxt_health_evidence pcxt_main_application_acceptance
         ramtest_notices target_acceptance'''),
 }
 
