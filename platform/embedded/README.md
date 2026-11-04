@@ -34,6 +34,12 @@ This qualifies bounded updates within that fixed source and reader scope.
 Physical HDMI, USB hub input, native networking and ordinary package admission
 remain open.
 
+The [complete-command-handler board test](../../docs/validation/2026-11-04-de25-transfer-hash/README.md)
+now passes native boot, retained SD package, twelve changing frames and owned
+return within the unchanged 45-second observer bound. Transfer-side DMA hashes
+use fresh reads through private 32 KiB scratch; firmware checks are unchanged.
+The normal UI loop, menu/core transitions and ordinary admission remain open.
+
 The [contained firmware/RTL prototype](firmware/README.md) prepares a pinned
 TF-A source variant and an FPGA identity/read-drain endpoint. The experimental
 [native endpoint](tamago/nativefabric/README.md) now connects their protocols

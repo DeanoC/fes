@@ -1,0 +1,723 @@
+{
+  "status": "passed",
+  "classification": "bounded native full command handler, twelve changing frame reads and owned return; ordinary core loading incomplete",
+  "native_source_commit": "8da29fc77c9e6093c27c6388abe815fd7075cb06",
+  "fpga_source_commit": "df234b524d0e1340b343df411c841bd1dc553817",
+  "boot_id": "124570af5b25c8e5",
+  "entry_bytes": 7303168,
+  "raw_elf_bytes": 14925999,
+  "fit_bytes": 7847928,
+  "intervals_us": {
+    "loader_to_handoff_us": 1311649,
+    "inflate_us": 1154890,
+    "retain_us": 55427458,
+    "loader_to_retained_us": 56889317,
+    "configuration_counter_us": 12862311,
+    "configuration_hash_counter_us": 9630482,
+    "frame_and_return_us": 26100533
+  },
+  "storage_observation_seconds": 57.41729941009544,
+  "bounds": {
+    "prompt_seconds": 50,
+    "storage_seconds": 100,
+    "configuration_seconds": 20,
+    "probe_seconds": 45,
+    "native_seconds": 240,
+    "outer_seconds": 800
+  },
+  "startup": {
+    "records": [
+      {
+        "line": 91,
+        "phase": "loader_begin",
+        "ticks": 6922807793,
+        "hz": 400000000,
+        "el": 2,
+        "sctlr": 818219056
+      },
+      {
+        "line": 92,
+        "phase": "decode_begin",
+        "ticks": 6950506223,
+        "hz": 400000000,
+        "el": 2,
+        "sctlr": 818223157
+      },
+      {
+        "line": 93,
+        "phase": "inflate_end",
+        "ticks": 7412462339,
+        "hz": 400000000,
+        "el": 2,
+        "sctlr": 818223157
+      },
+      {
+        "line": 94,
+        "phase": "checksum_end",
+        "ticks": 7419849155,
+        "hz": 400000000,
+        "el": 2,
+        "sctlr": 818223157
+      },
+      {
+        "line": 95,
+        "phase": "decode_end",
+        "ticks": 7423377878,
+        "hz": 400000000,
+        "el": 2,
+        "sctlr": 818223157
+      },
+      {
+        "line": 96,
+        "phase": "copy_end",
+        "ticks": 7429653846,
+        "hz": 400000000,
+        "el": 2,
+        "sctlr": 818223157
+      },
+      {
+        "line": 97,
+        "phase": "handoff",
+        "ticks": 7447467510,
+        "hz": 400000000,
+        "el": 2,
+        "sctlr": 818219056
+      },
+      {
+        "line": 99,
+        "phase": "go_hwinit",
+        "ticks": 7456844931,
+        "hz": 400000000,
+        "el": 1,
+        "sctlr": 818944005
+      },
+      {
+        "line": 100,
+        "phase": "go_vectors",
+        "ticks": 7460271848,
+        "hz": 400000000,
+        "el": 1,
+        "sctlr": 818944005
+      },
+      {
+        "line": 101,
+        "phase": "go_main",
+        "ticks": 7467391385,
+        "hz": 400000000,
+        "el": 1,
+        "sctlr": 818944005
+      },
+      {
+        "line": 102,
+        "phase": "verifier_ready",
+        "ticks": 7471741847,
+        "hz": 400000000,
+        "el": 1,
+        "sctlr": 818944005
+      },
+      {
+        "line": 103,
+        "phase": "sd_open_begin",
+        "ticks": 7475339754,
+        "hz": 400000000,
+        "el": 1,
+        "sctlr": 818944005
+      },
+      {
+        "line": 104,
+        "phase": "sd_open_end",
+        "ticks": 7491421131,
+        "hz": 400000000,
+        "el": 1,
+        "sctlr": 818944005
+      },
+      {
+        "line": 105,
+        "phase": "fat_mount_end",
+        "ticks": 7503986168,
+        "hz": 400000000,
+        "el": 1,
+        "sctlr": 818944005
+      },
+      {
+        "line": 106,
+        "phase": "retain_begin",
+        "ticks": 7507551566,
+        "hz": 400000000,
+        "el": 1,
+        "sctlr": 818944005
+      },
+      {
+        "line": 107,
+        "phase": "retain_end",
+        "ticks": 29678534837,
+        "hz": 400000000,
+        "el": 1,
+        "sctlr": 818944005
+      }
+    ],
+    "errors": [],
+    "complete": true,
+    "rejected": false,
+    "last_checkpoint": "retain_end",
+    "timings_us": {
+      "loader_begin": 0,
+      "decode_begin": 69246,
+      "inflate_end": 1224136,
+      "checksum_end": 1242603,
+      "decode_end": 1251425,
+      "copy_end": 1267115,
+      "handoff": 1311649,
+      "go_hwinit": 1335092,
+      "go_vectors": 1343660,
+      "go_main": 1361458,
+      "verifier_ready": 1372335,
+      "sd_open_begin": 1381329,
+      "sd_open_end": 1421533,
+      "fat_mount_end": 1452945,
+      "retain_begin": 1461859,
+      "retain_end": 56889317
+    },
+    "core_load_acceptance": false
+  },
+  "observation": {
+    "frames": 12,
+    "read_bytes": 3686400,
+    "total_frame_read_bytes": 44236800,
+    "arena_bytes": 4194304,
+    "reader_generation": 13,
+    "cookie": 1,
+    "final_drain_cookie": 13,
+    "crc32": "4156c52d",
+    "frame_sha256": "1a5494e29641f42e61d7e25ed40099a07a7abce5968f1ebe26fef1881a02922c",
+    "owner": 4264546768777972773,
+    "closed_generation": 7,
+    "bridge_reset": 15,
+    "hardware_drained": 8,
+    "configuration_seconds": 12.8623113575,
+    "memory_released": false,
+    "runtime_admission": false,
+    "hdmi_qualified": false
+  },
+  "frames": [
+    {
+      "index": 1,
+      "package_id": "a2388c4d7d8640d6e70d51c4d164e3c803157e3fb21e91451d6febd74faf6017",
+      "build_id": "7fa7e3c27ec2fb055e148514b8dac7a2",
+      "owner": 4264546768777972773,
+      "source_generation": 4,
+      "reader_generation": 2,
+      "cookie": 1,
+      "bytes": 3686400,
+      "published_crc32": 4148337422,
+      "read_crc32": 4148337422,
+      "frame_sha256": "a58b682bcf4749139141601be2b1f655c1019c627befc941a511c27b388a856d",
+      "drain_generation": 2,
+      "drain_cookie": 2
+    },
+    {
+      "index": 2,
+      "package_id": "a2388c4d7d8640d6e70d51c4d164e3c803157e3fb21e91451d6febd74faf6017",
+      "build_id": "7fa7e3c27ec2fb055e148514b8dac7a2",
+      "owner": 4264546768777972773,
+      "source_generation": 4,
+      "reader_generation": 3,
+      "cookie": 1,
+      "bytes": 3686400,
+      "published_crc32": 1389424270,
+      "read_crc32": 1389424270,
+      "frame_sha256": "e99aa33ec6300751647d36d21cda9bc84786a501dee69c97e9dc46aa3f3b8837",
+      "drain_generation": 3,
+      "drain_cookie": 3
+    },
+    {
+      "index": 3,
+      "package_id": "a2388c4d7d8640d6e70d51c4d164e3c803157e3fb21e91451d6febd74faf6017",
+      "build_id": "7fa7e3c27ec2fb055e148514b8dac7a2",
+      "owner": 4264546768777972773,
+      "source_generation": 4,
+      "reader_generation": 4,
+      "cookie": 1,
+      "bytes": 3686400,
+      "published_crc32": 4090557860,
+      "read_crc32": 4090557860,
+      "frame_sha256": "a5dc69cecd8ac1dd0f68a6dec6064653ae71df93346847a089180d101b54d9dd",
+      "drain_generation": 4,
+      "drain_cookie": 4
+    },
+    {
+      "index": 4,
+      "package_id": "a2388c4d7d8640d6e70d51c4d164e3c803157e3fb21e91451d6febd74faf6017",
+      "build_id": "7fa7e3c27ec2fb055e148514b8dac7a2",
+      "owner": 4264546768777972773,
+      "source_generation": 4,
+      "reader_generation": 5,
+      "cookie": 1,
+      "bytes": 3686400,
+      "published_crc32": 3144184335,
+      "read_crc32": 3144184335,
+      "frame_sha256": "ba0ce800a2a175c19587bfe180dbb231fe56751bb1774615e68463eacef37cc7",
+      "drain_generation": 5,
+      "drain_cookie": 5
+    },
+    {
+      "index": 5,
+      "package_id": "a2388c4d7d8640d6e70d51c4d164e3c803157e3fb21e91451d6febd74faf6017",
+      "build_id": "7fa7e3c27ec2fb055e148514b8dac7a2",
+      "owner": 4264546768777972773,
+      "source_generation": 4,
+      "reader_generation": 6,
+      "cookie": 1,
+      "bytes": 3686400,
+      "published_crc32": 3312639711,
+      "read_crc32": 3312639711,
+      "frame_sha256": "cc9897f942f776d7c96169e45225a41843b65ced421e67b76474da8ccaada809",
+      "drain_generation": 6,
+      "drain_cookie": 6
+    },
+    {
+      "index": 6,
+      "package_id": "a2388c4d7d8640d6e70d51c4d164e3c803157e3fb21e91451d6febd74faf6017",
+      "build_id": "7fa7e3c27ec2fb055e148514b8dac7a2",
+      "owner": 4264546768777972773,
+      "source_generation": 4,
+      "reader_generation": 7,
+      "cookie": 1,
+      "bytes": 3686400,
+      "published_crc32": 3191110898,
+      "read_crc32": 3191110898,
+      "frame_sha256": "23f1d5db151ae1ba0c642564e3500564bdfa2273a7a45148ddb136d94a9ff6f5",
+      "drain_generation": 7,
+      "drain_cookie": 7
+    },
+    {
+      "index": 7,
+      "package_id": "a2388c4d7d8640d6e70d51c4d164e3c803157e3fb21e91451d6febd74faf6017",
+      "build_id": "7fa7e3c27ec2fb055e148514b8dac7a2",
+      "owner": 4264546768777972773,
+      "source_generation": 4,
+      "reader_generation": 8,
+      "cookie": 1,
+      "bytes": 3686400,
+      "published_crc32": 1312985274,
+      "read_crc32": 1312985274,
+      "frame_sha256": "f7fa91ad03bc9ee3989d7b03b5c2cdd7cc3aefa457dc46acc6e8c4324cd19548",
+      "drain_generation": 8,
+      "drain_cookie": 8
+    },
+    {
+      "index": 8,
+      "package_id": "a2388c4d7d8640d6e70d51c4d164e3c803157e3fb21e91451d6febd74faf6017",
+      "build_id": "7fa7e3c27ec2fb055e148514b8dac7a2",
+      "owner": 4264546768777972773,
+      "source_generation": 4,
+      "reader_generation": 9,
+      "cookie": 1,
+      "bytes": 3686400,
+      "published_crc32": 1450680310,
+      "read_crc32": 1450680310,
+      "frame_sha256": "36f3a367cc00dc14bf17bd28fbaa6f4c002a9ea259b01342585a7d4b29258e41",
+      "drain_generation": 9,
+      "drain_cookie": 9
+    },
+    {
+      "index": 9,
+      "package_id": "a2388c4d7d8640d6e70d51c4d164e3c803157e3fb21e91451d6febd74faf6017",
+      "build_id": "7fa7e3c27ec2fb055e148514b8dac7a2",
+      "owner": 4264546768777972773,
+      "source_generation": 4,
+      "reader_generation": 10,
+      "cookie": 1,
+      "bytes": 3686400,
+      "published_crc32": 2325596855,
+      "read_crc32": 2325596855,
+      "frame_sha256": "0b1f25d6cc01cad05ba891b0822a2165693d3b3b616c9b06c06bc5b279c8acaf",
+      "drain_generation": 10,
+      "drain_cookie": 10
+    },
+    {
+      "index": 10,
+      "package_id": "a2388c4d7d8640d6e70d51c4d164e3c803157e3fb21e91451d6febd74faf6017",
+      "build_id": "7fa7e3c27ec2fb055e148514b8dac7a2",
+      "owner": 4264546768777972773,
+      "source_generation": 4,
+      "reader_generation": 11,
+      "cookie": 1,
+      "bytes": 3686400,
+      "published_crc32": 729778559,
+      "read_crc32": 729778559,
+      "frame_sha256": "6fa095564c583f5bf891f613e08f62ad03575b7eee56d737032bac487fb79fc6",
+      "drain_generation": 11,
+      "drain_cookie": 11
+    },
+    {
+      "index": 11,
+      "package_id": "a2388c4d7d8640d6e70d51c4d164e3c803157e3fb21e91451d6febd74faf6017",
+      "build_id": "7fa7e3c27ec2fb055e148514b8dac7a2",
+      "owner": 4264546768777972773,
+      "source_generation": 4,
+      "reader_generation": 12,
+      "cookie": 1,
+      "bytes": 3686400,
+      "published_crc32": 1961832266,
+      "read_crc32": 1961832266,
+      "frame_sha256": "a83e70d0e2d8aa89fb557cfdfbccd89c020edd545be08f6624e9770aba1c2375",
+      "drain_generation": 12,
+      "drain_cookie": 12
+    },
+    {
+      "index": 12,
+      "package_id": "a2388c4d7d8640d6e70d51c4d164e3c803157e3fb21e91451d6febd74faf6017",
+      "build_id": "7fa7e3c27ec2fb055e148514b8dac7a2",
+      "owner": 4264546768777972773,
+      "source_generation": 4,
+      "reader_generation": 13,
+      "cookie": 1,
+      "bytes": 3686400,
+      "published_crc32": 1096205613,
+      "read_crc32": 1096205613,
+      "frame_sha256": "1a5494e29641f42e61d7e25ed40099a07a7abce5968f1ebe26fef1881a02922c",
+      "drain_generation": 13,
+      "drain_cookie": 13
+    }
+  ],
+  "frame_progress": [
+    {
+      "index": 1,
+      "phase": "render_begin",
+      "elapsed_us": 3821
+    },
+    {
+      "index": 1,
+      "phase": "render_end",
+      "elapsed_us": 19981
+    },
+    {
+      "index": 1,
+      "phase": "present_begin",
+      "elapsed_us": 26590
+    },
+    {
+      "index": 1,
+      "phase": "present_end",
+      "elapsed_us": 2120479
+    },
+    {
+      "index": 2,
+      "phase": "render_begin",
+      "elapsed_us": 2127472
+    },
+    {
+      "index": 2,
+      "phase": "render_end",
+      "elapsed_us": 2180092
+    },
+    {
+      "index": 2,
+      "phase": "present_begin",
+      "elapsed_us": 2186877
+    },
+    {
+      "index": 2,
+      "phase": "present_end",
+      "elapsed_us": 4260513
+    },
+    {
+      "index": 3,
+      "phase": "render_begin",
+      "elapsed_us": 4267505
+    },
+    {
+      "index": 3,
+      "phase": "render_end",
+      "elapsed_us": 4315721
+    },
+    {
+      "index": 3,
+      "phase": "present_begin",
+      "elapsed_us": 4322507
+    },
+    {
+      "index": 3,
+      "phase": "present_end",
+      "elapsed_us": 6394605
+    },
+    {
+      "index": 4,
+      "phase": "render_begin",
+      "elapsed_us": 6401599
+    },
+    {
+      "index": 4,
+      "phase": "render_end",
+      "elapsed_us": 6449881
+    },
+    {
+      "index": 4,
+      "phase": "present_begin",
+      "elapsed_us": 6456669
+    },
+    {
+      "index": 4,
+      "phase": "present_end",
+      "elapsed_us": 8529244
+    },
+    {
+      "index": 5,
+      "phase": "render_begin",
+      "elapsed_us": 8536237
+    },
+    {
+      "index": 5,
+      "phase": "render_end",
+      "elapsed_us": 8584525
+    },
+    {
+      "index": 5,
+      "phase": "present_begin",
+      "elapsed_us": 8591313
+    },
+    {
+      "index": 5,
+      "phase": "present_end",
+      "elapsed_us": 10663341
+    },
+    {
+      "index": 6,
+      "phase": "render_begin",
+      "elapsed_us": 10670420
+    },
+    {
+      "index": 6,
+      "phase": "render_end",
+      "elapsed_us": 10719047
+    },
+    {
+      "index": 6,
+      "phase": "present_begin",
+      "elapsed_us": 10725923
+    },
+    {
+      "index": 6,
+      "phase": "present_end",
+      "elapsed_us": 12798262
+    },
+    {
+      "index": 7,
+      "phase": "render_begin",
+      "elapsed_us": 12805342
+    },
+    {
+      "index": 7,
+      "phase": "render_end",
+      "elapsed_us": 12854006
+    },
+    {
+      "index": 7,
+      "phase": "present_begin",
+      "elapsed_us": 12860882
+    },
+    {
+      "index": 7,
+      "phase": "present_end",
+      "elapsed_us": 14932840
+    },
+    {
+      "index": 8,
+      "phase": "render_begin",
+      "elapsed_us": 14939920
+    },
+    {
+      "index": 8,
+      "phase": "render_end",
+      "elapsed_us": 14988693
+    },
+    {
+      "index": 8,
+      "phase": "present_begin",
+      "elapsed_us": 14995567
+    },
+    {
+      "index": 8,
+      "phase": "present_end",
+      "elapsed_us": 17067690
+    },
+    {
+      "index": 9,
+      "phase": "render_begin",
+      "elapsed_us": 17074770
+    },
+    {
+      "index": 9,
+      "phase": "render_end",
+      "elapsed_us": 17123339
+    },
+    {
+      "index": 9,
+      "phase": "present_begin",
+      "elapsed_us": 17130215
+    },
+    {
+      "index": 9,
+      "phase": "present_end",
+      "elapsed_us": 19202761
+    },
+    {
+      "index": 10,
+      "phase": "render_begin",
+      "elapsed_us": 19209841
+    },
+    {
+      "index": 10,
+      "phase": "render_end",
+      "elapsed_us": 19258931
+    },
+    {
+      "index": 10,
+      "phase": "present_begin",
+      "elapsed_us": 19265894
+    },
+    {
+      "index": 10,
+      "phase": "present_end",
+      "elapsed_us": 21338604
+    },
+    {
+      "index": 11,
+      "phase": "render_begin",
+      "elapsed_us": 21345770
+    },
+    {
+      "index": 11,
+      "phase": "render_end",
+      "elapsed_us": 21394935
+    },
+    {
+      "index": 11,
+      "phase": "present_begin",
+      "elapsed_us": 21401896
+    },
+    {
+      "index": 11,
+      "phase": "present_end",
+      "elapsed_us": 23474253
+    },
+    {
+      "index": 12,
+      "phase": "render_begin",
+      "elapsed_us": 23481420
+    },
+    {
+      "index": 12,
+      "phase": "render_end",
+      "elapsed_us": 23530619
+    },
+    {
+      "index": 12,
+      "phase": "present_begin",
+      "elapsed_us": 23537579
+    },
+    {
+      "index": 12,
+      "phase": "present_end",
+      "elapsed_us": 25615953
+    },
+    {
+      "index": 13,
+      "phase": "return_begin",
+      "elapsed_us": 25623260
+    },
+    {
+      "index": 13,
+      "phase": "return_end",
+      "elapsed_us": 26100533
+    }
+  ],
+  "firmware_reader_drain": {
+    "owner": 4264546768777972773,
+    "generation": 6,
+    "reset": 5,
+    "reader_generation": 13,
+    "request_generation": 13,
+    "cookie": 13,
+    "ack_generation": 13,
+    "ack_cookie": 13,
+    "status": 4,
+    "pending": 0
+  },
+  "master_stop": {
+    "status": 0,
+    "owner": 4264546768777972773,
+    "generation": 6,
+    "reset": 5,
+    "reader_reads": 88,
+    "reader_polls": 1,
+    "disable": 0,
+    "probe_polls": 2,
+    "cancel": 0,
+    "complete": 1
+  },
+  "closure": {
+    "owner": 4264546768777972773,
+    "generation": 7,
+    "reset": 15,
+    "hardware_drained": 8,
+    "data_remained_contained": 0,
+    "producers_quiescent": 1,
+    "fabric_acknowledged": 0
+  },
+  "attempts": {
+    "prior_window_procedure_failures": 7,
+    "new_physical_attempts": 1,
+    "new_physical_failures": 0,
+    "retries": 0
+  },
+  "software": {
+    "affected_checks": 7,
+    "fresh_transfer_boundary_mutations": 72,
+    "model_launch_return_failure": "passed",
+    "reused_entry_qemu_cases": 14,
+    "reused_entry_focused_tests": 20,
+    "reuse_scope": "entry code and artifacts byte-identical to 02ece2cd5; all changed native/model and matched firmware rebuilt"
+  },
+  "host_cleanup": {
+    "host_cleanup_passed": true,
+    "original_jtag_clock": "15M",
+    "exact_usb_permissions_restored": true,
+    "private_server_gone": true,
+    "uart_free": true,
+    "exclusive_claim_retained": true,
+    "spare_card_retained": true,
+    "factory_restore_performed": false
+  },
+  "limits": {
+    "ordinary_core_loading": false,
+    "hdmi": false,
+    "hub_input": false,
+    "native_network": false,
+    "normal_ui_loop_invoked": false,
+    "memory_released": false
+  },
+  "retention": {
+    "status": "passed",
+    "source_commit": "8da29fc77c9e6093c27c6388abe815fd7075cb06",
+    "source_bundle": "/home/deano/fes-retained/de25-transfer-hash-20261104/source.bundle",
+    "source_bundle_sha256": "cac878b210b0f06e88eccad3913dc0a359ff8266eb03c3cfb91375888e089d3f",
+    "independent_source_restore": true,
+    "strict_fsck": true,
+    "alternates": false,
+    "verification_copy_removed": true,
+    "archive": "/home/deano/fes-retained/de25-transfer-hash-20261104/matched-native-chain.tar.gz",
+    "archive_sha256": "69fa5bb7ad19d6e7958a8799e90823671aa76eb17c17d0c29d3d1c3f2be02489",
+    "archive_bytes": 314120446,
+    "verified_members": 45713,
+    "hardware_acceptance": false,
+    "selected_sources_verified_from_exact_git_commit": true,
+    "unpublished_validation_documents": [],
+    "diagnostic_hardware_evidence_retained": true,
+    "prior_failures_retained_separately": true,
+    "host_cleanup_retained": true,
+    "expanded_files_removed": false
+  },
+  "private_evidence_root": "/home/deano/fes/out/dev/de25-embedded-os/out/nano-transfer-hash-20261104"
+}
