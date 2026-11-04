@@ -15,8 +15,19 @@
 // second cycle, two clocks and its wait states. A delivery (an exception or
 // interrupt) ends as INT does (fes_i386_cpu).
 //
+// The data sheets' counts assume a zero-wait-state local bus, so a uop's I/O
+// and MMIO (the machine's VGA memory) accesses also charge the period AT's
+// ISA bus time (governor.toml, [isa]). An I/O access takes the cycles the
+// machine's pc386_io splits it into: one 16-bit cycle if word16() says so,
+// and an 8-bit cycle for each of its other bytes; it charges them less the
+// two clocks of the bus cycle its instruction's count holds. An
+// MMIO access takes a VGA cycle per 16-bit half it touches, less what its
+// table count and wait-state charge already give it. Neither goes below
+// zero. A cycle's reference clocks follow the frequency the governor runs
+// at, worked out at reset as the step is.
+//
 // Each step is a register: WB's retirement, the ROM address and the memory
-// charge, the ROM's word, the charge, the debt, hold. So the classes and the
+// and ISA charges, the ROM's word, the charge, the debt, hold. So the classes and the
 // compare stay off D's and WB's paths, and hold follows a retirement by five
 // clocks. The debt counts in 1/65536 reference clock and stops at zero: time
 // the CPU spends waiting (I/O, memory, HLT) banks nothing, so a fast CPU runs
@@ -50,9 +61,20 @@ module fes_i386_governor #(
     input  fes_i386_pkg::gov_t gov,
     input  logic [1:0]         accesses,
     input  logic               dword,
+    // ... its I/O access (io: the port and size, 0 a byte, 1 a word, 2 a
+    // dword), and which of its memory accesses are MMIO: mmio of those at its
+    // operand (a read-modify-write's two), mmio_st2 its st2 store, with the
+    // 16-bit halves each touches.
+    input  logic               io,
+    input  logic [15:0]        io_port,
+    input  logic [1:0]         io_size,
+    input  logic [1:0]         mmio,
+    input  logic [2:0]         mmio_halves,
+    input  logic               mmio_st2,
+    input  logic [2:0]         mmio_st2_halves,
     output logic               hold,
     output logic [11:0]        debt_clocks,  // the debt's whole reference clocks
-    output logic [8:0]         charge        // what this clock adds to the debt, in reference clocks
+    output logic [12:0]        charge        // what this clock adds to the debt, in reference clocks
 );
     // step: reference clocks per clk, in 1/65536: frequency * 100 kHz / clk.
     // SCALE holds 8 more fraction bits, so a step is within 1/65536 of it.
@@ -79,10 +101,29 @@ module fes_i386_governor #(
         product <= 28'(freq) * 28'(K);
     end
 
+    // The ISA cycles in reference clocks at freq, rounded, halves up. They
+    // settle two clocks after freq, long before WB first retires.
+    localparam int SW = $bits(fes_i386_gov_pkg::ISA_STEP) + 10, PW = SW + 4;
+    logic [SW-1:0] isa_clock;  // an ISA clock, in 1/2**ISA_FRAC reference clock
+    logic [7:0]    isa8, isa16, isa_vga;
+    function automatic logic [7:0] cycle(input logic [3:0] clocks, input logic [SW-1:0] one);
+        cycle = 8'((PW'(clocks) * PW'(one) + (PW'(1) << (fes_i386_gov_pkg::ISA_FRAC - 1))) >> fes_i386_gov_pkg::ISA_FRAC);
+    endfunction
+    always_ff @(posedge clk) begin
+        isa_clock <= SW'(freq) * SW'(fes_i386_gov_pkg::ISA_STEP);
+        isa8 <= cycle(fes_i386_gov_pkg::ISA_IO8, isa_clock);
+        isa16 <= cycle(fes_i386_gov_pkg::ISA_IO16, isa_clock);
+        isa_vga <= cycle(fes_i386_gov_pkg::ISA_VGA, isa_clock);
+    end
+
     // WB's retirement, as it happens.
     logic                  s1_boundary, s1_eoi, s1_element, s1_taken, s1_dword;
     fes_i386_pkg::gov_t    s1_gov;
     logic [1:0]            s1_accesses;
+    logic                  s1_io, s1_mmio_st2;
+    logic [15:0]           s1_io_port;
+    logic [1:0]            s1_io_size, s1_mmio;
+    logic [2:0]            s1_mmio_halves, s1_mmio_st2_halves;
     always_ff @(posedge clk) begin
         s1_boundary <= on && boundary;
         s1_eoi <= eoi;
@@ -91,6 +132,13 @@ module fes_i386_governor #(
         s1_gov <= gov;
         s1_accesses <= on ? accesses : 2'd0;
         s1_dword <= dword;
+        s1_io <= on && io;
+        s1_io_port <= io_port;
+        s1_io_size <= io_size;
+        s1_mmio <= on ? mmio : 2'd0;
+        s1_mmio_halves <= mmio_halves;
+        s1_mmio_st2 <= on && mmio_st2;
+        s1_mmio_st2_halves <= mmio_st2_halves;
     end
 
     // The class addresses the ROM; the memory charge: each bus cycle's wait
@@ -101,27 +149,47 @@ module fes_i386_governor #(
     assign per_access = {2'd0, p.wait_states} + (p.bus16 && s1_dword ? {2'd0, p.wait_states} + 4'd2 : 4'd0);
     logic [15:0] word;
     fes_i386_gov_rom costs (.clk, .addr(fes_i386_gov_pkg::cost_rom_index(p.tbl, s1_class.cls)), .q(word));
+    // The ISA charges: the I/O access's cycles less the data sheet's bus
+    // cycle; an MMIO access's VGA cycles less its bus cycle and per_access.
+    logic [9:0]  io_clocks, io_extra;
+    assign io_clocks = fes_i386_gov_pkg::word16(s1_io_port, s1_io_size)
+                     ? {2'd0, isa16} + (s1_io_size == 2'd2 ? {1'b0, isa8, 1'b0} : 10'd0)
+                     : {2'd0, isa8} << s1_io_size;
+    assign io_extra = io_clocks > 10'd2 ? io_clocks - 10'd2 : 10'd0;
+    function automatic logic [10:0] mmio_extra(input logic [2:0] halves, input logic [7:0] vga, input logic [3:0] local_bus);
+        logic [10:0] clocks;
+        clocks = 11'(halves) * 11'(vga);
+        mmio_extra = clocks > 11'(local_bus) ? clocks - 11'(local_bus) : 11'd0;
+    endfunction
+    logic [3:0]  local_bus;
+    assign local_bus = 4'd2 + per_access;
+    logic [12:0] isa;
+    assign isa = (s1_io ? {3'd0, io_extra} : 13'd0) + 13'(s1_mmio) * {2'd0, mmio_extra(s1_mmio_halves, isa_vga, local_bus)}
+               + (s1_mmio_st2 ? {2'd0, mmio_extra(s1_mmio_st2_halves, isa_vga, local_bus)} : 13'd0);
+
     logic        s2_ends, s2_column1, s2_element, s2_ea;
     logic [4:0]  s2_memory;
+    logic [12:0] s2_isa;
     always_ff @(posedge clk) begin
         s2_ends <= s1_boundary && s1_eoi;
         s2_column1 <= s1_class.branch && s1_taken;
         s2_element <= s1_boundary && s1_element && s1_class.elem;
         s2_ea <= s1_boundary && s1_eoi && s1_class.memory && s1_gov.ea3 && !s1_gov.rm_reg;
         s2_memory <= 5'(s1_accesses) * 5'(per_access);
+        s2_isa <= isa;
     end
 
     always_ff @(posedge clk)
-        charge <= (s2_ends ? {1'b0, s2_column1 ? word[15:8] : word[7:0]} : 9'd0)
-                + (s2_element ? {1'b0, word[15:8]} : 9'd0) + {8'd0, s2_ea} + {4'd0, s2_memory};
+        charge <= (s2_ends ? {5'd0, s2_column1 ? word[15:8] : word[7:0]} : 13'd0)
+                + (s2_element ? {5'd0, word[15:8]} : 13'd0) + {12'd0, s2_ea} + {8'd0, s2_memory} + s2_isa;
 
     // The debt, paid down by step each clock and never below zero.
     logic [27:0] debt;
-    logic signed [29:0] next;
-    assign next = $signed({2'b00, debt}) + $signed({5'd0, charge, 16'd0}) - $signed({10'd0, product[27:8]});
+    logic signed [31:0] next;
+    assign next = $signed({4'd0, debt}) + $signed({3'd0, charge, 16'd0}) - $signed({12'd0, product[27:8]});
     always_ff @(posedge clk) begin
         if (reset || warm != 2'd0 || !on) debt <= 28'd0;
-        else debt <= next < 0 ? 28'd0 : next > 30'sh0fff_ffff ? 28'hfff_ffff : next[27:0];
+        else debt <= next < 0 ? 28'd0 : next > 32'sh0fff_ffff ? 28'hfff_ffff : next[27:0];
         hold <= on && debt > WINDOW;
     end
     assign debt_clocks = debt[27:16];

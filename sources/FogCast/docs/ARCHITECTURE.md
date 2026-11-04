@@ -382,7 +382,15 @@ also reports managed software independently of that sealed base-image record.
 Target health carries only `software.active_bundle`, `base_identity`,
 `selected` and `generation`, and the host forwards them as `target.software`;
 the operation journal, requester labels and diagnostic error strings stay on
-the target's `GET /v1/kit/software`. Unmanaged targets omit `target.software`, and
+the target's `GET /v1/kit/software`. Before exposing a selection, the agent
+checks that the complete bounded supervisor response has an unambiguous,
+well-formed status envelope and no storage error. If it cannot do so, health
+retains only the active bundle and base identity supplied at launch. The
+supervisor validates its repository and journal invariants; the agent does not
+rebuild the receipt map or independently attest those invariants on each poll.
+This is an agent-side check: hosts remain wire-compatible with older agents,
+which do not gain the check until their kit software is updated.
+Unmanaged targets omit `target.software`, and
 failed health does not retain a previous identity. Public unauthenticated target
 health never exposes software status.
 
@@ -2694,6 +2702,45 @@ The existing local execution mode remains volatile for settings/progress.
 
 See [durable kit library](../../../docs/kit-core-library.md) for the operator
 workflow and explicit storage/recovery boundaries.
+
+### The kit host's packages
+
+A host whose config sets `[core_packages] kit = true` is a kit host (#863
+slice 3). Its installed packages are `kitpackages.View`, not the state
+directory's `core-packages` store. The view opens the durable store with the
+agent's checks (`OpenPersistent` on `/run/fogcast/fesdata3/core-library`)
+and reads the image's factory packages under
+`/usr/share/mister-runtime/core-packages`. Imports go to the durable store.
+List, inspect and read look in the durable store first, then in the factory
+packages. A package in both is the same bytes and is listed once.
+
+A factory package is an unpacked directory named by its package ID. It hashes
+to the same ID as its canonical archive, so the host reads it as that archive
+(`corepackage.ReadPackage`). A directory that does not hash to its name is
+omitted from the list and refused by ID. As in kit-local inventory, the menu
+package is left out of the list; it can still be read by ID. The factory reader
+is independent of the selection files: catalog entries name package IDs, so
+the host needs the packages, not the per-core selections.
+
+The host and `mister-agent` open the durable store as two processes, coordinated
+by its flock. Opening takes that lock and verifies every durable package, so the
+view opens in the background; calls made meanwhile get the unavailable error at
+once instead of waiting. The lock waits until the caller's context ends, so a
+list, inspect or read without a deadline is bounded to one minute. An import
+reads its whole body under the lock and keeps the caller's context, as the
+agent's own install does. Durable and factory inspections are cached by stat
+fingerprint, as above. A factory cache stores only its fingerprint and
+inspection; later reads with a matching fingerprint rebuild the canonical
+archive from the package directory without hashing members or decoding a ROM
+map again. A durable read for the host trusts that fingerprint too
+(`Store.ReadCached`) and rereads the archive from disk without hashing the
+unpacked members or decoding a ROM map again; mister-agent verifies those bytes
+before programming, and its own select and launch paths keep the full `Read`. If
+the durable store cannot be opened, the host follows
+the agent: it withholds the factory packages too and reports HTTP 503
+`CORE_PACKAGE_STORE_UNAVAILABLE` for list, inspect, read and import, carrying
+the open error. It retries the open at most every five seconds, so a host that
+starts before FESDATA3 is ready recovers without a restart.
 
 ## Installed core packages and library entries
 

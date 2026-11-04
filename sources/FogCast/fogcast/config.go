@@ -79,6 +79,7 @@ type Config struct {
 	ZX81MachineROM      ZX81MachineROMConfig
 	Media               MediaConfig
 	Firmware            FirmwareConfig
+	CorePackages        CorePackagesConfig
 	Metadata            MetadataConfig
 	LibraryMedia        []librarymedia.Root
 	Library             LibraryConfig
@@ -221,6 +222,14 @@ type FirmwareConfig struct {
 	BundledDir string
 }
 
+// CorePackagesConfig is [core_packages]. Kit makes this host a kit host: it
+// reads the kit's own packages, the durable store on FESDATA3 and then the
+// image's factory packages, and imports into the durable store. It ignores
+// the state directory's core-packages store.
+type CorePackagesConfig struct {
+	Kit bool
+}
+
 // MediaConfig contains opt-in host capture, preview, and transport settings.
 // Zero values keep physical capture and all media sockets disabled.
 type MediaConfig struct {
@@ -269,6 +278,7 @@ type fileConfig struct {
 	ZX81MachineROM fileZX81MachineROM   `toml:"zx81_machine_rom"`
 	Media          fileMedia            `toml:"media"`
 	Firmware       *fileFirmware        `toml:"firmware"`
+	CorePackages   *fileCorePackages    `toml:"core_packages"`
 	Metadata       *fileMetadata        `toml:"metadata"`
 	LibraryMedia   []fileLibraryMedia   `toml:"library_media"`
 	Library        *fileLibrarySettings `toml:"library"`
@@ -277,6 +287,10 @@ type fileConfig struct {
 
 type fileFirmware struct {
 	BundledDir string `toml:"bundled_dir"`
+}
+
+type fileCorePackages struct {
+	Kit bool `toml:"kit"`
 }
 
 type fileMesh struct {
@@ -490,6 +504,7 @@ func LoadConfig(path string) (Config, error) {
 		ZX81MachineROM:      machineROM,
 		Media:               media,
 		Firmware:            firmware,
+		CorePackages:        corePackagesFrom(raw.CorePackages),
 		Metadata:            metadata,
 		LibraryMedia:        libraryMedia,
 		Library:             library,
@@ -999,6 +1014,13 @@ func normalizeLibraries(raw []fileLibrary) ([]catalog.Root, error) {
 		libraries = append(libraries, catalog.Root{ID: library.ID, System: library.System, Path: root})
 	}
 	return libraries, nil
+}
+
+func corePackagesFrom(raw *fileCorePackages) CorePackagesConfig {
+	if raw == nil {
+		return CorePackagesConfig{}
+	}
+	return CorePackagesConfig{Kit: raw.Kit}
 }
 
 // normalizeFirmware accepts a clean absolute bundled_dir. The directory may

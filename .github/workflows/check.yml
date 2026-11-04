@@ -215,6 +215,8 @@ jobs:
           persist-credentials: false
       - name: Compiler read-audit dependency
         run: sudo apt-get update && sudo apt-get install -y strace
+      - name: PC/XT acceptance image dependencies
+        run: sudo apt-get install -y binutils mtools
       - name: FPGA producer and package software tests
         run: |
           python3 - <<'PYCODE'
@@ -225,6 +227,14 @@ jobs:
                               '-s', 'tests', '-p', pattern, '-v'],
                              cwd='sources/misteross', check=True)
           PYCODE
+      - name: Install formal proof tools
+        run: sudo apt-get update && sudo apt-get install -y yosys
+      - name: Prove PC/XT audio clock crossing and mutation
+        run: |
+          command -v yosys
+          command -v yosys-abc
+          python3 -m unittest discover -s tests -p test_pcxt_audio_cdc.py -v
+        working-directory: sources/misteross
   simulation-tools:
     needs: plan
     if: needs.plan.outputs.cores != '[]'
@@ -285,7 +295,8 @@ jobs:
         if: >-
           matrix.target == 'sim-fes-pcxt-dos' || matrix.target == 'sim-fes-pc386-fesenv' ||
           matrix.target == 'sim-fes-pc386-a20' || matrix.target == 'sim-fes-pc386-c2xx' ||
-          matrix.target == 'sim-fes-pc386-wait'
+          matrix.target == 'sim-fes-pc386-wait' ||
+          matrix.target == 'sim-fes-pc386-speaker'
         run: sudo apt-get update && sudo apt-get install -y mtools
       - name: Simulate selected core scenarios
         env:

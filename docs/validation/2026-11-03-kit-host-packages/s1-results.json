@@ -1,0 +1,25 @@
+{
+ "tag": "s1",
+ "head": "bcbc116a985828d3d52ef83465b1f41cf8537a08",
+ "bundle": "487042798b2ed27989936bd7824e4c10fab6a3cc2cc9a484be9c3ff67ee395f1",
+ "api_gomemlimit": "",
+ "api_ready_s": 5.1,
+ "list_s": 0.4,
+ "factory_ids": [
+  "343e62002df386c83047d548ce974e4f1856626edc223182532e8ca208b0fc32"
+ ],
+ "durable_ids": [
+  "cf41dc16f28ab450ff52cc8f4e38d01d3d0f93b3e17ff207249f5a543321f337"
+ ],
+ "listed": {
+  "343e62002df386c83047d548ce974e4f1856626edc223182532e8ca208b0fc32": "fes.menu",
+  "cf41dc16f28ab450ff52cc8f4e38d01d3d0f93b3e17ff207249f5a543321f337": "fes.coleco"
+ },
+ "listed_matches_kit": true,
+ "st_package": null,
+ "st_source": null,
+ "error": "RuntimeError('no ST package on the kit')",
+ "restored_sw": true,
+ "lease": "idle free",
+ "leftover": "end"
+}
