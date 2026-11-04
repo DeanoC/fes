@@ -1,0 +1,325 @@
+{
+  "status": "passed",
+  "native_source_commit": "dc2cf47604ce003744ce2b1cf0e1e53beb1e4738",
+  "observer_source_commit": "f7e4a5bc3f041f83479c64ef9e585629bc6df53e",
+  "raw_capture_sha256": "ab4d5f46781083a8bfb32f49f3f2ceee2757a2a68198f6f081acaee41b1d991d",
+  "raw_capture_bytes": 42441,
+  "commands": 19,
+  "result": {
+    "cycles": [
+      {
+        "frame": {
+          "source_generation": 4,
+          "reader_generation": 3,
+          "cookie": 1,
+          "bytes": 3686400,
+          "published_crc32": 1202889335,
+          "read_crc32": 1202889335,
+          "frame_sha256": "ca61e5504ffb7b1af1a3f28eafb8dde5315d57c57db4632982be52896b3c5ca1",
+          "drain_generation": 3,
+          "drain_cookie": 3
+        },
+        "returned": {
+          "source_generation": 4,
+          "closed_generation": 7,
+          "frames": 2,
+          "reset": 15,
+          "masters_contained": true
+        },
+        "storage": {
+          "generation": 9,
+          "active": true,
+          "prepared": true
+        }
+      },
+      {
+        "frame": {
+          "source_generation": 10,
+          "reader_generation": 3,
+          "cookie": 1,
+          "bytes": 3686400,
+          "published_crc32": 1202889335,
+          "read_crc32": 1202889335,
+          "frame_sha256": "ca61e5504ffb7b1af1a3f28eafb8dde5315d57c57db4632982be52896b3c5ca1",
+          "drain_generation": 3,
+          "drain_cookie": 3
+        },
+        "returned": {
+          "source_generation": 10,
+          "closed_generation": 13,
+          "frames": 2,
+          "reset": 15,
+          "masters_contained": true
+        },
+        "storage": {
+          "generation": 15,
+          "active": true,
+          "prepared": true
+        }
+      },
+      {
+        "frame": {
+          "source_generation": 16,
+          "reader_generation": 3,
+          "cookie": 1,
+          "bytes": 3686400,
+          "published_crc32": 1202889335,
+          "read_crc32": 1202889335,
+          "frame_sha256": "ca61e5504ffb7b1af1a3f28eafb8dde5315d57c57db4632982be52896b3c5ca1",
+          "drain_generation": 3,
+          "drain_cookie": 3
+        },
+        "returned": {
+          "source_generation": 16,
+          "closed_generation": 19,
+          "frames": 2,
+          "reset": 15,
+          "masters_contained": true
+        },
+        "storage": {
+          "generation": 16,
+          "active": false,
+          "prepared": false
+        }
+      }
+    ],
+    "commands": 19,
+    "final": {
+      "scope": "nano-contained-window-service-v1",
+      "op": "park",
+      "ok": true,
+      "state": "parked",
+      "owner": "bfd8436271e81aaf",
+      "generation": 6,
+      "frames": 2,
+      "package_id": "a2388c4d7d8640d6e70d51c4d164e3c803157e3fb21e91451d6febd74faf6017",
+      "last_frame": {
+        "source_generation": 16,
+        "reader_generation": 3,
+        "cookie": 1,
+        "bytes": 3686400,
+        "published_crc32": 1202889335,
+        "read_crc32": 1202889335,
+        "frame_sha256": "ca61e5504ffb7b1af1a3f28eafb8dde5315d57c57db4632982be52896b3c5ca1",
+        "drain_generation": 3,
+        "drain_cookie": 3
+      },
+      "last_return": {
+        "source_generation": 16,
+        "closed_generation": 19,
+        "frames": 2,
+        "reset": 15,
+        "masters_contained": true
+      },
+      "storage": {
+        "generation": 16,
+        "active": false,
+        "prepared": false
+      }
+    },
+    "ordinary_admission": false,
+    "memory_released": false
+  },
+  "startup": {
+    "records": [
+      {
+        "line": 91,
+        "phase": "loader_begin",
+        "ticks": 6978900608,
+        "hz": 400000000,
+        "el": 2,
+        "sctlr": 818219056
+      },
+      {
+        "line": 92,
+        "phase": "decode_begin",
+        "ticks": 7006602608,
+        "hz": 400000000,
+        "el": 2,
+        "sctlr": 818223157
+      },
+      {
+        "line": 93,
+        "phase": "inflate_end",
+        "ticks": 7470163078,
+        "hz": 400000000,
+        "el": 2,
+        "sctlr": 818223157
+      },
+      {
+        "line": 94,
+        "phase": "checksum_end",
+        "ticks": 7477566655,
+        "hz": 400000000,
+        "el": 2,
+        "sctlr": 818223157
+      },
+      {
+        "line": 95,
+        "phase": "decode_end",
+        "ticks": 7481095468,
+        "hz": 400000000,
+        "el": 2,
+        "sctlr": 818223157
+      },
+      {
+        "line": 96,
+        "phase": "copy_end",
+        "ticks": 7487385301,
+        "hz": 400000000,
+        "el": 2,
+        "sctlr": 818223157
+      },
+      {
+        "line": 97,
+        "phase": "handoff",
+        "ticks": 7505199536,
+        "hz": 400000000,
+        "el": 2,
+        "sctlr": 818219056
+      },
+      {
+        "line": 99,
+        "phase": "go_hwinit",
+        "ticks": 7514540281,
+        "hz": 400000000,
+        "el": 1,
+        "sctlr": 818944005
+      },
+      {
+        "line": 100,
+        "phase": "go_vectors",
+        "ticks": 7517967928,
+        "hz": 400000000,
+        "el": 1,
+        "sctlr": 818944005
+      },
+      {
+        "line": 101,
+        "phase": "go_main",
+        "ticks": 7525086184,
+        "hz": 400000000,
+        "el": 1,
+        "sctlr": 818944005
+      },
+      {
+        "line": 102,
+        "phase": "verifier_ready",
+        "ticks": 7529435107,
+        "hz": 400000000,
+        "el": 1,
+        "sctlr": 818944005
+      },
+      {
+        "line": 103,
+        "phase": "sd_open_begin",
+        "ticks": 7533032972,
+        "hz": 400000000,
+        "el": 1,
+        "sctlr": 818944005
+      },
+      {
+        "line": 104,
+        "phase": "sd_open_end",
+        "ticks": 7549173341,
+        "hz": 400000000,
+        "el": 1,
+        "sctlr": 818944005
+      },
+      {
+        "line": 105,
+        "phase": "fat_mount_end",
+        "ticks": 7561739278,
+        "hz": 400000000,
+        "el": 1,
+        "sctlr": 818944005
+      },
+      {
+        "line": 106,
+        "phase": "retain_begin",
+        "ticks": 7565304517,
+        "hz": 400000000,
+        "el": 1,
+        "sctlr": 818944005
+      },
+      {
+        "line": 107,
+        "phase": "retain_end",
+        "ticks": 29708837597,
+        "hz": 400000000,
+        "el": 1,
+        "sctlr": 818944005
+      }
+    ],
+    "errors": [],
+    "complete": true,
+    "rejected": false,
+    "last_checkpoint": "retain_end",
+    "timings_us": {
+      "loader_begin": 0,
+      "decode_begin": 69255,
+      "inflate_end": 1228156,
+      "checksum_end": 1246665,
+      "decode_end": 1255487,
+      "copy_end": 1271211,
+      "handoff": 1315747,
+      "go_hwinit": 1339099,
+      "go_vectors": 1347668,
+      "go_main": 1365463,
+      "verifier_ready": 1376336,
+      "sd_open_begin": 1385330,
+      "sd_open_end": 1425681,
+      "fat_mount_end": 1457096,
+      "retain_begin": 1466009,
+      "retain_end": 56824842
+    },
+    "core_load_acceptance": false
+  },
+  "rejected_captures": [
+    "initial-missing-FES_NANO_FABRIC_ACTIVATION",
+    "initial-missing-FES_NANO_CORE_ENGINE",
+    "initial-missing-FES_NANO_CORE_MAILBOX",
+    "initial-missing-FES_NANO_WINDOW_GATE",
+    "initial-missing-FES_NANO_WINDOW_SCOPE",
+    "0-repeated-reply",
+    "1-repeated-reply",
+    "2-missing-FES_NANO_MASTER_STOP",
+    "2-missing-FES_NANO_WINDOW_READER_DRAIN",
+    "2-missing-FES_NANO_WINDOW_CLOSURE",
+    "2-repeated-reply",
+    "3-repeated-reply",
+    "4-repeated-reply",
+    "5-repeated-reply",
+    "6-missing-FES_NANO_FABRIC_ACTIVATION",
+    "6-missing-FES_NANO_CORE_ENGINE",
+    "6-missing-FES_NANO_CORE_MAILBOX",
+    "6-missing-FES_NANO_WINDOW_GATE",
+    "6-repeated-reply",
+    "7-repeated-reply",
+    "8-repeated-reply",
+    "9-repeated-reply",
+    "10-missing-FES_NANO_MASTER_STOP",
+    "10-missing-FES_NANO_WINDOW_READER_DRAIN",
+    "10-missing-FES_NANO_WINDOW_CLOSURE",
+    "10-repeated-reply",
+    "11-repeated-reply",
+    "12-repeated-reply",
+    "13-repeated-reply",
+    "14-missing-FES_NANO_FABRIC_ACTIVATION",
+    "14-missing-FES_NANO_CORE_ENGINE",
+    "14-missing-FES_NANO_CORE_MAILBOX",
+    "14-missing-FES_NANO_WINDOW_GATE",
+    "14-repeated-reply",
+    "15-repeated-reply",
+    "16-repeated-reply",
+    "17-repeated-reply",
+    "18-missing-FES_NANO_MASTER_STOP",
+    "18-missing-FES_NANO_WINDOW_READER_DRAIN",
+    "18-missing-FES_NANO_WINDOW_CLOSURE",
+    "18-repeated-reply",
+    "1-borrowed-reader-drain",
+    "9-borrowed-reader-drain",
+    "17-borrowed-reader-drain"
+  ],
+  "hardware_access": false
+}

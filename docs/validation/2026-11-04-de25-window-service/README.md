@@ -60,3 +60,8 @@ TRWU8CBL, then connect the complete Tenfoot App/backend. Ordinary
 package/ROM/parts/media admission, physical HDMI, USB hub input and native
 Ethernet remain open. The kit remains parked on its previous accepted test
 image; its continuing exclusive claim and spare card are unchanged.
+
+Subsequently, this exact native image passed the separate
+[three-session hardware diagnostic](../2026-11-04-de25-window-service-hardware/README.md).
+That record identifies its observer revision and physical evidence; this file
+retains the original off-board qualification scope and limitations.

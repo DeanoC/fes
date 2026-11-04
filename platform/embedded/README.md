@@ -47,6 +47,14 @@ same boot-pinned arena. Both configuration activations are checked. This
 remains a bounded diagnostic; the persistent native frontend, physical HDMI,
 USB hub input and ordinary package admission remain open.
 
+The [persistent window-service board test](../../docs/validation/2026-11-04-de25-window-service-hardware/README.md)
+now passes three request-driven sessions, six changing full frames, two fresh
+SD cycles, six expected stale-request rejections and final Park on TRWU8CBL.
+The real Tenfoot renderer uses the same fixed-package native owner throughout;
+independent firmware closures are observed at generations 7, 13 and 19.
+This qualifies that diagnostic service. The full Tenfoot App/backend,
+ordinary package admission, HDMI, USB hub input and native networking remain open.
+
 The [contained firmware/RTL prototype](firmware/README.md) prepares a pinned
 TF-A source variant and an FPGA identity/read-drain endpoint. The experimental
 [native endpoint](tamago/nativefabric/README.md) now connects their protocols

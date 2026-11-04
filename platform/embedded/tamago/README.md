@@ -473,3 +473,9 @@ three cycles, cancellation, concurrent requests and failures. The previously
 accepted bounded hardware image does not qualify this new native mode.
 Physical HDMI, USB hub input, the complete native Tenfoot launch backend and
 ordinary package/ROM/parts/media admission remain open.
+
+The [matched persistent-service hardware diagnostic](../../../docs/validation/2026-11-04-de25-window-service-hardware/README.md)
+now passes three fixed-window sessions, six frames, two fresh SD/package cycles,
+six expected stale-request rejections and final Park on TRWU8CBL. This is
+acceptance for its exact diagnostic image and observer, not the complete App
+backend, ordinary admission or HDMI/input qualification.
