@@ -303,6 +303,10 @@ class C2xxTestTest(unittest.TestCase):
         self.assertTrue(failures[0].startswith('RTL oracle_steps=2'))
 
 class WaitTestTest(unittest.TestCase):
+    def test_default_limit_keeps_the_wait_suite_at_eight_seconds(self):
+        self.assertEqual(sim.default_limit_seconds('wait'), 8)
+        self.assertEqual(sim.default_limit_seconds('c2xx'), 10)
+
     def test_suite_checks_are_the_programs_names(self):
         source = (sim.CORE / 'sim/wait_test.asm').read_text()
         names = [line.split("'")[1].rstrip('$') for line in source.splitlines() if line.startswith('name_')]

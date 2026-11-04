@@ -753,6 +753,19 @@ def run_c2xx(args, linked: list[Path]) -> dict:
 WAIT_CHECKS = ('zero', '15us', '100us', '1ms', '10ms', '50ms', '300ms', 'DONE')
 
 
+def default_limit_seconds(suite: str) -> int:
+    """Return the suite's default simulated-time hang guard."""
+    if suite == 'sound':
+        return 14
+    if suite in ('boot', 'governor', 'wait'):
+        return 8
+    if suite == 'rtl-stops':
+        return 2
+    if suite in ('a20', 'c2xx'):
+        return 10
+    return 12
+
+
 def run_wait(args, linked: list[Path]) -> dict:
     """WAITTEST.COM at the FreeDOS prompt: INT 15h AH=86h waits against PIT counter 0 and the BIOS tick."""
     images = firmware.images(args.download, args.jobs)
@@ -1427,10 +1440,7 @@ def main() -> int:
         suites = ('devices', 'storage', 'audio', 'opl2', 'benches', 'boot', 'vga', 'sound') if args.suite == 'all' \
             else (args.suite,)
         for suite in suites:
-            args.limit_seconds = limit_seconds or (14 if suite == 'sound' else
-                                                   8 if suite in ('boot', 'governor') else
-                                                   2 if suite == 'rtl-stops' else
-                                                   10 if suite in ('a20', 'c2xx', 'wait') else 12)
+            args.limit_seconds = limit_seconds or default_limit_seconds(suite)
             args.type = typed or ('sound|' if suite == 'sound' else 'dir|')
             args.expect = expect or ('SOUND DONE' if suite == 'sound' else 'bytes free')
             if suite == 'devices':
