@@ -1,5 +1,7 @@
 """Strict native Tenfoot serial observations; no I/O or hardware authority."""
 import copy
+import importlib.util
+from pathlib import Path
 import json
 import re
 import threading
@@ -60,6 +62,19 @@ def packet(data,*,startup=False):
     require(begins==int(startup),'App startup marker differs')
     require(lines[-1].rstrip(b'\r\n').startswith(PREFIX) or exited is not None,'unterminated App evidence')
     return states,b''.join(evidence),exited
+
+
+def startup_checkpoints(data):
+    """Require all checkpoints emitted before the selected App is Ready.
+
+    The selected-service main branches before the fixed-load diagnostic's
+    retain_begin/retain_end. CPU mappings are not decoder phase arguments.
+    """
+    spec=importlib.util.spec_from_file_location('fes_tenfoot_startup',Path(__file__).resolve().parents[1]/'entry/startup.py')
+    decoder=importlib.util.module_from_spec(spec);spec.loader.exec_module(decoder)
+    result=decoder.decode(data,through='fat_mount_end')
+    require(result['complete'] and not result['errors'],'selected App CPU startup checkpoints rejected')
+    return result
 
 
 def quiet(data):return all(row.strip() in (b'',b'NOTICE:') for row in data.splitlines())

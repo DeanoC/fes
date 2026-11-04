@@ -91,3 +91,12 @@ class TenfootTraceTests(unittest.TestCase):
         duplicates=copy.deepcopy(PROGRAMS);duplicates[1]['identity']=copy.deepcopy(duplicates[0]['identity'])
         with self.assertRaises(ValueError):trace.TenfootClient(initial,**dict(common,programs=duplicates))
         self.assertEqual(model.keys,[])
+
+    def test_selected_app_cpu_gate_requires_every_actual_checkpoint(self):
+        raw=(ROOT/'tests/fixtures/nano-tenfoot-startup/cpu.txt').read_bytes()
+        checked=trace.startup_checkpoints(raw)
+        self.assertEqual(len(checked['records']),14)
+        self.assertEqual(checked['last_checkpoint'],'fat_mount_end')
+        for line in raw.splitlines(keepends=True):
+            with self.subTest(line=line[:60]),self.assertRaises(ValueError):trace.startup_checkpoints(raw.replace(line,b'',1))
+        with self.assertRaises(ValueError):trace.startup_checkpoints(raw.replace(b'hz=0000000017d78400',b'hz=0000000017d78401',1))
