@@ -585,3 +585,39 @@ func TestHubReportReachesSharedNormalizedInput(t *testing.T) {
 	}
 	t.Fatal("hub report did not reach shared input decoder")
 }
+
+func TestHubWithoutTranslatorAndInvalidHSPacketIntervalReject(t *testing.T) {
+	for _, mode := range []string{"no-tt", "zero-hub-endpoint", "bad-hs-interval"} {
+		key := keyboardNode(2)
+		root := hubNode(0, key)
+		if mode == "no-tt" {
+			root.device.device[6] = 0
+		}
+		if mode == "zero-hub-endpoint" {
+			root.device.configuration[22] = 0
+		}
+		if mode == "bad-hs-interval" {
+			key = keyboardNode(0)
+			key.device.device[7] = 64
+			key.device.configuration[33] = 17
+			root = key
+		}
+		b := newHubBus(root)
+		h, err := Open(b, Config{PHYClockHz: 60000000})
+		if err == nil || h == nil || key.device.configured {
+			t.Fatal("unsupported transfer was configured", mode, err)
+		}
+	}
+}
+func TestChangedRootSpeedRejectsBeforeAnotherChannelStart(t *testing.T) {
+	b := newHubBus(hubNode(0, keyboardNode(2)))
+	h, err := Open(b, Config{PHYClockHz: 60000000})
+	if err != nil {
+		t.Fatal(err)
+	}
+	count := b.splits
+	b.regs.regs[hprt] |= 1 << 17
+	if data, err := h.PollKeyboard(); err == nil || data != nil || b.splits != count {
+		t.Fatal("changed root armed a packet", err)
+	}
+}

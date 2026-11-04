@@ -102,7 +102,7 @@ func hubConfiguration(data []byte) (byte, error) {
 			}
 		}
 		if selected && d[1] == 5 {
-			if endpoint || len(d) != 7 || d[2]&0x80 == 0 || d[3] != 3 || binary.LittleEndian.Uint16(d[4:6]) > 64 || d[6] == 0 {
+			if endpoint || len(d) != 7 || d[2]&0x80 == 0 || d[3] != 3 || (binary.LittleEndian.Uint16(d[4:6]) == 0 || binary.LittleEndian.Uint16(d[4:6]) > 64) || d[6] == 0 {
 				return 0, fmt.Errorf("dwc2: invalid hub interrupt endpoint")
 			}
 			endpoint = true
@@ -144,7 +144,7 @@ func portSpeed(status uint32) (uint32, error) {
 }
 func validPort(status uint32, speed uint32) bool {
 	actual, err := portSpeed(status)
-	return err == nil && actual == speed && status&(1|2|1<<8) == 1|2|1<<8 && status&(1<<2|1<<3|1<<4|0xffff0000) == 0
+	return err == nil && actual == speed && status&(1|2|1<<8) == 1|2|1<<8 && status&(1<<2|1<<3|1<<4|1<<5|0xffff0000) == 0
 }
 func (h *Host) resetHubPort(port uint16) (uint32, error) {
 	before, err := h.portStatus(port)
@@ -271,7 +271,7 @@ func (h *Host) scan(path []hubPort, depth int) error {
 		if err != nil {
 			return err
 		}
-		if selected.MaxPacketSize > 64 || h.speed == 2 && (selected.MaxPacketSize > 8 || selected.Interval < 10) {
+		if selected.MaxPacketSize > 64 || h.speed == 0 && selected.Interval > 16 || h.speed == 2 && (selected.MaxPacketSize > 8 || selected.Interval < 10) {
 			return fmt.Errorf("dwc2: unsupported keyboard packet size")
 		}
 		if h.keyboardFound {
@@ -350,6 +350,9 @@ func (h *Host) scan(path []hubPort, depth int) error {
 		}
 		if parent.speed != 0 && speed == 0 {
 			return fmt.Errorf("dwc2: high-speed child behind full-speed hub")
+		}
+		if parent.speed == 0 && speed != 0 && device[6] == 0 {
+			return fmt.Errorf("dwc2: hub has no transaction translator for child")
 		}
 		route := parent.route
 		if parent.speed == 0 {

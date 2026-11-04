@@ -265,7 +265,18 @@ func (h *Host) initialize() error {
 	return nil
 }
 
+func (h *Host) link() error {
+	port := h.io.Read32(hprt)
+	if port&(5|1<<12) != 5|1<<12 || port&(1<<4|1<<7|1<<8) != 0 || (port>>17)&3 != h.rootSpeed || h.io.Read32(gint)&(1<<29) != 0 {
+		return fmt.Errorf("dwc2: root link disconnected/reset/changed: %#x", port)
+	}
+	return nil
+}
+
 func (h *Host) begin(ep uint8, mps uint16, kind uint32, in bool, pid uint32, out []byte, limit int, deadline time.Time) error {
+	if err := h.link(); err != nil {
+		return err
+	}
 	if err := h.pio(); err != nil {
 		return err
 	}
@@ -329,10 +340,10 @@ func (h *Host) step() (bool, []byte, bool, error) {
 	if p.polls > 1000000 || !h.io.Now().Before(p.deadline) {
 		return false, nil, false, fmt.Errorf("dwc2: packet timeout")
 	}
-	port := h.io.Read32(hprt)
-	if port&(5|1<<12) != 5|1<<12 || port&(1<<4) != 0 || h.io.Read32(gint)&(1<<29) != 0 {
-		return false, nil, false, fmt.Errorf("dwc2: port disconnected/disabled/overcurrent")
+	if err := h.link(); err != nil {
+		return false, nil, false, err
 	}
+
 	if p.waiting {
 		frame := uint16(h.io.Read32(hfnum))
 		if !p.completeSplit {
