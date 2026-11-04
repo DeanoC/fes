@@ -45,6 +45,9 @@ def entry(entry_build):
             receipt.get('entry_image_sha256')!=sha(image) or receipt.get('entry_image_size')!=image.stat().st_size or
             not 0<image.stat().st_size<=32<<20 or receipt.get('firmware_profile_sha256')!=sha(profile)):
         raise ValueError('entry image is not bound to the source-derived cold Nano profile')
+    usb=receipt.get('usb_control',False)
+    if type(usb) is not bool or usb!=(receipt.get('native_program')=='usbcheck'):
+        raise ValueError('USB boot selection differs from native program')
     entry_payload.checked(receipt,image.read_bytes(),(entry_build/'payload.elf').read_bytes())
     check_sources(receipt.get('native_build_sources'))
     for name,expected in receipt['sources'].items():
@@ -76,6 +79,7 @@ def sources():
         FW/name for name in ('nano_cold.h','nano_cold.c','nano_cold_mmio.inc','nano_cold_platform.c','nano_boot.h',
                             'nano_sd.h','nano_sd.c','nano_sd_platform.h','nano_sd_platform.c','generated/fes_embedded_sd.h',
                             'nano_usb_service.c','nano_usb_service.h','nano_usb_platform.h','generated/fes_embedded_usb.h',
+                            'nano_usb_platform.c','nano_usb_board.c','nano_usb_board.h','nano_usb_boot.inc',
                             'nano_program.c','nano_program.h',
                             'nano_boot.c','nano_bridges.h','nano_bridges.c','nano_bridge_platform.inc','nano_bridge_platform.h',
                             'nano_owned_sip.inc','nano_computer_control.inc','nano_window_control.inc','prepare_nano_owned.py','prepare_tfa.py','nano_digest.py',
@@ -103,7 +107,7 @@ def make(entry_build):
     selected=sources()+ (hps_context.inputs() if context is not None else [])
     inputs={str(p.relative_to(ROOT)):sha(p) for p in selected}
     identity={'format':1,'profile':'cold-smmu-preloaded' if profile.name=='smmu-profile.json' else 'cold-sd-pio-preloaded' if profile.name=='sd-profile.json' else 'cold-serial-preloaded',
-              'sd_pio':profile.name=='sd-profile.json','firmware_profile_sha256':sha(profile),
+              'sd_pio':profile.name=='sd-profile.json','usb_pio':build.get('usb_control',False),'firmware_profile_sha256':sha(profile),
               'smmu_observe':profile.name=='smmu-profile.json',
               'secure_capture_trace':True,
               'spl_atf_trace':True,
@@ -144,7 +148,12 @@ def header(profile):
     if type(smmu) is not bool or smmu and (profile['sd_pio'] or
             any(profile.get(key) is not None for key in ('hps_context','hps_io','hps_control','hps_configuration','hps_reader_memory','hps_ddr_read','hps_window_read','hps_computer'))):
         raise ValueError('boot SMMU observation requires its separate serial-only profile')
+    usb=profile.get('usb_pio',False)
+    if type(usb) is not bool or usb and (profile['sd_pio'] or profile.get('hps_io') is None or smmu or
+            any(profile.get(key) is not None for key in ('hps_control','hps_configuration','hps_reader_memory','hps_ddr_read','hps_window_read','hps_computer'))):
+        raise ValueError('USB PIO requires its sealed pins and separate contained cold profile')
     control=profile.get('hps_control');extra='#define FES_NANO_CONTROL_PROBE '+str(int(control is not None))+'\n'
+    extra+='#define FES_NANO_CONTROLLED_USB '+str(int(usb))+'\n'
     io_map=profile.get('hps_io')
     extra+='#define FES_NANO_HPS_IO_OBSERVE '+str(int(io_map is not None))+'\n'
     if io_map is not None:

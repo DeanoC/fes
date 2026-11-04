@@ -960,8 +960,10 @@ never imports register expectations from an edited saved policy descriptor.
 The selecting boot producer must first verify the sealed project and context;
 the policy digest identifies those compiled expectations and is not a signature
 or runtime authority. The USB SiP dispatcher is installed with an unbound default provider, which
-returns NotReady. No default MMIO binding, selecting boot profile or physical
-USB readiness is installed. Current native images keep USB disabled.
+returns NotReady. The default cold profiles keep the provider unbound and USB contained. The
+explicit `usbcheck` selection installs the trusted MMIO binding described below;
+physical USB readiness remains unqualified. Existing storage/Tenfoot images keep
+USB disabled.
 Next integration needs the selected secure/native binding and a fresh matched
 boot chain before a bounded USB test; mixed SD/USB/core operation remains open.
 
@@ -998,7 +1000,7 @@ report driver. `OpenKeyboardWithControl` binds it to DWC2 without a fallback
 when firmware refuses ownership. Driver enumeration precedes live confirmation;
 reports follow confirmation. Startup failures stop a known prepared lease once;
 ambiguous replies retain resources until reboot. The default boot profile does
-not select this path.
+not select this path; the explicit `usbcheck` diagnostic selects it.
 
 The C RPC fixture runs the actual dispatcher, USB service, cold policy and board
 checks against modeled registers/PHY responses. Separate Go tests run the actual
@@ -1010,3 +1012,26 @@ The cold chain identity includes every input from the owned firmware installer,
 including the USB wire service and program actor. A producer-inventory regression
 checks this closure so adding firmware code cannot silently omit it from the
 matched boot-chain identity.
+
+## Selected cold USB boot diagnostic
+
+`tamago/run.py usbcheck --board de25-nano --profile nano/probe-profile.json`
+(with an explicit sealed `--hps-first-project` and toolchain/output arguments)
+selects the runtime-owned USB path. The unchanged profile enters with USB held
+and advertises no static readiness. The native link assignment, entry receipt
+and cold profile bind that selection; the entry rejects a missing selected
+client/driver path. No USB provider is inferred from a clock value or caller.
+
+The cold producer installs `nano_usb_boot.inc` only for that selection. Its
+trusted callbacks use the existing EL3 MMIO/barrier/wait operations, the accepted
+cold provider and the complete sealed pin map. Board/clock checks initialize
+while the controller remains reset. The runtime then obtains the boot owner
+through context/pin verification, acquires the prepared lease, initializes the
+real DWC2 driver, confirms PHY/VBUS readiness and polls for five seconds before
+a checked stop. Objects remain rooted after failures. Startup failures abort
+only a known prepared lease; uncertain replies retain ownership.
+
+This is a bounded USB-only diagnostic, not combined USB/storage/core permission.
+The current DWC2 enumerator supports a direct boot keyboard and rejects hubs.
+The existing keyboard/controller-through-hub connection needs hub support before
+it can supply native launcher input. No physical USB test is established here.

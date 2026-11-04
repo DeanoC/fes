@@ -134,6 +134,7 @@ class HPSIOTests(unittest.TestCase):
                 'hps_context_sha256':context.digest(self.context),'hps_io':self.mapping,'hps_io_sha256':context.digest(self.mapping)}
         with patch.object(context,'derive',return_value=self.context),patch.object(context,'hps_io',return_value=self.mapping):
             self.assertEqual(context.checked_hps_io(record),self.mapping)
+            self.assertEqual(context.checked_hps_io(dict(record,program='usbcheck')),self.mapping)
             for key in ('hps_io','hps_io_sha256'):
                 changed=dict(record);changed.pop(key)
                 with self.subTest(key=key),self.assertRaises(ValueError):context.checked_hps_io(changed)
@@ -161,6 +162,11 @@ class HPSIOTests(unittest.TestCase):
                 cold.header(dict(profile,hps_io=changed,hps_io_sha256=context.digest(changed)))
         for key,value in (('sd_pio',True),('hps_control',{'cpu_base':0x20010400}),('hps_io_sha256','f'*64),('hps_context',None)):
             with self.subTest(key=key),self.assertRaises(ValueError):cold.header(dict(profile,**{key:value}))
+        usb=cold.header(dict(profile,usb_pio=True))
+        self.assertIn('#define FES_NANO_CONTROLLED_USB 1',usb)
+        self.assertIn('#define FES_NANO_CONTROLLED_SD 0',usb)
+        for key,value in (('usb_pio',1),('usb_pio','true'),('sd_pio',True),('hps_io',None),('hps_control',{})):
+            with self.subTest(usb_field=key),self.assertRaises(ValueError):cold.header(dict(profile,usb_pio=True,**{key:value}) if key!='usb_pio' else dict(profile,usb_pio=value))
         self.assertIn('#define FES_NANO_HPS_IO_OBSERVE 0',cold.header({k:v for k,v in profile.items() if k not in ('hps_io','hps_io_sha256')}))
 
     def test_actual_c_double_sample_and_every_read_or_ownership_failure(self):

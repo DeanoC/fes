@@ -251,7 +251,7 @@ def build(args):
     program_platform=program_metadata=None
     package_archive=None
     hps_project=getattr(args,'hps_first_project',None)
-    if args.program in ('bootcontext','hpsio','fpgacontext','fpgastatus','fpgaload'):
+    if args.program in ('bootcontext','hpsio','usbcheck','fpgacontext','fpgastatus','fpgaload'):
         required_profile='sd-profile.json' if args.program=='fpgaload' else 'probe-profile.json'
         if hps_project is None or raw!=(APP.parent/'nano'/required_profile).read_bytes():
             raise ValueError('context diagnostics require a sealed HPS-first project and their source-derived serial/SD profile')
@@ -261,7 +261,7 @@ def build(args):
         context=hps.derive(hps_project)
         if (context['programming_profile']=='de25-embedded-hps-first-window-diagnostic-v1')!=window_memory:
             raise ValueError('the window source requires explicit --window-memory and cannot inherit a fixed-reader diagnostic')
-        if args.program=='hpsio':io_map=hps.hps_io(hps_project)
+        if args.program in ('hpsio','usbcheck'):io_map=hps.hps_io(hps_project)
         if args.program in ('fpgacontext','fpgastatus','fpgaload'):control_map=hps.control(hps_project)
         if args.program=='fpgaload':
             configuration_map=hps.configuration(hps_project)
@@ -311,7 +311,7 @@ def build(args):
     uart_base = 0x10c02000 + uart_index * 0x100
     generated = output / "profile.go"
     generated.write_text("//go:build tamago && arm64 && de25nano\n\npackage de25nano\nconst (\n" +
-                         f"profileRAMStart = {start}\nprofileRAMSize = {size}\nprofileSDControlEnabled = {str(profile['sd_control'] is not None).lower()}\nprofileSDInputClockHz = {frequency}\nprofileUSBPHYClockHz = {usb_frequency}\nprofileConsoleUARTBase = {uart_base}\n" +
+                         f"profileRAMStart = {start}\nprofileRAMSize = {size}\nprofileSDControlEnabled = {str(profile['sd_control'] is not None).lower()}\nprofileSDInputClockHz = {frequency}\nprofileUSBPHYClockHz = {usb_frequency}\nprofileUSBControlEnabled = {str(args.program == 'usbcheck').lower()}\nprofileConsoleUARTBase = {uart_base}\n" +
                          f"profileFPGAProbeEnabled = {str(fpga is not None).lower()}\nprofileFPGAProbeBase = {fpga['base'] if fpga else 0}\nprofileFPGAProbeBytes = {fpga['size'] if fpga else 0}\n)\n")
     with generated.open('a') as stream:
         stream.write('const (\nprofileConfigurationBase = '+str(configuration_map['base'] if configuration_map else 0)+'\nprofileConfigurationBytes = '+str(configuration_map['size'] if configuration_map else 0)+'\n)\n')
@@ -375,6 +375,7 @@ def build(args):
     sources = {str(p.relative_to(ROOT)): sha(p) for p in sorted(files)}
     elf = output / (args.program + ".elf")
     link_flags=f"-s -w -T {entry:#x} -R 0x1000"
+    if args.program=='usbcheck':link_flags+=' -X main.expectedUSBControl=owned-usb-pio-v1'
     if expected_package_id:link_flags+=' -X main.expectedPackageID='+expected_package_id
     if context is not None:link_flags+=' -X main.expectedBootContext='+base64.b64encode(hps.encode(context)).decode()
     if io_map is not None:link_flags+=' -X main.expectedHPSIO='+base64.b64encode(hps.encode(io_map)).decode()
@@ -427,7 +428,7 @@ def build(args):
     if sources != {str(p.relative_to(ROOT)): sha(p) for p in sorted(files)}:
         raise ValueError("sources changed while building")
     report = {"status": "cross-built", "board": "de25-nano", "program": args.program,
-              "expected_package_id":expected_package_id,
+              "expected_package_id":expected_package_id,"usb_control":args.program=='usbcheck',
               "hps_context":context,"hps_context_sha256":hps.digest(context) if context else None,
               "hps_io":io_map,"hps_io_sha256":hps.digest(io_map) if io_map else None,
               "cpu_mapping":cpu_map,"cpu_mapping_sha256":hps.digest(cpu_map) if cpu_map else None,

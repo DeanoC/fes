@@ -82,6 +82,12 @@ void fes_nano_platform_hps_io_sip(uint64_t operation,uint64_t owner,uint64_t gen
         hps_io.reads,hps_io.first_error,(unsigned long long)owner,(unsigned long long)generation);
 }
 #endif
+#if defined(FES_NANO_CONTROLLED_USB) && FES_NANO_CONTROLLED_USB
+#if !defined(FES_NANO_HPS_IO_OBSERVE) || !FES_NANO_HPS_IO_OBSERVE
+#error Controlled_USB_requires_complete_sealed_HPS_pins
+#endif
+#include "nano_usb_boot.inc"
+#endif
 #ifdef FES_NANO_READER_CPU_BASE
 static int cold_master_owns(void *,uint64_t,uint64_t);
 static int cold_master_quiesce(void *,uint32_t);

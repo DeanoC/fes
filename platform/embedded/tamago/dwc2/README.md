@@ -49,3 +49,9 @@ returns a partial host on initialization or enumeration failure so its owner can
 retain it through lease cleanup. Every transfer step rechecks polling PIO mode,
 interrupt masking and descriptor-DMA disable. If DMA unexpectedly becomes
 enabled, the host retires without rewriting or halting an uncertain channel.
+
+The explicit Nano `usbcheck` build selects the source-bound secure provider and
+`OpenKeyboardWithControl`, rather than asserting readiness at entry. It verifies
+the cold context/pins before acquiring USB, confirms live readiness after driver
+startup and stops after a bounded polling interval. This does not enable USB
+for storage/Tenfoot profiles or implement the hub/split-transaction path.

@@ -31,6 +31,25 @@ cache_model = importlib.util.module_from_spec(_cache_spec)
 _cache_spec.loader.exec_module(cache_model)
 
 
+def usb_control_option(receipt):
+    selected=receipt.get('program')=='usbcheck'
+    value=receipt.get('usb_control',False)
+    if type(value) is not bool or value!=selected:
+        raise ValueError('USB lease selection differs from native program')
+    command=receipt.get('command',[])
+    try:tokens=shlex.split(command[command.index('-ldflags')+1])
+    except (ValueError,IndexError,TypeError,AttributeError):
+        if selected:raise ValueError('USB lease requires its native link assignment') from None
+        tokens=[]
+    options=[(i,word) for i,word in enumerate(tokens) if 'main.expectedUSBControl' in word]
+    if selected:
+        if (len(options)!=1 or options[0][1]!='main.expectedUSBControl=owned-usb-pio-v1' or
+                options[0][0]==0 or tokens[options[0][0]-1]!='-X' or command[-1]!='./cmd/usbcheck'):
+            raise ValueError('USB lease differs from the exact selected native link command')
+    elif options:raise ValueError('unselected USB lease appears in the native link command')
+    return selected
+
+
 def window_memory_option(receipt, memory):
     selected=receipt.get('window_memory',False)
     if (type(selected) is not bool or selected !=
@@ -213,6 +232,7 @@ def main():
     native_window_storage_return = False
     native_window_reload = False
     native_window_service = False
+    native_usb_control = False
     if args.target == "qemu":
         if args.nano_build or args.profile or args.image_address is not None:
             parser.error("Nano receipt, profile and load address are only valid with --target de25-nano")
@@ -241,6 +261,10 @@ def main():
         hps=importlib.util.module_from_spec(context_spec);context_spec.loader.exec_module(hps)
         native_context=hps.checked(receipt)
         native_io=hps.checked_hps_io(receipt)
+        native_usb_control=usb_control_option(receipt)
+        if native_usb_control and any(token not in payload.read_bytes() for token in
+                (b"FES_NATIVE_USB READY",b"usbcontrol.Open",b"OpenKeyboardWithControl")):
+            raise ValueError("selected USB driver/client path is absent from the native ELF")
         native_control=hps.checked_control(receipt)
         native_configuration=hps.checked_configuration(receipt)
         native_reader_memory=hps.checked_reader_memory(receipt)
@@ -463,6 +487,7 @@ def main():
               "native_build_sha256": sha(receipt_bytes) if receipt_bytes is not None else None,
               "native_build_sources": native_sources,
               "native_program":receipt['program'] if receipt_bytes is not None else None,
+              "usb_control":native_usb_control,
               "hps_context":native_context,
               "hps_context_sha256":hps.digest(native_context) if native_context is not None else None,
               "hps_io":native_io,

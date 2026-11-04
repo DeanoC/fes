@@ -44,6 +44,21 @@ class NanoUSBBoardTests(unittest.TestCase):
             self.assertEqual(result.returncode, 0, result.stderr)
             self.assertIn('PASS actual USB board clocks/pins', result.stdout)
 
+    def test_selected_cold_binding_and_owned_wire(self):
+        with tempfile.TemporaryDirectory(prefix='fes-nano-usb-boot-') as temp:
+            project, _ = self.project(temp)
+            (Path(temp)/'usb_board_policy.h').write_text(usb_readiness.header(project, {'hps_io_hash':'d'*64}))
+            binary=Path(temp)/'usb-boot'
+            command=['cc','-std=c11','-Wall','-Wextra','-Werror','-fsanitize=undefined',
+                     '-fno-sanitize-recover=all','-I'+str(FW),'-I'+temp]
+            command += [str(FW/n) for n in ('nano_cold.c','nano_hps_io.c','nano_bridges.c',
+                         'nano_usb_platform.c','nano_usb_board.c','nano_usb_service.c','tests/nano_usb_boot_test.c')]
+            subprocess.run([*command,'-o',str(binary)],check=True,timeout=30)
+            for mode in range(6):
+                with self.subTest(mode=mode):
+                    result=subprocess.run([str(binary),str(mode)],capture_output=True,text=True,timeout=30)
+                    self.assertEqual(result.returncode,0,result.stdout+result.stderr)
+
     def test_policy_requires_actual_compiled_handoff(self):
         with tempfile.TemporaryDirectory(prefix='fes-nano-usb-policy-') as temp:
             project, handoff = self.project(temp)

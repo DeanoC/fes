@@ -22,4 +22,7 @@ Tests use the actual C dispatcher/service/platform/board/cold policy through a
 register-model process. DWC2 tests separately exercise the real host driver with
 a modeled device and firmware replies. Neither is physical USB acceptance.
 The Nano BSP exposes `OpenKeyboardWithControl`; existing cold SD boot profiles
-keep USB disabled until a matched secure provider is selected.
+keep USB disabled. The explicit `usbcheck` program selects the matched secure
+provider while entering with USB held, and obtains its owner through the actual
+boot-context/pin verifier. It polls a direct boot keyboard for five seconds and
+closes the lease; hub support and mixed storage/core permission remain open.

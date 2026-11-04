@@ -570,10 +570,10 @@ def _selected_program(project):
 def checked(record, program_key='program'):
     keys = ('hps_context', 'hps_context_sha256', 'hps_project')
     if all(record.get(key) is None for key in keys):
-        if record.get(program_key) in ('bootcontext','hpsio','fpgacontext','fpgastatus','fpgaload'):
+        if record.get(program_key) in ('bootcontext','hpsio','usbcheck','fpgacontext','fpgastatus','fpgaload'):
             raise ValueError('native context image is missing its sealed HPS context')
         return None
-    if any(record.get(key) is None for key in keys) or record.get(program_key) not in ('bootcontext','hpsio','fpgacontext','fpgastatus','fpgaload'):
+    if any(record.get(key) is None for key in keys) or record.get(program_key) not in ('bootcontext','hpsio','usbcheck','fpgacontext','fpgastatus','fpgaload'):
         raise ValueError('HPS source context requires a dedicated native context image')
     expected = derive(record['hps_project'])
     if record['hps_context'] != expected or record['hps_context_sha256'] != digest(expected):
@@ -583,7 +583,7 @@ def checked(record, program_key='program'):
 
 def checked_hps_io(record, program_key='program'):
     keys=('hps_io','hps_io_sha256')
-    if record.get(program_key)!='hpsio':
+    if record.get(program_key) not in ('hpsio','usbcheck'):
         if any(record.get(key) is not None for key in keys):
             raise ValueError('live HPS I/O observation requires its dedicated native image')
         return None
