@@ -210,7 +210,7 @@ class HilPlanTest(unittest.TestCase):
     def test_ci_selection_scripts_are_none(self):
         plan = hil_module()
         for name in ('affected', 'hil_plan', 'host_tests', 'runtime_tests', 'changed_paths',
-                     'test_changed', 'de25_runtime', 'de25_dma_descriptor'):
+                     'test_changed', 'input_diagnostic', 'de25_runtime', 'de25_dma_descriptor'):
             path = f'scripts/{name}.py'
             with self.subTest(path=path):
                 row = plan.classify_path(path)

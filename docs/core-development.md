@@ -197,10 +197,11 @@ python3 scripts/core_dev.py prepare --core fes.zx81 --output out/core-dev/zx81-0
 sha256sum examples/input/zx81-keyboard.json
 ```
 
-The committed recipe presses and releases Shift: keyboard device 0, key kind 0,
-code 256, on `fes.keyboard` 1.0. The code comes from the selected FogCast
-`internal/zx81keys/matrix.go`; it is not a gamepad-to-keyboard mapping.
-No external media is required for this ZX81 package. Shift alone need not
+The committed recipe presses and releases Left Shift on the standard ZX81
+keyboard: device 0, key kind 0, code 4321 (`0x1000 + 0xe1`), on
+`fes.keyboard.hid` 1.0. This is USB HID Keyboard/Keypad usage `0xe1`, encoded
+by FogCast `internal/hidkeys`; it applies to the shared DE10 and DE25 ZX81
+cores. A cassette is not required for this input probe. Shift alone need not
 produce visible output; success does not prove FPGA key consumption.
 
 After reserving the kit and checking its lease, use the acceptance command
@@ -209,7 +210,7 @@ directory and title, and add:
 
 ```text
 --input-events /absolute/path/to/fes/examples/input/zx81-keyboard.json
---expected-input-sha256 0e93f736f2d0418f2791ae702758e0ae21b6924e2380ba6cdc232e37b80f296b
+--expected-input-sha256 4b42183444b1668dad0a0c4e0cf65de19bffc5d7a65538190c7d90f41a29431b
 --input-timeout 10
 ```
 
@@ -246,7 +247,10 @@ explicit `events` array. Files are limited to 64 KiB and 64 events. Supported
 event forms, balanced press/release pairs and neutral final axis state are
 validated before any API mutation. No arbitrary sleeps or commands are allowed.
 The runtime must advertise the exact requested active interface and the owned
-input bridge must be attached and ready before dispatch.
+input bridge must be attached and ready before dispatch. HID recipes require
+exactly `fes.keyboard.hid` 1.0 and keyboard events carrying `0x1000 + usage`,
+where usage is `0x04..0x7f` or `0xe0..0xe7`. Reserved usages, matrix codes and
+gamepad events are refused in that recipe; no keyboard mapping is inferred.
 
 The runner checks session and input-bridge identity before each event and while
 observing counters. A changed owner, reconnect, regressed counter, timeout or

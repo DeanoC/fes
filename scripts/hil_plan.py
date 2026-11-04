@@ -23,7 +23,7 @@ RULES = [
         'scripts/check_doc_links.py', 'scripts/coordination.py', 'scripts/de25_runtime.py',
         'scripts/de25_dma_descriptor.py',
         'scripts/hil_plan.py', 'scripts/consistency.py', 'scripts/generate.py',
-        'scripts/host_affected.py', 'scripts/runtime_tests.py',
+        'scripts/host_affected.py', 'scripts/runtime_tests.py', 'scripts/input_diagnostic.py',
     )],
     # The native permanent-owner kernel now compiles this same DMA driver.
     # Only its disabled KUnit translation unit remains software-test-only.
