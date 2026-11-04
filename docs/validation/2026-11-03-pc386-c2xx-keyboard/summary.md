@@ -147,3 +147,11 @@ current lock and the requested `c2xx`, `wait`, `system` and `boot` suites were
 rerun. All six CPU/suite runs passed on the same BIOS image. The exact BIOS,
 tool versions, commands and retained reports are in the
 [merged-BIOS rerun record](merged-bios-rerun.md).
+
+## Merged-main rerun (2026-11-04)
+
+After merging `origin/main` `bb51f445`, the BIOS source changed and was rebuilt
+from the pinned dev86 toolchain. All six requested simulations passed on the
+new BIOS (`26b37cca…b73e1b4b0`), including c2xx and wait on both CPU paths.
+The exact source and image hashes, commands, unit-test results and reports are
+in the [merged-main BIOS rerun record](merged-main-bios-rerun.md).
