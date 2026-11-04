@@ -77,7 +77,7 @@ int main(int argc, char** argv) {
                 case wire::PictureFrames: result = b.picture_frames; break;
                 case wire::ELine: result = b.word(0x4014); break;
                 case wire::SourceInk: result = b.source_ink != 0; break;
-                case wire::BridgeFault: result = SIGNAL(faults); break;
+                case wire::BridgeFault: result = SIGNAL(transport__DOT__faults); break;
                 default: throw std::runtime_error("unknown observation");
                 }
             } else if (op == wire::PeekRam) {

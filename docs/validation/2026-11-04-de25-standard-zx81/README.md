@@ -67,3 +67,35 @@ This is software/model evidence. Production construction still uses the old
 bring-up driver, and the board was not reprogrammed or restarted. Standard core
 RTL, the allocated session memory adapter, clocks/audio, production profile and
 exact-package hardware acceptance remain required for the original normal-kit goal.
+
+## Combined standard component and receipt refresh
+
+The standard board wrapper connects the actual shared ZX81 core, atomic control
+bridge and allocated session display. Separate system/pixel reset releases remain
+board inputs, and the reserved DE10 window is disabled. At `83e89341b`, the
+committed full-wrapper regression passed in 207.599 seconds, including the older
+real-ROM BASIC/endpoint/board regressions. The combined diagnostic preserves a
+RAM marker and continuing CPU writes across three allocation/display cycles.
+Its internal16K diagnostic ROM does not establish ROM/RAM-pack composition.
+
+At `f77738c50`, the captured standard Qsys component passed actual Pro26.3
+validation and Verilog generation in 18.922 seconds; its current model/producer
+checks passed in 48.867 seconds. Component sources and M20K adaptations are
+recorded, but the canonical complete-board producer still selects the bring-up
+path. This is not a full-board fit, timing result or deployed package.
+
+The broad affected run at `cfbe09131` passed its parent and four preceding
+native/Coleco RTL stages, then failed one source-bound composition receipt check
+among 1,797 misteross tests (76 skips). No all-plan pass is claimed. The transport
+extraction also required updating the proof observers to the same sticky fault
+word at its new hierarchy. A fresh 14-case native/Cortex-A76 combined client/RTL
+proof passed at `2c8395296` in 730.866 seconds. The branch-local fixture is copied
+from that actual proof only after checking every current compiler/runtime source
+hash and committed flag. Earlier dated receipts and failures remain unchanged.
+The proof covers its real-ROM BASIC SAVE/load/run/reload and modeled persona
+selection/failure cases; physical partial reconfiguration remains unqualified.
+Six remaining shared-consumer RTL targets are still running separately.
+
+No FPGA or kit software was installed in this phase. The complete board recipe,
+allocated session runtime/profile, vendor clock/audio and standard ROM/expansion
+integration, exact Quartus artifact and normal-kit hardware acceptance remain open.
