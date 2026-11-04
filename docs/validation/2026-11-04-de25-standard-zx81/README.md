@@ -41,3 +41,29 @@ Port board clocks and audio using Terasic settings, preserve standard ROM and
 expansion behavior, then build with Quartus and run the resulting package
 through the normal FES catalog/runtime on the board. Timing, hardware and
 full normal-kit recovery acceptance remain open.
+
+## Shared runtime transport
+
+At `5bd5a61d77721f3a7d6ea5c04fe377139d6733a2`, the standard `FesGpCoreDriver`
+can consume the DE25 atomic-register bridge through the existing MMIO adapter.
+The DE10 default retains its existing bus-settling writes. DE25 validates bridge
+identity/version, ready/fault/idle state, request/ACK agreement and retained
+words, then submits exactly one full word. Uncertain completion remains poisoned
+across session boundaries and realignment; known acknowledged rejections leave
+the link usable.
+
+The independent computer model exercises the actual shared feature driver:
+selected identity, keyboard, running-state cassette insert/eject, SAVE capture,
+dirty-save refusal and explicit acknowledgement. Twelve bridge fault cases
+check refusal and no replay. The first development test supplied reserved HID
+bits; that failed fixture is retained privately and the corrected usage passes.
+
+The complete canonical affected plan passed in 475.202 seconds, including
+1,158 parent tests (five skips), host Go/UI and runtime tests. The same committed
+FesGp test binary was compiled using the authenticated managed DE25 SDK and
+passed under Cortex-A76 AArch64 QEMU in a separate 26.334-second build/run.
+Exact identities and command results are in `standard-driver-transport.json`.
+This is software/model evidence. Production construction still uses the old
+bring-up driver, and the board was not reprogrammed or restarted. Standard core
+RTL, the allocated session memory adapter, clocks/audio, production profile and
+exact-package hardware acceptance remain required for the original normal-kit goal.
