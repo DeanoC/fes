@@ -22,11 +22,11 @@ module fes_de25_computer #(
     input wire write,
     input wire [3:0] byteenable,
     input wire [31:0] writedata,
-    output reg [31:0] readdata = 32'd0,
-    output reg readdatavalid = 1'b0,
+    output wire [31:0] readdata,
+    output wire readdatavalid,
     output wire waitrequest,
-    output reg writeresponsevalid = 1'b0,
-    output reg [1:0] response = 2'b00,
+    output wire writeresponsevalid,
+    output wire [1:0] response,
     output wire [23:0] video_rgb,
     output wire video_de,
     output wire video_hs,
@@ -37,37 +37,15 @@ module fes_de25_computer #(
     output wire [45:0] expansion_request,
     output wire [7:0] memory_peek
 );
-    reg first_seen = 1'b0;
-    reg healthy = 1'b0;
-    reg [31:0] fault_flags = 32'd0;
-    reg [31:0] gpo = 32'd0;
-    wire [31:0] gpi;
-    wire reset_fault = first_seen && !healthy;
-    wire [31:0] faults = fault_flags |
-        (reset_fault ? `FES_DE25_COMPUTER_FAULT_RESET : 32'd0);
-    wire fault_active = faults != 32'd0;
-    wire transport_ready = reset_n && first_seen && healthy && !fault_active;
-    wire gp_busy = ((gpo & `FES_COMPUTER_REQUEST_MASK) != 32'd0) !=
-                   ((gpi & `FES_COMPUTER_ACK_MASK) != 32'd0);
-    wire [31:0] status =
-        (transport_ready ? `FES_DE25_COMPUTER_STATUS_READY : 32'd0) |
-        (gp_busy ? `FES_DE25_COMPUTER_STATUS_BUSY : 32'd0) |
-        (fault_active ? `FES_DE25_COMPUTER_STATUS_FAULT : 32'd0);
-    // Board-owned HDMI completion crosses as one bit into the MMIO clock.
-    (* async_reg = "true", altera_attribute = "-name SYNCHRONIZER_IDENTIFICATION FORCED_IF_ASYNCHRONOUS" *) reg [1:0] video_ready_sync = 2'b00;
-    always @(posedge clk or negedge reset_n)
-        if (!reset_n) video_ready_sync <= 2'b00;
-        else video_ready_sync <= {video_ready_sync[0], video_ready};
-    wire [31:0] video_status = transport_ready && video_ready_sync[1] ?
-        `FES_DE25_COMPUTER_VIDEO_READY : 32'd0;
-    wire [31:0] byte_address = {{(32-`FES_DE25_COMPUTER_ADDRESS_BITS){1'b0}}, address};
-    reg [31:0] read_value;
-    reg read_address_valid;
-    reg [31:0] write_fault;
-    wire [31:0] read_fault = read && !read_address_valid ?
-        `FES_DE25_COMPUTER_FAULT_ADDRESS : 32'd0;
-    wire access_error = (read && !read_address_valid) ||
-                        (write && (fault_active || write_fault != 32'd0));
+    wire [31:0] gpo, gpi;
+    wire transport_ready;
+    fes_de25_computer_transport transport (
+        .clk(clk), .reset_n(reset_n), .video_ready(video_ready), .address(address),
+        .read(read), .write(write), .byteenable(byteenable), .writedata(writedata),
+        .readdata(readdata), .readdatavalid(readdatavalid), .waitrequest(waitrequest),
+        .writeresponsevalid(writeresponsevalid), .response(response),
+        .gpo(gpo), .gpi(gpi), .transport_ready(transport_ready), .faulted()
+    );
 
     wire exec_reset;
     wire [143:0] keyboard_rows;
@@ -119,66 +97,6 @@ module fes_de25_computer #(
         assign expansion_request = 46'd0;
         assign machine_response = 20'd0;
     end endgenerate
-
-    // These two registers deliberately have different reset behavior. The
-    // first qualified release arms the epoch. A later reset clears healthy
-    // asynchronously, even with clk stopped, and it can never become healthy
-    // again. The GP word, mailbox state and sticky causes are never reset alone.
-    always @(posedge clk)
-        if (reset_n) first_seen <= 1'b1;
-    always @(posedge clk or negedge reset_n) begin
-        if (!reset_n) healthy <= 1'b0;
-        else if (!first_seen) healthy <= 1'b1;
-    end
-
-    assign waitrequest = !reset_n || !first_seen;
-    always @* begin
-        read_address_valid = 1'b1;
-        case (byte_address)
-            `FES_DE25_COMPUTER_ID_OFFSET: read_value = `FES_DE25_COMPUTER_IDENTITY;
-            `FES_DE25_COMPUTER_VERSION_OFFSET: read_value = `FES_DE25_COMPUTER_VERSION;
-            `FES_DE25_COMPUTER_STATUS_OFFSET: read_value = status;
-            `FES_DE25_COMPUTER_GPO_OFFSET: read_value = gpo;
-            `FES_DE25_COMPUTER_GPI_OFFSET: read_value = gpi;
-            `FES_DE25_COMPUTER_FAULT_OFFSET: read_value = faults;
-            `FES_DE25_COMPUTER_VIDEO_STATUS_OFFSET: read_value = video_status;
-            default: begin read_value = 32'd0; read_address_valid = 1'b0; end
-        endcase
-        write_fault = 32'd0;
-        if (write && !fault_active) begin
-            if (byte_address != `FES_DE25_COMPUTER_GPO_OFFSET)
-                write_fault = `FES_DE25_COMPUTER_FAULT_ADDRESS;
-            else if (byteenable != 4'hf)
-                write_fault = `FES_DE25_COMPUTER_FAULT_PARTIAL;
-            else if (gp_busy)
-                write_fault = `FES_DE25_COMPUTER_FAULT_BUSY;
-            else if ((writedata & `FES_COMPUTER_REQUEST_MASK) == (gpo & `FES_COMPUTER_REQUEST_MASK))
-                write_fault = `FES_DE25_COMPUTER_FAULT_TOGGLE;
-        end
-    end
-
-    // The bus and mailbox use one clock. Reads capture one complete pre-edge
-    // word; write completion acknowledges GPO storage, not GP command execution.
-    always @(posedge clk) begin
-        if (!waitrequest) begin
-            fault_flags <= fault_flags | write_fault | read_fault;
-            if (write && !fault_active && write_fault == 32'd0)
-                gpo <= writedata;
-        end
-    end
-    always @(posedge clk or negedge reset_n) begin
-        if (!reset_n) begin
-            readdata <= 32'd0;
-            readdatavalid <= 1'b0;
-            writeresponsevalid <= 1'b0;
-            response <= 2'b00;
-        end else begin
-            readdatavalid <= read && !waitrequest;
-            writeresponsevalid <= write && !waitrequest;
-            response <= access_error ? 2'b10 : 2'b00;
-            if (read && !waitrequest) readdata <= read_value;
-        end
-    end
 
     fes_computer_mailbox #(
         .ENABLE_KEYBOARD(1), .ENABLE_ZX81_TAPE(1), .MEDIA_AW(14),
@@ -246,4 +164,114 @@ module fes_de25_computer #(
     assign video_de = video_ready_frame && de;
     assign video_hs = video_ready_frame && hs;
     assign video_vs = video_ready_frame && vs;
+endmodule
+
+// Atomic register transport shared by the bring-up and standard-core wrappers.
+// It owns no machine/media/display state and cannot reset its epoch locally.
+module fes_de25_computer_transport (
+    input wire clk, reset_n, video_ready,
+    input wire [`FES_DE25_COMPUTER_ADDRESS_BITS-1:0] address,
+    input wire read, write,
+    input wire [3:0] byteenable,
+    input wire [31:0] writedata,
+    output reg [31:0] readdata = 32'd0,
+    output reg readdatavalid = 1'b0,
+    output wire waitrequest,
+    output reg writeresponsevalid = 1'b0,
+    output reg [1:0] response = 2'b00,
+    output reg [31:0] gpo = 32'd0,
+    input wire [31:0] gpi,
+    output wire transport_ready, faulted
+);
+    reg first_seen = 1'b0;
+    reg healthy = 1'b0;
+    reg [31:0] fault_flags = 32'd0;
+    wire reset_fault = first_seen && !healthy;
+    wire [31:0] faults = fault_flags |
+        (reset_fault ? `FES_DE25_COMPUTER_FAULT_RESET : 32'd0);
+    wire fault_active = faults != 32'd0;
+    assign faulted = fault_active;
+    assign transport_ready = reset_n && first_seen && healthy && !fault_active;
+    wire gp_busy = ((gpo & `FES_COMPUTER_REQUEST_MASK) != 32'd0) !=
+                   ((gpi & `FES_COMPUTER_ACK_MASK) != 32'd0);
+    wire [31:0] status =
+        (transport_ready ? `FES_DE25_COMPUTER_STATUS_READY : 32'd0) |
+        (gp_busy ? `FES_DE25_COMPUTER_STATUS_BUSY : 32'd0) |
+        (fault_active ? `FES_DE25_COMPUTER_STATUS_FAULT : 32'd0);
+    // Board-owned HDMI completion crosses as one bit into the MMIO clock.
+    (* async_reg = "true", altera_attribute = "-name SYNCHRONIZER_IDENTIFICATION FORCED_IF_ASYNCHRONOUS" *) reg [1:0] video_ready_sync = 2'b00;
+    always @(posedge clk or negedge reset_n)
+        if (!reset_n) video_ready_sync <= 2'b00;
+        else video_ready_sync <= {video_ready_sync[0], video_ready};
+    wire [31:0] video_status = transport_ready && video_ready_sync[1] ?
+        `FES_DE25_COMPUTER_VIDEO_READY : 32'd0;
+    wire [31:0] byte_address = {{(32-`FES_DE25_COMPUTER_ADDRESS_BITS){1'b0}}, address};
+    reg [31:0] read_value;
+    reg read_address_valid;
+    reg [31:0] write_fault;
+    wire [31:0] read_fault = read && !read_address_valid ?
+        `FES_DE25_COMPUTER_FAULT_ADDRESS : 32'd0;
+    wire access_error = (read && !read_address_valid) ||
+                        (write && (fault_active || write_fault != 32'd0));
+
+    // These two registers deliberately have different reset behavior. The
+    // first qualified release arms the epoch. A later reset clears healthy
+    // asynchronously, even with clk stopped, and it can never become healthy
+    // again. The GP word, mailbox state and sticky causes are never reset alone.
+    always @(posedge clk)
+        if (reset_n) first_seen <= 1'b1;
+    always @(posedge clk or negedge reset_n) begin
+        if (!reset_n) healthy <= 1'b0;
+        else if (!first_seen) healthy <= 1'b1;
+    end
+
+    assign waitrequest = !reset_n || !first_seen;
+    always @* begin
+        read_address_valid = 1'b1;
+        case (byte_address)
+            `FES_DE25_COMPUTER_ID_OFFSET: read_value = `FES_DE25_COMPUTER_IDENTITY;
+            `FES_DE25_COMPUTER_VERSION_OFFSET: read_value = `FES_DE25_COMPUTER_VERSION;
+            `FES_DE25_COMPUTER_STATUS_OFFSET: read_value = status;
+            `FES_DE25_COMPUTER_GPO_OFFSET: read_value = gpo;
+            `FES_DE25_COMPUTER_GPI_OFFSET: read_value = gpi;
+            `FES_DE25_COMPUTER_FAULT_OFFSET: read_value = faults;
+            `FES_DE25_COMPUTER_VIDEO_STATUS_OFFSET: read_value = video_status;
+            default: begin read_value = 32'd0; read_address_valid = 1'b0; end
+        endcase
+        write_fault = 32'd0;
+        if (write && !fault_active) begin
+            if (byte_address != `FES_DE25_COMPUTER_GPO_OFFSET)
+                write_fault = `FES_DE25_COMPUTER_FAULT_ADDRESS;
+            else if (byteenable != 4'hf)
+                write_fault = `FES_DE25_COMPUTER_FAULT_PARTIAL;
+            else if (gp_busy)
+                write_fault = `FES_DE25_COMPUTER_FAULT_BUSY;
+            else if ((writedata & `FES_COMPUTER_REQUEST_MASK) == (gpo & `FES_COMPUTER_REQUEST_MASK))
+                write_fault = `FES_DE25_COMPUTER_FAULT_TOGGLE;
+        end
+    end
+
+    // The bus and mailbox use one clock. Reads capture one complete pre-edge
+    // word; write completion acknowledges GPO storage, not GP command execution.
+    always @(posedge clk) begin
+        if (!waitrequest) begin
+            fault_flags <= fault_flags | write_fault | read_fault;
+            if (write && !fault_active && write_fault == 32'd0)
+                gpo <= writedata;
+        end
+    end
+    always @(posedge clk or negedge reset_n) begin
+        if (!reset_n) begin
+            readdata <= 32'd0;
+            readdatavalid <= 1'b0;
+            writeresponsevalid <= 1'b0;
+            response <= 2'b00;
+        end else begin
+            readdatavalid <= read && !waitrequest;
+            writeresponsevalid <= write && !waitrequest;
+            response <= access_error ? 2'b10 : 2'b00;
+            if (read && !waitrequest) readdata <= read_value;
+        end
+    end
+
 endmodule

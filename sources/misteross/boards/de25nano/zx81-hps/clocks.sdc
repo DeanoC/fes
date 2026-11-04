@@ -89,7 +89,7 @@ post_message -type info "DE25 visibility: 4 registered sources and first-stage i
 # locally released reset recovery/removal paths remain timed.
 foreach {ready_source ready_stage0 ready_stage1} {
     {fes_video_inst|hdmi_config|READY} {fes_video_inst|hdmi_ready_sync[0]} {fes_video_inst|hdmi_ready_sync[1]}
-    {fes_video_inst|video_ready_source} {soc_inst|subsys_periph|fes_computer|fes_computer|video_ready_sync[0]} {soc_inst|subsys_periph|fes_computer|fes_computer|video_ready_sync[1]}
+    {fes_video_inst|video_ready_source} {soc_inst|subsys_periph|fes_computer|fes_computer|transport|video_ready_sync[0]} {soc_inst|subsys_periph|fes_computer|fes_computer|transport|video_ready_sync[1]}
 } {
     set ready_source_reg [get_registers $ready_source]
     set ready_stage0_reg [get_registers $ready_stage0]

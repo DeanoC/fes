@@ -256,3 +256,21 @@ setup/hold and locally released reset recovery/removal remain timed. This adds
 one pixel clock to the readiness observation; it does not change video pins or
 qualify physical display output. The earlier uncorrected fabric1.1 compilation
 at 16838e82c has negative crossing setup and is not suitable for board testing.
+
+## Standard-core board integration
+
+`fes_de25_zx81_standard.v` connects the shared standard `fes_zx81_core`, extracted
+atomic register transport and kernel-owned session display. The standard core
+runs with the 100 MHz clock fraction and no DE10 reserved DDR window. PCM,
+expansion signals and separately qualified system/pixel reset releases remain
+board interfaces. A transport fault fences machine execution and scanout.
+The reduced wrapper shares the extracted transport; no second protocol was added.
+
+`python3 sim.py --bench standard` uses the actual combined RTL with a CPU/RAM
+loop diagnostic and internal16K memory. It checks running CPU writes and a retained
+RAM marker across allocated display open/drain/CLEAR/new-generation reopen,
+transparent/opaque/alpha frames and kernel-only publication. The normal `all`
+selection includes this case. This is digital integration evidence; the wrapper
+is not yet selected by the canonical producer or production runtime. Physical
+reset/clock/audio, ROM/RAM-pack composition, Quartus and native BASIC testing
+remain required.
