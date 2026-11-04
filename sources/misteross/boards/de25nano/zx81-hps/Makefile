@@ -4,7 +4,7 @@ VENDOR_ARCHIVE ?=
 OUTPUT ?=
 CLIENT_PROOF_ARGS ?=
 
-.PHONY: project generate build sim test client-proof video-sim
+.PHONY: project generate build sim test client-proof video-sim standard-expansion-sim
 project generate build:
 	$(PYTHON) build.py $@ --quartus-root "$(QUARTUS_ROOTDIR)" --vendor-archive "$(VENDOR_ARCHIVE)" $(if $(OUTPUT),--output "$(OUTPUT)")
 sim:
@@ -17,3 +17,6 @@ client-proof:
 
 video-sim:
 	$(PYTHON) video_sim.py $(if $(OUTPUT),--output "$(OUTPUT)")
+
+standard-expansion-sim:
+	$(PYTHON) standard_expansion_sim.py $(if $(OUTPUT),--output "$(OUTPUT)")

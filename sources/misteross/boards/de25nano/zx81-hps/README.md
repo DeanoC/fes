@@ -329,3 +329,22 @@ It is a diagnostic candidate, with no package/timing admission. The canonical
 producer separately binds its functional package identity and strict export
 gates. Runtime software admits the standard profile; the board stays on its
 working baseline until exact-artifact qualification and hardware acceptance.
+
+
+## Standard-core expansion diagnostic
+
+`make standard-expansion-sim OUTPUT=/new/private/path` connects the actual
+standard core, atomic GP transport and display component to the existing PR
+controller and real empty/16K RAM personas. `sim.py --bench standard-expansion`
+and the default `sim.py` suite also run it. It checks1K mirroring versus16K
+separation, empty/RAM/empty reselection, six live-write freeze phases and a
+poisoned GP transport with the PR controller still running. Two randomized
+initial-memory seeds are required; source, derived-memory/firmware, tool,
+binary and log identities are retained in `proof.json`.
+
+This uses a17-byte diagnostic ROM, behavioral memory and a selection mux. It
+observes the actual standard core's private reset to drive the modeled static
+fence; that is a simulation connection, not an exported production Qsys/PR
+reset boundary. It does not establish BASIC boot, dynamic on-board selection,
+placement/timing, package admission or physical PR. The production candidate
+remains internal16K; its package and native board acceptance are still required.

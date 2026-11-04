@@ -43,6 +43,10 @@ def prepare(bench, output=None):
 
 
 def run(bench):
+    if bench == "standard-expansion":
+        from standard_expansion_sim import run as expansion
+        expansion()
+        return
     if bench == "standard":
         run_standard()
         return
@@ -115,9 +119,9 @@ def run_standard():
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--bench", choices=("all", "endpoint", "machine", "board", "standard"), default="all")
+    parser.add_argument("--bench", choices=("all", "endpoint", "machine", "board", "standard", "standard-expansion"), default="all")
     selected = parser.parse_args().bench
-    for bench in (("endpoint", "machine", "board", "standard") if selected == "all" else (selected,)):
+    for bench in (("endpoint", "machine", "board", "standard", "standard-expansion") if selected == "all" else (selected,)):
         run(bench)
 
 
