@@ -3,6 +3,7 @@
 #include "native/linux/de25_menu.hpp"
 #include "native/hardware.hpp"
 #include "native/generated/fes_de25_scanout.hpp"
+#include "native/generated/fes_application.hpp"
 #include <cassert>
 #include <utility>
 #include <vector>
@@ -101,6 +102,33 @@ struct SessionControl final : MenuDisplay {
   ++quiesces;
   if(fail_quiesce)return {ErrorCode::io_failed,"uncertain GP quiescence","menu"};
   enabled=false;quiesced=true;return ReadInfo(d,out);
+ }
+ // Independent pixel-control model behind the real GP display driver. Buffer
+ // publication remains exclusively in Operations, including completion counters.
+ std::pair<unsigned,std::uint16_t> Command(unsigned op,unsigned index,unsigned argument) {
+  using namespace generated;
+  if(op==FesApplicationOpcodeMenuConfigure) {
+   if(index||argument!=FesApplicationMenuLayout)return {3,0};
+   if(enabled||!quiesced)return {4,0};
+   return {Configure(0).ok()?0u:4u,0};
+  }
+  if(op==FesApplicationOpcodeMenuControl) {
+   if(index)return {2,0};
+   if(argument==FesApplicationMenuControlEnable)return {Enable(0).ok()?0u:4u,0};
+   if(argument==FesApplicationMenuControlQuiesce) {
+    MenuDisplayInfo info;return {Quiesce(0,nullptr,&info).ok()?0u:4u,0};
+   }
+   return {3,0};
+  }
+  if(op==FesApplicationOpcodeMenuInfo) {
+   if(argument)return {3,0};
+   MenuDisplayInfo info;ReadInfo(0,&info);
+   const std::uint16_t state=std::uint16_t((configured?1:0)|(enabled?2:0)|(info.pending?4:0)|(quiesced?8:0));
+   const std::uint16_t words[]={1280,720,5120,16384,56,0,64,2,2,state,
+    std::uint16_t(info.displayed_sequence),std::uint16_t(info.displayed_sequence>>16),0,0,312,90,656,540};
+   return index<18?std::make_pair(0u,words[index]):std::make_pair(2u,std::uint16_t(0));
+  }
+  return {1,0}; // GP cannot publish a frame.
  }
  Error RunBlit(std::uint32_t,std::uint32_t,std::uint8_t,std::uint64_t) override {assert(false);return {};}
  Error ReadBlit(std::uint64_t,MenuBlitState*) override {assert(false);return {};}

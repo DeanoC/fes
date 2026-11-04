@@ -5210,7 +5210,9 @@ void TestDe25StandardComputerUsesSharedDriverAndAllocatedSession() {
   FesComputerCapabilityMediaZx81Tape|FesComputerCapabilityMediaZx81TapeWrite|FesComputerCapabilityVideoSessionDisplay;
  mister_test::AtomicComputerBridge bridge(capabilities,d.build.id);De25ComputerMmio registers(bridge);
  FesGp gp(registers,operations.clock,FesGpTransport::de25_computer);FesGpCoreDriver driver(gp);
- LinuxDe25Menu presenter(operations.clock,operations,control,5);De25MenuCoreDriver menu_driver(presenter);
+ bridge.display=[&](unsigned op,unsigned index,unsigned argument){return control.Command(op,index,argument);};
+ MenuDisplayDriver display(gp,operations.clock);
+ LinuxDe25Menu presenter(operations.clock,operations,display,5);De25MenuCoreDriver menu_driver(presenter);
  De25VideoBringup video;
  NativeHardware hardware(base.opener,base.fpga,video,video,base.input,base.input_identity,
   operations.clock,base.log,base.idle,{},&driver,{"/tmp"},SplashIdle(),&presenter,&presenter,nullptr,
@@ -5251,7 +5253,9 @@ void TestDe25StandardComputerUsesSharedDriverAndAllocatedSession() {
   assert(runtime.SetSessionDisplay(game_package.package_id,generation,false,false).ok());
   assert(!bridge.endpoint.held&&base.fpga.calls==2);
  }
- assert(runtime.Stop().ok()&&runtime.status().menu_display.available&&base.fpga.calls==3);
+ const auto stopped=runtime.Stop();
+ if(!stopped.ok())fprintf(stderr,"standard DE25 Stop: %s (%s), programs=%d\n",stopped.message.c_str(),stopped.phase.c_str(),base.fpga.calls);
+ assert(stopped.ok()&&runtime.status().menu_display.available&&base.fpga.calls==3);
  assert(base.input.open_calls==0&&base.i2c.write_calls==0&&base.fpga.hps_ddr_calls==0);
  assert(control.submits==0&&control.quiesces>=3);
 }

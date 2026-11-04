@@ -3,6 +3,7 @@
 #include "fes_computer_endpoint.hpp"
 #include "native/generated/fes_de25_computer.hpp"
 #include "native/generated/fes_gp.hpp"
+#include "native/generated/fes_application.hpp"
 #include "native/linux/de25_computer_mmio.hpp"
 #include <cassert>
 namespace mister_test {
@@ -20,6 +21,9 @@ public:
 	std::uint32_t status = FesDe25ComputerStatusReady, fault = 0, held = 0, video=FesDe25ComputerVideoReady;
 	bool changed_word = false, write_error = false, post_fault = false, post_busy = false;
 	unsigned writes = 0;
+ std::function<std::pair<unsigned,std::uint16_t>(unsigned,unsigned,unsigned)> display;
+ bool display_response=false;
+ std::uint32_t display_word=0;
 	mister::Error Read32(std::uint32_t address, std::uint32_t* value) override
 	{
 		using mister::native::De25ComputerCpuBase;
@@ -33,7 +37,9 @@ public:
 		case FesDe25ComputerFaultOffset:
 			*value = fault | (post_fault && writes ? FesDe25ComputerFaultReset : 0); break;
 		case FesDe25ComputerGpoOffset: *value = held ^ (changed_word && writes ? 1u : 0u); break;
-		case FesDe25ComputerGpiOffset: return endpoint.Read32(kSpiGpiAddress, value);
+		case FesDe25ComputerGpiOffset:
+   if(display_response){*value=display_word;break;}
+   return endpoint.Read32(kSpiGpiAddress, value);
 		default: assert(false && "unexpected physical DE25 register");
 		}
 		return {};
@@ -47,6 +53,13 @@ public:
 		held = value;
 		++writes;
 		const auto error = endpoint.Write32(kFpgaGpoAddress, value);
+  const auto opcode=(value>>24)&127;
+  display_response=display&&opcode>=FesApplicationOpcodeMenuInfo&&opcode<=FesApplicationOpcodeMenuSubmit;
+  if(display_response) {
+   const auto reply=display(opcode,(value>>16)&255,value&65535);
+   display_word=FesGpSignature|((value&FesGpRequestMask)?FesGpAckMask:0)|
+    (reply.first?FesGpErrorMask:0)|reply.second;
+  }
 		return write_error ? mister::Error{mister::ErrorCode::io_failed, "uncertain write"} : error;
 	}
 };
