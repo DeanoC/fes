@@ -180,6 +180,23 @@ class ParentAffectedTests(unittest.TestCase):
                 self.assertEqual(policy.select_groups([path]),
                                  {'policy', 'build', 'packages', 'acceptance'})
 
+    def test_pcxt_acceptance_modules_are_grouped_without_narrowing_unknown_sources(self):
+        modules = policy.names('''pcxt_diagnostic_acceptance pcxt_dos_application_acceptance
+            pcxt_dos_hil_acceptance pcxt_dos_keyboard_acceptance pcxt_floppy_diagnostic_acceptance
+            pcxt_floppy_persistence_acceptance pcxt_health_evidence
+            pcxt_main_application_acceptance''')
+        self.assertTrue(modules <= policy.GROUPS['acceptance'])
+        available = modules | {'test_new_unassigned'}
+        room = policy.selected_modules(policy.select_groups([ROOM]), available)
+        self.assertFalse(modules & room)
+        self.assertIn('test_new_unassigned', room)
+        for module in modules:
+            with self.subTest(module=module):
+                groups = policy.select_groups(['tests/' + module + '.py'])
+                self.assertIn('acceptance', groups)
+                self.assertTrue(modules <= policy.selected_modules(groups, available))
+        self.assertIsNone(policy.select_groups(['scripts/pcxt_unreviewed_helper.py']))
+
     def test_target_image_selector_library_keeps_media_regressions(self):
         path = 'sources/FogCast/internal/targetimage/lock.go'
         groups = policy.select_groups([path])

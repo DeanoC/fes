@@ -10,13 +10,18 @@
 ;      code: DX:AX counts down from FFFFFFFFh while the byte stays as BL
 ;      holds it, with SUB, SBB, JC, CMP and JE.
 ;   2. The same loop over the next 18 ticks, about a second.
+;   3. A speaker loop's passes in a tick: port 61h read, its speaker bit
+;      flipped and written back, with the count and the tick's compare.
+;   4. A VRAM fill's passes in a tick: REP STOSW of 512 words into the text
+;      pages off the screen (B800:1000h), with the count and the compare.
 ;
 ; It prints "GOV TP=<passes> DC=<DelayCnt> C18=<passes>", in hex, on the
 ; screen and to port E9h, and keeps the three in CMOS 70h-79h, low byte
 ; first (the BIOS uses nothing above 3Fh but 5Bh-5Dh, and the machine
 ; 60h-62h), with a boot count in 7Ah and A5h in 7Bh once they are there. A
-; kit run reads them from the fes.pc386.machine record that Stop saves. Last
-; it prints "GOV DONE" and halts with interrupts on.
+; kit run reads them from the fes.pc386.machine record that Stop saves. Then
+; it prints "GOV SPK=<passes> VRAM=<passes>" for 3 and 4. Last it prints
+; "GOV DONE" and halts with interrupts on.
 
 bits 16
 cpu 386
@@ -95,6 +100,22 @@ start:
     call hex
     mov ax, [c18]
     call hex
+
+    ; 3 and 4, each from a tick's edge.
+    call edge
+    call speaker
+    mov [spk], ax
+    call edge
+    call vram
+    mov [vf], ax
+    mov si, text_spk
+    call print
+    mov ax, [spk]
+    call hex
+    mov si, text_vram
+    call print
+    mov ax, [vf]
+    call hex
     mov si, text_done
     call print
 .halt:
@@ -115,6 +136,53 @@ passes:
 .out:
     not ax
     not dx
+    ret
+
+; Wait for the tick to change.
+edge:
+    mov bl, [es:di]
+.wait:
+    cmp bl, [es:di]
+    je .wait
+    ret
+
+; The speaker loop's passes from now until the tick changes, in AX; port
+; 61h as it was.
+speaker:
+    mov bl, [es:di]
+    in al, 0x61
+    mov bh, al
+    xor bp, bp
+.pass:
+    in al, 0x61
+    xor al, 2
+    out 0x61, al
+    add bp, 1
+    cmp bl, [es:di]
+    je .pass
+    mov al, bh
+    out 0x61, al
+    mov ax, bp
+    ret
+
+; The VRAM fill's passes from now until the tick changes, in AX.
+vram:
+    push es
+    push di
+    mov bl, [TICK]
+    mov ax, 0xb800
+    mov es, ax
+    xor bp, bp
+.pass:
+    mov di, 0x1000
+    mov cx, 512
+    rep stosw
+    add bp, 1
+    cmp bl, [TICK]
+    je .pass
+    pop di
+    pop es
+    mov ax, bp
     ret
 
 ; CMOS byte AL into AL; AH into CMOS byte AL.
@@ -176,12 +244,18 @@ text_dc:
     db ' DC=', 0
 text_c18:
     db ' C18=', 0
+text_spk:
+    db 13, 10, 'GOV SPK=', 0
+text_vram:
+    db ' VRAM=', 0
 text_done:
     db 13, 10, 'GOV DONE', 13, 10, 0
 
 tp: dd 0
 dc: dw 0
 c18: dd 0
+spk: dw 0
+vf: dw 0
 
     times 510 - ($ - $$) db 0
     dw 0xaa55

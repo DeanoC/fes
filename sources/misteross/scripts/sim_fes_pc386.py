@@ -48,6 +48,14 @@ docs/pc386-machine-design.md, "Verification" and phases M1-M3.
            follow PIT counter 1 as POST programs it. Every check must print
            ok. With --cpu rtl, the RTL must run it without an oracle step or
            a stop; writes wait-rtl/.
+  speaker  runs cores/fes-pc386/sim/speaker_test.asm (SPKTEST.COM) at the
+           FreeDOS prompt (#1457): PIT counter 2 must be in mode 3 with LSB
+           then MSB counts, as an AT BIOS's POST leaves it, and a count-only
+           write of 60 must give what Ultima VI's port 61h toggles rely on:
+           output high after each rising gate, and a 19,886 Hz square wave
+           with the gate held. Every check must print ok. With --cpu rtl,
+           the RTL must run it without an oracle step or a stop; writes
+           speaker-rtl/.
   sound    boots FreeDOS and runs SOUND.COM; checks the speaker and DSP tones,
            OPL2 output and DSP interrupts.
   game     starts Wolfenstein 3D or Ultima VI from user-supplied eXoDOS files
@@ -64,9 +72,12 @@ docs/pc386-machine-design.md, "Verification" and phases M1-M3.
            max and governor presets, set in the restored fes.pc386.machine
            record as FogCast writes it: an equivalent of Turbo Pascal's CRT
            delay calibration (delay-loop passes in one timer tick) and the
-           passes in 18 more ticks. Under a preset both must be within 5% of
-           the loop's table time (governor.toml) at the preset's frequency,
-           and the record saved at Stop must hold them in CMOS 70h-79h. Its
+           passes in 18 more ticks, then a port 61h speaker loop's and a VRAM
+           fill's passes in a tick, with the machine's device time. Under a
+           preset each must be within 5% of the loop's table time
+           (governor.toml, with its ISA bus time) at the preset's frequency,
+           and the record saved at Stop must hold the first three in CMOS
+           70h-79h. Its
            synthetic boot disk skips the system suite's FreeDOS input exercise.
            --preset runs that one preset beside max, with --frequency (the
            table time follows it) and --turbo (it must run as max does).
@@ -93,6 +104,7 @@ Examples:
   python3 scripts/sim_fes_pc386.py --suite rtl-stops
   python3 scripts/sim_fes_pc386.py --suite a20 --download
   python3 scripts/sim_fes_pc386.py --suite wait --cpu rtl
+  python3 scripts/sim_fes_pc386.py --suite speaker
   python3 scripts/sim_fes_pc386.py --suite sound --download
   python3 scripts/sim_fes_pc386.py --suite game --game ultima6
   python3 scripts/sim_fes_pc386.py --suite game --game wolf3d --cpu rtl
@@ -737,6 +749,31 @@ def run_wait(args, linked: list[Path]) -> dict:
     return {'run': run, 'checks': lines, 'failures': failures}
 
 
+# SPKTEST.COM's checks, in the order it runs them.
+SPEAKER_CHECKS = ('post', 'rise', 'carrier', 'DONE')
+
+
+def run_speaker(args, linked: list[Path]) -> dict:
+    """SPKTEST.COM at the FreeDOS prompt: PIT counter 2 as POST leaves it, and the carrier a count-only write gives."""
+    images = firmware.images(args.download, args.jobs)
+    testbench = machine_testbench(args, linked)
+    suite = 'speaker' + ('-rtl' if args.cpu == 'rtl' else '')
+    disk = fixture_with(args, suite, 'speaker_test.asm', 'SPKTEST.COM')
+    print(f'Running SPKTEST.COM on the {args.cpu} CPU', flush=True)
+    run = run_machine(testbench, suite, ['--disk', str(disk), '--limit-seconds', str(args.limit_seconds),
+                                         '--type', 'spktest|', '--expect', 'SPK DONE ok', '--cpu', args.cpu],
+                      images)
+    lines = [entry['text'] for entry in run['debug'] if entry['port'] == '0e9']
+    run['lines'] = lines
+    failures = run['failures'] + [line for line in lines if not line.endswith(' ok')]
+    names = [line.split()[1] for line in lines if line.startswith('SPK ')]
+    if names != list(SPEAKER_CHECKS):
+        failures.append(f'SPKTEST.COM ran {names}, expected {list(SPEAKER_CHECKS)}')
+    if args.cpu == 'rtl':
+        failures += rtl_failures(run, 'speaker run')
+    return {'run': run, 'checks': lines, 'failures': failures}
+
+
 def run_bench(args, name: str, top: str, rtl: tuple[Path, ...], testbench: Path) -> dict:
     """A PASS/FAIL bench without the oracle."""
     binary = verilate(args.verilator, name, top, rtl, testbench, [], args.jobs)
@@ -943,19 +980,34 @@ def run_system(args) -> dict:
 
 
 # The governor suite: the presets it runs beside max, and governor_test.asm's
-# delay loop, pass by pass: SUB, SBB, JC falling through, CMP with ES:[DI]
-# (one memory bus cycle) and JE taken. A timer tick is 65536 PIT clocks.
+# loops, pass by pass. The delay loop: SUB, SBB, JC falling through, CMP with
+# ES:[DI] (one memory bus cycle) and JE taken. The speaker loop: IN and OUT
+# of port 61h (an 8-bit ISA cycle each), XOR, ADD, the CMP and JE. The VRAM
+# fill: two MOVs, REP STOSW of 512 words into VGA memory (a VGA cycle each),
+# ADD, the CMP and JE. A timer tick is 65536 PIT clocks.
 GOVERNOR_PRESETS = (1, 2, 3, 5)
 GOVERNOR_BUDGET = 0.05
 TICK_SECONDS = 65536 / (105_000_000 / 88)
 
 
-def governor_pass_clocks(preset) -> int:
+def governor_pass_ops(loop: str) -> list:
+    from scripts import test_fes_i386_governor as bench
+    compare = [bench.m('cmp_load', 1), bench.taken('jcc')]
+    if loop == 'crt':
+        return [bench.r('alu_ri'), bench.r('alu_ri'), bench.r('jcc'), *compare]
+    if loop == 'speaker':
+        return [bench.io('in_imm', 0x61), bench.r('alu_ri'), bench.io('out_imm', 0x61), bench.r('alu_ri'), *compare]
+    if loop == 'vram':
+        return [bench.r('mov_r'), bench.r('mov_r'), bench.m('rep_stos', 0),
+                *[bench.element('rep_stos', 1, vga=(1,))] * 512, bench.r('alu_ri'), *compare]
+    raise ValueError(loop)
+
+
+def governor_pass_clocks(preset, loop: str = 'crt', frequency: int = 0) -> int:
     from scripts import fes_i386_governor as table
     from scripts import test_fes_i386_governor as bench
     loaded = table.load()
-    ops = [bench.r('alu_ri'), bench.r('alu_ri'), bench.r('jcc'), bench.m('cmp_load', 1), bench.taken('jcc')]
-    return sum(bench.charge(loaded, preset, op) for op in ops)
+    return sum(bench.charge(loaded, preset, op, frequency) for op in governor_pass_ops(loop))
 
 
 def cmos(record: list[int], byte: int) -> int:
@@ -1015,15 +1067,17 @@ def run_governor(args) -> dict:
             + (' with turbo' if turbo else '')
         governed = bool(preset) and not turbo
         line = next((text for text in report['debug'] if text.startswith('GOV TP=')), None)
+        line2 = next((text for text in report['debug'] if text.startswith('GOV SPK=')), None)
         end = report.get('end') or {}
-        if end.get('reason') != 'prompt' or line is None:
+        if end.get('reason') != 'prompt' or line is None or line2 is None:
             failures.append(f'{name}: the test did not finish ({end.get("reason")}, {report.get("mailbox")})')
             continue
-        fields = dict(field.split('=') for field in line.split()[1:])
+        fields = dict(field.split('=') for field in line.split()[1:] + line2.split()[1:])
         tp, dc, c18 = int(fields['TP'], 16), int(fields['DC'], 16), int(fields['C18'], 16)
+        spk, vram = int(fields['SPK'], 16), int(fields['VRAM'], 16)
         record = report['record']
         stored = [cmos(record, byte) for byte in range(0x70, 0x7c)]
-        entry = {'tp': tp, 'delay_count': dc, 'c18': c18, 'seconds': end['seconds'],
+        entry = {'tp': tp, 'delay_count': dc, 'c18': c18, 'speaker': spk, 'vram': vram, 'seconds': end['seconds'],
                  'governed': report['status']['governed'], 'record_words': [record[0], record[1], record[3]],
                  'cmos_70_7b': stored}
         failures += [f'{name}: record check failed: {check["check"]}' for check in report['record_checks']
@@ -1036,17 +1090,26 @@ def run_governor(args) -> dict:
         if dc != tp // 55:
             failures.append(f'{name}: DC {dc} is not TP / 55 ({tp // 55})')
         if governed:
-            clocks = governor_pass_clocks(presets[preset])
-            per_tick = TICK_SECONDS * (frequency or presets[preset].frequency) * 100_000 / clocks
+            hz = (frequency or presets[preset].frequency) * 100_000
+            clocks = governor_pass_clocks(presets[preset], 'crt', frequency)
+            per_tick = TICK_SECONDS * hz / clocks
+            spk_clocks = governor_pass_clocks(presets[preset], 'speaker', frequency)
+            vram_clocks = governor_pass_clocks(presets[preset], 'vram', frequency)
+            spk_tick, vram_tick = TICK_SECONDS * hz / spk_clocks, TICK_SECONDS * hz / vram_clocks
             entry.update(pass_clocks=clocks, table_tp=round(per_tick, 1), table_c18=round(18 * per_tick, 1),
-                         tp_error=round(tp / per_tick - 1, 5), c18_error=round(c18 / (18 * per_tick) - 1, 5))
-            for what, value, want in (('TP', tp, per_tick), ('C18', c18, 18 * per_tick)):
+                         tp_error=round(tp / per_tick - 1, 5), c18_error=round(c18 / (18 * per_tick) - 1, 5),
+                         speaker_pass_clocks=spk_clocks, table_speaker=round(spk_tick, 1),
+                         speaker_error=round(spk / spk_tick - 1, 5), vram_pass_clocks=vram_clocks,
+                         table_vram=round(vram_tick, 1), vram_error=round(vram / vram_tick - 1, 5))
+            for what, value, want in (('TP', tp, per_tick), ('C18', c18, 18 * per_tick), ('SPK', spk, spk_tick),
+                                      ('VRAM', vram, vram_tick)):
                 if abs(value / want - 1) > GOVERNOR_BUDGET:
                     failures.append(f'{name}: {what} {value} is {value / want - 1:+.2%} from the table ({want:.0f})')
         results[name] = entry
-        checks.append(f'{name}: TP={tp} DC={dc} C18={c18}' + (
+        checks.append(f'{name}: TP={tp} DC={dc} C18={c18} SPK={spk} VRAM={vram}' + (
             f' table TP {entry["table_tp"]:.0f} ({entry["tp_error"]:+.2%}) C18 {entry["table_c18"]:.0f} '
-            f'({entry["c18_error"]:+.2%})' if governed else ''))
+            f'({entry["c18_error"]:+.2%}) SPK {entry["table_speaker"]:.0f} ({entry["speaker_error"]:+.2%}) '
+            f'VRAM {entry["table_vram"]:.0f} ({entry["vram_error"]:+.2%})' if governed else ''))
     # Turbo runs at max: its passes within the budget of max's.
     if args.turbo and 'max' in results and len(results) == 2:
         (name, entry), = [(n, e) for n, e in results.items() if n != 'max']
@@ -1343,7 +1406,8 @@ def run_game(args, linked: list[Path]) -> dict:
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument('--suite', choices=('devices', 'storage', 'audio', 'opl2', 'benches', 'boot', 'rtl-stops',
-                                            'a20', 'wait', 'sound', 'game', 'vga', 'system', 'governor', 'all'),
+                                            'a20', 'wait', 'speaker', 'sound', 'game', 'vga', 'system', 'governor',
+                                            'all'),
                         default='all',
                         help='simulation suite to run')
     parser.add_argument('--download', action='store_true', help='fetch Bochs, dev86, FreeDOS and NASM if missing')
@@ -1369,8 +1433,8 @@ def main() -> int:
     parser.add_argument('--verilator', default=os.environ.get('VERILATOR', 'verilator'))
     parser.add_argument('--jobs', type=int, default=min(os.cpu_count() or 2, 16))
     args = parser.parse_args()
-    if args.cpu == 'rtl' and args.suite not in ('boot', 'game', 'a20', 'wait'):
-        parser.error('--cpu rtl runs the boot, game, a20 and wait suites only')
+    if args.cpu == 'rtl' and args.suite not in ('boot', 'game', 'a20', 'wait', 'speaker'):
+        parser.error('--cpu rtl runs the boot, game, a20, wait and speaker suites only')
     if args.image != 'boot' and args.suite != 'boot':
         parser.error('--image is supported by the boot suite only')
     if (args.preset or args.frequency or args.turbo) and not (
@@ -1391,7 +1455,7 @@ def main() -> int:
             else (args.suite,)
         for suite in suites:
             args.limit_seconds = limit_seconds or (14 if suite == 'sound' else
-                                                   8 if suite in ('boot', 'governor', 'wait') else
+                                                   8 if suite in ('boot', 'governor', 'wait', 'speaker') else
                                                    2 if suite == 'rtl-stops' else 10 if suite == 'a20' else 12)
             args.type = typed or ('sound|' if suite == 'sound' else 'dir|')
             args.expect = expect or ('SOUND DONE' if suite == 'sound' else 'bytes free')
@@ -1419,6 +1483,8 @@ def main() -> int:
                 report = run_a20(args, oracle.link_inputs(args.jobs, args.download))
             elif suite == 'wait':
                 report = run_wait(args, oracle.link_inputs(args.jobs, args.download))
+            elif suite == 'speaker':
+                report = run_speaker(args, oracle.link_inputs(args.jobs, args.download))
             else:
                 run = run_boot if suite == 'boot' else run_vga
                 report = run(args, oracle.link_inputs(args.jobs, args.download))

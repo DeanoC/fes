@@ -2,23 +2,27 @@
 """Generate the i386 speed governor's tables from their source.
 
 cores/fes-common/rtl/i386/governor.toml lists the presets (cost table,
-frequency, wait states, bus width) and the cost classes: the encodings each
-class costs and its reference clock counts on the 80286, Intel386 and i486
+frequency, wait states, bus width), the ISA bus time charged for I/O and MMIO
+accesses, and the cost classes: the encodings each class costs and its
+reference clock counts on the 80286, Intel386 and i486
 (docs/i386-cpu-design.md, "Speed control"). This script checks the table
 (every preset and class well formed, no encoding in two classes, every
 encoding the lockstep's scope builds in a class) and writes two files beside
 it:
 
   fes_i386_gov_pkg.sv  classify(), an instruction's class from its
-                       fes_i386_pkg::gov_t, and preset(), a preset's table,
-                       frequency, wait states and bus
+                       fes_i386_pkg::gov_t; preset(), a preset's table,
+                       frequency, wait states and bus; the ISA cycles and
+                       word16(), whether an I/O access has a 16-bit cycle
   fes_i386_gov_rom.sv  the cost ROM, {column 1, column 0} by {table, class},
                        an M10K-shaped array whose contents are initial
                        assignments, so every flow reads them without a path
 
 Column 0 is a class's cost, column 1 its taken cost (a branch) or its
 per-element cost (a REP string), else its cost again. The governor benches
-read the table through load() and cost().
+read the table through load() and cost(), and the ISA charges through
+isa_clocks(), io_charge() and mmio_charge(), which work them out as the RTL
+does.
 
   python3 scripts/fes_i386_governor.py           # regenerate
   python3 scripts/fes_i386_governor.py --check   # fail if the checked-in files differ
@@ -40,8 +44,12 @@ ROM = RTL / 'fes_i386_gov_rom.sv'
 TABLES = ('286', '386', '486')
 PRESET_IDS = range(1, 8)  # fes.pc386.machine word 0; 0 is max
 FREQUENCY_MAX = 1000      # the record's override range, 100 kHz units
+FREQUENCY_BITS = 10       # the record's word, as the RTL holds it
 WAIT_MAX = 3
 COST_MAX = 255
+ISA_CYCLE_MAX = 15        # ISA clocks in a cycle
+ISA_CLOCKS_BITS = 8       # a cycle in reference clocks, at any frequency the RTL can hold
+BUS_CLOCKS = 2            # a zero-wait bus cycle, which the data sheets' counts hold
 # The gov_t key, most significant field first, as fes_i386_pkg declares it.
 KEY_FIELDS = (('two', 1), ('op', 8), ('mreg', 3), ('rm_reg', 1), ('o32', 1), ('rep', 1))
 KEY_BITS = sum(width for _, width in KEY_FIELDS)
@@ -64,6 +72,40 @@ class Preset:
 
 
 @dataclass(frozen=True)
+class Isa:
+    clock_ns: int
+    io8: int     # ISA clocks in an 8-bit I/O cycle
+    io16: int    # ... a 16-bit I/O cycle, at ports16
+    vga: int     # ... an MMIO cycle, per 16-bit half
+    ports16: tuple[int, ...]
+    # The RTL's fixed point: an ISA clock is (frequency * step) / 2**frac
+    # reference clocks; the generator picks the smallest frac for which every
+    # cycle rounds as the exact figure does.
+    frac: int
+    step: int
+
+    def clocks(self, frequency: int, cycle: int) -> int:
+        """A cycle of this many ISA clocks, in reference clocks at frequency
+        (100 kHz units), rounded as the RTL rounds it."""
+        return (cycle * frequency * self.step + (1 << (self.frac - 1))) >> self.frac
+
+    def cycles(self, port: int, size: int) -> tuple[int, int]:
+        """The 16-bit and 8-bit cycles an I/O access of size (0 byte, 1 word,
+        2 dword) at port takes, as the machine's pc386_io splits it: from its
+        first port up, a 16-bit cycle at a ports16 port with two or more bytes
+        left, else an 8-bit cycle."""
+        words = singles = 0
+        left = 1 << size
+        while left:
+            width = 2 if port in self.ports16 and left >= 2 else 1
+            words += width == 2
+            singles += width == 1
+            port = (port + width) & 0xFFFF
+            left -= width
+        return words, singles
+
+
+@dataclass(frozen=True)
 class CostClass:
     index: int  # the ROM's: classes that cost the same share one
     name: str
@@ -78,6 +120,7 @@ class CostClass:
 @dataclass(frozen=True)
 class Table:
     presets: tuple[Preset, ...]
+    isa: Isa
     classes: tuple[CostClass, ...]
     default: CostClass
     keys: dict[int, int]  # every gov_t key a stem names, to its class's place in classes
@@ -154,6 +197,7 @@ def parse(source: dict) -> Table:
                               wait, bus == 16))
     if sorted(p.id for p in presets) != list(PRESET_IDS):
         raise GovernorError(f'presets must be IDs {PRESET_IDS.start} to {PRESET_IDS.stop - 1}, once each')
+    isa = _isa(source.get('isa'))
 
     classes = []
     keys: dict[int, int] = {}
@@ -197,7 +241,43 @@ def parse(source: dict) -> Table:
     for name in ('int',):
         if name not in names:
             raise GovernorError(f'class {name} is needed: a delivery charges it')
-    return Table(tuple(sorted(presets, key=lambda p: p.id)), tuple(classes), default_class, keys)
+    return Table(tuple(sorted(presets, key=lambda p: p.id)), isa, tuple(classes), default_class, keys)
+
+
+def _isa(entry) -> Isa:
+    if not isinstance(entry, dict) or set(entry) != {'clock_ns', 'io8', 'io16', 'ports16', 'vga'}:
+        raise GovernorError('isa has clock_ns, io8, io16, ports16 and vga')
+    clock_ns = entry['clock_ns']
+    if not isinstance(clock_ns, int) or not 1 <= clock_ns <= 1000:
+        raise GovernorError('isa: clock_ns is 1 to 1000')
+    cycles = {}
+    for name in ('io8', 'io16', 'vga'):
+        value = entry[name]
+        if not isinstance(value, int) or isinstance(value, bool) or not 1 <= value <= ISA_CYCLE_MAX:
+            raise GovernorError(f'isa: {name} is 1 to {ISA_CYCLE_MAX} ISA clocks')
+        cycles[name] = value
+    ports = entry['ports16']
+    if not isinstance(ports, list) or not all(isinstance(p, str) and re.fullmatch(r'[0-9A-F]{1,4}', p) for p in ports):
+        raise GovernorError('isa: ports16 lists ports in hex')
+    ports16 = tuple(sorted({int(p, 16) for p in ports}))
+    # 4 apart, an access reaches at most one of them, so word16() is whether
+    # one is among its bytes with another after it.
+    if any(not 2 <= p <= 0xFFFE for p in ports16) or any(b - a < 4 for a, b in zip(ports16, ports16[1:])):
+        raise GovernorError('isa: ports16 ports are 2h to FFFEh, at least 4 apart')
+    # The smallest fixed point at which every cycle, at every frequency the
+    # RTL can hold, rounds as the exact figure does (halves up).
+    top = 1 << FREQUENCY_BITS
+    for frac in range(8, 33):
+        step = ((clock_ns << frac) + 5000) // 10000
+        isa = Isa(clock_ns, cycles['io8'], cycles['io16'], cycles['vga'], ports16, frac, step)
+        if all(isa.clocks(f, n) == (2 * n * f * clock_ns + 10000) // 20000
+               for n in set(cycles.values()) for f in range(1, top)):
+            break
+    else:
+        raise GovernorError('isa: no fixed point up to 32 bits rounds every cycle exactly')
+    if any(isa.clocks(top - 1, n) >= 1 << ISA_CLOCKS_BITS for n in cycles.values()):
+        raise GovernorError(f'isa: a cycle at {(top - 1) / 10:g} MHz is over {(1 << ISA_CLOCKS_BITS) - 1} clocks')
+    return isa
 
 
 def load() -> Table:
@@ -210,6 +290,33 @@ def cost(table: Table, name: str, table_name: str, column: int = 0) -> int:
     cls = table.by_name(name)
     index = TABLES.index(table_name)
     return (cls.cost if column == 0 else cls.column1)[index]
+
+
+def io_charge(table: Table, frequency: int, port: int, size: int) -> int:
+    """An I/O access's ISA charge at frequency (100 kHz units), size 0, 1 or 2
+    for a byte, word or dword: its cycles less the data sheet's bus cycle."""
+    isa = table.isa
+    words, singles = isa.cycles(port, size)
+    clocks = words * isa.clocks(frequency, isa.io16) + singles * isa.clocks(frequency, isa.io8)
+    return max(0, clocks - BUS_CLOCKS)
+
+
+def halves(address: int, length: int) -> int:
+    """The 16-bit halves of the bus an access of length bytes at address touches."""
+    return (address % 2 + length + 1) // 2
+
+
+def per_access(preset: Preset, dword: bool) -> int:
+    """The wait-state charge of a memory access: the preset's wait states, and
+    on a 16-bit bus a dword's second cycle, its two clocks and wait states."""
+    return preset.wait + (preset.wait + BUS_CLOCKS if preset.bus16 and dword else 0)
+
+
+def mmio_charge(table: Table, preset: Preset, frequency: int, cycles: int, dword: bool) -> int:
+    """An MMIO access's ISA charge: its VGA cycles (one per 16-bit half) less
+    what the table and per_access() give it."""
+    clocks = cycles * table.isa.clocks(frequency, table.isa.vga)
+    return max(0, clocks - BUS_CLOCKS - per_access(preset, dword))
 
 
 def classify(table: Table, two: int, op: int, reg: int, rm_reg: int, o32: int, rep: int) -> CostClass:
@@ -252,11 +359,21 @@ def render(table: Table) -> dict[Path, str]:
         "// element; branch, column 1 is its taken cost; memory, an address of base,",
         '// index and displacement costs one more. preset() gives a preset\'s cost table',
         '// (0 286, 1 386, 2 486), frequency in 100 kHz, wait states per memory bus',
-        '// cycle and a 16-bit bus. cost_rom_index() is the ROM\'s address.',
+        '// cycle and a 16-bit bus. cost_rom_index() is the ROM\'s address. The ISA',
+        '// bus: an ISA clock is frequency * ISA_STEP / 2**ISA_FRAC reference clocks;',
+        '// an 8-bit I/O cycle ISA_IO8 of them, a 16-bit one ISA_IO16, and an MMIO',
+        '// access ISA_VGA per 16-bit half. word16() is whether an I/O access of size',
+        '// (0 byte, 1 word, 2 dword) at port has a 16-bit cycle, as pc386_io splits it:',
+        '// a 16-bit port among its bytes with another byte after it.',
         'package fes_i386_gov_pkg;',
         f'    localparam int CLASS_BITS = {bits};',
         f'    localparam int ROM_ABITS = {abits};',
         f'    localparam logic [{bits - 1}:0] CLASS_DEFAULT = {bits}\'d{table.default.index};',
+        f'    localparam int ISA_FRAC = {table.isa.frac};',
+        f"    localparam logic [{table.isa.step.bit_length() - 1}:0] ISA_STEP = {table.isa.step.bit_length()}'d"
+        f'{table.isa.step};  // {table.isa.clock_ns} ns',
+        f"    localparam logic [3:0] ISA_IO8 = 4'd{table.isa.io8}, ISA_IO16 = 4'd{table.isa.io16}, "
+        f"ISA_VGA = 4'd{table.isa.vga};",
         '    typedef struct packed {',
         '        logic                  elem;',
         '        logic                  branch;',
@@ -300,9 +417,15 @@ def render(table: Table) -> dict[Path, str]:
     for p in table.presets:
         package.append(f"            3'd{p.id}: preset = '{{tbl: 2'd{p.table}, frequency: 10'd{p.frequency}, "
                        f"wait_states: 2'd{p.wait}, bus16: 1'b{int(p.bus16)}}};  // {p.name}")
+    words = ' || '.join(f"port == 16'h{p:04x}" for p in table.isa.ports16) or "1'b0"
+    dwords = ' || '.join(f"port >= 16'h{p - 2:04x} && port <= 16'h{p:04x}" for p in table.isa.ports16) or "1'b0"
     package += [
         '            default: ;',
         '        endcase',
+        '    endfunction',
+        '',
+        '    function automatic logic word16(input logic [15:0] port, input logic [1:0] size);',
+        f"        word16 = size == 2'd1 ? {words} : size == 2'd2 ? {dwords} : 1'b0;",
         '    endfunction',
         '',
         '    function automatic logic [ROM_ABITS-1:0] cost_rom_index(input logic [1:0] tbl, input logic [CLASS_BITS-1:0] cls);',

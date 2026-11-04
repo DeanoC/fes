@@ -45,6 +45,39 @@ func factoryPackage(t *testing.T, root, version, core string) ([]byte, corepacka
 	return archive, inspection
 }
 
+func factoryROMPackage(t *testing.T, root string) ([]byte, corepackage.Inspection) {
+	t.Helper()
+	directory := filepath.Join(root, ".factory-package-staging")
+	if err := os.Mkdir(directory, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	for name, fixturePath := range map[string]string{
+		"manifest.toml": "manifests/valid-basic.toml",
+		"core.rbf":      "payloads/fes-fixture.rbf",
+		"rom-map.json":  "maps/valid-basic.json",
+	} {
+		data, err := os.ReadFile(filepath.Join("../../corepackage/testdata/core-bundle-v3", fixturePath))
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(filepath.Join(directory, name), data, 0o444); err != nil {
+			t.Fatal(err)
+		}
+	}
+	inspection, archive, err := corepackage.ReadPackage(directory)
+	if err != nil {
+		t.Fatal(err)
+	}
+	packagePath := filepath.Join(root, inspection.PackageID)
+	if err := os.Rename(directory, packagePath); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Chmod(packagePath, 0o555); err != nil {
+		t.Fatal(err)
+	}
+	return archive, inspection
+}
+
 func newFactoryRoot(t *testing.T) string {
 	t.Helper()
 	root := filepath.Join(t.TempDir(), "core-packages")
@@ -99,6 +132,34 @@ func TestFactoryReadIsTheCanonicalArchive(t *testing.T) {
 	imported, _, err := host.Import(ctx, int64(len(data)), bytes.NewReader(data))
 	if err != nil || imported.PackageID != want.PackageID {
 		t.Fatalf("import %+v %v", imported, err)
+	}
+}
+
+func TestFactoryReadCachesAnUnchangedROMMapPackage(t *testing.T) {
+	ctx := context.Background()
+	root := newFactoryRoot(t)
+	archive, want := factoryROMPackage(t, root)
+	factory := NewFactory(root)
+	factoryVerifications.Store(0)
+	for i := range 3 {
+		inspection, data, err := factory.Read(ctx, want.PackageID)
+		if err != nil || !reflect.DeepEqual(inspection, want) || !bytes.Equal(data, archive) {
+			t.Fatalf("read %d: inspection equal=%v, archive equal=%v, error=%v", i, reflect.DeepEqual(inspection, want), bytes.Equal(data, archive), err)
+		}
+		if i == 0 {
+			data[0] ^= 0xff
+		}
+	}
+	factory.verifyMu.Lock()
+	for _, field := range reflect.VisibleFields(reflect.TypeOf(verifiedPackage{})) {
+		if field.Type.Kind() == reflect.Slice && field.Type.Elem().Kind() == reflect.Uint8 {
+			factory.verifyMu.Unlock()
+			t.Fatalf("factory verification cache can retain archive bytes in %q", field.Name)
+		}
+	}
+	factory.verifyMu.Unlock()
+	if got := factoryVerifications.Load(); got != 1 {
+		t.Fatalf("full package reads = %d, want 1", got)
 	}
 }
 
@@ -419,7 +480,7 @@ func TestFactoryRejectsAPackageChangedAfterItWasCached(t *testing.T) {
 	if err := os.Remove(manifest); err != nil {
 		t.Fatal(err)
 	}
-	if err := os.WriteFile(manifest, bytes.Replace(data, []byte(`version = "1.0.0"`), []byte(`version = "1.0.1"`), 1), 0o444); err != nil {
+	if err := os.WriteFile(manifest, bytes.Replace(data, []byte(`version = "1.0.0"`), []byte(`version = "1.0.10"`), 1), 0o444); err != nil {
 		t.Fatal(err)
 	}
 	if err := os.Chmod(directory, 0o555); err != nil {

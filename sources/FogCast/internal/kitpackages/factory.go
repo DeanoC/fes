@@ -94,7 +94,8 @@ func (f *Factory) Inspect(ctx context.Context, id string) (corepackage.Inspectio
 	return f.verify(id, before, inspection)
 }
 
-// Read returns the package and its canonical archive bytes.
+// Read returns the package and its canonical archive bytes. An unchanged
+// package reuses its verified inspection but reads archive bytes from disk.
 func (f *Factory) Read(ctx context.Context, id string) (corepackage.Inspection, []byte, error) {
 	if !packageIDRE.MatchString(id) {
 		return corepackage.Inspection{}, nil, ErrInvalidPackageID
@@ -105,6 +106,13 @@ func (f *Factory) Read(ctx context.Context, id string) (corepackage.Inspection, 
 	before, err := f.statKey(id)
 	if err != nil {
 		return corepackage.Inspection{}, nil, err
+	}
+	if inspection, ok := f.cachedVerified(id, before); ok {
+		data, err := corepackage.CanonicalArchive(filepath.Join(f.root, id))
+		if err != nil {
+			return corepackage.Inspection{}, nil, err
+		}
+		return inspection, data, nil
 	}
 	factoryVerifications.Add(1)
 	inspection, data, err := corepackage.ReadPackage(filepath.Join(f.root, id))
