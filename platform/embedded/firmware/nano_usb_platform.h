@@ -1,0 +1,45 @@
+/* SPDX-License-Identifier: BSD-3-Clause */
+#ifndef FES_NANO_USB_PLATFORM_H
+#define FES_NANO_USB_PLATFORM_H
+#include "nano_cold.h"
+
+#define FES_NANO_USB_BASE 0x10b00000UL
+#define FES_NANO_USB_RESET FES_NANO_COLD_USB_RESET /* USB0, not USB0_OCP */
+#define FES_NANO_USB_BOOT_SCOPE 1U
+#define FES_NANO_USB_CONTROLLER_RESET 2U
+#define FES_NANO_USB_CLOCK_PHY_VBUS 4U
+#define FES_NANO_USB_PIO_DRAIN 8U
+#define FES_NANO_USB_QUALIFIED 15U
+/* Trusted compiled callbacks only. No SMC arguments, default readiness or
+ * physical MMIO binding. Serialize acquire/observe/stop with driver and bridge
+ * operations, and retain this object until reboot even after failure. */
+struct fes_nano_usb_io {
+    void *context;
+    int (*read)(void *, uintptr_t, uint32_t *);
+    int (*write)(void *, uintptr_t, uint32_t);
+    void (*barrier)(void *);
+    void (*wait)(void *); /* fixed bounded wait, e.g. 10us; never unbounded */
+    /* Independently verify fixed board pinmux, bus clock, 60MHz ULPI PHY,
+     * VBUS/host role and their exclusive ownership on every operation. A
+     * frequency declaration or successful register read is insufficient. */
+    int (*ready)(void *);
+};
+struct fes_nano_usb_platform {
+    struct fes_nano_cold *cold;
+    struct fes_nano_usb_io io;
+    uint64_t owner, epoch, generation;
+    unsigned attempted, initialized, active, failed;
+    unsigned channels;
+    int first_error;
+    uintptr_t last_address;
+    uint32_t last_value;
+};
+int fes_nano_usb_platform_init(struct fes_nano_usb_platform *, struct fes_nano_cold *,
+                              struct fes_nano_usb_io, unsigned qualifications);
+int fes_nano_usb_platform_observe(struct fes_nano_usb_platform *, uint64_t owner,
+                                 uint64_t generation);
+int fes_nano_usb_platform_acquire(struct fes_nano_usb_platform *, uint64_t owner,
+                                 uint64_t generation);
+int fes_nano_usb_platform_stop(struct fes_nano_usb_platform *, uint64_t owner,
+                              uint64_t generation);
+#endif

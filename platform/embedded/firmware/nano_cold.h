@@ -17,6 +17,7 @@
  * independently of proving the controller idle and stopping its card clock. */
 #define FES_NANO_COLD_SD_RESET 0x80U
 #define FES_NANO_COLD_SD_ECC_RESET 0x8000U
+#define FES_NANO_COLD_USB_RESET 0x8U
 #define FES_NANO_COLD_UNUSED (FES_NANO_MASTER_RESET & ~FES_NANO_COLD_SD_RESET)
 #define FES_NANO_COLD_SD_BUSY 0xb07U
 #define FES_NANO_COLD_POLLS 1000U
@@ -96,6 +97,10 @@ int fes_nano_cold_ddr_close_target(struct fes_nano_cold *,uint64_t owner,uint64_
  * or changes the strict all-master semantics of cold_owns. */
 int fes_nano_cold_sd_scope(struct fes_nano_cold *, uint64_t owner,
                            uint64_t epoch, unsigned active);
+/* Separate USB-only PIO lease. SD and every other HPS master stay reset;
+ * bridges stay closed. This never changes cold_owns or grants FPGA access. */
+int fes_nano_cold_usb_scope(struct fes_nano_cold *, uint64_t owner,
+                            uint64_t epoch, unsigned active);
 int fes_nano_cold_quiesce(void *, uint32_t producers);
 int fes_nano_cold_quiescent(void *, uint32_t *producers);
 /* Strong implementation lives beside the cold profile's PSCI CPU_ON frontend.

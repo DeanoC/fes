@@ -199,18 +199,28 @@ int fes_nano_cold_ddr_close_target(struct fes_nano_cold *s,uint64_t owner,uint64
     s->control_expected=0;s->ddr_expected=0;
     return 0;
 }
-int fes_nano_cold_sd_scope(struct fes_nano_cold *s, uint64_t owner,
-                           uint64_t epoch, unsigned active)
+static int device_scope(struct fes_nano_cold *s, uint64_t owner,
+                           uint64_t epoch, unsigned active, uint32_t mask)
 {
     struct fes_nano_cold_sample first, last;
-    if (!s || !s->valid || s->failed || s->control_expected || active > 1 ||
+    if (!s || !s->valid || s->failed || s->control_expected || s->ddr_expected || active > 1 ||
         owner != s->record.boot.owner || epoch != s->record.boot.epoch) return -1;
-    uint32_t expected = FES_NANO_MASTER_RESET & ~(active ? FES_NANO_COLD_SD_RESET : 0U);
+    uint32_t expected = FES_NANO_MASTER_RESET & ~(active ? mask : 0U);
     if (sample(s, &first) || !stable(&s->record.last, &first, s->record.core) ||
         (first.per0 & FES_NANO_MASTER_RESET) != expected ||
         sample(s, &last) || !stable(&first, &last, s->record.core) ||
         (last.per0 & FES_NANO_MASTER_RESET) != expected) return fail(s);
     return 0;
+}
+int fes_nano_cold_sd_scope(struct fes_nano_cold *s, uint64_t owner,
+                           uint64_t epoch, unsigned active)
+{
+    return device_scope(s,owner,epoch,active,FES_NANO_COLD_SD_RESET);
+}
+int fes_nano_cold_usb_scope(struct fes_nano_cold *s, uint64_t owner,
+                            uint64_t epoch, unsigned active)
+{
+    return device_scope(s,owner,epoch,active,FES_NANO_COLD_USB_RESET);
 }
 int fes_nano_cold_consume(struct fes_nano_cold *s, const struct fes_nano_cold_record *r,
                            struct fes_nano_cold_io io, const uint8_t chain[32], uint64_t owner)

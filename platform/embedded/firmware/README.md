@@ -910,3 +910,49 @@ backpressure, simultaneous AR/response, unknown firmware, transport/start
 failures, lost asynchronous responses and deadlines. This executes the patched
 C functions, not an EL3 SMC instruction or actual SDM. The Nano backend remains
 read-only. Source/command/ELF hashes and that evidence boundary are recorded.
+
+## Trusted USB-only PIO handoff prototype
+
+`nano_usb_platform.c` implements a separate USB0 acquire/observe/stop contract.
+It captures the cold boot owner and epoch, checks a private generation before
+I/O, and releases only the USB0 controller reset. SD, USB ECC diagnostics,
+other HPS masters and all FPGA bridges stay held. The separate cold USB scope
+does not relax `fes_nano_cold_owns`; using the original bridge proof while USB
+is active still rejects and retires that boot scope. USB must be stopped before
+SD or FPGA access under this prototype. Combined operation requires a further
+explicit contract, not removal of an existing reset check.
+
+Acquisition rejects foreign DMA/interrupt state or active channels, checks the
+DWC2 identity/FIFO/capability envelope, establishes ULPI SDR selection and waits
+for AHB idle. Stop halts every implemented channel with a finite poll budget,
+masks channel interrupts, powers down the controller's port request, flushes
+RX/TX FIFOs, observes AHB idle and asserts/readbacks the controller reset under
+the original cold owner. Only complete readback publishes the new contained
+generation. An already contained stop checks the cold scope without touching
+the USB controller. Stale owners/generations do no I/O. Partial operations retain
+the active reservation, retire both provider and cold scope, and cannot retry.
+The controller's port-power bit is not proof that board VBUS is electrically off.
+
+The provider requires trusted, bounded `read/write/barrier/wait/ready` callbacks
+and all four qualification flags. `ready` must independently verify the fixed
+board pinmux, bus clock, external 60 MHz ULPI PHY, VBUS/host role and exclusive
+ownership; a supplied frequency is insufficient. No default readiness callback,
+physical MMIO binding, SiP command, boot-profile selection or mixed SD/USB grant
+is installed. The existing SD profile and native USB-disabled images remain
+unchanged. Next integration needs the actual trusted board readiness provider
+and a selected USB lease before a bounded native keyboard test.
+
+Register provenance is the pinned Terasic U-Boot `d0f8813fd6bf8191d49c8b8d2035ffd2ae10c413`
+Agilex5 DTS and reset bindings, plus the DWC2 register protocol already used by
+the native host. Its clock driver identifies `AGILEX5_USB_CLK` as the bus clock;
+the external ULPI PHY clock is a separate qualification. The
+[Agilex5 HPS reference manual](https://cdrdv2-public.intel.com/814347/mnl-814346-814347.pdf)
+describes the USB2 OTG controller and external PHY interface. The hosted model
+is not an electrical or timing qualification of those resources.
+
+Run `python3 -m unittest discover -s tests -p test_nano_usb_platform.py -v`.
+It compiles the actual cold scope and USB provider with undefined-behavior
+checks, then models three acquire/drain/reset cycles, held/reset operation,
+stale ownership, readiness/DMA/PHY/drain failures and interruption at every USB-provider MMIO
+step. Existing SD platform tests exercise the shared cold-scope refactoring.
+These are host register-model tests, not physical USB acceptance.
