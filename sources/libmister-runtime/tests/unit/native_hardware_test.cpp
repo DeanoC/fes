@@ -1934,6 +1934,11 @@ void TestSessionDisplayPreservesMachineOnCloseAndPlaneFailure(bool frame_mapping
  script.Present(1,0,kMenuUnderflowPresentCap+1);script.Reply();script.Info(25,2,kMenuUnderflowPresentCap+1);
  assert(!PresentBackSlot(hardware,&info).ok());
  assert(!hardware.menu_display().available&&hardware.menu_display().error.message=="menu underflow exceeded the per-present cap");
+ bool original_failure_logged=false;
+ for(const auto& record:log.records())
+  if(record.operation=="session_display"&&record.phase=="present"&&
+   record.error.message=="menu underflow exceeded the per-present cap")original_failure_logged=true;
+ assert(original_failure_logged);
  assert(fpga.calls==1&&hardware.menu_display().core_generation==17&&!operations.Granted());
  for(std::size_t i=begin;i<mmio.writes.size();++i)
   if(mmio.writes[i].offset==kSpiGpoAddress)assert(((mmio.writes[i].value>>24)&127)!=FesSimpleComputerOpcodeExecution);

@@ -586,3 +586,23 @@ input uses the explicit bus 0 fixture. Physical USB/audio, native ROM/persona
 composition, physical standard PR and current-head CI/independent review remain
 open. This partial trial does not promote a main baseline or establish full
 normal-kit acceptance.
+
+
+## First-failure reporting for the post-reboot investigation
+
+The retained source-a35 trace shows only a reopen refusal and its subsequent
+quiesce error; it does not establish the earliest failed invariant. The existing
+runtime log now records failed show/close requests before later status updates,
+and NativeHardware records a failed session present before cleanup adds a
+second error. Reopen refusals include the grant/bootstrap/quiescence/fault flags;
+retirement refusals include observed, completed, submitted and logical-base
+counters. No command, gate, timeout, allocation or recovery behavior changes.
+
+A regression fails before the change in 14.449s because the first close error
+is absent from the event stream after a subsequent failed show. After the
+change, the complete shared-runtime suite (56 reported cases), native-hardware
+suite and DE25 allocation suite pass in 127.833s, including the original
+failure-before-cleanup and exact-counter checks. All 482 admitted FPGA
+producer inputs remain byte-identical to source a35. The new reporting still
+requires a controlled native trial; neither this test nor a passing trial
+without reproduction would establish that the post-reboot defect is fixed.

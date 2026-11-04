@@ -240,7 +240,9 @@ void SessionRetirementRefusesUnconfirmedOrUnclearedCounters() {
    assert(!m.Revoke().ok()&&o.reaps==0&&o.published.size()==1);
   } else {
    assert(m.Revoke().ok());gp.stale_retired_counter=true;
-   assert(!m.Quiesce(100,nullptr,&info).ok());
+   const auto error=m.Quiesce(100,nullptr,&info);
+   assert(!error.ok());
+   assert(error.message.find("observed=1 completed=1 submitted=1 base=0")!=std::string::npos);
   }
   assert(!m.Activate(false,false).ok()&&o.allocations==1);
  }

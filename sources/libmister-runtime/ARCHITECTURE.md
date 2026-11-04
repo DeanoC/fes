@@ -1083,6 +1083,11 @@ all peer references gone before GP quiescence can authorize a fresh allocation.
 OWNER_REAP performs CLEAR after drain; GP quiescence must observe physical
 sequence0, while the adapter retains only the pre-retirement confirmed count.
 Unconfirmed publications and nonzero retired counters prevent reopening.
+The existing log records a session present error before cleanup, and failed
+show/close requests before status can be overwritten by a later request.
+Reopen refusals report the grant/bootstrap/quiescence/fault flags; retired
+counter refusals report physical observation, submitted/completed counts and
+logical base. These observations authorize neither reuse nor a repeated command.
 OWNER_ALLOC also starts with cleared physical sequence/slot state. The adapter offsets that new
 physical sequence by the last completed logical sequence; runtime back-slot
 ownership starts at1 again. Per-frame mapping is negotiated for session grants

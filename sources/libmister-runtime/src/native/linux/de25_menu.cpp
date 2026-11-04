@@ -222,8 +222,14 @@ Error LinuxDe25Menu::Activate(bool clear,bool blitter) {
   // opening needs no retirement/allocation cycle and exposes no old frame.
   if(grant_>=0&&activated_&&bootstrapped_&&!exposure_possible_&&session_quiesced_&&!faulted_&&!revoke_failed_)
    return {};
-  if(grant_>=0||!bootstrapped_||!session_quiesced_||faulted_||revoke_failed_)
-   return Failed("DE25 session reopen requires a successfully retired allocation");
+  if(grant_>=0||!bootstrapped_||!session_quiesced_||faulted_||revoke_failed_) {
+   std::ostringstream detail;
+   detail<<"DE25 session reopen requires a successfully retired allocation"
+    <<"; grant="<<(grant_>=0)<<" bootstrapped="<<bootstrapped_
+    <<" quiesced="<<session_quiesced_<<" faulted="<<faulted_
+    <<" revoke_failed="<<revoke_failed_<<" reaped="<<reap_done_;
+   return {ErrorCode::io_failed,detail.str(),"menu"};
+  }
   // OWNER_ALLOC clears hardware sequence/slot ownership. Preserve only the
   // logical completion count; storage and pixels belong to a fresh grant.
   const auto base=sequence_base_+completed_;
@@ -427,8 +433,13 @@ Error LinuxDe25Menu::Quiesce(std::uint64_t d,const CoreDescriptor* identity,Menu
   // Successful OWNER_REAP already performed CLEAR. GP must observe zero;
   // the final logical completion was independently confirmed before retirement.
   if(e.ok()&&(observed.displayed_sequence!=0||completed_!=submitted_||
-      completed_>std::numeric_limits<std::uint32_t>::max()-sequence_base_))
-   e=Failed("DE25 retired session counter was not cleared or publication was unconfirmed");
+      completed_>std::numeric_limits<std::uint32_t>::max()-sequence_base_)) {
+   std::ostringstream detail;
+   detail<<"DE25 retired session counter was not cleared or publication was unconfirmed"
+    <<"; observed="<<observed.displayed_sequence<<" completed="<<completed_
+    <<" submitted="<<submitted_<<" base="<<sequence_base_;
+   e={ErrorCode::io_failed,detail.str(),"menu"};
+  }
   if(!e.ok())return Fault(e);
   session_quiesced_=true;
   observed.displayed_sequence=completed_+sequence_base_;if(out)*out=observed;

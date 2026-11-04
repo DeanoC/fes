@@ -2169,6 +2169,8 @@ bool NativeHardware::MenuReactivationAllowed()
 Error NativeHardware::FailMenuPresent(const Error& error)
 {
  if(menu_status_.session) {
+  // Record the publication failure before retirement can add a second error.
+  log_.Write({"session_display","","","present",error});
   const Error revoked=RevokeMenuWindow();
   menu_underflow_streak_=0;menu_status_.available=false;
   menu_status_.error=revoked.ok()?error:revoked;

@@ -1744,6 +1744,17 @@ void TestSessionDisplayFailuresNeverReloadIdleOrRetireCore()
  f.hardware.session_display_result={ErrorCode::io_failed,"enable failed","menu"};
  assert(!f.runtime.SetSessionDisplay(id,generation,true,true).ok());
  assert(f.runtime.status().generation==generation&&f.hardware.idle_calls==1);
+ // Keep the earlier close failure in the event stream even after a later
+ // reopen replaces the status error; that first failure owns the diagnosis.
+ const auto records=f.log.records();
+ bool close_failure=false,open_failure=false;
+ for(const auto& record:records) if(record.operation=="session_display") {
+  if(record.phase=="close"&&record.error.message=="drain not proved")close_failure=true;
+  if(record.phase=="show"&&record.error.message=="enable failed") {
+   assert(close_failure);open_failure=true;
+  }
+ }
+ assert(close_failure&&open_failure);
 }
 
 void TestSessionCloseAndStopWaitForInFlightFrame()

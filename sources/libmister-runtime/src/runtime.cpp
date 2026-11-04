@@ -326,6 +326,9 @@ public:
    busy_=true;if(!visible||!shown)preparation_.reset();
   }
   const Error error=hardware_.SetSessionDisplay(visible,launcher_focus);
+  // A subsequent show can replace the status error from the first close.
+  // Preserve that boundary failure in the existing log before another request.
+  if(!error.ok())Log("session_display","","",visible?"show":"close",error);
   {
    std::lock_guard<std::mutex> lock(mutex_);
    // Hardware owns the focus gate. A close or failure that cannot prove the

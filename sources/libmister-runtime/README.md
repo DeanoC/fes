@@ -121,6 +121,12 @@ The same allocation adapter also accepts an injected standard-core GP display
 control. In that mode Configure/Enable/Quiesce use the existing display commands;
 frames are published only through the kernel grant. Closing proves kernel drain,
 the end of peer references and GP plane quiescence before another allocation.
+Failed session presentation logs its original error before cleanup; failed
+show/close requests also enter the existing log before a later request can
+replace status. DE25 reopen and retired-counter refusals include the observed
+state and counter values without changing the retirement gate. This reporting
+is needed to investigate the retained post-reboot picker failure at source
+`a35f3207a`; it does not establish a repair or new native acceptance.
 Reopening allocates cleared storage with hardware front slot0 and restarts its
 physical frame sequence, while the runtime's logical completion count continues.
 Session status negotiates per-frame mappings, and its first back slot is1 after
