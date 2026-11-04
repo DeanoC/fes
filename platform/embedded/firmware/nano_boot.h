@@ -80,6 +80,9 @@ void fes_nano_boot_invalidate(struct fes_nano_boot *);
  * bridges remain held. Failed or duplicate setup cannot replace authority. */
 int fes_nano_boot_bind_usb_pio(struct fes_nano_boot *,struct fes_nano_bridges *,
     uint64_t owner,uint64_t epoch,struct fes_nano_retained_master_ops);
+/* Cached secure binding identity only; device/bridge operations must still
+ * observe their live hardware scopes under the same lock. */
+int fes_nano_boot_usb_pio_matches(const struct fes_nano_bridges *,struct fes_nano_retained_master_ops);
 #ifdef __cplusplus
 }
 #endif

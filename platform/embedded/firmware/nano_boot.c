@@ -166,3 +166,12 @@ int fes_nano_boot_bind_usb_pio(struct fes_nano_boot *s,struct fes_nano_bridges *
     s->retained=ops;s->retained_bound=1;
     return fes_nano_bridges_observe(b,&state) ? failed(s,-1) : 0;
 }
+int fes_nano_boot_usb_pio_matches(const struct fes_nano_bridges *b,struct fes_nano_retained_master_ops ops)
+{
+    if (!b || !b->initialized || b->failed || b->ops.owns!=owns || !b->ops.context) return 0;
+    const struct fes_nano_boot *s=b->ops.context;
+    return s->attempted && !s->failed && s->retained_bound &&
+        s->owner==b->state.owner && s->epoch==b->epoch &&
+        s->retained.context==ops.context && s->retained.observe==ops.observe &&
+        s->retained.quiesce==ops.quiesce && s->retained.quiescent==ops.quiescent;
+}

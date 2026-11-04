@@ -3,11 +3,13 @@
 #define FES_NANO_USB_COMPOSITION_H
 #include "nano_usb_platform.h"
 #include "nano_sd_platform.h"
+#include "nano_usb_service.h"
 
 /* Trusted boot-local composition, not a SiP capability or default permission.
  * Bind only initialized, contained physical platform objects from one boot.
  * They and this object must remain rooted through any failure until reboot.
- * Existing USB-only service/dispatcher gates are deliberately unchanged. */
+ * Default USB-only gates remain exclusive. Shared service validation requires
+ * this exact composition and its accepted boot/master binding. */
 struct fes_nano_usb_composition {
     struct fes_nano_cold *cold;
     struct fes_nano_usb_platform *usb;
@@ -30,4 +32,5 @@ struct fes_nano_usb_master {
 int fes_nano_usb_master_init(struct fes_nano_usb_master *,struct fes_nano_usb_composition *,
     struct fes_nano_master_ops);
 struct fes_nano_retained_master_ops fes_nano_usb_master_ops(struct fes_nano_usb_master *);
+struct fes_nano_usb_shared_ops fes_nano_usb_master_service_ops(struct fes_nano_usb_master *);
 #endif

@@ -1,14 +1,14 @@
 {
   "source": {
     "repository": "DeanoC/fes",
-    "commit": "ecc90090cfe14d9e806a1b1b196edac91f1a064a",
+    "commit": "31e90c1a084560703df31e7d565934e216cce232",
     "file": "platform/embedded/firmware/generated/fes_embedded_usb.h",
-    "note": "Base FES revision before the private USB-only C/Go lease channel. No default board binding or physical qualification."
+    "note": "Base FES revision before the additive USB SharedPio capability and explicit shared-mode client. No default composed boot selection or physical qualification."
   },
   "fabric": {
     "id": "fes.fabric.embedded.usb",
     "major": 1,
-    "minor": 0
+    "minor": 1
   },
   "constants": {
     "FesEmbeddedUsbCall": 3254780675,
@@ -29,6 +29,7 @@
     "FesEmbeddedUsbContained": 8,
     "FesEmbeddedUsbDataHeld": 16,
     "FesEmbeddedUsbClosedOnly": 32,
-    "FesEmbeddedUsbFlags": 63
+    "FesEmbeddedUsbFlags": 127,
+    "FesEmbeddedUsbSharedPio": 64
   }
 }

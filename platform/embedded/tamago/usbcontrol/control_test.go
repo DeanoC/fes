@@ -20,7 +20,7 @@ import (
 	"github.com/DeanoC/fes/platform/embedded/tamago/input"
 )
 
-var rpcBinary string
+var rpcBinary, sharedRPCBinary string
 
 func TestMain(m *testing.M) {
 	temp, err := os.MkdirTemp("", "fes-usb-wire-")
@@ -62,6 +62,20 @@ handoff.parent.mkdir(parents=True);data=(root/'tests/fixtures/nano-usb-board/hps
 		os.RemoveAll(temp)
 		os.Exit(1)
 	}
+	sharedRPCBinary = filepath.Join(temp, "shared-rpc")
+	args := []string{"-std=c11", "-Wall", "-Wextra", "-Werror", "-fsanitize=undefined", "-fno-sanitize-recover=all", "-I" + fw}
+	for _, file := range []string{"nano_cold.c", "nano_boot.c", "nano_bridges.c", "nano_bridge_sip.c", "nano_sd.c", "nano_sd_platform.c", "nano_usb_platform.c", "nano_usb_service.c", "nano_usb_composition.c", "nano_identity.c", "nano_configuration.c", "tests/nano_usb_shared_rpc.c"} {
+		args = append(args, filepath.Join(fw, file))
+	}
+	args = append(args, "-o", sharedRPCBinary)
+	ctx, cancel = context.WithTimeout(context.Background(), 30*time.Second)
+	out, err = exec.CommandContext(ctx, "cc", args...).CombinedOutput()
+	cancel()
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Shared USB C integration: %v\n%s", err, out)
+		os.RemoveAll(temp)
+		os.Exit(1)
+	}
 	code := m.Run()
 	os.RemoveAll(temp)
 	os.Exit(code)
@@ -77,9 +91,15 @@ type rpc struct {
 }
 
 func newRPC(t *testing.T, args ...string) *rpc {
+	return startRPC(t, rpcBinary, args...)
+}
+func newSharedRPC(t *testing.T, args ...string) *rpc {
+	return startRPC(t, sharedRPCBinary, args...)
+}
+func startRPC(t *testing.T, binary string, args ...string) *rpc {
 	t.Helper()
 	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
-	p := &rpc{cmd: exec.CommandContext(ctx, rpcBinary, args...)}
+	p := &rpc{cmd: exec.CommandContext(ctx, binary, args...)}
 	var err error
 	p.input, err = p.cmd.StdinPipe()
 	if err != nil {

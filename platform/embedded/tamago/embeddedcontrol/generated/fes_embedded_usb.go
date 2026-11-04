@@ -22,5 +22,6 @@ const (
 	FesEmbeddedUsbContained  uint32 = 0x8
 	FesEmbeddedUsbDataHeld   uint32 = 0x10
 	FesEmbeddedUsbClosedOnly uint32 = 0x20
-	FesEmbeddedUsbFlags      uint32 = 0x3f
+	FesEmbeddedUsbSharedPio  uint32 = 0x40
+	FesEmbeddedUsbFlags      uint32 = 0x7f
 )

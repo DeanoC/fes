@@ -2,12 +2,13 @@ schema: mister-packages.v1
 kind: fabric
 id: fes.fabric.embedded.usb
 major: 1
-minor: 0
+minor: 1
 description: >-
-  Experimental firmware-owned USB-only PIO lease. Independent USB generation,
-  original cold boot owner, prepare then live confirmation, and checked stop.
-  SD and FPGA bridges remain held. No non-secure initialization, mixed device
-  permission, physical qualification or production admission is supplied.
+  Experimental firmware-owned USB PIO lease with independent generation,
+  prepared/live confirmation and checked stop. ClosedOnly retains exclusive
+  cold containment. SharedPio requires a compiled cold/master ownership policy
+  and reports current data containment. No default mixed-device binding,
+  physical qualification or production admission is supplied.
 constants:
   - {name: FesEmbeddedUsbCall, value: 0xc2000303}
   - {name: FesEmbeddedUsbCookie, value: 0x46455355}
@@ -27,4 +28,5 @@ constants:
   - {name: FesEmbeddedUsbContained, value: 0x8}
   - {name: FesEmbeddedUsbDataHeld, value: 0x10}
   - {name: FesEmbeddedUsbClosedOnly, value: 0x20}
-  - {name: FesEmbeddedUsbFlags, value: 0x3f}
+  - {name: FesEmbeddedUsbSharedPio, value: 0x40}
+  - {name: FesEmbeddedUsbFlags, value: 0x7f}

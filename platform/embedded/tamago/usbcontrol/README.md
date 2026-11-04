@@ -1,6 +1,8 @@
 # Native USB ownership client
 
 `New` requires a CPU caller and an independently obtained trusted boot owner.
+It accepts only ClosedOnly firmware. `NewSharedPIO` explicitly requires SharedPio
+backed by the compiled cold/master binding. Both initially require held data.
 A fresh query must describe generation zero and a contained controller. It
 cannot adopt a previous active or returned lease. `Open` reserves the prepared
 lease, invokes one synchronous driver factory, then confirms live firmware
@@ -38,3 +40,11 @@ selection; the observer must receive the same checked protocol. It captures the
 descriptor and normalized state without guessing this device's menu buttons.
 An unsupported schema retains its descriptor but cannot produce Ready/Pass.
 Physical gamepad input and mixed storage/core permission remain open.
+
+The shared-mode RPC fixture runs the actual owned dispatcher, USB/SD services,
+boot/master and bridge code against one register model. It covers retained USB
+reports through SD activity and control/DDR transitions, dynamic DataHeld,
+explicit scope selection, malformed modes, independent USB/SD reservations and
+fault retirement. It does not select a composed board image or establish
+physical coexistence. Firmware changes to USB ownership require a closed,
+qualified core return; stopping USB can preserve an already active SD lease.

@@ -43,7 +43,7 @@ static int master_disable(void *p,uint32_t mask,unsigned fabric)
     else {assert(mask==10);assert(!fes_nano_cold_ddr_close_target(&t->cold,17,7));}
     t->h.bridge|=mask;t->h.bridge_writes++;return 0;
 }
-static void master_setup(struct test *t,unsigned bind)
+static void master_prepare(struct test *t,unsigned bind)
 {
     boot(t);memset(&t->bridges,0,sizeof(t->bridges));
     t->h.producer_bits=FES_NANO_PRODUCERS_HPS;
@@ -60,6 +60,10 @@ static void master_setup(struct test *t,unsigned bind)
     assert(!fes_nano_usb_composition_init(&t->composition,&t->cold,&t->usb,&t->platform));
     assert(!fes_nano_usb_master_init(&t->master,&t->composition,ops));
     if (bind) assert(!fes_nano_boot_bind_usb_pio(&t->master_boot,&t->bridges,17,7,fes_nano_usb_master_ops(&t->master)));
+}
+static void master_setup(struct test *t,unsigned bind)
+{
+    master_prepare(t,bind);
     assert(!fes_nano_usb_platform_acquire(&t->usb,17,0));assert(!fes_nano_usb_platform_confirm(&t->usb,17,1));
 }
 static void master_cycles(void)

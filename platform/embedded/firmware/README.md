@@ -993,8 +993,8 @@ models and freestanding objects supply no hardware USB acceptance.
 `nano_usb_service.c` connects trusted USB callbacks to the generated
 [`fes.fabric.embedded.usb`](../../../sources/mister-packages/docs/embedded-usb.md)
 channel. Trusted initialization supplies the original cold owner/epoch and
-callbacks; non-secure callers cannot initialize it. The dispatcher reserves the
-shared device lease before acquisition and blocks SD, bridge and configuration
+callbacks; non-secure callers cannot initialize it. The default ClosedOnly dispatcher reserves the
+exclusive device lease before acquisition and blocks SD, bridge and configuration
 calls until a checked stop. Lost or inconsistent state retires ownership and
 retains the reservation. A successful callback must also produce the expected
 generation and phase before firmware returns a receipt.
@@ -1047,3 +1047,20 @@ This is a bounded USB-only diagnostic, not combined USB/storage/core permission.
 The DWC2 model supports a boot keyboard through a bounded USB 2 hub tree.
 The existing keyboard/controller-through-hub connection still needs physical
 hub/input qualification; gamepad decoding and native launcher integration remain open. No physical USB test is established here.
+
+## Explicit shared USB PIO service
+
+`fes_nano_usb_service_init_shared` binds the compiled USB transition callbacks
+and exact cold/master/bridge ownership through `fes_nano_usb_master_service_ops`.
+The shared service maintains a separate USB reservation and emits SharedPio,
+with current DataHeld as an observation. Its dispatcher gate observes live USB
+before permitting other owned providers. Unconfirmed USB blocks them; the SD
+lease still blocks FPGA access. Core stop/drain and qualified returns remain
+mandatory. USB Stop is refused while a core's bridge is open, and does not clear
+an active SD lease after the core has returned. Provider binding changes or
+uncertain state retire the boot authority and retain resources.
+
+The default boot selector remains exclusive USB-only. Shared service/client
+and typed reports are tested through actual C dispatcher/platform code with
+injected registers; composed boot selection and physical qualification remain
+separate work.

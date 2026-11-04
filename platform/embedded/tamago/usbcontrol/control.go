@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 
-// Package usbcontrol owns the private firmware USB-only lease. It never
-// initializes secure ownership or grants mixed SD/FPGA access.
+// Package usbcontrol owns the private firmware USB PIO lease. It never
+// initializes secure ownership; shared mode requires explicit firmware proof.
 package usbcontrol
 
 import (
@@ -34,34 +34,50 @@ type Client struct {
 	cpu       Caller
 	last      Receipt
 	retired   bool
+	shared    bool
 }
 
-func decode(r [4]uint64) (Receipt, error) {
+func decode(r [4]uint64, shared bool) (Receipt, bool, error) {
 	tag := uint64(g.FesEmbeddedUsbTag) << 32
 	if r[1]>>32 != uint64(g.FesEmbeddedUsbTag) {
-		return Receipt{}, errors.New("usbcontrol: unknown firmware tag")
+		return Receipt{}, false, errors.New("usbcontrol: unknown firmware tag")
 	}
 	if r[0] != 0 {
 		if r[1] != tag || r[2] != 0 || r[3] != 0 {
-			return Receipt{}, errors.New("usbcontrol: failed reply contains state")
+			return Receipt{}, false, errors.New("usbcontrol: failed reply contains state")
 		}
 		if r[0] == uint64(g.FesEmbeddedUsbNotReady) {
-			return Receipt{}, ErrNotReady
+			return Receipt{}, false, ErrNotReady
 		}
-		return Receipt{}, fmt.Errorf("usbcontrol: firmware status %d", r[0])
+		return Receipt{}, false, fmt.Errorf("usbcontrol: firmware status %d", r[0])
 	}
 	flags := uint32(r[1])
 	base := g.FesEmbeddedUsbSupported | g.FesEmbeddedUsbDataHeld | g.FesEmbeddedUsbClosedOnly
-	if flags != base|g.FesEmbeddedUsbContained && flags != base|g.FesEmbeddedUsbActive && flags != base|g.FesEmbeddedUsbActive|g.FesEmbeddedUsbConfirmed {
-		return Receipt{}, errors.New("usbcontrol: invalid USB scope flags")
+	normalized := flags
+	if shared {
+		base = g.FesEmbeddedUsbSupported | g.FesEmbeddedUsbSharedPio
+		normalized &^= g.FesEmbeddedUsbDataHeld
+	}
+	if normalized != base|g.FesEmbeddedUsbContained && normalized != base|g.FesEmbeddedUsbActive && normalized != base|g.FesEmbeddedUsbActive|g.FesEmbeddedUsbConfirmed {
+		return Receipt{}, false, errors.New("usbcontrol: invalid USB scope flags")
 	}
 	v := Receipt{r[2], r[3], flags&g.FesEmbeddedUsbActive != 0, flags&g.FesEmbeddedUsbConfirmed != 0}
 	if v.Owner == 0 || v.Active && v.Generation == 0 || v.Confirmed && v.Generation < 2 {
-		return Receipt{}, errors.New("usbcontrol: invalid owner/generation")
+		return Receipt{}, false, errors.New("usbcontrol: invalid owner/generation")
 	}
-	return v, nil
+	return v, flags&g.FesEmbeddedUsbDataHeld != 0, nil
 }
 func New(ctx context.Context, cpu Caller, bootOwner uint64) (*Client, error) {
+	return newClient(ctx, cpu, bootOwner, false)
+}
+
+// NewSharedPIO requires an explicitly bound shared firmware provider. The
+// initial controller and data paths must be held. Later DataHeld observations
+// may change with the owned core; they never grant the caller bridge authority.
+func NewSharedPIO(ctx context.Context, cpu Caller, bootOwner uint64) (*Client, error) {
+	return newClient(ctx, cpu, bootOwner, true)
+}
+func newClient(ctx context.Context, cpu Caller, bootOwner uint64, shared bool) (*Client, error) {
 	if ctx == nil || cpu == nil || bootOwner == 0 {
 		return nil, ErrNotReady
 	}
@@ -72,7 +88,7 @@ func New(ctx context.Context, cpu Caller, bootOwner uint64) (*Client, error) {
 	if err != nil {
 		return nil, err
 	}
-	v, err := decode(raw)
+	v, held, err := decode(raw, shared)
 	if err != nil {
 		return nil, err
 	}
@@ -80,10 +96,10 @@ func New(ctx context.Context, cpu Caller, bootOwner uint64) (*Client, error) {
 		return nil, err
 	}
 	// Reconstructing a client cannot adopt a previous, active or returned lease.
-	if v.Owner != bootOwner || v.Generation != 0 || v.Active || v.Confirmed {
+	if v.Owner != bootOwner || v.Generation != 0 || v.Active || v.Confirmed || !held {
 		return nil, ErrTransition
 	}
-	return &Client{cpu: cpu, last: v}, nil
+	return &Client{cpu: cpu, last: v, shared: shared}, nil
 }
 func (c *Client) LastReceipt() (Receipt, bool) {
 	if c == nil {
@@ -145,7 +161,7 @@ func (c *Client) transitionLocked(ctx context.Context, op uint32) error {
 	if err != nil {
 		return c.retire(err)
 	}
-	after, err := decode(raw)
+	after, _, err := decode(raw, c.shared)
 	if err != nil {
 		return c.retire(err)
 	}

@@ -34,8 +34,9 @@ static void fes_nano_owned_call(uint32_t fid, uint64_t x1, uint64_t x2,
             request_type != NO_REQUEST || fes_nano_configuration_busy(configuration),r);
         goto out;
     }
-    if (fes_nano_usb_service_active(&fes_nano_owned_usb)) {
-        r[0]=INTEL_SIP_SMC_STATUS_BUSY;
+    int usb_gate=fes_nano_usb_service_gate(&fes_nano_owned_usb);
+    if (usb_gate) {
+        r[0]=usb_gate<0 ? FES_EMBEDDED_USB_ERROR : INTEL_SIP_SMC_STATUS_BUSY;
         if (fid==FES_EMBEDDED_SD_CALL) r[1]=(uint64_t)FES_EMBEDDED_SD_TAG<<32;
         if (fid==FES_EMBEDDED_BRIDGE_CALL) r[1]=(uint64_t)FES_EMBEDDED_BRIDGE_TAG<<32;
         goto out;

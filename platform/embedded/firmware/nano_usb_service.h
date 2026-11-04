@@ -12,17 +12,32 @@ struct fes_nano_usb_service_ops {
     int (*confirm)(struct fes_nano_usb_platform *,uint64_t,uint64_t);
     int (*stop)(struct fes_nano_usb_platform *,uint64_t,uint64_t);
 };
+struct fes_nano_usb_shared_ops {
+    void *context;
+    /* Trusted cached identity/shape proof for the exact boot/master binding,
+     * USB platform and SD lease. Not an NS readiness flag. Live observation is
+     * separately required through service_ops.observe. */
+    int (*valid)(void *,const struct fes_nano_bridges *,const struct fes_nano_usb_platform *);
+    struct fes_nano_usb_service_ops platform;
+};
 struct fes_nano_usb_service {
     struct fes_nano_usb_platform *platform;
     struct fes_nano_bridges *bridges;
     struct fes_nano_usb_service_ops ops;
     uint64_t owner,epoch;
     unsigned attempted,initialized,failed;
+    struct fes_nano_usb_shared_ops shared;
+    unsigned reservation;
 };
 /* Secure setup and calls share the bridge/configuration lock. No NS init. */
 int fes_nano_usb_service_init(struct fes_nano_usb_service *, struct fes_nano_bridges *,
                              struct fes_nano_usb_platform *, struct fes_nano_usb_service_ops);
+int fes_nano_usb_service_init_shared(struct fes_nano_usb_service *,struct fes_nano_bridges *,
+    struct fes_nano_usb_platform *,struct fes_nano_usb_service_ops,struct fes_nano_usb_shared_ops);
 void fes_nano_usb_service_sip(struct fes_nano_usb_service *,uint64_t operation,
                               uint64_t owner,uint64_t generation,unsigned configuring,uint64_t result[4]);
 int fes_nano_usb_service_active(const struct fes_nano_usb_service *);
+/* Shared dispatcher gate: 0 permits other owned calls, 1 means busy, -1 is
+ * retired authority. A shared permit includes a fresh live USB observation. */
+int fes_nano_usb_service_gate(struct fes_nano_usb_service *);
 #endif

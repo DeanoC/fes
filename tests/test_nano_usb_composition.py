@@ -15,7 +15,7 @@ class NanoUSBCompositionTests(unittest.TestCase):
             command = ['cc', '-std=c11', '-Wall', '-Wextra', '-Werror',
                        '-fsanitize=undefined', '-fno-sanitize-recover=all', '-I', str(FW)]
             command += [str(FW / name) for name in (
-                'nano_cold.c', 'nano_bridges.c', 'nano_sd.c', 'nano_sd_platform.c',
+                'nano_cold.c', 'nano_boot.c', 'nano_bridges.c', 'nano_sd.c', 'nano_sd_platform.c',
                 'nano_usb_platform.c', 'nano_usb_composition.c',
                 'tests/nano_usb_composition_test.c')]
             subprocess.run([*command, '-o', str(binary)], check=True, timeout=30)

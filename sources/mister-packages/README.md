@@ -71,7 +71,10 @@ channel sharing that owner and generation. It remains unready without trusted
 platform initialization and permits only closed-bridge PIO.
 The [firmware-owned USB lease](docs/embedded-usb.md) uses an independent
 generation, prepared and confirmed phases, and a checked stop. It permits USB
-PIO only while SD and FPGA data paths remain held; its default provider is unbound.
+PIO in the existing ClosedOnly mode or an explicitly bound SharedPio mode.
+The shared mode requires trusted cold/master composition; the default provider
+is unbound and no composed boot profile is selected. See the lease contract
+for dynamic data-containment flags and retained-failure behavior.
 
 Run `make test` with Python `jsonschema` available and Go installed.
 Use `make fixtures` to regenerate canonical fixtures and `make check-fixtures`
