@@ -44,7 +44,8 @@ type Options struct {
 	FallbackRoot string
 	AgentWait    time.Duration
 	// CheckPersistent verifies that a path is FESDATA3 storage before
-	// anything is created under it. It defaults to
+	// anything is created under it. Prepare checks the state root and the
+	// exact state and staging paths. It defaults to
 	// appliancedata.CheckPersistent.
 	CheckPersistent func(string) error
 	HTTPClient      *http.Client
@@ -54,9 +55,10 @@ type Options struct {
 // Prepare writes the kit host's config and returns its path. It reads the
 // agent's config (a missing or invalid one is an error), waits up to
 // AgentWait for an authenticated agent health to learn the target ID, checks
-// that the state root is on FESDATA3 or falls back to tmpfs, then renders the
-// config from the existing file or the template. The FESDATA3 check follows
-// the wait because mister-agent is what prepares FESDATA3.
+// that the state root and its state and staging paths are on FESDATA3 or falls
+// back to tmpfs, then renders the config from the existing file or the
+// template. The FESDATA3 check follows the wait because mister-agent is what
+// prepares FESDATA3.
 func Prepare(ctx context.Context, options Options) (string, error) {
 	o := withDefaults(options)
 	agent, err := agentconfig.Load(o.AgentConfig)
@@ -87,8 +89,15 @@ func Prepare(ctx context.Context, options Options) (string, error) {
 		targetID = observed
 	}
 	root := o.StateRoot
-	if err := o.CheckPersistent(root); err != nil {
-		o.Logf("fogcast: kit host state %s is not on FESDATA3 (%v); using tmpfs %s, which a restart loses", root, err, o.FallbackRoot)
+	var persistentErr error
+	for _, path := range []string{root, filepath.Join(root, "state"), filepath.Join(root, "staging")} {
+		if err := o.CheckPersistent(path); err != nil {
+			persistentErr = fmt.Errorf("%s: %w", path, err)
+			break
+		}
+	}
+	if persistentErr != nil {
+		o.Logf("fogcast: kit host state %s is not on FESDATA3 (%v); using tmpfs %s, which a restart loses", root, persistentErr, o.FallbackRoot)
 		root = o.FallbackRoot
 	}
 	if err := privateDirectory(root); err != nil {
