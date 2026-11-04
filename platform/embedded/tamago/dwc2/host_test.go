@@ -28,6 +28,7 @@ type transaction struct {
 type controller struct {
 	classRequest func(*control) bool
 	classFinish  func(*control)
+	beforeIN     func(*controller) bool
 
 	controlNAKs                  int
 	regs                         map[uint32]uint32
@@ -149,6 +150,9 @@ func (c *controller) Write32(reg, value uint32) {
 			return
 		}
 		if c.active.in {
+			if c.beforeIN != nil && c.beforeIN(c) {
+				return
+			}
 			c.receive()
 			return
 		}

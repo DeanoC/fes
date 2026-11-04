@@ -26,7 +26,7 @@ func (c *rxObserved) Read32(reg uint32) uint32 {
 }
 
 func TestRXFaultPreservesFirstSnapshotAndRetiresWithoutAnotherPop(t *testing.T) {
-	for _, status := range []uint32{0, 1, 5, 15} {
+	for _, status := range []uint32{0, 1, 15} {
 		t.Run(fmt.Sprint(status), func(t *testing.T) {
 			c := newController()
 			h := open(t, c)

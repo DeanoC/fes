@@ -103,3 +103,19 @@ descriptor; it cannot supply `PollKeyboard`. Unsupported schemas retain the
 captured descriptor for diagnosis while preventing readiness and input polling.
 The explicit Nano `usbcheck --usb-input gamepad` image uses this path under the
 secure lease. Model and cross-build results do not qualify physical gamepads.
+
+For a direct IN transaction, RX status5 and HCINT data-toggle notifications are
+non-payload events. The core can discard the unexpected PID and continue the
+already armed packet. The polling driver clears only that interrupt and keeps
+the existing deadline, expected PID and channel. It does not reissue setup or
+arm a replacement packet in response to that notification. Actual IN data,
+correct size/PID, completion and channel retirement are still required. OUT
+and split/translator toggle errors remain fatal. This follows the receive FIFO
+and IN-toggle handling in the pinned Linux v6.12 DWC2 reference; no Linux code
+is linked. Physical behavior still needs a fresh matched test.
+
+Control failures now retain request type/value/index/length, setup/data/status
+phase and byte offset. Packet failures add endpoint, expected PID, split state
+and notification counts. A later failure preserves the first RX toggle snapshot,
+including both transmit queue states and frame number. These observations
+cannot authorize reports, bypass closure or release uncertain ownership.

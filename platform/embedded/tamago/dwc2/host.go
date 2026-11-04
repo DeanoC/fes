@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 
-// Package dwc2 is an exploratory polling PIO boot-keyboard host. Firmware
+// Package dwc2 is an exploratory polling PIO keyboard/gamepad host. Firmware
 // owns SoC clocks, ULPI PHY, pinmux and VBUS routing. DMA is never enabled.
 package dwc2
 
@@ -43,6 +43,7 @@ const (
 	fifo           = 0x1000
 	channelEnable  = uint32(1 << 31)
 	channelDisable = uint32(1 << 30)
+	dataToggle     = uint32(1 << 10)
 	fatalChannel   = uint32(1<<2 | 1<<3 | 1<<6 | 1<<7 | 1<<8 | 1<<9 | 1<<10)
 )
 
@@ -69,6 +70,8 @@ type packet struct {
 	data                                     []byte
 	deadline                                 time.Time
 	polls                                    int
+	toggleRX, toggleIRQs                     uint32
+	firstToggle                              error
 }
 type Host struct {
 	gamepadMode           bool
@@ -350,7 +353,17 @@ func (h *Host) pio() error {
 
 // step consumes a fixed number of RX entries and register reads. Completion
 // includes channel retirement; it never hands a still-owned buffer to callers.
-func (h *Host) step() (bool, []byte, bool, error) {
+func (h *Host) step() (done bool, data []byte, nak bool, err error) {
+	defer func() {
+		if err != nil {
+			p := &h.pending
+			err = fmt.Errorf("dwc2: packet address=%d endpoint=%d in=%t pid=%d split=%t complete_split=%t received=%t polls=%d toggle_rx=%d toggle_irqs=%d: %w",
+				h.address, (p.char>>11)&15, p.in, p.pid, p.split, p.completeSplit, p.received, p.polls, p.toggleRX, p.toggleIRQs, err)
+			if p.firstToggle != nil {
+				err = fmt.Errorf("%w; first toggle observation: %v", err, p.firstToggle)
+			}
+		}
+	}()
 	if err := h.pio(); err != nil {
 		return false, nil, false, err
 	}
@@ -424,6 +437,18 @@ func (h *Host) step() (bool, []byte, bool, error) {
 			// payload. BCNT/DPID are meaningful for IN-data status2 only;
 			// hardware may retain the preceding packet's values here.
 			// HCINT and channel retirement still govern completion below.
+		case 5:
+			// DWC2 discards an IN packet with an unexpected data toggle. This
+			// record has no payload; the armed transfer can still receive the
+			// expected packet. Do not rearm, advance PID or extend its deadline.
+			// A translator may need TT clearing, outside this direct-IN path.
+			if !p.in || p.split || p.received || p.done || p.halting {
+				return false, nil, false, h.rxFault("unexpected data-toggle notification", irq, peek, v)
+			}
+			p.toggleRX++
+			if p.firstToggle == nil {
+				p.firstToggle = h.rxFault("IN data-toggle notification", irq, peek, v)
+			}
 		default:
 			return false, nil, false, h.rxFault(fmt.Sprintf("unsupported RX status %d", kind), irq, peek, v)
 		}
@@ -433,11 +458,19 @@ func (h *Host) step() (bool, []byte, bool, error) {
 	}
 	ints := h.io.Read32(hcint)
 	fatal := fatalChannel
+	if p.in && !p.split {
+		fatal &^= dataToggle
+	}
 	if p.split {
 		fatal &^= 1 << 6
 	}
 	if ints&fatal != 0 {
 		return false, nil, false, fmt.Errorf("dwc2: channel error %#x", ints)
+	}
+	if ints&dataToggle != 0 {
+		p.toggleIRQs++
+		h.io.Write32(hcint, dataToggle) // W1C only this notification.
+		ints &^= dataToggle
 	}
 	if ints&1 != 0 {
 		p.done = true
@@ -524,18 +557,27 @@ func (h *Host) transfer(in bool, pid uint32, out []byte, limit int, deadline tim
 	}
 	return nil, fmt.Errorf("dwc2: control NAK budget exhausted")
 }
-func (h *Host) request(requestType, request byte, value, index uint16, length int) ([]byte, error) {
+func (h *Host) request(requestType, request byte, value, index uint16, length int) (result []byte, err error) {
+	phase, offset := "admit", 0
+	defer func() {
+		if err != nil {
+			err = fmt.Errorf("dwc2: control address=%d type=%#02x request=%#02x value=%#04x index=%#04x length=%d phase=%s offset=%d ep0=%d: %w",
+				h.address, requestType, request, value, index, length, phase, offset, h.ep0, err)
+		}
+	}()
 	if length < 0 || length > usb.MaxConfigurationBytes || (length != 0 && requestType&0x80 == 0) {
 		return nil, fmt.Errorf("dwc2: unsupported control request")
 	}
 	setup := []byte{requestType, request, byte(value), byte(value >> 8), byte(index), byte(index >> 8), byte(length), byte(length >> 8)}
 	deadline := h.controlDeadline(h.io.Now().Add(2 * time.Second))
+	phase = "setup"
 	if _, err := h.transfer(false, 3, setup, 0, deadline); err != nil {
 		return nil, err
 	}
 	var data []byte
 	pid := uint32(2)
 	for len(data) < length {
+		phase, offset = "data", len(data)
 		packet, err := h.transfer(true, pid, nil, min(int(h.ep0), length-len(data)), deadline)
 		if err != nil {
 			return nil, err
@@ -547,6 +589,7 @@ func (h *Host) request(requestType, request byte, value, index uint16, length in
 		}
 	}
 	// No-data requests use IN status; control reads use OUT status. DATA1.
+	phase, offset = "status", len(data)
 	if _, err := h.transfer(length == 0, 2, nil, 0, deadline); err != nil {
 		return nil, err
 	}
