@@ -2703,6 +2703,53 @@ The existing local execution mode remains volatile for settings/progress.
 See [durable kit library](../../../docs/kit-core-library.md) for the operator
 workflow and explicit storage/recovery boundaries.
 
+### Kit mode
+
+`fogcast-api -kit` is a kit host (#863 slice 4): it runs on the kit, owns it,
+and drives only the kit's own agent. It takes no `-config`; `internal/kithost`
+writes one before the service opens, in this order:
+
+1. It reads the agent's `/media/fat/fogcast/agent.toml` (`-kit-agent-config`).
+   A missing or invalid file stops the host: there is no token to drive the
+   agent with. The agent's `listen_address` gives the address. A wildcard host
+   maps to `127.0.0.1` and a loopback host is kept as given; an agent bound to
+   any other address is refused, because the host never dials its agent over
+   the LAN.
+2. It waits up to 30 s for the agent's authenticated `/v1/health`, which
+   reports the target ID only to a caller with the bearer. An agent that
+   answers without one has refused the token, so the wait ends there. If no
+   valid ID arrives, the host keeps the ID its config already has, or learns
+   it from the first health later. It never guesses one. An `agent.toml`
+   `target_id` that disagrees with the agent stops the host.
+3. It checks the state root, `/run/fogcast/fesdata3/fogcast-host`
+   (`-kit-state`), and the exact `state` and `staging` paths beneath it with
+   `appliancedata.CheckPersistent` before creating or rewriting the config:
+   FESDATA3 must be the writable ext4 mount of the selected device, with no
+   symlink or nested mount on the way. Checking each path catches an existing
+   child mount on another filesystem. The check follows the wait because
+   mister-agent prepares FESDATA3. Otherwise the host logs it and uses tmpfs
+   `/run/fogcast/kit-host`, which a restart loses; the kit still runs, as the
+   supervisor does without FESDATA3.
+4. It renders `config.toml` in the state root (`fogcast.KitHostConfig`, mode
+   0600). A first start begins from the image's catalog config,
+   `/usr/share/fogcast/config.toml` (`-kit-template`), which is never written.
+   A restart begins from the existing file, so libraries and settings changed
+   through the API survive; a file this host cannot read, perhaps written by a
+   newer bundle, is kept beside it as `config.toml.unreadable-<time>` and the
+   host starts from the template. Every start rewrites the keys kit mode owns:
+   the one loopback `[[targets]]` row named `kit` (agent address, token, target
+   ID), `selected_target`, `state` and `staging` beside the config,
+   `[core_packages] kit = true`, the `[firmware]` directory and request
+   timeout from the template, a 300 s upload timeout (titling an ST package
+   takes 29–48 s on a kit), and `[library] folder_watch_seconds = 0`.
+
+The host then serves and scans the library once in the background. It does
+not poll: on any host, `[library] folder_watch_seconds` is the folder-watch
+interval, omitted means the 30 s default, and 0 turns the watch off. While
+running, a kit host never looks its agent up by mDNS: a slow loopback health
+must not move it onto the agent's LAN address. The settings API refuses edits
+to its target and selection; libraries and library settings still change.
+
 ### The kit host's packages
 
 A host whose config sets `[core_packages] kit = true` is a kit host (#863
