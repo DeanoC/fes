@@ -17,7 +17,9 @@ From bench 21 s, where main goes flat black for good, the intro's frames
 change every second through 26 s, the end of the run.
 The seal at `36ea8a2f3` (Quartus 17.0.2, package `de3173af…`) meets every
 analysis at 61.44 MHz. The pc386 suites (system, boot, governor, sound,
-audio) and `make test-changed` pass. No kit run has been made yet.
+audio) and `make test-changed` pass. On Kit B, the sealed package plays
+Serpent Isle's introduction through to the game's main menu, with the
+narration audible; before, the screen went black for good about 24 s in.
 
 ## What changed
 
@@ -186,8 +188,45 @@ clean checkout of `36ea8a2f3`
   #1452), VGABios `69401dc8…`. The sealed `pc386_sb.sv` is `be3ff91b…`, the
   head's.
 
-## Not done
+## Kit B: Serpent Isle's introduction
 
-- **Kit B.** Not run yet: a run needs Deano's OK. It would load
-  package `de3173af…` with #1426's Serpent Isle setup and check the intro
-  past 24 s and the narration audio.
+Run `g1455-k1`, 4 November 13:39–13:43 EET, with Deano's standing OK
+relayed by the coordinator. Claimed and released in `kitB-STATUS.md`.
+Core-only, on the kit's baseline software `a8cd30c4` (main `bb51f445`),
+image `f904961e`: nothing was installed and there was no reboot. Through
+the agent under a kit lease, the run launched package `de3173af…` as a fresh
+library game. First came a FreeDOS memory scrub (SCRUBX), then the plain-SB
+Serpent Isle disk `826af7e5…`, the same disk as the #1426 runs r2–r4.
+It typed `cd \serpent` and `serpent`, grabbed HDMI about every 3.4 s and
+recorded 124.5 s of ALSA audio (48 kHz) from 18 s before the typing. Frames
+and the WAV (`1d5fb3d6…`) stay in `~/fes-scratch/si1455/kit/runs/g1455-k1/`
+on Powerboat; only measurements are here. Afterwards, a housekeeping claim
+removed the 5 FogCast data trees the run created: its game records, disk
+deltas and the staged disk image. It is logged in the status file, and the
+baseline was unchanged.
+
+**Frames**, seconds after `serpent` was typed:
+
+| Seconds | Frames |
+| --- | --- |
+| 6–16 | 4 different frames: the opening scenes |
+| 20 | `4c6d2c8d`, the flat black frame The Black Gate shows between scenes |
+| 23–58 | 11 grabs, 10 different frames; a pillared hall with two figures (`2c5249e8`, at 26 and 30 s) and on |
+| 61, 89 | `4c6d2c8d` again, a scene change each time |
+| 64–92 | 8 more grabs, all different |
+| 95–106 | `10562c0d`, Serpent Isle's main menu (View Introduction, Start New Game, …), held to the end |
+
+r2–r4 on main's package `c7e06e04…` showed `4c6d2c8d` in every grab from
+about 24 s to the end of each capture (up to 200 s), and keys did nothing.
+
+**Audio.** The table gives the largest sample in each second after
+`serpent`, against r4 (same disk, same typing; the music is OPL2 on both):
+
+| | 7–65 s | 66–86 s | after |
+| --- | --- | --- | --- |
+| `g1455-k1` | above 5,000 in 47 of 59 s, up to 20,038: the DSP's narration and effects over the music | 1,750–2,000 (music) | 3,700–4,300 from 87 s (the menu's music) |
+| r4 | 900–3,876 (music only) | 1,750–2,000 | silent from 84 s |
+
+The whole capture peaks at 20,038 against r4's 3,876. The DSP at full
+scale reaches 16,256 through the mixer (`audio_tb`), so those peaks are
+DSP output.
