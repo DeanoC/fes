@@ -97,7 +97,7 @@ struct Fixture {
     NativeResult Program(LinuxDe25FpgaManager& m, ProgrammingProfile p = ProgrammingProfile::de25_hps_first_v1) {return m.Program(artifact,p,100);}
     void Preserved() {assert(Exists(ops.Dir()) && Exists(paths.firmware+"/fes-runtime-core.rbf"));}
 };
-std::string RecoveryPackage(Fixture& f,bool menu) {
+std::string RecoveryPackage(Fixture& f,bool menu,const std::string& suffix="") {
     const auto packages=f.root+"/packages",tmp=packages+"/incoming";
     assert(!mkdir(packages.c_str(),0700)&&!mkdir(tmp.c_str(),0700));
     const auto payload=Get(f.root+"/input.rbf");Sha256 hash;hash.Update(payload.data(),payload.size());
@@ -116,11 +116,11 @@ std::string RecoveryPackage(Fixture& f,bool menu) {
         (id=="fes.fabric.de25-scanout"?"1":"0")+"\nrequired = true\n\n";
     manifest.replace(first,last-first,interfaces);Put(tmp+"/manifest.toml",manifest);Put(tmp+"/core.rbf",payload);
     OpenedCorePackage opened;const auto e=OpenCorePackage(tmp,"",&opened);if(!e.ok())std::cerr<<e.message<<std::endl;assert(e.ok());
-    const auto path=packages+"/"+opened.package_id;assert(!rename(tmp.c_str(),path.c_str()));f.paths.package_roots={packages};return path;
+    const auto path=packages+"/"+opened.package_id+suffix;assert(!rename(tmp.c_str(),path.c_str()));f.paths.package_roots={packages};return path;
 }
 void RecoverVerifiedAllocatedConfigurationOnlyAfterKernelRetirement() {
-    for(bool menu:{false,true}) {
-        Fixture f;RecoveryPackage(f,menu);auto old=f.Manager();
+    for(bool menu:{false,true}) for(const std::string& suffix:{std::string{},std::string{"-0123456789abcdef0123456789abcdef"}}) {
+        Fixture f;RecoveryPackage(f,menu,suffix);auto old=f.Manager();
         assert(f.Program(*old,menu?ProgrammingProfile::de25_linux_menu_v1:ProgrammingProfile::de25_linux_computer_v1).error.ok());old.reset();
         mister_test::de25_menu::Operations owner;owner.retained=owner.allocated=true;owner.state.state=1;LinuxDe25Menu memory(f.clock,owner);
         unsigned guarded=0;
@@ -132,6 +132,26 @@ void RecoverVerifiedAllocatedConfigurationOnlyAfterKernelRetirement() {
         assert(r.error.ok()&&r.mutation_attempted&&!fresh.Poisoned());
         assert(owner.owner_infos==1&&owner.reaps==1&&owner.allocations==0&&owner.published.empty());
         assert(guarded==(menu?0u:1u));assert(f.ops.removed==1&&f.ops.written==2&&f.ops.created==2);f.Preserved();assert(fresh.ReleaseConfiguration(100).error.ok());
+    }
+    for(int malformed=0;malformed<7;++malformed) {
+        Fixture f;const auto package=RecoveryPackage(f,true);auto old=f.Manager();
+        assert(f.Program(*old,ProgrammingProfile::de25_linux_menu_v1).error.ok());old.reset();
+        const std::string token="0123456789abcdef0123456789abcdef";
+        std::string publication=package+"-"+token;
+        if(malformed==0)publication.pop_back();
+        if(malformed==1)publication+='0';
+        if(malformed==2)publication.back()='F';
+        if(malformed==3)publication[publication.size()-33]='_';
+        if(malformed==4)publication=f.paths.package_roots[0]+"/"+std::string(64,'0')+"-"+token;
+        if(malformed==5)publication[publication.size()-34]='A';
+        if(malformed==6) {
+            const auto hidden=f.paths.package_roots[0]+"/unpublished";
+            assert(!rename(package.c_str(),hidden.c_str())&&!symlink(hidden.c_str(),publication.c_str()));
+        } else assert(!rename(package.c_str(),publication.c_str()));
+        mister_test::de25_menu::Operations owner;owner.retained=owner.allocated=true;owner.state.state=1;
+        LinuxDe25Menu memory(f.clock,owner);LinuxDe25FpgaManager fresh(f.clock,f.lease,f.paths,f.ops,&memory);
+        const auto r=f.Program(fresh,ProgrammingProfile::de25_linux_menu_v1);
+        assert(!r.error.ok()&&owner.owner_infos==0&&owner.reaps==0&&f.ops.removed==0&&f.ops.written==1);f.Preserved();
     }
     for(int fault=0;fault<10;++fault) {
         Fixture f;const auto package=RecoveryPackage(f,true);auto old=f.Manager();

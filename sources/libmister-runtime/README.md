@@ -76,8 +76,10 @@ unexpected process death preserve the configuration. Production restart may
 abandon an exact applied allocated overlay only after its staged RBF matches an
 admitted outgoing package and the permanent owner records successful completed
 revocation with no exposure or uncertainty. One REAP then releases its retained
-reference, and OWNER_IDLE proves the end of peer references. A retained computer
-must also pass live identity and the existing SAVE guard, so dirty snapshots or
+reference, and OWNER_IDLE proves the end of peer references. The outgoing package
+may come from either the factory package directory or the normal agent's sealed
+ID-plus-token staging publication; content identity is verified in either case.
+A retained computer must also pass live identity and the existing SAVE guard, so dirty snapshots or
 uncertain mailboxes remain blocked. The existing verified release then precedes a
 normal MENU load. Unknown packages, firmware-only overlays and uncertainty
 remain refused; no lost guest session is resumed. This extension has software

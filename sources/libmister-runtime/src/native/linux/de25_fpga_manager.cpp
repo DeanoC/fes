@@ -320,10 +320,16 @@ public:
             parent.n = -1;
             while (auto* entry = readdir(entries)) {
                 error = Check(deadline); if (!error.ok()) break;
-                const std::string id = entry->d_name;
+                const std::string publication = entry->d_name;
+                // Factory packages use the bare ID. The normal agent stages
+                // ID-<32 lowercase hex characters>; the suffix is not identity.
+                if (publication.size() != 64 &&
+                    (publication.size() != 97 || publication[64] != '-' ||
+                     publication.find_first_not_of("0123456789abcdef", 65) != std::string::npos)) continue;
+                const std::string id = publication.substr(0, 64);
                 if (id.size() != 64 || id.find_first_not_of("0123456789abcdef") != std::string::npos) continue;
                 OpenedCorePackage candidate;
-                error = OpenCorePackage(package_roots, root + "/" + id, id, &candidate);
+                error = OpenCorePackage(package_roots, root + "/" + publication, id, &candidate);
                 if (!error.ok() || candidate.payload.size() != staged.size() ||
                     candidate.descriptor.payload.sha256 != digest) continue;
                 error = CheckCoreCompatibility(candidate.descriptor, NativePlatform::de25_nano);

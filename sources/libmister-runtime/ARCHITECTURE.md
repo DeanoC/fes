@@ -96,7 +96,11 @@ trusted package roots to the programmer. A fresh programming context may abandon
 an inherited allocated MENU or standard ZX81 configuration only when its exact
 overlay is applied, the manager is operating, and the root-owned read-only staged
 RBF matches a fully opened, hash-checked compatible package in those roots. The
-outgoing package supplies the expected build identity; the incoming MENU may be
+scan recognizes factory package IDs and the agent's existing ID plus 32-character
+hex staging suffix; both still require the manifest/content-derived package ID,
+payload digest, no-symlink admission and exact board contract. Malformed publication
+names and mismatched content remain refused. The outgoing package supplies the
+expected build identity; the incoming MENU may be
 different. Firmware-only profiles, missing packages, foreign overrides, changed
 bytes and incomplete submissions remain refused. No restart ownership database
 is introduced.
