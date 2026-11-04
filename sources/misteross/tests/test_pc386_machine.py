@@ -265,6 +265,16 @@ class C2xxTestTest(unittest.TestCase):
         self.assertIn(f"typed_keys:    db '{sim.C2XX_KEYS}'", source)
         self.assertTrue(sim.C2XX_KEYS.endswith('q'))
 
+    def test_typing_runs_before_any_flush_and_fixed_checks_follow_q(self):
+        source = (sim.CORE / 'sim/c2xx_test.asm').read_text()
+        program = source[source.index('start:'):source.index('done:')]
+        pre_typing, rest = program.split('typing:', 1)
+        typing, fixed_checks = rest.split('stale_key:', 1)
+        self.assertNotIn('call flush_keys', pre_typing)
+        self.assertIn('call wait_typing_tail', typing)
+        self.assertLess(typing.index('call wait_typing_tail'), typing.index('jmp stale_key'))
+        self.assertIn('name_stale_key', fixed_checks)
+
     @staticmethod
     def suite(lines, cpu='oracle', oracle_steps=0):
         commands = []
@@ -287,8 +297,8 @@ class C2xxTestTest(unittest.TestCase):
     def test_every_check_must_print_ok(self):
         passing = [f'C2 {name} ok' for name in sim.C2XX_CHECKS]
         self.assertEqual(self.suite(passing)[0], [])
-        self.assertEqual(self.suite(passing[:3] + ['C2 typing 9 resets abc FAIL'] + passing[4:])[0],
-                         ['C2 typing 9 resets abc FAIL'])
+        self.assertEqual(self.suite(passing[:2] + ['C2 stale-aux FAIL'] + passing[3:])[0],
+                         ['C2 stale-aux FAIL'])
 
     def test_a_reset_that_never_returns_fails(self):
         failures, _ = self.suite([])

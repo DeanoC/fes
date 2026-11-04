@@ -736,7 +736,7 @@ def run_a20(args, linked: list[Path]) -> dict:
 # C2TEST.COM's checks in the order it runs them, and the keys the suite types
 # after the command (the program's typed_keys), each held 8 ms as system_tb
 # holds them.
-C2XX_CHECKS = ('stale-key', 'stale-aux', 'masked-key', 'typing', 'DONE')
+C2XX_CHECKS = ('typing', 'stale-key', 'stale-aux', 'masked-key', 'DONE')
 C2XX_KEYS = 'abcdefghijklmnopq'
 
 

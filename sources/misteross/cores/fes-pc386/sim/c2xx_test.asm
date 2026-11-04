@@ -9,6 +9,9 @@
 ; the mouse behind a keyboard byte, or reads one as the 8042's command byte,
 ; never returns, and the run ends at the bench's time limit.
 ;
+;   typing      C205h again and again, 3 ms apart, while the bench types: the
+;               keys come through INT 16h in order up to q. It prints the
+;               number of resets and the keys.
 ;   stale-key   A key byte in the output buffer when C205h (initialise, 3-byte
 ;               packets) starts: 8042 command D2h puts the set 1 make code of K
 ;               there with interrupts off. The reset returns, and INT 09h took
@@ -17,9 +20,6 @@
 ;   masked-key  The K make code again with IRQ1 masked at the PIC, so no
 ;               handler can take it: the reset still returns, and the byte is
 ;               gone, so INT 16h has no key.
-;   typing      C205h again and again, 3 ms apart, while the bench types: the
-;               keys come through INT 16h in order up to q. It prints the
-;               number of resets and the keys.
 ;
 ; Assemble: nasm -f bin -o C2TEST.COM c2xx_test.asm.
 
@@ -30,62 +30,10 @@
 DEBUG_PORT equ 0xe9
 K_MAKE     equ 0x25                     ; set 1, as the 8042 translates it
 GAP_COUNTS equ 3 * 1193                 ; 3 ms of PIT counter 0
+KEY_TAIL_COUNTS equ 10 * 1193           ; longer than one 8 ms keyboard tap
 TYPING_TICKS equ 55                     ; give up after about 3 s
 
 start:  cld
-        call flush_keys
-
-        ; ---- stale-key ----------------------------------------------------
-        mov si, name_stale_key
-        mov ax, 0xd2 << 8 | K_MAKE
-        call stale_reset
-        jc .stale_key_fail
-        mov ah, 0x01
-        int 0x16
-        jz .stale_key_fail
-        xor ah, ah
-        int 0x16
-        cmp ax, 0x256b
-        jne .stale_key_fail
-        call pass
-        jmp .stale_aux
-.stale_key_fail:
-        call fail
-
-        ; ---- stale-aux ----------------------------------------------------
-.stale_aux:
-        call flush_keys
-        mov si, name_stale_aux
-        mov ax, 0xd3 << 8 | 0x08
-        call stale_reset
-        jc .stale_aux_fail
-        call pass
-        jmp .masked
-.stale_aux_fail:
-        call fail
-
-        ; ---- masked-key ---------------------------------------------------
-.masked:
-        call flush_keys
-        mov si, name_masked_key
-        in al, 0x21
-        mov [pic_mask], al
-        or al, 0x02                     ; IRQ1
-        out 0x21, al
-        mov ax, 0xd2 << 8 | K_MAKE
-        call stale_reset
-        pushf
-        mov al, [pic_mask]
-        out 0x21, al
-        popf
-        jc .masked_fail
-        mov ah, 0x01
-        int 0x16
-        jnz .masked_fail
-        call pass
-        jmp typing
-.masked_fail:
-        call fail
 
         ; ---- typing -------------------------------------------------------
 typing: mov di, received
@@ -136,13 +84,71 @@ typing: mov di, received
         jne .typing_fail
         cmp byte [si], '$'
         jne .typing_fail
+        ; The bench releases q 8 ms after its make. Wait for that break before
+        ; injecting the fixed test bytes into the 8042.
+        call wait_typing_tail
         call typing_line
         call pass
-        jmp done
+        jmp stale_key
 .typing_fail:
         mov byte [di], '$'
         call typing_line
         call fail
+        jmp done
+
+        ; ---- stale-key ----------------------------------------------------
+stale_key:
+        mov si, name_stale_key
+        mov ax, 0xd2 << 8 | K_MAKE
+        call stale_reset
+        jc .stale_key_fail
+        mov ah, 0x01
+        int 0x16
+        jz .stale_key_fail
+        xor ah, ah
+        int 0x16
+        cmp ax, 0x256b
+        jne .stale_key_fail
+        call pass
+        jmp .stale_aux
+.stale_key_fail:
+        call fail
+
+        ; ---- stale-aux ----------------------------------------------------
+.stale_aux:
+        call flush_keys
+        mov si, name_stale_aux
+        mov ax, 0xd3 << 8 | 0x08
+        call stale_reset
+        jc .stale_aux_fail
+        call pass
+        jmp .masked
+.stale_aux_fail:
+        call fail
+
+        ; ---- masked-key ---------------------------------------------------
+.masked:
+        call flush_keys
+        mov si, name_masked_key
+        in al, 0x21
+        mov [pic_mask], al
+        or al, 0x02                     ; IRQ1
+        out 0x21, al
+        mov ax, 0xd2 << 8 | K_MAKE
+        call stale_reset
+        pushf
+        mov al, [pic_mask]
+        out 0x21, al
+        popf
+        jc .masked_fail
+        mov ah, 0x01
+        int 0x16
+        jnz .masked_fail
+        call pass
+        jmp done
+.masked_fail:
+        call fail
+        jmp done
 
 done:   mov si, name_done
         cmp byte [failed], 0
@@ -154,6 +160,17 @@ done:   mov si, name_done
 .exit:  mov ax, 0x4c00
         or al, [failed]
         int 0x21
+
+; Let the bench's final 8 ms keyboard make/break tap complete.
+wait_typing_tail:
+        call pit_count
+        mov [gap_start], ax
+.wait:  call pit_count
+        mov dx, [gap_start]
+        sub dx, ax
+        cmp dx, KEY_TAIL_COUNTS
+        jb .wait
+        ret
 
 ; The typing check's name, then " <resets> resets <keys>".
 typing_line:
@@ -298,8 +315,8 @@ msg_resets:    db ' resets $'
 msg_ok:        db ' ok$'
 msg_fail:      db ' FAIL$'
 msg_newline:   db 13, 10, '$'
+name_typing:   db 'typing$'
 name_stale_key: db 'stale-key$'
 name_stale_aux: db 'stale-aux$'
 name_masked_key: db 'masked-key$'
-name_typing:   db 'typing$'
 name_done:     db 'DONE$'
