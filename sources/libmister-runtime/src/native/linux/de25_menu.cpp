@@ -209,6 +209,10 @@ Error LinuxDe25Menu::Activate(bool clear,bool blitter) {
  std::lock_guard<std::mutex> lock(mutex_);
  if(blitter||(!clear&&!session_control_))return Unsupported();
  if(!clear) {
+  // Launch configured a cold grant before releasing execution. Its first
+  // opening needs no retirement/allocation cycle and exposes no old frame.
+  if(grant_>=0&&activated_&&bootstrapped_&&!exposure_possible_&&session_quiesced_&&!faulted_&&!revoke_failed_)
+   return {};
   if(grant_>=0||!bootstrapped_||!session_quiesced_||faulted_||revoke_failed_)
    return Failed("DE25 session reopen requires a successfully retired allocation");
   // OWNER_ALLOC clears hardware sequence/slot ownership. Preserve only the
@@ -247,7 +251,7 @@ Error LinuxDe25Menu::Configure(std::uint64_t d) {
  if(session_control_) {
   Error e=Refresh(d);if(e.ok())e=session_control_->Configure(d);if(e.ok())e=Deadline(d);
   if(!e.ok())return Fault(e);
-  bootstrapped_=true;return {};
+  bootstrapped_=true;session_quiesced_=true;return {};
  }
  for(;;) {
   Error e=Refresh(d);if(!e.ok())return e;

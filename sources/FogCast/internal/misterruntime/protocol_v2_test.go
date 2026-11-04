@@ -88,11 +88,10 @@ func TestProtocol2DE25ProducerComputerStatus(t *testing.T) {
 }
 
 func TestProtocol2DE25StandardComputerProfileAndTapeLimit(t *testing.T) {
-	// Change the existing wire fixture's profile/limit together. This is decoder
-	// coverage, not a claim that the bring-up producer emitted a standard package.
-	line := fixtureLines(t, "protocol-v2-de25-computer.jsonl")[0]
-	line = strings.ReplaceAll(line, "de25-hps-first-v1", "de25-linux-computer-v1")
-	line = strings.Replace(line, `"max_bytes":16375`, `"max_bytes":16384`, 1)
+	// Actual C++ production-profile serializer from the injected allocation and
+	// atomic-register lifecycle fixture after standard Start, before opening UI.
+	// This is a software fixture, not a physical standard-core boot.
+	line := fixtureLines(t, "protocol-v2-de25-standard-computer.jsonl")[0]
 	server := newSequenceSocketFixture(t, []string{line + "\n"})
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
 	defer cancel()
@@ -102,6 +101,9 @@ func TestProtocol2DE25StandardComputerProfileAndTapeLimit(t *testing.T) {
 	}
 	active := response.ActivePackage
 	status := computerMediaStatus(response)
+	if response.MenuDisplay == nil || !response.MenuDisplay.Session || !response.MenuDisplay.FrameMapping || response.MenuDisplay.Available {
+		t.Fatalf("allocated session mapping agreement lost: %+v", response.MenuDisplay)
+	}
 	binding := protocol.MediaUnitBinding{PackageID: active.PackageID, Generation: *response.Generation, Unit: 0}
 	if !binding.AcceptsSize(status, 16384) || binding.AcceptsSize(status, 16385) {
 		t.Fatal("standard tape limit differs")

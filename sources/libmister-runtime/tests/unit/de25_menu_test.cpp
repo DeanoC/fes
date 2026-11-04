@@ -128,6 +128,7 @@ void SelectedSessionContractBindsBeforeAnyExposure() {
  assert(!m.BindSession(bad,100).ok()&&o.abi_calls==0&&o.allocations==0);
  assert(m.BindSession(d,100).ok()&&o.allocations==1&&o.published.empty());
  assert(m.Activate(true,false).ok()&&m.Configure(100).ok());
+ assert(m.Activate(false,false).ok()&&o.allocations==1&&o.published.empty());
  MenuDisplayInfo info;assert(m.ReadInfo(100,&info).ok()&&!info.enabled&&info.quiesced);
  assert(m.Quiesce(100,&d,&info).ok()&&gp.submits==0);
 }
