@@ -1,0 +1,616 @@
+diff -ruN a/sources/misteross/cores/fes-pc386/sim/cpu_profile_build.py b/sources/misteross/cores/fes-pc386/sim/cpu_profile_build.py
+--- a/sources/misteross/cores/fes-pc386/sim/cpu_profile_build.py	1970-01-01 02:00:00.000000000 +0200
++++ b/sources/misteross/cores/fes-pc386/sim/cpu_profile_build.py	2026-11-05 00:59:45.329095144 +0200
+@@ -0,0 +1,22 @@
++#!/usr/bin/env python3
++"""Build the Phase 4 profile machine_tb (scratch): the worktree's RTL, this directory's patched testbench."""
++import argparse
++import sys
++from pathlib import Path
++
++root = Path(sys.argv[1]).resolve()
++here = Path(__file__).resolve().parent
++sys.path.insert(0, str(root))
++from scripts import sim_fes_pc386 as sim  # noqa: E402
++from scripts import fes_i386_oracle as oracle  # noqa: E402
++from scripts import build_pc386_firmware as firmware  # noqa: E402
++
++args = argparse.Namespace(verilator='verilator', jobs=12, download=True)
++linked = oracle.link_inputs(args.jobs, True)
++cpu = sim.verilate(args.verilator, 'p4prof', 'fes_i386_cpu', sim.CPU_RTL + (here / 'cpu_profile.vlt',), None, [], args.jobs)
++testbench = sim.verilate_with_audio(args, 'p4prof', here / 'machine_tb.cpp', [*linked, cpu],
++                                    top='pc386_machine', rtl=sim.MACHINE_RTL, include=(cpu.parent,))
++images = firmware.images(True, args.jobs)
++print(testbench)
++print(images['bios'])
++print(images['vgabios'])
+diff -ruN a/sources/misteross/cores/fes-pc386/sim/cpu_profile_estimate.py b/sources/misteross/cores/fes-pc386/sim/cpu_profile_estimate.py
+--- a/sources/misteross/cores/fes-pc386/sim/cpu_profile_estimate.py	1970-01-01 02:00:00.000000000 +0200
++++ b/sources/misteross/cores/fes-pc386/sim/cpu_profile_estimate.py	2026-11-05 00:59:45.329095144 +0200
+@@ -0,0 +1,62 @@
++#!/usr/bin/env python3
++"""Phase 4 gain estimates from a window (analyse.py --json): estimate.py WIN.json [KIT_FPS]
++
++Kit clocks: each L1 miss is charged 7 fewer clocks than on the bench (port 0's
++18-clock first data at 100 MHz is 11 at 61.44 MHz). A correctly predicted taken
++branch leaves the target its average cost plus a one-clock bubble."""
++import json
++import sys
++
++w = json.load(open(sys.argv[1]))
++kit_fps = float(sys.argv[2]) if len(sys.argv) > 2 else None
++C, F, R = w['cycles'], max(w['frames'], 1), w['retired']
++cl, B = w['classes'], w['buckets']
++misses = w['l1d_waits'] + w['l1i_waits']
++kit = C - 7 * misses
++taken = sum(v['taken'] for v in cl.values())
++nexts = sum(v['next'] for v in cl.values())
++base = (C - nexts) / max(R - taken, 1)  # an instruction's average clocks when not after a taken branch
++pred = base + 1
++
++
++def br(names, lo, hi):
++    t = sum(cl[n]['taken'] for n in names if n in cl)
++    nx = sum(cl[n]['next'] for n in names if n in cl)
++    per = nx / max(t, 1) - pred
++    return t * per * lo, t * per * hi, t, nx / max(t, 1)
++
++
++rows = []
++jcc_nt = cl['jcc']['n'] - cl['jcc']['taken']
++lo, hi, t, per = br(['jcc'], 0.85, 0.95)
++false = jcc_nt * 0.05 * (per - 1)
++rows.append(('BTB: Jcc', lo - false, hi - false, f'{t:,} taken at {per:.1f}'))
++lo, hi, t, per = br(['jmp', 'call'], 0.95, 0.99)
++rows.append(('BTB: JMP and CALL rel', lo, hi, f'{t:,} at {per:.1f}'))
++lo, hi, t, per = br(['ret'], 0.95, 0.99)
++rows.append(('Return stack: RET', lo, hi, f'{t:,} at {per:.1f}'))
++lo, hi, t, per = br(['call_ind', 'jmp_ind'], 0.7, 0.9)
++rows.append(('BTB: indirect JMP and CALL', lo, hi, f'{t:,} at {per:.1f}'))
++lo, hi, t, per = br(['far_call', 'far_jmp', 'retf'], 0.9, 0.98)
++rows.append(('Real-mode far prediction', lo, hi, f'{t:,} at {per:.1f} (real mode only)'))
++rows.append(('Store-to-load wait', 0.5 * B['st_ld'], B['st_ld'], f'{B["st_ld"]:,} clocks'))
++rows.append(('Early ALU (AGI)', 0.3 * B['agi'], 0.8 * B['agi'], f'{B["agi"]:,} clocks, producers not split'))
++per_miss = B['frz_l1d'] / max(w['l1d_waits'], 1) - 7
++rows.append(('L2 (128 KiB)', w['l1d_waits'] * max(per_miss - 7, 0) * 0.5, w['l1d_waits'] * max(per_miss - 7, 0) * 0.8,
++             f'{w["l1d_waits"]:,} L1D misses at {per_miss:.0f} kit clocks'))
++rows.append(('Mul/div', 0.3 * B['frz_md'], 0.6 * B['frz_md'], f'{B["frz_md"]:,} clocks'))
++
++print(f'window {w["from"]}..{w["to"]}: bench {C:,} clocks, {F} frames, {C / F:,.0f}/frame; '
++      f'kit-equivalent {kit / F:,.0f}/frame -> {61.44e6 / (kit / F):.2f} fps at 61.44 MHz; base {base:.2f}')
++print(f'{"feature":30s} {"% of kit clocks":>17s} {"fps":>13s}  basis')
++total_lo = total_hi = 0
++for name, lo, hi, basis in rows:
++    total_lo += lo
++    total_hi += hi
++    ref = kit_fps or 61.44e6 / (kit / F)
++    f = lambda s: ref * kit / (kit - s)
++    print(f'{name:30s} {100 * lo / kit:7.1f}-{100 * hi / kit:5.1f}%  {f(lo):5.1f}-{f(hi):5.1f}  {basis}')
++pl = sum(r[1] for r in rows[:5]); ph = sum(r[2] for r in rows[:5])
++ref = kit_fps or 61.44e6 / (kit / F)
++print(f'{"prediction (first five)":30s} {100 * pl / kit:7.1f}-{100 * ph / kit:5.1f}%  '
++      f'{ref * kit / (kit - pl):5.1f}-{ref * kit / (kit - ph):5.1f}')
+diff -ruN a/sources/misteross/cores/fes-pc386/sim/cpu_profile.h b/sources/misteross/cores/fes-pc386/sim/cpu_profile.h
+--- a/sources/misteross/cores/fes-pc386/sim/cpu_profile.h	1970-01-01 02:00:00.000000000 +0200
++++ b/sources/misteross/cores/fes-pc386/sim/cpu_profile.h	2026-11-05 00:59:45.325094981 +0200
+@@ -0,0 +1,217 @@
++// SPDX-License-Identifier: MIT
++// Phase 4 profile hook for machine_tb --cpu rtl (scratch, bench only; not committed).
++// Reads D's issue and wait terms through cpu_profile.vlt's public_flat_rd signals and
++// classifies every system clock, and attributes each retirement's clocks to its class.
++#pragma once
++
++#include "Vfes_i386_cpu.h"
++#include "Vfes_i386_cpu___024root.h"
++
++#include <algorithm>
++#include <cstdint>
++#include <cstdio>
++#include <string>
++#include <unordered_map>
++#include <vector>
++
++struct CpuProfile {
++    enum Bucket {
++        ISSUE_FIRST, ISSUE_MORE, HALT, FRZ_L1D, FRZ_MMIO, FRZ_MD, FRZ_IO, FRZ_INTA, FRZ_STORE,
++        REFILL, REFILL_L1I, FE_L1I, FE_EMPTY, D_STOP, GOV, AGI, SEG, STLD, FLAG, SP, TEMP, UROM, STR,
++        IO_SERIAL, REPLAY_SERIAL, OTHER_WAIT, PARKED_IO, PARKED_HALT, RESET, NBUCKET
++    };
++    static constexpr const char *bucket_name[NBUCKET] = {
++        "issue_first", "issue_more", "halt", "frz_l1d", "frz_mmio", "frz_md", "frz_io", "frz_inta", "frz_store",
++        "refill", "refill_l1i", "fe_l1i", "fe_empty", "d_stop", "gov", "agi", "seg", "st_ld", "flag", "sp",
++        "temp", "urom", "str", "io_serial", "replay_serial", "other_wait", "parked_io", "parked_halt", "reset"};
++    enum Class {
++        C_JCC, C_JMP, C_JMP_IND, C_CALL, C_CALL_IND, C_RET, C_FAR_CALL, C_FAR_JMP, C_RETF, C_INT, C_IRET,
++        C_LOOP, C_JCXZ, C_REP_STR, C_STR, C_IO, C_MUL, C_DIV, C_SHIFT, C_PUSHPOP, C_SEGLOAD, C_LOAD_OP, C_OTHER,
++        C_DELIVERY, NCLASS
++    };
++    static constexpr const char *class_name[NCLASS] = {
++        "jcc", "jmp", "jmp_ind", "call", "call_ind", "ret", "far_call", "far_jmp", "retf", "int", "iret",
++        "loop", "jcxz", "rep_str", "str", "io", "mul", "div", "shift", "pushpop", "segload", "mem_op", "other",
++        "delivery"};
++    struct Counts { uint64_t n = 0, taken = 0, own = 0, next = 0, next_taken_l1i = 0; };
++
++    uint64_t bucket[NBUCKET] = {};
++    uint64_t commits = 0, flushes = 0, redirects = 0, l1d_waits = 0, l1i_waits = 0, retired = 0, pm_retired = 0;
++    uint64_t frames = 0, polls_3da = 0, io_accesses = 0;
++    Counts cls[NCLASS];
++    uint64_t prefixes = 0;  // prefix bytes before the last one, which cost a cycle each
++    struct Site { uint64_t n = 0, cycles = 0; uint8_t c = 0; };
++    std::unordered_map<uint32_t, Site> sites;  // per dump interval, by linear start
++    uint64_t last_retire = 0;
++    int pending = -1;  // the class of a taken instruction whose target has not retired
++    bool since_redirect = false, was_l1d = false, was_l1i = false, refill_l1i = false;
++    uint64_t sampled = 0;  // clocks classified (sample + parked)
++
++    template <typename Cpu> void sample(Cpu &cpu, bool mmio_busy, bool resetting) {
++        ++sampled;
++        auto *r = cpu.rootp;
++#define S(name) (r->fes_i386_cpu__DOT__##name)
++        if (resetting) { ++bucket[RESET]; return; }
++        const bool redirect = S(redirect);
++        if (S(wb_commit)) ++commits;
++        if (S(wb_flush)) ++flushes;
++        const bool l1d = S(freeze) && S(m2_load) && !S(dmem_valid) && !mmio_busy;
++        if (l1d && !was_l1d) ++l1d_waits;
++        was_l1d = l1d;
++        const bool l1i = !S(mem_valid);
++        if (l1i && !was_l1i) ++l1i_waits;
++        was_l1i = l1i;
++        Bucket b;
++        if (S(issue)) {
++            b = S(d_first) ? ISSUE_FIRST : ISSUE_MORE;
++            since_redirect = false;
++        } else if (S(halted)) b = HALT;
++        else if (S(freeze)) {
++            if (S(m2_load) && !S(dmem_valid)) b = mmio_busy ? FRZ_MMIO : FRZ_L1D;
++            else if (S(md_busy)) b = FRZ_MD;
++            else if (S(io_wait)) b = FRZ_IO;
++            else if (S(int_wait)) b = FRZ_INTA;
++            else b = FRZ_STORE;
++        } else if (!S(dc_valid)) {
++            if (since_redirect) b = l1i || refill_l1i ? REFILL_L1I : REFILL;
++            else b = l1i ? FE_L1I : FE_EMPTY;
++            if (since_redirect && l1i) refill_l1i = true;
++        } else if (S(d_stop)) b = D_STOP;
++        else if (S(gov_block)) b = GOV;
++        else if (S(addr_use) && S(lea_stall)) b = AGI;
++        else if (S(reads_seg) && S(seg_hazard) || S(mem) && S(mseg_hazard)) b = SEG;
++        else if (S(store_hazard)) b = STLD;
++        else if (S(flag_hazard)) b = FLAG;
++        else if (S(sp_hazard) || S(stack_wait)) b = SP;
++        else if (S(t_wait)) b = TEMP;
++        else if (S(uc_wait)) b = UROM;
++        else if (S(str_wait) || S(str_hazard)) b = STR;
++        else if (S(io_hazard)) b = IO_SERIAL;
++        else if (S(ser_wait)) b = REPLAY_SERIAL;
++        else b = OTHER_WAIT;
++        ++bucket[b];
++        if (redirect) { ++redirects; since_redirect = true; refill_l1i = false; }
++#undef S
++    }
++    void parked(bool asleep) { ++sampled; ++bucket[asleep ? PARKED_HALT : PARKED_IO]; }
++    void io(bool write, uint16_t port, uint32_t wdata) {
++        ++io_accesses;
++        if (write && port == 0x3d4 && (wdata & 0xff) == 0x0c) ++frames;
++        if (!write && port == 0x3da) ++polls_3da;
++    }
++
++    static Class classify(const uint8_t *b, unsigned length, unsigned &extra_prefixes) {
++        unsigned at = 0;
++        bool rep = false;
++        for (; at < length; ++at) {
++            const uint8_t p = b[at];
++            if (p == 0xf2 || p == 0xf3) rep = true;
++            else if (!(p == 0x66 || p == 0x67 || p == 0xf0 || p == 0x26 || p == 0x2e || p == 0x36 || p == 0x3e
++                       || p == 0x64 || p == 0x65)) break;
++        }
++        extra_prefixes = at > 1 ? at - 1 : 0;
++        if (at >= length) return C_OTHER;
++        const uint8_t op = b[at];
++        const uint8_t reg = at + 1 < length ? (b[at + 1] >> 3) & 7 : 0;
++        const bool rm_mem = at + 1 < length && (b[at + 1] >> 6) != 3;
++        if (op == 0x0f) {
++            const uint8_t op2 = at + 1 < length ? b[at + 1] : 0;
++            if (op2 >= 0x80 && op2 <= 0x8f) return C_JCC;
++            if (op2 == 0xaf) return C_MUL;
++            if (op2 == 0xa4 || op2 == 0xa5 || op2 == 0xac || op2 == 0xad) return C_SHIFT;
++            if (op2 == 0xa0 || op2 == 0xa1 || op2 == 0xa8 || op2 == 0xa9) return C_PUSHPOP;
++            if (op2 == 0xb2 || op2 == 0xb4 || op2 == 0xb5) return C_SEGLOAD;
++            return C_OTHER;
++        }
++        if (op >= 0x70 && op <= 0x7f) return C_JCC;
++        if (op == 0xeb || op == 0xe9) return C_JMP;
++        if (op == 0xe8) return C_CALL;
++        if (op == 0xc3 || op == 0xc2) return C_RET;
++        if (op == 0x9a) return C_FAR_CALL;
++        if (op == 0xea) return C_FAR_JMP;
++        if (op == 0xca || op == 0xcb) return C_RETF;
++        if (op == 0xcc || op == 0xcd || op == 0xce) return C_INT;
++        if (op == 0xcf) return C_IRET;
++        if (op >= 0xe0 && op <= 0xe2) return C_LOOP;
++        if (op == 0xe3) return C_JCXZ;
++        if (op == 0xff) {
++            if (reg == 2) return C_CALL_IND;
++            if (reg == 3) return C_FAR_CALL;
++            if (reg == 4) return C_JMP_IND;
++            if (reg == 5) return C_FAR_JMP;
++            if (reg == 6) return C_PUSHPOP;
++        }
++        if ((op >= 0xa4 && op <= 0xa7) || (op >= 0xaa && op <= 0xaf) || (op >= 0x6c && op <= 0x6f))
++            return rep ? C_REP_STR : C_STR;
++        if ((op >= 0xe4 && op <= 0xe7) || (op >= 0xec && op <= 0xef)) return C_IO;
++        if (op == 0xf6 || op == 0xf7) {
++            if (reg == 4 || reg == 5) return C_MUL;
++            if (reg == 6 || reg == 7) return C_DIV;
++        }
++        if (op == 0x69 || op == 0x6b) return C_MUL;
++        if (op == 0xc0 || op == 0xc1 || (op >= 0xd0 && op <= 0xd3)) return C_SHIFT;
++        if ((op >= 0x50 && op <= 0x61) || op == 0x68 || op == 0x6a || op == 0x8f || op == 0x9c || op == 0x9d
++            || op == 0x06 || op == 0x07 || op == 0x0e || op == 0x16 || op == 0x17 || op == 0x1e || op == 0x1f
++            || op == 0xc8 || op == 0xc9)
++            return C_PUSHPOP;
++        if (op == 0x8e || op == 0xc4 || op == 0xc5) return C_SEGLOAD;
++        // A ModRM memory operand among the ALU, MOV and test forms.
++        const bool modrm = op < 0x40 ? (op & 7) < 4 : (op >= 0x80 && op <= 0x8b) || op == 0x8d || op == 0xc6 || op == 0xc7
++                           || op == 0xfe || op == 0xff || op == 0xf6 || op == 0xf7;
++        if (modrm && rm_mem && op != 0x8d) return C_LOAD_OP;
++        if (op >= 0xa0 && op <= 0xa3) return C_LOAD_OP;
++        return C_OTHER;
++    }
++
++    // A retirement at clock now: the instruction at start, the next at next.
++    void retire(uint64_t now, uint32_t start, uint32_t next, const uint8_t *bytes, unsigned length, bool delivery,
++                bool pe) {
++        ++retired;
++        if (pe) ++pm_retired;
++        const uint64_t gap = now - last_retire;
++        last_retire = now;
++        unsigned extra = 0;
++        const Class c = delivery ? C_DELIVERY : classify(bytes, length, extra);
++        prefixes += extra;
++        Counts &k = cls[c];
++        ++k.n;
++        k.own += gap;
++        if (pending >= 0) {
++            cls[pending].next += gap;
++            pending = -1;
++        }
++        if (delivery || next != start + length) {
++            ++k.taken;
++            pending = c;
++        }
++        Site &s = sites[start];
++        ++s.n;
++        s.cycles += gap;
++        s.c = uint8_t(c);
++    }
++
++    void dump(FILE *out, uint64_t cycles, double seconds) {
++        std::fprintf(out, "T %.3f cycles=%llu sampled=%llu retired=%llu pm_retired=%llu commits=%llu flushes=%llu "
++                     "redirects=%llu l1d_waits=%llu l1i_waits=%llu frames=%llu polls_3da=%llu io=%llu prefixes=%llu\n",
++                     seconds, (unsigned long long)cycles, (unsigned long long)sampled, (unsigned long long)retired,
++                     (unsigned long long)pm_retired, (unsigned long long)commits, (unsigned long long)flushes,
++                     (unsigned long long)redirects, (unsigned long long)l1d_waits, (unsigned long long)l1i_waits,
++                     (unsigned long long)frames, (unsigned long long)polls_3da, (unsigned long long)io_accesses,
++                     (unsigned long long)prefixes);
++        std::fprintf(out, "B %.3f", seconds);
++        for (int b = 0; b < NBUCKET; ++b) std::fprintf(out, " %s=%llu", bucket_name[b], (unsigned long long)bucket[b]);
++        std::fprintf(out, "\n");
++        for (int c = 0; c < NCLASS; ++c)
++            std::fprintf(out, "C %.3f %s n=%llu taken=%llu own=%llu next=%llu\n", seconds, class_name[c],
++                         (unsigned long long)cls[c].n, (unsigned long long)cls[c].taken,
++                         (unsigned long long)cls[c].own, (unsigned long long)cls[c].next);
++        std::vector<std::pair<uint32_t, Site>> top(sites.begin(), sites.end());
++        std::sort(top.begin(), top.end(), [](const auto &a, const auto &b) { return a.second.cycles > b.second.cycles; });
++        if (top.size() > 120) top.resize(120);
++        for (const auto &[at, s] : top)
++            std::fprintf(out, "S %.3f %08x %s n=%llu cycles=%llu\n", seconds, at, class_name[s.c],
++                         (unsigned long long)s.n, (unsigned long long)s.cycles);
++        sites.clear();  // site lines are per interval
++        std::fflush(out);
++    }
++};
+diff -ruN a/sources/misteross/cores/fes-pc386/sim/cpu_profile.vlt b/sources/misteross/cores/fes-pc386/sim/cpu_profile.vlt
+--- a/sources/misteross/cores/fes-pc386/sim/cpu_profile.vlt	1970-01-01 02:00:00.000000000 +0200
++++ b/sources/misteross/cores/fes-pc386/sim/cpu_profile.vlt	2026-11-05 00:59:45.329095144 +0200
+@@ -0,0 +1,41 @@
++`verilator_config
++// Phase 4 profile (bench only): D's issue and wait terms, read by cpu_profile.h.
++public_flat_rd -module "fes_i386_cpu" -var "issue"
++public_flat_rd -module "fes_i386_cpu" -var "cur_valid"
++public_flat_rd -module "fes_i386_cpu" -var "dc_valid"
++public_flat_rd -module "fes_i386_cpu" -var "d_stop"
++public_flat_rd -module "fes_i386_cpu" -var "d_first"
++public_flat_rd -module "fes_i386_cpu" -var "freeze"
++public_flat_rd -module "fes_i386_cpu" -var "m2_load"
++public_flat_rd -module "fes_i386_cpu" -var "dmem_valid"
++public_flat_rd -module "fes_i386_cpu" -var "md_busy"
++public_flat_rd -module "fes_i386_cpu" -var "io_wait"
++public_flat_rd -module "fes_i386_cpu" -var "int_wait"
++public_flat_rd -module "fes_i386_cpu" -var "st_wait"
++public_flat_rd -module "fes_i386_cpu" -var "halted"
++public_flat_rd -module "fes_i386_cpu" -var "gov_block"
++public_flat_rd -module "fes_i386_cpu" -var "lea_stall"
++public_flat_rd -module "fes_i386_cpu" -var "addr_use"
++public_flat_rd -module "fes_i386_cpu" -var "reads_seg"
++public_flat_rd -module "fes_i386_cpu" -var "seg_hazard"
++public_flat_rd -module "fes_i386_cpu" -var "mem"
++public_flat_rd -module "fes_i386_cpu" -var "mseg_hazard"
++public_flat_rd -module "fes_i386_cpu" -var "store_hazard"
++public_flat_rd -module "fes_i386_cpu" -var "flag_hazard"
++public_flat_rd -module "fes_i386_cpu" -var "sp_hazard"
++public_flat_rd -module "fes_i386_cpu" -var "stack_wait"
++public_flat_rd -module "fes_i386_cpu" -var "t_wait"
++public_flat_rd -module "fes_i386_cpu" -var "uc_wait"
++public_flat_rd -module "fes_i386_cpu" -var "str_wait"
++public_flat_rd -module "fes_i386_cpu" -var "str_hazard"
++public_flat_rd -module "fes_i386_cpu" -var "io_hazard"
++public_flat_rd -module "fes_i386_cpu" -var "ser_wait"
++public_flat_rd -module "fes_i386_cpu" -var "redirect"
++public_flat_rd -module "fes_i386_cpu" -var "start"
++public_flat_rd -module "fes_i386_cpu" -var "wb_flush"
++public_flat_rd -module "fes_i386_cpu" -var "wb_commit"
++public_flat_rd -module "fes_i386_cpu" -var "mem_valid"
++public_flat_rd -module "fes_i386_cpu" -var "int_take"
++public_flat_rd -module "fes_i386_cpu" -var "rp_go"
++public_flat_rd -module "fes_i386_cpu" -var "wb_redir"
++public_flat_rd -module "fes_i386_cpu" -var "q_valid"
+diff -ruN a/sources/misteross/cores/fes-pc386/sim/cpu_profile_window.py b/sources/misteross/cores/fes-pc386/sim/cpu_profile_window.py
+--- a/sources/misteross/cores/fes-pc386/sim/cpu_profile_window.py	1970-01-01 02:00:00.000000000 +0200
++++ b/sources/misteross/cores/fes-pc386/sim/cpu_profile_window.py	2026-11-05 00:59:45.329095144 +0200
+@@ -0,0 +1,93 @@
++#!/usr/bin/env python3
++"""Phase 4 profile window (scratch): analyse.py cpu.prof FROM TO [--json OUT]
++
++FROM/TO are dump times (simulated seconds). Prints the window's clock buckets, its
++classes and its derived costs; --json writes the same numbers."""
++import json
++import sys
++from collections import defaultdict
++
++
++def load(path):
++    t, b, c, s = {}, {}, defaultdict(dict), defaultdict(lambda: defaultdict(lambda: [0, 0, '']))
++    for line in open(path):
++        kind, rest = line.split(' ', 1)
++        f = rest.split()
++        at = float(f[0])
++        if kind == 'T':
++            t[at] = {k: int(v) for k, v in (x.split('=') for x in f[1:])}
++        elif kind == 'B':
++            b[at] = {k: int(v) for k, v in (x.split('=') for x in f[1:])}
++        elif kind == 'C':
++            c[at][f[1]] = {k: int(v) for k, v in (x.split('=') for x in f[2:])}
++        elif kind == 'S':
++            kv = dict(x.split('=') for x in f[3:])
++            s[at][f[1]] = [int(kv['n']), int(kv['cycles']), f[2]]
++    return t, b, c, s
++
++
++def window(path, lo, hi):
++    t, b, c, s = load(path)
++    times = sorted(t)
++    a = max(x for x in times if x <= lo + 1e-9)
++    z = min(x for x in times if x >= hi - 1e-9)
++    d = lambda x, y: {k: y[k] - x[k] for k in y}
++    T, B = d(t[a], t[z]), d(b[a], b[z])
++    C = {k: d(c[a][k], c[z][k]) for k in c[z]}
++    sites = defaultdict(lambda: [0, 0, ''])
++    for at in times:
++        if a < at <= z:
++            for addr, (n, cy, cl) in s[at].items():
++                sites[addr][0] += n; sites[addr][1] += cy; sites[addr][2] = cl
++    return a, z, T, B, C, sites
++
++
++def main():
++    path, lo, hi = sys.argv[1], float(sys.argv[2]), float(sys.argv[3])
++    a, z, T, B, C, sites = window(path, lo, hi)
++    cycles = T['cycles']
++    rtl = sum(B.values())
++    issued = B['issue_first'] + B['issue_more']
++    wrong = issued - T['commits']
++    out = {'from': a, 'to': z, 'cycles': cycles, 'cpu_clocks': rtl, 'retired': T['retired'],
++           'pm_retired': T['pm_retired'], 'commits': T['commits'], 'issued': issued, 'wrong_path_uops': wrong,
++           'redirects': T['redirects'], 'frames': T['frames'], 'polls_3da': T['polls_3da'],
++           'l1d_waits': T['l1d_waits'], 'l1i_waits': T['l1i_waits'], 'prefixes': T['prefixes'],
++           'buckets': B, 'classes': C}
++    print(f'window {a}..{z}: {cycles:,} clocks ({rtl:,} RTL clocks), {T["retired"]:,} retired, '
++          f'CPI {cycles / max(T["retired"], 1):.3f}, frames {T["frames"]}, '
++          f'{cycles / max(T["frames"], 1):,.0f} clocks/frame')
++    print(f'issued {issued:,} uops, committed {T["commits"]:,}, wrong path {wrong:,}; redirects {T["redirects"]:,}; '
++          f'uops/instr {T["commits"] / max(T["retired"], 1):.3f}')
++    groups = {
++        'useful issue': ['issue_first', 'issue_more'],
++        'redirect refill': ['refill', 'refill_l1i'],
++        'front end (L1I miss, empty)': ['fe_l1i', 'fe_empty'],
++        'L1D miss / port 0': ['frz_l1d'], 'MMIO (VGA)': ['frz_mmio'], 'I/O in WB': ['frz_io', 'parked_io'],
++        'INTA': ['frz_inta'], 'store buffer full': ['frz_store'], 'mul/div': ['frz_md'],
++        'AGI (load/late result to address)': ['agi'], 'segment write hazard': ['seg'], 'store-to-load': ['st_ld'],
++        'flags after shift': ['flag'], 'stack (ESP)': ['sp'], 'temp register (sequences)': ['temp'],
++        'microcode ROM read': ['urom'], 'string setup': ['str'], 'I/O serialise': ['io_serial'],
++        'halt': ['halt', 'parked_halt'], 'D stop': ['d_stop'], 'other': ['other_wait', 'gov', 'replay_serial', 'reset'],
++    }
++    print(f'{"bucket":40s} {"clocks":>14s} {"%":>6s} {"per instr":>9s}')
++    for name, keys in groups.items():
++        v = sum(B[k] for k in keys)
++        if name == 'useful issue':
++            v -= wrong
++        print(f'{name:40s} {v:14,d} {100 * v / rtl:6.2f} {v / max(T["retired"], 1):9.4f}')
++    print(f'{"wrong-path issue (flushed uops)":40s} {wrong:14,d} {100 * wrong / rtl:6.2f} {wrong / max(T["retired"], 1):9.4f}')
++    print(f'{"not on the RTL (Bochs)":40s} {cycles - rtl:14,d} {100 * (cycles - rtl) / cycles:6.2f}')
++    print(f'\n{"class":10s} {"n":>11s} {"taken":>11s} {"own":>13s} {"next":>13s} {"next/taken":>10s}')
++    for k, v in sorted(C.items(), key=lambda kv: -(kv[1]['own'] + kv[1]['next'])):
++        if v['n']:
++            print(f'{k:10s} {v["n"]:11,d} {v["taken"]:11,d} {v["own"]:13,d} {v["next"]:13,d} '
++                  f'{v["next"] / max(v["taken"], 1):10.2f}')
++    print('\ntop sites')
++    for addr, (n, cy, cl) in sorted(sites.items(), key=lambda kv: -kv[1][1])[:25]:
++        print(f'  {addr} {cl:9s} n={n:,} cycles={cy:,} ({100 * cy / cycles:.2f}%) {cy / n:.2f}/exec')
++    if '--json' in sys.argv:
++        json.dump(out, open(sys.argv[sys.argv.index('--json') + 1], 'w'), indent=1)
++
++
++main()
+diff -ruN a/sources/misteross/cores/fes-pc386/sim/machine_tb.cpp b/sources/misteross/cores/fes-pc386/sim/machine_tb.cpp
+--- a/sources/misteross/cores/fes-pc386/sim/machine_tb.cpp	2026-11-05 00:59:45.325094981 +0200
++++ b/sources/misteross/cores/fes-pc386/sim/machine_tb.cpp	2026-11-05 00:59:45.325094981 +0200
+@@ -101,6 +101,7 @@
+ #include "pc386_presenter_model.h"
+ #include "smc_stale.h"
+ #include "verilated.h"
++#include "cpu_profile.h"
+ 
+ #include <algorithm>
+ #include <cstdint>
+@@ -499,7 +500,9 @@
+     }
+     // A CPU I/O access the machine completed now: its time from the request
+     // clock less its FIFO waits, the waits, and its trace lines.
++    uint64_t flips = 0;  // CRTC start-address writes (index 0Ch), either CPU (Phase 4 profile)
+     void record_io(bool write, uint16_t port, unsigned length, uint32_t value, uint32_t result, uint64_t start) {
++        if (write && port == 0x3d4 && (value & 0xff) == 0x0c) ++flips;
+         ++io_times[{io_class(port, write), length, cycles - start - vga_waits}];
+         if (vga_waits) ++io_waits[{io_class(port, write), length, vga_waits}];
+         vga_write_open = false;
+@@ -634,6 +637,7 @@
+     std::vector<std::string> smc_sites;  // the first stores and executions
+     std::function<unsigned(uint32_t linear)> length;  // an instruction's length, from memory
+     std::vector<bool> dirty;     // pages stored to since the oracle last ran
++    CpuProfile *prof = nullptr;  // Phase 4 profile hook
+     GuestMemory guest;
+     pc386::Port0<GuestMemory> port0;
+ 
+@@ -736,6 +740,7 @@
+                 && !m.top.flush_request && (waiting || asleep)) {
+                 m.clock();
+                 ++parked_clocks;
++                if (prof) prof->parked(asleep);
+                 answers();
+                 if (asleep) last_retire = m.cycles;
+             } else {
+@@ -752,6 +757,7 @@
+     void cycle() {
+         cpu.clk = 0;
+         cpu.eval();
++        if (prof) prof->sample(cpu, mmio_presented || mmio_reading || cpu.mmio_valid, resetting);
+         const bool fetch = cpu.trace_fetch, store = cpu.trace_store;
+         const uint32_t block = cpu.trace_fetch_block, waddr = cpu.trace_store_addr & ~3u;
+         const uint64_t wdata = cpu.trace_store_data;
+@@ -794,6 +800,7 @@
+             m.top.io_size = io_length == 1 ? 0 : io_length == 2 ? 1 : 2;
+             m.top.io_wdata = io_wdata;
+             m.open_io(io_write, io_port);
++            if (prof) prof->io(io_write, io_port, io_wdata);
+             io = Pending::Issued;
+             io_start = m.cycles;
+             issued = true;
+@@ -898,7 +905,13 @@
+             const uint32_t start = retire_next;
+             retire_next = physical(cpu.arch_base[fes_i386::SEG_CS] + cpu.arch_eip, a20m);
+             uint32_t byte = 0;
+-            if (!cpu.trace_exception && stale.executed(start, start + length(start), byte)) {
++            const unsigned ilen = length(start);
++            if (prof) {
++                uint8_t ib[15];
++                for (unsigned k = 0; k < 15; ++k) ib[k] = read8(physical(start + k, a20m));
++                prof->retire(m.cycles, start, retire_next, ib, ilen, cpu.trace_exception, cpu.arch_cr0 & 1);
++            }
++            if (!cpu.trace_exception && stale.executed(start, start + ilen, byte)) {
+                 ++smc_executed;
+                 if (smc_sites.size() < 24) smc_sites.push_back(site("executed", start, byte));
+             }
+@@ -1166,7 +1179,9 @@
+ 
+ struct Options {
+     std::string bios, vgabios, disk, disk_out, prompt = "C:\\>", type, expect, trace, frames, until_debug;
+-    std::string wav, opl2_log, cpu = "oracle", census, profile;
++    std::string wav, opl2_log, cpu = "oracle", census, profile, cpu_profile;
++    double cpu_profile_every = 1.0, rtl_from = 0, rtl_for = -1, frame_every = 0;
++    unsigned rtl_at_flip = 0;
+     double limit_seconds = 120, pixel_from = -1, type_at = -1, key_gap = 0.03, profile_from = 0, profile_to = -1;
+     unsigned preset = 0, frequency = 0, turbo = 0;  // --cpu rtl's governor settings
+     std::vector<std::pair<double, std::string>> keys;
+@@ -1267,6 +1282,12 @@
+         else if (flag == "--cpu") options.cpu = value;
+         else if (flag == "--census") options.census = value;
+         else if (flag == "--profile") options.profile = value;
++        else if (flag == "--cpu-profile") options.cpu_profile = value;
++        else if (flag == "--cpu-profile-every") options.cpu_profile_every = std::stod(value);
++        else if (flag == "--rtl-from") options.rtl_from = std::stod(value);
++        else if (flag == "--rtl-for") options.rtl_for = std::stod(value);
++        else if (flag == "--frame-every") options.frame_every = std::stod(value);
++        else if (flag == "--rtl-at-flip") options.rtl_at_flip = unsigned(std::stoul(value));
+         else if (flag == "--profile-from") options.profile_from = std::stod(value);
+         else if (flag == "--profile-to") options.profile_to = std::stod(value);
+         else if (flag == "--preset") options.preset = unsigned(std::stoul(value));
+@@ -1337,6 +1358,17 @@
+             rtl->start(oracle->get_state());
+         }
+         bool on_oracle = !rtl;
++        CpuProfile cpu_prof;
++        FILE *cpu_prof_out = nullptr;
++        uint64_t cpu_prof_next = 0, frame_next = 0;
++        const uint64_t rtl_from = uint64_t(options.rtl_from * CLOCK_HZ);
++        if (rtl && !options.cpu_profile.empty()) {
++            cpu_prof_out = std::fopen(options.cpu_profile.c_str(), "w");
++            if (!cpu_prof_out) throw std::runtime_error("cannot write " + options.cpu_profile);
++            rtl->prof = &cpu_prof;
++        }
++        if (rtl && (rtl_from || options.rtl_at_flip)) { rtl->settle(); on_oracle = true; }
++        bool rtl_begun = !(rtl_from || options.rtl_at_flip);
+         std::map<std::pair<std::string, std::string>, Gap> gaps;
+         Gap *skipping = nullptr;  // the stop whose instruction the oracle runs next
+         uint64_t oracle_steps = 0, protected_steps = 0, stretch_steps = 0, stretch_from = 0;
+@@ -1517,7 +1549,7 @@
+                         stretch_from = machine.cycles;
+                         stretch_entry = site(state);
+                     }
+-                    if (!(state.eflags & 0x20000) && !(state.cr0 & 0x80000000u) && (!(state.cr0 & 1) || state.cpl == 0)) {
++                    if (machine.cycles >= rtl_from && machine.flips >= options.rtl_at_flip && !(state.eflags & 0x20000) && !(state.cr0 & 0x80000000u) && (!(state.cr0 & 1) || state.cpl == 0)) {
+                         if (stretch_steps) {
+                             std::printf("PMODE %llu %llu %llu %s %s\n", (unsigned long long)stretch_from,
+                                         (unsigned long long)machine.cycles, (unsigned long long)stretch_steps,
+@@ -1527,6 +1559,13 @@
+                         }
+                         rtl->start(state);
+                         on_oracle = false;
++                        if (!rtl_begun) {
++                            rtl_begun = true;
++                            std::printf("RTL-BEGIN %llu flips=%llu\n", (unsigned long long)machine.cycles,
++                                        (unsigned long long)machine.flips);
++                            if (options.rtl_for >= 0) limit = machine.cycles + uint64_t(options.rtl_for * CLOCK_HZ);
++                            cpu_prof_next = machine.cycles;
++                        }
+                     }
+                 }
+             } else {
+@@ -1552,6 +1591,19 @@
+             }
+             if (!options.profile.empty() && !profile.written && machine.cycles >= profile.to)
+                 profile.write(options.profile, machine.cycles);
++            if (options.frame_every > 0 && !options.frames.empty() && machine.frames_done
++                && machine.cycles >= frame_next) {
++                frame_next = machine.cycles + uint64_t(options.frame_every * CLOCK_HZ);
++                pc386::write_ppm(options.frames + "/now.ppm", machine.captured());
++                if (FILE *t = std::fopen((options.frames + "/now.txt").c_str(), "w")) {
++                    std::fprintf(t, "%.3f\n", double(machine.cycles) / CLOCK_HZ);
++                    std::fclose(t);
++                }
++            }
++            if (cpu_prof_out && machine.cycles >= cpu_prof_next) {
++                cpu_prof.dump(cpu_prof_out, machine.cycles, double(machine.cycles) / CLOCK_HZ);
++                cpu_prof_next = machine.cycles + uint64_t(options.cpu_profile_every * CLOCK_HZ);
++            }
+ 
+             // Debug-port markers.
+             bool finished = false;
+@@ -1661,6 +1713,7 @@
+             if (!out) throw std::runtime_error("cannot write " + options.census);
+         }
+         if (!options.profile.empty() && !profile.written) profile.write(options.profile, machine.cycles);
++        if (cpu_prof_out) { cpu_prof.dump(cpu_prof_out, machine.cycles, double(machine.cycles) / CLOCK_HZ); std::fclose(cpu_prof_out); }
+         if (rtl) {
+             if (stretch_steps)
+                 std::printf("PMODE %llu %llu %llu %s -\n", (unsigned long long)stretch_from,
