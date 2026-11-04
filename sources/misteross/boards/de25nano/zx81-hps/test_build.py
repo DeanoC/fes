@@ -39,6 +39,22 @@ class HpsZX81BuildTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "adaptation contract changed"):
             B.retarget_tape(original, replacement + b"\n`else\n")
 
+    def test_standard_firmware_preserves_basic_and_defines_the_unreachable_tail(self):
+        core = B.ROOT / "sources/misteross/cores/fes-zx81/rtl"
+        source = (core / "zx8x.mif").read_bytes()
+        machine = (core / "zx81_machine.sv").read_bytes()
+        derived, record = B.complete_standard_firmware(source, machine)
+        audit = B.load(B.HERE.parent / "link-proof/zx81-ram/audit.py", "standard_firmware_audit")
+        expected = bytes(int(word, 16) for word in (core / "zx8x.hex").read_text().split()[:8192])
+        self.assertEqual(audit.mif_bytes(derived.decode()), expected)
+        self.assertEqual(audit.mif_bytes(source.decode()), expected)
+        self.assertIn(b"DEPTH = 16384;", derived)
+        self.assertIn(b"[3000..3FFF]: 00;", derived)
+        self.assertEqual(record["derived_sha256"], B.sha(derived))
+        with self.assertRaises(ValueError):
+            B.complete_standard_firmware(source.replace(b"12288", b"8192"), machine)
+        with self.assertRaises(ValueError):
+            B.complete_standard_firmware(source, machine.replace(b".address_a({1'b0, rom_a[12]", b".address_a({1'b1, rom_a[12]"))
     def test_capture_selects_only_the_owned_board_renderer(self):
         sources = B.capture()
         self.assertIn(B.BOARD + "zx81-hps/video.v", sources)

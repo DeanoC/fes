@@ -94,6 +94,18 @@ def replace_once(source, before, after):
     return source.replace(before, after)
 
 
+def complete_standard_firmware(source, machine):
+    """Define the unreachable ROM tail, as the existing RAM-pack proof does."""
+    if machine.count(b".address_a({1'b0, rom_a[12], rom_a[11:0]}),") != 1:
+        raise ValueError("standard ZX81 reachable firmware window changed")
+    if source.count(b"DEPTH = 12288;") != 1 or source.count(b"END;") != 1:
+        raise ValueError("standard ZX81 firmware depth/content contract changed")
+    result = source.replace(b"DEPTH = 12288;", b"DEPTH = 16384;").replace(
+        b"END;", b"[3000..3FFF]: 00;\r\nEND;")
+    return result, {"source_sha256": sha(source), "derived_sha256": sha(result),
+                    "scope": "preserved 12 KiB contents; explicit zero in unreachable 4 KiB tail"}
+
+
 def capture_standard(revision=None):
     """Source closure for the standard component, before a board recipe selects it."""
     sources = capture(revision)
@@ -137,6 +149,8 @@ def prepare_standard_component(output, revision=None):
         ("fes_zx81_core.v", "zx81_machine.sv", "zx81_machine_clock.v", "zx81_keyboard.v",
          "zx81_model.vh", "zx81_bus_pack.vh", "zx8x.mif")})
     repairs = {}
+    files["zx8x.mif"], repairs["zx8x.mif"] = retained.complete_standard_firmware(
+        sources[core + "zx8x.mif"], sources[core + "zx81_machine.sv"])
     for source, target, derive in (
         ("zx81_dpram.v", "zx81_dpram_de25.v", retained.retarget_ram),
         ("zx81_tape_store.v", "zx81_tape_store_de25.v", retained.retarget_tape),
@@ -283,7 +297,7 @@ qsys_top soc_inst (
     # The portable machine selects altsyncram/MIF in Quartus and a readmemh
     # model otherwise. Use the existing board's guarded Agilex/M20K repairs.
     qsf += "set_global_assignment -name VERILOG_MACRO QUARTUS=1\n"
-    (project / "zx8x.mif").write_bytes(sources["sources/misteross/cores/fes-zx81/rtl/zx8x.mif"])
+    (project / "zx8x.mif").write_bytes((component / "zx8x.mif").read_bytes())
     for name in paths:
         qsf += "set_global_assignment -name VERILOG_FILE fes_mailbox/" + Path(name).name + "\n"
     # The preserved GHRD already owns CLOCK1_50; require its actual stock pin.

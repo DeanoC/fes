@@ -287,12 +287,15 @@ recipe, compiling an image, admitting a runtime profile or programming hardware.
 `av_pll` driven by `CLOCK1_50`, plus the existing coherent stereo PCM crossing
 and I2S serializer. The vendor PLL requests12.288MHz; its integer ratio is
 50MHz×58/236 (about12.2881356MHz). Guest HOLD mutes samples rather than resetting
-that clock/handshake. This module still needs complete-board recipe selection,
-physical reset/timing, transmitter integration and native audio capture.
+that clock/handshake. The standard-board integration below selects this module;
+physical reset/timing, transmitter integration and native audio capture remain.
 
 The same builder's `--standard-core` option composes that component into the
 managed allocated-display GHRD, including the stock audio PLL. It selects the
 standard internal-16K base configuration; expansion personas are not linked.
+The Quartus RAM branch uses the guarded Agilex/M20K adaptations. Firmware keeps
+all original 12 KiB and explicitly zero-fills its unreachable 4 KiB tail to
+match the 16 KiB ROM primitive without an implicit initialization warning.
 For a fresh output directory, run:
 
 ```sh
