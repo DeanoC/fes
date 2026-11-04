@@ -38,6 +38,19 @@ class LauncherProvisionTests(unittest.TestCase):
         for endpoint in ('http://host', 'host/path', 'host:8789', '', 'foo\nbar'):
             with self.assertRaises(ValueError): prepare_launcher.validate_address(endpoint)
 
+    def test_dedicated_port_preserves_pairing_and_invalid_ports_do_not_write(self):
+        host, kit = prepare_launcher.prepare(self.host, '192.168.10.2')
+        token = json.loads(kit.read_text())['token']
+        prepare_launcher.prepare(self.host, '192.168.10.2', 18789)
+        self.assertEqual(json.loads(host.read_text())['listen'], '0.0.0.0:18789')
+        self.assertEqual(json.loads(kit.read_text())['api'], 'http://192.168.10.2:18789')
+        self.assertEqual(json.loads(kit.read_text())['token'], token)
+        before = [path.read_bytes() for path in (host, kit)]
+        for port in (0, -1, 65536, True, '18789'):
+            with self.subTest(port=port), self.assertRaises(ValueError):
+                prepare_launcher.prepare(self.host, 'host', port)
+            self.assertEqual([path.read_bytes() for path in (host, kit)], before)
+
     def test_snapshot_identity_and_ci_guards(self):
         _, kit = prepare_launcher.prepare(self.host, 'host.example')
         agent, _ = media.generate_agent_config(self.host, self.scratch)

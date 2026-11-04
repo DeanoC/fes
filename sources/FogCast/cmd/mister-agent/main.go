@@ -456,7 +456,7 @@ func runWithDependencies(ctx context.Context, configPath string, logger *slog.Lo
 		}
 	}
 	if targetID != "" {
-		options = append(options, httpapi.WithTargetID(targetID))
+		options = append(options, httpapi.WithTargetID(targetID), httpapi.WithLauncherPairing(launcherConfigPath))
 	}
 	var leaseCast httpapi.CastController
 	if cfg.CastBinary != "" {

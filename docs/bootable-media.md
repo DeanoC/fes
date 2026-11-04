@@ -434,9 +434,22 @@ preserves the token and updates the host address; it rejects incomplete pairs
 and identity changes. Keep the pair private. Setup prints no credentials.
 
 Configure the FogCast host launcher listener with `launcher-host.json`. The
-listener is `0.0.0.0:8789`; the kit companion points to the explicit workstation
-address on port 8789. The existing browser listener remains separate. The host
+listener defaults to `0.0.0.0:8789`; `--host-port 18789` selects a dedicated
+listener when another host already uses that port. The kit companion points to
+the explicit workstation address and selected port. The browser listener remains separate. The host
 must be running and reachable for browsing and launch services.
+
+To update pairing on an already running managed kit, start the host with the
+prepared listener and run the same command with `--apply`. Setup verifies the
+selected kit's identity, claims its normal execution lease, saves the pairing
+through `POST /v1/launcher/pairing`, and releases ownership. The agent accepts
+this only while ready and idle, including the kit-local core state. It writes
+the fixed launcher configuration atomically, with private permissions; replies
+contain its digest and require a restart, never the bearer. Reboot the kit
+normally to start the launcher with the saved pairing. Setup does not stop a
+running game or reboot the kit, and a failed save is not retried automatically.
+Changing pairing does not change the agent's identity or credential, installed
+software, boot selection, or library.
 
 Normal local `make media` automatically embeds the prepared companion as
 `/fogcast/launcher.json` beside the generated agent configuration. When using a

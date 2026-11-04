@@ -1,4 +1,4 @@
-// Package launcherconfig reads the kit's provisioned launcher.json: the host
+// Package launcherconfig validates the kit's provisioned launcher.json: the host
 // API origin, the per-kit launcher bearer and the kit's target ID.
 package launcherconfig
 
@@ -37,6 +37,11 @@ func Load(path string) (Config, error) {
 	if d.Decode(&extra) != io.EOF {
 		return Config{}, errors.New("invalid launcher configuration")
 	}
+	return Normalize(c)
+}
+
+// Normalize validates a pairing without including credentials in errors.
+func Normalize(c Config) (Config, error) {
 	u, err := url.Parse(c.API)
 	if err != nil || (u.Scheme != "http" && u.Scheme != "https") || u.Host == "" || u.User != nil || u.RawQuery != "" || u.Fragment != "" || (u.Path != "" && u.Path != "/") || !validToken(c.Token) || !targetIDPattern.MatchString(c.TargetID) {
 		return Config{}, errors.New("invalid launcher configuration")

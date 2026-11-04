@@ -328,7 +328,7 @@ module, but the source tree names their ownership explicitly. The ten-foot sofa
 app lives under `ui/tenfoot`; it is also the kit UI. Shared drawing, input,
 theme, and library helpers live under `ui/shared`, `ui/gfx`, `ui/controller`,
 `ui/inputmap`, `ui/localfeed`, `ui/menudisplay`, and `ui/theme`;
-`ui/launcherconfig` reads the kit's `launcher.json`. `host` and
+`launcherconfig` reads the kit's `launcher.json`. `host` and
 `internal/hostapi` own host catalog/config/library services and host-owned
 remote-input bridges. `targetclient` owns the authenticated host-to-target
 HTTP/cache/core/development transport and endpoint reconciliation. UI packages
@@ -2477,12 +2477,24 @@ coverage; physical reboot and DHCP acceptance belongs to the selected FES image.
 ## Native kit launcher
 
 The kit UI is `fogcast-tenfoot -gfx menu-display -home rooms`. The base-image
-supervisor starts it after the runtime and agent. `ui/launcherconfig` reads the
+supervisor starts it after the runtime and agent. `launcherconfig` reads the
 provisioned `launcher.json` (`api`, `token`, `target_id`) and ignores keys left
 by the removed grid launcher. `cmd/fogcast-kit` is a stub that prints `tenfoot`
 for `--print-kit-ui`; it exists only for bases whose supervisor probes it before
 starting the launcher, and kit software bundles carry it until every kit runs a
 base that starts tenfoot directly.
+
+`POST /v1/launcher/pairing` updates the fixed
+`/media/fat/fogcast/launcher.json` through the authenticated target agent. It
+requires the current kit lease, software and image admission, a ready idle
+runtime and no kit-local core. The shared `launcherconfig` validator checks the
+host origin, distinct launcher bearer and unchanged target UUID. The handler
+serializes writes, checks any existing private regular file's identity, and
+uses `atomicwrite` to sync and replace it. Its response contains the saved
+digest and `restart_required`, never credentials. A normal reboot applies the
+pairing; the handler does not restart processes or alter a running session.
+FES `scripts/prepare_launcher.py --apply` uses the existing lease client to
+perform setup, with `--host-port` available for a dedicated host listener.
 
 A paired, authenticated host listener serves a restricted set of existing
 library, artwork, and session operations. The host keeps target and input lease
