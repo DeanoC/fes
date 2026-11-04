@@ -64,9 +64,36 @@ fes_entry_park:
     wfe
     b fes_entry_park
 
+/* Only instruction caching changes. Translation and data caching stay off. */
+.global fes_entry_loader_cache
+fes_entry_loader_cache:
+    mrs x1, sctlr_el2
+    cbz x0, .Lcache_off
+    dsb sy
+    ic iallu
+    dsb sy
+    isb
+    orr x1, x1, #0x1000
+    b .Lcache_write
+.Lcache_off:
+    bic x1, x1, #0x1000
+.Lcache_write:
+    msr sctlr_el2, x1
+    isb
+    dsb sy
+    ic iallu
+    dsb sy
+    isb
+    mrs x0, sctlr_el2
+    ret
+
 /* x0: validated native entry; x1: aligned temporary EL1 stack. */
 .global fes_entry_enter_el1
 fes_entry_enter_el1:
+    mrs x2, sctlr_el2
+    ldr x3, =0x1005               /* preserve the clean handoff requirement */
+    tst x2, x3
+    b.ne .Lbad_state
     mrs x2, cnthctl_el2
     orr x2, x2, #3                /* EL1 physical timer/counter access */
     msr cnthctl_el2, x2

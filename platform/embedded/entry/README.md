@@ -9,7 +9,11 @@ to its recorded matched image; the compressed entry needs its own physical boot.
 
 U-Boot's `booti` path performs its normal interrupt/cache/MMU cleanup and the
 tested configuration enters the loader at EL2. The loader masks exceptions,
-requires EL2 with the MMU and caches disabled, and rejects nonzero CPU affinity.
+requires EL2 with the MMU and caches disabled, and rejects CPU affinity other than the primary A55/A76 (QEMU: zero).
+During decoding and segment copying it enables only instruction caching, checks
+the readback, and leaves the MMU and data cache disabled. It disables and
+invalidates instruction caching before the same clean EL1 handoff. Invalid
+payloads also restore the disabled cache state before parking.
 It checks the entire static, little-endian AArch64 ELF, its executable entry,
 file and memory ranges, the 64 KiB early-runtime reservation, the initial-stack
 reservation at the top of Go RAM, and overlap with
@@ -34,6 +38,15 @@ ARM64 compilation requires strict alignment while the MMU/cache are off. Inflate
 static tables are materialized in the stored image; the builder conservatively
 checks the sum of C stack frames plus exception headroom against the existing
 16 KiB loader stack. EL2 and EL1 faults use the loader's own parking vectors.
+
+`FES_BOOT_STEP` records sample the physical CPU counter, frequency, exception
+level and cache-control register at loader/decode/copy/handoff boundaries.
+Nano startup adds allocation-free checkpoints after the runtime enables its
+MMU, installs vectors, enters `main`, verifies its context, opens SD, mounts FAT
+and retains the fixed package. The separate `startup.py` decoder retains partial
+progress and rejects counter resets, missing or duplicate records and invalid
+cache state. These timings include trace output and confer no ownership,
+package, drain or boot acceptance.
 
 The checks are local to the entering CPU. They do not prove other CPUs are
 parked, the firmware's memory reservations, UART clocks, peripheral and DMA

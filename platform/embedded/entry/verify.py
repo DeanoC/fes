@@ -11,6 +11,7 @@ import shutil
 import struct
 import subprocess
 import time
+from startup import decode as decode_startup
 
 HERE = Path(__file__).resolve().parent
 ROOT = HERE.parents[2]
@@ -181,6 +182,7 @@ def main():
               "qemu_sha256": digest(qemu.read_bytes()), "uboot_sha256": digest(uboot.read_bytes()),
               "uboot_config_sha256": digest(config.read_bytes()),
               "uboot_build_sha256": digest(uboot_receipt_bytes), "cases": [],
+              "startup_decoder_sha256": digest((HERE / "startup.py").read_bytes()),
               "limitations": ["QEMU firmware and CPU are not the Nano firmware or CPU",
                               "no physical DDR, DMA, device, FPGA or recovery proof",
                               "build receipts are diagnostic hashes, not signatures"]}
@@ -190,7 +192,12 @@ def main():
             path.write_bytes(image)
             command, console = run_guest(qemu, uboot, path, virtualization, expected,
                                          output / (name + ".log"), args.timeout)
+            startup = decode_startup(console, through='handoff')
+            if startup['errors']:
+                raise ValueError(name + ' has invalid startup CPU/counter checkpoints: ' + str(startup['errors']))
             if name == "native-probe":
+                if not startup['complete']:
+                    raise ValueError(name + ' lacks complete cache-on/decode/copy/cache-off checkpoints')
                 markers = (b"FES_ENTRY EL2 CLEAN", b"FES_ENTRY EL1 HANDOFF",
                            b"PASS timer goroutine allocation GC", b"PASS volatile memory filesystem", GOOD)
                 positions = [console.find(marker) for marker in markers]
@@ -200,15 +207,18 @@ def main():
                 raise ValueError(name + " reached native handoff after rejection")
             elif name != "wrong-exception-level" and b"FES_ENTRY EL2 CLEAN" not in console:
                 raise ValueError(name + " did not reach target-side ELF validation")
+            elif name != 'wrong-exception-level' and not startup['rejected']:
+                raise ValueError(name + ' did not restore the clean cache state before rejection')
             if b"FES_ENTRY EXCEPTION" in console or b"panic:" in console:
                 raise ValueError(name + " raised an exception")
             result["cases"].append({"name": name, "status": "passed", "image_sha256": digest(image),
-                                    "console_sha256": digest(console), "command": command})
+                                    "console_sha256": digest(console), "command": command, "startup": startup})
         if ((image_build / "entry.img").read_bytes() != original or
                 digest(qemu.read_bytes()) != result["qemu_sha256"] or
                 digest(uboot.read_bytes()) != result["uboot_sha256"] or
                 digest(config.read_bytes()) != result["uboot_config_sha256"] or
                 digest((HERE / "verify.py").read_bytes()) != result["producer_sha256"] or
+                digest((HERE / "startup.py").read_bytes()) != result["startup_decoder_sha256"] or
                 (uboot_build / "result.json").read_bytes() != uboot_receipt_bytes):
             raise ValueError("test inputs changed during the run")
         result["status"] = "passed"

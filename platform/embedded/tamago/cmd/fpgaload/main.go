@@ -44,6 +44,7 @@ func decoded(s string, limit int) []byte {
 }
 
 func main() {
+	de25nano.StartupCheckpoint("go_main")
 	if expectedWindowPresent != "" && (expectedWindowPresent != "1" || expectedWindowReadMap == "" || expectedWindowMemory != "1") {
 		panic("window presentation requires the selected full-window read path")
 	}
@@ -87,10 +88,13 @@ func main() {
 	} else if expectedProgramPlatform != "" {
 		panic("program platform provided without selected program mode")
 	}
+	de25nano.StartupCheckpoint("verifier_ready")
+	de25nano.StartupCheckpoint("sd_open_begin")
 	disk, err := board.OpenStorage()
 	if err != nil {
 		panic(err)
 	}
+	de25nano.StartupCheckpoint("sd_open_end")
 	lease, ok := disk.(*sdcontrol.Session)
 	if !ok {
 		panic(errors.New("FPGA load requires owned SD storage"))
@@ -99,6 +103,7 @@ func main() {
 	if err != nil {
 		panic(err)
 	}
+	de25nano.StartupCheckpoint("fat_mount_end")
 	store, err := packagestore.New(volume, lease)
 	if err != nil {
 		panic(err)
@@ -108,10 +113,12 @@ func main() {
 		return
 	}
 	request := packagestore.Request{Path: "FES/PKGTEST.BIN", PackageID: id.PackageID}
+	de25nano.StartupCheckpoint("retain_begin")
 	selection, err := store.Retain(context.Background(), request)
 	if err != nil {
 		panic(err)
 	}
+	de25nano.StartupCheckpoint("retain_end")
 	plan, err := v.PreflightStoredConfiguration(control, configuration, selection)
 	if err != nil {
 		panic(err)

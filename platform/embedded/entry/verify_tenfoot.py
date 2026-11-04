@@ -8,6 +8,7 @@ from pathlib import Path
 import re
 import shutil
 import sys
+from startup import decode as decode_startup
 
 HERE = Path(__file__).resolve().parent
 ROOT = HERE.parents[2]
@@ -71,7 +72,7 @@ def main():
     if sha(disk) != disk_hash:
         raise ValueError("private FAT32 image differs from the recorded play input")
     commands = []
-    sources = [HERE / "verify_tenfoot.py", HERE / "payload.py", HERE.parent / "tamago/host_support.py", HERE.parent / "tamago/play_support.py"]
+    sources = [HERE / "verify_tenfoot.py", HERE / "payload.py", HERE / "startup.py", HERE.parent / "tamago/host_support.py", HERE.parent / "tamago/play_support.py"]
     source_hashes = {str(path.relative_to(ROOT)): sha(path) for path in sources}
     result = {"status": "running", "classification": "QEMU U-Boot and tenfoot software model; no physical FPGA",
               "native_elf_sha256": native_hash, "input_disk_sha256": disk_hash,
@@ -113,6 +114,9 @@ def main():
                 guest, play_receipt["model_config"]["entries"], args.timeout)
             if "FES_ENTRY EXCEPTION" in guest.text or "FES_ENTRY REJECT" in guest.text:
                 raise ValueError("entry rejected or faulted during tenfoot boot")
+            result['startup'] = decode_startup(guest.text, through='handoff')
+            if not result['startup']['complete']:
+                raise ValueError('model Play lacks the complete clean loader CPU/cache/counter sequence')
         if (sha(disk) != disk_hash or sha(original_disk) != disk_hash or sha(image) != result["image_sha256"] or
                 sha(native) != native_hash or sha(uboot) != result["uboot_sha256"] or sha(qemu) != result["qemu_sha256"] or
                 sha(play / "result.json") != result["play_receipt_sha256"] or

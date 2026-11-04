@@ -32,7 +32,9 @@ func hwinit1() {
 	if ExceptionLevel() != 1 || CounterFrequency() == 0 {
 		halt()
 	}
+	StartupCheckpoint("go_hwinit")
 	cpu.Init()
+	StartupCheckpoint("go_vectors")
 	// Polling baseline: interrupts remain masked and no GIC is claimed.
 	// The runtime's deadline loop can keep inspecting Nanotime without WFI.
 	goos.Idle = func(int64) {}

@@ -15,6 +15,16 @@ TEXT ·ExceptionLevel(SB),NOSPLIT|NOFRAME,$0-8
 	MOVD R0, ret+0(FP)
 	RET
 
+TEXT ·startupRegisters(SB),NOSPLIT|NOFRAME,$0-24
+	ISB $15
+	MRS CNTPCT_EL0, R0
+	MRS CNTFRQ_EL0, R1
+	MRS SCTLR_EL1, R2
+	MOVD R0, ticks+0(FP)
+	MOVD R1, frequency+8(FP)
+	MOVD R2, state+16(FP)
+	RET
+
 TEXT ·timerNanos(SB),NOSPLIT|NOFRAME,$0-8
 	ISB $15
 	MRS CNTPCT_EL0, R0

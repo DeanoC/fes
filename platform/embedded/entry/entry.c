@@ -18,6 +18,7 @@ extern const uint8_t __image_start[], __image_end[], __payload_start[], __payloa
 extern uint8_t __stack_top[];
 void fes_entry_enter_el1(uint64_t entry, uint64_t stack) __attribute__((noreturn));
 void fes_entry_park(void) __attribute__((noreturn));
+uint64_t fes_entry_loader_cache(uint64_t enabled);
 
 /* Freestanding GCC may use these for the small local plan. */
 void *memset(void *destination, int c, size_t length)
@@ -55,6 +56,32 @@ static void puts(const char *s)
     while (*s) putc(*s++);
 }
 
+static void hex64(uint64_t value)
+{
+    for (unsigned i = 0; i < 16; i++)
+        putc("0123456789abcdef"[(value >> (60 - 4 * i)) & 15]);
+}
+
+/* CPU-only observations; these supply no device or bridge ownership. */
+static void checkpoint(const char *phase)
+{
+    uint64_t ticks, frequency, state;
+    __asm__ volatile("isb\n\tmrs %0, cntpct_el0\n\tmrs %1, cntfrq_el0\n\tmrs %2, sctlr_el2"
+                     : "=r"(ticks), "=r"(frequency), "=r"(state) :: "memory");
+    puts("FES_BOOT_STEP phase="); puts(phase);
+    puts(" ticks="); hex64(ticks);
+    puts(" hz="); hex64(frequency);
+    puts(" el=2 sctlr="); hex64(state); puts("\n");
+}
+
+static void cache_mode(uint64_t enabled)
+{
+    if ((fes_entry_loader_cache(enabled) & 0x1005) != (enabled ? 0x1000 : 0)) {
+        puts("FES_ENTRY REJECT MMU_CACHE\n");
+        fes_entry_park();
+    }
+}
+
 void fes_entry_bad_el(void) { puts("FES_ENTRY REJECT EL\n"); }
 void fes_entry_bad_state(void) { puts("FES_ENTRY REJECT MMU_CACHE\n"); }
 void fes_entry_bad_cpu(void) { puts("FES_ENTRY REJECT CPU\n"); }
@@ -67,6 +94,7 @@ void fes_entry_main(void)
     uint64_t stored_size = (uintptr_t)__payload_end - (uintptr_t)__payload_start;
     uint64_t payload_size = 0;
     puts("FES_ENTRY EL2 CLEAN\n");
+    checkpoint("loader_begin");
     if (FES_ENTRY_RAM_END <= FES_ENTRY_RAM_START ||
         FES_ENTRY_RAM_END - FES_ENTRY_RAM_START <= FES_ENTRY_PAYLOAD_MAX + FES_ENTRY_STACK_RESERVE + 0x10000) {
         puts("FES_ENTRY REJECT MEMORY\n");
@@ -74,14 +102,21 @@ void fes_entry_main(void)
     }
     uint64_t decode_base = FES_ENTRY_RAM_END - FES_ENTRY_STACK_RESERVE - FES_ENTRY_PAYLOAD_MAX;
     uint8_t *payload = (uint8_t *)(uintptr_t)decode_base;
+    cache_mode(1);
+    checkpoint("decode_begin");
     if ((image_start < decode_base + FES_ENTRY_PAYLOAD_MAX && decode_base < image_end) ||
         !fes_entry_unpack(__payload_start, stored_size, payload, FES_ENTRY_PAYLOAD_MAX, &payload_size)) {
+        cache_mode(0);
+        checkpoint("rejected");
         puts("FES_ENTRY REJECT PAYLOAD\n");
         fes_entry_park();
     }
+    checkpoint("decode_end");
     if (!fes_entry_plan_decoded_elf(payload, payload_size, FES_ENTRY_RAM_START,
                             FES_ENTRY_RAM_END, image_start, image_end,
                             decode_base, FES_ENTRY_PAYLOAD_MAX, &plan)) {
+        cache_mode(0);
+        checkpoint("rejected");
         puts("FES_ENTRY REJECT ELF\n");
         fes_entry_park();
     }
@@ -92,7 +127,9 @@ void fes_entry_main(void)
         for (uint64_t j = 0; j < segment->file_size; j++) destination[j] = source[j];
         for (uint64_t j = segment->file_size; j < segment->memory_size; j++) destination[j] = 0;
     }
-    __asm__ volatile("dsb sy\n\tic iallu\n\tdsb sy\n\tisb" ::: "memory");
+    checkpoint("copy_end");
+    cache_mode(0);
+    checkpoint("handoff");
     puts("FES_ENTRY EL1 HANDOFF\n");
     fes_entry_enter_el1(plan.entry, (uintptr_t)__stack_top);
 }
