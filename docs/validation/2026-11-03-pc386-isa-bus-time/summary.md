@@ -381,6 +381,12 @@ should be heard) is not worked out here. The PIT is `KF8253`, and the
 speaker is `pit_out2 && port_b[1]` with gate 2 on `port_b[0]`. It happens
 on main's earlier seal too, so this change did not cause it.
 
+**Later (4 November).** The cause was #1457: PIT counter 2 was never
+programmed. After #1458 the routine plays tones, and a kit A/B of seals with
+and without this change measured the lute's pitch drop at 2.0-2.6% (2.31%
+on average). That fits one delay unit's 2.42%. See the
+[speaker kit record](../2026-11-04-pc386-speaker-kit/summary.md#1453s-pitch-drop-run-b2).
+
 The run left 20 more paths in FogCast's data directories on Kit B (listed
 in the status log): the two sessions' game records and media deltas. They
 have not been removed.
