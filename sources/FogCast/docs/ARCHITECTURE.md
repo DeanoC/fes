@@ -1669,12 +1669,21 @@ on FAT outside every rootfs. Replacing the system image does not wipe
 
 When leftover card capacity has already been formatted as partition 3 with
 label `FESDATA3`, agent startup bind-mounts that ext4 volume over
-`/media/fat/fogcast/{cache,saves,core-data,launcher-cache,evidence}`. Existing
-files are copied onto p3 first and never overwritten there. Releases,
-`agent.toml`, `launcher.json`, `target-id`, and known-good images stay on the
-1 GiB FAT. The helper does not create, grow, or format partitions and does not
-run from the fixed bootstrap. Bind is refused while `GET /v1/update` shows trial,
-pending, or corrupt; the agent still starts and keeps those trees on FAT.
+`/media/fat/fogcast/{cache,saves,core-data,launcher-cache,evidence}` and
+`/media/fat/games`. Existing FAT files are copied onto p3 only when the p3
+destination is absent; existing p3 files are preserved. Without p3, all these
+paths continue to use FAT. The helper does not create, grow, or format
+partitions and does not run from the fixed bootstrap. Bind is refused while
+`GET /v1/update` shows trial, pending, or corrupt; the agent still starts and
+keeps those trees on FAT.
+
+Confirmed appliance releases retain the current image plus one verified
+fallback on FAT. A staged candidate may be present there while an update is
+pending or on trial. The bootstrap's boot ticket records the fallback image so
+recovery can still select it if the release state file is corrupt. Moving
+previous, pending and trial image files to FESDATA3, with a read-only p3 mount
+in the bootstrap and a FAT known-good fallback when that mount fails, is the
+next appliance update step.
 
 Kit UI state stays on that FAT tree at `/media/fat/fogcast/state`. The software
 supervisor creates the directory when `/media/fat/fogcast` is already present

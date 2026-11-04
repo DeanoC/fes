@@ -96,7 +96,9 @@ is a live mutation: `scripts/appliance_expand_dry_run.py` can add aligned p3
 ext4 labelled `FESDATA3` without moving A2 or rewriting FAT. It sizes p3 to the
 card in the admitted reader; `--card-bytes`, if given, must match that card.
 FogCast bind-mounts cache, saves, core-data, launcher-cache and evidence from
-that partition. The
+that partition, and bind-mounts `/media/fat/games` from its `games` directory.
+Existing FAT files are copied only when the p3 destination is absent. With no
+FESDATA3 partition, game libraries and other mutable trees stay on FAT. The
 bootloader, kernel and boot environment retain their locked bytes. The
 kernel mounts `/linux/linux.img`, now the small stable bootstrap. Factory system
 bytes live at `/fogcast/releases/images/<sha256>.img`; the corresponding manifest
@@ -105,28 +107,26 @@ derived U-Boot programs as `core=idle.rbf`), kernel, agent and launcher
 configuration are included. On first boot no state file is necessary:
 the verified factory is selected, then the native services start normally.
 
-The extra space holds factory, known-good, previous and a staged candidate.
-When the release volume already has room for the new image, a 1 MiB margin,
-and the splash staged at confirmation (an idle core up to 8 MiB, its sidecar,
-and a temporary copy), staging writes and verifies it there and does not
-delete anything.
-When it does not, staging first verifies the upload on a different filesystem
-that is not tmpfs or ramfs and has room for the image plus that margin. On
-the kit that filesystem is the mounted FESDATA3 volume or a FogCast directory
-bind-mounted from it. A truncated or corrupt upload removes only that
-temporary file and leaves every release in place. A spill file left behind
-when that write is interrupted is removed on the next stage, before free
-space is measured. After verification, staging
-deletes other release images oldest first, and only until the new image, the
-margin, and the splash reserve fit, then copies the verified file into the
-release store. It
-keeps the factory image, known-good, previous, pending and trial selections,
-the image named by `boot.json`, and every release image in the store that
-currently backs a loop device. Staging does not change the boot selection and
-does not remove bootloader files. If no qualifying filesystem can hold the
-upload, or those retained images still leave too little free space, staging
-fails with insufficient storage and deletes nothing. The conventional 256 MiB
-layout is unchanged and is too small for this appliance update workflow.
+The release store keeps the confirmed current image and one verified fallback
+(the previous confirmed image, or factory when no previous image exists). A
+newly staged image can temporarily add a third release while an update is
+pending or on trial. Once confirmation succeeds, the store removes superseded
+images, while preserving the boot-ticket image and every release image that
+currently backs a loop device. The bootstrap ticket records the fallback hash,
+so a damaged selection-state file can still boot a verified image from FAT.
+The conventional 256 MiB layout is unchanged and is too small for this
+appliance update workflow.
+
+This PR keeps pending and trial image files on FAT. The follow-up PR moves
+previous, pending and trial release files to FESDATA3 and teaches the bootstrap
+to mount p3 read-only for those boots. If that mount is unavailable, the
+bootstrap will use the FAT known-good image. Until that work lands, FESDATA3
+provides the game library and mutable data storage while release images remain
+on FAT.
+
+The expansion evidence records a 1 GiB FAT p1 and an ext4 FESDATA3 p3 created
+on a 58.2 GiB spare USB card. That spare was not booted after expansion, and
+the dated records do not establish that either kit has a p3 partition.
 
 Writing a physical card still requires exact-device authorization and the kit
 sharing procedure. A new installation of the bootstrap is distinct from an

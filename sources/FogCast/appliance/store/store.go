@@ -87,10 +87,11 @@ type Status struct {
 	Corrupt         bool   `json:"corrupt"`
 }
 type Selection struct {
-	Manifest release.Manifest `json:"manifest"`
-	Path     string           `json:"path"`
-	Trial    bool             `json:"trial"`
-	BootID   string           `json:"boot_id"`
+	Manifest            release.Manifest `json:"manifest"`
+	Path                string           `json:"path"`
+	Trial               bool             `json:"trial"`
+	BootID              string           `json:"boot_id"`
+	FallbackImageSHA256 string           `json:"fallback_image_sha256"`
 }
 type diskState struct {
 	Format         int    `json:"format"`
@@ -421,7 +422,9 @@ func (s *Store) RejectTrialContext(ctx context.Context, bootID, imageSHA string)
 // explicitly; this method cannot discard or accept a trial. When factory
 // replaces an unusable Good, it becomes the truthful predecessor of the next
 // update, and the unusable image is not retained as a rollback target.
-// Corrupt-state factory boot preserves the corrupt record as recovery evidence.
+// With corrupt state, only the factory or the image named by the boot ticket
+// (and its explicit fallback for a nontrial ticket) is accepted. Corrupt-state
+// boot preserves the damaged record as recovery evidence.
 func (s *Store) RecordFallbackContext(ctx context.Context, bootID, imageSHA string) error {
 	if !validBootID(bootID) || !release.ValidHash(imageSHA) {
 		return errors.New("invalid fallback identity")
@@ -436,7 +439,18 @@ func (s *Store) RecordFallbackContext(ctx context.Context, bootID, imageSHA stri
 		return err
 	}
 	if corrupt {
-		if imageSHA != s.factory.ImageSHA256 {
+		if imageSHA == s.factory.ImageSHA256 {
+			return ctx.Err()
+		}
+		ticket, ticketErr := s.readBootTicket()
+		if ticketErr != nil {
+			return ErrCorruptState
+		}
+		allowed := imageSHA == ticket.FallbackImageSHA256
+		if !ticket.Trial {
+			allowed = allowed || imageSHA == ticket.ImageSHA256
+		}
+		if !allowed {
 			return ErrCorruptState
 		}
 		return ctx.Err()
@@ -583,20 +597,16 @@ func verifyImage(ctx context.Context, f *os.File, m release.Manifest) error {
 
 // Stage publishes only complete verified raw images. It never changes selection
 // and never replaces an existing content-addressed image, including corrupt ones.
-// When the release volume has room for the image, a 1 MiB margin, and the
-// splash confirmation will store, Stage writes and verifies it there and does
-// not delete anything. Otherwise it verifies the upload on a different,
-// non-memory filesystem before deleting anything. That spill filesystem needs
-// the image plus the 1 MiB margin; the splash reserve stays on the release
-// volume. A truncated or corrupt upload removes only that temporary file.
-// After verification, Stage deletes other release images oldest first until
-// the image, the margin, and the splash reserve fit, then copies the verified
-// file into this store.
-// It keeps factory, known-good, previous, pending, trial, the boot.json image,
-// and every image in this store that backs a loop device. It does not remove
-// boot files. If no qualifying filesystem can hold the upload, or the retained
-// images still leave too little room, Stage returns ErrInsufficientStorage and
-// deletes nothing.
+// If the release volume lacks room for the image, margin, and splash reserve,
+// Stage verifies the upload on a different non-memory filesystem before
+// deleting anything. That spill filesystem needs the image plus the 1 MiB
+// margin; the splash reserve stays on the release volume. A truncated or
+// corrupt upload removes only that temporary file. After publication, Stage
+// keeps the current good image, one verified fallback, the new staged image,
+// in-progress selections, the boot-ticket image, and loop-backed images. It
+// removes other releases oldest first without touching boot files. If no
+// qualifying filesystem can hold the upload, or retained images leave too
+// little room, Stage returns ErrInsufficientStorage and deletes nothing.
 func (s *Store) Stage(ctx context.Context, m release.Manifest, size int64, r io.Reader) error {
 	if e := m.Compatible(s.factory.KernelSHA256); e != nil {
 		return e
@@ -632,7 +642,7 @@ func (s *Store) Stage(ctx context.Context, m release.Manifest, size int64, r io.
 			if existing != m {
 				return errors.New("immutable image already has a different manifest")
 			}
-			return nil
+			return s.enforceRetention(ctx, m.ImageSHA256)
 		} else if !errors.Is(err, os.ErrNotExist) {
 			return err
 		}
@@ -640,7 +650,10 @@ func (s *Store) Stage(ctx context.Context, m release.Manifest, size int64, r io.
 		if err != nil {
 			return err
 		}
-		return atomicWrite(manifestPath, append(b, '\n'))
+		if err = atomicWrite(manifestPath, append(b, '\n')); err != nil {
+			return err
+		}
+		return s.enforceRetention(ctx, m.ImageSHA256)
 	} else if !errors.Is(e, os.ErrNotExist) {
 		return e
 	}
@@ -649,7 +662,10 @@ func (s *Store) Stage(ctx context.Context, m release.Manifest, size int64, r io.
 		return e
 	}
 	if free >= releaseStorageNeed(size) {
-		return s.publishNewImage(ctx, m, path, r, size)
+		if e = s.publishNewImage(ctx, m, path, r, size); e != nil {
+			return e
+		}
+		return s.enforceRetention(ctx, m.ImageSHA256)
 	}
 	// Retention is resolved before the upload is admitted so an unreadable
 	// boot ticket, corrupt selection, or failed loop scan still refuses
@@ -670,7 +686,10 @@ func (s *Store) Stage(ctx context.Context, m release.Manifest, size int64, r io.
 		return e
 	}
 	defer in.Close()
-	return s.publishNewImage(ctx, m, path, in, size)
+	if e = s.publishNewImage(ctx, m, path, in, size); e != nil {
+		return e
+	}
+	return s.enforceRetention(ctx, m.ImageSHA256)
 }
 
 func (s *Store) publishNewImage(ctx context.Context, m release.Manifest, path string, r io.Reader, size int64) error {
@@ -977,17 +996,33 @@ func (s *Store) protectedImages() (map[string]struct{}, error) {
 			keep[hash] = struct{}{}
 		}
 	}
-	add(s.factory.ImageSHA256)
 	add(st.Good)
 	add(st.Previous)
 	add(st.Pending)
 	add(st.TrialImage)
 	add(st.ConfirmedImage)
-	boot, err := s.bootImage()
-	if err != nil {
-		return nil, err
+	ticket, ticketErr := s.readBootTicket()
+	if ticketErr != nil && !errors.Is(ticketErr, os.ErrNotExist) {
+		return nil, ticketErr
 	}
-	add(boot)
+	canUsePrevious := false
+	if ticketErr == nil {
+		add(ticket.ImageSHA256)
+		add(ticket.FallbackImageSHA256)
+		canUsePrevious = st.Previous != "" && st.Previous != s.factory.ImageSHA256 &&
+			st.Good != s.factory.ImageSHA256 && st.Pending == "" && st.TrialImage == "" &&
+			!ticket.Trial && ticket.FallbackImageSHA256 == st.Previous && ticket.ImageSHA256 == st.Good
+		if canUsePrevious {
+			if _, verifyErr := s.verifyContext(context.Background(), st.Previous); verifyErr != nil {
+				canUsePrevious = false
+			} else if _, verifyErr = s.verifyContext(context.Background(), st.Good); verifyErr != nil {
+				canUsePrevious = false
+			}
+		}
+	}
+	if !canUsePrevious {
+		add(s.factory.ImageSHA256)
+	}
 	paths, err := s.loopBackings()
 	if err != nil {
 		return nil, fmt.Errorf("refusing to prune releases: %w", err)
@@ -1001,21 +1036,41 @@ func (s *Store) protectedImages() (map[string]struct{}, error) {
 	return keep, nil
 }
 
-type bootTicket struct {
-	BootID      string `json:"boot_id"`
-	ImageSHA256 string `json:"image_sha256"`
-	Trial       bool   `json:"trial"`
+// enforceRetention keeps the selected good image and one usable fallback.
+// A newly staged image is also retained until it is activated or superseded.
+// In-progress selections, the boot ticket, and loop-mounted files remain
+// protected by protectedImages. This keeps the stable FAT release set bounded
+// while allowing one candidate to exist during an update.
+func (s *Store) enforceRetention(ctx context.Context, staged string) error {
+	if err := ctx.Err(); err != nil {
+		return err
+	}
+	keep, err := s.protectedImages()
+	if err != nil {
+		return err
+	}
+	if release.ValidHash(staged) {
+		keep[staged] = struct{}{}
+	}
+	for {
+		if err := ctx.Err(); err != nil {
+			return err
+		}
+		removed, err := s.removeOldestUnreferenced(keep)
+		if err != nil {
+			return err
+		}
+		if !removed {
+			return nil
+		}
+	}
 }
 
-func (s *Store) bootImage() (string, error) {
-	ticket, err := s.readBootTicket()
-	if errors.Is(err, os.ErrNotExist) {
-		return "", nil
-	}
-	if err != nil {
-		return "", err
-	}
-	return ticket.ImageSHA256, nil
+type bootTicket struct {
+	BootID              string `json:"boot_id"`
+	ImageSHA256         string `json:"image_sha256"`
+	Trial               bool   `json:"trial"`
+	FallbackImageSHA256 string `json:"fallback_image_sha256,omitempty"`
 }
 
 func (s *Store) readBootTicket() (bootTicket, error) {
@@ -1034,13 +1089,77 @@ func (s *Store) readBootTicket() (bootTicket, error) {
 	}
 	dec := json.NewDecoder(bytes.NewReader(b))
 	dec.DisallowUnknownFields()
-	if dec.Decode(&ticket) != nil || !release.ValidHash(ticket.ImageSHA256) {
+	if dec.Decode(&ticket) != nil || !release.ValidHash(ticket.ImageSHA256) || ticket.FallbackImageSHA256 != "" && !release.ValidHash(ticket.FallbackImageSHA256) {
 		return ticket, errUnreadableBootTicket
+	}
+	var fields map[string]json.RawMessage
+	if json.Unmarshal(b, &fields) != nil {
+		return ticket, errUnreadableBootTicket
+	}
+	if raw, ok := fields["fallback_image_sha256"]; ok {
+		var fallback *string
+		if json.Unmarshal(raw, &fallback) != nil || fallback == nil || !release.ValidHash(*fallback) {
+			return ticket, errUnreadableBootTicket
+		}
 	}
 	if err = dec.Decode(&struct{}{}); err != io.EOF {
 		return ticket, errUnreadableBootTicket
 	}
 	return ticket, nil
+}
+
+// LastFallbackSelection identifies the last bootable release independently
+// of damaged selection state. The ticket records a verified fallback alongside
+// the last selected image. If that fallback is damaged, try the last selected
+// image and then the immutable factory image.
+func (s *Store) LastFallbackSelection(bootID string) (Selection, error) {
+	if !validBootID(bootID) {
+		return Selection{}, errors.New("invalid boot ID")
+	}
+	unlock, err := s.lock(context.Background())
+	if err != nil {
+		return Selection{}, err
+	}
+	defer unlock()
+	ticket, err := s.readBootTicket()
+	if err != nil {
+		return Selection{}, err
+	}
+	type fallbackCandidate struct {
+		hash     string
+		fallback string
+	}
+	candidates := []fallbackCandidate{{hash: ticket.FallbackImageSHA256, fallback: s.factory.ImageSHA256}}
+	if !ticket.Trial {
+		fallback := ticket.FallbackImageSHA256
+		if !release.ValidHash(fallback) {
+			fallback = s.factory.ImageSHA256
+		}
+		candidates = []fallbackCandidate{
+			{hash: ticket.ImageSHA256, fallback: fallback},
+			{hash: ticket.FallbackImageSHA256, fallback: s.factory.ImageSHA256},
+		}
+	}
+	candidates = append(candidates, fallbackCandidate{hash: s.factory.ImageSHA256, fallback: s.factory.ImageSHA256})
+	var failures []error
+	seen := map[string]bool{}
+	for _, candidate := range candidates {
+		if candidate.hash == "" || seen[candidate.hash] {
+			continue
+		}
+		seen[candidate.hash] = true
+		manifest, verifyErr := s.verify(candidate.hash)
+		if verifyErr != nil {
+			failures = append(failures, verifyErr)
+			continue
+		}
+		path, pathErr := s.ImagePath(candidate.hash)
+		if pathErr != nil {
+			return Selection{}, pathErr
+		}
+		return Selection{Manifest: manifest, Path: path, BootID: bootID, FallbackImageSHA256: candidate.fallback}, nil
+	}
+	return Selection{}, fmt.Errorf("no bootable image in last fallback ticket: %w", errors.Join(failures...))
 }
 
 // clearBootTrial rewrites a matching trial ticket to trial:false. The boot id
@@ -1312,11 +1431,15 @@ func (s *Store) selection(hash, bootID string, trial bool) (Selection, error) {
 		return Selection{}, e
 	}
 	path, _ := s.ImagePath(hash)
-	return Selection{Manifest: m, Path: path, Trial: trial, BootID: bootID}, nil
+	return Selection{Manifest: m, Path: path, Trial: trial, BootID: bootID, FallbackImageSHA256: hash}, nil
 }
 func (s *Store) goodSelection(st diskState, bootID string) (Selection, error) {
 	sel, e := s.selection(st.Good, bootID, false)
 	if e == nil {
+		sel.FallbackImageSHA256 = st.Previous
+		if !release.ValidHash(sel.FallbackImageSHA256) {
+			sel.FallbackImageSHA256 = s.factory.ImageSHA256
+		}
 		return sel, nil
 	}
 	return s.selection(s.factory.ImageSHA256, bootID, false)
@@ -1353,6 +1476,7 @@ func (s *Store) BeginBoot(bootID string) (Selection, error) {
 		sel, e := s.selection(candidate, bootID, true)
 		if e == nil {
 			st.TrialImage = candidate
+			sel.FallbackImageSHA256 = st.Good
 			if e = s.writeState(st); e != nil {
 				return Selection{}, e
 			}
@@ -1394,7 +1518,10 @@ func (s *Store) ConfirmContext(ctx context.Context, bootID, imageSHA string) err
 		// interrupted confirm or an older writer, so this boot does not keep
 		// reporting trial until the next reboot. A rewrite failure leaves the
 		// durable record in place.
-		return s.clearConfirmedBootTicket(bootID, imageSHA)
+		if e = s.clearConfirmedBootTicket(bootID, imageSHA); e != nil {
+			return e
+		}
+		return s.enforceRetention(ctx, "")
 	}
 	if st.TrialImage != imageSHA {
 		return errors.New("confirmation image is not this boot's trial")
@@ -1412,7 +1539,10 @@ func (s *Store) ConfirmContext(ctx context.Context, bootID, imageSHA string) err
 	if e = s.writeState(st); e != nil {
 		return e
 	}
-	return s.clearConfirmedBootTicket(bootID, imageSHA)
+	if e = s.clearConfirmedBootTicket(bootID, imageSHA); e != nil {
+		return e
+	}
+	return s.enforceRetention(ctx, "")
 }
 
 // AcceptTrialContext promotes this boot's trial to known-good without recording

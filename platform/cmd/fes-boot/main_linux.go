@@ -139,10 +139,11 @@ func (linuxPlatform) Ticket(choice store.Selection) error {
 }
 func writeTicket(path string, choice store.Selection) error {
 	ticket := struct {
-		BootID      string `json:"boot_id"`
-		ImageSHA256 string `json:"image_sha256"`
-		Trial       bool   `json:"trial"`
-	}{choice.BootID, choice.Manifest.ImageSHA256, choice.Trial}
+		BootID              string `json:"boot_id"`
+		ImageSHA256         string `json:"image_sha256"`
+		Trial               bool   `json:"trial"`
+		FallbackImageSHA256 string `json:"fallback_image_sha256"`
+	}{choice.BootID, choice.Manifest.ImageSHA256, choice.Trial, choice.FallbackImageSHA256}
 	bytes, err := json.Marshal(ticket)
 	if err != nil {
 		return err

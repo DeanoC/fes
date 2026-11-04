@@ -44,20 +44,27 @@ func testConfig(t *testing.T, mounter *recordingMounter) Config {
 	}
 	fat := filepath.Join(root, "fat", "fogcast")
 	mount := filepath.Join(root, "run", "fesdata3")
+	libraryFAT := filepath.Join(root, "fat", "games")
+	libraryData := filepath.Join(mount, "games")
 	if err := os.MkdirAll(fat, 0o700); err != nil {
 		t.Fatal(err)
 	}
+	if err := os.MkdirAll(libraryFAT, 0o700); err != nil {
+		t.Fatal(err)
+	}
 	return Config{
-		Devices:       []string{device},
-		Label:         DefaultLabel,
-		MountPoint:    mount,
-		FATRoot:       fat,
-		BindNames:     append([]string(nil), DefaultBindNames...),
-		EvaluateGate:  func() (Gate, error) { return Gate{}, nil },
-		DevicePresent: pathExists,
-		ReadLabel:     readExt4Label,
-		Mounted:       func(target string) bool { return mounter.mounted[target] != "" },
-		Mounter:       mounter,
+		Devices:         []string{device},
+		Label:           DefaultLabel,
+		MountPoint:      mount,
+		FATRoot:         fat,
+		LibraryFATRoot:  libraryFAT,
+		LibraryDataRoot: libraryData,
+		BindNames:       append([]string(nil), DefaultBindNames...),
+		EvaluateGate:    func() (Gate, error) { return Gate{}, nil },
+		DevicePresent:   pathExists,
+		ReadLabel:       readExt4Label,
+		Mounted:         func(target string) bool { return mounter.mounted[target] != "" },
+		Mounter:         mounter,
 	}
 }
 
@@ -72,6 +79,13 @@ func TestPrepareSkipsWhenP3Absent(t *testing.T) {
 	t.Parallel()
 	mounter := newRecordingMounter()
 	cfg := testConfig(t, mounter)
+	fatGame := filepath.Join(cfg.LibraryFATRoot, "sms", "kept.sms")
+	if err := os.MkdirAll(filepath.Dir(fatGame), 0o700); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(fatGame, []byte("fat-library"), 0o600); err != nil {
+		t.Fatal(err)
+	}
 	cfg.DevicePresent = func(string) bool { return false }
 	result, err := Prepare(cfg)
 	if err != nil || result.Skipped != SkipAbsent || len(result.Bound) != 0 {
@@ -79,6 +93,9 @@ func TestPrepareSkipsWhenP3Absent(t *testing.T) {
 	}
 	if len(mounter.volumes) != 0 || len(mounter.binds) != 0 {
 		t.Fatalf("absent mutated mounts: %+v %+v", mounter.volumes, mounter.binds)
+	}
+	if got, err := os.ReadFile(fatGame); err != nil || string(got) != "fat-library" {
+		t.Fatalf("FAT library was not preserved without p3: %q %v", got, err)
 	}
 }
 
@@ -112,6 +129,13 @@ func TestPrepareBindsMutableTreesAndCopiesExistingFiles(t *testing.T) {
 	if err := os.WriteFile(filepath.Join(cache, "snes", "game.sfc"), []byte("rom"), 0o600); err != nil {
 		t.Fatal(err)
 	}
+	game := filepath.Join(cfg.LibraryFATRoot, "sms", "game.sms")
+	if err := os.MkdirAll(filepath.Dir(game), 0o700); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(game, []byte("game"), 0o600); err != nil {
+		t.Fatal(err)
+	}
 	releases := filepath.Join(cfg.FATRoot, "releases", "images")
 	if err := os.MkdirAll(releases, 0o700); err != nil {
 		t.Fatal(err)
@@ -129,14 +153,22 @@ func TestPrepareBindsMutableTreesAndCopiesExistingFiles(t *testing.T) {
 	if result.Skipped != "" || result.Device == "" {
 		t.Fatalf("result = %+v", result)
 	}
-	if got := strings.Join(result.Bound, ","); got != strings.Join(DefaultBindNames, ",") {
+	wantBound := append(append([]string(nil), DefaultBindNames...), "games")
+	if got := strings.Join(result.Bound, ","); got != strings.Join(wantBound, ",") {
 		t.Fatalf("bound = %s", got)
 	}
 	if len(mounter.volumes) != 1 || !strings.Contains(mounter.volumes[0], cfg.MountPoint) {
 		t.Fatalf("volume mounts = %v", mounter.volumes)
 	}
-	if len(mounter.binds) != len(DefaultBindNames) {
+	if len(mounter.binds) != len(DefaultBindNames)+1 {
 		t.Fatalf("binds = %v", mounter.binds)
+	}
+	gameCopy, err := os.ReadFile(filepath.Join(cfg.LibraryDataRoot, "sms", "game.sms"))
+	if err != nil || string(gameCopy) != "game" {
+		t.Fatalf("game library was not copied to p3: %q %v", gameCopy, err)
+	}
+	if got := mounter.mounted[cfg.LibraryFATRoot]; got != cfg.LibraryDataRoot {
+		t.Fatalf("game library bind = %q, want %q", got, cfg.LibraryDataRoot)
 	}
 	copied := filepath.Join(cfg.MountPoint, "cache", "snes", "game.sfc")
 	body, err := os.ReadFile(copied)
@@ -186,6 +218,20 @@ func TestPrepareDoesNotOverwriteExistingP3Files(t *testing.T) {
 	if err := os.WriteFile(fatOnly, []byte("from-fat"), 0o600); err != nil {
 		t.Fatal(err)
 	}
+	fatGame := filepath.Join(cfg.LibraryFATRoot, "sms", "game.sms")
+	p3Game := filepath.Join(cfg.LibraryDataRoot, "sms", "game.sms")
+	if err := os.MkdirAll(filepath.Dir(fatGame), 0o700); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.MkdirAll(filepath.Dir(p3Game), 0o700); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(fatGame, []byte("fat-game"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(p3Game, []byte("p3-game"), 0o600); err != nil {
+		t.Fatal(err)
+	}
 	result, err := Prepare(cfg)
 	if err != nil || result.Skipped != "" {
 		t.Fatalf("prepare = %+v %v", result, err)
@@ -201,6 +247,13 @@ func TestPrepareDoesNotOverwriteExistingP3Files(t *testing.T) {
 	copied, err := os.ReadFile(filepath.Join(cfg.MountPoint, "saves", "snes", "trial.srm"))
 	if err != nil || string(copied) != "from-fat" {
 		t.Fatalf("missing FAT file not copied: %q %v", copied, err)
+	}
+	game, err := os.ReadFile(p3Game)
+	if err != nil || string(game) != "p3-game" {
+		t.Fatalf("existing p3 game was overwritten: %q %v", game, err)
+	}
+	if got := mounter.mounted[cfg.LibraryFATRoot]; got != cfg.LibraryDataRoot {
+		t.Fatalf("game tree is not backed by p3: %q", got)
 	}
 }
 
@@ -245,17 +298,17 @@ func TestPrepareIsIdempotentWhenAlreadyBound(t *testing.T) {
 	mounter := newRecordingMounter()
 	cfg := testConfig(t, mounter)
 	first, err := Prepare(cfg)
-	if err != nil || len(first.Bound) != len(DefaultBindNames) {
+	if err != nil || len(first.Bound) != len(DefaultBindNames)+1 {
 		t.Fatalf("first = %+v %v", first, err)
 	}
 	second, err := Prepare(cfg)
-	if err != nil || len(second.Bound) != len(DefaultBindNames) {
+	if err != nil || len(second.Bound) != len(DefaultBindNames)+1 {
 		t.Fatalf("second = %+v %v", second, err)
 	}
 	if len(mounter.volumes) != 1 {
 		t.Fatalf("remounted volume: %v", mounter.volumes)
 	}
-	if len(mounter.binds) != len(DefaultBindNames) {
+	if len(mounter.binds) != len(DefaultBindNames)+1 {
 		t.Fatalf("rebound directories: %v", mounter.binds)
 	}
 }

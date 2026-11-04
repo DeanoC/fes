@@ -19,6 +19,10 @@ type Store interface {
 	RejectTrialContext(context.Context, string, string) error
 	RecordFallbackContext(context.Context, string, string) error
 }
+
+type lastFallbackStore interface {
+	LastFallbackSelection(string) (store.Selection, error)
+}
 type Root interface {
 	Close() error
 	// Exec must replace PID 1. Any return is fatal: pivot may already have run.
@@ -44,9 +48,37 @@ func Run(ctx context.Context, s Store, factory, bootID string, p Platform) error
 	if stateErr != nil {
 		failures = append(failures, stateErr)
 	}
+	if state.Corrupt {
+		if recoverable, ok := s.(lastFallbackStore); ok {
+			fallback, fallbackErr := recoverable.LastFallbackSelection(bootID)
+			if fallbackErr == nil {
+				candidates = []store.Selection{fallback}
+			} else {
+				failures = append(failures, fallbackErr)
+			}
+		}
+	}
 	// Verification of fallbacks is delayed until it is needed; hashing all retained
 	// images on a successful boot needlessly delays readiness on the SD card.
-	hashes := []string{state.Good, factory}
+	type fallbackImage struct {
+		hash     string
+		fallback string
+	}
+	hashes := make([]fallbackImage, 0, len(candidates)+2)
+	for _, candidate := range candidates {
+		if candidate.FallbackImageSHA256 != "" {
+			fallback := factory
+			if candidate.Trial && release.ValidHash(state.Previous) {
+				fallback = state.Previous
+			}
+			hashes = append(hashes, fallbackImage{candidate.FallbackImageSHA256, fallback})
+		}
+	}
+	goodFallback := state.Previous
+	if !release.ValidHash(goodFallback) {
+		goodFallback = factory
+	}
+	hashes = append(hashes, fallbackImage{state.Good, goodFallback}, fallbackImage{factory, factory})
 	seen := map[string]bool{}
 	for len(candidates) > 0 || len(hashes) > 0 {
 		if err := ctx.Err(); err != nil {
@@ -57,27 +89,30 @@ func Run(ctx context.Context, s Store, factory, bootID string, p Platform) error
 			choice = candidates[0]
 			candidates = candidates[1:]
 		} else {
-			hash := hashes[0]
+			fallback := hashes[0]
 			hashes = hashes[1:]
-			if hash == "" || seen[hash] {
+			if fallback.hash == "" || seen[fallback.hash] {
 				continue
 			}
-			manifest, err := s.Verify(hash)
+			manifest, err := s.Verify(fallback.hash)
 			if err != nil {
-				seen[hash] = true
+				seen[fallback.hash] = true
 				failures = append(failures, err)
 				continue
 			}
-			path, err := s.ImagePath(hash)
+			path, err := s.ImagePath(fallback.hash)
 			if err != nil {
 				return err
 			}
-			choice = store.Selection{Manifest: manifest, Path: path, BootID: bootID}
+			choice = store.Selection{Manifest: manifest, Path: path, BootID: bootID, FallbackImageSHA256: fallback.fallback}
 		}
 		if seen[choice.Manifest.ImageSHA256] {
 			continue
 		}
 		seen[choice.Manifest.ImageSHA256] = true
+		if !release.ValidHash(choice.FallbackImageSHA256) {
+			choice.FallbackImageSHA256 = factory
+		}
 		root, err := p.Prepare(choice.Path)
 		if err != nil {
 			if choice.Trial {

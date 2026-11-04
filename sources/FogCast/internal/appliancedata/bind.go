@@ -1,5 +1,5 @@
-// Package appliancedata bind-mounts FogCast mutable directories from the
-// leftover-capacity FESDATA3 partition when that partition already exists.
+// Package appliancedata bind-mounts FogCast mutable directories and the game
+// library from the leftover-capacity FESDATA3 partition when it exists.
 //
 // The assembler still ships the fixed 1 GiB FAT plus A2 layout. Creating p3
 // is a host-side live-card mutation. This package never grows FAT, never
@@ -22,20 +22,23 @@ import (
 )
 
 const (
-	DefaultLabel       = "FESDATA3"
-	DefaultLabelDevice = "/dev/disk/by-label/" + DefaultLabel
-	DefaultMMCDevice   = "/dev/mmcblk0p3"
-	DefaultMountPoint  = "/run/fogcast/fesdata3"
-	DefaultFATRoot     = "/media/fat/fogcast"
-	SkipAbsent         = "absent"
-	SkipTrial          = "trial"
-	SkipPending        = "pending"
-	SkipCorrupt        = "corrupt"
-	SkipUpdate         = "update-status"
+	DefaultLabel           = "FESDATA3"
+	DefaultLabelDevice     = "/dev/disk/by-label/" + DefaultLabel
+	DefaultMMCDevice       = "/dev/mmcblk0p3"
+	DefaultMountPoint      = "/run/fogcast/fesdata3"
+	DefaultFATRoot         = "/media/fat/fogcast"
+	DefaultLibraryFATRoot  = "/media/fat/games"
+	DefaultLibraryDataRoot = DefaultMountPoint + "/games"
+	SkipAbsent             = "absent"
+	SkipTrial              = "trial"
+	SkipPending            = "pending"
+	SkipCorrupt            = "corrupt"
+	SkipUpdate             = "update-status"
 )
 
 // DefaultBindNames are the FogCast trees that live on p3 after a successful
-// bind. Releases, agent.toml, launcher.json and target-id stay on FAT.
+// bind. The game library tree is mounted separately from /media/fat/games.
+// Releases, agent.toml, launcher.json and target-id stay on FAT.
 var DefaultBindNames = []string{"cache", "saves", "core-data", "launcher-cache", "evidence"}
 
 var forbiddenBindNames = map[string]struct{}{
@@ -83,18 +86,20 @@ type Mounter interface {
 // Config locates p3, FAT trees, and the update gate. Zero DevicePresent,
 // ReadLabel, Mounted, or EvaluateGate values use the production defaults.
 type Config struct {
-	Devices       []string
-	Label         string
-	MountPoint    string
-	FATRoot       string
-	BindNames     []string
-	MountInfo     string
-	FactoryPath   string
-	BootJSON      string
-	BootIDPath    string
-	ReleaseRoot   string
-	EvaluateGate  func() (Gate, error)
-	DevicePresent func(string) bool
+	Devices         []string
+	Label           string
+	MountPoint      string
+	FATRoot         string
+	LibraryFATRoot  string
+	LibraryDataRoot string
+	BindNames       []string
+	MountInfo       string
+	FactoryPath     string
+	BootJSON        string
+	BootIDPath      string
+	ReleaseRoot     string
+	EvaluateGate    func() (Gate, error)
+	DevicePresent   func(string) bool
 	// Probe refuses a candidate before it is opened. Nil uses the sysfs check
 	// that skips optical devices and disks with no usable media.
 	Probe     func(string) error
@@ -105,17 +110,19 @@ type Config struct {
 
 func ProductionConfig() Config {
 	return Config{
-		Devices:     []string{DefaultLabelDevice, DefaultMMCDevice},
-		Label:       DefaultLabel,
-		MountPoint:  DefaultMountPoint,
-		FATRoot:     DefaultFATRoot,
-		BindNames:   append([]string(nil), DefaultBindNames...),
-		MountInfo:   "/proc/self/mountinfo",
-		FactoryPath: "/.fes-bootstrap/etc/fes/factory.json",
-		BootJSON:    filepath.Join(appliance.DefaultRoot, "boot.json"),
-		BootIDPath:  "/proc/sys/kernel/random/boot_id",
-		ReleaseRoot: appliance.DefaultRoot,
-		Mounter:     platformMounter(),
+		Devices:         []string{DefaultLabelDevice, DefaultMMCDevice},
+		Label:           DefaultLabel,
+		MountPoint:      DefaultMountPoint,
+		FATRoot:         DefaultFATRoot,
+		LibraryFATRoot:  DefaultLibraryFATRoot,
+		LibraryDataRoot: DefaultLibraryDataRoot,
+		BindNames:       append([]string(nil), DefaultBindNames...),
+		MountInfo:       "/proc/self/mountinfo",
+		FactoryPath:     "/.fes-bootstrap/etc/fes/factory.json",
+		BootJSON:        filepath.Join(appliance.DefaultRoot, "boot.json"),
+		BootIDPath:      "/proc/sys/kernel/random/boot_id",
+		ReleaseRoot:     appliance.DefaultRoot,
+		Mounter:         platformMounter(),
 	}
 }
 
@@ -198,10 +205,30 @@ func Prepare(cfg Config) (Result, error) {
 		}
 		result.Bound = append(result.Bound, name)
 	}
+	if cfg.Mounted(cfg.LibraryFATRoot) {
+		result.Bound = append(result.Bound, "games")
+	} else {
+		if err := os.MkdirAll(cfg.LibraryDataRoot, 0o700); err != nil {
+			bindErr = errors.Join(bindErr, err)
+		} else if err := copyMissing(cfg.LibraryFATRoot, cfg.LibraryDataRoot); err != nil {
+			bindErr = errors.Join(bindErr, err)
+		} else if err := ensureBindTarget(cfg.LibraryFATRoot); err != nil {
+			bindErr = errors.Join(bindErr, err)
+		} else if err := cfg.Mounter.Bind(cfg.LibraryDataRoot, cfg.LibraryFATRoot); err != nil {
+			bindErr = errors.Join(bindErr, err)
+		} else {
+			result.Bound = append(result.Bound, "games")
+		}
+	}
 	return result, bindErr
 }
 
 func validateConfig(cfg Config) error {
+	for _, path := range []string{cfg.LibraryFATRoot, cfg.LibraryDataRoot} {
+		if path != "" && !filepath.IsAbs(path) {
+			return fmt.Errorf("library bind path must be absolute: %s", path)
+		}
+	}
 	names := cfg.BindNames
 	if len(names) == 0 {
 		names = DefaultBindNames
@@ -234,6 +261,12 @@ func applyDefaults(cfg Config) Config {
 	}
 	if cfg.FATRoot == "" {
 		cfg.FATRoot = DefaultFATRoot
+	}
+	if cfg.LibraryFATRoot == "" {
+		cfg.LibraryFATRoot = DefaultLibraryFATRoot
+	}
+	if cfg.LibraryDataRoot == "" {
+		cfg.LibraryDataRoot = filepath.Join(cfg.MountPoint, "games")
 	}
 	if len(cfg.BindNames) == 0 {
 		cfg.BindNames = append([]string(nil), DefaultBindNames...)

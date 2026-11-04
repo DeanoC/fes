@@ -13,10 +13,20 @@ import (
 type fixtureStore struct {
 	selection store.Selection
 	beginErr  error
+	corrupt   bool
+	fallback  store.Selection
 }
 
 func (s fixtureStore) BeginBoot(string) (store.Selection, error) { return s.selection, s.beginErr }
-func (s fixtureStore) Status() (store.Status, error)             { return store.Status{Good: "good"}, nil }
+func (s fixtureStore) Status() (store.Status, error) {
+	return store.Status{Good: "good", Corrupt: s.corrupt}, nil
+}
+func (s fixtureStore) LastFallbackSelection(string) (store.Selection, error) {
+	if s.fallback.Manifest.ImageSHA256 == "" {
+		return store.Selection{}, errors.New("no fallback")
+	}
+	return s.fallback, nil
+}
 func (s fixtureStore) Verify(hash string) (release.Manifest, error) {
 	return release.Manifest{ImageSHA256: hash}, nil
 }
@@ -39,6 +49,7 @@ type fixturePlatform struct {
 	events   []string
 	bad      map[string]bool
 	guardErr error
+	ticket   store.Selection
 }
 
 func (p *fixturePlatform) Prepare(path string) (Root, error) {
@@ -50,6 +61,7 @@ func (p *fixturePlatform) Prepare(path string) (Root, error) {
 }
 func (p *fixturePlatform) Ticket(sel store.Selection) error {
 	p.events = append(p.events, "ticket:"+sel.Manifest.ImageSHA256)
+	p.ticket = sel
 	return nil
 }
 func (p *fixturePlatform) Arm(context.Context, store.Selection) error {
@@ -66,6 +78,26 @@ func TestInvalidCandidateFallsBackBeforeArming(t *testing.T) {
 	want := []string{"prepare:candidate", "prepare:good", "ticket:good", "exec:good", "close:good"}
 	if !reflect.DeepEqual(p.events, want) {
 		t.Fatalf("events %v want %v", p.events, want)
+	}
+	if p.ticket.FallbackImageSHA256 != "factory" {
+		t.Fatalf("fallback ticket = %q, want factory", p.ticket.FallbackImageSHA256)
+	}
+}
+
+func TestStableSelectionFallsBackToPreviousBeforeFactory(t *testing.T) {
+	p := &fixturePlatform{bad: map[string]bool{"good": true}}
+	s := fixtureStore{selection: store.Selection{
+		Manifest:            release.Manifest{ImageSHA256: "good"},
+		Path:                "good",
+		FallbackImageSHA256: "previous",
+	}}
+	_ = Run(context.Background(), s, "factory", "boot", p)
+	want := []string{"prepare:good", "prepare:previous", "ticket:previous", "exec:previous", "close:previous"}
+	if !reflect.DeepEqual(p.events, want) {
+		t.Fatalf("events %v want %v", p.events, want)
+	}
+	if p.ticket.FallbackImageSHA256 != "factory" {
+		t.Fatalf("fallback ticket = %q, want factory", p.ticket.FallbackImageSHA256)
 	}
 }
 func TestTrialArmsBeforeExecAndNeverExecutesSecondRootAfterExecError(t *testing.T) {
@@ -90,6 +122,20 @@ func TestBrokenSelectionStateAndGoodImageStillTryFactory(t *testing.T) {
 	p := &fixturePlatform{bad: map[string]bool{"good": true}}
 	_ = Run(context.Background(), fixtureStore{beginErr: errors.New("write failed")}, "factory", "boot", p)
 	want := []string{"prepare:good", "prepare:factory", "ticket:factory", "exec:factory", "close:factory"}
+	if !reflect.DeepEqual(p.events, want) {
+		t.Fatalf("events %v want %v", p.events, want)
+	}
+}
+
+func TestCorruptSelectionUsesTheFallbackRecordedWithTheLastBoot(t *testing.T) {
+	p := &fixturePlatform{}
+	s := fixtureStore{
+		selection: store.Selection{Manifest: release.Manifest{ImageSHA256: "factory"}, Path: "factory"},
+		corrupt:   true,
+		fallback:  store.Selection{Manifest: release.Manifest{ImageSHA256: "last-good"}, Path: "last-good"},
+	}
+	_ = Run(context.Background(), s, "factory", "boot", p)
+	want := []string{"prepare:last-good", "ticket:last-good", "exec:last-good", "close:last-good"}
 	if !reflect.DeepEqual(p.events, want) {
 		t.Fatalf("events %v want %v", p.events, want)
 	}

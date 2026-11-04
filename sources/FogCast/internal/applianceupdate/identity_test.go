@@ -21,6 +21,7 @@ func TestBootTicketMustMatchCurrentLinuxBoot(t *testing.T) {
 		`{"boot_id":"old","image_sha256":"` + strings.Repeat("a", 64) + `","trial":true}`,
 		`{"boot_id":"` + id + `","image_sha256":"` + strings.Repeat("a", 64) + `","trial":true,"trial":false}`,
 		`{"boot_id":"` + id + `","image_sha256":"` + strings.Repeat("a", 64) + `"}`,
+		`{"boot_id":"` + id + `","image_sha256":"` + strings.Repeat("a", 64) + `","trial":true,"fallback_image_sha256":"bad"}`,
 	} {
 		if e := os.WriteFile(ticket, []byte(body), 0600); e != nil {
 			t.Fatal(e)
@@ -36,5 +37,13 @@ func TestBootTicketMustMatchCurrentLinuxBoot(t *testing.T) {
 	got, e := applianceupdate.ReadBootIdentity(ticket, proc)
 	if e != nil || !got.Trial || got.BootID != id {
 		t.Fatalf("ticket: %+v %v", got, e)
+	}
+	body = `{"boot_id":"` + id + `","image_sha256":"` + strings.Repeat("b", 64) + `","trial":true,"fallback_image_sha256":"` + strings.Repeat("a", 64) + `"}`
+	if e := os.WriteFile(ticket, []byte(body), 0o600); e != nil {
+		t.Fatal(e)
+	}
+	got, e = applianceupdate.ReadBootIdentity(ticket, proc)
+	if e != nil || !got.Trial || got.ImageSHA256 != strings.Repeat("b", 64) {
+		t.Fatalf("ticket with fallback: %+v %v", got, e)
 	}
 }
