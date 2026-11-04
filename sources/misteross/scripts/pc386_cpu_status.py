@@ -28,7 +28,9 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import shlex
+import signal
 import subprocess
 import sys
 import time
@@ -112,12 +114,18 @@ def parse(lines, host_time=time.time):
 
 
 def run(ssh: list[str], command: str):
-    """The remote loop's stdout lines; the ssh child is this reader's own."""
-    child = subprocess.Popen([*ssh, command], stdin=subprocess.DEVNULL, stdout=subprocess.PIPE, text=True)
+    """The remote loop's stdout lines. The ssh command runs in its own process
+    group, which this reader stops whole: a wrapper script's ssh would
+    otherwise outlive it and keep the kit's loop running."""
+    child = subprocess.Popen([*ssh, command], stdin=subprocess.DEVNULL, stdout=subprocess.PIPE, text=True,
+                             start_new_session=True)
     try:
         yield from child.stdout
     finally:
-        child.terminate()
+        try:
+            os.killpg(child.pid, signal.SIGTERM)
+        except ProcessLookupError:
+            pass
         child.wait(timeout=10)
 
 
@@ -151,6 +159,7 @@ def main(argv=None) -> int:
             return 0 if item['whole'] else 1
         return 1
     log = open(args.log, 'a') if args.log else None
+    signal.signal(signal.SIGTERM, lambda *_: sys.exit(0))
     for item in parse(run(ssh, remote_loop(SAMPLE_WORDS, args.seconds, args.interval))):
         print(line(item), flush=True)
         if log:
