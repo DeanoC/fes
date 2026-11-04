@@ -6,6 +6,7 @@
 module fes_zx81_core #(
     parameter [127:0] BUILD_ID = 128'd0,
     parameter EXPANSION_SOCKET = 0,
+    parameter HPS_DDR_WINDOW = 1,
     parameter FIRMWARE_INIT = "",
     parameter integer CLOCK_NUMERATOR = 1625,
     parameter integer CLOCK_DENOMINATOR = 13056
@@ -61,7 +62,7 @@ module fes_zx81_core #(
 `else
         .ENABLE_ZX81_TAPE_WRITE(1),
 `endif
-        .ENABLE_SESSION_DISPLAY(1), .MEDIA_AW(14),
+        .ENABLE_SESSION_DISPLAY(1), .ENABLE_HPS_DDR_WINDOW(HPS_DDR_WINDOW), .MEDIA_AW(14),
         .UNIT0_MIN(`FES_COMPUTER_ZX81_TAPE_MIN_BYTES),
         .UNIT0_MAX(`FES_COMPUTER_ZX81_TAPE_MAX_BYTES)
     ) gp_mailbox (

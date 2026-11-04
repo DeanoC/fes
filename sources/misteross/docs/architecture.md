@@ -31,6 +31,15 @@ standard computer core at a 100 MHz system clock with unrelated 74.25 MHz pixels
 The latter uses a modeled DE10 DDR adapter to exercise the shared display plane;
 it does not qualify the DE25 allocation/transport adapters or a DE25 RBF.
 
+The standard core's `HPS_DDR_WINDOW` parameter defaults to one for DE10. Setting
+it to zero leaves the session-display capability intact and clears only the
+reserved-window capability. The shared mailbox exposes the same independent
+`ENABLE_HPS_DDR_WINDOW` selection. This is identity plumbing for a board-owned
+memory backend; it allocates no memory and enables no new runtime or package
+profile. The identity regression exercises the real mailbox and standard core,
+including unchanged default/windowed identities. DE25 runtime admission remains
+restricted until its complete standard-core adapter exists.
+
 DE25 currently uses the separate bring-up wrapper described below. Porting the
 standard core's board adapters replaces that reduced wrapper; adding more
 guest features to the bring-up implementation is not the standard-core path.
