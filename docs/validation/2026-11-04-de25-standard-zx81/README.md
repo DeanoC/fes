@@ -1,8 +1,9 @@
 # Standard ZX81 core preparation for DE25
 
-The installed DE25 ZX81 package still uses a reduced bring-up wrapper. This
-work extracts the standard machine/control core from the DE10 board wrapper;
-it does not yet replace the DE25 package or establish hardware acceptance.
+The standard ZX81 machine/control core now has a timing-admitted DE25 package
+and native FES UI, cassette SAVE/reload, runtime recovery and active-core reboot
+evidence. The post-reboot media picker still fails, so full normal-kit acceptance
+remains open. The dated sections below retain each earlier artifact and its limits.
 
 ## Implemented
 
@@ -531,3 +532,57 @@ clock ports, warning inventory and all timing/admission gates remain unchanged.
 The failed candidate stays unadmitted. A fresh complete producer run and matching
 independent rebuild are required for the changed producer inputs; physical board
 acceptance remains open.
+
+
+## Reset-export package and native trial
+
+Committed producer `a35f3207a668e87ac16a4edb6028ef554a2f8140` completes the normal
+Quartus Pro 26.3 package exporter and an independent fit in 1193.332 seconds.
+Both fits pass all 92 reported numerical checks and have zero unreviewed failed
+rules. Their actual RBF files are identical: SHA256
+`02c2d5e4a87912e2b4b2316212a17e85a688782cf333ab5980fd171725c7bd8e`.
+Package `138ab5cbda9b923b19a8d8f61c0dbc22670a2b6cd7d4272015f5973b009374bc`
+contains BUILD_ID `e1644cc46c58daaab1e5bdb151d78e1a`; all 482 selected source inputs
+match the committed producer. Fresh per-fit reviews apply only the approved
+two asynchronous inputs and internal16K `HDMI_SCLK` / `HDMI_LRCLK` stock-reference
+exceptions. Raw warnings remain retained. The complete unmodified seven-command
+affected plan passes in 1611.057 seconds.
+
+The normal immutable AArch64 bundle
+`bcecd49fdcc9d0ce8b39755543a13c9f60f9a5da5aae484a58665708ac17979d`
+is built from the same source and installed through managed activation on bottom
+board TRWU8J8G, matched ABI3 image `6de6a392`, software generation 27. The host
+remains the normal source `314ed9d9e` binary.
+
+| Native case | Result |
+| --- | --- |
+| Actual FES picker, insert/eject, BASIC load/run/edit/reload and ROM SAVE | PASS, 88.603s; all 13 pictures checked, capture and acknowledge HTTP 200. |
+| Newly emitted SAVE `9838526c` selected through the real picker | PASS, 48.808s; LOAD/RUN9, edit/RUN7, reload/RUN9 and Stop/Home; all seven pictures checked. |
+| One exact selected active-runtime exit | PASS, 83.376s; replacement group stable within 31.844s including 10s stability, fresh ZX81/UI/input and Stop/Home; all five pictures checked. The lost guest is discarded. |
+| One ordinary OS reboot while ZX81 prints7 | PASS, 71.296s overall; new boot in 47.946s, same image/card/kernel/bundle, authenticated new boot and 10s Ready/MENU/idle/free. No power cycle or old-session Stop. |
+| Fresh post-reboot launch and retained SAVE picker | FAIL, 23.972s; fresh K prompt renders, then picker opening refuses the session allocation. No picker appears. |
+
+The failed case reports `DE25 session reopen requires a successfully retired
+allocation`, followed by `DE25 retired session counter was not cleared or
+publication was unconfirmed`; the raw observation reports zero underflows.
+This follow-on status does not prove which invariant failed first. No second
+reboot or repeated failed trial occurs. The owned cleanup Stop returns MENU.
+The full trace, both failure images, raw observation and cleanup receipt remain
+retained; the failed case remains failed. The next investigation must capture
+the first display-close/present failure before another controlled trial.
+
+Normal activation restores the named baseline bundle `a14a` at generation 28.
+Independent authenticated checks under both status locks verify new boot
+`5c6295d4-704a-432f-9a98-a07a4c479729`, unchanged image/card/kernel, ready/idle/free
+and no maintenance or software fault. The original host/unit/fresh catalog are
+restored with SQLite integrity checked; the candidate catalog and all trial
+evidence are retained. Owned fixtures are removed and the board is released.
+The first restore wrapper failed on JSON nesting before any activation; its
+corrected, separate invocation passes in 29.784s. The top board is untouched.
+
+[reset-export-native.json](reset-export-native.json) binds exact artifact hashes,
+source receipts, visual observations, the failed case and restoration. Keyboard
+input uses the explicit bus 0 fixture. Physical USB/audio, native ROM/persona
+composition, physical standard PR and current-head CI/independent review remain
+open. This partial trial does not promote a main baseline or establish full
+normal-kit acceptance.
