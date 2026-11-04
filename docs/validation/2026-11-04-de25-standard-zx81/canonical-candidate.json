@@ -1,0 +1,49 @@
+{
+  "all_reported_timing_pass": true,
+  "build_id": "26921a8281abaf2f9b96ac388a5a63e5",
+  "classification": "canonical standard compile-only candidate; not sealed or board accepted",
+  "hardware_changed": false,
+  "independent_rebuild": "running; not yet evidence",
+  "package_timing_admission": false,
+  "producer_total_seconds": 654.917,
+  "raw_failed_rules": [
+    {
+      "id": "TMC-20012",
+      "severity": "High",
+      "violations": 32,
+      "waived": 0
+    },
+    {
+      "id": "TMC-20011",
+      "severity": "High",
+      "violations": 2,
+      "waived": 0
+    }
+  ],
+  "rbf_bytes": 1740800,
+  "rbf_sha256": "7d17a234408fbfe4984dc1caf88029c99b2b4dc0ffc11a5eba671055fd34c2aa",
+  "reports_sha256": {
+    "golden_top.sta.summary": "2a6c8cbaaab8e8575309f8bdc1785cbbff7fbb9204e70fefc3a1fa7227cfbb84",
+    "golden_top.tq.drc.signoff.rpt": "4581b51c66895ee826f8a29ec03e4e45e8d69abcf95a6e920127dd8a34329ff4"
+  },
+  "resources": {
+    "alm_total": 46800,
+    "alm_used": 8794,
+    "ram_blocks_total": 358,
+    "ram_blocks_used": 301,
+    "registers": 12664
+  },
+  "setup_slack_ns": {
+    "adv7513_config": "16.752",
+    "fes_audio_inst|clock|iopll_0_outclk0": "80.450",
+    "fes_video_inst|video_clock|iopll_0_outclk0": "3.194",
+    "fes_video_inst|video_clock|iopll_0_refclk": "17.219",
+    "pll_inst|iopll_0_outclk0": "1.286"
+  },
+  "source_input_count": 474,
+  "source_record_bytes": 52000,
+  "source_record_sha256": "d4c79b087c3a267ac6049cb41dd16b15354715c617550d49d341816ffd589ee5",
+  "source_revision": "ea874ec412d44b9887da134667a166382840ba0a",
+  "staged_source_count": 56,
+  "timing_check_count": 92
+}

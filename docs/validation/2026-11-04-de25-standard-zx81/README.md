@@ -258,3 +258,33 @@ This completes software profile/factory wiring, not canonical artifact or board
 acceptance. The sealed standard package producer, output/reference timing checks,
 independent artifact rebuild and managed hardware tests remain open. The physical
 kit still runs its previous verified bring-up package and software baseline.
+
+## Canonical standard-core candidate
+
+The canonical DE25 ZX81 producer now selects the standard machine and all nine
+interfaces of `de25-linux-computer-v1`. It captures the complete board, machine,
+reader and audio closure and binds the functional BUILD_ID before generation.
+The generated endpoint/topology and staged-source checks run before and after
+compilation. Linux core-file conversion uses the same HPS-first vendor boot data.
+
+The first committed attempt stopped before compilation because its broad source
+record exceeded the format's64KiB limit. Source roots now retain the relevant
+board/core modules and actual shared libraries; every captured hardware input
+must belong to the closure. The final record contains474 inputs in52,000 bytes.
+The limit and exporter validation remain unchanged.
+
+Source `ea874ec412d44b9887da134667a166382840ba0a` completed a clean full canonical
+compile and Linux phase conversion on fes-build-3090 in654.917 seconds. Its
+1,740,800-byte core RBF has SHA256
+`7d17a234408fbfe4984dc1caf88029c99b2b4dc0ffc11a5eba671055fd34c2aa`
+and BUILD_ID `26921a8281abaf2f9b96ac388a5a63e5`. All92 reported numerical timing
+checks pass. System/pixel setup slack is1.286ns/3.194ns; resources are8,794 ALMs
+and301 RAM blocks. See [canonical-candidate.json](canonical-candidate.json).
+
+Raw signoff still reports32 missing-output-delay findings and two missing-input
+findings, with zero waivers and no other failed rule. Compile-only supplies no
+reviewed-finding substitutions and exports no package. A separate clean build
+has started to compare exact source/tool/execution records and RBF bytes; its
+result remains pending. This candidate has not been programmed or accepted on
+a board. The HDMI/audio-clock review, independent final package rebuild, source
+proof receipt refresh and managed native acceptance remain open.
