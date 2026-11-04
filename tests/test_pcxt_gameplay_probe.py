@@ -55,6 +55,25 @@ class PlaybackProbeTests(unittest.TestCase):
         frame = self.frame(1, 80); probe.source_frame(frame); probe.processed(frame, self.obs); probe.arm(90)
         with self.assertRaises(ProbeError): probe.dispatch(0x50, mock.Mock())
 
+    def test_lost_player_or_lives_stops_later_inputs(self):
+        for lost in ('player', 'initial_lives'):
+            for accepted in (1, 2):
+                with self.subTest(lost=lost, accepted=accepted):
+                    self.setUp()
+                    action = mock.Mock()
+                    plan = (0x50, 0x4f, 0x50)
+                    for seq, usage in enumerate(plan[:accepted], 1):
+                        self.publish(seq, 100 + seq)
+                        self.probe.dispatch(usage, action)
+                    self.publish(accepted + 1, 103, replace(self.obs, **{lost: False}))
+                    with self.assertRaises(ProbeError):
+                        self.probe.dispatch(plan[accepted], action)
+                    self.assertEqual(action.call_count, accepted)
+                    self.assertTrue(self.probe.closed)
+                    with self.assertRaises(ProbeError):
+                        self.probe.dispatch(plan[accepted], action)
+                    self.assertEqual(action.call_count, accepted)
+
     def test_uncertain_action_prevents_later_keys(self):
         self.publish(1, 100)
         with self.assertRaises(RuntimeError):

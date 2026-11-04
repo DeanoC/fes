@@ -77,7 +77,7 @@ class PlaybackProbe:
             end = time.monotonic()+.25
             while True:
                 try:
-                    proof = self.snapshot(require_player=not self.sent)
+                    proof = self.snapshot(require_player=True)
                     break
                 except ProbeError:
                     with self.lock:

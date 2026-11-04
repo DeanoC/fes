@@ -37,7 +37,11 @@ Independent review of the captures and receipts found:
   after the ordered directional inputs. Frames 1373, 1425, 1479 and 1536 show
   those respective orientations. This establishes the bounded facing-response
   observation; it does not establish sustained travel. A later collision and
-  death occurred after those comparisons. The video SHA-256 is
+  death occurred after those comparisons. The recorded observation before the
+  second tap reported `player: false`, although review of the video confirmed
+  the player was present. The subsequently tightened guard would stop at that
+  observation, so this historical run does not validate the new guard on kit.
+  The video SHA-256 is
   `5b9d8cfea7d617bb26cc8e145ce117dbab3aaa5cd90613752313b6ece1bfa3ad`;
   the contiguous frame-metadata SHA-256 is
   `6fd613c99f1aba1aa08077603a5c74940a7376dcd7e6f44648913037e912436e`.
