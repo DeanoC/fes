@@ -1,5 +1,15 @@
 # Nano recovery uploads and cold serial boot
 
+`usb_trace.py` observes the separately selected `usbcheck` image. It requires
+the matched SPL/BL31 handoff, a successful secure USB setup, the complete HPS
+context/pin observations, entry/BSP CPU startup through `go_vectors`, and
+ordered USB Ready/report/Stop/Pass records. Stop must carry the same owner and
+generation 3. Missing, duplicate, malformed, failed or fragmented observations
+cannot complete the diagnostic. The caller supplies checked build identities;
+the decoder performs no device operations or admission. An idle success proves
+reported startup and stop only. Valid key presses are separate input evidence,
+and neither result qualifies combined USB/storage/core operation.
+
 The configuration code uses an owned per-load descriptor in the last page of
 the existing DMA reservation. Firmware captures and checks that binding instead
 of using a compiled payload digest table. Its matched

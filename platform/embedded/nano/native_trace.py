@@ -43,6 +43,7 @@ RULES = [(name, re.compile(pattern)) for name, pattern in (
                  ('idr0','idr1','aidr','s_idr1','cr0','ack','gbpa','agbpa','s_cr0','s_ack','s_init','s_gbpa','s_agbpa'))+
         r' identified=(?P<identified>[01]) settled=(?P<settled>[01]) bypass_controls_clear=(?P<bypass_controls_clear>[01]) access=unqualified'),
     ('provider', rf'(?:NOTICE:[ \t]+)?FES_NANO_OWNED_BOOT provider=(?P<provider>-?[0-9]{{1,10}}) result=(?P<result>-?[0-9]{{1,10}}) reset=(?P<bridge>{W})'),
+    ('usb_setup', r'(?:NOTICE:[ \t]+)?FES_NANO_USB_SETUP status=(?P<status>-?[0-9]{1,10}) board_error=(?P<board_error>-?[0-9]{1,10}) platform_error=(?P<platform_error>-?[0-9]{1,10}) data=held'),
     ('sd_platform', r'(?:NOTICE:[ \t]+)?FES_NANO_SD_PLATFORM setup=(?P<setup>-?[0-9]{1,10}) ready=(?P<ready>[01])'),
     ('uboot', r'U-Boot (?!SPL)[^\r\n]*?-fes-nano-(?P<id>[0-9a-f]{16})(?:[ \t].*)?'),
     ('dram', r'DRAM:[ \t]+1 GiB'),
@@ -101,7 +102,7 @@ DECIMAL = {'kind', 'valid', 'core', 'provider', 'result', 'status', 'counter',
            'cpu0', 'cpu1', 'cpu2', 'cpu3', 'setup', 'ready', 'bytes', 'sectors', 'sd_generation', 'payload_bytes','words','ordinal',
            'reads','identified','settled','bypass_controls_clear','arena_bytes','reader_reads','reader_polls','disable','probe_polls','cancel','complete',
            'index','layout_known','window_covered','mpfe_reset','fetches','execution_observed','part','pass','count','busy','error',
-           'ram_bytes','control_bytes','dma_bytes','reader_bytes','translations','frame_bytes','row_bytes','stride','rows'}
+           'ram_bytes','control_bytes','dma_bytes','reader_bytes','translations','frame_bytes','row_bytes','stride','rows','board_error','platform_error'}
 TEXT = {'id', 'phase', 'sha256', 'cid', 'package_id', 'payload_sha256', 'build_id','map_sha256','pattern_sha256','descriptor_sha256','frame_sha256'}
 
 
@@ -115,7 +116,7 @@ class _ComputerContinuation:
 
 def decode_native_boot(data, build_id, owner_seed, *, storage=None, package=None, hps_context=None, hps_io=None, fpga_identity=None,
                        fpga_configuration=False, fpga_unready=False, fpga_status_only=False, configuration_storage=False,
-                       smmu_observe=False, reader_memory=None, computer=None, computer_activity=False, cpu_mapping=None, capture_trace=True, atf=None, _continuation=None, _window_prefix=False):
+                       smmu_observe=False, reader_memory=None, computer=None, computer_activity=False, cpu_mapping=None, capture_trace=True, atf=None, usb_control=False, _continuation=None, _window_prefix=False):
     """Retain partial progress, but qualify only one ordered, coherent boot.
 
     A bare prompt need not end in a newline. Other incomplete lines are held
@@ -132,6 +133,11 @@ def decode_native_boot(data, build_id, owner_seed, *, storage=None, package=None
         raise ValueError('secure capture trace selection must come from the checked build')
     if type(computer_activity) is not bool or computer_activity and computer is None:
         raise ValueError('computer activity requires its explicitly selected source-bound computer probe')
+    if type(usb_control) is not bool or usb_control and (not capture_trace or hps_context is None or hps_io is None or
+            storage is not None or package is not None or fpga_identity is not None or
+            fpga_configuration or configuration_storage or smmu_observe or reader_memory is not None or
+            computer is not None or computer_activity or cpu_mapping is not None or _continuation is not None or _window_prefix):
+        raise ValueError('USB control requires its separate cold source-context and HPS I/O diagnostic')
     if (type(_window_prefix) is not bool or _window_prefix and
             (not configuration_storage or reader_memory is None or fpga_identity is None or computer is not None or
              fpga_unready or fpga_status_only or _continuation is not None)):
@@ -277,6 +283,8 @@ def decode_native_boot(data, build_id, owner_seed, *, storage=None, package=None
         index=base_stages.index('provider');stages=base_stages[:index]+('smmu',)+base_stages[index:]
     if cpu_mapping is not None and not continued:
         index=stages.index('hps_context');stages=stages[:index]+('cpu_mapping',)+stages[index:]
+    if usb_control:
+        index=stages.index('provider');stages=stages[:index]+('usb_setup',)+stages[index:]
     loader_stages=() if continued else stages[:stages.index('prompt')+1]
     report = {'records': [], 'errors': [], 'loader_ready': False, 'complete': False,
               'last_checkpoint': None, 'core_load_acceptance': False}
@@ -333,7 +341,7 @@ def decode_native_boot(data, build_id, owner_seed, *, storage=None, package=None
             break
         else:
             if (line.startswith(('U-Boot ', 'FES_NANO_', 'FES_ENTRY', 'FES_NATIVE_GO_PROBE', 'FES_STORAGE_PROBE', 'FES_SD_PACKAGE_PROBE',
-                                 'FES_NATIVE_HPS_CONTEXT','FES_NATIVE_HPS_IO','FES_NATIVE_CPU_MAPPING','FES_NATIVE_FPGA_IDENTITY','FES_NATIVE_FPGA_UNREADY','FES_NATIVE_FPGA_STATUS','FES_NATIVE_FPGA_PROGRAMMED','FES_NATIVE_FPGA_WINDOW_','FES_NATIVE_COMPUTER_CONTROL','FES_NATIVE_COMPUTER_ACTIVITY', 'Trying to boot from ', 'DRAM:', 'SOCFPGA_AGILEX5 #')) or
+                                 'FES_NATIVE_HPS_CONTEXT','FES_NATIVE_HPS_IO','FES_NATIVE_USB','FES_NATIVE_CPU_MAPPING','FES_NATIVE_FPGA_IDENTITY','FES_NATIVE_FPGA_UNREADY','FES_NATIVE_FPGA_STATUS','FES_NATIVE_FPGA_PROGRAMMED','FES_NATIVE_FPGA_WINDOW_','FES_NATIVE_COMPUTER_CONTROL','FES_NATIVE_COMPUTER_ACTIVITY', 'Trying to boot from ', 'DRAM:', 'SOCFPGA_AGILEX5 #')) or
                     line.startswith('NOTICE:') and 'FES_NANO_' in line):
                 report['errors'].append(f'malformed or unexpected probe marker at line {number}')
 
@@ -424,6 +432,9 @@ def decode_native_boot(data, build_id, owner_seed, *, storage=None, package=None
                 'native HPS source context differs')
         require(matched_owner is not None and value['owner']==matched_owner and value['generation']==source_generation,
                 'native HPS source-context owner/generation differs')
+    if 'usb_setup' in observed:
+        require(usb_control and observed['usb_setup']=={'status':0,'board_error':0,'platform_error':0},
+                'USB secure setup failed or was not selected')
     if cpu_mapping is not None and 'cpu_mapping' in observed:
         value=observed['cpu_mapping']
         require(all(value[key]==cpu_mapping[key] for key in cpu_mapping if key not in ('format','scope')),
