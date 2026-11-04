@@ -33,6 +33,11 @@ requests perform no I/O. Content rejection leaves healthy storage usable. Once
 containment begins, uncertain transfer/control/return/grant failures retain the
 plan, arena and scope and permanently require reboot. Configuration retains its
 20-second bound; computer operations keep their one-second/64-poll limits.
+Each transfer owns a private 32 KiB hash scratch buffer. Every existing whole
+and pending-chunk check freshly copies all covered DMA bytes into that buffer
+before hashing; source bytes are checked independently. No prior arena hash
+or scratch contents substitute for a fresh read, and firmware digest checks
+remain unchanged.
 Accepted return cleanup uses its own five-second context even if the requester
 disconnects. Hooks must return within their platform bounds.
 

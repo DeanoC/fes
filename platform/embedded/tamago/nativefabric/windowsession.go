@@ -22,7 +22,7 @@ type WindowSession struct {
 	self                                       *WindowSession
 	region                                     *Region
 	bytes                                      []byte
-	arenaHash                                  *windowArenaHash
+	arenaHash                                  *arenaHash
 	verifier                                   *HPSContextVerifier
 	context                                    context.Context
 	source                                     HPSBootObservation

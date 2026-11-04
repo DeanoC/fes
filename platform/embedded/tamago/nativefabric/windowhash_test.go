@@ -10,7 +10,7 @@ import (
 )
 
 func TestWindowArenaHashCoversUnalignedTailsAndFreshContents(t *testing.T) {
-	var h windowArenaHash
+	var h arenaHash
 	data := make([]byte, (4<<20)+31)
 	for i := range data {
 		data[i] = byte(i ^ i>>7 ^ i>>19)

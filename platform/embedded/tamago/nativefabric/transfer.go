@@ -21,6 +21,7 @@ type ConfigurationTransfer struct {
 	beforeStart func() error
 	phase       string
 	digest      [32]byte
+	arenaHash   arenaHash
 	chunks      [][32]byte
 	chunk       int
 	dramBase    uint64
@@ -104,7 +105,7 @@ func (t *ConfigurationTransfer) Cancel(reason error) error {
 }
 
 func (t *ConfigurationTransfer) stable() bool {
-	return t.region != nil && sha256.Sum256(t.region.Bytes) == t.digest && sha256.Sum256(t.source) == t.digest
+	return t.region != nil && t.arenaHash.sum(t.region.Bytes) == t.digest && sha256.Sum256(t.source) == t.digest
 }
 
 func (t *ConfigurationTransfer) stableChunk(b configurationBuffer) bool {
@@ -112,7 +113,7 @@ func (t *ConfigurationTransfer) stableChunk(b configurationBuffer) bool {
 		return false
 	}
 	index := b.offset / t.chunk
-	return index < len(t.chunks) && sha256.Sum256(t.region.Bytes[b.offset:b.offset+b.amount]) == t.chunks[index] &&
+	return index < len(t.chunks) && t.arenaHash.sum(t.region.Bytes[b.offset:b.offset+b.amount]) == t.chunks[index] &&
 		sha256.Sum256(t.source[b.offset:b.offset+b.amount]) == t.chunks[index]
 }
 

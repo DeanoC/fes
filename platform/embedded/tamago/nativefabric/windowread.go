@@ -168,7 +168,7 @@ func (v *HPSContextVerifier) openWindowSession(ctx context.Context, control, con
 			v.readerMemoryMu.Unlock()
 		}
 	}()
-	arenaHash := new(windowArenaHash)
+	arenaHash := new(arenaHash)
 	if v.ddrReaderAttempted || !v.readerMemoryReady || v.readerMemoryRegion == nil ||
 		v.readerMemoryRegion.Address != v.windowMemory.CPUBase || uint64(len(v.readerMemoryRegion.Bytes)) != v.windowMemory.ArenaBytes ||
 		arenaHash.sum(v.readerMemoryRegion.Bytes) != v.windowArenaSHA {
