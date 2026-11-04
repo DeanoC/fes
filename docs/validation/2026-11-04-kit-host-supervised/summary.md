@@ -1,8 +1,9 @@
-# 2026-11-04: the supervised kit host on Kit A (#863 slice 5), run i1
+# 2026-11-04: the supervised kit host on Kit A (#863 slice 5)
 
 Kit check of the slice 5 image and bundle. Evidence class: hardware
-diagnostic on Kit A, with an image change Deano approved on 4 November. It is
-**partial**: what it shows and what it does not are listed below.
+diagnostic on Kit A, with image changes Deano approved on 4 November. Run i1
+was partial because of driver bugs; run i2, with the fixed driver, covers the
+rest.
 
 ## Method
 
@@ -27,7 +28,33 @@ and host at `83399b86a` with Lander's baseline recipe (`make build`, `verify`,
 
 The copy here has the fixes listed under "Not shown", made after the run.
 
-## Results
+## Run i2
+
+The same image, bundle and steps as i1, with the fixed driver. Its record is
+[`i2-results.json`](i2-results.json).
+
+| Check | Result |
+| --- | --- |
+| New image, baseline bundle | Three services: runtime, agent, tenfoot. No host |
+| New image, slice 5 bundle | Four direct children: the three services plus `fogcast-kit` (the host) |
+| Agent `GET /v1/core-packages`, longest wait | 21.2 s and 22.3 s with the host; 0.08 s without |
+| Host's package list | The ST and Coleco packages in the durable store; no menu |
+| ST title and diskless launch through the host | Launched in 43.6 s |
+| Host killed by PID mid-game | The host restarted alone (new PID 4462); the runtime, agent and launcher kept their PIDs |
+| Same kill, the running game | **Ended**: the agent went from `active` to `stopping` to `idle` within 2 s |
+| Rollback to `f904961e` | Confirmed; #1469 happened again, and the documented acknowledge repaired it |
+
+**A host restart ends the running game.** The host stops the session it owns
+when it shuts down, so a supervisor restart of the host stops the core. Decision
+4 forbids this, and it is the open item for slice 6: the agent should hold the
+lease across a host restart, and the host should not stop a session on exit.
+
+**#1469 reproduces.** Both rollbacks left the stock supervisor's reactivation
+blocked. The driver's guarded repair ran `fes-kit-software acknowledge` only
+because the three baseline services were running and the launcher was ready.
+It completed, and Kit A was verified clean and logged FREE.
+
+## Run i1
 
 | Step | Result |
 | --- | --- |
@@ -48,7 +75,7 @@ agent's `GET /v1/core-packages` once a second for 70 s after each activation:
 The host's store open holds the lock the agent needs. This is the open item
 from #1462, now measured on the supervised path.
 
-## Not shown
+## Not shown in i1 (covered by i2)
 
 - **Three versus four processes, and the host restarting alone.** The driver
   listed processes with `/proc/<pid>/task/*/children`, which the kit kernel

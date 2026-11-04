@@ -17,7 +17,7 @@ the image, then verify both):
      (verify the boot), verify the active bundle, delete the host state, log.
 Agent tokens are read only inside Python and never printed.
 """
-import fcntl, json, os, re, subprocess, sys, time, tomllib, urllib.error, urllib.request
+import fcntl, json, os, re, secrets, subprocess, sys, time, tomllib, urllib.error, urllib.request
 from pathlib import Path
 
 D = Path('/home/deano/fes-scratch/k863'); OUT = D / 'out863s5'; OUT.mkdir(exist_ok=True)
@@ -35,7 +35,7 @@ NEW_IMAGE = CAND['built_image']
 BUNDLE = str(IMG / 'ks/bundle.tar')
 NEW_SW = CAND['bundle']
 CURRENT = json.load(open('/home/deano/lander-hilq/current.json'))
-BASE_SW = CURRENT['kit_sw']
+BASE_SW = CURRENT.get('kit_sw_by_kit', {}).get(KIT, [CURRENT['kit_sw']])[0]
 GOOD = CURRENT['image_good']
 ST_PKG = '2dd2271c816ad3eb83fb73be9e47b08431eaadd9a4d12484c4d684259090bdb7'
 HOST_STATE = '/run/fogcast/fesdata3/fogcast-host'
@@ -307,6 +307,33 @@ def main():
         restore()
 
 
+def acknowledge_blocked_reconcile():
+    """#1469: after a rollback the stock supervisor can leave the selected bundle
+    running and ready but its reactivation blocked and the lease
+    recovery-required. Run the documented acknowledge with the observed values,
+    only when exactly the three baseline services are running and the
+    launcher is ready for the baseline bundle. Otherwise leave it."""
+    time.sleep(30)
+    s = sw_status()
+    pending = s.get('pending') or {}
+    try:
+        lease = agent('/v1/kit/lease')
+    except Exception as e:  # noqa: BLE001
+        return f'lease unreadable: {e!r}'
+    if pending.get('phase') != 'blocked' or lease.get('state') != 'recovery-required':
+        return ''
+    exes = sorted(p['exe'] for p in services())
+    _, ready, _ = kit('cat /run/fogcast/software/launcher-ready.json')
+    if exes != ['fogcast-tenfoot', 'mister-agent', 'mister-runtime'] or BASE_SW not in ready or s.get('active_bundle') != BASE_SW or s.get('selected') != BASE_SW:
+        return f'not acknowledged: services {exes}, active {str(s.get("active_bundle"))[:8]}'
+    boot = image_status().get('boot_id', '')
+    action = secrets.token_hex(32)
+    status_line(f'KIT A HELD — deano fes#863 slice 5 ({TAG}): after the rollback the supervisor reactivation is blocked (operation {pending["id"][:8]}, #1469) with the three services running and ready; running the documented fes-kit-software acknowledge (action {action[:8]}).')
+    rc, out, err = kit(f'/usr/sbin/fes-kit-software acknowledge --operation {pending["id"]} --generation {s["generation"]} --selected {s["selected"]} --base {s["base_identity"]} --boot {boot} --action {action}; echo rc=$?', timeout=300)
+    log(f'acknowledge: {out.strip()[-300:]} {err.strip()[-200:]}')
+    return out.strip()[-300:]
+
+
 def restore():
     steps = {}
     try:
@@ -327,6 +354,9 @@ def restore():
     steps['image_after'] = {k: i.get(k) for k in ('image_sha256', 'good', 'previous', 'trial', 'pending')}
     ok_sw, s = wait_active(BASE_SW, tries=24)
     steps['sw_after'] = s.get('active_bundle')
+    steps['acknowledge'] = acknowledge_blocked_reconcile()
+    if steps['acknowledge']:
+        ok_sw, s = wait_active(BASE_SW, tries=12)
     kit(f'rm -rf {HOST_STATE}; ls -d {HOST_STATE} 2>&1 | head -1')
     rc, left, _ = kit(f'ls -d {HOST_STATE} 2>/dev/null; echo end')
     ok_lease, lease = lease_free(90)
