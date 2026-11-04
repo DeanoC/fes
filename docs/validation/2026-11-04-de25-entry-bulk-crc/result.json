@@ -1,0 +1,288 @@
+{
+  "status": "stopped",
+  "native_source_commit": "b1965e3e8caed5a8b17d84e0a063a8588ec97703",
+  "fpga_source_commit": "df234b524d0e1340b343df411c841bd1dc553817",
+  "native_hardware_acceptance": false,
+  "observer_error": "phase stopped: native",
+  "native_error": "stage timeout: retained SD package",
+  "startup": {
+    "records": [
+      {
+        "line": 91,
+        "phase": "loader_begin",
+        "ticks": 6832009478,
+        "hz": 400000000,
+        "el": 2,
+        "sctlr": 818219056
+      },
+      {
+        "line": 92,
+        "phase": "decode_begin",
+        "ticks": 6835605695,
+        "hz": 400000000,
+        "el": 2,
+        "sctlr": 818223152
+      },
+      {
+        "line": 93,
+        "phase": "inflate_end",
+        "ticks": 31762230541,
+        "hz": 400000000,
+        "el": 2,
+        "sctlr": 818223152
+      },
+      {
+        "line": 94,
+        "phase": "checksum_end",
+        "ticks": 32030408144,
+        "hz": 400000000,
+        "el": 2,
+        "sctlr": 818223152
+      },
+      {
+        "line": 95,
+        "phase": "decode_end",
+        "ticks": 32033938201,
+        "hz": 400000000,
+        "el": 2,
+        "sctlr": 818223152
+      },
+      {
+        "line": 96,
+        "phase": "copy_end",
+        "ticks": 32414128189,
+        "hz": 400000000,
+        "el": 2,
+        "sctlr": 818223152
+      },
+      {
+        "line": 97,
+        "phase": "handoff",
+        "ticks": 32417519773,
+        "hz": 400000000,
+        "el": 2,
+        "sctlr": 818219056
+      },
+      {
+        "line": 99,
+        "phase": "go_hwinit",
+        "ticks": 32426902558,
+        "hz": 400000000,
+        "el": 1,
+        "sctlr": 818944005
+      },
+      {
+        "line": 100,
+        "phase": "go_vectors",
+        "ticks": 32430329758,
+        "hz": 400000000,
+        "el": 1,
+        "sctlr": 818944005
+      },
+      {
+        "line": 101,
+        "phase": "go_main",
+        "ticks": 32437392697,
+        "hz": 400000000,
+        "el": 1,
+        "sctlr": 818944005
+      },
+      {
+        "line": 102,
+        "phase": "verifier_ready",
+        "ticks": 32441726450,
+        "hz": 400000000,
+        "el": 1,
+        "sctlr": 818944005
+      },
+      {
+        "line": 103,
+        "phase": "sd_open_begin",
+        "ticks": 32445324223,
+        "hz": 400000000,
+        "el": 1,
+        "sctlr": 818944005
+      },
+      {
+        "line": 104,
+        "phase": "sd_open_end",
+        "ticks": 32461400278,
+        "hz": 400000000,
+        "el": 1,
+        "sctlr": 818944005
+      },
+      {
+        "line": 105,
+        "phase": "fat_mount_end",
+        "ticks": 32473972928,
+        "hz": 400000000,
+        "el": 1,
+        "sctlr": 818944005
+      },
+      {
+        "line": 106,
+        "phase": "retain_begin",
+        "ticks": 32477538199,
+        "hz": 400000000,
+        "el": 1,
+        "sctlr": 818944005
+      }
+    ],
+    "errors": [],
+    "complete": false,
+    "rejected": false,
+    "last_checkpoint": "retain_begin",
+    "timings_us": {
+      "loader_begin": 0,
+      "decode_begin": 8990,
+      "inflate_end": 62325552,
+      "checksum_end": 62995996,
+      "decode_end": 63004821,
+      "copy_end": 63955296,
+      "handoff": 63963775,
+      "go_hwinit": 63987232,
+      "go_vectors": 63995800,
+      "go_main": 64013458,
+      "verifier_ready": 64024292,
+      "sd_open_begin": 64033286,
+      "sd_open_end": 64073477,
+      "fat_mount_end": 64104908,
+      "retain_begin": 64113821
+    },
+    "core_load_acceptance": false
+  },
+  "intervals_us": {
+    "inflate_us": 62316562,
+    "checksum_us": 670444,
+    "decode_and_checksum_us": 62995831,
+    "elf_plan_copy_zero_us": 950475,
+    "loader_to_handoff_us": 63963775,
+    "handoff_to_main_us": 49683,
+    "sd_open_us": 40191,
+    "sd_to_fat_mounted_us": 31431,
+    "loader_to_retain_begin_us": 64113821
+  },
+  "timing_scope": "inclusive CPU-counter intervals include UART trace output; inflation, checksum and copy are separately sampled",
+  "original_storage_stage_seconds": 100,
+  "original_native_phase_seconds": 270,
+  "original_native_device_seconds": 240,
+  "original_transfer_read_return_seconds": 45,
+  "prior_window_procedure_failures": 5,
+  "attempts_this_head": 1,
+  "failures_this_head": 1,
+  "retries": 0,
+  "received_complete_frames": 0,
+  "final_bridge_state": "unknown: no admitted final return and no later passive UART bytes",
+  "memory_lifetime": "until reboot",
+  "go_hwinit_main_and_fat_mount_observed": true,
+  "package_retention_observed": false,
+  "ordinary_runtime_admission": false,
+  "host_cleanup_passed": true,
+  "original_jtag_clock": "15M",
+  "exact_usb_permissions_restored": true,
+  "private_jtag_stopped": true,
+  "uart_closed": true,
+  "separate_passive_followup": {
+    "scope": "read-only observation after the stopped attempt; original deadline failure retained",
+    "seconds": 45.098570942063816,
+    "bytes": 0,
+    "chunks": [],
+    "serial_writes": false,
+    "reboot_requested": false,
+    "programming_requested": false,
+    "uart_closed": true,
+    "uart_attributes_restored": true
+  },
+  "full_goal": "active; ordinary core admission and complete native UI launch/return remain open",
+  "files": {
+    "/home/deano/fes/out/dev/de25-embedded-os/out/nano-entry-bulk-crc-20261104/trial/native-result.json": "87899be580725a22d7831dd0606ba46df78db58c7be12e11c5332ced4e6410ed",
+    "/home/deano/fes/out/dev/de25-embedded-os/out/nano-entry-bulk-crc-20261104/trial/native-console.log": "69b30e18910d46717192f3827e2f7b294e0272c4bdd383c673451a53b48ea0ba",
+    "/home/deano/fes/out/dev/de25-embedded-os/out/nano-entry-bulk-crc-20261104/trial/experiment-result.json": "5497f69217b059739d7c082cc955707630c525f2dc841e402cc7bc0a0c58b81c",
+    "/home/deano/fes/out/dev/de25-embedded-os/out/nano-entry-bulk-crc-20261104/hardware-evidence.json": "a884556a8e3ad720e45dbab4f6dbf64bd3731c0b015fb4b339e691860335d695",
+    "/home/deano/fes/out/dev/de25-embedded-os/out/nano-entry-bulk-crc-20261104/passive-tail.json": "eb35f4d9f25d9843b76e008b16422d11a43938524ec3d13bd1b38fda08c57a57",
+    "/home/deano/fes/out/dev/de25-embedded-os/out/nano-entry-bulk-crc-20261104/passive-tail.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "/home/deano/fes/out/dev/de25-embedded-os/platform/embedded/entry/startup.py": "dc5482dd6b4642de55f62049e54025264eb917c9a033f4cb2b6d8c653cf633fa"
+  },
+  "native_boot_id": "66dccdce76a192b6",
+  "package_id": "a2388c4d7d8640d6e70d51c4d164e3c803157e3fb21e91451d6febd74faf6017",
+  "build_id": "7fa7e3c27ec2fb055e148514b8dac7a2",
+  "native_receipt_started": "2026-11-04T03:55:36.018499+00:00",
+  "native_receipt_finished": "2026-11-04T03:57:41.361708+00:00",
+  "comparison": {
+    "previous_source": "96d202a9aa5156d42270e1be90030874ae6dd6e7",
+    "current_source": "b1965e3e8caed5a8b17d84e0a063a8588ec97703",
+    "previous_handoff_us": 91412083,
+    "current_handoff_us": 63963775,
+    "previous_copy_us": 13149892,
+    "current_copy_us": 950475,
+    "saved_handoff_us": 27448308,
+    "handoff_reduction_percent": 30.027002010226592,
+    "scope": "one observation per source, inclusive counter intervals; no statistical performance qualification; previous inflate/CRC costs were not separately sampled"
+  },
+  "artifacts": {
+    "native_elf": {
+      "bytes": 14921903,
+      "sha256": "5b9fc987659526e1077d5de4bfed99a5c71271d47e962a07cafb6db4c00f6934"
+    },
+    "entry": {
+      "bytes": 7199137,
+      "sha256": "3bc38cdabd05574ff8184d0ec4b36a1b849221ebd61f9752acc0aa8569842b5b"
+    },
+    "fit": {
+      "bytes": 7743892,
+      "sha256": "9818c4c21a532107e046c37f49e2296995c1c993a5cab679f08551ebc60a5f01"
+    }
+  },
+  "software": {
+    "affected_commands": 6,
+    "status": "passed",
+    "focused_tests": 17,
+    "qemu_entry_cases": 11,
+    "model_launch_return_failure": "passed",
+    "model_source_reused": true,
+    "all_model_selected_bytes_match_current_commit": true,
+    "all_native_selected_source_bytes_unchanged_from_prior": true,
+    "native_selected_source_files": 2039,
+    "target_copy_clear_cases": 16512,
+    "target_crc_cases": 2064,
+    "absent_crc_control": "private CPU-feature-read injection; not a feature-absent physical CPU"
+  },
+  "entry_stack_upper_bound": 5488,
+  "host_cleanup": {
+    "host_cleanup_passed": true,
+    "original_jtag_clock": "15M",
+    "exact_usb_permissions_restored": true,
+    "private_server_gone": true,
+    "uart_free": true,
+    "exclusive_claim_retained": true,
+    "spare_card_retained": true,
+    "factory_restore_performed": false
+  },
+  "host_preflight": {
+    "first_check": "stopped before device opens by obsolete seven-index expectation",
+    "final_check": "complete nonempty six-command frozen affected plan and every contiguous index verified",
+    "firmware_and_device_guards_unchanged": true
+  },
+  "retention": {
+    "status": "passed",
+    "source_commit": "b1965e3e8caed5a8b17d84e0a063a8588ec97703",
+    "source_bundle": "/home/deano/fes-retained/de25-entry-bulk-crc-20261104-stopped/source.bundle",
+    "source_bundle_sha256": "ddcce59752d0ed2c0d97ba9bd5d064461c2da459a8135190495a7805633ac4d9",
+    "independent_source_restore": true,
+    "strict_fsck": true,
+    "alternates": false,
+    "verification_copy_removed": true,
+    "archive": "/home/deano/fes-retained/de25-entry-bulk-crc-20261104-stopped/stopped-native-chain.tar.gz",
+    "archive_sha256": "6fdb1ad6856dd6becde6dc639b068fc76adb11bdf7b1fdb6a48e5ab2646cb63d",
+    "archive_bytes": 451308991,
+    "verified_members": 45628,
+    "hardware_acceptance": false,
+    "selected_sources_verified_from_exact_git_commit": true,
+    "unpublished_validation_documents": [],
+    "diagnostic_hardware_evidence_retained": true,
+    "prior_failures_retained_separately": true,
+    "host_cleanup_retained": true,
+    "expanded_files_removed": false
+  },
+  "private_evidence_root": "/home/deano/fes/out/dev/de25-embedded-os/out/nano-entry-bulk-crc-20261104"
+}
