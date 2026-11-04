@@ -168,9 +168,10 @@ func (v *HPSContextVerifier) openWindowSession(ctx context.Context, control, con
 			v.readerMemoryMu.Unlock()
 		}
 	}()
+	arenaHash := new(windowArenaHash)
 	if v.ddrReaderAttempted || !v.readerMemoryReady || v.readerMemoryRegion == nil ||
 		v.readerMemoryRegion.Address != v.windowMemory.CPUBase || uint64(len(v.readerMemoryRegion.Bytes)) != v.windowMemory.ArenaBytes ||
-		sha256.Sum256(v.readerMemoryRegion.Bytes) != v.windowArenaSHA {
+		arenaHash.sum(v.readerMemoryRegion.Bytes) != v.windowArenaSHA {
 		return nil, errors.New("native fabric: fresh complete pinned window required")
 	}
 	if updates && v.readerMemoryRegion.OrderFrameStores == nil {
@@ -206,7 +207,7 @@ func (v *HPSContextVerifier) openWindowSession(ctx context.Context, control, con
 	if opened != want {
 		return nil, errors.New("native fabric: uncertain window control opening")
 	}
-	s := &WindowSession{region: v.readerMemoryRegion, bytes: v.readerMemoryRegion.Bytes, verifier: v, context: ctx, source: source, opened: opened, known: true,
+	s := &WindowSession{region: v.readerMemoryRegion, bytes: v.readerMemoryRegion.Bytes, arenaHash: arenaHash, verifier: v, context: ctx, source: source, opened: opened, known: true,
 		bridges: bridges, limits: limits, generation: 1, nextDrain: 1,
 		controlSHA: sha256.Sum256(control), accessSHA: sha256.Sum256(contract)}
 	s.self = s

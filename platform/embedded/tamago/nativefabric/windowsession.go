@@ -22,6 +22,7 @@ type WindowSession struct {
 	self                                       *WindowSession
 	region                                     *Region
 	bytes                                      []byte
+	arenaHash                                  *windowArenaHash
 	verifier                                   *HPSContextVerifier
 	context                                    context.Context
 	source                                     HPSBootObservation
@@ -117,7 +118,7 @@ func (s *WindowSession) checkArena() error {
 	if err := s.checkRegion(); err != nil {
 		return err
 	}
-	if sha256.Sum256(s.bytes) != s.verifier.windowArenaSHA {
+	if s.arenaHash.sum(s.bytes) != s.verifier.windowArenaSHA {
 		return errors.New("native fabric: published frame arena changed")
 	}
 	return nil
@@ -347,7 +348,7 @@ func (m *windowFrameMemory) reset(ctx context.Context) {
 	m.frame = sha256.New()
 	m.arena = sha256.New()
 	v := m.session.verifier
-	m.padding = sha256.Sum256(m.session.bytes[v.windowMemory.FrameBytes:])
+	m.padding = m.session.arenaHash.sum(m.session.bytes[v.windowMemory.FrameBytes:])
 }
 func (m *windowFrameMemory) Write(offset uint64, source []byte) error {
 	s := m.session
@@ -392,14 +393,14 @@ func (m *windowFrameMemory) Publish() error {
 		return err
 	}
 	padding := m.session.bytes[v.windowMemory.FrameBytes:]
-	if sha256.Sum256(padding) != m.padding {
+	if s.arenaHash.sum(padding) != m.padding {
 		return errors.New("native fabric: frame publication changed protected padding")
 	}
-	m.arena.Write(padding)
+	s.arenaHash.write(m.arena, padding)
 	var arenaSHA, frameSHA [32]byte
 	copy(arenaSHA[:], m.arena.Sum(nil))
 	copy(frameSHA[:], m.frame.Sum(nil))
-	if sha256.Sum256(s.bytes) != arenaSHA {
+	if s.arenaHash.sum(s.bytes) != arenaSHA {
 		return errors.New("native fabric: frame publication bytes differ")
 	}
 	v.windowArenaSHA = arenaSHA

@@ -156,7 +156,10 @@ region's bounded `OrderFrameStores` hook before opening. Each update verifies
 the previous complete arena, obtains the reader's real DISABLE acknowledgement,
 copies at most four rows per chunk, and orders the stores. Expected hashes and
 CRC cover the submitted XRGB bytes; complete readback also checks unchanged
-padding. Ownership checks bracket each chunk and publication. The next frame
+padding. Each arena digest still reads every byte, now through a private 32 KiB
+scratch buffer so the SHA message schedule works in cached CPU memory. No prior
+arena contents or checksum substitute for a fresh full read. Ownership checks
+bracket each copy chunk and publication. The next frame
 uses a newer reader generation and a globally increasing drain cookie, then
 returns only after frame delivery and its own local drain. `WindowPresentation`
 records those observations; the allocation remains owned until reboot.
@@ -175,9 +178,11 @@ return. Actual RTL tests cover local drain, held addresses/responses and an
 accepted DISABLE whose response is lost. The real C/RTL stop test completes
 eight generations and drains an interrupted ninth with a fresh final cookie.
 These are software results. The [recorded physical result](../../../../docs/validation/2026-11-04-de25-fullwidth-window/README.md)
-qualifies its earlier single-frame image. The native command still selects
-that one-frame diagnostic; repeated native presentation, HDMI, USB hub input
-and ordinary package admission remain open.
+qualifies its earlier single-frame image. The separate `--window-present`
+command selects twelve changing frames. A later [timed physical diagnostic](../../../../docs/validation/2026-11-04-de25-repeated-trace/README.md)
+completed nine frames before its unchanged 45-second transfer/read/return bound;
+that stopped attempt establishes no final return. Repeated-frame acceptance,
+HDMI, USB hub input and ordinary package admission remain open.
 
 Before an injected actor retires its current owner, it checks that the retained
 package's exact target, programming profile and ABI version have an explicitly
