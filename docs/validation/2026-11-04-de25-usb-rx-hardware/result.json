@@ -117,5 +117,27 @@
     "out/nano-usb-rx-trial-20261104/trial/live-fit.json": "5044c9b1ff925456acd278046f01326998bb7206a426c943f51b6292bd9668db",
     "out/nano-usb-rx-trial-20261104/cleanup-evidence.json": "42ab82fbdd4edcec6d5513e261f4718bad74780fa21a155bc55d97539c398a64",
     "out/nano-usb-rx-trial-20261104/replay.json": "027e0d717e8ae26cdfce30cd79af5a9f159d3713aaccb63fd356b79e3dacdbbf"
+  },
+  "retention": {
+    "status": "passed",
+    "scope": "exact two failed USB artifacts and operator records; source delta restored and archive independently read back",
+    "head": "e6017cf405064959171c08a635f1a3899f35f49e",
+    "hardware_observers": [
+      "b025abc26",
+      "31de9947a"
+    ],
+    "archive_bytes": 56556991,
+    "archive_sha256": "716bfcb4d95518eab9d32a2cbec9e16e2d603626a186f4590f8dc90591b4db41",
+    "archive_regular_files": 403,
+    "source_update_sha256": "74f856e5018cdc57277eba8fa82566c8e2b38b2668c8e7b3e0024a9da39ee73f",
+    "source_restore_and_strict_fsck": true,
+    "required_prior_files": {
+      "/home/deano/fes-retained/de25-tenfoot-native-boot-20261104-r3/source.bundle": "daeee37ba8c039ffc165c2c92d7a639af01c441099fe1359ae207846fa75216f",
+      "/home/deano/fes-retained/de25-tenfoot-core-cycle-20261104-r2/source-update.bundle": "1def434cc2e97d68da24158e8b153e238ecdcf024c060c60c62c8f8a68b8d497",
+      "/home/deano/fes-retained/de25-tenfoot-native-boot-20261104-r3/matched-candidate.tar.gz": "1479d5fa439c77457a3c19959a97b810b8ce5a6aa0672bb4567519f2d7229d17"
+    },
+    "claim_retained": true,
+    "USB_stop_proven": false,
+    "hardware_qualification": false
   }
 }

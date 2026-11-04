@@ -57,3 +57,10 @@ Those pages document register access, initialization and DMA choices; they do
 not establish the cause of this PIO failure. In particular, DMA support alone
 is not evidence that PIO is unavailable. No status acceptance rule or ownership
 failure gate has been weakened.
+
+The two failed artifact sets and their frozen procedures are also retained at
+`/home/deano/fes-retained/de25-usb-failures-20261104-r1/`. Its 56,556,991-byte
+archive was independently read back against all 403 regular-file hashes. The
+source delta was restored with its two named preceding bundles and passed
+strict Git object verification. The prior sealed-project/vendor archive remains
+an explicit dependency; this is not a self-contained replacement for it.
