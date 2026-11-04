@@ -18,7 +18,9 @@ SET_PROTOCOL and SET_IDLE. The host uses bounded, single-packet transactions
 with endpoint data toggles and explicit channel retirement. Interrupt polling
 never waits for device input: a fixed amount of FIFO/status work advances a
 pending transfer, NAK retains the data toggle, and the endpoint interval gates
-new attempts. All waits have time and poll limits, including frozen-clock cases.
+new attempts. All waits have time and poll limits, including frozen-clock cases. Initialization
+and the complete hub traversal share a four-second deadline, inside the native
+caller’s five-second startup context; per-request limits cannot extend it.
 Reports remain private until both transfer completion and channel retirement.
 
 Disconnect, STALL, unexpected RX status/channel/PID, overflow, missing or short

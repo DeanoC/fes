@@ -23,7 +23,8 @@ type node struct {
 	ports   []*portModel
 }
 type hubBus struct {
-	freezeFrame bool
+	freezeFrame  bool
+	controlDelay time.Duration
 
 	root                       *node
 	nodes                      []*node
@@ -199,6 +200,9 @@ func (b *hubBus) execute(n *node, p transaction) {
 		}
 		d.setup(p.setup)
 		d.complete(nil, false)
+	}
+	if d.request == nil && p.ep == 0 {
+		b.regs.tick = b.regs.tick.Add(b.controlDelay)
 	}
 	b.regs.regs[hcint] = d.regs[hcint]
 	d.regs[hcint] = 0
@@ -619,5 +623,22 @@ func TestChangedRootSpeedRejectsBeforeAnotherChannelStart(t *testing.T) {
 	b.regs.regs[hprt] |= 1 << 17
 	if data, err := h.PollKeyboard(); err == nil || data != nil || b.splits != count {
 		t.Fatal("changed root armed a packet", err)
+	}
+}
+
+func TestEnumerationHasOneOverallDeadline(t *testing.T) {
+	key := keyboardNode(0)
+	key.device.device[7] = 64
+	b := newHubBus(key)
+	// Each request completes inside its 2s limit, but the whole enumeration does
+	// not fit the independent 4s startup budget. It must never become a source.
+	b.controlDelay = 600 * time.Millisecond
+	h, err := Open(b, Config{PHYClockHz: 60000000})
+	if err == nil || h == nil {
+		t.Fatal("per-request deadlines bypassed overall startup budget")
+	}
+	before := b.regs.accesses
+	if r, e := h.PollKeyboard(); e == nil || r != nil || b.regs.accesses != before {
+		t.Fatal("expired startup produced input")
 	}
 }

@@ -70,6 +70,9 @@ type packet struct {
 	polls                                    int
 }
 type Host struct {
+	initializing bool
+	bootDeadline time.Time
+
 	keyboard                 target
 	keyboardFound            bool
 	path                     []hubPort
@@ -102,18 +105,26 @@ func Open(io Registers, config Config) (*Host, error) {
 	if io == nil || config.PHYClockHz != 60000000 {
 		return nil, fmt.Errorf("dwc2: requires firmware-configured 60 MHz ULPI PHY")
 	}
-	h := &Host{io: io, ep0: 8}
+	h := &Host{io: io, ep0: 8, initializing: true, bootDeadline: io.Now().Add(4 * time.Second)}
 	if err := h.initialize(); err != nil {
 		return h, h.fail(err)
 	}
 	if err := h.enumerate(); err != nil {
 		return h, h.fail(err)
 	}
+	h.initializing = false
 	return h, nil
 }
+func (h *Host) controlDeadline(end time.Time) time.Time {
+	if h.initializing && h.bootDeadline.Before(end) {
+		return h.bootDeadline
+	}
+	return end
+}
+
 func (h *Host) wait(reg, mask, want uint32) error {
 	start := h.io.Now()
-	end := start.Add(500 * time.Millisecond)
+	end := h.controlDeadline(start.Add(500 * time.Millisecond))
 	var last uint32
 	for n := 0; n < 1000000; n++ {
 		last = h.io.Read32(reg)
@@ -132,6 +143,9 @@ func (h *Host) wait(reg, mask, want uint32) error {
 func (h *Host) pause(duration time.Duration) error {
 	start := h.io.Now()
 	end := start.Add(duration)
+	if h.initializing && end.After(h.bootDeadline) {
+		return fmt.Errorf("dwc2: initialization delay exceeds startup budget")
+	}
 	for n := 0; n < 1000000; n++ {
 		if !h.io.Now().Before(end) {
 			return nil
@@ -498,7 +512,7 @@ func (h *Host) request(requestType, request byte, value, index uint16, length in
 		return nil, fmt.Errorf("dwc2: unsupported control request")
 	}
 	setup := []byte{requestType, request, byte(value), byte(value >> 8), byte(index), byte(index >> 8), byte(length), byte(length >> 8)}
-	deadline := h.io.Now().Add(2 * time.Second)
+	deadline := h.controlDeadline(h.io.Now().Add(2 * time.Second))
 	if _, err := h.transfer(false, 3, setup, 0, deadline); err != nil {
 		return nil, err
 	}
