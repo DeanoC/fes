@@ -594,11 +594,12 @@ Atari ST media interfaces are independent and must be required when declared.
 `fes.media.zx81-tape-write` 1.0 is admitted only with the base ZX81 tape
 interface. Its snapshot capture leaves a completed SAVE frozen and dirty until
 the host has durably stored the `.p` and issues a package/generation-bound
-acknowledgement. Capture and acknowledgement use the existing two-second menu
-frame fence before admission. New frames cannot enter while either operation
+acknowledgement. The common media-unit admission path for insertion, ejection,
+library insertion, explicit save, capture and acknowledgement uses the existing
+two-second menu frame fence. New frames cannot enter while a media operation
 waits; after the transfer completes, the runtime rechecks the captured package,
 generation and unit before its single hardware call. A transfer still marked
-busy at the bound is rejected; no issued capture or acknowledgement is replayed.
+busy at the bound is rejected; no issued media mutation is replayed.
 Before freezing, the runtime reads the snapshot flags: an
 all-clear word means that no SAVE completed, so capture returns empty and Stop
 does not issue the Freeze command that requires `save_ready`. Stop and other

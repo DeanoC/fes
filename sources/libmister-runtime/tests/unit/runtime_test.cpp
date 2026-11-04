@@ -1773,9 +1773,9 @@ void TestSessionCloseAndStopWaitForInFlightFrame()
  }
 }
 
-void TestZx81SaveWaitsForInFlightSessionFrame()
+void TestComputerMediaWaitsForInFlightSessionFrame()
 {
-	for (bool acknowledge : {false, true}) for (bool stale : {false, true}) {
+	for (unsigned operation = 0; operation < 4; ++operation) for (bool stale : {false, true}) {
 		Fixture f;
 		const std::string id(64, 'a');
 		mister::MediaUnitCapability unit;
@@ -1804,8 +1804,10 @@ void TestZx81SaveWaitsForInFlightSessionFrame()
 		std::atomic<bool> completed{false};
 		const auto requested = generation + (stale ? 1 : 0);
 		std::thread save([&] {
-			result = acknowledge ? f.runtime.AcknowledgeZx81Tape(id, requested)
-				: f.runtime.CaptureZx81Tape("/tmp/capture.p", id, requested);
+			if (operation == 0) result = f.runtime.InsertMedia("/tmp/tape.p", id, requested, 0, 923);
+			else if (operation == 1) result = f.runtime.EjectMedia(id, requested, 0);
+			else if (operation == 2) result = f.runtime.CaptureZx81Tape("/tmp/capture.p", id, requested);
+			else result = f.runtime.AcknowledgeZx81Tape(id, requested);
 			completed = true;
 		});
 		std::this_thread::sleep_for(std::chrono::milliseconds(25));
@@ -1813,8 +1815,10 @@ void TestZx81SaveWaitsForInFlightSessionFrame()
 		{ std::lock_guard<std::mutex> lock(mutex); release = true; ready.notify_all(); }
 		present.join(); save.join();
 		assert(stale ? result.code == ErrorCode::invalid_request : result.ok());
-		assert(f.hardware.capture_tape_calls == (!stale && !acknowledge ? 1 : 0));
-		assert(f.hardware.acknowledge_tape_calls == (!stale && acknowledge ? 1 : 0));
+		assert(f.hardware.insert_media_calls == (!stale && operation == 0 ? 1 : 0));
+		assert(f.hardware.eject_media_calls == (!stale && operation == 1 ? 1 : 0));
+		assert(f.hardware.capture_tape_calls == (!stale && operation == 2 ? 1 : 0));
+		assert(f.hardware.acknowledge_tape_calls == (!stale && operation == 3 ? 1 : 0));
 		assert(f.runtime.status().state == State::running_development);
 		assert(f.runtime.status().generation == generation);
 	}
@@ -1924,7 +1928,7 @@ int main()
  TestSessionDisplayMachineFocusKeepsInput();
  TestSessionDisplayFailuresNeverReloadIdleOrRetireCore();
  TestSessionCloseAndStopWaitForInFlightFrame();
- TestZx81SaveWaitsForInFlightSessionFrame();
+ TestComputerMediaWaitsForInFlightSessionFrame();
  TestLibraryDiskPersistenceFailureRetainsSession();
  TestMenuFrameYieldsToLifecycleOps();
  TestMenuLifecycleWaitIsBounded();

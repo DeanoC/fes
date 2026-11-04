@@ -756,11 +756,9 @@ generation that reports `fes.media.zx81-tape`, `change-tape` inserts the `.p`
 into unit 0 and `eject-tape` ejects that unit. An active `fes.simple-computer`
 generation with `fes.media.blob` still uses `replace_live_media` /
 `clear_media`. Live-media capability is that active tape interface or the
-legacy blob interface. Insert and eject wait up to 500 ms for the existing
-host session transition guard, allowing a brief display or input handoff to
-finish before the first media dispatch. Cancellation or admission expiry
-reports a no-change busy rejection. The captured session and package binding
-remain unchanged; a dispatched mutation is never replayed by this wait.
+legacy blob interface. A host transition-guard rejection reports no change
+because it occurs before dispatch. The captured session and package binding
+remain unchanged; the host never replays an issued media mutation.
 The host session projection keeps those active
 interfaces and media units, so the tape picker and `change-tape` form a
 binding for either generation. On a menu-display kit, both that tape unit

@@ -970,8 +970,8 @@ public:
 			return Invalid("invalid media unit request");
 		std::string system, core;
 		{
-			std::lock_guard<std::mutex> lock(mutex_);
-			const Error rejected = AdmitMediaUnit(package_id, generation, unit);
+			std::unique_lock<std::mutex> lock(mutex_);
+			const Error rejected = AdmitMediaUnit(lock, package_id, generation, unit);
 			if (!rejected.ok()) return rejected;
 			for (const MediaUnitCapability& observed : status_.capabilities.media_units)
 				if (observed.unit == unit && (size < observed.min_bytes || size > observed.max_bytes))
@@ -1001,8 +1001,8 @@ public:
 			return Invalid("invalid library media request");
 		std::string system, core;
 		{
-			std::lock_guard<std::mutex> lock(mutex_);
-			const Error rejected = AdmitMediaUnit(package_id, generation, unit);
+			std::unique_lock<std::mutex> lock(mutex_);
+			const Error rejected = AdmitMediaUnit(lock, package_id, generation, unit);
 			if (!rejected.ok()) return rejected;
 			busy_ = true; system = status_.system; core = status_.core;
 		}
@@ -1020,8 +1020,8 @@ public:
 			return Invalid("invalid media save binding");
 		std::string system, core;
 		{
-			std::lock_guard<std::mutex> lock(mutex_);
-			const Error rejected = AdmitMediaUnit(package_id, generation, unit);
+			std::unique_lock<std::mutex> lock(mutex_);
+			const Error rejected = AdmitMediaUnit(lock, package_id, generation, unit);
 			if (!rejected.ok()) return rejected;
 			bool persistent = false;
 			for (const auto& media : status_.capabilities.media_units) {
@@ -1045,8 +1045,7 @@ public:
 		std::string system, core;
 		{
 			std::unique_lock<std::mutex> lock(mutex_);
-			WaitForMenuFrame(lock);
-			const Error rejected = AdmitMediaUnit(package_id, generation, 0);
+			const Error rejected = AdmitMediaUnit(lock, package_id, generation, 0);
 			if (!rejected.ok()) return rejected;
 			busy_ = true; system = status_.system; core = status_.core;
 		}
@@ -1063,8 +1062,7 @@ public:
 		std::string system, core;
 		{
 			std::unique_lock<std::mutex> lock(mutex_);
-			WaitForMenuFrame(lock);
-			const Error rejected = AdmitMediaUnit(package_id, generation, 0);
+			const Error rejected = AdmitMediaUnit(lock, package_id, generation, 0);
 			if (!rejected.ok()) return rejected;
 			busy_ = true; system = status_.system; core = status_.core;
 		}
@@ -1084,8 +1082,8 @@ public:
 			return Invalid("invalid media unit request");
 		std::string system, core;
 		{
-			std::lock_guard<std::mutex> lock(mutex_);
-			const Error rejected = AdmitMediaUnit(package_id, generation, unit);
+			std::unique_lock<std::mutex> lock(mutex_);
+			const Error rejected = AdmitMediaUnit(lock, package_id, generation, unit);
 			if (!rejected.ok()) return rejected;
 			busy_ = true;
 			system = status_.system;
@@ -1263,9 +1261,10 @@ public:
  }
 	// Caller holds mutex_. Media units bind the exact active fes.computer
 	// generation and one of its declared, observed units.
-	Error AdmitMediaUnit(const std::string& package_id, std::uint64_t generation,
-		std::uint8_t unit) const
+	Error AdmitMediaUnit(std::unique_lock<std::mutex>& lock, const std::string& package_id,
+		std::uint64_t generation, std::uint8_t unit)
 	{
+		WaitForMenuFrame(lock);
 		if (busy_ || !started_ || pending_fault_generation_ != 0 ||
 			status_.state != State::running_development)
 			return Busy("FES computer is not available");
