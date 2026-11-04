@@ -73,15 +73,18 @@ def replace_once(source, before, after):
 def timed_reset_release(inputs):
     scanout = inputs["scanout"]
     canonical = scanout["build_identity_scheme"] == "canonical-functional-record-v2"
+    standard = (scanout["build_identity_scheme"] == "standard-board-integration-source-profile" and
+                inputs.get("standard_zx81", {}).get("scope") == "standard-core-board-integration" and
+                inputs["standard_zx81"].get("runtime_admission") == "not-qualified")
     policy = scanout.get("reset_timing")
-    if canonical:
+    if canonical or standard:
         if (policy != TIMED_RESET_RELEASE or scanout["hps_initialization"] != "HPS FIRST" or
                 inputs.get("f2sdram_master_profile") != "scanout-only" or
                 scanout.get("managed_fabric") != MANAGED_FABRIC):
-            raise ValueError("canonical MENU requires the selected same-clock reset timing profile")
+            raise ValueError("managed display requires the selected same-clock reset timing profile")
     elif policy is not None or scanout.get("managed_fabric") is not None:
         raise ValueError("same-clock reset timing requires the canonical MENU profile")
-    return canonical
+    return canonical or standard
 
 
 def timed_scanout_sdc(source):

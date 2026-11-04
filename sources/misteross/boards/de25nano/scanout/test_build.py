@@ -80,6 +80,18 @@ class ScanoutBuildTests(unittest.TestCase):
             path.write_bytes(vendor)
         return output, directory, hps
 
+    def test_standard_board_keeps_the_existing_same_clock_reset_derivation(self):
+        output, directory, hps = self.reset_timing_fixture()
+        path = directory / "inputs.json"
+        inputs = json.loads(path.read_text())
+        inputs["scanout"]["build_identity_scheme"] = "standard-board-integration-source-profile"
+        inputs["standard_zx81"] = {"scope": "standard-core-board-integration", "runtime_admission": "not-qualified"}
+        path.write_text(json.dumps(inputs))
+        self.assertEqual(B.repair_generated_reset_timing(directory), B.verify_generated_reset_timing(directory))
+        inputs["standard_zx81"]["runtime_admission"] = "qualified"
+        with self.assertRaises(ValueError):
+            B.timed_reset_release(inputs)
+
     def test_canonical_reset_repair_retains_vendor_inputs_and_checks_both_receipts(self):
         _, directory, _ = self.reset_timing_fixture()
         record = B.repair_generated_reset_timing(directory)

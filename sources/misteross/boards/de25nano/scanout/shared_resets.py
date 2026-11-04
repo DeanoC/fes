@@ -1,6 +1,6 @@
 """Share the pinned generated FIFO reset pipelines without changing their timing.
 
-Only canonical MENU selects this derivation. The original eleven generated
+Managed MENU and standard ZX81 board integration select this derivation. The original eleven generated
 files are checked before any write, retained, and used to reproduce every
 derived byte during generation and after compilation. Vendor SDCs are untouched.
 """
@@ -232,9 +232,13 @@ endmodule
 
 def selected_inputs(directory):
     data = (directory / "inputs.json").read_bytes()
-    scanout = json.loads(data)["scanout"]
+    inputs = json.loads(data)
+    scanout = inputs["scanout"]
+    standard = (scanout.get("build_identity_scheme") == "standard-board-integration-source-profile" and
+                inputs.get("standard_zx81", {}).get("scope") == "standard-core-board-integration" and
+                inputs["standard_zx81"].get("runtime_admission") == "not-qualified")
     require(scanout.get("shared_fifo_resets") == POLICY and
-            scanout.get("build_identity_scheme") == "canonical-functional-record-v2" and
+            (scanout.get("build_identity_scheme") == "canonical-functional-record-v2" or standard) and
             scanout.get("hps_initialization") == "HPS FIRST", "canonical policy selection differs")
     return data
 

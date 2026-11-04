@@ -60,6 +60,20 @@ class SharedResetTests(unittest.TestCase):
         self.assertFalse((self.directory / "shared-reset-originals").exists())
         self.assertFalse((self.directory / "shared-resets.json").exists())
 
+    def test_standard_board_keeps_the_exact_compiled_fifo_derivation(self):
+        self.inputs["scanout"]["build_identity_scheme"] = "standard-board-integration-source-profile"
+        self.inputs["standard_zx81"] = {"scope": "standard-core-board-integration", "runtime_admission": "not-qualified"}
+        path = self.directory / "inputs.json"
+        path.write_text(json.dumps(self.inputs))
+        result = S.apply(self.directory)
+        self.assertEqual(result, S.verify(self.directory))
+        self.assertEqual({name: hashlib.sha256((self.project / name).read_bytes()).hexdigest()
+                          for name in self.originals}, self.expected)
+        self.inputs["standard_zx81"]["runtime_admission"] = "qualified"
+        path.write_text(json.dumps(self.inputs))
+        with self.assertRaisesRegex(ValueError, "canonical policy selection differs"):
+            S.verify(self.directory)
+
     def test_post_compile_wrong_receiving_clock_is_rejected(self):
         S.apply(self.directory)
         parent = self.project / S.PARENT
