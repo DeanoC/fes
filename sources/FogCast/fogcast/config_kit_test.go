@@ -17,6 +17,11 @@ import (
 	"github.com/DeanoC/FogCast/targetclient"
 )
 
+const (
+	kitHostTestTargetID    = "11111111-1111-4111-8111-111111111111"
+	kitHostRestartTargetID = "22222222-2222-4222-8222-222222222222"
+)
+
 func shippedKitTemplate(t *testing.T) []byte {
 	t.Helper()
 	data, err := os.ReadFile("../../../image/buildroot/board/fogcast-target/native-rootfs-overlay/usr/share/fogcast/config.toml")
@@ -46,7 +51,7 @@ func kitHostFixture(root, token, targetID string) KitHost {
 
 func TestKitHostConfigFirstStartUsesTheShippedTemplate(t *testing.T) {
 	root := t.TempDir()
-	rendered, err := KitHostConfig(shippedKitTemplate(t), nil, kitHostFixture(root, "agent-token", "73dc9f5f-1a12-4a95-a820-a9b4e600769a"))
+	rendered, err := KitHostConfig(shippedKitTemplate(t), nil, kitHostFixture(root, "agent-token", kitHostTestTargetID))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -55,7 +60,7 @@ func TestKitHostConfigFirstStartUsesTheShippedTemplate(t *testing.T) {
 		t.Fatalf("targets %+v selected %q", config.Targets, config.SelectedTarget)
 	}
 	target := config.Targets[0]
-	if !target.Enabled || target.Address != "http://127.0.0.1:8182" || target.Agent != "agent-token" || target.TargetID != "73dc9f5f-1a12-4a95-a820-a9b4e600769a" {
+	if !target.Enabled || target.Address != "http://127.0.0.1:8182" || target.Agent != "agent-token" || target.TargetID != kitHostTestTargetID {
 		t.Fatalf("target %+v", target)
 	}
 	if !config.CorePackages.Kit || !config.FolderWatch.Off {
@@ -97,7 +102,7 @@ func TestKitHostConfigRestartKeepsLibrariesAndRewritesTheTarget(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	restarted, err := KitHostConfig(shippedKitTemplate(t), existing, kitHostFixture(root, "new-token", "0d0f2c4e-5b6a-4c3d-8e9f-a1b2c3d4e5f6"))
+	restarted, err := KitHostConfig(shippedKitTemplate(t), existing, kitHostFixture(root, "new-token", kitHostRestartTargetID))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -105,7 +110,7 @@ func TestKitHostConfigRestartKeepsLibrariesAndRewritesTheTarget(t *testing.T) {
 	if len(config.Libraries) != 2 || config.Libraries[1].Path != added {
 		t.Fatalf("libraries after restart %+v", config.Libraries)
 	}
-	if len(config.Targets) != 1 || config.Targets[0].Agent != "new-token" || config.Targets[0].TargetID != "0d0f2c4e-5b6a-4c3d-8e9f-a1b2c3d4e5f6" {
+	if len(config.Targets) != 1 || config.Targets[0].Agent != "new-token" || config.Targets[0].TargetID != kitHostRestartTargetID {
 		t.Fatalf("target after restart %+v", config.Targets)
 	}
 	if strings.Contains(string(restarted), "old-token") {
