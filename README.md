@@ -9,15 +9,20 @@ DE25-Nano bring-up includes a [headless AArch64 image](docs/de25-linux.md),
 and [off-board runtime software checks](docs/de25-linux.md#aarch64-runtime-and-agent-checks-without-a-board).
 [Physical HPS-first bring-up](docs/validation/2026-10-31-de25-hps-first-hardware/README.md)
 boots FES Linux, loads ZX81 through Linux and runs BASIC through native CPU
-control with captured HDMI. Managed runtime, MENU and normal catalog/core
-launch acceptance remain open.
+control with captured HDMI. The
+[managed ZX81 integration proof](docs/validation/2026-11-04-de25-normal-zx81/README.md)
+exercises catalog Play/Stop, BASIC load/run/reload and software reboot.
+[Permanent Ethernet pairing](docs/validation/2026-11-04-de25-permanent-pairing/README.md)
+survives a kit reboot and host-service restart. Full normal-kit acceptance,
+including allocated in-play display and fault recovery, remains open.
 The default appliance and playable packages target DE10-Nano.
 The [image commands](docs/image-artifacts.md#de25-image-and-export-commands)
 also select DE25 explicitly for managed factory assembly, verification and
 artifact export. The [Terasic-based factory proof](docs/validation/2026-11-03-de25-terasic-managed-factory/README.md)
 builds the AArch64 runtime/agent, sealed MENU, release, boot selector and
 reproducible card through ordinary FES commands. Its real kernel/rootfs virtual
-boot passes; managed MENU/catalog ZX81 acceptance on the kit remains open.
+boot passes; the subsequent managed native integration proof covers MENU and
+catalog ZX81, with full normal-kit acceptance still open.
 
 Agents: read [AGENTS.md](AGENTS.md), then the
 [development guide](docs/development.md) and the selected component's guidance.
