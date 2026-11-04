@@ -523,3 +523,18 @@ Ready or terminal containment. State replies explicitly identify
 Preferences are copied into RAM and do not persist across reboot. Recovery
 uploads accept the fixed `--purpose ui-catalog` destination `FES/UI.JSON`, with
 an 8 KiB bound and the same write/readback ownership checks as other files.
+
+
+The Nano selected-program Tenfoot image accepts an explicit
+`--shared-usb-input boot-keyboard|gamepad` alongside `--computer-control`,
+`--computer-reload`, `--computer-storage-return`, `--selected-programs` and
+`--tenfoot-serial`. It requires the sealed SD profile and complete HPS pin map.
+The native program verifies the initial cold owner and pins before SD acquisition,
+requires `usbcontrol.NewSharedPIO` and opens exactly the selected controlled input
+protocol. There is no direct-controller or exclusive-service fallback. Tenfoot
+uses the existing paused-input backend during loads and returns. Gamepad menu
+buttons 1/2 mean Confirm/Back; this diagnostic maps arrows plus buttons 1/2 to
+S/start and Space for the selected computer. These fixed assignments grant no
+compatibility for another package. Output remains serial state, with no HDMI
+grant. A healthy idle exit closes USB through its exact receipt; uncertain core
+states keep resources retained. Hardware combined-operation acceptance is open.

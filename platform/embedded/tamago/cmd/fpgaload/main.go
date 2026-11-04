@@ -102,6 +102,9 @@ func main() {
 	} else if expectedProgramPlatform != "" {
 		panic("program platform provided without selected program mode")
 	}
+	if err := openProgramUSB(v); err != nil {
+		panic(err)
+	}
 	de25nano.StartupCheckpoint("verifier_ready")
 	de25nano.StartupCheckpoint("sd_open_begin")
 	disk, err := board.OpenStorage()

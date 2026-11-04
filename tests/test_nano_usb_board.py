@@ -59,6 +59,22 @@ class NanoUSBBoardTests(unittest.TestCase):
                     result=subprocess.run([str(binary),str(mode)],capture_output=True,text=True,timeout=30)
                     self.assertEqual(result.returncode,0,result.stdout+result.stderr)
 
+    def test_selected_shared_boot_with_actual_board_and_private_binding(self):
+        with tempfile.TemporaryDirectory(prefix='fes-nano-usb-shared-boot-') as temp:
+            project,_=self.project(temp)
+            (Path(temp)/'usb_board_policy.h').write_text(usb_readiness.header(project,{'hps_io_hash':'d'*64}))
+            binary=Path(temp)/'usb-shared-boot'
+            command=['cc','-std=c11','-Wall','-Wextra','-Werror','-fsanitize=undefined',
+                     '-fno-sanitize-recover=all','-I'+str(FW),'-I'+temp]
+            command += [str(FW/n) for n in ('nano_cold.c','nano_hps_io.c','nano_bridges.c','nano_boot.c',
+                'nano_sd.c','nano_sd_platform.c','nano_usb_platform.c','nano_usb_board.c','nano_usb_service.c',
+                'nano_usb_composition.c','tests/nano_usb_shared_boot_test.c')]
+            subprocess.run([*command,'-o',str(binary)],check=True,timeout=30)
+            for mode in range(6):
+                with self.subTest(mode=mode):
+                    result=subprocess.run([str(binary),str(mode)],capture_output=True,text=True,timeout=30)
+                    self.assertEqual(result.returncode,0,result.stdout+result.stderr)
+
     def test_policy_requires_actual_compiled_handoff(self):
         with tempfile.TemporaryDirectory(prefix='fes-nano-usb-policy-') as temp:
             project, handoff = self.project(temp)

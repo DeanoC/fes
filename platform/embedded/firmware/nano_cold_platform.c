@@ -86,12 +86,17 @@ void fes_nano_platform_hps_io_sip(uint64_t operation,uint64_t owner,uint64_t gen
 #if !defined(FES_NANO_HPS_IO_OBSERVE) || !FES_NANO_HPS_IO_OBSERVE
 #error Controlled_USB_requires_complete_sealed_HPS_pins
 #endif
-#include "nano_usb_boot.inc"
 #endif
 #ifdef FES_NANO_READER_CPU_BASE
 static int cold_master_owns(void *,uint64_t,uint64_t);
 static int cold_master_quiesce(void *,uint32_t);
 static int cold_master_quiescent(void *,uint32_t *);
+#endif
+#if defined(FES_NANO_CONTROLLED_SD) && FES_NANO_CONTROLLED_SD
+static struct fes_nano_sd_platform sd_platform;
+#endif
+#if defined(FES_NANO_CONTROLLED_USB) && FES_NANO_CONTROLLED_USB
+#include "nano_usb_boot.inc"
 #endif
 
 #if defined(FES_NANO_READER_CPU_BASE) || (defined(FES_NANO_SMMU_BOOT_OBSERVE) && FES_NANO_SMMU_BOOT_OBSERVE)
@@ -891,7 +896,6 @@ int fes_nano_platform_configuration_setup(void)
 #endif
 
 #if defined(FES_NANO_CONTROLLED_SD) && FES_NANO_CONTROLLED_SD
-static struct fes_nano_sd_platform sd_platform;
 static unsigned sd_reported;
 static int sd_read(void *context, uintptr_t address, uint32_t *value)
 { (void)context; dsbsy(); *value=mmio_read_32(address); dsbsy(); return 0; }

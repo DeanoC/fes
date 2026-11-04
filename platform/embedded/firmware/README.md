@@ -1060,7 +1060,18 @@ mandatory. USB Stop is refused while a core's bridge is open, and does not clear
 an active SD lease after the core has returned. Provider binding changes or
 uncertain state retire the boot authority and retain resources.
 
-The default boot selector remains exclusive USB-only. Shared service/client
-and typed reports are tested through actual C dispatcher/platform code with
-injected registers; composed boot selection and physical qualification remain
-separate work.
+The default USB diagnostic remains exclusive. The native builder's explicit
+`--shared-usb-input boot-keyboard|gamepad` selects a composed cold startup only
+with `fpgaload --selected-programs --tenfoot-serial` and the complete computer
+reload/SD-return path. Entry packaging verifies exact shared-scope linker
+assignments, source hashes, sealed pins and all selected memory/control maps.
+The common receipt policy is part of the producer source identity.
+
+Secure startup initializes SD, then the physical USB board/platform, cold device
+composition and independent FPGA producer callbacks. It binds that exact master
+policy to the already accepted private boot object before publishing the shared
+USB service. Any missing SD setup, denied binding, bad clock/PHY or duplicate
+initialization retires the provider. The selected-startup test runs the actual
+board readiness and boot include with an injected PHY/register model and three
+SD cycles. ARM64 compilation and these checks do not qualify physical combined
+USB/SD/FPGA operation.

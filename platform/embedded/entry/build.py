@@ -32,10 +32,9 @@ _cache_spec.loader.exec_module(cache_model)
 
 
 def usb_control_option(receipt):
-    selected=receipt.get('program')=='usbcheck'
-    value=receipt.get('usb_control',False)
-    if type(value) is not bool or value!=selected:
-        raise ValueError('USB lease selection differs from native program')
+    spec=importlib.util.spec_from_file_location('fes_entry_usb_selection',HERE.parent/'nano/usb_selection.py')
+    selection=importlib.util.module_from_spec(spec);spec.loader.exec_module(selection)
+    selected,shared=selection.mode(receipt)
     command=receipt.get('command',[])
     try:tokens=shlex.split(command[command.index('-ldflags')+1])
     except (ValueError,IndexError,TypeError,AttributeError):
@@ -45,8 +44,8 @@ def usb_control_option(receipt):
     inputs=[(i,word) for i,word in enumerate(tokens) if 'main.expectedUSBInput' in word]
     protocol=receipt.get('usb_input')
     if selected:
-        if (len(options)!=1 or options[0][1]!='main.expectedUSBControl=owned-usb-pio-v1' or
-                options[0][0]==0 or tokens[options[0][0]-1]!='-X' or command[-1]!='./cmd/usbcheck'):
+        if (len(options)!=1 or options[0][1]!='main.expectedUSBControl='+('owned-shared-usb-pio-v1' if shared else 'owned-usb-pio-v1') or
+                options[0][0]==0 or tokens[options[0][0]-1]!='-X' or command[-1]!='./cmd/'+receipt['program']):
             raise ValueError('USB lease differs from the exact selected native link command')
         if (protocol not in ('boot-keyboard','gamepad') or len(inputs)!=1 or
                 inputs[0][1]!='main.expectedUSBInput='+protocol or inputs[0][0]==0 or tokens[inputs[0][0]-1]!='-X'):
@@ -269,7 +268,7 @@ def main():
         native_io=hps.checked_hps_io(receipt)
         native_usb_control=usb_control_option(receipt)
         if native_usb_control and any(token not in payload.read_bytes() for token in
-                (b"FES_NATIVE_USB READY",b"usbcontrol.Open",b"OpenGamepadWithControl" if receipt['usb_input']=='gamepad' else b"OpenKeyboardWithControl")):
+                (b"FES_NATIVE_SHARED_USB READY" if receipt.get("usb_shared",False) else b"FES_NATIVE_USB READY",b"usbcontrol.Open",b"OpenGamepadWithControl" if receipt['usb_input']=='gamepad' else b"OpenKeyboardWithControl")):
             raise ValueError("selected USB driver/client path is absent from the native ELF")
         native_control=hps.checked_control(receipt)
         native_configuration=hps.checked_configuration(receipt)
@@ -385,6 +384,7 @@ def main():
     if args.target == "de25-nano":
         files.append(nano_builder)
         files.append(HERE.parent/'nano/hps_context.py')
+        files.append(HERE.parent/'nano/usb_selection.py')
         if native_context is not None:files.extend(hps.inputs())
     frozen = {str(path.relative_to(ROOT)): sha(path.read_bytes()) for path in files}
     payload_bytes = payload.read_bytes()
@@ -493,7 +493,7 @@ def main():
               "native_build_sha256": sha(receipt_bytes) if receipt_bytes is not None else None,
               "native_build_sources": native_sources,
               "native_program":receipt['program'] if receipt_bytes is not None else None,
-              "usb_control":native_usb_control,"usb_input":receipt.get('usb_input') if args.target=='de25-nano' else None,
+              "usb_control":native_usb_control,"usb_shared":receipt.get("usb_shared",False) if args.target=='de25-nano' else False,"usb_input":receipt.get('usb_input') if args.target=='de25-nano' else None,
               "hps_context":native_context,
               "hps_context_sha256":hps.digest(native_context) if native_context is not None else None,
               "hps_io":native_io,

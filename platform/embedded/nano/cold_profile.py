@@ -46,8 +46,7 @@ def entry(entry_build):
             not 0<image.stat().st_size<=32<<20 or receipt.get('firmware_profile_sha256')!=sha(profile)):
         raise ValueError('entry image is not bound to the source-derived cold Nano profile')
     usb=receipt.get('usb_control',False)
-    if type(usb) is not bool or usb!=(receipt.get('native_program')=='usbcheck'):
-        raise ValueError('USB boot selection differs from native program')
+    hps_context.usb_selection.mode(receipt,program_key='native_program')
     if (usb and receipt.get('usb_input') not in ('boot-keyboard','gamepad') or
             not usb and receipt.get('usb_input') is not None):
         raise ValueError('USB boot input differs from native selection')
@@ -78,7 +77,7 @@ def entry(entry_build):
 
 
 def sources():
-    return [HERE.parent/'entry/payload.py']+[HERE/name for name in ('cold_profile.py','hps_context.py','hps_io.py','spl_cold.c','spl_console.inc','prepare_uboot.py','uboot.c','handoff.c','handoff.h','probe-profile.json','sd-profile.json','smmu-profile.json')]+[
+    return [HERE.parent/'entry/payload.py']+[HERE/name for name in ('cold_profile.py','hps_context.py','hps_io.py','usb_selection.py','spl_cold.c','spl_console.inc','prepare_uboot.py','uboot.c','handoff.c','handoff.h','probe-profile.json','sd-profile.json','smmu-profile.json')]+[
         FW/name for name in ('nano_cold.h','nano_cold.c','nano_cold_mmio.inc','nano_cold_platform.c','nano_boot.h',
                             'nano_sd.h','nano_sd.c','nano_sd_platform.h','nano_sd_platform.c','generated/fes_embedded_sd.h',
                             'nano_usb_service.c','nano_usb_service.h','nano_usb_platform.h','generated/fes_embedded_usb.h',
@@ -112,7 +111,7 @@ def make(entry_build):
     inputs={str(p.relative_to(ROOT)):sha(p) for p in selected}
     identity={'format':1,'profile':'cold-smmu-preloaded' if profile.name=='smmu-profile.json' else 'cold-sd-pio-preloaded' if profile.name=='sd-profile.json' else 'cold-serial-preloaded',
               'sd_pio':profile.name=='sd-profile.json','usb_pio':build.get('usb_control',False),'firmware_profile_sha256':sha(profile),
-              'usb_input':build.get('usb_input'),
+              'usb_input':build.get('usb_input'),'usb_shared':build.get('usb_shared',False),
               'smmu_observe':profile.name=='smmu-profile.json',
               'secure_capture_trace':True,
               'spl_atf_trace':True,
@@ -157,16 +156,24 @@ def header(profile):
     if (usb and profile.get('usb_input') not in ('boot-keyboard','gamepad') or
             not usb and profile.get('usb_input') is not None):
         raise ValueError('USB boot input must be explicitly selected')
-    if type(usb) is not bool or usb and (profile['sd_pio'] or profile.get('hps_io') is None or smmu or
-            any(profile.get(key) is not None for key in ('hps_control','hps_configuration','hps_reader_memory','hps_ddr_read','hps_window_read','hps_computer'))):
+    shared=profile.get('usb_shared',False)
+    if type(shared) is not bool:raise ValueError('shared USB boot selection must be boolean')
+    if shared:
+        hps_context.usb_selection.mode(dict(profile,program='fpgaload',usb_control=usb))
+        if not profile['sd_pio'] or any(profile.get(key) is None for key in
+                ('hps_io','hps_control','hps_configuration','hps_reader_memory','hps_computer')):
+            raise ValueError('shared USB requires sealed pins, SD and complete selected computer resources')
+    if type(usb) is not bool or usb and (profile.get('hps_io') is None or smmu or not shared and (profile['sd_pio'] or
+            any(profile.get(key) is not None for key in ('hps_control','hps_configuration','hps_reader_memory','hps_ddr_read','hps_window_read','hps_computer')))):
         raise ValueError('USB PIO requires its sealed pins and separate contained cold profile')
     control=profile.get('hps_control');extra='#define FES_NANO_CONTROL_PROBE '+str(int(control is not None))+'\n'
     extra+='#define FES_NANO_CONTROLLED_USB '+str(int(usb))+'\n'
+    extra+='#define FES_NANO_SHARED_USB '+str(int(shared))+'\n'
     io_map=profile.get('hps_io')
     extra+='#define FES_NANO_HPS_IO_OBSERVE '+str(int(io_map is not None))+'\n'
     if io_map is not None:
-        if (profile['sd_pio'] or profile.get('hps_context') is None or
-                any(profile.get(key) is not None for key in ('hps_control','hps_configuration','hps_reader_memory','hps_ddr_read','hps_window_read','hps_computer')) or
+        if (profile.get('hps_context') is None or not shared and (profile['sd_pio'] or
+                any(profile.get(key) is not None for key in ('hps_control','hps_configuration','hps_reader_memory','hps_ddr_read','hps_window_read','hps_computer'))) or
                 profile.get('hps_io_sha256')!=hps_context.digest(io_map)):
             raise ValueError('HPS I/O observation requires its separate sealed serial-only context')
         hps_context.validate_hps_io(io_map,profile['hps_context'])

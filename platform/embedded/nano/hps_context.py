@@ -18,6 +18,8 @@ import zipfile
 
 HERE = Path(__file__).resolve().parent
 ROOT = HERE.parents[2]
+_usb_spec=importlib.util.spec_from_file_location('fes_hps_usb_selection',HERE/'usb_selection.py')
+usb_selection=importlib.util.module_from_spec(_usb_spec);_usb_spec.loader.exec_module(usb_selection)
 PROTOTYPE = ROOT/'sources/misteross/prototypes/de25_board_control'
 SCOPE = 'source-bound-hps-first-context-v1'
 
@@ -31,7 +33,7 @@ def digest(context):
 
 
 def inputs():
-    return [Path(__file__), HERE/'hps_io.py', PROTOTYPE/'verify.py', PROTOTYPE/'seal.py', PROTOTYPE/'reader_memory.py', PROTOTYPE/'computer_model.py', PROTOTYPE/'build.py',
+    return [Path(__file__), HERE/'hps_io.py', HERE/'usb_selection.py', PROTOTYPE/'verify.py', PROTOTYPE/'seal.py', PROTOTYPE/'reader_memory.py', PROTOTYPE/'computer_model.py', PROTOTYPE/'build.py',
             ROOT/'sources/misteross/boards/de25nano/hps/build.py', ROOT/'sources/misteross/boards/de25nano/build.py',
             PROTOTYPE.parent/'embedded_control/producer.py',
             ROOT/'sources/misteross/scripts/core_package.py',
@@ -583,7 +585,10 @@ def checked(record, program_key='program'):
 
 def checked_hps_io(record, program_key='program'):
     keys=('hps_io','hps_io_sha256')
-    if record.get(program_key) not in ('hpsio','usbcheck'):
+    shared=record.get('usb_shared',False)
+    if type(shared) is not bool:raise ValueError('shared USB selection must be boolean')
+    if shared:usb_selection.mode(record,program_key)
+    if record.get(program_key) not in ('hpsio','usbcheck') and not shared:
         if any(record.get(key) is not None for key in keys):
             raise ValueError('live HPS I/O observation requires its dedicated native image')
         return None

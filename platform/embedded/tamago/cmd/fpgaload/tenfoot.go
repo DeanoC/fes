@@ -15,6 +15,7 @@ import (
 	"github.com/DeanoC/FogCast/ui/tenfoot"
 	"github.com/DeanoC/fes/platform/embedded/tamago/board/de25nano"
 	"github.com/DeanoC/fes/platform/embedded/tamago/computer"
+	"github.com/DeanoC/fes/platform/embedded/tamago/input"
 	"github.com/DeanoC/fes/platform/embedded/tamago/nativefabric"
 	"github.com/DeanoC/fes/platform/embedded/tamago/packagestore"
 	"github.com/DeanoC/fes/platform/embedded/tamago/serial"
@@ -71,17 +72,21 @@ func serveProgramTenfoot(loader *nativefabric.ProgramLoader, store *packagestore
 	}
 	var platform tenfoot.Platform = serialPlatform
 	inputMode := "uart"
-	if de25nano.KeyboardEnabled() {
-		source, err := de25nano.OpenKeyboardReports()
+	if expectedUSBControl != "" {
+		if expectedUSBInput == "gamepad" {
+			keys := nativefabric.ProgramGamepadKeys{Up: 0x52, Down: 0x51, Left: 0x50, Right: 0x4f}
+			// This diagnostic assigns S/start and Space to the first two HID buttons.
+			keys.Buttons[0], keys.Buttons[1] = 0x16, 0x2c
+			platform, err = nativefabric.NewProgramGamepadPlatform(serialPlatform, nativeProgramBackend, programGamepadSource, programGamepadDescriptor, input.GamepadButtons{Confirm: 1, Back: 2}, keys)
+		} else {
+			platform, err = nativefabric.NewProgramInputPlatform(serialPlatform, nativeProgramBackend, programKeyboardSource)
+		}
 		if err != nil {
 			panic(err)
 		}
-		platform, err = nativefabric.NewProgramInputPlatform(serialPlatform, nativeProgramBackend, source)
-		if err != nil {
-			panic(err)
-		}
-		inputMode = "uart+usb-reports"
+		inputMode = "uart+shared-usb-" + expectedUSBInput
 	}
+
 	fmt.Printf("FES_NATIVE_TENFOOT_BEGIN display=serial-state-only input=%s preferences=ram\n", inputMode)
 	nativeProgramPlatform = platform
 	if err := tenfoot.RunPlatform(context.Background(), app, device, nativeProgramPlatform); err != nil {
@@ -92,6 +97,11 @@ func serveProgramTenfoot(loader *nativefabric.ProgramLoader, store *packagestore
 	status := programService.Status()
 	if status.State != nativefabric.ProgramReady && status.State != nativefabric.ProgramRebootRequired && status.State != nativefabric.ProgramParked {
 		panic("Tenfoot exited without a completed owned transition")
+	}
+	if status.State == nativefabric.ProgramReady {
+		if err := closeProgramUSB(); err != nil {
+			panic(err)
+		}
 	}
 	fmt.Printf("FES_NATIVE_TENFOOT_EXIT state=%s generation=%d\n", status.State, status.Generation)
 }
