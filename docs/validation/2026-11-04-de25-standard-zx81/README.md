@@ -123,3 +123,12 @@ native/AArch64 identity/signature/reset cases in9.542seconds. The full20-case
 standalone matrix is not claimed. After this and the14-case combined proof,
 the owned temporary SDK volume was removed; authenticated SDK archives/cache,
 source snapshots, binaries, logs and proof receipts remain available.
+
+## Direct shared-display consumers
+
+At `8025906de`, the direct C64 session-display target, pc386 presenter/capture/
+plane benches, MENU simulation and Spectrum board simulation all passed in
+122.775seconds. Their exact commands/results are in `shared-display-consumers.json`.
+These complement the earlier ZX81/Coleco and allocated DE25 results. The separate
+whole-core follow-up is still running C64's larger nightly-style suite; its
+complete six-command result and an aggregate all-plan pass are not claimed.

@@ -1,0 +1,45 @@
+{
+  "source_revision": "8025906de7fdbab1b8a978c847c2359f95031524",
+  "state": "passed",
+  "seconds": 122.775,
+  "results": [
+    {
+      "command": [
+        "make",
+        "sim-fes-c64-session"
+      ],
+      "returncode": 0,
+      "seconds": 6.372
+    },
+    {
+      "command": [
+        "python3",
+        "scripts/sim_fes_pc386.py",
+        "--suite",
+        "benches",
+        "--jobs",
+        "2"
+      ],
+      "returncode": 0,
+      "seconds": 17.198
+    },
+    {
+      "command": [
+        "make",
+        "sim-fes-menu"
+      ],
+      "returncode": 0,
+      "seconds": 79.412
+    },
+    {
+      "command": [
+        "make",
+        "sim-fes-spectrum-board"
+      ],
+      "returncode": 0,
+      "seconds": 19.724
+    }
+  ],
+  "scope": "Actual direct C64 session plane, pc386 presenter/capture/plane benches, MENU and Spectrum board targets; complements earlier DE25/ZX81/Coleco shared-plane passes. Whole C64 regression remains separate, no whole-plan or hardware acceptance claim.",
+  "broader_followup": "separate whole-core six-command run remains in progress, no whole-plan PASS"
+}
