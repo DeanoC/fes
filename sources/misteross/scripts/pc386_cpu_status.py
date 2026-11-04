@@ -12,8 +12,9 @@ call, so it works on any kit software. A record is not written again for 255
 periods (273 ms), so a sample is whole if word 0 still names it.
 
   sample    one remote shell loop reads the head and the newest record's
-            words as fast as devmem goes (about 5 ms a word, so 20-40
-            samples a second), or every --interval seconds, for --seconds;
+            words as fast as devmem goes (about 5 ms a word: 28 samples a
+            second on an idle kit, 11-14 with --interval 0.02 while a game
+            runs), or every --interval seconds, for --seconds;
             each line is the host time, the kit's uptime and the decoded record.
   snapshot  the newest record, every field, as JSON.
 
@@ -68,7 +69,7 @@ def decode(head: int, words: dict[int, int]) -> dict:
     out = {'magic': head >> 32 == MAGIC, 'count': head & 0xffffffff}
     n = out['count'] - 1
     out['record'] = n
-    out['whole'] = out['magic'] and n >= 0 and all(w == (n << 32 | MAGIC) for w in words.get('names', []))
+    out['whole'] = out['magic'] and n >= 0 and len(words.get('names', [])) == 2 and all(w == (n << 32 | MAGIC) for w in words['names'])
     s0, s1 = words.get(1), words.get(2)
     if s0 is not None:
         out.update(halted=s0 & 1, stopped=s0 >> 1 & 1, a20m=s0 >> 2 & 1, intr=s0 >> 3 & 1,

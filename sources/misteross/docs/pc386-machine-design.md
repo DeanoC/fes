@@ -309,7 +309,7 @@ first. Record n goes to slot n mod 256, then the head takes n + 1:
 A slot is not written again for 255 periods (273 ms), so a reader takes the
 head, then the newest record, and checks that its word 0 still names it.
 `scripts/pc386_cpu_status.py` does this with busybox `devmem` over ssh, at
-20–40 samples a second, on any kit software; Linux refuses `read()` of the
+11–28 samples a second, on any kit software; Linux refuses `read()` of the
 window, so `dd` cannot. The count and records reset with port 2; the clock
 count never does.
 

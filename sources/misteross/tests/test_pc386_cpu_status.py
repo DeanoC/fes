@@ -38,6 +38,10 @@ class StatusReader(unittest.TestCase):
         self.assertFalse(sample['whole'])
         self.assertIn('torn record 41', reader.line(sample))
 
+    def test_needs_both_reads_of_word_0(self):
+        (sample,) = reader.parse(lines(41, 0, 0)[:-2] + ['E'])
+        self.assertFalse(sample['whole'])
+
     def test_reports_no_ring_without_the_magic(self):
         (sample,) = reader.parse(['S 1.00 0xFFF4F0E8FFF4F0E8', 'W 0 0xFFF4F0E8FFF4F0E8', 'E'])
         self.assertFalse(sample['magic'])

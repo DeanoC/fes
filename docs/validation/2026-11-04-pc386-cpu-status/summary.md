@@ -31,7 +31,7 @@ INTRO.EXE's offset 0172 ([#1433](https://github.com/DeanoC/fes/issues/1433#issue
 - **The reader.** `sample` runs one busybox loop on the kit that reads the
   head and the newest record's words; a sample is whole when word 0 still
   names the record, which is not rewritten for 255 periods (273 ms). About
-  5 ms per `devmem` read gives 11–25 samples a second. `snapshot` prints the
+  5 ms per `devmem` read gives 11–28 samples a second. `snapshot` prints the
   newest record as JSON. Linux refuses `read()` of the window (`dd`: Bad
   address), so `devmem`'s mmap is the path. The loop stops when its reader
   goes away, and the reader stops its ssh command's whole process group.
