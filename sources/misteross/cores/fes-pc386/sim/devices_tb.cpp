@@ -284,6 +284,30 @@ void pit(Bench &b) {
     b.out(0x43, 0xd8);  // read-back count only, channel 2
     low = b.in(0x42); high = b.in(0x42);
     check("8254 read-back count latch alone", uint16_t(low | high << 8) < 0x10, hex(low | high << 8));
+    // A control word resets the byte pointers even when it repeats the RW
+    // field (#1471); a counter-latch command between the bytes does not.
+    // Channel 2 is gated, mode 3, so 400 clocks take about 10 off 0533h.
+    auto read2 = [&] { uint8_t lo = b.in(0x42); return uint16_t(lo | b.in(0x42) << 8); };
+    auto near533 = [](uint16_t count) { return count > 0x0500 && count <= 0x0533; };
+    b.out(0x43, 0xb6); b.out(0x42, 0x3c);
+    b.out(0x43, 0xb6); b.out(0x42, 0x33); b.out(0x42, 0x05);
+    b.run(400);
+    b.out(0x43, 0x80);
+    uint16_t count = read2();
+    check("PIT control word with the same RW resets the write byte pointer", near533(count), hex(count));
+    b.out(0x43, 0xb6); b.out(0x42, 0x34); b.out(0x42, 0x12);
+    b.run(400);
+    b.in(0x42);
+    b.out(0x43, 0xb6); b.out(0x42, 0x33); b.out(0x42, 0x05);
+    b.run(400);
+    count = read2();
+    check("PIT control word with the same RW resets the read byte pointer", near533(count), hex(count));
+    b.out(0x43, 0xb6); b.out(0x42, 0x33); b.out(0x43, 0x80); b.out(0x42, 0x05);
+    read2();
+    b.run(400);
+    b.out(0x43, 0x80);
+    count = read2();
+    check("PIT counter latch between count bytes keeps the write byte pointer", near533(count), hex(count));
     // Port 61h bit 4 toggles with channel 1 (BIOS programs 15 us).
     b.out(0x43, 0x54); b.out(0x41, 18);
     int toggles = 0;
