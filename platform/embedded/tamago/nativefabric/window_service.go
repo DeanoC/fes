@@ -13,6 +13,7 @@ import (
 
 	"github.com/DeanoC/fes/platform/embedded/tamago/packagestore"
 	"github.com/DeanoC/fes/platform/embedded/tamago/scanout"
+	"github.com/DeanoC/fes/platform/embedded/tamago/sdcontrol"
 )
 
 var (
@@ -25,6 +26,9 @@ type WindowServiceStatus struct {
 	State                     ProgramServiceState
 	Owner, Generation, Frames uint64
 	PackageID, Error          string
+	LastPresentation          WindowPresentation
+	LastReturn                WindowSessionReturn
+	Storage                   sdcontrol.Receipt
 }
 
 // WindowHandle also implements board.Display. Copies retain a private service
@@ -96,6 +100,9 @@ func NewWindowService(initial *WindowSession, store *packagestore.Store, control
 	p := &windowService{current: initial, store: store, control: bytes.Clone(control), configuration: bytes.Clone(configuration), contract: bytes.Clone(contract),
 		reserve: reserve, limits: limits, view: WindowServiceStatus{State: ProgramRunning, Owner: initial.source.Bridges.Owner, Generation: 1,
 			Frames: initial.frames, PackageID: v.Identity().PackageID}}
+	p.view.LastPresentation = WindowPresentation{Frame: initial.last, Memory: v.windowPublication,
+		Drain: scanout.ReaderDrain{Generation: initial.generation, Cookie: initial.drainCookie}}
+	p.view.Storage = initial.storage.Receipt()
 	return &WindowService{p}, WindowHandle{p, 1}, nil
 }
 
@@ -164,6 +171,7 @@ func (s *WindowService) Present(ctx context.Context, h WindowHandle, frame *stdi
 		return WindowPresentation{}, p.fail(err)
 	}
 	view.Frames++
+	view.LastPresentation = result
 	p.publish(view)
 	return result, nil
 }
@@ -192,6 +200,8 @@ func (s *WindowService) finish(ctx context.Context, h WindowHandle, resume bool)
 	if err != nil {
 		return returned, p.fail(err)
 	}
+	view.LastReturn = returned
+	p.publish(view)
 	if resume {
 		if err = p.current.ResumeStorageAfterReturn(); err != nil {
 			return returned, p.fail(err)
@@ -201,6 +211,7 @@ func (s *WindowService) finish(ctx context.Context, h WindowHandle, resume bool)
 			return returned, p.fail(errors.Join(err, errors.New("native window service: SD lost owned return")))
 		}
 		view.State = ProgramReady
+		view.Storage = active
 	} else {
 		view.State = ProgramParked
 	}
@@ -253,6 +264,8 @@ func (s *WindowService) Launch(ctx context.Context, generation uint64, request p
 	if err != nil {
 		return WindowHandle{}, p.fail(err)
 	}
+	view.Storage = handoff.Receipt()
+	p.publish(view)
 	p.transfer, _, err = p.previous.NewStoredReconfigurationTransfer(plan, handoff, p.reserve)
 	if err != nil {
 		return WindowHandle{}, p.fail(err)
@@ -265,9 +278,11 @@ func (s *WindowService) Launch(ctx context.Context, generation uint64, request p
 	if err != nil {
 		return WindowHandle{}, p.fail(err)
 	}
-	if _, err = p.current.PresentFrame(ctx, frame); err != nil {
+	presented, err := p.current.PresentFrame(ctx, frame)
+	if err != nil {
 		return WindowHandle{}, p.fail(err)
 	}
+	view.LastPresentation = presented
 	view.State, view.Frames = ProgramRunning, 1
 	p.publish(view)
 	return WindowHandle{p, view.Generation}, nil

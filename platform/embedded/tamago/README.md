@@ -450,6 +450,9 @@ UART. It uses the `nano-contained-window-service-v1` scope. Commands are
 `status`, `present`, `return`, `launch` and terminal `park`; all except status
 require the exact cached hexadecimal owner and current service generation.
 Package paths, physical addresses and frame bytes cannot be supplied over UART.
+Replies include cached frame CRC/hash/byte/drain observations, the last owned
+bridge return and SD generation. Those observations cannot mint display handles
+or authorize later transitions. Failure replies omit successful observations.
 The original compiled package is freshly retained for each launch. This is a
 request-driven renderer/ownership prototype, not the complete Tenfoot App
 backend or ordinary package admission.

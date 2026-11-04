@@ -23,6 +23,10 @@ func TestWindowConsoleThreeFullRequestCycles(t *testing.T) {
 		r.f.colour(byte(cycle + 2))
 		if result := request("present"); !result.OK || result.Frames != 2 {
 			t.Fatal(result)
+		} else if result.LastFrame == nil || result.LastFrame.SourceGeneration != uint64(4+cycle*6) ||
+			result.LastFrame.ReaderGeneration != 3 || result.LastFrame.DrainGeneration != 3 || result.LastFrame.DrainCookie != 3 ||
+			result.LastFrame.Bytes != 3686400 || result.LastFrame.PublishedCRC32 != result.LastFrame.ReadCRC32 || result.Storage.Active {
+			t.Fatal("lost actual presentation or storage receipt", result)
 		}
 		if cycle == 2 {
 			if result := request("park"); !result.OK || result.State != ProgramParked {
@@ -32,6 +36,10 @@ func TestWindowConsoleThreeFullRequestCycles(t *testing.T) {
 		}
 		if result := request("return"); !result.OK || result.State != ProgramReady {
 			t.Fatal(result)
+		} else if result.LastReturn == nil || result.LastReturn.ClosedGeneration != uint64(7+cycle*6) ||
+			result.LastReturn.Frames != 2 || result.LastReturn.Reset != 15 || !result.LastReturn.MastersContained ||
+			result.Storage == nil || !result.Storage.Active || !result.Storage.Prepared || result.Storage.Generation != uint64(9+cycle*6) {
+			t.Fatal("lost owned return/SD receipt", result)
 		}
 		if result := request("launch"); !result.OK || result.State != ProgramRunning || result.Frames != 1 {
 			t.Fatal(result)
@@ -39,6 +47,34 @@ func TestWindowConsoleThreeFullRequestCycles(t *testing.T) {
 	}
 	if r.lease.returns != 2 || r.f.cpu.closes != 3 || r.f.cpu.releases != 0 {
 		t.Fatal("wrong ownership")
+	}
+}
+
+func TestWindowConsoleReceiptsAreCopiesAndStatusDoesNotTouchHardware(t *testing.T) {
+	r := windowServiceTest(t)
+	c, err := NewWindowConsole(r.s, r.h, r.request)
+	if err != nil {
+		t.Fatal(err)
+	}
+	calls, reads, files := r.f.cpu.calls, r.f.cpu.reads, r.files.opens
+	status := c.Handle(context.Background(), []byte(`{"op":"status"}`), nil)
+	if !status.OK || status.LastFrame == nil || status.LastFrame.SourceGeneration != 4 || status.Storage == nil || status.Storage.Generation != 4 || status.LastReturn != nil {
+		t.Fatal(status)
+	}
+	status.LastFrame.ReadCRC32 ^= 1
+	status.Storage.Generation = 999
+	again := c.Handle(context.Background(), []byte(`{"op":"status"}`), nil)
+	if again.LastFrame.ReadCRC32 != again.LastFrame.PublishedCRC32 || again.Storage.Generation != 4 {
+		t.Fatal("caller changed cached observations")
+	}
+	if r.f.cpu.calls != calls || r.f.cpu.reads != reads || r.files.opens != files {
+		t.Fatal("status performed I/O")
+	}
+	r.f.cpu.fault = "crc"
+	raw := fmt.Sprintf(`{"op":"present","owner":%q,"generation":%d}`, again.Owner, again.Generation)
+	failed := c.Handle(context.Background(), []byte(raw), r.f.frame)
+	if failed.OK || failed.State != ProgramRebootRequired || failed.LastFrame != nil || failed.LastReturn != nil || failed.Storage != nil {
+		t.Fatal("failed operation returned a success receipt", failed)
 	}
 }
 
