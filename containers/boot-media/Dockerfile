@@ -3,7 +3,9 @@ ARG BUILDER_UID
 ARG BUILDER_GID
 ARG CONTEXT_SHA256
 ARG PACKAGES_SHA256
-RUN printf 'deb [check-valid-until=no] http://snapshot.debian.org/archive/debian/20250702T000000Z bookworm main\ndeb [check-valid-until=no] http://snapshot.debian.org/archive/debian-security/20250702T000000Z bookworm-security main\n' > /etc/apt/sources.list \
+RUN printf 'Acquire::http::Timeout "30";\nAcquire::https::Timeout "30";\nAcquire::Retries "5";\n' \
+      > /etc/apt/apt.conf.d/80-ci-timeouts \
+    && printf 'deb [check-valid-until=no] http://snapshot.debian.org/archive/debian/20250702T000000Z bookworm main\ndeb [check-valid-until=no] http://snapshot.debian.org/archive/debian-security/20250702T000000Z bookworm-security main\n' > /etc/apt/sources.list \
     && rm /etc/apt/sources.list.d/debian.sources \
     && apt-get update \
     && apt-get install -y --no-install-recommends dosfstools e2fsprogs mtools python3 \

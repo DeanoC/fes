@@ -89,6 +89,7 @@ jobs:
     needs: plan
     if: fromJSON(needs.plan.outputs.lanes).parent
     runs-on: ubuntu-24.04
+    timeout-minutes: 45
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
@@ -109,9 +110,9 @@ jobs:
         run: |
           if [ "$TEST_MEDIA" = true ]; then
             make platform-provision
-            # Registry resolution of the pinned base image flakes; the build is digest-locked.
+            # Keep retries for transient registry/snapshot failures, with a hard per-attempt bound.
             for attempt in 1 2 3; do
-              make media-test-provision && break
+              timeout --signal=TERM --kill-after=30s 600s make media-test-provision && break
               if [ "$attempt" = 3 ]; then exit 1; fi
               sleep $((attempt * 20))
             done
