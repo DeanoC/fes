@@ -3871,7 +3871,10 @@ probe clears that presentation error and its retry delay; the room removes the
 temporary HDMI notice while retaining the cassette operation's status.
 A running `fes.computer` generation that reports `fes.media.zx81-tape` 1.0 uses
 that same `POST /api/v1/session/display` when it also reports
-`fes.video.session-display` 1.0 and `fes.memory.hps-ddr` 1.0. The plane
+`fes.video.session-display` 1.0 and either `fes.memory.hps-ddr` 1.0 or the
+DE25 allocation pair, `fes.fabric.de25-scanout` 1.1 plus
+`fes.fabric.video.display-plane` 1.0. All three DE25 interfaces must be
+observed on the active `fes.computer` generation. The plane
 composites launcher frames over ZX81 video; closing it restores those pixels
 without reprogramming the core. A tape unit without the plane does not open
 the kit routes. Older packages keep prelaunch controls and the separate
