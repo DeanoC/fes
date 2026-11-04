@@ -1735,6 +1735,30 @@ Error FesGpCoreDriver::AcknowledgeZx81Tape(std::uint64_t deadline)
 Error FesGpCoreDriver::EnsureZx81TapeSaved(std::uint64_t deadline)
 {
 	if (!TapeWriteCapable()) return {};
+	return CheckZx81SnapshotSaved(deadline);
+}
+
+Error FesGpCoreDriver::EnsureRetainedZx81TapeSaved(const CoreDescriptor& descriptor,
+	std::uint64_t deadline)
+{
+	bool cassette = false, writable = false;
+	for (const auto& interface : descriptor.interfaces) {
+		if (!interface.required || !ComputerInterfaceCurrent(interface)) continue;
+		if (interface.id == FesComputerInterfaceMediaZx81TapeID) cassette = true;
+		if (interface.id == FesComputerInterfaceMediaZx81TapeWriteID) writable = true;
+	}
+	if (descriptor.core.id != "fes.zx81" || descriptor.abi.id != FesComputerABIID ||
+		descriptor.abi.major != 1 || descriptor.abi.minor != 0 || !cassette || !writable)
+		return {ErrorCode::unsupported_interface, "retained ZX81 requires its cassette and SAVE contract", "save"};
+	// Normal Identify discovers a newly programmed empty cassette. A lost
+	// image can have media loaded: verify its live identity/capabilities only,
+	// then use the same SAVE check, without publishing active driver state.
+	const Error identity = gp_.Identify(descriptor, deadline);
+	return identity.ok() ? CheckZx81SnapshotSaved(deadline) : identity;
+}
+
+Error FesGpCoreDriver::CheckZx81SnapshotSaved(std::uint64_t deadline)
+{
 	Error error = RecoverComputerMailbox(deadline);
 	if (!error.ok()) return error;
 	std::uint16_t initial_flags = 0;

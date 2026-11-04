@@ -160,11 +160,8 @@ public:
             de25_menu_.reset(new native::LinuxDe25Menu(clock_,*menu_display_));
             de25_fpga_ = new native::LinuxDe25FpgaManager(clock_,*de25_menu_,package_roots,
                 [this](const CoreDescriptor& descriptor,std::uint64_t deadline) {
-                    native::CoreDriverContext context;context.descriptor=&descriptor;
-                    context.expected_core=descriptor.core.id;
                     fes_gp_driver_->BeginSession();
-                    const auto identified=fes_gp_driver_->Identify(context,deadline);
-                    return identified.error.ok()?fes_gp_driver_->EnsureZx81TapeSaved(deadline):identified.error;
+                    return fes_gp_driver_->EnsureRetainedZx81TapeSaved(descriptor,deadline);
                 });
             fpga_.reset(de25_fpga_);
             de25_menu_driver_.reset(new native::De25MenuCoreDriver(*de25_menu_));

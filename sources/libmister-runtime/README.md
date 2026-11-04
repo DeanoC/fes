@@ -79,8 +79,11 @@ revocation with no exposure or uncertainty. One REAP then releases its retained
 reference, and OWNER_IDLE proves the end of peer references. The outgoing package
 may come from either the factory package directory or the normal agent's sealed
 ID-plus-token staging publication; content identity is verified in either case.
-A retained computer must also pass live identity and the existing SAVE guard, so dirty snapshots or
-uncertain mailboxes remain blocked. The existing verified release then precedes a
+A retained computer must also pass live identity and the existing SAVE guard, so
+dirty snapshots or uncertain mailboxes remain blocked. This guard verifies live
+identity without fresh-start empty-cassette discovery; a loaded tape remains
+untouched and no active driver session is adopted. The existing verified release
+then precedes a
 normal MENU load. Unknown packages, firmware-only overlays and uncertainty
 remain refused; no lost guest session is resumed. This extension has software
 coverage only. Whole-load failure bounds and native unexpected-death acceptance

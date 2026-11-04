@@ -106,8 +106,11 @@ bytes and incomplete submissions remain refused. No restart ownership database
 is introduced.
 
 Before retiring a retained standard computer, production uses its existing
-shared driver to identify the outgoing package live and apply
-`EnsureZx81TapeSaved`. An unknown mailbox or dirty SAVE snapshot refuses recovery
+shared driver's `EnsureRetainedZx81TapeSaved` to identify the outgoing package
+live and apply the same snapshot check as `EnsureZx81TapeSaved`. Fresh-start
+discovery still requires empty media; this abandonment guard permits the retained
+cassette to remain loaded without discovering or adopting an active session.
+An unknown mailbox or dirty SAVE snapshot refuses recovery
 before allocation retirement or programming; the existing snapshot remains
 unacknowledged. Missing SAVE admission is also rejecting. A successful query
 allows abandonment of the lost session, not restoration of its ownership.

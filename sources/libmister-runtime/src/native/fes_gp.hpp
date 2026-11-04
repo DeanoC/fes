@@ -112,6 +112,9 @@ public:
 	Error CaptureZx81Tape(Clock&, std::uint64_t deadline, std::vector<unsigned char>*);
 	Error AcknowledgeZx81Tape(std::uint64_t deadline);
 	Error EnsureZx81TapeSaved(std::uint64_t deadline);
+	// Verify a lost ZX81 image before abandonment, without fresh-media
+	// discovery, adopting its session or acknowledging an unsaved snapshot.
+	Error EnsureRetainedZx81TapeSaved(const CoreDescriptor&, std::uint64_t deadline);
 	Error ResumeMedia(std::uint8_t unit, std::uint64_t deadline);
 	Error RefreshMediaState(std::uint8_t unit, std::uint64_t deadline);
 	Error MarkMediaSaved(std::uint8_t unit, std::uint64_t deadline);
@@ -180,6 +183,7 @@ private:
 	Error ReadMediaInfo(std::uint8_t unit, std::uint64_t deadline, LiveMediaInfo*);
 	Error ReadMediaState(std::uint8_t unit, std::uint64_t deadline, std::uint16_t* state);
 	Error RecoverComputerMailbox(std::uint64_t deadline);
+	Error CheckZx81SnapshotSaved(std::uint64_t deadline);
 	Error TransferMediaUnit(MediaUnitCapability&, const ComputerMediaSnapshot&, Clock&,
 		std::uint64_t deadline, bool* mutation_started);
 	Error AbandonMediaUnit(MediaUnitCapability&, std::uint64_t deadline);

@@ -2603,6 +2603,49 @@ void TestZx81SaveStaysDirtyUntilAcknowledged()
 
 using mister_test::AtomicComputerBridge;
 
+void TestRetainedZx81SaveGuardDoesNotRequireEmptyMedia()
+{
+    for(unsigned mode=0;mode<8;++mode) {
+        AtomicComputerBridge bridge;
+        mister::native::De25ComputerMmio registers(bridge);
+        TickClock clock;
+        mister::native::FesGp gp(registers,clock,mister::native::FesGpTransport::de25_computer);
+        mister::native::FesGpCoreDriver driver(gp);
+        auto descriptor=ComputerDescriptor({FesComputerInterfaceVideoFixed720p60ID,
+            FesComputerInterfaceKeyboardHidID,FesComputerInterfaceMediaZx81TapeID,
+            FesComputerInterfaceMediaZx81TapeWriteID});
+        descriptor.core.id="fes.zx81";
+        mister::native::CoreDriverContext context;context.descriptor=&descriptor;
+        assert(driver.Identify(context,kComputerDeadline).error.ok());
+        assert(driver.Start(context,kComputerDeadline).error.ok());
+        ComputerMediaFile tape(std::string("\x00\x0a\x76",3));
+        mister::native::ComputerMediaSnapshot media;
+        assert(media.Prepare(tape.path,1,FesComputerZx81TapeMaxBytes,clock,kComputerDeadline).ok());
+        assert(driver.InsertMedia(0,media,clock,kComputerDeadline,10000).ok());
+        const auto retained=bridge.endpoint.unit(0).data;
+        if(mode==1)bridge.endpoint.SetZx81Snapshot({0x00,0x0a,0x76});
+        if(mode==2)bridge.held=FesGpRequestMask;
+        if(mode==3)descriptor.build.id[0]='f';
+        if(mode==4)bridge.endpoint.SetZx81Snapshot({0x00,0x0a,0x76},false);
+        if(mode==5)descriptor.interfaces.erase(descriptor.interfaces.begin()+3);
+        if(mode==6)descriptor.core.id="fes.apple2";
+        mister::native::FesGp fresh_gp(registers,clock,mister::native::FesGpTransport::de25_computer);
+        mister::native::FesGpCoreDriver fresh(fresh_gp);
+        const auto start=bridge.endpoint.requests.size();
+        fresh.BeginSession();
+        const auto error=fresh.EnsureRetainedZx81TapeSaved(descriptor,mode==7?0:kComputerDeadline);
+        if(mode==0||mode==4)assert(error.ok());else assert(!error.ok());
+        if(mode==1)assert(error.code==mister::ErrorCode::save_failed&&bridge.endpoint.dirty&&bridge.endpoint.frozen);
+        assert(!bridge.endpoint.held&&bridge.endpoint.unit(0).state==FesComputerMediaStateReady&&bridge.endpoint.unit(0).data==retained);
+        assert(!fresh.home_computer()&&!fresh.TapeWriteCapable()&&fresh.media_units().empty());
+        for(std::size_t n=start;n<bridge.endpoint.requests.size();++n) {
+            const auto& r=bridge.endpoint.requests[n];
+            assert(r.opcode==FesComputerOpcodeIdentity||r.opcode==FesComputerOpcodeMediaSnapshotInfo||
+                (r.opcode==FesComputerOpcodeMediaSnapshotControl&&r.argument==FesComputerMediaSnapshotFreeze));
+        }
+    }
+}
+
 void TestStandardZx81DriverThroughAtomicDe25Transport()
 {
 	AtomicComputerBridge bridge;
@@ -3435,6 +3478,7 @@ void TestPc386AtaDiskCommitPollAndDirtyMap()
 
 int main()
 {
+    TestRetainedZx81SaveGuardDoesNotRequireEmptyMedia();
 	TestStandardZx81DriverThroughAtomicDe25Transport();
 	TestAtomicDe25TransportFailsClosed();
  TestStandardDe25ReadinessChecksHealthWithoutCommands();
