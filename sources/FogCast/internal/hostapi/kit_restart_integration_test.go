@@ -9,6 +9,7 @@ import (
 	"path/filepath"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -58,7 +59,16 @@ func TestKitHostAPIRecoversAgentLeaseAndStopsAfterHostRestart(t *testing.T) {
 	if _, err := manager.Settled(ctx); err != nil {
 		t.Fatal(err)
 	}
-	agent := httptest.NewServer(httpapi.New(agentState, "token-kit", "test", nil, httpapi.WithKitLease(manager), httpapi.WithTargetID(routingDevID)))
+	var failedHealth atomic.Int32
+	agentHandler := httpapi.New(agentState, "token-kit", "test", nil, httpapi.WithKitLease(manager), httpapi.WithTargetID(routingDevID))
+	agent := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/v1/health" && failedHealth.Load() > 0 {
+			failedHealth.Add(-1)
+			http.Error(w, "temporarily unavailable", http.StatusServiceUnavailable)
+			return
+		}
+		agentHandler.ServeHTTP(w, r)
+	}))
 	defer agent.Close()
 	root := t.TempDir()
 	configPath := filepath.Join(root, "config.toml")
@@ -96,11 +106,25 @@ target_id = %q
 	if manager.Status().State != "held" {
 		t.Fatalf("host close released grant: %+v", manager.Status())
 	}
+	// The target monitor must recover on its own even if the agent is briefly
+	// unavailable: no UI or other host API request should be needed to keep
+	// the agent's grace-period lease alive after the supervisor restarts us.
+	failedHealth.Store(2)
 	second, err := fogcast.Open(ctx, paths, agent.Client())
 	if err != nil {
 		t.Fatal(err)
 	}
 	defer second.Close()
+	deadline := time.Now().Add(12 * time.Second)
+	for second.KitLease().CurrentToken() != token && time.Now().Before(deadline) {
+		time.Sleep(50 * time.Millisecond)
+	}
+	if got := second.KitLease().CurrentToken(); got != token {
+		t.Fatalf("target monitor did not recover the original grant without an API request; got %q", got)
+	}
+	if remaining := failedHealth.Load(); remaining != 0 {
+		t.Fatalf("did not exercise both transient agent failures: %d remaining", remaining)
+	}
 	host := httptest.NewServer(hostapi.New(second))
 	defer host.Close()
 	client := hostclient.NewClient(host.URL, host.Client())
