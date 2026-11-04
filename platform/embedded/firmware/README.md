@@ -913,46 +913,70 @@ read-only. Source/command/ELF hashes and that evidence boundary are recorded.
 
 ## Trusted USB-only PIO handoff prototype
 
-`nano_usb_platform.c` implements a separate USB0 acquire/observe/stop contract.
-It captures the cold boot owner and epoch, checks a private generation before
-I/O, and releases only the USB0 controller reset. SD, USB ECC diagnostics,
-other HPS masters and all FPGA bridges stay held. The separate cold USB scope
-does not relax `fes_nano_cold_owns`; using the original bridge proof while USB
-is active still rejects and retires that boot scope. USB must be stopped before
-SD or FPGA access under this prototype. Combined operation requires a further
-explicit contract, not removal of an existing reset check.
+`nano_usb_platform.c` captures the cold boot owner and epoch and checks a private
+generation before I/O. Only the USB0 controller reset may be released. SD,
+USB ECC diagnostics, other HPS masters and all FPGA bridges stay held. The
+separate cold USB scope leaves `fes_nano_cold_owns` strict; it grants no combined
+SD/USB or USB/FPGA permission. USB must stop before those operations under this
+prototype. Combined operation still needs an explicit ownership contract.
 
-Acquisition rejects foreign DMA/interrupt state or active channels, checks the
-DWC2 identity/FIFO/capability envelope, establishes ULPI SDR selection and waits
-for AHB idle. Stop halts every implemented channel with a finite poll budget,
-masks channel interrupts, powers down the controller's port request, flushes
-RX/TX FIFOs, observes AHB idle and asserts/readbacks the controller reset under
-the original cold owner. Only complete readback publishes the new contained
-generation. An already contained stop checks the cold scope without touching
-the USB controller. Stale owners/generations do no I/O. Partial operations retain
-the active reservation, retire both provider and cold scope, and cannot retry.
-The controller's port-power bit is not proof that board VBUS is electrically off.
+Handoff has two phases. Acquire checks board preparation, rejects DMA/IRQ or
+active-channel state, validates the controller and selects ULPI SDR. It reserves
+the controller and advances its generation, but leaves `confirmed` false. The
+host driver must then initialize the controller and port. Confirm independently
+checks live readiness and publishes a new confirmed generation only on success.
+A prepared lease can stop after failed host startup without claiming readiness.
+For example, acquire 0 -> prepared 1 -> confirm 1 -> confirmed 2 -> stop 2 ->
+contained 3. The old prepared generation cannot stop the confirmed owner.
 
-The provider requires trusted, bounded `read/write/barrier/wait/ready` callbacks
-and all four qualification flags. `ready` must independently verify the fixed
-board pinmux, bus clock, external 60 MHz ULPI PHY, VBUS/host role and exclusive
-ownership; a supplied frequency is insufficient. No default readiness callback,
-physical MMIO binding, SiP command, boot-profile selection or mixed SD/USB grant
-is installed. The existing SD profile and native USB-disabled images remain
-unchanged. Next integration needs the actual trusted board readiness provider
-and a selected USB lease before a bounded native keyboard test.
+Stop halts every implemented channel with finite polls, masks channel interrupts,
+clears the controller's port-power request, flushes RX/TX FIFOs, observes AHB
+idle and verifies controller reset under the original cold owner. An already
+contained stop checks preparation and boot ownership without accessing the
+controller or requiring a live PHY/VBUS observation. Stale requests do no I/O.
+Partial operations retain the reservation and retire the provider/cold scope;
+they cannot retry. Port-power readback does not prove board VBUS is electrically
+off. All callbacks and driver accesses require one serialized platform owner.
 
-Register provenance is the pinned Terasic U-Boot `d0f8813fd6bf8191d49c8b8d2035ffd2ae10c413`
-Agilex5 DTS and reset bindings, plus the DWC2 register protocol already used by
-the native host. Its clock driver identifies `AGILEX5_USB_CLK` as the bus clock;
-the external ULPI PHY clock is a separate qualification. The
-[Agilex5 HPS reference manual](https://cdrdv2-public.intel.com/814347/mnl-814346-814347.pdf)
-describes the USB2 OTG controller and external PHY interface. The hosted model
-is not an electrical or timing qualification of those resources.
+`nano_usb_board.c` supplies the preparation and live callbacks. Preparation
+checks two complete passes over the 164 sealed HPS I/O registers, derives the
+matched 200 MHz L4_MP bus clock from 13 live PLL/NOC registers and compares the
+captured clock state. It does not require the independent SDMMC clock gate.
+The pin table and policy digest are copied at initialization. Preparation never
+reads USB registers while the controller is held in reset.
 
-Run `python3 -m unittest discover -s tests -p test_nano_usb_platform.py -v`.
-It compiles the actual cold scope and USB provider with undefined-behavior
-checks, then models three acquire/drain/reset cycles, held/reset operation,
-stale ownership, readiness/DMA/PHY/drain failures and interruption at every USB-provider MMIO
-step. Existing SD platform tests exercise the shared cold-scope refactoring.
-These are host register-model tests, not physical USB acceptance.
+Live confirmation checks PIO/no-IRQ/host mode and port state, then reads two
+USB3320 snapshots through DWC2 GPVNDCTL. It checks PHY identity, synchronous
+interface/function mode, VBUS drive and the internal VBUS/session comparators.
+It never writes PHY registers or reads the clear-on-read interrupt latch. The
+external VBUS-indicator mode is rejected because USB3320's EXTVBUS signal can
+read permanently high. These are live protocol checks, not voltage, timing or
+electrical qualification. PHY/cable changes, foreign viewport requests, changed
+clock/pin state or interrupted I/O retire the scope.
+
+`nano/usb_readiness.py` derives the compiled pin header through the existing
+strict `hps_io.derive` parser and the actual compiled handoff/build receipt. It
+never imports register expectations from an edited saved policy descriptor.
+The selecting boot producer must first verify the sealed project and context;
+the policy digest identifies those compiled expectations and is not a signature
+or runtime authority. No default MMIO binding, SiP command, selecting boot profile
+or physical USB readiness is installed. Current native images keep USB disabled.
+Next integration needs the selected secure/native binding and a fresh matched
+boot chain before a bounded USB test; mixed SD/USB/core operation remains open.
+
+Register provenance is the pinned Terasic U-Boot
+`d0f8813fd6bf8191d49c8b8d2035ffd2ae10c413` Agilex5 DTS/reset/clock source and
+Synopsys DWC OTG register layout. The board manual identifies USB3320 and its
+ULPI clock: [Terasic manual, section 3.8.5](https://mm.digikey.com/Volume0/opasdata/d220001/medias/docus/7704/P0804.pdf).
+PHY registers and comparator behavior follow
+[Microchip DS00001792F, sections 5.6 and 7.1.1](https://ww1.microchip.com/downloads/aemDocuments/documents/UNG/ProductDocuments/DataSheets/USB3320-Data-Sheet-DS00001792.pdf).
+The GPVNDCTL layout is also present in the
+[vendor DWC OTG header](https://nest-open-source.googlesource.com/manifest_repos/u-boot/+/5e15fb1fe70ac2857e056ad5d238ad8e3373fdb5/drivers/usb/host/dwc_otg_regs_294.h).
+
+Run `python3 -m unittest discover -s tests -p 'test_nano_usb_*.py' -v`.
+Undefined-behavior checks exercise the actual C provider/cold scope, compiled pin
+policy and independently modeled clock/PHY/channel events. Cases include three
+acquire/drain/reset cycles, preparation/confirmation/abort, stale generations,
+every pin/clock mutation, live-mode/VBUS/viewport failures, copied policy and
+interrupted I/O. Existing SD tests cover the shared cold scope. Host register
+models and freestanding objects supply no hardware USB acceptance.

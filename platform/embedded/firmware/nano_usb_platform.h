@@ -19,16 +19,18 @@ struct fes_nano_usb_io {
     int (*write)(void *, uintptr_t, uint32_t);
     void (*barrier)(void *);
     void (*wait)(void *); /* fixed bounded wait, e.g. 10us; never unbounded */
-    /* Independently verify fixed board pinmux, bus clock, 60MHz ULPI PHY,
-     * VBUS/host role and their exclusive ownership on every operation. A
-     * frequency declaration or successful register read is insufficient. */
+    /* Live confirmation after the host driver starts: verify PHY identity,
+     * synchronous ULPI, host mode and internally sensed VBUS. */
     int (*ready)(void *);
+    /* Before controller access: verify fixed board pins, bus clocks and
+     * ownership. This is preparation, never live PHY/VBUS readiness. */
+    int (*prepare)(void *);
 };
 struct fes_nano_usb_platform {
     struct fes_nano_cold *cold;
     struct fes_nano_usb_io io;
     uint64_t owner, epoch, generation;
-    unsigned attempted, initialized, active, failed;
+    unsigned attempted, initialized, active, confirmed, failed;
     unsigned channels;
     int first_error;
     uintptr_t last_address;
@@ -39,6 +41,10 @@ int fes_nano_usb_platform_init(struct fes_nano_usb_platform *, struct fes_nano_c
 int fes_nano_usb_platform_observe(struct fes_nano_usb_platform *, uint64_t owner,
                                  uint64_t generation);
 int fes_nano_usb_platform_acquire(struct fes_nano_usb_platform *, uint64_t owner,
+                                 uint64_t generation);
+/* Preparation grants only this USB-only controller lease. The host driver must
+ * finish initialization before confirmation publishes a fresh ready generation. */
+int fes_nano_usb_platform_confirm(struct fes_nano_usb_platform *, uint64_t owner,
                                  uint64_t generation);
 int fes_nano_usb_platform_stop(struct fes_nano_usb_platform *, uint64_t owner,
                               uint64_t generation);

@@ -56,7 +56,7 @@ static int admit(struct fes_nano_usb_platform *p, uint64_t owner, uint64_t gener
 }
 static int scope(struct fes_nano_usb_platform *p)
 {
-    if (p->io.ready(p->io.context)!=1 ||
+    if (p->io.prepare(p->io.context)!=1 ||
         fes_nano_cold_usb_scope(p->cold,p->owner,p->epoch,p->active)) return fail(p,-5);
     return 0;
 }
@@ -82,7 +82,7 @@ int fes_nano_usb_platform_init(struct fes_nano_usb_platform *p, struct fes_nano_
     if (!p || p->attempted) return -1;
     p->attempted=1;
     if (!cold || !cold->valid || cold->failed || qualifications!=FES_NANO_USB_QUALIFIED ||
-        !io.read || !io.write || !io.barrier || !io.wait || !io.ready) return fail(p,-22);
+        !io.read || !io.write || !io.barrier || !io.wait || !io.ready || !io.prepare) return fail(p,-22);
     p->cold=cold;p->io=io;
     p->owner=cold->record.boot.owner;p->epoch=cold->record.boot.epoch;
     if (scope(p)) return -1;
@@ -95,6 +95,7 @@ int fes_nano_usb_platform_observe(struct fes_nano_usb_platform *p, uint64_t owne
     if (admit(p,owner,generation)) return -1;
     if (scope(p)) return -1;
     if (p->active && pio(p)) return -1;
+    if (p->confirmed && p->io.ready(p->io.context)!=1) return fail(p,-5);
     return scope(p);
 }
 int fes_nano_usb_platform_acquire(struct fes_nano_usb_platform *p, uint64_t owner,
@@ -121,12 +122,23 @@ int fes_nano_usb_platform_acquire(struct fes_nano_usb_platform *p, uint64_t owne
         if (read_reg(p,FES_NANO_USB_BASE+CHANNEL+32*i,&v)) return -1;
         if (v&ENABLE) return fail(p,-5);
     }
-    /* Only ULPI single-data-rate selection is established here. External PHY,
-     * role and VBUS must already satisfy ready(); their ownership is not guessed. */
+    /* Only ULPI single-data-rate selection is established here. Host startup
+     * and live PHY/VBUS confirmation are separate; no readiness is published. */
     if (read_reg(p,FES_NANO_USB_BASE+GUSB,&phy) ||
         write_reg(p,FES_NANO_USB_BASE+GUSB,(phy&~0xd8U)|0x10U) || pio(p) ||
         poll(p,RESET,ENABLE,ENABLE) || scope(p)) return -1;
     p->generation++;
+    return 0;
+}
+int fes_nano_usb_platform_confirm(struct fes_nano_usb_platform *p, uint64_t owner,
+                                 uint64_t generation)
+{
+    if (admit(p,owner,generation) || !p->active || p->confirmed) return -1;
+    if (p->generation==UINT64_MAX) return fail(p,-75);
+    if (scope(p) || pio(p)) return -1;
+    if (p->io.ready(p->io.context)!=1) return fail(p,-5);
+    if (scope(p) || pio(p)) return -1;
+    p->confirmed=1;p->generation++;
     return 0;
 }
 int fes_nano_usb_platform_stop(struct fes_nano_usb_platform *p, uint64_t owner,
@@ -158,6 +170,6 @@ int fes_nano_usb_platform_stop(struct fes_nano_usb_platform *p, uint64_t owner,
         write_reg(p,PER0,per0|FES_NANO_USB_RESET)) return -1;
     /* Do not publish inactive until independent reset/boot readback succeeds. */
     if (fes_nano_cold_usb_scope(p->cold,p->owner,p->epoch,0)) return fail(p,-5);
-    p->active=0;p->generation++;
+    p->active=0;p->confirmed=0;p->generation++;
     return 0;
 }

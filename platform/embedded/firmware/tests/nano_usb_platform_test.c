@@ -76,7 +76,7 @@ static void boot(struct test *t)
     assert(!fes_nano_cold_consume(&t->cold,&r,io,chain,17));
 }
 static struct fes_nano_usb_io io(struct test *t)
-{ return (struct fes_nano_usb_io){&t->h,read32,write32,barrier,wait_poll,ready}; }
+{ return (struct fes_nano_usb_io){&t->h,read32,write32,barrier,wait_poll,ready,ready}; }
 static void init(struct test *t)
 {
     boot(t);assert(!fes_nano_usb_platform_init(&t->usb,&t->cold,io(t),FES_NANO_USB_QUALIFIED));
@@ -89,6 +89,7 @@ static void no_retry(struct test *t)
     unsigned reads=t->h.reads,writes=t->h.writes,ready_calls=t->h.ready_calls;
     assert(fes_nano_usb_platform_observe(&t->usb,17,t->usb.generation));
     assert(fes_nano_usb_platform_acquire(&t->usb,17,t->usb.generation));
+    assert(fes_nano_usb_platform_confirm(&t->usb,17,t->usb.generation));
     assert(fes_nano_usb_platform_stop(&t->usb,17,t->usb.generation));
     assert(t->h.reads==reads && t->h.writes==writes && t->h.ready_calls==ready_calls);
 }
@@ -173,4 +174,18 @@ static void interrupted(void)
         }
     }
 }
-int main(void) {cycles();failures();admission();interrupted();puts("PASS USB-only trusted acquire/observe/drain/reset, stale ownership and interrupted MMIO; no hardware acceptance");return 0;}
+static void confirmation(void)
+{
+    struct test t;active(&t);
+    assert(!t.usb.confirmed);
+    assert(!fes_nano_usb_platform_confirm(&t.usb,17,1));
+    assert(t.usb.confirmed && t.usb.generation==2);
+    unsigned reads=t.h.reads,writes=t.h.writes,calls=t.h.ready_calls;
+    assert(fes_nano_usb_platform_confirm(&t.usb,17,2));
+    assert(fes_nano_usb_platform_stop(&t.usb,17,1));
+    assert(t.h.reads==reads && t.h.writes==writes && t.h.ready_calls==calls);
+    assert(!fes_nano_usb_platform_observe(&t.usb,17,2));
+    assert(!fes_nano_usb_platform_stop(&t.usb,17,2));
+    assert(!t.usb.active && !t.usb.confirmed && t.usb.generation==3);
+}
+int main(void) {cycles();failures();admission();interrupted();confirmation();puts("PASS USB-only trusted acquire/observe/drain/reset, stale ownership and interrupted MMIO; no hardware acceptance");return 0;}
