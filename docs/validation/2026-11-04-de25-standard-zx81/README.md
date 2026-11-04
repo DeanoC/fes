@@ -194,3 +194,29 @@ This is routed diagnostic evidence, not a sealed package or physical acceptance.
 The standard build action remains refused until the exact board-reference/output
 checks and canonical package recipe are integrated. No synthetic external delay
 has been assigned, and no new image has been loaded on the kit.
+
+## Allocated session runtime adapter
+
+At `ec3549d5b`, the existing LinuxDe25Menu adapter and shared lifecycle pass the
+focused display checks on native and actual managed-SDK AArch64 binaries under
+Cortex-A76 QEMU. The bounded job completed in76.764 seconds, including compilation
+and generated consistency. The structured record is
+[session-allocation-runtime.json](session-allocation-runtime.json).
+
+GP controls Configure/Enable/Quiesce; only the kernel grant publishes frames.
+Close must prove kernel drain, the end of peer references and hidden-plane
+quiescence before reopening. Each reopen gets a new cleared allocation, starts
+with back slot1 and a physical frame counter of0, and preserves the logical
+completed-frame count. Tests exercise three odd-length display cycles, stale
+sequence refusal, late publication without replay, pinned peers and uncertain
+close. The shared lifecycle negotiates per-frame mappings for session displays
+and handles fresh-slot ownership separately from the retained DE10 memory path.
+
+The first broader AArch64 run failed because QEMU's filesystem prefix redirected
+ancestor directories into the SDK while newly created files remained on the
+host. A library-only prefix fixed the `/tmp` open but still redirected root-FD
+walks. Using the target dynamic loader directly removes that prefix ambiguity;
+the broader diagnostic executable then passed. Those initial failures remain
+in the private logs. The committed focused run above uses the corrected loader
+invocation and does not claim a full current-source runtime suite or hardware
+acceptance. Standard production profile/package selection remains unfinished.
