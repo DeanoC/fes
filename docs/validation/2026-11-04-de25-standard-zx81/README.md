@@ -321,3 +321,61 @@ Raw signoff remains32 outputs/two inputs with zero waivers. The existing exact
 30-output reference policy is unchanged; the two audio-output findings remain
 open. The corrected source requires a fresh complete build before any artifact
 claim, and no board programming or package acceptance occurred in this phase.
+
+## Corrected canonical build and current client proof
+
+Source `446bd3eca9c8dacdeb7c071a331aab3842bb4a13` completed the full canonical
+compile-only build in652.811seconds. All92 numerical timing checks pass with the
+corrected I2S counter phases. The1,740,800-byte RBF SHA256 is
+`0bd85c0b67bfcaedc9d4e7965b0e4d8e970b685c2f2d65ffe24b104c4ba90bff`,
+BUILD_ID `a43e6fcf2904ca4890b22c32ab5fb4cb`. Raw signoff retains32 missing-output
+and two missing-input findings with zero waivers. No sealed package or physical
+acceptance is claimed. See [canonical-phase-candidate.json](canonical-phase-candidate.json).
+The first attempt stopped before synthesis because a local clone recorded a
+filesystem origin rather than the required repository URL. A fresh private
+clone with the actual GitHub URL resolved that setup error; validation was unchanged.
+
+The new diagnostic `scripts/review_de25_audio_clocks.py` observes an immutable
+candidate through a private copy, checks the staged source hashes, and binds the
+original compiled database, core RBF, inputs, tool and reports before/after STA.
+It compares all five audio-related fitted pins and voltage settings against both
+locked Terasic examples, and the complete audio PLL bytes against the stock PLL
+with only the two device metadata substitutions. The existing complete HDMI
+reference check binds transmitter settings and derived controller files.
+
+The collector passed on that exact446 build in9.581seconds, covering all five
+clock definitions and32 min/max routes across all four fitted operating
+conditions. The clock-network plus output-route observations leave at least
+159.193ns setup and159.497ns hold budget after the receiver's2ns requirements,
+**before unmeasured PCB differential delay, clock jitter/uncertainty and signal
+integrity**. These are conditional engineering budgets, not independent board
+setup/hold signoff. See [audio-clock-fitted-review.json](audio-clock-fitted-review.json).
+No output delay, false path, waiver or package admission was added. The existing
+30-output reference policy still blocks the two additional audio-clock findings.
+
+To repeat the observation on a complete compile-only candidate:
+
+```sh
+cd sources/misteross
+python3 scripts/review_de25_audio_clocks.py \
+  --candidate /absolute/path/to/candidate \
+  --output /absolute/path/to/new-review-directory \
+  --quartus-sta /data/altera_pro/26.3/quartus/bin/quartus_sta \
+  --vendor-archive /absolute/path/to/DE25-Nano_revB_v.1.0.0_ResourcePackage.zip
+```
+
+Six malformed-report tests reject missing corners/paths, duplicate observations,
+wrong phase/frequency/forwarded clocks, invalid numbers and inverted min/max bounds.
+This tool deliberately cannot clear a signoff finding or export/program a core.
+
+The actual combined native/Cortex-A76 client/RTL proof also passed all14 cases
+in588.594seconds at446. Both architectures completed real-ROM BASIC
+SAVE/load/run/edit/reload plus modeled RAM-pack selection and six failure cases.
+The source-bound fixture was copied byte-for-byte only after checking every
+current compiler/runtime hash, the committed-source flags and all14 scenario
+results. Its previously stale gate now passes. See
+[combined-client-proof-current.json](combined-client-proof-current.json).
+This is behavioral memory and selection-mux persona evidence, not physical PR,
+standard package deployment or managed board acceptance. The initial empty SDK
+volume setup failed under the image's default user; a fresh volume was populated
+as root, then the compiler ran as the host UID. Both traces remain retained.
