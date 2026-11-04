@@ -59,6 +59,14 @@ adaptations handle machine/tape/video RAM and the allocated reader; helpers run
 from the retained source tree. This prepares component files only. The canonical
 board recipe and normal package/runtime admission still select the older path.
 
+`fes_de25_audio.v` connects the standard coherent stereo PCM/I2S path to
+Terasic HDMI_ASx4's separate `av_pll`, using `CLOCK1_50`. The resource PLL
+requests 12.288 MHz from 50 MHz; its supplied integer dividers produce about
+12.2881356 MHz (nominal48k samples). Device-only R1-to-SCS retargeting preserves
+all clock parameters. Guest HOLD mutes samples without resetting the PLL or
+transfer handshake. The wrapper is not yet included by the complete-board recipe;
+audio pin/timing, transmitter integration and native capture remain unqualified.
+
 The standard core's `HPS_DDR_WINDOW` parameter defaults to one for DE10. Setting
 it to zero leaves the session-display capability intact and clears only the
 reserved-window capability. The shared mailbox exposes the same independent

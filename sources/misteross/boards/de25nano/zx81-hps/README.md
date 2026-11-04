@@ -282,3 +282,10 @@ derived-file hashes. The Qsys interfaces declare separate computer/scanout clock
 and reset releases, one read-only memory master, finished video, PCM and expansion
 conduits. It creates component files only, without selecting a canonical board
 recipe, compiling an image, admitting a runtime profile or programming hardware.
+
+`fes_de25_audio.v` supplies the board audio wrapper: the exact Terasic HDMI_ASx4
+`av_pll` driven by `CLOCK1_50`, plus the existing coherent stereo PCM crossing
+and I2S serializer. The vendor PLL requests12.288MHz; its integer ratio is
+50MHz×58/236 (about12.2881356MHz). Guest HOLD mutes samples rather than resetting
+that clock/handshake. This module still needs complete-board recipe selection,
+physical reset/timing, transmitter integration and native audio capture.
