@@ -27,6 +27,21 @@ GOLDEN = ROOT/'platform/embedded/tamago/nativefabric/testdata/hps-context.json'
 
 
 class HPSContextTests(unittest.TestCase):
+    def test_cold_identity_covers_owned_firmware_installer_inputs(self):
+        # Compare the two real producer inventories in a fresh interpreter;
+        # future installer additions must enter the matched chain identity.
+        script = """
+import sys
+from pathlib import Path
+root=Path(sys.argv[1])
+sys.path[:0]=[str(root/'platform/embedded/nano'),str(root/'platform/embedded/firmware')]
+import cold_profile,prepare_nano_owned
+missing=set(prepare_nano_owned.inputs())-set(cold_profile.sources())
+assert not missing, 'owned firmware omitted from boot identity: '+str(sorted(missing))
+"""
+        result=subprocess.run([sys.executable,'-c',script,str(ROOT)],capture_output=True,text=True)
+        self.assertEqual(result.returncode,0,result.stdout+result.stderr)
+
     def setUp(self):
         self.descriptor = json.loads(GOLDEN.read_bytes())
         self.record = {'program': 'bootcontext', 'hps_project': 'sealed-project',

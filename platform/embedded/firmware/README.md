@@ -1005,3 +1005,8 @@ checks against modeled registers/PHY responses. Separate Go tests run the actual
 DWC2 driver with a modeled USB device and firmware replies. These checks cover
 prepare/confirm/stop, stale sources, failed enumeration, lost replies and blocked
 SD/FPGA calls. They do not establish physical USB or simultaneous USB/core access.
+
+The cold chain identity includes every input from the owned firmware installer,
+including the USB wire service and program actor. A producer-inventory regression
+checks this closure so adding firmware code cannot silently omit it from the
+matched boot-chain identity.
