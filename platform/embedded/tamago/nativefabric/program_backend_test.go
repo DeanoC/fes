@@ -148,7 +148,9 @@ func (p *nativeAppPlatform) Next(ctx context.Context) (tenfoot.PlatformInput, er
 	}
 	switch p.stage {
 	case 0:
-		if len(s.Games) > 0 {
+		// A refresh can retain old rows while loading. Select is deliberately
+		// ignored in that state; wait for the same ready view as a real user.
+		if len(s.Games) > 0 && !s.Loading {
 			input.Commands = []tenfoot.Command{tenfoot.CmdSelect}
 			p.stage = 1
 		}

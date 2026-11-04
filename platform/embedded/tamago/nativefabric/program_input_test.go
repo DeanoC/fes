@@ -184,7 +184,7 @@ func (p *programInputApp) Next(ctx context.Context) (tenfoot.PlatformInput, erro
 	view := p.app.Snapshot()
 	switch p.stage {
 	case 0:
-		if len(view.Games) > 0 && p.fixture.s.Status().State == ProgramReady {
+		if len(view.Games) > 0 && !view.Loading && p.fixture.s.Status().State == ProgramReady {
 			p.source.reports = [][]byte{make([]byte, 8), {0, 0, 40, 0, 0, 0, 0, 0}}
 			p.stage = 1
 		}
