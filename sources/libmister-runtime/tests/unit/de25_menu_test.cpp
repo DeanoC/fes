@@ -179,6 +179,33 @@ void SessionPinnedPeerAndUncertainCloseBlockReopen() {
   assert(gp.quiesces==(pinned?0u:1u));
  }
 }
+void SessionRetirementConfirmsPendingFrameBeforeClear() {
+ Operations o;SessionControl gp(o);LinuxDe25Menu m(o.clock,o);MenuDisplayInfo info;
+ assert(m.Bind(build,100,&gp).ok()&&m.Activate(true,false).ok()&&m.Configure(100).ok()&&m.Enable(100).ok());
+ assert(m.Submit(1,1,100).ok()&&(o.state.state&8));
+ const auto polls=o.polls;
+ assert(m.Revoke().ok()&&o.polls>polls&&o.state.displayed_sequence==0);
+ assert(m.Quiesce(100,nullptr,&info).ok()&&info.displayed_sequence==1);
+ assert(o.published.size()==1&&m.Activate(false,false).ok());
+ assert(m.ReadInfo(100,&info).ok()&&info.displayed_sequence==1);
+}
+void SessionRetirementRefusesUnconfirmedOrUnclearedCounters() {
+ for(bool stuck:{false,true}) {
+  Operations o;SessionControl gp(o);LinuxDe25Menu m(o.clock,o,5);MenuDisplayInfo info;
+  assert(m.Bind(build,100,&gp).ok()&&m.Activate(true,false).ok()&&m.Configure(100).ok()&&m.Enable(100).ok());
+  o.never_complete=stuck;
+  assert(m.Submit(1,1,100).ok());
+  if(stuck) {
+   assert(!m.Revoke().ok()&&o.reaps==0);
+   o.never_complete=false;
+   assert(!m.Revoke().ok()&&o.reaps==0&&o.published.size()==1);
+  } else {
+   assert(m.Revoke().ok());gp.stale_retired_counter=true;
+   assert(!m.Quiesce(100,nullptr,&info).ok());
+  }
+  assert(!m.Activate(false,false).ok()&&o.allocations==1);
+ }
+}
 void SessionUncertainPublicationIsNotRetried() {
  Operations o;SessionControl gp(o);LinuxDe25Menu m(o.clock,o);MenuDisplayInfo info;
  assert(m.Bind(build,100,&gp).ok()&&m.Activate(true,false).ok()&&m.Configure(100).ok()&&m.Enable(100).ok());
@@ -235,4 +262,4 @@ void AllocatedMenuContractRejectsFixedDdrAndOldIdentity() {
 }
 
 }
-int main(){SelectedSessionContractBindsBeforeAnyExposure();SessionReopenUsesNewStorageAndMonotonicLogicalFrames();SessionPinnedPeerAndUncertainCloseBlockReopen();SessionUncertainPublicationIsNotRetried();SelectedMenuDriverUsesItsOwnReadiness();AllocatedMenuContractRejectsFixedDdrAndOldIdentity();AbiAndIdentityBeforeExposure();ConfirmBlackAndReuseOneAllocation();WaitForReadyBeforeAnyDma();RetainOnIdentityFaultAndUseKernelRetirement();FailedPollReportsCachedFaultWithoutRecovery();LatePublicationDoesNotAcknowledgeOrReplay();FailedRetirementRemainsSticky();PeerReferencesCannotBecomeIdleByClosingRuntimeFd();UnsupportedPathsAndBounds();}
+int main(){SessionRetirementConfirmsPendingFrameBeforeClear();SessionRetirementRefusesUnconfirmedOrUnclearedCounters();SelectedSessionContractBindsBeforeAnyExposure();SessionReopenUsesNewStorageAndMonotonicLogicalFrames();SessionPinnedPeerAndUncertainCloseBlockReopen();SessionUncertainPublicationIsNotRetried();SelectedMenuDriverUsesItsOwnReadiness();AllocatedMenuContractRejectsFixedDdrAndOldIdentity();AbiAndIdentityBeforeExposure();ConfirmBlackAndReuseOneAllocation();WaitForReadyBeforeAnyDma();RetainOnIdentityFaultAndUseKernelRetirement();FailedPollReportsCachedFaultWithoutRecovery();LatePublicationDoesNotAcknowledgeOrReplay();FailedRetirementRemainsSticky();PeerReferencesCannotBecomeIdleByClosingRuntimeFd();UnsupportedPathsAndBounds();}

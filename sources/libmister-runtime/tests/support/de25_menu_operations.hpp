@@ -66,6 +66,11 @@ struct Operations final : De25MenuOperations {
  Error Reap(bool* done) override {
   ++reaps;if(reap_error)return {ErrorCode::io_failed,"uncertain kernel drain","menu"};
   if(drain_waits){--drain_waits;*done=false;return {};}
+  // Real OWNER_REAP proves STOP/drain, then CLEAR resets the physical
+  // counters before returning. The separate GP view sees those cleared values.
+  state.displayed_sequence=state.accepted_sequence=state.pending_sequence=0;
+  state.state=0;state.pending_slot=~std::uint32_t(0);
+  state.hardware_status=FesDe25ScanoutStatusDrained|FesDe25ScanoutStatusDisplayReady;
   *done=true;allocated=false;return {};
  }
  Error Idle(bool* idle) override {
@@ -83,7 +88,7 @@ struct Operations final : De25MenuOperations {
 // below can expose a kernel allocation; the GP submit path must never run.
 struct SessionControl final : MenuDisplay {
  Operations& operations;
- bool configured=false,enabled=false,quiesced=true,fail_quiesce=false;
+ bool configured=false,enabled=false,quiesced=true,fail_quiesce=false,stale_retired_counter=false;
  unsigned enables=0,quiesces=0,submits=0;
  explicit SessionControl(Operations& o):operations(o) {}
  Error ReadInfo(std::uint64_t,MenuDisplayInfo* out) override {
@@ -91,6 +96,7 @@ struct SessionControl final : MenuDisplay {
   out->configured=configured;out->enabled=enabled;out->quiesced=quiesced;
   out->pending=operations.state.state&8;
   out->displayed_sequence=operations.state.displayed_sequence;
+  if(stale_retired_counter&&!operations.allocated)out->displayed_sequence=1;
   out->pixel_format=2;out->picture={312,90,656,540};
   return {};
  }

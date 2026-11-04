@@ -337,6 +337,12 @@ Error LinuxDe25Menu::Retire(std::uint64_t d) {
  if(revoke_failed_)return revoke_error_;
  if(grant_<0)return {};
  auto failed=[&](Error e){faulted_=revoke_failed_=true;revoke_error_=e;return e;};
+ // OWNER_REAP clears the physical sequence after STOP/drain. Confirm every
+ // healthy session publication first; no publisher can pass this mutex while
+ // retirement runs. An uncertain publication is never replayed or adopted.
+ if(session_control_&&!faulted_&&!reap_done_&&completed_!=submitted_) {
+  Error e=Complete(d);if(!e.ok())return failed(e);
+ }
  while(!reap_done_) {
   Error e=Deadline(d);if(!e.ok())return failed(e);
   e=operations_->Reap(&reap_done_);if(e.ok())e=Deadline(d);if(!e.ok())return failed(e);
@@ -363,14 +369,14 @@ Error LinuxDe25Menu::Quiesce(std::uint64_t d,const CoreDescriptor* identity,Menu
  if(session_control_) {
   MenuDisplayInfo observed;e=session_control_->Quiesce(d,identity,&observed);
   if(e.ok())e=Deadline(d);
-  // Kernel retirement may complete an already accepted frame. The GP endpoint
-  // samples the final counter after STOP/drain, before the next allocation's CLEAR.
-  if(e.ok()&&(observed.displayed_sequence<completed_||observed.displayed_sequence>submitted_||
-      observed.displayed_sequence>std::numeric_limits<std::uint32_t>::max()-sequence_base_))
-   e=Failed("DE25 retired session completion differs from its kernel publication");
+  // Successful OWNER_REAP already performed CLEAR. GP must observe zero;
+  // the final logical completion was independently confirmed before retirement.
+  if(e.ok()&&(observed.displayed_sequence!=0||completed_!=submitted_||
+      completed_>std::numeric_limits<std::uint32_t>::max()-sequence_base_))
+   e=Failed("DE25 retired session counter was not cleared or publication was unconfirmed");
   if(!e.ok())return Fault(e);
-  completed_=observed.displayed_sequence;session_quiesced_=true;
-  observed.displayed_sequence+=sequence_base_;if(out)*out=observed;
+  session_quiesced_=true;
+  observed.displayed_sequence=completed_+sequence_base_;if(out)*out=observed;
  } else if(out)Observation(out,true);
  return {};
 }

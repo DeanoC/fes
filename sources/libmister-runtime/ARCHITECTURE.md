@@ -1021,9 +1021,13 @@ it does not accept later standard-core artifacts.
 The existing LinuxDe25Menu allocation adapter can bind a separate GP display
 control for the standard session plane. GP owns Configure/Enable/Quiesce and
 observations; kernel PUBLISH remains the sole frame submission path. No GP
-SUBMIT or physical-address window is used. Revoke proves kernel STOP/drain and
+SUBMIT or physical-address window is used. Before retiring a healthy session,
+the adapter confirms every submitted frame through kernel POLL. Revoke proves kernel STOP/drain and
 all peer references gone before GP quiescence can authorize a fresh allocation.
-OWNER_ALLOC clears physical sequence/slot state. The adapter offsets that new
+OWNER_REAP performs CLEAR after drain; GP quiescence must observe physical
+sequence0, while the adapter retains only the pre-retirement confirmed count.
+Unconfirmed publications and nonzero retired counters prevent reopening.
+OWNER_ALLOC also starts with cleared physical sequence/slot state. The adapter offsets that new
 physical sequence by the last completed logical sequence; runtime back-slot
 ownership starts at1 again. Per-frame mapping is negotiated for session grants
 as well as idle MENU. The machine stays running throughout visibility changes.
