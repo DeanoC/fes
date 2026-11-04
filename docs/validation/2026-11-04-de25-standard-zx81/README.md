@@ -493,3 +493,21 @@ This record accepts the stated lost-process cases on those exact artifacts.
 It does not accept uncertain hardware, dirty SAVE loss, guest-session resumption,
 physical USB/audio, native ROM/persona composition or physical PR. Current-head
 CI and independent review remain required; full normal-kit acceptance is open.
+
+## Combined client receipt after runtime recovery changes
+
+The actual combined client/RTL proof at committed source
+`04ba8455010e57bb6b8abfe26122bec65c7f3e38` passes all 14 native and emulated
+Cortex-A76 AArch64 cases in 1047.993 seconds. The real ROM emits a 923-byte SAVE;
+both clients load/run/reload it and print 7, exercise empty/RAM/empty selection,
+and contain wrong identities, callback failure, ambiguous writes, missing
+responses and late reset. This uses the diagnostic selection mux and behavioral
+memory; it does not establish physical partial reconfiguration or kit-CPU execution.
+
+The branch-local combined proof fixture is copied byte-for-byte from that run
+after checking every compiler/runtime hash against the current committed bytes.
+The intervening generated-parent pin fix changes none of those captured inputs.
+This refresh repairs the stale receipt exposed by CI after runtime header changes;
+it grants no timing or hardware exception. The new standard-core package still
+requires complete timing checks, an independent matching rebuild and exact-artifact
+board acceptance.
