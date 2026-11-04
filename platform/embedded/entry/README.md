@@ -34,6 +34,12 @@ remains in the decoded ELF. The Nano FIT load limit stays 8 MiB.
 
 The allocation-free [puff inflater](vendor/puff/README.md) uses pinned, unmodified
 zlib-contributed source with a private GCC jump shim. It links no C runtime.
+The AArch64 loader requires the architectural IEEE CRC32 capability, checks the
+CPU feature register before decoding, and computes the full gzip checksum with
+aligned eight-byte loads and CRC32X plus bounded byte edges. Unsupported feature
+values park before decoding. Host checks use an independent portable CRC oracle.
+ELF copies and BSS clearing also use naturally aligned eight-byte accesses where
+possible, preserving exact byte extents and every existing plan exclusion.
 ARM64 compilation requires strict alignment while the MMU/cache are off. Inflater
 static tables are materialized in the stored image; the builder conservatively
 checks the sum of C stack frames plus exception headroom against the existing
@@ -41,6 +47,7 @@ checks the sum of C stack frames plus exception headroom against the existing
 
 `FES_BOOT_STEP` records sample the physical CPU counter, frequency, exception
 level and cache-control register at loader/decode/copy/handoff boundaries.
+Separate `inflate_end` and `checksum_end` samples distinguish the two CPU costs.
 Nano startup adds allocation-free checkpoints after the runtime enables its
 MMU, installs vectors, enters `main`, verifies its context, opens SD, mounts FAT
 and retains the fixed package. The separate `startup.py` decoder retains partial
@@ -92,10 +99,14 @@ python3 platform/embedded/entry/verify.py \
 The U-Boot checkout must be clean at pinned commit
 `d0f8813fd6bf8191d49c8b8d2035ffd2ae10c413`; see the
 [vendor firmware guide](../firmware/README.md) for its source. The verifier
-checks the U-Boot build receipt and image hashes, then boots nine independent
+checks the U-Boot build receipt and image hashes, then boots eleven independent
 QEMU guests: a complete native Go probe, corrupt ELF, loader/decode-workspace
 overlap, bad gzip CRC, truncated DEFLATE, wrong decoded size, an extra member,
-and entry at the wrong exception level. Negative ELF cases relink the same
+and entry at the wrong exception level. A target C payload executes the actual
+copy/zero/CRC primitives across every byte alignment and word boundary against
+independent byte/bit oracles and canaries. A private control masks the CPU's CRC
+feature read to exercise real early rejection; this simulates an absent feature.
+Negative ELF cases relink the same
 checked entry objects around private malformed payloads, so the actual target
 planner must reject them after successful decoding. Each guest has one CPU and
 its own output log. The failure cases must stop before the EL1

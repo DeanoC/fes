@@ -252,7 +252,7 @@ def main():
         parser.error("missing compiler cc1")
     tools["cc1"] = {"path": str(cc1), "sha256": sha(cc1.read_bytes())}
     files = [HERE / name for name in ("build.py", "entry.S", "entry.c", "entry.ld", "elf_plan.c", "elf_plan.h",
-                                     "payload.c", "payload.h", "payload.py")]
+                                     "payload.c", "payload.h", "payload.py", "memory.c", "memory.h", "crc32.c", "crc32.h")]
     files.extend(sorted((HERE / 'vendor/puff').iterdir()))
     if args.target == "de25-nano":
         files.append(nano_builder)
@@ -283,7 +283,7 @@ def main():
               "-DFES_ENTRY_RAM_START=" + hex(ram_start),
               "-DFES_ENTRY_RAM_END=" + hex(ram_end), "-DFES_ENTRY_UART_BASE=" + hex(uart_base),
               "-I" + str(HERE), "-I" + str(HERE / "vendor/puff")]
-    parts = (HERE / "entry.S", HERE / "entry.c", HERE / "elf_plan.c", HERE / "payload.c",
+    parts = (HERE / "entry.S", HERE / "entry.c", HERE / "elf_plan.c", HERE / "payload.c", HERE / "memory.c", HERE / "crc32.c",
              HERE / "vendor/puff/puff.c", output / "payload.S")
     for index, source in enumerate(parts):
         run("compile-" + str(index), [*common, "-c", source, "-o", output / ("part-" + str(index) + ".o")])
@@ -313,7 +313,7 @@ def main():
     host_lib = output / "elf_plan.so"
     run("host-plan-build", [host_cc, "-std=c11", "-O2", "-Wall", "-Wextra", "-Werror", "-shared", "-fPIC",
                             "-ffreestanding", "-fno-builtin", "-I" + str(HERE), "-I" + str(HERE / 'vendor/puff'),
-                            HERE / "elf_plan.c", HERE / 'payload.c', HERE / 'vendor/puff/puff.c', "-o", host_lib], host=True)
+                            HERE / "elf_plan.c", HERE / 'payload.c', HERE / 'crc32.c', HERE / 'vendor/puff/puff.c', "-o", host_lib], host=True)
     library = ctypes.CDLL(str(host_lib))
     unpack = library.fes_entry_unpack
     unpack.argtypes = [ctypes.c_void_p, ctypes.c_uint64, ctypes.c_void_p, ctypes.c_uint64, ctypes.POINTER(ctypes.c_uint64)]
@@ -353,6 +353,8 @@ def main():
               "payload_size": len(payload_bytes), "payload_encoding": payload_codec.ENCODING,
               "payload_stored_size": len(packed), "payload_stored_sha256": sha(packed),
               "decode_base": decode_base, "decode_capacity": decode_capacity,
+              "crc32_implementation": "arm64-ieee-crc32-aligned64-v1", "crc32_feature_required": True,
+              "segment_copy": "aligned64-with-bounded-byte-edges-v1",
               "stack_usage": stack, "native_entry": plan.entry,
               "objects": {"part-"+str(i)+".o": sha((output/("part-"+str(i)+".o")).read_bytes()) for i in range(len(parts))},
               "segments": [{name: getattr(plan.segments[i], name) for name, _ in Segment._fields_} for i in range(plan.count)],

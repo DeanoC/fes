@@ -6,6 +6,7 @@ import importlib.util
 import json
 import os
 from pathlib import Path
+import re
 import selectors
 import shutil
 import struct
@@ -79,7 +80,7 @@ def fault_image(record, original_build, packed, directory):
     """
     directory.mkdir()
     objects=record['objects']
-    names=['part-'+str(i)+'.o' for i in range(6)]
+    names=['part-'+str(i)+'.o' for i in range(8)]
     if set(objects)!=set(names):raise ValueError('entry fault fixture requires the complete object inventory')
     for name in names:
         source=original_build/name
@@ -95,7 +96,7 @@ def fault_image(record, original_build, packed, directory):
     (directory/'payload.S').write_text('.section .payload,"a"\n.global __payload_start, __payload_end\n__payload_start:\n.incbin "payload.gz"\n__payload_end:\n')
     elf=directory/'entry.elf';image=directory/'entry.img'
     commands=[
-        [tools['gcc']['path'],'-c','payload.S','-o','part-5.o'],
+        [tools['gcc']['path'],'-c','payload.S','-o','part-7.o'],
         [tools['gcc']['path'],'-nostdlib','-static','-no-pie','-Wl,--build-id=none',
          '-Wl,-T,'+str(HERE/'entry.ld'),'-Wl,--defsym=FES_ENTRY_IMAGE_ADDRESS='+hex(ADDRESS),*names,'-o',str(elf)],
         [tools['objcopy']['path'],'-O','binary',str(elf),str(image)]]
@@ -103,6 +104,53 @@ def fault_image(record, original_build, packed, directory):
         with (directory/('relink-'+str(i)+'.log')).open('wb') as log:
             subprocess.run(command,cwd=directory,env=record['environment'],stdout=log,stderr=subprocess.STDOUT,check=True,timeout=30)
     return image.read_bytes()
+
+
+def memory_crc_image(record, original_build, directory):
+    """Run the same target primitives over all byte/word boundaries in QEMU."""
+    directory.mkdir()
+    fixture = HERE / 'testdata/memory_crc.c'
+    (directory/'start.S').write_text('.text\n.global _start\n_start:\nb fes_entry_test_main\n')
+    (directory/'payload.ld').write_text('ENTRY(_start)\nPHDRS { text PT_LOAD FLAGS(5); data PT_LOAD FLAGS(6); }\n'
+        'SECTIONS { . = 0x40020000; .text : { *(.text*) *(.rodata*) } :text\n'
+        '. = ALIGN(4096); .data : { *(.data*) } :data .bss : { *(.bss*) *(COMMON) } :data\n'
+        '/DISCARD/ : { *(.comment) *(.note*) *(.eh_frame*) } }\n')
+    gcc = record['tools']['gcc']['path']
+    flags = ['-ffreestanding','-fno-builtin','-fno-stack-protector','-fno-unwind-tables',
+             '-fno-asynchronous-unwind-tables','-mgeneral-regs-only','-mstrict-align','-O2','-I'+str(HERE)]
+    parts = [directory/'start.S', fixture, HERE/'memory.c', HERE/'crc32.c']
+    for i, source in enumerate(parts):
+        command = [gcc,*flags,'-c',str(source),'-o',str(directory/(str(i)+'.o'))]
+        with (directory/('compile-'+str(i)+'.log')).open('wb') as log:
+            subprocess.run(command,env=record['environment'],stdout=log,stderr=subprocess.STDOUT,check=True,timeout=30)
+    payload = directory/'primitives.elf'
+    command = [gcc,'-nostdlib','-static','-no-pie','-Wl,--build-id=none',
+               '-Wl,-T,'+str(directory/'payload.ld'),*[str(directory/(str(i)+'.o')) for i in range(4)],'-o',str(payload)]
+    with (directory/'link.log').open('wb') as log:
+        subprocess.run(command,env=record['environment'],stdout=log,stderr=subprocess.STDOUT,check=True,timeout=30)
+    return fault_image(record, original_build, entry_payload.encode(payload.read_bytes()), directory/'entry')
+
+
+def absent_crc_image(record, original_build, original):
+    """Mask the feature read in a private control, leaving the rejection real.
+
+    This simulates absent CRC; it does not claim an actual CPU without CRC.
+    """
+    nm = record['tools']['nm']
+    if digest(Path(nm['path']).read_bytes()) != nm['sha256']:
+        raise ValueError('entry symbol reader changed')
+    symbols = subprocess.check_output([nm['path'],'--defined-only',str(original_build/'entry.elf')],
+                                      env=record['environment'],text=True)
+    matches = re.findall(r'(?m)^([0-9a-f]+) T fes_entry_crc32_supported$',symbols)
+    if len(matches) != 1:
+        raise ValueError('missing strong CRC feature checker')
+    offset = int(matches[0],16) - ADDRESS
+    # MRS X0, ID_AA64ISAR0_EL1 -> MOV X0, XZR, before the actual field check.
+    if not 64 <= offset < record['payload_offset']-4 or struct.unpack_from('<I',original,offset)[0] != 0xd5380600:
+        raise ValueError('CRC feature checker instruction changed')
+    image = bytearray(original)
+    struct.pack_into('<I',image,offset,0xaa1f03e0)
+    return bytes(image)
 
 
 def main():
@@ -170,9 +218,12 @@ def main():
             ('truncated-deflate',packed[:10]+packed[10:-9]+packed[-8:],b'FES_ENTRY REJECT PAYLOAD'),
             ('wrong-decoded-size',bytes(length),b'FES_ENTRY REJECT PAYLOAD'),
             ('extra-member',packed+packed,b'FES_ENTRY REJECT PAYLOAD')]
-    variants=[('native-probe',original,'on',GOOD)]
+    variants=[('native-probe',original,'on',GOOD),
+              ('target-memory-crc',memory_crc_image(record,image_build,output/'target-memory-crc-build'),
+               'on',b'FES_ENTRY_MEMORY_CRC PASS')]
     for name,encoded,marker in inputs:
         variants.append((name,fault_image(record,image_build,encoded,output/(name+'-build')),'on',marker))
+    variants.append(('absent-crc-feature',absent_crc_image(record,image_build,original),'on',b'FES_ENTRY REJECT CRC32'))
     variants.append(('wrong-exception-level',original,'off',b'FES_ENTRY REJECT EL'))
     result = {"status": "running", "classification": "QEMU-only U-Boot/native handoff, not DE25 hardware",
               "producer_sha256": digest((HERE / "verify.py").read_bytes()),
@@ -183,6 +234,7 @@ def main():
               "uboot_config_sha256": digest(config.read_bytes()),
               "uboot_build_sha256": digest(uboot_receipt_bytes), "cases": [],
               "startup_decoder_sha256": digest((HERE / "startup.py").read_bytes()),
+              "memory_crc_fixture_sha256": digest((HERE/'testdata/memory_crc.c').read_bytes()),
               "limitations": ["QEMU firmware and CPU are not the Nano firmware or CPU",
                               "no physical DDR, DMA, device, FPGA or recovery proof",
                               "build receipts are diagnostic hashes, not signatures"]}
@@ -195,11 +247,13 @@ def main():
             startup = decode_startup(console, through='handoff')
             if startup['errors']:
                 raise ValueError(name + ' has invalid startup CPU/counter checkpoints: ' + str(startup['errors']))
-            if name == "native-probe":
+            if name in ('native-probe', 'target-memory-crc'):
                 if not startup['complete']:
                     raise ValueError(name + ' lacks complete cache-on/decode/copy/cache-off checkpoints')
-                markers = (b"FES_ENTRY EL2 CLEAN", b"FES_ENTRY EL1 HANDOFF",
-                           b"PASS timer goroutine allocation GC", b"PASS volatile memory filesystem", GOOD)
+                markers = ((b"FES_ENTRY EL2 CLEAN", b"FES_ENTRY EL1 HANDOFF",
+                            b"PASS timer goroutine allocation GC", b"PASS volatile memory filesystem", GOOD)
+                           if name == 'native-probe' else
+                           (b'FES_ENTRY EL2 CLEAN',b'FES_ENTRY EL1 HANDOFF',b'FES_ENTRY_MEMORY_CRC PASS'))
                 positions = [console.find(marker) for marker in markers]
                 if -1 in positions or positions != sorted(positions):
                     raise ValueError(name + " lacks the ordered native handoff/probe markers")
@@ -219,6 +273,7 @@ def main():
                 digest(config.read_bytes()) != result["uboot_config_sha256"] or
                 digest((HERE / "verify.py").read_bytes()) != result["producer_sha256"] or
                 digest((HERE / "startup.py").read_bytes()) != result["startup_decoder_sha256"] or
+                digest((HERE/'testdata/memory_crc.c').read_bytes()) != result['memory_crc_fixture_sha256'] or
                 (uboot_build / "result.json").read_bytes() != uboot_receipt_bytes):
             raise ValueError("test inputs changed during the run")
         result["status"] = "passed"

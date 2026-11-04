@@ -2,29 +2,20 @@
 #include <stddef.h>
 #include <stdint.h>
 #include "payload.h"
+#include "crc32.h"
 #include "vendor/puff/puff.h"
+
+#ifdef FES_ENTRY_UART_BASE
+void fes_entry_checkpoint(const char *phase);
+#define CHECKPOINT(phase) fes_entry_checkpoint(phase)
+#else
+#define CHECKPOINT(phase) ((void)0)
+#endif
 
 static uint32_t little32(const uint8_t *p)
 {
     return (uint32_t)p[0] | (uint32_t)p[1] << 8 |
            (uint32_t)p[2] << 16 | (uint32_t)p[3] << 24;
-}
-
-static uint32_t crc32(const uint8_t *p, uint64_t length)
-{
-    static const uint32_t table[16] = {
-        0x00000000U, 0x1db71064U, 0x3b6e20c8U, 0x26d930acU,
-        0x76dc4190U, 0x6b6b51f4U, 0x4db26158U, 0x5005713cU,
-        0xedb88320U, 0xf00f9344U, 0xd6d6a3e8U, 0xcb61b38cU,
-        0x9b64c2b0U, 0x86d3d2d4U, 0xa00ae278U, 0xbdbdf21cU
-    };
-    uint32_t value = 0xffffffffU;
-    for (uint64_t i = 0; i < length; i++) {
-        value ^= p[i];
-        value = (value >> 4) ^ table[value & 15U];
-        value = (value >> 4) ^ table[value & 15U];
-    }
-    return ~value;
 }
 
 int fes_entry_unpack(const uint8_t *source, uint64_t size,
@@ -45,8 +36,12 @@ int fes_entry_unpack(const uint8_t *source, uint64_t size,
     if (expected < 64 || expected > capacity) return 0;
     unsigned long input = (unsigned long)(size - 18), output = expected;
     if (puff(destination, &output, source + 10, &input) != 0 ||
-        input != size - 18 || output != expected ||
-        crc32(destination, output) != little32(source + size - 8)) return 0;
+        input != size - 18 || output != expected) return 0;
+    CHECKPOINT("inflate_end");
+    uint32_t checksum;
+    if (!fes_entry_crc32(destination, output, &checksum)) return 0;
+    CHECKPOINT("checksum_end");
+    if (checksum != little32(source + size - 8)) return 0;
     *written = output;
     return 1;
 }

@@ -1,7 +1,7 @@
 """Decode CPU startup checkpoints, independently of native ownership receipts."""
 import re
 
-PHASES = ('loader_begin', 'decode_begin', 'decode_end', 'copy_end', 'handoff',
+PHASES = ('loader_begin', 'decode_begin', 'inflate_end', 'checksum_end', 'decode_end', 'copy_end', 'handoff',
           'go_hwinit', 'go_vectors', 'go_main', 'verifier_ready', 'sd_open_begin',
           'sd_open_end', 'fat_mount_end', 'retain_begin', 'retain_end')
 PATTERN = re.compile(r'FES_BOOT_STEP phase=(?P<phase>[a-z_]{1,24}) '
@@ -41,12 +41,13 @@ def decode(data, through='retain_end'):
         index = len(records)
         rejection = phase == 'rejected'
         if (report['rejected'] or
-                (rejection and (not records or records[-1]['phase'] not in ('decode_begin', 'decode_end'))) or
+                (rejection and (not records or records[-1]['phase'] not in
+                               ('loader_begin', 'decode_begin', 'inflate_end', 'checksum_end', 'decode_end'))) or
                 (not rejection and (index >= len(expected) or phase != expected[index]))):
             report['errors'].append(f'out-of-order or duplicate startup checkpoint at line {number}')
         state = (0 if phase in ('loader_begin', 'handoff', 'rejected') else
-                 0x1000 if phase in ('decode_begin', 'decode_end', 'copy_end') else 0x1005)
-        level = 2 if phase in PHASES[:5] or rejection else 1
+                 0x1000 if phase in PHASES[1:6] else 0x1005)
+        level = 2 if phase in PHASES[:7] or rejection else 1
         if row['sctlr'] & 0x1005 != state or row['el'] != level:
             report['errors'].append(f'wrong startup CPU/cache state at line {number}')
         if not row['hz'] or (records and (row['hz'] != records[0]['hz'] or row['ticks'] < records[-1]['ticks'])):

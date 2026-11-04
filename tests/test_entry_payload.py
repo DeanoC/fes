@@ -35,7 +35,7 @@ class EntryPayloadTests(unittest.TestCase):
         subprocess.run([shutil.which('cc'), '-std=c11', '-O2', '-Wall', '-Wextra', '-Werror',
                         '-ffreestanding', '-fno-builtin', '-shared', '-fPIC',
                         '-I'+str(ENTRY), '-I'+str(ENTRY/'vendor/puff'),
-                        str(ENTRY/'payload.c'), str(ENTRY/'vendor/puff/puff.c'),
+                        str(ENTRY/'payload.c'), str(ENTRY/'crc32.c'), str(ENTRY/'vendor/puff/puff.c'),
                         str(ENTRY/'elf_plan.c'), '-o', str(cls.library_path)], check=True)
         cls.library = ctypes.CDLL(str(cls.library_path))
         cls.unpack = cls.library.fes_entry_unpack
@@ -219,7 +219,7 @@ int main(int argc,char **argv) {
         subprocess.run([shutil.which('cc'), '-std=c11', '-O1', '-Wall', '-Wextra', '-Werror',
                         '-fsanitize=address,undefined', '-fno-sanitize-recover=all',
                         '-I'+str(ENTRY), '-I'+str(ENTRY/'vendor/puff'), str(source),
-                        str(ENTRY/'payload.c'), str(ENTRY/'vendor/puff/puff.c'), '-o', str(binary)], check=True)
+                        str(ENTRY/'payload.c'), str(ENTRY/'crc32.c'), str(ENTRY/'vendor/puff/puff.c'), '-o', str(binary)], check=True)
         completed = subprocess.run([str(binary), str(sample)], capture_output=True, text=True, timeout=30)
         self.assertEqual(completed.returncode, 0, completed.stdout+completed.stderr)
         self.assertIn('ENTRY_PAYLOAD_SANITIZERS_PASS', completed.stdout)

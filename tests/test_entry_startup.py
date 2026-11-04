@@ -7,14 +7,17 @@ ROOT = Path(__file__).resolve().parents[1]
 spec = importlib.util.spec_from_file_location('entry_startup', ROOT / 'platform/embedded/entry/startup.py')
 startup = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(startup)
+EXPECTED = ('loader_begin', 'decode_begin', 'inflate_end', 'checksum_end', 'decode_end',
+            'copy_end', 'handoff', 'go_hwinit', 'go_vectors', 'go_main', 'verifier_ready',
+            'sd_open_begin', 'sd_open_end', 'fat_mount_end', 'retain_begin', 'retain_end')
 
 
 def fixture():
     lines = []
-    for index, phase in enumerate(startup.PHASES):
-        state = 0 if index in (0, 4) else 0x1000 if index < 5 else 0x1005
+    for index, phase in enumerate(EXPECTED):
+        state = 0 if index in (0, 6) else 0x1000 if index < 7 else 0x1005
         lines.append(f'FES_BOOT_STEP phase={phase} ticks={400000000 * (index + 1):016x} '
-                     f'hz={400000000:016x} el={2 if index < 5 else 1} sctlr={state:016x}\r\n')
+                     f'hz={400000000:016x} el={2 if index < 7 else 1} sctlr={state:016x}\r\n')
     return lines
 
 
@@ -23,8 +26,10 @@ class StartupTests(unittest.TestCase):
         report = startup.decode(''.join(fixture()))
         self.assertTrue(report['complete'], report)
         self.assertEqual(report['errors'], [])
-        self.assertEqual(report['timings_us']['decode_end'], 2000000)
-        self.assertEqual(report['timings_us']['retain_end'], 13000000)
+        self.assertEqual(tuple(r['phase'] for r in report['records']), EXPECTED)
+        self.assertEqual(report['timings_us']['inflate_end'], 2000000)
+        self.assertEqual(report['timings_us']['checksum_end'], 3000000)
+        self.assertEqual(report['timings_us']['retain_end'], 15000000)
         self.assertFalse(report['core_load_acceptance'])
 
     def test_loader_only_and_every_partial_checkpoint(self):
@@ -35,7 +40,7 @@ class StartupTests(unittest.TestCase):
                 self.assertEqual(report['errors'], [])
                 self.assertFalse(report['complete'])
                 self.assertEqual(report['last_checkpoint'], startup.PHASES[count - 1] if count else None)
-        self.assertTrue(startup.decode(''.join(lines[:5]), through='handoff')['complete'])
+        self.assertTrue(startup.decode(''.join(lines[:7]), through='handoff')['complete'])
         self.assertEqual(startup.decode(''.join(lines)[:-1])['last_checkpoint'], 'retain_begin')
 
     def test_bad_cache_exception_level_and_counter_cannot_establish_timings(self):
@@ -43,9 +48,9 @@ class StartupTests(unittest.TestCase):
         for index, old, new in (
                 (0, 'sctlr=0000000000000000', 'sctlr=0000000000001000'),
                 (1, 'sctlr=0000000000001000', 'sctlr=0000000000001004'),
-                (4, 'sctlr=0000000000000000', 'sctlr=0000000000001000'),
-                (5, 'sctlr=0000000000001005', 'sctlr=0000000000001004'),
-                (5, 'el=1', 'el=2'),
+                (6, 'sctlr=0000000000000000', 'sctlr=0000000000001000'),
+                (7, 'sctlr=0000000000001005', 'sctlr=0000000000001004'),
+                (7, 'el=1', 'el=2'),
                 (2, f'hz={400000000:016x}', f'hz={1:016x}'),
                 (0, f'hz={400000000:016x}', f'hz={0:016x}'),
                 (2, f'ticks={1200000000:016x}', f'ticks={1:016x}')):
@@ -72,12 +77,14 @@ class StartupTests(unittest.TestCase):
         lines = fixture()
         rejected = ('FES_BOOT_STEP phase=rejected ticks=0000000090000000 '
                     'hz=0000000017d78400 el=2 sctlr=0000000000000000\n')
-        for count in (2, 3):
-            report = startup.decode(''.join(lines[:count]) + rejected, through='handoff')
+        for count in (1, 2, 3, 4, 5):
+            # Keep the terminal counter later than every included checkpoint.
+            terminal = rejected.replace('0000000090000000', '00000000f0000000')
+            report = startup.decode(''.join(lines[:count]) + terminal, through='handoff')
             self.assertEqual(report['errors'], [])
             self.assertTrue(report['rejected'])
             self.assertFalse(report['complete'])
-        for changed in (rejected, ''.join(lines[:1]) + rejected,
+        for changed in (rejected, ''.join(lines[:6]) + rejected,
                         ''.join(lines[:2]) + rejected.replace('sctlr=0000000000000000', 'sctlr=0000000000001000'),
                         ''.join(lines[:2]) + rejected + lines[2]):
             self.assertTrue(startup.decode(changed)['errors'])

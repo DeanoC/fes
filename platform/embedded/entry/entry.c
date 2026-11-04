@@ -3,6 +3,8 @@
 #include <stdint.h>
 #include "elf_plan.h"
 #include "payload.h"
+#include "crc32.h"
+#include "memory.h"
 
 #ifndef FES_ENTRY_RAM_START
 #error FES_ENTRY_RAM_START must be supplied by the selected diagnostic profile
@@ -23,6 +25,10 @@ uint64_t fes_entry_loader_cache(uint64_t enabled);
 /* Freestanding GCC may use these for the small local plan. */
 void *memset(void *destination, int c, size_t length)
 {
+    if (!c) {
+        fes_entry_zero(destination, length);
+        return destination;
+    }
     uint8_t *out = destination;
     for (size_t i = 0; i < length; i++) out[i] = (uint8_t)c;
     return destination;
@@ -30,9 +36,7 @@ void *memset(void *destination, int c, size_t length)
 
 void *memcpy(void *destination, const void *source, size_t length)
 {
-    uint8_t *out = destination;
-    const uint8_t *in = source;
-    for (size_t i = 0; i < length; i++) out[i] = in[i];
+    fes_entry_copy(destination, source, length);
     return destination;
 }
 
@@ -63,7 +67,7 @@ static void hex64(uint64_t value)
 }
 
 /* CPU-only observations; these supply no device or bridge ownership. */
-static void checkpoint(const char *phase)
+void fes_entry_checkpoint(const char *phase)
 {
     uint64_t ticks, frequency, state;
     __asm__ volatile("isb\n\tmrs %0, cntpct_el0\n\tmrs %1, cntfrq_el0\n\tmrs %2, sctlr_el2"
@@ -94,7 +98,12 @@ void fes_entry_main(void)
     uint64_t stored_size = (uintptr_t)__payload_end - (uintptr_t)__payload_start;
     uint64_t payload_size = 0;
     puts("FES_ENTRY EL2 CLEAN\n");
-    checkpoint("loader_begin");
+    fes_entry_checkpoint("loader_begin");
+    if (!fes_entry_crc32_supported()) {
+        fes_entry_checkpoint("rejected");
+        puts("FES_ENTRY REJECT CRC32\n");
+        fes_entry_park();
+    }
     if (FES_ENTRY_RAM_END <= FES_ENTRY_RAM_START ||
         FES_ENTRY_RAM_END - FES_ENTRY_RAM_START <= FES_ENTRY_PAYLOAD_MAX + FES_ENTRY_STACK_RESERVE + 0x10000) {
         puts("FES_ENTRY REJECT MEMORY\n");
@@ -103,33 +112,33 @@ void fes_entry_main(void)
     uint64_t decode_base = FES_ENTRY_RAM_END - FES_ENTRY_STACK_RESERVE - FES_ENTRY_PAYLOAD_MAX;
     uint8_t *payload = (uint8_t *)(uintptr_t)decode_base;
     cache_mode(1);
-    checkpoint("decode_begin");
+    fes_entry_checkpoint("decode_begin");
     if ((image_start < decode_base + FES_ENTRY_PAYLOAD_MAX && decode_base < image_end) ||
         !fes_entry_unpack(__payload_start, stored_size, payload, FES_ENTRY_PAYLOAD_MAX, &payload_size)) {
         cache_mode(0);
-        checkpoint("rejected");
+        fes_entry_checkpoint("rejected");
         puts("FES_ENTRY REJECT PAYLOAD\n");
         fes_entry_park();
     }
-    checkpoint("decode_end");
+    fes_entry_checkpoint("decode_end");
     if (!fes_entry_plan_decoded_elf(payload, payload_size, FES_ENTRY_RAM_START,
                             FES_ENTRY_RAM_END, image_start, image_end,
                             decode_base, FES_ENTRY_PAYLOAD_MAX, &plan)) {
         cache_mode(0);
-        checkpoint("rejected");
+        fes_entry_checkpoint("rejected");
         puts("FES_ENTRY REJECT ELF\n");
         fes_entry_park();
     }
     for (uint32_t i = 0; i < plan.count; i++) {
         const struct fes_entry_segment *segment = &plan.segments[i];
-        volatile uint8_t *destination = (volatile uint8_t *)(uintptr_t)segment->address;
+        uint8_t *destination = (uint8_t *)(uintptr_t)segment->address;
         const uint8_t *source = payload + segment->file_offset;
-        for (uint64_t j = 0; j < segment->file_size; j++) destination[j] = source[j];
-        for (uint64_t j = segment->file_size; j < segment->memory_size; j++) destination[j] = 0;
+        fes_entry_copy(destination, source, segment->file_size);
+        fes_entry_zero(destination + segment->file_size, segment->memory_size - segment->file_size);
     }
-    checkpoint("copy_end");
+    fes_entry_checkpoint("copy_end");
     cache_mode(0);
-    checkpoint("handoff");
+    fes_entry_checkpoint("handoff");
     puts("FES_ENTRY EL1 HANDOFF\n");
     fes_entry_enter_el1(plan.entry, (uintptr_t)__stack_top);
 }
