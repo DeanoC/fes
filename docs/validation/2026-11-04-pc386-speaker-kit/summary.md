@@ -117,20 +117,80 @@ audible more often. The bursts also come while the game waits at the
 inventory and in the lute's key loop, so they do not come from the lute
 routine's notes. Their source is not found here.
 
+## #1453's pitch drop: run `b2`
+
+Deano approved this comparison on 4 November. It measures the change #1453's
+ISA bus-time charges make to the lute's pitch. The model in #1453's record
+([Kit B section](../2026-11-03-pc386-isa-bus-time/summary.md#kit-b-ultima-vis-speaker-at-286-12))
+puts one pass of the routine's loop at about 89 clocks plus about 475 per
+delay unit. #1453 charges the pass's port 61h `IN` and `OUT` 7 ISA clocks
+each, 14 in all. At one delay unit the pass goes from 564 to 578 clocks, a
+2.42% drop in pitch. At two units the drop would be 1.33%.
+
+### The "before" package
+
+`make build-fes-pc386-quartus` at seed 1 from a clean checkout of
+`c25e8de27` ([`seal-before-summary.json`](seal-before-summary.json)): main
+at #1458's merge, which has BIOS `8057fada` but not #1453 (`0686f5601` is
+not its ancestor). Same toolchain as the seal above.
+
+- **Identity.** Build `af1ab5c3e9150ee2491e165fd8ecc3af`, package
+  `c621bce71d4dd196abafdbd8ff5995ddde21e1c709ea11717590ac84f7f8a1ca`,
+  RBF 3,634,796 bytes, SHA-256 `3725bc44…`.
+- **Timing.** Every analysis passes: setup +1.005 ns, hold +0.033 ns,
+  recovery +6.267 ns, removal +0.539 ns, minimum pulse width +1.122 ns, at
+  the same clocks.
+- **Resources.** 28,990 ALMs, 26,088 registers, 259 RAM blocks, 32 DSP
+  blocks.
+- **What differs.** Its 109 pinned inputs hash as at `c25e8de27`. Only three
+  differ from the `a8c5a393` seal's: `fes_i386_cpu.sv`, `fes_i386_gov_pkg.sv`
+  and `fes_i386_governor.sv`, all #1453's. The firmware and guest rates are
+  the same. Between the two seals' heads, main's other commits (#1463, #1464,
+  #1465, #1462) touch neither the pc386 core nor the shared RTL, so this pair
+  isolates #1453.
+
+### The run
+
+Run `b2`, 4 November 08:51-09:07 EET, Kit B, claimed and released in
+`kitB-STATUS.md` on the same baseline as `k1`, core-only, with no reboot. It
+used one kit lease, and both packages played back to back as fresh library
+games at 286-12 through `k1`'s flow. Each game played 10 × `1`, 10 × `6` and
+10 × `0`, 0.66 s apart. Every key gave one note on both packages: 30 and 30.
+WAVs `567f89f6…` (before) and `7367d228…` (after) stay on Powerboat.
+
+| Key | Before, `c621bce7` | After, `a8c5a393` | After / before | Drop |
+| --- | ---: | ---: | ---: | ---: |
+| `1` | 511.8 Hz (511.2-517.4) | 501.5 Hz (500.1-506.1) | 0.9799 | 2.01% |
+| `6` | 859.0 Hz (858.2-859.6) | 839.0 Hz (838.3-841.0) | 0.9767 | 2.33% |
+| `0` | 1,265.3 Hz (1,261.2-1,272.5) | 1,232.5 Hz (1,231.4-1,234.4) | 0.9741 | 2.59% |
+
+Each pitch is the median over the 10 notes of each note's envelope pitch
+(`u6_tones.py`), with the range across notes in brackets. Notes are
+95-105 ms long on both packages, a median of 100-105 ms, so the length
+does not change at the analyser's 5 ms frame. The ratio and drop use the
+displayed one-decimal pitch medians. The after figures repeat
+run `k1`'s from the same package to 0.1%: 501.4, 839.7 and 1,232.6 Hz.
+
+**Result.** #1453 lowers the lute's pitch by 2.0-2.6%, 2.31% on average
+over the three keys. That matches the model at one delay unit (2.42%) and
+not at two (1.33%). So the routine's `[2FC6h]`/24 delay unit was 1 here,
+as #1453's record assumed. The drop grows with pitch, from 2.01% at 512 Hz to
+2.59% at 1,265 Hz. The model, a fixed charge per pass, predicts one ratio
+for every key. The spread is not explained here. The envelope is smoothed
+over 21 samples (0.44 ms), more than half a period at `0`, and edge times
+are resolved at 48 kHz, so the measurement's resolution is the first
+suspect.
+
 ## Not done here
 
 - **The source of the 58.6 ms bursts.** Open. An idle-time speaker path in
   the game, or the machine's port 61h/PIT, would fit what is seen. Telling
   them apart needs a port 61h/43h/42h trace of the same scene, from the
   bench or Bochs.
-- **#1453's pitch comparison.** #1453 merged before this run. The ~2.5% drop
-  that its ISA charges predict for this routine needs a second package,
-  sealed at `c25e8de27` (#1458 without #1453), run through the same flow.
-  Neither earlier package (`c86c5ebf`, `c7e06e04`) plays tones, so neither
-  can be the "before". This record gives the absolute pitches on main only.
+- **Why the drop differs by key.** See run `b2`'s result.
 - **Whether the scale is in tune.** That needs the routine's note steps and
   a reference machine's pitch (Bochs, or a real 286-12).
-- **Kit leftovers.** The run left 10 paths in FogCast's data directories on
-  Kit B: the game's record and its disk delta (listed in the status log).
-  The staged game disk was already on the kit from #1453's runs. None of
-  these have been removed.
+- **Kit leftovers.** Run `k1` left 10 paths in FogCast's data directories on
+  Kit B and run `b2` 20: the games' records and disk deltas (listed in the
+  status log). The staged game disk was already on the kit from #1453's
+  runs. Deano chose to leave them.

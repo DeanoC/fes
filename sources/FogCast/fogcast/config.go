@@ -80,6 +80,7 @@ type Config struct {
 	Media               MediaConfig
 	Firmware            FirmwareConfig
 	CorePackages        CorePackagesConfig
+	FolderWatch         FolderWatchConfig
 	Metadata            MetadataConfig
 	LibraryMedia        []librarymedia.Root
 	Library             LibraryConfig
@@ -222,6 +223,14 @@ type FirmwareConfig struct {
 	BundledDir string
 }
 
+// FolderWatchConfig is [library] folder_watch_seconds. Off stops the watch:
+// the catalog is then scanned only when a caller asks. Interval 0 with Off
+// false is the default interval.
+type FolderWatchConfig struct {
+	Interval time.Duration
+	Off      bool
+}
+
 // CorePackagesConfig is [core_packages]. Kit makes this host a kit host: it
 // reads the kit's own packages, the durable store on FESDATA3 and then the
 // image's factory packages, and imports into the durable store. It ignores
@@ -318,6 +327,9 @@ type fileLibrarySettings struct {
 	PreferredRegions   []string `toml:"preferred_regions"`
 	VideoProfile       string   `toml:"video_profile"`
 	WatchRoot          string   `toml:"watch_root"`
+	// FolderWatchSeconds is the folder-watch poll interval. Omitted keeps
+	// catalog.DefaultFolderWatchInterval; 0 turns the watch off.
+	FolderWatchSeconds *int64 `toml:"folder_watch_seconds,omitempty"`
 }
 
 type fileMetadata struct {
@@ -466,6 +478,10 @@ func LoadConfig(path string) (Config, error) {
 	if err != nil {
 		return Config{}, err
 	}
+	folderWatch, err := folderWatchFrom(raw.Library)
+	if err != nil {
+		return Config{}, err
+	}
 	library, err := normalizeLibrarySettings(raw.Library)
 	if err != nil {
 		return Config{}, err
@@ -505,6 +521,7 @@ func LoadConfig(path string) (Config, error) {
 		Media:               media,
 		Firmware:            firmware,
 		CorePackages:        corePackagesFrom(raw.CorePackages),
+		FolderWatch:         folderWatch,
 		Metadata:            metadata,
 		LibraryMedia:        libraryMedia,
 		Library:             library,
@@ -1014,6 +1031,23 @@ func normalizeLibraries(raw []fileLibrary) ([]catalog.Root, error) {
 		libraries = append(libraries, catalog.Root{ID: library.ID, System: library.System, Path: root})
 	}
 	return libraries, nil
+}
+
+// maxFolderWatchSeconds keeps the interval a valid time.Duration.
+const maxFolderWatchSeconds = int64(24 * time.Hour / time.Second)
+
+func folderWatchFrom(raw *fileLibrarySettings) (FolderWatchConfig, error) {
+	if raw == nil || raw.FolderWatchSeconds == nil {
+		return FolderWatchConfig{}, nil
+	}
+	seconds := *raw.FolderWatchSeconds
+	if seconds < 0 || seconds > maxFolderWatchSeconds {
+		return FolderWatchConfig{}, fmt.Errorf("library folder_watch_seconds must be 0 to %d", maxFolderWatchSeconds)
+	}
+	if seconds == 0 {
+		return FolderWatchConfig{Off: true}, nil
+	}
+	return FolderWatchConfig{Interval: time.Duration(seconds) * time.Second}, nil
 }
 
 func corePackagesFrom(raw *fileCorePackages) CorePackagesConfig {

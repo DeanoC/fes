@@ -1,0 +1,284 @@
+{
+  "run": {
+    "post": [
+      {
+        "code": "00",
+        "cycle": 11518
+      },
+      {
+        "code": "21",
+        "cycle": 2243826
+      },
+      {
+        "code": "31",
+        "cycle": 2343794
+      },
+      {
+        "code": "41",
+        "cycle": 2744185
+      },
+      {
+        "code": "71",
+        "cycle": 2846546
+      },
+      {
+        "code": "77",
+        "cycle": 2946638
+      }
+    ],
+    "debug": [
+      {
+        "port": "402",
+        "text": "BIOS BUILD DATE: 11/03/26"
+      },
+      {
+        "port": "500",
+        "text": "VGABios ID: vgabios.c 2026-08-07"
+      },
+      {
+        "port": "402",
+        "text": "ata0-0: PCHS=65/16/63 translation=none LCHS=65/16/63"
+      },
+      {
+        "port": "402",
+        "text": "IDE time out"
+      },
+      {
+        "port": "402",
+        "text": "Booting from 0000:7c00"
+      },
+      {
+        "port": "0e9",
+        "text": "C2 stale-key ok"
+      },
+      {
+        "port": "0e9",
+        "text": "C2 stale-aux ok"
+      },
+      {
+        "port": "0e9",
+        "text": "C2 masked-key ok"
+      },
+      {
+        "port": "0e9",
+        "text": "C2 typing 42 resets abcdefghijklmnopq ok"
+      },
+      {
+        "port": "0e9",
+        "text": "C2 DONE ok"
+      }
+    ],
+    "panic": [],
+    "io": {
+      "isa16 2": {
+        "38": 96512
+      },
+      "isa8 1": {
+        "74": 241034
+      },
+      "vga-in 1": {
+        "6": 6
+      },
+      "vga-out 1": {
+        "4": 823
+      },
+      "vga-out 2": {
+        "7": 2753
+      }
+    },
+    "io_wait": {},
+    "inta": {
+      "146": 160
+    },
+    "screen": [
+      "                                                                                ",
+      "ata0 master: FES pc386 ATA disk ATA-4 Hard-Disk (  31 MBytes)                   ",
+      "ata0  slave: Unknown device                                                     ",
+      "                                                                                ",
+      "Booting from Hard Disk...                                                       ",
+      "FreeDOS kernel 2043 (build 2043 OEM:0xfd) [compiled May 14 2021]                ",
+      "Kernel compatibility 7.10 - WATCOMC - 80386 CPU required - FAT32 support        ",
+      "                                                                                ",
+      "(C) Copyright 1995-2012 Pasquale J. Villani and The FreeDOS Project.            ",
+      "All Rights Reserved. This is free software and comes with ABSOLUTELY NO         ",
+      "WARRANTY; you can redistribute it and/or modify it under the terms of the       ",
+      "GNU General Public License as published by the Free Software Foundation;        ",
+      "either version 2, or (at your option) any later version.                        ",
+      "C: HD1, Pri[ 1], CHS=    0-1-1, start=     0 MB, size=    31 MB                 ",
+      "                                                                                ",
+      "FreeCom version 0.86 - WATCOMC - XMS_Swap [Dec 30 2024 22:10:51]                ",
+      "                                                                                ",
+      "FreeCom version 0.86 - WATCOMC - XMS_Swap [Dec 30 2024 22:10:51]                ",
+      "C:\\>c2test                                                                      ",
+      "C2 stale-key ok                                                                 ",
+      "C2 stale-aux ok                                                                 ",
+      "C2 masked-key ok                                                                ",
+      "C2 typing 42 resets abcdefghijklmnopq ok                                        ",
+      "C2 DONE ok                                                                      ",
+      "C:\\>                                                                            "
+    ],
+    "end": {
+      "reason": "prompt",
+      "steps": 99816437,
+      "cycles": 375000041,
+      "seconds": 3.75
+    },
+    "prompt_cycle": 235000041,
+    "cpu_resets": 0,
+    "snaps": {},
+    "present": {},
+    "vga": {
+      "frames": 9820,
+      "scanout_underflows": 0,
+      "capture_drops": 0,
+      "present_underflows": 0,
+      "plane_underflows": 0,
+      "frames_shown": 0,
+      "port1_commands": 17185636,
+      "port2_commands": 2405995
+    },
+    "marks": {},
+    "opl2": {
+      "samples": 186434,
+      "exact": 186434,
+      "nonzero": 0,
+      "writes": 0
+    },
+    "opl2_mismatch": null,
+    "audio_samples": 180000,
+    "sb": {
+      "resets": 0,
+      "commands": 0,
+      "dma": 0,
+      "irqs": 0
+    },
+    "mouse": {
+      "sent": 0,
+      "scheduled": 0
+    },
+    "rtl": {
+      "stops": [],
+      "pmode": [],
+      "gaps": [],
+      "smc": [
+        {
+          "event": "store",
+          "cycle": 27270627,
+          "site": "8fe9:0000a04a",
+          "instruction": "00099eda",
+          "address": "00099efb"
+        },
+        {
+          "event": "store",
+          "cycle": 228028833,
+          "site": "1006:00002bae",
+          "instruction": "00012c0e",
+          "address": "00012c30"
+        },
+        {
+          "event": "store",
+          "cycle": 294935106,
+          "site": "1006:0000bc40",
+          "instruction": "0001bca0",
+          "address": "0001bcbc"
+        },
+        {
+          "event": "store",
+          "cycle": 294935106,
+          "site": "1006:0000bc40",
+          "instruction": "0001bca0",
+          "address": "0001bcbd"
+        },
+        {
+          "event": "store",
+          "cycle": 294935166,
+          "site": "1006:0000bc45",
+          "instruction": "0001bca5",
+          "address": "0001bcbe"
+        },
+        {
+          "event": "store",
+          "cycle": 294935166,
+          "site": "1006:0000bc45",
+          "instruction": "0001bca5",
+          "address": "0001bcbf"
+        },
+        {
+          "event": "store",
+          "cycle": 295547358,
+          "site": "2193:0000028d",
+          "instruction": "00021bbd",
+          "address": "00021c01"
+        },
+        {
+          "event": "store",
+          "cycle": 322272694,
+          "site": "2193:000002ac",
+          "instruction": "00021bdc",
+          "address": "00021c0e"
+        },
+        {
+          "event": "store",
+          "cycle": 322272750,
+          "site": "2193:000002ac",
+          "instruction": "00021bdc",
+          "address": "00021c0d"
+        }
+      ],
+      "notes": [],
+      "counters": {
+        "retired": 99816437,
+        "oracle_steps": 0,
+        "protected_steps": 0,
+        "parked_clocks": 15784068,
+        "tf_retired": 0,
+        "pe_retired": 0,
+        "pe_entries": 0,
+        "vga_loads": 17289,
+        "replays": 216,
+        "port0_reads": 1531074,
+        "port0_writes": 35773330,
+        "smc_stores": 402720,
+        "smc_addresses": 9,
+        "smc_executed": 0,
+        "smc_restarts": 614701
+      }
+    },
+    "command": [
+      "build/sim/fes-pc386/machine/obj/Vpc386_machine",
+      "--bios",
+      "build/firmware/pc386/pc386-bios.bin",
+      "--vgabios",
+      "build/firmware/pc386/pc386-vgabios.bin",
+      "--disk",
+      "build/sim/fes-pc386/c2xx-rtl/disk.img",
+      "--limit-seconds",
+      "10",
+      "--type",
+      "c2test|abcdefghijklmnopq",
+      "--key-gap",
+      "0.008",
+      "--expect",
+      "C2 DONE ok",
+      "--cpu",
+      "rtl"
+    ],
+    "exit": 0,
+    "failures": [],
+    "lines": [
+      "C2 stale-key ok",
+      "C2 stale-aux ok",
+      "C2 masked-key ok",
+      "C2 typing 42 resets abcdefghijklmnopq ok",
+      "C2 DONE ok"
+    ]
+  },
+  "checks": [
+    "C2 stale-key ok",
+    "C2 stale-aux ok",
+    "C2 masked-key ok",
+    "C2 typing 42 resets abcdefghijklmnopq ok",
+    "C2 DONE ok"
+  ],
+  "failures": []
+}

@@ -750,6 +750,20 @@ func (s *Service) PatchLibrarySettings(ctx context.Context, patch LibraryConfigP
 	return err
 }
 
+// sameTargets compares the persisted target fields and the selection.
+func sameTargets(next, current []TargetConfig, nextSelected, currentSelected string) bool {
+	if nextSelected != currentSelected || len(next) != len(current) {
+		return false
+	}
+	for i := range next {
+		a, b := next[i], current[i]
+		if a.Name != b.Name || a.Enabled != b.Enabled || a.Address != b.Address || a.Agent != b.Agent || a.TargetID != b.TargetID {
+			return false
+		}
+	}
+	return true
+}
+
 func (s *Service) setLibrarySettingsLocked(next LibraryConfig) (bool, error) {
 	if next.Libraries == nil {
 		next.Libraries = append([]catalog.Root(nil), s.roots...)
@@ -772,6 +786,11 @@ func (s *Service) setLibrarySettingsLocked(next LibraryConfig) (bool, error) {
 	selectedWrite := targetByName(next.Targets, next.SelectedTarget)
 	normalized, err := NormalizeLibraryConfig(next)
 	if err != nil {
+		return false, canonicalError(protocol.CodeBadRequest, nil)
+	}
+	if s.kitHost && !sameTargets(normalized.Targets, s.targets, normalized.SelectedTarget, s.selectedTarget) {
+		// Kit mode owns the one loopback target; only libraries and
+		// library settings change here.
 		return false, canonicalError(protocol.CodeBadRequest, nil)
 	}
 	selected := targetByName(normalized.Targets, normalized.SelectedTarget)

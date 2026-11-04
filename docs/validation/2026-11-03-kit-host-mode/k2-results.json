@@ -1,0 +1,77 @@
+{
+ "tag": "k2",
+ "head": "e073316335d25a3859809bbb965aea4c9bb5292a",
+ "baseline_sw": "b3444abf82ed254ecd47c800e1e03bc477fc98f2534d338659514dda5a4264a3",
+ "fallback_root_before": "absent",
+ "first_api_ready_s": 2.2,
+ "first_packages_ready_s": 26.1,
+ "first_listed": {
+  "2dd2271c816ad3eb83fb73be9e47b08431eaadd9a4d12484c4d684259090bdb7": "fes.atari-st",
+  "cf41dc16f28ab450ff52cc8f4e38d01d3d0f93b3e17ff207249f5a543321f337": "fes.coleco"
+ },
+ "first_config": {
+  "targets": 1,
+  "target_name": "kit",
+  "target_enabled": true,
+  "target_address": "http://127.0.0.1:8182",
+  "target_id": "73dc9f5f-1a12-4a95-a820-a9b4e600769a",
+  "target_id_matches_kit": true,
+  "token_matches_agent": true,
+  "selected_target": "kit",
+  "state": "/run/fogcast/fesdata3/k863s4/fogcast-host/state",
+  "staging": "/run/fogcast/fesdata3/k863s4/fogcast-host/staging",
+  "core_packages": {
+   "kit": true
+  },
+  "folder_watch_seconds": 0,
+  "upload_timeout_seconds": 300,
+  "firmware": {
+   "bundled_dir": "/usr/share/fogcast/firmware"
+  },
+  "libraries": [
+   "sms-main"
+  ]
+ },
+ "title_s": 29.128896303940564,
+ "game_id": "fpga-st-k863s4-6bb0c3528527",
+ "launch_start_uptime": "211120.33",
+ "launch_rc": 0,
+ "launch_s": 46.2,
+ "launch_end_uptime": "211166.79",
+ "stop_s": 2.833041085046716,
+ "idle_host_cpu_percent": 2.2,
+ "restart_api_ready_s": 1.1,
+ "restart_packages_ready_s": 24.9,
+ "restart_listed": {
+  "2dd2271c816ad3eb83fb73be9e47b08431eaadd9a4d12484c4d684259090bdb7": "fes.atari-st",
+  "cf41dc16f28ab450ff52cc8f4e38d01d3d0f93b3e17ff207249f5a543321f337": "fes.coleco"
+ },
+ "restart_config": {
+  "targets": 1,
+  "target_name": "kit",
+  "target_enabled": true,
+  "target_address": "http://127.0.0.1:8182",
+  "target_id": "73dc9f5f-1a12-4a95-a820-a9b4e600769a",
+  "target_id_matches_kit": true,
+  "token_matches_agent": true,
+  "selected_target": "kit",
+  "state": "/run/fogcast/fesdata3/k863s4/fogcast-host/state",
+  "staging": "/run/fogcast/fesdata3/k863s4/fogcast-host/staging",
+  "core_packages": {
+   "kit": true
+  },
+  "folder_watch_seconds": 0,
+  "upload_timeout_seconds": 300,
+  "firmware": {
+   "bundled_dir": "/usr/share/fogcast/firmware"
+  },
+  "libraries": [
+   "sms-main",
+   "k863s4-extra"
+  ]
+ },
+ "library_kept": true,
+ "sw_active": "b3444abf82ed254ecd47c800e1e03bc477fc98f2534d338659514dda5a4264a3",
+ "lease": "idle free",
+ "leftover": "end"
+}
