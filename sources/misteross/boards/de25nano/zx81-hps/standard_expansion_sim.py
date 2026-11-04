@@ -40,23 +40,39 @@ def run(output=None):
               HERE / 'standard_expansion_tb.cpp', sim.ZX81 / 'zx81_ram_pack.v',
               sim.ZX81 / 'zx81_bus_pack.vh', link / 'fpga/shell.v', link / 'zx81-ram/personas.v',
               link / 'generated/fes_de25_pr_control.vh', link / 'generated/fes_de25_pr_control.hpp']
+    runtime = repository / 'sources/libmister-runtime'
+    client_sources = [runtime / 'src/native' / name for name in
+                      ('fes_gp.cpp', 'de25_pr_control.cpp', 'artifacts.cpp', 'diagnostic.cpp')]
+    extras += [*client_sources, *runtime.joinpath('src/native').rglob('*.hpp'),
+               runtime / 'include/libmister-runtime/runtime.h',
+               runtime / 'tests/support/de25_standard_descriptor.hpp']
     captured.update({p.relative_to(repository).as_posix(): p.read_bytes() for p in extras})
     revision = subprocess.check_output(['git', 'rev-parse', 'HEAD'], cwd=repository, text=True).strip()
     committed = all(subprocess.run(['git', 'show', revision + ':' + name], cwd=repository,
                     capture_output=True).stdout == data for name, data in captured.items())
+    snapshot = output / 'functional-source'
     for name, data in captured.items():
-        p = output / 'functional-source' / name
+        p = snapshot / name
         p.parent.mkdir(parents=True, exist_ok=True)
         p.write_bytes(data)
+    # Compile the retained bytes, including the actual runtime clients. The
+    # test adapter only clocks the Avalon pins; it implements no GP/PR protocol.
+    def frozen(path):
+        return path if path.is_relative_to(output) else snapshot / path.relative_to(repository)
+    runtime = snapshot / 'sources/libmister-runtime'
+    includes = (HERE, sim.COMMON / 'generated', sim.ZX81, sim.Z80, scanout, link)
+    client_includes = (runtime / 'include', runtime / 'src', runtime / 'tests/support')
     flags = ('UNUSEDSIGNAL', 'UNUSEDPARAM', 'UNOPTFLAT', 'CASEINCOMPLETE', 'WIDTHTRUNC',
              'WIDTHEXPAND', 'SYNCASYNCNET', 'PINCONNECTEMPTY', 'DECLFILENAME',
              'IMPLICITSTATIC', 'VARHIDDEN', 'CASEX', 'BLKSEQ')
     command = ['verilator', '--cc', '--exe', '--build', '-j', '2', '--x-initial', 'unique', '-O3', '-Wall',
         *['-Wno-' + flag for flag in flags], '--top-module', 'fes_de25_standard_expansion_harness',
         '--Mdir', str(output / 'obj'),
-        *['-I' + str(p) for p in (HERE, sim.COMMON / 'generated', sim.ZX81, sim.Z80, scanout, link)],
-        '-CFLAGS', '-O2 -I' + str(link / 'generated') + ' -I' + str(HERE / 'generated'),
-        *map(str, sources), str(HERE / 'standard_expansion_tb.cpp')]
+        *['-I' + str(frozen(p)) for p in includes],
+        '-CFLAGS', '-O2 -std=c++14 -pthread ' + ' '.join('-I' + str(p) for p in
+            (frozen(link / 'generated'), frozen(HERE / 'generated'), *client_includes)),
+        '-LDFLAGS', '-pthread', *[str(frozen(p)) for p in sources],
+        str(frozen(HERE / 'standard_expansion_tb.cpp')), *[str(frozen(p)) for p in client_sources]]
     with (output / 'build.log').open('wb') as log:
         subprocess.run(command, cwd=ROOT, stdout=log, stderr=subprocess.STDOUT, check=True, timeout=300)
     with (output / 'simulation.log').open('wb') as log:
@@ -72,7 +88,7 @@ def run(output=None):
     if any((output / name).read_bytes() != data for name, data in derived.items()):
         raise ValueError('derived simulation source changed during execution')
     sha = lambda data: hashlib.sha256(data).hexdigest()
-    receipt = {'status': 'passed', 'classification': 'actual standard core and RAM personas; diagnostic ROM',
+    receipt = {'status': 'passed', 'classification': 'actual standard core, FesGpCoreDriver, De25PrControl and RAM personas; diagnostic ROM',
         'source_revision': revision, 'source_committed': committed,
         'source_sha256': {name: sha(data) for name, data in sorted(captured.items())},
         'derived_source_sha256': {name: sha(data) for name, data in sorted(derived.items())},

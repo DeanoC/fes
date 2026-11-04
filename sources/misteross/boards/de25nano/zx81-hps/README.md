@@ -335,12 +335,18 @@ working baseline until exact-artifact qualification and hardware acceptance.
 
 `make standard-expansion-sim OUTPUT=/new/private/path` connects the actual
 standard core, atomic GP transport and display component to the existing PR
-controller and real empty/16K RAM personas. `sim.py --bench standard-expansion`
-and the default `sim.py` suite also run it. It checks1K mirroring versus16K
-separation, empty/RAM/empty reselection, six live-write freeze phases and a
-poisoned GP transport with the PR controller still running. Two randomized
-initial-memory seeds are required; source, derived-memory/firmware, tool,
-binary and log identities are retained in `proof.json`.
+controller and real empty/16K RAM personas. The real `FesGpCoreDriver` and
+`De25PrControl` identify and control both endpoints through an Avalon pin adapter;
+the bench implements no GP or PR command protocol. `sim.py --bench standard-expansion`
+and the default `sim.py` suite also run it. It checks 1K mirroring versus 16K
+separation, empty/RAM/empty reselection, six live-write freeze phases, independent
+client HOLD/PR freeze, and a poisoned GP transport with the PR controller still
+running. A wrong persona or a callback failure after selection must leave the
+machine held in Frozen or sticky Fault and poison the PR client; another request must perform no writes
+or configuration callback. Two randomized initial-memory seeds are required.
+The runtime sources, RTL and bench compile from the retained source snapshot;
+source, derived-memory/firmware, tool, binary and log identities are retained in
+`proof.json`.
 
 The standard component exports `bus_reset` on its expansion conduit, explicitly
 associated with the system clock and system reset rather than the pixel reset.

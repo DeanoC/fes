@@ -56,7 +56,12 @@ and the explicit runtime profile uses the shared computer driver. The
 [dated native evidence](../../../docs/validation/2026-11-04-de25-standard-zx81/README.md#native-lost-process-recovery)
 identifies its exact older sealed core; a rebuild with the new reset export
 needs its own fit and hardware evidence. Physical PR and ROM/persona composition
-remain open; the expansion simulation is not a full RAM-pack or BASIC proof.
+remain open. The expansion simulation runs the actual `FesGpCoreDriver` over
+its DE25 atomic transport and the actual `De25PrControl` against the standard
+core, PR shell and empty/16K RAM personas. Its MMIO adapter only drives Avalon
+pins; shared clients own identification, Start/Quiesce and freeze/configure/resume.
+The captured runtime sources compile alongside the retained RTL. This diagnostic
+ROM test is not a BASIC or physical RAM-pack proof.
 
 `prepare_standard_component(output, revision)` in the existing ZX81-HPS builder
 stages a source-captured Qsys component. Its two Avalon slaves retain separate
