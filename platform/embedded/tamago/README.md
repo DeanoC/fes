@@ -479,3 +479,23 @@ now passes three fixed-window sessions, six frames, two fresh SD/package cycles,
 six expected stale-request rejections and final Park on TRWU8CBL. This is
 acceptance for its exact diagnostic image and observer, not the complete App
 backend, ordinary admission or HDMI/input qualification.
+
+`nativefabric.NewProgramBackend` supplies an in-process Tenfoot transport over
+`ProgramService`. Its bounded, privately copied catalog maps UI game IDs to
+platform-selected SD requests; launch still retains and preflights the selected
+package before containment. Session replies carry the actual package identity
+and service generation. Bound stop requests compare the complete captured play,
+then invoke the owned native return and SD-resume path. Malformed requests,
+stale stops and attempts to relaunch a retired service cause no firmware calls.
+The constructor transfers exclusive frontend ownership; keep the service and
+its retained resources rooted until reboot, and do not also attach a console.
+
+Host tests run the full existing Tenfoot App, renderer and RunPlatform loop
+against this adapter and the actual Go ProgramService/ProgramLoader/store,
+with secure calls and FPGA registers modeled. They cover repeated launch and
+return, content rejection before containment, and terminal programming/identity
+and return failures. This is software integration evidence. The native boot
+command has not yet selected this adapter; physical HDMI, USB hub input,
+ordinary ROM/parts/media admission and native Ethernet remain open. The
+separately accepted fixed-window renderer diagnostic does not grant display
+ownership to these computer sessions.

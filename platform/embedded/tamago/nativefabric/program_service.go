@@ -59,18 +59,19 @@ func (s ProgramSession) Generation() uint64 { return s.generation }
 type ProgramService struct{ state *programService }
 
 type programService struct {
-	operation sync.Mutex
-	viewMu    sync.Mutex
-	view      ProgramServiceStatus
-	loader    *ProgramLoader
-	store     *packagestore.Store
-	reserve   func([]byte) (*Region, error)
-	limits    computer.Limits
-	plan      *StoredConfigurationPlan
-	transfer  *ConfigurationTransfer
-	computer  *ComputerSession
-	closed    bool
-	rearm     bool
+	operation      sync.Mutex
+	viewMu         sync.Mutex
+	view           ProgramServiceStatus
+	loader         *ProgramLoader
+	store          *packagestore.Store
+	reserve        func([]byte) (*Region, error)
+	limits         computer.Limits
+	plan           *StoredConfigurationPlan
+	transfer       *ConfigurationTransfer
+	computer       *ComputerSession
+	closed         bool
+	rearm          bool
+	backendClaimed bool
 }
 
 // NewProgramService takes exclusive lifecycle ownership of this verifier once.
