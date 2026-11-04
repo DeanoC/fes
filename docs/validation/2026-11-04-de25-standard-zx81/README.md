@@ -511,3 +511,23 @@ This refresh repairs the stale receipt exposed by CI after runtime header change
 it grants no timing or hardware exception. The new standard-core package still
 requires complete timing checks, an independent matching rebuild and exact-artifact
 board acceptance.
+
+## Audio source review for the public reset export
+
+The complete fit at `b6559f38ee86f6fdd2a13dac2f979b9b4e2c97cf` reaches RBF
+generation, then correctly refuses the previous audio-source pins. The three
+changed reviewed files add only the full reset output, its system-reset conduit
+metadata and an unused top-level connection. Reversing those exact changes
+reproduces all three previously reviewed files byte-for-byte; the other five
+reviewed audio sources remain identical.
+
+A separate read-only fitted review passes in 8.930 seconds, checking 32 paths
+across four corners, the unchanged stock PLL and all five fitted pin/voltage
+settings. Its conditional receiver budgets still exclude unmodeled PCB skew
+and jitter. [audio-reset-export-review.json](audio-reset-export-review.json)
+records the source comparison and fitted observations. The three literal source
+pins are updated after this review; the eligible internal16K profile, two approved
+clock ports, warning inventory and all timing/admission gates remain unchanged.
+The failed candidate stays unadmitted. A fresh complete producer run and matching
+independent rebuild are required for the changed producer inputs; physical board
+acceptance remains open.

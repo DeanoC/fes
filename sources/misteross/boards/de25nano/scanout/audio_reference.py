@@ -19,15 +19,17 @@ REPORTS = {'clocks.tsv', 'paths.tsv'} | {
     for clock in ('bit_clock', 'word_clock') for path in ('network', 'output') for bound in ('min', 'max')}
 # Frozen reviewed implementation. A serializer, wrapper, integration or clock
 # change requires another review; source hashes cannot silently follow HEAD.
+# The reviewed full-reset export adds only an unused standard-base output and
+# its system-reset conduit metadata; audio logic and wiring remain identical.
 SOURCES = {
     'boards/de25nano/zx81-hps/fes_de25_audio.v': '9f2d1436b75ef1fe489a55ea4139b2f5dcd922072528b6f68d344d851cca6f33',
     'cores/fes-common/rtl/fes_audio_output.v': 'e686a035484907d1690d7e0cd8e91d6ace86146b38bf4d85d4f500690ddfb0dd',
     'cores/fes-common/rtl/fes_audio_i2s.v': '14c24da8c166a623c41bc0ae57fc26c345ed6c419f825f2ba1f4f5057c4435f4',
     'cores/fes-zx81/rtl/fes_zx81_core.v': '79c070b837a6b455a4a4a64fcbef4d76ac3ca7c467ab692a16af7610bed42970',
-    'boards/de25nano/zx81-hps/fes_de25_zx81_standard.v': '4b4f2704437b5106e9ac36e735e507dd60c0ee3373500847c7dcc1b27a691e78',
-    'boards/de25nano/zx81-hps/fes_de25_zx81_standard_hw.tcl': '95066f6d5f443fe68393bd2d73206f2b203f27da590cd5f55de253e4ad8bcda1',
+    'boards/de25nano/zx81-hps/fes_de25_zx81_standard.v': 'c6ac81675d1dd07a50bbc2660049ba62e0e79e34fb75a5aac0532340adfe1c97',
+    'boards/de25nano/zx81-hps/fes_de25_zx81_standard_hw.tcl': 'c08fc345f9196b85e9bb1c310759cebc79d85395631c8428717d95dbad0415a9',
     'boards/de25nano/zx81-hps/standard-clocks.sdc': 'b7a528ac1a1bf0b147c269e83078a405b523698cfd16c1fe62cf028858b431d0',
-    'boards/de25nano/zx81-hps/build.py': '5c6b9248502d7f16c26a3dfe491ddc36808a0c92fea5fa09d06b8efde52183e4',
+    'boards/de25nano/zx81-hps/build.py': '5440a218f9d4d421e237ce2af7443f351d034e6d925099175b24c92d7c5b90d4',
 }
 
 
