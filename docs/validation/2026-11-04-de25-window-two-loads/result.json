@@ -241,7 +241,8 @@
     "retention.json": "28f7813ec04e8ce226e796788d07e1f025d40f0ea071ee813948df6531f51b15",
     "experiment-result.json": "63ab3a4b2118a5a47b116a6181abf713c91066e66f6f4d7e5d006c1a2c4708b4",
     "software-validation.json": "450201da7921d8b2accc0654af75ee1f8e76683aeec49421d2e260569865e4c7",
-    "postfix-replay.json": "4d99363c5f2646f31976f23b55bb02bb9aa46c2ba8f0ca94adad9a1cb0357985"
+    "postfix-replay.json": "4d99363c5f2646f31976f23b55bb02bb9aa46c2ba8f0ca94adad9a1cb0357985",
+    "checker-validation.json": "263df286c4f278960994f2102d51ae0a84821376abefef586c39b25fb2f2d5f0"
   },
   "next_step": "Connect repeated-window ownership to a persistent native service/frontend, then integrate ordinary package/ROM/parts/media admission and physical HDMI/input.",
   "host_checker_repair": {
