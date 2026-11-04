@@ -134,8 +134,12 @@ staged-byte hash and exact overlay/status check. It then makes the incoming
 programming attempt through the ordinary path. A post-retirement failure poisons
 the context and retains the remaining artifacts without replay. Recovery discards
 the lost process and guest session; it does not resume or adopt that session.
-Software regressions exercise these boundaries. Native unexpected-runtime and
-agent-death acceptance remains pending.
+Software regressions exercise these boundaries. The
+[native source-7688e7301 proof](../../docs/validation/2026-11-04-de25-standard-zx81/README.md#native-lost-process-recovery)
+records idle/active runtime exit recovery and independently checked recovery
+after one agent exit. All stay in the same boot and finish with a fresh ZX81
+session and normal Stop/MENU. Its failed initial agent recorder is retained;
+this does not qualify uncertain hardware, dirty SAVE loss or session resumption.
 
 The [2026-10-31 physical programmer diagnostic](../../docs/validation/2026-10-31-de25-runtime-programmer/README.md)
 records two known-core loads and BASIC7 at the selected C++/kernel bytes. It

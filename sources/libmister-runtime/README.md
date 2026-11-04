@@ -83,15 +83,18 @@ A retained computer must also pass live identity and the existing SAVE guard, so
 dirty snapshots or uncertain mailboxes remain blocked. This guard verifies live
 identity without fresh-start empty-cassette discovery; a loaded tape remains
 untouched and no active driver session is adopted. The existing verified release
-then precedes a
-normal MENU load. Unknown packages, firmware-only overlays and uncertainty
-remain refused; no lost guest session is resumed. This extension has software
-coverage only. Whole-load failure bounds and native unexpected-death acceptance
-remain unfinished. The [dated clean-restart diagnostic](../../docs/validation/2026-11-03-de25-watchdog/README.md#exact-normal-menu-package-and-clean-daemon-replacement)
+then precedes a normal MENU load. Unknown packages, firmware-only overlays and
+uncertainty remain refused; no lost guest session is resumed. The
+[native lost-process proof](../../docs/validation/2026-11-04-de25-standard-zx81/README.md#native-lost-process-recovery)
+records source `7688e7301`: idle and active-ZX81 runtime exits recover in the
+same Linux boot, and the replacement group after one agent exit passes fresh
+ZX81/UI checks. The agent's initial HTTP recorder failure remains separate.
+Whole-load failure bounds and full normal-kit acceptance remain unfinished.
+The [dated clean-restart diagnostic](../../docs/validation/2026-11-03-de25-watchdog/README.md#exact-normal-menu-package-and-clean-daemon-replacement)
 passes two production-daemon contexts, each with 90 frames and zero underflows,
 in one native boot. The later managed diagnostic also passes normal software
 replacement and ordinary reboot after Stop and from an active session. Full
-normal-kit acceptance and unexpected-death adoption remain open.
+normal-kit acceptance remains open; recovery abandons the lost session.
 
 The [programmer diagnostic](../../docs/validation/2026-10-31-de25-runtime-programmer/README.md)
 and [shared computer lifecycle diagnostic](../../docs/validation/2026-11-01-de25-shared-lifecycle/README.md)

@@ -448,3 +448,48 @@ hardware behavior. The software bundle and host remain retained off board;
 no running service, pairing database, software generation, kernel/card/FPGA or
 board baseline changed. The pending audio-reference decision, final sealed
 standard core and exact-artifact managed acceptance remain required.
+
+
+## Native lost-process recovery
+
+Runtime source `7688e73016b74f457fa3ca14ed2cbd46f80c6425`, immutable AArch64
+bundle `33d40e58e3548c73c3a8b265189a845ac01c7b0c08a8a366001d22a1d7a03dbc`,
+and the original sealed standard core `5a42fa706` run on the matched ABI3 Linux
+image `6de6a392`. All 482 sealed FPGA source inputs remain unchanged. The normal
+host code is unchanged from source `314ed9d9e`; no kernel, image, card, flash, JTAG or
+FPGA producer change forms part of these tests.
+
+The complete unmodified affected plan passes all 8 commands in 641.854 seconds;
+the actual driver/manager/allocation/factory focused suites pass in 58.576 seconds.
+Nine publication-name cases and eight actual DE25 command-transport retained-SAVE
+cases cover the two repairs. Before-repair failures remain retained: enumeration
+rejected the agent's normal package-ID-plus-token directory, while fresh-start
+Identify incorrectly required an empty cassette in a retained image. The new
+check verifies live identity and uses the existing SAVE snapshot guard without
+adopting a driver session, resetting/ejecting media or acknowledging dirty SAVE.
+
+| Injected exit | Native evidence |
+| --- | --- |
+| Idle runtime | Entire recorder passes in 65.780s; replacement group and 10s stable readiness observed within 30.236s, including that stability interval. |
+| Runtime with ZX81/tape active | Entire recorder passes in 85.767s; replacement group and 10s stable readiness observed within 32.039s, including that interval. |
+| Agent with ZX81/tape active | Original single-crash recorder fails in 19.262s on the expected HTTP connection reset. Read-only observation confirms the new group at MENU; a separate 47.352s proof checks the same replacement,10s stability and fresh UI. No second crash occurs; the failed recorder remains failed. |
+
+Every recovery stays in boot `bac7afb2-34d3-4997-9213-46f3dc0e6c7d` and selected
+software generation 25. New executable/PID/start identities, staged MENU inode,
+exact MENU payload/build, healthy allocation and host reconciliation are checked.
+Fresh catalog sessions load/run7, open the real media picker, return machine
+focus, edit/run9 and Stop back to FES Home. All 14 captures are visually checked.
+Keyboard input uses the explicit bus 0 evdev fixture; physical USB is untested.
+An old session's Stop is never sent to the replacement runtime.
+
+The bottom board returns to its named baseline bundle `a14a` at generation 26,
+same boot/card/kernel/image, ready/idle/lease-free, with its original host/unit
+and fresh catalog restored. Owned fixtures are removed and both status locks
+protect independent verification/release. The top board is untouched. No branch
+baseline is promoted. See [runtime-restart-native.json](runtime-restart-native.json)
+for exact hashes, separate recorder outcomes and retained evidence paths.
+
+This record accepts the stated lost-process cases on those exact artifacts.
+It does not accept uncertain hardware, dirty SAVE loss, guest-session resumption,
+physical USB/audio, native ROM/persona composition or physical PR. Current-head
+CI and independent review remain required; full normal-kit acceptance is open.
