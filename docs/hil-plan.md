@@ -71,6 +71,15 @@ Each changed path gets a class and a component:
   `mister-agent`, `fogcast-tenfoot`, other FogCast Go), a host binary
   (`host:fogcast-api`, `host:fogcast`) or a core package (`core:<name>`,
   `core:ALL`).
+- DE25 packages use `core:de25-menu`, `core:de25-zx81` and
+  `core:de25-ALL` (both packages). These require a claimed DE25 and the
+  corresponding Quartus package. A DE10 test cannot satisfy them; an executor
+  without a DE25 route must stop for that hardware check. Shared DE25 board
+  code selects both packages, while computer-specific code selects ZX81.
+  Package changes alone remain `overlay` and do not require rebuilding Linux.
+  Standalone LED, RAM-test and link-proof diagnostics remain separate from
+  deployed-package testing. The regression checks the actual MENU and standard
+  ZX81 board-source closures so deployed inputs cannot silently become `none`.
 - `full`: image, boot media, platform, profile, splash, video-part or kit
   software-format changes. The decision is `FULL_IMAGE`: stop and build a
   full image. A full image swap or reimage still needs Deano's explicit OK.

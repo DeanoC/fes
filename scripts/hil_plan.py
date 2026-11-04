@@ -19,12 +19,12 @@ RULES = [
         'scripts/affected.py', 'scripts/test_changed.py', 'scripts/ci_gate.py',
         'scripts/ci_simulations.py', 'scripts/ci_verilator.sh',
         'scripts/test_policy.py', 'scripts/parent_tests.py', 'scripts/host_tests.py',
-        'scripts/check_deadcode.py', 'scripts/check_diff.py',
+        'scripts/check_deadcode.py', 'scripts/check_diff.py', 'scripts/changed_paths.py',
         'scripts/check_doc_links.py', 'scripts/coordination.py', 'scripts/de25_runtime.py',
         'scripts/de25_boot_contract.py', 'scripts/de25_first_boot.py',
         'scripts/de25_dma_descriptor.py', 'scripts/de25_kernel_test.py',
         'scripts/hil_plan.py', 'scripts/consistency.py', 'scripts/generate.py',
-        'scripts/host_affected.py',
+        'scripts/host_affected.py', 'scripts/runtime_tests.py',
     )],
     # This driver is exercised only in a private QEMU kernel. No appliance,
     # image or software bundle installs or enables it.
@@ -49,15 +49,34 @@ RULES = [
     ('sources/misteross/cores/*/sim/**', 'none', None),
     ('sources/libmister-runtime/tests/**', 'none', None),
     ('sources/misteross/scripts/sim_*', 'none', None),
-    # Standalone DE25-Nano bring-up has no image, bundle or package consumer.
-    # Its manual DE25 JTAG smoke check is separate from deployed DE10 kit HIL.
+    # Definitions are checked through their generated deployed consumers below.
     ('sources/mister-packages/packages/board/de25_nano.yaml', 'none', None),
     ('sources/mister-packages/packages/fabric/fes_fabric_de25_ddr_probe.yaml', 'none', None),
     ('sources/mister-packages/packages/fabric/fes_fabric_de25_scanout.yaml', 'none', None),
     ('sources/mister-packages/packages/fabric/fes_fabric_de25_computer.yaml', 'none', None),
     ('sources/mister-packages/packages/fabric/fes_fabric_de25_ramtest.yaml', 'none', None),
     ('sources/mister-packages/packages/fabric/fes_fabric_de25_pr_control.yaml', 'none', None),
-    ('sources/misteross/boards/de25nano/**', 'none', None),
+    # DE25 now has deployed MENU and ZX81 packages. Keep board-qualified names:
+    # a DE10 package/HIL run cannot satisfy these consumers. Shared board code
+    # conservatively selects both DE25 packages; it does not require an OS image.
+    ('sources/misteross/scripts/build_de25_menu_package.py', 'overlay', 'core:de25-menu'),
+    ('sources/misteross/scripts/build_de25_zx81_package.py', 'overlay', 'core:de25-zx81'),
+    ('sources/misteross/scripts/review_de25_audio_clocks.py', 'none', None),
+    ('sources/misteross/boards/de25nano/**/test_*.py', 'none', None),
+    ('sources/misteross/boards/de25nano/**/*_tb.cpp', 'none', None),
+    ('sources/misteross/boards/de25nano/**/*_harness.v', 'none', None),
+    ('sources/misteross/boards/de25nano/**/sim.py', 'none', None),
+    ('sources/misteross/boards/de25nano/**/*_sim.py', 'none', None),
+    ('sources/misteross/boards/de25nano/zx81-hps/**', 'overlay', 'core:de25-zx81'),
+    # This helper is also imported by the canonical computer producer.
+    ('sources/misteross/boards/de25nano/zx81/build.py', 'overlay', 'core:de25-zx81'),
+    # These remaining diagnostics have no deployed package consumer.
+    *[('sources/misteross/boards/de25nano/' + path, 'none', None) for path in (
+        'blinky.v', 'blinky.sv', 'blinky_tb.cpp', 'pins.qsf', 'clocks.sdc',
+        'Makefile', 'test_build.py', 'test_de25nano.py', 'sim/**',
+        'ramtest/**', 'link-proof/**', 'zx81/**',
+    )],
+    ('sources/misteross/boards/de25nano/**', 'overlay', 'core:de25-ALL'),
     # These exact validation/generation tools have no deployed binary consumer.
     # A changed emitted artifact is classified through its actual consumer path.
     ('sources/mister-packages/cmd/mister-packages/main.go', 'none', None),
