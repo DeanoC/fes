@@ -62,6 +62,11 @@ def prepare(project, uboot, entry, pfg, output):
     if ddr_read is not None and ddr_read!=hps_context.ddr_read(project):
         raise ValueError('native DDR read contract differs from the sealed generated adapter')
     window_profile=native.get('native_handoff',{}).get('cold_boot_profile',{})
+    tenfoot_serial=window_profile.get('tenfoot_serial',False)
+    if type(tenfoot_serial) is not bool or tenfoot_serial and (window_profile.get('selected_programs') is not True or
+            window_profile.get('computer_reload') is not True or window_profile.get('computer_storage_return') is not True or
+            window_profile.get('hps_computer') is None or window_profile.get('window_memory',False) is not False):
+        raise ValueError('serial Tenfoot requires the matched selected computer/SD-return path')
     window_read=window_profile.get('hps_window_read')
     window_present=window_profile.get('window_present',False)
     if type(window_present) is not bool or window_present and window_read is None:
@@ -157,6 +162,7 @@ def prepare(project, uboot, entry, pfg, output):
         'bounded_window_storage_return':window_storage_return and not window_service,
         'bounded_window_reload':window_reload,
         'persistent_window_service':window_service,
+        'native_tenfoot_serial':tenfoot_serial,
         'hps_window_read_sha256':hps_context.digest(window_read) if window_read is not None else None,
         'trusted_boot_handoff': False, 'physical_programming_admission': False,
         'hardware_acceptance': 'not-run', 'inputs': hashes, 'commands': commands,

@@ -124,6 +124,8 @@ def make(entry_build):
               'window_storage_return':build.get('window_storage_return',False),
               'window_reload':build.get('window_reload',False),
               'window_service':build.get('window_service',False),
+              'tenfoot_serial':build.get('tenfoot_serial',False),
+              'selected_programs':build.get('selected_programs',False),
               'window_read':window_read is not None,'hps_window_read':window_read,
               'hps_window_read_sha256':hps_context.digest(window_read) if window_read else None,
               'computer_reload':build.get('computer_reload',False),
@@ -255,6 +257,11 @@ def header(profile):
     window_service=profile.get('window_service',False)
     if type(window_service) is not bool or window_service and (not window_storage_return or window_reload):
         raise ValueError('window service requires selected window SD return and excludes bounded reload')
+    tenfoot_serial=profile.get('tenfoot_serial',False)
+    if type(tenfoot_serial) is not bool or tenfoot_serial and (profile.get('selected_programs') is not True or
+            profile.get('computer_reload') is not True or profile.get('computer_storage_return') is not True or
+            profile.get('hps_computer') is None or profile.get('window_memory',False) is not False):
+        raise ValueError('serial Tenfoot requires the selected computer/SD-return path')
     computer=profile.get('hps_computer')
     if computer is not None:
         if (not isinstance(computer,dict) or configuration is None or control is None or ddr_read is not None or not profile['sd_pio'] or

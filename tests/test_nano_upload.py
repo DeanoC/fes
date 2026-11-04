@@ -231,6 +231,7 @@ class NanoUploadTests(unittest.TestCase):
 
     def test_selected_program_files_use_fixed_destinations_and_smaller_bounds(self):
         for purpose,target,limit in (('metadata','FES/PROGRAM.JSN',16<<10),('selection','FES/CORESEL.JSN',8192),
+                                    ('ui-catalog','FES/UI.JSON',8192),
                                     ('package-alt','FES/PKGALT.BIN',upload.LIMIT),('metadata-alt','FES/PROGALT.JSN',16<<10)):
             for size in (1,limit):
                 with self.subTest(purpose=purpose,size=size):
@@ -252,7 +253,7 @@ class NanoUploadTests(unittest.TestCase):
     def test_two_packages_metadata_and_selection_share_one_live_session_and_fresh_readbacks(self):
         model,session=self.session()
         payloads={'boot':b'b'*6144,'package':b'p'*2048,'metadata':b'm'*(16<<10),
-                  'package-alt':b'q'*4096,'metadata-alt':b'n'*(16<<10),'selection':b's'*8192}
+                  'package-alt':b'q'*4096,'metadata-alt':b'n'*(16<<10),'selection':b's'*8192,'ui-catalog':b'u'*8192}
         written={};fresh={}
         with patch('builtins.print'):
             for purpose,payload in payloads.items():

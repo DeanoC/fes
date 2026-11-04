@@ -30,7 +30,8 @@ BOARD = 'TRWU8CBL'
 LIMIT = MAX_FIT_SIZE
 DESTINATIONS = {'boot':EXPERIMENTAL_FILE, 'package':'FES/PKGTEST.BIN',
                 'metadata':'FES/PROGRAM.JSN', 'selection':'FES/CORESEL.JSN',
-                'package-alt':'FES/PKGALT.BIN', 'metadata-alt':'FES/PROGALT.JSN'}
+                'package-alt':'FES/PKGALT.BIN', 'metadata-alt':'FES/PROGALT.JSN',
+                'ui-catalog':'FES/UI.JSON'}
 PREFIX_SIZE = 32768 * 512
 
 
@@ -82,7 +83,7 @@ def destination(purpose):
 def payload_limit(purpose):
     destination(purpose)
     return {'boot': LIMIT, 'package': LIMIT, 'metadata': 16<<10, 'selection': 8192,
-            'package-alt': LIMIT, 'metadata-alt': 16<<10}[purpose]
+            'package-alt': LIMIT, 'metadata-alt': 16<<10, 'ui-catalog': 8192}[purpose]
 
 
 class UploadSession:

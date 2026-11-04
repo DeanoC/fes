@@ -1250,3 +1250,10 @@ replace firmware evidence or mint a session. The bounded three-session client
 uses the already qualified persistent-service limits: 100s launch, 20s
 configuration, 5s control and no retry after an uncertain exchange. Physical
 acceptance for the new window service remains open until its matched image runs.
+
+`--purpose ui-catalog` uploads only `FES/UI.JSON`, bounded to 8192 bytes. It uses
+the same recovery-session ownership, scratch-memory checks and fresh SD readback
+as the selected-program files. It does not activate a core or start native boot.
+The explicitly compiled `fpgaload --tenfoot-serial` mode consumes this friendly
+catalog before SD containment; see the [native launcher description](../tamago/README.md).
+Its serial state output is not an HDMI/display capability.

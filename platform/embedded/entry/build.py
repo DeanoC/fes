@@ -159,6 +159,28 @@ def window_service_option(receipt):
     return selected
 
 
+def tenfoot_serial_option(receipt):
+    selected=receipt.get('tenfoot_serial',False)
+    if (type(selected) is not bool or selected and
+            (receipt.get('selected_programs') is not True or receipt.get('computer_reload') is not True or
+             receipt.get('computer_storage_return') is not True or receipt.get('hps_computer') is None or
+             receipt.get('window_memory',False) is not False)):
+        raise ValueError('serial Tenfoot requires selected computer control, rearming and owned SD return')
+    command=receipt.get('command',[])
+    try:tokens=shlex.split(command[command.index('-ldflags')+1])
+    except (ValueError,IndexError,AttributeError,TypeError):
+        raise ValueError('serial Tenfoot requires the native link command') from None
+    tags=[word for word in command if word.startswith('-tags')]
+    if selected and tags!=['-tags=de25nano,de25tenfootserial'] or not selected and any('de25tenfootserial' in word for word in tags):
+        raise ValueError('serial Tenfoot differs from its explicit build tags')
+    options=[(i,word) for i,word in enumerate(tokens) if 'main.expectedTenfootSerial' in word]
+    if selected:
+        if len(options)!=1 or options[0][1]!='main.expectedTenfootSerial=1' or options[0][0]==0 or tokens[options[0][0]-1]!='-X':
+            raise ValueError('serial Tenfoot differs from the native link assignment')
+    elif options:raise ValueError('unselected serial Tenfoot appears in the native link command')
+    return selected
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--target", choices=("qemu", "de25-nano"), default="qemu")
@@ -182,6 +204,7 @@ def main():
     native_sources = None
     native_context = native_io = native_cpu_map = native_control = native_configuration = native_reader_memory = native_ddr_read = native_computer = native_program_platform = None
     native_selected_programs = False
+    native_tenfoot_serial = False
     native_reload = False
     native_storage_return = False
     native_window_memory = False
@@ -235,6 +258,10 @@ def main():
         native_window_storage_return=window_storage_return_option(receipt)
         native_window_reload=window_reload_option(receipt)
         native_window_service=window_service_option(receipt)
+        native_tenfoot_serial=tenfoot_serial_option(receipt)
+        if native_tenfoot_serial and any(value not in payload.read_bytes() for value in
+                (b'FES_NATIVE_TENFOOT_BEGIN ',b'ProgramBackend).RoundTrip',b'tenfoot.RunPlatform',b'ProgramSerialPlatform).Next')):
+            raise ValueError('serial Tenfoot is absent from the selected native ELF')
         if native_window_service and any(value not in payload.read_bytes() for value in
                 (b'FES_NATIVE_WINDOW_REPLY ',b'WindowService).Launch',b'WindowConsole).Handle',b'WindowSession).ResumeStorageAfterReturn')):
             raise ValueError('window service is absent from the selected native ELF')
@@ -461,7 +488,7 @@ def main():
               "window_service":native_window_service,
               "hps_window_read_sha256":hps.digest(native_window_read) if native_window_read else None,
               "computer_storage_return":native_storage_return,
-              "selected_programs":native_selected_programs,
+              "selected_programs":native_selected_programs,"tenfoot_serial":native_tenfoot_serial,
               "hps_program_platform":native_program_platform,
               "hps_program_platform_sha256":hps.digest(native_program_platform) if native_program_platform is not None else None,
               "hps_project":receipt['hps_project'] if native_context is not None else None,

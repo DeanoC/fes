@@ -31,6 +31,7 @@ var expectedWindowService string
 var expectedComputerMap, expectedComputerReload string
 var expectedComputerStorageReturn string
 var expectedProgramPlatform, expectedSelectedPrograms string
+var expectedTenfootSerial string
 var retained *nativefabric.ConfigurationTransfer
 
 func decoded(s string, limit int) []byte {
@@ -57,6 +58,9 @@ func main() {
 	}
 	if expectedWindowService != "" && (expectedWindowService != "1" || expectedWindowStorageReturn != "1" || expectedWindowReload != "") {
 		panic("window service requires the complete SD-return path and a separate selection from bounded reload")
+	}
+	if expectedTenfootSerial != "" && (expectedTenfootSerial != "1" || expectedSelectedPrograms != "1" || !tenfootSerialLinked) {
+		panic("serial Tenfoot requires selected native programs")
 	}
 	if runtime.GOOS != "tamago" || board.ExceptionLevel() != 1 || board.CounterFrequency() != 400000000 {
 		panic("unexpected FPGA configuration CPU/source contract")
@@ -119,7 +123,11 @@ func main() {
 		panic(err)
 	}
 	if loader != nil {
-		servePrograms(loader, store, volume)
+		if expectedTenfootSerial == "1" {
+			serveProgramTenfoot(loader, store, volume)
+		} else {
+			servePrograms(loader, store, volume)
+		}
 		return
 	}
 	request := packagestore.Request{Path: "FES/PKGTEST.BIN", PackageID: id.PackageID}

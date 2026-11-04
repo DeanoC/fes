@@ -245,6 +245,9 @@ def build(args):
     if (type(selected_programs) is not bool or selected_programs and
             (not computer_control or not computer_reload or not computer_storage_return)):
         raise ValueError('--selected-programs requires computer control, rearming and owned SD returns')
+    tenfoot_serial=getattr(args,'tenfoot_serial',False)
+    if type(tenfoot_serial) is not bool or tenfoot_serial and not selected_programs:
+        raise ValueError('--tenfoot-serial requires the selected native program service')
     program_platform=program_metadata=None
     package_archive=None
     hps_project=getattr(args,'hps_first_project',None)
@@ -351,7 +354,7 @@ def build(args):
                GOTOOLCHAIN="local", GOENV="off", GOWORK="off", GOPROXY="off", GOSUMDB="off",
                GOMODCACHE=str(args.module_cache.resolve()), GOCACHE=str(ROOT / "out/embedded-base-tools/tamago/cache"))
     compiler = args.compiler.resolve()
-    options = ["-mod=readonly", "-tags=de25nano", "-overlay=" + str(overlay)]
+    options = ["-mod=readonly", "-tags=" + ("de25nano,de25tenfootserial" if tenfoot_serial else "de25nano"), "-overlay=" + str(overlay)]
     command = [str(compiler), "list", "-deps", "-json", *options, "./cmd/" + args.program]
     deps = subprocess.check_output(command, cwd=APP, env=env, text=True)
     from run import objects, sha
@@ -385,6 +388,7 @@ def build(args):
     if window_storage_return:link_flags+=' -X main.expectedWindowStorageReturn=1'
     if window_reload:link_flags+=' -X main.expectedWindowReload=1'
     if window_service:link_flags+=' -X main.expectedWindowService=1'
+    if tenfoot_serial:link_flags+=' -X main.expectedTenfootSerial=1'
     if computer_map is not None:link_flags+=' -X main.expectedComputerMap='+base64.b64encode(hps.encode(computer_map)).decode()
     if computer_reload:link_flags+=' -X main.expectedComputerReload=1'
     if computer_storage_return:link_flags+=' -X main.expectedComputerStorageReturn=1'
@@ -440,7 +444,7 @@ def build(args):
               "hps_computer":computer_map,"hps_computer_sha256":hps.digest(computer_map) if computer_map else None,
               "computer_reload":computer_reload,
               "computer_storage_return":computer_storage_return,
-              "selected_programs":selected_programs,
+              "selected_programs":selected_programs,"tenfoot_serial":tenfoot_serial,
               "hps_program_platform":program_platform,"hps_program_platform_sha256":hps.digest(program_platform) if program_platform else None,
               "configuration_core_sha256":configuration_map["core_sha256"] if configuration_map else None,
               "configuration_package_sha256":hashlib.sha256(package_archive).hexdigest() if package_archive is not None else None,

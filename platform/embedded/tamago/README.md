@@ -499,3 +499,27 @@ command has not yet selected this adapter; physical HDMI, USB hub input,
 ordinary ROM/parts/media admission and native Ethernet remain open. The
 separately accepted fixed-window renderer diagnostic does not grant display
 ownership to these computer sessions.
+
+The explicit `fpgaload --tenfoot-serial` selection now runs the full Tenfoot App
+on the native CPU through this adapter. It requires `--selected-programs`,
+`--computer-control`, `--computer-reload` and `--computer-storage-return`.
+Its separately selected `de25tenfootserial` build tag keeps the App loop out of
+unselected command builds. SDK, native entry, cold-chain identity and composition
+receipts carry the selection. It grants no additional firmware authority.
+
+Before boot, supply `FES/CORESEL.JSN` and a canonical `FES/UI.JSON`, for example
+this compact JSON followed by one newline:
+
+```json
+{"entries":[{"id":"zx81","program":0,"title":"ZX81"},{"id":"zx80","program":1,"title":"ZX80"}],"format":1,"scope":"nano-tenfoot-catalog-v1"}
+```
+
+The bounded catalog supplies friendly names and indexes into CORESEL, without
+choosing package paths or hardware resources. UART navigation uses the existing
+Tenfoot keys: arrows, Enter, `s` to stop, `q` to quit. Quit during a load waits
+for its outcome; during a running core it requests the owned Stop and waits for
+Ready or terminal containment. State replies explicitly identify
+`display=serial-state-only`; the software renderer runs, without HDMI output.
+Preferences are copied into RAM and do not persist across reboot. Recovery
+uploads accept the fixed `--purpose ui-catalog` destination `FES/UI.JSON`, with
+an 8 KiB bound and the same write/readback ownership checks as other files.
