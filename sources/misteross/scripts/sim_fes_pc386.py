@@ -41,6 +41,14 @@ docs/pc386-machine-design.md, "Verification" and phases M1-M3.
            and agree with memory. Every check must print ok. With --cpu rtl,
            the RTL must run both images without an oracle step or a stop;
            writes a20-rtl/.
+  c2xx     runs cores/fes-pc386/sim/c2xx_test.asm (C2TEST.COM) at the
+           FreeDOS prompt (#1330): INT 15h C205h with a key or an aux byte
+           already in the 8042's output buffer, one with IRQ1 masked, and
+           C205h again and again while the bench types keys held 8 ms. Every
+           reset must return, a waiting key must reach INT 16h, and every
+           typed key must arrive in order. With --cpu rtl, the RTL must run it
+           without an oracle step or a stop; writes c2xx-rtl/.
+
   wait     runs cores/fes-pc386/sim/wait_test.asm (WAITTEST.COM) at the
            FreeDOS prompt (#1150): INT 15h AH=86h waits from 0 us to 300 ms,
            each timed on PIT counter 0 or the BIOS tick, must return within
@@ -103,6 +111,7 @@ Examples:
   python3 scripts/sim_fes_pc386.py --suite boot --image games --cpu rtl --type 'mem|' --expect 'high memory area'
   python3 scripts/sim_fes_pc386.py --suite rtl-stops
   python3 scripts/sim_fes_pc386.py --suite a20 --download
+  python3 scripts/sim_fes_pc386.py --suite c2xx --cpu rtl
   python3 scripts/sim_fes_pc386.py --suite wait --cpu rtl
   python3 scripts/sim_fes_pc386.py --suite speaker
   python3 scripts/sim_fes_pc386.py --suite sound --download
@@ -724,8 +733,49 @@ def run_a20(args, linked: list[Path]) -> dict:
     return {'runs': runs, 'checks': checks, 'failures': failures}
 
 
+# C2TEST.COM's checks in the order it runs them, and the keys the suite types
+# after the command (the program's typed_keys), each held 8 ms as system_tb
+# holds them.
+C2XX_CHECKS = ('typing', 'stale-key', 'stale-aux', 'masked-key', 'DONE')
+C2XX_KEYS = 'abcdefghijklmnopq'
+
+
+def run_c2xx(args, linked: list[Path]) -> dict:
+    """C2TEST.COM at the FreeDOS prompt: INT 15h C2xx with keyboard bytes at the 8042."""
+    images = firmware.images(args.download, args.jobs)
+    testbench = machine_testbench(args, linked)
+    suite = 'c2xx' + ('-rtl' if args.cpu == 'rtl' else '')
+    disk = fixture_with(args, suite, 'c2xx_test.asm', 'C2TEST.COM')
+    print(f'Running C2TEST.COM on the {args.cpu} CPU', flush=True)
+    run = run_machine(testbench, suite, ['--disk', str(disk), '--limit-seconds', str(args.limit_seconds),
+                                         '--type', f'c2test|{C2XX_KEYS}', '--key-gap', '0.008',
+                                         '--expect', 'C2 DONE ok', '--cpu', args.cpu], images)
+    lines = [entry['text'] for entry in run['debug'] if entry['port'] == '0e9']
+    run['lines'] = lines
+    failures = run['failures'] + [line for line in lines if not line.endswith(' ok')]
+    names = [line.split()[1] for line in lines if line.startswith('C2 ')]
+    if names != list(C2XX_CHECKS):
+        failures.append(f'C2TEST.COM ran {names}, expected {list(C2XX_CHECKS)}')
+    if args.cpu == 'rtl':
+        failures += rtl_failures(run, 'C2xx run')
+
+    return {'run': run, 'checks': lines, 'failures': failures}
+
 # WAITTEST.COM's checks, in the order it runs them.
 WAIT_CHECKS = ('zero', '15us', '100us', '1ms', '10ms', '50ms', '300ms', 'DONE')
+
+
+def default_limit_seconds(suite: str) -> int:
+    """Return the suite's default simulated-time hang guard."""
+    if suite == 'sound':
+        return 14
+    if suite in ('boot', 'governor', 'wait', 'speaker'):
+        return 8
+    if suite == 'rtl-stops':
+        return 2
+    if suite in ('a20', 'c2xx'):
+        return 10
+    return 12
 
 
 def run_wait(args, linked: list[Path]) -> dict:
@@ -1406,7 +1456,7 @@ def run_game(args, linked: list[Path]) -> dict:
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument('--suite', choices=('devices', 'storage', 'audio', 'opl2', 'benches', 'boot', 'rtl-stops',
-                                            'a20', 'wait', 'speaker', 'sound', 'game', 'vga', 'system', 'governor',
+                                            'a20', 'c2xx', 'wait', 'speaker', 'sound', 'game', 'vga', 'system', 'governor',
                                             'all'),
                         default='all',
                         help='simulation suite to run')
@@ -1433,8 +1483,8 @@ def main() -> int:
     parser.add_argument('--verilator', default=os.environ.get('VERILATOR', 'verilator'))
     parser.add_argument('--jobs', type=int, default=min(os.cpu_count() or 2, 16))
     args = parser.parse_args()
-    if args.cpu == 'rtl' and args.suite not in ('boot', 'game', 'a20', 'wait', 'speaker'):
-        parser.error('--cpu rtl runs the boot, game, a20, wait and speaker suites only')
+    if args.cpu == 'rtl' and args.suite not in ('boot', 'game', 'a20', 'c2xx', 'wait', 'speaker'):
+        parser.error('--cpu rtl runs the boot, game, a20, c2xx, wait and speaker suites only')
     if args.image != 'boot' and args.suite != 'boot':
         parser.error('--image is supported by the boot suite only')
     if (args.preset or args.frequency or args.turbo) and not (
@@ -1454,9 +1504,7 @@ def main() -> int:
         suites = ('devices', 'storage', 'audio', 'opl2', 'benches', 'boot', 'vga', 'sound') if args.suite == 'all' \
             else (args.suite,)
         for suite in suites:
-            args.limit_seconds = limit_seconds or (14 if suite == 'sound' else
-                                                   8 if suite in ('boot', 'governor', 'wait', 'speaker') else
-                                                   2 if suite == 'rtl-stops' else 10 if suite == 'a20' else 12)
+            args.limit_seconds = limit_seconds or default_limit_seconds(suite)
             args.type = typed or ('sound|' if suite == 'sound' else 'dir|')
             args.expect = expect or ('SOUND DONE' if suite == 'sound' else 'bytes free')
             if suite == 'devices':
@@ -1481,6 +1529,8 @@ def main() -> int:
                 report = run_rtl_stops(args, oracle.link_inputs(args.jobs, args.download))
             elif suite == 'a20':
                 report = run_a20(args, oracle.link_inputs(args.jobs, args.download))
+            elif suite == 'c2xx':
+                report = run_c2xx(args, oracle.link_inputs(args.jobs, args.download))
             elif suite == 'wait':
                 report = run_wait(args, oracle.link_inputs(args.jobs, args.download))
             elif suite == 'speaker':
