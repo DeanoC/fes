@@ -160,20 +160,21 @@ WAVs `567f89f6…` (before) and `7367d228…` (after) stay on Powerboat.
 
 | Key | Before, `c621bce7` | After, `a8c5a393` | After / before | Drop |
 | --- | ---: | ---: | ---: | ---: |
-| `1` | 511.8 Hz (511.2-517.4) | 501.5 Hz (500.1-506.1) | 0.9801 | 1.99% |
-| `6` | 859.0 Hz (858.2-859.6) | 839.0 Hz (838.3-841.0) | 0.9766 | 2.34% |
+| `1` | 511.8 Hz (511.2-517.4) | 501.5 Hz (500.1-506.1) | 0.9799 | 2.01% |
+| `6` | 859.0 Hz (858.2-859.6) | 839.0 Hz (838.3-841.0) | 0.9767 | 2.33% |
 | `0` | 1,265.3 Hz (1,261.2-1,272.5) | 1,232.5 Hz (1,231.4-1,234.4) | 0.9741 | 2.59% |
 
 Each pitch is the median over the 10 notes of each note's envelope pitch
 (`u6_tones.py`), with the range across notes in brackets. Notes are
 95-105 ms long on both packages, a median of 100-105 ms, so the length
-does not change at the analyser's 5 ms frame. The after figures repeat
+does not change at the analyser's 5 ms frame. The ratio and drop use the
+displayed one-decimal pitch medians. The after figures repeat
 run `k1`'s from the same package to 0.1%: 501.4, 839.7 and 1,232.6 Hz.
 
 **Result.** #1453 lowers the lute's pitch by 2.0-2.6%, 2.31% on average
 over the three keys. That matches the model at one delay unit (2.42%) and
 not at two (1.33%). So the routine's `[2FC6h]`/24 delay unit was 1 here,
-as #1453's record assumed. The drop grows with pitch, from 1.99% at 512 Hz to
+as #1453's record assumed. The drop grows with pitch, from 2.01% at 512 Hz to
 2.59% at 1,265 Hz. The model, a fixed charge per pass, predicts one ratio
 for every key. The spread is not explained here. The envelope is smoothed
 over 21 samples (0.44 ms), more than half a period at `0`, and edge times
