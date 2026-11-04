@@ -5,11 +5,65 @@ import (
 	"bytes"
 	"context"
 	"encoding/hex"
+	"os"
 	"testing"
 
 	"github.com/DeanoC/fes/platform/embedded/tamago/input"
 	"github.com/DeanoC/fes/platform/embedded/tamago/usbcontrol"
 )
+
+func TestOwnedGamepadCapturedSchemaUsesEightByteInput(t *testing.T) {
+	hw := gamepadController(t)
+	descriptor, err := os.ReadFile("../../../../tests/fixtures/nano-usb-gamepad/joystick-report.bin")
+	if err != nil {
+		t.Fatal(err)
+	}
+	hw.reportDescriptor = descriptor
+	hw.configuration[25], hw.configuration[26] = byte(len(descriptor)), byte(len(descriptor)>>8)
+	// Constructed endpoint payloads; only the descriptor is a physical capture.
+	hw.reports = [][]byte{{128, 128, 0, 0, 0, 0, 0, 0}, {255, 0, 255, 170, 85, 31, 224, 255}}
+	fw := &ownedFirmware{t: t, controller: hw, gamepad: true}
+	client, err := usbcontrol.New(context.Background(), fw, 17)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var host *GamepadHost
+	source, err := usbcontrol.OpenGamepad(context.Background(), client, func() (input.USBGamepadReports, error) {
+		var err error
+		host, err = OpenGamepad(hw, Config{PHYClockHz: 60000000})
+		return host, err
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	adapter, err := input.NewUSBGamepad(source, host.ReportDescriptor(), input.GamepadButtons{Confirm: 1, Back: 2})
+	if err != nil {
+		t.Fatal(err)
+	}
+	var keys []string
+	for n := 0; n < 150; n++ {
+		events, err := adapter.Poll()
+		if err != nil {
+			t.Fatal(err)
+		}
+		for _, event := range events {
+			keys = append(keys, event.Key)
+		}
+		if len(keys) >= 3 {
+			break
+		}
+	}
+	if len(keys) != 3 || keys[0] != "up" || keys[1] != "right" || keys[2] != "return" || adapter.State().Buttons != 0x201 {
+		t.Fatal(keys, adapter.State())
+	}
+	if err := source.Close(context.Background()); err != nil || fw.confirms != 1 || fw.stops != 1 {
+		t.Fatal(err, fw)
+	}
+	accesses := hw.accesses
+	if _, err := source.PollGamepad(); err == nil || hw.accesses != accesses {
+		t.Fatal("closed captured-schema source polled", err)
+	}
+}
 
 func gamepadController(t *testing.T) *controller {
 	t.Helper()

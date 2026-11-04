@@ -218,13 +218,17 @@ func ParseGamepad(data []byte) (*Gamepad, error) {
 					return bad("input report too large")
 				}
 				if value&1 == 0 {
-					if value&0x19e != 2 || len(l.usages) != int(g.count) {
+					if value&0x19e != 2 || len(l.usages) == 0 || len(l.usages) > int(g.count) {
 						return bad("absolute variable usages required")
 					}
 					if maximum <= g.min || g.min < -(int64(1)<<31) || maximum > int64(^uint32(0)) {
 						return bad("logical range")
 					}
-					for i, u := range l.usages {
+					for i := 0; i < int(g.count); i++ {
+						// Variable fields beyond the usage list repeat its last
+						// usage. Preserve their bit positions even when a vendor
+						// usage is not exposed. Duplicate known controls still fail.
+						u := l.usages[min(i, len(l.usages)-1)]
 						page, id := u>>16, u&65535
 						known := page == 9 && id >= 1 && id <= 32 || page == 1 && (id >= 0x30 && id <= 0x35 || id == 0x39)
 						if !known {
