@@ -7,6 +7,7 @@ H=r'[0-9a-f]{1,16}'
 D=r'[0-9]{1,20}'
 P=r'(?:NOTICE:[ \t]+)?'
 PATTERNS={
+    'step':re.compile(rf'FES_NATIVE_FPGA_WINDOW_PRESENT STEP index=(?P<index>{D}) phase=(?P<phase>render_begin|render_end|present_begin|present_end|return_begin|return_end) elapsed_us=(?P<elapsed_us>{D})'),
     'scope':re.compile(P+rf'FES_NANO_WINDOW_SCOPE phase=(?P<phase>control|data|close) owner=(?P<owner>{H}) generation=(?P<generation>{D}) reset=(?P<reset>{H})'),
     'gate':re.compile(P+rf'FES_NANO_WINDOW_GATE status=(?P<status>-?{D}) owner=(?P<owner>{H}) generation=(?P<generation>{D}) reset=(?P<reset>{H}) bytes=(?P<bytes>{D}) permit=(?P<permit>owned-read|denied)'),
     'master':re.compile(P+rf'FES_NANO_MASTER_STOP status=(?P<status>-?{D}) owner=(?P<owner>{H}) generation=(?P<generation>{D}) reset=(?P<reset>{H}) reader_reads=(?P<reader_reads>{D}) reader_polls=(?P<reader_polls>{D}) disable=(?P<disable>[01]) probe_polls=(?P<probe_polls>{D}) cancel=(?P<cancel>[01]) complete=(?P<complete>[01]) data=active'),
@@ -73,6 +74,14 @@ def validate(data,*,owner,source_generation,identity,memory,contract,publication
                 'window event changed owner, generation or reset scope')
     def scope(phase,generation,reset):
         v=take('scope');owned(v,generation,reset);require(v['phase']==phase,'window scope phase differs')
+    frames=[];steps=[];elapsed=-1
+    if present:result.update(presentations=frames,progress=steps)
+    def step(index,phase):
+        nonlocal elapsed
+        v=take('step')
+        require(v['index']==index and v['phase']==phase and elapsed<=v['elapsed_us']<=240000000,
+                'window progress changed order, frame or monotonic bounded time')
+        elapsed=v['elapsed_us'];steps.append(v)
     try:
         scope('control',source_generation+1,13)
         for _ in range(2):
@@ -98,9 +107,9 @@ def validate(data,*,owner,source_generation,identity,memory,contract,publication
             gate=take('gate');owned(gate,source_generation+1,13)
             require(gate['status']==0 and gate['bytes']==memory['bytes'] and gate['permit']=='owned-read','window gate denied access')
         scope('data',source_generation+2,5)
-        frames=[]
         if present:
             for index in range(1,13):
+                step(index,'render_begin');step(index,'render_end');step(index,'present_begin')
                 frame=take('frame')
                 require(frame['index']==index and frame['package_id']==identity['package_id'] and
                     frame['build_id']==identity['build_id'] and frame['owner']==owner and
@@ -110,8 +119,10 @@ def validate(data,*,owner,source_generation,identity,memory,contract,publication
                     frame['drain_generation']==index+1 and frame['drain_cookie']==index+1,
                     'window presentation changed publication, reader or local drain')
                 frames.append(frame)
+                step(index,'present_end')
             require(len({f['read_crc32'] for f in frames})==12 and len({f['frame_sha256'] for f in frames})==12,
                     'window presentations did not change pixels')
+            step(13,'return_begin')
         scope('close',source_generation+2,5)
         stop=take('master');owned(stop,source_generation+2,5)
         if present:
@@ -132,6 +143,7 @@ def validate(data,*,owner,source_generation,identity,memory,contract,publication
                 'window firmware closure lacks the exact active DDR drain')
         require(publication is not None,'window read lacks a complete pinned publication')
         if present:
+            step(13,'return_end')
             receipt=take('present_receipt')
             require(receipt==dict(package_id=identity['package_id'],build_id=identity['build_id'],owner=owner,
                 source_generation=source_generation,closed_generation=source_generation+3,frames=12,
@@ -178,4 +190,7 @@ def decode(data,*,identity,memory,contract,base_decode,rules,present=False):
     report['classification']='serial-observed native '+('repeated presentation' if present else 'full-frame read')+' and owned firmware return; no display or runtime admission'
     report['core_load_acceptance']=False
     if observed['complete']:report['last_checkpoint']='window_present_closed' if present else 'window_read_closed'
+    elif present and observed.get('progress'):
+        last=observed['progress'][-1]
+        report['last_checkpoint']='window_present_'+last['phase']+'_'+str(last['index'])
     return report

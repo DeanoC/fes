@@ -172,7 +172,7 @@ def main():
         window_read_option(receipt,native_window_read)
         native_window_present=window_present_option(receipt)
         if native_window_present and any(value not in payload.read_bytes() for value in
-                (b'FES_NATIVE_FPGA_WINDOW_PRESENT FRAME ',b'FES_NATIVE_FPGA_WINDOW_PRESENT PASS ',
+                (b'FES_NATIVE_FPGA_WINDOW_PRESENT STEP ',b'FES_NATIVE_FPGA_WINDOW_PRESENT FRAME ',b'FES_NATIVE_FPGA_WINDOW_PRESENT PASS ',
                  b'WindowSession).PresentFrame',b'WindowReader).Drain')):
             raise ValueError('window presentation is absent from the selected native ELF')
         command=receipt.get('command',[])

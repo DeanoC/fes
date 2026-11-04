@@ -58,6 +58,11 @@ entry and cold-firmware receipts carry this separate selection. Failure logs
 use cached observations and keep memory pinned. Native HDMI and ordinary
 runtime admission still need separate implementation and hardware acceptance.
 
+The repeated-frame diagnostic emits timed `STEP` records before and after
+rendering, presentation and final return. A partial trace retains the last
+completed frame and the CPU step which did not return. These progress records
+add no device reads and supply no frame, drain or closure receipt themselves.
+
 Nano images omit ELF symbols and DWARF sections to fit the sealed 8 MiB FIT
 loading window. Go's runtime PC/line metadata remains in the native image.
 

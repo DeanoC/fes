@@ -240,6 +240,15 @@ bound into native ELF, entry, cold profile and composition receipts. This is
 the next bounded native diagnostic; the preceding single-frame hardware pass
 does not qualify this new repeated-frame command, HDMI or ordinary core loads.
 
+The [first repeated-frame trial](../../../docs/validation/2026-11-04-de25-repeated-window/README.md)
+stops at the host's phase bound after one complete frame/local drain; final
+bridge closure remains unknown. Current native builds add ordered, monotonic
+`STEP` observations around rendering, presentation and return. The audit
+retains partial frame/progress records, requires all fifty progress points for
+the complete twelve-frame path, and still requires the independent frame,
+master-stop and bridge-closure receipts. Historical captures use their
+source-bound decoder; missing progress is never accepted as the new format.
+
 The [bounded read candidate](../../../docs/validation/2026-11-02-de25-ddr-read-candidate/README.md)
 passes the complete software/RTL checks and matched cross-build. Its first
 TRWU8CBL attempt verifies both network uploads, then stops after the SPL handoff

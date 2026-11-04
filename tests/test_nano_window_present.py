@@ -11,24 +11,30 @@ class WindowPresentationTraceTests(unittest.TestCase):
         f=fixture.WindowTraceTests();f.setUp();self.base=f
         close=f'NOTICE:  FES_NANO_WINDOW_SCOPE phase=close owner={OWNER:x} generation=6 reset=5\n'
         self.prefix=f.prefix+f.suffix.split(close)[0]
-        frames=[]
+        frames=[];blocks=[];self.steps=[]
+        def step(index,phase):
+            row=f'FES_NATIVE_FPGA_WINDOW_PRESENT STEP index={index} phase={phase} elapsed_us={len(self.steps)}\n'
+            self.steps.append(row);return row
         for index in range(1,13):
             frames.append(f'FES_NATIVE_FPGA_WINDOW_PRESENT FRAME index={index} package_id={f.identity["package_id"]} '
                 f'build_id={f.identity["build_id"]} owner={OWNER:x} source_generation=4 reader_generation={index+1} '
                 f'cookie=1 bytes=3686400 published_crc32={0x12340000+index:08x} read_crc32={0x12340000+index:08x} '
                 f'frame_sha256={index:064x} drain_generation={index+1} drain_cookie={index+1} memory_retained=1\n')
+            blocks.append(step(index,'render_begin')+step(index,'render_end')+step(index,'present_begin')+frames[-1]+step(index,'present_end'))
         self.frames=frames
-        self.tail=close+(f'NOTICE:  FES_NANO_MASTER_STOP status=0 owner={OWNER:x} generation=6 reset=5 '
+        self.blocks=blocks;self.frame_body=''.join(blocks)
+        self.tail=step(13,'return_begin')+close+(f'NOTICE:  FES_NANO_MASTER_STOP status=0 owner={OWNER:x} generation=6 reset=5 '
             'reader_reads=88 reader_polls=1 disable=0 probe_polls=2 cancel=0 complete=1 data=active\n')
         self.tail+=(f'NOTICE:  FES_NANO_WINDOW_READER_DRAIN owner={OWNER:x} generation=6 reset=5 reader_generation=13 '
             'request_generation=13 cookie=13 ack_generation=13 ack_cookie=13 status=4 pending=0\n')
         self.tail+=(f'NOTICE:  FES_NANO_WINDOW_CLOSURE owner={OWNER:x} generation=7 reset=f hardware_drained=8 '
             'data_remained_contained=0 producers_quiescent=1 fabric_acknowledged=0\n')
+        self.tail+=step(13,'return_end')
         self.tail+=(f'FES_NATIVE_FPGA_WINDOW_PRESENT PASS package_id={f.identity["package_id"]} build_id={f.identity["build_id"]} '
             f'owner={OWNER:x} source_generation=4 closed_generation=7 frames=12 last_reader_generation=13 last_cookie=1 '
             f'bytes=3686400 crc32=1234000c frame_sha256={12:064x} access_map_sha256={trace.context_digest(f.contract)} '
             'data_closed=1 memory_retained=1 runtime_admission=unavailable\n')
-        self.raw=self.prefix+''.join(frames)+self.tail
+        self.raw=self.prefix+self.frame_body+self.tail
 
     def decode(self,data,**options):
         f=self.base
@@ -42,6 +48,7 @@ class WindowPresentationTraceTests(unittest.TestCase):
         self.assertTrue(result['complete'],result['errors'])
         self.assertEqual(result['last_checkpoint'],'window_present_closed')
         self.assertEqual(len(result['window_read']['presentations']),12)
+        self.assertEqual(len(result['window_read']['progress']),50)
         self.assertEqual(result['window_read']['reader_drain']['ack_cookie'],13)
         self.assertFalse(result['window_read']['memory_released'])
         self.assertFalse(result['core_load_acceptance'])
@@ -83,7 +90,23 @@ class WindowPresentationTraceTests(unittest.TestCase):
                 ('last_reader_generation=13','last_reader_generation=12'),('last_cookie=1','last_cookie=2'),
                 ('closed_generation=7','closed_generation=8'),('crc32=1234000c','crc32=1234000d'),
                 ('access_map_sha256='+trace.context_digest(self.base.contract),'access_map_sha256='+'0'*64)):
-            with self.subTest(before=before):self.assertFalse(self.decode(self.prefix+''.join(self.frames)+self.tail.replace(before,after,1))['complete'])
+            with self.subTest(before=before):self.assertFalse(self.decode(self.prefix+self.frame_body+self.tail.replace(before,after,1))['complete'])
         for marker in ('FES_NANO_MASTER_STOP ','FES_NANO_WINDOW_READER_DRAIN ','FES_NANO_WINDOW_CLOSURE ','FES_NATIVE_FPGA_WINDOW_PRESENT PASS '):
             changed=''.join(line for line in self.raw.splitlines(keepends=True) if marker not in line)
             with self.subTest(marker=marker):self.assertFalse(self.decode(changed)['complete'])
+
+    def test_progress_retains_where_render_or_presentation_stopped(self):
+        for phase,end in [('render_begin',1),('present_begin',3)]:
+            partial=self.prefix+self.blocks[0]+''.join(self.steps[4:4+end])
+            observed=self.decode(partial)
+            self.assertFalse(observed['complete']);self.assertEqual(observed['errors'],[])
+            self.assertEqual(observed['last_checkpoint'],'window_present_'+phase+'_2')
+            self.assertEqual(len(observed['window_read']['presentations']),1)
+        for line in self.steps:
+            with self.subTest(line=line):self.assertFalse(self.decode(self.raw.replace(line,'',1))['complete'])
+        for before,after in [('index=2 ','index=3 '),('phase=render_begin','phase=render_end'),
+                             ('elapsed_us=4','elapsed_us=0'),('elapsed_us=4','elapsed_us=240000001'),
+                             ('elapsed_us=4','elapsed_us=-1')]:
+            line=self.steps[4]
+            with self.subTest(before=before):
+                self.assertFalse(self.decode(self.raw.replace(line,line.replace(before,after),1))['complete'])

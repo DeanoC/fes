@@ -35,7 +35,7 @@ func windowFrame() ([]byte, error) {
 	if err != nil {
 		return nil, err
 	}
-	if err := framefixture.Render(1, func(_ int, frame *image.RGBA) error { return surface.Present(frame) }); err != nil {
+	if err := framefixture.Render(1, func(_ int, frame *image.RGBA) error { return surface.Present(frame) }, nil); err != nil {
 		return nil, err
 	}
 	return pixels, nil
@@ -61,6 +61,10 @@ func presentWindowFrames(v *nativefabric.HPSContextVerifier, control, contract [
 	}
 	seen := map[uint32]bool{}
 	var last nativefabric.WindowPresentation
+	started := time.Now()
+	step := func(index int, phase string) {
+		fmt.Printf("FES_NATIVE_FPGA_WINDOW_PRESENT STEP index=%d phase=%s elapsed_us=%d\n", index+1, phase, time.Since(started)/time.Microsecond)
+	}
 	err = framefixture.Render(12, func(index int, frame *image.RGBA) error {
 		observed, e := session.PresentFrame(ctx, frame)
 		if e != nil {
@@ -77,7 +81,8 @@ func presentWindowFrames(v *nativefabric.HPSContextVerifier, control, contract [
 			observed.Frame.Generation, observed.Frame.Cookie, observed.Frame.DeliveredBytes, observed.Memory.CRC32, observed.Frame.CRC32,
 			observed.Memory.FrameSHA256, observed.Drain.Generation, observed.Drain.Cookie)
 		return nil
-	})
+	}, step)
+	step(12, "return_begin")
 	returned, closeErr := session.Close()
 	if err = errors.Join(err, closeErr); err != nil {
 		return err
@@ -85,6 +90,7 @@ func presentWindowFrames(v *nativefabric.HPSContextVerifier, control, contract [
 	if returned.Frames != 12 || returned.LastFrame != last.Frame || returned.Memory != last.Memory {
 		return errors.New("native window presentation return differs")
 	}
+	step(12, "return_end")
 	id := v.Identity()
 	fmt.Printf("FES_NATIVE_FPGA_WINDOW_PRESENT PASS package_id=%s build_id=%s owner=%x source_generation=%d closed_generation=%d frames=%d last_reader_generation=%d last_cookie=%d bytes=%d crc32=%08x frame_sha256=%x access_map_sha256=%x data_closed=1 memory_retained=1 runtime_admission=unavailable\n",
 		id.PackageID, id.BuildID, returned.After.Owner, returned.Source.Bridges.Generation, returned.After.Generation, returned.Frames,
