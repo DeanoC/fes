@@ -27,8 +27,13 @@ foreach file {fes_de25_computer.v fes_zx81_core.v zx81_machine_clock.v zx81_keyb
 foreach file {zx81_machine.sv fes_computer_mailbox.v fes_z80_alu.sv fes_z80_engine.sv fes_z80_bus.sv fes_z80_nmos.sv} {
     add_fileset_file $file SYSTEM_VERILOG PATH $file
 }
-foreach file {fes_de25_computer.vh fes_de25_scanout.vh fes_computer.vh fes_application.vh fes_display_plane.vh} {
+foreach file {fes_de25_computer.vh fes_de25_scanout.vh} {
     add_fileset_file generated/$file VERILOG_INCLUDE PATH generated/$file
+}
+# Portable shared RTL includes these by basename, as the DE10 build's include
+# path does. Qsys must emit them beside that RTL, rather than in generated/.
+foreach file {fes_computer.vh fes_application.vh fes_display_plane.vh} {
+    add_fileset_file $file VERILOG_INCLUDE PATH generated/$file
 }
 foreach file {zx81_model.vh zx81_bus_pack.vh} {
     add_fileset_file $file VERILOG_INCLUDE PATH $file
