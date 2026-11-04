@@ -493,13 +493,16 @@ The aux device accumulates them and reports standard 3-byte PS/2 packets.
   accumulated. The runtime splits large moves into packets of −128 to 127 per
   axis; the device's accumulator is wider than a packet, so a negated −128
   arrives as +128.
-- **Limitation of the locked BIOS** ([#1330](https://github.com/DeanoC/fes/issues/1330)):
-  its INT 15h C2xx services wait for the mouse's bytes with interrupts off
-  and read the command byte without first emptying the output buffer, so a
-  key byte that reaches the 8042 during one of them hangs the guest.
-  CuteMouse uses these services, and so does a game's INT 33h reset. A real
-  8042 has the same window; production BIOSes disable the keyboard
-  interface around these sequences.
+- **The BIOS's INT 15h C2xx services** wait for the mouse's bytes with
+  interrupts off. CuteMouse uses them, and so does a game's INT 33h reset.
+  Upstream they read the command byte without first emptying the output
+  buffer, so a key byte that reached the 8042 during one of them hung the
+  guest. A real 8042 has the same window. As production BIOSes do, the
+  locked BIOS now runs each call with the keyboard interface disabled (ADh)
+  and enables it again (AEh) as it returns
+  ([firmware](../cores/fes-pc386/firmware/README.md#local-changes),
+  [#1330](https://github.com/DeanoC/fes/issues/1330)). A key pressed meanwhile
+  waits in the keyboard's FIFO.
 
 ### A20 and CPU reset
 
@@ -1197,6 +1200,7 @@ Alternatives not taken, kept as later options:
 | --- | --- | --- |
 | POST | PIC, PIT, DMA and 8042 init; keyboard self-test; CMOS memory size; option ROM scan at C0000; ATA detect by IDENTIFY | Present |
 | POST A20 | A20 gated off through the 8042 and port 92h before INT 19h | Local patch ([#1386](https://github.com/DeanoC/fes/issues/1386)) |
+| INT 15h C2xx keyboard interface | Disabled (ADh) around each mouse exchange, the output buffer emptied first, enabled (AEh) on return | Local patch ([#1330](https://github.com/DeanoC/fes/issues/1330)) |
 | POST PIT channel 1 | Mode 2, count 18 (15.09 µs), the refresh rate the INT 15h AH=86h wait counts on port 61h bit 4 | Local patch ([#1150](https://github.com/DeanoC/fes/issues/1150)) |
 | POST PIT channel 2 | Mode 3, LSB then MSB, as an AT's POST beep leaves it, with the IBM BEEP count 0533h and the gate and speaker off; games write only a count | Local patch ([#1457](https://github.com/DeanoC/fes/issues/1457)) |
 | INT 10h | Modes 03h and 13h, font load, DAC and palette calls, cursor, scrolling. Games then reprogram registers for mode Y themselves | VGABIOS |
