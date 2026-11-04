@@ -1,0 +1,113 @@
+{
+  "status": "stopped",
+  "classification": "nine native changing frames read and locally drained; no complete return or repeated-frame acceptance",
+  "native_source": "c814590156ec6f6f8a5b8ed33e881f17e09743f9",
+  "fpga_source": "df234b524d0e1340b343df411c841bd1dc553817",
+  "package_id": "a2388c4d7d8640d6e70d51c4d164e3c803157e3fb21e91451d6febd74faf6017",
+  "build_id": "7fa7e3c27ec2fb055e148514b8dac7a2",
+  "native_boot_id": "9e73f40215b6eba5",
+  "observer_error": "native contained FPGA transfer/identity deadline",
+  "received_frames": 9,
+  "last_progress": {
+    "index": 10,
+    "phase": "present_begin",
+    "elapsed_us": 26906907
+  },
+  "frame_timings": [
+    {
+      "frame": 1,
+      "render_us": 16045,
+      "present_us": 2976175
+    },
+    {
+      "frame": 2,
+      "render_us": 15052,
+      "present_us": 2956240
+    },
+    {
+      "frame": 3,
+      "render_us": 14861,
+      "present_us": 2955340
+    },
+    {
+      "frame": 4,
+      "render_us": 14849,
+      "present_us": 2955083
+    },
+    {
+      "frame": 5,
+      "render_us": 14975,
+      "present_us": 2955159
+    },
+    {
+      "frame": 6,
+      "render_us": 14989,
+      "present_us": 2955929
+    },
+    {
+      "frame": 7,
+      "render_us": 15001,
+      "present_us": 2955862
+    },
+    {
+      "frame": 8,
+      "render_us": 14929,
+      "present_us": 2955881
+    },
+    {
+      "frame": 9,
+      "render_us": 14884,
+      "present_us": 2955411
+    }
+  ],
+  "storage_seconds": 62.50977867189795,
+  "bounds": {
+    "transfer_read_return": 45,
+    "native_device": 240,
+    "native_phase": 270
+  },
+  "candidate_validations_per_launch": 1,
+  "shared_validation_cache": false,
+  "attempts_this_head": 1,
+  "retries": 0,
+  "prior_failed_window_procedures": 2,
+  "host_cleanup": {
+    "host_cleanup_passed": true,
+    "original_jtag_clock": "15M",
+    "exact_usb_permissions_restored": true,
+    "private_server_gone": true,
+    "uart_free": true,
+    "exclusive_claim_retained": true,
+    "spare_card_retained": true,
+    "factory_restore_performed": false
+  },
+  "final_bridge_state": "unknown; no complete return received",
+  "memory_lifetime": "until-reboot",
+  "native_hardware_acceptance": false,
+  "hdmi_qualified": false,
+  "ordinary_runtime_admission": false,
+  "software_checks": 7,
+  "generated_model": {
+    "frames": 12,
+    "final_generation": 13,
+    "scope": "unchanged actual generated interconnect with mocked HPS; no CPU or hardware acceptance"
+  },
+  "retention": {
+    "status": "passed",
+    "source_commit": "c814590156ec6f6f8a5b8ed33e881f17e09743f9",
+    "source_bundle": "/home/deano/fes-retained/de25-repeated-trace-20261104/source.bundle",
+    "source_bundle_sha256": "33c8a1b5f470e944abd48b4a41f206fcc4f6e8a9c3d352448e732672ded92d4e",
+    "independent_source_restore": true,
+    "strict_fsck": true,
+    "alternates": false,
+    "verification_copy_removed": true,
+    "archive": "/home/deano/fes-retained/de25-repeated-trace-20261104/stopped-native-chain.tar.gz",
+    "archive_sha256": "50966f1925f3f6e15868d6e211edbbf3c58cc8f7bf0d915293a2ea0657ede079",
+    "archive_bytes": 143603132,
+    "verified_members": 45211,
+    "hardware_acceptance": false,
+    "original_failure_and_host_cleanup_retained": true,
+    "expanded_files_removed": false
+  },
+  "private_evidence_root": "/home/deano/fes/out/dev/de25-embedded-os/out/nano-present-trace-20261104"
+}
