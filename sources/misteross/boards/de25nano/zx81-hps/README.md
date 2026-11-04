@@ -201,8 +201,11 @@ including cassette SAVE and scanout1.1. It declares no reserved HPS DDR window.
 The reduced BRAM project remains a separate diagnostic.
 
 The complete machine/reader/audio closure, controlled execution and compiler
-identities supply the functional BUILD_ID before generation. The generated
-interfaces, clocks, reset/FIFO derivations, staged source bytes, top-level wiring,
+identities supply the functional BUILD_ID before generation. Board, ZX81, menu, splash, Z80 and generated-definition
+modules remain conservative source roots; the five single-file shared libraries
+are also bound explicitly. Every captured hardware input must occur in that
+closure, which excludes unrelated shared-core vendors and remains within the
+format's64KiB record limit. The generated interfaces, clocks, reset/FIFO derivations, staged source bytes, top-level wiring,
 firmware and PLL parameters are checked before and after compilation. Scanout
 retains the managed allocated-MENU SID/nonsecure master and HPS/EMIF recipe.
 

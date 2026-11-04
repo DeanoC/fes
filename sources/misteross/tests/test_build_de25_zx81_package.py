@@ -27,6 +27,7 @@ class ZX81ProducerTests(unittest.TestCase):
               'boards/de25nano/fixture.v':b'fixture board',
               'cores/fes-menu/rtl/fixture.v':b'fixture reader',
               'cores/fes-splash/rtl/fixture.v':b'fixture display'}
+        data.update({name:b'fixture shared library' for name in producer.COMMON_LIBRARY_INPUTS})
         for name,value in data.items():
             p=self.root/name;p.parent.mkdir(parents=True,exist_ok=True);p.write_bytes(value)
         for command in (['git','init','-q'],['git','add','.'],
