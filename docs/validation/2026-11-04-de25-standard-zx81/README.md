@@ -99,3 +99,27 @@ Six remaining shared-consumer RTL targets are still running separately.
 No FPGA or kit software was installed in this phase. The complete board recipe,
 allocated session runtime/profile, vendor clock/audio and standard ROM/expansion
 integration, exact Quartus artifact and normal-kit hardware acceptance remain open.
+
+## Stock audio clock and standard PCM wrapper
+
+At `451f853c7`, `fes_de25_audio` uses Terasic HDMI_ASx4's dedicated `av_pll`
+on CLOCK1_50 with the standard coherent PCM/I2S modules. The supplied archive
+hash is verified. All259 PLL parameters remain unchanged except the target-device
+field after the two device-only metadata substitutions. Pro26.3 generation retains
+the stock integer M=58/C=236 ratio from50MHz: nominal12.288MHz, with the supplied
+actual divider rate about12.2881356MHz (about48000.53 samples/second).
+
+The isolated elaboration initially flagged the missing board Reset Release IP.
+Adding the actual Terasic reset IP and using NINIT for PLL reset/hold resolved
+that finding. Generation plus analysis/elaboration passed in32.824seconds with
+zero errors and warnings. No reset/timing exception was added. The standard PCM
+model passed in3.074seconds, covering atomic stereo, independent clocks, I2S
+padding, hold and clock loss. `audio-integration.json` binds source and vendor
+identities. This is not a full-board fit/timing result or a native audio capture.
+The complete-board recipe still needs to select and connect the wrapper.
+
+The corrected standalone diagnostic fault observer also passes eight selected
+native/AArch64 identity/signature/reset cases in9.542seconds. The full20-case
+standalone matrix is not claimed. After this and the14-case combined proof,
+the owned temporary SDK volume was removed; authenticated SDK archives/cache,
+source snapshots, binaries, logs and proof receipts remain available.
