@@ -94,7 +94,7 @@ func (c *Client) StopRetainLeaseExpected(ctx context.Context, expected SessionRe
 }
 
 func (c *Client) stopExpectedStamped(ctx context.Context, expected SessionResult, stamp ClientStamp, retainLease bool) (SessionResult, error) {
-	if strings.TrimSpace(expected.ID) == "" || protocol.ValidateGameID(expected.GameID) != nil || strings.TrimSpace(expected.Target) == "" ||
+	if strings.TrimSpace(expected.ID) == "" || (expected.GameID != "" && protocol.ValidateGameID(expected.GameID) != nil) || strings.TrimSpace(expected.Target) == "" ||
 		expected.CorePackage == nil || protocol.ValidateDigest(expected.CorePackage.PackageID) != nil || expected.CorePackage.Generation == 0 {
 		return SessionResult{}, fmt.Errorf("the displayed session identity is unavailable; refresh before stopping")
 	}
