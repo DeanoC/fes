@@ -81,3 +81,20 @@ add_interface_port clock_fault clock_fault export Input 1
 
 add_interface ready conduit end
 add_interface_port ready display_ready export Input 1
+
+# Standalone MENU keeps its internal raster. The standard-core session wrapper
+# instantiates this HDL directly with EXTERNAL_RASTER=1 and live machine timing.
+# Terminate the unused taps in this existing standalone Qsys component.
+add_parameter EXTERNAL_RASTER BOOLEAN false
+set_parameter_property EXTERNAL_RASTER HDL_PARAMETER true
+set_parameter_property EXTERNAL_RASTER VISIBLE false
+add_interface session conduit end
+foreach {port direction width} {
+    raster_h Input 11 raster_v Input 10 video_alpha Output 8
+    scanout_running Output 1 scanout_drained Output 1 scanout_pending Output 1
+    scanout_sequence Output 32 scanout_underflows Output 32 scanout_errors Output 32
+} {
+    add_interface_port session $port $port $direction $width
+    set_port_property $port TERMINATION true
+    if {$direction eq "Input"} {set_port_property $port TERMINATION_VALUE 0}
+}

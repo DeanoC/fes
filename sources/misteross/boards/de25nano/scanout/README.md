@@ -428,3 +428,21 @@ No clocks, toggle rates, constraints or waived findings are changed.
 Quartus `~DUPLICATE` copies of the reviewed ACK1/2/3 and LUT_INDEX0..5
 registers are permitted after stage two. Raw inputs and stage zero still have
 exactly one consumer each; other register names or copy suffixes are refused.
+
+## Standard-core session display adapter
+
+`fes_de25_session_display.v` combines the existing kernel-owned scanout CSR,
+shared GP display control/CDC and the shared premultiplied compositor. It follows
+the incoming machine raster. Kernel publication supplies the only memory source;
+GP submit commands are rejected, and GP observations use actual kernel pending
+and displayed counters. A close waits for STOP/drain and frame-boundary hiding.
+A subsequent CLEAR and new grant restart the scanout sequence without resetting
+the incoming machine video. Standalone MENU retains its existing internal-raster
+configuration; unused session ports are terminated by its Qsys component.
+
+Run `python3 sim.py --case session` for the actual RTL test of transparent/alpha
+blending, continuous sync, relocated bounded memory reads, rejected GP publication,
+held-response close and new-generation allocation/reopen. The normal `sim.py`
+run includes it. Memory backing and machine video are test models. The adapter is
+not yet selected by the ZX81 package producer or production runtime; no new
+Quartus artifact or hardware support is claimed.

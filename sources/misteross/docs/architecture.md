@@ -368,6 +368,19 @@ consumers retain the 256-beat reader default. Temporary DDR service gaps are
 modeled with complete-frame pixel checks; physical CPU/scanout contention
 still requires native validation with zero underflows.
 
+The internal `fes_de25_session_display` adapter reuses that same scanout CSR
+with the machine raster and the shared `fes_display_compositor` blend pipeline.
+It forwards actual pending/completed counters to the shared GP display control.
+Only the kernel CSR publishes buffers: GP frame-submission commands are rejected.
+GP close waits for kernel-proven drain and a hidden plane; CLEAR/reallocation
+resets scanout ownership without resetting the machine or its video timing.
+The standalone Qsys component retains its internal raster and terminates the
+unused session taps. `scanout/sim.py --case session` tests actual endpoint,
+control/CDC and compositor RTL with allocated response storage, complete blended
+frames, a held-response close and a new base/generation/sequence. This is an
+internal adapter, not yet selected by the standard ZX81 board producer or runtime
+profile. The model is not a physical DMA allocation or full machine integration.
+
 For explicit `--linux-dma --hps-first`, the recipe exposes the fixed nonsecure
 SMMU stream and removes the DDR probe/control window and external memory-debug
 JTAG master/export/window. Generated topology must have exactly one scanout

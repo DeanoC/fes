@@ -32,6 +32,7 @@ module fes_menu_endpoint (
         .menu_response_data(response_data), .menu_quiesced(quiesced)
     );
     fes_menu_control control (
+        .external_pending(1'b0),
         .clk(clk), .request(request && !blit_request), .opcode(opcode), .index(index), .argument(argument),
         .exec_reset(exec_reset), .drained(quiesced), .faulted(faulted),
         .submit_ready(submit_ready), .displayed_sequence(displayed_sequence), .underflows(underflows),
