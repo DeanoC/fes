@@ -412,3 +412,39 @@ before this becomes a physical PR implementation. No canonical package,
 production defaults, timing-policy scope or board configuration changed. The
 full normal-kit goal, pending audio reference decision and native acceptance
 remain open.
+
+## Managed software candidate prepared off board
+
+The normal immutable software producer built source
+`e26c65606430d253cc01fdc6aa494afa914a0546` against the retained, reviewed6de Linux
+base in54.446seconds. It authenticates the original managed-factory SDK
+`ad6479d06d506ed7406a289da1daa2712582ccc351e94e4db43498b01f0968e1`, freezes the
+source, builds the complete AArch64 agent/runtime/launchers, checks the base ELF
+and versioned-library closure and required MENU interfaces, and independently
+inspects the finished bundle. No OS/kernel or FPGA build ran in this step.
+
+Candidate bundleID is
+`7b82f9033e63ba9dd000010cef9e77033286182b00f0ac3fa5267c4be8ab4645`, archiveSHA256
+`aa0012724f7570d508140c88ba6019aef06a0d7ddd65d78752473e2853248d02`.
+The matching Linux amd64 host API binary was built from the same source and
+retained with SHA256
+`b4f40409d0d11c2a23ffafbbf16cdfee51018489959b44b0d5a2be6cc4ba15c3`.
+See [managed-software-candidate.json](managed-software-candidate.json).
+
+A separate4.478second probe verifies every packaged file hash and all four
+AArch64 executable headers. Using the exact factory SDK libraries, the actual
+packaged runtime reaches its early argument-validation path under Cortex-A76
+QEMU and returns the expected invalid-request exit2, before constructing any
+hardware or opening diagnostics. The host help parser likewise exits before
+opening a service or configuration. See
+[packaged-software-smoke.json](packaged-software-smoke.json). The first probe
+incorrectly expected a VCS field in the host's Go metadata; the normal build
+uses `buildvcs=false`. The corrected probe binds the clean source-pinned build
+record and logged linker arguments; the host recipe and binary were unchanged.
+
+These are build, compatibility and early-entry checks. They do not establish
+native daemon startup, pairing/session continuity, standard-core admission or
+hardware behavior. The software bundle and host remain retained off board;
+no running service, pairing database, software generation, kernel/card/FPGA or
+board baseline changed. The pending audio-reference decision, final sealed
+standard core and exact-artifact managed acceptance remain required.
