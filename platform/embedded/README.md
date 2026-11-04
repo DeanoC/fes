@@ -26,8 +26,13 @@ The [full-width window hardware test](../../docs/validation/2026-11-04-de25-full
 passes one complete 1280×720 tenfoot frame on TRWU8CBL. The new 256-bit DDR
 boundary delivers all 3,686,400 bytes with the native CPU publication's CRC,
 then completes reader/master drain and bridge reclosure. Its 4 MiB reservation
-stays pinned until reboot. Repeated presentation, buffer reuse, physical HDMI,
-USB hub input and ordinary package admission remain open.
+stays pinned until reboot. The later [repeated-frame hardware diagnostic](../../docs/validation/2026-11-04-de25-buffered-window/README.md)
+passes twelve changing native frames, a local reader drain before each arena
+update, and final firmware master stop and bridge closure. Full-arena hashes
+use private CPU scratch storage with unchanged coverage and ownership checks.
+This qualifies bounded updates within that fixed source and reader scope.
+Physical HDMI, USB hub input, native networking and ordinary package admission
+remain open.
 
 The [contained firmware/RTL prototype](firmware/README.md) prepares a pinned
 TF-A source variant and an FPGA identity/read-drain endpoint. The experimental

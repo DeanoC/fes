@@ -57,6 +57,10 @@ closure; its cached reader acknowledgement must match frame twelve. Build,
 entry and cold-firmware receipts carry this separate selection. Failure logs
 use cached observations and keep memory pinned. Native HDMI and ordinary
 runtime admission still need separate implementation and hardware acceptance.
+The [matched repeated-frame diagnostic](../../../docs/validation/2026-11-04-de25-buffered-window/README.md)
+now passes all twelve frames, local reader drains and final firmware closure
+on TRWU8CBL. Its private 32 KiB hash scratch retains complete byte coverage;
+all device bounds remain unchanged. This result covers the fixed reader scope.
 
 The repeated-frame diagnostic emits timed `STEP` records before and after
 rendering, presentation and final return. A partial trace retains the last

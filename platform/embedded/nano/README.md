@@ -237,8 +237,11 @@ reader and reports its cached generation/cookie acknowledgement without an
 extra device read. The trace audit requires every changing frame, its matching
 publication/read CRC, local drain and final firmware closure. The selection is
 bound into native ELF, entry, cold profile and composition receipts. This is
-the next bounded native diagnostic; the preceding single-frame hardware pass
-does not qualify this new repeated-frame command, HDMI or ordinary core loads.
+a separate bounded diagnostic. The [matched repeated-frame test](../../../docs/validation/2026-11-04-de25-buffered-window/README.md)
+now passes all twelve frames, local drains and final firmware master stop and
+bridge closure on TRWU8CBL. Full-arena hashing reads through private 32 KiB CPU
+scratch storage with unchanged coverage and bounds. HDMI and ordinary core
+loads remain open.
 
 The [first repeated-frame trial](../../../docs/validation/2026-11-04-de25-repeated-window/README.md)
 stops at the host's phase bound after one complete frame/local drain; final

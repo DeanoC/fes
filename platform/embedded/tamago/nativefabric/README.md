@@ -177,12 +177,13 @@ publication and ownership failures, cancellation, token exhaustion and concurren
 return. Actual RTL tests cover local drain, held addresses/responses and an
 accepted DISABLE whose response is lost. The real C/RTL stop test completes
 eight generations and drains an interrupted ninth with a fresh final cookie.
-These are software results. The [recorded physical result](../../../../docs/validation/2026-11-04-de25-fullwidth-window/README.md)
-qualifies its earlier single-frame image. The separate `--window-present`
-command selects twelve changing frames. A later [timed physical diagnostic](../../../../docs/validation/2026-11-04-de25-repeated-trace/README.md)
-completed nine frames before its unchanged 45-second transfer/read/return bound;
-that stopped attempt establishes no final return. Repeated-frame acceptance,
-HDMI, USB hub input and ordinary package admission remain open.
+These are software results. The [matched repeated-frame hardware diagnostic](../../../../docs/validation/2026-11-04-de25-buffered-window/README.md)
+now completes twelve changing native frames, matching local drains and final
+secure master stop/bridge closure on TRWU8CBL. Its 45-second transfer/read/return
+bound remains unchanged. The prior [nine-frame stopped trace](../../../../docs/validation/2026-11-04-de25-repeated-trace/README.md)
+remains failed and retained. The new result qualifies bounded updates under
+this fixed reader scope. HDMI, USB hub input, native networking and ordinary
+package admission remain open.
 
 Before an injected actor retires its current owner, it checks that the retained
 package's exact target, programming profile and ABI version have an explicitly
