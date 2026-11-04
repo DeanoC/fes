@@ -52,6 +52,8 @@ class StatusReader(unittest.TestCase):
         self.assertIn('devmem 0x31000000 64', loop)
         self.assertIn('r=$(( 0x31001000 + 64 * (n & 255) ))', loop)
         self.assertIn('usleep 50000', loop)
+        # It stops once the reader is gone, not only at --seconds.
+        self.assertIn('echo E || break', loop)
         # Word 0 first and again last, so a rewritten record is seen.
         self.assertLess(loop.index('W 0'), loop.index('W 1'))
         self.assertGreater(loop.rindex('W 0'), loop.index('W 7'))

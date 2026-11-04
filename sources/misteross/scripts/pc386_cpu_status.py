@@ -48,14 +48,16 @@ ALL_WORDS = tuple(range(8))
 
 def remote_loop(words: tuple[int, ...], seconds: float, interval: float) -> str:
     """The kit's busybox shell loop: per sample a line 'S <uptime> <head>',
-    then a line per word 'W <n> <value>', and 'E' once word 0 is read again."""
+    then a line per word 'W <n> <value>', and 'E' once word 0 is read again.
+    It ends at --seconds, or once 'E' cannot be written: the shell sshd starts
+    ignores SIGPIPE, so a reader that goes away would otherwise leave it running."""
     reads = ''.join(f'echo W {n} $(devmem $((r + {8 * n})) 64); ' for n in words)
     pause = f'usleep {int(interval * 1e6)}; ' if interval > 0 else ''
     return (f'read u0 _ < /proc/uptime; end=$((${{u0%.*}} + {int(seconds) + 1})); '
             f'while :; do read u _ < /proc/uptime; [ ${{u%.*}} -ge $end ] && break; '
             f'h=$(devmem {HEAD:#x} 64); '
             f'n=$(( (h & 0xffffffff) - 1 )); r=$(( {RECORDS:#x} + 64 * (n & {SLOTS - 1}) )); '
-            f'echo S $u $h; {reads}echo W 0 $(devmem $r 64); echo E; {pause}done')
+            f'echo S $u $h; {reads}echo W 0 $(devmem $r 64); echo E || break; {pause}done')
 
 
 def decode(head: int, words: dict[int, int]) -> dict:
