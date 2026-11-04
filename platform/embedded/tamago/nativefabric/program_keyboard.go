@@ -122,6 +122,15 @@ func (p *programKeyboard) report(ctx context.Context, report []byte) error {
 			rows[row] &^= 1 << bit
 		}
 	}
+	if err := p.writeRows(ctx, rows); err != nil {
+		return err
+	}
+	p.decoder = next
+	return nil
+}
+
+// Caller holds backend.operation. Decoder state commits only after these rows.
+func (p *programKeyboard) writeRows(ctx context.Context, rows [9]uint16) error {
 	if rows != p.rows {
 		if err := p.backend.service.Keyboard(ctx, p.session, rows); err != nil {
 			if p.backend.service.Status().State == ProgramRebootRequired || (!errors.Is(err, ErrProgramBusy) && !errors.Is(err, context.Canceled)) {
@@ -131,7 +140,7 @@ func (p *programKeyboard) report(ctx context.Context, report []byte) error {
 			return err
 		}
 	}
-	p.decoder, p.rows = next, rows
+	p.rows = rows
 	return nil
 }
 

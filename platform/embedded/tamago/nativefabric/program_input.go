@@ -12,26 +12,68 @@ import (
 	"github.com/DeanoC/fes/platform/embedded/tamago/usb"
 )
 
-// ProgramInputPlatform routes one exclusively owned boot-keyboard source through
+// ProgramInputPlatform routes one exclusively owned typed USB source through
 // the real Tenfoot platform loop. The underlying platform retains pacing/output
 // and any explicitly configured diagnostic controls. No USB hardware is opened.
 // Keep this platform, backend, service and uncertain device resources until reboot.
 type ProgramInputPlatform struct {
-	operation  sync.Mutex
-	base       tenfoot.Platform
-	backend    *ProgramBackend
-	source     input.USBReports
-	menu       *input.USBKeyboard
-	keyboard   ProgramKeyboard
-	session    ProgramSession
-	mode       ProgramServiceState
-	generation uint64
-	menuArmed  bool
-	fault      error
+	operation         sync.Mutex
+	base              tenfoot.Platform
+	backend           *ProgramBackend
+	source            input.USBReports
+	menu              *input.USBKeyboard
+	keyboard          ProgramKeyboard
+	gamepadSource     input.USBGamepadReports
+	gamepadMenu       *input.USBGamepad
+	gamepad           ProgramGamepad
+	gamepadDescriptor []byte
+	gamepadButtons    input.GamepadButtons
+	gamepadKeys       ProgramGamepadKeys
+	session           ProgramSession
+	mode              ProgramServiceState
+	generation        uint64
+	menuArmed         bool
+	fault             error
 }
 
 func NewProgramInputPlatform(base tenfoot.Platform, backend *ProgramBackend, source input.USBReports) (*ProgramInputPlatform, error) {
-	if base == nil || backend == nil || backend.service == nil || source == nil {
+	if source == nil {
+		return nil, ErrProgramSession
+	}
+	menu, err := input.NewUSBKeyboard(source)
+	if err != nil {
+		return nil, err
+	}
+	p, err := newProgramInputPlatform(base, backend)
+	if err != nil {
+		return nil, err
+	}
+	p.source, p.menu = source, menu
+	return p, nil
+}
+
+// NewProgramGamepadPlatform binds a descriptor-driven source and explicit menu
+// and core mappings. It transfers local frontend input ownership only; firmware
+// permission to coexist with SD/FPGA must be supplied independently by the BSP.
+func NewProgramGamepadPlatform(base tenfoot.Platform, backend *ProgramBackend, source input.USBGamepadReports, descriptor []byte, buttons input.GamepadButtons, keys ProgramGamepadKeys) (*ProgramInputPlatform, error) {
+	if source == nil || !keys.valid() {
+		return nil, ErrProgramSession
+	}
+	menu, err := input.NewUSBGamepad(source, descriptor, buttons)
+	if err != nil {
+		return nil, err
+	}
+	p, err := newProgramInputPlatform(base, backend)
+	if err != nil {
+		return nil, err
+	}
+	p.gamepadSource, p.gamepadMenu = source, menu
+	p.gamepadDescriptor = append([]byte(nil), descriptor...)
+	p.gamepadButtons, p.gamepadKeys = buttons, keys
+	return p, nil
+}
+func newProgramInputPlatform(base tenfoot.Platform, backend *ProgramBackend) (*ProgramInputPlatform, error) {
+	if base == nil || backend == nil || backend.service == nil {
 		return nil, ErrProgramSession
 	}
 	if !backend.operation.TryLock() {
@@ -41,12 +83,8 @@ func NewProgramInputPlatform(base tenfoot.Platform, backend *ProgramBackend, sou
 	if backend.inputAttached || backend.inputFault != nil || backend.service.Status().State != ProgramReady {
 		return nil, ErrProgramBusy
 	}
-	menu, err := input.NewUSBKeyboard(source)
-	if err != nil {
-		return nil, err
-	}
 	backend.inputAttached = true
-	return &ProgramInputPlatform{base: base, backend: backend, source: source, menu: menu, menuArmed: backend.service.Status().Generation == 0}, nil
+	return &ProgramInputPlatform{base: base, backend: backend, menuArmed: backend.service.Status().Generation == 0}, nil
 }
 
 func (p *ProgramInputPlatform) Next(ctx context.Context) (tenfoot.PlatformInput, error) {
@@ -103,16 +141,26 @@ func (p *ProgramInputPlatform) poll(ctx context.Context) ([]input.Event, error) 
 	if v.State == ProgramRunning {
 		p.session = b.session
 	}
-	if v.State == ProgramRunning && (p.keyboard.state == nil || p.keyboard.state.session.Generation() != v.Generation) {
-		k, err := b.bindKeyboard(ctx, v.Generation)
+	if v.State == ProgramRunning {
+		var err error
+		if p.gamepadSource != nil {
+			if p.gamepad.state == nil || p.gamepad.state.keys.state.session.Generation() != v.Generation {
+				p.gamepad, err = b.bindGamepad(ctx, v.Generation, p.gamepadDescriptor, p.gamepadKeys)
+			}
+		} else if p.keyboard.state == nil || p.keyboard.state.session.Generation() != v.Generation {
+			p.keyboard, err = b.bindKeyboard(ctx, v.Generation)
+		}
 		if err != nil {
 			b.inputFault = err
 			return nil, err
 		}
-		p.keyboard = k
 	}
 	if v.State == ProgramReady && p.mode != "" && (p.mode != ProgramReady || p.generation != v.Generation) {
-		p.menu, _ = input.NewUSBKeyboard(p.source)
+		if p.gamepadSource != nil {
+			p.gamepadMenu, _ = input.NewUSBGamepad(p.gamepadSource, p.gamepadDescriptor, p.gamepadButtons)
+		} else {
+			p.menu, _ = input.NewUSBKeyboard(p.source)
+		}
 		p.menuArmed = false
 	}
 	p.mode, p.generation = v.State, v.Generation
@@ -122,7 +170,13 @@ func (p *ProgramInputPlatform) poll(ctx context.Context) ([]input.Event, error) 
 			b.inputFault = err
 			return nil, err
 		}
-		report, err := p.source.PollKeyboard()
+		var report []byte
+		var err error
+		if p.gamepadSource != nil {
+			report, err = p.gamepadSource.PollGamepad()
+		} else {
+			report, err = p.source.PollKeyboard()
+		}
 		if err != nil {
 			b.inputFault = err
 			return nil, err
@@ -132,9 +186,17 @@ func (p *ProgramInputPlatform) poll(ctx context.Context) ([]input.Event, error) 
 		}
 		var changes []input.Event
 		if v.State == ProgramRunning {
-			err = p.keyboard.state.report(ctx, report)
+			if p.gamepadSource != nil {
+				err = p.gamepad.state.report(ctx, report)
+			} else {
+				err = p.keyboard.state.report(ctx, report)
+			}
 		} else {
-			changes, err = p.menu.Decode(report)
+			if p.gamepadSource != nil {
+				changes, err = p.gamepadMenu.Decode(report)
+			} else {
+				changes, err = p.menu.Decode(report)
+			}
 		}
 		if errors.Is(err, usb.ErrKeyboardRollover) {
 			continue
@@ -145,9 +207,14 @@ func (p *ProgramInputPlatform) poll(ctx context.Context) ([]input.Event, error) 
 		}
 		if v.State == ProgramReady {
 			if !p.menuArmed {
-				up := report[0] == 0
-				for _, key := range report[2:] {
-					up = up && key == 0
+				up := false
+				if p.gamepadSource != nil {
+					up = input.GamepadNeutral(p.gamepadMenu.State())
+				} else {
+					up = report[0] == 0
+					for _, key := range report[2:] {
+						up = up && key == 0
+					}
 				}
 				p.menuArmed = up
 				continue
@@ -174,6 +241,9 @@ func (p *ProgramInputPlatform) park(ctx context.Context) error {
 	if err == nil {
 		if p.keyboard.state != nil {
 			p.keyboard.state.closed = true
+		}
+		if p.gamepad.state != nil {
+			p.gamepad.state.keys.state.closed = true
 		}
 		b.session, b.play = ProgramSession{}, programPlay{}
 	}

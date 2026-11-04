@@ -32,12 +32,11 @@ func NewUSBGamepad(source USBGamepadReports, descriptor []byte, buttons GamepadB
 // State is a value snapshot for a core-specific input route. Menu navigation
 // does not convert gamepad state into a boot-keyboard report.
 func (g *USBGamepad) State() usb.GamepadState { return g.state }
-func (g *USBGamepad) Decode(report []byte) ([]Event, error) {
-	state, _, err := g.decoder.Feed(report)
-	if err != nil {
-		return nil, err
-	}
-	next := [6]bool{}
+
+// GamepadDirections uses the menu deadzone and prefers an active hat over X/Y.
+// Order is up, down, left, right; other axes have no menu direction meaning.
+func GamepadDirections(state usb.GamepadState) [4]bool {
+	next := [4]bool{}
 	const threshold = 16384
 	next[0], next[1] = state.Axes[1] < -threshold, state.Axes[1] > threshold
 	next[2], next[3] = state.Axes[0] < -threshold, state.Axes[0] > threshold
@@ -47,6 +46,21 @@ func (g *USBGamepad) Decode(report []byte) ([]Event, error) {
 		next[2] = state.Hat >= 5 && state.Hat <= 7
 		next[3] = state.Hat >= 1 && state.Hat <= 3
 	}
+	return next
+}
+
+// GamepadNeutral is the release fence for menu/core ownership transitions.
+func GamepadNeutral(state usb.GamepadState) bool {
+	return state.Buttons == 0 && GamepadDirections(state) == [4]bool{}
+}
+func (g *USBGamepad) Decode(report []byte) ([]Event, error) {
+	state, _, err := g.decoder.Feed(report)
+	if err != nil {
+		return nil, err
+	}
+	next := [6]bool{}
+	directions := GamepadDirections(state)
+	copy(next[:4], directions[:])
 	next[4] = state.Buttons&(uint32(1)<<(g.buttons.Confirm-1)) != 0
 	next[5] = state.Buttons&(uint32(1)<<(g.buttons.Back-1)) != 0
 	names := [6]string{"up", "down", "left", "right", "return", "escape"}
