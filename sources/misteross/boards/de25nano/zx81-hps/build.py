@@ -278,6 +278,12 @@ qsys_top soc_inst (
         (local / Path(name).name).write_bytes(sources[name])
     qsf_path = project / "golden_top.qsf"
     qsf = qsf_path.read_text() + "\nset_global_assignment -name IP_FILE fes_mailbox/av_pll.ip\n"
+    if re.search(r"(?m)^\s*set_global_assignment\s+-name\s+VERILOG_MACRO\s+.*QUARTUS", qsf):
+        raise ValueError("upstream already selects the Quartus RAM branch; review before overriding")
+    # The portable machine selects altsyncram/MIF in Quartus and a readmemh
+    # model otherwise. Use the existing board's guarded Agilex/M20K repairs.
+    qsf += "set_global_assignment -name VERILOG_MACRO QUARTUS=1\n"
+    (project / "zx8x.mif").write_bytes(sources["sources/misteross/cores/fes-zx81/rtl/zx8x.mif"])
     for name in paths:
         qsf += "set_global_assignment -name VERILOG_FILE fes_mailbox/" + Path(name).name + "\n"
     # The preserved GHRD already owns CLOCK1_50; require its actual stock pin.
@@ -314,6 +320,9 @@ def generate_standard_board(output, scanout, combined, hps, display, tool, versi
     inputs = json.loads((directory / "inputs.json").read_text())
     if inputs.get("source_classification") != "committed" or not inputs.get("fes_revision"):
         raise ValueError("standard board generation requires committed source")
+    if (directory / "project/golden_top.qsf").read_text().count(
+            "set_global_assignment -name VERILOG_MACRO QUARTUS=1\n") != 1:
+        raise ValueError("standard board requires the selected Quartus/M20K memory branch")
     combined.generate(output / "combined", hps, display, tool, version)
     scanout.repair_generated_reset_timing(directory)
     scanout.shared_reset_helper(directory).apply(directory)
