@@ -2722,12 +2722,14 @@ writes one before the service opens, in this order:
    it from the first health later. It never guesses one. An `agent.toml`
    `target_id` that disagrees with the agent stops the host.
 3. It checks the state root, `/run/fogcast/fesdata3/fogcast-host`
-   (`-kit-state`), with `appliancedata.CheckPersistent` before creating
-   anything: FESDATA3 must be the writable ext4 mount of the selected device,
-   with no symlink or nested mount on the way. The check follows the wait
-   because mister-agent prepares FESDATA3. Otherwise the host logs it and uses
-   tmpfs `/run/fogcast/kit-host`, which a restart loses; the kit still runs, as
-   the supervisor does without FESDATA3.
+   (`-kit-state`), and the exact `state` and `staging` paths beneath it with
+   `appliancedata.CheckPersistent` before creating or rewriting the config:
+   FESDATA3 must be the writable ext4 mount of the selected device, with no
+   symlink or nested mount on the way. Checking each path catches an existing
+   child mount on another filesystem. The check follows the wait because
+   mister-agent prepares FESDATA3. Otherwise the host logs it and uses tmpfs
+   `/run/fogcast/kit-host`, which a restart loses; the kit still runs, as the
+   supervisor does without FESDATA3.
 4. It renders `config.toml` in the state root (`fogcast.KitHostConfig`, mode
    0600). A first start begins from the image's catalog config,
    `/usr/share/fogcast/config.toml` (`-kit-template`), which is never written.

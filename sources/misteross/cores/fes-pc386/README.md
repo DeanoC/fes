@@ -88,6 +88,7 @@ python3 scripts/sim_fes_pc386.py --suite boot --image games --cpu rtl --type 'me
 python3 scripts/sim_fes_pc386.py --suite boot --image games --type 'set|' --expect 'BLASTER=A220 I7 D1 T3'  # FESENV from CMOS
 python3 scripts/sim_fes_pc386.py --suite rtl-stops        # the RTL's stop path on the stop test disk, against the oracle
 python3 scripts/sim_fes_pc386.py --suite a20 --download   # A20TEST.COM: A20 off at boot, INT 15h 24xx/87h, a shutdown resume, HIMEMX's method and XMS 03h-06h
+python3 scripts/sim_fes_pc386.py --suite c2xx --download  # C2TEST.COM: INT 15h C205h with key and aux bytes at the 8042, and while keys are typed
 python3 scripts/sim_fes_pc386.py --suite wait --download  # WAITTEST.COM: INT 15h AH=86h waits from 0 us to 300 ms return in their time
 python3 scripts/sim_fes_pc386.py --suite speaker --download  # SPKTEST.COM: PIT counter 2 in mode 3 from POST; a count-only write gives the speaker carrier
 python3 scripts/sim_fes_pc386.py --suite sound --download  # boot, then SOUND.COM; writes sound.wav

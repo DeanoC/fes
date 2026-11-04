@@ -178,6 +178,47 @@ func TestPrepareFallsBackToTmpfsWithoutFESDATA3(t *testing.T) {
 	}
 }
 
+func TestPrepareFallsBackWhenStateOrStagingIsMountedSeparately(t *testing.T) {
+	for _, childName := range []string{"state", "staging"} {
+		t.Run(childName, func(t *testing.T) {
+			agent, _ := fakeAgent(t, "agent-token", 0)
+			f := newFixture(t, listenOf(agent), "agent-token")
+			child := filepath.Join(f.root, childName)
+			if err := os.MkdirAll(child, 0o700); err != nil {
+				t.Fatal(err)
+			}
+			checked := []string{}
+			f.options.CheckPersistent = func(path string) error {
+				checked = append(checked, path)
+				if path == child {
+					return errors.New("nested mount on another filesystem")
+				}
+				return nil
+			}
+
+			path, err := Prepare(context.Background(), f.options)
+			if err != nil {
+				t.Fatal(err)
+			}
+			wantPath := filepath.Join(f.options.FallbackRoot, "config.toml")
+			if path != wantPath {
+				t.Fatalf("config path %s, want fallback %s (checked %v)", path, wantPath, checked)
+			}
+			wantChecked := []string{f.root}
+			if childName == "staging" {
+				wantChecked = append(wantChecked, filepath.Join(f.root, "state"))
+			}
+			wantChecked = append(wantChecked, child)
+			if strings.Join(checked, "\n") != strings.Join(wantChecked, "\n") {
+				t.Fatalf("checked paths %v, want %v", checked, wantChecked)
+			}
+			if _, err := os.Stat(filepath.Join(f.root, "config.toml")); !errors.Is(err, os.ErrNotExist) {
+				t.Fatalf("wrote config beneath separately mounted child: %v", err)
+			}
+		})
+	}
+}
+
 func TestPrepareNeedsTheAgentConfig(t *testing.T) {
 	f := newFixture(t, "0.0.0.0:8182", "agent-token")
 	f.options.AgentConfig = filepath.Join(t.TempDir(), "missing.toml")
