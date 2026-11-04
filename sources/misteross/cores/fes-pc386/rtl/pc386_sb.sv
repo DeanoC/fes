@@ -27,10 +27,12 @@
 //   E2 [d]   DMA identification: one byte written by DMA (DOSBox-X's algorithm)
 //   E4 [d], E8  write and read the test register
 //   F2       IRQ 10 us later
-// Every other command is consumed with its argument bytes and ignored,
-// ADPCM (16, 17, 74-77, 1F, 7D-7F) included. A write during the 2 us
-// write-busy interval or a high-speed transfer is dropped; only reset stops
-// high-speed auto-init.
+//   ADPCM DMA playback, single-cycle [lo hi] and auto-init (48h's block):
+//            4-bit 74, 75, 7D   2.6-bit 76, 77, 7F   2-bit 16, 17, 1F
+//            75, 77, 17 and every auto-init form start with a reference byte
+// Every other command is consumed with its argument bytes and ignored. A
+// write during the 2 us write-busy interval or a high-speed transfer is
+// dropped; only reset stops high-speed auto-init.
 //
 // DMA: each sample period raises DREQ for one byte while a transfer runs and
 // is not halted; the acknowledge takes or supplies the byte and drops DREQ.
@@ -38,6 +40,21 @@
 // either reloads the count (auto-init) or ends the transfer. The DAC holds the
 // last byte played or written; the output is silent (80h) while the speaker
 // is off.
+//
+// ADPCM: a byte holds 2, 3 or 4 codes, high bits first (2.6-bit: 3, 3, then
+// the low 2 bits doubled), decoded as DOSBox-X's decode_ADPCM_4/3/2_sample:
+// each code steps an 8-bit reference by a signed delta from its magnitude and
+// the step row, and moves the row. The first code plays when its byte
+// arrives and the others on the following sample periods, so the card takes
+// one byte per 2, 3 or 4 periods and the IRQ comes with the block's last
+// byte, length + 1 bytes in. That byte's later codes still play, in its
+// encoding: a transfer started meanwhile (the next block, at that IRQ) takes
+// its first byte after them, so a block without a reference continues from
+// them. A reference byte resets the step, goes to the DAC and holds it for
+// its byte's periods (DOSBox-X plays no sample for it). Auto-init takes its reference only at
+// the start. Forms without one continue the previous reference and step,
+// which a DSP reset sets to 80h and 0. Creative's ADPCM rate limits (12 kHz
+// for 4-bit) are not applied, as for PCM.
 module pc386_sb #(
     parameter integer RESET_US = 20
 ) (
@@ -76,6 +93,13 @@ module pc386_sb #(
     reg [7:0] e2_add, e2_xor;
     reg [3:0] irq_us;
     reg [15:0] last_length;            // a two-byte argument, when its command executes
+    localparam [1:0] PCM = 2'd0, ADPCM4 = 2'd1, ADPCM3 = 2'd2, ADPCM2 = 2'd3;
+    reg [1:0] encoding;                // the transfer's encoding
+    reg adpcm_ref;                     // the next byte is a reference
+    reg [1:0] codes_left;              // sample periods left in the byte in hand
+    reg [1:0] codes_encoding;          // ... and its encoding
+    reg [7:0] adpcm_bits;              // its undecoded codes, high-aligned
+    reg [7:0] adpcm_reference, adpcm_step;
     wire [2:0] out_count = out_tail - out_head;
 
     assign dac = speaker ? dac_value : 8'h80;
@@ -109,6 +133,59 @@ module pc386_sb #(
     wire dack = dack_valid && !dack_done;
     wire [15:0] argument_length = {wdata, argument0};    // with the last argument byte
 
+    // One ADPCM code (the high bits of `code`): {next step, next reference}.
+    // Rows of the step: 4-bit 0-3 by 16, 2.6-bit 0-4 by 8, 2-bit 0-5 by 4.
+    function automatic [15:0] adpcm_decode(input [1:0] kind, input [3:0] code,
+                                           input [7:0] reference, input [7:0] step);
+        reg [8:0] index;
+        reg [2:0] row, magnitude;
+        reg negative;
+        reg [7:0] delta, adjust;
+        reg [9:0] sum;
+        begin
+            case (kind)
+                ADPCM4: begin
+                    index = {5'd0, code} + {1'b0, step};
+                    if (index > 9'd63) index = 9'd63;
+                    row = {1'b0, index[5:4]}; magnitude = index[2:0]; negative = index[3];
+                    adjust = magnitude >= 3'd5 && row != 3'd3 ? 8'd16 : magnitude == 0 && row != 0 ? 8'hf0 : 8'd0;
+                end
+                ADPCM3: begin
+                    index = {6'd0, code[3:1]} + {1'b0, step};
+                    if (index > 9'd39) index = 9'd39;
+                    row = index[5:3]; magnitude = {1'b0, index[1:0]}; negative = index[2];
+                    adjust = magnitude == 3'd3 && row != 3'd4 ? 8'd8 : magnitude == 0 && row != 0 ? 8'hf8 : 8'd0;
+                end
+                default: begin
+                    index = {7'd0, code[3:2]} + {1'b0, step};
+                    if (index > 9'd23) index = 9'd23;
+                    row = index[4:2]; magnitude = {2'd0, index[0]}; negative = index[1];
+                    adjust = magnitude == 3'd1 && row != 3'd5 ? 8'd4 : magnitude == 0 && row != 0 ? 8'hfc : 8'd0;
+                end
+            endcase
+            // Row 0 steps by the magnitude, row r by (2m + 1) << (r - 1); the
+            // 2.6-bit top row by (2m + 1) * 5.
+            if (row == 0) delta = {5'd0, magnitude};
+            else if (kind == ADPCM3 && row == 3'd4) delta = {4'd0, magnitude, 1'b1} * 8'd5;
+            else delta = {4'd0, magnitude, 1'b1} << (row - 1'b1);
+            sum = negative ? {2'd0, reference} - {2'd0, delta} : {2'd0, reference} + {2'd0, delta};
+            adpcm_decode = {step + adjust, sum[9] ? 8'h00 : sum[8] ? 8'hff : sum[7:0]};
+        end
+    endfunction
+    // The byte in hand's later codes, or a new byte's first.
+    wire [7:0] adpcm_in = codes_left != 0 ? adpcm_bits : dack_wdata;
+    wire [1:0] adpcm_kind = codes_left != 0 ? codes_encoding : encoding;
+    wire [15:0] adpcm_next = adpcm_decode(adpcm_kind, adpcm_in[7:4], adpcm_reference, adpcm_step);
+    wire [1:0] adpcm_more = encoding == ADPCM4 ? 2'd1 : encoding == ADPCM3 ? 2'd2 : 2'd3;
+    wire [7:0] adpcm_shifted = adpcm_kind == ADPCM4 ? {adpcm_in[3:0], 4'd0}
+                             : adpcm_kind == ADPCM3 ? {adpcm_in[4:0], 3'd0} : {adpcm_in[5:0], 2'd0};
+    task automatic adpcm_play;
+        adpcm_step <= adpcm_next[15:8];
+        adpcm_reference <= adpcm_next[7:0];
+        dac_value <= adpcm_next[7:0];
+        adpcm_bits <= adpcm_shifted;
+    endtask
+
     task automatic push(input [7:0] value);
         out_fifo[out_tail[1:0]] <= value;
         out_tail <= out_tail + 1'b1;
@@ -132,8 +209,11 @@ module pc386_sb #(
             end
         end
     endtask
-    task automatic start(input [2:0] kind, input [15:0] length, input auto, input fast);
+    task automatic start(input [2:0] kind, input [15:0] length, input auto, input fast,
+                         input [1:0] code, input with_ref);
         mode <= kind;
+        encoding <= code;
+        adpcm_ref <= with_ref;
         remaining <= length;
         autoinit <= auto;
         high_speed <= fast;
@@ -158,6 +238,8 @@ module pc386_sb #(
             mode <= NONE; autoinit <= 0; high_speed <= 0; halted <= 0; speaker <= 0;
             period_us <= 9'd45;
             e2_add <= 8'haa; e2_xor <= 8'h96;
+            encoding <= PCM; adpcm_ref <= 0; codes_left <= 0; codes_encoding <= PCM;
+            adpcm_bits <= 0; adpcm_reference <= 8'h80; adpcm_step <= 0;
             irq <= 0; irq_us <= 0; drq <= 0;
             if (reset) dack_rdata <= 8'h80;
         end else begin
@@ -207,15 +289,21 @@ module pc386_sb #(
             // argument is still on wdata for a two-byte length.
             if (execute) case (command)
                 8'h10: dac_value <= argument0;
-                8'h14, 8'h15: start(PLAY, last_length, 0, 0);
-                8'h1c: start(PLAY, block_length, 1, 0);
-                8'h91: start(PLAY, block_length, 0, 1);
-                8'h90: start(PLAY, block_length, 1, 1);
-                8'h24: start(RECORD, last_length, 0, 0);
-                8'h2c: start(RECORD, block_length, 1, 0);
-                8'h99: start(RECORD, block_length, 0, 1);
-                8'h98: start(RECORD, block_length, 1, 1);
-                8'h80: start(SILENCE, last_length, 0, 0);
+                8'h14, 8'h15: start(PLAY, last_length, 0, 0, PCM, 0);
+                8'h1c: start(PLAY, block_length, 1, 0, PCM, 0);
+                8'h91: start(PLAY, block_length, 0, 1, PCM, 0);
+                8'h90: start(PLAY, block_length, 1, 1, PCM, 0);
+                8'h74, 8'h75: start(PLAY, last_length, 0, 0, ADPCM4, command[0]);
+                8'h76, 8'h77: start(PLAY, last_length, 0, 0, ADPCM3, command[0]);
+                8'h16, 8'h17: start(PLAY, last_length, 0, 0, ADPCM2, command[0]);
+                8'h7d: start(PLAY, block_length, 1, 0, ADPCM4, 1);
+                8'h7f: start(PLAY, block_length, 1, 0, ADPCM3, 1);
+                8'h1f: start(PLAY, block_length, 1, 0, ADPCM2, 1);
+                8'h24: start(RECORD, last_length, 0, 0, PCM, 0);
+                8'h2c: start(RECORD, block_length, 1, 0, PCM, 0);
+                8'h99: start(RECORD, block_length, 0, 1, PCM, 0);
+                8'h98: start(RECORD, block_length, 1, 1, PCM, 0);
+                8'h80: start(SILENCE, last_length, 0, 0, PCM, 0);
                 8'h20: push(8'h80);
                 8'h40: time_constant <= argument0;
                 8'h48: block_length <= last_length;
@@ -240,11 +328,15 @@ module pc386_sb #(
             endcase
 
             // ---- Transfers ------------------------------------------------------
-            if (mode != NONE && mode != IDENTIFY && !halted && us_tick) begin
+            // An ADPCM byte's later codes play out after its block ends.
+            if ((mode != NONE && mode != IDENTIFY || codes_left != 0) && !halted && us_tick) begin
                 period_us <= period_us == 9'd1 ? 9'd256 - {1'b0, time_constant} : period_us - 1'b1;
                 if (sample_event) begin
-                    if (mode == SILENCE) block_done();
-                    else drq <= 1;
+                    if (codes_left != 0) begin
+                        codes_left <= codes_left - 1'b1;
+                        adpcm_play();
+                    end else if (mode == SILENCE) block_done();
+                    else if (mode != NONE && mode != IDENTIFY) drq <= 1;
                 end
             end
             if (dack && drq) begin
@@ -255,7 +347,22 @@ module pc386_sb #(
                     mode <= NONE;
                 end else begin
                     dack_rdata <= 8'h80;
-                    if (mode == PLAY && dack_write) dac_value <= dack_wdata;
+                    if (mode == PLAY && dack_write) begin
+                        if (encoding == PCM) dac_value <= dack_wdata;
+                        else begin
+                            codes_left <= adpcm_more;
+                            codes_encoding <= encoding;
+                            if (adpcm_ref) begin
+                                // Code 0 at step 0 changes nothing, so the
+                                // reference holds for its byte's periods.
+                                adpcm_ref <= 0;
+                                adpcm_reference <= dack_wdata;
+                                adpcm_step <= 0;
+                                adpcm_bits <= 0;
+                                dac_value <= dack_wdata;
+                            end else adpcm_play();
+                        end
+                    end
                     block_done();
                 end
             end else if (dack) dack_done <= 1;
