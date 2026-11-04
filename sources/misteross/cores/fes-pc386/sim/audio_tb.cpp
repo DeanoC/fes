@@ -51,6 +51,7 @@ struct Bench {
     unsigned irq;
     std::vector<uint8_t> dac_changes;      // DAC bytes in order of change
     std::vector<uint64_t> dac_times;
+    std::vector<uint64_t> dack_times;      // channel-1 acknowledges
 
     Bench(uint16_t base_port, unsigned irq_line) : base(base_port), irq(irq_line) {
         top.reset = 1;
@@ -75,6 +76,10 @@ struct Bench {
         link.carry(cycles);
         link.edge();
         ++cycles;
+        if (link.dacks != last_dacks) {
+            dack_times.push_back(cycles);
+            last_dacks = link.dacks;
+        }
         uint8_t dac = link.audio.dsp_dac;
         if (dac != last_dac) {
             dac_changes.push_back(dac);
@@ -163,8 +168,15 @@ struct Bench {
     }
     void speaker_on() { dsp_write(0xd1); }
 
+    // The DAC at a clock, from the changes recorded since dac_changes was cleared.
+    uint8_t dac_at(uint64_t when, uint8_t before) const {
+        size_t n = std::upper_bound(dac_times.begin(), dac_times.end(), when) - dac_times.begin();
+        return n ? dac_changes[n - 1] : before;
+    }
+
 private:
     uint8_t last_dac = 0x80;
+    uint64_t last_dacks = 0;
 };
 
 std::string base_name(const Bench &b) {
@@ -231,11 +243,11 @@ void commands() {
     b.dsp_write(0xd1);
     b.run(10);
     check("the DAC holds the last direct byte; speaker on plays it", b.link.audio.dsp_dac == 0xf0, hex(b.link.audio.dsp_dac));
-    // An ADPCM command with its two length bytes is consumed and ignored.
-    b.dsp_write(0x74); b.dsp_write(0xd3); b.dsp_write(0xd3);
+    // An unmodelled command with two argument bytes is consumed and ignored.
+    b.dsp_write(0x41); b.dsp_write(0xd3); b.dsp_write(0xd3);
     b.dsp_write(0xe0); b.dsp_write(0x0f);
     int after = b.dsp_read();
-    check("74h consumes its two argument bytes", after == 0xf0 && b.link.audio.dsp_dac == 0xf0, hex(after));
+    check("41h (SB16) consumes its two argument bytes", after == 0xf0 && b.link.audio.dsp_dac == 0xf0, hex(after));
 
     b.dsp_write(0xd1);
     b.run(3 * US);
@@ -389,6 +401,210 @@ void other_transfers() {
     }
 }
 
+// ---- ADPCM ----------------------------------------------------------------------
+// A reference decoder from DOSBox-X's sblaster.cpp tables (decode_ADPCM_4,
+// _3 and _2_sample): the step value and step-row move for each index
+// code + step. Written out as tables, apart from the RTL's row formula.
+struct AdpcmKind {
+    const char *name;
+    unsigned bits, codes, max_index;       // code width, codes per byte, last index
+    const int *delta;
+    const int *adjust;
+};
+const int delta4[64] = {
+    0, 1, 2, 3, 4, 5, 6, 7, 0, -1, -2, -3, -4, -5, -6, -7,
+    1, 3, 5, 7, 9, 11, 13, 15, -1, -3, -5, -7, -9, -11, -13, -15,
+    2, 6, 10, 14, 18, 22, 26, 30, -2, -6, -10, -14, -18, -22, -26, -30,
+    4, 12, 20, 28, 36, 44, 52, 60, -4, -12, -20, -28, -36, -44, -52, -60};
+const int adjust4[64] = {
+    0, 0, 0, 0, 0, 16, 16, 16, 0, 0, 0, 0, 0, 16, 16, 16,
+    -16, 0, 0, 0, 0, 16, 16, 16, -16, 0, 0, 0, 0, 16, 16, 16,
+    -16, 0, 0, 0, 0, 16, 16, 16, -16, 0, 0, 0, 0, 16, 16, 16,
+    -16, 0, 0, 0, 0, 0, 0, 0, -16, 0, 0, 0, 0, 0, 0, 0};
+const int delta3[40] = {
+    0, 1, 2, 3, 0, -1, -2, -3, 1, 3, 5, 7, -1, -3, -5, -7,
+    2, 6, 10, 14, -2, -6, -10, -14, 4, 12, 20, 28, -4, -12, -20, -28,
+    5, 15, 25, 35, -5, -15, -25, -35};
+const int adjust3[40] = {
+    0, 0, 0, 8, 0, 0, 0, 8, -8, 0, 0, 8, -8, 0, 0, 8,
+    -8, 0, 0, 8, -8, 0, 0, 8, -8, 0, 0, 8, -8, 0, 0, 8,
+    -8, 0, 0, 0, -8, 0, 0, 0};
+const int delta2[24] = {0, 1, 0, -1, 1, 3, -1, -3, 2, 6, -2, -6, 4, 12, -4, -12, 8, 24, -8, -24, 16, 48, -16, -48};
+const int adjust2[24] = {0, 4, 0, 4, -4, 4, -4, 4, -4, 4, -4, 4, -4, 4, -4, 4, -4, 4, -4, 4, -4, 0, -4, 0};
+const AdpcmKind adpcm4{"4-bit", 4, 2, 63, delta4, adjust4};
+const AdpcmKind adpcm3{"2.6-bit", 3, 3, 39, delta3, adjust3};
+const AdpcmKind adpcm2{"2-bit", 2, 4, 23, delta2, adjust2};
+
+struct AdpcmReference {
+    int reference = 0x80, step = 0;
+    bool hit_low = false, hit_high = false;
+    int top_index = 0;
+    uint8_t decode(unsigned code, const AdpcmKind &k) {
+        int index = std::min<int>(int(code) + step, int(k.max_index));
+        top_index = std::max(top_index, index);
+        int next = reference + k.delta[index];
+        hit_low |= next < 0;
+        hit_high |= next > 255;
+        reference = std::clamp(next, 0, 255);
+        step = (step + k.adjust[index]) & 0xff;
+        return uint8_t(reference);
+    }
+    // The DAC over each sample period of a stream of bytes; a reference byte
+    // holds for its byte's periods.
+    void play(const std::vector<uint8_t> &bytes, bool with_ref, const AdpcmKind &k, std::vector<uint8_t> &out) {
+        for (size_t i = 0; i < bytes.size(); ++i) {
+            uint8_t b = bytes[i];
+            if (i == 0 && with_ref) {
+                reference = b;
+                step = 0;
+                out.insert(out.end(), k.codes, b);
+                continue;
+            }
+            if (k.bits == 4) { out.push_back(decode(b >> 4, k)); out.push_back(decode(b & 15, k)); }
+            else if (k.bits == 3) {
+                out.push_back(decode(b >> 5, k)); out.push_back(decode((b >> 2) & 7, k));
+                out.push_back(decode((b & 3) << 1, k));
+            } else for (int shift = 6; shift >= 0; shift -= 2) out.push_back(decode((b >> shift) & 3, k));
+        }
+    }
+};
+
+// Bytes that climb to the top step row and both clamps, then pseudo-random.
+std::vector<uint8_t> adpcm_stream(const AdpcmKind &k, size_t n, uint32_t seed) {
+    uint8_t up = k.bits == 4 ? 0x77 : k.bits == 3 ? 0x6d : 0x55;     // the largest positive code
+    uint8_t down = k.bits == 4 ? 0xff : k.bits == 3 ? 0xfe : 0xff;   // the largest negative code
+    std::vector<uint8_t> bytes{0x80};
+    for (int i = 0; i < 6; ++i) bytes.push_back(up);
+    for (int i = 0; i < 10; ++i) bytes.push_back(down);
+    for (int i = 0; i < 2; ++i) bytes.push_back(0x00);
+    while (bytes.size() < n) {
+        seed = seed * 1103515245u + 12345u;
+        bytes.push_back(uint8_t(seed >> 16));
+    }
+    bytes.resize(n);
+    return bytes;
+}
+
+// The DAC sampled mid-period for `periods` periods from the first
+// acknowledge; the first code plays at each byte's acknowledge.
+std::vector<uint8_t> dac_periods(const Bench &b, uint64_t first, uint64_t period, size_t periods, uint8_t before) {
+    std::vector<uint8_t> out;
+    for (size_t i = 0; i < periods; ++i) out.push_back(b.dac_at(first + i * period + period / 2, before));
+    return out;
+}
+
+std::string first_difference(const std::vector<uint8_t> &got, const std::vector<uint8_t> &want) {
+    for (size_t i = 0; i < std::min(got.size(), want.size()); ++i)
+        if (got[i] != want[i]) return "period " + std::to_string(i) + ": " + hex(got[i]) + " not " + hex(want[i]);
+    return std::to_string(got.size()) + " periods, expected " + std::to_string(want.size());
+}
+
+// Single-cycle ADPCM: the reference form, then the plain form continuing it.
+void adpcm_single(const AdpcmKind &k, uint8_t with_ref, uint8_t plain) {
+    Bench b(0x220, 7);
+    b.dsp_reset();
+    b.pic_init();
+    b.speaker_on();
+    const uint64_t period = 20 * US;
+    b.dsp_write(0x40); b.dsp_write(256 - 20);    // 50 kHz
+    AdpcmReference reference;
+    uint8_t before = 0x80;
+    for (int pass = 0; pass < 2; ++pass) {
+        uint8_t command = pass ? plain : with_ref;
+        std::string name = hex(command) + "h (" + k.name + (pass ? ", continuing)" : ", reference)");
+        size_t n = pass ? 24 : 40;
+        std::vector<uint8_t> bytes = adpcm_stream(k, n, 0x1455u + command);
+        if (pass) bytes.erase(bytes.begin());    // no reference byte
+        bytes.resize(n);
+        uint32_t address = 0x40000 + 0x100 * pass;
+        std::copy(bytes.begin(), bytes.end(), b.memory.begin() + address);
+        b.dma1(address, uint16_t(n - 1), 0x49);
+        b.dac_changes.clear(); b.dac_times.clear(); b.dack_times.clear();
+        uint64_t dacks = b.link.dacks;
+        b.dsp_write(command); b.dsp_write(uint8_t(n - 1)); b.dsp_write(0);
+        uint8_t vector = 0;
+        bool raised = b.take_irq(uint64_t(n + 2) * k.codes * period, &vector);
+        size_t at_irq = b.dack_times.size();
+        uint64_t irq_at = b.cycles;
+        b.run((k.codes + 4) * period);
+        check(name + ": IRQ 7 after length + 1 = " + std::to_string(n) + " bytes",
+              raised && vector == 0x0f && at_irq == n && irq_at - b.dack_times.back() < 20 * US,
+              std::to_string(at_irq) + " acknowledges at the IRQ");
+        check(name + ": single-cycle stops after its block", b.link.dacks - dacks == n,
+              std::to_string(b.link.dacks - dacks) + " acknowledges");
+        uint64_t low = ~0ull, high = 0;
+        for (size_t i = 1; i < b.dack_times.size(); ++i) {
+            low = std::min(low, b.dack_times[i] - b.dack_times[i - 1]);
+            high = std::max(high, b.dack_times[i] - b.dack_times[i - 1]);
+        }
+        check(name + ": one acknowledge per " + std::to_string(k.codes) + " sample periods",
+              b.dack_times.size() == n && low + 30 >= k.codes * period && high <= k.codes * period + 30,
+              std::to_string(low) + ".." + std::to_string(high) + " clocks");
+        std::vector<uint8_t> want;
+        reference.play(bytes, !pass, k, want);
+        std::vector<uint8_t> got = b.dack_times.empty() ? std::vector<uint8_t>()
+                                   : dac_periods(b, b.dack_times[0], period, want.size(), before);
+        check(name + ": the DAC follows the reference decoder, last byte's codes included", got == want,
+              first_difference(got, want));
+        before = want.empty() ? before : want.back();
+    }
+    check(std::string(k.name) + " streams reach both clamps and the top step row",
+          reference.hit_low && reference.hit_high && reference.top_index + int(1u << k.bits) > int(k.max_index),
+          std::to_string(reference.top_index));
+}
+
+// Auto-init ADPCM: the reference byte only at the start, an IRQ per 48h block,
+// and the 8237's wrap decoded as data.
+void adpcm_auto(const AdpcmKind &k, uint8_t command) {
+    Bench b(0x220, 7);
+    b.dsp_reset();
+    b.pic_init();
+    b.speaker_on();
+    const uint64_t period = 20 * US;
+    const size_t block = 12, buffer = 20, blocks = 4;
+    std::vector<uint8_t> bytes = adpcm_stream(k, buffer, 0x7d00u + command);
+    std::copy(bytes.begin(), bytes.end(), b.memory.begin() + 0x50000);
+    b.dma1(0x50000, uint16_t(buffer - 1), 0x59);     // single, auto-init, read
+    b.dsp_write(0x40); b.dsp_write(256 - 20);
+    b.dsp_write(0x48); b.dsp_write(uint8_t(block - 1)); b.dsp_write(0);
+    b.dac_changes.clear(); b.dac_times.clear(); b.dack_times.clear();
+    b.dsp_write(command);
+    std::string name = hex(command) + "h (" + k.name + " auto-init)";
+    std::vector<size_t> acks;
+    for (size_t i = 0; i < blocks; ++i) {
+        if (!b.take_irq((block + 2) * k.codes * period)) break;
+        acks.push_back(b.dack_times.size());
+    }
+    bool every_block = acks.size() == blocks;
+    for (size_t i = 0; every_block && i < blocks; ++i) every_block = acks[i] == (i + 1) * block;
+    check(name + ": an IRQ every 12 bytes, 4 times", every_block, std::to_string(acks.size()) + " IRQs");
+    std::vector<uint8_t> stream;
+    for (size_t i = 0; i < blocks * block; ++i) stream.push_back(bytes[i % buffer]);
+    AdpcmReference reference;
+    std::vector<uint8_t> want;
+    reference.play(stream, true, k, want);
+    want.resize(want.size() - k.codes);          // the last byte's later codes play after the IRQ
+    std::vector<uint8_t> got = b.dack_times.empty() ? std::vector<uint8_t>()
+                               : dac_periods(b, b.dack_times[0], period, want.size(), 0x80);
+    check(name + ": reference byte only at the start; the DAC follows the reference decoder", got == want,
+          first_difference(got, want));
+    b.dsp_write(0xda);
+    bool last = b.take_irq((block + 2) * k.codes * period);
+    uint64_t before = b.link.dacks;
+    b.run((block + 2) * k.codes * period);
+    check(name + ": DAh ends it after the block", last && b.link.dacks == before && !b.top.intr,
+          std::to_string(b.link.dacks - before) + " more acknowledges");
+}
+
+void adpcm() {
+    adpcm_single(adpcm4, 0x75, 0x74);
+    adpcm_single(adpcm3, 0x77, 0x76);
+    adpcm_single(adpcm2, 0x17, 0x16);
+    adpcm_auto(adpcm4, 0x7d);
+    adpcm_auto(adpcm3, 0x7f);
+    adpcm_auto(adpcm2, 0x1f);
+}
+
 // AdLib detection and the OPL2 timers, at 388h.
 void opl2_timers() {
     Bench b(0x220, 7);
@@ -491,6 +707,7 @@ int main(int argc, char **argv) {
     auto_init();
     high_speed();
     other_transfers();
+    adpcm();
     opl2_timers();
     mixer();
     std::printf("%s %d failure(s)\n", failures ? "FAIL" : "PASS", failures);
