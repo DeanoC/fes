@@ -379,3 +379,36 @@ This is behavioral memory and selection-mux persona evidence, not physical PR,
 standard package deployment or managed board acceptance. The initial empty SDK
 volume setup failed under the image's default user; a fresh volume was populated
 as root, then the compiler ran as the host UID. Both traces remain retained.
+
+## Standard core with actual RAM personas
+
+At source `0673c3d598141d427060e3986b83082707b4d9f4`, the standard-core expansion
+diagnostic, existing50 board tests and current source-fixture gate pass in
+9.394seconds. Generated consistency also passes41 consumers/42 fixtures/0copied
+source pins. The new diagnostic uses the actual `fes_de25_zx81_standard`, atomic
+transport, standard display component, existing PR controller and actual
+empty/16K RAM personas. It does not use the reduced computer endpoint.
+
+Both randomized initial-memory seeds17 and53 show vacant1K mirroring at4000/
+4400, distinct5A/A5 bytes with the16K persona, and correct empty/RAM/empty
+reselection. Six live-write freeze phases retain zero post-Frozen pack writes
+and a stable static response. A poisoned atomic bridge also holds the machine
+and fences RAM while the independent PR controller remains Running. The cold,
+unallocated display issues no DMA. See
+[standard-expansion-diagnostic.json](standard-expansion-diagnostic.json).
+
+Run `make -C sources/misteross/boards/de25nano/zx81-hps standard-expansion-sim
+OUTPUT=/new/private/path`. The standard `sim.py` dispatcher also includes this
+case. Complete captured/derived sources, binary, tool and log evidence remains
+in its retained proof directory. The first bench attempt used word indices
+against byte-addressed MMIO and was rejected; that failed trace is preserved.
+The corrected bench uses the generated bridge/controller offsets.
+
+The17-byte diagnostic ROM does not establish BASIC boot or the native client
+path for standard personas. Memory primitives and selection are behavioral;
+the harness reads the real private machine-reset signal for its modeled static
+fence. Production Qsys must export and qualify that reset boundary explicitly
+before this becomes a physical PR implementation. No canonical package,
+production defaults, timing-policy scope or board configuration changed. The
+full normal-kit goal, pending audio reference decision and native acceptance
+remain open.
