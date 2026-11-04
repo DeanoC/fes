@@ -46,7 +46,7 @@ int main(int argc,char**argv){
                 case wire::Frames:result=b.complete_frames;break;
                 case wire::PictureFrames:result=b.picture_frames;break;
                 case wire::ELine:result=b.word(0x4014);break;
-                case wire::BridgeFault:result=C(faults);break;
+                case wire::BridgeFault:result=C(transport__DOT__faults);break;
                 case combined::Ramtop:result=b.ramtop;break;
                 case combined::RamtopWrites:result=b.ramtop_writes;break;
                 case combined::Frozen:result=t.frozen;break;
