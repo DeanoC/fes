@@ -70,21 +70,59 @@ Remove the private cache directory after the diagnostic exits. Each invocation
 must use a freshly created directory. The isolated interpreter avoids stale
 bytecode from a previous checkout, including in the nested package parser.
 
-For the game, replace `com` with `game`, select the separately built game
-floppy in a **new owned session**, and provide its path and a new evidence
-directory. Kit B uses `/dev/v4l/by-id/fes-4kpro-hil`. The evidence parent must
-already exist and have at least 30 GiB free; the named evidence directory must
-not exist. The caller must retain the package, software and launch receipts,
-boot captures and its final Stop/restoration evidence alongside the diagnostic
-output. The host and software build receipts are copied into the evidence with their
-hashes and distinct source commits. The supplied host binary must match its
-receipt, and the software receipt must name the selected bundle and base image.
-The operator must ensure that binary is the one actually serving the isolated
-host API; the API does not attest its executable. The diagnostic also records
-hashes of its scripts, parser, BIOS locks, ROM and extracted font. These identify
-the diagnostic inputs separately from the package source commit. The local
-floppy digest and library selection are checked, but media
-ready does not independently hash target SDRAM.
+For Digger, use Kit A: game mode's audio capture currently supports Kit A only,
+and its capture device must be `/dev/v4l/by-id/fes-shadowcast-hil`. Select the
+separately built game floppy in a **new owned session** and use a new evidence
+directory. Game mode also requires at least one private opening-player template
+from the exact game build. Each template is a raw 32×34 RGB image (3264 bytes)
+and needs its pinned SHA-256; pass one `--game-template` and its matching
+`--game-template-sha256` for each template, in the same order. Supply
+`--game-max-host-age-ms` with a positive integer local observation-age limit.
+This is a local freshness policy, not a bound on target image age or key
+delivery. The script has no default for it.
+
+Use the common identity arguments shown in the COM command, with the game
+scenario, Kit A, game floppy, capture device and evidence path. For example:
+
+```sh
+# Replace these placeholders with the digest recorded for the template and a positive integer.
+GAME_TEMPLATE_SHA256=REPLACE_WITH_64_HEX_DIGIT_SHA256
+GAME_MAX_HOST_AGE_MS=REPLACE_WITH_POSITIVE_INTEGER
+PY_CACHE_DIR="$(mktemp -d "${TMPDIR:-/tmp}/pcxt-app-pycache.XXXXXXXX")"
+python3 -I -B -X pycache_prefix="$PY_CACHE_DIR" scripts/pcxt_dos_application_acceptance.py game --execute \
+  --kit A --owner "$KIT_OWNER" --queue-lock-fd "$KIT_LOCK_FD" \
+  --host-receipt /private/host.json --host-receipt-sha256 "$HOST_RECEIPT_SHA256" \
+  --host-binary /private/fogcast-api \
+  --software-receipt /private/software-receipt.json --software-receipt-sha256 "$SOFTWARE_RECEIPT_SHA256" \
+  --host-api http://127.0.0.1:8787 \
+  --config /private/host.toml --owned-session /private/active-session.json \
+  --archive /private/core.fcore --archive-sha256 "$ARCHIVE_SHA256" \
+  --rbf-sha256 "$RBF_SHA256" --package-id "$PACKAGE_ID" --source-commit "$SOURCE_COMMIT" \
+  --bundle-id "$BUNDLE_ID" --image-sha256 "$BASE_IMAGE_SHA256" \
+  --target-id "$TARGET_ID" --expected-boot "$BOOT_ID" \
+  --disk /private/pcxt-game.img --capture-device /dev/v4l/by-id/fes-shadowcast-hil \
+  --game-template /private/digger-opening-player.rgb \
+  --game-template-sha256 "$GAME_TEMPLATE_SHA256" \
+  --game-max-host-age-ms "$GAME_MAX_HOST_AGE_MS" \
+  --evidence /private/new-game-evidence
+# Remove this invocation's private cache directory after it exits.
+rm -rf "$PY_CACHE_DIR"
+```
+
+Repeat both template options in matching order for each additional template.
+
+The evidence parent must already exist and have at least 30 GiB free; the named
+evidence directory must not exist. The caller must retain the package, software
+and launch receipts, boot captures and its final Stop/restoration evidence
+alongside the diagnostic output. The host and software build receipts are
+copied into the evidence with their hashes and distinct source commits. The
+supplied host binary must match its receipt, and the software receipt must name
+the selected bundle and base image. The operator must ensure that binary is the
+one actually serving the isolated host API; the API does not attest its
+executable. The diagnostic also records hashes of its scripts, parser, BIOS
+locks, ROM and extracted font. These identify the diagnostic inputs separately
+from the package source commit. The local floppy digest and library selection
+are checked, but media ready does not independently hash target SDRAM.
 
 The COM check requires a fresh `FES COM READY (PRESS K)`, sends `k`, and
 requires `FES COM PASS` followed by a later `A:\>` prompt using the locked BIOS
@@ -92,9 +130,11 @@ font. The game check records a continuous lossless video and host-side input
 and capture timings. A completed video is **review pending**: an independent
 reviewer must identify the title, playfield and response of the player to input,
 not merely animation. Timestamps do not prove when the target applied a key.
-The game runs in quiet mode and the floppy is read-only, so the diagnostic does
-not establish audio, disk writes or score persistence. Neither diagnostic is
-whole-board timing qualification or a claim of general XT compatibility.
+The game diagnostic records a separate speaker audio capture. It is evidence
+only; audio and video clocks are not synchronized, and any audio conclusion
+needs independent review. The floppy is read-only, so the diagnostic does not
+establish disk writes or score persistence. Neither diagnostic is whole-board
+timing qualification or a claim of general XT compatibility.
 
 Each active-session guard now runs its read-only observer in a forked child with
 a hard five-second deadline, including the synchronous `/api/v1/health` request
@@ -102,9 +142,7 @@ to the target. This behavior applies to both the COM and Digger diagnostics. A
 temporarily absent or blank `selected` bundle value causes a fresh guard
 observation to retry until the expected bundle appears or the deadline expires;
 the active bundle and base identity are still checked on each pass, and a
-nonempty wrong selection fails immediately. The Digger guard can fork while
-its video recorder thread is active, so Python may emit a `DeprecationWarning`
-about forking a multithreaded process.
+nonempty wrong selection fails immediately.
 
 ## Writable floppy persistence diagnostic
 

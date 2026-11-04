@@ -155,6 +155,12 @@ class GoTestOnlyParentTests(unittest.TestCase):
 
 
 class ParentAffectedTests(unittest.TestCase):
+    def test_game_test_ownership_keeps_unknown_implementation_fallback(self):
+        for name in ('pcxt_capture_fanout','pcxt_digger_readiness','pcxt_game_audio_capture',
+                     'pcxt_gameplay_capture','pcxt_gameplay_probe'):
+            self.assertEqual(policy.parent_groups('tests/test_'+name+'.py'), {'acceptance'})
+        self.assertIsNone(policy.parent_groups('scripts/pcxt_gameplay_capture.py'))
+
     def test_v1_firmware_documentation_regressions_use_narrow_policy_group(self):
         path = 'tests/test_v1_firmware_licensing_doc.py'
         module = 'test_v1_firmware_licensing_doc'
