@@ -54,6 +54,38 @@ inline Error CheckDe25MenuContract(const CoreDescriptor& descriptor)
 	}
 	return {};
 }
+// Standard ZX81 uses the shared computer ABI and a kernel-owned session
+// allocation. Its profile never grants the Cyclone V reserved DDR window.
+inline Error CheckDe25StandardComputerContract(const CoreDescriptor& descriptor)
+{
+ using namespace generated;
+ if(descriptor.target.platform!=kDe25NanoProgrammingPlatform ||
+    descriptor.target.device!=kDe25NanoProgrammingDevice ||
+    descriptor.target.programming_profile!="de25-linux-computer-v1")
+  return {ErrorCode::unsupported_target,"DE25 standard computer target/profile differs","compatibility"};
+ if(descriptor.format!=2||descriptor.core.id!="fes.zx81"||!descriptor.core.system.empty()||
+    descriptor.abi.id!=FesComputerABIID||descriptor.abi.major!=1||descriptor.abi.minor!=0||
+    descriptor.interfaces.size()!=9)
+  return {ErrorCode::unsupported_abi,"DE25 standard profile requires the ZX81 computer contract","compatibility"};
+ std::array<std::uint32_t,4> words{};Error e=De25BuildWords(descriptor.build.id,&words);
+ if(!e.ok())return e;
+ unsigned seen=0;
+ for(const auto& interface:descriptor.interfaces) {
+  const unsigned bit=interface.id==FesComputerInterfaceVideoFixed720p60ID?1:
+   interface.id==FesComputerInterfaceKeyboardHidID?2:
+   interface.id==FesComputerInterfaceGamepadPortsID?4:
+   interface.id==FesComputerInterfaceAudioPcmS16Stereo48kID?8:
+   interface.id==FesComputerInterfaceMediaZx81TapeID?16:
+   interface.id==FesComputerInterfaceMediaZx81TapeWriteID?32:
+   interface.id==FesComputerInterfaceVideoSessionDisplayID?64:
+   interface.id=="fes.fabric.video.display-plane"?128:
+   interface.id=="fes.fabric.de25-scanout"?256:0;
+  if(!bit||(seen&bit)||!interface.required||interface.major!=1||interface.minor!=(bit==256?1u:0u))
+   return {ErrorCode::unsupported_interface,"DE25 standard computer interfaces differ","compatibility"};
+  seen|=bit;
+ }
+ return {};
+}
 // The selected BRAM driver implements this exact contract. This is shared by
 // package preflight and live identity admission, not a programming profile table.
 inline Error CheckDe25ComputerContract(const CoreDescriptor& descriptor)

@@ -46,6 +46,7 @@ func TestKnownBoardTargetsThroughArchiveStore(t *testing.T) {
 		{"de10", "de10_nano", "5CSEBA6U23I7", "fes-gp-v1", true},
 		{"de25-computer", "de25_nano", "A5EB013BB23BE4SCS", "de25-hps-first-v1", true},
 		{"de25-menu", "de25_nano", "A5EB013BB23BE4SCS", "de25-linux-menu-v1", true},
+		{"de25-standard-computer", "de25_nano", "A5EB013BB23BE4SCS", "de25-linux-computer-v1", true},
 		{"de10-with-agilex", "de10_nano", "A5EB013BB23BE4SCS", "fes-gp-v1", false},
 		{"de25-with-cyclone", "de25_nano", "5CSEBA6U23I7", "de25-hps-first-v1", false},
 		{"unknown-agilex-part", "de25_nano", "A5EB013BB23BE4R1", "de25-hps-first-v1", false},

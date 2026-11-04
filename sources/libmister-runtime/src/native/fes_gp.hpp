@@ -31,6 +31,7 @@ public:
 	FesGp(Mmio&, Clock&, FesGpTransport = FesGpTransport::de10_gp);
 	void BeginSession();
 	bool Poisoned();
+ Error WaitVideoReady(std::uint64_t deadline);
 	// Sample a stable ACK, align the host toggle to it, and drop poison.
 	// Does not issue a command. Failure leaves the mailbox poisoned.
 	Error Realign(std::uint64_t absolute_deadline_ms);
@@ -64,6 +65,8 @@ private:
 class FesGpCoreDriver final : public CoreDriver {
 public:
 	explicit FesGpCoreDriver(FesGp&);
+ Error WaitVideoReady(std::uint64_t deadline) override;
+ bool OwnsAudio() const override;
 	void BeginSession() override;
 	Error CaptureData(
 		const CoreDriverContext&, std::uint64_t, std::vector<std::uint16_t>*) override;
@@ -145,6 +148,7 @@ public:
 	Error EjectMedia(std::uint8_t unit, std::uint64_t deadline) override;
 
 private:
+ bool fpga_video_=false;
 	CoreDriverResult Gameplay(std::uint16_t, std::uint64_t);
 	CoreDriverResult NeutralizeKeyboard(std::uint64_t deadline);
 	Error NeutralizeControllers(std::uint64_t deadline);

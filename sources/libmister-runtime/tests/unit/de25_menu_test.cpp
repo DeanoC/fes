@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 #include "de25_menu_operations.hpp"
+#include "de25_standard_descriptor.hpp"
 #include "native/de25_core_driver.hpp"
 #include "native/de25_core_contract.hpp"
 #include "native/hardware.hpp"
@@ -120,32 +121,17 @@ void UnsupportedPathsAndBounds() {
  assert(!m.CleanBlit(0,1,{}).ok()&&!m.RunBlit(0,1,0,100).ok());
  assert(o.published.size()==2);assert(m.Revoke().ok());
 }
-// Visibility remains the existing GP display contract. Only Operations::Publish
-// below can expose a kernel allocation; the GP submit path must never run.
-struct SessionControl final : MenuDisplay {
- Operations& operations;
- bool configured=false,enabled=false,quiesced=true,fail_quiesce=false;
- unsigned enables=0,quiesces=0,submits=0;
- explicit SessionControl(Operations& o):operations(o) {}
- Error ReadInfo(std::uint64_t,MenuDisplayInfo* out) override {
-  *out={};out->configured=configured;out->enabled=enabled;out->quiesced=quiesced;
-  out->pending=operations.state.state&8;
-  out->displayed_sequence=operations.state.displayed_sequence;
-  out->pixel_format=2;out->picture={312,90,656,540};
-  return {};
- }
- Error Configure(std::uint64_t) override {assert(!enabled&&quiesced);configured=true;return {};}
- Error Enable(std::uint64_t) override {assert(configured);++enables;enabled=true;quiesced=false;return {};}
- Error Submit(std::uint8_t,std::uint32_t,std::uint64_t) override {++submits;assert(false);return {};}
- Error Quiesce(std::uint64_t d,const CoreDescriptor*,MenuDisplayInfo* out) override {
-  assert(!operations.allocated&&!operations.grant_open&&!operations.peers);
-  ++quiesces;
-  if(fail_quiesce)return {ErrorCode::io_failed,"uncertain GP quiescence","menu"};
-  enabled=false;quiesced=true;return ReadInfo(d,out);
- }
- Error RunBlit(std::uint32_t,std::uint32_t,std::uint8_t,std::uint64_t) override {assert(false);return {};}
- Error ReadBlit(std::uint64_t,MenuBlitState*) override {assert(false);return {};}
-};
+void SelectedSessionContractBindsBeforeAnyExposure() {
+ Operations o;SessionControl gp(o);LinuxDe25Menu m(o.clock,o,gp);
+ auto d=mister_test::De25StandardDescriptor();
+ auto bad=d;bad.interfaces.back()={"fes.memory.hps-ddr",1,0,true};
+ assert(!m.BindSession(bad,100).ok()&&o.abi_calls==0&&o.allocations==0);
+ assert(m.BindSession(d,100).ok()&&o.allocations==1&&o.published.empty());
+ assert(m.Activate(true,false).ok()&&m.Configure(100).ok());
+ MenuDisplayInfo info;assert(m.ReadInfo(100,&info).ok()&&!info.enabled&&info.quiesced);
+ assert(m.Quiesce(100,&d,&info).ok()&&gp.submits==0);
+}
+
 void SessionReopenUsesNewStorageAndMonotonicLogicalFrames() {
  Operations o;SessionControl gp(o);LinuxDe25Menu m(o.clock,o);MenuDisplayInfo info;
  assert(m.Bind(build,100,&gp).ok()&&m.Activate(true,false).ok()&&m.Configure(100).ok());
@@ -248,4 +234,4 @@ void AllocatedMenuContractRejectsFixedDdrAndOldIdentity() {
 }
 
 }
-int main(){SessionReopenUsesNewStorageAndMonotonicLogicalFrames();SessionPinnedPeerAndUncertainCloseBlockReopen();SessionUncertainPublicationIsNotRetried();SelectedMenuDriverUsesItsOwnReadiness();AllocatedMenuContractRejectsFixedDdrAndOldIdentity();AbiAndIdentityBeforeExposure();ConfirmBlackAndReuseOneAllocation();WaitForReadyBeforeAnyDma();RetainOnIdentityFaultAndUseKernelRetirement();FailedPollReportsCachedFaultWithoutRecovery();LatePublicationDoesNotAcknowledgeOrReplay();FailedRetirementRemainsSticky();PeerReferencesCannotBecomeIdleByClosingRuntimeFd();UnsupportedPathsAndBounds();}
+int main(){SelectedSessionContractBindsBeforeAnyExposure();SessionReopenUsesNewStorageAndMonotonicLogicalFrames();SessionPinnedPeerAndUncertainCloseBlockReopen();SessionUncertainPublicationIsNotRetried();SelectedMenuDriverUsesItsOwnReadiness();AllocatedMenuContractRejectsFixedDdrAndOldIdentity();AbiAndIdentityBeforeExposure();ConfirmBlackAndReuseOneAllocation();WaitForReadyBeforeAnyDma();RetainOnIdentityFaultAndUseKernelRetirement();FailedPollReportsCachedFaultWithoutRecovery();LatePublicationDoesNotAcknowledgeOrReplay();FailedRetirementRemainsSticky();PeerReferencesCannotBecomeIdleByClosingRuntimeFd();UnsupportedPathsAndBounds();}

@@ -22,7 +22,7 @@ VideoResult De25VideoBringup::BringUpSelected(CoreDriver& driver, std::uint64_t 
 {
  VideoResult result;
  result.phase = "fpga-video";
- if (audio) result.error = {ErrorCode::unsupported_interface, "selected DE25 profiles have no audio", "video"};
+ if (audio && !driver.OwnsAudio()) result.error = {ErrorCode::unsupported_interface, "selected DE25 driver has no FPGA-owned audio", "video"};
  else result.error = driver.WaitVideoReady(deadline);
  return result;
 }

@@ -10,8 +10,10 @@ fixtures. Go emitters generate C, C++14, Go and Verilog consumers. FES runs
 
 Standalone board definitions support `validate` and `report`, independently of
 SoC and CPU definitions. DE25-Nano starts with descriptive FPGA bring-up pins;
-the DE25 HPS-first programming registry now declares the BRAM computer pair,
-while production runtime admission remains closed. Board metadata
+the DE25 programming registry declares the BRAM computer, allocated MENU and
+standard allocated-session computer pairs. The standard profile is
+`de25-linux-computer-v1`; runtime admission requires its exact ZX81 contract,
+without a reserved HPS DDR window. These rows do not qualify a hardware package. Board metadata
 does not emit Quartus constraints. For example, from this module:
 
 ```sh

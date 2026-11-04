@@ -421,13 +421,15 @@ Its closed response validation requires capability ABI identities in ascending
 order. A status fixture emitted by the production C++ DE25 MENU lifecycle test
 passes through the actual Unix client, so a running display cannot conceal an
 unreadable capability reply. Decoder rejection keeps native readiness false.
-Active-package validation accepts the declared DE25 computer and MENU profiles
+Active-package validation accepts the declared DE25 BRAM computer, standard
+`de25-linux-computer-v1` computer and MENU profiles
 with the exact DE25 target, ABI family and observed build/ABI identity. A native
 computer status fixture exercises the actual Unix client after FPGA Start;
 unknown profiles, crossed targets and missing observed identity remain rejected.
 The live ZX81 tape limit is checked against that selected target. DE25's BRAM
 window accepts exactly 16,375 bytes; the shared definition generates the Go and
-C++ values. Other targets retain the 16,384-byte computer window. Library media
+C++ values. The standard DE25 profile and other targets retain the 16,384-byte
+computer window. Library media
 admission reports the same selected-target limit before launch.
 There is no backend selector, Main process probing, MGL dispatch or protocol-1
 fallback. Normal FPGA launches require described FES packages; bare catalog

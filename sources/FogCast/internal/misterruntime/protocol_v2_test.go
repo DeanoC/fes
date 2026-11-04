@@ -87,6 +87,32 @@ func TestProtocol2DE25ProducerComputerStatus(t *testing.T) {
 	server.wait(t)
 }
 
+func TestProtocol2DE25StandardComputerProfileAndTapeLimit(t *testing.T) {
+	// Change the existing wire fixture's profile/limit together. This is decoder
+	// coverage, not a claim that the bring-up producer emitted a standard package.
+	line := fixtureLines(t, "protocol-v2-de25-computer.jsonl")[0]
+	line = strings.ReplaceAll(line, "de25-hps-first-v1", "de25-linux-computer-v1")
+	line = strings.Replace(line, `"max_bytes":16375`, `"max_bytes":16384`, 1)
+	server := newSequenceSocketFixture(t, []string{line + "\n"})
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+	defer cancel()
+	response, err := NewClient(server.path).Protocol2Status(ctx)
+	if err != nil || response.ActivePackage == nil {
+		t.Fatalf("standard profile refused: %v", err)
+	}
+	active := response.ActivePackage
+	status := computerMediaStatus(response)
+	binding := protocol.MediaUnitBinding{PackageID: active.PackageID, Generation: *response.Generation, Unit: 0}
+	if !binding.AcceptsSize(status, 16384) || binding.AcceptsSize(status, 16385) {
+		t.Fatal("standard tape limit differs")
+	}
+	server.wait(t)
+	bad := strings.Replace(line, `"max_bytes":16384`, `"max_bytes":16375`, 1)
+	if _, err := decodeProtocol2Response([]byte(bad)); !errors.Is(err, errInvalidRuntimeResponse) {
+		t.Fatalf("BRAM limit accepted on standard profile: %v", err)
+	}
+}
+
 func TestProtocol2DE25ActiveStatusRefusesChangedIdentity(t *testing.T) {
 	line := fixtureLines(t, "protocol-v2-de25-computer.jsonl")[0]
 	for name, raw := range map[string]string{

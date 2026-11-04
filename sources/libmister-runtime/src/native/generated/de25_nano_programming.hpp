@@ -26,8 +26,9 @@ constexpr const char* kDe25NanoProgrammingDevice = "A5EB013BB23BE4SCS";
 static constexpr GeneratedDe25NanoProgrammingProfilePair kDe25NanoProgrammingProfilePairs[] = {
   {"de25-hps-first-v1", "fes.computer", 1, false},
   {"de25-linux-menu-v1", "fes.application", 1, false},
+  {"de25-linux-computer-v1", "fes.computer", 1, false},
 };
-constexpr std::size_t kDe25NanoProgrammingProfilePairCount = 2;
+constexpr std::size_t kDe25NanoProgrammingProfilePairCount = 3;
 
 } // namespace generated
 } // namespace native

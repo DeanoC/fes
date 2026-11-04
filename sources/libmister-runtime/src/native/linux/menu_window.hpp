@@ -35,6 +35,8 @@ public:
 class MenuMemory {
 public:
  virtual ~MenuMemory() {}
+ // Board-specific allocation binding after the live core identity is proven.
+ virtual Error BindSession(const CoreDescriptor&,std::uint64_t) {return {};}
  virtual Error Activate(bool clear,bool blitter)=0;
  // True only for grants whose peer references must end before frame commit.
  virtual bool FrameMapping() const {return false;}

@@ -493,3 +493,11 @@ video1.0, menu-display1.0 and `fes.fabric.de25-scanout`1.1. MENU uses kernel DMA
 ABI3 and no `fes.memory.hps-ddr` declaration. Registry rows describe package
 pairings; physical factory/kernel/lease admission and hardware acceptance are
 separate.
+
+`de25-linux-computer-v1` pairs the standard format2 `fes.zx81` base with
+`fes.computer`1.0. Runtime requires fixed video, HID, controller ports, fixed
+PCM48k, ZX81 tape, tape-write, session-display and shared display-plane1.0 plus
+allocated `fes.fabric.de25-scanout`1.1. The kernel owns publication; GP controls
+visibility. This profile grants neither `fes.memory.hps-ddr` nor general ROM/PR
+composition admission. Source/runtime admission and exact-artifact hardware
+acceptance remain separate.

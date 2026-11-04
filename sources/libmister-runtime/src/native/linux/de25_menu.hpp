@@ -43,10 +43,13 @@ class LinuxDe25Menu final : public MenuMemory, public MenuDisplay {
 public:
  explicit LinuxDe25Menu(Clock&,std::uint32_t revoke_ms=10000);
  LinuxDe25Menu(Clock&,De25MenuOperations&,std::uint32_t revoke_ms=10000);
+ LinuxDe25Menu(Clock&,MenuDisplay&,std::uint32_t revoke_ms=10000);
+ LinuxDe25Menu(Clock&,De25MenuOperations&,MenuDisplay&,std::uint32_t revoke_ms=10000);
  ~LinuxDe25Menu() override;
  Error CheckOwnerAbi(std::uint64_t deadline);
  Error Bind(const std::array<std::uint32_t,4>&,std::uint64_t deadline,
             MenuDisplay* session_control=nullptr);
+ Error BindSession(const CoreDescriptor&,std::uint64_t deadline) override;
  Error Activate(bool clear,bool blitter) override;
  bool FrameMapping() const override {return true;}
  bool FreshSlotsOnActivate() const override {return true;}
@@ -81,6 +84,7 @@ private:
  De25MenuGrant info_;
  std::array<std::uint32_t,4> expected_{};
  // Session GP control owns visibility; the kernel remains the sole publisher.
+ MenuDisplay* session_endpoint_=nullptr;
  MenuDisplay* session_control_=nullptr;
  bool session_quiesced_=false;
  std::uint32_t sequence_base_=0;

@@ -78,4 +78,31 @@ struct Operations final : De25MenuOperations {
   if(ready_waits&&!--ready_waits){ready=true;state.hardware_status|=FesDe25ScanoutStatusDisplayReady;}
  }
 };
+// Visibility remains the existing GP display contract. Only Operations::Publish
+// below can expose a kernel allocation; the GP submit path must never run.
+struct SessionControl final : MenuDisplay {
+ Operations& operations;
+ bool configured=false,enabled=false,quiesced=true,fail_quiesce=false;
+ unsigned enables=0,quiesces=0,submits=0;
+ explicit SessionControl(Operations& o):operations(o) {}
+ Error ReadInfo(std::uint64_t,MenuDisplayInfo* out) override {
+  *out={};out->geometry={FesDe25ScanoutFrameWidth,FesDe25ScanoutFrameHeight,FesDe25ScanoutFrameStride,FesDe25ScanoutFrameBytes,FesDe25ScanoutSlotBytes};
+  out->configured=configured;out->enabled=enabled;out->quiesced=quiesced;
+  out->pending=operations.state.state&8;
+  out->displayed_sequence=operations.state.displayed_sequence;
+  out->pixel_format=2;out->picture={312,90,656,540};
+  return {};
+ }
+ Error Configure(std::uint64_t) override {assert(!enabled&&quiesced);configured=true;return {};}
+ Error Enable(std::uint64_t) override {assert(configured);++enables;enabled=true;quiesced=false;return {};}
+ Error Submit(std::uint8_t,std::uint32_t,std::uint64_t) override {++submits;assert(false);return {};}
+ Error Quiesce(std::uint64_t d,const CoreDescriptor*,MenuDisplayInfo* out) override {
+  assert(!operations.allocated&&!operations.grant_open&&!operations.peers);
+  ++quiesces;
+  if(fail_quiesce)return {ErrorCode::io_failed,"uncertain GP quiescence","menu"};
+  enabled=false;quiesced=true;return ReadInfo(d,out);
+ }
+ Error RunBlit(std::uint32_t,std::uint32_t,std::uint8_t,std::uint64_t) override {assert(false);return {};}
+ Error ReadBlit(std::uint64_t,MenuBlitState*) override {assert(false);return {};}
+};
 } }

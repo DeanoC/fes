@@ -302,8 +302,13 @@ submission and final idle/fault state. It uses the shared stable response sample
 with runtime and wall-clock bounds and no command replay. Known acknowledged
 rejections preserve the link; uncertainty remains poisoned across BeginSession
 and Realign. The ordinary FesGpCoreDriver supplies identity, input, cassette and
-SAVE semantics. This option is not wired into production construction or package
-admission yet, and establishes no standard DE25 hardware support.
+SAVE semantics. Production construction selects that same driver for
+`de25-linux-computer-v1`, whose exact standard ZX81 contract requires allocated
+scanout1.1 and the shared session plane in place of reserved HPS DDR. The driver
+observes the existing DE25 bridge's idle health and FPGA video-ready bit before
+Start. The declared/live PCM capability identifies FPGA-owned audio; Linux does
+not run a Cyclone V clock or transmitter recipe. This software path establishes
+no standard DE25 hardware acceptance.
 
 `fes.simple-computer` also accepts mid-session `replace_live_media` /
 `clear_media` on an active generation without holding execution reset. Tape
@@ -387,7 +392,9 @@ A failed revoke is retained by both the window and lifecycle: no later grant,
 splash load or core replacement can erase that uncertainty. Session-plane
 failure may still request display quiescence, but cannot report revocation
 success or proceed to programming. A new process is not proof that a retained
-kernel owner is safe. DE25 allocation/presentation integration remains closed.
+kernel owner is safe. DE25 MENU and standard session profiles bind the same
+kernel allocation adapter; sealed standard package and native acceptance remain
+separate gates.
 
 The required `fes.video.menu-display` 1.0 application capability (bit 9)
 is admitted only alongside fixed video and HPS DDR. The only other interface a
@@ -1020,5 +1027,10 @@ OWNER_ALLOC clears physical sequence/slot state. The adapter offsets that new
 physical sequence by the last completed logical sequence; runtime back-slot
 ownership starts at1 again. Per-frame mapping is negotiated for session grants
 as well as idle MENU. The machine stays running throughout visibility changes.
-This binding is injected and software-tested; production selection, package
-admission and native standard-core acceptance remain unfinished.
+NativeHardware binds the session allocation after the selected shared driver
+proves identity, before Configure or execution release. The production factory
+supplies the GP display control and the standard computer profile selects the
+allocated overlay. The nine required interfaces admit only the current format2
+ZX81 base, including cassette SAVE, controllers and fixed PCM; reserved-window,
+foreign-core and incomplete contracts are refused before programming. Canonical
+sealed package production and native standard-core acceptance remain unfinished.

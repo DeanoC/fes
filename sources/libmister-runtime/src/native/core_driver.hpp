@@ -22,6 +22,7 @@ enum class ProgrammingProfile {
 	// Selected by the DE25-only shared programming-profile row.
 	de25_hps_first_v1,
 	de25_linux_menu_v1,
+	de25_linux_computer_v1,
 };
 
 struct CoreDriverContext {
@@ -47,6 +48,8 @@ class CoreDriver {
 public:
 	virtual ~CoreDriver() {}
 	virtual void BeginSession() {}
+ // True only after a selected identity proves the FPGA-owned fixed PCM path.
+ virtual bool OwnsAudio() const {return false;}
 	// Images that own their HDMI transmitter expose observed readiness through
 	// their selected driver. This does not run a Linux transmitter recipe.
 	virtual Error WaitVideoReady(std::uint64_t)

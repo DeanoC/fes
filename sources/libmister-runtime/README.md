@@ -6,7 +6,7 @@ The former standalone repository is archived.
 The C++14 library and local `mister-runtime` daemon own FPGA programming,
 physical lifecycle, media/input delivery, and recovery. FES described packages are the only product launch path. DE10 supports `fes.simple-game`,
 `fes.simple-computer`, `fes.application` and `fes.computer` through `fes-gp-v1`.
-DE25 selects the two explicit profiles below. Protocol 2 is the only local socket protocol.
+DE25 selects the explicit profiles below. Protocol 2 is the only local socket protocol.
 
 Production hardware construction selects the board before constructing physical
 adapters. DE10 requires ARMv7 and the exact FES Cyclone V device-tree identity.
@@ -38,8 +38,13 @@ for the standard-core port. It consumes the same resource-relative MMIO adapter,
 validates bridge identity/status/fault and retained words, and submits one word
 per command. Standard HID, live cassette and SAVE behavior use the existing
 `FesGpCoreDriver`. Transport uncertainty cannot be cleared by BeginSession or
-Realign. This is an internal, injected transport: production construction still
-selects the bring-up driver, and no standard DE25 package/profile is admitted yet.
+Realign. The production factory selects this shared driver for the explicit
+`de25-linux-computer-v1` profile. Its standard ZX81 contract requires video,
+HID, controller ports, fixed PCM, cassette/SAVE, session display, shared blend
+plane and allocated scanout1.1. It declares no reserved HPS DDR window. The
+existing BRAM profile remains separate; there is no automatic fallback.
+Software admission does not establish a sealed standard package or hardware
+acceptance.
 
 DE25 advertises application and computer ABIs in ascending identity order,
 as required by the target agent's protocol-2 decoder. The native MENU fixture
@@ -48,7 +53,8 @@ an unordered capability list leaves the agent unavailable even when MENU is idle
 
 `LinuxDe25FpgaManager` selects the overlay from the described programming
 profile: `de25-hps-first-v1` is the BRAM computer, and `de25-linux-menu-v1` is the
-allocated MENU application. It retains the actual outgoing overlay bytes before
+allocated MENU application. `de25-linux-computer-v1` also selects that allocated
+scanout overlay, then uses the shared computer control path. It retains the actual outgoing overlay bytes before
 MENU/computer replacement; an inherited or modified overlay is refused. Firmware
 comes from the retained Artifact and is closed before the kernel reads it.
 Staging uses the root-only `/run/fes-de25-firmware` directory so the factory
@@ -103,8 +109,10 @@ Reopening allocates cleared storage with hardware front slot0 and restarts its
 physical frame sequence, while the runtime's logical completion count continues.
 Session status negotiates per-frame mappings, and its first back slot is1 after
 each fresh allocation. Focus and machine execution remain in the shared lifecycle.
-This path has injected-operation coverage only; the production factory/profile
-still selects the bring-up computer and has not admitted a standard-core package.
+The shared lifecycle calls BindSession after live identity and before allocation
+activation. Production construction supplies the existing GP display endpoint to
+that adapter. This path has software coverage only; canonical sealed standard
+package production and native acceptance remain unfinished.
 
 The MENU package declares application1.0 with fixed video1.0, menu-display1.0
 and `fes.fabric.de25-scanout`1.1. It declares no boot-latched HPS DDR window,

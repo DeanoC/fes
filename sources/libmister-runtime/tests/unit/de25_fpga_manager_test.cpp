@@ -206,6 +206,10 @@ void AllocatedScanoutProfile() {
     assert(allocated.at(profile_key) == marker + std::string(1, '\0'));
     allocated.erase(profile_key);assert(allocated == ordinary);
     assert(De25ProgrammingOverlay(static_cast<De25OverlayProfile>(42)).empty());
+    for(auto profile:{ProgrammingProfile::de25_linux_menu_v1,ProgrammingProfile::de25_linux_computer_v1}) {
+        Fixture f;auto m=f.Manager();assert(f.Program(*m,profile).error.ok());
+        assert(Get(f.ops.Dir()+"/dtbo")==bytes(scanout));
+    }
     {
         Fixture f;auto m = f.Manager();
         assert(f.Program(*m,ProgrammingProfile::de25_linux_menu_v1).error.ok());

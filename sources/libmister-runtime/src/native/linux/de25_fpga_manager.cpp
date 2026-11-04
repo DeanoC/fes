@@ -277,9 +277,10 @@ public:
     }
     NativeResult Program(const Artifact& artifact, ProgrammingProfile profile, std::uint64_t deadline) {
         if (profile != ProgrammingProfile::de25_hps_first_v1 &&
-            profile != ProgrammingProfile::de25_linux_menu_v1)
+            profile != ProgrammingProfile::de25_linux_menu_v1 &&
+            profile != ProgrammingProfile::de25_linux_computer_v1)
             return {Failure("programming profile is not DE25 HPS-first"), false};
-        const auto blob = De25ProgrammingOverlay(profile == ProgrammingProfile::de25_linux_menu_v1 ?
+        const auto blob = De25ProgrammingOverlay((profile == ProgrammingProfile::de25_linux_menu_v1 || profile == ProgrammingProfile::de25_linux_computer_v1) ?
             De25OverlayProfile::allocated_scanout : De25OverlayProfile::firmware_only);
         if (blob.empty()) return {Failure("invalid DE25 overlay ownership profile"), false};
         auto error = Check(deadline); if (!error.ok()) return {error, false};

@@ -802,13 +802,25 @@ Capabilities NativeHardware::capabilities() const
 	Capabilities result;
  if (platform_ == NativePlatform::de25_nano) {
   if (!game_video_.SupportsPlatform(platform_)) return result;
-  if (de25_driver_ && game_video_.SupportsPlatform(platform_)) {
-   result.programming_profiles = {"de25-hps-first-v1"};
+  if ((de25_driver_ || fes_gp_driver_) && game_video_.SupportsPlatform(platform_)) {
+   if(de25_driver_)result.programming_profiles.push_back("de25-hps-first-v1");
+   if(fes_gp_driver_&&menu_display_&&menu_window_)
+    result.programming_profiles.push_back("de25-linux-computer-v1");
    SupportedABI computer;
    computer.id = generated::FesComputerABIID; computer.major = 1; computer.minor = 0;
    computer.interfaces = {{generated::FesComputerInterfaceKeyboardHidID, 1, 0},
     {generated::FesComputerInterfaceMediaZx81TapeID, 1, 0},
     {generated::FesComputerInterfaceVideoFixed720p60ID, 1, 0}};
+   if(fes_gp_driver_&&menu_display_&&menu_window_) {
+    computer.interfaces.push_back({generated::FesComputerInterfaceGamepadPortsID,1,0});
+    computer.interfaces.push_back({generated::FesComputerInterfaceAudioPcmS16Stereo48kID,1,0});
+    computer.interfaces.push_back({generated::FesComputerInterfaceMediaZx81TapeWriteID,1,0});
+    computer.interfaces.push_back({generated::FesComputerInterfaceVideoSessionDisplayID,1,0});
+    computer.interfaces.push_back({"fes.fabric.video.display-plane",1,0});
+    computer.interfaces.push_back({"fes.fabric.de25-scanout",1,1});
+    std::sort(computer.interfaces.begin(),computer.interfaces.end(),
+     [](const SupportedInterface& a,const SupportedInterface& b){return a.id<b.id;});
+   }
    result.abis.push_back(std::move(computer));
   }
   if (de25_menu_driver_ && menu_display_ && menu_window_) {
@@ -1720,7 +1732,8 @@ HardwareResult NativeHardware::LoadCoreInternal(
 
 	error = RecheckProgrammedBitstream(package.get());
 	if (!error.ok()) return {error, false, ""};
-	const bool fes_gp = admitted->profile_ == ProgrammingProfile::fes_gp_v1;
+	const bool fes_gp = admitted->profile_ == ProgrammingProfile::fes_gp_v1 ||
+  admitted->profile_ == ProgrammingProfile::de25_linux_computer_v1;
 	const bool managed = fes_gp || admitted->profile_ == ProgrammingProfile::de25_hps_first_v1 ||
 		admitted->profile_ == ProgrammingProfile::de25_linux_menu_v1;
 	const bool fes_gamepad = fes_gp &&
@@ -1818,7 +1831,8 @@ HardwareResult NativeHardware::LoadCoreInternal(
 		}
 	}
  if(menu||session_display) {
-  error=menu_window_->Activate(true,blitter);
+  if(session_display)error=menu_window_->BindSession(admitted->opened_.descriptor,Deadline(clock_,timeouts_.core_io_ms));
+  if(error.ok())error=menu_window_->Activate(true,blitter);
   if(error.ok())menu_underflow_streak_=0;
   if(error.ok())error=menu_display_->Configure(Deadline(clock_,timeouts_.core_io_ms));
   if(!error.ok()){menu_unsafe_=true;return {error,true,identified.observed_core};}

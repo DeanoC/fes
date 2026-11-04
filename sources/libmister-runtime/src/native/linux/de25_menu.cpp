@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 #include "native/linux/de25_menu.hpp"
 #include "native/hardware.hpp"
+#include "native/de25_core_contract.hpp"
 #include "native/generated/fes_application.hpp"
 #include "native/generated/fes_de25_scanout.hpp"
 #include <cerrno>
@@ -106,6 +107,15 @@ public:
 }
 LinuxDe25Menu::LinuxDe25Menu(Clock& c,std::uint32_t ms):clock_(c),owned_(new KernelOperations),operations_(owned_.get()),revoke_ms_(ms){}
 LinuxDe25Menu::LinuxDe25Menu(Clock& c,De25MenuOperations& o,std::uint32_t ms):clock_(c),operations_(&o),revoke_ms_(ms){}
+LinuxDe25Menu::LinuxDe25Menu(Clock& c,MenuDisplay& display,std::uint32_t ms):LinuxDe25Menu(c,ms){session_endpoint_=&display;}
+LinuxDe25Menu::LinuxDe25Menu(Clock& c,De25MenuOperations& o,MenuDisplay& display,std::uint32_t ms):LinuxDe25Menu(c,o,ms){session_endpoint_=&display;}
+Error LinuxDe25Menu::BindSession(const CoreDescriptor& descriptor,std::uint64_t d) {
+ Error e=CheckDe25StandardComputerContract(descriptor);
+ if(!e.ok())return e;
+ if(!session_endpoint_)return Unsupported();
+ std::array<std::uint32_t,4> expected{};e=De25BuildWords(descriptor.build.id,&expected);
+ return e.ok()?Bind(expected,d,session_endpoint_):e;
+}
 LinuxDe25Menu::~LinuxDe25Menu(){(void)Revoke();if(grant_>=0)operations_->Close(grant_);}
 Error LinuxDe25Menu::Deadline(std::uint64_t d) const {
  return clock_.NowMs()>=d?Failed("DE25 MENU operation exceeded its deadline"):Error{};

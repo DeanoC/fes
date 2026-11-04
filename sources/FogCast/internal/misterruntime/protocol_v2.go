@@ -1396,7 +1396,7 @@ func validActivePackage(active Protocol2ActivePackage, capabilities Protocol2Cap
 		if active.Observed.ABI == nil {
 			return false
 		}
-	case "de25-hps-first-v1", "de25-linux-menu-v1":
+	case "de25-hps-first-v1", "de25-linux-menu-v1", "de25-linux-computer-v1":
 		wantABI := "fes.computer"
 		if active.Descriptor.Target.ProgrammingProfile == "de25-linux-menu-v1" {
 			wantABI = "fes.application"

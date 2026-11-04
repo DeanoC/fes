@@ -3,6 +3,8 @@
 
 #include "capture_log.hpp"
 #include "de25_menu_operations.hpp"
+#include "de25_computer_endpoint.hpp"
+#include "de25_standard_descriptor.hpp"
 #include "native/de25_core_driver.hpp"
 #include "daemon/protocol.hpp"
 #include "fake_input.hpp"
@@ -5198,6 +5200,62 @@ void TestDe25SelectedPlatformLifecycle()
  assert(base.fpga.calls == programmed);
 }
 
+void TestDe25StandardComputerUsesSharedDriverAndAllocatedSession() {
+ using namespace mister;using namespace mister::native;using namespace mister::native::generated;
+ namespace dm=mister_test::de25_menu;
+ Fixture base;dm::Operations operations;dm::SessionControl control(operations);
+ auto d=mister_test::De25StandardDescriptor();
+ const auto capabilities=FesComputerCapabilityVideoFixed720p60|FesComputerCapabilityKeyboardHid|
+  FesComputerCapabilityGamepadPorts|FesComputerCapabilityAudioPcmS16Stereo48k|
+  FesComputerCapabilityMediaZx81Tape|FesComputerCapabilityMediaZx81TapeWrite|FesComputerCapabilityVideoSessionDisplay;
+ mister_test::AtomicComputerBridge bridge(capabilities,d.build.id);De25ComputerMmio registers(bridge);
+ FesGp gp(registers,operations.clock,FesGpTransport::de25_computer);FesGpCoreDriver driver(gp);
+ LinuxDe25Menu presenter(operations.clock,operations,control,5);De25MenuCoreDriver menu_driver(presenter);
+ De25VideoBringup video;
+ NativeHardware hardware(base.opener,base.fpga,video,video,base.input,base.input_identity,
+  operations.clock,base.log,base.idle,{},&driver,{"/tmp"},SplashIdle(),&presenter,&presenter,nullptr,
+  NativePlatform::de25_nano,nullptr,&menu_driver);
+ TempDirectory menu,game;
+ auto manifest=ReadText("tests/fixtures/core-bundle-v2/manifests/valid-basic.toml");
+ ReplaceAll(&manifest,"de10_nano","de25_nano");ReplaceAll(&manifest,"5CSEBA6U23I7","A5EB013BB23BE4SCS");
+ ReplaceAll(&manifest,"0123456789abcdef0123456789abcdef",d.build.id);
+ auto menu_manifest=manifest;
+ ReplaceAll(&menu_manifest,"fes.pong","fes.menu");ReplaceAll(&menu_manifest,"fes-gp-v1","de25-linux-menu-v1");
+ ReplaceAll(&menu_manifest,"fes.simple-game","fes.application");ReplaceAll(&menu_manifest,"fes.gamepad","fes.video.menu-display");
+ menu_manifest+="\n[[interfaces]]\nid=\"fes.fabric.de25-scanout\"\nmajor=1\nminor=1\nrequired=true\n";
+ ReplaceAll(&manifest,"fes.pong","fes.zx81");ReplaceAll(&manifest,"fes-gp-v1","de25-linux-computer-v1");
+ ReplaceAll(&manifest,"fes.simple-game","fes.computer");
+ manifest.erase(manifest.find("[[interfaces]]"),manifest.find("[build]")-manifest.find("[[interfaces]]"));
+ for(const auto& interface:d.interfaces)
+  manifest+="\n[[interfaces]]\nid=\""+interface.id+"\"\nmajor=1\nminor="+std::to_string(interface.minor)+"\nrequired=true\n";
+ const auto payload=ReadText("tests/fixtures/core-bundle-v2/payloads/fes-fixture.rbf");
+ menu.File("manifest.toml",menu_manifest);menu.File("core.rbf",payload);
+ game.File("manifest.toml",manifest);game.File("core.rbf",payload);
+ OpenedCorePackage menu_package,game_package;
+ assert(OpenCorePackage(menu.path,"",&menu_package).ok()&&OpenCorePackage(game.path,"",&game_package).ok());
+ Runtime runtime(hardware,base.log);assert(runtime.Start(menu.path,menu_package.package_id).ok());
+ const auto loaded=runtime.LoadCore(game.path,game_package.package_id);
+ if(!loaded.ok())fprintf(stderr,"standard DE25 launch: %s (%s)\n",loaded.message.c_str(),loaded.phase.c_str());
+ assert(loaded.ok()&&!bridge.endpoint.held&&driver.OwnsAudio());
+ assert(base.fpga.profiles.back()==ProgrammingProfile::de25_linux_computer_v1&&base.fpga.hps_ddr_calls==0);
+ const auto state=runtime.status();const auto generation=state.generation;
+ assert(state.menu_display.session&&state.menu_display.frame_mapping&&!state.menu_display.available);
+ assert(state.capabilities.media_units.size()==1&&state.capabilities.media_units[0].max_bytes==16384&&state.capabilities.media_units[0].saveable);
+ if(const char* path=std::getenv("FES_TEST_DE25_STANDARD_PROTOCOL_STATUS_RECORD")) {
+  std::ofstream output(path);output<<daemon::EncodeResponse(2,true,state,"de25-standard-producer-fixture")<<'\n';assert(output.good());
+ }
+ for(unsigned cycle=0;cycle<3;++cycle) {
+  assert(runtime.SetSessionDisplay(game_package.package_id,generation,true,true).ok());
+  std::uint8_t slot=0;assert(hardware.MenuBackSlot(&slot).ok()&&slot==1);
+  MenuDisplayInfo info;assert(PresentBackSlot(hardware,&info).ok()&&info.displayed_sequence==cycle+1);
+  assert(runtime.SetSessionDisplay(game_package.package_id,generation,false,false).ok());
+  assert(!bridge.endpoint.held&&base.fpga.calls==2);
+ }
+ assert(runtime.Stop().ok()&&runtime.status().menu_display.available&&base.fpga.calls==3);
+ assert(base.input.open_calls==0&&base.i2c.write_calls==0&&base.fpga.hps_ddr_calls==0);
+ assert(control.submits==0&&control.quiesces>=3);
+}
+
 void TestDe25AllocatedMenuLaunchStopAndPinnedPeer(bool clean_shutdown = false)
 {
  using namespace mister;using namespace mister::native;
@@ -5279,6 +5337,7 @@ void TestDe25AllocatedMenuLaunchStopAndPinnedPeer(bool clean_shutdown = false)
 int main(int argc,char** argv)
 {
  if(argc==2&&std::strcmp(argv[1],"--session-display")==0) {
+  TestDe25StandardComputerUsesSharedDriverAndAllocatedSession();
   puts("native_hardware_test: allocated MENU lifecycle");fflush(stdout);
   TestDe25AllocatedMenuLaunchStopAndPinnedPeer();
   TestDe25AllocatedMenuLaunchStopAndPinnedPeer(true);
@@ -5290,6 +5349,7 @@ int main(int argc,char** argv)
   puts("native_hardware_test: session-display cases passed");return 0;
  }
  assert(argc==1);
+ TestDe25StandardComputerUsesSharedDriverAndAllocatedSession();
  TestDe25AllocatedMenuLaunchStopAndPinnedPeer();
  TestDe25AllocatedMenuLaunchStopAndPinnedPeer(true);
  {Fixture de10;assert(de10.hardware.Shutdown().ok()&&de10.fpga.release_calls==0);}

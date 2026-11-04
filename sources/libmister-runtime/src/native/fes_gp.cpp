@@ -264,6 +264,42 @@ bool FesGp::Poisoned()
 	return poisoned_;
 }
 
+Error FesGp::WaitVideoReady(std::uint64_t deadline)
+{
+ std::lock_guard<std::mutex> lock(mutex_);
+ if(transport_!=FesGpTransport::de25_computer)
+  return {ErrorCode::unsupported_interface,"FPGA readiness is a DE25 transport operation","video"};
+ if(poisoned_)return Io("FES GP exchange state is ambiguous");
+ auto last=clock_.NowMs();
+ if(last>=deadline)return Io("FES GP DE25 video deadline exceeded");
+ const auto end=MonotonicWallNs()+std::min<std::uint64_t>(deadline-last,120000)*1000000u;
+ auto timely=[&]() -> Error {
+  const auto now=clock_.NowMs();
+  if(now<last||now>=deadline||MonotonicWallNs()>=end)
+   return Io("FES GP DE25 video deadline exceeded");
+  last=now;return {};
+ };
+ auto read=[&](std::uint32_t offset,std::uint32_t* value) -> Error {
+  Error e=timely();if(e.ok())e=mmio_.Read32(offset,value);
+  return e.ok()?timely():e;
+ };
+ for(;;) {
+  std::uint32_t identity=0,version=0,status=0,fault=0,video=0;
+  Error e=read(FesDe25ComputerIdOffset,&identity);
+  if(e.ok())e=read(FesDe25ComputerVersionOffset,&version);
+  if(e.ok())e=read(FesDe25ComputerStatusOffset,&status);
+  if(e.ok())e=read(FesDe25ComputerFaultOffset,&fault);
+  if(e.ok()&&(identity!=FesDe25ComputerIdentity||version!=FesDe25ComputerVersion||
+      status!=FesDe25ComputerStatusReady||fault))
+   e=Io("FES GP DE25 video bridge identity or idle health differs");
+  if(e.ok())e=read(FesDe25ComputerVideoStatusOffset,&video);
+  if(e.ok()&&(video&~FesDe25ComputerVideoReady))e=Io("FES GP DE25 video readiness has unknown bits");
+  if(!e.ok()){poisoned_=true;return e;}
+  if(video&FesDe25ComputerVideoReady)return {};
+  SleepOneMillisecond();
+ }
+}
+
 Error FesGp::Realign(std::uint64_t deadline)
 {
 	std::lock_guard<std::mutex> lock(mutex_);
@@ -743,6 +779,7 @@ FesGpCoreDriver::FesGpCoreDriver(FesGp& gp) : gp_(gp) {}
 
 void FesGpCoreDriver::BeginSession()
 {
+ fpga_video_=false;
 	gp_.BeginSession();
 	persistence_verified_ = false;
 	reset_held_ = true;
@@ -811,9 +848,21 @@ CoreDriverResult FesGpCoreDriver::Quiesce(const CoreDriverContext&,
 	return result;
 }
 
+bool FesGpCoreDriver::OwnsAudio() const
+{
+ return fpga_video_&&(observed_capabilities_&FesComputerCapabilityAudioPcmS16Stereo48k);
+}
+
+Error FesGpCoreDriver::WaitVideoReady(std::uint64_t deadline)
+{
+ if(!fpga_video_)return {ErrorCode::unsupported_interface,"selected core does not own DE25 video readiness","video"};
+ return gp_.WaitVideoReady(deadline);
+}
+
 CoreDriverResult FesGpCoreDriver::Identify(const CoreDriverContext& context,
 	std::uint64_t deadline)
 {
+ fpga_video_=false;
 	if (context.descriptor == nullptr)
 		return {{ErrorCode::invalid_request, "missing FES GP descriptor",
 			"request"}, false, ""};
@@ -843,6 +892,8 @@ CoreDriverResult FesGpCoreDriver::Identify(const CoreDriverContext& context,
 		}
 	}
 	home_computer_ = error.ok() && context.descriptor->abi.id == FesComputerABIID;
+ fpga_video_=home_computer_&&context.descriptor->target.platform=="de25_nano"&&
+  context.descriptor->target.programming_profile=="de25-linux-computer-v1";
 	wall_clock_ = false;
 	ata_disk_ = false;
 	keyboard_hid_ = false;

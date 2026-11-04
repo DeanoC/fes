@@ -1,6 +1,7 @@
 // Copyright 2026 FogCast contributors
 // SPDX-License-Identifier: GPL-3.0-or-later
 
+#include "de25_standard_descriptor.hpp"
 #include "native/core_package.hpp"
 #include "native/core_driver.hpp"
 #include "native/sha256.hpp"
@@ -1129,6 +1130,31 @@ void TestComputerFirmwarePackageAdmission()
 		mister::ErrorCode::unsupported_abi);
 }
 
+void TestDe25StandardProfileBindsSharedDriverAndRejectsOtherMemory() {
+ using namespace mister;using namespace mister::native;
+ auto d=mister_test::De25StandardDescriptor();
+ ContainedCoreDriver shared,contained,bram;
+ CoreDriverRegistry selected(&shared,contained,&bram,NativePlatform::de25_nano);
+ CoreDriverRegistry missing(nullptr,contained,&bram,NativePlatform::de25_nano);
+ ProgrammingProfile profile;CoreDriver* driver=nullptr;
+ assert(selected.Resolve(d,&profile,&driver).ok()&&profile==ProgrammingProfile::de25_linux_computer_v1&&driver==&shared);
+ assert(!missing.Resolve(d,&profile,&driver).ok()&&!driver);
+ assert(!CheckCoreCompatibility(d).ok());
+ for(unsigned failure=0;failure<9;++failure) {
+  auto bad=d;
+  if(failure==0)bad.interfaces[8]={"fes.memory.hps-ddr",1,0,true};
+  if(failure==1)bad.interfaces[8].minor=0;
+  if(failure==2)bad.interfaces[2].required=false;
+  if(failure==3)bad.interfaces[3]=bad.interfaces[0];
+  if(failure==4)bad.target.programming_profile="de25-hps-first-v1";
+  if(failure==5)bad.abi.minor=1;
+  if(failure==6)bad.core.id="fes.c64";
+  if(failure==7)bad.build.id.assign(32,'0');
+  if(failure==8)bad.format=3;
+  assert(!selected.Resolve(bad,&profile,&driver).ok()&&!driver);
+ }
+}
+
 void TestExplicitDe25ProfileAndDriverBinding()
 {
 	using namespace mister; using namespace mister::native;
@@ -1184,6 +1210,7 @@ void TestExplicitDe25ProfileAndDriverBinding()
 int main()
 {
 	TestExplicitDe25ProfileAndDriverBinding();
+ TestDe25StandardProfileBindsSharedDriverAndRejectsOtherMemory();
 	TestComputerCompatibilityComposesRecognizedInterfaces();
 	TestComputerFirmwarePackageAdmission();
 	TestSharedFormat4TwoSourceFixture();

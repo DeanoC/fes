@@ -154,7 +154,10 @@ public:
             de25_registers_.reset(new native::De25ComputerMmio(mmio_));
             de25_.reset(new native::De25Computer(*de25_registers_, clock_));
             de25_driver_.reset(new native::De25ComputerCoreDriver(*de25_));
-            de25_menu_.reset(new native::LinuxDe25Menu(clock_));
+            fes_gp_.reset(new native::FesGp(*de25_registers_,clock_,native::FesGpTransport::de25_computer));
+            fes_gp_driver_.reset(new native::FesGpCoreDriver(*fes_gp_));
+            menu_display_.reset(new native::MenuDisplayDriver(*fes_gp_,clock_));
+            de25_menu_.reset(new native::LinuxDe25Menu(clock_,*menu_display_));
             de25_menu_driver_.reset(new native::De25MenuCoreDriver(*de25_menu_));
             de25_video_.reset(new native::De25VideoBringup);
             idle = de25_video_.get(); video = de25_video_.get();

@@ -16,8 +16,8 @@ public:
  VideoQuiesceResult Quiesce(std::uint64_t) override { return {}; }
 };
 
-// Internal driver for the known BRAM ZX81 contract. The production factory
-// does not construct it yet. Its caller serializes lifecycle/control calls
+// Driver for the explicit reduced BRAM ZX81 profile. The standard computer
+// profile instead selects FesGpCoreDriver. Its caller serializes lifecycle/control calls
 // and owns the exclusive protocol client.
 class De25ComputerCoreDriver final : public CoreDriver {
 public:
