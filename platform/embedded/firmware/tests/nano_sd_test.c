@@ -62,7 +62,7 @@ static void setup(struct test *t)
 }
 static int initialize(struct test *t, unsigned qualified)
 {
-    struct fes_nano_sd_ops ops={&t->h, scope, resume, prepare_clock, stop};
+    struct fes_nano_sd_ops ops={&t->h, scope, resume, prepare_clock, stop, 0};
     return fes_nano_sd_init(&t->sd, &t->bridge, ops, qualified);
 }
 static void call(struct test *t, unsigned op, uint64_t result[4])

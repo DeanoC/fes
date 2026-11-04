@@ -177,6 +177,23 @@ Copied handles cannot take ownership. Concurrent presentation and Close reject
 without I/O, and repeated Close returns its cached result. No failure frees the
 region or supplies a successful presentation/return receipt.
 
+The explicit `fpgaload --window-storage-return` option adds SD handback after
+`--window-present`. The completed transfer retains its original private storage
+handoff. `WindowSession.ResumeStorageAfterReturn` consumes only that session's
+successful close, rechecks the entire pinned arena and live closed source, then
+resumes its original store. A failed or uncertain check/grant is not retried.
+The frontend freshly retains the selected package, contains SD again and reports
+both return and new storage generations. The old handoff becomes invalid.
+
+Matched firmware enables a separate cached window-return policy. It requires
+its own completed configuration, full reader/probe stop, exact F2SDRAM0 drain,
+source-bound identity closure and current SD live scope. Ordinary held-data
+return checks remain separate. Build, entry, cold firmware and composition
+receipts carry the opt-in; absent/mixed selections reject. The separate host
+trace decoder requires the entire frame return before SD begin and a fresh
+containment receipt. Software/native cross-build checks do not qualify this
+new hardware path. Window reconfiguration and the normal UI loop remain open.
+
 Host tests cover twelve changing frames, independent pixel/CRC/hash checks,
 publication and ownership failures, cancellation, token exhaustion and concurrent
 return. Actual RTL tests cover local drain, held addresses/responses and an

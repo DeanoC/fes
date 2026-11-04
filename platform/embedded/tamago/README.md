@@ -62,6 +62,14 @@ now passes all twelve frames, local reader drains and final firmware closure
 on TRWU8CBL. Its private 32 KiB hash scratch retains complete byte coverage;
 all device bounds remain unchanged. This result covers the fixed reader scope.
 
+Adding the explicit `--window-storage-return` option to `--window-present`
+selects a separate matched SD handback prototype. After the complete display
+return it resumes the original store, freshly reads/verifies the same selected
+package and contains SD again. Its success marker includes closed, resumed
+and newly contained generations. It performs no SD writes or second FPGA load.
+The option is bound through native/entry/firmware/composition receipts; the
+original frame-only mode is unchanged. Its new physical path is not yet tested.
+
 The repeated-frame diagnostic emits timed `STEP` records before and after
 rendering, presentation and final return. A partial trace retains the last
 completed frame and the CPU step which did not return. These progress records

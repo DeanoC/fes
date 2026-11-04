@@ -207,7 +207,7 @@ func (v *HPSContextVerifier) openWindowSession(ctx context.Context, control, con
 	if opened != want {
 		return nil, errors.New("native fabric: uncertain window control opening")
 	}
-	s := &WindowSession{region: v.readerMemoryRegion, bytes: v.readerMemoryRegion.Bytes, arenaHash: arenaHash, verifier: v, context: ctx, source: source, opened: opened, known: true,
+	s := &WindowSession{storage: binding.handoff, region: v.readerMemoryRegion, bytes: v.readerMemoryRegion.Bytes, arenaHash: arenaHash, verifier: v, context: ctx, source: source, opened: opened, known: true,
 		bridges: bridges, limits: limits, generation: 1, nextDrain: 1,
 		controlSHA: sha256.Sum256(control), accessSHA: sha256.Sum256(contract)}
 	s.self = s

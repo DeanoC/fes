@@ -12,6 +12,7 @@ import (
 	"sync/atomic"
 
 	"github.com/DeanoC/fes/platform/embedded/tamago/embeddedcontrol"
+	"github.com/DeanoC/fes/platform/embedded/tamago/packagestore"
 	"github.com/DeanoC/fes/platform/embedded/tamago/scanout"
 )
 
@@ -20,6 +21,8 @@ import (
 // The region stays pinned; no operation releases or reassigns the allocation.
 type WindowSession struct {
 	self                                       *WindowSession
+	storage                                    *packagestore.Handoff
+	storageAttempted                           bool
 	region                                     *Region
 	bytes                                      []byte
 	arenaHash                                  *arenaHash
@@ -324,6 +327,44 @@ func (s *WindowSession) Close() (WindowSessionReturn, error) {
 			LastFrame: s.last, Frames: s.frames, ControlMapSHA256: s.controlSHA, AccessMapSHA256: s.accessSHA}
 	}
 	return s.returned, s.closeErr
+}
+
+// ResumeStorageAfterReturn consumes this session's successful return once.
+// Only the private containment handoff carried by its completed transfer can
+// reopen SD. The region remains pinned; a failed check or grant is never retried.
+func (s *WindowSession) ResumeStorageAfterReturn() error {
+	if s == nil || s.self != s || s.verifier == nil || s.storage == nil {
+		return scanout.ErrReaderArgument
+	}
+	if !s.active.CompareAndSwap(false, true) {
+		return scanout.ErrReaderBusy
+	}
+	defer s.active.Store(false)
+	if !s.closed || s.closeErr != nil || s.storageAttempted || s.returned.Frames == 0 ||
+		s.returned.After.Generation == 0 || s.returned.After.Generation > math.MaxUint64-3 {
+		return scanout.ErrReaderRetired
+	}
+	s.storageAttempted = true
+	v := s.verifier
+	if !v.readerMemoryMu.TryLock() {
+		return scanout.ErrReaderBusy
+	}
+	defer v.readerMemoryMu.Unlock()
+	before, err := v.Verify(v.Identity())
+	if err != nil {
+		return err
+	}
+	if before.Bridges != s.returned.After || before.Digest != s.source.Digest || !v.reconfigurationSource(before) {
+		return errors.New("native fabric: window closure changed before storage return")
+	}
+	if err := s.checkArena(); err != nil {
+		return err
+	}
+	after, err := v.Verify(v.Identity())
+	if err != nil || after != before {
+		return errors.New("native fabric: window storage return lost closed source ownership")
+	}
+	return s.storage.ResumeAfterReturn(after.Bridges.Owner, after.Bridges.Generation)
 }
 
 // windowFrameMemory exposes only bounded, sequential visible-row writes while

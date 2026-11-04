@@ -6,6 +6,16 @@ adapter, and verification against actual FPGA RTL. These tools build firmware
 components; the Nano tools assemble the matched experimental boot images.
 Software tests and cross-builds remain distinct from hardware acceptance.
 
+The opt-in window SD-return path now connects the retained full-frame closure
+to the existing read-only SD lease. The secure provider checks its completed
+configuration, identity, reader/probe stop and exact DDR drain records. Only
+its matched `FES_NANO_WINDOW_STORAGE_RETURN` profile installs that SD return
+callback. The original held-data return predicate stays strict; neither reset
+bits nor non-secure status supply a closure. No new wire operation or device
+poll is added. Tests join the actual C dispatcher and both reader RTL models,
+including missing capability, stale proof and live-scope failure. A new matched
+board test remains required before physical SD-after-display qualification.
+
 The reader-stop helper caches its first and last stable, identity-checked
 samples during the existing bounded stop. A failed cold stop logs their status,
 pending address/burst counts and ownership words as `FES_NANO_READER_STOP`.

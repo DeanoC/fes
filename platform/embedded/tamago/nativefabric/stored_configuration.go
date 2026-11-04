@@ -132,6 +132,7 @@ func (plan *StoredConfigurationPlan) newTransfer(handoff *packagestore.Handoff, 
 	if err != nil {
 		return nil, HPSBootObservation{}, err
 	}
+	transfer.binding.handoff = handoff
 	prepare := transfer.beforeStart
 	transfer.beforeStart = func() error {
 		current, err := handoff.Selection()

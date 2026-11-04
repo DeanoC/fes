@@ -26,7 +26,7 @@ var expectedBootContext, expectedControlMap, expectedConfigurationMap, expectedR
 var expectedDDRReadMap string
 var expectedWindowMemory string
 var expectedWindowReadMap string
-var expectedWindowPresent string
+var expectedWindowPresent, expectedWindowStorageReturn string
 var expectedComputerMap, expectedComputerReload string
 var expectedComputerStorageReturn string
 var expectedProgramPlatform, expectedSelectedPrograms string
@@ -47,6 +47,9 @@ func main() {
 	de25nano.StartupCheckpoint("go_main")
 	if expectedWindowPresent != "" && (expectedWindowPresent != "1" || expectedWindowReadMap == "" || expectedWindowMemory != "1") {
 		panic("window presentation requires the selected full-window read path")
+	}
+	if expectedWindowStorageReturn != "" && (expectedWindowStorageReturn != "1" || expectedWindowPresent != "1") {
+		panic("window storage return requires the selected presentation diagnostic")
 	}
 	if runtime.GOOS != "tamago" || board.ExceptionLevel() != 1 || board.CounterFrequency() != 400000000 {
 		panic("unexpected FPGA configuration CPU/source contract")
@@ -254,9 +257,16 @@ func main() {
 	if expectedWindowReadMap != "" {
 		limits := scanout.ReaderLimits{Timeout: time.Second, MaxPolls: 64, Now: time.Now, Yield: func() { time.Sleep(time.Millisecond) }}
 		if expectedWindowPresent == "1" {
-			if err := presentWindowFrames(v, control, decoded(expectedWindowReadMap, 8192), limits); err != nil {
+			session, err := presentWindowFrames(v, control, decoded(expectedWindowReadMap, 8192), limits)
+			if err != nil {
 				reportWindowFailure(err)
 				panic(err)
+			}
+			if expectedWindowStorageReturn == "1" {
+				if err := verifyWindowStorageReturn(session, store, handoff, request); err != nil {
+					reportWindowFailure(err)
+					panic(err)
+				}
 			}
 			return
 		}

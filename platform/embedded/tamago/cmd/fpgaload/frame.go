@@ -53,11 +53,11 @@ func reportWindowFailure(err error) {
 	}
 }
 
-func presentWindowFrames(v *nativefabric.HPSContextVerifier, control, contract []byte, limits scanout.ReaderLimits) error {
+func presentWindowFrames(v *nativefabric.HPSContextVerifier, control, contract []byte, limits scanout.ReaderLimits) (*nativefabric.WindowSession, error) {
 	ctx := context.Background()
 	session, err := v.OpenWindowSession(ctx, control, contract, retained, limits)
 	if err != nil {
-		return err
+		return nil, err
 	}
 	seen := map[uint32]bool{}
 	var last nativefabric.WindowPresentation
@@ -85,15 +85,15 @@ func presentWindowFrames(v *nativefabric.HPSContextVerifier, control, contract [
 	step(12, "return_begin")
 	returned, closeErr := session.Close()
 	if err = errors.Join(err, closeErr); err != nil {
-		return err
+		return nil, err
 	}
 	if returned.Frames != 12 || returned.LastFrame != last.Frame || returned.Memory != last.Memory {
-		return errors.New("native window presentation return differs")
+		return nil, errors.New("native window presentation return differs")
 	}
 	step(12, "return_end")
 	id := v.Identity()
 	fmt.Printf("FES_NATIVE_FPGA_WINDOW_PRESENT PASS package_id=%s build_id=%s owner=%x source_generation=%d closed_generation=%d frames=%d last_reader_generation=%d last_cookie=%d bytes=%d crc32=%08x frame_sha256=%x access_map_sha256=%x data_closed=1 memory_retained=1 runtime_admission=unavailable\n",
 		id.PackageID, id.BuildID, returned.After.Owner, returned.Source.Bridges.Generation, returned.After.Generation, returned.Frames,
 		last.Frame.Generation, last.Frame.Cookie, last.Frame.DeliveredBytes, last.Frame.CRC32, last.Memory.FrameSHA256, returned.AccessMapSHA256)
-	return nil
+	return session, nil
 }

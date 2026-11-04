@@ -320,3 +320,29 @@ class NanoConfigurationTests(unittest.TestCase):
                         self.assertRegex(result.stdout,r'FES_NANO_WINDOW_CLOSURE owner=[0-9a-f]+ generation=6 reset=f hardware_drained=0 data_remained_contained=1 producers_quiescent=1 fabric_acknowledged=0')
                     else:self.assertNotIn('FES_NANO_WINDOW_CLOSURE ',result.stdout)
             print('PASS 9 joined secure SD/configuration/window/all-master-drain/return cases',flush=True)
+            # The same actual dispatcher must reject SD return without opt-in.
+            result=subprocess.run([window/'Vfes_de25_embedded','170'],capture_output=True,text=True,timeout=15)
+            self.assertEqual(result.returncode,0,result.stderr+'\n'+result.stdout[-4000:])
+            self.assertIn('window SD return absent without matched opt-in',result.stdout)
+            # Recompile the C provider for the explicit capability. Retain the
+            # original executable and reuse only byte-identical compiled RTL.
+            (window/'Vfes_de25_embedded').rename(base/'window-without-storage-return')
+            (inc/'fes_nano_cold_profile.h').write_text(window_profile+'\n#define FES_NANO_WINDOW_STORAGE_RETURN 1\n')
+            for name in reader_sources:
+                obj=base/('window-'+Path(name).name+'.o')
+                extra=['-DFES_TEST_READER_RTL','-DFES_TEST_WINDOW_RTL','-Dmain=fes_strong_window_main'] if name.startswith('tests/') else []
+                compiled=subprocess.run(['cc',*flags,'-Wextra','-DFES_TEST_HPS_CONTEXT',*extra,
+                                         '-c',str(FW/name),'-o',str(obj)],capture_output=True,text=True,timeout=30)
+                self.assertEqual(compiled.returncode,0,compiled.stderr)
+            compiled=subprocess.run(command,capture_output=True,text=True,timeout=90)
+            self.assertEqual(compiled.returncode,0,compiled.stdout+'\n'+compiled.stderr)
+            for mutation in range(170,189):
+                with self.subTest(strong_window_storage_return=mutation):
+                    result=subprocess.run([window/'Vfes_de25_embedded',str(mutation)],capture_output=True,text=True,timeout=15)
+                    if evidence:(target/('window-storage-'+str(mutation)+'.log')).write_text(result.stdout+result.stderr)
+                    self.assertEqual(result.returncode,0,result.stderr+'\n'+result.stdout[-5000:])
+                    self.assertIn('PASS strong window SD return',result.stdout)
+            if evidence:
+                shutil.copytree(base,target/'window-storage-build')
+                (target/'window-storage-build/contract.json').write_text(json.dumps({'profile':window_profile+'\n#define FES_NANO_WINDOW_STORAGE_RETURN 1\n','command':command},indent=2)+'\n')
+            print('PASS explicit window SD return, stale/provenance/live-scope failures and unchanged default refusal',flush=True)

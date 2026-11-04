@@ -8,6 +8,17 @@ static int retire(struct fes_nano_sd *s, int error)
     if (s->bridges) s->bridges->failed = 1;
     return -1;
 }
+static int returned(struct fes_nano_sd *s, uint64_t *generation)
+{
+    uint64_t observed = 0;
+    struct fes_nano_bridges *b = s->bridges;
+    if (!s->ops.returned) return fes_nano_bridges_held_return(b, generation);
+    if (!b || !b->closure_valid || s->ops.returned(s->ops.context, b, &observed) != 1 ||
+        !observed || observed != b->closure.after.generation || observed > b->state.generation)
+        return 0;
+    *generation = observed;
+    return 1;
+}
 static int healthy(struct fes_nano_sd *s)
 {
     struct fes_nano_bridges *b = s->bridges;
@@ -19,16 +30,16 @@ static int healthy(struct fes_nano_sd *s)
         !b->state.generation)
         return retire(s, -1);
     if (!b->state.never_enabled) {
-        uint64_t returned;
-        if (!fes_nano_bridges_held_return(b, &returned)) return retire(s, -1);
+        uint64_t return_generation;
+        if (!returned(s, &return_generation)) return retire(s, -1);
         if (s->active) {
-            if (s->return_generation != returned || !s->grant_generation ||
+            if (s->return_generation != return_generation || !s->grant_generation ||
                 s->grant_generation > UINT64_MAX-2 ||
                 b->state.generation < s->grant_generation ||
                 b->state.generation > s->grant_generation+2)
                 return retire(s, -1);
-        } else if (b->state.generation != returned &&
-                   (s->return_generation != returned || s->stopped_generation != b->state.generation)) {
+        } else if (b->state.generation != return_generation &&
+                   (s->return_generation != return_generation || s->stopped_generation != b->state.generation)) {
             return retire(s, -1);
         }
     }
@@ -107,7 +118,7 @@ void fes_nano_sd_sip(struct fes_nano_sd *s, uint64_t operation, uint64_t owner,
     if (operation == FES_EMBEDDED_SD_RESUME) {
         /* Reserve before the first write; a partial release retains this lease. */
         if (!s->bridges->state.never_enabled &&
-            !fes_nano_bridges_held_return(s->bridges, &s->return_generation)) {
+            !returned(s, &s->return_generation)) {
             retire(s, -1); return;
         }
         s->grant_generation = s->bridges->state.generation;
@@ -149,8 +160,8 @@ int fes_nano_sd_returned(struct fes_nano_sd *s, uint64_t owner,
         s->stopped_generation != generation || generation <= return_generation ||
         !s->bridges || s->bridges->state.generation != generation)
         return -1;
-    uint64_t returned;
-    if (!fes_nano_bridges_held_return(s->bridges, &returned) || returned != return_generation)
+    uint64_t observed;
+    if (!returned(s, &observed) || observed != return_generation)
         return -1;
     return scope(s);
 }

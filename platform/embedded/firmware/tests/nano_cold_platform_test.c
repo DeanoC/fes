@@ -67,7 +67,7 @@ uint32_t fes_test_reader_read(uint32_t);
 void fes_test_reader_write(uint32_t,uint32_t);
 #endif
 #ifdef FES_TEST_WINDOW_RTL
-static unsigned window_case,window_enables,window_closes;
+static unsigned window_case,window_enables,window_closes,window_storage_case;
 void fes_test_window_frame(unsigned);
 void fes_test_window_fault(unsigned);
 void fes_test_window_wait(void);
@@ -585,7 +585,9 @@ int main(int argc,char **argv)
 {
     assert(argc==2);unsigned mutation=atoi(argv[1]);
 #ifdef FES_TEST_WINDOW_RTL
-    assert(mutation>=160 && mutation<=168);window_case=mutation-160;mutation=67;
+    if(mutation>=170 && mutation<=188) { window_storage_case=mutation-169;window_case=0; }
+    else { assert(mutation>=160 && mutation<=168);window_case=mutation-160; }
+    mutation=67;
 #endif
     unsigned sd_return_case=0;(void)sd_return_case;
 #if defined(FES_NANO_COLD_COMPUTER) && FES_NANO_COLD_COMPUTER && defined(FES_NANO_READER_CPU_BASE)

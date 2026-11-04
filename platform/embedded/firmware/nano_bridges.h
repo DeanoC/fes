@@ -70,6 +70,9 @@ int fes_nano_bridges_configuration_guard(struct fes_nano_bridges *);
 /* Cached held-data return provenance, under the shared platform lock. This
  * performs no I/O; device scope callbacks must still verify live hardware. */
 int fes_nano_bridges_held_return(const struct fes_nano_bridges *, uint64_t *generation);
+/* Separate cached proof for the compiled window reader: exact F2SDRAM0 drain,
+ * all producers stopped and all bridges closed. This grants no SD permission. */
+int fes_nano_bridges_window_return(const struct fes_nano_bridges *, uint64_t *generation);
 #ifdef __cplusplus
 }
 #endif

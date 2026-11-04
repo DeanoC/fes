@@ -82,6 +82,22 @@ class WindowContractTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             entry.window_present_option(dict(receipt(),window_present=False))
 
+    def test_storage_return_requires_explicit_exact_link_assignment(self):
+        def receipt(flags='-X main.expectedWindowStorageReturn=1'):
+            return dict(window_present=True,window_read=True,window_memory=True,window_storage_return=True,
+                        command=['compiler','build','-ldflags',flags])
+        self.assertTrue(entry.window_storage_return_option(receipt()))
+        self.assertFalse(entry.window_storage_return_option({'command':['compiler','build','-ldflags','-s -w']}))
+        for key,value in [('window_storage_return',1),('window_storage_return',None),('window_present',False),
+                          ('window_present',1),('window_read',False),('window_memory',False),('command',[])]:
+            with self.subTest(key=key),self.assertRaises(ValueError):
+                entry.window_storage_return_option(dict(receipt(),**{key:value}))
+        for flags in ('','main.expectedWindowStorageReturn=1','-X=main.expectedWindowStorageReturn=1',
+                      '-X main.expectedWindowStorageReturn=0',
+                      '-X main.expectedWindowStorageReturn=1 -X main.expectedWindowStorageReturn=1'):
+            with self.subTest(flags=flags),self.assertRaises(ValueError):entry.window_storage_return_option(receipt(flags))
+        with self.assertRaises(ValueError):entry.window_storage_return_option(dict(receipt(),window_storage_return=False))
+
     def test_firmware_header_binds_window_mode_full_memory_and_access_identity(self):
         configuration={'base':0x94800000,'size':8<<20,'core_size':128,'chunk_bytes':65536,
                        'core_sha384':'d'*96,'chunk_sha384':['d'*96]}
@@ -98,6 +114,11 @@ class WindowContractTests(unittest.TestCase):
                      '#define FES_NANO_WINDOW_PRESENT_DIAGNOSTIC 0'):
             self.assertIn(line,header)
         self.assertIn('#define FES_NANO_WINDOW_PRESENT_DIAGNOSTIC 1',cold.header(dict(profile,window_present=True)))
+        self.assertIn('#define FES_NANO_WINDOW_STORAGE_RETURN 0',header)
+        self.assertIn('#define FES_NANO_WINDOW_STORAGE_RETURN 1',cold.header(dict(profile,window_present=True,window_storage_return=True)))
+        for changes in ({'window_storage_return':True},{'window_present':True,'window_storage_return':1},
+                        {'window_present':True,'window_storage_return':None}):
+            with self.subTest(changes=changes),self.assertRaises(ValueError):cold.header(dict(profile,**changes))
         for key,value in (('window_memory',False),('window_read',False),('window_read',1),('hps_window_read_sha256','0'*64),
                           ('hps_ddr_read',{}),('hps_computer',{}),('window_present',1),('window_present',None)):
             with self.subTest(key=key),self.assertRaises(ValueError):cold.header(dict(profile,**{key:value}))

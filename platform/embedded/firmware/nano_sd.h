@@ -20,6 +20,10 @@ struct fes_nano_sd_ops {
     int (*resume)(void *); /* establish controller access; no card commands */
     int (*prepare)(void *); /* after host reset/internal clock, before card clock */
     int (*stop)(void *); /* independently drain, stop clock, assert/read back resets */
+    /* Optional trusted compiled return policy. No I/O; return exactly one only
+     * for this platform's retained closure. Absence keeps held-data-only return.
+     * Live scope checks remain required around each SD operation. */
+    int (*returned)(void *, const struct fes_nano_bridges *, uint64_t *generation);
 };
 struct fes_nano_sd {
     struct fes_nano_bridges *bridges;
@@ -38,7 +42,7 @@ int fes_nano_sd_init(struct fes_nano_sd *, struct fes_nano_bridges *,
 /* Caller holds the same lock as bridge/configuration operations. */
 void fes_nano_sd_sip(struct fes_nano_sd *, uint64_t operation, uint64_t owner,
                      uint64_t generation, unsigned configuring, uint64_t result[4]);
-/* Check a completed SD cycle against its retained held-data core return.
+/* Check a completed SD cycle against its retained policy-verified return.
  * Used only by trusted configuration completion under the shared lock. */
 int fes_nano_sd_returned(struct fes_nano_sd *, uint64_t owner,
                          uint64_t return_generation, uint64_t generation);

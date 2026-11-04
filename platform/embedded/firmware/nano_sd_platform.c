@@ -234,5 +234,5 @@ int fes_nano_sd_platform_init(struct fes_nano_sd_platform *p, struct fes_nano_co
 }
 struct fes_nano_sd_ops fes_nano_sd_platform_ops(struct fes_nano_sd_platform *p)
 {
-    return (struct fes_nano_sd_ops){p,scope,resume,prepare,stop};
+    return (struct fes_nano_sd_ops){p,scope,resume,prepare,stop,0};
 }

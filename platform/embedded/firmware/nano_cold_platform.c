@@ -367,6 +367,41 @@ void fes_nano_platform_window_report(unsigned phase)
                c->hardware_drained,c->data_remained_contained,c->producers_quiescent,c->fabric_acknowledged);
     }
 }
+#if defined(FES_NANO_WINDOW_STORAGE_RETURN) && FES_NANO_WINDOW_STORAGE_RETURN
+#if !defined(FES_NANO_WINDOW_PRESENT_DIAGNOSTIC) || !FES_NANO_WINDOW_PRESENT_DIAGNOSTIC || !defined(FES_NANO_CONTROLLED_SD) || !FES_NANO_CONTROLLED_SD
+#error "window storage return requires matched presentation and controlled SD"
+#endif
+int fes_nano_platform_window_return(uint64_t *generation)
+{
+    struct fes_nano_bridges *b=&fes_nano_owned_bridges;
+    struct fes_nano_identity_probe *p=&identity_probe;
+    const struct fes_nano_fabric_progress *last=&fabric_stop.last_observed;
+    struct fes_nano_configuration *c=fes_nano_platform_configuration();
+    uint64_t returned=0;
+    if(!generation || !c || !c->initialized || !c->attempted || !c->prepared || !c->started || !c->finished || c->rearmed ||
+       c->failed || c->issued || c->pending ||
+       c->completed!=c->bytes || !c->bytes || c->bridges!=b || c->owner!=b->state.owner ||
+       !fabric_configuration_generation || c->generation!=fabric_configuration_generation ||
+       !window_issued || window_prepared || !p->initialized || !p->attempted || p->active ||
+       p->failed || p->first_error || p->cleanup_error || p->stage!=FES_ID_COMPLETE ||
+       p->reader!=FES_NANO_READER_WINDOW || p->bridges!=b || provider.failed || !provider.valid ||
+       provider.control_expected || provider.ddr_expected ||
+       !fabric_stop.qualified || !fabric_stop.attempted || !fabric_stop.done || fabric_stop.failed ||
+       fabric_stop.first_error || !fabric_stop.probe.done || fabric_stop.probe.failed ||
+       !last->generation || last->generation!=last->request_generation || last->generation!=last->ack_generation ||
+       !last->cookie || last->cookie!=last->ack_cookie || last->status!=FES_EMBEDDED_STATUS_DRAINED || last->pending ||
+       fabric_generation==UINT64_MAX || c->generation>UINT64_MAX-3 ||
+       !fes_nano_bridges_window_return(b,&returned) || returned!=fabric_generation+1 || returned!=c->generation+3 ||
+       p->closure.after.owner!=b->state.owner || p->closure.after.generation!=returned ||
+       p->closure.after.reset!=FES_NANO_BRIDGES_ALL || p->closure.after.never_enabled ||
+       !p->closure.after.masters_contained || p->closure.after.fabric!=FES_NANO_FABRIC_ABSENT ||
+       p->closure.producers_quiescent!=1 || p->closure.fabric_acknowledged ||
+       p->closure.data_remained_contained || p->closure.hardware_drained!=8U)
+        return 0;
+    *generation=returned;
+    return 1;
+}
+#endif
 static int window_gate(void)
 {
     struct fes_nano_smmu_observation translation={0};
@@ -833,12 +868,23 @@ void fes_nano_platform_sd_report(void)
         NOTICE("FES_NANO_SD_CLOCK index=%u captured=%08x observed=%08x\n",
                i,sd_platform.clocks[i],sd_platform.observed[i]);
 }
+#if defined(FES_NANO_WINDOW_STORAGE_RETURN) && FES_NANO_WINDOW_STORAGE_RETURN
+static int window_sd_return(void *context,const struct fes_nano_bridges *b,uint64_t *generation)
+{
+    return context==&sd_platform && b==&fes_nano_owned_bridges ?
+           fes_nano_platform_window_return(generation) : 0;
+}
+#endif
 int fes_nano_platform_sd_setup(void)
 {
     struct fes_nano_sd_io io={0,sd_read,sd_write,sd_barrier,sd_wait};
     int result=fes_nano_sd_platform_init(&sd_platform,&provider,io,FES_NANO_SD_QUALIFIED);
+    struct fes_nano_sd_ops ops=fes_nano_sd_platform_ops(&sd_platform);
+#if defined(FES_NANO_WINDOW_STORAGE_RETURN) && FES_NANO_WINDOW_STORAGE_RETURN
+    ops.returned=window_sd_return;
+#endif
     if (!result) result=fes_nano_sd_init(&fes_nano_owned_sd,&fes_nano_owned_bridges,
-                                       fes_nano_sd_platform_ops(&sd_platform),FES_NANO_SD_QUALIFIED);
+                                       ops,FES_NANO_SD_QUALIFIED);
     if (result) { fes_nano_platform_sd_report(); return -1; }
     return 1;
 }

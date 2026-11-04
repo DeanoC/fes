@@ -162,7 +162,7 @@ int fes_nano_bridges_configuration_guard(struct fes_nano_bridges *b)
     return 0;
 }
 
-int fes_nano_bridges_held_return(const struct fes_nano_bridges *b, uint64_t *generation)
+static int returned(const struct fes_nano_bridges *b, unsigned held, uint32_t drained, uint64_t *generation)
 {
     if (!b || !generation || !b->initialized || b->failed || !b->closure_valid ||
         b->access != CLOSED || b->state.never_enabled || !b->state.masters_contained ||
@@ -172,9 +172,15 @@ int fes_nano_bridges_held_return(const struct fes_nano_bridges *b, uint64_t *gen
     if (c->after.owner != b->state.owner || c->after.generation > b->state.generation ||
         !c->after.generation || c->after.never_enabled || !c->after.masters_contained ||
         c->after.reset != FES_NANO_BRIDGES_ALL || c->after.fabric != b->state.fabric ||
-        c->producers_quiescent != 1 || c->data_remained_contained != 1 ||
-        c->fabric_acknowledged || c->hardware_drained)
+        c->producers_quiescent != 1 || c->data_remained_contained != held ||
+        c->fabric_acknowledged || c->hardware_drained != drained)
         return 0;
     *generation = c->after.generation;
     return 1;
 }
+
+int fes_nano_bridges_held_return(const struct fes_nano_bridges *b, uint64_t *generation)
+{ return returned(b, 1, 0, generation); }
+
+int fes_nano_bridges_window_return(const struct fes_nano_bridges *b, uint64_t *generation)
+{ return returned(b, 0, 8U, generation); }

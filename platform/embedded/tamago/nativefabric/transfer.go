@@ -7,6 +7,8 @@ import (
 	"errors"
 	"fmt"
 	"math"
+
+	"github.com/DeanoC/fes/platform/embedded/tamago/packagestore"
 )
 
 // ConfigurationTransfer runs only the contained firmware transfer protocol.
@@ -42,6 +44,7 @@ type configurationBinding struct {
 	source   HPSBootObservation
 	rearm    bool
 	program  *selectedProgram
+	handoff  *packagestore.Handoff
 }
 
 // The pinned SiP engine has four buffer descriptors. BUSY accepts the latest

@@ -61,7 +61,7 @@ int main(int argc, char **argv)
 {
     struct test t; setup(&t);
     fes_nano_owned_bridges=t.bridge;
-    struct fes_nano_sd_ops ops={&t.h, scope, resume, prepare_clock, stop};
+    struct fes_nano_sd_ops ops={&t.h, scope, resume, prepare_clock, stop, 0};
     if (!(argc == 2 && !strcmp(argv[1], "unready")))
         assert(!fes_nano_sd_init(&fes_nano_owned_sd, &fes_nano_owned_bridges, ops, FES_NANO_SD_QUALIFIED));
     unsigned returned_mode=argc==2 && !strcmp(argv[1],"returned");

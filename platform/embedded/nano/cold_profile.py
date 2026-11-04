@@ -121,6 +121,7 @@ def make(entry_build):
               'hps_computer':computer,'hps_computer_sha256':hps_context.digest(computer) if computer else None,
               'window_memory':build.get('window_memory',False),
               'window_present':build.get('window_present',False),
+              'window_storage_return':build.get('window_storage_return',False),
               'window_read':window_read is not None,'hps_window_read':window_read,
               'hps_window_read_sha256':hps_context.digest(window_read) if window_read else None,
               'computer_reload':build.get('computer_reload',False),
@@ -242,6 +243,10 @@ def header(profile):
     if type(present) is not bool or present and window_read is None:
         raise ValueError('window presentation requires its complete selected read path')
     extra+='#define FES_NANO_WINDOW_PRESENT_DIAGNOSTIC '+str(int(present))+'\n'
+    window_storage_return=profile.get('window_storage_return',False)
+    if type(window_storage_return) is not bool or window_storage_return and (not present or profile.get('sd_pio') is not True):
+        raise ValueError('window storage return requires presentation and controlled SD')
+    extra+='#define FES_NANO_WINDOW_STORAGE_RETURN '+str(int(window_storage_return))+'\n'
     computer=profile.get('hps_computer')
     if computer is not None:
         if (not isinstance(computer,dict) or configuration is None or control is None or ddr_read is not None or not profile['sd_pio'] or

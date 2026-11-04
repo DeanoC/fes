@@ -62,6 +62,8 @@ int fes_nano_platform_ddr_target(unsigned open);
 /* Source-bound window gate; runs only in the owned control scope with data held. */
 int fes_nano_platform_window_prepare(void);
 void fes_nano_platform_window_report(unsigned);
+/* Cached complete window stop/closure proof under the shared platform lock. */
+int fes_nano_platform_window_return(uint64_t *generation);
 void fes_nano_platform_identity_report(void);
 #ifdef __cplusplus
 }

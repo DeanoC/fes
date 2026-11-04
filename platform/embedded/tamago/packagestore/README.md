@@ -72,3 +72,11 @@ preparation; storage resume invalidates the handoff before START. The store
 still performs no compatibility decision or FPGA operation. The
 [matched native preflight hardware sequence](../../../../docs/validation/2026-11-03-de25-stored-preflight/README.md)
 passes both load/Run/return cycles with fresh storage retention between them.
+
+A contained `Handoff` can now resume only its original store after an explicitly
+verified fabric return. Copies share the same current receipt and consumption;
+stale or forged handles cannot select another filesystem or replay a grant.
+The window session retains this private handoff through its transfer and uses
+it only after verified reader/master closure. Firmware independently accepts or
+rejects the display-return capability. Fresh selection requires real reads from
+the resumed lease; the next containment records the preceding return generation.

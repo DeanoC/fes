@@ -33,7 +33,15 @@ static int fes_nano_window_control(uint32_t fid,uint64_t operation,uint64_t owne
     unsigned control=bridge && operation==FES_EMBEDDED_BRIDGE_CONTROL;
     const uint64_t release=FES_EMBEDDED_BRIDGE_RELEASE | (8ULL<<FES_EMBEDDED_BRIDGE_RELEASE_SHIFT);
     if(snapshot)return 0;
-    if(fes_nano_window_phase==FES_WINDOW_RETIRED)return !context;
+    if(fes_nano_window_phase==FES_WINDOW_RETIRED) {
+        unsigned storage=0;
+#if defined(FES_NANO_WINDOW_STORAGE_RETURN) && FES_NANO_WINDOW_STORAGE_RETURN
+        uint64_t returned=0;
+        storage=fid==FES_EMBEDDED_SD_CALL && cookie==FES_EMBEDDED_SD_COOKIE && !busy &&
+                fes_nano_platform_window_return(&returned)==1;
+#endif
+        return !(context || storage);
+    }
     if(fes_nano_window_phase==FES_WINDOW_FRESH && !control) {
         unsigned raw=bridge && ((operation&~(uint64_t)FES_EMBEDDED_BRIDGE_RELEASE_MASK)==FES_EMBEDDED_BRIDGE_RELEASE ||
             (operation&~(uint64_t)(FES_EMBEDDED_BRIDGE_REQUEST_FABRIC|FES_EMBEDDED_BRIDGE_REQUEST_HELD))==FES_EMBEDDED_BRIDGE_CLOSE ||

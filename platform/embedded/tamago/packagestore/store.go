@@ -455,6 +455,26 @@ func (s *Store) ResumeAfterReturn(owner, generation uint64) error {
 	}
 	s.mu.Lock()
 	defer s.mu.Unlock()
+	return s.resumeAfterReturn(owner, generation)
+}
+
+// ResumeAfterReturn reopens only the store which issued this still-current
+// containment handoff. A copy shares its store; forged and stale handoffs
+// cannot select another filesystem. Firmware independently checks the return.
+func (h *Handoff) ResumeAfterReturn(owner, generation uint64) error {
+	if h == nil || h.store == nil {
+		return ErrState
+	}
+	s := h.store
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if h.selection == nil || s.last != h.receipt || s.returned != h.returned {
+		return ErrState
+	}
+	return s.resumeAfterReturn(owner, generation)
+}
+
+func (s *Store) resumeAfterReturn(owner, generation uint64) error {
 	if err := s.observe(); err != nil {
 		return err
 	}
