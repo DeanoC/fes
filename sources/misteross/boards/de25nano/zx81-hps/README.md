@@ -303,6 +303,10 @@ status launch from dedicated registers. The internal-16K base requires a
 constant PCM path and constrains its two audio reset-release ingress pins;
 live sound personas require their own coherent-transfer timing. These source
 constraints still require mapped/fitted checks and external timing admission.
+The I2S bit/word clock outputs are declared from the actual counter clock with
+divide-by-4/256 ratios. Board visibility is registered before its readiness
+crossing. Standard-board bridge FIFOs of depth four or less select MLAB storage;
+the larger response FIFO keeps M20K, with unchanged clocks, depths and latency.
 For a fresh output directory, run:
 
 ```sh

@@ -72,9 +72,19 @@ class SharedResetTests(unittest.TestCase):
         path.write_text(json.dumps(self.inputs))
         result = S.apply(self.directory)
         self.assertEqual(result, S.verify(self.directory))
-        self.assertEqual({name: hashlib.sha256((self.project / name).read_bytes()).hexdigest()
-                          for name in self.originals if name != S.PARENT},
-                         {name: value for name, value in self.expected.items() if name != S.PARENT})
+        tiny_memory_files = {name for name in self.originals if '/st_dc_fifo_1953/' in name}
+        self.assertEqual(len(tiny_memory_files), 2)
+        for name in tiny_memory_files:
+            text = (self.project / name).read_text()
+            self.assertEqual(text.count('.ram_block_type  ((FIFO_DEPTH <= 4) ? "MLAB" : "M20K"),'), 1)
+            # Removing only this constant memory choice reproduces the pinned
+            # reset-only derivation, including all clocks and port latencies.
+            reset_only = text.replace('.ram_block_type  ((FIFO_DEPTH <= 4) ? "MLAB" : "M20K"),',
+                                      '.ram_block_type  ("M20K"),').encode()
+            self.assertEqual(hashlib.sha256(reset_only).hexdigest(), self.expected[name])
+        unchanged = set(self.originals) - tiny_memory_files - {S.PARENT}
+        self.assertEqual({name: hashlib.sha256((self.project / name).read_bytes()).hexdigest() for name in unchanged},
+                         {name: value for name, value in self.expected.items() if name in unchanged})
         self.inputs["standard_zx81"]["runtime_admission"] = "qualified"
         path.write_text(json.dumps(self.inputs))
         with self.assertRaisesRegex(ValueError, "canonical policy selection differs"):

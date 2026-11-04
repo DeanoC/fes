@@ -57,6 +57,10 @@ module fes_de25_zx81_standard #(
     (* preserve, dont_merge *) reg display_clock_fault = 1'b0;
     always @(posedge clk_sys)
         if (clock_fault || transport_fault) display_clock_fault <= 1'b1;
+    // Board visibility is a pixel-domain decode. Launch a registered level
+    // into the transport's system-domain readiness synchronizer.
+    (* preserve, dont_merge *) reg video_ready_source = 1'b0;
+    always @(posedge pixel_clk) video_ready_source <= video_ready;
     wire [27:0] machine_video;
     wire display_request, response_valid, response_error;
     wire [6:0] display_opcode;
@@ -64,7 +68,7 @@ module fes_de25_zx81_standard #(
     wire [15:0] display_argument, response_data;
     assign {video_vs, video_hs, video_de, video_rgb} = video[26:0];
     fes_de25_computer_transport transport (
-        .clk(clk_sys), .reset_n(reset_n), .video_ready(video_ready),
+        .clk(clk_sys), .reset_n(reset_n), .video_ready(video_ready_source),
         .address(computer_address), .read(computer_read), .write(computer_write),
         .byteenable(computer_byteenable), .writedata(computer_writedata),
         .readdata(computer_readdata), .readdatavalid(computer_readdatavalid),

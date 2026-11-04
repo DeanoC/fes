@@ -7,7 +7,7 @@ unset fes_de25_standard_endpoint
 # Explicit launch registers and first-stage D pins. Interstage paths and all
 # downstream logic retain their ordinary receiving-clock setup/hold checks.
 foreach {label source expected head second} {
-    readiness {fes_video_inst|video_active fes_video_inst|visible_line} 2
+    readiness {video_ready_source} 1
         {transport|video_ready_sync[0]} {transport|video_ready_sync[1]}
     execution {core|gp_mailbox|exec_reset} 1
         {display|execution_sync[0]} {display|execution_sync[1]}
@@ -69,3 +69,19 @@ if {[get_collection_size $audio_release] != 2 || [get_collection_size $audio_cle
     error "DE25 standard audio reset-release endpoints changed"
 }
 set_false_path -to $audio_clear
+
+# These output pins carry divided clocks, not synchronous payload data. Their
+# source is the actual audio-domain counter clock; phase[1] divides MCLK by
+# four and phase[7] divides it by 256. The base PCM data output is constant.
+foreach {label bit divide port} {
+    bit_clock 1 4 HDMI_SCLK
+    word_clock 7 256 HDMI_LRCLK
+} {
+    set phase_name [format {fes_audio_inst|audio|serializer|phase[%d]} $bit]
+    set phase [get_registers $phase_name]
+    set source_clock [get_pins -compatibility_mode -nocase "${phase_name}|clk"]
+    set target [get_ports $port]
+    if {[get_collection_size $phase] != 1 || [get_collection_size $source_clock] != 1 ||
+        [get_collection_size $target] != 1} {error "DE25 standard I2S $label endpoints changed"}
+    create_generated_clock -name "de25_i2s_${label}" -source $source_clock -divide_by $divide $target
+}

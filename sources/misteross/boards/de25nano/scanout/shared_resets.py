@@ -166,6 +166,11 @@ def derive(originals, *, standard=False):
     assign internal_in_sclr_n = ~internal_in_sclr;
     assign internal_out_sclr_n = ~internal_out_sclr;''' + text[match.end():]
         text = reset_functional_state_from_parent(text)
+        if standard:
+            # Preserve clocks, ports, depth and read latency. Only four-entry
+            # FIFOs use distributed RAM; larger response storage stays M20K.
+            text = replace_once(text, '.ram_block_type  ("M20K"),',
+                '.ram_block_type  ((FIFO_DEPTH <= 4) ? "MLAB" : "M20K"),')
         changed[leaf] = replace_once(text, "    wire reset_merged;", "").encode()
         wrappers = [name for name in originals if name.startswith(directory + "mm_ccb_1941/synth/")
                     and "_mm_ccb_st_dc_fifo_" in name]
@@ -256,13 +261,16 @@ def checked_file(root, name):
 
 
 def receipt(inputs, originals, derived):
-    return {"policy": POLICY, "inputs_sha256": sha(inputs), "receiving_clocks_hz": [100000000, 74250000],
+    record = {"policy": POLICY, "inputs_sha256": sha(inputs), "receiving_clocks_hz": [100000000, 74250000],
             "release_edges": 5, "functional_async_reset": "existing local parent only",
             "delayed_reset": "five-edge flag; synchronous functional hold",
             "peer_reset_ingress": "first data stage only; local reset and later stages timed",
             "physical_sharing_acceptance": "separate fitted evidence required",
             "files": {name: {"before_sha256": sha(originals[name]), "after_sha256": sha(derived[name])}
                       for name in sorted(originals)}}
+    if json.loads(inputs)["scanout"].get("build_identity_scheme") == "standard-board-integration-source-profile":
+        record["small_fifo_memory"] = "depth <=4: MLAB; larger response FIFO: M20K; same clocks/ports/depth/latency"
+    return record
 
 
 def apply(directory):

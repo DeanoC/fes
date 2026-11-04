@@ -91,6 +91,14 @@ optimized away; a live sound persona cannot inherit this timing selection.
 Mapped and fitted validation, external timing admission and runtime acceptance
 remain separate requirements.
 
+The standard wrapper also registers pixel visibility before transport readiness
+crosses into the system clock. Its I2S outputs are generated clocks at MCLK/4
+and MCLK/256 from the serializer counter. Only this integration selects MLAB
+for generated bridge FIFOs of depth four or less; all clock/port/depth/latency
+parameters and the larger M20K response storage remain unchanged. The exact
+guarded derivation and fitted signoff are required; resource warnings are not
+waived by changing their thresholds.
+
 The standard core's `HPS_DDR_WINDOW` parameter defaults to one for DE10. Setting
 it to zero leaves the session-display capability intact and clears only the
 reserved-window capability. The shared mailbox exposes the same independent
