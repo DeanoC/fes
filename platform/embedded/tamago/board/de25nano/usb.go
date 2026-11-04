@@ -19,6 +19,20 @@ func (usbRegisters) Now() time.Time               { return time.Now() }
 var usbAttempted bool
 
 func OpenKeyboard() (*input.USBKeyboard, error) {
+	host, err := OpenKeyboardReports()
+	if err != nil {
+		return nil, err
+	}
+	return input.NewUSBKeyboard(host)
+}
+
+// KeyboardEnabled reports the explicit firmware profile selection. It does not
+// establish physical USB qualification or bypass the single-attempt guard.
+func KeyboardEnabled() bool { return profileUSBPHYClockHz != 0 }
+
+// OpenKeyboardReports transfers the single controller's raw report source to a
+// platform which routes input between its menu and owned core session.
+func OpenKeyboardReports() (input.USBReports, error) {
 	if profileUSBPHYClockHz == 0 {
 		return nil, fmt.Errorf("de25-nano: USB platform explicitly disabled in firmware profile")
 	}
@@ -31,5 +45,5 @@ func OpenKeyboard() (*input.USBKeyboard, error) {
 		return nil, err
 	}
 	fmt.Println("FES_USB_READY controller=dwc2 transport=pio")
-	return input.NewUSBKeyboard(host)
+	return host, nil
 }

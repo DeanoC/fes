@@ -41,20 +41,32 @@ func (k *USBKeyboard) Poll() ([]Event, error) {
 		if report == nil {
 			return result, nil
 		}
-		changes, err := k.decoder.Feed(report)
+		events, err := k.Decode(report)
 		if errors.Is(err, usb.ErrKeyboardRollover) {
 			continue
 		}
 		if err != nil {
 			return nil, err
 		}
-		for _, change := range changes {
-			if event, ok := usbPress(change); ok {
-				result = append(result, event)
-			}
-		}
+		result = append(result, events...)
 	}
 	return result, nil
+}
+
+// Decode translates one snapshot without polling the source. A platform which
+// shares a keyboard between menu and core owns polling and chooses the decoder.
+func (k *USBKeyboard) Decode(report []byte) ([]Event, error) {
+	changes, err := k.decoder.Feed(report)
+	if err != nil {
+		return nil, err
+	}
+	var events []Event
+	for _, change := range changes {
+		if event, ok := usbPress(change); ok {
+			events = append(events, event)
+		}
+	}
+	return events, nil
 }
 
 func usbPress(change usb.KeyEvent) (Event, bool) {

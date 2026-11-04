@@ -37,6 +37,11 @@ func (b *ProgramBackend) BindKeyboard(ctx context.Context, generation uint64) (P
 		return ProgramKeyboard{}, ErrProgramBusy
 	}
 	defer b.operation.Unlock()
+	return b.bindKeyboard(ctx, generation)
+}
+
+// Caller holds backend.operation across binding and input routing.
+func (b *ProgramBackend) bindKeyboard(ctx context.Context, generation uint64) (ProgramKeyboard, error) {
 	v := b.service.Status()
 	if v.State != ProgramRunning || v.Generation != generation || b.session.Generation() != generation || b.play.Generation != generation {
 		return ProgramKeyboard{}, ErrProgramSession

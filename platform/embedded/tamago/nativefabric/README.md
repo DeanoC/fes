@@ -567,3 +567,28 @@ firmware/registers. This adapter opens no physical USB controller, grants no
 input-ready advertisement and supplies no hub support. The native serial image
 still uses serial navigation; attaching this source to a physical platform,
 qualifying the PHY/host/hub and verifying playable input remain separate work.
+
+`ProgramInputPlatform` now connects that binding to the actual `tenfoot.Platform`
+loop. One source supplies menu commands while Ready and complete core snapshots
+while Running. Backend ownership remains locked across classification and report
+processing; loading/returning never consume reports. Return resets the menu
+reader and requires an all-keys-up report before shortcuts resume. This can
+require an extra press/release when a device sends reports only on changes;
+physical handoff behavior still needs qualification.
+
+A failed source is terminal for this input owner. Future launches are rejected.
+If this owner has a live play, a separate five-second cleanup requests the
+existing checked Park operation for that exact private session. It holds the
+core, stops masters and closes bridges without resuming SD. Closure failure
+leaves the service retired and resources retained. A stale cleanup cannot park
+a replacement play. The normal underlying platform retains output, pacing and
+explicit diagnostic controls; this adapter adds no running-core quit shortcut.
+
+The Nano Tenfoot command attaches this wrapper only when the firmware profile
+explicitly selects USB. `OpenKeyboardReports` preserves the existing one-attempt
+DWC2 initialization guard; the existing normalized keyboard opener uses the same
+entry point. Current controlled-SD boot profiles still disable USB and keep their
+existing exclusivity checks. No PHY, VBUS, hub, combined SD/USB permission or
+input-ready advertisement is granted by this connection. Host tests run actual
+Tenfoot USB-menu launch/core-key/return cycles and source/closure failures through
+the modeled firmware transport; they supply no physical USB acceptance.

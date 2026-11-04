@@ -24,3 +24,8 @@ recognize the next press; held-key repeat and non-US layouts are not implemented
 Shift modifies text and Shift-Tab. Caps Lock, Ctrl/Alt shortcuts, LEDs and gamepad
 reports are outside this first adapter. See [the USB transport](../usb/README.md)
 for its enumeration and controller limits.
+
+`USBKeyboard.Decode` translates one supplied snapshot without polling. A platform
+which owns a shared menu/core keyboard can choose its destination before decoding;
+`Poll` uses the same decoder and retains its eight-report bound. The native
+`ProgramInputPlatform` routes reports under the selected core's ownership.

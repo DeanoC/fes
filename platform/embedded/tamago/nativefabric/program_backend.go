@@ -38,14 +38,16 @@ type programPlay struct {
 // normal package-admission profile. The service still preflights every load.
 // No filesystem access is needed to read the cached catalog while SD is held.
 type ProgramBackend struct {
-	operation sync.Mutex
-	viewMu    sync.RWMutex
-	wire      map[string]any
-	service   *ProgramService
-	entries   []ProgramEntry
-	session   ProgramSession
-	play      programPlay
-	keyboard  *programKeyboard
+	operation     sync.Mutex
+	viewMu        sync.RWMutex
+	wire          map[string]any
+	service       *ProgramService
+	entries       []ProgramEntry
+	session       ProgramSession
+	play          programPlay
+	keyboard      *programKeyboard
+	inputAttached bool
+	inputFault    error
 }
 
 func NewProgramBackend(service *ProgramService, entries []ProgramEntry) (*ProgramBackend, error) {
@@ -197,6 +199,9 @@ func (b *ProgramBackend) RoundTrip(r *http.Request) (*http.Response, error) {
 	}
 	v := b.service.Status()
 	if path == "/api/v1/session/launch" {
+		if b.inputFault != nil {
+			return programError(r, 409, "INPUT_UNAVAILABLE", b.inputFault.Error())
+		}
 		if body.Expected != nil || body.Retain || body.ReleaseIdle || body.Game == "" {
 			return programError(r, 400, "INVALID_REQUEST", "launch requires only a catalog ID")
 		}

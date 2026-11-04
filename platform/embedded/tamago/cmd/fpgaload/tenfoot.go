@@ -22,6 +22,7 @@ import (
 
 // Remain rooted even if the UI stops with an uncertain native transition.
 var nativeProgramBackend *nativefabric.ProgramBackend
+var nativeProgramPlatform tenfoot.Platform
 
 const tenfootSerialLinked = true
 
@@ -58,7 +59,7 @@ func serveProgramTenfoot(loader *nativefabric.ProgramLoader, store *packagestore
 	if err := app.SetPreferenceStore(&nativefabric.ProgramPreferences{}); err != nil {
 		panic(err)
 	}
-	platform, err := nativefabric.NewProgramSerialPlatform(programService, serial.Read, func(ctx context.Context, data []byte) error {
+	serialPlatform, err := nativefabric.NewProgramSerialPlatform(programService, serial.Read, func(ctx context.Context, data []byte) error {
 		if err := ctx.Err(); err != nil {
 			return err
 		}
@@ -68,8 +69,22 @@ func serveProgramTenfoot(loader *nativefabric.ProgramLoader, store *packagestore
 	if err != nil {
 		panic(err)
 	}
-	fmt.Println("FES_NATIVE_TENFOOT_BEGIN display=serial-state-only input=uart preferences=ram")
-	if err := tenfoot.RunPlatform(context.Background(), app, device, platform); err != nil {
+	var platform tenfoot.Platform = serialPlatform
+	inputMode := "uart"
+	if de25nano.KeyboardEnabled() {
+		source, err := de25nano.OpenKeyboardReports()
+		if err != nil {
+			panic(err)
+		}
+		platform, err = nativefabric.NewProgramInputPlatform(serialPlatform, nativeProgramBackend, source)
+		if err != nil {
+			panic(err)
+		}
+		inputMode = "uart+usb-reports"
+	}
+	fmt.Printf("FES_NATIVE_TENFOOT_BEGIN display=serial-state-only input=%s preferences=ram\n", inputMode)
+	nativeProgramPlatform = platform
+	if err := tenfoot.RunPlatform(context.Background(), app, device, nativeProgramPlatform); err != nil {
 		panic(err)
 	}
 	// ProgramSerialPlatform turns Quit during a running core into owned Stop,
