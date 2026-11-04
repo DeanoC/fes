@@ -1,4 +1,25 @@
 {
+  "affected_tests": {
+    "base_revision": "4495948dcfe19b7d575fc372b7b948456756470a",
+    "elapsed_seconds": 997.608,
+    "fpga_software": {
+      "cases": 1800,
+      "cause": "Branch-local combined native/AArch64 receipt refers to older compiler helper hashes; must rerun actual proof after producer inputs stabilize",
+      "failed_test": "test_combined_client_proof_receipt_matches_captured_sources",
+      "failures": 1,
+      "skipped": 76
+    },
+    "log_sha256": "4c0c827b9d884edb97915080a69c23bc03ca1cd53f5b538a9eece4569bf322e2",
+    "other_planned_checks": "passed",
+    "parent": {
+      "cases": 1158,
+      "result": "passed",
+      "skipped": 5
+    },
+    "result": "failed",
+    "scope": "No full changed-source software pass or hardware acceptance claimed",
+    "source_revision": "84b0d297b9142b24f8e1716a6fc757c6fb1e28f3"
+  },
   "board": "de25-nano",
   "build_id": "715b43685fcc2124f0c5e6cbb5d5cbfb",
   "classification": "whole-board-generation-and-elaboration-only",

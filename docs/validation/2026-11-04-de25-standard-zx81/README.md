@@ -157,9 +157,12 @@ result to the source, inputs, generated handoff and log hashes.
 
 The 96 focused builder/reset tests passed; the firmware guard adds an independent
 MIF/HEX BASIC byte comparison. The canonical changed-source software run at
-`84b0d297b` remains separate. Its branch-local combined native/AArch64 receipt
-needs refreshing for the changed producer helpers after those inputs stabilize;
-an earlier receipt is not current-source proof.
+`84b0d297b` finished in 997.608 seconds. The 1,158 parent cases passed with five
+skips; the 1,800 FPGA software cases had one failure and 76 skips. That failure
+is the branch-local combined native/AArch64 receipt checking older compiler
+helper hashes. It needs an actual proof refresh after the producer inputs
+stabilize; an earlier receipt is not current-source proof. The aggregate software
+run remains failed and does not establish a merge gate pass.
 
 This is not a fitted or sealed image, a new runtime profile, or native kit
 acceptance. The standard-core `build` action still refuses until its additional
