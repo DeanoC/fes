@@ -78,6 +78,12 @@ var fullVerificationReads atomic.Int64
 // New opens a private POSIX store. Production callers use OpenPersistent;
 // accepting a temporary directory here does not prove target persistence.
 func New(path string) (*Store, error) {
+	return openStore(path, true)
+}
+
+// openStore opens the host view without recovery when recoverInstallations is
+// false. The agent owns recovery; package access verifies on a cache miss.
+func openStore(path string, recoverInstallations bool) (*Store, error) {
 	if !filepath.IsAbs(path) || filepath.Clean(path) != path {
 		return nil, errors.New("kit packages: root must be a clean absolute path")
 	}
@@ -141,13 +147,15 @@ func New(path string) (*Store, error) {
 	if err := syncDirectory(r, "."); err != nil {
 		return nil, err
 	}
-	openedRoot, unlock, err := s.lock(context.Background())
-	if err != nil {
-		return nil, err
-	}
-	defer unlock()
-	if err := s.recover(context.Background(), openedRoot); err != nil {
-		return nil, err
+	if recoverInstallations {
+		openedRoot, unlock, err := s.lock(context.Background())
+		if err != nil {
+			return nil, err
+		}
+		defer unlock()
+		if err := s.recover(context.Background(), openedRoot); err != nil {
+			return nil, err
+		}
 	}
 	return s, nil
 }
