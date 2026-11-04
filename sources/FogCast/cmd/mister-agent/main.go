@@ -47,7 +47,6 @@ const (
 	targetCacheActiveRecord = "/run/fogcast-active.json"
 	meshContentRoot         = "/media/fat/fogcast/mesh-content"
 	launcherConfigPath      = "/media/fat/fogcast/launcher.json"
-	installedPackageRoot    = "/usr/share/mister-runtime/core-packages"
 	installedSelectionRoot  = "/usr/share/mister-runtime/selections"
 	developmentRBFPath      = "/tmp/fogcast-development/core.rbf"
 	developmentCoreRoot     = "/tmp/fogcast-development/core-packages"
@@ -445,7 +444,7 @@ func runWithDependencies(ctx context.Context, configPath string, logger *slog.Lo
 			if cfg.MeshContent {
 				roots := dependencies.packageRoots
 				if roots == nil {
-					roots = []string{installedPackageRoot, developmentCoreRoot}
+					roots = []string{kitpackages.FactoryRoot, developmentCoreRoot}
 				}
 				meshStore.SetPackageRoots(roots)
 				if packages != nil {
@@ -565,7 +564,7 @@ func runWithDependencies(ctx context.Context, configPath string, logger *slog.Lo
 		}
 		cores := localcores.New(leases, nativeLocalRuntime{runtime: native, program: localProgram}, localcores.Roots{
 			Selections: installedSelectionRoot,
-			Packages:   installedPackageRoot,
+			Packages:   kitpackages.FactoryRoot,
 		})
 		if localUpdater != nil {
 			cores.SetAdmission(localUpdater.BeginOperation)
