@@ -2,7 +2,7 @@
 /* USB0 base/reset: pinned Terasic DE25 U-Boot DTS and altr,rst-mgr-agx5.h.
  * DWC2 PIO/ULPI/channel/flush policy follows the same register protocol as the
  * native host. PHY/VBUS/clock qualification remains an injected trusted policy.
- * No current cold image selects this provider or grants combined SD/USB use. */
+ * Only the selected USB-only cold image installs it; no combined SD/USB use. */
 #include "nano_usb_platform.h"
 #include <stdint.h>
 

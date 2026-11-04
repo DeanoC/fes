@@ -914,8 +914,12 @@ read-only. Source/command/ELF hashes and that evidence boundary are recorded.
 ## Trusted USB-only PIO handoff prototype
 
 `nano_usb_platform.c` captures the cold boot owner and epoch and checks a private
-generation before I/O. Only the USB0 controller reset may be released. SD,
-USB ECC diagnostics, other HPS masters and all FPGA bridges stay held. The
+generation before I/O. Only USB0's module and packet-RAM/ECC resets may be
+released (PER0 bits 3 and 11, mask `0x808`). Both must be released before any
+controller access and both must be asserted before Stop publishes containment.
+Partial release, partial stop or a reset changing during the lease retires it.
+This follows the [Agilex 5 USB reset sequence](https://docs.altera.com/r/docs/814346/26.1.1/hard-processor-system-technical-reference-manual-agilex-5-socs/taking-the-usb-2.0-otg-controller-out-of-reset?contentId=9Cx0WYhpfh7XsISMD5WQCQ).
+DMA and IRQ ownership must remain disabled. SD, USB1, other HPS masters and all FPGA bridges stay held. The
 separate cold USB scope leaves `fes_nano_cold_owns` strict; it grants no combined
 SD/USB or USB/FPGA permission. USB must stop before those operations under this
 prototype. Combined operation still needs an explicit ownership contract.

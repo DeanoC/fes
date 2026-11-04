@@ -3,8 +3,10 @@
 #include <assert.h>
 #include <stdio.h>
 #include <string.h>
+_Static_assert(FES_NANO_USB_RESET==0x808U,"USB0 module bit3 and packet-RAM/ECC bit11");
 struct hardware {
     uint32_t per0,bridge,regs[512];
+    uint32_t stuck_release,stuck_stop;
     unsigned reads,writes,usb_accesses,waits,ready_calls;
     unsigned fault, fail_at, accesses;
 };
@@ -26,6 +28,8 @@ static int write32(void *context,uintptr_t a,uint32_t v)
         assert((v&~FES_NANO_USB_RESET)==(h->per0&~FES_NANO_USB_RESET));
         if (h->fault==4 && (v&FES_NANO_USB_RESET)) return 0;
         if (h->fault==5 && !(v&FES_NANO_USB_RESET)) return 0;
+        if (!(v&0x808U)) v|=h->stuck_release;
+        if ((v&0x808U)==0x808U) v&=~h->stuck_stop;
         h->per0=v;return 0;
     }
     assert(a>=FES_NANO_USB_BASE && a<FES_NANO_USB_BASE+0x800);
@@ -101,7 +105,7 @@ static void cycles(void)
         uint64_t generation=t.usb.generation;
         assert(!fes_nano_usb_platform_acquire(&t.usb,17,generation));
         assert(!fes_nano_usb_platform_observe(&t.usb,17,generation+1));
-        assert((t.h.per0&FES_NANO_MASTER_RESET)==(FES_NANO_MASTER_RESET&~8U));
+        assert((t.h.per0&FES_NANO_MASTER_RESET)==(FES_NANO_MASTER_RESET&~0x808U));
         unsigned reads=t.h.reads,writes=t.h.writes,ready_calls=t.h.ready_calls;
         assert(fes_nano_usb_platform_stop(&t.usb,18,generation+1));
         assert(fes_nano_usb_platform_stop(&t.usb,17,generation));
@@ -174,6 +178,32 @@ static void interrupted(void)
         }
     }
 }
+static void paired_resets(void)
+{
+    /* Independent documented bit positions: held packet RAM matches the
+     * physical zero-FIFO failure state. Neither half is a valid lease. */
+    const uint32_t halves[]={1U<<3,1U<<11};
+    for (unsigned i=0;i<2;i++) {
+        struct test t;init(&t);t.h.stuck_release=halves[i];
+        unsigned accesses=t.h.usb_accesses;
+        assert(fes_nano_usb_platform_acquire(&t.usb,17,0));
+        assert(t.usb.failed && t.cold.failed && t.usb.active && !t.usb.generation);
+        assert((t.h.per0&0x808U)==halves[i] && t.h.usb_accesses==accesses);
+        assert((t.h.per0&~0x808U)==((FES_NANO_MASTER_RESET|0x400000U)&~0x808U));
+        no_retry(&t);
+
+        active(&t);t.h.stuck_stop=halves[i];
+        assert(fes_nano_usb_platform_stop(&t.usb,17,1));
+        assert(t.usb.failed && t.cold.failed && t.usb.active && t.usb.generation==1);
+        assert((t.h.per0&0x808U)==(0x808U&~halves[i]));
+        no_retry(&t);
+
+        active(&t);t.h.per0|=halves[i];accesses=t.h.usb_accesses;
+        assert(fes_nano_usb_platform_observe(&t.usb,17,1));
+        assert(t.usb.failed && t.cold.failed && t.h.usb_accesses==accesses);
+        no_retry(&t);
+    }
+}
 static void confirmation(void)
 {
     struct test t;active(&t);
@@ -188,4 +218,4 @@ static void confirmation(void)
     assert(!fes_nano_usb_platform_stop(&t.usb,17,2));
     assert(!t.usb.active && !t.usb.confirmed && t.usb.generation==3);
 }
-int main(void) {cycles();failures();admission();interrupted();confirmation();puts("PASS USB-only trusted acquire/observe/drain/reset, stale ownership and interrupted MMIO; no hardware acceptance");return 0;}
+int main(void) {cycles();failures();admission();interrupted();paired_resets();confirmation();puts("PASS USB-only trusted acquire/observe/drain/reset, stale ownership and interrupted MMIO; no hardware acceptance");return 0;}

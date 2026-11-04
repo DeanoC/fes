@@ -17,7 +17,11 @@
  * independently of proving the controller idle and stopping its card clock. */
 #define FES_NANO_COLD_SD_RESET 0x80U
 #define FES_NANO_COLD_SD_ECC_RESET 0x8000U
-#define FES_NANO_COLD_USB_RESET 0x8U
+/* Agilex 5 USB0 transactions require both module and packet-RAM/ECC resets
+ * released (TRM 814346, 5.7.5.8.4; Terasic USB0_RESET/USB0_OCP_RESET). */
+#define FES_NANO_COLD_USB_MODULE_RESET 0x8U
+#define FES_NANO_COLD_USB_RAM_RESET 0x800U
+#define FES_NANO_COLD_USB_RESET (FES_NANO_COLD_USB_MODULE_RESET | FES_NANO_COLD_USB_RAM_RESET)
 #define FES_NANO_COLD_UNUSED (FES_NANO_MASTER_RESET & ~FES_NANO_COLD_SD_RESET)
 #define FES_NANO_COLD_SD_BUSY 0xb07U
 #define FES_NANO_COLD_POLLS 1000U
