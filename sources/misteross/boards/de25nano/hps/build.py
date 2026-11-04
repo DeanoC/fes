@@ -523,7 +523,7 @@ def reviewed_hps_parameter_changes(inputs):
     managed = scanout.get("managed_fabric")
     if managed is not None:
         standard = inputs.get("standard_zx81", {})
-        integration = (scanout.get("build_identity_scheme") == "standard-board-integration-source-profile" and
+        integration = (scanout.get("build_identity_scheme") in ("standard-board-integration-source-profile", "canonical-standard-computer-v2") and
             standard.get("scope") == "standard-core-board-integration" and
             standard.get("runtime_admission") == "not-qualified" and
             standard.get("expansion_socket") is False and standard.get("computer_offset") == 0x10300 and

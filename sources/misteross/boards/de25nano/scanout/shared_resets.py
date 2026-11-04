@@ -245,7 +245,7 @@ def selected_inputs(directory):
     data = (directory / "inputs.json").read_bytes()
     inputs = json.loads(data)
     scanout = inputs["scanout"]
-    standard = (scanout.get("build_identity_scheme") == "standard-board-integration-source-profile" and
+    standard = (scanout.get("build_identity_scheme") in ("standard-board-integration-source-profile", "canonical-standard-computer-v2") and
                 inputs.get("standard_zx81", {}).get("scope") == "standard-core-board-integration" and
                 inputs["standard_zx81"].get("runtime_admission") == "not-qualified")
     require(scanout.get("shared_fifo_resets") == POLICY and
@@ -268,7 +268,7 @@ def receipt(inputs, originals, derived):
             "physical_sharing_acceptance": "separate fitted evidence required",
             "files": {name: {"before_sha256": sha(originals[name]), "after_sha256": sha(derived[name])}
                       for name in sorted(originals)}}
-    if json.loads(inputs)["scanout"].get("build_identity_scheme") == "standard-board-integration-source-profile":
+    if json.loads(inputs)["scanout"].get("build_identity_scheme") in ("standard-board-integration-source-profile", "canonical-standard-computer-v2"):
         record["small_fifo_memory"] = "depth <=4: MLAB; larger response FIFO: M20K; same clocks/ports/depth/latency"
     return record
 
@@ -278,7 +278,7 @@ def apply(directory):
     inputs = selected_inputs(directory)
     project = directory / "project"
     originals = {name: checked_file(project, name).read_bytes() for name in ORIGINAL_SHA256}
-    standard = json.loads(inputs)["scanout"]["build_identity_scheme"] == "standard-board-integration-source-profile"
+    standard = json.loads(inputs)["scanout"]["build_identity_scheme"] in ("standard-board-integration-source-profile", "canonical-standard-computer-v2")
     derived = derive(originals, standard=standard)
     retained = directory / "shared-reset-originals"
     retained.mkdir(exist_ok=False)
@@ -300,7 +300,7 @@ def verify(directory):
     require({p.relative_to(retained).as_posix() for p in retained.rglob("*") if p.is_file()} == set(ORIGINAL_SHA256),
             "retained generated source inventory differs")
     originals = {name: checked_file(retained, name).read_bytes() for name in ORIGINAL_SHA256}
-    standard = json.loads(inputs)["scanout"]["build_identity_scheme"] == "standard-board-integration-source-profile"
+    standard = json.loads(inputs)["scanout"]["build_identity_scheme"] in ("standard-board-integration-source-profile", "canonical-standard-computer-v2")
     derived = derive(originals, standard=standard)
     for name, data in derived.items():
         require(checked_file(directory / "project", name).read_bytes() == data, "derived source changed: " + name)

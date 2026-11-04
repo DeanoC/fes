@@ -79,7 +79,7 @@ def profile(members):
             'derived_hdmi_sha256': {n: sha(data) for n, data in derived.items()}}
 
 
-def validate_project(project, expected, core_id):
+def validate_project(project, expected, core_id, *, standard_core=False):
     project = Path(project)
     require(pins((project / 'golden_top.qsf').read_text()) == expected['pins'],
             'fitted project changed a vendor pin or I/O standard')
@@ -95,10 +95,12 @@ def validate_project(project, expected, core_id):
     require(actual_pins == {n: {'pin': v['pin'], 'standard': normalize(v['standard'])}
                             for n, v in expected['pins'].items()},
             'actual fitted pin locations/I/O standards differ from Terasic')
+    require(type(standard_core) is bool and (not standard_core or core_id == 'fes.zx81'),
+            'unsupported standard-core reference selection')
     board_name, pixel, pll_name = {
         'fes.menu': ('fes_de25_scanout_board.v', 'pixel_clk', 'fes_combined/sys_pll.ip'),
         'fes.zx81': ('board.v', 'pixel_clk', 'sys_pll.ip'),
-    }[core_id]
+    }['fes.menu' if standard_core else core_id]
     assigned = re.findall(r'^\s*set_global_assignment\s+-name IP_FILE\s+(\S+)\s*$',
                           (project / 'golden_top.qsf').read_text(), re.M)
     require([name.strip('"') for name in assigned
@@ -158,7 +160,7 @@ def collect(directory, destination, archive):
     expected = profile(members)
     record = json.loads((Path(directory).parent / 'build-inputs.json').read_text())
     require(record['parameters'].get('hdmi_output_policy') == POLICY, 'build did not select the vendor board profile')
-    result = validate_project(Path(directory) / 'combined/hps/project', expected, record['parameters']['core_id'])
+    result = validate_project(Path(directory) / 'combined/hps/project', expected, record['parameters']['core_id'], standard_core=record['parameters'].get('standard_core', False))
     destination.mkdir()
     for name, data in members.items():
         path = destination / 'vendor' / name
@@ -173,6 +175,6 @@ def verify(directory, destination):
     members = {n: (destination / 'vendor' / n).read_bytes() for n in MEMBERS}
     record = json.loads((Path(directory).parent / 'build-inputs.json').read_text())
     require(record['parameters'].get('hdmi_output_policy') == POLICY, 'build did not select the vendor board profile')
-    result = validate_project(Path(directory) / 'combined/hps/project', profile(members), record['parameters']['core_id'])
+    result = validate_project(Path(directory) / 'combined/hps/project', profile(members), record['parameters']['core_id'], standard_core=record['parameters'].get('standard_core', False))
     require(result == json.loads((destination / 'receipt.json').read_text()), 'reference or fitted artifact changed')
     return result

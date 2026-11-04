@@ -148,8 +148,12 @@ def bindings(directory):
     selection = {'fes.menu': ('scanout', 'scripts/build_de25_menu_package.py'),
                  'fes.zx81': ('computer', 'scripts/build_de25_zx81_package.py')}.get(fields['parameters']['core_id'])
     require(selection is not None and fields['recipe'] == selection[1], 'unsupported canonical input-review core/recipe')
-    profile = selection[0]
+    profile = 'standard_zx81' if fields['parameters'].get('standard_core') is True else selection[0]
     inputs = json.loads((hps / 'inputs.json').read_text())
+    if profile == 'standard_zx81':
+        require(fields['parameters'].get('programming_profile') == 'de25-linux-computer-v1' and
+                inputs['scanout']['build_identity_scheme'] == 'canonical-standard-computer-v2' and
+                inputs['scanout']['build_id'] == build_identity(record), 'standard profile/scanout identity mismatch')
     require(inputs['fes_revision'] == fields['revision'] and
             inputs[profile]['build_id'] == build_identity(record), 'source/BUILD_ID mismatch')
     database = hps / 'project/qdb'

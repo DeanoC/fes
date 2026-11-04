@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Build canonical DE25 BRAM ZX81; retain candidates and never program hardware.
+"""Build canonical standard DE25 ZX81; retain candidates and never program hardware.
 
 Packaging uses the same complete timing/input-review and independent-RBF gates
 as DE25 MENU. Firmware pairing and native kit acceptance remain separate.
@@ -28,10 +28,10 @@ from boards.de25nano.scanout import async_inputs
 
 ROOT = Path(__file__).resolve().parents[1]
 RECIPE = 'scripts/build_de25_zx81_package.py'
-ABI = 'boards/de25nano/zx81-hps/generated/fes_de25_computer.vh'
-SOURCE_ROOTS = ['boards/de25nano', 'cores/fes-common', 'cores/fes-zx81', 'scripts']
+ABI = 'cores/fes-common/generated/fes_computer.vh'
+SOURCE_ROOTS = ['boards/de25nano', 'cores/fes-common', 'cores/fes-menu', 'cores/fes-splash', 'cores/fes-zx81', 'scripts']
 DEVICE = common.DEVICE
-FABRIC = 'managed-bram-computer-initiators-v1'
+FABRIC = common.MANAGED_FABRIC
 sha = common.sha
 execution_inputs = common.execution_inputs
 controlled_environment = common.controlled_environment
@@ -63,7 +63,7 @@ def create_build_record(root, repository, revision, identities, execution, captu
         raise BuildError('DE25 ZX81 requires actual controlled Quartus execution inputs')
     root = Path(root).resolve()
     if captured is None:
-        captured = computer(root).capture(revision)
+        captured = computer(root).capture_standard_board(revision)
     top = Path(subprocess.check_output(['git', 'rev-parse', '--show-toplevel'], cwd=root, text=True).strip())
     closure = source_input_closure(root, SOURCE_ROOTS)
     for name, data in captured.items():
@@ -75,9 +75,12 @@ def create_build_record(root, repository, revision, identities, execution, captu
         'recipe': RECIPE, 'recipe_sha256': sha(root / RECIPE), 'abi_definition': ABI,
         'abi_definition_sha256': sha(root / ABI), 'dependencies': {}, 'tools': dict(identities),
         'parameters': {'core_id': 'fes.zx81', 'device': DEVICE, 'hps_initialization': 'HPS FIRST',
-            'f2sdram_master_profile': 'bram-computer', 'fabric_initiator_policy': FABRIC,
-            'f2s_data_width': 0, 'f2sdram_data_width': 0, 'hps_warm_reset_handshake': True,
-            'reset_timing_policy': 'timed-bram-system-reset-release-v1',
+            'f2sdram_master_profile': 'scanout-only', 'fabric_initiator_policy': FABRIC,
+            'programming_profile': 'de25-linux-computer-v1', 'standard_core': True, 'linux_dma': True,
+            'expansion_socket': False, 'internal_ram_kib': 16, 'audio_clock_requested_hz': 12288000,
+            'fifo_reset_sharing': common.SHARED_FIFO_RESETS,
+            'f2s_data_width': 0, 'f2sdram_data_width': 256, 'scanout_master_data_width': 128, 'hps_warm_reset_handshake': True,
+            'reset_timing_policy': common.TIMED_RESET_RELEASE,
             'signoff_policy': async_inputs.POLICY, 'seed': 1, 'threads': 2,
             'hdmi_output_policy': async_inputs.vendor_reference.POLICY,
             'pixel_clock_hz': 74250000, 'system_clock_hz': 100000000,
@@ -87,13 +90,16 @@ def create_build_record(root, repository, revision, identities, execution, captu
 def manifest(record, payload):
     fields = json.loads(record)
     return encode_manifest({'format': 2,
-        'core': {'id': 'fes.zx81', 'name': 'ZX81', 'version': '1.0.0',
-                 'description': 'DE25 BRAM ZX81 with HPS keyboard and tape control'},
-        'target': {'platform': 'de25_nano', 'device': DEVICE, 'programming_profile': 'de25-hps-first-v1'},
+        'core': {'id': 'fes.zx81', 'name': 'ZX81', 'version': '2.0.0',
+                 'description': 'Standard DE25 ZX81 with allocated session display, controllers and cassette SAVE'},
+        'target': {'platform': 'de25_nano', 'device': DEVICE, 'programming_profile': 'de25-linux-computer-v1'},
         'payload': {'file': 'core.rbf', 'size': payload.stat().st_size, 'sha256': sha(payload)},
         'abi': {'id': 'fes.computer', 'major': 1, 'minor': 0},
         'interfaces': [{'id': name, 'major': 1, 'minor': 0, 'required': True} for name in (
-            'fes.video.fixed-720p60', 'fes.keyboard.hid', 'fes.media.zx81-tape')],
+            'fes.video.fixed-720p60', 'fes.keyboard.hid', 'fes.gamepad.ports',
+            'fes.audio.pcm-s16-stereo-48k', 'fes.media.zx81-tape', 'fes.media.zx81-tape-write',
+            'fes.video.session-display', 'fes.fabric.video.display-plane')] +
+            [{'id': 'fes.fabric.de25-scanout', 'major': 1, 'minor': 1, 'required': True}],
         'build': {'id': build_identity(record), 'repository': fields['repository'], 'revision': fields['revision'],
             'recipe_sha256': fields['recipe_sha256'],
             'toolchain': '; '.join(f'{name} {value}' for name, value in sorted(fields['tools'].items()))}})
@@ -109,7 +115,7 @@ def build(root=ROOT, *, quartus_root, vendor_archive, output=None, package_outpu
         raise BuildError('package build output must remain inside its declared source module')
     repository, revision = _require_clean_source(root, pinned_inputs=(RECIPE, ABI))
     builder = computer(root)
-    captured = builder.capture(revision)
+    captured = builder.capture_standard_board(revision)
     paths, identities = common.authenticate_tools(builder, quartus_root)
     with tempfile.TemporaryDirectory(prefix='fes-de25-zx81-home-') as home:
         env = execution_environment(Path(home), paths)
@@ -128,15 +134,18 @@ def build(root=ROOT, *, quartus_root, vendor_archive, output=None, package_outpu
         print('DE25 ZX81 build: ' + str(output), flush=True)
         with controlled_environment(env):
             def compile_at(name):
-                selected, hps, _ = builder.prepare(vendor_archive, output / name / 'combined', revision,
-                    hps_first=True, package_build_id=selected_id)
-                builder.generate(selected, hps, paths['quartus'], identities['quartus'].split(' sha256:')[0])
-                builder.compile_canonical(selected, hps, paths['quartus'])
-                review = async_inputs.collect(output / name, paths['quartus'].with_name('quartus_sta'),
-                                              vendor_archive=vendor_archive)
-                timing = timing_evidence(output / name, async_review=review)
+                selected, scanout, combined, hps, display = builder.prepare_standard_board(
+                    vendor_archive, output / name, revision, package_build_id=selected_id)
+                builder.generate_standard_board(selected, scanout, combined, hps, display,
+                    paths['quartus'], identities['quartus'].split(' sha256:')[0])
+                builder.compile_standard_board(selected, scanout, hps, display, paths['quartus'])
+                # Compile-only is deliberately unadmitted: retain every raw rule
+                # without borrowing a reviewed input/output receipt from another fit.
+                review = None if compile_only else async_inputs.collect(
+                    selected, paths['quartus'].with_name('quartus_sta'), vendor_archive=vendor_archive)
+                timing = timing_evidence(selected, async_review=review)
                 (output / (name + '-timing.json')).write_text(json.dumps(timing, indent=2, sort_keys=True) + '\n')
-                return selected / 'hps/linux-boot.core.rbf', timing
+                return selected / 'combined/hps/linux-boot.core.rbf', timing
             payload, timing = compile_at('signoff')
             if not compile_only:
                 if not timing['package_timing_admission']:
@@ -146,7 +155,7 @@ def build(root=ROOT, *, quartus_root, vendor_archive, output=None, package_outpu
                     raise BuildError('DE25 ZX81 independent rebuild failed timing or changed RBF')
         if (_require_clean_source(root, pinned_inputs=(RECIPE, ABI)) != (repository, revision) or
                 common.authenticate_tools(builder, quartus_root) != (paths, identities) or execution_inputs(paths, env) != execution or
-                create_build_record(root, repository, revision, identities, execution, builder.capture(revision)) != record):
+                create_build_record(root, repository, revision, identities, execution, builder.capture_standard_board(revision)) != record):
             raise BuildError('DE25 ZX81 source/tool/execution inputs changed during build')
         shutil.copyfile(payload, output / 'core.rbf')
         (output / 'build-summary.json').write_text(json.dumps({'build_id': selected_id, 'revision': revision,

@@ -1,4 +1,4 @@
-"""Canonical BRAM ZX81 identity/contract and fail-closed profile selection.
+"""Canonical standard ZX81 identity/contract and fail-closed profile selection.
 
 Temporary Git/ELF/report markers below exercise source and manifest boundaries;
 they are deliberately unqualified and never stand in for a compiled package.
@@ -23,7 +23,10 @@ class ZX81ProducerTests(unittest.TestCase):
         self.addCleanup(self.temp.cleanup);self.root=Path(self.temp.name)
         data={producer.RECIPE:b'fixture recipe',producer.ABI:b'fixture ABI',
               'cores/fes-zx81/rtl/machine.v':b'fixture machine',
-              'cores/fes-common/rtl/z80/engine.sv':b'fixture CPU'}
+              'cores/fes-common/rtl/z80/engine.sv':b'fixture CPU',
+              'boards/de25nano/fixture.v':b'fixture board',
+              'cores/fes-menu/rtl/fixture.v':b'fixture reader',
+              'cores/fes-splash/rtl/fixture.v':b'fixture display'}
         for name,value in data.items():
             p=self.root/name;p.parent.mkdir(parents=True,exist_ok=True);p.write_bytes(value)
         for command in (['git','init','-q'],['git','add','.'],
@@ -38,27 +41,35 @@ class ZX81ProducerTests(unittest.TestCase):
         return producer.create_build_record(self.root,'https://github.com/DeanoC/fes',self.revision,
                                              self.tools,self.execution,self.captured)
 
-    def test_record_binds_actual_committed_machine_and_disabled_bridges(self):
+    def test_record_binds_standard_machine_and_allocated_memory_bridge(self):
         record=self.record();value=verify_record_source_at_revision(self.root,record)
         self.assertEqual(value['parameters']['core_id'],'fes.zx81')
         self.assertEqual(value['parameters']['fabric_initiator_policy'],producer.FABRIC)
-        self.assertEqual((value['parameters']['f2s_data_width'],value['parameters']['f2sdram_data_width']),(0,0))
+        self.assertEqual((value['parameters']['f2s_data_width'],value['parameters']['f2sdram_data_width']),(0,256))
         self.assertEqual(value['parameters']['hps_initialization'],'HPS FIRST')
-        self.assertEqual(value['parameters']['reset_timing_policy'],'timed-bram-system-reset-release-v1')
+        self.assertTrue(value['parameters']['standard_core'])
+        self.assertEqual(value['parameters']['programming_profile'],'de25-linux-computer-v1')
+        self.assertEqual(value['parameters']['internal_ram_kib'],16)
+        self.assertFalse(value['parameters']['expansion_socket'])
+        self.assertEqual(value['parameters']['reset_timing_policy'],producer.common.TIMED_RESET_RELEASE)
         changed=dict(self.tools,quartus='changed actual compiler')
         other=producer.create_build_record(self.root,'https://github.com/DeanoC/fes',self.revision,changed,self.execution,self.captured)
         self.assertNotEqual(build_identity(record),build_identity(other))
         name='sources/misteross/cores/fes-common/rtl/z80/engine.sv';self.captured[name]=b'changed'
         with self.assertRaisesRegex(producer.BuildError,'differs from canonical closure'):self.record()
 
-    def test_manifest_matches_the_existing_runtime_bram_contract(self):
+    def test_manifest_matches_standard_allocated_session_contract(self):
         payload=self.root/'core.rbf';payload.write_bytes(b'unqualified payload fixture')
         manifest=tomllib.loads(producer.manifest(self.record(),payload).decode())
         self.assertEqual(manifest['format'],2)
-        self.assertEqual(manifest['target'],{'platform':'de25_nano','device':producer.DEVICE,'programming_profile':'de25-hps-first-v1'})
+        self.assertEqual(manifest['target'],{'platform':'de25_nano','device':producer.DEVICE,'programming_profile':'de25-linux-computer-v1'})
         self.assertEqual(manifest['abi'],{'id':'fes.computer','major':1,'minor':0})
         self.assertEqual({v['id'] for v in manifest['interfaces']},
-                         {'fes.video.fixed-720p60','fes.keyboard.hid','fes.media.zx81-tape'})
+                         {'fes.video.fixed-720p60','fes.keyboard.hid','fes.gamepad.ports',
+                          'fes.audio.pcm-s16-stereo-48k','fes.media.zx81-tape','fes.media.zx81-tape-write',
+                          'fes.video.session-display','fes.fabric.video.display-plane','fes.fabric.de25-scanout'})
+        self.assertNotIn('fes.memory.hps-ddr',{i['id'] for i in manifest['interfaces']})
+        self.assertEqual(next(i['minor'] for i in manifest['interfaces'] if i['id']=='fes.fabric.de25-scanout'),1)
         self.assertNotIn('roms',manifest)
 
     def test_cli_and_wrong_pinned_inputs_refuse_before_any_build(self):
@@ -69,8 +80,9 @@ class ZX81ProducerTests(unittest.TestCase):
                 producer._require_clean_source(self.root,pinned_inputs=('foreign','ABI'))
 
     def test_capture_contains_the_real_profile_and_hdmi_helpers(self):
-        captured=producer.computer(ROOT).capture()
-        for name in ('zx81-hps/managed_bram.py','scanout/hdmi_inputs.py','scanout/build.py','hps/build.py'):
+        captured=producer.computer(ROOT).capture_standard_board()
+        for name in ('zx81-hps/managed_bram.py','scanout/hdmi_inputs.py','scanout/build.py','hps/build.py',
+                     'zx81-hps/fes_de25_zx81_standard.v','zx81-hps/fes_de25_audio.v','zx81-hps/standard-clocks.sdc'):
             key='sources/misteross/boards/de25nano/'+name
             self.assertEqual(captured[key],(ROOT/'boards/de25nano'/name).read_bytes())
 

@@ -179,26 +179,51 @@ def prepare_standard_component(output, revision=None):
     return component
 
 
-def prepare_standard_board(archive, output, revision=None):
-    """Select the standard machine in the managed GHRD; never deploy it.
+def standard_audio_paths():
+    return [BOARD + "zx81-hps/fes_de25_audio.v"] + [
+        "sources/misteross/cores/fes-common/rtl/" + name for name in ("fes_audio_output.v", "fes_audio_i2s.v")]
 
-    This first board integration uses the same internal 16K configuration as
-    the standard DE10 base core. Expansion personas remain a separate link.
-    """
+
+def capture_standard_board(revision=None):
+    """Capture the complete managed standard machine, reader and audio closure."""
     source = (ROOT / (BOARD + "scanout/build.py")).read_bytes() if revision is None else subprocess.check_output(
         ["git", "show", revision + ":" + BOARD + "scanout/build.py"], cwd=ROOT)
     scanout = types.ModuleType("standard_selected_scanout")
     scanout.__file__ = str(HERE.parent / "scanout/build.py")
     exec(compile(source, scanout.__file__, "exec"), scanout.__dict__)
     sources = scanout.capture(revision) | capture_standard(revision)
-    paths = [BOARD + "zx81-hps/fes_de25_audio.v"] + [
-        "sources/misteross/cores/fes-common/rtl/" + name for name in ("fes_audio_output.v", "fes_audio_i2s.v")]
+    paths = standard_audio_paths()
     for name in paths:
         sources[name] = (ROOT / name).read_bytes() if revision is None else subprocess.check_output(
             ["git", "show", revision + ":" + name], cwd=ROOT)
+    return sources
+
+
+def standard_staged_sources(project):
+    local = project / "fes_mailbox"
+    paths = list(local.glob("*")) + list((local / "generated").rglob("*"))
+    return {path.relative_to(project).as_posix(): sha(path.read_bytes()) for path in sorted(paths)
+            if path.is_file() and path.suffix in (".v", ".sv", ".vh", ".py", ".sdc", ".tcl", ".mif")}
+
+
+def prepare_standard_board(archive, output, revision=None, *, package_build_id=None):
+    """Select the standard machine in the managed GHRD; never deploy it.
+
+    This first board integration uses the same internal 16K configuration as
+    the standard DE10 base core. Expansion personas remain a separate link.
+    """
+    sources = capture_standard_board(revision)
+    source = sources[BOARD + "scanout/build.py"]
+    scanout = types.ModuleType("standard_selected_scanout")
+    scanout.__file__ = str(HERE.parent / "scanout/build.py")
+    exec(compile(source, scanout.__file__, "exec"), scanout.__dict__)
+    paths = standard_audio_paths()
     # Include the complete machine/reader/audio closure before selecting any
     # hardware identity. The result is an integration ID, not a package seal.
-    build_id = sha(json.dumps({name: sha(data) for name, data in sorted(sources.items())},
+    if package_build_id is not None and (not revision or not isinstance(package_build_id,str) or
+            not re.fullmatch(r"[0-9a-f]{32}",package_build_id) or package_build_id=="0"*32):
+        raise ValueError("standard package identity requires committed source and a nonzero 128-bit ID")
+    build_id = package_build_id or sha(json.dumps({name: sha(data) for name, data in sorted(sources.items())},
                              sort_keys=True).encode())[:32]
     scanout.capture = lambda revision=None: sources.copy()
     # Managed fabric removes the unused JTAG/F2H masters and uses the exact
@@ -319,7 +344,10 @@ qsys_top soc_inst (
         "standard_sdc_sha256": sha((local / "standard-clocks.sdc").read_bytes()),
         "audio_pll": {"vendor_sha256": sha(original), "derived_sha256": sha(audio_pll),
                       "parameters": display.pll_parameters(audio_pll)}}
-    inputs["scanout"]["build_identity_scheme"] = "standard-board-integration-source-profile"
+    inputs["scanout"]["build_identity_scheme"] = ("canonical-standard-computer-v2" if package_build_id
+        else "standard-board-integration-source-profile")
+    inputs["standard_zx81"]["staged_source_sha256"] = standard_staged_sources(project)
+    inputs["standard_zx81"]["firmware_sha256"] = sha((project / "zx8x.mif").read_bytes())
     inputs["scanout"]["compiled_top_sha256"] = sha(top_path.read_bytes())
     inputs["scanout"]["rendered_integration_sha256"] = sha(script_path.read_bytes())
     inputs_path.write_text(json.dumps(inputs, indent=2, sort_keys=True) + "\n")
@@ -350,6 +378,27 @@ def generate_standard_board(output, scanout, combined, hps, display, tool, versi
     combined.generate(output / "combined", hps, display, tool, version)
     scanout.repair_generated_reset_timing(directory)
     scanout.shared_reset_helper(directory).apply(directory)
+    generation_path = directory / "generation.json"
+    generation = json.loads(generation_path.read_text())
+    generation["standard_zx81"] = verify_standard_board(output, scanout, hps, display)
+    generation_path.write_text(json.dumps(generation, indent=2, sort_keys=True) + "\n")
+
+
+def verify_standard_board(output, scanout, hps, display):
+    directory = output / "combined/hps"
+    inputs = json.loads((directory / "inputs.json").read_text())
+    project = directory / "project"
+    selected = inputs["standard_zx81"]
+    if (inputs["scanout"]["build_id"] != selected["build_id"] or
+            sha((project / "golden_top.v").read_bytes()) != inputs["scanout"]["compiled_top_sha256"] or
+            sha((project / "integrate-mailbox.tcl").read_bytes()) != inputs["scanout"]["rendered_integration_sha256"] or
+            sha((project / "zx8x.mif").read_bytes()) != selected["firmware_sha256"]):
+        raise ValueError("standard compiled top, integration, identity or firmware changed")
+    actual = standard_staged_sources(project)
+    if actual != selected["staged_source_sha256"]:
+        raise ValueError("standard staged source inventory/content changed")
+    if display.pll_parameters((project/"fes_combined/sys_pll.ip").read_bytes()) != inputs["combined_display"]["pixel_pll_parameters"]:
+        raise ValueError("standard pixel PLL parameters changed")
     project = directory / "project"
     tree = ET.parse(project / "qsys_top/qsys_top.sopcinfo")
     modules = {m.get("path"): m for m in tree.findall("module")}
@@ -401,9 +450,7 @@ def generate_standard_board(output, scanout, combined, hps, display, tool, versi
     actual_audio = display.pll_parameters((project / "fes_mailbox/av_pll.ip").read_bytes())
     if actual_audio != inputs["standard_zx81"]["audio_pll"]["parameters"]:
         raise ValueError("generation changed the selected stock audio PLL")
-    generation_path = directory / "generation.json"
-    generation = json.loads(generation_path.read_text())
-    generation["standard_zx81"] = {"build_identity": build_identity,
+    return {"build_identity": build_identity,
         "standard_sdc_sha256": inputs["standard_zx81"]["standard_sdc_sha256"],
         "computer_offset": 0x10300, "bridge_parameters": bridge_parameters,
         "managed_fabric": scanout.verify_managed_fabric(directory, hps),
@@ -412,7 +459,28 @@ def generate_standard_board(output, scanout, combined, hps, display, tool, versi
         "hdmi_inputs": scanout.verify_hdmi_inputs(project, inputs, hps),
         "audio_pll_parameters_unchanged": True,
         "scope": "whole-GHRD-IP-generation", "fit_and_timing": "not-run", "hardware_acceptance": "not-run"}
-    generation_path.write_text(json.dumps(generation, indent=2, sort_keys=True) + "\n")
+
+
+def compile_standard_board(output, scanout, hps, display, tool):
+    """Compile one checked standard design and retain Linux phase artifacts."""
+    directory=output/"combined/hps"
+    expected=json.loads((directory/"generation.json").read_text())["standard_zx81"]
+    def verify():
+        if verify_standard_board(output,scanout,hps,display)!=expected:
+            raise ValueError("standard source/topology changed after generation")
+    verify()
+    artifact=hps.compile_project(directory,tool)
+    verify()
+    artifacts=hps.linux_configuration_artifacts(directory,tool,artifact,hps_initialization="HPS FIRST")
+    record={"format":1,"classification":"unadmitted-HPS-first-standard-computer",
+        "inputs_sha256":hps.digest(directory/"inputs.json"),
+        "generation_sha256":hps.digest(directory/"generation.json"),
+        "build_id":json.loads((directory/"inputs.json").read_text())["standard_zx81"]["build_id"],**artifacts,
+        "production_admission":False,"hardware_acceptance":False}
+    (directory/"linux-programming.json").write_text(json.dumps(record,indent=2,sort_keys=True)+"\n")
+    verify()
+    return artifact
+
 
 
 def transport_constant(source, name):
@@ -882,7 +950,7 @@ def main(argv=None):
     parser.add_argument("--vendor-archive", type=Path, required=True)
     parser.add_argument("--output", type=Path)
     parser.add_argument("--standard-core", action="store_true",
-                        help="integrate the standard core with allocated display and stock audio (project/generate)")
+                        help="integrate the standard core with allocated display and stock audio (project/generate/build)")
     parser.add_argument("--hps-first", action="store_true",
                         help="prepare HPS-first diagnostic and separate Linux core RBF; never program flash")
     parser.add_argument("--quartus-root", default=os.environ.get("QUARTUS_ROOTDIR", ""))
@@ -891,14 +959,15 @@ def main(argv=None):
         selected = identity(); revision = selected.get("fes_revision") if args.action != "project" else None
         if args.action != "project" and not revision: raise ValueError("computer build requires clean committed source")
         if args.standard_core:
-            if args.action == "build":
-                raise ValueError("standard board fit requires its additional machine/display/audio timing constraints; use generate")
             output, scanout, combined, hps, display = prepare_standard_board(args.vendor_archive, args.output, revision)
             print("Standard ZX81 board integration: " + str(output), flush=True)
-            if args.action == "generate":
+            if args.action != "project":
                 if identity() != selected: raise ValueError("source changed before standard board generation")
                 tool, version = hps.BOARD_BUILD.locate_quartus(args.quartus_root)
                 generate_standard_board(output, scanout, combined, hps, display, tool, version)
+                if args.action == "build":
+                    compile_standard_board(output, scanout, hps, display, tool)
+                if identity() != selected: raise ValueError("source changed during standard board build")
             return
         output, hps, helpers = prepare(args.vendor_archive, args.output, revision, hps_first=args.hps_first)
         print("HPS ZX81 diagnostic: " + str(output), flush=True)

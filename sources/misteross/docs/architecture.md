@@ -4198,3 +4198,15 @@ the control endpoint. A pixel-domain qualification and control-domain two-flop
 crossing expose one bit, without extending Linux I2C ownership. Digital board
 and endpoint tests cover this boundary; no new timing or physical acceptance
 is implied by the source change.
+
+The DE25 canonical ZX81 producer selects the standard shared computer core,
+allocated session display and fixed audio under `de25-linux-computer-v1`.
+Its full captured closure feeds functional identity before generation. The same
+generated component/topology and staged-source verifier runs before and after
+compilation, retaining reset/FIFO, firmware, clock and endpoint checks.
+Compile-only preserves raw findings without export. Package export needs fresh
+fitted input/output-reference review and an independently identical RBF. The
+current stock HDMI reference covers30 outputs; two extra audio-clock findings
+remain unreviewed and block the standard package. Source selection establishes
+neither native hardware nor full normal-kit acceptance. Reduced BRAM RTL remains
+in the separate diagnostic board lane.

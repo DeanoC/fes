@@ -194,21 +194,24 @@ standalone diagnostic retains its internal-RAM selection and no PR control.
 
 The normal board-selected producer is
 `scripts/build_de25_zx81_package.py`, selected by the parent registry for
-`fes.zx81` on `de25-nano`. It supplies a functional identity before generation,
-removes all inherited fabric memory/debug initiators and disables both fabric
-memory bridges using the supported HPS settings. The generated complete
-initiator/port inventory, source hashes, actual BUILD_ID, HDMI derivation and
-PLL values are rechecked before and after compilation. HPS CPU control and
-the warm-reset conduit remain. This is the existing BRAM computer contract;
-it adds no DMA or in-play allocated MENU plane.
-The raw prepared QSF is retained; only the reviewed version-line retirement
-and three generated IP references may change during Qsys generation.
+`fes.zx81` on `de25-nano`. It selects the shared standard ZX81 core, allocated
+session display and fixed audio, with the same internal16K base as DE10.
+The package declares `de25-linux-computer-v1` and its nine required interfaces,
+including cassette SAVE and scanout1.1. It declares no reserved HPS DDR window.
+The reduced BRAM project remains a separate diagnostic.
 
-Use the producer's `--compile-only` option to retain an unadmitted candidate.
-Package export requires the shared complete timing/signoff gate, the two
-previously approved inputs' fresh fitted review and an independent identical
-RBF. No command programs hardware. The three HPS setting changes require their
-own firmware/native acceptance; a diagnostic or source build grants neither.
+The complete machine/reader/audio closure, controlled execution and compiler
+identities supply the functional BUILD_ID before generation. The generated
+interfaces, clocks, reset/FIFO derivations, staged source bytes, top-level wiring,
+firmware and PLL parameters are checked before and after compilation. Scanout
+retains the managed allocated-MENU SID/nonsecure master and HPS/EMIF recipe.
+
+`--compile-only` retains a candidate with every raw timing finding, without
+reviewed-finding substitution or export. Package export still requires complete
+passing timing, fresh fitted input/output-reference review and an independently
+identical RBF. The standard board uses the same stock HDMI shell. Its two extra
+audio-clock output findings remain outside the current30-output reference policy
+and block export. No timing or seal gate is relaxed; no command programs a kit.
 
 ## HPS-first Linux loading candidate
 
@@ -271,7 +274,7 @@ loop diagnostic and internal16K memory. It checks running CPU writes and a retai
 RAM marker across allocated display open/drain/CLEAR/new-generation reopen,
 transparent/opaque/alpha frames and kernel-only publication. The normal `all`
 selection includes this case. This is digital integration evidence; the wrapper
-is not yet selected by the canonical producer or production runtime. Physical
+is selected by the standard canonical producer and explicit runtime profile. Physical
 reset/clock/audio, ROM/RAM-pack composition, Quartus and native BASIC testing
 remain required.
 
@@ -318,7 +321,8 @@ python3 build.py generate --standard-core \
 This generates the complete GHRD from committed sources and checks the actual
 computer/scanout slaves, clock/reset routes, memory credits and managed master
 inventory. It never programs the kit. `project` also allows local inspection.
-`build` currently refuses this option: the additional standard-machine,
-session-display and audio timing constraints still need integration before a
-fit can be qualified. Normal package/runtime admission remains on the existing
-image until the replacement passes its own acceptance tests.
+`build` compiles this checked project and retains separate Linux phase artifacts.
+It is a diagnostic candidate, with no package/timing admission. The canonical
+producer separately binds its functional package identity and strict export
+gates. Runtime software admits the standard profile; the board stays on its
+working baseline until exact-artifact qualification and hardware acceptance.
