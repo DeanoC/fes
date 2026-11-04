@@ -293,3 +293,7 @@ capability discovery and `fes.media.pcxt-floppy` 1.0 for exact 368,640-byte
 images on unit 0. Insertion and ejection preserve the running session; the
 runtime checks the live limits and complete transfer before reporting ready.
 This path has host software coverage; PC/XT hardware acceptance is pending.
+
+The `native_hardware_test --session-display` selection runs the allocated MENU
+and retained/fresh-slot session lifecycle regressions without unrelated core
+fixtures. It uses injected hardware and is not native-board acceptance.

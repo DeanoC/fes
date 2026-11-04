@@ -5227,7 +5227,9 @@ void TestDe25AllocatedMenuLaunchStopAndPinnedPeer(bool clean_shutdown = false)
  assert(OpenCorePackage(menu.path,"",&menu_package).ok()&&OpenCorePackage(game.path,"",&game_package).ok());
  const auto capabilities=hardware.capabilities();assert(capabilities.abis.size()==2&&capabilities.programming_profiles.size()==2);
  Runtime runtime(hardware,base.log);
- assert(runtime.Start(menu.path,menu_package.package_id).ok());
+ const auto started=runtime.Start(menu.path,menu_package.package_id);
+ if(!started.ok())fprintf(stderr,"DE25 allocated MENU startup: %s (%s)\n",started.message.c_str(),started.phase.c_str());
+ assert(started.ok());
  // Export the real serialized production capabilities for the independent
  // agent decoder regression; the regular test needs no output file.
  if(!clean_shutdown) {
@@ -5274,8 +5276,20 @@ void TestDe25AllocatedMenuLaunchStopAndPinnedPeer(bool clean_shutdown = false)
  assert(!hardware.Shutdown().ok()&&base.fpga.release_calls==0);
 }
 
-int main()
+int main(int argc,char** argv)
 {
+ if(argc==2&&std::strcmp(argv[1],"--session-display")==0) {
+  puts("native_hardware_test: allocated MENU lifecycle");fflush(stdout);
+  TestDe25AllocatedMenuLaunchStopAndPinnedPeer();
+  TestDe25AllocatedMenuLaunchStopAndPinnedPeer(true);
+  puts("native_hardware_test: retained session display");fflush(stdout);
+  TestSessionDisplayPreservesMachineOnCloseAndPlaneFailure();
+  puts("native_hardware_test: fresh-slot session display");fflush(stdout);
+  TestSessionDisplayPreservesMachineOnCloseAndPlaneFailure(true);
+  TestSessionDisplayRejectsPlaneWithoutBlend();
+  puts("native_hardware_test: session-display cases passed");return 0;
+ }
+ assert(argc==1);
  TestDe25AllocatedMenuLaunchStopAndPinnedPeer();
  TestDe25AllocatedMenuLaunchStopAndPinnedPeer(true);
  {Fixture de10;assert(de10.hardware.Shutdown().ok()&&de10.fpga.release_calls==0);}
@@ -5346,6 +5360,6 @@ int main()
 	TestCompositionProgramsRetainedLinkedArtifactAndRechecksBeforeMutation();
 	TestActivationRechecksRetainedPayloadIdentityBeforeMutation();
 	TestLiveComputerStatusResponsesMatchRuntime();
-	puts("native_hardware_test: 35 passed");
+	puts("native_hardware_test: passed");
 	return 0;
 }
