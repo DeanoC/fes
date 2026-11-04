@@ -15,7 +15,7 @@ EXPECTED = ('loader_begin', 'decode_begin', 'inflate_end', 'checksum_end', 'deco
 def fixture():
     lines = []
     for index, phase in enumerate(EXPECTED):
-        state = 0 if index in (0, 6) else 0x1000 if index < 7 else 0x1005
+        state = 0 if index in (0, 6) else 0x1005
         lines.append(f'FES_BOOT_STEP phase={phase} ticks={400000000 * (index + 1):016x} '
                      f'hz={400000000:016x} el={2 if index < 7 else 1} sctlr={state:016x}\r\n')
     return lines
@@ -47,7 +47,7 @@ class StartupTests(unittest.TestCase):
         lines = fixture()
         for index, old, new in (
                 (0, 'sctlr=0000000000000000', 'sctlr=0000000000001000'),
-                (1, 'sctlr=0000000000001000', 'sctlr=0000000000001004'),
+                (1, 'sctlr=0000000000001005', 'sctlr=0000000000001004'),
                 (6, 'sctlr=0000000000000000', 'sctlr=0000000000001000'),
                 (7, 'sctlr=0000000000001005', 'sctlr=0000000000001004'),
                 (7, 'el=1', 'el=2'),

@@ -26,6 +26,9 @@ QEMU_UART_BASE = 0x09000000
 _codec_spec = importlib.util.spec_from_file_location('fes_entry_payload', HERE / 'payload.py')
 payload_codec = importlib.util.module_from_spec(_codec_spec)
 _codec_spec.loader.exec_module(payload_codec)
+_cache_spec = importlib.util.spec_from_file_location('fes_entry_cache_model', HERE/'cache_model.py')
+cache_model = importlib.util.module_from_spec(_cache_spec)
+_cache_spec.loader.exec_module(cache_model)
 
 
 def window_memory_option(receipt, memory):
@@ -252,7 +255,8 @@ def main():
         parser.error("missing compiler cc1")
     tools["cc1"] = {"path": str(cc1), "sha256": sha(cc1.read_bytes())}
     files = [HERE / name for name in ("build.py", "entry.S", "entry.c", "entry.ld", "elf_plan.c", "elf_plan.h",
-                                     "payload.c", "payload.h", "payload.py", "memory.c", "memory.h", "crc32.c", "crc32.h")]
+                                     "payload.c", "payload.h", "payload.py", "memory.c", "memory.h", "crc32.c", "crc32.h",
+                                     "map.c", "map.h", "cache.c", "cache_model.py")]
     files.extend(sorted((HERE / 'vendor/puff').iterdir()))
     if args.target == "de25-nano":
         files.append(nano_builder)
@@ -283,19 +287,20 @@ def main():
               "-DFES_ENTRY_RAM_START=" + hex(ram_start),
               "-DFES_ENTRY_RAM_END=" + hex(ram_end), "-DFES_ENTRY_UART_BASE=" + hex(uart_base),
               "-I" + str(HERE), "-I" + str(HERE / "vendor/puff")]
-    parts = (HERE / "entry.S", HERE / "entry.c", HERE / "elf_plan.c", HERE / "payload.c", HERE / "memory.c", HERE / "crc32.c",
+    parts = (HERE / "entry.S", HERE / "entry.c", HERE / "elf_plan.c", HERE / "payload.c", HERE / "memory.c", HERE / "crc32.c", HERE / "map.c", HERE / "cache.c",
              HERE / "vendor/puff/puff.c", output / "payload.S")
     for index, source in enumerate(parts):
         run("compile-" + str(index), [*common, "-c", source, "-o", output / ("part-" + str(index) + ".o")])
     elf, raw = output / "entry.elf", output / "entry.img"
-    run("link", [args.cross_prefix + "gcc", "-nostdlib", "-static", "-no-pie", "-Wl,--build-id=none",
-                 "-Wl,-T," + str(HERE / "entry.ld"), "-Wl,--defsym=FES_ENTRY_IMAGE_ADDRESS=" + hex(image_address),
-                 *(output / ("part-" + str(i) + ".o") for i in range(len(parts))), "-o", elf])
+    host_lib = output / "elf_plan.so"
+    run("host-plan-build", [host_cc, "-std=c11", "-O2", "-Wall", "-Wextra", "-Werror", "-shared", "-fPIC",
+                            "-ffreestanding", "-fno-builtin", "-I" + str(HERE), "-I" + str(HERE / 'vendor/puff'),
+                            HERE / "elf_plan.c", HERE / 'payload.c', HERE / 'crc32.c', HERE / 'map.c', HERE / 'memory.c',
+                            HERE / 'vendor/puff/puff.c', "-o", host_lib], host=True)
+    symbols, cache_tables, cache_crc = cache_model.link(run, args.cross_prefix+'gcc', args.cross_prefix+'nm', env,
+        [output/('part-'+str(i)+'.o') for i in range(len(parts))], HERE/'entry.ld', image_address,
+        host_lib, ram_start, ram_end, uart_base, output)
     run("objcopy", [args.cross_prefix + "objcopy", "-O", "binary", elf, raw])
-    nm = subprocess.check_output([args.cross_prefix + "nm", "-n", str(elf)], env=env, text=True)
-    symbols = {}
-    for address, name in re.findall(r"(?m)^([0-9a-fA-F]+)\s+\w\s+(\S+)$", nm):
-        symbols[name] = int(address, 16)
     required = ("_start", "__image_start", "__image_end", "__payload_start", "__payload_end", "__stack_top", "fes_entry_vectors")
     if any(name not in symbols for name in required):
         raise ValueError("entry ELF is missing required symbols")
@@ -310,10 +315,6 @@ def main():
             struct.unpack_from("<Q", blob, 24)[0] != 8 or blob[56:60] != b"ARM\x64"):
         raise ValueError("entry image layout or arm64 Image header differs from the diagnostic contract")
     validate_staging(image_address, image_address + len(blob), staging_lower, staging_upper, exclusions)
-    host_lib = output / "elf_plan.so"
-    run("host-plan-build", [host_cc, "-std=c11", "-O2", "-Wall", "-Wextra", "-Werror", "-shared", "-fPIC",
-                            "-ffreestanding", "-fno-builtin", "-I" + str(HERE), "-I" + str(HERE / 'vendor/puff'),
-                            HERE / "elf_plan.c", HERE / 'payload.c', HERE / 'crc32.c', HERE / 'vendor/puff/puff.c', "-o", host_lib], host=True)
     library = ctypes.CDLL(str(host_lib))
     unpack = library.fes_entry_unpack
     unpack.argtypes = [ctypes.c_void_p, ctypes.c_uint64, ctypes.c_void_p, ctypes.c_uint64, ctypes.POINTER(ctypes.c_uint64)]
@@ -355,6 +356,9 @@ def main():
               "decode_base": decode_base, "decode_capacity": decode_capacity,
               "crc32_implementation": "arm64-ieee-crc32-aligned64-v1", "crc32_feature_required": True,
               "segment_copy": "aligned64-with-bounded-byte-edges-v1",
+              "temporary_cache": "owned-el2-identity-v1", "cache_map_address": symbols['fes_entry_tables'],
+              "cache_map_bytes": len(cache_tables), "cache_map_crc32": cache_crc, "cache_map_sha256": sha(cache_tables),
+              "host_plan_sha256": sha(host_lib.read_bytes()),
               "stack_usage": stack, "native_entry": plan.entry,
               "objects": {"part-"+str(i)+".o": sha((output/("part-"+str(i)+".o")).read_bytes()) for i in range(len(parts))},
               "segments": [{name: getattr(plan.segments[i], name) for name, _ in Segment._fields_} for i in range(plan.count)],

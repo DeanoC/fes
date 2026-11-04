@@ -13,6 +13,7 @@ import struct
 import subprocess
 import time
 from startup import decode as decode_startup
+from cache_model import link as link_cache_map
 
 HERE = Path(__file__).resolve().parent
 ROOT = HERE.parents[2]
@@ -72,7 +73,7 @@ def run_guest(qemu, uboot, image, virtualization, expected, log_path, timeout):
         log_path.write_bytes(captured)
 
 
-def fault_image(record, original_build, packed, directory):
+def fault_image(record, original_build, packed, directory, map_crc_xor=0):
     """Relink the same checked entry objects around private negative input.
 
     Production build validation is never bypassed. These images exist only in
@@ -80,7 +81,7 @@ def fault_image(record, original_build, packed, directory):
     """
     directory.mkdir()
     objects=record['objects']
-    names=['part-'+str(i)+'.o' for i in range(8)]
+    names=['part-'+str(i)+'.o' for i in range(10)]
     if set(objects)!=set(names):raise ValueError('entry fault fixture requires the complete object inventory')
     for name in names:
         source=original_build/name
@@ -95,14 +96,19 @@ def fault_image(record, original_build, packed, directory):
     (directory/'payload.gz').write_bytes(packed)
     (directory/'payload.S').write_text('.section .payload,"a"\n.global __payload_start, __payload_end\n__payload_start:\n.incbin "payload.gz"\n__payload_end:\n')
     elf=directory/'entry.elf';image=directory/'entry.img'
-    commands=[
-        [tools['gcc']['path'],'-c','payload.S','-o','part-7.o'],
-        [tools['gcc']['path'],'-nostdlib','-static','-no-pie','-Wl,--build-id=none',
-         '-Wl,-T,'+str(HERE/'entry.ld'),'-Wl,--defsym=FES_ENTRY_IMAGE_ADDRESS='+hex(ADDRESS),*names,'-o',str(elf)],
-        [tools['objcopy']['path'],'-O','binary',str(elf),str(image)]]
-    for i,command in enumerate(commands):
-        with (directory/('relink-'+str(i)+'.log')).open('wb') as log:
+    def run(label,command):
+        with (directory/(label+'.log')).open('wb') as log:
             subprocess.run(command,cwd=directory,env=record['environment'],stdout=log,stderr=subprocess.STDOUT,check=True,timeout=30)
+    run('payload',[tools['gcc']['path'],'-c','payload.S','-o','part-9.o'])
+    library=original_build/'elf_plan.so'
+    if digest(library.read_bytes())!=record['host_plan_sha256']:raise ValueError('host cache planner changed')
+    _,_,crc=link_cache_map(run,tools['gcc']['path'],tools['nm']['path'],record['environment'],
+        [directory/n for n in names],HERE/'entry.ld',ADDRESS,library,record['ram_start'],record['ram_end'],record['uart_base'],directory)
+    if map_crc_xor:
+        run('wrong-map-crc',[tools['gcc']['path'],'-nostdlib','-static','-no-pie','-Wl,--build-id=none',
+            '-Wl,-T,'+str(HERE/'entry.ld'),'-Wl,--defsym=FES_ENTRY_IMAGE_ADDRESS='+hex(ADDRESS),
+            '-Wl,--defsym=FES_ENTRY_MAP_CRC='+hex(crc^map_crc_xor),*names,'-o',str(elf)])
+    run('objcopy',[tools['objcopy']['path'],'-O','binary',str(elf),str(image)])
     return image.read_bytes()
 
 
@@ -131,8 +137,8 @@ def memory_crc_image(record, original_build, directory):
     return fault_image(record, original_build, entry_payload.encode(payload.read_bytes()), directory/'entry')
 
 
-def absent_crc_image(record, original_build, original):
-    """Mask the feature read in a private control, leaving the rejection real.
+def absent_feature_image(record, original_build, original, symbol, expected_word):
+    """Mask a feature read in a private control, leaving the rejection real.
 
     This simulates absent CRC; it does not claim an actual CPU without CRC.
     """
@@ -141,15 +147,28 @@ def absent_crc_image(record, original_build, original):
         raise ValueError('entry symbol reader changed')
     symbols = subprocess.check_output([nm['path'],'--defined-only',str(original_build/'entry.elf')],
                                       env=record['environment'],text=True)
-    matches = re.findall(r'(?m)^([0-9a-f]+) T fes_entry_crc32_supported$',symbols)
+    matches = re.findall(r'(?m)^([0-9a-f]+) T '+re.escape(symbol)+r'$',symbols)
     if len(matches) != 1:
-        raise ValueError('missing strong CRC feature checker')
+        raise ValueError('missing strong CPU feature checker')
     offset = int(matches[0],16) - ADDRESS
     # MRS X0, ID_AA64ISAR0_EL1 -> MOV X0, XZR, before the actual field check.
-    if not 64 <= offset < record['payload_offset']-4 or struct.unpack_from('<I',original,offset)[0] != 0xd5380600:
-        raise ValueError('CRC feature checker instruction changed')
+    if not 64 <= offset < record['payload_offset']-4 or struct.unpack_from('<I',original,offset)[0] != expected_word:
+        raise ValueError('CPU feature checker instruction changed')
     image = bytearray(original)
     struct.pack_into('<I',image,offset,0xaa1f03e0)
+    return bytes(image)
+
+
+def wrong_translation_image(record, original):
+    # Change the actual S1E2R probe to S1E1R in a private control. The EL1
+    # translation regime cannot establish this owned EL2 map. Real cleanup
+    # must still restore the original controls before rejection is reported.
+    found = [offset for offset in range(64,record['cache_map_address']-ADDRESS,4)
+             if struct.unpack_from('<I',original,offset)[0]&~31 == 0xd50c7800]
+    if len(found)!=3:raise ValueError('owned cache observer S1E2R sites changed')
+    image = bytearray(original)
+    for offset in found:
+        struct.pack_into('<I',image,offset,struct.unpack_from('<I',image,offset)[0]^0x40000)
     return bytes(image)
 
 
@@ -223,7 +242,10 @@ def main():
                'on',b'FES_ENTRY_MEMORY_CRC PASS')]
     for name,encoded,marker in inputs:
         variants.append((name,fault_image(record,image_build,encoded,output/(name+'-build')),'on',marker))
-    variants.append(('absent-crc-feature',absent_crc_image(record,image_build,original),'on',b'FES_ENTRY REJECT CRC32'))
+    variants.append(('absent-crc-feature',absent_feature_image(record,image_build,original,'fes_entry_crc32_supported',0xd5380600),'on',b'FES_ENTRY REJECT CRC32'))
+    variants.append(('unsupported-cache-cpu',absent_feature_image(record,image_build,original,'fes_entry_cache_supported',0xd5380700),'on',b'FES_ENTRY REJECT CACHE_CPU'))
+    variants.append(('wrong-map-crc',fault_image(record,image_build,packed,output/'wrong-map-crc-build',1),'on',b'FES_ENTRY REJECT MAP'))
+    variants.append(('wrong-translation-regime',wrong_translation_image(record,original),'on',b'FES_ENTRY REJECT TRANSLATION'))
     variants.append(('wrong-exception-level',original,'off',b'FES_ENTRY REJECT EL'))
     result = {"status": "running", "classification": "QEMU-only U-Boot/native handoff, not DE25 hardware",
               "producer_sha256": digest((HERE / "verify.py").read_bytes()),
@@ -235,6 +257,7 @@ def main():
               "uboot_build_sha256": digest(uboot_receipt_bytes), "cases": [],
               "startup_decoder_sha256": digest((HERE / "startup.py").read_bytes()),
               "memory_crc_fixture_sha256": digest((HERE/'testdata/memory_crc.c').read_bytes()),
+              "cache_model_sha256": digest((HERE/'cache_model.py').read_bytes()),
               "limitations": ["QEMU firmware and CPU are not the Nano firmware or CPU",
                               "no physical DDR, DMA, device, FPGA or recovery proof",
                               "build receipts are diagnostic hashes, not signatures"]}
@@ -274,6 +297,7 @@ def main():
                 digest((HERE / "verify.py").read_bytes()) != result["producer_sha256"] or
                 digest((HERE / "startup.py").read_bytes()) != result["startup_decoder_sha256"] or
                 digest((HERE/'testdata/memory_crc.c').read_bytes()) != result['memory_crc_fixture_sha256'] or
+                digest((HERE/'cache_model.py').read_bytes()) != result['cache_model_sha256'] or
                 (uboot_build / "result.json").read_bytes() != uboot_receipt_bytes):
             raise ValueError("test inputs changed during the run")
         result["status"] = "passed"

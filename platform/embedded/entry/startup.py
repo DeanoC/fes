@@ -45,8 +45,7 @@ def decode(data, through='retain_end'):
                                ('loader_begin', 'decode_begin', 'inflate_end', 'checksum_end', 'decode_end'))) or
                 (not rejection and (index >= len(expected) or phase != expected[index]))):
             report['errors'].append(f'out-of-order or duplicate startup checkpoint at line {number}')
-        state = (0 if phase in ('loader_begin', 'handoff', 'rejected') else
-                 0x1000 if phase in PHASES[1:6] else 0x1005)
+        state = 0 if phase in ('loader_begin', 'handoff', 'rejected') else 0x1005
         level = 2 if phase in PHASES[:7] or rejection else 1
         if row['sctlr'] & 0x1005 != state or row['el'] != level:
             report['errors'].append(f'wrong startup CPU/cache state at line {number}')

@@ -11,6 +11,8 @@ SECTIONS
     .payload : ALIGN(8) { KEEP(*(.payload)) }
     /* Stored in the image: no uninitialized memory or firmware stack required. */
     .stack : ALIGN(16) { . += 16384; __stack_top = .; BYTE(0); }
+    /* Cacheable loader mappings cover only materialized, owned pages. */
+    .image_pad : { BYTE(0); . = ALIGN(4096); }
     __image_end = .;
     __image_size = __image_end - _start;
     .init_array : { *(.init_array .init_array.*) }

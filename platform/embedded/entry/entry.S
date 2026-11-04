@@ -64,27 +64,150 @@ fes_entry_park:
     wfe
     b fes_entry_park
 
-/* Only instruction caching changes. Translation and data caching stay off. */
-.global fes_entry_loader_cache
-fes_entry_loader_cache:
-    mrs x1, sctlr_el2
-    cbz x0, .Lcache_off
+/* Fixed EL2 regime: little endian, 4K pages, >=40-bit PA, no VHE/stage2. */
+.global fes_entry_cache_supported
+fes_entry_cache_supported:
+    mrs x0, id_aa64mmfr0_el1
+    ubfx x1, x0, #28, #4
+    cbnz x1, .Lcache_unsupported
+    and x0, x0, #15
+    cmp x0, #2
+    b.lo .Lcache_unsupported
+    cmp x0, #6
+    b.hi .Lcache_unsupported
+    mrs x0, hcr_el2
+    ldr x1, =0x400000001
+    tst x0, x1
+    b.ne .Lcache_unsupported
+    mrs x0, sctlr_el2
+    ldr x1, =0x2081005             /* EE/WXN/M/C/I must be clear */
+    tst x0, x1
+    b.ne .Lcache_unsupported
+    mrs x0, ctr_el0
+    ubfx x0, x0, #16, #4
+    cmp x0, #2
+    b.lo .Lcache_unsupported
+    cmp x0, #8
+    b.hi .Lcache_unsupported
+    mov x0, #1
+    ret
+.Lcache_unsupported:
+    mov x0, #0
+    ret
+
+/* x0 root, x1 saved state, x2..x5 owned RAM/image bounds. No stack writes.
+ * Firmware's clean-cache ownership obligation is unchanged. Discard stale
+ * clean lines only for these owned ranges before enabling the private map. */
+.global fes_entry_cache_enable
+fes_entry_cache_enable:
+    mrs x9, sctlr_el2
+    str x9, [x1, #0]
+    mrs x9, tcr_el2
+    str x9, [x1, #8]
+    mrs x9, ttbr0_el2
+    str x9, [x1, #16]
+    mrs x9, mair_el2
+    str x9, [x1, #24]
+    stp x2, x3, [x1, #32]
+    stp x4, x5, [x1, #48]
+    /* Warm the trusted instruction stream before the bounded line walk. */
     dsb sy
     ic iallu
     dsb sy
     isb
-    orr x1, x1, #0x1000
-    b .Lcache_write
-.Lcache_off:
-    bic x1, x1, #0x1000
-.Lcache_write:
-    msr sctlr_el2, x1
+    ldr x9, [x1, #0]
+    orr x9, x9, #0x1000
+    msr sctlr_el2, x9
     isb
+    mrs x6, ctr_el0
+    ubfx x6, x6, #16, #4
+    mov x7, #4
+    lsl x6, x7, x6
     dsb sy
+    mov x7, x2
+1:  dc ivac, x7
+    add x7, x7, x6
+    cmp x7, x3
+    b.lo 1b
+    mov x7, x4
+2:  dc ivac, x7
+    add x7, x7, x6
+    cmp x7, x5
+    b.lo 2b
+    dsb sy
+    ldr x9, =0xff00
+    msr mair_el2, x9
+    ldr x9, =0x80823519
+    msr tcr_el2, x9
+    msr ttbr0_el2, x0
+    isb
+    tlbi alle2
+    dsb sy
+    isb
     ic iallu
     dsb sy
+    isb
+    ldr x9, [x1, #0]
+    orr x9, x9, #1
+    orr x9, x9, #4
+    orr x9, x9, #0x1000
+    msr sctlr_el2, x9
+    isb
+    mov x0, #1
+    ret
+
+/* x0 saved state. Everything needed is loaded before cache maintenance.
+ * No stack or memory stores follow the clean/invalidate loops. */
+.global fes_entry_cache_disable
+fes_entry_cache_disable:
+    ldp x9, x10, [x0, #0]
+    ldp x11, x12, [x0, #16]
+    ldp x2, x3, [x0, #32]
+    ldp x4, x5, [x0, #48]
+    mrs x6, ctr_el0
+    ubfx x6, x6, #16, #4
+    mov x7, #4
+    lsl x6, x7, x6
+    dsb sy
+    mov x7, x2
+1:  dc civac, x7
+    add x7, x7, x6
+    cmp x7, x3
+    b.lo 1b
+    mov x7, x4
+2:  dc civac, x7
+    add x7, x7, x6
+    cmp x7, x5
+    b.lo 2b
+    dsb sy
+    msr sctlr_el2, x9
+    isb
+    tlbi alle2
+    dsb sy
+    isb
+    ic iallu
+    dsb sy
+    isb
+    msr tcr_el2, x10
+    msr ttbr0_el2, x11
+    msr mair_el2, x12
     isb
     mrs x0, sctlr_el2
+    cmp x0, x9
+    b.ne .Lcache_restore_bad
+    mrs x0, tcr_el2
+    cmp x0, x10
+    b.ne .Lcache_restore_bad
+    mrs x0, ttbr0_el2
+    cmp x0, x11
+    b.ne .Lcache_restore_bad
+    mrs x0, mair_el2
+    cmp x0, x12
+    b.ne .Lcache_restore_bad
+    mov x0, #1
+    ret
+.Lcache_restore_bad:
+    mov x0, #0
     ret
 
 /* x0: validated native entry; x1: aligned temporary EL1 stack. */

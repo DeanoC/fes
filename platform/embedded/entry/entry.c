@@ -5,6 +5,7 @@
 #include "payload.h"
 #include "crc32.h"
 #include "memory.h"
+#include "map.h"
 
 #ifndef FES_ENTRY_RAM_START
 #error FES_ENTRY_RAM_START must be supplied by the selected diagnostic profile
@@ -20,7 +21,9 @@ extern const uint8_t __image_start[], __image_end[], __payload_start[], __payloa
 extern uint8_t __stack_top[];
 void fes_entry_enter_el1(uint64_t entry, uint64_t stack) __attribute__((noreturn));
 void fes_entry_park(void) __attribute__((noreturn));
-uint64_t fes_entry_loader_cache(uint64_t enabled);
+extern const uint8_t FES_ENTRY_MAP_CRC[];
+_Alignas(4096) struct fes_entry_tables fes_entry_tables;
+static _Alignas(64) struct fes_entry_cache_state cache_state;
 
 /* Freestanding GCC may use these for the small local plan. */
 void *memset(void *destination, int c, size_t length)
@@ -78,9 +81,9 @@ void fes_entry_checkpoint(const char *phase)
     puts(" el=2 sctlr="); hex64(state); puts("\n");
 }
 
-static void cache_mode(uint64_t enabled)
+static void cache_stop(void)
 {
-    if ((fes_entry_loader_cache(enabled) & 0x1005) != (enabled ? 0x1000 : 0)) {
+    if (!fes_entry_cache_disable(&cache_state)) {
         puts("FES_ENTRY REJECT MMU_CACHE\n");
         fes_entry_park();
     }
@@ -104,6 +107,11 @@ void fes_entry_main(void)
         puts("FES_ENTRY REJECT CRC32\n");
         fes_entry_park();
     }
+    if (!fes_entry_cache_supported()) {
+        fes_entry_checkpoint("rejected");
+        puts("FES_ENTRY REJECT CACHE_CPU\n");
+        fes_entry_park();
+    }
     if (FES_ENTRY_RAM_END <= FES_ENTRY_RAM_START ||
         FES_ENTRY_RAM_END - FES_ENTRY_RAM_START <= FES_ENTRY_PAYLOAD_MAX + FES_ENTRY_STACK_RESERVE + 0x10000) {
         puts("FES_ENTRY REJECT MEMORY\n");
@@ -111,11 +119,30 @@ void fes_entry_main(void)
     }
     uint64_t decode_base = FES_ENTRY_RAM_END - FES_ENTRY_STACK_RESERVE - FES_ENTRY_PAYLOAD_MAX;
     uint8_t *payload = (uint8_t *)(uintptr_t)decode_base;
-    cache_mode(1);
+    uint32_t map_crc;
+    if (!fes_entry_map_plan(&fes_entry_tables, (uintptr_t)&fes_entry_tables,
+            FES_ENTRY_RAM_START, FES_ENTRY_RAM_END, image_start, image_end, FES_ENTRY_UART_BASE) ||
+        !fes_entry_crc32((const uint8_t *)&fes_entry_tables, sizeof(fes_entry_tables), &map_crc) ||
+        map_crc != (uint32_t)(uintptr_t)FES_ENTRY_MAP_CRC) {
+        fes_entry_checkpoint("rejected");
+        puts("FES_ENTRY REJECT MAP\n");
+        fes_entry_park();
+    }
+    if (!fes_entry_cache_enable((uintptr_t)&fes_entry_tables, &cache_state,
+            FES_ENTRY_RAM_START, FES_ENTRY_RAM_END, image_start, image_end)) {
+        puts("FES_ENTRY REJECT MMU_CACHE\n");
+        fes_entry_park();
+    }
+    if (!fes_entry_cache_observe()) {
+        cache_stop();
+        fes_entry_checkpoint("rejected");
+        puts("FES_ENTRY REJECT TRANSLATION\n");
+        fes_entry_park();
+    }
     fes_entry_checkpoint("decode_begin");
     if ((image_start < decode_base + FES_ENTRY_PAYLOAD_MAX && decode_base < image_end) ||
         !fes_entry_unpack(__payload_start, stored_size, payload, FES_ENTRY_PAYLOAD_MAX, &payload_size)) {
-        cache_mode(0);
+        cache_stop();
         fes_entry_checkpoint("rejected");
         puts("FES_ENTRY REJECT PAYLOAD\n");
         fes_entry_park();
@@ -124,7 +151,7 @@ void fes_entry_main(void)
     if (!fes_entry_plan_decoded_elf(payload, payload_size, FES_ENTRY_RAM_START,
                             FES_ENTRY_RAM_END, image_start, image_end,
                             decode_base, FES_ENTRY_PAYLOAD_MAX, &plan)) {
-        cache_mode(0);
+        cache_stop();
         fes_entry_checkpoint("rejected");
         puts("FES_ENTRY REJECT ELF\n");
         fes_entry_park();
@@ -137,7 +164,7 @@ void fes_entry_main(void)
         fes_entry_zero(destination + segment->file_size, segment->memory_size - segment->file_size);
     }
     fes_entry_checkpoint("copy_end");
-    cache_mode(0);
+    cache_stop();
     fes_entry_checkpoint("handoff");
     puts("FES_ENTRY EL1 HANDOFF\n");
     fes_entry_enter_el1(plan.entry, (uintptr_t)__stack_top);

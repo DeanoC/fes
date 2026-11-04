@@ -10,10 +10,14 @@ to its recorded matched image; the compressed entry needs its own physical boot.
 U-Boot's `booti` path performs its normal interrupt/cache/MMU cleanup and the
 tested configuration enters the loader at EL2. The loader masks exceptions,
 requires EL2 with the MMU and caches disabled, and rejects CPU affinity other than the primary A55/A76 (QEMU: zero).
-During decoding and segment copying it enables only instruction caching, checks
-the readback, and leaves the MMU and data cache disabled. It disables and
-invalidates instruction caching before the same clean EL1 handoff. Invalid
-payloads also restore the disabled cache state before parking.
+During decoding and segment copying it installs a private EL2 identity map.
+Only the owned Go RAM and page-complete loader are normal cached memory. Go RAM
+is execute-never at EL2; the loader remains executable. Only the selected UART
+page is Device-nGnRnE; every other address is invalid. Live CPU controls and
+read/write translations are checked before decoding. It cleans and invalidates
+the owned cache lines, disables translation and both caches, invalidates the
+temporary TLB and restores the original EL2 SCTLR/TCR/TTBR0/MAIR before the same
+clean EL1 handoff. Invalid payloads perform the same cleanup before parking.
 It checks the entire static, little-endian AArch64 ELF, its executable entry,
 file and memory ranges, the 64 KiB early-runtime reservation, the initial-stack
 reservation at the top of Go RAM, and overlap with
@@ -40,10 +44,26 @@ aligned eight-byte loads and CRC32X plus bounded byte edges. Unsupported feature
 values park before decoding. Host checks use an independent portable CRC oracle.
 ELF copies and BSS clearing also use naturally aligned eight-byte accesses where
 possible, preserving exact byte extents and every existing plan exclusion.
-ARM64 compilation requires strict alignment while the MMU/cache are off. Inflater
+ARM64 compilation requires strict alignment through the uncached entry/exit. Inflater
 static tables are materialized in the stored image; the builder conservatively
 checks the sum of C stack frames plus exception headroom against the existing
 16 KiB loader stack. EL2 and EL1 faults use the loader's own parking vectors.
+
+The table planner requires 2 MiB-aligned Go RAM and a disjoint, page-complete
+loader in the same 1 GiB window. It stores 22 table pages inside the loader;
+all table addresses must lie within that image. The linker materializes the
+last page's padding. After an initial layout link, the builder runs the same
+allocation-free C planner on the host and relinks its expected table CRC as an
+absolute symbol. Every layout address must remain unchanged. Runtime checks
+that CRC before enabling the map. The CRC is a diagnostic binding, not payload
+authentication or an ownership grant.
+
+The temporary regime requires little endian operation, WXN off, a 4 KiB
+granule, at least 40-bit physical addressing, bounded cache-line size, and no
+VHE or stage-2 translation. Initial stale clean lines are invalidated only in
+the owned RAM/image ranges. The exit's register-only assembly performs no
+memory or stack stores after cleaning those ranges and checks the restored
+controls. Other CPUs, DMA and firmware ownership remain caller obligations.
 
 `FES_BOOT_STEP` records sample the physical CPU counter, frequency, exception
 level and cache-control register at loader/decode/copy/handoff boundaries.
@@ -99,13 +119,16 @@ python3 platform/embedded/entry/verify.py \
 The U-Boot checkout must be clean at pinned commit
 `d0f8813fd6bf8191d49c8b8d2035ffd2ae10c413`; see the
 [vendor firmware guide](../firmware/README.md) for its source. The verifier
-checks the U-Boot build receipt and image hashes, then boots eleven independent
+checks the U-Boot build receipt and image hashes, then boots fourteen independent
 QEMU guests: a complete native Go probe, corrupt ELF, loader/decode-workspace
 overlap, bad gzip CRC, truncated DEFLATE, wrong decoded size, an extra member,
 and entry at the wrong exception level. A target C payload executes the actual
 copy/zero/CRC primitives across every byte alignment and word boundary against
 independent byte/bit oracles and canaries. A private control masks the CPU's CRC
 feature read to exercise real early rejection; this simulates an absent feature.
+Further private controls simulate an unsupported cache CPU, corrupt the expected
+table CRC, and use the wrong translation regime in the live observer. Rejection
+must retain the clean CPU state and stop before native handoff.
 Negative ELF cases relink the same
 checked entry objects around private malformed payloads, so the actual target
 planner must reject them after successful decoding. Each guest has one CPU and
