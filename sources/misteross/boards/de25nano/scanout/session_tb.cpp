@@ -165,6 +165,10 @@ int main() {
         s.gp(0x14, 0, 1); s.publish(2); s.idle(1650 * 750);
         s.check_color = true; s.idle(1650 * 750); s.close();
         require(s.checked_pixels >= 2 * 1280 * 720 && !s.dut.faulted, "reallocated opaque frame");
+        s.base = 0x46000000u; s.palette[1] = 0;
+        s.gp(0x14, 0, 1); s.publish(3); s.idle(1650 * 750);
+        s.check_color = true; s.idle(1650 * 750); s.close();
+        require(s.checked_pixels >= 3 * 1280 * 720 && !s.dut.faulted, "transparent frame did not preserve machine");
         std::cout << "PASS allocated DE25 session: shared blend/sync, kernel-only publication, bounded relocated reads, held-response drain and allocation/sequence reopen\n";
         return 0;
     } catch (const std::exception& error) {
