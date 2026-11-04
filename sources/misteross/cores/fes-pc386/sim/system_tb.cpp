@@ -41,7 +41,8 @@
 // clock runs throughout, so the presenter and plane load port 2 as on a kit.
 // Throughout, it reads the status ring (pc386_status) from the window as the
 // HPS does: every record must hold the status words the bench saw before the
-// edge of the clock its stamp names.
+// edge of the clock its stamp names, and at most one, the first, may come too
+// late to check.
 //
 // It prints:
 //   WRITE-TEST <offset>|absent              where the AUTOEXEC.BAT change went
@@ -217,8 +218,9 @@ public:
             print_status();
             if (reason == "prompt") stop();
             check_ring();
-            check(ring_checked > 0 && ring_mismatches == 0,
-                  "the status ring's " + std::to_string(ring_checked) + " records checked hold the status words");
+            check(ring_checked > 0 && ring_mismatches == 0 && ring_late <= 1,
+                  "the status ring's " + std::to_string(ring_checked) + " records checked hold the status words (" +
+                      std::to_string(ring_late) + " late)");
         } catch (const MailboxError &error) {
             std::printf("MAILBOX %s\n", error.what());
             reason = "mailbox";
@@ -258,7 +260,7 @@ private:
     // to check, and the counts.
     std::vector<std::array<uint64_t, 6>> history = std::vector<std::array<uint64_t, 6>>(HISTORY);
     uint32_t ring_next = 0;
-    uint64_t ring_checked = 0, ring_mismatches = 0;
+    uint64_t ring_checked = 0, ring_mismatches = 0, ring_late = 0;
 
     // The geometry machine_tb infers: the first partition's end head and
     // sector, else 16 heads of 63 sectors.
@@ -672,7 +674,10 @@ private:
     // The records written since the last look, as the HPS reads them: the
     // head's count, then each record whose word 0 names it. A port 2 reset
     // starts the count again. 32768 clocks is half a period, so no record is
-    // missed or overwritten between looks.
+    // missed or overwritten between looks. The core's clock count is one
+    // behind cycles: the bench's first clock() is Verilator's settle, not a
+    // rising edge. A record the disk's CRC pass kept off the port until its
+    // clock left the history is counted late, not checked.
     void check_ring() {
         uint64_t head = ring_word(RING_HEAD);
         if (uint32_t(head >> 32) != RING_MAGIC) return;
@@ -682,13 +687,17 @@ private:
             uint32_t at = RING_RECORDS + 64 * (ring_next % RING_SLOTS);
             uint64_t stamp = ring_word(at + 56);
             bool named = ring_word(at) == (uint64_t(ring_next) << 32 | RING_MAGIC);
-            if (!named || stamp >= cycles || cycles - stamp >= HISTORY) {
+            if (named && stamp + 1 < cycles && cycles - stamp - 1 >= HISTORY) {
+                ++ring_late;
+                continue;
+            }
+            if (!named || stamp + 1 >= cycles) {
                 std::printf("RING-MISMATCH %u stamp=%llu word=0 ring=%016llx status=-\n", ring_next,
                             (unsigned long long)stamp, (unsigned long long)ring_word(at));
                 ++ring_mismatches;
                 continue;
             }
-            const auto &seen = history[stamp % HISTORY];
+            const auto &seen = history[(stamp + 1) % HISTORY];
             for (unsigned n = 0; n < 6; ++n)
                 if (ring_word(at + 8 * (n + 1)) != seen[n] && ++ring_mismatches <= 16)
                     std::printf("RING-MISMATCH %u stamp=%llu word=%u ring=%016llx status=%016llx\n", ring_next,
