@@ -59,6 +59,9 @@ func (c *Client) Health(ctx context.Context) (protocol.Health, error) {
 }
 
 func (c *Client) Status(ctx context.Context) (protocol.Status, error) {
+	if err := c.kitLease.resumeLocal(ctx); err != nil {
+		return protocol.Status{}, err
+	}
 	var status protocol.Status
 	err := c.doJSON(ctx, http.MethodGet, "/v1/status", nil, &status)
 	return status, err

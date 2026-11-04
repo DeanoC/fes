@@ -54,6 +54,13 @@ func (s *Service) rememberZX81Program(ctx context.Context, client serviceClient,
 		return zx81SaveFailure(ctx, play, "target_client_missing", nil)
 	}
 
+	// After a host restart the agent may report a package generation without a
+	// library game or system. Inspect that exact package before allowing Stop:
+	// pending ZX81 SAVE bytes must not be discarded without a game binding.
+	if play.gameID == "" && play.packageID != "" {
+		return s.rememberUnboundZX81Program(ctx, client, play)
+	}
+
 	// Library core entries carry their selected core identity with the play, so
 	// ordinary FPGA stops do not depend on a catalog read just to rule out ZX81.
 	if play.system == catalog.CorePlatform {

@@ -1299,7 +1299,12 @@ func runWithComposer(ctx context.Context, args []string, stdout, stderr io.Write
 		return 1
 	}
 	closers = append(closers,
-		runCloser{label: "session cleanup", close: func() error { return stopServiceForShutdown(fogcastService) }},
+		runCloser{label: "session cleanup", close: func() error {
+			if *kitMode {
+				return nil
+			}
+			return stopServiceForShutdown(fogcastService)
+		}},
 		runCloser{label: "API cleanup", close: closeRemoteInput},
 	)
 

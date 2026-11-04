@@ -422,6 +422,13 @@ func OpenWithHostProcessStarter(ctx context.Context, paths Paths, httpClient *ht
 		}
 		owner, _ := os.Hostname()
 		lease := targetclient.NewKitLease(baseURL, target.Agent, &operationClient, "fogcast@"+owner, "interactive game/development session")
+		if config.CorePackages.Kit && target.Name == KitHostTargetName {
+			ip := net.ParseIP(baseURL.Hostname())
+			if ip == nil || !ip.IsLoopback() {
+				return nil, errors.New("kit host target must use a loopback address")
+			}
+			lease = targetclient.NewLocalKitLease(baseURL, target.Agent, &operationClient)
+		}
 		leaseMu.Lock()
 		leases = append(leases, lease)
 		leaseMu.Unlock()
@@ -2431,7 +2438,7 @@ func (s *Service) statusTarget(parent context.Context, target string) (protocol.
 	s.executionMu.Unlock()
 	if !localExecution && s.discoveryEnabledForContext(ctx) {
 		if _, err := s.refreshTargetConnection(ctx); err != nil {
-			if target == "" && s.hostEmulator.Binary != "" && (localExecution || !knownFPGA) {
+			if target == "" && !s.kitHost && s.hostEmulator.Binary != "" && (localExecution || !knownFPGA) {
 				return protocol.Status{State: protocol.StateIdle}, nil
 			}
 			return protocol.Status{}, canonicalRemoteError(err, protocol.CodeMiSTerUnavailable)
@@ -2473,7 +2480,7 @@ func (s *Service) statusTarget(parent context.Context, target string) (protocol.
 		knownFPGA := target != "" || selectedPlay.execution != "" || selectedPlay.packageRejection != nil
 		localExecution := target == "" && s.activeExecution == ExecutionHostOnly
 		s.executionMu.Unlock()
-		if target == "" && s.hostEmulator.Binary != "" && (localExecution || !knownFPGA) {
+		if target == "" && !s.kitHost && s.hostEmulator.Binary != "" && (localExecution || !knownFPGA) {
 			return protocol.Status{State: protocol.StateIdle}, nil
 		}
 		s.allowSelectedTargetRepair(parent)
@@ -2481,7 +2488,7 @@ func (s *Service) statusTarget(parent context.Context, target string) (protocol.
 	}
 	status, err := client.Status(ctx)
 	if err != nil {
-		if target == "" && s.hostEmulator.Binary != "" && (localExecution || !knownFPGA) {
+		if target == "" && !s.kitHost && s.hostEmulator.Binary != "" && (localExecution || !knownFPGA) {
 			return protocol.Status{State: protocol.StateIdle}, nil
 		}
 		s.allowSelectedTargetRepair(parent)
@@ -3524,6 +3531,9 @@ func kitLeaseOf(client serviceClient) *targetclient.KitLease {
 	}
 	return leased.KitLease()
 }
+
+// KitHostMode reports whether this service controls its own kit agent.
+func (s *Service) KitHostMode() bool { return s != nil && s.kitHost }
 
 // SessionTarget is the FPGA target bound to the host session: the active
 // execution target, or the selected configured target when idle.
