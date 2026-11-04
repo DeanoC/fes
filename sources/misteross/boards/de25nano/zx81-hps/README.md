@@ -274,3 +274,11 @@ selection includes this case. This is digital integration evidence; the wrapper
 is not yet selected by the canonical producer or production runtime. Physical
 reset/clock/audio, ROM/RAM-pack composition, Quartus and native BASIC testing
 remain required.
+
+The existing builder exposes `prepare_standard_component(output, revision)` for
+Quartus integration. It stages the new Qsys component from captured sources,
+reuses guarded M20K machine/tape/video/reader adaptations, and records source and
+derived-file hashes. The Qsys interfaces declare separate computer/scanout clocks
+and reset releases, one read-only memory master, finished video, PCM and expansion
+conduits. It creates component files only, without selecting a canonical board
+recipe, compiling an image, admitting a runtime profile or programming hardware.

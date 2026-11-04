@@ -33,6 +33,8 @@ module fes_de25_zx81_standard #(
     input wire avm_readdatavalid,
     input wire [1:0] avm_response,
     output wire [27:0] video,
+    output wire [23:0] video_rgb,
+    output wire video_de, video_hs, video_vs,
     output wire signed [15:0] audio_sample,
     output wire exec_reset,
     output wire [15:0] bus_addr,
@@ -54,6 +56,7 @@ module fes_de25_zx81_standard #(
     wire [6:0] display_opcode;
     wire [7:0] display_index;
     wire [15:0] display_argument, response_data;
+    assign {video_vs, video_hs, video_de, video_rgb} = video[26:0];
     fes_de25_computer_transport transport (
         .clk(clk_sys), .reset_n(reset_n), .video_ready(video_ready),
         .address(computer_address), .read(computer_read), .write(computer_write),

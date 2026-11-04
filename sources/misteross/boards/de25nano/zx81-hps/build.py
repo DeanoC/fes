@@ -93,6 +93,77 @@ def replace_once(source, before, after):
     return source.replace(before, after)
 
 
+def capture_standard(revision=None):
+    """Source closure for the standard component, before a board recipe selects it."""
+    sources = capture(revision)
+    paths = {BOARD + "zx81-hps/" + name for name in
+             ("fes_de25_zx81_standard.v", "fes_de25_zx81_standard_hw.tcl")}
+    paths |= {"sources/misteross/cores/fes-zx81/rtl/" + name for name in
+              ("fes_zx81_core.v", "zx81_video_720p.v")}
+    paths |= {"sources/misteross/cores/fes-common/rtl/" + name for name in
+              ("fes_display_plane.v", "fes_display_cdc.v")}
+    paths |= {"sources/misteross/cores/fes-common/generated/" + name for name in
+              ("fes_computer.vh", "fes_application.vh", "fes_display_plane.vh")}
+    paths |= {"sources/misteross/cores/fes-menu/rtl/" + name for name in
+              ("fes_menu_control.v", "fes_menu_video.v", "fes_menu_reader.v")}
+    paths |= {BOARD + "scanout/" + name for name in
+              ("fes_de25_session_display.v", "fes_de25_scanout.v", "generated/fes_de25_scanout.vh")}
+    for path in sorted(paths):
+        sources[path] = (ROOT / path).read_bytes() if revision is None else subprocess.check_output(
+            ["git", "show", revision + ":" + path], cwd=ROOT)
+    return sources
+
+
+def prepare_standard_component(output, revision=None):
+    """Stage a captured Qsys component; no generation, synthesis or admission."""
+    sources = capture_standard(revision)
+    observed = identity() if revision is None else {}
+    selected = {"fes_revision": revision, "source_classification": "committed"} if revision else {
+        "base_revision": observed.get("fes_revision", observed.get("base_revision")),
+        "source_classification": "working-copy-diagnostic"}
+    output = Path(output).resolve()
+    output.mkdir(parents=True, exist_ok=False)
+    snapshot = output / "functional-source"
+    for name, data in sources.items():
+        path = snapshot / name; path.parent.mkdir(parents=True, exist_ok=True); path.write_bytes(data)
+    retained = load(snapshot / BOARD / "zx81-hps/build.py", "standard_retained_computer")
+    display = load(snapshot / BOARD / "display/build.py", "standard_retained_display")
+    core = "sources/misteross/cores/fes-zx81/rtl/"
+    common = "sources/misteross/cores/fes-common/"
+    files = {name: sources[BOARD + "zx81-hps/" + name] for name in
+             ("fes_de25_zx81_standard.v", "fes_de25_zx81_standard_hw.tcl", "fes_de25_computer.v")}
+    files.update({name: sources[core + name] for name in
+        ("fes_zx81_core.v", "zx81_machine.sv", "zx81_machine_clock.v", "zx81_keyboard.v",
+         "zx81_model.vh", "zx81_bus_pack.vh", "zx8x.mif")})
+    repairs = {}
+    for source, target, derive in (
+        ("zx81_dpram.v", "zx81_dpram_de25.v", retained.retarget_ram),
+        ("zx81_tape_store.v", "zx81_tape_store_de25.v", retained.retarget_tape),
+        ("zx81_video_720p.v", "zx81_video_720p_de25.v", retained.ZX81.retarget_video)):
+        files[target], repairs[target] = derive(sources[core + source])
+    files["fes_menu_reader_de25.v"], repairs["fes_menu_reader_de25.v"] = display.retarget_menu_ram(
+        sources["sources/misteross/cores/fes-menu/rtl/fes_menu_reader.v"])
+    for name in ("fes_computer_mailbox.v", "fes_display_plane.v", "fes_display_cdc.v"):
+        files[name] = sources[common + "rtl/" + name]
+    for name in ("fes_z80_alu", "fes_z80_engine", "fes_z80_bus", "fes_z80_nmos"):
+        files[name + ".sv"] = sources[common + "rtl/z80/" + name + ".sv"]
+    for name in ("fes_menu_control.v", "fes_menu_video.v"):
+        files[name] = sources["sources/misteross/cores/fes-menu/rtl/" + name]
+    for name in ("fes_computer.vh", "fes_application.vh", "fes_display_plane.vh"):
+        files["generated/" + name] = sources[common + "generated/" + name]
+    files["generated/fes_de25_computer.vh"] = sources[BOARD + "zx81-hps/generated/fes_de25_computer.vh"]
+    for name in ("fes_de25_session_display.v", "fes_de25_scanout.v", "generated/fes_de25_scanout.vh"):
+        files[name] = sources[BOARD + "scanout/" + name]
+    component = output / "component"
+    for name, data in files.items():
+        path = component / name; path.parent.mkdir(parents=True, exist_ok=True); path.write_bytes(data)
+    record = {**selected, "scope": "standard-Qsys-component-only", "hardware_acceptance": False,
+        "sources": {name: sha(data) for name, data in sorted(sources.items())},
+        "files": {name: sha(data) for name, data in sorted(files.items())}, "derivations": repairs}
+    (output / "component-inputs.json").write_text(json.dumps(record, indent=2, sort_keys=True) + "\n")
+    return component
+
+
 def transport_constant(source, name):
     values = re.findall(r"^`define FES_DE25_COMPUTER_" + name + r" 32'h([0-9a-f]{8})$", source, re.M)
     if len(values) != 1: raise ValueError("missing/duplicate transport constant: " + name)

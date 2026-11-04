@@ -50,6 +50,15 @@ canonical package producer or admitted by the production runtime. ROM/expansion
 composition, qualified physical clocks/audio, Quartus and native acceptance remain
 open; the diagnostic is not a full standard 16K RAM-pack or BASIC proof.
 
+`prepare_standard_component(output, revision)` in the existing ZX81-HPS builder
+stages a source-captured Qsys component. Its two Avalon slaves retain separate
+100 MHz computer and pixel-clock scanout interfaces, with independent reset
+releases, the read-only allocated memory master, video/PCM and expansion conduits.
+Source and derived-file hashes accompany the component. Existing guarded M20K
+adaptations handle machine/tape/video RAM and the allocated reader; helpers run
+from the retained source tree. This prepares component files only. The canonical
+board recipe and normal package/runtime admission still select the older path.
+
 The standard core's `HPS_DDR_WINDOW` parameter defaults to one for DE10. Setting
 it to zero leaves the session-display capability intact and clears only the
 reserved-window capability. The shared mailbox exposes the same independent
