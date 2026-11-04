@@ -220,3 +220,41 @@ the broader diagnostic executable then passed. Those initial failures remain
 in the private logs. The committed focused run above uses the corrected loader
 invocation and does not claim a full current-source runtime suite or hardware
 acceptance. Standard production profile/package selection remains unfinished.
+
+## Standard production profile and agent integration
+
+The existing production factory now constructs the shared FesGpCoreDriver for
+`de25-linux-computer-v1`, with the actual GP display driver and ABI3 allocation
+adapter. It admits the exact format2 standard ZX81 contract: fixed video, HID,
+controllers, fixed PCM, cassette/SAVE, session display, shared blend plane and
+allocated scanout1.1. No Cyclone V DDR window or Linux transmitter recipe is
+used. The prior BRAM profile remains explicit, with no automatic fallback.
+
+At source `fd79133d0`, six native test executables passed in57.949 seconds with
+generated consistency. The six actual managed-SDK AArch64 executables passed
+under Cortex-A76 QEMU in61.119 seconds. They cover exact profile refusal,
+read-only bridge readiness and sticky faults, selected allocated overlay,
+build-bound session allocation, production construction, MENU→standard ZX81,
+three complete open/present/close cycles and Stop back to MENU. The running
+machine is not held during visibility changes. Session control goes through
+the real GP display driver and atomic bridge; kernel operations and machine/
+pixel-control behavior remain independent injected models.
+
+The first lifecycle candidate failed first-open because launch already owned a
+cold allocation. The adapter now reuses that unexposed allocation for first-open;
+subsequent reopen still requires successful retirement and gets fresh storage.
+The next candidate reached Stop and exposed missing GP display commands in the
+test model; the test now covers those actual driver commands too. Failed runs
+and the deliberately stopped superseded target build are retained privately.
+
+Shared schema/emitter and FogCast package-store, media protocol and runtime
+client tests passed in30.316 seconds at source `775481d01`; those Go inputs are
+unchanged at `fd79133d0`. The agent consumes a real production C++ serializer
+fixture. Native and AArch64 outputs match its bytes exactly, including mapping
+agreement, observed identity, allocated-session status and the full16K tape
+limit. See [production-runtime.json](production-runtime.json).
+
+This completes software profile/factory wiring, not canonical artifact or board
+acceptance. The sealed standard package producer, output/reference timing checks,
+independent artifact rebuild and managed hardware tests remain open. The physical
+kit still runs its previous verified bring-up package and software baseline.

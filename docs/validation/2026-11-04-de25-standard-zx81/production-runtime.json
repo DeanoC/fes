@@ -1,0 +1,79 @@
+{
+  "abi": "fes.computer 1.0",
+  "canonical_standard_package_built": false,
+  "checks": {
+    "aarch64": {
+      "elapsed_seconds": 61.119,
+      "result": {
+        "core_package_test": {
+          "result": "passed",
+          "seconds": 0.569
+        },
+        "de25_fpga_manager_test": {
+          "result": "passed",
+          "seconds": 0.217
+        },
+        "de25_menu_test": {
+          "result": "passed",
+          "seconds": 0.065
+        },
+        "fes_gp_test": {
+          "result": "passed",
+          "seconds": 8.942
+        },
+        "native_hardware_test": {
+          "result": "passed",
+          "seconds": 0.267
+        },
+        "production_hardware_test": {
+          "result": "passed",
+          "seconds": 0.034
+        }
+      },
+      "source_revision": "fd79133d0d66d4052e4763ec8988434fda947646"
+    },
+    "native": {
+      "elapsed_seconds": 57.949,
+      "result": {
+        "make_check": "passed",
+        "native_tests": "passed",
+        "seconds": 57.88
+      },
+      "source_revision": "fd79133d0d66d4052e4763ec8988434fda947646"
+    },
+    "shared_and_agent": {
+      "elapsed_seconds": 30.316,
+      "result": {
+        "agent": {
+          "result": "passed",
+          "seconds": 29.709
+        },
+        "shared": {
+          "result": "passed",
+          "seconds": 0.547
+        }
+      },
+      "source_revision": "775481d01ef80026b2ce2fcf09e247ab19b53169"
+    }
+  },
+  "classification": "production software construction and lifecycle with injected hardware, not board acceptance",
+  "core_id": "fes.zx81",
+  "hardware_changed": false,
+  "owner_abi": 3,
+  "programming_profile": "de25-linux-computer-v1",
+  "remaining": [
+    "Final HDMI/audio output-reference timing checks",
+    "Canonical sealed standard-core producer and independent rebuild",
+    "Managed bundle/package install and exact-artifact board acceptance",
+    "Refresh actual combined native/AArch64 proof receipt after producer inputs stabilize",
+    "ROM/expansion persona composition and remaining normal-kit recovery gates"
+  ],
+  "required_interfaces": 9,
+  "reserved_hps_ddr_window": false,
+  "runtime_status_fixture_matches_native_and_aarch64": true,
+  "runtime_status_fixture_sha256": "8abb2253bcb00f73a25c0f9dda1ec01c718314d06d3841e51a95fd3487e0190f",
+  "sdk_archive_sha256": "d5bac20323fe6225b984e5a0f35ac087bfb4379dca2b40245e4eab97bd019bf7",
+  "software_profile_admitted": true,
+  "source_revision": "fd79133d0d66d4052e4763ec8988434fda947646",
+  "target_execution": "Actual AArch64 managed-SDK binaries under Cortex-A76 QEMU with explicit target loader"
+}
