@@ -19,6 +19,22 @@ selection and transfer. libmister-runtime programs the FPGA.
 
 ## DE25-Nano board diagnostic
 
+The standard ZX81 machine/control/capture is `cores/fes-zx81/rtl/fes_zx81_core.v`.
+The DE10 `top.v` supplies its clocks, HPS GP transport, HDMI, audio serializer,
+registered expansion placement and session-plane memory adapter. The shared
+module retains the standard HID, controller/audio capabilities, cassette SAVE,
+machine models and display-control request/reply path. Its guest clock fraction
+is parameterized independently of the board clock. The registered
+`expansion.socket` instance and `plug_addr` aliases remain at the DE10 top level.
+The session simulation runs the legacy simple-computer harness and this actual
+standard computer core at a 100 MHz system clock with unrelated 74.25 MHz pixels.
+The latter uses a modeled DE10 DDR adapter to exercise the shared display plane;
+it does not qualify the DE25 allocation/transport adapters or a DE25 RBF.
+
+DE25 currently uses the separate bring-up wrapper described below. Porting the
+standard core's board adapters replaces that reduced wrapper; adding more
+guest features to the bring-up implementation is not the standard-core path.
+
 `scripts/build_de25_zx81_package.py` provides the canonical format-2 BRAM ZX81
 recipe for explicit `fes.zx81`/`de25-nano` lookup. It binds captured machine,
 transport, ROM, board, producer and actual installed Quartus execution inputs

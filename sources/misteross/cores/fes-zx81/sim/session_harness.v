@@ -22,6 +22,25 @@ module zx81_session_harness (
     wire [6:0] opcode;
     wire [7:0] index;
     wire [15:0] argument, response_data;
+`ifdef FES_ZX81_STANDARD_CORE
+    wire ram_we;
+    fes_zx81_core #(.BUILD_ID(128'h00112233445566778899aabbccddeeff),
+        .FIRMWARE_INIT("build/sim/fes-zx81-session/session-rom.hex"),
+        .CLOCK_NUMERATOR(13), .CLOCK_DENOMINATOR(200)) core (
+        .clk_sys(clk_sys), .pixel_clk(pixel_clk), .reset_hold(1'b0), .gpo(gpo), .gpi(gpi),
+        .exec_reset(exec_reset), .machine_video(machine_word), .audio_sample(),
+        .display_request(request), .display_opcode(opcode), .display_index(index), .display_argument(argument),
+        .display_response_valid(response_valid), .display_response_error(response_error),
+        .display_response_data(response_data), .display_quiesced(quiesced),
+        .bus_addr(), .bus_wdata(), .bus_mreq_n(), .bus_iorq_n(), .bus_rd_n(), .bus_wr_n(),
+        .bus_m1_n(), .bus_rfsh_n(), .bus_cpu_clock(), .bus_rdata(8'd0), .bus_peek_data(8'd0),
+        .bus_dsel(1'b0), .bus_romcs(1'b0), .bus_wait(1'b0), .bus_ram_present(1'b0),
+        .peek_addr(peek_addr), .peek_data(peek_data), .cpu_addr(cpu_addr),
+        .ram_write_enable(ram_we), .raster_h(raster_h), .raster_v(raster_v)
+    );
+    assign {vs, hs, de, machine_rgb} = machine_word[26:0];
+    assign keyboard = core.keyboard;
+`else
     wire tape_ready, tape_busy;
     wire [14:0] tape_size;
     wire [13:0] tape_addr;
@@ -51,7 +70,6 @@ module zx81_session_harness (
         .bus_m1_n(), .bus_rfsh_n(), .bus_cpu_clock(), .bus_rdata(8'd0), .bus_peek_data(8'd0),
         .bus_dsel(1'b0), .bus_romcs(1'b0), .bus_wait(1'b0), .bus_ram_present(1'b0)
     );
-    always @(posedge clk_sys) if (ram_we && !exec_reset) cpu_writes <= cpu_writes + 32'd1;
     zx81_video_720p video (
         .clk_sys(clk_sys), .ce_6m5(ce_6m5), .zx_pixel(video_pixel), .hblank(hblank), .vblank(vblank),
         .pixel_clk(pixel_clk), .red(machine_rgb[23:16]), .green(machine_rgb[15:8]), .blue(machine_rgb[7:0]),
@@ -59,6 +77,8 @@ module zx81_session_harness (
         .raster_h(raster_h), .raster_v(raster_v), .src_x_max(), .src_y_max()
     );
     assign machine_word = {1'b1, vs, hs, de, machine_rgb};
+`endif
+    always @(posedge clk_sys) if (ram_we && !exec_reset) cpu_writes <= cpu_writes + 32'd1;
     wire ddr_hold, ddr_reset, ddr_drained, ddr_read, ddr_waitrequest, ddr_readdatavalid;
     wire [27:0] ddr_address;
     wire [7:0] ddr_burstcount;
