@@ -182,6 +182,7 @@ struct Bench : Clock {
 };
 int main(int argc, char** argv) {
     Verilated::commandArgs(argc, argv);
+    Verilated::threadContextp()->threads(1);
     try {
         Bench b;
         b.hold(); b.select(false, false); b.cycles(100);

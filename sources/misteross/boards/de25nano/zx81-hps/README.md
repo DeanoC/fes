@@ -343,7 +343,8 @@ separation, empty/RAM/empty reselection, six live-write freeze phases, independe
 client HOLD/PR freeze, and a poisoned GP transport with the PR controller still
 running. A wrong persona or a callback failure after selection must leave the
 machine held in Frozen or sticky Fault and poison the PR client; another request must perform no writes
-or configuration callback. Two randomized initial-memory seeds are required.
+or configuration callback. The bench uses one simulation worker, including under
+AArch64 emulation. Two randomized initial-memory seeds are required.
 The runtime sources, RTL and bench compile from the retained source snapshot;
 source, derived-memory/firmware, tool, binary and log identities are retained in
 `proof.json`.
