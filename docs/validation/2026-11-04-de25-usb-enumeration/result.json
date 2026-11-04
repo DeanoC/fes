@@ -358,5 +358,27 @@
       "out/terasic-git-restore-uboot/include/dt-bindings/reset/altr,rst-mgr-agx5.h": "2d544eaabc61357ed93525c80d425cc1bbc19ca00f16ffd21e7eb0a5157b15d3",
       "out/terasic-git-restore-uboot/arch/arm/dts/socfpga_agilex5.dtsi": "d0b1f1376291208d49422a1175f7cc3e14212bafcc4ef8b53f53af1a55c8fdb2"
     }
+  },
+  "retention": {
+    "status": "passed",
+    "scope": "paired-reset completion failure and final successful device enumeration with unsupported keyboard profile; exact artifacts, procedures, source delta verified",
+    "head": "29a4f08b12b8d6b173cde9dab5926a3ae4744aae",
+    "hardware_observers": [
+      "ecfec51a0",
+      "76f44112d"
+    ],
+    "archive_bytes": 56746612,
+    "archive_sha256": "67bc51163588da9650b8bbecd40830648363a789ab55362d7401cc1d929a0de0",
+    "archive_regular_files": 477,
+    "source_update_sha256": "3b170ecf277b6c66b262e54a35b5e021d5b1687c8802442523f845b1e2caa304",
+    "source_restore_and_strict_fsck": true,
+    "required_prior_files": {
+      "/home/deano/fes-retained/de25-tenfoot-native-boot-20261104-r3/source.bundle": "daeee37ba8c039ffc165c2c92d7a639af01c441099fe1359ae207846fa75216f",
+      "/home/deano/fes-retained/de25-tenfoot-core-cycle-20261104-r2/source-update.bundle": "1def434cc2e97d68da24158e8b153e238ecdcf024c060c60c62c8f8a68b8d497",
+      "/home/deano/fes-retained/de25-tenfoot-native-boot-20261104-r3/matched-candidate.tar.gz": "1479d5fa439c77457a3c19959a97b810b8ce5a6aa0672bb4567519f2d7229d17"
+    },
+    "claim_retained": true,
+    "USB_stop_proven": false,
+    "hardware_qualification": false
   }
 }

@@ -89,3 +89,11 @@ Evidence and procedures: `out/nano-usb-paired-reset-20261104/`,
 `out/nano-usb-jtag-check-20261104{,-r2}/`,
 `out/nano-usb-completion-20261104/`, and
 `out/nano-usb-completion-trial-20261104/`.
+
+Retained copy: `/home/deano/fes-retained/de25-usb-enumeration-20261104-r1/`.
+All 477 regular files in the 56746612-byte artifact/procedure
+archive passed independent readback hashes. The source delta restored with its
+two named preceding bundles and passed strict Git object verification. The
+prior sealed-project/vendor archive remains an explicit dependency. Physical
+source identities remain ecfec51a0 and76f44112d; later documentation is not
+relabelled as board-tested.
