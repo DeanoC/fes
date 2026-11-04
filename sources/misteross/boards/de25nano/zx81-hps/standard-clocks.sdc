@@ -83,5 +83,5 @@ foreach {label bit divide port} {
     set target [get_ports $port]
     if {[get_collection_size $phase] != 1 || [get_collection_size $source_clock] != 1 ||
         [get_collection_size $target] != 1} {error "DE25 standard I2S $label endpoints changed"}
-    create_generated_clock -name "de25_i2s_${label}" -source $source_clock -divide_by $divide $target
+    create_generated_clock -name "de25_i2s_${label}" -source $source_clock -divide_by $divide $phase
 }
