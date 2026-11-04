@@ -1,0 +1,194 @@
+{
+ "run": "s1",
+ "kit": "B",
+ "package": "de3173afc9a209e77f2f87f2edc7fcccde0039567c5de26ea47c2f8d49d2fd00",
+ "package_file_sha256": "9b241a4a6426240477e6a1a18392538a936b1af1bf8533f152394160d9ad6c22",
+ "baseline": "main bb51f4454eb72048cefeea16aa16b28eb2aadaad, software a8cd30c49afd79eb7668af7ab7ae8a8e2ed2a90a31b25f164e28128b446274ee, OS f904961e008a972db8f06f1bb47aff9631123d67215b9f4157ea1fbee83b98d4 (core-only, nothing installed, no reboot)",
+ "claimed": "2026-11-04 15:35 EET",
+ "released": "2026-11-04 16:32 EET",
+ "cleanup": "16 FogCast data trees the run created removed 16:33 EET; shared scrub image kept",
+ "games_image_sha256": "b23fba2e7ffa5380661ed4377329f31c95d103cec9299b7e6882272a4d78e512",
+ "scrub_image_sha256": "8538495aedc52a76db41cfbc56bbf89b50e0f84a99addbf6eeba0a788b98c5bf",
+ "disks": {
+  "s-wolf3d": {
+   "sha256": "891779c46f2b11d64a736f1d349945b1214826cde774a5e7b17bf9c34ba39e72",
+   "games": {
+    "wolf3d": {
+     "directory": "WOLF3D",
+     "zip": "/mnt/emuhd/Games/PC DOS/Collections/eXoDOS 6.04 Full/eXoDOS/eXo/eXoDOS/Wolfenstein 3D (1992).zip",
+     "sha256": "f451d8538266fb9f12a4fa8909a671b37d354de388a9b76d1c1033a6a541ed37",
+     "files": 11,
+     "configs": {}
+    }
+   },
+   "free": [
+    "30 830 592 bytes free"
+   ]
+  },
+  "s-ultima6": {
+   "sha256": "c6dd6e679efa07ccc63588cc656d035c1bcb9635e374b121b1e578dbd1db9f8f",
+   "games": {
+    "ultima6": {
+     "directory": "ULTIMA6",
+     "zip": "/mnt/emuhd/Games/PC DOS/Collections/eXoDOS 6.04 Full/eXoDOS/eXo/eXoDOS/Ultima VI - The False Prophet (1990).zip",
+     "sha256": "5ec54a045d18ccea63fe35e857e9c0294427e06d397370433d4a7c5add881cb9",
+     "files": 324,
+     "configs": {}
+    }
+   },
+   "free": [
+    "28 084 224 bytes free"
+   ]
+  },
+  "s-ultima6-nomusic": {
+   "sha256": "36ba1bba0e213ec92b5b1ede553929269421ee58f647950ddcb467e5d1a27d07",
+   "games": {
+    "ultima6": {
+     "directory": "ULTIMA6",
+     "zip": "/mnt/emuhd/Games/PC DOS/Collections/eXoDOS 6.04 Full/eXoDOS/eXo/eXoDOS/Ultima VI - The False Prophet (1990).zip",
+     "sha256": "5ec54a045d18ccea63fe35e857e9c0294427e06d397370433d4a7c5add881cb9",
+     "files": 324,
+     "configs": {
+      "CONFIG.U6": "75d798452f2d3a4f8b1981d87f600429564246a22f30b421ae6c7a3172c20b07"
+     }
+    }
+   },
+   "free": [
+    "28 084 224 bytes free"
+   ]
+  },
+  "s-doom": {
+   "sha256": "750fbae4765925f532151153e02c6dcb8430fd6a72f4a361eae84691eb40524d",
+   "games": {
+    "doom": {
+     "directory": "DOOM",
+     "zip": "/mnt/emuhd/Games/PC DOS/Collections/eXoDOS 6.04 Full/eXoDOS/eXo/eXoDOS/DOOM (1993).zip",
+     "sha256": "06ee36b4257d2fb0daaf38ffd90485bbe5c0a45ad4129492309861fbc523b6bc",
+     "files": 34,
+     "configs": {}
+    }
+   },
+   "free": [
+    "20 523 008 bytes free"
+   ]
+  },
+  "s-u7bg": {
+   "sha256": "15d9ebe8d0080a1f5a216b56f1e00be8d6dc686bfb29d32b2284889cf6546a60",
+   "games": {
+    "u7bg": {
+     "directory": "ULTIMA7",
+     "zip": "/mnt/emuhd/Games/PC DOS/Collections/eXoDOS 6.04 Full/eXoDOS/eXo/eXoDOS/Ultima VII Part 1 - The Black Gate + Forge of Virtue (1992).zip",
+     "sha256": "75e6eb68636aec0e06ffb9683f03b9be5dbb8de0a121da43935163d1d7c6659f",
+     "files": 399,
+     "configs": {}
+    }
+   },
+   "free": [
+    "9 897 984 bytes free"
+   ]
+  },
+  "s-u7si": {
+   "sha256": "8066d4c638431fe76200cc32155e643269a20872ef6ec02fada3414b1725dd3e",
+   "games": {
+    "u7si": {
+     "directory": "SERPENT",
+     "zip": "/mnt/emuhd/Games/PC DOS/Collections/eXoDOS 6.04 Full/eXoDOS/eXo/eXoDOS/Ultima VII Part 2 - Serpent Isle + The Silver Seed (1993).zip",
+     "sha256": "5601ca4e2e2d23865046fbfe9c775fa5df896aa0ba4f8a66bb95521ffd1c2c1c",
+     "files": 433,
+     "configs": {
+      "SERPENT.CFG": "13ad7bdb6b057ea635899f7856b3d56cba5d44dd25d1664a98b968f2b5212c81",
+      "TEST.CFG": "13ad7bdb6b057ea635899f7856b3d56cba5d44dd25d1664a98b968f2b5212c81"
+     }
+    }
+   },
+   "free": [
+    "4 741 120 bytes free"
+   ]
+  }
+ },
+ "settings": {
+  "s1-u6-286": {
+   "revision": "060d4b942e29b02544bf6e428af036e7a9efe6fa7b558e8301d347affa506fa9",
+   "machine": {
+    "preset": 1,
+    "frequency": 0,
+    "code_profile": 0,
+    "turbo": 0,
+    "sb_base": 544,
+    "sb_irq": 7,
+    "sb_dma": 1
+   },
+   "game_id": "s1-u6-286",
+   "mode": "persistent"
+  },
+  "s1-u7bg": {
+   "revision": "8c986c481b779e699540ca1e1034d5c64a9c1029ef7037096b172cfb8b880dd3",
+   "machine": {
+    "preset": 3,
+    "frequency": 0,
+    "code_profile": 0,
+    "turbo": 0,
+    "sb_base": 544,
+    "sb_irq": 7,
+    "sb_dma": 1
+   },
+   "game_id": "s1-u7bg",
+   "mode": "persistent"
+  }
+ },
+ "frames": {
+  "fd-boot": "3c1913044bc2947cced5abb0b1ccaf13be213322f4462038385eff707142a0bc",
+  "fd-mem": "3b7c7b394db8500733cb3479c69cef9c348abd102b428a9734cc87e42904b9f9",
+  "fd-set": "e107197f16c9367895c786c35d79fe99d2e3f2c2a616aa10217a60de03e4dec7",
+  "scrub1": "60bd242cd66795269164cb0cfe3d5c7270ed9cd71711230d03f45e8a673d55d0",
+  "w-sign": "ba22fda1832ac24f306e52f6c55413adc91c76ef4ca021bb67d44df104f0b156",
+  "w-p0": "233c3029c4f338dd7dc0f8eeb1c7a08407c146b8d785e23d71c0339c360bf5a8",
+  "w-l0": "98bc3699a7072afc896230f876803c42d4bcf993cfc032e9b39608b1fe6cc934",
+  "w-l1": "850d69e827094049b0c1f5896f9e56f7e3017f0387cb5a41fb7917b005798369",
+  "w-l2": "7dc062ac5591c88612922133409a3b9f369fd59bc07a78b9bfe1a7e322cce301",
+  "u6b-menu": "e931dee6a80d116c5856ac3ed4f62a4b9021e45529168efba3e015e3213591f4",
+  "u6b-start": "40e1bbd0fdaa9b6f8ab3402b51ae4d6ed99e4374177d4e23f1174d13816b40f0",
+  "u6b-used": "744ec514e342be1e06390b0b9d1a77a9974ebdd32d649916b019632333611aac",
+  "u6b-walked": "cd37c806593e9dd97b9879d1be195f01b3d9ab0092016a761e9d74d797dca6c5",
+  "u6a-menu": "e931dee6a80d116c5856ac3ed4f62a4b9021e45529168efba3e015e3213591f4",
+  "u6a-start": "8377ffd5a4d4f45449ae35c9a4616d6c60c196d2fba6d68467bfd80a2d0e3fc1",
+  "u6a-save1": "9a26bd2a3b65f9f1836664915db497ab9a661281fb71ec1fa3253fa9390b83d7",
+  "u6a-loaded": "831cba17a775623e689e6b95c364adedecf11391d1f849acb6a5b8b5be326080",
+  "d00": "93f107b152e65b1a66d3df022a6fc4e67486c38650b160df842b5b3ccfc7fc2f",
+  "d05": "5683426bbadc286ec8f34aceb4a7f156f3e91753cef1beca832dfdd845f43900",
+  "d06": "724854a52d897eff2034653c7747c8d96686e19bd8f9d38af86bd3323d386cfd",
+  "d09": "07155d5523b26902e8a120b6142fd0517e1b23f6398e85f18d8f5f0badbe127a",
+  "p0": "ce3ead8eb8c1cf0a9360598cb1ced222fad2e68c33e89618482f3b558c0c0df4",
+  "p1": "d6e7508f3a9d2b2dbcaa570c9609d41ad9d1a0ccd5f384d3e6390f94a45ce32e",
+  "sv1": "764a824becf4a1452969ed9923cb51960812603f4a0831ed3b345d7c81bc39f0",
+  "tdw": "b4cfbb66cd4ba26c1995aad47b34f8f83592189f4b143808e68705efacbbe2cf",
+  "r-4gw": "f15c2f5a810b5c392fa62ba9e8a65b7f4cd7db90a681c821d4cf8f15085cdf3b",
+  "r-load0": "05658fb4c9a8e8ee416c20ab225cb96826193491175edb940e98571991fe0ebd",
+  "r-load1": "d6e7508f3a9d2b2dbcaa570c9609d41ad9d1a0ccd5f384d3e6390f94a45ce32e",
+  "bg-mem": "a52afd9a1e8de88afc0b5ce438196ab5073674b4129935b846f29dd65814f084",
+  "bg00": "d11be65fb63ea0a7b3908b8c4d66fbdd021568a033e32aad4cb62757810ad197",
+  "bg06": "0fc5cc524bda38f2ef038eb9786ed7f95c038c070f08c72cee9baf71ee2b1758",
+  "bg12": "f49a51dce38a491bf296ad46b865ca8d278e89fa1644f256b6e0a8315449e840",
+  "bg18": "9f6deb7fd3416bdfdb84b3975f10ba51037eae6e900124af92ce434f556ed037",
+  "si00": "436cabae317b9ffd2a74837002f05c3a6fccd649b1edf8fe66297e0181f845a6",
+  "si04": "7dfdd6619bd38ef8c960e4da4c5863084d5b1574fdafc8428ff934c1d76f5eaa",
+  "si08": "900b3954ea0c56da8f009a5784f67cfadbef3ef2ecb429e279828045560191ef",
+  "si10": "92e9ceae831c6f80b6fa2e81160666ddf0c845747df9d531d83db96d0181677a"
+ },
+ "audio": {
+  "doom.wav": "23d319dc4b863dc7bfffedd755d2f758d1b60286024c7f0784bb5fc68165558e",
+  "doom2.wav": "176485ea1d2668e315725305f78b624eed75a4942aefa5992121c687f2f9b754",
+  "u6a.wav": "71b38a4e9445c9df428c4d77c9544cdf4d2dabf18255f117ee68fb96bc9520ba",
+  "u6b-lute.wav": "768084a6b5e5c8b4ac25cd8eb4cda7ed95bd593ba0c8b4806c9160627f533745",
+  "u6b-walk.wav": "6dfa7b6e1e960f25bf4a07e040475949e040eceacb3b7fa76705118effd2b500",
+  "u7bg.wav": "8ac3d8140a6b0eebc8cb0f4d91e3556ef0817107122f9856042f31575b39adb5",
+  "u7si.wav": "87bfdb8c4b28eec4ec54487d122c03334d6e5ad93fbfb5740788a3d17cbc49ae",
+  "wolf3d.wav": "1c7747e38b784f4657f47fd2149b3305552ed1b46920753aa665d1650e6af22e"
+ },
+ "video": {
+  "d-demo.gray": "57c0885af8f94ce886e7c55d24940fe4611946cedd5bbe1d2c2bb6636c47db41",
+  "d-play.gray": "3eb624507c3f7116d92f5cbd0885679820fce8dc5ae203b570cc568892c00a93",
+  "u6b-walk.gray": "6c3b2fbde967bf1f74ab5deb6f89221510c2bcb5e06edf655db22961e93012d5",
+  "w-turn.gray": "72ff1c2df2ecb1fe746e2f5a0e9ad627a7e3dac5031575af9590401dc4160e78"
+ }
+}
