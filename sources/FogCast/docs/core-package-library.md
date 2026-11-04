@@ -277,6 +277,12 @@ root. Archives are content-addressed, validated before atomic publication and
 revalidated from the same bytes sent for activation. Partial imports never
 become inventory entries. An installed ID is never silently overwritten.
 
+A kit host sets `[core_packages] kit = true`. It then ignores that root and
+uses the kit's own packages: the durable store on FESDATA3, which takes
+imports, and the image's factory packages. A factory package can be titled and
+launched without uploading it. See
+[the kit host's packages](ARCHITECTURE.md#the-kit-hosts-packages).
+
 Selections and media bytes live in the existing catalog database. Schema 13
 admits the `disk` media role beside `blob`; it rebuilds `core_entries` with
 foreign keys held off for the migration and checks every child selection

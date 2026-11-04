@@ -1,0 +1,11 @@
+{
+ "tag": "s3",
+ "head": "c8fb7eead0a03c8167da8b20a9c21baeaf1b0af2",
+ "bundle": "487042798b2ed27989936bd7824e4c10fab6a3cc2cc9a484be9c3ff67ee395f1",
+ "api_gomemlimit": "",
+ "api_ready_s": 6.1,
+ "error": "<HTTPError 503: 'Service Unavailable'>",
+ "restored_sw": true,
+ "lease": "idle free",
+ "leftover": "end"
+}

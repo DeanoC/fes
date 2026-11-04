@@ -346,6 +346,27 @@ func CanonicalArchive(path string) ([]byte, error) {
 	return writeCanonicalMembers(members, MaxArchiveSize)
 }
 
+// ReadPackage is InspectPackage and CanonicalArchive from one read of path.
+func ReadPackage(path string) (Inspection, []byte, error) {
+	manifest, payload, romMap, err := readPath(path)
+	if err != nil {
+		return Inspection{}, nil, err
+	}
+	descriptor, err := decode(manifest, payload, romMap)
+	if err != nil {
+		return Inspection{}, nil, err
+	}
+	members := []canonicalMember{{name: "manifest.toml", data: manifest}, {name: "core.rbf", data: payload}}
+	if romMap != nil {
+		members = append(members, canonicalMember{name: "rom-map.json", data: romMap})
+	}
+	data, err := writeCanonicalMembers(members, MaxArchiveSize)
+	if err != nil {
+		return Inspection{}, nil, err
+	}
+	return Inspection{PackageID: packageIdentity(manifest, payload, romMap), Descriptor: descriptor}, data, nil
+}
+
 // Inspect validates a package and returns its closed manifest projection.
 func Inspect(path string) (Descriptor, error) {
 	inspection, err := InspectPackage(path)
