@@ -8,7 +8,8 @@ and JTAG diagnostics are intermediate evidence only.
 The [3 November Terasic-based factory proof](../validation/2026-11-03-de25-terasic-managed-factory/README.md)
 now completes ordinary source compilation, sealed MENU admission, actual
 kernel/rootfs virtual boot, release, bootstrap and two-pass card construction.
-Managed native boot and the workflow rows below still require kit acceptance.
+The managed bottom-board workflow now has native evidence for its named artifacts;
+full development-kit acceptance remains open as described below.
 
 | Step | Owner | Acceptance on DE25 |
 | --- | --- | --- |
@@ -21,10 +22,44 @@ Managed native boot and the workflow rows below still require kit acceptance.
 | ZX81 normal launch | FogCast orchestration; runtime | Catalog install, MENU launch, keyboard and BASIC LOAD/RUN/reload, stop/return-to-MENU, relaunch and persistence |
 | Shared kit operations | FES | Claim, idle/lease boundary, artifact identity and recovery logs usable without physical intervention for ordinary operations |
 
+## Current native evidence
+
+The bottom board TRWU8J8G runs managed FES Linux image `6de6a392` with the matched
+ABI3 kernel. Its recorded shared-kit software baseline is `a14a`. Normal software
+activation and restoration, sealed standard ZX81 package `138ab5cb`, the actual
+FES picker, BASIC SAVE/load/run/edit/reload, Stop/Home and runtime-exit recovery
+have source-bound native records. One ordinary active-core reboot at source
+`a35f3207a` passed, followed by a failed first-session display reopen;
+[that failure remains retained](../validation/2026-11-04-de25-standard-zx81/README.md#reset-export-package-and-native-trial).
+
+Runtime source `510933314` adds first-failure reporting without changing display
+ownership, timing or recovery gates. Its immutable AArch64 bundle `4ecf08d8`
+passes a first-session SAVE/load/run/edit/reload proof and three genuine F12/Esc
+allocation close/reopen cycles. The close-cycle fixture's BASIC images are
+program listings, so that case supplies partial evidence rather than a run proof.
+One ordinary active-core reboot and the subsequent first-generation SAVE/picker
+proof also pass. The earlier display fault does not recur; the reporting change
+does not establish its root cause or repair. Exact evidence is retained in the
+[standard-core validation record](../validation/2026-11-04-de25-standard-zx81/README.md).
+
+The final restoration verifies baseline `a14a` at software generation 30 in boot
+`e8d10b71-cb1e-4061-bc93-81e4dc51754b`, with the same image, kernel and card. The
+original host, catalog and settings are restored, owned fixtures are removed,
+and the board is independently verified ready, idle and lease-free before
+release. These trials leave the top board untouched and promote no main baseline.
+
+The unresolved display failure, bounded whole-load/secure-call recovery, physical
+USB and audio acceptance, native ROM/persona composition and physical standard
+partial reconfiguration remain open. QEMU, a diagnostic selection model and
+internal-memory hardware success do not complete target-CPU or persona gates.
+Current-head CI and independent review remain required.
+
+## Evidence requirements and earlier stages
+
 Each row requires its changed artifact and its actual hardware path. Passing a
 simulation or a maintenance client does not complete the corresponding managed
-flow. Headless Linux currently ships no runtime daemon, target agent, managed
-bundle or MENU. The [HPS-first hardware proof](../validation/2026-10-31-de25-hps-first-hardware/README.md)
+flow. The separate headless Linux profile ships no runtime daemon, target agent,
+managed bundle or MENU. The [HPS-first hardware proof](../validation/2026-10-31-de25-hps-first-hardware/README.md)
 records volatile startup and native BASIC loading. The later
 [persistent bootstrap trial](../validation/2026-10-31-de25-reboot-bootstrap/README.md#physical-trial)
 loads ZX81 through Linux and runs BASIC in two epochs separated by ordinary

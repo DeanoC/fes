@@ -606,3 +606,58 @@ failure-before-cleanup and exact-counter checks. All 482 admitted FPGA
 producer inputs remain byte-identical to source a35. The new reporting still
 requires a controlled native trial; neither this test nor a passing trial
 without reproduction would establish that the post-reboot defect is fixed.
+
+
+## Controlled trial of first-failure reporting
+
+Runtime source `5109333149cbb74d5ae4534e02a70866da94a058` builds the normal immutable
+AArch64 bundle `4ecf08d8e0ff607b880c38da29271e8465f97ae3a1e3716336c3744c89962c3b`
+in 54.402s. All six archive entries, manifest identity, source trees, executable
+hashes and exact provenance verify independently. All 482 admitted source-a35
+FPGA inputs remain identical; this trial uses the same standard package138ab5cb
+and changes no FPGA producer, image, kernel or card. The complete unmodified
+eight-command affected plan passes in 1079.611s with the checkout frozen at510
+throughout. The earlier source-a35 delta selected seven commands; these are
+separate complete plans, not a filtered subset.
+
+Normal managed activation passes in 37.131s, selecting bundle4ec at generation29.
+The first runtime session uses the real picker for SAVE9838526c, executes9, edits
+and executes7, reloads and executes9, and returns Home: PASS55.171s, all seven
+images checked. A separate real-UI Settings/F12/Esc trial retires and reopens
+the allocation three times, with distinct display generations4/5/6, logical
+completions1/2/3, machine focus after each close and zero underflows. All ten
+pictures are checked. Its recorder exits0 in 59.028s, but its new keyboard
+sequence omits the line-entry settle wait: the BASIC images show edited
+listings `1 PRINT 9` and `1 PRINT 7`, not executed output. Its visual receipt
+therefore remains partial (`passed: false`) and supplies no RUN proof.
+TV surround returns On; only the newly created hash-checked preferences file
+is removed to restore its authenticated original absence.
+
+With the established settled typing sequence, one ordinary OS reboot from ZX81
+showing7 passes in 71.241s overall (47.692s for reboot observation). The new boot
+`e8d10b71-cb1e-4061-bc93-81e4dc51754b` is authenticated with unchanged kernel,
+card and image, selected bundle4ec generation29, and ten seconds of stable
+ready/MENU/idle/free. No repeated reboot, old-session Stop or power pull occurs.
+Its first fresh session repeats the original early-picker timing and passes
+SAVE selection, executed9/edit7/reload9 and Stop/Home in 48.503s; all seven
+pictures are checked. The original display fault does not recur, so no new
+first-failure logging path is physically exercised. Reporting-only changes
+establish neither the root cause nor a repair; the earlier failed trace remains
+failed and normal-kit acceptance stays open.
+
+Baseline restoration passes in 29.474s, selecting the named bundlea14a at
+generation30. The restore executes with the separate authenticated e8d10 SSH
+helper. Its copied descriptive job scope still says5c62; a separate metadata
+erratum retains that discrepancy, while the executed script/result bind e8d10.
+The original host/unit/fresh catalog return with SQLite integrity checked,
+preferences are absent as before, and owned keyboard/status fixtures are
+removed. Independent authenticated observation under both status locks verifies
+the exact baseline, same image/kernel/card, ready/idle/free and no maintenance
+or software fault before release. The top board is untouched and no main
+baseline is promoted.
+
+[first-display-fault-native.json](first-display-fault-native.json) binds the
+source receipts, retained-file hashes, partial visual result, restore erratum
+and release identity. Physical USB/audio, native ROM/persona composition,
+physical standard PR, current-head CI/independent review and the intermittent
+display failure remain open.
