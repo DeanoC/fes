@@ -227,6 +227,9 @@ def build(args):
     window_reload=getattr(args,'window_reload',False)
     if type(window_reload) is not bool or window_reload and not window_storage_return:
         raise ValueError('window reload requires the selected window SD-return diagnostic')
+    window_service=getattr(args,'window_service',False)
+    if type(window_service) is not bool or window_service and (not window_storage_return or window_reload):
+        raise ValueError('window service requires selected window SD return and excludes bounded reload')
     if type(active_ddr) is not bool or active_ddr and args.program!='fpgaload':
         raise ValueError('--ddr-read requires the Nano fpgaload diagnostic')
     computer_control=getattr(args,'computer_control',False)
@@ -381,6 +384,7 @@ def build(args):
     if window_present:link_flags+=' -X main.expectedWindowPresent=1'
     if window_storage_return:link_flags+=' -X main.expectedWindowStorageReturn=1'
     if window_reload:link_flags+=' -X main.expectedWindowReload=1'
+    if window_service:link_flags+=' -X main.expectedWindowService=1'
     if computer_map is not None:link_flags+=' -X main.expectedComputerMap='+base64.b64encode(hps.encode(computer_map)).decode()
     if computer_reload:link_flags+=' -X main.expectedComputerReload=1'
     if computer_storage_return:link_flags+=' -X main.expectedComputerStorageReturn=1'
@@ -431,6 +435,7 @@ def build(args):
               "window_present":window_present,
               "window_storage_return":window_storage_return,
               "window_reload":window_reload,
+              "window_service":window_service,
               "window_read":window_read,"hps_window_read":window_read_map,"hps_window_read_sha256":hps.digest(window_read_map) if window_read_map else None,
               "hps_computer":computer_map,"hps_computer_sha256":hps.digest(computer_map) if computer_map else None,
               "computer_reload":computer_reload,

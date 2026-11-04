@@ -110,6 +110,12 @@ type Handoff struct {
 	returned  sdcontrol.Receipt
 }
 
+// OwnsHandoff compares private store identity only. It does not validate a
+// current lease, resume storage or grant fabric access.
+func (s *Store) OwnsHandoff(h *Handoff) bool {
+	return s != nil && h != nil && h.store == s && h.selection != nil
+}
+
 func (h *Handoff) Receipt() sdcontrol.Receipt {
 	if h == nil {
 		return sdcontrol.Receipt{}

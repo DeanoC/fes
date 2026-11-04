@@ -27,6 +27,7 @@ var expectedDDRReadMap string
 var expectedWindowMemory string
 var expectedWindowReadMap string
 var expectedWindowPresent, expectedWindowStorageReturn, expectedWindowReload string
+var expectedWindowService string
 var expectedComputerMap, expectedComputerReload string
 var expectedComputerStorageReturn string
 var expectedProgramPlatform, expectedSelectedPrograms string
@@ -53,6 +54,9 @@ func main() {
 	}
 	if expectedWindowReload != "" && (expectedWindowReload != "1" || expectedWindowStorageReturn != "1") {
 		panic("window reload requires the selected window SD-return diagnostic")
+	}
+	if expectedWindowService != "" && (expectedWindowService != "1" || expectedWindowStorageReturn != "1" || expectedWindowReload != "") {
+		panic("window service requires the complete SD-return path and a separate selection from bounded reload")
 	}
 	if runtime.GOOS != "tamago" || board.ExceptionLevel() != 1 || board.CounterFrequency() != 400000000 {
 		panic("unexpected FPGA configuration CPU/source contract")
@@ -259,6 +263,13 @@ func main() {
 	program(v, configuration, source)
 	if expectedWindowReadMap != "" {
 		limits := scanout.ReaderLimits{Timeout: time.Second, MaxPolls: 64, Now: time.Now, Yield: func() { time.Sleep(time.Millisecond) }}
+		if expectedWindowService == "1" {
+			if err := serveWindows(v, store, request, control, configuration, decoded(expectedWindowReadMap, 8192), limits); err != nil {
+				reportWindowFailure(err)
+				panic(err)
+			}
+			return
+		}
 		if expectedWindowPresent == "1" {
 			session, err := presentWindowFrames(v, control, decoded(expectedWindowReadMap, 8192), limits, 12)
 			if err != nil {

@@ -123,6 +123,7 @@ def make(entry_build):
               'window_present':build.get('window_present',False),
               'window_storage_return':build.get('window_storage_return',False),
               'window_reload':build.get('window_reload',False),
+              'window_service':build.get('window_service',False),
               'window_read':window_read is not None,'hps_window_read':window_read,
               'hps_window_read_sha256':hps_context.digest(window_read) if window_read else None,
               'computer_reload':build.get('computer_reload',False),
@@ -251,6 +252,9 @@ def header(profile):
     window_reload=profile.get('window_reload',False)
     if type(window_reload) is not bool or window_reload and not window_storage_return:
         raise ValueError('window reload requires the selected window SD-return path')
+    window_service=profile.get('window_service',False)
+    if type(window_service) is not bool or window_service and (not window_storage_return or window_reload):
+        raise ValueError('window service requires selected window SD return and excludes bounded reload')
     computer=profile.get('hps_computer')
     if computer is not None:
         if (not isinstance(computer,dict) or configuration is None or control is None or ddr_read is not None or not profile['sd_pio'] or

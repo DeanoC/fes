@@ -72,6 +72,9 @@ def prepare(project, uboot, entry, pfg, output):
     window_reload=window_profile.get('window_reload',False)
     if type(window_reload) is not bool or window_reload and not window_storage_return:
         raise ValueError('window reload requires matched window SD return')
+    window_service=window_profile.get('window_service',False)
+    if type(window_service) is not bool or window_service and (not window_storage_return or window_reload):
+        raise ValueError('window service requires matched window SD return and excludes bounded reload')
     if (type(window_profile.get('window_read',False)) is not bool or
             window_profile.get('window_read',False)!=(window_read is not None)):
         raise ValueError('native window read selection differs from its sealed contract')
@@ -150,9 +153,10 @@ def prepare(project, uboot, entry, pfg, output):
         'bounded_ddr_read':ddr_read is not None,
         'hps_ddr_read_sha256':hps_context.digest(ddr_read) if ddr_read is not None else None,
         'bounded_window_read':window_read is not None,
-        'bounded_window_presentation':window_present,
-        'bounded_window_storage_return':window_storage_return,
+        'bounded_window_presentation':window_present and not window_service,
+        'bounded_window_storage_return':window_storage_return and not window_service,
         'bounded_window_reload':window_reload,
+        'persistent_window_service':window_service,
         'hps_window_read_sha256':hps_context.digest(window_read) if window_read is not None else None,
         'trusted_boot_handoff': False, 'physical_programming_admission': False,
         'hardware_acceptance': 'not-run', 'inputs': hashes, 'commands': commands,

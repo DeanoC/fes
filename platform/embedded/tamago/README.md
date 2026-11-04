@@ -438,3 +438,35 @@ This exercises the existing CPU/video parts mechanism, not every multi-slot
 expansion family. It provides no FPGA programming or DE25 acceptance. The
 [board adaptation plan](../board-adaptation.md) describes the next real-driver
 work while keeping QEMU as the regression backend.
+
+## Persistent native window requests
+
+`fpgaload --window-memory --window-read --window-present
+--window-storage-return --window-service` explicitly selects a persistent
+fixed-package window service. It excludes the bounded `--window-reload` test.
+After initial configuration and a complete Tenfoot-rendered frame, the frontend
+prints `FES_NATIVE_WINDOW_REPLY` status and accepts bounded JSON requests over
+UART. It uses the `nano-contained-window-service-v1` scope. Commands are
+`status`, `present`, `return`, `launch` and terminal `park`; all except status
+require the exact cached hexadecimal owner and current service generation.
+Package paths, physical addresses and frame bytes cannot be supplied over UART.
+The original compiled package is freshly retained for each launch. This is a
+request-driven renderer/ownership prototype, not the complete Tenfoot App
+backend or ordinary package admission.
+
+`WindowService` serializes presentation, return and launch and keeps private
+display handles. Return completes firmware drain/closure and resumes the same
+SD store before publishing Ready. Launch validates the package while SD is
+usable, then contains SD, configures within the existing 20-second bound and
+presents the first frame before returning a new handle. A completed request's
+cancellation cannot cancel that handle. Accepted return completes independently
+of requester cancellation. Stale or foreign handles reject before device I/O;
+uncertainty after containment retires the service without retry. Plans, failed
+reservations and the complete frame arena remain pinned until reboot.
+
+The service uses the existing platform hooks and wire contract. Host tests join
+the real archive, transfer and renderer with modeled secure calls/CSRs, including
+three cycles, cancellation, concurrent requests and failures. The previously
+accepted bounded hardware image does not qualify this new native mode.
+Physical HDMI, USB hub input, the complete native Tenfoot launch backend and
+ordinary package/ROM/parts/media admission remain open.

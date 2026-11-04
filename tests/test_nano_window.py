@@ -132,6 +132,10 @@ class WindowContractTests(unittest.TestCase):
         self.assertIn('#define FES_NANO_WINDOW_STORAGE_RETURN 0',header)
         self.assertIn('#define FES_NANO_WINDOW_STORAGE_RETURN 1',cold.header(dict(profile,window_present=True,window_storage_return=True)))
         self.assertIn('#define FES_NANO_WINDOW_STORAGE_RETURN 1',cold.header(dict(profile,window_present=True,window_storage_return=True,window_reload=True)))
+        self.assertIn('#define FES_NANO_WINDOW_STORAGE_RETURN 1',cold.header(dict(profile,window_present=True,window_storage_return=True,window_service=True)))
+        for changes in ({'window_service':True},{'window_service':1},{'window_service':None},
+                        {'window_present':True,'window_storage_return':True,'window_reload':True,'window_service':True}):
+            with self.subTest(changes=changes),self.assertRaises(ValueError):cold.header(dict(profile,**changes))
         for changes in ({'window_reload':True},{'window_reload':1},{'window_reload':None}):
             with self.subTest(changes=changes),self.assertRaises(ValueError):cold.header(dict(profile,**changes))
         for changes in ({'window_storage_return':True},{'window_present':True,'window_storage_return':1},

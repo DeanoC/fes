@@ -526,3 +526,19 @@ releases memory. Acknowledged retirement and its signed diagnostic status
 cannot establish completion, drain or runtime admission. The native `fpgaload`
 probe uses it after failure while preserving the original panic and 20-second
 transfer deadline; the post-retirement status capture has a separate bound.
+
+## Persistent native window ownership
+
+`WindowService` adopts one live `WindowSession` after a complete presentation.
+The platform transfers exclusive ownership of that session and its original SD
+store; it must retain the service until reboot. Each `WindowHandle` implements
+the existing board display interface, while its private generation prevents a
+returned or foreign handle from presenting into the next scope. Return and
+launch use the existing window/SD/reconfiguration operations and pinned arena.
+`WindowConsole` keeps the current handle private and accepts only bounded
+status/present/return/launch/park commands for the platform-selected package.
+
+See [native service selection and limits](../README.md#persistent-native-window-requests)
+for the explicit build mode. The native request loop uses the real Tenfoot
+renderer, but the full App/backend integration and physical acceptance remain
+open. The prior bounded diagnostic image supplies no acceptance for this mode.
