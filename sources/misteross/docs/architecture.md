@@ -64,8 +64,21 @@ Terasic HDMI_ASx4's separate `av_pll`, using `CLOCK1_50`. The resource PLL
 requests 12.288 MHz from 50 MHz; its supplied integer dividers produce about
 12.2881356 MHz (nominal48k samples). Device-only R1-to-SCS retargeting preserves
 all clock parameters. Guest HOLD mutes samples without resetting the PLL or
-transfer handshake. The wrapper is not yet included by the complete-board recipe;
+transfer handshake. The standard-board integration below includes this wrapper;
 audio pin/timing, transmitter integration and native capture remain unqualified.
+
+`zx81-hps/build.py --standard-core` extends the managed allocated-display GHRD
+with the standard ZX81 component at computer offset `0x10300`, preserving the
+scanout guard at `0x10200`, its read-only memory master, SID and crossing FIFOs.
+It captures the complete combined source closure before choosing the integration
+identity, exports PCM to the stock audio PLL and selects internal 16K RAM, as the
+standard DE10 base does without an expansion socket. The expansion bus is tied
+inactive until a persona is linked. `project` permits inspection; `generate`
+requires committed sources and checks the actual whole-GHRD handoff, slaves,
+clocks, resets, credits and managed initiator inventory. This integration is not
+a sealed package or runtime profile. `build` refuses until the additional
+machine, session-display and audio timing constraints are integrated; existing
+scanout-only constraints cannot qualify these added clock crossings.
 
 The standard core's `HPS_DDR_WINDOW` parameter defaults to one for DE10. Setting
 it to zero leaves the session-display capability intact and clears only the

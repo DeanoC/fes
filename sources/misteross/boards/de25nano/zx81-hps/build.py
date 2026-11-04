@@ -14,6 +14,7 @@ from pathlib import Path
 import re
 import subprocess
 import tempfile
+import types
 import xml.etree.ElementTree as ET
 import zipfile
 
@@ -162,6 +163,222 @@ def prepare_standard_component(output, revision=None):
         "files": {name: sha(data) for name, data in sorted(files.items())}, "derivations": repairs}
     (output / "component-inputs.json").write_text(json.dumps(record, indent=2, sort_keys=True) + "\n")
     return component
+
+
+def prepare_standard_board(archive, output, revision=None):
+    """Select the standard machine in the managed GHRD; never deploy it.
+
+    This first board integration uses the same internal 16K configuration as
+    the standard DE10 base core. Expansion personas remain a separate link.
+    """
+    source = (ROOT / (BOARD + "scanout/build.py")).read_bytes() if revision is None else subprocess.check_output(
+        ["git", "show", revision + ":" + BOARD + "scanout/build.py"], cwd=ROOT)
+    scanout = types.ModuleType("standard_selected_scanout")
+    scanout.__file__ = str(HERE.parent / "scanout/build.py")
+    exec(compile(source, scanout.__file__, "exec"), scanout.__dict__)
+    sources = scanout.capture(revision) | capture_standard(revision)
+    paths = [BOARD + "zx81-hps/fes_de25_audio.v"] + [
+        "sources/misteross/cores/fes-common/rtl/" + name for name in ("fes_audio_output.v", "fes_audio_i2s.v")]
+    for name in paths:
+        sources[name] = (ROOT / name).read_bytes() if revision is None else subprocess.check_output(
+            ["git", "show", revision + ":" + name], cwd=ROOT)
+    # Include the complete machine/reader/audio closure before selecting any
+    # hardware identity. The result is an integration ID, not a package seal.
+    build_id = sha(json.dumps({name: sha(data) for name, data in sorted(sources.items())},
+                             sort_keys=True).encode())[:32]
+    scanout.capture = lambda revision=None: sources.copy()
+    # Managed fabric removes the unused JTAG/F2H masters and uses the exact
+    # Linux SID, reset and FIFO recipe already used by the allocated MENU.
+    # Working-copy inspection is allowed; generation still requires a commit.
+    observed = identity() if revision is None else {}
+    selected_revision = revision or observed.get("base_revision", observed.get("fes_revision"))
+    output, combined, hps, display = scanout.prepare(archive, output, selected_revision,
+        hps_first=True, linux_dma=True, package_build_id=build_id)
+    directory = output / "combined/hps"
+    project = directory / "project"
+    local = project / "fes_mailbox"
+    component = prepare_standard_component(output / "standard-component", revision)
+    for path in component.rglob("*"):
+        if path.is_file():
+            target = local / path.relative_to(component)
+            target.parent.mkdir(parents=True, exist_ok=True)
+            target.write_bytes(path.read_bytes())
+    # Remove the unused standalone reader component definition. Its reader
+    # implementation remains selected by the standard component's fileset.
+    (local / "fes_de25_scanout_hw.tcl").unlink()
+    script_path = project / "integrate-mailbox.tcl"
+    script = script_path.read_text()
+    for before, after in (
+        ("add_instance fes_scanout fes_de25_scanout 1.0", "add_instance fes_scanout fes_de25_zx81_standard 1.0\n"
+            "set_instance_parameter_value fes_scanout EXPANSION_SOCKET 0"),
+        ("add_connection fes_pixel_clk.out_clk fes_scanout.clk", "add_connection fes_pixel_clk.out_clk fes_scanout.clk\n"
+            "add_connection periph_clk.out_clk fes_scanout.clk_sys\n"
+            "add_connection periph_rst_in.out_reset fes_scanout.system_reset\n"
+            "add_connection pb_cpu_0.m0 fes_scanout.computer\n"
+            "set_connection_parameter_value pb_cpu_0.m0/fes_scanout.computer baseAddress 0x10300"),
+    ):
+        script = replace_once(script, before, after)
+    # Export the two standard-core conduits through both hierarchy levels.
+    anchor = "add_interface fes_scanout_mem avalon start\n"
+    exports = ""
+    for name in ("audio", "expansion"):
+        exports += (f"add_interface fes_scanout_{name} conduit end\n"
+                    f"set_interface_property fes_scanout_{name} EXPORT_OF fes_scanout.{name}\n")
+    script = replace_once(script, anchor, exports + anchor)
+    anchor = "add_interface fes_scanout_video conduit end\nset_interface_property fes_scanout_video EXPORT_OF subsys_periph.fes_scanout_video\n"
+    exports = ""
+    for name in ("audio", "expansion"):
+        exports += (f"add_interface fes_scanout_{name} conduit end\n"
+                    f"set_interface_property fes_scanout_{name} EXPORT_OF subsys_periph.fes_scanout_{name}\n")
+    script_path.write_text(replace_once(script, anchor, anchor + exports))
+    top_path = project / "golden_top.v"
+    top = top_path.read_text()
+    for pin in ("HDMI_MCLK", "HDMI_SCLK", "HDMI_LRCLK", "HDMI_I2S"):
+        top = replace_once(top, f".{pin}({pin})", f".{pin}()")
+    top = replace_once(top, "qsys_top soc_inst (", """wire [15:0] standard_audio_sample;
+wire standard_exec_reset;
+fes_de25_audio fes_audio_inst (
+  .CLOCK1_50(CLOCK1_50), .source_clk(system_clk_100_internal),
+  .reset_n(top_reset_n), .hold(standard_exec_reset || scanout_clock_fault),
+  .left_sample(standard_audio_sample), .right_sample(standard_audio_sample), .locked(),
+  .HDMI_MCLK(HDMI_MCLK), .HDMI_SCLK(HDMI_SCLK),
+  .HDMI_LRCLK(HDMI_LRCLK), .HDMI_I2S(HDMI_I2S)
+);
+qsys_top soc_inst (
+.fes_scanout_audio_sample(standard_audio_sample), .fes_scanout_audio_reset(standard_exec_reset),
+.fes_scanout_expansion_expansion_running(1'b1),
+.fes_scanout_expansion_bus_addr(), .fes_scanout_expansion_bus_wdata(),
+.fes_scanout_expansion_bus_mreq_n(), .fes_scanout_expansion_bus_iorq_n(),
+.fes_scanout_expansion_bus_rd_n(), .fes_scanout_expansion_bus_wr_n(),
+.fes_scanout_expansion_bus_m1_n(), .fes_scanout_expansion_bus_rfsh_n(),
+.fes_scanout_expansion_bus_cpu_clock(), .fes_scanout_expansion_bus_rdata(8'b0),
+.fes_scanout_expansion_bus_peek_data(8'b0), .fes_scanout_expansion_bus_dsel(1'b0),
+.fes_scanout_expansion_bus_romcs(1'b0), .fes_scanout_expansion_bus_wait(1'b0),
+.fes_scanout_expansion_bus_ram_present(1'b0),""")
+    top_path.write_text(top)
+    # Reuse the locked Terasic audio PLL, changing only the two device metadata
+    # values. All 259 PLL parameters other than the target device stay equal.
+    with zipfile.ZipFile(archive) as package:
+        name = "Demonstration/FPGA/HDMI_ASx4/av_pll.ip"
+        if package.namelist().count(name) != 1:
+            raise ValueError("missing/duplicate stock audio PLL")
+        original = package.read(name)
+    parameters = display.pll_parameters(original)
+    if any(parameters.get(key) != value for key, value in {
+        "gui_reference_clock_frequency": "50.0", "gui_output_clock_frequency0": "12.288",
+        "gui_number_of_clocks": "1", "gui_use_locked": "true", "gui_phase_shift0": "0.0",
+        "gui_duty_cycle0": "50.0", "system_info_device_component": "A5EB013BB23BE4SR1"}.items()):
+        raise ValueError("stock audio PLL contract changed")
+    before = b"<ipxact:value>A5EB013BB23BE4SR1</ipxact:value>"
+    if original.count(before) != 2:
+        raise ValueError("stock audio PLL device metadata changed")
+    audio_pll = original.replace(before, b"<ipxact:value>A5EB013BB23BE4SCS</ipxact:value>")
+    (local / "av_pll.ip").write_bytes(audio_pll)
+    for name in paths:
+        (local / Path(name).name).write_bytes(sources[name])
+    qsf_path = project / "golden_top.qsf"
+    qsf = qsf_path.read_text() + "\nset_global_assignment -name IP_FILE fes_mailbox/av_pll.ip\n"
+    for name in paths:
+        qsf += "set_global_assignment -name VERILOG_FILE fes_mailbox/" + Path(name).name + "\n"
+    # The preserved GHRD already owns CLOCK1_50; require its actual stock pin.
+    if (not re.search(r"set_location_assignment\s+PIN_V16\s+-to\s+CLOCK1_50\s*$", qsf, re.M) or
+            not re.search(r'set_instance_assignment -name IO_STANDARD "3.3-V LVCMOS" -to CLOCK1_50\s*$', qsf, re.M)):
+        raise ValueError("GHRD CLOCK1_50 does not match the stock audio reference")
+    qsf_path.write_text(qsf)
+    inputs_path = directory / "inputs.json"
+    inputs = json.loads(inputs_path.read_text())
+    if revision is None:
+        inputs.pop("fes_revision", None)
+        inputs.update(base_revision=selected_revision, source_classification="working-copy-diagnostic")
+    inputs["standard_zx81"] = {"build_id": build_id, "expansion_socket": False,
+        "computer_offset": 0x10300, "scope": "standard-core-board-integration", "runtime_admission": "not-qualified",
+        "audio_pll": {"vendor_sha256": sha(original), "derived_sha256": sha(audio_pll),
+                      "parameters": display.pll_parameters(audio_pll)}}
+    inputs["scanout"]["build_identity_scheme"] = "standard-board-integration-source-profile"
+    inputs["scanout"]["compiled_top_sha256"] = sha(top_path.read_bytes())
+    inputs["scanout"]["rendered_integration_sha256"] = sha(script_path.read_bytes())
+    inputs_path.write_text(json.dumps(inputs, indent=2, sort_keys=True) + "\n")
+    snapshot_path = output / "snapshot.json"
+    snapshot_record = json.loads(snapshot_path.read_text())
+    if revision is None:
+        snapshot_record.pop("fes_revision", None)
+        snapshot_record.update(base_revision=selected_revision, source_classification="working-copy-diagnostic")
+    snapshot_record["standard_zx81"] = inputs["standard_zx81"]
+    snapshot_path.write_text(json.dumps(snapshot_record, indent=2, sort_keys=True) + "\n")
+    return output, scanout, combined, hps, display
+
+
+def generate_standard_board(output, scanout, combined, hps, display, tool, version):
+    """Generate the real managed GHRD and verify both standard-core slaves."""
+    directory = output / "combined/hps"
+    inputs = json.loads((directory / "inputs.json").read_text())
+    if inputs.get("source_classification") != "committed" or not inputs.get("fes_revision"):
+        raise ValueError("standard board generation requires committed source")
+    combined.generate(output / "combined", hps, display, tool, version)
+    scanout.repair_generated_reset_timing(directory)
+    scanout.shared_reset_helper(directory).apply(directory)
+    project = directory / "project"
+    tree = ET.parse(project / "qsys_top/qsys_top.sopcinfo")
+    modules = {m.get("path"): m for m in tree.findall("module")}
+    endpoint = modules.get("subsys_periph.fes_scanout")
+    if endpoint is None or endpoint.get("kind") != "fes_de25_zx81_standard" or endpoint.get("version") != "1.0":
+        raise ValueError("generated standard core component differs")
+    build_identity = scanout.endpoint_build_identity(project, endpoint, hps, inputs["standard_zx81"]["build_id"])
+    for interface, bits in (("computer", 5), ("avs", 7)):
+        expected = {"address": ("Input", bits), "read": ("Input", 1), "write": ("Input", 1),
+            "byteenable": ("Input", 4), "writedata": ("Input", 32), "waitrequest": ("Output", 1),
+            "readdata": ("Output", 32), "readdatavalid": ("Output", 1),
+            "writeresponsevalid": ("Output", 1), "response": ("Output", 2)}
+        if hps.component_ports(endpoint, interface) != expected:
+            raise ValueError("generated standard core slave differs: " + interface)
+    expected_master = {"address": ("Output", 32), "burstcount": ("Output", 5), "read": ("Output", 1),
+        "byteenable": ("Output", 16), "waitrequest": ("Input", 1), "readdata": ("Input", 128),
+        "readdatavalid": ("Input", 1), "response": ("Input", 2)}
+    if hps.component_ports(endpoint, "avm") != expected_master:
+        raise ValueError("generated standard read-only master differs")
+    connections = {(c.get("kind"), c.get("start"), c.get("end")): c for c in tree.findall("connection")}
+    for kind, start, end, value in (
+        ("clock", "subsys_periph_periph_clk.out_clk", "subsys_periph_fes_scanout.clk_sys", 100000000),
+        ("clock", "subsys_periph_fes_pixel_clk.out_clk", "subsys_periph_fes_scanout.clk", 74250000),
+        ("avalon", "subsys_periph_pb_cpu_0.m0", "subsys_periph_fes_scanout.computer", 0x10300),
+    ):
+        connection = connections.get((kind, start, end))
+        parameter = "clockRateSysInfo" if kind == "clock" else "baseAddress"
+        if connection is None or int(connection.findtext("parameter[@name='" + parameter + "']/value"), 0) != value:
+            raise ValueError("generated standard core route differs: " + end)
+    for start, end in (
+        ("subsys_periph_periph_rst_in.out_reset", "subsys_periph_fes_scanout.system_reset"),
+        ("subsys_periph_fes_scanout_pixel_reset.out_reset", "subsys_periph_fes_scanout.reset"),
+    ):
+        if ("reset", start, end) not in connections:
+            raise ValueError("generated standard core reset differs: " + end)
+    endpoint_parameters, _ = scanout.referenced_parameters(project, endpoint, hps)
+    scanout.require_parameters(endpoint_parameters, {"EXPANSION_SOCKET": 0, "FIRMWARE_INIT": "zx8x.mif"}, "standard core")
+    bridge_parameters = {}
+    for name, width, address_bits, burst, depth in (("fes_ctrl_cdc", 32, 7, 1, 4), ("fes_mem_cdc", 128, 32, 16, 256)):
+        module = modules.get("subsys_periph." + name)
+        if module is None or module.get("kind") != "mm_ccb" or module.get("version") != "19.4.1":
+            raise ValueError("generated standard core crossing differs: " + name)
+        actual, _ = scanout.referenced_parameters(project, module, hps)
+        bridge_parameters[name] = scanout.require_parameters(actual, {
+            "DATA_WIDTH": width, "SYMBOL_WIDTH": 8, "ADDRESS_WIDTH": address_bits,
+            "MAX_BURST_SIZE": burst, "COMMAND_FIFO_DEPTH": 4, "RESPONSE_FIFO_DEPTH": depth,
+            "MASTER_SYNC_DEPTH": 2, "SLAVE_SYNC_DEPTH": 2, "ENABLE_RESPONSE": 1,
+            "USE_AUTO_ADDRESS_WIDTH": 0, "SYNC_RESET": 0, "PIPELINE_ENABLE": 0}, name)
+    actual_audio = display.pll_parameters((project / "fes_mailbox/av_pll.ip").read_bytes())
+    if actual_audio != inputs["standard_zx81"]["audio_pll"]["parameters"]:
+        raise ValueError("generation changed the selected stock audio PLL")
+    generation_path = directory / "generation.json"
+    generation = json.loads(generation_path.read_text())
+    generation["standard_zx81"] = {"build_identity": build_identity,
+        "computer_offset": 0x10300, "bridge_parameters": bridge_parameters,
+        "managed_fabric": scanout.verify_managed_fabric(directory, hps),
+        "reset_timing": scanout.verify_generated_reset_timing(directory),
+        "shared_fifo_resets": scanout.shared_reset_helper(directory).verify(directory),
+        "hdmi_inputs": scanout.verify_hdmi_inputs(project, inputs, hps),
+        "audio_pll_parameters_unchanged": True,
+        "scope": "whole-GHRD-IP-generation", "fit_and_timing": "not-run", "hardware_acceptance": "not-run"}
+    generation_path.write_text(json.dumps(generation, indent=2, sort_keys=True) + "\n")
 
 
 def transport_constant(source, name):
@@ -630,6 +847,8 @@ def main(argv=None):
     parser.add_argument("action", choices=("project", "generate", "build"))
     parser.add_argument("--vendor-archive", type=Path, required=True)
     parser.add_argument("--output", type=Path)
+    parser.add_argument("--standard-core", action="store_true",
+                        help="integrate the standard core with allocated display and stock audio (project/generate)")
     parser.add_argument("--hps-first", action="store_true",
                         help="prepare HPS-first diagnostic and separate Linux core RBF; never program flash")
     parser.add_argument("--quartus-root", default=os.environ.get("QUARTUS_ROOTDIR", ""))
@@ -637,6 +856,16 @@ def main(argv=None):
     try:
         selected = identity(); revision = selected.get("fes_revision") if args.action != "project" else None
         if args.action != "project" and not revision: raise ValueError("computer build requires clean committed source")
+        if args.standard_core:
+            if args.action == "build":
+                raise ValueError("standard board fit requires its additional machine/display/audio timing constraints; use generate")
+            output, scanout, combined, hps, display = prepare_standard_board(args.vendor_archive, args.output, revision)
+            print("Standard ZX81 board integration: " + str(output), flush=True)
+            if args.action == "generate":
+                if identity() != selected: raise ValueError("source changed before standard board generation")
+                tool, version = hps.BOARD_BUILD.locate_quartus(args.quartus_root)
+                generate_standard_board(output, scanout, combined, hps, display, tool, version)
+            return
         output, hps, helpers = prepare(args.vendor_archive, args.output, revision, hps_first=args.hps_first)
         print("HPS ZX81 diagnostic: " + str(output), flush=True)
         if args.action != "project":

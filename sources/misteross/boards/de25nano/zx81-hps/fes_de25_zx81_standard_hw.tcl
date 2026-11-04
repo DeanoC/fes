@@ -34,7 +34,7 @@ foreach file {zx81_model.vh zx81_bus_pack.vh} {
     add_fileset_file $file VERILOG_INCLUDE PATH $file
 }
 add_fileset_file zx8x.mif MIF PATH zx8x.mif
-foreach {clock port reset reset_port} {clk_sys clk_sys reset reset_n pixel_clk pixel_clk pixel_reset pixel_reset_n} {
+foreach {clock port reset reset_port} {clk_sys clk_sys system_reset reset_n clk pixel_clk reset pixel_reset_n} {
     add_interface $clock clock sink
     add_interface_port $clock $port clk Input 1
     add_interface $reset reset sink
@@ -43,8 +43,8 @@ foreach {clock port reset reset_port} {clk_sys clk_sys reset reset_n pixel_clk p
     add_interface_port $reset $reset_port reset_n Input 1
 }
 foreach {name prefix clock reset bits span} {
-    computer computer_ clk_sys reset 5 32
-    scanout scanout_ pixel_clk pixel_reset 7 128
+    computer computer_ clk_sys system_reset 5 32
+    avs scanout_ clk reset 7 128
 } {
     add_interface $name avalon end
     set_interface_property $name associatedClock $clock
@@ -64,8 +64,8 @@ foreach {name prefix clock reset bits span} {
     }
 }
 add_interface avm avalon start
-set_interface_property avm associatedClock pixel_clk
-set_interface_property avm associatedReset pixel_reset
+set_interface_property avm associatedClock clk
+set_interface_property avm associatedReset reset
 foreach {key value} {addressUnits SYMBOLS bitsPerSymbol 8 burstcountUnits WORDS maximumPendingReadTransactions 16
     waitrequestAllowance 0 linewrapBursts false burstOnBurstBoundariesOnly false doStreamReads false doStreamWrites false} {
     set_interface_property avm $key $value
@@ -85,6 +85,7 @@ add_interface_port clock_fault clock_fault export Input 1
 add_interface audio conduit end
 set_interface_property audio associatedClock clk_sys
 add_interface_port audio audio_sample sample Output 16
+add_interface_port audio exec_reset reset Output 1
 add_interface expansion conduit end
 set_interface_property expansion associatedClock clk_sys
 foreach {port direction width} {expansion_running Input 1 bus_addr Output 16 bus_wdata Output 8
@@ -96,7 +97,7 @@ foreach {port direction width} {expansion_running Input 1 bus_addr Output 16 bus
 # Read-only diagnostic observations and unused software peek address. These
 # never become a second production control or memory interface.
 add_interface observations conduit end
-foreach {port direction width} {video Output 28 exec_reset Output 1 peek_addr Input 16 peek_data Output 8
+foreach {port direction width} {video Output 28 peek_addr Input 16 peek_data Output 8
     cpu_addr Output 16 ram_write_enable Output 1 ui_active Output 1 display_faulted Output 1 display_quiesced Output 1} {
     add_interface_port observations $port $port $direction $width
     set_port_property $port TERMINATION true

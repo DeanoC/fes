@@ -289,3 +289,22 @@ and I2S serializer. The vendor PLL requests12.288MHz; its integer ratio is
 50MHz×58/236 (about12.2881356MHz). Guest HOLD mutes samples rather than resetting
 that clock/handshake. This module still needs complete-board recipe selection,
 physical reset/timing, transmitter integration and native audio capture.
+
+The same builder's `--standard-core` option composes that component into the
+managed allocated-display GHRD, including the stock audio PLL. It selects the
+standard internal-16K base configuration; expansion personas are not linked.
+For a fresh output directory, run:
+
+```sh
+python3 build.py generate --standard-core \
+  --vendor-archive /absolute/DE25-Nano_revB_v.1.0.0_ResourcePackage.zip \
+  --quartus-root /absolute/altera_pro/26.3 --output /new/private/path
+```
+
+This generates the complete GHRD from committed sources and checks the actual
+computer/scanout slaves, clock/reset routes, memory credits and managed master
+inventory. It never programs the kit. `project` also allows local inspection.
+`build` currently refuses this option: the additional standard-machine,
+session-display and audio timing constraints still need integration before a
+fit can be qualified. Normal package/runtime admission remains on the existing
+image until the replacement passes its own acceptance tests.
