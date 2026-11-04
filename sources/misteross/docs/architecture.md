@@ -446,8 +446,13 @@ The standalone Qsys component retains its internal raster and terminates the
 unused session taps. `scanout/sim.py --case session` tests actual endpoint,
 control/CDC and compositor RTL with allocated response storage, complete blended
 frames, a held-response close and a new base/generation/sequence. This is an
-internal adapter, not yet selected by the standard ZX81 board producer or runtime
-profile. The model is not a physical DMA allocation or full machine integration.
+internal adapter selected by the explicit standard ZX81 generated-board variant,
+with production runtime/profile admission still unfinished. Its standard SDC
+binds each added synchronizer's launch and first-stage D separately, bounds the
+held payload paths, and models the I2S divider and forwarded output clocks.
+Numerical routed timing passes do not discharge external output-delay findings;
+the board reference and package acceptance gates remain independent. The model
+is not a physical DMA allocation or native full-machine acceptance.
 
 For explicit `--linux-dma --hps-first`, the recipe exposes the fixed nonsecure
 SMMU stream and removes the DDR probe/control window and external memory-debug

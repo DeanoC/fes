@@ -164,7 +164,33 @@ helper hashes. It needs an actual proof refresh after the producer inputs
 stabilize; an earlier receipt is not current-source proof. The aggregate software
 run remains failed and does not establish a merge gate pass.
 
-This is not a fitted or sealed image, a new runtime profile, or native kit
-acceptance. The standard-core `build` action still refuses until its additional
-machine/session/audio timing constraints are integrated. Production loading and
-the physical kit remain on the existing working baseline.
+The generation/elaboration milestone above did not establish fitting, sealing,
+a new runtime profile or native kit acceptance. Production loading and the
+physical kit remain on the existing working baseline.
+
+## Routed standard-core candidate
+
+The complete generated board at source `2ce959057` completed synthesis, fitting
+and Timing Analyzer with Quartus Pro26.3 on fes-build-3090. Fitting and analysis
+took 306.128 seconds. All90 reported numerical timing checks passed, including
+setup/hold, reset recovery/removal and the bounded payload/skew paths. Worst
+system setup slack is1.602ns and pixel setup slack3.349ns. The fitted design uses
+8,758/46,800 ALMs and301/358 RAM blocks. Registered readiness/fault/drain launches
+remove combinational logic before synchronizers. The two generated tiny FIFO
+leaves use MLAB only for depth<=4; large response queues retain M20K.
+
+The raw85-rule timing signoff report has two failing categories:32 outputs
+without output-delay constraints and the two previously reviewed HDMI asynchronous
+inputs. All CDC, reset-crossing and resource rules report zero violations. No
+compiler finding was waived. The output list includes HDMI_SCLK/LRCLK: internal
+and explicit forwarded divider clocks do not remove the tool's demand for
+external output-delay declarations. A separate normal Timing Analyzer run on
+an isolated copy of the same routed candidate, with those forwarded clocks,
+completed in10.882 seconds and retained the same32/2 raw findings. An earlier
+custom report-panel export crashed inside Quartus; its trace is retained and
+was not used as signoff evidence.
+
+This is routed diagnostic evidence, not a sealed package or physical acceptance.
+The standard build action remains refused until the exact board-reference/output
+checks and canonical package recipe are integrated. No synthetic external delay
+has been assigned, and no new image has been loaded on the kit.

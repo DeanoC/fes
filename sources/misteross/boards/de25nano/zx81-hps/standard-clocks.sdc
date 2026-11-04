@@ -80,8 +80,15 @@ foreach {label bit divide port} {
     set phase_name [format {fes_audio_inst|audio|serializer|phase[%d]} $bit]
     set phase [get_registers $phase_name]
     set source_clock [get_pins -compatibility_mode -nocase "${phase_name}|clk"]
+    set divided_clock [get_pins -compatibility_mode -nocase "${phase_name}|q"]
     set target [get_ports $port]
     if {[get_collection_size $phase] != 1 || [get_collection_size $source_clock] != 1 ||
-        [get_collection_size $target] != 1} {error "DE25 standard I2S $label endpoints changed"}
+        [get_collection_size $divided_clock] != 1 || [get_collection_size $target] != 1} {
+        error "DE25 standard I2S $label endpoints changed"
+    }
     create_generated_clock -name "de25_i2s_${label}" -source $source_clock -divide_by $divide $phase
+    # The counter divides the clock; the register-Q -> output-pin path only
+    # forwards it. Model both so the physical output has a clock assignment.
+    create_generated_clock -name "de25_i2s_${label}_output" -master_clock "de25_i2s_${label}" \
+        -source $divided_clock -divide_by 1 $target
 }
