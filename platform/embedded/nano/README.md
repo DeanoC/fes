@@ -1241,3 +1241,12 @@ admission. The
 [matched board trial](../../../docs/validation/2026-11-03-de25-service-hardware/README.md)
 now passes all three same-package sessions and final Park; different physical
 payloads and ordinary runtime admission remain open.
+
+The request-driven fixed-window mode has a separate read-only
+`window_service_trace` auditor and injectable `WindowClient`. They require the
+matched boot prefix, both route gates, every configuration activation and each
+independent reader/master/bridge return. Cached reply observations cannot
+replace firmware evidence or mint a session. The bounded three-session client
+uses the already qualified persistent-service limits: 100s launch, 20s
+configuration, 5s control and no retry after an uncertain exchange. Physical
+acceptance for the new window service remains open until its matched image runs.

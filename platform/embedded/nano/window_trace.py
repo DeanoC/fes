@@ -38,6 +38,35 @@ def checked_contract(identity,memory,contract):
     return validate_window_read(context,memory,identity['map_sha256'],contract)
 
 
+def check_route(take,require,*,owner,generation,reset,memory,with_gate):
+    """Check the same sealed route for bounded probes and request services."""
+    def owned(value,generation,reset):
+        require(value['owner']==owner and value['generation']==generation and value['reset']==reset,
+                'window route changed owner, generation or reset')
+    translation=take('smmu')
+    require(translation==dict(status=0,reads=26,idr0=0x080f7e3f,idr1=0x0e739d18,aidr=1,s_idr1=0x80000018,
+        cr0=0,ack=0,gbpa=0,agbpa=0,s_cr0=0,s_ack=0,s_init=0,s_gbpa=0,s_agbpa=0,
+        identified=1,settled=1,bypass_controls_clear=1),'window use-point translation is not the sealed bypass route')
+    firewall=take('ddr_firewall');owned(firewall,generation,reset)
+    require(firewall['status']==0 and firewall['reads']==66 and firewall['mpfe_reset']==0 and
+            firewall['base']==memory['bus_base'] and firewall['bytes']==memory['bytes'] and not firewall['enable']&~255,
+            'window use-point firewall observation differs')
+    covered=False
+    for i in range(8):
+        region=take('ddr_region')
+        require(region['index']==i and region['base']&65535==0 and region['limit']&65535==65535 and
+                max(region['base'],region['limit'])<=0xffffffff and
+                max(region['baseext'],region['limitext'])<=255,'window firewall region layout is unknown')
+        low=region['baseext']<<32|region['base'];high=region['limitext']<<32|region['limit']
+        require(not firewall['enable']>>i&1 or low<=high,'enabled window firewall region is inverted')
+        covered|=bool(firewall['enable']>>i&1 and low<=memory['bus_base'] and high>=memory['bus_base']+memory['bytes']-1)
+    require(take('ddr_firewall_end')==dict(layout_known=1,window_covered=1) and covered,
+            'firewall does not cover the complete window')
+    if with_gate:
+        gate=take('gate');owned(gate,generation,reset)
+        require(gate['status']==0 and gate['bytes']==memory['bytes'] and gate['permit']=='owned-read','window gate denied access')
+
+
 def validate(data,*,owner,source_generation,identity,memory,contract,publication,rules,present=False,frames_count=12,prepare=False):
     """Check two fresh full-window gates, real master-stop and native return.
 
@@ -85,28 +114,7 @@ def validate(data,*,owner,source_generation,identity,memory,contract,publication
                 'window progress changed order, frame or monotonic bounded time')
         elapsed=v['elapsed_us'];steps.append(v)
     def route(generation,reset,with_gate):
-        translation=take('smmu')
-        require(translation==dict(status=0,reads=26,idr0=0x080f7e3f,idr1=0x0e739d18,aidr=1,s_idr1=0x80000018,
-            cr0=0,ack=0,gbpa=0,agbpa=0,s_cr0=0,s_ack=0,s_init=0,s_gbpa=0,s_agbpa=0,
-            identified=1,settled=1,bypass_controls_clear=1),'window use-point translation is not the sealed bypass route')
-        firewall=take('ddr_firewall');owned(firewall,generation,reset)
-        require(firewall['status']==0 and firewall['reads']==66 and firewall['mpfe_reset']==0 and
-                firewall['base']==memory['bus_base'] and firewall['bytes']==memory['bytes'] and not firewall['enable']&~255,
-                'window use-point firewall observation differs')
-        covered=False
-        for i in range(8):
-            region=take('ddr_region')
-            require(region['index']==i and region['base']&65535==0 and region['limit']&65535==65535 and
-                    max(region['base'],region['limit'])<=0xffffffff and
-                    max(region['baseext'],region['limitext'])<=255,'window firewall region layout is unknown')
-            low=region['baseext']<<32|region['base'];high=region['limitext']<<32|region['limit']
-            require(not firewall['enable']>>i&1 or low<=high,'enabled window firewall region is inverted')
-            covered|=bool(firewall['enable']>>i&1 and low<=memory['bus_base'] and high>=memory['bus_base']+memory['bytes']-1)
-        require(take('ddr_firewall_end')==dict(layout_known=1,window_covered=1) and covered,
-                'firewall does not cover the complete window')
-        if with_gate:
-            gate=take('gate');owned(gate,generation,reset)
-            require(gate['status']==0 and gate['bytes']==memory['bytes'] and gate['permit']=='owned-read','window gate denied access')
+        check_route(take,require,owner=owner,generation=generation,reset=reset,memory=memory,with_gate=with_gate)
     try:
         if prepare:
             take('fpga_query')

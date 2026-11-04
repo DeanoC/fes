@@ -27,7 +27,7 @@ The complete frame arena, plans and reservations remain rooted until reboot.
 The frontend accepts bounded status/present/return/launch/park commands. It
 keeps display handles private; commands cannot select a path, bus address or
 frame bytes. Replies expose cached CRC/hash/byte/reader-drain observations,
-last closure and SD generation without granting future access. Failure replies
+last closure and SD generation without granting future access. Retired-service replies
 omit success observations. Service generations are request tokens and differ
 from firmware bridge generations. In the modeled three-session sequence,
 running service generations are 1, 3 and 5; bridge closures are 7, 13 and 19.
