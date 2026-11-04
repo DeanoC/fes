@@ -80,6 +80,12 @@ Each changed path gets a class and a component:
   Standalone LED, RAM-test and link-proof diagnostics remain separate from
   deployed-package testing. The regression checks the actual MENU and standard
   ZX81 board-source closures so deployed inputs cannot silently become `none`.
+- The DE25 permanent-owner kernel includes `image/kernel/de25-dma/` in native
+  builds as well as QEMU tests. Driver changes and its native kernel/image
+  recipe helpers require `FULL_IMAGE` and a DE25 boot test. Their original
+  diagnostic names do not exempt them. The disabled KUnit test source itself
+  remains software-only. Tests check the actual driver directory and owner-image
+  recipe inputs against this classification.
 - `full`: image, boot media, platform, profile, splash, video-part or kit
   software-format changes. The decision is `FULL_IMAGE`: stop and build a
   full image. A full image swap or reimage still needs Deano's explicit OK.

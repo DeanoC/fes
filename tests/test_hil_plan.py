@@ -209,8 +209,8 @@ class HilPlanTest(unittest.TestCase):
 
     def test_ci_selection_scripts_are_none(self):
         plan = hil_module()
-        for name in ('affected', 'hil_plan', 'host_tests', 'runtime_tests', 'changed_paths', 'test_changed', 'de25_runtime',
-                     'de25_boot_contract', 'de25_first_boot', 'de25_dma_descriptor', 'de25_kernel_test'):
+        for name in ('affected', 'hil_plan', 'host_tests', 'runtime_tests', 'changed_paths',
+                     'test_changed', 'de25_runtime', 'de25_dma_descriptor'):
             path = f'scripts/{name}.py'
             with self.subTest(path=path):
                 row = plan.classify_path(path)
@@ -555,7 +555,7 @@ class HilPlanTest(unittest.TestCase):
                  'sources/mister-packages/packages/fabric/fes_fabric_de25_computer.yaml',
                  'sources/mister-packages/packages/fabric/fes_fabric_de25_ramtest.yaml',
                  'sources/mister-packages/packages/fabric/fes_fabric_de25_pr_control.yaml',
-                 'image/kernel/de25-dma/de25_dma.c',
+                 'image/kernel/de25-dma/de25_dma_test.c',
                  *['sources/misteross/boards/de25nano/' + name
                    for name in ('blinky.sv', 'pins.qsf', 'clocks.sdc', 'Makefile',
                                 'test_de25nano.py', 'sim/blinky_tb.cpp',
@@ -633,6 +633,27 @@ class HilPlanTest(unittest.TestCase):
         self.assertEqual(result['components'], ['core:de25-menu', 'core:de25-zx81'])
         self.assertEqual(result['class'], 'overlay')
         self.assertEqual(planner.plan([zx81], texts={})['decision'], 'OVERLAY core:de25-zx81')
+
+    def test_native_de25_kernel_and_image_recipe_inputs_require_boot(self):
+        from scripts import de25_kernel_platform, de25_owner_image
+        planner = hil_module()
+        # The real production integrator copies dep.DRIVER into the vendor
+        # kernel. Do not retain its original QEMU-only HIL exemption.
+        driver = ROOT / de25_kernel_platform.dep.DRIVER
+        paths = {path.relative_to(ROOT).as_posix() for path in driver.rglob('*')
+                 if path.is_file() and path.suffix != '.md' and path.name != 'de25_dma_test.c'}
+        paths.update(de25_owner_image.RECIPE_FILES)
+        for path in sorted(paths):
+            with self.subTest(path=path):
+                self.assertEqual(planner.classify_path(path)['class'], 'full')
+        for path in ('image/kernel/de25-dma/de25_dma.c',
+                     'image/kernel/de25-dma/de25_dma_owner.c',
+                     'image/kernel/de25-dma/generated/fes_de25_scanout.h',
+                     'scripts/de25_kernel_test.py', 'scripts/de25_boot_contract.py',
+                     'scripts/de25_first_boot.py'):
+            self.assertEqual(planner.classify_path(path)['component'], 'de25-nano-linux')
+        self.assertEqual(planner.plan(['image/kernel/de25-dma/de25_dma_test.c'], texts={})[
+            'decision'], 'NO_DEPLOY_CHANGE')
 
     def test_board_validation_tools_preserve_generated_consumer_requirements(self):
         planner = hil_module()

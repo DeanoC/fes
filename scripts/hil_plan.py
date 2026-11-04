@@ -21,14 +21,22 @@ RULES = [
         'scripts/test_policy.py', 'scripts/parent_tests.py', 'scripts/host_tests.py',
         'scripts/check_deadcode.py', 'scripts/check_diff.py', 'scripts/changed_paths.py',
         'scripts/check_doc_links.py', 'scripts/coordination.py', 'scripts/de25_runtime.py',
-        'scripts/de25_boot_contract.py', 'scripts/de25_first_boot.py',
-        'scripts/de25_dma_descriptor.py', 'scripts/de25_kernel_test.py',
+        'scripts/de25_dma_descriptor.py',
         'scripts/hil_plan.py', 'scripts/consistency.py', 'scripts/generate.py',
         'scripts/host_affected.py', 'scripts/runtime_tests.py',
     )],
-    # This driver is exercised only in a private QEMU kernel. No appliance,
-    # image or software bundle installs or enables it.
-    ('image/kernel/de25-dma/**', 'none', None),
+    # The native permanent-owner kernel now compiles this same DMA driver.
+    # Only its disabled KUnit translation unit remains software-test-only.
+    ('image/kernel/de25-dma/de25_dma_test.c', 'none', None),
+    ('image/kernel/de25-dma/*.md', 'none', None),
+    ('image/kernel/de25-dma/**', 'full', 'de25-nano-linux'),
+    # These helpers are inputs of the native owner-image/kernel recipe too,
+    # despite their original off-board/test-oriented names.
+    *[(path, 'full', 'de25-nano-linux') for path in (
+        'scripts/de25_kernel_test.py', 'scripts/de25_kernel_platform.py',
+        'scripts/de25_owner_image.py', 'scripts/de25_boot_contract.py',
+        'scripts/de25_first_boot.py',
+    )],
     # This separate headless image needs a DE25 serial/SSH boot check. It is
     # never installed as a DE10 kit software bundle or native-integration image.
     ('image/de25-nano/**', 'full', 'de25-nano-linux'),
