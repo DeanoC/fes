@@ -71,11 +71,15 @@ if {[get_collection_size $audio_release] != 2 || [get_collection_size $audio_cle
 set_false_path -to $audio_clear
 
 # These output pins carry divided clocks, not synchronous payload data. Their
-# source is the actual audio-domain counter clock; phase[1] divides MCLK by
-# four and phase[7] divides it by 256. The base PCM data output is constant.
-foreach {label bit divide port} {
-    bit_clock 1 4 HDMI_SCLK
-    word_clock 7 256 HDMI_LRCLK
+# source is the actual audio-domain counter clock. Starting with phase=0,
+# the first increment is on source edge 1: phase[1] first rises on edge 3,
+# falls on edge 7, and rises again on edge 11. Likewise phase[7] uses edges
+# 255, 511, 767. Both periods are unchanged, but these edges retain the real
+# relationship: LRCLK changes on a falling SCLK edge. Plain -divide_by would
+# incorrectly align their rising edges. The base PCM data output is constant.
+foreach {label bit edges port} {
+    bit_clock 1 {3 7 11} HDMI_SCLK
+    word_clock 7 {255 511 767} HDMI_LRCLK
 } {
     set phase_name [format {fes_audio_inst|audio|serializer|phase[%d]} $bit]
     set phase [get_registers $phase_name]
@@ -86,7 +90,7 @@ foreach {label bit divide port} {
         [get_collection_size $divided_clock] != 1 || [get_collection_size $target] != 1} {
         error "DE25 standard I2S $label endpoints changed"
     }
-    create_generated_clock -name "de25_i2s_${label}" -source $source_clock -divide_by $divide $phase
+    create_generated_clock -name "de25_i2s_${label}" -source $source_clock -edges $edges $phase
     # The counter divides the clock; the register-Q -> output-pin path only
     # forwards it. Model both so the physical output has a clock assignment.
     create_generated_clock -name "de25_i2s_${label}_output" -master_clock "de25_i2s_${label}" \

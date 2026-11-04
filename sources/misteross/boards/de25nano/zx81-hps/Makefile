@@ -11,7 +11,7 @@ sim:
 	$(PYTHON) video_sim.py
 	$(PYTHON) sim.py
 test:
-	$(PYTHON) -m unittest -v test_build test_client test_client_proof
+	$(PYTHON) -m unittest -v test_build test_client test_client_proof test_audio_clocks
 client-proof:
 	$(PYTHON) client_proof.py $(if $(OUTPUT),--output "$(OUTPUT)") $(CLIENT_PROOF_ARGS)
 

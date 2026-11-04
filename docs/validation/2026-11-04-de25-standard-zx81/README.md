@@ -284,7 +284,40 @@ and301 RAM blocks. See [canonical-candidate.json](canonical-candidate.json).
 Raw signoff still reports32 missing-output-delay findings and two missing-input
 findings, with zero waivers and no other failed rule. Compile-only supplies no
 reviewed-finding substitutions and exports no package. A separate clean build
-has started to compare exact source/tool/execution records and RBF bytes; its
-result remains pending. This candidate has not been programmed or accepted on
-a board. The HDMI/audio-clock review, independent final package rebuild, source
-proof receipt refresh and managed native acceptance remain open.
+completed in643.527 seconds with identical source/tool/execution records and RBF
+bytes; its92 numerical timing checks also pass. See
+[canonical-repeat.json](canonical-repeat.json). This candidate has not been
+programmed or accepted on a board. The HDMI/audio-clock review, independent final
+package rebuild, source proof receipt refresh and managed native acceptance
+remain open.
+
+## Audio counter phase correction
+
+The frequency-only generated clocks incorrectly aligned SCLK and LRCLK rising
+edges. The common serializer changes LRCLK on a falling SCLK edge. Explicit
+source edges `{3 7 11}` and `{255 511 767}` now model that relationship without
+changing the divider rates or RTL. The real Verilated serializer is compared
+against the selected SDC edge lists over1,024 source cycles, including repeated
+periods and both LRCLK transitions. Run the committed check with:
+
+```sh
+python3 -m unittest discover -s sources/misteross/boards/de25nano/zx81-hps -p test_audio_clocks.py
+```
+
+The actual RTL check and27 existing board-builder tests pass. A private copy of
+the earlier routed candidate accepts the corrected constraints and reports
+SCLK period325.516ns/waveform81.379–244.137ns and LRCLK period20,833.024ns/
+waveform10,335.133–20,751.645ns. Both forwarded output clocks retain the same
+waveforms. All four fitted operating conditions have an explicit min/max path
+from each divider register to its output pin; their reports remain retained.
+See [audio-clock-phase.json](audio-clock-phase.json).
+
+The [ADV7513 hardware guide](https://www.analog.com/media/en/technical-documentation/user-guides/adv7513_hardware_user_guide.pdf),
+pages12–13, specifies2ns setup/hold for LRCLK relative to the selected SCLK edge.
+The stock transmitter writes select rising-edge capture. This confirms the
+required relationship; the pin-path probe alone does not include the complete
+clock-network or PCB skew and therefore does not prove receiver setup/hold.
+Raw signoff remains32 outputs/two inputs with zero waivers. The existing exact
+30-output reference policy is unchanged; the two audio-output findings remain
+open. The corrected source requires a fresh complete build before any artifact
+claim, and no board programming or package acceptance occurred in this phase.

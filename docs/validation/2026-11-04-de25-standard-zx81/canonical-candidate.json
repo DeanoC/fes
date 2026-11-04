@@ -3,7 +3,7 @@
   "build_id": "26921a8281abaf2f9b96ac388a5a63e5",
   "classification": "canonical standard compile-only candidate; not sealed or board accepted",
   "hardware_changed": false,
-  "independent_rebuild": "running; not yet evidence",
+  "independent_rebuild": "passed: separate clean project, exact source/tool/execution record and RBF bytes",
   "package_timing_admission": false,
   "producer_total_seconds": 654.917,
   "raw_failed_rules": [
