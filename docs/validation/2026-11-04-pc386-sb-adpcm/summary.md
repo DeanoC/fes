@@ -55,13 +55,20 @@ audio) and `make test-changed` pass. No kit run has been made yet.
 
 ## Inputs
 
-- **Branch.** FES `deano/pc386-sb-adpcm-791300`, from main `bb51f4454`:
-  `4395fabee` (the RTL and `audio_tb`) and `17d84eca1` (the design doc).
+- **Branch.** FES `deano/pc386-sb-adpcm`, from main `bb51f4454`:
+  `4395fabee` (the RTL and `audio_tb`), `17d84eca1` (the design doc),
+  `a6bfe4a04` and `f8dea53b0` (this record). `2d6d77a58` merges main
+  `2dcfa05ca`, which brings
+  [#1452](https://github.com/DeanoC/fes/pull/1452)'s BIOS change (INT 15h
+  C2xx) and [#1472](https://github.com/DeanoC/fes/pull/1472)'s kit record.
+  The BIOS is a sealed firmware input, so the seal does not cover the
+  merged firmware; it covers this branch's RTL, which the merge does not
+  touch. `system`, `boot`, `sound` and `audio` were rerun after the merge.
 - **Seal.** `fes.pc386` from a clean checkout of `17d84eca1` ([Seal](#seal)).
 
 ## Checks
 
-- **`audio_tb` (125 checks, 44 new).** Each check runs at 220h, IRQ 7, with a
+- **`audio_tb` (125 checks, 36 new).** Each check runs at 220h, IRQ 7, with a
   50 kHz time constant:
   - **Single-cycle, per encoding.** First the reference form (75h, 77h, 17h)
     for 40 bytes, then the plain form (74h, 76h, 16h) for 24 bytes, which
@@ -86,7 +93,7 @@ audio) and `make test-changed` pass. No kit run has been made yet.
     block's last codes after the IRQ fails 7.
   - The old "74h consumes its two argument bytes" check now uses 41h, an
     SB16 command the card still ignores.
-- **Suites** on `17d84eca1`: `system`, `boot`, `governor`, `sound` and
+- **Suites** on `17d84eca1`, and `system`, `boot`, `sound` and `audio` again on the merge `2d6d77a58` (the reports): `system`, `boot`, `governor`, `sound` and
   `audio` pass ([reports](.)). `make test-changed` passes.
 
 ## Serpent Isle on the machine bench
