@@ -571,10 +571,26 @@ qualifying the PHY/host/hub and verifying playable input remain separate work.
 `ProgramInputPlatform` now connects that binding to the actual `tenfoot.Platform`
 loop. One source supplies menu commands while Ready and complete core snapshots
 while Running. Backend ownership remains locked across classification and report
-processing; loading/returning never consume reports. Return resets the menu
+processing; loading/returning never route reports. Return resets the menu
 reader and requires an all-keys-up report before shortcuts resume. This can
 require an extra press/release when a device sends reports only on changes;
 physical handoff behavior still needs qualification.
+
+A source implementing `input.PollingControl` is drained and paused before each
+accepted launch/return and resumed afterward. The Nano owned USB sources expose
+that interface through the actual DWC2 driver. Draining discards the current
+report and completes any pending packet or hub-health request before the long
+transition; it does not reset the device, re-enumerate, change endpoint toggles
+or release its secure lease. Loading can then take longer than a packet's
+deadline without leaving that packet active. Model-only sources without this
+interface keep their existing synchronous routing behavior.
+
+Every paused transition also fences menu input, including a rejected package
+whose preflight leaves the same Ready generation. A fresh neutral report is
+required afterward. A pause/resume failure blocks later launches; an existing
+owned play is parked with an independent bounded cleanup. Failed native
+configuration/closure keeps USB drained and reserved. These callbacks grant no
+shared firmware capability and select no composed board startup.
 
 A failed source is terminal for this input owner. Future launches are rejected.
 If this owner has a live play, a separate five-second cleanup requests the

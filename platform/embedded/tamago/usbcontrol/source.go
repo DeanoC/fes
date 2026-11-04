@@ -20,6 +20,7 @@ type reportLease struct {
 	driver    reportDriver
 	receipt   Receipt
 	closed    bool
+	paused    bool
 	fault     error
 }
 
@@ -91,6 +92,9 @@ func (s *reportLease) poll() ([]byte, error) {
 	current, valid := c.LastReceipt()
 	if !valid || current != s.receipt || !current.Active || !current.Confirmed {
 		return nil, ErrRetired
+	}
+	if s.paused {
+		return nil, nil
 	}
 	report, err := s.driver.pollReport()
 	if err != nil {

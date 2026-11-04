@@ -35,9 +35,19 @@ GRXSTSP value and the surrounding interrupt/channel/port/reset registers. Status
 zero remains an error. This snapshot diagnoses the first physical Nano failure;
 it does not establish its cause or make a failed channel safe to reuse.
 The board wrapper permits one initialization attempt per boot. Hotplug recovery,
-gamepads, HID output reports, USB 3 hub protocols and hotplug re-enumeration
+HID output reports, USB 3 hub protocols and hotplug re-enumeration
 are not implemented. Hub paths are checked and retired on change. The API has one polling owner; concurrent calls are not
 supported.
+
+`PausePolling` drains the pending packet or hub-health operation within 500 ms
+and 4096 steps, discarding any report. It requires disabled DMA/interrupts,
+an intact link, every admitted channel idle and no unread receive status before
+publishing the paused state. Subsequent polls perform no register access.
+`ResumePolling` clears only this local pause; it does not reset or enumerate the
+device, repair a failed host, or change its endpoint PID. New packets and hub
+checks get their ordinary fresh deadlines. The typed gamepad view exposes the
+same operations. This supports retaining the controller across long core loads;
+model tests cover a 100-second gap, not physical combined-operation acceptance.
 
 `cmd/keyboard` is a serial-only bring-up image: initialize the selected backend,
 print `FES_KEYBOARD_READY`, then print normalized key events. It needs neither

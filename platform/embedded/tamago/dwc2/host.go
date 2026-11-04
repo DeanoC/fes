@@ -78,6 +78,8 @@ type packet struct {
 	firstToggle                              error
 }
 type Host struct {
+	pollingPaused         bool
+	channels              uint32
 	gamepadMode           bool
 	gamepad               *usb.Gamepad
 	reportDescriptor      []byte
@@ -219,6 +221,7 @@ func (h *Host) initialize() error {
 		return fmt.Errorf("dwc2: firmware DMA still enabled")
 	}
 	channels := ((cfg >> 14) & 15) + 1
+	h.channels = channels
 	for n := uint32(0); n < channels; n++ {
 		if h.io.Read32(hcchar+n*0x20)&channelEnable != 0 {
 			return fmt.Errorf("dwc2: firmware channel still active")
@@ -622,6 +625,9 @@ func (h *Host) PollKeyboard() ([]byte, error) {
 func (h *Host) pollInput() ([]byte, error) {
 	if h.fault != nil {
 		return nil, h.fault
+	}
+	if h.pollingPaused {
+		return nil, nil
 	}
 	if h.healthStage != 0 || !h.pending.active && len(h.path) > 0 && !h.io.Now().Before(h.healthNext) {
 		until := h.io.Now().Add(2 * time.Millisecond)

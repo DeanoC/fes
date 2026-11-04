@@ -48,6 +48,8 @@ type ProgramBackend struct {
 	keyboard      *programKeyboard
 	inputAttached bool
 	inputFault    error
+	inputPolling  programInputPolling
+	inputBoundary uint64
 }
 
 func NewProgramBackend(service *ProgramService, entries []ProgramEntry) (*ProgramBackend, error) {
@@ -218,12 +220,18 @@ func (b *ProgramBackend) RoundTrip(r *http.Request) (*http.Response, error) {
 		if selected == nil {
 			return programError(r, 404, "UNKNOWN_GAME", "catalog ID is unavailable")
 		}
-		session, err := b.service.Launch(r.Context(), v.Generation, selected.Request)
+		err := b.withInputPaused(r.Context(), func() error {
+			session, err := b.service.Launch(r.Context(), v.Generation, selected.Request)
+			if err != nil {
+				return err
+			}
+			b.session = session
+			b.play = programPlay{ID: fmt.Sprintf("nano-%016x-%d", v.Owner, session.Generation()), Game: selected.ID, Target: "de25-nano", TargetID: fmt.Sprintf("%016x", v.Owner), PackageID: selected.Request.PackageID, Generation: session.Generation(), Flight: r.Header.Get("X-FogCast-Flight-Id")}
+			return nil
+		})
 		if err != nil {
 			return programError(r, 409, "NATIVE_LAUNCH_FAILED", err.Error())
 		}
-		b.session = session
-		b.play = programPlay{ID: fmt.Sprintf("nano-%016x-%d", v.Owner, session.Generation()), Game: selected.ID, Target: "de25-nano", TargetID: fmt.Sprintf("%016x", v.Owner), PackageID: selected.Request.PackageID, Generation: session.Generation(), Flight: r.Header.Get("X-FogCast-Flight-Id")}
 	} else {
 		if body.Game != "" {
 			return programError(r, 400, "INVALID_REQUEST", "stop does not select a game")
@@ -236,10 +244,16 @@ func (b *ProgramBackend) RoundTrip(r *http.Request) (*http.Response, error) {
 				return programError(r, 409, "NOT_IDLE", "native service is not idle")
 			}
 		} else if v.State == ProgramRunning {
-			if _, err := b.service.Return(r.Context(), b.session); err != nil {
+			err := b.withInputPaused(r.Context(), func() error {
+				if _, err := b.service.Return(r.Context(), b.session); err != nil {
+					return err
+				}
+				b.session, b.play = ProgramSession{}, programPlay{}
+				return nil
+			})
+			if err != nil {
 				return programError(r, 409, "NATIVE_RETURN_FAILED", err.Error())
 			}
-			b.session, b.play = ProgramSession{}, programPlay{}
 		} else if v.State != ProgramReady {
 			return programError(r, 409, "NOT_READY", "native service is not ready")
 		}

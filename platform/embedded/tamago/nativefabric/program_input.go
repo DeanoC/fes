@@ -32,6 +32,7 @@ type ProgramInputPlatform struct {
 	session           ProgramSession
 	mode              ProgramServiceState
 	generation        uint64
+	boundary          uint64
 	menuArmed         bool
 	fault             error
 }
@@ -44,7 +45,8 @@ func NewProgramInputPlatform(base tenfoot.Platform, backend *ProgramBackend, sou
 	if err != nil {
 		return nil, err
 	}
-	p, err := newProgramInputPlatform(base, backend)
+	control, _ := source.(input.PollingControl)
+	p, err := newProgramInputPlatform(base, backend, control)
 	if err != nil {
 		return nil, err
 	}
@@ -63,7 +65,8 @@ func NewProgramGamepadPlatform(base tenfoot.Platform, backend *ProgramBackend, s
 	if err != nil {
 		return nil, err
 	}
-	p, err := newProgramInputPlatform(base, backend)
+	control, _ := source.(input.PollingControl)
+	p, err := newProgramInputPlatform(base, backend, control)
 	if err != nil {
 		return nil, err
 	}
@@ -72,7 +75,7 @@ func NewProgramGamepadPlatform(base tenfoot.Platform, backend *ProgramBackend, s
 	p.gamepadButtons, p.gamepadKeys = buttons, keys
 	return p, nil
 }
-func newProgramInputPlatform(base tenfoot.Platform, backend *ProgramBackend) (*ProgramInputPlatform, error) {
+func newProgramInputPlatform(base tenfoot.Platform, backend *ProgramBackend, control programInputPolling) (*ProgramInputPlatform, error) {
 	if base == nil || backend == nil || backend.service == nil {
 		return nil, ErrProgramSession
 	}
@@ -84,6 +87,7 @@ func newProgramInputPlatform(base tenfoot.Platform, backend *ProgramBackend) (*P
 		return nil, ErrProgramBusy
 	}
 	backend.inputAttached = true
+	backend.inputPolling = control
 	return &ProgramInputPlatform{base: base, backend: backend, menuArmed: backend.service.Status().Generation == 0}, nil
 }
 
@@ -134,6 +138,9 @@ func (p *ProgramInputPlatform) poll(ctx context.Context) ([]input.Event, error) 
 		return nil, nil
 	} // An owned transition is in flight.
 	defer b.operation.Unlock()
+	if b.inputFault != nil {
+		return nil, b.inputFault
+	}
 	v := b.service.Status()
 	if v.State != ProgramReady && v.State != ProgramRunning {
 		return nil, nil
@@ -155,7 +162,7 @@ func (p *ProgramInputPlatform) poll(ctx context.Context) ([]input.Event, error) 
 			return nil, err
 		}
 	}
-	if v.State == ProgramReady && p.mode != "" && (p.mode != ProgramReady || p.generation != v.Generation) {
+	if v.State == ProgramReady && (p.boundary != b.inputBoundary || p.mode != "" && (p.mode != ProgramReady || p.generation != v.Generation)) {
 		if p.gamepadSource != nil {
 			p.gamepadMenu, _ = input.NewUSBGamepad(p.gamepadSource, p.gamepadDescriptor, p.gamepadButtons)
 		} else {
@@ -163,7 +170,7 @@ func (p *ProgramInputPlatform) poll(ctx context.Context) ([]input.Event, error) 
 		}
 		p.menuArmed = false
 	}
-	p.mode, p.generation = v.State, v.Generation
+	p.mode, p.generation, p.boundary = v.State, v.Generation, b.inputBoundary
 	var events []input.Event
 	for n := 0; n < 8; n++ {
 		if err := ctx.Err(); err != nil {

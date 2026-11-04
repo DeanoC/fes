@@ -48,3 +48,12 @@ explicit scope selection, malformed modes, independent USB/SD reservations and
 fault retirement. It does not select a composed board image or establish
 physical coexistence. Firmware changes to USB ownership require a closed,
 qualified core return; stopping USB can preserve an already active SD lease.
+
+Both owned typed sources expose `input.PollingControl`. Pause/resume serialize
+with polling and closure and require the same confirmed owner/generation.
+They delegate to a capable report driver without a firmware mutation; paused
+polls return no report or hardware access. An unsupported driver is rejected.
+An attempted driver transition failure retires local polling while retaining
+the active reservation for the existing checked `Close` path. No resume can
+repair a failed, closed or replaced source. The native backend uses this to
+drain pending DWC2 transactions before long core loads and returns.
