@@ -139,3 +139,11 @@ and the digest the seal records.
   pc386's mouse keeps packet bytes queued ahead of its ACK, and upstream
   `get_mouse_data` takes the first aux byte as the reply. That is upstream's
   behaviour and not #1330's; no bench drives the mouse during a call.
+
+## Merged-BIOS rerun (2026-11-04)
+
+After #1451 was merged into this PR's head, the firmware was rebuilt from the
+current lock and the requested `c2xx`, `wait`, `system` and `boot` suites were
+rerun. All six CPU/suite runs passed on the same BIOS image. The exact BIOS,
+tool versions, commands and retained reports are in the
+[merged-BIOS rerun record](merged-bios-rerun.md).
