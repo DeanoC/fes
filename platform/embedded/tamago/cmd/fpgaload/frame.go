@@ -53,7 +53,7 @@ func reportWindowFailure(err error) {
 	}
 }
 
-func presentWindowFrames(v *nativefabric.HPSContextVerifier, control, contract []byte, limits scanout.ReaderLimits) (*nativefabric.WindowSession, error) {
+func presentWindowFrames(v *nativefabric.HPSContextVerifier, control, contract []byte, limits scanout.ReaderLimits, frames int) (*nativefabric.WindowSession, error) {
 	ctx := context.Background()
 	session, err := v.OpenWindowSession(ctx, control, contract, retained, limits)
 	if err != nil {
@@ -65,7 +65,7 @@ func presentWindowFrames(v *nativefabric.HPSContextVerifier, control, contract [
 	step := func(index int, phase string) {
 		fmt.Printf("FES_NATIVE_FPGA_WINDOW_PRESENT STEP index=%d phase=%s elapsed_us=%d\n", index+1, phase, time.Since(started)/time.Microsecond)
 	}
-	err = framefixture.Render(12, func(index int, frame *image.RGBA) error {
+	err = framefixture.Render(frames, func(index int, frame *image.RGBA) error {
 		observed, e := session.PresentFrame(ctx, frame)
 		if e != nil {
 			return e
@@ -82,15 +82,15 @@ func presentWindowFrames(v *nativefabric.HPSContextVerifier, control, contract [
 			observed.Memory.FrameSHA256, observed.Drain.Generation, observed.Drain.Cookie)
 		return nil
 	}, step)
-	step(12, "return_begin")
+	step(frames, "return_begin")
 	returned, closeErr := session.Close()
 	if err = errors.Join(err, closeErr); err != nil {
 		return nil, err
 	}
-	if returned.Frames != 12 || returned.LastFrame != last.Frame || returned.Memory != last.Memory {
+	if returned.Frames != uint64(frames) || returned.LastFrame != last.Frame || returned.Memory != last.Memory {
 		return nil, errors.New("native window presentation return differs")
 	}
-	step(12, "return_end")
+	step(frames, "return_end")
 	id := v.Identity()
 	fmt.Printf("FES_NATIVE_FPGA_WINDOW_PRESENT PASS package_id=%s build_id=%s owner=%x source_generation=%d closed_generation=%d frames=%d last_reader_generation=%d last_cookie=%d bytes=%d crc32=%08x frame_sha256=%x access_map_sha256=%x data_closed=1 memory_retained=1 runtime_admission=unavailable\n",
 		id.PackageID, id.BuildID, returned.After.Owner, returned.Source.Bridges.Generation, returned.After.Generation, returned.Frames,

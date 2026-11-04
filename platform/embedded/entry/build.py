@@ -124,6 +124,23 @@ def window_storage_return_option(receipt):
     return selected
 
 
+def window_reload_option(receipt):
+    selected=receipt.get('window_reload',False)
+    if (type(selected) is not bool or selected and
+            (receipt.get('window_storage_return') is not True or receipt.get('window_present') is not True or receipt.get('window_read') is not True or receipt.get('window_memory') is not True)):
+        raise ValueError('window reload requires the selected complete presentation path')
+    command=receipt.get('command',[])
+    try:tokens=shlex.split(command[command.index('-ldflags')+1])
+    except (ValueError,IndexError,AttributeError,TypeError):
+        raise ValueError('window reload requires the native link command') from None
+    options=[(i,word) for i,word in enumerate(tokens) if 'main.expectedWindowReload' in word]
+    if selected:
+        if len(options)!=1 or options[0][1]!='main.expectedWindowReload=1' or options[0][0]==0 or tokens[options[0][0]-1]!='-X':
+            raise ValueError('window reload differs from the native link assignment')
+    elif options:raise ValueError('unselected window reload appears in the native link command')
+    return selected
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--target", choices=("qemu", "de25-nano"), default="qemu")
@@ -153,6 +170,7 @@ def main():
     native_window_read = None
     native_window_present = False
     native_window_storage_return = False
+    native_window_reload = False
     if args.target == "qemu":
         if args.nano_build or args.profile or args.image_address is not None:
             parser.error("Nano receipt, profile and load address are only valid with --target de25-nano")
@@ -196,6 +214,10 @@ def main():
         window_read_option(receipt,native_window_read)
         native_window_present=window_present_option(receipt)
         native_window_storage_return=window_storage_return_option(receipt)
+        native_window_reload=window_reload_option(receipt)
+        if native_window_reload and any(value not in payload.read_bytes() for value in
+                (b"FES_NATIVE_FPGA_WINDOW_RELOAD BEGIN ",b"FES_NATIVE_FPGA_WINDOW_RELOAD PASS ",b"WindowSession).NewStoredReconfigurationTransfer")):
+            raise ValueError("window reload is absent from the selected native ELF")
         if native_window_storage_return and any(value not in payload.read_bytes() for value in
                 (b"FES_NATIVE_FPGA_WINDOW_STORAGE_RETURN PASS ",b"WindowSession).ResumeStorageAfterReturn")):
             raise ValueError("window storage return is absent from the selected native ELF")
@@ -412,6 +434,7 @@ def main():
               "window_read":native_window_read is not None,"hps_window_read":native_window_read,
               "window_present":native_window_present,
               "window_storage_return":native_window_storage_return,
+              "window_reload":native_window_reload,
               "hps_window_read_sha256":hps.digest(native_window_read) if native_window_read else None,
               "computer_storage_return":native_storage_return,
               "selected_programs":native_selected_programs,

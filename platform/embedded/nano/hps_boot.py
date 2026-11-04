@@ -69,6 +69,9 @@ def prepare(project, uboot, entry, pfg, output):
     window_storage_return=window_profile.get('window_storage_return',False)
     if type(window_storage_return) is not bool or window_storage_return and (not window_present or window_profile.get('sd_pio') is not True):
         raise ValueError('window storage return requires matched presentation and SD')
+    window_reload=window_profile.get('window_reload',False)
+    if type(window_reload) is not bool or window_reload and not window_storage_return:
+        raise ValueError('window reload requires matched window SD return')
     if (type(window_profile.get('window_read',False)) is not bool or
             window_profile.get('window_read',False)!=(window_read is not None)):
         raise ValueError('native window read selection differs from its sealed contract')
@@ -149,6 +152,7 @@ def prepare(project, uboot, entry, pfg, output):
         'bounded_window_read':window_read is not None,
         'bounded_window_presentation':window_present,
         'bounded_window_storage_return':window_storage_return,
+        'bounded_window_reload':window_reload,
         'hps_window_read_sha256':hps_context.digest(window_read) if window_read is not None else None,
         'trusted_boot_handoff': False, 'physical_programming_admission': False,
         'hardware_acceptance': 'not-run', 'inputs': hashes, 'commands': commands,

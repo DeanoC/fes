@@ -74,6 +74,15 @@ passes frame return in 44.05 seconds and fresh SD retention/containment in
 55.79 seconds, within their separate 45/100-second limits. Ordinary core loading
 and the normal native UI loop remain open.
 
+The separate `--window-reload` option requires `--window-storage-return` and
+selects one second native configuration from that freshly retained handoff.
+The first session presents twelve changing frames; the second presents two,
+then closes through a new independent firmware master stop. SD stays contained
+and the original frame arena stays pinned. SDK, entry, cold-profile and FPGA
+composition receipts carry the explicit selection. The second transfer keeps
+the existing 20-second configuration limit. This prototype still requires a
+matched bounded hardware test and supplies no ordinary package admission.
+
 The repeated-frame diagnostic emits timed `STEP` records before and after
 rendering, presentation and final return. A partial trace retains the last
 completed frame and the CPU step which did not return. These progress records

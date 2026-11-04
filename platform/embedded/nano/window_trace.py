@@ -18,7 +18,7 @@ PATTERNS={
     'present_receipt':re.compile(rf'FES_NATIVE_FPGA_WINDOW_PRESENT PASS package_id=(?P<package_id>[0-9a-f]{{64}}) build_id=(?P<build_id>[0-9a-f]{{32}}) owner=(?P<owner>{H}) source_generation=(?P<source_generation>{D}) closed_generation=(?P<closed_generation>{D}) frames=(?P<frames>{D}) last_reader_generation=(?P<last_reader_generation>{D}) last_cookie=(?P<last_cookie>{D}) bytes=(?P<bytes>{D}) crc32=(?P<crc32>[0-9a-f]{{8}}) frame_sha256=(?P<frame_sha256>[0-9a-f]{{64}}) access_map_sha256=(?P<access_map_sha256>[0-9a-f]{{64}}) data_closed=1 memory_retained=1 runtime_admission=unavailable'),
 }
 HEX={'owner','reset','crc32','hardware_drained','idr0','idr1','aidr','s_idr1','cr0','ack','gbpa','agbpa',
-     's_cr0','s_ack','s_init','s_gbpa','s_agbpa','enable','base','baseext','limit','limitext','published_crc32','read_crc32','pending'}
+     's_cr0','s_ack','s_init','s_gbpa','s_agbpa','enable','base','baseext','limit','limitext','published_crc32','read_crc32','pending','state','version','pins','soft','error_location','error_details'}
 TEXT={'permit','phase','package_id','build_id','frame_sha256','access_map_sha256'}
 
 
@@ -38,7 +38,7 @@ def checked_contract(identity,memory,contract):
     return validate_window_read(context,memory,identity['map_sha256'],contract)
 
 
-def validate(data,*,owner,source_generation,identity,memory,contract,publication,rules,present=False):
+def validate(data,*,owner,source_generation,identity,memory,contract,publication,rules,present=False,frames_count=12,prepare=False):
     """Check two fresh full-window gates, real master-stop and native return.
 
     The receipt is the matched native driver's checked frame and owned-closure
@@ -46,6 +46,8 @@ def validate(data,*,owner,source_generation,identity,memory,contract,publication
     """
     from hps_context import digest
     if type(present) is not bool:raise ValueError('window presentation selection must be explicit boolean')
+    if type(frames_count) is not int or frames_count not in (2,12) or type(prepare) is not bool:
+        raise ValueError('explicit bounded frame count and preparation selection required')
     checked_contract(identity,memory,contract)
     if (type(owner) is not int or not 0<owner<1<<64 or type(source_generation) is not int or
             not 0<source_generation<(1<<64)-3):
@@ -61,7 +63,7 @@ def validate(data,*,owner,source_generation,identity,memory,contract,publication
             result['errors'].append(reason);raise _Invalid()
     def take(kind):
         nonlocal cursor
-        while cursor<len(rows) and not rows[cursor].strip():cursor+=1
+        while cursor<len(rows) and rows[cursor].strip() in ('','NOTICE:'):cursor+=1
         if cursor==len(rows):raise _Incomplete()
         match=(PATTERNS.get(kind) or re.compile(rules[kind])).fullmatch(rows[cursor].rstrip('\r'))
         cursor+=1
@@ -82,33 +84,43 @@ def validate(data,*,owner,source_generation,identity,memory,contract,publication
         require(v['index']==index and v['phase']==phase and elapsed<=v['elapsed_us']<=240000000,
                 'window progress changed order, frame or monotonic bounded time')
         elapsed=v['elapsed_us'];steps.append(v)
-    try:
-        scope('control',source_generation+1,13)
-        for _ in range(2):
-            translation=take('smmu')
-            require(translation==dict(status=0,reads=26,idr0=0x080f7e3f,idr1=0x0e739d18,aidr=1,s_idr1=0x80000018,
-                cr0=0,ack=0,gbpa=0,agbpa=0,s_cr0=0,s_ack=0,s_init=0,s_gbpa=0,s_agbpa=0,
-                identified=1,settled=1,bypass_controls_clear=1),'window use-point translation is not the sealed bypass route')
-            firewall=take('ddr_firewall');owned(firewall,source_generation+1,13)
-            require(firewall['status']==0 and firewall['reads']==66 and firewall['mpfe_reset']==0 and
-                    firewall['base']==memory['bus_base'] and firewall['bytes']==memory['bytes'] and not firewall['enable']&~255,
-                    'window use-point firewall observation differs')
-            covered=False
-            for i in range(8):
-                region=take('ddr_region')
-                require(region['index']==i and region['base']&65535==0 and region['limit']&65535==65535 and
-                        max(region['base'],region['limit'])<=0xffffffff and
-                        max(region['baseext'],region['limitext'])<=255,'window firewall region layout is unknown')
-                low=region['baseext']<<32|region['base'];high=region['limitext']<<32|region['limit']
-                require(not firewall['enable']>>i&1 or low<=high,'enabled window firewall region is inverted')
-                covered|=bool(firewall['enable']>>i&1 and low<=memory['bus_base'] and high>=memory['bus_base']+memory['bytes']-1)
-            require(take('ddr_firewall_end')==dict(layout_known=1,window_covered=1) and covered,
-                    'firewall does not cover the complete window')
-            gate=take('gate');owned(gate,source_generation+1,13)
+    def route(generation,reset,with_gate):
+        translation=take('smmu')
+        require(translation==dict(status=0,reads=26,idr0=0x080f7e3f,idr1=0x0e739d18,aidr=1,s_idr1=0x80000018,
+            cr0=0,ack=0,gbpa=0,agbpa=0,s_cr0=0,s_ack=0,s_init=0,s_gbpa=0,s_agbpa=0,
+            identified=1,settled=1,bypass_controls_clear=1),'window use-point translation is not the sealed bypass route')
+        firewall=take('ddr_firewall');owned(firewall,generation,reset)
+        require(firewall['status']==0 and firewall['reads']==66 and firewall['mpfe_reset']==0 and
+                firewall['base']==memory['bus_base'] and firewall['bytes']==memory['bytes'] and not firewall['enable']&~255,
+                'window use-point firewall observation differs')
+        covered=False
+        for i in range(8):
+            region=take('ddr_region')
+            require(region['index']==i and region['base']&65535==0 and region['limit']&65535==65535 and
+                    max(region['base'],region['limit'])<=0xffffffff and
+                    max(region['baseext'],region['limitext'])<=255,'window firewall region layout is unknown')
+            low=region['baseext']<<32|region['base'];high=region['limitext']<<32|region['limit']
+            require(not firewall['enable']>>i&1 or low<=high,'enabled window firewall region is inverted')
+            covered|=bool(firewall['enable']>>i&1 and low<=memory['bus_base'] and high>=memory['bus_base']+memory['bytes']-1)
+        require(take('ddr_firewall_end')==dict(layout_known=1,window_covered=1) and covered,
+                'firewall does not cover the complete window')
+        if with_gate:
+            gate=take('gate');owned(gate,generation,reset)
             require(gate['status']==0 and gate['bytes']==memory['bytes'] and gate['permit']=='owned-read','window gate denied access')
+    try:
+        if prepare:
+            take('fpga_query')
+            status=take('fpga_status')
+            ready=status['state']==0 and bool(status['pins']&(1<<31)) and status['soft']&3==3 and not status['soft']&8
+            require(status['status']==0 and status['words']==6 and status['ready']==1 and ready and
+                    all(0<=status[k]<=0xffffffff for k in ('state','version','pins','soft','error_location','error_details')),
+                    'window reload lacks a complete ready configuration response')
+            route(source_generation,15,False)
+        scope('control',source_generation+1,13)
+        for _ in range(2):route(source_generation+1,13,True)
         scope('data',source_generation+2,5)
         if present:
-            for index in range(1,13):
+            for index in range(1,frames_count+1):
                 step(index,'render_begin');step(index,'render_end');step(index,'present_begin')
                 frame=take('frame')
                 require(frame['index']==index and frame['package_id']==identity['package_id'] and
@@ -120,9 +132,9 @@ def validate(data,*,owner,source_generation,identity,memory,contract,publication
                     'window presentation changed publication, reader or local drain')
                 frames.append(frame)
                 step(index,'present_end')
-            require(len({f['read_crc32'] for f in frames})==12 and len({f['frame_sha256'] for f in frames})==12,
+            require(len({f['read_crc32'] for f in frames})==frames_count and len({f['frame_sha256'] for f in frames})==frames_count,
                     'window presentations did not change pixels')
-            step(13,'return_begin')
+            step(frames_count+1,'return_begin')
         scope('close',source_generation+2,5)
         stop=take('master');owned(stop,source_generation+2,5)
         if present:
@@ -130,8 +142,8 @@ def validate(data,*,owner,source_generation,identity,memory,contract,publication
                     stop['reader_polls']==1 and stop['reader_reads']==88 and stop['probe_polls']==2 and stop['cancel']==0,
                     'window presentation return lacks the already-drained complete master stop')
             drain=take('reader_drain');owned(drain,source_generation+2,5)
-            require(drain['reader_generation']==drain['request_generation']==drain['ack_generation']==13 and
-                    drain['cookie']==drain['ack_cookie']==13 and drain['status']==4 and drain['pending']==0,
+            require(drain['reader_generation']==drain['request_generation']==drain['ack_generation']==frames_count+1 and
+                    drain['cookie']==drain['ack_cookie']==frames_count+1 and drain['status']==4 and drain['pending']==0,
                     'window firmware did not confirm the final local reader drain')
         else:
             require(stop['status']==0 and stop['complete']==1 and stop['disable']==1 and
@@ -143,11 +155,11 @@ def validate(data,*,owner,source_generation,identity,memory,contract,publication
                 'window firmware closure lacks the exact active DDR drain')
         require(publication is not None,'window read lacks a complete pinned publication')
         if present:
-            step(13,'return_end')
+            step(frames_count+1,'return_end')
             receipt=take('present_receipt')
             require(receipt==dict(package_id=identity['package_id'],build_id=identity['build_id'],owner=owner,
-                source_generation=source_generation,closed_generation=source_generation+3,frames=12,
-                last_reader_generation=13,last_cookie=1,bytes=memory['frame_bytes'],crc32=frames[-1]['read_crc32'],
+                source_generation=source_generation,closed_generation=source_generation+3,frames=frames_count,
+                last_reader_generation=frames_count+1,last_cookie=1,bytes=memory['frame_bytes'],crc32=frames[-1]['read_crc32'],
                 frame_sha256=frames[-1]['frame_sha256'],access_map_sha256=digest(contract)),
                 'window native presentation return differs from its final frame')
             result.update(presentations=frames,reader_drain=drain)

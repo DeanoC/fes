@@ -26,7 +26,7 @@ var expectedBootContext, expectedControlMap, expectedConfigurationMap, expectedR
 var expectedDDRReadMap string
 var expectedWindowMemory string
 var expectedWindowReadMap string
-var expectedWindowPresent, expectedWindowStorageReturn string
+var expectedWindowPresent, expectedWindowStorageReturn, expectedWindowReload string
 var expectedComputerMap, expectedComputerReload string
 var expectedComputerStorageReturn string
 var expectedProgramPlatform, expectedSelectedPrograms string
@@ -50,6 +50,9 @@ func main() {
 	}
 	if expectedWindowStorageReturn != "" && (expectedWindowStorageReturn != "1" || expectedWindowPresent != "1") {
 		panic("window storage return requires the selected presentation diagnostic")
+	}
+	if expectedWindowReload != "" && (expectedWindowReload != "1" || expectedWindowStorageReturn != "1") {
+		panic("window reload requires the selected window SD-return diagnostic")
 	}
 	if runtime.GOOS != "tamago" || board.ExceptionLevel() != 1 || board.CounterFrequency() != 400000000 {
 		panic("unexpected FPGA configuration CPU/source contract")
@@ -257,15 +260,22 @@ func main() {
 	if expectedWindowReadMap != "" {
 		limits := scanout.ReaderLimits{Timeout: time.Second, MaxPolls: 64, Now: time.Now, Yield: func() { time.Sleep(time.Millisecond) }}
 		if expectedWindowPresent == "1" {
-			session, err := presentWindowFrames(v, control, decoded(expectedWindowReadMap, 8192), limits)
+			session, err := presentWindowFrames(v, control, decoded(expectedWindowReadMap, 8192), limits, 12)
 			if err != nil {
 				reportWindowFailure(err)
 				panic(err)
 			}
 			if expectedWindowStorageReturn == "1" {
-				if err := verifyWindowStorageReturn(session, store, handoff, request); err != nil {
+				fresh, err := verifyWindowStorageReturn(session, store, handoff, request)
+				if err != nil {
 					reportWindowFailure(err)
 					panic(err)
+				}
+				if expectedWindowReload == "1" {
+					if err := reloadWindow(v, control, configuration, decoded(expectedWindowReadMap, 8192), session, fresh, limits); err != nil {
+						reportWindowFailure(err)
+						panic(err)
+					}
 				}
 			}
 			return

@@ -1166,6 +1166,19 @@ held-data computer-switching test is separate. The production oracle continues
 to reject this diagnostic target, and `HPSContextVerifier` does not implement
 `BootHandoffVerifier`.
 
+## Repeated window audit
+
+`window_reload_trace.decode(..., window_reload=True)` requires a complete first
+window/SD-return trace before the explicit second-load marker. It then checks
+the same closed HPS context, a newly completed timed configuration and fabric
+activation, readiness, translation/firewall observations, two changing frames,
+their local drains and a new firmware closure. The second source generation
+comes only from the first fresh SD containment. Missing, repeated, reordered
+or changed records cannot qualify a load. The original single-window decoder
+continues to require twelve frames; the repeat audit explicitly selects two
+for its second session. Neither decoder grants runtime admission or HDMI
+qualification.
+
 ## Contained native boot procedure
 
 1. Claim the top board in its current status file, verify serial/cable/UART,
