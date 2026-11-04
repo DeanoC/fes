@@ -1,0 +1,23 @@
+{
+  "status": "passed",
+  "source": "87fd0878924f69c49bf43bcf19bb9f003d46154d",
+  "path": "/home/deano/fes-retained/de25-usb-composition-20261104-r1",
+  "archive_sha256": "99be4c6d45a5ef3a0b5d749b6e5a433deb072d86090a0b13b332faff20327cb3",
+  "archive_bytes": 60133897,
+  "regular_files_verified": 5976,
+  "source_update_sha256": "0b6d1126ad2440411944f1a25c28ad735d92d1245fa718988ef5dc62f716916e",
+  "source_update_prerequisite": "0dc93360164136801ee66567dc34acff3a1ce49e",
+  "required_prior_source_bundles": {
+    "/home/deano/fes-retained/de25-tenfoot-native-boot-20261104-r3/source.bundle": "daeee37ba8c039ffc165c2c92d7a639af01c441099fe1359ae207846fa75216f",
+    "/home/deano/fes-retained/de25-tenfoot-core-cycle-20261104-r2/source-update.bundle": "1def434cc2e97d68da24158e8b153e238ecdcf024c060c60c62c8f8a68b8d497",
+    "/home/deano/fes-retained/de25-usb-cycle-20261104-r1/source-update.bundle": "1c225f6f9a2ad4d40c9895e652d72b659ca8bcfc0800886604a15c6477791653",
+    "/home/deano/fes-retained/de25-usb-cycle-20261104-r1/publication.bundle": "557175aa3b2d55c76c1eb09ed1ceb3cc460121676d62c0283b307c07ea02fa96",
+    "/home/deano/fes-retained/de25-gamepad-tenfoot-20261104-r1/source-update.bundle": "3677473b9bdba14a6128b4be7a0566b152a58f296e758e3d8101f903bd976488",
+    "/home/deano/fes-retained/de25-gamepad-tenfoot-20261104-r1/publication.bundle": "a4d038b90fa7f40a4d265043f561b8a7716c637c72c47399146aa25a8a8b4cee"
+  },
+  "source_with_prerequisites_restored": true,
+  "strict_fsck_passed": true,
+  "standalone_toolchain_export": false,
+  "working_artifacts_removed": false,
+  "hardware": false
+}
