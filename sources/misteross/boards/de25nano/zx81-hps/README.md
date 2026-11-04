@@ -342,9 +342,16 @@ poisoned GP transport with the PR controller still running. Two randomized
 initial-memory seeds are required; source, derived-memory/firmware, tool,
 binary and log identities are retained in `proof.json`.
 
-This uses a17-byte diagnostic ROM, behavioral memory and a selection mux. It
-observes the actual standard core's private reset to drive the modeled static
-fence; that is a simulation connection, not an exported production Qsys/PR
-reset boundary. It does not establish BASIC boot, dynamic on-board selection,
-placement/timing, package admission or physical PR. The production candidate
-remains internal16K; its package and native board acceptance are still required.
+The standard component exports `bus_reset` on its expansion conduit, explicitly
+associated with the system clock and system reset rather than the pixel reset.
+It includes software HOLD, transport failure and expansion freeze. The model
+uses that public port to fence the static bus and checks it against the actual
+machine reset after every clock evaluation; the private signal never controls
+the bus. The internal-16K board connects the unused export explicitly.
+
+This uses a 17-byte diagnostic ROM, behavioral memory and a selection mux.
+Component generation, physical registered-boundary setup/hold, placement and
+physical PR remain separate gates; this is not a BASIC or dynamic on-board
+selection proof. The canonical producer continues to select internal 16K.
+The [existing native result](../../../../../docs/validation/2026-11-04-de25-standard-zx81/README.md#native-lost-process-recovery)
+identifies its older sealed core and does not accept a rebuild with this export.

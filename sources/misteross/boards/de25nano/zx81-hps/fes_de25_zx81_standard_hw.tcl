@@ -94,9 +94,10 @@ add_interface_port audio audio_sample sample Output 16
 add_interface_port audio exec_reset reset Output 1
 add_interface expansion conduit end
 set_interface_property expansion associatedClock clk_sys
+set_interface_property expansion associatedReset system_reset
 foreach {port direction width} {expansion_running Input 1 bus_addr Output 16 bus_wdata Output 8
     bus_mreq_n Output 1 bus_iorq_n Output 1 bus_rd_n Output 1 bus_wr_n Output 1 bus_m1_n Output 1
-    bus_rfsh_n Output 1 bus_cpu_clock Output 1 bus_rdata Input 8 bus_peek_data Input 8
+    bus_rfsh_n Output 1 bus_cpu_clock Output 1 bus_reset Output 1 bus_rdata Input 8 bus_peek_data Input 8
     bus_dsel Input 1 bus_romcs Input 1 bus_wait Input 1 bus_ram_present Input 1} {
     add_interface_port expansion $port $port $direction $width
 }

@@ -82,7 +82,7 @@ def run(output=None):
         'binary_sha256': sha((output / 'obj/Vfes_de25_standard_expansion_harness').read_bytes()),
         'simulation_log_sha256': sha((output / 'simulation.log').read_bytes()),
         'physical_PR': 'selection-mux-model-only', 'primitive_memory': 'behavioral',
-        'production_Qsys_reset_boundary': 'not-qualified; harness observes actual core reset',
+        'production_Qsys_reset_boundary': 'explicit bus_reset port; RTL equivalence checked; Qsys generation and physical PR are separate gates',
         'BASIC_firmware': 'not-tested', 'hardware_acceptance': False}
     (output / 'proof.json').write_text(json.dumps(receipt, indent=2, sort_keys=True) + '\n')
     print((output / 'simulation.log').read_text(), end='')

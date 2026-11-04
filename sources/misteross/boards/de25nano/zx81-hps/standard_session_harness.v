@@ -91,6 +91,7 @@ module fes_de25_standard_session_harness (
         .video_rgb(), .video_de(), .video_hs(), .video_vs(),
         .audio_sample(audio_sample),
         .exec_reset(exec_reset),
+        .bus_reset(),
         .bus_addr(bus_addr),
         .bus_wdata(bus_wdata),
         .bus_mreq_n(bus_mreq_n),

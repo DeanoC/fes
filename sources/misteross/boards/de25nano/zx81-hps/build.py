@@ -291,7 +291,8 @@ qsys_top soc_inst (
 .fes_scanout_expansion_bus_mreq_n(), .fes_scanout_expansion_bus_iorq_n(),
 .fes_scanout_expansion_bus_rd_n(), .fes_scanout_expansion_bus_wr_n(),
 .fes_scanout_expansion_bus_m1_n(), .fes_scanout_expansion_bus_rfsh_n(),
-.fes_scanout_expansion_bus_cpu_clock(), .fes_scanout_expansion_bus_rdata(8'b0),
+.fes_scanout_expansion_bus_cpu_clock(), .fes_scanout_expansion_bus_reset(),
+.fes_scanout_expansion_bus_rdata(8'b0),
 .fes_scanout_expansion_bus_peek_data(8'b0), .fes_scanout_expansion_bus_dsel(1'b0),
 .fes_scanout_expansion_bus_romcs(1'b0), .fes_scanout_expansion_bus_wait(1'b0),
 .fes_scanout_expansion_bus_ram_present(1'b0),""")

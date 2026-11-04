@@ -40,7 +40,7 @@ module fes_de25_zx81_standard #(
     output wire [15:0] bus_addr,
     output wire [7:0] bus_wdata,
     output wire bus_mreq_n, bus_iorq_n, bus_rd_n, bus_wr_n, bus_m1_n, bus_rfsh_n,
-    output wire bus_cpu_clock,
+    output wire bus_cpu_clock, bus_reset,
     input wire [7:0] bus_rdata, bus_peek_data,
     input wire bus_dsel, bus_romcs, bus_wait, bus_ram_present,
     input wire [15:0] peek_addr,
@@ -51,6 +51,10 @@ module fes_de25_zx81_standard #(
 );
     wire [31:0] gpo, gpi;
     wire transport_ready, transport_fault;
+    wire core_reset_hold = !transport_ready || (EXPANSION_SOCKET && !expansion_running);
+    // Export the same full reset seen by the machine. Execution HOLD alone
+    // does not include transport failure or an expansion freeze.
+    assign bus_reset = exec_reset || core_reset_hold;
     // Launch one monotonic system-domain fault bit into the pixel synchronizer.
     // Reset/fault decoding may involve several transport registers; it must
     // settle in this clock domain before crossing to the memory controller.
@@ -80,7 +84,7 @@ module fes_de25_zx81_standard #(
         .HPS_DDR_WINDOW(0), .FIRMWARE_INIT(FIRMWARE_INIT),
         .CLOCK_NUMERATOR(13), .CLOCK_DENOMINATOR(200)) core (
         .clk_sys(clk_sys), .pixel_clk(pixel_clk),
-        .reset_hold(!transport_ready || (EXPANSION_SOCKET && !expansion_running)),
+        .reset_hold(core_reset_hold),
         .gpo(gpo), .gpi(gpi), .exec_reset(exec_reset), .machine_video(machine_video),
         .audio_sample(audio_sample), .display_request(display_request),
         .display_opcode(display_opcode), .display_index(display_index), .display_argument(display_argument),

@@ -36,7 +36,12 @@ to the extracted atomic `fes_de25_computer_transport` and allocated session
 adapter. It selects the 100 MHz guest fraction and disables the DE10 reserved
 window. System and pixel reset releases are separate board-owned inputs; HDMI
 readiness must be pixel-qualified. PCM samples and the standard expansion bus
-remain explicit board outputs. Transport faults hold the machine and stop the
+remain explicit board outputs. The expansion conduit explicitly associates with
+the system clock and system reset and exports `bus_reset` in that domain, using the same hold term supplied to the shared core
+plus its execution reset. It therefore includes transport failure and expansion
+freeze, independently of the software HOLD bit. The expansion simulation uses
+this public reset to fence its registered bus and checks equivalence to the
+actual private machine reset on every evaluation. Transport faults hold the machine and stop the
 allocated scanout through its sticky clock-fault path. The reduced wrapper uses
 the same extracted transport; its readiness CDC timing endpoints include the
 new instance hierarchy, with the same two-stage chain and first-stage-only cut.
@@ -45,19 +50,24 @@ new instance hierarchy, with the same two-stage chain and first-stage-only cut.
 register path and allocated display RTL. Its diagnostic ROM/internal16K model
 checks real CPU writes and retained RAM across kernel-only display publication,
 drain, new grant bases and sequence restart. It reuses the allocated frame bench;
-`--bench all` includes it. The standard board wrapper is not yet captured by a
-canonical package producer or admitted by the production runtime. ROM/expansion
-composition, qualified physical clocks/audio, Quartus and native acceptance remain
-open; the diagnostic is not a full standard 16K RAM-pack or BASIC proof.
+`--bench all` includes it. These simulations do not qualify a package. The
+canonical `scripts/build_de25_zx81_package.py` selects the internal-16K board,
+and the explicit runtime profile uses the shared computer driver. The
+[dated native evidence](../../../docs/validation/2026-11-04-de25-standard-zx81/README.md#native-lost-process-recovery)
+identifies its exact older sealed core; a rebuild with the new reset export
+needs its own fit and hardware evidence. Physical PR and ROM/persona composition
+remain open; the expansion simulation is not a full RAM-pack or BASIC proof.
 
 `prepare_standard_component(output, revision)` in the existing ZX81-HPS builder
 stages a source-captured Qsys component. Its two Avalon slaves retain separate
 100 MHz computer and pixel-clock scanout interfaces, with independent reset
 releases, the read-only allocated memory master, video/PCM and expansion conduits.
+The expansion conduit carries the full machine reset as well as bus signals.
 Source and derived-file hashes accompany the component. Existing guarded M20K
 adaptations handle machine/tape/video RAM and the allocated reader; helpers run
 from the retained source tree. This prepares component files only. The canonical
-board recipe and normal package/runtime admission still select the older path.
+board recipe consumes it with the expansion socket disabled; exposing the reset
+does not select a PR partition or enable dynamic persona loading.
 
 `fes_de25_audio.v` connects the standard coherent stereo PCM/I2S path to
 Terasic HDMI_ASx4's separate `av_pll`, using `CLOCK1_50`. The resource PLL
@@ -75,10 +85,11 @@ identity, exports PCM to the stock audio PLL and selects internal 16K RAM, as th
 standard DE10 base does without an expansion socket. The expansion bus is tied
 inactive until a persona is linked. `project` permits inspection; `generate`
 requires committed sources and checks the actual whole-GHRD handoff, slaves,
-clocks, resets, credits and managed initiator inventory. This integration is not
-a sealed package or runtime profile. `build` refuses until the additional
-machine, session-display and audio timing constraints are integrated; existing
-scanout-only constraints cannot qualify these added clock crossings.
+clocks, resets, credits and managed initiator inventory. The canonical package
+producer separately requires complete timing and input-review evidence plus an
+independent matching RBF. A generated component or diagnostic build alone cannot
+admit a package. Existing scanout-only evidence cannot qualify machine, session
+display, audio or PR crossings added by another configuration.
 
 The standard board now selects `standard-clocks.sdc`, sourcing the same common
 board/fabric constraints with the standard memory-fault endpoints. A system

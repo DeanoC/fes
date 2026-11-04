@@ -31,6 +31,7 @@ struct Bench {
         if (pixel_phase >= 400) { pixel_phase -= 400; d.pixel_clk = !d.pixel_clk; }
         d.eval();
         need(!d.unexpected_dma, "unallocated display issued a read");
+        need(!d.reset_mismatch, "exported bus reset differs from the actual machine reset");
     }
     void tick() { half(false); half(true); }
     void cycles(unsigned count) { while (count--) tick(); }
