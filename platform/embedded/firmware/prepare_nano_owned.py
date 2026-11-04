@@ -62,7 +62,7 @@ def reset_source(data):
 
 
 def inputs():
-    return [HERE / name for name in ("prepare_nano_owned.py", "nano_digest.py", "nano_mailbox.py", "nano_mailbox_observe.inc", "nano_mailbox_observe.h", "nano_mailbox_status.inc", "verify.py", "nano_bridges.c", "nano_bridges.h", "nano_boot.c", "nano_boot.h", "nano_bridge_sip.c", "nano_bridge_sip.h", "nano_bridge_platform.h", "nano_bridge_platform.inc", "nano_owned_sip.inc", "nano_computer_control.inc", "nano_window_control.inc", "generated/fes_embedded_bridges.h", "nano_sd.h", "nano_sd.c", "generated/fes_embedded_sd.h", "nano_usb_service.c", "nano_usb_service.h", "nano_usb_platform.h", "nano_usb_platform.c", "nano_usb_board.c", "nano_usb_board.h", "nano_usb_boot.inc", "nano_cold.h", "generated/fes_embedded_usb.h", "nano_identity.h", "nano_identity.c", "nano_configuration.h", "nano_configuration.c", "nano_program.h", "nano_program.c", "nano_smmu.h", "nano_smmu.c", "nano_fabric_stop.c", "nano_fabric_stop.h", "nano_probe_stop.c", "nano_probe_stop.h", "nano_ddr_firewall.c", "nano_ddr_firewall.h", "nano_ddr_read.c", "nano_ddr_read.h", "nano_hps_io.c", "nano_hps_io.h", "generated/fes_de25_ddr_probe.h", "generated/fes_embedded_control.h")]
+    return [HERE / name for name in ("prepare_nano_owned.py", "nano_digest.py", "nano_mailbox.py", "nano_mailbox_observe.inc", "nano_mailbox_observe.h", "nano_mailbox_status.inc", "verify.py", "nano_bridges.c", "nano_bridges.h", "nano_boot.c", "nano_boot.h", "nano_bridge_sip.c", "nano_bridge_sip.h", "nano_bridge_platform.h", "nano_bridge_platform.inc", "nano_owned_sip.inc", "nano_computer_control.inc", "nano_window_control.inc", "generated/fes_embedded_bridges.h", "nano_sd.h", "nano_sd.c", "generated/fes_embedded_sd.h", "nano_usb_service.c", "nano_usb_service.h", "nano_usb_platform.h", "nano_usb_platform.c", "nano_usb_board.c", "nano_usb_board.h", "nano_usb_boot.inc", "nano_usb_composition.c", "nano_usb_composition.h", "nano_cold.h", "generated/fes_embedded_usb.h", "nano_identity.h", "nano_identity.c", "nano_configuration.h", "nano_configuration.c", "nano_program.h", "nano_program.c", "nano_smmu.h", "nano_smmu.c", "nano_fabric_stop.c", "nano_fabric_stop.h", "nano_probe_stop.c", "nano_probe_stop.h", "nano_ddr_firewall.c", "nano_ddr_firewall.h", "nano_ddr_read.c", "nano_ddr_read.h", "nano_hps_io.c", "nano_hps_io.h", "generated/fes_de25_ddr_probe.h", "generated/fes_embedded_control.h")]
 
 
 def psci_source(text, cold_serial=False):
@@ -166,11 +166,11 @@ def install(source, cold_profile=None, cold_header=None):
             (source/'plat/intel/soc/common'/name).write_bytes((HERE/name).read_bytes())
         mk.write_text(mk.read_text()+"\nTF_CFLAGS += -DFES_NANO_COLD_SERIAL=1\nBL31_SOURCES += plat/intel/soc/common/nano_cold.c plat/intel/soc/common/nano_cold_platform.c plat/intel/soc/common/nano_sd_platform.c plat/intel/soc/common/nano_smmu.c plat/intel/soc/common/nano_fabric_stop.c plat/intel/soc/common/nano_probe_stop.c plat/intel/soc/common/nano_ddr_firewall.c plat/intel/soc/common/nano_ddr_read.c plat/intel/soc/common/nano_hps_io.c\n")
         if cold_profile.get('usb_pio'):
-            for name in ('nano_usb_board.h','nano_usb_boot.inc'):
+            for name in ('nano_usb_board.h','nano_usb_boot.inc','nano_usb_composition.h'):
                 (include/name).write_bytes((HERE/name).read_bytes())
-            for name in ('nano_usb_platform.c','nano_usb_board.c'):
+            for name in ('nano_usb_platform.c','nano_usb_board.c','nano_usb_composition.c'):
                 (source/'plat/intel/soc/common'/name).write_bytes((HERE/name).read_bytes())
-            mk.write_text(mk.read_text()+'\nBL31_SOURCES += plat/intel/soc/common/nano_usb_platform.c plat/intel/soc/common/nano_usb_board.c\n')
+            mk.write_text(mk.read_text()+'\nBL31_SOURCES += plat/intel/soc/common/nano_usb_platform.c plat/intel/soc/common/nano_usb_board.c plat/intel/soc/common/nano_usb_composition.c\n')
         if digest is not None:
             mk.write_text(mk.read_text() + '\n' + nano_digest.FLAGS)
         setup.write_text(cold_setup_source(setup.read_text()))

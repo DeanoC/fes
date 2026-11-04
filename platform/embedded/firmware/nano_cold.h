@@ -69,6 +69,17 @@ enum fes_nano_cold_finish_stage {
     FES_COLD_FINISH_STABLE_LAST, FES_COLD_FINISH_RESET_CHECK,
     FES_COLD_FINISH_COMPLETE
 };
+/* Optional compiled USB-PIO composition. Snapshot is trusted cached ownership,
+ * never an inference from reset readback. Only USB0 and SD controller bits may
+ * be released. usb_pio independently checks the live confirmed USB owner.
+ * Its USB scope may sample this policy, but must not call cold_owns/sd_scope.
+ * Bind once while every device and bridge is held, under the existing SiP lock.
+ * No non-secure argument or handoff record carries these callbacks. */
+struct fes_nano_cold_device_ops {
+    void *context;
+    int (*snapshot)(void *, uint32_t *released);
+    int (*usb_pio)(void *); /* exactly 1, including live clock/pin/PHY checks */
+};
 struct fes_nano_cold {
     struct fes_nano_cold_io io;
     struct fes_nano_cold_record record;
@@ -80,6 +91,8 @@ struct fes_nano_cold {
     /* Private bounded DDR diagnostic only. The raw driver arms this exact
      * F2SDRAM0 bit while control is open; no SiP caller can supply it. */
     unsigned ddr_expected;
+    struct fes_nano_cold_device_ops devices;
+    unsigned devices_attempted, devices_bound;
     struct fes_nano_cold_sample before;
     unsigned finish_stage;
     uint32_t sd_clock_before, reset_readback;
@@ -92,19 +105,27 @@ int fes_nano_cold_finish(struct fes_nano_cold *, unsigned entry_verified,
 int fes_nano_cold_consume(struct fes_nano_cold *, const struct fes_nano_cold_record *,
                            struct fes_nano_cold_io, const uint8_t chain[32], uint64_t owner);
 int fes_nano_cold_owns(void *, uint64_t owner, uint64_t epoch);
+int fes_nano_cold_bind_devices(struct fes_nano_cold *, uint64_t owner, uint64_t epoch,
+                               struct fes_nano_cold_device_ops);
 int fes_nano_cold_control_target(struct fes_nano_cold *, uint64_t owner,
                                   uint64_t epoch, unsigned control_open);
 int fes_nano_cold_ddr_target(struct fes_nano_cold *,uint64_t owner,uint64_t epoch);
 int fes_nano_cold_ddr_close_target(struct fes_nano_cold *,uint64_t owner,uint64_t epoch);
 /* Trusted SD platform only: validate the original boot with exactly SD's
  * controller reset released when active=1. This never grants bridge access
- * or changes the strict all-master semantics of cold_owns. */
+ * or grants a released SD controller to cold_owns. A separately compiled,
+ * bound USB-PIO policy may keep its confirmed USB controller running. */
 int fes_nano_cold_sd_scope(struct fes_nano_cold *, uint64_t owner,
                            uint64_t epoch, unsigned active);
-/* Separate USB-only PIO lease. SD and every other HPS master stay reset;
- * bridges stay closed. This never changes cold_owns or grants FPGA access. */
+/* Default USB-only PIO lease: SD and all bridges stay held. With an explicit
+ * bound composition, sample exactly its cached SD/USB and existing bridge
+ * targets. This function does not recursively audit USB or enable a bridge. */
 int fes_nano_cold_usb_scope(struct fes_nano_cold *, uint64_t owner,
                             uint64_t epoch, unsigned active);
+/* USB driver's post-reset readback only. Check the inactive hardware target
+ * before it releases its cached reservation. Does not grant cold_owns access
+ * or claim that all producers/bridges have stopped. */
+int fes_nano_cold_usb_stopped(struct fes_nano_cold *,uint64_t owner,uint64_t epoch);
 int fes_nano_cold_quiesce(void *, uint32_t producers);
 int fes_nano_cold_quiescent(void *, uint32_t *producers);
 /* Strong implementation lives beside the cold profile's PSCI CPU_ON frontend.

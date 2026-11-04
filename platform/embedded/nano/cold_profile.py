@@ -83,6 +83,7 @@ def sources():
                             'nano_sd.h','nano_sd.c','nano_sd_platform.h','nano_sd_platform.c','generated/fes_embedded_sd.h',
                             'nano_usb_service.c','nano_usb_service.h','nano_usb_platform.h','generated/fes_embedded_usb.h',
                             'nano_usb_platform.c','nano_usb_board.c','nano_usb_board.h','nano_usb_boot.inc',
+                            'nano_usb_composition.c','nano_usb_composition.h',
                             'nano_program.c','nano_program.h',
                             'nano_boot.c','nano_bridges.h','nano_bridges.c','nano_bridge_platform.inc','nano_bridge_platform.h',
                             'nano_owned_sip.inc','nano_computer_control.inc','nano_window_control.inc','prepare_nano_owned.py','prepare_tfa.py','nano_digest.py',

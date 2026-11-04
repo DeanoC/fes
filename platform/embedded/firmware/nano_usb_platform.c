@@ -169,7 +169,7 @@ int fes_nano_usb_platform_stop(struct fes_nano_usb_platform *p, uint64_t owner,
         pio(p) || scope(p) || read_reg(p,PER0,&per0) ||
         write_reg(p,PER0,per0|FES_NANO_USB_RESET)) return -1;
     /* Do not publish inactive until independent reset/boot readback succeeds. */
-    if (fes_nano_cold_usb_scope(p->cold,p->owner,p->epoch,0)) return fail(p,-5);
+    if (fes_nano_cold_usb_stopped(p->cold,p->owner,p->epoch)) return fail(p,-5);
     p->active=0;p->confirmed=0;p->generation++;
     return 0;
 }
