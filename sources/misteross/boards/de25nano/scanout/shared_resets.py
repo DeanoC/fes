@@ -12,6 +12,10 @@ from pathlib import Path
 import re
 
 POLICY = "shared-fifo-reset-release-v2"
+# The standard component adds its computer slave and audio/expansion conduits
+# to this parent. Three independent whole-GHRD generations produced these same
+# bytes. The ten bridge/FIFO inputs and their reset derivation stay unchanged.
+STANDARD_PARENT_SHA256 = "290fc7e68ed0f462928526008ee374672c7b1fd33ba4b14a4f973114f05baaa5"
 ORIGINAL_SHA256 = {
     "peripheral_subsys/ip/peripheral_subsys/peripheral_subsys_fes_ctrl_cdc/mm_ccb_1941/synth/peripheral_subsys_fes_ctrl_cdc_mm_ccb_1941_evnq7wy.v": "327a7d7dfb1182ca0eba406788c3978e07e572ac83243937ca4f84de21949e56",
     "peripheral_subsys/ip/peripheral_subsys/peripheral_subsys_fes_ctrl_cdc/mm_ccb_1941/synth/peripheral_subsys_fes_ctrl_cdc_mm_ccb_st_dc_fifo_1941_gbaclly.v": "60cccc095ab3f6f3281b15f10b02ba2efe6cb52ade7a3c943d973eb7e416e91d",
@@ -136,10 +140,12 @@ def reset_functional_state_from_parent(text):
     return text
 
 
-def derive(originals):
+def derive(originals, *, standard=False):
     """Return the eleven derived files from the exact pinned Quartus inputs."""
     require(set(originals) == set(ORIGINAL_SHA256), "generated file inventory differs")
     for name, digest in ORIGINAL_SHA256.items():
+        if standard and name == PARENT:
+            digest = STANDARD_PARENT_SHA256
         require(sha(originals[name]) == digest, "unreviewed generated input: " + name)
     changed = {}
     for bridge in ("fes_ctrl_cdc", "fes_mem_cdc"):
@@ -264,7 +270,8 @@ def apply(directory):
     inputs = selected_inputs(directory)
     project = directory / "project"
     originals = {name: checked_file(project, name).read_bytes() for name in ORIGINAL_SHA256}
-    derived = derive(originals)
+    standard = json.loads(inputs)["scanout"]["build_identity_scheme"] == "standard-board-integration-source-profile"
+    derived = derive(originals, standard=standard)
     retained = directory / "shared-reset-originals"
     retained.mkdir(exist_ok=False)
     for name, data in originals.items():
@@ -285,7 +292,8 @@ def verify(directory):
     require({p.relative_to(retained).as_posix() for p in retained.rglob("*") if p.is_file()} == set(ORIGINAL_SHA256),
             "retained generated source inventory differs")
     originals = {name: checked_file(retained, name).read_bytes() for name in ORIGINAL_SHA256}
-    derived = derive(originals)
+    standard = json.loads(inputs)["scanout"]["build_identity_scheme"] == "standard-board-integration-source-profile"
+    derived = derive(originals, standard=standard)
     for name, data in derived.items():
         require(checked_file(directory / "project", name).read_bytes() == data, "derived source changed: " + name)
     expected = receipt(inputs, originals, derived)

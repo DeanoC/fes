@@ -61,6 +61,11 @@ class SharedResetTests(unittest.TestCase):
         self.assertFalse((self.directory / "shared-resets.json").exists())
 
     def test_standard_board_keeps_the_exact_compiled_fifo_derivation(self):
+        parent = gzip.decompress((ROOT / "tests/fixtures/de25_standard_parent.v.gz").read_bytes())
+        self.assertEqual(hashlib.sha256(parent).hexdigest(), S.STANDARD_PARENT_SHA256)
+        (self.project / S.PARENT).write_bytes(parent)
+        with self.assertRaisesRegex(ValueError, "unreviewed generated input"):
+            S.apply(self.directory)  # Standard parent cannot replace a MENU parent.
         self.inputs["scanout"]["build_identity_scheme"] = "standard-board-integration-source-profile"
         self.inputs["standard_zx81"] = {"scope": "standard-core-board-integration", "runtime_admission": "not-qualified"}
         path = self.directory / "inputs.json"
@@ -68,7 +73,8 @@ class SharedResetTests(unittest.TestCase):
         result = S.apply(self.directory)
         self.assertEqual(result, S.verify(self.directory))
         self.assertEqual({name: hashlib.sha256((self.project / name).read_bytes()).hexdigest()
-                          for name in self.originals}, self.expected)
+                          for name in self.originals if name != S.PARENT},
+                         {name: value for name, value in self.expected.items() if name != S.PARENT})
         self.inputs["standard_zx81"]["runtime_admission"] = "qualified"
         path.write_text(json.dumps(self.inputs))
         with self.assertRaisesRegex(ValueError, "canonical policy selection differs"):
