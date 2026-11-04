@@ -25,7 +25,7 @@ jobs:
       simulations: ${{ steps.plan.outputs.simulations }}
       sim_tier: ${{ steps.plan.outputs.sim_tier }}
       test_modes: ${{ steps.plan.outputs.test_modes }}
-      paths: ${{ steps.plan.outputs.paths }}
+      paths_artifact: ${{ steps.plan.outputs.paths_artifact }}
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
@@ -55,8 +55,10 @@ jobs:
               output.write('cores=' + json.dumps(plan['cores']) + '\n')
               output.write('simulations=' + json.dumps(simulation_matrix(plan['cores'], tier)) + '\n')
               output.write('sim_tier=' + tier + '\n')
-              output.write('paths=' + json.dumps(plan['paths']) + '\n')
               output.write('test_modes=' + json.dumps(plan['test_modes']) + '\n')
+              output.write('paths_artifact=fes-ci-plan-' + os.environ['GITHUB_RUN_ID'] + '-' + os.environ['GITHUB_RUN_ATTEMPT'] + '\n')
+          with open('/tmp/changed-paths.json', 'w') as output:
+              json.dump(plan['paths'], output)
           with open(os.environ['GITHUB_STEP_SUMMARY'], 'a') as output:
               output.write('Simulation tier: ' + tier + '\n\n')
               output.write('Affected CI plan\n\n```json\n' + json.dumps(plan, indent=2) + '\n```\n')
@@ -66,7 +68,9 @@ jobs:
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: fes-ci-plan-${{ github.run_id }}-${{ github.run_attempt }}
-          path: /tmp/affected.json
+          path: |
+            /tmp/affected.json
+            /tmp/changed-paths.json
           retention-days: 7
           if-no-files-found: error
       - name: Always-run planner and metadata checks
@@ -94,6 +98,11 @@ jobs:
         with:
           fetch-depth: 0
           persist-credentials: false
+      - name: Download changed-file selection
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
+          name: ${{ needs.plan.outputs.paths_artifact }}
+          path: ${{ runner.temp }}/fes-ci-plan
       - uses: actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff # v5
         with:
           go-version-file: sources/FogCast/go.mod
@@ -103,7 +112,6 @@ jobs:
       - env:
           TEST_VIDEO: ${{ fromJSON(needs.plan.outputs.test_modes).video }}
           TEST_MEDIA: ${{ fromJSON(needs.plan.outputs.test_modes).media }}
-          CHANGED_PATHS: ${{ needs.plan.outputs.paths }}
         run: |
           if [ "$TEST_MEDIA" = true ]; then
             make platform-provision
@@ -114,7 +122,7 @@ jobs:
               sleep $((attempt * 20))
             done
           fi
-          python3 scripts/parent_tests.py --video "$TEST_VIDEO" --media "$TEST_MEDIA" --paths-json "$CHANGED_PATHS"
+          python3 scripts/parent_tests.py --video "$TEST_VIDEO" --media "$TEST_MEDIA" --paths-json-file "$RUNNER_TEMP/fes-ci-plan/changed-paths.json"
           if [ "$TEST_MEDIA" = true ]; then
             make platform-test
             make -C image test FOGCAST_DIR="$PWD/sources/FogCast"
@@ -128,6 +136,11 @@ jobs:
         with:
           fetch-depth: 0
           persist-credentials: false
+      - name: Download changed-file selection
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
+          name: ${{ needs.plan.outputs.paths_artifact }}
+          path: ${{ runner.temp }}/fes-ci-plan
       - uses: actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff # v5
         with:
           go-version-file: sources/FogCast/go.mod
@@ -137,9 +150,7 @@ jobs:
       - run: |
           make check
       - name: Unused Go code
-        env:
-          CHANGED_PATHS: ${{ needs.plan.outputs.paths }}
-        run: python3 scripts/check_deadcode.py --paths-json "$CHANGED_PATHS"
+        run: python3 scripts/check_deadcode.py --paths-json-file "$RUNNER_TEMP/fes-ci-plan/changed-paths.json"
   host:
     needs: plan
     if: fromJSON(needs.plan.outputs.lanes).host
@@ -155,6 +166,11 @@ jobs:
         with:
           fetch-depth: 1
           persist-credentials: false
+      - name: Download changed-file selection
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
+          name: ${{ needs.plan.outputs.paths_artifact }}
+          path: ${{ runner.temp }}/fes-ci-plan
       - uses: actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff # v5
         with:
           go-version-file: sources/FogCast/go.mod
@@ -167,9 +183,8 @@ jobs:
       - env:
           TEST_FULL_RACE: ${{ fromJSON(needs.plan.outputs.test_modes).full_race }}
           SHARD: ${{ matrix.shard }}
-          CHANGED_PATHS: ${{ needs.plan.outputs.paths }}
         run: |
-          flags=(--shard "$SHARD/3" --paths-json "$CHANGED_PATHS" --build-host-if-needed --ui-if-needed)
+          flags=(--shard "$SHARD/3" --paths-json-file "$RUNNER_TEMP/fes-ci-plan/changed-paths.json" --build-host-if-needed --ui-if-needed)
           if [ "$TEST_FULL_RACE" = true ]; then flags+=(--full); fi
           python3 scripts/host_tests.py "${flags[@]}"
   runtime:
@@ -181,10 +196,14 @@ jobs:
         with:
           fetch-depth: 1
           persist-credentials: false
-      - env:
-          CHANGED_PATHS: ${{ needs.plan.outputs.paths }}
+      - name: Download changed-file selection
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
+          name: ${{ needs.plan.outputs.paths_artifact }}
+          path: ${{ runner.temp }}/fes-ci-plan
+      - name: Native runtime checks
         run: |
-          python3 scripts/runtime_tests.py --paths-json "$CHANGED_PATHS"
+          python3 scripts/runtime_tests.py --paths-json-file "$RUNNER_TEMP/fes-ci-plan/changed-paths.json"
   contracts:
     needs: plan
     if: fromJSON(needs.plan.outputs.lanes).contracts

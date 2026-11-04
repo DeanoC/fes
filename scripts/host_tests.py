@@ -16,10 +16,11 @@ import subprocess
 import sys
 
 try:
-    from scripts import test_policy, host_affected
+    from scripts import test_policy, host_affected, changed_paths
 except ImportError:
     import test_policy
     import host_affected
+    import changed_paths
 
 
 def ui_requirement(selection_scope, go_changes):
@@ -80,18 +81,14 @@ def main(argv=None):
                         help='include make host for non-test/full inputs, on shard 1 only')
     parser.add_argument('--ui-if-needed', action='store_true',
                         help='run UI tests unless only verified unrelated Go tests changed; last shard only')
-    parser.add_argument('--paths-json', help='JSON array of changed repository paths')
+    changed_paths.add_arguments(parser, help='JSON array of changed repository paths')
     parser.add_argument('--shard', metavar='I/N',
                         help='run shard I of N (1-based) for parallel CI jobs')
     args = parser.parse_args(argv)
-    paths = None
-    if args.paths_json is not None:
-        try:
-            paths = json.loads(args.paths_json)
-        except ValueError:
-            parser.error('--paths-json must be a JSON array of strings')
-        if not isinstance(paths, list) or not all(isinstance(p, str) for p in paths):
-            parser.error('--paths-json must be a JSON array of strings')
+    try:
+        paths = changed_paths.read(args)
+    except (ValueError, OSError):
+        parser.error('--paths-json or --paths-json-file must supply a JSON array of strings')
     shard = None
     if args.shard:
         try:

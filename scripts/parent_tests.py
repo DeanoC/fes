@@ -18,9 +18,10 @@ import sys
 import unittest
 
 try:
-    from scripts import parent_affected
+    from scripts import parent_affected, changed_paths
 except ImportError:
     import parent_affected
+    import changed_paths
 
 # (module basename, class name) keys for suites omitted unless their inputs
 # changed or the run is full. Sibling classes in the same files stay routine.
@@ -81,17 +82,13 @@ def main(argv=None):
     parser.add_argument('--video', choices=('true', 'false'), default='true')
     parser.add_argument('--media', choices=('true', 'false'), default='true')
     parser.add_argument('--plan-only', action='store_true')
-    parser.add_argument('--paths-json', help='changed repository paths; omitted means all groups')
+    changed_paths.add_arguments(parser, help='changed repository paths; omitted means all groups')
     parser.add_argument('--full', action='store_true', help='run all groups and extended modes')
     args = parser.parse_args(argv)
-    paths = None
-    if args.paths_json is not None:
-        try:
-            paths = json.loads(args.paths_json)
-        except ValueError:
-            parser.error('--paths-json must be a JSON array of strings')
-        if not isinstance(paths, list) or not all(isinstance(p, str) for p in paths):
-            parser.error('--paths-json must be a JSON array of strings')
+    try:
+        paths = changed_paths.read(args)
+    except (ValueError, OSError):
+        parser.error('--paths-json or --paths-json-file must supply a JSON array of strings')
     video = args.full or args.video == 'true'
     media = args.full or args.media == 'true'
     root = Path(__file__).resolve().parents[1]
