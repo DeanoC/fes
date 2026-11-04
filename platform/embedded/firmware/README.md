@@ -13,8 +13,10 @@ its matched `FES_NANO_WINDOW_STORAGE_RETURN` profile installs that SD return
 callback. The original held-data return predicate stays strict; neither reset
 bits nor non-secure status supply a closure. No new wire operation or device
 poll is added. Tests join the actual C dispatcher and both reader RTL models,
-including missing capability, stale proof and live-scope failure. A new matched
-board test remains required before physical SD-after-display qualification.
+including missing capability, stale proof and live-scope failure. The
+[matched bounded board test](../../../docs/validation/2026-11-04-de25-window-storage-return/README.md)
+passes frame return, fresh SD retention and containment for its exact source.
+Ordinary package admission and reconfiguration after this window remain open.
 
 The reader-stop helper caches its first and last stable, identity-checked
 samples during the existing bounded stop. A failed cold stop logs their status,

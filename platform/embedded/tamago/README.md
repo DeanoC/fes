@@ -68,7 +68,11 @@ return it resumes the original store, freshly reads/verifies the same selected
 package and contains SD again. Its success marker includes closed, resumed
 and newly contained generations. It performs no SD writes or second FPGA load.
 The option is bound through native/entry/firmware/composition receipts; the
-original frame-only mode is unchanged. Its new physical path is not yet tested.
+original frame-only mode is unchanged. The
+[matched physical diagnostic](../../../docs/validation/2026-11-04-de25-window-storage-return/README.md)
+passes frame return in 44.05 seconds and fresh SD retention/containment in
+55.79 seconds, within their separate 45/100-second limits. Ordinary core loading
+and the normal native UI loop remain open.
 
 The repeated-frame diagnostic emits timed `STEP` records before and after
 rendering, presentation and final return. A partial trace retains the last

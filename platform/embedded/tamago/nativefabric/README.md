@@ -191,8 +191,10 @@ source-bound identity closure and current SD live scope. Ordinary held-data
 return checks remain separate. Build, entry, cold firmware and composition
 receipts carry the opt-in; absent/mixed selections reject. The separate host
 trace decoder requires the entire frame return before SD begin and a fresh
-containment receipt. Software/native cross-build checks do not qualify this
-new hardware path. Window reconfiguration and the normal UI loop remain open.
+containment receipt. The
+[exact-source board diagnostic](../../../../docs/validation/2026-11-04-de25-window-storage-return/README.md)
+passes both phases with one attempt and no retries. Window reconfiguration,
+ordinary admission and the normal UI loop remain open.
 
 Host tests cover twelve changing frames, independent pixel/CRC/hash checks,
 publication and ownership failures, cancellation, token exhaustion and concurrent
