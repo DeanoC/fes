@@ -756,12 +756,19 @@ generation that reports `fes.media.zx81-tape`, `change-tape` inserts the `.p`
 into unit 0 and `eject-tape` ejects that unit. An active `fes.simple-computer`
 generation with `fes.media.blob` still uses `replace_live_media` /
 `clear_media`. Live-media capability is that active tape interface or the
-legacy blob interface. The host session projection keeps those active
+legacy blob interface. Insert and eject wait up to 500 ms for the existing
+host session transition guard, allowing a brief display or input handoff to
+finish before the first media dispatch. Cancellation or admission expiry
+reports a no-change busy rejection. The captured session and package binding
+remain unchanged; a dispatched mutation is never replayed by this wait.
+The host session projection keeps those active
 interfaces and media units, so the tape picker and `change-tape` form a
 binding for either generation. On a menu-display kit, both that tape unit
 and a legacy blob session open the media selector only
-when the running package reports `fes.video.session-display` 1.0 and
-`fes.memory.hps-ddr` 1.0. Home posts `visible: true`, the runtime makes menu
+when the running package reports `fes.video.session-display` 1.0 with
+`fes.memory.hps-ddr` 1.0, or a `fes.computer` session reports that display
+interface with both `fes.fabric.de25-scanout` 1.1 and
+`fes.fabric.video.display-plane` 1.0. Home posts `visible: true`, the runtime makes menu
 presentation available, and `BindSession` authorizes the launcher frames.
 On a kit, Home or Select/View opens **Change media** directly over the running
 machine, with transparent pixels outside the opaque picker. The launch room
@@ -780,7 +787,7 @@ shows the existing starter-tape shelf only when its game entry identifies
 `fes.zx81`; saved programs remain scoped to that game. Files come from the launcher machine
 (home, mounted media and accessible library roots); saved FogCast host drives are browsed through drive-relative storage APIs. Import, insert and eject retain the session captured when
 the selector opened. Session-display admission checks the captured generation,
-observed DDR and display interfaces, and a supported observed unit 0 for disk
+observed memory and display interfaces, and a supported observed unit 0 for disk
 or Spectrum media. The host, target agent and runtime adapter share that
 admission predicate; the native runtime already admits the observed display
 interface independently of media type. Insert and eject use a bounded

@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"io"
 	"net/http"
+	"time"
 
 	"github.com/DeanoC/FogCast/protocol"
 )
@@ -13,6 +14,8 @@ type sessionLiveMediaLoader interface {
 	ReplaceLiveMedia(context.Context, string, string, protocol.DevelopmentMediaBinding) (protocol.Status, error)
 	ClearLiveMedia(context.Context, protocol.DevelopmentMediaBinding) (protocol.Status, error)
 }
+
+const liveMediaAdmissionWait = 500 * time.Millisecond
 
 func registerLiveMediaSessionRoutes(mux *http.ServeMux, s *sessionCoordinator) {
 	registerMediaDataSessionRoutes(mux, s)
@@ -70,8 +73,12 @@ func (s *sessionCoordinator) replaceLiveMedia(ctx context.Context, id, mediaID, 
 		return sessionResult{}, protocol.LiveMediaIdentityError()
 	}
 	ctx = s.scoped(ctx)
-	if !s.begin() {
-		return sessionResult{}, busyError()
+	// Wait for a brief display/input handoff before the first service dispatch.
+	// Acquiring this existing guard never replays an issued media mutation.
+	if !s.beginWait(ctx, liveMediaAdmissionWait) {
+		rejected := busyError()
+		rejected.NoChange = true
+		return sessionResult{}, rejected
 	}
 	defer s.end()
 	s.observationMu.Lock()
@@ -106,8 +113,10 @@ func (s *sessionCoordinator) clearLiveMedia(ctx context.Context, id string, b pr
 		return sessionResult{}, protocol.LiveMediaIdentityError()
 	}
 	ctx = s.scoped(ctx)
-	if !s.begin() {
-		return sessionResult{}, busyError()
+	if !s.beginWait(ctx, liveMediaAdmissionWait) {
+		rejected := busyError()
+		rejected.NoChange = true
+		return sessionResult{}, rejected
 	}
 	defer s.end()
 	s.observationMu.Lock()

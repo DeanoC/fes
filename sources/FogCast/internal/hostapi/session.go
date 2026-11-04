@@ -1874,7 +1874,7 @@ func (s *sessionCoordinator) clearLiveMediaNameLocked() {
 	s.liveMediaEjected = false
 }
 
-func busyError() error {
+func busyError() *protocol.APIError {
 	return &protocol.APIError{Code: protocol.CodeBusy, Message: "another launch or stop transition is running"}
 }
 
