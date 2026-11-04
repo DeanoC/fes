@@ -13,6 +13,8 @@ finally:sys.path.pop(0)
 class WindowReloadTraceTests(unittest.TestCase):
  def setUp(self):
   f=fixture.WindowStorageTraceTests();f.setUp();self.first=f
+  f.raw=f.raw.replace('NOTICE:  FES_NANO_CORE_TRANSFER phase=complete',
+   f'NOTICE:  FES_NANO_FABRIC_ACTIVATION owner={OWNER:x} generation=4 previous=0 rearm=0 complete=1 data_held=1\nNOTICE:  FES_NANO_CORE_TRANSFER phase=complete')
   base=f.frames.base
   prefix=base.prefix[base.prefix.index('FES_NATIVE_HPS_CONTEXT PASS '):]
   prefix=prefix.replace(' generation=4 ',' generation=10 ')
@@ -64,6 +66,14 @@ class WindowReloadTraceTests(unittest.TestCase):
    ('frames=2 ','frames=12 '),('last_reader_generation=3 ','last_reader_generation=13 '),('ready=1','ready=0')]:
    suffix=(self.program+self.window+self.receipt).replace(before,after)
    with self.subTest(before=before):self.assertFalse(self.decode(self.first.raw+self.begin+suffix)['complete'])
+ def test_first_activation_is_required_and_cannot_borrow_second_lineage(self):
+  activation=f'NOTICE:  FES_NANO_FABRIC_ACTIVATION owner={OWNER:x} generation=4 previous=0 rearm=0 complete=1 data_held=1\n'
+  self.assertEqual(self.raw.count(activation),1)
+  for changed in ['',activation+activation,activation.replace('generation=4 ','generation=10 '),
+   activation.replace('previous=0 rearm=0','previous=4 rearm=1'),activation.replace(f'owner={OWNER:x}', 'owner=0')]:
+   with self.subTest(changed=changed):
+    result=self.decode(self.raw.replace(activation,changed,1))
+    self.assertFalse(result['complete']);self.assertTrue(result['errors'])
  def test_missing_reordered_replayed_or_extra_events_reject(self):
   for suffix in [self.receipt,self.program+self.window+self.receipt+self.receipt,
    self.receipt+self.program+self.window,self.program+self.window+self.receipt+'unexpected\n']:

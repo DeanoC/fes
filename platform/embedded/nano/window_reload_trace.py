@@ -41,6 +41,15 @@ def decode(data,build_id,owner_seed,*,window_reload=False,**options):
     if not match:reject('missing or malformed window reload begin');return report
     prior=report['window_storage_return']['receipt']
     owner,generation=prior['owner'],prior['contained_generation']
+    # The generic cold configuration decoder permits older captures without
+    # activation logs. This explicit two-load mode requires both activations.
+    initial=extract(b''.join(rows[:split]),options['configuration'],
+                    generation=report['window_read']['receipt']['source_generation'],
+                    require_activation=True,expected_owner=owner)
+    if not initial['complete'] or initial['errors'] or initial['activation'] is None:
+        for reason in initial['errors']:reject('first window activation: '+reason)
+        if not initial['errors']:reject('first window activation is incomplete')
+        return report
     if values(match)!=dict(package_id=prior['package_id'],owner=owner,returned_generation=prior['closed_generation'],source_generation=generation):
         reject('window reload changed its original store return or source');return report
     report['last_checkpoint']='window_reload_begin'

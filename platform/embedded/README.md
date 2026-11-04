@@ -40,6 +40,13 @@ return within the unchanged 45-second observer bound. Transfer-side DMA hashes
 use fresh reads through private 32 KiB scratch; firmware checks are unchanged.
 The normal UI loop, menu/core transitions and ordinary admission remain open.
 
+The [two-load window diagnostic](../../docs/validation/2026-11-04-de25-window-two-loads/README.md)
+now passes twelve frames and owned return, fresh SD retention/containment,
+then a second configuration and two frames with a new drain/closure on the
+same boot-pinned arena. Both configuration activations are checked. This
+remains a bounded diagnostic; the persistent native frontend, physical HDMI,
+USB hub input and ordinary package admission remain open.
+
 The [contained firmware/RTL prototype](firmware/README.md) prepares a pinned
 TF-A source variant and an FPGA identity/read-drain endpoint. The experimental
 [native endpoint](tamago/nativefabric/README.md) now connects their protocols
