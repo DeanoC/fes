@@ -32,8 +32,8 @@ ABI = 'cores/fes-common/generated/fes_computer.vh'
 COMMON_LIBRARY_INPUTS = ['cores/fes-common/rtl/' + name for name in (
     'fes_computer_mailbox.v', 'fes_display_plane.v', 'fes_display_cdc.v',
     'fes_audio_output.v', 'fes_audio_i2s.v')]
-SOURCE_ROOTS = ['boards/de25nano', 'cores/fes-common/generated', 'cores/fes-common/rtl/z80',
-                'cores/fes-menu', 'cores/fes-splash', 'cores/fes-zx81', 'scripts', *COMMON_LIBRARY_INPUTS]
+SOURCE_ROOTS = sorted(['boards/de25nano', 'cores/fes-common/generated', 'cores/fes-common/rtl/z80',
+                'cores/fes-menu', 'cores/fes-splash', 'cores/fes-zx81', 'scripts', *COMMON_LIBRARY_INPUTS])
 DEVICE = common.DEVICE
 FABRIC = common.MANAGED_FABRIC
 sha = common.sha
