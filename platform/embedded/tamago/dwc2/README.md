@@ -114,6 +114,17 @@ and split/translator toggle errors remain fatal. This follows the receive FIFO
 and IN-toggle handling in the pinned Linux v6.12 DWC2 reference; no Linux code
 is linked. Physical behavior still needs a fresh matched test.
 
+PIO mode queues further IN tokens within an unfinished direct transfer, at most
+one per poll and only when its nonperiodic/periodic request queue has space.
+Continuation preserves setup, HCTSIZ, PID, buffer and deadline. New RX/status,
+zero remaining packet count, completion or halt prevents further queuing; an
+unexpected packet count fails. A disabled channel waits for status under the
+existing deadline, including completion races. Periodic tokens target the next frame.
+Further periodic requests also preserve the endpoint's advertised polling interval.
+This follows the reference's `dwc2_hc_continue_transfer` slave-mode path. The
+model requires a real queued continuation at descriptor offset88; acknowledging
+the notification alone cannot supply the remaining descriptor bytes.
+
 Control failures now retain request type/value/index/length, setup/data/status
 phase and byte offset. Packet failures add endpoint, expected PID, split state
 and notification counts. A later failure preserves the first RX toggle snapshot,

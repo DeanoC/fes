@@ -23,6 +23,8 @@ func pendingIN(t *testing.T) (*Host, *controller, *rxObserved) {
 	flags := uint32(8 | 1<<15 | 1<<17 | 1<<20 | 1<<22)
 	c.regs[hcchar] = flags | channelEnable
 	c.regs[hcint] = 0
+	c.regs[hctsiz] = 8 | 1<<19 | 2<<29
+	c.beforeIN = func(*controller) bool { return true } // The test supplies RX independently.
 	h.pending = packet{active: true, in: true, pid: 2, limit: 8, char: flags, deadline: c.Now().Add(time.Second)}
 	return h, c, o
 }
@@ -41,12 +43,12 @@ func TestDirectINToggleNotificationWaitsForRealDataWithoutRearming(t *testing.T)
 				c.rx = []uint32{5<<17 | 2047<<4 | 3<<15}
 			}
 			c.regs[hcint] = dataToggle
-			deadline, starts, toggle := h.pending.deadline, len(c.starts), h.toggle
+			deadline, starts, toggle, size := h.pending.deadline, len(c.starts), h.toggle, c.regs[hctsiz]
 			done, data, nak, err := h.step()
 			if err != nil || done || nak || len(data) != 0 || o.fifos != 0 {
 				t.Fatal(done, data, nak, err)
 			}
-			if c.regs[hcint] != 0 || c.regs[hcchar]&channelEnable == 0 || len(c.starts) != starts ||
+			if c.regs[hcint] != 0 || c.regs[hcchar]&channelEnable == 0 || len(c.starts) != starts+1 || c.regs[hctsiz] != size ||
 				h.pending.pid != 2 || h.toggle != toggle || h.pending.deadline != deadline || !h.pending.active || h.pending.received {
 				t.Fatal("notification completed/rearmed/retimed the packet")
 			}
@@ -62,7 +64,7 @@ func TestDirectINToggleNotificationWaitsForRealDataWithoutRearming(t *testing.T)
 					break
 				}
 			}
-			if !done || !bytes.Equal(data, want) || h.pending.active || c.regs[hcchar]&channelEnable != 0 || len(c.starts) != starts {
+			if !done || !bytes.Equal(data, want) || h.pending.active || c.regs[hcchar]&channelEnable != 0 || len(c.starts) != starts+1 {
 				t.Fatal(done, data)
 			}
 		})
@@ -175,22 +177,36 @@ func TestRXOnlyAndCoalescedToggleEventsStillRequireCorrectPayload(t *testing.T) 
 	}
 }
 
-// This model delays the real IN packet until the notification is acknowledged.
-// Clearing that notification does not start another host transaction.
+// A PIO notification consumes an IN request without consuming the packet.
+// Acknowledgement alone cannot make progress: another queue-backed IN token
+// must be issued while preserving the transfer registers and control setup.
 type notifyingController struct {
 	*controller
-	waiting, acknowledged bool
-	injected              int
+	waiting, acknowledged               bool
+	injected, injectedAt, continuations int
+	sizeWrites, fifoWrites              int
 }
 
 func (c *notifyingController) Read32(reg uint32) uint32 {
-	if reg == gint && c.acknowledged {
-		c.acknowledged, c.waiting = false, false
-		c.controller.receive()
-	}
 	return c.controller.Read32(reg)
 }
 func (c *notifyingController) Write32(reg, value uint32) {
+	if reg == hctsiz {
+		c.sizeWrites++
+	}
+	if reg == fifo {
+		c.fifoWrites++
+	}
+	if c.waiting && (reg == hctsiz || reg == fifo) {
+		panic("continuation rewrote transfer size/PID or setup")
+	}
+	if c.waiting && reg == hcchar && value&channelEnable != 0 && value&channelDisable == 0 {
+		if !c.acknowledged {
+			panic("continuation before notification acknowledgement")
+		}
+		c.continuations++
+		c.waiting, c.acknowledged = false, false
+	}
 	c.controller.Write32(reg, value)
 	if reg == hcint && value == dataToggle && c.waiting {
 		c.acknowledged = true
@@ -213,8 +229,9 @@ func TestCapturedDescriptorControlTransferSurvivesNotificationWithoutSetupReplay
 	}
 	c := &notifyingController{controller: newPad()}
 	c.beforeIN = func(hw *controller) bool {
-		if c.injected == 0 && hw.request != nil && hw.request.value == 0x2200 && hw.request.offset == 8 {
+		if c.injected == 0 && hw.request != nil && hw.request.value == 0x2200 && hw.request.offset == 88 {
 			c.injected++
+			c.injectedAt = len(hw.starts) - 1
 			c.waiting = true
 			hw.rx = append(hw.rx, 5<<17|8<<4)
 			hw.regs[hcint] = dataToggle
@@ -236,8 +253,11 @@ func TestCapturedDescriptorControlTransferSurvivesNotificationWithoutSetupReplay
 	if err != nil || c.injected != 1 || !bytes.Equal(h.ReportDescriptor(), c.reportDescriptor) {
 		t.Fatal(err, c.injected)
 	}
-	if !reflect.DeepEqual(c.starts, control.starts) || !reflect.DeepEqual(c.requests, control.requests) {
-		t.Fatal("notification replayed/changed a USB transaction")
+	starts := append([]transaction{}, c.starts[:c.injectedAt]...)
+	starts = append(starts, c.starts[c.injectedAt+1:]...)
+	if c.continuations != 1 || !reflect.DeepEqual(starts, control.starts) || !reflect.DeepEqual(c.requests, control.requests) ||
+		c.sizeWrites != len(control.starts) || c.fifoWrites != 2*len(control.requests) {
+		t.Fatal("continuation changed setup/transfer registers or failed to queue exactly one required IN token")
 	}
 	if fw.confirms != 1 {
 		t.Fatal("missing confirmed owner")

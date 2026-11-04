@@ -51,6 +51,9 @@ func (h *Host) armPacket(complete bool) error {
 		}
 	}
 	flags := p.char
+	if periodic && !p.split {
+		p.requestAfter = h.io.Now().Add(h.interval)
+	}
 	if (flags>>18)&3 == 3 && frame&1 == 0 {
 		flags |= 1 << 29
 	}
