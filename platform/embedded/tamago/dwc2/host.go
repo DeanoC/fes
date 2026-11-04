@@ -20,6 +20,7 @@ const (
 	reset          = 0x010
 	gint           = 0x014
 	gintmask       = 0x018
+	rxpeek         = 0x01c
 	rxpop          = 0x020
 	rxsize         = 0x024
 	nptxsize       = 0x028
@@ -385,17 +386,25 @@ func (h *Host) step() (bool, []byte, bool, error) {
 		err := h.armPacket(p.completeSplit)
 		return false, nil, false, err
 	}
-	for n := 0; n < 8 && h.io.Read32(gint)&(1<<4) != 0; n++ {
+	for n := 0; n < 8; n++ {
+		irq := h.io.Read32(gint)
+		if irq&(1<<4) == 0 {
+			break
+		}
+		// GRXSTSR observes the queue head without consuming it. Retain both
+		// this sample and the destructive read if hardware returns a status
+		// outside the PIO contract. Neither observation authorizes a retry.
+		peek := h.io.Read32(rxpeek)
 		v := h.io.Read32(rxpop)
 		count := int((v >> 4) & 2047)
 		kind := (v >> 17) & 15
 		if v&15 != 0 {
-			return false, nil, false, fmt.Errorf("dwc2: unexpected RX channel")
+			return false, nil, false, h.rxFault("unexpected RX channel", irq, peek, v)
 		}
 		switch kind {
 		case 2:
 			if !p.in || p.received || count > p.limit || (v>>15)&3 != p.pid || p.split && !p.completeSplit {
-				return false, nil, false, fmt.Errorf("dwc2: invalid RX size/PID/ownership")
+				return false, nil, false, h.rxFault("invalid RX size/PID/ownership", irq, peek, v)
 			}
 			p.received = true
 			for i := 0; i < count; i += 4 {
@@ -405,10 +414,10 @@ func (h *Host) step() (bool, []byte, bool, error) {
 			}
 		case 3, 7:
 			if count != 0 {
-				return false, nil, false, fmt.Errorf("dwc2: payload on RX status")
+				return false, nil, false, h.rxFault("payload on RX status", irq, peek, v)
 			}
 		default:
-			return false, nil, false, fmt.Errorf("dwc2: unsupported RX status %d", kind)
+			return false, nil, false, h.rxFault(fmt.Sprintf("unsupported RX status %d", kind), irq, peek, v)
 		}
 	}
 	if h.io.Read32(gint)&(1<<4) != 0 {

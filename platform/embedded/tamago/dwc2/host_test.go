@@ -63,6 +63,11 @@ func (c *controller) Now() time.Time {
 func (c *controller) Read32(reg uint32) uint32 {
 	c.accesses++
 	switch reg {
+	case rxpeek:
+		if len(c.rx) == 0 {
+			return 0
+		}
+		return c.rx[0]
 	case gint:
 		v := c.regs[reg]
 		if len(c.rx) > 0 {

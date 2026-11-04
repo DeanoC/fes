@@ -26,6 +26,10 @@ Reports remain private until both transfer completion and channel retirement.
 Disconnect, STALL, unexpected RX status/channel/PID, overflow, missing or short
 reports, hardware errors and ambiguous timeout retire the host. It attempts a
 bounded channel halt and refuses further hardware access through that instance.
+Invalid receive entries retain a non-destructive GRXSTSR sample, the one popped
+GRXSTSP value and the surrounding interrupt/channel/port/reset registers. Status
+zero remains an error. This snapshot diagnoses the first physical Nano failure;
+it does not establish its cause or make a failed channel safe to reuse.
 The board wrapper permits one initialization attempt per boot. Hotplug recovery,
 gamepads, HID output reports, USB 3 hub protocols and hotplug re-enumeration
 are not implemented. Hub paths are checked and retired on change. The API has one polling owner; concurrent calls are not
