@@ -60,7 +60,7 @@ The scope is the CPU design's list and nothing more:
 | --- | --- | --- |
 | AT core | Two 8259 PICs, an 8254 PIT, two 8237 DMA controllers, an 8042 with A20, reset and a PS/2 aux port, port 92h, an MC146818 RTC with CMOS | Floppy controller, serial and parallel ports, game port |
 | Video | Register-level VGA: text modes, mode 13h, unchained 256-colour | SVGA, VESA BIOS extensions |
-| Audio | PC speaker (PIT channel 2 and direct port 61h), OPL2, Sound Blaster 2.0-class DSP with 8-bit DMA | OPL3 and Sound Blaster Pro, MT-32, CMS, Sound Source, ADPCM DMA modes |
+| Audio | PC speaker (PIT channel 2 and direct port 61h), OPL2, Sound Blaster 2.0-class DSP with 8-bit PCM and ADPCM DMA | OPL3 and Sound Blaster Pro, MT-32, CMS, Sound Source |
 | Input | HID keyboard through the 8042, PS/2 mouse from `fes.mouse.relative` | Joystick, wheel mouse |
 | Storage | One ATA hard-disk image in HPS DDR | Second disk, CD-ROM, floppy |
 
@@ -883,6 +883,8 @@ cases the guide leaves open.
 | E0h, E1h, E2h | DSP identification (inverted byte), version (02h 01h), DMA identification |
 | F2h | Force IRQ, 10 µs later as in DOSBox-X, which IRQ-probing detection code uses |
 | 80h | Silence for a sample count, then IRQ (some games time with it) |
+| 74h–77h, 16h, 17h | Single-cycle 4-, 2.6- and 2-bit ADPCM DMA playback, without and with a reference byte |
+| 7Dh, 7Fh, 1Fh | Auto-init 4-, 2.6- and 2-bit ADPCM with a reference byte |
 | E4h, E8h | Write and read the test register |
 
 - During a high-speed transfer the DSP ignores commands until the block ends,
@@ -898,10 +900,19 @@ cases the guide leaves open.
 - DREQ on channel 1 at the sample rate; the IRQ at block end on the set line,
   acknowledged by reading base+E.
 - The DAC holds the last sample, muted while the speaker is off.
-- ADPCM DMA (74h–77h, 16h–17h, 7Dh–7Fh, 1Fh) is deferred: none of the
-  acceptance games is known to use it. Unknown commands are consumed and ignored, with
-  the argument bytes DOSBox-X's command table gives them, so an ADPCM length
-  is not taken for a command.
+- ADPCM DMA decodes as DOSBox-X's `decode_ADPCM_4/3/2_sample` do, high
+  bits first. Serpent Isle's intro narration is 4-bit ADPCM (75h then 74h,
+  #1455), and the game waits for each block's IRQ. The card takes one byte
+  per 2, 3 or 4 sample periods; the first code plays as its byte arrives.
+  The IRQ comes with the block's last byte, after length + 1 bytes, and that
+  byte's later codes still play. A reference byte plays as itself for its
+  byte's periods (DOSBox-X plays no sample for it), and auto-init takes one
+  only at the start. Forms without one continue the previous reference and
+  step, which a DSP reset sets to 80h and 0 (DOSBox-X keeps them). Creative's
+  ADPCM rate limits (12 kHz for 4-bit) are not applied, as for PCM.
+- Unknown commands are consumed and ignored, with the argument bytes
+  DOSBox-X's command table gives them, so a length is not taken for a
+  command.
 - E2h writes DOSBox-X's identification byte (a running sum seeded AAh with a
   rotating XOR seeded 96h) by DMA; it raises no IRQ.
 
