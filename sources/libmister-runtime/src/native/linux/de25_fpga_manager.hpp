@@ -16,6 +16,7 @@ std::vector<unsigned char> De25ProgrammingOverlay(
 #if defined(MISTER_RUNTIME_TESTING)
 struct De25FpgaTestPaths {
     std::string config, firmware, state, search, lease, record, notes, default_firmware;
+    std::vector<std::string> package_roots;
 };
 class De25FpgaTestOperations {
 public:
@@ -35,10 +36,13 @@ class LinuxDe25FpgaManager final : public FpgaManager {
 public:
     // Normal runtime owns the same maintenance flock used by native clients.
     explicit LinuxDe25FpgaManager(Clock&);
+    // Production-only lost-process retirement, using the same admitted roots
+    // and permanent-owner allocation adapter as normal programming.
+    LinuxDe25FpgaManager(Clock&,MenuMemory&,std::vector<std::string> package_roots);
     LinuxDe25FpgaManager(Clock&, int lease_fd);
 #if defined(MISTER_RUNTIME_TESTING)
     LinuxDe25FpgaManager(Clock&, int lease_fd, const De25FpgaTestPaths&,
-                        De25FpgaTestOperations&);
+                        De25FpgaTestOperations&,MenuMemory* recovery_memory=nullptr);
 #endif
     ~LinuxDe25FpgaManager() override;
     NativeResult Program(const Artifact&, ProgrammingProfile, std::uint64_t) override;

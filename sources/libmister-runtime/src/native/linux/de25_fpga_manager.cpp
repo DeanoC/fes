@@ -2,6 +2,9 @@
 #include "native/linux/de25_fpga_manager.hpp"
 #include "native/artifacts.hpp"
 #include "native/sha256.hpp"
+#include "native/core_package.hpp"
+#include "native/de25_core_contract.hpp"
+#include "native/linux/menu_window.hpp"
 #include "daemon/json.hpp"
 #include <algorithm>
 #include <cerrno>
@@ -132,6 +135,9 @@ public:
     Fd lease;
     Error lease_error;
     bool poisoned = false, configuration_known = false, kernel_known = false, search_owned = false;
+    MenuMemory* recovery_memory = nullptr;
+    std::vector<std::string> package_roots;
+    bool recovery_attempted = false;
     mutable std::mutex mutex;
     std::string config = "/sys/kernel/config", firmware = "/run/fes-de25-firmware";
     std::string default_firmware = "/lib/firmware";
@@ -275,6 +281,77 @@ public:
 #endif
         return close(fd);
     }
+    NativeResult Recover(int overlays, std::uint64_t deadline) {
+        if (!recovery_memory || recovery_attempted)
+            return {Failure("configuration belongs to an earlier context; external recovery required"), false};
+        recovery_attempted = true;
+        const auto blob = De25ProgrammingOverlay(De25OverlayProfile::allocated_scanout);
+        Fd dir(openat(overlays, kOverlay, O_RDONLY | O_DIRECTORY | O_CLOEXEC | O_NOFOLLOW));
+        Fd dtbo(dir.n < 0 ? -1 : openat(dir.n, "dtbo", O_RDONLY | O_CLOEXEC | O_NOFOLLOW));
+        std::vector<unsigned char> previous;
+        if (!Read(dtbo.n, &previous, blob.size()) || previous != blob ||
+            !Exact(config + "/device-tree/overlays/" + kOverlay + "/status", "applied") ||
+            !Exact(state, "operating"))
+            return {Failure("retained configuration is not the exact applied allocated profile"), false};
+        Fd fw(open(firmware.c_str(), O_RDONLY | O_DIRECTORY | O_CLOEXEC | O_NOFOLLOW));
+        struct stat directory{}, payload{};
+        if (fw.n < 0 || fstat(fw.n, &directory) || directory.st_uid != geteuid() ||
+            (directory.st_mode & 07777) != 0700 ||
+            fstatat(fw.n, kFirmware, &payload, AT_SYMLINK_NOFOLLOW) ||
+            !S_ISREG(payload.st_mode) || payload.st_uid != geteuid() ||
+            (payload.st_mode & 07777) != 0444 || payload.st_nlink != 1 ||
+            payload.st_size <= 0 || std::uint64_t(payload.st_size) > kMaximum)
+            return {Failure("retained firmware identity or permissions differ"), false};
+        PosixArtifactOpener opener; Artifact staged; std::string digest;
+        Error error = opener.OpenRelative(fw.n, firmware, kFirmware, kMaximum, &staged);
+        if (error.ok()) error = HashOpenedArtifact(staged, &digest);
+        if (error.ok()) error = Check(deadline);
+        if (!error.ok()) return {error, false};
+        OpenedCorePackage selected;
+        bool found = false;
+        // Reuse package admission and the already selected trusted roots. No
+        // restart journal can substitute for the outgoing payload's bytes.
+        for (const auto& root : package_roots) {
+            Fd parent(open(root.c_str(), O_RDONLY | O_DIRECTORY | O_CLOEXEC | O_NOFOLLOW));
+            if (parent.n < 0) continue;
+            DIR* entries = fdopendir(parent.n);
+            if (!entries) continue;
+            parent.n = -1;
+            while (auto* entry = readdir(entries)) {
+                error = Check(deadline); if (!error.ok()) break;
+                const std::string id = entry->d_name;
+                if (id.size() != 64 || id.find_first_not_of("0123456789abcdef") != std::string::npos) continue;
+                OpenedCorePackage candidate;
+                error = OpenCorePackage(package_roots, root + "/" + id, id, &candidate);
+                if (!error.ok() || candidate.payload.size() != staged.size() ||
+                    candidate.descriptor.payload.sha256 != digest) continue;
+                error = CheckCoreCompatibility(candidate.descriptor, NativePlatform::de25_nano);
+                if (error.ok()) error = candidate.descriptor.target.programming_profile == "de25-linux-menu-v1" ?
+                    CheckDe25MenuContract(candidate.descriptor) : CheckDe25StandardComputerContract(candidate.descriptor);
+                if (!error.ok()) continue;
+                selected = std::move(candidate); found = true; break;
+            }
+            closedir(entries);
+            if (found || clock.NowMs() >= deadline) break;
+        }
+        if (!found) return {Failure("retained firmware has no matching admitted allocated package"), false};
+        error = Check(deadline); if (!error.ok()) return {error, false};
+        // This is abandonment of a lost process, never session adoption. The
+        // kernel must prove STOP/drain/CLEAR and the last peer's release.
+        error = recovery_memory->RetireInherited(selected.descriptor, deadline);
+        if (error.ok()) error = Check(deadline);
+        if (error.ok()) error = RecheckCorePackage(selected);
+        if (!error.ok()) { poisoned = true; return {error, true}; }
+        configured_overlay = blob;
+        programmed_size = staged.size();
+        auto digit = [](char c) { return c <= '9' ? c - '0' : c - 'a' + 10; };
+        for (std::size_t i = 0; i < programmed_digest.size(); ++i)
+            programmed_digest[i] = std::uint8_t((digit(digest[2*i]) << 4) | digit(digest[2*i+1]));
+        configuration_known = true;
+        const auto released = ReleaseConfiguration(deadline);
+        if (!released.error.ok()) { poisoned = true; return {released.error, true}; }
+        return {{}, true};
+    }
     NativeResult Program(const Artifact& artifact, ProgrammingProfile profile, std::uint64_t deadline) {
         if (profile != ProgrammingProfile::de25_hps_first_v1 &&
             profile != ProgrammingProfile::de25_linux_menu_v1 &&
@@ -307,6 +384,11 @@ public:
         if (!Text(state, &manager) || (manager != "unknown" && manager != "operating"))
             return {Failure("FPGA manager is not in a known programming state"), false};
         bool attempted = false, copied = false, created = false;
+        if (exists && !configuration_known) {
+            const auto recovered = Recover(overlays.n, deadline);
+            if (!recovered.error.ok()) return recovered;
+            exists = false; attempted = recovered.mutation_attempted;
+        }
         if (mkdir(firmware.c_str(), 0700) && errno != EEXIST)
             return {SystemError("create firmware directory"), false};
         Fd fw(open(firmware.c_str(), O_RDONLY | O_DIRECTORY | O_CLOEXEC | O_NOFOLLOW));
@@ -470,13 +552,18 @@ public:
 };
 LinuxDe25FpgaManager::LinuxDe25FpgaManager(Clock& c, int fd): impl_(new Impl(c, fd)) {}
 LinuxDe25FpgaManager::LinuxDe25FpgaManager(Clock& c): impl_(new Impl(c)) {}
+LinuxDe25FpgaManager::LinuxDe25FpgaManager(Clock& c,MenuMemory& memory,
+        std::vector<std::string> roots): impl_(new Impl(c)) {
+    impl_->recovery_memory = &memory; impl_->package_roots = std::move(roots);
+}
 #if defined(MISTER_RUNTIME_TESTING)
 LinuxDe25FpgaManager::LinuxDe25FpgaManager(Clock& c, int fd, const De25FpgaTestPaths& p,
-        De25FpgaTestOperations& ops): impl_(new Impl(c, fd)) {
+        De25FpgaTestOperations& ops,MenuMemory* memory): impl_(new Impl(c, fd)) {
     impl_->config = p.config; impl_->firmware = p.firmware; impl_->state = p.state;
     impl_->search = p.search; impl_->lease_path = p.lease; impl_->test = &ops;
     impl_->record = p.record; impl_->notes = p.notes;
     impl_->default_firmware = p.default_firmware;
+    impl_->package_roots = p.package_roots; impl_->recovery_memory = memory;
 }
 #endif
 LinuxDe25FpgaManager::~LinuxDe25FpgaManager() = default;

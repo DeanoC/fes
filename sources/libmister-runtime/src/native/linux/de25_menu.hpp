@@ -23,6 +23,9 @@ class De25MenuOperations {
 public:
  virtual ~De25MenuOperations() {}
  virtual Error OwnerAbi(std::uint32_t*)=0;
+ virtual Error OwnerInfo(bool*,De25MenuGrant*) {
+  return {ErrorCode::unsupported_interface,"owner allocation observation unavailable","recovery"};
+ }
  virtual Error Allocate(int*)=0;
  virtual Error Info(int,De25MenuGrant*)=0;
  virtual Error Poll(int,De25MenuGrant*)=0;
@@ -54,6 +57,7 @@ public:
  bool FrameMapping() const override {return true;}
  bool FreshSlotsOnActivate() const override {return true;}
  Error Revoke() override;
+ Error RetireInherited(const CoreDescriptor&,std::uint64_t) override;
  Error Share(int*) const override;
  Error Clean(std::uint8_t,const std::vector<MenuRect>&) const override;
  Error CleanBlit(std::uint32_t,std::uint32_t,const std::vector<MenuSpan>&) const override;

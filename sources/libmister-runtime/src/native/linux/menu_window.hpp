@@ -46,6 +46,11 @@ public:
  // Failure means replacement must not proceed. Closing a descriptor alone
  // does not establish that peer mappings or DMA storage are safe to reuse.
  virtual Error Revoke()=0;
+ // Explicit restart recovery of a separately verified outgoing configuration.
+ // The caller holds the physical lease; this never resumes the lost session.
+ virtual Error RetireInherited(const CoreDescriptor&,std::uint64_t) {
+  return {ErrorCode::unsupported_interface,"inherited allocation retirement unavailable","recovery"};
+ }
  virtual Error Share(int* fd) const=0;
  virtual Error Clean(std::uint8_t slot,const std::vector<MenuRect>& rects) const=0;
  virtual Error CleanBlit(std::uint32_t first,std::uint32_t count,const std::vector<MenuSpan>& uploaded) const=0;

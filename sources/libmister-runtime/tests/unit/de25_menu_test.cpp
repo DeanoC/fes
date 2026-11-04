@@ -23,6 +23,42 @@ void Complete(LinuxDe25Menu& m,Operations& o,std::uint32_t sequence) {
  do {assert(m.ReadInfo(o.clock.now+100,&info).ok());} while(info.pending);
  assert(info.displayed_sequence==sequence&&info.enabled&&info.configured&&!info.quiesced&&!info.faulted);
 }
+void RetainedAllocationRequiresIndependentDrainAndLastPeer() {
+ for(bool present:{false,true}) {
+  Operations o;o.retained=present;o.allocated=present;o.drain_waits=present?2:0;o.peer_waits=2;
+  auto descriptor=mister_test::De25StandardDescriptor();LinuxDe25Menu m(o.clock,o);
+  assert(m.RetireInherited(descriptor,100).ok());
+  assert(o.owner_infos==1&&o.reaps==(present?3:0)&&!o.allocated&&o.allocations==0&&o.published.empty());
+  assert(m.Bind(build,100).ok()&&o.allocations==1);assert(m.Revoke().ok());
+ }
+ for(int fault=0;fault<11;++fault) {
+  Operations o;o.retained=o.allocated=true;auto descriptor=mister_test::De25StandardDescriptor();
+  if(fault==0)o.abi=2;
+  if(fault==1)o.wrong_build=true;
+  if(fault==2)o.state.version=2;
+  if(fault==3)o.state.reserved=1;
+  if(fault==4)o.state.state=4;
+  if(fault==5)o.state.hardware_status|=FesDe25ScanoutStatusFault;
+  if(fault==6)o.state.hardware_status|=FesDe25ScanoutStatusClockFault;
+  if(fault==7)o.state.underflows=1;
+  if(fault==8)o.state.hardware_errors=1;
+  if(fault==9)++o.state.slot_bytes;
+  if(fault==10)o.info_error=true;
+  LinuxDe25Menu m(o.clock,o);assert(!m.RetireInherited(descriptor,100).ok());
+  assert(o.reaps==0&&o.allocations==0&&o.published.empty());assert(!m.Bind(build,100).ok());
+ }
+ for(bool peer:{false,true}) {
+  Operations o;o.retained=o.allocated=true;o.drain_waits=peer?0:100;o.peers=peer?1:0;
+  LinuxDe25Menu m(o.clock,o,3);auto descriptor=mister_test::De25StandardDescriptor();
+  assert(!m.RetireInherited(descriptor,100).ok()&&o.clock.now==3);
+  const auto reaps=o.reaps;o.drain_waits=o.peers=0;
+  assert(!m.RetireInherited(descriptor,100).ok()&&o.reaps==reaps);
+  assert(!m.Bind(build,100).ok()&&o.allocations==0);
+ }
+ Operations o;LinuxDe25Menu m(o.clock,o);Start(m,o);const auto reaps=o.reaps;
+ assert(!m.RetireInherited(mister_test::De25StandardDescriptor(),100).ok()&&o.reaps==reaps);
+ assert(m.Revoke().ok());
+}
 void AbiAndIdentityBeforeExposure() {
  Operations o;LinuxDe25Menu m(o.clock,o);
  assert(!m.Bind({},100).ok()&&o.abi_calls==0);
@@ -262,4 +298,4 @@ void AllocatedMenuContractRejectsFixedDdrAndOldIdentity() {
 }
 
 }
-int main(){SessionRetirementConfirmsPendingFrameBeforeClear();SessionRetirementRefusesUnconfirmedOrUnclearedCounters();SelectedSessionContractBindsBeforeAnyExposure();SessionReopenUsesNewStorageAndMonotonicLogicalFrames();SessionPinnedPeerAndUncertainCloseBlockReopen();SessionUncertainPublicationIsNotRetried();SelectedMenuDriverUsesItsOwnReadiness();AllocatedMenuContractRejectsFixedDdrAndOldIdentity();AbiAndIdentityBeforeExposure();ConfirmBlackAndReuseOneAllocation();WaitForReadyBeforeAnyDma();RetainOnIdentityFaultAndUseKernelRetirement();FailedPollReportsCachedFaultWithoutRecovery();LatePublicationDoesNotAcknowledgeOrReplay();FailedRetirementRemainsSticky();PeerReferencesCannotBecomeIdleByClosingRuntimeFd();UnsupportedPathsAndBounds();}
+int main(){RetainedAllocationRequiresIndependentDrainAndLastPeer();SessionRetirementConfirmsPendingFrameBeforeClear();SessionRetirementRefusesUnconfirmedOrUnclearedCounters();SelectedSessionContractBindsBeforeAnyExposure();SessionReopenUsesNewStorageAndMonotonicLogicalFrames();SessionPinnedPeerAndUncertainCloseBlockReopen();SessionUncertainPublicationIsNotRetried();SelectedMenuDriverUsesItsOwnReadiness();AllocatedMenuContractRejectsFixedDdrAndOldIdentity();AbiAndIdentityBeforeExposure();ConfirmBlackAndReuseOneAllocation();WaitForReadyBeforeAnyDma();RetainOnIdentityFaultAndUseKernelRetirement();FailedPollReportsCachedFaultWithoutRecovery();LatePublicationDoesNotAcknowledgeOrReplay();FailedRetirementRemainsSticky();PeerReferencesCannotBecomeIdleByClosingRuntimeFd();UnsupportedPathsAndBounds();}

@@ -55,7 +55,7 @@ an unordered capability list leaves the agent unavailable even when MENU is idle
 profile: `de25-hps-first-v1` is the BRAM computer, and `de25-linux-menu-v1` is the
 allocated MENU application. `de25-linux-computer-v1` also selects that allocated
 scanout overlay, then uses the shared computer control path. It retains the actual outgoing overlay bytes before
-MENU/computer replacement; an inherited or modified overlay is refused. Firmware
+MENU/computer replacement; an unverified or modified overlay is refused. Firmware
 comes from the retained Artifact and is closed before the kernel reads it.
 Staging uses the root-only `/run/fes-de25-firmware` directory so the factory
 root remains read-only. Under the existing exclusive lease, programming
@@ -72,9 +72,14 @@ an idle MENU shutdown proves kernel drain and the end of peer mappings before
 explicitly releasing that daemon's verified overlay and staged firmware. A fresh
 daemon can then program its selected MENU. A running computer, pinned peer,
 changed artifact or uncertain context refuses this handoff. Destruction and
-unexpected process death preserve the configuration; inherited configurations
-remain refused. Whole-load failure bounds and unexpected-death adoption remain
-unfinished. The [dated clean-restart diagnostic](../../docs/validation/2026-11-03-de25-watchdog/README.md#exact-normal-menu-package-and-clean-daemon-replacement)
+unexpected process death preserve the configuration. Production restart may
+abandon an exact applied allocated overlay only after its staged RBF matches an
+admitted outgoing package and the permanent owner independently proves drain
+and the end of peer references. The existing verified release then precedes a
+normal MENU load. Unknown packages, firmware-only overlays and uncertainty
+remain refused; no lost guest session is resumed. This extension has software
+coverage only. Whole-load failure bounds and native unexpected-death acceptance
+remain unfinished. The [dated clean-restart diagnostic](../../docs/validation/2026-11-03-de25-watchdog/README.md#exact-normal-menu-package-and-clean-daemon-replacement)
 passes two production-daemon contexts, each with 90 frames and zero underflows,
 in one native boot. The later managed diagnostic also passes normal software
 replacement and ordinary reboot after Stop and from an active session. Full

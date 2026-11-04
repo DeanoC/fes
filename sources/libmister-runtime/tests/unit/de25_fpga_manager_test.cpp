@@ -2,6 +2,8 @@
 #include "native/linux/de25_fpga_manager.hpp"
 #include "native/artifacts.hpp"
 #include "native/sha256.hpp"
+#include "native/core_package.hpp"
+#include "de25_menu_operations.hpp"
 #include <cassert>
 #include <cstdlib>
 #include <cstring>
@@ -23,6 +25,7 @@ struct Ops final : De25FpgaTestOperations {
     De25FpgaTestPaths& paths; Time& time;
     int created=0, written=0, removed=0, closed=0;
     int search_writes=0;
+    std::string expected_payload="immutable test image";
     bool short_write=false, error_close=false, late_close=false, unapplied=false;
     bool remove_error=false, create_error=false, open_error=false;
     bool short_search=false, restore_error=false, changed_search=false;
@@ -40,7 +43,7 @@ struct Ops final : De25FpgaTestOperations {
         ++written;
         assert(Get(Dir()+"/status")=="unapplied\n");
         assert(Get(paths.search)==paths.firmware+"\n");
-        assert(Get(paths.firmware+"/fes-runtime-core.rbf")=="immutable test image");
+        assert(Get(paths.firmware+"/fes-runtime-core.rbf")==expected_payload);
         struct stat staged{};assert(!stat((paths.firmware+"/fes-runtime-core.rbf").c_str(),&staged));
         assert((staged.st_mode & 0777)==0444);
         // Model the actual pinned configfs binary attribute: nothing applies
@@ -77,7 +80,7 @@ struct Fixture {
     int lease=-1; Artifact artifact;
     Fixture():ops(paths,clock) {
         char name[]="/tmp/fes-de25-manager-XXXXXX";auto* made=mkdtemp(name);assert(made);root=made;
-        paths={root+"/config",root+"/firmware",root+"/state",root+"/search",root+"/lease",root+"/record",root+"/notes",root+"/lib-firmware"};
+        paths={root+"/config",root+"/firmware",root+"/state",root+"/search",root+"/lease",root+"/record",root+"/notes",root+"/lib-firmware",{}};
         for(const auto& p:{paths.config,paths.config+"/device-tree",paths.config+"/device-tree/overlays",paths.firmware,paths.default_firmware})assert(!mkdir(p.c_str(),0700));
         Put(paths.state,"unknown\n");Put(paths.search,"\n");
         Put(paths.notes,"test kernel notes");Sha256 hash;const auto notes=Get(paths.notes);hash.Update(notes.data(),notes.size());
@@ -94,6 +97,85 @@ struct Fixture {
     NativeResult Program(LinuxDe25FpgaManager& m, ProgrammingProfile p = ProgrammingProfile::de25_hps_first_v1) {return m.Program(artifact,p,100);}
     void Preserved() {assert(Exists(ops.Dir()) && Exists(paths.firmware+"/fes-runtime-core.rbf"));}
 };
+std::string RecoveryPackage(Fixture& f,bool menu) {
+    const auto packages=f.root+"/packages",tmp=packages+"/incoming";
+    assert(!mkdir(packages.c_str(),0700)&&!mkdir(tmp.c_str(),0700));
+    const auto payload=Get(f.root+"/input.rbf");Sha256 hash;hash.Update(payload.data(),payload.size());
+    auto manifest=Get("tests/fixtures/core-bundle-v2/manifests/valid-basic.toml");
+    auto replace=[&](const std::string& a,const std::string& b){const auto p=manifest.find(a);assert(p!=std::string::npos);manifest.replace(p,a.size(),b);};
+    replace("fes.pong",menu?"fes.menu":"fes.zx81");replace("de10_nano","de25_nano");replace("5CSEBA6U23I7","A5EB013BB23BE4SCS");
+    replace("fes-gp-v1",menu?"de25-linux-menu-v1":"de25-linux-computer-v1");replace("size = 12","size = "+std::to_string(payload.size()));
+    replace("e7bbf8fe5ebdebeef7f2e70638a0a3494f22ab977e1506386010705a3d43adf1",Sha256Hex(hash.Final()));
+    replace("fes.simple-game",menu?"fes.application":"fes.computer");replace("0123456789abcdef0123456789abcdef","0123456789abcdeffedcba9876543210");
+    const auto first=manifest.find("[[interfaces]]"),last=manifest.find("[build]");assert(first<last);
+    std::vector<std::string> ids=menu?std::vector<std::string>{"fes.video.fixed-720p60","fes.video.menu-display"}:
+        std::vector<std::string>{"fes.video.fixed-720p60","fes.keyboard.hid","fes.gamepad.ports","fes.audio.pcm-s16-stereo-48k",
+            "fes.media.zx81-tape","fes.media.zx81-tape-write","fes.video.session-display","fes.fabric.video.display-plane"};
+    ids.push_back("fes.fabric.de25-scanout");std::string interfaces;
+    for(const auto& id:ids)interfaces+="[[interfaces]]\nid = \""+id+"\"\nmajor = 1\nminor = "+
+        (id=="fes.fabric.de25-scanout"?"1":"0")+"\nrequired = true\n\n";
+    manifest.replace(first,last-first,interfaces);Put(tmp+"/manifest.toml",manifest);Put(tmp+"/core.rbf",payload);
+    OpenedCorePackage opened;const auto e=OpenCorePackage(tmp,"",&opened);if(!e.ok())std::cerr<<e.message<<std::endl;assert(e.ok());
+    const auto path=packages+"/"+opened.package_id;assert(!rename(tmp.c_str(),path.c_str()));f.paths.package_roots={packages};return path;
+}
+void RecoverVerifiedAllocatedConfigurationOnlyAfterKernelRetirement() {
+    for(bool menu:{false,true}) {
+        Fixture f;RecoveryPackage(f,menu);auto old=f.Manager();
+        assert(f.Program(*old,menu?ProgrammingProfile::de25_linux_menu_v1:ProgrammingProfile::de25_linux_computer_v1).error.ok());old.reset();
+        mister_test::de25_menu::Operations owner;owner.retained=owner.allocated=true;LinuxDe25Menu memory(f.clock,owner);
+        LinuxDe25FpgaManager fresh(f.clock,f.lease,f.paths,f.ops,&memory);
+        Put(f.root+"/next.rbf","different admitted incoming image");PosixArtifactOpener opener;
+        assert(OpenRBFArtifact(f.root+"/next.rbf",opener,&f.artifact).ok());f.ops.expected_payload="different admitted incoming image";
+        const auto r=fresh.Program(f.artifact,ProgrammingProfile::de25_linux_menu_v1,100);if(!r.error.ok())std::cerr<<r.error.message<<std::endl;
+        assert(r.error.ok()&&r.mutation_attempted&&!fresh.Poisoned());
+        assert(owner.owner_infos==1&&owner.reaps==1&&owner.allocations==0&&owner.published.empty());
+        assert(f.ops.removed==1&&f.ops.written==2&&f.ops.created==2);f.Preserved();assert(fresh.ReleaseConfiguration(100).error.ok());
+    }
+    for(int fault=0;fault<10;++fault) {
+        Fixture f;const auto package=RecoveryPackage(f,true);auto old=f.Manager();
+        assert(f.Program(*old,ProgrammingProfile::de25_linux_menu_v1).error.ok());old.reset();
+        mister_test::de25_menu::Operations owner;owner.retained=owner.allocated=true;
+        if(fault==0)f.paths.package_roots.clear();
+        if(fault==1)Put(package+"/core.rbf","changed package payload");
+        if(fault==2)Put(f.ops.Dir()+"/dtbo","foreign overlay");
+        if(fault==3)Put(f.ops.Dir()+"/status","unapplied\n");
+        if(fault==4)assert(!chmod((f.paths.firmware+"/fes-runtime-core.rbf").c_str(),0600));
+        if(fault==5){const auto p=f.paths.firmware+"/fes-runtime-core.rbf";assert(!unlink(p.c_str())&&!symlink((f.root+"/input.rbf").c_str(),p.c_str()));}
+        if(fault==6)owner.wrong_build=true;
+        if(fault==7)owner.state.state=4;
+        if(fault==8)f.ops.remove_error=true;
+        if(fault==9)Put(f.paths.search,"/another/loader\n");
+        LinuxDe25Menu memory(f.clock,owner);LinuxDe25FpgaManager fresh(f.clock,f.lease,f.paths,f.ops,&memory);
+        const auto r=f.Program(fresh,ProgrammingProfile::de25_linux_menu_v1);
+        assert(!r.error.ok()&&f.ops.written==1&&f.ops.created==1);f.Preserved();
+        assert(owner.reaps==(fault==8?1:0)&&f.ops.removed==(fault==8?1:0));
+        const auto reaps=owner.reaps,removed=f.ops.removed;
+        assert(!f.Program(fresh,ProgrammingProfile::de25_linux_menu_v1).error.ok());
+        assert(owner.reaps==reaps&&f.ops.removed==removed&&f.ops.written==1);
+    }
+    {Fixture f;RecoveryPackage(f,true);auto old=f.Manager();assert(f.Program(*old).error.ok());old.reset();
+     mister_test::de25_menu::Operations owner;LinuxDe25Menu memory(f.clock,owner);
+     LinuxDe25FpgaManager fresh(f.clock,f.lease,f.paths,f.ops,&memory);
+     assert(!f.Program(fresh,ProgrammingProfile::de25_linux_menu_v1).error.ok()&&owner.reaps==0);f.Preserved();}
+    for(int fault=0;fault<4;++fault) {
+        Fixture f;const auto package=RecoveryPackage(f,true);auto old=f.Manager();
+        assert(f.Program(*old,ProgrammingProfile::de25_linux_menu_v1).error.ok());old.reset();
+        mister_test::de25_menu::Operations owner;owner.retained=owner.allocated=true;
+        owner.on_reap=[&]{
+            if(fault==0){const auto path=f.paths.firmware+"/fes-runtime-core.rbf";assert(!chmod(path.c_str(),0600));Put(path,"changed retained firmware");assert(!chmod(path.c_str(),0444));}
+            if(fault==1)Put(package+"/core.rbf","changed outgoing package");
+            if(fault==2)assert(!mkdir((f.paths.config+"/device-tree/overlays/foreign").c_str(),0700));
+            if(fault==3)f.clock.now=1000;
+        };
+        LinuxDe25Menu memory(f.clock,owner);LinuxDe25FpgaManager fresh(f.clock,f.lease,f.paths,f.ops,&memory);
+        const auto r=f.Program(fresh,ProgrammingProfile::de25_linux_menu_v1);
+        assert(!r.error.ok()&&r.mutation_attempted&&fresh.Poisoned());
+        assert(owner.reaps==1&&f.ops.removed==0&&f.ops.written==1);f.Preserved();
+        assert(!f.Program(fresh,ProgrammingProfile::de25_linux_menu_v1).error.ok()&&owner.reaps==1&&f.ops.removed==0);
+    }
+    std::cout<<"restart abandons only admitted allocated images after independent owner drain; uncertainty is retained\n";
+}
+
 void Positive() {
     Fixture f;auto m=f.Manager();assert(f.Program(*m).error.ok());
     assert(f.ops.closed==1 && !m->Poisoned());
@@ -335,6 +417,6 @@ void ProfilesAndLease() {
 }
 int main(int argc,char** argv) {
     if(argc==2) {const auto v=De25ProgrammingOverlay();std::ofstream f(argv[1],std::ios::binary);f.write(reinterpret_cast<const char*>(v.data()),v.size());assert(f.good());return 0;}
-    Positive();CleanRelease();ReleaseRefusals();AllocatedScanoutProfile();Uncertain();BeforeMutation();FirmwareSearchLifecycle();FirmwareFallbacks();ExistingFailure();ProfilesAndLease();
+    RecoverVerifiedAllocatedConfigurationOnlyAfterKernelRetirement();Positive();CleanRelease();ReleaseRefusals();AllocatedScanoutProfile();Uncertain();BeforeMutation();FirmwareSearchLifecycle();FirmwareFallbacks();ExistingFailure();ProfilesAndLease();
     std::cout<<"de25_fpga_manager_test: passed\n";
 }

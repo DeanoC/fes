@@ -5,6 +5,7 @@
 #include "native/generated/fes_de25_scanout.hpp"
 #include "native/generated/fes_application.hpp"
 #include <cassert>
+#include <functional>
 #include <utility>
 #include <vector>
 namespace mister_test { namespace de25_menu {
@@ -25,6 +26,9 @@ struct Operations final : De25MenuOperations {
  bool allocated=false,grant_open=false,ready=true,wrong_build=false;
  bool never_complete=false,reap_error=false,late_publish=false;
  bool poll_error=false,info_error=false;
+ bool retained=false;
+ int owner_infos=0;
+ std::function<void()> on_reap;
  std::uint32_t poll_error_delay=0;
  std::vector<std::pair<std::uint32_t,std::uint32_t>> published;
  Operations(){Reset();}
@@ -38,6 +42,10 @@ struct Operations final : De25MenuOperations {
   state.hardware_status=FesDe25ScanoutStatusDrained|(ready?FesDe25ScanoutStatusDisplayReady:0);
  }
  Error OwnerAbi(std::uint32_t* out) override {++abi_calls;*out=abi;return {};}
+ Error OwnerInfo(bool* present,De25MenuGrant* out) override {
+  ++owner_infos;if(info_error)return {ErrorCode::io_failed,"retained metadata unavailable","menu"};
+  *present=retained;*out=state;if(wrong_build)++out->build_id[2];return {};
+ }
  Error Allocate(int* out) override {assert(!allocated&&!grant_open);++allocations;allocated=grant_open=true;Reset();*out=100;return {};}
  Error Info(int fd,De25MenuGrant* out) override {
   assert(fd==100&&grant_open);++infos;
@@ -66,6 +74,7 @@ struct Operations final : De25MenuOperations {
  Error Reap(bool* done) override {
   ++reaps;if(reap_error)return {ErrorCode::io_failed,"uncertain kernel drain","menu"};
   if(drain_waits){--drain_waits;*done=false;return {};}
+  if(on_reap)on_reap();
   // Real OWNER_REAP proves STOP/drain, then CLEAR resets the physical
   // counters before returning. The separate GP view sees those cleared values.
   state.displayed_sequence=state.accepted_sequence=state.pending_sequence=0;

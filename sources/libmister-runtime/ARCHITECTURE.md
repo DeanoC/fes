@@ -74,7 +74,7 @@ failure before submission restores and verifies the empty value. Failed
 override restoration poisons the context; uncertain submission retains the
 override and file so a late firmware request can still resolve its bytes.
 Destruction does not clear that retained lookup. Foreign overrides and
-inherited overlay/staging files remain inadmissible to a new context.
+unverified inherited overlay/staging files remain inadmissible to a new context.
 The adapter also refuses the fixed RBF name in all four standard firmware
 search locations, so an error opening the private copy cannot select a stale
 fallback. Search-parameter checks accept only the exact value and its single
@@ -83,14 +83,41 @@ sysfs display newline; a newline stored in the path is not normalized away.
 Within a successful context, replacement verifies the retained outgoing overlay
 bytes/status before removing it, independently of the incoming profile. Any uncertainty after removal or submission
 permanently poisons the context and retains files/configuration. No retry,
-rollback program, destructor unload or close-as-drain operation exists. New
-contexts refuse old overlays. An explicit idle shutdown is separate from
+rollback program, destructor unload or close-as-drain operation exists. Diagnostic
+contexts refuse old overlays. Production restart recovery is described below. An explicit idle shutdown is separate from
 destruction: it verifies the retained overlay, applied/operating state and the
 staged firmware's size, permissions and SHA256 before removing either. Removal
-failure poisons the context without a retry. Unexpected-death adoption remains
-open. Software deadlines cannot interrupt a stalled
+failure poisons the context without a retry. Software deadlines cannot interrupt a stalled
 configfs close, secure call or shared-service mutex. Physical failure fencing
 and allocated-DMA qualification remain separate open gates.
+
+Production construction supplies the existing allocation adapter and the same
+trusted package roots to the programmer. A fresh programming context may abandon
+an inherited allocated MENU or standard ZX81 configuration only when its exact
+overlay is applied, the manager is operating, and the root-owned read-only staged
+RBF matches a fully opened, hash-checked compatible package in those roots. The
+outgoing package supplies the expected build identity; the incoming MENU may be
+different. Firmware-only profiles, missing packages, foreign overrides, changed
+bytes and incomplete submissions remain refused. No restart ownership database
+is introduced.
+
+The allocation adapter first checks ABI3 and cached owner identity, geometry and
+health. A retained uncertain revoke, clock fault, underflow or identity mismatch
+blocks recovery before REAP. A healthy retained grant must pass the existing
+bounded kernel REAP and OWNER_IDLE checks; absence of a grant still requires
+OWNER_IDLE and never authorizes REAP of an unidentified allocation. The bound
+cannot exceed ordinary allocation retirement. No old frame is acknowledged,
+no new allocation or GP command is issued, and peer references cannot be
+dismissed by userspace closure. Failure remains sticky in that context.
+
+After this independent retirement proof, the programmer rechecks the outgoing
+package and uses its existing verified configuration release, including another
+staged-byte hash and exact overlay/status check. It then makes the incoming
+programming attempt through the ordinary path. A post-retirement failure poisons
+the context and retains the remaining artifacts without replay. Recovery discards
+the lost process and guest session; it does not resume or adopt that session.
+Software regressions exercise these boundaries. Native unexpected-runtime and
+agent-death acceptance remains pending.
 
 The [2026-10-31 physical programmer diagnostic](../../docs/validation/2026-10-31-de25-runtime-programmer/README.md)
 records two known-core loads and BASIC7 at the selected C++/kernel bytes. It
@@ -1014,8 +1041,9 @@ requires idle MENU and uses the same retirement and quiesce boundary as core
 replacement. Only after successful REAP and OWNER_IDLE does it request verified
 configuration release. The existing exclusive lease stays held throughout.
 No hardware or allocator work runs in a signal handler. DE10 signal behavior
-is unchanged. Restarting a manager after an unexpected exit still refuses
-inherited overlays; neither closure nor a new process authorizes adoption.
+is unchanged. A production restart can abandon only the independently verified
+allocated configuration described above. Closure alone never authorizes reuse;
+unknown or uncertain inherited configurations remain blocked.
 
 ELF menu-interface records describe the union of the two board-specific
 contracts, not one package containing all interfaces. Package target/profile

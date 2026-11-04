@@ -5,6 +5,7 @@
 #include "native/generated/fes_application.hpp"
 #include "native/generated/fes_de25_scanout.hpp"
 #include <cerrno>
+#include <algorithm>
 #include <cstring>
 #include <fcntl.h>
 #include <limits>
@@ -59,6 +60,14 @@ public:
  }
  Error Allocate(int* fd) override {
   *fd=ioctl(owner_,FES_DE25_DMA_OWNER_ALLOC,0UL);return *fd<0?Io("DE25 allocation"):Error{};
+ }
+ Error OwnerInfo(bool* present,De25MenuGrant* out) override {
+  fes_de25_dma_info raw{};
+  if(ioctl(owner_,FES_DE25_DMA_OWNER_INFO,&raw)<0) {
+   if(errno==ENODATA){*present=false;return {};}
+   return Io("DE25 retained allocation observation");
+  }
+  *present=true;Decode(raw,out);return {};
  }
  Error Info(int fd,De25MenuGrant* out) override {
   fes_de25_dma_info raw{};if(ioctl(fd,FES_DE25_DMA_INFO,&raw)<0)return Io("DE25 grant info");
@@ -362,6 +371,52 @@ Error LinuxDe25Menu::Revoke() {
  const auto now=clock_.NowMs();
  if(now>std::numeric_limits<std::uint64_t>::max()-revoke_ms_)return Failed("DE25 revocation deadline overflow");
  return Retire(now+revoke_ms_);
+}
+Error LinuxDe25Menu::RetireInherited(const CoreDescriptor& descriptor,std::uint64_t d) {
+ std::lock_guard<std::mutex> lock(mutex_);
+ if(revoke_failed_)return revoke_error_;
+ if(grant_>=0||activated_||bootstrapped_||session_control_||faulted_)
+  return Failed("inherited retirement requires a fresh allocation context");
+ auto fail=[&](Error e){faulted_=revoke_failed_=true;revoke_error_=e;return e;};
+ const auto now=clock_.NowMs();
+ if(now>std::numeric_limits<std::uint64_t>::max()-revoke_ms_)
+  return fail(Failed("DE25 inherited retirement deadline overflow"));
+ d=std::min(d,now+revoke_ms_);
+ Error e=descriptor.target.programming_profile=="de25-linux-menu-v1"?
+  CheckDe25MenuContract(descriptor):CheckDe25StandardComputerContract(descriptor);
+ std::array<std::uint32_t,4> expected{};
+ if(e.ok())e=De25BuildWords(descriptor.build.id,&expected);
+ if(e.ok())e=Deadline(d);
+ std::uint32_t abi=0;if(e.ok())e=operations_->OwnerAbi(&abi);
+ if(e.ok()&&abi!=kAbi)e=Failed("inherited retirement requires owner ABI3");
+ bool present=false;De25MenuGrant retained;
+ if(e.ok())e=operations_->OwnerInfo(&present,&retained);
+ if(e.ok())e=Deadline(d);
+ // A cached fault or uncertain revoke is not a fresh drain proof. Do not
+ // clear it merely because the old userspace owner has disappeared.
+ if(e.ok()&&present&&(retained.version!=kAbi||!retained.generation||retained.reserved||
+    retained.build_id!=expected||retained.allocation_bytes!=FesDe25ScanoutAllocationBytes||
+    retained.slot_bytes!=FesDe25ScanoutSlotBytes||retained.frame_bytes!=FesDe25ScanoutFrameBytes||
+    retained.width!=FesDe25ScanoutFrameWidth||retained.height!=FesDe25ScanoutFrameHeight||
+    retained.stride!=FesDe25ScanoutFrameStride||retained.slots!=FesDe25ScanoutSlotCount||
+    (retained.state&~std::uint32_t(1|kExposed|kPending))||
+    (retained.hardware_status&~FesDe25ScanoutStatusMask)||
+    (retained.hardware_status&(FesDe25ScanoutStatusFault|FesDe25ScanoutStatusClockFault))||
+    retained.hardware_errors||retained.underflows))
+  e=Failed("retained allocation identity or health is uncertain");
+ if(!e.ok())return fail(e);
+ bool done=!present;
+ while(!done) {
+  e=Deadline(d);if(e.ok())e=operations_->Reap(&done);if(e.ok())e=Deadline(d);
+  if(!e.ok())return fail(e);
+  if(!done)operations_->WaitMs(1);
+ }
+ for(;;) {
+  bool idle=false;e=Deadline(d);if(e.ok())e=operations_->Idle(&idle);if(e.ok())e=Deadline(d);
+  if(!e.ok())return fail(e);
+  if(idle)return {};
+  operations_->WaitMs(1);
+ }
 }
 Error LinuxDe25Menu::Quiesce(std::uint64_t d,const CoreDescriptor* identity,MenuDisplayInfo* out) {
  std::lock_guard<std::mutex> lock(mutex_);Error e=Retire(d);

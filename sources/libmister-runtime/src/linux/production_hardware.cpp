@@ -132,6 +132,8 @@ public:
         : opener_(), mmio_(), clock_(), input_device_(clock_), timeouts_(),
           input_session_(input_device_, clock_, timeouts_.core_io_ms)
     {
+        const std::vector<std::string> package_roots = {
+            "/tmp/fogcast-development/core-packages", "/usr/share/mister-runtime/core-packages"};
         native::VideoBringup* idle = nullptr;
         native::CoreVideoBringup* video = nullptr;
         native::MenuDisplay* display = nullptr;
@@ -149,8 +151,6 @@ public:
             idle = idle_video_.get(); video = game_video_.get();
             display = menu_display_.get(); memory = menu_window_.get();
         } else {
-            de25_fpga_ = new native::LinuxDe25FpgaManager(clock_);
-            fpga_.reset(de25_fpga_);
             de25_registers_.reset(new native::De25ComputerMmio(mmio_));
             de25_.reset(new native::De25Computer(*de25_registers_, clock_));
             de25_driver_.reset(new native::De25ComputerCoreDriver(*de25_));
@@ -158,6 +158,8 @@ public:
             fes_gp_driver_.reset(new native::FesGpCoreDriver(*fes_gp_));
             menu_display_.reset(new native::MenuDisplayDriver(*fes_gp_,clock_));
             de25_menu_.reset(new native::LinuxDe25Menu(clock_,*menu_display_));
+            de25_fpga_ = new native::LinuxDe25FpgaManager(clock_,*de25_menu_,package_roots);
+            fpga_.reset(de25_fpga_);
             de25_menu_driver_.reset(new native::De25MenuCoreDriver(*de25_menu_));
             de25_video_.reset(new native::De25VideoBringup);
             idle = de25_video_.get(); video = de25_video_.get();
@@ -166,7 +168,7 @@ public:
         hardware_.reset(new native::NativeHardware(opener_, *fpga_, *idle, *video,
             input_session_, native::FogCastGamepadIdentity(), clock_, log,
             MISTER_RUNTIME_IDLE_RBF, timeouts_, fes_gp_driver_.get(),
-            {"/tmp/fogcast-development/core-packages", "/usr/share/mister-runtime/core-packages"},
+            package_roots,
             native::SplashIdle(), display, memory, disk_window_.get(), platform,
             de25_driver_.get(), de25_menu_driver_.get()));
     }
