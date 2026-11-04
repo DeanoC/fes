@@ -136,6 +136,7 @@ public:
     Error lease_error;
     bool poisoned = false, configuration_known = false, kernel_known = false, search_owned = false;
     MenuMemory* recovery_memory = nullptr;
+    De25RecoveryGuard recovery_guard;
     std::vector<std::string> package_roots;
     bool recovery_attempted = false;
     mutable std::mutex mutex;
@@ -336,6 +337,13 @@ public:
         }
         if (!found) return {Failure("retained firmware has no matching admitted allocated package"), false};
         error = Check(deadline); if (!error.ok()) return {error, false};
+        if (selected.descriptor.target.programming_profile == "de25-linux-computer-v1") {
+            if (!recovery_guard)
+                return {Failure("retained computer requires its live SAVE guard before retirement"), false};
+            error = recovery_guard(selected.descriptor, deadline);
+            if (error.ok()) error = Check(deadline);
+            if (!error.ok()) { poisoned = true; return {error, true}; }
+        }
         // This is abandonment of a lost process, never session adoption. The
         // kernel must prove STOP/drain/CLEAR and the last peer's release.
         error = recovery_memory->RetireInherited(selected.descriptor, deadline);
@@ -553,17 +561,19 @@ public:
 LinuxDe25FpgaManager::LinuxDe25FpgaManager(Clock& c, int fd): impl_(new Impl(c, fd)) {}
 LinuxDe25FpgaManager::LinuxDe25FpgaManager(Clock& c): impl_(new Impl(c)) {}
 LinuxDe25FpgaManager::LinuxDe25FpgaManager(Clock& c,MenuMemory& memory,
-        std::vector<std::string> roots): impl_(new Impl(c)) {
+        std::vector<std::string> roots,De25RecoveryGuard guard): impl_(new Impl(c)) {
     impl_->recovery_memory = &memory; impl_->package_roots = std::move(roots);
+    impl_->recovery_guard = std::move(guard);
 }
 #if defined(MISTER_RUNTIME_TESTING)
 LinuxDe25FpgaManager::LinuxDe25FpgaManager(Clock& c, int fd, const De25FpgaTestPaths& p,
-        De25FpgaTestOperations& ops,MenuMemory* memory): impl_(new Impl(c, fd)) {
+        De25FpgaTestOperations& ops,MenuMemory* memory,De25RecoveryGuard guard): impl_(new Impl(c, fd)) {
     impl_->config = p.config; impl_->firmware = p.firmware; impl_->state = p.state;
     impl_->search = p.search; impl_->lease_path = p.lease; impl_->test = &ops;
     impl_->record = p.record; impl_->notes = p.notes;
     impl_->default_firmware = p.default_firmware;
     impl_->package_roots = p.package_roots; impl_->recovery_memory = memory;
+    impl_->recovery_guard = std::move(guard);
 }
 #endif
 LinuxDe25FpgaManager::~LinuxDe25FpgaManager() = default;

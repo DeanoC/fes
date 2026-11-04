@@ -2,6 +2,7 @@
 #pragma once
 #include "native/hardware.hpp"
 #include <memory>
+#include <functional>
 #include <string>
 #include <vector>
 #include <sys/types.h>
@@ -12,6 +13,7 @@ namespace mister { namespace native {
 enum class De25OverlayProfile { firmware_only, allocated_scanout };
 std::vector<unsigned char> De25ProgrammingOverlay(
     De25OverlayProfile = De25OverlayProfile::firmware_only);
+using De25RecoveryGuard = std::function<Error(const CoreDescriptor&,std::uint64_t)>;
 
 #if defined(MISTER_RUNTIME_TESTING)
 struct De25FpgaTestPaths {
@@ -38,11 +40,13 @@ public:
     explicit LinuxDe25FpgaManager(Clock&);
     // Production-only lost-process retirement, using the same admitted roots
     // and permanent-owner allocation adapter as normal programming.
-    LinuxDe25FpgaManager(Clock&,MenuMemory&,std::vector<std::string> package_roots);
+    LinuxDe25FpgaManager(Clock&,MenuMemory&,std::vector<std::string> package_roots,
+                        De25RecoveryGuard);
     LinuxDe25FpgaManager(Clock&, int lease_fd);
 #if defined(MISTER_RUNTIME_TESTING)
     LinuxDe25FpgaManager(Clock&, int lease_fd, const De25FpgaTestPaths&,
-                        De25FpgaTestOperations&,MenuMemory* recovery_memory=nullptr);
+                        De25FpgaTestOperations&,MenuMemory* recovery_memory=nullptr,
+                        De25RecoveryGuard = {});
 #endif
     ~LinuxDe25FpgaManager() override;
     NativeResult Program(const Artifact&, ProgrammingProfile, std::uint64_t) override;

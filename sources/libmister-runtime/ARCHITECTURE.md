@@ -101,13 +101,24 @@ different. Firmware-only profiles, missing packages, foreign overrides, changed
 bytes and incomplete submissions remain refused. No restart ownership database
 is introduced.
 
+Before retiring a retained standard computer, production uses its existing
+shared driver to identify the outgoing package live and apply
+`EnsureZx81TapeSaved`. An unknown mailbox or dirty SAVE snapshot refuses recovery
+before allocation retirement or programming; the existing snapshot remains
+unacknowledged. Missing SAVE admission is also rejecting. A successful query
+allows abandonment of the lost session, not restoration of its ownership.
+
 The allocation adapter first checks ABI3 and cached owner identity, geometry and
-health. A retained uncertain revoke, clock fault, underflow or identity mismatch
-blocks recovery before REAP. A healthy retained grant must pass the existing
-bounded kernel REAP and OWNER_IDLE checks; absence of a grant still requires
+health. A retained grant must already have the kernel's irreversible successful
+revocation state: REVOKED, with neither exposure, uncertainty nor pending work.
+This state records a completed STOP/drain/CLEAR, independently of userspace
+closure. A clock fault, underflow or identity mismatch also blocks recovery.
+REAP may then release that retained owner reference once; unexpected EAGAIN
+is a sticky failure, not another drain attempt. OWNER_IDLE must still pass
+within the existing retirement bound; absence of a grant still requires
 OWNER_IDLE and never authorizes REAP of an unidentified allocation. The bound
 cannot exceed ordinary allocation retirement. No old frame is acknowledged,
-no new allocation or GP command is issued, and peer references cannot be
+allocation retirement issues no new allocation or GP command, and peer references cannot be
 dismissed by userspace closure. Failure remains sticky in that context.
 
 After this independent retirement proof, the programmer rechecks the outgoing

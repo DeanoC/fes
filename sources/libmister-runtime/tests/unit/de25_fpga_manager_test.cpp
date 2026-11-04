@@ -122,19 +122,21 @@ void RecoverVerifiedAllocatedConfigurationOnlyAfterKernelRetirement() {
     for(bool menu:{false,true}) {
         Fixture f;RecoveryPackage(f,menu);auto old=f.Manager();
         assert(f.Program(*old,menu?ProgrammingProfile::de25_linux_menu_v1:ProgrammingProfile::de25_linux_computer_v1).error.ok());old.reset();
-        mister_test::de25_menu::Operations owner;owner.retained=owner.allocated=true;LinuxDe25Menu memory(f.clock,owner);
-        LinuxDe25FpgaManager fresh(f.clock,f.lease,f.paths,f.ops,&memory);
+        mister_test::de25_menu::Operations owner;owner.retained=owner.allocated=true;owner.state.state=1;LinuxDe25Menu memory(f.clock,owner);
+        unsigned guarded=0;
+        LinuxDe25FpgaManager fresh(f.clock,f.lease,f.paths,f.ops,&memory,
+            [&](const CoreDescriptor& d,std::uint64_t){++guarded;assert(d.core.id=="fes.zx81"&&f.ops.removed==0&&owner.reaps==0);return Error{};});
         Put(f.root+"/next.rbf","different admitted incoming image");PosixArtifactOpener opener;
         assert(OpenRBFArtifact(f.root+"/next.rbf",opener,&f.artifact).ok());f.ops.expected_payload="different admitted incoming image";
         const auto r=fresh.Program(f.artifact,ProgrammingProfile::de25_linux_menu_v1,100);if(!r.error.ok())std::cerr<<r.error.message<<std::endl;
         assert(r.error.ok()&&r.mutation_attempted&&!fresh.Poisoned());
         assert(owner.owner_infos==1&&owner.reaps==1&&owner.allocations==0&&owner.published.empty());
-        assert(f.ops.removed==1&&f.ops.written==2&&f.ops.created==2);f.Preserved();assert(fresh.ReleaseConfiguration(100).error.ok());
+        assert(guarded==(menu?0u:1u));assert(f.ops.removed==1&&f.ops.written==2&&f.ops.created==2);f.Preserved();assert(fresh.ReleaseConfiguration(100).error.ok());
     }
     for(int fault=0;fault<10;++fault) {
         Fixture f;const auto package=RecoveryPackage(f,true);auto old=f.Manager();
         assert(f.Program(*old,ProgrammingProfile::de25_linux_menu_v1).error.ok());old.reset();
-        mister_test::de25_menu::Operations owner;owner.retained=owner.allocated=true;
+        mister_test::de25_menu::Operations owner;owner.retained=owner.allocated=true;owner.state.state=1;
         if(fault==0)f.paths.package_roots.clear();
         if(fault==1)Put(package+"/core.rbf","changed package payload");
         if(fault==2)Put(f.ops.Dir()+"/dtbo","foreign overlay");
@@ -160,7 +162,7 @@ void RecoverVerifiedAllocatedConfigurationOnlyAfterKernelRetirement() {
     for(int fault=0;fault<4;++fault) {
         Fixture f;const auto package=RecoveryPackage(f,true);auto old=f.Manager();
         assert(f.Program(*old,ProgrammingProfile::de25_linux_menu_v1).error.ok());old.reset();
-        mister_test::de25_menu::Operations owner;owner.retained=owner.allocated=true;
+        mister_test::de25_menu::Operations owner;owner.retained=owner.allocated=true;owner.state.state=1;
         owner.on_reap=[&]{
             if(fault==0){const auto path=f.paths.firmware+"/fes-runtime-core.rbf";assert(!chmod(path.c_str(),0600));Put(path,"changed retained firmware");assert(!chmod(path.c_str(),0444));}
             if(fault==1)Put(package+"/core.rbf","changed outgoing package");
@@ -172,6 +174,17 @@ void RecoverVerifiedAllocatedConfigurationOnlyAfterKernelRetirement() {
         assert(!r.error.ok()&&r.mutation_attempted&&fresh.Poisoned());
         assert(owner.reaps==1&&f.ops.removed==0&&f.ops.written==1);f.Preserved();
         assert(!f.Program(fresh,ProgrammingProfile::de25_linux_menu_v1).error.ok()&&owner.reaps==1&&f.ops.removed==0);
+    }
+    for(bool missing:{false,true}) {
+        Fixture f;RecoveryPackage(f,false);auto old=f.Manager();
+        assert(f.Program(*old,ProgrammingProfile::de25_linux_computer_v1).error.ok());old.reset();
+        mister_test::de25_menu::Operations owner;LinuxDe25Menu memory(f.clock,owner);
+        unsigned calls=0;De25RecoveryGuard guard;
+        if(!missing)guard=[&](const CoreDescriptor&,std::uint64_t){++calls;return Error{ErrorCode::save_failed,"pending SAVE remains owned","save"};};
+        LinuxDe25FpgaManager fresh(f.clock,f.lease,f.paths,f.ops,&memory,std::move(guard));
+        const auto r=f.Program(fresh,ProgrammingProfile::de25_linux_menu_v1);
+        assert(!r.error.ok()&&owner.reaps==0&&f.ops.removed==0&&f.ops.written==1&&calls==(missing?0u:1u));f.Preserved();
+        assert(!f.Program(fresh,ProgrammingProfile::de25_linux_menu_v1).error.ok()&&calls==(missing?0u:1u));
     }
     std::cout<<"restart abandons only admitted allocated images after independent owner drain; uncertainty is retained\n";
 }

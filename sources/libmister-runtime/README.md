@@ -74,8 +74,11 @@ daemon can then program its selected MENU. A running computer, pinned peer,
 changed artifact or uncertain context refuses this handoff. Destruction and
 unexpected process death preserve the configuration. Production restart may
 abandon an exact applied allocated overlay only after its staged RBF matches an
-admitted outgoing package and the permanent owner independently proves drain
-and the end of peer references. The existing verified release then precedes a
+admitted outgoing package and the permanent owner records successful completed
+revocation with no exposure or uncertainty. One REAP then releases its retained
+reference, and OWNER_IDLE proves the end of peer references. A retained computer
+must also pass live identity and the existing SAVE guard, so dirty snapshots or
+uncertain mailboxes remain blocked. The existing verified release then precedes a
 normal MENU load. Unknown packages, firmware-only overlays and uncertainty
 remain refused; no lost guest session is resumed. This extension has software
 coverage only. Whole-load failure bounds and native unexpected-death acceptance
