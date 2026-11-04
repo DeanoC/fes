@@ -15,7 +15,7 @@ now completes after its 9,576 bytes and raises IRQ 7. The driver then chains
 blocks, with 15 IRQs by 39 s where main had stopped at 2.
 From bench 21 s, where main goes flat black for good, the intro's frames
 change every second through 26 s, the end of the run.
-The seal at `17d84eca1` (Quartus 17.0.2, package `73e9fa9d…`) meets every
+The seal at `36ea8a2f3` (Quartus 17.0.2, package `de3173af…`) meets every
 analysis at 61.44 MHz. The pc386 suites (system, boot, governor, sound,
 audio) and `make test-changed` pass. No kit run has been made yet.
 
@@ -35,7 +35,11 @@ audio) and `make test-changed` pass. No kit run has been made yet.
 - **Timing.** The first code plays when its byte arrives, the others on the
   following sample periods, so the card takes one DMA byte per 2, 3 or 4
   sample periods. The IRQ comes with the block's last byte, after
-  length + 1 bytes, as for PCM; that byte's later codes still play.
+  length + 1 bytes, as for PCM; that byte's later codes still play, in
+  its encoding. A transfer started meanwhile, such as the next block started
+  at that IRQ as Serpent Isle's driver does, takes its first byte after them.
+  So a block without a reference continues from the true reference and step
+  (Codex's review: the first version dropped them).
 - **Choices where DOSBox-X is no guide or differs:**
   - A reference byte plays as itself and holds the DAC for its byte's
     periods; DOSBox-X plays no sample for it. The byte rate, and so the IRQ
@@ -61,15 +65,15 @@ audio) and `make test-changed` pass. No kit run has been made yet.
   `2dcfa05ca`, which brings
   [#1452](https://github.com/DeanoC/fes/pull/1452)'s BIOS change (INT 15h
   C2xx) and [#1472](https://github.com/DeanoC/fes/pull/1472)'s kit record.
-  The BIOS is a sealed firmware input, so the seal does not cover the
-  merged firmware; it covers this branch's RTL, which the merge does not
-  touch. `system`, `boot`, `sound` and `audio` were rerun after the merge.
-- **Seal.** `fes.pc386` from a clean checkout of `17d84eca1` ([Seal](#seal)).
+  `36ea8a2f3` fixes the chained-block tail Codex found.
+- **Seal.** `fes.pc386` from a clean checkout of `36ea8a2f3`, which holds
+  the merged BIOS ([Seal](#seal)). The first seal, at `17d84eca1`
+  (package `73e9fa9d…`, setup +1.236 ns), is superseded.
 
 ## Checks
 
-- **`audio_tb` (125 checks, 36 new).** Each check runs at 220h, IRQ 7, with a
-  50 kHz time constant:
+- **`audio_tb` (134 checks, 45 new).** Each check runs at 220h, IRQ 7; the
+  single-cycle and auto-init ones at 50 kHz:
   - **Single-cycle, per encoding.** First the reference form (75h, 77h, 17h)
     for 40 bytes, then the plain form (74h, 76h, 16h) for 24 bytes, which
     continues the reference and step left by the first block. For each block:
@@ -79,6 +83,14 @@ audio) and `make test-changed` pass. No kit run has been made yet.
     - the DAC, sampled in the middle of every period from the first
       acknowledge, equals the reference decoder, the last byte's later codes
       included.
+  - **Chained at the IRQ.** 75h then 74h, 77h then 76h, 17h then 16h,
+    with the second command sent as soon as the first block's IRQ is taken.
+    The run is at 5 kHz, so the command lands within the last byte's
+    periods, and the boundary falls in random data. One 8237 block covers
+    both blocks. The DAC equals the continuous reference decode across the
+    boundary, and the second block's first acknowledge comes only after the
+    last byte's codes. Before the fix these failed (4-bit: period 51 read
+    00h, expected 13h).
   - **Coverage.** The streams climb to the top step row and hit both
     reference clamps; a check fails if they don't.
   - **Auto-init (7Dh, 7Fh, 1Fh).** With 48h's block of 12 bytes over a
@@ -93,8 +105,10 @@ audio) and `make test-changed` pass. No kit run has been made yet.
     block's last codes after the IRQ fails 7.
   - The old "74h consumes its two argument bytes" check now uses 41h, an
     SB16 command the card still ignores.
-- **Suites** on `17d84eca1`, and `system`, `boot`, `sound` and `audio` again on the merge `2d6d77a58` (the reports): `system`, `boot`, `governor`, `sound` and
-  `audio` pass ([reports](.)). `make test-changed` passes.
+- **Suites.** `system`, `boot`, `governor`, `sound` and `audio` pass on
+  `17d84eca1`, and `make test-changed` passes there. `system`, `boot`,
+  `sound` and `audio` pass again on the merge `2d6d77a58`, and `audio` on
+  `36ea8a2f3` ([reports](.); the audio report is `36ea8a2f3`'s).
 
 ## Serpent Isle on the machine bench
 
@@ -147,26 +161,33 @@ frame; a flat black frame is 0.
 hash, the diagnosis's scratch-patch run `f1`, which showed the throne-room
 scene there.
 
+The 40 s run `p1` and `p2` were of `17d84eca1`. After the chained-block fix,
+`p3` reran the 27 s run on `36ea8a2f3`, which also has the merged BIOS. It
+is the same as `p2` throughout: the same DSP bytes and times, the same IRQ
+times and byte counts, and the same frame hashes every second. The fix
+changes only which codes the DAC plays, not the timing the game sees.
+
 ## Seal
 
 `make build-fes-pc386-quartus SEED=1` with Quartus Prime Lite 17.0.2, from a
-clean checkout of `17d84eca1`
+clean checkout of `36ea8a2f3`
 ([`seal-summary.json`](seal-summary.json)). Every analysis is met at
 61.44 MHz.
 
-- Package `73e9fa9dc592d35929a3cda8f8f84374e1e367e89e1fd441c37e97630b3fdf87`,
-  build `111d9466dfcc0e2ba6dd015018e4c8d4`, RBF `fa7bdb0b…` (3,634,848
+- Package `de3173afc9a209e77f2f87f2edc7fcccde0039567c5de26ea47c2f8d49d2fd00`,
+  build `1c080129abed249df6803ccb5ab25f74`, RBF `7696be9c…` (3,669,892
   bytes).
-- Worst slacks: setup +1.236 ns, hold +0.096 ns, recovery +7.766 ns,
-  removal +0.516 ns, minimum pulse width +1.122 ns; no negative TNS. The
-  slow 100 °C model's system-clock Fmax is 68.04 MHz.
-- 29,002 of 41,910 ALMs, 26,253 registers, 259 of 553 RAM blocks,
+- Worst slacks: setup +1.174 ns, hold +0.088 ns, recovery +6.903 ns,
+  removal +0.440 ns, minimum pulse width +1.122 ns; no negative TNS. The
+  slow 100 °C model's system-clock Fmax is 69.34 MHz.
+- 29,211 of 41,910 ALMs, 26,314 registers, 259 of 553 RAM blocks,
   1,275,290 block memory bits, 36 of 112 DSP blocks.
-- Machine elaborated by Yosys `0a7927bf1`. The sealed `pc386_sb.sv` is
-  `4962c36c…`, the head's.
+- Machine elaborated by Yosys `0a7927bf1`; firmware BIOS `26b37cca…` (with
+  #1452), VGABios `69401dc8…`. The sealed `pc386_sb.sv` is `be3ff91b…`, the
+  head's.
 
 ## Not done
 
 - **Kit B.** Not run yet: a run needs Deano's OK. It would load
-  package `73e9fa9d…` with #1426's Serpent Isle setup and check the intro
+  package `de3173af…` with #1426's Serpent Isle setup and check the intro
   past 24 s and the narration audio.
