@@ -32,7 +32,9 @@ The Nano BSP exposes `OpenKeyboardWithControl`; existing cold SD boot profiles
 keep USB disabled. The explicit `usbcheck` program selects the matched secure
 provider while entering with USB held, and obtains its owner through the actual
 boot-context/pin verifier. It polls a direct boot keyboard for five seconds and
-closes the lease. DWC2 now supports bounded hub discovery and a separately
-selected descriptor-driven gamepad transport in models; the native program
-still selects keyboard. Physical gamepad input and mixed storage/core permission
-remain open.
+closes the lease. `--usb-input gamepad` explicitly selects descriptor-driven HID
+input instead. The linker assignment, SDK/entry receipts and cold chain bind that
+selection; the observer must receive the same checked protocol. It captures the
+descriptor and normalized state without guessing this device's menu buttons.
+An unsupported schema retains its descriptor but cannot produce Ready/Pass.
+Physical gamepad input and mixed storage/core permission remain open.

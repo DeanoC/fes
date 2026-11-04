@@ -9,7 +9,7 @@ entry=importlib.util.module_from_spec(spec);spec.loader.exec_module(entry)
 
 class USBSelectionTests(unittest.TestCase):
     def test_actual_usb_link_assignment_and_program_are_required(self):
-        record={'program':'usbcheck','usb_control':True,'command':['go','build','-ldflags','-X main.expectedUSBControl=owned-usb-pio-v1','./cmd/usbcheck']}
+        record={'program':'usbcheck','usb_control':True,'usb_input':'boot-keyboard','command':['go','build','-ldflags','-X main.expectedUSBControl=owned-usb-pio-v1 -X main.expectedUSBInput=boot-keyboard','./cmd/usbcheck']}
         self.assertTrue(entry.usb_control_option(record))
         for flags in ('','-X main.expectedUSBControl=no','main.expectedUSBControl=owned-usb-pio-v1',
                       '-X main.expectedUSBControl=owned-usb-pio-v1 -X main.expectedUSBControl=owned-usb-pio-v1'):
@@ -20,3 +20,25 @@ class USBSelectionTests(unittest.TestCase):
             with self.subTest(patch=patch),self.assertRaises(ValueError):entry.usb_control_option(dict(record,**patch))
         self.assertFalse(entry.usb_control_option({'program':'fpgaload'}))
         with self.assertRaises(ValueError):entry.usb_control_option(dict(record,program='fpgaload',usb_control=False))
+
+    def test_input_must_match_exact_link_assignment(self):
+        for protocol in ('boot-keyboard','gamepad'):
+            flags='-X main.expectedUSBControl=owned-usb-pio-v1 -X main.expectedUSBInput='+protocol
+            record={'program':'usbcheck','usb_control':True,'usb_input':protocol,
+                    'command':['go','build','-ldflags',flags,'./cmd/usbcheck']}
+            self.assertTrue(entry.usb_control_option(record))
+            for value in (None,True,'mouse','gamepad' if protocol=='boot-keyboard' else 'boot-keyboard'):
+                with self.subTest(value=value),self.assertRaises(ValueError):entry.usb_control_option(dict(record,usb_input=value))
+            for bad in (flags.replace('-X main.expectedUSBInput','main.expectedUSBInput'),
+                        flags+' -X main.expectedUSBInput='+protocol,flags.split(' -X main.expectedUSBInput')[0]):
+                changed=copy.deepcopy(record);changed['command'][3]=bad
+                with self.subTest(bad=bad),self.assertRaises(ValueError):entry.usb_control_option(changed)
+
+    def test_build_input_is_limited_to_the_usb_diagnostic(self):
+        spec=importlib.util.spec_from_file_location('usb_sdk_build',ROOT/'platform/embedded/tamago/build.py')
+        build=importlib.util.module_from_spec(spec);spec.loader.exec_module(build)
+        self.assertEqual(build.usb_input_option('usbcheck',None),'boot-keyboard')
+        self.assertEqual(build.usb_input_option('usbcheck','gamepad'),'gamepad')
+        self.assertIsNone(build.usb_input_option('fpgaload',None))
+        for program,value in (('tenfoot','gamepad'),('fpgaload','boot-keyboard'),('usbcheck',True),('usbcheck','mouse')):
+            with self.assertRaises(ValueError):build.usb_input_option(program,value)

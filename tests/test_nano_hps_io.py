@@ -162,9 +162,12 @@ class HPSIOTests(unittest.TestCase):
                 cold.header(dict(profile,hps_io=changed,hps_io_sha256=context.digest(changed)))
         for key,value in (('sd_pio',True),('hps_control',{'cpu_base':0x20010400}),('hps_io_sha256','f'*64),('hps_context',None)):
             with self.subTest(key=key),self.assertRaises(ValueError):cold.header(dict(profile,**{key:value}))
-        usb=cold.header(dict(profile,usb_pio=True))
+        usb=cold.header(dict(profile,usb_pio=True,usb_input='boot-keyboard'))
         self.assertIn('#define FES_NANO_CONTROLLED_USB 1',usb)
         self.assertIn('#define FES_NANO_CONTROLLED_SD 0',usb)
+        self.assertIn('#define FES_NANO_CONTROLLED_USB 1',cold.header(dict(profile,usb_pio=True,usb_input='gamepad')))
+        for value in (None,True,'mouse'):
+            with self.subTest(input=value),self.assertRaises(ValueError):cold.header(dict(profile,usb_pio=True,usb_input=value))
         for key,value in (('usb_pio',1),('usb_pio','true'),('sd_pio',True),('hps_io',None),('hps_control',{})):
             with self.subTest(usb_field=key),self.assertRaises(ValueError):cold.header(dict(profile,usb_pio=True,**{key:value}) if key!='usb_pio' else dict(profile,usb_pio=value))
         self.assertIn('#define FES_NANO_HPS_IO_OBSERVE 0',cold.header({k:v for k,v in profile.items() if k not in ('hps_io','hps_io_sha256')}))

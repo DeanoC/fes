@@ -5,6 +5,7 @@ package main
 
 import (
 	"context"
+	"crypto/sha256"
 	"encoding/base64"
 	"encoding/hex"
 	"errors"
@@ -15,16 +16,21 @@ import (
 	"github.com/DeanoC/fes/platform/embedded/tamago/board"
 	"github.com/DeanoC/fes/platform/embedded/tamago/board/de25nano"
 	"github.com/DeanoC/fes/platform/embedded/tamago/nativefabric"
+	"github.com/DeanoC/fes/platform/embedded/tamago/usb"
 	"github.com/DeanoC/fes/platform/embedded/tamago/usbcontrol"
 )
 
-var expectedBootContext, expectedHPSIO, expectedUSBControl string
+var expectedBootContext, expectedHPSIO, expectedUSBControl, expectedUSBInput string
 var retainedClient *usbcontrol.Client
 var retainedSource *usbcontrol.Source
+var retainedGamepadSource *usbcontrol.GamepadSource
 
 func run() error {
 	if expectedUSBControl != "owned-usb-pio-v1" {
 		return errors.New("USB lease was not explicitly selected")
+	}
+	if expectedUSBInput != "boot-keyboard" && expectedUSBInput != "gamepad" {
+		return errors.New("USB input protocol was not explicitly selected")
 	}
 	if runtime.GOOS != "tamago" || board.ExceptionLevel() != 1 || board.CounterFrequency() != 400000000 {
 		return errors.New("USB CPU contract differs")
@@ -70,26 +76,54 @@ func run() error {
 	if err != nil {
 		return err
 	}
-	retainedSource, err = de25nano.OpenKeyboardWithControl(ctx, retainedClient)
+	var poll func() ([]byte, error)
+	var closeSource func(context.Context) error
+	var gamepad *usb.Gamepad
+	if expectedUSBInput == "gamepad" {
+		var descriptor []byte
+		retainedGamepadSource, descriptor, err = de25nano.OpenGamepadWithControl(ctx, retainedClient)
+		if len(descriptor) != 0 {
+			digest := sha256.Sum256(descriptor)
+			fmt.Printf("FES_NATIVE_USB DESCRIPTOR sha256=%x bytes=%d data=%x\n", digest, len(descriptor), descriptor)
+		}
+		if err == nil {
+			gamepad, err = usb.ParseGamepad(descriptor)
+			poll, closeSource = retainedGamepadSource.PollGamepad, retainedGamepadSource.Close
+		}
+	} else {
+		retainedSource, err = de25nano.OpenKeyboardWithControl(ctx, retainedClient)
+		if err == nil {
+			poll, closeSource = retainedSource.PollKeyboard, retainedSource.Close
+		}
+	}
 	if err != nil {
 		return err
 	}
-	fmt.Println("FES_NATIVE_USB READY transport=pio input=boot-keyboard data=held")
+	fmt.Printf("FES_NATIVE_USB READY transport=pio input=%s data=held\n", expectedUSBInput)
 	// A bounded diagnostic. The eventual launcher retains this source for its session.
 	deadline := time.Now().Add(5 * time.Second)
 	for time.Now().Before(deadline) {
-		report, pollErr := retainedSource.PollKeyboard()
+		report, pollErr := poll()
 		if pollErr != nil {
 			err = pollErr
 			break
 		}
 		if report != nil {
-			fmt.Printf("FES_NATIVE_USB REPORT %x\n", report)
+			if gamepad == nil {
+				fmt.Printf("FES_NATIVE_USB REPORT %x\n", report)
+			} else {
+				state, _, decodeErr := gamepad.Feed(report)
+				if decodeErr != nil {
+					err = decodeErr
+					break
+				}
+				fmt.Printf("FES_NATIVE_USB GAMEPAD report=%x axes=%d,%d,%d,%d,%d,%d buttons=%08x hat=%d\n", report, state.Axes[0], state.Axes[1], state.Axes[2], state.Axes[3], state.Axes[4], state.Axes[5], state.Buttons, state.Hat)
+			}
 		}
 		time.Sleep(time.Millisecond)
 	}
 	stop, cancelStop := context.WithTimeout(context.Background(), 5*time.Second)
-	closeErr := retainedSource.Close(stop)
+	closeErr := closeSource(stop)
 	cancelStop()
 	if err = errors.Join(err, closeErr); err != nil {
 		return err

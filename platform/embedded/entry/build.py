@@ -42,11 +42,17 @@ def usb_control_option(receipt):
         if selected:raise ValueError('USB lease requires its native link assignment') from None
         tokens=[]
     options=[(i,word) for i,word in enumerate(tokens) if 'main.expectedUSBControl' in word]
+    inputs=[(i,word) for i,word in enumerate(tokens) if 'main.expectedUSBInput' in word]
+    protocol=receipt.get('usb_input')
     if selected:
         if (len(options)!=1 or options[0][1]!='main.expectedUSBControl=owned-usb-pio-v1' or
                 options[0][0]==0 or tokens[options[0][0]-1]!='-X' or command[-1]!='./cmd/usbcheck'):
             raise ValueError('USB lease differs from the exact selected native link command')
-    elif options:raise ValueError('unselected USB lease appears in the native link command')
+        if (protocol not in ('boot-keyboard','gamepad') or len(inputs)!=1 or
+                inputs[0][1]!='main.expectedUSBInput='+protocol or inputs[0][0]==0 or tokens[inputs[0][0]-1]!='-X'):
+            raise ValueError('USB input differs from the exact selected native link command')
+    elif options or inputs or protocol is not None:
+        raise ValueError('unselected USB lease/input appears in the native link command')
     return selected
 
 
@@ -263,7 +269,7 @@ def main():
         native_io=hps.checked_hps_io(receipt)
         native_usb_control=usb_control_option(receipt)
         if native_usb_control and any(token not in payload.read_bytes() for token in
-                (b"FES_NATIVE_USB READY",b"usbcontrol.Open",b"OpenKeyboardWithControl")):
+                (b"FES_NATIVE_USB READY",b"usbcontrol.Open",b"OpenGamepadWithControl" if receipt['usb_input']=='gamepad' else b"OpenKeyboardWithControl")):
             raise ValueError("selected USB driver/client path is absent from the native ELF")
         native_control=hps.checked_control(receipt)
         native_configuration=hps.checked_configuration(receipt)
@@ -487,7 +493,7 @@ def main():
               "native_build_sha256": sha(receipt_bytes) if receipt_bytes is not None else None,
               "native_build_sources": native_sources,
               "native_program":receipt['program'] if receipt_bytes is not None else None,
-              "usb_control":native_usb_control,
+              "usb_control":native_usb_control,"usb_input":receipt.get('usb_input') if args.target=='de25-nano' else None,
               "hps_context":native_context,
               "hps_context_sha256":hps.digest(native_context) if native_context is not None else None,
               "hps_io":native_io,

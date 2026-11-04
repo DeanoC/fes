@@ -48,6 +48,9 @@ def entry(entry_build):
     usb=receipt.get('usb_control',False)
     if type(usb) is not bool or usb!=(receipt.get('native_program')=='usbcheck'):
         raise ValueError('USB boot selection differs from native program')
+    if (usb and receipt.get('usb_input') not in ('boot-keyboard','gamepad') or
+            not usb and receipt.get('usb_input') is not None):
+        raise ValueError('USB boot input differs from native selection')
     entry_payload.checked(receipt,image.read_bytes(),(entry_build/'payload.elf').read_bytes())
     check_sources(receipt.get('native_build_sources'))
     for name,expected in receipt['sources'].items():
@@ -108,6 +111,7 @@ def make(entry_build):
     inputs={str(p.relative_to(ROOT)):sha(p) for p in selected}
     identity={'format':1,'profile':'cold-smmu-preloaded' if profile.name=='smmu-profile.json' else 'cold-sd-pio-preloaded' if profile.name=='sd-profile.json' else 'cold-serial-preloaded',
               'sd_pio':profile.name=='sd-profile.json','usb_pio':build.get('usb_control',False),'firmware_profile_sha256':sha(profile),
+              'usb_input':build.get('usb_input'),
               'smmu_observe':profile.name=='smmu-profile.json',
               'secure_capture_trace':True,
               'spl_atf_trace':True,
@@ -149,6 +153,9 @@ def header(profile):
             any(profile.get(key) is not None for key in ('hps_context','hps_io','hps_control','hps_configuration','hps_reader_memory','hps_ddr_read','hps_window_read','hps_computer'))):
         raise ValueError('boot SMMU observation requires its separate serial-only profile')
     usb=profile.get('usb_pio',False)
+    if (usb and profile.get('usb_input') not in ('boot-keyboard','gamepad') or
+            not usb and profile.get('usb_input') is not None):
+        raise ValueError('USB boot input must be explicitly selected')
     if type(usb) is not bool or usb and (profile['sd_pio'] or profile.get('hps_io') is None or smmu or
             any(profile.get(key) is not None for key in ('hps_control','hps_configuration','hps_reader_memory','hps_ddr_read','hps_window_read','hps_computer'))):
         raise ValueError('USB PIO requires its sealed pins and separate contained cold profile')

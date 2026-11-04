@@ -1006,6 +1006,14 @@ reports follow confirmation. Startup failures stop a known prepared lease once;
 ambiguous replies retain resources until reboot. The default boot profile does
 not select this path; the explicit `usbcheck` diagnostic selects it.
 
+`--usb-input gamepad` selects the typed gamepad driver under that same lease.
+The selected input is bound into the native link command, entry receipt and
+cold chain identity; it grants no additional device or FPGA access. The native
+diagnostic records the exact HID report descriptor and normalized reports, then
+requires the usual checked stop. A failed schema check may record the descriptor
+but cannot establish readiness. The observer receives the independently checked
+input selection and rejects records from another protocol.
+
 The C RPC fixture runs the actual dispatcher, USB service, cold policy and board
 checks against modeled registers/PHY responses. Separate Go tests run the actual
 DWC2 driver with a modeled USB device and firmware replies. These checks cover

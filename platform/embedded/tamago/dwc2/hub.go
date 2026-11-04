@@ -243,6 +243,9 @@ func (h *Host) discover() error {
 		if len(data) != int(h.reportDescriptorBytes) {
 			return fmt.Errorf("dwc2: short HID report descriptor")
 		}
+		// Keep the exact bounded descriptor even when its schema is unsupported,
+		// so a failed diagnostic can identify the actual device without retrying.
+		h.reportDescriptor = append([]byte(nil), data...)
 		layout, err := usb.ParseGamepad(data)
 		if err != nil {
 			return err
@@ -251,7 +254,6 @@ func (h *Host) discover() error {
 			return fmt.Errorf("dwc2: gamepad report exceeds endpoint packet")
 		}
 		h.gamepad = layout
-		h.reportDescriptor = append([]byte(nil), data...)
 	} else {
 		if _, err := h.request(0x21, 11, 0, uint16(h.config.Interface), 0); err != nil {
 			return err

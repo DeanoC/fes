@@ -118,6 +118,9 @@ func TestGamepadRejectsWrongLayoutAndAmbiguityBeforeConfirmation(t *testing.T) {
 			if mode == "ambiguous" && hw.configured {
 				t.Fatal("ambiguous device was configured")
 			}
+			if mode != "ambiguous" && !bytes.Equal(partial.ReportDescriptor(), hw.reportDescriptor) {
+				t.Fatal("failed schema lost the captured descriptor")
+			}
 			accesses := hw.accesses
 			if _, err := s.PollGamepad(); err == nil || hw.accesses != accesses {
 				t.Fatal("failed source reused")

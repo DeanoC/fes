@@ -93,3 +93,13 @@ physical split scheduling, hub/keyboard compatibility and Type-C power still
 require a bounded Nano test. Linux v6.12 `hcd.c`, `hcd_intr.c`, `hw.h` and
 `usb/core/hub.c` are the primary protocol references. Their version/hashes are
 retained with validation. No Linux driver is linked into the image.
+
+`OpenGamepad` selects one alternate-zero non-boot HID candidate using the same
+bounded topology and PIO transport. It retrieves the exact interface report
+descriptor, validates a supported Joystick/Game Pad application and checks that
+reports fit the endpoint before readiness. It does not send keyboard boot
+protocol requests. Its typed host supplies `PollGamepad` and a copied report
+descriptor; it cannot supply `PollKeyboard`. Unsupported schemas retain the
+captured descriptor for diagnosis while preventing readiness and input polling.
+The explicit Nano `usbcheck --usb-input gamepad` image uses this path under the
+secure lease. Model and cross-build results do not qualify physical gamepads.

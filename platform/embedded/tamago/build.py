@@ -196,6 +196,12 @@ def package_option(program, package_id, profile):
     return None
 
 
+def usb_input_option(program, requested):
+    if requested is not None and (program != 'usbcheck' or requested not in ('boot-keyboard', 'gamepad')):
+        raise ValueError('--usb-input requires Nano usbcheck and a supported input protocol')
+    return (requested or 'boot-keyboard') if program == 'usbcheck' else None
+
+
 def build(args):
     if args.interactive or args.disk is not None or args.qemu is not None or args.display is not None:
         raise ValueError("Nano selection cross-builds only; QEMU/disk/interactive/display options are not accepted")
@@ -203,6 +209,7 @@ def build(args):
         raise ValueError(args.program+" is a QEMU exercise; use the selected Nano program for a board cross-build")
     if args.profile is None:
         raise ValueError("--board de25-nano requires --profile from the firmware handoff")
+    usb_input = usb_input_option(args.program, getattr(args, 'usb_input', None))
     raw = args.profile.resolve().read_bytes()
     profile = json.loads(raw)
     if raw==(APP.parent/'nano/smmu-profile.json').read_bytes() and args.program!='probe':
@@ -375,7 +382,8 @@ def build(args):
     sources = {str(p.relative_to(ROOT)): sha(p) for p in sorted(files)}
     elf = output / (args.program + ".elf")
     link_flags=f"-s -w -T {entry:#x} -R 0x1000"
-    if args.program=='usbcheck':link_flags+=' -X main.expectedUSBControl=owned-usb-pio-v1'
+    if args.program=='usbcheck':
+        link_flags+=' -X main.expectedUSBControl=owned-usb-pio-v1 -X main.expectedUSBInput='+usb_input
     if expected_package_id:link_flags+=' -X main.expectedPackageID='+expected_package_id
     if context is not None:link_flags+=' -X main.expectedBootContext='+base64.b64encode(hps.encode(context)).decode()
     if io_map is not None:link_flags+=' -X main.expectedHPSIO='+base64.b64encode(hps.encode(io_map)).decode()
@@ -428,7 +436,7 @@ def build(args):
     if sources != {str(p.relative_to(ROOT)): sha(p) for p in sorted(files)}:
         raise ValueError("sources changed while building")
     report = {"status": "cross-built", "board": "de25-nano", "program": args.program,
-              "expected_package_id":expected_package_id,"usb_control":args.program=='usbcheck',
+              "expected_package_id":expected_package_id,"usb_control":args.program=='usbcheck',"usb_input":usb_input,
               "hps_context":context,"hps_context_sha256":hps.digest(context) if context else None,
               "hps_io":io_map,"hps_io_sha256":hps.digest(io_map) if io_map else None,
               "cpu_mapping":cpu_map,"cpu_mapping_sha256":hps.digest(cpu_map) if cpu_map else None,

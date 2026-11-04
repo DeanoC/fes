@@ -45,7 +45,7 @@ func OpenGamepadWithControl(ctx context.Context, client *usbcontrol.Client) (*us
 		return ownedGamepadHost, err
 	})
 	if err != nil {
-		return ownedGamepadSource, nil, err
+		return ownedGamepadSource, ownedGamepadHost.ReportDescriptor(), err
 	}
 	return ownedGamepadSource, ownedGamepadHost.ReportDescriptor(), nil
 }
