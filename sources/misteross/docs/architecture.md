@@ -31,6 +31,34 @@ standard computer core at a 100 MHz system clock with unrelated 74.25 MHz pixels
 The latter uses a modeled DE10 DDR adapter to exercise the shared display plane;
 it does not qualify the DE25 allocation/transport adapters or a DE25 RBF.
 
+`boards/de25nano/zx81-hps/fes_de25_zx81_standard.v` connects that shared core
+to the extracted atomic `fes_de25_computer_transport` and allocated session
+adapter. It selects the 100 MHz guest fraction and disables the DE10 reserved
+window. System and pixel reset releases are separate board-owned inputs; HDMI
+readiness must be pixel-qualified. PCM samples and the standard expansion bus
+remain explicit board outputs. Transport faults hold the machine and stop the
+allocated scanout through its sticky clock-fault path. The reduced wrapper uses
+the same extracted transport; its readiness CDC timing endpoints include the
+new instance hierarchy, with the same two-stage chain and first-stage-only cut.
+
+`zx81-hps/sim.py --bench standard` combines the actual standard core, atomic
+register path and allocated display RTL. Its diagnostic ROM/internal16K model
+checks real CPU writes and retained RAM across kernel-only display publication,
+drain, new grant bases and sequence restart. It reuses the allocated frame bench;
+`--bench all` includes it. The standard board wrapper is not yet captured by a
+canonical package producer or admitted by the production runtime. ROM/expansion
+composition, qualified physical clocks/audio, Quartus and native acceptance remain
+open; the diagnostic is not a full standard 16K RAM-pack or BASIC proof.
+
+`prepare_standard_component(output, revision)` in the existing ZX81-HPS builder
+stages a source-captured Qsys component. Its two Avalon slaves retain separate
+100 MHz computer and pixel-clock scanout interfaces, with independent reset
+releases, the read-only allocated memory master, video/PCM and expansion conduits.
+Source and derived-file hashes accompany the component. Existing guarded M20K
+adaptations handle machine/tape/video RAM and the allocated reader; helpers run
+from the retained source tree. This prepares component files only. The canonical
+board recipe and normal package/runtime admission still select the older path.
+
 The standard core's `HPS_DDR_WINDOW` parameter defaults to one for DE10. Setting
 it to zero leaves the session-display capability intact and clears only the
 reserved-window capability. The shared mailbox exposes the same independent

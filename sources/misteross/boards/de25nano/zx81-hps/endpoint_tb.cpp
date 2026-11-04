@@ -359,12 +359,12 @@ static void board_video_ready_crossing() {
           "configured board status was not readable");
     b.t.video_ready = 0; b.t.eval();
     b.system_edge();
-    check((S(video_ready_sync) & 2) != 0, "readiness loss bypassed its first synchronizer");
+    check((S(transport__DOT__video_ready_sync) & 2) != 0, "readiness loss bypassed its first synchronizer");
     b.system_edge();
     check(b.read_word(FesDe25ComputerVideoStatusOffset) == 0, "readiness loss was not observed");
     b.t.video_ready = 1; b.t.eval();
     b.system_edge();
-    check((S(video_ready_sync) & 2) == 0, "readiness assertion bypassed its first synchronizer");
+    check((S(transport__DOT__video_ready_sync) & 2) == 0, "readiness assertion bypassed its first synchronizer");
     b.system_edge();
     check(b.read_word(FesDe25ComputerVideoStatusOffset) == FesDe25ComputerVideoReady,
           "readiness assertion was not observed");

@@ -75,7 +75,7 @@ class HpsZX81BuildTests(unittest.TestCase):
         self.assertIn("reg video_ready_source", board)
         self.assertIn("assign video_ready = video_ready_source;", board)
         self.assertIn("{fes_video_inst|hdmi_config|READY} {fes_video_inst|hdmi_ready_sync[0]} {fes_video_inst|hdmi_ready_sync[1]}", sdc)
-        self.assertIn("{fes_video_inst|video_ready_source} {soc_inst|subsys_periph|fes_computer|fes_computer|video_ready_sync[0]}", sdc)
+        self.assertIn("{fes_video_inst|video_ready_source} {soc_inst|subsys_periph|fes_computer|fes_computer|transport|video_ready_sync[0]}", sdc)
         self.assertIn('"${ready_stage0}|D"', sdc)
         self.assertIn("set_false_path -from $ready_source_reg -to $ready_stage0_d", sdc)
         self.assertIn('if {[get_collection_size $ready_nodes] != 1}', sdc)
