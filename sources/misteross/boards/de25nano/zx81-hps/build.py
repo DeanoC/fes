@@ -110,7 +110,7 @@ def capture_standard(revision=None):
     """Source closure for the standard component, before a board recipe selects it."""
     sources = capture(revision)
     paths = {BOARD + "zx81-hps/" + name for name in
-             ("fes_de25_zx81_standard.v", "fes_de25_zx81_standard_hw.tcl")}
+             ("fes_de25_zx81_standard.v", "fes_de25_zx81_standard_hw.tcl", "standard-clocks.sdc")}
     paths |= {"sources/misteross/cores/fes-zx81/rtl/" + name for name in
               ("fes_zx81_core.v", "zx81_video_720p.v")}
     paths |= {"sources/misteross/cores/fes-common/rtl/" + name for name in
@@ -217,6 +217,7 @@ def prepare_standard_board(archive, output, revision=None):
             target = local / path.relative_to(component)
             target.parent.mkdir(parents=True, exist_ok=True)
             target.write_bytes(path.read_bytes())
+    (local / "standard-clocks.sdc").write_bytes(sources[BOARD + "zx81-hps/standard-clocks.sdc"])
     # Remove the unused standalone reader component definition. Its reader
     # implementation remains selected by the standard component's fileset.
     (local / "fes_de25_scanout_hw.tcl").unlink()
@@ -291,7 +292,10 @@ qsys_top soc_inst (
     for name in paths:
         (local / Path(name).name).write_bytes(sources[name])
     qsf_path = project / "golden_top.qsf"
-    qsf = qsf_path.read_text() + "\nset_global_assignment -name IP_FILE fes_mailbox/av_pll.ip\n"
+    qsf = replace_once(qsf_path.read_text(),
+        "set_global_assignment -name SDC_FILE fes_mailbox/clocks.sdc\n",
+        "set_global_assignment -name SDC_FILE fes_mailbox/standard-clocks.sdc\n")
+    qsf += "\nset_global_assignment -name IP_FILE fes_mailbox/av_pll.ip\n"
     if re.search(r"(?m)^\s*set_global_assignment\s+-name\s+VERILOG_MACRO\s+.*QUARTUS", qsf):
         raise ValueError("upstream already selects the Quartus RAM branch; review before overriding")
     # The portable machine selects altsyncram/MIF in Quartus and a readmemh
@@ -312,6 +316,7 @@ qsys_top soc_inst (
         inputs.update(base_revision=selected_revision, source_classification="working-copy-diagnostic")
     inputs["standard_zx81"] = {"build_id": build_id, "expansion_socket": False,
         "computer_offset": 0x10300, "scope": "standard-core-board-integration", "runtime_admission": "not-qualified",
+        "standard_sdc_sha256": sha((local / "standard-clocks.sdc").read_bytes()),
         "audio_pll": {"vendor_sha256": sha(original), "derived_sha256": sha(audio_pll),
                       "parameters": display.pll_parameters(audio_pll)}}
     inputs["scanout"]["build_identity_scheme"] = "standard-board-integration-source-profile"
@@ -337,6 +342,11 @@ def generate_standard_board(output, scanout, combined, hps, display, tool, versi
     if (directory / "project/golden_top.qsf").read_text().count(
             "set_global_assignment -name VERILOG_MACRO QUARTUS=1\n") != 1:
         raise ValueError("standard board requires the selected Quartus/M20K memory branch")
+    if ((directory / "project/golden_top.qsf").read_text().count(
+            "set_global_assignment -name SDC_FILE fes_mailbox/standard-clocks.sdc\n") != 1 or
+            sha((directory / "project/fes_mailbox/standard-clocks.sdc").read_bytes()) !=
+            inputs["standard_zx81"]["standard_sdc_sha256"]):
+        raise ValueError("standard board timing source selection differs")
     combined.generate(output / "combined", hps, display, tool, version)
     scanout.repair_generated_reset_timing(directory)
     scanout.shared_reset_helper(directory).apply(directory)
@@ -394,6 +404,7 @@ def generate_standard_board(output, scanout, combined, hps, display, tool, versi
     generation_path = directory / "generation.json"
     generation = json.loads(generation_path.read_text())
     generation["standard_zx81"] = {"build_identity": build_identity,
+        "standard_sdc_sha256": inputs["standard_zx81"]["standard_sdc_sha256"],
         "computer_offset": 0x10300, "bridge_parameters": bridge_parameters,
         "managed_fabric": scanout.verify_managed_fabric(directory, hps),
         "reset_timing": scanout.verify_generated_reset_timing(directory),

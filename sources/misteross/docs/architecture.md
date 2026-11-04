@@ -80,6 +80,17 @@ a sealed package or runtime profile. `build` refuses until the additional
 machine, session-display and audio timing constraints are integrated; existing
 scanout-only constraints cannot qualify these added clock crossings.
 
+The standard board now selects `standard-clocks.sdc`, sourcing the same common
+board/fabric constraints with the standard memory-fault endpoints. A system
+register launches the sticky fault, and a pixel register launches drain
+completion before the two-stage return synchronizer. Five additional first-D
+crossings leave interstage and consumer paths timed. Display command/reply
+bundles keep 10 ns net/data/skew and min/max path bounds during their toggle
+round trips. The internal-16K base asserts that its unused PCM crossing is
+optimized away; a live sound persona cannot inherit this timing selection.
+Mapped and fitted validation, external timing admission and runtime acceptance
+remain separate requirements.
+
 The standard core's `HPS_DDR_WINDOW` parameter defaults to one for DE10. Setting
 it to zero leaves the session-display capability intact and clears only the
 reserved-window capability. The shared mailbox exposes the same independent

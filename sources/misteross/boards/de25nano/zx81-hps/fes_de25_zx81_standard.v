@@ -51,6 +51,12 @@ module fes_de25_zx81_standard #(
 );
     wire [31:0] gpo, gpi;
     wire transport_ready, transport_fault;
+    // Launch one monotonic system-domain fault bit into the pixel synchronizer.
+    // Reset/fault decoding may involve several transport registers; it must
+    // settle in this clock domain before crossing to the memory controller.
+    (* preserve, dont_merge *) reg display_clock_fault = 1'b0;
+    always @(posedge clk_sys)
+        if (clock_fault || transport_fault) display_clock_fault <= 1'b1;
     wire [27:0] machine_video;
     wire display_request, response_valid, response_error;
     wire [6:0] display_opcode;
@@ -85,7 +91,7 @@ module fes_de25_zx81_standard #(
     );
     fes_de25_session_display #(.BUILD_ID(BUILD_ID)) display (
         .clk_sys(clk_sys), .pixel_clk(pixel_clk), .reset_n(pixel_reset_n), .exec_reset(exec_reset),
-        .clock_fault(clock_fault || transport_fault), .display_ready(video_ready),
+        .clock_fault(display_clock_fault), .display_ready(video_ready),
         .machine(machine_video), .request(display_request), .opcode(display_opcode),
         .index(display_index), .argument(display_argument), .response_valid(response_valid),
         .response_error(response_error), .response_data(response_data), .quiesced_sys(display_quiesced),

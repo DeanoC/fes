@@ -57,10 +57,14 @@ module fes_de25_session_display #(
     reg [31:0] opening_sequence = 32'd0;
     wire frame_end = raster_h == 11'd1649 && raster_v == 10'd749;
     wire quiesced = drained && !ui_active && (!enable || quiesce);
+    // Drain is decoded from reader counters and bridge state. Register the
+    // complete result in its pixel domain before the two-stage return crossing.
+    (* preserve, dont_merge *) reg quiesced_source = 1'b1;
     assign faulted = raster_fault || errors != 32'd0;
     assign quiesced_sys = quiesced_sync[1];
-    always @(posedge clk_sys) quiesced_sync <= {quiesced_sync[0], quiesced};
+    always @(posedge clk_sys) quiesced_sync <= {quiesced_sync[0], quiesced_source};
     always @(posedge pixel_clk) begin
+        quiesced_source <= quiesced;
         execution_sync <= {execution_sync[0], exec_reset};
         was_enabled <= enable;
         if (enable && !was_enabled) opening_sequence <= frame_sequence;

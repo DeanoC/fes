@@ -296,6 +296,13 @@ standard internal-16K base configuration; expansion personas are not linked.
 The Quartus RAM branch uses the guarded Agilex/M20K adaptations. Firmware keeps
 all original 12 KiB and explicitly zero-fills its unreachable 4 KiB tail to
 match the 16 KiB ROM primitive without an implicit initialization warning.
+`standard-clocks.sdc` selects the standard memory-fault hierarchy in the common
+board constraints, cuts only the five added synchronizer ingress paths and
+bounds both held display-command/response bundles to 10 ns. Fault and drained
+status launch from dedicated registers. The internal-16K base requires a
+constant PCM path and constrains its two audio reset-release ingress pins;
+live sound personas require their own coherent-transfer timing. These source
+constraints still require mapped/fitted checks and external timing admission.
 For a fresh output directory, run:
 
 ```sh
