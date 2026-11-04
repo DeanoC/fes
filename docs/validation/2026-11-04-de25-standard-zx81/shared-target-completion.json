@@ -1,0 +1,47 @@
+{
+  "aggregate": {
+    "elapsed_seconds": 3600.08,
+    "state": "terminated",
+    "time_cap_seconds": 3600
+  },
+  "bounded_reader_completion": {
+    "elapsed_seconds": 74.113,
+    "result": "passed",
+    "source_revision": "9583a913b6e413ac7be69f6fdf0355490d55b3ae"
+  },
+  "completed_targets": [
+    {
+      "label": "c64 RTL simulation",
+      "returncode": 0,
+      "seconds": 1626.46
+    },
+    {
+      "label": "coleco RTL simulation",
+      "returncode": 0,
+      "seconds": 896.974
+    },
+    {
+      "label": "menu RTL simulation",
+      "returncode": 0,
+      "seconds": 45.614
+    },
+    {
+      "label": "pc386 RTL simulation",
+      "returncode": 0,
+      "seconds": 201.982
+    },
+    {
+      "label": "spectrum RTL simulation",
+      "returncode": 0,
+      "seconds": 537.946
+    }
+  ],
+  "regression_source": "9583a913b6e413ac7be69f6fdf0355490d55b3ae",
+  "rtl_sha256": {
+    "sources/misteross/cores/fes-common/rtl/fes_display_plane.v": "9eb6af53a624f402f43a28dd70259b7fe521324d6d14c851a22d2cc6d8c8691c",
+    "sources/misteross/cores/fes-menu/rtl/fes_menu_control.v": "869a0cb14d9ef19c107f4a93cc0802b7f55cef4254388ba30b388f6093e3afdd",
+    "sources/misteross/cores/fes-menu/rtl/fes_menu_reader.v": "44fe0e15c4ab7ff2519483c496afa2565c2b1a20156feda5a9a5f5f9c0f10fe8",
+    "sources/misteross/cores/fes-zx81/rtl/fes_zx81_core.v": "79c070b837a6b455a4a4a64fcbef4d76ac3ca7c467ab692a16af7610bed42970"
+  },
+  "scope": "Five complete core targets passed. ZX81 final bounded-reader session case interrupted at aggregate cap and passed separately. Aggregate remains terminated; no all-plan or hardware pass."
+}

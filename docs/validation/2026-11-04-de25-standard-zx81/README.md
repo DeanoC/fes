@@ -116,7 +116,7 @@ zero errors and warnings. No reset/timing exception was added. The standard PCM
 model passed in3.074seconds, covering atomic stereo, independent clocks, I2S
 padding, hold and clock loss. `audio-integration.json` binds source and vendor
 identities. This is not a full-board fit/timing result or a native audio capture.
-The complete-board recipe still needs to select and connect the wrapper.
+The later whole-board integration below selects and connects the wrapper.
 
 The corrected standalone diagnostic fault observer also passes eight selected
 native/AArch64 identity/signature/reset cases in9.542seconds. The full20-case
@@ -129,6 +129,39 @@ source snapshots, binaries, logs and proof receipts remain available.
 At `8025906de`, the direct C64 session-display target, pc386 presenter/capture/
 plane benches, MENU simulation and Spectrum board simulation all passed in
 122.775seconds. Their exact commands/results are in `shared-display-consumers.json`.
-These complement the earlier ZX81/Coleco and allocated DE25 results. The separate
-whole-core follow-up is still running C64's larger nightly-style suite; its
-complete six-command result and an aggregate all-plan pass are not claimed.
+These complement the earlier ZX81/Coleco and allocated DE25 results. The larger
+follow-up completed C64, Coleco, MENU, pc386 and Spectrum. Its one-hour cap
+interrupted ZX81's final bounded-reader session case; that case passed separately
+in 74.113 seconds. The aggregate remains terminated. Exact source hashes and
+results are in `shared-target-completion.json`; no all-plan pass is claimed.
+
+## Whole-board standard-core integration
+
+At `a762078e1`, the existing ZX81-HPS builder's `--standard-core` selection
+generates the complete managed GHRD with the shared standard machine, allocated
+session display and stock audio PLL. The internal-16K base matches the standard
+DE10 configuration without an expansion socket. Quartus Pro 26.3 generation
+passed in 106.077 seconds and whole-board analysis/elaboration in 55.488 seconds.
+There were no errors or critical warnings. Ordinary vendor/parser/unused-port
+warnings remain recorded; this is no timing exception or hardware signoff.
+
+The actual generated handoff checks both computer/scanout slaves, 100/74.25 MHz
+clock/reset routes, sixteen-read credits, response FIFO depth, the same eight
+managed initiators and sole read-only path into HPS memory. The eleven shared
+FIFO/reset files retain their exact derivation; the new parent has a separate
+reviewed hash. The three shared headers are emitted beside the RTL, display
+control uses SystemVerilog, and the existing guarded Agilex/M20K RAM branch is
+selected. Explicit ROM padding preserves the original contents and resolves
+the initialization-depth warning. `whole-board-integration.json` binds this
+result to the source, inputs, generated handoff and log hashes.
+
+The 96 focused builder/reset tests passed; the firmware guard adds an independent
+MIF/HEX BASIC byte comparison. The canonical changed-source software run at
+`84b0d297b` remains separate. Its branch-local combined native/AArch64 receipt
+needs refreshing for the changed producer helpers after those inputs stabilize;
+an earlier receipt is not current-source proof.
+
+This is not a fitted or sealed image, a new runtime profile, or native kit
+acceptance. The standard-core `build` action still refuses until its additional
+machine/session/audio timing constraints are integrated. Production loading and
+the physical kit remain on the existing working baseline.

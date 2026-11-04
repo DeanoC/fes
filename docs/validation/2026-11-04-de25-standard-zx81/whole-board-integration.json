@@ -1,0 +1,124 @@
+{
+  "board": "de25-nano",
+  "build_id": "715b43685fcc2124f0c5e6cbb5d5cbfb",
+  "classification": "whole-board-generation-and-elaboration-only",
+  "core_configuration": {
+    "audio": "stock separate CLOCK1_50 av_pll and common stereo PCM/I2S",
+    "computer_offset": 66304,
+    "expansion_socket": false,
+    "internal_ram_bytes": 16384,
+    "memory": "guarded Agilex M20K primitives and full-depth explicit ROM initialization",
+    "scanout_guard_offset": 66048,
+    "shared_core": "fes_zx81_core"
+  },
+  "critical_warnings": 0,
+  "device": "A5EB013BB23BE4SCS",
+  "errors": 0,
+  "firmware_test": {
+    "cases": 27,
+    "result": "passed",
+    "result_commit": "a762078e1f18d6fef510b95eabdd8b3f83588edf",
+    "scope": "Includes independent MIF/HEX BASIC byte comparison and depth/reachable-address refusals",
+    "seconds": 0.071,
+    "source_base": "eea07188a",
+    "source_sha256": {
+      "sources/misteross/boards/de25nano/zx81-hps/build.py": "279a7f2615baa8f1f2fc9492002c2e7567c4d1c1f4e6aa530403e53ff5d8d051",
+      "sources/misteross/boards/de25nano/zx81-hps/test_build.py": "5c6034f3fa65ca8d49815400a64fb1fc2de2d42aa9b69eaef492c3f7709a085e"
+    },
+    "test_source_committed_at_run": false
+  },
+  "fit": "not-run",
+  "focused_tests": {
+    "cases": 96,
+    "result": "passed",
+    "scope": "ZX81 build, HPS build/reset/mailbox, scanout build and shared FIFO reset guards",
+    "seconds": 8.696,
+    "source_revision": "84b0d297b9142b24f8e1716a6fc757c6fb1e28f3"
+  },
+  "generation_sha256": "0d7b240a81594fe8fa369af336ef8c385edac5cb831ef6f59e61a55b7f31da36",
+  "hardware_acceptance": "not-run",
+  "inputs_sha256": "f016794f0433c1b8af3b91b590baf9ce898e9ac4898e0460ef1907f326f8a335",
+  "log_sha256": "2f1d94e3ddfc75db2d9e71cd75b018957ee4cdb3668688e8536dc925b92d790f",
+  "managed_fabric": {
+    "crossing_parameters": {
+      "fes_ctrl_cdc": {
+        "ADDRESS_WIDTH": "7",
+        "COMMAND_FIFO_DEPTH": "4",
+        "DATA_WIDTH": "32",
+        "ENABLE_RESPONSE": "1",
+        "MASTER_SYNC_DEPTH": "2",
+        "MAX_BURST_SIZE": "1",
+        "PIPELINE_ENABLE": "0",
+        "RESPONSE_FIFO_DEPTH": "4",
+        "SLAVE_SYNC_DEPTH": "2",
+        "SYMBOL_WIDTH": "8",
+        "SYNC_RESET": "0",
+        "USE_AUTO_ADDRESS_WIDTH": "0"
+      },
+      "fes_mem_cdc": {
+        "ADDRESS_WIDTH": "32",
+        "COMMAND_FIFO_DEPTH": "4",
+        "DATA_WIDTH": "128",
+        "ENABLE_RESPONSE": "1",
+        "MASTER_SYNC_DEPTH": "2",
+        "MAX_BURST_SIZE": "16",
+        "PIPELINE_ENABLE": "0",
+        "RESPONSE_FIFO_DEPTH": "256",
+        "SLAVE_SYNC_DEPTH": "2",
+        "SYMBOL_WIDTH": "8",
+        "SYNC_RESET": "0",
+        "USE_AUTO_ADDRESS_WIDTH": "0"
+      }
+    },
+    "fabric_to_hps": [
+      [
+        "subsys_hps_f2sdram_adapter.axi4_man",
+        "subsys_hps_agilex_hps.f2sdram"
+      ]
+    ],
+    "initiator_count": 8,
+    "initiator_endpoints": [
+      "subsys_hps_agilex_hps.hps2fpga",
+      "subsys_hps_agilex_hps.lwhps2fpga",
+      "subsys_hps_f2sdram_adapter.axi4_man",
+      "subsys_periph_fes_ctrl_cdc.m0",
+      "subsys_periph_fes_mem_cdc.m0",
+      "subsys_periph_fes_scanout.avm",
+      "subsys_periph_fes_scanout_guard.avm",
+      "subsys_periph_pb_cpu_0.m0"
+    ],
+    "reset_sdc_files": 6,
+    "shared_fifo_files": 11
+  },
+  "ordinary_warning_codes": {
+    "13441": 1,
+    "13448": 4,
+    "13469": 4,
+    "16746": 4,
+    "16749": 27,
+    "16752": 1,
+    "21610": 14,
+    "21774": 14,
+    "24541": 3
+  },
+  "ordinary_warnings_scope": "Observed parser/vendor/unused-port warnings; no timing or whole-board exception granted",
+  "phases": {
+    "elaboration": "passed",
+    "elaboration_seconds": 55.488,
+    "generation": "passed",
+    "generation_seconds": 106.077
+  },
+  "producer_revision": "a762078e1f18d6fef510b95eabdd8b3f83588edf",
+  "quartus_version": "Quartus Prime Shell\nVersion 26.3.0 Build 114 10/14/2026 SC Pro Edition\nCopyright (C) 2026  Altera Corporation. All rights reserved.",
+  "remaining": [
+    "standard machine/session/audio clock-crossing and external timing constraints",
+    "full fitting and timing acceptance",
+    "canonical package and allocated-memory runtime admission",
+    "standard-core native BASIC/UI/SAVE/audio/Stop/relaunch/reboot acceptance",
+    "refresh source-bound combined native/AArch64 proof after producer inputs stabilize"
+  ],
+  "runtime_admission": "not-qualified",
+  "sealed_package": "not-produced",
+  "timing_acceptance": "not-qualified",
+  "total_seconds": 161.597
+}
