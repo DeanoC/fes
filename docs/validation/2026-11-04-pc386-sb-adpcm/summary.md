@@ -13,7 +13,8 @@ reference decoder built from DOSBox-X's tables; the DAC matches it every
 sample period. On the machine bench (Bochs CPU), Serpent Isle's 75h block
 now completes after its 9,576 bytes and raises IRQ 7. The driver then chains
 blocks, with 15 IRQs by 39 s where main had stopped at 2.
-SERPENT_FRAMES_PLACEHOLDER
+From bench 21 s, where main goes flat black for good, the intro's frames
+change every second through 26 s, the end of the run.
 The seal at `17d84eca1` (Quartus 17.0.2, package `73e9fa9d…`) meets every
 analysis at 61.44 MHz. The pc386 suites (system, boot, governor, sound,
 audio) and `make test-changed` pass. No kit run has been made yet.
@@ -117,7 +118,27 @@ here.
 - On main the same run stops after the 2 detection IRQs. The game then
   loops on the driver's status at `1908:0360` (the diagnosis).
 
-SERPENT_FRAME_TABLE_PLACEHOLDER
+**Frames.** Frames are captured once a guest second (`--frames`, 320×400).
+A second 27 s run (`p2`) on a fresh copy of the same disk had the same IRQ
+times and byte counts as the table up to 26.3 s. Its frames are compared
+with main's run `s1` from the diagnosis (same disk, same typing; frames
+captured the same way). The share is the fraction of non-zero bytes in each
+frame; a flat black frame is 0.
+
+| Second | main `s1` | this branch `p2` |
+| ---: | --- | --- |
+| 0–20 | | identical to `s1`, frame for frame (same SHA-256) |
+| 20 | 0.796, `371036e1` | 0.796, `371036e1` |
+| 21 | 0.000, `d4f3e162` (black) | 0.631, `4c2a61e4` |
+| 22 | black | 0.767, `009c7750` |
+| 23 | black | 0.769, `0a1f57fc` |
+| 24 | black | 0.772, `a781a5b4` |
+| 25 | black | 0.772, `72ad6554` |
+| 26 | black | 0.773, `76334948` |
+
+`s1` stays black to its end at 32 s. Those `p2` frames match, hash for
+hash, the diagnosis's scratch-patch run `f1`, which showed the throne-room
+scene there.
 
 ## Seal
 
