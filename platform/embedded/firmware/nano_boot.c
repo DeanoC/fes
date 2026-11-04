@@ -61,7 +61,7 @@ static int contained(void *p)
      * by the data bridges; a new reader may be armed through control-only. */
     return (first & FES_NANO_MASTER_RESET) == (FES_NANO_MASTER_RESET & ~keep) &&
            (bits & FES_NANO_PRODUCERS_HPS) == FES_NANO_PRODUCERS_HPS &&
-           ((data_held && !s->producers_stopped) || bits == FES_NANO_PRODUCERS_ALL);
+           (data_held || bits == FES_NANO_PRODUCERS_ALL);
 }
 static int hold_reset(struct fes_nano_boot *s, uint32_t mask,uint32_t keep)
 {
@@ -94,7 +94,11 @@ static int stop(void *p)
             if (hold_reset(s, FES_NANO_MASTER_FUNCTION,keep) || hold_reset(s, FES_NANO_MASTER_RESET,keep)) return -1;
             /* A late producer restart or lost scope cannot become a receipt. */
             s->producers_stopped = 1;
+            /* A later configuration may replace the fabric inventory while
+             * its data bridges stay held. Require ALL at the stop publication
+             * boundary, without imposing the old inventory on that new core. */
             if (quiet(s, &bits) || bits != FES_NANO_PRODUCERS_ALL || contained(s) != 1 ||
+                quiet(s,&bits) || bits!=FES_NANO_PRODUCERS_ALL ||
                 retained(s,&now) || now!=keep)
                 return failed(s, -1);
             return scope(s);
