@@ -10,6 +10,7 @@
 #include <stdio.h>
 
 #include <chrono>
+#include <atomic>
 #include <fcntl.h>
 #include <unistd.h>
 #include <condition_variable>
@@ -1772,6 +1773,53 @@ void TestSessionCloseAndStopWaitForInFlightFrame()
  }
 }
 
+void TestZx81SaveWaitsForInFlightSessionFrame()
+{
+	for (bool acknowledge : {false, true}) for (bool stale : {false, true}) {
+		Fixture f;
+		const std::string id(64, 'a');
+		mister::MediaUnitCapability unit;
+		unit.unit = 0; unit.interface = {"fes.media.zx81-tape", 1, 0};
+		unit.min_bytes = 1; unit.max_bytes = 16384; unit.chunk_bytes = 512;
+		f.hardware.supported.media_units = {unit};
+		f.hardware.on_capture_tape = [] { return mister::Error{}; };
+		f.hardware.on_acknowledge_tape = [] { return mister::Error{}; };
+		StartComputerSessionDisplayFixture(f, id);
+		const auto generation = f.runtime.status().generation;
+		assert(f.runtime.SetSessionDisplay(id, generation, true, false).ok());
+		const auto display = f.runtime.status().menu_display.generation;
+		std::unique_ptr<mister::MenuFrame> frame;
+		PrepareMenuFrame(f.runtime, display, &frame);
+		std::mutex mutex; std::condition_variable ready;
+		bool entered = false, release = false;
+		f.hardware.on_menu_present = [&] {
+			std::unique_lock<std::mutex> lock(mutex);
+			entered = true; ready.notify_all();
+			ready.wait(lock, [&] { return release; });
+		};
+		mister::MenuDisplayInfo info;
+		std::thread present([&] { assert(f.runtime.PresentMenuFrame(display, *frame, &info).ok()); });
+		{ std::unique_lock<std::mutex> lock(mutex); ready.wait(lock, [&] { return entered; }); }
+		mister::Error result;
+		std::atomic<bool> completed{false};
+		const auto requested = generation + (stale ? 1 : 0);
+		std::thread save([&] {
+			result = acknowledge ? f.runtime.AcknowledgeZx81Tape(id, requested)
+				: f.runtime.CaptureZx81Tape("/tmp/capture.p", id, requested);
+			completed = true;
+		});
+		std::this_thread::sleep_for(std::chrono::milliseconds(25));
+		assert(!completed);
+		{ std::lock_guard<std::mutex> lock(mutex); release = true; ready.notify_all(); }
+		present.join(); save.join();
+		assert(stale ? result.code == ErrorCode::invalid_request : result.ok());
+		assert(f.hardware.capture_tape_calls == (!stale && !acknowledge ? 1 : 0));
+		assert(f.hardware.acknowledge_tape_calls == (!stale && acknowledge ? 1 : 0));
+		assert(f.runtime.status().state == State::running_development);
+		assert(f.runtime.status().generation == generation);
+	}
+}
+
 void TestMenuFrameMappingRequiresExplicitClientAgreement()
 {
  for(bool blitter:{false,true}) {
@@ -1876,6 +1924,7 @@ int main()
  TestSessionDisplayMachineFocusKeepsInput();
  TestSessionDisplayFailuresNeverReloadIdleOrRetireCore();
  TestSessionCloseAndStopWaitForInFlightFrame();
+ TestZx81SaveWaitsForInFlightSessionFrame();
  TestLibraryDiskPersistenceFailureRetainsSession();
  TestMenuFrameYieldsToLifecycleOps();
  TestMenuLifecycleWaitIsBounded();

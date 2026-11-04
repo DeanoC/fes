@@ -1044,7 +1044,8 @@ public:
 			return Invalid("invalid ZX81 tape capture");
 		std::string system, core;
 		{
-			std::lock_guard<std::mutex> lock(mutex_);
+			std::unique_lock<std::mutex> lock(mutex_);
+			WaitForMenuFrame(lock);
 			const Error rejected = AdmitMediaUnit(package_id, generation, 0);
 			if (!rejected.ok()) return rejected;
 			busy_ = true; system = status_.system; core = status_.core;
@@ -1061,7 +1062,8 @@ public:
 			return Invalid("invalid ZX81 tape acknowledgement");
 		std::string system, core;
 		{
-			std::lock_guard<std::mutex> lock(mutex_);
+			std::unique_lock<std::mutex> lock(mutex_);
+			WaitForMenuFrame(lock);
 			const Error rejected = AdmitMediaUnit(package_id, generation, 0);
 			if (!rejected.ok()) return rejected;
 			busy_ = true; system = status_.system; core = status_.core;
@@ -1231,8 +1233,9 @@ public:
 	private:
  // Give one lifecycle operation a bounded chance to claim the runtime after
  // the current display transfer. New frames cannot enter while it waits.
- // Launch, core-data, Stop, development load, idle recovery and menu
- // configure share kMenuFrameMutationWait. The caller proceeds only after
+ // Launch, core-data, ZX81 SAVE capture/ack, Stop, development load,
+ // idle recovery and menu configure share kMenuFrameMutationWait.
+ // The caller proceeds only after
  // the frame fence drops, then applies its existing busy checks.
  void WaitForMenuFrame(std::unique_lock<std::mutex>& lock) {
   if(!MenuFrameOutstanding())return;

@@ -130,6 +130,18 @@ public:
 		if (on_insert_media) on_insert_media();
 		return insert_media_result;
 	}
+	mister::Error CaptureZx81Tape(const std::string& path) override {
+		++capture_tape_calls;
+		return on_capture_tape ? on_capture_tape() : Hardware::CaptureZx81Tape(path);
+	}
+	mister::Error AcknowledgeZx81Tape() override {
+		++acknowledge_tape_calls;
+		return on_acknowledge_tape ? on_acknowledge_tape() : Hardware::AcknowledgeZx81Tape();
+	}
+	int capture_tape_calls = 0;
+	int acknowledge_tape_calls = 0;
+	std::function<mister::Error()> on_capture_tape;
+	std::function<mister::Error()> on_acknowledge_tape;
 	mister::Error EjectComputerMedia(std::uint8_t unit) override
 	{
 		++eject_media_calls;

@@ -47,7 +47,7 @@ Hardware-supported package paths: 0.
 | `fes.computer` live media units (insert/eject without reset hold) | covered | none |
 | `fes.computer` Spectrum snapshot metadata reported from declared optional interfaces | covered by runtime activation tests | none |
 | `fes.computer` Spectrum disk on media unit 1 beside the unit-0 cassette: discovery, admission with the cassette and HPS DDR, and unit-addressed transfers | covered by runtime and mailbox simulation tests | none |
-| ZX81 BASIC SAVE capture, frozen dirty snapshot, durable-host acknowledgement, Stop refusal while a SAVE is pending, and successful Stop when no SAVE completed | covered by host tests | none; exact-artifact hardware acceptance pending |
+| ZX81 BASIC SAVE capture, frozen dirty snapshot, durable-host acknowledgement, bounded frame wait before capture/acknowledgement, Stop refusal while a SAVE is pending, and successful Stop when no SAVE completed | host tests include in-flight frame handoff and stale package-generation rejection before hardware access | none; exact-artifact hardware acceptance pending |
 | `fes.computer` session HDMI plane (premultiplied RGBA blend, picture rectangle, show/return, HID neutralize, submitted frames, no reprogram on close) | covered by host tests | none |
 | `fes.application` session HDMI plane (premultiplied RGBA blend, show/return, controller-port release, single-gamepad focus gate with held-input suppression through release, no reprogram on close) | covered by host tests | pending |
 | Atari ST exact 720 KiB `.st` unit-0 disks, live insertion/ejection and single socket bus composition | covered by host tests | none |
