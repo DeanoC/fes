@@ -14,6 +14,8 @@ import (
 // board checks. This test joins that client to the actual DWC2 host driver and
 // its descriptor/FIFO/channel model, using a modeled firmware reply source.
 type ownedFirmware struct {
+	expectedAddress uint32
+
 	t                 *testing.T
 	controller        *controller
 	generation        uint64
@@ -34,7 +36,11 @@ func (f *ownedFirmware) Invoke(a [7]uint64) ([4]uint64, error) {
 		f.active = true
 		f.generation++
 	case g.FesEmbeddedUsbConfirm:
-		if !f.controller.configured || !f.controller.protocol || f.controller.address != 1 {
+		want := f.expectedAddress
+		if want == 0 {
+			want = 1
+		}
+		if !f.controller.configured || !f.controller.protocol || f.controller.address != want {
 			f.t.Fatal("confirmation before actual driver enumeration")
 		}
 		f.confirmed = true
@@ -98,7 +104,7 @@ func TestOwnedSourceUsesActualDWC2EnumerationAndRevokesPolling(t *testing.T) {
 }
 func TestFailedDWC2EnumerationRetainsDriverAndAbortsLease(t *testing.T) {
 	hw := newController()
-	hw.device[4] = 9 // A hub is unsupported by the current driver.
+	hw.device[4] = 9 // Hubs cannot operate at low speed.
 	firmware := &ownedFirmware{t: t, controller: hw}
 	client, err := usbcontrol.New(context.Background(), firmware, 17)
 	if err != nil {
@@ -147,4 +153,54 @@ func TestPIOOwnershipDriftRetiresBeforeAnotherTransfer(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestOwnedSourceAdmitsHubOnlyAfterActualKeyboardConfiguration(t *testing.T) {
+	key := keyboardNode(2)
+	key.device.reports = [][]byte{{0, 0, 9, 0, 0, 0, 0, 0}}
+	bus := newHubBus(hubNode(0, key))
+	model := &ownedFirmware{t: t, controller: bus.regs, expectedAddress: 2}
+	cpu := ownedHubCaller{model: model, key: key}
+	client, err := usbcontrol.New(context.Background(), cpu, 17)
+	if err != nil {
+		t.Fatal(err)
+	}
+	source, err := usbcontrol.Open(context.Background(), client, func() (input.USBReports, error) { return Open(bus, Config{PHYClockHz: 60000000}) })
+	if err != nil || model.confirms != 1 || !key.device.configured {
+		t.Fatal(err)
+	}
+	found := false
+	for i := 0; i < 100; i++ {
+		r, e := source.PollKeyboard()
+		if e != nil {
+			t.Fatal(e)
+		}
+		if r != nil {
+			found = true
+			break
+		}
+	}
+	if !found {
+		t.Fatal("confirmed hub source produced no report")
+	}
+	if err = source.Close(context.Background()); err != nil || model.stops != 1 {
+		t.Fatal(err)
+	}
+	before := bus.regs.accesses
+	if _, err = source.PollKeyboard(); err == nil || bus.regs.accesses != before {
+		t.Fatal("closed hub source touched controller")
+	}
+}
+
+type ownedHubCaller struct {
+	model *ownedFirmware
+	key   *node
+}
+
+func (c ownedHubCaller) Invoke(a [7]uint64) ([4]uint64, error) {
+	// The independent firmware model observes actual device configuration state.
+	c.model.controller.configured = c.key.device.configured
+	c.model.controller.protocol = c.key.device.protocol
+	c.model.controller.address = c.key.device.address
+	return c.model.Invoke(a)
 }

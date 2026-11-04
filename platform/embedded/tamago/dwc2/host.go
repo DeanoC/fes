@@ -1,8 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 
-// Package dwc2 is an exploratory polling PIO host for one directly attached
-// low/full-speed USB boot keyboard. Firmware owns SoC clocks, ULPI PHY, pinmux
-// and VBUS routing. Hubs, split transactions, high speed and DMA are unsupported.
+// Package dwc2 is an exploratory polling PIO boot-keyboard host. Firmware
+// owns SoC clocks, ULPI PHY, pinmux and VBUS routing. DMA is never enabled.
 package dwc2
 
 import (
@@ -57,6 +56,12 @@ type Registers interface {
 type Config struct{ PHYClockHz uint32 }
 
 type packet struct {
+	split, completeSplit, waiting bool
+	ack, nyet                     bool
+	char, transferSize            uint32
+	out                           []byte
+	startFrame, nextFrame         uint16
+
 	active, in, done, nak, received, halting bool
 	pid                                      uint32
 	limit                                    int
@@ -65,6 +70,22 @@ type packet struct {
 	polls                                    int
 }
 type Host struct {
+	keyboard                 target
+	keyboardFound            bool
+	path                     []hubPort
+	nextAddress              uint32
+	portBudget               int
+	interval                 time.Duration
+	healthNext               time.Time
+	healthStage, healthIndex int
+	healthPolls              int
+	healthDeadline           time.Time
+	healthStatus             uint32
+	devices                  []string
+
+	rootSpeed uint32
+	route     splitRoute
+
 	io      Registers
 	owned   bool
 	speed   uint32
@@ -91,9 +112,12 @@ func Open(io Registers, config Config) (*Host, error) {
 	return h, nil
 }
 func (h *Host) wait(reg, mask, want uint32) error {
-	end := h.io.Now().Add(500 * time.Millisecond)
+	start := h.io.Now()
+	end := start.Add(500 * time.Millisecond)
+	var last uint32
 	for n := 0; n < 1000000; n++ {
-		if h.io.Read32(reg)&mask == want {
+		last = h.io.Read32(reg)
+		if last&mask == want {
 			return nil
 		}
 		if !h.io.Now().Before(end) {
@@ -103,10 +127,11 @@ func (h *Host) wait(reg, mask, want uint32) error {
 			runtime.Gosched()
 		}
 	}
-	return fmt.Errorf("dwc2: timeout at register %#x", reg)
+	return fmt.Errorf("dwc2: register wait exhausted address=%#x value=%#x mask=%#x want=%#x elapsed=%s", reg, last, mask, want, h.io.Now().Sub(start))
 }
 func (h *Host) pause(duration time.Duration) error {
-	end := h.io.Now().Add(duration)
+	start := h.io.Now()
+	end := start.Add(duration)
 	for n := 0; n < 1000000; n++ {
 		if !h.io.Now().Before(end) {
 			return nil
@@ -115,7 +140,7 @@ func (h *Host) pause(duration time.Duration) error {
 			runtime.Gosched()
 		}
 	}
-	return fmt.Errorf("dwc2: clock stalled")
+	return fmt.Errorf("dwc2: delay poll budget exhausted duration=%s elapsed=%s", duration, h.io.Now().Sub(start))
 }
 
 // fail permanently retires this host. No report or channel is reused after
@@ -135,7 +160,7 @@ func (h *Host) fail(err error) error {
 	}
 	h.io.Write32(gintmask, 0)
 	// Do not touch a firmware-owned active DMA/channel on admission failure.
-	if h.pending.active {
+	if h.pending.active && h.io.Read32(hcchar)&channelEnable != 0 {
 		h.io.Write32(hcchar, h.io.Read32(hcchar)|channelEnable|channelDisable)
 		if halt := h.wait(hcchar, channelEnable, 0); halt != nil {
 			h.fault = fmt.Errorf("%w; containment: %v", err, halt)
@@ -224,11 +249,19 @@ func (h *Host) initialize() error {
 		return err
 	}
 	h.speed = (h.io.Read32(hprt) >> 17) & 3
-	if h.speed != 1 && h.speed != 2 {
-		return fmt.Errorf("dwc2: only direct low/full-speed devices supported")
+	if h.speed > 2 {
+		return fmt.Errorf("dwc2: invalid root speed")
+	}
+	h.rootSpeed = h.speed
+	if h.speed == 0 {
+		h.ep0 = 64
 	}
 	h.io.Write32(gint, 0xffffffff) // retire stale disconnect/port status before enumeration
-	h.io.Write32(hfir, 59999)      // 60 MHz ULPI, 1 ms FS/LS frames, after port enable
+	interval := uint32(59999)
+	if h.rootSpeed == 0 {
+		interval = 7499
+	}
+	h.io.Write32(hfir, interval) // 60 MHz ULPI: HS microframes or FS/LS frames, after enable
 	return nil
 }
 
@@ -249,15 +282,10 @@ func (h *Host) begin(ep uint8, mps uint16, kind uint32, in bool, pid uint32, out
 	if (queue>>16)&255 == 0 || (!in && int(queue&65535) < (len(out)+3)/4) {
 		return fmt.Errorf("dwc2: FIFO/request queue unavailable")
 	}
-	h.pending = packet{active: true, in: in, pid: pid, limit: limit, deadline: deadline}
-	h.io.Write32(hcint, 0x7ff)
-	h.io.Write32(hcmask, 0x7ff)
-	h.io.Write32(hcsplit, 0)
 	size := uint32(len(out))
 	if in {
 		size = uint32(mps)
 	}
-	h.io.Write32(hctsiz, size|1<<19|pid<<29)
 	flags := uint32(mps) | uint32(ep&15)<<11 | kind<<18 | 1<<20 | h.address<<22
 	if in {
 		flags |= 1 << 15
@@ -265,16 +293,19 @@ func (h *Host) begin(ep uint8, mps uint16, kind uint32, in bool, pid uint32, out
 	if h.speed == 2 {
 		flags |= 1 << 17
 	}
-	if kind == 3 && h.io.Read32(hfnum)&1 == 0 {
-		flags |= 1 << 29
+	split := h.route.hub != 0
+	if split && (h.rootSpeed != 0 || h.speed == 0 || h.route.port == 0 || h.route.hub > 127 || h.route.port > 127) {
+		return fmt.Errorf("dwc2: invalid transaction translator route")
 	}
-	h.io.Write32(hcchar, flags|channelEnable)
-	for i := 0; i < len(out); i += 4 {
-		var word [4]byte
-		copy(word[:], out[i:min(i+4, len(out))])
-		h.io.Write32(fifo, binary.LittleEndian.Uint32(word[:]))
+	if split && kind == 3 {
+		flags = (flags &^ uint32(3<<20)) | 3<<20
 	}
-	return nil
+	h.pending = packet{active: true, in: in, pid: pid, limit: limit, deadline: deadline, split: split, char: flags, transferSize: size, out: append([]byte(nil), out...)}
+	if split {
+		h.pending.waiting = true
+		return nil
+	}
+	return h.armPacket(false)
 }
 
 func (h *Host) pio() error {
@@ -299,8 +330,35 @@ func (h *Host) step() (bool, []byte, bool, error) {
 		return false, nil, false, fmt.Errorf("dwc2: packet timeout")
 	}
 	port := h.io.Read32(hprt)
-	if port&5 != 5 || port&(1<<4) != 0 || h.io.Read32(gint)&(1<<29) != 0 {
+	if port&(5|1<<12) != 5|1<<12 || port&(1<<4) != 0 || h.io.Read32(gint)&(1<<29) != 0 {
 		return false, nil, false, fmt.Errorf("dwc2: port disconnected/disabled/overcurrent")
+	}
+	if p.waiting {
+		frame := uint16(h.io.Read32(hfnum))
+		if !p.completeSplit {
+			// Start early in a USB frame, leaving time for TT work and completion.
+			if frame&7 > 1 {
+				return false, nil, false, nil
+			}
+			p.startFrame = frame
+			if (p.char>>18)&3 == 3 {
+				p.startFrame++
+			}
+		} else {
+			age := uint16(frame - p.startFrame)
+			if age >= 0x8000 {
+				return false, nil, false, nil
+			}
+			if age > 7 || frame>>3 != p.startFrame>>3 || (p.char>>18)&3 == 3 && frame&7 == 7 {
+				return false, nil, false, fmt.Errorf("dwc2: split completion missed its frame")
+			}
+			if uint16(frame-p.nextFrame) >= 0x8000 {
+				return false, nil, false, nil
+			}
+		}
+		p.waiting = false
+		err := h.armPacket(p.completeSplit)
+		return false, nil, false, err
 	}
 	for n := 0; n < 8 && h.io.Read32(gint)&(1<<4) != 0; n++ {
 		v := h.io.Read32(rxpop)
@@ -311,7 +369,7 @@ func (h *Host) step() (bool, []byte, bool, error) {
 		}
 		switch kind {
 		case 2:
-			if !p.in || p.received || count > p.limit || (v>>15)&3 != p.pid {
+			if !p.in || p.received || count > p.limit || (v>>15)&3 != p.pid || p.split && !p.completeSplit {
 				return false, nil, false, fmt.Errorf("dwc2: invalid RX size/PID/ownership")
 			}
 			p.received = true
@@ -332,7 +390,11 @@ func (h *Host) step() (bool, []byte, bool, error) {
 		return false, nil, false, nil
 	}
 	ints := h.io.Read32(hcint)
-	if ints&fatalChannel != 0 {
+	fatal := fatalChannel
+	if p.split {
+		fatal &^= 1 << 6
+	}
+	if ints&fatal != 0 {
 		return false, nil, false, fmt.Errorf("dwc2: channel error %#x", ints)
 	}
 	if ints&1 != 0 {
@@ -341,10 +403,14 @@ func (h *Host) step() (bool, []byte, bool, error) {
 	if ints&(1<<4) != 0 {
 		p.nak = true
 	}
-	if (p.done || p.received) && p.nak {
+	if p.split {
+		p.ack = p.ack || ints&(1<<5) != 0
+		p.nyet = p.nyet || ints&(1<<6) != 0
+	}
+	if (p.done || p.received) && p.nak || p.ack && (p.done || p.received || p.nak || p.nyet) || p.nyet && (p.done || p.received || p.nak) {
 		return false, nil, false, fmt.Errorf("dwc2: contradictory completion")
 	}
-	if p.done || p.nak {
+	if p.done || p.nak || p.ack || p.nyet {
 		if h.io.Read32(hcchar)&channelEnable != 0 {
 			if !p.halting {
 				h.io.Write32(hcchar, h.io.Read32(hcchar)|channelEnable|channelDisable)
@@ -352,16 +418,41 @@ func (h *Host) step() (bool, []byte, bool, error) {
 			}
 			return false, nil, false, nil
 		}
+		h.io.Write32(hcint, 0x7ff)
+		if p.split && p.ack {
+			if p.completeSplit {
+				return false, nil, false, fmt.Errorf("dwc2: ACK during complete split")
+			}
+			p.completeSplit = true
+			p.nextFrame = p.startFrame + 2
+			p.waiting = true
+			p.ack = false
+			p.halting = false
+			return false, nil, false, nil
+		}
+		if p.split && p.nyet {
+			if !p.completeSplit {
+				return false, nil, false, fmt.Errorf("dwc2: NYET during start split")
+			}
+			p.nextFrame = uint16(h.io.Read32(hfnum)) + 1
+			p.waiting = true
+			p.nyet = false
+			p.halting = false
+			return false, nil, false, nil
+		}
+		if p.split && p.done && !p.completeSplit {
+			return false, nil, false, fmt.Errorf("dwc2: start split completed without ACK")
+		}
 		if p.done && p.in && !p.received {
 			return false, nil, false, fmt.Errorf("dwc2: completion without RX packet")
 		}
-		h.io.Write32(hcint, 0x7ff)
 		p.active = false
 		return true, p.data, p.nak, nil
 	}
 	if ints&(1<<1) != 0 {
 		return false, nil, false, fmt.Errorf("dwc2: unexplained channel halt")
 	}
+
 	return false, nil, false, nil
 }
 
@@ -420,64 +511,7 @@ func (h *Host) request(requestType, request byte, value, index uint16, length in
 	return data, nil
 }
 func (h *Host) enumerate() error {
-	header, err := h.request(0x80, 6, 0x100, 0, 8)
-	if err != nil {
-		return err
-	}
-	if len(header) != 8 || header[0] != 18 || header[1] != 1 {
-		return fmt.Errorf("dwc2: invalid device header")
-	}
-	mps := uint16(header[7])
-	if (mps != 8 && mps != 16 && mps != 32 && mps != 64) || (h.speed == 2 && mps != 8) {
-		return fmt.Errorf("dwc2: invalid EP0 size")
-	}
-	h.ep0 = mps
-	if _, err = h.request(0, 5, 1, 0, 0); err != nil {
-		return err
-	}
-	if err = h.pause(2 * time.Millisecond); err != nil {
-		return err
-	}
-	h.address = 1
-	device, err := h.request(0x80, 6, 0x100, 0, 18)
-	if err != nil {
-		return err
-	}
-	if len(device) != 18 || device[0] != 18 || device[1] != 1 || device[4] == 9 || device[7] != byte(mps) || device[17] != 1 {
-		return fmt.Errorf("dwc2: unsupported device descriptor")
-	}
-	config, err := h.request(0x80, 6, 0x200, 0, 9)
-	if err != nil {
-		return err
-	}
-	if len(config) != 9 || config[0] != 9 || config[1] != 2 {
-		return fmt.Errorf("dwc2: invalid configuration header")
-	}
-	size := int(binary.LittleEndian.Uint16(config[2:4]))
-	if size < 9 || size > usb.MaxConfigurationBytes {
-		return fmt.Errorf("dwc2: invalid configuration length")
-	}
-	data, err := h.request(0x80, 6, 0x200, 0, size)
-	if err != nil {
-		return err
-	}
-	h.config, err = usb.ParseConfiguration(data)
-	if err != nil {
-		return err
-	}
-	if h.config.MaxPacketSize > 64 || (h.speed == 2 && (h.config.MaxPacketSize > 8 || h.config.Interval < 10)) {
-		return fmt.Errorf("dwc2: unsupported keyboard packet size")
-	}
-	if _, err = h.request(0, 9, uint16(h.config.Value), 0, 0); err != nil {
-		return err
-	}
-	if _, err = h.request(0x21, 11, 0, uint16(h.config.Interface), 0); err != nil {
-		return err
-	}
-	if _, err = h.request(0x21, 10, 0, uint16(h.config.Interface), 0); err != nil {
-		return err
-	}
-	return nil
+	return h.discover()
 }
 
 // PollKeyboard never spins waiting for device input. NAK retires the current
@@ -485,6 +519,19 @@ func (h *Host) enumerate() error {
 func (h *Host) PollKeyboard() ([]byte, error) {
 	if h.fault != nil {
 		return nil, h.fault
+	}
+	if h.healthStage != 0 || !h.pending.active && len(h.path) > 0 && !h.io.Now().Before(h.healthNext) {
+		until := h.io.Now().Add(2 * time.Millisecond)
+		for n := 0; n < 8; n++ {
+			_, err := h.pollHubHealth()
+			if err != nil {
+				return nil, h.fail(err)
+			}
+			if h.healthStage == 0 || !h.io.Now().Before(until) {
+				break
+			}
+		}
+		return nil, nil
 	}
 	if !h.pending.active {
 		if h.io.Now().Before(h.next) {
@@ -495,14 +542,14 @@ func (h *Host) PollKeyboard() ([]byte, error) {
 		}
 		return nil, nil
 	}
-	done, data, nak, err := h.step()
+	done, data, nak, err := h.pollStep()
 	if err != nil {
 		return nil, h.fail(err)
 	}
 	if !done {
 		return nil, nil
 	}
-	h.next = h.io.Now().Add(time.Duration(h.config.Interval) * time.Millisecond)
+	h.next = h.io.Now().Add(h.interval)
 	if nak {
 		return nil, nil
 	}

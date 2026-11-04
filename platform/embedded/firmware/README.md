@@ -1032,6 +1032,6 @@ a checked stop. Objects remain rooted after failures. Startup failures abort
 only a known prepared lease; uncertain replies retain ownership.
 
 This is a bounded USB-only diagnostic, not combined USB/storage/core permission.
-The current DWC2 enumerator supports a direct boot keyboard and rejects hubs.
-The existing keyboard/controller-through-hub connection needs hub support before
-it can supply native launcher input. No physical USB test is established here.
+The DWC2 model supports a boot keyboard through a bounded USB 2 hub tree.
+The existing keyboard/controller-through-hub connection still needs physical
+hub/input qualification; gamepad decoding and native launcher integration remain open. No physical USB test is established here.

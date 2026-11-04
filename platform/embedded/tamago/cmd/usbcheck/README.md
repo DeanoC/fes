@@ -12,6 +12,7 @@ cold profile selects this program. The base probe profile still declares USB
 contained at entry. A driver or firmware failure produces a failure record;
 there is no direct-access fallback, automatic retry, SD or core launch.
 
-Direct boot keyboards are supported by the driver model. Hubs, controllers and
-combined USB/storage/core ownership still require implementation/qualification.
+Boot keyboards, directly or behind bounded USB 2 hub trees, are supported by
+the driver model. Physical hub input, gamepad decoding and combined
+USB/storage/core ownership still require implementation/qualification.
 This build supplies no physical USB acceptance.

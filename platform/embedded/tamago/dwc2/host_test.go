@@ -26,6 +26,9 @@ type transaction struct {
 // controller models USB device requests and independent FIFO/channel events.
 // The fake enforces device address, endpoint PID and configuration ordering.
 type controller struct {
+	classRequest func(*control) bool
+	classFinish  func(*control)
+
 	controlNAKs           int
 	regs                  map[uint32]uint32
 	tick                  time.Time
@@ -168,6 +171,10 @@ func (c *controller) Write32(reg, value uint32) {
 func (c *controller) setup(data []byte) {
 	c.request = &control{pid: 2, typ: data[0], request: data[1], value: binary.LittleEndian.Uint16(data[2:]), index: binary.LittleEndian.Uint16(data[4:]), length: binary.LittleEndian.Uint16(data[6:])}
 	r := c.request
+	if c.classRequest != nil && c.classRequest(r) {
+		c.requests = append(c.requests, *r)
+		return
+	}
 	switch r.request {
 	case 6:
 		if r.value == 0x100 {
@@ -182,7 +189,7 @@ func (c *controller) setup(data []byte) {
 			panic("address assigned twice")
 		}
 	case 9:
-		if c.address != 1 || r.value != 1 {
+		if c.address == 0 || r.value != 1 {
 			panic("invalid configuration")
 		}
 	case 11, 10:
@@ -199,6 +206,9 @@ func (c *controller) finishControl() {
 		panic("status without request")
 	}
 	r := c.request
+	if c.classFinish != nil {
+		c.classFinish(r)
+	}
 	switch r.request {
 	case 5:
 		c.address = uint32(r.value)

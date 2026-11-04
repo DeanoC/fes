@@ -1,4 +1,4 @@
-# DWC2 direct boot keyboard prototype
+# DWC2 polling keyboard and hub prototype
 
 The Nano provider now opens USB0 (`0x10b00000`) through this polling PIO host.
 It uses no DMA buffers, GIC or Linux service. The existing shared USB descriptor,
@@ -10,8 +10,8 @@ least 256 FIFO words and an already configured 60 MHz ULPI PHY. Firmware must
 release all channels, disable DMA, establish SoC clocks/reset/pinmux and prepare
 the board's VBUS source and Type-C role. The driver validates those controller
 capabilities, resets the core, partitions/flushes FIFOs, forces host mode, powers
-and resets the root port, then enumerates one directly attached low/full-speed
-boot keyboard. PHY and VBUS electrical operation remain untested on Nano.
+and resets the root port, then enumerates one boot keyboard, directly or through a bounded USB 2 hub
+tree. High-speed hubs use transaction translators for low/full-speed children. PHY and VBUS electrical operation remain untested on Nano.
 
 Control transfers perform SET_ADDRESS, descriptor discovery, SET_CONFIGURATION,
 SET_PROTOCOL and SET_IDLE. The host uses bounded, single-packet transactions
@@ -25,8 +25,8 @@ Disconnect, STALL, unexpected RX status/channel/PID, overflow, missing or short
 reports, hardware errors and ambiguous timeout retire the host. It attempts a
 bounded channel halt and refuses further hardware access through that instance.
 The board wrapper permits one initialization attempt per boot. Hotplug recovery,
-hubs, split transactions, high-speed endpoints, gamepads and HID output reports
-are not implemented. The API has one polling owner; concurrent calls are not
+gamepads, HID output reports, USB 3 hub protocols and hotplug re-enumeration
+are not implemented. Hub paths are checked and retired on change. The API has one polling owner; concurrent calls are not
 supported.
 
 `cmd/keyboard` is a serial-only bring-up image: initialize the selected backend,
@@ -54,4 +54,32 @@ The explicit Nano `usbcheck` build selects the source-bound secure provider and
 `OpenKeyboardWithControl`, rather than asserting readiness at entry. It verifies
 the cold context/pins before acquiring USB, confirms live readiness after driver
 startup and stops after a bounded polling interval. This does not enable USB
-for storage/Tenfoot profiles or implement the hub/split-transaction path.
+for storage/Tenfoot profiles or establish physical hub/input qualification.
+
+Hub discovery admits at most three hub levels, 15 ports per hub, 31 total ports
+and 31 addressed devices. It powers ports, requires stable connection, checks
+reset completion, validates descriptors and rejects multiple boot keyboards.
+Valid non-keyboard devices remain unconfigured. Multi-TT hubs use alternate
+zero; no alternate setting is switched. The selected keyboard and translator
+route stay private until the complete topology is admitted.
+
+Low/full-speed transfers behind a high-speed hub use start/complete splits
+with explicit hub/port routing, ACK/NYET/NAK handling and channel retirement.
+OUT payload bytes are sent only with start-split. A complete-split never repeats
+them. Transactions start early in a USB frame; missed completion windows retire
+the host. High-speed frame intervals use 125 microseconds; keyboard intervals
+use the speed-specific USB encoding. Split progress gets at most 2 ms/4096
+steps per packet poll. Periodic hub-path health checks advance through bounded
+control steps; one public poll spends at most that budget plus one final packet
+step. No control wait blocks until user input. Disconnect, reset or overcurrent
+on an ancestor path retires the host, without adopting a replacement device.
+
+The model independently implements device addresses, hub power/reset/status,
+transaction-translator ownership, split timing, FIFO contents and channel
+halts. Tests cover nested high/full-speed hubs, keyboard selection, normalized
+input, frame wrap, NAK/NYET, bad descriptors, stalled frames, ambiguous devices,
+ancestor changes and firmware-owned source closure. These are model results;
+physical split scheduling, hub/keyboard compatibility and Type-C power still
+require a bounded Nano test. Linux v6.12 `hcd.c`, `hcd_intr.c`, `hw.h` and
+`usb/core/hub.c` are the primary protocol references. Their version/hashes are
+retained with validation. No Linux driver is linked into the image.
