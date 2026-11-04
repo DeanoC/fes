@@ -198,8 +198,11 @@ def require_historical_main(args, deadline=None):
         observations.append(first)
         # Authenticate the first-parent chain from GitHub itself. A local
         # replace ref or graft must not manufacture main-branch ancestry.
+        # Walk far enough to establish the order of every reviewed identity.
         cursor, commit, ancestry = actual_tip, live, [actual_tip]
         for _ in range(32):
+            if {producer, tip, minimum}.issubset(ancestry):
+                break
             parents = commit.get('parents') if isinstance(commit, dict) else None
             if (not isinstance(parents, list) or not parents or not isinstance(parents[0], dict)
                     or not isinstance(parents[0].get('sha'), str)
@@ -207,14 +210,15 @@ def require_historical_main(args, deadline=None):
                 raise ValueError('main first-parent chain is unavailable')
             cursor = parents[0]['sha']
             ancestry.append(cursor)
-            if cursor == producer:
+            if {producer, tip, minimum}.issubset(ancestry):
                 break
             commit = json.loads(bounded_source_command(['gh', 'api', f'repos/{repo}/commits/{cursor}'], deadline))
             if not isinstance(commit, dict) or commit.get('sha') != cursor:
                 raise ValueError('main first-parent commit differs')
         else:
-            raise ValueError('producer is not on bounded main first-parent chain')
-        if (tip not in ancestry or minimum not in ancestry
+            raise ValueError('reviewed commits are not on bounded main first-parent chain')
+        if (producer not in ancestry or tip not in ancestry or minimum not in ancestry
+                or ancestry.index(producer) <= ancestry.index(tip)
                 or ancestry.index(minimum) > ancestry.index(tip)):
             raise ValueError('live main rolled back or diverged from reviewed history')
         diff = bounded_source_command(['git', 'diff', '--raw', '-z', '--no-abbrev', '--no-renames',

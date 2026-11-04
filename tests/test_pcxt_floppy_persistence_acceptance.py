@@ -247,6 +247,8 @@ class PersistenceAdmissionTest(unittest.TestCase):
             if argv[:2]==['git','diff']:return raw_diff
             if argv==['gh','api','repos/Example/fes/commits/'+'c'*40]:
                 return json.dumps({'sha':'c'*40,'parents':[{'sha':'a'*40}]}).encode()
+            if argv==['gh','api','repos/Example/fes/commits/'+'a'*40]:
+                return json.dumps({'sha':'a'*40,'parents':[]}).encode()
             if argv==['gh','api','repos/Example/fes/commits/'+'d'*40]:
                 return json.dumps({'sha':'d'*40,'parents':[]}).encode()
             self.assertEqual(argv,['gh','api','repos/Example/fes/commits/main'])
@@ -258,6 +260,7 @@ class PersistenceAdmissionTest(unittest.TestCase):
             evidence=p.main_source_evidence(args)
             self.assertEqual((evidence['producer_commit'],evidence['reviewed_tip']),('a'*40,'c'*40))
             self.assertIn('later changes were not hardware-tested',evidence['scope'])
+            # This new main history no longer contains the reviewed tip.
             live['sha']='d'*40
             with self.assertRaises(p.pa.AcceptanceError):p.require_source(args)
             live['parents']=[{'sha':'c'*40}]
@@ -289,6 +292,26 @@ class PersistenceAdmissionTest(unittest.TestCase):
             return result
         gh_calls.clear()
         with mock.patch.object(p,'bounded_source_command',side_effect=moved_during_check):
+            with self.assertRaises(p.pa.AcceptanceError):p.require_source(args)
+
+    def test_historical_main_rejects_producer_after_reviewed_tip(self):
+        raw_diff=b':100644 100644 old new M\0changed\0'
+        args=SimpleNamespace(source_repository='Example/fes', source_pr=None, source_base='main',
+            source_commit='b'*40,source_tool_commit='a'*40,source_main=False,source_historical_main=True,
+            source_observed_tip='c'*40,source_minimum_tip='c'*40,source_diff_sha256=hashlib.sha256(raw_diff).hexdigest())
+        root=Path(p.__file__).resolve().parent.parent
+        live={'sha':'d'*40,'parents':[{'sha':'b'*40}]}
+        def command(argv,deadline,cwd=None):
+            if argv[:3]==['git','rev-parse','HEAD']:return b'a'*40+b'\n'
+            if argv[:2]==['git','show']:
+                _,path=argv[2].split(':',1)
+                return (root/path).read_bytes()
+            if argv==['gh','api','repos/Example/fes/commits/'+'b'*40]:
+                return json.dumps({'sha':'b'*40,'parents':[{'sha':'c'*40}]}).encode()
+            if argv==['gh','api','repos/Example/fes/commits/main']:
+                return json.dumps(live).encode()
+            self.fail(f'unexpected source command: {argv!r}')
+        with mock.patch.object(p,'bounded_source_command',side_effect=command):
             with self.assertRaises(p.pa.AcceptanceError):p.require_source(args)
 
     def test_main_write_then_restart_requires_same_producer_and_tools(self):

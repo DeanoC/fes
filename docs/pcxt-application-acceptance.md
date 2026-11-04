@@ -130,9 +130,11 @@ font. The game check records a continuous lossless video and host-side input
 and capture timings. A completed video is **review pending**: an independent
 reviewer must identify the title, playfield and response of the player to input,
 not merely animation. Timestamps do not prove when the target applied a key.
-The game runs in quiet mode and the floppy is read-only, so the diagnostic does
-not establish audio, disk writes or score persistence. Neither diagnostic is
-whole-board timing qualification or a claim of general XT compatibility.
+The game diagnostic records a separate speaker audio capture. It is evidence
+only; audio and video clocks are not synchronized, and any audio conclusion
+needs independent review. The floppy is read-only, so the diagnostic does not
+establish disk writes or score persistence. Neither diagnostic is whole-board
+timing qualification or a claim of general XT compatibility.
 
 Each active-session guard now runs its read-only observer in a forked child with
 a hard five-second deadline, including the synchronous `/api/v1/health` request
@@ -140,9 +142,7 @@ to the target. This behavior applies to both the COM and Digger diagnostics. A
 temporarily absent or blank `selected` bundle value causes a fresh guard
 observation to retry until the expected bundle appears or the deadline expires;
 the active bundle and base identity are still checked on each pass, and a
-nonempty wrong selection fails immediately. The Digger guard can fork while
-its video recorder thread is active, so Python may emit a `DeprecationWarning`
-about forking a multithreaded process.
+nonempty wrong selection fails immediately.
 
 ## Writable floppy persistence diagnostic
 
