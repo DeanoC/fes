@@ -12,6 +12,7 @@ from native_trace import MAX_BYTES, decode_native_boot
 
 READY = 'FES_NATIVE_USB READY transport=pio input=boot-keyboard data=held'
 PASS = 'FES_NATIVE_USB PASS scope=usb-only-pio'
+HALT = 'exit with code 0 halting'
 REPORT = re.compile(r'FES_NATIVE_USB REPORT ([0-9a-f]{16})')
 STOP = re.compile(r'FES_NATIVE_USB STOP owner=([0-9a-f]{1,16}) generation=([0-9]{1,20}) data=held')
 
@@ -31,7 +32,7 @@ def decode(data, build_id, owner_seed, *, hps_context, hps_io, atf=None):
         raise TypeError('serial bytes or text required')
     raw = data.encode() if isinstance(data, str) else bytes(data)
     result = dict(complete=False, errors=[], records=[], boot=None, startup=None,
-                  ready=False, stopped=False, reports=[], key_presses=0, key_releases=0,
+                  ready=False, stopped=False, halted=False, reports=[], key_presses=0, key_releases=0,
                   input_observed=False, core_load_acceptance=False)
     if len(raw) > MAX_BYTES:
         result['errors'].append('USB capture exceeds byte bound')
@@ -47,6 +48,8 @@ def decode(data, build_id, owner_seed, *, hps_context, hps_io, atf=None):
     startup = result['startup'] = startup_checkpoints(prefix)
     result['errors'].extend(boot['errors'])
     result['errors'].extend(startup['errors'])
+    if any(line.lstrip().startswith('exit with code') for line in lines[:first]):
+        result['errors'].append('runtime halt precedes USB observations')
     source = next((row['values'] for row in boot['records'] if row['stage']=='hps_context'), None)
     state = 'ready'
     keys = set()
@@ -90,10 +93,15 @@ def decode(data, build_id, owner_seed, *, hps_context, hps_io, atf=None):
             require(state == 'pass', 'USB Pass lacks checked stop')
             state = 'done'
             stage = 'pass'
+        elif line == HALT:
+            require(state == 'done', 'runtime halt precedes USB Pass or was duplicated')
+            state = 'halted'
+            result['halted'] = not result['errors']
+            stage = 'halt'
         else:
             result['errors'].append(f'failure, malformed or foreign USB evidence at line {number}: {line[:160]}')
             continue
         result['records'].append(dict(stage=stage, line=number))
-    result['complete'] = state == 'done' and boot['complete'] and startup['complete'] and not tail and not result['errors']
+    result['complete'] = state in ('done','halted') and boot['complete'] and startup['complete'] and not tail and not result['errors']
     result['input_observed'] = bool(result['complete'] and result['key_presses'])
     return result

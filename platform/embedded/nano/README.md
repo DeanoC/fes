@@ -6,6 +6,8 @@ context/pin observations, entry/BSP CPU startup through `go_vectors`, and
 ordered USB Ready/report/Stop/Pass records. Stop must carry the same owner and
 generation 3. Missing, duplicate, malformed, failed or fragmented observations
 cannot complete the diagnostic. The caller supplies checked build identities;
+the pinned runtime's `exit with code 0 halting` is accepted once after USB Pass
+and recorded separately. A premature, nonzero or duplicate halt rejects.
 the decoder performs no device operations or admission. An idle success proves
 reported startup and stop only. Valid key presses are separate input evidence,
 and neither result qualifies combined USB/storage/core operation.

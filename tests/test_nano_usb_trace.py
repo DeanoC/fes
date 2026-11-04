@@ -92,6 +92,17 @@ class USBTraceTests(unittest.TestCase):
         self.assertEqual(result['errors'],[])
         self.assertFalse(self.decode(prompt[:-1])['boot']['loader_ready'])
 
+    def test_pinned_runtime_clean_halt_follows_pass_once(self):
+        raw, _, _ = fixture()
+        halt = usb.HALT+'\r\n'
+        result = self.decode(raw+halt)
+        self.assertTrue(result['complete'],result['errors']);self.assertTrue(result['halted'])
+        self.assertFalse(self.decode(raw)['halted'])
+        for changed in (halt+raw,raw+halt+halt,raw+halt.replace('code 0','code 1'),
+                        raw.replace(usb.PASS,usb.HALT+'\r\n'+usb.PASS)):
+            self.assertFalse(self.decode(changed)['complete'])
+        self.assertFalse(self.decode(raw+halt.rstrip('\r\n'))['complete'])
+
     def test_report_validation_and_order(self):
         for value in ('0000010000000000','0000040400000000','0000e00000000000','00000000','gg00000000000000'):
             with self.subTest(value=value):self.assertFalse(self.decode(fixture([value])[0])['complete'])
