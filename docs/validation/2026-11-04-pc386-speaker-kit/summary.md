@@ -12,7 +12,7 @@ tones on the kit. Each key played a note, 70 of 70. Each note is a gated
 key. #1453's `u6i` run found nothing tonal on either package
 ([ISA bus time record](../2026-11-03-pc386-isa-bus-time/summary.md#the-cpu-timed-routine-run-u6i)).
 The stray speaker pulses are **not** gone. They are now short bursts, about
-4 a second, on the same ~58.6 ms grid as the old clicks. They come before the
+3 a second outside the notes against 0.5-0.7 before, on the same ~58.6 ms grid as the old clicks. They come before the
 lute starts as well as between notes.
 
 ## Inputs
@@ -60,8 +60,10 @@ The grab shows `Use-lute`. Then 70 digit keys 0.66 s apart: 30 × `6`,
 
 ### Tones (`u6_tones.py`, 5 ms frames, RMS threshold 300)
 
-There are 74 events: 70 during the keys and 4 after Esc. The 4 after Esc are
-the fight's PIT sounds. Every key gave exactly one note, 0.66 s apart (the
+There are 74 events: 70 during the keys and 4 in the 2 s after Esc, when the
+fight goes on. Those 4 are left unidentified: 919 Hz for 170 ms, about 4 kHz
+for 70 ms, 587 Hz for 150 ms, and about 4 kHz for 70 ms. They are not
+`u6i`'s 213 Hz PIT tones. Every key gave exactly one note, 0.66 s apart (the
 median gap between note starts). Each note:
 
 - is 100-110 ms long, with RMS 4,408-4,608;
@@ -99,12 +101,15 @@ first 4 s, while the inventory is open, around Enter (2 s). They are not
 +16,000, lasting 0.3-1 ms. Their spacing is close to multiples of 58.6 ms:
 57-61, 117-119 and 174-178 ms are the most common gaps.
 
-| Capture | Package | Length | Detector hits | Rate |
-| --- | --- | ---: | ---: | ---: |
-| `k1` (this run) | main `bb51f445`, `a8c5a393` | 62.0 s | 257 (181 outside notes) | 4.1/s |
-| `u6i`, 286 | #1453 branch, `c86c5ebf` | 34.5 s | 24 | 0.7/s |
-| `u6i`, 286 b | #1453 branch, `c86c5ebf` | 48.0 s | 33 | 0.7/s |
-| `u6i`, 286 b | main before, `c7e06e04` | 48.0 s | 23 | 0.5/s |
+| Capture | Package | Length | Hits outside notes | Rate | In the first 4 s |
+| --- | --- | ---: | ---: | ---: | ---: |
+| `k1` (this run) | main `bb51f445`, `a8c5a393` | 62.0 s | 181 (of 257) | 2.9/s | 13 |
+| `u6i`, 286 | #1453 branch, `c86c5ebf` | 34.5 s | 24 | 0.7/s | 2 |
+| `u6i`, 286 b | #1453 branch, `c86c5ebf` | 48.0 s | 33 | 0.7/s | 1 |
+| `u6i`, 286 b | main before, `c7e06e04` | 48.0 s | 23 | 0.5/s | 1 |
+
+The `u6i` captures had no notes, so every hit there counts. The first 4 s of
+each capture comes before any note, from the inventory screen to Enter.
 
 #1453's record already saw clicks pairing 60-62 ms and 118-119 ms apart, so
 these bursts come from the same source. Now that counter 2 runs, it is
