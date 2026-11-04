@@ -2,16 +2,20 @@
 """Exercise the QEMU-only U-Boot entry image and its rejection paths."""
 import argparse
 import hashlib
+import importlib.util
 import json
 import os
 from pathlib import Path
 import selectors
+import shutil
 import struct
 import subprocess
 import time
 
 HERE = Path(__file__).resolve().parent
 ROOT = HERE.parents[2]
+_codec_spec=importlib.util.spec_from_file_location('fes_verify_entry_payload',HERE/'payload.py')
+entry_payload=importlib.util.module_from_spec(_codec_spec);_codec_spec.loader.exec_module(entry_payload)
 ADDRESS = 0x58080000
 GOOD = b"FES_NATIVE_GO_PROBE PASS os=tamago board=qemu"
 
@@ -66,6 +70,40 @@ def run_guest(qemu, uboot, image, virtualization, expected, log_path, timeout):
         log_path.write_bytes(captured)
 
 
+def fault_image(record, original_build, packed, directory):
+    """Relink the same checked entry objects around private negative input.
+
+    Production build validation is never bypassed. These images exist only in
+    the emulator verifier and must stop before the native handoff.
+    """
+    directory.mkdir()
+    objects=record['objects']
+    names=['part-'+str(i)+'.o' for i in range(6)]
+    if set(objects)!=set(names):raise ValueError('entry fault fixture requires the complete object inventory')
+    for name in names:
+        source=original_build/name
+        if digest(source.read_bytes())!=objects[name]:raise ValueError('entry object changed: '+name)
+        shutil.copyfile(source,directory/name)
+    tools=record['tools']
+    for name in ('gcc','objcopy','cc1','as','ld'):
+        if digest(Path(tools[name]['path']).read_bytes())!=tools[name]['sha256']:
+            raise ValueError('entry compiler changed: '+name)
+    for name,expected in record['sources'].items():
+        if digest((ROOT/name).read_bytes())!=expected:raise ValueError('entry source changed: '+name)
+    (directory/'payload.gz').write_bytes(packed)
+    (directory/'payload.S').write_text('.section .payload,"a"\n.global __payload_start, __payload_end\n__payload_start:\n.incbin "payload.gz"\n__payload_end:\n')
+    elf=directory/'entry.elf';image=directory/'entry.img'
+    commands=[
+        [tools['gcc']['path'],'-c','payload.S','-o','part-5.o'],
+        [tools['gcc']['path'],'-nostdlib','-static','-no-pie','-Wl,--build-id=none',
+         '-Wl,-T,'+str(HERE/'entry.ld'),'-Wl,--defsym=FES_ENTRY_IMAGE_ADDRESS='+hex(ADDRESS),*names,'-o',str(elf)],
+        [tools['objcopy']['path'],'-O','binary',str(elf),str(image)]]
+    for i,command in enumerate(commands):
+        with (directory/('relink-'+str(i)+'.log')).open('wb') as log:
+            subprocess.run(command,cwd=directory,env=record['environment'],stdout=log,stderr=subprocess.STDOUT,check=True,timeout=30)
+    return image.read_bytes()
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--image-build", required=True, type=Path)
@@ -105,31 +143,41 @@ def main():
     if (record["status"] != "built" or record["target"] != "qemu" or record["entry_image_address"] != ADDRESS or
             record["entry_image_size"] != len(original) or record["payload_size"] != len(payload) or
             record["entry_image_sha256"] != digest(original) or record["payload_sha256"] != digest(payload) or
-            type(offset) is not int or offset < 64 or offset + len(payload) > len(original) or
-            original[offset:offset + len(payload)] != payload):
+            type(offset) is not int or offset < 64):
         raise ValueError("entry image or embedded payload differs from its build receipt")
 
-    # Alter only private test copies after host validation, so the target itself
-    # must reject an invalid ELF and an otherwise aligned overlap with its image.
-    invalid = bytearray(original)
-    invalid[offset] = 0
-    overlap = bytearray(original)
-    phoff = struct.unpack_from("<Q", payload, 32)[0]
-    phsize, count = struct.unpack_from("<HH", payload, 54)
-    loads = [phoff + i * phsize for i in range(count)
-             if struct.unpack_from("<I", payload, phoff + i * phsize)[0] == 1]
-    if len(loads) < 2:
-        raise ValueError("negative test requires two load segments")
-    struct.pack_into("<QQ", overlap, offset + loads[1] + 16, ADDRESS, ADDRESS)
-    variants = (("native-probe", original, "on", GOOD),
-                ("bad-magic", invalid, "on", b"FES_ENTRY REJECT ELF"),
-                ("staging-overlap", overlap, "on", b"FES_ENTRY REJECT ELF"),
-                ("wrong-exception-level", original, "off", b"FES_ENTRY REJECT EL"))
+    entry_payload.checked(record,original,payload)
+    # Rebuild only private encoded-payload objects so target ELF checks still
+    # run on invalid decoded images, independently of the host's validation.
     output.mkdir(parents=True)
+    invalid=bytearray(payload);invalid[0]=0
+    overlap=bytearray(payload)
+    phoff=struct.unpack_from('<Q',payload,32)[0]
+    phsize,count=struct.unpack_from('<HH',payload,54)
+    loads=[phoff+i*phsize for i in range(count) if struct.unpack_from('<I',payload,phoff+i*phsize)[0]==1]
+    if len(loads)<2:raise ValueError('negative test requires two load segments')
+    struct.pack_into('<QQ',overlap,loads[1]+16,ADDRESS,ADDRESS)
+    scratch=bytearray(payload)
+    struct.pack_into('<QQ',scratch,loads[1]+16,record['decode_base'],record['decode_base'])
+    packed=original[offset:offset+record['payload_stored_size']]
+    crc=bytearray(packed);crc[-8]^=1
+    length=bytearray(packed);struct.pack_into('<I',length,len(length)-4,len(payload)+1)
+    inputs=[('bad-magic',entry_payload.encode(invalid),b'FES_ENTRY REJECT ELF'),
+            ('staging-overlap',entry_payload.encode(overlap),b'FES_ENTRY REJECT ELF'),
+            ('decode-overlap',entry_payload.encode(scratch),b'FES_ENTRY REJECT ELF'),
+            ('bad-payload-crc',bytes(crc),b'FES_ENTRY REJECT PAYLOAD'),
+            ('truncated-deflate',packed[:10]+packed[10:-9]+packed[-8:],b'FES_ENTRY REJECT PAYLOAD'),
+            ('wrong-decoded-size',bytes(length),b'FES_ENTRY REJECT PAYLOAD'),
+            ('extra-member',packed+packed,b'FES_ENTRY REJECT PAYLOAD')]
+    variants=[('native-probe',original,'on',GOOD)]
+    for name,encoded,marker in inputs:
+        variants.append((name,fault_image(record,image_build,encoded,output/(name+'-build')),'on',marker))
+    variants.append(('wrong-exception-level',original,'off',b'FES_ENTRY REJECT EL'))
     result = {"status": "running", "classification": "QEMU-only U-Boot/native handoff, not DE25 hardware",
               "producer_sha256": digest((HERE / "verify.py").read_bytes()),
               "entry_build_sha256": digest((image_build / "result.json").read_bytes()),
-              "entry_image_sha256": digest(original), "payload_sha256": digest(payload),
+              "entry_image_sha256": digest(original), "payload_sha256": digest(payload), "payload_encoding": entry_payload.ENCODING,
+              "decode_base": record["decode_base"], "decode_capacity": record["decode_capacity"],
               "qemu_sha256": digest(qemu.read_bytes()), "uboot_sha256": digest(uboot.read_bytes()),
               "uboot_config_sha256": digest(config.read_bytes()),
               "uboot_build_sha256": digest(uboot_receipt_bytes), "cases": [],

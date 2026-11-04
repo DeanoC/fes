@@ -1,5 +1,6 @@
 /* SPDX-License-Identifier: GPL-3.0-or-later */
 #include "elf_plan.h"
+#include "payload.h"
 
 static uint16_t get16(const uint8_t *p)
 {
@@ -79,6 +80,28 @@ int fes_entry_plan_elf(const uint8_t *data, uint64_t size,
     if (!plan.count || !executable)
         return 0;
     plan.entry = entry;
+    *result = plan;
+    return 1;
+}
+
+int fes_entry_plan_decoded_elf(const uint8_t *data, uint64_t size,
+                       uint64_t ram_start, uint64_t ram_end,
+                       uint64_t staging_start, uint64_t staging_end,
+                       uint64_t decode_start, uint64_t decode_capacity,
+                       struct fes_entry_plan *result)
+{
+    struct fes_entry_plan plan;
+    if (!result || ram_end <= ram_start || ram_end - ram_start <= FES_ENTRY_PAYLOAD_MAX + FES_ENTRY_STACK_RESERVE + 0x10000 ||
+        decode_capacity != FES_ENTRY_PAYLOAD_MAX || decode_start != ram_end - FES_ENTRY_STACK_RESERVE - decode_capacity ||
+        size > decode_capacity ||
+        overlaps(decode_start, decode_start + decode_capacity, staging_start, staging_end) ||
+        !fes_entry_plan_elf(data, size, ram_start, ram_end, staging_start, staging_end, &plan))
+        return 0;
+    for (uint32_t i = 0; i < plan.count; i++) {
+        const struct fes_entry_segment *s = &plan.segments[i];
+        if (overlaps(s->address, s->address + s->memory_size, decode_start, decode_start + decode_capacity))
+            return 0;
+    }
     *result = plan;
     return 1;
 }

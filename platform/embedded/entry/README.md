@@ -4,8 +4,8 @@ This loader connects a U-Boot `booti` handoff to the Linux-free TamaGo image.
 Its header is compatible with U-Boot's arm64 Image path; it contains no Linux
 kernel. The QEMU test executes the pinned Terasic U-Boot **source** built for
 QEMU, not the Nano U-Boot binary or Agilex 5 CPU. A Nano-targeted output can be
-assembled from an explicit firmware profile, but no verified profile or
-hardware-ready boot image is supplied.
+assembled from an explicit firmware profile. Each Nano hardware result applies
+to its recorded matched image; the compressed entry needs its own physical boot.
 
 U-Boot's `booti` path performs its normal interrupt/cache/MMU cleanup and the
 tested configuration enters the loader at EL2. The loader masks exceptions,
@@ -18,6 +18,22 @@ BSS, synchronizes the instruction cache, enables the EL1 physical counter and
 FP/SIMD access, and enters the native image at EL1. An exception before TamaGo
 installs its own vectors parks in the loader. A malformed image parks instead of
 launching. Hashes identify build inputs; they do not authenticate a payload.
+
+The embedded ELF is stored as one deterministic gzip member. Before loading,
+the freestanding decoder checks its fixed header, input/output bounds, exact
+stream consumption, CRC and decoded size. The existing 32 MiB ELF limit remains.
+It decodes into the final 32 MiB of owned Go RAM below the protected 128 KiB
+initial stack. Every destination segment must exclude that entire temporary
+workspace and the live loader; all checks finish before segment copying. The
+workspace is no longer live when Go starts. Go's complete runtime metadata
+remains in the decoded ELF. The Nano FIT load limit stays 8 MiB.
+
+The allocation-free [puff inflater](vendor/puff/README.md) uses pinned, unmodified
+zlib-contributed source with a private GCC jump shim. It links no C runtime.
+ARM64 compilation requires strict alignment while the MMU/cache are off. Inflater
+static tables are materialized in the stored image; the builder conservatively
+checks the sum of C stack frames plus exception headroom against the existing
+16 KiB loader stack. EL2 and EL1 faults use the loader's own parking vectors.
 
 The checks are local to the entering CPU. They do not prove other CPUs are
 parked, the firmware's memory reservations, UART clocks, peripheral and DMA
@@ -63,10 +79,13 @@ python3 platform/embedded/entry/verify.py \
 The U-Boot checkout must be clean at pinned commit
 `d0f8813fd6bf8191d49c8b8d2035ffd2ae10c413`; see the
 [vendor firmware guide](../firmware/README.md) for its source. The verifier
-checks the U-Boot build receipt and image hashes, then boots four independent
-QEMU guests: a complete native Go probe, a corrupt ELF, a load segment
-overlapping the loader, and an entry at the wrong exception level. Each guest
-has one CPU and its own output log. The failure cases must stop before the EL1
+checks the U-Boot build receipt and image hashes, then boots nine independent
+QEMU guests: a complete native Go probe, corrupt ELF, loader/decode-workspace
+overlap, bad gzip CRC, truncated DEFLATE, wrong decoded size, an extra member,
+and entry at the wrong exception level. Negative ELF cases relink the same
+checked entry objects around private malformed payloads, so the actual target
+planner must reject them after successful decoding. Each guest has one CPU and
+its own output log. The failure cases must stop before the EL1
 handoff. The positive case checks timer, goroutine, allocation, garbage
 collection and the volatile in-memory filesystem. It does not test SD/FAT32.
 

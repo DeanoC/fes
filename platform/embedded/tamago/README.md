@@ -67,8 +67,11 @@ rendering, presentation and final return. A partial trace retains the last
 completed frame and the CPU step which did not return. These progress records
 add no device reads and supply no frame, drain or closure receipt themselves.
 
-Nano images omit ELF symbols and DWARF sections to fit the sealed 8 MiB FIT
-loading window. Go's runtime PC/line metadata remains in the native image.
+Nano images omit ELF symbols and DWARF sections and now store the complete ELF
+in the entry's bounded gzip format. Go's runtime PC/line metadata remains in the
+decoded image. This permits the full Tenfoot command handler in the unchanged
+8 MiB FIT window. The frame diagnostic exercises search/text commands; the
+normal native UI loop and physical launch integration remain separate work.
 
 The Nano-only `fpga` program cross-builds a read-only TF-A SDM mailbox probe.
 It reports silicon IDCODE and configuration status, without programming,

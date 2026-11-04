@@ -2,6 +2,7 @@
 """Run tenfoot's complete model launch/return suite through QEMU U-Boot."""
 import argparse
 import hashlib
+import importlib.util
 import json
 from pathlib import Path
 import re
@@ -10,6 +11,8 @@ import sys
 
 HERE = Path(__file__).resolve().parent
 ROOT = HERE.parents[2]
+_codec_spec=importlib.util.spec_from_file_location('fes_play_entry_payload',HERE/'payload.py')
+entry_payload=importlib.util.module_from_spec(_codec_spec);_codec_spec.loader.exec_module(entry_payload)
 sys.path.insert(0, str(HERE.parent / "tamago"))
 from host_support import Guest  # noqa: E402
 from play_support import exercise  # noqa: E402
@@ -56,20 +59,19 @@ def main():
             image_receipt["status"] != "built" or image_receipt["target"] != "qemu" or
             image_receipt["entry_image_address"] != ADDRESS or image_receipt["entry_image_sha256"] != sha(image) or
             image_receipt["entry_image_size"] != len(image_bytes) or image_receipt["payload_size"] != len(payload_bytes) or
-            type(offset) is not int or offset < 64 or offset + len(payload_bytes) > len(image_bytes) or
-            image_bytes[offset:offset + len(payload_bytes)] != payload_bytes or
             image_receipt["payload_sha256"] != native_hash or sha(embedded) != native_hash or
             uboot_receipt["status"] != "built" or
             uboot_receipt["source_revision"] != "d0f8813fd6bf8191d49c8b8d2035ffd2ae10c413" or
             uboot_receipt["binary_sha256"] != sha(uboot) or uboot_receipt["config_sha256"] != sha(config)):
         raise ValueError("play, entry or U-Boot artifacts differ from their build receipts")
+    entry_payload.checked(image_receipt,image_bytes,payload_bytes)
     output.mkdir(parents=True)
     disk = output / "fat32.img"
     shutil.copyfile(original_disk, disk)
     if sha(disk) != disk_hash:
         raise ValueError("private FAT32 image differs from the recorded play input")
     commands = []
-    sources = [HERE / "verify_tenfoot.py", HERE.parent / "tamago/host_support.py", HERE.parent / "tamago/play_support.py"]
+    sources = [HERE / "verify_tenfoot.py", HERE / "payload.py", HERE.parent / "tamago/host_support.py", HERE.parent / "tamago/play_support.py"]
     source_hashes = {str(path.relative_to(ROOT)): sha(path) for path in sources}
     result = {"status": "running", "classification": "QEMU U-Boot and tenfoot software model; no physical FPGA",
               "native_elf_sha256": native_hash, "input_disk_sha256": disk_hash,

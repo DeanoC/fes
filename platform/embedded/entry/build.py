@@ -23,6 +23,9 @@ ROOT = HERE.parents[2]
 QEMU_IMAGE_ADDRESS = 0x58080000
 QEMU_RAM_START, QEMU_RAM_END = 0x40000000, 0x50000000
 QEMU_UART_BASE = 0x09000000
+_codec_spec = importlib.util.spec_from_file_location('fes_entry_payload', HERE / 'payload.py')
+payload_codec = importlib.util.module_from_spec(_codec_spec)
+_codec_spec.loader.exec_module(payload_codec)
 
 
 def window_memory_option(receipt, memory):
@@ -248,17 +251,22 @@ def main():
     if not cc1.is_file():
         parser.error("missing compiler cc1")
     tools["cc1"] = {"path": str(cc1), "sha256": sha(cc1.read_bytes())}
-    files = [HERE / name for name in ("build.py", "entry.S", "entry.c", "entry.ld", "elf_plan.c", "elf_plan.h")]
+    files = [HERE / name for name in ("build.py", "entry.S", "entry.c", "entry.ld", "elf_plan.c", "elf_plan.h",
+                                     "payload.c", "payload.h", "payload.py")]
+    files.extend(sorted((HERE / 'vendor/puff').iterdir()))
     if args.target == "de25-nano":
         files.append(nano_builder)
         files.append(HERE.parent/'nano/hps_context.py')
         if native_context is not None:files.extend(hps.inputs())
     frozen = {str(path.relative_to(ROOT)): sha(path.read_bytes()) for path in files}
     payload_bytes = payload.read_bytes()
+    packed = payload_codec.encode(payload_bytes)
+    decode_base, decode_capacity = payload_codec.workspace(ram_start, ram_end)
     output.mkdir(parents=True)
     (output / "payload.elf").write_bytes(payload_bytes)
+    (output / "payload.gz").write_bytes(packed)
     (output / "payload.S").write_text('.section .payload,"a"\n.global __payload_start, __payload_end\n'
-                                       '__payload_start:\n.incbin "payload.elf"\n__payload_end:\n')
+                                       '__payload_start:\n.incbin "payload.gz"\n__payload_end:\n')
     commands = []
     def run(label, command, *, host=False):
         command = [str(value) for value in command]
@@ -270,17 +278,19 @@ def main():
         with (output / (label + ".log")).open("wb") as log:
             subprocess.run(command, cwd=output, env=selected_env, stdout=log, stderr=subprocess.STDOUT, check=True)
     common = [args.cross_prefix + "gcc", "-ffreestanding", "-fno-builtin", "-fno-stack-protector",
-              "-fno-unwind-tables", "-fno-asynchronous-unwind-tables", "-mgeneral-regs-only", "-O2",
+              "-fno-unwind-tables", "-fno-asynchronous-unwind-tables", "-mgeneral-regs-only", "-mstrict-align", "-fstack-usage", "-O2",
               *( ["-DFES_ENTRY_QEMU_DIAGNOSTIC"] if args.target == "qemu" else [] ),
               "-DFES_ENTRY_RAM_START=" + hex(ram_start),
               "-DFES_ENTRY_RAM_END=" + hex(ram_end), "-DFES_ENTRY_UART_BASE=" + hex(uart_base),
-              "-I" + str(HERE)]
-    for index, source in enumerate((HERE / "entry.S", HERE / "entry.c", HERE / "elf_plan.c", output / "payload.S")):
+              "-I" + str(HERE), "-I" + str(HERE / "vendor/puff")]
+    parts = (HERE / "entry.S", HERE / "entry.c", HERE / "elf_plan.c", HERE / "payload.c",
+             HERE / "vendor/puff/puff.c", output / "payload.S")
+    for index, source in enumerate(parts):
         run("compile-" + str(index), [*common, "-c", source, "-o", output / ("part-" + str(index) + ".o")])
     elf, raw = output / "entry.elf", output / "entry.img"
     run("link", [args.cross_prefix + "gcc", "-nostdlib", "-static", "-no-pie", "-Wl,--build-id=none",
                  "-Wl,-T," + str(HERE / "entry.ld"), "-Wl,--defsym=FES_ENTRY_IMAGE_ADDRESS=" + hex(image_address),
-                 *(output / ("part-" + str(i) + ".o") for i in range(4)), "-o", elf])
+                 *(output / ("part-" + str(i) + ".o") for i in range(len(parts))), "-o", elf])
     run("objcopy", [args.cross_prefix + "objcopy", "-O", "binary", elf, raw])
     nm = subprocess.check_output([args.cross_prefix + "nm", "-n", str(elf)], env=env, text=True)
     symbols = {}
@@ -292,8 +302,8 @@ def main():
     blob = raw.read_bytes()
     begin, end = symbols["__payload_start"] - image_address, symbols["__payload_end"] - image_address
     if (symbols["_start"] != image_address or symbols["__image_start"] != image_address or
-            symbols["__image_end"] != image_address + len(blob) or end - begin != len(payload_bytes) or
-            not 0 <= begin < end <= len(blob) or blob[begin:end] != payload_bytes or
+            symbols["__image_end"] != image_address + len(blob) or end - begin != len(packed) or
+            not 0 <= begin < end <= len(blob) or blob[begin:end] != packed or
             symbols["fes_entry_vectors"] % 2048 or symbols["__stack_top"] % 16 or len(blob) < 64 or
             struct.unpack_from("<Q", blob, 8)[0] != 0x80000 or
             struct.unpack_from("<Q", blob, 16)[0] != len(blob) or
@@ -301,16 +311,35 @@ def main():
         raise ValueError("entry image layout or arm64 Image header differs from the diagnostic contract")
     validate_staging(image_address, image_address + len(blob), staging_lower, staging_upper, exclusions)
     host_lib = output / "elf_plan.so"
-    run("host-plan-build", [host_cc, "-std=c11", "-Wall", "-Wextra", "-Werror", "-shared", "-fPIC",
-                            "-I" + str(HERE), HERE / "elf_plan.c", "-o", host_lib], host=True)
+    run("host-plan-build", [host_cc, "-std=c11", "-O2", "-Wall", "-Wextra", "-Werror", "-shared", "-fPIC",
+                            "-ffreestanding", "-fno-builtin", "-I" + str(HERE), "-I" + str(HERE / 'vendor/puff'),
+                            HERE / "elf_plan.c", HERE / 'payload.c', HERE / 'vendor/puff/puff.c', "-o", host_lib], host=True)
     library = ctypes.CDLL(str(host_lib))
-    validate = library.fes_entry_plan_elf
-    validate.argtypes = [ctypes.POINTER(ctypes.c_uint8), ctypes.c_uint64, ctypes.c_uint64, ctypes.c_uint64,
-                         ctypes.c_uint64, ctypes.c_uint64, ctypes.POINTER(Plan)]
-    data = (ctypes.c_uint8 * len(payload_bytes)).from_buffer_copy(payload_bytes)
+    unpack = library.fes_entry_unpack
+    unpack.argtypes = [ctypes.c_void_p, ctypes.c_uint64, ctypes.c_void_p, ctypes.c_uint64, ctypes.POINTER(ctypes.c_uint64)]
+    encoded = (ctypes.c_uint8 * len(packed)).from_buffer_copy(packed)
+    data = (ctypes.c_uint8 * len(payload_bytes))()
+    written = ctypes.c_uint64()
+    if (unpack(encoded, len(packed), data, len(payload_bytes), ctypes.byref(written)) != 1 or
+            written.value != len(payload_bytes) or bytes(data) != payload_bytes):
+        raise ValueError('freestanding gzip decoder differs from the selected native ELF')
+    validate = library.fes_entry_plan_decoded_elf
+    validate.argtypes = [ctypes.c_void_p, *([ctypes.c_uint64] * 7), ctypes.POINTER(Plan)]
     plan = Plan()
-    if validate(data, len(payload_bytes), ram_start, ram_end, image_address, image_address + len(blob), ctypes.byref(plan)) != 1:
-        raise ValueError("native ELF is not a safe static image within the selected diagnostic RAM window")
+    if validate(data, len(payload_bytes), ram_start, ram_end, image_address, image_address + len(blob),
+                decode_base, decode_capacity, ctypes.byref(plan)) != 1:
+        raise ValueError("native ELF overlaps the loader, decode scratch or reserved RAM")
+    stack = []
+    for usage in sorted(output.glob('*.su')):
+        for line in usage.read_text().splitlines():
+            name, size, kind = line.rsplit('\t', 2)
+            if kind != 'static' or not size.isdecimal():
+                raise ValueError('unbounded entry decoder stack use')
+            stack.append(dict(function=name, bytes=int(size)))
+    # Sum every C frame conservatively, including mutually exclusive paths;
+    # leave headroom for the fixed assembly exception save area.
+    if not stack or sum(row['bytes'] for row in stack) + 1024 > 16384:
+        raise ValueError('entry decoder exceeds the existing16KiB loader stack')
     if (payload.read_bytes() != payload_bytes or frozen != {str(path.relative_to(ROOT)): sha(path.read_bytes()) for path in files} or
             any(sha(Path(value["path"]).read_bytes()) != value["sha256"] for value in tools.values()) or
             (profile_bytes is not None and (profile_path.read_bytes() != profile_bytes or receipt_path.read_bytes() != receipt_bytes))):
@@ -321,7 +350,11 @@ def main():
                                  "unqualified Nano handoff candidate; profile obligations and hardware unverified"),
               "payload_sha256": sha(payload_bytes), "entry_image_sha256": sha(blob), "entry_elf_sha256": sha(elf.read_bytes()),
               "entry_image_address": image_address, "entry_image_size": len(blob), "payload_offset": begin,
-              "payload_size": len(payload_bytes), "native_entry": plan.entry,
+              "payload_size": len(payload_bytes), "payload_encoding": payload_codec.ENCODING,
+              "payload_stored_size": len(packed), "payload_stored_sha256": sha(packed),
+              "decode_base": decode_base, "decode_capacity": decode_capacity,
+              "stack_usage": stack, "native_entry": plan.entry,
+              "objects": {"part-"+str(i)+".o": sha((output/("part-"+str(i)+".o")).read_bytes()) for i in range(len(parts))},
               "segments": [{name: getattr(plan.segments[i], name) for name, _ in Segment._fields_} for i in range(plan.count)],
               "ram_start": ram_start, "ram_end": ram_end, "uart_base": uart_base,
               "staging_start": image_address, "staging_end": image_address + len(blob),

@@ -6,7 +6,8 @@ SECTIONS
     __image_start = .;
     .text : { KEEP(*(.text.header)) *(.text.start) *(.text.vectors) *(.text .text.*) }
     .rodata : { *(.rodata .rodata.*) }
-    .data : { *(.data .data.*) }
+    /* Materialize the inflater tables as initialized image bytes. */
+    .data : { *(.data .data.*) *(.bss .bss.* COMMON) }
     .payload : ALIGN(8) { KEEP(*(.payload)) }
     /* Stored in the image: no uninitialized memory or firmware stack required. */
     .stack : ALIGN(16) { . += 16384; __stack_top = .; BYTE(0); }

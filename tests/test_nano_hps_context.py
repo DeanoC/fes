@@ -9,6 +9,8 @@ import sys
 import tempfile
 from types import SimpleNamespace
 import unittest
+
+from entry_payload_fixture import bind_payload
 from unittest.mock import Mock, patch
 import xml.etree.ElementTree as ET
 import zipfile
@@ -219,6 +221,7 @@ class HPSContextTests(unittest.TestCase):
                      'entry_image_sha256':cold.sha(image),'entry_image_size':64,'native_program':'fpgaload',
                      'firmware_profile_sha256':cold.sha(NANO/'sd-profile.json'),'sources':{},
                      'native_build_sources':{'platform/embedded/tamago/build.py':cold.sha(NANO.parent/'tamago/build.py')}}
+            bind_payload(entry,receipt)
             config_range=[mapping['base'],mapping['base']+mapping['size']]
             memory_range=[memory['arena_base'],memory['arena_base']+memory['arena_bytes']]
             with patch.object(cold.hps_context,'checked',return_value=ddr), \

@@ -228,6 +228,14 @@ saved capture agrees and rejects six damaged captures. The prior narrow-width
 failure remains retained. This qualifies one frame in this matched diagnostic;
 memory remains pinned and HDMI, reuse and ordinary admission remain open.
 
+Native entry now stores its complete ELF as one bounded gzip member, with
+strict decoded-size/CRC/stream checks and an explicit temporary CPU workspace
+inside owned Go RAM. Destination segments exclude that workspace before any
+load copy. The full Tenfoot command handler is selected again and the frame
+fixture uses its real search/text operations. This changes the native loader;
+previous hardware passes do not qualify the new compressed image. The FIT
+limit stays 8 MiB; ordinary UI/core admission and HDMI remain open.
+
 `fpgaload --window-memory --window-read --window-present` selects twelve
 changing real tenfoot frames through the owned `WindowSession` presenter.
 Each publication is read completely and locally drained before that arena is

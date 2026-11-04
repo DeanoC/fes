@@ -27,4 +27,13 @@ int fes_entry_plan_elf(const uint8_t *data, uint64_t size,
                        uint64_t staging_start, uint64_t staging_end,
                        struct fes_entry_plan *result);
 
+/* Also exclude the transient decoded ELF from every destination segment.
+ * Scratch is part of owned Go RAM, below its initial stack; it is no longer
+ * live when Go starts. All exclusions are checked before a segment is copied. */
+int fes_entry_plan_decoded_elf(const uint8_t *data, uint64_t size,
+                       uint64_t ram_start, uint64_t ram_end,
+                       uint64_t staging_start, uint64_t staging_end,
+                       uint64_t decode_start, uint64_t decode_capacity,
+                       struct fes_entry_plan *result);
+
 #endif

@@ -23,6 +23,10 @@ fes_entry_start:
     mrs x0, CurrentEL
     cmp x0, #8                    /* EL2: the tested vendor U-Boot path */
     b.ne .Lbad_el
+    /* Decoder faults must park here, never return through U-Boot's vectors. */
+    ldr x2, =fes_entry_vectors
+    msr vbar_el2, x2
+    isb
     mrs x0, sctlr_el2
     ldr x1, =0x1005               /* I-cache, D-cache and MMU must be off */
     tst x0, x1

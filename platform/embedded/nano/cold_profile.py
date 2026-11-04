@@ -9,6 +9,8 @@ ROOT=HERE.parents[2]
 FW=HERE.parent/'firmware'
 _spec=importlib.util.spec_from_file_location('fes_cold_hps_context',HERE/'hps_context.py')
 hps_context=importlib.util.module_from_spec(_spec);_spec.loader.exec_module(hps_context)
+_payload_spec=importlib.util.spec_from_file_location('fes_cold_entry_payload',HERE.parent/'entry/payload.py')
+entry_payload=importlib.util.module_from_spec(_payload_spec);_payload_spec.loader.exec_module(entry_payload)
 EXPERIMENTAL_FILE='FES/UPLOAD.BIN'
 MAX_FIT_SIZE=8<<20
 
@@ -43,6 +45,7 @@ def entry(entry_build):
             receipt.get('entry_image_sha256')!=sha(image) or receipt.get('entry_image_size')!=image.stat().st_size or
             not 0<image.stat().st_size<=32<<20 or receipt.get('firmware_profile_sha256')!=sha(profile)):
         raise ValueError('entry image is not bound to the source-derived cold Nano profile')
+    entry_payload.checked(receipt,image.read_bytes(),(entry_build/'payload.elf').read_bytes())
     check_sources(receipt.get('native_build_sources'))
     for name,expected in receipt['sources'].items():
         if sha(ROOT/name)!=expected:raise ValueError('entry producer source changed: '+name)
@@ -69,7 +72,7 @@ def entry(entry_build):
 
 
 def sources():
-    return [HERE/name for name in ('cold_profile.py','hps_context.py','hps_io.py','spl_cold.c','spl_console.inc','prepare_uboot.py','uboot.c','handoff.c','handoff.h','probe-profile.json','sd-profile.json','smmu-profile.json')]+[
+    return [HERE.parent/'entry/payload.py']+[HERE/name for name in ('cold_profile.py','hps_context.py','hps_io.py','spl_cold.c','spl_console.inc','prepare_uboot.py','uboot.c','handoff.c','handoff.h','probe-profile.json','sd-profile.json','smmu-profile.json')]+[
         FW/name for name in ('nano_cold.h','nano_cold.c','nano_cold_mmio.inc','nano_cold_platform.c','nano_boot.h',
                             'nano_sd.h','nano_sd.c','nano_sd_platform.h','nano_sd_platform.c','generated/fes_embedded_sd.h',
                             'nano_boot.c','nano_bridges.h','nano_bridges.c','nano_bridge_platform.inc','nano_bridge_platform.h',

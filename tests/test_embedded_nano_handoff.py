@@ -9,6 +9,8 @@ import subprocess
 import tempfile
 import unittest
 
+from entry_payload_fixture import bind_payload
+
 HERE = Path(__file__).resolve().parents[1] / "platform/embedded/nano"
 spec = importlib.util.spec_from_file_location("nano_prepare", HERE / "prepare_uboot.py")
 prepare = importlib.util.module_from_spec(spec)
@@ -121,6 +123,7 @@ class NanoExportTests(unittest.TestCase):
                    "entry_image_sha256": prepare.sha(image), "entry_image_size": 64,
                    "firmware_profile_sha256": prepare.sha(HERE / "probe-profile.json"), "sources": {},
                    "native_build_sources":{"platform/embedded/tamago/build.py":prepare.sha(HERE.parent/'tamago/build.py')}}
+        bind_payload(entry,receipt)
         (entry / "result.json").write_text(json.dumps(receipt))
         return source, entry, bootm
 
@@ -139,6 +142,28 @@ class NanoExportTests(unittest.TestCase):
             self.assertTrue(result['cold_boot_profile']['spl_atf_trace'])
             self.assertIn('#define FES_NANO_ATF_SIZE 16UL',
                           (source/'arch/arm/mach-socfpga/fes_nano_atf_seal.h').read_text())
+
+    def test_compressed_payload_and_workspace_reject_before_export_is_changed(self):
+        for mode in ('encoding','crc','raw-digest','raw-file','workspace'):
+            with self.subTest(mode=mode),tempfile.TemporaryDirectory() as tmp:
+                source,entry,bootm=self.fixture(Path(tmp));before=bootm.read_bytes()
+                record=json.loads((entry/'result.json').read_text())
+                if mode=='encoding':record.pop('payload_encoding')
+                elif mode=='raw-digest':record['payload_sha256']='0'*64
+                elif mode=='raw-file':(entry/'payload.elf').write_bytes(b'changed')
+                elif mode=='workspace':record['decode_base']+=4096
+                elif mode=='crc':
+                    image=bytearray((entry/'entry.img').read_bytes())
+                    image[-8]^=1
+                    (entry/'entry.img').write_bytes(image)
+                    record['entry_image_sha256']=prepare.sha(entry/'entry.img')
+                    import hashlib
+                    record['payload_stored_sha256']=hashlib.sha256(image[record['payload_offset']:]).hexdigest()
+                (entry/'result.json').write_text(json.dumps(record))
+                with self.assertRaises((ValueError,OSError)):
+                    prepare.prepare(source,entry,'a'*64,16)
+                self.assertEqual(bootm.read_bytes(),before)
+                self.assertFalse((source/'cmd/fes_nano.c').exists())
 
     def test_mutated_image_rejects_before_export_is_changed(self):
         with tempfile.TemporaryDirectory() as tmp:

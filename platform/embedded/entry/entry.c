@@ -2,6 +2,7 @@
 #include <stddef.h>
 #include <stdint.h>
 #include "elf_plan.h"
+#include "payload.h"
 
 #ifndef FES_ENTRY_RAM_START
 #error FES_ENTRY_RAM_START must be supplied by the selected diagnostic profile
@@ -63,17 +64,31 @@ void fes_entry_main(void)
 {
     struct fes_entry_plan plan;
     uint64_t image_start = (uintptr_t)__image_start, image_end = (uintptr_t)__image_end;
-    uint64_t payload_size = (uintptr_t)__payload_end - (uintptr_t)__payload_start;
+    uint64_t stored_size = (uintptr_t)__payload_end - (uintptr_t)__payload_start;
+    uint64_t payload_size = 0;
     puts("FES_ENTRY EL2 CLEAN\n");
-    if (!fes_entry_plan_elf(__payload_start, payload_size, FES_ENTRY_RAM_START,
-                            FES_ENTRY_RAM_END, image_start, image_end, &plan)) {
+    if (FES_ENTRY_RAM_END <= FES_ENTRY_RAM_START ||
+        FES_ENTRY_RAM_END - FES_ENTRY_RAM_START <= FES_ENTRY_PAYLOAD_MAX + FES_ENTRY_STACK_RESERVE + 0x10000) {
+        puts("FES_ENTRY REJECT MEMORY\n");
+        fes_entry_park();
+    }
+    uint64_t decode_base = FES_ENTRY_RAM_END - FES_ENTRY_STACK_RESERVE - FES_ENTRY_PAYLOAD_MAX;
+    uint8_t *payload = (uint8_t *)(uintptr_t)decode_base;
+    if ((image_start < decode_base + FES_ENTRY_PAYLOAD_MAX && decode_base < image_end) ||
+        !fes_entry_unpack(__payload_start, stored_size, payload, FES_ENTRY_PAYLOAD_MAX, &payload_size)) {
+        puts("FES_ENTRY REJECT PAYLOAD\n");
+        fes_entry_park();
+    }
+    if (!fes_entry_plan_decoded_elf(payload, payload_size, FES_ENTRY_RAM_START,
+                            FES_ENTRY_RAM_END, image_start, image_end,
+                            decode_base, FES_ENTRY_PAYLOAD_MAX, &plan)) {
         puts("FES_ENTRY REJECT ELF\n");
         fes_entry_park();
     }
     for (uint32_t i = 0; i < plan.count; i++) {
         const struct fes_entry_segment *segment = &plan.segments[i];
         volatile uint8_t *destination = (volatile uint8_t *)(uintptr_t)segment->address;
-        const uint8_t *source = __payload_start + segment->file_offset;
+        const uint8_t *source = payload + segment->file_offset;
         for (uint64_t j = 0; j < segment->file_size; j++) destination[j] = source[j];
         for (uint64_t j = segment->file_size; j < segment->memory_size; j++) destination[j] = 0;
     }
