@@ -522,8 +522,16 @@ def reviewed_hps_parameter_changes(inputs):
     scanout = inputs.get("scanout", {})
     managed = scanout.get("managed_fabric")
     if managed is not None:
+        standard = inputs.get("standard_zx81", {})
+        integration = (scanout.get("build_identity_scheme") == "standard-board-integration-source-profile" and
+            standard.get("scope") == "standard-core-board-integration" and
+            standard.get("runtime_admission") == "not-qualified" and
+            standard.get("expansion_socket") is False and standard.get("computer_offset") == 0x10300 and
+            isinstance(standard.get("build_id"), str) and
+            re.fullmatch(r"[0-9a-f]{32}", standard["build_id"]) is not None and
+            standard["build_id"] != "0" * 32 and standard["build_id"] == scanout.get("build_id"))
         if (managed != "managed-scanout-initiators-v3" or
-                scanout.get("build_identity_scheme") != "canonical-functional-record-v2" or
+                (scanout.get("build_identity_scheme") != "canonical-functional-record-v2" and not integration) or
                 scanout.get("hps_initialization") != "HPS FIRST" or
                 inputs.get("f2sdram_master_profile") != "scanout-only"):
             raise ValueError("unsupported managed HPS parameter profile")

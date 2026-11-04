@@ -650,6 +650,29 @@ class HpsBuildTests(unittest.TestCase):
             with self.subTest(profile=changed), self.assertRaises(ValueError):
                 BUILD.reviewed_hps_parameter_changes(changed)
 
+    def test_standard_board_uses_the_exact_managed_hps_changes_without_package_admission(self):
+        build_id = "00112233445566778899aabbccddeeff"
+        selected = {"f2sdram_master_profile": "scanout-only", "scanout": {
+            "managed_fabric": "managed-scanout-initiators-v3", "hps_initialization": "HPS FIRST",
+            "build_identity_scheme": "standard-board-integration-source-profile", "build_id": build_id},
+            "standard_zx81": {"scope": "standard-core-board-integration", "runtime_admission": "not-qualified",
+                "computer_offset": 0x10300, "expansion_socket": False, "build_id": build_id},
+            "allowed_hps_parameter_changes": {HPS: {
+                "f2sdram_SMMU": {"before": "false", "after": "true"},
+                "f2s_data_width": {"before": "256", "after": "0"}}}}
+        self.assertEqual(BUILD.reviewed_hps_parameter_changes(selected), selected["allowed_hps_parameter_changes"])
+        for key, value in (("scope", "package"), ("runtime_admission", "qualified"),
+                           ("computer_offset", 0x10200), ("expansion_socket", True),
+                           ("build_id", "f" * 32), ("build_id", "0" * 32)):
+            changed = copy.deepcopy(selected); changed["standard_zx81"][key] = value
+            with self.subTest(key=key, value=value), self.assertRaises(ValueError):
+                BUILD.reviewed_hps_parameter_changes(changed)
+        for parameter in ("H2F_Width", "emif_frequency"):
+            changed = copy.deepcopy(selected)
+            changed["allowed_hps_parameter_changes"][HPS][parameter] = {"before": "128", "after": "64"}
+            with self.subTest(parameter=parameter), self.assertRaises(ValueError):
+                BUILD.reviewed_hps_parameter_changes(changed)
+
     def bram_inputs(self):
         return {"f2sdram_master_profile": "bram-computer",
             "computer": {"managed_fabric": "managed-bram-computer-initiators-v1",
