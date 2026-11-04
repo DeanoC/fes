@@ -9,17 +9,9 @@ import (
 	"github.com/DeanoC/FogCast/internal/kithost"
 )
 
-func TestPrintKitUIAlwaysSelectsTenfoot(t *testing.T) {
-	var stdout, stderr bytes.Buffer
-	code := kitMain(context.Background(), []string{"--config", "/media/fat/fogcast/launcher.json", "--print-kit-ui"}, &stdout, &stderr, nil)
-	if code != 0 || stdout.String() != "tenfoot\n" || stderr.Len() != 0 {
-		t.Fatalf("code=%d stdout=%q stderr=%q", code, stdout.String(), stderr.String())
-	}
-}
-
 func TestOtherKitInvocationsFail(t *testing.T) {
 	var stdout, stderr bytes.Buffer
-	if code := kitMain(context.Background(), []string{"--menu-display"}, &stdout, &stderr, nil); code != 2 || stdout.Len() != 0 {
+	if code := kitMain(context.Background(), []string{"--print-kit-ui"}, &stdout, &stderr, nil); code != 2 || stdout.Len() != 0 {
 		t.Fatalf("code=%d stdout=%q", code, stdout.String())
 	}
 }

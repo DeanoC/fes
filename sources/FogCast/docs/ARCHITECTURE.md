@@ -2497,8 +2497,7 @@ supervisor starts it after the runtime and agent. `ui/launcherconfig` reads the
 provisioned `launcher.json` (`api`, `token`, `target_id`) and ignores keys left
 by the removed grid launcher. The bundle's `bin/fogcast-kit` is
 `cmd/fogcast-api` built under the kit's name: `fogcast-kit host` is the kit's
-FogCast host ([kit mode](#kit-mode)), and `--print-kit-ui` still prints
-`tenfoot` for bases whose supervisor probes it before starting the launcher.
+FogCast host ([kit mode](#kit-mode)).
 
 A paired, authenticated host listener serves a restricted set of existing
 library, artwork, and session operations. The host keeps target and input lease

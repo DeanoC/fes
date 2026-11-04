@@ -396,8 +396,7 @@ socket when the kit has its own playable shelf. Select + Start held for one
 second requests Stop. Each kit pad applies the profile `tenfoot.json` saves
 under its GUID (`ui/inputmap`: the `swap-ab` preset and single-control
 bindings). The bundle's `bin/fogcast-kit` is `cmd/fogcast-api` built under
-the kit's name: `fogcast-kit host` is the kit's FogCast host, and
-`--print-kit-ui` still answers `tenfoot` for bases whose supervisor probes it.
+the kit's name: `fogcast-kit host` is the kit's FogCast host.
 See [kit launcher](docs/kit-launcher.md). Exact image and hardware evidence
 belong to FES.
 
