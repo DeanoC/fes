@@ -16,7 +16,17 @@ poll is added. Tests join the actual C dispatcher and both reader RTL models,
 including missing capability, stale proof and live-scope failure. The
 [matched bounded board test](../../../docs/validation/2026-11-04-de25-window-storage-return/README.md)
 passes frame return, fresh SD retention and containment for its exact source.
-Ordinary package admission and reconfiguration after this window remain open.
+Ordinary package admission and physical repeated-window qualification remain open.
+
+The matched SD-return profile also prototypes rearming after its own complete
+window return and SD stop. The dispatcher consumes a private secure grant before
+descriptor capture, then permits only configuration operations until completion.
+Completion rechecks the captured closure and SD owner/epoch/return/stop records,
+creates fresh master-stop state and withdraws the old closure. A new opening
+requires the new completed configuration. Tests execute two and three C/RTL
+cycles and inject stale ownership, changed receipts, damaged bytes and failed
+configuration/open/return operations. The new repeated path has no hardware
+acceptance; the earlier one-window capture does not qualify it.
 
 The reader-stop helper caches its first and last stable, identity-checked
 samples during the existing bounded stop. A failed cold stop logs their status,

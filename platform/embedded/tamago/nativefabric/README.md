@@ -193,8 +193,18 @@ receipts carry the opt-in; absent/mixed selections reject. The separate host
 trace decoder requires the entire frame return before SD begin and a fresh
 containment receipt. The
 [exact-source board diagnostic](../../../../docs/validation/2026-11-04-de25-window-storage-return/README.md)
-passes both phases with one attempt and no retries. Window reconfiguration,
-ordinary admission and the normal UI loop remain open.
+passes both phases with one attempt and no retries. Repeated physical window
+launches, ordinary admission and the normal UI loop remain open.
+
+`WindowSession.NewStoredReconfigurationTransfer` prototypes the next launch.
+It consumes only its own successful close and completed SD resumption. The
+fresh plan and handoff must belong to the original store and carry that exact
+return into the new secure generation. The whole pinned frame arena is checked
+before reservation and again before START. A successful new configuration may
+open one new window session over the still-pinned arena; old sessions and
+transfer copies cannot replay the opening. The actual C/RTL and native tests
+exercise three cycles and failures. No new allocation release, normal runtime
+admission or repeated-launch hardware acceptance follows from these tests.
 
 Host tests cover twelve changing frames, independent pixel/CRC/hash checks,
 publication and ownership failures, cancellation, token exhaustion and concurrent

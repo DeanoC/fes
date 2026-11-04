@@ -342,6 +342,17 @@ class NanoConfigurationTests(unittest.TestCase):
                     if evidence:(target/('window-storage-'+str(mutation)+'.log')).write_text(result.stdout+result.stderr)
                     self.assertEqual(result.returncode,0,result.stderr+'\n'+result.stdout[-5000:])
                     self.assertIn('PASS strong window SD return',result.stdout)
+            for mutation in range(189,205):
+                with self.subTest(strong_window_relaunch=mutation):
+                    result=subprocess.run([window/'Vfes_de25_embedded',str(mutation)],capture_output=True,text=True,timeout=15)
+                    if evidence:(target/('window-relaunch-'+str(mutation)+'.log')).write_text(result.stdout+result.stderr)
+                    self.assertEqual(result.returncode,0,result.stderr+'\n'+result.stdout[-6000:])
+                    self.assertIn('PASS strong window relaunch',result.stdout)
+                    if mutation in (189,190,191,192,193,201,202):
+                        cycles=3 if mutation==190 else 2
+                        self.assertEqual(result.stdout.count('FES_NANO_FABRIC_ACTIVATION '),cycles)
+                        self.assertEqual(result.stdout.count('FES_NANO_WINDOW_CLOSURE '),cycles)
+                        self.assertEqual(result.stdout.count('FES_TEST_WINDOW_FRAME bytes=3686400 '),cycles)
             if evidence:
                 shutil.copytree(base,target/'window-storage-build')
                 (target/'window-storage-build/contract.json').write_text(json.dumps({'profile':window_profile+'\n#define FES_NANO_WINDOW_STORAGE_RETURN 1\n','command':command},indent=2)+'\n')

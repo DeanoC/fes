@@ -66,17 +66,17 @@ func (v *HPSContextVerifier) PreflightStoredConfiguration(control, configuration
 // handoff for its exact selection may reach the live cold ownership checks and
 // DMA reservation. No filesystem handle is used and neither device is released.
 func (p *StoredConfigurationPlan) NewTransfer(handoff *packagestore.Handoff, reserve func([]byte) (*Region, error)) (*ConfigurationTransfer, HPSBootObservation, error) {
-	return p.newTransfer(handoff, reserve, false)
+	return p.newTransfer(handoff, reserve, false, nil)
 }
 
 // NewReconfigurationTransfer consumes a fresh plan after this verifier's own
 // successful computer return. It never resumes storage or treats the older SD
 // receipt as live FPGA authority. Secure rearming still checks the captured program.
 func (p *StoredConfigurationPlan) NewReconfigurationTransfer(handoff *packagestore.Handoff, reserve func([]byte) (*Region, error)) (*ConfigurationTransfer, HPSBootObservation, error) {
-	return p.newTransfer(handoff, reserve, true)
+	return p.newTransfer(handoff, reserve, true, nil)
 }
 
-func (plan *StoredConfigurationPlan) newTransfer(handoff *packagestore.Handoff, reserve func([]byte) (*Region, error), rearm bool) (*ConfigurationTransfer, HPSBootObservation, error) {
+func (plan *StoredConfigurationPlan) newTransfer(handoff *packagestore.Handoff, reserve func([]byte) (*Region, error), rearm bool, window *WindowSession) (*ConfigurationTransfer, HPSBootObservation, error) {
 	if plan == nil || plan.state == nil {
 		return nil, HPSBootObservation{}, errors.New("native fabric: retained configuration plan missing")
 	}
@@ -91,7 +91,13 @@ func (plan *StoredConfigurationPlan) newTransfer(handoff *packagestore.Handoff, 
 	if reserve == nil {
 		return nil, HPSBootObservation{}, errors.New("native fabric: retained configuration reservation missing")
 	}
-	selection, err := handoff.Selection()
+	var selection *packagestore.Selection
+	var err error
+	if window != nil {
+		selection, err = handoff.SelectionAfterReturn(window.storage, window.returned.After.Owner, window.returned.After.Generation)
+	} else {
+		selection, err = handoff.Selection()
+	}
 	if err != nil {
 		return nil, HPSBootObservation{}, err
 	}
@@ -105,7 +111,15 @@ func (plan *StoredConfigurationPlan) newTransfer(handoff *packagestore.Handoff, 
 		return nil, HPSBootObservation{}, err
 	}
 	held, generation := v.coldSource(source), receipt.Generation == source.Bridges.Generation
-	if rearm {
+	if rearm && window != nil {
+		closed := window.returned.After
+		generation = closed.Generation <= ^uint64(0)-3 && receipt.Generation == source.Bridges.Generation &&
+			receipt.Generation == closed.Generation+3
+		held = window.self == window && window.verifier == v && window.closed && window.closeErr == nil &&
+			window.storageResumed && window.nextAttempted && window.returned.Frames > 0 &&
+			window.source.Digest == source.Digest && closed.Owner == source.Bridges.Owner &&
+			source.Bridges.Generation <= ^uint64(0)-3 && v.reconfigurationSource(source)
+	} else if rearm {
 		v.computerMu.Lock()
 		returned := v.computerClosed && source.Bridges.Generation > 2 && v.computerGeneration == source.Bridges.Generation-2
 		fromReturn := handoff.ReturnedFrom()
@@ -121,7 +135,7 @@ func (plan *StoredConfigurationPlan) newTransfer(handoff *packagestore.Handoff, 
 		held = v.reconfigurationSource(source) && returned
 	}
 	if !held || !generation || receipt.Active || receipt.Prepared || receipt.Owner != source.Bridges.Owner {
-		return nil, HPSBootObservation{}, errors.New("native fabric: retained storage or computer return differs from live ownership")
+		return nil, HPSBootObservation{}, errors.New("native fabric: retained storage or verified return differs from live ownership")
 	}
 	region, err := reserve(p.payload)
 	p.region = region // Retain even a reservation returned together with an error.
@@ -133,9 +147,19 @@ func (plan *StoredConfigurationPlan) newTransfer(handoff *packagestore.Handoff, 
 		return nil, HPSBootObservation{}, err
 	}
 	transfer.binding.handoff = handoff
+	transfer.binding.windowReturn = window
 	prepare := transfer.beforeStart
 	transfer.beforeStart = func() error {
-		current, err := handoff.Selection()
+		var current *packagestore.Selection
+		var err error
+		if window != nil {
+			if err = window.checkArena(); err != nil {
+				return err
+			}
+			current, err = handoff.SelectionAfterReturn(window.storage, window.returned.After.Owner, window.returned.After.Generation)
+		} else {
+			current, err = handoff.Selection()
+		}
 		if err != nil {
 			return err
 		}

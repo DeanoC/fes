@@ -131,3 +131,43 @@ func TestHandoffReturnRejectsChangedHandleAndRetainsUncertainGrant(t *testing.T)
 		})
 	}
 }
+
+func TestFreshSelectionRequiresOriginalStoreAndExactReturn(t *testing.T) {
+	store, previous, _, request := returnHandoff(t)
+	if err := previous.ResumeAfterReturn(17, 7); err != nil {
+		t.Fatal(err)
+	}
+	selection, err := store.Retain(context.Background(), request)
+	if err != nil {
+		t.Fatal(err)
+	}
+	next, err := store.Contain(selection)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got, err := next.SelectionAfterReturn(previous, 17, 7); err != nil || got != selection {
+		t.Fatal(got, err)
+	}
+	_, foreign, _, _ := returnHandoff(t)
+	for _, p := range []*Handoff{nil, {}, foreign} {
+		if _, err := next.SelectionAfterReturn(p, 17, 7); err == nil {
+			t.Fatal("foreign predecessor accepted")
+		}
+	}
+	for _, r := range []sdcontrol.Receipt{{Owner: 18, Generation: 7}, {Owner: 17, Generation: 6}, {Owner: 17, Generation: ^uint64(0)}} {
+		if _, err := next.SelectionAfterReturn(previous, r.Owner, r.Generation); err == nil {
+			t.Fatal("changed return accepted")
+		}
+	}
+	changed := *next
+	changed.receipt.Generation++
+	if _, err := changed.SelectionAfterReturn(previous, 17, 7); err == nil {
+		t.Fatal("changed fresh containment accepted")
+	}
+	if err := next.ResumeAfterReturn(17, 13); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := next.SelectionAfterReturn(previous, 17, 7); err == nil {
+		t.Fatal("old fresh selection survived resume")
+	}
+}

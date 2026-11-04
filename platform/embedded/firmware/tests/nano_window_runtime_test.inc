@@ -94,6 +94,12 @@ static int window_cycle(uint64_t owner,uint64_t generation)
         assert(!reply[0] && reply[2]==owner && reply[3]==returned);
         fes_nano_owned_call(FES_EMBEDDED_SD_CALL,FES_EMBEDDED_SD_RESUME,owner,FES_EMBEDDED_SD_COOKIE,returned,reply);
         assert(!reply[0] && reply[3]==returned+1 && fes_nano_owned_bridges.device_lease);
+        if(window_rearm_case==5 && !window_round) {
+            unsigned calls=engine_calls;
+            fes_nano_owned_call(FES_EMBEDDED_BRIDGE_CALL,FES_EMBEDDED_BRIDGE_REARM_CONFIGURATION,
+                               owner,FES_EMBEDDED_BRIDGE_COOKIE,returned+1,reply);
+            assert(reply[0] && c->finished && engine_calls==calls && fes_nano_owned_sd.active);
+        }
         sd_registers[0x22c/4]=FES_NANO_SD_IDENT_CLOCK;
         fes_nano_owned_call(FES_EMBEDDED_SD_CALL,FES_EMBEDDED_SD_PREPARE,owner,FES_EMBEDDED_SD_COOKIE,returned+1,reply);
         assert(!reply[0] && reply[3]==returned+2 && fes_nano_owned_sd.prepared);
@@ -102,6 +108,68 @@ static int window_cycle(uint64_t owner,uint64_t generation)
         assert(!fes_nano_sd_returned(&fes_nano_owned_sd,owner,returned,returned+3));
         assert(reads==fpga_reads+probe_reads+smmu_reads+firewall_reads && writes==fpga_writes+probe_writes);
         puts("PASS strong window SD return and fresh controller containment");
+        if(window_rearm_case && window_round<(window_rearm_case==2?2U:1U)) {
+            unsigned calls=engine_calls;
+            configuration_generation=returned+3;
+            if(window_rearm_case==3 || window_rearm_case==4) {
+                fes_nano_owned_call(FES_EMBEDDED_BRIDGE_CALL,FES_EMBEDDED_BRIDGE_REARM_CONFIGURATION,
+                    window_rearm_case==3?owner+1:owner,FES_EMBEDDED_BRIDGE_COOKIE,
+                    window_rearm_case==4?generation:configuration_generation,reply);
+                assert(reply[0] && c->finished && !c->failed && engine_calls==calls);
+            }
+            if(window_rearm_case==6)fes_nano_owned_sd.return_generation++;
+            if(window_rearm_case==7)invalid_sd_route=1;
+            if(window_rearm_case==8)((uint8_t *)(uintptr_t)FES_NANO_CONFIG_BASE)[0]^=1;
+            fes_nano_owned_call(FES_EMBEDDED_BRIDGE_CALL,FES_EMBEDDED_BRIDGE_REARM_CONFIGURATION,
+                               owner,FES_EMBEDDED_BRIDGE_COOKIE,configuration_generation,reply);
+            if(window_rearm_case>=6 && window_rearm_case<=8) {
+                assert(reply[0] && engine_calls==calls && bridge==15);
+                fes_nano_owned_call(INTEL_SIP_SMC_FPGA_CONFIG_START,0,0,0,0,reply);
+                assert(reply[0] && engine_calls==calls);
+                puts("PASS strong window relaunch rejected invalid SD proof or bytes before START");return 0;
+            }
+            assert(!reply[0] && reply[3]==configuration_generation && c->rearmed && !c->finished);
+            if(window_rearm_case==13 || window_rearm_case==14) {
+                fes_nano_owned_call(FES_EMBEDDED_BRIDGE_CALL,window_rearm_case==13?
+                    FES_EMBEDDED_BRIDGE_CONTROL:FES_EMBEDDED_BRIDGE_REARM_CONFIGURATION,
+                    owner,FES_EMBEDDED_BRIDGE_COOKIE,configuration_generation,reply);
+                assert(reply[0] && !c->finished && !c->failed && engine_calls==calls);
+            }
+            if(window_rearm_case==9)configuration_mutation=50;
+            fes_nano_owned_call(INTEL_SIP_SMC_FPGA_CONFIG_START,0,0,0,0,reply);
+            if(window_rearm_case==9) {
+                assert(reply[0] && c->failed && engine_calls==calls+1);
+                fes_nano_owned_call(INTEL_SIP_SMC_FPGA_CONFIG_START,0,0,0,0,reply);
+                assert(reply[0] && engine_calls==calls+1);
+                puts("PASS strong window relaunch failed START cannot retry");return 0;
+            }
+            assert(!reply[0]);
+            for(uint32_t offset=0;offset<FES_NANO_CONFIG_BYTES;) {
+                uint32_t bytes=FES_NANO_CONFIG_BYTES-offset;
+                if(bytes>FES_NANO_CONFIG_CHUNK)bytes=FES_NANO_CONFIG_CHUNK;
+                fes_nano_owned_call(INTEL_SIP_SMC_FPGA_CONFIG_WRITE,FES_NANO_CONFIG_BASE+offset,bytes,0,0,reply);
+                assert(reply[0]==1);
+                fes_nano_owned_call(INTEL_SIP_SMC_FPGA_CONFIG_COMPLETED_WRITE,0,0,0,0,reply);
+                assert(!reply[0] && reply[1]==FES_NANO_CONFIG_BASE+offset-FES_NANO_CONFIG_DRAM);
+                offset+=bytes;
+            }
+            if(window_rearm_case==10)fes_nano_owned_bridges.closure.after.generation++;
+            if(window_rearm_case==15)fes_nano_owned_sd.stopped_generation++;
+            if(window_rearm_case==16)fes_nano_owned_sd.return_generation++;
+            fes_nano_owned_call(INTEL_SIP_SMC_FPGA_CONFIG_ISDONE,0,0,0,0,reply);
+            if(window_rearm_case==10 || window_rearm_case==15 || window_rearm_case==16) {
+                assert(reply[0] && c->failed && fes_nano_owned_bridges.failed && bridge==15);
+                puts("PASS strong window relaunch rejects changed captured return at completion");return 0;
+            }
+            assert(!reply[0] && c->finished && !c->failed && !fes_nano_owned_bridges.closure_valid);
+            /* A real configuration resets both RTL masters. Reset only those
+             * hardware models here; secure ownership and stop state stay live. */
+            fes_test_window_reset();window_enables=window_closes=probe_writes=0;window_round++;
+            if(window_rearm_case==11){window_case=6;window_storage_case=0;}
+            if(window_rearm_case==12){window_case=1;window_storage_case=0;}
+            int status=window_cycle(owner,configuration_generation);
+            puts("PASS strong window relaunch with new configuration, reader and owned closure");return status;
+        }
     }
     printf("PASS strong window configuration/read/drain/return case=%u reset=%x enables=%u closes=%u\n",
            window_case,bridge,window_enables,window_closes);

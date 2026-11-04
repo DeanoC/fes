@@ -40,7 +40,7 @@ static unsigned smmu_reads,smmu_fault;
 #include <socfpga_mailbox.h>
 static unsigned fpga_reads,bad_magic,bad_build,flip_cache,lose_data,bad_open,bad_close;
 static unsigned config_calls,config_fault;
-#ifdef FES_TEST_CONFIGURATION_EPOCHS
+#if defined(FES_TEST_CONFIGURATION_EPOCHS) || defined(FES_TEST_WINDOW_RTL)
 static unsigned configuration_epoch,configuration_fpga_baseline;
 static void closed_configuration_query(void)
 {
@@ -67,7 +67,8 @@ uint32_t fes_test_reader_read(uint32_t);
 void fes_test_reader_write(uint32_t,uint32_t);
 #endif
 #ifdef FES_TEST_WINDOW_RTL
-static unsigned window_case,window_enables,window_closes,window_storage_case;
+static unsigned window_case,window_enables,window_closes,window_storage_case,window_rearm_case,window_round;
+void fes_test_window_reset(void);
 void fes_test_window_frame(unsigned);
 void fes_test_window_fault(unsigned);
 void fes_test_window_wait(void);
@@ -79,7 +80,7 @@ int mailbox_send_cmd(uint32_t job,uint32_t cmd,uint32_t *args,unsigned length,ui
 {
     assert(job==MBOX_JOB_ID && cmd==MBOX_CONFIG_STATUS && !args && !length && urgent==CMD_CASUAL);
     assert(bridge==15 && *words==6);
-#ifdef FES_TEST_CONFIGURATION_EPOCHS
+#if defined(FES_TEST_CONFIGURATION_EPOCHS) || defined(FES_TEST_WINDOW_RTL)
     closed_configuration_query();
 #else
     assert(!fpga_reads);
@@ -155,7 +156,7 @@ static uint32_t configuration_addresses[4];
 static unsigned configuration_address_count;
 static int intel_fpga_config_start(uint64_t v) {
     assert(!v && bridge==15);engine_calls++;request_type=RECONFIGURATION;
-#ifdef FES_TEST_CONFIGURATION_EPOCHS
+#if defined(FES_TEST_CONFIGURATION_EPOCHS) || defined(FES_TEST_WINDOW_RTL)
     configuration_epoch++;configuration_fpga_baseline=fpga_reads;
 #endif
     return configuration_mutation==50 ? 4 : 0;
@@ -585,7 +586,8 @@ int main(int argc,char **argv)
 {
     assert(argc==2);unsigned mutation=atoi(argv[1]);
 #ifdef FES_TEST_WINDOW_RTL
-    if(mutation>=170 && mutation<=188) { window_storage_case=mutation-169;window_case=0; }
+    if(mutation>=189 && mutation<=204) { window_rearm_case=mutation-188;window_storage_case=1;window_case=0; }
+    else if(mutation>=170 && mutation<=188) { window_storage_case=mutation-169;window_case=0; }
     else { assert(mutation>=160 && mutation<=168);window_case=mutation-160; }
     mutation=67;
 #endif

@@ -9,8 +9,9 @@
 #if defined(FES_NANO_COLD_COMPUTER) && FES_NANO_COLD_COMPUTER
 #error "window and computer sessions cannot share a boot grant"
 #endif
-enum { FES_WINDOW_FRESH, FES_WINDOW_CONTROL, FES_WINDOW_DATA, FES_WINDOW_RETIRED };
+enum { FES_WINDOW_FRESH, FES_WINDOW_CONTROL, FES_WINDOW_DATA, FES_WINDOW_RETIRED, FES_WINDOW_RECONFIGURING };
 static unsigned fes_nano_window_phase;
+static uint64_t fes_nano_window_generation;
 
 static void fes_nano_window_failure(struct fes_nano_identity_probe *p,int error)
 {
@@ -37,10 +38,22 @@ static int fes_nano_window_control(uint32_t fid,uint64_t operation,uint64_t owne
         unsigned storage=0;
 #if defined(FES_NANO_WINDOW_STORAGE_RETURN) && FES_NANO_WINDOW_STORAGE_RETURN
         uint64_t returned=0;
+        if(bridge && operation==FES_EMBEDDED_BRIDGE_REARM_CONFIGURATION && !busy &&
+           fes_nano_platform_window_rearm(owner,generation)==1) {
+            fes_nano_window_phase=FES_WINDOW_RECONFIGURING;
+            fes_nano_configuration_rearm(c,owner,generation,0,r);
+            return 1;
+        }
         storage=fid==FES_EMBEDDED_SD_CALL && cookie==FES_EMBEDDED_SD_COOKIE && !busy &&
                 fes_nano_platform_window_return(&returned)==1;
 #endif
         return !(context || storage);
+    }
+    if(fes_nano_window_phase==FES_WINDOW_RECONFIGURING && !control) {
+        unsigned transfer=c && c->rearmed && c->prepared && !c->finished && !c->failed &&
+            (fid==FES_NANO_CONFIG_START || fid==FES_NANO_CONFIG_WRITE ||
+             fid==FES_NANO_CONFIG_COMPLETED || fid==FES_NANO_CONFIG_ISDONE);
+        return !(context || transfer);
     }
     if(fes_nano_window_phase==FES_WINDOW_FRESH && !control) {
         unsigned raw=bridge && ((operation&~(uint64_t)FES_EMBEDDED_BRIDGE_RELEASE_MASK)==FES_EMBEDDED_BRIDGE_RELEASE ||
@@ -50,14 +63,18 @@ static int fes_nano_window_control(uint32_t fid,uint64_t operation,uint64_t owne
     }
     if(!bridge)return 1;
     r[1]=(uint64_t)FES_EMBEDDED_BRIDGE_TAG<<32;r[2]=r[3]=0;
-    if(fes_nano_window_phase==FES_WINDOW_FRESH) {
+    if(fes_nano_window_phase==FES_WINDOW_FRESH || fes_nano_window_phase==FES_WINDOW_RECONFIGURING) {
         if(!c || !c->initialized || !c->attempted || !c->prepared || !c->started || !c->finished ||
-           c->failed || c->pending || c->issued || c->completed!=c->bytes || !c->bytes || c->rearmed ||
+           c->failed || c->pending || c->issued || c->completed!=c->bytes || !c->bytes ||
            c->owner!=owner || c->generation!=generation || generation>UINT64_MAX-3 || busy ||
            !c->bridges || c->bridges->failed || c->bridges->device_lease ||
-           !p || !p->initialized || p->failed || p->active || p->attempted || p->first_error ||
+           !p || !p->initialized || p->failed || p->active || p->first_error ||
            p->cleanup_error || p->abi!=0x10203042U || p->bridges!=c->bridges || !p->io.configured)return 1;
+        if(fes_nano_window_phase==FES_WINDOW_FRESH ? (c->rearmed || p->attempted) :
+           (!c->rearmed || !p->attempted || p->stage!=FES_ID_COMPLETE ||
+            generation<=fes_nano_window_generation))return 1;
         fes_nano_window_phase=FES_WINDOW_RETIRED; /* Consume before the first use-point read. */
+        fes_nano_window_generation=generation;
         p->attempted=1;p->reader=FES_NANO_READER_WINDOW;p->stage=FES_ID_CONFIG;
         int ready=p->io.configured(p->io.context);
         if(ready!=1) {

@@ -144,6 +144,19 @@ func (h *Handoff) Selection() (*Selection, error) {
 	return h.selection, nil
 }
 
+// SelectionAfterReturn verifies a fresh containment from the original store.
+// Its private predecessor prevents an unrelated store with matching cached
+// receipts from substituting a selection. Live fabric ownership is separate.
+func (h *Handoff) SelectionAfterReturn(previous *Handoff, owner, generation uint64) (*Selection, error) {
+	if h == nil || previous == nil || h.store == nil || h.store != previous.store || previous.selection == nil ||
+		owner == 0 || generation == 0 || generation > ^uint64(0)-3 || previous.receipt.Owner != owner ||
+		previous.receipt.Generation >= generation || h.returned != (sdcontrol.Receipt{Owner: owner, Generation: generation}) ||
+		h.receipt != (sdcontrol.Receipt{Owner: owner, Generation: generation + 3}) {
+		return nil, ErrState
+	}
+	return h.Selection()
+}
+
 func New(files fs.FS, lease Lease) (*Store, error) {
 	if files == nil || lease == nil {
 		return nil, ErrState

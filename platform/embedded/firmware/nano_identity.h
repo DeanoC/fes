@@ -64,6 +64,9 @@ int fes_nano_platform_window_prepare(void);
 void fes_nano_platform_window_report(unsigned);
 /* Cached complete window stop/closure proof under the shared platform lock. */
 int fes_nano_platform_window_return(uint64_t *generation);
+/* Consume a completed window/SD return before configuration mutates its state.
+ * Called only by the owned dispatcher under the shared platform lock. */
+int fes_nano_platform_window_rearm(uint64_t owner, uint64_t generation);
 void fes_nano_platform_identity_report(void);
 #ifdef __cplusplus
 }

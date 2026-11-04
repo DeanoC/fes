@@ -76,6 +76,10 @@ passes both load/Run/return cycles with fresh storage retention between them.
 A contained `Handoff` can now resume only its original store after an explicitly
 verified fabric return. Copies share the same current receipt and consumption;
 stale or forged handles cannot select another filesystem or replay a grant.
+`SelectionAfterReturn` compares the private predecessor store and exact returned
+owner/generation before exposing the fresh contained selection. A different
+store with matching public receipts cannot substitute it. This is provenance;
+the native session must still prove its live fabric ownership independently.
 The window session retains this private handoff through its transfer and uses
 it only after verified reader/master closure. Firmware independently accepts or
 rejects the display-return capability. Fresh selection requires real reads from

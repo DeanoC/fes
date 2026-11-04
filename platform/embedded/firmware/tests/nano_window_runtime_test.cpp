@@ -5,6 +5,11 @@
 
 static std::unique_ptr<Fixture> model;
 static bool probe_cancelled;
+extern "C" void fes_test_window_reset()
+{
+    model=std::make_unique<Fixture>("",false);
+    probe_cancelled=false;
+}
 extern "C" int fes_strong_window_main(int,char **);
 extern "C" uint32_t fes_test_reader_read(uint32_t offset)
 {

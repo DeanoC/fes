@@ -371,6 +371,7 @@ void fes_nano_platform_window_report(unsigned phase)
 #if !defined(FES_NANO_WINDOW_PRESENT_DIAGNOSTIC) || !FES_NANO_WINDOW_PRESENT_DIAGNOSTIC || !defined(FES_NANO_CONTROLLED_SD) || !FES_NANO_CONTROLLED_SD
 #error "window storage return requires matched presentation and controlled SD"
 #endif
+static uint64_t window_rearm_owner,window_rearm_generation,window_rearm_return;
 int fes_nano_platform_window_return(uint64_t *generation)
 {
     struct fes_nano_bridges *b=&fes_nano_owned_bridges;
@@ -378,7 +379,7 @@ int fes_nano_platform_window_return(uint64_t *generation)
     const struct fes_nano_fabric_progress *last=&fabric_stop.last_observed;
     struct fes_nano_configuration *c=fes_nano_platform_configuration();
     uint64_t returned=0;
-    if(!generation || !c || !c->initialized || !c->attempted || !c->prepared || !c->started || !c->finished || c->rearmed ||
+    if(!generation || !c || !c->initialized || !c->attempted || !c->prepared || !c->started || !c->finished ||
        c->failed || c->issued || c->pending ||
        c->completed!=c->bytes || !c->bytes || c->bridges!=b || c->owner!=b->state.owner ||
        !fabric_configuration_generation || c->generation!=fabric_configuration_generation ||
@@ -399,6 +400,22 @@ int fes_nano_platform_window_return(uint64_t *generation)
        p->closure.data_remained_contained || p->closure.hardware_drained!=8U)
         return 0;
     *generation=returned;
+    return 1;
+}
+int fes_nano_platform_window_rearm(uint64_t owner,uint64_t generation)
+{
+    struct fes_nano_configuration *c=fes_nano_platform_configuration();
+    struct fes_nano_sd *s=&fes_nano_owned_sd;
+    uint64_t returned=0;
+    if(!owner || !generation || generation>UINT64_MAX-3 || window_rearm_generation ||
+       !c || c->owner!=owner || generation<=c->generation ||
+       !s->initialized || s->failed || s->active || s->prepared ||
+       s->owner!=owner || s->stopped_generation!=generation ||
+       !fes_nano_platform_window_return(&returned) || returned>UINT64_MAX-6 ||
+       generation!=returned+3 || fes_nano_sd_returned(s,owner,returned,generation))return 0;
+    /* The dispatcher retires SD immediately after this consumed proof. New
+     * configuration may then change c, but cannot replace this owned receipt. */
+    window_rearm_owner=owner;window_rearm_generation=generation;window_rearm_return=returned;
     return 1;
 }
 #endif
@@ -775,6 +792,17 @@ static int configuration_check(void *context, uint64_t address, uint32_t bytes, 
 static int configuration_return_generation(uint64_t owner,uint64_t generation)
 {
     uint64_t returned;
+#if defined(FES_NANO_WINDOW_STORAGE_RETURN) && FES_NANO_WINDOW_STORAGE_RETURN
+    struct fes_nano_sd *s=&fes_nano_owned_sd;
+    return window_rearm_owner==owner && window_rearm_generation==generation &&
+        window_rearm_return && window_rearm_return<=UINT64_MAX-3 && generation==window_rearm_return+3 &&
+        s->initialized && !s->failed && !s->active && !s->prepared && s->bridges==&fes_nano_owned_bridges &&
+        s->owner==owner && s->epoch==fes_nano_owned_bridges.epoch &&
+        s->return_generation==window_rearm_return && s->grant_generation==window_rearm_return &&
+        s->stopped_generation==generation &&
+        fabric_generation!=UINT64_MAX && window_rearm_return==fabric_generation+1 &&
+        fes_nano_bridges_window_return(&fes_nano_owned_bridges,&returned) && returned==window_rearm_return;
+#else
     if(fabric_generation==UINT64_MAX ||
        !fes_nano_bridges_held_return(&fes_nano_owned_bridges,&returned) ||
        returned!=fabric_generation+1)return 0;
@@ -783,6 +811,7 @@ static int configuration_return_generation(uint64_t owner,uint64_t generation)
     return fes_nano_sd_returned(&fes_nano_owned_sd,owner,returned,generation)==0;
 #else
     (void)owner;return 0;
+#endif
 #endif
 }
 #endif
@@ -821,6 +850,12 @@ static int configuration_complete(void *context, uint64_t owner, uint64_t genera
            (unsigned long long)owner,(unsigned long long)generation,(unsigned long long)previous,rearmed);
 #endif
     if(fes_nano_program_build(&configuration_program,identity_probe.build))return -1;
+#if defined(FES_NANO_WINDOW_STORAGE_RETURN) && FES_NANO_WINDOW_STORAGE_RETURN
+    if(rearmed) {
+        window_prepared=window_issued=0;
+        window_rearm_owner=window_rearm_generation=window_rearm_return=0;
+    }
+#endif
     return 0;
 }
 static void configuration_trace(void *context, unsigned stage, uint32_t completed, uint32_t pending)

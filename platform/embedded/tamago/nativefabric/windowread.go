@@ -169,7 +169,7 @@ func (v *HPSContextVerifier) openWindowSession(ctx context.Context, control, con
 		}
 	}()
 	arenaHash := new(arenaHash)
-	if v.ddrReaderAttempted || !v.readerMemoryReady || v.readerMemoryRegion == nil ||
+	if !v.readerMemoryReady || v.readerMemoryRegion == nil ||
 		v.readerMemoryRegion.Address != v.windowMemory.CPUBase || uint64(len(v.readerMemoryRegion.Bytes)) != v.windowMemory.ArenaBytes ||
 		arenaHash.sum(v.readerMemoryRegion.Bytes) != v.windowArenaSHA {
 		return nil, errors.New("native fabric: fresh complete pinned window required")
@@ -182,18 +182,32 @@ func (v *HPSContextVerifier) openWindowSession(ctx context.Context, control, con
 	}
 	valid := transfer.done && transfer.err == nil && transfer.region == nil && transfer.phase == "complete" &&
 		len(transfer.source) != 0 && len(transfer.pending) == 0 && transfer.offset == len(transfer.source) && transfer.accepted == len(transfer.source) &&
-		transfer.binding.verifier == v && !transfer.binding.rearm && transfer.binding.program == nil
+		transfer.binding.verifier == v && transfer.binding.program == nil && !transfer.binding.windowOpened
 	binding := *transfer.binding
+	repeat := binding.rearm && binding.windowReturn != nil && binding.windowReturn.verifier == v &&
+		binding.windowReturn.self == binding.windowReturn && binding.windowReturn.nextAttempted && binding.windowReturn.storageResumed
+	valid = valid && (repeat && v.ddrReaderAttempted || !binding.rearm && !v.ddrReaderAttempted)
 	if !valid {
 		return nil, errors.New("native fabric: completed compiled-source window transfer required")
 	}
 	v.ddrReaderAttempted = true
+	transfer.binding.windowOpened = true
 	source, err := v.Verify(v.Identity())
 	if err != nil {
 		return nil, err
 	}
-	if !v.coldSource(source) || source != binding.source || source != v.windowPublication.Source || source.Bridges.Generation > math.MaxUint64-3 {
+	held := v.coldSource(source) && source == v.windowPublication.Source
+	if repeat {
+		held = v.reconfigurationSource(source) && source.Digest == binding.windowReturn.source.Digest &&
+			source.Bridges.Owner == binding.windowReturn.returned.After.Owner &&
+			binding.windowReturn.returned.After.Generation <= math.MaxUint64-3 &&
+			source.Bridges.Generation == binding.windowReturn.returned.After.Generation+3
+	}
+	if !held || source != binding.source || source.Bridges.Generation > math.MaxUint64-3 {
 		return nil, errors.New("native fabric: window opening lost completed transfer ownership")
+	}
+	if repeat {
+		v.windowPublication.Source = source
 	}
 	bridges := &FirmwareBridges{cpu: cpu}
 	opened, err := bridges.OpenBridges(BridgeOpenRequest{Before: source.Bridges, Mask: 2})

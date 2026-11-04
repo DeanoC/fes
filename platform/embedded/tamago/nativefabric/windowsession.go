@@ -23,6 +23,7 @@ type WindowSession struct {
 	self                                       *WindowSession
 	storage                                    *packagestore.Handoff
 	storageAttempted                           bool
+	storageResumed, nextAttempted              bool
 	region                                     *Region
 	bytes                                      []byte
 	arenaHash                                  *arenaHash
@@ -364,7 +365,36 @@ func (s *WindowSession) ResumeStorageAfterReturn() error {
 	if err != nil || after != before {
 		return errors.New("native fabric: window storage return lost closed source ownership")
 	}
-	return s.storage.ResumeAfterReturn(after.Bridges.Owner, after.Bridges.Generation)
+	if err := s.storage.ResumeAfterReturn(after.Bridges.Owner, after.Bridges.Generation); err != nil {
+		return err
+	}
+	s.storageResumed = true
+	return nil
+}
+
+// NewStoredReconfigurationTransfer consumes this window's successful return
+// and SD cycle once. Only a fresh selection from its original store can reach
+// rearming. The same frame arena stays pinned and is checked again at START.
+func (s *WindowSession) NewStoredReconfigurationTransfer(plan *StoredConfigurationPlan, handoff *packagestore.Handoff, reserve func([]byte) (*Region, error)) (*ConfigurationTransfer, HPSBootObservation, error) {
+	if s == nil || s.self != s || s.verifier == nil || plan == nil || plan.state == nil || plan.state.v != s.verifier || handoff == nil || reserve == nil {
+		return nil, HPSBootObservation{}, scanout.ErrReaderArgument
+	}
+	if !s.active.CompareAndSwap(false, true) {
+		return nil, HPSBootObservation{}, scanout.ErrReaderBusy
+	}
+	defer s.active.Store(false)
+	if !s.closed || s.closeErr != nil || !s.storageResumed || s.nextAttempted || s.returned.Frames == 0 {
+		return nil, HPSBootObservation{}, scanout.ErrReaderRetired
+	}
+	s.nextAttempted = true
+	if !s.verifier.readerMemoryMu.TryLock() {
+		return nil, HPSBootObservation{}, scanout.ErrReaderBusy
+	}
+	defer s.verifier.readerMemoryMu.Unlock()
+	if err := s.checkArena(); err != nil {
+		return nil, HPSBootObservation{}, err
+	}
+	return plan.newTransfer(handoff, reserve, true, s)
 }
 
 // windowFrameMemory exposes only bounded, sequential visible-row writes while

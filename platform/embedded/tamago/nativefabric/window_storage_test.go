@@ -28,7 +28,7 @@ type windowStorageCPU struct {
 }
 
 func (c *windowStorageCPU) Invoke(a [7]uint64) ([4]uint64, error) {
-	if a[0] != uint64(g.FesEmbeddedBridgeCall) || a[1] == uint64(g.FesEmbeddedBridgePrepareConfiguration) {
+	if a[0] != uint64(g.FesEmbeddedBridgeCall) || a[1] == uint64(g.FesEmbeddedBridgePrepareConfiguration) || a[1] == uint64(g.FesEmbeddedBridgeRearmConfiguration) {
 		return c.configuration.Invoke(a)
 	}
 	return c.windowCPU.Invoke(a)
@@ -57,7 +57,7 @@ func (l *windowStorageLease) Resume() error {
 func (l *windowStorageLease) ResumeAfterReturn(owner, generation uint64) error {
 	l.returns++
 	if l.r.Active || l.cpu.state.Owner != owner || l.cpu.state.Generation != generation || l.cpu.state.ResetMask != 15 ||
-		!l.cpu.state.MastersContained || l.cpu.closes != 1 || l.cpu.lastDrainCookie == 0 {
+		!l.cpu.state.MastersContained || l.cpu.closes != l.returns || l.cpu.lastDrainCookie == 0 {
 		return errors.New("missing complete owned display return")
 	}
 	if l.fault == "grant" {
