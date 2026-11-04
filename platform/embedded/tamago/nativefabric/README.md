@@ -542,3 +542,28 @@ See [native service selection and limits](../README.md#persistent-native-window-
 for the explicit build mode. The native request loop uses the real Tenfoot
 renderer, but the full App/backend integration and physical acceptance remain
 open. The prior bounded diagnostic image supplies no acceptance for this mode.
+
+## Session-bound native keyboard input
+
+`ProgramBackend.BindKeyboard` creates one private local keyboard binding for
+an already running play. It uses the existing checked `ProgramService.Keyboard`
+operation to neutralize all nine HID rows before handing ownership to the
+caller. The binding waits for a complete all-keys-up USB report before sending
+presses, so the menu's held launch key cannot enter the newly loaded core.
+Copies share decoder state. Return, replacement and confirmed disconnect revoke
+the binding; old reports and disconnect callbacks cannot touch another play.
+
+`ProgramKeyboard.Poll` accepts the existing `input.USBReports` interface,
+including the DWC2 driver's raw boot-keyboard reports. It drains at most eight
+reports, preserves held keys across rollover and no-report responses, and
+returns source errors without inventing a disconnect. A confirmed unplug uses
+`Disconnect` to neutralize the current play once. Partial native control writes
+retire the service through its existing failure path, retain resources and keep
+SD contained. The platform must retain the backend and service until reboot.
+
+The host tests exercise full Tenfoot launch, keyboard presses/releases, return
+and relaunch through the real Go service and register driver with modeled
+firmware/registers. This adapter opens no physical USB controller, grants no
+input-ready advertisement and supplies no hub support. The native serial image
+still uses serial navigation; attaching this source to a physical platform,
+qualifying the PHY/host/hub and verifying playable input remain separate work.

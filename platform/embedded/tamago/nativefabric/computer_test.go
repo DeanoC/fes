@@ -29,6 +29,8 @@ type computerCPU struct {
 	stall, loseOpen, loseClose, badClosure bool
 	changeAfterRead                        bool
 	changeOnFetch                          bool
+	keyboardRows                           [9]uint16
+	keyboardWrites, failKeyboardAt         int
 }
 
 func (c *computerCPU) Invoke(r [7]uint64) ([4]uint64, error) {
@@ -139,6 +141,17 @@ func (c *computerCPU) WritePhysical32(address uint64, word uint32) error {
 	}
 	if c.port != nil {
 		return c.port.Write32(cg.FesDe25ComputerGpoOffset, word)
+	}
+	if word>>24&127 == cg.FesComputerOpcodeKeyboardHid {
+		c.keyboardWrites++
+		if c.failKeyboardAt != 0 && c.keyboardWrites == c.failKeyboardAt {
+			return errors.New("lost keyboard write")
+		}
+		row := word >> 16 & 255
+		if row >= 9 {
+			return errors.New("invalid keyboard row")
+		}
+		c.keyboardRows[row] = uint16(word)
 	}
 	c.gpo = word
 	if c.stall {

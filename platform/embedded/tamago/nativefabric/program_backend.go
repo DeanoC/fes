@@ -45,6 +45,7 @@ type ProgramBackend struct {
 	entries   []ProgramEntry
 	session   ProgramSession
 	play      programPlay
+	keyboard  *programKeyboard
 }
 
 func NewProgramBackend(service *ProgramService, entries []ProgramEntry) (*ProgramBackend, error) {

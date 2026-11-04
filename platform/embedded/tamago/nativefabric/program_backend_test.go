@@ -123,6 +123,9 @@ type nativeAppPlatform struct {
 	fixture               *serviceFixture
 	sawFailure            bool
 	pixels                bool
+	backend               *ProgramBackend
+	keyboard              ProgramKeyboard
+	keyboardCycles        int
 }
 
 func (p *nativeAppPlatform) Next(ctx context.Context) (tenfoot.PlatformInput, error) {
@@ -151,6 +154,27 @@ func (p *nativeAppPlatform) Next(ctx context.Context) (tenfoot.PlatformInput, er
 		}
 	case 1:
 		if s.Session.State == "active" && s.GPUParked && p.service.Status().State == ProgramRunning {
+			if p.backend != nil {
+				var err error
+				p.keyboard, err = p.backend.BindKeyboard(ctx, p.service.Status().Generation)
+				if err != nil {
+					return input, err
+				}
+				reports := &programKeyboardReports{reports: [][]byte{make([]byte, 8), {2, 0, 4, 0, 0, 0, 0, 0}}}
+				if err := p.keyboard.Poll(ctx, reports); err != nil {
+					return input, err
+				}
+				if p.fixture.cpu.keyboardRows != ([9]uint16{0: 1 << 4, 8: 2}) {
+					return input, fmt.Errorf("App play lost USB keys: %x", p.fixture.cpu.keyboardRows)
+				}
+				if err := p.keyboard.Report(ctx, make([]byte, 8)); err != nil {
+					return input, err
+				}
+				if p.fixture.cpu.keyboardRows != ([9]uint16{}) {
+					return input, fmt.Errorf("App play lost USB releases")
+				}
+				p.keyboardCycles++
+			}
 			if p.failure == "return" {
 				p.fixture.cpu.loseClose = true
 			}
@@ -159,6 +183,12 @@ func (p *nativeAppPlatform) Next(ctx context.Context) (tenfoot.PlatformInput, er
 		}
 	case 2:
 		if s.Session.State == "idle" && !s.GPUParked && p.service.Status().State == ProgramReady {
+			if p.backend != nil {
+				calls := p.fixture.cpu.calls
+				if err := p.keyboard.Report(ctx, make([]byte, 8)); err != ErrProgramSession || calls != p.fixture.cpu.calls {
+					return input, fmt.Errorf("returned App keyboard remained live: %v", err)
+				}
+			}
 			p.cycles++
 			p.stage = 0
 			if p.cycles == 3 {
@@ -191,13 +221,13 @@ func TestProgramBackendFullTenfootAppLaunchAndReturn(t *testing.T) {
 	if err := app.SetPreferenceStore(nativePreferences{}); err != nil {
 		t.Fatal(err)
 	}
-	p := &nativeAppPlatform{app: app, service: f.s, device: device}
+	p := &nativeAppPlatform{app: app, service: f.s, device: device, backend: b, fixture: f}
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
 	if err := tenfoot.RunPlatform(ctx, app, device, p); err != nil {
 		t.Fatalf("%v stage=%d cycles=%d snapshot=%+v session=%+v native=%+v", err, p.stage, p.cycles, app.Snapshot().Launch, app.Snapshot().Session, f.s.Status())
 	}
-	if p.cycles != 3 || !p.pixels || f.s.Status().Generation != 6 || !f.lease.r.Active {
+	if p.cycles != 3 || p.keyboardCycles != 3 || !p.pixels || f.s.Status().Generation != 6 || !f.lease.r.Active {
 		t.Fatalf("cycles=%d pixels=%v status=%+v", p.cycles, p.pixels, f.s.Status())
 	}
 }
