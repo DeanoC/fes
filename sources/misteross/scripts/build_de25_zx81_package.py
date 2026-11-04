@@ -24,7 +24,7 @@ from scripts.core_package import encode_manifest
 from scripts.export_core_package import build_identity, encode_build_record, export_package, source_input_closure
 from scripts.fes_build_common import AuthenticatedTool, BuildError, _require_clean_source as require_clean_source
 from scripts.functional_execution import execution_digest, execution_environment
-from boards.de25nano.scanout import async_inputs
+from boards.de25nano.scanout import async_inputs, audio_reference
 
 ROOT = Path(__file__).resolve().parents[1]
 RECIPE = 'scripts/build_de25_zx81_package.py'
@@ -87,6 +87,7 @@ def create_build_record(root, repository, revision, identities, execution, captu
             'reset_timing_policy': common.TIMED_RESET_RELEASE,
             'signoff_policy': async_inputs.POLICY, 'seed': 1, 'threads': 2,
             'hdmi_output_policy': async_inputs.vendor_reference.POLICY,
+            'audio_clock_reference_policy': audio_reference.POLICY,
             'pixel_clock_hz': 74250000, 'system_clock_hz': 100000000,
             'execution_sha256': execution_digest(execution)}})
 
@@ -147,7 +148,9 @@ def build(root=ROOT, *, quartus_root, vendor_archive, output=None, package_outpu
                 # without borrowing a reviewed input/output receipt from another fit.
                 review = None if compile_only else async_inputs.collect(
                     selected, paths['quartus'].with_name('quartus_sta'), vendor_archive=vendor_archive)
-                timing = timing_evidence(selected, async_review=review)
+                audio = None if compile_only else audio_reference.collect(
+                    selected, paths['quartus'].with_name('quartus_sta'), vendor_archive)
+                timing = timing_evidence(selected, async_review=review, audio_review=audio)
                 (output / (name + '-timing.json')).write_text(json.dumps(timing, indent=2, sort_keys=True) + '\n')
                 return selected / 'combined/hps/linux-boot.core.rbf', timing
             payload, timing = compile_at('signoff')

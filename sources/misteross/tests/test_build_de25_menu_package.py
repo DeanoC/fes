@@ -282,6 +282,43 @@ class DE25MenuPackageTests(unittest.TestCase):
             with self.assertRaises(producer.BuildError):
                 reference.output_findings(text)
 
+    def test_audio_review_adds_only_two_outputs_and_cannot_bypass_numerical_timing(self):
+        from boards.de25nano.scanout import audio_reference as audio
+        raw = self.fixture['golden_top.tq.drc.signoff.rpt']
+        io = {name: next(s for s in re.split(r'(?m)^Status:', raw)[1:] if '; ' + name + ' - ' in s)
+              for name in ('TMC-20011', 'TMC-20012')}
+        io['TMC-20012'] = re.sub(r'Number of violations:\s*30', 'Number of violations: 32', io['TMC-20012'])
+        io['TMC-20012'] += ''.join('; ' + port + ' ; No output delay was set on the output port. ; ;\n'
+                                  for port in sorted(audio.PORTS))
+        sections = re.split(r'(?m)^Status:', self.passing_signoff())
+        for index, section in enumerate(sections):
+            for name, replacement in io.items():
+                if index and '; ' + name + ' - ' in section:
+                    sections[index] = replacement
+        text = 'Status:'.join(sections).replace('0 of 85 Rules Failed', '2 of 85 Rules Failed')
+        for name, count in (('TMC-20011', 2), ('TMC-20012', 32)):
+            text = re.sub(r'(?m)^(; ' + name + r' - [^;]+; High\s*;)\s*0\s*;',
+                          lambda match: match[1] + f' {count} ;', text)
+        self.write_reports(signoff=text)
+        # These mocks isolate the admission decision. Actual fit/source/tool
+        # verification is exercised separately and remains required in builds.
+        with mock.patch.object(producer.async_inputs, 'verify', return_value={'vendor_hdmi_reference': {}}), \
+                mock.patch.object(audio, 'verify', return_value={'policy': audio.POLICY}):
+            with self.assertRaises(producer.BuildError):
+                producer.timing_evidence(self.root, async_review='unit-input')
+            with self.assertRaises(producer.BuildError):
+                producer.timing_evidence(self.root, audio_review='unit-audio')
+            evidence = producer.timing_evidence(self.root, async_review='unit-input', audio_review='unit-audio')
+            self.assertTrue(evidence['package_timing_admission'])
+            self.assertEqual(evidence['failed_rules'], 2)
+            self.assertEqual(evidence['unreviewed_failed_rules'], 0)
+            self.assertEqual(evidence['reviewed_findings'][-1]['violations'], 32)
+            summary = re.sub(r'(?m)^(Slack\s*:\s*)\S+', r'\g<1>-0.001',
+                             self.fixture['golden_top.sta.summary'], count=1)
+            self.write_reports(signoff=text, summary=summary)
+            self.assertFalse(producer.timing_evidence(self.root, async_review='unit-input',
+                audio_review='unit-audio')['package_timing_admission'])
+
     def prepare_repository(self):
         paths = {producer.RECIPE: b'actual recipe', producer.ABI: b'actual ABI',
                  'cores/fes-menu/reader.v': b'module reader; endmodule',

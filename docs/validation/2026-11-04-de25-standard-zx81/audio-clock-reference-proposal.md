@@ -1,8 +1,10 @@
-# Proposed stock-reference treatment for two audio clock outputs
+# Approved stock-reference treatment for two audio clock outputs
 
-Decision requested: extend the existing Terasic-reference output review to
+Deano approved extending the existing Terasic-reference output review on
+2026-11-04 to
 **HDMI_SCLK and HDMI_LRCLK only**, on the standard internal16K ZX81 base.
-The current exporter remains blocked; this proposal has not changed admission.
+Approval alone grants neither package admission nor hardware acceptance. The
+producer requires fresh source-bound evidence for each independent fit.
 
 The exact source446 full build passes all92 numerical timing checks. The fitted
 review checks five clock definitions,32 routes across four operating conditions,
@@ -12,7 +14,7 @@ regression proves LRCLK changes at falling SCLK; the transmitter captures at
 rising SCLK. Evidence is in [audio-clock-fitted-review.json](audio-clock-fitted-review.json)
 and [canonical-phase-candidate.json](canonical-phase-candidate.json).
 
-If approved, the package producer would require all of the following:
+The package producer requires all of the following:
 
 - The standard `de25-linux-computer-v1` internal16K base with expansion disabled,
   and the reviewed constant-PCM audio implementation. Changes to its serializer,

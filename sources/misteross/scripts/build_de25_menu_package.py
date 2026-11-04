@@ -173,7 +173,7 @@ def create_build_record(root, repository, revision, identities, execution, captu
     return encode_build_record(fields)
 
 
-def timing_evidence(directory, *, async_review=None):
+def timing_evidence(directory, *, async_review=None, audio_review=None):
     reports = Path(directory) / 'combined/hps/project/output_files'
     drc = (reports / 'golden_top.tq.drc.signoff.rpt').read_text()
     declared = set(re.findall(r'Design Assistant \(Signoff\) Results - (\d+) of (\d+) Rules Failed', drc))
@@ -227,6 +227,12 @@ def timing_evidence(directory, *, async_review=None):
         raise BuildError('invalid DE25 timing number') from error
     reviewed = []
     proof = None
+    audio_proof = None
+    if audio_review is not None:
+        if async_review is None:
+            raise BuildError('DE25 audio-clock reference requires the existing input/vendor review')
+        from boards.de25nano.scanout import audio_reference
+        audio_proof = audio_reference.verify(directory, audio_review)
     if async_review is not None:
         proof = async_inputs.verify(directory, async_review)
         findings = next(r for r in rows if r[0] == 'TMC-20011')
@@ -238,15 +244,19 @@ def timing_evidence(directory, *, async_review=None):
         if 'vendor_hdmi_reference' in proof:
             outputs = next(r for r in rows if r[0] == 'TMC-20012')
             if int(outputs[2]):
-                if outputs[2:] != ('30', '0'):
+                count = 32 if audio_proof is not None else 30
+                if outputs[2:] != (str(count), '0'):
                     raise BuildError('DE25 vendor HDMI output finding count/waivers changed')
-                reviewed.append({'id': 'TMC-20012', 'violations': 30,
-                    'ports': async_inputs.vendor_reference.output_findings(drc),
-                    'basis': async_inputs.vendor_reference.POLICY})
+                reviewed.append({'id': 'TMC-20012', 'violations': count,
+                    'ports': audio_reference.output_findings(drc) if audio_proof is not None else
+                             async_inputs.vendor_reference.output_findings(drc),
+                    'basis': audio_reference.POLICY if audio_proof is not None else
+                             async_inputs.vendor_reference.POLICY})
     unreviewed = failed - len(reviewed)
     return {'signoff_rules': total, 'failed_rules': failed,
         'unreviewed_failed_rules': unreviewed, 'reviewed_findings': reviewed,
         **({'async_input_review': proof} if proof is not None else {}),
+        **({'audio_clock_reference_review': audio_proof} if audio_proof is not None else {}),
         'rules': [{'id': n, 'severity': s, 'violations': int(v), 'waived': int(w)} for n, s, v, w in rows],
         'timing_checks': [{'type': t, 'clock': c, 'slack_ns': s,
             **({'tns_ns': n} if t not in ('Max Skew', 'Net Delay') else {}),

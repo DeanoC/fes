@@ -131,8 +131,13 @@ def stock_audio(project, archive):
 
 
 def collect(candidate, output, quartus_sta, archive):
-    candidate, output = Path(candidate).resolve(), Path(output).resolve()
-    selected = candidate / 'signoff'
+    return collect_selected(Path(candidate).resolve() / 'signoff', output, quartus_sta, archive)
+
+
+def collect_selected(selected, output, quartus_sta, archive):
+    """Observe one selected fit; signoff and repeat never share a receipt."""
+    selected, output = Path(selected).resolve(), Path(output).resolve()
+    candidate = selected.parent
     record = json.loads((candidate / 'build-inputs.json').read_text())
     require(record['parameters'].get('standard_core') is True and
             record['parameters'].get('expansion_socket') is False and
