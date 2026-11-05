@@ -58,12 +58,10 @@ version and at least the required minor. Supervisors that predate these keys
 ignore them, so a newer bundle still installs and runs on an older image. The
 image build fails when its own factory runtime does not accept its menu.
 
-A bundle manifest can also advertise what it offers a supervisor. These keys
-go only into the bundle, never into the image's `software-base.json`, so they
-neither hold a bundle back nor make `fes-update` refuse an image:
-`kit-host` (`1.x`) says `bin/fogcast-kit` has a `host` mode. A supervisor
-that knows the key starts the host for such a bundle and runs older bundles
-with the three services; an older supervisor ignores the key and runs three.
+A bundle advertises `kit-host` for the supervised host and
+`kit-launcher-host` for Tenfoot's local-host mode. The current image requires
+both at version 1.0 in `software-base.json`, so a bundle without either is
+rejected before selection. The image's factory bundle provides both.
 
 The base image's supervisor checks this at install, activation, boot and
 recovery:

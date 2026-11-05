@@ -146,7 +146,7 @@ class SoftwareABI(unittest.TestCase):
             contract = {'board': 'de10-nano', 'architecture': 'armv7', 'base_contract': 'base',
                         'interfaces': dict(software.INTERFACES)}
             (root / 'etc/fes/software-base.json').write_text(
-                json.dumps({**contract, 'requires': {'menu.fes.video.menu-display': '1.0'}}))
+                json.dumps({**contract, 'requires': {'menu.fes.video.menu-display': '1.0', 'kit-host': '1.0', 'kit-launcher-host': '1.0'}}))
             payload = root / 'payload'
             (payload / 'bin').mkdir(parents=True)
             for name in software.BINARIES:
@@ -165,12 +165,19 @@ class SoftwareABI(unittest.TestCase):
                  patch.object(software, 'base_contract', return_value=contract):
                 software.pack_update(root, payload, root / 'update.tar', 'new', root, 'a' * 40)
             self.assertEqual(packed[0]['interfaces'], {**software.INTERFACES, 'menu.fes.video.menu-display': '1.1',
-                                                       'menu.fes.video.menu-blitter': '1.0', 'kit-host': '1.0'})
+                                                       'menu.fes.video.menu-blitter': '1.0', 'kit-host': '1.0',
+                                                       'kit-launcher-host': '1.0'})
             self.assertNotIn('requires', packed[0])
             with patch.object(software, 'run', side_effect=lambda *args: run(*args, dump='  [     0]  fes.video.fixed-720p60=1.0\n')), \
                  patch.object(software, 'base_contract', return_value=contract):
                 with self.assertRaisesRegex(ValueError, 'menu.fes.video.menu-display 1.0'):
                     software.pack_update(root, payload, root / 'refused.tar', 'new', root, 'a' * 40)
+            self.assertEqual(len(packed), 1)
+            with patch.object(software, 'ADVERTISES', {'kit-host': '1.0'}), \
+                 patch.object(software, 'run', side_effect=run), \
+                 patch.object(software, 'base_contract', return_value=contract):
+                with self.assertRaisesRegex(ValueError, 'kit-launcher-host 1.0'):
+                    software.pack_update(root, payload, root / 'legacy.tar', 'old', root, 'a' * 40)
             self.assertEqual(len(packed), 1)
 
     def test_dependency_closure_and_contract_identity(self):

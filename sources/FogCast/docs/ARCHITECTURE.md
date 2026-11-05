@@ -1051,8 +1051,7 @@ the SDL sofa window. Pass `--headless` so that process does not compose local
 capture or the MJPEG preview pipeline; kit catalog, attract, session, and
 input stay on the launcher listener. A kit without a sofa host boots the same
 FogCast service on the existing config and catalog paths.
-`fogcast.BootLocalCatalog` opens that service, scans the configured library
-roots, and does not dial a remote target. An empty library says `No games in
+The supervised kit host scans its configured library roots. An empty library says `No games in
 this library yet.` A content root that cannot be found, with no saved rows,
 says `The game files for this library can't be found.` Saved rows whose files
 are offline say `Offline, showing your saved list`. An unfiltered

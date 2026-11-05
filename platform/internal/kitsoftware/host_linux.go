@@ -1,7 +1,6 @@
 package kitsoftware
 
 import (
-	"encoding/json"
 	"errors"
 	"log"
 	"os"
@@ -12,12 +11,8 @@ import (
 )
 
 const (
-	roleHost = "host"
-	// hostAdvertisement is the bundle manifest interface that says
-	// bin/fogcast-kit has a `host` mode (#863 slice 5). Older bundles carry
-	// the fogcast-kit stub, which exits; the supervisor does not start it.
-	hostAdvertisement = "kit-host"
-	hostExecutable    = "bin/fogcast-kit"
+	roleHost       = "host"
+	hostExecutable = "bin/fogcast-kit"
 )
 
 // hostPlan is how the supervisor starts the kit's FogCast host.
@@ -33,27 +28,7 @@ type hostPlan struct {
 func (c *ProcessController) planHostLocked(root string, env []string) {
 	c.hostPlan = nil
 	c.hostRestart, c.hostDelay = time.Time{}, 0
-	if !advertisesHost(root) {
-		return
-	}
 	c.hostPlan = &hostPlan{path: filepath.Join(root, hostExecutable), args: []string{"host"}, env: hostEnv(env)}
-}
-
-// advertisesHost reports whether the release manifest advertises kit-host.
-// Start runs only on a verified release, so its manifest is authenticated.
-func advertisesHost(root string) bool {
-	data, err := os.ReadFile(filepath.Join(root, "manifest.json"))
-	if err != nil {
-		return false
-	}
-	var manifest struct {
-		Interfaces map[string]string `json:"interfaces"`
-	}
-	if json.Unmarshal(data, &manifest) != nil {
-		return false
-	}
-	version, ok := manifest.Interfaces[hostAdvertisement]
-	return ok && strings.HasPrefix(version, "1.")
 }
 
 // hostEnv is the group environment without the activation claim, the
@@ -72,7 +47,7 @@ func hostEnv(env []string) []string {
 	return out
 }
 
-// superviseHostLocked starts the host once the launcher is ready, and
+// superviseHostLocked starts the host and
 // restarts it alone when it exits, with the launcher's backoff. Its exit
 // never touches the agent, the runtime or a running core. The exited
 // host's process group is confirmed gone before a replacement starts.

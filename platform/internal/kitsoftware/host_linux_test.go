@@ -15,45 +15,10 @@ import (
 	"github.com/DeanoC/FogCast/appliance/software"
 )
 
-func writeManifest(t *testing.T, root, interfaces string) {
-	t.Helper()
-	if err := os.WriteFile(filepath.Join(root, "manifest.json"), []byte(`{"interfaces":{`+interfaces+`}}`), 0o444); err != nil {
-		t.Fatal(err)
-	}
-}
-
-func TestOnlyABundleAdvertisingKitHostGetsAHost(t *testing.T) {
-	for interfaces, want := range map[string]bool{
-		`"runtime-protocol":"2","kit-host":"1.0"`: true,
-		`"kit-host":"1.3"`:                        true,
-		`"runtime-protocol":"2"`:                  false,
-		`"kit-host":"2.0"`:                        false,
-	} {
-		root := t.TempDir()
-		writeManifest(t, root, interfaces)
-		c := &ProcessController{}
-		c.planHostLocked(root, []string{"FES_SOFTWARE_MANAGED=1"})
-		if got := c.hostPlan != nil; got != want {
-			t.Fatalf("%s: host planned %v, want %v", interfaces, got, want)
-		}
-	}
-	c := &ProcessController{}
-	c.planHostLocked(t.TempDir(), nil)
-	if c.hostPlan != nil {
-		t.Fatal("planned a host without a manifest")
-	}
-}
-
-func TestLauncherUsesTheAdvertisedKitHost(t *testing.T) {
-	root := t.TempDir()
-	writeManifest(t, root, `"kit-host":"1.0"`)
-	args := strings.Join(launcherArgs(root), " ")
-	if !strings.Contains(args, "-api http://127.0.0.1:8787 -kit-host") || strings.Contains(args, "-catalog-config") {
+func TestLauncherUsesKitHost(t *testing.T) {
+	args := strings.Join(launcherArgs(), " ")
+	if !strings.Contains(args, "-api http://127.0.0.1:8787 -kit-host") {
 		t.Fatalf("launcher args = %s", args)
-	}
-	legacy := strings.Join(launcherArgs(t.TempDir()), " ")
-	if strings.Contains(legacy, "-kit-host") || !strings.Contains(legacy, "-catalog-config") {
-		t.Fatalf("launcher args without host = %s", legacy)
 	}
 }
 
@@ -148,17 +113,6 @@ func TestActivationHealthRetriesHostBeforeLauncherReadiness(t *testing.T) {
 	}
 	if c.host == first {
 		t.Fatal("activation health did not restart host")
-	}
-}
-
-// A bundle without kit-host keeps today's three services.
-func TestNoHostWithoutTheAdvertisement(t *testing.T) {
-	c := &ProcessController{RunDir: t.TempDir(), active: "accepted"}
-	defer func() { _ = c.Stop(context.Background()) }()
-	startSleepTrio(t, c)
-	publishLauncherReady(t, c, "accepted")
-	if err := c.RecoverAcceptedExits(context.Background(), Request{}, true); err != nil || c.host != nil {
-		t.Fatalf("host %v err %v", c.host, err)
 	}
 }
 

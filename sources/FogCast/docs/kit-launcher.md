@@ -5,7 +5,7 @@ The kit UI is `fogcast-tenfoot` (`ui/tenfoot`). The base-image supervisor
 
 ```sh
 fogcast-tenfoot -config /media/fat/fogcast/launcher.json \
-  -catalog-config <release>/share/fogcast/config.toml \
+  -api http://127.0.0.1:8787 -kit-host \
   -gfx menu-display -menu-socket /run/mister-runtime.sock -input auto -home rooms
 ```
 
@@ -94,52 +94,18 @@ when menu activation fails.
 
 ## Kit-local catalog and play
 
-When `-catalog-config` (or `FOGCAST_CONFIG` / `FES_HOST_CONFIG`, or a
-`config.toml` beside `launcher.json`) resolves, tenfoot boots
-`fogcast.BootLocalCatalog` and serves it on loopback. It replaces the
-`launcher.json` host library only when the kit has playable local files and the
-config does not declare only disabled targets (#616). Otherwise the host
-library stays in place.
+Tenfoot reads the core inventory and catalog from the supervised kit host at
+`127.0.0.1:8787`, and launches through its normal session API. The agent's
+local control socket remains responsible for observing and safely adopting a
+core started outside the host session.
 
-A present Master System row from that catalog is Play on the tenfoot room path:
-Confirm posts the library root and the catalog-relative cartridge path to the
-local-control launch route and does not post the host session or fall back to
-the network. The agent pins that root and opens the relative path from the
-root directory handle. A symlink in any component under the root is refused,
-so a parent directory replaced with a symlink cannot be read from outside the
-library. Symlinks above the configured root stay followed. The agent then
-calls LoadCartridge with the bytes. LoadCartridge rebuilds the canonical
-package archive from the extracted install, wraps the cartridge with that
-archive, and programs the core through the same ROM-link load the host uses. A
-missing install, a core that cannot be read or take a cartridge, or a cartridge
-that does not fit is reported, and the core is not programmed.
-
-Installed cores that need no cartridge or firmware are listed and launched on
-the kit through mister-agent's root-only `/run/fogcast/local-control.sock`
-(`GET /v1/local/cores`, `POST /v1/local/cores/{package_id}/launch`,
-`POST /v1/local/stop`, `GET /v1/local/status`). A list or launch while the
-agent is still warming its catalog caches returns HTTP 503
-`{"error":"warming"}`. Tenfoot reports `warming`, keeps checking and retries;
-it does not treat that response as an empty library or an unavailable agent.
-That path claims owner `kit-hostless` with purpose `kit-local-core` and fails
-closed, without taking over, when the lease is already held (fes#172). See
-[the host connection contract](launcher-host.md) for listener configuration and
-the session HTTP schema.
-
-A successful local launch returns its exact execution-lease generation, which
-tenfoot keeps for Stop and status reconciliation. `POST /v1/local/stop`
-requires `expected_generation`; missing or stale generations are refused before
-the runtime is called. Select+Start held for one second on one pad stops a
-kit-local core instead of posting the host session stop. Keyboard F12 or a pad's
-Guide button also stops it with one press; neither is forwarded to the core.
-Guide is the pad's GameControllerDB `guide` binding, or `BTN_MODE` when that
-mapping leaves the code free. The first
-loading frame shows phase and elapsed time. Tenfoot waits until that frame
-has been presented, pauses menu display, then dispatches the launch request.
-A failed or unpresented frame aborts dispatch. Late adoption of a core that
-already owns HDMI submits no loading frame, drains outstanding menu work, and
-pauses; an older menu failure does not block that pause. Local status
-exposes only `launching`/`running`, so no percentage is invented.
+Other local-control clients can launch a core outside the host session. Tenfoot
+observes `/run/fogcast/local-control.sock`, preserves its display, and adopts a
+running generation for input and Stop. `POST /v1/local/stop` requires that
+exact generation; missing or stale generations are refused before the runtime
+is called. Select+Start held for one second on one pad, F12, or Guide stops an
+adopted kit-local core. Late adoption submits no loading frame, drains pending
+menu work, and pauses without replacing the game picture.
 
 While a kit-local core runs, `ui/localfeed` writes pad and USB keyboard events
 as raw input frames on `/run/fogcast/local-input.sock`. mister-agent delivers

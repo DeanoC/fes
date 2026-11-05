@@ -467,10 +467,10 @@ func (a *App) applyRoomDestinationConfirmLocked() bool {
 		a.runLauncherActionLocked(dest.LauncherAction)
 		return true
 	case rooms.ConfirmLaunchCore:
-		if a.kitHost {
-			a.startKitHostEntryLocked(dest.PackageID, "", dest.Label)
+		if !a.kitHost {
+			a.status = "The kit host is required to start this core."
 		} else {
-			a.startLocalCoreLocked(dest)
+			a.startKitHostEntryLocked(dest.PackageID, "", dest.Label)
 		}
 		return true
 	case rooms.ConfirmLaunchKit:
@@ -478,7 +478,7 @@ func (a *App) applyRoomDestinationConfirmLocked() bool {
 			if a.kitHost {
 				a.startKitHostEntryLocked("", game.ID, displayGameTitle(game))
 			} else {
-				a.startLocalTitleLocked(game)
+				a.startLaunchGameLocked(game)
 			}
 			return true
 		}

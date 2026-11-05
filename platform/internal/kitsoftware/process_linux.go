@@ -115,7 +115,7 @@ type ProcessController struct {
 	readyStable time.Duration
 	readyBudget time.Duration
 	// hostPlan is how to start the kit's FogCast host for the active bundle,
-	// or nil when the bundle does not advertise kit-host. host is the running
+	// host is the running
 	// host process. It is not a member of children: its exit restarts it
 	// alone, and the service group's health and recovery do not include it.
 	hostPlan    *hostPlan
@@ -489,7 +489,7 @@ func (c *ProcessController) Start(ctx context.Context, id string, r Request) err
 			return err
 		}
 	}
-	if err := c.start(filepath.Join(root, "bin/fogcast-tenfoot"), launcherArgs(root), env, roleLauncher); err != nil {
+	if err := c.start(filepath.Join(root, "bin/fogcast-tenfoot"), launcherArgs(), env, roleLauncher); err != nil {
 		_ = c.stopLocked(ctx)
 		return err
 	}
@@ -504,12 +504,8 @@ func (c *ProcessController) Start(ctx context.Context, id string, r Request) err
 	return nil
 }
 
-func launcherArgs(root string) []string {
-	args := []string{"-config", "/media/fat/fogcast/launcher.json", "-gfx", "menu-display", "-menu-socket", "/run/mister-runtime.sock", "-input", "auto", "-home", "rooms"}
-	if advertisesHost(root) {
-		return append(args, "-api", "http://127.0.0.1:8787", "-kit-host")
-	}
-	return append(args, "-catalog-config", filepath.Join(root, "share/fogcast/config.toml"))
+func launcherArgs() []string {
+	return []string{"-config", "/media/fat/fogcast/launcher.json", "-gfx", "menu-display", "-menu-socket", "/run/mister-runtime.sock", "-input", "auto", "-home", "rooms", "-api", "http://127.0.0.1:8787", "-kit-host"}
 }
 
 // nativeStatusProbe is injected only by in-package tests. Production always

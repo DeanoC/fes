@@ -632,11 +632,8 @@ type App struct {
 	localInstalled             map[string]struct{}
 	localInstallGen            uint64
 	localInstallCancel         context.CancelFunc
-	localCatalogClose          func() error
-	localContent               func(context.Context, string) (string, string, error)
 	localPhase                 string
 	localReconcileAfterFailure bool
-	localReconcileDeadline     time.Time
 	localUnownedRun            bool
 	localTitle                 string
 	localStartedAt             time.Time
@@ -660,8 +657,7 @@ type App struct {
 	localStartupStatusChecked bool
 	// localWatchStartup keeps polling a launching or stopping generation
 	// seen at startup until that generation is running or generation-free idle.
-	localWatchStartup  bool
-	localLaunchPending func()
+	localWatchStartup bool
 
 	// settingsSection is the open Settings section; "" is the section list.
 	settingsSection string
@@ -805,8 +801,6 @@ func (a *App) Stop() {
 	a.attractClosed = true
 	feed := a.localFeed
 	a.localFeed = nil
-	closeCatalog := a.localCatalogClose
-	a.localCatalogClose = nil
 	installCancel := a.localInstallCancel
 	a.localInstallCancel = nil
 	cancel := a.cancel
@@ -816,9 +810,6 @@ func (a *App) Stop() {
 	}
 	if feed != nil {
 		feed.Close()
-	}
-	if closeCatalog != nil {
-		_ = closeCatalog()
 	}
 	if cancel != nil {
 		cancel()
@@ -1883,8 +1874,8 @@ func (a *App) Snapshot() Snapshot {
 		LocalCoreTitle:          a.localTitle,
 		LocalCoreStatus:         a.localStatus,
 		LocalCoreStartedAt:      a.localStartedAt,
-		LocalCorePresentsPaused: a.localPresentsPaused || a.hostPresentsPaused || (a.kitHost && (a.session.State == "launching" || a.session.State == "stopping" || (a.session.State == "active" && !a.sessionDisplayLocked().Visible))),
-		LocalCoreLateAdopt:      a.localLateAdopt || (a.kitHost && (a.hostAwaitStatus || a.session.State == "active" || a.session.State == "launching" || a.session.State == "stopping")),
+		LocalCorePresentsPaused: a.localPresentsPaused || a.hostPresentsPaused || (a.kitHost && (a.session.State == "launching" || a.session.State == "stopping" || hostclient.SessionKitLocal(a.session.State) || (a.session.State == "active" && !a.sessionDisplayLocked().Visible))),
+		LocalCoreLateAdopt:      a.localLateAdopt || (a.kitHost && (a.hostAwaitStatus || a.session.State == "active" || a.session.State == "launching" || a.session.State == "stopping" || hostclient.SessionKitLocal(a.session.State))),
 		LocalCoreRedraw:         a.localRedraw,
 	}
 	destination := snap.DetailPlay
@@ -3178,7 +3169,7 @@ func (a *App) fetchSession(ctx context.Context) {
 	if a.launch.Phase == "launching" || a.stopPhase == "stopping" || a.inputBusy || a.sessionDisplayBusy || a.developmentLoadingLocked() {
 		return
 	}
-	if a.hostAwaitStatus && result.ErrorCode == "" && (result.State == "idle" || result.State == "active") {
+	if a.hostAwaitStatus && result.ErrorCode == "" && (result.State == "idle" || result.State == "active" || result.State == "failed" || hostclient.SessionKitLocal(result.State)) {
 		a.hostAwaitStatus = false
 		a.hostPresentsPaused = false
 	}

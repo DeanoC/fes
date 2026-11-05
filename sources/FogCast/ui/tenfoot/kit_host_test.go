@@ -35,14 +35,13 @@ func TestKitHostUsesUnpairedHostInventoryInsteadOfEmbeddedCatalog(t *testing.T) 
 	app, err := configuredApp(Options{
 		GFX: "menu-display", KitHost: true, APIBase: host.URL,
 		APIToken: "paired-token", TargetID: "paired-target",
-		CatalogConfig: writeCatalogConfig(t, smsRootWithGame(t), ""),
-		PrefsPath:     filepath.Join(t.TempDir(), "tenfoot.json"), Width: 1280, Height: 720,
+		PrefsPath: filepath.Join(t.TempDir(), "tenfoot.json"), Width: 1280, Height: 720,
 	})
 	if err != nil {
 		t.Fatal(err)
 	}
 	defer app.Stop()
-	if app.client.paired || app.localCatalogClose != nil {
+	if app.client.paired {
 		t.Fatal("kit host was treated as paired or replaced by an embedded catalog")
 	}
 	cores, err := app.localCores.List(t.Context())
@@ -435,5 +434,42 @@ func TestKitHostReattachesAfterHostAndLauncherRestart(t *testing.T) {
 	assertAttached(newApp)
 	if stops.Load() != 0 {
 		t.Fatal("reattachment stopped the running session")
+	}
+}
+
+func TestKitHostStartupAcceptsTerminalSessionStates(t *testing.T) {
+	for _, tc := range []struct {
+		state           string
+		waiting, paused bool
+	}{
+		{"idle", false, false},
+		{"active", false, true},
+		{"local", false, true},
+		{"failed", false, false},
+		{"launching", true, true},
+		{"stopping", true, true},
+	} {
+		t.Run(tc.state, func(t *testing.T) {
+			host := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				if r.URL.Path != "/api/v1/session" {
+					http.NotFound(w, r)
+					return
+				}
+				_ = json.NewEncoder(w).Encode(map[string]string{"state": tc.state})
+			}))
+			defer host.Close()
+			app, err := configuredApp(Options{GFX: "menu-display", KitHost: true, APIBase: host.URL, PrefsPath: filepath.Join(t.TempDir(), "tenfoot.json")})
+			if err != nil {
+				t.Fatal(err)
+			}
+			defer app.Stop()
+			app.fetchSession(t.Context())
+			app.mu.Lock()
+			waiting := app.hostAwaitStatus
+			app.mu.Unlock()
+			if waiting != tc.waiting || app.Snapshot().LocalCorePresentsPaused != tc.paused {
+				t.Fatalf("state %s: waiting=%v paused=%v", tc.state, waiting, app.Snapshot().LocalCorePresentsPaused)
+			}
+		})
 	}
 }

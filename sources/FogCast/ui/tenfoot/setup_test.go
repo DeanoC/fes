@@ -137,7 +137,7 @@ func TestKitRoomsHomeEnablesTheFirstRunGate(t *testing.T) {
 		{"menu-display", "library", false},
 		{"sdl", "rooms", false},
 	} {
-		opts := Options{GFX: tc.gfx, APIBase: "http://127.0.0.1:9", Home: tc.home, HomeSet: true, PrefsPath: filepath.Join(t.TempDir(), "tenfoot.json"), CatalogConfig: filepath.Join(t.TempDir(), "absent.toml")}.normalized()
+		opts := Options{GFX: tc.gfx, APIBase: "http://127.0.0.1:9", Home: tc.home, HomeSet: true, PrefsPath: filepath.Join(t.TempDir(), "tenfoot.json")}.normalized()
 		app, err := configuredApp(opts)
 		if err != nil {
 			t.Fatal(err)
