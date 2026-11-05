@@ -4,6 +4,7 @@ import json
 import os
 from pathlib import Path
 import socket
+import subprocess
 import sys
 import tempfile
 import time
@@ -194,6 +195,64 @@ class PersistenceAdmissionTest(unittest.TestCase):
         good['software']['source_commit']='b'*40
         with self.assertRaises(p.pa.AcceptanceError):
             p.check_matching_sources(good,'a'*40)
+
+    def test_explicit_companion_admission_requires_identical_runtime_and_contract_trees(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            def git(*args):
+                return subprocess.check_output(['git', '-C', str(root), *args], stderr=subprocess.DEVNULL).decode().strip()
+            git('init', '-q')
+            git('config', 'user.email', 'pcxt-test@example.invalid')
+            git('config', 'user.name', 'PCXT Test')
+            for path in ('sources/libmister-runtime/runtime.c', 'sources/mister-packages/contract.json'):
+                f = root / path
+                f.parent.mkdir(parents=True, exist_ok=True)
+                f.write_text(path)
+            git('add', '.')
+            git('commit', '-qm', 'software')
+            software = git('rev-parse', 'HEAD')
+            (root / 'unrelated').write_text('host changed')
+            git('add', '.')
+            git('commit', '-qm', 'producer')
+            producer = git('rev-parse', 'HEAD')
+            args = SimpleNamespace(source_commit=producer, compatible_software_source=software,
+                                   source_main=True, source_historical_main=False, source_pr=None)
+            provenance = {'host': {'source_commit': producer}, 'software': {'source_commit': software}}
+            p.check_source_admission(provenance, args, root=root)
+            admission = provenance['companion_software']
+            self.assertEqual(admission['source_commit'], software)
+            self.assertEqual(set(admission['trees']), {'sources/libmister-runtime', 'sources/mister-packages'})
+
+            # No flag keeps the original same-source policy; an explicit source
+            # cannot waive a host mismatch, another software source, or PR/history mode.
+            for changes in ({'compatible_software_source': None},
+                            {'compatible_software_source': 'b'*40},
+                            {'compatible_software_source': '-bad'},
+                            {'source_main': False}, {'source_historical_main': True},
+                            {'source_pr': 1}):
+                with self.subTest(changes=changes):
+                    copy_args = SimpleNamespace(**vars(args)); vars(copy_args).update(changes)
+                    with self.assertRaises(p.pa.AcceptanceError):
+                        p.check_source_admission({'host': {'source_commit': producer},
+                                                  'software': {'source_commit': software}}, copy_args, root=root)
+            with self.assertRaises(p.pa.AcceptanceError):
+                p.check_source_admission({'host': {'source_commit': software},
+                                          'software': {'source_commit': software}}, args, root=root)
+
+            for path in ('sources/libmister-runtime/runtime.c', 'sources/mister-packages/contract.json'):
+                f = root / path
+                original = f.read_text()
+                f.write_text(original + ' changed')
+                git('add', '.')
+                git('commit', '-qm', 'incompatible tree')
+                changed = git('rev-parse', 'HEAD')
+                changed_args = SimpleNamespace(**vars(args)); changed_args.source_commit = changed
+                with self.subTest(path=path), self.assertRaises(p.pa.AcceptanceError):
+                    p.check_source_admission({'host': {'source_commit': changed},
+                                              'software': {'source_commit': software}}, changed_args, root=root)
+                f.write_text(original)
+                git('add', '.')
+                git('commit', '-qm', 'restore')
 
     def test_main_admission_binds_producer_and_separate_committed_tools(self):
         args=SimpleNamespace(source_repository='Example/fes', source_pr=None, source_base='main',
