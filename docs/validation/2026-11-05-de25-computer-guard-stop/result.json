@@ -1,0 +1,214 @@
+{
+  "status": "first-failure-retained",
+  "checkout": "e2f2cec26d3a4cd143acb134fdeba61bf5620b10",
+  "native_source": "b5bf86ca0d05727b1b41d997b12ddae517a64faf",
+  "serial": "TRWU8CBL",
+  "attempts": 1,
+  "retries": 0,
+  "console_sha256": "a0879551419f2514d8124f6e1cdb7cab975f4de7ce9781f5f82639a61b799d61",
+  "qualified_recovery": true,
+  "fixed_uploads_and_fresh_readbacks": 7,
+  "matched_native_boot": true,
+  "startup_checkpoints": 14,
+  "shared_ready": true,
+  "descriptor": "171f93692f2d718af6c6e9fc5b7d8c2580ac33fa2e3044ee2393c07ec839dc11",
+  "reports_before_pause": 7,
+  "usb_generation": 2,
+  "native_launch_keys": 1,
+  "native_cycles_completed": 0,
+  "return_or_quit_keys": 0,
+  "failure": "computer operation exceeded its time or poll limit: reason=deadline operation=open phase=after-read elapsed=1.065466487s step=66.579352ms limit=1s offset=0xc opcode=1 index=0 polls=0/64 reads=16 writes=0",
+  "last_state": {
+    "State": "reboot_required",
+    "Owner": 1171035964050624589,
+    "Generation": 1,
+    "Identity": {
+      "PackageID": "93a2192a0b1f0c014917dba9d27485798f105beabd466e3026422380edbf5ca5",
+      "CoreID": "fes.de25-embedded-diagnostic",
+      "ABI": "fes.de25-embedded-diagnostic",
+      "BuildID": "a44922576284d6d92781c31b27ec4f45",
+      "Platform": "de25_nano",
+      "Device": "A5EB013BB23BE4SCS",
+      "ProgrammingProfile": "de25-embedded-hps-first-ddr-diagnostic-v1",
+      "ActivationReceiptSHA256": "",
+      "ProgrammedSHA256": "c0ae20b35077393f1d91dffa0c391f663559e2b4576e7867123079d0ef8d4c41",
+      "Major": 1,
+      "Minor": 0
+    },
+    "Held": true,
+    "Error": "computer operation exceeded its time or poll limit: reason=deadline operation=open phase=after-read elapsed=1.065466487s step=66.579352ms limit=1s offset=0xc opcode=1 index=0 polls=0/64 reads=16 writes=0"
+  },
+  "current_transfer": [
+    {
+      "phase": "arm",
+      "counter": 32714301634,
+      "hash_ticks": 375232889,
+      "since_arm_seconds": 0.0,
+      "hash_since_arm_seconds": 0.0,
+      "outside_hash_since_arm_seconds": 0.0
+    },
+    {
+      "phase": "start",
+      "counter": 33316163105,
+      "hash_ticks": 750454960,
+      "since_arm_seconds": 1.5046536775,
+      "hash_since_arm_seconds": 0.9380551775,
+      "outside_hash_since_arm_seconds": 0.5665984999999999
+    },
+    {
+      "phase": "write",
+      "counter": 34203556918,
+      "hash_ticks": 1365984617,
+      "since_arm_seconds": 3.72313821,
+      "hash_since_arm_seconds": 2.47687932,
+      "outside_hash_since_arm_seconds": 1.24625889
+    },
+    {
+      "phase": "write",
+      "counter": 35245319465,
+      "hash_ticks": 1980863448,
+      "since_arm_seconds": 6.3275445775,
+      "hash_since_arm_seconds": 4.0140763975,
+      "outside_hash_since_arm_seconds": 2.31346818
+    },
+    {
+      "phase": "poll",
+      "counter": 36516498472,
+      "hash_ticks": 2733348692,
+      "since_arm_seconds": 9.505492095,
+      "hash_since_arm_seconds": 5.8952895075,
+      "outside_hash_since_arm_seconds": 3.610202587499999
+    },
+    {
+      "phase": "poll",
+      "counter": 37419365963,
+      "hash_ticks": 3247414416,
+      "since_arm_seconds": 11.7626608225,
+      "hash_since_arm_seconds": 7.1804538175,
+      "outside_hash_since_arm_seconds": 4.582207004999999
+    },
+    {
+      "phase": "status",
+      "counter": 38280779303,
+      "hash_ticks": 3760155658,
+      "since_arm_seconds": 13.9161941725,
+      "hash_since_arm_seconds": 8.4623069225,
+      "outside_hash_since_arm_seconds": 5.453887249999999
+    },
+    {
+      "phase": "complete",
+      "counter": 38772632063,
+      "hash_ticks": 4137259644,
+      "since_arm_seconds": 15.1458260725,
+      "hash_since_arm_seconds": 9.4050668875,
+      "outside_hash_since_arm_seconds": 5.740759185
+    }
+  ],
+  "previous_success_transfer": [
+    {
+      "phase": "arm",
+      "counter": 30766298887,
+      "hash_ticks": 376848791,
+      "since_arm_seconds": 0.0,
+      "hash_since_arm_seconds": 0.0,
+      "outside_hash_since_arm_seconds": 0.0
+    },
+    {
+      "phase": "start",
+      "counter": 31293501677,
+      "hash_ticks": 753635912,
+      "since_arm_seconds": 1.318006975,
+      "hash_since_arm_seconds": 0.9419678025,
+      "outside_hash_since_arm_seconds": 0.3760391725000001
+    },
+    {
+      "phase": "write",
+      "counter": 32035115494,
+      "hash_ticks": 1371601558,
+      "since_arm_seconds": 3.1720415175,
+      "hash_since_arm_seconds": 2.4868819175,
+      "outside_hash_since_arm_seconds": 0.6851596
+    },
+    {
+      "phase": "write",
+      "counter": 32903892646,
+      "hash_ticks": 1988939602,
+      "since_arm_seconds": 5.3439843975,
+      "hash_since_arm_seconds": 4.0302270275,
+      "outside_hash_since_arm_seconds": 1.3137573700000003
+    },
+    {
+      "phase": "poll",
+      "counter": 33963857936,
+      "hash_ticks": 2744402309,
+      "since_arm_seconds": 7.9938976225,
+      "hash_since_arm_seconds": 5.918883795,
+      "outside_hash_since_arm_seconds": 2.0750138274999994
+    },
+    {
+      "phase": "poll",
+      "counter": 34692915443,
+      "hash_ticks": 3260413335,
+      "since_arm_seconds": 9.81654139,
+      "hash_since_arm_seconds": 7.20891136,
+      "outside_hash_since_arm_seconds": 2.6076300299999993
+    },
+    {
+      "phase": "status",
+      "counter": 35419635082,
+      "hash_ticks": 3775211722,
+      "since_arm_seconds": 11.6333404875,
+      "hash_since_arm_seconds": 8.4959073275,
+      "outside_hash_since_arm_seconds": 3.1374331600000005
+    },
+    {
+      "phase": "complete",
+      "counter": 35814983869,
+      "hash_ticks": 4153709265,
+      "since_arm_seconds": 12.621712455,
+      "hash_since_arm_seconds": 9.442151185,
+      "outside_hash_since_arm_seconds": 3.1795612700000007
+    }
+  ],
+  "payload_bytes_reported_retired": 1650688,
+  "firmware_complete_reported": true,
+  "native_configuration_accepted": true,
+  "guard_reason": "computer-deadline",
+  "computer_guard": {
+    "reason": "deadline",
+    "operation": "open",
+    "phase": "after-read",
+    "elapsed": "1.065466487s",
+    "step": "66.579352ms",
+    "limit": "1s",
+    "offset": "0xc",
+    "opcode": "1",
+    "index": "0",
+    "polls": "0",
+    "poll_limit": "64",
+    "reads": "16",
+    "writes": "0"
+  },
+  "configuration_arm_to_complete_seconds": 15.1458260725,
+  "computer_control_open_observed": true,
+  "computer_ready_or_run_accepted": false,
+  "failure_tail_received_without_error": true,
+  "cpu_halt_proven": false,
+  "prior_shared_failure_source": "adcb08ee40a7ec223622e8e01a19e1a388a85eb8",
+  "interpretation": "Configuration completes with data held. Native advances to the computer identity operation, where the one-second deadline expires at 1.065466487s after read16, before any GP command write or ACK poll. The final read, including fresh secure ownership brackets, takes66.579352ms. Independent native work counts explain that every CSR has two complete bridge observations; repeated USB/owner observation work is the repair target. Master-stop reports complete/dataheld. No accepted identity,Run,USBresume or launch/return cycle. No retry.",
+  "ordinary_admission": false,
+  "core_loading_readiness": false,
+  "hardware_retry": false,
+  "cleanup": {
+    "status": "passed",
+    "scope": "independent read-only bounded-procedure host cleanup",
+    "clock_readback": "15M",
+    "exact_usb_permissions_restored": true,
+    "private_JTAG_process_gone": true,
+    "UART_free": true,
+    "claim_retained": true,
+    "hardware_retry": false,
+    "factory_restore": false,
+    "original_factory_card_untouched": true
+  }
+}
