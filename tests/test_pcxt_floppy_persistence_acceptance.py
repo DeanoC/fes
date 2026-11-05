@@ -13,6 +13,7 @@ from unittest import mock
 from types import SimpleNamespace
 
 from scripts import pcxt_floppy_persistence_acceptance as p
+from scripts import pcxt_main_application_acceptance as main_app
 from tests.test_pcxt_dos_keyboard_acceptance import frame
 from tests.test_pcxt_dos_application_acceptance import FakeRunner
 
@@ -254,6 +255,64 @@ class PersistenceAdmissionTest(unittest.TestCase):
                 git('add', '.')
                 git('commit', '-qm', 'restore')
 
+    def test_both_cli_wrappers_admit_only_explicit_pinned_companion(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            def git(*args):
+                return subprocess.check_output(['git', '-C', str(root), *args], stderr=subprocess.DEVNULL).decode().strip()
+            git('init', '-q')
+            git('config', 'user.email', 'pcxt-test@example.invalid')
+            git('config', 'user.name', 'PCXT Test')
+            for path in ('sources/libmister-runtime/runtime.c', 'sources/mister-packages/contract.json'):
+                f = root/path; f.parent.mkdir(parents=True, exist_ok=True); f.write_text(path)
+            git('add', '.'); git('commit', '-qm', 'software')
+            software = git('rev-parse', 'HEAD')
+            (root/'host').write_text('changed'); git('add', '.'); git('commit', '-qm', 'producer')
+            producer = git('rev-parse', 'HEAD')
+            args = ['com', '--kit', 'B', '--owner', 'fixture', '--queue-lock-fd', '1',
+                    '--host-receipt', '/host.json', '--host-receipt-sha256', '1'*64,
+                    '--host-binary', '/host', '--software-receipt', '/software.json',
+                    '--software-receipt-sha256', '2'*64, '--host-api', 'http://127.0.0.1:1',
+                    '--config', '/config', '--owned-session', '/session', '--archive', '/archive',
+                    '--archive-sha256', '3'*64, '--rbf-sha256', '4'*64, '--package-id', '5'*64,
+                    '--source-commit', producer, '--bundle-id', '6'*64, '--image-sha256', '7'*64,
+                    '--target-id', 'target', '--expected-boot', 'boot', '--disk', '/disk',
+                    '--capture-device', '/dev/v4l/by-id/fes-4kpro-hil', '--evidence', tmp,
+                    '--source-repository', 'Example/fes', '--source-tool-commit', '8'*40, '--host-pid', '1']
+            floppy_args = ['--phase', 'write', '--source-main', '--source-base', 'main',
+                           '--phase-deadline-monotonic', str(time.monotonic()+120)]
+            provenance = {'host': {'source_commit': producer}, 'software': {'source_commit': software},
+                          'diagnostic_file_sha256': {}}
+            original_command = p.bounded_source_command
+            def command(argv, deadline, cwd=None):
+                return original_command(argv, deadline, cwd=root if argv[:2] == ['git', 'ls-tree'] else cwd)
+            def application(argv):
+                parsed = p.app.parser().parse_args(argv)
+                if not hasattr(parsed, 'source_main'):
+                    parsed.source_main = True; parsed.source_pr = None; parsed.source_base = 'main'
+                result, _, _ = p.app.source_provenance(parsed, b'font')
+                return result
+            for wrapper, extra in ((main_app.main, []), (p.main, floppy_args)):
+                for opt_in, host_matches in ((True, True), (False, True), (True, False)):
+                    with self.subTest(wrapper=wrapper.__module__, opt_in=opt_in, host_matches=host_matches):
+                        current = copy.deepcopy(provenance)
+                        if not host_matches: current['host']['source_commit'] = software
+                        argv = args + extra + (['--compatible-software-source', software] if opt_in else [])
+                        with mock.patch.object(p.app, 'main', side_effect=application) as app_main, \
+                             mock.patch.object(p.app, 'source_provenance', return_value=(current, b'host', b'software')), \
+                             mock.patch.object(p.app, 'install_signal_handler'), \
+                             mock.patch.object(p, 'require_source'), \
+                             mock.patch.object(p, 'bounded_source_command', side_effect=command):
+                            if opt_in and host_matches:
+                                wrapper(argv)
+                                admitted = app_main.call_args  # callback verified before wrapper restores hooks
+                                self.assertIsNotNone(admitted)
+                                self.assertEqual(current['companion_software']['source_commit'], software)
+                                self.assertEqual(set(current['companion_software']['trees']),
+                                                 {'sources/libmister-runtime', 'sources/mister-packages'})
+                            else:
+                                with self.assertRaises(p.pa.AcceptanceError): wrapper(argv)
+
     def test_main_admission_binds_producer_and_separate_committed_tools(self):
         args=SimpleNamespace(source_repository='Example/fes', source_pr=None, source_base='main',
                              source_commit='a'*40, source_tool_commit='b'*40, source_main=True)
@@ -377,13 +436,14 @@ class PersistenceAdmissionTest(unittest.TestCase):
         root=Path(p.__file__).resolve().parent.parent
         args=SimpleNamespace(source_repository='Example/fes',source_pr=None,source_base='main',
             source_commit='a'*40,source_tool_commit='b'*40,source_main=True,phase='write',
+            compatible_software_source='c'*40,source_historical_main=False,
             phase_deadline_monotonic=time.monotonic()+120,disk=Path('/unused'),
             archive_sha256='d'*64,package_id='a'*64,rbf_sha256='e'*64,bundle_id='f'*64,
             image_sha256='1'*64,target_id='target',expected_boot='boot',evidence=Path('/unused'))
         prior=SimpleNamespace(**vars(owned()))
         prior.session_id=owned().session_id;prior.generation=8;prior.flight_id='oldflight'
         provenance={'main_source':{'producer_commit':args.source_commit,'tool_commit':args.source_tool_commit},
-                    'host':{'source_commit':args.source_commit},'software':{'source_commit':args.source_commit}}
+                    'host':{'source_commit':args.source_commit},'software':{'source_commit':args.compatible_software_source}}
         rec={'scenario':'com','source_commit':args.source_commit,'archive_sha256':args.archive_sha256,
              'package_id':args.package_id,'rbf_sha256':args.rbf_sha256,'bundle_id':args.bundle_id,
              'base_image_sha256':args.image_sha256,'target_id':'target','boot_id':'boot',
@@ -406,6 +466,9 @@ class PersistenceAdmissionTest(unittest.TestCase):
         runner=Runner()
         def command(argv, deadline, cwd=None):
             if argv[:3]==['git','rev-parse','HEAD']:return b'b'*40+b'\n'
+            if argv[:2]==['git','ls-tree']:
+                return (b'040000 tree '+b'1'*40+b'\tsources/libmister-runtime\0'
+                        b'040000 tree '+b'2'*40+b'\tsources/mister-packages\0')
             if argv[:2]==['git','show']:
                 return (root/argv[2].split(':',1)[1]).read_bytes()
             return json.dumps({'sha':'a'*40}).encode()
@@ -419,16 +482,23 @@ class PersistenceAdmissionTest(unittest.TestCase):
              mock.patch.object(p.app,'type_keys'), \
              mock.patch.object(p,'wait_for_output',return_value={'proof':'output'}), \
              mock.patch.object(p,'wait_for_copy',return_value={'proof':'copy'}):
-            p.check_matching_sources(provenance,args.source_commit)
+            p.check_source_admission(provenance,args)
             p.run_phase(runner,prior,args,rec,'oldinput',b'font')
             self.assertEqual(runner.api.calls,1)
             self.assertEqual(rec['saved_revision'],'9'*64)
             raw=json.dumps(rec).encode();receipt=Path(tmp)/'write.json';receipt.write_bytes(raw)
             args.phase='verify';args.write_receipt=receipt;args.write_receipt_sha256=hashlib.sha256(raw).hexdigest()
             verify={'provenance':copy.deepcopy(provenance),'captures':[],'hid_events':[]}
+            p.check_source_admission(verify['provenance'],args)
             p.run_phase(runner,owned(),args,verify,'newinput',b'font')
             self.assertEqual(verify['classification'],'physical diagnostic: DOS saved file restored after restart')
             self.assertEqual(runner.api.calls,1)
+            self.assertEqual(verify['provenance']['companion_software'], rec['provenance']['companion_software'])
+            for field, value in (('source_commit','d'*40), ('trees',{'sources/libmister-runtime':'f'*40})):
+                changed=copy.deepcopy(provenance)
+                changed['companion_software'][field]=value
+                with self.subTest(companion_field=field), self.assertRaises(p.pa.AcceptanceError):
+                    p.run_phase(runner,owned(),args,{'provenance':changed,'captures':[],'hid_events':[]},'newinput',b'font')
             verify['provenance']['main_source']['tool_commit']='c'*40
             with self.assertRaises(p.pa.AcceptanceError):p.run_phase(runner,owned(),args,verify,'newinput',b'font')
             verify['provenance']=copy.deepcopy(provenance);args.source_tool_commit='c'*40
