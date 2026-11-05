@@ -8,11 +8,16 @@
 
 module zx81_machine #(
     parameter EXTERNAL_RAM = 0,
+    parameter EXTERNAL_ROM = 0,
     parameter FIRMWARE_INIT = ""
 ) (
     input  wire        clk_sys,
     input  wire        reset,
     input  wire [39:0] keyboard,
+    // Same one-clock read latency as the internal ROM. The enclosing owner
+    // must keep reset asserted until its external image is complete/verified.
+    output wire [12:0] rom_address,
+    input  wire [7:0] external_rom_data,
     input  wire        tape_ready,
     input  wire [14:0] tape_size,
     input  wire [7:0]  tape_data,
@@ -246,7 +251,13 @@ module zx81_machine #(
     wire [12:0] rom_a = nRFSH ? addr[12:0] :
         {addr[12:9] + (addr[13] & ram_data_latch[7] & addr[8]), ram_data_latch[5:0], row_counter};
     wire rom_e = ~addr[14] & ~addr[13] & (~addr[12] | ZX81) & low16k_e & ~bus_romcs;
-    wire [7:0] rom_out;
+    wire [7:0] rom_out, builtin_rom_out;
+`ifdef ZX81_MODEL_ZX80
+    assign rom_address = {1'b0,rom_a[11:0]};
+`else
+    assign rom_address = rom_a;
+`endif
+    assign rom_out = EXTERNAL_ROM ? external_rom_data : builtin_rom_out;
 `ifdef FES_ZX81_ROM_LINK
     zx81_rom_link rom (
         .clk(clk_sys),
@@ -255,7 +266,7 @@ module zx81_machine #(
 `else
         .address(rom_a),
 `endif
-        .data(rom_out)
+        .data(builtin_rom_out)
     );
 `else
 `ifdef QUARTUS
@@ -272,7 +283,7 @@ module zx81_machine #(
 `endif
         .data_a(8'h00),
         .wren_a(1'b0),
-        .q_a(rom_out),
+        .q_a(builtin_rom_out),
         .address_b(14'd0),
         .data_b(8'h00),
         .wren_b(1'b0),

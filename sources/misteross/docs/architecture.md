@@ -94,6 +94,20 @@ headers. Its read-only fetch count/address sample actual Z80 bus activity,
 preserve the count across execution Hold and add no clock, master or GP opcode.
 The generated component HDL must match those installed source bytes. This
 observation measures fetch cycles rather than retired instructions or video.
+
+The separate ROM stream prototype buffers one 4 KiB or 8 KiB image in
+synchronous FPGA RAM. It accepts complete little-endian 128-bit beats with
+backpressure and exposes no read bytes until exact length, final-beat position
+and IEEE CRC32 agree. Abort, lost execution Hold, a repeated Start or bad CRC
+retires the image until reset. The portable ZX81 machine's explicit
+`EXTERNAL_ROM` parameter selects its one-clock ROM read input; the default
+internal and linked-ROM paths retain their existing source and address decode.
+The simulation wrapper holds the real ZX80/ZX81 CPU through image admission,
+then checks a streamed program's RAM write and HALT. No physical producer
+selects that wrapper. Native retention/ownership hooks, a bulk source adapter, firmware controls
+and a source-bound physical profile remain
+unimplemented; this model grants no package admission or physical acceptance.
+
 The fingerprint is diagnostic, not the canonical record or a sealed package identity. The
 overlay records its board and overlay revisions separately. Generated handoff
 checks the 256-byte peripheral-relative window, its clock/reset and the JTAG

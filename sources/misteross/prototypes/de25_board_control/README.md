@@ -22,6 +22,36 @@ the CPU keeps running. Hold leaves the counter intact so a bounded observer can
 check run progress, held stability and relaunch. This is not a retired-instruction,
 video, memory-containment or production-acceptance measurement.
 
+`fes_embedded_rom.sv` is a separate, currently unwired bulk-ROM receiver. A
+Start latches the expected IEEE CRC32 while execution is held. Exactly 4 KiB or
+8 KiB arrives as little-endian 128-bit beats; `stream_last` names the end of the
+whole image, not the end of each DDR reader request. Backpressure protects its
+private pending beat while it writes synchronous byte RAM. `loaded` becomes
+true only after the last byte and CRC agree. Bad length/LAST, CRC, lost Hold,
+abort or a second Start fail closed until reset. Read data remains zero before
+completion and after failure. Source identity, pinned storage, reader-generation
+binding, drain and the CPU reset gate belong to the enclosing platform.
+
+The `rom_machine.sv` simulation wrapper wires the receiver into the real
+ZX80/ZX81 machine using `EXTERNAL_ROM=1`, and keeps the CPU reset while held,
+unloaded or failed. An independently CRC-checked synthetic ROM writes RAM at
+`0x4000` and halts after release. Bad CRC produces no fetches or RAM writes.
+Existing core and session shells retain `EXTERNAL_ROM=0`. This is a real RTL
+model, not a physical ROM path: native/firmware hooks, a bulk source
+adapter, sealed capability/profile and normal retained-ROM admission are still
+needed. Existing hardware results apply only to their previously sealed inputs.
+
+From the FES root, run the bounded model directly:
+
+```sh
+python3 sources/misteross/prototypes/de25_board_control/verify_rom.py --output out/rom-stream-check
+```
+
+The standalone verifier below also runs that model for both ROM sizes. The
+new receiver is compiled with warnings fatal; the real-machine model uses the
+existing ZX81 simulator's source waivers. These checks perform no synthesis,
+timing qualification or hardware operation.
+
 The new 256-byte Avalon aperture is at peripheral-relative `0x10400`. The
 generated handoff must also show it at `0x00110400` in the existing JTAG master.
 Neither address is a verified CPU physical address. The default read responder

@@ -298,6 +298,9 @@ def main():
             raise ValueError("standalone sources changed during verification")
         run('ddr-model',[sys.executable,HERE/'verify_ddr.py','--output',output/'ddr'],ROOT,env,output,
             marker='PASS25 DDR reader cases and3 identity/window rejection cases')
+        if not project:
+            run('rom-model',[sys.executable,HERE/'verify_rom.py','--output',output/'rom'],ROOT,env,output,
+                marker='PASS ROM stream RTL:')
         report = {"status": "passed", "classification": "generated DE25 diagnostic Avalon RTL and native adapter in host simulation" if project else "standalone Avalon RTL and native adapter in host simulation",
                   "board_revision": inputs["embedded_control"]["board_fes_revision"] if project else None,
                   "overlay_revision": inputs["embedded_control"]["overlay_fes_revision"] if project else None,
@@ -308,6 +311,7 @@ def main():
                   "probe_source_sha256": hashlib.sha256(source).hexdigest(), "tcl_source_sha256": tcl_sources,
                   "source_sha256": source_sha256, "model_sha256": sha(executable),
                   "ddr_model_result_sha256":sha(output/'ddr/result.json'),
+                  "rom_model_result_sha256":sha(output/'rom/result.json') if not project else None,
                   "project_inputs_sha256": sha(project / "board/hps/inputs.json") if project else None,
                   "generation_sha256": sha(project / "board/hps/generation.json") if project else None,
                   "command": [str(x) for x in command],
