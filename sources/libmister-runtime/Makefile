@@ -24,7 +24,7 @@ CXXFLAGS ?= -O2 -std=c++14 -Wall -Wextra -Werror -pthread -MMD -MP
 
 # GNU ar accepts -D (deterministic). BSD/Apple ar does not; ZERO_AR_DATE=1
 # already zeros timestamps on those implementations.
-ifeq ($(shell $(AR) --help 2>&1 | grep -c -- '-D'),0)
+ifeq ($(shell $(AR) --help 2>&1 | grep -Ec '(^|[[:space:]])(\[D\]|-D)([[:space:]]|$$)'),0)
 AR_CREATE_FLAGS := rcs
 else
 AR_CREATE_FLAGS := rcsD

@@ -27,11 +27,14 @@ historic_pattern="stage[-_ ]?c0|$poc_pattern|fogcast-runtime|native[-_ ]personal
 # Exempt only their exact generated preprocessor lines; other v2 names still fail.
 # The shared multi-slot composition identity domain is likewise exempt only as
 # the one literal that seeds its canonical hash in core_composition.cpp.
+# The current opaque expansion-asset domain is allowed only in its two exact
+# admission/recheck expressions; it introduces no alternate runtime lifecycle.
 if grep -ERni --include='*.[ch]' --include='*.cpp' --include='*.hpp' \
 	--include='Makefile' "$historic_pattern" \
 	"$root/include" "$root/src" "$root/Makefile" |
 	grep -Ev '/src/native/generated/[^/:]+\.hpp:[0-9]+:(#(ifndef|define) MISTER_PACKAGES_GENERATED_SYSTEM_TYPES_V2|#endif // MISTER_PACKAGES_GENERATED_SYSTEM_TYPES_V2)$' |
-	grep -Ev '/src/native/core_composition\.cpp:[0-9]+:[[:space:]]*std::string canonical\("fes-composition-v2\\0",19\);$' \
+	grep -Ev '/src/native/core_composition\.cpp:[0-9]+:[[:space:]]*std::string canonical\("fes-composition-v2\\0",19\);$' |
+	grep -Ev "/src/native/core_composition\.cpp:[0-9]+:[[:space:]]*(info->expansion_id=Hash\(std::string\(\"fes-expansion-v2\"\)\+std::string\(1,'\\\\0'\)\+asset\.manifest_bytes\);|Hash\(std::string\(\"fes-expansion-v2\"\)\+std::string\(1,'\\\\0'\)\+bytes\)!=info\.expansion_id\))$" \
 	>"$temporary/source-names.log"; then
 	echo "historic compatibility term remains in the active tree" >&2
 	cat "$temporary/source-names.log" >&2
@@ -63,7 +66,7 @@ built_name_pattern="fogcast[-_ ]runtime|personality|stage[-_ ]?[a-z0-9]*|$poc_pa
 # The exact shared composition identity domain string is likewise excluded.
 for output in "$archive" "$daemon"; do
 	strings "$output" >"$temporary/$(basename "$output").strings"
-	grep -Fxv -e 'fes-composition-v2' "$temporary/$(basename "$output").strings" |
+	grep -Fxv -e 'fes-composition-v2' -e 'fes-expansion-v2' "$temporary/$(basename "$output").strings" |
 	grep -Fv -e '__gxx_personality_v0' \
 		-e '_ZN6mister6native9generatedL20FesGpPongProgressTagE' \
 		>"$temporary/$(basename "$output").project-strings" || true

@@ -80,6 +80,17 @@ for obsolete in 'class PoC;' 'class PoC12Hardware;' 'void run_poc3();'; do
 	expect_guard_failure 'historic compatibility term remains in the active tree'
 	rm -f -- "$fixture/src/legacy.hpp"
 done
+# The current asset hash domain cannot hide unrelated lifecycle names or be
+# copied into another active source file. The production check above exercises
+# the exact admission/recheck expressions and the independent binary filter.
+printf '%s\n' 'const char* domain = "fes-expansion-v2";' >"$fixture/src/legacy.hpp"
+expect_guard_failure 'historic compatibility term remains in the active tree'
+rm -f -- "$fixture/src/legacy.hpp"
+mkdir -p "$fixture/src/native"
+printf '%s\n' 'const char* domain = "fes-expansion-v2"; class HardwareBroker;' \
+	>"$fixture/src/native/core_composition.cpp"
+expect_guard_failure 'historic compatibility term remains in the active tree'
+rm -f -- "$fixture/src/native/core_composition.cpp"
 expect_guard_failure 'canonical build must contain exactly build/libmister-runtime.a'
 
 archive="$root/build/libmister-runtime.a"
