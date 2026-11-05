@@ -21,13 +21,14 @@ class ZX81ProducerTests(unittest.TestCase):
     def setUp(self):
         self.temp=tempfile.TemporaryDirectory(prefix='de25-zx81-producer-test-')
         self.addCleanup(self.temp.cleanup);self.root=Path(self.temp.name)
-        data={producer.RECIPE:b'fixture recipe',producer.ABI:b'fixture ABI',
+        data={producer.RECIPE:b'# fixture recipe\n',producer.ABI:b'fixture ABI',
               'cores/fes-zx81/rtl/machine.v':b'fixture machine',
               'cores/fes-common/rtl/z80/engine.sv':b'fixture CPU',
               'boards/de25nano/fixture.v':b'fixture board',
               'cores/fes-menu/rtl/fixture.v':b'fixture reader',
               'cores/fes-splash/rtl/fixture.v':b'fixture display'}
         data.update({name:b'fixture shared library' for name in producer.COMMON_LIBRARY_INPUTS})
+        data.update({name:b'# fitted review fixture\n' for name in producer.REVIEW_INPUTS})
         for name,value in data.items():
             p=self.root/name;p.parent.mkdir(parents=True,exist_ok=True);p.write_bytes(value)
         for command in (['git','init','-q'],['git','add','.'],

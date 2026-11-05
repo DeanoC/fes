@@ -32,13 +32,18 @@ from scripts.core_package import encode_manifest
 from scripts.export_core_package import build_identity, encode_build_record, export_package, source_input_closure
 from scripts.fes_build_common import AuthenticatedTool, BuildError, _require_clean_source as require_clean_source
 from scripts.functional_execution import execution_digest, execution_environment
+from scripts.source_closure import imports as script_imports
+from scripts.compiler_read_audit import POLICY as SOURCE_POLICY
 from boards.de25nano.scanout import async_inputs
 from boards.de25nano.scanout.build import TIMED_RESET_RELEASE, MANAGED_FABRIC, SHARED_FIFO_RESETS
 
 ROOT = Path(__file__).resolve().parents[1]
 RECIPE = 'scripts/build_de25_menu_package.py'
 ABI = 'boards/de25nano/scanout/generated/fes_de25_scanout.vh'
-SOURCE_ROOTS = ['boards/de25nano', 'cores/fes-menu', 'cores/fes-splash', 'scripts']
+SOURCE_ROOTS = ['cores/fes-menu/rtl', 'cores/fes-splash/rtl']
+REVIEW_INPUTS = ('boards/de25nano/scanout/async_inputs.py',
+                 'boards/de25nano/scanout/async_inputs.tcl',
+                 'boards/de25nano/scanout/vendor_reference.py')
 DEVICE = 'A5EB013BB23BE4SCS'
 
 
@@ -142,6 +147,30 @@ def execution_inputs(paths, env, _router_device=0):
         'environment': dict(env, HOME='<private-build-home>')}
 
 
+def captured_source_closure(root, source_roots, captured, recipe, review_inputs):
+    """Bind the staged board bytes and producer/qualification dependencies.
+
+    The captured builders explicitly materialize their HDL and IP inputs. Their
+    capture declarations remain hashed, so selecting another file changes the
+    identity. Unrelated board diagnostics and script entrypoints are not inputs.
+    The ordinary exporter still re-enumerates and checks every declared root.
+    """
+    roots = set(source_roots) | set(review_inputs)
+    helpers = {recipe, *(name for name in review_inputs if name.startswith('scripts/'))}
+    for helper in helpers:
+        roots.update(script_imports(Path(helper).stem, root))
+    roots.update(helpers)
+    paths = {Path(name).relative_to('sources/misteross').as_posix(): data
+             for name, data in captured.items()}
+    roots.update(paths)
+    roots = sorted(roots)
+    closure = source_input_closure(root, roots, policy=SOURCE_POLICY)
+    for name, data in paths.items():
+        if closure.get(name) != hashlib.sha256(data).hexdigest():
+            raise BuildError('captured DE25 source differs from canonical closure: ' + name)
+    return roots, closure
+
+
 def create_build_record(root, repository, revision, identities, execution, captured=None, *, identity_version=2):
     if type(identity_version) is not int or identity_version != 2:
         raise BuildError('DE25 MENU requires functional build identity 2')
@@ -151,16 +180,13 @@ def create_build_record(root, repository, revision, identities, execution, captu
     if captured is None:
         captured = scanout(root).capture(revision)
     top = Path(subprocess.check_output(['git', 'rev-parse', '--show-toplevel'], cwd=root, text=True).strip())
-    closure = source_input_closure(root, SOURCE_ROOTS)
-    for path, data in captured.items():
-        relative = Path(path).relative_to('sources/misteross').as_posix()
-        if closure.get(relative) != hashlib.sha256(data).hexdigest():
-            raise BuildError('captured DE25 source differs from canonical closure: ' + path)
+    roots, closure = captured_source_closure(root, SOURCE_ROOTS, captured, RECIPE, REVIEW_INPUTS)
     fields = {'format': 2, 'toolchain': 'quartus', 'repository': repository, 'revision': revision,
-        'source_path': root.relative_to(top).as_posix(), 'source_roots': SOURCE_ROOTS,
+        'source_path': root.relative_to(top).as_posix(), 'source_roots': roots,
         'source_inputs': closure, 'recipe': RECIPE, 'recipe_sha256': sha(root / RECIPE),
         'abi_definition': ABI, 'abi_definition_sha256': sha(root / ABI), 'dependencies': {},
         'tools': dict(identities), 'parameters': {'core_id': 'fes.menu', 'device': DEVICE,
+            'source_closure_policy': SOURCE_POLICY,
             'hps_initialization': 'HPS FIRST', 'linux_dma': True,
             'f2sdram_master_profile': 'scanout-only', 'seed': 1, 'threads': 2,
             'signoff_policy': async_inputs.POLICY,

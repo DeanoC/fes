@@ -610,7 +610,7 @@ class HilPlanTest(unittest.TestCase):
         import importlib.util
         planner = hil_module()
         board = ROOT / 'sources/misteross/boards/de25nano'
-        for relative, capture in (('zx81-hps/build.py', 'capture_standard'),
+        for relative, capture in (('zx81-hps/build.py', 'capture_standard_board'),
                                   ('scanout/build.py', 'capture')):
             spec = importlib.util.spec_from_file_location('hil_de25_closure', board / relative)
             module = importlib.util.module_from_spec(spec)
@@ -633,6 +633,9 @@ class HilPlanTest(unittest.TestCase):
         self.assertEqual(result['components'], ['core:de25-menu', 'core:de25-zx81'])
         self.assertEqual(result['class'], 'overlay')
         self.assertEqual(planner.plan([zx81], texts={})['decision'], 'OVERLAY core:de25-zx81')
+        self.assertEqual(planner.plan([
+            'sources/misteross/scripts/review_de25_audio_clocks.py'], texts={})[
+                'decision'], 'OVERLAY core:de25-zx81')
 
     def test_core_root_declarations_include_de25_package_consumers(self):
         planner = hil_module()

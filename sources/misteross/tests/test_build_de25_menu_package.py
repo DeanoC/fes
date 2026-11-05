@@ -320,9 +320,10 @@ class DE25MenuPackageTests(unittest.TestCase):
                 audio_review='unit-audio')['package_timing_admission'])
 
     def prepare_repository(self):
-        paths = {producer.RECIPE: b'actual recipe', producer.ABI: b'actual ABI',
-                 'cores/fes-menu/reader.v': b'module reader; endmodule',
-                 'cores/fes-splash/splash.v': b'module splash; endmodule'}
+        paths = {producer.RECIPE: b'# actual recipe\n', producer.ABI: b'actual ABI',
+                 'cores/fes-menu/rtl/reader.v': b'module reader; endmodule',
+                 'cores/fes-splash/rtl/splash.v': b'module splash; endmodule'}
+        paths.update({name: b'# fitted review fixture\n' for name in producer.REVIEW_INPUTS})
         for name, data in paths.items():
             path = self.root / name
             path.parent.mkdir(parents=True, exist_ok=True)

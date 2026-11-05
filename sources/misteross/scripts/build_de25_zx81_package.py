@@ -6,7 +6,6 @@ as DE25 MENU. Firmware pairing and native kit acceptance remain separate.
 """
 from __future__ import annotations
 import argparse
-import hashlib
 import importlib.util
 import json
 import os
@@ -21,7 +20,7 @@ if __package__ in (None, ''):
 
 from scripts import build_de25_menu_package as common
 from scripts.core_package import encode_manifest
-from scripts.export_core_package import build_identity, encode_build_record, export_package, source_input_closure
+from scripts.export_core_package import build_identity, encode_build_record, export_package
 from scripts.fes_build_common import AuthenticatedTool, BuildError, _require_clean_source as require_clean_source
 from scripts.functional_execution import execution_digest, execution_environment
 from boards.de25nano.scanout import async_inputs, audio_reference
@@ -32,8 +31,11 @@ ABI = 'cores/fes-common/generated/fes_computer.vh'
 COMMON_LIBRARY_INPUTS = ['cores/fes-common/rtl/' + name for name in (
     'fes_computer_mailbox.v', 'fes_display_plane.v', 'fes_display_cdc.v',
     'fes_audio_output.v', 'fes_audio_i2s.v')]
-SOURCE_ROOTS = sorted(['boards/de25nano', 'cores/fes-common/generated', 'cores/fes-common/rtl/z80',
-                'cores/fes-menu', 'cores/fes-splash', 'cores/fes-zx81', 'scripts', *COMMON_LIBRARY_INPUTS])
+SOURCE_ROOTS = sorted([*common.SOURCE_ROOTS, 'cores/fes-common/generated', 'cores/fes-common/rtl/z80',
+                      'cores/fes-zx81/rtl', *COMMON_LIBRARY_INPUTS])
+REVIEW_INPUTS = (*common.REVIEW_INPUTS, 'boards/de25nano/scanout/audio_reference.py',
+                 'boards/de25nano/scanout/audio_clocks.tcl',
+                 'scripts/review_de25_audio_clocks.py')
 DEVICE = common.DEVICE
 FABRIC = common.MANAGED_FABRIC
 sha = common.sha
@@ -69,16 +71,13 @@ def create_build_record(root, repository, revision, identities, execution, captu
     if captured is None:
         captured = computer(root).capture_standard_board(revision)
     top = Path(subprocess.check_output(['git', 'rev-parse', '--show-toplevel'], cwd=root, text=True).strip())
-    closure = source_input_closure(root, SOURCE_ROOTS)
-    for name, data in captured.items():
-        relative = Path(name).relative_to('sources/misteross').as_posix()
-        if closure.get(relative) != hashlib.sha256(data).hexdigest():
-            raise BuildError('captured DE25 ZX81 source differs from canonical closure: ' + name)
+    roots, closure = common.captured_source_closure(root, SOURCE_ROOTS, captured, RECIPE, REVIEW_INPUTS)
     return encode_build_record({'format': 2, 'toolchain': 'quartus', 'repository': repository, 'revision': revision,
-        'source_path': root.relative_to(top).as_posix(), 'source_roots': SOURCE_ROOTS, 'source_inputs': closure,
+        'source_path': root.relative_to(top).as_posix(), 'source_roots': roots, 'source_inputs': closure,
         'recipe': RECIPE, 'recipe_sha256': sha(root / RECIPE), 'abi_definition': ABI,
         'abi_definition_sha256': sha(root / ABI), 'dependencies': {}, 'tools': dict(identities),
         'parameters': {'core_id': 'fes.zx81', 'device': DEVICE, 'hps_initialization': 'HPS FIRST',
+            'source_closure_policy': common.SOURCE_POLICY,
             'f2sdram_master_profile': 'scanout-only', 'fabric_initiator_policy': FABRIC,
             'programming_profile': 'de25-linux-computer-v1', 'standard_core': True, 'linux_dma': True,
             'expansion_socket': False, 'internal_ram_kib': 16, 'audio_clock_requested_hz': 12288000,

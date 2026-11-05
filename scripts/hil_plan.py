@@ -69,7 +69,7 @@ RULES = [
     # conservatively selects both DE25 packages; it does not require an OS image.
     ('sources/misteross/scripts/build_de25_menu_package.py', 'overlay', 'core:de25-menu'),
     ('sources/misteross/scripts/build_de25_zx81_package.py', 'overlay', 'core:de25-zx81'),
-    ('sources/misteross/scripts/review_de25_audio_clocks.py', 'none', None),
+    ('sources/misteross/scripts/review_de25_audio_clocks.py', 'overlay', 'core:de25-zx81'),
     ('sources/misteross/boards/de25nano/**/test_*.py', 'none', None),
     ('sources/misteross/boards/de25nano/**/*_tb.cpp', 'none', None),
     ('sources/misteross/boards/de25nano/**/*_harness.v', 'none', None),

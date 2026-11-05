@@ -249,11 +249,22 @@ with PLL loss or establish fitted reset coordination or physical acceptance.
 
 `scripts/build_de25_menu_package.py` prepares the allocated-buffer MENU with a
 canonical format-2 functional record before generating IP. Its record binds the
-tracked board/MENU/splash/producer source closure, locked vendor resource archive,
+captured board inputs, MENU/splash RTL and transitive producer-script closure,
+locked vendor resource archive,
 actual Quartus 26.3 Pro tools, complete selected installation and controlled
 execution. That record supplies the real Qsys BUILD_ID and explicit seed 1;
 the diagnostic source/profile identity remains the default for the standalone
 scanout recipe. `--compile-only` retains a candidate and never exports a package.
+The standard ZX81 producer follows the same closure rule, including its shared
+machine, CPU, generated contracts and audio inputs. Both records bind the fitted
+qualification implementations and Tcl scripts. They use the existing compiler
+Markdown policy, and exclude unrelated board diagnostics, simulations and script
+entrypoints. A builder's capture declaration is itself an input, so selecting
+another board file changes the identity. Export still re-enumerates every root,
+checks captured bytes and verifies the recorded Git revision. The audio-clock
+review helper selects the DE25 ZX81 hardware gate; it is a qualification input.
+Existing sealed artifacts retain their original identities. These producer
+changes require fresh fitting, independent reproduction and native acceptance.
 The parent recipe registry selects this producer explicitly for
 `recipe_for("fes.menu", board="de25-nano")`; default lookup remains DE10.
 The producer implements the shared clean-source, tool-authentication and
