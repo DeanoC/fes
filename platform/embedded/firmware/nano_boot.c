@@ -92,8 +92,9 @@ static int retained_state(void *p,uint64_t owner,uint64_t epoch,
         s->masters.read_per0(s->masters.context,&per0)) return failed(s,-1);
     unsigned data_held=(first & FES_NANO_BRIDGES_DATA)==FES_NANO_BRIDGES_DATA;
     if (data_held || s->producers_stopped) {
-        if (s->retained.snapshot(s->retained.context,owner,epoch,&keep,&bits) ||
-            (bits & ~FES_NANO_PRODUCERS_ALL) ||
+        int error=s->retained.snapshot(s->retained.context,owner,epoch,&keep,&bits);
+        if (error) return failed(s,error);
+        if ((bits & ~FES_NANO_PRODUCERS_ALL) ||
             (keep && keep!=FES_NANO_MASTER_USB0_PIO_RESET)) return failed(s,-1);
     }
     s->masters.barrier(s->masters.context);

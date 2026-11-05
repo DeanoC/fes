@@ -78,6 +78,7 @@ int main(int argc,char **argv)
         int status=fes_nano_bridges_observe(&model.base.bridges,&state);
         if (!status) fprintf(stderr,"fault=%u physical_reads=%u fail_read=%u board_error=%d cold_failed=%u\n",fault,physical_reads,fail_read,usb_board.first_error,provider.failed);
         assert(status<0);
+        if (fault==9) assert(model.base.master_boot.first_error==-71 && usb_master.first_error==-71);
         assert(!memcmp(&state,&untouched,sizeof(state)) && model.base.bridges.failed && model.base.master_boot.failed);
         accesses=model.accesses;requests=model.requests;
         assert(fes_nano_bridges_observe(&model.base.bridges,&state)<0);
