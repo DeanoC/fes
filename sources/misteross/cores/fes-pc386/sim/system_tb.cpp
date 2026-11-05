@@ -39,6 +39,10 @@
 // reset; a held port is its guard's, which finishes an open write burst with
 // byte enables clear and hides read data (pc386_ddr_model.h hold()). The pixel
 // clock runs throughout, so the presenter and plane load port 2 as on a kit.
+// Throughout, it reads the status ring (pc386_status) from the window as the
+// HPS does: every record must hold the status words the bench saw before the
+// edge of the clock its stamp names, and at most one, the first, may come too
+// late to check.
 //
 // It prints:
 //   WRITE-TEST <offset>|absent              where the AUTOEXEC.BAT change went
@@ -62,7 +66,9 @@
 //   ROUNDTRIP <72 words>                     the record after the restore and setup
 //   HOLD <cycle> owed=<p0>,<p1>,<p2>         a hold that cut a write burst: the beats
 //                                            each port's guard sends, byte enables clear
-//   CHECK <PASS|FAIL> <what>                 the record, round-trip and hold checks
+//   RING-MISMATCH <n> stamp=<clock> word=<w> ring=<hex> status=<hex>
+//                                            a status ring record that is not the status
+//   CHECK <PASS|FAIL> <what>                 the record, round-trip, hold and status ring checks
 //   END <reason> cycles=<n> seconds=<simulated>
 // reason: prompt, stopped (the CPU stopped for good), stalled (no
 // instruction retired for 2 s: a hang, or HLT with interrupts off), limit,
@@ -80,6 +86,7 @@
 #include "pc386_ddr_model.h"
 
 #include <algorithm>
+#include <array>
 #include <cstdio>
 #include <cstring>
 #include <fstream>
@@ -114,6 +121,9 @@ constexpr unsigned HOLD_CUTS = 4, HOLD_TRIALS = 1024;
 // the record writes.
 constexpr uint16_t SETTINGS[8] = {0, 0, 0, 0, 0x240, 5, 1, 0};
 constexpr unsigned MARKER_BYTE = 0x50, MARKER = 0xa5;
+// The status ring (pc386_status.sv): the head, then 256 records of 8 words.
+constexpr uint32_t RING_HEAD = 0x01000000u, RING_RECORDS = 0x01001000u, RING_MAGIC = 0x50333836u;
+constexpr unsigned RING_SLOTS = 256, HISTORY = 1u << 18;  // clocks of status the bench keeps
 // The input exercise: the echoed text, INPUT.COM's mouse packets (dx, dy
 // screen-down, buttons) and its expected report. The sums are 172 right and
 // 72 down, which PS/2 counts as Y -72.
@@ -207,6 +217,10 @@ public:
             for (int row = 0; row < 25; ++row) std::printf("SCREEN %d |%s|\n", row, screen_row(row).c_str());
             print_status();
             if (reason == "prompt") stop();
+            check_ring();
+            check(ring_checked > 0 && ring_mismatches == 0 && ring_late <= 1,
+                  "the status ring's " + std::to_string(ring_checked) + " records checked hold the status words (" +
+                      std::to_string(ring_late) + " late)");
         } catch (const MailboxError &error) {
             std::printf("MAILBOX %s\n", error.what());
             reason = "mailbox";
@@ -242,6 +256,11 @@ private:
     bool prompt_seen = false, toggle = false, booted = false, do_input_exercise = true;
     std::vector<std::string> debug_lines;
     uint16_t rows[9] = {};
+    // The status words before each clock's edge, by clock; the next record
+    // to check, and the counts.
+    std::vector<std::array<uint64_t, 6>> history = std::vector<std::array<uint64_t, 6>>(HISTORY);
+    uint32_t ring_next = 0;
+    uint64_t ring_checked = 0, ring_mismatches = 0, ring_late = 0;
 
     // The geometry machine_tb infers: the first partition's end head and
     // sector, else 16 heads of 63 sectors.
@@ -288,6 +307,7 @@ private:
             ddr1.drive(port1(top), cycles);
             ddr2.drive(port2(top), cycles);
         }
+        for (unsigned n = 0; n < 6; ++n) history[cycles % HISTORY][n] = status(n);
         top.clk = 1;
         top.eval();
         hold_sync[1] = hold_sync[0];
@@ -295,6 +315,7 @@ private:
         top.clk = 0;
         top.eval();
         ++cycles;
+        if (cycles % 32768 == 0) check_ring();
         now_ps += sys_ps;
         while (pixel_ps <= now_ps) {
             top.pixel_clk = !top.pixel_clk;
@@ -642,6 +663,48 @@ private:
             if (!text.empty()) return text;
         }
         return "";
+    }
+
+    uint64_t ring_word(uint32_t offset) {
+        uint64_t value;
+        std::memcpy(&value, window.at(offset), 8);
+        return value;
+    }
+
+    // The records written since the last look, as the HPS reads them: the
+    // head's count, then each record whose word 0 names it. A port 2 reset
+    // starts the count again. 32768 clocks is half a period, so no record is
+    // missed or overwritten between looks. The core's clock count is one
+    // behind cycles: the bench's first clock() is Verilator's settle, not a
+    // rising edge. A record the disk's CRC pass kept off the port until its
+    // clock left the history is counted late, not checked.
+    void check_ring() {
+        uint64_t head = ring_word(RING_HEAD);
+        if (uint32_t(head >> 32) != RING_MAGIC) return;
+        uint32_t count = uint32_t(head);
+        if (count < ring_next) ring_next = 0;
+        for (; ring_next < count; ++ring_next) {
+            uint32_t at = RING_RECORDS + 64 * (ring_next % RING_SLOTS);
+            uint64_t stamp = ring_word(at + 56);
+            bool named = ring_word(at) == (uint64_t(ring_next) << 32 | RING_MAGIC);
+            if (named && stamp + 1 < cycles && cycles - stamp - 1 >= HISTORY) {
+                ++ring_late;
+                continue;
+            }
+            if (!named || stamp + 1 >= cycles) {
+                std::printf("RING-MISMATCH %u stamp=%llu word=0 ring=%016llx status=-\n", ring_next,
+                            (unsigned long long)stamp, (unsigned long long)ring_word(at));
+                ++ring_mismatches;
+                continue;
+            }
+            const auto &seen = history[(stamp + 1) % HISTORY];
+            for (unsigned n = 0; n < 6; ++n)
+                if (ring_word(at + 8 * (n + 1)) != seen[n] && ++ring_mismatches <= 16)
+                    std::printf("RING-MISMATCH %u stamp=%llu word=%u ring=%016llx status=%016llx\n", ring_next,
+                                (unsigned long long)stamp, n + 1, (unsigned long long)ring_word(at + 8 * (n + 1)),
+                                (unsigned long long)seen[n]);
+            ++ring_checked;
+        }
     }
 
     uint64_t status(unsigned n) {

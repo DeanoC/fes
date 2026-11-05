@@ -121,7 +121,7 @@ MACHINE_SOURCES = (
         "operator", "control_operators", "dac_prep", "channels")),
     *(f"cores/fes-pc386/rtl/{name}.sv" for name in (
         "pc386_opl2", "pc386_sb", "pc386_mixer", "pc386_audio", "pc386_rom", "pc386_disk", "pc386_snapshot",
-        "pc386_system")),
+        "pc386_status", "pc386_system")),
 )
 MACHINE_TOP = "pc386_system"
 MACHINE_NETLIST = "pc386_system.v"

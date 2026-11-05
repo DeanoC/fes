@@ -99,6 +99,56 @@ func openedView(s *Store, factory *Factory) *View {
 	return &View{durable: s, factory: factory, now: time.Now}
 }
 
+func TestHostViewWithholdsFactoryForInvalidDurableSelections(t *testing.T) {
+	for _, damage := range []string{"malformed", "missing-selected-package"} {
+		t.Run(damage, func(t *testing.T) {
+			ctx := context.Background()
+			agent := newStore(t)
+			archive, selected := fixture(t, "0.1.0", "fes.pong")
+			install(t, agent, archive)
+			if _, err := agent.Select(ctx, "fes.pong", "", selected.PackageID); err != nil {
+				t.Fatal(err)
+			}
+			switch damage {
+			case "malformed":
+				if err := os.WriteFile(filepath.Join(agent.root, "selections.json"), []byte("invalid"), 0o600); err != nil {
+					t.Fatal(err)
+				}
+			case "missing-selected-package":
+				members := filepath.Join(agent.root, "packages", selected.PackageID)
+				if err := os.Chmod(members, 0o700); err != nil {
+					t.Fatal(err)
+				}
+				if err := os.RemoveAll(members); err != nil {
+					t.Fatal(err)
+				}
+				if err := os.Remove(filepath.Join(agent.root, "archives", selected.PackageID+".fcore")); err != nil {
+					t.Fatal(err)
+				}
+			}
+			host, err := openStore(agent.root, false)
+			if err != nil {
+				t.Fatal(err)
+			}
+			root := newFactoryRoot(t)
+			_, factory := factoryPackage(t, root, "1.0.0", "fes.pong")
+			view := openedView(host, NewFactory(root))
+			if _, err := view.List(ctx); err == nil {
+				t.Fatal("list exposed factory packages with invalid durable selections")
+			}
+			if _, err := view.Inspect(ctx, factory.PackageID); err == nil || errors.Is(err, ErrPackageNotFound) {
+				t.Fatalf("inspect exposed factory package or returned not found: %v", err)
+			}
+			if _, _, err := view.Read(ctx, factory.PackageID); err == nil || errors.Is(err, ErrPackageNotFound) {
+				t.Fatalf("read exposed factory package or returned not found: %v", err)
+			}
+			if _, _, err := view.Import(ctx, int64(len(archive)), bytes.NewReader(archive)); err == nil {
+				t.Fatal("import accepted invalid durable selections")
+			}
+		})
+	}
+}
+
 // settled waits for a background open to finish.
 func settled(t *testing.T, v *View) {
 	t.Helper()

@@ -288,9 +288,30 @@ it; for SB 2.0 it accepts only 1.
 | `0x00000000` | 8 MiB | Display-plane slots, fixed by [session display](../../mister-packages/docs/session-display.md) | 2, through the splitter |
 | `0x00800000` | 256 KiB | VRAM | 1 |
 | `0x00A00000` | 3 × 2 MiB | Capture frame buffers | 2 |
-| `0x01000000` | 48 MiB | Unused | — |
+| `0x01000000` | 20 KiB | Status ring: the head, then 256 records of 64 bytes | 2 |
+| `0x01005000` | 48 MiB − 20 KiB | Unused | — |
 | `0x04000000` | 64 MiB | Guest RAM (16 MiB used by default) | 0 |
 | `0x08000000` | 128 MiB | ATA disk image | 2 |
+
+**The status ring** lets the HPS see the running system without the
+mailbox, which the runtime owns. `pc386_status` latches `pc386_system`'s six
+status words in one clock every 2^16 clocks (1.07 ms at 61.44 MHz) and writes
+them as single beats on port 2, in front of the disk, which keeps the port
+first. Record n goes to slot n mod 256, then the head takes n + 1:
+
+| Window offset | Word | Contents |
+| --- | --- | --- |
+| `0x01000000` | Head | `{MAGIC 50333836h, records written}` |
+| `0x01001000` + 64 × slot | 0 | `{n, MAGIC}` |
+| | 1–6 | Status words 0–5 (`pc386_system.sv`): flags, POST, CPU resets, retired; CS, last vector, EIP; frames and the display, capture and mixer counters |
+| | 7 | The system clock count at the latch, from configuration |
+
+A slot is not written again for 255 periods (273 ms), so a reader takes the
+head, then the newest record, and checks that its word 0 still names it.
+`scripts/pc386_cpu_status.py` does this with busybox `devmem` over ssh, at
+11–28 samples a second, on any kit software; Linux refuses `read()` of the
+window, so `dd` cannot. The count and records reset with port 2; the clock
+count never does.
 
 **Decision: port 0 belongs to the CPU alone; the display plane moves to port
 2.** Existing shells give the plane port 0
