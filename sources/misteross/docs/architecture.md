@@ -4273,8 +4273,10 @@ generated component/topology and staged-source verifier runs before and after
 compilation, retaining reset/FIFO, firmware, clock and endpoint checks.
 Compile-only preserves raw findings without export. Package export needs fresh
 fitted input/output-reference review and an independently identical RBF. The
-current stock HDMI reference covers30 outputs; two extra audio-clock findings
-remain unreviewed and block the standard package. Source selection establishes
+stock HDMI reference covers30 outputs. The internal16K profile can also select
+the explicit two-clock stock-reference review for HDMI_SCLK and HDMI_LRCLK;
+fitted checks, independent RBF identity and native acceptance remain required.
+That review does not cover the experimental live-PCM PR profile. Source selection establishes
 neither native hardware nor full normal-kit acceptance. Reduced BRAM RTL remains
 in the separate diagnostic board lane.
 

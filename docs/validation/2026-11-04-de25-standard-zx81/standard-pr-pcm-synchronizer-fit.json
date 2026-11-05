@@ -1,0 +1,107 @@
+{
+  "affected_validation": {
+    "all_returncodes_zero": true,
+    "base": "42bb08a8e17251ea671e3c0cbadff064f12a7078",
+    "commands": 7,
+    "full_unmodified_affected_plan": true,
+    "passed": true,
+    "scope": "Changed standardPRQSF/MTBFtopologyguards andTclreportcontrols; no physicalPR/hardwareadmission",
+    "seconds": 972.998,
+    "source_revision": "28f4ae754a341e9aa854beac66da4899652eb620"
+  },
+  "classification": "Experimental standard PR source and fresh constrained-internal fit; no package/hardware acceptance",
+  "complete_fit": {
+    "base_rbf": {
+      "path": "artifacts/base.rbf",
+      "sha256": "85730a1f6c3bb6a04e08e49f524e79c52c8ef80bd7206b743d7949fbbf516bab",
+      "size": 1769472
+    },
+    "both_personas_static_root_preserved": "100.00%",
+    "descriptor_sha256": "23708a2c203cbc70d59d659c326f85ba80599d8f6e96b894d0603bcb1dff4cdf",
+    "passed": true,
+    "personas": [
+      {
+        "id": "zx81_empty",
+        "sha256": "f8a50bd00637c3e9ad482c9475fb03129219e437c0f6dd82a7a90e22605971dd",
+        "size": 483328
+      },
+      {
+        "id": "zx81_ram16k",
+        "sha256": "6a1e0119cb0ad9d00f49f2db14fe0b86731b7a6fdae575a02d34a441302da403",
+        "size": 532480
+      }
+    ],
+    "raw_findings": [
+      {
+        "rule": "TMC-20012 - Missing Output Delay Constraint",
+        "severity": "High",
+        "violations": 33
+      },
+      {
+        "rule": "TMC-20011 - Missing Input Delay Constraint",
+        "severity": "High",
+        "violations": 2
+      },
+      {
+        "rule": "CDC-50102 - Synchronizer after CDC Topology with Control Signal",
+        "severity": "Low",
+        "violations": 1
+      },
+      {
+        "rule": "LNT-30010 - Nets Driving both Reset and Clock Enable Signals",
+        "severity": "Low",
+        "violations": 1
+      }
+    ],
+    "receipt_sha256": "96cca2f3fd7da2a3cf31f23a4d1827666a310a96b49fc58b9b79a0a90b04d8af",
+    "seconds": 1373.275,
+    "source_closure_sha256": "86b3bf4035101fbdf45f78a027df74ccd0f779c79cf1ada6b368b8523623fffb",
+    "summary_rows_per_revision": 49,
+    "whole_board_design_closure": "failed"
+  },
+  "fitted_review": {
+    "audio_paths": 144,
+    "conditional_exclusions": [
+      "PCB trace differences",
+      "clock jitter",
+      "clock uncertainty",
+      "signal integrity",
+      "PLL lock transients"
+    ],
+    "control_corner_checks": 36,
+    "control_identification": "Forced If Asynchronous",
+    "control_stages": 2,
+    "control_toggle_transitions_per_second": 100000000,
+    "controls_included_in_MTBF": true,
+    "epoch_enable_paired_paths": 48,
+    "epoch_enable_scope": "Only two sticky first_seen enables; does not qualify all asynchronous reset fanouts",
+    "minimum_conditional_hold_ns": "159.342",
+    "minimum_conditional_setup_ns": "159.097",
+    "minimum_epoch_enable_hold_slack_ns": "0.359",
+    "minimum_epoch_enable_setup_slack_ns": "8.489",
+    "original_project_unchanged": true,
+    "receipt_sha256": "23c6c6303c5b20f1b7ac11e66323925fae8f530761cf4c1d4945de4ebf3d8793",
+    "reported_worst_case_MTBF_years": "Greater than 1 Billion"
+  },
+  "hardware_acceptance": false,
+  "host_emulated_AArch64_composition": {
+    "proof_sha256": "4fb99b1cb0998b7f9db2614ed4698a77757234738fbb069063b88a8ce1fbfa13",
+    "seconds": 1.718
+  },
+  "independent_rebuild": "running; no result yet",
+  "internal16K_HDMI_exceptions_inherited": false,
+  "native_AArch64_CPU_composition": {
+    "FPGA_load": "not-run",
+    "baseline_verified": true,
+    "positive_compositions": 4,
+    "receipt_sha256": "a3d2de2e6bb3bb7a6a4f01c4291853021322145deffb3247a2902b03493ec3bf",
+    "rejection_controls": 4,
+    "released_utc": "2026-11-05T05:52:02.855636+00:00",
+    "scratch_removed": true,
+    "seconds": 3.925
+  },
+  "package_admission": false,
+  "physical_PR": "not-run",
+  "source_revision": "c053cdf031b9d0070273c34abf55689237f5d7d0",
+  "tested_software_revision": "28f4ae754a341e9aa854beac66da4899652eb620"
+}

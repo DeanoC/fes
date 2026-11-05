@@ -837,14 +837,19 @@ The independent AArch64 whole-standard-model batch reaches its compute deadline
 after4203.356 seconds. Seed17 completes the full test; seed53 reaches SAVE and
 its firstRUN. The original failed job is preserved. A separate bounded run
 executes only the missing seed53 using the same immutable static ARM binary,
-source/model/SDK and QEMU, with native SAVE/result comparison. That case remains
-in progress. No physical PR or hardware acceptance is inferred.
+source/model/SDK and QEMU, with native SAVE/result comparison. It completes in
+2242.548 seconds: both seeds now have actual SAVE, two loads, two RUNs printing7,
+24 editor returns, reload removal of the edit and 668 complete picture frames.
+Their 923-byte SAVE files match native execution exactly. The original timed-out
+batch remains failed; the aggregate records the two completed bounded attempts.
+See [standard-real-basic-aarch64.json](standard-real-basic-aarch64.json).
+No physical PR or hardware acceptance is inferred.
 
 
 The complete unmodified seven-command affected plan for that committed BASIC
 change and its actual refreshed compatibility fixture passes in1024.795 seconds
 at `0b990554f`, frozen through the run. The native and compatibility results stay
-separate from the still-running whole-standard-model AArch64 proof. See
+separate from the subsequently completed whole-standard-model AArch64 proof. See
 [standard-real-basic-canonical.json](standard-real-basic-canonical.json).
 
 ## Early Bluetooth firmware preparation
@@ -965,3 +970,29 @@ see [Altera's reporting reference](https://resources.altera.com/quartushelp/curr
 [standard-pr-generated-clock-fitted-review.json](standard-pr-generated-clock-fitted-review.json)
 binds the observations and their limits. The internal16K clock approval is not
 extended to this live-PCM PR profile.
+
+The actual recipe at `c053cdf03` explicitly identifies all six control stages
+before fitting, requests 100 MHz at all three heads and rejects missing chains,
+tool-default rates, excluded MTBF entries or unexpected intermediate fanout.
+The fresh complete three-revision build passes in 1373.275 seconds. All 36
+control/corner observations use the requested rate, two explicit stages and
+MTBF inclusion; the raw worst-case estimates exceed one billion years. All 49
+constrained internal summary rows pass per revision, and both personas preserve
+100% of the static root. The unmodified seven-command affected plan passes at
+`28f4ae754` in 972.998 seconds, including the actual Tcl report rejection tests.
+
+Fresh fitted observations cover 144 audio paths and 48 paired reset-enable paths.
+Minimum conditional audio budgets are 159.097 ns setup and 159.342 ns hold; the
+two epoch-enable receivers have at least 8.489 ns setup and 0.359 ns hold slack.
+The same PCB/jitter/uncertainty/signal-integrity/transient exclusions apply.
+Host/emulated-AArch64 composition passes in 1.718 seconds; the bottom DE25 CPU
+then passes four compositions and four rejection controls in 3.925 seconds.
+Downloaded bundles match the host results; the board is authenticated at its
+unchanged named baseline and released after scratch cleanup. This CPU test
+does not program the FPGA.
+
+[standard-pr-pcm-synchronizer-fit.json](standard-pr-pcm-synchronizer-fit.json)
+binds these results. The four raw Design Closure finding groups remain visible
+and overall closure still fails. A clean independent three-revision rebuild is
+running; no independent-build, PCB, physical PR or new package acceptance is
+claimed yet. The two internal16K clock exceptions remain scoped to that profile.
