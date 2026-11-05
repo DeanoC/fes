@@ -1,0 +1,202 @@
+{
+  "status": "passed-with-recorded-boot-identity-inventory-failure-and-targeted-fix",
+  "base": "fa448e43f637c33e784aa588307662e0b01dfc95",
+  "implementation": "fcd60e3cc754cc41a4b45dd565ff82c0ea4f49d8",
+  "boot_identity_fix": "0e027ed177d4d3ef7cbc0020c8faf19bf091d68e",
+  "model_input_count": 55,
+  "model_input_bytes_match_current_commit": true,
+  "model_result_sha256": "16e37daed72f2da17aa991af124b6abbd73b6a13ccecdd96a2ee952a0bf0ae38",
+  "parent_coverage": {
+    "selected": 1476,
+    "aggregate_run": 1476,
+    "original_failures": 1,
+    "original_skips": 2,
+    "final_passed": 1474,
+    "final_skips": 2
+  },
+  "original_parent_aggregate_passed": false,
+  "boot_identity_fix_checks": 13,
+  "fpga_software_cases": 1577,
+  "fpga_skips": 75,
+  "checks": {
+    "0": {
+      "argv": [
+        "/usr/bin/python3",
+        "-m",
+        "unittest",
+        "discover",
+        "-s",
+        "tests",
+        "-p",
+        "test_affected.py",
+        "-v"
+      ],
+      "cwd": "/home/deano/fes/out/dev/de25-embedded-os",
+      "returncode": 0,
+      "timed_out": false,
+      "elapsed": 0.20036164997145534,
+      "log_sha256": "d35dfb77fb8a4c1c3f471bc87dd4683d5b0dfc080b0d0beeb33b5ba0d8466f70"
+    },
+    "1": {
+      "argv": [
+        "/usr/bin/python3",
+        "-m",
+        "unittest",
+        "discover",
+        "-s",
+        "tests",
+        "-p",
+        "test_test_changed.py",
+        "-v"
+      ],
+      "cwd": "/home/deano/fes/out/dev/de25-embedded-os",
+      "returncode": 0,
+      "timed_out": false,
+      "elapsed": 1.0012840529670939,
+      "log_sha256": "37a2e14dc86643782e0bc3b6008734056f02379fce1c94e18188aeb24a9dcb9e"
+    },
+    "2": {
+      "argv": [
+        "/usr/bin/python3",
+        "scripts/check_diff.py",
+        "--base",
+        "fa448e43f637c33e784aa588307662e0b01dfc95",
+        "--head",
+        "fcd60e3cc754cc41a4b45dd565ff82c0ea4f49d8"
+      ],
+      "cwd": "/home/deano/fes/out/dev/de25-embedded-os",
+      "returncode": 0,
+      "timed_out": false,
+      "elapsed": 0.20067684294190258,
+      "log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "3": {
+      "argv": [
+        "git",
+        "diff",
+        "--check",
+        "HEAD",
+        "--"
+      ],
+      "cwd": "/home/deano/fes/out/dev/de25-embedded-os",
+      "returncode": 0,
+      "timed_out": false,
+      "elapsed": 0.20096445793751627,
+      "log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "4": {
+      "argv": [
+        "/usr/bin/python3",
+        "scripts/parent_tests.py",
+        "--video",
+        "false",
+        "--media",
+        "false",
+        "--paths-json",
+        "[\"platform/embedded/firmware/README.md\", \"platform/embedded/firmware/nano_bridge_platform.h\", \"platform/embedded/firmware/nano_cold_platform.c\", \"platform/embedded/firmware/nano_computer_control.inc\", \"platform/embedded/firmware/nano_program.c\", \"platform/embedded/firmware/nano_program.h\", \"platform/embedded/firmware/nano_rom.c\", \"platform/embedded/firmware/nano_rom.h\", \"platform/embedded/firmware/nano_rom_platform.inc\", \"platform/embedded/firmware/prepare_nano_owned.py\", \"platform/embedded/firmware/tests/nano_program_test.c\", \"platform/embedded/firmware/tests/nano_rom_platform_test.c\", \"platform/embedded/firmware/tests/nano_rom_platform_test.h\", \"platform/embedded/tamago/nativefabric/program_binding.go\", \"platform/embedded/tamago/nativefabric/program_binding_test.go\", \"scripts/affected.py\", \"sources/misteross/docs/architecture.md\", \"sources/misteross/prototypes/de25_board_control/README.md\", \"sources/misteross/prototypes/de25_board_control/rom_csr_probe.cpp\", \"sources/misteross/prototypes/de25_board_control/verify_rom.py\", \"tests/test_nano_program.py\"]"
+      ],
+      "cwd": "/home/deano/fes/out/dev/de25-embedded-os",
+      "returncode": 1,
+      "timed_out": false,
+      "elapsed": 274.7450759699568,
+      "log_sha256": "b0f75383fab1d7d8b3e096456160fa86137248043c208b43a9686a89d9bbe07d"
+    },
+    "5": {
+      "argv": [
+        "/usr/bin/python3",
+        "-c",
+        "import sys; from pathlib import Path; sys.path.insert(0, 'scripts'); from consistency import check; print(check(Path('.')))"
+      ],
+      "cwd": "/home/deano/fes/out/dev/de25-embedded-os",
+      "returncode": 0,
+      "timed_out": false,
+      "elapsed": 5.403821069048718,
+      "log_sha256": "fb2406c721df08d5af4a6daf4dd6d92e6398456a181f782ade1b0cb36cd6c671"
+    },
+    "6": {
+      "argv": [
+        "/usr/bin/python3",
+        "platform/embedded/tamago/nativefabric/verify.py"
+      ],
+      "cwd": "/home/deano/fes/out/dev/de25-embedded-os",
+      "returncode": 0,
+      "timed_out": false,
+      "elapsed": 95.85237524204422,
+      "log_sha256": "de76df304f508f5a1d38164c4e5327419e7ada07c24a91e8d3ace66d5e221a0f"
+    },
+    "7": {
+      "argv": [
+        "/usr/bin/python3",
+        "platform/embedded/tamago/nativefabric/verify_producer.py"
+      ],
+      "cwd": "/home/deano/fes/out/dev/de25-embedded-os",
+      "returncode": 0,
+      "timed_out": false,
+      "elapsed": 27.416369934915565,
+      "log_sha256": "1a602cf9bfa23ebb08f357698dd7ce41126e419f87cad47ceacb1b683922ea8c"
+    },
+    "8": {
+      "argv": [
+        "/usr/bin/python3",
+        "sources/misteross/prototypes/de25_board_control/verify.py",
+        "--standalone"
+      ],
+      "cwd": "/home/deano/fes/out/dev/de25-embedded-os",
+      "returncode": 0,
+      "timed_out": false,
+      "elapsed": 34.21714175003581,
+      "log_sha256": "2a8994578eb4662ae2ff5d145ddc31953101ae20af68596baa1e60b867252da8"
+    },
+    "9": {
+      "argv": [
+        "/usr/bin/python3",
+        "platform/embedded/firmware/verify.py"
+      ],
+      "cwd": "/home/deano/fes/out/dev/de25-embedded-os",
+      "returncode": 0,
+      "timed_out": false,
+      "elapsed": 6.405092742992565,
+      "log_sha256": "d2316dda9dcbc2b73a05ade1d6a6c38f5854678d38e70590192020d32aaebbd2"
+    },
+    "10": {
+      "argv": [
+        "/usr/bin/python3",
+        "-m",
+        "unittest",
+        "discover",
+        "-s",
+        "tests",
+        "-p",
+        "test_*.py",
+        "-v"
+      ],
+      "cwd": "/home/deano/fes/out/dev/de25-embedded-os/sources/misteross",
+      "returncode": 0,
+      "timed_out": false,
+      "elapsed": 358.2048691519303,
+      "log_sha256": "e6ce2aef125267863f5b238aa3b9f322153944f23642e91a646068cf766e93f0"
+    }
+  },
+  "model_classification": "actual C ROM transport, opt-in secure-provider/control gate and real ZX80/ZX81 RTL; injected platform and exact-image digest oracle, no hardware or native admission proof",
+  "vendor_compile_classification": "ARM64 translation-unit compile with real vendor headers and fixture aperture, not a boot image or physical map",
+  "vendor_object_reproduced": true,
+  "vendor_compile_inputs": 58,
+  "hardware_actions": false,
+  "ordinary_package_admission": false,
+  "physical_ROM_producer": false,
+  "generated_ROM_boot_profile": false,
+  "native_launch_encoder_selected": false,
+  "retained": "/home/deano/fes-retained/de25-rom-secure-20261105-r1",
+  "preparation_logs": [
+    "../nano-rom-secure-20261105/nano_rom_platform_test-build.log",
+    "vendor-provider-compile.log",
+    "freeze-vendor-inputs.log",
+    "freeze-vendor-inputs-v2.log"
+  ],
+  "limitations": [
+    "Injected platform and exact-image digest oracle in C/RTL tests; actual vendor digest API compiled separately",
+    "ARM64 compile fixture uses a placeholder aperture; it is not a boot image or physical map",
+    "Original parent aggregate ran 1476 cases and failed the boot identity inventory test; 13 affected context tests passed after the source inventory fix",
+    "Per-function stack reports do not establish an entire EL3 call-chain stack bound"
+  ]
+}
