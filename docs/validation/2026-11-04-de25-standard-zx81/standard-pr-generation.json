@@ -163,18 +163,17 @@
   "classification": "Experimental standard PR IP generation and compatibility regression; no package or hardware admission",
   "compatibility_boundary": "Existing bring-up De25Computer/PR model; does not establish BASIC with the new standard PR profile. Actual full14 native/AArch64 cases rerun, exact actual report copied to branch fixture.",
   "compatibility_combined_proof": {
-    "actual_proof_sha256": "d9ccbb449a4f900d9e107028cec385310dc1025f7e01b352088cafbeffe97f94",
+    "actual_proof_sha256": "5a3ad6148891a72991aae7fb14a99245428ff95bc29e07440deb1d59eedc254e",
     "cases": 14,
     "current_selected_compiler_inputs": 65,
     "fixture_is_exact_actual_report": true,
-    "matches_current_runtime_test_inputs": false,
+    "matches_current_runtime_test_inputs": true,
     "matches_current_selected_compiler_inputs": true,
     "passed": true,
-    "pending_refresh": "New callback-based common BASIC test helper changes the runtime/test input closure. The actual2d passing report and fixture remain unchanged; rerun all14 cases on committed new source before refreshing the branch fixture.",
     "physical_PR": false,
-    "producer_revision": "2d94bbfb2b3466d668b0dc77e03debc2968a4691"
+    "producer_revision": "8e926fe92bbada68fbef40436756722b1e8d3890"
   },
-  "compatibility_seconds": 654.339,
+  "compatibility_seconds": 764.811,
   "completed_routed_base": {
     "all_corner_boundary_and_PCM_preflight": "passed",
     "boundary_paths_sha256": "1e8909b91caf966c1ba30b23571da124315327df86bf4079d7b6ec025e48e47a",
@@ -810,7 +809,52 @@
   "source_revision": "1812fcbd652b05d7e00e60731c070117bc9cf978",
   "standard_real_BASIC_model": {
     "FPGA_compiler_inputs_unchanged": 98,
-    "committed_native_and_AArch64_proof": "pending",
+    "committed_default_regression": {
+      "actual_report_sha256": "1928e50c3d2c330b71be389dc044cf8ca3090ff38893a5e128c6dd0a48939160",
+      "passed": true,
+      "random_memory_seeds": [
+        17,
+        53
+      ],
+      "scope": "Original17-byte program, 1K/16K/1K memory, six live-freeze phases and poison/failure controls",
+      "seconds": 6.029,
+      "source_revision": "8e926fe92bbada68fbef40436756722b1e8d3890"
+    },
+    "committed_native_and_AArch64_proof": "Native complete two-seed model passed643.101s; separate whole-model AArch64 test running. Legacy14 actual native/AArch64 compatibility passed764.811s after common helper change.",
+    "committed_native_proof": {
+      "actual_SAVE_sha256": "4137c58140dcd2895961f86d29fda6e7dbce0ea863da1d73f94cea2ba2f1fecc",
+      "actual_report_sha256": "1479e922795ce57b01a22470a314f5eff01f0c0639bf25695983f94ee9ce257e",
+      "hardware_acceptance": false,
+      "passed": true,
+      "physical_PR": "selection-mux-model-only",
+      "random_memory_seeds": [
+        17,
+        53
+      ],
+      "roundtrips": [
+        {
+          "editor_returns": 24,
+          "loads": 2,
+          "printed_value": 7,
+          "reload_removed_edit": true,
+          "runs": 2,
+          "saved_bytes": 923,
+          "saved_cdflag": 64
+        },
+        {
+          "editor_returns": 24,
+          "loads": 2,
+          "printed_value": 7,
+          "reload_removed_edit": true,
+          "runs": 2,
+          "saved_bytes": 923,
+          "saved_cdflag": 64
+        }
+      ],
+      "seconds": 643.101,
+      "source_committed": true,
+      "source_revision": "8e926fe92bbada68fbef40436756722b1e8d3890"
+    },
     "hardware_acceptance": false,
     "physical_PR": "not-run",
     "preserved_failures": [

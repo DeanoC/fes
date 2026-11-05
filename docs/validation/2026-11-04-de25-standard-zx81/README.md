@@ -827,3 +827,12 @@ still a working-copy functional model result. Committed native/AArch64 runs and
 the full14-case compatibility refresh are pending because the common BASIC
 helper gained client callbacks. No physical PR, kernel opener, package admission
 or hardware acceptance is supplied by this model.
+
+
+At committed source `8e926fe92`, the full native standard BASIC model passes
+both seeds in643.101 seconds. Its original default diagnostic mode also passes
+both seeds in6.029 seconds. The common-helper compatibility matrix passes all14
+native/emulated-AArch64 cases in764.811 seconds; the source-bound fixture copies
+that actual report after checking all65 compiler and59 runtime/test inputs.
+The independent AArch64 whole-standard-model test is still running from the
+same committed snapshot. No physical PR or hardware acceptance is inferred.
