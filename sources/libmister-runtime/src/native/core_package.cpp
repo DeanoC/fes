@@ -868,6 +868,9 @@ Error CheckCoreCompatibility(const CoreDescriptor& descriptor, NativePlatform pl
 	if (descriptor.target.device != expected_device)
 		return CompatibilityError(ErrorCode::unsupported_target,
 			"unsupported target device", expected_device, descriptor.target.device);
+	if (descriptor.target.programming_profile == "de25-linux-static-computer-v1" && !De25StaticEnabled())
+		return CompatibilityError(ErrorCode::unsupported_programming_profile, "static startup is disabled in this build");
+
 	auto check_pair = [&](const auto& rows) -> Error {
 		bool activatable = false, paired = false;
 		for (const auto& row : rows) {
@@ -885,7 +888,8 @@ Error CheckCoreCompatibility(const CoreDescriptor& descriptor, NativePlatform pl
 		check_pair(kDe10NanoProgrammingProfilePairs);
 	if (!pairing.ok()) return pairing;
 	if (de25) {
-  if(descriptor.target.programming_profile=="de25-linux-computer-v1")
+  if(descriptor.target.programming_profile=="de25-linux-computer-v1" ||
+     descriptor.target.programming_profile=="de25-linux-static-computer-v1")
    return CheckDe25StandardComputerContract(descriptor);
   return descriptor.abi.id == FesApplicationABIID ?
    CheckDe25MenuContract(descriptor) : CheckDe25ComputerContract(descriptor);

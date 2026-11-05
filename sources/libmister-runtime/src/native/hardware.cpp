@@ -591,6 +591,10 @@ Error NativeHardware::AdmitCorePackageInternal(const std::string& directory,
 	Error error = native::OpenCorePackage(package_roots_, directory,
 		expected_id, &opened);
 	if (error.ok()) error = CheckCoreCompatibility(opened.descriptor, platform_);
+	if (error.ok() && opened.descriptor.format == 5 &&
+		(!for_composition || !fpga_.SupportsStaticComposition()))
+		error = {ErrorCode::unsupported_programming_profile,
+			"static startup requires an owned two-image composition backend", "admission"};
 	if (error.ok() && HasNativeVideoSocket(opened.descriptor) && !for_composition)
 		error = {ErrorCode::unsupported_interface,
 			"native video shell requires a video parts composition", "admission"};
@@ -847,6 +851,9 @@ Capabilities NativeHardware::capabilities() const
    result.abis.insert(result.abis.begin(), std::move(application));
   }
   if (active_driver_) result.media_units = active_driver_->media_units();
+  if (De25StaticEnabled() && fes_gp_driver_ && menu_display_ && menu_window_ &&
+      fpga_.SupportsStaticComposition())
+   result.programming_profiles.push_back("de25-linux-static-computer-v1");
   return result;
  }
 	result.rom_linking = 1;
@@ -1620,6 +1627,8 @@ Error NativeHardware::AttachProgrammedBitstream(AdmittedCorePackage* package,
 	NativeAdmittedCore* admitted = dynamic_cast<NativeAdmittedCore*>(package);
 	if (admitted == nullptr || sha256.size() != 64)
 		return {ErrorCode::invalid_request, "programmed bitstream is invalid", "admission"};
+	if (admitted->opened_.descriptor.format == 5 || admitted->static_composition_)
+		return {ErrorCode::invalid_request, "static composition cannot bind a monolithic bitstream", "admission"};
 	Artifact artifact;
 	Error error = OpenRBFArtifact(path, opener_, &artifact);
 	if (!error.ok()) return error;
@@ -1696,6 +1705,11 @@ Error NativeHardware::RecheckProgrammedBitstream(AdmittedCorePackage* package)
 {
 	auto* admitted = dynamic_cast<NativeAdmittedCore*>(package);
 	if (!admitted) return {ErrorCode::invalid_request, "invalid admitted package", "admission"};
+	if (admitted->opened_.descriptor.format == 5) {
+		if (!admitted->static_composition_ || admitted->has_programmed_ || admitted->composition_)
+			return {ErrorCode::invalid_request, "static startup requires separate bound images", "admission"};
+		return RecheckCoreStaticComposition(admitted->opened_,*admitted->static_composition_);
+	}
 	if (admitted->opened_.descriptor.format == 3 &&
 		(!admitted->has_programmed_ || admitted->rom_link_.rom_id.empty()))
 		return {ErrorCode::unsupported_abi, "format-3 activation requires a bound ROM link", "admission"};
@@ -1721,9 +1735,14 @@ HardwareResult NativeHardware::LoadCoreInternal(
 	if (admitted == nullptr || admitted->driver_ == nullptr)
 		return {{ErrorCode::invalid_request,
 			"invalid admitted core package", "request"}, false, ""};
-	if (admitted->static_composition_ || admitted->opened_.descriptor.format==5)
+	const bool static_load=admitted->opened_.descriptor.format==5;
+	if ((static_load || admitted->static_composition_) &&
+		(!De25StaticEnabled() || platform_ != NativePlatform::de25_nano ||
+		 !static_load || !admitted->static_composition_ || !fpga_.SupportsStaticComposition() ||
+		 admitted->has_programmed_ || admitted->composition_ ||
+		 admitted->profile_ != ProgrammingProfile::de25_linux_static_computer_v1))
 		return {{ErrorCode::unsupported_programming_profile,
-			"static programming requires the owned bounded backend", "admission"},false,""};
+			"static startup requires the enabled owned two-image backend", "admission"},false,""};
 	if (HasNativeVideoSocket(admitted->opened_.descriptor) &&
 		(!admitted->composition_ ||
 		admitted->composition_->info.layout != "fes.coleco-native-video.parts/1"))
@@ -1754,7 +1773,7 @@ HardwareResult NativeHardware::LoadCoreInternal(
 	error = RecheckProgrammedBitstream(package.get());
 	if (!error.ok()) return {error, false, ""};
 	const bool fes_gp = admitted->profile_ == ProgrammingProfile::fes_gp_v1 ||
-  admitted->profile_ == ProgrammingProfile::de25_linux_computer_v1;
+  admitted->profile_ == ProgrammingProfile::de25_linux_computer_v1 || static_load;
 	const bool managed = fes_gp || admitted->profile_ == ProgrammingProfile::de25_hps_first_v1 ||
 		admitted->profile_ == ProgrammingProfile::de25_linux_menu_v1;
 	const bool fes_gamepad = fes_gp &&
@@ -1800,8 +1819,11 @@ HardwareResult NativeHardware::LoadCoreInternal(
 	const Artifact* bitstream = &admitted->opened_.payload;
 	if (admitted->has_programmed_) bitstream = &admitted->programmed_;
 	else if (admitted->composition_) bitstream = &admitted->composition_->payload;
-	const NativeResult programmed = fpga_.Program(*bitstream,
-		admitted->profile_, Deadline(clock_, timeouts_.program_ms));
+	const NativeResult programmed = static_load ?
+		fpga_.ProgramStatic(admitted->opened_.payload,
+			admitted->static_composition_->persona(admitted->opened_),
+			admitted->static_composition_->info, Deadline(clock_, timeouts_.program_ms)) :
+		fpga_.Program(*bitstream, admitted->profile_, Deadline(clock_, timeouts_.program_ms));
 	ObserveProgram("load_core", programmed);
 	if (!programmed.error.ok()) {
 		const Error stopped = StopInput(Deadline(clock_, timeouts_.core_io_ms));

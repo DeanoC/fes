@@ -1224,9 +1224,10 @@ void TestStaticPackageSharedStructuralCorpus()
   if (valid) {
    assert(opened.package_id == identity && opened.persona.size() == opened.descriptor.static_expansion.size);
    assert(mister::native::RecheckCorePackage(opened).ok());
-   // Parsing does not enable an unfinished programming path or fall back to
-   // the standard internal-memory driver.
-   assert(mister::native::CheckCoreCompatibility(opened.descriptor, mister::native::NativePlatform::de25_nano).code == mister::ErrorCode::unsupported_programming_profile);
+   // This structural two-interface fixture is insufficient for the exact
+   // standard-computer contract even in a qualification build.
+   assert(mister::native::CheckCoreCompatibility(opened.descriptor, mister::native::NativePlatform::de25_nano).code ==
+    (mister::native::De25StaticEnabled() ? mister::ErrorCode::unsupported_abi : mister::ErrorCode::unsupported_programming_profile));
    const int fd = open((package.path + "/persona.rbf").c_str(), O_WRONLY);
    assert(fd >= 0); const char changed = 'x'; assert(pwrite(fd, &changed, 1, 0) == 1); assert(close(fd) == 0);
    assert(!mister::native::RecheckCorePackage(opened).ok());

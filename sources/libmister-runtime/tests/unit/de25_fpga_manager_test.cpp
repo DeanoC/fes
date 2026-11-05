@@ -482,6 +482,28 @@ void OwnedStaticMappingRefusesBeforeOpenAndAfterPersonaChange() {
     }
     std::cout<<"owned static transport stays closed before verified base and refuses Resume after base/persona overlay change\n";
 }
+void StaticProductionDispatchGate() {
+    for(bool matched:{false,true}) {
+        StaticFixture f;StartupOperations registers(f);
+        if(!matched) {
+            auto record=Get(f.paths.record);auto pos=record.find(",\"static_expansion_contract\"");
+            assert(pos!=std::string::npos);Put(f.paths.record,record.substr(0,pos)+"}");
+        }
+        auto manager=f.Manager();FpgaManager& production=*manager;
+        assert(!production.SupportsStaticComposition());
+        assert(manager->CheckPlatform(500).ok());
+        assert(production.SupportsStaticComposition()==(De25StaticEnabled()&&matched));
+        CoreStaticComposition selected;
+        selected.base_sha256=f.selection.base_sha256;selected.persona_sha256=f.selection.persona_sha256;
+        selected.control_build_id=f.selection.control_build_id;selected.hardware_id=f.selection.persona_id;
+        auto result=production.ProgramStatic(f.artifact,f.persona,selected,500);
+        assert(result.error.ok()==(De25StaticEnabled()&&matched));
+        if(!De25StaticEnabled()||!matched)
+            assert(!result.mutation_attempted&&!registers.opened&&!f.ops.created&&!f.endpoint.reads);
+        else assert(registers.opened==1&&registers.unmapped==1&&registers.closed==1);
+    }
+    std::cout<<"production static dispatch requires build flag and matched cold-start kernel before effects\n";
+}
 void StaticStartupAndFullReplacement() {
     using namespace mister::native::generated;
     using namespace mister_test::de25_pr;
@@ -813,6 +835,6 @@ int main(int argc,char** argv) {
         const auto v=De25ProgrammingOverlay(profile);std::ofstream f(argv[argc-1],std::ios::binary);
         f.write(reinterpret_cast<const char*>(v.data()),v.size());assert(f.good());return 0;
     }
-    RecoverVerifiedAllocatedConfigurationOnlyAfterKernelRetirement();Positive();CleanRelease();ReleaseRefusals();AllocatedScanoutProfile();StaticStartupProfiles();StaticStartupAndFullReplacement();OwnedStaticMappingHasOneFullBaseLifetime();OwnedStaticMappingFaultsRetainAndRefuseReplay();OwnedStaticMappingRefusesBeforeOpenAndAfterPersonaChange();StaticRefusalsBeforeHardware();StaticColdIdentityFailures();StaticPersonaFailuresRetainBothImages();StaticCopyAndLookupRacesNeverSubmitWrongBytes();StaticReleaseChecksBothIdentitiesBeforeEffects();Uncertain();BeforeMutation();FirmwareSearchLifecycle();FirmwareFallbacks();ExistingFailure();ProfilesAndLease();
+    RecoverVerifiedAllocatedConfigurationOnlyAfterKernelRetirement();Positive();CleanRelease();ReleaseRefusals();AllocatedScanoutProfile();StaticStartupProfiles();StaticProductionDispatchGate();StaticStartupAndFullReplacement();OwnedStaticMappingHasOneFullBaseLifetime();OwnedStaticMappingFaultsRetainAndRefuseReplay();OwnedStaticMappingRefusesBeforeOpenAndAfterPersonaChange();StaticRefusalsBeforeHardware();StaticColdIdentityFailures();StaticPersonaFailuresRetainBothImages();StaticCopyAndLookupRacesNeverSubmitWrongBytes();StaticReleaseChecksBothIdentitiesBeforeEffects();Uncertain();BeforeMutation();FirmwareSearchLifecycle();FirmwareFallbacks();ExistingFailure();ProfilesAndLease();
     std::cout<<"de25_fpga_manager_test: passed\n";
 }

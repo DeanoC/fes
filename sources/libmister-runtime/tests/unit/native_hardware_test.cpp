@@ -264,6 +264,21 @@ public:
 		if (calls == fail_call) return failure;
 		return result;
 	}
+	bool SupportsStaticComposition() const override { return supports_static; }
+	mister::native::NativeResult ProgramStatic(const mister::native::Artifact& base,
+		const mister::native::Artifact& persona, const mister::CoreStaticComposition& selection,
+		std::uint64_t deadline) override {
+		events_.push_back("fpga.static");++static_calls;static_selection=selection;
+		std::string base_hash,persona_hash;
+		assert(mister::native::HashOpenedArtifact(base,&base_hash).ok());
+		assert(mister::native::HashOpenedArtifact(persona,&persona_hash).ok());
+		assert(base_hash==selection.base_sha256 && persona_hash==selection.persona_sha256);
+		assert(base.size()==selection.base_size && persona.size()==selection.persona_size);
+		return Program(base,mister::native::ProgrammingProfile::de25_linux_static_computer_v1,deadline);
+	}
+	bool supports_static=false;
+	unsigned static_calls=0;
+	mister::CoreStaticComposition static_selection;
 	bool BootHpsDdrLayout() override { return boot_hps_ddr_layout; }
 	mister::native::NativeResult ReleaseConfiguration(std::uint64_t) override
 	{
@@ -5238,10 +5253,14 @@ void TestDe25SelectedPlatformLifecycle()
  assert(base.fpga.calls == programmed);
 }
 
-void TestDe25StandardComputerUsesSharedDriverAndAllocatedSession() {
+enum class StaticTrial { ordinary, empty, ram16k, missing_backend, changed_empty, changed_ram, program_failure };
+void TestDe25StandardComputerUsesSharedDriverAndAllocatedSession(StaticTrial trial=StaticTrial::ordinary) {
  using namespace mister;using namespace mister::native;using namespace mister::native::generated;
  namespace dm=mister_test::de25_menu;
  Fixture base;dm::Operations operations;dm::SessionControl control(operations);
+ const bool static_load=trial!=StaticTrial::ordinary;
+ const bool selected=trial==StaticTrial::ram16k || trial==StaticTrial::changed_ram;
+ base.fpga.supports_static=trial!=StaticTrial::missing_backend;
  auto d=mister_test::De25StandardDescriptor();
  const auto capabilities=FesComputerCapabilityVideoFixed720p60|FesComputerCapabilityKeyboardHid|
   FesComputerCapabilityGamepadPorts|FesComputerCapabilityAudioPcmS16Stereo48k|
@@ -5255,7 +5274,7 @@ void TestDe25StandardComputerUsesSharedDriverAndAllocatedSession() {
  NativeHardware hardware(base.opener,base.fpga,video,video,base.input,base.input_identity,
   operations.clock,base.log,base.idle,{},&driver,{"/tmp"},SplashIdle(),&presenter,&presenter,nullptr,
   NativePlatform::de25_nano,nullptr,&menu_driver);
- TempDirectory menu,game;
+ TempDirectory menu,game,expansion;
  auto manifest=ReadText("tests/fixtures/core-bundle-v2/manifests/valid-basic.toml");
  ReplaceAll(&manifest,"de10_nano","de25_nano");ReplaceAll(&manifest,"5CSEBA6U23I7","A5EB013BB23BE4SCS");
  ReplaceAll(&manifest,"0123456789abcdef0123456789abcdef",d.build.id);
@@ -5270,15 +5289,79 @@ void TestDe25StandardComputerUsesSharedDriverAndAllocatedSession() {
   manifest+="\n[[interfaces]]\nid=\""+interface.id+"\"\nmajor=1\nminor="+std::to_string(interface.minor)+"\nrequired=true\n";
  const auto payload=ReadText("tests/fixtures/core-bundle-v2/payloads/fes-fixture.rbf");
  menu.File("manifest.toml",menu_manifest);menu.File("core.rbf",payload);
+ if(static_load) {
+  ReplaceAll(&manifest,"format = 2","format = 5");
+  ReplaceAll(&manifest,"de25-linux-computer-v1","de25-linux-static-computer-v1");
+  auto v5=ReadText("tests/fixtures/core-bundle-v5/manifests/valid-basic.toml");
+  manifest+="\n"+v5.substr(v5.find("[static_expansion]"));
+  game.File("persona.rbf",ReadText("tests/fixtures/core-bundle-v5/payloads/persona.rbf"));
+ }
  game.File("manifest.toml",manifest);game.File("core.rbf",payload);
  OpenedCorePackage menu_package,game_package;
  assert(OpenCorePackage(menu.path,"",&menu_package).ok()&&OpenCorePackage(game.path,"",&game_package).ok());
  Runtime runtime(hardware,base.log);assert(runtime.Start(menu.path,menu_package.package_id).ok());
- const auto loaded=runtime.LoadCore(game.path,game_package.package_id);
+ CoreCompositionRequest request;
+ if(static_load) {
+  const auto hash=[](const std::string& value){Sha256 h;h.Update(value.data(),value.size());return Sha256Hex(h.Final());};
+  request.has_static_selection=true;auto& c=request.static_selection.composition;
+  c.package_id=game_package.package_id;c.base_sha256=game_package.descriptor.payload.sha256;
+  c.base_size=game_package.payload.size();c.persona_sha256=game_package.descriptor.static_expansion.sha256;
+  c.persona_size=game_package.persona.size();c.control_build_id=game_package.descriptor.static_expansion.control_build_id;
+  c.hardware_id=game_package.descriptor.static_expansion.hardware_id;
+  if(selected) {
+   auto partial=ReadText("tests/fixtures/core-bundle-v5/expansions/ram16k/manifest.json");
+   ReplaceAll(&partial,"1ad97e43e69bdf5c70da5d3ec01dd8b86289fa6cfc920c3b83831638aacd7bb1",c.package_id);
+   ReplaceAll(&partial,"0123456789abcdef0123456789abcdef",game_package.descriptor.build.id);
+   ReplaceAll(&partial,"e7bbf8fe5ebdebeef7f2e70638a0a3494f22ab977e1506386010705a3d43adf1",c.base_sha256);
+   auto cart=ReadText("tests/fixtures/core-bundle-v5/expansions/ram16k/cart.rbf");
+   expansion.File("manifest.json",partial);expansion.File("cart.rbf",cart);
+   request.static_selection.expansion_path=expansion.path;
+   c.expansion_id=hash(std::string("fes-expansion-v2")+std::string(1,'\0')+partial);
+   c.hardware_id=0xc002b002u;c.persona_size=cart.size();c.persona_sha256=hash(cart);
+  }
+  std::string identity="fes-de25-static-composition-v1";
+  for(const auto& field:{c.package_id,c.expansion_id,c.base_sha256,std::to_string(c.base_size),
+   c.persona_sha256,std::to_string(c.persona_size),c.control_build_id,std::to_string(c.hardware_id)}) {
+   identity.push_back('\0');identity+=field;
+  }
+  c.id=hash(identity);
+  std::unique_ptr<AdmittedCorePackage> admitted;
+  const auto preflight=hardware.AdmitCoreComposition(game.path,game_package.package_id,request,&admitted);
+  if(!De25StaticEnabled() || !base.fpga.supports_static) {
+   const auto caps=hardware.capabilities();
+   assert(std::find(caps.programming_profiles.begin(),caps.programming_profiles.end(),"de25-linux-static-computer-v1")==caps.programming_profiles.end());
+   assert(!preflight.ok()&&base.fpga.calls==1&&base.fpga.static_calls==0);return;
+  }
+  if(!preflight.ok())fprintf(stderr,"static admission: %s\n",preflight.message.c_str());
+  assert(preflight.ok());
+  assert(!hardware.AttachProgrammedBitstream(admitted.get(),game.path+"/core.rbf",c.base_sha256).ok());
+  std::unique_ptr<AdmittedCorePackage> plain;
+  assert(!hardware.AdmitCorePackage(game.path,game_package.package_id,&plain).ok());
+  const auto caps=hardware.capabilities();
+  assert(std::find(caps.programming_profiles.begin(),caps.programming_profiles.end(),"de25-linux-static-computer-v1")!=caps.programming_profiles.end());
+  if(trial==StaticTrial::changed_empty || trial==StaticTrial::changed_ram) {
+   const auto path=trial==StaticTrial::changed_ram?expansion.path+"/cart.rbf":game.path+"/persona.rbf";
+   const int fd=open(path.c_str(),O_WRONLY);assert(fd>=0);assert(pwrite(fd,"x",1,0)==1);assert(close(fd)==0);
+   const auto programs=base.fpga.calls;assert(!hardware.LoadCore(std::move(admitted),2).error.ok());
+   assert(base.fpga.calls==programs&&base.fpga.static_calls==0);return;
+  }
+  if(trial==StaticTrial::program_failure)base.fpga.fail_call=2;
+ }
+ const auto loaded=static_load?runtime.LoadComposedCore(game.path,game_package.package_id,request):runtime.LoadCore(game.path,game_package.package_id);
+ if(trial==StaticTrial::program_failure) {
+  assert(!loaded.ok()&&base.fpga.static_calls==1&&base.fpga.calls==3);
+  assert(runtime.status().state==State::idle&&!runtime.status().menu_display.session);return;
+ }
  if(!loaded.ok())fprintf(stderr,"standard DE25 launch: %s (%s)\n",loaded.message.c_str(),loaded.phase.c_str());
  assert(loaded.ok()&&!bridge.endpoint.held&&driver.OwnsAudio());
- assert(base.fpga.profiles.back()==ProgrammingProfile::de25_linux_computer_v1&&base.fpga.hps_ddr_calls==0);
+ assert(base.fpga.profiles.back()==(static_load?ProgrammingProfile::de25_linux_static_computer_v1:ProgrammingProfile::de25_linux_computer_v1)&&base.fpga.hps_ddr_calls==0);
+ if(static_load) {
+  assert(base.fpga.static_calls==1&&base.fpga.static_selection.id==request.static_selection.composition.id);
+  assert(base.fpga.static_selection.hardware_id==(selected?0xc002b002u:0xc001a001u));
+  assert(!runtime.LoadComposedCore(game.path,game_package.package_id,request).ok()&&base.fpga.static_calls==1);
+ }
  const auto state=runtime.status();const auto generation=state.generation;
+ if(static_load)assert(state.active_package.static_composition.id==request.static_selection.composition.id);
  assert(state.menu_display.session&&state.menu_display.frame_mapping&&!state.menu_display.available);
  assert(state.capabilities.media_units.size()==1&&state.capabilities.media_units[0].max_bytes==16384&&state.capabilities.media_units[0].saveable);
  if(const char* path=std::getenv("FES_TEST_DE25_STANDARD_PROTOCOL_STATUS_RECORD")) {
@@ -5376,8 +5459,18 @@ void TestDe25AllocatedMenuLaunchStopAndPinnedPeer(bool clean_shutdown = false)
  assert(!hardware.Shutdown().ok()&&base.fpga.release_calls==0);
 }
 
+
+void TestStaticDispatch() {
+ for(auto trial:{StaticTrial::empty,StaticTrial::ram16k,StaticTrial::missing_backend,
+  StaticTrial::changed_empty,StaticTrial::changed_ram,StaticTrial::program_failure})
+  TestDe25StandardComputerUsesSharedDriverAndAllocatedSession(trial);
+}
 int main(int argc,char** argv)
 {
+ if(argc==2&&std::strcmp(argv[1],"--static-dispatch")==0) {
+  TestStaticDispatch();
+  puts(mister::native::De25StaticEnabled()?"static dispatch: enabled cases passed":"static dispatch: default refusal passed");return 0;
+ }
  if(argc==2&&std::strcmp(argv[1],"--session-display")==0) {
   TestDe25StandardComputerUsesSharedDriverAndAllocatedSession();
   puts("native_hardware_test: allocated MENU lifecycle");fflush(stdout);
@@ -5391,6 +5484,7 @@ int main(int argc,char** argv)
   puts("native_hardware_test: session-display cases passed");return 0;
  }
  assert(argc==1);
+ TestStaticDispatch();
  TestDe25StandardComputerUsesSharedDriverAndAllocatedSession();
  TestDe25AllocatedMenuLaunchStopAndPinnedPeer();
  TestDe25AllocatedMenuLaunchStopAndPinnedPeer(true);

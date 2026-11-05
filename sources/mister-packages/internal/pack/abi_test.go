@@ -379,10 +379,12 @@ func TestDe25ProfileMatchesRealBoard(t *testing.T) {
 	if profiles.Platform != board.ID || profiles.Device != board.FPGADevice {
 		t.Fatal("DE25 programming target differs from actual board definition")
 	}
-	if len(profiles.Profiles) != 3 || profiles.Profiles[0].ID != "de25-hps-first-v1" || len(profiles.Profiles[0].ABIs) != 1 || profiles.Profiles[0].ABIs[0].ID != "fes.computer" ||
+	if len(profiles.Profiles) != 4 || profiles.Profiles[0].ID != "de25-hps-first-v1" || len(profiles.Profiles[0].ABIs) != 1 || profiles.Profiles[0].ABIs[0].ID != "fes.computer" ||
 		profiles.Profiles[1].ID != "de25-linux-menu-v1" || len(profiles.Profiles[1].ABIs) != 1 || profiles.Profiles[1].ABIs[0].ID != "fes.application" || profiles.Profiles[1].ABIs[0].Major != 1 ||
 		profiles.Profiles[2].ID != "de25-linux-computer-v1" || profiles.Profiles[2].DiagnosticOnly ||
-		len(profiles.Profiles[2].ABIs) != 1 || profiles.Profiles[2].ABIs[0].ID != "fes.computer" || profiles.Profiles[2].ABIs[0].Major != 1 {
+		len(profiles.Profiles[2].ABIs) != 1 || profiles.Profiles[2].ABIs[0].ID != "fes.computer" || profiles.Profiles[2].ABIs[0].Major != 1 ||
+		profiles.Profiles[3].ID != "de25-linux-static-computer-v1" || profiles.Profiles[3].DiagnosticOnly ||
+		len(profiles.Profiles[3].ABIs) != 1 || profiles.Profiles[3].ABIs[0].ID != "fes.computer" || profiles.Profiles[3].ABIs[0].Major != 1 {
 		t.Fatalf("unexpected DE25 programming pair: %#v", profiles)
 	}
 }

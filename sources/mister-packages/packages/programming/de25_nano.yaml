@@ -25,3 +25,8 @@ profiles:
     abis:
       - id: fes.computer
         major: 1
+  - id: de25-linux-static-computer-v1
+    diagnostic_only: false
+    abis:
+      - id: fes.computer
+        major: 1

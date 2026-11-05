@@ -33,6 +33,7 @@ CoreDriver* CoreDriverRegistry::Resolve(ProgrammingProfile profile) const
 		if (profile == ProgrammingProfile::de25_hps_first_v1) return de25_;
 		if (profile == ProgrammingProfile::de25_linux_menu_v1) return de25_menu_;
 		if (profile == ProgrammingProfile::de25_linux_computer_v1) return fes_gp_;
+		if (profile == ProgrammingProfile::de25_linux_static_computer_v1 && De25StaticEnabled()) return fes_gp_;
 		return nullptr;
 	}
 	if (platform_ != NativePlatform::de10_nano) return nullptr;
@@ -71,6 +72,8 @@ Error ParseProgrammingProfile(const std::string& value,
 	else if (value == "de25-hps-first-v1") *output = ProgrammingProfile::de25_hps_first_v1;
 	else if (value == "de25-linux-menu-v1") *output = ProgrammingProfile::de25_linux_menu_v1;
 	else if (value == "de25-linux-computer-v1") *output = ProgrammingProfile::de25_linux_computer_v1;
+	else if (value == "de25-linux-static-computer-v1" && De25StaticEnabled())
+		*output = ProgrammingProfile::de25_linux_static_computer_v1;
 	else return {ErrorCode::unsupported_programming_profile,
 		"unsupported programming profile", "compatibility"};
 	return {};

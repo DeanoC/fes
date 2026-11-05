@@ -11,13 +11,14 @@ fixtures. Go emitters generate C, C++14, Go and Verilog consumers. FES runs
 Format5 describes a DE25 cold-start base plus its default empty partial persona.
 The three exact members, controller identity and frozen-root bindings are
 specified in [the schema guide](docs/schema.md#static-expansion-package-format-5).
-The shared Go/C++/Python structural fixtures do not register the unfinished static
-programming profile or qualify a physical partial configuration.
+The shared Go/C++/Python structural fixtures do not qualify a physical partial
+configuration. The static programming pair is declared; runtime admission stays
+disabled by default and requires its explicit qualification build flag.
 
 Standalone board definitions support `validate` and `report`, independently of
 SoC and CPU definitions. DE25-Nano starts with descriptive FPGA bring-up pins;
 the DE25 programming registry declares the BRAM computer, allocated MENU and
-standard allocated-session computer pairs. The standard profile is
+standard allocated-session and static-startup computer pairs. The standard profile is
 `de25-linux-computer-v1`; runtime admission requires its exact ZX81 contract,
 without a reserved HPS DDR window. These rows do not qualify a hardware package. Board metadata
 does not emit Quartus constraints. For example, from this module:

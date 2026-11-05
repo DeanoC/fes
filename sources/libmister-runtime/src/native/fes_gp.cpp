@@ -896,7 +896,8 @@ CoreDriverResult FesGpCoreDriver::Identify(const CoreDriverContext& context,
 	}
 	home_computer_ = error.ok() && context.descriptor->abi.id == FesComputerABIID;
  fpga_video_=home_computer_&&context.descriptor->target.platform=="de25_nano"&&
-  context.descriptor->target.programming_profile=="de25-linux-computer-v1";
+  (context.descriptor->target.programming_profile=="de25-linux-computer-v1" ||
+   (De25StaticEnabled() && context.descriptor->target.programming_profile=="de25-linux-static-computer-v1"));
 	wall_clock_ = false;
 	ata_disk_ = false;
 	keyboard_hid_ = false;

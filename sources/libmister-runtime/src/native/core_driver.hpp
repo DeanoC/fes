@@ -5,6 +5,7 @@
 
 #include "libmister-runtime/runtime.h"
 #include "native/platform.hpp"
+#include "native/features.hpp"
 
 #include <cstdint>
 #include <functional>
@@ -23,6 +24,7 @@ enum class ProgrammingProfile {
 	de25_hps_first_v1,
 	de25_linux_menu_v1,
 	de25_linux_computer_v1,
+	de25_linux_static_computer_v1,
 };
 
 struct CoreDriverContext {

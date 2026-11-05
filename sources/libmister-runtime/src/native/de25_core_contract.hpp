@@ -5,6 +5,7 @@
 #include "native/generated/fes_computer.hpp"
 #include "native/generated/fes_application.hpp"
 #include "native/generated/de25_nano_programming.hpp"
+#include "native/features.hpp"
 #include <array>
 namespace mister { namespace native {
 // Register word zero is the least significant word of the selected BUILD_ID.
@@ -59,11 +60,13 @@ inline Error CheckDe25MenuContract(const CoreDescriptor& descriptor)
 inline Error CheckDe25StandardComputerContract(const CoreDescriptor& descriptor)
 {
  using namespace generated;
+ const bool static_profile=descriptor.target.programming_profile=="de25-linux-static-computer-v1";
  if(descriptor.target.platform!=kDe25NanoProgrammingPlatform ||
     descriptor.target.device!=kDe25NanoProgrammingDevice ||
-    descriptor.target.programming_profile!="de25-linux-computer-v1")
+    (descriptor.target.programming_profile!="de25-linux-computer-v1" &&
+     !(static_profile && De25StaticEnabled())))
   return {ErrorCode::unsupported_target,"DE25 standard computer target/profile differs","compatibility"};
- if(descriptor.format!=2||descriptor.core.id!="fes.zx81"||!descriptor.core.system.empty()||
+ if(descriptor.format!=(static_profile?5u:2u)||descriptor.core.id!="fes.zx81"||!descriptor.core.system.empty()||
     descriptor.abi.id!=FesComputerABIID||descriptor.abi.major!=1||descriptor.abi.minor!=0||
     descriptor.interfaces.size()!=9)
   return {ErrorCode::unsupported_abi,"DE25 standard profile requires the ZX81 computer contract","compatibility"};

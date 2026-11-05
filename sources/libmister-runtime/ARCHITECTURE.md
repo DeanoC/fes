@@ -45,10 +45,10 @@ Format5 package parsing retains `core.rbf` and the default empty `persona.rbf`
 independently. A third member, strict static metadata and a separate
 `FES-CORE-PACKAGE-5` identity domain bind the manifest and both opaque images.
 Recheck hashes both retained descriptors again, including persona size and file
-type. Shared fixtures cover cross-reader identity and refusal, while the
-programming registry deliberately has no static-computer row yet. Parsing does
-not select a driver or call `ProgramStatic`. Sealed package export, production
-profile admission and physical qualification remain required.
+type. Shared fixtures cover cross-reader identity and refusal, while default builds keep static-computer admission disabled. The shared
+registry declares the pair; `ENABLE_DE25_STATIC=1` enables its qualification
+path. Parsing alone does not select a driver or call `ProgramStatic`. Qualified
+static package production and physical qualification remain required.
 
 `OpenCoreStaticComposition` independently recomputes the format5 default or
 format2 selected-persona receipt. A selected asset must use the canonical
@@ -71,9 +71,14 @@ and hardware ID, plus an optional expansion ID/path pair. It rejects linked
 payload paths and mixed composition/ROM forms. The shared runtime lifecycle
 admits this only from idle; an active core requires Stop first. The admitted
 receipt is retained in active status and cleared by ordinary Stop. Native
-admission verifies the selected files independently. The profile remains
-unregistered, and `LoadCoreInternal` has an explicit unavailable-backend guard
-before physical work even if a future registry change admits the descriptor.
+admission verifies the selected files independently. The profile is default-off. An enabled build uses the same shared standard
+computer driver and requires the programmer to report its matched cold-start
+kernel contract. Plain format5, mixed monolithic/ROM composition, missing
+backend and changed retained images fail before input/quiesce/programming.
+`LoadCoreInternal` passes the verified base and selected persona to the virtual
+`FpgaManager::ProgramStatic`, then follows normal identity/display/Start ordering.
+The DE25 implementation delegates to its owned per-base mapping path. Other
+platforms and programmers refuse the operation by default.
 
 The programmer's internal cold-start entry point owns its CSR mapping, rather
 than borrowing the process-wide computer mapping. It constructs a fresh
@@ -91,7 +96,8 @@ cleanup error; destruction does not retry it. An uncertain cleanup poisons the
 programmer and retains both images, just like a programming/control failure.
 The borrowed-CSR overload and syscall injection are test-only and absent from
 the production archive. This supplies resource lifetime and software bounds,
-without qualifying physical clocks/bridges or registering the static profile.
+without qualifying physical clocks/bridges. The explicit build flag and matched
+kernel gate control dispatch to this backend.
 
 `LinuxDe25FpgaManager` implements `FpgaManager` for the selected
 `de25_hps_first_v1` computer and `de25_linux_menu_v1` application profiles.

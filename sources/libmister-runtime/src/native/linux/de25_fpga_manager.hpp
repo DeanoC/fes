@@ -64,9 +64,13 @@ public:
 #endif
     ~LinuxDe25FpgaManager() override;
     NativeResult Program(const Artifact&, ProgrammingProfile, std::uint64_t) override;
+    bool SupportsStaticComposition() const override;
+    NativeResult ProgramStatic(const Artifact&, const Artifact&,
+                               const CoreStaticComposition&, std::uint64_t) override;
     // Cold startup only: caller holds execution. The programmer owns a fresh,
     // guarded PR mapping only after the full base has been applied, and closes
-    // it before returning. Package/profile admission remains closed.
+    // it before returning. Normal dispatch is default-off and additionally requires
+    // the matched cold-start kernel contract.
     NativeResult ProgramStatic(const Artifact& base, const Artifact& persona,
                                const De25StaticSelection&,
                                std::uint64_t absolute_deadline_ms);

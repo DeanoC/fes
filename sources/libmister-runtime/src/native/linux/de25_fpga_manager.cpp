@@ -845,6 +845,22 @@ NativeResult LinuxDe25FpgaManager::Program(const Artifact& a, ProgrammingProfile
     return impl_->Program(a, p, d, selected, "");
 }
 NativeResult LinuxDe25FpgaManager::ProgramStatic(const Artifact& base, const Artifact& persona,
+        const CoreStaticComposition& selected, std::uint64_t deadline) {
+    std::lock_guard<std::mutex> lock(impl_->mutex);
+    if (!De25StaticEnabled())
+        return {{ErrorCode::unsupported_programming_profile, "static startup is disabled in this build", "admission"}, false};
+    De25StaticSelection selection;
+    selection.base_sha256=selected.base_sha256;
+    selection.persona_sha256=selected.persona_sha256;
+    selection.control_build_id=selected.control_build_id;
+    selection.persona_id=selected.hardware_id;
+    return impl_->ProgramStatic(base,persona,selection,nullptr,deadline);
+}
+bool LinuxDe25FpgaManager::SupportsStaticComposition() const {
+    std::lock_guard<std::mutex> lock(impl_->mutex);
+    return De25StaticEnabled() && impl_->kernel_known && impl_->static_capable && !impl_->poisoned;
+}
+NativeResult LinuxDe25FpgaManager::ProgramStatic(const Artifact& base, const Artifact& persona,
         const De25StaticSelection& selection, std::uint64_t deadline) {
     std::lock_guard<std::mutex> lock(impl_->mutex);
     return impl_->ProgramStatic(base, persona, selection, nullptr, deadline);

@@ -569,3 +569,10 @@ allocated `fes.fabric.de25-scanout`1.1. The kernel owns publication; GP controls
 visibility. This profile grants neither `fes.memory.hps-ddr` nor general ROM/PR
 composition admission. Source/runtime admission and exact-artifact hardware
 acceptance remain separate.
+
+The declared `de25-linux-static-computer-v1` programming pair uses `fes.computer`
+1.0 with the exact standard ZX81 allocated-display contract and format5. The
+runtime defaults this unfinished feature off. A qualification build explicitly
+sets `ENABLE_DE25_STATIC=1`; native admission additionally requires the matched
+kernel cold-start contract and an independently checked two-image composition.
+The declaration alone neither enables a deployed image nor qualifies PR timing.

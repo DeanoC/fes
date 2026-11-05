@@ -105,7 +105,7 @@ from an independent internal16K generation control. Original HPS parameter
 deltas still require the existing closed managed-Linux policy. The generated
 PR-control aperture stays at
 peripheral offset `0x10700` and adds no DMA initiator. This new profile is
-unqualified: the current Linux owner/runtime has no physical PR opener, and
+unqualified: normal runtime builds keep physical PR dispatch disabled, and
 standalone composition does not provide normal FES admission. Independent fits,
 whole-board timing and physical acceptance remain required; internal16K audio
 clock exceptions do not apply to this profile.

@@ -11,14 +11,23 @@ DE25 selects the explicit profiles below. Protocol 2 is the only local socket pr
 The package reader recognizes format5's sealed full base and default empty
 persona, retains both open artifacts and rechecks their exact bytes. Its package
 identity matches FogCast's three-member identity and shared conformance corpus.
-The static programming profile remains unregistered and is refused before
-hardware access. Structural static-composition admission also verifies an
-optional format2 partial asset against the exact package, base, build and frozen
-root identities. It recomputes FogCast's default/selected receipt and retains
-the selected files for recheck. This does not enable physical PR or add a
-runtime command. The existing composed-core operation carries the two-image
-receipt and reports it in status; static loads require Stop/idle. The native
-programming backend remains explicitly unavailable.
+The `de25-linux-static-computer-v1` pair is declared but disabled by default.
+Qualification builds set `ENABLE_DE25_STATIC=1`; default builds reject it before
+hardware access and do not advertise it. The enabled build also requires a
+programmer prepared against the matched cold-start kernel contract. Both empty
+and selected format2 partial assets use the existing composed-core request;
+plain or monolithic loads are refused. Admission independently checks the exact
+package/base/build/frozen-root bindings and recomputes the receipt. Launch
+rechecks retained files before quiesce, calls the owned two-image programmer,
+then follows the shared driver identity, allocated display and Start lifecycle.
+Programmer failure prevents that Start and uses existing failure handling.
+Stop returns through ordinary MENU replacement; a new selection requires idle
+and another full base. No live persona command is added. This feature is not
+physically qualified and ordinary factory builds leave the flag off.
+
+The Makefile records the flag as a dependency of production objects and directly
+compiled tests. Changing it in one build directory rebuilds its consumers;
+concurrent configurations require separate `BUILD_DIR`s.
 
 Production hardware construction selects the board before constructing physical
 adapters. DE10 requires ARMv7 and the exact FES Cyclone V device-tree identity.
@@ -103,8 +112,8 @@ applied base/initial-persona overlays. The mapping closes before success or
 failure returns; failed unmap/close is never retried and poisons the programming
 context. Borrowed register injection exists only in test builds. No process-wide
 mapping escapes into a later base epoch. Physical clock/bridge qualification,
-sealed package production and profile admission remain required; the normal
-factory does not select this path yet.
+qualified static package production and physical acceptance remain required;
+the normal factory build leaves static dispatch disabled.
 Partial, failed or late programming poisons the context and retains the
 configuration. Software deadlines cannot abort an opaque configfs/SDM call.
 On DE25, TERM/INT request a normal server stop. Once socket workers have ended,

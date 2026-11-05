@@ -60,6 +60,13 @@ public:
 	virtual NativeResult Program(const Artifact&,
 		ProgrammingProfile,
 		std::uint64_t absolute_deadline_ms) = 0;
+	virtual bool SupportsStaticComposition() const { return false; }
+	// A cold two-image launch, never an in-place persona replacement.
+	virtual NativeResult ProgramStatic(const Artifact&, const Artifact&,
+		const CoreStaticComposition&, std::uint64_t)
+	{
+		return {{ErrorCode::unsupported_programming_profile, "static startup unavailable", "admission"}, false};
+	}
 	// fes.memory.hps-ddr: releases the SDR FPGA ports only when the loaded
 	// core's fpga2sdram mirrors equal the shared layout. A mismatch is
 	// core_mismatch; any failure leaves the ports in reset.

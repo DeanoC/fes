@@ -14,11 +14,19 @@ BUILD_DIR ?= build
 ARCHIVE := $(BUILD_DIR)/libmister-runtime.a
 DAEMON := $(BUILD_DIR)/mister-runtime
 VERSION_INPUT := $(BUILD_DIR)/.mister-runtime-version
+FEATURE_INPUT := $(BUILD_DIR)/.mister-runtime-features
+ENABLE_DE25_STATIC ?= 0
+ifneq ($(ENABLE_DE25_STATIC),0)
+ifneq ($(ENABLE_DE25_STATIC),1)
+$(error ENABLE_DE25_STATIC must be 0 or 1)
+endif
+endif
 
 VERSION_DIRTY = $(shell test -z "$$(git status --porcelain --untracked-files=normal -- .)" || printf '%s' -dirty)
 MISTER_RUNTIME_VERSION ?= git-$(shell git rev-parse --short=12 HEAD)$(VERSION_DIRTY)
 
 CPPFLAGS := -D_FILE_OFFSET_BITS=64 -Iinclude -Isrc -isystem third_party/toml11/include
+CPPFLAGS += -DMISTER_RUNTIME_ENABLE_DE25_STATIC=$(ENABLE_DE25_STATIC)
 TEST_CPPFLAGS := $(CPPFLAGS) -Itests/support
 CXXFLAGS ?= -O2 -std=c++14 -Wall -Wextra -Werror -pthread -MMD -MP
 
@@ -126,7 +134,18 @@ TEST_HEADERS := $(wildcard \
 	force-version sanitize tsan archive-audit active-tree-test \
 	hardware-support-truth-test target menu-pattern-client
 
+.DEFAULT_GOAL := all
 all: $(ARCHIVE) $(DAEMON)
+
+.PHONY: force-features
+ifneq ($(shell cat "$(FEATURE_INPUT)" 2>/dev/null),$(ENABLE_DE25_STATIC))
+$(FEATURE_INPUT): force-features
+endif
+$(FEATURE_INPUT):
+	@mkdir -p "$(dir $@)"
+	@temporary="$@.tmp"; printf '%s\n' '$(ENABLE_DE25_STATIC)' >"$$temporary"; \
+	if ! cmp -s "$$temporary" "$@"; then mv -f "$$temporary" "$@"; \
+	else rm -f -- "$$temporary"; fi
 
 $(BUILD_DIR)/src/daemon/main.o: CPPFLAGS += \
 	-DMISTER_RUNTIME_VERSION=\"$(MISTER_RUNTIME_VERSION)\"
@@ -550,3 +569,8 @@ $(BUILD_DIR)/tests/unit/menu_window_test: tests/unit/menu_window_test.cpp src/na
 $(BUILD_DIR)/tests/unit/de25_fpga_manager_test: tests/unit/de25_fpga_manager_test.cpp tests/support/de25_pr_endpoint.hpp src/native/de25_pr_control.cpp src/native/linux/de25_fpga_manager.cpp src/native/linux/mmio.cpp src/native/linux/de25_menu.cpp src/native/core_package.cpp src/native/artifacts.cpp src/native/diagnostic.cpp src/native/sha256.cpp src/daemon/json.cpp
 	@mkdir -p "$(dir $@)"
 	$(CXX) $(TEST_CPPFLAGS) -DMISTER_RUNTIME_TESTING $(CXXFLAGS) $(filter %.cpp,$^) -o "$@"
+
+# Flag changes invalidate production objects and directly compiled tests.
+# Matching flags have no phony prerequisite, so incremental `make -q` works.
+# Concurrent configurations must use separate BUILD_DIRs.
+$(LIB_OBJECTS) $(DAEMON_OBJECTS) $(TEST_BINS): $(FEATURE_INPUT)
