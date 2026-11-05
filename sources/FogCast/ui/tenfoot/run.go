@@ -2,6 +2,7 @@ package tenfoot
 
 import (
 	"context"
+	"net/http"
 	"os"
 	"path/filepath"
 	"strings"
@@ -20,11 +21,13 @@ import (
 // Options configure the native launcher window.
 type Options struct {
 	// CPUProfile and HeapProfile write optional diagnostic pprof files.
-	CPUProfile   string
-	HeapProfile  string
-	APIBase      string
-	APIToken     string
-	TargetID     string
+	CPUProfile  string
+	HeapProfile string
+	APIBase     string
+	APIToken    string
+	TargetID    string
+	// KitHost connects the kit UI to its own unpaired host API.
+	KitHost      bool
 	Width        int
 	Height       int
 	Fullscreen   bool
@@ -300,7 +303,18 @@ func sizedOptions(opts Options, dev interface{ Config() gfx.FBConfig }) Options 
 
 // configuredApp keeps application setup identical across native display backends.
 func configuredApp(opts Options) (*App, error) {
-	app := NewApp(NewClient(opts.APIBase, launcherHTTPClient(opts.APIToken, opts.TargetID)).withAPIHost(opts.APIHost), opts.Width, opts.Height, opts.MaxGames)
+	var auth *http.Client
+	if !opts.KitHost {
+		auth = launcherHTTPClient(opts.APIToken, opts.TargetID)
+	}
+	app := NewApp(NewClient(opts.APIBase, auth).withAPIHost(opts.APIHost), opts.Width, opts.Height, opts.MaxGames)
+	app.kitHost = opts.KitHost
+	if opts.KitHost {
+		// A prior UI process may have exited while a host session kept the
+		// display. Wait for the host's first session read before presenting.
+		app.hostPresentsPaused = true
+		app.hostAwaitStatus = true
+	}
 	look, err := theme.Resolve(opts.Theme)
 	if err != nil {
 		return nil, fmt.Errorf("theme: %w", err)
@@ -334,15 +348,25 @@ func configuredApp(opts Options) (*App, error) {
 		// A rooms Home on the kit opens first-run setup until it is
 		// finished or skipped.
 		app.SetFirstRun(homeRooms)
-		app.SetKitDisplay(opts.TargetID)
-		app.EnableKitLocal()
-		if served := serveCatalog(opts.CatalogConfig); served != nil {
-			if useLocalCatalog(opts.CatalogConfig, served.Notice) {
-				app.client = NewClient(served.Base, launcherHTTPClient("", "")).withAPIHost("")
-				app.localCatalogClose = served.Close
-				app.localContent = served.ContentPath
-			} else {
-				_ = served.Close()
+		targetID := opts.TargetID
+		if opts.KitHost {
+			targetID = ""
+		}
+		app.SetKitDisplay(targetID)
+		if opts.KitHost {
+			app.EnableKitHost()
+		} else {
+			app.EnableKitLocal()
+		}
+		if !opts.KitHost {
+			if served := serveCatalog(opts.CatalogConfig); served != nil {
+				if useLocalCatalog(opts.CatalogConfig, served.Notice) {
+					app.client = NewClient(served.Base, launcherHTTPClient("", "")).withAPIHost("")
+					app.localCatalogClose = served.Close
+					app.localContent = served.ContentPath
+				} else {
+					_ = served.Close()
+				}
 			}
 		}
 	}

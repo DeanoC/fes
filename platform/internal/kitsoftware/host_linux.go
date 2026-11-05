@@ -28,8 +28,8 @@ type hostPlan struct {
 }
 
 // planHostLocked records the host for the bundle that Start just started.
-// The host starts on a later tick, once the launcher is ready, so its
-// start-up does not compete with the agent and launcher for the board.
+// The host must start before launcher readiness: the launcher consults it
+// before presenting while it determines whether a game is already running.
 func (c *ProcessController) planHostLocked(root string, env []string) {
 	c.hostPlan = nil
 	c.hostRestart, c.hostDelay = time.Time{}, 0
@@ -94,8 +94,6 @@ func (c *ProcessController) superviseHostLocked() error {
 		if err := c.confirmLauncherGroup(previous); err != nil {
 			return err
 		}
-	} else if !c.launcherReadyLocked() {
-		return nil
 	}
 	if !c.hostRestart.IsZero() && time.Since(c.hostRestart) < max(c.hostDelay, launcherRestartMin) {
 		return nil
@@ -130,19 +128,6 @@ func (c *ProcessController) growHostDelay() {
 	case c.hostDelay < launcherRestartMax:
 		c.hostDelay = min(2*c.hostDelay, launcherRestartMax)
 	}
-}
-
-// launcherReadyLocked reports whether the launcher published readiness for
-// the active bundle.
-func (c *ProcessController) launcherReadyLocked() bool {
-	data, err := os.ReadFile(filepath.Join(c.RunDir, "launcher-ready.json"))
-	if err != nil {
-		return false
-	}
-	var ready struct {
-		BundleID string `json:"bundle_id"`
-	}
-	return json.Unmarshal(data, &ready) == nil && ready.BundleID == c.active
 }
 
 // withoutHost drops the host from a list of the supervisor's direct

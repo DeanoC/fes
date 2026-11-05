@@ -66,6 +66,13 @@ func TestParseArgsSmokeAndAPI(t *testing.T) {
 	}
 }
 
+func TestParseArgsKitHost(t *testing.T) {
+	opts, err := parseArgs([]string{"-api", "http://127.0.0.1:8787", "-kit-host"})
+	if err != nil || !opts.KitHost || opts.APIBase != "http://127.0.0.1:8787" {
+		t.Fatalf("opts = %#v, err = %v", opts, err)
+	}
+}
+
 func TestParseArgsAPIHost(t *testing.T) {
 	t.Parallel()
 	opts, err := parseArgs([]string{"-api", "http://host.docker.internal:8787", "-api-host", "127.0.0.1:8787"})

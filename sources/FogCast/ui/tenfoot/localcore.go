@@ -61,6 +61,31 @@ func (a *App) EnableKitLocal() {
 	a.SetKitLocal(localcores.NewClient(localcores.DefaultSocket), localfeed.New(localfeed.DefaultSocket, nil))
 }
 
+// hostKitCores keeps the kit control socket for the remaining local actions,
+// but reads room inventory from the kit host's package store.
+type hostKitCores struct {
+	*localcores.Client
+	host *hostclient.Client
+}
+
+func (c *hostKitCores) List(ctx context.Context) ([]localcores.Core, error) {
+	cores, err := c.host.KitLocalCores(ctx)
+	if err != nil {
+		return nil, errors.Join(localcores.ErrUnavailable, err)
+	}
+	return cores, nil
+}
+
+// EnableKitHost uses the local host for inventory and the local input socket
+// for the kit display. Local-control operations remain available for the
+// legacy direct-launch path until that path is removed.
+func (a *App) EnableKitHost() {
+	if a == nil || a.client == nil {
+		return
+	}
+	a.SetKitLocal(&hostKitCores{Client: localcores.NewClient(localcores.DefaultSocket), host: a.client.Client}, localfeed.New(localfeed.DefaultSocket, nil))
+}
+
 // SetKitLocal installs the control client and the pad feed. Both stay nil
 // on the host. Call it before Start so the home room sees the client.
 // The installed-core list is read here, outside the room lock. A failed
@@ -411,6 +436,17 @@ func (a *App) queueLocalLaunchLocked(launch func()) {
 func (a *App) completeLocalLaunchHandoff(err error) {
 	a.mu.Lock()
 	defer a.mu.Unlock()
+	if launch := a.hostLaunchPending; launch != nil {
+		a.hostLaunchPending = nil
+		if err != nil {
+			a.hostPresentsPaused = false
+			a.launch.Phase = "error"
+			a.launch.Message = "display handoff failed: " + err.Error()
+			return
+		}
+		launch()
+		return
+	}
 	launch := a.localLaunchPending
 	if launch == nil || a.localPhase != localPhaseLaunching {
 		return
@@ -967,6 +1003,10 @@ func (a *App) HandleLocalPad(e remoteinput.Event, now time.Time) bool {
 		now = time.Now()
 	}
 	a.mu.Lock()
+	if a.kitHost && (a.hostAwaitStatus || a.kitHostPreparing) {
+		a.mu.Unlock()
+		return true
+	}
 	if a.localUnownedRun {
 		feed := a.localFeed
 		a.mu.Unlock()

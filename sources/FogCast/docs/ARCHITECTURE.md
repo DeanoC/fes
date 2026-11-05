@@ -81,14 +81,14 @@ the game survives a host restart while the agent remains running. A restarted
 host resumes the same grant before discovery, reads the running session, and
 reconstructs its input binding. From the first session read, kit mode uses its
 local target's coordinator so the session ID and input owner stay stable across
-reattachment. Host shutdown detaches its local resources without stopping the
-target or releasing this grant; an explicit Stop still stops the session and
-releases it. A local grant that is not resumed or renewed within the window
-expires and follows the normal agent cleanup path. A transient renewal failure
-retries within the last confirmed local expiry; it never extends that expiry
-without a valid response. A denial or a changed token or generation invalidates
-the grant. Remote hosts retain their ordinary lease behavior and cannot resume
-the local grant.
+reattachment. Host shutdown detaches its local resources
+without stopping the target or releasing this grant; an explicit Stop still
+stops the session and releases it. A local grant that is not resumed or renewed
+within the window expires and follows the normal agent cleanup path. A transient
+renewal failure retries within the last confirmed local expiry; it never extends
+that expiry without a valid response. A denial or a changed token or generation
+invalidates the grant. Remote hosts retain their ordinary lease behavior and
+cannot resume the local grant.
 A locally expired or lost kit lease remains `KIT_LEASE_DENIED` through host
 service normalization, session reads, input reconciliation, Launch and Stop.
 The host API returns HTTP 403 for this ownership refusal. An ordinary claim
@@ -1988,8 +1988,7 @@ with the captured play. A package play sends its session and target identities,
 package ID and generation, even when the restarted agent reports no game ID.
 Stop rejects a changed generation before input teardown. If an unidentified
 package has a pending ZX81 SAVE, Stop keeps the machine running because the
-captured bytes have no durable game binding. A play without a package sends the
-session id, launch flight, game, and target; a
+captured bytes have no durable game binding. A play without a package sends the session id, launch flight, game, and target; a
 missing flight is not posted as an empty body, because an unbound stop would
 release whatever play is foreground at admission. Idle cleanup releases that
 play's grant. A bound stop releases only its target, and a host-only stop
@@ -2511,17 +2510,35 @@ coverage; physical reboot and DHCP acceptance belongs to the selected FES image.
 ## Native kit launcher
 
 The kit UI is `fogcast-tenfoot -gfx menu-display -home rooms`. The base-image
-supervisor starts it after the runtime and agent. `ui/launcherconfig` reads the
+supervisor starts it after the runtime and agent, and starts the kit host during
+activation so the launcher can check for an existing session before its first
+frame. `ui/launcherconfig` reads the
 provisioned `launcher.json` (`api`, `token`, `target_id`) and ignores keys left
 by the removed grid launcher. The bundle's `bin/fogcast-kit` is
 `cmd/fogcast-api` built under the kit's name: `fogcast-kit host` is the kit's
-FogCast host ([kit mode](#kit-mode)).
+FogCast host ([kit mode](#kit-mode)), and `--print-kit-ui` still prints
+`tenfoot` for bases whose supervisor probes it before starting the launcher.
 
 A paired, authenticated host listener serves a restricted set of existing
-library, artwork, and session operations. The host keeps target and input lease
-ownership for host launches and Stop. When the kit has its own playable shelf,
-tenfoot serves the kit-local catalog on loopback and launches through the
-agent's local-control socket instead. A gamepad or USB keyboard on the kit
+library, artwork, and session operations. On bundles advertising `kit-host`,
+the supervisor passes `-api http://127.0.0.1:8787 -kit-host` to tenfoot. This
+client uses the unpaired loopback API without saved paired credentials and does
+not serve an embedded catalog. Its installed-core shelf reads the host package
+inventory. Core and local SMS cartridge selections are resolved into host
+catalog entries through `POST /api/v1/library/local-core-entry`, then use the
+host session launch and Stop paths. The host checks the selected package and
+resolves a cartridge by catalog identity, imports its content, and reuses its
+own generated entry without changing an independently configured entry. These
+helper entries are omitted from ordinary library and core-entry lists, while
+exact-ID detail and launch remain available. Editing a helper's package, media,
+ROM, expansion or settings turns it into a visible user entry; a later local
+launch creates a separate helper. Cartridge plays are recorded against their
+scanned source title for recents. Bare-core helpers have no source title and
+do not create a recent library row. The launcher waits for
+session status and keeps menu presents
+parked while a running core owns the display, including after a restart.
+
+A gamepad or USB keyboard on the kit
 writes raw input frames to `/run/fogcast/local-input.sock` through
 `ui/localfeed` while a runtime core is bound, and does not post those events to
 the host. A pad on another machine is delivered on the host-to-kit input stream
@@ -2772,7 +2789,7 @@ to its target and selection; libraries and library settings still change.
 A host whose config sets `[core_packages] kit = true` is a kit host (#863
 slice 3). Its installed packages are `kitpackages.View`, not the state
 directory's `core-packages` store. The view opens the durable store with the
-agent's checks (`OpenPersistent` on `/run/fogcast/fesdata3/core-library`)
+agent's storage checks (`OpenPersistentForHost` on `/run/fogcast/fesdata3/core-library`)
 and reads the image's factory packages under
 `/usr/share/mister-runtime/core-packages`. Imports go to the durable store.
 List, inspect and read look in the durable store first, then in the factory
@@ -2787,9 +2804,10 @@ is independent of the selection files: catalog entries name package IDs, so
 the host needs the packages, not the per-core selections.
 
 The host and `mister-agent` open the durable store as two processes, coordinated
-by its flock. Opening takes that lock and verifies every durable package, so the
-view opens in the background; calls made meanwhile get the unavailable error at
-once instead of waiting. The lock waits until the caller's context ends, so a
+by its flock. The agent recovers interrupted installations and verifies packages
+when opening; the host skips recovery and verifies each publication on access.
+The host view opens in the background; calls made meanwhile get the unavailable
+error at once instead of waiting. The lock waits until the caller's context ends, so a
 list, inspect or read without a deadline is bounded to one minute. An import
 reads its whole body under the lock and keeps the caller's context, as the
 agent's own install does. Durable and factory inspections are cached by stat

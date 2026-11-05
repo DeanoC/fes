@@ -430,6 +430,11 @@ type App struct {
 	playingSetupCancel     context.CancelFunc
 	playingSetupRoom       *rooms.Instance
 	sessionTitle           string
+	resolvedSessionTitle   string
+	resolvedSessionGameID  string
+	sessionTitlePending    bool
+	sessionTitleRequest    uint64
+	sessionTitleNext       time.Time
 	// retainedIdleLease is set when this shell's Soft-stop kept an idle kit
 	// grant, and when a kit Select+Start release failed while that grant may
 	// still be renewing. A later active or relaunched play does not clear it:
@@ -617,6 +622,11 @@ type App struct {
 	previewNext        time.Time
 
 	localCores                 rooms.LocalCores
+	kitHost                    bool
+	kitHostPreparing           bool
+	hostLaunchPending          func()
+	hostPresentsPaused         bool
+	hostAwaitStatus            bool
 	localFeed                  localPadSender
 	localInstallKnown          bool
 	localInstalled             map[string]struct{}
@@ -977,6 +987,9 @@ func (a *App) HandleCommand(cmd Command, now time.Time) {
 	}
 	a.mu.Lock()
 	defer a.mu.Unlock()
+	if a.kitHost && (a.hostAwaitStatus || a.kitHostPreparing) {
+		return
+	}
 	a.traceInputLocked(cmd, now)
 	a.noteActivityLocked(now)
 	if a.localCoreBusyLocked() {
@@ -1870,8 +1883,8 @@ func (a *App) Snapshot() Snapshot {
 		LocalCoreTitle:          a.localTitle,
 		LocalCoreStatus:         a.localStatus,
 		LocalCoreStartedAt:      a.localStartedAt,
-		LocalCorePresentsPaused: a.localPresentsPaused,
-		LocalCoreLateAdopt:      a.localLateAdopt,
+		LocalCorePresentsPaused: a.localPresentsPaused || a.hostPresentsPaused || (a.kitHost && (a.session.State == "launching" || a.session.State == "stopping" || (a.session.State == "active" && !a.sessionDisplayLocked().Visible))),
+		LocalCoreLateAdopt:      a.localLateAdopt || (a.kitHost && (a.hostAwaitStatus || a.session.State == "active" || a.session.State == "launching" || a.session.State == "stopping")),
 		LocalCoreRedraw:         a.localRedraw,
 	}
 	destination := snap.DetailPlay
@@ -2391,6 +2404,9 @@ func (a *App) startLaunchGameLocked(game hostclient.Game) {
 }
 
 func (a *App) startLaunchGameWithPackageLocked(game hostclient.Game, packageID, expectedPackageID string) {
+	if a.kitHost && (a.hostAwaitStatus || a.kitHostPreparing) {
+		return
+	}
 	// Release kit may already have read an idle session and still be about
 	// to post an empty-body Stop. That Stop would end this game.
 	if a.leaseReleaseBusy {
@@ -2472,7 +2488,13 @@ func (a *App) startLaunchGameWithPackageLocked(game hostclient.Game, packageID, 
 		"game_id": game.ID,
 		"title":   game.Title,
 	})
-	go a.doLaunch(ctx, game, stamp, packageID, expectedPackageID)
+	dispatch := func() { go a.doLaunch(ctx, game, stamp, packageID, expectedPackageID) }
+	if a.kitHost && a.menuDisplay != nil {
+		a.hostPresentsPaused = true
+		a.hostLaunchPending = dispatch
+	} else {
+		dispatch()
+	}
 }
 
 // launchBlockReason maps hostclient catalog ineligibility to sofa copy.
@@ -2515,6 +2537,7 @@ func (a *App) doLaunch(ctx context.Context, game hostclient.Game, stamp ClientSt
 				return
 			}
 			a.bumpSessionGenLocked()
+			a.hostPresentsPaused = false
 			a.launch.Phase = "error"
 			a.launchLeaseRefusal = false
 			a.launch.Message = "package selection failed: " + err.Error()
@@ -2536,6 +2559,12 @@ func (a *App) doLaunch(ctx context.Context, game hostclient.Game, stamp ClientSt
 	}
 	a.bumpSessionGenLocked()
 	if err != nil {
+		if a.kitHost && a.hostPresentsPaused {
+			// A lost response can follow a successful launch. Keep HDMI
+			// paused until a fresh host status resolves that ambiguity.
+			a.hostAwaitStatus = true
+			a.kickSessionPollLocked()
+		}
 		a.launch.Phase = "error"
 		a.launchLeaseRefusal = false
 		a.launch.Message = "launch failed: " + err.Error()
@@ -2547,12 +2576,17 @@ func (a *App) doLaunch(ctx context.Context, game hostclient.Game, stamp ClientSt
 	a.launch.ErrorMessage = result.ErrorMessage
 	a.launch.State = result.State
 	if result.ErrorCode != "" {
+		if a.kitHost && a.hostPresentsPaused {
+			a.hostAwaitStatus = true
+			a.kickSessionPollLocked()
+		}
 		a.launch.Phase = "host"
 		a.launchLeaseRefusal = false
 		a.launch.Message = fmt.Sprintf("host launch %d %s: %s", result.HTTPStatus, result.ErrorCode, result.ErrorMessage)
 		return
 	}
 	a.launch.Phase = "ok"
+	a.hostPresentsPaused = false
 	a.launchLeaseRefusal = false
 	a.launch.Message = fmt.Sprintf("host accepted launch for %s", game.ID)
 	a.applySessionLocked(result)
@@ -2801,7 +2835,7 @@ func (a *App) doIdleLeaseRetry(stamp ClientStamp) {
 }
 
 func packageStopIdentity(expected hostclient.SessionResult) bool {
-	return expected.CorePackage != nil && expected.GameID != "" &&
+	return expected.ID != "" && expected.CorePackage != nil && expected.Target != "" &&
 		expected.CorePackage.PackageID != "" && expected.CorePackage.Generation != 0
 }
 
@@ -2927,6 +2961,12 @@ func (a *App) openRunningMediaSelector(down bool, now time.Time) bool {
 func (a *App) HandlePlayHIDScancode(name string, usage uint8, down bool, now time.Time) bool {
 	if a == nil {
 		return false
+	}
+	a.mu.Lock()
+	waitingForHost := a.kitHost && (a.hostAwaitStatus || a.kitHostPreparing)
+	a.mu.Unlock()
+	if waitingForHost {
+		return true
 	}
 	if a.consumeSuppressedPlayKey(name, usage, down) {
 		return true
@@ -3137,6 +3177,10 @@ func (a *App) fetchSession(ctx context.Context) {
 	}
 	if a.launch.Phase == "launching" || a.stopPhase == "stopping" || a.inputBusy || a.sessionDisplayBusy || a.developmentLoadingLocked() {
 		return
+	}
+	if a.hostAwaitStatus && result.ErrorCode == "" && (result.State == "idle" || result.State == "active") {
+		a.hostAwaitStatus = false
+		a.hostPresentsPaused = false
 	}
 	a.applySessionLocked(result)
 }
@@ -3434,6 +3478,11 @@ func (a *App) applySessionLocked(result hostclient.SessionResult) {
 		return
 	}
 	if !samePlayHIDSession(a.session, result) {
+		a.sessionTitleRequest++
+		a.sessionTitlePending = false
+		a.sessionTitleNext = time.Time{}
+		a.resolvedSessionTitle = ""
+		a.resolvedSessionGameID = ""
 		a.clearPlayingSetupLocked()
 		a.cancelPlayHIDLocked()
 		a.invalidateSessionDisplayLocked()
@@ -3469,6 +3518,7 @@ func (a *App) applySessionLocked(result hostclient.SessionResult) {
 		a.closeTapePickerLocked()
 	}
 	a.syncGPUParkLocked()
+	a.resolveKitHostSessionTitleLocked()
 }
 
 func (a *App) syncGPUParkLocked() {
@@ -3530,8 +3580,12 @@ func (a *App) sessionSnapshotLocked() SessionSnapshot {
 				break
 			}
 		}
-		if !found && a.launch.GameID != a.session.GameID {
-			title = a.session.GameID
+		if !found && (a.launch.GameID != a.session.GameID || title == "") {
+			if a.resolvedSessionGameID == a.session.GameID && a.resolvedSessionTitle != "" {
+				title = a.resolvedSessionTitle
+			} else {
+				title = a.session.GameID
+			}
 		}
 		if title == "" {
 			title = a.session.GameID

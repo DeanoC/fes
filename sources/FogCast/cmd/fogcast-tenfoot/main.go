@@ -130,6 +130,7 @@ func parseArgsWithEnv(args []string, getenv func(string) string) (tenfoot.Option
 	heapProfile := fs.String("heap-profile", "", "write heap/allocation pprof on SIGUSR1 and at exit")
 	configPath := fs.String("config", "/media/fat/fogcast/launcher.json", "provisioned launcher configuration")
 	fs.String("api", "", "FogCast host API base URL")
+	kitHost := fs.Bool("kit-host", false, "connect unpaired to this kit's local host")
 	fs.String("token", "", "launcher API bearer token")
 	fs.String("target-id", "", "launcher API target identity")
 	apiHost := fs.String("api-host", envOr("FOGCAST_API_HOST", ""), "optional HTTP Host header (loopback allowlist; -smoke defaults this when the API URL is not loopback)")
@@ -191,6 +192,7 @@ func parseArgsWithEnv(args []string, getenv func(string) string) (tenfoot.Option
 		APIBase:       apiValue,
 		APIToken:      tokenValue,
 		TargetID:      targetValue,
+		KitHost:       *kitHost,
 		APIHost:       *apiHost,
 		Width:         *width,
 		Height:        *height,

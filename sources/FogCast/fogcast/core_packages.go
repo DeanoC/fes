@@ -264,13 +264,13 @@ func (s *Service) CoreEntry(ctx context.Context, id string) (catalog.CoreEntry, 
 	return result, mapCoreEntryError(err)
 }
 func (s *Service) CreateCoreEntry(parent context.Context, title, id string) (catalog.CoreEntry, error) {
-	return s.writeCoreEntry(parent, "", title, "", id, "", "", false)
+	return s.writeCoreEntry(parent, "", title, "", id, "", "", false, nil)
 }
 func (s *Service) CreateCoreMediaEntry(parent context.Context, title, id, role, mediaID string) (catalog.CoreEntry, error) {
-	return s.writeCoreEntry(parent, "", title, "", id, role, mediaID, false)
+	return s.writeCoreEntry(parent, "", title, "", id, role, mediaID, false, nil)
 }
 func (s *Service) CreateCoreEntryWithFirmware(parent context.Context, title, id, role, mediaID string, firmwareRequired bool) (catalog.CoreEntry, error) {
-	return s.writeCoreEntry(parent, "", title, "", id, role, mediaID, firmwareRequired)
+	return s.writeCoreEntry(parent, "", title, "", id, role, mediaID, firmwareRequired, nil)
 }
 func (s *Service) SelectCoreEntry(parent context.Context, gameID, expected, id string) (catalog.CoreEntry, error) {
 	if protocol.ValidateGameID(gameID) != nil {
@@ -279,9 +279,9 @@ func (s *Service) SelectCoreEntry(parent context.Context, gameID, expected, id s
 	if !packageIDPattern.MatchString(expected) {
 		return catalog.CoreEntry{}, canonicalError(protocol.CodeBadRequest, nil)
 	}
-	return s.writeCoreEntry(parent, gameID, "", expected, id, "", "", false)
+	return s.writeCoreEntry(parent, gameID, "", expected, id, "", "", false, nil)
 }
-func (s *Service) writeCoreEntry(parent context.Context, gameID, title, expected, id, role, mediaID string, firmwareRequired bool) (catalog.CoreEntry, error) {
+func (s *Service) writeCoreEntry(parent context.Context, gameID, title, expected, id, role, mediaID string, firmwareRequired bool, kit *catalog.KitHostEntryIdentity) (catalog.CoreEntry, error) {
 	ctx, cancel := serviceTimeout(parent, s.uploadTimeout)
 	defer cancel()
 	release, err := s.acquireLifecycle(ctx)
@@ -335,7 +335,18 @@ func (s *Service) writeCoreEntry(parent context.Context, gameID, title, expected
 	}
 	var entry catalog.CoreEntry
 	if gameID == "" {
-		if firmwareRequired {
+		if kit != nil {
+			kitStore, ok := s.catalog.(interface {
+				CreateKitHostEntry(context.Context, string, string, string, string, string, catalog.KitHostEntryIdentity) (catalog.CoreEntry, error)
+			})
+			if !ok {
+				return catalog.CoreEntry{}, canonicalError(protocol.CodeUnsupportedOperation, nil)
+			}
+			if kit.ROMID != "" && (check.Descriptor.ROM == nil || check.Descriptor.ROM.ID != kit.ROMID || check.Descriptor.ROM.Role != "cartridge" || check.Descriptor.ROM.SourceSize != kit.ROMSourceSize) {
+				return catalog.CoreEntry{}, romAdmissionError()
+			}
+			entry, err = kitStore.CreateKitHostEntry(ctx, title, check.Descriptor.Core.ID, id, role, mediaID, *kit)
+		} else if firmwareRequired {
 			if mediaStore, ok := s.catalog.(coreFirmwareCatalog); ok {
 				entry, err = mediaStore.CreateFirmwareRequiredEntry(ctx, title, check.Descriptor.Core.ID, id, role, mediaID)
 			} else {

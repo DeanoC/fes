@@ -489,14 +489,27 @@ func (c *ProcessController) Start(ctx context.Context, id string, r Request) err
 			return err
 		}
 	}
-	catalog := filepath.Join(root, "share/fogcast/config.toml")
-	if err := c.start(filepath.Join(root, "bin/fogcast-tenfoot"), []string{"-config", "/media/fat/fogcast/launcher.json", "-catalog-config", catalog, "-gfx", "menu-display", "-menu-socket", "/run/mister-runtime.sock", "-input", "auto", "-home", "rooms"}, env, roleLauncher); err != nil {
+	if err := c.start(filepath.Join(root, "bin/fogcast-tenfoot"), launcherArgs(root), env, roleLauncher); err != nil {
 		_ = c.stopLocked(ctx)
 		return err
 	}
 	c.active = id
 	c.planHostLocked(root, env)
+	// The launcher waits for session status before its first frame, so the
+	// local host must start during activation, before readiness can be met.
+	// A failed spawn remains retryable through the independent supervisor.
+	if err := c.superviseHostLocked(); err != nil {
+		log.Printf("software host start: %v", err)
+	}
 	return nil
+}
+
+func launcherArgs(root string) []string {
+	args := []string{"-config", "/media/fat/fogcast/launcher.json", "-gfx", "menu-display", "-menu-socket", "/run/mister-runtime.sock", "-input", "auto", "-home", "rooms"}
+	if advertisesHost(root) {
+		return append(args, "-api", "http://127.0.0.1:8787", "-kit-host")
+	}
+	return append(args, "-catalog-config", filepath.Join(root, "share/fogcast/config.toml"))
 }
 
 // nativeStatusProbe is injected only by in-package tests. Production always
@@ -589,6 +602,11 @@ func waitForAgentConfig(ctx context.Context, path string, wait time.Duration) er
 }
 func (c *ProcessController) Healthy(ctx context.Context, id string) error {
 	c.mu.Lock()
+	// Activation waits here for launcher readiness before the supervisor's
+	// regular tick runs. Keep the independent host retrying during that wait.
+	if err := c.superviseHostLocked(); err != nil {
+		log.Printf("software host supervision: %v", err)
+	}
 	children := append([]*child(nil), c.children...)
 	active := c.active
 	c.mu.Unlock()

@@ -76,8 +76,9 @@ keeps that machine.
 
 The bundle's `bin/fogcast-kit` is `cmd/fogcast-api` built under the kit's
 name, a multi-call binary. `fogcast-kit host` runs the kit's FogCast host
-(`fogcast-api -kit -headless`, see [kit mode](ARCHITECTURE.md#kit-mode)); any
-other invocation fails.
+(`fogcast-api -kit -headless`, see [kit mode](ARCHITECTURE.md#kit-mode)).
+Base images whose supervisor runs `fogcast-kit --print-kit-ui` before starting
+the launcher still get `tenfoot`; any other invocation fails.
 
 ## Menu display
 
