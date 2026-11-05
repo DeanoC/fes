@@ -340,6 +340,8 @@ struct StaticFixture : Fixture {
     std::function<void()> after_base, after_persona;
     StaticFixture() {
         using namespace mister_test::de25_pr;
+        auto record=Get(paths.record);assert(!record.empty() && record.back()=='}');record.pop_back();
+        Put(paths.record,record+",\"static_expansion_contract\":\"de25-cold-persona-retained-v1\"}");
         Put(root+"/persona.rbf",ops.expected_persona_payload);
         PosixArtifactOpener opener;assert(OpenRBFArtifact(root+"/persona.rbf",opener,&persona).ok());
         assert(HashOpenedArtifact(artifact,&selection.base_sha256).ok());
@@ -393,7 +395,7 @@ void StaticStartupAndFullReplacement() {
     std::cout<<"static A/B/A launches load a fresh full base each time; MENU replacement removes child before base\n";
 }
 void StaticRefusalsBeforeHardware() {
-    for(int fault=0;fault<11;++fault) {
+    for(int fault=0;fault<15;++fault) {
         StaticFixture f;auto manager=f.Manager();
         if(fault==0)f.selection.base_sha256=std::string(64,'0');
         if(fault==1)f.selection.persona_sha256=std::string(64,'0');
@@ -406,6 +408,14 @@ void StaticRefusalsBeforeHardware() {
         if(fault==8)Put(f.paths.notes,"different kernel");
         if(fault==9) {unlink(f.paths.lease.c_str());int fd=open(f.paths.lease.c_str(),O_CREAT|O_RDWR,0600);assert(fd>=0);close(fd);}
         if(fault==10)f.selection.control_build_id=std::string(32,'0');
+        if(fault>=11) {
+            auto record=Get(f.paths.record);const auto pos=record.find(",\"static_expansion_contract\"");assert(pos!=std::string::npos);
+            record.resize(pos);
+            if(fault==12)record+=",\"static_expansion_contract\":\"unknown\"";
+            if(fault==13)record+=",\"static_expansion_contract\":true";
+            if(fault==14)record+=",\"static_expansion_contract\":\"de25-cold-persona-retained-v1\",\"static_expansion_contract\":\"de25-cold-persona-retained-v1\"";
+            Put(f.paths.record,record+"}");
+        }
         const auto result=f.Load(*manager);
         assert(!result.error.ok() && !result.mutation_attempted && !f.ops.created && !f.ops.removed && !f.ops.written && f.endpoint.reads==0);
     }

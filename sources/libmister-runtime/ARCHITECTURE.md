@@ -262,6 +262,22 @@ Package admission, a matching flag-enabled kernel, production construction of
 the protected ordered/bounded PR backend and exact-artifact physical acceptance
 remain required before production selection or a hardware claim.
 
+`De25PrMmio` is the narrow address/permission adapter for that borrowed backend.
+It adds the generated peripheral offset to the shared architectural lightweight
+base (`0x20010700` on DE25), brackets accesses with ordering barriers and admits
+only eleven protocol identity/status reads and ARGUMENT/COMMAND writes.
+Misalignment, unrelated/absolute/wrapping offsets and null output pointers fail
+before the underlying mapper is called. It opens no device at construction and
+does not make a blocked physical access interruptible. Runtime construction
+and the clock/bridge lifetime proof remain separate requirements.
+
+Static startup also requires `de25-cold-persona-retained-v1` from the same
+root-owned receipt whose notes match the running kernel. Missing, malformed,
+duplicate or different contracts refuse before image or PR-register effects.
+The opt-in kernel producer and image constructor bind this declaration to the
+actual embedded kernel configuration. Ordinary kernel receipts omit it; the
+existing full-load path remains available without a static declaration.
+
 ## DE25 diagnostic register client
 
 `De25Computer` is a separately instantiated protocol consumer for the generated

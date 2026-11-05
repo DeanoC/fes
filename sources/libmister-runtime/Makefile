@@ -286,10 +286,11 @@ $(BUILD_DIR)/tests/unit/fpga_manager_test: tests/unit/fpga_manager_test.cpp \
 		src/native/linux/fpga_manager.cpp -o "$@"
 
 $(BUILD_DIR)/tests/unit/mmio_test: tests/unit/mmio_test.cpp \
-		src/native/linux/mmio.cpp src/native/linux/de25_computer_mmio.hpp
+		src/native/linux/mmio.cpp src/native/de25_pr_control.cpp \
+		src/native/linux/de25_computer_mmio.hpp src/native/linux/de25_pr_mmio.hpp tests/support/de25_pr_endpoint.hpp
 	@mkdir -p "$(dir $@)"
 	$(CXX) $(TEST_CPPFLAGS) -DMISTER_RUNTIME_TESTING $(CXXFLAGS) \
-		tests/unit/mmio_test.cpp src/native/linux/mmio.cpp -o "$@"
+		$(filter %.cpp,$^) -o "$@"
 
 $(BUILD_DIR)/tests/unit/window_driver_test: tests/unit/window_driver_test.cpp \
 		src/native/linux/window_driver.cpp

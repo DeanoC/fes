@@ -103,3 +103,23 @@ class KernelPlatformTests(unittest.TestCase):
         for name in ('RFKILL', 'BT', 'BT_HCIBTUSB', 'BT_RTL', 'BT_HIDP', 'UHID', 'INPUT_UINPUT'):
             with self.subTest(setting=name), self.assertRaisesRegex(ValueError, name):
                 platform.verify_config(text.replace('CONFIG_'+name+'=y\n', 'CONFIG_'+name+'=m\n'))
+
+    def test_static_kernel_mode_is_explicit_builtin_and_receipt_bound(self):
+        text = ''.join('CONFIG_'+n+'=y\n' for n in platform.ENABLED)
+        text += 'CONFIG_LOCALVERSION="-fes-de25-owner"\n'
+        platform.verify_config(text)
+        enabled = text + 'CONFIG_FES_DE25_STATIC_EXPANSION=y\n'
+        platform.verify_config(enabled, True)
+        for data, mode in ((enabled, False), (text, True),
+                           (enabled.replace('EXPANSION=y', 'EXPANSION=m'), True),
+                           (enabled+'CONFIG_FES_DE25_STATIC_EXPANSION=y\n', True)):
+            with self.subTest(mode=mode), self.assertRaisesRegex(ValueError, 'static-expansion'):
+                platform.verify_config(data, mode)
+        self.assertFalse(platform.static_expansion_mode({}))
+        self.assertTrue(platform.static_expansion_mode({
+            'static_expansion_enabled': True, 'static_expansion_contract': platform.STATIC_CONTRACT}))
+        for record in ({'static_expansion_enabled': True}, {'static_expansion_enabled': 1},
+                       {'static_expansion_enabled': 'true'},
+                       {'static_expansion_enabled': False, 'static_expansion_contract': platform.STATIC_CONTRACT}):
+            with self.subTest(record=record), self.assertRaisesRegex(ValueError, 'static-expansion'):
+                platform.static_expansion_mode(record)

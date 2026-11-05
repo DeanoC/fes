@@ -29,6 +29,7 @@ constexpr const char* kOverlay = "fes-runtime";
 constexpr const char* kFirmware = "fes-runtime-core.rbf";
 constexpr const char* kPersonaOverlay = "fes-runtime-persona";
 constexpr const char* kPersonaFirmware = "fes-runtime-persona.rbf";
+constexpr const char* kStaticContract = "de25-cold-persona-retained-v1";
 constexpr std::uint64_t kMaximum = 32u * 1024u * 1024u;
 struct Fd {
     int n;
@@ -156,7 +157,7 @@ public:
     std::uint64_t programmed_size = 0;
     std::array<std::uint8_t, 32> persona_digest{};
     std::uint64_t persona_size = 0;
-    bool persona_known = false;
+    bool persona_known = false, static_capable = false;
     Fd lease;
     Error lease_error;
     bool poisoned = false, configuration_known = false, kernel_known = false, search_owned = false;
@@ -245,6 +246,7 @@ public:
             if (!Read(live.n, &data, 4096) || data.empty()) return Failure("running kernel identity unavailable");
             Sha256 hash; hash.Update(data.data(), data.size());
             if (Sha256Hex(hash.Final()) != expected) return Failure("running kernel differs from programming receipt");
+            static_capable = field("static_expansion_contract") == kStaticContract;
             kernel_known = true;
         }
         if (!SearchExact(search, search_owned ? firmware : ""))
@@ -539,6 +541,7 @@ public:
             (selection.persona_id != FesDe25PrControlPersonaA && selection.persona_id != FesDe25PrControlPersonaB))
             return {Failure("invalid admitted static expansion selection"), false};
         auto error = Check(deadline);
+        if (error.ok() && !static_capable) error = Failure("matched kernel receipt lacks static expansion startup contract");
         if (error.ok()) error = ValidateArtifact(base);
         if (error.ok()) error = ValidateArtifact(persona);
         if (error.ok()) error = PersonaFallbacks();

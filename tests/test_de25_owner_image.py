@@ -1,4 +1,7 @@
 import io
+import gzip
+import hashlib
+import json
 import tarfile
 from pathlib import Path
 import tempfile
@@ -100,6 +103,58 @@ class CandidateArchiveTests(unittest.TestCase):
 
 
 class KernelIdentityTests(unittest.TestCase):
+    def candidate(self, root, enabled):
+        configuration = ''.join('CONFIG_'+n+'=y\n' for n in owner.kernel.ENABLED)
+        configuration += 'CONFIG_LOCALVERSION="-fes-de25-owner"\n'
+        if enabled:
+            configuration += 'CONFIG_FES_DE25_STATIC_EXPANSION=y\n'
+        image = bytearray(256)
+        image[56:60] = b'ARMd'
+        image[128:144] = bytes(range(16))
+        image += b'IKCFG_ST'+gzip.compress(configuration.encode(), mtime=0)+b'IKCFG_ED'
+        values = {'Image': image, 'kernel.config': configuration.encode(),
+                  'de25-owner.dtb': b'test tree', 'vmlinux.symvers': b'test symbols',
+                  'System.map': b'ffff0000 T _text\nffff0080 R __start_notes\nffff0090 R __stop_notes\n'}
+        for name, data in values.items():
+            (root/name).write_bytes(data)
+        record = {'format': 1, 'release': owner.kernel.RELEASE, 'candidate_enabled': True,
+                  'normal_runtime_admission': 'closed', 'kernel': owner.dep.selected_lock(),
+                  'fes_revision': 'a'*40,
+                  'suppliers': json.loads((owner.ROOT/owner.PROFILE/'source.json').read_text()),
+                  'files': {name: {'sha256': hashlib.sha256(data).hexdigest(), 'size': len(data)}
+                            for name, data in values.items()}, 'static_expansion_enabled': enabled}
+        if enabled:
+            record['static_expansion_contract'] = owner.kernel.STATIC_CONTRACT
+        self.save_candidate(root, record)
+        return record
+
+    def save_candidate(self, root, record):
+        (root/'kernel-build.json').write_text(json.dumps(record))
+
+    def test_static_image_contract_follows_verified_embedded_kernel_configuration(self):
+        for enabled in (False, True):
+            with self.subTest(enabled=enabled), tempfile.TemporaryDirectory() as temp:
+                root = Path(temp)
+                self.candidate(root, enabled)
+                record = owner.selected_kernel(root)
+                changes = owner.root_changes({'fes_revision': 'b'*40}, record, 'c'*40, b'')
+                manifest = json.loads(changes['usr/share/fes/kernel-modules.json'][0])
+                self.assertEqual(manifest.get('static_expansion_contract'),
+                                 owner.kernel.STATIC_CONTRACT if enabled else None)
+
+    def test_resealed_config_cannot_claim_static_support_absent_from_actual_image(self):
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            record = self.candidate(root, False)
+            configuration = (root/'kernel.config').read_bytes()+b'CONFIG_FES_DE25_STATIC_EXPANSION=y\n'
+            (root/'kernel.config').write_bytes(configuration)
+            record['files']['kernel.config'] = {'sha256': hashlib.sha256(configuration).hexdigest(),
+                                               'size': len(configuration)}
+            record.update(static_expansion_enabled=True, static_expansion_contract=owner.kernel.STATIC_CONTRACT)
+            self.save_candidate(root, record)
+            with self.assertRaisesRegex(ValueError, 'actual kernel Image'):
+                owner.selected_kernel(root)
+
     def test_notes_bind_the_linked_range_and_refuse_ambiguous_or_invalid_inputs(self):
         import hashlib
         with tempfile.TemporaryDirectory() as temp:

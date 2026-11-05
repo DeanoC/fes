@@ -6,6 +6,16 @@ from the exact Terasic source, configuration, SDK and builder locked by
 image, replace the normal vendor kernel, deploy anything or enable normal FES
 runtime admission.
 
+`--static-expansion` explicitly prepares the default-off cold base/persona
+option. Ordinary builds keep it disabled. The producer verifies the final
+configuration against the actual embedded Image configuration and records the
+selected mode. Only an enabled, matching candidate carries
+`de25-cold-persona-retained-v1`; the image constructor independently checks that
+configuration and propagates the contract into the kernel receipt. The runtime
+requires that contract after matching the running kernel notes before any
+static startup programming. This option does not assemble, install or boot an
+image, select a runtime package or qualify physical partial reconfiguration.
+
 The profile makes the DMA owner, FPGA manager, FPGA region and bridge framework
 built-in. Its source-bound patch disables sysfs bind/unbind on the region,
 manager, Stratix10 service and simple-pm-bus ancestor drivers only when

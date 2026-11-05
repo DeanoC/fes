@@ -21,6 +21,7 @@ from scripts import de25_kernel_test as dep
 PROFILE = "image/kernel/de25-platform"
 DTB = "intel/socfpga_agilex5_de25_nano.dtb"
 RELEASE = "6.12.11-fes-de25-owner"
+STATIC_CONTRACT = "de25-cold-persona-retained-v1"
 ENABLED = ("FES_DE25_DMA", "FES_DE25_DMA_PLATFORM", "OF_OVERLAY", "OF_CONFIGFS",
            "CONFIGFS_FS", "FPGA", "FPGA_MGR_STRATIX10_SOC", "FPGA_BRIDGE",
            "FPGA_REGION", "OF_FPGA_REGION", "INTEL_STRATIX10_SERVICE", "ARM_SMMU_V3",
@@ -89,7 +90,14 @@ def integrate(kernel, source):
     return record
 
 
-def verify_config(text):
+def static_expansion_mode(record):
+    enabled = record.get("static_expansion_enabled", False)
+    if type(enabled) is not bool or record.get("static_expansion_contract") != (STATIC_CONTRACT if enabled else None):
+        raise ValueError("invalid static-expansion kernel contract")
+    return enabled
+
+
+def verify_config(text, static_expansion=False):
     for name in ENABLED:
         if "CONFIG_" + name + "=y\n" not in text:
             raise ValueError("required built-in setting missing: " + name)
@@ -100,9 +108,12 @@ def verify_config(text):
             raise ValueError("forbidden configuration enabled: " + name)
     if 'CONFIG_LOCALVERSION="-fes-de25-owner"\n' not in text:
         raise ValueError("kernel release suffix differs")
+    values = re.findall(r"^CONFIG_FES_DE25_STATIC_EXPANSION=(.*)$", text, re.M)
+    if values != (["y"] if static_expansion else []):
+        raise ValueError("kernel static-expansion configuration differs from requested mode")
 
 
-def inside(jobs, revision):
+def inside(jobs, revision, static_expansion=False):
     work, export = Path("/build"), Path("/export")
     kernel, build, sdk = work / "linux", work / "kernel-build", work / "sdk"
     dep.checked(["cp", "-a", "/kernel-input", kernel])
@@ -125,6 +136,7 @@ def inside(jobs, revision):
         change.extend(("--enable", name))
     for name in DISABLED:
         change.extend(("--disable", name))
+    change.extend(("--enable" if static_expansion else "--disable", "FES_DE25_STATIC_EXPANSION"))
     dep.checked(change)
     env = dict(os.environ, LC_ALL="C", TZ="UTC", KBUILD_BUILD_USER="FES",
                KBUILD_BUILD_HOST="de25-owner", KBUILD_BUILD_VERSION="1",
@@ -134,8 +146,10 @@ def inside(jobs, revision):
                "CROSS_COMPILE=" + str(prefix), "LOCALVERSION=", "DTC_FLAGS=-@"]
     dep.checked([*command, "olddefconfig"], env=env)
     shutil.copyfile(config, export / "configured.config")
-    verify_config(config.read_text())
+    verify_config(config.read_text(), static_expansion)
     dep.checked([*command, "-j" + str(jobs), "Image", DTB], env=env)
+    if dep.config_from_image((build / "arch/arm64/boot/Image").read_bytes()) != config.read_bytes():
+        raise ValueError("built Image configuration differs from selected configuration")
     release = subprocess.check_output([*map(str, command), "-s", "kernelrelease"], env=env, text=True).strip().splitlines()[-1]
     if release != RELEASE:
         raise ValueError("built kernel release differs")
@@ -153,8 +167,11 @@ def inside(jobs, revision):
     result = {"format": 1, "classification": "unbooted opt-in permanent-owner kernel preparation",
               "fes_revision": revision, "kernel": dep.selected_lock(), "release": release,
               "suppliers": profile, "candidate_enabled": True, "normal_runtime_admission": "closed",
+              "static_expansion_enabled": static_expansion,
               "hardware_acceptance": "not-run", "modules": "FPGA/owner and USB Bluetooth/HID built-in; no vendor modules reused",
               "compiler": subprocess.check_output([str(prefix) + "gcc", "--version"], text=True).splitlines()[0], "files": {}}
+    if static_expansion:
+        result["static_expansion_contract"] = STATIC_CONTRACT
     for name, path in files.items():
         shutil.copyfile(path, export / name)
         result["files"][name] = {"sha256": dep.digest(export / name), "size": path.stat().st_size}
@@ -202,6 +219,8 @@ def main(argv=None):
     parser.add_argument("--jobs", type=int, default=8)
     parser.add_argument("--time-cap", type=int, default=7200)
     parser.add_argument("--container-runtime", default="docker")
+    parser.add_argument("--static-expansion", action="store_true",
+                        help="prepare the opt-in cold base/persona kernel; does not deploy or admit packages")
     parser.add_argument("--inside", help=argparse.SUPPRESS)
     args = parser.parse_args(argv)
     if not 1 <= args.jobs <= 16 or not 60 <= args.time_cap <= 7200:
@@ -210,7 +229,7 @@ def main(argv=None):
         if args.inside:
             if ROOT != Path("/src") or not re.fullmatch(r"[a-f0-9]{40}", args.inside):
                 raise ValueError("internal build requires isolated committed source")
-            inside(args.jobs, args.inside)
+            inside(args.jobs, args.inside, args.static_expansion)
             return 0
         if not all((args.cache, args.image_output, args.output)):
             parser.error("--cache, --image-output and a new --output are required")
@@ -238,6 +257,7 @@ def main(argv=None):
         volume = "fes-de25-owner-kernel-" + hashlib.sha256(str(output).encode()).hexdigest()[:16]
         builder = dep.locked_builder(args.container_runtime, lock, volume)
         write_json(output / "inputs.json", {"fes_revision": revision, "kernel": lock,
+            "static_expansion_enabled": args.static_expansion,
             "source_sha256": {str(p.relative_to(source)): dep.digest(p) for directory in (PROFILE, dep.DRIVER)
                               for p in (source / directory).rglob("*") if p.is_file()},
             "runner_sha256": dep.digest(source / "scripts/de25_kernel_platform.py")})
@@ -247,7 +267,8 @@ def main(argv=None):
                    "--volume", f"{source}:/src:ro", "--volume", f"{image}:/image:ro",
                    "--volume", f"{kernel}:/kernel-input:ro", "--volume", f"{volume}:/build",
                    "--volume", f"{output}:/export", builder, "python3", "/src/scripts/de25_kernel_platform.py",
-                   "--inside", revision, "--jobs", args.jobs]
+                   "--inside", revision, "--jobs", args.jobs,
+                   *(["--static-expansion"] if args.static_expansion else [])]
         run_container(command, args.container_runtime, name, output, args.time_cap)
         return 0
     except (OSError, ValueError, KeyError, subprocess.SubprocessError) as error:

@@ -100,7 +100,11 @@ def selected_kernel(directory):
         raise ValueError('unsupported candidate kernel receipt')
     for name, row in record['files'].items():
         boot.check_payload(directory / name, row)
-    kernel.verify_config((directory / 'kernel.config').read_text())
+    enabled = kernel.static_expansion_mode(record)
+    configuration = (directory / 'kernel.config').read_bytes()
+    kernel.verify_config(configuration.decode(), enabled)
+    if dep.config_from_image((directory / 'Image').read_bytes()) != configuration:
+        raise ValueError('candidate configuration differs from actual kernel Image')
     profile = json.loads((ROOT / PROFILE / 'source.json').read_text())
     if record.get('suppliers') != profile:
         raise ValueError('kernel does not attest the current retained-programming source profile')
@@ -127,6 +131,8 @@ def root_changes(base_record, kernel_record, revision, base_mdev):
                 'base_producer': base_record['fes_revision'], 'normal_runtime_admission': 'closed',
                 'programming_contract': kernel_record['programming_contract'],
                 'kernel_notes_sha256': kernel_record['kernel_notes_sha256']}
+    if kernel.static_expansion_mode(kernel_record):
+        manifest['static_expansion_contract'] = kernel.STATIC_CONTRACT
     return {NETWORK_ID: ((ROOT / NETWORK_ID_SOURCE).read_bytes(), 0o755),
             'etc/fes-kernel-release': ((kernel.RELEASE + '\n').encode(), 0o644),
             'etc/init.d/S15fpga': ((ROOT / PROFILE / 'S15fpga').read_bytes(), 0o755),

@@ -79,7 +79,13 @@ allocation or guest Start is performed by this programmer. Replacement verifies
 both overlays and retained payloads before removing the child and then the
 base. An expired deadline after child removal prevents another base operation.
 Any programming/control uncertainty retains both images and poisons that
-context. Inherited compositions are refused. Production descriptor admission,+a matching flag-enabled kernel and the protected PR-register backend remain
+context. Inherited compositions are refused. Static startup requires the exact
+contract from the matched running-kernel receipt before effects. The internal
+`De25PrMmio` adapter translates the resource-relative protocol to the audited
+DE25 CPU address and permits only its eleven identity/status reads and two
+command writes. Construction opens no device or mapping. This adapter does not
+bound a dead clock/bridge or grant physical admission. Production descriptor
+admission and construction/qualification of the owned register backend remain
 required; the normal factory does not select this path yet.
 Partial, failed or late programming poisons the context and retains the
 configuration. Software deadlines cannot abort an opaque configfs/SDM call.
