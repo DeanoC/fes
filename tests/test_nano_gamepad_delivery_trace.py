@@ -87,5 +87,115 @@ class GamepadDeliveryTests(unittest.TestCase):
             tenfoot_trace.packet(raw)
 
 
+class PassiveGamepadTests(unittest.TestCase):
+    def fixture(self):
+        from test_nano_shared_tenfoot_trace import SharedModel, DESCRIPTOR
+        model = SharedModel()
+        client = model.client()
+        client.key('launch', 0)
+        mapping = dict(Up=82, Down=81, Left=80, Right=79, Buttons=[22,44]+[0]*30)
+        pressed = [0]*5+[1]+[0]*3
+        identity = client.view['native']['Identity']
+        common = dict(scope='nano-computer-gamepad-v1', owner=client.owner, generation=1,
+                      package_id=identity['PackageID'], build_id=identity['BuildID'],
+                      descriptor_sha256=trace.CAPTURED_DESCRIPTOR_SHA256, mapping=mapping)
+        down = dict(common, sequence=1, report='00800080800f0000', before=[0]*9, rows=pressed)
+        up = dict(common, sequence=2, report='80800080800f0000', before=pressed, rows=[0]*9)
+        for r in (down, up):
+            r['state'] = trace.decode_captured_report(DESCRIPTOR, bytes.fromhex(r['report']))
+        return model, client, DESCRIPTOR, mapping, pressed, [down, up]
+
+    def raw(self, records):
+        return b''.join(trace.PREFIX+json.dumps(r).encode()+b'\n' for r in records)
+
+    def test_passive_left_release_then_normal_return_without_uart_input(self):
+        model, client, descriptor, mapping, pressed, records = self.fixture()
+        keys = model.keys[:]
+        def receive(bound, done):
+            self.assertEqual(bound, 60)
+            self.assertFalse(done(self.raw(records[:1])))
+            self.assertTrue(done(self.raw(records)))
+            model.service.clock += .25
+            return self.raw(records)
+        result = trace.observe_captured_cycle(client, receive, descriptor=descriptor, mapping=mapping, pressed_rows=pressed)
+        self.assertEqual(model.keys, keys)
+        self.assertTrue(result['released'])
+        self.assertTrue(result['descriptor_specific_report_decoded'])
+        self.assertFalse(result['physical_input_verified'])
+        self.assertFalse(client.retired)
+        client.key('stop')
+        self.assertEqual(client.view['native']['State'], 'ready')
+
+    def test_corrupt_input_source_clock_and_ownership_retire_once(self):
+        for fault in ('raw-state', 'wrong-control', 'sequence', 'owner', 'build', 'descriptor',
+                      'gap', 'extra', 'partial', 'firmware', 'clock', 'late', 'claim', 'exception', 'app'):
+            with self.subTest(fault=fault):
+                model, client, descriptor, mapping, pressed, records = self.fixture()
+                if fault == 'raw-state': records[0]['report'] = records[1]['report']
+                if fault == 'wrong-control': records[0]['rows'] = [0,64]+[0]*7
+                if fault == 'sequence': records[0]['sequence'] = 2
+                if fault == 'owner': records[0]['owner'] += 1
+                if fault == 'build': records[0]['build_id'] = 'e'*32
+                if fault == 'descriptor': records[0]['descriptor_sha256'] = 'e'*64
+                if fault == 'gap': records[1]['before'] = [0]*9
+                raw = self.raw(records)
+                if fault == 'extra': raw += self.raw(records[:1])
+                if fault == 'partial': raw = raw[:-1]
+                if fault == 'firmware': raw = b'FES_NANO_CORE_TRANSFER phase=complete\n'+raw
+                if fault == 'app':
+                    v = copy.deepcopy(client.view);v['native']['Generation'] = 3
+                    raw = model.raw(v)+raw
+                def receive(bound, done):
+                    if fault == 'clock': model.service.clock -= 1
+                    if fault == 'late': model.service.clock += bound
+                    if fault == 'claim': model.service.owned = False
+                    if fault == 'exception': raise OSError('read failed')
+                    done(raw)
+                    return raw
+                keys = model.keys[:]
+                with self.assertRaises((ValueError, OSError)):
+                    trace.observe_captured_cycle(client, receive, descriptor=descriptor, mapping=mapping, pressed_rows=pressed)
+                self.assertTrue(client.retired)
+                self.assertFalse(client.active.locked())
+                with self.assertRaises(ValueError):
+                    trace.observe_captured_cycle(client, receive, descriptor=descriptor, mapping=mapping, pressed_rows=pressed)
+                self.assertEqual(model.keys, keys)
+
+    def test_descriptor_decoder_boundaries_and_busy_client(self):
+        model, client, descriptor, mapping, pressed, _ = self.fixture()
+        for raw in (b'', b'\0'*7, b'\0'*9):
+            with self.assertRaises(ValueError): trace.decode_captured_report(descriptor, raw)
+        with self.assertRaises(ValueError): trace.decode_captured_report(descriptor[:-1], b'\0'*8)
+        decoded = trace.decode_captured_report(descriptor, bytes.fromhex('00ff000000f0ffff'))
+        self.assertEqual(decoded, dict(Axes=[-32767,32767,0,0,0,0], Buttons=1023, Hat=-1))
+        def unexpected(*_): self.fail('busy client invoked receive')
+        client.active.acquire()
+        try:
+            with self.assertRaises(ValueError):
+                trace.observe_captured_cycle(client, unexpected, descriptor=descriptor, mapping=mapping, pressed_rows=pressed)
+        finally: client.active.release()
+        self.assertFalse(client.retired)
+
+    def test_full_three_core_cycle_with_passive_input_observer(self):
+        from test_nano_shared_tenfoot_trace import SharedModel
+        from tenfoot_trace import exercise
+        _, _, descriptor, mapping, pressed, records = self.fixture()
+        model = SharedModel();client = model.client();observed = []
+        def during_play(index, running):
+            self.assertEqual(running.view['native']['Generation'], 2*index+1)
+            if index != 0: return
+            def receive(bound, done):
+                raw = self.raw(records)
+                self.assertTrue(done(raw))
+                model.service.clock += .1
+                return raw
+            observed.append(trace.observe_captured_cycle(running, receive, descriptor=descriptor, mapping=mapping, pressed_rows=pressed))
+        result = exercise(client, settle=model.settle, during_play=during_play)
+        self.assertTrue(result['passed'])
+        self.assertEqual(len(observed), 1)
+        self.assertEqual(len(model.keys), 8)
+        self.assertTrue(client.retired)
+
+
 if __name__ == '__main__':
     unittest.main()

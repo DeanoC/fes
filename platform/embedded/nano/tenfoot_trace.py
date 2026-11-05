@@ -244,14 +244,16 @@ class TenfootClient:
         finally:self.active.release()
 
 
-def exercise(client,settle=lambda _:None):
+def exercise(client,settle=lambda _:None,*,during_play=None):
     require(callable(settle),'bounded settle hook required')
+    require(during_play is None or callable(during_play),'explicit during-play observer required')
     cycles=[]
     for i,selection in enumerate((0,1,0)):
         title=client.programs[selection]['title']
         if client.view['titles'][client.view['focus']]!=title:client.key('focus',selection)
         if client.usb is not None:settle(0.5)
         launch=client.key('launch',selection)
+        if during_play is not None:during_play(i,client)
         if client.usb is not None:settle(0.5)
         returned=client.key('quit' if i==2 else 'stop')
         cycles.append({'selection':selection,'launch_generation':launch['states'][-1]['native']['Generation'],'return_generation':returned['exit_generation'] if i==2 else returned['states'][-1]['native']['Generation']})

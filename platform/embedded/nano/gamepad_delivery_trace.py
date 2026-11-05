@@ -1,9 +1,26 @@
 """Validate reported owned key writes, not physical USB or emulation fidelity."""
 import json
 import re
+import hashlib
+import copy
 from service_trace import _unique, number, require
 
 PREFIX = b'FES_NATIVE_CORE_GAMEPAD '
+CAPTURED_DESCRIPTOR_SHA256 = '171f93692f2d718af6c6e9fc5b7d8c2580ac33fa2e3044ee2393c07ec839dc11'
+
+
+def decode_captured_report(descriptor, report):
+    """Independent decoder for the one captured 98-byte joystick schema.
+
+    Input bits 0..15 are unsigned X/Y, 16..43 are constant padding,
+    44..53 are ten buttons and 54..63 are vendor bits. No report IDs or
+    hat exist. A different descriptor requires a separately checked decoder.
+    """
+    require(type(descriptor) is bytes and len(descriptor) == 98 and hashlib.sha256(descriptor).hexdigest() == CAPTURED_DESCRIPTOR_SHA256,
+            'captured joystick descriptor required')
+    require(type(report) is bytes and len(report) == 8, 'captured joystick requires eight input bytes')
+    return dict(Axes=[report[0]*65534//255-32767, report[1]*65534//255-32767, 0, 0, 0, 0],
+                Buttons=(int.from_bytes(report, 'little') >> 44) & 1023, Hat=-1)
 
 
 def observation(raw):
@@ -61,3 +78,80 @@ def validate_cycle(records, *, owner, generation, package_id, build_id, descript
         pressed |= any(previous)
     require(pressed and not any(previous), 'gamepad cycle lacks press or final release')
     return {'completed_writes': len(records), 'released': True, 'physical_input_verified': False}
+
+
+def validate_captured_cycle(records, *, descriptor, pressed_rows, **expected):
+    result = validate_cycle(records, **expected)
+    require(expected['descriptor_sha256'] == CAPTURED_DESCRIPTOR_SHA256, 'source descriptor differs from captured joystick')
+    require(type(pressed_rows) is list and len(pressed_rows) == 9 and any(pressed_rows) and
+            all(number(v, 65535 if i < 8 else 255) for i, v in enumerate(pressed_rows)), 'explicit expected pressed rows required')
+    require(len(records) == 2, 'one exact press and release required')
+    for index, raw in enumerate(records):
+        r = observation(raw)
+        require(decode_captured_report(descriptor, bytes.fromhex(r['report'])) == r['state'], 'raw joystick bytes differ from reported normalized state')
+        require(r['rows'] == (pressed_rows if index == 0 else [0]*9), 'unexpected control or incomplete release')
+    return dict(result, descriptor_specific_report_decoded=True)
+
+
+def observe_captured_cycle(client, receive, *, descriptor, mapping, pressed_rows, bound_seconds=60):
+    """Receive one press/release during an already verified running play.
+
+    receive(bound, done) must only read, return complete captured bytes and
+    honor the bound. This helper sends no UART command or lifecycle request.
+    A timeout, source error or changed ownership retires the client once.
+    Software callers can synthesize bytes, so this alone is not hardware proof.
+    """
+    from tenfoot_trace import PREFIX as APP_PREFIX, MAX_BYTES, quiet
+    require(callable(receive) and number(bound_seconds, 60) and bound_seconds > 0, 'bounded input receive hook required')
+    require(not client.retired and client.usb is not None and client.usb.policy['input'] == 'gamepad', 'live shared gamepad App required')
+    view = copy.deepcopy(client.view)
+    native = view['native']
+    require(native['State'] == 'running' and not native['Held'] and view['session'] == 'active', 'input observation requires a running play')
+    require(hashlib.sha256(descriptor).hexdigest() == client.usb.policy['descriptor_sha256'] == CAPTURED_DESCRIPTOR_SHA256,
+            'live USB descriptor differs from independent decoder')
+    pressed_rows = copy.deepcopy(pressed_rows)
+    require(client.active.acquire(blocking=False), 'another App observation is active')
+    expected = dict(owner=client.owner, generation=native['Generation'], package_id=native['Identity']['PackageID'],
+                    build_id=native['Identity']['BuildID'], descriptor_sha256=client.usb.policy['descriptor_sha256'], mapping=copy.deepcopy(mapping))
+    def records(data):
+        require(type(data) is bytes and len(data) <= MAX_BYTES, 'bounded input capture required')
+        values = []
+        for line in data.splitlines():
+            if line.startswith(PREFIX):
+                raw = line[len(PREFIX):]
+                r = observation(raw)
+                require(all(r[k] == v for k, v in expected.items()), 'input belongs to another source or play')
+                require(r['sequence'] == len(values)+1, 'input receipt sequence changed')
+                require(decode_captured_report(descriptor, bytes.fromhex(r['report'])) == r['state'], 'raw joystick bytes differ from reported normalized state')
+                require(r['before'] == ([0]*9 if not values else pressed_rows), 'input receipt chain changed')
+                require(r['rows'] == (pressed_rows if not values else [0]*9), 'unexpected control or incomplete release')
+                values.append(raw)
+                require(len(values) <= 2, 'extra input after release')
+            elif line.startswith(APP_PREFIX):
+                def invalid(_): raise ValueError('nonfinite cached App JSON')
+                require(json.loads(line[len(APP_PREFIX):], object_pairs_hook=_unique, parse_constant=invalid) == view, 'App changed during passive input observation')
+            else:
+                require(quiet(line), 'unexpected firmware or input observation')
+        return values
+    try:
+        require(client.owns(), 'input console claim lost')
+        before = client.now()
+        def done(data):
+            require(client.owns() and client.view == view and not client.retired, 'input ownership changed while waiting')
+            require(type(data) is bytes and len(data) <= MAX_BYTES, 'bounded input capture required')
+            if not data.endswith(b'\n'):
+                return False
+            return len(records(data)) == 2
+        raw = receive(bound_seconds, done)
+        after = client.now()
+        require(before <= after < before+bound_seconds and client.owns() and client.view == view and not client.retired, 'input deadline/clock/ownership failed')
+        require(type(raw) is bytes and raw.endswith(b'\n'), 'incomplete input capture')
+        values = records(raw)
+        result = validate_captured_cycle(values, descriptor=descriptor, pressed_rows=pressed_rows, **expected)
+        return dict(result, scope='nano-gamepad-input-cycle-v1', **expected,
+                    records=[json.loads(v) for v in values], elapsed_seconds=after-before, bound_seconds=bound_seconds)
+    except BaseException:
+        client.retired = True
+        raise
+    finally:
+        client.active.release()
