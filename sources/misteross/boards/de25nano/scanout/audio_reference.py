@@ -24,6 +24,9 @@ REPORTS = {'clocks.tsv', 'paths.tsv'} | {
 # The explicit PR recipe adds an opt-in expansion selection to the builder;
 # the default internal16K audio sources, wiring and timing source are unchanged.
 # PR mode remains ineligible, including when it uses that same builder.
+# The OpenROM-only builder refresh preserves all seven audio RTL/SDC sources,
+# six integration function ASTs and the actual compiled top byte-for-byte.
+# Its fresh fitted review is in docs/validation/2026-11-05-de25-openrom-audio-review.
 SOURCES = {
     'boards/de25nano/zx81-hps/fes_de25_audio.v': '9f2d1436b75ef1fe489a55ea4139b2f5dcd922072528b6f68d344d851cca6f33',
     'cores/fes-common/rtl/fes_audio_output.v': 'e686a035484907d1690d7e0cd8e91d6ace86146b38bf4d85d4f500690ddfb0dd',
@@ -32,7 +35,7 @@ SOURCES = {
     'boards/de25nano/zx81-hps/fes_de25_zx81_standard.v': 'c6ac81675d1dd07a50bbc2660049ba62e0e79e34fb75a5aac0532340adfe1c97',
     'boards/de25nano/zx81-hps/fes_de25_zx81_standard_hw.tcl': 'c08fc345f9196b85e9bb1c310759cebc79d85395631c8428717d95dbad0415a9',
     'boards/de25nano/zx81-hps/standard-clocks.sdc': 'b7a528ac1a1bf0b147c269e83078a405b523698cfd16c1fe62cf028858b431d0',
-    'boards/de25nano/zx81-hps/build.py': 'e02095ca606c32d426c5e5ca5788297c5b34362908ebab8c77337595db6c31cf',
+    'boards/de25nano/zx81-hps/build.py': '32046be42877ee08d87e46d97aba13d30eda50296c6a6054d2a63914a5f1fcd6',
 }
 
 
