@@ -53,3 +53,18 @@ candidate has no attempt yet. Its tested 6 MHz programming-link procedure restor
 15 MHz and exact host permissions, and admits the chip only after a fresh exact
 ID and link-rate check. One attempt is permitted; the existing native bounds
 remain unchanged. This preparation does not establish ROM speed or completion.
+
+The single matched hardware attempt stopped at the unchanged ROM deadline.
+Recovery, eight uploads/fresh SD hashes, native boot, USB pause and sealed
+FPGA configuration passed. The final direct WRITTEN sample was 7,040/8,192 bytes;
+ROM completion, CPU Run and return remain unproved. The
+[physical receipt](physical-result.json) records the full/fast costs and raw line.
+The inner guard averaged 60.728 microseconds, versus 94.051 for
+the predecessor; the full proof averaged 583.379 microseconds. No retry was
+made. Independent host cleanup verified original 15 MHz, exact USB permissions,
+private server exit and free UART; the claim and test card remain retained.
+
+The timed implementation still updates per-ownership diagnostic counters and
+cost totals on thousands of calls. Next remove that measurement overhead while
+retaining failure context and all live ownership, framing and deadline checks.
+The observed partial load does not establish readiness for ordinary packages.
