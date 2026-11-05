@@ -144,18 +144,17 @@
   "classification": "Experimental standard PR IP generation and compatibility regression; no package or hardware admission",
   "compatibility_boundary": "Existing bring-up De25Computer/PR model; does not establish BASIC with the new standard PR profile. Actual full14 native/AArch64 cases rerun, exact actual report copied to branch fixture.",
   "compatibility_combined_proof": {
-    "actual_proof_sha256": "bbb86b6e079b18d0220d467e8782c8aaaae060362e42dd2ebaaef280bbbf0a42",
+    "actual_proof_sha256": "d9ccbb449a4f900d9e107028cec385310dc1025f7e01b352088cafbeffe97f94",
     "cases": 14,
     "current_selected_compiler_inputs": 65,
     "fixture_is_exact_actual_report": true,
     "matches_current_runtime_test_inputs": true,
-    "matches_current_selected_compiler_inputs": false,
+    "matches_current_selected_compiler_inputs": true,
     "passed": true,
-    "pending_refresh": "Actual full14 proof at34 remains passing for its recorded source; new log-selection compiler edit requires an actual refresh before fixture update.",
     "physical_PR": false,
-    "producer_revision": "34e8bb3b74784ca4143cb2405bc3f2c1d1ea4d30"
+    "producer_revision": "2d94bbfb2b3466d668b0dc77e03debc2968a4691"
   },
-  "compatibility_seconds": 572.568,
+  "compatibility_seconds": 654.339,
   "completed_routed_base": {
     "all_corner_boundary_and_PCM_preflight": "passed",
     "boundary_paths_sha256": "1e8909b91caf966c1ba30b23571da124315327df86bf4079d7b6ec025e48e47a",
