@@ -38,5 +38,23 @@ class StaticPackageFixtures(unittest.TestCase):
                         digest.update(struct.pack('<Q', len(value)))
                         digest.update(value)
                     self.assertEqual(digest.hexdigest(), case['package_id'])
+    def test_static_asset_and_composition_golden_bindings(self):
+        asset_bytes = (FIXTURES / 'expansions/ram16k/manifest.json').read_bytes()
+        asset = json.loads(asset_bytes)
+        self.assertEqual(asset['format'], 2)
+        self.assertEqual(asset['cart_sha256'], hashlib.sha256((FIXTURES / 'expansions/ram16k/cart.rbf').read_bytes()).hexdigest())
+        asset_id = hashlib.sha256(b'fes-expansion-v2\x00' + asset_bytes).hexdigest()
+        manifest = tomllib.loads((FIXTURES / 'manifests/valid-basic.toml').read_text())
+        for field in ('control_build_id', 'root_qdb_sha256', 'interface_sha256', 'clock_reset_sha256', 'pof0_hash'):
+            self.assertEqual(asset['partial'][field], manifest['static_expansion'][field])
+        vectors = json.loads((FIXTURES / 'compositions.json').read_text())
+        self.assertEqual([v['name'] for v in vectors], ['empty', 'ram16k'])
+        for vector in vectors:
+            c = vector['composition']
+            self.assertEqual(c['expansion_id'] if 'expansion_id' in c else '', asset_id if vector['name'] == 'ram16k' else '')
+            self.assertEqual(c['package_id'], asset['shell_package_id'])
+            self.assertEqual(c['base_sha256'], asset['shell_sha256'])
+            values = [c['package_id'], c.get('expansion_id', ''), c['base_sha256'], str(c['base_size']), c['persona_sha256'], str(c['persona_size']), c['control_build_id'], str(c['hardware_id'])]
+            self.assertEqual(c['composition_id'], hashlib.sha256(b'fes-de25-static-composition-v1\x00' + '\x00'.join(values).encode()).hexdigest())
     def test_generated_bytes_current(self):
         subprocess.run([sys.executable, str(ROOT / 'scripts/core_bundle_v5_fixtures.py'), '--check'], check=True)

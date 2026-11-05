@@ -361,6 +361,36 @@ to the package so an empty selection also has a complete cold-start artifact.
 `testdata/core-bundle-v5` is the shared Go/C++ structural corpus; its opaque
 synthetic payloads must never be deployed.
 
+## Static partial expansion assets and composition
+
+The Go expansion library reads an explicit format2 asset for the DE25 target
+above. The existing two-file expansion archive contains canonical
+`manifest.json` and opaque `cart.rbf`. Its target is `A5EB013BB23BE4SCS`, bus
+`fes.expansion.zx81-bus` 2.0, map `fes.de25-zx81-bus.partial/1`, with no slot index
+or CRAM boundary patch. The manifest retains the ordinary cart size/SHA256,
+recipe/revision and exact shell package/build/base bindings. A required `partial`
+object adds `control_build_id`, `hardware_id`, `root_qdb_sha256`,
+`interface_sha256`, `clock_reset_sha256` and `pof0_hash`. The current controller
+admits hardware IDs `0xc001a001` and `0xc002b002`. Payloads are 1 through 32 MiB;
+they are not decoded as CycloneV frames. Format1 refuses this partial object.
+
+The asset ID is SHA256 over `fes-expansion-v2\0` and the canonical manifest
+bytes. The Go reader's field order is normative, including the leading partial
+object; all unknown or duplicate fields fail canonical reconstruction. Its
+partial object is copied before publishing an owned asset. This asset format
+does not assert that a vendor payload actually implements its declared ID.
+Producer validation and runtime identity checks remain separate requirements.
+
+The cold composition ID hashes `fes-de25-static-composition-v1\0`, followed by
+these NUL-separated strings in order: package ID, selected expansion ID (empty
+for the packaged default), base SHA256, decimal base size, persona SHA256,
+decimal persona size, controller build ID and decimal hardware ID. Digests are
+lowercase hex and decimal integers have no leading zeroes. Selecting an asset
+requires equality of package ID, guest build, base hash and every frozen-root
+identity; an empty choice uses the sealed default persona. Both images remain
+unchanged. Normal target staging, C++ selected-persona admission and lifecycle
+dispatch are unfinished, and the static programming profile is unavailable.
+
 ## programming_profiles
 
 `packages/abi/fes_application.yaml` adds ABI `fes.application` 1.0, tag 3,

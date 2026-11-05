@@ -70,6 +70,38 @@ def generated_files():
             case['package_id'] = identity(value, v2.PAYLOAD, PERSONA)
             files['identities/valid-basic.sha256'] = (case['package_id'] + '\n').encode()
         cases.append(case)
+    # Independently generated vectors for the normal opaque partial asset and
+    # default/selected composition identity. These are not vendor bitstreams.
+    package_id = cases[0]['package_id']
+    ram = b'opaque-synthetic-ram16k\x00\xff'
+    partial = dict(control_build_id='1' * 32, hardware_id=0xc002b002,
+                   root_qdb_sha256='2' * 64, interface_sha256='3' * 64,
+                   clock_reset_sha256='4' * 64, pof0_hash='5' * 64)
+    asset = dict(partial=partial, cart_sha256=hashlib.sha256(ram).hexdigest(),
+                 cart_size=len(ram), device='A5EB013BB23BE4SCS', format=2,
+                 map='fes.de25-zx81-bus.partial/1', recipe_sha256='c' * 64,
+                 revision='d' * 40, shell_build_id='0123456789abcdef0123456789abcdef',
+                 shell_package_id=package_id, shell_sha256=v2.PAYLOAD_SHA256,
+                 slot='fes.expansion.zx81-bus', slot_major=2, slot_minor=0)
+    asset_bytes = json.dumps(asset, separators=(',', ':')).encode()
+    asset_id = hashlib.sha256(b'fes-expansion-v2\x00' + asset_bytes).hexdigest()
+    files['expansions/ram16k/manifest.json'] = asset_bytes
+    files['expansions/ram16k/cart.rbf'] = ram
+    compositions = []
+    for name, expansion_id, image, hardware_id in [('empty', '', PERSONA, 0xc001a001),
+                                                 ('ram16k', asset_id, ram, 0xc002b002)]:
+        image_hash = hashlib.sha256(image).hexdigest()
+        material = [package_id, expansion_id, v2.PAYLOAD_SHA256, str(len(v2.PAYLOAD)),
+                    image_hash, str(len(image)), '1' * 32, str(hardware_id)]
+        composition_id = hashlib.sha256(b'fes-de25-static-composition-v1\x00' + '\x00'.join(material).encode()).hexdigest()
+        plan = dict(composition_id=composition_id, package_id=package_id)
+        if expansion_id:
+            plan['expansion_id'] = expansion_id
+        plan.update(base_sha256=v2.PAYLOAD_SHA256, base_size=len(v2.PAYLOAD),
+                    persona_sha256=image_hash, persona_size=len(image),
+                    control_build_id='1' * 32, hardware_id=hardware_id)
+        compositions.append(dict(name=name, composition=plan))
+    files['compositions.json'] = (json.dumps(compositions, indent=2) + '\n').encode()
     files['cases.json'] = (json.dumps(cases, indent=2) + '\n').encode()
     files['README.md'] = b'''# Format5 structural conformance fixtures\n\nOpaque synthetic base/persona bytes; never deploy. Package identity hashes the\nformat5 domain and little-endian 64-bit lengths plus exact manifest/base/persona\nbytes. Valid parsing does not admit the unregistered static programming profile\nor qualify a partial image, electrical setup, timing or hardware operation.\n'''
     return files

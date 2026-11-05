@@ -11,6 +11,16 @@ This is structural support. The static programming profile remains unregistered;
 normal activation still refuses it before hardware access. Alternate-persona
 selection, matching runtime dispatch and physical qualification remain required.
 
+`ComposeStaticArchive` and `ReadStaticCompositionBundle` verify the format5
+package with an optional format2 partial expansion. The closed transport carries
+`package.tar`, optional `expansion.tar`, and canonical `composition.json`.
+Every consumer recomputes the selection against the retained sealed package and
+asset; default selection uses the package's empty persona. Changed, missing or
+substituted inputs and changed receipts are refused. The bundle owns its input
+bytes and writes no combined RBF. These codecs are not yet connected to library
+selection, target staging or the runtime launch request. The static programming
+profile remains unavailable.
+
 The corepackage reader recognizes format 4's two ordered ROM requirements and
 sealed map. Launch and target activation of that format require the separate
 two-source transport and linked-load path before it becomes selectable.

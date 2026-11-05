@@ -17,6 +17,16 @@ mechanisms in the tree.
 Network deployment and target lifecycle are outside this module. FogCast owns
 selection and transfer. libmister-runtime programs the FPGA.
 
+The shared Go expansion library also reads format2 DE25 partial assets. Their
+canonical metadata binds one opaque vendor image to the exact format5 package,
+base hash, guest build and frozen controller/root/interface/clock-reset/POF0
+identities. `ComposeStatic` selects the sealed default empty persona or one
+matching asset, returning the identities and sizes of two unchanged images.
+It opens no device and performs no bit editing. The format1 CRAM linker refuses
+these assets. Format1 identities and framing remain covered by the existing
+full expansion suite. This preparation grants no normal package seal, runtime
+programming profile, physical PR or timing acceptance.
+
 ## DE25-Nano board diagnostic
 
 The standard ZX81 machine/control/capture is `cores/fes-zx81/rtl/fes_zx81_core.v`.
