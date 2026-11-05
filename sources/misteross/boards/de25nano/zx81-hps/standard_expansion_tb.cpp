@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
 #include "Vfes_de25_standard_expansion_harness.h"
+#include "zx81_firmware.hpp"
 #include "fes_de25_pr_control.hpp"
 #include "fes_de25_computer.hpp"
 #include "native/de25_pr_control.hpp"
@@ -108,8 +109,8 @@ struct Bench : Clock {
         half(false); half(true); ++edges;
         if (basic_mode) {
             retired += d.cpu_retired != 0;
-            if (!d.machine_held && d.cpu_address == 0x060c) newline_seen = true;
-            if (!d.machine_held && d.cpu_address == 0x04cf) idle_seen = true;
+            if (!d.machine_held && d.cpu_address == Zx81Newline) newline_seen = true;
+            if (!d.machine_held && d.cpu_address == Zx81EditorPoll) idle_seen = true;
             if (loader) {
                 need(ram_write && loaded_bytes < captured.size(), "standard LOAD tag did not reach persona RAM");
                 need(address == 9 + loaded_bytes && data == captured[loaded_bytes], "standard LOAD address/data differs");

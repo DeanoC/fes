@@ -25,7 +25,7 @@ def run(output=None, *, basic=False):
     program = bytes.fromhex('f3 31 ff 7f 3e 5a 32 00 40 3e a5 32 00 44 c3 04 00')
     firmware = output / 'standard-expansion-rom.hex'
     if basic:
-        firmware.write_bytes((sim.ZX81 / 'zx8x.hex').read_bytes())
+        firmware.write_bytes((output / 'zx8x.hex').read_bytes())
     else:
         firmware.write_text(''.join(f'{byte:02x}\n' for byte in program + bytes(8192 - len(program))))
     sources += [HERE / 'fes_de25_zx81_standard.v', HERE / 'standard_expansion_harness.v',
@@ -37,6 +37,7 @@ def run(output=None, *, basic=False):
         link / 'fpga/shell.v', link / 'zx81-ram/personas.v', link / 'zx81-standard/bus.v']
     derived = {p.name: p.read_bytes() for p in sources if p.is_relative_to(output)}
     derived[firmware.name] = firmware.read_bytes()
+    derived["zx81_firmware.hpp"] = (output / "zx81_firmware.hpp").read_bytes()
     repository = ROOT.parents[1]
     captured = capture_standard_board()
     extras = [Path(__file__), HERE / 'sim.py', HERE / 'standard_expansion_harness.v',
@@ -74,7 +75,7 @@ def run(output=None, *, basic=False):
         *['-Wno-' + flag for flag in flags], '--top-module', 'fes_de25_standard_expansion_harness',
         '--Mdir', str(output / 'obj'),
         *['-I' + str(frozen(p)) for p in includes],
-        '-CFLAGS', '-O2 -std=c++14 -pthread ' + ' '.join('-I' + str(p) for p in
+        '-CFLAGS', '-O2 -std=c++14 -pthread -I' + str(output) + ' ' + ' '.join('-I' + str(p) for p in
             (frozen(link / 'generated'), frozen(HERE / 'generated'), *client_includes)),
         '-LDFLAGS', '-pthread', *[str(frozen(p)) for p in sources],
         str(frozen(HERE / 'standard_expansion_tb.cpp')), *[str(frozen(p)) for p in client_sources]]

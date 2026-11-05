@@ -104,7 +104,7 @@ def prepare(local, project, frozen):
     timing.write_bytes(pcm_timing_source(timing.read_bytes()))
     source = frozen["files"]["sources/misteross/cores/fes-zx81/rtl/zx81_ram_pack.v"]
     (local / "zx81_ram_pack.v").write_bytes(retained_ram.retarget_ram_pack(source))
-    (project / "zx8x.hex").write_bytes(frozen["files"]["sources/misteross/cores/fes-zx81/rtl/zx8x.hex"])
+    (project / "zx8x.hex").write_bytes((project / "fes_mailbox/zx8x.hex").read_bytes())
 
 
 def pcm_timing_source(source):

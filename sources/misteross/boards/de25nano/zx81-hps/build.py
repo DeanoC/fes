@@ -98,18 +98,6 @@ def replace_once(source, before, after):
     return source.replace(before, after)
 
 
-def complete_standard_firmware(source, machine):
-    """Define the unreachable ROM tail, as the existing RAM-pack proof does."""
-    if machine.count(b".address_a({1'b0, rom_a[12], rom_a[11:0]}),") != 1:
-        raise ValueError("standard ZX81 reachable firmware window changed")
-    if source.count(b"DEPTH = 12288;") != 1 or source.count(b"END;") != 1:
-        raise ValueError("standard ZX81 firmware depth/content contract changed")
-    result = source.replace(b"DEPTH = 12288;", b"DEPTH = 16384;").replace(
-        b"END;", b"[3000..3FFF]: 00;\r\nEND;")
-    return result, {"source_sha256": sha(source), "derived_sha256": sha(result),
-                    "scope": "preserved 12 KiB contents; explicit zero in unreachable 4 KiB tail"}
-
-
 def capture_standard(revision=None):
     """Source closure for the standard component, before a board recipe selects it."""
     sources = capture(revision)
@@ -151,10 +139,19 @@ def prepare_standard_component(output, revision=None):
              ("fes_de25_zx81_standard.v", "fes_de25_zx81_standard_hw.tcl", "fes_de25_computer.v")}
     files.update({name: sources[core + name] for name in
         ("fes_zx81_core.v", "zx81_machine.sv", "zx81_machine_clock.v", "zx81_keyboard.v",
-         "zx81_model.vh", "zx81_bus_pack.vh", "zx8x.mif")})
+         "zx81_model.vh", "zx81_bus_pack.vh")})
     repairs = {}
-    files["zx8x.mif"], repairs["zx8x.mif"] = retained.complete_standard_firmware(
-        sources[core + "zx8x.mif"], sources[core + "zx81_machine.sv"])
+    if sources[core + "zx81_machine.sv"].count(b".address_a({1'b0, rom_a[12], rom_a[11:0]}),") != 1:
+        raise ValueError("standard ZX81 reachable firmware window changed")
+    if core + "zx8x.mif" in sources:
+        # An explicitly selected historical revision executes its own captured
+        # conversion recipe. Current builds never read the deleted ROM files.
+        files["zx8x.mif"], repairs["zx8x.mif"] = retained.complete_standard_firmware(
+            sources[core + "zx8x.mif"], sources[core + "zx81_machine.sv"])
+    else:
+        firmware = load(snapshot / BOARD / "zx81/firmware.py", "standard_selected_firmware")
+        generated, repairs["zx8x.mif"] = firmware.generate(sources, output / "firmware")
+        files.update(generated)
     for source, target, derive in (
         ("zx81_dpram.v", "zx81_dpram_de25.v", retained.retarget_ram),
         ("zx81_tape_store.v", "zx81_tape_store_de25.v", retained.retarget_tape),
