@@ -71,3 +71,45 @@ exit; original pre-completion receipts remain retained in the named job
 directories. This is format preparation: the production programming-profile
 dispatch, package admission and physical programming behavior are unchanged.
 The base/persona lifecycle and protected startup control remain unfinished.
+
+## Retained two-image startup lifecycle
+
+Source `a7ef20a9a4837d68a3e441caafc4f541c27cdf51` adds `LinuxDe25FpgaManager::ProgramStatic` to the existing
+physical programmer. The base and persona digests are checked before effects;
+closed read-only staged copies must still match before configuration. Each
+selection loads a fresh full base and identifies an untouched cold frozen PR
+controller. The existing logical PR client confirms freeze before invoking
+the child-overlay callback, then validates identity before resume. The caller
+keeps guest execution held and allocates display/starts only after success.
+
+The full programmer and PR-controller unit suites pass natively in the
+36.022-second job and as static AArch64 binaries under Cortex-A76 QEMU in
+the 31.279-second job. Both jobs also build the production daemon/archive
+and pass the unchanged 29-member archive and file-access-owner audit. All
+four overlay formats still match the previous native generator byte for byte.
+The AArch64 build reuses the existing SDK read-only; compiler executables and
+QEMU are checked against the retained hashes before/after execution.
+
+[Native receipt](lifecycle-native.json),
+[AArch64 receipt](lifecycle-aarch64.json),
+[native programmer log](lifecycle-native-de25_fpga_manager_test.log) and
+[AArch64 programmer log](lifecycle-aarch64-de25_fpga_manager_test.log) identify
+the actual outputs. Tests cover three fresh A/B/A launches and MENU replacement,
+plus 39 refusal/fault/inheritance scenarios: input/staged-byte races, malformed
+selection, wrong/non-cold identity, partial or late configfs operations, failed
+search restoration, wrong persona, changed retained identities, late child
+removal and unknown inherited state. The real logical PR controller consumes
+a shared CSR model; configfs programming/completion are modeled file operations,
+not SDM transfers or physical partial configuration. The existing PR protocol
+suite uses the same unchanged model extracted into a shared test header.
+
+Release verifies both overlays and payloads before any removal and removes
+the child before the base. An error or expired deadline after child removal
+prevents another base operation; both staged images remain retained. Ambiguity
+poisons the context, with no automatic retry, resume or inherited adoption.
+The actual permanent-owner lease/mapping veto remains a separate kernel proof.
+
+Production composition admission, a matching flag-enabled kernel, construction
+of the protected ordered/bounded register backend and exact-artifact board
+acceptance remain open. No new programming profile, daemon operation, public
+DMA ioctl, image/boot change or board programming is enabled by this source.

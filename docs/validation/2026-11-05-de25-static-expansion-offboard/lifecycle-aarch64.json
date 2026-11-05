@@ -1,0 +1,28 @@
+{
+  "source_revision": "a7ef20a9a4837d68a3e441caafc4f541c27cdf51",
+  "status": "passed",
+  "classification": "Actual AArch64 production daemon/archive build and audit, static unit binaries under Cortex-A76 QEMU",
+  "programmer_and_PR_suites": "passed",
+  "production_archive_and_IO_audit": "passed, original29member boundary",
+  "compiler_and_QEMU_unchanged": true,
+  "four_overlay_formats_unchanged": true,
+  "files": {
+    "build/mister-runtime": "2f583acd9a9bad79299e1eecd93b382f16764c66237fc33e854887f2db5e3046",
+    "build/libmister-runtime.a": "044aff5e84b42eaa8e6023509d2ea1398ee58006357364332d328137ce072814",
+    "compiler-before.txt": "138ae1cd4318eb8e3ca8a2e809c5e754be59dea080398a41554a78d64dceb8df",
+    "compiler-after.txt": "138ae1cd4318eb8e3ca8a2e809c5e754be59dea080398a41554a78d64dceb8df",
+    "compiler-version.txt": "64eedb9a55b366332351380612894b61d98e14432d9551b2f02ff3de024a6a10",
+    "qemu-sha256.txt": "2bae4008a16c37548a20757c8810dddcc922dd945d4d5b3ac884db648f33bfcc",
+    "build/tests/unit/de25_fpga_manager_test": "732d6ccc81191624eb50b3f80fa7a57bad732edb059f652fad8d9b52fd114f60",
+    "de25_fpga_manager_test.log": "d9b7e925ba2912af4f4f32e4974f6b8d7c381329afbbeb993da83f87917702bb",
+    "build/tests/unit/de25_pr_control_test": "b3e52b33a102ee45d97de21984defd5290f2cdccbfd9c982664b7a7e62ff8af7",
+    "de25_pr_control_test.log": "59e0ae2b9dd07b4dddc656105a0b6336e374b202f2f6d746290fd73317ecb389",
+    "firmware.dtbo": "70b9d187c14899aed670d54d1f168a8f3490bb662bf825bbb6e53770bf27d445",
+    "allocated.dtbo": "6f23fc46db9ecaf90a78cf6a6d07b071c21e2ad51053ad524eee65b65c05a59d",
+    "static-base.dtbo": "6a94729f8be47b6d02ac0efbad1018e37dc36dc18c8ef9fdbf0361016b8f2423",
+    "static-persona.dtbo": "8e26d409e02a0b0e592a36877ef8d5ff9fe45bccecb93ae679dd995d0b22d667"
+  },
+  "hardware_acceptance": false,
+  "native_kit_CPU_execution": false,
+  "normal_static_package_admission": false
+}

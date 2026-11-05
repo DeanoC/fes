@@ -50,5 +50,19 @@
       "state": "passed",
       "elapsed_seconds": 27.026
     }
-  }
+  },
+  "runtime_lifecycle_source": "a7ef20a9a4837d68a3e441caafc4f541c27cdf51",
+  "runtime_lifecycle_proofs": {
+    "native": {
+      "state": "passed",
+      "receipt": "lifecycle-native.json",
+      "elapsed_seconds": 36.022
+    },
+    "aarch64": {
+      "state": "passed",
+      "receipt": "lifecycle-aarch64.json",
+      "elapsed_seconds": 31.279
+    }
+  },
+  "runtime_lifecycle_negative_scenarios": 39
 }
