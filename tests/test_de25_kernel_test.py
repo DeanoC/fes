@@ -12,16 +12,22 @@ class KernelEvidenceTests(unittest.TestCase):
         lock = kernel.selected_lock()
         expected = lock["builder_image"]
         with mock.patch.object(kernel.subprocess, "run", return_value=SimpleNamespace(
-                returncode=0, stdout=expected + "\n")) as run:
-            self.assertEqual(kernel.locked_builder("docker", lock), expected)
+                returncode=0, stdout=expected + "\n")) as run, mock.patch.object(kernel, "checked") as checked:
+            self.assertEqual(kernel.locked_builder("docker", lock, "private-build-volume"), expected)
             run.assert_called_once_with(
                 ["docker", "image", "inspect", expected, "--format", "{{.Id}}"],
                 capture_output=True, text=True)
+            checked.assert_called_once_with([
+                "docker", "run", "--rm", "--network", "none", "--platform", "linux/amd64",
+                "--user", f"{kernel.os.getuid()}:{kernel.os.getgid()}", "--volume",
+                "private-build-volume:/target-image-output", expected, "test", "-w", "/target-image-output"])
         for code, output in ((1, ""), (0, "sha256:" + "0" * 64), (0, expected + "\nother")):
             with self.subTest(code=code, output=output), mock.patch.object(
-                    kernel.subprocess, "run", return_value=SimpleNamespace(returncode=code, stdout=output)):
+                    kernel.subprocess, "run", return_value=SimpleNamespace(returncode=code, stdout=output)), \
+                    mock.patch.object(kernel, "checked") as checked:
                 with self.assertRaises(ValueError):
-                    kernel.locked_builder("docker", lock)
+                    kernel.locked_builder("docker", lock, "private-build-volume")
+                checked.assert_not_called()
 
     def test_passing_kunit_does_not_hide_kernel_warnings(self):
         kernel.check_kernel_log("Booting Linux\n# fes-de25-dma: pass:8 fail:0\n")

@@ -88,7 +88,7 @@ def checked(argv, **kwargs):
     return subprocess.run(list(map(str, argv)), check=True, **kwargs)
 
 
-def locked_builder(container_runtime, lock):
+def locked_builder(container_runtime, lock, volume):
     # Kernel tests and the platform kernel consume a separately locked SDK.
     # Selecting a newer userspace Dockerfile must not silently change that
     # compiler's immutable execution environment.
@@ -97,6 +97,13 @@ def locked_builder(container_runtime, lock):
                              "--format", "{{.Id}}"], capture_output=True, text=True)
     if result.returncode or result.stdout.strip() != expected:
         raise ValueError("locked kernel/SDK builder is unavailable or differs")
+    # Docker initializes an empty volume from the mount destination's metadata.
+    # The locked image owns /target-image-output as its build user; /build is
+    # absent and would instead create a root-owned volume. Preserve the normal
+    # builder's initialization without rebuilding its immutable environment.
+    checked([container_runtime, "run", "--rm", "--network", "none", "--platform", "linux/amd64",
+             "--user", f"{os.getuid()}:{os.getgid()}", "--volume", f"{volume}:/target-image-output",
+             expected, "test", "-w", "/target-image-output"])
     return expected
 
 
@@ -272,7 +279,7 @@ def main(argv=None):
         kernel = output / "kernel-input"
         extract_kernel(cache, lock["revision"], kernel)
         volume = "fes-de25-kunit-" + hashlib.sha256(str(output).encode()).hexdigest()[:16]
-        builder = locked_builder(args.container_runtime, lock)
+        builder = locked_builder(args.container_runtime, lock, volume)
         inputs = {"format": 1, "fes_revision": revision, "kernel": lock,
                   "source_sha256": {str(p.relative_to(source)): digest(p) for p in (source / DRIVER).rglob("*") if p.is_file()},
                   "runner_sha256": digest(source / "scripts/de25_kernel_test.py")}
