@@ -123,8 +123,9 @@ embedded configuration must exactly match its retained config. The disabled
 [kernel receipt](kernel-static-disabled.json) has no static-startup contract;
 the enabled [receipt](kernel-static-enabled.json) declares only
 `de25-cold-persona-retained-v1`. Root-manifest construction verifies the actual
-Image/config pair before publishing that optional contract. Neither new kernel
-has native board-boot acceptance here.
+Image/config pair before publishing that optional contract. At this stage both
+native boots were pending; the enabled kernel's later ordinary native image
+trial is recorded below. The disabled kernel still has no native boot proof.
 
 The same runtime source requires that contract from the matched running-kernel
 receipt before static programming or PR-register reads. Missing, wrong, duplicate
@@ -206,8 +207,8 @@ with kernel `9ac6c330019fb77d853be835f82f7b9fe8e2e0187ce5610a7b4bae82cf2df91f`;
 the normal bootstrap CLI also passes independent two-pass construction.
 [Release manifest](managed-release-e212.json),
 [release provenance](managed-release-evidence-e212.json) and
-[bootstrap selection](managed-bootstrap-e212.json) describe uninstalled regular
-files. Native boot of this new image remains open.
+[bootstrap selection](managed-bootstrap-e212.json) initially describe uninstalled
+regular files. The later native trial below tests this exact image and kernel.
 
 Source `603e1ac17f8d849b17ca608a4fe08e9b5c140ba9` fixes media assembly's
 rejection of the existing launcher's dedicated port 18789. Actual pairing-tool
@@ -221,8 +222,9 @@ pass in a [143.785-second job](provisioned-card-603-job.json). The
 and preserves the existing agent/launcher pairing. Credentials stay in the
 private card; this record contains only their digests. Assembly keeps the
 authenticated `e212` image producer and actual `9ac` kernel, and rebuilds the
-bootstrap against the new assembly source. No block device, kit, boot flash or
-current selection changed. The native image trial remains pending.
+bootstrap against the new assembly source. This assembly job changes no block
+device, kit, boot flash or current selection. The subsequent approved physical
+card operation and native trial are recorded below.
 
 The exact committed-source [affected plan](launcher-port-603-affected-result.json)
 passes in [363.179 seconds](launcher-port-603-affected-job.json): 1,635 parent
@@ -245,3 +247,80 @@ four corners and 32 paths for each fitted revision, with conditional setup/hold
 minima of 159.294/159.269 ns. PCB delay, jitter and signal integrity remain
 unqualified. Raw PR Design Closure is still failed, no prior exception is
 inherited, and no static PR package or physical programming path is admitted.
+
+## New Linux image: native ordinary-core trial
+
+The approved spare-card trial on bottom board `TRWU8J8G` boots the exact `d11`
+image, `9ac` enabled kernel and `e212` factory bundle/host above. The original
+working card stays separate. The first boot correctly fails the production
+storage gate because the fresh two-partition card has no `FESDATA3`; the
+[original failure](native-d11-missing-data-failure.json) is retained. No launch
+test bypasses that gate.
+
+Sources `4e3a603d49ad66719b83b30fe904453d0d7e682b` and
+`0b7d412da1151364b0b97ebca32f754874fb4f49` add DE25 data preparation to the
+existing `appliance_expand_dry_run.py --board de25-nano` entrypoint. The normal
+reader operation creates only the third partition and full ext4 filesystem in
+unused capacity. It verifies the exact removable reader and card, unmounted
+state, preserved MBR boot bytes/existing descriptors, unchanged current raw
+FAT/bootstrap partition hashes, full filesystem check and an independent
+receipt verification. No kernel, image, FPGA or boot flash is rewritten.
+
+Eighteen focused cases and the exact committed
+[affected plan](data-0b7-affected.json) pass, including 1,611 parent cases with
+six skips. The [regular-file proof](data-0b7-file-proof.json) uses actual ext4
+tools and the captured booted bootstrap, rejecting changed payload, ownership,
+mtime and dirty state. Reference admission excludes only validated ext4
+mount/read bookkeeping; the actual current raw partition bytes remain protected
+before/after the operation. The [physical reader result](data-0b7-physical.json)
+passes in 309.343 seconds. Native boot then mounts the 29,085,401,088-byte data
+volume read/write and reports durable factory selection with no storage error.
+
+The [native trial record](native-d11-trial.json) binds exact sources, artifacts,
+boot epochs, receipts and capture hashes. Ethernet and serial-pinned SSH pass
+with the actual kernel/runtime identities. A matching isolated `e212` host
+uses the existing pairing and separate catalog/state. The qualified standard
+OpenROM internal-16K package passes ordinary
+[import/admission/launch/Stop](native-d11-package.json) and
+[library tape delivery](native-d11-media.json). Full HDMI captures visibly show
+[LOAD/RUN 7](native-d11-run7.png), [edit/RUN 9](native-d11-edit9.png), then
+[reload/RUN 7](native-d11-reload7.png). These different pictures establish that
+the capture updates; [MENU is visible after Stop](native-d11-menu.png).
+
+One ordinary [software reboot](native-d11-reboot.json) passes without touching
+power, returning a new stable ready/idle/free epoch with freshly authenticated
+kernel/runtime/data identity. The first post-reboot normal ZX81 launch again
+loads the tape, visibly [runs 7](native-d11-postreboot7.png), and stops normally.
+This tests reboot after an ordinary Stop; it is not a forced-reset or
+active-session reboot campaign. Local fixture and observation-wrapper errors
+remain identified separately in the trial record; no failed hardware command
+is replayed to obtain these results.
+
+Restoring the original working card exposes a separate failure: its FAT
+filesystem reports `fat_free_clusters: deleting FAT entry beyond EOF` and
+remounts read-only, preventing FES services from starting. UART authenticates
+the original card, kernel and `6de` image; the cause is not established. The
+board is shut down cleanly and the original card is returned to the reader for
+offline inspection. The original host service/configuration/catalog are
+preserved and restored, but the kit claim remains held until baseline recovery
+is verified. The tested trial card is retained; no baseline is promoted.
+
+The [offline repair proof](original-card-repair-proof.json) first retains a
+verified FAT/bootstrap/MBR snapshot. Automatic repair adds a recovered file and
+is rejected by the exact inventory guard before touching the card. A controlled
+repair frees the unreferenced cluster without adding a file, clears the dirty
+flag and corrects the free-space count. Its independent filesystem check is
+clean; all 23 file contents and 40 directory paths match the original. The plan
+changes 10 bytes across four existing bookkeeping sectors. The complete
+[physical FAT readback](original-card-repair-verified.json), using `O_DIRECT`,
+matches that clean candidate. MBR/bootstrap bytes are unchanged and the data
+volume is not written. The first buffered-view readback failure is retained;
+later buffered and direct reads match, without repeated writes. A device-cache
+alias is a plausible explanation, not an established cause. Native baseline
+recovery still needs the repaired card boot.
+
+This ordinary native-image/core result does not admit a static PR package or
+exercise physical partial reconfiguration. Normal static-composition admission,
+owned backend construction, raw PR Design Closure, physical expansion testing
+and the full normal-kit goal remain open. No new physical USB, Bluetooth, audio,
+whole-board or complete simulation-matrix acceptance is claimed.

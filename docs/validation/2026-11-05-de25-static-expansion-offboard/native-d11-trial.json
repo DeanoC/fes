@@ -1,0 +1,216 @@
+{
+  "format": 1,
+  "utc": "2026-11-05T17:55:25.484563+00:00",
+  "classification": "Exact-artifact native new-image trial for ordinary MENU, standard internal16K ZX81, data storage and one idle software reboot; original-card restoration blocked separately",
+  "sources": {
+    "factory_release_host_runtime": "e212fd51c0de96bf660207bf0c96a0e1355eed4d",
+    "provisioned_bootstrap_card": "603e1ac17f8d849b17ca608a4fe08e9b5c140ba9",
+    "data_preparation": "0b7d412da1151364b0b97ebca32f754874fb4f49",
+    "core": "d611450df1a33c43c41d754a4bbe4bf83556b311",
+    "MENU": "d611450df1a33c43c41d754a4bbe4bf83556b311",
+    "package_acceptance_script_unchanged_from_factory_source": true
+  },
+  "artifacts": {
+    "image_sha256": "d11a2284af6409c8963a5fb20ac29f60a3e39ecb2f2660732708182ea0fff1ea",
+    "kernel_sha256": "9ac6c330019fb77d853be835f82f7b9fe8e2e0187ce5610a7b4bae82cf2df91f",
+    "kernel_notes_sha256": "4b5300c1b86e32a9e488059ee6905f299125bdc554b9e0ac12b1954c658699ba",
+    "runtime_executable_sha256": "23f4a71d3ed8d1f1350e7c06b9e2eb3da09512e8112d4e73d1f99f62209b55b7",
+    "factory_bundle": "f4acdf5ba7781418ba3487b365912a56f061ca6848f57c54a347067abc40b364",
+    "generation": 0,
+    "sealed_base_card_sha256": "4d30060bc2218f66a2aaef2f4d8566d2fe07c5db838667874ca487382520c077",
+    "base_card_note": "Physical card changed at first boot and during approved data setup; sealed base is the reference, not a claim of final card byte identity",
+    "ZX81": {
+      "core": "fes.zx81",
+      "package": "2be47146475d6b60d2b5f1e2e8975b19dd01f35d9466b5cfd253a70945e36900",
+      "build_id": "5acb8b8fddcf83f7b60f79db1581a2e8",
+      "revision": "d611450df1a33c43c41d754a4bbe4bf83556b311",
+      "payload_sha256": "1e27ce9a8b763f1fe3ae37a5e2b03228fb50597c80a64270aae9e1049cd86f85",
+      "payload_bytes": 1740800,
+      "archive": "/data/fes-de25-main-integration-20261105/qualified-packages-d611/2be47146475d6b60d2b5f1e2e8975b19dd01f35d9466b5cfd253a70945e36900.fcore",
+      "archive_sha256": "593a40293950c7a6dc1d563d629e8a5d6154ab9172d7a0c3636f625806ce483c",
+      "record_sha256": "cd5b8daed41293c61b60f019e13831dfa6aae36d03b57aaae55bce87804f7a25",
+      "source_closure_files": 158,
+      "closure_unchanged_at_software_head": "aaf5155eed2f77683742f96d1a95ee83dfd4b235"
+    },
+    "MENU": {
+      "core": "fes.menu",
+      "package": "d6b146c6de0771a2625abc68a78bfa2f11c06f1c5dcbba83b44a2ef9cadc13d7",
+      "build_id": "972553143ba5c3bb13bb1093de2c385c",
+      "revision": "d611450df1a33c43c41d754a4bbe4bf83556b311",
+      "payload_sha256": "64ee7cfca663ad0d2f864488b88a6f78644b1ec97ed0b2ba8e2b5a54a78f5dcc",
+      "payload_bytes": 1429504,
+      "archive": "/data/fes-de25-main-integration-20261105/qualified-packages-d611/d6b146c6de0771a2625abc68a78bfa2f11c06f1c5dcbba83b44a2ef9cadc13d7.fcore",
+      "archive_sha256": "ac44e5db1cb6083522804a78560bb2dfad57f444f8c37a14b574bded5cb82b4f",
+      "record_sha256": "dfa06dd17e915b472f6716b2c52ed8be3159c37db94ca55f51b681e905fab89d",
+      "source_closure_files": 71,
+      "closure_unchanged_at_software_head": "aaf5155eed2f77683742f96d1a95ee83dfd4b235"
+    }
+  },
+  "target": {
+    "serial": "TRWU8J8G",
+    "id": "e2a51a4f-bae2-4041-a4e4-51f6774d4e45",
+    "boot_before_reboot": "e008ed69-6faf-409d-ac75-f5543bfaa7f8",
+    "boot_after_reboot": "984ab93e-e420-4127-83a7-43c433474a8b"
+  },
+  "data": {
+    "source": "0b7d412da1151364b0b97ebca32f754874fb4f49",
+    "focused_cases": 18,
+    "affected_status": "passed",
+    "parent_cases": 1611,
+    "parent_skips": 6,
+    "affected_seconds": 267.392,
+    "regular_file_seconds": 22.126,
+    "physical_apply_and_independent_verification_seconds": 309.343,
+    "start_sector": 4261888,
+    "sector_count": 56807424,
+    "bytes": 29085401088,
+    "uuid": "5462f36b-c8cc-4c58-8490-b265a7315737",
+    "native_rw_ext4_mount_verified": true,
+    "before_after_current_FAT_and_bootstrap_raw_hashes_unchanged": true,
+    "MBR_change": "Only new partition3 descriptor; all boot bytes and existing descriptors preserved",
+    "reference_bootstrap_comparison": "ext4-mount-read-bookkeeping-v1; only validated mount/read bookkeeping excluded from reference identity; all actual current bytes protected before/after operation"
+  },
+  "passed": {
+    "automatic_Ethernet": true,
+    "serial_pinned_SSH": true,
+    "exact_kernel_runtime_image_factory_bundle": true,
+    "durable_data_selection": true,
+    "normal_package_import_admit_new_entry_launch_Stop": true,
+    "normal_library_tape_delivery_launch_Stop": true,
+    "allocated_display_visible": true,
+    "BASIC_LOAD_RUN7_EDIT_RUN9_RELOAD_RUN7": true,
+    "capture_updates_visually_verified": true,
+    "MENU_visible_after_Stop": true,
+    "one_ordinary_software_reboot_without_power_cycle": true,
+    "fresh_reboot_epoch_kernel_runtime_data_SSH": true,
+    "first_postreboot_ZX81_LOAD_RUN7_Stop": true
+  },
+  "visual": {
+    "basic": {
+      "pass": true,
+      "load_run": "7",
+      "edit_run": "9",
+      "reload_run": "7",
+      "capture_updates": true,
+      "review": "All three full HDMI captures visually inspected; allocated display and visible digits match. No physical USB input acceptance inferred."
+    },
+    "postreboot": {
+      "pass": true,
+      "load_run": "7",
+      "review": "Post-reboot full HDMI capture visually inspected; standard BASIC program displays7. Physical USB/PR acceptance not inferred."
+    },
+    "MENU": "Full fanout HDMI frame visually inspected; FES welcome screen after Stop"
+  },
+  "retained_failures": {
+    "first_boot_missing_data": "native-d11-missing-data-failure.json; fixed through normal reader data-volume preparation, no guard bypass",
+    "readiness_wrapper": "Immediate post-release lease snapshot was not free; actual state was not saved by that wrapper. Fresh independent snapshot is ready/idle/free with identical boot/image/bundle/generation. Cause of transient ownership unrecorded. No Stop/takeover or test replay.",
+    "local_fixture_preflights": "Wrong sysfs partition path; wrong host-config credential key checks before any host/target mutation; corrected with original checks retained. Distinct from image hardware failures.",
+    "restoration_collectors": "After confirmed target shutdown, session APIs return503. Original service started once and exact binary/config/unit/catalog plus host health independently verified; no shutdown/reboot/service-start replay."
+  },
+  "original_baseline_restoration": {
+    "status": "offline metadata repair and full direct physical readback passed; original-card native boot/release pending",
+    "original_image": "6de6a39230ce4bc364f34b7c606a5ed2c218d1315906c7e7f8b1ef9bbb566076",
+    "original_bundle": "a14a53cd33e2c51d7639701363bf95cc7781f62b8207c0e2bab1653276504700",
+    "generation": 38,
+    "original_card_and_kernel_and_image_authenticated_by_UART": true,
+    "boot": "18b8d192-ceea-47eb-9687-a02f6715e8d2",
+    "failure": "FAT-fs fat_free_clusters: deleting FAT entry beyond EOF; remounted read-only, FES services unavailable",
+    "cause_not_established": true,
+    "read_only_diagnostic": {
+      "script_sha256": "374a759c8a65da57f1ff4f5d1e4ce461d98428f7471cd1a827ecfd8144f761b1",
+      "log_sha256": "055ecc6134d658f7bd97fc0699198877be78af7b8fe8bb701d86c4cb1f0bd96c"
+    },
+    "clean_shutdown": {
+      "state": "passed",
+      "automatic_retry": false,
+      "scope": "Guarded clean shutdown of confirmed original6de/CID/kernel, FAT already read-only and no runtime/agent process. Existing status claim retained; agent unavailable so execution lease cannot be acquired. No repair, remount or FPGA change.",
+      "script_sha256": "094d07081329d5bffe5cd96e56207a969b1eb935bf33d5c630657793820dfbfc",
+      "utc": "2026-11-05T17:54:26.899108+00:00",
+      "seconds": 6.537,
+      "log_sha256": "6933403deb0debdb8e48d196c3c3b0c3352602b253bfbab8dc7bf1234603dee4"
+    },
+    "original_host_service_restored": true,
+    "original_host_configuration_and_catalog_unchanged": true,
+    "next": "User returns repaired original card to bottom board for exact6de/a14a/gen38 authenticated native baseline verification; tested trial card retained aside",
+    "repair_proof": "original-card-repair-proof.json",
+    "repair_readback": "original-card-repair-verified.json",
+    "files_unchanged": true,
+    "changed_bytes": 10,
+    "changed_sectors": 4
+  },
+  "not_accepted": {
+    "physical_static_PR": true,
+    "normal_static_composition_package_admission": true,
+    "default_disabled_kernel_native_boot": true,
+    "physical_USB_input_case_on_this_image": true,
+    "Bluetooth_audio_wholeboard": true,
+    "full_normal_kit_goal": true,
+    "full_core_simulation_matrix": true
+  },
+  "unchanged": [
+    "Boot flash/QSPI",
+    "JTAG",
+    "top DE25",
+    "permanent pairing/configuration",
+    "original host unit/catalog"
+  ],
+  "evidence": {
+    "data-0b7-affected.json": {
+      "sha256": "fd58aa32c37090a4d98190eefe60ba83c11eb5a62e54b6d0a4433e23c9e6a352",
+      "bytes": 4648
+    },
+    "data-0b7-file-proof.json": {
+      "sha256": "a4157a9bbe55fa7d0c91737b7d46e4bc2944f886c3b23914f004f6540c0f3b97",
+      "bytes": 6269
+    },
+    "data-0b7-physical.json": {
+      "sha256": "e0e386ae103daf2b64cb2f6b7e222bfc6ee1cfdf8c0405c526f0faa74daff4ae",
+      "bytes": 1317
+    },
+    "native-d11-package.json": {
+      "sha256": "4be8b5e861d5ce1718fcfbad1a934e6b12f1d85d9b6ebe8a0b55858528e1e321",
+      "bytes": 3595
+    },
+    "native-d11-media.json": {
+      "sha256": "33fdd4615e1c359556ae387d490b4ae80374e05adee95eaf130b3020a6c16357",
+      "bytes": 3971
+    },
+    "native-d11-missing-data-failure.json": {
+      "sha256": "a791a91b36948663c00b577190c8fd5d3c30e41d1231b4a0823af235003e207f",
+      "bytes": 601
+    },
+    "native-d11-reboot.json": {
+      "sha256": "aa351f96bcf0f329a19bf8b6504476702533d5dfe87918faf565bf6adef33e1f",
+      "bytes": 658
+    },
+    "native-d11-run7.png": {
+      "sha256": "dfaae765f0b5bb981f3d49d0ee55017cb18ed8a4faa840608a3e5d61163ec953",
+      "bytes": 55140
+    },
+    "native-d11-edit9.png": {
+      "sha256": "1ebe60e39b7437d9607814611827676453c25d03bb0aef2458cc7272693fbd95",
+      "bytes": 55257
+    },
+    "native-d11-reload7.png": {
+      "sha256": "dfaae765f0b5bb981f3d49d0ee55017cb18ed8a4faa840608a3e5d61163ec953",
+      "bytes": 55140
+    },
+    "native-d11-postreboot7.png": {
+      "sha256": "b34f0e4148d7df56e75f9912903acb1e02ad0d20cca0b5c42a59403943828e06",
+      "bytes": 52784
+    },
+    "native-d11-menu.png": {
+      "sha256": "9064766349a7273a1cd96f4b663803cd2063986b0f2e4fb639029ba0a93ce7af",
+      "bytes": 423690
+    },
+    "original-card-repair-proof.json": {
+      "sha256": "cb3b601014dab49c4dce4bb0082a74f7c4ac9379f58f9e6c83ae32b7947adc2f",
+      "bytes": 3258
+    },
+    "original-card-repair-verified.json": {
+      "sha256": "9f3c027d8d95c6ce5e6cc15649e3efaae5a6ee0319a4557dc8bdd0431c0f0888",
+      "bytes": 2243
+    }
+  },
+  "private_log_retention_root": "/data/fes-de25-main-integration-20261105"
+}
