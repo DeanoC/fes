@@ -1,0 +1,70 @@
+{
+ "tag": "i1",
+ "revision": "83399b86a77633bf470ef778ef007f39f3fb765b",
+ "new_image": "b00539bd7eada929614b21264533304d746cf70484da1772ac638e9168ff9865",
+ "new_sw": "d2ace9c2542f893f7690ee2463a8e876b23d5edf045321499b98a3d411468fd7",
+ "base_sw": "d695e970c1b455ed483e287f560f9e0c40abd4ea2d64402b09548a70b0feda0c",
+ "good": "f904961e008a972db8f06f1bb47aff9631123d67215b9f4157ea1fbee83b98d4",
+ "before": {
+  "sw": "d695e970c1b455ed483e287f560f9e0c40abd4ea2d64402b09548a70b0feda0c",
+  "image": "f904961e008a972db8f06f1bb47aff9631123d67215b9f4157ea1fbee83b98d4",
+  "good": "f904961e008a972db8f06f1bb47aff9631123d67215b9f4157ea1fbee83b98d4",
+  "previous": "4db7486452057d8a77479125c8ee8e9a27db4f378a9d9735900e90f6f3fe7a26"
+ },
+ "update_s": 231.0,
+ "after_update": {
+  "image_sha256": "b00539bd7eada929614b21264533304d746cf70484da1772ac638e9168ff9865",
+  "good": "b00539bd7eada929614b21264533304d746cf70484da1772ac638e9168ff9865",
+  "previous": "f904961e008a972db8f06f1bb47aff9631123d67215b9f4157ea1fbee83b98d4",
+  "trial": false,
+  "pending": ""
+ },
+ "old_bundle_on_new_image": {
+  "active": "d695e970c1b455ed483e287f560f9e0c40abd4ea2d64402b09548a70b0feda0c",
+  "held_back": null
+ },
+ "old_bundle_services": [],
+ "new_bundle_activate_s": 81.2,
+ "new_bundle_core_packages_max_s": 18.56,
+ "new_bundle_core_packages_errors": 0,
+ "new_bundle_services": [],
+ "host_config": {
+  "target_id_matches_kit": true,
+  "token_matches_agent": true,
+  "address": "http://127.0.0.1:8182",
+  "core_packages": {
+   "kit": true
+  },
+  "state": "/run/fogcast/fesdata3/fogcast-host/state"
+ },
+ "host_log": [
+  "fogcast: kit host reached the agent after 50ms",
+  "2026/11/03 22:53:08 fogcast: kit core packages open after 22.353s"
+ ],
+ "old_bundle_activate_s": 77.2,
+ "old_bundle_core_packages_max_s": 0.07,
+ "old_bundle_core_packages_errors": 0,
+ "new_bundle_again_activate_s": 76.0,
+ "new_bundle_again_core_packages_max_s": 20.99,
+ "new_bundle_again_core_packages_errors": 0,
+ "host_listed": {
+  "05dfc7f7db974861f18df762fa61d6132d62fdb88d6c6cfbabafbc89a010907c": "fes.zx81",
+  "46b0af9475b1c087226347a756235dd65957898e336325d782642d908dde1966": "fes.menu"
+ },
+ "error": "RuntimeError('kit host does not list the ST package')",
+ "restore_sw_activate_s": 76.5,
+ "restore": {
+  "sw_before_image_restore": "d695e970c1b455ed483e287f560f9e0c40abd4ea2d64402b09548a70b0feda0c",
+  "image_after": {
+   "image_sha256": "f904961e008a972db8f06f1bb47aff9631123d67215b9f4157ea1fbee83b98d4",
+   "good": "f904961e008a972db8f06f1bb47aff9631123d67215b9f4157ea1fbee83b98d4",
+   "previous": "b00539bd7eada929614b21264533304d746cf70484da1772ac638e9168ff9865",
+   "trial": false,
+   "pending": ""
+  },
+  "sw_after": "d695e970c1b455ed483e287f560f9e0c40abd4ea2d64402b09548a70b0feda0c",
+  "host_state_left": "end",
+  "lease": "idle recovery-required kit-software-supervisor",
+  "services": []
+ }
+}

@@ -445,3 +445,53 @@ func TestRememberZX81ProgramKeepsPendingSaveOnCaptureOrAckFailure(t *testing.T) 
 		t.Fatalf("durable row before failed acknowledgement = %+v, %v", saves, err)
 	}
 }
+
+// After a host restart the agent can report the live package and generation
+// without a catalog game or system. Never retire a pending SAVE in that case.
+func TestRecoveredUnidentifiedZX81ExpectedStopPreservesPendingSave(t *testing.T) {
+	for _, tc := range []struct {
+		name                  string
+		data                  []byte
+		generationChanged     bool
+		wantStop, wantCapture int
+		wantCode              protocol.ErrorCode
+	}{
+		{name: "no pending save", wantStop: 1, wantCapture: 1},
+		{name: "pending save", data: []byte{1, 2, 3}, wantCapture: 1, wantCode: protocol.CodeSaveFailed},
+		{name: "replacement generation", generationChanged: true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			service, client, _, _ := newZX81StopFixture(t)
+			client.data = tc.data
+			client.status.Development = true
+			service.targets[0].TargetID = "kit-id"
+			service.plays = make(map[string]targetPlay)
+			service.adoptObservedKit("kit", client.status)
+			expected := SessionStopBinding{Target: "kit", TargetID: "kit-id", PackageID: client.status.CorePackage.PackageID, Generation: client.status.CorePackage.Generation}
+			if tc.generationChanged {
+				replacement := client.status
+				core := *replacement.CorePackage
+				core.Generation++
+				replacement.CorePackage = &core
+				service.adoptObservedKit("kit", replacement)
+			}
+			prepared := false
+			_, err := service.StopExpectedWithPreparation(context.Background(), expected, func(context.Context) { prepared = true })
+			if tc.generationChanged {
+				if !errors.Is(err, ErrSessionChanged) || prepared {
+					t.Fatalf("replacement err=%v prepared=%v", err, prepared)
+				}
+			} else if tc.wantCode != "" {
+				var api *protocol.APIError
+				if !errors.As(err, &api) || api.Code != tc.wantCode {
+					t.Fatalf("expected %s: %v", tc.wantCode, err)
+				}
+			} else if err != nil {
+				t.Fatal(err)
+			}
+			if client.stopCalls != tc.wantStop || client.captureCalls != tc.wantCapture || client.acks != 0 {
+				t.Fatalf("stop=%d capture=%d ack=%d", client.stopCalls, client.captureCalls, client.acks)
+			}
+		})
+	}
+}

@@ -1,8 +1,15 @@
 """Prove the KF8253 8254 read-back change leaves the 8253 paths unchanged.
 
-The import's read_back.patch is the whole local change. Reversing it must give
-back the files as they were before it, byte for byte, and with READ_BACK=0 the
-patched chip must be sequentially equivalent to that original at every port.
+Two recorded local changes sit on the counter-timing import, newest last:
+read_back.patch, then control_word_reset.patch (#1471). Reversing them in turn
+must give back the bytes before each, and with READ_BACK=0 the chip with the
+read-back change alone must be sequentially equivalent at every port to the
+chip before it.
+
+control_word_reset.patch deliberately changes the 8253 paths (a control word
+that repeats the RW field now resets the byte pointers), so the equivalence
+proof stops before it. The pc386 devices and PC/XT motherboard benches check
+that change's behaviour.
 """
 import hashlib
 import os
@@ -16,6 +23,8 @@ ROOT = Path(__file__).resolve().parents[1]
 VENDOR = ROOT / 'cores/fes-common/vendor/kf8253'
 YOSYS = os.environ.get('YOSYS') or shutil.which('yosys')
 SOURCES = ('KF8253.sv', 'KF8253_Control_Logic.sv', 'KF8253_Counter.sv')
+# KF8253_Counter.sv after the read-back change, before the control-word reset.
+READ_BACK_COUNTER = '87b3df9e59b75c0102aed1d592e6be23ba732e9d80c9c6f154355729b450dba8'
 # The files before the read-back change: upstream bytes, plus the earlier
 # counter-timing change source.json records for KF8253_Counter.sv.
 BEFORE = {
@@ -26,11 +35,23 @@ BEFORE = {
 }
 
 
-def original(directory: Path) -> Path:
-    """Copy the import and reverse read_back.patch in it."""
-    gold = directory / 'gold'
-    shutil.copytree(VENDOR, gold)
-    subprocess.run(['patch', '-s', '-R', '-p1', '-i', str(VENDOR / 'read_back.patch')], cwd=gold, check=True)
+def reverse(tree: Path, patch: str):
+    subprocess.run(['patch', '-s', '-R', '-p1', '-i', str(VENDOR / patch)], cwd=tree, check=True)
+
+
+def read_back_tree(directory: Path) -> Path:
+    """Copy the import and reverse control_word_reset.patch in it."""
+    tree = directory / 'read_back'
+    shutil.copytree(VENDOR, tree)
+    reverse(tree, 'control_word_reset.patch')
+    return tree
+
+
+def original(read_back: Path) -> Path:
+    """Copy a read_back_tree and reverse read_back.patch in it."""
+    gold = read_back.parent / 'gold'
+    shutil.copytree(read_back, gold)
+    reverse(gold, 'read_back.patch')
     return gold
 
 
@@ -38,20 +59,24 @@ class ReadBackPatchTest(unittest.TestCase):
     @unittest.skipUnless(shutil.which('patch'), 'requires patch')
     def test_reversed_patch_restores_the_previous_bytes(self):
         with tempfile.TemporaryDirectory() as directory:
-            gold = original(Path(directory))
+            tree = read_back_tree(Path(directory))
+            self.assertEqual(hashlib.sha256((tree / 'KF8253_Counter.sv').read_bytes()).hexdigest(),
+                             READ_BACK_COUNTER)
+            gold = original(tree)
             for name, digest in BEFORE.items():
                 self.assertEqual(hashlib.sha256((gold / name).read_bytes()).hexdigest(), digest, name)
 
     @unittest.skipUnless(YOSYS and shutil.which('patch'), 'requires Yosys and patch; set YOSYS to the locked executable')
     def test_8253_configuration_is_equivalent_to_the_original(self):
         with tempfile.TemporaryDirectory() as directory:
-            gold = original(Path(directory))
+            gate = read_back_tree(Path(directory))
+            gold = original(gate)
 
             def read(tree, name):
                 return (f'read_verilog -sv -I {tree} ' + ' '.join(str(tree / s) for s in SOURCES) +
                         f'; prep -top KF8253 -flatten; async2sync; opt_clean; rename KF8253 {name}; ')
 
-            command = (read(gold, 'gold') + 'design -stash gold; ' + read(VENDOR, 'gate') +
+            command = (read(gold, 'gold') + 'design -stash gold; ' + read(gate, 'gate') +
                        'design -copy-from gold -as gold gold; equiv_make gold gate equiv; '
                        'hierarchy -top equiv; equiv_simple -seq 2; equiv_induct -seq 2; equiv_status -assert')
             result = subprocess.run([YOSYS, '-Q', '-p', command], cwd=directory,

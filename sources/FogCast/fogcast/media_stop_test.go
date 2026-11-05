@@ -151,7 +151,9 @@ func TestScopedDiskStopUsesOwnBindingWhileHostOnlyPlayContinues(t *testing.T) {
 			s.activeExecution, s.activeTarget, s.activeGameID = ExecutionHostOnly, "host", "local-game"
 			s.connection = TargetConnection{persistentMediaBound: !persistent}
 			status, err := s.StopTarget(context.Background(), "sibling")
-			if err != nil || status.State != protocol.StateIdle || healths != 1 || statuses != 1 || stops != 1 {
+			// The unidentified package is observed once for disk persistence and
+			// once for the generation-bound ZX81 SAVE safety check.
+			if err != nil || status.State != protocol.StateIdle || healths != 1 || statuses != 2 || stops != 1 {
 				t.Fatal(status, err, healths, statuses, stops)
 			}
 			if persistent && (budget < 149*time.Second || budget > 150*time.Second) {

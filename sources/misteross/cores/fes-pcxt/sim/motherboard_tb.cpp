@@ -109,6 +109,17 @@ int main(int argc,char** argv) {
         b.out(0x61,0x41);b.idle(90000);check(b.d.pit_out&4,"PIT mode0 terminal output");
         b.pit(2,0,0);b.idle(500);check(b.latch(2)>65000,"PIT zero means 65536");
         b.pit(2,0,0x0100,true);b.idle(1000);count=b.latch(2);check(count<0x100 && (count&15)<=9,"BCD borrow");
+        // A control word resets the byte pointers even when it repeats the
+        // RW field (#1471); a counter-latch command between the bytes does
+        // not. Gated mode 3 takes about 10 off 0533h in 500 clocks.
+        auto near533=[](unsigned c){return c>0x500 && c<=0x533;};
+        b.out(0x43,0xb6);b.out(0x42,0x3c);b.out(0x43,0xb6);b.out(0x42,0x33);b.out(0x42,0x05);
+        b.idle(500);count=b.latch(2);check(near533(count),"PIT same-RW control word resets write byte");
+        b.out(0x43,0xb6);b.out(0x42,0x34);b.out(0x42,0x12);b.idle(500);b.in(0x42);
+        b.out(0x43,0xb6);b.out(0x42,0x33);b.out(0x42,0x05);b.idle(500);
+        count=b.in(0x42);count|=unsigned(b.in(0x42))<<8;check(near533(count),"PIT same-RW control word resets read byte");
+        b.out(0x43,0xb6);b.out(0x42,0x33);b.out(0x43,0x80);b.out(0x42,0x05);b.in(0x42);b.in(0x42);
+        b.idle(500);count=b.latch(2);check(near533(count),"PIT counter latch keeps write byte");
         // Mode 2/3 periodic outputs, including odd reload; clocks keep running
         // while an unrelated storage request is waiting.
         for(unsigned mode: {2u,3u}) for(unsigned reload: {10u,11u}) {

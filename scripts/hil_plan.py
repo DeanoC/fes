@@ -62,9 +62,10 @@ RULES = [
     ('sources/mister-packages/**', 'full', 'package-format'),
     ('sources/libmister-runtime/**', 'overlay', 'mister-runtime'),
     ('sources/FogCast/cmd/mister-agent/**', 'overlay', 'mister-agent'),
-    ('sources/FogCast/cmd/fogcast-kit/**', 'overlay', 'fogcast-kit'),
     ('sources/FogCast/cmd/fogcast-tenfoot/**', 'overlay', 'fogcast-tenfoot'),
-    ('sources/FogCast/cmd/fogcast-api/**', 'overlay', 'host:fogcast-api'),
+    # The kit bundle's bin/fogcast-kit is cmd/fogcast-api built under the kit's
+    # name (#863 slice 5), so a change ships in both the bundle and the host.
+    ('sources/FogCast/cmd/fogcast-api/**', 'overlay', 'kit-go+host'),
     ('sources/FogCast/cmd/fogcast/**', 'overlay', 'host:fogcast'),
     # The Spectrum simulations' restore-stream and disk-image writers; no
     # image, bundle or package ships them, and the host converts snapshots and

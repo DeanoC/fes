@@ -297,6 +297,7 @@ class AffectedTests(unittest.TestCase):
             'scripts/pcxt_acceptance_media.py': {'pcxt'},
             'cores/fes-common/vendor/kf8259/KF8259.sv': {'pcxt', 'pc386'},
             'cores/fes-common/vendor/kf8253/read_back.patch': {'pcxt', 'pc386'},
+            'cores/fes-common/vendor/kf8253/control_word_reset.patch': {'pcxt', 'pc386'},
             'cores/fes-common/rtl/fes_dma8237.sv': {'pcxt', 'pc386'},
             'cores/fes-pc386/rtl/pc386_at_core.sv': {'pc386'},
             'cores/fes-pc386/firmware/rombios/rombios.c': {'pc386'},

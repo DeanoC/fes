@@ -261,3 +261,26 @@ class ParentWorkflowTests(unittest.TestCase):
                 self.assertEqual('make media-test-provision' in commands, media)
                 self.assertEqual('make platform-test' in commands, media)
                 self.assertEqual(any(c.startswith('make -C image test ') for c in commands), media)
+
+    def test_parent_capture_tests_have_ffmpeg(self):
+        workflow = (Path(__file__).resolve().parents[1] / '.github/workflows/check.yml').read_text()
+        parent = workflow.split('  parent-tests:\n', 1)[1].split('  consistency:\n', 1)[0]
+        self.assertIn('sudo apt-get update && sudo apt-get install -y ffmpeg', parent)
+        self.assertLess(parent.index('sudo apt-get install -y ffmpeg'),
+                        parent.index('python3 scripts/parent_tests.py'))
+
+    def test_parent_media_container_provisioning_is_bounded(self):
+        repository = Path(__file__).resolve().parents[1]
+        workflow = (repository / '.github/workflows/check.yml').read_text()
+        parent = workflow.split('  parent-tests:\n', 1)[1].split('  consistency:\n', 1)[0]
+        self.assertRegex(parent, r'(?m)^    timeout-minutes: 45$')
+        self.assertIn('timeout --signal=TERM --kill-after=30s 600s make media-test-provision', parent)
+
+        for name in ('containers/boot-media/Dockerfile',
+                     'image/containers/target-image/Dockerfile'):
+            dockerfile = (repository / name).read_text()
+            for setting in ('Acquire::http::Timeout "30";',
+                            'Acquire::https::Timeout "30";',
+                            'Acquire::Retries "5";'):
+                with self.subTest(dockerfile=name, setting=setting):
+                    self.assertIn(setting, dockerfile)

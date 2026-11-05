@@ -255,6 +255,16 @@ func requestSessionCoordinator(root *sessionCoordinator, service Service, r *htt
 		if len(foregroundOnly) > 0 && foregroundOnly[0] {
 			if resolver, ok := service.(interface{ ForegroundSessionTargetName() string }); ok {
 				target = resolver.ForegroundSessionTargetName()
+				// A restarted kit host has not observed its one local target
+				// yet. Use that coordinator on the first read as well, so
+				// adoption does not change session identity or input owner.
+				if target == "" {
+					if kit, ok := service.(interface{ KitHostMode() bool }); ok && kit.KitHostMode() {
+						if selected, ok := service.(interface{ SessionTargetName() string }); ok {
+							target = selected.SessionTargetName()
+						}
+					}
+				}
 			} else if resolver, ok := service.(interface{ SessionTargetName() string }); ok {
 				target = resolver.SessionTargetName()
 			} else if resolver, ok := service.(interface{ SelectedTargetConfig() fogcast.TargetConfig }); ok {
