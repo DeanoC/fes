@@ -726,6 +726,17 @@ def _hard_deadline_observation(observe, seconds=5.0):
     reaped = False
     result = None
     def timeout_error():
+        nonlocal result
+        if result is None:
+            try:
+                raw = parent.recv(8193, socket.MSG_DONTWAIT)
+            except BlockingIOError:
+                raw = None
+            if raw:
+                try:
+                    result = _decode_observer_result(raw)
+                except pa.AcceptanceError:
+                    return pa.AcceptanceError('invalid observer result before the hard phase deadline')
         # Do not downgrade an explicit or malformed observer failure merely
         # because the child failed to exit before its deadline.
         if result is not None and (not isinstance(result, dict) or result.get('ok') is not True):

@@ -265,6 +265,20 @@ class FakeRunner:
 
 
 class HardDeadlineTest(unittest.TestCase):
+    def test_queued_failure_is_not_downgraded_after_select_timeout(self):
+        real_select = app.select.select
+        def late_select(read, write, error, timeout):
+            if read and isinstance(read[0], int):
+                return real_select(read, write, error, timeout)
+            time.sleep(.15)
+            return [], [], []
+        def failed(_deadline):
+            raise app.pa.AcceptanceError('target identity changed')
+        with mock.patch.object(app.select, 'select', side_effect=late_select):
+            with self.assertRaises(app.pa.AcceptanceError) as caught:
+                app._hard_deadline_observation(failed, seconds=.1)
+        self.assertNotIsInstance(caught.exception, app.ObservationDeadlineExceeded)
+
     def test_reported_observer_failure_is_not_downgraded_to_timeout(self):
         real_waitpid = os.waitpid
         end = time.monotonic() + .15
