@@ -32,3 +32,16 @@ Next rebuild and inspect the matched boot chain, complete changed-file checks,
 then measure one fresh bounded board attempt. ROM completion, CPU Run, full
 ROM-backed launch/return, ordinary package admission and DE10-equivalent
 readiness remain open.
+
+The SDK, native entry, BL31, U-Boot and HPS-first composition have now rebuilt
+from `46c583a193eddbdde47b39a16862782a49dc1787`. Actual disassembly shows the
+timer callback has one CNTPCT read, one cached store, no function calls and no
+profiling accumulators. Both selected ROMs preflight without firmware I/O; the
+USB/native Go packages and complete changed-file suite pass. The
+[matched build receipt](matched-build-result.json) pins the evidence.
+
+The [bounded operator source](operator-source.json) retains the predecessor
+programmer/setup stops and both ROM-deadline trials. The new compiled firmware
+has no attempt yet. One new attempt may use the tested 6 MHz programming link,
+with restoration to 15 MHz and exact host permissions. Target-rate chip ID,
+ownership, readback, launch, stop and deadline gates remain unchanged.
