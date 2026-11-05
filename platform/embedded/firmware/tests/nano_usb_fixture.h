@@ -194,7 +194,7 @@ static inline int usb_ready(void *context)
 static inline void composed(struct test *t)
 {
     ready(t);assert(!call(t,FES_EMBEDDED_SD_QUERY));
-    struct fes_nano_usb_io io={&t->h,read32,write32,barrier,wait_poll,usb_ready,usb_prepare};
+    struct fes_nano_usb_io io={&t->h,read32,write32,barrier,wait_poll,usb_ready,usb_prepare,0};
     assert(!fes_nano_usb_platform_init(&t->usb,&t->cold,io,FES_NANO_USB_QUALIFIED));
     assert(!fes_nano_usb_composition_init(&t->composition,&t->cold,&t->usb,&t->platform));
     assert(t->cold.devices_bound && !t->h.writes && !t->h.usb_reads);

@@ -1318,3 +1318,13 @@ writes and PHY reads and require terminal failure before readiness publication.
 Native configuration errors separately identify deadline expiry and backwards
 clock movement, including elapsed/step durations and the unchanged 20-second
 limit. These are failure observations, not additional hardware permissions.
+
+The physical USB board supplier also provides an optional complete confirmed
+readiness observation. It performs the full live clock/pin, DMA/IRQ/host/PIO and
+both PHY observations, then independently checks cold ownership. This subsumes
+adjacent preparation scans in the generic observer, with no cross-call state
+cache. Only an already-confirmed lease selects it; unconfirmed initialization
+keeps its preparation sequence. A failed complete observation retires the
+platform, and cannot select a weaker observation path. Tests cover late policy
+changes, foreign/stale requests, changed lease fields and late successful
+firmware completion that must not open a computer or release staging.

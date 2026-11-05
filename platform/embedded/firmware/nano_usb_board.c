@@ -184,7 +184,20 @@ static void physical_barrier(void *context)
 {struct fes_nano_usb_board *b=context;b->physical.barrier(b->physical.context);}
 static void physical_wait(void *context)
 {struct fes_nano_usb_board *b=context;b->physical.wait(b->physical.context);}
+static int prepared_ready(void *context,struct fes_nano_cold *cold,uint64_t owner,uint64_t epoch)
+{
+    struct fes_nano_usb_board *b=context;
+    /* Do not touch another boot's objects, even on a bad trusted binding. */
+    if (!b || !b->initialized || b->failed || b->cold!=cold ||
+        b->owner!=owner || b->epoch!=epoch) return 0;
+    /* ready() already checks the full immutable clock/pin policy before and
+     * after the controller/PHY observations. Repeat the independent cold
+     * ownership check, not another adjacent policy scan with no intervening
+     * controller operation. Both PHY passes and all PIO predicates remain. */
+    if (!ready(b) || fes_nano_cold_usb_scope(cold,owner,epoch,1)) return 0;
+    return 1;
+}
 struct fes_nano_usb_io fes_nano_usb_board_ops(struct fes_nano_usb_board *b)
 {
-    return (struct fes_nano_usb_io){b,physical_read,physical_write,physical_barrier,physical_wait,ready,prepare};
+    return (struct fes_nano_usb_io){b,physical_read,physical_write,physical_barrier,physical_wait,ready,prepare,prepared_ready};
 }

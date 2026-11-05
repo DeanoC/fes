@@ -95,6 +95,15 @@ int fes_nano_usb_platform_observe(struct fes_nano_usb_platform *p, uint64_t owne
                                  uint64_t generation)
 {
     if (admit(p,owner,generation)) return -1;
+    if (p->active>1 || p->confirmed>1 || (p->confirmed && !p->active)) return fail(p,-5);
+    if (p->confirmed && p->io.ready_scope) {
+        struct fes_nano_cold *cold=p->cold;
+        uint64_t epoch=p->epoch;
+        if (p->io.ready_scope(p->io.context,cold,owner,epoch)!=1 ||
+            admit(p,owner,generation) || p->cold!=cold || p->epoch!=epoch ||
+            p->active!=1 || p->confirmed!=1) return fail(p,-5);
+        return 0;
+    }
     if (scope(p)) return -1;
     if (p->active && pio(p)) return -1;
     if (p->confirmed && p->io.ready(p->io.context)!=1) return fail(p,-5);

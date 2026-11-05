@@ -45,9 +45,14 @@ static int drift_write(void *context,uintptr_t address,uint32_t value)
 }
 static void operation_boundaries(void)
 {
-    for (unsigned fault=17;fault<=20;fault++) {
+    for (unsigned fault=17;fault<=22;fault++) {
         struct board_test t;
-        if (fault<=18) {
+        if (fault>=21) {
+            prepared(&t);host_started(&t);
+            assert(!fes_nano_usb_platform_confirm(&t.base.usb,17,1));
+            t.fault=fault-4;drift_request=t.requests+1;t.board.physical.read=drift_read;
+            assert(fes_nano_usb_platform_observe(&t.base.usb,17,2));
+        } else if (fault<=18) {
             prepared(&t);host_started(&t);t.fault=fault;
             drift_request=t.requests+1;t.board.physical.read=drift_read;
             assert(fes_nano_usb_platform_confirm(&t.base.usb,17,1));
@@ -56,11 +61,56 @@ static void operation_boundaries(void)
             assert(fes_nano_usb_platform_acquire(&t.base.usb,17,0));
         }
         assert(!t.fault && t.board.failed && t.base.usb.failed &&
-               t.base.cold.failed && t.base.usb.active && !t.base.usb.confirmed);
+               t.base.cold.failed && t.base.usb.active && t.base.usb.confirmed==(fault>=21));
         unsigned accesses=t.accesses;
         assert(fes_nano_usb_platform_observe(&t.base.usb,17,t.base.usb.generation));
         assert(fes_nano_usb_platform_stop(&t.base.usb,17,t.base.usb.generation));
         assert(t.accesses==accesses); /* No new observation or recovery after failure. */
+    }
+}
+static int reject_ready_scope(void *p,struct fes_nano_cold *c,uint64_t owner,uint64_t epoch)
+{(void)p;(void)c;(void)owner;(void)epoch;return 0;}
+static struct fes_nano_usb_platform *changed_platform;
+static int (*saved_ready_scope)(void *,struct fes_nano_cold *,uint64_t,uint64_t);
+static unsigned changed_field;
+static int changed_ready_scope(void *p,struct fes_nano_cold *c,uint64_t owner,uint64_t epoch)
+{
+    int result=saved_ready_scope(p,c,owner,epoch);
+    if (result==1) {
+        if (changed_field==0) changed_platform->generation++;
+        if (changed_field==1) changed_platform->owner++;
+        if (changed_field==2) changed_platform->epoch++;
+        if (changed_field==3) changed_platform->confirmed=0;
+        if (changed_field==4) changed_platform->active=0;
+    }
+    return result;
+}
+static void prepared_observation_admission(void)
+{
+    struct board_test t;prepared(&t);host_started(&t);
+    assert(!fes_nano_usb_platform_confirm(&t.base.usb,17,1));
+    struct fes_nano_usb_io ops=fes_nano_usb_board_ops(&t.board);
+    unsigned accesses=t.accesses;
+    struct fes_nano_cold foreign={0},untouched=foreign;
+    assert(!ops.ready_scope(&t.board,&foreign,17,7));
+    assert(!memcmp(&foreign,&untouched,sizeof(foreign)));
+    assert(!ops.ready_scope(&t.board,&t.base.cold,18,7));
+    assert(!ops.ready_scope(&t.board,&t.base.cold,17,8));
+    assert(fes_nano_usb_platform_observe(&t.base.usb,18,2));
+    assert(fes_nano_usb_platform_observe(&t.base.usb,17,1));
+    assert(t.accesses==accesses && !t.board.failed && !t.base.cold.failed);
+    t.base.usb.io.ready_scope=reject_ready_scope;
+    assert(fes_nano_usb_platform_observe(&t.base.usb,17,2));
+    assert(t.accesses==accesses && t.base.usb.failed); /* No weaker path after a failed proof. */
+    for (unsigned fault=0;fault<5;fault++) {
+        prepared(&t);host_started(&t);assert(!fes_nano_usb_platform_confirm(&t.base.usb,17,1));
+        changed_platform=&t.base.usb;saved_ready_scope=t.base.usb.io.ready_scope;changed_field=fault;
+        t.base.usb.io.ready_scope=changed_ready_scope;
+        assert(fes_nano_usb_platform_observe(&t.base.usb,17,2));
+        assert(t.base.usb.failed && t.base.cold.failed);
+        accesses=t.accesses;
+        assert(fes_nano_usb_platform_observe(&t.base.usb,17,t.base.usb.generation));
+        assert(t.accesses==accesses);
     }
 }
 static void completed(void)
@@ -163,6 +213,6 @@ static void copied_policy_and_admission(void)
 #endif
 int FES_NANO_USB_BOARD_ENTRY(void)
 {
-    completed();live_failures();changed_policy();interruptions();copied_policy_and_admission();operation_boundaries();
+    completed();live_failures();changed_policy();interruptions();copied_policy_and_admission();operation_boundaries();prepared_observation_admission();
     puts("PASS actual USB board clocks/pins, two-phase host confirmation and USB3320 ULPI/VBUS failures; model only");return 0;
 }

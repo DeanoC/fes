@@ -25,6 +25,12 @@ struct fes_nano_usb_io {
     /* Before controller access: verify fixed board pins, bus clocks and
      * ownership. This is preparation, never live PHY/VBUS readiness. */
     int (*prepare)(void *);
+    /* Optional complete confirmed observation from the trusted physical
+     * supplier: fresh clock/pin/owner checks bracket both PHY observations,
+     * with DMA/IRQ/host/PIO validation and final independent cold scope.
+     * No state cache, mutation or generation publication. It subsumes the
+     * separate prepare/PIO/ready/prepare sequence only after confirmation. */
+    int (*ready_scope)(void *,struct fes_nano_cold *,uint64_t owner,uint64_t epoch);
 };
 struct fes_nano_usb_platform {
     struct fes_nano_cold *cold;

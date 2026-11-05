@@ -61,7 +61,7 @@ int main(int argc,char **argv)
             assert(state.masters_contained && state.reset==FES_NANO_BRIDGES_ALL);
             /* The failed image needed 47,434 accesses and 496 PHY requests.
              * Bound the repeated physical work, not host execution time. */
-            assert(model.accesses-accesses<7000 && model.requests-requests<=112);
+            assert(model.accesses-accesses<4000 && model.requests-requests<=112);
             printf("PASS coherent snapshot accesses=%u phy_requests=%u physical_reads=%u\n",model.accesses-accesses,model.requests-requests,physical_reads);
         }
         assert(usb_platform.generation==generation+2 && usb_platform.active && usb_platform.confirmed);

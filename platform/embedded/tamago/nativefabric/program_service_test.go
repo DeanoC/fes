@@ -337,6 +337,29 @@ func TestProgramServiceClockDeadlineAndLateFirmwareReturnRetainConfiguration(t *
 	}
 }
 
+func TestProgramServiceLateHardwareCompletionCannotOpenComputerOrReleaseStaging(t *testing.T) {
+	f := serviceTest(t)
+	req, _, data := addProgram(t, f.loader, f.files, 0)
+	start := time.Unix(100, 0)
+	f.s.state.limits.Now = func() time.Time {
+		if f.s.state.transfer != nil && f.s.state.transfer.Status().Phase == "retire" {
+			return start.Add(20*time.Second + 170364147*time.Nanosecond)
+		}
+		return start
+	}
+	_, err := f.s.Launch(context.Background(), 0, req)
+	status := f.s.state.transfer.Status()
+	if !errors.Is(err, ErrProgramRetired) || !strings.Contains(err.Error(), "configuration deadline: elapsed=20.170364147s") ||
+		status.Phase != "retire" || !status.Failed || status.Done || status.CompletedBytes != len(data) || status.RetainedBytes != len(data) ||
+		f.cpu.opens != 0 || f.lease.r.Active || f.s.Status().State != ProgramRebootRequired {
+		t.Fatal("late successful firmware result became a computer session or released staging", err, status, f.s.Status())
+	}
+	calls := f.cpu.calls
+	if _, err = f.s.Launch(context.Background(), 1, req); !errors.Is(err, ErrProgramRetired) || f.cpu.calls != calls {
+		t.Fatal("late configuration admitted a second launch", err)
+	}
+}
+
 func TestProgramServiceChangedLeaseAndSourceRetireBeforeReservation(t *testing.T) {
 	for _, fault := range []string{"lease", "source"} {
 		t.Run(fault, func(t *testing.T) {

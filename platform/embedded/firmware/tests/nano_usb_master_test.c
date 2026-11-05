@@ -55,7 +55,7 @@ static void master_prepare(struct test *t,unsigned bind)
     assert(!fes_nano_boot_accept(&t->master_boot,&t->bridges,&t->cold.record.boot,&policy,ops,raw));
     assert(!initialize(t));
     assert(!fes_nano_sd_init(&t->service,&t->bridges,fes_nano_sd_platform_ops(&t->platform),FES_NANO_SD_QUALIFIED));
-    struct fes_nano_usb_io usb={&t->h,read32,write32,barrier,wait_poll,usb_ready,usb_prepare};
+    struct fes_nano_usb_io usb={&t->h,read32,write32,barrier,wait_poll,usb_ready,usb_prepare,0};
     assert(!fes_nano_usb_platform_init(&t->usb,&t->cold,usb,FES_NANO_USB_QUALIFIED));
     assert(!fes_nano_usb_composition_init(&t->composition,&t->cold,&t->usb,&t->platform));
     assert(!fes_nano_usb_master_init(&t->master,&t->composition,ops));
