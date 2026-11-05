@@ -50,6 +50,34 @@ class SharedResetTests(unittest.TestCase):
             self.assertEqual((self.directory / "shared-reset-originals" / name).read_bytes(), data)
         self.assertEqual(constraints.read_bytes(), before)
 
+    def test_standard_pr_parent_requires_its_own_mode_and_retains_control_wiring(self):
+        parent = gzip.decompress((ROOT / "tests/fixtures/de25_standard_pr_parent.v.gz").read_bytes())
+        self.assertEqual(hashlib.sha256(parent).hexdigest(), S.STANDARD_PR_PARENT_SHA256)
+        (self.project / S.PARENT).write_bytes(parent)
+        path = self.directory / "inputs.json"
+        # Neither MENU nor the normal internal16K source pin admits this parent.
+        with self.assertRaisesRegex(ValueError, "unreviewed generated input"):
+            S.apply(self.directory)
+        self.inputs["scanout"]["build_identity_scheme"] = "canonical-standard-computer-v2"
+        self.inputs["standard_zx81"] = {"scope": "standard-core-board-integration",
+            "runtime_admission": "not-qualified", "expansion_socket": False}
+        path.write_text(json.dumps(self.inputs))
+        with self.assertRaisesRegex(ValueError, "unreviewed generated input"):
+            S.apply(self.directory)
+        self.inputs["scanout"]["build_identity_scheme"] = "standard-pr-computer-v1"
+        self.inputs["standard_zx81"]["expansion_socket"] = True
+        path.write_text(json.dumps(self.inputs))
+        result = S.apply(self.directory)
+        self.assertEqual(result, S.verify(self.directory))
+        actual = (self.project / S.PARENT).read_text()
+        for instance in ("fes_pr_control", "fes_scanout"):
+            self.assertEqual(S.instance_ports(actual, instance), S.instance_ports(parent.decode(), instance))
+        self.assertEqual(result["release_edges"], 5)
+        self.inputs["standard_zx81"]["expansion_socket"] = False
+        path.write_text(json.dumps(self.inputs))
+        with self.assertRaisesRegex(ValueError, "canonical policy selection differs"):
+            S.verify(self.directory)
+
     def test_unexpected_vendor_bytes_fail_before_any_replacement(self):
         name = sorted(self.originals)[-1]
         (self.project / name).write_bytes(self.originals[name] + b"\n")

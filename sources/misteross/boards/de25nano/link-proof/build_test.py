@@ -4,6 +4,7 @@ import json
 from pathlib import Path
 import tempfile
 import unittest
+from unittest import mock
 
 SPEC = importlib.util.spec_from_file_location("de25_link_build", Path(__file__).with_name("build.py"))
 build = importlib.util.module_from_spec(SPEC)
@@ -11,6 +12,46 @@ SPEC.loader.exec_module(build)
 
 
 class RecipeTests(unittest.TestCase):
+    def test_standard_pr_hps_defaults_are_exact_and_cannot_extend_legacy_policy(self):
+        old_profile = build.PROFILE
+        self.addCleanup(setattr, build, "PROFILE", old_profile)
+        build.PROFILE = build.load_profile(build.BOARD / "zx81-standard/profile.py")
+        hps = build.load_hps(build.BOARD.parent / "hps/build.py")
+        name = "hps_subsys/ip/hps_subsys/agilex_hps.ip"
+        additions = {"ED_en_sim_gen": "true", "FPGA_EMAC0_tx_clk_en": "true",
+            "FPGA_EMAC1_tx_clk_en": "true", "FPGA_EMAC2_tx_clk_en": "true", "FPGA_EMAC_PTP_clk_en": "true"}
+        with tempfile.TemporaryDirectory() as tmp:
+            project = Path(tmp) / "standard-base/combined/hps/project"
+            path = project / name; path.parent.mkdir(parents=True)
+            selected = {"vendor_hps_emif_parameters": {name: {"f2sdram_SMMU": "false", "f2s_data_width": "256"}},
+                "allowed_hps_parameter_changes": {name: {"f2sdram_SMMU": {"before": "false", "after": "true"},
+                    "f2s_data_width": {"before": "256", "after": "0"}}}, "f2sdram_master_profile": "scanout-only",
+                "scanout": {"managed_fabric": "managed-scanout-initiators-v3", "hps_initialization": "HPS FIRST",
+                    "build_identity_scheme": "standard-pr-computer-v1", "build_id": "1" * 32},
+                "standard_zx81": {"scope": "standard-core-board-integration", "runtime_admission": "not-qualified",
+                    "computer_offset": 0x10300, "expansion_socket": True, "build_id": "1" * 32}}
+            (project.parent / "inputs.json").write_text(json.dumps(selected))
+            (project.parent / "vendor-inputs.json").write_text(json.dumps({"source_sha256": {}}))
+            def write(parameters):
+                body = ''.join(f'<ip:parameter parameterId="{key}"><ip:value>{value}</ip:value></ip:parameter>'
+                               for key,value in parameters.items())
+                path.write_text('<ip:component xmlns:ip="http://www.accellera.org/XMLSchema/IPXACT/1685-2014" '
+                    'xmlns:altera="http://www.altera.com/XMLSchema/IPXact2014/extensions"><ip:vendorExtensions>'
+                    '<altera:altera_module_parameters><ip:parameters>' + body + '</ip:parameters>'
+                    '</altera:altera_module_parameters></ip:vendorExtensions></ip:component>')
+            actual = {**additions, "f2sdram_SMMU": "true", "f2s_data_width": "0"}
+            with mock.patch.object(build, "load_hps", return_value=hps):
+                write(actual); build.verify_hps_inputs(project)
+                for change in ({**actual, "ED_en_sim_gen": "false"},
+                               {k:v for k,v in actual.items() if k != "FPGA_EMAC0_tx_clk_en"},
+                               {**actual, "unreviewed_clock": "true"}):
+                    write(change)
+                    with self.assertRaisesRegex(build.BuildError, "parameter inventory"):
+                        build.verify_hps_inputs(project)
+                write(actual); build.PROFILE = None
+                with self.assertRaisesRegex(build.BuildError, "parameter inventory"):
+                    build.verify_hps_inputs(project)
+
     def test_combined_client_proof_receipt_matches_captured_sources(self):
         combined = build.BOARD / "zx81-computer"
         build.PROFILE = build.load_profile(combined / "profile.py")

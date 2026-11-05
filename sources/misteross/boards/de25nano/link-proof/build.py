@@ -103,6 +103,9 @@ def proof_root(project: Path) -> Path:
 def verify_hps_inputs(project: Path) -> None:
     hps = load_hps(proof_root(project) / "functional-source/sources/misteross/boards/de25nano/hps/build.py")
     preserved = json.loads((project.parent / "inputs.json").read_bytes())
+    additions = getattr(PROFILE, "generated_hps_parameters", {})
+    if set(additions) - set(preserved["vendor_hps_emif_parameters"]):
+        raise BuildError("generated HPS parameter policy names an unknown module")
     changes = {}
     for name, expected in preserved["vendor_hps_emif_parameters"].items():
         actual = hps.module_parameters(project / name)
@@ -110,7 +113,8 @@ def verify_hps_inputs(project: Path) -> None:
                  for key, value in expected.items() if actual.get(key) != value}
         if delta:
             changes[name] = delta
-        if set(actual) != set(expected):
+        extra = {key: actual[key] for key in actual.keys() - expected.keys()}
+        if extra != additions.get(name, {}) or expected.keys() - actual.keys():
             raise BuildError("changed preserved HPS/EMIF parameter inventory: " + name)
     # Reuse the existing closed canonical Linux policy. Legacy bases still
     # require an empty delta; this does not introduce a new parameter waiver.

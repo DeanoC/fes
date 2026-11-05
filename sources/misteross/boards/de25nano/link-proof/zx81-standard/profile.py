@@ -15,6 +15,13 @@ persona_names = {"a": "zx81_empty", "b": "zx81_ram16k"}
 timing_path = "sources/misteross/boards/de25nano/link-proof/zx81-standard/timing.tcl"
 STATIC_ROOT = "zx81_bus"
 MACHINE = "soc_inst|subsys_periph|fes_scanout|fes_scanout|core|machine"
+# Pro26.3 adds these defaults when editing the HPS component. Complete IP
+# bytes match the independent internal16K canonical generation control.
+# Original-parameter deltas still use the existing closed Linux policy.
+generated_hps_parameters = {"hps_subsys/ip/hps_subsys/agilex_hps.ip": {
+    "ED_en_sim_gen": "true", "FPGA_EMAC0_tx_clk_en": "true",
+    "FPGA_EMAC1_tx_clk_en": "true", "FPGA_EMAC2_tx_clk_en": "true",
+    "FPGA_EMAC_PTP_clk_en": "true"}}
 
 
 def load(path, name):

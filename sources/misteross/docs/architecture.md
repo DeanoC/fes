@@ -86,7 +86,12 @@ project and expansion simulation. It fences the whole packed bus with the
 public machine reset and captures persona responses. The project ties peek
 address bits to zero; the model drives them for read-only RAM observations.
 Every boundary FF, including constants, remains subject to existing synthesis
-and paired all-corner timing checks. The generated PR-control aperture stays at
+and paired all-corner timing checks. The PR parent has its own exact generated
+source pin; the ten bridge/FIFO inputs retain their original pins. Only this PR
+profile permits the five exact Pro26.3 HPS defaults found in byte-identical IP
+from an independent internal16K generation control. Original HPS parameter
+deltas still require the existing closed managed-Linux policy. The generated
+PR-control aperture stays at
 peripheral offset `0x10700` and adds no DMA initiator. This new profile is
 unqualified: the current Linux owner/runtime has no physical PR opener, and
 standalone composition does not provide normal FES admission. Independent fits,
