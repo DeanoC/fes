@@ -93,7 +93,8 @@ def configuration(*, factory_key=None):
     ]
     if factory_key is not None:
         lines.remove('# BR2_PACKAGE_FOGCAST_MISTER_RUNTIME is not set')
-        lines.append('BR2_PACKAGE_FOGCAST_MISTER_RUNTIME=y')
+        lines += ['BR2_PACKAGE_FOGCAST_MISTER_RUNTIME=y',
+                  'BR2_STRIP_EXCLUDE_FILES="mister-runtime"']
     return '\n'.join(lines) + '\n'
 
 

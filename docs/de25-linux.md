@@ -75,6 +75,9 @@ Managed base/factory assembly and virtual boot select the immutable builder
 from the owner-kernel SDK lock; a missing or different image is refused before
 compilation or guest execution. The separately updated headless-image builder
 does not replace that locked environment.
+Factory assembly preserves the selected prebuilt runtime bytes by excluding
+`mister-runtime` from Buildroot stripping. The final image still verifies the
+executable against its selected artifact hash.
 
 This requires committed sources and uses the existing authenticated builder,
 download cache and filesystem assembly. It exports rootfs ext4/tar, a developer
