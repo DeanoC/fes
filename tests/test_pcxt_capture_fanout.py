@@ -97,6 +97,23 @@ class SourceTests(unittest.TestCase):
             self.assertTrue(recorder.closed)
             self.assertEqual(recorder.proc.returncode, 0)
 
+    def test_failed_run_closes_processes_without_slow_full_decode(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            code = ("import os,struct,time\n"
+                    "for i in range(5):\n"
+                    " os.write(1,struct.pack('<4sIQQII',b'PXT1',i,i+1,i+2,0x2000,512)+bytes([i])*512)\n"
+                    " time.sleep(.05)\n"
+                    "time.sleep(30)\n")
+            source = capture.CaptureProcess([sys.executable, '-c', code], Path(tmp)/'source.stderr', 512)
+            recorder = capture.FFV1Recorder(tmp, width=16, height=16)
+            with mock.patch.object(recorder, '_verify_pixels', side_effect=AssertionError('full decode')):
+                result = capture.capture_experiment(source, recorder, 5, lambda _: None,
+                    sample_every=1, skip_recording_verification=lambda: True)
+            self.assertEqual(result.frames_recorded, 5)
+            self.assertTrue(source.closed); self.assertIsNotNone(source.proc.poll())
+            self.assertTrue(recorder.closed); self.assertEqual(recorder.proc.returncode, 0)
+            self.assertGreater(recorder.video.stat().st_size, 0)
+
     def test_recorder_failure_terminates_source_stuck_in_read(self):
         with tempfile.TemporaryDirectory() as tmp:
             code = ('import os,struct,time; '

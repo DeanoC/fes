@@ -685,6 +685,7 @@ class MainOwnershipTest(unittest.TestCase):
                     if mode == 'cleanup':
                         error = app.pa.AcceptanceError('injected cleanup uncertainty')
                         error.source_cleanup_incomplete = True
+                        error.add_note('specific capture cleanup failure')
                         raise error
                     if mode == 'audio_cleanup':
                         error = app.pa.AcceptanceError('injected audio cleanup uncertainty')
@@ -724,7 +725,9 @@ class MainOwnershipTest(unittest.TestCase):
                 self.assertEqual((evidence/'receipt.json').exists(), mode == 'ok')
                 self.assertEqual((evidence/'failure.json').exists(), mode != 'ok')
                 if mode == 'cleanup':
-                    self.assertTrue(json.loads((evidence/'failure.json').read_text())['source_cleanup_incomplete'])
+                    failure=json.loads((evidence/'failure.json').read_text())
+                    self.assertTrue(failure['source_cleanup_incomplete'])
+                    self.assertEqual(failure['failure_notes'],['specific capture cleanup failure'])
                 if mode == 'audio_cleanup':
                     self.assertTrue(json.loads((evidence/'failure.json').read_text())['audio_cleanup_incomplete'])
                 self.assertFalse(any(call[0] == 'POST' for call in fake.api.calls))
@@ -820,17 +823,20 @@ class VideoEvidenceTest(unittest.TestCase):
                               converter_identity={'test': 'scaler'})
             audio = mock.Mock(mapping={'hil_video': '/dev/v4l/by-id/fes-shadowcast-hil'})
             observer = mock.Mock()
+            rec = {'captures': []}
             with mock.patch.object(app, 'capture_owned', return_value=((1, 1, b'x'), {'file':'before'})), \
                  mock.patch.object(app, 'prompt', return_value={}), \
                  mock.patch.object(app, 'type_keys') as keys:
                 with self.assertRaisesRegex(app.pa.AcceptanceError, 'audio capture mapping'):
-                    app.run_game(None, mock.Mock(), args, {'captures': []}, 'input', b'font',
+                    app.run_game(None, mock.Mock(), args, rec, 'input', b'font',
                                  probe=probe, video_factory=lambda *_: video,
                                  audio_factory=lambda *_: audio,
                                  observer_factory=lambda *_: observer)
             keys.assert_not_called()
             audio.stop.assert_called_once_with(phases=None)
+            video.skip_failed_recording_verification.assert_called_once()
             video.stop.assert_called_once()
+            self.assertEqual(rec['failed_video_verification'], 'not performed; diagnostic had already failed')
             observer.close.assert_called_once()
 
     def test_game_rejects_recorder_from_other_observation_stream(self):

@@ -1147,6 +1147,11 @@ def run_game(runner, owned, args, rec, input_session_id, font, *, probe=None, vi
                     error.add_note('audio cleanup failed: '+repr(cleanup))
         rec['video_stop_requested_monotonic_ns'] = time.monotonic_ns()
         try:
+            if error is not None:
+                skip = getattr(video, 'skip_failed_recording_verification', None)
+                if callable(skip):
+                    skip()
+                    rec['failed_video_verification'] = 'not performed; diagnostic had already failed'
             video.stop()
         except BaseException as cleanup:
             if error is None:
@@ -1348,6 +1353,7 @@ def main(argv=None):
     except BaseException as exc:
         rec['classification'] = 'failed; owned session and kit cleanup remain with caller'
         rec['failed_at_utc'] = stamp(); rec['failure'] = repr(exc)
+        rec['failure_notes'] = [str(note)[:1000] for note in getattr(exc, '__notes__', [])[:20]]
         rec['source_cleanup_incomplete'] = bool(getattr(exc, 'source_cleanup_incomplete', False))
         rec['audio_cleanup_incomplete'] = bool(getattr(exc, 'audio_cleanup_incomplete', False))
         with (args.evidence/'failure.json').open('x') as output:

@@ -193,6 +193,22 @@ class FFV1Recorder:
             self.sidecar.close(); self.stderr.close()
             self.closed = True
 
+    def finish_unverified(self, timeout=30):
+        """Close a failed diagnostic's recording without a full decode pass.
+
+        The partial capture is retained for diagnosis and must not be treated
+        as verified gameplay evidence. Process exit is still required.
+        """
+        try:
+            self.proc.stdin.close()
+            if self.proc.wait(timeout=timeout) != 0:
+                raise CaptureError('FFV1 recorder failed during failed-run cleanup')
+        finally:
+            if self.proc.poll() is None:
+                self.proc.kill(); self.proc.wait(timeout=5)
+            self.sidecar.close(); self.stderr.close()
+            self.closed = True
+
     def _verify_pixels(self):
         """Bind each sidecar row to the corresponding losslessly decoded frame."""
         decoder = subprocess.Popen(['ffmpeg', '-nostdin', '-hide_banner', '-loglevel', 'error',
@@ -491,7 +507,8 @@ def fanout_frames(frames, record, detect, *, sample_every, record_capacity=8, jo
 
 
 def capture_experiment(source, recorder, count, detect, *, sample_every, source_timeout=5, join_timeout=2,
-                       detector_fault=None, on_source_frame=None, stop_event=None):
+                       detector_fault=None, on_source_frame=None, stop_event=None,
+                       skip_recording_verification=None):
     """Run a bounded capture without target input and clean up both processes.
 
     The capture is valid only if all requested frames were received, the source
@@ -512,7 +529,10 @@ def capture_experiment(source, recorder, count, detect, *, sample_every, source_
         except BaseException as error:
             error.source_cleanup_incomplete = True
             raise
-        recorder.finish()
+        if skip_recording_verification is not None and skip_recording_verification():
+            recorder.finish_unverified()
+        else:
+            recorder.finish()
         return result
     except BaseException as error:
         if not source.closed:

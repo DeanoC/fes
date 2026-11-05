@@ -159,6 +159,7 @@ class GameCapture:
         self.observer_guard = probe
         self.started_ns = time.monotonic_ns()
         self.started = threading.Event(); self.stop_requested = threading.Event()
+        self.failed_run = threading.Event()
         self.done = threading.Event(); self.error = None; self.result = None
         self.converter = RGBConverter()
         self.converter_identity = self.converter.identity
@@ -191,7 +192,7 @@ class GameCapture:
             try:
                 self.result = capture.capture_experiment(self.source, self.recorder, 7200, detect,
                     sample_every=1, detector_fault=probe.fault, on_source_frame=probe.source_frame,
-                    stop_event=self.stop_requested)
+                    stop_event=self.stop_requested, skip_recording_verification=self.failed_run.is_set)
             except BaseException as exc:
                 self.error = exc; probe.fault.set()
             finally:
@@ -222,6 +223,10 @@ class GameCapture:
 
     def poll(self):
         return 1 if self.done.is_set() else None
+
+    def skip_failed_recording_verification(self):
+        """A failed run retains its recording without the slow full decode."""
+        self.failed_run.set()
 
     def stop(self):
         self.stop_requested.set(); self.worker.join(timeout=60)
