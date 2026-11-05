@@ -1035,6 +1035,9 @@ def run_game(runner, owned, args, rec, input_session_id, font, *, probe=None, vi
         raise pa.AcceptanceError('game requires owned video, audio and playback probe; no game keys sent')
     if threading.active_count() != 1:
         raise pa.AcceptanceError('game diagnostics must start before capture threads; no game keys sent')
+    short_smoke = getattr(args, 'game_short_smoke', False) is True
+    if short_smoke and probe.plan != [0x50]:
+        raise pa.AcceptanceError('short game smoke requires its one-direction guard; no game keys sent')
     disk_sha = SCENARIOS['game']['floppy']
     before, info = capture_owned(runner, owned, args, disk_sha,
                                  args.evidence/'before.png', 'before Digger input')
@@ -1113,13 +1116,16 @@ def run_game(runner, owned, args, rec, input_session_id, font, *, probe=None, vi
             time.sleep(.05)
         rec['neutral_started_monotonic_ns'] = time.monotonic_ns()
         time.sleep(.5)
-        for direction, usage in (('left',0x50), ('right',0x4f), ('left',0x50)):
+        directions = (('left',0x50),) if short_smoke else (('left',0x50), ('right',0x4f), ('left',0x50))
+        rec['gameplay_mode'] = 'short-smoke' if short_smoke else 'full'
+        for direction, usage in directions:
             interval = {'direction':direction, 'started_monotonic_ns':time.monotonic_ns()}
             rec.setdefault('direction_intervals', []).append(interval)
             type_keys(runner, owned, args, disk_sha, input_session_id, rec['hid_events'], (usage,),
                       dispatch_guard=probe, capture_check=check_recorders, active_check=game_active)
             interval['finished_monotonic_ns'] = time.monotonic_ns()
-            time.sleep(1)
+            if not short_smoke:
+                time.sleep(1)
         rec['direction_observations'] = probe.sent
         for phase in range(3):
             toggle = {'index':phase+1, 'started_monotonic_ns':time.monotonic_ns()}
@@ -1179,10 +1185,11 @@ def run_game(runner, owned, args, rec, input_session_id, font, *, probe=None, vi
         digest = hashlib.file_digest(stream, 'sha256').hexdigest()
     with video.progress_path.open('rb') as stream:
         frame_metadata_sha = hashlib.file_digest(stream, 'sha256').hexdigest()
+    visual_controls = 'neutral and left' if short_smoke else 'neutral and left/right/left'
     rec['game_video'] = {'file':video.path.name, 'sha256':digest, 'metadata':metadata,
                          'coverage':coverage, 'frame_metadata_file':video.progress_path.name,
                          'frame_metadata_sha256':frame_metadata_sha,
-                         'classification':'recorded; neutral and left/right/left need independent visual review'}
+                         'classification':f'recorded; {visual_controls} need independent visual review'}
     rec['classification'] = 'game and audio captured; independent gameplay and speaker review pending'
 
 
@@ -1215,6 +1222,8 @@ def parser():
     ap.add_argument('--game-template', type=Path, action='append', help='private 32x34 RGB opening-player template')
     ap.add_argument('--game-template-sha256', action='append', help='corresponding private template SHA-256')
     ap.add_argument('--game-max-host-age-ms', type=int, help='maximum local observation age; not a target timing bound')
+    ap.add_argument('--game-short-smoke', action='store_true',
+                    help='record one guarded direction and the full speaker toggle sequence')
     ap.add_argument('--evidence', type=Path, required=True, help='new, private output directory')
     ap.add_argument('--execute', action='store_true')
     return ap
@@ -1224,6 +1233,8 @@ def main(argv=None):
     args = parser().parse_args(argv)
     if not args.execute:
         raise pa.AcceptanceError('--execute is required inside an already owned session')
+    if args.game_short_smoke and args.scenario != 'game':
+        raise pa.AcceptanceError('--game-short-smoke requires the game scenario')
     templates = []
     if args.scenario == 'game':
         if threading.active_count() != 1:
@@ -1329,10 +1340,11 @@ def main(argv=None):
             helper, helper_build = game_capture.build_capture_helper(args.evidence, helper_source,
                 provenance['diagnostic_file_sha256']['scripts/pcxt_v4l2_capture.c'],
                 check_interrupted=check_interrupted)
-            probe = gameplay.PlaybackProbe(threading.Event(), max_host_age_ns=args.game_max_host_age_ms*1000000)
+            probe = gameplay.PlaybackProbe(threading.Event(), max_host_age_ns=args.game_max_host_age_ms*1000000,
+                                           short_smoke=args.game_short_smoke)
             rec['game_probe'] = {'capture_helper':helper_build, 'template_sha256':args.game_template_sha256,
                                  'max_host_age_ms':args.game_max_host_age_ms,
-                                 'controls':['neutral','left','right','left'],
+                                 'controls':['neutral','left'] if args.game_short_smoke else ['neutral','left','right','left'],
                                  'note':'host age is not a target timing bound; audio/video clocks are not synchronized'}
             def factory(device, evidence, selected_probe):
                 return game_capture.GameCapture(device, evidence, selected_probe, helper,

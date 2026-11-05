@@ -84,6 +84,13 @@ and needs its pinned SHA-256; pass one `--game-template` and its matching
 This is a local freshness policy, not a bound on target image age or key
 delivery. The script has no default for it.
 
+For a bounded game and speaker smoke, `--game-short-smoke` records a neutral
+observation and one guarded left input, then the same three F9 audio toggle
+windows as the full diagnostic. The flag does not relax the fresh-player,
+two-lives or threat checks for that input. The default remains the full
+left/right/left sequence. The receipt identifies the chosen mode; both modes
+need independent video and audio review, and neither establishes sustained play.
+
 Kit B capture mapping has host-side identity checks but has not yet been
 qualified by an exact-artifact PC/XT game/audio kit run. The 4KPRO fanout can
 deliver 60 frames per second; the recorder's 30 fps is a playback convention.

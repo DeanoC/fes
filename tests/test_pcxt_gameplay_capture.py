@@ -17,6 +17,72 @@ from scripts.pcxt_gameplay_probe import PlaybackProbe
 
 
 class GameCaptureTests(unittest.TestCase):
+    def test_short_smoke_keeps_guards_and_records_three_sound_windows(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root=Path(tmp);probe=mock.Mock(spec=PlaybackProbe)
+            probe.plan=[0x50];probe.fault=threading.Event();probe.sent=[{'usage':0x50}]
+            probe.snapshot.return_value={'player':True,'initial_lives':True,'threat':False}
+            video=mock.Mock(observer_guard=probe,started_ns=1,first_progress_ns=2,
+                            converter_identity={'test':'scaler'})
+            video.proc.poll.return_value=None
+            video.path=root/'game.mkv';video.path.write_bytes(b'video')
+            video.progress_path=root/'frames.jsonl';video.progress_path.write_bytes(b'frames')
+            audio=mock.Mock(mapping={'hil_video':'synthetic'});audio.proc.poll.return_value=None
+            audio.stop.return_value={'file':'audio.wav'}
+            observer=mock.Mock();args=SimpleNamespace(evidence=root,capture_device='synthetic',
+                                                     kit='A',game_short_smoke=True)
+            rec={'captures':[],'hid_events':[]}
+            with mock.patch.object(app,'capture_owned',return_value=((1,1,b'x'),{'file':'before'})), \
+                 mock.patch.object(app,'prompt',return_value={}),mock.patch.object(app,'type_keys') as keys, \
+                 mock.patch.object(app,'wait_owned') as wait, mock.patch.object(app.time,'sleep'), \
+                 mock.patch.object(app,'check_video',return_value={}),mock.patch.object(app,'check_source_coverage',return_value={}):
+                app.run_game(None,None,args,rec,'input',b'font',probe=probe,
+                             video_factory=lambda *_:video,audio_factory=lambda *_:audio,
+                             observer_factory=lambda *_:observer)
+            self.assertEqual(rec['gameplay_mode'],'short-smoke')
+            self.assertEqual([x['direction'] for x in rec['direction_intervals']],['left'])
+            self.assertEqual(len(rec['f9_toggles']),3)
+            self.assertEqual([call.args[6] for call in keys.call_args_list][-4:],[(0x50,),(0x42,),(0x42,),(0x42,)])
+            self.assertIs(keys.call_args_list[-4].kwargs['dispatch_guard'],probe)
+            self.assertEqual(sum(call.args[4] == 6 for call in wait.call_args_list),3)
+            audio.stop.assert_called_once_with(phases=rec['f9_toggles'])
+            self.assertIn('neutral and left need independent visual review',rec['game_video']['classification'])
+
+    def test_short_smoke_rejects_a_full_direction_guard_before_game_input(self):
+        args=SimpleNamespace(game_short_smoke=True)
+        probe=PlaybackProbe(threading.Event(),max_host_age_ns=100000000)
+        with mock.patch.object(app,'capture_owned') as capture, mock.patch.object(app,'type_keys') as keys:
+            with self.assertRaisesRegex(app.pa.AcceptanceError,'one-direction guard'):
+                app.run_game(None,None,args,{},'input',b'font',probe=probe,
+                             video_factory=mock.Mock(),audio_factory=mock.Mock())
+        capture.assert_not_called();keys.assert_not_called()
+
+    def test_short_smoke_never_sends_f9_after_a_rejected_direction(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root=Path(tmp);probe=mock.Mock(spec=PlaybackProbe)
+            probe.plan=[0x50];probe.fault=threading.Event();probe.sent=[]
+            probe.snapshot.return_value={'player':True,'initial_lives':True,'threat':False}
+            video=mock.Mock(observer_guard=probe,started_ns=1,first_progress_ns=2,
+                            converter_identity={'test':'scaler'})
+            video.proc.poll.return_value=None
+            audio=mock.Mock(mapping={'hil_video':'synthetic'});audio.proc.poll.return_value=None
+            observer=mock.Mock();args=SimpleNamespace(evidence=root,capture_device='synthetic',
+                                                     kit='A',game_short_smoke=True)
+            def guarded_keys(*args,**kwargs):
+                if args[6] == (0x50,):
+                    raise app.gameplay.ProbeError('player became unsafe')
+            with mock.patch.object(app,'capture_owned',return_value=((1,1,b'x'),{'file':'before'})), \
+                 mock.patch.object(app,'prompt',return_value={}), \
+                 mock.patch.object(app,'type_keys',side_effect=guarded_keys) as keys, \
+                 mock.patch.object(app,'wait_owned'), mock.patch.object(app.time,'sleep'):
+                with self.assertRaisesRegex(app.gameplay.ProbeError,'player became unsafe'):
+                    app.run_game(None,None,args,{'captures':[],'hid_events':[]},'input',b'font',probe=probe,
+                                 video_factory=lambda *_:video,audio_factory=lambda *_:audio,
+                                 observer_factory=lambda *_:observer)
+            self.assertNotIn((0x42,),[call.args[6] for call in keys.call_args_list])
+            audio.stop.assert_called_once_with(phases=None)
+            observer.close.assert_called_once()
+
     def test_video_stop_failure_still_closes_observer_and_retains_uncertainty(self):
         for observer_fails in (False, True):
             with self.subTest(observer_fails=observer_fails), tempfile.TemporaryDirectory() as tmp:
