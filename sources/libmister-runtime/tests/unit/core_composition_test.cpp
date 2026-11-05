@@ -466,7 +466,7 @@ std::string StaticFixtureFile(const std::string& name) {
  std::ifstream in("tests/fixtures/core-bundle-v5/"+name,std::ios::binary);
  assert(in.good());return {std::istreambuf_iterator<char>(in),std::istreambuf_iterator<char>()};
 }
-const mister::daemon::json::Value& StaticField(const mister::daemon::json::Value& value,const std::string& name) {
+const mister::daemon::json::Value& StaticField(const mister::daemon::json::Value& value,const char* name) {
  for (const auto& field:value.object) if (field.first==name) return field.second;
  assert(false);return value;
 }
