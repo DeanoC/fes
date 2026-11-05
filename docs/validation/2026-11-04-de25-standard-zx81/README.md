@@ -993,6 +993,45 @@ does not program the FPGA.
 
 [standard-pr-pcm-synchronizer-fit.json](standard-pr-pcm-synchronizer-fit.json)
 binds these results. The four raw Design Closure finding groups remain visible
-and overall closure still fails. A clean independent three-revision rebuild is
-running; no independent-build, PCB, physical PR or new package acceptance is
-claimed yet. The two internal16K clock exceptions remain scoped to that profile.
+and overall closure still fails. The clean independent three-revision rebuild
+now passes in 1356.946 seconds: all three RBFs are byte-identical to the primary
+build, all 49 numerical summary rows per revision match, and all 2976 paired
+boundary-path rows match as multisets. All 669 selected generated source and
+constraint hashes are identical. The 36 independent PCM control/corner checks
+also retain the explicit two-stage, included 100 MHz assumptions.
+
+The first strict comparison rejected differing raw source-closure hashes. That
+failure remains retained. The external comparison bounds exactly seven build-root
+paths in the generated integration Tcl, its one JSON digest reference, and Python
+cache timestamp/filename metadata. Using matching Python 3.12, 69 code-object
+comparisons match both caches to the identical recompiled source. Both raw
+closures independently pass the original producer verifier. Raw closures, QDBs
+and descriptors remain distinct per build; no production seal or timing check is
+changed, and provenance from the two builds must not be mixed.
+[standard-pr-pcm-independent-rebuild.json](standard-pr-pcm-independent-rebuild.json)
+records the comparison and its source-bound limits. No PCB, physical PR or new
+package acceptance is claimed. The two internal16K clock exceptions remain
+scoped to that profile.
+
+## Bounded native display retirement follow-up
+
+A later normal managed trial completes ten F12/Esc MENU open/close cycles in
+52.206 seconds using the already qualified source-a35 standard package and
+source-510 reporting bundle `4ecf08d8`. The production runtime/host/agent inputs
+remain unchanged in the collector's `dae5be8cb` tree; its only compared change is
+a host UI test. Each reopen receives fresh display storage: allocation generations
+2 through 11 and logical displayed sequences 1 through 10, with zero display
+errors or underflows. Captures show the ZX81 K cursor, the media chooser, then
+the returned K cursor. Owned Stop reaches idle.
+
+The trial uses the explicit virtual keyboard fixture. It supplies no physical
+USB, BASIC, audio or PR acceptance, and neither reproduces nor fixes the earlier
+intermittent retirement fault. Original preferences, host and catalog are
+restored; owned fixtures are removed. The named `a14a` software baseline is
+authenticated at generation 32 in the same `e8d10b71` boot with unchanged image,
+kernel and card, and the board is released idle and lease-free. The original
+case receipt's pending-restoration field is preserved; the separate final
+receipt binds that case to the completed restoration.
+[display-retirement-stress-native.json](display-retirement-stress-native.json)
+records the final result. No main baseline is promoted and the top board remains
+untouched. Full normal-kit acceptance remains open.

@@ -88,7 +88,11 @@
     "proof_sha256": "4fb99b1cb0998b7f9db2614ed4698a77757234738fbb069063b88a8ce1fbfa13",
     "seconds": 1.718
   },
-  "independent_rebuild": "running; no result yet",
+  "independent_rebuild": {
+    "comparison_receipt_sha256": "eca3c5f3b7836608937e16974ece7e97b2091428d25ff7a82abe35b7fd589254",
+    "record": "standard-pr-pcm-independent-rebuild.json",
+    "status": "passed constrained-internal reproduction; board closure remains failed"
+  },
   "internal16K_HDMI_exceptions_inherited": false,
   "native_AArch64_CPU_composition": {
     "FPGA_load": "not-run",
