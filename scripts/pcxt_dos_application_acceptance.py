@@ -1336,7 +1336,8 @@ def main(argv=None):
                                  'note':'host age is not a target timing bound; audio/video clocks are not synchronized'}
             def factory(device, evidence, selected_probe):
                 return game_capture.GameCapture(device, evidence, selected_probe, helper,
-                                                 helper_build['binary_sha256'], templates)
+                                                 helper_build['binary_sha256'], templates,
+                                                 check_interrupted=check_interrupted)
             run_game(runner, owned, args, rec, input_session_id, font, probe=probe, video_factory=factory,
                      audio_factory=game_audio.AudioRecorder)
         validate_active(runner, owned, args, disk['floppy_sha256'])

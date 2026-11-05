@@ -170,7 +170,7 @@ class FFV1Recorder:
         self.finish_capture(timeout=timeout)
         self.verify_capture()
 
-    def verify_capture(self):
+    def verify_capture(self, check_interrupted=lambda: None):
         """Verify a closed recording without owning a live capture process."""
         if not self.closed or self.proc.returncode != 0:
             raise CaptureError('FFV1 capture must be closed before verification')
@@ -184,19 +184,17 @@ class FFV1Recorder:
             if len(rows) != self.count or rows != self.entries:
                 raise CaptureError('recording sidecar was truncated or changed')
             try:
-                probe = subprocess.run(['ffprobe', '-v', 'error', '-count_frames', '-select_streams', 'v:0',
-                    '-show_entries', 'stream=codec_name,width,height,nb_read_frames', '-of', 'json', str(self.video)],
-                    check=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE, timeout=120)
+                output = self._probe_frames(check_interrupted)
             except OSError as exc:
                 failure = CaptureError('FFV1 frame verification subprocess cleanup unverified')
                 failure.source_cleanup_incomplete = True
                 raise failure from exc
-            streams = json.loads(probe.stdout).get('streams', [])
+            streams = json.loads(output).get('streams', [])
             if (len(streams) != 1 or streams[0].get('codec_name') != 'ffv1'
                     or streams[0].get('width') != self.width or streams[0].get('height') != self.height
                     or streams[0].get('nb_read_frames') != str(self.count)):
                 raise CaptureError('FFV1 decoded frame count or format differs')
-            self._verify_pixels()
+            self._verify_pixels(check_interrupted=check_interrupted)
         except subprocess.TimeoutExpired as exc:
             raise CaptureError('FFV1 frame verification timed out') from exc
 
@@ -212,7 +210,49 @@ class FFV1Recorder:
             self.sidecar.close(); self.stderr.close()
             self.closed = True
 
-    def _verify_pixels(self, timeout=180):
+    def _probe_frames(self, check_interrupted, timeout=120):
+        try:
+            probe = subprocess.Popen(['ffprobe', '-v', 'error', '-count_frames', '-select_streams', 'v:0',
+                '-show_entries', 'stream=codec_name,width,height,nb_read_frames', '-of', 'json', str(self.video)],
+                stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+        except OSError as exc:
+            failure = CaptureError('FFV1 frame verification subprocess cleanup unverified')
+            failure.source_cleanup_incomplete = True
+            raise failure from exc
+        deadline = time.monotonic()+timeout
+        try:
+            while True:
+                check_interrupted()
+                left=deadline-time.monotonic()
+                if left <= 0: raise CaptureError('FFV1 frame verification timed out')
+                try:
+                    stdout,_stderr=probe.communicate(timeout=min(.2,left))
+                    break
+                except subprocess.TimeoutExpired:
+                    continue
+            if probe.returncode != 0: raise CaptureError('FFV1 frame verification failed')
+            return stdout
+        finally:
+            active_error=sys.exception()
+            cleanup_error=None
+            try:
+                if probe.poll() is None:
+                    probe.kill(); probe.communicate(timeout=5)
+            except BaseException as exc:
+                cleanup_error=exc
+            for stream in (probe.stdout,probe.stderr):
+                try:
+                    if stream is not None: stream.close()
+                except BaseException as exc:
+                    cleanup_error=cleanup_error or exc
+            if cleanup_error is not None:
+                failure=CaptureError('FFV1 frame verifier cleanup unverified')
+                failure.source_cleanup_incomplete=True
+                if active_error is not None:
+                    failure.add_note('recording verification also failed: '+repr(active_error))
+                raise failure from cleanup_error
+
+    def _verify_pixels(self, timeout=180, check_interrupted=lambda: None):
         """Bind each sidecar row to the corresponding losslessly decoded frame."""
         deadline = time.monotonic() + timeout
         try:
@@ -230,9 +270,7 @@ class FFV1Recorder:
                 digest = hashlib.sha256()
                 remaining = self.size
                 while remaining:
-                    left = deadline - time.monotonic()
-                    if left <= 0 or not select.select([decoder.stdout], [], [], min(10, left))[0]:
-                        raise CaptureError('FFV1 verification stalled')
+                    self._wait_decoder(decoder.stdout, deadline, check_interrupted, 'FFV1 verification stalled')
                     chunk = os.read(decoder.stdout.fileno(), min(remaining, 1024*1024))
                     if not chunk:
                         raise CaptureError('FFV1 verification ended early')
@@ -240,9 +278,7 @@ class FFV1Recorder:
                     remaining -= len(chunk)
                 if digest.hexdigest() != row['raw_sha256']:
                     raise CaptureError('FFV1 decoded pixels differ from captured frame')
-            left = deadline - time.monotonic()
-            if left <= 0 or not select.select([decoder.stdout], [], [], min(10, left))[0]:
-                raise CaptureError('FFV1 verification did not finish')
+            self._wait_decoder(decoder.stdout, deadline, check_interrupted, 'FFV1 verification did not finish')
             if os.read(decoder.stdout.fileno(), 1):
                 raise CaptureError('FFV1 contains unexpected decoded frames')
             left = deadline - time.monotonic()
@@ -266,6 +302,15 @@ class FFV1Recorder:
                 if active_error is not None:
                     failure.add_note('recording verification also failed: '+repr(active_error))
                 raise failure from cleanup_error
+
+    @staticmethod
+    def _wait_decoder(stream, deadline, check_interrupted, message):
+        wait_end=min(deadline,time.monotonic()+10)
+        while True:
+            check_interrupted()
+            left=wait_end-time.monotonic()
+            if left<=0: raise CaptureError(message)
+            if select.select([stream], [], [], min(.2,left))[0]: return
 
     def abort(self):
         self.interrupt()

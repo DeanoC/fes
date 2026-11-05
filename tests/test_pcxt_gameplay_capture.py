@@ -108,13 +108,13 @@ for i in range(200):
                                 hashlib.sha256(helper.read_bytes()).hexdigest(), [template], startup_timeout=10)
             time.sleep(.35)
             verify = video.recorder.verify_capture
-            def verify_after_cleanup():
+            def verify_after_cleanup(**kwargs):
                 self.assertFalse(video.worker.is_alive())
                 self.assertTrue(video.source.closed)
                 self.assertTrue(video.recorder.closed)
                 self.assertIsNotNone(video.source.proc.poll())
                 self.assertIsNotNone(video.recorder.proc.poll())
-                verify()
+                verify(**kwargs)
             with mock.patch.object(video.recorder, 'verify_capture', side_effect=verify_after_cleanup) as checked:
                 video.stop()
             checked.assert_called_once()
