@@ -136,6 +136,13 @@ struct CoreBuild {
 	std::string toolchain;
 };
 
+struct CoreStaticExpansion {
+	std::string file, sha256, control_build_id;
+	std::uint64_t size = 0;
+	std::uint32_t hardware_id = 0;
+	std::string root_qdb_sha256, interface_sha256, clock_reset_sha256, pof0_hash;
+};
+
 struct CoreDescriptor {
 	std::uint16_t format = 0;
 	CoreMetadata core;
@@ -147,6 +154,7 @@ struct CoreDescriptor {
 	VersionedContract abi;
 	std::vector<CoreInterface> interfaces;
 	CoreBuild build;
+	CoreStaticExpansion static_expansion;
 };
 
 struct SupportedInterface {

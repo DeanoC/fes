@@ -43,6 +43,7 @@ struct OpenedCorePackage {
 	std::string manifest_bytes;
 	Artifact payload;
 	Artifact rom_map;
+	Artifact persona;
 	std::string package_id;
 };
 

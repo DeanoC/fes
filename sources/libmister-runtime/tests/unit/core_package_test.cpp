@@ -1205,10 +1205,40 @@ void TestExplicitDe25ProfileAndDriverBinding()
 	assert(!CheckCoreCompatibility(descriptor, static_cast<NativePlatform>(255)).ok());
 }
 
+void TestStaticPackageSharedStructuralCorpus()
+{
+ const std::string root = "tests/fixtures/core-bundle-v5/";
+ const char* names[] = {"valid-basic", "invalid-platform", "invalid-device", "invalid-profile", "invalid-filename", "invalid-default-id", "invalid-float-id", "invalid-float-size", "invalid-empty-size", "invalid-size-binding", "invalid-hash-binding", "invalid-zero-controller", "invalid-zero-root", "invalid-zero-interface", "invalid-zero-clock", "invalid-zero-pof", "invalid-unknown-field", "invalid-mixed-rom", "invalid-missing-static"};
+ std::string identity = ReadFile(root + "identities/valid-basic.sha256");
+ assert(identity.size() == 65 && identity.back() == '\n'); identity.pop_back();
+ for (const auto* name : names) {
+  TempDirectory package;
+  package.Add("manifest.toml", ReadFile(root + "manifests/" + name + ".toml"));
+  package.Add("core.rbf", ReadFile(root + "payloads/base.rbf"));
+  package.Add("persona.rbf", ReadFile(root + "payloads/persona.rbf"));
+  mister::native::OpenedCorePackage opened;
+  const bool valid = std::string(name) == "valid-basic";
+  const auto result = mister::native::OpenCorePackage(package.path, valid ? identity : "", &opened);
+  if (result.ok() != valid) fprintf(stderr, "static fixture %s: %s\n", name, result.message.c_str());
+  assert(result.ok() == valid);
+  if (valid) {
+   assert(opened.package_id == identity && opened.persona.size() == opened.descriptor.static_expansion.size);
+   assert(mister::native::RecheckCorePackage(opened).ok());
+   // Parsing does not enable an unfinished programming path or fall back to
+   // the standard internal-memory driver.
+   assert(mister::native::CheckCoreCompatibility(opened.descriptor, mister::native::NativePlatform::de25_nano).code == mister::ErrorCode::unsupported_programming_profile);
+   const int fd = open((package.path + "/persona.rbf").c_str(), O_WRONLY);
+   assert(fd >= 0); const char changed = 'x'; assert(pwrite(fd, &changed, 1, 0) == 1); assert(close(fd) == 0);
+   assert(!mister::native::RecheckCorePackage(opened).ok());
+  }
+ }
+}
+
 } // namespace
 
 int main()
 {
+ TestStaticPackageSharedStructuralCorpus();
 	TestExplicitDe25ProfileAndDriverBinding();
  TestDe25StandardProfileBindsSharedDriverAndRejectsOtherMemory();
 	TestComputerCompatibilityComposesRecognizedInterfaces();
@@ -1229,6 +1259,6 @@ int main()
 	TestRepositoryMatchesSharedRfc3986Contract();
 	TestCoreSystemPresenceIsValidatedAndFesGpRequiresOmission();
 	TestMissingOrNonTableCoreIsRejectedWithoutChangingResult();
-	puts("core_package_test: 13 groups passed");
+	puts("core_package_test: all groups passed");
 	return 0;
 }

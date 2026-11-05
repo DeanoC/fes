@@ -75,6 +75,7 @@ Error CheckDirectoryEntries(int directory, unsigned format)
 	if (scan_error != 0) return Invalid("cannot inspect package directory");
 	std::set<std::string> expected = {"core.rbf", "manifest.toml"};
 	if (format == 3 || format == 4) expected.insert("rom-map.json");
+	if (format == 5) expected.insert("persona.rbf");
 	if (names != expected)
 		return Invalid("package directory members do not match manifest format");
 	return {};
@@ -401,11 +402,13 @@ Error ParseManifest(const std::string& bytes, CoreDescriptor* descriptor)
 		std::int64_t format = 0;
 		Error error = IntegerField(root, "format", &format);
 		if (!error.ok()) return error;
-		if (format != 2 && format != 3 && format != 4) return Invalid("unsupported core manifest format");
+		if (format != 2 && format != 3 && format != 4 && format != 5) return Invalid("unsupported core manifest format");
 		error = format == 3 ? CheckKeys(root,
 			{"format", "core", "target", "payload", "abi", "interfaces", "build", "rom"}) :
 			format == 4 ? CheckKeys(root,
 			{"format", "core", "target", "payload", "abi", "interfaces", "build", "roms", "rom_map"}) :
+			format == 5 ? CheckKeys(root,
+			{"format", "core", "target", "payload", "abi", "interfaces", "build", "static_expansion"}) :
 			CheckKeys(root, {"format", "core", "target", "payload", "abi", "interfaces", "build"});
 		if (!error.ok()) return error;
 		CoreDescriptor candidate;
@@ -472,6 +475,30 @@ Error ParseManifest(const std::string& bytes, CoreDescriptor* descriptor)
 				!ValidHex(candidate.rom_map.sha256, 64, true))
 				return Invalid("invalid format-4 ROM map metadata");
 			candidate.rom_map.size = static_cast<std::uint64_t>(size);
+		}
+		if (format == 5) {
+			const toml::table* table = nullptr;
+			auto& selected = candidate.static_expansion;
+			error = TableField(root, "static_expansion", &table);
+			if (error.ok()) error = CheckKeys(*table, {"file", "size", "sha256", "control_build_id", "hardware_id", "root_qdb_sha256", "interface_sha256", "clock_reset_sha256", "pof0_hash"});
+			std::int64_t size = 0, hardware_id = 0;
+			if (error.ok()) error = StringField(*table, "file", &selected.file);
+			if (error.ok()) error = IntegerField(*table, "size", &size);
+			if (error.ok()) error = IntegerField(*table, "hardware_id", &hardware_id);
+			if (error.ok()) error = StringField(*table, "sha256", &selected.sha256);
+			if (error.ok()) error = StringField(*table, "control_build_id", &selected.control_build_id);
+			if (error.ok()) error = StringField(*table, "root_qdb_sha256", &selected.root_qdb_sha256);
+			if (error.ok()) error = StringField(*table, "interface_sha256", &selected.interface_sha256);
+			if (error.ok()) error = StringField(*table, "clock_reset_sha256", &selected.clock_reset_sha256);
+			if (error.ok()) error = StringField(*table, "pof0_hash", &selected.pof0_hash);
+			if (!error.ok()) return error;
+			if (selected.file != "persona.rbf" || size < 1 || size > static_cast<std::int64_t>(kMaximumPayloadSize) || hardware_id != 0xc001a001LL ||
+				!ValidHex(selected.control_build_id, 32, true) || selected.control_build_id == std::string(32, '0'))
+				return Invalid("invalid default static persona metadata");
+			for (const auto* digest : {&selected.sha256, &selected.root_qdb_sha256, &selected.interface_sha256, &selected.clock_reset_sha256, &selected.pof0_hash})
+				if (!ValidHex(*digest, 64, true) || *digest == std::string(64, '0')) return Invalid("invalid static base/persona binding");
+			selected.size = static_cast<std::uint64_t>(size);
+			selected.hardware_id = static_cast<std::uint32_t>(hardware_id);
 		}
 		const toml::table *core = nullptr, *target = nullptr, *payload = nullptr;
 		const toml::table *abi = nullptr, *build = nullptr;
@@ -561,6 +588,9 @@ Error ParseManifest(const std::string& bytes, CoreDescriptor* descriptor)
 			!ValidHex(candidate.build.recipe_sha256, 64, true) ||
 			!ValidUtf8Text(candidate.build.toolchain, 1024, false))
 			return Invalid("invalid build provenance");
+		if (format == 5 && (candidate.target.platform != "de25_nano" || candidate.target.device != "A5EB013BB23BE4SCS" ||
+			candidate.target.programming_profile != "de25-linux-static-computer-v1"))
+			return Invalid("format 5 requires the explicit DE25 static computer target");
 		*descriptor = std::move(candidate);
 		return {};
 	} catch (const std::exception&) {
@@ -605,6 +635,7 @@ Error OpenVerifiedCorePackage(int raw_directory, const std::string& directory,
 	Artifact manifest;
 	Artifact payload;
 	Artifact rom_map;
+	Artifact persona;
 	error = opener.OpenRelative(directory_descriptor.get(), directory,
 		"manifest.toml", kMaximumManifestSize, &manifest);
 	if (!error.ok()) return Invalid("invalid package manifest file");
@@ -630,6 +661,14 @@ Error OpenVerifiedCorePackage(int raw_directory, const std::string& directory,
 			Sha256Hex(map_hash.Final()) != expected_hash)
 			return Invalid("ROM map size or digest does not match manifest");
 	}
+	if (descriptor.format == 5) {
+		error = opener.OpenRelative(directory_descriptor.get(), directory, "persona.rbf", kMaximumPayloadSize, &persona);
+		if (!error.ok()) return Invalid("invalid default persona file");
+		Sha256 persona_hash;
+		if (persona.size() != descriptor.static_expansion.size || !HashArtifact(persona, &persona_hash).ok() ||
+			Sha256Hex(persona_hash.Final()) != descriptor.static_expansion.sha256)
+			return Invalid("default persona size or digest does not match manifest");
+	}
 	if (descriptor.payload.size != payload.size())
 		return Invalid("payload size does not match manifest");
 	Sha256 payload_hash;
@@ -640,7 +679,8 @@ Error OpenVerifiedCorePackage(int raw_directory, const std::string& directory,
 		return Invalid("payload digest does not match manifest");
 
 	Sha256 package_hash;
-	const std::string domain = descriptor.format == 4 ? "FES-CORE-PACKAGE-4\n" :
+	const std::string domain = descriptor.format == 5 ? "FES-CORE-PACKAGE-5\n" :
+		descriptor.format == 4 ? "FES-CORE-PACKAGE-4\n" :
 		descriptor.format == 3 ? "FES-CORE-PACKAGE-3\n" : "FES-CORE-PACKAGE-2\n";
 	package_hash.Update(domain.data(), domain.size());
 	HashLittleEndian64(&package_hash, manifest_bytes.size());
@@ -651,6 +691,11 @@ Error OpenVerifiedCorePackage(int raw_directory, const std::string& directory,
 	if (descriptor.format == 3 || descriptor.format == 4) {
 		HashLittleEndian64(&package_hash, rom_map.size());
 		error = HashArtifact(rom_map, &package_hash);
+		if (!error.ok()) return error;
+	}
+	if (descriptor.format == 5) {
+		HashLittleEndian64(&package_hash, persona.size());
+		error = HashArtifact(persona, &package_hash);
 		if (!error.ok()) return error;
 	}
 	const std::string package_id = Sha256Hex(package_hash.Final());
@@ -664,6 +709,7 @@ Error OpenVerifiedCorePackage(int raw_directory, const std::string& directory,
 	opened.manifest_bytes = std::move(manifest_bytes);
 	opened.payload = std::move(payload);
 	opened.rom_map = std::move(rom_map);
+	opened.persona = std::move(persona);
 	opened.package_id = package_id;
 	error = RecheckCorePackage(opened);
 	if (!error.ok()) return Invalid("package changed during admission");
@@ -761,7 +807,8 @@ Error RecheckCorePackage(const OpenedCorePackage& package)
 		Sha256Hex(payload_hash.Final()) != package.descriptor.payload.sha256)
 		return changed();
 	Sha256 package_hash;
-	const std::string domain = package.descriptor.format == 4 ? "FES-CORE-PACKAGE-4\n" :
+	const std::string domain = package.descriptor.format == 5 ? "FES-CORE-PACKAGE-5\n" :
+		package.descriptor.format == 4 ? "FES-CORE-PACKAGE-4\n" :
 		package.descriptor.format == 3 ? "FES-CORE-PACKAGE-3\n" : "FES-CORE-PACKAGE-2\n";
 	package_hash.Update(domain.data(), domain.size());
 	HashLittleEndian64(&package_hash, package.manifest_bytes.size());
@@ -779,6 +826,15 @@ Error RecheckCorePackage(const OpenedCorePackage& package)
 				package.descriptor.rom.sha256 : package.descriptor.rom_map.sha256)) return changed();
 		HashLittleEndian64(&package_hash, package.rom_map.size());
 		if (!HashArtifact(package.rom_map, &package_hash).ok()) return changed();
+	}
+	if (package.descriptor.format == 5) {
+		if (fstat(package.persona.fd(), &metadata) != 0 || !S_ISREG(metadata.st_mode) || metadata.st_size < 1 ||
+			static_cast<std::uint64_t>(metadata.st_size) != package.persona.size() || package.persona.size() != package.descriptor.static_expansion.size)
+			return changed();
+		Sha256 persona_hash;
+		if (!HashArtifact(package.persona, &persona_hash).ok() || Sha256Hex(persona_hash.Final()) != package.descriptor.static_expansion.sha256) return changed();
+		HashLittleEndian64(&package_hash, package.persona.size());
+		if (!HashArtifact(package.persona, &package_hash).ok()) return changed();
 	}
 	if (Sha256Hex(package_hash.Final()) != package.package_id)
 		return changed();

@@ -1,5 +1,16 @@
 # FogCast architecture
 
+The corepackage reader also recognizes format5's three closed members:
+`manifest.toml`, the full `core.rbf` base and default empty `persona.rbf`.
+Archive, directory, streamed listing and private staging paths bind both images
+to the same domain-separated package ID. The descriptor carries the expected
+controller ID and frozen root/interface/clock-reset/POF0 identities; the persona
+is opaque vendor data, never a CycloneV CRAM patch. Unknown members, mixed ROM
+tables, wrong targets, changed bytes and invalid default identities are refused.
+This is structural support. The static programming profile remains unregistered;
+normal activation still refuses it before hardware access. Alternate-persona
+selection, matching runtime dispatch and physical qualification remain required.
+
 The corepackage reader recognizes format 4's two ordered ROM requirements and
 sealed map. Launch and target activation of that format require the separate
 two-source transport and linked-load path before it becomes selectable.

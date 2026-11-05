@@ -8,6 +8,13 @@ physical lifecycle, media/input delivery, and recovery. FES described packages a
 `fes.simple-computer`, `fes.application` and `fes.computer` through `fes-gp-v1`.
 DE25 selects the explicit profiles below. Protocol 2 is the only local socket protocol.
 
+The package reader recognizes format5's sealed full base and default empty
+persona, retains both open artifacts and rechecks their exact bytes. Its package
+identity matches FogCast's three-member identity and shared conformance corpus.
+The static programming profile remains unregistered and is refused before
+hardware access; this structural support does not enable physical PR, an
+alternate-persona selection or a new runtime command.
+
 Production hardware construction selects the board before constructing physical
 adapters. DE10 requires ARMv7 and the exact FES Cyclone V device-tree identity.
 DE25 requires AArch64 and the exact Terasic Agilex5 model/compatible properties,

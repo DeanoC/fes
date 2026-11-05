@@ -4,9 +4,15 @@ Development lives in the FES repository under `sources/mister-packages`.
 The former standalone repository is archived.
 
 This module owns shared board/SoC/MMIO definitions, FES ABI contracts,
-programming-profile declarations, format-2/3/4 package schemas and conformance
+programming-profile declarations, format-2/3/4/5 package schemas and conformance
 fixtures. Go emitters generate C, C++14, Go and Verilog consumers. FES runs
 `make generate` and `make check-generated` across the tracked modules.
+
+Format5 describes a DE25 cold-start base plus its default empty partial persona.
+The three exact members, controller identity and frozen-root bindings are
+specified in [the schema guide](docs/schema.md#static-expansion-package-format-5).
+The shared Go/C++ structural fixtures do not register the unfinished static
+programming profile or qualify a physical partial configuration.
 
 Standalone board definitions support `validate` and `report`, independently of
 SoC and CPU definitions. DE25-Nano starts with descriptive FPGA bring-up pins;
@@ -87,7 +93,7 @@ The runtime owns physical programming and compatibility admission; FogCast
 owns library/session context; misteross owns source builds and RBF provenance.
 Shared persistence layouts and wire contracts remain here.
 
-Run `make test` with Python `jsonschema` available and Go installed.
+Run `make test` with Python `jsonschema[format]` available and Go installed.
 Use `make fixtures` to regenerate canonical fixtures and `make check-fixtures`
 to verify them. See [schema](docs/schema.md),
 [application I/O](docs/application-io.md), [home-computer I/O](docs/computer-io.md)

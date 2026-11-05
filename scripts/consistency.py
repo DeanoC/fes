@@ -57,6 +57,8 @@ COPIED_TREES = (
     ('testdata/core-bundle-v4', 'FogCast', 'corepackage/testdata/core-bundle-v4'),
     ('testdata/core-bundle-v4', 'libmister-runtime', 'tests/fixtures/core-bundle-v4'),
     ('testdata/core-bundle-v4', 'misteross', 'tests/fixtures/core-bundle-v4'),
+    ('testdata/core-bundle-v5', 'FogCast', 'corepackage/testdata/core-bundle-v5'),
+    ('testdata/core-bundle-v5', 'libmister-runtime', 'tests/fixtures/core-bundle-v5'),
     ('testdata/core-persistence-v1', 'libmister-runtime', 'tests/fixtures/core-persistence-v1'),
     ('testdata/media-data-v1', 'libmister-runtime', 'tests/fixtures/media-data-v1'),
 )

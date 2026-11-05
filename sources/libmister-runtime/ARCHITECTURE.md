@@ -41,6 +41,15 @@ splash and ends in reboot-required.
 
 ## DE25 kernel programmer
 
+Format5 package parsing retains `core.rbf` and the default empty `persona.rbf`
+independently. A third member, strict static metadata and a separate
+`FES-CORE-PACKAGE-5` identity domain bind the manifest and both opaque images.
+Recheck hashes both retained descriptors again, including persona size and file
+type. Shared fixtures cover cross-reader identity and refusal, while the
+programming registry deliberately has no static-computer row yet. Parsing does
+not select a driver or call `ProgramStatic`. Alternate-persona composition,
+owned bounded backend construction and physical qualification remain required.
+
 `LinuxDe25FpgaManager` implements `FpgaManager` for the selected
 `de25_hps_first_v1` computer and `de25_linux_menu_v1` application profiles.
 The shared registry pairs these only with the DE25 platform. Cyclone V refuses that enum before its

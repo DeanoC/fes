@@ -63,8 +63,13 @@ automatic MENU recovery and a fresh ZX81 session. It uses the retained
 source-510 software; the later inherited-drain repair still needs its own native
 acceptance.
 
-The latest final restoration verifies baseline `a14a` at software generation 34 in boot
-`e8d10b71-cb1e-4061-bc93-81e4dc51754b`, with the same image, kernel and card. The
+The latest [new-image trial and restoration](../validation/2026-11-05-de25-static-expansion-offboard/README.md#new-linux-image-native-ordinary-core-trial)
+boots enabled kernel `9ac` and image `d11`, verifies durable data, Ethernet/SSH,
+normal standard ZX81 BASIC 7/9/7 and an ordinary software reboot followed by a
+fresh LOAD/RUN7. Its original-card restoration repairs verified filesystem
+bookkeeping while preserving all files, then authenticates baseline `a14a` at
+generation 38 in boot `35d95481-a33d-4d4b-a042-28e9163b3cc4`, with the original
+`6de` image, kernel and card. The
 original host, catalog and settings are restored, owned fixtures are removed,
 and the board is independently verified ready, idle and lease-free before
 release. These trials leave the top board untouched and promote no main baseline.

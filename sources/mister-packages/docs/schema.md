@@ -334,6 +334,33 @@ defines `fes.fabric.video.raster-rgb888` 1.0. See
 markers, HOLD and the fixed 720p mode bounds. The source/socket package marker
 remains separate from operational GP capabilities and programming profiles.
 
+## Static expansion package format 5
+
+`schema/core-bundle-v5.json` describes the DE25 cold-start package. Its closed
+restricted-ustar archive contains exactly `manifest.toml`, `core.rbf` and
+`persona.rbf`, in that order; a directory contains the same three regular,
+non-symlink files. Each RBF is independently bounded to 32 MiB. The full base
+uses the ordinary payload table. A required `static_expansion` table binds the
+default empty persona's filename, exact size and SHA256, its hardware ID
+`0xc001a001`, the controller's nonzero 32-hex build ID, and four nonzero 64-hex
+frozen-root identities: `root_qdb_sha256`, `interface_sha256`,
+`clock_reset_sha256` and `pof0_hash`. Numbers are exact integers; floats and
+booleans do not substitute for them. No ROM-map fields are accepted.
+
+The target is exactly `de25_nano`, device `A5EB013BB23BE4SCS`, profile
+`de25-linux-static-computer-v1`. This profile is not registered for activation
+yet. Structural parsing never proves vendor payload compatibility, timing or
+physical acceptance. An alternate expansion will need its own sealed binding
+to this package and these frozen identities before the runtime can select it.
+
+Package identity is SHA256 over `FES-CORE-PACKAGE-5\n`, followed by each of the
+three exact member byte strings, in archive order, prefixed by its unsigned
+64-bit little-endian length. Unlike CycloneV static composition, no payload bit
+editing or monolithic RBF construction is implied. The default persona belongs
+to the package so an empty selection also has a complete cold-start artifact.
+`testdata/core-bundle-v5` is the shared Go/C++ structural corpus; its opaque
+synthetic payloads must never be deployed.
+
 ## programming_profiles
 
 `packages/abi/fes_application.yaml` adds ABI `fes.application` 1.0, tag 3,
