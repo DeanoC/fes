@@ -28,8 +28,7 @@ const viewReopenDelay = 5 * time.Second
 //
 // As in mister-agent, an unavailable durable store withholds the factory
 // packages too: every call returns ErrStoreUnavailable. The store opens in
-// the background, because opening takes its lock and verifies every durable
-// package, and mister-agent can hold that lock for a whole install. Calls
+// the background, because filesystem checks can be slow. Calls
 // made while it opens return ErrStoreUnavailable at once and never wait for
 // it. A failed open is retried at most every viewReopenDelay, so a host that
 // starts before FESDATA3 is ready recovers without a restart.

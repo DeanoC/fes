@@ -76,6 +76,67 @@ func install(t *testing.T, s *Store, archive []byte) corepackage.Inspection {
 	return inspection
 }
 
+func TestHostOpenSkipsRecoveryButVerifiesOnAccess(t *testing.T) {
+	archive, expected := fixture(t, "0.1.0", "fes.pong")
+	agent := newStore(t)
+	install(t, agent, archive)
+
+	// A second opener must not wait for the agent's lock or read payloads.
+	_, unlock, err := agent.lock(context.Background())
+	if err != nil {
+		t.Fatal(err)
+	}
+	fullVerificationReads.Store(0)
+	type openResult struct {
+		store *Store
+		err   error
+	}
+	opened := make(chan openResult, 1)
+	go func() {
+		store, err := openStore(agent.root, false)
+		opened <- openResult{store, err}
+	}()
+	var host *Store
+	select {
+	case result := <-opened:
+		if result.err != nil {
+			unlock()
+			t.Fatal(result.err)
+		}
+		host = result.store
+	case <-time.After(5 * time.Second):
+		unlock()
+		<-opened
+		t.Fatal("host open waited for the agent's lock")
+	}
+	unlock()
+	if got := fullVerificationReads.Load(); got != 0 {
+		t.Fatalf("host open performed %d payload verifications", got)
+	}
+	list, err := host.List(context.Background())
+	if err != nil || !reflect.DeepEqual(list, []corepackage.Inspection{expected}) {
+		t.Fatalf("host list=%+v,%v", list, err)
+	}
+	if got := fullVerificationReads.Load(); got == 0 {
+		t.Fatal("host list did not verify the publication")
+	}
+
+	// Opening the host view does not bless corrupted publications.
+	member := filepath.Join(agent.root, "packages", expected.PackageID, "core.rbf")
+	if err := os.Chmod(member, 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(member, []byte("corrupted"), 0o400); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Chmod(member, 0o400); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := host.List(context.Background()); err == nil {
+		t.Fatal("host list accepted a corrupted publication")
+	}
+}
+
 func TestInstallRetainsSealedMembersAndNoSelectionAcrossReopen(t *testing.T) {
 	archive, expected := fixture(t, "0.1.0", "fes.pong")
 	s := newStore(t)
