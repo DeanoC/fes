@@ -165,6 +165,9 @@ func (c *computerCPU) WritePhysical32(address uint64, word uint32) error {
 	if word>>24&127 == cg.FesComputerOpcodeIdentity {
 		c.gpi |= uint32(c.words[word>>16&255])
 	}
+	if word>>24&127 == cg.FesComputerOpcodeExecution && uint16(word) == uint16(cg.FesComputerExecutionRelease) {
+		c.fetches++ // Model a fetch after reset release; actual RTL tests use the core.
+	}
 	return nil
 }
 

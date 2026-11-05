@@ -66,14 +66,15 @@ func ReadProgramCatalog(ctx context.Context, files fs.FS, path string, choices [
 // Read must be nonblocking; Emit must honor ctx and return its write failure.
 // Keep the service rooted after exit, including uncertain return failures.
 type ProgramSerialPlatform struct {
-	service    *ProgramService
-	read       func() (byte, bool)
-	emit       func(context.Context, []byte) error
-	decoder    input.Decoder
-	last       time.Time
-	previous   []byte
-	quit       bool
-	stopQueued bool
+	service         *ProgramService
+	read            func() (byte, bool)
+	emit            func(context.Context, []byte) error
+	decoder         input.Decoder
+	last            time.Time
+	previous        []byte
+	quit            bool
+	stopQueued      bool
+	fetchGeneration uint64
 }
 
 func NewProgramSerialPlatform(service *ProgramService, read func() (byte, bool), emit func(context.Context, []byte) error) (*ProgramSerialPlatform, error) {
@@ -151,6 +152,16 @@ func (p *ProgramSerialPlatform) Present(ctx context.Context, snapshot tenfoot.Sn
 	}
 	if err := ctx.Err(); err != nil {
 		return err
+	}
+	if observation, ok := p.service.FetchObservation(); ok && observation.Generation != p.fetchGeneration {
+		data, err := json.Marshal(observation)
+		if err != nil {
+			return err
+		}
+		if err := p.emit(ctx, append(append([]byte("FES_NATIVE_CORE_FETCH "), data...), '\n')); err != nil {
+			return err
+		}
+		p.fetchGeneration = observation.Generation
 	}
 	titles := make([]string, len(snapshot.Games))
 	for i, e := range snapshot.Games {

@@ -500,6 +500,22 @@ ordinary ROM/parts/media admission and native Ethernet remain open. The
 separately accepted fixed-window renderer diagnostic does not grant display
 ownership to these computer sessions.
 
+`ProgramService.Launch` now verifies instruction-fetch activity before publishing
+Running. After identity it issues Hold, requires two identical count/address
+observations, issues Run once and waits for a positive bounded counter delta.
+The complete sequence shares the existing computer timeout and poll bound.
+Counter reset/backwards movement, Hold drift, cancellation, late IO and ownership
+loss retire the session, close control once and retain SD/arena ownership.
+Modulo counter wrap is accepted only as a forward delta below half the range.
+
+The serial adapter emits one `FES_NATIVE_CORE_FETCH` observation per running
+generation before its state report. It binds the actual samples to the selected
+package/build and owner/generation. The trace checker requires that evidence
+after FPGA configuration and before published Running, rejects missing/stale or
+duplicate observations, and never treats saved evidence as permission for IO.
+This checks fetch-bus activity under Hold/Run; retired instructions, emulation
+fidelity, physical input/video and normal ROM/package admission remain separate.
+
 Computer limit failures can include the last native register access's separate
 secure ownership-before, register-I/O and ownership-after durations. The register
 phase includes the CPU transport's live mapping verification. These saved

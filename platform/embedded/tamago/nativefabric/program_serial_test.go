@@ -118,7 +118,20 @@ func TestFullTenfootSerialNativeLaunchReturnAndFailures(t *testing.T) {
 			queue := []byte{}
 			stage := 0
 			states := 0
+			fetches := map[uint64]bool{}
 			emit := func(_ context.Context, raw []byte) error {
+				if bytes.HasPrefix(raw, []byte("FES_NATIVE_CORE_FETCH ")) {
+					var observation ProgramFetchObservation
+					if err := json.Unmarshal(bytes.TrimPrefix(raw, []byte("FES_NATIVE_CORE_FETCH ")), &observation); err != nil {
+						return err
+					}
+					expected, ok := f.s.FetchObservation()
+					if !ok || observation != expected || fetches[observation.Generation] {
+						return errors.New("unbound or duplicate fetch observation")
+					}
+					fetches[observation.Generation] = true
+					return nil
+				}
 				var view struct {
 					Display     string               `json:"display"`
 					Loading     bool                 `json:"loading"`
@@ -199,7 +212,7 @@ func TestFullTenfootSerialNativeLaunchReturnAndFailures(t *testing.T) {
 				t.Fatalf("%v stage=%d state=%+v", err, stage, f.s.Status())
 			}
 			if fault == "" {
-				if stage != 5 || f.s.Status().State != ProgramReady || f.s.Status().Generation != 4 || !f.lease.r.Active || f.cpu.configurations != 2 {
+				if stage != 5 || len(fetches) != 2 || f.s.Status().State != ProgramReady || f.s.Status().Generation != 4 || !f.lease.r.Active || f.cpu.configurations != 2 {
 					t.Fatal(stage, f.s.Status())
 				}
 			} else if stage != 9 || f.s.Status().State != ProgramRebootRequired || f.lease.r.Active {

@@ -73,6 +73,7 @@ type programService struct {
 	closed         bool
 	rearm          bool
 	backendClaimed bool
+	execution      ProgramFetchObservation
 }
 
 // NewProgramService takes exclusive lifecycle ownership of this verifier once.
@@ -158,7 +159,8 @@ func (p *programService) fail(err error) error {
 
 // Launch checks the caller's last Ready generation before any file/firmware I/O.
 // Content rejection leaves healthy SD usable. After containment, any uncertainty
-// retires the service. A new success is published only after live identity and Run.
+// retires the service. Success requires live identity, stable held fetch samples
+// and independent fetch-counter progress after one Run, within the existing bound.
 func (s *ProgramService) Launch(ctx context.Context, generation uint64, request packagestore.Request) (ProgramSession, error) {
 	p, view, err := s.begin(ctx)
 	if err != nil {
@@ -214,11 +216,14 @@ func (s *ProgramService) Launch(ctx context.Context, generation uint64, request 
 	if err != nil {
 		return ProgramSession{}, p.fail(err)
 	}
-	if err = p.computer.Computer().Run(control); err != nil {
+	execution, err := p.startExecution(control, view)
+	if err != nil {
 		return ProgramSession{}, p.fail(err)
 	}
 	view.State, view.Held = ProgramRunning, false
-	p.publish(view)
+	p.viewMu.Lock()
+	p.execution, p.view = execution, view
+	p.viewMu.Unlock()
 	return ProgramSession{p, view.Generation}, nil
 }
 

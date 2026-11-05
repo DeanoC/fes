@@ -21,6 +21,17 @@ class Model:
     def raw(self,state):return trace.PREFIX+json.dumps(state,separators=(',',':')).encode()+b'\n'
     def client(self,programs=None):
         return trace.TenfootClient(BOOT+trace.BEGIN+b'\n'+self.raw(self.state()),build_id=SPEC['build_id'],owner_seed=SPEC['owner_seed'],atf=SPEC['atf'],package=SPEC['package'],programs=PROGRAMS if programs is None else programs,exchange=self.exchange,owns=lambda:self.service.owned,now=lambda:self.service.clock)
+    def fetch(self):
+        r=dict(scope='nano-computer-fetch-v1',owner=int(OWNER,16),generation=self.service.generation,package_id=PROGRAMS[self.selected]['identity']['PackageID'],build_id=PROGRAMS[self.selected]['identity']['BuildID'],before=dict(Cycles=10,Address=0),held=dict(Cycles=10,Address=0),running=dict(Cycles=20,Address=1),delta=10,polls=1,elapsed_ns=1000000,limit_ns=1000000000)
+        if self.fault=='fetch-stuck':r['running']['Cycles']=10;r['delta']=0
+        if self.fault=='fetch-held':r['before']['Cycles']=9
+        if self.fault=='fetch-reset':r['running']['Cycles']=9;r['delta']=0xffffffff
+        if self.fault=='fetch-identity':r['build_id']='e'*32
+        if self.fault=='fetch-generation':r['generation']+=2
+        if self.fault=='fetch-clock':r['elapsed_ns']=1000000000
+        if self.fault=='fetch-bool':r['polls']=True
+        raw=trace.FETCH+json.dumps(r,separators=(',',':')).encode()+b'\n'
+        return b'' if self.fault=='fetch-missing' else raw*2 if self.fault=='fetch-duplicate' else raw
     def exchange(self,key,bound,done):
         self.keys.append(key);before=self.service.generation
         if key in (b'\x1b[C',b'\x1b[D'):
@@ -35,8 +46,9 @@ class Model:
             self.service.fault=self.fault if self.fault in ('transfer','smmu','stop','late','clock','claim','raise','activation') else ''
             _,evidence=response(self.service.exchange(json.dumps(command).encode(),bound))
             state=self.state()
-            raw=self.raw(intermediate)+evidence+(b'FES_NATIVE_TENFOOT_EXIT state=ready generation=6\n' if key==b'q' else self.raw(state))
+            raw=self.raw(intermediate)+evidence+(self.fetch() if op=='launch' else b'')+(b'FES_NATIVE_TENFOOT_EXIT state=ready generation=6\n' if key==b'q' else self.raw(state))
             if self.fault=='early-state':raw=self.raw(state)+evidence+self.raw(state)
+            if self.fault=='fetch-early' and op=='launch':raw=self.fetch()+self.raw(intermediate)+evidence+self.raw(state)
             if self.fault=='regress':raw+=self.raw(intermediate)+self.raw(state)
         if self.fault=='owner':raw=raw.replace(str(int(OWNER,16)).encode(),b'1')
         if self.fault=='identity':raw=raw.replace(IDENTITY['BuildID'].encode(),b'd'*32)
@@ -57,8 +69,16 @@ class TenfootTraceTests(unittest.TestCase):
         self.assertFalse(result['hardware_acceptance']);count=len(model.keys)
         with self.assertRaises(ValueError):client.key('stop')
         self.assertEqual(count,len(model.keys))
+    def test_fetch_counter_wrap_and_unsolicited_observations(self):
+        model=Model();model.service.generation=1
+        record=json.loads(model.fetch()[len(trace.FETCH):])
+        record['before']=record['held']=dict(Cycles=0xfffffffe,Address=0)
+        record['running']=dict(Cycles=3,Address=1);record['delta']=5
+        self.assertEqual(trace.fetch_observation(json.dumps(record))['delta'],5)
+        model.service.generation=0
+        with self.assertRaises(ValueError):trace.packet(model.fetch()+model.raw(model.state()))
     def test_corrupt_launch_retires_without_another_key(self):
-        for fault in ('transfer','smmu','late','clock','claim','raise','activation','owner','identity','bool-generation','scope','queue','duplicate-field','truncated','side-effect','early-state','regress'):
+        for fault in ('transfer','smmu','late','clock','claim','raise','activation','owner','identity','bool-generation','scope','queue','duplicate-field','truncated','side-effect','early-state','regress','fetch-stuck','fetch-held','fetch-reset','fetch-identity','fetch-generation','fetch-clock','fetch-bool','fetch-missing','fetch-duplicate','fetch-early'):
             with self.subTest(fault=fault):
                 model=Model();client=model.client();model.fault=fault
                 with self.assertRaises((ValueError,OSError)):client.key('launch',0)
