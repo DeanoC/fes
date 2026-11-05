@@ -77,6 +77,7 @@ Each changed path gets a class and a component:
   corresponding Quartus package. A DE10 test cannot satisfy them; an executor
   without a DE25 route must stop for that hardware check. Shared DE25 board
   code selects both packages, while computer-specific code selects ZX81.
+  The captured ZX81 firmware generator also selects the ZX81 hardware check.
   Package changes alone remain `overlay` and do not require rebuilding Linux.
   Standalone LED, RAM-test and link-proof diagnostics remain separate from
   deployed-package testing. The regression checks the actual MENU and standard

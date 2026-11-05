@@ -78,6 +78,7 @@ RULES = [
     ('sources/misteross/boards/de25nano/zx81-hps/**', 'overlay', 'core:de25-zx81'),
     # This helper is also imported by the canonical computer producer.
     ('sources/misteross/boards/de25nano/zx81/build.py', 'overlay', 'core:de25-zx81'),
+    ('sources/misteross/boards/de25nano/zx81/firmware.py', 'overlay', 'core:de25-zx81'),
     # These remaining diagnostics have no deployed package consumer.
     *[('sources/misteross/boards/de25nano/' + path, 'none', None) for path in (
         'blinky.v', 'blinky.sv', 'blinky_tb.cpp', 'pins.qsf', 'clocks.sdc',
