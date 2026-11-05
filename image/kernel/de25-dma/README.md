@@ -288,3 +288,22 @@ syscall. No domain, stream, permanent supplier binding, physical clock/bridge or
 board lifecycle is qualified. Still required before activation: admitted
 loader/package and syscall integration, matching boot/rootfs, concurrency and
 physical acceptance of the prepared kernel/base tree.
+
+## Static expansion startup candidate
+
+The default-off `FES_DE25_STATIC_EXPANSION` candidate handles one initial
+persona before display allocation. A full base overlay declares a
+`fes,de25-linux-static-expansion` marker and introduces the direct
+`fes-expansion` child FPGA region without firmware. The owner remains
+unavailable and creates no guard epoch or DMA grant at that point. A separate
+partial-configuration overlay targets that child. Only its completed
+`POST_APPLY` may claim the ordinary scanout guard and admit allocation.
+
+A failed initial persona attempt remains unavailable. Removing a completed
+persona does not permit another selection: expansion changes require another
+full base load on the next launch. Existing lease exclusion, uncertain-load
+retention, supplier protections and the allocation ABI remain in force. The
+ordinary scanout profile retains its existing behavior. This candidate has no
+runtime loader or package admission yet, and no kernel image is selected or
+deployed by this source change. Kernel tests and physical acceptance remain
+required.

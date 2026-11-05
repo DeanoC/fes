@@ -1,0 +1,18 @@
+// SPDX-License-Identifier: GPL-2.0
+/dts-v1/;
+/plugin/;
+
+/ {
+	fragment@0 {
+		target-path = "/fes-de25-kunit-region";
+		__overlay__ {
+			firmware-name = "fes-kunit-modeled-static-base.rbf";
+			scanout {
+				compatible = "fes,de25-linux-static-expansion";
+			};
+			fes-expansion {
+				compatible = "fpga-region";
+			};
+		};
+	};
+};

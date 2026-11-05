@@ -9,6 +9,7 @@
 #include <linux/notifier.h>
 #include <linux/file.h>
 #include <linux/kthread.h>
+#include <linux/libfdt.h>
 #include <linux/mman.h>
 #include <linux/mm.h>
 #include <linux/of.h>
@@ -1446,11 +1447,11 @@ struct owner_fixture {
 	struct fes_de25_owner *owner;
 	struct guard_test_device *device;
 	struct file *file;
-	int fd, base_overlay, profile_overlay, program_error;
+	int fd, base_overlay, profile_overlay, persona_overlay, program_error;
 	struct device_node *region;
 	struct notifier_block programmer;
 	bool programmer_registered;
-	unsigned int programs, removes;
+	unsigned int programs, removes, persona_programs;
 	bool wrong_identity;
 	struct fes_de25_dma_test_observer control_observer;
 };
@@ -1478,6 +1479,8 @@ static void owner_fixture_cleanup(void *context)
 	f->device->endpoint->stop_error = 0;
 	fes_de25_owner_test_reap(f->owner);
 	owner_fixture_close_client(f);
+	if (f->persona_overlay)
+		of_overlay_remove(&f->persona_overlay);
 	if (f->profile_overlay)
 		of_overlay_remove(&f->profile_overlay);
 	if (f->programmer_registered)
@@ -1660,6 +1663,8 @@ static void permanent_owner_checks_real_supplier_links(struct kunit *test)
  */
 extern u8 __dtbo_fes_de25_owner_base_begin[], __dtbo_fes_de25_owner_base_end[];
 extern u8 __dtbo_fes_de25_owner_profile_begin[], __dtbo_fes_de25_owner_profile_end[];
+extern u8 __dtbo_fes_de25_owner_static_begin[], __dtbo_fes_de25_owner_static_end[];
+extern u8 __dtbo_fes_de25_owner_persona_begin[], __dtbo_fes_de25_owner_persona_end[];
 
 static int owner_fixture_program(struct notifier_block *nb, unsigned long action, void *data)
 {
@@ -1668,6 +1673,13 @@ static int owner_fixture_program(struct notifier_block *nb, unsigned long action
 	struct guard_test_device *device = f->device;
 	struct test_transport *endpoint = device->endpoint;
 
+	if (nd->target->parent == f->region && of_node_name_eq(nd->target, "fes-expansion")) {
+		if (action != OF_OVERLAY_PRE_APPLY)
+			return NOTIFY_OK;
+		f->persona_programs++;
+		/* Partial programming preserves the static guard's register state. */
+		return notifier_from_errno(f->program_error);
+	}
 	if (nd->target != f->region)
 		return NOTIFY_OK;
 	if (action == OF_OVERLAY_PRE_REMOVE)
@@ -1724,6 +1736,194 @@ static int owner_fixture_apply(struct owner_fixture *f)
 	return of_overlay_fdt_apply(__dtbo_fes_de25_owner_profile_begin,
 		__dtbo_fes_de25_owner_profile_end - __dtbo_fes_de25_owner_profile_begin,
 		&f->profile_overlay, NULL);
+}
+
+static int owner_fixture_static(struct owner_fixture *f)
+{
+	return of_overlay_fdt_apply(__dtbo_fes_de25_owner_static_begin,
+		__dtbo_fes_de25_owner_static_end - __dtbo_fes_de25_owner_static_begin,
+		&f->profile_overlay, NULL);
+}
+
+static int owner_fixture_persona(struct owner_fixture *f)
+{
+	return of_overlay_fdt_apply(__dtbo_fes_de25_owner_persona_begin,
+		__dtbo_fes_de25_owner_persona_end - __dtbo_fes_de25_owner_persona_begin,
+		&f->persona_overlay, NULL);
+}
+
+static void owner_static_persona_precedes_epoch_and_allocation(struct kunit *test)
+{
+	struct owner_fixture *f = owner_fixture_create(test, false);
+	struct fes_de25_dma_publish publish;
+	unsigned int cycle, reads;
+
+	KUNIT_ASSERT_NOT_NULL(test, f);
+	KUNIT_ASSERT_EQ(test, owner_fixture_overlay_setup(f), 0);
+	for (cycle = 1; cycle <= 2; cycle++) {
+		KUNIT_ASSERT_EQ(test, owner_fixture_static(f), 0);
+		KUNIT_EXPECT_EQ(test, f->programs, cycle);
+		KUNIT_EXPECT_EQ(test, f->device->regs[FES_DE25_SCANOUT_GUARD_EPOCH_OFFSET / 4], 0U);
+		reads = f->device->reads;
+		KUNIT_EXPECT_EQ(test, fes_de25_owner_test_ioctl(f->owner, FES_DE25_DMA_OWNER_ALLOC, 0), -ENODEV);
+		KUNIT_EXPECT_EQ(test, f->device->reads, reads);
+		KUNIT_ASSERT_EQ(test, owner_fixture_persona(f), 0);
+		KUNIT_EXPECT_EQ(test, f->persona_programs, cycle);
+		KUNIT_EXPECT_EQ(test, f->device->regs[FES_DE25_SCANOUT_GUARD_EPOCH_OFFSET / 4], cycle);
+		f->fd = fes_de25_owner_test_ioctl(f->owner, FES_DE25_DMA_OWNER_ALLOC, 0);
+		KUNIT_ASSERT_GE(test, f->fd, 0);
+		f->file = fget(f->fd);
+		KUNIT_ASSERT_NOT_NULL(test, f->file);
+		publish = publish_for(f->file);
+		KUNIT_ASSERT_EQ(test, fes_de25_dma_publish(f->file, &publish), 0);
+		KUNIT_EXPECT_EQ(test, of_overlay_remove(&f->persona_overlay), -EBUSY);
+		KUNIT_EXPECT_EQ(test, of_overlay_remove(&f->profile_overlay), -EBUSY);
+		KUNIT_ASSERT_EQ(test, fes_de25_owner_test_reap(f->owner), 0);
+		KUNIT_EXPECT_EQ(test, of_overlay_remove(&f->persona_overlay), -EBUSY);
+		owner_fixture_close_client(f);
+		KUNIT_ASSERT_EQ(test, of_overlay_remove(&f->persona_overlay), 0);
+		KUNIT_EXPECT_EQ(test, fes_de25_owner_test_ioctl(f->owner, FES_DE25_DMA_OWNER_ALLOC, 0), -ENODEV);
+		/* A changed selection is a new launch, never a live child reload. */
+		KUNIT_EXPECT_EQ(test, owner_fixture_persona(f), -EIO);
+		KUNIT_EXPECT_EQ(test, f->persona_programs, cycle);
+		if (f->persona_overlay)
+			KUNIT_ASSERT_EQ(test, of_overlay_remove(&f->persona_overlay), 0);
+		KUNIT_ASSERT_EQ(test, of_overlay_remove(&f->profile_overlay), 0);
+	}
+}
+
+static void owner_static_failed_persona_requires_fresh_base(struct kunit *test)
+{
+	struct owner_fixture *f = owner_fixture_create(test, false);
+	unsigned int reads;
+
+	KUNIT_ASSERT_NOT_NULL(test, f);
+	KUNIT_ASSERT_EQ(test, owner_fixture_overlay_setup(f), 0);
+	KUNIT_ASSERT_EQ(test, owner_fixture_static(f), 0);
+	f->program_error = -EIO;
+	KUNIT_EXPECT_EQ(test, owner_fixture_persona(f), -EIO);
+	KUNIT_EXPECT_EQ(test, f->persona_programs, 1U);
+	reads = f->device->reads;
+	KUNIT_EXPECT_EQ(test, fes_de25_owner_test_ioctl(f->owner, FES_DE25_DMA_OWNER_ALLOC, 0), -ENODEV);
+	KUNIT_EXPECT_EQ(test, f->device->reads, reads);
+	KUNIT_EXPECT_EQ(test, f->device->regs[FES_DE25_SCANOUT_GUARD_EPOCH_OFFSET / 4], 0U);
+	if (f->persona_overlay)
+		KUNIT_ASSERT_EQ(test, of_overlay_remove(&f->persona_overlay), 0);
+	f->program_error = 0;
+	KUNIT_EXPECT_EQ(test, owner_fixture_persona(f), -EIO);
+	KUNIT_EXPECT_EQ(test, f->persona_programs, 1U);
+	if (f->persona_overlay)
+		KUNIT_ASSERT_EQ(test, of_overlay_remove(&f->persona_overlay), 0);
+	KUNIT_ASSERT_EQ(test, of_overlay_remove(&f->profile_overlay), 0);
+	KUNIT_ASSERT_EQ(test, owner_fixture_static(f), 0);
+	KUNIT_ASSERT_EQ(test, owner_fixture_persona(f), 0);
+	KUNIT_EXPECT_EQ(test, f->persona_programs, 2U);
+	KUNIT_EXPECT_EQ(test, f->device->regs[FES_DE25_SCANOUT_GUARD_EPOCH_OFFSET / 4], 1U);
+	KUNIT_EXPECT_EQ(test, fes_de25_owner_test_ioctl(f->owner, FES_DE25_DMA_OWNER_IDLE, 0), 0);
+}
+
+/* Mutate the actual embedded overlay, then enter the real OF transaction.
+ * Invalid flags/properties must be vetoed before the modeled programmer runs.
+ */
+static int owner_fixture_mutated(struct kunit *test, struct owner_fixture *f,
+		bool persona, const char *path, const char *property, const char *value)
+{
+	void *blob = kunit_kmalloc(test, 4096, GFP_KERNEL);
+	const void *original = persona ? __dtbo_fes_de25_owner_persona_begin : __dtbo_fes_de25_owner_static_begin;
+	int node, ret;
+
+	if (!blob)
+		return -ENOMEM;
+	ret = fdt_open_into(original, blob, 4096);
+	if (ret)
+		return ret;
+	node = fdt_path_offset(blob, path);
+	if (node < 0)
+		return node;
+	ret = value ? fdt_setprop(blob, node, property, value, strlen(value) + 1) :
+		fdt_delprop(blob, node, property);
+	if (ret)
+		return ret;
+	return of_overlay_fdt_apply(blob, fdt_totalsize(blob),
+		persona ? &f->persona_overlay : &f->profile_overlay, NULL);
+}
+
+static void owner_static_rejects_malformed_base_before_programming(struct kunit *test)
+{
+	struct owner_fixture *f = owner_fixture_create(test, false);
+	static const struct { const char *path, *property, *value; } invalid[] = {
+		{ "/fragment@0/__overlay__", "firmware-name", NULL },
+		{ "/fragment@0/__overlay__", "firmware-name", "" },
+		{ "/fragment@0/__overlay__", "partial-fpga-config", "" },
+		{ "/fragment@0/__overlay__/fes-expansion", "firmware-name", "bad.rbf" },
+		{ "/fragment@0/__overlay__/fes-expansion", "compatible", "other-region" },
+		{ "/fragment@0/__overlay__/fes-expansion", "external-fpga-config", "" },
+		{ "/fragment@0/__overlay__/fes-expansion", "fpga-bridges", "bad" },
+		{ "/fragment@0/__overlay__/fes-expansion", "ranges", "bad" },
+		{ "/fragment@0/__overlay__/fes-expansion", "status", "disabled" },
+		{ "/fragment@0/__overlay__/scanout", "firmware-name", "bad.rbf" },
+	};
+	unsigned int i, reads;
+
+	KUNIT_ASSERT_NOT_NULL(test, f);
+	KUNIT_ASSERT_EQ(test, owner_fixture_overlay_setup(f), 0);
+	reads = f->device->reads;
+	for (i = 0; i < ARRAY_SIZE(invalid); i++) {
+		KUNIT_EXPECT_EQ(test, owner_fixture_mutated(test, f, false, invalid[i].path,
+			invalid[i].property, invalid[i].value), -EINVAL);
+		KUNIT_EXPECT_EQ(test, f->programs, 0U);
+		if (f->profile_overlay)
+			KUNIT_ASSERT_EQ(test, of_overlay_remove(&f->profile_overlay), 0);
+	}
+	KUNIT_EXPECT_EQ(test, f->device->reads, reads);
+	KUNIT_ASSERT_EQ(test, owner_fixture_static(f), 0);
+}
+
+static void owner_static_rejects_invalid_persona_before_programming(struct kunit *test)
+{
+	struct owner_fixture *f = owner_fixture_create(test, false);
+	static const struct { const char *property, *value; } invalid[] = {
+		{ "partial-fpga-config", NULL }, { "partial-fpga-config", "yes" },
+		{ "firmware-name", NULL }, { "firmware-name", "" },
+		{ "external-fpga-config", "" }, { "authenticate-fpga-config", "" },
+		{ "encrypted-fpga-config", "" }, { "region-freeze-timeout-us", "override" },
+		{ "fpga-mgr", "override" }, { "compatible", "fpga-region" },
+	};
+	unsigned int i, reads;
+
+	KUNIT_ASSERT_NOT_NULL(test, f);
+	KUNIT_ASSERT_EQ(test, owner_fixture_overlay_setup(f), 0);
+	KUNIT_ASSERT_EQ(test, owner_fixture_static(f), 0);
+	reads = f->device->reads;
+	for (i = 0; i < ARRAY_SIZE(invalid); i++) {
+		KUNIT_EXPECT_EQ(test, owner_fixture_mutated(test, f, true, "/fragment@0/__overlay__",
+			invalid[i].property, invalid[i].value), -EINVAL);
+		KUNIT_EXPECT_EQ(test, f->persona_programs, 0U);
+		if (f->persona_overlay)
+			KUNIT_ASSERT_EQ(test, of_overlay_remove(&f->persona_overlay), 0);
+	}
+	KUNIT_EXPECT_EQ(test, f->device->reads, reads);
+	KUNIT_EXPECT_EQ(test, f->device->regs[FES_DE25_SCANOUT_GUARD_EPOCH_OFFSET / 4], 0U);
+	KUNIT_ASSERT_EQ(test, owner_fixture_persona(f), 0);
+}
+
+static void owner_static_failed_guard_never_admits_allocation(struct kunit *test)
+{
+	struct owner_fixture *f = owner_fixture_create(test, false);
+	unsigned int reads;
+
+	KUNIT_ASSERT_NOT_NULL(test, f);
+	KUNIT_ASSERT_EQ(test, owner_fixture_overlay_setup(f), 0);
+	f->wrong_identity = true;
+	KUNIT_ASSERT_EQ(test, owner_fixture_static(f), 0);
+	KUNIT_EXPECT_EQ(test, owner_fixture_persona(f), -EPROTONOSUPPORT);
+	reads = f->device->reads;
+	KUNIT_EXPECT_EQ(test, fes_de25_owner_test_ioctl(f->owner, FES_DE25_DMA_OWNER_ALLOC, 0), -ENODEV);
+	KUNIT_EXPECT_EQ(test, f->device->reads, reads);
+	if (f->persona_overlay)
+		KUNIT_ASSERT_EQ(test, of_overlay_remove(&f->persona_overlay), 0);
+	KUNIT_EXPECT_EQ(test, owner_fixture_persona(f), -EIO);
+	KUNIT_EXPECT_EQ(test, f->persona_programs, 1U);
 }
 
 static void owner_overlay_and_control_fd_complete_two_cycles(struct kunit *test)
@@ -1955,6 +2155,11 @@ static void owner_control_checks_capability_and_command_before_effects(struct ku
 }
 
 static struct kunit_case fes_de25_dma_cases[] = {
+	KUNIT_CASE(owner_static_persona_precedes_epoch_and_allocation),
+	KUNIT_CASE(owner_static_failed_persona_requires_fresh_base),
+	KUNIT_CASE(owner_static_rejects_malformed_base_before_programming),
+	KUNIT_CASE(owner_static_rejects_invalid_persona_before_programming),
+	KUNIT_CASE(owner_static_failed_guard_never_admits_allocation),
 	KUNIT_CASE(cold_poll_observes_display_ready_without_submission),
 	KUNIT_CASE(owner_cached_info_has_no_hardware_or_lifetime_effect),
 	KUNIT_CASE(build_identity_reports_hardware_words),

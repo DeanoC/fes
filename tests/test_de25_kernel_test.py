@@ -1,11 +1,28 @@
 import copy
 import gzip
 import unittest
+from types import SimpleNamespace
+from unittest import mock
 
 from scripts import de25_kernel_test as kernel
 
 
 class KernelEvidenceTests(unittest.TestCase):
+    def test_sdk_builder_uses_immutable_lock_and_refuses_missing_or_wrong_image(self):
+        lock = kernel.selected_lock()
+        expected = lock["builder_image"]
+        with mock.patch.object(kernel.subprocess, "run", return_value=SimpleNamespace(
+                returncode=0, stdout=expected + "\n")) as run:
+            self.assertEqual(kernel.locked_builder("docker", lock), expected)
+            run.assert_called_once_with(
+                ["docker", "image", "inspect", expected, "--format", "{{.Id}}"],
+                capture_output=True, text=True)
+        for code, output in ((1, ""), (0, "sha256:" + "0" * 64), (0, expected + "\nother")):
+            with self.subTest(code=code, output=output), mock.patch.object(
+                    kernel.subprocess, "run", return_value=SimpleNamespace(returncode=code, stdout=output)):
+                with self.assertRaises(ValueError):
+                    kernel.locked_builder("docker", lock)
+
     def test_passing_kunit_does_not_hide_kernel_warnings(self):
         kernel.check_kernel_log("Booting Linux\n# fes-de25-dma: pass:8 fail:0\n")
         for message in ("WARNING: CPU: 0", "BUG: bad access", "Oops: abort",

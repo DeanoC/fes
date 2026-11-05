@@ -29,7 +29,7 @@
 struct fes_de25_owner {
 	struct device *dev;
 	struct iommu_domain *domain;
-	struct device_node *region;
+	struct device_node *region, *static_slot;
 	void __iomem *base;
 	struct mutex lock, allocation_lock;
 	struct notifier_block notifier;
@@ -37,7 +37,7 @@ struct fes_de25_owner {
 	struct fes_de25_dma_guard *guard;
 	struct fes_de25_dma *active;
 	u32 next_epoch;
-	bool ready, leased;
+	bool ready, leased, static_started, static_pending;
 #if IS_ENABLED(CONFIG_FES_DE25_DMA_KUNIT_TEST)
 	bool test_fixture, test_registered;
 	struct fes_de25_dma_guard *test_borrowed_guard, *test_guard_template;
@@ -265,6 +265,8 @@ static bool topology_override(struct device_node *overlay)
 	return false;
 }
 
+#include "de25_dma_static.h"
+
 static int owner_notify(struct notifier_block *nb, unsigned long action, void *data)
 {
 	struct fes_de25_owner *owner = container_of(nb, struct fes_de25_owner, notifier);
@@ -273,76 +275,80 @@ static int owner_notify(struct notifier_block *nb, unsigned long action, void *d
 	const char *firmware;
 	int ret = 0;
 
-	/* Dedicated overlays target the region itself. No overlay may mutate the
-	 * permanent owner, its ancestors, or region ancestors behind this owner.
-	 */
 	if (nd->target != owner->region) {
 		if ((action == OF_OVERLAY_PRE_APPLY || action == OF_OVERLAY_PRE_REMOVE) &&
 		    (ancestor(nd->target, owner->region) ||
 		     ancestor(nd->target, owner->dev->of_node) ||
 		     supplier_target(owner, nd->target)))
 			return notifier_from_errno(-EBUSY);
-		/* Descendant overlay changes may remove a live persona's devices. */
 		if (!ancestor(owner->region, nd->target))
 			return NOTIFY_OK;
 	}
 	mutex_lock(&owner->lock);
+	if (action == OF_OVERLAY_PRE_APPLY && nd->overlay &&
+	    topology_override(nd->overlay)) {
+		ret = -EINVAL;
+		goto done;
+	}
+	if ((action == OF_OVERLAY_PRE_APPLY || action == OF_OVERLAY_PRE_REMOVE) &&
+	    owner->leased) {
+		ret = -EBUSY;
+		goto done;
+	}
+	if (IS_ENABLED(CONFIG_FES_DE25_STATIC_EXPANSION) &&
+	    nd->target == owner->static_slot) {
+		ret = owner_static_notify(owner, action, nd);
+		goto done;
+	}
+
 	switch (action) {
 	case OF_OVERLAY_PRE_APPLY:
 	case OF_OVERLAY_PRE_REMOVE:
-		/* The admitted bridge topology is permanent. A per-image override
-		 * could introduce an unprotected supplier after probe validation.
-		 */
-		if (action == OF_OVERLAY_PRE_APPLY && nd->overlay &&
-		    topology_override(nd->overlay)) {
-			ret = -EINVAL;
-			break;
+		if (action == OF_OVERLAY_PRE_APPLY && nd->target == owner->region &&
+		    static_profile(nd->overlay)) {
+			if (!IS_ENABLED(CONFIG_FES_DE25_STATIC_EXPANSION)) {
+				ret = -EOPNOTSUPP;
+				break;
+			}
+			if (!static_base_valid(nd->overlay)) {
+				ret = -EINVAL;
+				break;
+			}
 		}
-		if (owner->leased) {
-			ret = -EBUSY;
-			break;
-		}
-		/* Reserve exclusion before the stock region notifier disables bridges
-		 * or the OF core detaches devices. A later failure stays unavailable;
-		 * no POST event or old register contents can restore the old profile.
+		/* Exclude allocation before the stock notifier can program or detach.
+		 * Only a full root load clears a previous static-persona attempt.
 		 */
 		owner->ready = false;
 		owner_retire_guard(owner);
+		if (nd->target == owner->region)
+			owner_clear_static(owner);
+		else if (owner->static_slot)
+			owner->static_started = true;
 		break;
 	case OF_OVERLAY_POST_APPLY:
 		if (nd->target != owner->region || owner->leased || owner->ready ||
 		    !nd->overlay || of_property_read_string(nd->overlay, "firmware-name", &firmware) ||
 		    !*firmware)
 			break;
+		if (IS_ENABLED(CONFIG_FES_DE25_STATIC_EXPANSION) &&
+		    static_profile(nd->overlay)) {
+			if (owner->static_slot || !static_base_valid(nd->overlay)) {
+				ret = -EINVAL;
+				break;
+			}
+			owner->static_slot = of_get_child_by_name(owner->region, STATIC_SLOT);
+			if (!owner->static_slot)
+				ret = -EINVAL;
+			break;
+		}
 		profile = of_get_compatible_child(nd->overlay, "fes,de25-linux-dma-scanout");
 		if (!profile)
 			break;
 		of_node_put(profile);
-		if (owner->next_epoch == U32_MAX) {
-			ret = -EOVERFLOW;
-			break;
-		}
-		owner->guard = kzalloc(sizeof(*owner->guard), GFP_KERNEL);
-		if (!owner->guard) {
-			ret = -ENOMEM;
-			break;
-		}
-		ret = fes_de25_guard_init(owner->guard, owner->base, FES_DE25_SCANOUT_CONTROL_SPAN);
-#if IS_ENABLED(CONFIG_FES_DE25_DMA_KUNIT_TEST)
-		if (owner->test_fixture && owner->test_guard_template) {
-			owner->guard->test_read = owner->test_guard_template->test_read;
-			owner->guard->test_write = owner->test_guard_template->test_write;
-			owner->guard->test_context = owner->test_guard_template->test_context;
-		}
-#endif
-		if (!ret)
-			ret = fes_de25_guard_claim(owner->guard, ++owner->next_epoch);
-		if (ret)
-			owner_retire_guard(owner);
-		else
-			owner->ready = true;
+		ret = owner_arm_guard(owner);
 		break;
 	}
+done:
 	mutex_unlock(&owner->lock);
 	return notifier_from_errno(ret);
 }
@@ -564,6 +570,7 @@ int fes_de25_owner_probe(struct platform_device *pdev)
 	ret = misc_register(&owner->misc);
 	if (ret) {
 		of_overlay_notifier_unregister(&owner->notifier);
+		owner_clear_static(owner);
 		goto put_region;
 	}
 	platform_set_drvdata(pdev, owner);
@@ -583,6 +590,7 @@ void fes_de25_owner_remove(struct platform_device *pdev)
 	WARN_ON(owner->leased || owner->active);
 	misc_deregister(&owner->misc);
 	of_overlay_notifier_unregister(&owner->notifier);
+	owner_clear_static(owner);
 	owner_retire_guard(owner);
 	of_node_put(owner->region);
 }
@@ -633,6 +641,7 @@ void fes_de25_owner_test_detach(struct fes_de25_owner *owner)
 	if (!owner->test_registered)
 		return;
 	of_overlay_notifier_unregister(&owner->notifier);
+	owner_clear_static(owner);
 	of_node_put(owner->region);
 	owner->region = &owner->test_region;
 	owner->test_registered = false;

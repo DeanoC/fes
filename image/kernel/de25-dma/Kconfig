@@ -23,3 +23,13 @@ config FES_DE25_DMA_PLATFORM
 	  permanent base-tree device, translated DMA domain and protected built-in
 	  SMMU/region/manager/bridge suppliers. The current shipping kernel does not
 	  meet this binding contract. This does not enable normal FES admission.
+
+config FES_DE25_STATIC_EXPANSION
+	bool "DE25 initial static expansion configuration"
+	depends on FES_DE25_DMA_PLATFORM
+	default n
+	help
+	  Defer display ownership until one persona has been configured in the
+	  declared child region of a freshly loaded static-expansion base.
+	  Changes require another full base load. This does not permit persona
+	  updates while a display grant exists or enable runtime package admission.

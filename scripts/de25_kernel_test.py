@@ -18,6 +18,11 @@ ROOT = Path(__file__).resolve().parents[1]
 DRIVER = "image/kernel/de25-dma"
 KERNEL_DRIVER = "drivers/misc/fes-de25-dma"
 REQUIRED_CASES = frozenset((
+    "owner_static_persona_precedes_epoch_and_allocation",
+    "owner_static_failed_persona_requires_fresh_base",
+    "owner_static_rejects_malformed_base_before_programming",
+    "owner_static_rejects_invalid_persona_before_programming",
+    "owner_static_failed_guard_never_admits_allocation",
     "cold_poll_observes_display_ready_without_submission",
     "owner_cached_info_has_no_hardware_or_lifetime_effect",
     "build_identity_reports_hardware_words",
@@ -81,6 +86,18 @@ def selected_lock(root=ROOT):
 def checked(argv, **kwargs):
     print("+ " + " ".join(map(str, argv)), flush=True)
     return subprocess.run(list(map(str, argv)), check=True, **kwargs)
+
+
+def locked_builder(container_runtime, lock):
+    # Kernel tests and the platform kernel consume a separately locked SDK.
+    # Selecting a newer userspace Dockerfile must not silently change that
+    # compiler's immutable execution environment.
+    expected = lock["builder_image"]
+    result = subprocess.run([container_runtime, "image", "inspect", expected,
+                             "--format", "{{.Id}}"], capture_output=True, text=True)
+    if result.returncode or result.stdout.strip() != expected:
+        raise ValueError("locked kernel/SDK builder is unavailable or differs")
+    return expected
 
 
 def image_builder():
@@ -255,9 +272,7 @@ def main(argv=None):
         kernel = output / "kernel-input"
         extract_kernel(cache, lock["revision"], kernel)
         volume = "fes-de25-kunit-" + hashlib.sha256(str(output).encode()).hexdigest()[:16]
-        builder = lane.ensure_builder(source, args.container_runtime, volume)
-        if builder != lock["builder_image"]:
-            raise ValueError("kernel test builder differs from the SDK producer")
+        builder = locked_builder(args.container_runtime, lock)
         inputs = {"format": 1, "fes_revision": revision, "kernel": lock,
                   "source_sha256": {str(p.relative_to(source)): digest(p) for p in (source / DRIVER).rglob("*") if p.is_file()},
                   "runner_sha256": digest(source / "scripts/de25_kernel_test.py")}

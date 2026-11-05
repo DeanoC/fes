@@ -236,9 +236,7 @@ def main(argv=None):
         kernel = output / "kernel-input"
         dep.extract_kernel(cache, lock["revision"], kernel)
         volume = "fes-de25-owner-kernel-" + hashlib.sha256(str(output).encode()).hexdigest()[:16]
-        builder = lane.ensure_builder(source, args.container_runtime, volume)
-        if builder != lock["builder_image"]:
-            raise ValueError("builder differs from locked producer")
+        builder = dep.locked_builder(args.container_runtime, lock)
         write_json(output / "inputs.json", {"fes_revision": revision, "kernel": lock,
             "source_sha256": {str(p.relative_to(source)): dep.digest(p) for directory in (PROFILE, dep.DRIVER)
                               for p in (source / directory).rglob("*") if p.is_file()},
