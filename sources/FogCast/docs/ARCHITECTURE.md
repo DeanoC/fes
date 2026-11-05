@@ -9,17 +9,18 @@ is opaque vendor data, never a CycloneV CRAM patch. Unknown members, mixed ROM
 tables, wrong targets, changed bytes and invalid default identities are refused.
 This is structural support. The static programming profile remains unregistered;
 normal activation still refuses it before hardware access. Normal library
-selection, matching runtime dispatch and physical qualification remain required.
+selection, the bounded physical backend and physical qualification remain required.
 
 `ComposeStaticArchive` and `ReadStaticCompositionBundle` verify the format5
 package with an optional format2 partial expansion. The closed transport carries
-`package.tar`, optional `expansion.tar`, and canonical `composition.json`.
+canonical `static-composition.json` first, then `package.tar` and optional
+`expansion.tar`. This distinct first member selects the existing composed-upload
+route without guessing from opaque payload bytes.
 Every consumer recomputes the selection against the retained sealed package and
 asset; default selection uses the package's empty persona. Changed, missing or
 substituted inputs and changed receipts are refused. The bundle owns its input
-bytes and writes no combined RBF. These codecs are not yet connected to library
-selection or the runtime launch request. The static programming profile remains
-unavailable.
+bytes and writes no combined RBF. The normal library producer is not connected
+yet; the static programming profile remains unavailable.
 
 `StageStaticComposition` verifies that transport before publishing the sealed
 base package, optional closed expansion directory and a separate canonical
@@ -28,8 +29,16 @@ identity; it uses the existing companion ownership and cleanup. Restart adoption
 independently verifies the package and selected partial, recomputes the receipt,
 and refuses a missing receipt, changed inputs or mixed full-chip/slot/ROM
 companions. Even the empty selection retains a receipt and both package images.
-These staging functions perform no device access and are not yet dispatched by
-normal target uploads or runtime launch requests.
+The existing composed target upload dispatches this shape to static staging
+and issues `load_composed_core` with the static tuple and optional expansion
+path. It supplies no linked payload path. The runtime's serialized lifecycle
+requires idle/Stop before a static load. Its normal status carries that exact
+two-image receipt; lost-load reconciliation and restart adoption match every
+field before retaining the active package. The coordinator, public target
+client and copied host status preserve it as `static_composition`. Ordinary
+library launch preparation refuses an unexpected static reply until its own
+producer is connected. No hot-persona command is exposed, and the unregistered
+profile plus the explicit unavailable-backend guard still refuse physical loads.
 
 The corepackage reader recognizes format 4's two ordered ROM requirements and
 sealed map. Launch and target activation of that format require the separate

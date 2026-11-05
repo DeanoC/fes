@@ -341,6 +341,11 @@ func (s *Service) readTwoROMFirmware(ctx context.Context, descriptor corepackage
 // The target computes linked and composed identities. The host binds the
 // returned receipt to its selected source identities, not a host-built image.
 func (s coreLoadSource) matchesLoadedIdentity(status *protocol.CorePackageStatus) bool {
+	// Ordinary library producers have not selected a static persona. Do not
+	// accept an unexpected two-image result as an uncomposed launch.
+	if status.StaticComposition != nil {
+		return false
+	}
 	if s.initialMedia != nil {
 		u, ok := protocol.MediaUnit(status, s.initialMedia.Unit)
 		expected, core := protocol.AtariStFloppyInterface(), "fes.atari-st"

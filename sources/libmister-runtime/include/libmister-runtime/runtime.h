@@ -252,13 +252,6 @@ struct CoreExpansionPath {
 
 struct CorePartPath { std::string role, path; };
 
-struct CoreCompositionRequest {
-	std::string expansion_path, payload_path;
-	std::vector<CoreExpansionPath> expansions;
-	std::vector<CorePartPath> parts;
-	CoreComposition composition;
-};
-
 // Cold-start selection over two separate, unchanged vendor images. An empty
 // expansion_id chooses the package's sealed default persona.
 struct CoreStaticComposition {
@@ -270,6 +263,15 @@ struct CoreStaticComposition {
 struct CoreStaticCompositionRequest {
 	std::string expansion_path;
 	CoreStaticComposition composition;
+};
+
+struct CoreCompositionRequest {
+	std::string expansion_path, payload_path;
+	std::vector<CoreExpansionPath> expansions;
+	std::vector<CorePartPath> parts;
+	CoreComposition composition;
+	bool has_static_selection = false;
+	CoreStaticCompositionRequest static_selection;
 };
 
 struct CoreROMLink {
@@ -295,6 +297,7 @@ struct ActiveCorePackage {
 	CoreComposition composition;
 	CoreROMLink rom_link;
 	CoreROMLinks rom_links;
+	CoreStaticComposition static_composition;
 };
 
 // fes.pc386.machine 1.0 settings, words 0..6 of its record.
@@ -484,6 +487,7 @@ public:
 	virtual ~AdmittedCorePackage() {}
 	const CorePackageInfo& info() const { return info_; }
 	virtual CoreComposition composition() const { return {}; }
+	virtual CoreStaticComposition static_composition() const { return {}; }
 
 protected:
 	explicit AdmittedCorePackage(CorePackageInfo info)

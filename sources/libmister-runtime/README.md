@@ -16,7 +16,9 @@ hardware access. Structural static-composition admission also verifies an
 optional format2 partial asset against the exact package, base, build and frozen
 root identities. It recomputes FogCast's default/selected receipt and retains
 the selected files for recheck. This does not enable physical PR or add a
-runtime command.
+runtime command. The existing composed-core operation carries the two-image
+receipt and reports it in status; static loads require Stop/idle. The native
+programming backend remains explicitly unavailable.
 
 Production hardware construction selects the board before constructing physical
 adapters. DE10 requires ARMv7 and the exact FES Cyclone V device-tree identity.

@@ -205,7 +205,7 @@ func (client *Client) loadInitialized(ctx context.Context, path, packageID, root
 	}
 	if response.OK && (response.State != "running_development" ||
 		response.Execution != "development" || response.ActivePackage == nil ||
-		response.ActivePackage.PackageID != packageID || response.ActivePackage.SlotComposition != nil || !reflect.DeepEqual(response.ActivePackage.Composition, composition)) {
+		response.ActivePackage.PackageID != packageID || response.ActivePackage.StaticComposition != nil || response.ActivePackage.SlotComposition != nil || !reflect.DeepEqual(response.ActivePackage.Composition, composition)) {
 		return Protocol2Response{}, protocol2MutationError{error: errInvalidRuntimeResponse, attempted: true}
 	}
 	return response, nil
@@ -268,7 +268,7 @@ func (client *Client) LoadROMLinkedCoreWithInitialMedia(ctx context.Context, pat
 	}
 	if response.OK && (response.State != "running_development" ||
 		response.Execution != "development" || response.ActivePackage == nil ||
-		response.ActivePackage.PackageID != packageID || response.ActivePackage.SlotComposition != nil || !reflect.DeepEqual(response.ActivePackage.Composition, composition) || !reflect.DeepEqual(response.ActivePackage.ROMLink, &identity) || !initialRequestMatches(response, initial)) {
+		response.ActivePackage.PackageID != packageID || response.ActivePackage.StaticComposition != nil || response.ActivePackage.SlotComposition != nil || !reflect.DeepEqual(response.ActivePackage.Composition, composition) || !reflect.DeepEqual(response.ActivePackage.ROMLink, &identity) || !initialRequestMatches(response, initial)) {
 		return Protocol2Response{}, protocol2MutationError{error: errInvalidRuntimeResponse, attempted: true}
 	}
 	return response, nil
@@ -343,7 +343,7 @@ func (client *Client) LoadROMLinksLinkedCore(ctx context.Context, path, packageI
 		}
 		return Protocol2Response{}, protocol2MutationError{error: errInvalidRuntimeResponse, attempted: true}
 	}
-	if response.OK && (response.State != "running_development" || response.Execution != "development" || response.ActivePackage == nil || response.ActivePackage.PackageID != packageID || response.ActivePackage.SlotComposition != nil || !reflect.DeepEqual(response.ActivePackage.Composition, composition) || !reflect.DeepEqual(response.ActivePackage.ROMLinks, &identity)) {
+	if response.OK && (response.State != "running_development" || response.Execution != "development" || response.ActivePackage == nil || response.ActivePackage.PackageID != packageID || response.ActivePackage.StaticComposition != nil || response.ActivePackage.SlotComposition != nil || !reflect.DeepEqual(response.ActivePackage.Composition, composition) || !reflect.DeepEqual(response.ActivePackage.ROMLinks, &identity)) {
 		return Protocol2Response{}, protocol2MutationError{error: errInvalidRuntimeResponse, attempted: true}
 	}
 	return response, nil
@@ -392,7 +392,7 @@ func (client *Client) loadCoreWithComposition(ctx context.Context, path, package
 	}
 	if response.OK && (response.State != "running_development" ||
 		response.Execution != "development" || response.ActivePackage == nil ||
-		response.ActivePackage.PackageID != packageID || response.ActivePackage.SlotComposition != nil || !reflect.DeepEqual(response.ActivePackage.Composition, composition)) {
+		response.ActivePackage.PackageID != packageID || response.ActivePackage.StaticComposition != nil || response.ActivePackage.SlotComposition != nil || !reflect.DeepEqual(response.ActivePackage.Composition, composition)) {
 		return Protocol2Response{}, before, protocol2MutationError{error: errInvalidRuntimeResponse, attempted: true}
 	}
 	return response, before, nil
@@ -729,7 +729,17 @@ func validateCompositionShape(value json.RawMessage) error {
 	if err := json.Unmarshal(value, &probe); err != nil {
 		return err
 	}
-	if _, parts := probe["parts"]; parts {
+	if _, static := probe["base_sha256"]; static {
+		tuple, err := exactRawObject(value, []string{"composition_id", "package_id", "base_sha256", "base_size", "persona_sha256", "persona_size", "control_build_id", "hardware_id"}, []string{"expansion_id"})
+		if err != nil {
+			return err
+		}
+		kinds := map[string]rawKind{"composition_id": rawString, "package_id": rawString, "base_sha256": rawString, "base_size": rawUnsigned, "persona_sha256": rawString, "persona_size": rawUnsigned, "control_build_id": rawString, "hardware_id": rawUnsigned}
+		if _, ok := tuple["expansion_id"]; ok {
+			kinds["expansion_id"] = rawString
+		}
+		return requireRawKinds(tuple, kinds)
+	} else if _, parts := probe["parts"]; parts {
 		tuple, err := exactRawObject(value, []string{"composition_id", "package_id", "layout", "parts", "shell_sha256", "payload_sha256", "payload_size"}, nil)
 		if err != nil {
 			return err
@@ -768,7 +778,7 @@ func validateCompositionShape(value json.RawMessage) error {
 }
 
 func validateDescriptorShape(raw json.RawMessage) error {
-	descriptor, err := exactRawObject(raw, []string{"format", "core", "target", "payload", "abi", "interfaces", "build"}, []string{"rom", "roms", "rom_map"})
+	descriptor, err := exactRawObject(raw, []string{"format", "core", "target", "payload", "abi", "interfaces", "build"}, []string{"rom", "roms", "rom_map", "static_expansion"})
 	if err != nil {
 		return err
 	}
@@ -782,6 +792,19 @@ func validateDescriptorShape(raw json.RawMessage) error {
 	var format uint64
 	if err := json.Unmarshal(descriptor["format"], &format); err != nil {
 		return errInvalidRuntimeResponse
+	}
+	static, hasStatic := descriptor["static_expansion"]
+	if (format == 5) != hasStatic {
+		return errInvalidRuntimeResponse
+	}
+	if hasStatic {
+		fields, err := exactRawObject(static, []string{"file", "size", "sha256", "control_build_id", "hardware_id", "root_qdb_sha256", "interface_sha256", "clock_reset_sha256", "pof0_hash"}, nil)
+		if err != nil {
+			return err
+		}
+		if err := requireRawKinds(fields, map[string]rawKind{"file": rawString, "size": rawUnsigned, "sha256": rawString, "control_build_id": rawString, "hardware_id": rawUnsigned, "root_qdb_sha256": rawString, "interface_sha256": rawString, "clock_reset_sha256": rawString, "pof0_hash": rawString}); err != nil {
+			return err
+		}
 	}
 	rom, hasROM := descriptor["rom"]
 	if (format == 3) != hasROM {
@@ -1303,6 +1326,14 @@ func validSlotComposition(c expansion.SlotComposition, active Protocol2ActivePac
 }
 
 func validActivePackage(active Protocol2ActivePackage, capabilities Protocol2Capabilities) bool {
+	if (active.Descriptor.Format == 5) != (active.StaticComposition != nil) {
+		return false
+	}
+	if c := active.StaticComposition; c != nil {
+		if active.Composition != nil || active.SlotComposition != nil || active.PartsComposition != nil || active.ROMLink != nil || active.ROMLinks != nil || active.PersistenceMode != "volatile" || !validStaticComposition(*c, active.PackageID, &active.Descriptor) {
+			return false
+		}
+	}
 	if protocol.ComputerABI(active.Descriptor.ABI.ID, active.Descriptor.ABI.Major, active.Descriptor.ABI.Minor) && active.PersistenceMode == "persistent" {
 		status := protocol2MediaStatus(active, capabilities)
 		if !protocol.PersistentMediaStatusValid(status) || !descriptorPersistentMedia(active.Descriptor, capabilities.MediaUnits) {
@@ -1396,7 +1427,7 @@ func validActivePackage(active Protocol2ActivePackage, capabilities Protocol2Cap
 		if active.Observed.ABI == nil {
 			return false
 		}
-	case "de25-hps-first-v1", "de25-linux-menu-v1", "de25-linux-computer-v1":
+	case "de25-hps-first-v1", "de25-linux-menu-v1", "de25-linux-computer-v1", "de25-linux-static-computer-v1":
 		wantABI := "fes.computer"
 		if active.Descriptor.Target.ProgrammingProfile == "de25-linux-menu-v1" {
 			wantABI = "fes.application"

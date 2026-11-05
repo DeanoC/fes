@@ -131,7 +131,24 @@ func ComposeStaticContext(ctx context.Context, shell StaticShell, selected *Asse
 	if err := ctx.Err(); err != nil {
 		return StaticComposition{}, err
 	}
-	material := []string{plan.PackageID, plan.ExpansionID, plan.BaseSHA256, strconv.FormatInt(plan.BaseSize, 10), plan.PersonaSHA256, strconv.FormatInt(plan.PersonaSize, 10), plan.ControlBuildID, strconv.FormatUint(uint64(plan.HardwareID), 10)}
-	plan.ID = hash([]byte("fes-de25-static-composition-v1\x00" + strings.Join(material, "\x00")))
+	id, err := StaticCompositionID(plan)
+	if err != nil {
+		return StaticComposition{}, err
+	}
+	plan.ID = id
 	return plan, nil
+}
+
+// StaticCompositionID validates and hashes a two-image receipt. It does not
+// verify payload bytes or admit the receipt against a particular package.
+func StaticCompositionID(c StaticComposition) (string, error) {
+	if !hex64.MatchString(c.PackageID) || !hex64.MatchString(c.BaseSHA256) || !hex64.MatchString(c.PersonaSHA256) ||
+		c.BaseSize < 1 || c.BaseSize > maxRBFBytes || c.PersonaSize < 1 || c.PersonaSize > maxRBFBytes ||
+		!hex32.MatchString(c.ControlBuildID) || c.ControlBuildID == strings.Repeat("0", 32) ||
+		(c.HardwareID != EmptyPersonaID && c.HardwareID != RAM16KPersonaID) ||
+		(c.ExpansionID != "" && !hex64.MatchString(c.ExpansionID)) || (c.ExpansionID == "" && c.HardwareID != EmptyPersonaID) {
+		return "", errors.New("invalid static composition identity")
+	}
+	material := []string{c.PackageID, c.ExpansionID, c.BaseSHA256, strconv.FormatInt(c.BaseSize, 10), c.PersonaSHA256, strconv.FormatInt(c.PersonaSize, 10), c.ControlBuildID, strconv.FormatUint(uint64(c.HardwareID), 10)}
+	return hash([]byte("fes-de25-static-composition-v1\x00" + strings.Join(material, "\x00"))), nil
 }

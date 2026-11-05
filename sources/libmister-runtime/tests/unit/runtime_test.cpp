@@ -1029,6 +1029,35 @@ void TestStreamBindingCapacityOwnershipAndStop()
 	assert(f.hardware.media_stream_calls == calls);
 }
 
+void TestStaticCompositionRequiresStopAndReportsExactSelection()
+{
+    Fixture f;assert(f.runtime.Start().ok());
+    const std::string id(64,'a');mister::CoreCompositionRequest request;
+    request.has_static_selection=true;
+    auto& c=request.static_selection.composition;
+    c.id=std::string(64,'e');c.package_id=id;c.base_sha256=std::string(64,'b');
+    c.base_size=12;c.persona_sha256=std::string(64,'c');c.persona_size=26;
+    c.control_build_id=std::string(32,'d');c.hardware_id=0xc001a001u;
+    assert(f.runtime.LoadComposedCore("/base",id,request).ok());
+    const auto generation=f.runtime.status().generation;
+    assert(f.runtime.status().active_package.static_composition.id==c.id);
+    assert(f.runtime.status().active_package.composition.id.empty());
+    const auto calls=f.hardware.core_calls, admissions=f.hardware.admission_calls;
+    c.hardware_id=0xc002b002u;c.expansion_id=std::string(64,'f');c.id=std::string(64,'f');
+    request.static_selection.expansion_path="/partial";
+    assert(f.runtime.LoadComposedCore("/base",id,request).code==ErrorCode::busy);
+    assert(f.hardware.core_calls==calls && f.hardware.admission_calls==admissions);
+    assert(f.runtime.status().generation==generation && f.runtime.status().active_package.static_composition.hardware_id==0xc001a001u);
+    assert(f.runtime.Stop().ok());assert(f.runtime.status().active_package.static_composition.id.empty());
+    request.payload_path="/linked.rbf";
+    assert(f.runtime.LoadComposedCore("/base",id,request).code==ErrorCode::invalid_request);
+    assert(f.hardware.core_calls==calls);request.payload_path.clear();
+    assert(f.runtime.LoadComposedCore("/base",id,request).ok());
+    assert(f.runtime.status().generation>generation);
+    assert(f.runtime.status().active_package.static_composition.id==c.id);
+    assert(f.runtime.Stop().ok());assert(f.runtime.status().active_package.static_composition.id.empty());
+}
+
 void TestCompositionUsesExistingLifecycle()
 {
 	Fixture f;
@@ -1956,6 +1985,7 @@ int main()
 	TestComputerMouseBindingAndFaultRetirement();
 	TestComputerKeyboardBindingSerializationAndFaults();
 	TestComputerMediaUnitsStayLiveAndReportUnitState();
+	TestStaticCompositionRequiresStopAndReportsExactSelection();
 	TestCompositionUsesExistingLifecycle();
 	TestControllerSnapshotBindingAndFaultCleanup();
 	TestStreamBindingCapacityOwnershipAndStop();
@@ -2001,6 +2031,6 @@ int main()
 	TestActiveFaultRetiresPublishedIdentityBeforeBlockedRecovery();
 	TestQueuedActiveFaultReservesCleanupBeforeStopAndPreservesError();
 	TestInspectionAndProtocol2IdentityShareTheLifecycleGeneration();
-	puts("runtime_test: 56 passed");
+	puts("runtime_test: all groups passed");
 	return 0;
 }

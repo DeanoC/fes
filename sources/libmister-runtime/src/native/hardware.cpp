@@ -272,6 +272,7 @@ public:
 	std::unique_ptr<CoreDataFile> data_file_;
 	CoreData data_;
 	std::unique_ptr<OpenedCoreComposition> composition_;
+	std::unique_ptr<OpenedCoreStaticComposition> static_composition_;
 	Artifact programmed_;
 	std::string programmed_sha256_;
 	bool has_programmed_ = false;
@@ -280,6 +281,7 @@ public:
 	std::unique_ptr<PreparedInitialMedia> initial_media_;
 	std::unique_ptr<PreparedAtaDisk> ata_disk_;
 	CoreComposition composition() const override { return composition_ ? composition_->info : CoreComposition{}; }
+	CoreStaticComposition static_composition() const override { return static_composition_ ? static_composition_->info : CoreStaticComposition{}; }
 };
 
 } // namespace
@@ -624,6 +626,16 @@ Error NativeHardware::AdmitCoreComposition(const std::string& directory,
 	Error error=AdmitCorePackageInternal(directory,id,true,&package);
 	if (!error.ok()) return error;
 	auto* native=dynamic_cast<NativeAdmittedCore*>(package.get());
+	if (request.has_static_selection) {
+		if (!request.composition.id.empty() || !request.expansion_path.empty() ||
+			!request.payload_path.empty() || !request.expansions.empty() || !request.parts.empty())
+			return {ErrorCode::invalid_request, "static selection mixes composition forms", "admission"};
+		std::unique_ptr<OpenedCoreStaticComposition> selected(new OpenedCoreStaticComposition);
+		error=OpenCoreStaticComposition(package_roots_,native->opened_,request.static_selection,selected.get());
+		if (!error.ok()) return error;
+		native->static_composition_=std::move(selected);
+		*output=std::move(package);return {};
+	}
 	std::unique_ptr<OpenedCoreComposition> composition(new OpenedCoreComposition);
 	error=OpenCoreComposition(package_roots_,native->opened_,request,composition.get());
 	if (!error.ok()) return error;
@@ -1709,6 +1721,9 @@ HardwareResult NativeHardware::LoadCoreInternal(
 	if (admitted == nullptr || admitted->driver_ == nullptr)
 		return {{ErrorCode::invalid_request,
 			"invalid admitted core package", "request"}, false, ""};
+	if (admitted->static_composition_ || admitted->opened_.descriptor.format==5)
+		return {{ErrorCode::unsupported_programming_profile,
+			"static programming requires the owned bounded backend", "admission"},false,""};
 	if (HasNativeVideoSocket(admitted->opened_.descriptor) &&
 		(!admitted->composition_ ||
 		admitted->composition_->info.layout != "fes.coleco-native-video.parts/1"))

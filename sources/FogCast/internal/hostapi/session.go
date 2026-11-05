@@ -2184,6 +2184,10 @@ func cloneCorePackageStatus(value *protocol.CorePackageStatus) *protocol.CorePac
 		return nil
 	}
 	copy := *value
+	if value.StaticComposition != nil {
+		static := *value.StaticComposition
+		copy.StaticComposition = &static
+	}
 	copy.ActiveInterfaces = append([]protocol.RuntimeInterface(nil), value.ActiveInterfaces...)
 	if value.MediaStream != nil {
 		stream := *value.MediaStream

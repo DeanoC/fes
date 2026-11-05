@@ -350,8 +350,8 @@ booleans do not substitute for them. No ROM-map fields are accepted.
 The target is exactly `de25_nano`, device `A5EB013BB23BE4SCS`, profile
 `de25-linux-static-computer-v1`. This profile is not registered for activation
 yet. Structural parsing never proves vendor payload compatibility, timing or
-physical acceptance. An alternate expansion will need its own sealed binding
-to this package and these frozen identities before the runtime can select it.
+physical acceptance. An alternate expansion requires its own sealed binding
+to this package and these frozen identities before structural runtime admission.
 
 Package identity is SHA256 over `FES-CORE-PACKAGE-5\n`, followed by each of the
 three exact member byte strings, in archive order, prefixed by its unsigned
@@ -388,8 +388,19 @@ decimal persona size, controller build ID and decimal hardware ID. Digests are
 lowercase hex and decimal integers have no leading zeroes. Selecting an asset
 requires equality of package ID, guest build, base hash and every frozen-root
 identity; an empty choice uses the sealed default persona. Both images remain
-unchanged. Normal target staging, C++ selected-persona admission and lifecycle
-dispatch are unfinished, and the static programming profile is unavailable.
+unchanged. `StaticCompositionID` also validates and hashes these exact receipt
+fields for client/status checks; it does not admit payload bytes.
+
+The static composition transport places canonical `static-composition.json`
+first, followed by `package.tar` and optional `expansion.tar`; no linked RBF is
+carried. Target staging and C++ admission independently validate the components.
+The existing `load_composed_core` operation carries this two-image tuple instead
+of the full-chip tuple. Only a selected expansion has `expansion_id` and
+`expansion_path`; no `payload_path` is accepted. Active status echoes the same
+shape under `composition`. Static load requires Stop/idle and a fresh base;
+there is no live expansion command. The static programming profile remains
+unregistered, the physical backend is unavailable, and normal library
+production plus exact-artifact physical qualification remain required.
 
 ## programming_profiles
 

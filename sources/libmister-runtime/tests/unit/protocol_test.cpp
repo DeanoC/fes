@@ -890,6 +890,38 @@ void TestFormat3InspectionSerialization()
 		RomPackageResponseFixtures());
 }
 
+void TestStaticCompositionProtocol()
+{
+    const std::string id(64,'a');
+    const std::string tuple=R"({"composition_id":")"+id+R"(","package_id":")"+id+
+        R"(","base_sha256":")"+id+R"(","base_size":12,"persona_sha256":")"+id+
+        R"(","persona_size":26,"control_build_id":")"+std::string(32,'b')+R"(","hardware_id":3221331969})";
+    const std::string prefix=R"({"protocol":2,"operation":"load_composed_core","package_path":"/base","package_id":")"+id+R"(","composition":)";
+    const std::string input=prefix+tuple+"}";
+    Request request;assert(Parse(input,&request).ok());
+    assert(request.operation==Operation::load_composed_core && request.composition_request.has_static_selection);
+    assert(request.composition_request.static_selection.composition.hardware_id==0xc001a001u);
+    assert(request.composition_request.composition.id.empty() && request.composition_request.payload_path.empty());
+    const std::string selected=prefix+tuple.substr(0,tuple.size()-1)+R"(,"expansion_id":")"+id+R"("},"expansion_path":"/partial"})";
+    assert(Parse(selected,&request).ok() && request.composition_request.static_selection.expansion_path=="/partial");
+    for (const auto& edit:std::vector<std::pair<std::string,std::string>>{
+        {R"("base_size":12)",R"("base_size":0)"},{R"("persona_size":26)",R"("persona_size":33554433)"},
+        {"3221331969","3221401602"},{"3221331969","4294967295"},{"3221331969","3221331969.0"},
+        {R"("base_size":12)",R"("base_size":true)"},{R"("base_size":12)",R"("base_size":12,"extra":0)"},
+        {std::string(32,'b'),std::string(32,'0')},{R"("package_path":"/base")",R"("package_path":"base")"}}) {
+        auto bad=input;const auto at=bad.find(edit.first);assert(at!=std::string::npos);bad.replace(at,edit.first.size(),edit.second);
+        assert(!Parse(bad,&request).ok());
+    }
+    assert(!Parse(input.substr(0,input.size()-1)+R"(,"payload_path":"/linked.rbf"})",&request).ok());
+    assert(!Parse(input.substr(0,input.size()-1)+R"(,"expansion_path":"/partial"})",&request).ok());
+    auto missing=selected;const std::string path=R"(,"expansion_path":"/partial")";missing.erase(missing.find(path),path.size());
+    assert(!Parse(missing,&request).ok());
+    Status status;status.active_package.package_id=id;
+    assert(Parse(input,&request).ok());status.active_package.static_composition=request.composition_request.static_selection.composition;
+    const auto response=mister::daemon::EncodeResponse(2,true,status,"fixture");
+    assert(response.find(R"("composition":)"+tuple)!=std::string::npos);
+}
+
 void TestStaticPackageInspectionSerialization()
 {
 	mister::CorePackageInspection inspection;
@@ -1540,6 +1572,7 @@ int main(int argc, char** argv)
 	TestSlotCompositionProtocol();
 	TestComputerResponseFixtures();
 	TestFormat3InspectionSerialization();
+	TestStaticCompositionProtocol();
 	TestStaticPackageInspectionSerialization();
 	TestROMLoadProtocol();
 	TestPcxtInitialLoadProtocol();

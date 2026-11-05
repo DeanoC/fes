@@ -384,6 +384,11 @@ public:
 		const CoreROMLinks* rom_links = nullptr, const InitialComputerMedia* initial_media = nullptr,
 		const std::string& game_id = "", const AtaDiskImage* disk = nullptr)
 	{
+		if (composition && composition->has_static_selection &&
+			(!programmed_path.empty() || rom_link || rom_links || initial_media || !game_id.empty() || disk ||
+             !composition->composition.id.empty() || !composition->expansion_path.empty() ||
+             !composition->payload_path.empty() || !composition->parts.empty() || !composition->expansions.empty()))
+			return Invalid("static selection cannot mix ROM or initialized machine inputs");
 		LogRecord rejection;
 		bool rejected = false;
 		bool replacing = false;
@@ -391,7 +396,7 @@ public:
 		{
 			std::unique_lock<std::mutex> lock(mutex_);
 			WaitForMenuFrame(lock);
-			if (busy_ || !started_ || status_.state == State::starting ||
+			if ((composition && composition->has_static_selection && status_.state != State::idle) || busy_ || !started_ || status_.state == State::starting ||
 				status_.state == State::reboot_required) {
 				rejection = {"load_core", "", "", "validate",
 					Busy("runtime mutation is busy")};
@@ -458,6 +463,7 @@ public:
 		}
 		const CorePackageInfo info = package->info();
 		const CoreComposition admitted_composition = package->composition();
+		const CoreStaticComposition admitted_static_composition = package->static_composition();
 		if (!programmed_path.empty() || rom_link || rom_links) {
 			const Error attached = rom_links ? hardware_.AttachROMsBitstream(package.get(), programmed_path, *rom_links) :
 				rom_link ? hardware_.AttachROMBitstream(package.get(), programmed_path, *rom_link) :
@@ -566,6 +572,7 @@ public:
 			activated.active_package.package_id = info.package_id;
 			activated.active_package.descriptor = info.descriptor;
 			activated.active_package.composition = admitted_composition;
+			activated.active_package.static_composition = admitted_static_composition;
 			if (rom_link) activated.active_package.rom_link = *rom_link;
 			if (rom_links) activated.active_package.rom_links = *rom_links;
 			if (info.descriptor.abi.id == "fes.simple-game" ||

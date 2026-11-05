@@ -47,8 +47,8 @@ independently. A third member, strict static metadata and a separate
 Recheck hashes both retained descriptors again, including persona size and file
 type. Shared fixtures cover cross-reader identity and refusal, while the
 programming registry deliberately has no static-computer row yet. Parsing does
-not select a driver or call `ProgramStatic`. Normal launch dispatch, owned
-bounded backend construction and physical qualification remain required.
+not select a driver or call `ProgramStatic`. Owned bounded backend construction,
+normal library production and physical qualification remain required.
 
 `OpenCoreStaticComposition` independently recomputes the format5 default or
 format2 selected-persona receipt. A selected asset must use the canonical
@@ -64,6 +64,16 @@ no command, device access or profile registration.
 Protocol-2 package inspection includes the complete `static_expansion` object
 for format5, including when compatibility is refused. Other package formats
 retain their existing response bytes.
+
+The existing `load_composed_core` request also accepts the static two-image
+`composition` shape: package/base/persona identities and sizes, controller build
+and hardware ID, plus an optional expansion ID/path pair. It rejects linked
+payload paths and mixed composition/ROM forms. The shared runtime lifecycle
+admits this only from idle; an active core requires Stop first. The admitted
+receipt is retained in active status and cleared by ordinary Stop. Native
+admission verifies the selected files independently. The profile remains
+unregistered, and `LoadCoreInternal` has an explicit unavailable-backend guard
+before physical work even if a future registry change admits the descriptor.
 
 `LinuxDe25FpgaManager` implements `FpgaManager` for the selected
 `de25_hps_first_v1` computer and `de25_linux_menu_v1` application profiles.

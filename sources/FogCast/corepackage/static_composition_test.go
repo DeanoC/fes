@@ -99,7 +99,7 @@ func rewriteStaticBundle(t *testing.T, source []byte, change func(map[string][]b
 	change(members)
 	var out bytes.Buffer
 	w := tar.NewWriter(&out)
-	for _, name := range []string{"package.tar", "expansion.tar", "composition.json", "../extra"} {
+	for _, name := range []string{staticCompositionMember, "package.tar", "expansion.tar", "../extra"} {
 		if body, ok := members[name]; ok {
 			if err := w.WriteHeader(&tar.Header{Name: name, Mode: 0600, Size: int64(len(body)), Typeflag: tar.TypeReg}); err != nil {
 				t.Fatal(err)
@@ -128,9 +128,9 @@ func TestStaticCompositionBundleRejectsSubstitutionAndUnknownMembers(t *testing.
 		"missing-selection": func(m map[string][]byte) { delete(m, "expansion.tar") },
 		"missing-package":   func(m map[string][]byte) { delete(m, "package.tar") },
 		"traversal":         func(m map[string][]byte) { m["../extra"] = []byte("x") },
-		"changed-receipt":   func(m map[string][]byte) { m["composition.json"] = []byte(`{"composition_id":"bad"}`) },
+		"changed-receipt":   func(m map[string][]byte) { m[staticCompositionMember] = []byte(`{"composition_id":"bad"}`) },
 		"unknown-field-receipt": func(m map[string][]byte) {
-			m["composition.json"] = append([]byte(`{"extra":0,`), m["composition.json"][1:]...)
+			m[staticCompositionMember] = append([]byte(`{"extra":0,`), m[staticCompositionMember][1:]...)
 		},
 		"changed-package": func(m map[string][]byte) { m["package.tar"] = bytes.Clone(m["package.tar"]); m["package.tar"][0] ^= 1 },
 	} {

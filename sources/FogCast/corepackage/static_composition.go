@@ -13,6 +13,8 @@ import (
 	"github.com/DeanoC/misteross/expansion"
 )
 
+const staticCompositionMember = "static-composition.json"
+
 const MaxStaticCompositionArchiveSize = MaxArchiveSize + expansion.MaxArchiveBytes + 16384
 
 // StaticCompositionBundle retains the sealed format5 package and optional
@@ -76,7 +78,7 @@ func (b StaticCompositionBundle) Write(w io.Writer) error {
 	members := []struct {
 		name string
 		body []byte
-	}{{"package.tar", verified.Package}}
+	}{{staticCompositionMember, identity}, {"package.tar", verified.Package}}
 	if verified.Expansion != nil {
 		var asset bytes.Buffer
 		if err := verified.Expansion.Write(&asset); err != nil {
@@ -87,10 +89,6 @@ func (b StaticCompositionBundle) Write(w io.Writer) error {
 			body []byte
 		}{"expansion.tar", asset.Bytes()})
 	}
-	members = append(members, struct {
-		name string
-		body []byte
-	}{"composition.json", identity})
 	writer := tar.NewWriter(w)
 	for _, m := range members {
 		if err := writer.WriteHeader(&tar.Header{Name: m.name, Mode: 0600, Size: int64(len(m.body)), Typeflag: tar.TypeReg}); err != nil {
@@ -110,7 +108,7 @@ func ReadStaticCompositionBundle(r io.Reader) (StaticCompositionBundle, error) {
 	bounded := &io.LimitedReader{R: r, N: MaxStaticCompositionArchiveSize + 1}
 	reader := tar.NewReader(bounded)
 	files := map[string][]byte{}
-	limits := map[string]int64{"package.tar": MaxArchiveSize, "expansion.tar": expansion.MaxArchiveBytes, "composition.json": 4096}
+	limits := map[string]int64{"package.tar": MaxArchiveSize, "expansion.tar": expansion.MaxArchiveBytes, staticCompositionMember: 4096}
 	for {
 		h, err := reader.Next()
 		if err == io.EOF {
@@ -136,7 +134,7 @@ func ReadStaticCompositionBundle(r io.Reader) (StaticCompositionBundle, error) {
 	if err != nil {
 		return StaticCompositionBundle{}, err
 	}
-	if bounded.N == 0 || files["package.tar"] == nil || files["composition.json"] == nil || (len(files) != 2 && len(files) != 3) {
+	if bounded.N == 0 || files["package.tar"] == nil || files[staticCompositionMember] == nil || (len(files) != 2 && len(files) != 3) {
 		return StaticCompositionBundle{}, errors.New("invalid static composition framing")
 	}
 	for _, v := range padding {
@@ -157,10 +155,16 @@ func ReadStaticCompositionBundle(r io.Reader) (StaticCompositionBundle, error) {
 		return StaticCompositionBundle{}, err
 	}
 	canonical, err := json.Marshal(verified.Composition)
-	if err != nil || !bytes.Equal(canonical, files["composition.json"]) {
+	if err != nil || !bytes.Equal(canonical, files[staticCompositionMember]) {
 		return StaticCompositionBundle{}, errors.New("static composition receipt differs from recomputed inputs")
 	}
 	return verified, nil
+}
+
+// IsStaticCompositionBundle recognizes the first canonical member only.
+// Closed parsing and payload verification follow before publication.
+func IsStaticCompositionBundle(data []byte) bool {
+	return (&canonicalReader{data: data}).peek() == staticCompositionMember
 }
 
 // StageStaticComposition stages only verified base/default/selected files. It
