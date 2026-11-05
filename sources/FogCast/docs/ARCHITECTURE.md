@@ -1727,9 +1727,11 @@ remembered drives remain untouched.
 The kernel loop-mounts the bootstrap as before. Its PID 1 verifies the selected
 image, consumes a pending trial durably, attaches another read-only loop, and uses
 `pivot_root` followed by exec of the selected `/sbin/init`. The old bootstrap
-remains at `/.fes-bootstrap`. Preparation failures select verified known-good or
-factory; failures after starting root switching require reboot. No trial is
-repeated on a later boot without another explicit activation.
+remains at `/.fes-bootstrap`. If a verified current image fails preparation, PID 1
+tries its verified previous image before factory. A successfully prepared
+previous image becomes the recorded Good image, and the failed current image is
+dropped as a rollback target. Failures after starting root switching require
+reboot. No trial is repeated on a later boot without another explicit activation.
 
 For a trial, an independent bootstrap process first verifies the ARM DE10-nano
 device tree and prepares Cyclone V warm reset: it marks the completed preloader

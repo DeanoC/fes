@@ -417,11 +417,11 @@ func (s *Store) RejectTrialContext(ctx context.Context, bootID, imageSHA string)
 }
 
 // RecordFallbackContext binds Good to the verified nontrial image that the
-// bootstrap has successfully prepared for this boot. Only the recorded Good
-// or stable factory may be selected. A consumed trial must first be rejected
-// explicitly; this method cannot discard or accept a trial. When factory
-// replaces an unusable Good, it becomes the truthful predecessor of the next
-// update, and the unusable image is not retained as a rollback target.
+// bootstrap has successfully prepared for this boot. The recorded Good, its
+// verified Previous image, or stable factory may be selected. A consumed trial
+// must first be rejected explicitly; this method cannot discard or accept a
+// trial. When a fallback replaces an unusable Good, the unusable image is not
+// retained as a rollback target.
 // With corrupt state, only the factory or the image named by the boot ticket
 // (and its explicit fallback for a nontrial ticket) is accepted. Corrupt-state
 // boot preserves the damaged record as recovery evidence.
@@ -458,8 +458,8 @@ func (s *Store) RecordFallbackContext(ctx context.Context, bootID, imageSHA stri
 	if st.BootID != bootID {
 		return errors.New("fallback boot does not match consumed boot")
 	}
-	if imageSHA != st.Good && imageSHA != s.factory.ImageSHA256 {
-		return errors.New("fallback is neither known good nor factory")
+	if imageSHA != st.Good && imageSHA != st.Previous && imageSHA != s.factory.ImageSHA256 {
+		return errors.New("fallback is neither known good, previous, nor factory")
 	}
 	if st.TrialImage != "" || st.Pending != "" {
 		return errors.New("fallback cannot discard trial or pending selection")
