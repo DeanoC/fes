@@ -67,6 +67,11 @@ receipts, and binaries independently under the retained artifact set's
 `runtime/` directory. This is userspace-only SDK validation: the production
 ARMv7/DE10 guard remains closed on AArch64, and no daemon was started on a kit.
 
-An exact-image boot/autoload check remains required. Production AArch64 runtime
-admission, bounded failed-load recovery, MENU/DMA and managed catalog flow are
-still incomplete. No deployment occurs from these off-board checks.
+The [2026-11-05 native check](../2026-11-05-de25-headless-autoload/README.md)
+now verifies one coldboot of this retained image and its actual startup service:
+all four matching modules loaded automatically, manager/region interfaces
+appeared, and unattended Ethernet plus pinned authenticated SSH worked. The
+original managed FES card was restored and authenticated before release. A
+software reboot of this exact legacy image remains untested. These observations
+do not qualify production runtime, DMA/display, recovery or managed catalog
+behavior; their later image-specific evidence remains separate.

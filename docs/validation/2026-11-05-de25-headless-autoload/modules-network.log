@@ -1,0 +1,103 @@
+
+FES_HEADLESS_MODULES_BEGIN
+stratix10_soc 12288 1 - Live 0xffff80007ad60000
+of_fpga_region 12288 0 - Live 0xffff80007ad82000
+fpga_region 12288 1 of_fpga_region, Live 0xffff80007ad77000
+fpga_bridge 16384 2 of_fpga_region,fpga_region, Live 0xffff80007ad6b000
+Stratix10 SOC FPGA Manager
+{
+  "format": 1,
+  "kernel": "6.12.11-gd7d192a9ddd9",
+  "kernel_image_sha256": "874f75d81f6452406f0f0ea5e0849ea269e92599fe728eb02b1bdbb56ada1aa8",
+  "modules": [
+    {
+      "path": "kernel/drivers/fpga/stratix10-soc.ko",
+      "size": 100328,
+      "sha256": "623b6c154326ccfc98fd457e528b974fc2f3fedd83a69b7b307b5bb7fe68a6ec"
+    },
+    {
+      "path": "kernel/drivers/fpga/fpga-bridge.ko",
+      "size": 66856,
+      "sha256": "1d79dba109ce3ab85f64ad6b1c418a5d995ad8f4936fabdb9907d94f86aa349b"
+    },
+    {
+      "path": "kernel/drivers/fpga/fpga-region.ko",
+      "size": 53912,
+      "sha256": "a2a3c218d4a3c414466539e76e133939c8301405c96feb001229ec22a3f52b72"
+    },
+    {
+      "path": "kernel/drivers/fpga/of-fpga-region.ko",
+      "size": 56544,
+      "sha256": "047c6b111243d9db71ede2979251b5554cd2bddca50b123c37ecd05485263b8c"
+    }
+  ]
+}
+1d79dba109ce3ab85f64ad6b1c418a5d995ad8f4936fabdb9907d94f86aa349b  /lib/modules/6.12.11-gd7d192a9ddd9/kernel/drivers/fpga/fpga-bridge.ko
+a2a3c218d4a3c414466539e76e133939c8301405c96feb001229ec22a3f52b72  /lib/modules/6.12.11-gd7d192a9ddd9/kernel/drivers/fpga/fpga-region.ko
+047c6b111243d9db71ede2979251b5554cd2bddca50b123c37ecd05485263b8c  /lib/modules/6.12.11-gd7d192a9ddd9/kernel/drivers/fpga/of-fpga-region.ko
+623b6c154326ccfc98fd457e528b974fc2f3fedd83a69b7b307b5bb7fe68a6ec  /lib/modules/6.12.11-gd7d192a9ddd9/kernel/drivers/fpga/stratix10-soc.ko
+
+FES_HEADLESS_NETWORK_EVIDENCE_BEGIN
+2: eth0: <BROADCAST,MULTICAST,UP,LOWER_UP> mtu 1500 qdisc mq qlen 1000
+    inet 192.168.10.203/24 brd 192.168.10.255 scope global eth0
+       valid_lft forever preferred_lft forever
+2: eth0: <BROADCAST,MULTICAST,UP,LOWER_UP> mtu 1500 qdisc mq qlen 1000
+    link/ether ea:c2:d0:74:16:61 brd ff:ff:ff:ff:ff:ff
+default via 192.168.10.1 dev eth0 
+192.168.10.0/24 dev eth0 scope link  src 192.168.10.203 
+1
+  155 root     udhcpc -R -n -O search -p /var/run/udhcpc.eth0.pid -i eth0 -b
+155
+auto lo
+iface lo inet loopback
+
+# The Terasic device tree's ethernet0 alias is eth0 without userspace renaming.
+auto eth0
+iface eth0 inet dhcp
+    # Keep trying after the initial discovery window while boot continues.
+    udhcpc_opts -b
+nameserver 192.168.10.1 # eth0
+
+FES_HEADLESS_DMESG_BEGIN
+[    1.929804] Intel Service Layer Driver Initialized
+[    1.937520] of_cfs_init
+[    1.940088] of_cfs_init: OK
+[    1.943087] clk: Disabling unused clocks
+[    1.947128] PM: genpd: Disabling unused power domains
+[    1.952184] ALSA device list:
+[    1.955151]   No soundcards found.
+[    1.958954] dw-apb-uart 10c02100.serial: forbid DMA for kernel console
+[    1.975274] EXT4-fs (mmcblk0p2): mounted filesystem dc1b5512-2da9-40ce-ae48-5c62b7e4f0c0 r/w with ordered data mode. Quota mode: none.
+[    1.994544] VFS: Mounted root (ext4 filesystem) on device 179:2.
+[    2.001530] devtmpfs: mounted
+[    2.010329] Freeing unused kernel memory: 10496K
+[    2.015097] usb 1-1: new high-speed USB device number 2 using dwc2
+[    2.015231] Run /sbin/init as init process
+[    2.025524]   with arguments:
+[    2.025539]     /sbin/init
+[    2.025545]   with environment:
+[    2.025550]     HOME=/
+[    2.025557]     TERM=linux
+[    2.179811] EXT4-fs (mmcblk0p2): re-mounted dc1b5512-2da9-40ce-ae48-5c62b7e4f0c0 r/w. Quota mode: none.
+[    2.216808] hub 1-1:1.0: USB hub found
+[    2.220698] hub 1-1:1.0: 4 ports detected
+[    2.503814] usb 1-1.3: new full-speed USB device number 3 using dwc2
+[    2.564029] fpga_manager fpga0: Stratix10 SOC FPGA Manager registered
+[    2.596622] of-fpga-region fpga-region: FPGA Region probed
+[    3.439826] random: crng init done
+[    3.491718] socfpga-dwmac 10810000.ethernet eth0: Register MEM_TYPE_PAGE_POOL RxQ-0
+[    3.502471] socfpga-dwmac 10810000.ethernet eth0: Register MEM_TYPE_PAGE_POOL RxQ-1
+[    3.513193] socfpga-dwmac 10810000.ethernet eth0: Register MEM_TYPE_PAGE_POOL RxQ-2
+[    3.524431] socfpga-dwmac 10810000.ethernet eth0: Register MEM_TYPE_PAGE_POOL RxQ-3
+[    3.535709] socfpga-dwmac 10810000.ethernet eth0: Register MEM_TYPE_PAGE_POOL RxQ-4
+[    3.546095] socfpga-dwmac 10810000.ethernet eth0: Register MEM_TYPE_PAGE_POOL RxQ-5
+[    3.557480] socfpga-dwmac 10810000.ethernet eth0: Register MEM_TYPE_PAGE_POOL RxQ-6
+[    3.567913] socfpga-dwmac 10810000.ethernet eth0: Register MEM_TYPE_PAGE_POOL RxQ-7
+[    3.642337] socfpga-dwmac 10810000.ethernet eth0: PHY [stmmac-0:01] driver [Micrel KSZ9031 Gigabit PHY] (irq=POLL)
+[    3.652758] socfpga-dwmac 10810000.ethernet eth0: No Safety Features support found
+[    3.660354] socfpga-dwmac 10810000.ethernet eth0: IEEE 1588-2008 Advanced Timestamp supported
+[    3.669339] socfpga-dwmac 10810000.ethernet eth0: registered PTP clock
+[    3.675932] socfpga-dwmac 10810000.ethernet eth0: configuring for phy/rgmii link mode
+[    9.828787] socfpga-dwmac 10810000.ethernet eth0: Link is Up - 1Gbps/Full - flow control rx/tx
+
+FES_HEADLESS_READONLY_END
