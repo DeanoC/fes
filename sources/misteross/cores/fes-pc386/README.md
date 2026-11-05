@@ -412,7 +412,13 @@ FreeDOS 1.4 package archives in `C:\FDOS\BIN`, pinned in
   All 160K of C8000-EFFFF becomes upper memory.
 - `AUTOEXEC.BAT` runs [`FESENV.COM`](sim/fesenv.asm) into
   `C:\FDOS\FESENV.BAT` and calls it, so `BLASTER` follows the Sound Blaster
-  setting in CMOS 60h-62h at every boot, then loads CuteMouse high.
+  setting in CMOS 60h-62h at every boot, then loads CuteMouse high and runs
+  [`MOUSEDEF.COM`](sim/mousedef.asm). That gives CuteMouse a default event
+  handler that is not 0:0, a RETF in the BIOS ROM with mask 0, as Microsoft's
+  driver and DOSBox's have. Ultima VII's menu keeps a swapped-out handler only
+  if it is not 0:0. After CuteMouse's 0:0 it left its own handler installed,
+  and the next program was called at a stale address on every mouse event
+  (#1485).
 - The games profile sets `BUFFERS=16`. MEM shows 575K (588,544 bytes) of
   conventional memory free and 154K of upper memory free, largest block 81K.
   This is 1,792 bytes above Serpent Isle's published 573K (586,752-byte)

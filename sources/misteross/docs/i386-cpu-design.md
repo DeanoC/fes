@@ -586,6 +586,7 @@ with those stages. WB flushes and redirects wait for this freeze too.
 | Any of the three results above used as a scaled index | +1 on its row |
 | Predicted taken branch | One fetch bubble, normally hidden by the fetch buffer |
 | Mispredict resolved at AG / at EX | +7 / +10; DC adds one cycle to every redirect ([#1124](https://github.com/DeanoC/fes/pull/1124)) |
+| Taken branch, as built through Phase 3 | Resolved at EX, redirected from WB: the target retires 11.3–12.2 clocks after the branch in game code, 20–28 after an indirect or protected-mode far one ([Phase 4 profile](#phase-4-speed)) |
 | Redirect to the next instruction's issue | 6 cycles measured, 7 in 12 of 56 prefix-free runs; the DC cut adds one cycle ([#1124](https://github.com/DeanoC/fes/pull/1124)) |
 | Load bytes not yet returned | Freeze D through WB, including both forwarding tables, until the bytes arrive ([data-latency record](https://github.com/DeanoC/fes/blob/main/sources/misteross/docs/validation/2026-10-26-i386-data-latency.md)) |
 | Push or pop immediately after another push or pop | 1 cycle; ESP forwarding adds no wait in the latency-free run ([#1141](https://github.com/DeanoC/fes/pull/1141)) |
@@ -598,8 +599,9 @@ with those stages. WB flushes and redirects wait for this freeze too.
 
 ### Performance estimate
 
-Assumptions for cache-resident integer game code. Profile counts replace every
-row once the RTL runs games.
+Assumptions for cache-resident integer game code, from before the RTL ran
+games. The measured profile in [Phase 4](#phase-4-speed) replaces them: DOOM's
+timedemo runs at CPI 2.54, of which taken-branch redirects are 0.87.
 
 | Contribution | CPI |
 | --- | ---: |
@@ -1402,6 +1404,208 @@ below are the plan for the complete CPU and machine.
     authenticated HIP or CUDA backend. Existing isolated-block spikes are not
     full-CPU timing or seal evidence.
 
+## Phase 4: speed
+
+Phase 4 makes the CPU faster at `max` on the code the acceptance games run.
+Every slice follows from a measured profile, lands with its before and after,
+and changes no architectural result.
+
+### Where the clocks go
+
+The [Phase 4 profile](../../../docs/validation/2026-11-04-i386-phase4-profile/summary.md)
+classifies every system clock of `fes_i386_cpu` on the RTL machine bench
+(`machine_tb --cpu rtl`, governor `max`):
+- **Hook.** Each clock is put in one bucket at D: an issued uop, a freeze (L1D
+  miss, MMIO, multiply or divide, I/O, INTA, a full store buffer), refill after
+  a redirect, an L1I miss or empty front end, or the hazard that held D. Each
+  retirement's clocks go to its instruction's class. A taken instruction's
+  redirect is charged by the gap to its target's retirement.
+- **Windows.**
+  - DOOM v1.9's `-timedemo demo3` and the shareware DOOM timedemo at the DOS
+    Benchmark Pack's maximum detail run on Bochs until the 40th page flip,
+    then on the RTL.
+  - Wolfenstein 3D's play window runs on the RTL from 16.5 s.
+  - 3DBench and PCPBench run on the RTL from 4 s.
+- **Clock correction.** The bench clocks the CPU at 100 MHz and port 0's
+  first data takes 18 of those clocks. At the kit's 61.44 MHz it takes 11, so
+  the kit-equivalent clock counts charge each L1 miss 7 clocks fewer. On that
+  basis DOOM's window takes 2.11M clocks a frame. Kit B's whole demo
+  averages 2.30M (26.7 fps, [games smoke record](../../../docs/validation/2026-11-04-pc386-games-smoke/summary.md)).
+  The window holds 433 of the demo's frames, about a ninth of them.
+
+| Share of clocks | DOOM `demo3` | Wolfenstein 3D play | 3DBench |
+| --- | ---: | ---: | ---: |
+| Uops that retire | 40.6% | 32.9% | 37.0% |
+| Taken-branch redirects: refill | 18.6% | 20.6% | 23.3% |
+| Taken-branch redirects: wrong-path uops | 15.6% | 16.0% | 19.7% |
+| L1D miss to port 0 (bench clocks) | 10.4% | 2.1% | 5.1% |
+| Load or late result into an address (AGI) | 5.9% | 0.9% | 3.5% |
+| Multiply and divide | 2.5% | 1.3% | 3.2% |
+| Store-to-load wait | 2.1% | 11.1% | 1.3% |
+| Store buffer full (VGA writes) | 0.1% | 9.1% | 1.6% |
+| I/O | 1.2% | 3.8% | 0.2% |
+| Everything else | 3.0% | 2.1% | 5.1% |
+| CPI | 2.54 | 3.17 | 3.26 |
+
+A taken branch costs 11–12 clocks, and taken branches take 34–43% of every
+workload's time. In DOOM, the column drawer's loop-back branch alone is 10%
+of all clocks. In Wolfenstein 3D, one seven-instruction loop is 60% of all
+clocks, and its loop-back branch is 35%. 3DBench takes a quarter of its taken
+branches through LOOP. Redirects after far CALL and RETF are 2.2% of
+Wolfenstein 3D's clocks, 0.02% of DOOM's (in protected mode) and none of
+3DBench's.
+
+### Estimated gains
+
+These are the kit-equivalent clocks each feature removes, and DOOM's
+timedemo frame rate from Kit B's 26.7 fps:
+- **Accuracy assumed.** A correctly predicted taken branch leaves the
+  target its average cost plus one bubble. Jcc prediction is 85–95% right,
+  direct JMP and CALL and RET 95–99%, indirect 70–90%.
+- **False taken.** 5% of not-taken Jcc are predicted taken and pay a full
+  redirect.
+
+| Feature | DOOM `demo3` | DOOM fps | Wolfenstein 3D | 3DBench |
+| --- | ---: | ---: | ---: | ---: |
+| BTB: Jcc, LOOP and JCXZ | 22–25% | 34.3–35.5 | 25–28% | 32–36% |
+| BTB: JMP and CALL rel | 4% | 27.9 | 2.5% | 6% |
+| Return stack | 2.7% | 27.4 | 0.6% | 2.8% |
+| BTB: indirect JMP and CALL | 0.7–0.9% | 26.9 | 0% | 0.1% |
+| Real-mode far prediction | 0% | 26.7 | 1.6% | 0% |
+| Prediction, all five | 29–33% | 37.8–39.6 | 29–33% | 41–46% |
+| Store-to-load wait only where the load may overlap the store | 1–2% | 27.0–27.3 | 6–11% | 0.7–1.4% |
+| Early ALU at AG | 2–5% | 27.2–28.1 | 0.3–0.8% | 1–3% |
+| L2, 128 KiB (Phase 3's design, not built) | 3–5% | 27.6–28.1 | 0.5–0.8% | 0% |
+| Faster divider (DIV only; the DSP multiplier stays) | 0.6–1.2% | 26.9–27.0 | 0.2–0.3% | 0.2–0.5% |
+
+The far-branch classes count both modes. DOOM's far branches, 0.1% of its
+clocks, are DOS/4GW's in protected mode, which real-mode far prediction does
+not cover. Wolfenstein 3D and 3DBench retire nothing in protected mode.
+
+Prediction is the phase: all of it together takes DOOM from 26.7 to about
+38–40 fps, Wolfenstein 3D from a kit-equivalent 44 to about 62–65, and
+3DBench to about 1.7–1.8 times its speed.
+
+The two biggest items that are not prediction are the store-to-load wait in
+Wolfenstein 3D and a missing L2 in DOOM. The early ALU's figure is an upper
+bound until the profile splits AGI by producer.
+
+Wolfenstein 3D's VGA writes, which fill the store buffer, are a machine
+bandwidth limit, not a CPU feature.
+
+Governed games gain nothing from this phase. Ultima VI at 286-12 and The Black
+Gate at 386DX-25 already run at their table time. What changes is
+[speed control's reach](#speed-control): the 486 presets become reachable on
+loops with taken branches.
+
+### Timing budget
+
+The pc386 seal runs the system clock at 61.44 MHz, a 16.28 ns period. A
+Quartus 17.0.2 rebuild of main `d646bcd7e`, with the 109 sealed inputs of
+Kit B's package `499f4805`, gives the CPU's worst setup slack at the
+−40 °C corner for each stage's registers:
+
+| Stage | Worst slack |
+| --- | ---: |
+| Q to DC decode | +2.40 ns |
+| L1I valid bits | +3.07 ns |
+| Q's start and prefix accumulator | +3.20 ns |
+| Segment limits | +3.31 ns |
+| L1D wait | +3.74 ns |
+| AG | +4.73 ns |
+| D's EIP and the string offsets | +5.0–5.4 ns |
+| Forwarding tables | +5.4–6.4 ns |
+| EX | +6.59 ns |
+| M1 | +6.92 ns |
+
+The governor's ISA charge, at +1.22 ns, is the system clock's worst path. The
+front end, where the BTB and return stack go, has the least room. The back
+end, where the early ALU, the store-to-load check and far prediction go, has
+4–7 ns.
+
+The design has 29,119 of 41,910 ALMs, 259 of 553 M10K blocks and 36 of 112
+DSP blocks in use.
+
+### Slices
+
+Each slice is its own PR. Before it can merge, it needs:
+- its microbenchmark, before and after, on the RTL machine bench;
+- the period benchmarks and the profile windows rerun;
+- lockstep against Bochs on RTL and netlist, with the slice's directed cases
+  and random programs;
+- a Quartus 17.0.2 seal with every analysis met;
+- a kit run on that seal.
+
+A timing miss stops the slice; it never relaxes a check. Wolfenstein 3D's
+frame rate on Kit B's capture is held at the capture's 30 fps. Its check is
+therefore its page flips per second on the bench, with the kit run as a
+regression check. DOOM's `-timedemo demo3` is the kit's frame-rate check, as
+it runs uncapped.
+
+1. **Measurement baseline.**
+   - **Bench.** Land the profile hook as `machine_tb --cpu-profile`, with the
+     Bochs-to-RTL handover at a page flip.
+   - **Microbenchmarks.** Write one per row of the latency table that Phase 4
+     changes: a taken Jcc loop, CALL and RET, indirect CALL, a far CALL and
+     RETF loop in real mode, an AGI chain, and a store then a load. Each is a
+     loop in the [governor bench](../cores/fes-common/sim/i386/governor_bench.asm)'s
+     form.
+   - **Period benchmarks.** Run 3DBench, PCPBench and TopBench from scratch
+     disks; the DOS Benchmark Pack is never committed. Record Kit B's scores
+     on the current seal beside DOOM's.
+2. **BTB for Jcc, LOOP, JCXZ and direct JMP and CALL.**
+   - **Structure.** 512 entries, two-way, in M10K, read at F1 with the L1I. F2
+     compares the tag and registers the redirect, which F1 takes on the next
+     clock. That is one bubble, kept off F2's tag compare.
+   - **Checks.** DC confirms that the instruction at the entry's end offset
+     is a branch of the entry's type, else it redirects. WB checks direction,
+     target and type. A mispredict redirects as today.
+   - **Lockstep.** Directed cases: a store that changes a predicted branch's
+     displacement, DMA into its bytes, FLUSH, a CS.D change, an interrupt
+     between a predicted branch and its target, and a replay through a
+     predicted branch. Random programs with loops long enough to saturate the
+     counters.
+   - **Gain.** 26–29% of DOOM's clocks: 26.7 to about 36–38 fps. The slice
+     records the BTB's measured Jcc accuracy; below the 85% assumed here is
+     the measured need Phase 7's gshare waits for.
+   - **Risk.** About 6–8 M10K blocks and 500 ALMs. F1's address select gains an
+     input, and the front end has +2.4–3.2 ns. This slice also updates speed
+     control's reach.
+3. **Return stack.** Sixteen entries in flip-flops. CALL pushes at F2 on a BTB
+   hit of type call, RET pops, and WB repairs it on a mispredict. Lockstep: a
+   return to a modified address, unbalanced CALL and RET, and stack switches.
+   Gain: DOOM and 3DBench about 3%; PCPBench spends most of its set-up in
+   CALL and RET. Risk: low, about 600 flip-flops.
+4. **Store-to-load wait only on a possible overlap.** D holds a load behind a
+   store in AG only when their addresses may overlap, not behind every store.
+   Lockstep: store and load pairs at every offset and size, across lines and
+   pages, and with MMIO. Gain: Wolfenstein 3D 6–11%, DOOM 1–2%. Risk: low; D
+   and AG have +4.7–5.4 ns.
+5. **Indirect JMP and CALL.** The BTB keeps the last target. Gain: DOOM about
+   1%. Risk: none beyond slice 2.
+6. **Early ALU.**
+   - **First step.** Split the AGI counter by producer: a load, or a late ALU
+     result.
+   - **Build.** If the ALU share warrants it, the register and immediate
+     ALU forms execute at AG, and Jcc and LOOP resolve there when their
+     flags or ECX are ready.
+   - **Gain.** DOOM up to 2–5%, less what loads cause.
+   - **Risk.** Moderate: AG has +4.7 ns, and the result and flag paths join
+     the forwarding tables.
+7. **Real-mode far prediction.**
+   - **Structure.** Far CALL, JMP and RETF in real and V86 mode enter the
+     BTB and return stack with their selector. The CS base travels with the
+     uop and is checked at EX.
+   - **Condition.** Only if another real-mode game or benchmark shows more
+     than Wolfenstein 3D's 1.6%. 3DBench has no far branches, and DOOM's
+     are in protected mode.
+   - **Risk.** Moderate: the far selector's displacement add already
+     limited a D route.
+
+After these, the profile decides between the L2 (DOOM 3–5%), a deeper store
+buffer for VGA writes (a machine change) and a faster divider (DOOM about
+1%). The Phase 7 options stay where they are.
+
 ## Milestones
 
 | Milestone | Content | Exit |
@@ -1410,7 +1614,7 @@ below are the plan for the complete CPU and machine.
 | Phase 1 | Real-mode pipeline: twelve stages, data-port latency model, static not-taken prediction and real-mode microcode | **In progress:** the first [memory slice](#memory-slices) puts L1I, L1D and the bus interface on DDR port 0, with uncached MMIO, DMA and FLUSH ([record](validation/2026-10-28-i386-memory-path.md)). That record covers 1,744,099 corpus states, 32,000 random programs, and an RTL machine boot of FreeDOS. DC decodes ahead of D; the current slice includes register, immediate and memory-operand forms, a D–WB load freeze, near stack operations, real-mode far JMP/CALL/RETF and LES/LDS/LSS/LFS/LGS. The record's Quartus fits and nextpnr routes time this memory slice as diagnostics, not package or hardware acceptance. L2, real-mode microcode and measurements of DDR and SDRAM line fills through the CPU remain. Extend lockstep and route coverage as slices land. Exit requires full real-mode lockstep, whole-CPU routed fmax and area, and DDR and SDRAM line-fill measurements through the CPU path against the [DDR check](#l2-and-coherence) ([far-transfer record](https://github.com/DeanoC/fes/blob/main/sources/misteross/docs/validation/2026-10-26-i386-far.md#result)) |
 | Phase 2 | Protected mode without V86 or paging: descriptor loads, privilege, gates, exceptions, debug registers. Enough for unreal mode and DOS extenders | **In progress:** the first slice ([#1369](https://github.com/DeanoC/fes/issues/1369)) builds MOV to and from CR0, CR2 and CR3, LMSW, SMSW, LGDT, SGDT, LIDT and SIDT, protected-mode segment loads from the GDT with their checks, error codes and accessed bit, and far JMP to a code segment at CPL 0: enough for unreal mode, which HIMEMX's XMS moves and Ultima VII's Voodoo memory manager use ([record](../../../docs/validation/2026-11-01-i386-phase2-unreal/summary.md)). The second slice ([#1406](https://github.com/DeanoC/fes/issues/1406)) delivers exceptions, INTR and NMI at CPL 0 through interrupt and trap gates with their error codes, EXT, double fault and shutdown, and builds INT n, INT3, INTO and IRET, far CALL and RETF to the same privilege, LLDT and TI=1 loads, LTR, SLDT, STR, LAR, LSL, VERR, VERW and ARPL ([record](../../../docs/validation/2026-11-02-i386-phase2-idt/summary.md)). The general CS-limit check ([#1414](https://github.com/DeanoC/fes/issues/1414)) raises #GP(0) for an instruction that starts or runs past CS's limit and for a near branch, call or return to past it, under any limit and in either mode, as DOS/4GW's 16-bit kernel segments need ([record](../../../docs/validation/2026-11-02-i386-cs-limit/summary.md)). Privilege transitions, call and task gates, IOPL and the I/O bitmap, and debug registers remain (a third slice), each stopping the CPU as not built with its reason. test386.asm enters protected mode with paging on, so its protected-mode part waits for Phase 5's paging. Exit: test386.asm's real- and protected-mode parts pass in RTL; random protected-mode lockstep clean |
 | Phase 3 | First playable: the CPU in `fes.pc386` with the scope the acceptance games set, L2 on DDR, the open BIOS, the governor | FreeDOS boots in simulation; first sealed package; Wolfenstein 3D, Ultima VI, DOOM and both Ultima VII games play on a kit, with the two presets recorded |
-| Phase 4 | Speed: BTB, return stack, early ALU, real-mode far-branch prediction | Each feature with its microbenchmark and period-benchmark change, and the Wolfenstein 3D frame rate from captured frames before and after |
+| Phase 4 | Speed: BTB, return stack, early ALU, real-mode far-branch prediction; the [plan](#phase-4-speed) adds the store-to-load wait and orders the slices by the measured profile | Each feature with its microbenchmark and period-benchmark change, DOOM's `-timedemo demo3` frame rate on the kit before and after, and Wolfenstein 3D's page flips a second on the bench (the kit's capture holds it at 30 fps, so the kit run checks for regressions) |
 | Phase 5 | V86, paging and task switches | test386.asm passes completely; JEMM386 boots; Wolfenstein 3D runs with EMS under it |
 | Phase 6 | x87 | An x87 corpus (to choose) and FPU-using games |
 | Phase 7 | Options: `i486-isa`, second-level TLB, line-wide strings, gshare, descriptor lookaside, LOADALL (0F07) | Only with a measured need |
