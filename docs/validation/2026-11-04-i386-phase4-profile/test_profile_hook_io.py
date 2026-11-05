@@ -65,14 +65,15 @@ int main() {
     io(true, 0x3d5, 1, 0x81);
     assert(frames == 1);
 
-    io(true, 0x3d4, 2, 0x0c);  // unsupported selector width invalidates selection
-    io(true, 0x3d5, 1, 0x82);
-    assert(frames == 1);
-    io(true, 0x3d4, 1, 0x0c);
-    io(true, 0x3d5, 2, 0x83);  // only byte data writes count
-    assert(frames == 1);
-    io(true, 0x3d5, 1, 0x84);
+    io(true, 0x3d4, 2, 0x800c); // word OUT: select 0Ch, then write data at 3D5h
     assert(frames == 2);
+    io(true, 0x3d5, 1, 0x82);
+    assert(frames == 3);
+    io(true, 0x3d4, 1, 0x0c);
+    io(true, 0x3d5, 2, 0x0083); // its low byte is a write to 3D5h
+    assert(frames == 4);
+    io(true, 0x3d5, 1, 0x84);
+    assert(frames == 5);
 }
 """)
         binary = temp_path / "test"
