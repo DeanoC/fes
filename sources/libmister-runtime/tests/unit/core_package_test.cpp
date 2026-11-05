@@ -748,6 +748,22 @@ void TestSharedFormat3IdentityAndManifestFixtures()
 	}
 }
 
+void TestNanoHeldROMInspectionDoesNotGrantCompatibility()
+{
+	const std::string root = "tests/fixtures/core-bundle-v3/";
+	for (const int bytes : {4096, 8192}) {
+		const std::string name = "valid-nano-" + std::to_string(bytes);
+		TempDirectory package;
+		package.Add("manifest.toml", ReadFile(root + "manifests/" + name + ".toml"));
+		package.Add("core.rbf", ReadFile(root + "payloads/fes-fixture.rbf"));
+		package.Add("rom-map.json", ReadFile(root + "maps/" + name + ".json"));
+		mister::native::OpenedCorePackage opened;
+		assert(mister::native::OpenCorePackage(package.path, "", &opened).ok());
+		assert(mister::native::RecheckCorePackage(opened).ok());
+		assert(mister::native::CheckCoreCompatibility(opened.descriptor).code == mister::ErrorCode::unsupported_target);
+	}
+}
+
 void TestSharedFormat4TwoSourceFixture()
 {
 	const std::string root = "tests/fixtures/core-bundle-v4/";
@@ -1059,6 +1075,7 @@ void TestComputerFirmwarePackageAdmission()
 
 int main()
 {
+	TestNanoHeldROMInspectionDoesNotGrantCompatibility();
 	TestComputerCompatibilityComposesRecognizedInterfaces();
 	TestComputerFirmwarePackageAdmission();
 	TestSharedFormat4TwoSourceFixture();

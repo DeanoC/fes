@@ -58,8 +58,14 @@ physical runtime remains responsible for compatibility and linked-load receipts.
 The reader also recognizes format-2 `de25_nano` / `A5EB013BB23BE4SCS`
 archives for retained inspection. Their target contributes to package identity.
 This does not register an Agilex programming profile, ABI or physical driver.
-Formats 3/4 still reject Nano because their ROM linkers remain Cyclone V specific;
-the Linux runtime's target checks and model admission policy remain independent.
+Format 3 also recognizes Nano's `cpu-csr-v1` held-ROM delivery map. It declares
+one 4/8 KiB firmware source and required `fes.embedded.rom` 1.0; the map binds
+the unchanged payload hash and source size without addresses or CRAM locations.
+`LinkROMs` retains that source privately and derives the same content-bound
+activation receipt while preserving the exact FPGA payload. Cyclone V staging,
+part composition, cartridge roles and format 4 are unavailable for this Nano
+delivery path. The Linux runtime's target checks and model/native admission
+policies remain independent; inspection or retention grants no hardware access.
 
 `Archive.LinkROMs` derives format-3 single-source and format-4 BIOS/cartridge
 programming bytes using the existing target linker and the retained package's

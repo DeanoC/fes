@@ -127,7 +127,16 @@ func (a *Archive) LinkROMs(ctx context.Context, sources []ROMSource, partInputs 
 			return nil, err
 		}
 	}
-	if d.Format == 3 {
+	if nanoROM(d) {
+		if len(partInputs) != 0 {
+			return nil, errors.New("Nano held-ROM delivery cannot compose Cyclone V parts")
+		}
+		s := owned[0]
+		linked.programmed = bytes.Clone(a.payload)
+		linked.receipt.ROMLink = &ROMLinkIdentity{ROMID: s.ID, Role: s.Role,
+			MapSHA256: d.ROM.SHA256, SourceSHA256: romDigest(s.Data), SourceSize: int64(len(s.Data)),
+			ProgrammedSHA256: d.Payload.SHA256, ProgrammedSize: d.Payload.Size}
+	} else if d.Format == 3 {
 		s := owned[0]
 		receipt := romInputReceipt{Parts: selected, Format: 1, PackageID: inspection.PackageID, ROMID: s.ID, MapSHA256: d.ROM.SHA256, SourceSHA256: romDigest(s.Data), SourceSize: int64(len(s.Data))}
 		result, err := linkPreparedROMInput(ctx, preparedROMInput{input: ROMInput{ROM: s.Data, Parts: assets}, inspection: inspection, base: a.payload, mapping: a.romMap, receipt: receipt, romMap: parsed}, romInputReceipt{})

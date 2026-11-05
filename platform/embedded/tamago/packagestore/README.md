@@ -18,8 +18,12 @@ ordered ROM identities, exact source sizes/hashes, selected part archives and
 the expected locally linked receipt. Input reads are bounded, cancellable and
 cooperate with TamaGo's scheduler. All handles close before a selection returns;
 archive, ROM and programmed bytes are retained privately by `corepackage`.
-Nano recognition remains limited to format 2: the existing Cyclone V ROM linker
-does not describe Agilex bitstreams.
+Nano format 3 additionally retains one 4/8 KiB firmware source with the sealed
+`cpu-csr-v1` held-ROM map and exact activation receipt. The existing retention,
+file-close, containment and resume path carries that private ROM in RAM while
+leaving the FPGA payload unchanged. Nano cannot select Cyclone V patch maps,
+parts, cartridge roles or two-ROM format 4. This supplies no native ROM
+publication, programming-profile registration or hardware admission.
 
 `Contain(selection)` waits for retention to finish, checks the current cached
 lease, then asks the real session to fence the driver and perform the secure SD

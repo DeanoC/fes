@@ -97,7 +97,7 @@ class CorePackageTests(unittest.TestCase):
             fixture = ROOT / "tests" / "fixtures" / f"core-bundle-v{version}" / "manifests/valid-basic.toml"
             bad = tomllib.loads(fixture.read_text())
             bad["target"].update(platform="de25_nano", device="A5EB013BB23BE4SCS")
-            with self.subTest(version=version), self.assertRaisesRegex(PackageError, "unsupported core package target"):
+            with self.subTest(version=version), self.assertRaises(PackageError):
                 encode_manifest(bad)
 
     def _directory(self, manifest: bytes | None = None, payload: bytes | None = None) -> Path:

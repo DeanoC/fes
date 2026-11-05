@@ -62,6 +62,35 @@ def generated_files():
     add('valid-basic')
     add('valid-cartridge', manifest(mapping, 'cartridge'))
     add('valid-literal-rom', base.replace(b'id = "machine-rom"', b"id = 'machine-rom'"))
+    def nano_manifest(data, size=4096):
+        text=manifest(data).replace(b'de10_nano',b'de25_nano').replace(b'5CSEBA6U23I7',b'A5EB013BB23BE4SCS')
+        text=text.replace(b'source_size = 1024',f'source_size = {size}'.encode())
+        return text.replace(b'\n[rom]',b'\n[[interfaces]]\nid = "fes.embedded.rom"\nmajor = 1\nminor = 0\nrequired = true\n\n[rom]')
+
+    for size in (4096,8192):
+        value=dict(format=1,device='A5EB013BB23BE4SCS',encoding='cpu-csr-v1',
+                   base_sha256=v2.PAYLOAD_SHA256,source_size=size)
+        data=encode_map(value)
+        add(f'valid-nano-{size}',nano_manifest(data,size),data)
+    value=dict(format=1,device='A5EB013BB23BE4SCS',encoding='cpu-csr-v1',
+               base_sha256=v2.PAYLOAD_SHA256,source_size=4096)
+    data=encode_map(value);man=nano_manifest(data)
+    for name,change in [('format',{'format':True}),('source-float',{'source_size':4096.0}),
+            ('size',{'source_size':8192}),('device',{'device':'5CSEBA6U23I7'}),
+            ('encoding',{'encoding':'m10k-1024x10-v1'}),('base',{'base_sha256':'0'*64}),
+            ('address',{'cpu_base':0x20010500}),('blocks',{'blocks':[]}),('null',{'encoding':None})]:
+        raw=encode_map(dict(value,**change))
+        add('invalid-map-nano-'+name,nano_manifest(raw),raw,'invalid held-ROM map '+name)
+    for name,raw in [('duplicate',data.replace(b'"format":1',b'"format":1,"format":1')),
+            ('trailing',data+b'{}'),('missing',encode_map({k:v for k,v in value.items() if k!='encoding'})),
+            ('oversized',data+b' '*1024)]:
+        add('invalid-map-nano-'+name,nano_manifest(raw),raw,'invalid held-ROM map '+name)
+    for name,bad in [('role',man.replace(b'role = "firmware"',b'role = "cartridge"')),
+            ('size',man.replace(b'source_size = 4096',b'source_size = 1024')),
+            ('optional-interface',man.replace(b'id = "fes.embedded.rom"\nmajor = 1\nminor = 0\nrequired = true',
+                 b'id = "fes.embedded.rom"\nmajor = 1\nminor = 0\nrequired = false')),
+            ('missing-interface',man.replace(b'id = "fes.embedded.rom"',b'id = "fes.other.rom"'))]:
+        add('invalid-nano-'+name,bad,data,'invalid Nano ROM declaration '+name)
     add('invalid-missing-rom', base.split(b'\n[rom]')[0], reason='required ROM declaration absent')
     add('invalid-rom-role', base.replace(b'role = "firmware"', b'role = "uploaded"'), reason='invalid role')
     add('invalid-rom-id', base.replace(b'id = "machine-rom"', b'id = "../rom"'), reason='invalid identifier')

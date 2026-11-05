@@ -19,6 +19,14 @@ selection and transfer. libmister-runtime programs the FPGA.
 
 ## Embedded control endpoint
 
+The shared package reader recognizes Nano format-3 `cpu-csr-v1` held-ROM maps:
+one required `fes.embedded.rom` 1.0 interface and a 4/8 KiB firmware source,
+with no bitstream destinations or physical addresses in the map. Its payload
+stays unchanged and the source is delivered separately by a compatible native
+runtime. Cyclone V maps and linking retain their existing rules. This structural
+recognition does not change the current diagnostic producer's format-2 export,
+register a Nano programming profile or establish physical activation support.
+
 The experimental `fes_embedded_control` component supplies immutable build/ABI
 identity and generation/cookie-bound drain for one single-ID AXI read port.
 Its CSR constants come from the separate `fes.fabric.embedded.control` package.

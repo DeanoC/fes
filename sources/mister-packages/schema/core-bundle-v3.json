@@ -248,5 +248,71 @@
         }
       }
     }
-  }
+  },
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "target": {
+            "properties": {
+              "platform": {
+                "const": "de25_nano"
+              }
+            }
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "target": {
+            "properties": {
+              "device": {
+                "const": "A5EB013BB23BE4SCS"
+              }
+            }
+          },
+          "rom": {
+            "properties": {
+              "role": {
+                "const": "firmware"
+              },
+              "source_size": {
+                "enum": [
+                  4096,
+                  8192
+                ]
+              },
+              "size": {
+                "maximum": 1024
+              }
+            }
+          },
+          "interfaces": {
+            "contains": {
+              "properties": {
+                "id": {
+                  "const": "fes.embedded.rom"
+                },
+                "major": {
+                  "const": 1
+                },
+                "minor": {
+                  "const": 0
+                },
+                "required": {
+                  "const": true
+                }
+              },
+              "required": [
+                "id",
+                "major",
+                "minor",
+                "required"
+              ]
+            }
+          }
+        }
+      }
+    }
+  ]
 }

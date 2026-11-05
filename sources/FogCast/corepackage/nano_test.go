@@ -48,7 +48,7 @@ func TestNanoRetainedFormat2Recognition(t *testing.T) {
 	}
 }
 
-func TestNanoROMFormatsRemainUnsupported(t *testing.T) {
+func TestNanoCycloneVROMAndTwoSourceFormatsRemainUnsupported(t *testing.T) {
 	for _, version := range []string{"3", "4"} {
 		root := filepath.Join("testdata", "core-bundle-v"+version)
 		manifest, err := os.ReadFile(filepath.Join(root, "manifests/valid-basic.toml"))
@@ -66,7 +66,7 @@ func TestNanoROMFormatsRemainUnsupported(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		if err := ValidateDescriptor(descriptor); err == nil || !strings.Contains(err.Error(), "unsupported target") {
+		if err := ValidateDescriptor(descriptor); err == nil {
 			t.Fatalf("Nano v%s linker enabled: %v", version, err)
 		}
 	}

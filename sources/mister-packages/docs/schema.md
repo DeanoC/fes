@@ -25,7 +25,8 @@ non-MiSTer package may omit it, and `interfaces` may be empty.
 - Retained format-2 inspection recognizes the exact targets `de10_nano` /
   `5CSEBA6U23I7` and `de25_nano` / `A5EB013BB23BE4SCS`. Recognition does not
   register a programming profile or establish hardware compatibility. Formats
-  3 and 4 remain restricted to the Cyclone V target and its ROM-map encoding.
+  3 also supports the bounded Nano held-ROM encoding described below. Format 4
+  remains restricted to the Cyclone V target and its ROM-map encoding.
 - Build IDs are 32 lowercase hex digits. Revisions are full 40-hex Git commits,
   recipe hashes are 64 lowercase hex digits, repositories are HTTPS URLs without
   embedded credentials, and toolchain descriptions contain 1 through 1,024
@@ -84,8 +85,21 @@ LE64(map length), and exact map bytes. No member is normalized before hashing.
 The ROM map is trusted producer metadata sealed into this identity; uploaded
 ROM content must never supply or replace it.
 
+For `de25_nano` / `A5EB013BB23BE4SCS`, format 3 declares one `firmware` ROM of
+exactly 4096 or 8192 bytes and requires `fes.embedded.rom` 1.0. Its map is at most
+1024 encoded bytes with exactly five keys: `format` (integer 1), `device`
+(`A5EB013BB23BE4SCS`), `encoding` (`cpu-csr-v1`), `base_sha256` (the unmodified
+payload digest) and `source_size` (the declared firmware size). Duplicate,
+unknown, missing, noninteger and trailing JSON values reject. There are no
+blocks, CRAM destinations, CPU addresses or bridge masks. The retained source
+is delivered separately to the held-ROM endpoint by a compatible runtime;
+the FPGA payload stays byte-identical. The existing package identity and
+retained activation receipt bind that source and unchanged payload. This is
+not an Agilex bitstream patcher, a profile registration or runtime admission.
+Nano format 4, cartridge delivery and Cyclone V part composition reject.
+
 [`schema/rom-map-v1.json`](../schema/rom-map-v1.json) defines the map structure.
-Its exact root keys are `format` (integer 1), `device` (`5CSEBA6U23I7`),
+For Cyclone V its exact root keys are `format` (integer 1), `device` (`5CSEBA6U23I7`),
 `encoding` (`m10k-1024x10-v1`), `base_sha256` (the manifest payload digest),
 `source_size` (the manifest ROM source size), and `blocks`. UTF-8 JSON must
 have unique keys, no trailing document, and exact integer scalars: Boolean,
