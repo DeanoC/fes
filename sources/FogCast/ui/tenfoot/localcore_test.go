@@ -98,6 +98,9 @@ func adoptTestLocalRun(app *App, fake *fakeLocalCores) {
 	fake.mu.Unlock()
 	app.mu.Lock()
 	defer app.mu.Unlock()
+	// Production adopts inside the single-flight status callback. This test
+	// injects adoption directly, so fence any startup poll it left in flight.
+	app.localStatusEpoch++
 	app.localStartupStatusChecked = true
 	app.adoptStartupLocalRunLocked(localcores.RunStatus{Phase: "running", Running: true, CoreID: "fes.pong", PackageID: tenfootPongID, Generation: strings.Repeat("a", 64)})
 }
