@@ -22,7 +22,7 @@ from scripts import build_de25_menu_package as common
 from scripts.core_package import encode_manifest
 from scripts.export_core_package import build_identity, encode_build_record, export_package
 from scripts.fes_build_common import AuthenticatedTool, BuildError, _require_clean_source as require_clean_source
-from scripts.functional_execution import execution_digest, execution_environment
+from scripts.functional_execution import execution_digest
 from boards.de25nano.scanout import async_inputs, audio_reference
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -40,6 +40,7 @@ DEVICE = common.DEVICE
 FABRIC = common.MANAGED_FABRIC
 sha = common.sha
 execution_inputs = common.execution_inputs
+execution_environment = common.execution_environment
 controlled_environment = common.controlled_environment
 timing_evidence = common.timing_evidence
 
@@ -109,7 +110,8 @@ def manifest(record, payload):
             'toolchain': '; '.join(f'{name} {value}' for name, value in sorted(fields['tools'].items()))}})
 
 
-def build(root=ROOT, *, quartus_root, vendor_archive, output=None, package_output=None, compile_only=False):
+def build(root=ROOT, *, quartus_root, vendor_archive, output=None, package_output=None, compile_only=False,
+          license_file=None):
     root = Path(root).resolve()
     if vendor_archive is None:
         raise BuildError('DE25 ZX81 requires --vendor-archive or FES_DE25_VENDOR_ARCHIVE')
@@ -122,7 +124,7 @@ def build(root=ROOT, *, quartus_root, vendor_archive, output=None, package_outpu
     captured = builder.capture_standard_board(revision)
     paths, identities = common.authenticate_tools(builder, quartus_root)
     with tempfile.TemporaryDirectory(prefix='fes-de25-zx81-home-') as home:
-        env = execution_environment(Path(home), paths)
+        env = execution_environment(Path(home), paths, license_file=license_file)
         execution = execution_inputs(paths, env)
         record = create_build_record(root, repository, revision, identities, execution, captured)
         selected_id = build_identity(record)
@@ -179,6 +181,8 @@ def main(argv=None):
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--root', type=Path, default=ROOT)
     parser.add_argument('--quartus-root', default=os.environ.get('QUARTUS_ROOTDIR', ''))
+    parser.add_argument('--license-file', type=Path,
+                        help='explicit local Quartus license; private copy and hash are bound to execution')
     parser.add_argument('--vendor-archive', type=Path, default=os.environ.get('FES_DE25_VENDOR_ARCHIVE') or None)
     parser.add_argument('--cache-root', type=Path)
     parser.add_argument('--identity-version', type=int, choices=(2,), default=2)
@@ -188,7 +192,8 @@ def main(argv=None):
     args = parser.parse_args(argv)
     try:
         print(build(root=args.root, quartus_root=args.quartus_root, vendor_archive=args.vendor_archive,
-                    output=args.output, package_output=args.package_output, compile_only=args.compile_only))
+                    output=args.output, package_output=args.package_output, compile_only=args.compile_only,
+                    license_file=args.license_file))
     except (OSError, ValueError, RuntimeError, subprocess.CalledProcessError) as error:
         parser.exit(1, 'de25-zx81: ' + str(error) + '\n')
 

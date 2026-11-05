@@ -143,6 +143,12 @@ derivation and the complete signoff/independent-RBF package gate. Compile-only
 retains an unadmitted candidate; firmware pairing and native catalog/kit
 acceptance remain required. The standalone ZX81 maintenance recipe remains
 explicitly diagnostic.
+Both canonical DE25 producers accept `--license-file /absolute/license.dat`
+for an existing local Quartus license. They copy it into the private build
+home, use that same snapshot for both fits and bind its hash and size to the
+recorded execution inputs. Temporary home paths are normalized; license
+contents are not published. Ambient license/server variables remain excluded.
+The option changes no timing, independent rebuild or package admission gate.
 The existing DE10-Nano producers, package admission and Quartus 17.0.2
 oracles retain their current target. DE25-Nano HPS, boot media, runtime,
 HDMI and memory integration are not implemented by this diagnostic.

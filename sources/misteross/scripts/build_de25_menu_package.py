@@ -18,6 +18,7 @@ from pathlib import Path
 import platform
 import re
 import shutil
+import stat
 import subprocess
 import sys
 import sysconfig
@@ -31,7 +32,7 @@ from scripts.build_fes_pcxt_quartus import tree_digest
 from scripts.core_package import encode_manifest
 from scripts.export_core_package import build_identity, encode_build_record, export_package, source_input_closure
 from scripts.fes_build_common import AuthenticatedTool, BuildError, _require_clean_source as require_clean_source
-from scripts.functional_execution import execution_digest, execution_environment
+from scripts.functional_execution import execution_digest, execution_environment as base_execution_environment
 from scripts.source_closure import imports as script_imports
 from scripts.compiler_read_audit import POLICY as SOURCE_POLICY
 from boards.de25nano.scanout import async_inputs
@@ -94,6 +95,48 @@ def _authenticate_tools(root, *, cache_root=None):
     return {name: AuthenticatedTool(path, identities[name]) for name, path in paths.items()}
 
 
+def _license_bytes(path):
+    # A local file is selected explicitly; ambient license/server settings never
+    # enter the controlled compiler environment. Refuse devices and linked files.
+    with os.fdopen(os.open(path, os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK), 'rb') as stream:
+        info = os.fstat(stream.fileno())
+        if not stat.S_ISREG(info.st_mode) or not 0 < info.st_size <= 1024 * 1024:
+            raise BuildError('Quartus license must be a nonempty regular file, at most 1 MiB')
+        data = stream.read(1024 * 1024 + 1)
+        after = os.fstat(stream.fileno())
+        if (len(data) != info.st_size or
+                (after.st_size, after.st_mtime_ns, after.st_ctime_ns) !=
+                (info.st_size, info.st_mtime_ns, info.st_ctime_ns)):
+            raise BuildError('Quartus license changed while reading')
+        return data
+
+
+def execution_environment(home, tools, *, license_file=None):
+    env = base_execution_environment(home, tools)
+    if license_file is not None:
+        # Snapshot the selected bytes once. Later source-file edits cannot change
+        # the license used between the signoff and independent repeat fit.
+        data = _license_bytes(license_file)
+        target = Path(home) / 'quartus-license.dat'
+        with target.open('xb') as stream:
+            stream.write(data)
+        target.chmod(0o400)
+        env['LM_LICENSE_FILE'] = str(target)
+    return env
+
+
+def license_execution_inputs(env):
+    normalized = dict(env, HOME='<private-build-home>')
+    if 'LM_LICENSE_FILE' not in env:
+        return normalized, None
+    path = Path(env['HOME']) / 'quartus-license.dat'
+    if env['LM_LICENSE_FILE'] != str(path):
+        raise BuildError('Quartus license must be the selected private snapshot')
+    data = _license_bytes(path)
+    normalized['LM_LICENSE_FILE'] = '<private-build-home>/quartus-license.dat'
+    return normalized, {'sha256': hashlib.sha256(data).hexdigest(), 'bytes': len(data)}
+
+
 def execution_inputs(paths, env, _router_device=0):
     # Quartus reads device databases, Qsys, Tcl, Java and IP outside its shell
     # wrapper. Bind the complete explicitly selected installation, not just sh.
@@ -136,6 +179,7 @@ def execution_inputs(paths, env, _router_device=0):
     for name in ('/etc/os-release', '/etc/ld.so.cache'):
         if Path(name).is_file():
             libraries[name] = sha(name)
+    normalized_env, license_inputs = license_execution_inputs(env)
     return {'version': 2, 'toolchain': 'quartus',
         'installations': {str(install): tree_digest(install)},
         'quartus_native_loader_paths': list(map(str, loader_paths)),
@@ -144,7 +188,8 @@ def execution_inputs(paths, env, _router_device=0):
                    'prefix': sys.prefix, 'base_prefix': sys.base_prefix, 'support': support},
         'runtime_libraries': dict(sorted(libraries.items())),
         'system': platform.system(), 'machine': platform.machine(), 'kernel': platform.release(),
-        'environment': dict(env, HOME='<private-build-home>')}
+        'environment': normalized_env,
+        **({'license_file': license_inputs} if license_inputs is not None else {})}
 
 
 def captured_source_closure(root, source_roots, captured, recipe, review_inputs):
@@ -319,7 +364,8 @@ def controlled_environment(env):
         os.environ.update(original)
 
 
-def build(root=ROOT, *, quartus_root, vendor_archive, output=None, package_output=None, compile_only=False):
+def build(root=ROOT, *, quartus_root, vendor_archive, output=None, package_output=None, compile_only=False,
+          license_file=None):
     root = Path(root).resolve()
     if vendor_archive is None:
         raise BuildError('DE25 MENU requires --vendor-archive or FES_DE25_VENDOR_ARCHIVE')
@@ -332,7 +378,7 @@ def build(root=ROOT, *, quartus_root, vendor_archive, output=None, package_outpu
     captured = builder.capture(revision)
     paths, identities = authenticate_tools(builder, quartus_root)
     with tempfile.TemporaryDirectory(prefix='fes-de25-menu-home-') as home:
-        env = execution_environment(Path(home), paths)
+        env = execution_environment(Path(home), paths, license_file=license_file)
         execution = execution_inputs(paths, env)
         record = create_build_record(root, repository, revision, identities, execution, captured)
         selected_id = build_identity(record)
@@ -392,6 +438,8 @@ def main(argv=None):
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--root', type=Path, default=ROOT)
     parser.add_argument('--quartus-root', default=os.environ.get('QUARTUS_ROOTDIR', ''))
+    parser.add_argument('--license-file', type=Path,
+                        help='explicit local Quartus license; private copy and hash are bound to execution')
     parser.add_argument('--vendor-archive', type=Path, default=os.environ.get('FES_DE25_VENDOR_ARCHIVE') or None)
     parser.add_argument('--cache-root', type=Path, help='shared producer API; Quartus uses the selected installed tools')
     parser.add_argument('--identity-version', type=int, choices=(2,), default=2)
@@ -401,7 +449,8 @@ def main(argv=None):
     args = parser.parse_args(argv)
     try:
         print(build(root=args.root, quartus_root=args.quartus_root, vendor_archive=args.vendor_archive,
-            output=args.output, package_output=args.package_output, compile_only=args.compile_only))
+            output=args.output, package_output=args.package_output, compile_only=args.compile_only,
+            license_file=args.license_file))
     except (OSError, ValueError, RuntimeError, subprocess.CalledProcessError) as error:
         parser.exit(1, 'de25-menu: ' + str(error) + '\n')
 
