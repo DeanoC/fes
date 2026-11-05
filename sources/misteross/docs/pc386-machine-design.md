@@ -1244,6 +1244,7 @@ Alternatives not taken, kept as later options:
 | POST PIT channel 1 | Mode 2, count 18 (15.09 µs), the refresh rate the INT 15h AH=86h wait counts on port 61h bit 4 | Local patch ([#1150](https://github.com/DeanoC/fes/issues/1150)) |
 | POST PIT channel 2 | Mode 3, LSB then MSB, as an AT's POST beep leaves it, with the IBM BEEP count 0533h and the gate and speaker off; games write only a count | Local patch ([#1457](https://github.com/DeanoC/fes/issues/1457)) |
 | INT 10h | Modes 03h and 13h, font load, DAC and palette calls, cursor, scrolling. Games then reprogram registers for mode Y themselves | VGABIOS |
+| INT 10h AH=07h from row 0 in a graphics mode | Scrolls down and returns; upstream VGABIOS's graphics loops never ended with top row 0, which Ultima VII calls | Local patch ([#1493](https://github.com/DeanoC/fes/issues/1493)) |
 | INT 13h | AH=00h–08h, 0Ah–0Dh, 10h, 11h, 15h; EDD 41h–48h, which FreeDOS uses for LBA | Present (`int13_harddisk`, EDD cases) |
 | INT 15h | 24h A20 (through the 8042 and port 92h; local patch), 87h block move and 88h extended size for HIMEM, E801h and E820h, C0h configuration, C2h PS/2 pointing device for CuteMouse, 86h wait (counts port 61h bit 4), 83h event wait (RTC periodic interrupt), 4Fh keyboard intercept | Present |
 | INT 16h | AH=00h–02h, 05h, 10h–12h | Present |
