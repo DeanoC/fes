@@ -12,7 +12,7 @@ from build import capture_standard_board
 HERE, ROOT = sim.HERE, sim.ROOT
 
 
-def run(output=None):
+def run(output=None, *, basic=False):
     output, sources = sim.prepare('standard-expansion', output)
     scanout = HERE.parent / 'scanout'
     link = HERE.parent / 'link-proof'
@@ -24,7 +24,10 @@ def run(output=None):
     # mirrors those addresses in internal1K; the real16K persona separates them.
     program = bytes.fromhex('f3 31 ff 7f 3e 5a 32 00 40 3e a5 32 00 44 c3 04 00')
     firmware = output / 'standard-expansion-rom.hex'
-    firmware.write_text(''.join(f'{byte:02x}\n' for byte in program + bytes(8192 - len(program))))
+    if basic:
+        firmware.write_bytes((sim.ZX81 / 'zx8x.hex').read_bytes())
+    else:
+        firmware.write_text(''.join(f'{byte:02x}\n' for byte in program + bytes(8192 - len(program))))
     sources += [HERE / 'fes_de25_zx81_standard.v', HERE / 'standard_expansion_harness.v',
         sim.ZX81 / 'fes_zx81_core.v', sim.ZX81 / 'zx81_video_720p.v',
         sim.ZX81 / 'zx81_ram_pack.v', scanout / 'fes_de25_session_display.v',
@@ -41,6 +44,7 @@ def run(output=None):
               sim.ZX81 / 'zx81_bus_pack.vh', link / 'fpga/shell.v', link / 'zx81-ram/personas.v',
               link / 'generated/fes_de25_pr_control.vh', link / 'generated/fes_de25_pr_control.hpp',
               link / 'zx81-standard/bus.v']
+    extras += [HERE / 'cosim' / name for name in ('basic.hpp', 'basic_observer.hpp', 'wire.hpp')]
     runtime = repository / 'sources/libmister-runtime'
     client_sources = [runtime / 'src/native' / name for name in
                       ('fes_gp.cpp', 'de25_pr_control.cpp', 'artifacts.cpp', 'diagnostic.cpp')]
@@ -80,16 +84,25 @@ def run(output=None):
         for seed in (17, 53):
             log.write(f'RANDOM_INITIAL_MEMORY seed={seed}\n'.encode())
             log.flush()
+            directory = output
+            if basic:
+                directory = output / f'seed-{seed}'
+                directory.mkdir(mode=0o700)
+                (directory / firmware.name).write_bytes(firmware.read_bytes())
             subprocess.run([str(output / 'obj/Vfes_de25_standard_expansion_harness'),
+                *(['--basic'] if basic else []),
                 '+verilator+rand+reset+2', '+verilator+seed+' + str(seed)],
-                cwd=output, stdout=log, stderr=subprocess.STDOUT, check=True, timeout=120)
+                cwd=directory, stdout=log, stderr=subprocess.STDOUT, check=True,
+                timeout=1800 if basic else 120)
+            if basic and (directory / firmware.name).read_bytes() != firmware.read_bytes():
+                raise ValueError('real-ROM simulation firmware changed during execution')
     require_unchanged = all((repository / name).read_bytes() == data for name, data in captured.items())
     if not require_unchanged:
         raise ValueError('standard expansion proof sources changed during simulation')
     if any((output / name).read_bytes() != data for name, data in derived.items()):
         raise ValueError('derived simulation source changed during execution')
     sha = lambda data: hashlib.sha256(data).hexdigest()
-    receipt = {'status': 'passed', 'classification': 'actual standard core, FesGpCoreDriver, De25PrControl and RAM personas; diagnostic ROM',
+    receipt = {'status': 'passed', 'classification': 'actual standard core, FesGpCoreDriver, De25PrControl and RAM personas; ' + ('real-ROM BASIC' if basic else 'diagnostic ROM'),
         'source_revision': revision, 'source_committed': committed,
         'source_sha256': {name: sha(data) for name, data in sorted(captured.items())},
         'derived_source_sha256': {name: sha(data) for name, data in sorted(derived.items())},
@@ -100,7 +113,21 @@ def run(output=None):
         'simulation_log_sha256': sha((output / 'simulation.log').read_bytes()),
         'physical_PR': 'selection-mux-model-only', 'primitive_memory': 'behavioral',
         'production_Qsys_reset_boundary': 'explicit bus_reset port; RTL equivalence checked; Qsys generation and physical PR are separate gates',
-        'BASIC_firmware': 'not-tested', 'hardware_acceptance': False}
+        'BASIC_firmware': 'actual-ROM-SAVE-load-run-reload' if basic else 'not-tested', 'hardware_acceptance': False}
+    if basic:
+        import re
+        results = [json.loads(value) for value in re.findall(
+            r'^PASS STANDARD_BASIC (\{[^\n]+\}) uploads=2 callbacks=3 picture_frames=[0-9]+$',
+            (output / 'simulation.log').read_text(), re.M)]
+        if len(results) != 2 or any(result.get('loads') != 2 or result.get('runs') != 2 or
+                result.get('printed_value') != 7 or not result.get('reload_removed_edit') for result in results):
+            raise ValueError('incomplete actual standard BASIC roundtrip evidence')
+        saves = [(output / f'seed-{seed}/standard-rom-save.p').read_bytes() for seed in (17, 53)]
+        if saves[0] != saves[1] or any(result['saved_bytes'] != len(saves[0]) for result in results):
+            raise ValueError('actual standard ROM SAVE differs across seeds')
+        receipt['BASIC_roundtrips'] = results
+        receipt['actual_SAVE_sha256'] = sha(saves[0])
+        receipt['upload_transport'] = 'actual ComputerMediaSnapshot/FesGpCoreDriver.InsertMedia; advertised 512-byte chunks'
     (output / 'proof.json').write_text(json.dumps(receipt, indent=2, sort_keys=True) + '\n')
     print((output / 'simulation.log').read_text(), end='')
     return output
@@ -109,5 +136,6 @@ def run(output=None):
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--output', type=Path)
+    parser.add_argument('--basic', action='store_true', help='run actual ROM SAVE/load/run/reload with empty/16K/empty personas')
     args = parser.parse_args()
-    print(run(args.output))
+    print(run(args.output, basic=args.basic))

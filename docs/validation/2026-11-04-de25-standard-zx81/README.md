@@ -800,3 +800,30 @@ remains distinct from the later2d log-selection fix. Its actual14-case
 compatibility proof passes in654.339 seconds; after the exact report refresh,
 the complete unmodified d88..94 affected plan passes in954.643 seconds with
 1,171 parent and1,821 FPGA software tests. No hardware is loaded by these checks.
+
+
+## Real-ROM standard RAM-persona model
+
+The existing standard expansion model adds explicit `--basic` selection. It
+uses the shared real-ROM BASIC script through actual `FesGpCoreDriver` keyboard,
+SAVE capture/acknowledgement and media-unit insertion, plus `De25PrControl`.
+Only observation code reads guest state. The actual public SAVE capture is
+written and synced before acknowledgement, then staged from its absolute path
+through `ComputerMediaSnapshot` and unit0's normal CRC/512-byte protocol.
+
+A working-copy diagnostic passes seeds17 and53 in640.100 seconds. Each boots
+1K/16K/1K (RAMTOP17408/32768/17408), types and saves1 PRINT7, loads/runs twice,
+observes7 twice and confirms that reload removes a later edit. Each retains the
+same923-byte SAVE (SHA256 `4137c58140dcd2895961f86d29fda6e7dbce0ea863da1d73f94cea2ba2f1fecc`).
+Loader tags must reach actual persona RAM writes with matching address/data,
+and the real raster must complete. The original default17-byte diagnostic and
+freeze/failure cases remain unchanged in purpose.
+
+Two earlier adapter failures remain retained: the first called the legacy
+upload API; the second supplied a relative media path and was rejected before
+media mutation. Neither establishes a production fault. All98 selected FPGA
+compiler inputs remain byte-identical to the completed2d full build. This is
+still a working-copy functional model result. Committed native/AArch64 runs and
+the full14-case compatibility refresh are pending because the common BASIC
+helper gained client callbacks. No physical PR, kernel opener, package admission
+or hardware acceptance is supplied by this model.

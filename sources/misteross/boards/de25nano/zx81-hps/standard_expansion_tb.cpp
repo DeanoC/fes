@@ -5,10 +5,16 @@
 #include "native/de25_pr_control.hpp"
 #include "native/fes_gp.hpp"
 #include "native/hardware.hpp"
+#include "native/artifacts.hpp"
 #include "native/linux/mmio.hpp"
+#include "native/generated/fes_computer.hpp"
 #include "de25_standard_descriptor.hpp"
+#include "cosim/basic.hpp"
+#include "cosim/basic_observer.hpp"
 #include "verilated.h"
 #include <cstdint>
+#include <cstring>
+#include <fcntl.h>
 #include <iostream>
 #include <stdexcept>
 namespace reg = mister::native::generated;
@@ -24,6 +30,13 @@ struct Bench : Clock {
     Vfes_de25_standard_expansion_harness d;
     unsigned pixel_phase = 0, callbacks = 0, pr_writes = 0;
     std::uint64_t edges = 0;
+    bool basic_mode, pixel_running = true, newline_seen = false, idle_seen = false;
+    bool load_tags[2] = {}, expect_load = false, previous_vs = true, frame_started = false;
+    std::uint64_t retired = 0, picture_frames = 0, frame_pixels = 0;
+    unsigned ink = 0, paper = 0, active_pixels = 0, loaded_bytes = 0, uploads = 0;
+    unsigned ramtop = 0, ramtop_writes = 0;
+    std::string save_path;
+    std::vector<unsigned char> captured;
     struct Endpoint : Mmio {
         Bench& bench;
         bool pr;
@@ -40,9 +53,13 @@ struct Bench : Clock {
     De25PrControl pr;
     CoreDescriptor descriptor = mister_test::De25StandardDescriptor();
     CoreDriverContext context;
-    Bench() : computer_io(*this, false), pr_io(*this, true),
+    explicit Bench(bool basic = false) : basic_mode(basic), computer_io(*this, false), pr_io(*this, true),
               gp(computer_io, *this, FesGpTransport::de25_computer),
               driver(gp), pr(pr_io, *this) {
+        if (basic_mode) {
+            char directory[4096]; need(::getcwd(directory, sizeof(directory)) != nullptr, "cannot identify SAVE directory");
+            save_path = std::string(directory) + "/standard-rom-save.p";
+        }
         d.clk_sys = d.pixel_clk = d.reset_n = d.persona_b = 0;
         d.address = d.read = d.write = d.writedata = 0; d.byteenable = 15;
         d.pr_address = d.pr_read = d.pr_write = d.pr_writedata = 0;
@@ -67,13 +84,39 @@ struct Bench : Clock {
     void hold() { okay(driver.Quiesce(context, deadline()).error); }
     void half(bool high) {
         d.clk_sys = high;
+        const bool previous_pixel = d.pixel_clk;
         pixel_phase += 297;
-        if (pixel_phase >= 400) { pixel_phase -= 400; d.pixel_clk = !d.pixel_clk; }
+        if (pixel_phase >= 400) { pixel_phase -= 400; if (pixel_running) d.pixel_clk = !d.pixel_clk; }
         d.eval();
         need(!d.unexpected_dma, "unallocated display issued a read");
         need(!d.reset_mismatch, "exported bus reset differs from the actual machine reset");
+        if (basic_mode && !previous_pixel && d.pixel_clk) picture();
     }
-    void tick() { half(false); half(true); ++edges; }
+    void tick() {
+        const bool ram_write = d.pack_write;
+        const unsigned address = d.pack_write_address, data = d.pack_write_data;
+        const bool loader = basic_mode && expect_load && load_tags[1];
+        if (basic_mode) {
+            load_tags[1] = load_tags[0]; load_tags[0] = d.loader_write;
+            const auto request = d.bus_request;
+            if (!d.machine_held && !(request & (1ull << 24)) && !(request & (1ull << 27))) {
+                const unsigned a = request & 65535, v = (request >> 16) & 255;
+                if (a == 0x4004) { ramtop = (ramtop & 0xff00) | v; ramtop_writes |= 1; }
+                if (a == 0x4005) { ramtop = (ramtop & 255) | (v << 8); ramtop_writes |= 2; }
+            }
+        }
+        half(false); half(true); ++edges;
+        if (basic_mode) {
+            retired += d.cpu_retired != 0;
+            if (!d.machine_held && d.cpu_address == 0x060c) newline_seen = true;
+            if (!d.machine_held && d.cpu_address == 0x04cf) idle_seen = true;
+            if (loader) {
+                need(ram_write && loaded_bytes < captured.size(), "standard LOAD tag did not reach persona RAM");
+                need(address == 9 + loaded_bytes && data == captured[loaded_bytes], "standard LOAD address/data differs");
+                ++loaded_bytes;
+            }
+        }
+    }
     void cycles(unsigned count) { while (count--) tick(); }
     std::uint32_t access(bool pr, bool write, unsigned offset, std::uint32_t value = 0) {
         if (pr && write) ++pr_writes;
@@ -105,6 +148,127 @@ struct Bench : Clock {
     }
     std::uint8_t peek(unsigned address) {
         d.peek_address = address; cycles(8); return d.peek_data;
+    }
+    std::uint16_t word(unsigned address) {
+        const auto low = peek(address); return low | (unsigned(peek(address + 1)) << 8);
+    }
+    void picture() {
+        if (d.video_vs && !previous_vs) {
+            if (frame_started) {
+                need(frame_pixels == 1650u * 750u && active_pixels == 1280u * 720u, "standard BASIC raster changed");
+                if (ink && paper > 1000) ++picture_frames;
+            }
+            frame_started = true; frame_pixels = active_pixels = ink = paper = 0;
+        }
+        previous_vs = d.video_vs;
+        if (!frame_started) return;
+        const unsigned h = frame_pixels % 1650, v = (725 + frame_pixels / 1650) % 750;
+        active_pixels += d.video_de;
+        if (h >= 312 && h < 968 && v >= 90 && v < 630) {
+            ink += d.video_rgb == 0; paper += d.video_rgb == 0xffffff;
+        }
+        ++frame_pixels;
+    }
+    void editor(std::uint64_t budget, unsigned expected) {
+        idle_seen = false;
+        const auto end = edges + budget;
+        while (edges < end) {
+            if (ramtop_writes == 3 && ramtop == expected && idle_seen &&
+                word(0x4004) == expected && word(0x4025) == 0xffff && peek(0x4027) == 0) {
+                cycles(10000); return;
+            }
+            cycles(256);
+        }
+        throw std::runtime_error("standard ROM editor/RAMTOP deadline expired");
+    }
+    wire::Reply basic_command(unsigned op, unsigned arg, unsigned value) {
+        wire::Reply reply;
+        if (op == wire::Advance) cycles(arg);
+        else if (op == wire::PixelClock) pixel_running = arg != 0;
+        else if (op == wire::State) {
+            need(arg == wire::MachineReset, "unexpected standard BASIC state observation"); reply.value = d.machine_held;
+        } else if (op == wire::WaitEditor) editor(arg, 0x8000);
+        else if (op == wire::WaitToken) {
+            const auto count = [&] {
+                unsigned at = word(0x4014), result = 0;
+                for (unsigned n = 0; n < 32 && at < 0x8000; ++n, ++at) {
+                    const unsigned byte = peek(at); if (byte == 0x76) break; result += byte == arg;
+                }
+                return result;
+            };
+            const auto end = edges + 25000000;
+            while (count() < value && edges < end) cycles(4096);
+            need(count() >= value, "standard ROM missed HID token");
+        } else if (op == wire::BeginLoad) {
+            need(!captured.empty(), "no actual standard ROM SAVE"); loaded_bytes = 0; expect_load = true;
+        } else if (op == wire::WaitLoaded) {
+            const auto end = edges + 160000000;
+            while (loaded_bytes < captured.size() && edges < end) cycles(256);
+            need(loaded_bytes == captured.size(), "standard LOAD did not consume every actual SAVE byte");
+            expect_load = false; reply.value = loaded_bytes;
+        } else if (op == wire::WaitPicture) {
+            const auto wanted = picture_frames + arg, end = edges + 20000000;
+            while (picture_frames < wanted && edges < end) cycles(256);
+            need(picture_frames >= wanted, "standard BASIC picture deadline expired");
+        } else if (op == basic::HasLine) reply.value = basic::line(*this, arg, value);
+        else if (op == basic::WaitNewline) {
+            newline_seen = false; const auto end = edges + 25000000;
+            while (!newline_seen && edges < end) cycles(256);
+            need(newline_seen, "standard ROM did not accept ENTER");
+        } else if (op == basic::WaitPrint) {
+            const auto end = edges + 160000000;
+            while (!basic::printed(*this, arg) && edges < end) cycles(256);
+            need(basic::printed(*this, arg), "standard BASIC RUN output differs"); reply.value = arg;
+            std::cout << "STANDARD_BASIC RUN printed=" << arg << std::endl;
+        } else if (op == basic::WaitSaved) {
+            const auto end = edges + 200000000;
+            std::uint16_t flags = 0;
+            do {
+                okay(gp.Exchange(reg::FesComputerOpcodeMediaSnapshotInfo, 0, 0, deadline(), &flags));
+                if (flags & reg::FesComputerMediaSnapshotReadyMask) break;
+                cycles(4096);
+            } while (edges < end);
+            need(flags & reg::FesComputerMediaSnapshotReadyMask, "standard ROM SAVE deadline expired");
+        } else if (op == basic::CaptureSaved) {
+            okay(driver.CaptureZx81Tape(*this, deadline(), &captured));
+            need(captured.size() > 51 && captured.size() <= 16384, "invalid standard ROM SAVE size");
+            // Store the actual public-API capture before acknowledging it.
+            const int fd = ::open(save_path.c_str(), O_CREAT | O_EXCL | O_WRONLY, 0600);
+            need(fd >= 0, "standard SAVE fixture already exists or cannot be created");
+            need(wire::transfer(fd, captured.data(), captured.size(), true) && ::fsync(fd) == 0, "standard SAVE fixture write failed");
+            need(::close(fd) == 0, "standard SAVE fixture close failed");
+            okay(driver.AcknowledgeZx81Tape(deadline())); reply.value = captured.size();
+            std::cout << "STANDARD_BASIC actual public SAVE bytes=" << captured.size() << std::endl;
+        } else if (op == basic::PeekSaved) {
+            need(arg < captured.size(), "standard SAVE observation out of range"); reply.value = captured[arg];
+        } else throw std::runtime_error("unknown standard BASIC observation");
+        reply.retired = retired; reply.cycles = edges; return reply;
+    }
+    void basic_roundtrip() {
+        select(false); editor(770000000, 0x4400);
+        std::cout << "STANDARD_BASIC empty RAMTOP=" << word(0x4004) << std::endl;
+        freeze(); ramtop = ramtop_writes = 0;
+        select(true); editor(770000000, 0x8000);
+        std::cout << "STANDARD_BASIC 16K RAMTOP=" << word(0x4004) << std::endl;
+        basic::Session session(
+            [&](const KeyboardHidRows& rows, std::uint64_t d) { return driver.SetKeyboardHid(rows, d); },
+            [&](const std::vector<unsigned char>& bytes, std::uint64_t d, unsigned) {
+                need(bytes == captured, "upload differs from the retained public SAVE capture");
+                ComputerMediaSnapshot snapshot;
+                auto error = snapshot.Prepare(save_path, 1,
+                    reg::FesComputerZx81TapeMaxBytes, *this, d);
+                if (error.ok()) { ++uploads; error = driver.InsertMedia(0, snapshot, *this, d, 1000); }
+                return error;
+            },
+            [&](unsigned op, unsigned arg, unsigned value) { return basic_command(op, arg, value); },
+            [&] { return deadline(); });
+        const auto result = session.roundtrip();
+        need(uploads == 2 && result.loads == 2 && result.runs == 2 && result.printed_value == 7 && result.reload_removed_edit,
+             "incomplete standard real-ROM BASIC roundtrip");
+        freeze(); expect_load = false; ramtop = ramtop_writes = 0;
+        select(false); editor(770000000, 0x4400); freeze();
+        std::cout << "PASS STANDARD_BASIC " << result.json()
+                  << " uploads=" << uploads << " callbacks=" << callbacks << " picture_frames=" << picture_frames << std::endl;
     }
     void memory(bool ram) {
         bool low_write = false, high_write = false;
@@ -184,7 +348,9 @@ int main(int argc, char** argv) {
     Verilated::commandArgs(argc, argv);
     Verilated::threadContextp()->threads(1);
     try {
-        Bench b;
+        const bool basic = argc > 1 && std::strcmp(argv[1], "--basic") == 0;
+        Bench b(basic);
+        if (basic) { b.basic_roundtrip(); return 0; }
         b.hold(); b.select(false, false); b.cycles(100);
         need(b.d.running && b.d.exec_reset && b.d.machine_held,
              "PR resume bypassed client Quiesce");

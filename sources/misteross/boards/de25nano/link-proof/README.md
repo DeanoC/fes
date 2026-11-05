@@ -120,6 +120,24 @@ hardware project ties the observational peek address to zero; the simulation
 can drive it to inspect RAM. All 46/20 boundary registers remain required in
 synthesis and all-corner setup/hold checks, including source-constant bits.
 
+The same model has an explicit real-ROM mode (run from the misteross root):
+
+```sh
+python3 boards/de25nano/zx81-hps/standard_expansion_sim.py \
+  --basic --output /fresh/standard-basic-proof
+```
+
+It boots empty/16K/empty through `De25PrControl` and reuses the common BASIC
+script through the actual `FesGpCoreDriver` keyboard, SAVE snapshot and media
+unit APIs. The actual ROM SAVE is stored and synced before acknowledgement;
+`ComputerMediaSnapshot` stages that absolute file through unit0's normal CRC
+and advertised512-byte chunks. The model observes loader writes into persona
+RAM, editor/RAMTOP, PRINT output, reload removal of an edit and complete raster
+frames. Seeds17/53 use separate output directories. The default short diagnostic
+program and freeze/failure cases remain selected without `--basic`. This mode
+uses behavioral memory and a selection mux; physical PR and Linux admission
+remain separate gates.
+
 The standard board verifier checks `EXPANSION_SOCKET=1`, both control/display
 slaves, managed initiators, read-only allocated memory path, separate system and
 pixel resets, preserved HPS/EMIF/boot inputs, and canonical reset repairs. The

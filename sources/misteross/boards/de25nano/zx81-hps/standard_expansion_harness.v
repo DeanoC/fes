@@ -23,6 +23,13 @@ module fes_de25_standard_expansion_harness (
     output wire frozen, running, machine_held, exec_reset, unexpected_dma, reset_mismatch,
     output wire [45:0] bus_request,
     output wire [19:0] static_response,
+    output wire [15:0] cpu_address,
+    output wire cpu_retired,
+    output wire loader_write, pack_write,
+    output wire [13:0] pack_write_address,
+    output wire [7:0] pack_write_data,
+    output wire [23:0] video_rgb,
+    output wire video_de, video_hs, video_vs,
     output reg [31:0] pack_writes = 0
 );
     localparam [127:0] BUILD_ID = 128'h00112233445566778899aabbccddeeff;
@@ -36,6 +43,11 @@ module fes_de25_standard_expansion_harness (
     // Operate through the public component port. The private signal is used
     // only as an independent checker, never to control the modeled bus.
     assign reset_mismatch = machine_held != computer.core.machine_reset;
+    assign cpu_retired = computer.core.machine.cpu.retired;
+    assign loader_write = computer.core.machine.tapewrite_we && !machine_held;
+    assign pack_write = b.core.write_enable;
+    assign pack_write_address = b.core.bus_q[13:0];
+    assign pack_write_data = b.core.bus_q[23:16];
     fes_de25_zx81_pr_bus boundary (
         .clk(clk_sys), .machine_reset(machine_held), .cpu_clock(cpu_clock),
         .address(bus_address), .write_data(bus_data), .mreq_n(mreq_n),
@@ -63,7 +75,7 @@ module fes_de25_standard_expansion_harness (
         .scanout_response(), .avm_address(), .avm_burstcount(),
         .avm_read(unexpected_dma), .avm_byteenable(), .avm_waitrequest(1'b1),
         .avm_readdata(128'd0), .avm_readdatavalid(1'b0), .avm_response(2'd0),
-        .video(), .video_rgb(), .video_de(), .video_hs(), .video_vs(),
+        .video(), .video_rgb(video_rgb), .video_de(video_de), .video_hs(video_hs), .video_vs(video_vs),
         .audio_sample(), .exec_reset(exec_reset), .bus_reset(machine_held), .bus_addr(bus_address),
         .bus_wdata(bus_data), .bus_mreq_n(mreq_n), .bus_iorq_n(iorq_n),
         .bus_rd_n(rd_n), .bus_wr_n(wr_n), .bus_m1_n(m1_n), .bus_rfsh_n(rfsh_n),
@@ -73,7 +85,7 @@ module fes_de25_standard_expansion_harness (
         .bus_romcs(static_response[`ZX81_BUS_ROMCS]),
         .bus_wait(static_response[`ZX81_BUS_WAIT]),
         .bus_ram_present(static_response[`ZX81_BUS_RAM_PRESENT]),
-        .peek_addr(peek_address), .peek_data(peek_data), .cpu_addr(),
+        .peek_addr(peek_address), .peek_data(peek_data), .cpu_addr(cpu_address),
         .ram_write_enable(), .ui_active(), .display_faulted(), .display_quiesced()
     );
     fes_link_shell #(.BUILD_ID(BUILD_ID)) shell (

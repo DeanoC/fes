@@ -167,9 +167,10 @@
     "cases": 14,
     "current_selected_compiler_inputs": 65,
     "fixture_is_exact_actual_report": true,
-    "matches_current_runtime_test_inputs": true,
+    "matches_current_runtime_test_inputs": false,
     "matches_current_selected_compiler_inputs": true,
     "passed": true,
+    "pending_refresh": "New callback-based common BASIC test helper changes the runtime/test input closure. The actual2d passing report and fixture remain unchanged; rerun all14 cases on committed new source before refreshing the branch fixture.",
     "physical_PR": false,
     "producer_revision": "2d94bbfb2b3466d668b0dc77e03debc2968a4691"
   },
@@ -807,5 +808,60 @@
     "source_revision": "fb82b41556a8aa116c7bba0d79d99989fdc522b6"
   },
   "source_revision": "1812fcbd652b05d7e00e60731c070117bc9cf978",
+  "standard_real_BASIC_model": {
+    "FPGA_compiler_inputs_unchanged": 98,
+    "committed_native_and_AArch64_proof": "pending",
+    "hardware_acceptance": false,
+    "physical_PR": "not-run",
+    "preserved_failures": [
+      {
+        "reason": "Test callback used legacy LoadMediaLive rather than the standard media-unit InsertMedia API. SAVE already completed; no production change.",
+        "seconds": 159.491
+      },
+      {
+        "reason": "ComputerMediaSnapshot::Prepare rejected the test relative file path before media mutation; fixed to the absolute retained SAVE path.",
+        "seconds": 167.862
+      }
+    ],
+    "working_copy_diagnostic": {
+      "RAMTOP_sequence": [
+        17408,
+        32768,
+        17408
+      ],
+      "actual_SAVE_sha256": "4137c58140dcd2895961f86d29fda6e7dbce0ea863da1d73f94cea2ba2f1fecc",
+      "actual_report_sha256": "77b57fb584f876bbe77e83faa636c0e8828bd22aec14729ad7197a034a051850",
+      "actual_upload_transport": "actual ComputerMediaSnapshot/FesGpCoreDriver.InsertMedia; advertised 512-byte chunks",
+      "passed": true,
+      "random_memory_seeds": [
+        17,
+        53
+      ],
+      "roundtrips": [
+        {
+          "editor_returns": 24,
+          "loads": 2,
+          "printed_value": 7,
+          "reload_removed_edit": true,
+          "runs": 2,
+          "saved_bytes": 923,
+          "saved_cdflag": 64
+        },
+        {
+          "editor_returns": 24,
+          "loads": 2,
+          "printed_value": 7,
+          "reload_removed_edit": true,
+          "runs": 2,
+          "saved_bytes": 923,
+          "saved_cdflag": 64
+        }
+      ],
+      "scope": "Actual standard RTL and runtime clients, behavioral memory and selection mux; working-copy development result only, no physical PR or native board acceptance.",
+      "seconds": 640.1,
+      "source_committed": false,
+      "source_revision": "94f54df2bcba6ad0d39e27adedb86506dac93b3d"
+    }
+  },
   "timing_exceptions": "No internal16K exception inherited. Raw whole-board timing, independent fits and native acceptance still required."
 }
