@@ -31,7 +31,7 @@ class SupportMatrixTests(unittest.TestCase):
         self.assertEqual('docs/validation/2026-11-05-pcxt-kit-b-short-smoke.md',
                          row['signals']['hil_note'])
         self.assertIn('one-direction', row['signals']['hil_scope'])
-        self.assertIn('listening quality unassessed', row['signals']['hil_scope'])
+        self.assertIn('listening excerpt accepted without original reference', row['signals']['hil_scope'])
         self.assertIn('docs/validation/2026-11-04-pcxt-game-and-speaker-kit-a.md',
                       row['evidence'])
         for identity in ('87fd8149', 'bb87b9b6', '6f49758f'):
@@ -39,7 +39,8 @@ class SupportMatrixTests(unittest.TestCase):
         self.assertIn('loaded at runtime through the mailbox', row['features'])
         self.assertIn('write sectors', row['features'])
         self.assertIn('keyboard', row['features'])
-        self.assertIn('listening quality was not assessed', row['notes'])
+        self.assertIn('listening excerpt identifiable and acceptable', row['notes'])
+        self.assertIn('without an original-audio reference', row['notes'])
         self.assertEqual('Quartus', SUPPORT_MATRIX.de10_cell(row))
         self.assertIn('| PC/XT (FreeDOS) | Current | Quartus |', SUPPORT_MATRIX.render(data))
 
