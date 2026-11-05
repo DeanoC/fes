@@ -732,7 +732,9 @@ def _hard_deadline_observation(observe, seconds=5.0):
                 raw = parent.recv(8193, socket.MSG_DONTWAIT)
             except BlockingIOError:
                 raw = None
-            if raw:
+            if raw == b'':
+                return pa.AcceptanceError('observer exited without a result before the hard phase deadline')
+            if raw is not None:
                 try:
                     result = _decode_observer_result(raw)
                 except pa.AcceptanceError:
