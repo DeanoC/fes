@@ -201,7 +201,7 @@ class ManagedFactoryTests(unittest.TestCase):
                     mock.patch.object(FACTORY.shutil, 'disk_usage', return_value=SimpleNamespace(free=40*1024**3)), \
                     mock.patch.object(FACTORY.image, 'run'), \
                     mock.patch.object(FACTORY.image_artifacts, 'stage'), \
-                    mock.patch.object(FACTORY.image, 'ensure_builder', return_value=FACTORY.base.sdk_lock()['builder_image']), \
+                    mock.patch.object(FACTORY.base.owner.dep, 'locked_builder', return_value=FACTORY.base.sdk_lock()['builder_image']), \
                     mock.patch.object(FACTORY.image, 'container'):
                 for args in arguments:
                     FACTORY.publish(args)
@@ -238,7 +238,7 @@ class ManagedFactoryTests(unittest.TestCase):
                     mock.patch.object(FACTORY.image, 'run'), \
                     mock.patch.object(FACTORY.image_artifacts, 'stage'), \
                     mock.patch.object(FACTORY, 'prepare_packages', side_effect=preflight), \
-                    mock.patch.object(FACTORY.image, 'ensure_builder', return_value=FACTORY.base.sdk_lock()['builder_image']), \
+                    mock.patch.object(FACTORY.base.owner.dep, 'locked_builder', return_value=FACTORY.base.sdk_lock()['builder_image']), \
                     mock.patch.object(FACTORY.image, 'container') as container:
                 FACTORY.publish(args)
             self.assertEqual({p.name for p in output.iterdir()}, {'factory.json', 'artifacts'})
