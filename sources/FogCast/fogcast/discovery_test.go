@@ -814,3 +814,81 @@ func TestTargetInvalidationPreservesOtherForegroundSession(t *testing.T) {
 		t.Fatal("invalidated target play survived")
 	}
 }
+
+func TestKitHostRestartRecoversSessionThroughDiscoveryAndStop(t *testing.T) {
+	const id = "f2bb8d43-3cf5-4407-9a11-dfb7cb0086aa"
+	const token = "local-grant"
+	var stopped, released bool
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.Method + " " + r.URL.Path {
+		case "GET /v1/health":
+			_ = json.NewEncoder(w).Encode(protocol.Health{APIVersion: "v1", TargetID: id, BootID: "same", Ready: true})
+		case "POST /v1/kit/local/resume":
+			_ = json.NewEncoder(w).Encode(kitlease.Grant{Token: token, Status: kitlease.Status{State: "held", Generation: "local-generation", ExpiresInMS: 600000}})
+		case "GET /v1/kit/lease":
+			_ = json.NewEncoder(w).Encode(targetclient.KitOwnership{State: "held", Generation: "local-generation"})
+		case "GET /v1/status":
+			state := protocol.StateActive
+			if stopped {
+				state = protocol.StateIdle
+			}
+			_ = json.NewEncoder(w).Encode(protocol.Status{State: state})
+		case "POST /v1/kit/release":
+			if r.Header.Get(targetclient.KitLeaseHeader) != token {
+				http.Error(w, "missing grant", http.StatusForbidden)
+				return
+			}
+			released = true
+			_ = json.NewEncoder(w).Encode(kitlease.Status{State: "free"})
+		case "POST /v1/stop":
+			if r.Header.Get(targetclient.KitLeaseHeader) != token {
+				http.Error(w, "missing grant", http.StatusForbidden)
+				return
+			}
+			stopped = true
+			_ = json.NewEncoder(w).Encode(protocol.Status{State: protocol.StateIdle})
+		default:
+			http.NotFound(w, r)
+		}
+	}))
+	defer srv.Close()
+	base, _ := url.Parse(srv.URL)
+	lease := targetclient.NewLocalKitLease(base, "secret", srv.Client())
+	defer lease.Close(context.Background())
+	client := targetclient.NewClient(base, "secret", srv.Client()).WithKitLease(lease)
+	cfg := Config{Targets: []TargetConfig{{Name: "kit", Enabled: true, TargetID: id, Address: srv.URL, Agent: "secret"}}, SelectedTarget: "kit", RequestTimeout: time.Second, UploadTimeout: time.Second}
+	s := newService(cfg, Paths{}, &fakeServiceCatalog{}, &fakeServiceScanner{}, &fakeServicePreparer{}, client)
+	s.kitHost = true
+	if _, err := s.Health(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	if !lease.Held() || !s.connection.leaseOwned {
+		t.Fatalf("discovery did not recover local grant: %+v", s.connection)
+	}
+	status, err := s.Status(context.Background())
+	if err != nil || status.State != protocol.StateActive {
+		t.Fatalf("status=%+v err=%v", status, err)
+	}
+	if _, err = s.Stop(context.Background()); err != nil || !stopped {
+		t.Fatalf("stop=%v stopped=%v", err, stopped)
+	}
+	if err = s.ReleaseKitLease(context.Background()); err != nil || !released {
+		t.Fatalf("release=%v released=%v", err, released)
+	}
+}
+
+func TestKitHostStatusDoesNotReportIdleWhenAgentIsUnavailable(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		http.Error(w, "agent unavailable", http.StatusServiceUnavailable)
+	}))
+	defer srv.Close()
+	base, _ := url.Parse(srv.URL)
+	client := targetclient.NewClient(base, "secret", srv.Client()).WithKitLease(targetclient.NewLocalKitLease(base, "secret", srv.Client()))
+	cfg := Config{Targets: []TargetConfig{{Name: "kit", Enabled: true, Address: srv.URL, Agent: "secret"}}, SelectedTarget: "kit", RequestTimeout: time.Second}
+	s := newService(cfg, Paths{}, &fakeServiceCatalog{}, &fakeServiceScanner{}, &fakeServicePreparer{}, client)
+	s.kitHost = true
+	s.hostEmulator = HostEmulatorConfig{Binary: "/configured/retroarch"}
+	if status, err := s.Status(context.Background()); err == nil {
+		t.Fatalf("unreachable agent reported status %+v", status)
+	}
+}

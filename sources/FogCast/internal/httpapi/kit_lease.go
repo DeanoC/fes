@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"io"
+	"net"
 	"net/http"
 	"time"
 
@@ -32,6 +33,32 @@ func leaseError(w http.ResponseWriter, err error) {
 }
 
 func registerKitLeaseRoutes(mux *http.ServeMux, token string, manager *internallease.Manager) {
+	for _, action := range []string{"claim", "resume"} {
+		mux.Handle("POST /v1/kit/local/"+action, authenticate(token, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			host, _, err := net.SplitHostPort(r.RemoteAddr)
+			ip := net.ParseIP(host)
+			if err != nil || ip == nil || !ip.IsLoopback() {
+				http.Error(w, "local access required", http.StatusForbidden)
+				return
+			}
+			body, err := io.ReadAll(http.MaxBytesReader(w, r.Body, 1))
+			if err != nil || len(body) != 0 {
+				leaseError(w, internallease.ErrInvalid)
+				return
+			}
+			var grant contractlease.Grant
+			if action == "claim" {
+				grant, err = manager.ClaimLocal()
+			} else {
+				grant, err = manager.ResumeLocal()
+			}
+			if err != nil {
+				leaseError(w, err)
+				return
+			}
+			writeJSON(w, http.StatusOK, grant)
+		})))
+	}
 	mux.Handle("GET /v1/kit/lease", authenticate(token, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) { writeJSON(w, http.StatusOK, manager.Status()) })))
 	mux.Handle("GET /v1/kit/maintenance", authenticate(token, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		status, err := manager.MaintenanceStatusChecked()

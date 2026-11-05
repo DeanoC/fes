@@ -75,6 +75,20 @@ platform, stay `launchable` even when a cartridge platform such as Coleco
 has no host-emulator mapping. Rooms treat those titles as Ready once
 composition flags such as `firmware_ready` pass; raw Coleco library carts
 remain browse-only.
+The kit host uses an agent-held local grant, available only to authenticated
+loopback requests. The agent gives that grant a ten-minute expiry window, so
+the game survives a host restart while the agent remains running. A restarted
+host resumes the same grant before discovery, reads the running session, and
+reconstructs its input binding. From the first session read, kit mode uses its
+local target's coordinator so the session ID and input owner stay stable across
+reattachment. Host shutdown detaches its local resources without stopping the
+target or releasing this grant; an explicit Stop still stops the session and
+releases it. A local grant that is not resumed or renewed within the window
+expires and follows the normal agent cleanup path. A transient renewal failure
+retries within the last confirmed local expiry; it never extends that expiry
+without a valid response. A denial or a changed token or generation invalidates
+the grant. Remote hosts retain their ordinary lease behavior and cannot resume
+the local grant.
 A locally expired or lost kit lease remains `KIT_LEASE_DENIED` through host
 service normalization, session reads, input reconciliation, Launch and Stop.
 The host API returns HTTP 403 for this ownership refusal. An ordinary claim
@@ -83,7 +97,7 @@ input reconciliation after endpoint adoption. Neither becomes a disconnected
 target or failed input bridge. Unclassified transport and
 bridge failures retain their unavailable responses. A refusal does not establish
 whether an earlier operation completed; clients must inspect current ownership
-before issuing a new operation. Existing authenticated endpoint reconciliation
+before issuing a new operation. Remote authenticated endpoint reconciliation
 uses read-only ownership/status observations to discard stale local authority;
 it never stops or releases the replacement owner's session. A subsequent
 explicit launch uses an ordinary claim, which still refuses a foreign holder.
@@ -1970,8 +1984,12 @@ do not revoke the live session. A failed explicit Stop of that surviving play
 still releases the other idle grants. The tenfoot shell's rooms Soft-stop (now-playing B, Esc, Backspace, or s) is
 the retain request and keeps the grant while the shell stays up. Kit Select+Start
 is the library session's completed exit on that same route: `retain_lease` false
-with the captured play. A package play sends that package generation. A play
-without a package sends the session id, launch flight, game, and target; a
+with the captured play. A package play sends its session and target identities,
+package ID and generation, even when the restarted agent reports no game ID.
+Stop rejects a changed generation before input teardown. If an unidentified
+package has a pending ZX81 SAVE, Stop keeps the machine running because the
+captured bytes have no durable game binding. A play without a package sends the
+session id, launch flight, game, and target; a
 missing flight is not posted as an empty body, because an unbound stop would
 release whatever play is foreground at admission. Idle cleanup releases that
 play's grant. A bound stop releases only its target, and a host-only stop
@@ -2495,10 +2513,9 @@ coverage; physical reboot and DHCP acceptance belongs to the selected FES image.
 The kit UI is `fogcast-tenfoot -gfx menu-display -home rooms`. The base-image
 supervisor starts it after the runtime and agent. `ui/launcherconfig` reads the
 provisioned `launcher.json` (`api`, `token`, `target_id`) and ignores keys left
-by the removed grid launcher. `cmd/fogcast-kit` is a stub that prints `tenfoot`
-for `--print-kit-ui`; it exists only for bases whose supervisor probes it before
-starting the launcher, and kit software bundles carry it until every kit runs a
-base that starts tenfoot directly.
+by the removed grid launcher. The bundle's `bin/fogcast-kit` is
+`cmd/fogcast-api` built under the kit's name: `fogcast-kit host` is the kit's
+FogCast host ([kit mode](#kit-mode)).
 
 A paired, authenticated host listener serves a restricted set of existing
 library, artwork, and session operations. The host keeps target and input lease

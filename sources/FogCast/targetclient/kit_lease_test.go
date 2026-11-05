@@ -539,3 +539,152 @@ func TestCoreLoadRejectsExpiredGrantBeforeRenewalRuns(t *testing.T) {
 		})
 	}
 }
+
+type failingLocalRenewTransport struct {
+	base http.RoundTripper
+	fail atomic.Bool
+}
+
+func (t *failingLocalRenewTransport) RoundTrip(r *http.Request) (*http.Response, error) {
+	if r.URL.Path == "/v1/kit/renew" && t.fail.Load() {
+		return nil, errors.New("temporary connection failure")
+	}
+	return t.base.RoundTrip(r)
+}
+
+func TestLocalLeaseRetriesTransientRenewalWithinGrace(t *testing.T) {
+	var renews atomic.Int32
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/v1/kit/local/claim" && r.URL.Path != "/v1/kit/renew" {
+			t.Errorf("unexpected request %s", r.URL.Path)
+			http.NotFound(w, r)
+			return
+		}
+		if r.URL.Path == "/v1/kit/renew" {
+			if r.Header.Get(KitLeaseHeader) != "original-token" {
+				t.Error("renewal did not preserve original grant")
+			}
+			if renews.Add(1) == 1 {
+				http.Error(w, "temporarily unavailable", http.StatusServiceUnavailable)
+				return
+			}
+		}
+		fmt.Fprint(w, `{"status":{"state":"held","generation":"original-generation","expires_in_ms":600000},"token":"original-token"}`)
+	}))
+	defer server.Close()
+	base, _ := url.Parse(server.URL)
+	httpClient := *server.Client()
+	transport := &failingLocalRenewTransport{base: httpClient.Transport}
+	httpClient.Transport = transport
+	lease := NewLocalKitLease(base, "bearer", &httpClient)
+	defer lease.Close(context.Background())
+	request, _ := http.NewRequest(http.MethodPost, server.URL+"/v1/launch", nil)
+	if err := lease.Authorize(request, true); err != nil {
+		t.Fatal(err)
+	}
+	expiry := lease.localExpiry
+	transport.fail.Store(true)
+	lease.renew(context.Background())
+	if lease.lost || lease.CurrentToken() != "original-token" || !lease.localExpiry.Equal(expiry) {
+		t.Fatal("transport error discarded or extended local authority")
+	}
+	transport.fail.Store(false)
+	lease.renew(context.Background())
+	if lease.lost || lease.CurrentToken() != "original-token" || !lease.localExpiry.Equal(expiry) {
+		t.Fatal("transient server error discarded or extended local authority")
+	}
+	lease.renew(context.Background())
+	if lease.lost || !lease.localExpiry.After(expiry) || lease.CurrentToken() != "original-token" {
+		t.Fatal("later renewal failed to recover the original grant")
+	}
+	if err := lease.Authorize(request, false); err != nil {
+		t.Fatalf("recovered grant unusable: %v", err)
+	}
+}
+
+func TestLocalLeaseRejectsLossOrChangedGrant(t *testing.T) {
+	for _, tc := range []struct {
+		name   string
+		status int
+		body   string
+	}{
+		{"forbidden", http.StatusForbidden, `{"error":{"code":"KIT_LEASE_REQUIRED"}}`},
+		{"conflict", http.StatusConflict, `{"error":{"code":"KIT_LEASE_BUSY"}}`},
+		{"unauthorized", http.StatusUnauthorized, `{"error":{"code":"UNAUTHORIZED"}}`},
+		{"changed token", http.StatusOK, `{"status":{"state":"held","generation":"original-generation","expires_in_ms":600000},"token":"foreign-token"}`},
+		{"changed generation", http.StatusOK, `{"status":{"state":"held","generation":"replacement-generation","expires_in_ms":600000},"token":"original-token"}`},
+		{"malformed success", http.StatusOK, `{}`},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			var resumes, claims atomic.Int32
+			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				switch r.URL.Path {
+				case "/v1/kit/local/claim":
+					claims.Add(1)
+					fmt.Fprint(w, `{"status":{"state":"held","generation":"original-generation","expires_in_ms":600000},"token":"original-token"}`)
+				case "/v1/kit/renew":
+					w.WriteHeader(tc.status)
+					fmt.Fprint(w, tc.body)
+				case "/v1/kit/local/resume":
+					resumes.Add(1)
+					t.Error("lost grant was automatically resumed")
+				default:
+					t.Errorf("unexpected request %s", r.URL.Path)
+				}
+			}))
+			defer server.Close()
+			base, _ := url.Parse(server.URL)
+			lease := NewLocalKitLease(base, "bearer", server.Client())
+			defer lease.Close(context.Background())
+			request, _ := http.NewRequest(http.MethodPost, server.URL+"/v1/launch", nil)
+			if err := lease.Authorize(request, true); err != nil {
+				t.Fatal(err)
+			}
+			lease.renew(context.Background())
+			if !lease.lost || lease.CurrentToken() != "" {
+				t.Fatal("invalid renewal retained authority")
+			}
+			if err := lease.resumeLocal(context.Background()); err != nil {
+				t.Fatal(err)
+			}
+			request.Header.Del(KitLeaseHeader)
+			if err := lease.Authorize(request, true); !errors.Is(err, ErrKitLeaseLost) || request.Header.Get(KitLeaseHeader) != "" {
+				t.Fatalf("lost grant authorized mutation: %v", err)
+			}
+			if claims.Load() != 1 || resumes.Load() != 0 {
+				t.Fatalf("claims=%d resumes=%d", claims.Load(), resumes.Load())
+			}
+		})
+	}
+}
+
+func TestLocalLeaseDoesNotRetryAfterGraceExpires(t *testing.T) {
+	var renews atomic.Int32
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/v1/kit/renew" {
+			renews.Add(1)
+			http.Error(w, "unavailable", 503)
+			return
+		}
+		fmt.Fprint(w, `{"status":{"state":"held","generation":"generation","expires_in_ms":600000},"token":"token"}`)
+	}))
+	defer server.Close()
+	base, _ := url.Parse(server.URL)
+	lease := NewLocalKitLease(base, "bearer", server.Client())
+	defer lease.Close(context.Background())
+	request, _ := http.NewRequest(http.MethodPost, server.URL+"/v1/launch", nil)
+	if err := lease.Authorize(request, true); err != nil {
+		t.Fatal(err)
+	}
+	lease.renew(context.Background())
+	if lease.lost {
+		t.Fatal("temporary failure lost valid grant")
+	}
+	lease.mu.Lock()
+	lease.localExpiry = time.Now().Add(-time.Second)
+	lease.mu.Unlock()
+	lease.renew(context.Background())
+	if !lease.lost || lease.CurrentToken() != "" || renews.Load() != 1 {
+		t.Fatalf("expired grant retried: lost=%v renews=%d", lease.lost, renews.Load())
+	}
+}

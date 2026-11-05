@@ -1,0 +1,261 @@
+{
+ "tag": "i2",
+ "revision": "83399b86a77633bf470ef778ef007f39f3fb765b",
+ "new_image": "b00539bd7eada929614b21264533304d746cf70484da1772ac638e9168ff9865",
+ "new_sw": "d2ace9c2542f893f7690ee2463a8e876b23d5edf045321499b98a3d411468fd7",
+ "base_sw": "d695e970c1b455ed483e287f560f9e0c40abd4ea2d64402b09548a70b0feda0c",
+ "good": "f904961e008a972db8f06f1bb47aff9631123d67215b9f4157ea1fbee83b98d4",
+ "before": {
+  "sw": "d695e970c1b455ed483e287f560f9e0c40abd4ea2d64402b09548a70b0feda0c",
+  "image": "f904961e008a972db8f06f1bb47aff9631123d67215b9f4157ea1fbee83b98d4",
+  "good": "f904961e008a972db8f06f1bb47aff9631123d67215b9f4157ea1fbee83b98d4",
+  "previous": "b00539bd7eada929614b21264533304d746cf70484da1772ac638e9168ff9865"
+ },
+ "update_s": 151.3,
+ "after_update": {
+  "image_sha256": "b00539bd7eada929614b21264533304d746cf70484da1772ac638e9168ff9865",
+  "good": "b00539bd7eada929614b21264533304d746cf70484da1772ac638e9168ff9865",
+  "previous": "f904961e008a972db8f06f1bb47aff9631123d67215b9f4157ea1fbee83b98d4",
+  "trial": false,
+  "pending": ""
+ },
+ "old_bundle_on_new_image": {
+  "active": "d695e970c1b455ed483e287f560f9e0c40abd4ea2d64402b09548a70b0feda0c",
+  "held_back": null
+ },
+ "old_bundle_services": [
+  {
+   "pid": 1411,
+   "exe": "mister-runtime",
+   "args": "/run/fogcast/fesdata3/software-releases/releases/d695e970c1b455ed483e287f560f9e0"
+  },
+  {
+   "pid": 1416,
+   "exe": "mister-agent",
+   "args": "/run/fogcast/fesdata3/software-releases/releases/d695e970c1b455ed483e287f560f9e0"
+  },
+  {
+   "pid": 1417,
+   "exe": "fogcast-tenfoot",
+   "args": "/run/fogcast/fesdata3/software-releases/releases/d695e970c1b455ed483e287f560f9e0"
+  }
+ ],
+ "new_bundle_activate_s": 77.0,
+ "new_bundle_core_packages_max_s": 21.18,
+ "new_bundle_core_packages_errors": 0,
+ "new_bundle_services": [
+  {
+   "pid": 1940,
+   "exe": "mister-runtime",
+   "args": "/run/fogcast/fesdata3/software-releases/releases/d2ace9c2542f893f7690ee2463a8e87"
+  },
+  {
+   "pid": 1943,
+   "exe": "mister-agent",
+   "args": "/run/fogcast/fesdata3/software-releases/releases/d2ace9c2542f893f7690ee2463a8e87"
+  },
+  {
+   "pid": 1944,
+   "exe": "fogcast-tenfoot",
+   "args": "/run/fogcast/fesdata3/software-releases/releases/d2ace9c2542f893f7690ee2463a8e87"
+  },
+  {
+   "pid": 2101,
+   "exe": "fogcast-kit",
+   "args": "/run/fogcast/fesdata3/software-releases/releases/d2ace9c2542f893f7690ee2463a8e87"
+  }
+ ],
+ "host_config": {
+  "target_id_matches_kit": true,
+  "token_matches_agent": true,
+  "address": "http://127.0.0.1:8182",
+  "core_packages": {
+   "kit": true
+  },
+  "state": "/run/fogcast/fesdata3/fogcast-host/state"
+ },
+ "host_log": [
+  "fogcast: kit host reached the agent after 44ms",
+  "2026/11/04 06:00:39 fogcast: kit core packages open after 22.124s"
+ ],
+ "old_bundle_activate_s": 71.7,
+ "old_bundle_core_packages_max_s": 0.08,
+ "old_bundle_core_packages_errors": 0,
+ "new_bundle_again_activate_s": 76.0,
+ "new_bundle_again_core_packages_max_s": 22.34,
+ "new_bundle_again_core_packages_errors": 0,
+ "host_listed": {
+  "2dd2271c816ad3eb83fb73be9e47b08431eaadd9a4d12484c4d684259090bdb7": "fes.atari-st",
+  "cf41dc16f28ab450ff52cc8f4e38d01d3d0f93b3e17ff207249f5a543321f337": "fes.coleco"
+ },
+ "launch_rc": 0,
+ "launch_s": 43.6,
+ "kill_host": {
+  "before_state": "active",
+  "observed": [
+   {
+    "state": "stopping",
+    "game": null
+   },
+   {
+    "state": "idle",
+    "game": null
+   },
+   {
+    "state": "idle",
+    "game": null
+   },
+   {
+    "state": "idle",
+    "game": null
+   },
+   {
+    "state": "idle",
+    "game": null
+   },
+   {
+    "state": "idle",
+    "game": null
+   },
+   {
+    "state": "idle",
+    "game": null
+   },
+   {
+    "state": "idle",
+    "game": null
+   },
+   {
+    "state": "idle",
+    "game": null
+   },
+   {
+    "state": "idle",
+    "game": null
+   },
+   {
+    "state": "idle",
+    "game": null
+   },
+   {
+    "state": "idle",
+    "game": null
+   },
+   {
+    "state": "idle",
+    "game": null
+   },
+   {
+    "state": "idle",
+    "game": null
+   },
+   {
+    "state": "idle",
+    "game": null
+   },
+   {
+    "state": "idle",
+    "game": null
+   },
+   {
+    "state": "idle",
+    "game": null
+   },
+   {
+    "state": "idle",
+    "game": null
+   },
+   {
+    "state": "idle",
+    "game": null
+   },
+   {
+    "state": "idle",
+    "game": null
+   },
+   {
+    "state": "idle",
+    "game": null
+   },
+   {
+    "state": "idle",
+    "game": null
+   },
+   {
+    "state": "idle",
+    "game": null
+   },
+   {
+    "state": "idle",
+    "game": null
+   },
+   {
+    "state": "idle",
+    "game": null
+   },
+   {
+    "state": "idle",
+    "game": null
+   },
+   {
+    "state": "idle",
+    "game": null
+   },
+   {
+    "state": "idle",
+    "game": null
+   },
+   {
+    "state": "idle",
+    "game": null
+   },
+   {
+    "state": "idle",
+    "game": null
+   }
+  ],
+  "host_restarted": true,
+  "services_after": [
+   {
+    "pid": 3324,
+    "exe": "mister-runtime",
+    "args": "/run/fogcast/fesdata3/software-releases/releases/d2ace9c2542f893f7690ee2463a8e87"
+   },
+   {
+    "pid": 3327,
+    "exe": "mister-agent",
+    "args": "/run/fogcast/fesdata3/software-releases/releases/d2ace9c2542f893f7690ee2463a8e87"
+   },
+   {
+    "pid": 3328,
+    "exe": "fogcast-tenfoot",
+    "args": "/run/fogcast/fesdata3/software-releases/releases/d2ace9c2542f893f7690ee2463a8e87"
+   },
+   {
+    "pid": 4462,
+    "exe": "fogcast-kit",
+    "args": "/run/fogcast/fesdata3/software-releases/releases/d2ace9c2542f893f7690ee2463a8e87"
+   }
+  ]
+ },
+ "restore_sw_activate_s": 76.5,
+ "restore": {
+  "sw_before_image_restore": "d695e970c1b455ed483e287f560f9e0c40abd4ea2d64402b09548a70b0feda0c",
+  "image_after": {
+   "image_sha256": "f904961e008a972db8f06f1bb47aff9631123d67215b9f4157ea1fbee83b98d4",
+   "good": "f904961e008a972db8f06f1bb47aff9631123d67215b9f4157ea1fbee83b98d4",
+   "previous": "b00539bd7eada929614b21264533304d746cf70484da1772ac638e9168ff9865",
+   "trial": false,
+   "pending": ""
+  },
+  "sw_after": "d695e970c1b455ed483e287f560f9e0c40abd4ea2d64402b09548a70b0feda0c",
+  "acknowledge": "{\"action\":\"2a42d6912188f33c7904d51a35bf2b7a9c39e70d6329363153cba21745ccbe92\",\"operation\":\"84040fb07423c9533a4555bfc1c42fbc801f2fce58bb9efa07b9ff032e6e7c52\",\"selected\":\"d695e970c1b455ed483e287f560f9e0c40abd4ea2d64402b09548a70b0feda0c\",\"generation\":697,\"completed\":true}\nrc=0",
+  "host_state_left": "end",
+  "lease": "idle free",
+  "services": [
+   "mister-runtime",
+   "mister-agent",
+   "fogcast-tenfoot"
+  ]
+ }
+}

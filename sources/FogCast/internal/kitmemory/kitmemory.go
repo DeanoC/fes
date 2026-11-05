@@ -13,6 +13,9 @@ import (
 const (
 	Launcher = 96 << 20
 	Agent    = 64 << 20
+	// Host is fogcast-kit host. It peaks near 80 MiB during an ST launch
+	// and near 140 MiB while titling one (#863 slices 2-4).
+	Host = 96 << 20
 )
 
 // SetLimit applies limit unless GOMEMLIMIT is set, which wins. Call it from a

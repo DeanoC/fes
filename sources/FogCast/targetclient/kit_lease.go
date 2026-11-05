@@ -37,12 +37,55 @@ type KitLease struct {
 	grant                     kitLeaseGrant
 	localExpiry               time.Time
 	lost, closed              bool
+	localHost                 bool
 	cancel                    context.CancelFunc
 }
 
 func NewKitLease(base *url.URL, bearer string, client *http.Client, owner, purpose string) *KitLease {
 	return &KitLease{client: NewClient(base, bearer, client), owner: owner, purpose: purpose}
 }
+
+// NewLocalKitLease uses the agent-owned kit-local grant, recoverable after a host restart.
+func NewLocalKitLease(base *url.URL, bearer string, client *http.Client) *KitLease {
+	l := NewKitLease(base, bearer, client, "fogcast@kit", "local host session")
+	l.localHost = true
+	return l
+}
+
+// resumeLocal recovers an existing local grant without claiming a free kit.
+func (l *KitLease) resumeLocal(ctx context.Context) error {
+	if l == nil || !l.localHost {
+		return nil
+	}
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	if l.closed || l.lost || l.grant.Token != "" {
+		return nil
+	}
+	var grant kitLeaseGrant
+	start := time.Now()
+	code, err := l.requestStatus(ctx, "/v1/kit/local/resume", "", &grant)
+	if err != nil {
+		if code == http.StatusForbidden {
+			return nil
+		}
+		return err
+	}
+	if !validKitGrant(grant, start) {
+		return ErrKitLeaseLost
+	}
+	l.installGrantLocked(grant, start)
+	return nil
+}
+
+func (l *KitLease) installGrantLocked(grant kitLeaseGrant, start time.Time) {
+	l.grant = grant
+	l.localExpiry = start.Add(time.Duration(grant.Status.ExpiresInMS) * time.Millisecond)
+	ctx, cancel := context.WithCancel(context.Background())
+	l.cancel = cancel
+	go l.renewLoop(ctx)
+}
+
 func (l *KitLease) Authorize(r *http.Request, acquire bool) error {
 	if l == nil {
 		return nil
@@ -65,18 +108,20 @@ func (l *KitLease) Authorize(r *http.Request, acquire bool) error {
 		}
 		var grant kitLeaseGrant
 		requestStart := time.Now()
-		if err := l.client.doJSON(r.Context(), "POST", "/v1/kit/claim", map[string]string{"request_id": l.requestID, "owner": l.owner, "purpose": l.purpose}, &grant); err != nil {
+		var err error
+		if l.localHost {
+			err = l.request(r.Context(), "/v1/kit/local/claim", "", &grant)
+		} else {
+			err = l.client.doJSON(r.Context(), "POST", "/v1/kit/claim", map[string]string{"request_id": l.requestID, "owner": l.owner, "purpose": l.purpose}, &grant)
+		}
+		if err != nil {
 			return err
 		}
 		if !validKitGrant(grant, requestStart) {
 			l.lost = true
 			return ErrKitLeaseLost
 		}
-		l.grant = grant
-		l.localExpiry = requestStart.Add(time.Duration(grant.Status.ExpiresInMS) * time.Millisecond)
-		ctx, cancel := context.WithCancel(context.Background())
-		l.cancel = cancel
-		go l.renewLoop(ctx)
+		l.installGrantLocked(grant, requestStart)
 	}
 	if !time.Now().Before(l.localExpiry) {
 		l.invalidateLocked()
@@ -125,7 +170,23 @@ func (l *KitLease) renew(parent context.Context) {
 	defer cancel()
 	var next kitLeaseGrant
 	requestStart := time.Now()
-	if err := l.request(ctx, "/v1/kit/renew", l.grant.Token, &next); err != nil || !validKitGrant(next, requestStart) || next.Token != l.grant.Token || next.Status.Generation != l.grant.Status.Generation {
+	if !requestStart.Before(l.localExpiry) {
+		l.invalidateLocked()
+		return
+	}
+	status, err := l.requestStatus(ctx, "/v1/kit/renew", l.grant.Token, &next)
+	if err != nil {
+		// The local agent keeps this exact grant through the restart grace.
+		// A transport outage or retryable server error therefore need not
+		// abandon it: retry on the next tick while local time still proves
+		// the grant valid. Denial and malformed replies fail closed.
+		transient := status == 0 || status == http.StatusRequestTimeout || status == http.StatusTooManyRequests || status >= 500 && status <= 599
+		if !l.localHost || !transient || !time.Now().Before(l.localExpiry) {
+			l.invalidateLocked()
+		}
+		return
+	}
+	if !validKitGrant(next, requestStart) || next.Token != l.grant.Token || next.Status.Generation != l.grant.Status.Generation {
 		l.invalidateLocked()
 		return
 	}
@@ -235,6 +296,14 @@ func (l *KitLease) Close(ctx context.Context) error {
 	}
 	l.mu.Lock()
 	l.closed = true
+	if l.localHost {
+		if l.cancel != nil {
+			l.cancel()
+			l.cancel = nil
+		}
+		l.mu.Unlock()
+		return nil
+	}
 	l.mu.Unlock()
 	return l.Release(ctx)
 }

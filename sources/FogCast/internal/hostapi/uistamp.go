@@ -132,7 +132,7 @@ func (e sessionStopExpectation) packageBound() bool {
 
 func (e sessionStopExpectation) valid() bool {
 	if strings.TrimSpace(e.ID) != e.ID || e.ID == "" || len(e.ID) > 128 ||
-		protocol.ValidateGameID(e.GameID) != nil ||
+		(e.GameID != "" && protocol.ValidateGameID(e.GameID) != nil) ||
 		strings.TrimSpace(e.Target) != e.Target || len(e.Target) > 256 ||
 		strings.TrimSpace(e.TargetID) != e.TargetID || len(e.TargetID) > 256 ||
 		(e.FlightID != "" && !validHostFlightID(e.FlightID)) {
@@ -144,12 +144,16 @@ func (e sessionStopExpectation) valid() bool {
 	// A package-free play has no generation. The launch flight is required
 	// because the host session id persists across launches. Target may be
 	// empty for a host-only play.
-	return e.FlightID != ""
+	return e.GameID != "" && e.FlightID != ""
 }
 
 func (e sessionStopExpectation) matches(actual sessionResult) bool {
-	if actual.State == protocol.StateIdle || actual.GameID == nil || e.ID != actual.ID || e.FlightID != actual.FlightID ||
-		e.GameID != *actual.GameID || e.Target != actual.Target || e.TargetID != actual.TargetID {
+	gameID := ""
+	if actual.GameID != nil {
+		gameID = *actual.GameID
+	}
+	if actual.State == protocol.StateIdle || e.ID != actual.ID || e.FlightID != actual.FlightID ||
+		e.GameID != gameID || e.Target != actual.Target || e.TargetID != actual.TargetID {
 		return false
 	}
 	if e.packageBound() {

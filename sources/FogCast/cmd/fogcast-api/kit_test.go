@@ -121,3 +121,17 @@ func TestDesktopModeDoesNotScanAtStart(t *testing.T) {
 		t.Fatalf("exit %d scans %d: %s", code, svc.scans, stderr)
 	}
 }
+
+func TestKitModeShutdownLeavesOwnedSessionRunning(t *testing.T) {
+	root := t.TempDir()
+	config := filepath.Join(root, "config.toml")
+	if err := os.WriteFile(config, []byte("base_url = \"http://127.0.0.1:8182\"\ntoken = \"t\"\nrequest_timeout_seconds = 12\nupload_timeout_seconds = 60\n"), 0600); err != nil {
+		t.Fatal(err)
+	}
+	stubKitHost(t, func(context.Context, kithost.Options) (string, error) { return config, nil })
+	svc := &shutdownCompositionService{shutdownCleanup: true}
+	code, _, stderr := runKit(t, []string{"-kit", "-listen", "127.0.0.1:0", "-headless"}, svc)
+	if code != 0 || svc.stops != 0 {
+		t.Fatalf("exit=%d stops=%d stderr=%s", code, svc.stops, stderr)
+	}
+}

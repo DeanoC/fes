@@ -43,9 +43,11 @@ def build_go(snapshot, version, revision, env):
     destination.mkdir(exist_ok=True)
     flags = ('-s -w -X github.com/DeanoC/FogCast/internal/version.Version=' + version +
              ' -X github.com/DeanoC/FogCast/internal/version.Revision=' + revision)
+    # fogcast-kit is cmd/fogcast-api built under the kit's name: a multi-call
+    # binary whose `host` mode is the kit's FogCast host (#863 slice 5).
     for command, architecture, filename in (
         ('mister-agent', 'arm', 'mister-agent-linux-armv7'),
-        ('fogcast-kit', 'arm', 'fogcast-kit-linux-armv7'),
+        ('fogcast-api', 'arm', 'fogcast-kit-linux-armv7'),
         ('fogcast-tenfoot', 'arm', 'fogcast-tenfoot-linux-armv7'),
         ('fes-kit-bundle', 'amd64', 'fes-kit-bundle-linux-amd64'),
     ):
