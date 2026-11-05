@@ -649,6 +649,36 @@ class PersistenceAdmissionTest(unittest.TestCase):
         with mock.patch.object(p,'bounded_source_command',side_effect=command):
             with self.assertRaises(p.pa.AcceptanceError):p.require_source(args)
 
+    def test_selected_source_receipt_boundary_rechecks_live_main_tip(self):
+        raw_diff=b':100644 100644 old new M\0changed\0'
+        args=SimpleNamespace(source_repository='Example/fes',source_pr=None,source_base='main',
+            source_commit='b'*40,source_tool_commit='a'*40,source_main=False,source_historical_main=True,
+            source_observed_tip='c'*40,source_minimum_tip='c'*40,
+            source_diff_sha256=hashlib.sha256(raw_diff).hexdigest(),source_last_observed_tip=None,
+            selected_prepared=Path('/unused/prepared.json'),phase_deadline_monotonic=time.monotonic()+120,
+            source_tip_observations=[])
+        provenance={'host':{'source_commit':args.source_commit},'software':{'source_commit':args.source_commit}}
+        root=Path(p.__file__).resolve().parent.parent
+        live={'sha':'c'*40,'parents':[{'sha':'b'*40}]}
+        def command(argv,deadline,cwd=None):
+            if argv[:3]==['git','rev-parse','HEAD']:return b'a'*40+b'\n'
+            if argv[:2]==['git','show']:
+                _,path=argv[2].split(':',1)
+                return (root/path).read_bytes()
+            if argv[:2]==['git','diff']:return raw_diff
+            if argv==['gh','api','repos/Example/fes/commits/main']:
+                return json.dumps(live).encode()
+            self.fail(f'unexpected source command: {argv!r}')
+        with mock.patch.object(p,'selected_source_admission',return_value=True), \
+             mock.patch.object(p,'bounded_source_command',side_effect=command):
+            # This models the successful post-scenario source check.
+            p.require_source(args)
+            live['sha']='d'*40
+            # The final provenance pass must reject a tip advance before it
+            # can publish the success receipt.
+            with self.assertRaises(p.pa.AcceptanceError):
+                p.check_source_admission(provenance,args,receipt_boundary=True)
+
     def test_main_write_then_restart_requires_same_producer_and_tools(self):
         root=Path(p.__file__).resolve().parent.parent
         args=SimpleNamespace(source_repository='Example/fes',source_pr=None,source_base='main',

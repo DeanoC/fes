@@ -800,7 +800,7 @@ def selected_source_admission(provenance, args, *, root):
         raise pa.AcceptanceError('selected package source could not be independently verified') from exc
 
 
-def check_source_admission(provenance, args, *, root=None):
+def check_source_admission(provenance, args, *, root=None, receipt_boundary=False):
     """Keep same-source default; admit one pinned software source with identical ABI trees.
 
     The existing provenance check already pins the host binary, both receipts,
@@ -811,6 +811,11 @@ def check_source_admission(provenance, args, *, root=None):
     """
     root = Path(root) if root is not None else Path(__file__).resolve().parent.parent
     selected = selected_source_admission(provenance,args,root=root)
+    if receipt_boundary and selected and getattr(args, 'source_historical_main', False):
+        # The source provenance call immediately before success-receipt
+        # creation is the final opportunity to reject a selected package whose
+        # reviewed main tip moved after the scenario's post-run observation.
+        require_source(args, PhaseDeadline(args.phase_deadline_monotonic))
     companion = getattr(args, 'compatible_software_source', None)
     if companion is None:
         check_matching_sources(provenance, args.source_commit)
@@ -888,6 +893,8 @@ def main(argv=None):
     original_parser, original_source = app.parser, app.source_provenance
     original_validate_once, original_run_com = app._validate_active_once, app.run_com
     original_runner, original_validate = app.pa.Runner, app.validate_active
+    original_verify_disk = app.verify_disk
+    receipt_gate = {'scenario_complete': False, 'pending': False, 'record': None}
     def parser():
         p = original_parser()
         p.add_argument('--phase', required=True, choices=('write', 'verify'))
@@ -910,15 +917,31 @@ def main(argv=None):
         return p
     def source(args, font):
         result, host_raw, software_raw = original_source(args, font)
-        check_source_admission(result, args)
         if args.source_main or args.source_historical_main:
             result['main_source'] = main_source_evidence(args)
         result['diagnostic_file_sha256']['scripts/pcxt_floppy_persistence_acceptance.py'] = hashlib.sha256(Path(__file__).read_bytes()).hexdigest()
         result['diagnostic_file_sha256']['scripts/pcxt_health_evidence.py'] = hashlib.sha256(Path(health_evidence.__file__).read_bytes()).hexdigest()
+        receipt_boundary = receipt_gate['pending']
+        receipt_gate['pending'] = False
+        try:
+            check_source_admission(result, args, receipt_boundary=receipt_boundary)
+        finally:
+            record = receipt_gate['record']
+            if (receipt_boundary and record is not None
+                    and getattr(args, 'source_historical_main', False)):
+                record['source_minimum_tip'] = args.source_minimum_tip
+                record['source_tip_observations'] = list(args.source_tip_observations)
         return result, host_raw, software_raw
+
+    def verify_disk(path, selected_scenario):
+        result = original_verify_disk(path, selected_scenario)
+        if receipt_gate['scenario_complete']:
+            receipt_gate['pending'] = True
+        return result
     def guarded(runner, owned, args, disk_sha):
         return guarded_observation(original_validate_once, runner, owned, args, disk_sha, observer)
     def scenario(runner, owned, args, rec, input_session_id, font):
+        receipt_gate['record'] = rec
         try:
             if not math.isfinite(args.phase_deadline_monotonic) or args.phase_deadline_monotonic <= time.monotonic()+1:
                 raise pa.AcceptanceError('valid floppy phase deadline required')
@@ -935,7 +958,9 @@ def main(argv=None):
             for name in ('fes.media.pcxt-floppy', 'fes.media.pcxt-floppy-write'):
                 if not any(i.get('id') == name and i.get('major') == 1 and i.get('minor') == 0 and i.get('required') is True for i in interfaces if isinstance(i, dict)):
                     raise pa.AcceptanceError('archive lacks the writable PC/XT floppy contract')
-            return run_phase(runner, owned, args, rec, input_session_id, font)
+            result = run_phase(runner, owned, args, rec, input_session_id, font)
+            receipt_gate['scenario_complete'] = True
+            return result
         finally:
             if getattr(args, 'source_historical_main', False):
                 rec['source_minimum_tip'] = args.source_minimum_tip
@@ -968,6 +993,7 @@ def main(argv=None):
             HEALTH_UNSAFE=True
             raise
     app.parser, app.source_provenance, app._validate_active_once, app.run_com = parser, source, guarded, scenario
+    app.verify_disk = verify_disk
     app.pa.Runner,app.validate_active=ObservedRunner,observed_validate
     try:
         app.install_signal_handler()
@@ -975,6 +1001,7 @@ def main(argv=None):
     finally:
         app.pa.Runner,app.validate_active=original_runner,original_validate
         app.parser, app.source_provenance, app._validate_active_once, app.run_com = original_parser, original_source, original_validate_once, original_run_com
+        app.verify_disk = original_verify_disk
         active_error=sys.exception()
         try: observer.close()
         except BaseException:
