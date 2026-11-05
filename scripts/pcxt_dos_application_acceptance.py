@@ -631,6 +631,10 @@ def _observe_until(runner, expected, args, disk_sha, deadline):
 _OBSERVER_GUARD_FD = None
 
 
+class ObservationDeadlineExceeded(pa.AcceptanceError):
+    """A read-only observation timed out; caller must verify cleanup."""
+
+
 def _wait_observer_guard(fd, *, timeout=2.0):
     """Wait for the observer and any owned source supervisors to close."""
     try:
@@ -721,12 +725,18 @@ def _hard_deadline_observation(observe, seconds=5.0):
     child.close(); os.close(guard_write)
     reaped = False
     result = None
+    def timeout_error():
+        # Do not downgrade an explicit or malformed observer failure merely
+        # because the child failed to exit before its deadline.
+        if result is not None and (not isinstance(result, dict) or result.get('ok') is not True):
+            return pa.AcceptanceError('observer failed before the hard phase deadline')
+        return ObservationDeadlineExceeded('selected software observation exceeded hard phase deadline')
     try:
         while True:
             check_interrupted()
             remaining = deadline - time.monotonic()
             if remaining <= 0:
-                raise pa.AcceptanceError('selected software observation exceeded hard phase deadline')
+                raise timeout_error()
             if result is None:
                 readable, _, _ = select.select([parent], [], [], min(remaining, 0.05))
                 if readable:
@@ -745,7 +755,7 @@ def _hard_deadline_observation(observe, seconds=5.0):
                     if raw:
                         result = _decode_observer_result(raw)
                 if time.monotonic() >= deadline:
-                    raise pa.AcceptanceError('selected software observation exceeded hard phase deadline')
+                    raise timeout_error()
                 if status != 0 or not isinstance(result, dict) or result.get('ok') not in (True, False):
                     raise pa.AcceptanceError('observer failed without a complete result')
                 if not result['ok']:
@@ -775,7 +785,7 @@ def _hard_deadline_observation(observe, seconds=5.0):
             original_error.add_note('observer cleanup unverified; retain kit claim')
             original_error.source_cleanup_incomplete = True
         if original_error is None and time.monotonic() >= deadline:
-            raise pa.AcceptanceError('selected software observation exceeded hard phase deadline')
+            raise ObservationDeadlineExceeded('selected software observation exceeded hard phase deadline')
 
 
 def validate_active(runner, expected, args, disk_sha):

@@ -265,6 +265,20 @@ class FakeRunner:
 
 
 class HardDeadlineTest(unittest.TestCase):
+    def test_reported_observer_failure_is_not_downgraded_to_timeout(self):
+        real_waitpid = os.waitpid
+        end = time.monotonic() + .15
+        def delayed_reap(pid, options):
+            if time.monotonic() < end:
+                return (0, 0)
+            return real_waitpid(pid, options)
+        def failed(_deadline):
+            raise app.pa.AcceptanceError('target identity changed')
+        with mock.patch.object(app.os, 'waitpid', side_effect=delayed_reap):
+            with self.assertRaises(app.pa.AcceptanceError) as caught:
+                app._hard_deadline_observation(failed, seconds=.1)
+        self.assertNotIsInstance(caught.exception, app.ObservationDeadlineExceeded)
+
     def test_result_queued_after_select_timeout_is_read_after_child_exit(self):
         child = {}
         real_fork = os.fork
