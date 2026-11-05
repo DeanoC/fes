@@ -1,0 +1,407 @@
+{
+  "status": "passed",
+  "source": "48868ab57ecf9f512ddeda8214c7a6ae6975ae1c",
+  "base": "fa85c460232e8afafd75b526e60dd42db0d27e9e",
+  "classification": "Explicit shared USB startup/client wiring; actual secure USB boot include, board PHY and private boot/master policy with injected registers; matched ARM64 chain cross-build; no physical shared core qualification",
+  "source_sha256": {
+    "platform/embedded/entry/build.py": "ed623bc2ebbdab2f6ea789ec3cc63ac3f36c8ee3c8b31fcfa78ab64fd1efdc3a",
+    "platform/embedded/firmware/README.md": "3d8ac465e9afd2c3c9d36b4d8e562bc5ac15cbe1b8b59ca0ea25f3076a558313",
+    "platform/embedded/firmware/nano_cold_platform.c": "781b5ddf95414e388cfeb030eed94b1acf703868dbb58822e02fcb10c34db533",
+    "platform/embedded/firmware/nano_usb_boot.inc": "c91231104a4e344054501018689e746366a0bf25fa93f7aac8c2d613b2adb5ea",
+    "platform/embedded/firmware/tests/nano_usb_board_fixture.h": "ae9fae639649d94dc1f909cdeeac96a23cbfd31d9e5032475ebb56942de1521b",
+    "platform/embedded/firmware/tests/nano_usb_board_test.c": "4e0296deaff86a325e79bedc50b2a5ba7cff42275c98918b8421e8425be1cf8d",
+    "platform/embedded/firmware/tests/nano_usb_shared_boot_test.c": "8ebd9f5426c7a08c652f47d8fe213551df62fa4ecf46d24009f4a6cae8fe0a6f",
+    "platform/embedded/nano/cold_profile.py": "d2fff2b0faa2e1ab81313f2c2b4a3cf689054d45b2cd635e0210752fda1ef768",
+    "platform/embedded/nano/hps_context.py": "54dba22904875a1149c4dbfe50fa9ff756239a25429197428a62402e0bde9c80",
+    "platform/embedded/nano/usb_selection.py": "a62b4bd090c79c32074a549ce8ea6fdb829d108732bff41d0d605a2d81a314ed",
+    "platform/embedded/tamago/README.md": "5a012cc5dea580a56c2b8cf463b6009d60d713cad91dfb722333f37e9d647dca",
+    "platform/embedded/tamago/build.py": "d27f9ab7207388bcf19f789f32df45967b94fe7e7021126233fa871c814ea7a2",
+    "platform/embedded/tamago/cmd/fpgaload/main.go": "7b5251a2c26a75f2d08e84c9b53c49cad30a0db92c5caefa9b79aa7c9977c770",
+    "platform/embedded/tamago/cmd/fpgaload/shared_usb.go": "e72b6f3ab1bf48ac4c3c0012b3d2b4cfe1f91d577d365b24bc16e0131548ecae",
+    "platform/embedded/tamago/cmd/fpgaload/tenfoot.go": "6fcce0c1bb83f3211221ffba5d568dd306831043ecf0ff5574eed744a9b75913",
+    "platform/embedded/tamago/run.py": "b1084f29257a4844d721d0e496263dcc469c07bfa82b290f4ee530afc9c525f3",
+    "tests/test_nano_shared_usb_selection.py": "cc6c26f553d41c06a6fac4b1b6450d99ddd71ab4639b5b7a3d0d197cc62fae0d",
+    "tests/test_nano_usb_board.py": "f984675981f4708039acb03780754b7bdde30bee94ae0f4da8673a0aaf74100f"
+  },
+  "software": {
+    "host-race": {
+      "argv": [
+        "env",
+        "GOWORK=off",
+        "GOTOOLCHAIN=local",
+        "GOPROXY=off",
+        "GOSUMDB=off",
+        "/home/deano/go/pkg/mod/golang.org/toolchain@v0.0.1-go1.26.5.linux-amd64/bin/go",
+        "-C",
+        "platform/embedded/tamago",
+        "test",
+        "-race",
+        "-count=1",
+        "-timeout",
+        "120s",
+        "./..."
+      ],
+      "cwd": "/home/deano/fes/out/dev/de25-embedded-os",
+      "returncode": 0,
+      "timed_out": false,
+      "elapsed": 29.61765374999959,
+      "log_sha256": "96f8faa712308786213dd888e5df8e5decb500edda66a7f004a974985b1f2202"
+    },
+    "generated-check": {
+      "argv": [
+        "make",
+        "check"
+      ],
+      "cwd": "/home/deano/fes/out/dev/de25-embedded-os",
+      "returncode": 0,
+      "timed_out": false,
+      "elapsed": 6.803614908014424,
+      "log_sha256": "273915f27c798cb3223bae157afc4edf45e1d7cab1a6e05b5172f999f2f30d90"
+    },
+    "sdk-final": {
+      "argv": [
+        "python3",
+        "platform/embedded/tamago/run.py",
+        "fpgaload",
+        "--compiler",
+        "out/embedded-base-tools/tamago/usr/local/tamago-go/bin/go",
+        "--board",
+        "de25-nano",
+        "--profile",
+        "platform/embedded/nano/sd-profile.json",
+        "--hps-first-project",
+        "out/nano-tenfoot-serial-20261104/core-zx81/sealed-project",
+        "--computer-control",
+        "--computer-reload",
+        "--computer-storage-return",
+        "--selected-programs",
+        "--tenfoot-serial",
+        "--shared-usb-input",
+        "gamepad",
+        "--output",
+        "out/nano-shared-startup-20261105/native-sdk-final"
+      ],
+      "cwd": "/home/deano/fes/out/dev/de25-embedded-os",
+      "returncode": 0,
+      "timed_out": false,
+      "elapsed": 22.01201047701761,
+      "log_sha256": "994803ff8bbf76f2c32e8f206fad9c5c5fd8d699f5a471a8e550e25100972f44"
+    },
+    "native-entry-final": {
+      "argv": [
+        "python3",
+        "platform/embedded/entry/build.py",
+        "--target",
+        "de25-nano",
+        "--payload",
+        "out/nano-shared-startup-20261105/native-sdk-final/fpgaload.elf",
+        "--nano-build",
+        "out/nano-shared-startup-20261105/native-sdk-final",
+        "--profile",
+        "platform/embedded/nano/sd-profile.json",
+        "--image-address",
+        "0x96080000",
+        "--cross-prefix",
+        "/home/deano/fes/out/dev/de25-embedded-os/out/bootchain-tools/uboot-bin/aarch64-linux-gnu-",
+        "--output",
+        "out/nano-shared-startup-20261105/native-entry-final"
+      ],
+      "cwd": "/home/deano/fes/out/dev/de25-embedded-os",
+      "returncode": 0,
+      "timed_out": false,
+      "elapsed": 24.213861999101937,
+      "log_sha256": "498d198a7b42c6fe9358323d6696a2a598aa83938b3363c2499d098b3c9bc98a"
+    },
+    "bl31-final": {
+      "argv": [
+        "python3",
+        "platform/embedded/firmware/build_terasic.py",
+        "--reference-repo",
+        "out/terasic-git-restore-tfa",
+        "--cross-prefix",
+        "/home/deano/fes/out/dev/de25-embedded-os/out/bootchain-tools/uboot-bin/aarch64-linux-gnu-",
+        "--output",
+        "out/nano-shared-startup-20261105/native-bl31-final",
+        "--jobs",
+        "2",
+        "--nano-owned-bridges",
+        "--nano-cold-serial-entry",
+        "out/nano-shared-startup-20261105/native-entry-final"
+      ],
+      "cwd": "/home/deano/fes/out/dev/de25-embedded-os",
+      "returncode": 0,
+      "timed_out": false,
+      "elapsed": 80.65227395598777,
+      "log_sha256": "a2db741f942db70f7f747ae4f5aaae6a0242c0996a207d9b4606e5819095445e"
+    },
+    "uboot-final": {
+      "argv": [
+        "python3",
+        "platform/embedded/firmware/build_terasic_uboot.py",
+        "--reference-repo",
+        "out/terasic-git-restore-uboot",
+        "--bl31-build",
+        "out/nano-shared-startup-20261105/native-bl31-final",
+        "--cross-prefix",
+        "/home/deano/fes/out/dev/de25-embedded-os/out/bootchain-tools/uboot-bin/aarch64-linux-gnu-",
+        "--output",
+        "out/nano-shared-startup-20261105/native-uboot-final",
+        "--jobs",
+        "2",
+        "--native-entry-build",
+        "out/nano-shared-startup-20261105/native-entry-final"
+      ],
+      "cwd": "/home/deano/fes/out/dev/de25-embedded-os",
+      "returncode": 0,
+      "timed_out": false,
+      "elapsed": 131.06797857407946,
+      "log_sha256": "ff45146f6c22cf673f809460209e967cd85561174f2f96139963ba2361e2230d"
+    },
+    "software-0": {
+      "argv": [
+        "/usr/bin/python3",
+        "-m",
+        "unittest",
+        "discover",
+        "-s",
+        "tests",
+        "-p",
+        "test_affected.py",
+        "-v"
+      ],
+      "cwd": "/home/deano/fes/out/dev/de25-embedded-os",
+      "returncode": 0,
+      "timed_out": false,
+      "elapsed": 0.4007226739777252,
+      "log_sha256": "9d5149307f6ab9d93528ae686280262d7b87f8e078b89ac1f5636c36ffc557b9"
+    },
+    "software-1": {
+      "argv": [
+        "/usr/bin/python3",
+        "-m",
+        "unittest",
+        "discover",
+        "-s",
+        "tests",
+        "-p",
+        "test_test_changed.py",
+        "-v"
+      ],
+      "cwd": "/home/deano/fes/out/dev/de25-embedded-os",
+      "returncode": 0,
+      "timed_out": false,
+      "elapsed": 1.2012781819794327,
+      "log_sha256": "8a91d8f2425841aaca3719301490fc1f8b9a103efc5475b87a629f895c71539a"
+    },
+    "software-2": {
+      "argv": [
+        "/usr/bin/python3",
+        "scripts/check_diff.py",
+        "--base",
+        "fa85c460232e8afafd75b526e60dd42db0d27e9e",
+        "--head",
+        "48868ab57ecf9f512ddeda8214c7a6ae6975ae1c"
+      ],
+      "cwd": "/home/deano/fes/out/dev/de25-embedded-os",
+      "returncode": 0,
+      "timed_out": false,
+      "elapsed": 0.20060983300209045,
+      "log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "software-3": {
+      "argv": [
+        "git",
+        "diff",
+        "--check",
+        "HEAD",
+        "--"
+      ],
+      "cwd": "/home/deano/fes/out/dev/de25-embedded-os",
+      "returncode": 0,
+      "timed_out": false,
+      "elapsed": 0.20051183190662414,
+      "log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "software-4": {
+      "argv": [
+        "/usr/bin/python3",
+        "scripts/parent_tests.py",
+        "--video",
+        "false",
+        "--media",
+        "false",
+        "--paths-json",
+        "[\"platform/embedded/entry/build.py\", \"platform/embedded/firmware/README.md\", \"platform/embedded/firmware/nano_cold_platform.c\", \"platform/embedded/firmware/nano_usb_boot.inc\", \"platform/embedded/firmware/tests/nano_usb_board_fixture.h\", \"platform/embedded/firmware/tests/nano_usb_board_test.c\", \"platform/embedded/firmware/tests/nano_usb_shared_boot_test.c\", \"platform/embedded/nano/cold_profile.py\", \"platform/embedded/nano/hps_context.py\", \"platform/embedded/nano/usb_selection.py\", \"platform/embedded/tamago/README.md\", \"platform/embedded/tamago/build.py\", \"platform/embedded/tamago/cmd/fpgaload/main.go\", \"platform/embedded/tamago/cmd/fpgaload/shared_usb.go\", \"platform/embedded/tamago/cmd/fpgaload/tenfoot.go\", \"platform/embedded/tamago/run.py\", \"tests/test_nano_shared_usb_selection.py\", \"tests/test_nano_usb_board.py\"]"
+      ],
+      "cwd": "/home/deano/fes/out/dev/de25-embedded-os",
+      "returncode": 0,
+      "timed_out": false,
+      "elapsed": 258.34125526307616,
+      "log_sha256": "202850ad398706cc983458376ad6886dc78f1fce7cfe31a687b0a17b87c6a6ab"
+    },
+    "software-5": {
+      "argv": [
+        "/usr/bin/python3",
+        "-c",
+        "import sys; from pathlib import Path; sys.path.insert(0, 'scripts'); from consistency import check; print(check(Path('.')))"
+      ],
+      "cwd": "/home/deano/fes/out/dev/de25-embedded-os",
+      "returncode": 0,
+      "timed_out": false,
+      "elapsed": 4.803134119953029,
+      "log_sha256": "35e30eb5faf8482ba2a947bbbf643099d6f78e53da4a4c5b89cb75e27739599a"
+    },
+    "software-6": {
+      "argv": [
+        "/usr/bin/python3",
+        "platform/embedded/tamago/nativefabric/verify.py"
+      ],
+      "cwd": "/home/deano/fes/out/dev/de25-embedded-os",
+      "returncode": 0,
+      "timed_out": false,
+      "elapsed": 84.25276694307104,
+      "log_sha256": "8b4cef17bd504bff656396da079da7712491cd4495391b171ad07e070ab1a522"
+    },
+    "software-7": {
+      "argv": [
+        "/usr/bin/python3",
+        "platform/embedded/tamago/nativefabric/verify_producer.py"
+      ],
+      "cwd": "/home/deano/fes/out/dev/de25-embedded-os",
+      "returncode": 0,
+      "timed_out": false,
+      "elapsed": 24.817391413031146,
+      "log_sha256": "d7e3fb9989bdde10ae0d545ae162f5c9655c37ac3a563ab6c2b7503577331356"
+    },
+    "software-8": {
+      "argv": [
+        "/usr/bin/python3",
+        "platform/embedded/firmware/verify.py"
+      ],
+      "cwd": "/home/deano/fes/out/dev/de25-embedded-os",
+      "returncode": 0,
+      "timed_out": false,
+      "elapsed": 5.604450752958655,
+      "log_sha256": "8025a777d915454605990d4f0ee2a54244bf3d3cd2fff34c1a44b03a3f8f41bd"
+    },
+    "software-9": {
+      "argv": [
+        "/usr/bin/python3",
+        "-m",
+        "unittest",
+        "discover",
+        "-s",
+        "tests",
+        "-p",
+        "test_*.py",
+        "-v"
+      ],
+      "cwd": "/home/deano/fes/out/dev/de25-embedded-os/sources/misteross",
+      "returncode": 0,
+      "timed_out": false,
+      "elapsed": 335.1894453749992,
+      "log_sha256": "0933223e28d361656b13db2ae2ac7c3342cdf0eee4efc1b14e99a6ce487c0f00"
+    }
+  },
+  "all_selected_commands_match_plan": true,
+  "selected_startup": {
+    "scope": "owned-shared-usb-pio-v1",
+    "input": "gamepad",
+    "sd_pio": true,
+    "private_boot_binding": true,
+    "independent_fpga_stop_callbacks": true,
+    "nonsecure_initializer": false,
+    "native_usb_open_before_sd": true,
+    "core_input_pause_resume": true,
+    "idle_exit_owned_usb_stop": true,
+    "physical_core_or_input_qualification": false
+  },
+  "matched_chain": {
+    "chain_sha256": "fab4459b48324cab6c07aa9899752aef5e54273dd6f49b0675cbd5ff106ea787",
+    "sdk_elf_sha256": "0c98cbb41465f0d405ce7a696ea2851c0203bec766a11dce0fe85dee2c05925a",
+    "entry_image_sha256": "bd07f72fba1d605714a4a60e10426d77b010942f0eb3eb100f26829fb8dcb976",
+    "bl31_sha256": "e453c7c7431f261a95b7aa4e22268fd66022881510008d4168cef60bc467b874",
+    "fit_sha256": "14a3e110d1276246f8a9d2c23668ad2e7e0c50629fca999f6986a2694d11459a",
+    "sealed_fit_sha256": "14a3e110d1276246f8a9d2c23668ad2e7e0c50629fca999f6986a2694d11459a",
+    "spl_sha256": "c1346adbebe36c2d76b6958b86c477fd8d109bb8a830f79c49e9ca014b5e8f81",
+    "shared_initializer_compiled_and_linked": true,
+    "all_production_sources_match_commit": true
+  },
+  "selected_boot_model": {
+    "sd_cycles": 3,
+    "modes": 6,
+    "faults": [
+      "bad clock",
+      "missing SD init",
+      "denied private boot binding",
+      "PHY confirmation failure",
+      "duplicate initialization"
+    ],
+    "electrical_acceptance": false
+  },
+  "selected_integration": {
+    "out/nano-fabric-stop-240b972b3b574e119f6f3f32ea59ebb3": {
+      "result_sha256": "52839b116428dd0c8b298dd42d57e096b06d24b20aafd28f495c335a5d471df7",
+      "classification": "actual C and both actual reader RTL models; injected ownership and memory; no hardware acceptance"
+    },
+    "out/native-fabric-hooks-b77e7c12bc9d49008b3a0b36f9ed2a36": {
+      "result_sha256": "20bb7e722ef780279b92d54347693f9293816fa6119f7d20e37d821dd315285a",
+      "classification": "host native Go lifecycle/tenfoot with actual patched TF-A C and Verilated FPGA RTL; simulated bridges, memory and SDM; no hardware acceptance"
+    },
+    "out/de25-producer-check-c91042bda06d4b2a80523c3ab6706b00": {
+      "result_sha256": "acb0c5af284c2686e02f9734d0e9d06332eb8c2eed2dec62437642cacb3ea16a",
+      "classification": "host-only producer simulation and native Go control; no RBF or hardware acceptance"
+    },
+    "out/embedded-control-e13fee92775b4d38a734530084a4cb52": {
+      "result_sha256": "c739f06280d9a3106f9da7ac0b4c96aa9bf09491e7f4e069f4c21c87ad33bc9d",
+      "classification": "actual RTL plus patched TF-A C functions with simulated platform operations; no hardware acceptance"
+    }
+  },
+  "early_failed_drafts": {
+    "shared-boot-binding": {
+      "argv": [
+        "env",
+        "PYTHONPATH=tests",
+        "python3",
+        "-m",
+        "unittest",
+        "discover",
+        "-s",
+        "tests",
+        "-p",
+        "test_nano_usb_board.py",
+        "-v"
+      ],
+      "cwd": "/home/deano/fes/out/dev/de25-embedded-os",
+      "returncode": 1,
+      "timed_out": false,
+      "elapsed": 1.401188324089162,
+      "log_sha256": "9f04a7a9fe91655c6d9b7e0f99d1fda95cd5ed46be6b374c87dc7570cbc3d26f"
+    },
+    "bl31-first": {
+      "argv": [
+        "python3",
+        "platform/embedded/firmware/build_terasic.py",
+        "--reference-repo",
+        "out/terasic-git-restore-tfa",
+        "--cross-prefix",
+        "/home/deano/fes/out/dev/de25-embedded-os/out/bootchain-tools/uboot-bin/aarch64-linux-gnu-",
+        "--output",
+        "out/nano-shared-startup-20261105/native-bl31-first",
+        "--jobs",
+        "2",
+        "--nano-owned-bridges",
+        "--nano-cold-serial-entry",
+        "out/nano-shared-startup-20261105/native-entry-first"
+      ],
+      "cwd": "/home/deano/fes/out/dev/de25-embedded-os",
+      "returncode": 1,
+      "timed_out": false,
+      "elapsed": 39.61845225607976,
+      "log_sha256": "7ff72b11bc013690cf2863614d0d5bfa1b7925f7725dc93bfa2e661adfcf6865"
+    }
+  },
+  "serial_decoder_support_for_shared_startup": false,
+  "hardware_programmed": false,
+  "core_loading_readiness": false
+}
