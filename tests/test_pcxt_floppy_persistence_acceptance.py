@@ -34,14 +34,39 @@ class SourceObserverCleanupTest(unittest.TestCase):
                 self.assertFalse(getattr(caught.exception, 'source_cleanup_incomplete', False))
                 self.assertFalse((Path('/proc') / path.read_text()).exists())
 
-    def test_source_exec_failure_does_not_retain_claim(self):
+    def test_source_exec_failure_retains_claim_when_cleanup_unverified(self):
         def observe(_deadline):
             p.bounded_source_command(['/nonexistent-pcxt-source-command'],
                                      p.PhaseDeadline(time.monotonic()+10))
             return {'owner': 'unexpected'}
         with self.assertRaises(p.pa.AcceptanceError) as caught:
             p.app._hard_deadline_observation(observe, seconds=3)
-        self.assertFalse(getattr(caught.exception, 'source_cleanup_incomplete', False))
+        self.assertTrue(getattr(caught.exception, 'source_cleanup_incomplete', False))
+
+    def test_source_start_error_after_child_spawn_retains_claim(self):
+        with tempfile.TemporaryDirectory() as temp:
+            path = Path(temp) / 'pid'
+            real_popen = p.subprocess.Popen
+            def spawn_then_fail(*args, **kwargs):
+                child = real_popen(*args, **kwargs)
+                path.write_text(str(child.pid))
+                raise OSError('source process start result unavailable')
+            def observe(_deadline):
+                p.bounded_source_command([sys.executable, '-c', 'import time; time.sleep(30)'],
+                                         p.PhaseDeadline(time.monotonic()+10))
+                return {'owner': 'unexpected'}
+            try:
+                with mock.patch.object(p.subprocess, 'Popen', side_effect=spawn_then_fail):
+                    with self.assertRaises(p.pa.AcceptanceError) as caught:
+                        p.app._hard_deadline_observation(observe, seconds=3)
+                self.assertTrue(getattr(caught.exception, 'source_cleanup_incomplete', False))
+                self.assertTrue(path.exists())
+            finally:
+                if path.exists():
+                    try:
+                        p.os.killpg(int(path.read_text()), p.signal.SIGKILL)
+                    except ProcessLookupError:
+                        pass
 
     def test_timeout_stops_real_source_process_group(self):
         # The command forks a descendant in its session; neither may keep

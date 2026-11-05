@@ -104,12 +104,7 @@ def _bounded_source_command(argv, deadline, *, cwd=None, maximum_seconds=20, saf
             environment['PYTHONDONTWRITEBYTECODE']='1'
             environment['PYTHONPYCACHEPREFIX']=str(cache_prefix)
         started()
-        try:
-            proc=subprocess.Popen(argv,cwd=cwd,stdout=output,stderr=subprocess.DEVNULL,start_new_session=True,env=environment)
-        except OSError:
-            # Popen reaps its child before reporting an exec/start error.
-            cleaned()
-            raise
+        proc=subprocess.Popen(argv,cwd=cwd,stdout=output,stderr=subprocess.DEVNULL,start_new_session=True,env=environment)
         try:
             # Keep the leader unreaped until its entire group is killed. This
             # prevents PID/group reuse when an exited leader leaves children.
