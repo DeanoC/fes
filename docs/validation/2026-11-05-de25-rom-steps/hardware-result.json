@@ -1,0 +1,38 @@
+{
+  "status": "stopped-before-FPGA-configuration",
+  "source": "da811e595cd8ab929002f8fe2a5e836c658261dd",
+  "attempts": 1,
+  "retries": 0,
+  "hardware_actions": true,
+  "ordinary_admission": false,
+  "core_load_acceptance": false,
+  "rom_path_executed": false,
+  "rom_timing_observed": false,
+  "rom_completion": false,
+  "cpu_run": false,
+  "return_cycle": false,
+  "usb_pause_receipt": false,
+  "cached_native_generation": 0,
+  "native_elf_unchanged": true,
+  "native_elf_sha256": "beedfa0a35d87618028214cbef380b4950fb472e2a963ab3a1885486d9aec7fd",
+  "error": "panic: dwc2: packet address=1 endpoint=1 in=true pid=0 split=false complete_split=false received=false done=false nak=false halting=false polls=671 toggle_rx=1 toggle_irqs=1 ack_irqs=0 continuations=0 interval=10ms last_continue={reason=channel sampled=0xf queue_reg=0x410 queue=0x100040 irq=0x5200029 status=0x0 channel=0xe05e8808 transfer=0x0 frame=0x0 wait_ns=0}: dwc2: packet timeout; first toggle observation: dwc2: IN data-toggle notification; RX snapshot irq=0x7200039 peek=0xb0000 pop=0xb0000 after=0x7200029 channel=0xe05e8808 interrupts=0x400 transfer=0x80008 port=0x4180f reset=0x80000400 nonperiodic=0x1080040 periodic=0x100040 frame=0x38d1024c; containment: dwc2: register wait exhausted address=0x500 value=0xe05e8808 mask=0x80000000 want=0x0 elapsed=500.000917ms",
+  "cleanup": {
+    "status": "passed",
+    "usb_node_unchanged": true,
+    "usb_permissions_exact": true,
+    "clock_readback": "15M",
+    "owned_private_server_gone": true,
+    "uart_owners": [],
+    "board_operations": false,
+    "native_rom_acceptance": false
+  },
+  "physical_cpu_or_usb_halt_proved": false,
+  "logs": {
+    "trial/native-console.log": "f7403a77b8ce13e3d1f63f81c45e70105ac5b7ecde85dafc37f906f3a1794fe3",
+    "trial/experiment-result.json": "b0acb09cfe91f27c8071b2ea9589523eb0f84b4576f58854e98c1935a44ae9a5",
+    "trial/native-result.json": "049d4ee038210430bd711d7cfe9095e80aaf8e79ff7d239540fbe23f56ae3f54",
+    "hardware.log": "3b52e1c1503acf9afab478d1c4eb8b2f9f9ebc74d5b3b837bb6efbd237f8e79c",
+    "cleanup-evidence.json": "7fecd92dbf5fcf639e54b7c9e3b602b1171d67c1e9529f2bf67e1ce82aedfe8c"
+  },
+  "next": "reproduce and investigate the DWC2 IN data-toggle notification with channel-disable/enable both set, no completion and failed bounded halt; preserve packet/deadline/ownership gates before a fresh trial"
+}

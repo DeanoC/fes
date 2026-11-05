@@ -49,3 +49,27 @@ Evidence is under `out/nano-rom-steps-20261105`. No hardware operation has yet
 been performed for this source. A fresh matched chain and bounded TRWU8CBL trial
 are required. Ordinary package admission and DE10-equivalent readiness remain
 open.
+
+## Bounded boot stopped before ROM execution
+
+One matched attempt on TRWU8CBL passed recovery, all eight fixed uploads and
+fresh SD hashes, matched native startup and serial launcher readiness. First
+launch then stopped in the native USB packet path before the input-pause receipt
+and before any FPGA configuration or ROM transfer marker. The driver observed
+an IN data-toggle notification (RX `0xb0000`, channel IRQ `0x400`, channel
+`0xe05e8808`, transfer `0x80008`), no data/completion and a continuation blocked
+by channel state. Packet timeout was followed by the existing 500 ms channel
+halt wait exhausting. There was no retry or subsequent native command.
+
+The native application ELF is byte-identical to the preceding shared-ownership
+trial; the firmware changed, but its new ROM path was not reached. This does
+not by itself establish the cause of the USB failure. It provides no physical
+ROM timing or step-implementation acceptance. Cached native state was still
+Ready/generation 0 and cannot establish live driver health.
+
+Independent cleanup verified exact USB permissions, recorded 15 MHz JTAG
+readback, the owned private server's exit and a free UART. Claim and test card
+remain retained; factory card and other kit were untouched. CPU and USB halt
+were not independently proved. The next work is to reproduce and investigate
+the USB toggle/channel-halt path without relaxing its packet, deadline or
+ownership checks, then prepare a fresh trial. The failed image is retired.
