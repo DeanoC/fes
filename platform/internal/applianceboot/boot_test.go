@@ -57,14 +57,18 @@ func (r *fixtureRoot) Exec() error {
 }
 
 type fixturePlatform struct {
-	events   []string
-	bad      map[string]bool
-	guardErr error
-	ticket   store.Selection
+	events        []string
+	bad           map[string]bool
+	guardErr      error
+	ticket        store.Selection
+	beforePrepare func(string)
 }
 
 func (p *fixturePlatform) Prepare(path string) (Root, error) {
 	p.events = append(p.events, "prepare:"+path)
+	if p.beforePrepare != nil {
+		p.beforePrepare(path)
+	}
 	if p.bad[path] {
 		return nil, errors.New("invalid init")
 	}

@@ -1731,9 +1731,10 @@ remembered drives remain untouched.
 The kernel loop-mounts the bootstrap as before. Its PID 1 verifies the selected
 image, consumes a pending trial durably, attaches another read-only loop, and uses
 `pivot_root` followed by exec of the selected `/sbin/init`. The old bootstrap
-remains at `/.fes-bootstrap`. If a trial cannot boot, PID 1 tries the current Good
-image, then its verified Previous image if Good fails verification or preparation,
-then factory. A successfully prepared fallback becomes the recorded Good image,
+remains at `/.fes-bootstrap`. An ordinary boot selects verified Good; if Good
+fails verification, it selects verified Previous before factory. If a selected
+image fails preparation, PID 1 tries the next verified fallback, with Previous
+before factory. A successfully prepared fallback becomes the recorded Good image,
 and the failed current image is dropped as a rollback target. Failures after
 starting root switching require reboot. No trial is repeated on a later boot
 without another explicit activation.

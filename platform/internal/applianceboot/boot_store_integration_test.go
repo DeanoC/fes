@@ -5,6 +5,7 @@ import (
 	"context"
 	"crypto/sha256"
 	"fmt"
+	"os"
 	"reflect"
 	"strings"
 	"testing"
@@ -98,5 +99,74 @@ func TestPreviousImageBootsWhenCurrentCannotBePrepared(t *testing.T) {
 	status, err := s.Status()
 	if err != nil || status.Good != previous.ImageSHA256 || status.Previous != "" {
 		t.Fatalf("recovery state = %+v, %v; want previous as Good and no failed predecessor", status, err)
+	}
+}
+
+func TestUnverifiableGoodTriesPreviousBeforeFactory(t *testing.T) {
+	factoryImage, factory := applianceBootTestImage("factory", 1)
+	s, err := store.New(t.TempDir(), factory)
+	if err != nil {
+		t.Fatal(err)
+	}
+	stageApplianceBootTestImage(t, s, factoryImage, factory)
+
+	previousImage, previous := applianceBootTestImage("previous", 2)
+	stageApplianceBootTestImage(t, s, previousImage, previous)
+	confirmApplianceBootTestImage(t, s, previous, "confirm-previous")
+
+	currentImage, current := applianceBootTestImage("current", 3)
+	stageApplianceBootTestImage(t, s, currentImage, current)
+	confirmApplianceBootTestImage(t, s, current, "confirm-current")
+
+	currentPath, err := s.ImagePath(current.ImageSHA256)
+	if err != nil {
+		t.Fatal(err)
+	}
+	previousPath, err := s.ImagePath(previous.ImageSHA256)
+	if err != nil {
+		t.Fatal(err)
+	}
+	factoryPath, err := s.ImagePath(factory.ImageSHA256)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(currentPath, []byte("unverifiable current image"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := s.Verify(current.ImageSHA256); err == nil {
+		t.Fatal("corrupt current image unexpectedly verified")
+	}
+
+	p := &fixturePlatform{
+		bad: map[string]bool{previousPath: true},
+	}
+	p.beforePrepare = func(path string) {
+		if path != factoryPath {
+			return
+		}
+		status, err := s.Status()
+		if err != nil {
+			t.Fatalf("read selection before preparing factory: %v", err)
+		}
+		if status.Good != current.ImageSHA256 || status.Previous != previous.ImageSHA256 {
+			t.Fatalf("selection before factory = %+v; want Good and Previous preserved until Previous is tried", status)
+		}
+	}
+	if err := Run(context.Background(), s, factory.ImageSHA256, "unverifiable-good-boot", p); err == nil || !strings.Contains(err.Error(), "execute selected init") {
+		t.Fatalf("Run error = %v, want factory to reach exec after Previous fails preparation", err)
+	}
+
+	want := []string{
+		"prepare:" + previousPath,
+		"prepare:" + factoryPath,
+		"ticket:" + factory.ImageSHA256,
+		"exec:" + factoryPath,
+		"close:" + factoryPath,
+	}
+	if !reflect.DeepEqual(p.events, want) {
+		t.Fatalf("events %v want %v", p.events, want)
+	}
+	if p.ticket.Manifest.ImageSHA256 != factory.ImageSHA256 {
+		t.Fatalf("running image = %s, want factory after Previous preparation fails", p.ticket.Manifest.ImageSHA256)
 	}
 }

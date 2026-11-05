@@ -1515,12 +1515,19 @@ func (s *Store) goodSelection(st diskState, bootID string) (Selection, error) {
 		}
 		return sel, nil
 	}
+	if release.ValidHash(st.Previous) {
+		sel, e = s.selection(st.Previous, bootID, false)
+		if e == nil {
+			sel.FallbackImageSHA256 = s.factory.ImageSHA256
+			return sel, nil
+		}
+	}
 	return s.selection(s.factory.ImageSHA256, bootID, false)
 }
 
 // BeginBoot durably consumes a trial before returning it. Calling twice for one
 // boot is an error. A subsequent boot clears an unconfirmed consumed trial.
-// Mount/init failures after selection must try Good then factory in the caller.
+// The caller recovers mount/init failures with verified Good, Previous, then factory.
 func (s *Store) BeginBoot(bootID string) (Selection, error) {
 	if !validBootID(bootID) {
 		return Selection{}, errors.New("invalid boot ID")
