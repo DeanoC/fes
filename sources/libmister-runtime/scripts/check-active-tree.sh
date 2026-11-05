@@ -64,9 +64,14 @@ built_name_pattern="fogcast[-_ ]runtime|personality|stage[-_ ]?[a-z0-9]*|$poc_pa
 # The generated ProgressTag constant's C++ mangling ends in "sTagE".
 # Exclude only that exact generated symbol, retaining the historic-name guard.
 # The exact shared composition identity domain string is likewise excluded.
+# A compiler may coalesce the asset domain with other constant data in one
+# strings record. Remove only that domain token and still check the rest of
+# the record; a longer domain or an obsolete name beside it remains invalid.
 for output in "$archive" "$daemon"; do
 	strings "$output" >"$temporary/$(basename "$output").strings"
-	grep -Fxv -e 'fes-composition-v2' -e 'fes-expansion-v2' "$temporary/$(basename "$output").strings" |
+	sed -E 's/fes-expansion-v2([^[:alnum:]_-]|$)/fes-expansion-schema\1/g' \
+		"$temporary/$(basename "$output").strings" |
+	grep -Fxv -e 'fes-composition-v2' |
 	grep -Fv -e '__gxx_personality_v0' \
 		-e '_ZN6mister6native9generatedL20FesGpPongProgressTagE' \
 		>"$temporary/$(basename "$output").project-strings" || true

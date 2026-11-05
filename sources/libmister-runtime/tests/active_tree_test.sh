@@ -122,6 +122,27 @@ ar r "$mutated/build/libmister-runtime.a" "$mutated/build/epoch.o"
 nm -g "$mutated/build/epoch.o" | c++filt | grep -F 'SnapshotEpochField::Epoch()' >/dev/null
 expect_guard_failure 'archive members do not exactly match the production source manifest' "$mutated"
 
+# Compilers can merge unrelated constant data into one strings record. Only
+# the exact current asset domain is allowed, and the rest of that record must
+# still pass the independent production-output name check.
+for shape in coalesced-domain adjacent-obsolete extended-domain; do
+	mutated=$(production_fixture "$shape")
+	case "$shape" in
+		coalesced-domain) literal='prefixfes-expansion-v2 valid suffix' ;;
+		adjacent-obsolete) literal='prefixfes-expansion-v2 HardwareBroker' ;;
+		extended-domain) literal='prefixfes-expansion-v2-legacy' ;;
+	esac
+	printf 'const char* IdentityDomain() { return "%s"; }\n' "$literal" \
+		>"$mutated/domain.cpp"
+	${CXX:-c++} -c "$mutated/domain.cpp" -o "$mutated/build/domain.o"
+	ar r "$mutated/build/libmister-runtime.a" "$mutated/build/domain.o"
+	if [[ "$shape" == coalesced-domain ]]; then
+		expect_guard_failure 'archive members do not exactly match the production source manifest' "$mutated"
+	else
+		expect_guard_failure 'historic name remains in production output: build/libmister-runtime.a' "$mutated"
+	fi
+done
+
 # The source is outside the scanned active tree so the actual mangled PoC
 # symbols exercise the independent built-output name guard.
 mutated=$(production_fixture obsolete-symbols)
