@@ -263,14 +263,24 @@ sudo python3 scripts/appliance_expand_dry_run.py verify --board de25-nano \
 
 The DE25 operation adds only aligned partition 3, formats it as ext4 labelled
 `FESDATA3`, and leaves the Terasic MBR boot bytes and both existing partition
-descriptors intact. The bootstrap must match the verified reference; the
-current FAT may contain first-boot identity and SSH state. Both partitions
+descriptors intact. The bootstrap must match the verified reference under the
+`ext4-mount-read-bookkeeping-v1` rule: only mount times/counts, the recorded
+root mountpoint, write statistics and allocated-file access timestamps may
+differ after a boot. The exact FES bootstrap filesystem profile is required;
+file data, permissions, modification/change times, allocation and filesystem
+state remain protected. These field definitions follow the Linux
+[superblock](https://www.kernel.org/doc/html/latest/filesystems/ext4/super.html)
+and [inode](https://www.kernel.org/doc/html/latest/filesystems/ext4/inodes.html)
+formats. The current FAT may contain first-boot identity and SSH state. Both partitions
 are hashed before and after formatting and must remain unchanged. Existing
 third/fourth partitions, a replaced reader, mounted devices, mismatched
 capacity or a different bootstrap are refused. The apply receipt binds the
 reader instance, geometry, protected hashes and new filesystem. Verification
 is for that unmounted reader session, before a boot changes mutable data.
 The board's supplied BusyBox formatter is insufficient for this ext4 setup.
+The reader host needs full ext4 format/check tools and `blockdev`; all are
+checked before any partition-table write, and the new volume passes
+`e2fsck -fn` before success is recorded.
 After startup the normal data helper mounts and prepares the existing volume;
 it does not create missing partitions.
 

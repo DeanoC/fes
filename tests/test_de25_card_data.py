@@ -11,6 +11,25 @@ from unittest import mock
 from scripts import de25_card_data as data
 
 CAPACITY = 31267487744
+IDENTITY = {'sha256': 'b' * 64, 'normalized_sha256': 'c' * 64}
+
+
+def bootstrap_fixture():
+    image = bytearray(8192)
+    for offset, value in {0: 4, 4: 8, 20: 1, 24: 0, 32: 8,
+                          40: 4, 96: 0x42, 100: 0x3}.items():
+        struct.pack_into('<I', image, 1024 + offset, value)
+    for offset, value in {56: 0xef53, 58: 1, 88: 256}.items():
+        struct.pack_into('<H', image, 1024 + offset, value)
+    image[1144:1160] = b'FES_BOOTSTRAP' + bytes(3)
+    struct.pack_into('<II', image, 2052, 3, 4)
+    image[3072] = 0b110
+    for inode in (2, 3):
+        offset = 4096 + (inode - 1) * 256
+        struct.pack_into('<H', image, offset, 0x8124)
+        struct.pack_into('<H', image, offset + 128, 32)
+    image[6144:6151] = b'PAYLOAD'
+    return bytes(image)
 
 
 def base_mbr():
@@ -96,17 +115,21 @@ class De25CardDataTests(unittest.TestCase):
                       'diskseq': 54, 'device': 0}
             filesystem = {'label': 'FESDATA3', 'incompat_features': '0x40',
                           'block_size': 4096, 'block_count': 56807424 // 8}
-            with mock.patch.object(data, 'reference', return_value=(base_mbr(), data.layout(), 'b' * 64)), \
+            with mock.patch.object(data, 'reference', return_value=(base_mbr(), data.layout(), IDENTITY)), \
+                    mock.patch.object(data, 'require_tools'), \
+                    mock.patch.object(data, 'check_bootstrap', return_value='b' * 64), \
                     mock.patch.object(data.os, 'geteuid', return_value=0), \
                     mock.patch.dict(os.environ, {'WRITE_GO': '1'}), \
                     mock.patch.object(data, 'reader', return_value=target) as reader, \
                     mock.patch.object(data, 'protected_hashes', return_value={
                         'partition_1': 'a' * 64, 'partition_2': 'b' * 64}) as protected, \
-                    mock.patch.object(data.shared, 'rescan_partition_table'), \
+                    mock.patch.object(data, 'rescan'), \
                     mock.patch.object(data.shared, 'require_partition_device',
                                       return_value=str(partition)), \
                     mock.patch.object(data.shared, 'SYS_CLASS_BLOCK', root / 'sys'), \
                     mock.patch.object(data.shared, 'format_ext4') as formatter, \
+                    mock.patch.object(data.shared, '_run_tool'), \
+                    mock.patch.object(data.shared, '_find_tool', return_value=['/fixture/tool']), \
                     mock.patch.object(data.os, 'sync'), \
                     mock.patch.object(data.shared, 'read_ext4_superblock',
                                       return_value=filesystem):
@@ -129,10 +152,10 @@ class De25CardDataTests(unittest.TestCase):
             self.assertEqual(disk.read_bytes(), base_mbr())
             formatter.assert_not_called()
 
-    def test_wrong_bootstrap_refused_before_metadata_write(self):
+    def test_bootstrap_change_during_validation_refused_before_metadata_write(self):
         with self.modeled_apply() as (disk, reader, protected, formatter, target):
             protected.return_value = {'partition_1': 'a' * 64, 'partition_2': 'c' * 64}
-            with self.assertRaisesRegex(ValueError, 'bootstrap differs'):
+            with self.assertRaisesRegex(ValueError, 'bootstrap changed'):
                 data.execute(self.args('apply'))
             self.assertEqual(disk.read_bytes(), base_mbr())
             formatter.assert_not_called()
@@ -224,7 +247,7 @@ class De25CardDataTests(unittest.TestCase):
         args = self.args('apply')
         for uid, write in ((1000, '1'), (0, ''), (0, '0')):
             with self.subTest(uid=uid, write=write), \
-                    mock.patch.object(data, 'reference', return_value=(base_mbr(), data.layout(), 'b' * 64)), \
+                    mock.patch.object(data, 'reference', return_value=(base_mbr(), data.layout(), IDENTITY)), \
                     mock.patch.object(data.os, 'geteuid', return_value=uid), \
                     mock.patch.dict(os.environ, {'WRITE_GO': write}), \
                     mock.patch.object(data, 'reader') as reader, self.assertRaises(ValueError):
@@ -239,11 +262,63 @@ class De25CardDataTests(unittest.TestCase):
 
     def test_plan_only_never_opens_a_physical_device(self):
         args = self.args('plan')
-        with mock.patch.object(data, 'reference', return_value=(base_mbr(), data.layout(), 'b' * 64)), \
+        with mock.patch.object(data, 'reference', return_value=(base_mbr(), data.layout(), IDENTITY)), \
                 mock.patch.object(data, 'reader') as reader:
             result = data.execute(args)
         reader.assert_not_called()
         self.assertEqual(result['label'], 'FESDATA3')
+
+    def test_missing_tools_refused_before_reader_or_metadata_write(self):
+        with mock.patch.object(data, 'reference', return_value=(base_mbr(), data.layout(), IDENTITY)), \
+                mock.patch.object(data.os, 'geteuid', return_value=0), \
+                mock.patch.dict(os.environ, {'WRITE_GO': '1'}), \
+                mock.patch.object(data.shared, '_find_tool', return_value=None), \
+                mock.patch.object(data, 'reader') as reader, self.assertRaisesRegex(ValueError, 'requires blockdev'):
+            data.execute(self.args('apply'))
+        reader.assert_not_called()
+
+    def test_bootstrap_admits_only_mount_and_inode_access_bookkeeping(self):
+        reference = bootstrap_fixture()
+        ranges = data.bootstrap_read_ranges(reference)
+        identity = {'ranges': ranges, 'normalized_sha256': data.bootstrap_digest(reference, ranges)}
+        changed = bytearray(reference)
+        changed[1068:1078] = b'0123456789'
+        changed[1160] = ord('/')
+        changed[1400:1408] = b'12345678'
+        changed[4360:4364] = b'1234'
+        changed[4492:4496] = b'5678'
+        self.assertNotEqual(hashlib.sha256(reference).digest(), hashlib.sha256(changed).digest())
+        with tempfile.TemporaryDirectory() as temporary:
+            path = Path(temporary) / 'bootstrap'
+            path.write_bytes(changed)
+            geometry = {'partition_2': {'start_sector': 0, 'sectors': 16}}
+            self.assertEqual(data.check_bootstrap(path, geometry, identity),
+                             hashlib.sha256(changed).hexdigest())
+            for offset in (1024 + 58, 2056, 3072, 4354, 4364, 4368, 4392, 6144):
+                damaged = bytearray(changed)
+                damaged[offset] ^= 1
+                path.write_bytes(damaged)
+                with self.subTest(offset=offset), self.assertRaises(ValueError):
+                    data.check_bootstrap(path, geometry, identity)
+            damaged = bytearray(changed)
+            damaged[1161] = ord('x')
+            path.write_bytes(damaged)
+            with self.assertRaises(ValueError):
+                data.check_bootstrap(path, geometry, identity)
+
+    def test_bootstrap_refuses_checksum_profiles_bounds_and_ea_checksum_changes(self):
+        for offset, value, size in ((1124, 0x403, 4), (1112, 128, 2), (2056, 1, 4)):
+            damaged = bytearray(bootstrap_fixture())
+            struct.pack_into('<I' if size == 4 else '<H', damaged, offset, value)
+            with self.subTest(offset=offset), self.assertRaises(ValueError):
+                data.bootstrap_read_ranges(bytes(damaged))
+        reference = bytearray(bootstrap_fixture())
+        struct.pack_into('<I', reference, 4352 + 32, 0x200000)
+        ranges = data.bootstrap_read_ranges(reference)
+        changed = bytearray(reference)
+        changed[4352 + 8] ^= 1
+        self.assertNotEqual(data.bootstrap_digest(reference, ranges),
+                            data.bootstrap_digest(changed, ranges))
 
 
 if __name__ == '__main__':
