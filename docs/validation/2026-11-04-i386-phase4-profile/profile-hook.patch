@@ -1,6 +1,6 @@
 diff -ruN a/sources/misteross/cores/fes-pc386/sim/cpu_profile_build.py b/sources/misteross/cores/fes-pc386/sim/cpu_profile_build.py
 --- a/sources/misteross/cores/fes-pc386/sim/cpu_profile_build.py	1970-01-01 02:00:00.000000000 +0200
-+++ b/sources/misteross/cores/fes-pc386/sim/cpu_profile_build.py	2026-11-05 02:02:38.964749051 +0200
++++ b/sources/misteross/cores/fes-pc386/sim/cpu_profile_build.py	2026-11-05 02:15:34.448734645 +0200
 @@ -0,0 +1,22 @@
 +#!/usr/bin/env python3
 +"""Build the Phase 4 profile machine_tb (scratch): the worktree's RTL, this directory's patched testbench."""
@@ -26,8 +26,8 @@ diff -ruN a/sources/misteross/cores/fes-pc386/sim/cpu_profile_build.py b/sources
 +print(images['vgabios'])
 diff -ruN a/sources/misteross/cores/fes-pc386/sim/cpu_profile_estimate.py b/sources/misteross/cores/fes-pc386/sim/cpu_profile_estimate.py
 --- a/sources/misteross/cores/fes-pc386/sim/cpu_profile_estimate.py	1970-01-01 02:00:00.000000000 +0200
-+++ b/sources/misteross/cores/fes-pc386/sim/cpu_profile_estimate.py	2026-11-05 02:02:38.964749051 +0200
-@@ -0,0 +1,62 @@
++++ b/sources/misteross/cores/fes-pc386/sim/cpu_profile_estimate.py	2026-11-05 02:15:34.448734645 +0200
+@@ -0,0 +1,69 @@
 +#!/usr/bin/env python3
 +"""Phase 4 gain estimates from a window (analyse.py --json): estimate.py WIN.json [KIT_FPS]
 +
@@ -68,13 +68,20 @@ diff -ruN a/sources/misteross/cores/fes-pc386/sim/cpu_profile_estimate.py b/sour
 +lo, hi, t, per = br(['call_ind', 'jmp_ind'], 0.7, 0.9)
 +rows.append(('BTB: indirect JMP and CALL', lo, hi, f'{t:,} at {per:.1f}'))
 +lo, hi, t, per = br(['far_call', 'far_jmp', 'retf'], 0.9, 0.98)
-+rows.append(('Real-mode far prediction', lo, hi, f'{t:,} at {per:.1f} (all modes)'))
++# The far classes count both modes; only a window with nothing retired in
++# protected mode credits real-mode far prediction.
++if w['pm_retired']:
++    rows.append(('Real-mode far prediction', 0, 0, f'{t:,} far, {w["pm_retired"]:,} of {R:,} retired with PE set'))
++else:
++    rows.append(('Real-mode far prediction', lo, hi, f'{t:,} at {per:.1f}'))
 +rows.append(('Store-to-load wait', 0.5 * B['st_ld'], B['st_ld'], f'{B["st_ld"]:,} clocks'))
 +rows.append(('Early ALU (AGI)', 0.3 * B['agi'], 0.8 * B['agi'], f'{B["agi"]:,} clocks, producers not split'))
 +per_miss = B['frz_l1d'] / max(w['l1d_waits'], 1) - 7
 +rows.append(('L2 (128 KiB)', w['l1d_waits'] * max(per_miss - 7, 0) * 0.5, w['l1d_waits'] * max(per_miss - 7, 0) * 0.8,
 +             f'{w["l1d_waits"]:,} L1D misses at {per_miss:.0f} kit clocks'))
-+rows.append(('Mul/div', 0.3 * B['frz_md'], 0.6 * B['frz_md'], f'{B["frz_md"]:,} clocks'))
++div = cl.get('div', {'own': 0, 'n': 0})
++div_extra = div['own'] - div['n']  # DIV's clocks beyond one each; the DSP multiplier stays
++rows.append(('Faster divider', 0.3 * div_extra, 0.6 * div_extra, f'{div["n"]:,} DIV, {div_extra:,} clocks beyond one each'))
 +
 +print(f'window {w["from"]}..{w["to"]}: bench {C:,} clocks, {F} frames, {C / F:,.0f}/frame; '
 +      f'kit-equivalent {kit / F:,.0f}/frame -> {61.44e6 / (kit / F):.2f} fps at 61.44 MHz; base {base:.2f}')
@@ -92,7 +99,7 @@ diff -ruN a/sources/misteross/cores/fes-pc386/sim/cpu_profile_estimate.py b/sour
 +      f'{ref * kit / (kit - pl):5.1f}-{ref * kit / (kit - ph):5.1f}')
 diff -ruN a/sources/misteross/cores/fes-pc386/sim/cpu_profile.h b/sources/misteross/cores/fes-pc386/sim/cpu_profile.h
 --- a/sources/misteross/cores/fes-pc386/sim/cpu_profile.h	1970-01-01 02:00:00.000000000 +0200
-+++ b/sources/misteross/cores/fes-pc386/sim/cpu_profile.h	2026-11-05 02:02:38.960748886 +0200
++++ b/sources/misteross/cores/fes-pc386/sim/cpu_profile.h	2026-11-05 02:15:34.444734480 +0200
 @@ -0,0 +1,217 @@
 +// SPDX-License-Identifier: MIT
 +// Phase 4 profile hook for machine_tb --cpu rtl (scratch, bench only; not committed).
@@ -313,7 +320,7 @@ diff -ruN a/sources/misteross/cores/fes-pc386/sim/cpu_profile.h b/sources/mister
 +};
 diff -ruN a/sources/misteross/cores/fes-pc386/sim/cpu_profile.vlt b/sources/misteross/cores/fes-pc386/sim/cpu_profile.vlt
 --- a/sources/misteross/cores/fes-pc386/sim/cpu_profile.vlt	1970-01-01 02:00:00.000000000 +0200
-+++ b/sources/misteross/cores/fes-pc386/sim/cpu_profile.vlt	2026-11-05 02:02:38.964749051 +0200
++++ b/sources/misteross/cores/fes-pc386/sim/cpu_profile.vlt	2026-11-05 02:15:34.444734480 +0200
 @@ -0,0 +1,41 @@
 +`verilator_config
 +// Phase 4 profile (bench only): D's issue and wait terms, read by cpu_profile.h.
@@ -358,7 +365,7 @@ diff -ruN a/sources/misteross/cores/fes-pc386/sim/cpu_profile.vlt b/sources/mist
 +public_flat_rd -module "fes_i386_cpu" -var "q_valid"
 diff -ruN a/sources/misteross/cores/fes-pc386/sim/cpu_profile_window.py b/sources/misteross/cores/fes-pc386/sim/cpu_profile_window.py
 --- a/sources/misteross/cores/fes-pc386/sim/cpu_profile_window.py	1970-01-01 02:00:00.000000000 +0200
-+++ b/sources/misteross/cores/fes-pc386/sim/cpu_profile_window.py	2026-11-05 02:02:38.964749051 +0200
++++ b/sources/misteross/cores/fes-pc386/sim/cpu_profile_window.py	2026-11-05 02:15:34.444734480 +0200
 @@ -0,0 +1,93 @@
 +#!/usr/bin/env python3
 +"""Phase 4 profile window (scratch): analyse.py cpu.prof FROM TO [--json OUT]
@@ -454,8 +461,8 @@ diff -ruN a/sources/misteross/cores/fes-pc386/sim/cpu_profile_window.py b/source
 +
 +main()
 diff -ruN a/sources/misteross/cores/fes-pc386/sim/machine_tb.cpp b/sources/misteross/cores/fes-pc386/sim/machine_tb.cpp
---- a/sources/misteross/cores/fes-pc386/sim/machine_tb.cpp	2026-11-05 02:02:38.960748886 +0200
-+++ b/sources/misteross/cores/fes-pc386/sim/machine_tb.cpp	2026-11-05 02:02:38.960748886 +0200
+--- a/sources/misteross/cores/fes-pc386/sim/machine_tb.cpp	2026-11-05 02:15:34.444734480 +0200
++++ b/sources/misteross/cores/fes-pc386/sim/machine_tb.cpp	2026-11-05 02:15:34.444734480 +0200
 @@ -101,6 +101,7 @@
  #include "pc386_presenter_model.h"
  #include "smc_stale.h"

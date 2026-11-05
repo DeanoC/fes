@@ -1472,11 +1472,11 @@ timedemo frame rate from Kit B's 26.7 fps:
 | Return stack | 2.7% | 27.4 | 0.6% | 2.8% |
 | BTB: indirect JMP and CALL | 0.7–0.9% | 26.9 | 0% | 0.1% |
 | Real-mode far prediction | 0% | 26.7 | 1.6% | 0% |
-| Prediction, all five | 30–33% | 37.9–39.6 | 29–33% | 41–46% |
+| Prediction, all five | 29–33% | 37.8–39.6 | 29–33% | 41–46% |
 | Store-to-load wait only where the load may overlap the store | 1–2% | 27.0–27.3 | 6–11% | 0.7–1.4% |
 | Early ALU at AG | 2–5% | 27.2–28.1 | 0.3–0.8% | 1–3% |
 | L2, 128 KiB (Phase 3's design, not built) | 3–5% | 27.6–28.1 | 0.5–0.8% | 0% |
-| Faster divider | 1–1.5% | 27.0 | 0.4–0.8% | 1–2% |
+| Faster divider (DIV only; the DSP multiplier stays) | 0.6–1.2% | 26.9–27.0 | 0.2–0.3% | 0.2–0.5% |
 
 The far-branch classes count both modes. DOOM's far branches, 0.1% of its
 clocks, are DOS/4GW's in protected mode, which real-mode far prediction does

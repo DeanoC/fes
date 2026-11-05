@@ -13,7 +13,7 @@ changes no RTL, and it is not a kit result.
   (CPI 2.54, 0.87 of it redirects).
 - **Other workloads.** Redirects are 37% in Wolfenstein 3D's play window and
   43% in 3DBench.
-- **What prediction would remove.** About 30–33% of DOOM's clocks, taking
+- **What prediction would remove.** About 29–33% of DOOM's clocks, taking
   Kit B's 26.7 fps to about 38–40.
 - **Next-largest costs.** The store-to-load wait (11% in Wolfenstein 3D),
   L1D misses to DDR (10% of DOOM's bench clocks, which is 6–7% at the kit's
@@ -152,7 +152,8 @@ gives each feature's gain on each window, with these assumptions:
   AGI between load producers, which the early ALU cannot help, and ALU
   producers.
 - **L2.** It hits 50–80% of L1D misses at 7 clocks.
-- **Divider.** A faster divider removes 30–60% of multiply and divide.
+- **Divider.** A faster divider removes 30–60% of DIV's clocks beyond one
+  each. The DSP multiplier stays as it is, so multiply waits are not counted.
 - **Frame rates.** These scale Kit B's 26.7 fps by the window's
   kit-equivalent clocks.
 - **Far branches.** The classes count both modes, as does the estimator in
@@ -167,11 +168,11 @@ gives each feature's gain on each window, with these assumptions:
 | Return stack | 2.6–2.7% | 27.4 |
 | BTB: indirect | 0.7–0.9% | 26.9 |
 | Real-mode far | 0% (its far branches, 0.1%, are protected mode) | 26.7 |
-| All prediction | 29.5–32.7% | 37.9–39.6 |
+| All prediction (real-mode far excluded) | 29.5–32.6% | 37.8–39.6 |
 | Store-to-load wait | 1.1–2.1% | 27.0–27.3 |
 | Early ALU | 1.8–4.9% | 27.2–28.1 |
 | L2 | 3.1–5.0% | 27.6–28.1 |
-| Divider | 0.8–1.5% | 26.9–27.1 |
+| Divider | 0.6–1.2% | 26.9–27.0 |
 
 ## Timing
 
