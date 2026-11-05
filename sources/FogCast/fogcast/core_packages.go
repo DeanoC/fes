@@ -67,7 +67,7 @@ var kitCorePackagesLogf = log.Printf
 // because callers only see CORE_PACKAGE_STORE_UNAVAILABLE.
 func openKitCorePackages() (*kitpackages.Store, error) {
 	started := time.Now()
-	store, err := kitpackages.OpenPersistent(kitpackages.DefaultRoot)
+	store, err := kitpackages.OpenPersistentForHost(kitpackages.DefaultRoot)
 	if err != nil {
 		kitCorePackagesLogf("fogcast: kit core packages unavailable after %s: %v", time.Since(started).Round(time.Millisecond), err)
 		return nil, err

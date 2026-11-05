@@ -38,6 +38,7 @@ Quartus 17.0.2.
 | [`rtl/pc386_system.sv`](rtl/pc386_system.sv) | The `fes.computer` 1.1 mailbox and [storage endpoint](../fes-common/rtl/fes_computer_storage.v), the machine, its audio and `fes_i386_cpu`: Hold and the DDR ports' hold, the record's settings, the CPU's resets, I/O and INTA handshake, attribute map, the status words |
 | [`rtl/pc386_rom.sv`](rtl/pc386_rom.sv) | The BIOS and VGA BIOS in M10K, answering the CPU's port 0 reads of their ranges |
 | [`rtl/pc386_disk.sv`](rtl/pc386_disk.sv) | The ATA image at window offset 128 MiB on port 2: the drive's image port and Commit's CRC pass |
+| [`rtl/pc386_status.sv`](rtl/pc386_status.sv) | The status ring at window offset 16 MiB on port 2, in front of the disk: the status words every 2^16 clocks, which the HPS reads with [`pc386_cpu_status.py`](../../scripts/pc386_cpu_status.py) |
 | [`rtl/pc386_snapshot.sv`](rtl/pc386_snapshot.sv) | Carries the presenter's and the plane's pixel-clock counters whole into the system clock |
 | [`rtl/pc386_system_pll.v`](rtl/pc386_system_pll.v) | The sealed system clock and the 12.288 MHz audio clock |
 | [`constraints-oss.qsf`](constraints-oss.qsf), [`toolchain.lock`](toolchain.lock) | Pins (both lanes), and the core's lock (the i386 lock's nextpnr and Mistral, Yosys main) |
@@ -411,7 +412,13 @@ FreeDOS 1.4 package archives in `C:\FDOS\BIN`, pinned in
   All 160K of C8000-EFFFF becomes upper memory.
 - `AUTOEXEC.BAT` runs [`FESENV.COM`](sim/fesenv.asm) into
   `C:\FDOS\FESENV.BAT` and calls it, so `BLASTER` follows the Sound Blaster
-  setting in CMOS 60h-62h at every boot, then loads CuteMouse high.
+  setting in CMOS 60h-62h at every boot, then loads CuteMouse high and runs
+  [`MOUSEDEF.COM`](sim/mousedef.asm). That gives CuteMouse a default event
+  handler that is not 0:0, a RETF in the BIOS ROM with mask 0, as Microsoft's
+  driver and DOSBox's have. Ultima VII's menu keeps a swapped-out handler only
+  if it is not 0:0. After CuteMouse's 0:0 it left its own handler installed,
+  and the next program was called at a stale address on every mouse event
+  (#1485).
 - The games profile sets `BUFFERS=16`. MEM shows 575K (588,544 bytes) of
   conventional memory free and 154K of upper memory free, largest block 81K.
   This is 1,792 bytes above Serpent Isle's published 573K (586,752-byte)

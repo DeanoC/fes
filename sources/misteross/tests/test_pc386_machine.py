@@ -87,13 +87,19 @@ class FreedosImageTest(unittest.TestCase):
         for profile, spec in freedos.PROFILES.items():
             for filename, source in spec['bin'].items():
                 with self.subTest(profile=profile, filename=filename):
-                    if source is None:
-                        self.assertEqual(filename, 'FESENV.COM')
-                        self.assertTrue(freedos.FESENV.is_file())
+                    if isinstance(source, Path):
+                        self.assertEqual(filename, source.stem.upper() + '.COM')
+                        self.assertTrue(source.is_file())
                         continue
                     package_name, package_path = source
                     self.assertIn(package_name, spec['packages'])
                     self.assertIn(package_path, lock[package_name]['files'])
+
+    def test_games_autoexec_sets_the_mouse_default_handler_after_cutemouse(self):
+        # Ultima VII keeps a swapped-out event handler only if it is not 0:0 (fes#1485).
+        lines = freedos.PROFILES['games']['autoexec'].split('\r\n')
+        self.assertEqual(lines.index('MOUSEDEF'), lines.index('LH CTMOUSE') + 1)
+        self.assertEqual(freedos.PROFILES['games']['bin']['MOUSEDEF.COM'], freedos.MOUSEDEF)
 
     def test_volume_has_dos_format_fat16_clusters(self):
         # 2 KiB, as DOS FORMAT picks from 16 to 128 MiB; still FAT16 at this size.
@@ -133,8 +139,8 @@ class FreedosImageTest(unittest.TestCase):
             source.write_bytes(b'first version')
             image = root / 'freedos-games.img'
             image.write_bytes(b'disk')
-            with mock.patch.object(freedos, 'FESENV', source), \
-                    mock.patch.dict(freedos.PROFILES['games'], {'image': image}):
+            bin_files = {**freedos.PROFILES['games']['bin'], 'FESENV.COM': source}
+            with mock.patch.dict(freedos.PROFILES['games'], {'image': image, 'bin': bin_files}):
                 boot_inputs = freedos.inputs_key('boot')
                 record = {'sha256': hashlib.sha256(b'disk').hexdigest(),
                           'inputs': freedos.inputs_key('games')}

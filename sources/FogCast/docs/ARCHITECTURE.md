@@ -2785,8 +2785,8 @@ to its target and selection; libraries and library settings still change.
 A host whose config sets `[core_packages] kit = true` is a kit host (#863
 slice 3). Its installed packages are `kitpackages.View`, not the state
 directory's `core-packages` store. The view opens the durable store with the
-agent's checks (`OpenPersistent` on `/run/fogcast/fesdata3/core-library`)
-and reads the image's factory packages under
+agent's storage checks (`OpenPersistentForHost` on
+`/run/fogcast/fesdata3/core-library`) and reads the image's factory packages under
 `/usr/share/mister-runtime/core-packages`. Imports go to the durable store.
 List, inspect and read look in the durable store first, then in the factory
 packages. A package in both is the same bytes and is listed once.
@@ -2800,10 +2800,14 @@ is independent of the selection files: catalog entries name package IDs, so
 the host needs the packages, not the per-core selections.
 
 The host and `mister-agent` open the durable store as two processes, coordinated
-by its flock. Opening takes that lock and verifies every durable package, so the
-view opens in the background; calls made meanwhile get the unavailable error at
-once instead of waiting. The lock waits until the caller's context ends, so a
-list, inspect or read without a deadline is bounded to one minute. An import
+by its flock. The agent recovers interrupted installations and verifies packages
+when opening; the host skips recovery and verifies durable inventory and
+selections on access before serving either durable or factory packages. The
+first access verifies selected packages under the lock; a list also verifies
+the other durable packages. Later reads reuse valid stat-fingerprint caches.
+The host view opens in the background; calls made meanwhile get the unavailable
+error at once instead of waiting. The lock waits until the caller's context
+ends, so a list, inspect or read without a deadline is bounded to one minute. An import
 reads its whole body under the lock and keeps the caller's context, as the
 agent's own install does. Durable and factory inspections are cached by stat
 fingerprint, as above. A factory cache stores only its fingerprint and

@@ -14,10 +14,20 @@ import (
 // appliancedata.Prepare selects, including a labelled USB partition.
 // It neither mounts nor formats storage.
 func OpenPersistent(root string) (*Store, error) {
+	return openPersistent(root, true)
+}
+
+// OpenPersistentForHost opens the durable store without repeating the
+// agent's recovery. Package access verifies publications on demand.
+func OpenPersistentForHost(root string) (*Store, error) {
+	return openPersistent(root, false)
+}
+
+func openPersistent(root string, recoverInstallations bool) (*Store, error) {
 	if err := checkPersistent(root); err != nil {
 		return nil, err
 	}
-	s, err := New(root)
+	s, err := openStore(root, recoverInstallations)
 	if err != nil {
 		return nil, err
 	}
