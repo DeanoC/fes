@@ -167,14 +167,55 @@ static void missing_snapshot(void)
     assert(rejected.failed && !rejected.initialized && t.cold.valid && !t.master.failed);
     assert(t.h.reads==reads && t.h.writes==writes);
 }
+static unsigned private_fake_calls;
+static int private_fake_observe(void *p,uint64_t owner,uint64_t epoch,uint32_t *keep)
+{(void)p;(void)owner;(void)epoch;(void)keep;private_fake_calls++;return -1;}
+static int private_fake_stop(void *p,uint32_t bits)
+{(void)p;(void)bits;private_fake_calls++;return -1;}
+static int private_fake_quiet(void *p,uint32_t *bits)
+{(void)p;(void)bits;private_fake_calls++;return -1;}
+static int private_fake_snapshot(void *p,uint64_t owner,uint64_t epoch,uint32_t *keep,
+    uint32_t *bits,uint32_t *reset,uint32_t *per0)
+{(void)p;(void)owner;(void)epoch;(void)keep;(void)bits;(void)reset;(void)per0;private_fake_calls++;return -1;}
+static int private_fake_prepare(void *p)
+{(void)p;private_fake_calls++;return -1;}
+static void direct_private_validation(void)
+{
+    struct test t;master_setup(&t,1);
+    struct fes_nano_retained_master_ops expected=fes_nano_usb_master_ops(&t.master);
+    struct fes_nano_usb_shared_ops service=fes_nano_usb_master_service_ops(&t.master);
+    unsigned reads=t.h.reads,writes=t.h.writes;
+    assert(fes_nano_usb_master_binding_matches(&t.master,&t.bridges));
+    assert(fes_nano_usb_master_service_valid(&t.master,&t.bridges,&t.usb)==1);
+    assert(service.valid(service.context,&t.bridges,&t.usb)==1);
+    for(unsigned fault=0;fault<5;fault++) {
+        struct fes_nano_retained_master_ops wrong=expected;
+        if(fault==0)wrong.context=&t.usb;
+        if(fault==1)wrong.observe=private_fake_observe;
+        if(fault==2)wrong.quiesce=private_fake_stop;
+        if(fault==3)wrong.quiescent=private_fake_quiet;
+        if(fault==4)wrong.snapshot=private_fake_snapshot;
+        assert(!fes_nano_boot_usb_pio_matches(&t.bridges,wrong.context,wrong.observe,
+            wrong.quiesce,wrong.quiescent,wrong.snapshot));
+    }
+    t.master_boot.retained.quiesce=private_fake_stop;
+    assert(!fes_nano_usb_master_binding_matches(&t.master,&t.bridges));
+    assert(!fes_nano_usb_master_service_valid(&t.master,&t.bridges,&t.usb));
+    t.master_boot.retained=expected;t.usb.io.prepare_master=private_fake_prepare;
+    assert(!fes_nano_usb_master_service_valid(&t.master,&t.bridges,&t.usb));
+    assert(t.composition.failed && t.cold.failed && !private_fake_calls);
+    assert(t.h.reads==reads && t.h.writes==writes);
+}
 int main(void)
 {
-    master_cycles();master_faults();master_ownership();missing_snapshot();
+    master_cycles();master_faults();master_ownership();missing_snapshot();direct_private_validation();
     struct test legacy;master_setup(&legacy,2);
     struct fes_nano_bridge_snapshot state;
     assert(!legacy.bridges.observe_state && !fes_nano_bridges_observe(&legacy.bridges,&state));
     struct fes_nano_retained_master_ops retained=fes_nano_usb_master_ops(&legacy.master);
-    assert(!fes_nano_boot_usb_pio_matches(&legacy.bridges,retained));
-    retained.snapshot=0;assert(fes_nano_boot_usb_pio_matches(&legacy.bridges,retained));
+    assert(!fes_nano_boot_usb_pio_matches(&legacy.bridges,retained.context,retained.observe,
+        retained.quiesce,retained.quiescent,retained.snapshot));
+    retained.snapshot=0;assert(fes_nano_boot_usb_pio_matches(&legacy.bridges,retained.context,retained.observe,
+        retained.quiesce,retained.quiescent,retained.snapshot));
     puts("PASS retained USB PIO master/owned SD/control/DDR close cycles and failures; injected hardware only");return 0;
 }

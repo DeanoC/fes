@@ -164,6 +164,10 @@ struct fes_nano_retained_master_ops fes_nano_usb_master_ops(struct fes_nano_usb_
 {
     return (struct fes_nano_retained_master_ops){m,master_observe,master_stop,master_quiet,master_snapshot};
 }
+int fes_nano_usb_master_binding_matches(struct fes_nano_usb_master *m,const struct fes_nano_bridges *b)
+{
+    return fes_nano_boot_usb_pio_matches(b,m,master_observe,master_stop,master_quiet,master_snapshot);
+}
 static int shared_valid(void *context,const struct fes_nano_bridges *b,const struct fes_nano_usb_platform *p)
 {
     struct fes_nano_usb_master *m=context;
@@ -173,7 +177,7 @@ static int shared_valid(void *context,const struct fes_nano_bridges *b,const str
         m->owner!=s->owner || m->epoch!=s->epoch ||
         s->cold->devices.context!=s || !s->cold->devices_bound ||
         s->cold->devices.snapshot!=snapshot || s->cold->devices.usb_contained!=observe_usb_contained ||
-        !fes_nano_boot_usb_pio_matches(b,fes_nano_usb_master_ops(m))) return 0;
+        !fes_nano_usb_master_binding_matches(m,b)) return 0;
     uint32_t released;
     if (snapshot(s,&released)!=1 || b->device_lease!=s->sd->active ||
         s->owner!=b->state.owner || s->epoch!=b->epoch ||
@@ -185,6 +189,11 @@ static int shared_valid(void *context,const struct fes_nano_bridges *b,const str
     if (b->state.reset!=reset || (s->sd->active && reset!=FES_NANO_BRIDGES_ALL)) return 0;
     if (p->active && !p->confirmed && reset!=FES_NANO_BRIDGES_ALL) return 0;
     return 1;
+}
+int fes_nano_usb_master_service_valid(struct fes_nano_usb_master *m,const struct fes_nano_bridges *b,
+    const struct fes_nano_usb_platform *p)
+{
+    return shared_valid(m,b,p);
 }
 struct fes_nano_usb_shared_ops fes_nano_usb_master_service_ops(struct fes_nano_usb_master *m)
 {

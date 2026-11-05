@@ -46,4 +46,10 @@ int fes_nano_usb_master_init(struct fes_nano_usb_master *,struct fes_nano_usb_co
     struct fes_nano_usb_producer_ops);
 struct fes_nano_retained_master_ops fes_nano_usb_master_ops(struct fes_nano_usb_master *);
 struct fes_nano_usb_shared_ops fes_nano_usb_master_service_ops(struct fes_nano_usb_master *);
+/* Direct private validation paths. They perform the same live private checks
+ * as the factories' identities, without constructing temporary callback tables.
+ * The factories remain the one-time boot/service binding interfaces. */
+int fes_nano_usb_master_binding_matches(struct fes_nano_usb_master *,const struct fes_nano_bridges *);
+int fes_nano_usb_master_service_valid(struct fes_nano_usb_master *,const struct fes_nano_bridges *,
+    const struct fes_nano_usb_platform *);
 #endif

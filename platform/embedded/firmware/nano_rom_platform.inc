@@ -46,8 +46,7 @@ static int computer_rom_step_guard(uint64_t owner,uint64_t generation)
        b->state.owner!=owner || b->state.generation!=generation ||
        b->state.reset!=FES_NANO_BRIDGES_DATA || !b->state.masters_contained)
         return computer_rom_scope_failure("step");
-    struct fes_nano_usb_shared_ops policy=fes_nano_usb_master_service_ops(&usb_master);
-    if(!policy.valid || policy.valid(policy.context,b,&usb_platform)!=1)
+    if(fes_nano_usb_master_service_valid(&usb_master,b,&usb_platform)!=1)
         return computer_rom_scope_failure("step");
     /* No NS execution or other HPS CPU can run inside this bounded step.
      * Complete cold/USB/clock proofs frame it. Independently guard every
@@ -87,12 +86,15 @@ static int computer_rom_owned(void *context,uint64_t owner,uint64_t generation)
     /* Only the accepted private shared-boot binding may supply the complete
      * live cold/USB/master proof through bridges_observe below. Do not repeat
      * that same full proof immediately here, or accept a substituted observer.
-     * Every invocation still takes its own fresh observation; nothing is
-     * cached across ROM accesses or across their before/after brackets. */
+     * Each active-step access validates this same binding in the direct shared
+     * validator below, before any MMIO. Do not construct/check it twice in that
+     * one non-yielding callback. No result is cached across accesses or their
+     * before/after brackets. Complete observations still frame each16B step. */
     if(!provider.valid || provider.failed || provider.record.boot.owner!=owner ||
        provider.record.boot.epoch!=fes_nano_owned_bridges.epoch ||
        !fes_nano_owned_bridges.observe_state ||
-       !fes_nano_boot_usb_pio_matches(&fes_nano_owned_bridges,fes_nano_usb_master_ops(&usb_master)))
+       (!computer_rom_step.active &&
+        !fes_nano_usb_master_binding_matches(&usb_master,&fes_nano_owned_bridges)))
         return computer_rom_scope_failure("cold");
 #else
     if(fes_nano_cold_owns(&provider,provider.record.boot.owner,provider.record.boot.epoch)!=1)

@@ -80,6 +80,17 @@ binding/state/CPU drift and preserve independent device readiness. It measures
 52 cold-register reads per callback versus 104 with the duplicated audit; this
 is an off-board access count, not physical transfer timing.
 
+The private binding matcher now receives context and callback identities
+directly instead of a temporary callback table. The ROM guard also calls the
+same shared validator directly. The table factories remain the one-time boot
+and service binding APIs. Inside one active-step ownership callback, that shared
+validator performs the binding comparison once before any MMIO; the earlier
+duplicate comparison is omitted. Full observations at both ends of every
+16-byte step and all CPU/reset/bridge checks before and after each register
+access remain unchanged. No permission or hardware observation is cached
+between callbacks. The measured predecessor spent roughly equal time in full
+and inner ownership checks; this change needs a fresh physical timing test.
+
 A failed strong-provider ROM load emits one `FES_NANO_ROM_FAILURE` record after
 the existing control gate invokes containment. It records the failed ownership
 scope, transfer phase/result, private driver error, access counts, last observed

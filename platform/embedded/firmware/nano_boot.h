@@ -95,7 +95,12 @@ int fes_nano_boot_bind_usb_pio(struct fes_nano_boot *,struct fes_nano_bridges *,
     uint64_t owner,uint64_t epoch,struct fes_nano_retained_master_ops);
 /* Cached secure binding identity only; device/bridge operations must still
  * observe their live hardware scopes under the same lock. */
-int fes_nano_boot_usb_pio_matches(const struct fes_nano_bridges *,struct fes_nano_retained_master_ops);
+/* Pass the supplier's exact identities directly, avoiding a by-value callback
+ * table in the per-access path. This never caches an observation or result. */
+int fes_nano_boot_usb_pio_matches(const struct fes_nano_bridges *,void *context,
+    int (*observe)(void *,uint64_t,uint64_t,uint32_t *),
+    int (*quiesce)(void *,uint32_t),int (*quiescent)(void *,uint32_t *),
+    int (*snapshot)(void *,uint64_t,uint64_t,uint32_t *,uint32_t *,uint32_t *,uint32_t *));
 #ifdef __cplusplus
 }
 #endif
