@@ -1308,3 +1308,13 @@ Changed callback identity, late hardware drift or a failed read retires the
 boot without publishing a snapshot. The configuration deadline remains 20 seconds.
 The register-fixture work bound is a software check; physical load timing still
 requires the matched rebuilt chain on the board.
+
+Board preparation scans the complete immutable clock/pin policy once per call.
+The initial capture/recheck remains paired, and controller and PHY operations
+still invoke fresh preparation at their boundaries. The removed scan repeated
+immediately without an intervening operation; no hardware observation is reused
+across calls. Register-fixture tests inject clock/pin changes during controller
+writes and PHY reads and require terminal failure before readiness publication.
+Native configuration errors separately identify deadline expiry and backwards
+clock movement, including elapsed/step durations and the unchanged 20-second
+limit. These are failure observations, not additional hardware permissions.

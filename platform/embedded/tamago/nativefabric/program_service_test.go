@@ -315,8 +315,23 @@ func TestProgramServiceClockDeadlineAndLateFirmwareReturnRetainConfiguration(t *
 					return now
 				}
 			}
-			if _, err := f.s.Launch(ctx, 0, req); !errors.Is(err, ErrProgramRetired) || f.s.state.transfer == nil || !f.s.state.transfer.Status().Failed || f.lease.r.Active || f.cpu.opens != 0 {
+			_, err := f.s.Launch(ctx, 0, req)
+			if !errors.Is(err, ErrProgramRetired) || f.s.state.transfer == nil || !f.s.state.transfer.Status().Failed || f.lease.r.Active || f.cpu.opens != 0 {
 				t.Fatal("late or cancelled configuration reached control", err, f.s.Status())
+			}
+			switch fault {
+			case "deadline", "late":
+				if !strings.Contains(err.Error(), "configuration deadline: elapsed=20s step=20s limit=20s") {
+					t.Fatal("deadline lost its measured reason", err)
+				}
+			case "backwards":
+				if !strings.Contains(err.Error(), "configuration backwards clock: elapsed=-1s step=-1s limit=20s") {
+					t.Fatal("clock regression lost its measured reason", err)
+				}
+			case "cancel":
+				if !errors.Is(err, context.Canceled) {
+					t.Fatal("cancellation lost its original error", err)
+				}
 			}
 		})
 	}

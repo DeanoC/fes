@@ -77,8 +77,13 @@ static int prepare(void *context)
 {
     struct fes_nano_usb_board *b=context;unsigned active;
     if (!b || !b->initialized || b->failed) return 0;
-    for (unsigned pass=0;pass<2;pass++)
-        if (scope(b,&active) || clocks(b,0) || pins(b) || scope(b,&active)) return 0;
+    /* Every invocation checks the complete captured clock vector and compiled
+     * pins against their immutable expected values. The caller brackets the
+     * actual controller/PHY operation with fresh preparation; ready() also
+     * prepares before and after its independent PHY observations. Repeating
+     * the same scan immediately here adds no operation boundary or authority.
+     * Initial capture/recheck in board_init remains separate. */
+    if (scope(b,&active) || clocks(b,0) || pins(b) || scope(b,&active)) return 0;
     return 1;
 }
 static int ulpi(struct fes_nano_usb_board *b,unsigned address,uint8_t *value)

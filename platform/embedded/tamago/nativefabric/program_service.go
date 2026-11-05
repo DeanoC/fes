@@ -4,6 +4,7 @@ package nativefabric
 import (
 	"context"
 	"errors"
+	"fmt"
 	"math"
 	"sync"
 	"time"
@@ -229,8 +230,12 @@ func (p *programService) configure(ctx context.Context) error {
 			return err
 		}
 		now := p.limits.Now()
-		if now.Before(last) || now.Sub(start) >= 20*time.Second {
-			return errors.New("native program service: configuration deadline or backwards clock")
+		elapsed, step := now.Sub(start), now.Sub(last)
+		if now.Before(last) {
+			return fmt.Errorf("native program service: configuration backwards clock: elapsed=%s step=%s limit=20s", elapsed, step)
+		}
+		if elapsed >= 20*time.Second {
+			return fmt.Errorf("native program service: configuration deadline: elapsed=%s step=%s limit=20s", elapsed, step)
 		}
 		last = now
 		return nil

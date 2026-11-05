@@ -61,7 +61,7 @@ int main(int argc,char **argv)
             assert(state.masters_contained && state.reset==FES_NANO_BRIDGES_ALL);
             /* The failed image needed 47,434 accesses and 496 PHY requests.
              * Bound the repeated physical work, not host execution time. */
-            assert(model.accesses-accesses<12000 && model.requests-requests<=112);
+            assert(model.accesses-accesses<7000 && model.requests-requests<=112);
             printf("PASS coherent snapshot accesses=%u phy_requests=%u physical_reads=%u\n",model.accesses-accesses,model.requests-requests,physical_reads);
         }
         assert(usb_platform.generation==generation+2 && usb_platform.active && usb_platform.confirmed);
@@ -72,8 +72,15 @@ int main(int argc,char **argv)
         else if (fault==19) model.base.master_boot.retained.quiesce=0;
         else if (fault==20) model.base.master_boot.retained.observe=replaced_observe;
         else {
-            static const unsigned offsets[]={1,2,16,300,1530,1531,3060,5000,8000,10000,10599};
-            fail_read=offsets[fault-21];
+            /* Find the actual read span for this compiled provider, then
+             * sample early/middle/final reads without stale absolute offsets. */
+            physical_reads=0;
+            assert(!fes_nano_bridges_observe(&model.base.bridges,&state));
+            unsigned count=physical_reads;assert(count>16);
+            static const unsigned eighths[]={0,0,0,1,2,3,4,5,6,7,8};
+            unsigned index=fault-21;
+            fail_read=index<3 ? index+1 : index==10 ? count : count*eighths[index]/8;
+            physical_reads=0;state=untouched;
         }
         int status=fes_nano_bridges_observe(&model.base.bridges,&state);
         if (!status) fprintf(stderr,"fault=%u physical_reads=%u fail_read=%u board_error=%d cold_failed=%u\n",fault,physical_reads,fail_read,usb_board.first_error,provider.failed);

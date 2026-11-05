@@ -4,7 +4,7 @@
 #include "nano_usb_platform_test.c"
 #undef main
 #include "nano_usb_board_fixture.h"
-static void prepared(struct board_test *t)
+static void initialized(struct board_test *t)
 {
     setup(t);
     struct fes_nano_usb_io physical={.context=t,.read=board_read,.write=board_write,.barrier=barrier,.wait=board_wait};
@@ -13,9 +13,55 @@ static void prepared(struct board_test *t)
     assert(ops.prepare(&t->board)==1);
     assert(!ops.ready(&t->board));assert(!t->requests && !t->base.h.usb_accesses);
     assert(!fes_nano_usb_platform_init(&t->base.usb,&t->base.cold,ops,FES_NANO_USB_QUALIFIED));
+}
+static void prepared(struct board_test *t)
+{
+    initialized(t);
     assert(!fes_nano_usb_platform_acquire(&t->base.usb,17,0));
     assert(t->base.usb.active && !t->base.usb.confirmed && t->base.usb.generation==1);
     assert(!t->requests);
+}
+static unsigned drift_request;
+static int drift_read(void *context,uintptr_t address,uint32_t *value)
+{
+    struct board_test *t=context;
+    int error=board_read(context,address,value);
+    if (!error && address==FES_NANO_USB_BASE+0x34 &&
+        t->requests>=drift_request && !t->pending) {
+        if (t->fault==17) {t->clocks[0]^=1;t->fault=0;}
+        if (t->fault==18) {t->pins[0]^=1;t->fault=0;}
+    }
+    return error;
+}
+static int drift_write(void *context,uintptr_t address,uint32_t value)
+{
+    struct board_test *t=context;
+    int error=board_write(context,address,value);
+    if (!error && address==FES_NANO_USB_BASE+12) {
+        if (t->fault==19) {t->clocks[0]^=1;t->fault=0;}
+        if (t->fault==20) {t->pins[0]^=1;t->fault=0;}
+    }
+    return error;
+}
+static void operation_boundaries(void)
+{
+    for (unsigned fault=17;fault<=20;fault++) {
+        struct board_test t;
+        if (fault<=18) {
+            prepared(&t);host_started(&t);t.fault=fault;
+            drift_request=t.requests+1;t.board.physical.read=drift_read;
+            assert(fes_nano_usb_platform_confirm(&t.base.usb,17,1));
+        } else {
+            initialized(&t);t.fault=fault;t.board.physical.write=drift_write;
+            assert(fes_nano_usb_platform_acquire(&t.base.usb,17,0));
+        }
+        assert(!t.fault && t.board.failed && t.base.usb.failed &&
+               t.base.cold.failed && t.base.usb.active && !t.base.usb.confirmed);
+        unsigned accesses=t.accesses;
+        assert(fes_nano_usb_platform_observe(&t.base.usb,17,t.base.usb.generation));
+        assert(fes_nano_usb_platform_stop(&t.base.usb,17,t.base.usb.generation));
+        assert(t.accesses==accesses); /* No new observation or recovery after failure. */
+    }
 }
 static void completed(void)
 {
@@ -117,6 +163,6 @@ static void copied_policy_and_admission(void)
 #endif
 int FES_NANO_USB_BOARD_ENTRY(void)
 {
-    completed();live_failures();changed_policy();interruptions();copied_policy_and_admission();
+    completed();live_failures();changed_policy();interruptions();copied_policy_and_admission();operation_boundaries();
     puts("PASS actual USB board clocks/pins, two-phase host confirmation and USB3320 ULPI/VBUS failures; model only");return 0;
 }
