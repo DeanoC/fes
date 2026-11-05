@@ -38,7 +38,50 @@ when submitting a halt. Neither behavior alone establishes why this observed
 channel became disabled or whether it can safely be continued. This diagnostic
 keeps the conservative refusal until fresh evidence identifies the transition.
 
-Next: rebuild the matched native boot chain, prove that the actual native ELF
-contains the new history, and prepare a fresh bounded TRWU8CBL trace. No fresh
-hardware run has been performed for this change. ROM-step timing, ordinary
-package admission, physical video and DE10-equivalent core loading remain open.
+The matched native SDK, entry, BL31, U-Boot and final composition now build on
+source `d66ed9e2232b76bd5e297546bae43511d7057d3d`. Actual native machine-code
+checks bind all four channel-writing paths to the history helper, which retains
+the original single dynamic write. All 2,075 compiled source inputs (394 Git
+blobs and 1,681 pinned external files) were archived and read back. The parent
+checks passed 1,492 tests with two skips (a macOS-only check and an absent
+upstream U-Boot cache), in addition to both planner suites and consumer checks.
+Both real retained ROM choices preflight against the fresh SDK without firmware
+calls. No shared schema or wire protocol changed.
+
+## Bounded hardware result
+
+One new native attempt on TRWU8CBL passed qualified recovery, all eight fixed
+uploads/fresh SD readbacks, fourteen native startup checkpoints, seven USB
+reports and the owned USB pause. The earlier USB error did not recur; this
+does not prove its cause or a repair. The sealed FPGA configuration completed
+all 1,658,880 bytes with data held. The ROM-step path was reached physically for
+the first time, but its unchanged one-second deadline expired before completion.
+
+The last verified written counter was 5,888 of 8,192 bytes, compared with 1,792
+in the preceding full-owner trial. The timer recorded 400,008,197 ticks at
+400 MHz (1.0000204925 seconds). Ownership brackets consumed 377,958,595 ticks
+(0.9448964875 seconds, 94.4877% of elapsed time), across 5,958 checks including
+5,163 fast guards. The maximum bracket was 234,624 ticks (0.58656 ms); invalid
+and pending measurements were zero, and no ownership scope failed. These
+aggregate measurements do not separate full observations from fast guards.
+Synthetic host timing had underestimated the total remaining cost.
+
+No ROM completion, accepted CPU Run, second launch, return or USB resume was
+observed. The cached native state is `reboot_required`, generation one, with
+resources retained and `Held=true`; that is not independent physical CPU or
+USB halt proof. No retry or factory restore was performed. The original card
+and other kit were untouched; the claim and test card remain retained.
+Independent host cleanup verified exact USB permissions, the recorded 15 MHz
+readback, the owned private JTAG server's exit and a free UART.
+
+An initial wrapper invocation failed before opening the board because root
+could not open the existing protected shared lock file. Acquiring that same
+lock as its normal owner before the privileged operator resolved the host
+launch problem. It consumed no native attempt and did not change the lock file.
+
+The source-bound [hardware receipt](hardware-result.json) and complete traces
+are under `out/nano-usb-channel-history-board-20261105`. Next, separate full
+observation and per-access guard costs using the existing cached timer samples,
+then optimize the measured path without relaxing ownership or time/poll bounds.
+Ordinary package admission, physical video and DE10-equivalent core loading
+remain open.
