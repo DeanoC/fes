@@ -14,6 +14,25 @@ MAKEFILE = "plat/intel/soc/agilex5/platform.mk"
 PSCI = "plat/intel/soc/common/socfpga_psci.c"
 PSCI_FRONTEND = "lib/psci/psci_main.c"
 
+# These objects implement the bounded shared-ROM ownership path. Keep the
+# vendor's size policy for all other objects, including startup and drivers
+# outside this explicitly selected profile.
+ROM_HOT_OBJECTS = (
+    "nano_cold", "nano_cold_platform", "nano_boot", "nano_bridges",
+    "nano_usb_platform", "nano_usb_board", "nano_usb_composition", "nano_rom",
+)
+
+
+def rom_compile_policy(profile):
+    if (profile is None or profile.get('hps_rom') is None or
+            profile.get('usb_pio') is not True or profile.get('usb_shared') is not True):
+        return None
+    return {'mode': 'shared-rom-ownership-o2-v1', 'flags': '-O2',
+            'objects': [name + '.o' for name in ROM_HOT_OBJECTS],
+            'make_rules': ''.join('$(BUILD_PLAT)/bl31/' + name + '.o: override CFLAGS += -O2\n'
+                                  for name in ROM_HOT_OBJECTS),
+            'cache_state_changed': False, 'source_semantics_changed': False}
+
 
 def service_source(data, cold_serial=False):
     blob, _ = prepare_tfa.source_identity(data)
@@ -131,6 +150,7 @@ def cold_setup_source(text):
 
 
 def install(source, cold_profile=None, cold_header=None):
+    rom_policy = rom_compile_policy(cold_profile)
     digest = nano_digest.install(source, cold_profile is not None and
                                 cold_profile.get('hps_configuration') is not None)
     mailbox = nano_mailbox.install(source, cold_profile is not None and
@@ -174,6 +194,8 @@ def install(source, cold_profile=None, cold_header=None):
             mk.write_text(mk.read_text()+'\nBL31_SOURCES += plat/intel/soc/common/nano_usb_platform.c plat/intel/soc/common/nano_usb_board.c plat/intel/soc/common/nano_usb_composition.c\n')
         if digest is not None:
             mk.write_text(mk.read_text() + '\n' + nano_digest.FLAGS)
+        if rom_policy is not None:
+            mk.write_text(mk.read_text() + '\n' + rom_policy['make_rules'])
         setup.write_text(cold_setup_source(setup.read_text()))
     psci = source / PSCI
     psci.write_text(psci_source(psci.read_text(), cold_serial=cold_profile is not None))
@@ -186,6 +208,7 @@ def install(source, cold_profile=None, cold_header=None):
             "psci_frontend_sha256": hashlib.sha256(frontend.read_bytes()).hexdigest() if cold_profile is not None else None,
             "boot_proof_installed": cold_profile is not None,
             "configuration_digest": digest,
+            "rom_compilation": rom_policy,
             "configuration_mailbox_observer": mailbox,
             "secondary_release_locked": cold_profile is not None,
             "expected_boot_state": "validated cold serial record or rejection; hardware unqualified" if cold_profile else "recognized owned service, NOT_READY"}

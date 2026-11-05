@@ -110,6 +110,19 @@ Test-only counters continue to charge the injected clock for actual full/inner
 callbacks; those costs do not represent a physical speedup. Timing, successful
 ROM loading and full launch/return still need a newly matched hardware test.
 The existing failure reply still clears provenance and retires the activation.
+
+The shared-USB held-ROM profile compiles eight ownership/transport objects with
+per-object `-O2` after the vendor's `-Os`. `prepare_nano_owned.rom_compile_policy`
+selects only `nano_cold`, `nano_cold_platform`, `nano_boot`, `nano_bridges`,
+`nano_usb_platform`, `nano_usb_board`, `nano_usb_composition` and `nano_rom`.
+The build receipt records the object list and exact Make rules. This selects
+compiler optimization without modifying their C source, cache controls, MMIO
+observations, callbacks or deadlines. The earlier scalar SHA specialization
+retains its own independent compilation policy. Other objects and profiles
+retain their existing flags. Effective Make-rule tests check the exact target
+scope; the C ownership/failure models also run with the proposed optimization.
+The matched ARM code, image size and physical ROM speed still require checking
+before this candidate can supply new hardware evidence.
 The C/RTL fixture checks containment-before-report, one emission, unchanged
 access counts on repeated reports, and both ROM sizes across integrity, scope,
 I/O, clock and poll failures. This telemetry is off-board tested; the underlying
