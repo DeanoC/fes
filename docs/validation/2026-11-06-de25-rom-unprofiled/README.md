@@ -45,3 +45,16 @@ programmer/setup stops and both ROM-deadline trials. The new compiled firmware
 has no attempt yet. One new attempt may use the tested 6 MHz programming link,
 with restoration to 15 MHz and exact host permissions. Target-rate chip ID,
 ownership, readback, launch, stop and deadline gates remain unchanged.
+
+The single matched hardware attempt still stopped at the unchanged one-second
+deadline, after 400019665 ticks (1.0000491625 seconds). The final
+direct WRITTEN sample was 7,408/8,192 bytes, compared with 7,040 for the prior
+private-direct trial. Recovery, eight uploads/fresh readbacks, native boot,
+USB pause and sealed FPGA configuration passed. ROM completion, CPU Run and
+return remain unproved. No retry was made. The [physical receipt](physical-result.json)
+retains the raw failure and independent 15 MHz/USB/private-server/UART cleanup.
+The claim and test card remain retained; the original factory card is untouched.
+
+Profiling removal improved partial progress by about 5 percent. Next examine
+compiler output for the uncached ownership path, without removing live hardware
+observations or changing step size, timeout or polling bounds.
