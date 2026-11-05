@@ -381,3 +381,59 @@ func TestKitHostReattachedSessionWithoutGameIDDoesNotInventTitle(t *testing.T) {
 		t.Fatalf("title=%q pending=%v requests=%d", title, pending, requests.Load())
 	}
 }
+
+func TestKitHostReattachesAfterHostAndLauncherRestart(t *testing.T) {
+	var available atomic.Bool
+	var stops atomic.Int32
+	host := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/api/v1/session":
+			if !available.Load() {
+				http.Error(w, "host restarting", http.StatusServiceUnavailable)
+				return
+			}
+			_, _ = w.Write([]byte(`{"id":"session-1","state":"active","target":"kit","target_id":"kit-1","core_package":{"package_id":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa","generation":7}}`))
+		case "/api/v1/session/stop":
+			stops.Add(1)
+			_, _ = w.Write([]byte(`{"state":"idle"}`))
+		default:
+			http.NotFound(w, r)
+		}
+	}))
+	defer host.Close()
+	newLauncher := func() *App {
+		app, err := configuredApp(Options{GFX: "menu-display", KitHost: true, APIBase: host.URL, PrefsPath: filepath.Join(t.TempDir(), "tenfoot.json")})
+		if err != nil {
+			t.Fatal(err)
+		}
+		return app
+	}
+	assertAttached := func(app *App) {
+		t.Helper()
+		app.fetchSession(t.Context())
+		app.mu.Lock()
+		session := app.session
+		waiting := app.hostAwaitStatus
+		app.mu.Unlock()
+		if waiting || session.State != "active" || session.ID != "session-1" || !packageStopIdentity(session) || !app.Snapshot().LocalCorePresentsPaused {
+			t.Fatalf("session not safely reattached: %+v waiting=%v", session, waiting)
+		}
+	}
+	available.Store(true)
+	app := newLauncher()
+	defer app.Stop()
+	assertAttached(app)
+	available.Store(false)
+	app.fetchSession(t.Context())
+	if app.Snapshot().Session.State != "active" || !app.Snapshot().LocalCorePresentsPaused {
+		t.Fatal("host outage discarded the running session or resumed display")
+	}
+	available.Store(true)
+	assertAttached(app)
+	newApp := newLauncher()
+	defer newApp.Stop()
+	assertAttached(newApp)
+	if stops.Load() != 0 {
+		t.Fatal("reattachment stopped the running session")
+	}
+}
