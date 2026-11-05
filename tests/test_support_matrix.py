@@ -16,27 +16,32 @@ SPEC.loader.exec_module(SUPPORT_MATRIX)
 
 
 class SupportMatrixTests(unittest.TestCase):
-    def test_pcxt_dos_records_live_media_and_scoped_kit_diagnostic(self):
+    def test_pcxt_dos_records_live_media_and_scoped_kit_smoke(self):
         data = SUPPORT_MATRIX.load_json(ROOT)
         row = next(row for row in data['cores'] if row['id'] == 'fes.pcxt-dos')
         self.assertTrue(row['recipe'])
-        self.assertEqual('bring-up', row['tier'])
+        self.assertEqual('current', row['tier'])
+        self.assertEqual('play', row['tier_role'])
         self.assertEqual('quartus', row['primary_toolchain'])
         self.assertEqual('experimental', row['library_standing'])
-        self.assertIn('Experimental', row['notes'])
-        self.assertEqual('diagnostic', row['signals']['media_gen'])
-        self.assertIsNone(row['signals']['last_hil_pass'])
-        self.assertIsNone(row['signals']['hil_note'])
-        self.assertIsNone(row['signals']['hil_scope'])
+        self.assertFalse(row['in_bootstrap_image'])
+        self.assertIn('experimental', row['notes'])
+        self.assertEqual('live', row['signals']['media_gen'])
+        self.assertEqual('2026-11-05', row['signals']['last_hil_pass'])
+        self.assertEqual('docs/validation/2026-11-05-pcxt-kit-b-short-smoke.md',
+                         row['signals']['hil_note'])
+        self.assertIn('one-direction', row['signals']['hil_scope'])
+        self.assertIn('listening quality unassessed', row['signals']['hil_scope'])
         self.assertIn('docs/validation/2026-11-04-pcxt-game-and-speaker-kit-a.md',
                       row['evidence'])
-        self.assertIn('6974817d', row['notes'])
+        for identity in ('87fd8149', 'bb87b9b6', '6f49758f'):
+            self.assertIn(identity, row['notes'])
         self.assertIn('loaded at runtime through the mailbox', row['features'])
         self.assertIn('write sectors', row['features'])
         self.assertIn('keyboard', row['features'])
-        self.assertIn('exact-current-artifact kit acceptance', row['notes'])
+        self.assertIn('listening quality was not assessed', row['notes'])
         self.assertEqual('Quartus', SUPPORT_MATRIX.de10_cell(row))
-        self.assertIn('| PC/XT (FreeDOS) | Bring-up | Quartus |', SUPPORT_MATRIX.render(data))
+        self.assertIn('| PC/XT (FreeDOS) | Current | Quartus |', SUPPORT_MATRIX.render(data))
 
     def test_every_release_package_records_its_scope(self):
         data = SUPPORT_MATRIX.load_json(ROOT)

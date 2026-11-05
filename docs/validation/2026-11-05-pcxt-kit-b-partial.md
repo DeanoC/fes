@@ -41,4 +41,6 @@ The local evidence is retained in
 recovery evidence is in `/data/deano-pcxt-normal-owner/owner-evidence/recovery/`.
 After the failure, the exact owned game session was stopped and the kit was
 verified idle, lease-free and returned to its as-found software and image. The
-game/speaker test and the full exact-artifact kit acceptance remain pending.
+game/speaker test and full exact-artifact acceptance were pending for this
+attempt. A [later short smoke](2026-11-05-pcxt-kit-b-short-smoke.md) tested the
+same package and recorded the remaining bounded game and speaker observations.

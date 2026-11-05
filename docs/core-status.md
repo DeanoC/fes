@@ -322,8 +322,12 @@ On 5 November, a [Kit B diagnostic](validation/2026-11-05-pcxt-kit-b-partial.md)
 tested package `87fd8149` from producer `bb87b9b6`, selected for then-current
 main `6f49758f`. FreeDOS booted, keyboard-driven COM execution passed, and a
 guest file was saved and read back after Stop and relaunch. A Digger playfield
-was visible, but its active-game observation failed; gameplay and speaker
-acceptance for this artifact remain open.
+was visible, but its active-game observation failed. A later
+[Kit B short smoke](validation/2026-11-05-pcxt-kit-b-short-smoke.md) used the
+same selected package: DOS, COM and floppy readback passed, Digger's player
+changed facing after one guarded left input, and the captured speaker signal
+changed across three F9 windows. Listening quality, sustained gameplay,
+power-cycle persistence and external interface timing remain unassessed.
 The [reviewed 29 October Quartus diagnostic](validation/2026-10-29-pcxt-quartus-package/review-followup.json)
 passes three seeds and a byte-identical independent rebuild at producer `38ef151bfa`.
 Independent review found four package/acceptance defects, now fixed and re-reviewed.
