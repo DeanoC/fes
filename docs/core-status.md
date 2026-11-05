@@ -292,7 +292,7 @@ PLL/reset, SDRAM capture/pads and HDMI, with separate retained attempts under
 `sources/misteross/build/diagnostic/fes-pcxt/`. `fes.pcxt` has an installable
 format-2 diagnostic package with `fes.computer` 1.1 live floppy media and
 fixed CGA Direct video. A separate `fes.pcxt-dos` recipe enables the GLaBIOS
-XT/5160 ROM and read-only floppy controller. It accepts a 360 KiB floppy image
+XT/5160 ROM, host keyboard, PC speaker and writable floppy controller. It accepts a 360 KiB floppy image
 at runtime and stores it in SDRAM before releasing the 8088 when booting that
 image. Releasing execution with an empty drive starts the BIOS. The registered
 package producer uses Quartus with a common 100 MHz board,
@@ -313,8 +313,11 @@ the earlier PC/XT capability bit 16. The [post-merge Kit B run](validation/2026-
 separately booted exact package `a93e3921` from source `72febda79` with the
 merged bit-20 interface and restored the kit afterward. Later QSF synchronizer
 assignments and host upload changes present by PR source `a22d567c9` postdate
-that run; current-source Quartus timing and exact-artifact Kit acceptance
-remain open.
+that run. The [4 November Kit A diagnostic](validation/2026-11-04-pcxt-game-and-speaker-kit-a.md)
+tested package `af68cf5e` from producer `6974817d`: FreeDOS boot, keyboard-driven
+COM execution, one floppy file saved and read back after Stop and relaunch,
+bounded Digger direction changes and speaker sound. That result does not qualify
+later packages, sustained gameplay, power-cycle persistence or external timing.
 The [reviewed 29 October Quartus diagnostic](validation/2026-10-29-pcxt-quartus-package/review-followup.json)
 passes three seeds and a byte-identical independent rebuild at producer `38ef151bfa`.
 Independent review found four package/acceptance defects, now fixed and re-reviewed.
@@ -342,9 +345,10 @@ reread a matching sector on Kit B after merging #1286: exact package
 Stop sequence ([result](validation/2026-10-30-pcxt-floppy-media/result-current-parent-merge.json));
 the kit was restored and released. This is single-sector diagnostic evidence.
 The diagnostic
-runs its own firmware; inserting a disk does not restart its guest. An in-play
-display plane, floppy write persistence, DOS/game compatibility and hardware
-acceptance of host keyboard input remain open. See the
+runs its own firmware; inserting a disk does not restart its guest. The DOS
+profile's later kit evidence is limited to the explicitly named artifact and
+cases above; broader game compatibility and an in-play display plane remain
+open. See the
 [PC/XT diagnostic guide](../sources/misteross/cores/fes-pcxt/README.md#assembled-board-diagnostic).
 
 ## pc386 machine, phases M1 to M5
