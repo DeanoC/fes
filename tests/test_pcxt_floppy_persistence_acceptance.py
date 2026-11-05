@@ -18,6 +18,50 @@ from tests.test_pcxt_dos_keyboard_acceptance import frame
 from tests.test_pcxt_dos_application_acceptance import FakeRunner
 
 
+class SourceObserverCleanupTest(unittest.TestCase):
+    def test_timeout_stops_real_source_process_group(self):
+        # The command forks a descendant in its session; neither may keep
+        # running after the observer hits its hard deadline.
+        for persistent in (False, True):
+            with self.subTest(persistent=persistent), tempfile.TemporaryDirectory() as temp:
+                path = Path(temp) / 'pids.json'
+                script = ("import json,os,subprocess,sys,time; "
+                          "child=subprocess.Popen([sys.executable,'-c','import time; time.sleep(30)']); "
+                          "open(sys.argv[1],'w').write(json.dumps([os.getpid(),child.pid])); time.sleep(30)")
+                def observe(_deadline):
+                    p.bounded_source_command([sys.executable, '-c', script, str(path)],
+                                             p.PhaseDeadline(time.monotonic()+30))
+                    return {'owner': 'unexpected'}
+                if persistent:
+                    observer = p.app.PrestartedObserver(observe, seconds=.8)
+                    with self.assertRaises(p.pa.AcceptanceError): observer.check()
+                    observer.close()
+                else:
+                    with self.assertRaises(p.pa.AcceptanceError):
+                        p.app._hard_deadline_observation(observe, seconds=.8)
+                self.assertTrue(path.exists(), 'source process did not start before the deadline')
+                pids = json.loads(path.read_text())
+                for pid in pids:
+                    status = Path('/proc') / str(pid) / 'stat'
+                    if status.exists():
+                        self.assertEqual(status.read_text().split(') ')[1][0], 'Z',
+                                         f'source process {pid} is still running')
+    def test_supervised_command_completes_within_observer(self):
+        def observe(_deadline):
+            result = p.bounded_source_command([sys.executable, '-c', 'print("proof")'],
+                                              p.PhaseDeadline(time.monotonic()+10))
+            return {'proof': result.decode().strip()}
+        self.assertEqual(p.app._hard_deadline_observation(observe, seconds=3), {'proof':'proof'})
+
+    def test_incomplete_supervisor_evidence_fails_closed(self):
+        def observe(_deadline):
+            os.write(p.app._OBSERVER_GUARD_FD, b'S')
+            return {'owner': 'unexpected'}
+        with self.assertRaises(p.pa.AcceptanceError) as caught:
+            p.app._hard_deadline_observation(observe, seconds=3)
+        self.assertTrue(caught.exception.source_cleanup_incomplete)
+
+
 def owned():
     return SimpleNamespace(session_id='session', target_id='target', target_name='kit',
                            game_id='fpga-pcxt-persist-test-1234567890abcdef-0123456789ab', package_id='a'*64,

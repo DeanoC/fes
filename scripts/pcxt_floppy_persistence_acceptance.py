@@ -44,8 +44,52 @@ class PhaseDeadline:
         return left
 
 
+class SourceCleanupError(pa.AcceptanceError):
+    pass
+
+
 def bounded_source_command(argv, deadline, *, cwd=None, maximum_seconds=20, safe_python=False, cache_prefix=None):
     """Bound and reap an owned Git/GitHub process group without pipe hangs."""
+    if app._OBSERVER_GUARD_FD is None:
+        return _bounded_source_command(argv, deadline, cwd=cwd, maximum_seconds=maximum_seconds,
+                                       safe_python=safe_python, cache_prefix=cache_prefix)
+    # The observer can be killed at its hard deadline while a source command
+    # is in another process group. A small supervisor survives that death and
+    # retains the guard fd until it has killed and reaped the command group.
+    parent_pid = os.getpid()
+    with tempfile.TemporaryFile() as result_file:
+        pid = os.fork()
+        if pid == 0:
+            parent_dead = [False]
+            def cancel(_signum, _frame):
+                parent_dead[0] = True
+            signal.signal(signal.SIGTERM, cancel)
+            libc = app.ctypes.CDLL(None, use_errno=True)
+            if libc.prctl(1, signal.SIGTERM, 0, 0, 0) != 0 or os.getppid() != parent_pid:
+                os._exit(1)
+            os.write(app._OBSERVER_GUARD_FD, b'S')
+            try:
+                value = _bounded_source_command(argv, deadline, cwd=cwd, maximum_seconds=maximum_seconds,
+                    safe_python=safe_python, cache_prefix=cache_prefix, cancelled=lambda: parent_dead[0])
+                if parent_dead[0]:
+                    raise pa.AcceptanceError('source observer exited')
+                result_file.write(value); result_file.flush()
+            except SourceCleanupError:
+                os._exit(1)
+            except BaseException:
+                os.write(app._OBSERVER_GUARD_FD, b'C')
+                os._exit(1)
+            os.write(app._OBSERVER_GUARD_FD, b'C')
+            os._exit(0)
+        _, status = os.waitpid(pid, 0)
+        if status != 0:
+            raise pa.AcceptanceError('source process failed or cleanup was unverified')
+        result_file.seek(0)
+        return result_file.read(16*1024*1024+1)
+
+
+def _bounded_source_command(argv, deadline, *, cwd=None, maximum_seconds=20, safe_python=False,
+                            cache_prefix=None, cancelled=lambda: False):
     deadline.remaining(1)
     with tempfile.TemporaryFile() as output:
         environment = dict(os.environ, GIT_NO_REPLACE_OBJECTS='1')
@@ -60,6 +104,7 @@ def bounded_source_command(argv, deadline, *, cwd=None, maximum_seconds=20, safe
             # prevents PID/group reuse when an exited leader leaves children.
             end=time.monotonic()+min(maximum_seconds,deadline.remaining(1))
             while True:
+                if cancelled(): raise pa.AcceptanceError('source observer exited')
                 observed=os.waitid(os.P_PID,proc.pid,os.WEXITED|os.WNOHANG|os.WNOWAIT)
                 if observed is not None:break
                 left=min(end-time.monotonic(),deadline.remaining(1))
@@ -69,10 +114,10 @@ def bounded_source_command(argv, deadline, *, cwd=None, maximum_seconds=20, safe
             try:os.killpg(proc.pid,signal.SIGKILL)
             except ProcessLookupError:pass
             try:proc.wait(timeout=5)
-            except subprocess.TimeoutExpired:raise pa.AcceptanceError('source process cleanup failed') from None
+            except subprocess.TimeoutExpired:raise SourceCleanupError('source process cleanup failed') from None
         try:os.killpg(proc.pid,0)
         except ProcessLookupError:pass
-        else:raise pa.AcceptanceError('source process group remains; identity unsafe')
+        else:raise SourceCleanupError('source process group remains; identity unsafe')
         if proc.returncode:raise pa.AcceptanceError('source process failed')
         deadline.remaining(1)
         output.seek(0);result=output.read(16*1024*1024+1)

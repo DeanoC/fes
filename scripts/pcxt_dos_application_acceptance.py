@@ -628,6 +628,34 @@ def _observe_until(runner, expected, args, disk_sha, deadline):
         runner.api = original_api
 
 
+_OBSERVER_GUARD_FD = None
+
+
+def _wait_observer_guard(fd, *, timeout=2.0):
+    """Wait for the observer and any owned source supervisors to close."""
+    try:
+        deadline = time.monotonic() + timeout
+        pending = False
+        while True:
+            remaining = deadline - time.monotonic()
+            if remaining <= 0 or not select.select([fd], [], [], remaining)[0]:
+                raise pa.AcceptanceError('observer source cleanup unverified; retain kit claim')
+            data = os.read(fd, 4096)
+            if not data:
+                if pending:
+                    raise pa.AcceptanceError('observer source cleanup unverified; retain kit claim')
+                return
+            for value in data:
+                if value == ord('S') and not pending:
+                    pending = True
+                elif value == ord('C') and pending:
+                    pending = False
+                else:
+                    raise pa.AcceptanceError('invalid observer source cleanup evidence; retain kit claim')
+    finally:
+        os.close(fd)
+
+
 def _kill_and_reap_observer(pid, *, timeout=2.0):
     """Do not wait forever for a child stuck in uninterruptible I/O."""
     try:
@@ -658,14 +686,19 @@ def _hard_deadline_observation(observe, seconds=5.0):
     """Reap our read-only observer before accepting its result or returning."""
     deadline = time.monotonic() + seconds
     parent, child = socket.socketpair(socket.AF_UNIX, socket.SOCK_SEQPACKET)
+    guard_read, guard_write = os.pipe2(os.O_CLOEXEC)
     parent_pid = os.getpid()
     libc = ctypes.CDLL(None, use_errno=True)
     try:
         pid = os.fork()
     except BaseException:
         parent.close(); child.close()
+        os.close(guard_read); os.close(guard_write)
         raise
     if pid == 0:
+        global _OBSERVER_GUARD_FD
+        os.close(guard_read)
+        _OBSERVER_GUARD_FD = guard_write
         parent.close()
         # Linux delivers SIGKILL if the diagnostic parent dies unexpectedly;
         # close the race where it died before this setting was installed.
@@ -685,7 +718,7 @@ def _hard_deadline_observation(observe, seconds=5.0):
         finally:
             child.close()
             os._exit(0)
-    child.close()
+    child.close(); os.close(guard_write)
     reaped = False
     result = None
     try:
@@ -724,14 +757,25 @@ def _hard_deadline_observation(observe, seconds=5.0):
                 time.sleep(min(0.01, remaining))
     finally:
         parent.close()
+        original_error = sys.exception()
+        cleanup_error = None
         if not reaped:
-            original_error = sys.exception()
             try:
                 _kill_and_reap_observer(pid)
-            except BaseException:
-                if original_error is None:
-                    raise
-                original_error.add_note('observer cleanup unverified; retain kit claim')
+            except BaseException as exc:
+                cleanup_error = exc
+        try:
+            _wait_observer_guard(guard_read, timeout=2.0 if original_error else min(2.0, max(0, deadline-time.monotonic())))
+        except BaseException as exc:
+            cleanup_error = cleanup_error or exc
+        if cleanup_error is not None:
+            if original_error is None:
+                cleanup_error.source_cleanup_incomplete = True
+                raise cleanup_error
+            original_error.add_note('observer cleanup unverified; retain kit claim')
+            original_error.source_cleanup_incomplete = True
+        if original_error is None and time.monotonic() >= deadline:
+            raise pa.AcceptanceError('selected software observation exceeded hard phase deadline')
 
 
 def validate_active(runner, expected, args, disk_sha):
@@ -749,14 +793,19 @@ class PrestartedObserver:
             raise pa.AcceptanceError('game observer must start before capture threads')
         self.seconds = seconds
         parent, child = socket.socketpair(socket.AF_UNIX, socket.SOCK_SEQPACKET)
+        guard_read, guard_write = os.pipe2(os.O_CLOEXEC)
         parent_pid = os.getpid()
         libc = ctypes.CDLL(None, use_errno=True)
         try:
             pid = os.fork()
         except BaseException:
             parent.close(); child.close()
+            os.close(guard_read); os.close(guard_write)
             raise
         if pid == 0:
+            global _OBSERVER_GUARD_FD
+            os.close(guard_read)
+            _OBSERVER_GUARD_FD = guard_write
             parent.close()
             if libc.prctl(1, signal.SIGKILL, 0, 0, 0) != 0 or os.getppid() != parent_pid:
                 os._exit(1)
@@ -781,8 +830,8 @@ class PrestartedObserver:
             finally:
                 child.close()
                 os._exit(0)
-        child.close()
-        self.socket, self.pid, self.reaped = parent, pid, False
+        child.close(); os.close(guard_write)
+        self.socket, self.pid, self.reaped, self.guard_read = parent, pid, False, guard_read
 
     def check(self):
         if self.reaped:
@@ -822,22 +871,27 @@ class PrestartedObserver:
 
     def close(self, force=False):
         self.socket.close()
-        if self.reaped:
-            return
-        if not force:
-            end = time.monotonic()+2
-            while time.monotonic() < end:
-                done, status = os.waitpid(self.pid, os.WNOHANG)
-                if done:
-                    self.reaped = True
-                    if status != 0:
-                        raise pa.AcceptanceError('game ownership observer did not stop cleanly')
-                    return
-                time.sleep(.01)
-        _kill_and_reap_observer(self.pid)
-        self.reaped = True
-        if not force:
-            raise pa.AcceptanceError('game ownership observer did not stop cleanly')
+        try:
+            if self.reaped:
+                return
+            if not force:
+                end = time.monotonic()+2
+                while time.monotonic() < end:
+                    done, status = os.waitpid(self.pid, os.WNOHANG)
+                    if done:
+                        self.reaped = True
+                        if status != 0:
+                            raise pa.AcceptanceError('game ownership observer did not stop cleanly')
+                        return
+                    time.sleep(.01)
+            _kill_and_reap_observer(self.pid)
+            self.reaped = True
+            if not force:
+                raise pa.AcceptanceError('game ownership observer did not stop cleanly')
+        finally:
+            if self.guard_read is not None:
+                fd, self.guard_read = self.guard_read, None
+                _wait_observer_guard(fd)
 
 
 def capture_owned(runner, owned, args, disk_sha, path, phase):

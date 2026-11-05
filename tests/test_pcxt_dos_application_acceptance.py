@@ -268,6 +268,7 @@ class HardDeadlineTest(unittest.TestCase):
     def test_result_queued_after_select_timeout_is_read_after_child_exit(self):
         child = {}
         real_fork = os.fork
+        real_select = app.select.select
 
         def fork():
             pid = real_fork()
@@ -276,6 +277,8 @@ class HardDeadlineTest(unittest.TestCase):
             return pid
 
         def empty_select_after_child_exit(_read, _write, _error, _timeout):
+            if _read and isinstance(_read[0], int):
+                return real_select(_read, _write, _error, _timeout)
             deadline = time.monotonic() + 1.0
             while time.monotonic() < deadline:
                 exited = os.waitid(os.P_PID, child['pid'], os.WEXITED | os.WNOHANG | os.WNOWAIT)
