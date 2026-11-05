@@ -38,3 +38,18 @@ Exact source and logs are in [the test receipt](result.json) and
 firmware to verify the hot path no longer constructs those tables, then measure
 it in a fresh bounded test. Software/RTL checks do not establish the speedup,
 complete ROM loading, CPU Run, normal package admission or DE10-equivalent readiness.
+
+The matched SDK, entry, BL31, U-Boot and HPS-first composition have now built from
+`a1f8ac81e9670dbcca97a019646ff87de0b9d6e8`. Actual disassembly follows
+ROM ownership through the direct service validator, shared validator, fixed
+callback binding and accepted boot matcher without callback factories. Both
+ROM selections preflight without firmware I/O. The complete changed-file checks
+pass in 783 seconds, and the five USB/native Go packages pass. The
+[matched build receipt](matched-build-result.json) hashes all evidence.
+
+A [fresh bounded operator](operator-source.json) retains the predecessor
+programmer failure, host setup stop and native ROM deadline. The new compiled
+candidate has no attempt yet. Its tested 6 MHz programming-link procedure restores
+15 MHz and exact host permissions, and admits the chip only after a fresh exact
+ID and link-rate check. One attempt is permitted; the existing native bounds
+remain unchanged. This preparation does not establish ROM speed or completion.
