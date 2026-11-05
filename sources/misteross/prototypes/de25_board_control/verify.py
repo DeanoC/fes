@@ -17,6 +17,7 @@ HERE = Path(__file__).resolve().parent
 sys.path.insert(0,str(HERE))
 import reader_memory
 import computer_model
+import rom_transport
 ROOT = HERE.parents[3]
 TAMAGO = ROOT / "platform/embedded/tamago"
 SPEC = importlib.util.spec_from_file_location("embedded_sim_producer", HERE.parent / "embedded_control/producer.py")
@@ -62,6 +63,7 @@ def inputs_for(project):
         "pixel_hz": 74250000,"reader_memory":memory}
     if 'computer_model' in inputs:
         fingerprint_fields.update(computer_model.parameters(inputs['computer_model']))
+    fingerprint_fields.update(rom_transport.parameters(inputs))
     if "hps_initialization" in inputs["computer"]:
         fingerprint_fields["hps_initialization"] = inputs["computer"]["hps_initialization"]
     fingerprint = hashlib.sha256(json.dumps(fingerprint_fields, sort_keys=True).encode()).hexdigest()[:32]
@@ -79,12 +81,15 @@ def inputs_for(project):
                 fields["parameters"].get("control_abi") != identity["control_abi"] or
                 any(fields['parameters'].get(k)!=v for k,v in reader_memory.parameters(memory).items()) or
                 ('computer_model' in inputs and fields['parameters'].get('computer_model') != inputs['computer_model']) or
+                any(fields['parameters'].get(k)!=v for k,v in rom_transport.parameters(inputs).items()) or
                 fields["parameters"].get("device") != seal.DEVICE or
                 fields["parameters"].get("parallel_processors") != inputs.get("compile_processors") or
                 fields["parameters"].get("classification") != "de25-two-revision-diagnostic" or
                 fields["revision"] != identity["overlay_fes_revision"] or
                 seal.build_identity(record) != build_id or identity.get("board_fingerprint") != fingerprint):
             raise ValueError("canonical diagnostic record differs from captured inputs")
+        if rom_transport.checked(inputs) and not set(rom_transport.CORE_INPUTS).issubset(fields['source_inputs']):
+            raise ValueError('ROM functional refresh is missing from the canonical source closure')
         for name, expected in sources.items():
             revision = fields["revision"] if name in identity["source_sha256"] else identity["board_fes_revision"]
             blob = subprocess.run(["git", "-C", str(ROOT), "show", revision + ":" + name],
@@ -106,6 +111,7 @@ def inputs_for(project):
         if (package.package_id != result["package_id"] or package.fields["build"]["id"] != build_id or
                 package.fields["target"] != {"platform": seal.PLATFORM, "device": seal.DEVICE, "programming_profile": seal.profile_for(inputs)} or
                 package.fields["abi"] != {"id": seal.ABI, "major": 1, "minor": 0} or
+                package.fields['interfaces'] != seal.interfaces_for(inputs) or
                 package.fields["build"]["revision"] != fields["revision"] or
                 package.fields["build"]["recipe_sha256"] != fields["recipe_sha256"] or
                 result["build_id"] != build_id or result["rbf_size"] != len(package.payload_bytes) or
@@ -175,6 +181,9 @@ def inputs_for(project):
     qsf = (board / "hps/project/golden_top.qsf").read_text()
     model_sources = {name: (snapshot / name).read_bytes() for name in sources if name.startswith(computer_model.ROM_PATH)}
     computer_model.verify(board/'hps/project', inputs, model_sources)
+    rom_transport.verify(board/'hps/project',inputs,{name:(snapshot/name).read_bytes() for name in sources})
+    if rom_transport.checked(inputs) and generation.get('rom_transport') != rom_transport.verify_generated(board/'hps/project',inputs):
+        raise ValueError('generated ROM evidence differs')
     if re.findall(r'(?m)^set_global_assignment -name NUM_PARALLEL_PROCESSORS ([^\r\n]+)$', qsf) != [str(inputs.get('compile_processors'))]:
         raise ValueError('project compile processor selection differs')
     if qsf.count(f"FES_DE25_COMPUTER_BUILD_ID=128'h{build_id}") != 1:

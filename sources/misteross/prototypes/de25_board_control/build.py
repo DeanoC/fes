@@ -24,6 +24,7 @@ HERE = Path(__file__).resolve().parent
 sys.path.insert(0, str(HERE))
 import reader_memory
 import computer_model
+import rom_transport
 MISTEROSS = HERE.parents[1]
 ROOT = MISTEROSS.parents[1]
 BOARD = "sources/misteross/boards/de25nano/"
@@ -36,7 +37,8 @@ INPUTS = (OVERLAY + "build.py", OVERLAY + "fes_de25_embedded.sv", OVERLAY + "fes
           OVERLAY + "fes_de25_embedded_hw.tcl", OVERLAY + "integrate.tcl", OVERLAY + "seal.py",
           OVERLAY + "fes_de25_computer.v", OVERLAY + "generated/fes_de25_computer.vh",
           OVERLAY + "generated/fes_de25_computer.hpp",
-          OVERLAY + "reader_memory.py", OVERLAY + "computer_model.py", ENDPOINT, WINDOW_READER, WINDOW_CONTROL, DEFINITION)
+          OVERLAY + "reader_memory.py", OVERLAY + "computer_model.py", OVERLAY + "rom_transport.py",
+          *(OVERLAY + name for name in rom_transport.FILES), ENDPOINT, WINDOW_READER, WINDOW_CONTROL, DEFINITION)
 BOOTSTRAP = ("build.py", "display/build.py", "zx81/build.py", "zx81-hps/build.py")
 BASE = 0x10400
 SPAN = 0x100
@@ -127,17 +129,20 @@ def git(*args, check=True):
                           stderr=subprocess.PIPE, check=check)
 
 
-def capture_overlay(allow_dirty):
+def capture_overlay(allow_dirty, external_rom=False):
+    if type(external_rom) is not bool:
+        raise ValueError('external ROM selection must be boolean')
+    paths = INPUTS + (rom_transport.CORE_INPUTS if external_rom else ())
     revision = git("rev-parse", "--verify", "HEAD").stdout.decode().strip()
-    tracked = git("ls-files", "--error-unmatch", "--", *INPUTS, check=False).returncode == 0
-    changed = git("diff", "--quiet", "HEAD", "--", *INPUTS, check=False).returncode
+    tracked = git("ls-files", "--error-unmatch", "--", *paths, check=False).returncode == 0
+    changed = git("diff", "--quiet", "HEAD", "--", *paths, check=False).returncode
     if changed not in (0, 1):
         raise ValueError("cannot inspect overlay source state")
     dirty = not tracked or changed == 1
     if dirty and not allow_dirty:
         raise ValueError("overlay inputs must be committed; --allow-dirty is diagnostic only")
     sources = {}
-    for name in INPUTS:
+    for name in paths:
         path = ROOT / name
         if path.is_symlink() or not path.is_file():
             raise ValueError("overlay source must be a regular file: " + name)
@@ -244,6 +249,7 @@ def overlay_project(output, board, sources, identity, record=None):
                      'remove_connection rst_in.out_reset/subsys_debug.reset\n'
                      'add_connection subsys_periph.fes_maintenance_reset subsys_debug.reset\n')
         script = ''.join(lines)
+    script = rom_transport.install(project,inputs,sources,script)
     integration.write_text(script)
     build_id = inputs["computer"]["build_id"]
     qsf = (project / "golden_top.qsf").read_text()
@@ -256,6 +262,7 @@ def overlay_project(output, board, sources, identity, record=None):
         "reader_memory": memory}
     if 'computer_model' in inputs:
         fingerprint_fields.update(computer_model.parameters(inputs['computer_model']))
+    fingerprint_fields.update(rom_transport.parameters(inputs))
     if 'hps_initialization' in inputs['computer']:
         fingerprint_fields['hps_initialization'] = inputs['computer']['hps_initialization']
     fingerprint = digest(json.dumps(fingerprint_fields, sort_keys=True).encode())[:32]
@@ -274,7 +281,8 @@ def overlay_project(output, board, sources, identity, record=None):
     inputs["embedded_control"] = {"build_id": build_id, "control_abi": reader_memory.control_abi(memory),
         "peripheral_offset": BASE, "span": SPAN,
         "jtag_bridge_base": board.JTAG_CONTROL_BRIDGE_BASE,
-        "source_sha256": {name: digest(sources[name]) for name in INPUTS},
+        "source_sha256": {name: digest(sources[name]) for name in
+                          INPUTS + (rom_transport.CORE_INPUTS if rom_transport.checked(inputs) else ())},
         "physical_cpu_mmio": "not-established", "physical_ddr": "wired-unqualified" if mode else "not-connected",
         "reader_memory": memory,
         "traffic": "bounded read-only AXI DDR window" if mode else "bounded on-chip diagnostic responder", "package_admission": "not-qualified",
@@ -503,23 +511,30 @@ def main():
     parser.add_argument('--ddr-bytes', type=lambda x:int(x,0), default=0)
     parser.add_argument('--computer-model', choices=computer_model.MODELS, default='zx81',
                         help='captured machine and firmware selection; both retain diagnostic 16 KiB RAM')
+    parser.add_argument('--external-rom', action='store_true',
+                        help='explicit CPU-fed ROM variant; requires HPS-first and hps-ddr')
     parser.add_argument("--jobs", type=int, choices=range(1, 17), default=2,
                         help="explicit compiler worker limit, recorded in the functional identity (default: 2)")
     args = parser.parse_args()
     try:
         memory = reader_memory.selection(args.reader_memory, args.ddr_bus_base, args.ddr_bytes)
+        if args.external_rom and (not args.hps_first or reader_memory.mode(memory)!=1):
+            raise ValueError('external ROM requires HPS-first and the hps-ddr computer variant')
+        if args.external_rom and args.board_revision != rom_transport.BOARD_REVISION:
+            raise ValueError('external ROM requires the reviewed frozen board revision')
         output = args.output.absolute()
         if ".." in output.parts or any(p.is_symlink() for p in (output, *output.parents)) or not output.is_relative_to(ROOT / "out") or output.exists():
             raise ValueError("output must be a fresh private directory under this worktree's out/")
         if args.sealed_diagnostic and (args.action != "build" or args.allow_dirty):
             raise ValueError("sealed diagnostic requires build and committed source")
-        revision, state, overlay = capture_overlay(args.allow_dirty)
+        revision, state, overlay = capture_overlay(args.allow_dirty,args.external_rom)
         if args.sealed_diagnostic and git("status", "--porcelain", "--untracked-files=all").stdout:
             raise ValueError("sealed diagnostic requires a clean checkout")
         output.mkdir(parents=True)
         board = load_builder(output, args.board_revision)
         sources = board.capture(args.board_revision)
-        if set(sources) & set(overlay):
+        overlap = set(sources) & set(overlay)
+        if overlap != (set(rom_transport.CORE_INPUTS) if args.external_rom else set()):
             raise ValueError("overlay unexpectedly replaces a captured board source")
         sources.update(overlay)
         selected = {"source_classification": "two-revision-diagnostic",
@@ -536,6 +551,8 @@ def main():
         inputs = json.loads(inputs_file.read_text())
         inputs['reader_memory'] = memory
         computer_model.install(result, inputs, sources, args.computer_model)
+        if args.external_rom:
+            inputs['rom_transport'] = rom_transport.selection(True,args.computer_model)
         inputs_file.write_text(json.dumps(inputs, indent=2, sort_keys=True)+'\n')
         record = None
         if args.sealed_diagnostic:
@@ -545,6 +562,7 @@ def main():
             inputs = json.loads((result / "hps/inputs.json").read_text())
             record = seal.make_record(inputs, revision, git("remote", "get-url", "origin").stdout.decode().strip(), tools)
         build_id = overlay_project(result, board, sources, selected, record)
+        rom_transport.verify(result/'hps/project',json.loads(inputs_file.read_text()),sources)
         print("DE25 embedded diagnostic:", result, "build ID:", build_id, flush=True)
         if args.action != "project":
             tool, version = hps.BOARD_BUILD.locate_quartus(args.quartus_root)
@@ -555,10 +573,13 @@ def main():
             generation = result / "hps/generation.json"
             evidence = json.loads(generation.read_text())
             evidence["embedded_control"] = verify_control(result / "hps/project", hps, board, memory)
+            if rom_transport.checked(inputs):
+                evidence['rom_transport'] = rom_transport.verify_generated(result/'hps/project',inputs)
             generation.write_text(json.dumps(evidence, indent=2, sort_keys=True) + "\n")
             if args.action == "build":
                 artifact = compile_project(result / "hps", tool)
                 computer_model.verify(result/'hps/project', json.loads(inputs_file.read_text()), sources)
+                rom_transport.verify(result/'hps/project', json.loads(inputs_file.read_text()), sources)
                 if reader_memory.mode(memory) and review_ddr_parameters(result/'hps',hps)!=evidence['reviewed_ddr_hps_parameters']:
                     raise ValueError('compile changed reviewed DDR HPS/EMIF parameters')
                 checks = {"system": board.pll_review(result / "hps/project/ip/pll", 100000000),
@@ -567,11 +588,11 @@ def main():
                     raise ValueError("compile changed reviewed PLL identity")
                 print("Diagnostic SOF:", artifact, flush=True)
                 if record is not None:
-                    if (revision, state, overlay) != capture_overlay(False):
+                    if (revision, state, overlay) != capture_overlay(False,args.external_rom):
                         raise ValueError("overlay source changed during build")
                     sealed = seal.publish(result / "hps", artifact, args.vendor_archive, tool, record, tools, version)
                     print("Diagnostic package:", sealed["package_id"], flush=True)
-        if (revision, state, overlay) != capture_overlay(args.allow_dirty):
+        if (revision, state, overlay) != capture_overlay(args.allow_dirty,args.external_rom):
             raise ValueError("overlay source changed during the build")
         return 0
     except (OSError, ValueError, KeyError, subprocess.SubprocessError, ET.ParseError) as error:

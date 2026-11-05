@@ -36,6 +36,12 @@ module fes_de25_computer #(
     input wire [19:0] expansion_response,
     output wire [45:0] expansion_request,
     output wire [7:0] memory_peek
+`ifdef FES_DE25_EXTERNAL_ROM
+    ,output wire [12:0] rom_address,
+    input wire [7:0] rom_data,
+    input wire rom_loaded, rom_failed,
+    output wire rom_cpu_held
+`endif
 );
     reg first_seen = 1'b0;
     reg healthy = 1'b0;
@@ -65,7 +71,16 @@ module fes_de25_computer #(
     wire exec_reset;
     wire [143:0] keyboard_rows;
     wire [39:0] keyboard;
-    wire machine_reset = !transport_ready || exec_reset || (EXTERNAL_RAM && !expansion_running);
+    wire machine_reset = !transport_ready || exec_reset || (EXTERNAL_RAM && !expansion_running)
+`ifdef FES_DE25_EXTERNAL_ROM
+        || !rom_loaded || rom_failed
+`endif
+        ;
+`ifdef FES_DE25_EXTERNAL_ROM
+    // Report explicit mailbox Hold, not the not-yet-loaded ROM gate. Otherwise
+    // completion could release a premature Run without a new owned command.
+    assign rom_cpu_held = !transport_ready || exec_reset;
+`endif
     wire [13:0] media_write_addr;
     wire [15:0] media_write_data;
     wire [1:0] media_write_enable;
@@ -215,8 +230,14 @@ module fes_de25_computer #(
         .write_enable(safe_media_write_enable), .tape_addr(tape_addr),
         .tape_ready(tape_ready_stored), .tape_size(tape_size), .tape_data(tape_data));
     zx81_machine #(.EXTERNAL_RAM(EXTERNAL_RAM), .FIRMWARE_INIT(FIRMWARE_INIT),
+`ifdef FES_DE25_EXTERNAL_ROM
+        .EXTERNAL_ROM(1),
+`endif
         .CLOCK_NUMERATOR(13), .CLOCK_DENOMINATOR(200)) machine (
         .clk_sys(clk), .reset(machine_reset), .keyboard(keyboard),
+`ifdef FES_DE25_EXTERNAL_ROM
+        .rom_address(rom_address), .external_rom_data(rom_data),
+`endif
         .tape_ready(tape_ready), .tape_size(tape_size), .tape_data(tape_data),
         .tape_addr_out(tape_addr), .tape_busy(tape_busy),
         .save_ready(), .save_busy(), .save_changed(), .save_size(), .save_addr(14'd0), .save_q(),

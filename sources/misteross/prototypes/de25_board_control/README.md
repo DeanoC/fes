@@ -70,6 +70,31 @@ the digest oracle are injected; this is not a boot image or hardware result.
 The next physical binding must export the matched ROM aperture, identity and
 held-execution conduits before a cold profile can enable it.
 
+The explicit `--external-rom` producer variant now connects those peripherals in
+Platform Designer. It requires HPS-first, `--reader-memory hps-ddr`, and the
+reviewed board revision `79d616e85e19d65f0d645b67a85ffe7e142dcdfc`. It refreshes
+the machine, rational clock and mailbox from the committed overlay revision;
+the canonical source closure and snapshot identify those three files explicitly.
+The machine retains the 52.224 MHz default ratio for other shells, while this
+board selects 13/200 at 100 MHz. The early WAIT/NMI declarations preserve the
+reviewed Quartus behavior rather than creating implicit input nets.
+
+The ROM slave occupies peripheral-relative `0x10500`, spanning 128 bytes. It
+shares the computer clock/reset and exports no bus master. This is not a verified
+CPU address. Its Hold input reports explicit mailbox Hold; an independent
+unloaded/failed gate keeps the machine reset. A premature Run retires the ROM
+instead of automatically releasing execution when loading finishes. The actual
+board wrapper and Avalon interfaces are included in the bounded host model for
+both sizes, including malformed requests, partial writes, CRC failure, lost Hold,
+reset retirement, exact clock enables and load/Run/Hold/return.
+
+The distinct `de25-embedded-hps-first-rom-diagnostic-v1` package profile requires
+`fes.embedded.rom` 1.0. Source checks bind ROM size, byte address, macro, component
+files, generated slave/conduit ports, clock/reset routes and build identity.
+These checks and host execution are separate from routed timing, a matched
+ROM-capable boot profile, native retained-ROM admission and physical acceptance.
+Existing native launchers still reject this new profile.
+
 The new 256-byte Avalon aperture is at peripheral-relative `0x10400`. The
 generated handoff must also show it at `0x00110400` in the existing JTAG master.
 Neither address is a verified CPU physical address. The default read responder

@@ -12,6 +12,29 @@ spec.loader.exec_module(seal)
 
 
 class SealedIdentityTests(unittest.TestCase):
+    def test_rom_record_requires_the_current_machine_closure_and_distinct_profile(self):
+        inputs={'device':seal.DEVICE,'diagnostic_only':True,'board_fes_revision':seal.rom_transport.BOARD_REVISION,
+            'compile_processors':2,'computer_model':'zx81','computer':{'hps_initialization':'HPS FIRST'},
+            'reader_memory':seal.reader_memory.selection('hps-ddr',0x95000000,8192),
+            'overlay_source_state':'committed','vendor_archive_sha256':'b'*64,
+            'functional_snapshot_sha256':{name:'c'*64 for name in seal.rom_transport.CORE_INPUTS},
+            'rom_transport':seal.rom_transport.selection(True,'zx81')}
+        closure={seal.RECIPE:'d'*64,seal.DEFINITION:'e'*64,
+                 **{name:'c'*64 for name in seal.rom_transport.CORE_INPUTS}}
+        with patch.object(seal,'source_input_closure',return_value=closure) as capture:
+            record=seal.make_record(inputs,'f'*40,'https://example.invalid/fes',{'quartus':'fixture'})
+            fields=json.loads(record)
+            self.assertTrue(set(seal.rom_transport.CORE_INPUTS).issubset(capture.call_args.args[1]))
+            self.assertEqual(fields['parameters']['rom_bytes'],8192)
+            self.assertEqual(fields['parameters']['rom_peripheral_offset'],0x10500)
+            self.assertEqual(seal.profile_for(inputs),seal.HPS_ROM_PROFILE)
+            self.assertEqual(seal.interfaces_for(inputs),[{'id':'fes.embedded.rom','major':1,'minor':0,'required':True}])
+            legacy=copy.deepcopy(inputs);legacy.pop('rom_transport')
+            capture.return_value={seal.RECIPE:'d'*64,seal.DEFINITION:'e'*64}
+            self.assertNotEqual(seal.build_identity(record),seal.build_identity(seal.make_record(legacy,'f'*40,'https://example.invalid/fes',{'quartus':'fixture'})))
+            self.assertEqual(seal.profile_for(legacy),seal.HPS_DDR_PROFILE)
+            self.assertEqual(seal.interfaces_for(legacy),[])
+
     def test_record_binds_board_snapshot_vendor_tools_and_abi(self):
         inputs = {"device": seal.DEVICE, "diagnostic_only": True, "board_fes_revision": "a" * 40,
                   "compile_processors": 2, "computer_model": "zx81",

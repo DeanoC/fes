@@ -117,8 +117,17 @@ the existing configuration reservation; SHA-384 checks the private input before
 endpoint access. The gate returns success only after ROM completion, and uses
 its existing containment path on failure. Model tests run that actual provider
 include and gate against the RTL with injected platform/digest operations. No
-current physical producer or generated cold profile exports the ROM binding,
-and ordinary native retained-package admission remains incomplete.
+generated cold profile enables the ROM binding, and ordinary native retained-
+package admission remains incomplete. The producer's explicit `--external-rom`
+variant adds the real computer/ROM conduit and a 128-byte slave at peripheral
+offset `0x10500`, with a distinct HPS-first ROM diagnostic profile. It refreshes
+the three reviewed machine/clock/mailbox files from the overlay revision and
+names them in the canonical source roots. Generated-interface checks require
+the exact slave, no new master, the same 100 MHz clock/reset and held ROM path.
+The machine's rational clock defaults retain 1625/13056 at 52.224 MHz; DE25
+selects 13/200 at 100 MHz. The board model exercises actual Avalon peripherals
+and mailbox Run/Hold, with a separate reset gate for unloaded or failed ROM.
+This source/model integration is not routed timing or a physical ROM result.
 
 The fingerprint is diagnostic, not the canonical record or a sealed package identity. The
 overlay records its board and overlay revisions separately. Generated handoff

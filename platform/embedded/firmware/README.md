@@ -44,8 +44,8 @@ actual C decoder have paired tests. Legacy profiles require version 1; ROM
 profiles require version 2. The descriptor supplies byte integrity, not package
 authentication, a new address or platform authority.
 
-The firmware preparer includes these sources, but no current physical producer
-or generated cold profile supplies the required ROM aperture/conduits. The native
+The firmware preparer includes these sources. The FPGA producer has an explicit
+ROM variant with the aperture/conduits; no generated cold profile enables it yet. The native
 package frontend still rejects unsupported ROM-linked packages; its ordinary
 launch publisher does not yet select the new encoder. No ROM-capable matched
 boot image or physical acceptance is claimed.

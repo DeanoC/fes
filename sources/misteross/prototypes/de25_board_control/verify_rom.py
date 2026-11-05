@@ -44,6 +44,18 @@ def main():
         'generated/fes_embedded_bridges.h')]
     # The secure fixture includes the real platform service header closure.
     inputs += sorted(firmware.glob('*.h')) + sorted((firmware/'generated').glob('*.h'))
+    board_sources = [HERE/name for name in ('fes_de25_rom.sv', 'fes_de25_computer.v', 'rom_board_machine.sv',
+        'rom_board_probe.cpp', 'fes_de25_rom_hw.tcl', 'rom_transport.py', 'generated/fes_de25_computer.vh')]
+    board_sources += [fpga/name for name in ('cores/fes-common/rtl/fes_computer_mailbox.v',
+        'cores/fes-common/generated/fes_computer.vh', 'cores/fes-zx81/rtl/zx81_keyboard.v',
+        'cores/fes-zx81/rtl/zx81_tape_store.v', 'cores/fes-zx81/rtl/zx81_bus_pack.vh',
+        'cores/fes-zx81/rtl/zx8x.hex')]
+    inputs += board_sources
+    video_path = 'sources/misteross/boards/de25nano/zx81-hps/video.v'
+    video_revision = '79d616e85e19d65f0d645b67a85ffe7e142dcdfc'
+    video = subprocess.check_output(['git','-C',str(ROOT),'show',video_revision+':'+video_path])
+    (output/'video.v').write_bytes(video)
+    (output/'zx8x.hex').write_bytes((fpga/'cores/fes-zx81/rtl/zx8x.hex').read_bytes())
     sources = {p: hashlib.sha256(p.read_bytes()).hexdigest() for p in inputs}
     commands = []
 
@@ -81,6 +93,8 @@ def main():
         objects.append(obj)
     run('csr-lint', ['verilator', '--lint-only', '-Wall', '--top-module', 'fes_embedded_rom_csr',
         '-I'+str(HERE/'generated'), HERE/'fes_embedded_rom.sv', HERE/'fes_embedded_rom_csr.sv'])
+    run('avalon-lint', ['verilator', '--lint-only', '-Wall', '--top-module', 'fes_de25_rom',
+        '-I'+str(HERE/'generated'), HERE/'fes_embedded_rom.sv', HERE/'fes_embedded_rom_csr.sv', HERE/'fes_de25_rom.sv'])
     for size in (4096, 8192):
         target = output/str(size)
         run('build-'+str(size), ['verilator', '-Wall', '--cc', '--exe', '--build', '-j', '2', '--Mdir', target,
@@ -109,10 +123,25 @@ def main():
             '-CFLAGS', '-std=c++17 -I'+str(firmware), '-LDFLAGS', ' '.join(map(str,objects)),
             HERE/'fes_embedded_rom.sv', HERE/'fes_embedded_rom_csr.sv', HERE/'rom_machine.sv', *machine_sources, HERE/'rom_csr_probe.cpp'])
         run('csr-execute-'+str(size), [csr/'Vrom_machine', str(size), format(zlib.crc32(program), 'x')], cwd=fpga)
+        board = output/('board-'+str(size))
+        run('board-build-'+str(size), ['verilator', '-Wall', *('-Wno-'+v for v in waivers),
+            '--cc', '--exe', '--build', '-j', '2', '--Mdir', board, '--top-module', 'rom_board_machine',
+            '-GROM_BYTES='+str(size), '-DFES_DE25_EXTERNAL_ROM=1',
+            *(['-DZX81_MODEL_ZX80'] if size == 4096 else []),
+            '-I'+str(HERE), '-I'+str(HERE/'generated'), '-I'+str(fpga/'cores/fes-common/generated'),
+            '-I'+str(fpga/'cores/fes-zx81/rtl'), '-I'+str(fpga/'cores/fes-common/rtl/z80'),
+            '-CFLAGS', '-std=c++17 -I'+str(firmware), '-LDFLAGS', ' '.join(map(str,objects)),
+            HERE/'fes_embedded_rom.sv', HERE/'fes_embedded_rom_csr.sv', HERE/'fes_de25_rom.sv',
+            HERE/'fes_de25_computer.v', HERE/'rom_board_machine.sv', *machine_sources,
+            fpga/'cores/fes-common/rtl/fes_computer_mailbox.v', fpga/'cores/fes-zx81/rtl/zx81_keyboard.v',
+            fpga/'cores/fes-zx81/rtl/zx81_tape_store.v', output/'video.v', HERE/'rom_board_probe.cpp'])
+        run('board-execute-'+str(size), [board/'Vrom_board_machine', str(size), format(zlib.crc32(program), 'x')], cwd=output)
     assert all(hashlib.sha256(p.read_bytes()).hexdigest() == digest for p, digest in sources.items())
     result = dict(status='passed', classification='actual C ROM transport, opt-in secure-provider/control gate and real ZX80/ZX81 RTL; injected platform and exact-image digest oracle, no hardware or native admission proof',
                   source_sha256={str(p.relative_to(ROOT)): digest for p, digest in sources.items()}, commands=commands,
                   independent_crc_oracle='Python zlib.crc32', hardware_actions=False, ordinary_admission=False)
+    result['board_rom_wiring_model'] = True
+    result['captured_video'] = dict(revision=video_revision,path=video_path,sha256=hashlib.sha256(video).hexdigest())
     (output/'result.json').write_text(json.dumps(result, indent=2)+'\n')
     print('PASS ROM stream RTL:', output, flush=True)
 

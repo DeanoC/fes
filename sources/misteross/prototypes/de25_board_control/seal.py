@@ -23,6 +23,7 @@ ROOT = MISTEROSS.parents[1]
 sys.path.insert(0, str(HERE))
 import reader_memory
 import computer_model
+import rom_transport
 sys.path.insert(0, str(MISTEROSS))
 from scripts.core_package import encode_manifest, package_identity, read_package
 from scripts.export_core_package import build_identity, encode_build_record, export_package, source_input_closure
@@ -44,6 +45,7 @@ DDR_PROFILE = "de25-embedded-ddr-diagnostic-v1"
 HPS_DDR_PROFILE = "de25-embedded-hps-first-ddr-diagnostic-v1"
 WINDOW_PROFILE = "de25-embedded-window-diagnostic-v1"
 HPS_WINDOW_PROFILE = "de25-embedded-hps-first-window-diagnostic-v1"
+HPS_ROM_PROFILE = "de25-embedded-hps-first-rom-diagnostic-v1"
 ABI = "fes.de25-embedded-diagnostic"
 SPL_MEMBER = "Demonstration/SoC_FPGA/GHRD/software/u-boot/spl/u-boot-spl-dtb.hex"
 
@@ -56,9 +58,15 @@ def boot_order(inputs):
 
 
 def profile_for(inputs):
+    if rom_transport.checked(inputs):
+        return HPS_ROM_PROFILE
     mode=reader_memory.mode(inputs['reader_memory'])
     profiles=(HPS_PROFILE,HPS_DDR_PROFILE,HPS_WINDOW_PROFILE) if boot_order(inputs)=='HPS FIRST' else (PROFILE,DDR_PROFILE,WINDOW_PROFILE)
     return profiles[mode]
+
+
+def interfaces_for(inputs):
+    return [{'id':'fes.embedded.rom','major':1,'minor':0,'required':True}] if rom_transport.checked(inputs) else []
 
 
 def sha(data):
@@ -100,18 +108,20 @@ def make_record(inputs, revision, repository, tools):
     processors = inputs.get('compile_processors')
     if type(processors) is not int or not 1 <= processors <= 16:
         raise ValueError('sealed diagnostic requires explicit compile processor count')
-    closure = source_input_closure(ROOT, ROOTS)
+    roots = sorted(set(ROOTS) | (set(rom_transport.CORE_INPUTS) if rom_transport.checked(inputs) else set()))
+    closure = source_input_closure(ROOT, roots)
     order = boot_order(inputs)
     fields = {
         "format": 2, "repository": canonical_repository(repository), "revision": revision, "source_path": ".",
         "recipe": RECIPE, "recipe_sha256": closure[RECIPE], "abi_definition": DEFINITION,
-        "abi_definition_sha256": closure[DEFINITION], "source_roots": ROOTS, "source_inputs": closure,
+        "abi_definition_sha256": closure[DEFINITION], "source_roots": roots, "source_inputs": closure,
         "dependencies": {}, "tools": tools,
         "parameters": {"classification": "de25-two-revision-diagnostic", "board_revision": inputs["board_fes_revision"],
                        "snapshot_sha256": snapshot_digest(sources), "vendor_sha256": inputs["vendor_archive_sha256"],
                        "device": DEVICE, "control_abi": reader_memory.control_abi(inputs['reader_memory']), "peripheral_offset": 0x10400,
                        **reader_memory.parameters(inputs['reader_memory']),
                        **computer_model.parameters(inputs['computer_model']),
+                       **rom_transport.parameters(inputs),
                        "system_hz": 100000000, "pixel_hz": 74250000,
                        "spl_member": SPL_MEMBER, "hps_initialization": order,
                        "compile_flow": "quartus-pro-bounded-tasks-v1",
@@ -183,7 +193,7 @@ def publish(output, artifact, archive, tool, record, expected_tools, version):
                  "description": "Exploratory diagnostic; not qualified for physical reconfiguration.", "version": "0.1.0"},
         "target": {"platform": PLATFORM, "device": DEVICE, "programming_profile": profile_for(inputs)},
         "payload": {"file": "core.rbf", "size": len(data), "sha256": sha(data)},
-        "abi": {"id": ABI, "major": 1, "minor": 0}, "interfaces": [],
+        "abi": {"id": ABI, "major": 1, "minor": 0}, "interfaces": interfaces_for(inputs),
         "build": {"id": build_identity(record), "repository": fields["repository"], "revision": fields["revision"],
                   "recipe_sha256": fields["recipe_sha256"], "toolchain": expected_tools["quartus-version"]},
     })
