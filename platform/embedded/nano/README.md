@@ -1299,7 +1299,8 @@ master-stop records. No physical combined result is supplied by its model tests.
 The retained-USB boot provider can bind a coherent bridge observer through its
 trusted, boot-local master policy. This samples the independent producer bitmap
 between paired live bridge/peripheral reset reads, with the complete retained
-USB DMA/idle, owner, generation, clock, pin and PHY checks and final live scope.
+USB master-containment checks described below: DMA/idle, owner, generation,
+clock, pin and final live boot scope. Device readiness is checked separately.
 It avoids re-entering those same full observations through nested bridge wrappers;
 there is no cache of hardware state across calls. Only a provider supplying the
 explicit combined callback selects it. Unbound providers retain their existing
@@ -1328,3 +1329,20 @@ keeps its preparation sequence. A failed complete observation retires the
 platform, and cannot select a weaker observation path. Tests cover late policy
 changes, foreign/stale requests, changed lease fields and late successful
 firmware completion that must not open a computer or release staging.
+
+Retained USB master containment now uses a separate live observation from device
+readiness. The cold composition's `usb_contained` callback and the shared
+firmware gate require the same confirmed private lease and fresh complete
+clock/pin/boot checks around DMA-disabled, IRQ-disabled, fixed-PIO and AHB-idle
+register observations. They issue no USB or PHY writes, change no generation
+and cannot publish USB readiness. Idle loss after the bounded wait rejects
+without another wait allowance. Owner/epoch/generation and active/confirmed
+state are rechecked before success. Stale or foreign requests perform no I/O.
+
+Explicit USB QUERY/CONFIRM and the device client's observations still use the
+full board readiness path, including both PHY observations and host/VBUS
+validation. A PHY mismatch can leave the master safely contained while that
+independent query rejects device readiness and retires the shared source.
+Known failed owners never regain containment or device authority. Every
+computer CSR retains its before/after firmware ownership brackets; the native
+one-second/64-poll computer guard and 20-second configuration guard are unchanged.

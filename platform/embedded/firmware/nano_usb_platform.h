@@ -56,6 +56,7 @@ int fes_nano_usb_platform_stop(struct fes_nano_usb_platform *, uint64_t owner,
                               uint64_t generation);
 /* Confirmed shared PIO owner only: independently observe the DMA-disabled
  * interconnect master idle before granting a retained-reset stop policy.
- * Bounded and non-mutating apart from the injected PHY-read protocol. */
+ * Fresh clock/pin/boot scope brackets live DMA/IRQ/PIO and AHB-idle checks.
+ * This is not PHY/device readiness; issues no writes and publishes no state. */
 int fes_nano_usb_platform_idle(struct fes_nano_usb_platform *,uint64_t owner,uint64_t generation);
 #endif

@@ -41,7 +41,7 @@ static int producer_sample(void *p,uint32_t *bits)
 }
 int main(int argc,char **argv)
 {
-    assert(argc==2);fault=(unsigned)strtoul(argv[1],0,0);assert(fault<=31);
+    assert(argc==2);fault=(unsigned)strtoul(argv[1],0,0);assert(fault<=38);
     char *setup_args[]={argv[0],"0"};assert(!shared_boot_fixture_main(2,setup_args));
     uint64_t r[4],generation=usb_platform.generation;
     fes_nano_usb_service_sip(&fes_nano_owned_usb,FES_EMBEDDED_USB_ACQUIRE,17,generation,0,r);assert(!r[0]);
@@ -52,6 +52,23 @@ int main(int argc,char **argv)
     saved_read=usb_board.physical.read;usb_board.physical.read=injected_read;
     unsigned accesses=model.accesses,requests=model.requests;
     unsigned writes=model.base.h.usb_writes,stops=model.base.h.producer_stops;
+    if (fault>=32) {
+        if (fault==32) model.base.h.usb[8/4]|=1U<<5;
+        if (fault==33) model.base.h.usb[24/4]=1;
+        if (fault==34) model.base.h.usb[16/4]=0;
+        if (fault==35) model.base.h.per0|=FES_NANO_COLD_USB_RAM_RESET;
+        if (fault==36) model.clocks[0]^=1;
+        if (fault==37) model.pins[0]^=1;
+        if (fault==38) model.base.h.usb[8/4]|=1U;
+        assert(fes_nano_usb_service_gate(&fes_nano_owned_usb)<0);
+        assert(fes_nano_owned_usb.failed && model.base.bridges.failed && provider.failed);
+        assert(usb_platform.active && usb_platform.confirmed && usb_platform.generation==generation+2);
+        accesses=model.accesses;
+        assert(fes_nano_usb_service_gate(&fes_nano_owned_usb)<0);
+        assert(model.accesses==accesses && model.requests==requests);
+        assert(model.base.h.usb_writes==writes && model.base.h.producer_stops==stops);
+        puts("PASS coherent snapshot shared firmware gate retains containment failure");return 0;
+    }
     struct fes_nano_bridge_snapshot state,untouched;
     memset(&state,0xa5,sizeof(state));untouched=state;
     if (fault==0) {
@@ -61,7 +78,7 @@ int main(int argc,char **argv)
             assert(state.masters_contained && state.reset==FES_NANO_BRIDGES_ALL);
             /* The failed image needed 47,434 accesses and 496 PHY requests.
              * Bound the repeated physical work, not host execution time. */
-            assert(model.accesses-accesses<4000 && model.requests-requests<=112);
+            assert(model.accesses-accesses<4000 && model.requests==requests);
             printf("PASS coherent snapshot accesses=%u phy_requests=%u physical_reads=%u\n",model.accesses-accesses,model.requests-requests,physical_reads);
         }
         assert(usb_platform.generation==generation+2 && usb_platform.active && usb_platform.confirmed);
@@ -83,6 +100,22 @@ int main(int argc,char **argv)
             physical_reads=0;state=untouched;
         }
         int status=fes_nano_bridges_observe(&model.base.bridges,&state);
+        if (fault==4) {
+            /* The master remains contained without a PHY transaction. That
+             * grants no USB readiness: an explicit query still checks both
+             * PHY samples and retires the complete shared source on drift. */
+            assert(!status && state.masters_contained && model.requests==requests);
+            assert(!fes_nano_usb_service_gate(&fes_nano_owned_usb));
+            assert(model.requests==requests && usb_platform.generation==generation+2);
+            unsigned observed=model.accesses;
+            fes_nano_usb_service_sip(&fes_nano_owned_usb,FES_EMBEDDED_USB_QUERY,0,0,0,r);
+            assert(r[0]==FES_EMBEDDED_USB_ERROR && model.accesses>observed);
+            assert(usb_platform.active && usb_platform.confirmed && provider.failed);
+            accesses=model.accesses;requests=model.requests;
+            assert(fes_nano_bridges_observe(&model.base.bridges,&state)<0);
+            assert(model.accesses==accesses && model.requests==requests);
+            puts("PASS coherent snapshot master containment is not PHY readiness");return 0;
+        }
         if (!status) fprintf(stderr,"fault=%u physical_reads=%u fail_read=%u board_error=%d cold_failed=%u\n",fault,physical_reads,fail_read,usb_board.first_error,provider.failed);
         assert(status<0);
         if (fault==9) assert(model.base.master_boot.first_error==-71 && usb_master.first_error==-71);
@@ -92,8 +125,8 @@ int main(int argc,char **argv)
         assert(model.accesses==accesses && model.requests==requests);
         printf("PASS coherent snapshot fault=%u retained first failure\n",fault);
     }
-    /* Only PHY-read transactions are permitted by board_write. No device
-     * reset, producer stop, generation publication or authority is added. */
+    /* Master observations issue no USB/PHY writes or generation publication.
+     * Explicit device queries above retain their full independent PHY checks. */
     assert(model.base.h.usb_writes==writes && model.base.h.producer_stops==stops);
     return 0;
 }

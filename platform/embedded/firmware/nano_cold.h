@@ -71,14 +71,15 @@ enum fes_nano_cold_finish_stage {
 };
 /* Optional compiled USB-PIO composition. Snapshot is trusted cached ownership,
  * never an inference from reset readback. Only USB0 and SD controller bits may
- * be released. usb_pio independently checks the live confirmed USB owner.
+ * be released. usb_contained independently checks the live confirmed USB PIO master.
  * Its USB scope may sample this policy, but must not call cold_owns/sd_scope.
  * Bind once while every device and bridge is held, under the existing SiP lock.
  * No non-secure argument or handoff record carries these callbacks. */
 struct fes_nano_cold_device_ops {
     void *context;
     int (*snapshot)(void *, uint32_t *released);
-    int (*usb_pio)(void *); /* exactly 1, including live clock/pin/PHY checks */
+    int (*usb_contained)(void *); /* exactly 1: fresh clock/pin/owner/reset,
+                                  * DMA/IRQ disabled and AHB idle; no PHY grant */
 };
 struct fes_nano_cold {
     struct fes_nano_cold_io io;

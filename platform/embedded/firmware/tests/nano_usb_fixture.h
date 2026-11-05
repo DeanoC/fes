@@ -181,14 +181,14 @@ static inline void native_prepare(struct test *t)
 static inline int usb_prepare(void *context)
 {
     struct hardware *h=context;
+    if (h->usb_fault==3) h->per0&=~FES_NANO_COLD_SD_RESET;
+    if (h->usb_fault==4) h->usb_owner->generation++;
     return h->usb_fault!=1 && !fes_nano_cold_usb_scope(h->cold,17,7,h->usb_owner->active);
 }
 static inline int usb_ready(void *context)
 {
     struct hardware *h=context;h->usb_ready++;
-    if (h->usb_fault==2) return 0; /* injected live PHY/clock/pin failure */
-    if (h->usb_fault==3) h->per0&=~FES_NANO_COLD_SD_RESET;
-    if (h->usb_fault==4) h->usb_owner->generation++;
+    if (h->usb_fault==2) return 0; /* injected live PHY readiness failure */
     return usb_prepare(h);
 }
 static inline void composed(struct test *t)

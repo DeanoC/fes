@@ -46,15 +46,24 @@ static void failures(void)
         case 3:t.h.usb[12/4]=0;break;
         case 4:t.h.per0|=FES_NANO_COLD_USB_RAM_RESET;break;
         case 5:t.h.per0&=~1U;break; /* unrelated EMAC */
-        case 6:t.h.usb_fault=2;break;
-        case 7:t.h.usb_fault=3;break; /* reset changes inside health callback */
+        case 6:
+            /* PHY readiness is independent from no-DMA bus containment. A
+             * later USB readiness query must reject and poison that owner. */
+            t.h.usb_fault=2;
+            assert(fes_nano_cold_owns(&t.cold,17,7)==1);
+            assert(fes_nano_usb_platform_observe(&t.usb,17,2)<0);
+            assert(t.usb.active && t.cold.failed && !t.cold.valid);
+            no_retry(&t);continue;
+        case 7:t.h.usb_fault=3;break; /* reset changes inside preparation callback */
         case 8:t.h.usb_fault=4;break; /* same active bit, different generation */
         case 9:t.h.usb_fault=7;break;
         case 10:t.h.bridge=13;break; /* unarmed bridge */
         case 11:t.platform.active=1;break; /* cached state disagrees with reset */
         }
         unsigned writes=t.h.writes,usb_reads=t.h.usb_reads;
-        assert(fes_nano_cold_owns(&t.cold,17,7)<0 && !t.cold.valid && t.cold.failed);
+        int status=fes_nano_cold_owns(&t.cold,17,7);
+        if(status>=0) fprintf(stderr,"composition kind=%u status=%d generation=%llu\n",kind,status,(unsigned long long)t.usb.generation);
+        assert(status<0 && !t.cold.valid && t.cold.failed);
         assert(t.usb.active && t.h.writes==writes);
         if (kind==4 || kind==5 || kind==10 || kind==11) assert(t.h.usb_reads==usb_reads);
         no_retry(&t);

@@ -114,7 +114,11 @@ static void master_faults(void)
         assert(fes_nano_bridges_close(&t.bridges,17,state.generation,0,fault==5,&closure)<0);
         assert(!memcmp(&closure,&untouched,sizeof(closure)) && t.bridges.failed && t.master_boot.failed);
         assert(t.h.bridge_writes==bridge_writes && !t.h.master_resets && t.usb.active);
-        if (fault==1 || fault==3) assert(t.master_boot.first_error==-60);
+        /* Master-idle failure is now detected by the first cold ownership
+         * audit, before the retained-master callback. Preserve its precise
+         * cause in the USB platform and the failed owner at the boot layer. */
+        if (fault==1) assert(t.master_boot.first_error==-1 && t.usb.first_error==-60 && t.cold.failed);
+        if (fault==3) assert(t.master_boot.first_error==-60);
         if (fault==2) assert(t.master_boot.first_error==-71);
         unsigned reads=t.h.reads,writes=t.h.writes,stops=t.h.producer_stops;
         assert(fes_nano_bridges_observe(&t.bridges,&state)<0);

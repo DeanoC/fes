@@ -163,17 +163,17 @@ static int released_devices(struct fes_nano_cold *s, uint32_t *released)
 {
     *released=0;
     if (!s->devices_bound) return 0;
-    if (!s->devices.snapshot || !s->devices.usb_pio ||
+    if (!s->devices.snapshot || !s->devices.usb_contained ||
         s->devices.snapshot(s->devices.context,released)!=1 ||
         (*released & ~(FES_NANO_COLD_USB_RESET|FES_NANO_COLD_SD_RESET)) ||
         ((*released & FES_NANO_COLD_USB_RESET)!=0 &&
          (*released & FES_NANO_COLD_USB_RESET)!=FES_NANO_COLD_USB_RESET)) return fail(s);
     return 0;
 }
-static int usb_pio(struct fes_nano_cold *s, uint32_t released)
+static int usb_contained(struct fes_nano_cold *s, uint32_t released)
 {
     return (released & FES_NANO_COLD_USB_RESET) &&
-        s->devices.usb_pio(s->devices.context)!=1 ? fail(s) : 0;
+        s->devices.usb_contained(s->devices.context)!=1 ? fail(s) : 0;
 }
 int fes_nano_cold_owns(void *p, uint64_t owner, uint64_t epoch)
 {
@@ -190,7 +190,7 @@ int fes_nano_cold_owns(void *p, uint64_t owner, uint64_t epoch)
         if (released_devices(s,&released) || (released & FES_NANO_COLD_SD_RESET) ||
             sample(s,&now) || !stable(&expected,&now,s->record.core) ||
             (now.per0 & FES_NANO_MASTER_RESET)!=(FES_NANO_MASTER_RESET & ~released) ||
-            usb_pio(s,released) || released_devices(s,&after) || after!=released ||
+            usb_contained(s,released) || released_devices(s,&after) || after!=released ||
             sample(s,&last) || !stable(&now,&last,s->record.core) ||
             (last.per0 & FES_NANO_MASTER_RESET)!=(FES_NANO_MASTER_RESET & ~released)) return fail(s);
         return 1;
@@ -206,7 +206,7 @@ int fes_nano_cold_bind_devices(struct fes_nano_cold *s,uint64_t owner,uint64_t e
         epoch!=s->record.boot.epoch || s->devices_attempted) return -1;
     s->devices_attempted=1;
     uint32_t released;
-    if (s->control_expected || s->ddr_expected || !ops.snapshot || !ops.usb_pio ||
+    if (s->control_expected || s->ddr_expected || !ops.snapshot || !ops.usb_contained ||
         fes_nano_cold_owns(s,owner,epoch)!=1 ||
         ops.snapshot(ops.context,&released)!=1 || released) return fail(s);
     s->devices=ops;s->devices_bound=1;
@@ -261,7 +261,7 @@ static int device_scope(struct fes_nano_cold *s, uint64_t owner,
         uint32_t per0=FES_NANO_MASTER_RESET & ~released;
         if (sample(s,&first) || !stable(&expected,&first,s->record.core) ||
             (first.per0 & FES_NANO_MASTER_RESET)!=per0 ||
-            (mask==FES_NANO_COLD_SD_RESET && usb_pio(s,released)) ||
+            (mask==FES_NANO_COLD_SD_RESET && usb_contained(s,released)) ||
             released_devices(s,&after) || after!=owned ||
             sample(s,&last) || !stable(&first,&last,s->record.core) ||
             (last.per0 & FES_NANO_MASTER_RESET)!=per0) return fail(s);

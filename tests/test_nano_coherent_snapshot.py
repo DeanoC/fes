@@ -23,7 +23,7 @@ class NanoCoherentSnapshotTests(unittest.TestCase):
                 'nano_usb_board.c', 'nano_usb_service.c', 'nano_usb_composition.c',
                 'tests/nano_coherent_snapshot_test.c')]
             subprocess.run([*command, '-o', str(binary)], check=True, timeout=30)
-            for fault in range(32):
+            for fault in range(39):
                 with self.subTest(fault=fault):
                     result = subprocess.run([str(binary), str(fault)],
                                             capture_output=True, text=True, timeout=15)

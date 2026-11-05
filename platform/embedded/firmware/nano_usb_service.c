@@ -69,7 +69,13 @@ int fes_nano_usb_service_gate(struct fes_nano_usb_service *s)
     if (!s || !s->attempted) return 0;
     if (!s->shared.valid) return fes_nano_usb_service_active(s) ? 1 : 0;
     if (!s->initialized || s->failed || healthy(s)) return -1;
-    if (s->ops.observe(s->platform,s->owner,s->platform->generation) || healthy(s)) return fail(s);
+    /* A firmware/bridge gate needs live master containment, not a USB device
+     * grant. Explicit USB QUERY and CONFIRM still perform full PHY readiness.
+     * Partial initialization remains blocked under the original scope path. */
+    struct fes_nano_usb_platform *p=s->platform;
+    int error=p->active && p->confirmed ? fes_nano_usb_platform_idle(p,s->owner,p->generation) :
+        s->ops.observe(p,s->owner,p->generation);
+    if (error || healthy(s)) return fail(s);
     return s->platform->active && !s->platform->confirmed ? 1 : 0;
 }
 static int returned(struct fes_nano_bridges *b)

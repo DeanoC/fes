@@ -27,13 +27,13 @@ static int snapshot(void *context,uint32_t *released)
         (d->active ? FES_NANO_COLD_SD_RESET : 0U);
     return 1;
 }
-static int observe_usb(void *context)
+static int observe_usb_contained(void *context)
 {
     struct fes_nano_usb_composition *s=context;
     uint32_t released;
     uint64_t generation=s->usb ? s->usb->generation : 0;
     if (snapshot(s,&released)!=1 || !(released & FES_NANO_COLD_USB_RESET) ||
-        !s->usb->confirmed || fes_nano_usb_platform_observe(s->usb,s->owner,generation) ||
+        !s->usb->confirmed || fes_nano_usb_platform_idle(s->usb,s->owner,generation) ||
         s->usb->generation!=generation || !s->usb->active || !s->usb->confirmed) return retire(s);
     return 1;
 }
@@ -49,7 +49,7 @@ int fes_nano_usb_composition_init(struct fes_nano_usb_composition *s,
         sd->active || sd->prepared || cold->devices_attempted) {s->failed=1;return -1;}
     s->cold=cold;s->usb=usb;s->sd=sd;
     s->owner=cold->record.boot.owner;s->epoch=cold->record.boot.epoch;
-    struct fes_nano_cold_device_ops ops={s,snapshot,observe_usb};
+    struct fes_nano_cold_device_ops ops={s,snapshot,observe_usb_contained};
     if (fes_nano_cold_bind_devices(cold,s->owner,s->epoch,ops)) {retire(s);return -1;}
     s->initialized=1;
     return 0;
@@ -161,7 +161,7 @@ static int shared_valid(void *context,const struct fes_nano_bridges *b,const str
     if (!s->initialized || s->failed || s->usb!=p || !s->cold || !s->sd ||
         m->owner!=s->owner || m->epoch!=s->epoch ||
         s->cold->devices.context!=s || !s->cold->devices_bound ||
-        s->cold->devices.snapshot!=snapshot || s->cold->devices.usb_pio!=observe_usb ||
+        s->cold->devices.snapshot!=snapshot || s->cold->devices.usb_contained!=observe_usb_contained ||
         !fes_nano_boot_usb_pio_matches(b,fes_nano_usb_master_ops(m))) return 0;
     uint32_t released;
     if (snapshot(s,&released)!=1 || b->device_lease!=s->sd->active ||
