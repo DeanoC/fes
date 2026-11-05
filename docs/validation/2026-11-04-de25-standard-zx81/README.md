@@ -778,5 +778,17 @@ retained that old log, so its changed-verifier pass did not expose this clean-bu
 failure. The fix returns the real log names from the selected converter and
 records the shared `linux-enrich.log` and `linux-split.log`; the direct converter
 retains its own log. No placeholder log or timing/metadata relaxation is added.
-A fresh collector check without legacy outputs, a new ordinary full build and
-an actual source-bound compatibility proof are still required.
+The full strict collector passes in 51.802 seconds at `2d94bbfb2` on a private
+copy of that fresh34 compiled project, with the legacy log absent and both real
+shared-converter log hashes recorded. All141 original protected files remain
+unchanged. An initial wrapper supplied the work root instead of the generated
+project; it exits before collector writes, and its failure remains retained.
+The corrected run uses the explicit project path. Compiler34 and verifier2d
+remain separate evidence. A fresh ordinary2d full build and its actual
+source-bound14-case compatibility proof are running; no ordinary-build or new
+hardware pass is claimed.
+
+The complete unmodified seven-command affected plan passes at `d88ac9af4` in
+941.180 seconds, including1,171 parent and1,821 FPGA software tests. That source
+remains distinct from the later2d log-selection fix, which still requires its
+own affected checks after the actual compatibility fixture refresh.

@@ -120,6 +120,25 @@
       "seconds": 198.717,
       "source": "b6a0dfa43dd62e5b52a9aa634ef50d44a4c2ba6d",
       "source_frozen_throughout": true
+    },
+    {
+      "base": "60df12f09945121da992478ac74b76348b9cdacf",
+      "commands": 7,
+      "labels": [
+        "test_affected.py",
+        "test_test_changed.py",
+        "committed whitespace",
+        "working whitespace",
+        "parent Python regressions",
+        "working-tree generated consumer consistency",
+        "test_*.py"
+      ],
+      "output_sha256": "71f7eac5c6798c9969b9601c5ef791178a245d311ba7981c19a95f397cb451b5",
+      "passed": true,
+      "scope": "Complete unmodified canonical affected plan for shared Linux fabric conversion plus actual refreshed 14-case compatibility fixture. Source frozen through terminal; no hardware acceptance.",
+      "seconds": 941.18,
+      "source_frozen_throughout": true,
+      "source_revision": "d88ac9af4e5d67b4aef6b8aa213e0344670724f4"
     }
   ],
   "classification": "Experimental standard PR IP generation and compatibility regression; no package or hardware admission",
@@ -421,6 +440,28 @@
     "scope": "Full strict collector on private completed c4 clone; changed verifier diagnostic, not a fresh ordinary build or independent rebuild. Original POF0, integrity, root preservation and internal timing gates unchanged.",
     "seconds": 52.956,
     "status": "passed"
+  },
+  "linux_log_selection_collector": {
+    "actual_conversion_logs": {
+      "../linux-enrich.log": "6476112056d816e4b34a3198f325fdfc5231c916bb4d7cc317088502bfdca5fe",
+      "../linux-split.log": "da7c520b4941bd5964fd3c18d5897ff0501d0d13ac2fa515fdd9e54dbbfc700c",
+      "base-compiled-info.log": "c1219b8b5d707236e7e6b2c89a527e5736c6f6c281183ae55f955aa3e8de3bba",
+      "base-enrich.log": "8d22ac84575e4fd4231ba25ade707a276647d69dba677a3d4fef097703e793d6",
+      "base-enriched-info.log": "bbbc2f59a1b8ab0e2704c48cf583619cdb28adc65be048e2826b493d5c925fa3",
+      "base-info.log": "9c952d9f40e65cdc1211d0fa1e478d3eda0f1ceecdad8cad53d3e792b5990931",
+      "base-integrity.log": "01330519a325ae14d0a71b9ef8eda6079dacd97b55f86cddf954a2d06ee78140"
+    },
+    "actual_receipt_sha256": "5027d46b25788c1eac4cff81424fd32dbb586b11eeb237bf6f58746d5805ef4b",
+    "compiled_source": "34e8bb3b74784ca4143cb2405bc3f2c1d1ea4d30",
+    "fresh_ordinary_build": "2d94bbfb2b3466d668b0dc77e03debc2968a4691 running; not yet passed",
+    "initial_wrapper_failure": "Wrong root output supplied instead of generated project: verify exits before writing outputs. That1.566s failure remains retained; corrected explicit project uses the untouched prepared copy.",
+    "legacy_conversion_log_absent": true,
+    "original_files_unchanged": true,
+    "original_protected_files": 141,
+    "passed": true,
+    "scope": "Full changed-verifier collector on private fresh34 compiled copy, not fresh ordinary build or admission",
+    "seconds": 51.802,
+    "verifier_source": "2d94bbfb2b3466d668b0dc77e03debc2968a4691"
   },
   "linux_phase_conversion_followup": "Use the same captured shared HPS-first split converter as canonical Linux packages. Legacy profiles keep their existing conversion. New source-bound full proof/build and independent rebuild remain required; no original failure is reclassified.",
   "linux_phase_conversion_probe": {
