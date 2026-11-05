@@ -28,6 +28,7 @@ struct De25StaticSelection {
 };
 
 #if defined(MISTER_RUNTIME_TESTING)
+class LinuxMmioTestOperations;
 struct De25FpgaTestPaths {
     std::string config, firmware, state, search, lease, record, notes, default_firmware;
     std::vector<std::string> package_roots;
@@ -40,6 +41,7 @@ public:
     virtual int Remove(int overlays_fd, const char* name) = 0;
     virtual int Close(int dtbo_fd) = 0;
     virtual ssize_t WriteSearch(int fd, const char*, std::size_t) = 0;
+    virtual LinuxMmioTestOperations* StartupRegisters() { return nullptr; }
 };
 #endif
 
@@ -62,13 +64,18 @@ public:
 #endif
     ~LinuxDe25FpgaManager() override;
     NativeResult Program(const Artifact&, ProgrammingProfile, std::uint64_t) override;
-    // Cold startup only: caller holds execution and supplies the exclusively
-    // owned, ordered/bounded PR register backend. Creates a fresh logical
-    // controller for this new base epoch. Production construction/admission
-    // of that backend and this selection remain closed.
+    // Cold startup only: caller holds execution. The programmer owns a fresh,
+    // guarded PR mapping only after the full base has been applied, and closes
+    // it before returning. Package/profile admission remains closed.
+    NativeResult ProgramStatic(const Artifact& base, const Artifact& persona,
+                               const De25StaticSelection&,
+                               std::uint64_t absolute_deadline_ms);
+#if defined(MISTER_RUNTIME_TESTING)
+    // Protocol/configfs model injection, absent from production archives.
     NativeResult ProgramStatic(const Artifact& base, const Artifact& persona,
                                const De25StaticSelection&, Mmio& startup_registers,
                                std::uint64_t absolute_deadline_ms);
+#endif
     NativeResult ReleaseConfiguration(std::uint64_t) override;
     Error ReleaseHpsDdrPorts(std::uint64_t) override;
     bool BootHpsDdrLayout() override { return false; }

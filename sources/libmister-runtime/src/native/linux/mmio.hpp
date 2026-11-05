@@ -44,6 +44,9 @@ public:
 	LinuxMmio& operator=(const LinuxMmio&) = delete;
 	Error Read32(std::uint32_t, std::uint32_t*) override;
 	Error Write32(std::uint32_t, std::uint32_t) override;
+	// End this mapping lifetime once. Failure is sticky; neither access nor
+	// destructor cleanup retries an uncertain unmap/close.
+	Error Close();
 
 private:
 	class Impl;

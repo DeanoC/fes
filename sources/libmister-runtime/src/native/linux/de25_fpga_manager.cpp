@@ -6,6 +6,7 @@
 #include "native/de25_core_contract.hpp"
 #include "native/de25_pr_control.hpp"
 #include "native/generated/fes_de25_pr_control.hpp"
+#include "native/linux/de25_pr_mmio.hpp"
 #include "native/linux/menu_window.hpp"
 #include "daemon/json.hpp"
 #include <algorithm>
@@ -40,6 +41,25 @@ struct Fd {
 };
 Error Failure(const std::string& what) { return {ErrorCode::program_failed, what, "program"}; }
 Error SystemError(const char* what) { return Failure(std::string(what) + ": " + std::strerror(errno)); }
+class StartupMmio final : public Mmio {
+public:
+    StartupMmio(Mmio& registers, std::function<Error()> check)
+        : registers_(registers), check_(std::move(check)) {}
+    Error Read32(std::uint32_t offset, std::uint32_t* value) override {
+        if (failure_.ok()) failure_ = check_();
+        if (failure_.ok()) failure_ = registers_.Read32(offset, value);
+        return failure_;
+    }
+    Error Write32(std::uint32_t offset, std::uint32_t value) override {
+        if (failure_.ok()) failure_ = check_();
+        if (failure_.ok()) failure_ = registers_.Write32(offset, value);
+        return failure_;
+    }
+private:
+    Mmio& registers_;
+    std::function<Error()> check_;
+    Error failure_;
+};
 void Word(std::vector<unsigned char>& v, std::uint32_t x) {
     for (int shift = 24; shift >= 0; shift -= 8) v.push_back((x >> shift) & 255);
 }
@@ -469,9 +489,10 @@ public:
         if (digest.Final() != expected) return Failure("owned firmware bytes differ");
         return {};
     }
-    Error VerifyOwned(int overlays, int fw, const char* name, const char* payload,
-                      const std::vector<unsigned char>& blob, std::uint64_t size,
-                      const std::array<std::uint8_t,32>& digest, std::uint64_t deadline) {
+    Error VerifyOverlay(int overlays, const char* name,
+                        const std::vector<unsigned char>& blob, std::uint64_t deadline) {
+        auto error = Check(deadline);
+        if (!error.ok()) return error;
         Fd dir(openat(overlays, name, O_RDONLY | O_DIRECTORY | O_CLOEXEC | O_NOFOLLOW));
         Fd dtbo(dir.n < 0 ? -1 : openat(dir.n, "dtbo", O_RDONLY | O_CLOEXEC | O_NOFOLLOW));
         std::vector<unsigned char> previous;
@@ -479,6 +500,13 @@ public:
             !Exact(config + "/device-tree/overlays/" + name + "/status", "applied") ||
             !Exact(state, "operating"))
             return Failure("owned configuration is not verified/applied; retained for recovery");
+        return Check(deadline);
+    }
+    Error VerifyOwned(int overlays, int fw, const char* name, const char* payload,
+                      const std::vector<unsigned char>& blob, std::uint64_t size,
+                      const std::array<std::uint8_t,32>& digest, std::uint64_t deadline) {
+        const auto error = VerifyOverlay(overlays, name, blob, deadline);
+        if (!error.ok()) return error;
         return VerifyPayload(fw, payload, size, digest, deadline);
     }
     Error PersonaFallbacks() {
@@ -529,7 +557,7 @@ public:
         return RestoreSearch();
     }
     NativeResult ProgramStatic(const Artifact& base, const Artifact& persona,
-                               const De25StaticSelection& selection, Mmio& registers,
+                               const De25StaticSelection& selection, Mmio* injected,
                                std::uint64_t deadline) {
         using namespace generated;
         const auto hex = [](const std::string& value, std::size_t size) {
@@ -580,6 +608,39 @@ public:
                                     De25OverlayProfile::static_expansion_base, selection.base_sha256);
         attempted = attempted || loaded.mutation_attempted;
         if (!loaded.error.ok()) return fail(loaded.error);
+        // This mapping belongs only to this full-base epoch. The outer mutex
+        // and maintenance flock cover every CSR access and its cleanup. It is
+        // never the process-wide computer/DE10 mapping and cannot escape here.
+        std::unique_ptr<LinuxMmio> physical;
+        std::unique_ptr<De25PrMmio> translated;
+        if (!injected) {
+#if defined(MISTER_RUNTIME_TESTING)
+            if (test) {
+                auto* operations = test->StartupRegisters();
+                if (!operations) return fail(Failure("startup register fixture is unavailable"));
+                physical.reset(new LinuxMmio(*operations));
+            } else
+#endif
+                physical.reset(new LinuxMmio);
+            translated.reset(new De25PrMmio(*physical));
+        }
+        StartupMmio registers(injected ? *injected : *translated, [&] {
+            auto checked = Check(deadline);
+            if (!checked.ok()) return checked;
+            if (!configuration_known || !static_capable || configured_overlay !=
+                De25ProgrammingOverlay(De25OverlayProfile::static_expansion_base))
+                return Failure("startup registers lack their owned static base");
+            Fd overlays(open((config + "/device-tree/overlays").c_str(),
+                             O_RDONLY | O_DIRECTORY | O_CLOEXEC | O_NOFOLLOW));
+            bool exists = false;
+            if (overlays.n < 0 || !DirectoryIsExclusive(overlays.n, &exists, persona_known) || !exists)
+                return Failure("startup configuration ownership differs");
+            checked = VerifyOverlay(overlays.n, kOverlay, configured_overlay, deadline);
+            if (checked.ok() && persona_known)
+                checked = VerifyOverlay(overlays.n, kPersonaOverlay,
+                    De25ProgrammingOverlay(De25OverlayProfile::static_expansion_persona), deadline);
+            return checked;
+        });
         De25PrControl controller(registers, clock);
         De25PrIdentity identity;
         error = controller.Identify(selection.control_build_id, deadline, &identity);
@@ -587,6 +648,11 @@ public:
             error = Failure("new static base is not in its untouched cold frozen state");
         if (error.ok()) error = controller.Reconfigure(selection.persona_id,
             [&] { return ApplyInitialPersona(deadline); }, deadline);
+        if (error.ok()) error = Check(deadline);
+        if (physical) {
+            const auto closed = physical->Close();
+            if (!closed.ok() && error.ok()) error = Failure(closed.message);
+        }
         if (error.ok()) error = Check(deadline);
         if (!error.ok()) return fail(error);
         return {{}, attempted};
@@ -779,10 +845,17 @@ NativeResult LinuxDe25FpgaManager::Program(const Artifact& a, ProgrammingProfile
     return impl_->Program(a, p, d, selected, "");
 }
 NativeResult LinuxDe25FpgaManager::ProgramStatic(const Artifact& base, const Artifact& persona,
+        const De25StaticSelection& selection, std::uint64_t deadline) {
+    std::lock_guard<std::mutex> lock(impl_->mutex);
+    return impl_->ProgramStatic(base, persona, selection, nullptr, deadline);
+}
+#if defined(MISTER_RUNTIME_TESTING)
+NativeResult LinuxDe25FpgaManager::ProgramStatic(const Artifact& base, const Artifact& persona,
         const De25StaticSelection& selection, Mmio& registers, std::uint64_t deadline) {
     std::lock_guard<std::mutex> lock(impl_->mutex);
-    return impl_->ProgramStatic(base, persona, selection, registers, deadline);
+    return impl_->ProgramStatic(base, persona, selection, &registers, deadline);
 }
+#endif
 NativeResult LinuxDe25FpgaManager::ReleaseConfiguration(std::uint64_t d) {
     std::lock_guard<std::mutex> lock(impl_->mutex);
     return impl_->ReleaseConfiguration(d);

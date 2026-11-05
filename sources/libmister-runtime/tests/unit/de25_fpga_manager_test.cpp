@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 #include "native/linux/de25_fpga_manager.hpp"
+#include "native/linux/mmio.hpp"
 #include "native/artifacts.hpp"
 #include "native/sha256.hpp"
 #include "native/core_package.hpp"
@@ -39,6 +40,8 @@ struct Ops final : De25FpgaTestOperations {
     bool remove_error=false, create_error=false, open_error=false;
     bool short_search=false, restore_error=false, changed_search=false;
     bool search_newline=false;
+    LinuxMmioTestOperations* startup_registers=nullptr;
+    LinuxMmioTestOperations* StartupRegisters() override { return startup_registers; }
     Ops(De25FpgaTestPaths& p, Time& t):paths(p),time(t) {}
     std::string Dir(const char* name="fes-runtime") const {return paths.config+"/device-tree/overlays/"+name;}
     std::string Name(int fd) const {
@@ -367,6 +370,118 @@ struct StaticFixture : Fixture {
         Preserved();assert(Get(paths.firmware+"/fes-runtime-persona.rbf")==ops.expected_persona_payload);
     }
 };
+struct StartupOperations final : LinuxMmioTestOperations {
+    StaticFixture& f;
+    int fault=0, opened=0, mapped=0, unmapped=0, closed=0;
+    explicit StartupOperations(StaticFixture& fixture):f(fixture) { f.ops.startup_registers=this; }
+    std::size_t PageSize() const override { return 4096; }
+    int Open() override {
+        ++opened;f.ops.events.push_back("mmio:open");
+        assert(Get(f.ops.Dir()+"/status")=="applied\n" && Get(f.paths.state)=="operating\n");
+        assert(Get(f.paths.search)=="\n");
+        return fault==1?-1:7;
+    }
+    int Close(int fd) override {
+        assert(fd==7);++closed;f.ops.events.push_back("mmio:close");
+        if(fault==12)f.clock.now=1000;
+        return fault==11?-1:0;
+    }
+    int Map(int fd,std::uint64_t page,std::size_t span,void** address) override {
+        assert(fd==7 && page==0x20010000u && span==4096);++mapped;
+        *address=this;return fault==2?-1:0;
+    }
+    int Unmap(void* address,std::size_t span) override {
+        assert(address==this && span==4096);++unmapped;f.ops.events.push_back("mmio:unmap");
+        return fault==10?-1:0;
+    }
+    int Read32(void* address,std::size_t offset,std::uint32_t* value) override {
+        assert(address==this && offset>=0x700 && offset<=0x73c);
+        return f.endpoint.Read32(offset-0x700,value).ok()?0:-1;
+    }
+    int Write32(void* address,std::size_t offset,std::uint32_t value) override {
+        assert(address==this && (offset==0x70c || offset==0x710));
+        return f.endpoint.Write32(offset-0x700,value).ok()?0:-1;
+    }
+    NativeResult Load(LinuxDe25FpgaManager& manager) {
+        f.reads_at_entry=f.endpoint.reads;
+        return manager.ProgramStatic(f.artifact,f.persona,f.selection,500);
+    }
+};
+void OwnedStaticMappingHasOneFullBaseLifetime() {
+    using namespace mister::native::generated;
+    StaticFixture f;StartupOperations registers(f);auto manager=f.Manager();
+    for(auto persona:{FesDe25PrControlPersonaA,FesDe25PrControlPersonaB,FesDe25PrControlPersonaA}) {
+        f.selection.persona_id=persona;f.ops.events.clear();
+        assert(registers.Load(*manager).error.ok() && !manager->Poisoned());
+        const auto& events=f.ops.events;
+        auto base=std::find(events.begin(),events.end(),"close:fes-runtime");
+        auto opened=std::find(events.begin(),events.end(),"mmio:open");
+        auto child=std::find(events.begin(),events.end(),"close:fes-runtime-persona");
+        auto unmapped=std::find(events.begin(),events.end(),"mmio:unmap");
+        auto closed=std::find(events.begin(),events.end(),"mmio:close");
+        assert(base<opened && opened<child && child<unmapped && unmapped<closed && closed!=events.end());
+        assert(f.endpoint.registers[FesDe25PrControlPersonaIdOffset]==persona);
+        assert(registers.opened==registers.closed && registers.mapped==registers.unmapped);
+    }
+    assert(registers.opened==3 && registers.closed==3);
+    manager.reset();assert(registers.closed==3); // No destructor unload or cleanup retry.
+    std::cout<<"owned static CSR mappings open after each fresh base and close before success, A/B/A\n";
+}
+void OwnedStaticMappingFaultsRetainAndRefuseReplay() {
+    using namespace mister::native::generated;
+    for(int fault=1;fault<=12;++fault) {
+        StaticFixture f;StartupOperations registers(f);registers.fault=fault;auto manager=f.Manager();
+        f.after_base=[&] {
+            if(fault==3)f.endpoint.fail_read=FesDe25PrControlIdOffset;
+            if(fault==4)f.endpoint.fail_write=FesDe25PrControlArgumentOffset;
+            f.endpoint.on_read=[&](std::uint32_t) {
+                if(f.endpoint.reads!=1)return;
+                if(fault==5)Put(f.paths.state,"write error\n");
+                if(fault==6) {assert(!unlink(f.paths.lease.c_str()));int fd=open(f.paths.lease.c_str(),O_CREAT|O_RDWR,0600);assert(fd>=0);close(fd);}
+                if(fault==7)Put(f.ops.Dir()+"/dtbo","modified base");
+                if(fault==8)assert(!mkdir((f.paths.config+"/device-tree/overlays/foreign").c_str(),0700));
+                if(fault==9)f.clock.now=500;
+            };
+        };
+        const auto result=registers.Load(*manager);
+        assert(!result.error.ok() && result.mutation_attempted && manager->Poisoned());
+        assert(registers.opened==1 && registers.closed==(fault==1?0:1));
+        assert(registers.unmapped==(fault<=2?0:1));
+        if(fault>=5 && fault<=9)assert(f.endpoint.reads==1 && f.endpoint.writes.empty());
+        f.ImagesRetained();const auto events=f.ops.events;const auto opened=registers.opened;
+        assert(!registers.Load(*manager).error.ok());
+        assert(!manager->ReleaseConfiguration(500).error.ok());
+        assert(registers.opened==opened && f.ops.events==events);
+        manager.reset();assert(registers.closed==(fault==1?0:1));
+    }
+    // Missing fixture transport must never open a host's real /dev/mem.
+    StaticFixture f;auto manager=f.Manager();
+    const auto result=manager->ProgramStatic(f.artifact,f.persona,f.selection,500);
+    assert(!result.error.ok() && manager->Poisoned() && !f.endpoint.reads);
+    std::cout<<"owned static map/open/read/write/lease/epoch/deadline/unmap/close faults retain images and refuse replay\n";
+}
+void OwnedStaticMappingRefusesBeforeOpenAndAfterPersonaChange() {
+    using namespace mister::native::generated;
+    for(int fault=0;fault<4;++fault) {
+        StaticFixture f;StartupOperations registers(f);auto manager=f.Manager();
+        if(fault==0)f.selection.base_sha256=std::string(64,'0');
+        if(fault==1)Put(f.paths.notes,"different kernel");
+        if(fault==2)f.ops.error_close=true;
+        if(fault==3)f.ops.unapplied=true;
+        assert(!registers.Load(*manager).error.ok());
+        assert(!registers.opened && !registers.mapped && !registers.closed && !f.endpoint.reads);
+    }
+    for(bool child:{false,true}) {
+        StaticFixture f;StartupOperations registers(f);auto manager=f.Manager();
+        f.after_persona=[&] {Put(f.ops.Dir(child?"fes-runtime-persona":"fes-runtime")+"/dtbo","changed overlay");};
+        assert(!registers.Load(*manager).error.ok() && manager->Poisoned());
+        assert(f.endpoint.Commands(FesDe25PrControlCommandFreeze)==1);
+        assert(!f.endpoint.Commands(FesDe25PrControlCommandResume));
+        assert(registers.opened==1 && registers.unmapped==1 && registers.closed==1);
+        f.ImagesRetained();
+    }
+    std::cout<<"owned static transport stays closed before verified base and refuses Resume after base/persona overlay change\n";
+}
 void StaticStartupAndFullReplacement() {
     using namespace mister::native::generated;
     using namespace mister_test::de25_pr;
@@ -698,6 +813,6 @@ int main(int argc,char** argv) {
         const auto v=De25ProgrammingOverlay(profile);std::ofstream f(argv[argc-1],std::ios::binary);
         f.write(reinterpret_cast<const char*>(v.data()),v.size());assert(f.good());return 0;
     }
-    RecoverVerifiedAllocatedConfigurationOnlyAfterKernelRetirement();Positive();CleanRelease();ReleaseRefusals();AllocatedScanoutProfile();StaticStartupProfiles();StaticStartupAndFullReplacement();StaticRefusalsBeforeHardware();StaticColdIdentityFailures();StaticPersonaFailuresRetainBothImages();StaticCopyAndLookupRacesNeverSubmitWrongBytes();StaticReleaseChecksBothIdentitiesBeforeEffects();Uncertain();BeforeMutation();FirmwareSearchLifecycle();FirmwareFallbacks();ExistingFailure();ProfilesAndLease();
+    RecoverVerifiedAllocatedConfigurationOnlyAfterKernelRetirement();Positive();CleanRelease();ReleaseRefusals();AllocatedScanoutProfile();StaticStartupProfiles();StaticStartupAndFullReplacement();OwnedStaticMappingHasOneFullBaseLifetime();OwnedStaticMappingFaultsRetainAndRefuseReplay();OwnedStaticMappingRefusesBeforeOpenAndAfterPersonaChange();StaticRefusalsBeforeHardware();StaticColdIdentityFailures();StaticPersonaFailuresRetainBothImages();StaticCopyAndLookupRacesNeverSubmitWrongBytes();StaticReleaseChecksBothIdentitiesBeforeEffects();Uncertain();BeforeMutation();FirmwareSearchLifecycle();FirmwareFallbacks();ExistingFailure();ProfilesAndLease();
     std::cout<<"de25_fpga_manager_test: passed\n";
 }

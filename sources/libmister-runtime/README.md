@@ -96,9 +96,15 @@ contract from the matched running-kernel receipt before effects. The internal
 `De25PrMmio` adapter translates the resource-relative protocol to the audited
 DE25 CPU address and permits only its eleven identity/status reads and two
 command writes. Construction opens no device or mapping. This adapter does not
-bound a dead clock/bridge or grant physical admission. Production descriptor
-admission and construction/qualification of the owned register backend remain
-required; the normal factory does not select this path yet.
+bound a dead clock/bridge or grant physical admission. `ProgramStatic` owns a
+separate Linux mapping for each newly applied base, under its serialized
+maintenance lease. Every control access checks that lease, deadline and exact
+applied base/initial-persona overlays. The mapping closes before success or
+failure returns; failed unmap/close is never retried and poisons the programming
+context. Borrowed register injection exists only in test builds. No process-wide
+mapping escapes into a later base epoch. Physical clock/bridge qualification,
+sealed package production and profile admission remain required; the normal
+factory does not select this path yet.
 Partial, failed or late programming poisons the context and retains the
 configuration. Software deadlines cannot abort an opaque configfs/SDM call.
 On DE25, TERM/INT request a normal server stop. Once socket workers have ended,

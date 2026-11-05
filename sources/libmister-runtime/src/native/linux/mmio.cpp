@@ -108,9 +108,23 @@ public:
 		  page_size_(operations_->PageSize()), mappings_() {}
 	~Impl()
 	{
+		Close();
+	}
+	Error Close()
+	{
+		if (closed_) return close_error_;
+		closed_ = true;
 		for (auto mapping = mappings_.rbegin(); mapping != mappings_.rend(); ++mapping)
-			operations_->Unmap(mapping->address, page_size_);
-		if (descriptor_ >= 0) operations_->Close(descriptor_);
+			if (operations_->Unmap(mapping->address, page_size_) != 0)
+				close_error_ = {ErrorCode::io_failed, "MMIO unmap failed"};
+		mappings_.clear();
+		if (descriptor_ >= 0) {
+			const int descriptor = descriptor_;
+			descriptor_ = -1; // No close retry, including EINTR.
+			if (operations_->Close(descriptor) != 0 && close_error_.ok())
+				close_error_ = {ErrorCode::io_failed, "MMIO close failed"};
+		}
+		return close_error_;
 	}
 
 	Error Read(std::uint32_t offset, std::uint32_t* value)
@@ -148,6 +162,7 @@ private:
 
 	Error Resolve(std::uint32_t offset, void** mapping, std::size_t* within)
 	{
+		if (closed_) return {ErrorCode::io_failed, "MMIO mapping lifetime has ended"};
 		if (page_size_ < 4096 || (page_size_ & (page_size_ - 1)) != 0)
 			return {ErrorCode::io_failed, "invalid MMIO page size"};
 		const std::uint64_t page = offset - offset % page_size_;
@@ -176,6 +191,8 @@ private:
 	int descriptor_;
 	std::size_t page_size_;
 	std::vector<Mapping> mappings_;
+	bool closed_ = false;
+	Error close_error_;
 };
 
 LinuxMmio::LinuxMmio()
@@ -197,6 +214,8 @@ Error LinuxMmio::Write32(std::uint32_t offset, std::uint32_t value)
 {
 	return impl_->Write(offset, value);
 }
+
+Error LinuxMmio::Close() { return impl_->Close(); }
 
 } // namespace native
 } // namespace mister

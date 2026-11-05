@@ -21,7 +21,7 @@ class Operations final : public mister::native::LinuxMmioTestOperations {
 public:
 	std::size_t PageSize() const override { return 4096; }
 	int Open() override { ++open_calls; return 7; }
-	int Close(int descriptor) override { assert(descriptor == 7); ++close_calls; return 0; }
+	int Close(int descriptor) override { assert(descriptor == 7); ++close_calls; return fail_close ? -1 : 0; }
 	int Map(int descriptor, std::uint64_t page, std::size_t length,
 		void** mapping) override
 	{
@@ -35,7 +35,7 @@ public:
 	{
 		assert(mapping != nullptr && length == 4096);
 		++unmap_calls;
-		return 0;
+		return fail_unmap ? -1 : 0;
 	}
 	int Read32(void*, std::size_t offset, std::uint32_t* value) override
 	{
@@ -52,6 +52,7 @@ public:
 	int close_calls = 0;
 	int map_calls = 0;
 	int unmap_calls = 0;
+	bool fail_close = false, fail_unmap = false;
 	std::vector<std::uint64_t> pages;
 	std::map<std::size_t, std::uint32_t> values;
 	std::vector<std::pair<std::size_t, std::uint32_t>> writes;
@@ -90,6 +91,35 @@ void TestRejectsMisalignedAndMissingOutputWithoutMapping()
 	assert(mmio.Read32(4, nullptr).code == mister::ErrorCode::io_failed);
 	assert(mmio.Write32(3, 1).code == mister::ErrorCode::io_failed);
 	assert(operations.open_calls == 0);
+}
+
+void TestExplicitCloseEndsAccessAndNeverRetriesCleanup()
+{
+    for (int fault = 0; fault != 4; ++fault) {
+        Operations operations;
+        operations.fail_unmap = fault & 1;
+        operations.fail_close = fault & 2;
+        {
+            mister::native::LinuxMmio mmio(operations);
+            assert(mmio.Write32(0x2001070c, 1).ok());
+            const auto closed = mmio.Close();
+            assert(closed.ok() == (fault == 0));
+            assert(mmio.Close().code == closed.code);
+            std::uint32_t untouched = 0x12345678;
+            assert(!mmio.Read32(0x20010700, &untouched).ok() && untouched == 0x12345678);
+            assert(!mmio.Write32(0x20010710, 2).ok());
+            assert(operations.open_calls == 1 && operations.map_calls == 1);
+            assert(operations.writes.size() == 1);
+        }
+        assert(operations.unmap_calls == 1 && operations.close_calls == 1);
+    }
+    Operations operations;
+    {
+        mister::native::LinuxMmio mmio(operations);
+        assert(mmio.Close().ok());
+        assert(!mmio.Write32(0x20010710, 2).ok());
+    }
+    assert(!operations.open_calls && !operations.map_calls && !operations.close_calls);
 }
 
 void TestDe25ComputerUsesItsAuditedCpuResource()
@@ -204,11 +234,12 @@ int main()
 	TestMapsEachNeededPageOnceAndCleansUp();
 	TestReadAndWriteUseRegisterOffsetWithinPage();
 	TestRejectsMisalignedAndMissingOutputWithoutMapping();
+    TestExplicitCloseEndsAccessAndNeverRetriesCleanup();
 	TestDe25ComputerUsesItsAuditedCpuResource();
 	TestDe25ComputerRefusesOtherRegistersBeforePhysicalAccess();
     TestPrReadsAndWritesUseOnlyTheAuditedCpuResource();
     TestPrRefusesOtherRegistersBeforeOpeningOrMapping();
     TestPrClientOperatesThroughPhysicalAddressTranslation();
-	puts("mmio_test: 8 passed");
+	puts("mmio_test: 9 passed");
 	return 0;
 }

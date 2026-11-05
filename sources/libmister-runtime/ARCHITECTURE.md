@@ -47,8 +47,8 @@ independently. A third member, strict static metadata and a separate
 Recheck hashes both retained descriptors again, including persona size and file
 type. Shared fixtures cover cross-reader identity and refusal, while the
 programming registry deliberately has no static-computer row yet. Parsing does
-not select a driver or call `ProgramStatic`. Owned bounded backend construction,
-normal library production and physical qualification remain required.
+not select a driver or call `ProgramStatic`. Sealed package export, production
+profile admission and physical qualification remain required.
 
 `OpenCoreStaticComposition` independently recomputes the format5 default or
 format2 selected-persona receipt. A selected asset must use the canonical
@@ -74,6 +74,24 @@ receipt is retained in active status and cleared by ordinary Stop. Native
 admission verifies the selected files independently. The profile remains
 unregistered, and `LoadCoreInternal` has an explicit unavailable-backend guard
 before physical work even if a future registry change admits the descriptor.
+
+The programmer's internal cold-start entry point owns its CSR mapping, rather
+than borrowing the process-wide computer mapping. It constructs a fresh
+`LinuxMmio` and the allowlisted `De25PrMmio` only after successfully applying the
+full base. The mapping spans the containing OS page; only the eleven declared
+PR reads and two command writes are reachable. Each access revalidates the
+maintenance lease, absolute deadline, exclusive overlay directory and exact
+applied base bytes/status. Once the initial persona is known, its overlay is
+checked too. No guarded access can continue after its first error.
+
+The serialized programmer owns that mapping until startup completes or fails.
+It explicitly closes it before returning and checks the deadline afterward.
+`LinuxMmio::Close` ends access permanently, unmaps/closes once, and retains any
+cleanup error; destruction does not retry it. An uncertain cleanup poisons the
+programmer and retains both images, just like a programming/control failure.
+The borrowed-CSR overload and syscall injection are test-only and absent from
+the production archive. This supplies resource lifetime and software bounds,
+without qualifying physical clocks/bridges or registering the static profile.
 
 `LinuxDe25FpgaManager` implements `FpgaManager` for the selected
 `de25_hps_first_v1` computer and `de25_linux_menu_v1` application profiles.
