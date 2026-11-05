@@ -36,6 +36,7 @@ type Grant = contract.Grant
 type Manager struct {
 	mu                          sync.Mutex
 	ttl                         time.Duration
+	localHost                   bool
 	cleanup                     func(context.Context) error
 	status                      Status
 	claim                       ClaimRequest
@@ -145,12 +146,16 @@ func (m *Manager) recordLocked(kind, severity string, detail map[string]any) {
 	})
 }
 func (m *Manager) renewLocked() {
-	m.status.ExpiresAt = time.Now().Add(m.ttl)
+	ttl := m.ttl
+	if m.localHost && ttl < 10*time.Minute {
+		ttl = 10 * time.Minute
+	}
+	m.status.ExpiresAt = time.Now().Add(ttl)
 	if m.timer != nil {
 		m.timer.Stop()
 	}
 	generation := m.status.Generation
-	m.timer = time.AfterFunc(m.ttl, func() {
+	m.timer = time.AfterFunc(ttl, func() {
 		m.mu.Lock()
 		defer m.mu.Unlock()
 		if m.status.Generation == generation {
@@ -197,6 +202,43 @@ func (m *Manager) Claim(r ClaimRequest) (Grant, error) {
 	})
 	return grant, nil
 }
+
+// ClaimLocal grants the authenticated kit-local host a lease that can be
+// recovered after the host process restarts. Remote owners use Claim instead.
+func (m *Manager) ClaimLocal() (Grant, error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	m.expireLocked()
+	if m.closed || m.executionFence || m.status.State == "blocked" {
+		return Grant{}, ErrBlocked
+	}
+	if m.status.State == "held" && m.localHost {
+		m.renewLocked()
+		return Grant{Status: m.snapshotLocked(), Token: m.token}, nil
+	}
+	if m.status.State != "free" || m.queuedMaintenance != nil {
+		return Grant{}, ErrBusy
+	}
+	m.pending, m.pendingReady = nil, ""
+	m.localHost = true
+	grant := m.grantLocked(ClaimRequest{RequestID: secret(), Owner: "fogcast@kit", Purpose: "local host session"})
+	m.recordLocked(flightdiag.KindLeaseClaim, "ok", map[string]any{"owner": m.claim.Owner, "purpose": m.claim.Purpose})
+	return grant, nil
+}
+
+// ResumeLocal returns only a still-held local-host grant; it never claims a
+// free kit or returns a remote owner's token.
+func (m *Manager) ResumeLocal() (Grant, error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	m.expireLocked()
+	if m.closed || m.status.State != "held" || !m.localHost {
+		return Grant{}, ErrLease
+	}
+	m.renewLocked()
+	return Grant{Status: m.snapshotLocked(), Token: m.token}, nil
+}
+
 func (m *Manager) ownsLocked(token string) bool {
 	return token != "" && m.token != "" && subtle.ConstantTimeCompare([]byte(token), []byte(m.token)) == 1
 }
@@ -364,6 +406,7 @@ func (m *Manager) revokeLocked(reason string) {
 	if m.status.State == "revoking" {
 		return
 	}
+	m.localHost = false
 	m.status.State = "revoking"
 	m.status.Reason = reason
 	m.recordLocked(flightdiag.KindFenceOwnership, "warn", map[string]any{"reason": reason})

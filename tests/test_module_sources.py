@@ -89,6 +89,16 @@ class ModuleSourcesTest(unittest.TestCase):
             "dirty": False,
         })
 
+    def test_ad_hoc_target_agent_binary_is_ignored_and_not_tracked(self):
+        path = "sources/FogCast/mister-agent"
+        ignored = subprocess.run(
+            ["git", "check-ignore", "--quiet", "--no-index", path],
+            cwd=REPO, check=False,
+        )
+        self.assertEqual(ignored.returncode, 0, "ad-hoc target-agent binary must be ignored")
+        tracked = git(REPO, "ls-files", "--", path)
+        self.assertEqual(tracked, "", "ad-hoc target-agent binary must not be tracked")
+
     def test_unrelated_parent_changes_do_not_dirty_module_or_enter_snapshot(self):
         (self.root / "README.md").write_text("uncommitted parent\n")
         (self.root / "scratch").write_text("untracked parent\n")

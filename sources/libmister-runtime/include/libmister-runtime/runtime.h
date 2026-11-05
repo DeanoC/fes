@@ -656,7 +656,7 @@ public:
  Error PresentMenuFrame(std::uint64_t,MenuFrame&,MenuDisplayInfo*);
 	Status status() const;
 	Error LoadCore(const std::string& directory,
-		const std::string& expected_package_id);
+		const std::string& expected_package_id, const InitialComputerMedia* initial_media = nullptr);
 	// The game ID keys a fes.computer package's per-game record.
 	Error LoadLibraryCore(const std::string&, const std::string&, const std::string&,
 		const std::string& game_id = "", const AtaDiskImage* disk = nullptr);
@@ -697,10 +697,12 @@ public:
 	Error LoadComputerMediaStream(const std::string& path,
 		const std::string& expected_package_id, std::uint64_t expected_generation,
 		std::uint32_t size);
-	// fes.computer: complete HID snapshot; the driver writes only changed rows.
 	// Relative motion is transient; an unconfirmed delivery must not be retried.
 	Error SendMouseRelative(const std::string& package_id, std::uint64_t generation,
 		std::int16_t dx, std::int16_t dy, std::uint8_t buttons);
+	// fes.computer: complete HID snapshot. The driver clears all nine rows if
+	// prior state is unknown, then applies releases before makes; a mixed row may
+	// be written twice.
 	Error SetKeyboardHid(const std::string& package_id, std::uint64_t generation,
 		const KeyboardHidRows& rows);
 	// fes.computer: live transfer into one declared media unit without holding

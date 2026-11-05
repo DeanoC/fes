@@ -16,12 +16,14 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/DeanoC/FogCast/corepackage"
 	"github.com/DeanoC/FogCast/internal/agent"
 	"github.com/DeanoC/FogCast/internal/agentconfig"
 	"github.com/DeanoC/FogCast/internal/appliancedata"
 	"github.com/DeanoC/FogCast/internal/applianceupdate"
 	"github.com/DeanoC/FogCast/internal/buildinputs"
 	"github.com/DeanoC/FogCast/internal/cast"
+	"github.com/DeanoC/FogCast/internal/kitmemory"
 
 	"github.com/DeanoC/FogCast/internal/discovery"
 	"github.com/DeanoC/FogCast/internal/flightdiag"
@@ -45,7 +47,6 @@ const (
 	targetCacheActiveRecord = "/run/fogcast-active.json"
 	meshContentRoot         = "/media/fat/fogcast/mesh-content"
 	launcherConfigPath      = "/media/fat/fogcast/launcher.json"
-	installedPackageRoot    = "/usr/share/mister-runtime/core-packages"
 	installedSelectionRoot  = "/usr/share/mister-runtime/selections"
 	developmentRBFPath      = "/tmp/fogcast-development/core.rbf"
 	developmentCoreRoot     = "/tmp/fogcast-development/core-packages"
@@ -310,6 +311,9 @@ func observeRuntimeInput(ctx context.Context, runtime *misterruntime.Runtime) (i
 
 func newNativeRuntime(control misterruntime.Control, rebootPath string) *misterruntime.Runtime {
 	_ = os.MkdirAll(developmentCoreRoot, 0o700)
+	// A crash between spooling a launch body and closing it leaves the
+	// spool in tmpfs. Nothing is launching yet, so every spool is stale.
+	_ = corepackage.RemoveSpools(developmentCoreRoot)
 	// The fixed target data root outlives package staging and image updates.
 	// The runtime validates storage access and refuses launch/update if this failed.
 	_ = os.MkdirAll(misterruntime.CoreDataRoot, 0o700)
@@ -440,7 +444,7 @@ func runWithDependencies(ctx context.Context, configPath string, logger *slog.Lo
 			if cfg.MeshContent {
 				roots := dependencies.packageRoots
 				if roots == nil {
-					roots = []string{installedPackageRoot, developmentCoreRoot}
+					roots = []string{kitpackages.FactoryRoot, developmentCoreRoot}
 				}
 				meshStore.SetPackageRoots(roots)
 				if packages != nil {
@@ -560,7 +564,7 @@ func runWithDependencies(ctx context.Context, configPath string, logger *slog.Lo
 		}
 		cores := localcores.New(leases, nativeLocalRuntime{runtime: native, program: localProgram}, localcores.Roots{
 			Selections: installedSelectionRoot,
-			Packages:   installedPackageRoot,
+			Packages:   kitpackages.FactoryRoot,
 		})
 		if localUpdater != nil {
 			cores.SetAdmission(localUpdater.BeginOperation)
@@ -681,6 +685,7 @@ func main() {
 		_, _ = fmt.Fprintln(os.Stdout, maintenanceContract)
 		return
 	}
+	kitmemory.SetLimit(kitmemory.Agent)
 	logger := slog.New(slog.NewJSONHandler(os.Stdout, nil))
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()

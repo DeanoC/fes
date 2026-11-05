@@ -85,14 +85,19 @@ func (c *cartridgeControl) LoadROMLinkedCore(_ context.Context, path, packageID,
 	}
 	c.programmed = append([]byte(nil), programmed...)
 	c.link = link
+	inspection, err := corepackage.InspectPackage(path)
+	if err != nil {
+		return misterruntime.Protocol2Response{}, err
+	}
 	generation := uint64(1)
 	return misterruntime.Protocol2Response{
 		Protocol: 2, OK: true, State: "running_development", Execution: "development", Version: "test",
 		Generation:   &generation,
 		Capabilities: misterruntime.Protocol2Capabilities{ROMLinking: 1},
 		ActivePackage: &misterruntime.Protocol2ActivePackage{
-			PackageID: packageID,
-			ROMLink:   &link,
+			PackageID:  packageID,
+			Descriptor: inspection.Descriptor,
+			ROMLink:    &link,
 		},
 	}, nil
 }

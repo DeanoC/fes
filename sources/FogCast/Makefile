@@ -135,7 +135,7 @@ build-remote-play-audiobridge:
 
 build-fogcast-kit:
 	mkdir -p bin
-	CGO_ENABLED=0 GOOS=linux GOARCH=arm GOARM=7 go build -trimpath -ldflags '$(FOGCAST_LDFLAGS)' -o bin/fogcast-kit-linux-armv7 ./cmd/fogcast-kit
+	CGO_ENABLED=0 GOOS=linux GOARCH=arm GOARM=7 go build -trimpath -ldflags '$(FOGCAST_LDFLAGS)' -o bin/fogcast-kit-linux-armv7 ./cmd/fogcast-api
 
 build-fogcast-tenfoot-kit:
 	mkdir -p bin

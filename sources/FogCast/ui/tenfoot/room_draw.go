@@ -257,6 +257,8 @@ func drawRoomDestination(dev gfx.Device, snap Snapshot, labels map[string]gpuTex
 	switch d.Kind {
 	case rooms.KindRoom:
 		meta = "ROOM"
+	case rooms.KindFamily:
+		meta = "COMPUTER"
 	case rooms.KindLibrary:
 		meta = "LIBRARY"
 	case rooms.KindUnresolved:
@@ -449,6 +451,15 @@ func drawRoomChrome(dev gfx.Device, snap Snapshot, labels map[string]gpuTexture,
 	}
 	if snap.Room.Hero {
 		drawHeroChrome(dev, snap, labels, used)
+		return
+	}
+	if snap.Room.NoPanel {
+		// The room draws its own footer hint; only a condition the player
+		// can act on goes on the left of that band.
+		if line := heroFooterStatus(snap); line != "" {
+			footer := max(44, snap.Room.Height*7/100)
+			drawFESLabel(dev, labels, used, "nopanel-status", snap.Room.OffsetX+16, snap.Room.OffsetY+snap.Room.Height-footer+12, snap.Room.Width/2, 18, line)
+		}
 		return
 	}
 	g := snap.Grid

@@ -31,7 +31,9 @@
 //        [--cycles-per-instruction N] [--prompt TEXT] [--type TEXT] [--expect TEXT]
 //        [--trace F] [--frames DIR] [--pixel-from S] [--until-debug TEXT]
 //        [--type-at S] [--key-gap S] [--wav F] [--opl2-log F] [--keys S:TEXT]... [--cpu oracle|rtl]
-//        [--census F]
+//        [--preset N] [--frequency N] [--turbo N]
+//        [--mouse S:DX,DY,BUTTONS]...
+//        [--census F] [--profile F] [--profile-from S] [--profile-to S]
 // A program on the disk marks a picture by writing "SNAP <name>" and a newline
 // to port E9h, then holding it; the bench takes the second capture after the
 // marker, runs the pixel clock for two 720p frames and compares the second
@@ -40,25 +42,54 @@
 // equal one of them exactly. --frames writes the capture and the 720p frame. --until-debug ends the run when a debug line
 // contains the text.
 // --type-at types the --type text at that simulated time instead of at the
-// prompt (for a program that runs as the shell); --key-gap is applied after
-// each byte unless the next byte is the 0xf0 break prefix (default 0.03 s).
+// prompt (for a program that runs as the shell). Keys are fes.keyboard.hid
+// rows on the machine's keyboard_rows, a shifted character's Shift in the
+// same change: each --type character is held --key-gap (default 0.03 s) and
+// released for as long; each --keys character is held 0.2 s and released for
+// 0.1 s. In both, <up>, <down>, <left>, <right>, <f1>, <del> and <home> name
+// keys. --mouse sends one fes.mouse.relative packet at that time (dy
+// screen-down), as the mailbox delivers it.
 // PC386_TRACE_IO=1 prints every I/O but port 80h to stderr.
+// --preset, --frequency and --turbo are --cpu rtl's governor settings
+// (fes_i386_governor; fes.pc386.machine words 0, 1 and 3), max by default.
 //
 // --cpu rtl runs fes_i386_cpu in the oracle's place, clocked with the
 // machine at the system clock (RtlCpu), with its caches on HPS DDR port 0
 // (pc386_ddr_model.h's Port0) and the machine's MMIO, DMA and FLUSH ports
-// wired to it. An encoding it has
+// wired to it. What it has
 // not built stops it; the bench prints the stop, runs that one instruction
 // on the oracle from the RTL's state, and restarts the RTL from the oracle's
-// state after it, or after the whole stretch the oracle runs in protected
-// mode or V86. It prints, besides the lines above:
+// state after it, or after the whole stretch the oracle runs where the RTL
+// cannot: above CPL 0, with paging, or in V86. A shutdown of the RTL is the
+// machine's CPU reset, as an AT makes it. It prints, besides the lines above:
 //   STOP <kind> <cycle> <cs>:<eip> <bytes> <stem>   the first stops of each stem
-//   PMODE <from> <to> <steps> <entry cs:eip> <exit cs:eip>   a stretch on the oracle
+//   SHUTDOWN <cycle> <cs>:<eip>                      the RTL shut down
+//   PMODE <from> <to> <steps> <entry cs:eip> <exit cs:eip>   a stretch on the oracle with PE set
 //   GAP <kind> <stem> <stops> <sites> <executed> <first cs:eip> <first cycle>
 //   RTL <counter>=<n> ...                       retirements, oracle steps, waits
 // --census F writes each stem the oracle retired, its count and its first
-// CS:EIP to F, ":pm" after a stem run in protected mode or V86: the whole
-// boot's instruction mix with the oracle as the CPU, the RTL's stops with it.
+// CS:EIP to F, ":pm<CPL>" after a stem run in protected mode and ":v86" in
+// V86: the whole boot's instruction mix with the oracle as the CPU, the RTL's
+// stops with it. With PE set it also counts each event the oracle delivered
+// (event:<kind>:<vector>:gate=<type>:dpl=<n>:sel=<selector>[:err=<code>]:
+// cpl=<before>><after>, the gate read from the IDT unless paging is on),
+// each CPL change an instruction made (cpl:<before>><after>:<stem>), and
+// the stems that changed PG, set VM, loaded LDTR or TR, or changed IOPL.
+// --profile F (with --cpu oracle) writes where the oracle's steps from
+// --profile-from seconds to --profile-to seconds (default 0 and the end of the
+// run) went, when the window closes:
+//   WINDOW <from> <to> steps=<n> clocks=<n> rm=<n> pm=<n> v86=<n>
+//   SITE <linear> <rm|pm|v86> <steps> <clocks> <first cs:eip> <bytes>   most clocks first
+//   INT <event> <calls> <steps> <clocks> <fewest> <most>
+//   STRETCH <event> <stretches> <steps> <clocks> <fewest> <most>
+// A step's clocks run from its start to the next, a halt's wait included; a
+// step that only stays halted adds its clocks and no step.
+// INT is each interrupt delivered in real mode ("intvv.ah" for INT vv with
+// that AH, "irqvv", "excvv", "nmi"), with the steps and clocks from its
+// delivery to the IRET to the stack and CS:IP it interrupted, its handler's
+// own interrupts included; fewest and most are steps. STRETCH is each run of
+// real-mode steps between protected-mode or V86 ones, by its first software
+// interrupt, else its first IRQ, else "none".
 #include "Vpc386_machine.h"
 #include "Vpc386_machine___024root.h"
 #include "Vfes_i386_cpu.h"
@@ -71,6 +102,7 @@
 #include "smc_stale.h"
 #include "verilated.h"
 
+#include <algorithm>
 #include <cstdint>
 #include <cstdio>
 #include <cstdlib>
@@ -85,6 +117,7 @@
 #include <stdexcept>
 #include <string>
 #include <tuple>
+#include <unordered_map>
 #include <utility>
 #include <vector>
 
@@ -101,26 +134,53 @@ std::vector<uint8_t> read_file(const std::string &path) {
     return std::vector<uint8_t>(std::istreambuf_iterator<char>(input), {});
 }
 
-// Set 2 make codes for the characters --type can send. Shifted characters
-// set the bool.
-bool set2(char c, uint8_t &code, bool &shift) {
+// The HID usages of the characters --type and --keys can send: E0h is left
+// Control and E1h left Shift. Shifted characters set the bool.
+bool hid(char c, uint8_t &usage, bool &shift) {
     static const std::map<char, uint8_t> plain = {
-        {'a', 0x1c}, {'b', 0x32}, {'c', 0x21}, {'d', 0x23}, {'e', 0x24}, {'f', 0x2b}, {'g', 0x34},
-        {'h', 0x33}, {'i', 0x43}, {'j', 0x3b}, {'k', 0x42}, {'l', 0x4b}, {'m', 0x3a}, {'n', 0x31},
-        {'o', 0x44}, {'p', 0x4d}, {'q', 0x15}, {'r', 0x2d}, {'s', 0x1b}, {'t', 0x2c}, {'u', 0x3c},
-        {'v', 0x2a}, {'w', 0x1d}, {'x', 0x22}, {'y', 0x35}, {'z', 0x1a}, {'0', 0x45}, {'1', 0x16},
-        {'2', 0x1e}, {'3', 0x26}, {'4', 0x25}, {'5', 0x2e}, {'6', 0x36}, {'7', 0x3d}, {'8', 0x3e},
-        {'9', 0x46}, {' ', 0x29}, {'\n', 0x5a}, {'.', 0x49}, {'\\', 0x5d}, {'/', 0x4a}, {'-', 0x4e},
-        {';', 0x4c}, {',', 0x41}, {'=', 0x55}};
+        {'0', 0x27}, {' ', 0x2c}, {'\n', 0x28}, {'.', 0x37}, {'\\', 0x31}, {'/', 0x38}, {'-', 0x2d},
+        {';', 0x33}, {',', 0x36}, {'=', 0x2e}};
     shift = false;
     if (c >= 'A' && c <= 'Z') { shift = true; c = char(c - 'A' + 'a'); }
     if (c == ':') { shift = true; c = ';'; }
-    if (c == '~') { code = 0x76; return true; }      // Esc
-    if (c == '^') { code = 0x14; return true; }      // left Ctrl
+    if (c >= 'a' && c <= 'z') { usage = uint8_t(0x04 + (c - 'a')); return true; }
+    if (c >= '1' && c <= '9') { usage = uint8_t(0x1e + (c - '1')); return true; }
+    if (c == '~') { usage = 0x29; return true; }     // Esc
+    if (c == '^') { usage = 0xe0; return true; }     // left Ctrl
     auto found = plain.find(c);
     if (found == plain.end()) return false;
-    code = found->second;
+    usage = found->second;
     return true;
+}
+
+// TEXT as key taps: characters, and the named keys in angle brackets.
+std::vector<std::pair<uint8_t, bool>> taps(const std::string &text) {
+    static const std::map<std::string, uint8_t> named = {
+        {"up", 0x52}, {"down", 0x51}, {"left", 0x50}, {"right", 0x4f}, {"f1", 0x3a}, {"del", 0x4c},
+        {"home", 0x4a}};
+    std::vector<std::pair<uint8_t, bool>> result;
+    for (size_t n = 0; n < text.size(); ++n) {
+        uint8_t usage; bool shift = false;
+        size_t close = text[n] == '<' ? text.find('>', n) : std::string::npos;
+        if (close != std::string::npos && named.count(text.substr(n + 1, close - n - 1))) {
+            usage = named.at(text.substr(n + 1, close - n - 1));
+            n = close;
+        } else if (!hid(text[n], usage, shift)) throw std::runtime_error("cannot type that");
+        result.push_back({usage, shift});
+    }
+    return result;
+}
+
+// One change of the keyboard rows, held for `hold` clocks before the next.
+struct KeyChange {
+    uint8_t usage;
+    bool shift, down;
+    uint64_t hold;
+};
+void set_key(VlWide<5> &rows, uint8_t usage, bool down) {
+    unsigned bit = usage >= 0xe0 ? 128u + (usage - 0xe0) : usage;
+    if (down) rows[bit / 32] |= 1u << (bit % 32);
+    else rows[bit / 32] &= ~(1u << (bit % 32));
 }
 
 pc386::PortSignals port1(Vpc386_machine &top) {
@@ -558,6 +618,9 @@ public:
     Machine &m;
     uint64_t retired = 0;        // instructions the RTL retired
     uint64_t tf_retired = 0;     // ... with TF set, which the RTL does not trap on
+    uint64_t pe_retired = 0;     // ... leaving CR0.PE set
+    uint64_t pe_entries = 0;     // retirements that set CR0.PE
+    bool pe = false;
     uint64_t parked_clocks = 0;  // clocks only the machine ran (see run)
     uint64_t vga_loads = 0;      // MMIO reads the VGA took
     uint64_t replays = 0;        // instructions restarted for an MMIO load not the oldest
@@ -591,6 +654,21 @@ public:
         cpu.init_eflags = s.eflags;
         cpu.init_eip = s.eip;
         cpu.init_cr0 = s.cr0;
+        cpu.init_cr2 = s.cr2;
+        cpu.init_cr3 = s.cr3;
+        cpu.init_gdtr_base = s.gdtr.base;
+        cpu.init_gdtr_limit = s.gdtr.limit;
+        cpu.init_idtr_base = s.idtr.base;
+        cpu.init_idtr_limit = s.idtr.limit;
+        cpu.init_ldtr_sel = s.ldtr.selector;
+        cpu.init_ldtr_base = s.ldtr.base;
+        cpu.init_ldtr_limit = s.ldtr.limit;
+        cpu.init_ldtr_ar = s.ldtr.ar;
+        cpu.init_ldtr_valid = s.ldtr.valid;
+        cpu.init_tr_sel = s.tr.selector;
+        cpu.init_tr_base = s.tr.base;
+        cpu.init_tr_limit = s.tr.limit;
+        cpu.init_tr_ar = s.tr.ar;
         for (int n = 0; n < 6; ++n) {
             set16(cpu.init_sel, n, s.seg[n].selector);
             cpu.init_base[n] = s.seg[n].base;
@@ -598,6 +676,7 @@ public:
             set16(cpu.init_ar, n, s.seg[n].ar);
         }
         cpu.nmi = 0;
+        shutdown_told = false;
         m.cpu_memory = true;
         cpu.reset = 1;
         resetting = true;
@@ -614,18 +693,28 @@ public:
     fes_i386::State state(fes_i386::State s) const {
         for (int n = 0; n < 8; ++n) s.gpr[n] = cpu.arch_gpr[n];
         s.eflags = cpu.arch_eflags & 0x3ffff;
-        s.cr0 = (s.cr0 & ~0xau) | (cpu.arch_cr0 & 0xau);
+        // CR0's ET is the RTL's (an empty socket), which Bochs's 387 sets.
+        s.cr0 = (s.cr0 & 0x10u) | (cpu.arch_cr0 & ~0x10u);
+        s.cr2 = cpu.arch_cr2;
+        s.cr3 = cpu.arch_cr3;
+        s.gdtr = {cpu.arch_gdtr_base, uint16_t(cpu.arch_gdtr_limit)};
+        s.idtr = {cpu.arch_idtr_base, uint16_t(cpu.arch_idtr_limit)};
+        s.ldtr = {uint16_t(cpu.arch_ldtr_sel), cpu.arch_ldtr_base, cpu.arch_ldtr_limit, uint16_t(cpu.arch_ldtr_ar),
+                  bool(cpu.arch_ldtr_valid)};
+        s.tr = {uint16_t(cpu.arch_tr_sel), cpu.arch_tr_base, cpu.arch_tr_limit, uint16_t(cpu.arch_tr_ar), s.tr.valid};
+        s.cpl = 0;  // no privilege transition is built
         s.eip = cpu.arch_eip;
         for (int n = 0; n < 6; ++n) {
             s.seg[n].selector = get16(cpu.arch_sel, n);
             s.seg[n].base = cpu.arch_base[n];
             s.seg[n].limit = cpu.arch_limit[n];
             s.seg[n].ar = get16(cpu.arch_ar, n);
+            s.seg[n].valid = (s.seg[n].ar & 0x80) != 0;  // only a null selector's load clears P
         }
         return s;
     }
 
-    enum class Event { Budget, Stopped, HaltedForGood, Reset, Stall };
+    enum class Event { Budget, Stopped, HaltedForGood, Reset, Stall, Shutdown };
     // Up to budget clocks, until the CPU stops, the machine resets it, or
     // nothing retires for STALL_CLOCKS. The CPU parks once it has made no
     // request on any port for PARK_CLOCKS, with its memory idle (so it is
@@ -636,7 +725,11 @@ public:
     Event run(unsigned budget) {
         for (unsigned n = 0; n < budget; ++n) {
             if (cpu.trace_unimplemented) return Event::Stopped;
-            if (cpu.trace_halt && !(cpu.arch_eflags & 0x200)) return Event::HaltedForGood;
+            if (cpu.shutdown && !shutdown_told) {
+                shutdown_told = true;
+                return Event::Shutdown;
+            }
+            if (cpu.trace_halt && !cpu.shutdown && !(cpu.arch_eflags & 0x200)) return Event::HaltedForGood;
             const bool waiting = io == Pending::Issued || inta == Pending::Issued;
             const bool asleep = cpu.trace_halt && io == Pending::Idle && inta == Pending::Idle && !m.top.intr;
             if (still >= PARK_CLOCKS && cpu.trace_mem_idle && port0.idle() && !m.top.dma_valid
@@ -800,6 +893,8 @@ public:
             ++retired;
             last_retire = m.cycles;
             if (cpu.arch_eflags & 0x100) ++tf_retired;
+            if (cpu.arch_cr0 & 1) { ++pe_retired; if (!pe) ++pe_entries; }
+            pe = cpu.arch_cr0 & 1;
             const uint32_t start = retire_next;
             retire_next = physical(cpu.arch_base[fes_i386::SEG_CS] + cpu.arch_eip, a20m);
             uint32_t byte = 0;
@@ -816,6 +911,7 @@ private:
     enum class Pending { Idle, Want, Issued, Done };
     Pending io = Pending::Idle, inta = Pending::Idle;
     bool resetting = false;
+    bool shutdown_told = false;  // Event::Shutdown went out for this shutdown
     bool io_write = false;
     uint16_t io_port = 0;
     unsigned io_length = 1;
@@ -931,6 +1027,130 @@ struct Gap {
     std::set<uint32_t> sites;
 };
 
+// --profile: the oracle's steps by site, its real-mode interrupts until they
+// return, and its real-mode stretches.
+struct Profile {
+    struct Site { uint64_t steps = 0, clocks = 0; std::string first, bytes; };
+    struct Tally {
+        uint64_t count = 0, steps = 0, clocks = 0, fewest = ~0ull, most = 0;
+        void add(uint64_t n, uint64_t c) {
+            ++count; steps += n; clocks += c;
+            fewest = std::min(fewest, n); most = std::max(most, n);
+        }
+    };
+    // An interrupt delivered in real mode: the frame it pushed, and the
+    // profile's totals before its delivery.
+    struct Open { std::string event; uint16_t cs, ip, ss, sp; uint64_t steps, clocks; };
+    uint64_t from = 0, to = ~0ull;
+    bool written = false;
+    std::unordered_map<uint64_t, Site> sites;  // the mode above the linear address
+    std::map<std::string, Tally> interrupts, stretches;
+    std::vector<Open> open;
+    uint64_t steps = 0, clocks = 0, mode_steps[3] = {};
+    bool in_stretch = false;
+    std::string stretch_interrupt, stretch_irq;
+    uint64_t stretch_steps = 0, stretch_clocks = 0;
+
+    static unsigned mode(const fes_i386::State &s) { return s.eflags & 0x20000 ? 2 : s.cr0 & 1 ? 1 : 0; }
+
+    void end_stretch() {
+        if (!in_stretch) return;
+        stretches[!stretch_interrupt.empty() ? stretch_interrupt : !stretch_irq.empty() ? stretch_irq : "none"]
+            .add(stretch_steps, stretch_clocks);
+        in_stretch = false;
+    }
+
+    // One oracle step from `before` to `after`, `step_clocks` long; `byte`
+    // reads guest memory by linear address.
+    void step(const fes_i386::State &before, const fes_i386::State &after, const fes_i386::StepResult &result,
+              uint64_t step_clocks, const std::function<uint8_t(uint32_t)> &byte) {
+        const unsigned m = mode(before);
+        const uint16_t cs = uint16_t(before.seg[fes_i386::SEG_CS].selector), ip = uint16_t(before.eip);
+        const uint16_t ss = uint16_t(before.seg[fes_i386::SEG_SS].selector);
+        const uint16_t sp = uint16_t(before.gpr[fes_i386::REG_ESP]);
+        if (m == 0) {
+            // An interrupt's IRET: back at the frame it pushed. Any opened
+            // since that never returned are dropped.
+            for (size_t n = open.size(); n-- > 0;) {
+                const Open &o = open[n];
+                if (o.cs != cs || o.ip != ip || o.ss != ss || o.sp != sp) continue;
+                interrupts[o.event].add(steps - o.steps, clocks - o.clocks);
+                open.resize(n);
+                break;
+            }
+        }
+        const bool idle = result.halted && !result.retired && result.events.empty();
+        const uint32_t linear = before.seg[fes_i386::SEG_CS].base + before.eip;
+        Site &site = sites[uint64_t(m) << 32 | linear];
+        if (site.first.empty()) {
+            char text[24];
+            std::snprintf(text, sizeof text, "%04x:%08x", cs, before.eip);
+            site.first = text;
+            for (unsigned n = 0; n < 15; ++n) {
+                std::snprintf(text, sizeof text, "%02x", byte(linear + n));
+                site.bytes += text;
+            }
+        }
+        site.steps += !idle;
+        site.clocks += step_clocks;
+        steps += !idle;
+        clocks += step_clocks;
+        mode_steps[m] += !idle;
+        if (m == 0) {
+            if (!in_stretch) {
+                in_stretch = true;
+                stretch_interrupt.clear(); stretch_irq.clear();
+                stretch_steps = stretch_clocks = 0;
+            }
+            stretch_steps += !idle;
+            stretch_clocks += step_clocks;
+        } else end_stretch();
+        if (result.events.empty() || m != 0 || mode(after) != 0) return;
+        const fes_i386::Event &event = result.events.back();
+        char text[24];
+        if (event.kind == fes_i386::EventKind::SoftwareInterrupt)
+            std::snprintf(text, sizeof text, "int%02x.%02x", event.vector,
+                          unsigned(before.gpr[fes_i386::REG_EAX] >> 8) & 0xff);
+        else if (event.kind == fes_i386::EventKind::ExternalInterrupt) std::snprintf(text, sizeof text, "irq%02x", event.vector);
+        else if (event.kind == fes_i386::EventKind::Exception) std::snprintf(text, sizeof text, "exc%02x", event.vector);
+        else std::snprintf(text, sizeof text, "nmi");
+        if (event.kind == fes_i386::EventKind::SoftwareInterrupt && stretch_interrupt.empty()) stretch_interrupt = text;
+        if (event.kind == fes_i386::EventKind::ExternalInterrupt && stretch_irq.empty()) stretch_irq = text;
+        // The frame: IP, CS and FLAGS at SS:SP.
+        const uint16_t top = uint16_t(after.gpr[fes_i386::REG_ESP]);
+        const uint32_t base = after.seg[fes_i386::SEG_SS].base;
+        auto word = [&](uint16_t at) { return uint16_t(byte(base + at) | byte(base + uint16_t(at + 1)) << 8); };
+        open.push_back({text, word(uint16_t(top + 2)), word(top), uint16_t(after.seg[fes_i386::SEG_SS].selector),
+                        uint16_t(top + 6), steps - 1, clocks - step_clocks});
+        if (open.size() > 64) open.erase(open.begin());
+    }
+
+    void write(const std::string &path, uint64_t end) {
+        end_stretch();
+        std::ofstream out(path);
+        out << "WINDOW " << from << ' ' << end << " steps=" << steps << " clocks=" << clocks << " rm=" << mode_steps[0]
+            << " pm=" << mode_steps[1] << " v86=" << mode_steps[2] << '\n';
+        std::vector<std::pair<uint64_t, const Site *>> order;
+        for (const auto &[key, site] : sites) order.push_back({key, &site});
+        std::sort(order.begin(), order.end(), [](const auto &a, const auto &b) {
+            return a.second->clocks != b.second->clocks ? a.second->clocks > b.second->clocks : a.first < b.first;
+        });
+        static const char *const modes[] = {"rm", "pm", "v86"};
+        for (const auto &[key, site] : order) {
+            char text[16];
+            std::snprintf(text, sizeof text, "%08x", uint32_t(key));
+            out << "SITE " << text << ' ' << modes[key >> 32] << ' ' << site->steps << ' ' << site->clocks << ' '
+                << site->first << ' ' << site->bytes << '\n';
+        }
+        for (const auto &[name, table] : {std::pair{"INT", &interrupts}, std::pair{"STRETCH", &stretches}})
+            for (const auto &[event, tally] : *table)
+                out << name << ' ' << event << ' ' << tally.count << ' ' << tally.steps << ' ' << tally.clocks << ' '
+                    << tally.fewest << ' ' << tally.most << '\n';
+        if (!out) throw std::runtime_error("cannot write " + path);
+        written = true;
+    }
+};
+
 // 48 kHz mono 16-bit PCM.
 void write_wav(const std::string &path, const std::vector<int16_t> &samples) {
     std::ofstream out(path, std::ios::binary);
@@ -946,11 +1166,80 @@ void write_wav(const std::string &path, const std::vector<int16_t> &samples) {
 
 struct Options {
     std::string bios, vgabios, disk, disk_out, prompt = "C:\\>", type, expect, trace, frames, until_debug;
-    std::string wav, opl2_log, cpu = "oracle", census;
-    double limit_seconds = 120, pixel_from = -1, type_at = -1, key_gap = 0.03;
+    std::string wav, opl2_log, cpu = "oracle", census, profile;
+    double limit_seconds = 120, pixel_from = -1, type_at = -1, key_gap = 0.03, profile_from = 0, profile_to = -1;
+    unsigned preset = 0, frequency = 0, turbo = 0;  // --cpu rtl's governor settings
     std::vector<std::pair<double, std::string>> keys;
+    struct Mouse { double at; int dx, dy, buttons; };
+    std::vector<Mouse> mouse;
     unsigned cycles_per_instruction = 4;
 };
+
+template <typename Top, typename Clock>
+bool mouse_cycle(Top &top, const Options::Mouse &packet, bool &pending, size_t &sent, Clock &&clock) {
+    if (!pending) pending = true;
+    // Keep the scheduled packet in the host queue until there is room. The
+    // machine may clock many times between calls here, so never leave valid
+    // asserted while ready is low or the same packet could be accepted again.
+    top.mouse_valid = 0;
+    top.eval();
+    if (!top.mouse_ready) { clock(); return false; }
+
+    top.mouse_dx = int8_t(packet.dx);
+    top.mouse_dy = int8_t(packet.dy);
+    top.mouse_buttons = uint8_t(packet.buttons);
+    top.mouse_valid = 1;
+    top.eval();
+    if (!top.mouse_ready) {
+        top.mouse_valid = 0;
+        top.eval();
+        clock();
+        return false;
+    }
+    clock();
+    top.mouse_valid = 0;
+    top.eval();
+    pending = false;
+    ++sent;
+    return true;
+}
+
+void mouse_input_self_test() {
+    struct FakeTop {
+        int mouse_valid = 0;
+        int8_t mouse_dx = 0, mouse_dy = 0;
+        uint8_t mouse_buttons = 0;
+        int mouse_ready = 0;
+        unsigned clocks = 0;
+        unsigned accepted = 0;
+        void eval() {}
+        void clock() {
+            if (mouse_valid && mouse_ready) ++accepted;
+            if (++clocks == 3) mouse_ready = 1;
+        }
+    } top;
+    const Options::Mouse packet{0, -7, 5, 1};
+    bool pending = false;
+    size_t sent = 0;
+    if (mouse_cycle(top, packet, pending, sent, [&] { top.clock(); }) ||
+        !pending || sent != 0 || top.mouse_valid)
+        throw std::runtime_error("mouse input was not held in the host queue while busy");
+    // Model the machine advancing outside mouse_cycle, as it does while an
+    // instruction or I/O access clocks the RTL. Ready rises during these
+    // clocks; a valid packet must not be accepted on every ready edge.
+    for (unsigned n = 0; n < 4; ++n) top.clock();
+    if (top.accepted != 0 || top.mouse_valid)
+        throw std::runtime_error("a busy mouse packet was accepted outside its driver step");
+    if (!mouse_cycle(top, packet, pending, sent, [&] { top.clock(); }) ||
+        pending || sent != 1 || top.mouse_valid || top.accepted != 1)
+        throw std::runtime_error("mouse packet was not accepted exactly once on a ready edge");
+    for (unsigned n = 0; n < 3; ++n) top.clock();
+    if (top.accepted != 1)
+        throw std::runtime_error("mouse packet remained valid after its ready edge");
+    if (top.mouse_dx != -7 || top.mouse_dy != 5 || top.mouse_buttons != 1)
+        throw std::runtime_error("mouse input changed while waiting for readiness");
+    std::printf("PASS machine mouse input is accepted once after readiness\n");
+}
 
 Options parse(int argc, char **argv) {
     Options options;
@@ -977,16 +1266,32 @@ Options parse(int argc, char **argv) {
         else if (flag == "--opl2-log") options.opl2_log = value;
         else if (flag == "--cpu") options.cpu = value;
         else if (flag == "--census") options.census = value;
+        else if (flag == "--profile") options.profile = value;
+        else if (flag == "--profile-from") options.profile_from = std::stod(value);
+        else if (flag == "--profile-to") options.profile_to = std::stod(value);
+        else if (flag == "--preset") options.preset = unsigned(std::stoul(value));
+        else if (flag == "--frequency") options.frequency = unsigned(std::stoul(value));
+        else if (flag == "--turbo") options.turbo = unsigned(std::stoul(value));
         else if (flag == "--keys") {
             size_t colon = value.find(':');
             if (colon == std::string::npos) throw std::runtime_error("--keys takes SECONDS:TEXT");
             options.keys.push_back({std::stod(value.substr(0, colon)), value.substr(colon + 1)});
+        }
+        else if (flag == "--mouse") {
+            Options::Mouse packet{};
+            if (std::sscanf(value.c_str(), "%lf:%d,%d,%d", &packet.at, &packet.dx, &packet.dy, &packet.buttons) != 4 ||
+                packet.dx < -128 || packet.dx > 127 || packet.dy < -128 || packet.dy > 127 ||
+                packet.buttons < 0 || packet.buttons > 3)
+                throw std::runtime_error("--mouse takes SECONDS:DX,DY,BUTTONS, each delta -128..127");
+            options.mouse.push_back(packet);
         }
         else throw std::runtime_error("unknown option " + flag);
     }
     if (options.bios.empty() || options.vgabios.empty() || options.disk.empty())
         throw std::runtime_error("--bios, --vgabios and --disk are required");
     if (options.cpu != "oracle" && options.cpu != "rtl") throw std::runtime_error("--cpu is oracle or rtl");
+    // With the RTL running, the oracle's steps are only its stops and stretches.
+    if (!options.profile.empty() && options.cpu != "oracle") throw std::runtime_error("--profile needs --cpu oracle");
     for (char &c : options.type) if (c == '|') c = '\n';
     for (auto &key : options.keys) for (char &c : key.second) if (c == '|') c = '\n';
     return options;
@@ -998,6 +1303,7 @@ int main(int argc, char **argv) {
     Verilated::commandArgs(argc, argv);
     std::setvbuf(stdout, nullptr, _IOLBF, 0);
     try {
+        mouse_input_self_test();
         if (RtlCpu::physical(0xffff0000u, false) != 0xf0000u
             || RtlCpu::physical(0xffffffffu, true) != 0xfffffu
             || RtlCpu::physical(0x00100000u, true) != 0u)
@@ -1018,6 +1324,10 @@ int main(int argc, char **argv) {
         std::unique_ptr<RtlCpu> rtl;
         if (options.cpu == "rtl") {
             rtl = std::make_unique<RtlCpu>(machine);
+            // The governor's settings, which each reset of the CPU samples.
+            rtl->cpu.gov_preset = uint8_t(options.preset);
+            rtl->cpu.gov_frequency = uint16_t(options.frequency);
+            rtl->cpu.gov_turbo = uint8_t(options.turbo);
             rtl->length = [&](uint32_t linear) {
                 uint8_t bytes[15];
                 for (unsigned n = 0; n < 15; ++n) bytes[n] = rtl->read8(linear + n);
@@ -1034,12 +1344,20 @@ int main(int argc, char **argv) {
         std::set<std::string> notes;
         std::map<std::string, uint64_t> census;
         std::map<std::string, std::string> census_first;
+        Profile profile;
+        profile.from = uint64_t(options.profile_from * CLOCK_HZ);
+        if (options.profile_to >= 0) profile.to = uint64_t(options.profile_to * CLOCK_HZ);
         auto site = [](const fes_i386::State &s) {
             char text[24];
             std::snprintf(text, sizeof text, "%04x:%08x", s.seg[fes_i386::SEG_CS].selector, s.eip);
             return std::string(text);
         };
         bool intr = false, a20m = false;
+        auto guest_byte = [&](uint32_t linear) {
+            const uint32_t at = RtlCpu::physical(linear, a20m);
+            uint8_t *page = machine.page(at, false);
+            return page ? page[at & 0xfff] : uint8_t(0xff);
+        };
         // An RTL stop: count it under its stem and hand the instruction at
         // CS:EIP, with the RTL's state, to the oracle.
         auto stop = [&](const char *kind) {
@@ -1081,9 +1399,14 @@ int main(int argc, char **argv) {
         // After the prompt appears, wait for the screen to settle, then type.
         uint64_t prompt_at = 0, settled_at = 0;
         size_t typed = 0;
-        std::vector<uint8_t> key_bytes;
-        std::deque<uint64_t> key_holds;
+        std::deque<KeyChange> keys;
         uint64_t next_key = 0;
+        bool mouse_pending = false;
+        size_t mouse_sent = 0;
+        auto mouse_due = [&] {
+            return mouse_sent < options.mouse.size() &&
+                   machine.cycles >= uint64_t(options.mouse[mouse_sent].at * CLOCK_HZ);
+        };
         size_t scheduled = 0;
         std::string last_screen;
         uint64_t screen_checked = 0;
@@ -1097,23 +1420,70 @@ int main(int argc, char **argv) {
 
         while (machine.cycles < limit) {
             if (on_oracle) {
+                const uint64_t step_from = machine.cycles;
+                const bool profiling = !options.profile.empty() && step_from >= profile.from && step_from < profile.to;
+                fes_i386::State before;
+                if (profiling || !options.census.empty()) before = oracle->get_state();
                 // The census: the stem at CS:EIP, counted if it retires.
                 std::string census_stem;
                 if (!options.census.empty()) {
-                    fes_i386::State state = oracle->get_state();
                     uint8_t bytes[15];
-                    const uint32_t linear = state.seg[fes_i386::SEG_CS].base + state.eip;
-                    for (unsigned n = 0; n < 15; ++n) {
-                        uint32_t at = RtlCpu::physical(linear + n, a20m);
-                        uint8_t *page = machine.page(at, false);
-                        bytes[n] = page ? page[at & 0xfff] : 0xff;
-                    }
+                    const uint32_t linear = before.seg[fes_i386::SEG_CS].base + before.eip;
+                    for (unsigned n = 0; n < 15; ++n) bytes[n] = guest_byte(linear + n);
                     census_stem = stem(bytes, 15);
-                    if ((state.cr0 & 1) || (state.eflags & 0x20000)) census_stem += ":pm";
-                    if (!census.count(census_stem)) census_first[census_stem] = site(state);
+                    if (before.eflags & 0x20000) census_stem += ":v86";
+                    else if (before.cr0 & 1) census_stem += ":pm" + std::to_string(before.cpl);
+                    if (!census.count(census_stem)) census_first[census_stem] = site(before);
                 }
                 fes_i386::StepResult result = oracle->step();
                 if (!census_stem.empty() && result.retired) ++census[census_stem];
+                if (!census_stem.empty() && (before.cr0 & 1)) {
+                    // Protected mode's use: each event with its gate and
+                    // the CPLs, each CPL change by its stem, and the
+                    // system state an instruction left changed.
+                    const fes_i386::State after = oracle->get_state();
+                    auto count = [&](const std::string &key) {
+                        if (!census.count(key)) census_first[key] = site(before);
+                        ++census[key];
+                    };
+                    auto hex = [](unsigned value, int digits) {
+                        char text[16];
+                        std::snprintf(text, sizeof text, "%0*x", digits, value);
+                        return std::string(text);
+                    };
+                    for (const fes_i386::Event &event : result.events) {
+                        static const char *kinds[] = {"exception", "intr", "nmi", "int"};
+                        std::string key = std::string("event:") + kinds[unsigned(event.kind)] + ':' +
+                                          std::to_string(event.vector);
+                        if (before.cr0 & 0x80000000u) {
+                            key += ":paged";
+                        } else {
+                            uint8_t gate[8] = {};
+                            const fes_i386::Table &idt = before.idtr;
+                            const uint32_t at = idt.base + event.vector * 8u;
+                            for (unsigned n = 0; n < 8; ++n) {
+                                uint8_t *page = machine.page(RtlCpu::physical(at + n, a20m), false);
+                                gate[n] = page ? page[(at + n) & 0xfff] : 0xff;
+                            }
+                            key += ":gate=" + hex(gate[5] & 0x1f, 2) + ":dpl=" + std::to_string((gate[5] >> 5) & 3) +
+                                   ":sel=" + hex(gate[2] | gate[3] << 8, 4);
+                        }
+                        if (event.kind == fes_i386::EventKind::Exception) key += ":err=" + hex(event.error_code, 4);
+                        key += ":cpl=" + std::to_string(before.cpl) + '>' + std::to_string(after.cpl);
+                        count(key);
+                    }
+                    if (after.cpl != before.cpl && result.events.empty())
+                        count("cpl:" + std::to_string(before.cpl) + '>' + std::to_string(after.cpl) + ':' +
+                              census_stem);
+                    if ((after.cr0 ^ before.cr0) & 0x80000000u) count("cr0.pg:" + census_stem);
+                    if (after.eflags & 0x20000) count("vm:" + census_stem);
+                    if (after.ldtr.selector != before.ldtr.selector)
+                        count("ldtr:" + hex(after.ldtr.selector, 4) + ':' + census_stem);
+                    if (after.tr.selector != before.tr.selector)
+                        count("tr:" + hex(after.tr.selector, 4) + ':' + census_stem);
+                    if ((after.eflags ^ before.eflags) & 0x3000)
+                        count("iopl:" + std::to_string((after.eflags >> 12) & 3) + ':' + census_stem);
+                }
                 ++steps;
                 for (unsigned n = 0; n < options.cycles_per_instruction; ++n) machine.clock();
                 if (machine.cycles >= pixel_from) machine.start_pixel_clock();
@@ -1122,7 +1492,7 @@ int main(int argc, char **argv) {
                     fes_i386::State state = oracle->get_state();
                     if (!(state.eflags & 0x200)) { reason = "halt-with-interrupts-off"; break; }
                     while (!machine.top.intr && machine.cycles < limit && !machine.cpu_reset_seen &&
-                           !(key_bytes.size() && machine.cycles >= next_key))
+                           !(keys.size() && machine.cycles >= next_key) && !mouse_pending && !mouse_due())
                         machine.clock();
                 }
                 if (machine.cpu_reset_seen) {
@@ -1131,17 +1501,23 @@ int main(int argc, char **argv) {
                     std::printf("CPU-RESET %llu\n", (unsigned long long)machine.cycles);
                     oracle->reset();
                 }
+                if (profiling) profile.step(before, oracle->get_state(), result, machine.cycles - step_from, guest_byte);
                 if (bool(machine.top.intr) != intr) { intr = machine.top.intr; oracle->set_intr(intr); }
                 if (bool(machine.top.a20m) != a20m) { a20m = machine.top.a20m; oracle->set_a20(!a20m); }
                 if (rtl) {
-                    // Back to the RTL once the oracle is in real mode again.
+                    // Back to the RTL once the oracle is where the RTL runs:
+                    // real mode, or protected mode at CPL 0 without paging
+                    // or V86. The oracle's steps with PE set (or VM) make a
+                    // stretch.
                     ++oracle_steps;
                     if (skipping && result.retired) ++skipping->executed;
                     skipping = nullptr;
                     fes_i386::State state = oracle->get_state();
-                    if ((state.cr0 & 1) || (state.eflags & 0x20000)) {
-                        if (!stretch_steps++) { stretch_from = machine.cycles; stretch_entry = site(state); }
-                    } else {
+                    if (((state.cr0 & 1) || (state.eflags & 0x20000)) && !stretch_steps++) {
+                        stretch_from = machine.cycles;
+                        stretch_entry = site(state);
+                    }
+                    if (!(state.eflags & 0x20000) && !(state.cr0 & 0x80000000u) && (!(state.cr0 & 1) || state.cpl == 0)) {
                         if (stretch_steps) {
                             std::printf("PMODE %llu %llu %llu %s %s\n", (unsigned long long)stretch_from,
                                         (unsigned long long)machine.cycles, (unsigned long long)stretch_steps,
@@ -1149,10 +1525,6 @@ int main(int argc, char **argv) {
                             protected_steps += stretch_steps;
                             stretch_steps = 0;
                         }
-                        // What the RTL cannot take from the oracle's state.
-                        if (state.idtr.base != 0 || state.idtr.limit != 0xffff)
-                            notes.insert("real-mode IDTR moved");
-                        if (state.cr0 & 0xe) notes.insert("CR0 MP, EM or TS set");
                         rtl->start(state);
                         on_oracle = false;
                     }
@@ -1160,13 +1532,12 @@ int main(int argc, char **argv) {
             } else {
                 RtlCpu::Event event = rtl->run(64);
                 if (machine.cycles >= pixel_from) machine.start_pixel_clock();
-                if (event == RtlCpu::Event::Stopped && rtl->cpu.trace_vector == 8) {
-                    // A fault while an exception was delivered: the delivery
-                    // has partly retired, so the oracle cannot take over.
+                if (event == RtlCpu::Event::Shutdown) {
+                    // A fault in a double fault's delivery: the machine turns
+                    // the CPU's shutdown into a reset, as an AT does.
                     fes_i386::State state = rtl->state(oracle->get_state());
-                    std::printf("STOP delivery-fault %llu %s\n", (unsigned long long)machine.cycles, site(state).c_str());
-                    reason = "rtl-delivery-fault";
-                    break;
+                    std::printf("SHUTDOWN %llu %s\n", (unsigned long long)machine.cycles, site(state).c_str());
+                    machine.top.cpu_shutdown = 1;
                 }
                 if (event == RtlCpu::Event::Stopped) stop("unimplemented");
                 else if (event == RtlCpu::Event::Stall) stop("stall");
@@ -1179,6 +1550,8 @@ int main(int argc, char **argv) {
                     rtl->start(oracle->get_state());
                 }
             }
+            if (!options.profile.empty() && !profile.written && machine.cycles >= profile.to)
+                profile.write(options.profile, machine.cycles);
 
             // Debug-port markers.
             bool finished = false;
@@ -1225,32 +1598,29 @@ int main(int argc, char **argv) {
             }
             if (finished && snap_name.empty()) { reason = "debug-marker"; break; }
 
-            if (scheduled < options.keys.size() && key_bytes.empty() &&
+            if (scheduled < options.keys.size() && keys.empty() &&
                 machine.cycles >= uint64_t(options.keys[scheduled].first * CLOCK_HZ)) {
-                for (char c : options.keys[scheduled].second) {
-                    uint8_t code; bool shift;
-                    if (!set2(c, code, shift) || shift) throw std::runtime_error("cannot press that");
-                    for (uint8_t byte : {code, uint8_t(0xf0), code}) key_bytes.push_back(byte);
-                    for (uint64_t hold : {uint64_t(0.2 * CLOCK_HZ), uint64_t(0), uint64_t(0.1 * CLOCK_HZ)})
-                        key_holds.push_back(hold);
+                for (auto [usage, shift] : taps(options.keys[scheduled].second)) {
+                    keys.push_back({usage, shift, true, uint64_t(0.2 * CLOCK_HZ)});
+                    keys.push_back({usage, shift, false, uint64_t(0.1 * CLOCK_HZ)});
                 }
                 next_key = machine.cycles;
                 ++scheduled;
             }
 
-            // Keyboard: one set 2 byte when ready; delay unless the next byte is 0xf0.
-            if (key_bytes.size() && machine.cycles >= next_key && machine.top.key_ready) {
-                machine.top.key_valid = 1;
-                machine.top.key_code = key_bytes.front();
-                if (on_oracle) machine.clock();
-                else rtl->cycle();
-                machine.top.key_valid = 0;
-                key_bytes.erase(key_bytes.begin());
-                uint64_t hold = key_holds.empty() ? 0 : key_holds.front();
-                if (!key_holds.empty()) key_holds.pop_front();
-                if (hold) next_key = machine.cycles + hold;
-                else if (key_bytes.empty() || key_bytes.front() != 0xf0)
-                    next_key = machine.cycles + uint64_t(options.key_gap * CLOCK_HZ);
+            // Keyboard: the next change of the rows once the last has been held.
+            if (keys.size() && machine.cycles >= next_key) {
+                const KeyChange &change = keys.front();
+                set_key(machine.top.keyboard_rows, change.usage, change.down);
+                if (change.shift) set_key(machine.top.keyboard_rows, 0xe1, change.down);
+                next_key = machine.cycles + change.hold;
+                keys.pop_front();
+            }
+            // Keep each scheduled packet pending until one ready handshake edge.
+            if (mouse_pending || mouse_due()) {
+                const Options::Mouse &packet = options.mouse[mouse_sent];
+                auto cycle = [&] { if (on_oracle) machine.clock(); else rtl->cycle(); };
+                mouse_cycle(machine.top, packet, mouse_pending, mouse_sent, cycle);
             }
 
             if (options.until_debug.empty() && machine.cycles - screen_checked >= uint64_t(0.05 * CLOCK_HZ)) {
@@ -1264,23 +1634,20 @@ int main(int argc, char **argv) {
                 bool settled = machine.cycles - settled_at >= uint64_t(0.5 * CLOCK_HZ);
                 bool type_now = options.type_at >= 0 ? machine.cycles >= uint64_t(options.type_at * CLOCK_HZ)
                                                      : prompt_at && settled;
-                if (type_now && typed < options.type.size() && key_bytes.empty()) {
+                if (type_now && typed < options.type.size() && keys.empty()) {
                     // Queue the rest of the text.
-                    for (; typed < options.type.size(); ++typed) {
-                        uint8_t code; bool shift;
-                        if (!set2(options.type[typed], code, shift)) throw std::runtime_error("cannot type that");
-                        if (shift) key_bytes.push_back(0x12);
-                        key_bytes.push_back(code);
-                        key_bytes.push_back(0xf0); key_bytes.push_back(code);
-                        if (shift) { key_bytes.push_back(0xf0); key_bytes.push_back(0x12); }
+                    const uint64_t gap = uint64_t(options.key_gap * CLOCK_HZ);
+                    for (auto [usage, shift] : taps(options.type)) {
+                        keys.push_back({usage, shift, true, gap});
+                        keys.push_back({usage, shift, false, gap});
                     }
-                    key_holds.resize(key_bytes.size(), 0);
+                    typed = options.type.size();
                     next_key = machine.cycles;
                     settled_at = machine.cycles;
                 }
                 // Done when everything is typed and the prompt is back on the
                 // last line, waiting for input.
-                if (prompt_at && settled && typed == options.type.size() && key_bytes.empty() &&
+                if (prompt_at && settled && typed == options.type.size() && keys.empty() &&
                     machine.last_row() == options.prompt) {
                     reason = "prompt";
                     break;
@@ -1293,6 +1660,7 @@ int main(int argc, char **argv) {
             for (const auto &[key, count] : census) out << key << ' ' << count << ' ' << census_first[key] << '\n';
             if (!out) throw std::runtime_error("cannot write " + options.census);
         }
+        if (!options.profile.empty() && !profile.written) profile.write(options.profile, machine.cycles);
         if (rtl) {
             if (stretch_steps)
                 std::printf("PMODE %llu %llu %llu %s -\n", (unsigned long long)stretch_from,
@@ -1305,11 +1673,13 @@ int main(int argc, char **argv) {
             for (const std::string &line : rtl->smc_sites) std::printf("SMC %s\n", line.c_str());
             for (const std::string &note : notes) std::printf("NOTE %s\n", note.c_str());
             std::printf("RTL retired=%llu oracle_steps=%llu protected_steps=%llu parked_clocks=%llu tf_retired=%llu "
+                        "pe_retired=%llu pe_entries=%llu "
                         "vga_loads=%llu replays=%llu port0_reads=%llu port0_writes=%llu smc_stores=%llu "
                         "smc_addresses=%zu smc_executed=%llu smc_restarts=%llu\n",
                         (unsigned long long)rtl->retired, (unsigned long long)oracle_steps,
                         (unsigned long long)protected_steps, (unsigned long long)rtl->parked_clocks,
-                        (unsigned long long)rtl->tf_retired, (unsigned long long)rtl->vga_loads,
+                        (unsigned long long)rtl->tf_retired, (unsigned long long)rtl->pe_retired,
+                        (unsigned long long)rtl->pe_entries, (unsigned long long)rtl->vga_loads,
                         (unsigned long long)rtl->replays, (unsigned long long)rtl->port0.beats_read,
                         (unsigned long long)rtl->port0.beats_written,
                         (unsigned long long)rtl->smc_stores, rtl->smc_addresses.size(),
@@ -1348,6 +1718,7 @@ int main(int argc, char **argv) {
         if (!expected) reason = "expected-text-missing";
         if (snap_failures) reason = "presenter-mismatch";
         if (!options.wav.empty()) write_wav(options.wav, machine.link.samples);
+        std::printf("MOUSE sent=%zu scheduled=%zu\n", mouse_sent, options.mouse.size());
         std::printf("END %s steps=%llu cycles=%llu seconds=%.3f\n", reason, steps,
                     (unsigned long long)machine.cycles, seconds);
         if (!options.disk_out.empty())

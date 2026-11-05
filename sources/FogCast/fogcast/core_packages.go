@@ -5,12 +5,14 @@ import (
 	"context"
 	"errors"
 	"io"
+	"log"
 	"reflect"
 	"regexp"
 	"time"
 
 	"github.com/DeanoC/FogCast/catalog"
 	"github.com/DeanoC/FogCast/corepackage"
+	"github.com/DeanoC/FogCast/internal/kitpackages"
 	"github.com/DeanoC/FogCast/internal/meshcontent"
 	"github.com/DeanoC/FogCast/protocol"
 	"github.com/DeanoC/FogCast/targetclient"
@@ -47,6 +49,33 @@ type coreFirmwareCatalog interface {
 	HouseholdFirmwareFilled(context.Context) (bool, error)
 }
 
+// corePackageStore holds the installed core packages. A desktop host uses its
+// own corepackage.Store. A kit host ([core_packages] kit = true) uses
+// kitpackages.View: the kit's durable store, then its factory packages.
+type corePackageStore interface {
+	Import(context.Context, int64, io.Reader) (corepackage.Inspection, bool, error)
+	List(context.Context) ([]corepackage.Inspection, error)
+	Inspect(context.Context, string) (corepackage.Inspection, error)
+	Read(context.Context, string) (corepackage.Inspection, []byte, error)
+}
+
+const coreStoreUnavailableMessage = "core package storage is unavailable"
+
+var kitCorePackagesLogf = log.Printf
+
+// openKitCorePackages opens the kit's durable store and logs the outcome,
+// because callers only see CORE_PACKAGE_STORE_UNAVAILABLE.
+func openKitCorePackages() (*kitpackages.Store, error) {
+	started := time.Now()
+	store, err := kitpackages.OpenPersistentForHost(kitpackages.DefaultRoot)
+	if err != nil {
+		kitCorePackagesLogf("fogcast: kit core packages unavailable after %s: %v", time.Since(started).Round(time.Millisecond), err)
+		return nil, err
+	}
+	kitCorePackagesLogf("fogcast: kit core packages open after %s", time.Since(started).Round(time.Millisecond))
+	return store, nil
+}
+
 type coreInspectionClient interface {
 	InspectCore(context.Context, int64, io.Reader) (protocol.CoreInspection, error)
 }
@@ -61,6 +90,9 @@ func (s *Service) ImportCorePackage(ctx context.Context, size int64, body io.Rea
 		if errors.Is(err, corepackage.ErrInvalidPackage) {
 			code = protocol.CodeInvalidArchive
 		}
+		if errors.Is(err, kitpackages.ErrStoreUnavailable) {
+			code = protocol.CodeCorePackageStoreUnavailable
+		}
 		return corepackage.Inspection{}, false, canonicalError(code, safeContextError(err))
 	}
 	return inspection, created, nil
@@ -71,6 +103,9 @@ func (s *Service) CorePackages(ctx context.Context) ([]InstalledCorePackage, err
 		return nil, canonicalError(protocol.CodeUnsupportedOperation, nil)
 	}
 	values, err := s.corePackages.List(ctx)
+	if errors.Is(err, kitpackages.ErrStoreUnavailable) {
+		return nil, canonicalError(protocol.CodeCorePackageStoreUnavailable, nil)
+	}
 	if err != nil {
 		return nil, canonicalError(protocol.CodeInternal, safeContextError(err))
 	}
@@ -132,6 +167,9 @@ func (s *Service) installedCoreRequest(id string) error {
 func installedCoreError(err error) error {
 	if errors.Is(err, corepackage.ErrPackageNotFound) {
 		return canonicalError(protocol.CodeROMNotFound, nil)
+	}
+	if errors.Is(err, kitpackages.ErrStoreUnavailable) {
+		return canonicalError(protocol.CodeCorePackageStoreUnavailable, nil)
 	}
 	return canonicalError(protocol.CodeInternal, safeContextError(err))
 }
@@ -484,6 +522,19 @@ func (s *Service) launchCoreEntry(parent context.Context, gameID string, snap la
 		if err != nil {
 			return coreLoadSource{}, err
 		}
+		if initialPcxtDisk(inspection.Descriptor, media) {
+			initial, diskErr := snapshotInitialPcxtDisk(entry, media)
+			closeErr := media.Close()
+			media = nil
+			if err = errors.Join(diskErr, closeErr); err != nil {
+				return coreLoadSource{}, err
+			}
+			transport, err := corepackage.WritePcxtInitialInput(corepackage.PcxtInitialInput{Package: data, Media: *initial})
+			if err != nil {
+				return coreLoadSource{}, canonicalError(protocol.CodeInvalidArchive, nil)
+			}
+			return coreLoadSource{activationBudget: 300 * time.Second, size: int64(len(transport)), body: bytes.NewReader(transport), entry: &entry, initialMedia: initial}, nil
+		}
 		parts, err := s.composeVideoEntry(ctx, entry, inspection, data)
 		if err != nil {
 			return coreLoadSource{}, err
@@ -569,7 +620,7 @@ func (s *Service) launchCoreEntry(parent context.Context, gameID string, snap la
 		defer mediaCancel()
 		var unitStatus protocol.Status
 		var unitErr error
-		if u, ok := protocol.MediaUnit(status.CorePackage, *media.unit); ok && u.Interface == protocol.AtariStFloppyInterface() {
+		if u, ok := protocol.MediaUnit(status.CorePackage, *media.unit); ok && (u.Interface == protocol.AtariStFloppyInterface() || (u.Interface == protocol.PcxtFloppyInterface() && protocol.MediaWriteCapable(status.CorePackage))) {
 			library := protocol.LibraryMediaBinding{MediaUnitBinding: unitBinding, GameID: entry.GameID, BaseMediaID: entry.MediaID}
 			unitStatus, unitErr = s.insertBoundMediaUnitLocked(mediaCtx, media.size, media.ReadCloser, unitBinding, &library)
 		} else {

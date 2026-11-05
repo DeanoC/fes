@@ -530,6 +530,11 @@ func (s *Service) probeTarget(ctx context.Context, client *targetclient.Client, 
 	if selected.TargetID == "" {
 		return protocol.Health{}, "", errors.New("Target unavailable; check its configured address.")
 	}
+	if s.kitHost {
+		// A slow loopback health must not move a kit host onto its agent's
+		// LAN address, or hand the bearer to whatever answers mDNS.
+		return protocol.Health{}, "", errors.New("Kit agent unavailable at its loopback address.")
+	}
 	resolve := s.resolveTarget
 	if resolve == nil {
 		resolve = discovery.Resolve

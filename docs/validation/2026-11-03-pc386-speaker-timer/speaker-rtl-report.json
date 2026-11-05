@@ -1,0 +1,269 @@
+{
+  "run": {
+    "post": [
+      {
+        "code": "00",
+        "cycle": 11925
+      },
+      {
+        "code": "21",
+        "cycle": 2244249
+      },
+      {
+        "code": "31",
+        "cycle": 2344481
+      },
+      {
+        "code": "41",
+        "cycle": 2744625
+      },
+      {
+        "code": "71",
+        "cycle": 2846981
+      },
+      {
+        "code": "77",
+        "cycle": 2946808
+      }
+    ],
+    "debug": [
+      {
+        "port": "402",
+        "text": "BIOS BUILD DATE: 11/03/26"
+      },
+      {
+        "port": "500",
+        "text": "VGABios ID: vgabios.c 2026-08-07"
+      },
+      {
+        "port": "402",
+        "text": "ata0-0: PCHS=65/16/63 translation=none LCHS=65/16/63"
+      },
+      {
+        "port": "402",
+        "text": "IDE time out"
+      },
+      {
+        "port": "402",
+        "text": "Booting from 0000:7c00"
+      },
+      {
+        "port": "0e9",
+        "text": "SPK post 36h ok"
+      },
+      {
+        "port": "0e9",
+        "text": "SPK rise 64/64 ok"
+      },
+      {
+        "port": "0e9",
+        "text": "SPK carrier 19886Hz ok"
+      },
+      {
+        "port": "0e9",
+        "text": "SPK DONE ok"
+      }
+    ],
+    "panic": [],
+    "io": {
+      "isa16 2": {
+        "38": 96512
+      },
+      "isa8 1": {
+        "74": 71614
+      },
+      "vga-in 1": {
+        "6": 6
+      },
+      "vga-out 1": {
+        "4": 823
+      },
+      "vga-out 2": {
+        "7": 2689
+      }
+    },
+    "io_wait": {},
+    "inta": {
+      "146": 85
+    },
+    "screen": [
+      "Options: eltorito                                                               ",
+      "                                                                                ",
+      "ata0 master: FES pc386 ATA disk ATA-4 Hard-Disk (  31 MBytes)                   ",
+      "ata0  slave: Unknown device                                                     ",
+      "                                                                                ",
+      "Booting from Hard Disk...                                                       ",
+      "FreeDOS kernel 2043 (build 2043 OEM:0xfd) [compiled May 14 2021]                ",
+      "Kernel compatibility 7.10 - WATCOMC - 80386 CPU required - FAT32 support        ",
+      "                                                                                ",
+      "(C) Copyright 1995-2012 Pasquale J. Villani and The FreeDOS Project.            ",
+      "All Rights Reserved. This is free software and comes with ABSOLUTELY NO         ",
+      "WARRANTY; you can redistribute it and/or modify it under the terms of the       ",
+      "GNU General Public License as published by the Free Software Foundation;        ",
+      "either version 2, or (at your option) any later version.                        ",
+      "C: HD1, Pri[ 1], CHS=    0-1-1, start=     0 MB, size=    31 MB                 ",
+      "                                                                                ",
+      "FreeCom version 0.86 - WATCOMC - XMS_Swap [Dec 30 2024 22:10:51]                ",
+      "                                                                                ",
+      "FreeCom version 0.86 - WATCOMC - XMS_Swap [Dec 30 2024 22:10:51]                ",
+      "C:\\>spktest                                                                     ",
+      "SPK post 36h ok                                                                 ",
+      "SPK rise 64/64 ok                                                               ",
+      "SPK carrier 19886Hz ok                                                          ",
+      "SPK DONE ok                                                                     ",
+      "C:\\>                                                                            "
+    ],
+    "end": {
+      "reason": "prompt",
+      "steps": 103279707,
+      "cycles": 380000041,
+      "seconds": 3.8
+    },
+    "prompt_cycle": 235000041,
+    "cpu_resets": 0,
+    "snaps": {},
+    "present": {},
+    "vga": {
+      "frames": 9916,
+      "scanout_underflows": 0,
+      "capture_drops": 0,
+      "present_underflows": 0,
+      "plane_underflows": 0,
+      "frames_shown": 0,
+      "port1_commands": 17412723,
+      "port2_commands": 2429278
+    },
+    "marks": {},
+    "opl2": {
+      "samples": 188920,
+      "exact": 188920,
+      "nonzero": 0,
+      "writes": 0
+    },
+    "opl2_mismatch": null,
+    "audio_samples": 182400,
+    "sb": {
+      "resets": 0,
+      "commands": 0,
+      "dma": 0,
+      "irqs": 0
+    },
+    "mouse": {
+      "sent": 0,
+      "scheduled": 0
+    },
+    "rtl": {
+      "stops": [],
+      "pmode": [],
+      "gaps": [],
+      "smc": [
+        {
+          "event": "store",
+          "cycle": 27304810,
+          "site": "8fe9:0000a04a",
+          "instruction": "00099eda",
+          "address": "00099efb"
+        },
+        {
+          "event": "store",
+          "cycle": 228028766,
+          "site": "1006:00002bae",
+          "instruction": "00012c0e",
+          "address": "00012c30"
+        },
+        {
+          "event": "store",
+          "cycle": 327331855,
+          "site": "1006:0000bc40",
+          "instruction": "0001bca0",
+          "address": "0001bcbc"
+        },
+        {
+          "event": "store",
+          "cycle": 327331855,
+          "site": "1006:0000bc40",
+          "instruction": "0001bca0",
+          "address": "0001bcbd"
+        },
+        {
+          "event": "store",
+          "cycle": 327331914,
+          "site": "1006:0000bc45",
+          "instruction": "0001bca5",
+          "address": "0001bcbe"
+        },
+        {
+          "event": "store",
+          "cycle": 327331914,
+          "site": "1006:0000bc45",
+          "instruction": "0001bca5",
+          "address": "0001bcbf"
+        },
+        {
+          "event": "store",
+          "cycle": 327501630,
+          "site": "2193:0000029a",
+          "instruction": "00021bca",
+          "address": "00021c09"
+        },
+        {
+          "event": "store",
+          "cycle": 327501644,
+          "site": "2193:0000029d",
+          "instruction": "00021bcd",
+          "address": "00021c0a"
+        }
+      ],
+      "notes": [],
+      "counters": {
+        "retired": 103279707,
+        "oracle_steps": 0,
+        "protected_steps": 0,
+        "parked_clocks": 6117478,
+        "tf_retired": 0,
+        "pe_retired": 0,
+        "pe_entries": 0,
+        "vga_loads": 15368,
+        "replays": 192,
+        "port0_reads": 1697698,
+        "port0_writes": 37773322,
+        "smc_stores": 401011,
+        "smc_addresses": 8,
+        "smc_executed": 0,
+        "smc_restarts": 670033
+      }
+    },
+    "command": [
+      "build/sim/fes-pc386/machine/obj/Vpc386_machine",
+      "--bios",
+      "build/firmware/pc386/pc386-bios.bin",
+      "--vgabios",
+      "build/firmware/pc386/pc386-vgabios.bin",
+      "--disk",
+      "build/sim/fes-pc386/speaker-rtl/disk.img",
+      "--limit-seconds",
+      "8",
+      "--type",
+      "spktest|",
+      "--expect",
+      "SPK DONE ok",
+      "--cpu",
+      "rtl"
+    ],
+    "exit": 0,
+    "failures": [],
+    "lines": [
+      "SPK post 36h ok",
+      "SPK rise 64/64 ok",
+      "SPK carrier 19886Hz ok",
+      "SPK DONE ok"
+    ]
+  },
+  "checks": [
+    "SPK post 36h ok",
+    "SPK rise 64/64 ok",
+    "SPK carrier 19886Hz ok",
+    "SPK DONE ok"
+  ],
+  "failures": []
+}

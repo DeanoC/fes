@@ -36,6 +36,39 @@ KIT_B_PROMPT_SAMPLES = (
     b'c-nnVK@NZ*4C@!*uzzceeqqT>N_e3P12iG_)U91Rz!nS$>1=bdtETXfbFKU21}pRJ_nVf}^T_blJIFY?sAl@rCDjV%ILmLp)p@ET14juF{6j91wJLT'
 )
 
+# Only the 32 x 8 grayscale center samples of the four A:\> glyphs from Kit A
+# capture boot-010.png, SHA-256 0f1c76374de8c9dd443b90ce7de3c6d25a12243bca97ef1716f59e4a2ae45ae3.
+# The captured ink values include 132 and 190 in the same prompt. A mode-only
+# foreground estimate rejects the colon despite every glyph bit matching.
+KIT_A_PROMPT_SAMPLES = (
+    b'c${NkSl+^b0P-vLL0Q|NjP1*pZvr!*>R{pw%UeMtP`v^~56m2hI1p^zgdz_ITQ?!uwPHCCpvuGCfTkbGonSZMvL6KY!Q3g&fFH;M0Q=G_RR'
+)
+
+
+def kit_a_prompt_samples(font, text=acceptance.PROMPT, *, low_contrast=False):
+    width, height = 1920, 1080
+    samples = zlib.decompress(base64.b85decode(KIT_A_PROMPT_SAMPLES))
+    if len(samples) != 32 * 8 or len(text) != len(acceptance.PROMPT):
+        raise AssertionError('captured sample fixture size changed')
+    rgb = bytearray(width * height * 3)
+    for gy in range(8):
+        for sx in range(32):
+            character, gx = sx // 8, sx % 8
+            original = font[acceptance.PROMPT[character] * 16 + gy] & (0x80 >> gx)
+            replacement = font[text[character] * 16 + gy] & (0x80 >> gx)
+            value = samples[gy * 32 + sx]
+            # Build near-miss controls while retaining unchanged pixels from
+            # the real camera sample rather than replacing the whole glyph.
+            if bool(original) != bool(replacement):
+                value = 168 if replacement else 0
+            if low_contrast:
+                value //= 4
+            x = round((160 + (sx + 0.5) * 1.5) * width / 1280)
+            y = round((21 * 8 + gy + 0.5) * height / 200)
+            offset = (y * width + x) * 3
+            rgb[offset:offset + 3] = bytes((value, value, value))
+    return width, height, bytes(rgb)
+
 
 def kit_b_prompt_samples(*, omit_last_glyph=False, low_contrast=False):
     width, height = 1920, 1080
@@ -81,6 +114,20 @@ class PCXTDosHILAcceptanceTests(unittest.TestCase):
         self.assertEqual(result['text'], r'A:\>')
         self.assertEqual((result['row'], result['column']), (21, 0))
         self.assertEqual(result['foreground_rgb'], [175, 175, 175])
+
+    def test_kit_a_prompt_color_variation_matches_locked_glyphs(self):
+        width, height, captured = kit_a_prompt_samples(self.font)
+        result = acceptance.find_prompt(width, height, captured, self.font)
+        self.assertEqual(result['text'], acceptance.PROMPT.decode('ascii'))
+        self.assertEqual((result['row'], result['column']), (21, 0))
+        self.assertEqual(result['foreground_rgb'], [168, 168, 168])
+
+    def test_kit_a_near_miss_and_low_contrast_are_rejected(self):
+        for text in (b'A;\\)', b'A;\\>', b'A:\\)', b'A:\\ '):
+            with self.subTest(text=text), self.assertRaisesRegex(ValueError, 'does not contain'):
+                acceptance.find_prompt(*kit_a_prompt_samples(self.font, text), self.font)
+        with self.assertRaisesRegex(ValueError, 'does not contain'):
+            acceptance.find_prompt(*kit_a_prompt_samples(self.font, low_contrast=True), self.font)
 
     def test_kit_b_prompt_missing_glyph_is_rejected(self):
         width, height, captured = kit_b_prompt_samples(omit_last_glyph=True)

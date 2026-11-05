@@ -330,3 +330,88 @@ func TestFailedAcknowledgmentLeavesBlockedReservationForPowerCycle(t *testing.T)
 		t.Fatal(state)
 	}
 }
+
+// A kit host beside the three services, running or restarting, does not
+// change the prior's service membership.
+func TestRunningPriorProofIgnoresTheKitHost(t *testing.T) {
+	root := filepath.Join(t.TempDir(), "release")
+	runDir := t.TempDir()
+	if err := os.MkdirAll(filepath.Join(root, "bin"), 0755); err != nil {
+		t.Fatal(err)
+	}
+	bytes, err := os.ReadFile("/bin/sleep")
+	if err != nil {
+		t.Fatal(err)
+	}
+	names := []string{"mister-runtime", "mister-agent", "fogcast-tenfoot", "fogcast-kit"}
+	for _, name := range names {
+		if err := os.WriteFile(filepath.Join(root, "bin", name), bytes, 0555); err != nil {
+			t.Fatal(err)
+		}
+	}
+	entries, err := releaseIdentities(context.Background(), root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var children []*exec.Cmd
+	startNamed := func(name string) *exec.Cmd {
+		cmd := exec.Command(filepath.Join(root, "bin", name), "60")
+		if err := cmd.Start(); err != nil {
+			t.Fatal(err)
+		}
+		children = append(children, cmd)
+		return cmd
+	}
+	for _, name := range names {
+		startNamed(name)
+	}
+	defer func() {
+		for _, cmd := range children {
+			if cmd.ProcessState == nil {
+				_ = cmd.Process.Kill()
+				_ = cmd.Wait()
+			}
+		}
+	}()
+	binary, err := os.Executable()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(runDir, "supervisor.pid"), []byte(strconv.Itoa(os.Getpid())), 0600); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Symlink(root, filepath.Join(runDir, "current")); err != nil {
+		t.Fatal(err)
+	}
+	b, _ := json.Marshal(map[string]any{"bundle_id": testFactoryID, "pid": children[2].Process.Pid})
+	if err := os.WriteFile(filepath.Join(runDir, "launcher-ready.json"), b, 0600); err != nil {
+		t.Fatal(err)
+	}
+	a := &UnixAdmission{client: &http.Client{Transport: acknowledgmentTransport(func(r *http.Request) (*http.Response, error) {
+		b, _ := json.Marshal(AdmissionStatus{BundleID: testFactoryID, RawIdleReady: true})
+		return &http.Response{StatusCode: 200, Body: io.NopCloser(strings.NewReader(string(b))), Header: make(http.Header)}, nil
+	})}}
+	c := &ProcessController{RunDir: runDir, Admission: a, prepared: &preparedRelease{id: testFactoryID, root: root, entries: entries}}
+	request := AcknowledgeRequest{Selected: testFactoryID}
+	time.Sleep(10 * time.Millisecond)
+	proof, err := captureRunningPriorAt(context.Background(), request, c, runDir, binary)
+	if err != nil {
+		t.Fatal("prior with a kit host rejected:", err)
+	}
+	if len(c.children) != 3 {
+		t.Fatalf("observed %d services", len(c.children))
+	}
+	if err := proof.healthy(context.Background(), request, c); err != nil {
+		t.Fatal("healthy prior with a kit host rejected:", err)
+	}
+	host := children[3]
+	if err := host.Process.Kill(); err != nil {
+		t.Fatal(err)
+	}
+	_ = host.Wait()
+	startNamed("fogcast-kit")
+	time.Sleep(10 * time.Millisecond)
+	if err := proof.healthy(context.Background(), request, c); err != nil {
+		t.Fatal("a restarted kit host changed the prior:", err)
+	}
+}

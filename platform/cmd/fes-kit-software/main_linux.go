@@ -254,6 +254,9 @@ func supervise(ctx context.Context, output io.Writer) error {
 		if err != nil {
 			return err
 		}
+		// An idle kit may not write its state for a long time. A failed write
+		// here leaves the ledger for the next update to prune.
+		_ = nextRepo.CompactReceipts()
 		nextAdmission, err := kitsoftware.NewUnixAdmission("/run/fogcast/software-admission.sock", filepath.Join(statePath, "admission.key"))
 		if err != nil {
 			nextRepo.Close()

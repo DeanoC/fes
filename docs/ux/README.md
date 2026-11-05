@@ -384,17 +384,16 @@ as a blanket pass for the combined build.
   once it has finished.") and not queued, so a press can never start an item
   the player has not seen. This is the reviewed policy for #764's warm-up
   window.
-- **Routes.** Library, Systems and Settings sit above the hero actions.
-  Up from the shelf reaches actions; another Up reaches these routes, so Direction
-  and Confirm reach the system menu on a pad without a Guide button. On a
-  content box under 480×360 the same routes sit above the destination strip;
-  when they stack, Down and Up walk that column and then the cores, and Up
-  from the first core lands on Settings. Settings holds the system tools.
-  Back at Home still opens the FES Home overlay.
+- **Routes.** In the v1 release scope, Settings is Home's only header route.
+  Up from the family tiles reaches Recently played when it is present, then
+  the hero actions and Settings. On a content box under 480×360, Settings is
+  above the compact family list and Recently played is hidden. Show all cores
+  restores Library and Systems. Back at the release Home root keeps Home open;
+  the room picker is used when Home cannot open.
 - **Return.** The room instance is suspended during play, so Stop returns to
-  the same selection; a later visit restores the last selected package from
-  room `store`. Launch failure keeps the selection and shows the reason in the
-  footer.
+  the same selection. Home's room `store` remembers focus by family ID or
+  recent game ID for the next visit. Launch failure keeps the selection and
+  shows the reason in the footer.
 - **Type and layout at 1280×720.** Title 36 px bold, readiness and headline
   20–22 px, supporting lines 20 px, footer prompts 18 px in full words. The
   card takes 42% of the height. The shelf shows four cards at a full 1280
@@ -482,9 +481,9 @@ restart, BASIC continuity and two-client cases still need their own evidence.
   never saves RAM.
 - **Grouped actions.** The machine row holds Start/Stop, cassette/tape, Return
   to play, Next setup and Set up ZX81. The host cassette label is a wide row
-  above those controls. A starter uses its display name; an import is
-  "Imported cassette" plus a digest prefix, not the filename (#801). A label
-  that does not fit keeps its start and its end. Setup tools hold Import expansion,
+  above those controls. A starter uses its display name; an import uses its
+  recorded filename, with the digest label as a fallback (#801). A label that
+  does not fit keeps its start and its end. Setup tools hold Import expansion,
   Refresh, More cards and Library.
   Control IDs and guards are unchanged.
 - **Not yet.** "Games for this machine" needs its own focus and launch design.

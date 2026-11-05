@@ -118,7 +118,7 @@ def load_hex_bytes(path: Path) -> bytes:
 
 
 def zx81_basic_rom(image: bytes) -> bytes:
-    """Return the 8 KiB ZX81 BASIC image at the front of ``zx8x``."""
+    """Return the 8 KiB ZX81 BASIC image at the front of a machine ROM image."""
 
     if len(image) < ZX81_BASIC_BYTES:
         raise LinkError(f"ZX81 image is {len(image)} bytes, need {ZX81_BASIC_BYTES}")

@@ -13,6 +13,7 @@ import (
 	"runtime"
 	"strconv"
 	"strings"
+	"time"
 	"unicode/utf8"
 
 	"github.com/DeanoC/FogCast/catalog"
@@ -147,16 +148,7 @@ type targetHealth struct {
 	Ready      bool                      `json:"ready"`
 	APIVersion string                    `json:"api_version,omitempty"`
 	Artifacts  *protocol.Artifacts       `json:"artifacts,omitempty"`
-	Software   *targetSoftwareIdentity   `json:"software,omitempty"`
-}
-
-// Host health exposes release identity, not the authenticated supervisor's
-// operation journal, requester labels or diagnostic error strings.
-type targetSoftwareIdentity struct {
-	ActiveBundle string `json:"active_bundle"`
-	BaseIdentity string `json:"base_identity"`
-	Selected     string `json:"selected"`
-	Generation   uint64 `json:"generation"`
+	Software   *protocol.Identity        `json:"software,omitempty"`
 }
 
 type errorResult struct {
@@ -263,6 +255,16 @@ func requestSessionCoordinator(root *sessionCoordinator, service Service, r *htt
 		if len(foregroundOnly) > 0 && foregroundOnly[0] {
 			if resolver, ok := service.(interface{ ForegroundSessionTargetName() string }); ok {
 				target = resolver.ForegroundSessionTargetName()
+				// A restarted kit host has not observed its one local target
+				// yet. Use that coordinator on the first read as well, so
+				// adoption does not change session identity or input owner.
+				if target == "" {
+					if kit, ok := service.(interface{ KitHostMode() bool }); ok && kit.KitHostMode() {
+						if selected, ok := service.(interface{ SessionTargetName() string }); ok {
+							target = selected.SessionTargetName()
+						}
+					}
+				}
 			} else if resolver, ok := service.(interface{ SessionTargetName() string }); ok {
 				target = resolver.SessionTargetName()
 			} else if resolver, ok := service.(interface{ SelectedTargetConfig() fogcast.TargetConfig }); ok {
@@ -512,6 +514,37 @@ func New(service Service, options ...ServerOption) http.Handler {
 		}
 		writeJSON(w, http.StatusOK, result)
 	})
+	mux.HandleFunc("POST /api/v1/session/input/tap", func(w http.ResponseWriter, r *http.Request) {
+		var body struct {
+			SessionID string             `json:"session_id"`
+			Event     *remoteinput.Event `json:"event"`
+		}
+		decoder := json.NewDecoder(io.LimitReader(r.Body, 4096))
+		decoder.DisallowUnknownFields()
+		if err := decoder.Decode(&body); err != nil || body.SessionID == "" || body.Event == nil {
+			writeError(w, http.StatusBadRequest, "BAD_REQUEST", "input tap is invalid")
+			return
+		}
+		coordinator := requestSessionCoordinator(session, service, r, "")
+		duration, err := coordinator.tapCoreKey(r.Context(), body.SessionID, *body.Event)
+		if err != nil {
+			if errors.Is(err, host.ErrRemoteInputInvalid) {
+				writeError(w, http.StatusBadRequest, "BAD_REQUEST", "input tap or session is invalid")
+				return
+			}
+			if errors.Is(err, host.ErrRemoteInputBusy) {
+				writeError(w, http.StatusConflict, "INPUT_BUSY", "input key or source is already held")
+				return
+			}
+			if errors.Is(err, host.ErrRemoteInputNoStream) {
+				writeError(w, http.StatusServiceUnavailable, "INPUT_UNAVAILABLE", "no live input stream")
+				return
+			}
+			writeSessionError(w, err)
+			return
+		}
+		writeJSON(w, http.StatusOK, map[string]any{"ok": true, "host_duration_ms": float64(duration) / float64(time.Millisecond)})
+	})
 	mux.HandleFunc("POST /api/v1/session/input/event", func(w http.ResponseWriter, r *http.Request) {
 		var body struct {
 			Event *remoteinput.Event `json:"event"`
@@ -564,12 +597,7 @@ func New(service Service, options ...ServerOption) http.Handler {
 		if err == nil {
 			result.Target.APIVersion = target.APIVersion
 			result.Target.Artifacts = target.Artifacts
-			if software := target.Software; software != nil {
-				result.Target.Software = &targetSoftwareIdentity{
-					ActiveBundle: software.ActiveBundle, BaseIdentity: software.BaseIdentity,
-					Selected: software.Selected, Generation: software.Generation,
-				}
-			}
+			result.Target.Software = target.Software
 		}
 		writeJSON(w, http.StatusOK, result)
 	})
@@ -968,6 +996,8 @@ func publicErrorMessage(code protocol.ErrorCode) string {
 		return "target ROM path is invalid"
 	case protocol.CodeSourceUnavailable:
 		return "game source is unavailable"
+	case protocol.CodeCorePackageStoreUnavailable:
+		return "core package storage is unavailable"
 	case protocol.CodeTransferFailed:
 		return "content transfer failed"
 	case protocol.CodeKitLeaseDenied:
@@ -1162,7 +1192,7 @@ func writeSessionError(w http.ResponseWriter, err error) {
 		if apiErr.Code == protocol.CodeBusy || apiErr.Code == protocol.CodeKitLeaseBusy {
 			status = http.StatusConflict
 		}
-		if apiErr.Code == protocol.CodeUnavailable {
+		if apiErr.Code == protocol.CodeUnavailable || apiErr.Code == protocol.CodeCorePackageStoreUnavailable {
 			status = http.StatusServiceUnavailable
 		}
 		if apiErr.Code == protocol.CodeKitLeaseDenied {

@@ -11,8 +11,9 @@
 // that faults in the oracle must fault in the RTL with the same vector, with
 // nothing of it retired; both deliver it, and the delivery, its frame
 // included, is compared as a retirement. A fault while an exception is
-// delivered (a double fault, then shutdown) stops the RTL as not built,
-// with nothing written. HLT ends a run on both sides.
+// delivered is delivered in its place (a double fault when both are
+// contributory), and a fault in a double fault's delivery is shutdown, which
+// both sides must reach with nothing written. HLT ends a run on both sides.
 //
 // Where the oracle and SingleStepTests/80386 disagree, divergences.toml names
 // the side the FES CPU follows. For an entry that follows the corpus, the
@@ -69,6 +70,16 @@
 //           after FES_I386_RETIRE_LIMIT retirements, at an interrupt through
 //           a vector entry it rewrote, or at a store into its code other
 //           than those rewrites, after which it may run anything.
+//           FES_I386_PM protected-mode blocks per hundred items (pm_block,
+//           default 2): LGDT and LIDT, PE set, far jumps, far CALLs and
+//           RETFs between code descriptors, INT n and IRET through an IDT of
+//           interrupt and trap gates, LLDT, LTR, LAR's kin and ARPL, segment
+//           loads from the GDT and the LDT, accesses, CR and table moves,
+//           back to real mode (unreal). An exception or interrupt with PE
+//           set is delivered through the IDT and compared as any delivery
+//           is. What is not built stops the RTL and ends the run, with its
+//           reason (trace_unbuilt); the oracle's step must show the like
+//           (below).
 //   unbuilt encodings this build does not execute, one per line on stdin as
 //           hex bytes: each must stop the RTL with FAULT_UNIMPLEMENTED before
 //           anything retires. The RTL runs alone; the oracle is not stepped.
@@ -80,6 +91,18 @@
 //             fetch, issue and data reads stay inactive after a handler HLT;
 //             an INT and a fault whose delivery faults must stop with nothing
 //             written.
+//   unreal    the directed unreal-mode cases (run_unreal_cases).
+//   test386   test386.asm on the RTL alone (run_test386).
+//   pmode     the directed protected-mode cases (run_pmode_cases): each
+//             fault's vector and error code, EXT, a double fault and
+//             shutdown, INT n and IRET, far CALL and RETF (and their
+//             frames past a 16-bit stack's limit in the MMIO window, which
+//             fault before any read), LLDT, LTR, LAR, LSL, VERR, VERW, ARPL,
+//             and what stops as not built.
+//   no387     the directed cases of the ESC instructions with no 387
+//             (run_no387_cases): every form in real and protected mode,
+//             their faults, #NM, FNSTENV's and FNSAVE's layouts and FPU
+//             detection routines, under the no-387 rule (EscStep).
 // Output: "FAIL <label> <field> <expected> <actual>..." per failing run, then
 // one JSON summary line. Exit status 1 on any failure.
 #include "Vfes_i386_cpu.h"
@@ -107,6 +130,7 @@
 #include <sstream>
 #include <stdexcept>
 #include <string>
+#include <tuple>
 #include <vector>
 
 namespace {
@@ -134,6 +158,10 @@ uint32_t window_top() { return mixed ? HOLE_HI : MMIO_HI; }  // code stays clear
 constexpr uint32_t EFLAGS_MASK = 0x0003ffff;
 constexpr int EVENT_CYCLES = 20000;  // an RTL retirement or fault must come within this many cycles
                                      // (a REP string of 63 elements, each missing in both caches)
+constexpr int GOVERNED_EVENT_CYCLES = 80000;  // ... under a preset, whose ISA bus time holds a REP string of
+                                              // I/O or VGA memory dwords: REP INSD, OUTSD and MOVSD's corpus
+                                              // files take up to 31,668 cycles at 286-12 and 30,890 at
+                                              // 486DX2-66 (#1362)
 
 std::string hex(uint64_t value) {
     char text[24];
@@ -221,6 +249,9 @@ uint32_t physical(uint32_t linear, bool a20m) {
     if (linear >= 0xffff0000u) return 0xf0000u | (linear & 0xffffu);
     return a20m ? linear & ~(1u << 20) : linear;
 }
+// The oracle's physical address as the CPU's map sees it: FFFF0000h-FFFFFFFFh
+// is the F0000h shadow (fes_i386_pkg::phys), which a flat segment reaches.
+uint32_t alias(uint32_t paddr) { return paddr >= 0xffff0000u ? 0xf0000u | (paddr & 0xffffu) : paddr; }
 
 // The oracle's memory: 16 MiB of RAM, its I/O space and its PIC. With the
 // MMIO window on, its bytes are reached through read and write, logged.
@@ -234,13 +265,14 @@ public:
     std::vector<MmioAccess> mmio_log;
     uint64_t step = 0;
     uint8_t *page(uint32_t paddr, bool write) override {
+        paddr = alias(paddr);
         if (mmio_window && (in_window(paddr) || in_hole(paddr) || in_rom(paddr))) return nullptr;
         return paddr < RAM_BYTES ? &ram[paddr & ~0xfffu] : nullptr;
     }
     // A write to read-only RAM or a hole is dropped; a hole reads FFh.
     void read(uint32_t paddr, unsigned length, uint8_t *data) override {
         for (unsigned i = 0; i < length; ++i) {
-            const uint32_t at = paddr + i;
+            const uint32_t at = alias(paddr + i);
             data[i] = mmio_window && in_window(at) ? device_read(at, ram[at])
                     : mmio_window && in_rom(at)    ? ram[at]
                                                    : 0xff;
@@ -250,7 +282,7 @@ public:
     }
     void write(uint32_t paddr, unsigned length, const uint8_t *data) override {
         for (unsigned i = 0; i < length; ++i) {
-            const uint32_t at = paddr + i;
+            const uint32_t at = alias(paddr + i);
             if (!(mmio_window && in_window(at))) continue;
             ram[at] = data[i];
             mmio_log.push_back({true, at, data[i], step});
@@ -365,6 +397,21 @@ public:
         top.init_eflags = s.eflags;
         top.init_eip = s.eip;
         top.init_cr0 = s.cr0;
+        top.init_cr2 = s.cr2;
+        top.init_cr3 = s.cr3;
+        top.init_gdtr_base = s.gdtr.base;
+        top.init_gdtr_limit = s.gdtr.limit;
+        top.init_idtr_base = s.idtr.base;
+        top.init_idtr_limit = s.idtr.limit;
+        top.init_ldtr_sel = s.ldtr.selector;
+        top.init_ldtr_base = s.ldtr.base;
+        top.init_ldtr_limit = s.ldtr.limit;
+        top.init_ldtr_ar = s.ldtr.ar;
+        top.init_ldtr_valid = s.ldtr.valid;
+        top.init_tr_sel = s.tr.selector;
+        top.init_tr_base = s.tr.base;
+        top.init_tr_limit = s.tr.limit;
+        top.init_tr_ar = s.tr.ar;
         for (int n = 0; n < 6; ++n) {
             set16(top.init_sel, n, s.seg[n].selector);
             top.init_base[n] = s.seg[n].base;
@@ -569,7 +616,8 @@ public:
         ++cycles;
     }
 
-    enum class Event { Retired, Unimplemented, Timeout };
+    enum class Event { Retired, Unimplemented, Shutdown, Timeout };
+    int event_cycles = EVENT_CYCLES;  // GOVERNED_EVENT_CYCLES under a preset
 
     // Run until the next retirement, an exception's or interrupt's delivery
     // included (trace_exception), or stop. In HLT the RTL runs on only while
@@ -580,13 +628,15 @@ public:
         step_writes.clear();
         io.log.clear();
         const uint64_t acks = pic.acks;
-        for (int n = 0; n < EVENT_CYCLES; ++n) {
-            if (top.trace_unimplemented || (top.trace_halt && !pic.intr && !pic.nmi && pic.acks == acks)) break;
+        for (int n = 0; n < event_cycles; ++n) {
+            if (top.trace_unimplemented || top.shutdown || (top.trace_halt && !pic.intr && !pic.nmi && pic.acks == acks))
+                break;
             if (tick) tick();
             clock();
             if (top.trace_retire) return Event::Retired;
         }
         if (top.trace_unimplemented) return Event::Unimplemented;
+        if (top.shutdown) return Event::Shutdown;
         return Event::Timeout;
     }
 
@@ -596,13 +646,23 @@ public:
         State s;
         for (int n = 0; n < 8; ++n) s.gpr[n] = top.arch_gpr[n];
         s.eflags = top.arch_eflags & EFLAGS_MASK;
-        s.cr0 = (s.cr0 & ~0xau) | (top.arch_cr0 & 0xau);
+        s.cr0 = top.arch_cr0;
+        s.cr2 = top.arch_cr2;
+        s.cr3 = top.arch_cr3;
+        s.gdtr = {top.arch_gdtr_base, uint16_t(top.arch_gdtr_limit)};
+        s.idtr = {top.arch_idtr_base, uint16_t(top.arch_idtr_limit)};
+        s.ldtr = {uint16_t(top.arch_ldtr_sel), top.arch_ldtr_base, top.arch_ldtr_limit, uint16_t(top.arch_ldtr_ar),
+                  bool(top.arch_ldtr_valid)};
+        s.tr = {uint16_t(top.arch_tr_sel), top.arch_tr_base, top.arch_tr_limit, uint16_t(top.arch_tr_ar), true};
         s.eip = top.arch_eip;
         for (int n = 0; n < 6; ++n) {
             s.seg[n].selector = get16(top.arch_sel, n);
             s.seg[n].base = top.arch_base[n];
             s.seg[n].limit = top.arch_limit[n];
             s.seg[n].ar = get16(top.arch_ar, n);
+            // Bochs's cache is invalid only after a null selector's load,
+            // which leaves P clear.
+            s.seg[n].valid = (s.seg[n].ar & 0x80) != 0;
         }
         return s;
     }
@@ -987,10 +1047,33 @@ void set_window(fes_i386::Oracle &oracle, OracleBus &bus, Rtl &rtl, bool on) {
 // Code at linear address a stays 16 bytes clear of the window.
 bool clear_of_window(uint32_t a) { return a + 16 <= MMIO_LO || a >= window_top() + 16; }
 
+// The CR0 bits the CPU holds and Bochs agrees on: PE, MP, EM, TS and PG.
+// Bochs's 387 forces ET (a known limit), and the bits Bochs's 386 reads as
+// ones are left as a state loads them (the corpus's 386EX reads bit 16 as 0).
+constexpr uint32_t CR0_MASK = 0x8000000fu;
+
 // RTL against the oracle, leaving out skip's fields.
 void compare(const State &want, const State &got, const Fields &skip, const std::string &at, Mismatches &out) {
     if (skip.all) return;
     if (!skip.has("eip") && want.eip != got.eip) out.add(at + "eip", want.eip, got.eip);
+    if ((want.cr0 ^ got.cr0) & CR0_MASK) out.add(at + "cr0", want.cr0 & CR0_MASK, got.cr0 & CR0_MASK);
+    // The RTL runs at CPL 0 (its state's cpl): no privilege transition is built.
+    if ((want.cr0 & 1) && want.cpl != got.cpl) out.add(at + "cpl", want.cpl, got.cpl);
+    // LDTR and TR, with their caches; LDTR's valid bit (a null LLDT clears
+    // it, keeping the rest). TR's matters only to a task switch, not built.
+    for (const auto &[name, w, g] : {std::tuple{"ldtr", &want.ldtr, &got.ldtr}, std::tuple{"tr", &want.tr, &got.tr}}) {
+        if (w->selector != g->selector) out.add(at + name, w->selector, g->selector);
+        if (w->base != g->base) out.add(at + name + ".base", w->base, g->base);
+        if (w->limit != g->limit) out.add(at + name + ".limit", w->limit, g->limit);
+        if (w->ar != g->ar) out.add(at + name + ".ar", w->ar, g->ar);
+        if (w == &want.ldtr && w->valid != g->valid) out.add(at + name + ".valid", w->valid, g->valid);
+    }
+    if (want.cr2 != got.cr2) out.add(at + "cr2", want.cr2, got.cr2);
+    if (want.cr3 != got.cr3) out.add(at + "cr3", want.cr3, got.cr3);
+    if (want.gdtr.base != got.gdtr.base || want.gdtr.limit != got.gdtr.limit)
+        out.add(at + "gdtr", uint64_t(want.gdtr.base) << 16 | want.gdtr.limit, uint64_t(got.gdtr.base) << 16 | got.gdtr.limit);
+    if (want.idtr.base != got.idtr.base || want.idtr.limit != got.idtr.limit)
+        out.add(at + "idtr", uint64_t(want.idtr.base) << 16 | want.idtr.limit, uint64_t(got.idtr.base) << 16 | got.idtr.limit);
     for (int n = 0; n < 8; ++n)
         if (!skip.has(GPR_NAMES[n]) && want.gpr[n] != got.gpr[n]) out.add(at + GPR_NAMES[n], want.gpr[n], got.gpr[n]);
     const uint32_t mask = EFLAGS_MASK & ~skip.eflags;
@@ -1028,9 +1111,10 @@ struct Summary {
     uint64_t external_interrupts = 0, nmis = 0;  // INTRs and NMIs delivered
     uint64_t rep_interrupts = 0;  // ... of them between a REP string's elements
     // Runs that delivered an exception: in the corpus, then halted in its
-    // handler; in random programs, stopped there. double_faults: stopped at a
-    // fault in a delivery.
-    uint64_t faults = 0, double_faults = 0;
+    // handler; in random programs, stopped there. shutdowns: stopped at a
+    // fault in a double fault's delivery, on both sides; nested: steps that
+    // delivered a fault raised in a delivery (a double fault among them).
+    uint64_t faults = 0, shutdowns = 0, nested = 0;
     uint64_t trace_hash = 1469598103934665603ull;
     std::map<int, uint64_t> fault_vectors;
     std::map<std::string, uint64_t> divergences;  // retirements an entry left to the corpus
@@ -1077,6 +1161,21 @@ struct Summary {
     uint64_t window_code = 0;     // runs stopped at code in the MMIO window
     uint64_t code_stores = 0;     // runs stopped at a store into their code that they did not plan
     uint64_t stray = 0;           // ... at code outside the program, or TF set (mixed memory)
+    // Protected mode: retirements with PE set; deliveries through the IDT,
+    // by vector (an INTR's as 256 + vector); runs stopped at what this build
+    // does not build there, by reason (why_e); real-mode CS loads where the
+    // oracle took the RTL's 386 values (the known limit).
+    // ss_error_rule: far CALLs whose #SS error code the oracle took from the
+    // RTL (a known limit).
+    uint64_t pm_retirements = 0, cs_rule = 0, ss_error_rule = 0;
+    std::map<int, uint64_t> pm_deliveries, unbuilt;
+    std::map<std::string, uint64_t> pm_kinds;  // retirements with PE set of this slice's instructions, by kind
+    // Code under a CS limit other than FFFFh and FFFFFFFFh: its retirements
+    // and the #GP deliveries from it, with PE set and clear.
+    std::map<std::string, uint64_t> cs_limit;
+    // no387_rule: ESC instructions stepped under the no-387 rule, and those
+    // of them the oracle moved past without stepping (EscStep).
+    uint64_t no387_rule = 0, no387_skips = 0;
 };
 
 void hash_state(Summary &summary, const State &s) {
@@ -1290,6 +1389,12 @@ bool branch_taken(const uint8_t *code, const State &s, bool code32, bool &taken)
              op == 0xca || op == 0xcb || op == 0xcc || op == 0xcd || op == 0xce || op == 0xcf)
         taken = true;
     else if (op == 0xff && ((code[i + 1] >> 3) & 7) >= 2 && ((code[i + 1] >> 3) & 7) <= 5) taken = true;
+    // CLTS, MOV CRn, LGDT, LIDT and LMSW write at WB with a jump to the next
+    // instruction.
+    else if (op == 0x0f && (code[i + 1] == 0x06 || code[i + 1] == 0x22 ||
+                            (code[i + 1] == 0x01 && (((code[i + 2] >> 3) & 7) == 2 || ((code[i + 2] >> 3) & 7) == 3 ||
+                                                     ((code[i + 2] >> 3) & 7) == 6))))
+        taken = true;
     else if (op == 0xe2) taken = count != 1;
     else if (op == 0xe1) taken = count != 1 && zf;
     else if (op == 0xe0) taken = count != 1 && !zf;
@@ -1301,19 +1406,21 @@ bool branch_taken(const uint8_t *code, const State &s, bool code32, bool &taken)
 struct Outcome {
     bool halted = false;   // both sides reached HLT
     int exception = -1;    // the last exception both sides delivered
-    bool double_fault = false;  // stopped at a fault in a delivery (no double fault is built)
+    bool shutdown = false;  // stopped at a fault in a double fault's delivery, on both sides
     bool limit = false;    // stopped at the retirement limit
     bool vector_moved = false;  // stopped at an injected interrupt whose vector entry or handler the program rewrote
     bool window_code = false;   // stopped at code in the MMIO window, which neither side fetches
     bool code_store = false;    // stopped at a store into its code that it did not plan
     // With mixed memory, stopped at code outside the program (own) and the
-    // injected interrupts' handler, at code other than the 16 bytes from the
+    // injected interrupts' handlers (the real-mode one and the protected-mode
+    // IDT's), at code other than the 16 bytes from the
     // instruction before if that one read the mixing device, the ROM or the
     // hole, or with TF set: a return address, far pointer or flags image read
     // back from mixed memory is no longer the program's, and the code it
     // leads to is then anything.
     bool stray = false;
     int interrupt = -1;    // the last software interrupt both sides took (INT n, INT3, INTO)
+    int unbuilt = -1;      // stopped at what this build does not build in protected mode (trace_unbuilt)
     std::string code;      // the last instruction's first bytes, for a failure's line
 };
 
@@ -1339,6 +1446,13 @@ struct Irq {
     bool nmi_last = false;  // raised for the step before: NMI is not raised twice in a row, so the
                             // RTL's line is low between its one-cycle pulses
     uint8_t vector = 0;
+    // Protected mode: the program's IDT, its gates as written, and the
+    // handlers its 386 and 286 gates point at (NOP, IRET in 32- and 16-bit
+    // code; Generator::gdt_table).
+    uint32_t pm_idt = 0;
+    uint16_t pm_idt_limit = 0;
+    std::array<uint64_t, 48> pm_gates{};
+    uint32_t pm_h32 = 0, pm_h16 = 0;
 };
 
 // Run from the state both sides hold now. label_corpus and label_oracle hold
@@ -1349,6 +1463,138 @@ struct Code {
     uint32_t lo = 0, hi = 0;
     std::set<uint32_t> rewritten;
 };
+
+// An ESC instruction's memory operand: its offset, wrapped by address size,
+// and its segment (fes_i386::SEG_*), from the bytes at code and the state.
+// The 386EX's scaled base for a SIB index of 100b (the divergence
+// invalid-sib-scales-base) is not modelled: no case here uses one.
+struct EscOperand {
+    uint32_t offset = 0;
+    int seg = fes_i386::SEG_DS;
+};
+EscOperand esc_operand(const uint8_t *code, bool code32, const State &state) {
+    unsigned i = 0;
+    bool adsize = false;
+    int seg = -1;
+    while (i < 15 && is_prefix(code[i])) {
+        if (code[i] == 0x67) adsize = true;
+        const uint8_t segs[] = {0x26, 0x2e, 0x36, 0x3e, 0x64, 0x65};
+        for (int k = 0; k < 6; ++k)
+            if (code[i] == segs[k]) seg = k;
+        ++i;
+    }
+    const uint8_t modrm = code[i + 1];
+    const unsigned mod = modrm >> 6, rm = modrm & 7;
+    const uint32_t *r = state.gpr;
+    auto d8 = [&](unsigned at) { return uint32_t(int32_t(int8_t(code[at]))); };
+    auto d16 = [&](unsigned at) { return uint32_t(code[at] | code[at + 1] << 8); };
+    auto d32 = [&](unsigned at) { return d16(at) | d16(at + 2) << 16; };
+    EscOperand o;
+    bool stack = false;
+    if (code32 == adsize) {  // 16-bit addressing
+        static const int base16[8] = {fes_i386::REG_EBX, fes_i386::REG_EBX, fes_i386::REG_EBP, fes_i386::REG_EBP,
+                                      -1, -1, fes_i386::REG_EBP, fes_i386::REG_EBX};
+        static const int index16[8] = {fes_i386::REG_ESI, fes_i386::REG_EDI, fes_i386::REG_ESI, fes_i386::REG_EDI,
+                                       fes_i386::REG_ESI, fes_i386::REG_EDI, -1, -1};
+        uint32_t sum = 0;
+        if (mod == 0 && rm == 6) {
+            sum = d16(i + 2);
+        } else {
+            if (base16[rm] >= 0) sum += r[base16[rm]];
+            if (index16[rm] >= 0) sum += r[index16[rm]];
+            stack = base16[rm] == fes_i386::REG_EBP;
+            if (mod == 1) sum += d8(i + 2);
+            if (mod == 2) sum += d16(i + 2);
+        }
+        o.offset = sum & 0xffff;
+    } else {
+        unsigned at = i + 2;
+        uint32_t sum = 0;
+        if (rm == 4) {
+            const uint8_t sib = code[at++];
+            const unsigned base = sib & 7, index = (sib >> 3) & 7;
+            if (index != 4) sum += r[index] << (sib >> 6);
+            if (base == 5 && mod == 0) {
+                sum += d32(at);
+                at += 4;
+            } else {
+                sum += r[base];
+                stack = base == fes_i386::REG_ESP || base == fes_i386::REG_EBP;
+            }
+        } else if (rm == 5 && mod == 0) {
+            sum = d32(at);
+            at += 4;
+        } else {
+            sum = r[rm];
+            stack = rm == fes_i386::REG_EBP;
+        }
+        if (mod == 1) sum += d8(at);
+        if (mod == 2) sum += d32(at);
+        o.offset = sum;
+    }
+    o.seg = seg >= 0 ? seg : stack ? fes_i386::SEG_SS : fes_i386::SEG_DS;
+    return o;
+}
+
+// The no-387 rule (no387_rule). Bochs, the oracle, models a 387; the FES CPU
+// is a 386 with an empty socket (docs/i386-cpu-design.md, FPU). For an ESC
+// instruction (D8h-DFh) with CR0.EM and CR0.TS clear and no LOCK (whose
+// #NM and #UD Bochs raises as the FES CPU does):
+//   - Bochs's 387 reads as an empty socket for the step (empty_socket): it
+//     stores all ones for FNSTSW, FNSTCW and the 387's fields of FNSTENV and
+//     FNSAVE, and FNSTSW AX gives FFFFh. After it, no exception is pending.
+//   - FNINIT, FNSAVE, FLDENV and FRSTOR keep the x87 pointers (keep), which
+//     Bochs clears or loads and the FES CPU leaves.
+//   - A memory form that accesses nothing (FST, FSTP, FIST, FISTP, FBSTP,
+//     the reserved ones) and a register form Bochs's 386 rejects as #UD are
+//     not stepped (skip): the oracle moves past it and takes the x87
+//     pointers the instruction writes, its CS and EIP and a memory form's
+//     segment selector and offset.
+// Bochs's own x87 pointer updates (FPU_update_last_instruction) follow the
+// FES CPU's for every other form, so FNSTENV's and FNSAVE's pointer fields
+// are compared with Bochs's. With EM or TS set every ESC form raises #NM on
+// both sides, but for those Bochs's 386 rejects as #UD (nm_patch): there the
+// oracle steps a defined form of the same length in its place, FNOP for a
+// register form and FLD m32real with the same ModRM for a memory form,
+// which raises the #NM.
+struct EscStep {
+    bool esc = false;
+    bool status = false;
+    bool keep = false;
+    bool skip = false;
+    bool mem = false;
+    bool nm_patch = false;
+    unsigned at = 0;  // the opcode's byte, after the prefixes
+    uint8_t length = 0;
+    EscOperand operand;
+};
+EscStep esc_step(const uint8_t *code, bool code32, const State &state, const fes_i386::Oracle &oracle) {
+    EscStep e;
+    unsigned i = 0;
+    bool lock = false;
+    for (; i < 15 && is_prefix(code[i]); ++i) lock = lock || code[i] == 0xf0;
+    const uint8_t op = code[i];
+    if (i >= 15 || (op & 0xf8) != 0xd8 || lock) return e;
+    const uint8_t modrm = code[i + 1];
+    const unsigned reg = (modrm >> 3) & 7;
+    const fes_i386::Decoded decoded = oracle.decode(code, 16, code32);
+    e.at = i;
+    if (state.cr0 & 0xc) {
+        e.nm_patch = decoded.undefined;
+        return e;
+    }
+    e.esc = true;
+    e.mem = modrm < 0xc0;
+    e.length = decoded.length;
+    e.status = e.mem ? (op == 0xdd && (reg == 7 || reg == 6)) || (op == 0xd9 && reg == 6) : op == 0xdf && modrm == 0xe0;
+    e.keep = e.mem ? (op == 0xdd && (reg == 6 || reg == 4)) || (op == 0xd9 && reg == 4) : op == 0xdb && modrm == 0xe3;
+    const bool no_access = e.mem && ((op == 0xd9 && reg >= 1 && reg <= 3) || (op == 0xdb && reg != 0 && reg != 5)
+                                     || (op == 0xdd && (reg == 1 || reg == 2 || reg == 3 || reg == 5))
+                                     || (op == 0xdf && (reg == 1 || reg == 2 || reg == 3 || reg == 6 || reg == 7)));
+    e.skip = no_access || decoded.undefined;
+    if (e.mem) e.operand = esc_operand(code, code32, state);
+    return e;
+}
 
 Outcome lockstep(fes_i386::Oracle &oracle, OracleBus &bus, Rtl &rtl, const std::vector<Entry> &entries,
                  const Fields &label_corpus, uint64_t retire_limit, bool stop_at_exception, Summary &summary,
@@ -1371,7 +1617,11 @@ Outcome lockstep(fes_i386::Oracle &oracle, OracleBus &bus, Rtl &rtl, const std::
             if (wake) irq->intr_next = true;
             else irq->intr_at = 0;
         }
-        const bool nmi = !wake && !irq->nmi_last && (*irq->random)() % (edge ? 8 : 256) == 0;
+        // No NMI in protected mode, where it would stop the RTL (its
+        // delivery through the IDT is not built): a run stops there only on
+        // its own instructions.
+        const bool nmi = !wake && !irq->nmi_last && !(oracle.get_state().cr0 & 1)
+                      && (*irq->random)() % (edge ? 8 : 256) == 0;
         if (nmi) {
             rtl.pic.nmi = true;
             irq->nmi_at = 0;
@@ -1401,7 +1651,7 @@ Outcome lockstep(fes_i386::Oracle &oracle, OracleBus &bus, Rtl &rtl, const std::
                 outcome.window_code = true;
                 return outcome;
             }
-            const bool handler = irq && at - irq->handler < 2;
+            const bool handler = irq && (at - irq->handler < 2 || at - irq->pm_h32 < 2 || at - irq->pm_h16 < 2);
             if (mixed && own && (!(at >= own->lo && at < own->hi) && !handler || now.eflags & 0x100
                                  || bus.mixed_read && at - mixed_from >= 16 && !handler)) {
                 outcome.stray = true;
@@ -1417,10 +1667,16 @@ Outcome lockstep(fes_i386::Oracle &oracle, OracleBus &bus, Rtl &rtl, const std::
         outcome.code.clear();
         for (int i = 0; i < 12; ++i) outcome.code += (i ? " " : "") + hex(code[i] | 0x100).substr(1);
         if (std::getenv("FES_I386_VERBOSE"))
-            std::fprintf(stderr, "step %llu eip %x [%s] esp %x ebp %x ss.base %x\n", (unsigned long long)step,
+            std::fprintf(stderr, "step %llu eip %x [%s] esp %x ebp %x ss.base %x cr0 %x gdtr %x/%x\n", (unsigned long long)step,
                          before.eip, outcome.code.c_str(), before.gpr[fes_i386::REG_ESP], before.gpr[fes_i386::REG_EBP],
-                         before.seg[fes_i386::SEG_SS].base);
+                         before.seg[fes_i386::SEG_SS].base, before.cr0, before.gdtr.base, before.gdtr.limit);
         const bool code32 = before.seg[fes_i386::SEG_CS].ar & 0x4000;
+        if (const char *dump = std::getenv("FES_I386_DUMP")) {
+            const uint32_t a = uint32_t(std::strtoul(dump, nullptr, 16));
+            std::fprintf(stderr, "  dump %x:", a);
+            for (uint32_t i = 0; i < 8; ++i) std::fprintf(stderr, " %02x", a + i < RAM_BYTES ? bus.ram[a + i] : 0);
+            std::fprintf(stderr, "  cs.sel %x cs.ar %x cs.limit %x rtl.cs %x/%x/%x\n", before.seg[fes_i386::SEG_CS].selector, before.seg[fes_i386::SEG_CS].ar, before.seg[fes_i386::SEG_CS].limit, rtl.state().seg[1].selector, rtl.state().seg[1].ar, rtl.state().seg[1].limit);
+        }
 
         if (irq) {
             if (irq->intr_next) {
@@ -1433,8 +1689,20 @@ Outcome lockstep(fes_i386::Oracle &oracle, OracleBus &bus, Rtl &rtl, const std::
         }
         // Whether the vectors an injected interrupt may take still point at
         // the handler, which is still there.
+        // In protected mode, through the program's IDT, a gate as written and
+        // its handler as written.
         auto intact = [&](unsigned v) {
-            if (!irq || bus.ram[irq->handler] != 0x90 || bus.ram[irq->handler + 1] != 0xcf) return false;
+            if (!irq) return false;
+            if (before.cr0 & 1) {
+                if (before.idtr.base != irq->pm_idt || before.idtr.limit != irq->pm_idt_limit || v * 8 + 7 > before.idtr.limit
+                    || v >= irq->pm_gates.size())
+                    return false;
+                for (unsigned i = 0; i < 8; ++i)
+                    if (bus.ram[irq->pm_idt + v * 8 + i] != uint8_t(irq->pm_gates[v] >> (8 * i))) return false;
+                const uint32_t h = (irq->pm_gates[v] >> 43 & 1) ? irq->pm_h32 : irq->pm_h16;
+                return bus.ram[h] == 0x90 && bus.ram[h + 1] == 0xcf;
+            }
+            if (bus.ram[irq->handler] != 0x90 || bus.ram[irq->handler + 1] != 0xcf) return false;
             for (unsigned i = 0; i < 4; ++i)
                 if (bus.ram[v * 4 + i] != irq->entry[i]) return false;
             return true;
@@ -1486,6 +1754,9 @@ Outcome lockstep(fes_i386::Oracle &oracle, OracleBus &bus, Rtl &rtl, const std::
                          irq->intr_at, irq->nmi_at, intr_plan, nmi_plan);
         const Rtl::Event event = rtl.next(watch);
         if (verbose && irq) std::fprintf(stderr, "  rtl raised at %d %d\n", irq->intr_at, irq->nmi_at);
+        if (verbose)
+            std::fprintf(stderr, "  rtl event %d vector %x unbuilt %d error %x\n", int(event), unsigned(rtl.top.trace_vector),
+                         int(rtl.top.trace_unbuilt), unsigned(rtl.top.trace_error));
 
         // The oracle raises each line the RTL raised as element m retired
         // after its iteration m + 1; one the step does not reach, before its
@@ -1512,7 +1783,51 @@ Outcome lockstep(fes_i386::Oracle &oracle, OracleBus &bus, Rtl &rtl, const std::
                 }
             });
         bus.io.log.clear();
-        fes_i386::StepResult result = oracle.step();
+        // The no-387 rule (EscStep). A step it moves past retires nothing
+        // but the instruction: no event may be due at its boundary.
+        const EscStep esc = esc_step(code, code32, before, oracle);
+        fes_i386::StepResult result;
+        if (esc.esc && esc.skip) {
+            if (irq || (before.eflags & 0x100) || !esc.length)
+                out.add(hex(before.eip) + ".no387-skip-unsupported", 0, 1);
+            State next = before;
+            next.eip = before.eip + esc.length;
+            oracle.set_state(next);
+            fes_i386::X87Pointers pointers = oracle.x87_pointers();
+            pointers.ip = before.eip;
+            pointers.cs = before.seg[fes_i386::SEG_CS].selector;
+            if (esc.mem) {
+                pointers.dp = esc.operand.offset;
+                pointers.ds = before.seg[esc.operand.seg].selector;
+            }
+            oracle.set_x87_pointers(pointers);
+            result.retired = true;
+            result.eip_before = before.eip;
+            ++summary.no387_skips;
+        } else if (esc.nm_patch) {
+            const uint32_t at = linear + esc.at;
+            const uint8_t was[2] = {bus.ram[at], bus.ram[at + 1]};
+            if (was[1] >= 0xc0) {
+                bus.ram[at] = 0xd9;
+                bus.ram[at + 1] = 0xd0;
+            } else {
+                bus.ram[at] = 0xd9;
+                bus.ram[at + 1] = uint8_t(was[1] & 0xc7);
+            }
+            oracle.invalidate(at, 2);
+            result = oracle.step();
+            bus.ram[at] = was[0];
+            bus.ram[at + 1] = was[1];
+            oracle.invalidate(at, 2);
+            ++summary.no387_rule;
+        } else {
+            const fes_i386::X87Pointers kept = oracle.x87_pointers();
+            if (esc.esc) oracle.empty_socket(esc.status);
+            result = oracle.step();
+            if (esc.keep) oracle.set_x87_pointers(kept);
+            if (esc.esc) oracle.empty_socket(false);
+        }
+        if (esc.esc) ++summary.no387_rule;
         if (irq) {
             oracle.set_iteration_hook({});
             irq->intr_next = irq->intr_at >= 0;
@@ -1524,7 +1839,8 @@ Outcome lockstep(fes_i386::Oracle &oracle, OracleBus &bus, Rtl &rtl, const std::
         }
         if (verbose)
             for (const auto &e : result.events)
-                std::fprintf(stderr, "  event %d vector %x writes_before %u\n", int(e.kind), e.vector, e.writes_before);
+                std::fprintf(stderr, "  event %d vector %x error %x writes_before %u\n", int(e.kind), e.vector,
+                             e.error_code, e.writes_before);
         if (irq && !bus.pic.intr) oracle.set_intr(false);  // its INTA dropped it
         const std::string at = "@" + hex(before.eip) + ".";
         // Under queue16 an instruction may run bytes from before a store.
@@ -1569,7 +1885,7 @@ Outcome lockstep(fes_i386::Oracle &oracle, OracleBus &bus, Rtl &rtl, const std::
 
         // Every byte the oracle writes is cleared after the run.
         for (const auto &w : result.writes)
-            for (unsigned i = 0; i < w.length; ++i) rtl.written.insert(w.physical + i);
+            for (unsigned i = 0; i < w.length; ++i) rtl.written.insert(alias(w.physical + i));
         // An injected interrupt through a vector entry the program rewrote,
         // or to a handler it wrote over, runs data from here: stop. (Bochs's
         // step also takes a fault of what it fetches there.)
@@ -1578,17 +1894,42 @@ Outcome lockstep(fes_i386::Oracle &oracle, OracleBus &bus, Rtl &rtl, const std::
             return outcome;
         }
         const bool delivered = event == Rtl::Event::Retired && rtl.top.trace_exception;
-        if (oracle_exceptions > 1 || result.shutdown) {
-            // A fault in an exception's delivery (or in an INT's, then in
-            // the exception's): a double fault, then shutdown. The RTL stops
-            // at the second fault, as not built, with nothing of the
-            // instruction retired and nothing of the delivery written. An
-            // entry that leaves every field to the corpus may let the
+        // A fault in a delivery (the INT's, an interrupt's or an exception's):
+        // the oracle's last event is what both deliver, a double fault when
+        // both faults are contributory. What the step wrote before that
+        // delivery began may be partly the oracle's alone: the RTL checks
+        // each slot of a far CALL or a delivery before it pushes, as the
+        // 386EX does, where Bochs pushes and then faults.
+        const fes_i386::Event *last = result.events.empty() ? nullptr : &result.events.back();
+        const bool nested = result.events.size() >= 2 && last->kind == fes_i386::EventKind::Exception;
+        // Something this build does not build in protected mode stops the
+        // RTL as not built, with its reason, and ends the run: a delivery
+        // through a task gate, a return to an outer privilege, a far
+        // transfer through a call gate, a TSS or a task gate, an IRET to V86
+        // mode, a 16-bit stack slot past 64 KiB, an IRET with NT set (a
+        // return from a nested task). The oracle's step must show the like:
+        // a fault first, or the transfer.
+        if (event == Rtl::Event::Unimplemented && rtl.top.trace_unbuilt != 0) {
+            const unsigned why = rtl.top.trace_unbuilt;
+            const State now = oracle.get_state();
+            const bool faulted = vector >= 0;
+            const bool like = faulted || (why == 1 || why == 8) && now.tr.selector != before.tr.selector
+                           || why == 3 && now.cpl != 0 || why == 4 && (now.tr.selector != before.tr.selector
+                                                                        || now.seg[fes_i386::SEG_CS].selector != before.seg[fes_i386::SEG_CS].selector)
+                           || why == 5 && (now.eflags & 0x20000) || why == 6 || why == 7;
+            if (!like) out.add(at + "unbuilt." + std::to_string(why), 0, 1);
+            ++summary.unbuilt[int(why)];
+            outcome.unbuilt = int(why);
+            return outcome;
+        }
+        if (result.shutdown) {
+            // A fault in a double fault's delivery: shutdown, with nothing of
+            // the instruction retired and nothing of the deliveries written.
+            // An entry that leaves every field to the corpus may let the
             // instruction transfer part way first (a PUSHA or POPA whose
             // slots straddle the wrap); flags an entry leaves to the corpus
             // may have changed first (a divide error's).
-            if (event != Rtl::Event::Unimplemented || rtl.top.trace_vector != 8)
-                out.add(at + "double-fault", 8, event == Rtl::Event::Unimplemented ? rtl.top.trace_vector : 0xffu);
+            if (event != Rtl::Event::Shutdown) out.add(at + "shutdown", 1, uint32_t(event));
             if (!skip.all) {
                 // What the instruction did before its fault may stand:
                 // ENTER's pushes, a REP string's elements with their steps of
@@ -1604,7 +1945,7 @@ Outcome lockstep(fes_i386::Oracle &oracle, OracleBus &bus, Rtl &rtl, const std::
                 std::set<uint32_t> own_writes, later_writes;
                 for (size_t k = 0; k < result.writes.size(); ++k)
                     for (unsigned i = 0; i < result.writes[k].length; ++i)
-                        (k < own ? own_writes : later_writes).insert(result.writes[k].physical + i);
+                        (k < own ? own_writes : later_writes).insert(alias(result.writes[k].physical + i));
                 for (uint32_t address : rtl.step_writes) {
                     if (!own_writes.count(address))
                         out.add(at + "fault-write", address, address < RAM_BYTES ? rtl.ram[address] : 0);
@@ -1620,13 +1961,22 @@ Outcome lockstep(fes_i386::Oracle &oracle, OracleBus &bus, Rtl &rtl, const std::
                 want.eflags = (before.eflags & ~0x8d5u) | (oracle_now.eflags & 0x8d5u);
                 compare(want, rtl.state(), skip, at, out);
             }
-            outcome.double_fault = true;
+            outcome.shutdown = true;
             return outcome;
+        }
+        if (nested && !skip.all) {
+            if (!delivered) {
+                out.add(at + "nested", last->vector, event == Rtl::Event::Retired ? 0xffu : 0xfeu);
+                return outcome;
+            }
+            if (rtl.top.trace_vector != last->vector) out.add(at + "nested-vector", last->vector, rtl.top.trace_vector);
+            ++summary.nested;
         }
         // An entry that leaves every field to the corpus decides whether the
         // instruction faults: the RTL's outcome, a delivery or a retirement,
         // stands, and the oracle takes its state and memory below.
-        if (vector >= 0 && !skip.all) {
+        if (nested && !skip.all) {
+        } else if (vector >= 0 && !skip.all) {
             if (!delivered) {
                 out.add(at + (event == Rtl::Event::Unimplemented ? "unimplemented" : "exception"), uint32_t(vector),
                         event == Rtl::Event::Retired ? 0xffu : 0xfeu);
@@ -1644,6 +1994,13 @@ Outcome lockstep(fes_i386::Oracle &oracle, OracleBus &bus, Rtl &rtl, const std::
         } else if (delivered && !skip.all) {
             out.add(at + "unexpected-exception", 0, rtl.top.trace_vector);
             return outcome;
+        }
+        if (delivered && (before.cr0 & 1))
+            ++summary.pm_deliveries[int(rtl.top.trace_vector) + (interrupted && !nested && external != 2 ? 256 : 0)];
+        if (const uint32_t limit = before.seg[fes_i386::SEG_CS].limit; limit != 0xffff && limit != 0xffffffff) {
+            const std::string mode = before.cr0 & 1 ? "pm" : "real";
+            if (event == Rtl::Event::Retired && !delivered) ++summary.cs_limit[mode + "-retired"];
+            else if (rtl.top.trace_vector == 13 && !interrupted) ++summary.cs_limit[mode + "-gp"];
         }
         if (event == Rtl::Event::Unimplemented) {
             out.add(at + "unimplemented", 0, 1);
@@ -1663,8 +2020,18 @@ Outcome lockstep(fes_i386::Oracle &oracle, OracleBus &bus, Rtl &rtl, const std::
             const MemUse use = mem_use(code);
             const bool xchg = op == 0x86 || op == 0x87 || (op >= 0x91 && op <= 0x97);
             const bool muldiv = is_muldiv(code);
+            // Group 7 and the CR moves run several uops or wait on T1, and
+            // so do protected-mode segment loads, far transfers, INT n,
+            // IRET and the system-segment instructions (microcode).
+            const uint8_t op2 = code[prefixes + 1];
+            const bool system = (op == 0x0f && (op2 == 0x01 || op2 == 0x20 || op2 == 0x22))
+                             || ((before.cr0 & 1) && (loads_segment(code) || op == 0xea || op == 0x9a || op == 0xca ||
+                                                      op == 0xcb || (op >= 0xcc && op <= 0xcf) || op == 0x63 ||
+                                                      (op == 0x0f && op2 <= 0x03) ||
+                                                      (op == 0xff && (((op2 >> 3) & 7) == 5 || ((op2 >> 3) & 7) == 3))));
             if (retired_before) {
                 auto &gaps = branch_before ? (taken_before ? summary.gap_after_taken : summary.gap_after_not_taken)
+                           : system ? summary.gap_several
                            : io_before ? summary.gap_after_io
                            : since_string < 6 ? summary.gap_after_string
                            : prefixes > 1 ? summary.gap_prefixed
@@ -1709,7 +2076,17 @@ Outcome lockstep(fes_i386::Oracle &oracle, OracleBus &bus, Rtl &rtl, const std::
             // leaves memory to the corpus: then the oracle takes the RTL's.
             std::set<uint32_t> oracle_writes;
             for (const auto &w : result.writes)
-                for (unsigned i = 0; i < w.length; ++i) oracle_writes.insert(w.physical + i);
+                for (unsigned i = 0; i < w.length; ++i) oracle_writes.insert(alias(w.physical + i));
+            // ARPL that raises no RPL writes nothing (divergence
+            // arpl-no-write-no-fault), but Bochs reads its memory operand as a
+            // read-modify-write, which the adapter logs as a write of the
+            // bytes unchanged: with ZF clear after it, there is no write.
+            {
+                unsigned i = 0;
+                while (i < 15 && is_prefix(code[i])) ++i;
+                if (code[i] == 0x63 && (code[i + 1] >> 6) != 3 && result.events.empty() && !(oracle.get_state().eflags & 0x40))
+                    oracle_writes.clear();
+            }
             if (skip.has("ram")) {
                 std::set<uint32_t> both = oracle_writes;
                 both.insert(rtl.step_writes.begin(), rtl.step_writes.end());
@@ -1719,13 +2096,16 @@ Outcome lockstep(fes_i386::Oracle &oracle, OracleBus &bus, Rtl &rtl, const std::
                 }
             } else {
                 // A delivery's pushed FLAGS image, at SS:SP - 2 before the
-                // instruction, may differ in the flags an entry leaves to the
-                // corpus (stack.flags): the oracle takes the RTL's.
+                // instruction (- 4 through a protected-mode 386 gate), may
+                // differ in the flags an entry leaves to the corpus
+                // (stack.flags): the oracle takes the RTL's.
                 if (delivered && skip.stack_flags) {
                     const auto &ss = before.seg[fes_i386::SEG_SS];
                     const uint32_t esp = before.gpr[fes_i386::REG_ESP];
+                    const uint32_t gate = before.idtr.base + rtl.top.trace_vector * 8u + 5;
+                    const uint32_t image = (before.cr0 & 1) && gate < RAM_BYTES && (bus.ram[gate] & 8) ? 4 : 2;
                     for (uint32_t k = 0; k < 2; ++k) {
-                        const uint32_t at = ss.base + ((ss.ar & 0x4000) ? esp - 2 + k : (esp - 2 + k) & 0xffff);
+                        const uint32_t at = ss.base + ((ss.ar & 0x4000) ? esp - image + k : (esp - image + k) & 0xffff);
                         const uint8_t mask = uint8_t(skip.stack_flags >> (8 * k));
                         if (at < RAM_BYTES && oracle_writes.count(at) && !((bus.ram[at] ^ rtl.ram[at]) & ~mask)) {
                             bus.ram[at] = rtl.ram[at];
@@ -1733,7 +2113,53 @@ Outcome lockstep(fes_i386::Oracle &oracle, OracleBus &bus, Rtl &rtl, const std::
                         }
                     }
                 }
-                if (oracle_writes != rtl.step_writes) {
+                unsigned pfx = 0;
+                while (pfx < 15 && is_prefix(code[pfx])) ++pfx;
+                const bool far_call = code[pfx] == 0x9a || code[pfx] == 0xff && ((code[pfx + 1] >> 3) & 7) == 3;
+                if (nested || (before.cr0 & 1) && vector >= 0 && far_call) {
+                    // The last delivery's frame on both sides; besides it the
+                    // RTL writes only bytes the oracle wrote, and the oracle
+                    // takes the RTL's bytes it wrote alone (a far CALL's
+                    // pushes before its fault, a failed delivery's part of a
+                    // frame).
+                    std::set<uint32_t> frame;
+                    for (size_t k = last ? last->writes_before : result.writes.size(); k < result.writes.size(); ++k)
+                        for (unsigned i = 0; i < result.writes[k].length; ++i) frame.insert(alias(result.writes[k].physical + i));
+                    for (uint32_t address : frame)
+                        if (!rtl.step_writes.count(address)) out.add(at + "frame-write", address, 0);
+                    for (uint32_t address : rtl.step_writes)
+                        if (!oracle_writes.count(address)) out.add(at + "fault-write", address, 0);
+                    for (uint32_t address : oracle_writes)
+                        if (!rtl.step_writes.count(address) && address < RAM_BYTES) {
+                            bus.ram[address] = rtl.ram[address];
+                            oracle.invalidate(address, 1);
+                        }
+                    // A protected-mode far CALL whose push faults: Bochs's
+                    // #SS (write_new_stack_*) names SS's selector when the
+                    // RPL it keeps for SS is not CPL, which a real-mode load
+                    // leaves 0 and its state's set leaves the selector's.
+                    // The RTL raises #SS(0), as a CALL to the same privilege
+                    // does: the oracle takes its error code (a known limit).
+                    // The error code is the frame's push at the handler's
+                    // SS:ESP.
+                    if (far_call && last && last->vector == 12 && last->error_code != 0
+                        && last->error_code == (before.seg[fes_i386::SEG_SS].selector & 0xfffcu)
+                        && rtl.top.trace_error == 0) {
+                        const State now = oracle.get_state();
+                        const auto &ss = now.seg[fes_i386::SEG_SS];
+                        const uint32_t top = ss.base + ((ss.ar & 0x4000) ? now.gpr[fes_i386::REG_ESP]
+                                                                         : now.gpr[fes_i386::REG_ESP] & 0xffff);
+                        for (const auto &w : result.writes)
+                            if (w.linear == top)
+                                for (unsigned i = 0; i < w.length; ++i) {
+                                    const uint32_t address = alias(w.physical + i);
+                                    if (address >= RAM_BYTES) continue;
+                                    bus.ram[address] = rtl.ram[address];
+                                    oracle.invalidate(address, 1);
+                                }
+                        ++summary.ss_error_rule;
+                    }
+                } else if (oracle_writes != rtl.step_writes) {
                     const uint32_t first = !oracle_writes.empty() ? *oracle_writes.begin() : 0;
                     const uint32_t got = !rtl.step_writes.empty() ? *rtl.step_writes.begin() : 0;
                     out.add(at + "write-bytes", (uint64_t(oracle_writes.size()) << 32) | first,
@@ -1813,6 +2239,42 @@ Outcome lockstep(fes_i386::Oracle &oracle, OracleBus &bus, Rtl &rtl, const std::
             out.add(at + "inta", bus.pic.acks | bus.pic.unexpected << 32, rtl.pic.acks | rtl.pic.unexpected << 32);
         State oracle_state = oracle.get_state();
         const State rtl_state = rtl.state();
+        // A real-mode CS load: the RTL sets CS's limit and attributes to the
+        // 386's real-mode values (FFFFh, 93h), where Bochs 3.1 keeps CS's
+        // cache (docs/i386-cpu-design.md, the 386 real-mode CS rule): a known
+        // limit, not a divergence. The oracle takes the RTL's, so both run on
+        // alike.
+        {
+            auto &ocs = oracle_state.seg[fes_i386::SEG_CS];
+            const auto &rcs = rtl_state.seg[fes_i386::SEG_CS];
+            if (!(oracle_state.cr0 & 1) && rcs.limit == 0xffff && rcs.ar == 0x93 && (ocs.limit != 0xffff || ocs.ar != 0x93)
+                && ocs.selector == rcs.selector && ocs.base == rcs.base) {
+                ocs.limit = rcs.limit;
+                ocs.ar = rcs.ar;
+                ocs.valid = true;
+                oracle.set_state(oracle_state);
+                ++summary.cs_rule;
+            }
+        }
+        summary.pm_retirements += (oracle_state.cr0 & 1) != 0;
+        // What the protected-mode instructions of this slice retired, with
+        // PE set before them.
+        if ((before.cr0 & 1) && !delivered) {
+            unsigned i = 0;
+            while (i < 15 && is_prefix(code[i])) ++i;
+            const uint8_t op = code[i], op2 = code[i + 1], reg = (code[i + 2] >> 3) & 7;
+            const char *kind = op == 0xcd || op == 0xcc || op == 0xce ? (taken >= 0 ? "int" : nullptr)
+                             : op == 0xcf ? "iret" : op == 0x9a || op == 0xff && ((op2 >> 3) & 7) == 3 ? "call-far"
+                             : op == 0xca || op == 0xcb ? "retf" : op == 0x63 ? "arpl"
+                             : op == 0x0f && op2 == 0x02 ? "lar" : op == 0x0f && op2 == 0x03 ? "lsl"
+                             : op == 0x0f && op2 == 0x00 ? (reg == 0 ? "sldt" : reg == 1 ? "str" : reg == 2 ? "lldt"
+                                                            : reg == 3 ? "ltr" : reg == 4 ? "verr" : reg == 5 ? "verw" : nullptr)
+                             : nullptr;
+            if (kind) ++summary.pm_kinds[kind];
+            for (int n = 0; n < 6; ++n)
+                if (oracle_state.seg[n].selector != before.seg[n].selector && (oracle_state.seg[n].selector & 4))
+                    ++summary.pm_kinds["ldt-load"];
+        }
         compare(oracle_state, rtl_state, skip, at, out);
         hash_state(summary, rtl_state);
         if (!out.items.empty()) return outcome;
@@ -1843,7 +2305,9 @@ Outcome lockstep(fes_i386::Oracle &oracle, OracleBus &bus, Rtl &rtl, const std::
             if (stop_at_exception) return outcome;
         }
         // ... or one whose frame wrote over the handler.
-        if (interrupted && (bus.ram[irq->handler] != 0x90 || bus.ram[irq->handler + 1] != 0xcf)) {
+        const uint32_t handler = !irq ? 0 : !(before.cr0 & 1) ? irq->handler
+                               : (irq->pm_gates[unsigned(external) % irq->pm_gates.size()] >> 43 & 1) ? irq->pm_h32 : irq->pm_h16;
+        if (interrupted && irq && (bus.ram[handler] != 0x90 || bus.ram[handler + 1] != 0xcf)) {
             outcome.vector_moved = true;
             return outcome;
         }
@@ -1911,7 +2375,7 @@ void run_fault_case(fes_i386::Oracle &oracle, OracleBus &bus, Rtl &rtl, const st
         oracle.reset();
     }
     if (nested) {
-        if (!outcome.double_fault) out.add(label + ".double-fault", 1, 0);
+        if (!outcome.shutdown) out.add(label + ".shutdown", 1, 0);
     } else {
         if (outcome.exception != expected)
             out.add(label + ".exception", uint32_t(expected), outcome.exception < 0 ? 0xffu : uint32_t(outcome.exception));
@@ -2434,13 +2898,21 @@ public:
         // MOV stores for an indirect one. NEAR_ABS: the target's EIP, which a
         // MOV loads or stores for a CALL r/m, plus target_byte (a store that
         // rewrites the target).
-        enum { NEAR, FAR_PTR, FAR_OFF, FAR_SEL, NEAR_ABS } far = NEAR;
+        // PM_OFF: a protected-mode far transfer's offset at rel_at, the
+        // target's EIP under the program's own CS base, which the code
+        // descriptors take (pm_block); its selector is in the bytes already.
+        enum { NEAR, FAR_PTR, FAR_OFF, FAR_SEL, NEAR_ABS, PM_OFF } far = NEAR;
         unsigned target_byte = 0;
         unsigned rewrites = 0;  // the bytes from there a store rewrites (smc_block)
     };
 
     // The linear addresses the last program's stores rewrite.
     std::set<uint32_t> rewritten;
+    // Protected-mode blocks per hundred items (pm_block), and the memory
+    // the last program's blocks read: its GDT, LGDT's pointer and a scratch
+    // area (image, poked before the run).
+    unsigned pm_weight = 2;
+    std::vector<std::pair<uint32_t, uint8_t>> image;
 
     // base: the program's linear address, which far targets need; eip: its
     // first instruction's EIP, which near absolute targets need.
@@ -2450,6 +2922,7 @@ public:
         cs_moved = false;
         program_base = base;
         program_eip = eip;
+        gdt_table();
         while (items.size() < count) {
             const unsigned kind = pick(100);
             if (kind < 6) forward_branch();
@@ -2469,6 +2942,7 @@ public:
                 items.push_back(Item{{0xf4}, -1, 0, 0});
             } else if (kind < 37) shadow_block();
             else if (kind < 39) smc_block();
+            else if (kind < 39 + pm_weight) pm_block();
             else items.push_back(Item{instruction(false), -1, 0, 0});
         }
         items.push_back(Item{{0xf4}, -1, 0, 0});
@@ -3311,6 +3785,742 @@ private:
     }
     // A CS:IP for a linear address: the selector 2000h below its paragraph,
     // so the offset stays near 8000h and the code after it well inside CS.
+    // ---- Protected mode (pm_block) ------------------------------------------
+    // Each program has its protected-mode tables at gdt_lin, out of its
+    // code's way: below it at 9F000h, or above it at 3000h. A GDT of 24
+    // descriptors; LGDT's pointer at +C0h; a scratch area for far pointers
+    // and selectors at +D0h, which the block reaches through FS loaded with
+    // the flat data segment (selector 10h) and a 32-bit offset; LIDT's
+    // pointers to the IDT (+F0h) and back to the real-mode vector table
+    // (+F8h); an IDT of 48 gates (+100h); the handlers that interrupts and
+    // INT n return from, NOP and IRET in 32-bit code (+280h) and in 16-bit
+    // code (+284h); an LDT of 8 descriptors (+2A0h); a TSS (+2E0h).
+    // Descriptors (selector index * 8):
+    //   1 data RW 64K at a random base     9 data, not present
+    //   2 flat data RW, 4 GiB              10 data RW, DPL 1-3
+    //   3 flat data RW, D/B set            11 data RW, random base, limit, G, D/B
+    //   4 data read-only, random limit     12 a system descriptor, random type
+    //   5 data RW expand-down              13 data RW 64K at 0 (a stack)
+    //   6 code RX 16-bit at the program's CS base, 64K
+    //   7 code execute-only, the same      14 code RX 16-bit, the same, 4 GiB
+    //   8 code conforming, DPL mostly 0    15 eight random bytes
+    //   16 code RX 32-bit, flat (the 32-bit handler's)
+    //   17 the LDT, mostly present         18 a TSS, mostly an available 386 one
+    //   19 code RX 16-bit at the handlers' 64K (the 16-bit handler's)
+    //   20 a call gate (not built)         21 eight random bytes
+    //   22 code RX 16-bit at the program's CS base, a small limit (pm_limit)
+    //   23 code RX 32-bit, the same
+    // Accessed bits at random, so loads write them now and then. The LDT
+    // (selector index * 8 + 4): 0 random, 1 data RW 64K at a random base,
+    // 2 flat data RW, 3 code RX 16-bit at the program's CS base, 4 data
+    // read-only, 5 not present, 6 data RW DPL 3, 7 random.
+    static constexpr uint32_t PM_LGDT = 0xc0, PM_SCRATCH = 0xd0, PM_LIDT = 0xf0, PM_LIDT_REAL = 0xf8, PM_IDT = 0x100,
+                              PM_H32 = 0x280, PM_H16 = 0x284, PM_LDT = 0x2a0, PM_TSS = 0x2e0;
+    static constexpr unsigned GDT_SIZE = 24, IDT_GATES = 48;
+    uint32_t gdt_lin = 0;
+    uint16_t gdt_limit = 0;
+    struct Desc { uint32_t base, limit; bool g, db; uint8_t ar; };  // ar: P DPL S type
+    std::array<Desc, GDT_SIZE> gdt{};
+    std::array<uint64_t, GDT_SIZE> raw{};  // the descriptors as stored
+    std::array<uint64_t, IDT_GATES> idt{};  // the gates as stored
+    // A far jump's selector to a TSS, task gate or call gate: not built.
+    bool gate(uint16_t sel) const {
+        const unsigned index = sel >> 3;
+        if (sel & 4) return index == 0 || index == 7;  // the LDT's random descriptors
+        if (index >= GDT_SIZE || index * 8 + 7 > gdt_limit) return false;
+        const uint8_t ar = uint8_t(raw[index] >> 40);
+        const unsigned type = ar & 15;
+        return !(ar & 0x10) && (type == 1 || type == 9 || type == 5 || type == 4 || type == 12);
+    }
+    static uint64_t desc_bytes(const Desc &d) {
+        const uint64_t lo = (d.limit & 0xffff) | (uint64_t(d.base & 0xffff) << 16);
+        const uint64_t hi = ((d.base >> 16) & 0xff) | (uint64_t(d.ar) << 8) | (uint64_t((d.limit >> 16) & 0xf) << 16)
+                          | (uint64_t(d.db) << 22) | (uint64_t(d.g) << 23) | (uint64_t(d.base >> 24) << 24);
+        return lo | hi << 32;
+    }
+    // A gate: an interrupt or trap gate's 8 bytes.
+    static uint64_t gate_bytes(uint16_t sel, uint32_t off, uint8_t ar) {
+        return (off & 0xffff) | uint64_t(sel) << 16 | uint64_t(ar) << 40 | uint64_t(off >> 16) << 48;
+    }
+    // Each vector's gate: mostly an interrupt or trap gate, 386 to the
+    // 32-bit handler or 286 to the 16-bit one; now and then one that fails a
+    // check (not present; a data descriptor or call gate, not a gate; a
+    // null, LDT, data, missing or not-present CS; an offset past CS's
+    // limit) or a task gate (not built). The
+    // interrupts the testbench injects (2, 8-15) take good ones but in a
+    // fifth of programs, where one fails.
+    uint64_t pm_gate(unsigned vector, bool good) {
+        const bool trap = pick(4) == 0, g386 = pick(4) != 0;
+        const uint8_t type = uint8_t((g386 ? 0x0e : 0x06) | trap);
+        const uint32_t h32 = gdt_lin + PM_H32, h16 = gdt_lin + PM_H16 - (gdt_lin & 0xffff0000u);
+        const uint64_t ok = g386 ? gate_bytes(0x80, h32, uint8_t(0x80 | type)) : gate_bytes(0x98, h16, uint8_t(0x80 | type));
+        if (good || pick(3)) return ok;
+        (void)vector;
+        switch (pick(10)) {
+        case 0: return ok & ~(uint64_t(0x80) << 40);                             // not present
+        case 1: return (ok & ~(uint64_t(0x1f) << 40)) | uint64_t(pick(2) ? 0x12 : 0x0c) << 40;  // a data descriptor, a call gate
+        case 2: return gate_bytes(uint16_t(pick(4)), h32, uint8_t(0x80 | type)); // a null selector
+        case 3: return gate_bytes(uint16_t(0x0c | pick(8) << 3), h32, uint8_t(0x80 | type));  // an LDT one
+        case 4: return gate_bytes(0x10, h32, uint8_t(0x80 | type));              // a data segment
+        case 5: return gate_bytes(uint16_t(0xc0 + 8 * pick(8)), h32, uint8_t(0x80 | type));  // past the GDT
+        case 6: return gate_bytes(0x48, h32, uint8_t(0x80 | type));              // not present data
+        case 7: return gate_bytes(0x98, 0x10000 + pick(0x10000), uint8_t(0x8e)); // past the 16-bit CS's limit
+        case 8: return gate_bytes(0x90, 0, 0x85);                                // a task gate: not built
+        default: return ok;
+        }
+    }
+    void gdt_table() {
+        image.clear();
+        gdt_lin = program_base < 0x80000 ? 0x9f000 : 0x3000;
+        const uint32_t cs_base = program_base - program_eip;
+        auto acc = [&]() { return uint8_t(pick(2)); };
+        auto rnd_base = [&]() { return uint32_t(pick(0x10000)) << 4; };
+        gdt[0] = Desc{0, 0, false, false, 0};
+        gdt[1] = Desc{rnd_base(), 0xffff, false, false, uint8_t(0x92 | acc())};
+        gdt[2] = Desc{0, 0xfffff, true, false, uint8_t(0x92 | acc())};
+        gdt[3] = Desc{0, 0xfffff, true, true, uint8_t(0x92 | acc())};
+        gdt[4] = Desc{rnd_base(), pick(2) ? 0xffffu : pick(0x10000), pick(4) == 0, false, uint8_t(0x90 | acc())};
+        gdt[5] = Desc{rnd_base(), 0x0fff + pick(0xe000), false, pick(3) == 0, uint8_t(0x96 | acc())};
+        gdt[6] = Desc{cs_base, 0xffff, false, false, uint8_t(0x9a | acc())};
+        gdt[7] = Desc{cs_base, 0xffff, false, false, uint8_t(0x98 | acc())};
+        gdt[8] = Desc{cs_base, 0xffff, false, false, uint8_t(0x9e | acc() | (pick(4) == 0 ? (1 + pick(3)) << 5 : 0))};
+        gdt[9] = Desc{rnd_base(), 0xffff, false, false, uint8_t(0x12 | acc())};
+        gdt[10] = Desc{rnd_base(), 0xffff, false, false, uint8_t(0x92 | acc() | (1 + pick(3)) << 5)};
+        gdt[11] = Desc{pick(2) ? rnd_base() : uint32_t(rng()) & 0xfffff0, pick(0x100000), pick(2) == 0, pick(2) == 0,
+                       uint8_t(0x92 | acc())};
+        gdt[12] = Desc{rnd_base(), 0xffff, false, false, uint8_t(0x80 | pick(16) | pick(4) << 5)};
+        gdt[13] = Desc{0, 0xffff, false, false, uint8_t(0x92 | acc())};
+        gdt[14] = Desc{cs_base, 0xfffff, true, false, uint8_t(0x9a | acc())};
+        gdt[16] = Desc{0, 0xfffff, true, true, uint8_t(0x9a | acc())};
+        gdt[17] = Desc{gdt_lin + PM_LDT, pick(8) ? 0x3fu : pick(0x40), false, false, uint8_t(pick(8) ? 0x82 : 0x02)};
+        gdt[18] = Desc{gdt_lin + PM_TSS, 0x67, false, false,
+                       uint8_t(pick(8) ? 0x89 : pick(3) == 0 ? 0x81 : pick(2) ? 0x09 : 0x8b)};
+        gdt[19] = Desc{gdt_lin & 0xffff0000u, 0xffff, false, false, uint8_t(0x9a | acc())};
+        gdt[22] = Desc{cs_base, pick(0x10000), false, false, uint8_t(0x9a | acc())};
+        gdt[23] = Desc{cs_base, pick(0x10000), false, true, uint8_t(0x9a | acc())};
+        limit_set = {false, false};
+        gdt_limit = pick(6) == 0 ? uint16_t(8 * (1 + pick(GDT_SIZE)) - 1) : uint16_t(8 * GDT_SIZE - 1);
+        for (unsigned n = 0; n < GDT_SIZE; ++n) {
+            uint64_t d = n == 15 || n == 21 ? rng() : desc_bytes(gdt[n]);
+            if (n == 20) d = gate_bytes(0x30, pick(0x10000), uint8_t(0x8c));  // a call gate
+            raw[n] = d;
+            for (unsigned i = 0; i < 8; ++i) image.emplace_back(gdt_lin + 8 * n + i, uint8_t(d >> (8 * i)));
+        }
+        for (unsigned i = 0; i < 6; ++i)
+            image.emplace_back(gdt_lin + PM_LGDT + i, uint8_t((uint64_t(gdt_lin) << 16 | gdt_limit) >> (8 * i)));
+        // The IDT and LIDT's pointers, to it and back to the real-mode table.
+        const uint16_t idt_limit = pick(8) == 0 ? uint16_t(8 * pick(IDT_GATES) + pick(8)) : uint16_t(8 * IDT_GATES - 1);
+        const bool bad_irq = pick(5) == 0;
+        for (unsigned v = 0; v < IDT_GATES; ++v) {
+            const bool injected = v == 2 || (v >= 8 && v <= 15);
+            idt[v] = pm_gate(v, injected && !(bad_irq && pick(4) == 0));
+            for (unsigned i = 0; i < 8; ++i) image.emplace_back(gdt_lin + PM_IDT + 8 * v + i, uint8_t(idt[v] >> (8 * i)));
+        }
+        for (unsigned i = 0; i < 6; ++i) {
+            image.emplace_back(gdt_lin + PM_LIDT + i, uint8_t((uint64_t(gdt_lin + PM_IDT) << 16 | idt_limit) >> (8 * i)));
+            image.emplace_back(gdt_lin + PM_LIDT_REAL + i, uint8_t(uint64_t(0x3ff) >> (8 * i)));
+        }
+        pm_idt_limit = idt_limit;
+        // NOP; IRETD in 32-bit code, NOP; IRET in 16-bit code.
+        for (auto [at, value] : {std::pair{PM_H32, 0x90}, {PM_H32 + 1, 0xcf}, {PM_H16, 0x90}, {PM_H16 + 1, 0xcf}})
+            image.emplace_back(gdt_lin + at, uint8_t(value));
+        // The LDT.
+        const Desc ldt[8] = {
+            Desc{rnd_base(), pick(0x10000), false, false, uint8_t(0x80 | pick(32) | pick(4) << 5)},
+            Desc{rnd_base(), 0xffff, false, false, uint8_t(0x92 | acc())},
+            Desc{0, 0xfffff, true, false, uint8_t(0x92 | acc())},
+            Desc{cs_base, 0xffff, false, false, uint8_t(0x9a | acc())},
+            Desc{rnd_base(), 0xffff, false, false, uint8_t(0x90 | acc())},
+            Desc{rnd_base(), 0xffff, false, false, uint8_t(0x12 | acc())},
+            Desc{rnd_base(), 0xffff, false, false, uint8_t(0xf2 | acc())},
+            Desc{}};
+        for (unsigned n = 0; n < 8; ++n) {
+            const uint64_t d = n == 7 ? rng() : desc_bytes(ldt[n]);
+            for (unsigned i = 0; i < 8; ++i) image.emplace_back(gdt_lin + PM_LDT + 8 * n + i, uint8_t(d >> (8 * i)));
+        }
+        for (unsigned i = 0; i < 0x68; ++i) image.emplace_back(gdt_lin + PM_TSS + i, 0);
+    }
+public:
+    uint16_t pm_idt_limit = 0;
+    // The protected-mode IDT's base and a gate's bytes, for the testbench's
+    // check that an injected interrupt's gate and handler are intact.
+    uint32_t pm_idt_base() const { return gdt_lin + PM_IDT; }
+    uint64_t pm_gate_bytes(unsigned v) const { return v < IDT_GATES ? idt[v] : 0; }
+    uint32_t pm_handler(bool g386) const { return gdt_lin + (g386 ? PM_H32 : PM_H16); }
+private:
+    // A selector: mostly one of the GDT's, now and then past its limit, or
+    // one of the LDT's (TI=1); RPL mostly 0.
+    uint16_t selector() {
+        const unsigned index = pick(12) == 0 ? GDT_SIZE + pick(16) : pick(GDT_SIZE);
+        if (pick(5) == 0) return uint16_t(pick(10) << 3 | 4 | (pick(5) == 0 ? pick(4) : 0));
+        return uint16_t(index << 3 | (pick(5) == 0 ? pick(4) : 0));
+    }
+    // A sane one for a segment register, which the block's exit loads.
+    uint16_t sane(bool ss) { return ss ? (pick(2) ? 0x68 : 0x10) : uint16_t(pick(3) == 0 ? 0x08 : pick(2) ? 0x10 : 0x68); }
+    void emit(std::initializer_list<uint8_t> bytes) { items.push_back(Item{std::vector<uint8_t>(bytes), -1, 0, 0}); }
+    void emit(const std::vector<uint8_t> &bytes) { items.push_back(Item{bytes, -1, 0, 0}); }
+    static void put32(std::vector<uint8_t> &out, uint32_t v) {
+        for (int i = 0; i < 4; ++i) out.push_back(uint8_t(v >> (8 * i)));
+    }
+    // MOV AX, selector; MOV Sreg, AX (0 ES, 2 SS, 3 DS, 4 FS, 5 GS).
+    void load_seg(unsigned sreg, uint16_t sel) {
+        emit({0xb8, uint8_t(sel), uint8_t(sel >> 8)});
+        emit({0x8e, uint8_t(0xc0 | sreg << 3)});
+    }
+    // FS as the flat data segment, for the scratch area.
+    void flat_fs() { load_seg(4, 0x10); }
+    // The scratch area's dword at k, through FS: 64h 67h, ModRM mod 00
+    // r/m 101 and a 32-bit displacement.
+    void scratch_modrm(std::vector<uint8_t> &out, uint8_t op, unsigned reg, unsigned k) {
+        out.insert(out.end(), {0x64, 0x67, op, uint8_t(reg << 3 | 5)});
+        put32(out, gdt_lin + PM_SCRATCH + 4 * k);
+    }
+    // A far jump to code descriptor sel at the next item, direct (EA) or
+    // through a pointer the block stores first (JMP m16:16).
+    void pm_far_jump(uint16_t sel) {
+        if (pick(3) == 0) {
+            flat_fs();
+            Item store;  // MOV dword FS:[scratch], offset | selector << 16
+            store.bytes.push_back(0x66);
+            scratch_modrm(store.bytes, 0xc7, 0, 0);
+            store.rel_at = unsigned(store.bytes.size());
+            store.rel_size = 2;
+            store.bytes.insert(store.bytes.end(), {0, 0, uint8_t(sel), uint8_t(sel >> 8)});
+            store.far = Item::PM_OFF;
+            const int at = int(items.size());
+            items.push_back(store);
+            Item jump;
+            scratch_modrm(jump.bytes, 0xff, 5, 0);
+            items.push_back(jump);
+            items[size_t(at)].target = int(items.size());
+        } else {
+            Item jump;
+            jump.bytes = {0xea, 0, 0, uint8_t(sel), uint8_t(sel >> 8)};
+            jump.rel_at = 1;
+            jump.rel_size = 2;
+            jump.far = Item::PM_OFF;
+            jump.target = int(items.size()) + 1;
+            items.push_back(jump);
+        }
+    }
+    // A segment register load in protected mode: MOV Sreg, r16; MOV Sreg,
+    // m16 or POP Sreg (the selector stored or pushed first); or LES, LDS,
+    // LSS, LFS or LGS from a far pointer in the scratch area.
+    void pm_seg_load() {
+        static const unsigned regs[] = {0, 2, 3, 4, 5};
+        const unsigned sreg = regs[pick(5)];
+        const uint16_t sel = pick(4) == 0 ? selector() : sane(sreg == 2);
+        switch (pick(4)) {
+        case 0: load_seg(sreg, sel); break;
+        case 1: {  // MOV word FS:[scratch + 4], sel; MOV Sreg, FS:[scratch + 4]
+            flat_fs();
+            std::vector<uint8_t> store;
+            scratch_modrm(store, 0xc7, 0, 1);
+            store.insert(store.end(), {uint8_t(sel), uint8_t(sel >> 8)});
+            emit(store);
+            std::vector<uint8_t> load;
+            scratch_modrm(load, 0x8e, sreg, 1);
+            emit(load);
+            break;
+        }
+        case 2: {  // PUSH sel; POP Sreg
+            emit({0x68, uint8_t(sel), uint8_t(sel >> 8)});
+            if (sreg == 4 || sreg == 5) emit({0x0f, uint8_t(sreg == 4 ? 0xa1 : 0xa9)});
+            else emit({uint8_t(0x07 | sreg << 3)});
+            break;
+        }
+        default: {  // a far pointer (16- or 32-bit), then LES/LDS/LSS/LFS/LGS r, FS:[scratch + 8]
+            flat_fs();
+            const bool os32 = pick(2) == 0;
+            std::vector<uint8_t> off;
+            off.push_back(0x66);
+            scratch_modrm(off, 0xc7, 0, 2);
+            put32(off, uint32_t(rng()));
+            emit(off);
+            // The selector's word follows the offset: at +4 (32-bit) or +2.
+            std::vector<uint8_t> seg{0x64, 0x67, 0xc7, 0x05};
+            put32(seg, gdt_lin + PM_SCRATCH + 8 + (os32 ? 4 : 2));
+            seg.insert(seg.end(), {uint8_t(sel), uint8_t(sel >> 8)});
+            emit(seg);
+            std::vector<uint8_t> lp;
+            if (os32) lp.push_back(0x66);
+            unsigned reg = pick(7);  // not ESP
+            if (reg >= 4) ++reg;
+            if (sreg == 0 || sreg == 3) {
+                scratch_modrm(lp, sreg == 0 ? 0xc4 : 0xc5, reg, 2);
+            } else {
+                lp.insert(lp.end(), {0x64, 0x67, 0x0f, uint8_t(sreg == 2 ? 0xb2 : sreg == 4 ? 0xb4 : 0xb5),
+                                     uint8_t(reg << 3 | 5)});
+                put32(lp, gdt_lin + PM_SCRATCH + 8);
+            }
+            emit(lp);
+            break;
+        }
+        }
+    }
+    // A data access through a segment register, a word or dword at a 16- or
+    // 32-bit offset, often near its descriptor's limit.
+    void pm_access() {
+        static const uint8_t prefix[] = {0x26, 0x36, 0x3e, 0x64, 0x65};
+        std::vector<uint8_t> out;
+        out.push_back(prefix[pick(5)]);
+        const bool os32 = pick(3) == 0, as32 = pick(2) == 0;
+        if (os32) out.push_back(0x66);
+        if (as32) out.push_back(0x67);
+        out.push_back(pick(2) ? 0x8b : 0x89);  // MOV r, m or MOV m, r
+        unsigned reg = pick(7);  // not ESP
+        if (reg >= 4) ++reg;
+        uint32_t off = pick(3) == 0 ? uint32_t(rng()) & (as32 ? 0xfffff : 0xffff)
+                     : pick(2) ? 0xffff - pick(8) : 0x0fff + pick(16) - 8;
+        if (as32 && pick(3) == 0) off = 0x10000 + pick(0x10000);
+        out.push_back(uint8_t(reg << 3 | (as32 ? 5 : 6)));
+        if (as32) put32(out, off);
+        else out.insert(out.end(), {uint8_t(off), uint8_t(off >> 8)});
+        emit(out);
+    }
+    // A random instruction that loads no segment register: in protected
+    // mode a random selector would mostly name the LDT, which is not built.
+    std::vector<uint8_t> pm_instruction() {
+        for (;;) {
+            std::vector<uint8_t> out = instruction(false);
+            unsigned i = 0;
+            while (i < out.size() && is_prefix(out[i])) ++i;
+            const uint8_t op = i < out.size() ? out[i] : 0, op2 = i + 1 < out.size() ? out[i + 1] : 0;
+            if (op == 0x8e || op == 0x07 || op == 0x17 || op == 0x1f || op == 0xc4 || op == 0xc5) continue;
+            if (op == 0x0f && (op2 == 0xa1 || op2 == 0xa9 || op2 == 0xb2 || op2 == 0xb4 || op2 == 0xb5)) continue;
+            return out;
+        }
+    }
+    // A far CALL in protected mode to a callee past a JMP over it, through
+    // code descriptor 30h at the program's CS base: CALL ptr16:16 or
+    // ptr16:32, or CALL m16:16/32 through a pointer stored in the scratch
+    // area; the callee returns with RETF or RETF imm16 of the same operand
+    // size. CS must hold a GDT selector for the return: the block far-jumps
+    // first if it has not.
+    void pm_call() {
+        if (!pm_cs) {
+            pm_far_jump(0x30);
+            pm_cs = true;
+        }
+        const bool os32 = pick(3) == 0;
+        if (pick(3) == 0) {
+            flat_fs();
+            Item store;  // MOV dword FS:[scratch], offset | 30h << 16, or the offset dword and the selector word
+            store.bytes.push_back(0x66);
+            scratch_modrm(store.bytes, 0xc7, 0, 0);
+            store.rel_at = unsigned(store.bytes.size());
+            store.rel_size = os32 ? 4 : 2;
+            if (os32) store.bytes.insert(store.bytes.end(), {0, 0, 0, 0});
+            else store.bytes.insert(store.bytes.end(), {0, 0, 0x30, 0});
+            store.far = Item::PM_OFF;
+            const int at = int(items.size());
+            items.push_back(store);
+            if (os32) {
+                std::vector<uint8_t> sel;
+                scratch_modrm(sel, 0xc7, 0, 1);
+                sel.insert(sel.end(), {0x30, 0});
+                emit(sel);
+            }
+            Item call;
+            if (os32) call.bytes.push_back(0x66);
+            scratch_modrm(call.bytes, 0xff, 3, 0);
+            items.push_back(call);
+            callee(os32, at);
+        } else {
+            Item call;
+            if (os32) call.bytes.push_back(0x66);
+            call.bytes.push_back(0x9a);
+            call.rel_at = unsigned(call.bytes.size());
+            call.rel_size = os32 ? 4 : 2;
+            call.bytes.insert(call.bytes.end(), call.rel_size, 0);
+            call.bytes.insert(call.bytes.end(), {0x30, 0});
+            call.far = Item::PM_OFF;
+            const int at = int(items.size());
+            items.push_back(call);
+            callee(os32, at);
+        }
+    }
+    // A far call's callee past a JMP over it, which returns with RETF or
+    // RETF imm16; at is the item that holds its offset.
+    void callee(bool os32, int at) {
+        const int jump = int(items.size());
+        items.push_back(rel_item(false, 0xe9));
+        items[size_t(at)].target = int(items.size());
+        for (unsigned n = pick(3); n > 0; --n) items.push_back(Item{pm_instruction(), -1, 0, 0});
+        std::vector<uint8_t> ret;
+        if (os32) ret.push_back(0x66);
+        if (pick(3) == 0) {
+            const uint16_t n = pick(4) ? uint16_t(2 * pick(5)) : uint16_t(rng());
+            ret.insert(ret.end(), {0xca, uint8_t(n), uint8_t(n >> 8)});
+        } else {
+            ret.push_back(0xcb);
+        }
+        emit(ret);
+        items[size_t(jump)].target = int(items.size());
+        fence = int(items.size());
+    }
+    // The system-segment instructions: LLDT and LTR (mostly of the GDT's
+    // LDT and TSS), SLDT and STR, LAR, LSL, VERR and VERW of a selector,
+    // ARPL, each with a register or, through FS, the scratch area.
+    void pm_system() {
+        const unsigned r = 3;  // BX holds the selector
+        auto sel_in_bx = [&](uint16_t sel) { emit({0xbb, uint8_t(sel), uint8_t(sel >> 8)}); };
+        auto group6 = [&](unsigned op, bool memory) {
+            if (memory) {
+                flat_fs();
+                // MOV FS:[scratch + 20], BX
+                std::vector<uint8_t> mov{0x64, 0x67, 0x89, uint8_t(r << 3 | 5)};
+                put32(mov, gdt_lin + PM_SCRATCH + 20);
+                emit(mov);
+                std::vector<uint8_t> out{0x64, 0x67, 0x0f, 0x00, uint8_t(op << 3 | 5)};
+                put32(out, gdt_lin + PM_SCRATCH + 20);
+                emit(out);
+            } else {
+                emit({0x0f, 0x00, uint8_t(0xc0 | op << 3 | r)});
+            }
+        };
+        switch (pick(7)) {
+        case 0:  // LLDT
+            sel_in_bx(pick(4) ? 0x88 : pick(4) == 0 ? uint16_t(pick(4)) : selector());
+            group6(2, pick(4) == 0);
+            break;
+        case 1:  // LTR
+            sel_in_bx(pick(3) ? 0x90 : selector());
+            group6(3, pick(4) == 0);
+            break;
+        case 2: {  // SLDT or STR, to a register (16 or 32 bits) or the scratch area
+            const unsigned op = pick(2);
+            if (pick(3) == 0) {
+                flat_fs();
+                std::vector<uint8_t> out{0x64, 0x67, 0x0f, 0x00, uint8_t(op << 3 | 5)};
+                put32(out, gdt_lin + PM_SCRATCH + 24);
+                emit(out);
+            } else {
+                unsigned reg = pick(7);
+                if (reg >= 4) ++reg;
+                std::vector<uint8_t> out;
+                if (pick(2)) out.push_back(0x66);
+                out.insert(out.end(), {0x0f, 0x00, uint8_t(0xc0 | op << 3 | reg)});
+                emit(out);
+            }
+            break;
+        }
+        case 3: case 4: {  // LAR or LSL r, BX or r, FS:[scratch]
+            sel_in_bx(pick(4) == 0 ? uint16_t(rng()) : selector());
+            unsigned reg = pick(7);
+            if (reg >= 4) ++reg;
+            std::vector<uint8_t> out;
+            if (pick(2)) out.push_back(0x66);
+            const uint8_t op = uint8_t(0x02 + pick(2));
+            if (pick(4) == 0) {
+                flat_fs();
+                std::vector<uint8_t> mov{0x64, 0x67, 0x89, uint8_t(r << 3 | 5)};
+                put32(mov, gdt_lin + PM_SCRATCH + 20);
+                emit(mov);
+                out.insert(out.end(), {0x64, 0x67, 0x0f, op, uint8_t(reg << 3 | 5)});
+                put32(out, gdt_lin + PM_SCRATCH + 20);
+            } else {
+                out.insert(out.end(), {0x0f, op, uint8_t(0xc0 | reg << 3 | r)});
+            }
+            emit(out);
+            break;
+        }
+        case 5:  // VERR or VERW
+            sel_in_bx(pick(4) == 0 ? uint16_t(rng()) : selector());
+            group6(4 + pick(2), pick(4) == 0);
+            break;
+        default: {  // ARPL r/m16, r16: a register, or a word in the scratch area (flat FS, writable)
+            unsigned src = pick(7), dst = pick(7);
+            if (src >= 4) ++src;
+            if (dst >= 4) ++dst;
+            if (pick(3) == 0) {
+                flat_fs();
+                std::vector<uint8_t> store;
+                scratch_modrm(store, 0xc7, 0, 6);
+                store.insert(store.end(), {uint8_t(rng()), uint8_t(rng())});
+                emit(store);
+                std::vector<uint8_t> out{0x64, 0x67, 0x63, uint8_t(src << 3 | 5)};
+                put32(out, gdt_lin + PM_SCRATCH + 24);
+                emit(out);
+            } else {
+                emit({0x63, uint8_t(0xc0 | src << 3 | dst)});
+            }
+            break;
+        }
+        }
+    }
+    // INT n (any vector of the IDT's, or past it), INT3, or INTO; the
+    // handlers IRET back, to CS: the block far-jumps first, mostly, if it
+    // has not, so CS holds a GDT selector to return to.
+    void pm_int() {
+        if (!pm_cs && pick(8)) {
+            pm_far_jump(0x30);
+            pm_cs = true;
+        }
+        switch (pick(6)) {
+        case 0: emit({0xcc}); break;
+        case 1: emit({0xce}); break;
+        default: emit({0xcd, uint8_t(pick(8) ? 0x20 + pick(16) : pick(8) ? pick(IDT_GATES) : pick(256))});
+        }
+    }
+    // Code that runs and branches near a small CS limit: a far jump to
+    // descriptor 22 (B0h, 16-bit) or 23 (B8h, 32-bit), at the program's CS
+    // base, whose limit the program's first such jump sets up to 1K past
+    // its target, mostly a few bytes (limit_set, the GDT's bytes in the
+    // image rewritten); then
+    // instructions, near jumps and conditional jumps, LOOP, JCXZ, JMP
+    // through a register, and CALL rel or through a register to a
+    // subroutine that returns with RET or RET imm16, each forward over a
+    // few instructions, any of which may lie past the limit (#GP(0) at the
+    // fetch, or at the branch, call or return); then a
+    // far jump back to 30h, which 16-bit code under B0h may leave out, so
+    // the block goes on under B0h's limit, and leaves protected mode under
+    // it too. A later jump to the same descriptor keeps its limit, so its
+    // own offset is mostly past it. The 32-bit code takes its own
+    // encodings: no instruction of the 16-bit generator's.
+    std::array<bool, 2> limit_set{};
+    uint32_t next_eip() const {
+        uint32_t eip = program_eip;
+        for (const Item &item : items) eip += uint32_t(item.bytes.size());
+        return eip;
+    }
+    // An instruction for 32-bit code: NOP, INC or DEC r32, MOV r32, imm32,
+    // ADD, CMP or XOR r32, imm8, XOR r32, r32 (not ESP).
+    std::vector<uint8_t> instruction32() {
+        unsigned r = pick(7);
+        if (r >= 4) ++r;
+        switch (pick(5)) {
+        case 0: return {0x90};
+        case 1: return {uint8_t((pick(2) ? 0x40 : 0x48) | r)};
+        case 2: {
+            std::vector<uint8_t> out{uint8_t(0xb8 | r)};
+            put32(out, uint32_t(rng()));
+            return out;
+        }
+        case 3: return {0x83, uint8_t(0xc0 | (pick(3) == 0 ? 7 : pick(2) ? 0 : 6) << 3 | r), byte()};
+        default: return {0x31, uint8_t(0xc0 | r << 3 | r)};
+        }
+    }
+    // A near jump in code of width b32: Jcc, JMP (rel8, or rel16/32 by
+    // operand size, 66h at random), LOOP or JCXZ (rel8).
+    Item near_jump(bool b32) {
+        Item item;
+        const bool o16 = pick(4) == 0;  // the other operand size
+        if (o16) item.bytes.push_back(0x66);
+        const bool wide = (b32 != o16);
+        switch (pick(5)) {
+        case 0: item.bytes.push_back(uint8_t(0xe0 + pick(4))); item.rel_size = 1; break;  // LOOPNE, LOOPE, LOOP, JCXZ
+        case 1: item.bytes.push_back(uint8_t(0x70 + pick(16))); item.rel_size = 1; break;
+        case 2: item.bytes.push_back(0xeb); item.rel_size = 1; break;
+        case 3: item.bytes.insert(item.bytes.end(), {0x0f, uint8_t(0x80 + pick(16))}); item.rel_size = wide ? 4 : 2; break;
+        default: item.bytes.push_back(0xe9); item.rel_size = wide ? 4 : 2; break;
+        }
+        item.rel_at = unsigned(item.bytes.size());
+        item.bytes.insert(item.bytes.end(), item.rel_size, 0);
+        return item;
+    }
+    void pm_limit() {
+        const bool b32 = pick(3) == 0;
+        const unsigned index = b32 ? 23 : 22;
+        const uint16_t sel = uint16_t(index << 3);
+        pm_far_jump(sel);
+        pm_cs = true;
+        if (!limit_set[b32]) {
+            limit_set[b32] = true;
+            gdt[index].limit = next_eip() + (pick(4) == 0 ? pick(16) : pick(3) ? pick(96) : pick(1024));
+            raw[index] = desc_bytes(gdt[index]);
+            for (unsigned i = 0; i < 8; ++i) image[8 * index + i].second = uint8_t(raw[index] >> (8 * i));
+        }
+        auto simple = [&]() { return b32 ? instruction32() : pm_instruction(); };
+        for (unsigned n = 1 + pick(5); n > 0; --n) {
+            switch (pick(5)) {
+            case 0: case 1: {  // a near jump over 0-2 instructions; LOOP and JCXZ with (E)CX 1-3 first
+                Item jump = near_jump(b32);
+                const uint8_t op = jump.bytes[jump.bytes[0] == 0x66 ? 1 : 0];
+                if (op >= 0xe0 && op <= 0xe3) {
+                    std::vector<uint8_t> mov{0xb9, uint8_t(1 + pick(3)), 0};
+                    if (b32) mov.insert(mov.end(), {0, 0});
+                    emit(mov);
+                }
+                const int at = int(items.size());
+                items.push_back(jump);
+                for (unsigned k = pick(3); k > 0; --k) items.push_back(Item{simple(), -1, 0, 0});
+                items[size_t(at)].target = int(items.size());
+                break;
+            }
+            case 2: case 3: {  // CALL rel or MOV r, sub; CALL r; a JMP over the subroutine. MOV r, next; JMP r.
+                const unsigned r = 3 + pick(2) * 3;  // EBX or ESI
+                const bool by_reg = pick(2), call = pick(4) != 3;
+                const int at = int(items.size());
+                if (!by_reg) {
+                    items.push_back(b32 ? Item{{0xe8, 0, 0, 0, 0}, -1, 1, 4} : rel_item(false, 0xe8));
+                } else {
+                    Item mov{{uint8_t(0xb8 + r), 0, 0}, -1, 1, 2};
+                    if (b32) {
+                        mov.bytes.insert(mov.bytes.end(), {0, 0});
+                        mov.rel_size = 4;
+                    }
+                    mov.far = Item::NEAR_ABS;
+                    items.push_back(mov);
+                    emit({0xff, uint8_t((call ? 0xd0 : 0xe0) | r)});
+                }
+                if (!call && by_reg) {
+                    for (unsigned k = pick(3); k > 0; --k) items.push_back(Item{simple(), -1, 0, 0});
+                    items[size_t(at)].target = int(items.size());
+                    break;
+                }
+                const int over = int(items.size());
+                items.push_back(b32 ? Item{{0xe9, 0, 0, 0, 0}, -1, 1, 4} : rel_item(false, 0xe9));
+                items[size_t(at)].target = int(items.size());
+                for (unsigned k = pick(3); k > 0; --k) items.push_back(Item{simple(), -1, 0, 0});
+                if (pick(3) == 0) emit({0xc2, uint8_t(2 * pick(3)), 0});
+                else emit({0xc3});
+                items[size_t(over)].target = int(items.size());
+                break;
+            }
+            default: items.push_back(Item{simple(), -1, 0, 0}); break;
+            }
+        }
+        if (b32) {
+            // JMP 30h:next, ptr16:32.
+            Item jump{{0xea, 0, 0, 0, 0, 0x30, 0x00}, int(items.size()) + 1, 1, 4};
+            jump.far = Item::PM_OFF;
+            items.push_back(jump);
+        } else if (pick(2)) {
+            pm_far_jump(0x30);
+        }
+        fence = int(items.size());
+    }
+    // Protected mode, entered from real mode and left again: CLI (half the
+    // time), DS at the GDT's paragraph, LGDT and (mostly) LIDT of the IDT;
+    // PE set by MOV CR0 or LMSW; now and then a far jump to a code
+    // descriptor; segment loads, from the GDT and (after LLDT) the LDT, data
+    // accesses, CR and table reads and writes, stack operations, INT n,
+    // far CALLs, the system-segment instructions and random instructions;
+    // then the real-mode vector table back in IDTR, sane segments (64K or
+    // 4 GiB, SS a 16-bit stack), PE clear by MOV CR0, and mostly a
+    // real-mode far jump, whose CS load takes the 386's values. A fault on
+    // the way is delivered through the IDT, and the run stops there.
+    bool pm_cs = false;  // CS holds a GDT selector in this block
+    void pm_block() {
+        pm_cs = false;
+        if (pick(2)) emit({0xfa});  // CLI
+        load_seg(3, uint16_t(gdt_lin >> 4));
+        {
+            std::vector<uint8_t> lgdt;
+            if (pick(2)) lgdt.push_back(0x66);
+            lgdt.insert(lgdt.end(), {0x0f, 0x01, 0x16, uint8_t((gdt_lin & 15) + PM_LGDT), 0});
+            emit(lgdt);
+        }
+        if (pick(8)) {  // LIDT of the IDT, mostly; else the real-mode table stays in IDTR
+            std::vector<uint8_t> lidt;
+            if (pick(2)) lidt.push_back(0x66);
+            lidt.insert(lidt.end(), {0x0f, 0x01, 0x1e, uint8_t((gdt_lin & 15) + PM_LIDT), 0});
+            emit(lidt);
+        }
+        switch (pick(3)) {
+        case 0: emit({0x0f, 0x20, 0xc0}); emit({0x0c, 0x01}); emit({0x0f, 0x22, 0xc0}); break;  // MOV EAX, CR0; OR AL, 1; MOV CR0, EAX
+        case 1: emit({0x0f, 0x01, 0xe0}); emit({0x0c, 0x01}); emit({0x0f, 0x01, 0xf0}); break;  // SMSW AX; OR AL, 1; LMSW AX
+        default: {  // MOV EAX, imm32: PE, ET and MP, EM, TS at random; MOV CR0, EAX
+            std::vector<uint8_t> mov{0x66, 0xb8};
+            put32(mov, 0x11 | pick(8) << 1);
+            emit(mov);
+            emit({0x0f, 0x22, 0xc0});
+        }
+        }
+        if (pick(2)) emit({0xeb, 0x00});  // JMP $+2
+        if (pick(2)) {
+            pm_far_jump(pick(4) ? 0x30 : pick(2) ? 0x70 : 0x40);
+            pm_cs = true;
+        }
+        if (pick(3) == 0) {  // the LDT, for TI=1 loads
+            emit({0xbb, 0x88, 0x00});        // MOV BX, 88h
+            emit({0x0f, 0x00, 0xd3});        // LLDT BX
+        }
+        const unsigned ops = 1 + pick(8);
+        for (unsigned n = 0; n < ops; ++n) {
+            switch (pick(18)) {
+            case 17: pm_limit(); break;
+            case 12: pm_int(); break;
+            case 13: pm_call(); break;
+            case 14: case 15: pm_system(); break;
+            case 16:  // a segment load from the LDT, or STI
+                if (pick(4) == 0) emit({0xfb});
+                else load_seg(pick(2) ? 3 : 0, uint16_t((1 + pick(6)) << 3 | 4));
+                break;
+            case 0: case 1: case 2: case 3: pm_seg_load(); break;
+            case 4: case 5: pm_access(); break;
+            case 6: {  // CR and table reads and writes
+                switch (pick(6)) {
+                case 0: emit({0x0f, 0x01, uint8_t(0xe0 | pick(8))}); break;            // SMSW r16
+                case 1: emit({0x0f, 0x20, uint8_t(0xc0 | (pick(3) ? 0 : 2 + pick(2)) << 3 | pick(8))}); break;  // MOV r32, CRn
+                case 2: emit({0x0f, 0x22, uint8_t(0xc0 | (2 + pick(2)) << 3 | pick(8))}); break;  // MOV CR2/CR3, r32
+                case 3: {  // SGDT or SIDT to the scratch area, then LGDT or LIDT back from it
+                    flat_fs();
+                    const unsigned t = pick(2);
+                    std::vector<uint8_t> st;
+                    scratch_modrm(st, 0x01, t, 4);
+                    st.insert(st.begin() + 2, 0x0f);
+                    emit(st);
+                    std::vector<uint8_t> ld;
+                    if (pick(2)) ld.push_back(0x66);
+                    scratch_modrm(ld, 0x01, 2 + t, 4);
+                    ld.insert(ld.begin() + (ld[0] == 0x66 ? 3 : 2), 0x0f);
+                    emit(ld);
+                    break;
+                }
+                default: emit({0x0f, 0x01, uint8_t(0xe0 | pick(8))}); break;
+                }
+                break;
+            }
+            case 7: {
+                uint16_t sel = pick(3) ? 0x30 : pick(2) ? 0x70 : pick(2) ? 0x40 : selector();
+                if (gate(sel)) sel = 0x30;
+                if (pick(2)) {
+                    pm_far_jump(sel);
+                    pm_cs = pm_cs || sel == 0x30 || sel == 0x70;
+                }
+                break;
+            }
+            case 8: {  // PUSH r, POP r (not ESP)
+                unsigned reg = pick(7);
+                if (reg >= 4) ++reg;
+                emit({uint8_t(0x50 | pick(8))});
+                emit({uint8_t(0x58 | reg)});
+                break;
+            }
+            default: emit(pm_instruction()); break;
+            }
+        }
+        // The exit: the real-mode vector table in IDTR (through the flat
+        // FS), sane segments, then PE clear and a real-mode far jump.
+        flat_fs();
+        {
+            std::vector<uint8_t> lidt{0x64, 0x67, 0x0f, 0x01, 0x1d};
+            put32(lidt, gdt_lin + PM_LIDT_REAL);
+            emit(lidt);
+        }
+        for (unsigned sreg : {0u, 3u, 4u, 5u})
+            if (pick(5)) load_seg(sreg, sane(false));
+        load_seg(2, sane(true));
+        emit({0x0f, 0x20, 0xc0});
+        emit({0x24, 0xfe});                // AND AL, FEh
+        emit({0x0f, 0x22, 0xc0});
+        if (pick(8)) {
+            cs_moved = true;
+            Item jump;
+            jump.bytes = {0xea, 0, 0, 0, 0};
+            jump.rel_at = 1;
+            jump.rel_size = 2;
+            jump.far = Item::FAR_PTR;
+            jump.target = int(items.size()) + 1;
+            items.push_back(jump);
+        }
+        if (pick(2)) emit({0xfb});  // STI
+        // Unreal mode: a few accesses past 64K through the segments kept.
+        for (unsigned n = pick(3); n > 0; --n) pm_access();
+    }
+
     static void far_point(uint32_t linear, uint16_t &sel, uint32_t &off) {
         const uint32_t para = linear >> 4;
         const uint32_t s = para > 0x800 ? std::min<uint32_t>(para - 0x800, 0xffff) : 0;
@@ -3464,6 +4674,9 @@ private:
                 for (unsigned i = 0; i < item.rewrites; ++i)
                     rewritten.insert(program_base + offset[size_t(item.target)] + item.target_byte + i);
                 for (unsigned i = 0; i < item.rel_size; ++i) item.bytes[item.rel_at + i] = uint8_t(value >> (8 * i));
+            } else if (item.target >= 0 && item.far == Item::PM_OFF) {
+                const uint32_t value = program_eip + offset[size_t(item.target)];
+                for (unsigned i = 0; i < item.rel_size; ++i) item.bytes[item.rel_at + i] = uint8_t(value >> (8 * i));
             } else if (item.target >= 0 && item.far != Item::NEAR) {
                 uint16_t sel;
                 uint32_t off;
@@ -3494,6 +4707,7 @@ int run_random(fes_i386::Oracle &oracle, OracleBus &bus, Rtl &rtl, const std::ve
                Summary &summary, uint64_t seed, uint64_t programs, uint64_t retire_limit, uint64_t first) {
     std::mt19937_64 random(seed);
     Generator generator(random);
+    if (const char *weight = std::getenv("FES_I386_PM")) generator.pm_weight = unsigned(std::strtoul(weight, nullptr, 0));
     for (uint64_t n = 0; n < programs; ++n) {
         State state;
         for (auto &r : state.gpr) r = uint32_t(random());
@@ -3501,6 +4715,9 @@ int run_random(fes_i386::Oracle &oracle, OracleBus &bus, Rtl &rtl, const std::ve
         state.eflags = (uint32_t(random()) & 0x0ed5) | 0x2;
         for (int k = 0; k < 6; ++k) state.seg[k] = fes_i386::real_mode_segment(uint16_t(random()));
         state.eip = 0x100 + uint32_t(random() % 0xd000);
+        // CR0 as Bochs's 386 reads it after reset (ET, bits 30-5 ones), so
+        // SMSW and MOV r32, CR0 agree.
+        state.cr0 = 0x7ffffff0;
         const uint32_t base = state.seg[fes_i386::SEG_CS].base + state.eip;
         const std::vector<uint8_t> code = generator.program(20 + unsigned(random() % 180), base, state.eip);
         if (n < first) continue;
@@ -3523,6 +4740,8 @@ int run_random(fes_i386::Oracle &oracle, OracleBus &bus, Rtl &rtl, const std::ve
         for (uint32_t vector : {2u, 8u, 9u, 10u, 11u, 12u, 13u, 14u, 15u})
             for (uint32_t i = 0; i < 4; ++i) image.emplace_back(vector * 4 + i, uint8_t(0xffffffe0u >> (8 * i)));
         static_assert(0xffff0 + 0xffe0 == IRQ_HANDLER);
+        // The protected-mode blocks' GDT, LGDT's pointer and scratch area.
+        image.insert(image.end(), generator.image.begin(), generator.image.end());
         for (auto [address, value] : image) {
             bus.ram[address] = rtl.poke(address, value);
             oracle.invalidate(address, 1);
@@ -3535,6 +4754,11 @@ int run_random(fes_i386::Oracle &oracle, OracleBus &bus, Rtl &rtl, const std::ve
         irq.random = &irq_random;
         irq.handler = IRQ_HANDLER;
         irq.entry = {0xe0, 0xff, 0xff, 0xff};  // FFFF:FFE0
+        irq.pm_idt = generator.pm_idt_base();
+        irq.pm_idt_limit = generator.pm_idt_limit;
+        for (unsigned v = 0; v < irq.pm_gates.size(); ++v) irq.pm_gates[v] = generator.pm_gate_bytes(v);
+        irq.pm_h32 = generator.pm_handler(true);
+        irq.pm_h16 = generator.pm_handler(false);
 
         Mismatches out;
         Outcome outcome;
@@ -3552,8 +4776,8 @@ int run_random(fes_i386::Oracle &oracle, OracleBus &bus, Rtl &rtl, const std::ve
             oracle.reset();
         }
         if (out.items.empty() && !outcome.halted && !outcome.limit && outcome.exception < 0 &&
-            !outcome.double_fault && !outcome.vector_moved && !outcome.window_code && !outcome.code_store &&
-            !outcome.stray)
+            !outcome.shutdown && !outcome.vector_moved && !outcome.window_code && !outcome.code_store &&
+            !outcome.stray && outcome.unbuilt < 0)
             out.add("halt", 1, 0);
         summary.window_code += outcome.window_code;
         summary.code_stores += outcome.code_store;
@@ -3562,7 +4786,7 @@ int run_random(fes_i386::Oracle &oracle, OracleBus &bus, Rtl &rtl, const std::ve
         summary.limits += outcome.limit;
         summary.vector_moved += outcome.vector_moved;
         summary.halts += outcome.halted;
-        summary.double_faults += outcome.double_fault;
+        summary.shutdowns += outcome.shutdown;
         if (outcome.exception >= 0) {
             ++summary.faults;
             ++summary.fault_vectors[outcome.exception];
@@ -3586,6 +4810,1215 @@ int run_random(fes_i386::Oracle &oracle, OracleBus &bus, Rtl &rtl, const std::ve
             std::cout << "FAIL random#" << seed << '#' << n << " cs:ip=" << hex(state.seg[fes_i386::SEG_CS].selector)
                       << ':' << hex(state.eip) << " [" << outcome.code << ']';
             for (auto &item : out.items) std::cout << ' ' << item;
+            std::cout << '\n';
+        }
+    }
+    return 0;
+}
+
+// ---- Unreal mode (directed) ---------------------------------------------------------
+// docs/i386-cpu-design.md's planned unreal-mode test, against the oracle with
+// the RTL-only checks of the 386 real-mode CS rule. Each case runs from
+// test386.asm on the RTL alone (FES_I386_MODE=test386), as test386_tb.cpp
+// runs it on the oracle: the ROM (FES_I386_ROM, 128 KiB) at E0000h, read-only
+// in the attribute map, and below 4 GiB through the reset alias; RAM below
+// it; every port reads all ones. It prints the same lines: POST <code> <n>
+// for each byte the ROM writes to port FES_I386_POST, ERROR <linear> <n> when
+// the error routine (FES_I386_ERROR) is entered, FORGIVEN <linear> <n> where
+// a listed check (FES_I386_FORGIVE, <linear>:<length>,...) failed and was
+// stepped over, then END <reason> <retirements> <cs> <eip>; and for a stop
+// as not built, STOP <why> <vector> <linear> <bytes>. The text the ROM
+// writes to port FES_I386_OUTPUT goes to FES_I386_TEXT.
+int run_test386(fes_i386::Oracle &oracle, Rtl &rtl) {
+    auto number = [](const char *name) { return std::strtoul(std::getenv(name) ? std::getenv(name) : "0", nullptr, 0); };
+    const char *rom_path = std::getenv("FES_I386_ROM");
+    if (!rom_path) throw std::runtime_error("FES_I386_ROM is required");
+    std::ifstream input(rom_path, std::ios::binary);
+    const std::vector<uint8_t> rom((std::istreambuf_iterator<char>(input)), {});
+    if (rom.size() != 0x20000) throw std::runtime_error("the ROM must be 128 KiB");
+    const uint16_t post = uint16_t(number("FES_I386_POST")), output = uint16_t(number("FES_I386_OUTPUT"));
+    const uint32_t error = uint32_t(number("FES_I386_ERROR"));
+    const uint64_t limit = number("FES_I386_LIMIT") ? number("FES_I386_LIMIT") : 30000000;
+    std::map<uint32_t, uint32_t> forgive;
+    if (const char *list = std::getenv("FES_I386_FORGIVE")) {
+        std::stringstream items(list);
+        std::string item;
+        while (std::getline(items, item, ','))
+            if (const size_t colon = item.find(':'); colon != std::string::npos)
+                forgive[uint32_t(std::stoul(item.substr(0, colon), nullptr, 0))] =
+                    uint32_t(std::stoul(item.substr(colon + 1), nullptr, 0));
+    }
+    for (uint32_t i = 0; i < rom.size(); ++i) rtl.poke(0xe0000 + i, rom[i]);
+    // A0000h-DFFFFh RAM, E0000h-FFFFFh read-only (ATTR_ROM) in 16 KiB slots.
+    uint64_t map = 0;
+    for (int slot = 16; slot < 24; ++slot) map |= uint64_t(1) << (2 * slot);
+    rtl.top.attr_upper = map;
+    rtl.io.reset(true);
+    oracle.reset();
+    rtl.start(oracle.get_state());
+    std::string text;
+    const char *reason = "limit";
+    uint64_t n = 0;
+    auto linear = [](const State &state) { return state.seg[fes_i386::SEG_CS].base + state.eip; };
+    for (; n < limit; ++n) {
+        const State before = rtl.state();
+        const uint32_t from = linear(before);
+        const Rtl::Event event = rtl.next();
+        for (const IoAccess &access : rtl.io.log) {
+            if (!access.write) continue;
+            if (access.port == post) std::printf("POST %02x %llu\n", access.data & 0xff, (unsigned long long)n);
+            else if (output && access.port == output) text.push_back(char(access.data & 0xff));
+        }
+        if (event == Rtl::Event::Unimplemented) {
+            reason = "unbuilt";
+            uint8_t bytes[15];
+            std::string hex_bytes;
+            for (unsigned i = 0; i < 15; ++i) {
+                bytes[i] = rtl.ram[physical(from + i, false) % RAM_BYTES];
+                char t[4];
+                std::snprintf(t, sizeof t, "%02x", bytes[i]);
+                hex_bytes += t;
+            }
+            std::printf("STOP %u %02x %08x %s\n", unsigned(rtl.top.trace_unbuilt), unsigned(rtl.top.trace_vector), from,
+                        hex_bytes.c_str());
+            break;
+        }
+        if (event == Rtl::Event::Shutdown) { reason = "shutdown"; break; }
+        if (event == Rtl::Event::Timeout) {
+            // HLT with IF clear: test386's end, on completion and on error.
+            reason = rtl.top.trace_halt && !(rtl.top.arch_eflags & 0x200) ? "halt" : "timeout";
+            break;
+        }
+        const State after = rtl.state();
+        if (const auto f = forgive.find(from); f != forgive.end() && linear(after) != from + f->second) {
+            std::printf("FORGIVEN %08x %llu\n", from, (unsigned long long)n);
+            State next = before;
+            next.eip += f->second;
+            rtl.start(next);
+            continue;
+        }
+        if (linear(after) == error && from != error) std::printf("ERROR %08x %llu\n", from, (unsigned long long)n);
+    }
+    const State state = rtl.state();
+    std::printf("END %s %llu %04x %08x\n", reason, (unsigned long long)n, state.seg[fes_i386::SEG_CS].selector, state.eip);
+    if (const char *path = std::getenv("FES_I386_TEXT")) std::ofstream(path, std::ios::binary) << text;
+    return 0;
+}
+
+// The directed protected-mode cases (Phase 2's second slice), each from
+// 0000:1000 in real mode, against Bochs. The prologue: CLI, LGDT, LIDT of
+// the IDT at 3000h (48 gates; LIDT's pointer at 2108h), PE set, JMP 08h:pm;
+// DS, ES, FS and GS 10h, SS 10h with SP 0F00h. The GDT at 2000h:
+//   08h code 16-bit, base 0, 64K        38h TSS, 386, available, at 2500h
+//   10h data, base 0, 64K               40h code 16-bit, base 0, limit FFFh
+//   18h code 32-bit, flat               48h data read-only, base 0, 64K
+//   20h data, flat (G, B)               50h TSS, 286, available, at 2580h
+//   28h data, not present               58h code 16-bit, not present
+//   30h LDT at 2400h, 4 descriptors     60h code 16-bit, conforming
+//   68h data DPL 3                      70h code 16-bit, DPL 3
+//   78h code 16-bit, base 1C00h, limit 0Fh (CS-limit cases)
+//   80h code 32-bit, base 1C00h, limit 0Fh
+//   88h code 32-bit, base 0, limit 1FFFh (G, a limit of 1)
+//   90h code 16-bit, base 0, limit 1FFFh (G)
+//   98h past the limit (97h)
+// The LDT: 04h null, 0Ch data base 5000h 64K, 14h code 16-bit base 0,
+// 1Ch data not present. Gates: every vector a 386 interrupt gate to
+// 08h:1800h, where HLT ends the case, but those a case sets: 20h a 286
+// interrupt gate to 08h:1810h (INC AX; IRET), 21h not present, 22h a data
+// descriptor, 23h a null CS, 24h CS 10h (data), 25h CS 58h (not present),
+// 26h 40h:2000h (past its limit), 27h a 386 trap gate to 08h:1800h, 28h a
+// task gate (not built), 29h a 386 trap gate to 18h:1820h (IRETD in 32-bit
+// code). Subroutines for far calls at 1900h (INC AX; RETF 0) and 1910h
+// (INC AX; RETF 4, 32-bit), and a far pointer to the first at 1920h. Each
+// case's ending: HLT, after the software interrupt it names if any; the
+// exception the delivery's handler halts in, with its error code (the
+// frame's last push); shutdown; or a stop as not built.
+// The CS-limit cases far-jump to code a case places (at, tail) under a
+// code descriptor of a small limit (its own, if it sets one), and run or
+// branch to its last byte, or past it. A real-mode one clears PE there,
+// with LIDT of the real-mode vector table first (its pointer at 2110h),
+// so CS keeps that limit: the vector table's #GP entry is 0180:0000 (the
+// HLT at 1800h, under the limit), INT 60h's is 0000:3000h (past it) and
+// INT 61h's 0180:0004 (a HLT at 1804h).
+int run_pmode_cases(fes_i386::Oracle &oracle, OracleBus &bus, Rtl &rtl, const std::vector<Entry> &entries,
+                    Summary &summary) {
+    struct Asm {
+        std::vector<uint8_t> b;
+        void op(std::initializer_list<uint8_t> bytes) { b.insert(b.end(), bytes); }
+        void w(uint16_t v) { b.push_back(uint8_t(v)); b.push_back(uint8_t(v >> 8)); }
+        void d(uint32_t v) { w(uint16_t(v)); w(uint16_t(v >> 16)); }
+        size_t here() const { return b.size(); }
+        void ax(uint16_t v) { op({0xb8}); w(v); }  // MOV AX, v
+    };
+    constexpr uint32_t CODE = 0x1000, GDT = 0x2000, IDT = 0x3000, LDT = 0x2400;
+    auto desc = [](uint32_t base, uint32_t limit, uint8_t ar, bool g, bool db) {
+        return uint64_t(limit & 0xffff) | uint64_t(base & 0xffff) << 16 | uint64_t((base >> 16) & 0xff) << 32
+             | uint64_t(ar) << 40 | uint64_t((limit >> 16) & 0xf) << 48 | uint64_t(db) << 54 | uint64_t(g) << 55
+             | uint64_t(base >> 24) << 56;
+    };
+    auto gate = [](uint16_t sel, uint32_t off, uint8_t ar) {
+        return (off & 0xffff) | uint64_t(sel) << 16 | uint64_t(ar) << 40 | uint64_t(off >> 16) << 48;
+    };
+    constexpr unsigned GDT_ENTRIES = 19;
+    constexpr uint32_t TAIL = 0x1c00;
+    const uint64_t gdt[GDT_ENTRIES] = {0, desc(0, 0xffff, 0x9b, false, false), desc(0, 0xffff, 0x93, false, false),
+                              desc(0, 0xfffff, 0x9b, true, true), desc(0, 0xfffff, 0x93, true, true),
+                              desc(0, 0xffff, 0x13, false, false), desc(LDT, 0x1f, 0x82, false, false),
+                              desc(0x2500, 0x67, 0x89, false, false), desc(0, 0xfff, 0x9b, false, false),
+                              desc(0, 0xffff, 0x91, false, false), desc(0x2580, 0x2b, 0x81, false, false),
+                              desc(0, 0xffff, 0x1b, false, false), desc(0, 0xffff, 0x9f, false, false),
+                              desc(0, 0xffff, 0xf3, false, false), desc(0, 0xffff, 0xfb, false, false),
+                              desc(TAIL, 0x0f, 0x9b, false, false), desc(TAIL, 0x0f, 0x9b, false, true),
+                              desc(0, 1, 0x9b, true, true), desc(0, 1, 0x9b, true, false)};
+    const uint64_t ldt[4] = {0, desc(0x5000, 0xffff, 0x93, false, false), desc(0, 0xffff, 0x9b, false, false),
+                             desc(0x5000, 0xffff, 0x13, false, false)};
+    // ending: -1 HLT (after software interrupt soft, if not -1), -2
+    // shutdown, -3 not built, else the vector, with its error code if not
+    // -1. at, tail: bytes the case places at at; descs: GDT entries the case
+    // replaces; window: the run has the MMIO window.
+    struct Case { const char *label; std::function<void(Asm &)> body; int ending; int error;
+                  std::vector<std::pair<unsigned, uint64_t>> gates; bool real; int soft = -1;
+                  uint32_t at = 0; std::vector<uint8_t> tail = {}; std::vector<std::pair<unsigned, uint64_t>> descs = {};
+                  bool window = false; };
+    const uint64_t absent = gate(0x08, 0x1800, 0x0e);  // a 386 interrupt gate, not present
+    const uint64_t window_ss = desc(MMIO_LO, 0xffff, 0x93, false, false);  // 28h: a 16-bit stack in the window
+    std::vector<Case> cases = {
+        {"ud", [](Asm &a) { a.op({0x8e, 0xc8}); }, 6, -1, {}, false},                                // MOV CS, AX
+        {"np-sel", [](Asm &a) { a.ax(0x28); a.op({0x8e, 0xd8}); }, 11, 0x28, {}, false},             // MOV DS, 28h
+        {"gp-sel", [](Asm &a) { a.ax(0x9b); a.op({0x8e, 0xd8}); }, 13, 0x98, {}, false},             // past the GDT
+        {"gp-ss-ro", [](Asm &a) { a.ax(0x48); a.op({0x8e, 0xd0}); }, 13, 0x48, {}, false},           // MOV SS, read-only
+        {"ss-sel", [](Asm &a) { a.ax(0x28); a.op({0x8e, 0xd0}); }, 12, 0x28, {}, false},             // MOV SS, not present
+        {"gp0", [](Asm &a) { a.op({0x8b, 0x06, 0xff, 0xff}); }, 13, 0, {}, false},                   // MOV AX, [FFFFh]
+        {"ss0", [](Asm &a) { a.op({0xbb, 0xff, 0xff, 0x36, 0x8b, 0x07}); }, 12, 0, {}, false},       // MOV AX, SS:[FFFFh]
+        // DIV CX by 0 (the divergence div-flags: the frame's FLAGS image
+        // is the RTL's), through a 386 gate and a 286 one.
+        {"de", [](Asm &a) { a.op({0x31, 0xc9, 0xf7, 0xf1}); }, 0, -1, {}, false},
+        {"de-286", [](Asm &a) { a.op({0x31, 0xc9, 0xf7, 0xf1}); }, 0, -1, {{0, gate(0x08, 0x1800, 0x86)}}, false},
+        {"gp-idt-limit", [](Asm &a) { a.op({0xcd, 0x40}); }, 13, 0x40 * 8 + 2, {}, false},           // INT 40h past the IDT
+        {"np-idt", [](Asm &a) { a.op({0xcd, 0x21}); }, 11, 0x21 * 8 + 2, {}, false},
+        {"gp-idt-type", [](Asm &a) { a.op({0xcd, 0x22}); }, 13, 0x22 * 8 + 2, {}, false},
+        {"gp-gate-null", [](Asm &a) { a.op({0xcd, 0x23}); }, 13, 0, {}, false},
+        {"gp-gate-data", [](Asm &a) { a.op({0xcd, 0x24}); }, 13, 0x10, {}, false},
+        {"np-gate-cs", [](Asm &a) { a.op({0xcd, 0x25}); }, 11, 0x58, {}, false},
+        {"gp-gate-off", [](Asm &a) { a.op({0xcd, 0x26}); }, 13, 0, {}, false},
+        // A fault in a hardware exception's delivery: #UD's gate not
+        // present, #NP with EXT; then #NP's too, a double fault; then #DF's,
+        // shutdown.
+        {"ext", [](Asm &a) { a.op({0x8e, 0xc8}); }, 11, 6 * 8 + 3, {{6, absent}}, false},
+        {"df", [](Asm &a) { a.op({0x8b, 0x06, 0xff, 0xff}); }, 8, 0, {{13, absent}}, false},
+        {"shutdown", [](Asm &a) { a.op({0x8b, 0x06, 0xff, 0xff}); }, -2, -1, {{13, absent}, {8, absent}}, false},
+        {"int-iret", [](Asm &a) { a.op({0x31, 0xc0, 0xcd, 0x20, 0x40}); }, -1, -1, {}, false, 0x20},  // INT 20h; INC AX
+        {"int-trap-iretd", [](Asm &a) { a.op({0xfb, 0xcd, 0x29}); }, -1, -1, {}, false, 0x29},       // STI; INT 29h
+        {"into", [](Asm &a) { a.op({0xb0, 0x7f, 0x04, 0x01, 0xce}); }, -1, -1, {}, false, 4},        // MOV AL, 7Fh; ADD AL, 1; INTO
+        // IRETD with RF set in its image to a 16-bit IRET: Bochs clears RF
+        // as the next instruction is fetched, so the IRET leaves it clear.
+        {"iretd-rf-iret16", [](Asm &a) {
+             const size_t iret16 = a.here() + 27, done = iret16 + 1;
+             a.op({0x9c, 0x0e, 0x68}); a.w(uint16_t(CODE + done));          // PUSHF; PUSH CS; PUSH done
+             a.op({0x66, 0x9c, 0x89, 0xe5});                                // PUSHFD; MOV BP, SP
+             a.op({0x66, 0x81, 0x4e, 0x00}); a.d(0x10000);                  // OR dword [BP], RF
+             a.op({0x66, 0x0e, 0x66, 0x68}); a.d(uint32_t(CODE + iret16));  // PUSH CS (32); PUSH iret16 (32)
+             a.op({0x66, 0xcf});                                            // IRETD
+             a.op({0xcf});                                                  // iret16: IRET
+             a.op({0x9c});                                                  // done: PUSHF
+         }, -1, -1, {}, false},
+        {"int3", [](Asm &a) { a.op({0xcc}); }, -1, -1, {}, false, 3},
+        {"trap-gate", [](Asm &a) { a.op({0xfb, 0xcd, 0x27}); }, -1, -1, {}, false, 0x27},            // STI; INT 27h: IF kept
+        {"task-gate", [](Asm &a) { a.op({0xcd, 0x28}); }, -3, -1, {}, false},
+        // POPFD with NT set, then IRET: a return from a nested task (not
+        // built; Bochs reads the backlink at TR's base, here 0, and faults).
+        {"iret-nt", [](Asm &a) {
+             a.op({0x66, 0x9c, 0x89, 0xe5, 0x66, 0x81, 0x4e, 0x00}); a.d(0x4000);  // PUSHFD; MOV BP, SP; OR dword [BP], NT
+             a.op({0x66, 0x9d, 0xcf});                                             // POPFD; IRET
+         }, -3, -1, {}, false},
+        // CALL 08h:sub (16- and 32-bit, direct and through memory); sub:
+        // INC AX; RETF imm16 or RETF.
+        {"callf-retf", [](Asm &a) { a.op({0x31, 0xc0, 0x9a}); a.w(0x1900); a.w(0x08); }, -1, -1, {}, false},
+        {"callf32-retf", [](Asm &a) { a.op({0x66, 0x9a}); a.d(0x1910); a.w(0x08); }, -1, -1, {}, false},
+        {"callfm-retf", [](Asm &a) { a.op({0xff, 0x1e}); a.w(0x1920); }, -1, -1, {}, false},           // CALL FAR [1920h]
+        {"callf-gp-off", [](Asm &a) { a.op({0x9a}); a.w(0x2000); a.w(0x40); }, 13, 0, {}, false},   // past 40h's limit
+        // SP 2: the second slot is at FFFFFFFEh without the 64 KiB wrap,
+        // #SS(0); its delivery's frame then wraps misaligned, a double
+        // fault, and shutdown (with the wrap the call would reach its HLT).
+        {"callf-ss-nowrap", [](Asm &a) { a.op({0xbc, 0x02, 0x00, 0x9a}); a.w(0x1800); a.w(0x08); }, -2, -1, {}, false},
+        {"callf-np", [](Asm &a) { a.op({0x9a}); a.w(0x1800); a.w(0x58); }, 11, 0x58, {}, false},
+        {"retf-gp-data", [](Asm &a) { a.op({0x6a, 0x10, 0x6a, 0x00, 0xcb}); }, 13, 0x10, {}, false},  // PUSH 10h; PUSH 0; RETF
+        {"iret-np", [](Asm &a) { a.op({0x9c, 0x6a, 0x58, 0x6a, 0x00, 0xcf}); }, 11, 0x58, {}, false}, // PUSHF; PUSH 58h; PUSH 0; IRET
+        {"retf-outer", [](Asm &a) { a.op({0x6a, 0x73, 0x6a, 0x00, 0xcb}); }, -3, -1, {}, false},      // RETF to 70h, RPL 3: not built
+        // A frame past a 16-bit stack's limit, the stack in the MMIO window:
+        // Bochs reads IRET's EFLAGS slot, then CS's and the offset's, and
+        // RETF's CS slot, then the offset's, so the slot at 10000h raises
+        // #SS(0) before any read. MOV SS, 28h; MOV SP, n; then the return.
+        {"iret-ss-limit", [](Asm &a) { a.ax(0x28); a.op({0x8e, 0xd0, 0xbc, 0xfc, 0xff, 0xcf}); }, 12, 0, {}, false, -1,
+         0, {}, {{5, window_ss}}, true},
+        {"iretd-ss-limit", [](Asm &a) { a.ax(0x28); a.op({0x8e, 0xd0, 0xbc, 0xf8, 0xff, 0x66, 0xcf}); }, 12, 0, {}, false,
+         -1, 0, {}, {{5, window_ss}}, true},
+        {"retf-ss-limit", [](Asm &a) { a.ax(0x28); a.op({0x8e, 0xd0, 0xbc, 0xfe, 0xff, 0xcb}); }, 12, 0, {}, false, -1,
+         0, {}, {{5, window_ss}}, true},
+        {"retf32-ss-limit", [](Asm &a) { a.ax(0x28); a.op({0x8e, 0xd0, 0xbc, 0xfc, 0xff, 0x66, 0xcb}); }, 12, 0, {},
+         false, -1, 0, {}, {{5, window_ss}}, true},
+        {"lldt-ldt", [](Asm &a) {
+             a.ax(0x30); a.op({0x0f, 0x00, 0xd0});                                        // LLDT AX
+             a.ax(0x0c); a.op({0x8e, 0xd8, 0x8e, 0xc0});                                  // MOV DS, ES, LDT 0Ch
+             a.op({0x0f, 0x00, 0xc3, 0x89, 0x1e, 0x00, 0x01, 0xf4});                      // SLDT BX; MOV [100h], BX; HLT
+         }, -1, -1, {}, false},
+        {"lldt-np", [](Asm &a) { a.ax(0x30); a.op({0x0f, 0x00, 0xd0}); a.ax(0x1c); a.op({0x8e, 0xd8}); }, 11, 0x1c, {}, false},
+        {"lldt-null-ti", [](Asm &a) { a.ax(0x00); a.op({0x0f, 0x00, 0xd0}); a.ax(0x0c); a.op({0x8e, 0xd8}); }, 13, 0x0c, {}, false},
+        {"lldt-gp", [](Asm &a) { a.ax(0x10); a.op({0x0f, 0x00, 0xd0}); }, 13, 0x10, {}, false},
+        {"ltr-str", [](Asm &a) { a.ax(0x38); a.op({0x0f, 0x00, 0xd8, 0x0f, 0x00, 0xcb, 0xf4}); }, -1, -1, {}, false},  // LTR AX; STR BX
+        {"ltr-busy", [](Asm &a) { a.ax(0x38); a.op({0x0f, 0x00, 0xd8, 0x0f, 0x00, 0xd8}); }, 13, 0x38, {}, false},
+        {"ltr-null", [](Asm &a) { a.ax(0x03); a.op({0x0f, 0x00, 0xd8}); }, 13, 0, {}, false},
+        {"lar-lsl-verr-verw", [](Asm &a) {
+             a.op({0xbb, 0x40, 0x00, 0x0f, 0x02, 0xc3});                                   // MOV BX, 40h; LAR AX, BX
+             a.op({0x66, 0x0f, 0x03, 0xcb});                                               // LSL ECX, BX
+             a.op({0xbb, 0x48, 0x00, 0x0f, 0x00, 0xe3, 0x9c});                             // VERR BX; PUSHF
+             a.op({0x0f, 0x00, 0xeb, 0x9c});                                               // VERW BX; PUSHF
+             a.op({0xbb, 0x38, 0x00, 0x0f, 0x02, 0xd3, 0x9c});                             // LAR DX, 38h (TSS); PUSHF
+             a.op({0xbb, 0x98, 0x00, 0x0f, 0x03, 0xf3, 0x9c, 0xf4});                       // LSL SI, 98h (past); PUSHF; HLT
+         }, -1, -1, {}, false},
+        {"arpl", [](Asm &a) {
+             a.op({0xc7, 0x06, 0x00, 0x01, 0x08, 0x00});                                   // MOV word [100h], 08h
+             a.op({0xbb, 0x03, 0x00, 0x63, 0x1e, 0x00, 0x01, 0x9c});                       // MOV BX, 3; ARPL [100h], BX; PUSHF
+             a.op({0x63, 0x1e, 0x00, 0x01, 0x9c});                                         // ARPL again: no adjust
+             a.op({0xb9, 0x02, 0x00, 0x63, 0xd9, 0xf4});                                   // MOV CX, 2; ARPL CX, BX; HLT
+         }, -1, -1, {}, false},
+        {"real-lldt-ud", [](Asm &a) { a.op({0x0f, 0x00, 0xd0}); }, 6, -1, {}, true},
+        {"real-arpl-ud", [](Asm &a) { a.op({0x63, 0xc0}); }, 6, -1, {}, true},
+    };
+    // The CS-limit cases. Each far-jumps to sel:off, where its tail is, and
+    // ends in a HLT at the limit's byte, or past the limit: #GP(0), whose
+    // frame holds the EIP of the instruction that starts or runs past it,
+    // or of the branch, call or return whose target is past it.
+    auto jmpf = [](uint16_t sel, uint16_t off) {
+        return std::function<void(Asm &)>([sel, off](Asm &a) { a.op({0xea}); a.w(off); a.w(sel); });
+    };
+    // head, then NOPs up to offset to, then last.
+    auto fill = [](std::vector<uint8_t> head, size_t to, std::vector<uint8_t> last = {}) {
+        while (head.size() < to) head.push_back(0x90);
+        head.insert(head.end(), last.begin(), last.end());
+        return head;
+    };
+    constexpr uint8_t HLT = 0xf4;
+    auto past = [&](const char *label, uint16_t sel, uint32_t at, std::vector<uint8_t> tail,
+                    std::vector<std::pair<unsigned, uint64_t>> descs = {}) {
+        cases.push_back(Case{label, jmpf(sel, uint16_t(at - (sel == 0x78 || sel == 0x80 ? TAIL : 0))), 13, 0, {}, false,
+                             -1, at, std::move(tail), std::move(descs)});
+    };
+    auto halts = [&](const char *label, uint16_t sel, uint32_t at, std::vector<uint8_t> tail) {
+        cases.push_back(Case{label, jmpf(sel, uint16_t(at - (sel == 0x78 || sel == 0x80 ? TAIL : 0))), -1, -1, {}, false,
+                             -1, at, std::move(tail)});
+    };
+    // 16-bit code, limit 0Fh: off the end, across it, to the last byte; a
+    // JMP, a Jcc taken and not, LOOP, CALL rel16 and rel32, CALL and JMP
+    // r/m, RET and RET imm16 to the last byte or past it.
+    past("cs16-fetch-past", 0x78, TAIL, fill({}, 0x10));
+    past("cs16-fetch-cross", 0x78, TAIL, fill({}, 0x0e, {0xb8, 0x34, 0x12}));                 // MOV AX at 0Eh-10h
+    halts("cs16-last-byte", 0x78, TAIL, fill({}, 0x0f, {HLT}));
+    halts("cs16-jmp-limit", 0x78, TAIL, fill({0xeb, 0x0d}, 0x0f, {HLT}));                     // JMP 0Fh
+    past("cs16-jmp-past", 0x78, TAIL, fill({0xeb, 0x0e}, 0x0f, {HLT}));                       // JMP 10h
+    halts("cs16-jnz-past-not-taken", 0x78, TAIL, fill({0x31, 0xc0, 0x75, 0x0c}, 0x0f, {HLT})); // XOR AX, AX; JNZ 10h
+    past("cs16-jz-past", 0x78, TAIL, fill({0x31, 0xc0, 0x74, 0x0c}, 0x0f, {HLT}));             // XOR AX, AX; JZ 10h
+    past("cs16-loop-past", 0x78, TAIL, fill({0xb9, 0x02, 0x00, 0xe2, 0x0b}, 0x0f, {HLT}));     // MOV CX, 2; LOOP 10h
+    past("cs16-call-past", 0x78, TAIL, fill({0xe8, 0x0d, 0x00}, 0x0f, {HLT}));                 // CALL 10h
+    halts("cs16-call-limit", 0x78, TAIL, fill({0xe8, 0x0c, 0x00}, 0x0f, {HLT}));               // CALL 0Fh
+    past("cs16-call-rel32-past", 0x78, TAIL, fill({0x66, 0xe8, 0x0a, 0, 0, 0}, 0x0f, {HLT}));  // CALL 10h (66h)
+    past("cs16-call-rm-past", 0x78, TAIL, fill({0xbb, 0x10, 0x00, 0xff, 0xd3}, 0x0f, {HLT}));  // MOV BX, 10h; CALL BX
+    past("cs16-jmp-rm-past", 0x78, TAIL, fill({0xbb, 0x10, 0x00, 0xff, 0xe3}, 0x0f, {HLT}));  // MOV BX, 10h; JMP BX
+    past("cs16-ret-past", 0x78, TAIL, fill({0x6a, 0x10, 0xc3}, 0x0f, {HLT}));                  // PUSH 10h; RET
+    halts("cs16-ret-limit", 0x78, TAIL, fill({0x6a, 0x0f, 0xc3}, 0x0f, {HLT}));                // PUSH 0Fh; RET
+    past("cs16-ret-imm-past", 0x78, TAIL, fill({0x6a, 0x10, 0xc2, 0x02, 0x00}, 0x0f, {HLT}));  // PUSH 10h; RET 2
+    // The far jump's own offset past the limit (the descriptor's check).
+    cases.push_back(Case{"cs16-jmpf-past", jmpf(0x78, 0x10), 13, 0, {}, false});
+    // 32-bit code, limit 0Fh.
+    past("cs32-fetch-past", 0x80, TAIL, fill({}, 0x10));
+    past("cs32-fetch-cross", 0x80, TAIL, fill({}, 0x0d, {0xb8, 1, 2, 3, 4}));                  // MOV EAX at 0Dh-11h
+    halts("cs32-jmp-limit", 0x80, TAIL, fill({0xe9, 0x0a, 0, 0, 0}, 0x0f, {HLT}));             // JMP 0Fh
+    past("cs32-jmp-past", 0x80, TAIL, fill({0xe9, 0x0b, 0, 0, 0}, 0x0f, {HLT}));               // JMP 10h
+    past("cs32-jmp16-past", 0x80, TAIL, fill({0x66, 0xe9, 0x0c, 0x00}, 0x0f, {HLT}));          // JMP 10h (66h)
+    past("cs32-jz-past", 0x80, TAIL, fill({0x31, 0xc0, 0x0f, 0x84, 0x08, 0, 0, 0}, 0x0f, {HLT}));  // XOR EAX, EAX; JZ 10h
+    past("cs32-loop-past", 0x80, TAIL, fill({0xb9, 2, 0, 0, 0, 0xe2, 0x09}, 0x0f, {HLT}));    // MOV ECX, 2; LOOP 10h
+    past("cs32-call-past", 0x80, TAIL, fill({0xe8, 0x0b, 0, 0, 0}, 0x0f, {HLT}));              // CALL 10h
+    past("cs32-ret-past", 0x80, TAIL, fill({0x6a, 0x10, 0xc3}, 0x0f, {HLT}));                  // PUSH 10h; RET
+    // Page-granular limits (1FFFh), 32- and 16-bit: off the end, a prefix
+    // as the last byte, the last byte.
+    past("cs32-g-fetch-past", 0x88, 0x1ff0, fill({}, 0x10));
+    halts("cs32-g-last-byte", 0x88, 0x1ff0, fill({}, 0x0f, {HLT}));
+    past("cs16-g-prefix-cross", 0x90, 0x1ff0, fill({}, 0x0f, {0x66}));                        // 66h at 1FFFh
+    // 16-bit code under a 4 GiB limit runs on past offset FFFFh, as EIP
+    // 10000h: CS's base FFFF1C08h puts offset FFF8h at 1C00h.
+    const uint64_t cs16_big = desc(0xffff1c08, 0xfffff, 0x9b, true, false);
+    cases.push_back(Case{"cs16-big-past-64k", jmpf(0x78, 0xfff8), -1, -1, {}, false, -1, TAIL, fill({}, 0x10, {HLT}),
+                         {{15, cs16_big}}});
+    // At a 64 KiB limit, these uops end exactly at 10000h. The next fetch,
+    // rather than a wrapped jump to offset 0, must deliver #GP(0).
+    cases.push_back(Case{"cs16-sysop-next-limit", jmpf(0x08, 0xfffd), 13, 0, {}, false, -1,
+                         0xfffd, {0x0f, 0x22, 0xc0}});                                  // MOV CR0, EAX
+    cases.push_back(Case{"cs16-into-next-limit", jmpf(0x08, 0xffff), 13, 0, {}, false, -1,
+                         0xffff, {0xce}});                                              // INTO, OF clear
+    // A system uop after sequential execution crossed 10000h keeps the full
+    // next EIP in 16-bit code with a larger CS limit.
+    cases.push_back(Case{"cs16-sysop-past-64k", jmpf(0x78, 0xfff8), -1, -1, {}, false, -1, TAIL,
+                         fill({}, 0x08, {0x0f, 0x20, 0xc0, 0x0f, 0x22, 0xc0, HLT}), {{15, cs16_big}}});
+    // Real mode under the limit CS kept (1Fh), after LIDT of the real-mode
+    // table and PE clear (13 bytes): off the end, INT n past it and under
+    // it, JMP rel8, and far JMP, CALL, RETF and IRET past it.
+    const std::vector<uint8_t> to_real = {0x0f, 0x01, 0x1e, 0x10, 0x21,   // LIDT [2110h]
+                                          0x0f, 0x20, 0xc0, 0x24, 0xfe,   // MOV EAX, CR0; AND AL, FEh
+                                          0x0f, 0x22, 0xc0};              // MOV CR0, EAX
+    const std::vector<std::pair<unsigned, uint64_t>> limit1f = {{15, desc(TAIL, 0x1f, 0x9b, false, false)}};
+    auto real = [&](const char *label, std::vector<uint8_t> more, int ending = 13, int soft = -1) {
+        std::vector<uint8_t> tail = to_real;
+        tail.insert(tail.end(), more.begin(), more.end());
+        cases.push_back(Case{label, jmpf(0x78, 0), ending, -1, {}, false, soft, TAIL, ending == 13 ? fill(tail, 0x20) : tail,
+                             limit1f});
+    };
+    real("real-cs-fetch-past", {});
+    real("real-cs-int-past", {0xcd, 0x60, HLT});                                  // INT 60h: 0000:3000h
+    real("real-cs-int-under", {0xcd, 0x61, HLT}, -1, 0x61);                       // INT 61h: 0180:0004
+    real("real-cs-jmp-past", {0xeb, 0x11, HLT});                                  // JMP 20h
+    real("real-cs-jmpf-past", {0xea, 0x00, 0x30, 0x00, 0x00, HLT});               // JMP 0000:3000h
+    real("real-cs-callf-past", {0x9a, 0x00, 0x30, 0x00, 0x00, HLT});              // CALL 0000:3000h
+    real("real-cs-retf-past", {0x6a, 0x00, 0x68, 0x00, 0x30, 0xcb, HLT});         // PUSH 0; PUSH 3000h; RETF
+    real("real-cs-iret-past", {0x9c, 0x6a, 0x00, 0x68, 0x00, 0x30, 0xcf, HLT});   // PUSHF; PUSH 0; PUSH 3000h; IRET
+    for (const Case &c : cases) {
+        Asm a;
+        if (!c.real) {
+            a.op({0xfa, 0x31, 0xc0, 0x8e, 0xd8});                // CLI; XOR AX, AX; MOV DS, AX
+            a.op({0x0f, 0x01, 0x16}); a.w(0x2100);              // LGDT [2100h]
+            a.op({0x0f, 0x01, 0x1e}); a.w(0x2108);              // LIDT [2108h]
+            a.op({0x0f, 0x20, 0xc0, 0x0c, 0x01, 0x0f, 0x22, 0xc0});  // MOV EAX, CR0; OR AL, 1; MOV CR0, EAX
+            const size_t jmp_pm = a.here();
+            a.op({0xea}); a.w(0); a.w(0x08);                    // JMP 08h:pm
+            const uint16_t pm = uint16_t(CODE + a.here());
+            a.b[jmp_pm + 1] = uint8_t(pm); a.b[jmp_pm + 2] = uint8_t(pm >> 8);
+            a.op({0xb8, 0x10, 0x00, 0x8e, 0xd8, 0x8e, 0xc0, 0x8e, 0xe0, 0x8e, 0xe8, 0x8e, 0xd0});  // DS ES FS GS SS 10h
+            a.op({0xbc, 0x00, 0x0f});                           // MOV SP, 0F00h
+        }
+        c.body(a);
+        a.op({0xf4});
+        std::vector<std::pair<uint32_t, uint8_t>> image;
+        for (size_t i = 0; i < a.b.size(); ++i) image.emplace_back(CODE + uint32_t(i), a.b[i]);
+        for (size_t i = 0; i < c.tail.size(); ++i) image.emplace_back(c.at + uint32_t(i), c.tail[i]);
+        std::array<uint64_t, GDT_ENTRIES> table;
+        std::copy(std::begin(gdt), std::end(gdt), table.begin());
+        for (auto [n, d] : c.descs) table[n] = d;
+        for (unsigned n = 0; n < GDT_ENTRIES; ++n)
+            for (unsigned i = 0; i < 8; ++i) image.emplace_back(GDT + 8 * n + i, uint8_t(table[n] >> (8 * i)));
+        for (unsigned n = 0; n < 4; ++n)
+            for (unsigned i = 0; i < 8; ++i) image.emplace_back(LDT + 8 * n + i, uint8_t(ldt[n] >> (8 * i)));
+        std::array<uint64_t, 48> idt;
+        for (unsigned v = 0; v < 48; ++v) idt[v] = gate(0x08, 0x1800, 0x8e);
+        idt[0x20] = gate(0x08, 0x1810, 0x86);
+        idt[0x21] = gate(0x08, 0x1800, 0x0e);
+        idt[0x22] = desc(0, 0xffff, 0x92, false, false);
+        idt[0x23] = gate(0x00, 0x1800, 0x8e);
+        idt[0x24] = gate(0x10, 0x1800, 0x8e);
+        idt[0x25] = gate(0x58, 0x1800, 0x8e);
+        idt[0x26] = gate(0x40, 0x2000, 0x8e);
+        idt[0x27] = gate(0x08, 0x1800, 0x8f);
+        idt[0x28] = gate(0x38, 0, 0x85);
+        idt[0x29] = gate(0x18, 0x1820, 0x8f);
+        for (auto [v, g] : c.gates) idt[v] = g;
+        for (unsigned v = 0; v < 48; ++v)
+            for (unsigned i = 0; i < 8; ++i) image.emplace_back(IDT + 8 * v + i, uint8_t(idt[v] >> (8 * i)));
+        for (unsigned i = 0; i < 6; ++i) {
+            image.emplace_back(0x2100 + i, uint8_t((uint64_t(GDT) << 16 | (8 * GDT_ENTRIES - 1)) >> (8 * i)));
+            image.emplace_back(0x2108 + i, uint8_t((uint64_t(IDT) << 16 | (48 * 8 - 1)) >> (8 * i)));
+            image.emplace_back(0x2110 + i, uint8_t(uint64_t(0x3ff) >> (8 * i)));
+        }
+        image.emplace_back(0x1800, 0xf4);                                    // HLT
+        image.emplace_back(0x1810, 0x40);                                    // INC AX
+        image.emplace_back(0x1811, 0xcf);                                    // IRET
+        image.emplace_back(0x1820, 0xcf);                                    // IRETD (32-bit code)
+        const uint8_t subs[] = {0x40, 0xca, 0x00, 0x00, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,   // 1900h: INC AX; RETF 0
+                                0x40, 0x66, 0xca, 0x04, 0x00, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,  // 1910h: INC AX; RETF 4
+                                0x00, 0x19, 0x08, 0x00};                                        // 1920h: 08h:1900h
+        for (unsigned i = 0; i < sizeof subs; ++i) image.emplace_back(0x1900 + i, subs[i]);
+        // The real-mode cases' #UD: the vector table's entry at the HLT; #GP,
+        // INT 60h and INT 61h for the CS-limit ones.
+        for (auto [vector, entry] : {std::pair{6u, 0x00001800u}, {13u, 0x01800000u}, {0x60u, 0x00003000u}, {0x61u, 0x01800004u}})
+            for (unsigned i = 0; i < 4; ++i) image.emplace_back(vector * 4 + i, uint8_t(entry >> (8 * i)));
+        image.emplace_back(0x1804, 0xf4);                                    // HLT (INT 61h's)
+        for (auto [address, value] : image) {
+            bus.ram[address] = rtl.poke(address, value);
+            oracle.invalidate(address, 1);
+        }
+        State state;
+        for (int k = 0; k < 6; ++k) state.seg[k] = fes_i386::real_mode_segment(0);
+        state.eip = CODE;
+        state.gpr[fes_i386::REG_ESP] = 0x0f00;
+        state.cr0 = 0x7ffffff0;
+        if (c.window) set_window(oracle, bus, rtl, true);
+        oracle.reset();
+        oracle.set_state(state);
+        rtl.start(state);
+        Mismatches out;
+        Outcome outcome;
+        try {
+            outcome = lockstep(oracle, bus, rtl, entries, Fields{}, 64, true, summary, out, CODE + uint32_t(a.b.size()));
+        } catch (const std::exception &error) {
+            out.add(std::string(c.label) + ".oracle-error:" + error.what(), 0, 1);
+            oracle.reset();
+        }
+        const State s = rtl.state();
+        const std::string label = c.label;
+        if (c.ending == -1) {
+            if (!outcome.halted) out.add(label + ".halt", 1, 0);
+            if (outcome.exception >= 0) out.add(label + ".exception", 0xff, uint32_t(outcome.exception));
+            if (outcome.interrupt != c.soft) out.add(label + ".interrupt", uint32_t(c.soft), uint32_t(outcome.interrupt));
+        } else if (c.ending == -2) {
+            if (!outcome.shutdown) out.add(label + ".shutdown", 1, 0);
+        } else if (c.ending == -3) {
+            if (outcome.unbuilt < 0) out.add(label + ".unbuilt", 1, 0);
+        } else {
+            if (outcome.exception != c.ending)
+                out.add(label + ".exception", uint32_t(c.ending), outcome.exception < 0 ? 0xffu : uint32_t(outcome.exception));
+            // The error code: the frame's last push, at SS:ESP.
+            if (c.error >= 0 && outcome.exception == c.ending) {
+                const uint32_t at = s.seg[fes_i386::SEG_SS].base + (s.gpr[fes_i386::REG_ESP] & 0xffff);
+                const uint32_t got = rtl.ram[at] | uint32_t(rtl.ram[at + 1]) << 8;
+                if (got != uint32_t(c.error)) out.add(label + ".error-code", uint32_t(c.error), got);
+            }
+        }
+        end_run(bus, rtl, outcome.halted, out);
+        summary.cycles += rtl.cycles;
+        rtl.cycles = 0;
+        for (auto [address, value] : image) {
+            bus.ram[address] = rtl.poke(address, 0);
+            oracle.invalidate(address, 1);
+        }
+        for (uint32_t address : rtl.written) {
+            if (address < RAM_BYTES) bus.ram[address] = rtl.poke(address, 0);
+            oracle.invalidate(address, 1);
+        }
+        rtl.written.clear();
+        if (c.window) set_window(oracle, bus, rtl, false);
+        ++summary.runs;
+        if (out.items.empty()) {
+            ++summary.passed;
+        } else {
+            ++summary.failed;
+            std::cout << "FAIL pmode:" << label;
+            for (const auto &item : out.items) std::cout << ' ' << item;
+            std::cout << '\n';
+        }
+    }
+    return 0;
+}
+
+// ---- The ESC instructions with no 387 (directed) -------------------------------------
+// docs/i386-cpu-design.md's FPU section, which no corpus covers. Every case
+// runs in lockstep with Bochs under the no-387 rule (EscStep), and the bench
+// also checks what the empty socket gives, worked out here apart from the
+// oracle. Three environments: real mode (CS 0FF0h, code at 0200h, so the
+// instruction pointer's linear address has bit 16 set; DS 0700h, ES 8000h,
+// SS 0, SP 0F00h); 16-bit protected mode (CS 08h; DS 20h, base 7000h; ES
+// 28h, base 18000h; SS 10h), and 32-bit (CS 18h, flat, 32-bit; the same
+// data segments), each entered from 0000:1000 as run_pmode_cases does, with
+// every IDT gate (or real-mode vector) at a HLT. The cases:
+//   form.<env>.<op><modrm>  MOV AX, 1234h; FLD dword [180h], which sets the
+//       x87 pointers; the form, a memory form's operand at [100h]; FNSTENV
+//       [300h]; HLT. Checked: the form's stores at 100h (FNSTSW and FNSTCW
+//       FFFFh, FNSTENV's and FNSAVE's layouts) and nothing else there; AX
+//       (FFFFh after FNSTSW AX); the pointers FNSTENV stores at 300h, the
+//       form's CS and EIP and a memory form's DS and offset, but a control
+//       form's, which leaves them. Every ModRM of every opcode: register
+//       forms by their byte, memory forms by their reg field.
+//   fault.*  An operand past a limit: real mode at DS:FFFFh, every memory
+//       form, raises #GP(0) when the form accesses memory and retires when
+//       it does not (FST, FIST, FBSTP, the reserved ones); at SS:FFFFh
+//       (BP-based), #SS(0); in 16-bit protected mode a read-only DS
+//       refuses the stores, a 256-byte DS the reads, and FNSAVE's register
+//       image past it faults after the environment's stores.
+//   wrap.*  FNSTENV with a 32-bit layout at DS:FFF0h in real mode: each
+//       field wraps at 64 KiB, as Bochs wraps them.
+//   nm.<form>.<cr0>  EM, MP and TS in each combination: an ESC form raises
+//       #NM when EM or TS is set, WAIT when MP and TS are; otherwise each
+//       retires.
+//   lock.*  LOCK raises #UD on an ESC form, before EM's #NM.
+//   layout.*  FNSTENV and FNSAVE in both operand sizes in each environment,
+//       after a load through ES (and a 32-bit SIB address, and a 32-bit
+//       address in real mode).
+//   detect.*  FPU detection routines, which must find no coprocessor: the
+//       FNSTSW low byte and FNSTCW 103Fh test (Intel's), the FNSTCW high
+//       byte, the WAIT forms (FINIT, FSTSW), FNSTSW AX, and DOS/4GW's
+//       FNINIT, FNSTSW, FNSTCW at its start; BL is 1 for a coprocessor and
+//       0 for none.
+int run_no387_cases(fes_i386::Oracle &oracle, OracleBus &bus, Rtl &rtl, const std::vector<Entry> &entries,
+                    Summary &summary) {
+    struct Asm {
+        bool c32 = false;
+        std::vector<uint8_t> b;
+        void op(std::initializer_list<uint8_t> bytes) { b.insert(b.end(), bytes); }
+        void w(uint16_t v) { b.push_back(uint8_t(v)); b.push_back(uint8_t(v >> 8)); }
+        void d(uint32_t v) { w(uint16_t(v)); w(uint16_t(v >> 16)); }
+        size_t here() const { return b.size(); }
+        // A ModRM memory operand at [off]: disp16 in 16-bit code, disp32 in 32-bit.
+        void m(unsigned reg, uint32_t off) {
+            b.push_back(uint8_t(reg << 3 | (c32 ? 5 : 6)));
+            if (c32) d(off); else w(uint16_t(off));
+        }
+        void esc(uint8_t opcode, unsigned reg, uint32_t off) { b.push_back(opcode); m(reg, off); }
+        void ax(uint16_t v) { if (c32) b.push_back(0x66); b.push_back(0xb8); w(v); }  // MOV AX, v
+    };
+    constexpr uint32_t CODE = 0x1000, GDT = 0x2000, IDT = 0x3000, HANDLER = 0x1800, DATA = 0x7000, EXTRA = 0x18000;
+    auto desc = [](uint32_t base, uint32_t limit, uint8_t ar, bool g, bool db) {
+        return uint64_t(limit & 0xffff) | uint64_t(base & 0xffff) << 16 | uint64_t((base >> 16) & 0xff) << 32
+             | uint64_t(ar) << 40 | uint64_t((limit >> 16) & 0xf) << 48 | uint64_t(db) << 54 | uint64_t(g) << 55
+             | uint64_t(base >> 24) << 56;
+    };
+    auto gate = [](uint16_t sel, uint32_t off, uint8_t ar) {
+        return (off & 0xffff) | uint64_t(sel) << 16 | uint64_t(ar) << 40 | uint64_t(off >> 16) << 48;
+    };
+    //   08h code 16-bit, base 0, 64K      20h data, base 7000h, 64K     30h data read-only, base 7000h
+    //   10h data, base 0, 64K             28h data, base 18000h, 64K    38h data, base 7000h, limit FFh
+    //   18h code 32-bit, flat
+    const uint64_t gdt[8] = {0, desc(0, 0xffff, 0x9b, false, false), desc(0, 0xffff, 0x93, false, false),
+                             desc(0, 0xfffff, 0x9b, true, true), desc(DATA, 0xffff, 0x93, false, false),
+                             desc(EXTRA, 0xffff, 0x93, false, false), desc(DATA, 0xffff, 0x91, false, false),
+                             desc(DATA, 0xff, 0x93, false, false)};
+    enum EnvKind { REAL, PM16, PM32 };
+    struct Env { EnvKind kind; const char *name; uint16_t cs, ds, es; };
+    const Env envs[3] = {{REAL, "real", 0x0ff0, 0x0700, 0x8000}, {PM16, "pm16", 0x08, 0x20, 0x28},
+                         {PM32, "pm32", 0x18, 0x20, 0x28}};
+    constexpr uint32_t REAL_IP = 0x0200;
+
+    // The x87 pointers' words in the 387's layouts (the FES CPU's "x87
+    // pointers"): all ones for the 387's fields, its opcode and the 32-bit
+    // layouts' reserved halves; in real mode, the selector times 16 plus the
+    // offset.
+    auto env_image = [](bool pe, bool o32, const fes_i386::X87Pointers &p) {
+        uint32_t f[7] = {0xffffffffu, 0xffffffffu, 0xffffffffu, 0, 0, 0, 0};
+        if (pe) {
+            f[3] = p.ip;
+            f[4] = 0x07ff0000u | p.cs;
+            f[5] = p.dp;
+            f[6] = 0xffff0000u | p.ds;
+        } else {
+            const uint32_t lip = (uint32_t(p.cs) << 4) + p.ip, ldp = (uint32_t(p.ds) << 4) + p.dp;
+            f[3] = 0xffff0000u | (lip & 0xffff);
+            f[4] = ((lip & 0xffff0000u) >> 4) | 0x7ff;
+            f[5] = 0xffff0000u | (ldp & 0xffff);
+            f[6] = (ldp & 0xffff0000u) >> 4;
+        }
+        std::vector<uint8_t> image;
+        for (uint32_t v : f)
+            for (unsigned i = 0; i < (o32 ? 4u : 2u); ++i) image.push_back(uint8_t(v >> (8 * i)));
+        return image;
+    };
+    // The 387's control forms, which leave the x87 pointers, and the forms
+    // that access memory.
+    auto control = [](uint8_t op, uint8_t modrm) {
+        const unsigned reg = (modrm >> 3) & 7;
+        if (modrm < 0xc0) return (op == 0xd9 && reg >= 4) || (op == 0xdd && (reg == 4 || reg == 6 || reg == 7));
+        return (op == 0xdb && modrm >= 0xe0 && modrm <= 0xe4) || (op == 0xdf && modrm == 0xe0);
+    };
+    auto accesses = [](uint8_t op, uint8_t modrm) {
+        const unsigned reg = (modrm >> 3) & 7;
+        if (modrm >= 0xc0) return false;
+        switch (op) {
+        case 0xd9: return reg == 0 || reg >= 4;
+        case 0xdb: return reg == 0 || reg == 5;
+        case 0xdd: return reg == 0 || reg == 4 || reg == 6 || reg == 7;
+        case 0xdf: return reg == 0 || reg == 4 || reg == 5;
+        default: return true;  // D8, DA, DC, DE: arithmetic with a memory operand
+        }
+    };
+
+    struct Check { uint32_t address; std::vector<uint8_t> bytes; };
+    struct Case {
+        std::string label;
+        const Env *env;
+        std::vector<uint8_t> body;      // after the environment's prologue
+        uint32_t cr0 = 0;               // MP, EM, TS (bits 1-3)
+        int vector = -1;                // the exception the run must end in, else HLT
+        std::vector<Check> checks;      // bytes the run must leave, at linear addresses
+        int ax = -1, bl = -1;           // AX and BL after the run, if checked
+        uint16_t bp = 0;
+    };
+    std::vector<Case> cases;
+    auto prologue = [&](Asm &a, const Env &e) {
+        if (e.kind == REAL) return;
+        a.c32 = false;
+        a.op({0xfa, 0x31, 0xc0, 0x8e, 0xd8});                    // CLI; XOR AX, AX; MOV DS, AX
+        a.op({0x0f, 0x01, 0x16}); a.w(0x2100);                  // LGDT [2100h]
+        a.op({0x0f, 0x01, 0x1e}); a.w(0x2108);                  // LIDT [2108h]
+        a.op({0x0f, 0x20, 0xc0, 0x0c, 0x01, 0x0f, 0x22, 0xc0});  // MOV EAX, CR0; OR AL, 1; MOV CR0, EAX
+        const size_t jmp = a.here();
+        a.op({0xea}); a.w(0); a.w(e.cs);                        // JMP cs:pm
+        const uint16_t pm = uint16_t(CODE + a.here());
+        a.b[jmp + 1] = uint8_t(pm); a.b[jmp + 2] = uint8_t(pm >> 8);
+        a.c32 = e.kind == PM32;
+        a.ax(e.ds); a.op({0x8e, 0xd8});                          // MOV DS, AX
+        a.ax(e.es); a.op({0x8e, 0xc0});                          // MOV ES, AX
+        a.ax(0x10); a.op({0x8e, 0xd0});                          // MOV SS, AX
+        a.op({0xbc}); if (a.c32) a.d(0x0f00); else a.w(0x0f00);  // MOV (E)SP, 0F00h
+    };
+    // Where the case's body starts: its CS offset, and the pointers' model.
+    auto start = [&](const Env &e, Asm &a) { return e.kind == REAL ? REAL_IP + uint32_t(a.here()) : CODE + uint32_t(a.here()); };
+    auto data = [&](const Env &e) { return e.kind == REAL ? uint32_t(e.ds) << 4 : DATA; };
+
+    // form.*: every ModRM of every ESC opcode in each environment.
+    for (const Env &e : envs) {
+        for (unsigned op = 0xd8; op <= 0xdf; ++op) {
+            for (unsigned modrm = 0; modrm < 0x100; ++modrm) {
+                const bool mem = modrm < 0xc0;
+                if (mem && (modrm & 0xc7) != 0) continue;  // one memory form per reg field
+                Asm a;
+                prologue(a, e);
+                a.c32 = e.kind == PM32;
+                Asm body;
+                body.c32 = a.c32;
+                const uint32_t base = start(e, a);
+                body.ax(0x1234);
+                const uint32_t fld_ip = base + uint32_t(body.here());
+                body.esc(0xd9, 0, 0x180);                       // FLD dword [180h]
+                const uint32_t form_ip = base + uint32_t(body.here());
+                if (mem) body.esc(uint8_t(op), (modrm >> 3) & 7, 0x100);
+                else body.op({uint8_t(op), uint8_t(modrm)});
+                body.esc(0xd9, 6, 0x300);                       // FNSTENV [300h]
+                const bool pe = e.kind != REAL, o32 = e.kind == PM32;
+                fes_i386::X87Pointers before{fld_ip, 0x180, e.cs, e.ds};
+                fes_i386::X87Pointers after = before;
+                const uint8_t form_modrm = mem ? uint8_t(modrm | (o32 ? 5 : 6)) : uint8_t(modrm);
+                if (!control(uint8_t(op), form_modrm)) {
+                    after.ip = form_ip;
+                    if (mem) after.dp = 0x100;
+                }
+                Case c;
+                c.label = std::string("form.") + e.name + "." + hex(op).substr(hex(op).size() - 2) + "." +
+                          (mem ? "m" + std::to_string((modrm >> 3) & 7) : hex(modrm | 0x100).substr(1));
+                c.env = &e;
+                c.body = body.b;
+                // The form's operand at 100h, a pattern but for what it stores.
+                std::vector<uint8_t> operand(0x70);
+                for (unsigned i = 0; i < operand.size(); ++i) operand[i] = uint8_t(0x10 + i);
+                if (mem && op == 0xd9 && ((modrm >> 3) & 7) == 7) operand[0] = operand[1] = 0xff;      // FNSTCW
+                if (mem && op == 0xdd && ((modrm >> 3) & 7) == 7) operand[0] = operand[1] = 0xff;      // FNSTSW
+                if (mem && (op == 0xd9 || op == 0xdd) && ((modrm >> 3) & 7) == 6) {                    // FNSTENV, FNSAVE
+                    const std::vector<uint8_t> image = env_image(pe, o32, before);
+                    std::copy(image.begin(), image.end(), operand.begin());
+                    if (op == 0xdd) std::fill(operand.begin() + long(image.size()), operand.begin() + long(image.size()) + 80, 0xff);
+                }
+                c.checks.push_back({data(e) + 0x100, operand});
+                c.checks.push_back({data(e) + 0x300, env_image(pe, o32, after)});
+                c.ax = op == 0xdf && modrm == 0xe0 ? 0xffff : 0x1234;
+                cases.push_back(c);
+            }
+        }
+    }
+    // fault.*: every memory form with its operand at DS:FFFFh, in real mode.
+    for (unsigned op = 0xd8; op <= 0xdf; ++op) {
+        for (unsigned reg = 0; reg < 8; ++reg) {
+            Asm body;
+            body.esc(uint8_t(op), reg, 0xffff);
+            Case c;
+            c.label = "fault.real." + hex(op).substr(hex(op).size() - 2) + ".m" + std::to_string(reg);
+            c.env = &envs[REAL];
+            c.body = body.b;
+            c.vector = accesses(uint8_t(op), uint8_t(reg << 3 | 6)) ? 13 : -1;
+            cases.push_back(c);
+        }
+    }
+    // At SS:FFFFh through BP: #SS(0) for FLD, FNSTSW, FNSTENV; FST retires.
+    for (auto [name, op, reg, vector] : std::initializer_list<std::tuple<const char *, uint8_t, unsigned, int>>{
+             {"fld", 0xd9, 0, 12}, {"fnstsw", 0xdd, 7, 12}, {"fnstenv", 0xd9, 6, 12}, {"fst", 0xd9, 2, -1}}) {
+        Case c;
+        c.label = std::string("fault.real.ss.") + name;
+        c.env = &envs[REAL];
+        c.body = {op, uint8_t(0x46 | reg << 3), 0x00};  // op [BP+0]
+        c.bp = 0xffff;
+        c.vector = vector;
+        cases.push_back(c);
+    }
+    // 16-bit protected mode: DS read-only (30h), then DS of 256 bytes (38h).
+    for (auto [name, op, reg, sel, off, vector] :
+         std::initializer_list<std::tuple<const char *, uint8_t, unsigned, uint16_t, uint16_t, int>>{
+             {"ro.fnstsw", 0xdd, 7, 0x30, 0x100, 13}, {"ro.fnstcw", 0xd9, 7, 0x30, 0x100, 13},
+             {"ro.fnstenv", 0xd9, 6, 0x30, 0x100, 13}, {"ro.fnsave", 0xdd, 6, 0x30, 0x100, 13},
+             {"ro.fst", 0xd9, 2, 0x30, 0x100, -1}, {"ro.fld", 0xd9, 0, 0x30, 0x100, -1},
+             {"small.fld", 0xd9, 0, 0x38, 0x100, 13}, {"small.fst", 0xd9, 2, 0x38, 0x100, -1},
+             {"small.fld-m64", 0xdd, 0, 0x38, 0xfc, 13}, {"small.fldenv", 0xd9, 4, 0x38, 0xf8, 13},
+             {"small.fnstenv", 0xd9, 6, 0x38, 0xf0, -1}, {"small.fnsave-partial", 0xdd, 6, 0x38, 0xf0, 13}}) {
+        Asm body;
+        body.ax(sel); body.op({0x8e, 0xd8});  // MOV DS, AX
+        body.esc(op, reg, off);
+        Case c;
+        c.label = std::string("fault.pm16.") + name;
+        c.env = &envs[PM16];
+        c.body = body.b;
+        c.vector = vector;
+        cases.push_back(c);
+    }
+    // wrap.*: a 32-bit FNSTENV at DS:FFF0h in real mode.
+    {
+        Asm body;
+        body.op({0x66}); body.esc(0xd9, 6, 0xfff0);
+        Case c;
+        c.label = "wrap.real.fnstenv-o32";
+        c.env = &envs[REAL];
+        c.body = body.b;
+        const std::vector<uint8_t> image = env_image(false, true, fes_i386::X87Pointers{});
+        const uint32_t ds = uint32_t(envs[REAL].ds) << 4;
+        c.checks.push_back({ds + 0xfff0, std::vector<uint8_t>(image.begin(), image.begin() + 16)});
+        c.checks.push_back({ds, std::vector<uint8_t>(image.begin() + 16, image.end())});
+        cases.push_back(c);
+    }
+    // nm.*: each form under each combination of EM, MP and TS.
+    const std::vector<std::pair<const char *, std::vector<uint8_t>>> nm_forms = {
+        {"fninit", {0xdb, 0xe3}}, {"fnstsw-ax", {0xdf, 0xe0}}, {"fnop", {0xd9, 0xd0}}, {"fcmovb", {0xda, 0xc0}},
+        {"db-e7", {0xdb, 0xe7}}, {"fld", {0xd9, 0x06, 0x00, 0x01}}, {"fst", {0xd9, 0x16, 0x00, 0x01}},
+        {"d9-m1", {0xd9, 0x0e, 0x00, 0x01}}, {"fnstenv", {0xd9, 0x36, 0x00, 0x01}},
+        {"fnsave", {0xdd, 0x36, 0x00, 0x01}}, {"frstor", {0xdd, 0x26, 0x00, 0x01}}, {"wait", {0x9b}}};
+    for (const auto &[name, bytes] : nm_forms) {
+        for (uint32_t bits = 0; bits < 8; ++bits) {
+            const bool mp = bits & 1, em = bits & 2, ts = bits & 4;
+            Case c;
+            c.label = std::string("nm.") + name + "." + (mp ? "mp" : "") + (em ? "em" : "") + (ts ? "ts" : "") +
+                      (bits ? "" : "none");
+            c.env = &envs[REAL];
+            c.body = bytes;
+            c.cr0 = bits << 1;
+            c.vector = (bytes[0] == 0x9b ? mp && ts : em || ts) ? 7 : -1;
+            cases.push_back(c);
+        }
+    }
+    // LOCK raises #UD on every ESC form, before EM's #NM.
+    for (auto [name, cr0, bytes] : std::initializer_list<std::tuple<const char *, uint32_t, std::vector<uint8_t>>>{
+             {"lock.fninit", 0, {0xf0, 0xdb, 0xe3}}, {"lock.fld", 0, {0xf0, 0xd9, 0x06, 0x00, 0x01}},
+             {"lock.fninit-em", 4, {0xf0, 0xdb, 0xe3}}, {"lock.es-fld", 0, {0xf0, 0x26, 0xd9, 0x06, 0x00, 0x01}}}) {
+        Case c;
+        c.label = name;
+        c.env = &envs[REAL];
+        c.body = bytes;
+        c.cr0 = cr0;
+        c.vector = 6;
+        cases.push_back(c);
+    }
+    {
+        // Real mode, a 32-bit address (67h): FLD dword [00000120h].
+        Asm body;
+        const uint32_t fld_ip = REAL_IP;
+        body.op({0x67, 0xd9, 0x05}); body.d(0x120);
+        body.esc(0xd9, 6, 0x200);
+        Case c;
+        c.label = "layout.real.a32";
+        c.env = &envs[REAL];
+        c.body = body.b;
+        c.checks.push_back({(uint32_t(envs[REAL].ds) << 4) + 0x200,
+                            env_image(false, false, fes_i386::X87Pointers{fld_ip, 0x120, envs[REAL].cs, envs[REAL].ds})});
+        cases.push_back(c);
+    }
+    // layout.*: FNSTENV and FNSAVE in each size, after FLD dword ES:[120h].
+    for (const Env &e : envs) {
+        for (bool o32 : {false, true}) {
+            for (bool save : {false, true}) {
+                Asm a;
+                prologue(a, e);
+                a.c32 = e.kind == PM32;
+                Asm body;
+                body.c32 = a.c32;
+                const uint32_t base = start(e, a);
+                const uint32_t fld_ip = base;
+                body.op({0x26}); body.esc(0xd9, 0, 0x120);   // FLD dword ES:[120h]
+                if (o32 != body.c32) body.op({0x66});
+                body.esc(save ? 0xdd : 0xd9, 6, 0x200);     // FNSAVE or FNSTENV [200h]
+                Case c;
+                c.label = std::string("layout.") + e.name + (o32 ? ".o32." : ".o16.") + (save ? "fnsave" : "fnstenv");
+                c.env = &e;
+                c.body = body.b;
+                std::vector<uint8_t> image = env_image(e.kind != REAL, o32, fes_i386::X87Pointers{fld_ip, 0x120, e.cs, e.es});
+                if (save) image.insert(image.end(), 80, 0xff);
+                c.checks.push_back({data(e) + 0x200, image});
+                cases.push_back(c);
+            }
+        }
+    }
+    {
+        // 32-bit protected mode, a SIB address: FLD dword [EAX+ECX*4+10h]
+        // with EAX 100h and ECX 8: the data pointer 130h.
+        Asm a;
+        prologue(a, envs[PM32]);
+        Asm body;
+        body.c32 = true;
+        const uint32_t base = start(envs[PM32], a);
+        body.op({0xb8}); body.d(0x100); body.op({0xb9}); body.d(8);   // MOV EAX, 100h; MOV ECX, 8
+        const uint32_t fld_ip = base + uint32_t(body.here());
+        body.op({0xd9, 0x44, 0x88, 0x10});                            // FLD dword [EAX+ECX*4+10h]
+        body.esc(0xd9, 6, 0x200);
+        Case c;
+        c.label = "layout.pm32.sib";
+        c.env = &envs[PM32];
+        c.body = body.b;
+        c.checks.push_back({DATA + 0x200, env_image(true, true, fes_i386::X87Pointers{fld_ip, 0x130, 0x18, 0x20})});
+        cases.push_back(c);
+    }
+    // detect.*: FPU detection routines, in real mode and 32-bit protected
+    // mode. Each ends with BL 1 (a coprocessor) or 0 (none) and a HLT.
+    for (EnvKind kind : {REAL, PM32}) {
+        const Env &e = envs[kind];
+        auto routine = [&](const char *name, std::function<void(Asm &, std::vector<size_t> &)> test) {
+            Asm body;
+            body.c32 = kind == PM32;
+            std::vector<size_t> to_none;  // rel8 jumps to the no-coprocessor ending
+            test(body, to_none);
+            body.op({0xb3, 0x01, 0xf4});  // MOV BL, 1; HLT
+            const size_t none = body.here();
+            body.op({0xb3, 0x00});        // MOV BL, 0 (HLT follows)
+            for (size_t at : to_none) body.b[at] = uint8_t(none - (at + 1));
+            Case c;
+            c.label = std::string("detect.") + e.name + "." + name;
+            c.env = &e;
+            c.body = body.b;
+            c.bl = 0;
+            cases.push_back(c);
+        };
+        auto jne = [](Asm &a, std::vector<size_t> &to) { a.op({0x75, 0}); to.push_back(a.here() - 1); };
+        auto movw = [](Asm &a, uint32_t off, uint16_t v) {  // MOV word [off], v
+            if (a.c32) a.op({0x66});
+            a.op({0xc7}); a.m(0, off); a.w(v);
+        };
+        routine("intel", [&](Asm &a, std::vector<size_t> &to) {
+            a.op({0xdb, 0xe3});                                   // FNINIT
+            movw(a, 0x100, 0x5a5a);
+            a.esc(0xdd, 7, 0x100);                                // FNSTSW [100h]
+            a.op({0x80}); a.m(7, 0x100); a.op({0x00});            // CMP byte [100h], 0
+            jne(a, to);
+            a.esc(0xd9, 7, 0x100);                                // FNSTCW [100h]
+            if (a.c32) a.op({0x66});
+            a.op({0xa1}); if (a.c32) a.d(0x100); else a.w(0x100); // MOV AX, [100h]
+            if (a.c32) a.op({0x66});
+            a.op({0x25}); a.w(0x103f);                            // AND AX, 103Fh
+            if (a.c32) a.op({0x66});
+            a.op({0x3d}); a.w(0x003f);                            // CMP AX, 3Fh
+            jne(a, to);
+        });
+        routine("cw-high", [&](Asm &a, std::vector<size_t> &to) {
+            a.op({0xdb, 0xe3});                                   // FNINIT
+            movw(a, 0x102, 0);
+            a.esc(0xd9, 7, 0x102);                                // FNSTCW [102h]
+            a.op({0x80}); a.m(7, 0x103); a.op({0x03});            // CMP byte [103h], 3
+            jne(a, to);
+        });
+        routine("wait-forms", [&](Asm &a, std::vector<size_t> &to) {
+            a.op({0x9b, 0xdb, 0xe3});                             // FINIT
+            movw(a, 0x100, 0x5a5a);
+            a.op({0x9b}); a.esc(0xdd, 7, 0x100);                  // FSTSW [100h]
+            a.op({0x9b});                                         // WAIT
+            a.op({0x80}); a.m(7, 0x100); a.op({0x00});            // CMP byte [100h], 0
+            jne(a, to);
+        });
+        routine("fnstsw-ax", [&](Asm &a, std::vector<size_t> &to) {
+            a.op({0xdb, 0xe3});                                   // FNINIT
+            a.ax(0x5a5a);
+            a.op({0xdf, 0xe0});                                   // FNSTSW AX
+            a.op({0x84, 0xc0});                                   // TEST AL, AL
+            jne(a, to);
+        });
+        routine("dos4gw", [&](Asm &a, std::vector<size_t> &to) {
+            a.op({0xdb, 0xe3});                                   // FNINIT
+            a.esc(0xdd, 7, 0x100);                                // FNSTSW [100h]
+            a.esc(0xd9, 7, 0x102);                                // FNSTCW [102h]
+            a.op({0x80}); a.m(7, 0x100); a.op({0x00});            // CMP byte [100h], 0
+            jne(a, to);
+            if (a.c32) a.op({0x66});
+            a.op({0x81}); a.m(7, 0x102); a.w(0x037f);             // CMP word [102h], 037Fh
+            jne(a, to);
+            a.op({0xdb, 0xe3});                                   // FNINIT
+        });
+    }
+
+    for (const Case &c : cases) {
+        const Env &e = *c.env;
+        Asm a;
+        prologue(a, e);
+        a.b.insert(a.b.end(), c.body.begin(), c.body.end());
+        a.op({0xf4});
+        const uint32_t code_base = e.kind == REAL ? (uint32_t(e.cs) << 4) + REAL_IP : CODE;
+        std::vector<std::pair<uint32_t, uint8_t>> image;
+        for (size_t i = 0; i < a.b.size(); ++i) image.emplace_back(code_base + uint32_t(i), a.b[i]);
+        for (unsigned n = 0; n < 8; ++n)
+            for (unsigned i = 0; i < 8; ++i) image.emplace_back(GDT + 8 * n + i, uint8_t(gdt[n] >> (8 * i)));
+        for (unsigned v = 0; v < 32; ++v) {
+            const uint64_t g = gate(0x08, HANDLER, 0x8e);
+            for (unsigned i = 0; i < 8; ++i) image.emplace_back(IDT + 8 * v + i, uint8_t(g >> (8 * i)));
+            image.emplace_back(v * 4, uint8_t(HANDLER)); image.emplace_back(v * 4 + 1, uint8_t(HANDLER >> 8));
+            image.emplace_back(v * 4 + 2, 0); image.emplace_back(v * 4 + 3, 0);
+        }
+        for (unsigned i = 0; i < 6; ++i) {
+            image.emplace_back(0x2100 + i, uint8_t((uint64_t(GDT) << 16 | 0x3f) >> (8 * i)));
+            image.emplace_back(0x2108 + i, uint8_t((uint64_t(IDT) << 16 | (32 * 8 - 1)) >> (8 * i)));
+        }
+        image.emplace_back(HANDLER, 0xf4);
+        // The data: a pattern at 100h-1FFh of DS and ES, 300h-36Bh 0CCh.
+        const uint32_t ds = data(e), es = e.kind == REAL ? uint32_t(e.es) << 4 : EXTRA;
+        for (uint32_t i = 0x100; i < 0x200; ++i) {
+            image.emplace_back(ds + i, uint8_t(0x10 + i - 0x100));
+            image.emplace_back(es + i, uint8_t(0x90 + i - 0x100));
+        }
+        for (uint32_t i = 0x300; i < 0x36c; ++i) image.emplace_back(ds + i, 0xcc);
+        for (auto [address, value] : image) {
+            bus.ram[address] = rtl.poke(address, value);
+            oracle.invalidate(address, 1);
+        }
+        State state;
+        for (int k = 0; k < 6; ++k) state.seg[k] = fes_i386::real_mode_segment(0);
+        if (e.kind == REAL) {
+            state.seg[fes_i386::SEG_CS] = fes_i386::real_mode_segment(e.cs);
+            state.seg[fes_i386::SEG_DS] = fes_i386::real_mode_segment(e.ds);
+            state.seg[fes_i386::SEG_ES] = fes_i386::real_mode_segment(e.es);
+            state.eip = REAL_IP;
+        } else {
+            state.eip = CODE;
+        }
+        state.gpr[fes_i386::REG_ESP] = 0x0f00;
+        state.gpr[fes_i386::REG_EBP] = c.bp;
+        state.cr0 = 0x7ffffff0 | c.cr0;
+        oracle.reset();
+        oracle.set_state(state);
+        rtl.start(state);
+        Mismatches out;
+        Outcome outcome;
+        try {
+            outcome = lockstep(oracle, bus, rtl, entries, Fields{}, 200, true, summary, out, code_base + uint32_t(a.b.size()));
+        } catch (const std::exception &error) {
+            out.add(c.label + ".oracle-error:" + error.what(), 0, 1);
+            oracle.reset();
+        }
+        const State s = rtl.state();
+        if (c.vector < 0) {
+            if (!outcome.halted) out.add(c.label + ".halt", 1, 0);
+            if (outcome.exception >= 0) out.add(c.label + ".exception", 0xff, uint32_t(outcome.exception));
+        } else if (outcome.exception != c.vector) {
+            out.add(c.label + ".exception", uint32_t(c.vector), outcome.exception < 0 ? 0xffu : uint32_t(outcome.exception));
+        }
+        for (const Check &check : c.checks)
+            for (size_t i = 0; i < check.bytes.size(); ++i)
+                if (rtl.ram[check.address + i] != check.bytes[i]) {
+                    out.add(c.label + ".byte." + hex(check.address + uint32_t(i)), check.bytes[i], rtl.ram[check.address + i]);
+                    break;
+                }
+        if (c.ax >= 0 && (s.gpr[fes_i386::REG_EAX] & 0xffff) != uint32_t(c.ax))
+            out.add(c.label + ".ax", uint32_t(c.ax), s.gpr[fes_i386::REG_EAX] & 0xffff);
+        if (c.bl >= 0 && (s.gpr[fes_i386::REG_EBX] & 0xff) != uint32_t(c.bl))
+            out.add(c.label + ".bl", uint32_t(c.bl), s.gpr[fes_i386::REG_EBX] & 0xff);
+        end_run(bus, rtl, outcome.halted, out);
+        summary.cycles += rtl.cycles;
+        rtl.cycles = 0;
+        for (auto [address, value] : image) {
+            bus.ram[address] = rtl.poke(address, 0);
+            oracle.invalidate(address, 1);
+        }
+        for (uint32_t address : rtl.written) {
+            if (address < RAM_BYTES) bus.ram[address] = rtl.poke(address, 0);
+            oracle.invalidate(address, 1);
+        }
+        rtl.written.clear();
+        ++summary.runs;
+        if (out.items.empty()) {
+            ++summary.passed;
+        } else {
+            ++summary.failed;
+            std::cout << "FAIL no387:" << c.label;
+            for (const auto &item : out.items) std::cout << ' ' << item;
+            std::cout << '\n';
+        }
+    }
+    return 0;
+}
+
+// 0000:1000 in real mode with a GDT at 2000h (LGDT's pointer at 2100h):
+//   08h code, 16-bit, base 0, 64K      18h data, base 0, 64K
+//   10h data, base 0, 4 GiB (G)        20h code, 16-bit, base 0, 4 GiB (G)
+// It enters protected mode, far-jumps to a code descriptor, loads DS, ES,
+// FS, GS and SS there, clears PE, far-jumps to 0000 in real mode (whose CS
+// load sets CS to limit FFFFh and access rights 93h on the RTL, where
+// Bochs 3.1 keeps the cache: the lockstep's cs_rule adoption), reloads the
+// segments in real mode and reads or writes through them:
+//   unreal       all five loaded with 10h: each reads or writes at 2 MiB
+//                (32-bit addresses), no fault; HLT.
+//   normal-gs    GS loaded with 18h: a word at GS:FFFFh raises #GP(0).
+//   normal-ss    SS loaded with 18h: a word at SS:FFFFh raises #SS(0).
+//   cs-rule      the code descriptor is 20h (4 GiB): with PE clear CS still
+//                reads at 10000h; after the real-mode far jump CS's limit
+//                is FFFFh (RTL), so a word at CS:FFFFh raises #GP(0).
+//   cs-rule-hlt  as cs-rule, halting after the far jump: the RTL's CS must
+//                be limit FFFFh, access rights 93h, D/B and G clear.
+//   pm-sreg-limit  in protected mode, DS loaded with 18h, MOV ES, [FFFEh]
+//                reads the selector 10h from DS's last word, which must not
+//                fault (the read is a word); then HLT with PE set.
+// The run checks the RTL's segment caches after the reloads as well
+// (unreal: DS, ES, FS, GS and SS at limit FFFFFFFFh).
+int run_unreal_cases(fes_i386::Oracle &oracle, OracleBus &bus, Rtl &rtl, const std::vector<Entry> &entries,
+                     Summary &summary) {
+    (void)entries;
+    struct Asm {
+        std::vector<uint8_t> b;
+        void op(std::initializer_list<uint8_t> bytes) { b.insert(b.end(), bytes); }
+        void w(uint16_t v) { b.push_back(uint8_t(v)); b.push_back(uint8_t(v >> 8)); }
+        void d(uint32_t v) { w(uint16_t(v)); w(uint16_t(v >> 16)); }
+        size_t here() const { return b.size(); }
+    };
+    constexpr uint32_t CODE = 0x1000, GDT = 0x2000;
+    auto desc = [](uint32_t base, uint32_t limit, uint8_t ar, bool g, bool db) {
+        return uint64_t(limit & 0xffff) | uint64_t(base & 0xffff) << 16 | uint64_t((base >> 16) & 0xff) << 32
+             | uint64_t(ar) << 40 | uint64_t((limit >> 16) & 0xf) << 48 | uint64_t(db) << 54 | uint64_t(g) << 55
+             | uint64_t(base >> 24) << 56;
+    };
+    const uint64_t gdt[5] = {0, desc(0, 0xffff, 0x9b, false, false), desc(0, 0xfffff, 0x93, true, false),
+                             desc(0, 0xffff, 0x93, false, false), desc(0, 0xfffff, 0x9b, true, false)};
+    struct Case {
+        const char *label;
+        uint16_t code_sel;
+        uint16_t gs_sel, ss_sel;
+        int ending;
+        bool far_target_past_real_limit = false;
+    };  // ending: negative HLT, else delivered vector
+    const Case cases[] = {
+        {"unreal", 0x08, 0x10, 0x10, -1},
+        {"normal-gs", 0x08, 0x18, 0x10, 13},
+        {"normal-ss", 0x08, 0x10, 0x18, 12},
+        {"cs-rule", 0x20, 0x10, 0x10, 13},
+        {"cs-rule-hlt", 0x20, 0x10, 0x10, -2},
+        {"cs-delivery", 0x20, 0x10, 0x10, 13, true},
+        {"pm-sreg-limit", 0x08, 0x10, 0x10, -3},
+    };
+    for (const Case &c : cases) {
+        Asm a;
+        a.op({0xfa, 0x31, 0xc0, 0x8e, 0xd8});                // CLI; XOR AX, AX; MOV DS, AX
+        a.op({0x0f, 0x01, 0x16}); a.w(0x2100);              // LGDT [2100h]
+        a.op({0x0f, 0x20, 0xc0, 0x0c, 0x01, 0x0f, 0x22, 0xc0});  // MOV EAX, CR0; OR AL, 1; MOV CR0, EAX
+        const size_t jmp_pm = a.here();
+        a.op({0xea}); a.w(0); a.w(c.code_sel);              // JMP code_sel:pm
+        const uint16_t pm = uint16_t(CODE + a.here());
+        a.b[jmp_pm + 1] = uint8_t(pm); a.b[jmp_pm + 2] = uint8_t(pm >> 8);
+        a.op({0xb8, 0x10, 0x00, 0x8e, 0xd8, 0x8e, 0xc0, 0x8e, 0xe0});  // MOV AX, 10h; MOV DS, ES, FS, AX
+        a.op({0xb8}); a.w(c.gs_sel); a.op({0x8e, 0xe8});    // MOV AX, gs_sel; MOV GS, AX
+        a.op({0xb8}); a.w(c.ss_sel); a.op({0x8e, 0xd0});    // MOV AX, ss_sel; MOV SS, AX
+        if (c.ending == -3) {
+            a.op({0xb8, 0x18, 0x00, 0x8e, 0xd8});           // MOV AX, 18h; MOV DS, AX
+            a.op({0xc7, 0x06, 0xfe, 0xff, 0x10, 0x00});     // MOV word [FFFEh], 10h
+            a.op({0x8e, 0x06, 0xfe, 0xff});                 // MOV ES, [FFFEh]
+            a.op({0xf4});
+        }
+        a.op({0x0f, 0x20, 0xc0, 0x24, 0xfe, 0x0f, 0x22, 0xc0});  // MOV EAX, CR0; AND AL, FEh; MOV CR0, EAX
+        if (c.code_sel == 0x20) {
+            a.op({0x66, 0xbb}); a.d(0x10000);              // MOV EBX, 10000h
+            a.op({0x2e, 0x67, 0x8b, 0x03});                // MOV AX, CS:[EBX]: CS's 4 GiB limit, PE clear
+        }
+        if (c.far_target_past_real_limit) {
+            a.op({0x66, 0xea}); a.d(0x12345); a.w(0);      // o32 JMP 0000:00012345 under the kept 4 GiB CS limit
+        } else {
+            const size_t jmp_rm = a.here();
+            a.op({0xea}); a.w(0); a.w(0);                   // JMP 0000:rm
+            const uint16_t rm = uint16_t(CODE + a.here());
+            a.b[jmp_rm + 1] = uint8_t(rm); a.b[jmp_rm + 2] = uint8_t(rm >> 8);
+            if (c.ending <= -2) {
+                a.op({0xf4});
+            } else {
+                // Real-mode reloads, then accesses.
+                a.op({0xb8, 0x00, 0x01, 0x8e, 0xd8, 0x8e, 0xc0, 0x8e, 0xe0, 0x8e, 0xe8, 0x8e, 0xd0});
+                a.op({0xbc, 0x00, 0x08});                   // MOV SP, 0800h (SS.base 1000h)
+                if (c.ending == -1) {
+                    a.op({0x66, 0xbb}); a.d(0x00200000);     // MOV EBX, 200000h
+                    a.op({0x67, 0x66, 0x8b, 0x03});          // MOV EAX, [EBX]
+                    a.op({0x26, 0x67, 0x66, 0x89, 0x03});    // MOV ES:[EBX], EAX
+                    a.op({0x64, 0x67, 0x66, 0x89, 0x43, 0x04});  // MOV FS:[EBX+4], EAX
+                    a.op({0x65, 0x67, 0x66, 0x8b, 0x4b, 0x08});  // MOV ECX, GS:[EBX+8]
+                    a.op({0x36, 0x67, 0x66, 0x89, 0x4b, 0x0c});  // MOV SS:[EBX+12], ECX
+                    a.op({0xf4});
+                } else if (c.ending == 12) {
+                    a.op({0xbb, 0xff, 0xff, 0x36, 0x8b, 0x07});  // MOV BX, FFFFh; MOV AX, SS:[BX]
+                    a.op({0xf4});
+                } else if (c.code_sel == 0x20) {
+                    a.op({0x2e, 0x8b, 0x1e, 0xff, 0xff});    // MOV BX, CS:[FFFFh]
+                    a.op({0xf4});
+                } else {
+                    a.op({0x65, 0x8b, 0x06, 0xff, 0xff});    // MOV AX, GS:[FFFFh]
+                    a.op({0xf4});
+                }
+            }
+        }
+        std::vector<std::pair<uint32_t, uint8_t>> image;
+        for (size_t i = 0; i < a.b.size(); ++i) image.emplace_back(CODE + uint32_t(i), a.b[i]);
+        for (unsigned n = 0; n < 5; ++n)
+            for (unsigned i = 0; i < 8; ++i) image.emplace_back(GDT + 8 * n + i, uint8_t(gdt[n] >> (8 * i)));
+        for (unsigned i = 0; i < 6; ++i) image.emplace_back(0x2100 + i, uint8_t((uint64_t(GDT) << 16 | 0x27) >> (8 * i)));
+        image.emplace_back(HANDLER, 0xf4);
+        for (uint32_t vector : {12u, 13u}) {
+            image.emplace_back(vector * 4, uint8_t(HANDLER));
+            image.emplace_back(vector * 4 + 1, uint8_t(HANDLER >> 8));
+            image.emplace_back(vector * 4 + 2, 0);
+            image.emplace_back(vector * 4 + 3, 0);
+        }
+        for (auto [address, value] : image) {
+            bus.ram[address] = rtl.poke(address, value);
+            oracle.invalidate(address, 1);
+        }
+        State state;
+        for (int k = 0; k < 6; ++k) state.seg[k] = fes_i386::real_mode_segment(0);
+        state.eip = CODE;
+        state.gpr[fes_i386::REG_ESP] = 0x0f00;
+        state.cr0 = 0x7ffffff0;
+        oracle.reset();
+        oracle.set_state(state);
+        rtl.start(state);
+        Mismatches out;
+        Outcome outcome;
+        const uint64_t cs_rule = summary.cs_rule;
+        try {
+            const std::vector<Entry> no_divergences;
+            outcome = lockstep(oracle, bus, rtl, no_divergences, Fields{}, 64, true, summary, out, CODE + uint32_t(a.b.size()));
+        } catch (const std::exception &error) {
+            out.add(std::string(c.label) + ".oracle-error:" + error.what(), 0, 1);
+            oracle.reset();
+        }
+        const State s = rtl.state();
+        const std::string label = c.label;
+        if (c.ending < 0) {
+            if (!outcome.halted) out.add(label + ".halt", 1, 0);
+            if (outcome.exception >= 0) out.add(label + ".exception", 0xff, uint32_t(outcome.exception));
+        } else if (outcome.exception != c.ending) {
+            out.add(label + ".exception", uint32_t(c.ending), outcome.exception < 0 ? 0xffu : uint32_t(outcome.exception));
+        }
+        if (c.far_target_past_real_limit) {
+            const uint32_t frame = s.seg[fes_i386::SEG_SS].base + 0x0efa;
+            const uint32_t ip = rtl.ram[frame] | uint32_t(rtl.ram[frame + 1]) << 8;
+            if ((s.gpr[fes_i386::REG_ESP] & 0xffff) != 0x0efa)
+                out.add(label + ".esp", 0x0efa, s.gpr[fes_i386::REG_ESP] & 0xffff);
+            if (ip != 0x2345) out.add(label + ".pushed-ip", 0x2345, ip);
+        }
+        if (c.ending == -3 && s.seg[fes_i386::SEG_ES].selector != 0x10)
+            out.add(label + ".es", 0x10, s.seg[fes_i386::SEG_ES].selector);
+        if (c.ending == -1)
+            for (int k : {fes_i386::SEG_DS, fes_i386::SEG_ES, fes_i386::SEG_FS, fes_i386::SEG_GS, fes_i386::SEG_SS})
+                if (s.seg[k].limit != 0xffffffffu || s.seg[k].base != 0x1000) out.add(label + ".unreal." + SEG_NAMES[k], 0xffffffffu, s.seg[k].limit);
+        // The 386 rule: the real-mode far jump sets CS's cache, where Bochs
+        // kept the 4 GiB code descriptor's (the oracle took the RTL's).
+        if (c.ending == -2) {
+            const auto &cs = s.seg[fes_i386::SEG_CS];
+            if (cs.limit != 0xffff || cs.ar != 0x93 || cs.base != 0) out.add(label + ".cs", 0x93ffff, uint64_t(cs.ar) << 32 | cs.limit);
+        }
+        if (c.code_sel == 0x20 && summary.cs_rule == cs_rule) out.add(label + ".cs-rule-unused", 1, 0);
+        end_run(bus, rtl, outcome.halted, out);
+        summary.cycles += rtl.cycles;
+        rtl.cycles = 0;
+        for (auto [address, value] : image) {
+            bus.ram[address] = rtl.poke(address, 0);
+            oracle.invalidate(address, 1);
+        }
+        for (uint32_t address : rtl.written) {
+            if (address < RAM_BYTES) bus.ram[address] = rtl.poke(address, 0);
+            oracle.invalidate(address, 1);
+        }
+        rtl.written.clear();
+        ++summary.runs;
+        if (out.items.empty()) {
+            ++summary.passed;
+        } else {
+            ++summary.failed;
+            std::cout << "FAIL unreal:" << label;
+            for (const auto &item : out.items) std::cout << ' ' << item;
             std::cout << '\n';
         }
     }
@@ -4022,6 +6455,99 @@ uint64_t env(const char *name, uint64_t fallback) {
     return value ? std::strtoull(value, nullptr, 0) : fallback;
 }
 
+// ---- Governor -------------------------------------------------------------------------
+// The governor bench (scripts/test_fes_i386_governor.py): the RTL alone runs
+// the flat program FES_I386_PROGRAM at 0000:1000h in real mode, under the
+// governor settings main set, with A0000h-BFFFFh uncached MMIO as the
+// machine's VGA memory is, until it halts with IF clear. Every OUT to
+// ports 80h-8Fh prints, with the cycle the access completed and the reference
+// clocks the governor had charged before that OUT (trace_gov_charge, summed
+// two cycles later, so it holds every instruction before the OUT and not
+// the OUT itself):
+//   MARK <port> <value> <cycle> <charged>
+// With FES_I386_IRQ_PERIOD set, once the program marks 40h on port 80h it
+// raises INTR (vector 20h) that many cycles after that mark, and after each
+// handler's mark on port 81h, until it marks port 8Fh (so the first one
+// waits out the debt the program's earlier loops left), and prints each:
+//   IRQ <cycle>
+// Last, the GPRs, EFLAGS and EIP it halted with, and the run:
+//   STATE <eax> <ecx> <edx> <ebx> <esp> <ebp> <esi> <edi> <eflags> <eip>
+//   GOVERNOR cycles=<n> retired=<n> halted=<0|1> debt_max=<n> hold_cycles=<n> charged=<n>
+void run_governor(Rtl &rtl, Summary &summary) {
+    const char *path = std::getenv("FES_I386_PROGRAM");
+    if (!path) throw std::runtime_error("governor: FES_I386_PROGRAM names the program");
+    std::ifstream file(path, std::ios::binary);
+    const std::vector<uint8_t> program{std::istreambuf_iterator<char>(file), std::istreambuf_iterator<char>()};
+    if (program.empty() || program.size() > 0x6000) throw std::runtime_error("governor: no program, or too long");
+    rtl.set_window(true);
+    constexpr uint32_t ORIGIN = 0x1000;
+    for (uint32_t i = 0; i < program.size(); ++i) rtl.poke(ORIGIN + i, program[i]);
+    State state;
+    for (int n = 0; n < 6; ++n) state.seg[n] = fes_i386::real_mode_segment(0);
+    state.eip = ORIGIN;
+    rtl.start(state);
+
+    const uint64_t limit = env("FES_I386_CYCLE_LIMIT", 400000000);
+    const uint64_t period = env("FES_I386_IRQ_PERIOD", 0);
+    struct Mark {
+        uint16_t port;
+        uint32_t value;
+        uint64_t cycle;
+    };
+    std::deque<Mark> marks;
+    uint64_t cycle = 0, charged = 0, retired = 0, hold_cycles = 0, halted_for = 0, next_irq = 0;
+    unsigned debt_max = 0;
+    bool armed = false, done = false, handled = true;
+    size_t seen = 0;
+    while (cycle < limit) {
+        if (armed && !done && handled && period && cycle >= next_irq) {
+            rtl.pic.intr = true;
+            rtl.pic.vector = 0x20;
+            handled = false;
+            std::printf("IRQ %llu\n", (unsigned long long)cycle);
+        }
+        rtl.clock();
+        charged += rtl.top.trace_gov_charge;
+        debt_max = std::max(debt_max, unsigned(rtl.top.trace_gov_debt));
+        hold_cycles += rtl.top.trace_gov_hold;
+        retired += rtl.top.trace_retire;
+        for (; seen < rtl.io.log.size(); ++seen) {
+            const IoAccess &access = rtl.io.log[seen];
+            if (!access.write || access.port < 0x80 || access.port > 0x8f) continue;
+            marks.push_back({access.port, access.data, cycle});
+            if (access.port == 0x80 && access.data == 0x40) {
+                armed = true;
+                next_irq = cycle + period;
+            }
+            if (access.port == 0x81) {
+                handled = true;
+                next_irq = cycle + period;
+            }
+            if (access.port == 0x8f) done = true;
+        }
+        while (!marks.empty() && cycle >= marks.front().cycle + 2) {
+            const Mark &m = marks.front();
+            std::printf("MARK %02x %u %llu %llu\n", m.port, m.value, (unsigned long long)m.cycle,
+                        (unsigned long long)charged);
+            marks.pop_front();
+        }
+        halted_for = rtl.top.trace_halt ? halted_for + 1 : 0;
+        if (halted_for > 1000 && marks.empty()) break;
+        ++cycle;
+    }
+    const bool halted = rtl.top.trace_halt && !rtl.top.trace_unimplemented;
+    const State s = rtl.state();
+    std::printf("STATE");
+    for (uint32_t r : s.gpr) std::printf(" %08x", r);
+    std::printf(" %08x %08x\n", s.eflags, s.eip);
+    ++summary.runs;
+    if (halted && done) ++summary.passed;
+    else ++summary.failed;
+    std::printf("GOVERNOR cycles=%llu retired=%llu halted=%d debt_max=%u hold_cycles=%llu charged=%llu\n",
+                (unsigned long long)cycle, (unsigned long long)retired, int(halted && done), debt_max,
+                (unsigned long long)hold_cycles, (unsigned long long)charged);
+}
+
 }  // namespace
 
 int main(int argc, char **argv) {
@@ -4035,6 +6561,12 @@ int main(int argc, char **argv) {
     std::unique_ptr<fes_i386::Oracle> oracle = fes_i386::make_oracle(bus);
     VerilatedContext context;
     Rtl rtl(context);
+    // The governor's settings, which every reset samples: the preset, its
+    // frequency (100 kHz units, 0 the preset's) and turbo; max (0) when unset.
+    rtl.top.gov_preset = uint8_t(env("FES_I386_PRESET", 0));
+    rtl.top.gov_frequency = uint16_t(env("FES_I386_FREQUENCY", 0));
+    rtl.top.gov_turbo = uint8_t(env("FES_I386_TURBO", 0));
+    if (rtl.top.gov_preset) rtl.event_cycles = GOVERNED_EVENT_CYCLES;
     rtl.length = [&](uint32_t linear) {
         uint8_t bytes[15];
         for (uint32_t n = 0; n < 15; ++n) bytes[n] = linear + n < RAM_BYTES ? rtl.ram[linear + n] : 0xff;
@@ -4059,10 +6591,20 @@ int main(int argc, char **argv) {
     } else if (mode == "directed") {
         run_fault_regressions(*oracle, bus, rtl, entries, summary);
         run_smc_cases(*oracle, bus, rtl, entries, summary);
+    } else if (mode == "unreal") {
+        run_unreal_cases(*oracle, bus, rtl, entries, summary);
+    } else if (mode == "pmode") {
+        run_pmode_cases(*oracle, bus, rtl, entries, summary);
+    } else if (mode == "no387") {
+        run_no387_cases(*oracle, bus, rtl, entries, summary);
+    } else if (mode == "test386") {
+        return run_test386(*oracle, rtl);
     } else if (mode == "unbuilt") {
         run_unbuilt(rtl, summary);
     } else if (mode == "memory") {
         run_memory_cases(rtl, summary);
+    } else if (mode == "governor") {
+        run_governor(rtl, summary);
     } else if (mode == "random") {
         run_random(*oracle, bus, rtl, entries, summary, seed, env("FES_I386_PROGRAMS", 1000),
                    env("FES_I386_RETIRE_LIMIT", 2000), env("FES_I386_FIRST", 0));
@@ -4083,12 +6625,26 @@ int main(int argc, char **argv) {
         vectors += (vectors.empty() ? "" : ", ") + std::string("\"") + std::to_string(vector) + "\": " + std::to_string(count);
     for (auto &[id, count] : summary.divergences)
         divergences += (divergences.empty() ? "" : ", ") + std::string("\"") + id + "\": " + std::to_string(count);
+    auto counts = [](const std::map<int, uint64_t> &map) {
+        std::string text;
+        for (auto &[key, count] : map)
+            text += (text.empty() ? "" : ", ") + std::string("\"") + std::to_string(key) + "\": " + std::to_string(count);
+        return text;
+    };
+    const std::string pm_deliveries = counts(summary.pm_deliveries), unbuilt = counts(summary.unbuilt);
+    auto named = [](const std::map<std::string, uint64_t> &map) {
+        std::string text;
+        for (auto &[kind, count] : map)
+            text += (text.empty() ? "" : ", ") + std::string("\"") + kind + "\": " + std::to_string(count);
+        return text;
+    };
+    const std::string pm_kinds = named(summary.pm_kinds), cs_limit = named(summary.cs_limit);
     // The FAIL lines go through std::cout, unsynced with stdio: flush them
     // first, so the summary line is whole after them.
     std::cout.flush();
     std::printf("{\"mode\": \"%s\", \"seed\": %llu, \"latency\": %s, \"runs\": %llu, \"passed\": %llu, \"failed\": %llu, "
                 "\"retirements\": %llu, \"cycles\": %llu, \"halts\": %llu, \"interrupts\": %llu, \"faults\": %llu, \"fault_vectors\": {%s}, "
-                "\"double_faults\": %llu, "
+                "\"shutdowns\": %llu, \"nested\": %llu, "
                 "\"retire_limits\": %llu, \"load_wait_cycles\": %llu, \"io_accesses\": %llu, "
                 "\"external_interrupts\": %llu, \"nmis\": %llu, \"rep_interrupts\": %llu, \"vector_moved_stops\": %llu, "
                 "\"divergence_retirements\": {%s}, "
@@ -4099,13 +6655,17 @@ int main(int argc, char **argv) {
                 "\"several\": %s, \"after_string\": %s, \"after_io\": %s, \"memory\": %s, \"smc\": %s}, "
                 "\"mmio_accesses\": %llu, \"mmio_runs\": %llu, \"replays\": %llu, \"smc_restarts\": %llu, "
                 "\"window_code_stops\": %llu, \"code_store_stops\": %llu, \"stray_stops\": %llu, "
-                "\"port0_reads\": %llu, \"port0_writes\": %llu}\n",
+                "\"port0_reads\": %llu, \"port0_writes\": %llu, "
+                "\"pm_retirements\": %llu, \"cs_rule\": %llu, \"ss_error_rule\": %llu, \"pm_deliveries\": {%s}, "
+                "\"unbuilt_stops\": {%s}, \"pm_kinds\": {%s}, \"cs_limit\": {%s}, "
+                "\"no387_rule\": %llu, \"no387_skips\": %llu}\n",
                 mode.c_str(), (unsigned long long)seed, latency ? "true" : "false",
                 (unsigned long long)summary.runs, (unsigned long long)summary.passed,
                 (unsigned long long)summary.failed, (unsigned long long)summary.retirements,
                 (unsigned long long)summary.cycles, (unsigned long long)summary.halts,
                 (unsigned long long)summary.interrupts,
-                (unsigned long long)summary.faults, vectors.c_str(), (unsigned long long)summary.double_faults,
+                (unsigned long long)summary.faults, vectors.c_str(), (unsigned long long)summary.shutdowns,
+                (unsigned long long)summary.nested,
                 (unsigned long long)summary.limits,
                 (unsigned long long)summary.load_waits,
                 (unsigned long long)summary.io_accesses, (unsigned long long)summary.external_interrupts,
@@ -4126,6 +6686,11 @@ int main(int argc, char **argv) {
                 (unsigned long long)summary.window_code, (unsigned long long)summary.code_stores,
                 (unsigned long long)summary.stray,
                 (unsigned long long)rtl.port0.beats_read,
-                (unsigned long long)rtl.port0.beats_written);
+                (unsigned long long)rtl.port0.beats_written,
+                (unsigned long long)summary.pm_retirements, (unsigned long long)summary.cs_rule,
+                (unsigned long long)summary.ss_error_rule, pm_deliveries.c_str(),
+                unbuilt.c_str(), pm_kinds.c_str(), cs_limit.c_str(),
+                (unsigned long long)summary.no387_rule,
+                (unsigned long long)summary.no387_skips);
     return summary.failed ? 1 : 0;
 }

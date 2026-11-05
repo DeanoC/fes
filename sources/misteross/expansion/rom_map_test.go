@@ -48,6 +48,57 @@ func TestValidateROMMapStreamMatchesParse(t *testing.T) {
 	}
 }
 
+// Corepackage admits packages through the stream validator and links through
+// ParseROMMap (#863), so the two must reject the same maps.
+func TestValidateROMMapStreamRejectsWhatParseRejects(t *testing.T) {
+	_, base := mistralFixture(t)
+	if len(base.Blocks) < 2 {
+		t.Fatal("fixture needs two blocks")
+	}
+	copyMap := func() ROMMap {
+		var m ROMMap
+		raw, _ := json.Marshal(base)
+		if err := json.Unmarshal(raw, &m); err != nil {
+			t.Fatal(err)
+		}
+		return m
+	}
+	for _, test := range []struct {
+		name   string
+		mutate func(*ROMMap)
+	}{
+		{"unchanged", func(*ROMMap) {}},
+		{"duplicate BEL", func(m *ROMMap) { m.Blocks[1].BEL = m.Blocks[0].BEL }},
+		{"control character in BEL", func(m *ROMMap) { m.Blocks[0].BEL = "M10K\x01" }},
+		{"duplicate source offset", func(m *ROMMap) { m.Blocks[1].SourceOffset = m.Blocks[0].SourceOffset }},
+		{"misaligned source offset", func(m *ROMMap) { m.Blocks[0].SourceOffset++ }},
+		{"source offset past the ROM", func(m *ROMMap) { m.Blocks[0].SourceOffset = m.SourceSize }},
+		{"overlapping destination", func(m *ROMMap) { m.Blocks[1].WordBits[0][0] = m.Blocks[0].WordBits[0][0] }},
+		{"short word list", func(m *ROMMap) { m.Blocks[0].WordBits = m.Blocks[0].WordBits[:255] }},
+		{"short word", func(m *ROMMap) { m.Blocks[0].WordBits[0] = m.Blocks[0].WordBits[0][:39] }},
+		{"destination outside CRAM data", func(m *ROMMap) { m.Blocks[0].WordBits[0][0] = 0 }},
+		{"block count differs from source size", func(m *ROMMap) { m.Blocks = m.Blocks[:len(m.Blocks)-1] }},
+		{"wrong format", func(m *ROMMap) { m.Format = 2 }},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			m := copyMap()
+			test.mutate(&m)
+			raw, err := json.Marshal(m)
+			if err != nil {
+				t.Fatal(err)
+			}
+			_, parseErr := ParseROMMap(context.Background(), raw, base.BaseSHA256, base.SourceSize)
+			streamErr := ValidateROMMapStream(context.Background(), bytes.NewReader(raw), int64(len(raw)), base.BaseSHA256, base.SourceSize)
+			if (parseErr == nil) != (streamErr == nil) {
+				t.Fatalf("parse %v, stream %v", parseErr, streamErr)
+			}
+			if test.name != "unchanged" && parseErr == nil {
+				t.Fatal("corruption accepted")
+			}
+		})
+	}
+}
+
 func TestValidateROMMapStreamDoesNotBufferZeros(t *testing.T) {
 	const size = 2 << 20
 	runtime.GC()

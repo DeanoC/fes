@@ -18,6 +18,11 @@ TS1000 and TS1500. Each family remembers its last browsed variant. Single-model
 families have no variant selector. The family stays in the header while the
 selected variant supplies its own setup, media guidance and library entries.
 
+The first time a family is shown, the launcher puts its firmware card over the
+workbench: which models' firmware comes with FES and under what licence, or
+which file the user supplies. **Firmware** opens it again. See
+[bundled firmware](bundled-firmware.md#the-first-use-card).
+
 **Next machine** chooses a saved entry for that variant; **Next edition**
 chooses one of that entry's grouped library editions. Changing a family or
 variant only changes navigation: it does not rewrite a saved package, ROM,
@@ -97,10 +102,12 @@ text, while the immutable archive and host admission decide compatibility.
 
 **Choose cassette** saves a `.p` import, an embedded starter tape, or no tape for
 the next launch. The host's cassette label is shown on its own row above the
-machine controls. A starter uses its display name. An import is labelled
-"Imported cassette" plus the first eight characters of its digest; the admitted
-filename is not stored on the machine record
-([#801](https://github.com/DeanoC/fes/issues/801)). A label that does not fit
+machine controls. A starter uses its display name. An import shows the `.p`
+or `.o` filename it was chosen under, which the host keeps on the machine record
+until other media is selected. An import with no recorded name, such as one
+selected through the browser Library page or CLI, or through a host that
+predates the record, is labelled "Imported cassette" plus the first eight
+characters of its digest. A label that does not fit
 keeps its start and its end. Selection compares both the package and previous
 media ID; another client's change requires a refresh. Opening the shelf imports nothing.
 The three attributed starter tapes are Guess the Number (MIT, 1 KiB), Aritm

@@ -92,9 +92,160 @@ wait_hblank:
     movw %ax,%es:240
     movw %ax,%es:0x20f0
     movb $0xaa,0x600
+    /* Only the media-enabled board claims the FDC.  Other board profiles
+     * retain the original halted diagnostic. */
+    movw $0x3f4,%dx
+    inb %dx,%al
+    cmpb $0x80,%al
+    jne stop
+    call floppy_diagnostic
 stop:
     hlt
     jmp stop
+
+/* Exercise the real guest FDC, DMA2 and SDRAM-backed floppy after a live
+ * insertion. The first sector of the diagnostic image is the 512-byte
+ * sequence (11 + 37 * byte_index) modulo 256. A matching read paints a
+ * second solid block in the CGA viewport; an empty or different disk leaves
+ * the original completion pattern in place. The rest of the image is not
+ * interpreted. This routine is diagnostic, not a DOS firmware path. */
+floppy_diagnostic:
+    movw $0x3f2,%dx
+    movb $0x08,%al
+    outb %al,%dx
+    movb $0x1c,%al
+    outb %al,%dx
+    movw $0x3f5,%dx
+    movb $0x03,%al         /* Specify, DMA mode */
+    outb %al,%dx
+    movb $0xdf,%al
+    outb %al,%dx
+    movb $0x02,%al
+    outb %al,%dx
+floppy_wait:
+    movb $0x04,%al         /* Sense drive status */
+    outb %al,%dx
+    xorb %al,%al
+    outb %al,%dx
+    inb %dx,%al
+    testb $0x20,%al        /* Motor spun up and medium committed */
+    jz floppy_clear
+    /* Poison the destination with the inverse expected bytes. A stale or
+     * partial DMA transfer can never reuse a preceding successful sector. */
+    movw $0x7000,%bx
+    movw $512,%cx
+    movb $11,%al
+floppy_poison:
+    notb %al
+    movb %al,(%bx)
+    notb %al
+    addb $37,%al
+    incw %bx
+    loop floppy_poison
+    /* DMA channel 2, peripheral -> 0000:7000, one 512-byte sector. */
+    movb $6,%al
+    outb %al,$0x0a
+    xorb %al,%al
+    outb %al,$0x0c
+    outb %al,$0x04
+    movb $0x70,%al
+    outb %al,$0x04
+    movb $0xff,%al
+    outb %al,$0x05
+    movb $1,%al
+    outb %al,$0x05
+    xorb %al,%al
+    outb %al,$0x81
+    movb $0x46,%al
+    outb %al,$0x0b
+    movb $2,%al
+    outb %al,$0x0a
+    movb $0x46,%al         /* READ DATA, MFM, C0/H0/R1/N2 */
+    outb %al,%dx
+    xorb %al,%al
+    outb %al,%dx
+    outb %al,%dx
+    outb %al,%dx
+    movb $1,%al
+    outb %al,%dx
+    movb $2,%al
+    outb %al,%dx
+    movb $9,%al
+    outb %al,%dx
+    movb $0x2a,%al
+    outb %al,%dx
+    movb $0xff,%al
+    outb %al,%dx
+    decw %dx                /* Wait for the seven-byte result phase */
+floppy_result_wait:
+    inb %dx,%al
+    andb $0xd0,%al
+    cmpb $0xd0,%al
+    jne floppy_result_wait
+    incw %dx
+    inb %dx,%al             /* ST0 */
+    testb $0xc0,%al
+    jnz floppy_failed
+    inb %dx,%al             /* ST1 */
+    testb %al,%al
+    jnz floppy_failed_6
+    inb %dx,%al             /* ST2 */
+    testb %al,%al
+    jnz floppy_failed_5
+    movb $4,%cl            /* C, H, R and N */
+floppy_consume_result:
+    inb %dx,%al
+    decb %cl
+    jnz floppy_consume_result
+    movw $0x7000,%bx
+    movw $512,%cx
+    movb $11,%al
+floppy_compare:
+    cmpb %al,(%bx)
+    jne floppy_clear
+    addb $37,%al
+    incw %bx
+    loop floppy_compare
+    /* 64 by 32 white pixels at x=64, distinct from the original marker. */
+    movw $0xffff,%ax
+    call floppy_mark
+    jmp floppy_wait
+floppy_clear:
+    movw $0x55aa,%ax
+    call floppy_mark
+    jmp floppy_wait
+floppy_mark:
+    pushw %ax
+    movw $0xb800,%ax
+    movw %ax,%es
+    popw %ax
+    movw $8,%di
+    movw $16,%bx
+floppy_mark_row:
+    movw $4,%cx
+    rep stosw
+    subw $8,%di
+    addw $0x2000,%di
+    movw $4,%cx
+    rep stosw
+    subw $0x2008,%di
+    addw $80,%di
+    decw %bx
+    jnz floppy_mark_row
+    ret
+floppy_failed:
+    movb $6,%cl
+    jmp floppy_drain
+floppy_failed_6:
+    movb $5,%cl
+    jmp floppy_drain
+floppy_failed_5:
+    movb $4,%cl
+floppy_drain:
+    inb %dx,%al
+    decb %cl
+    jnz floppy_drain
+    jmp floppy_clear
 fail:
     movb $0xee,0x600
     jmp stop
@@ -135,6 +286,13 @@ storage_dma:
     outb %al,$0x41
     xorb %al,%al
     outb %al,$0x41
+    /* The FDC and the synthetic ISA probe both own DMA2, so the assembled
+     * machine selects only one. Keep refresh enabled in either profile, but
+     * exercise probe transfers only when the FDC port is unclaimed. */
+    movw $0x3f4,%dx
+    inb %dx,%al
+    cmpb $0x80,%al
+    je storage_done
     /* ISA probe -> conventional RAM, eight-byte block transfer. */
     movb $6,%al
     outb %al,$0x0a
@@ -208,6 +366,7 @@ check_dma_ram:
     inb %dx,%al
     cmpb $2,%al
     jne fail
+storage_done:
     ret
 .org 0xfff0
     ljmp $0xf000,$_start

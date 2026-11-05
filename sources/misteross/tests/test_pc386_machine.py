@@ -4,8 +4,10 @@ device, audio, OPL2, presenter and port 2 benches, and the M5 system bench's
 report and producer inputs. No network access; the oracle boot and VGA
 replay are separate suites."""
 import hashlib
+import io
 import json
 import os
+import re
 import shutil
 import subprocess
 import tempfile
@@ -58,14 +60,47 @@ class FirmwareTest(unittest.TestCase):
 
 
 class FreedosImageTest(unittest.TestCase):
+    def test_games_profile_reduces_buffers_for_serpent_isle_memory(self):
+        config = freedos.PROFILES['games']['fdconfig']
+        match = re.search(r'(?m)^BUFFERS=(\d+)\r?$', config)
+        self.assertIsNotNone(match)
+        self.assertLess(int(match.group(1)), 20)
+        self.assertIn('DOS=UMB\r\n', config)
+
     def test_lock_pins_each_package_at_the_release_tag(self):
         lock = freedos.lock()
         self.assertEqual(lock['tag'], 'FreeDOS-v1.4')
-        self.assertEqual(set(lock['packages']), {'kernel', 'freecom', 'fdisk'})
-        for spec in lock['packages'].values():
+        self.assertEqual(set(lock['packages']), {'kernel', 'freecom', 'fdisk', 'himemx', 'jemm', 'ctmouse', 'mem'})
+        self.assertEqual(set(lock['packages']), {name for spec in freedos.PROFILES.values() for name in spec['packages']})
+        for name, spec in lock['packages'].items():
             self.assertRegex(spec['commit'], r'^[0-9a-f]{40}$')
+            if name == 'jemm':
+                # Jemm has no LICENSE file: its Readme's section 9 makes UMBM public domain.
+                self.assertIn('UMBM public domain', spec['license'])
+                self.assertIn('DOC/JEMM/Readme.txt', spec['files'])
+                continue
             self.assertIn('GPL', spec['license'])
             self.assertIn('LICENSE', spec['files'])
+
+    def test_profile_binary_files_are_pinned_in_the_lock(self):
+        lock = freedos.lock()['packages']
+        for profile, spec in freedos.PROFILES.items():
+            for filename, source in spec['bin'].items():
+                with self.subTest(profile=profile, filename=filename):
+                    if source is None:
+                        self.assertEqual(filename, 'FESENV.COM')
+                        self.assertTrue(freedos.FESENV.is_file())
+                        continue
+                    package_name, package_path = source
+                    self.assertIn(package_name, spec['packages'])
+                    self.assertIn(package_path, lock[package_name]['files'])
+
+    def test_volume_has_dos_format_fat16_clusters(self):
+        # 2 KiB, as DOS FORMAT picks from 16 to 128 MiB; still FAT16 at this size.
+        self.assertEqual(freedos.CLUSTER_SECTORS * 512, 2048)
+        clusters = freedos.PARTITION_SECTORS // freedos.CLUSTER_SECTORS
+        self.assertGreater(clusters, 4084)
+        self.assertLess(clusters, 65525)
 
     def test_geometry_and_partition_addresses(self):
         self.assertEqual(freedos.TOTAL_SECTORS, 65 * 16 * 63)
@@ -79,7 +114,7 @@ class FreedosImageTest(unittest.TestCase):
             image.write_bytes(b'disk')
             record = {'sha256': freedos.hashlib.sha256(b'disk').hexdigest(), 'inputs': freedos.inputs_key()}
             image.with_suffix('.json').write_text(json.dumps(record))
-            with mock.patch.object(freedos, 'IMAGE', image), \
+            with mock.patch.dict(freedos.PROFILES['boot'], {'image': image}), \
                     mock.patch.object(freedos, 'build', return_value='rebuilt') as build:
                 self.assertEqual(freedos.image(), image)
                 image.with_suffix('.json').write_text(json.dumps({**record, 'inputs': 'old'}))
@@ -90,6 +125,30 @@ class FreedosImageTest(unittest.TestCase):
                 image.with_suffix('.json').write_text('{')
                 self.assertEqual(freedos.image(), 'rebuilt')
                 self.assertEqual(build.call_count, 3)
+
+    def test_games_image_identity_tracks_its_local_com_program(self):
+        with tempfile.TemporaryDirectory(dir=freedos.ROOT) as directory:
+            root = Path(directory)
+            source = root / 'fesenv.asm'
+            source.write_bytes(b'first version')
+            image = root / 'freedos-games.img'
+            image.write_bytes(b'disk')
+            with mock.patch.object(freedos, 'FESENV', source), \
+                    mock.patch.dict(freedos.PROFILES['games'], {'image': image}):
+                boot_inputs = freedos.inputs_key('boot')
+                record = {'sha256': hashlib.sha256(b'disk').hexdigest(),
+                          'inputs': freedos.inputs_key('games')}
+                image.with_suffix('.json').write_text(json.dumps(record))
+                self.assertTrue(freedos.image_is_current('games'))
+                source.write_bytes(b'changed version')
+                self.assertNotEqual(record['inputs'], freedos.inputs_key('games'))
+                self.assertFalse(freedos.image_is_current('games'))
+                self.assertEqual(boot_inputs, freedos.inputs_key('boot'))
+
+    def test_profiles_use_separate_work_directories(self):
+        self.assertEqual(freedos.work_directory('boot'), freedos.BUILD / 'work-boot')
+        self.assertEqual(freedos.work_directory('games'), freedos.BUILD / 'work-games')
+        self.assertNotEqual(freedos.work_directory('boot'), freedos.work_directory('games'))
 
     def test_mbr_code_is_read_from_the_fdisk_array(self):
         with tempfile.TemporaryDirectory() as directory:
@@ -162,7 +221,223 @@ END prompt steps=42 cycles=100 seconds=0.001
 """
 
 
+class A20TestTest(unittest.TestCase):
+    def test_suite_checks_are_the_programs_names(self):
+        source = (sim.CORE / 'sim/a20_test.asm').read_text()
+        names = {line.split("'")[1].rstrip('$') for line in source.splitlines() if line.startswith('name_')}
+        suite = {name for checks in sim.A20_CHECKS.values() for name in checks}
+        # Mode X, for MS-DOS on a kit, adds its own.
+        self.assertEqual(names - suite, {'dos-start', 'dos-locks-0', 'dos-release'})
+        self.assertLessEqual(suite, names)
+
+    def test_rtl_runs_fail_on_oracle_steps(self):
+        def suite(oracle_steps):
+            def run_machine(testbench, name, arguments, images):
+                profile = name.rsplit('/', 1)[1]
+                return {'debug': [{'port': '0e9', 'text': f'A20 {check} ok'} for check in sim.A20_CHECKS[profile]],
+                        'failures': [], 'cpu_resets': int(profile == 'boot'),
+                        'screen': ['Fast A20 method used'],
+                        'rtl': {'counters': {'retired': 1000, 'oracle_steps': oracle_steps.get(profile, 0),
+                                             'protected_steps': 0}, 'stops': [], 'gaps': []}}
+            args = mock.Mock(cpu='rtl', download=False, jobs=1, limit_seconds=10)
+            with mock.patch.object(sim.firmware, 'images', return_value={}), \
+                    mock.patch.object(sim, 'machine_testbench'), mock.patch.object(sim, 'fixture_with'), \
+                    mock.patch.object(sim.freedos, 'image'), mock.patch.object(sim, 'run_machine', run_machine), \
+                    mock.patch('builtins.print'):
+                return sim.run_a20(args, [])['failures']
+
+        self.assertEqual(suite({}), [])
+        failures = suite({'games': 12})
+        self.assertEqual(len(failures), 1)
+        self.assertTrue(failures[0].startswith('games: RTL oracle_steps=12'))
+
+    def test_himemx_method_is_read_from_its_banner(self):
+        self.assertEqual(sim.HIMEMX_METHOD.search('Fast A20 method used').group(1), 'Fast')
+        self.assertEqual(sim.HIMEMX_METHOD.search('Always on A20 method used').group(1), 'Always on')
+        self.assertIsNone(sim.HIMEMX_METHOD.search('Interface : XMS 3.00 80386 4G'))
+
+
+class C2xxTestTest(unittest.TestCase):
+    def test_suite_checks_and_keys_are_the_programs(self):
+        source = (sim.CORE / 'sim/c2xx_test.asm').read_text()
+        names = [line.split("'")[1].rstrip('$') for line in source.splitlines() if line.startswith('name_')]
+        self.assertEqual(names, list(sim.C2XX_CHECKS))
+        self.assertIn(f"typed_keys:    db '{sim.C2XX_KEYS}'", source)
+        self.assertTrue(sim.C2XX_KEYS.endswith('q'))
+
+    def test_typing_runs_before_any_flush_and_fixed_checks_follow_q(self):
+        source = (sim.CORE / 'sim/c2xx_test.asm').read_text()
+        program = source[source.index('start:'):source.index('done:')]
+        pre_typing, rest = program.split('typing:', 1)
+        typing, fixed_checks = rest.split('stale_key:', 1)
+        self.assertNotIn('call flush_keys', pre_typing)
+        self.assertIn('call wait_typing_tail', typing)
+        self.assertLess(typing.index('call wait_typing_tail'), typing.index('jmp stale_key'))
+        self.assertIn('name_stale_key', fixed_checks)
+
+    @staticmethod
+    def suite(lines, cpu='oracle', oracle_steps=0):
+        commands = []
+        def run_machine(testbench, name, arguments, images):
+            commands.append(arguments)
+            return {'debug': [{'port': '0e9', 'text': line} for line in lines], 'failures': [],
+                    'rtl': {'counters': {'retired': 1000, 'oracle_steps': oracle_steps, 'protected_steps': 0},
+                            'stops': [], 'gaps': []}}
+        args = mock.Mock(cpu=cpu, download=False, jobs=1, limit_seconds=10)
+        with mock.patch.object(sim.firmware, 'images', return_value={}), \
+                mock.patch.object(sim, 'machine_testbench'), mock.patch.object(sim, 'fixture_with'), \
+                mock.patch.object(sim, 'run_machine', run_machine), mock.patch('builtins.print'):
+            return sim.run_c2xx(args, [])['failures'], commands[0]
+
+    def test_keys_are_typed_after_the_command_with_8_ms_holds(self):
+        _, command = self.suite([])
+        self.assertEqual(command[command.index('--type') + 1], 'c2test|' + sim.C2XX_KEYS)
+        self.assertEqual(command[command.index('--key-gap') + 1], '0.008')
+
+    def test_every_check_must_print_ok(self):
+        passing = [f'C2 {name} ok' for name in sim.C2XX_CHECKS]
+        self.assertEqual(self.suite(passing)[0], [])
+        self.assertEqual(self.suite(passing[:2] + ['C2 stale-aux FAIL'] + passing[3:])[0],
+                         ['C2 stale-aux FAIL'])
+
+    def test_a_reset_that_never_returns_fails(self):
+        failures, _ = self.suite([])
+        self.assertEqual(len(failures), 1)
+        self.assertIn('C2TEST.COM ran []', failures[0])
+
+    def test_rtl_runs_fail_on_oracle_steps(self):
+        passing = [f'C2 {name} ok' for name in sim.C2XX_CHECKS]
+        self.assertEqual(self.suite(passing, 'rtl')[0], [])
+        failures, _ = self.suite(passing, 'rtl', oracle_steps=2)
+        self.assertEqual(len(failures), 1)
+        self.assertTrue(failures[0].startswith('RTL oracle_steps=2'))
+
+class WaitTestTest(unittest.TestCase):
+    def test_default_limit_keeps_the_wait_suite_at_eight_seconds(self):
+        self.assertEqual(sim.default_limit_seconds('wait'), 8)
+        self.assertEqual(sim.default_limit_seconds('c2xx'), 10)
+
+    def test_suite_checks_are_the_programs_names(self):
+        source = (sim.CORE / 'sim/wait_test.asm').read_text()
+        names = [line.split("'")[1].rstrip('$') for line in source.splitlines() if line.startswith('name_')]
+        self.assertEqual(names, list(sim.WAIT_CHECKS))
+
+    @staticmethod
+    def suite(lines, cpu='oracle', oracle_steps=0):
+        def run_machine(testbench, name, arguments, images):
+            return {'debug': [{'port': '0e9', 'text': line} for line in lines], 'failures': [],
+                    'rtl': {'counters': {'retired': 1000, 'oracle_steps': oracle_steps, 'protected_steps': 0},
+                            'stops': [], 'gaps': []}}
+        args = mock.Mock(cpu=cpu, download=False, jobs=1, limit_seconds=8)
+        with mock.patch.object(sim.firmware, 'images', return_value={}), \
+                mock.patch.object(sim, 'machine_testbench'), mock.patch.object(sim, 'fixture_with'), \
+                mock.patch.object(sim, 'run_machine', run_machine), mock.patch('builtins.print'):
+            return sim.run_wait(args, [])['failures']
+
+    def test_every_check_must_print_ok(self):
+        passing = [f'WAIT {name} 1us ok' for name in sim.WAIT_CHECKS]
+        self.assertEqual(self.suite(passing), [])
+        self.assertEqual(self.suite(passing[:2] + ['WAIT 100us 900us FAIL'] + passing[3:]),
+                         ['WAIT 100us 900us FAIL'])
+
+    def test_a_wait_that_never_returns_fails(self):
+        failures = self.suite(['WAIT zero 4us ok'])
+        self.assertEqual(len(failures), 1)
+        self.assertIn("WAITTEST.COM ran ['zero']", failures[0])
+
+    def test_rtl_runs_fail_on_oracle_steps(self):
+        passing = [f'WAIT {name} 1us ok' for name in sim.WAIT_CHECKS]
+        self.assertEqual(self.suite(passing, 'rtl'), [])
+        failures = self.suite(passing, 'rtl', oracle_steps=3)
+        self.assertEqual(len(failures), 1)
+        self.assertTrue(failures[0].startswith('RTL oracle_steps=3'))
+
+
+class SpeakerTestTest(unittest.TestCase):
+    def test_suite_checks_are_the_programs_names(self):
+        source = (sim.CORE / 'sim/speaker_test.asm').read_text()
+        names = [line.split("'")[1].rstrip('$') for line in source.splitlines() if line.startswith('name_')]
+        self.assertEqual(names, list(sim.SPEAKER_CHECKS))
+
+    @staticmethod
+    def suite(lines, cpu='oracle', oracle_steps=0):
+        def run_machine(testbench, name, arguments, images):
+            return {'debug': [{'port': '0e9', 'text': line} for line in lines], 'failures': [],
+                    'rtl': {'counters': {'retired': 1000, 'oracle_steps': oracle_steps, 'protected_steps': 0},
+                            'stops': [], 'gaps': []}}
+        args = mock.Mock(cpu=cpu, download=False, jobs=1, limit_seconds=8)
+        with mock.patch.object(sim.firmware, 'images', return_value={}), \
+                mock.patch.object(sim, 'machine_testbench'), mock.patch.object(sim, 'fixture_with'), \
+                mock.patch.object(sim, 'run_machine', run_machine), mock.patch('builtins.print'):
+            return sim.run_speaker(args, [])['failures']
+
+    PASSING = ['SPK post 36h ok', 'SPK rise 64/64 ok', 'SPK carrier 19886Hz ok', 'SPK DONE ok']
+
+    def test_every_check_must_print_ok(self):
+        self.assertEqual(self.suite(self.PASSING), [])
+        self.assertEqual(self.suite(['SPK post 20h FAIL', 'SPK rise 0/64 FAIL', 'SPK carrier 0Hz FAIL',
+                                     'SPK DONE FAIL']),
+                         ['SPK post 20h FAIL', 'SPK rise 0/64 FAIL', 'SPK carrier 0Hz FAIL', 'SPK DONE FAIL'])
+
+    def test_a_run_that_stops_early_fails(self):
+        failures = self.suite(self.PASSING[:1])
+        self.assertEqual(len(failures), 1)
+        self.assertIn("SPKTEST.COM ran ['post']", failures[0])
+
+    def test_rtl_runs_fail_on_oracle_steps(self):
+        self.assertEqual(self.suite(self.PASSING, 'rtl'), [])
+        failures = self.suite(self.PASSING, 'rtl', oracle_steps=3)
+        self.assertEqual(len(failures), 1)
+        self.assertTrue(failures[0].startswith('RTL oracle_steps=3'))
+
+
 class BootReportTest(unittest.TestCase):
+    def test_games_mem_requires_exact_serpent_isle_memory_with_headroom(self):
+        old_mem = ['Largest executable program size       573K (586,416 bytes)']
+        enough_mem = ['Largest executable program size       574K (587,776 bytes)']
+        self.assertEqual(len(sim.games_memory_failures([])), 1)
+        self.assertEqual(len(sim.games_memory_failures(old_mem)), 1)
+        self.assertEqual(sim.games_memory_failures(enough_mem), [])
+
+    def test_boot_suite_output_names_cover_image_cpu_and_preset(self):
+        cases = (
+            ('boot', 'oracle', 0, 0, 0, 'boot'),
+            ('games', 'oracle', 0, 0, 0, 'boot-games'),
+            ('boot', 'rtl', 0, 0, 0, 'boot-rtl'),
+            ('games', 'rtl', 0, 0, 0, 'boot-games-rtl'),
+            ('boot', 'rtl', 1, 0, 0, 'boot-rtl-preset1'),
+            ('games', 'rtl', 3, 0, 0, 'boot-games-rtl-preset3'),
+            ('boot', 'rtl', 1, 60, 0, 'boot-rtl-preset1-frequency60'),
+            ('boot', 'rtl', 1, 0, 1, 'boot-rtl-preset1-turbo'),
+            ('boot', 'rtl', 1, 60, 1, 'boot-rtl-preset1-frequency60-turbo'),
+        )
+        for image, cpu, preset, frequency, turbo, expected in cases:
+            with self.subTest(image=image, cpu=cpu, preset=preset, frequency=frequency, turbo=turbo):
+                args = mock.Mock(image=image, cpu=cpu, preset=preset, frequency=frequency, turbo=turbo)
+                self.assertEqual(sim.boot_suite(args), expected)
+
+    def test_governor_report_suffix_distinguishes_frequency_and_turbo(self):
+        cases = (
+            (1, 0, 0, '-preset1'),
+            (1, 60, 0, '-preset1-frequency60'),
+            (1, 0, 1, '-preset1-turbo'),
+            (1, 60, 1, '-preset1-frequency60-turbo'),
+        )
+        for preset, frequency, turbo, expected in cases:
+            with self.subTest(preset=preset, frequency=frequency, turbo=turbo):
+                args = mock.Mock(preset=preset, frequency=frequency, turbo=turbo)
+                self.assertEqual(sim.suffix(args), expected)
+
+    def test_non_boot_suites_reject_a_games_image(self):
+        for suite in ('sound', 'game', 'vga', 'system', 'all'):
+            with self.subTest(suite=suite), \
+                    mock.patch.object(sim.sys, 'argv', ['sim_fes_pc386.py', '--suite', suite, '--image', 'games']), \
+                    mock.patch('sys.stderr', new_callable=io.StringIO) as stderr:
+                with self.assertRaises(SystemExit) as error:
+                    sim.main()
+                self.assertEqual(error.exception.code, 2)
+                self.assertIn('--image is supported by the boot suite only', stderr.getvalue())
+
     def test_parse(self):
         report = sim.parse_boot(BOOT_OUTPUT)
         self.assertEqual(report['post'], [{'code': '00', 'cycle': 11397}])
@@ -239,10 +514,13 @@ class SmcStaleTrackerTest(unittest.TestCase):
 
 
 @unittest.skipUnless(shutil.which(os.environ.get('CXX', 'c++')), 'requires a C++ compiler')
-class Port0ModelTest(unittest.TestCase):
-    def test_waitrequest_holds_all_sixteen_byte_enable_lanes(self):
-        with tempfile.TemporaryDirectory(prefix='pc386-port0-model-') as directory:
-            binary = Path(directory) / 'pc386-port0-model-test'
+class DdrModelTest(unittest.TestCase):
+    def test_refusals_and_holds(self):
+        """Port 0's refused command holds all sixteen byte-enable lanes; a held
+        port finishes a write burst with byte enables clear, hides read data
+        and drops a refused command (#1372)."""
+        with tempfile.TemporaryDirectory(prefix='pc386-ddr-model-') as directory:
+            binary = Path(directory) / 'pc386-ddr-model-test'
             source = sim.CORE / 'sim/pc386_ddr_model_tb.cpp'
             compiler = shutil.which(os.environ.get('CXX', 'c++'))
             result = subprocess.run([compiler, '-std=c++17', '-Wall', '-Wextra', '-Werror', str(source), '-o', str(binary)],
@@ -327,6 +605,8 @@ CHECK PASS CMOS 00h-0Dh retain seconds, minutes, hours, weekday, day and the 202
 ROUNDTRIP 0 0 0 0 576 5 1 0
 CHECK PASS the record's settings and CMOS RAM make the round trip through the RTC
 CHECK PASS the running clock keeps valid seconds, minutes, hours, weekday and date after restore
+HOLD 302000000 owed=0,0,12
+CHECK PASS holds cut a port 2 write burst in 4 of 256 trials, and port 2 took write beats after each release
 END prompt cycles=303000000 seconds=4.932
 """
 
@@ -353,7 +633,8 @@ class SystemTest(unittest.TestCase):
                                           'changed_chunks': [0]})
         self.assertEqual(report['write_test'], 444436)
         self.assertEqual(report['record'][:8], [0, 0, 0, 0, 576, 5, 1, 0])
-        self.assertEqual(len(report['record_checks']), 5)
+        self.assertEqual(len(report['record_checks']), 6)
+        self.assertEqual(report['holds'], [{'cycle': 302000000, 'owed': [0, 0, 12]}])
         self.assertEqual(report['end'], {'reason': 'prompt', 'cycles': 303000000, 'seconds': 4.932})
         self.assertEqual(sim.system_failures(report), [])
 
@@ -369,6 +650,7 @@ class SystemTest(unittest.TestCase):
             (SYSTEM_OUTPUT.replace('CHECK PASS the record keeps', 'CHECK FAIL the record keeps'),
              'record check failed: the record keeps'),
             (SYSTEM_OUTPUT.replace('ROUNDTRIP 0 0 0 0 576 5 1 0\n', ''), 'did not save'),
+            (SYSTEM_OUTPUT.replace('CHECK PASS holds cut', 'CHECK FAIL holds cut'), 'record check failed: holds cut'),
             (SYSTEM_OUTPUT.replace('END prompt', 'MAILBOX no acknowledgement for opcode 17\nEND mailbox'),
              'mailbox: no acknowledgement'),
             ('END limit cycles=1 seconds=0.000\n', 'no status words'),

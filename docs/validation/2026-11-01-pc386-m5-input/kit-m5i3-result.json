@@ -1,0 +1,24 @@
+{
+ "kit": "B",
+ "run": "m5i3",
+ "package": "7ad66fc91b31647029d9028c652e134e6e39e64ab831bf46101682e9e0655cad.fcore",
+ "disk": "freedos-input.img",
+ "game": "pc386-m5i3-save",
+ "disk_sha256": "51f3c8fe13ad1cefa71cb683fd065afa80c9c2f5fda7dd53e5c3552c95a8646f",
+ "first_load": {
+  "state": "active"
+ },
+ "first_stop": {
+  "state": "idle"
+ },
+ "second_load": {
+  "state": "active"
+ },
+ "second_stop": {
+  "state": "idle"
+ },
+ "after": {
+  "agent": "idle",
+  "lease": "revoking"
+ }
+}

@@ -1,0 +1,212 @@
+{
+  "classification": "exact-artifact hardware diagnostic for a single read-only floppy sector",
+  "source_commit": "b5ab39e3b4c590951c7078f5f61fdd99025b8060",
+  "package_id": "187f31cefecc14e48c30868acb128d08dbafa703d8a352eb53b6b71a7e8d2a6f",
+  "archive_sha256": "f8e73ceb8a3b183661bc46a3b2cc9bda526b8d405a6b29628958b01d9b96caed",
+  "build_id": "e6d9cd750920df660ef824398e027ff7",
+  "rbf_sha256": "203766d0b7f9f952f788c8249d37813739a0db856b2954d500b6d383765af72f",
+  "kit": "B",
+  "base_image_sha256": "f904961e008a972db8f06f1bb47aff9631123d67215b9f4157ea1fbee83b98d4",
+  "bundle_id": "715df063654f9963b794a14ffbcdd1a09e3217c1130f2f695a11017cb17d98be",
+  "bundle_source_commit": "ee927044cfc70d139781208507e55d3cbb3d5c9c",
+  "bundle_source_note": "FogCast, runtime and image source trees match the tested core source commit.",
+  "fixture_sha256": "393fd97aa4cd479c08ed8d7f0b3cb36c72af220058a627a205cd35cdb313cfc5",
+  "wrong_fixture_sha256": "36bd753facc985aad613c884a2040210d208b1aa520e957b31ba2e1e19cd4185",
+  "result": "passed",
+  "stages": "fresh empty launch; wrong disk insertion; eject; matching disk insertion; eject; stop",
+  "guest_read": "512 byte sector zero, verified by guest CPU after FDC and DMA2, with poisoned DMA buffer",
+  "media_lifecycle": "ready, empty, ready, empty under one active session",
+  "quartus_internal_timing": [
+    {
+      "seed": 1,
+      "min_setup_ns": 0.658,
+      "min_hold_ns": 0.136,
+      "all_reported_checks_pass": true
+    },
+    {
+      "seed": 2,
+      "min_setup_ns": 1.219,
+      "min_hold_ns": 0.118,
+      "all_reported_checks_pass": true
+    },
+    {
+      "seed": 3,
+      "min_setup_ns": 1.359,
+      "min_hold_ns": 0.121,
+      "all_reported_checks_pass": true
+    }
+  ],
+  "repeat_rbf_identical": true,
+  "frames": {
+    "baseline": {
+      "pattern_matches": true,
+      "width": 1920,
+      "height": 1080,
+      "mean_pixel_error": 28.687,
+      "worst_row_error": 29.298,
+      "completion_scanline_means": [
+        253.0,
+        253.0,
+        253.0,
+        253.0,
+        253.0,
+        253.0,
+        253.0,
+        253.611
+      ],
+      "completion_signature_verified": true,
+      "classification": "completed PC/XT hardware diagnostic picture",
+      "static_picture_expected": true,
+      "marker_expected": false,
+      "marker_roi": [
+        386,
+        5,
+        525,
+        167
+      ],
+      "marker_mean_error": 0.0,
+      "marker_worst_row_error": 0.0,
+      "marker_worst_column_error": 0.0,
+      "marker_bad_fraction": 0.0,
+      "marker_mean_brightness": 124.468,
+      "marker_dark_fraction": 0.51079,
+      "compared_with_baseline": false,
+      "sha256": "38b9ae7ae7f8a52b5a4356114f4098c514ec70b82f0ceb9caabb4c0ba07c8ac3",
+      "file": "baseline.png"
+    },
+    "wrong": {
+      "pattern_matches": true,
+      "width": 1920,
+      "height": 1080,
+      "mean_pixel_error": 28.687,
+      "worst_row_error": 29.298,
+      "completion_scanline_means": [
+        253.0,
+        253.0,
+        253.0,
+        253.0,
+        253.0,
+        253.0,
+        253.0,
+        253.611
+      ],
+      "completion_signature_verified": true,
+      "classification": "completed PC/XT hardware diagnostic picture",
+      "static_picture_expected": true,
+      "marker_expected": false,
+      "marker_roi": [
+        386,
+        5,
+        525,
+        167
+      ],
+      "marker_mean_error": 0.0,
+      "marker_worst_row_error": 0.0,
+      "marker_worst_column_error": 0.0,
+      "marker_bad_fraction": 0.0,
+      "marker_mean_brightness": 124.468,
+      "marker_dark_fraction": 0.51079,
+      "compared_with_baseline": true,
+      "sha256": "38b9ae7ae7f8a52b5a4356114f4098c514ec70b82f0ceb9caabb4c0ba07c8ac3",
+      "file": "wrong.png"
+    },
+    "matching": {
+      "pattern_matches": true,
+      "width": 1920,
+      "height": 1080,
+      "mean_pixel_error": 29.766,
+      "worst_row_error": 35.996,
+      "completion_scanline_means": [
+        253.0,
+        253.0,
+        253.0,
+        253.0,
+        253.0,
+        253.0,
+        253.0,
+        253.611
+      ],
+      "completion_signature_verified": true,
+      "classification": "completed PC/XT hardware diagnostic picture",
+      "static_picture_expected": true,
+      "marker_expected": true,
+      "marker_roi": [
+        386,
+        5,
+        525,
+        167
+      ],
+      "marker_mean_error": 2.0,
+      "marker_worst_row_error": 2.0,
+      "marker_worst_column_error": 2.0,
+      "marker_bad_fraction": 0.0,
+      "marker_mean_brightness": 253.0,
+      "marker_dark_fraction": 0.0,
+      "compared_with_baseline": false,
+      "sha256": "fd68c9e0488192fbcc1b4c19b144ab09f76a645648391b7cda0f82b06d81dd73",
+      "file": "matching.png"
+    },
+    "ejected": {
+      "pattern_matches": true,
+      "width": 1920,
+      "height": 1080,
+      "mean_pixel_error": 28.687,
+      "worst_row_error": 29.298,
+      "completion_scanline_means": [
+        253.0,
+        253.0,
+        253.0,
+        253.0,
+        253.0,
+        253.0,
+        253.0,
+        253.611
+      ],
+      "completion_signature_verified": true,
+      "classification": "completed PC/XT hardware diagnostic picture",
+      "static_picture_expected": true,
+      "marker_expected": false,
+      "marker_roi": [
+        386,
+        5,
+        525,
+        167
+      ],
+      "marker_mean_error": 0.0,
+      "marker_worst_row_error": 0.0,
+      "marker_worst_column_error": 0.0,
+      "marker_bad_fraction": 0.0,
+      "marker_mean_brightness": 124.468,
+      "marker_dark_fraction": 0.51079,
+      "compared_with_baseline": true,
+      "sha256": "38b9ae7ae7f8a52b5a4356114f4098c514ec70b82f0ceb9caabb4c0ba07c8ac3",
+      "file": "ejected.png"
+    }
+  },
+  "kit_restore": {
+    "baseline_bundle": "a168c9223c7d777c7b4037ec484274d0a5917b0c4362ff28a6c7922de771db0d",
+    "generation": 162,
+    "active_selected_verified": true,
+    "image_and_boot_unchanged": true,
+    "idle_lease_free_verified": true,
+    "status_file_release_logged": true
+  },
+  "limits": [
+    "no DOS boot or write support was tested",
+    "one sector was read on hardware; the rest of the 360 KiB buffer was not physically read back",
+    "external SDRAM/HDMI/HPS and physical reset timing remain outside internal Quartus timing checks",
+    "the parent PR's own diagnostic and DOS artifacts were not tested in this kit run"
+  ],
+  "parent_merge_note": "The previous tested artifact remains in result-merged.json; this exact artifact includes the later parent Quartus producer merge.",
+  "embedded_dos_simulation": {
+    "classification": "host simulation, not hardware acceptance",
+    "pcxt_source_matches": "1e418b3d027646f49c3e575a1d8045044cea737a and 1e85b40e925030395ef52bbbad0585a3911660ef",
+    "bios_post_clocks": 965824522,
+    "int19_clocks": 991072688,
+    "boot_sector_clocks": 1035885662,
+    "dos_prompt_clocks": 2710000000,
+    "keyboard": "RTL BAT over XT cable and IRQ1",
+    "disk_loading": "two complete 368640-byte ROM-to-SDRAM loads, poisoned and checked",
+    "limits": "text-memory prompt only; no physical DOS package, HDMI capture, general keyboard input, write or timing acceptance"
+  }
+}

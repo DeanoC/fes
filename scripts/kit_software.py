@@ -14,7 +14,9 @@ import subprocess
 import tempfile
 import tomllib
 
+import bundled_firmware
 from environment import build_environment
+from recipes import shared_cache_root
 
 ROOT = Path(__file__).resolve().parents[1]
 
@@ -41,9 +43,11 @@ def build_go(snapshot, version, revision, env):
     destination.mkdir(exist_ok=True)
     flags = ('-s -w -X github.com/DeanoC/FogCast/internal/version.Version=' + version +
              ' -X github.com/DeanoC/FogCast/internal/version.Revision=' + revision)
+    # fogcast-kit is cmd/fogcast-api built under the kit's name: a multi-call
+    # binary whose `host` mode is the kit's FogCast host (#863 slice 5).
     for command, architecture, filename in (
         ('mister-agent', 'arm', 'mister-agent-linux-armv7'),
-        ('fogcast-kit', 'arm', 'fogcast-kit-linux-armv7'),
+        ('fogcast-api', 'arm', 'fogcast-kit-linux-armv7'),
         ('fogcast-tenfoot', 'arm', 'fogcast-tenfoot-linux-armv7'),
         ('fes-kit-bundle', 'amd64', 'fes-kit-bundle-linux-amd64'),
     ):
@@ -263,6 +267,10 @@ def publish(root, base, base_sha, version, output):
         shutil.copyfile(image / 'build/software/runtime/build/mister-runtime', payload / 'bin/mister-runtime')
         shutil.copytree(image / 'buildroot/board/fogcast-target/native-rootfs-overlay/usr/share/fogcast',
                         payload / 'share/fogcast')
+        # Bundled firmware ships as separate objects beside the cores; the
+        # kit's /usr/share/fogcast/firmware is the host's bundled_dir.
+        firmware = [{'id': m['id'], 'sha256': m['sha256'], 'size': m['size']} for m in
+                    bundled_firmware.stage(payload / 'share/fogcast/firmware', shared_cache_root() / 'firmware')]
         # The runtime loads its release's driver; see libmister-runtime window_driver.
         window = payload / 'share/fes-window'
         shutil.copytree(image / 'build/software/fes-window', window)
@@ -287,6 +295,7 @@ def publish(root, base, base_sha, version, output):
                    'base_image_sha256': base_sha, 'base_contract': factory['base_contract'],
                    'base_factory_manifest_sha256': sha(image / 'build/software/base/usr/share/fes/software/manifest.json'),
                    'toolchain': toolchain, 'go_toolchain': go_version, 'window_driver': driver,
+                   'bundled_firmware': firmware,
                    'workflow_sha256': workflow_sha, 'bundle': result,
                    'artifacts': {'bundle.tar': {'sha256': sha(candidate / 'bundle.tar'),
                                                'size': (candidate / 'bundle.tar').stat().st_size}}}

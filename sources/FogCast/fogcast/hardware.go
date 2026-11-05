@@ -89,7 +89,7 @@ func (s *Service) Hardware(ctx context.Context) ([]HardwareMachine, error) {
 		}
 		machine := HardwareMachine{
 			GameID: entry.GameID, Title: entry.Title, CoreID: entry.CoreID, PackageID: entry.PackageID,
-			MediaID: entry.MediaID, MediaName: hardwareTapeName(entry.MediaID),
+			MediaID: entry.MediaID, MediaName: hardwareTapeName(entry),
 			Socket: HardwareSocket{ID: "rear", Label: "Rear expansion socket"}, Choices: []HardwareExpansion{},
 		}
 		selection, err := store.CoreEntryExpansion(ctx, entry.GameID)
@@ -273,14 +273,18 @@ func (s *Service) SetCoreExpansionPresentationWithProgress(ctx context.Context, 
 	return value, expansionError(err)
 }
 
-func hardwareTapeName(id string) string {
+func hardwareTapeName(entry catalog.CoreEntry) string {
+	id := entry.MediaID
 	if id == "" {
 		return "No cassette"
 	}
-	for _, entry := range zx81tapes.Entries() {
-		if entry.SHA256 == id {
-			return entry.Name
+	for _, tape := range zx81tapes.Entries() {
+		if tape.SHA256 == id {
+			return tape.Name
 		}
+	}
+	if entry.MediaName != "" {
+		return entry.MediaName
 	}
 	return "Imported cassette " + id[:8]
 }

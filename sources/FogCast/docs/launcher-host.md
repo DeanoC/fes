@@ -123,6 +123,12 @@ Allowed operations are:
   selection. The body keeps `package_id`, `rom_id`, `expected_media_id` and
   `media_id`, and the listener forwards it unchanged after the bearer and
   paired-target checks. The game ID is a strict slug.
+- `PUT /api/v1/library/core-entries/{game_id}/media-name` records the
+  basename of an imported cassette after its media selection succeeds. The
+  body keeps `expected_package_id`, `media_id` and `media_name`; the listener
+  forwards it unchanged after bearer and paired-target checks. The host accepts
+  the name only while that package and media remain selected. The game ID is a
+  strict slug and extra suffixes are unavailable.
 - `PUT /api/v1/library/core-entries/{game_id}/expansion` saves that one
   selection. The game ID is a strict slug. The JSON body keeps
   `package_id`, `expected_expansion_id` and `expansion_id`, and the

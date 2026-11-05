@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
 module machine_top (
     input wire clk, reset,
+    input wire audio_clk, audio_locked, audio_hold,
+    output wire i2s_sclk, i2s_lrclk, i2s_data,
     input wire code_valid,
     input wire [7:0] code,
     output wire code_ready,
@@ -60,6 +62,11 @@ module machine_top (
         .keyboard_clock_low(), .keyboard_data_low(),
         .keyboard_irq(), .keyboard_clear(), .speaker(speaker), .audio_valid(audio_valid), .audio_sample(audio_sample),
         .intr(intr), .pit_out(pit_out), .pit_clock()
+    );
+    pcxt_board_audio audio_output (
+        .source_clk(clk), .audio_clk(audio_clk), .audio_locked(audio_locked),
+        .hold(audio_hold | reset), .sample(audio_sample),
+        .sclk(i2s_sclk), .lrclk(i2s_lrclk), .sdata(i2s_data)
     );
     /* verilator lint_on PINCONNECTEMPTY */
 endmodule

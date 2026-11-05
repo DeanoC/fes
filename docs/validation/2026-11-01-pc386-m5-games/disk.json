@@ -1,0 +1,18 @@
+{
+ "base": "sources/misteross/build/sim/fes-pc386/freedos-games.img",
+ "base_sha256": "876986c069891f872ef6d808548dde4521fd5fbad103ceefa99f39d4c5687d7f",
+ "games": {
+  "WOLF3D": {
+   "zip": "/mnt/emuhd/Games/PC DOS/Collections/eXoDOS 6.04 Full/eXoDOS/eXo/eXoDOS/Wolfenstein 3D (1992).zip",
+   "sha256": "f451d8538266fb9f12a4fa8909a671b37d354de388a9b76d1c1033a6a541ed37",
+   "files": 11
+  },
+  "ULTIMA6": {
+   "zip": "/mnt/emuhd/Games/PC DOS/Collections/eXoDOS 6.04 Full/eXoDOS/eXo/eXoDOS/Ultima VI - The False Prophet (1990).zip",
+   "sha256": "5ec54a045d18ccea63fe35e857e9c0294427e06d397370433d4a7c5add881cb9",
+   "files": 324
+  }
+ },
+ "image": "Powerboat ~/fes-scratch/m5g/disk/m5g-876986c0.img (never committed); on Kit B as /media/fat/fogcast/disk-images/<sha256>.img",
+ "sha256": "6138390a46e61932940c8ba6888fc50b910ecf630efeb5063ff1d867a6791435"
+}

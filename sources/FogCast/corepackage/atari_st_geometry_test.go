@@ -79,7 +79,7 @@ func TestExtendedInitialMediaRoundTrip(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			staged, err := StageROMInputBytes(context.Background(), t.TempDir(), prepared.Data)
+			staged, err := StageROMInputBytes(context.Background(), t.TempDir(), prepared.Bytes())
 			if err != nil {
 				t.Fatal(err)
 			}

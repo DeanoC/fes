@@ -77,18 +77,19 @@ jobs:
           DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
         run: |
           if [ "$EVENT" = workflow_dispatch ] || [ "$EVENT" = schedule ]; then BASE=0000000000000000000000000000000000000000; fi
-          python3 -m unittest tests.test_affected tests.test_check_diff tests.test_ci_gate tests.test_test_policy tests.test_test_changed -v
+          python3 -m unittest tests.test_affected tests.test_check_diff tests.test_ci_gate tests.test_test_policy tests.test_test_changed tests.test_ci_workflow -v
           python3 scripts/check_diff.py --base "$BASE" --head "$HEAD" --fallback-base "refs/remotes/origin/$DEFAULT_BRANCH"
       - name: Documentation links and doc-reading checks
         # Documentation-only changes select no lane, so the fast parent tests
         # that read current guides run here for every change.
         run: |
           python3 scripts/check_doc_links.py
-          python3 -m unittest tests.test_check_doc_links tests.test_support_matrix tests.test_image_assembly tests.test_consistency tests.test_core_build tests.test_coordination -v
+          python3 -m unittest tests.test_check_doc_links tests.test_support_matrix tests.test_image_assembly tests.test_consistency tests.test_core_build tests.test_coordination tests.test_v1_firmware_licensing_doc -v
   parent-tests:
     needs: plan
     if: fromJSON(needs.plan.outputs.lanes).parent
     runs-on: ubuntu-24.04
+    timeout-minutes: 45
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
@@ -100,6 +101,8 @@ jobs:
           cache-dependency-path: |
             sources/FogCast/go.sum
             platform/go.sum
+      - name: Install capture test dependencies
+        run: sudo apt-get update && sudo apt-get install -y ffmpeg
       - env:
           TEST_VIDEO: ${{ fromJSON(needs.plan.outputs.test_modes).video }}
           TEST_MEDIA: ${{ fromJSON(needs.plan.outputs.test_modes).media }}
@@ -107,9 +110,9 @@ jobs:
         run: |
           if [ "$TEST_MEDIA" = true ]; then
             make platform-provision
-            # Registry resolution of the pinned base image flakes; the build is digest-locked.
+            # Keep retries for transient registry/snapshot failures, with a hard per-attempt bound.
             for attempt in 1 2 3; do
-              make media-test-provision && break
+              timeout --signal=TERM --kill-after=30s 600s make media-test-provision && break
               if [ "$attempt" = 3 ]; then exit 1; fi
               sleep $((attempt * 20))
             done
@@ -215,6 +218,8 @@ jobs:
           persist-credentials: false
       - name: Compiler read-audit dependency
         run: sudo apt-get update && sudo apt-get install -y strace
+      - name: PC/XT acceptance image dependencies
+        run: sudo apt-get install -y binutils mtools
       - name: FPGA producer and package software tests
         run: |
           python3 - <<'PYCODE'
@@ -225,6 +230,14 @@ jobs:
                               '-s', 'tests', '-p', pattern, '-v'],
                              cwd='sources/misteross', check=True)
           PYCODE
+      - name: Install formal proof tools
+        run: sudo apt-get update && sudo apt-get install -y yosys
+      - name: Prove PC/XT audio clock crossing and mutation
+        run: |
+          command -v yosys
+          command -v yosys-abc
+          python3 -m unittest discover -s tests -p test_pcxt_audio_cdc.py -v
+        working-directory: sources/misteross
   simulation-tools:
     needs: plan
     if: needs.plan.outputs.cores != '[]'
@@ -281,8 +294,12 @@ jobs:
           echo "VERILATOR_ROOT=$VERILATOR_ROOT" >> "$GITHUB_ENV"
           echo "$RUNNER_TEMP/fes-verilator/bin" >> "$GITHUB_PATH"
           bash scripts/ci_verilator.sh "$RUNNER_TEMP/fes-verilator" "$RUNNER_TEMP/fes-verilator-build"
-      - name: Install PC/XT floppy image tools
-        if: matrix.target == 'sim-fes-pcxt-dos'
+      - name: Install PC/XT and PC386 image tools
+        if: >-
+          matrix.target == 'sim-fes-pcxt-dos' || matrix.target == 'sim-fes-pc386-fesenv' ||
+          matrix.target == 'sim-fes-pc386-a20' || matrix.target == 'sim-fes-pc386-c2xx' ||
+          matrix.target == 'sim-fes-pc386-wait' ||
+          matrix.target == 'sim-fes-pc386-speaker'
         run: sudo apt-get update && sudo apt-get install -y mtools
       - name: Simulate selected core scenarios
         env:

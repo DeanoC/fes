@@ -44,6 +44,10 @@ struct State {
     uint32_t cr0 = 0, cr2 = 0, cr3 = 0;
     uint32_t dr[4] = {};
     uint32_t dr6 = 0xffff0ff0, dr7 = 0x400;
+    // The CPL in protected mode. It is CS's RPL only once CS has been loaded
+    // there: protected-mode entry from real mode keeps CPL 0 whatever CS's
+    // selector. In real mode it is 0.
+    uint8_t cpl = 0;
 };
 
 // The cache a real-mode selector has after reset: limit and attributes are
@@ -118,6 +122,16 @@ struct StepResult {
     std::vector<Access> writes;
 };
 
+// The x87 pointers a 386 keeps for its coprocessor, which FNSTENV and FNSAVE
+// store: the last non-control ESC instruction's CS selector and EIP, and its
+// memory operand's segment selector and offset.
+struct X87Pointers {
+    uint32_t ip = 0;
+    uint32_t dp = 0;
+    uint16_t cs = 0;
+    uint16_t ds = 0;
+};
+
 // The oracle's decode of one instruction, without executing it.
 struct Decoded {
     bool complete = false;   // the instruction ends within min(available, 15) bytes
@@ -148,6 +162,14 @@ public:
     virtual void set_a20(bool enabled) = 0;
     // The harness changed memory behind the oracle's back (test setup, DMA).
     virtual void invalidate(uint32_t paddr, uint32_t length) = 0;
+    // The x87 pointers, read and set.
+    virtual X87Pointers x87_pointers() const = 0;
+    virtual void set_x87_pointers(const X87Pointers &pointers) = 0;
+    // Make the oracle's coprocessor read as an empty socket's: the control
+    // and tag words, the opcode and the registers all ones, and the status
+    // word all ones when status is set, else clear, so that no exception is
+    // pending. A step after this stores what a 386 with no 387 stores.
+    virtual void empty_socket(bool status) = 0;
 };
 
 // One oracle may exist per process (the backend keeps global CPU state).

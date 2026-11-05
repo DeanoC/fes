@@ -1,0 +1,149 @@
+{
+ "end": {
+  "reason": "prompt",
+  "steps": 30826678,
+  "cycles": 1400000053,
+  "seconds": 14.0
+ },
+ "failures": [],
+ "screen": [
+  "FreeDOS kernel 2043 (build 2043 OEM:0xfd) [compiled May 14 2021]                ",
+  "Kernel compatibility 7.10 - WATCOMC - 80386 CPU required - FAT32 support        ",
+  "                                                                                ",
+  "(C) Copyright 1995-2012 Pasquale J. Villani and The FreeDOS Project.            ",
+  "All Rights Reserved. This is free software and comes with ABSOLUTELY NO         ",
+  "WARRANTY; you can redistribute it and/or modify it under the terms of the       ",
+  "GNU General Public License as published by the Free Software Foundation;        ",
+  "either version 2, or (at your option) any later version.                        ",
+  "C: HD1, Pri[ 1], CHS=    0-1-1, start=     0 MB, size=    31 MB                 ",
+  "                                                                                ",
+  "FreeCom version 0.86 - WATCOMC - XMS_Swap [Dec 30 2024 22:10:51]                ",
+  "                                                                                ",
+  "FreeCom version 0.86 - WATCOMC - XMS_Swap [Dec 30 2024 22:10:51]                ",
+  "C:\\>dir                                                                         ",
+  " Volume in drive C is FREEDOS                                                   ",
+  " Volume Serial Number is 1386-0026                                              ",
+  " Directory of C:\\                                                               ",
+  "                                                                                ",
+  "KERNEL   SYS        46,256  10-26-26 12:00p                                     ",
+  "COMMAND  COM        87,772  10-26-26 12:00p                                     ",
+  "FDCONFIG SYS            75  10-26-26 12:00p                                     ",
+  "AUTOEXEC BAT            39  10-26-26 12:00p                                     ",
+  "         4 file(s)        134,142 bytes                                         ",
+  "         0 dir(s)      33,101,312 bytes free                                    ",
+  "C:\\>                                                                            "
+ ],
+ "replay": {
+  "exit": 0,
+  "counts": {
+   "events-I": 6,
+   "events-O": 4204,
+   "events-R": 28815,
+   "events-W": 52209,
+   "frames": 55761,
+   "frames-blink-phase": 444,
+   "frames-compared": 440,
+   "frames-divergence-reference-unprogrammed": 54802,
+   "frames-matched": 440,
+   "frames-matched-720x400-text": 440,
+   "frames-reference-skipped": 5,
+   "frames-unstable": 70,
+   "scanout_underflows": 0,
+   "capture_drops": 0
+  },
+  "mismatches": [],
+  "summary": "match events=85234 replay_mismatches=0 read_mismatches=0 vram_mismatches=0 frame_mismatches=0 end_vram_bytes_differing=0",
+  "failures": []
+ },
+ "io": {
+  "isa16 2": {
+   "38": 209152
+  },
+  "isa8 1": {
+   "74": 71979
+  },
+  "vga-in 1": {
+   "6": 6
+  },
+  "vga-out 1": {
+   "4": 823
+  },
+  "vga-out 2": {
+   "7": 3381
+  }
+ },
+ "inta": {
+  "146": 259
+ },
+ "post": [
+  {
+   "code": "00",
+   "cycle": 97640
+  },
+  {
+   "code": "21",
+   "cycle": 13604239
+  },
+  {
+   "code": "31",
+   "cycle": 13705441
+  },
+  {
+   "code": "41",
+   "cycle": 14107023
+  },
+  {
+   "code": "71",
+   "cycle": 14213369
+  },
+  {
+   "code": "77",
+   "cycle": 14313605
+  }
+ ],
+ "cpu_resets": 0,
+ "command": [
+  "build/sim/fes-pc386/machine/obj/Vpc386_machine",
+  "--bios",
+  "build/firmware/pc386/pc386-bios.bin",
+  "--vgabios",
+  "build/firmware/pc386/pc386-vgabios.bin",
+  "--disk",
+  "build/sim/fes-pc386/freedos.img",
+  "--limit-seconds",
+  "60.0",
+  "--type",
+  "dir|",
+  "--expect",
+  "bytes free",
+  "--trace",
+  "build/sim/fes-pc386/boot-rtl-preset1/vga.trace",
+  "--cpu",
+  "rtl",
+  "--preset",
+  "1",
+  "--frequency",
+  "0",
+  "--turbo",
+  "0"
+ ],
+ "rtl": {
+  "counters": {
+   "retired": 30826678,
+   "oracle_steps": 0,
+   "protected_steps": 0,
+   "parked_clocks": 8527457,
+   "tf_retired": 0,
+   "vga_loads": 28815,
+   "replays": 360,
+   "port0_reads": 507798,
+   "port0_writes": 9421520,
+   "smc_stores": 28786,
+   "smc_addresses": 2,
+   "smc_executed": 0,
+   "smc_restarts": 49104
+  },
+  "gaps": [],
+  "stops": []
+ }
+}

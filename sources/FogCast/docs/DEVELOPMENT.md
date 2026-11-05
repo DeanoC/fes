@@ -264,9 +264,11 @@ selection enables that additional launch check. Before running it, install the
 RAM Tester host package and set up its library `CoreEntry` so the host library
 contains an entry for the installed package; installing the target package
 alone does not create that host entry. RAM Tester is a ROM-less application
-core with a library launch entry. The smoke uses the existing
-kit lease. It does not deploy an image or request a reboot. Health and inventory
-calls allow 30 seconds by default. Launch allows 90 seconds for first-time ROM
+core with a library launch entry. FES does not bundle ZX81 firmware: import a
+user-supplied 8 KiB ZX81 BASIC ROM and select it for the smoke's existing ZX81
+`CoreEntry` through the Sinclair workbench's Firmware picker. The smoke uses
+the existing kit lease. It does not deploy an image or request a reboot. Health
+and inventory calls allow 30 seconds by default. Launch allows 90 seconds for first-time ROM
 composition; `FOGCAST_LAUNCH_TIMEOUT` overrides launch separately, while
 `FOGCAST_CALL_TIMEOUT` sets the other calls and the launch fallback. If a
 launch request fails, the script watches for the selected package becoming

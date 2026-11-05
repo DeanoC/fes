@@ -15,17 +15,34 @@
 //
 // It then follows the boot until the prompt. So that the boot writes the disk,
 // the bench's copy of the FreeDOS fixture runs MD C:\M5 in AUTOEXEC.BAT in
-// place of PATH C:\ (the same length, so the file's size stands). At Stop it
+// place of PATH C:\ (the same length, so the file's size stands). At the
+// prompt it types as the runtime sends a keyboard, KeyboardHid rows (each
+// key held 8 ms, 8 ms apart, Shift in the same change): ECHO M5:Kb!, whose
+// output must be M5:Kb!, then INPUT, which runs the disk's INPUT.COM
+// (input_test.asm). Enter's break reaches the 8042 during INPUT.COM's INT 15h
+// C205h, which must still report MOUSE READY (#1330). Then it sends ten
+// MouseRelative packets 20 ms apart (moves of 127 and -128, button presses
+// and releases on zero moves) and taps Up, F1, Delete, Shift+A and q; the
+// guest's sums must be the host's, with Y counted up, and its key codes the
+// BIOS's for those keys. At Stop it
 // saves as the runtime does: DiskControl Freeze, the 128 DiskDirty words, the
 // dirty chunks read from the window, Saved; DataControl Freeze and the 72
 // DataReads; Execution hold. Every chunk the guest changed must be dirty.
 // Last it restores that record into the held machine, releases it until the
 // RTC's CMOS setup is done, and reads the record back, so the CMOS RAM bytes
-// make the round trip through the RTC. Nothing else reaches inside the
-// system, and no oracle backs the CPU: a CPU stop ends the run. fes_hps_ddr is
-// two synchronising flops from ddr_hold to each port's reset; a held port is
-// not driven, as its guard takes over. The pixel clock runs throughout, so
-// the presenter and plane load port 2 as on a kit.
+// make the round trip through the RTC. Then it sweeps holds across port 2's
+// write bursts, the capture's (#1372): each trial releases the machine, runs
+// it one clock longer than the last and holds it again, until HOLD_CUTS holds
+// have cut a burst, and port 2 must go on writing after each. Nothing else
+// reaches inside the system, and no oracle backs the CPU: a CPU stop ends the
+// run. fes_hps_ddr is two synchronising flops from ddr_hold to each port's
+// reset; a held port is its guard's, which finishes an open write burst with
+// byte enables clear and hides read data (pc386_ddr_model.h hold()). The pixel
+// clock runs throughout, so the presenter and plane load port 2 as on a kit.
+// Throughout, it reads the status ring (pc386_status) from the window as the
+// HPS does: every record must hold the status words the bench saw before the
+// edge of the clock its stamp names, and at most one, the first, may come too
+// late to check.
 //
 // It prints:
 //   WRITE-TEST <offset>|absent              where the AUTOEXEC.BAT change went
@@ -39,29 +56,41 @@
 //   COUNTER <name>=<value> <cycle>           each change of an underflow or drop counter
 //   DEBUG <text>                             each line of debug-port text
 //   PROMPT <cycle>                           the prompt on the screen's last row
+//   TYPED <cycle> <text>                     a line typed through KeyboardHid
+//   MOUSE <cycle> <dx> <dy> <buttons>        a MouseRelative packet sent
 //   SCREEN <row> |<80 characters>|           the text screen at the end, from VRAM
 //   STATUS <field>=<value> ...               the status words at the end
 //   SAVE dirty=<n> chunks=<list> epoch=<n> changed_bytes=<n> changed_chunks=<list>
 //                                            the Stop's disk save
 //   RECORD <72 words>                        the Stop's record
 //   ROUNDTRIP <72 words>                     the record after the restore and setup
-//   CHECK <PASS|FAIL> <what>                 the record and round-trip checks
+//   HOLD <cycle> owed=<p0>,<p1>,<p2>         a hold that cut a write burst: the beats
+//                                            each port's guard sends, byte enables clear
+//   RING-MISMATCH <n> stamp=<clock> word=<w> ring=<hex> status=<hex>
+//                                            a status ring record that is not the status
+//   CHECK <PASS|FAIL> <what>                 the record, round-trip, hold and status ring checks
 //   END <reason> cycles=<n> seconds=<simulated>
 // reason: prompt, stopped (the CPU stopped for good), stalled (no
 // instruction retired for 2 s: a hang, or HLT with interrupts off), limit,
 // or a mailbox step that failed.
 //
 // --seed N changes every DDR port's timing draws (pc386_ddr_model.h), so a
-// rare latency tail lands elsewhere.
+// rare latency tail lands elsewhere. --preset, --frequency and --turbo set
+// the restored record's words 0, 1 and 3, the governor's settings, as
+// FogCast writes them (default 0: max). --exercise-input 0 skips the
+// FreeDOS keyboard and mouse exercise for a synthetic-disk prompt.
 //
 // usage: system_tb --disk F [--clock-hz N] [--limit-seconds S] [--prompt TEXT] [--seed N]
+//                  [--preset N] [--frequency N] [--turbo N] [--exercise-input 0|1]
 #include "Vpc386_system.h"
 #include "pc386_ddr_model.h"
 
 #include <algorithm>
+#include <array>
 #include <cstdio>
 #include <cstring>
 #include <fstream>
+#include <functional>
 #include <iterator>
 #include <stdexcept>
 #include <string>
@@ -73,17 +102,37 @@ constexpr uint32_t IMAGE = 0x08000000u, CHUNK = 65536;
 constexpr double PIXEL_HZ = 74.25e6;
 // fes.computer 1.1 opcodes, errors and states (mister-packages fes_computer.yaml).
 enum : uint8_t {
-    OP_IDENTITY = 1, OP_EXECUTION = 2, OP_DISK_INFO = 16, OP_DISK_CONTROL = 17, OP_DISK_COMMIT = 22,
-    OP_DISK_DIRTY = 23, OP_DATA_CONTROL = 24, OP_DATA_READ = 25, OP_DATA_WRITE = 26, OP_WALL_CLOCK = 28,
+    OP_IDENTITY = 1, OP_EXECUTION = 2, OP_KEYBOARD_HID = 3, OP_MOUSE_RELATIVE = 11, OP_DISK_INFO = 16,
+    OP_DISK_CONTROL = 17, OP_DISK_COMMIT = 22, OP_DISK_DIRTY = 23, OP_DATA_CONTROL = 24, OP_DATA_READ = 25,
+    OP_DATA_WRITE = 26, OP_WALL_CLOCK = 28,
 };
 enum : uint16_t { PREPARE = 0, COMMIT = 1, FREEZE = 3, SAVED = 5 };
 enum : uint16_t { DATA_FREEZE = 0, DATA_BEGIN = 1, DATA_COMMIT = 2 };
 constexpr uint16_t READY = 3, LOADING = 2, VERIFYING = 4, FLAG_ERROR = 8;
 constexpr unsigned WORDS = 72;
-// The record the bench restores: preset max, the Sound Blaster at 240h, IRQ 5,
-// DMA 1, and a byte in the free CMOS (50h) that only the record writes.
+// Holds swept across port 2's write bursts after the round trip, one clock
+// apart, until HOLD_CUTS have cut one or HOLD_TRIALS have run. After a
+// release the capture writes a short burst every 220 clocks or so, on the
+// VGA's reset raster. The CPU's memory traffic moves a hold a clock or two,
+// so one pass over that period can cut as few as two.
+constexpr unsigned HOLD_CUTS = 4, HOLD_TRIALS = 1024;
+// The record the bench restores: preset max unless --preset says, the Sound
+// Blaster at 240h, IRQ 5, DMA 1, and a byte in the free CMOS (50h) that only
+// the record writes.
 constexpr uint16_t SETTINGS[8] = {0, 0, 0, 0, 0x240, 5, 1, 0};
 constexpr unsigned MARKER_BYTE = 0x50, MARKER = 0xa5;
+// The status ring (pc386_status.sv): the head, then 256 records of 8 words.
+constexpr uint32_t RING_HEAD = 0x01000000u, RING_RECORDS = 0x01001000u, RING_MAGIC = 0x50333836u;
+constexpr unsigned RING_SLOTS = 256, HISTORY = 1u << 18;  // clocks of status the bench keeps
+// The input exercise: the echoed text, INPUT.COM's mouse packets (dx, dy
+// screen-down, buttons) and its expected report. The sums are 172 right and
+// 72 down, which PS/2 counts as Y -72.
+const char *const ECHO_TEXT = "M5:Kb!";
+constexpr int PACKETS[10][3] = {{127, 0, 0}, {127, 100, 0}, {46, 100, 0}, {0, 0, 1}, {-128, -128, 1},
+                                {0, 0, 0},   {0, 0, 2},     {0, 0, 0},    {0, 0, 1}, {0, 0, 0}};
+const char *const MOUSE_REPORT = "MOUSE X=+172 Y=-72 LEFT=2/2 RIGHT=1/1 PACKETS=10";
+// INT 16h AH=10h: Up and Delete with the E0 prefix (AL E0h), F1, Shift+A.
+const char *const KEYS_REPORT = "KEYS 48E0 3B00 53E0 1E41";
 
 // Port 0 as fes_i386_cpu names it, for pc386::Port0.
 struct Port0Signals {
@@ -133,10 +182,15 @@ struct MailboxError : std::runtime_error {
 
 class Bench {
 public:
-    Bench(std::vector<uint8_t> image, uint32_t clock_hz, double limit_seconds, std::string prompt, uint64_t seed)
+    Bench(std::vector<uint8_t> image, uint32_t clock_hz, double limit_seconds, std::string prompt, uint64_t seed,
+          const uint16_t (&governor)[3], bool do_input_exercise)
         : ddr0{port0_memory, 0x5eed0020 ^ seed, "port 0"}, ddr1{window, 0x5eed0021 ^ seed, "port 1"},
           ddr2{window, 0x5eed0022 ^ seed, "port 2"}, image(std::move(image)), clock_hz(clock_hz),
-          prompt(std::move(prompt)) {
+          prompt(std::move(prompt)), do_input_exercise(do_input_exercise) {
+        std::copy(SETTINGS, SETTINGS + 8, settings);
+        settings[0] = governor[0];
+        settings[1] = governor[1];
+        settings[3] = governor[2];
         if (this->image.size() % 512 || this->image.size() < (1u << 20) || this->image.size() > (128u << 20))
             throw std::runtime_error("bad disk image size");
         sys_ps = 1e12 / clock_hz;
@@ -159,9 +213,14 @@ public:
                 if (cycles % 16 == 0) watch();
                 if (cycles > limit) reason = "limit";
             }
+            if (reason == "prompt" && do_input_exercise) exercise_input();
             for (int row = 0; row < 25; ++row) std::printf("SCREEN %d |%s|\n", row, screen_row(row).c_str());
             print_status();
             if (reason == "prompt") stop();
+            check_ring();
+            check(ring_checked > 0 && ring_mismatches == 0 && ring_late <= 1,
+                  "the status ring's " + std::to_string(ring_checked) + " records checked hold the status words (" +
+                      std::to_string(ring_late) + " late)");
         } catch (const MailboxError &error) {
             std::printf("MAILBOX %s\n", error.what());
             reason = "mailbox";
@@ -183,15 +242,25 @@ private:
     std::vector<uint8_t> image;
     uint32_t clock_hz;
     std::string prompt, reason, debug_line;
+    uint16_t settings[8];
     uint16_t cylinders = 0;
     uint8_t heads = 0, spt = 0;
     uint8_t hold_sync[2] = {1, 1};  // fes_hps_ddr's synchroniser from ddr_hold
+    bool port_held = true, hold_rose = false;
+    unsigned hold_owed = 0;          // port 2's write beats owed at the last hold
     double sys_ps = 0, now_ps = 0, pixel_ps = 0;
     uint64_t cycles = 0, limit = 0, progress_at = 0, retired = 0, last_screen = 0;
     int last_post = -1, checks_failed = 0;
     bool write_tested = false;
     uint64_t counters[5] = {};
-    bool prompt_seen = false, toggle = false;
+    bool prompt_seen = false, toggle = false, booted = false, do_input_exercise = true;
+    std::vector<std::string> debug_lines;
+    uint16_t rows[9] = {};
+    // The status words before each clock's edge, by clock; the next record
+    // to check, and the counts.
+    std::vector<std::array<uint64_t, 6>> history = std::vector<std::array<uint64_t, 6>>(HISTORY);
+    uint32_t ring_next = 0;
+    uint64_t ring_checked = 0, ring_mismatches = 0, ring_late = 0;
 
     // The geometry machine_tb infers: the first partition's end head and
     // sector, else 16 heads of 63 sectors.
@@ -205,7 +274,6 @@ private:
         cylinders = uint16_t(std::min<uint64_t>(image.size() / 512 / per_cylinder, 16383));
     }
 
-    // A held port is not driven: its guard answers the master.
     // The fixture's AUTOEXEC.BAT (build_pc386_freedos_image.py) with MD C:\M5
     // for PATH C:\: the directory's entry and cluster are guest sector writes.
     void write_test() {
@@ -221,16 +289,25 @@ private:
 
     void clock() {
         bool held = hold_sync[1];
+        if (held && !port_held) {
+            hold_owed = ddr2.beats_owed();
+            hold_rose = true;
+            if (ddr0.beats_owed() || ddr1.beats_owed() || hold_owed)
+                std::printf("HOLD %llu owed=%u,%u,%u\n", (unsigned long long)cycles, ddr0.beats_owed(),
+                            ddr1.beats_owed(), hold_owed);
+        }
+        port_held = held;
         top.p0_reset = top.p1_reset = top.p2_reset = held;
         if (held) {
-            top.p0_readdatavalid = 0; top.p0_waitrequest = 1;
-            top.p1_readdatavalid = 0; top.p1_waitrequest = 1;
-            top.p2_readdatavalid = 0; top.p2_waitrequest = 1;
+            ddr0.hold(p0);
+            ddr1.hold(port1(top));
+            ddr2.hold(port2(top));
         } else {
             ddr0.drive(p0, cycles);
             ddr1.drive(port1(top), cycles);
             ddr2.drive(port2(top), cycles);
         }
+        for (unsigned n = 0; n < 6; ++n) history[cycles % HISTORY][n] = status(n);
         top.clk = 1;
         top.eval();
         hold_sync[1] = hold_sync[0];
@@ -238,6 +315,7 @@ private:
         top.clk = 0;
         top.eval();
         ++cycles;
+        if (cycles % 32768 == 0) check_ring();
         now_ps += sys_ps;
         while (pixel_ps <= now_ps) {
             top.pixel_clk = !top.pixel_clk;
@@ -246,7 +324,11 @@ private:
         }
         if (top.debug_valid) {
             char c = char(top.debug_byte);
-            if (c == '\n') { std::printf("DEBUG %s\n", debug_line.c_str()); debug_line.clear(); }
+            if (c == '\n') {
+                std::printf("DEBUG %s\n", debug_line.c_str());
+                debug_lines.push_back(debug_line);
+                debug_line.clear();
+            }
             else if (c != '\r') debug_line.push_back(c);
         }
     }
@@ -283,9 +365,10 @@ private:
         }
         std::printf("IDENTITY %s\n", words.c_str());
         // Magic, transport 1.0, fes.computer 1.1, then the capability words:
-        // video, audio, HPS DDR and session display; bits 16-19.
+        // video, keyboard, audio, mouse, HPS DDR and session display; bits
+        // 16-19.
         if (w[0] != 0x4546 || w[1] != 0x3153 || w[2] != 1 || w[3] != 0 || w[4] != 4 || w[5] != 1 || w[6] != 1 ||
-            w[7] != 0x3009 || w[16] != 0x000f)
+            w[7] != 0x310b || w[16] != 0x000f)
             throw MailboxError("identity is not fes.computer 1.1 with the pc386 interfaces");
     }
 
@@ -327,7 +410,7 @@ private:
     void launch() {
         identify();
         std::vector<uint16_t> record(WORDS, 0);
-        std::copy(SETTINGS, SETTINGS + 8, record.begin());
+        std::copy(settings, settings + 8, record.begin());
         record[8 + MARKER_BYTE / 2] = uint16_t(MARKER << (8 * (MARKER_BYTE & 1)));
         restore(record);
         std::printf("RESTORE %llu\n", (unsigned long long)cycles);
@@ -353,6 +436,100 @@ private:
         exchange(OP_EXECUTION, 0, 1);
         progress_at = cycles;
         std::printf("RELEASE %llu\n", (unsigned long long)cycles);
+    }
+
+    // Clocks, following the machine, for `seconds`, or until `done`; false
+    // if the CPU stopped or stalled first, or time ran out.
+    bool run_until(double seconds, const std::function<bool()> &done = nullptr) {
+        uint64_t end = cycles + uint64_t(seconds * clock_hz);
+        while (cycles < end) {
+            clock();
+            if (cycles % 16 == 0) {
+                watch();
+                if (reason != "prompt") return false;
+                if (done && cycles % 4096 == 0 && done()) return true;
+            }
+        }
+        return !done;
+    }
+    // A HID key's change, written as the runtime writes rows: every row that
+    // changed, in order.
+    void key_rows(uint8_t usage, bool shift, bool down) {
+        uint16_t next[9];
+        std::copy(rows, rows + 9, next);
+        unsigned bit = usage >= 0xe0 ? 128u + (usage - 0xe0) : usage;
+        auto set = [&](unsigned b) {
+            if (down) next[b / 16] |= uint16_t(1u << (b % 16));
+            else next[b / 16] &= uint16_t(~(1u << (b % 16)));
+        };
+        set(bit);
+        if (shift) set(128 + 1);                // left Shift
+        for (uint8_t row = 0; row < 9; ++row)
+            if (next[row] != rows[row]) exchange(OP_KEYBOARD_HID, row, next[row]);
+        std::copy(next, next + 9, rows);
+    }
+    bool tap(uint8_t usage, bool shift) {
+        key_rows(usage, shift, true);
+        if (!run_until(0.008)) return false;
+        key_rows(usage, shift, false);
+        return run_until(0.008);
+    }
+    bool type(const std::string &text) {
+        std::string shown = text;
+        std::replace(shown.begin(), shown.end(), '\n', '|');
+        std::printf("TYPED %llu %s\n", (unsigned long long)cycles, shown.c_str());
+        for (char c : text) {
+            bool shift = (c >= 'A' && c <= 'Z') || c == ':' || c == '!';
+            char lower = c >= 'A' && c <= 'Z' ? char(c - 'A' + 'a') : c;
+            uint8_t usage = lower >= 'a' && lower <= 'z' ? uint8_t(0x04 + lower - 'a')
+                          : lower >= '1' && lower <= '9' ? uint8_t(0x1e + lower - '1')
+                          : lower == '!' ? 0x1e : lower == ':' ? 0x33 : lower == ' ' ? 0x2c : lower == '\n' ? 0x28 : 0;
+            if (!usage) throw std::runtime_error("system_tb cannot type that");
+            if (!tap(usage, shift)) return false;
+        }
+        return true;
+    }
+    bool debug_seen(const std::string &prefix, std::string *line = nullptr) {
+        for (const std::string &text : debug_lines)
+            if (text.compare(0, prefix.size(), prefix) == 0) { if (line) *line = text; return true; }
+        return false;
+    }
+    bool screen_has(const std::string &text) {
+        for (int row = 0; row < 25; ++row) {
+            std::string line = screen_row(row);
+            line.erase(line.find_last_not_of(' ') + 1);
+            if (line == text) return true;
+        }
+        return false;
+    }
+
+    // Keyboard and mouse at the prompt, as the runtime delivers them.
+    void exercise_input() {
+        booted = true;
+        bool echoed = type(std::string("echo ") + ECHO_TEXT + "\n") &&
+                      run_until(2, [&] { return screen_has(ECHO_TEXT) && last_row() == prompt; });
+        check(echoed, std::string("the typed echo printed ") + ECHO_TEXT);
+        if (reason != "prompt") return;
+        // Enter is tapped like every other key, so its break reaches the 8042
+        // while INPUT.COM's INT 15h C205h runs (#1330).
+        bool ready = type("input\n") && run_until(3, [&] { return debug_seen("MOUSE READY"); });
+        check(ready, "INPUT.COM enabled the mouse through INT 15h C2xx");
+        if (!ready) return;
+        for (const auto &packet : PACKETS) {
+            std::printf("MOUSE %llu %d %d %d\n", (unsigned long long)cycles, packet[0], packet[1], packet[2]);
+            exchange(OP_MOUSE_RELATIVE, uint8_t(packet[2]), uint16_t(uint8_t(packet[1]) << 8 | uint8_t(packet[0])));
+            if (!run_until(0.02)) return;
+        }
+        // Up, F1, Delete, Shift+A, then q ends it.
+        for (auto [usage, shift] : {std::pair<uint8_t, bool>{0x52, false}, {0x3a, false}, {0x4c, false},
+                                    {0x04, true}, {0x14, false}})
+            if (!tap(usage, shift)) return;
+        std::string mouse, keys;
+        bool reported = run_until(2, [&] { return debug_seen("KEYS") && last_row() == prompt; });
+        debug_seen("MOUSE X=", &mouse);
+        debug_seen("KEYS", &keys);
+        check(reported && mouse == MOUSE_REPORT, "the guest's mouse sums, button changes and Y sign: " + mouse);
+        check(reported && keys == KEYS_REPORT, "the guest's codes for Up, F1, Delete and Shift+A: " + keys);
     }
 
     void check(bool ok, const std::string &what) {
@@ -408,8 +585,7 @@ private:
         std::vector<uint16_t> record = capture();
         std::printf("RECORD %s\n", join(record).c_str());
         exchange(OP_EXECUTION, 0, 0);
-        bool settings = std::equal(SETTINGS, SETTINGS + 8, record.begin());
-        check(settings, "the record keeps the restored settings");
+        check(std::equal(settings, settings + 8, record.begin()), "the record keeps the restored settings");
         check(cmos(record, MARKER_BYTE) == MARKER, "CMOS 50h keeps the restored byte");
         check(cmos(record, 0x60) == 0x24 && cmos(record, 0x61) == 5 && cmos(record, 0x62) == 1,
               "CMOS 60h-62h hold the restored Sound Blaster setting");
@@ -443,6 +619,32 @@ private:
                   valid_bcd(cmos(again, 0x04), 2) && cmos(again, 0x04) <= 0x23 && cmos(again, 0x06) == 7 &&
                   cmos(again, 0x07) == 0x31 && cmos(again, 0x08) == 0x10 && cmos(again, 0x09) == 0x26,
               "the running clock keeps valid seconds, minutes, hours, weekday and date after restore");
+        hold_trials();
+    }
+
+    // Holds swept across port 2's write bursts: HOLD_CUTS of them must cut
+    // one, and the trial after each must see port 2 take write beats again.
+    // The trial after the last cut only follows up.
+    void hold_trials() {
+        unsigned trials = 0, cuts = 0, resumed = 0;
+        bool cut = false;
+        do {
+            exchange(OP_EXECUTION, 0, 1);
+            uint64_t written = ddr2.beats_written;
+            for (unsigned n = 0; n < 1024 + trials; ++n) clock();
+            resumed += cut && ddr2.beats_written > written;
+            hold_rose = false;
+            exchange(OP_EXECUTION, 0, 0);
+            for (unsigned n = 0; !hold_rose; ++n) {
+                if (n == 100000) throw MailboxError("Execution hold did not hold the DDR ports");
+                clock();
+            }
+            cut = hold_owed != 0 && cuts < HOLD_CUTS;
+            cuts += cut;
+        } while ((++trials < HOLD_TRIALS && cuts < HOLD_CUTS) || cut);
+        check(cuts == HOLD_CUTS && resumed == cuts,
+              "holds cut a port 2 write burst in " + std::to_string(cuts) + " of " + std::to_string(trials) +
+                  " trials, and port 2 took write beats after each release");
     }
 
     // Text mode: character n at planar offset 2n in plane 0.
@@ -461,6 +663,48 @@ private:
             if (!text.empty()) return text;
         }
         return "";
+    }
+
+    uint64_t ring_word(uint32_t offset) {
+        uint64_t value;
+        std::memcpy(&value, window.at(offset), 8);
+        return value;
+    }
+
+    // The records written since the last look, as the HPS reads them: the
+    // head's count, then each record whose word 0 names it. A port 2 reset
+    // starts the count again. 32768 clocks is half a period, so no record is
+    // missed or overwritten between looks. The core's clock count is one
+    // behind cycles: the bench's first clock() is Verilator's settle, not a
+    // rising edge. A record the disk's CRC pass kept off the port until its
+    // clock left the history is counted late, not checked.
+    void check_ring() {
+        uint64_t head = ring_word(RING_HEAD);
+        if (uint32_t(head >> 32) != RING_MAGIC) return;
+        uint32_t count = uint32_t(head);
+        if (count < ring_next) ring_next = 0;
+        for (; ring_next < count; ++ring_next) {
+            uint32_t at = RING_RECORDS + 64 * (ring_next % RING_SLOTS);
+            uint64_t stamp = ring_word(at + 56);
+            bool named = ring_word(at) == (uint64_t(ring_next) << 32 | RING_MAGIC);
+            if (named && stamp + 1 < cycles && cycles - stamp - 1 >= HISTORY) {
+                ++ring_late;
+                continue;
+            }
+            if (!named || stamp + 1 >= cycles) {
+                std::printf("RING-MISMATCH %u stamp=%llu word=0 ring=%016llx status=-\n", ring_next,
+                            (unsigned long long)stamp, (unsigned long long)ring_word(at));
+                ++ring_mismatches;
+                continue;
+            }
+            const auto &seen = history[(stamp + 1) % HISTORY];
+            for (unsigned n = 0; n < 6; ++n)
+                if (ring_word(at + 8 * (n + 1)) != seen[n] && ++ring_mismatches <= 16)
+                    std::printf("RING-MISMATCH %u stamp=%llu word=%u ring=%016llx status=%016llx\n", ring_next,
+                                (unsigned long long)stamp, n + 1, (unsigned long long)ring_word(at + 8 * (n + 1)),
+                                (unsigned long long)seen[n]);
+            ++ring_checked;
+        }
     }
 
     uint64_t status(unsigned n) {
@@ -487,7 +731,7 @@ private:
         if ((s0 >> 32) != retired) { retired = s0 >> 32; progress_at = cycles; }
         else if (cycles - progress_at > uint64_t(clock_hz) * 2) { reason = "stalled"; return; }
         // The screen, every 50 ms: the prompt alone on the last row, twice.
-        if (cycles - last_screen >= clock_hz / 20) {
+        if (!booted && cycles - last_screen >= clock_hz / 20) {
             last_screen = cycles;
             bool shown = last_row() == prompt;
             if (shown && prompt_seen) reason = "prompt";
@@ -498,13 +742,14 @@ private:
 
     void print_status() {
         uint64_t s0 = status(0), s1 = status(1);
-        std::printf("STATUS running=%llu halted=%llu stopped=%llu a20m=%llu intr=%llu post=%02llx cpu_resets=%llu "
+        std::printf("STATUS running=%llu halted=%llu stopped=%llu a20m=%llu intr=%llu governed=%llu post=%02llx cpu_resets=%llu "
                     "retired=%llu cs=%04llx vector=%02llx eip=%08llx frames_shown=%llu scanout_underflows=%llu "
                     "capture_drops=%llu present_underflows=%llu plane_underflows=%llu samples=%llu "
                     "dma_cycles=%llu opl2_samples=%llu\n",
                     (unsigned long long)((s0 >> 4) & 1), (unsigned long long)(s0 & 1),
                     (unsigned long long)((s0 >> 1) & 1), (unsigned long long)((s0 >> 2) & 1),
-                    (unsigned long long)((s0 >> 3) & 1), (unsigned long long)((s0 >> 8) & 0xff),
+                    (unsigned long long)((s0 >> 3) & 1), (unsigned long long)((s0 >> 5) & 1),
+                    (unsigned long long)((s0 >> 8) & 0xff),
                     (unsigned long long)((s0 >> 16) & 0xff), (unsigned long long)(s0 >> 32),
                     (unsigned long long)(s1 & 0xffff), (unsigned long long)((s1 >> 24) & 0xff),
                     (unsigned long long)(s1 >> 32), (unsigned long long)uint32_t(status(2)),
@@ -523,6 +768,8 @@ int main(int argc, char **argv) {
     double limit_seconds = 12;
     uint32_t clock_hz = 61440000;
     uint64_t seed = 0;
+    uint16_t governor[3] = {0, 0, 0};  // the record's words 0, 1 and 3
+    bool do_input_exercise = true;
     for (int n = 1; n + 1 < argc; n += 2) {
         std::string flag = argv[n], value = argv[n + 1];
         if (flag == "--disk") disk = value;
@@ -530,14 +777,19 @@ int main(int argc, char **argv) {
         else if (flag == "--limit-seconds") limit_seconds = std::stod(value);
         else if (flag == "--prompt") prompt = value;
         else if (flag == "--seed") seed = std::stoull(value, nullptr, 0);
+        else if (flag == "--preset") governor[0] = uint16_t(std::stoul(value));
+        else if (flag == "--frequency") governor[1] = uint16_t(std::stoul(value));
+        else if (flag == "--turbo") governor[2] = uint16_t(std::stoul(value));
+        else if (flag == "--exercise-input") do_input_exercise = std::stoul(value) != 0;
         else { std::fprintf(stderr, "system_tb: unknown flag %s\n", flag.c_str()); return 2; }
     }
     if (disk.empty()) {
-        std::fprintf(stderr, "usage: system_tb --disk F [--clock-hz N] [--limit-seconds S] [--prompt TEXT] [--seed N]\n");
+        std::fprintf(stderr, "usage: system_tb --disk F [--clock-hz N] [--limit-seconds S] [--prompt TEXT] [--seed N] "
+                             "[--preset N] [--frequency N] [--turbo N] [--exercise-input 0|1]\n");
         return 2;
     }
     try {
-        Bench bench(read_file(disk), clock_hz, limit_seconds, prompt, seed);
+        Bench bench(read_file(disk), clock_hz, limit_seconds, prompt, seed, governor, do_input_exercise);
         return bench.run() == "prompt" ? 0 : 1;
     } catch (const std::exception &error) {
         std::fprintf(stderr, "system_tb: %s\n", error.what());

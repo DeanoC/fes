@@ -1,0 +1,18 @@
+{
+  "format": 1,
+  "core_id": "fes.pcxt-dos",
+  "game_id": "dos-game",
+  "base_media_id": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+  "unit": 0,
+  "layout_id": "fes.pcxt-floppy.image",
+  "layout_major": 1,
+  "layout_minor": 0,
+  "payload_size": 368640,
+  "payload_pattern": "(offset * 17 + (offset >> 9)) & 255",
+  "payload_sha256": "068171ce6c83bf267a00632f3459951fa5867f1d0d6433d2b509e3c0622bf59c",
+  "header_hex": "464553504358543113ef9f29b8e5721ce7029742851a1b2f57e4a50e071eb59fb9aec15c90fa29a2f6380c6aebd18926b48fdd6d757f68aa9cb63d6c374f41f740db5875daa33b77aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa000001000000150000a005006665732e706378742d666c6f7070792e696d616765",
+  "checksum_hex": "fd7180cf8bcb5742abdb4d8c38056567bef4b2f3f828b758550c1083275aca64",
+  "record_size": 368809,
+  "revision": "d47baa067c5b727a4a8079d8415b666c402ac89fce3d2a304f7a83fa053469ff",
+  "namespace": "923ac7824e6b1bac35cde4991828eb811952fbb04b510926de3d7781733fa563"
+}

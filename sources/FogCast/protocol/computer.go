@@ -211,7 +211,7 @@ func AtariStFloppyInterface() RuntimeContract {
 	return RuntimeContract{ID: generated.FesComputerInterfaceMediaAtariStFloppyID, Major: generated.FesComputerInterfaceMediaAtariStFloppyMajor, Minor: generated.FesComputerInterfaceMediaAtariStFloppyMinor}
 }
 
-// PcxtFloppyInterface is the unit-0 read-only raw PC/XT floppy contract.
+// PcxtFloppyInterface is the unit-0 raw PC/XT floppy contract.
 func PcxtFloppyInterface() RuntimeContract {
 	return RuntimeContract{ID: generated.FesComputerInterfaceMediaPcxtFloppyID, Major: generated.FesComputerInterfaceMediaPcxtFloppyMajor, Minor: generated.FesComputerInterfaceMediaPcxtFloppyMinor}
 }
@@ -226,6 +226,12 @@ func AtariStFloppyGeometryCapable(p *CorePackageStatus) bool {
 func AdmitAtariStFloppySize(size int64) bool {
 	_, ok := corepackage.AtariStGeometryForSize(size)
 	return ok
+}
+
+// AdmitLibraryFloppySize is the union for transport boundaries without a live
+// interface. The active unit must still validate its own geometry.
+func AdmitLibraryFloppySize(size int64) bool {
+	return size == PcxtFloppyBytes || AdmitAtariStFloppySize(size)
 }
 
 // ComputerABI reports a fes.computer contract FogCast speaks: 1.0, or 1.1,
@@ -303,7 +309,7 @@ func (u MediaUnitStatus) Valid() bool {
 			return false
 		}
 		switch u.Interface {
-		case AtariStFloppyInterface():
+		case AtariStFloppyInterface(), PcxtFloppyInterface():
 			if u.Unit != AtariStFloppyUnit {
 				return false
 			}

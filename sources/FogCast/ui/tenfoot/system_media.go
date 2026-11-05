@@ -155,6 +155,14 @@ func (a *App) importSystemMediaLocked(path string) {
 			return err
 		}
 		entry, err = a.client.SelectCoreEntryMedia(ctx, game, pkg, expected, role, media.MediaID)
-		return err
+		if err != nil {
+			return err
+		}
+		if capability.Format == "zx81-p" || capability.Format == "zx80-o" {
+			// The filename is display text. Older hosts may not expose the
+			// optional route, so keep the successful media selection either way.
+			_, _ = a.client.SetCoreEntryMediaName(ctx, game, pkg, media.MediaID, name)
+		}
+		return nil
 	}, func() { a.systemMediaSavedLocked(entry) })
 }

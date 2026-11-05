@@ -883,6 +883,9 @@ static void           enable_mouse_int_and_events();
 static Bit8u          send_to_mouse_ctrl();
 static Bit8u          get_mouse_data();
 static void           set_kbd_command_byte();
+static Bit8u          get_kbd_command_byte();
+static void           mouse_exchange_begin();
+static void           mouse_exchange_end();
 
 static void           int09_function();
 static void           int13_harddisk();
@@ -912,6 +915,8 @@ static bx_bool        floppy_drive_recal();
 static bx_bool        floppy_media_known();
 static bx_bool        floppy_media_sense();
 static bx_bool        set_enable_a20();
+static bx_bool        get_enable_a20();
+static void           kbc_write_output();
 static void           keyboard_init();
 static void           keyboard_panic();
 static void           shutdown_status_panic();
@@ -2023,6 +2028,23 @@ keyboard_init()
     while ((inb(PORT_PS2_STATUS) & 0x02) && (--max>0)) outb(PORT_DIAG, 0x60);
     if (max==0x0) keyboard_panic(60);
 
+    /* FES 2026-11-01: gate A20 off for the OS, as an AT BIOS does. pc386
+       asserts A20M only while both the 8042's output port bit 1 and port 92h
+       bit 1 are clear, and the output port powers on with bit 1 set, so both
+       are cleared. The output port keeps the bits D0h reads, with bit 0 set
+       (clear resets the CPU). This is the one point in POST where the D0h
+       response cannot meet a device byte: the keyboard has acknowledged
+       F5h, the command byte just written disables the aux interface, and
+       interrupts are off. Nothing later in POST turns
+       A20 on, and a shutdown-byte resume (CMOS 0Fh) never gets here, so it
+       keeps the A20 state it had. */
+    outb(PORT_PS2_STATUS, 0xd0);
+    max=0xffff;
+    while ( ((inb(PORT_PS2_STATUS) & 0x01) == 0) && (--max>0) ) outb(PORT_DIAG, 0x61);
+    if (max==0x0) keyboard_panic(61);
+    kbc_write_output((inb(PORT_PS2_DATA) & 0xfd) | 0x01);
+    outb(PORT_A20, inb(PORT_A20) & 0xfd);
+
     /* Enable keyboard */
     outb(PORT_PS2_DATA, 0xf4);
 
@@ -2335,24 +2357,71 @@ log_bios_start()
   BX_INFO("BIOS BUILD DATE: %s\n", BIOS_BUILD_DATE);
 }
 
+// FES 2026-11-01: A20 through both of pc386's controls, the 8042's output
+// port bit 1 and port 92h bit 1; A20 is on while either is set. Upstream drove
+// port 92h alone, which cannot turn A20 off while the 8042's bit is set. The
+// state returned and reported is the one memory sees. Enabling sets port 92h
+// only when A20 is off, and disabling clears whichever controls are set, so a
+// HIMEM that uses either control can turn A20 off again after a BIOS call,
+// and INT 15h AH=87h puts back exactly the state it found.
   bx_bool
 set_enable_a20(val)
   bx_bool val;
 {
   Bit8u  oldval;
+  bx_bool was;
 
-  // Use PS2 System Control port A to set A20 enable
-
-  // get current setting first
+  was = get_enable_a20();
   oldval = inb(PORT_A20);
 
-  // change A20 status
-  if (val)
-    outb(PORT_A20, oldval | 0x02);
-  else
+  if (val) {
+    if (!was)
+      outb(PORT_A20, oldval | 0x02);
+  } else if (was) {
     outb(PORT_A20, oldval & 0xfd);
+    // Still on: the 8042's bit is set. Write its output port with the AT
+    // BIOS's A20-off byte, DDh (bit 1 clear, bit 0 set), rather than read it
+    // with D0h: a keystroke can be in the output buffer at this point.
+    if (get_enable_a20())
+      kbc_write_output(0xdd);
+  }
 
-  return((oldval & 0x02) != 0);
+  return(was);
+}
+
+// FES 2026-11-01: whether A20 is on, by whether 100500h is a different byte
+// from 500h. Callers have interrupts off; both bytes are put back.
+  bx_bool
+get_enable_a20()
+{
+  Bit8u  low, high;
+  bx_bool on;
+
+  low = read_byte(0x0000, 0x0500);
+  high = read_byte(0xffff, 0x0510);
+  if (low != high)
+    return(1);
+  write_byte(0xffff, 0x0510, ~high);
+  on = (read_byte(0x0000, 0x0500) == low);
+  write_byte(0xffff, 0x0510, high);
+  return(on);
+}
+
+// FES 2026-11-01: write the 8042's output port (D1h).
+  void
+kbc_write_output(val)
+  Bit8u val;
+{
+  Bit16u max;
+
+  max=0xffff;
+  while ((inb(PORT_PS2_STATUS) & 0x02) && (--max>0)) outb(PORT_DIAG, 0x62);
+  outb(PORT_PS2_STATUS, 0xd1);
+  max=0xffff;
+  while ((inb(PORT_PS2_STATUS) & 0x02) && (--max>0)) outb(PORT_DIAG, 0x63);
+  outb(PORT_PS2_DATA, val);
+  max=0xffff;
+  while ((inb(PORT_PS2_STATUS) & 0x02) && (--max>0)) outb(PORT_DIAG, 0x64);
 }
 
 int
@@ -3965,7 +4034,8 @@ BX_DEBUG_INT15("int15 AX=%04x\n",regs.u.r16.ax);
           regs.u.r8.ah = 0;
           break;
         case 0x02:
-          regs.u.r8.al = (inb(PORT_A20) >> 1) & 0x01;
+          // FES 2026-11-01: the state memory sees, from either control.
+          regs.u.r8.al = get_enable_a20();
           CLEAR_CF();
           regs.u.r8.ah = 0;
           break;
@@ -5088,6 +5158,69 @@ dequeue_key(scan_code, ascii_code, incr)
 
 static char panic_msg_keyb_buffer_full[] = "%s: keyboard input buffer full\n";
 
+// FES 2026-11-03: the C2xx services exchange bytes with the aux device
+// through the 8042 with interrupts off, and read port 60h for the command
+// byte and for each of the device's replies. A keyboard byte in the output
+// buffer was read as the command byte, or held the device's reply behind it
+// while get_mouse_data spun forever (#1330). So, as production BIOSes do,
+// int15_handler_mouse runs each call with the keyboard interface disabled
+// (ADh) and enables it again (AEh) on the way out, whichever path the call
+// takes. A byte already in the output buffer goes first to its interrupt
+// handler, INT 09h or INT 74h, with interrupts on, so a key is not lost; one
+// that no handler takes in a few milliseconds (its IRQ masked, or a higher
+// one in service) is discarded. INT 09h enables the keyboard as it exits, so
+// the disable is repeated until the buffer is empty behind it.
+  void
+mouse_exchange_begin()
+{
+  Bit8u  status;
+  Bit16u wait;
+
+  for (;;) {
+    while ( inb(PORT_PS2_STATUS) & 0x02 );
+    outb(PORT_PS2_STATUS, 0xAD); // disable keyboard interface
+    while ( inb(PORT_PS2_STATUS) & 0x02 );
+    status = inb(PORT_PS2_STATUS);
+    if ( (status & 0x01) == 0 )
+      return;
+    wait = 0x1000;
+ASM_START
+    sti
+ASM_END
+    while ( (inb(PORT_PS2_STATUS) & 0x01) && (--wait > 0) );
+ASM_START
+    cli
+ASM_END
+    if (wait == 0)
+      inb(PORT_PS2_DATA);
+  }
+}
+
+  void
+mouse_exchange_end()
+{
+  while ( inb(PORT_PS2_STATUS) & 0x02 );
+  outb(PORT_PS2_STATUS, 0xAE); // enable keyboard interface
+}
+
+// FES 2026-11-03: the command byte (20h). With the keyboard interface
+// disabled, the first byte that is not the aux device's is the reply; an aux
+// byte ahead of it, from a mouse still streaming, is discarded (#1330).
+  Bit8u
+get_kbd_command_byte()
+{
+  Bit8u status;
+
+  outb(PORT_PS2_STATUS, 0x20); // get command byte
+  for (;;) {
+    status = inb(PORT_PS2_STATUS);
+    if ( (status & 0x21) == 0x01 )
+      return inb(PORT_PS2_DATA);
+    if (status & 0x01)
+      inb(PORT_PS2_DATA);
+  }
+}
+
   Bit8u
 inhibit_mouse_int_and_events()
 {
@@ -5096,9 +5229,7 @@ inhibit_mouse_int_and_events()
   // Turn off IRQ generation and aux data line
   if ( inb(PORT_PS2_STATUS) & 0x02 )
     BX_PANIC(panic_msg_keyb_buffer_full,"inhibmouse");
-  outb(PORT_PS2_STATUS, 0x20); // get command byte
-  while ( (inb(PORT_PS2_STATUS) & 0x01) != 0x01 );
-  prev_command_byte = inb(PORT_PS2_DATA);
+  prev_command_byte = get_kbd_command_byte();
   command_byte = prev_command_byte;
   //while ( (inb(PORT_PS2_STATUS) & 0x02) );
   if ( inb(PORT_PS2_STATUS) & 0x02 )
@@ -5118,9 +5249,7 @@ enable_mouse_int_and_events()
   // Turn on IRQ generation and aux data line
   if ( inb(PORT_PS2_STATUS) & 0x02 )
     BX_PANIC(panic_msg_keyb_buffer_full,"enabmouse");
-  outb(PORT_PS2_STATUS, 0x20); // get command byte
-  while ( (inb(PORT_PS2_STATUS) & 0x01) != 0x01 );
-  command_byte = inb(PORT_PS2_DATA);
+  command_byte = get_kbd_command_byte();
   //while ( (inb(PORT_PS2_STATUS) & 0x02) );
   if ( inb(PORT_PS2_STATUS) & 0x02 )
     BX_PANIC(panic_msg_keyb_buffer_full,"enabmouse");
@@ -11247,6 +11376,25 @@ normal_post:
   mov al, #0x00 ; maximum count of 0000H = 18.2Hz
   out PORT_PIT_COUNTER0, al
   out PORT_PIT_COUNTER0, al
+  ;; FES 2026-11-03: timer1, the refresh timer, as an AT BIOS sets it: binary
+  ;; count, LSB only, mode 2, count 18 = 15.09 usec. Port 61h bit 4 toggles
+  ;; with its output, and INT 15h AH=86h counts those toggles; Bochs toggles
+  ;; the bit by itself, so upstream never programs the counter.
+  mov al, #0x54
+  out PORT_PIT_MODE, al
+  mov al, #18
+  out PORT_PIT_COUNTER1, al
+  ;; FES 2026-11-03: timer2, the speaker timer, in the mode an AT BIOS's POST
+  ;; beep leaves it (binary count, LSB then MSB, mode 3), with the IBM BEEP
+  ;; count 0533h, gate and speaker off. Games that write only a count to port
+  ;; 42h and toggle port 61h bits 0-1 need this mode; upstream never programs
+  ;; the counter, and the 8254's power-on mode is undefined.
+  mov al, #0xb6
+  out PORT_PIT_MODE, al
+  mov al, #0x33
+  out PORT_PIT_COUNTER2, al
+  mov al, #0x05
+  out PORT_PIT_COUNTER2, al
 
   ;; Keyboard
   SET_INT_VECTOR(0x09, #0xF000, #int09_handler)
@@ -11902,7 +12050,10 @@ int15_stub:
 
 #if BX_USE_PS2_MOUSE
 int15_handler_mouse:
+  ;; FES 2026-11-03: the keyboard interface is off for the exchange (#1330).
+  call _mouse_exchange_begin
   call _int15_function_mouse
+  call _mouse_exchange_end
   jmp int15_handler_mouse_ret
 #endif
 

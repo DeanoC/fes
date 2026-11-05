@@ -119,6 +119,7 @@ type sessionCoordinator struct {
 	mediaHandle       MediaHandle
 	mediaGeneration   uint64
 	execution         string
+	executionPackage  sessionExecutionPackage
 	packageOwned      bool
 	nativeStoppedIdle bool // Soft-stopped non-package fpga_native label left set after idle cleanup
 	mediaState        string
@@ -145,17 +146,33 @@ type sessionCoordinator struct {
 }
 
 type sessionInputBinding struct {
-	core       string
+	core        string
+	packageID   string
+	generation  uint64
+	keyboard    bool
+	keyboardHID bool
+	gamepad     bool
+	keypad      bool
+	mouse       bool
+}
+
+// sessionExecutionPackage records the host-observable identity whose execution
+// classification may differ from the target's development-load label. Runtime
+// generations can repeat after an unobserved daemon restart; these fields do not
+// identify the runtime incarnation.
+type sessionExecutionPackage struct {
 	packageID  string
 	generation uint64
-	keyboard   bool
-	gamepad    bool
-	keypad     bool
-	mouse      bool
+	flightID   string
+	gameID     string
+	system     protocol.System
+	hasGame    bool
+	hasSystem  bool
 }
 
 type adoptionSnapshot struct {
 	execution         string
+	executionPackage  sessionExecutionPackage
 	packageOwned      bool
 	nativeStoppedIdle bool
 	mediaState        string
@@ -243,6 +260,11 @@ func (s *sessionCoordinator) ensureFlight() {
 	defer s.mu.Unlock()
 	if s.flightID == "" {
 		s.flightID = uuid.NewString()
+		// A package reconstructed by the first status observation has no
+		// flight yet. Associate that same binding with its first flight.
+		if s.executionPackage.flightID == "" {
+			s.executionPackage.flightID = s.flightID
+		}
 	}
 }
 
@@ -390,6 +412,7 @@ func (s *sessionCoordinator) status(ctx context.Context) (sessionResult, error) 
 		if execution, packageOwned := reconstructedSessionExecution(st); execution != "" {
 			s.execution = execution
 			s.packageOwned = packageOwned
+			s.bindExecutionPackageLocked(st)
 			s.terminalStatus = nil
 			s.nativeStoppedIdle = false
 		}
@@ -405,7 +428,13 @@ func (s *sessionCoordinator) status(ctx context.Context) (sessionResult, error) 
 		s.mediaState = "stopped"
 		s.terminalStatus = nil
 	}
-	if s.execution != "" {
+	// A package may have been replaced by another actor since this
+	// coordinator last owned it. Do not relabel that replacement with the
+	// previous package's execution type.
+	ownedPackageChanged := st.State == protocol.StateActive && s.executionPackage.packageID != "" && !s.matchesExecutionPackageLocked(st)
+	ownedHostChanged := st.State == protocol.StateActive && s.execution == fogcast.ExecutionHostOnly &&
+		s.executionPackage.hasGame && s.executionPackage.hasSystem && !s.matchesUnpackagedExecutionLocked(st)
+	if s.execution != "" && !ownedPackageChanged && !ownedHostChanged {
 		result.Execution = s.execution
 	}
 	if s.mediaState != "" {
@@ -685,6 +714,9 @@ func (s *sessionCoordinator) launchLocked(ctx context.Context, id, target string
 }
 
 func (s *sessionCoordinator) finishOrdinaryLaunch(ctx context.Context, owner *sessionCoordinator, id, execution string, status protocol.Status, progress *sessionProgress, stamp clientStamp) (sessionResult, error) {
+	owner.mu.Lock()
+	owner.bindExecutionPackageLocked(status)
+	owner.mu.Unlock()
 	result := owner.publicSession(status, progress)
 	result.Execution = execution
 	if execution == fogcast.ExecutionHostOnly {
@@ -759,6 +791,7 @@ func (s *sessionCoordinator) adoptPlacedPlay(ctx context.Context, dst *sessionCo
 	dst.mu.Lock()
 	previous := adoptionSnapshot{
 		execution: dst.execution, packageOwned: dst.packageOwned,
+		executionPackage:  dst.executionPackage,
 		nativeStoppedIdle: dst.nativeStoppedIdle, mediaState: dst.mediaState,
 		mediaHandle: dst.mediaHandle, mediaGeneration: dst.mediaGeneration,
 		terminalStatus: dst.terminalStatus, inputBinding: dst.inputBinding,
@@ -793,6 +826,7 @@ func (s *sessionCoordinator) adoptPlacedPlay(ctx context.Context, dst *sessionCo
 func (s *sessionCoordinator) restoreAdoptionSnapshot(previous adoptionSnapshot) {
 	s.mu.Lock()
 	s.execution, s.packageOwned = previous.execution, previous.packageOwned
+	s.executionPackage = previous.executionPackage
 	s.nativeStoppedIdle, s.mediaState = previous.nativeStoppedIdle, previous.mediaState
 	s.mediaHandle, s.mediaGeneration = previous.mediaHandle, previous.mediaGeneration
 	s.terminalStatus, s.inputBinding = previous.terminalStatus, previous.inputBinding
@@ -1013,6 +1047,9 @@ func (s *sessionCoordinator) finishCoreLoad(ctx context.Context, status protocol
 	}
 	s.mu.Unlock()
 	s.beginFlight()
+	s.mu.Lock()
+	s.bindExecutionPackageLocked(status)
+	s.mu.Unlock()
 	if detachErr == nil && s.remoteInput != nil && inputEligibleStatus(status) {
 		core := sessionCore(status)
 		if core == "" || s.attachInputForStatus(ctx, status) != nil {
@@ -1690,6 +1727,86 @@ func (s *sessionCoordinator) sendCoreKey(ctx context.Context, event remoteinput.
 	return sender.SendEvent(ctx, event, time.Now())
 }
 
+func (s *sessionCoordinator) tapCoreKey(ctx context.Context, sessionID string, event remoteinput.Event) (time.Duration, error) {
+	if s.tapHIDForeign() {
+		return 0, playHIDLeaseError()
+	}
+	if s.remoteInput == nil {
+		return 0, host.ErrRemoteInputNoStream
+	}
+	// Only a negotiated HID keyboard accepts physical usages unchanged. The
+	// target silently drops unsupported usages on native and matrix cores.
+	status, err := s.service.Status(s.scoped(ctx))
+	if err != nil {
+		return 0, err
+	}
+	if !inputEligibleStatus(status) || !protocol.KeyboardHIDCapable(status.CorePackage) {
+		return 0, host.ErrRemoteInputNoStream
+	}
+	want := inputBindingForStatus(status)
+	s.mu.Lock()
+	bound := s.inputBinding == want
+	s.mu.Unlock()
+	if !bound {
+		return 0, host.ErrRemoteInputNoStream
+	}
+	tapper, ok := s.remoteInput.(interface {
+		TapKey(context.Context, string, remoteinput.Event, func() error) (time.Duration, error)
+	})
+	if !ok {
+		return 0, host.ErrRemoteInputNoStream
+	}
+	duration, err := tapper.TapKey(ctx, sessionID, event, func() error {
+		if s.tapHIDForeign() {
+			return playHIDLeaseError()
+		}
+		// The input lock is held here. Binding changes happen without holding
+		// s.mu while waiting for that lock, so this recheck cannot invert the
+		// lock order and rejects an attachment replaced while tap was queued.
+		s.mu.Lock()
+		current := s.inputBinding
+		s.mu.Unlock()
+		if current != want || !current.keyboardHID {
+			return host.ErrRemoteInputNoStream
+		}
+		return nil
+	})
+	if err != nil {
+		return duration, err
+	}
+	if s.tapHIDForeign() {
+		return duration, playHIDLeaseError()
+	}
+	return duration, nil
+}
+
+// Tap ownership must use the target selected by this coordinator, not the
+// global foreground kit. An unknown scoped connection fails closed.
+func (s *sessionCoordinator) tapHIDForeign() bool {
+	var c fogcast.TargetConnection
+	if s.target != "" {
+		provider, ok := s.service.(interface {
+			TargetConnectionForName(string) fogcast.TargetConnection
+		})
+		if !ok {
+			return true
+		}
+		c = provider.TargetConnectionForName(s.target)
+	} else {
+		provider, ok := s.service.(interface {
+			TargetConnection() fogcast.TargetConnection
+		})
+		if !ok {
+			return true
+		}
+		c = provider.TargetConnection()
+	}
+	// Discovery reports a usable target as ready or active. Missing,
+	// incompatible, or unknown observations do not establish ownership.
+	return (c.State != "ready" && c.State != "active") ||
+		kitlease.ForeignHID(kitlease.Status{State: c.State, Owner: c.Owner})
+}
+
 func (s *sessionCoordinator) playHIDForeign() bool {
 	provider, ok := s.service.(interface {
 		TargetConnection() fogcast.TargetConnection
@@ -1737,14 +1854,14 @@ func (s *sessionCoordinator) attachInput(ctx context.Context) (sessionResult, er
 		if !input.Ready || binding != inputBindingForStatus(st) {
 			return sessionResult{}, remoteInputError()
 		}
-		result := s.publicSession(st, nil)
+		result := s.publicCurrentSession(st)
 		s.record("session.input.attach", result, nil)
 		return result, nil
 	}
 	if err := s.attachInputForStatus(ctx, st); err != nil {
 		return sessionResult{}, remoteInputError()
 	}
-	result := s.publicSession(st, nil)
+	result := s.publicCurrentSession(st)
 	s.record("session.input.attach", result, nil)
 	return result, nil
 }
@@ -1766,7 +1883,7 @@ func (s *sessionCoordinator) detachInput(ctx context.Context) (sessionResult, er
 	if err != nil {
 		return sessionResult{}, err
 	}
-	result := s.publicSession(st, nil)
+	result := s.publicCurrentSession(st)
 	s.record("session.input.detach", result, nil)
 	return result, nil
 }
@@ -1863,6 +1980,59 @@ func (s *sessionCoordinator) publicSession(st protocol.Status, progress *session
 		result.Input = &input
 	}
 	return result
+}
+
+// publicCurrentSession projects a successful operation on an existing session.
+// A coordinator-owned native package may be reported as a development load.
+// Override that target label only for the confirmed package generation and
+// flight; another actor can replace a package without updating this coordinator.
+func (s *sessionCoordinator) publicCurrentSession(st protocol.Status) sessionResult {
+	result := s.publicSession(st, nil)
+	s.mu.Lock()
+	if st.State == protocol.StateActive && s.execution != "" &&
+		(s.matchesExecutionPackageLocked(st) || s.matchesUnpackagedExecutionLocked(st)) {
+		result.Execution = s.execution
+	}
+	s.mu.Unlock()
+	return result
+}
+
+func (s *sessionCoordinator) matchesExecutionPackageLocked(st protocol.Status) bool {
+	binding := s.executionPackage
+	return st.CorePackage != nil && binding.packageID != "" && binding.generation != 0 &&
+		binding.flightID == s.flightID && st.CorePackage.PackageID == binding.packageID &&
+		st.CorePackage.Generation == binding.generation && matchesExecutionIdentity(binding, st)
+}
+
+func (s *sessionCoordinator) matchesUnpackagedExecutionLocked(st protocol.Status) bool {
+	binding := s.executionPackage
+	return (s.execution == fogcast.ExecutionHostOnly || s.execution == fogcast.ExecutionFPGANative) &&
+		binding.packageID == "" && !st.Development && st.CorePackage == nil &&
+		binding.flightID == s.flightID && binding.hasGame && binding.hasSystem && matchesExecutionIdentity(binding, st)
+}
+
+func matchesExecutionIdentity(binding sessionExecutionPackage, st protocol.Status) bool {
+	return (!binding.hasGame || st.GameID != nil && *st.GameID == binding.gameID) &&
+		(!binding.hasSystem || st.System != nil && *st.System == binding.system)
+}
+
+// bindExecutionPackageLocked records only an explicitly observed package. The
+// caller holds s.mu and must have established the session's execution owner.
+func (s *sessionCoordinator) bindExecutionPackageLocked(st protocol.Status) {
+	s.executionPackage = sessionExecutionPackage{}
+	if st.State != protocol.StateActive {
+		return
+	}
+	s.executionPackage.flightID = s.flightID
+	if st.GameID != nil {
+		s.executionPackage.gameID, s.executionPackage.hasGame = *st.GameID, true
+	}
+	if st.System != nil {
+		s.executionPackage.system, s.executionPackage.hasSystem = *st.System, true
+	}
+	if st.CorePackage != nil && st.CorePackage.PackageID != "" && st.CorePackage.Generation != 0 {
+		s.executionPackage.packageID, s.executionPackage.generation = st.CorePackage.PackageID, st.CorePackage.Generation
+	}
 }
 
 // clearLiveMediaNameLocked retires the complete identity of a cached filename.
@@ -1963,7 +2133,8 @@ func inputBindingForStatus(status protocol.Status) sessionInputBinding {
 	ports, keypad := protocol.ControllerPorts(status.CorePackage)
 	binding := sessionInputBinding{
 		core: sessionCore(status), keyboard: corePackageHasKeyboard(status),
-		gamepad: ports, keypad: keypad, mouse: protocol.MouseRelativeCapable(status.CorePackage),
+		keyboardHID: protocol.KeyboardHIDCapable(status.CorePackage),
+		gamepad:     ports, keypad: keypad, mouse: protocol.MouseRelativeCapable(status.CorePackage),
 	}
 	if status.CorePackage != nil {
 		binding.packageID = status.CorePackage.PackageID

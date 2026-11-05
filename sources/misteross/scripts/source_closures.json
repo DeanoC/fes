@@ -464,8 +464,6 @@
     "cores/fes-zx81/rtl/zx81_rom_link.v",
     "cores/fes-zx81/rtl/zx81_tape_store.v",
     "cores/fes-zx81/rtl/zx81_video_720p.v",
-    "cores/fes-zx81/rtl/zx8x.hex",
-    "cores/fes-zx81/rtl/zx8x.mif",
     "cores/fes-zx81/toolchain.lock",
     "scripts/bootstrap.sh",
     "scripts/build_fes_zx81_oss.py",

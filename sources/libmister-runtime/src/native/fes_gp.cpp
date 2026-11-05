@@ -149,7 +149,7 @@ constexpr std::uint16_t kComputerCapabilityMask = static_cast<std::uint16_t>(
 constexpr std::uint16_t kComputerHighCapabilityMask = static_cast<std::uint16_t>(
 	(FesComputerCapabilityMediaAtaDisk | FesComputerCapabilityPersistenceWords |
 	 FesComputerCapabilityRtcWallClock | FesComputerCapabilityPc386Machine |
-	 FesComputerCapabilityMediaPcxtFloppy) >> 16);
+	 FesComputerCapabilityMediaPcxtFloppy | FesComputerCapabilityMediaPcxtFloppyWrite) >> 16);
 
 std::uint64_t AddDeadline(std::uint64_t now, std::uint64_t duration)
 {
@@ -491,6 +491,8 @@ Error FesGp::Identify(const CoreDescriptor& descriptor, std::uint64_t deadline,
 				capabilities |= FesComputerCapabilityMediaAtariStFloppy;
 			else if (interface.id == FesComputerInterfaceMediaPcxtFloppyID)
 				capabilities |= FesComputerCapabilityMediaPcxtFloppy;
+			else if (interface.id == FesComputerInterfaceMediaPcxtFloppyWriteID)
+				capabilities |= FesComputerCapabilityMediaPcxtFloppyWrite;
 			else if (interface.id == FesComputerInterfaceMemoryHpsDdrID &&
 				interface.required && interface.major == 1 && interface.minor == 0)
 				capabilities |= FesComputerCapabilityMemoryHpsDdr;
@@ -666,6 +668,7 @@ void FesGpCoreDriver::BeginSession()
 	keyboard_hid_ = false;
 	mouse_relative_ = false;
 	floppy_write_ = false;
+	pcxt_floppy_write_ = false;
 	tape_write_ = false;
 	hid_rows_ = {};
 	hid_rows_known_ = false;
@@ -752,6 +755,7 @@ CoreDriverResult FesGpCoreDriver::Identify(const CoreDriverContext& context,
 	keyboard_hid_ = false;
 	mouse_relative_ = false;
 	floppy_write_ = false;
+	pcxt_floppy_write_ = false;
 	tape_write_ = false;
 	hid_rows_ = {};
 	hid_rows_known_ = false;
@@ -764,6 +768,7 @@ CoreDriverResult FesGpCoreDriver::Identify(const CoreDriverContext& context,
 			if (interface.id == FesComputerInterfaceKeyboardHidID) keyboard_hid_ = true;
 			if (interface.id == FesComputerInterfaceMouseRelativeID) mouse_relative_ = true;
 			if (interface.id == FesComputerInterfaceMediaAtariStFloppyWriteID) floppy_write_ = true;
+			if (interface.id == FesComputerInterfaceMediaPcxtFloppyWriteID) pcxt_floppy_write_ = true;
 			if (interface.id == FesComputerInterfaceMediaZx81TapeWriteID) tape_write_ = true;
 			if (interface.id == FesComputerInterfaceGamepadPortsID) controller_ports_ = true;
 			if (interface.id == FesComputerInterfaceRtcWallClockID) wall_clock_ = true;
@@ -849,6 +854,7 @@ CoreDriverResult FesGpCoreDriver::Identify(const CoreDriverContext& context,
 			keyboard_hid_ = false;
 			mouse_relative_ = false;
 			floppy_write_ = false;
+			pcxt_floppy_write_ = false;
 			tape_write_ = false;
 			wall_clock_ = false;
 			ata_disk_ = false;
@@ -1372,9 +1378,10 @@ bool FesGpCoreDriver::TapeWriteCapable() const
 
 bool FesGpCoreDriver::MediaWriteCapable(std::uint8_t unit) const
 {
-	if (!home_computer_ || !floppy_write_ || unit != 0) return false;
+	if (!home_computer_ || unit != 0) return false;
 	for (const auto& info : media_units_)
-		if (info.unit == unit && info.interface.id == FesComputerInterfaceMediaAtariStFloppyID) return true;
+		if (info.unit == unit && ((floppy_write_ && info.interface.id == FesComputerInterfaceMediaAtariStFloppyID) ||
+			(pcxt_floppy_write_ && info.interface.id == FesComputerInterfaceMediaPcxtFloppyID))) return true;
 	return false;
 }
 
@@ -1424,13 +1431,19 @@ Error FesGpCoreDriver::CaptureMedia(std::uint8_t unit, Clock& clock, std::uint64
 		if (!error.ok()) return WithPhase(error, "input");
 	}
 	const std::uint32_t size = info[FesComputerMediaSnapshotSizeLoField] | (static_cast<std::uint32_t>(info[FesComputerMediaSnapshotSizeHiField]) << 16);
+	const auto* medium = FindMediaUnit(unit);
+	const bool pcxt = medium && medium->interface.id == FesComputerInterfaceMediaPcxtFloppyID;
+	const bool valid_layout = pcxt ?
+		info[FesComputerMediaSnapshotLayoutTagField] == FesComputerPcxtFloppyLayoutTag &&
+		info[FesComputerMediaSnapshotLayoutMajorField] == FesComputerPcxtFloppyLayoutMajor &&
+		info[FesComputerMediaSnapshotLayoutMinorField] == FesComputerPcxtFloppyLayoutMinor && size == FesComputerPcxtFloppyBytes :
+		info[FesComputerMediaSnapshotLayoutTagField] == FesComputerAtariStFloppyLayoutTag &&
+		info[FesComputerMediaSnapshotLayoutMajorField] == FesComputerAtariStFloppyLayoutMajor &&
+		info[FesComputerMediaSnapshotLayoutMinorField] == (size == FesComputerAtariStFloppyBytes ? FesComputerAtariStFloppyLayoutMinor : FesComputerAtariStFloppyGeometryLayoutMinor) && AtariStSizeAdmitted(size, MediaGeometryCapable(unit));
 	if ((info[FesComputerMediaSnapshotFlagsField] & ~(FesComputerMediaSnapshotReadyMask | FesComputerMediaSnapshotDirtyMask | FesComputerMediaSnapshotFrozenMask | FesComputerMediaSnapshotBusyMask)) != 0 ||
 		(info[FesComputerMediaSnapshotFlagsField] & (FesComputerMediaSnapshotReadyMask | FesComputerMediaSnapshotFrozenMask | FesComputerMediaSnapshotBusyMask)) != (FesComputerMediaSnapshotReadyMask | FesComputerMediaSnapshotFrozenMask) ||
-		info[FesComputerMediaSnapshotLayoutTagField] != FesComputerAtariStFloppyLayoutTag ||
-		info[FesComputerMediaSnapshotLayoutMajorField] != FesComputerAtariStFloppyLayoutMajor ||
-		info[FesComputerMediaSnapshotLayoutMinorField] != (size == FesComputerAtariStFloppyBytes ? FesComputerAtariStFloppyLayoutMinor : FesComputerAtariStFloppyGeometryLayoutMinor) ||
-        !AtariStSizeAdmitted(size, MediaGeometryCapable(unit)) || info[FesComputerMediaSnapshotChunkMaxField] != FesComputerMediaChunkMaxBytes)
-		return Io("invalid frozen Atari ST media snapshot identity");
+		!valid_layout || info[FesComputerMediaSnapshotChunkMaxField] != FesComputerMediaChunkMaxBytes)
+		return Io("invalid frozen floppy media snapshot identity");
 	std::vector<unsigned char> bytes;
 	bytes.reserve(size);
 	for (std::uint32_t offset = 0; offset < size; offset += FesComputerMediaChunkMaxBytes) {
@@ -1652,18 +1665,48 @@ Error FesGpCoreDriver::SetKeyboardHid(const KeyboardHidRows& rows, std::uint64_t
 		(rows[FesComputerKeyboardModifierRow] & ~FesComputerKeyboardModifierMask) != 0)
 		return {ErrorCode::invalid_request, "invalid keyboard HID rows", "input"};
 	const bool known = hid_rows_known_;
-	// Rows are separate ordered transactions. Until every row of this snapshot
-	// is acknowledged the next snapshot writes all rows again.
+	// Each row is a separate, observable transaction, with no upper bound on
+	// the time between rows. Split a change into releases and makes so a key
+	// can never overtake its modifier even across a slow acknowledgement.
+	// If the previous state is unknown, first neutralize keys then modifiers:
+	// a failed transaction can have reached the core despite the error.
 	hid_rows_known_ = false;
-	for (std::uint8_t row = 0; row < FesComputerKeyboardRowCount; ++row) {
-		if (known && rows[row] == hid_rows_[row]) continue;
+	auto write_row = [&](std::uint8_t row, std::uint16_t value) -> Error {
 		std::uint16_t response = 0;
-		Error error = gp_.Exchange(FesComputerOpcodeKeyboardHid, row, rows[row], deadline,
+		Error error = gp_.Exchange(FesComputerOpcodeKeyboardHid, row, value, deadline,
 			&response);
 		if (error.ok() && response != 0)
 			error = {ErrorCode::io_failed, "invalid keyboard HID acknowledgement", "input"};
 		if (!error.ok()) return WithPhase(error, "input");
-		hid_rows_[row] = rows[row];
+		hid_rows_[row] = value;
+		return {};
+	};
+	constexpr std::uint8_t modifier = FesComputerKeyboardModifierRow;
+	if (!known) {
+		for (std::uint8_t row = 0; row < FesComputerKeyboardRowCount; ++row) {
+			Error error = write_row(row, 0);
+			if (!error.ok()) return error;
+		}
+	}
+	for (std::uint8_t row = 0; row < modifier; ++row) {
+		const std::uint16_t retained = hid_rows_[row] & rows[row];
+		if (retained == hid_rows_[row]) continue;
+		Error error = write_row(row, retained);
+		if (!error.ok()) return error;
+	}
+	const std::uint16_t retained_modifiers = hid_rows_[modifier] & rows[modifier];
+	if (retained_modifiers != hid_rows_[modifier]) {
+		Error error = write_row(modifier, retained_modifiers);
+		if (!error.ok()) return error;
+	}
+	if (hid_rows_[modifier] != rows[modifier]) {
+		Error error = write_row(modifier, rows[modifier]);
+		if (!error.ok()) return error;
+	}
+	for (std::uint8_t row = 0; row < modifier; ++row) {
+		if (hid_rows_[row] == rows[row]) continue;
+		Error error = write_row(row, rows[row]);
+		if (!error.ok()) return error;
 	}
 	hid_rows_known_ = true;
 	return {};

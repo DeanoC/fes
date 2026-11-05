@@ -281,6 +281,7 @@ type Snapshot struct {
 	Storage         FirmwarePickerSnapshot
 	CoreLibrary     FirmwarePickerSnapshot
 	FirmwarePicker  FirmwarePickerSnapshot
+	FirmwareCard    FirmwareCardSnapshot
 	TapePicker      TapePickerSnapshot
 	ReducedMotion   bool
 	LocalCorePhase  string
@@ -394,6 +395,7 @@ type App struct {
 	hideHacks              bool
 	facets                 hostclient.FacetValues
 	settingsOpen           bool
+	settingsScopeChanged   bool
 	settingsIndex          int
 	settingsGen            int
 	settingsWriteGen       int
@@ -490,6 +492,7 @@ type App struct {
 	gfxBackend          string
 	pinnedRooms         []string
 	reducedMotion       bool
+	allCores            bool // cores outside the v1 release are listed
 	homeRecents         []hostclient.Game
 	homeRecentsErr      string
 	homeRecentsLoaded   bool
@@ -511,8 +514,9 @@ type App struct {
 	// frameLua is the room Step from the Tick in progress. Tick clears it,
 	// and only a Step that actually ran this iteration fills it again.
 	frameLua rooms.StepTiming
-	// roomCoreDetail is the package whose Details the hero is showing.
-	roomCoreDetail string
+	// roomHeroDetail is heroDetailKey of the destination whose Details the
+	// hero is showing: an installed package or a family.
+	roomHeroDetail string
 	browseActions  browseActionState
 	// libraryReturn is the suspended room the Library was opened from.
 	libraryReturn *libraryOrigin
@@ -550,6 +554,9 @@ type App struct {
 	roomChoice               []hostclient.Game
 	roomPicks                map[string]string
 	firmwarePickerOpen       bool
+	firmwareCard             firmwareCardState
+	firmwareCardSeen         map[string]bool
+	setup                    setupState // first-run setup (setup.go)
 	firmwarePickerAtRoots    bool
 	firmwarePickerBusy       bool
 	firmwarePickerIndex      int
@@ -645,6 +652,18 @@ type App struct {
 	// seen at startup until that generation is running or generation-free idle.
 	localWatchStartup  bool
 	localLaunchPending func()
+
+	// settingsSection is the open Settings section; "" is the section list.
+	settingsSection string
+	// settingsConfirm is the row waiting for a second Select (factory-reset).
+	settingsConfirm string
+	// settingsWired is the kit's wired link, read as Settings or Network opens.
+	settingsWired string
+	// settingsFirmware is the host's bundled firmware for Settings › Firmware.
+	settingsFirmware settingsFirmware
+	// kitDisplay is the kit's own menu display; kitID is its target ID.
+	kitDisplay bool
+	kitID      string
 }
 
 // SetTheme installs the sofa look. Zero Theme is Default.
@@ -692,6 +711,7 @@ func NewApp(client *Client, width, height, maxGames int) *App {
 	grid := Grid{}
 	grid.Layout(width, height)
 	return &App{
+		setup:              setupState{step: -1},
 		client:             client,
 		games:              []hostclient.Game{},
 		grid:               grid,
@@ -1012,7 +1032,7 @@ func (a *App) HandleCommand(cmd Command, now time.Time) {
 			return
 		}
 	}
-	roomOwnsInput := a.room != nil && !a.roomPickerOpen && !a.settingsOpen && !a.settingsOSKOpenLocked() && !a.firmwarePickerOpen && !a.tapePickerOpen
+	roomOwnsInput := a.room != nil && !a.roomPickerOpen && !a.settingsOpen && !a.settingsOSKOpenLocked() && !a.firmwarePickerOpen && !a.tapePickerOpen && !a.firmwareCard.Open
 	switch cmd {
 	case CmdSafeAreaIn:
 		a.setSafeAreaPctLocked(a.safeAreaPct+safeAreaNudge, true)
@@ -1023,7 +1043,7 @@ func (a *App) HandleCommand(cmd Command, now time.Time) {
 		a.status = fmt.Sprintf("safe-area %.1f%%", a.safeAreaPct*100)
 		return
 	case CmdLayoutCycle:
-		if a.firmwarePickerOpen || a.tapePickerOpen {
+		if a.firmwarePickerOpen || a.tapePickerOpen || a.firmwareCard.Open {
 			return
 		}
 		if a.sessionStopOfferedLocked() {
@@ -1059,6 +1079,7 @@ func (a *App) HandleCommand(cmd Command, now time.Time) {
 		if a.firmwarePickerOpen {
 			a.closeFirmwarePickerLocked()
 		}
+		a.closeFirmwareCardLocked()
 		if !a.openHomeRoomAsRootLocked() {
 			a.toggleRoomPickerLocked()
 		}
@@ -1070,6 +1091,7 @@ func (a *App) HandleCommand(cmd Command, now time.Time) {
 		if a.firmwarePickerOpen {
 			a.closeFirmwarePickerLocked()
 		}
+		a.closeFirmwareCardLocked()
 		if a.settingsOpen {
 			a.closeSettingsLocked()
 		} else {
@@ -1077,7 +1099,7 @@ func (a *App) HandleCommand(cmd Command, now time.Time) {
 		}
 		return
 	case CmdFilters:
-		if a.firmwarePickerOpen || a.tapePickerOpen {
+		if a.firmwarePickerOpen || a.tapePickerOpen || a.firmwareCard.Open {
 			return
 		}
 		if roomOwnsInput {
@@ -1093,6 +1115,11 @@ func (a *App) HandleCommand(cmd Command, now time.Time) {
 	}
 	if a.settingsOSKOpenLocked() {
 		a.handleSettingsOSKLocked(cmd)
+		return
+	}
+	// Settings › Firmware opens a family's card over Settings.
+	if a.firmwareCard.Open {
+		a.handleFirmwareCardLocked(cmd)
 		return
 	}
 	if a.settingsOpen {
@@ -1836,6 +1863,7 @@ func (a *App) Snapshot() Snapshot {
 		Storage:                 a.driveSettingsSnapshotLocked(),
 		CoreLibrary:             a.coreLibrarySnapshotLocked(),
 		FirmwarePicker:          a.firmwarePickerSnapshotLocked(),
+		FirmwareCard:            a.firmwareCardSnapshotLocked(),
 		TapePicker:              a.tapePickerSnapshotLocked(),
 		ReducedMotion:           a.reducedMotion,
 		LocalCorePhase:          a.localPhase,
@@ -2900,7 +2928,7 @@ func (a *App) HandlePlayHIDScancode(name string, usage uint8, down bool, now tim
 	if a == nil {
 		return false
 	}
-	if a.consumeSuppressedPlayKey(name, down) {
+	if a.consumeSuppressedPlayKey(name, usage, down) {
 		return true
 	}
 	if mediaSelectorKey(name, usage) {
@@ -2975,7 +3003,7 @@ func (a *App) ConsumePlayHID() bool {
 // active package can arm a mailbox. Other keys encode for the attached core.
 // Letter s is a ZX81/core key, not chrome stop.
 func (a *App) HandlePlayHIDKey(name string, down bool, now time.Time) bool {
-	if a.consumeSuppressedPlayKey(name, down) {
+	if a.consumeSuppressedPlayKey(name, 0, down) {
 		return true
 	}
 	return a.handlePlayHIDKey(name, down, now)

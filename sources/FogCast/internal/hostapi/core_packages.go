@@ -214,7 +214,7 @@ func writeCoreLibraryError(w http.ResponseWriter, err error) {
 			code = http.StatusNotFound
 		case protocol.CodeBusy, protocol.CodeCorruptData, protocol.CodeIncompatibleData, protocol.CodeStaleRevision:
 			code = http.StatusConflict
-		case protocol.CodeMiSTerUnavailable:
+		case protocol.CodeMiSTerUnavailable, protocol.CodeCorePackageStoreUnavailable:
 			code = http.StatusServiceUnavailable
 		case protocol.CodeCoreTimeout:
 			code = http.StatusGatewayTimeout

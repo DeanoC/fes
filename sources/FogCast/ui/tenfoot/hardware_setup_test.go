@@ -173,15 +173,16 @@ func TestHardwareTapeRoleFollowsDeclaredPackage(t *testing.T) {
 	pkg := strings.Repeat("c", 64)
 	for _, tc := range []struct {
 		name, role, format, iface string
-		starter                   bool
+		starter, oldHost          bool
 	}{
 		{name: "legacy blob starter", role: "blob", format: "raw", iface: "fes.media.blob", starter: true},
 		{name: "tape unit import", role: "cassette", format: "zx81-p", iface: "fes.media.zx81-tape"},
 		{name: "legacy blob import", role: "blob", format: "raw", iface: "fes.media.blob"},
+		{name: "import on a host without media names", role: "cassette", format: "zx81-p", iface: "fes.media.zx81-tape", oldHost: true},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			var mu sync.Mutex
-			var selection map[string]string
+			var selection, named map[string]string
 			mediaID := strings.Repeat("d", 64)
 			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 				switch r.URL.Path {
@@ -204,6 +205,17 @@ func TestHardwareTapeRoleFollowsDeclaredPackage(t *testing.T) {
 					selection = body
 					mu.Unlock()
 					json.NewEncoder(w).Encode(hostclient.CoreEntry{GameID: "test-zx81", PackageID: pkg, MediaID: body["media_id"], MediaRole: body["media_role"]})
+				case "/api/v1/library/core-entries/test-zx81/media-name":
+					if tc.oldHost {
+						http.NotFound(w, r)
+						return
+					}
+					var body map[string]string
+					json.NewDecoder(r.Body).Decode(&body)
+					mu.Lock()
+					named = body
+					mu.Unlock()
+					json.NewEncoder(w).Encode(hostclient.CoreEntry{GameID: "test-zx81", PackageID: pkg, MediaID: body["media_id"], MediaName: body["media_name"]})
 				default:
 					t.Errorf("unexpected %s %s", r.Method, r.URL.Path)
 					http.Error(w, "unexpected", 500)
@@ -240,6 +252,23 @@ func TestHardwareTapeRoleFollowsDeclaredPackage(t *testing.T) {
 			}
 			if got["media_role"] != tc.role || got["media_id"] != wantID || got["expected_package_id"] != pkg {
 				t.Fatalf("selection = %+v", got)
+			}
+			mu.Lock()
+			gotName := named
+			mu.Unlock()
+			switch {
+			case tc.starter || tc.oldHost:
+				if gotName != nil {
+					t.Fatalf("unexpected media name %+v", gotName)
+				}
+			case gotName["media_name"] != "maze.p" || gotName["media_id"] != mediaID || gotName["expected_package_id"] != pkg:
+				t.Fatalf("media name = %+v", gotName)
+			}
+			app.mu.Lock()
+			status := app.coreLibrary.Status
+			app.mu.Unlock()
+			if !strings.Contains(status, "saved for next start") {
+				t.Fatalf("selection not reported saved: %q", status)
 			}
 		})
 	}
@@ -307,6 +336,7 @@ func TestImportHardwareCassetteUsesCapturedCoreID(t *testing.T) {
 	var uploadCount int
 	var uploaded string
 	var selection map[string]string
+	var named string
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
 		case "/api/v1/storage/drives/" + driveID + "/file":
@@ -340,6 +370,15 @@ func TestImportHardwareCassetteUsesCapturedCoreID(t *testing.T) {
 			selection = body
 			mu.Unlock()
 			json.NewEncoder(w).Encode(hostclient.CoreEntry{GameID: "test-zx80", PackageID: pkg, MediaID: body["media_id"], MediaRole: body["media_role"]})
+		case "/api/v1/library/core-entries/test-zx80/media-name":
+			var body map[string]string
+			if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+				t.Errorf("decode cassette name: %v", err)
+			}
+			mu.Lock()
+			named = body["media_name"]
+			mu.Unlock()
+			json.NewEncoder(w).Encode(hostclient.CoreEntry{GameID: "test-zx80", PackageID: pkg, MediaID: body["media_id"], MediaName: body["media_name"]})
 		default:
 			t.Errorf("unexpected %s %s", r.Method, r.URL.Path)
 			http.Error(w, "unexpected", http.StatusInternalServerError)
@@ -376,6 +415,9 @@ func TestImportHardwareCassetteUsesCapturedCoreID(t *testing.T) {
 	}
 	if selection["expected_package_id"] != pkg || selection["media_id"] != mediaID || selection["media_role"] != "cassette" {
 		t.Fatalf("ZX80 cassette selection = %+v", selection)
+	}
+	if named != "dragons-add.o" {
+		t.Fatalf("ZX80 cassette name = %q", named)
 	}
 }
 

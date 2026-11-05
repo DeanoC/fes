@@ -1,0 +1,11 @@
+id = "example.setup-ready"
+title = "Ready"
+author = "FES"
+description = "First-run setup, last step: each computer's games and firmware before Home."
+version = 1
+main = "main.lua"
+destination_panel = "none"
+
+[theme]
+background = "#F4F0E8"
+accent = "#235A46"

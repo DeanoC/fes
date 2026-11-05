@@ -1,7 +1,6 @@
 package protocol
 
 import (
-	"github.com/DeanoC/FogCast/appliance/softwarecontrol"
 	"github.com/DeanoC/FogCast/corepackage"
 	"github.com/DeanoC/misteross/expansion"
 )
@@ -110,13 +109,22 @@ type PartsInspection struct {
 }
 
 type Health struct {
-	TargetID     string                  `json:"target_id,omitempty"`
-	APIVersion   string                  `json:"api_version"`
-	AgentVersion string                  `json:"agent_version"`
-	Ready        bool                    `json:"ready"`
-	BootID       string                  `json:"boot_id,omitempty"`
-	Artifacts    *Artifacts              `json:"artifacts,omitempty"`
-	Software     *softwarecontrol.Status `json:"software,omitempty"`
+	TargetID     string     `json:"target_id,omitempty"`
+	APIVersion   string     `json:"api_version"`
+	AgentVersion string     `json:"agent_version"`
+	Ready        bool       `json:"ready"`
+	BootID       string     `json:"boot_id,omitempty"`
+	Artifacts    *Artifacts `json:"artifacts,omitempty"`
+	Software     *Identity  `json:"software,omitempty"`
+}
+
+// Identity is the kit software identity reported by authenticated agent health.
+// Operation details remain on the kit software control endpoint.
+type Identity struct {
+	ActiveBundle string `json:"active_bundle"`
+	BaseIdentity string `json:"base_identity"`
+	Selected     string `json:"selected"`
+	Generation   uint64 `json:"generation"`
 }
 
 // Artifacts identifies the sealed build inputs; absent fields are not live hashes.

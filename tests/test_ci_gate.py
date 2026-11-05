@@ -1,6 +1,7 @@
 import copy
 import json
 import unittest
+from pathlib import Path
 from unittest.mock import patch
 
 from scripts.affected import CORES, LANES
@@ -25,6 +26,12 @@ def results_for(selected=(), cores=(), modes=None, tier='full'):
 
 
 class TierTests(unittest.TestCase):
+    def test_workflow_regression_runs_in_unconditional_check_step(self):
+        workflow = (Path(__file__).resolve().parents[1] / '.github/workflows/check.yml').read_text()
+        step = workflow.split('      - name: Always-run planner and metadata checks\n', 1)[1].split(
+            '      - name: Documentation links and doc-reading checks\n', 1)[0]
+        self.assertIn('tests.test_ci_workflow', step)
+
     def test_smoke_tier_swaps_only_slow_families(self):
         from scripts.ci_simulations import SMOKE_TARGETS
         for core in CORES:
@@ -155,6 +162,13 @@ class GateTests(unittest.TestCase):
 
 
 class SimulationMatrixTests(unittest.TestCase):
+    def test_pc386_boot_image_simulations_run_only_in_full_tier(self):
+        smoke = [row['target'] for row in simulation_matrix(['pc386'], 'smoke')['include']]
+        full = [row['target'] for row in simulation_matrix(['pc386'], 'full')['include']]
+        self.assertEqual(smoke, ['sim-fes-pc386'])
+        self.assertEqual(full, ['sim-fes-pc386', 'sim-fes-pc386-fesenv', 'sim-fes-pc386-a20',
+                                'sim-fes-pc386-c2xx', 'sim-fes-pc386-wait', 'sim-fes-pc386-speaker'])
+
     def test_coleco_includes_every_default_and_oss_scenario(self):
         from scripts.ci_simulations import simulation_matrix
         rows = simulation_matrix(['coleco'])['include']
@@ -172,15 +186,16 @@ class SimulationMatrixTests(unittest.TestCase):
         self.assertEqual({row['target'] for row in rows}, expected)
         self.assertTrue(all(row['core'] == 'coleco' for row in rows))
 
-    def test_pcxt_pr_smoke_covers_floppy_fdc_media_and_mailbox(self):
+    def test_pcxt_pr_smoke_covers_machine_and_floppy_paths(self):
         from scripts.ci_simulations import simulation_matrix
         full = [row['target'] for row in simulation_matrix(['pcxt'], 'full')['include']]
         smoke = [row['target'] for row in simulation_matrix(['pcxt'], 'smoke')['include']]
-        self.assertEqual(full, ['sim-fes-pcxt', 'sim-fes-pcxt-fdc', 'sim-fes-pcxt-media',
-                                'sim-fes-pcxt-mailbox', 'sim-fes-pcxt-dos'])
-        self.assertEqual(smoke, ['sim-fes-pcxt-smoke', 'sim-fes-pcxt-fdc',
+        self.assertEqual(full, ['sim-fes-pcxt', 'sim-fes-pcxt-fdc', 'sim-fes-pcxt-write',
+                                'sim-fes-pcxt-media', 'sim-fes-pcxt-mailbox', 'sim-fes-pcxt-dos'])
+        self.assertEqual(smoke, ['sim-fes-pcxt-smoke', 'sim-fes-pcxt-machine', 'sim-fes-pcxt-fdc', 'sim-fes-pcxt-write',
                                  'sim-fes-pcxt-media', 'sim-fes-pcxt-mailbox'])
         self.assertNotIn('sim-fes-pcxt-dos', smoke)
+        self.assertNotIn('sim-fes-pcxt-com', smoke)
 
     def test_coleco_smoke_is_five_jobs_and_oss_board_twins_are_full_only(self):
         from scripts.ci_simulations import simulation_matrix

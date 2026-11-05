@@ -232,6 +232,10 @@ func captureRunningPriorAt(ctx context.Context, req AcknowledgeRequest, c *Proce
 	if err != nil {
 		return proof, err
 	}
+	// A running or restarting kit host is not one of the services.
+	if children, err = withoutHost(children, root); err != nil {
+		return proof, err
+	}
 	if len(children) != 3 {
 		return proof, errors.New("supervisor does not own exactly three services")
 	}
@@ -294,8 +298,15 @@ func (p runningPriorProof) healthy(ctx context.Context, req AcknowledgeRequest, 
 	if err := sameExecutable(p.supervisor, p.supervisorExecutable); err != nil {
 		return err
 	}
+	root, err := c.preparedPath(ctx, req.Selected)
+	if err != nil {
+		return err
+	}
 	children, err := directChildren(p.supervisor)
 	if err != nil {
+		return err
+	}
+	if children, err = withoutHost(children, root); err != nil {
 		return err
 	}
 	if len(children) != 3 {
@@ -305,10 +316,6 @@ func (p runningPriorProof) healthy(ctx context.Context, req AcknowledgeRequest, 
 		if p.paths[pid] == "" {
 			return errors.New("prior process parent identity changed")
 		}
-	}
-	root, err := c.preparedPath(ctx, req.Selected)
-	if err != nil {
-		return err
 	}
 	current, err := os.Readlink(filepath.Join(p.runDir, "current"))
 	if err != nil {

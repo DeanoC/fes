@@ -3,7 +3,7 @@
 Routine runs execute the fast regression and concurrency-focused checks.
 Full-device video producer/publication and real-media suites run only when
 their inputs change or on scheduled/manual full runs. The exhaustive race pass
-runs weekly/manual or when shared-contract/unknown inputs force it.
+runs nightly/manual or when shared-contract/unknown inputs force it.
 """
 from fnmatch import fnmatchcase
 from pathlib import Path

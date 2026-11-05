@@ -1,0 +1,645 @@
+[
+ {
+  "run": "m5g1",
+  "kit": "B",
+  "package": "457444bf9ae851f7d115e0df1a0cead19f1b84cbfa6b27f04e93f635f806df52.fcore",
+  "disk": "m5g-876986c0.img",
+  "disk_sha256": "6138390a46e61932940c8ba6888fc50b910ecf630efeb5063ff1d867a6791435",
+  "default_game": "pc386-m5g-freedos",
+  "input_commands": 13,
+  "events": [
+   {
+    "t": "2026-11-01 09:09:08",
+    "op": "stage",
+    "result": {
+     "sha256": "6138390a46e61932940c8ba6888fc50b910ecf630efeb5063ff1d867a6791435",
+     "size": 33546240,
+     "staged": true,
+     "seconds": 16.95
+    }
+   },
+   {
+    "t": "2026-11-01 09:09:18",
+    "op": "load",
+    "result": {
+     "load": {
+      "state": "active"
+     },
+     "seconds": 9.33,
+     "active_interfaces": [
+      "fes.audio.pcm-s16-stereo-48k 1.0",
+      "fes.fabric.video.display-plane 1.0",
+      "fes.keyboard.hid 1.0",
+      "fes.media.ata-disk 1.0",
+      "fes.memory.hps-ddr 1.0",
+      "fes.mouse.relative 1.0",
+      "fes.pc386.machine 1.0",
+      "fes.persistence.words 1.0",
+      "fes.rtc.wall-clock 1.0",
+      "fes.video.fixed-720p60 1.0",
+      "fes.video.session-display 1.0"
+     ]
+    }
+   },
+   {
+    "t": "2026-11-01 09:09:50",
+    "op": "wait_stable",
+    "result": {
+     "stable_after": 32.5,
+     "changed": 0.0
+    }
+   },
+   {
+    "t": "2026-11-01 09:09:51",
+    "op": "kitdate",
+    "result": {
+     "kit": "1970-01-01 17:49:20 UTC +0000\n1970-01-01 17:49:20 UTC",
+     "powerboat": "2026-11-01 09:09:51 EET"
+    }
+   },
+   {
+    "t": "2026-11-01 09:10:09",
+    "op": "kitdate",
+    "result": {
+     "kit": "1970-01-01 17:49:38 UTC +0000\n1970-01-01 17:49:38 UTC",
+     "powerboat": "2026-11-01 09:10:09 EET"
+    }
+   },
+   {
+    "t": "2026-11-01 09:12:10",
+    "op": "stop",
+    "result": {
+     "state": "idle"
+    }
+   },
+   {
+    "t": "2026-11-01 09:12:19",
+    "op": "load",
+    "result": {
+     "load": {
+      "state": "active"
+     },
+     "seconds": 9.1,
+     "active_interfaces": [
+      "fes.audio.pcm-s16-stereo-48k 1.0",
+      "fes.fabric.video.display-plane 1.0",
+      "fes.keyboard.hid 1.0",
+      "fes.media.ata-disk 1.0",
+      "fes.memory.hps-ddr 1.0",
+      "fes.mouse.relative 1.0",
+      "fes.pc386.machine 1.0",
+      "fes.persistence.words 1.0",
+      "fes.rtc.wall-clock 1.0",
+      "fes.video.fixed-720p60 1.0",
+      "fes.video.session-display 1.0"
+     ]
+    }
+   },
+   {
+    "t": "2026-11-01 09:12:51",
+    "op": "wait_stable",
+    "result": {
+     "stable_after": 32.5,
+     "changed": 0.0
+    }
+   },
+   {
+    "t": "2026-11-01 09:13:04",
+    "op": "kitdate",
+    "result": {
+     "kit": "1970-01-01 17:52:33 UTC +0000\n1970-01-01 17:52:33 UTC",
+     "powerboat": "2026-11-01 09:13:04 EET"
+    }
+   },
+   {
+    "t": "2026-11-01 09:13:10",
+    "op": "stop",
+    "result": {
+     "state": "idle"
+    }
+   }
+  ],
+  "after": {
+   "agent": "idle",
+   "lease": "revoking"
+  },
+  "wrapper": [
+   "2026-11-01 09:08:51 EET CLAIMED kit B for m5g1",
+   "2026-11-01 09:13:10 EET HIL rc=0",
+   "2026-11-01 09:13:15 EET KIT_FILES 10 new paths listed in kit-new-paths.txt",
+   "2026-11-01 09:13:17 EET RELEASED kit B"
+  ],
+  "kit_new_paths": 10
+ },
+ {
+  "run": "m5g2",
+  "kit": "B",
+  "package": "457444bf9ae851f7d115e0df1a0cead19f1b84cbfa6b27f04e93f635f806df52.fcore",
+  "disk": "m5g-876986c0.img",
+  "disk_sha256": "6138390a46e61932940c8ba6888fc50b910ecf630efeb5063ff1d867a6791435",
+  "default_game": "pc386-m5g-wolf3d",
+  "input_commands": 6,
+  "events": [
+   {
+    "t": "2026-11-01 09:15:37",
+    "op": "stage",
+    "result": {
+     "disk": "m5g-876986c0.img",
+     "sha256": "6138390a46e61932940c8ba6888fc50b910ecf630efeb5063ff1d867a6791435",
+     "staged": true,
+     "already": true
+    }
+   },
+   {
+    "t": "2026-11-01 09:15:46",
+    "op": "load",
+    "result": {
+     "load": {
+      "state": "active"
+     },
+     "seconds": 9.17,
+     "active_interfaces": [
+      "fes.audio.pcm-s16-stereo-48k 1.0",
+      "fes.fabric.video.display-plane 1.0",
+      "fes.keyboard.hid 1.0",
+      "fes.media.ata-disk 1.0",
+      "fes.memory.hps-ddr 1.0",
+      "fes.mouse.relative 1.0",
+      "fes.pc386.machine 1.0",
+      "fes.persistence.words 1.0",
+      "fes.rtc.wall-clock 1.0",
+      "fes.video.fixed-720p60 1.0",
+      "fes.video.session-display 1.0"
+     ]
+    }
+   },
+   {
+    "t": "2026-11-01 09:16:18",
+    "op": "wait_stable",
+    "result": {
+     "stable_after": 32.5,
+     "changed": 0.0
+    }
+   },
+   {
+    "t": "2026-11-01 09:16:38",
+    "op": "audio_stop",
+    "result": {
+     "name": "w-start",
+     "seconds": 11.5,
+     "peak": 186
+    }
+   },
+   {
+    "t": "2026-11-01 09:17:13",
+    "op": "audio_stop",
+    "result": {
+     "name": "w-title",
+     "seconds": 16.0,
+     "peak": 1221
+    }
+   },
+   {
+    "t": "2026-11-01 09:17:49",
+    "op": "stop",
+    "result": {
+     "state": "idle"
+    }
+   }
+  ],
+  "after": {
+   "agent": "idle",
+   "lease": "revoking"
+  },
+  "wrapper": [
+   "2026-11-01 09:15:36 EET CLAIMED kit B for m5g2",
+   "2026-11-01 09:17:50 EET HIL rc=1",
+   "2026-11-01 09:17:55 EET KIT_FILES 8 new paths listed in kit-new-paths.txt",
+   "2026-11-01 09:17:56 EET RELEASED kit B"
+  ],
+  "kit_new_paths": 8
+ },
+ {
+  "run": "m5g3",
+  "kit": "B",
+  "package": "457444bf9ae851f7d115e0df1a0cead19f1b84cbfa6b27f04e93f635f806df52.fcore",
+  "disk": "m5g-876986c0.img",
+  "disk_sha256": "6138390a46e61932940c8ba6888fc50b910ecf630efeb5063ff1d867a6791435",
+  "default_game": "pc386-m5g-wolf3d",
+  "input_commands": 59,
+  "events": [
+   {
+    "t": "2026-11-01 09:18:57",
+    "op": "stage",
+    "result": {
+     "disk": "m5g-876986c0.img",
+     "sha256": "6138390a46e61932940c8ba6888fc50b910ecf630efeb5063ff1d867a6791435",
+     "staged": true,
+     "already": true
+    }
+   },
+   {
+    "t": "2026-11-01 09:19:06",
+    "op": "load",
+    "result": {
+     "load": {
+      "state": "active"
+     },
+     "seconds": 9.21,
+     "active_interfaces": [
+      "fes.audio.pcm-s16-stereo-48k 1.0",
+      "fes.fabric.video.display-plane 1.0",
+      "fes.keyboard.hid 1.0",
+      "fes.media.ata-disk 1.0",
+      "fes.memory.hps-ddr 1.0",
+      "fes.mouse.relative 1.0",
+      "fes.pc386.machine 1.0",
+      "fes.persistence.words 1.0",
+      "fes.rtc.wall-clock 1.0",
+      "fes.video.fixed-720p60 1.0",
+      "fes.video.session-display 1.0"
+     ]
+    }
+   },
+   {
+    "t": "2026-11-01 09:19:38",
+    "op": "wait_stable",
+    "result": {
+     "stable_after": 32.5,
+     "changed": 0.0
+    }
+   },
+   {
+    "t": "2026-11-01 09:19:56",
+    "op": "audio_stop",
+    "result": {
+     "name": "g-title",
+     "seconds": 8.5,
+     "peak": 1137
+    }
+   },
+   {
+    "t": "2026-11-01 09:20:05",
+    "op": "audio_stop",
+    "result": {
+     "name": "g-menu",
+     "seconds": 8.5,
+     "peak": 1969
+    }
+   },
+   {
+    "t": "2026-11-01 09:23:23",
+    "op": "audio_stop",
+    "result": {
+     "name": "g-fire",
+     "seconds": 8.19,
+     "peak": 11637
+    }
+   },
+   {
+    "t": "2026-11-01 09:23:30",
+    "op": "video_stop",
+    "result": {
+     "name": "g-turn",
+     "frames": 180
+    }
+   },
+   {
+    "t": "2026-11-01 09:28:19",
+    "op": "stop",
+    "result": {
+     "state": "idle"
+    }
+   },
+   {
+    "t": "2026-11-01 09:28:29",
+    "op": "load",
+    "result": {
+     "load": {
+      "state": "active"
+     },
+     "seconds": 9.19,
+     "active_interfaces": [
+      "fes.audio.pcm-s16-stereo-48k 1.0",
+      "fes.fabric.video.display-plane 1.0",
+      "fes.keyboard.hid 1.0",
+      "fes.media.ata-disk 1.0",
+      "fes.memory.hps-ddr 1.0",
+      "fes.mouse.relative 1.0",
+      "fes.pc386.machine 1.0",
+      "fes.persistence.words 1.0",
+      "fes.rtc.wall-clock 1.0",
+      "fes.video.fixed-720p60 1.0",
+      "fes.video.session-display 1.0"
+     ]
+    }
+   },
+   {
+    "t": "2026-11-01 09:29:01",
+    "op": "wait_stable",
+    "result": {
+     "stable_after": 32.6,
+     "changed": 5.208333333333334e-05
+    }
+   },
+   {
+    "t": "2026-11-01 09:30:45",
+    "op": "stop",
+    "result": {
+     "state": "idle"
+    }
+   }
+  ],
+  "after": {
+   "agent": "idle",
+   "lease": "revoking"
+  },
+  "wrapper": [
+   "2026-11-01 09:18:56 EET CLAIMED kit B for m5g3",
+   "2026-11-01 09:30:45 EET HIL rc=0",
+   "2026-11-01 09:30:50 EET KIT_FILES 5 new paths listed in kit-new-paths.txt",
+   "2026-11-01 09:30:52 EET RELEASED kit B"
+  ],
+  "kit_new_paths": 5
+ },
+ {
+  "run": "m5g4",
+  "kit": "B",
+  "package": "457444bf9ae851f7d115e0df1a0cead19f1b84cbfa6b27f04e93f635f806df52.fcore",
+  "disk": "m5g-876986c0.img",
+  "disk_sha256": "6138390a46e61932940c8ba6888fc50b910ecf630efeb5063ff1d867a6791435",
+  "default_game": "pc386-m5g-ultima6",
+  "input_commands": 76,
+  "events": [
+   {
+    "t": "2026-11-01 09:31:21",
+    "op": "stage",
+    "result": {
+     "disk": "m5g-876986c0.img",
+     "sha256": "6138390a46e61932940c8ba6888fc50b910ecf630efeb5063ff1d867a6791435",
+     "staged": true,
+     "already": true
+    }
+   },
+   {
+    "t": "2026-11-01 09:31:24",
+    "op": "settings",
+    "game": "pc386-m5g-sb240",
+    "value": "0,0,0,0,576,5,1",
+    "result": {
+     "before": {
+      "revision": "absent",
+      "machine": {
+       "preset": 0,
+       "frequency": 0,
+       "code_profile": 0,
+       "turbo": 0,
+       "sb_base": 544,
+       "sb_irq": 7,
+       "sb_dma": 1
+      },
+      "game_id": "pc386-m5g-sb240",
+      "mode": "persistent"
+     },
+     "after": {
+      "revision": "a89af05d85813937d304908b5ae1428aafb2f18893f64d1a77d89e233cd12a52",
+      "machine": {
+       "preset": 0,
+       "frequency": 0,
+       "code_profile": 0,
+       "turbo": 0,
+       "sb_base": 576,
+       "sb_irq": 5,
+       "sb_dma": 1
+      },
+      "game_id": "pc386-m5g-sb240",
+      "mode": "persistent"
+     }
+    }
+   },
+   {
+    "t": "2026-11-01 09:31:34",
+    "op": "load",
+    "game": "pc386-m5g-sb240",
+    "result": {
+     "load": {
+      "state": "active"
+     },
+     "seconds": 9.27,
+     "active_interfaces": [
+      "fes.audio.pcm-s16-stereo-48k 1.0",
+      "fes.fabric.video.display-plane 1.0",
+      "fes.keyboard.hid 1.0",
+      "fes.media.ata-disk 1.0",
+      "fes.memory.hps-ddr 1.0",
+      "fes.mouse.relative 1.0",
+      "fes.pc386.machine 1.0",
+      "fes.persistence.words 1.0",
+      "fes.rtc.wall-clock 1.0",
+      "fes.video.fixed-720p60 1.0",
+      "fes.video.session-display 1.0"
+     ]
+    }
+   },
+   {
+    "t": "2026-11-01 09:32:06",
+    "op": "wait_stable",
+    "result": {
+     "stable_after": 32.5,
+     "changed": 0.0
+    }
+   },
+   {
+    "t": "2026-11-01 09:33:31",
+    "op": "audio_stop",
+    "result": {
+     "name": "b-fire",
+     "seconds": 8.99,
+     "peak": 11611
+    }
+   },
+   {
+    "t": "2026-11-01 09:36:58",
+    "op": "stop",
+    "result": {
+     "state": "idle"
+    }
+   },
+   {
+    "t": "2026-11-01 09:37:08",
+    "op": "load",
+    "result": {
+     "load": {
+      "state": "active"
+     },
+     "seconds": 9.37,
+     "active_interfaces": [
+      "fes.audio.pcm-s16-stereo-48k 1.0",
+      "fes.fabric.video.display-plane 1.0",
+      "fes.keyboard.hid 1.0",
+      "fes.media.ata-disk 1.0",
+      "fes.memory.hps-ddr 1.0",
+      "fes.mouse.relative 1.0",
+      "fes.pc386.machine 1.0",
+      "fes.persistence.words 1.0",
+      "fes.rtc.wall-clock 1.0",
+      "fes.video.fixed-720p60 1.0",
+      "fes.video.session-display 1.0"
+     ]
+    }
+   },
+   {
+    "t": "2026-11-01 09:37:40",
+    "op": "wait_stable",
+    "result": {
+     "stable_after": 32.5,
+     "changed": 0.0
+    }
+   },
+   {
+    "t": "2026-11-01 09:38:06",
+    "op": "audio_stop",
+    "result": {
+     "name": "u-intro",
+     "seconds": 22.0,
+     "peak": 1544
+    }
+   },
+   {
+    "t": "2026-11-01 09:45:10",
+    "op": "audio_stop",
+    "result": {
+     "name": "u-game",
+     "seconds": 8.01,
+     "peak": 12588
+    }
+   },
+   {
+    "t": "2026-11-01 09:45:50",
+    "op": "stop",
+    "result": {
+     "state": "idle"
+    }
+   },
+   {
+    "t": "2026-11-01 09:45:59",
+    "op": "load",
+    "result": {
+     "load": {
+      "state": "active"
+     },
+     "seconds": 9.4,
+     "active_interfaces": [
+      "fes.audio.pcm-s16-stereo-48k 1.0",
+      "fes.fabric.video.display-plane 1.0",
+      "fes.keyboard.hid 1.0",
+      "fes.media.ata-disk 1.0",
+      "fes.memory.hps-ddr 1.0",
+      "fes.mouse.relative 1.0",
+      "fes.pc386.machine 1.0",
+      "fes.persistence.words 1.0",
+      "fes.rtc.wall-clock 1.0",
+      "fes.video.fixed-720p60 1.0",
+      "fes.video.session-display 1.0"
+     ]
+    }
+   },
+   {
+    "t": "2026-11-01 09:46:32",
+    "op": "wait_stable",
+    "result": {
+     "stable_after": 32.8,
+     "changed": 5.208333333333334e-05
+    }
+   },
+   {
+    "t": "2026-11-01 09:47:30",
+    "op": "stop",
+    "result": {
+     "state": "idle"
+    }
+   }
+  ],
+  "after": {
+   "agent": "idle",
+   "lease": "revoking"
+  },
+  "wrapper": [
+   "2026-11-01 09:31:21 EET CLAIMED kit B for m5g4",
+   "2026-11-01 09:47:30 EET HIL rc=0",
+   "2026-11-01 09:47:35 EET KIT_FILES 20 new paths listed in kit-new-paths.txt",
+   "2026-11-01 09:47:37 EET RELEASED kit B"
+  ],
+  "kit_new_paths": 20
+ },
+ {
+  "run": "m5g5",
+  "kit": "B",
+  "package": "457444bf9ae851f7d115e0df1a0cead19f1b84cbfa6b27f04e93f635f806df52.fcore",
+  "disk": "m5g-876986c0.img",
+  "disk_sha256": "6138390a46e61932940c8ba6888fc50b910ecf630efeb5063ff1d867a6791435",
+  "default_game": "pc386-m5g-wolf3d-level",
+  "input_commands": 20,
+  "events": [
+   {
+    "t": "2026-11-01 10:03:56",
+    "op": "stage",
+    "result": {
+     "disk": "m5g-876986c0.img",
+     "sha256": "6138390a46e61932940c8ba6888fc50b910ecf630efeb5063ff1d867a6791435",
+     "staged": true,
+     "already": true
+    }
+   },
+   {
+    "t": "2026-11-01 10:04:05",
+    "op": "load",
+    "result": {
+     "load": {
+      "state": "active"
+     },
+     "seconds": 9.29,
+     "active_interfaces": [
+      "fes.audio.pcm-s16-stereo-48k 1.0",
+      "fes.fabric.video.display-plane 1.0",
+      "fes.keyboard.hid 1.0",
+      "fes.media.ata-disk 1.0",
+      "fes.memory.hps-ddr 1.0",
+      "fes.mouse.relative 1.0",
+      "fes.pc386.machine 1.0",
+      "fes.persistence.words 1.0",
+      "fes.rtc.wall-clock 1.0",
+      "fes.video.fixed-720p60 1.0",
+      "fes.video.session-display 1.0"
+     ]
+    }
+   },
+   {
+    "t": "2026-11-01 10:04:38",
+    "op": "wait_stable",
+    "result": {
+     "stable_after": 32.6,
+     "changed": 0.0
+    }
+   },
+   {
+    "t": "2026-11-01 10:06:42",
+    "op": "stop",
+    "result": {
+     "state": "idle"
+    }
+   }
+  ],
+  "after": {
+   "agent": "idle",
+   "lease": "revoking"
+  },
+  "wrapper": [
+   "2026-11-01 10:03:56 EET CLAIMED kit B for m5g5",
+   "2026-11-01 10:06:42 EET HIL rc=0",
+   "2026-11-01 10:06:48 EET KIT_FILES 8 new paths listed in kit-new-paths.txt",
+   "2026-11-01 10:06:49 EET RELEASED kit B"
+  ],
+  "kit_new_paths": 8
+ }
+]
