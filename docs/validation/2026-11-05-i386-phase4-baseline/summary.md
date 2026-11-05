@@ -45,6 +45,14 @@ These are the changes from the scratch
   RTL's.
 - **End of run.** `--rtl-for` ends the run as `rtl-window`, a pass.
 - **Option checks.** The profile flags need `--cpu rtl`.
+- **Wrong-path uops.** They are counted exactly at any window edge: issued,
+  less committed, less the change in the uops in flight in AG to WB between
+  the two snapshots. The scratch hook used issued less committed. The bench
+  build reads the stage registers' valid bit through the same Verilator
+  config.
+- **Sites.** Each snapshot lists every site retired since the last one, and
+  the report ranks them after summing the window. The scratch hook kept 120
+  a snapshot.
 - **Removed.** The scratch build wrapper, the gain estimator and the frame
   dumps were left out.
 
@@ -58,7 +66,9 @@ The landed bench reran DOOM v1.9's `-timedemo demo3` (the profile's disk
 `7d98bffd…`) on the oracle to page flip 40, then on the RTL for 1.1 s, with a
 snapshot every 0.5 s. The CPU's RTL has not changed since the profile's
 `d646bcd7e`; only `pc386_system.sv` has, and the machine bench does not build
-it. The two runs compare as follows
+it. The run used the landed bench before the review fix that added the in-flight
+count and the untruncated sites, neither of which changes a bucket or a
+class. The two runs compare as follows
 ([handover-equivalence.json](handover-equivalence.json)):
 
 | Window (RTL from cycle 2,222,604,910) | Buckets | Classes | Sites |

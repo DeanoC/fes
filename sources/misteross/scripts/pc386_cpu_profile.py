@@ -6,13 +6,18 @@ at the handover (RTL-BEGIN), every --cpu-profile-every seconds and at the
 end (cores/fes-pc386/sim/cpu_profile.h). A window is the difference between
 the snapshot at or before FROM and the one at or after TO (simulated
 seconds; the defaults are the first and last). It prints the window's
-clocks by cause, its instruction classes and its hottest sites; --json
+clocks by cause, its instruction classes and its hottest sites (each
+snapshot lists every site retired since the last; the window sums them,
+then ranks); --json
 writes the same numbers.
 
 Causes (each system clock the RTL ran is in exactly one):
-  retired uops          issued uops that WB committed
+  retired uops          issued uops that WB committed (or that are still in
+                        flight at the window's end)
   redirect              taken-branch refill (with any L1I miss on the way)
-                        and the wrong-path uops a redirect flushed; the
+                        and the wrong-path uops a redirect flushed (issued,
+                        less committed, less the change in the uops in
+                        flight between the snapshots, so exact); the
                         class table splits the redirects by branch class
                         ("next": the clocks from a taken instruction to its
                         target's retirement)
@@ -120,11 +125,14 @@ def window(snaps: dict[float, dict], lo: float | None = None, hi: float | None =
     if clocks != t['sampled']:
         raise ProfileError(f'buckets hold {clocks} clocks, {t["sampled"]} sampled')
     issued = sum(b[k] for k in ISSUE)
-    wrong = issued - t['commits']
+    # Issued uops either commit, are flushed, or are still in flight.
+    wrong = issued - t['commits'] - (last['t']['in_flight'] - first['t']['in_flight'])
+    if wrong < 0:
+        raise ProfileError(f'{issued} uops issued, {t["commits"]} committed: the in-flight counts are inconsistent')
     causes = {}
     for name, keys in CAUSES.items():
         causes[name] = sum(b[k] for k in keys)
-    causes['retired uops'] = t['commits']
+    causes['retired uops'] = issued - wrong
     causes['redirect: wrong-path uops'] = wrong
     taken = {k: v for k, v in classes.items() if k in BRANCHES and v.get('taken')}
     return {'from': a, 'to': z, 'from_cycle': first['t']['cycles'], 'cycles': t['cycles'], 'rtl_clocks': clocks, 'retired': t['retired'],

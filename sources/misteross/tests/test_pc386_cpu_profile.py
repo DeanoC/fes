@@ -27,14 +27,15 @@ def vlt_signals() -> list[str]:
 
 class SignalTest(unittest.TestCase):
     def test_the_config_exposes_exactly_what_the_header_reads(self):
-        read = set(re.findall(r'\bS\((\w+)\)', HEADER.read_text())) - {'name'}
+        text = HEADER.read_text()
+        read = set(re.findall(r'\bS\((\w+)\)', text)) - {'name'} | set(re.findall(r'r->fes_i386_cpu__DOT__(\w+)', text))
         self.assertEqual(read, set(vlt_signals()))
 
     def test_every_signal_is_declared_in_the_cpu(self):
         rtl = (sim.COMMON / 'rtl/i386/fes_i386_cpu.sv').read_text()
         for name in vlt_signals():
             with self.subTest(name=name):
-                self.assertRegex(rtl, rf'(?m)^\s*(logic|wire)\b[^;]*\b{name}\b')
+                self.assertRegex(rtl, rf'(?m)^\s*(logic|wire|pipe_t)\b[^;]*\b{name}\b')
 
     def test_the_machine_bench_builds_the_cpu_with_the_config(self):
         self.assertIn("CPU_RTL + (CORE / 'sim/cpu_profile.vlt',)", Path(sim.__file__).read_text())
@@ -43,14 +44,17 @@ class SignalTest(unittest.TestCase):
 # The driver: a model CPU with every exposed signal, the cases below, and a
 # profile file the Python side reads back.
 DRIVER = r'''
-#include "cpu_profile.h"
 #include <cassert>
 #include <cstring>
 
+#define CPU_PROFILE_PIPE_MSB 907
+#include "cpu_profile.h"
 struct Root {
 #define F(n) bool fes_i386_cpu__DOT__##n = false;
 SIGNALS
 #undef F
+    uint32_t fes_i386_cpu__DOT__ag_s[29] = {}, fes_i386_cpu__DOT__m1_s[29] = {}, fes_i386_cpu__DOT__m2_s[29] = {},
+             fes_i386_cpu__DOT__ex_s[29] = {}, fes_i386_cpu__DOT__wb_s[29] = {};
 };
 struct Cpu { Root root; Root *rootp = &root; };
 
@@ -197,7 +201,12 @@ int main(int, char **argv) {
         Cpu cpu;
         FILE *out = std::fopen(argv[1], "w");
         p.begin(100);
-        p.dump(out, 100, 0.000001);
+        assert(CpuProfile::in_flight(cpu) == 0);
+        cpu.root.fes_i386_cpu__DOT__ag_s[907 / 32] = 1u << (907 % 32);  // valid only
+        cpu.root.fes_i386_cpu__DOT__wb_s[907 / 32] = ~(1u << (907 % 32)) & 0xfffu;  // not valid
+        cpu.root.fes_i386_cpu__DOT__m2_s[907 / 32] = 1u << (907 % 32);
+        assert(CpuProfile::in_flight(cpu) == 2);
+        p.dump(out, 100, 0.000001, CpuProfile::in_flight(cpu));
         const uint8_t jnz[] = {0x75, 0xfc};
         R(issue) = true; R(d_first) = true; R(wb_commit) = true; R(mem_valid) = true;
         for (int n = 0; n < 6; ++n) p.sample(cpu, false, false);
@@ -210,7 +219,10 @@ int main(int, char **argv) {
         p.sample(cpu, false, false);
         p.retire(105, 0x10, 0x0e, jnz, 2, false, false);
         p.retire(110, 0x0e, 0x10, jnz, 2, false, false);
-        p.dump(out, 110, 0.000002);
+        cpu.root.fes_i386_cpu__DOT__ag_s[907 / 32] = 0;
+        cpu.root.fes_i386_cpu__DOT__m2_s[907 / 32] = 0;
+        cpu.root.fes_i386_cpu__DOT__ex_s[907 / 32] = 1u << (907 % 32);
+        p.dump(out, 110, 0.000002, CpuProfile::in_flight(cpu));
         std::fclose(out);
     }
     return 0;
@@ -221,7 +233,7 @@ int main(int, char **argv) {
 @unittest.skipUnless(COMPILER, 'requires a C++ compiler')
 class HeaderTest(unittest.TestCase):
     def test_buckets_classes_flips_and_snapshots(self):
-        signals = ' '.join(f'F({name})' for name in vlt_signals())
+        signals = ' '.join(f'F({name})' for name in vlt_signals() if name not in sim.PIPE_STAGES)
         with tempfile.TemporaryDirectory() as directory:
             work = Path(directory)
             source = work / 'driver.cpp'
@@ -238,8 +250,9 @@ class HeaderTest(unittest.TestCase):
         self.assertEqual(w['from_cycle'], 100)
         self.assertEqual(w['cycles'], 10)
         self.assertEqual(w['rtl_clocks'], 10)
-        self.assertEqual(w['causes']['retired uops'], 6)
-        self.assertEqual(w['causes']['redirect: wrong-path uops'], 1)
+        # 7 issued, 6 committed, in flight 2 then 1: 2 never commit.
+        self.assertEqual(w['causes']['retired uops'], 5)
+        self.assertEqual(w['causes']['redirect: wrong-path uops'], 2)
         self.assertEqual(w['causes']['redirect: refill'], 2)
         self.assertEqual(w['causes']['fetch and L1I'], 1)
         self.assertEqual(sum(w['causes'].values()), w['rtl_clocks'])
@@ -247,12 +260,12 @@ class HeaderTest(unittest.TestCase):
         self.assertEqual(sorted(site[:3] for site in w['sites']), [['0000000e', 1, 5], ['00000010', 1, 5]])
 
 
-def snapshot(at: float, cycles: int, sampled: int, buckets: dict, commits: int = 0) -> str:
+def snapshot(at: float, cycles: int, sampled: int, buckets: dict, commits: int = 0, in_flight: int = 0) -> str:
     names = dict.fromkeys((b for keys in profile.CAUSES.values() for b in keys), 0)
     names.update(dict.fromkeys(profile.ISSUE, 0))
     names.update(buckets)
     return textwrap.dedent(f'''\
-        T {at} cycles={cycles} sampled={sampled} retired={commits} pm_retired=0 commits={commits} flushes=0 redirects=0 l1d_waits=0 l1i_waits=0 frames=0 polls_3da=0 io=0 prefixes=0
+        T {at} cycles={cycles} sampled={sampled} retired={commits} pm_retired=0 commits={commits} flushes=0 redirects=0 l1d_waits=0 l1i_waits=0 frames=0 polls_3da=0 io=0 prefixes=0 in_flight={in_flight}
         B {at} ''') + ' '.join(f'{k}={v}' for k, v in names.items()) + '\n'
 
 
@@ -270,6 +283,17 @@ class WindowTest(unittest.TestCase):
         self.assertEqual(w['causes']['retired uops'], 150)
         self.assertEqual(w['wrong_path_uops'], 0)
         self.assertIn('interlock: AGI', profile.report(w))
+
+    def test_wrong_path_counts_the_uops_in_flight_at_each_edge(self):
+        # 10 issued, 9 committed, 3 in flight at the start and 4 at the end:
+        # 10 - 9 - (4 - 3) = 0 never commit.
+        text = snapshot(1.0, 0, 0, {}, 0, 3) + snapshot(2.0, 10, 10, {'issue_first': 10}, 9, 4)
+        w = profile.window(profile.load(text.splitlines()))
+        self.assertEqual(w['wrong_path_uops'], 0)
+        self.assertEqual(w['causes']['retired uops'], 10)
+        text = snapshot(1.0, 0, 0, {}, 0, 0) + snapshot(2.0, 10, 10, {'issue_first': 10}, 9, 4)
+        with self.assertRaises(profile.ProfileError):
+            profile.window(profile.load(text.splitlines()))
 
     def test_buckets_must_hold_every_sampled_clock(self):
         text = snapshot(1.0, 0, 0, {}) + snapshot(2.0, 10, 10, {'agi': 9})

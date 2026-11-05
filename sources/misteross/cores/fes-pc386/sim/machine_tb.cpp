@@ -117,6 +117,7 @@
 #include "pc386_presenter_model.h"
 #include "smc_stale.h"
 #include "verilated.h"
+#include "cpu_profile_layout.h"
 #include "cpu_profile.h"
 
 #include <algorithm>
@@ -1625,7 +1626,7 @@ int main(int argc, char **argv) {
             if (!options.profile.empty() && !profile.written && machine.cycles >= profile.to)
                 profile.write(options.profile, machine.cycles);
             if (cpu_prof_out && machine.cycles >= cpu_prof_next) {
-                cpu_prof.dump(cpu_prof_out, machine.cycles, double(machine.cycles) / CLOCK_HZ);
+                cpu_prof.dump(cpu_prof_out, machine.cycles, double(machine.cycles) / CLOCK_HZ, CpuProfile::in_flight(rtl->cpu));
                 cpu_prof_next = machine.cycles + uint64_t(options.cpu_profile_every * CLOCK_HZ);
             }
 
@@ -1741,7 +1742,7 @@ int main(int argc, char **argv) {
         }
         if (!options.profile.empty() && !profile.written) profile.write(options.profile, machine.cycles);
         if (cpu_prof_out) {
-            if (rtl_begun) cpu_prof.dump(cpu_prof_out, machine.cycles, double(machine.cycles) / CLOCK_HZ);
+            if (rtl_begun) cpu_prof.dump(cpu_prof_out, machine.cycles, double(machine.cycles) / CLOCK_HZ, CpuProfile::in_flight(rtl->cpu));
             std::fclose(cpu_prof_out);
         }
         if (rtl) {

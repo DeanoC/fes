@@ -128,11 +128,25 @@ register 0Ch), with cold caches; `--rtl-for S` ends the run S seconds later.
 The bench appends a snapshot of the counters at the handover, every
 `--cpu-profile-every` seconds and at the end, and
 `scripts/pc386_cpu_profile.py F --from A --to B` reports the window between two
-snapshots: clocks by cause (retired uops; redirect refill and wrong-path uops,
-split by branch class; fetch and L1I; L1D and port 0; microcode; the AGI,
-store-to-load, flags, ESP and segment interlocks; multiply and divide; I/O,
-MMIO and a store buffer full behind VGA writes; halt), the classes and the
-hottest sites. A data load never holds D, since it is at M1-M2 ahead of the
+snapshots:
+- **Causes.** Clocks by cause:
+  - retired uops;
+  - redirect refill;
+  - wrong-path uops, the issued uops that never commit. These are counted
+    exactly at the window's edges from the uops in flight at each snapshot;
+  - fetch and L1I;
+  - L1D and port 0;
+  - microcode;
+  - the AGI, store-to-load, flags, ESP and segment interlocks;
+  - multiply and divide;
+  - I/O, MMIO, and a store buffer full behind VGA writes;
+  - halt.
+- **Redirects.** The clocks from each taken branch to its target's
+  retirement, by branch class.
+- **Classes and sites.** The instruction classes, and the hottest sites
+  summed over the window.
+
+A data load never holds D, since it is at M1-M2 ahead of the
 ALU, so a load's result into an address (AGI) is the only load-use interlock.
 The bench runs about 12 wall minutes per simulated second on the RTL.
 

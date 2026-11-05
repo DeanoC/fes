@@ -427,8 +427,30 @@ def machine_testbench(args, linked: list[Path]) -> Path:
     # cpu_profile.vlt exposes the signals --cpu-profile reads (cpu_profile.h).
     cpu = verilate(args.verilator, 'machine', 'fes_i386_cpu', CPU_RTL + (CORE / 'sim/cpu_profile.vlt',), None, [],
                    args.jobs)
+    write_cpu_profile_layout(cpu.parent)
     return verilate_with_audio(args, 'machine', CORE / 'sim/machine_tb.cpp', [*linked, cpu],
                                top='pc386_machine', rtl=MACHINE_RTL, include=(cpu.parent,))
+
+
+PIPE_STAGES = ('ag_s', 'm1_s', 'm2_s', 'ex_s', 'wb_s')
+
+
+def write_cpu_profile_layout(obj: Path) -> Path:
+    """cpu_profile_layout.h beside the Verilated CPU: the top bit of its packed
+    stage registers (pipe_t), which holds valid, from Verilator's root header."""
+    header = (obj / 'Vfes_i386_cpu___024root.h').read_text()
+    tops = set()
+    for stage in PIPE_STAGES:
+        found = re.search(rf'/\*(\d+):0\*/ fes_i386_cpu__DOT__{stage};', header)
+        if not found:
+            raise SimError(f'the Verilated CPU has no {stage} (cpu_profile.vlt)')
+        tops.add(int(found.group(1)))
+    if len(tops) != 1:
+        raise SimError(f'the stage registers differ in width: {sorted(tops)}')
+    layout = obj / 'cpu_profile_layout.h'
+    layout.write_text('// Written by scripts/sim_fes_pc386.py from the Verilated CPU.\n'
+                      f'#pragma once\n#define CPU_PROFILE_PIPE_MSB {tops.pop()}\n')
+    return layout
 
 
 def verilate_with_audio(args, name: str, testbench: Path, linked: list[Path],

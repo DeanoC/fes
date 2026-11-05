@@ -20,8 +20,16 @@
 // may start there. dump() appends one snapshot of every counter; a window is
 // the difference of two (scripts/pc386_cpu_profile.py).
 //
-// This header needs no Verilator header: sample() takes any CPU model whose
-// rootp has the fes_i386_cpu__DOT__<name> fields cpu_profile.vlt lists.
+// Wrong-path uops are the issued uops that never commit: over a window,
+// issued - committed - (in flight at its end - in flight at its start), where
+// in flight is the valid uops in AG, M1, M2, EX and WB, so the count is
+// exact at any window edge.
+//
+// This header needs no Verilator header: sample() and in_flight() take any
+// CPU model whose rootp has the fes_i386_cpu__DOT__<name> fields
+// cpu_profile.vlt lists. A stage register is a packed pipe_t with valid in
+// its top bit, CPU_PROFILE_PIPE_MSB, which the bench build reads from the
+// Verilated model into cpu_profile_layout.h.
 #pragma once
 
 #include <algorithm>
@@ -79,7 +87,6 @@ struct CpuProfile {
         "delivery"};
     struct Counts { uint64_t n = 0, taken = 0, own = 0, next = 0; };
     struct Site { uint64_t n = 0, cycles = 0; uint8_t c = 0; };
-    static constexpr size_t SITES = 120;  // the hottest sites each dump lists
 
     uint64_t bucket[NBUCKET] = {};
     uint64_t commits = 0, flushes = 0, redirects = 0, l1d_waits = 0, l1i_waits = 0, retired = 0, pm_retired = 0;
@@ -148,6 +155,18 @@ struct CpuProfile {
         ++bucket[b];
         if (redirect) { ++redirects; since_redirect = true; refill_l1i = false; }
     }
+#ifdef CPU_PROFILE_PIPE_MSB
+    // The uops in AG, M1, M2, EX and WB, after the clock's edge.
+    template <typename Cpu> static unsigned in_flight(Cpu &cpu) {
+        auto *r = cpu.rootp;
+        auto valid = [](const auto &stage) {
+            return unsigned(stage[CPU_PROFILE_PIPE_MSB / 32] >> (CPU_PROFILE_PIPE_MSB % 32)) & 1u;
+        };
+        return valid(r->fes_i386_cpu__DOT__ag_s) + valid(r->fes_i386_cpu__DOT__m1_s)
+               + valid(r->fes_i386_cpu__DOT__m2_s) + valid(r->fes_i386_cpu__DOT__ex_s)
+               + valid(r->fes_i386_cpu__DOT__wb_s);
+    }
+#endif
     // A clock the bench runs the machine alone while the CPU waits on an I/O
     // answer or sleeps in HLT (RtlCpu's parked clocks).
     void parked(bool asleep) { ++sampled; ++bucket[asleep ? PARKED_HALT : PARKED_IO]; }
@@ -249,16 +268,18 @@ struct CpuProfile {
         s.c = uint8_t(c);
     }
 
-    // One snapshot: T (counters), B (buckets), C (one per class) and S (this
-    // interval's hottest sites) lines, each starting with the simulated time.
-    void dump(FILE *out, uint64_t cycles, double seconds) {
+    // One snapshot: T (counters, and the uops in flight), B (buckets), C (one
+    // per class) and S (every site retired since the last dump) lines, each
+    // starting with the simulated time.
+    void dump(FILE *out, uint64_t cycles, double seconds, unsigned in_flight) {
         std::fprintf(out, "T %.6f cycles=%llu sampled=%llu retired=%llu pm_retired=%llu commits=%llu flushes=%llu "
-                     "redirects=%llu l1d_waits=%llu l1i_waits=%llu frames=%llu polls_3da=%llu io=%llu prefixes=%llu\n",
+                     "redirects=%llu l1d_waits=%llu l1i_waits=%llu frames=%llu polls_3da=%llu io=%llu prefixes=%llu "
+                     "in_flight=%u\n",
                      seconds, (unsigned long long)cycles, (unsigned long long)sampled, (unsigned long long)retired,
                      (unsigned long long)pm_retired, (unsigned long long)commits, (unsigned long long)flushes,
                      (unsigned long long)redirects, (unsigned long long)l1d_waits, (unsigned long long)l1i_waits,
                      (unsigned long long)frames, (unsigned long long)polls_3da, (unsigned long long)io_accesses,
-                     (unsigned long long)prefixes);
+                     (unsigned long long)prefixes, in_flight);
         std::fprintf(out, "B %.6f", seconds);
         for (int b = 0; b < NBUCKET; ++b) std::fprintf(out, " %s=%llu", bucket_name[b], (unsigned long long)bucket[b]);
         std::fprintf(out, "\n");
@@ -270,7 +291,6 @@ struct CpuProfile {
         std::sort(top.begin(), top.end(), [](const auto &a, const auto &b) {
             return a.second.cycles != b.second.cycles ? a.second.cycles > b.second.cycles : a.first < b.first;
         });
-        if (top.size() > SITES) top.resize(SITES);
         for (const auto &[at, s] : top)
             std::fprintf(out, "S %.6f %08x %s n=%llu cycles=%llu\n", seconds, at, class_name[s.c],
                          (unsigned long long)s.n, (unsigned long long)s.cycles);
