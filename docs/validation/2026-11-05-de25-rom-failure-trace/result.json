@@ -1,0 +1,52 @@
+{
+  "status": "stopped",
+  "source": "9a4f6f39026e292d1effa40b8d05219b88f0534d",
+  "attempts": 1,
+  "retries": 0,
+  "hardware_actions": true,
+  "ordinary_admission": false,
+  "core_load_acceptance": false,
+  "rom_completion": false,
+  "cpu_run": false,
+  "return_cycle": false,
+  "diagnostic": {
+    "phase": "2",
+    "scope": "none",
+    "status": "-6",
+    "error": "-6",
+    "used": "1",
+    "complete": "0",
+    "bytes": "8192",
+    "reads": "91",
+    "writes": "109",
+    "read_offset": "1c",
+    "read_value": "1a0",
+    "write_offset": "38",
+    "began": "8ec96b9b7",
+    "tick": "904768b24",
+    "hz": "400000000"
+  },
+  "elapsed_ticks": 400544109,
+  "elapsed_seconds": 1.0013602725,
+  "accepted_bytes_last_observed": 416,
+  "expected_bytes": 8192,
+  "cause": "ROM transfer deadline; no ownership predicate failed",
+  "cleanup": {
+    "status": "passed",
+    "usb_node_unchanged": true,
+    "usb_permissions_exact": true,
+    "clock_readback": "15M",
+    "owned_private_server_gone": true,
+    "uart_owners": [],
+    "board_operations": false,
+    "native_rom_acceptance": false
+  },
+  "logs": {
+    "trial/native-console.log": "5768a1fcb454b99df5956229cbcfca8986ddbc76a4cc52050aa618a947dfdc6a",
+    "trial/experiment-result.json": "8e83fae999047e42231196083ad46cd97163502cb8107b817f7e766197519a63",
+    "trial/native-result.json": "7df5d8be4d8de0890274bf0c1adeb58a5bdfd89e1d1cf8f9800e725d17c91f44",
+    "hardware.log": "a7e03902d3d342fd07de92b93f8e43f27d332048926930b7de2d1d18200a7af5",
+    "cleanup-evidence.json": "7fecd92dbf5fcf639e54b7c9e3b602b1171d67c1e9529f2bf67e1ce82aedfe8c"
+  },
+  "next": "reduce redundant live ownership validation in the ROM path without extending the one-second or poll bounds; test failures before a new matched hardware attempt"
+}

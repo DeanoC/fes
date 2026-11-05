@@ -21,3 +21,20 @@ Evidence: `out/nano-rom-failure-trace-20261105/rom-model/result.json`, its
 results only. No hardware has been touched for this change. A freshly matched
 firmware chain and bounded hardware trace are required; this change neither
 qualifies ordinary package admission nor establishes DE10-equivalent readiness.
+
+## Bounded physical trace
+
+One fresh matched-chain attempt on TRWU8CBL stopped at the first ROM failure.
+Recovery, all eight fixed Ethernet uploads and fresh SD hashes, native startup,
+shared USB and the first sealed FPGA configuration passed. The cached secure
+record reports `LIMIT`: 400,544,109 ticks at 400 MHz, or 1.0013602725 seconds.
+No ownership predicate failed. The last accepted-byte counter was 416 of 8,192;
+91 endpoint reads and 109 writes had occurred. ROM completion and CPU Run were
+not reached. There was no retry, second launch, return or accepted ROM cycle.
+
+Independent cleanup verified exact USB permissions, the recorded 15 MHz JTAG
+readback, disappearance of the owned private server and a free UART. The kit
+claim and spare test card remain retained; factory card and other kit were
+untouched. Cached Held status does not independently prove physical CPU halt.
+The next repair must reduce repeated live ownership work without extending the
+one-second or 64-poll limits. The full goal of ordinary core loading remains open.
