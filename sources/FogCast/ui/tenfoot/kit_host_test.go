@@ -421,7 +421,6 @@ func TestKitHostReattachesAfterHostAndLauncherRestart(t *testing.T) {
 	}
 	available.Store(true)
 	app := newLauncher()
-	defer app.Stop()
 	assertAttached(app)
 	available.Store(false)
 	app.fetchSession(t.Context())
@@ -430,6 +429,7 @@ func TestKitHostReattachesAfterHostAndLauncherRestart(t *testing.T) {
 	}
 	available.Store(true)
 	assertAttached(app)
+	app.Stop()
 	newApp := newLauncher()
 	defer newApp.Stop()
 	assertAttached(newApp)
