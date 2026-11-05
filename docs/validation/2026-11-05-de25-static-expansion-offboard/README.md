@@ -179,7 +179,8 @@ peripherals and Terasic boot/reset are outside that proof.
 The first factory build correctly refuses a modified runtime. Reproducing the
 stock SDK strip operation on a private copy gives exactly the same rejected
 bytes ([diagnosis](factory-runtime-strip-diagnosis.json)). Source `467052bc5f088d25acb5c398c9a9740f4efc6deb` preserves the selected `mister-runtime` bytes
-in factory configuration. The final exact executable-hash check remains required.
+in factory configuration. The subsequent factory build passes its exact
+executable-hash checks, as recorded below.
 
 Source `e212fd51c0de96bf660207bf0c96a0e1355eed4d` authenticates a retained headless
 SDK against its actual Git producer read as data, while requiring the same current
@@ -193,8 +194,51 @@ The actual new normal bundle, matching host, both static target helpers and
 [immutable factory inputs](normal-e212-factory-artifacts.json) are built from
 `e212`. The packaged runtime's [early-entry probe](normal-e212-early-entry.json)
 executes against the real reviewed `6de` loader/libraries under AArch64 QEMU.
-No hardware adapter is constructed by that probe. The new factory rebuild runs
-from an immutable `e212` snapshot; it has no native image acceptance yet.
+No hardware adapter is constructed by that probe. The new factory rebuild from
+an immutable `e212` snapshot passes in 777.050 seconds, including exact selected
+executable bytes, package/bundle verification and actual kernel/rootfs virtual
+boot. Its [factory receipt](managed-factory-e212.json),
+[structural verification](managed-factory-verification-e212.json) and
+[virtual boot](managed-factory-virtual-boot-e212.json) retain that producer.
+The normal release CLI independently verifies and exports image
+`d11a2284af6409c8963a5fb20ac29f60a3e39ecb2f2660732708182ea0fff1ea`
+with kernel `9ac6c330019fb77d853be835f82f7b9fe8e2e0187ce5610a7b4bae82cf2df91f`;
+the normal bootstrap CLI also passes independent two-pass construction.
+[Release manifest](managed-release-e212.json),
+[release provenance](managed-release-evidence-e212.json) and
+[bootstrap selection](managed-bootstrap-e212.json) describe uninstalled regular
+files. Native boot of this new image remains open.
+
+Source `603e1ac17f8d849b17ca608a4fe08e9b5c140ba9` fixes media assembly's
+rejection of the existing launcher's dedicated port 18789. Actual pairing-tool
+output round-trips through media provisioning at the default, dedicated and
+boundary ports; malformed endpoints still fail before publication. The source
+also records the static next-launch scope in the normal-kit design guide.
+The normal bootstrap, provisioned card build and independent card verification
+pass in a [143.785-second job](provisioned-card-603-job.json). The
+[card receipt](provisioned-card-603.json) binds two matching constructions of
+`4d30060bc2218f66a2aaef2f4d8566d2fe07c5db838667874ca487382520c077`
+and preserves the existing agent/launcher pairing. Credentials stay in the
+private card; this record contains only their digests. Assembly keeps the
+authenticated `e212` image producer and actual `9ac` kernel, and rebuilds the
+bootstrap against the new assembly source. No block device, kit, boot flash or
+current selection changed. The native image trial remains pending.
+
+The exact committed-source [affected plan](launcher-port-603-affected-result.json)
+passes in [363.179 seconds](launcher-port-603-affected-job.json): 1,635 parent
+cases with 45 reported skips, planner/whitespace checks and generated-consumer
+consistency. The earlier uncommitted working-copy run correctly refused the
+bootstrap fixture's committed-source identity; its failure is retained in the
+private job evidence. Committing the recipe resolves that mismatch without
+changing the source-authentication check.
+
+The [canonical native ZX81 regression tail](canonical-zx81-tail-8aa-terminal.json)
+terminates at its 3600-second bound. The 1 KiB PAL OpenROM case completes, but
+the whole matrix does not. Earlier completed checks remain bound to their
+original inputs; this incomplete tail supplies no full regression pass. Its
+source matches the original `aaf` FPGA bytes. The retained failure requires a
+simulation-cost investigation before another run, rather than an unchanged
+replay or a longer deadline.
 
 The [six fitted clock observations](PR-fitted-clock-observations.json) retain
 four corners and 32 paths for each fitted revision, with conditional setup/hold
