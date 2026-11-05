@@ -1,14 +1,44 @@
 {
   "ROM_persona_composition": false,
+  "aarch64_static_bus_model": {
+    "BASIC": false,
+    "binary_sha256": "1c49ed44aa031f9c9c30a50ac183b12740d6e5f259553614a7269e3d22071d14",
+    "execution": "QEMU Cortex-A76 with actual AArch64 clients and compiled RTL model",
+    "hardware_acceptance": false,
+    "native_kit_cpu_execution": false,
+    "passed": true,
+    "physical_PR": false,
+    "seconds": 23.175,
+    "seeds": [
+      17,
+      53
+    ],
+    "source_proof_sha256": "ce4879dc9957e8e8deeb866da820d45597d96d7f8f3744c548776492d67b9477",
+    "source_revision": "1812fcbd652b05d7e00e60731c070117bc9cf978",
+    "verified_receipt_sha256": "2a9d0e87ade1944380314a22762668559ec64941d2cded202703c154f0d7c9ef"
+  },
+  "audio_reference_pin_review": "Explicit review of opt-in builder change: default internal16K audio HDL, SDC, pins, PLL, receiver and compiled wiring unchanged. Only builder fingerprint repinned; expansion mode remains ineligible. All five negative policy tests pass.",
   "base_build_followup": {
-    "fit_and_numerical_timing": "running, not passed at this record",
+    "fit_and_numerical_timing": "Failed after synthesis: default internal16K guard correctly rejected the newly live PCM crossing; retained unchanged failed candidate.",
     "remote_job": "/tmp/fes-de25-standard-pr-d2327361d-20261105/base-fit-2",
+    "seconds": 340.636,
     "source_revision": "bcc21b08e49578e35bb7886260c495d8f2ce5ee8",
     "synthesis_boundary_inversions": 0,
     "synthesis_protected_persona_response_FFs": 20,
     "synthesis_protected_static_request_FFs": 46
   },
   "board": "No board access. Bottom released at named baseline.",
+  "canonical_affected": {
+    "commands": 7,
+    "later_registered_mute_change": "separate canonical delta in flight, not covered by the7e4 result",
+    "output_sha256": "b96a9f0e66fb0058d0188e3366672a423a9a3af82eae628727449e7c99970bbe",
+    "passed": true,
+    "plan_sha256": "edb4fe2be1c3fe26ee11ce190ff90df3fe2a6256d5680582af27993a46480a33",
+    "scope": "Complete unmodified906..7e4 plan, all commands passed. All audio source-pin negatives now pass; no native hardware claim.",
+    "seconds": 938.877,
+    "source": "7e4c9b8c16886bfcb1535185b7be82ba5a191d33",
+    "source_frozen_throughout": true
+  },
   "canonical_control": {
     "control": "/tmp/fes-de25-standard-pr-d2327361d-20261105/attempt-2/canonical-control",
     "control_seconds": 111.727,
@@ -53,6 +83,48 @@
     "producer_revision": "1812fcbd652b05d7e00e60731c070117bc9cf978"
   },
   "compatibility_seconds": 570.582,
+  "completed_routed_base": {
+    "all_corner_boundary_and_PCM_preflight": "passed",
+    "boundary_paths_sha256": "1e8909b91caf966c1ba30b23571da124315327df86bf4079d7b6ec025e48e47a",
+    "checks": [
+      "hold",
+      "setup"
+    ],
+    "compile": "successful 0errors359warnings",
+    "constrained_internal_summary_rows": 49,
+    "constrained_internal_summary_status": "passed-constrained-internal-only",
+    "corners": [
+      "Fast fix4 0C Model",
+      "Slow fix4 0C Model",
+      "Slow fix4 100C Model",
+      "Slow fix4a 0C Model"
+    ],
+    "failure": "CDC-50011: system-domain exec_reset OR video fault combinationally feeds audio hold_meta",
+    "groups": [
+      "address_ingress",
+      "bus_egress",
+      "bus_ingress",
+      "data_egress",
+      "pcm_acknowledge",
+      "pcm_hold",
+      "pcm_payload",
+      "pcm_request",
+      "request_ingress",
+      "reset_ingress",
+      "reset_release",
+      "valid_egress"
+    ],
+    "hardware_acceptance": false,
+    "job_result": "failed",
+    "minimum_slack_ns": 0.015,
+    "numerical_receipt_sha256": "adc19b530634921e6f3b551fbfe3be5ee4ef40b3044fedc84047fe478fe1c99c",
+    "observed_receipt_sha256": "7d66a1fa846d1aa43fd8272df99479ca76ffad6ae0b3b6c2229d742beac1dda8",
+    "overall_design_closure_status": "failed",
+    "package_admission": false,
+    "path_rows": 968,
+    "seconds": 624.968,
+    "source_revision": "3503229c7e99f52e7297e51a44480229d363f6a5"
+  },
   "failed_controls": [
     {
       "attempt": "remote root d232",
@@ -68,6 +140,11 @@
       "attempt": "remote base-fit1812",
       "reason": "root persona HDL macros lacked a local bus header; failed beforefit; bcc21 stages exact original header",
       "seconds": 111.814
+    },
+    {
+      "attempt": "remote base-fit-2 bcc21",
+      "reason": "Default internal16K timing guard rejected the new live PR PCM crossing. New PR profile derives separate constraints; default assertion unchanged.",
+      "seconds": 340.636
     }
   ],
   "generation": {
@@ -110,6 +187,33 @@
   },
   "physical_PR": false,
   "profile": "fes.de25-standard-zx81-empty-ram16k.v1",
+  "registered_mute_followup": {
+    "changed_verifier_diagnostic": {
+      "CDC_50011_unwaived_violations": 0,
+      "audit_source_sha256": "44dccf27e210da492ad486ae6b0fc74868f0662dbe5df06afc91bb34d7fa25c6",
+      "changed_verifier_diagnostic": "passed12.285s; original failed build unchanged; fresh ordinary build still required",
+      "corners_checks_with_both_actual_mute_causes": 8,
+      "fitted_source": "fb82b41556a8aa116c7bba0d79d99989fdc522b6",
+      "hardware_acceptance": false,
+      "minimum_slack_ns": 0.051,
+      "mute_source_paths": 16,
+      "mute_sources": [
+        "fes_video_inst|fault~DUPLICATE",
+        "soc_inst|subsys_periph|fes_scanout|fes_scanout|core|gp_mailbox|exec_reset"
+      ],
+      "original_build": "failed632.528s: exact mute-cause count rejected retained physical fault replica",
+      "package_admission": false,
+      "path_rows": 984,
+      "protected_reports_and_root_QDB_unchanged": true
+    },
+    "fit": "original fb82 build failed632.528s on audit physical-replica inventory, despite successful compile and zero CDC-50011 violations. Failed build remains unchanged.",
+    "next_build": "fresh ordinary source-bound build required; no package or hardware admission",
+    "observed_receipt_sha256": "0a75124ecc433479b02c4017a6fa17760b1b617fe55f0fdf540572a494922d06",
+    "original_CDC_gate": "unchanged; no exception or waived finding added",
+    "remote_job": "/tmp/fes-de25-standard-pr-d2327361d-20261105/base-fit-4",
+    "repair": "Register the combined execution-reset/video-fault flag in its existing system domain, before the first audio synchronizer. Profile-specific; standard internal16K wrapper unchanged. Both incoming register paths are included in the paired all-corner audit.",
+    "source_revision": "fb82b41556a8aa116c7bba0d79d99989fdc522b6"
+  },
   "source_revision": "1812fcbd652b05d7e00e60731c070117bc9cf978",
   "timing_exceptions": "No internal16K exception inherited. Raw whole-board timing, independent fits and native acceptance still required."
 }

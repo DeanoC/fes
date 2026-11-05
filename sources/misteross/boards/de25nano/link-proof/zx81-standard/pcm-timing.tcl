@@ -14,10 +14,16 @@ if {[get_collection_size $held] < 8 || [get_collection_size $pcm] < 8} {
     error "standard PR PCM lost physical payload registers"
 }
 set groups [list pcm_payload $held $pcm]
-set hold_causes [get_registers {soc_inst|subsys_periph|fes_scanout|fes_scanout|core|gp_mailbox|exec_reset fes_video_inst|fault}]
+set hold_canonical {soc_inst|subsys_periph|fes_scanout|fes_scanout|core|gp_mailbox|exec_reset fes_video_inst|fault}
+set hold_causes [get_registers $hold_canonical]
 set hold_source [get_registers {standard_pr_audio_hold}]
-if {[get_collection_size $hold_causes] != 2 || [get_collection_size $hold_source] != 1} {
+if {[get_collection_size $hold_causes] < 2 || [get_collection_size $hold_source] != 1} {
     error "standard PR PCM lost its registered system-domain mute source"
+}
+foreach_in_collection cause $hold_causes {
+    set physical [get_node_info -name $cause]
+    regsub {~DUPLICATE[0-9]*$} $physical {} logical
+    if {$logical ni $hold_canonical} {error "unexpected PCM mute source $physical"}
 }
 lappend groups pcm_hold_source $hold_causes $hold_source
 foreach {label head second} {
@@ -72,13 +78,24 @@ foreach_in_collection corner $corners {
             set expected {}
             foreach_in_collection capture $captures {dict set expected [get_node_info -name $capture] 1}
             set covered {}
+            set causes_covered {}
             # Query every physical source, covering all source/sink pairs and
             # replicas rather than only a group's single worst launch.
             foreach_in_collection source $sources {
                 set paths [get_timing_paths -$check -from $source -to $captures -npaths 4096 -nworst 1]
                 set count [get_collection_size $paths]
+                # Physical replicas of either cause can drive other fanouts.
+                # Audit every replica that reaches this register, and require
+                # both logical causes to reach it in every corner/check.
+                if {$name eq "pcm_hold_source" && $count == 0} {continue}
                 if {$count == 0 || $count >= 4096} {error "$name lost or truncated $check source coverage"}
                 foreach_in_collection path $paths {
+                    if {$name eq "pcm_hold_source"} {
+                        set physical [get_node_info -name [get_path_info -from $path]]
+                        regsub {~DUPLICATE[0-9]*$} $physical {} logical
+                        if {$logical ni $hold_canonical} {error "unexpected timed PCM mute source $physical"}
+                        dict set causes_covered $logical 1
+                    }
                     set sink [get_node_info -name [get_path_info -to $path]]
                     if {![dict exists $expected $sink]} {error "$name timed an unexpected sink"}
                     dict set covered $sink 1
@@ -87,6 +104,9 @@ foreach_in_collection corner $corners {
             }
             if {[lsort [dict keys $covered]] ne [lsort [dict keys $expected]]} {
                 error "$name missing a physical $check capture endpoint"
+            }
+            if {$name eq "pcm_hold_source" && [lsort [dict keys $causes_covered]] ne [lsort $hold_canonical]} {
+                error "$name missing a logical $check mute cause"
             }
         }
     }

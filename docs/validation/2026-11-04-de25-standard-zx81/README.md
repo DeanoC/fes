@@ -724,7 +724,18 @@ does not prove standard-core BASIC with PR personas.
 source review and preserved failures. The first base synthesis stopped on a
 missing root bus-definition header. `bcc21b08e` stages the original header
 explicitly; fresh synthesis retains all20 persona-response and46 static-request
-FFs with zero boundary inversions. The base fit and numerical timing are still
-running at this record. No package, physical PR, Linux opener, standard-persona
+FFs with zero boundary inversions. The first routed base (`3503229c7`) passes
+49 constrained internal summary rows and 968 paired boundary/PCM path checks
+across four corners, but the unchanged qualification gate rejects the
+combinational execution/fault mute before its audio synchronizer (CDC-50011).
+`fb82b4155` registers that mute in its existing system domain, removing the
+CDC-50011 finding. Its original audit rejects Quartus's retained physical fault
+replica. The corrected audit checks every connected replica and requires both
+logical causes in every corner and check; a read-only test against the completed
+database passes, preserving all26 reports/root-QDB files. A fresh ordinary build
+is still required; neither failed build is reclassified. The default internal16K
+wrapper and clock exceptions are unchanged. The production bus model also
+passes both diagnostic-ROM seeds under AArch64 QEMU in 23.175 seconds.
+No package, physical PR, Linux opener, standard-persona
 BASIC, native composition, or new hardware acceptance is claimed. The internal16K
 clock exception does not apply to this profile.
