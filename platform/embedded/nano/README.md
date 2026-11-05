@@ -1295,3 +1295,16 @@ Counts establish delivered reports, including idle reports. They do not establis
 physical button changes, controller mapping or playable-core qualification.
 The observer still validates the actual C configuration, firewall and independent
 master-stop records. No physical combined result is supplied by its model tests.
+
+The retained-USB boot provider can bind a coherent bridge observer through its
+trusted, boot-local master policy. This samples the independent producer bitmap
+between paired live bridge/peripheral reset reads, with the complete retained
+USB DMA/idle, owner, generation, clock, pin and PHY checks and final live scope.
+It avoids re-entering those same full observations through nested bridge wrappers;
+there is no cache of hardware state across calls. Only a provider supplying the
+explicit combined callback selects it. Unbound providers retain their existing
+observation contract, and mutation/stop paths keep independent qualification.
+Changed callback identity, late hardware drift or a failed read retires the
+boot without publishing a snapshot. The configuration deadline remains 20 seconds.
+The register-fixture work bound is a software check; physical load timing still
+requires the matched rebuilt chain on the board.

@@ -108,6 +108,32 @@ static int master_quiet(void *context,uint32_t *producers)
     *producers=bits;
     return 0;
 }
+/* Read-only counterpart of master_quiet, with one complete PIO observation
+ * after the independent producer sample instead of nested full observations
+ * in every boot wrapper. The first live owner check and reservation snapshot
+ * precede that sample; the final observation validates DMA/idle, owner and the
+ * unchanged private device generation. This never stops or resets a device. */
+static int master_snapshot(void *context,uint64_t owner,uint64_t epoch,
+                             uint32_t *keep,uint32_t *producers)
+{
+    struct fes_nano_usb_master *m=context;
+    if (!m || !keep || !producers || !m->initialized || m->failed ||
+        owner!=m->owner || epoch!=m->epoch) return -1;
+    struct fes_nano_usb_composition *s=m->composition;
+    if (!s || !s->usb) return master_fail(m,-1);
+    uint64_t generation=s->usb->generation;
+    uint32_t before,after,bits;
+    if (snapshot(s,&before)!=1 || (before & FES_NANO_COLD_SD_RESET) ||
+        m->producers.owns(m->producers.context,owner,epoch)!=1)
+        return master_fail(m,-1);
+    int error=m->producers.quiescent(m->producers.context,&bits);
+    if (error) return master_fail(m,error);
+    if ((bits & ~FES_NANO_PRODUCERS_ALL) ||
+        master_observe(m,owner,epoch,&after) || before!=after ||
+        s->usb->generation!=generation) return master_fail(m,-1);
+    *keep=after;*producers=bits;
+    return 0;
+}
 int fes_nano_usb_master_init(struct fes_nano_usb_master *m,struct fes_nano_usb_composition *s,
     struct fes_nano_master_ops producers)
 {
@@ -125,7 +151,7 @@ int fes_nano_usb_master_init(struct fes_nano_usb_master *m,struct fes_nano_usb_c
 }
 struct fes_nano_retained_master_ops fes_nano_usb_master_ops(struct fes_nano_usb_master *m)
 {
-    return (struct fes_nano_retained_master_ops){m,master_observe,master_stop,master_quiet};
+    return (struct fes_nano_retained_master_ops){m,master_observe,master_stop,master_quiet,master_snapshot};
 }
 static int shared_valid(void *context,const struct fes_nano_bridges *b,const struct fes_nano_usb_platform *p)
 {

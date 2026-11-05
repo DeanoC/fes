@@ -63,6 +63,51 @@ static int contained(void *p)
            (bits & FES_NANO_PRODUCERS_HPS) == FES_NANO_PRODUCERS_HPS &&
            (data_held || bits == FES_NANO_PRODUCERS_ALL);
 }
+/* A shared controller makes each live ownership check substantial: it observes
+ * clock/pin/PHY and PIO state. Assemble the same bridge facts directly instead
+ * of nesting reset/contained/quiet wrappers, each with its own full ownership
+ * observations. Nothing is cached across this read-only secure operation.
+ *
+ * The independent producer bitmap is sampled between paired reset reads. The
+ * retained policy then checks its exact live device reservation, generation,
+ * DMA-disabled PIO state and idle interconnect master before publishing keep.
+ * A final live scope brackets both observations; drift retires this boot.
+ * Mutation/stop callbacks keep their existing independent checks. */
+static int retained_policy(const struct fes_nano_boot *s)
+{
+    return s->retained_bound && s->retained.snapshot &&
+        s->retained.context==s->snapshot_policy.context &&
+        s->retained.observe==s->snapshot_policy.observe &&
+        s->retained.quiesce==s->snapshot_policy.quiesce &&
+        s->retained.quiescent==s->snapshot_policy.quiescent &&
+        s->retained.snapshot==s->snapshot_policy.snapshot;
+}
+static int retained_state(void *p,uint64_t owner,uint64_t epoch,
+                           uint32_t *reset_value,unsigned *masters)
+{
+    struct fes_nano_boot *s=p;
+    uint32_t first,last,per0,after,bits=0,keep=0;
+    if (owner!=s->owner || epoch!=s->epoch || !retained_policy(s) || scope(s) ||
+        s->raw.read_reset(s->raw.context,&first) ||
+        s->masters.read_per0(s->masters.context,&per0)) return failed(s,-1);
+    unsigned data_held=(first & FES_NANO_BRIDGES_DATA)==FES_NANO_BRIDGES_DATA;
+    if (data_held || s->producers_stopped) {
+        if (s->retained.snapshot(s->retained.context,owner,epoch,&keep,&bits) ||
+            (bits & ~FES_NANO_PRODUCERS_ALL) ||
+            (keep && keep!=FES_NANO_MASTER_USB0_PIO_RESET)) return failed(s,-1);
+    }
+    s->masters.barrier(s->masters.context);
+    if (s->raw.read_reset(s->raw.context,&last) || first!=last ||
+        s->masters.read_per0(s->masters.context,&after) || per0!=after ||
+        scope(s) || !retained_policy(s))
+        return failed(s,-1);
+    *reset_value=first;
+    *masters=(data_held || s->producers_stopped) &&
+        (per0 & FES_NANO_MASTER_RESET)==(FES_NANO_MASTER_RESET & ~keep) &&
+        (bits & FES_NANO_PRODUCERS_HPS)==FES_NANO_PRODUCERS_HPS &&
+        (data_held || bits==FES_NANO_PRODUCERS_ALL);
+    return 0;
+}
 static int hold_reset(struct fes_nano_boot *s, uint32_t mask,uint32_t keep)
 {
     uint32_t value,now;
@@ -164,6 +209,11 @@ int fes_nano_boot_bind_usb_pio(struct fes_nano_boot *s,struct fes_nano_bridges *
         state.reset!=FES_NANO_BRIDGES_ALL || state.fabric!=FES_NANO_FABRIC_ABSENT ||
         !state.masters_contained || ops.observe(ops.context,owner,epoch,&keep) || keep) return failed(s,-1);
     s->retained=ops;s->retained_bound=1;
+    /* First qualify the binding through the ordinary independent callbacks.
+     * Only this accepted, pre-device trusted binding selects the combined
+     * observer. Ordinary and unbound boot providers never select it. */
+    if (fes_nano_bridges_observe(b,&state)) return failed(s,-1);
+    if (ops.snapshot) {s->snapshot_policy=ops;b->observe_state=retained_state;}
     return fes_nano_bridges_observe(b,&state) ? failed(s,-1) : 0;
 }
 int fes_nano_boot_usb_pio_matches(const struct fes_nano_bridges *b,struct fes_nano_retained_master_ops ops)
@@ -171,7 +221,9 @@ int fes_nano_boot_usb_pio_matches(const struct fes_nano_bridges *b,struct fes_na
     if (!b || !b->initialized || b->failed || b->ops.owns!=owns || !b->ops.context) return 0;
     const struct fes_nano_boot *s=b->ops.context;
     return s->attempted && !s->failed && s->retained_bound &&
+        b->observe_state==(s->retained.snapshot ? retained_state : 0) &&
         s->owner==b->state.owner && s->epoch==b->epoch &&
         s->retained.context==ops.context && s->retained.observe==ops.observe &&
-        s->retained.quiesce==ops.quiesce && s->retained.quiescent==ops.quiescent;
+        s->retained.quiesce==ops.quiesce && s->retained.quiescent==ops.quiescent &&
+        s->retained.snapshot==ops.snapshot;
 }

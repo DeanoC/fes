@@ -56,6 +56,12 @@ struct fes_nano_retained_master_ops {
     int (*observe)(void *,uint64_t owner,uint64_t epoch,uint32_t *retained_reset);
     int (*quiesce)(void *,uint32_t producers);
     int (*quiescent)(void *,uint32_t *producers);
+    /* Optional coherent, read-only form of observe + quiescent. It must
+     * validate the same owner/epoch, unchanged private device generation,
+     * retained reset mask and live DMA/idle proof around the independent
+     * producer bitmap. Only its trusted supplier may select this path. */
+    int (*snapshot)(void *,uint64_t owner,uint64_t epoch,
+                    uint32_t *retained_reset,uint32_t *producers);
 };
 struct fes_nano_boot {
     struct fes_nano_master_ops masters;
@@ -64,6 +70,10 @@ struct fes_nano_boot {
     unsigned attempted, failed, producers_stopped;
     int first_error;
     struct fes_nano_retained_master_ops retained;
+    /* Immutable callback identity for the optional combined observer, not a
+     * cache of hardware observations. Replacing one legacy callback must not
+     * silently leave the combined callback authoritative. */
+    struct fes_nano_retained_master_ops snapshot_policy;
     unsigned retained_attempted,retained_bound;
 };
 

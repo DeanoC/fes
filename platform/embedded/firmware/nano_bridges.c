@@ -15,6 +15,12 @@ static int read_state(struct fes_nano_bridges *b, uint32_t *reset, unsigned *mas
     uint32_t first, second;
     int contained;
     if (!b || !b->initialized || b->failed || b->device_lease) return UNPROVEN;
+    if (b->observe_state) {
+        int error=b->observe_state(b->ops.context,b->state.owner,b->epoch,reset,masters);
+        if (error || *masters>1U) return fail(b,error ? error : UNPROVEN);
+        *reset &= FES_NANO_BRIDGES_ALL;
+        return 0;
+    }
     if (b->ops.owns(b->ops.context, b->state.owner, b->epoch) != 1)
         return fail(b, UNPROVEN);
     if (b->ops.read_reset(b->ops.context, &first) != 0)
@@ -37,6 +43,7 @@ int fes_nano_bridges_init(struct fes_nano_bridges *b, struct fes_nano_bridge_ops
     unsigned masters;
     if (!b || b->initialized) return UNPROVEN;
     b->initialized = 1;
+    b->observe_state = 0; /* Only the accepted trusted constructor may bind it. */
     if (!ops.owns || !ops.read_reset || !ops.masters_contained || !ops.stop_producers ||
         !ops.disable || !ops.enable || !owner || !epoch || never_enabled > 1U ||
         (fabric != FES_NANO_FABRIC_ABSENT && fabric != FES_NANO_FABRIC_PRESENT))

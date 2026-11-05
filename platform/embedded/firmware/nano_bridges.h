@@ -46,6 +46,12 @@ struct fes_nano_bridges {
     /* A trusted device lease blocks observations/mutations until independent
      * containment restores the cached all-master state. */
     unsigned initialized, failed, access, device_lease;
+    /* Optional trusted constructor binding, never an NS argument. It supplies
+     * one coherent live owner/reset/producer observation, including paired
+     * reset reads and the platform's retained-master proof. No cross-call
+     * cache. The ordinary callback path remains the default. */
+    int (*observe_state)(void *, uint64_t owner, uint64_t epoch,
+                         uint32_t *reset, unsigned *masters_contained);
 };
 
 /* Zero-initialize once per boot. Only trusted boot/platform code may initialize

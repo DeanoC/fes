@@ -59,7 +59,11 @@ static void master_prepare(struct test *t,unsigned bind)
     assert(!fes_nano_usb_platform_init(&t->usb,&t->cold,usb,FES_NANO_USB_QUALIFIED));
     assert(!fes_nano_usb_composition_init(&t->composition,&t->cold,&t->usb,&t->platform));
     assert(!fes_nano_usb_master_init(&t->master,&t->composition,ops));
-    if (bind) assert(!fes_nano_boot_bind_usb_pio(&t->master_boot,&t->bridges,17,7,fes_nano_usb_master_ops(&t->master)));
+    if (bind) {
+        struct fes_nano_retained_master_ops retained=fes_nano_usb_master_ops(&t->master);
+        if (bind==2) retained.snapshot=0; /* trusted provider declines the combined path */
+        assert(!fes_nano_boot_bind_usb_pio(&t->master_boot,&t->bridges,17,7,retained));
+    }
 }
 static void master_setup(struct test *t,unsigned bind)
 {
@@ -129,8 +133,11 @@ static void master_ownership(void)
     struct fes_nano_retained_master_ops ops=fes_nano_usb_master_ops(&t.master);
     unsigned reads=t.h.reads,writes=t.h.writes;
     uint32_t keep=0x1234;
+    uint32_t producers=0x5678;
     assert(ops.observe(ops.context,18,7,&keep)<0 && keep==0x1234);
     assert(ops.observe(ops.context,17,8,&keep)<0 && keep==0x1234);
+    assert(ops.snapshot(ops.context,18,7,&keep,&producers)<0 && keep==0x1234 && producers==0x5678);
+    assert(ops.snapshot(ops.context,17,8,&keep,&producers)<0 && keep==0x1234 && producers==0x5678);
     assert(fes_nano_usb_platform_idle(&t.usb,17,1)<0);
     assert(fes_nano_boot_bind_usb_pio(&t.master_boot,&t.bridges,17,7,ops)<0);
     assert(t.h.reads==reads && t.h.writes==writes && !t.master_boot.failed);
@@ -144,5 +151,11 @@ static void master_ownership(void)
 int main(void)
 {
     master_cycles();master_faults();master_ownership();
+    struct test legacy;master_setup(&legacy,2);
+    struct fes_nano_bridge_snapshot state;
+    assert(!legacy.bridges.observe_state && !fes_nano_bridges_observe(&legacy.bridges,&state));
+    struct fes_nano_retained_master_ops retained=fes_nano_usb_master_ops(&legacy.master);
+    assert(!fes_nano_boot_usb_pio_matches(&legacy.bridges,retained));
+    retained.snapshot=0;assert(fes_nano_boot_usb_pio_matches(&legacy.bridges,retained));
     puts("PASS retained USB PIO master/owned SD/control/DDR close cycles and failures; injected hardware only");return 0;
 }

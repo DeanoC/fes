@@ -16,7 +16,7 @@ struct fes_nano_usb_service fes_nano_owned_usb;
 #define FES_NANO_CONTROLLED_SD 1
 #define FES_NANO_READER_CPU_BASE 0x95000000ULL
 static int cold_master_owns(void *p,uint64_t owner,uint64_t epoch)
-{return p==&provider && fes_nano_cold_owns(p,owner,epoch);}
+{return p==&provider && fes_nano_cold_owns(p,owner,epoch)==1;}
 static int cold_master_quiesce(void *p,uint32_t bits)
 {assert(p==&provider && bits==FES_NANO_PRODUCERS_ALL);model.base.h.producer_bits=bits;return 0;}
 static int cold_master_quiescent(void *p,uint32_t *bits)
