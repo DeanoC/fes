@@ -716,7 +716,7 @@ control ports, wires, the PR-control instance and its interconnect route; all
 ten bridge/FIFO sources retain their exact original pins. The production static
 bus module also runs in the standard real-client simulation, which passes both
 seeds. The existing bring-up combined proof was rerun after the Linux split conversion
-change at `34e8bb3b7`: all14 native and emulated AArch64 cases pass in 572.568
+and selected-log fixes at `2d94bbfb2`: all14 native and emulated AArch64 cases pass in 654.339
 seconds, including both real-ROM BASIC round trips. Its exact report refreshes
 the source-bound branch fixture after checking all65 compiler and59 runtime/test
 inputs; it
@@ -745,8 +745,9 @@ internal summary rows, memory inventory and fitted-region checks. Packaging
 then rejects the HPS-only output of a direct SOF-to-RBF conversion. A separate
 probe through the shared canonical Linux split converter produces a fabric RBF
 with matching POF0 identity and passing integrity, leaving the failed project
-unchanged. The profile now selects that shared converter. A fresh full build,
-independent rebuild and hardware acceptance remain required. The default internal16K
+unchanged. The profile now selects that shared converter. The fresh full build
+below closes packaging; independent rebuild, whole-board timing and hardware
+acceptance remain required. The default internal16K
 wrapper and clock exceptions are unchanged. The production bus model also
 passes both diagnostic-ROM seeds under AArch64 QEMU in 23.175 seconds.
 A private copy of the completed `c4cc43fd7` build passes the full strict
@@ -784,11 +785,18 @@ shared-converter log hashes recorded. All141 original protected files remain
 unchanged. An initial wrapper supplied the work root instead of the generated
 project; it exits before collector writes, and its failure remains retained.
 The corrected run uses the explicit project path. Compiler34 and verifier2d
-remain separate evidence. A fresh ordinary2d full build and its actual
-source-bound14-case compatibility proof are running; no ordinary-build or new
-hardware pass is claimed.
+remain separate evidence. The subsequent ordinary `2d94bbfb2` full build passes
+in 1358.299 seconds with compiler and verifier at the same source. All three
+revisions pass their49 constrained internal rows, memory/region checks, vendor
+metadata/integrity and the paired boundary/PCM audits. Both personas preserve
+100% of the static root. The receipt binds the actual shared conversion logs.
+Overall Design Closure remains failed with all six raw finding groups retained;
+this does not admit a package, establish whole-board timing, replace an
+independent rebuild or prove hardware acceptance.
 
 The complete unmodified seven-command affected plan passes at `d88ac9af4` in
 941.180 seconds, including1,171 parent and1,821 FPGA software tests. That source
-remains distinct from the later2d log-selection fix, which still requires its
-own affected checks after the actual compatibility fixture refresh.
+remains distinct from the later2d log-selection fix. Its actual14-case
+compatibility proof passes in654.339 seconds; after the exact report refresh,
+the complete unmodified d88..94 affected plan passes in954.643 seconds with
+1,171 parent and1,821 FPGA software tests. No hardware is loaded by these checks.

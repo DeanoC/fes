@@ -139,6 +139,25 @@
       "seconds": 941.18,
       "source_frozen_throughout": true,
       "source_revision": "d88ac9af4e5d67b4aef6b8aa213e0344670724f4"
+    },
+    {
+      "base": "d88ac9af4e5d67b4aef6b8aa213e0344670724f4",
+      "commands": 7,
+      "labels": [
+        "test_affected.py",
+        "test_test_changed.py",
+        "committed whitespace",
+        "working whitespace",
+        "parent Python regressions",
+        "working-tree generated consumer consistency",
+        "test_*.py"
+      ],
+      "output_sha256": "4b98fd3ccbe3693eb5cb90468749819d1e07aeccadd10aecda834e12b9e7e868",
+      "passed": true,
+      "scope": "Complete unmodified affected plan for real converter-log selection fix, actual14 fixture refresh and source-bound native composition/clean-collector records. Frozen committed source; no hardware acceptance claim.",
+      "seconds": 954.643,
+      "source_frozen_throughout": true,
+      "source_revision": "94f54df2bcba6ad0d39e27adedb86506dac93b3d"
     }
   ],
   "classification": "Experimental standard PR IP generation and compatibility regression; no package or hardware admission",
@@ -452,7 +471,7 @@
     },
     "actual_receipt_sha256": "5027d46b25788c1eac4cff81424fd32dbb586b11eeb237bf6f58746d5805ef4b",
     "compiled_source": "34e8bb3b74784ca4143cb2405bc3f2c1d1ea4d30",
-    "fresh_ordinary_build": "2d94bbfb2b3466d668b0dc77e03debc2968a4691 running; not yet passed",
+    "fresh_ordinary_build": "passed1358.299s at2d94bbfb2; compiler and verifier same captured source, original strict collector and actual conversion logs",
     "initial_wrapper_failure": "Wrong root output supplied instead of generated project: verify exits before writing outputs. That1.566s failure remains retained; corrected explicit project uses the untouched prepared copy.",
     "legacy_conversion_log_absent": true,
     "original_files_unchanged": true,
@@ -604,6 +623,152 @@
     ],
     "seconds": 632.928,
     "source_revision": "c4cc43fd72c0d2f76af01114ef50911ae8205a4a"
+  },
+  "ordinary_selected_log_full_build": {
+    "actual_conversion_log_names": [
+      "../linux-enrich.log",
+      "../linux-split.log",
+      "base-compiled-info.log",
+      "base-enrich.log",
+      "base-enriched-info.log",
+      "base-info.log",
+      "base-integrity.log"
+    ],
+    "build_receipt_sha256": "2b0b3328c663abeaf80bb05ac292432715669ec86694859f3352a324e717835a",
+    "compiler_verifier_same_source": true,
+    "descriptor_sha256": "5aef96a78f4de1881fdf316480aa83e59adf0743b41db3d90eba3c9c851ad355",
+    "hardware": "not-run",
+    "overall_design_closure": "failed",
+    "packaging_strategy": "shared-hps-first-linux-core",
+    "passed": true,
+    "revisions": {
+      "base": {
+        "partition_reuse_status": {
+          "root_preserved_core_logic_excluding_pr_subblocks": "0.00%",
+          "status": "not-applicable-base"
+        },
+        "regions_keys": "table",
+        "rows": 49,
+        "static_memory_keys": "table",
+        "unwaived_findings": [
+          {
+            "rule": "TMC-20012 - Missing Output Delay Constraint",
+            "severity": "High",
+            "violations": 33
+          },
+          {
+            "rule": "TMC-20011 - Missing Input Delay Constraint",
+            "severity": "High",
+            "violations": 2
+          },
+          {
+            "rule": "CLK-30032 - Improper Clock Targets",
+            "severity": "Medium",
+            "violations": 1
+          },
+          {
+            "rule": "TMC-20025 - Ignored or Overridden Constraints",
+            "severity": "Medium",
+            "violations": 1
+          },
+          {
+            "rule": "CDC-50102 - Synchronizer after CDC Topology with Control Signal",
+            "severity": "Low",
+            "violations": 1
+          },
+          {
+            "rule": "LNT-30010 - Nets Driving both Reset and Clock Enable Signals",
+            "severity": "Low",
+            "violations": 1
+          }
+        ]
+      },
+      "persona_a": {
+        "partition_reuse_status": {
+          "root_preserved_core_logic_excluding_pr_subblocks": "100.00%",
+          "status": "passed"
+        },
+        "regions_keys": "table",
+        "rows": 49,
+        "static_memory_keys": "table",
+        "unwaived_findings": [
+          {
+            "rule": "TMC-20012 - Missing Output Delay Constraint",
+            "severity": "High",
+            "violations": 33
+          },
+          {
+            "rule": "TMC-20011 - Missing Input Delay Constraint",
+            "severity": "High",
+            "violations": 2
+          },
+          {
+            "rule": "CLK-30032 - Improper Clock Targets",
+            "severity": "Medium",
+            "violations": 1
+          },
+          {
+            "rule": "TMC-20025 - Ignored or Overridden Constraints",
+            "severity": "Medium",
+            "violations": 1
+          },
+          {
+            "rule": "CDC-50102 - Synchronizer after CDC Topology with Control Signal",
+            "severity": "Low",
+            "violations": 1
+          },
+          {
+            "rule": "LNT-30010 - Nets Driving both Reset and Clock Enable Signals",
+            "severity": "Low",
+            "violations": 1
+          }
+        ]
+      },
+      "persona_b": {
+        "partition_reuse_status": {
+          "root_preserved_core_logic_excluding_pr_subblocks": "100.00%",
+          "status": "passed"
+        },
+        "regions_keys": "table",
+        "rows": 49,
+        "static_memory_keys": "table",
+        "unwaived_findings": [
+          {
+            "rule": "TMC-20012 - Missing Output Delay Constraint",
+            "severity": "High",
+            "violations": 33
+          },
+          {
+            "rule": "TMC-20011 - Missing Input Delay Constraint",
+            "severity": "High",
+            "violations": 2
+          },
+          {
+            "rule": "CLK-30032 - Improper Clock Targets",
+            "severity": "Medium",
+            "violations": 1
+          },
+          {
+            "rule": "TMC-20025 - Ignored or Overridden Constraints",
+            "severity": "Medium",
+            "violations": 1
+          },
+          {
+            "rule": "CDC-50102 - Synchronizer after CDC Topology with Control Signal",
+            "severity": "Low",
+            "violations": 1
+          },
+          {
+            "rule": "LNT-30010 - Nets Driving both Reset and Clock Enable Signals",
+            "severity": "Low",
+            "violations": 1
+          }
+        ]
+      }
+    },
+    "scope": "Fresh ordinary fullbase+empty+16K build passed original strict collector and real shared conversion. Constrained internal timing only; not whole-board timing, independent rebuild, package or hardware acceptance.",
+    "seconds": 1358.299,
+    "source_revision": "2d94bbfb2b3466d668b0dc77e03debc2968a4691"
   },
   "parent_diff_sha256": "bda4be7caa2517cfcf57a0b7ea1cf0d4591683fb080ce1fe1e2e0a093b3594ec",
   "parent_review": {
