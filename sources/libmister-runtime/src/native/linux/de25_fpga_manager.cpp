@@ -439,7 +439,7 @@ public:
         }
         *digest = hash.Final();
         if (!expected.empty() && Sha256Hex(*digest) != expected)
-            return Failure("staged firmware differs from selected payload");
+            return Failure("firmware copy differs from selected payload");
         if (fchmod(output.n, 0444) || fsync(output.n)) return SystemError("sync firmware copy");
         const int fd = output.n; output.n = -1;
         // The kernel must never open a staged image while a writer remains.
