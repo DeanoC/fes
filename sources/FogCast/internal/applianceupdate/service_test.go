@@ -109,7 +109,7 @@ func TestConfirmClearsBootTicketTrial(t *testing.T) {
 		t.Fatalf("confirmed ticket = %+v %v", got, e)
 	}
 	status, e := svc.Status(context.Background())
-	if e != nil || status.Trial || status.Good != n.ImageSHA256 {
+	if e != nil || status.Trial || status.Good != n.ImageSHA256 || status.FallbackImageSHA256 != m.ImageSHA256 {
 		t.Fatalf("status after confirm: %+v %v", status, e)
 	}
 }

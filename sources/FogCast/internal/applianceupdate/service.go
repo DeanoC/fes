@@ -90,6 +90,18 @@ func (s *Service) Status(ctx context.Context) (Status, error) {
 	// Read durable state after the local trial snapshot so a concurrent confirm
 	// cannot return trial=false alongside a pre-confirmation known-good image.
 	st, err := s.store.StatusContext(ctx)
+	// Confirmation records the previous good image as Previous. Legacy boot
+	// tickets may omit that field, so refresh the startup identity from durable state.
+	if err == nil && boot.FallbackImageSHA256 == "" &&
+		st.ConfirmedBootID == boot.BootID && st.ConfirmedImage == boot.ImageSHA256 &&
+		st.Good == boot.ImageSHA256 && release.ValidHash(st.Previous) {
+		boot.FallbackImageSHA256 = st.Previous
+		s.mu.Lock()
+		if s.boot.FallbackImageSHA256 == "" {
+			s.boot.FallbackImageSHA256 = st.Previous
+		}
+		s.mu.Unlock()
+	}
 	status := Status{Status: st, BootIdentity: boot, RawIdleReady: rawIdle, SplashWarning: warning}
 	if s.splash != nil {
 		status.FatIdleSHA256 = s.splash.FATSHA256()
