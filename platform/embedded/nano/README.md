@@ -7,8 +7,16 @@ CPU address region, and binds the result to the same package, build, control
 and computer maps. Older producer profiles return no ROM resource. Native entry
 and cold firmware reject a ROM profile with a missing or altered resource;
 the cold header can select the secure ROM provider with the derived aperture.
-This is resource plumbing. The native selected-program publisher and retained
-ROM linkage remain to be connected before constructing a matched boot chain.
+The native selected-program builder connects the retained ROM receipt and
+compiled resource to its explicit ROM verifier. It requires a separate firmware
+image and host linker compiler. A fresh FPGA producer and matched boot-chain
+test remain necessary for physical ROM acceptance.
+
+`upload.py --purpose firmware` writes only `FES/FIRMWARE.BIN` and accepts exactly
+4 or 8 KiB. It uses the existing exclusive recovery upload, protected boot-file
+checks and fresh SD readback. Other paths and sizes reject before device I/O.
+The upload supplies bytes only; the native store and loader separately check
+their source digest, retained activation receipt and compiled ROM resources.
 
 `usb_trace.py` observes the separately selected `usbcheck` image. It requires
 the matched SPL/BL31 handoff, a successful secure USB setup, the complete HPS

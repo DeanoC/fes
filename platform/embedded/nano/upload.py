@@ -31,7 +31,7 @@ LIMIT = MAX_FIT_SIZE
 DESTINATIONS = {'boot':EXPERIMENTAL_FILE, 'package':'FES/PKGTEST.BIN',
                 'metadata':'FES/PROGRAM.JSN', 'selection':'FES/CORESEL.JSN',
                 'package-alt':'FES/PKGALT.BIN', 'metadata-alt':'FES/PROGALT.JSN',
-                'ui-catalog':'FES/UI.JSON'}
+                'ui-catalog':'FES/UI.JSON', 'firmware':'FES/FIRMWARE.BIN'}
 PREFIX_SIZE = 32768 * 512
 
 
@@ -83,7 +83,11 @@ def destination(purpose):
 def payload_limit(purpose):
     destination(purpose)
     return {'boot': LIMIT, 'package': LIMIT, 'metadata': 16<<10, 'selection': 8192,
-            'package-alt': LIMIT, 'metadata-alt': 16<<10, 'ui-catalog': 8192}[purpose]
+            'package-alt': LIMIT, 'metadata-alt': 16<<10, 'ui-catalog': 8192, 'firmware':8192}[purpose]
+
+
+def valid_payload_length(purpose, size):
+    return 0 < size <= payload_limit(purpose) and (purpose != 'firmware' or size in (4096, 8192))
 
 
 class UploadSession:
@@ -112,7 +116,7 @@ class UploadSession:
             self.guard.release()
 
     def upload(self, payload, receipt, *, purpose='boot'):
-        if not 0 < len(payload) <= payload_limit(purpose):
+        if not valid_payload_length(purpose, len(payload)):
             raise ValueError('payload exceeds the fixed purpose limit')
         payload = bytes(payload)
         with self._operation(receipt):
@@ -122,7 +126,7 @@ class UploadSession:
     def verify(self, payload, receipt, *, purpose='boot'):
         """Freshly read/hash a fixed file already verified in this live session."""
         target = destination(purpose)
-        if not 0 < len(payload) <= payload_limit(purpose):
+        if not valid_payload_length(purpose, len(payload)):
             raise ValueError('payload exceeds the fixed purpose limit')
         expected = (len(payload), sha(bytes(payload)))
         with self._operation(receipt):
@@ -363,7 +367,7 @@ def main():
         parser.error('--execute requires the authoritative de25-TRWU8CBL-STATUS.md in the operator kit-status directory')
     limit=payload_limit(args.purpose)
     with args.payload.open('rb') as src: payload=src.read(limit+1)
-    if not 0<len(payload)<=limit: parser.error('payload exceeds the fixed purpose limit')
+    if not valid_payload_length(args.purpose,len(payload)): parser.error('payload violates the fixed purpose size')
     kit=load_kit(args.recovery_kit.resolve(strict=True))
     settings(args.host_ip,args.mac.lower())
     output.mkdir(parents=True)
