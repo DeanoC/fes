@@ -98,31 +98,48 @@ bool DirectoryIsExclusive(int fd, bool* owned) {
 
 std::vector<unsigned char> De25ProgrammingOverlay(De25OverlayProfile profile) {
     if (profile != De25OverlayProfile::firmware_only &&
-        profile != De25OverlayProfile::allocated_scanout) return {};
+        profile != De25OverlayProfile::allocated_scanout &&
+        profile != De25OverlayProfile::static_expansion_base &&
+        profile != De25OverlayProfile::static_expansion_persona) return {};
     // FDT v17, one fragment targeting the vendor's existing SDM-managed region.
     const char names[] = "target-path\0firmware-name\0config-complete-timeout-us\0";
     const char compatible[] = "compatible";
+    const char partial[] = "partial-fpga-config";
     const bool scanout = profile == De25OverlayProfile::allocated_scanout;
+    const bool base = profile == De25OverlayProfile::static_expansion_base;
+    const bool persona = profile == De25OverlayProfile::static_expansion_persona;
     std::vector<unsigned char> tree;
     Node(tree, ""); Node(tree, "fragment@0");
-    Property(tree, 0, "/fpga-region"); Node(tree, "__overlay__");
-    Property(tree, 12, kFirmware);
+    Property(tree, 0, persona ? "/fpga-region/fes-expansion" : "/fpga-region");
+    Node(tree, "__overlay__");
+    Property(tree, 12, persona ? "fes-runtime-persona.rbf" : kFirmware);
     Word(tree, 3); Word(tree, 4); Word(tree, 26); Word(tree, 30000000);
-    if (scanout) {
+    if (persona) {
+        Word(tree, 3); Word(tree, 0); Word(tree, sizeof(names) - 1);
+    }
+    if (scanout || base) {
         Node(tree, "scanout");
-        Property(tree, sizeof(names) - 1, "fes,de25-linux-dma-scanout");
+        Property(tree, sizeof(names) - 1,
+                 base ? "fes,de25-linux-static-expansion" : "fes,de25-linux-dma-scanout");
+        Word(tree, 2);
+    }
+    if (base) {
+        Node(tree, "fes-expansion");
+        Property(tree, sizeof(names) - 1, "fpga-region");
         Word(tree, 2);
     }
     Word(tree, 2); Word(tree, 2); Word(tree, 2); Word(tree, 9);
     std::vector<unsigned char> blob;
-    const std::uint32_t strings = sizeof(names) - 1 + (scanout ? sizeof(compatible) : 0), start = 56;
+    const std::uint32_t strings = sizeof(names) - 1 +
+        ((scanout || base) ? sizeof(compatible) : 0) + (persona ? sizeof(partial) : 0), start = 56;
     for (auto x : {0xd00dfeedu, start + std::uint32_t(tree.size()) + strings,
                    start, start + std::uint32_t(tree.size()), 40u, 17u, 16u, 0u,
                    strings, std::uint32_t(tree.size())}) Word(blob, x);
     blob.resize(start, 0); // Empty 64-bit reservation map.
     blob.insert(blob.end(), tree.begin(), tree.end());
     blob.insert(blob.end(), names, names + sizeof(names) - 1);
-    if (scanout) blob.insert(blob.end(), compatible, compatible + sizeof(compatible));
+    if (scanout || base) blob.insert(blob.end(), compatible, compatible + sizeof(compatible));
+    if (persona) blob.insert(blob.end(), partial, partial + sizeof(partial));
     return blob;
 }
 

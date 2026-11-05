@@ -229,6 +229,17 @@ unexpected state/sequence or deadline failure prevents further commands and
 requires a fresh external recovery/identification epoch. This path is not
 constructed by the production factory or exposed by the runtime daemon.
 
+`De25ProgrammingOverlay` defines separate static-startup base and initial-persona
+formats for the default-off kernel candidate. The base targets `/fpga-region`,
+declares the deferred-owner marker and adds an empty `fes-expansion` FPGA region.
+The persona targets only that child, declares `partial-fpga-config` and names
+`fes-runtime-persona.rbf`; the base retains `fes-runtime-core.rbf`. Both keep the
+ordinary fixed completion budget. The existing firmware-only and allocated
+overlay bytes remain unchanged. These format values are internal preparation;
+the current programming-profile dispatch still selects only its existing full
+loads. Package admission, the two-load lifecycle and protected startup control
+remain required before any production selection or hardware claim.
+
 ## DE25 diagnostic register client
 
 `De25Computer` is a separately instantiated protocol consumer for the generated

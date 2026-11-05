@@ -10,7 +10,12 @@
 namespace mister { namespace native {
 // The permanent base tree owns DMA and suppliers. Only explicit scanout
 // selection adds the marker consumed by that owner's POST_APPLY notifier.
-enum class De25OverlayProfile { firmware_only, allocated_scanout };
+// Static startup formats do not select a programming profile or admit a
+// package. The base creates an empty child region; its separate initial
+// persona carries the partial image. A new choice requires a new base load.
+enum class De25OverlayProfile {
+    firmware_only, allocated_scanout, static_expansion_base, static_expansion_persona
+};
 std::vector<unsigned char> De25ProgrammingOverlay(
     De25OverlayProfile = De25OverlayProfile::firmware_only);
 using De25RecoveryGuard = std::function<Error(const CoreDescriptor&,std::uint64_t)>;

@@ -65,6 +65,12 @@ submission restore the empty override. Uncertain submission retains its lookup
 path and staged bytes for a potentially late kernel request.
 All standard firmware fallback locations must also lack the fixed RBF name;
 a stale fallback is refused before programming.
+The overlay generator also defines the two static-expansion startup formats:
+a base with the deferred-owner marker and an empty child region, followed by
+an initial partial persona targeting that child. These formats retain the fixed
+completion timeout and use distinct fixed firmware names. They do not select a
+production programming profile, admit a package, expose live expansion changes
+or open a PR-control resource. The cold-load lifecycle remains unfinished.
 Partial, failed or late programming poisons the context and retains the
 configuration. Software deadlines cannot abort an opaque configfs/SDM call.
 On DE25, TERM/INT request a normal server stop. Once socket workers have ended,

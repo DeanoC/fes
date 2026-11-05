@@ -306,6 +306,22 @@ std::map<std::string, std::string> OverlayProperties(const std::vector<unsigned 
     }
     assert(false);return {};
 }
+void StaticStartupProfiles() {
+    auto expected = OverlayProperties(De25ProgrammingOverlay());
+    const std::string root = "/fragment@0/__overlay__";
+    const auto terminated = [](const char* text) { return std::string(text) + std::string(1, '\0'); };
+    expected[root + "/scanout:compatible"] = terminated("fes,de25-linux-static-expansion");
+    expected[root + "/fes-expansion:compatible"] = terminated("fpga-region");
+    // The base introduces a region without programming it or admitting the
+    // ordinary scanout profile before its initial persona is complete.
+    assert(OverlayProperties(De25ProgrammingOverlay(De25OverlayProfile::static_expansion_base)) == expected);
+    expected = OverlayProperties(De25ProgrammingOverlay());
+    expected["/fragment@0:target-path"] = terminated("/fpga-region/fes-expansion");
+    expected[root + ":firmware-name"] = terminated("fes-runtime-persona.rbf");
+    expected[root + ":partial-fpga-config"] = "";
+    assert(OverlayProperties(De25ProgrammingOverlay(De25OverlayProfile::static_expansion_persona)) == expected);
+    std::cout << "static startup base and initial partial persona have distinct exact closed FDT shapes\n";
+}
 void AllocatedScanoutProfile() {
     const auto basic = De25ProgrammingOverlay();
     const auto scanout = De25ProgrammingOverlay(De25OverlayProfile::allocated_scanout);
@@ -449,7 +465,17 @@ void ProfilesAndLease() {
 }
 }
 int main(int argc,char** argv) {
-    if(argc==2) {const auto v=De25ProgrammingOverlay();std::ofstream f(argv[1],std::ios::binary);f.write(reinterpret_cast<const char*>(v.data()),v.size());assert(f.good());return 0;}
-    RecoverVerifiedAllocatedConfigurationOnlyAfterKernelRetirement();Positive();CleanRelease();ReleaseRefusals();AllocatedScanoutProfile();Uncertain();BeforeMutation();FirmwareSearchLifecycle();FirmwareFallbacks();ExistingFailure();ProfilesAndLease();
+    if(argc==2 || argc==3) {
+        auto profile=De25OverlayProfile::firmware_only;
+        if(argc==3) {
+            const std::string name=argv[1];
+            assert(name=="allocated" || name=="static-base" || name=="static-persona");
+            profile=name=="allocated"?De25OverlayProfile::allocated_scanout:
+                name=="static-base"?De25OverlayProfile::static_expansion_base:De25OverlayProfile::static_expansion_persona;
+        }
+        const auto v=De25ProgrammingOverlay(profile);std::ofstream f(argv[argc-1],std::ios::binary);
+        f.write(reinterpret_cast<const char*>(v.data()),v.size());assert(f.good());return 0;
+    }
+    RecoverVerifiedAllocatedConfigurationOnlyAfterKernelRetirement();Positive();CleanRelease();ReleaseRefusals();AllocatedScanoutProfile();StaticStartupProfiles();Uncertain();BeforeMutation();FirmwareSearchLifecycle();FirmwareFallbacks();ExistingFailure();ProfilesAndLease();
     std::cout<<"de25_fpga_manager_test: passed\n";
 }
