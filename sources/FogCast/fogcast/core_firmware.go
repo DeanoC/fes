@@ -65,6 +65,11 @@ func (s *Service) CoreCompositions(ctx context.Context, ids []string) (map[strin
 		}
 		comp := protocol.CoreComposition{FirmwareRequired: entry.FirmwareRequired}
 		inspection, inspectErr := s.installedCoreInspection(ctx, entry.PackageID)
+		if inspectErr == nil && inspection.Descriptor.Format == 5 && entry.FirmwareRequired {
+			// A household firmware object cannot fill a sealed static base.
+			out[id] = comp
+			continue
+		}
 		// Only expansion and slot-card checks need the archive bytes.
 		var base []byte
 		var baseErr error
@@ -126,7 +131,12 @@ func (s *Service) CoreCompositions(ctx context.Context, ids []string) (map[strin
 				comp.ExpansionReady = assetErr == nil && inspectErr == nil && asset.Manifest.ShellPackageID == entry.PackageID && asset.Manifest.ShellBuildID == inspection.Descriptor.Build.ID && asset.Manifest.ShellSHA256 == inspection.Descriptor.Payload.SHA256
 				if comp.ExpansionReady {
 					data, err := loadBase()
-					comp.ExpansionReady = err == nil && corepackage.ValidateExpansionArchive(data, asset) == nil
+					if err == nil && inspection.Descriptor.Format == 5 {
+						err = validateExpansionSelection(inspection, data, asset)
+					} else if err == nil {
+						err = corepackage.ValidateExpansionArchive(data, asset)
+					}
+					comp.ExpansionReady = err == nil
 				}
 			}
 		}

@@ -436,6 +436,9 @@ func (s *Service) launchCoreEntry(parent context.Context, gameID string, snap la
 			return coreLoadSource{}, &protocol.APIError{Code: protocol.CodeBadRequest, Phase: "admission",
 				Message: "application requires selected library media before launch"}
 		}
+		if inspection.Descriptor.Format == 5 && entry.FirmwareRequired {
+			return coreLoadSource{}, protocol.FirmwareAdmissionError("static packages contain sealed firmware; a later firmware upload is unsupported")
+		}
 		if entry.FirmwareRequired && inspection.Descriptor.Format != 4 {
 			if !protocol.DeclaresFirmwareSlot(inspection.Descriptor) {
 				return coreLoadSource{}, protocol.FirmwareAdmissionError("required firmware cannot be bound; package does not declare fes.firmware.blob 1.0")
@@ -534,6 +537,9 @@ func (s *Service) launchCoreEntry(parent context.Context, gameID string, snap la
 				return coreLoadSource{}, canonicalError(protocol.CodeInvalidArchive, nil)
 			}
 			return coreLoadSource{activationBudget: 300 * time.Second, size: int64(len(transport)), body: bytes.NewReader(transport), entry: &entry, initialMedia: initial}, nil
+		}
+		if inspection.Descriptor.Format == 5 {
+			return s.staticCoreLaunchSource(ctx, entry, inspection, data)
 		}
 		parts, err := s.composeVideoEntry(ctx, entry, inspection, data)
 		if err != nil {
@@ -753,10 +759,11 @@ type coreLoadSource struct {
 	partsComposition *expansion.PartsComposition
 	// slotComposition is the v2 tuple the host linked for a multi-socket
 	// shell; the target's independent composition must equal it.
-	slotComposition *expansion.SlotComposition
-	size            int64
-	body            io.Reader
-	entry           *catalog.CoreEntry
+	slotComposition   *expansion.SlotComposition
+	staticComposition *expansion.StaticComposition
+	size              int64
+	body              io.Reader
+	entry             *catalog.CoreEntry
 	// machine binds a pc386 library launch to its game and staged disk;
 	// hardDisk uploads that disk when the kit does not hold it yet.
 	machine  *protocol.LibraryMachineBinding

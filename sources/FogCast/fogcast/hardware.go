@@ -167,7 +167,9 @@ func (s *Service) Hardware(ctx context.Context) ([]HardwareMachine, error) {
 // target that can open the running media selector. The caller checks firmware
 // and selected media for each candidate in order, continuing after rejection.
 func zx81SessionDisplayCandidates(packages []corepackage.Inspection, selected string, current corepackage.Descriptor) []corepackage.Inspection {
-	if zx81SessionDisplayDescriptor(current, nil) {
+	// Static bases contain sealed firmware and bind their own frozen PR roots;
+	// another package is not an interchangeable machine-ROM selection.
+	if current.Format == 5 || zx81SessionDisplayDescriptor(current, nil) {
 		return nil
 	}
 	var candidates []corepackage.Inspection
@@ -219,6 +221,9 @@ func zx81SessionDisplayDescriptor(descriptor corepackage.Descriptor, activeInter
 }
 
 func (s *Service) zx81FirmwareReady(ctx context.Context, entry catalog.CoreEntry, descriptor corepackage.Descriptor) bool {
+	if descriptor.Format == 5 && entry.FirmwareRequired {
+		return false
+	}
 	if descriptor.ROM != nil {
 		_, _, err := s.readCoreEntryROM(ctx, entry, descriptor)
 		return err == nil

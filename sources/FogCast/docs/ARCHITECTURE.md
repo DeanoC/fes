@@ -8,8 +8,8 @@ controller ID and frozen root/interface/clock-reset/POF0 identities; the persona
 is opaque vendor data, never a CycloneV CRAM patch. Unknown members, mixed ROM
 tables, wrong targets, changed bytes and invalid default identities are refused.
 This is structural support. The static programming profile remains unregistered;
-normal activation still refuses it before hardware access. Normal library
-selection, the bounded physical backend and physical qualification remain required.
+normal activation still refuses it before hardware access. Package production,
+the bounded physical backend and physical qualification remain required.
 
 `ComposeStaticArchive` and `ReadStaticCompositionBundle` verify the format5
 package with an optional format2 partial expansion. The closed transport carries
@@ -19,8 +19,19 @@ route without guessing from opaque payload bytes.
 Every consumer recomputes the selection against the retained sealed package and
 asset; default selection uses the package's empty persona. Changed, missing or
 substituted inputs and changed receipts are refused. The bundle owns its input
-bytes and writes no combined RBF. The normal library producer is not connected
-yet; the static programming profile remains unavailable.
+bytes and writes no combined RBF. Normal library launches prepare this transport
+for both the default empty persona and a saved selected partial. Expansion import,
+selection and setup readiness require the declared optional ZX81 bus 2.0 and the
+exact sealed package/root identities. Selection changes affect the next launch;
+an active static core requires ordinary Stop first. The static programming
+profile remains unavailable.
+
+Format5 firmware is sealed into the base. Library launch bypasses the DE10
+machine-ROM linker, rejects a setup requiring a later household firmware upload,
+and never substitutes another static package to provide a media selector. The
+existing composed-load operation carries the two-image selection. The host
+requires the exact returned static receipt and rejects mixed ROM, parts or
+full-chip receipts; an unexpected persona uses the existing rejected-load Stop.
 
 `StageStaticComposition` verifies that transport before publishing the sealed
 base package, optional closed expansion directory and a separate canonical
@@ -36,8 +47,8 @@ requires idle/Stop before a static load. Its normal status carries that exact
 two-image receipt; lost-load reconciliation and restart adoption match every
 field before retaining the active package. The coordinator, public target
 client and copied host status preserve it as `static_composition`. Ordinary
-library launch preparation refuses an unexpected static reply until its own
-producer is connected. No hot-persona command is exposed, and the unregistered
+uncomposed launches refuse an unexpected static reply. No hot-persona command
+is exposed, and the unregistered
 profile plus the explicit unavailable-backend guard still refuse physical loads.
 
 The corepackage reader recognizes format 4's two ordered ROM requirements and

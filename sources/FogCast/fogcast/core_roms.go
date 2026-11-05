@@ -341,10 +341,13 @@ func (s *Service) readTwoROMFirmware(ctx context.Context, descriptor corepackage
 // The target computes linked and composed identities. The host binds the
 // returned receipt to its selected source identities, not a host-built image.
 func (s coreLoadSource) matchesLoadedIdentity(status *protocol.CorePackageStatus) bool {
-	// Ordinary library producers have not selected a static persona. Do not
-	// accept an unexpected two-image result as an uncomposed launch.
-	if status.StaticComposition != nil {
+	if !reflect.DeepEqual(status.StaticComposition, s.staticComposition) {
 		return false
+	}
+	if s.staticComposition != nil {
+		return status.PackageID == s.staticComposition.PackageID &&
+			status.Composition == nil && status.SlotComposition == nil && status.PartsComposition == nil &&
+			status.ROMLink == nil && status.ROMLinks == nil
 	}
 	if s.initialMedia != nil {
 		u, ok := protocol.MediaUnit(status, s.initialMedia.Unit)
