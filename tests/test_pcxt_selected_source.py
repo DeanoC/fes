@@ -77,6 +77,64 @@ exec(WORKER)
 
 
 class WrapperSelectionTests(unittest.TestCase):
+    def test_observer_uses_owner_proof_but_rechecks_bytes_and_source(self):
+        from argparse import Namespace
+        from scripts import pcxt_dos_application_acceptance as app
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            selected_checkout = root / 'selected'; selected_checkout.mkdir()
+            producer_checkout = root / 'producer'; producer_checkout.mkdir()
+            files = {'core.fcore': b'package bytes', 'select.toml': b'selection',
+                     'select.provenance.json': b'provenance'}
+            for name, data in files.items(): (root / name).write_bytes(data)
+            digest = lambda data: hashlib.sha256(data).hexdigest()
+            doc = {key: {'path': name, 'sha256': digest(files[name])} for key, name in
+                   (('archive', 'core.fcore'), ('selection', 'select.toml'),
+                    ('source_selection', 'select.provenance.json'))}
+            prepared = root / 'prepared.json'; prepared.write_text(json.dumps(doc))
+            session_archive = root / 'session.fcore'; session_archive.write_bytes(files['core.fcore'])
+            args = Namespace(selected_prepared=prepared, selected_prepared_sha256=digest(prepared.read_bytes()),
+                selected_source_checkout=selected_checkout, producer_source_checkout=producer_checkout,
+                source_repository='DeanoC/fes', source_historical_main=True, source_main=False,
+                source_pr=None, source_commit=PRODUCER, source_observed_tip=CURRENT, source_minimum_tip=CURRENT,
+                archive=session_archive, archive_sha256=digest(files['core.fcore']), package_id=PACKAGE, rbf_sha256=RBF)
+            evidence = {'producer_commit': PRODUCER, 'selected_commit': CURRENT,
+                'archive_sha256': args.archive_sha256, 'package_id': PACKAGE, 'rbf_sha256': RBF,
+                'prepared_sha256': args.selected_prepared_sha256}
+            calls = []
+            heads = {selected_checkout: CURRENT, producer_checkout: PRODUCER}
+            def command(argv, deadline, cwd=None, **kwargs):
+                if argv[:2] == ['git', 'status']: return b''
+                if argv[:3] == ['git', 'rev-parse', 'HEAD']: return (heads[cwd]+'\n').encode()
+                calls.append(argv)
+                return json.dumps(evidence).encode()
+            def child_check():
+                def observe(_deadline):
+                    provenance = {}
+                    floppy.selected_source_admission(provenance, args, root=root)
+                    return {'proof': provenance['selected_package']}
+                return app._hard_deadline_observation(observe, seconds=2)
+            with mock.patch.object(floppy, 'bounded_source_command', side_effect=command):
+                floppy.selected_source_admission({}, args, root=root)
+                self.assertEqual(len(calls), 1)
+                self.assertEqual(child_check()['proof'], evidence)
+                for path in (prepared, *(root/name for name in files), session_archive):
+                    original = path.read_bytes(); path.write_bytes(original+b'changed')
+                    with self.subTest(path=path.name), self.assertRaises(app.pa.AcceptanceError): child_check()
+                    path.write_bytes(original)
+                heads[selected_checkout] = '0'*40
+                with self.assertRaises(app.pa.AcceptanceError): child_check()
+                heads[selected_checkout] = CURRENT
+                args.package_id = '0'*64
+                with self.assertRaises(app.pa.AcceptanceError): child_check()
+                args.package_id = PACKAGE
+                # The owner must rerun the full resolver for final evidence.
+                floppy.selected_source_admission({}, args, root=root)
+                self.assertEqual(len(calls), 2)
+                evidence['package_id'] = '0'*64
+                with self.assertRaises(app.pa.AcceptanceError):
+                    floppy.selected_source_admission({}, args, root=root)
+
     def test_unpaired_options_and_pr_mode_rejected(self):
         from argparse import Namespace
         for a in (Namespace(selected_prepared=Path('/x')), Namespace(selected_prepared=Path('/x'),

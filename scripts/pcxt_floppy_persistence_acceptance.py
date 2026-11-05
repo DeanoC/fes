@@ -632,6 +632,36 @@ def add_selected_source_arguments(parser):
     parser.add_argument('--producer-source-checkout', type=Path, help='clean canonical original producer snapshot')
 
 
+def selected_receipt_files(args):
+    """Recheck the bytes bound by the complete, earlier resolver proof."""
+    prepared = Path(args.selected_prepared)
+    raw, digest = pa._read_archive(prepared, maximum=65536)
+    if digest != args.selected_prepared_sha256:
+        raise ValueError('prepared receipt changed')
+    doc = json.loads(raw)
+    for key in ('archive', 'selection', 'source_selection'):
+        record = doc[key]
+        name = record['path']
+        if not isinstance(name, str) or not re.fullmatch(r'[a-zA-Z0-9_.-]+', name) or name in ('.', '..'):
+            raise ValueError('invalid prepared member')
+        _, observed = pa._read_archive(prepared.parent / name,
+                                       maximum=65 * 1024 * 1024 if key == 'archive' else 65536)
+        if observed != record['sha256']:
+            raise ValueError('prepared member changed')
+    _, archive_sha = pa._read_archive(args.archive)
+    if archive_sha != args.archive_sha256:
+        raise ValueError('session archive changed')
+
+
+def selected_proof_key(args, root):
+    names = ('selected_prepared', 'selected_prepared_sha256', 'selected_source_checkout',
+             'producer_source_checkout', 'source_repository', 'source_commit', 'source_observed_tip',
+             'source_minimum_tip', 'source_tool_commit', 'source_base', 'source_diff_sha256',
+             'source_historical_main', 'source_main', 'source_pr', 'archive', 'archive_sha256',
+             'package_id', 'rbf_sha256')
+    return (str(root), *(getattr(args, name, None) for name in names))
+
+
 def selected_source_admission(provenance, args, *, root):
     values=[getattr(args,name,None) for name in ('selected_prepared','selected_prepared_sha256',
             'selected_source_checkout','producer_source_checkout')]
@@ -658,24 +688,39 @@ def selected_source_admission(provenance, args, *, root):
             status=bounded_source_command(['git','status','--porcelain','--untracked-files=normal'],deadline,cwd=path)
             if head!=revision or status:
                 raise ValueError('source snapshot differs from expected clean commit')
-        with tempfile.TemporaryDirectory(prefix='pcxt-source-cache-') as cache:
-            argv=[sys.executable,'-I','-B','-X','pycache_prefix='+cache,str(root/'scripts/pcxt_selected_source.py'),
-              '--prepared',str(args.selected_prepared),'--prepared-sha256',args.selected_prepared_sha256,
-              '--source-checkout',str(args.selected_source_checkout),'--producer-checkout',str(args.producer_source_checkout),
-              '--archive-sha256',args.archive_sha256,'--package-id',args.package_id,'--rbf-sha256',args.rbf_sha256,
-              '--producer',args.source_commit,'--selected',args.source_observed_tip]
-            raw=bounded_source_command(argv,deadline,cwd=root,maximum_seconds=85,safe_python=True,cache_prefix=cache)
+        proof = getattr(args, '_selected_source_proof', None)
+        if proof is not None and proof['owner_pid'] != os.getpid():
+            # The read-only observer inherits proof from the owner. It must
+            # still authenticate the exact bytes and clean source checkouts;
+            # the cache is evidence of an earlier resolution, not a claim
+            # that the shared resolver cache cannot subsequently change.
+            if proof['key'] != selected_proof_key(args, root):
+                raise ValueError('selected package proof identity changed')
+            selected_receipt_files(args)
+            result = proof['result']
+        else:
+            with tempfile.TemporaryDirectory(prefix='pcxt-source-cache-') as cache:
+                argv=[sys.executable,'-I','-B','-X','pycache_prefix='+cache,str(root/'scripts/pcxt_selected_source.py'),
+                  '--prepared',str(args.selected_prepared),'--prepared-sha256',args.selected_prepared_sha256,
+                  '--source-checkout',str(args.selected_source_checkout),'--producer-checkout',str(args.producer_source_checkout),
+                  '--archive-sha256',args.archive_sha256,'--package-id',args.package_id,'--rbf-sha256',args.rbf_sha256,
+                  '--producer',args.source_commit,'--selected',args.source_observed_tip]
+                raw=bounded_source_command(argv,deadline,cwd=root,maximum_seconds=85,safe_python=True,cache_prefix=cache)
+            result=json.loads(raw)
+            selected_receipt_files(args)
         for checkout,revision in ((args.selected_source_checkout,args.source_observed_tip),
                                   (args.producer_source_checkout,args.source_commit)):
             if (bounded_source_command(['git','rev-parse','HEAD'],deadline,cwd=checkout).decode('ascii').strip()!=revision
                     or bounded_source_command(['git','status','--porcelain','--untracked-files=normal'],deadline,cwd=checkout)):
                 raise ValueError('source snapshot changed during verification')
-        result=json.loads(raw)
         if (not isinstance(result,dict) or result.get('producer_commit')!=args.source_commit
                 or result.get('selected_commit')!=args.source_observed_tip
                 or result.get('archive_sha256')!=args.archive_sha256 or result.get('package_id')!=args.package_id
                 or result.get('rbf_sha256')!=args.rbf_sha256 or result.get('prepared_sha256')!=args.selected_prepared_sha256):
             raise ValueError('selected package evidence differs')
+        if proof is None or proof['owner_pid'] == os.getpid():
+            args._selected_source_proof = {'owner_pid': os.getpid(), 'key': selected_proof_key(args, root),
+                                           'result': result.copy()}
         provenance['selected_package']=result
         return True
     except (OSError,ValueError,TypeError,KeyError,UnicodeError,subprocess.SubprocessError,json.JSONDecodeError) as exc:
