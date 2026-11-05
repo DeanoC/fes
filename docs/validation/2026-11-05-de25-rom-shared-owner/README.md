@@ -39,3 +39,26 @@ Evidence is under `out/nano-rom-shared-owner-20261105`. No hardware has been
 programmed for these changes yet. They require a freshly matched chain and
 bounded physical trace. The one-second/64-poll ROM limits remain unchanged.
 Ordinary core admission and DE10-equivalent loading remain open.
+
+## First matched hardware trace
+
+One attempt on TRWU8CBL reached the unchanged one-second ROM limit after the
+last written-byte observation reached 1,792 of 8,192 bytes. The preceding trace
+reached 416 bytes; these are single-attempt progress observations, not statistical
+throughput qualification. Recovery, all eight fixed uploads/fresh SD hashes,
+matched native startup/shared USB and first FPGA configuration passed.
+
+The new cached counters attribute 391,530,589 of 400,198,542 elapsed ticks to
+1,638 completed ownership brackets: 0.9788264725 of 1.000496355 seconds (97.8%).
+The maximum completed bracket was 242,317 ticks (0.6057925 ms). Accounting was
+valid with no pending bracket, and no ownership predicate failed. The next
+repair must reduce the cost of this proof without extending the ROM deadline.
+A bounded trusted protocol transaction with complete ownership framing and fresh
+reset/CPU guards is a candidate design, not implemented or qualified here.
+
+The attempt stopped before ROM completion/CPU Run; there was no retry, second
+launch, return or accepted ROM cycle. Independent cleanup verified exact USB
+permissions, recorded 15 MHz JTAG readback, the owned private server's exit and
+a free UART. Claim and spare card remain retained; factory card and other kit
+were untouched. Cached Held does not independently prove physical CPU halt.
+Full core-load readiness remains unachieved.
