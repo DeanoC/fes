@@ -57,7 +57,7 @@ func (h *Host) armPacket(complete bool) error {
 	if (flags>>18)&3 == 3 && frame&1 == 0 {
 		flags |= 1 << 29
 	}
-	h.io.Write32(hcchar, flags|channelEnable)
+	h.writeChannel("arm", flags|channelEnable)
 	if !complete {
 		for i := 0; i < len(p.out); i += 4 {
 			var word [4]byte

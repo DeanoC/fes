@@ -90,7 +90,7 @@ func (h *Host) continueIN() error {
 			char |= 1 << 29
 		}
 	}
-	h.io.Write32(hcchar, char|channelEnable)
+	h.writeChannel("continue", char|channelEnable)
 	p.continuations++
 	s.reason = "queued"
 	if periodic {

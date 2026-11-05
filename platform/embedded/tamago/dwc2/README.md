@@ -153,3 +153,16 @@ channel IRQ/channel/transfer/frame reads (bits0–5); unsampled fields are not
 observations. Interval waits retain their measured wait time. These historical
 samples identify which check blocked progress without additional destructive
 register reads on the failure path.
+
+A fixed eight-command history now retains every software channel arm,
+continuation, retirement and failure-containment write across packet changes.
+Each entry carries a sequence, packet number, written value, expected PID and
+completion flags. The first toggle snapshot freezes the history at that
+observation; a failed containment also records the later halt command. Entries
+are software intentions, not register readbacks or proof of a physical halt.
+Recording performs no additional register reads or clock samples and changes
+no channel command, PID, interval, deadline or ownership decision. A replay of
+the captured periodic `0xe05e8808` channel, `0x80008` transfer and toggle-only
+notification still fails closed without a report, paused state or guessed
+continuation. Its injected disable bit reproduces the observation, not its
+hardware cause. A fresh physical trace is required before choosing a repair.

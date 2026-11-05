@@ -78,6 +78,8 @@ type packet struct {
 	firstToggle                              error
 }
 type Host struct {
+	packetSequence        uint64
+	channelCommands       channelCommands
 	pollingPaused         bool
 	channels              uint32
 	gamepadMode           bool
@@ -192,9 +194,9 @@ func (h *Host) fail(err error) error {
 	h.io.Write32(gintmask, 0)
 	// Do not touch a firmware-owned active DMA/channel on admission failure.
 	if h.pending.active && h.io.Read32(hcchar)&channelEnable != 0 {
-		h.io.Write32(hcchar, h.io.Read32(hcchar)|channelEnable|channelDisable)
+		h.writeChannel("containment", h.io.Read32(hcchar)|channelEnable|channelDisable)
 		if halt := h.wait(hcchar, channelEnable, 0); halt != nil {
-			h.fault = fmt.Errorf("%w; containment: %v", err, halt)
+			h.fault = fmt.Errorf("%w; containment: %v; channel_commands={%s}", err, halt, h.channelCommands)
 		}
 	}
 	return h.fault
@@ -343,6 +345,7 @@ func (h *Host) begin(ep uint8, mps uint16, kind uint32, in bool, pid uint32, out
 	if split && kind == 3 {
 		flags = (flags &^ uint32(3<<20)) | 3<<20
 	}
+	h.packetSequence++
 	h.pending = packet{active: true, in: in, pid: pid, limit: limit, deadline: deadline, split: split, char: flags, transferSize: size, out: append([]byte(nil), out...)}
 	if split {
 		h.pending.waiting = true
@@ -369,6 +372,7 @@ func (h *Host) step() (done bool, data []byte, nak bool, err error) {
 			if p.firstToggle != nil {
 				err = fmt.Errorf("%w; first toggle observation: %v", err, p.firstToggle)
 			}
+			err = fmt.Errorf("%w; channel_commands={%s}", err, h.channelCommands)
 		}
 	}()
 	if err := h.pio(); err != nil {
@@ -503,7 +507,7 @@ func (h *Host) step() (done bool, data []byte, nak bool, err error) {
 	if p.done || p.nak || p.ack || p.nyet {
 		if h.io.Read32(hcchar)&channelEnable != 0 {
 			if !p.halting {
-				h.io.Write32(hcchar, h.io.Read32(hcchar)|channelEnable|channelDisable)
+				h.writeChannel("retire", h.io.Read32(hcchar)|channelEnable|channelDisable)
 				p.halting = true
 			}
 			return false, nil, false, nil

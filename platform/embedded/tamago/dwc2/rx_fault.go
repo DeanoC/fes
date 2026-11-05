@@ -8,7 +8,7 @@ import "fmt"
 // help distinguish an empty/stale FIFO indication from a malformed queue head
 // on hardware, without guessing which condition occurred or reading it again.
 func (h *Host) rxFault(reason string, irq, peek, popped uint32) error {
-	return fmt.Errorf("dwc2: %s; RX snapshot irq=%#x peek=%#x pop=%#x after=%#x channel=%#x interrupts=%#x transfer=%#x port=%#x reset=%#x nonperiodic=%#x periodic=%#x frame=%#x",
+	return fmt.Errorf("dwc2: %s; RX snapshot irq=%#x peek=%#x pop=%#x after=%#x channel=%#x interrupts=%#x transfer=%#x port=%#x reset=%#x nonperiodic=%#x periodic=%#x frame=%#x software_channel_commands={%s}",
 		reason, irq, peek, popped, h.io.Read32(gint), h.io.Read32(hcchar), h.io.Read32(hcint),
-		h.io.Read32(hctsiz), h.io.Read32(hprt), h.io.Read32(reset), h.io.Read32(nptxstatus), h.io.Read32(ptxstatus), h.io.Read32(hfnum))
+		h.io.Read32(hctsiz), h.io.Read32(hprt), h.io.Read32(reset), h.io.Read32(nptxstatus), h.io.Read32(ptxstatus), h.io.Read32(hfnum), h.channelCommands)
 }
