@@ -71,9 +71,18 @@ type Computer struct {
 }
 
 type operation struct {
-	c           *Computer
-	ctx         context.Context
-	start, last time.Time
+	c                            *Computer
+	ctx                          context.Context
+	start, last                  time.Time
+	name, phase                  string
+	offset, opcode, index, polls uint32
+	reads, writes                uint32
+}
+
+func (o *operation) limit(reason string, now time.Time) error {
+	return fmt.Errorf("%w: reason=%s operation=%s phase=%s elapsed=%s step=%s limit=%s offset=%#x opcode=%d index=%d polls=%d/%d reads=%d writes=%d",
+		ErrLimit, reason, o.name, o.phase, now.Sub(o.start), now.Sub(o.last), o.c.limits.Timeout,
+		o.offset, o.opcode, o.index, o.polls, o.c.limits.MaxPolls, o.reads, o.writes)
 }
 
 func (o *operation) check() error {
@@ -81,14 +90,17 @@ func (o *operation) check() error {
 		return err
 	}
 	now := o.c.limits.Now()
-	if now.Before(o.last) || now.Sub(o.start) >= o.c.limits.Timeout {
-		return ErrLimit
+	if now.Before(o.last) {
+		return o.limit("backwards-clock", now)
+	}
+	if now.Sub(o.start) >= o.c.limits.Timeout {
+		return o.limit("deadline", now)
 	}
 	o.last = now
 	return nil
 }
 
-func (c *Computer) begin(ctx context.Context) (*operation, error) {
+func (c *Computer) begin(ctx context.Context, name string) (*operation, error) {
 	if ctx == nil {
 		return nil, ErrArgument
 	}
@@ -104,7 +116,7 @@ func (c *Computer) begin(ctx context.Context) (*operation, error) {
 		return nil, err
 	}
 	now := c.limits.Now()
-	return &operation{c: c, ctx: ctx, start: now, last: now}, nil
+	return &operation{c: c, ctx: ctx, start: now, last: now, name: name, phase: "begin"}, nil
 }
 
 func (o *operation) finish(err error) {
@@ -117,13 +129,16 @@ func (o *operation) finish(err error) {
 }
 
 func (o *operation) read(offset uint32) (uint32, error) {
+	o.phase, o.offset = "before-read", offset
 	if err := o.check(); err != nil {
 		return 0, err
 	}
+	o.reads++
 	v, err := o.c.io.Read32(offset)
 	if err != nil {
 		return 0, err
 	}
+	o.phase = "after-read"
 	return v, o.check()
 }
 
@@ -178,6 +193,7 @@ func (o *operation) stable() (snapshot, error) {
 
 func (o *operation) exchange(opcode, index uint32, argument uint16) (uint16, error) {
 	c := o.c
+	o.opcode, o.index, o.polls = opcode, index, 0
 	s, err := o.stable()
 	if err != nil {
 		return 0, err
@@ -187,18 +203,22 @@ func (o *operation) exchange(opcode, index uint32, argument uint16) (uint16, err
 	}
 	word := ((c.gpo ^ g.FesComputerRequestMask) & g.FesComputerRequestMask) |
 		opcode<<24 | index<<16 | uint32(argument)
+	o.phase, o.offset = "before-write", g.FesDe25ComputerGpoOffset
 	if err := o.check(); err != nil {
 		return 0, err
 	}
 	// Unlike a direct GP port, the Avalon adapter rejects writes that do not
 	// toggle. There is exactly one write, including for an eventual timeout.
+	o.writes++
 	if err := c.io.Write32(g.FesDe25ComputerGpoOffset, word); err != nil {
 		return 0, err
 	}
+	o.phase = "after-write"
 	if err := o.check(); err != nil {
 		return 0, err
 	}
 	for poll := uint32(0); poll < c.limits.MaxPolls; poll++ {
+		o.polls = poll + 1
 		s, err = o.stable()
 		if err != nil && err != errChanging {
 			return 0, err
@@ -215,12 +235,14 @@ func (o *operation) exchange(opcode, index uint32, argument uint16) (uint16, err
 				return uint16(s.gpi & g.FesComputerResponseMask), nil
 			}
 		}
+		o.phase = "ack-yield"
 		c.limits.Yield()
 		if err := o.check(); err != nil {
 			return 0, err
 		}
 	}
-	return 0, ErrLimit
+	o.phase = "ack-polls"
+	return 0, o.limit("ack-polls", o.last)
 }
 
 func (o *operation) mutate(opcode, index uint32, argument uint16) error {
@@ -235,7 +257,7 @@ func (o *operation) mutate(opcode, index uint32, argument uint16) error {
 // The adapter latches the corresponding last-fetch address on the count read;
 // ongoing CPU activity cannot tear that pair while the address is read later.
 func (c *Computer) Activity(ctx context.Context) (activity FetchActivity, err error) {
-	o, err := c.begin(ctx)
+	o, err := c.begin(ctx, "activity")
 	if err != nil {
 		return activity, err
 	}
@@ -278,7 +300,7 @@ func Open(ctx context.Context, io IO, limits Limits, want Identity) (_ *Computer
 		return nil, ErrArgument
 	}
 	c := &Computer{io: io, limits: limits, identity: want}
-	o, err := c.begin(ctx)
+	o, err := c.begin(ctx, "open")
 	if err != nil {
 		return nil, err
 	}
@@ -331,7 +353,7 @@ func Open(ctx context.Context, io IO, limits Limits, want Identity) (_ *Computer
 }
 
 func (c *Computer) execution(ctx context.Context, value uint16) (err error) {
-	o, err := c.begin(ctx)
+	o, err := c.begin(ctx, "execution")
 	if err != nil {
 		return err
 	}
@@ -358,7 +380,7 @@ func (c *Computer) Keyboard(ctx context.Context, rows [9]uint16) (err error) {
 		uint32(rows[g.FesComputerKeyboardModifierRow]) & ^g.FesComputerKeyboardModifierMask != 0 {
 		return ErrArgument
 	}
-	o, err := c.begin(ctx)
+	o, err := c.begin(ctx, "keyboard")
 	if err != nil {
 		return err
 	}

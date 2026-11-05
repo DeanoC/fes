@@ -35,7 +35,7 @@ func (c *Computer) LoadTape(ctx context.Context, data []byte) (err error) {
 		len(data) < int(g.FesComputerZx81TapeMinBytes) || len(data) > int(g.FesDe25ComputerZx81TapeMaxBytes) {
 		return ErrArgument
 	}
-	o, err := c.begin(ctx)
+	o, err := c.begin(ctx, "load-tape")
 	if err != nil {
 		return err
 	}
@@ -86,7 +86,7 @@ func (c *Computer) EjectTape(ctx context.Context) (err error) {
 	if c.identity.Capabilities&g.FesComputerCapabilityMediaZx81Tape == 0 {
 		return ErrArgument
 	}
-	o, err := c.begin(ctx)
+	o, err := c.begin(ctx, "eject-tape")
 	if err != nil {
 		return err
 	}

@@ -24,6 +24,13 @@ operation retires the handle without replay. The caller must invoke its owned
 platform containment path; issuing another GP Hold is not recovery. A hardware
 reset poisons the adapter until FPGA reconfiguration.
 
+Limit errors retain `errors.Is(err, ErrLimit)` and distinguish `deadline`,
+`backwards-clock` and `ack-polls`. They record the operation, failing read/write
+phase and offset, opcode/index, elapsed and last-step durations, ACK observations
+and issued read/write counts. These observations add no I/O, retry or clock read
+and do not widen the platform bounds. Counts describe driver calls; a supplied
+platform may perform additional ownership work within each call.
+
 `Hold` neutralizes input while preserving the GP epoch and loaded tape. `Run`
 releases execution reset. `Keyboard` delivers all nine HID rows. `LoadTape`
 and `EjectTape` use the shared unit-0 chunk/CRC protocol, preserving execution.
