@@ -1,0 +1,55 @@
+{
+  "execute": false,
+  "hardware_actions": false,
+  "files": [
+    {
+      "purpose": "package",
+      "source": "out/nano-coherent-owner-ship-20261105/catalogue/FES/PKGTEST.BIN",
+      "destination": "FES/PKGTEST.BIN",
+      "bytes": 1653760,
+      "sha256": "21546abc7f661d3fc96cbd1ce60e89ef6f7ba5eb863de6ab800cffd584b906ee"
+    },
+    {
+      "purpose": "metadata",
+      "source": "out/nano-coherent-owner-ship-20261105/catalogue/FES/PROGRAM.JSN",
+      "destination": "FES/PROGRAM.JSN",
+      "bytes": 2118,
+      "sha256": "ec488f470d31ad6c822f5bc635662516abfb94885ba9cab3bc8ecf0a75ae4980"
+    },
+    {
+      "purpose": "package-alt",
+      "source": "out/nano-coherent-owner-ship-20261105/catalogue/FES/PKGALT.BIN",
+      "destination": "FES/PKGALT.BIN",
+      "bytes": 1645568,
+      "sha256": "27597a804df6ce91766b917cb11a923ed2bfa1a70ff7a74860f11f35e457c414"
+    },
+    {
+      "purpose": "metadata-alt",
+      "source": "out/nano-coherent-owner-ship-20261105/catalogue/FES/PROGALT.JSN",
+      "destination": "FES/PROGALT.JSN",
+      "bytes": 2118,
+      "sha256": "5e26d384751a4ca2b85af7632cdc1ae1db032a501b5ab01e43a1ef69215546ba"
+    },
+    {
+      "purpose": "selection",
+      "source": "out/nano-coherent-owner-ship-20261105/catalogue/FES/CORESEL.JSN",
+      "destination": "FES/CORESEL.JSN",
+      "bytes": 513,
+      "sha256": "def298403eb4a6d873a7f2ec06e92bdd5dac1d64ec841c793fcc5079a68fc12f"
+    },
+    {
+      "purpose": "ui-catalog",
+      "source": "out/nano-coherent-owner-ship-20261105/catalogue/FES/UI.JSON",
+      "destination": "FES/UI.JSON",
+      "bytes": 141,
+      "sha256": "aa2b1ca51c62330b343d71b2b8c36c5eb1a8355fc87d3e26f6d53aac516f2456"
+    },
+    {
+      "purpose": "boot",
+      "source": "out/nano-coherent-owner-ship-20261105/native-uboot-final/build/u-boot.itb",
+      "destination": "FES/UPLOAD.BIN",
+      "bytes": 8052728,
+      "sha256": "dc49084c6cd8ce85a1b55c07c7621ab2efb3f81f7123296a291595c82a70821f"
+    }
+  ]
+}
