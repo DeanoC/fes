@@ -21,7 +21,11 @@ The hashes below bind the proposed trial, rather than newer parent RTL.
 The regenerated HPS-only RBF and core RBF match the exact physical proof in
 [#1303](https://github.com/DeanoC/fes/pull/1303). That proof booted FES with the
 HPS-only RBF, then Linux loaded the core and native AArch64 BASIC LOAD/RUN
-produced HDMI7/0/1. The JIC itself is NOT programmed or hardware qualified.
+produced HDMI7/0/1. At this initial preparation stage the JIC had not been
+programmed or hardware tested. The later [physical trial](#physical-trial)
+records programming and verification of this exact candidate and three
+consecutive software reboots; acceptance is limited to the named artifacts
+and checks in that section.
 The vendor rollback JIC is verified against the BSP lock, not read back or
 hardware tested as restoration of this board's current QSPI bytes.
 
