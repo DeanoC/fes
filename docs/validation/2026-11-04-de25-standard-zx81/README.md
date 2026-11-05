@@ -698,3 +698,33 @@ The subsequent `7be4e896` delta only sets the bench to one worker and documents
 that limit; its full native and emulated ARM integration cases pass separately.
 Documentation links and support-matrix checks pass. These are software/model
 checks, with no new board or package acceptance.
+
+
+## Standard PR project generation
+
+The explicit `zx81-standard` PR profile now prepares the normal standard machine
+and managed Linux DMA/display board with its socket enabled. Actual Pro26.3
+generation passes all shared PR-control and standard board verifiers at
+`1812fcbd652b05d7e00e60731c070117bc9cf978` in 111.902 seconds. A separate normal
+internal16K generation passes in 111.727 seconds; all three HPS/EMIF IP files
+are byte-identical. The five tool-added HPS defaults are admitted only with
+those exact values in this PR profile. Original-parameter changes retain the
+existing closed managed-Linux policy.
+
+The generated PR parent has a separate reviewed source pin. Its changes add
+control ports, wires, the PR-control instance and its interconnect route; all
+ten bridge/FIFO sources retain their exact original pins. The production static
+bus module also runs in the standard real-client simulation, which passes both
+seeds. The existing bring-up combined proof was rerun fully: all14 native and
+emulated AArch64 cases pass in 570.582 seconds, including both real-ROM BASIC
+round trips. Its exact report refreshes the source-bound branch fixture; it
+does not prove standard-core BASIC with PR personas.
+
+[standard-pr-generation.json](standard-pr-generation.json) binds the control,
+source review and preserved failures. The first base synthesis stopped on a
+missing root bus-definition header. `bcc21b08e` stages the original header
+explicitly; fresh synthesis retains all20 persona-response and46 static-request
+FFs with zero boundary inversions. The base fit and numerical timing are still
+running at this record. No package, physical PR, Linux opener, standard-persona
+BASIC, native composition, or new hardware acceptance is claimed. The internal16K
+clock exception does not apply to this profile.

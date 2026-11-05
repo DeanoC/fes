@@ -1,0 +1,115 @@
+{
+  "ROM_persona_composition": false,
+  "base_build_followup": {
+    "fit_and_numerical_timing": "running, not passed at this record",
+    "remote_job": "/tmp/fes-de25-standard-pr-d2327361d-20261105/base-fit-2",
+    "source_revision": "bcc21b08e49578e35bb7886260c495d8f2ce5ee8",
+    "synthesis_boundary_inversions": 0,
+    "synthesis_protected_persona_response_FFs": 20,
+    "synthesis_protected_static_request_FFs": 46
+  },
+  "board": "No board access. Bottom released at named baseline.",
+  "canonical_control": {
+    "control": "/tmp/fes-de25-standard-pr-d2327361d-20261105/attempt-2/canonical-control",
+    "control_seconds": 111.727,
+    "modules": {
+      "hps_subsys/ip/hps_subsys/agilex_hps.ip": {
+        "PR_ip_sha256": "193843e40c7079352430b675aed38960c164bcb76003d24b48711e6f44764913",
+        "all_parameters_equal_to_normal_internal16K_control": true,
+        "ip_bytes_equal": true,
+        "normal_ip_sha256": "193843e40c7079352430b675aed38960c164bcb76003d24b48711e6f44764913",
+        "parameter_count": 364
+      },
+      "hps_subsys/ip/hps_subsys/f2sdram_adapter.ip": {
+        "PR_ip_sha256": "7aa50e129b4e9b39dd17ede6b1d2c3fa9a15aaa94e6bc74ad384645a17c1a955",
+        "all_parameters_equal_to_normal_internal16K_control": true,
+        "ip_bytes_equal": true,
+        "normal_ip_sha256": "7aa50e129b4e9b39dd17ede6b1d2c3fa9a15aaa94e6bc74ad384645a17c1a955",
+        "parameter_count": 1
+      },
+      "hps_subsys/ip/qsys_top/emif_io96b_hps.ip": {
+        "PR_ip_sha256": "de18eefbc061aead55136749177d977838121a980b1b60b688690e2309246bd3",
+        "all_parameters_equal_to_normal_internal16K_control": true,
+        "ip_bytes_equal": true,
+        "normal_ip_sha256": "de18eefbc061aead55136749177d977838121a980b1b60b688690e2309246bd3",
+        "parameter_count": 137
+      }
+    },
+    "passed": true,
+    "scope": "All actual generated HPS/EMIF parameters match independent canonical internal16K generation; no fit or hardware acceptance.",
+    "source_revision": "679cff130b3c7ec04178b87c08a82d2bd3328d9a"
+  },
+  "classification": "Experimental standard PR IP generation and compatibility regression; no package or hardware admission",
+  "compatibility_boundary": "Existing bring-up De25Computer/PR model; does not establish BASIC with the new standard PR profile. Actual full14 native/AArch64 cases rerun, exact actual report copied to branch fixture.",
+  "compatibility_combined_proof": {
+    "actual_proof_sha256": "f833eb3e9d486efec8db86a70cd133e7dd023e3b0009cd7976f5d2aac97d28f0",
+    "cases": 14,
+    "current_selected_compiler_inputs": 65,
+    "fixture_is_exact_actual_report": true,
+    "matches_current_runtime_test_inputs": true,
+    "matches_current_selected_compiler_inputs": true,
+    "passed": true,
+    "physical_PR": false,
+    "producer_revision": "1812fcbd652b05d7e00e60731c070117bc9cf978"
+  },
+  "compatibility_seconds": 570.582,
+  "failed_controls": [
+    {
+      "attempt": "remote root d232",
+      "reason": "retained helper attempted Git access outside a checkout; fixed source-capture callbacks",
+      "seconds": 0.565
+    },
+    {
+      "attempt": "remote attempt2 679cff",
+      "reason": "original-only inventory rejected5 generated defaults; independent normal control proves exact HPS/EMIF IP bytes equal; only exact additions admitted in explicit PR profile",
+      "seconds": 101.393
+    },
+    {
+      "attempt": "remote base-fit1812",
+      "reason": "root persona HDL macros lacked a local bus header; failed beforefit; bcc21 stages exact original header",
+      "seconds": 111.814
+    }
+  ],
+  "generation": {
+    "PR_control": {
+      "clock_hz": 100000000,
+      "module": "subsys_periph.fes_pr_control",
+      "peripheral_offset": 67328,
+      "physical_mmio": "not-established"
+    },
+    "handoff_sha256": "44fecd556c902346c322b9b944866247ba5e82e228bd4bc949730cfae665ccdf",
+    "passed": true,
+    "remote_job": "/tmp/fes-de25-standard-pr-d2327361d-20261105/attempt-3",
+    "scope": "actual complete shared PR and standard managed-board generation checks",
+    "seconds": 111.902,
+    "standard_checks": {
+      "computer_offset": 66304,
+      "expansion_socket": true,
+      "fit_and_timing": "not-run",
+      "hardware_acceptance": "not-run",
+      "scope": "whole-GHRD-IP-generation",
+      "timing_and_hardware_admission": "not-qualified"
+    },
+    "tool_inputs_sha256": "a7baba97ba5e6440be8219b77083c113399db44c91421afec392b553038d1f42"
+  },
+  "hardware_acceptance": false,
+  "native_standard_persona_BASIC": false,
+  "native_static_bus_model": {
+    "kind": "actual standard core and real FES clients, production bus.v and real RAM personas, behavioral selection/memory and17-byte diagnostic ROM",
+    "passed": true,
+    "proof_sha256": "ce4879dc9957e8e8deeb866da820d45597d96d7f8f3744c548776492d67b9477",
+    "seconds": 5.279,
+    "source_revision": "1812fcbd652b05d7e00e60731c070117bc9cf978"
+  },
+  "parent_diff_sha256": "bda4be7caa2517cfcf57a0b7ea1cf0d4591683fb080ce1fe1e2e0a093b3594ec",
+  "parent_review": {
+    "peripheral_subsys/peripheral_subsys/synth/peripheral_subsys.v": {
+      "actual": "ebbedd61f16312327d01eece1c03eca06b771b08e4595fa7041785f26968e1bb",
+      "standard_expected": "47808c3eb4a126c9aad2ff635917ab1f663d1b9b236e931b1d8d897369c592de"
+    }
+  },
+  "physical_PR": false,
+  "profile": "fes.de25-standard-zx81-empty-ram16k.v1",
+  "source_revision": "1812fcbd652b05d7e00e60731c070117bc9cf978",
+  "timing_exceptions": "No internal16K exception inherited. Raw whole-board timing, independent fits and native acceptance still required."
+}
