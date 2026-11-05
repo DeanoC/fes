@@ -2,8 +2,8 @@
 
 This was a **partial diagnostic**, not a complete game/speaker acceptance or a
 Tier 1 qualification. On Kit B, FreeDOS booted to `A:\>`, a keyboard-driven
-COM test passed, and a file saved from the guest was read back after Stop and a
-new session. The Digger playfield was visible, but the active-game observation
+COM test passed, and a file saved from the guest was read back after Stop and
+relaunch. The Digger playfield was visible, but the active-game observation
 failed before the direction-input checks. Audio was recorded but not accepted
 as speaker proof. The overall run is recorded as **FAIL**.
 
@@ -27,9 +27,10 @@ image; no software activation, image change or reboot was part of this run.
 | Floppy readback receipt | `45006ccbab023aa1e5be70c6f19a8a696bfa58eb0b2a75abd42d9fc4fabb058e` |
 | Game failure receipt | `9be85815eb4a3781afd14b40955534bda44d0c28c959adc6ba462e0f1c0b60ef` |
 
-The write and readback receipts bind the same saved revision, with different
-flight IDs and package generations 1 and 2. The COM capture shows
-`FES COM READY (PRESS K)`, `FES COM PASS` and return to `A:\>`; the readback
+The write and readback receipts bind the same saved revision, with the same
+host session ID but different flight IDs and package generations 1 and 2. The
+COM capture shows `FES COM READY (PRESS K)`, `FES COM PASS` and return to
+`A:\>`; the readback
 capture shows `type fessave.txt`, the expected file contents and a returned
 prompt. This tests an explicit library Save across Stop and relaunch, not
 persistence after a power cycle. The capture came from Kit B's 4KPRO loopback;
