@@ -91,9 +91,46 @@ A host-only alternate-rate lifecycle prototype is prepared under
 `out/nano-rom-cost-split-20261105/alternate-rate`. Nine tests cover exact target
 and restore commands, original/target mismatch, a setter throwing after applying
 the rate, lost ownership, uncertain restoration, consumed operations and missing
-callbacks. Every read/write requires the injected ownership guard; failed or
-partial starts still require restoration. A failed restore remains uncertain and
-cannot automatically retry. This prototype is not yet wired into a new native
-operator. Next, integrate it with explicit prior-failure accounting and fresh
-operator fixtures/preflight before a separate bounded 6 MHz programming test.
-The cost-split firmware's physical measurements remain unavailable.
+callbacks. Every read/write requires the injected ownership guard; any attempted
+rate write requires restoration, including a throwing setter. A failed restore
+remains uncertain and cannot automatically retry.
+
+## Alternate operator setup failure and correction
+
+The lifecycle was integrated into a separate 6 MHz operator. Both programmers
+required 6 MHz readbacks, the original failed fuse was retained, and the record
+carried one earlier failure with a combined limit of two procedures. Its working
+alarm was reduced to 740 seconds, preserving restoration time inside the
+existing 850-second host bound. Fixtures and a fresh source-bound preflight
+passed before the alternate attempt.
+
+That attempt stopped before programming: the new setter glue put the complete
+`subprocess.CompletedProcess` object in `stages.returncode`. JSON logging threw
+before the programmer could run. The initial glue mock returned an integer,
+which failed to model the real subprocess API and allowed the mistake through.
+The original operator and incomplete receipt remain unchanged as evidence.
+The restore command was issued, but the same logging error interrupted its
+readback and final receipt. No recovery or native programmer, upload, serial
+boot request or SD write followed.
+
+A separate clock-only cleanup audit independently observed the original 15 MHz
+setting; no corrective clock write was needed. It verified both private server
+exits, exact USB permissions and no UART owner. Its adapter identity gate is
+limited to reading the USB-identified cable's clock property and grants no FPGA
+programming authority. CPU and FPGA operating clocks were unchanged.
+
+The corrected clone under `out/nano-rom-cost-split-6m-fixed-board-20261105`
+stores and tests `CompletedProcess.returncode`. Its fixture now returns an
+actual `CompletedProcess`, serializes the stage record on every save, checks
+integer exit codes and rejects a nonzero exit. All five operator fixture groups
+pass, including the nine lifecycle cases and the actual setter glue. This
+correction has not been tried on hardware. A `pending-operator-review.json`
+admission stop prevents accidental physical replay while both stopped procedures
+are accounted for and the meaningful wrapper correction is source-frozen.
+
+The [setup-failure receipt](alternate-setup-result.json) distinguishes the one
+programmer failure from the later host setup failure. There have been zero
+executions of the cost-split native candidate. Next, freeze the corrected
+operator with explicit stage-specific prior-failure accounting and review its
+admission gates before another bounded physical test. The new ROM timing
+breakdown, complete loading and DE10-equivalent readiness remain unverified.
