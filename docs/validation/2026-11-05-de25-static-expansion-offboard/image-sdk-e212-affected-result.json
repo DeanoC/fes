@@ -1,0 +1,218 @@
+{
+  "format": 1,
+  "root": "/home/deano/fes/out/dev/de25-static-expansion-kernel",
+  "base": "48084b8b438e1cb66797c9dfb94e5a886a987d36",
+  "head": "e212fd51c0de96bf660207bf0c96a0e1355eed4d",
+  "checkout_head": "e212fd51c0de96bf660207bf0c96a0e1355eed4d",
+  "merge_base": "48084b8b438e1cb66797c9dfb94e5a886a987d36",
+  "local_paths": [],
+  "impact": {
+    "lanes": {
+      "parent": true,
+      "host": false,
+      "runtime": false,
+      "contracts": false,
+      "fpga": false
+    },
+    "skipped": [
+      "host",
+      "runtime",
+      "contracts",
+      "fpga"
+    ],
+    "cores": [],
+    "test_modes": {
+      "video": false,
+      "media": false,
+      "full_race": false
+    },
+    "paths": [
+      "docs/de25-linux.md",
+      "image/de25-nano/managed_base.py",
+      "image/de25-nano/managed_boot.py",
+      "image/de25-nano/managed_factory.py",
+      "scripts/kit_software.py",
+      "tests/test_de25_managed_boot.py",
+      "tests/test_de25_managed_factory.py",
+      "tests/test_kit_software.py"
+    ],
+    "reasons": [
+      "image/de25-nano/managed_base.py: parent orchestration/tests/assembly; component sources unchanged",
+      "image/de25-nano/managed_boot.py: parent orchestration/tests/assembly; component sources unchanged",
+      "image/de25-nano/managed_factory.py: parent orchestration/tests/assembly; component sources unchanged",
+      "scripts/kit_software.py: parent orchestration/tests/assembly; component sources unchanged",
+      "tests/test_de25_managed_boot.py: parent orchestration/tests/assembly; component sources unchanged",
+      "tests/test_de25_managed_factory.py: parent orchestration/tests/assembly; component sources unchanged",
+      "tests/test_kit_software.py: parent orchestration/tests/assembly; component sources unchanged"
+    ],
+    "always": [
+      "planner tests",
+      "diff whitespace checks"
+    ],
+    "not_run": [
+      "FPGA synthesis/place-and-route",
+      "cold image builds",
+      "hardware acceptance"
+    ]
+  },
+  "commands": [
+    {
+      "lane": "always",
+      "label": "test_affected.py",
+      "cwd": ".",
+      "argv": [
+        "/data/fes-de25-main-integration-20261105/test-venv/bin/python",
+        "-m",
+        "unittest",
+        "discover",
+        "-s",
+        "tests",
+        "-p",
+        "test_affected.py",
+        "-v"
+      ],
+      "tools": [
+        "/data/fes-de25-main-integration-20261105/test-venv/bin/python"
+      ],
+      "files": [
+        "tests/test_affected.py"
+      ]
+    },
+    {
+      "lane": "always",
+      "label": "test_test_changed.py",
+      "cwd": ".",
+      "argv": [
+        "/data/fes-de25-main-integration-20261105/test-venv/bin/python",
+        "-m",
+        "unittest",
+        "discover",
+        "-s",
+        "tests",
+        "-p",
+        "test_test_changed.py",
+        "-v"
+      ],
+      "tools": [
+        "/data/fes-de25-main-integration-20261105/test-venv/bin/python"
+      ],
+      "files": [
+        "tests/test_test_changed.py"
+      ]
+    },
+    {
+      "lane": "always",
+      "label": "committed whitespace",
+      "cwd": ".",
+      "argv": [
+        "/data/fes-de25-main-integration-20261105/test-venv/bin/python",
+        "scripts/check_diff.py",
+        "--base",
+        "48084b8b438e1cb66797c9dfb94e5a886a987d36",
+        "--head",
+        "e212fd51c0de96bf660207bf0c96a0e1355eed4d"
+      ],
+      "tools": [
+        "/data/fes-de25-main-integration-20261105/test-venv/bin/python"
+      ],
+      "files": []
+    },
+    {
+      "lane": "always",
+      "label": "working whitespace",
+      "cwd": ".",
+      "argv": [
+        "git",
+        "diff",
+        "--check",
+        "HEAD",
+        "--"
+      ],
+      "tools": [
+        "git"
+      ],
+      "files": []
+    },
+    {
+      "lane": "parent",
+      "label": "parent Python regressions",
+      "cwd": ".",
+      "argv": [
+        "/data/fes-de25-main-integration-20261105/test-venv/bin/python",
+        "scripts/parent_tests.py",
+        "--video",
+        "false",
+        "--media",
+        "false",
+        "--paths-json",
+        "[\"docs/de25-linux.md\", \"image/de25-nano/managed_base.py\", \"image/de25-nano/managed_boot.py\", \"image/de25-nano/managed_factory.py\", \"scripts/kit_software.py\", \"tests/test_de25_managed_boot.py\", \"tests/test_de25_managed_factory.py\", \"tests/test_kit_software.py\"]"
+      ],
+      "tools": [
+        "/data/fes-de25-main-integration-20261105/test-venv/bin/python",
+        "sh"
+      ],
+      "files": [
+        "scripts/parent_tests.py",
+        "tests"
+      ]
+    },
+    {
+      "lane": "parent",
+      "label": "working-tree generated consumer consistency",
+      "cwd": ".",
+      "argv": [
+        "/data/fes-de25-main-integration-20261105/test-venv/bin/python",
+        "-c",
+        "import sys; from pathlib import Path; sys.path.insert(0, 'scripts'); from consistency import check; print(check(Path('.')))"
+      ],
+      "tools": [
+        "/data/fes-de25-main-integration-20261105/test-venv/bin/python",
+        "go"
+      ],
+      "files": [
+        "scripts/consistency.py"
+      ]
+    }
+  ],
+  "limits": [
+    "FPGA synthesis/place-and-route",
+    "cold image builds",
+    "hardware acceptance",
+    "platform/image packaging suite",
+    "required browser integration suite",
+    "committed-source/release validation (make check remains separate)"
+  ],
+  "status": "passed",
+  "results": [
+    {
+      "label": "test_affected.py",
+      "lane": "always",
+      "returncode": 0
+    },
+    {
+      "label": "test_test_changed.py",
+      "lane": "always",
+      "returncode": 0
+    },
+    {
+      "label": "committed whitespace",
+      "lane": "always",
+      "returncode": 0
+    },
+    {
+      "label": "working whitespace",
+      "lane": "always",
+      "returncode": 0
+    },
+    {
+      "label": "parent Python regressions",
+      "lane": "parent",
+      "returncode": 0
+    },
+    {
+      "label": "working-tree generated consumer consistency",
+      "lane": "parent",
+      "returncode": 0
+    }
+  ]
+}

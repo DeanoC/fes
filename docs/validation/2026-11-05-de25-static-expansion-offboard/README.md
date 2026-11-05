@@ -113,3 +113,91 @@ Production composition admission, a matching flag-enabled kernel, construction
 of the protected ordered/bounded register backend and exact-artifact board
 acceptance remain open. No new programming profile, daemon operation, public
 DMA ioctl, image/boot change or board programming is enabled by this source.
+
+
+## Kernel capability and current runtime checks
+
+Source `5bf7346481ca2fad27c096da42962086c336177f` builds both complete production
+kernels through the pinned Terasic configuration and owner SDK. The actual Image's
+embedded configuration must exactly match its retained config. The disabled
+[kernel receipt](kernel-static-disabled.json) has no static-startup contract;
+the enabled [receipt](kernel-static-enabled.json) declares only
+`de25-cold-persona-retained-v1`. Root-manifest construction verifies the actual
+Image/config pair before publishing that optional contract. Neither new kernel
+has native board-boot acceptance here.
+
+The same runtime source requires that contract from the matched running-kernel
+receipt before static programming or PR-register reads. Missing, wrong, duplicate
+and wrongly typed values are refused. Its address adapter admits eleven identity
+and status reads and two command writes, with ordering barriers; constructing it
+opens no mapping. The production factory still does not construct this startup
+path. [Native](capability-native.json) and [AArch64](capability-aarch64.json)
+builds, archive audits and programmer/controller/register-model suites pass.
+
+The [f7 affected run](static-f7-affected-result.json) passes parent, generated,
+host and UI checks, then exposes a missing test-link dependency. Source `2ab7cfc071bb7c7e5bfd730ec2a50b0d752d6565` supplies that dependency. Its full runtime run
+reaches the archive guard, which rejects the new word `staged` under its existing
+retired-stage-name rule. Source `48084b8b438e1cb66797c9dfb94e5a886a987d36` changes
+only that diagnostic wording; the entire unchanged `make -j2 test` then
+[passes](runtime-complete-480.json), including all unit suites, incremental/version
+checks, strict production/archive/header guards and hardware-support truth. The
+guard itself is unchanged. These receipts retain their original source identities.
+
+## Native AArch64 kit CPU and file composition
+
+The bottom kit `TRWU8J8G` executes the actual static AArch64 binaries on two CPU
+cores. The programmer, PR-controller and register-adapter model suites pass;
+all FPGA/kernel operations within those tests remain injected. The actual fitted
+base and empty/16K persona files are also composed twice per selection on that
+CPU. All four resulting archives exactly match the previous native/QEMU controls.
+Wrong base, wrong descriptor and pre-existing output controls are refused.
+
+The [native CPU proof](native-kit-cpu-composition.json) names the exact `5bf`
+unit binaries, `aaf` composer and input/output hashes. The private
+[supervisor](native-cpu-supervisor.json) preserves 45-second per-unit and
+90-second total bounds, terminates only its own child groups, and proves inherited
+two-CPU affinity. Earlier transport and missing-fixture failures remain recorded
+in [the validation history](capability-validation.json); the corrected second
+actual model attempt passes without changing the binaries, assertions or bounds.
+
+[Authenticated release](native-kit-released.json) confirms the same image `6de`,
+bundle `a14a`, software generation 38 and boot, idle and lease-free, with private
+payloads removed. This proves native CPU execution and file composition. It does
+not prove SDM transfer, physical PR, the new kernel's native boot or normal FES
+static-package admission. The whole-core AArch64 RTL emulation matrix remains
+incomplete and separate from these results.
+
+## Managed image and SDK workflow
+
+Source `8aa493a80c35342dd222d5215bf1395fda71d84f` selects the immutable owner-SDK
+builder for managed factory assembly and virtual boot, extending the already
+repaired managed-base selection. The [base verification](managed-base-verify.json)
+and real-kernel/rootfs [virtual boot](managed-base-virtual-boot.json) pass. Virtual
+boot checks read-only root, temporary writable mounts and D-Bus; physical
+peripherals and Terasic boot/reset are outside that proof.
+
+The first factory build correctly refuses a modified runtime. Reproducing the
+stock SDK strip operation on a private copy gives exactly the same rejected
+bytes ([diagnosis](factory-runtime-strip-diagnosis.json)). Source `467052bc5f088d25acb5c398c9a9740f4efc6deb` preserves the selected `mister-runtime` bytes
+in factory configuration. The final exact executable-hash check remains required.
+
+Source `e212fd51c0de96bf660207bf0c96a0e1355eed4d` authenticates a retained headless
+SDK against its actual Git producer read as data, while requiring the same current
+compiler/rootfs/container key. It preserves the original SDK receipt and builder
+match. Factory-only changes can reuse that compiler; changed compiler policy,
+relabelled recipes, missing producers and poisoned archives are refused.
+[Twenty-nine focused tests](SDK-producer-focused.log) and the complete selected
+[image/SDK affected plan](image-sdk-e212-affected-result.json) pass.
+
+The actual new normal bundle, matching host, both static target helpers and
+[immutable factory inputs](normal-e212-factory-artifacts.json) are built from
+`e212`. The packaged runtime's [early-entry probe](normal-e212-early-entry.json)
+executes against the real reviewed `6de` loader/libraries under AArch64 QEMU.
+No hardware adapter is constructed by that probe. The new factory rebuild runs
+from an immutable `e212` snapshot; it has no native image acceptance yet.
+
+The [six fitted clock observations](PR-fitted-clock-observations.json) retain
+four corners and 32 paths for each fitted revision, with conditional setup/hold
+minima of 159.294/159.269 ns. PCB delay, jitter and signal integrity remain
+unqualified. Raw PR Design Closure is still failed, no prior exception is
+inherited, and no static PR package or physical programming path is admitted.

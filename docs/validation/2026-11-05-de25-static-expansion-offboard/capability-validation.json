@@ -1,0 +1,41 @@
+{
+  "scope": "Source-bound preparation and native CPU diagnostics; normal static admission/physical PR not accepted",
+  "sources": {
+    "capability_and_kernels": "5bf7346481ca2fad27c096da42962086c336177f",
+    "managed_base": "f7cbfed4237e0eb3cd0e32f79a42ac5358801d1b",
+    "managed_boot_builder": "8aa493a80c35342dd222d5215bf1395fda71d84f",
+    "whole_runtime": "48084b8b438e1cb66797c9dfb94e5a886a987d36",
+    "immutable_runtime_configuration": "467052bc5f088d25acb5c398c9a9740f4efc6deb",
+    "SDK_producer_and_new_software": "e212fd51c0de96bf660207bf0c96a0e1355eed4d",
+    "PR_fit_composer": "aaf5155eed2f77683742f96d1a95ee83dfd4b235"
+  },
+  "native_failures_retained": {
+    "original_missing_timeout": "not started; original private trace retained",
+    "first_new_staging": "tar -z unsupported; no tests started; exact archive cleaned and baseline authenticated",
+    "first_actual_native_unit": "required relative manifest fixture omitted; first model unit aborted, remaining units/composer not started",
+    "first_cleanup_dependency": "stock stat absent; no time/UID/mode gate removed; private read-only native metadata helper supplied",
+    "corrected_native_run": "second actual model attempt PASS; same binaries/expectations/45s unit,90s total and100s SSH caps. Added exact original manifest fixture. Exact original baseline unchanged/released; no physical programming.",
+    "actual_failures_before_pass": 1,
+    "maximum_actual_failures": 2
+  },
+  "other_failures_retained": {
+    "first_managed_base": "generic builder mismatch before build; repaired locked selection",
+    "first_virtual_boot": "generic builder mismatch before QEMU; repaired locked selection",
+    "f7_affected": "parent/host/UI pass; complete runtime omitted link dependency",
+    "2ab_runtime": "all units/incremental/version pass; strict archive guard rejected staged diagnostic text",
+    "480_runtime": "complete unchanged runtime command PASS after message-only repair; guard unchanged",
+    "first_factory": "strict executable identity check rejected exact stock strip transformation; selected byte preservation repaired in467",
+    "first_headless_sdk_consumer": "factory-only recipe edits invalidated old broad image fingerprint; now verify original Git producer plus exact current compiler/rootfs/container key",
+    "explicit_managed_sdk_attempt": "old SDK builderEA mismatched runtime-builderA58; strict refusal unchanged, not bypassed",
+    "e212_success": "same headlessSDKv3/normal builderA58, current production source and archived actual producer, normal build/probe PASS"
+  },
+  "remaining": {
+    "normal_static_package_admission": false,
+    "physical_PR_acceptance": false,
+    "new_kernel_native_boot": false,
+    "factory_rebuild": "running from immutable e212 source; prior failed candidate retained",
+    "whole_board_PR_design_closure": "FAILED raw finding groups unchanged; conditional audio path observations are not PCB timing signoff and no exception applied",
+    "whole_standard_core_AArch64_RTL_matrix": "incomplete; prior aggregate and seed53 deadlines retained, no unchanged replay",
+    "canonical_ZX81_tail": "separate original final simulation tail still running under3600s cap; no full-plan PASS yet"
+  }
+}
