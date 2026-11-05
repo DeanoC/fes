@@ -70,3 +70,37 @@ func TestLimitDiagnosticsDistinguishSlowReadWriteClockAndACK(t *testing.T) {
 		})
 	}
 }
+
+type timedIO struct {
+	IO
+	timing  AccessTiming
+	samples int
+}
+
+func (t *timedIO) LastAccessTiming() AccessTiming { t.samples++; return t.timing }
+
+func TestLimitIncludesSavedAccessTimingWithoutChangingAcceptance(t *testing.T) {
+	c, f := opened(t)
+	now := time.Unix(100, 0)
+	c.limits.Now = func() time.Time { return now }
+	io := &timedIO{IO: f, timing: AccessTiming{Offset: g.FesDe25ComputerStatusOffset, Before: 2 * time.Millisecond, Register: 3 * time.Millisecond, After: 5 * time.Millisecond, Completed: true}}
+	c.io = io
+	// Successful operations do not request diagnostic data.
+	if err := c.Run(context.Background()); err != nil || io.samples != 0 {
+		t.Fatal(err, io.samples)
+	}
+	f.readHook = func(uint32) (uint32, error, bool) { now = now.Add(time.Second); return 0, nil, false }
+	before := f.reads
+	err := c.Hold(context.Background())
+	if !errors.Is(err, ErrLimit) || io.samples != 1 || f.reads != before+1 {
+		t.Fatal(err, io.samples, f.reads-before)
+	}
+	for _, field := range []string{"ownership_before=2ms", "register_io=3ms", "ownership_after=5ms", "access_complete=true", "access_offset=0x8", "access_write=false"} {
+		if !strings.Contains(err.Error(), field) {
+			t.Fatalf("missing %s: %v", field, err)
+		}
+	}
+	if err := c.Run(context.Background()); !errors.Is(err, ErrRetired) || io.samples != 1 || f.reads != before+1 {
+		t.Fatal("diagnostic revived failed operation", err)
+	}
+}

@@ -33,6 +33,19 @@ type IO interface {
 	Write32(uint32, uint32) error
 }
 
+// AccessTiming is optional diagnostic evidence about the last synchronous IO
+// call. It supplies no permission, timeout allowance or retry decision.
+type AccessTiming struct {
+	Offset                  uint32
+	Write                   bool
+	Before, Register, After time.Duration
+	Completed               bool
+}
+
+// AccessTimer must return saved counters without performing IO. Computer asks
+// for them only when reporting a limit failure; they never affect acceptance.
+type AccessTimer interface{ LastAccessTiming() AccessTiming }
+
 // Limits apply to an entire public operation; MaxPolls bounds each command's
 // ACK observations independently. Now must be monotonic and Yield must return
 // within a platform bound. Yield allows cooperative native scheduling.
@@ -80,9 +93,15 @@ type operation struct {
 }
 
 func (o *operation) limit(reason string, now time.Time) error {
-	return fmt.Errorf("%w: reason=%s operation=%s phase=%s elapsed=%s step=%s limit=%s offset=%#x opcode=%d index=%d polls=%d/%d reads=%d writes=%d",
+	err := fmt.Errorf("%w: reason=%s operation=%s phase=%s elapsed=%s step=%s limit=%s offset=%#x opcode=%d index=%d polls=%d/%d reads=%d writes=%d",
 		ErrLimit, reason, o.name, o.phase, now.Sub(o.start), now.Sub(o.last), o.c.limits.Timeout,
 		o.offset, o.opcode, o.index, o.polls, o.c.limits.MaxPolls, o.reads, o.writes)
+	if timer, ok := o.c.io.(AccessTimer); ok {
+		t := timer.LastAccessTiming()
+		return fmt.Errorf("%w access_offset=%#x access_write=%t ownership_before=%s register_io=%s ownership_after=%s access_complete=%t",
+			err, t.Offset, t.Write, t.Before, t.Register, t.After, t.Completed)
+	}
+	return err
 }
 
 func (o *operation) check() error {

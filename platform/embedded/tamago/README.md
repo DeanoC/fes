@@ -500,6 +500,14 @@ ordinary ROM/parts/media admission and native Ethernet remain open. The
 separately accepted fixed-window renderer diagnostic does not grant display
 ownership to these computer sessions.
 
+Computer limit failures can include the last native register access's separate
+secure ownership-before, register-I/O and ownership-after durations. The register
+phase includes the CPU transport's live mapping verification. These saved
+diagnostic values are read only after a limit failure; successful operations
+print nothing. They change no ownership checks, deadlines, poll limits or retry
+behavior, and do not establish which sub-operation dominates until measured on
+the matched hardware image.
+
 The explicit `fpgaload --tenfoot-serial` selection now runs the full Tenfoot App
 on the native CPU through this adapter. It requires `--selected-programs`,
 `--computer-control`, `--computer-reload` and `--computer-storage-return`.

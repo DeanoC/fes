@@ -11,6 +11,7 @@ import (
 	"io"
 	"math"
 	"sync"
+	"time"
 
 	"github.com/DeanoC/fes/platform/embedded/tamago/computer"
 	cg "github.com/DeanoC/fes/platform/embedded/tamago/computer/generated"
@@ -79,13 +80,21 @@ func checkedComputerMapFor(source HPSBootContext, control, raw []byte) (computer
 // access is bracketed by fresh secure snapshots. Closing retires it before the
 // bridge mutation and waits for an in-flight ordered access to finish.
 type computerIO struct {
-	mu      sync.Mutex
-	cpu     CPUTransport
-	bridges *FirmwareBridges
-	want    BridgeSnapshot
-	base    uint64
-	retired bool
-	closing bool
+	mu         sync.Mutex
+	cpu        CPUTransport
+	bridges    *FirmwareBridges
+	want       BridgeSnapshot
+	base       uint64
+	retired    bool
+	closing    bool
+	clock      func() time.Time
+	lastTiming computer.AccessTiming
+}
+
+func (c *computerIO) LastAccessTiming() computer.AccessTiming {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	return c.lastTiming
 }
 
 func (c *computerIO) access(offset uint32, write bool, value uint32) (uint32, error) {
@@ -101,7 +110,15 @@ func (c *computerIO) access(offset uint32, write bool, value uint32) (uint32, er
 		c.retired = true
 		return 0, errors.New("native fabric: only Hold is permitted during computer closure")
 	}
+	now := c.clock
+	if now == nil {
+		now = time.Now
+	}
+	c.lastTiming = computer.AccessTiming{Offset: offset, Write: write}
+	start := now()
 	before, err := c.bridges.ObserveBridges()
+	beforeEnd := now()
+	c.lastTiming.Before = beforeEnd.Sub(start)
 	if err != nil || before != c.want {
 		c.retired = true
 		return 0, errors.Join(errors.New("native fabric: computer lost control-only ownership"), err)
@@ -112,15 +129,19 @@ func (c *computerIO) access(offset uint32, write bool, value uint32) (uint32, er
 	} else {
 		result, err = c.cpu.ReadPhysical32(c.base + uint64(offset))
 	}
+	registerEnd := now()
+	c.lastTiming.Register = registerEnd.Sub(beforeEnd)
 	if err != nil {
 		c.retired = true
 		return 0, err
 	}
 	after, err := c.bridges.ObserveBridges()
+	c.lastTiming.After = now().Sub(registerEnd)
 	if err != nil || after != c.want {
 		c.retired = true
 		return 0, errors.Join(errors.New("native fabric: computer ownership changed during access"), err)
 	}
+	c.lastTiming.Completed = true
 	return result, nil
 }
 func (c *computerIO) Read32(offset uint32) (uint32, error) { return c.access(offset, false, 0) }
