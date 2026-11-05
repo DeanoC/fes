@@ -9,7 +9,10 @@
 #define FES_NANO_USB_PHY_PRODUCT 0x0007U
 #define FES_NANO_USB_CLOCK_COUNT 13U
 /* Compiled policy only: copy the complete validated sealed HPS I/O map.
- * No caller-supplied MMIO addresses, PHY IDs, clock rates or masks at runtime. */
+ * No caller-supplied MMIO addresses, PHY IDs, clock rates or masks at runtime.
+ * The physical read hook returns each ordered word synchronously. Independent
+ * read-only clock/pin samples have barriers at their group boundaries; USB
+ * controller and PHY transactions retain their individual ordering barriers. */
 struct fes_nano_usb_board {
     struct fes_nano_cold *cold;
     struct fes_nano_usb_io physical;

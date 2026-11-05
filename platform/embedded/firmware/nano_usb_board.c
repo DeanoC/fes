@@ -44,8 +44,26 @@ static int scope(struct fes_nano_usb_board *b,unsigned *active)
 static int clocks(struct fes_nano_usb_board *b,unsigned capture)
 {
     uint32_t v[FES_NANO_USB_CLOCK_COUNT];
-    for (unsigned i=0;i<FES_NANO_USB_CLOCK_COUNT;i++)
-        if (read_reg(b,CLK_BASE+clock_offsets[i],&v[i])) return -1;
+    uint32_t previous=b->last_value;
+    /* Independent read-only policy registers need ordering at the sample's
+     * boundaries, not a full barrier around each word. Every value is still
+     * synchronously read afresh before any controller operation or grant.
+     * Controller/PHY read_reg() ordering remains unchanged. */
+    b->physical.barrier(b->physical.context);
+    for (unsigned i=0;i<FES_NANO_USB_CLOCK_COUNT;i++) {
+        uintptr_t address=CLK_BASE+clock_offsets[i];
+        if (b->failed) {b->physical.barrier(b->physical.context);return -1;}
+        int error=b->physical.read(b->physical.context,address,&v[i]);
+        if (error) {
+            b->physical.barrier(b->physical.context);
+            b->last_address=address;b->last_value=previous;
+            return fail(b,error);
+        }
+        previous=v[i];
+    }
+    b->physical.barrier(b->physical.context);
+    b->last_address=CLK_BASE+clock_offsets[FES_NANO_USB_CLOCK_COUNT-1];
+    b->last_value=previous;
     v[1]&=0x01030301U;v[12]&=12U;
     if ((v[0]&1U) || v[1]!=0x30300U || (v[2]&0xf6U) || (v[3]&0xefU) ||
         v[12]) return fail(b,-5);
@@ -66,11 +84,23 @@ static int clocks(struct fes_nano_usb_board *b,unsigned capture)
 }
 static int pins(struct fes_nano_usb_board *b)
 {
+    uint32_t previous=b->last_value;
+    b->physical.barrier(b->physical.context);
     for (unsigned i=0;i<FES_NANO_HPS_IO_COUNT;i++) {
+        uintptr_t address=FES_NANO_HPS_IO_BASE+b->pins[i].offset;
         uint32_t value;
-        if (read_reg(b,FES_NANO_HPS_IO_BASE+b->pins[i].offset,&value)) return -1;
-        if (value!=b->pins[i].value) return fail(b,-5);
+        if (b->failed) {b->physical.barrier(b->physical.context);return -1;}
+        int error=b->physical.read(b->physical.context,address,&value);
+        if (error || value!=b->pins[i].value) {
+            b->physical.barrier(b->physical.context);
+            b->last_address=address;b->last_value=error ? previous : value;
+            return fail(b,error ? error : -5);
+        }
+        previous=value;
     }
+    b->physical.barrier(b->physical.context);
+    b->last_address=FES_NANO_HPS_IO_BASE+b->pins[FES_NANO_HPS_IO_COUNT-1].offset;
+    b->last_value=previous;
     return 0;
 }
 static int prepare(void *context)

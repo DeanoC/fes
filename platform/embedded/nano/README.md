@@ -1349,3 +1349,15 @@ independent query rejects device readiness and retires the shared source.
 Known failed owners never regain containment or device authority. Every
 computer CSR retains its before/after firmware ownership brackets; the native
 one-second/64-poll computer guard and 20-second configuration guard are unchanged.
+
+Read-only board policy sampling brackets each complete clock/pin group with
+ordering barriers. All 13 captured clock fields and 164 sealed pins are still
+read and checked on every call, in the same order; no prior sample is reused.
+Controller, reset and PHY transactions keep their existing individual ordering.
+Sample errors close the group boundary, retain the original error/address and
+previous successful value, and stop without further reads or writes. Successful
+samples publish their final diagnostic address/value once per group, reducing
+uncached diagnostic stores. Tests fault every supplier read, audit both group
+boundaries and complete value sequences, and require the next invocation to
+reject a newly changed pin after a successful sample. Native limits and fresh
+per-CSR containment checks remain unchanged.

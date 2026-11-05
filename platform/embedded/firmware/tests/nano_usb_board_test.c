@@ -179,6 +179,87 @@ static void master_containment(void)
         assert(t.requests==requests && t.base.h.writes==writes);
     }
 }
+enum { POLICY_READ=1,POLICY_WRITE=2,POLICY_BARRIER=3 };
+static struct policy_event {unsigned kind;uintptr_t address;uint32_t value;int error;} policy_events[1024];
+static unsigned policy_event_count;
+static void policy_event(unsigned kind,uintptr_t address)
+{
+    assert(policy_event_count<1024);
+    policy_events[policy_event_count++]=(struct policy_event){.kind=kind,.address=address};
+}
+static int policy_address(uintptr_t address)
+{
+    return (address>=0x10d10000UL && address<0x10d10100UL) ||
+        (address>=FES_NANO_HPS_IO_BASE+0x1000 && address<=FES_NANO_HPS_IO_BASE+0x14bc);
+}
+static int traced_policy_read(void *p,uintptr_t address,uint32_t *value)
+{
+    unsigned index=policy_event_count;policy_event(POLICY_READ,address);
+    int error=board_read(p,address,value);
+    policy_events[index].error=error;policy_events[index].value=error ? 0 : *value;
+    return error;
+}
+static int traced_policy_write(void *p,uintptr_t address,uint32_t value)
+{policy_event(POLICY_WRITE,address);return board_write(p,address,value);}
+static void traced_policy_barrier(void *p) {(void)p;policy_event(POLICY_BARRIER,0);}
+static void trace_policy(struct board_test *t)
+{
+    policy_event_count=0;t->board.physical.read=traced_policy_read;
+    t->board.physical.write=traced_policy_write;t->board.physical.barrier=traced_policy_barrier;
+}
+static void policy_sampling(void)
+{
+    struct board_test t;prepared(&t);host_started(&t);
+    assert(!fes_nano_usb_platform_confirm(&t.base.usb,17,1));
+    trace_policy(&t);unsigned accesses=t.accesses,requests=t.requests;
+    assert(!fes_nano_usb_platform_idle(&t.base.usb,17,2));
+    unsigned reads=t.accesses-accesses,barriers=0,clock_groups=0,pin_groups=0;
+    static const unsigned offsets[]={0,4,0x30,0x88,0x40,0x44,0x48,0x6c,0x68,0x9c,0xc0,0xb4,0x18};
+    for (unsigned i=0;i<policy_event_count;i++) {
+        struct policy_event event=policy_events[i];
+        assert(event.kind!=POLICY_WRITE);
+        barriers+=event.kind==POLICY_BARRIER;
+        if (event.kind!=POLICY_READ || !policy_address(event.address)) continue;
+        assert(i && policy_events[i-1].kind==POLICY_BARRIER);
+        unsigned clock=event.address==0x10d10000UL,count=clock ? 13 : FES_NANO_HPS_IO_COUNT;
+        for (unsigned n=0;n<count;n++) {
+            assert(i+n<policy_event_count);
+            uintptr_t want=clock ? 0x10d10000UL+offsets[n] : FES_NANO_HPS_IO_BASE+compiled_pins[n].offset;
+            assert(policy_events[i+n].kind==POLICY_READ && policy_events[i+n].address==want);
+        }
+        i+=count-1;
+        assert(i+1<policy_event_count && policy_events[i+1].kind==POLICY_BARRIER);
+        if (clock) clock_groups++;else pin_groups++;
+    }
+    assert(clock_groups==2 && pin_groups==2 && barriers<64);
+    assert(reads==366 && t.requests==requests && t.base.usb.generation==2);
+    /* A successful sample cannot replace the next call's fresh pin reads. */
+    t.pins[0]^=1;
+    assert(fes_nano_usb_platform_idle(&t.base.usb,17,2) && t.board.failed);
+    /* Fault every actual supplier read. Failed sample groups close their
+     * ordering boundary and retain the exact failing address/original error. */
+    for (unsigned n=1;n<=reads;n++) {
+        prepared(&t);host_started(&t);assert(!fes_nano_usb_platform_confirm(&t.base.usb,17,1));
+        trace_policy(&t);t.fail_at=t.accesses+n;requests=t.requests;
+        assert(fes_nano_usb_platform_idle(&t.base.usb,17,2));
+        assert(t.base.usb.failed && t.base.cold.failed && t.base.usb.active && t.base.usb.confirmed);
+        struct policy_event last={0};uint32_t previous=0;
+        for (unsigned i=0;i<policy_event_count;i++) if (policy_events[i].kind==POLICY_READ) {
+            if (!last.error) previous=last.value;
+            last=policy_events[i];
+        }
+        if (policy_address(last.address)) {
+            assert(policy_events[policy_event_count-1].kind==POLICY_BARRIER);
+            assert(t.board.first_error==-99 && t.board.last_address==last.address && t.board.last_value==previous);
+        }
+        accesses=t.accesses;
+        assert(fes_nano_usb_platform_idle(&t.base.usb,17,2));
+        assert(fes_nano_usb_platform_observe(&t.base.usb,17,2));
+        assert(fes_nano_usb_platform_stop(&t.base.usb,17,2));
+        assert(t.accesses==accesses && t.requests==requests && t.base.usb.generation==2);
+    }
+    printf("PASS fresh grouped policy sampling reads=%u barriers=%u complete-clock-pin-groups=4 and all read faults\n",reads,barriers);
+}
 static void completed(void)
 {
     struct board_test t;prepared(&t);host_started(&t);
@@ -279,6 +360,6 @@ static void copied_policy_and_admission(void)
 #endif
 int FES_NANO_USB_BOARD_ENTRY(void)
 {
-    master_containment();completed();live_failures();changed_policy();interruptions();copied_policy_and_admission();operation_boundaries();prepared_observation_admission();
+    policy_sampling();master_containment();completed();live_failures();changed_policy();interruptions();copied_policy_and_admission();operation_boundaries();prepared_observation_admission();
     puts("PASS actual USB board clocks/pins, two-phase host confirmation and USB3320 ULPI/VBUS failures; model only");return 0;
 }
