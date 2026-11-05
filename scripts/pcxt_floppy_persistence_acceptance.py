@@ -44,16 +44,21 @@ class PhaseDeadline:
         return left
 
 
-def bounded_source_command(argv, deadline, *, cwd=None):
+def bounded_source_command(argv, deadline, *, cwd=None, maximum_seconds=20, safe_python=False, cache_prefix=None):
     """Bound and reap an owned Git/GitHub process group without pipe hangs."""
     deadline.remaining(1)
     with tempfile.TemporaryFile() as output:
         environment = dict(os.environ, GIT_NO_REPLACE_OBJECTS='1')
+        if safe_python:
+            environment.pop('PYTHONPATH',None); environment.pop('PYTHONHOME',None)
+            environment['PYTHONNOUSERSITE']='1'
+            environment['PYTHONDONTWRITEBYTECODE']='1'
+            environment['PYTHONPYCACHEPREFIX']=str(cache_prefix)
         proc=subprocess.Popen(argv,cwd=cwd,stdout=output,stderr=subprocess.DEVNULL,start_new_session=True,env=environment)
         try:
             # Keep the leader unreaped until its entire group is killed. This
             # prevents PID/group reuse when an exited leader leaves children.
-            end=time.monotonic()+min(20,deadline.remaining(1))
+            end=time.monotonic()+min(maximum_seconds,deadline.remaining(1))
             while True:
                 observed=os.waitid(os.P_PID,proc.pid,os.WEXITED|os.WNOHANG|os.WNOWAIT)
                 if observed is not None:break
@@ -81,6 +86,9 @@ SOURCE_PATHS = ['scripts/pcxt_floppy_persistence_acceptance.py', 'scripts/pcxt_h
                 'scripts/pcxt_gameplay_probe.py', 'scripts/pcxt_game_audio_capture.py',
                 'scripts/pcxt_capture_fanout.py', 'scripts/pcxt_v4l2_capture.c',
                 'scripts/package_acceptance.py', 'scripts/diagnostic_identity.py', 'scripts/input_diagnostic.py',
+                'scripts/pcxt_selected_source.py', 'scripts/bundle.py', 'scripts/recipes.py',
+                'scripts/artifact_cache.py', 'scripts/core_dev_accept.py', 'scripts/core_dev.py',
+                'scripts/package_acceptance_isolated.py', 'scripts/module_sources.py', 'scripts/optional_cores.py',
                 'sources/misteross/scripts/core_package.py', 'sources/misteross/scripts/rfc3986_validator.py',
                 'sources/misteross/cores/fes-pcxt/firmware/hardware-dos.json',
                 'sources/misteross/cores/fes-pcxt/sim/bios.lock']
@@ -188,6 +196,8 @@ def require_historical_main(args, deadline=None):
         actual_tip = live.get('sha') if isinstance(live, dict) else None
         if not isinstance(actual_tip, str) or not re.fullmatch(r'[0-9a-f]{40}', actual_tip):
             raise ValueError('live main tip is malformed')
+        if getattr(args, 'selected_prepared', None) is not None and actual_tip != tip:
+            raise ValueError('selected main source is no longer current')
         observations = getattr(args, 'source_tip_observations', None)
         if observations is None:
             observations = []
@@ -615,6 +625,62 @@ def check_matching_sources(provenance, source_commit):
         raise pa.AcceptanceError('host, software and package source commits differ')
 
 
+def add_selected_source_arguments(parser):
+    parser.add_argument('--selected-prepared', type=Path, help='identity-v2 current-main prepared receipt')
+    parser.add_argument('--selected-prepared-sha256', help='pinned prepared receipt digest')
+    parser.add_argument('--selected-source-checkout', type=Path, help='clean canonical selected source snapshot')
+    parser.add_argument('--producer-source-checkout', type=Path, help='clean canonical original producer snapshot')
+
+
+def selected_source_admission(provenance, args, *, root):
+    values=[getattr(args,name,None) for name in ('selected_prepared','selected_prepared_sha256',
+            'selected_source_checkout','producer_source_checkout')]
+    if all(value is None for value in values):
+        return False
+    if (any(value is None for value in values) or not getattr(args,'source_historical_main',False)
+            or getattr(args,'source_main',False) or getattr(args,'source_pr',None) is not None
+            or not isinstance(args.selected_prepared_sha256,str) or not HEX64.fullmatch(args.selected_prepared_sha256)
+            or getattr(args,'source_minimum_tip',None)!=getattr(args,'source_observed_tip',None)):
+        raise pa.AcceptanceError('selected package requires complete exact-current historical identity')
+    deadline=PhaseDeadline(time.monotonic()+100)
+    try:
+        # Authenticate the entire imported scripts directory, including helper
+        # dependencies, and refuse untracked import candidates.
+        if bounded_source_command(['git','status','--porcelain','--untracked-files=normal','--','scripts'],deadline,cwd=root):
+            raise ValueError('diagnostic scripts have local changes')
+        for checkout,revision in ((args.selected_source_checkout,args.source_observed_tip),
+                                  (args.producer_source_checkout,args.source_commit)):
+            path=Path(checkout)
+            if not path.is_absolute() or path!=path.resolve(strict=True) or not path.is_dir():
+                raise ValueError('source snapshot path is not canonical')
+            head=bounded_source_command(['git','rev-parse','HEAD'],deadline,cwd=path).decode('ascii').strip()
+            status=bounded_source_command(['git','status','--porcelain','--untracked-files=normal'],deadline,cwd=path)
+            if head!=revision or status:
+                raise ValueError('source snapshot differs from expected clean commit')
+        with tempfile.TemporaryDirectory(prefix='pcxt-source-cache-') as cache:
+            argv=[sys.executable,'-I','-B','-X','pycache_prefix='+cache,str(root/'scripts/pcxt_selected_source.py'),
+              '--prepared',str(args.selected_prepared),'--prepared-sha256',args.selected_prepared_sha256,
+              '--source-checkout',str(args.selected_source_checkout),'--producer-checkout',str(args.producer_source_checkout),
+              '--archive-sha256',args.archive_sha256,'--package-id',args.package_id,'--rbf-sha256',args.rbf_sha256,
+              '--producer',args.source_commit,'--selected',args.source_observed_tip]
+            raw=bounded_source_command(argv,deadline,cwd=root,maximum_seconds=85,safe_python=True,cache_prefix=cache)
+        for checkout,revision in ((args.selected_source_checkout,args.source_observed_tip),
+                                  (args.producer_source_checkout,args.source_commit)):
+            if (bounded_source_command(['git','rev-parse','HEAD'],deadline,cwd=checkout).decode('ascii').strip()!=revision
+                    or bounded_source_command(['git','status','--porcelain','--untracked-files=normal'],deadline,cwd=checkout)):
+                raise ValueError('source snapshot changed during verification')
+        result=json.loads(raw)
+        if (not isinstance(result,dict) or result.get('producer_commit')!=args.source_commit
+                or result.get('selected_commit')!=args.source_observed_tip
+                or result.get('archive_sha256')!=args.archive_sha256 or result.get('package_id')!=args.package_id
+                or result.get('rbf_sha256')!=args.rbf_sha256 or result.get('prepared_sha256')!=args.selected_prepared_sha256):
+            raise ValueError('selected package evidence differs')
+        provenance['selected_package']=result
+        return True
+    except (OSError,ValueError,TypeError,KeyError,UnicodeError,subprocess.SubprocessError,json.JSONDecodeError) as exc:
+        raise pa.AcceptanceError('selected package source could not be independently verified') from exc
+
+
 def check_source_admission(provenance, args, *, root=None):
     """Keep same-source default; admit one pinned software source with identical ABI trees.
 
@@ -624,12 +690,14 @@ def check_source_admission(provenance, args, *, root=None):
     bundles or proof that the live target is compatible. Normal live package,
     ABI, ownership and session checks remain mandatory.
     """
+    root = Path(root) if root is not None else Path(__file__).resolve().parent.parent
+    selected = selected_source_admission(provenance,args,root=root)
     companion = getattr(args, 'compatible_software_source', None)
     if companion is None:
         check_matching_sources(provenance, args.source_commit)
         return
-    if (getattr(args, 'source_main', False) is not True
-            or getattr(args, 'source_historical_main', False)
+    if ((getattr(args, 'source_main', False) is not True and not selected)
+            or (getattr(args, 'source_historical_main', False) and not selected)
             or getattr(args, 'source_pr', None) is not None
             or not isinstance(args.source_commit, str) or not re.fullmatch(r'[0-9a-f]{40}', args.source_commit)
             or not isinstance(companion, str) or not re.fullmatch(r'[0-9a-f]{40}', companion)
@@ -715,6 +783,7 @@ def main(argv=None):
         p.add_argument('--source-diff-sha256', help='reviewed raw producer-to-tip diff SHA-256 in historical mode')
         p.add_argument('--source-minimum-tip', help='last accepted main tip; write receipt tip on restart')
         p.add_argument('--compatible-software-source', help='explicit software source with identical runtime and contract source trees')
+        add_selected_source_arguments(p)
         p.add_argument('--phase-deadline-monotonic', required=True, type=float)
         p.add_argument('--host-pid', required=True, type=int)
         p.add_argument('--write-receipt', type=Path)
