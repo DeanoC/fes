@@ -1,0 +1,43 @@
+{
+  "status": "passed",
+  "base": "63cdf2645ab49c0353746045f6162c9eb1d3db34",
+  "hardware_actions": false,
+  "hardware_acceptance": false,
+  "ordinary_admission": false,
+  "targeted_tests": 17,
+  "original_owner_cases": 47,
+  "step_driver_cases": 82,
+  "rom_sizes": [
+    4096,
+    8192
+  ],
+  "rom_step_bytes": 16,
+  "max_status_polls": 64,
+  "rom_max_ticks": 400000000,
+  "rom_tick_hz": 400000000,
+  "abort_additional_io": false,
+  "latency_model_only": true,
+  "model_cost_ticks": {
+    "cold_register": 4500,
+    "fast_guard": 5000,
+    "endpoint_access": 3000,
+    "other_register": 100,
+    "timer_sample": 30
+  },
+  "source_sha256": {
+    "platform/embedded/firmware/README.md": "200160ce5503763993c81088a81f9c8a31f90d4516532ce1e251d89fd82d96a3",
+    "platform/embedded/firmware/nano_rom.c": "43d7752f49ce902fdc72e8f60e8b72565b14145dfe9198169d3afda6cf8bfbfa",
+    "platform/embedded/firmware/nano_rom.h": "a83f20cf6994490260726859b2d6f0919d33aaaf6e8f4942187300ad3859c270",
+    "platform/embedded/firmware/nano_rom_platform.inc": "3d27a74e7a694e2890ef9230f6d1ee9212ab4bbed05f279cac298153677bf4c5",
+    "platform/embedded/firmware/tests/nano_rom_owner_test.c": "96e8dab79299ff7950f66f3bdcff4570564eda51229d748fcc1b839bdda49907",
+    "platform/embedded/firmware/verify.py": "cc41e8958cc869526f60227211989d787782fe746d1c4f6771dda398c618b086",
+    "tests/test_nano_rom_owner.py": "aaae58d61f56c9420548ee47dc21bbac69125c5d06d496b608c5ff527eb367ba",
+    "platform/embedded/firmware/tests/nano_rom_steps_platform_test.c": "e27429f774a52452b930190bb0e3f1fd3318941a01847f8774f34e6beaba6219",
+    "platform/embedded/firmware/tests/nano_rom_steps_test.c": "05d231524dec1d4b5433fdbd810f391457f06eb1731e6611dd574e34ebc1f569"
+  },
+  "logs_sha256": {
+    "out/nano-rom-steps-20261105/scopes-tests-v3.log": "4d502f51a806b6025d4f1de656986ca90a4031ad7ccc6d718a328385cc2a5ae6",
+    "out/nano-rom-steps-20261105/legacy-rtl-v3/result.json": "d4f4b0f82158503f3566d024d3cf4b66ee6b37641689cc0469a69734444482ac",
+    "out/nano-rom-steps-20261105/steps-rtl-v3/result.json": "73c1a159572ab9c9e2354df9371ddd7084faf15927095b3b23c12891250ce363"
+  }
+}

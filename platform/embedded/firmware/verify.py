@@ -20,7 +20,7 @@ FPGA = ROOT / "sources/misteross"
 def function(source, name):
     # Exact source blob is verified before extraction; these functions contain
     # no brace-bearing strings. Fail closed if the known definition is absent.
-    match = re.search(r"(?m)^(?:static )?(?:int|bool|void|uint32_t|uintptr_t) " + name + r"\(", source)
+    match = re.search(r"(?m)^(?:static )?(?:int|bool|void|uint32_t|uint64_t|uintptr_t) " + name + r"\(", source)
     if not match:
         raise ValueError("missing TF-A function " + name)
     start = source.index("{", match.start())

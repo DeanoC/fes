@@ -12,14 +12,55 @@ static struct fes_nano_rom computer_rom;
 static struct {
     const char *scope;
     uint64_t tick, owner_started, owner_ticks, owner_max;
-    uint32_t hz, reads, writes, read_offset, read_value, write_offset, owner_checks;
+    uint32_t hz, reads, writes, read_offset, read_value, write_offset, owner_checks, fast_checks;
     unsigned pending, reported, phase, owner_pending, owner_invalid;
     int result;
 } computer_rom_diagnostic;
+#if defined(FES_NANO_SHARED_USB) && FES_NANO_SHARED_USB
+/* A private, non-yielding protocol step under the existing secure lock. */
+static struct {
+    uint64_t owner,generation,usb_generation;
+    uint32_t next,offset,phase,polls; /* phase: status, received, written, four words, done */
+    unsigned active,failed;
+} computer_rom_step;
+#endif
 
 static int computer_rom_scope_failure(const char *scope)
 { computer_rom_diagnostic.scope=scope;return 0; }
 
+#if defined(FES_NANO_SHARED_USB) && FES_NANO_SHARED_USB
+static int computer_rom_step_guard(uint64_t owner,uint64_t generation)
+{
+    computer_rom_diagnostic.fast_checks++;
+    struct fes_nano_bridges *b=&fes_nano_owned_bridges;
+    if(computer_rom_step.active!=1 || computer_rom_step.failed || computer_rom_step.owner!=owner ||
+       computer_rom_step.generation!=generation || !computer_rom.initialized ||
+       !computer_rom.busy || !computer_rom.used || computer_rom.failed || computer_rom.complete ||
+       computer_rom.owner!=owner || computer_rom.generation!=generation ||
+       computer_rom.bytes!=configuration_program.rom_bytes || computer_rom_step.phase>7 ||
+       (computer_rom_step.offset&15U) || computer_rom_step.offset!=computer_rom_step.next ||
+       computer_rom_step.offset>=computer_rom.bytes || computer_rom.bytes-computer_rom_step.offset<16 ||
+       usb_platform.active!=1 || usb_platform.confirmed!=1 ||
+       usb_platform.generation!=computer_rom_step.usb_generation ||
+       b->state.owner!=owner || b->state.generation!=generation ||
+       b->state.reset!=FES_NANO_BRIDGES_DATA || !b->state.masters_contained)
+        return computer_rom_scope_failure("step");
+    struct fes_nano_usb_shared_ops policy=fes_nano_usb_master_service_ops(&usb_master);
+    if(!policy.valid || policy.valid(policy.context,b,&usb_platform)!=1)
+        return computer_rom_scope_failure("step");
+    /* No NS execution or other HPS CPU can run inside this bounded step.
+     * Complete cold/USB/clock proofs frame it. Independently guard every
+     * endpoint access against CPU/reset/bridge drift within that frame. */
+    dsbsy();
+    uint32_t reset=mmio_read_32(FES_NANO_COLD_RSTMGR+0x2c);
+    uint32_t per0=mmio_read_32(FES_NANO_COLD_RSTMGR+0x24);
+    dsbsy();
+    if((reset&FES_NANO_BRIDGES_ALL)!=FES_NANO_BRIDGES_DATA ||
+       (per0&FES_NANO_MASTER_RESET)!=(FES_NANO_MASTER_RESET&~FES_NANO_COLD_USB_RESET) ||
+       !cold_master_cpu_scope())return computer_rom_scope_failure("step");
+    return 1;
+}
+#endif
 static int computer_rom_owned(void *context,uint64_t owner,uint64_t generation)
 {
     struct fes_nano_bridge_snapshot s;
@@ -61,23 +102,105 @@ static int computer_rom_owned(void *context,uint64_t owner,uint64_t generation)
         configuration_program.owner==owner && configuration_program.generation==c->generation &&
         configuration_program.rom_bytes && !c->bridges->device_lease))
         return computer_rom_scope_failure("program");
+#if defined(FES_NANO_SHARED_USB) && FES_NANO_SHARED_USB
+    if(computer_rom_step.active)return computer_rom_step_guard(owner,generation);
+#endif
     if(fes_nano_bridges_observe(c->bridges,&s))return computer_rom_scope_failure("bridges");
     if(!(s.owner==owner && s.generation==generation &&
          s.reset==FES_NANO_BRIDGES_DATA && s.masters_contained))return computer_rom_scope_failure("snapshot");
     return 1;
 }
+#if defined(FES_NANO_SHARED_USB) && FES_NANO_SHARED_USB
+static int computer_rom_step_begin(void *context,uint64_t owner,uint64_t generation,uint32_t offset)
+{
+    if(computer_rom_step.active || computer_rom_step.failed) {
+        computer_rom_step.active=0;computer_rom_step.failed=1;return -1;
+    }
+    if(context!=&provider ||
+       !computer_rom.initialized || !computer_rom.busy || !computer_rom.used ||
+       computer_rom.failed || computer_rom.complete || computer_rom.owner!=owner ||
+       computer_rom.generation!=generation || computer_rom.bytes!=configuration_program.rom_bytes ||
+       (offset&15U) || offset!=computer_rom_step.next || offset>=computer_rom.bytes ||
+       computer_rom.bytes-offset<16 || computer_rom_owned(context,owner,generation)!=1) {
+        computer_rom_step.failed=1;return -1;
+    }
+    computer_rom_step.owner=owner;computer_rom_step.generation=generation;
+    computer_rom_step.usb_generation=usb_platform.generation;
+    computer_rom_step.offset=offset;computer_rom_step.phase=computer_rom_step.polls=0;
+    computer_rom_step.active=1;
+    return 0;
+}
+static int computer_rom_step_end(void *context,uint64_t owner,uint64_t generation,uint32_t offset,unsigned success)
+{
+    unsigned active=computer_rom_step.active;
+    computer_rom_step.active=0; /* Consume before checking or reading anything. */
+    if(!success) {computer_rom_step.failed=1;return 0;} /* Abort: no I/O. */
+    if(success!=1 || active!=1 || computer_rom_step.failed || context!=&provider ||
+       computer_rom_step.owner!=owner || computer_rom_step.generation!=generation ||
+       computer_rom_step.offset!=offset || computer_rom_step.phase!=7 ||
+       !computer_rom_step.polls || computer_rom_step.polls>FES_EMBEDDED_ROM_MAX_POLLS ||
+       !computer_rom.busy || !computer_rom.used || computer_rom.failed || computer_rom.complete ||
+       computer_rom.owner!=owner || computer_rom.generation!=generation ||
+       computer_rom.bytes!=configuration_program.rom_bytes || (offset&15U) ||
+       offset!=computer_rom_step.next || offset>=computer_rom.bytes || computer_rom.bytes-offset<16 ||
+       usb_platform.generation!=computer_rom_step.usb_generation ||
+       computer_rom_owned(context,owner,generation)!=1 ||
+       usb_platform.generation!=computer_rom_step.usb_generation) {
+        computer_rom_step.failed=1;return -1;
+    }
+    computer_rom_step.next=offset+16;
+    return 0;
+}
+#endif
 static int computer_rom_read(void *context,uint32_t offset,uint32_t *value)
 {
     if(context!=&provider || (offset&3U) || offset>=FES_EMBEDDED_ROM_SPAN)return -1;
+#if defined(FES_NANO_SHARED_USB) && FES_NANO_SHARED_USB
+    if(computer_rom_step.failed)return -1;
+    if(computer_rom_step.active) {
+        unsigned phase=computer_rom_step.phase;
+        if(computer_rom_step.failed ||
+           !((phase==0 && offset==FES_EMBEDDED_ROM_STATUS_OFFSET &&
+              computer_rom_step.polls++<FES_EMBEDDED_ROM_MAX_POLLS) ||
+             (phase==1 && offset==FES_EMBEDDED_ROM_RECEIVED_OFFSET) ||
+             (phase==2 && offset==FES_EMBEDDED_ROM_WRITTEN_OFFSET))) {
+            computer_rom_step.failed=1;return -1;
+        }
+    }
+#endif
     computer_rom_diagnostic.reads++;
     *value=mmio_read_32(FES_NANO_ROM_CPU_BASE+offset);
-    computer_rom_diagnostic.read_offset=offset;computer_rom_diagnostic.read_value=*value;return 0;
+    computer_rom_diagnostic.read_offset=offset;computer_rom_diagnostic.read_value=*value;
+#if defined(FES_NANO_SHARED_USB) && FES_NANO_SHARED_USB
+    if(computer_rom_step.failed)return -1;
+    if(computer_rom_step.active) {
+        if(computer_rom_step.phase==0) {
+            if(*value==(FES_EMBEDDED_ROM_HELD|FES_EMBEDDED_ROM_ACTIVE|FES_EMBEDDED_ROM_READY))
+                computer_rom_step.phase=1;
+        } else {
+            if(*value!=computer_rom_step.offset) {computer_rom_step.failed=1;return -1;}
+            computer_rom_step.phase++;
+        }
+    }
+#endif
+    return 0;
 }
 static int computer_rom_write(void *context,uint32_t offset,uint32_t value)
 {
     if(context!=&provider || (offset!=FES_EMBEDDED_ROM_EXPECTED_CRC_OFFSET &&
        offset!=FES_EMBEDDED_ROM_COMMAND_OFFSET &&
        (offset<FES_EMBEDDED_ROM_DATA_OFFSET || offset>=FES_EMBEDDED_ROM_DATA_OFFSET+16)))return -1;
+#if defined(FES_NANO_SHARED_USB) && FES_NANO_SHARED_USB
+    if(computer_rom_step.failed)return -1;
+    if(computer_rom_step.active) {
+        unsigned phase=computer_rom_step.phase;
+        if(computer_rom_step.failed || phase<3 || phase>6 ||
+           offset!=FES_EMBEDDED_ROM_DATA_OFFSET+4*(phase-3)) {
+            computer_rom_step.failed=1;return -1;
+        }
+        computer_rom_step.phase++;
+    }
+#endif
     computer_rom_diagnostic.writes++;computer_rom_diagnostic.write_offset=offset;
     mmio_write_32(FES_NANO_ROM_CPU_BASE+offset,value);return 0;
 }
@@ -131,6 +254,9 @@ static int computer_rom_prepare(uint64_t owner,uint64_t generation)
      * never put an 8 KiB image on the small EL3 stack or reset a failed load. */
     memset(&computer_rom,0,sizeof(computer_rom));
     memset(&computer_rom_diagnostic,0,sizeof(computer_rom_diagnostic));
+#if defined(FES_NANO_SHARED_USB) && FES_NANO_SHARED_USB
+    memset(&computer_rom_step,0,sizeof(computer_rom_step));
+#endif
     return fes_nano_rom_init(&computer_rom,io,owner,generation+1,words);
 }
 int fes_nano_platform_computer_rom(struct fes_nano_configuration *c,uint64_t owner,uint64_t generation)
@@ -140,10 +266,18 @@ int fes_nano_platform_computer_rom(struct fes_nano_configuration *c,uint64_t own
         computer_rom_diagnostic.pending=1;computer_rom_diagnostic.result=-1;return -1;
     }
     computer_rom_diagnostic.phase=2;
+#if defined(FES_NANO_SHARED_USB) && FES_NANO_SHARED_USB
+    const struct fes_nano_rom_steps steps={&provider,computer_rom_step_begin,computer_rom_step_end};
+    int result=fes_nano_rom_load_steps_checked(&computer_rom,
+        (const uint8_t *)(uintptr_t)(FES_NANO_CONFIG_BASE+configuration_program.rom_offset),
+        configuration_program.rom_bytes,configuration_program.rom_crc,
+        computer_rom_verify,&configuration_program,&steps);
+#else
     int result=fes_nano_rom_load_checked(&computer_rom,
         (const uint8_t *)(uintptr_t)(FES_NANO_CONFIG_BASE+configuration_program.rom_offset),
         configuration_program.rom_bytes,configuration_program.rom_crc,
         computer_rom_verify,&configuration_program);
+#endif
     if(result || !computer_rom.complete) {
         computer_rom_diagnostic.pending=1;computer_rom_diagnostic.result=result;return -1;
     }
@@ -153,7 +287,7 @@ void fes_nano_platform_computer_rom_report(void)
 {
     if(!computer_rom_diagnostic.pending || computer_rom_diagnostic.reported)return;
     computer_rom_diagnostic.reported=1;
-    NOTICE("FES_NANO_ROM_FAILURE phase=%u scope=%s status=%d error=%d used=%u complete=%u bytes=%u reads=%u writes=%u read_offset=%x read_value=%x write_offset=%x began=%llx tick=%llx hz=%u owner_checks=%u owner_ticks=%llx owner_max=%llx owner_invalid=%u owner_pending=%u\n",
+    NOTICE("FES_NANO_ROM_FAILURE phase=%u scope=%s status=%d error=%d used=%u complete=%u bytes=%u reads=%u writes=%u read_offset=%x read_value=%x write_offset=%x began=%llx tick=%llx hz=%u owner_checks=%u owner_ticks=%llx owner_max=%llx owner_invalid=%u owner_pending=%u fast_checks=%u\n",
         computer_rom_diagnostic.phase,computer_rom_diagnostic.scope ? computer_rom_diagnostic.scope : "none",
         computer_rom_diagnostic.result,computer_rom.first_error,computer_rom.used,computer_rom.complete,
         computer_rom.bytes,computer_rom_diagnostic.reads,computer_rom_diagnostic.writes,
@@ -161,5 +295,5 @@ void fes_nano_platform_computer_rom_report(void)
         (unsigned long long)computer_rom.began,(unsigned long long)computer_rom_diagnostic.tick,computer_rom_diagnostic.hz,
         computer_rom_diagnostic.owner_checks,(unsigned long long)computer_rom_diagnostic.owner_ticks,
         (unsigned long long)computer_rom_diagnostic.owner_max,computer_rom_diagnostic.owner_invalid,
-        computer_rom_diagnostic.owner_pending);
+        computer_rom_diagnostic.owner_pending,computer_rom_diagnostic.fast_checks);
 }

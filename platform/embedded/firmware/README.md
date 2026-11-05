@@ -60,8 +60,21 @@ its complete coherent bridge observer. That fresh observer supplies the full
 cold/USB/master proof for each ownership callback, so the ROM path does not run
 an adjacent duplicate cold audit. Missing, foreign or substituted observers
 fail before endpoint access; non-shared profiles keep their explicit cold audit.
-The driver still brackets every ROM read/write with fresh ownership and timer
-checks. The joined C fixture runs the actual ROM predicate, trusted boot
+The driver still brackets every ROM read/write with fresh ownership/access and
+timer checks. For the qualified shared profile, a private 16-byte protocol step
+now places complete cold/USB/master proofs around the bounded FIFO transaction.
+Its per-access guard retains the same private owner/generation/binding checks,
+plus live CPU, bridge and peripheral-reset safety. The secure lock and parked
+secondary CPUs prevent non-secure software interleaving. Device/clock drift
+inside the step must fail the complete end proof before any step is credited;
+no CPU Run or load completion can precede final counter/CRC/identity checks.
+Only status polling, the exact received/written counters and four ordered data
+words are allowed inside a step. Abort consumes its private permission without
+hardware or timer reads. Missing or failed hooks cannot select another path.
+Legacy callers keep the original per-access full proof. The one-second and
+64-poll bounds are unchanged. A pre-I/O CRC-only rejection retains the unbound
+transport's prior preflight behavior; the native control gate still retires
+that activation before allowing any retry. The joined C fixture runs the actual ROM predicate, trusted boot
 constructor, board/USB composition and strong CPU/master callback: 47 cases cover
 binding/state/CPU drift and preserve independent device readiness. It measures
 52 cold-register reads per callback versus 104 with the duplicated audit; this

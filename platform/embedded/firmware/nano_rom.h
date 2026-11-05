@@ -25,6 +25,19 @@ enum fes_nano_rom_error {
     FES_NANO_ROM_IDENTITY=-4, FES_NANO_ROM_STATE=-5, FES_NANO_ROM_LIMIT=-6,
     FES_NANO_ROM_INTEGRITY=-7, FES_NANO_ROM_BUSY=-8
 };
+/* Optional trusted supplier for one natural 16-byte FIFO protocol step. The
+ * caller holds the secure lifecycle lock throughout. begin/end(success=1)
+ * provide complete fresh ownership framing; each read/write still calls
+ * owns(), whose supplier independently guards CPU/reset/access safety.
+ * end(success=0) consumes the private step without reads, writes or retries.
+ * Both hooks return zero on success. A failed begin leaves no permission;
+ * every end consumes it before checking success. Callbacks are copied once.
+ * No caller outside the trusted platform may supply or retain these hooks. */
+struct fes_nano_rom_steps {
+    void *context;
+    int (*begin)(void *,uint64_t owner,uint64_t generation,uint32_t offset);
+    int (*end)(void *,uint64_t owner,uint64_t generation,uint32_t offset,unsigned success);
+};
 struct fes_nano_rom {
     struct fes_nano_rom_ops io;
     uint64_t owner, generation, began, last;
@@ -49,6 +62,10 @@ int fes_nano_rom_load(struct fes_nano_rom *, const uint8_t *, size_t, uint32_t c
  * digest before any endpoint I/O. A failed check retires this transfer. */
 int fes_nano_rom_load_checked(struct fes_nano_rom *, const uint8_t *, size_t, uint32_t crc32,
     int (*verify)(void *, const uint8_t *, size_t), void *context);
+/* Same snapshot, identity, counter, CRC and deadline checks, with an explicitly
+ * selected private step supplier. Missing/partial hooks reject before I/O. */
+int fes_nano_rom_load_steps_checked(struct fes_nano_rom *,const uint8_t *,size_t,uint32_t,
+    int (*verify)(void *,const uint8_t *,size_t),void *,const struct fes_nano_rom_steps *);
 #ifdef __cplusplus
 }
 #endif

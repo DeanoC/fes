@@ -10,10 +10,23 @@ static struct fes_nano_configuration configuration;
 static struct fes_nano_identity_probe identity_probe;
 static struct fes_nano_program configuration_program;
 static struct {
-    const char *scope;uint32_t hz,owner_checks;
-    uint64_t tick,owner_started;
-    unsigned phase,owner_pending;
+    const char *scope;uint32_t hz,owner_checks,fast_checks,reads,writes,read_offset,read_value,write_offset;
+    uint64_t tick,owner_started,owner_ticks,owner_max;
+    unsigned phase,owner_pending,owner_invalid;
 } computer_rom_diagnostic;
+static struct fes_nano_rom computer_rom;
+static struct {
+    uint64_t owner,generation,usb_generation;
+    uint32_t next,offset,phase,polls;
+    unsigned active,failed;
+} computer_rom_step;
+static void dsbsy(void) {barrier(&model);}
+static uint32_t mmio_read_32(uintptr_t address)
+{
+    model.base.h.reads++;
+    if(address==FES_NANO_COLD_RSTMGR+0x2c)return model.base.h.bridge;
+    assert(address==FES_NANO_COLD_RSTMGR+0x24);return model.base.h.per0;
+}
 static uint32_t rom_hz=FES_EMBEDDED_ROM_TICK_HZ;
 static uint32_t read_cntfrq_el0(void) {return rom_hz;}
 #define cold_master_cpu_scope observed_cpu_scope
@@ -36,7 +49,10 @@ static int rom_changing_read(void *p,uintptr_t address,uint32_t *value)
     }
     return error;
 }
-int main(int argc,char **argv)
+#ifndef FES_NANO_ROM_OWNER_ENTRY
+#define FES_NANO_ROM_OWNER_ENTRY main
+#endif
+int FES_NANO_ROM_OWNER_ENTRY(int argc,char **argv)
 {
     assert(argc==2);unsigned fault=(unsigned)strtoul(argv[1],0,0);assert(fault<=46);
     char *args[]={argv[0],"0"};assert(!owner_cpu_fixture_main(2,args));

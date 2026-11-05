@@ -84,12 +84,17 @@ int fes_nano_rom_init(struct fes_nano_rom *p,struct fes_nano_rom_ops io,
     memcpy(p->build,build,sizeof(p->build));return 0;
 }
 static int load(struct fes_nano_rom *p,const uint8_t *bytes,size_t size,uint32_t expected_crc,
-                int (*verify)(void *,const uint8_t *,size_t),void *context)
+                int (*verify)(void *,const uint8_t *,size_t),void *context,
+                const struct fes_nano_rom_steps *steps)
 {
+    unsigned step_active=0;
+    uint32_t step_offset=0;
     if (!p || !p->initialized || p->failed) return FES_NANO_ROM_STATE;
     if (p->busy) return FES_NANO_ROM_BUSY;
     if (p->used) return FES_NANO_ROM_STATE;
     if (!bytes || (size!=4096 && size!=8192)) return FES_NANO_ROM_ARGUMENT;
+    struct fes_nano_rom_steps selected;
+    if (steps) {selected=*steps;steps=&selected;}
     p->busy=1;p->began=p->last=p->io.now(p->io.context);
     if (check(p)) goto finished;
     uint32_t crc=UINT32_C(0xffffffff);
@@ -109,12 +114,28 @@ static int load(struct fes_nano_rom *p,const uint8_t *bytes,size_t size,uint32_t
     if (write_reg(p,FES_EMBEDDED_ROM_EXPECTED_CRC_OFFSET,crc) ||
         write_reg(p,FES_EMBEDDED_ROM_COMMAND_OFFSET,FES_EMBEDDED_ROM_START)) goto finished;
     for (uint32_t offset=0;offset<size;offset+=16) {
+        step_offset=offset;
+        if (steps) {
+            if (clock_ok(p)) goto finished;
+            if (steps->begin(steps->context,p->owner,p->generation,offset)) {
+                fail(p,FES_NANO_ROM_OWNER);goto finished;
+            }
+            step_active=1;
+            if (clock_ok(p)) goto finished;
+        }
         if (wait_status(p,0) || equal_reg(p,FES_EMBEDDED_ROM_RECEIVED_OFFSET,offset,FES_NANO_ROM_STATE) ||
             equal_reg(p,FES_EMBEDDED_ROM_WRITTEN_OFFSET,offset,FES_NANO_ROM_STATE)) goto finished;
         for (unsigned word=0;word<4;word++) {
             uint32_t data=0;
             for (unsigned byte=0;byte<4;byte++) data|=(uint32_t)p->image[offset+4*word+byte]<<(8*byte);
             if (write_reg(p,FES_EMBEDDED_ROM_DATA_OFFSET+4*word,data)) goto finished;
+        }
+        if (steps) {
+            step_active=0; /* Consume once, including an uncertain end. */
+            if (steps->end(steps->context,p->owner,p->generation,offset,1)) {
+                fail(p,FES_NANO_ROM_OWNER);goto finished;
+            }
+            if (clock_ok(p)) goto finished;
         }
     }
     if (wait_status(p,1) || equal_reg(p,FES_EMBEDDED_ROM_RECEIVED_OFFSET,p->bytes,FES_NANO_ROM_STATE) ||
@@ -123,13 +144,24 @@ static int load(struct fes_nano_rom *p,const uint8_t *bytes,size_t size,uint32_t
         equal_reg(p,FES_EMBEDDED_ROM_STATUS_OFFSET,FES_EMBEDDED_ROM_HELD|FES_EMBEDDED_ROM_LOADED,FES_NANO_ROM_STATE)) goto finished;
     p->complete=1;
 finished:
+    if (step_active) {
+        /* Abort is private bookkeeping only. The original failure remains
+         * first; the enclosing platform still owns physical containment. */
+        (void)steps->end(steps->context,p->owner,p->generation,step_offset,0);
+    }
     p->busy=0;return p->failed ? p->first_error : 0;
 }
 int fes_nano_rom_load(struct fes_nano_rom *p,const uint8_t *bytes,size_t size,uint32_t expected_crc)
-{ return load(p,bytes,size,expected_crc,0,0); }
+{ return load(p,bytes,size,expected_crc,0,0,0); }
 int fes_nano_rom_load_checked(struct fes_nano_rom *p,const uint8_t *bytes,size_t size,uint32_t expected_crc,
     int (*verify)(void *,const uint8_t *,size_t),void *context)
 {
     if(!verify)return FES_NANO_ROM_ARGUMENT;
-    return load(p,bytes,size,expected_crc,verify,context);
+    return load(p,bytes,size,expected_crc,verify,context,0);
+}
+int fes_nano_rom_load_steps_checked(struct fes_nano_rom *p,const uint8_t *bytes,size_t size,uint32_t expected_crc,
+    int (*verify)(void *,const uint8_t *,size_t),void *context,const struct fes_nano_rom_steps *steps)
+{
+    if(!verify || !steps || !steps->begin || !steps->end)return FES_NANO_ROM_ARGUMENT;
+    return load(p,bytes,size,expected_crc,verify,context,steps);
 }
