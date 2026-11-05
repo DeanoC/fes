@@ -1,0 +1,102 @@
+{
+  "artifacts": {
+    "bl31": "3329b2faa71e8250a2abf9922b23ce2186cb7fe3ea54c4d52219a2ff8f2c1876",
+    "core": "2af257a850ed20ceeec8e06ba04deb8a753481873ce490a9225bf8c25a12607c",
+    "elf": "9bfd5a2a48970c2976294e6c68a245b9db05addc6da9875f823fe0081e2acc5a",
+    "entry": "5d4932bf39f63f27e98a34445e4118b9c05da2ef2976c90be842e991899a586b",
+    "fit": "fcac3938bc66bf2d182153b16882078d768c7e14e751a18912bfd719b922afc4",
+    "phase1": "4515f568558d306b948c14a79548e770fd1e0d31d559c2ceeba6fe8dc30d14c2",
+    "sof": "b87cd6a1037a824c5553beb8069341363d643174065e29a822693bcc086d518a"
+  },
+  "board_operations": false,
+  "boot_firmware_compatibility": "not-qualified",
+  "build_id": "edafcc95c494b73f59492f3a060bf095",
+  "chain_sha256": "2f4a971669a4708f0b9981c3e7cd0e3659d35161dc2aa81e8f8469bb160d7d1f",
+  "checks": {
+    "built_retained_selection": "2 choices passed preflight without firmware calls or SD containment",
+    "copied_project": "all 1864 files verified",
+    "generated_project_model": "25 DDR cases and 3 identity/window rejection cases passed",
+    "linked_code": "actual ROM verifier/descriptor call sites and strong firmware ROM symbols verified",
+    "matched_composition": "passed with unchanged FPGA core payload",
+    "source_binding": "393 first-party Git blobs and 1681 cached SDK/module sources verified; all 2074 archived and read back"
+  },
+  "composer_source": "75a5095d6",
+  "hardware_acceptance": "not-run",
+  "native_artifact_receipt_sha256": {
+    "native-bl31-final": "50c05c31470fdccb03adc520399a1e6986c7b59f5b16087a7c1fb61fbd32d66f",
+    "native-composition-final": "98d6f70c0a2ed704ddf7c0870245bcbc6b84a74cab0d466f527deb1ed3fbc6a6",
+    "native-entry-final": "f00c54e363c33e3bc8c32a55ab679e52dca409235a3f7d97cf1d8019a1768a4e",
+    "native-sdk-final": "3990c26e8e294ad44f044521887bced23b09646f2225fd5beaf070b1eb7077ee",
+    "native-uboot-final": "3b2258fcfa6564229b9117c84f6eb4668acfb210905b9ec79686c835cdb882e1",
+    "producer-model": "89f389e056bc3b6dc57fd488da7feb8c6f94a62f7911100c0f9ab6b68a490af9"
+  },
+  "native_compiled_source": "83c5f5d12",
+  "package_id": "7f1d138774d7f0a0212f80184a6349d726f885095c86d6360e380817cedae566",
+  "producer_source": "505993c08155d71794bacd1260155ace736fe19a",
+  "quartus": {
+    "argv": [
+      "python3",
+      "sources/misteross/prototypes/de25_board_control/build.py",
+      "build",
+      "--board-revision",
+      "79d616e85e19d65f0d645b67a85ffe7e142dcdfc",
+      "--vendor-archive",
+      "/data/scratch/fes-de25-rom-505993c08155/vendor.zip",
+      "--output",
+      "out/nano-rom-format3",
+      "--quartus-root",
+      "/data/altera_pro/26.3/quartus",
+      "--sealed-diagnostic",
+      "--hps-first",
+      "--reader-memory",
+      "hps-ddr",
+      "--ddr-bus-base",
+      "0x95000000",
+      "--ddr-bytes",
+      "8192",
+      "--external-rom",
+      "--jobs",
+      "4"
+    ],
+    "build_log_sha256": "beb741f71f8a93c9413af7f814c1df8bcef26b92d35973edb4cb8162d5baf822",
+    "elapsed": 577.1176092979731,
+    "hardware_actions": false,
+    "output": "/data/projects/fes-de25-rom-505993c08155/out/nano-rom-format3",
+    "producer_started": true,
+    "returncode": 0,
+    "source": "505993c08155d71794bacd1260155ace736fe19a",
+    "status": "passed",
+    "timed_out": false
+  },
+  "retained_at": "/home/deano/fes-retained/de25-rom-matched-chain-20261105-r1",
+  "rom_map_sha256": "6e6082205ce3970b271c8f277be7b053346871996513b36b1323dd905989c311",
+  "rom_selection": {
+    "package_id": "7f1d138774d7f0a0212f80184a6349d726f885095c86d6360e380817cedae566",
+    "rom_receipt_sha256": "039398a5bf1aface990249f03b60f34b0ce949d14c244e0196ddac80b7b31dee",
+    "source_id": "firmware",
+    "source_sha256": "14ad84f4243efcd41587ff46ab932d11087043e8d455a1ed2a227b9657828dfa",
+    "source_size": 8192
+  },
+  "source_binding": {
+    "all_archived_members_verified": true,
+    "archive": "native-compiled-inputs.tar.gz",
+    "archive_sha256": "2576bca2de954127d89427368ec08c1d736ff3fbc60ed51d2f5c3ff28ea5c631",
+    "cached_sdk_and_module_sources_verified": 1681,
+    "compiled_sources": 2074,
+    "first_party_git_blobs_verified": 393,
+    "git_blob_mismatches": [],
+    "initial_audit": "The first audit incorrectly compared ignored cached SDK/module sources to Git blobs; these are now separately verified and archived.",
+    "source": "83c5f5d12"
+  },
+  "status": "matched-file-chain-checks-passed",
+  "timing_acceptance": "not-qualified",
+  "validation_receipt_sha256": {
+    "out/nano-rom-build-integration-20261105/bl31-final-result.json": "36120024e50b7c7cca80d6eaf0729004f29dd1c07ef9397fe1c4021b0e69cf74",
+    "out/nano-rom-build-integration-20261105/native-composition-result.json": "73cdeedc0c2c5c6a5d573fbe6fc4925e0b463c6f74fc2b77486024e8bee8aeb0",
+    "out/nano-rom-build-integration-20261105/native-entry-final-result.json": "4dc6c082903c2915d55630271da539a06cf0b51cca6ff51a8c523074b913ffa7",
+    "out/nano-rom-build-integration-20261105/producer-model-result.json": "6dfa88de91770e33ffa48f805574a78e2370da0c6a3f64f8c992bb7e09cf4250",
+    "out/nano-rom-build-integration-20261105/project-transfer-result.json": "db4d49376e8283efeabd216ac1764d25ba3940c91e38a361b8abae28025e7d4c",
+    "out/nano-rom-build-integration-20261105/sdk-final-result.json": "ede49591e26d23cdf1f075a336804815cdc00425873b03bf02faf43a397fdb2b",
+    "out/nano-rom-build-integration-20261105/uboot-final-result.json": "196e20dde76e28337156e96334b578b5189dc552c0296996955e412b3f129f66"
+  }
+}
