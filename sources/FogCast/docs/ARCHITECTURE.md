@@ -2788,7 +2788,10 @@ the host needs the packages, not the per-core selections.
 
 The host and `mister-agent` open the durable store as two processes, coordinated
 by its flock. The agent recovers interrupted installations and verifies packages
-when opening; the host skips recovery and verifies each publication on access.
+when opening; the host skips recovery and verifies durable inventory and
+selections on access before serving either durable or factory packages. The
+first access verifies selected packages under the lock; a list also verifies
+the other durable packages. Later reads reuse valid stat-fingerprint caches.
 The host view opens in the background; calls made meanwhile get the unavailable
 error at once instead of waiting. The lock waits until the caller's context
 ends, so a list, inspect or read without a deadline is bounded to one minute. An import

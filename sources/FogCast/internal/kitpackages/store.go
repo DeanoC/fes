@@ -66,6 +66,7 @@ type Store struct {
 	lockInfo   os.FileInfo
 	archives   *corepackage.Store
 	persistent bool
+	hostView   bool
 
 	verifyMu sync.Mutex
 	verified map[string]verifiedPackage
@@ -103,7 +104,7 @@ func openStore(path string, recoverInstallations bool) (*Store, error) {
 	if err != nil || !os.SameFile(info, opened) {
 		return nil, errors.New("kit packages: root changed while opening")
 	}
-	s := &Store{root: path, info: opened, children: make(map[string]os.FileInfo), verified: make(map[string]verifiedPackage)}
+	s := &Store{root: path, info: opened, children: make(map[string]os.FileInfo), verified: make(map[string]verifiedPackage), hostView: !recoverInstallations}
 	for _, name := range []string{"archives", "packages"} {
 		if err := r.Mkdir(name, 0o700); err != nil && !errors.Is(err, os.ErrExist) {
 			return nil, err
@@ -265,6 +266,9 @@ func (s *Store) List(ctx context.Context) ([]corepackage.Inspection, error) {
 		return nil, err
 	}
 	defer unlock()
+	if err := s.validateHostView(ctx, r); err != nil {
+		return nil, err
+	}
 	ids, err := installedIDs(r)
 	if err != nil {
 		return nil, err
@@ -286,6 +290,9 @@ func (s *Store) Read(ctx context.Context, id string) (corepackage.Inspection, []
 		return corepackage.Inspection{}, nil, err
 	}
 	defer unlock()
+	if err := s.validateHostView(ctx, r); err != nil {
+		return corepackage.Inspection{}, nil, err
+	}
 	return s.read(ctx, r, id)
 }
 
@@ -303,6 +310,9 @@ func (s *Store) ReadCached(ctx context.Context, id string) (corepackage.Inspecti
 		return corepackage.Inspection{}, nil, err
 	}
 	defer unlock()
+	if err := s.validateHostView(ctx, r); err != nil {
+		return corepackage.Inspection{}, nil, err
+	}
 	if key, err := packageStatKey(r, id); err == nil {
 		if cached, ok := s.cachedVerified(id, key); ok {
 			inspection, data, err := s.archives.Read(ctx, id)
@@ -329,7 +339,29 @@ func (s *Store) Inspect(ctx context.Context, id string) (corepackage.Inspection,
 		return corepackage.Inspection{}, err
 	}
 	defer unlock()
+	if err := s.validateHostView(ctx, r); err != nil {
+		return corepackage.Inspection{}, err
+	}
 	return s.listingInspection(ctx, r, id)
+}
+
+// A host opener skips recovery, so check the durable inventory and selections
+// lazily under the same lock used for each read. In particular, a missing
+// selected package is a store error, not a request to use a factory package.
+func (s *Store) validateHostView(ctx context.Context, r *os.Root) error {
+	if !s.hostView {
+		return nil
+	}
+	if _, err := installedIDs(r); err != nil {
+		return fmt.Errorf("kit packages: invalid durable inventory: %w", err)
+	}
+	if _, err := s.selectedPackages(ctx, r); err != nil {
+		if errors.Is(err, ErrPackageNotFound) {
+			return errors.New("kit packages: selected package is missing")
+		}
+		return fmt.Errorf("kit packages: invalid durable selections: %w", err)
+	}
+	return nil
 }
 
 // Path returns a local launch path only after authenticating both retained
@@ -340,6 +372,9 @@ func (s *Store) Path(ctx context.Context, id string) (string, error) {
 		return "", err
 	}
 	defer unlock()
+	if err := s.validateHostView(ctx, r); err != nil {
+		return "", err
+	}
 	if _, _, err := s.read(ctx, r, id); err != nil {
 		return "", err
 	}
