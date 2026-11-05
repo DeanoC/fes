@@ -63,13 +63,16 @@ def remote_loop(words: tuple[int, ...], seconds: float, interval: float) -> str:
             f'echo S $u $h; {reads}echo W 0 $(devmem $r 64); echo E || break; {pause}done')
 
 
-def decode(head: int, words: dict[int, int]) -> dict:
+def decode(head: int, words: dict[int, int], expected: tuple[int, ...] = SAMPLE_WORDS) -> dict:
     """A record as fields; 'whole' is false if the record was not the head's
-    newest or was rewritten while it was read."""
+    newest, was rewritten while it was read, or lacks one of the expected
+    words (a devmem read that failed or printed nothing)."""
     out = {'magic': head >> 32 == MAGIC, 'count': head & 0xffffffff}
     n = out['count'] - 1
     out['record'] = n
-    out['whole'] = out['magic'] and n >= 0 and len(words.get('names', [])) == 2 and all(w == (n << 32 | MAGIC) for w in words['names'])
+    names = words.get('names', [])
+    out['whole'] = (out['magic'] and n >= 0 and len(names) == 2 and all(w == (n << 32 | MAGIC) for w in names)
+                    and all(word in words for word in expected if word))
     s0, s1 = words.get(1), words.get(2)
     if s0 is not None:
         out.update(halted=s0 & 1, stopped=s0 >> 1 & 1, a20m=s0 >> 2 & 1, intr=s0 >> 3 & 1,
@@ -90,7 +93,7 @@ def decode(head: int, words: dict[int, int]) -> dict:
     return out
 
 
-def parse(lines, host_time=time.time):
+def parse(lines, host_time=time.time, expected: tuple[int, ...] = SAMPLE_WORDS):
     """Samples from the remote loop's lines, each decoded and stamped with the
     host time at its last line and the kit's uptime at its first."""
     head, uptime, words = None, None, {}
@@ -108,26 +111,36 @@ def parse(lines, host_time=time.time):
                 else:
                     words[n] = value
             elif parts[0] == 'E' and head is not None:
-                yield {'host_time': round(host_time(), 3), 'kit_uptime': uptime, **decode(head, words)}
+                yield {'host_time': round(host_time(), 3), 'kit_uptime': uptime, **decode(head, words, expected)}
                 head = None
         except ValueError:
             head = None
 
 
+class RemoteFailed(Exception):
+    pass
+
+
 def run(ssh: list[str], command: str):
     """The remote loop's stdout lines. The ssh command runs in its own process
     group, which this reader stops whole: a wrapper script's ssh would
-    otherwise outlive it and keep the kit's loop running."""
+    otherwise outlive it and keep the kit's loop running. A command that ends
+    by itself with a nonzero status (no kit, a refused login, a dropped link)
+    raises RemoteFailed."""
     child = subprocess.Popen([*ssh, command], stdin=subprocess.DEVNULL, stdout=subprocess.PIPE, text=True,
                              start_new_session=True)
     try:
         yield from child.stdout
+        status = child.wait(timeout=10)
+        if status:
+            raise RemoteFailed(f'{ssh[0]} exited with status {status}')
     finally:
-        try:
-            os.killpg(child.pid, signal.SIGTERM)
-        except ProcessLookupError:
-            pass
-        child.wait(timeout=10)
+        if child.poll() is None:
+            try:
+                os.killpg(child.pid, signal.SIGTERM)
+            except ProcessLookupError:
+                pass
+            child.wait(timeout=10)
 
 
 def line(sample: dict) -> str:
@@ -154,19 +167,24 @@ def main(argv=None) -> int:
     sub.add_parser('snapshot')
     args = parser.parse_args(argv)
     ssh = shlex.split(args.ssh)
-    if args.mode == 'snapshot':
-        for item in parse(run(ssh, remote_loop(ALL_WORDS, 0, 0).replace('while :;', 'for once in 1;'))):
-            print(json.dumps(item, indent=2))
-            return 0 if item['whole'] else 1
-        return 1
-    log = open(args.log, 'a') if args.log else None
-    signal.signal(signal.SIGTERM, lambda *_: sys.exit(0))
-    for item in parse(run(ssh, remote_loop(SAMPLE_WORDS, args.seconds, args.interval))):
-        print(line(item), flush=True)
-        if log:
-            log.write(json.dumps(item) + '\n')
-            log.flush()
-    return 0
+    try:
+        if args.mode == 'snapshot':
+            loop = remote_loop(ALL_WORDS, 0, 0).replace('while :;', 'for once in 1;')
+            for item in parse(run(ssh, loop), expected=ALL_WORDS):
+                print(json.dumps(item, indent=2))
+                return 0 if item['whole'] else 1
+            return 1
+        log = open(args.log, 'a') if args.log else None
+        signal.signal(signal.SIGTERM, lambda *_: sys.exit(0))
+        for item in parse(run(ssh, remote_loop(SAMPLE_WORDS, args.seconds, args.interval))):
+            print(line(item), flush=True)
+            if log:
+                log.write(json.dumps(item) + '\n')
+                log.flush()
+        return 0
+    except RemoteFailed as error:
+        print(f'pc386_cpu_status: {error}', file=sys.stderr)
+        return 2
 
 
 if __name__ == '__main__':

@@ -1,6 +1,8 @@
 # SPDX-License-Identifier: MIT
 """pc386_cpu_status.py's remote loop and record decoding, on lines as the
 kit's busybox loop prints them. No kit needed."""
+from contextlib import redirect_stderr
+import io
 import unittest
 
 from scripts import pc386_cpu_status as reader
@@ -37,6 +39,21 @@ class StatusReader(unittest.TestCase):
         (sample,) = reader.parse(lines(41, 0, 0, name_last=(41 + 256) << 32 | MAGIC))
         self.assertFalse(sample['whole'])
         self.assertIn('torn record 41', reader.line(sample))
+
+    def test_needs_every_word_read(self):
+        sample_lines = [l for l in lines(41, 0, 0) if not l.startswith('W 2 ')]
+        (sample,) = reader.parse(sample_lines)
+        self.assertFalse(sample['whole'])
+        self.assertIn('torn record 41', reader.line(sample))
+        # A snapshot expects all eight words.
+        (sample,) = reader.parse(lines(41, 0, 0), expected=reader.ALL_WORDS)
+        self.assertFalse(sample['whole'])
+
+    def test_a_failed_ssh_command_fails_the_reader(self):
+        with redirect_stderr(io.StringIO()) as error:
+            self.assertEqual(reader.main(['--ssh', 'false', 'sample', '--seconds', '1']), 2)
+            self.assertEqual(reader.main(['--ssh', 'false', 'snapshot']), 2)
+        self.assertIn('false exited with status 1', error.getvalue())
 
     def test_needs_both_reads_of_word_0(self):
         (sample,) = reader.parse(lines(41, 0, 0)[:-2] + ['E'])
