@@ -164,6 +164,13 @@ int fes_nano_usb_platform_idle(struct fes_nano_usb_platform *p,uint64_t owner,ui
     if (p->active!=1 || p->confirmed!=1) return fail(p,-5);
     struct fes_nano_cold *cold=p->cold;
     uint64_t epoch=p->epoch;
+    if (!p->io.prepare_master) return fail(p,-5);
+    if (p->io.contained_scope) {
+        if (p->io.contained_scope(p->io.context,cold,owner,epoch)!=1 ||
+            admit(p,owner,generation) || p->cold!=cold || p->epoch!=epoch ||
+            p->active!=1 || p->confirmed!=1) return fail(p,-5);
+        return 0;
+    }
     /* This is a fresh master-containment observation, not device readiness.
      * Bus-clock/boot scope brackets live DMA/IRQ/PIO and AHB-master-idle checks.
      * No PHY viewport transaction, reset, channel halt or generation change is

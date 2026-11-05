@@ -17,6 +17,7 @@ struct fes_nano_usb_composition {
     uint64_t owner,epoch;
     void *usb_context;
     int (*prepare_master)(void *); /* private supplier identity, never cached hardware state */
+    int (*contained_scope)(void *,struct fes_nano_cold *,uint64_t,uint64_t);
     unsigned attempted,initialized,failed;
 };
 int fes_nano_usb_composition_init(struct fes_nano_usb_composition *,

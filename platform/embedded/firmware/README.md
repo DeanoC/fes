@@ -6,6 +6,26 @@ adapter, and verification against actual FPGA RTL. These tools build firmware
 components; the Nano tools assemble the matched experimental boot images.
 Software tests and cross-builds remain distinct from hardware acceptance.
 
+The physical USB supplier has an optional complete containment callback. Paired,
+ordered cold samples enclose both fresh bus-clock scans, both DMA/IRQ/PIO checks
+and the bounded AHB-idle observations. Each controller read independently checks
+that the USB module and packet RAM remain out of reset. Owner, epoch, generation,
+private bridge targets and active/confirmed state must remain unchanged. The
+shared composition binds this callback's identity at initialization; a missing
+or replaced callback cannot substitute another observation after that binding.
+Suppliers without it retain the separate preparation/containment path, and a
+failed complete callback retires without trying that path. Device readiness
+still performs its independent pin/PHY checks. No observation is cached across
+calls, and no new wire operation, grant, write or timeout is introduced.
+
+The C board model reduces full cold-register reads per containment observation
+from 182 to 26, with both 13-register clock scans retained. It uses four more
+physical reset reads to guard all controller accesses. Host fault tests cover
+reset drift, DMA/IRQ/clock changes, private-state drift, every clock/PIO/reset
+read failure, both cold samples and idle-poll exhaustion. This improves one
+nested ownership layer; it does not establish a passing physical ROM transfer.
+The ROM driver's original per-access checks and one-second limit remain intact.
+
 `nano_rom.c` transfers ROM images through trusted platform hooks.
 It snapshots an admitted 4/8 KiB input before MMIO, checks its expected CRC,
 then verifies the endpoint version, image size, sealed build words and held CPU.

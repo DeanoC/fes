@@ -7,6 +7,8 @@ static unsigned fault,inject,fake_containment_called,fake_prepare_called,fake_sn
 static int fake_snapshot(void *p,uint64_t owner,uint64_t epoch,struct fes_nano_cold_observation *out)
 {(void)p;(void)owner;(void)epoch;(void)out;fake_snapshot_called++;return 0;}
 static int fake_prepare(void *p) {(void)p;fake_prepare_called++;return 1;}
+static int fake_contained_scope(void *p,struct fes_nano_cold *c,uint64_t owner,uint64_t epoch)
+{(void)p;(void)c;(void)owner;(void)epoch;fake_containment_called++;return 1;}
 static int fake_containment(struct fes_nano_usb_platform *p,uint64_t owner,uint64_t generation)
 {(void)p;(void)owner;(void)generation;fake_containment_called++;return 0;}
 static unsigned physical_reads,fail_read;
@@ -74,7 +76,7 @@ static int producer_sample(void *p,uint32_t *bits)
 }
 int main(int argc,char **argv)
 {
-    assert(argc==2);fault=(unsigned)strtoul(argv[1],0,0);assert(fault<=66);
+    assert(argc==2);fault=(unsigned)strtoul(argv[1],0,0);assert(fault<=68);
     char *setup_args[]={argv[0],"0"};assert(!shared_boot_fixture_main(2,setup_args));
     uint64_t r[4],generation=usb_platform.generation;
     fes_nano_usb_service_sip(&fes_nano_owned_usb,FES_EMBEDDED_USB_ACQUIRE,17,generation,0,r);assert(!r[0]);
@@ -86,7 +88,7 @@ int main(int argc,char **argv)
     saved_read=usb_board.physical.read;usb_board.physical.read=injected_read;
     unsigned accesses=model.accesses,requests=model.requests;
     unsigned writes=model.base.h.usb_writes,stops=model.base.h.producer_stops;
-    if (fault>=32 && fault<=48) {
+    if ((fault>=32 && fault<=48) || fault>=67) {
         if (fault==32) model.base.h.usb[8/4]|=1U<<5;
         if (fault==33) model.base.h.usb[24/4]=1;
         if (fault==34) model.base.h.usb[16/4]=0;
@@ -104,6 +106,8 @@ int main(int argc,char **argv)
         if (fault==46) usb_master.producers.owns=0;
         if (fault==47) usb_master.producers.quiesce=0;
         if (fault==48) usb_master.producers.quiescent=0;
+        if (fault==67) usb_platform.io.contained_scope=0;
+        if (fault==68) usb_platform.io.contained_scope=fake_contained_scope;
         if (fault==37) {
             assert(!fes_nano_usb_service_gate(&fes_nano_owned_usb));
             assert(provider.valid && model.requests==requests);

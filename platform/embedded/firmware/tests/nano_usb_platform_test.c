@@ -80,7 +80,7 @@ static void boot(struct test *t)
     assert(!fes_nano_cold_consume(&t->cold,&r,io,chain,17));
 }
 static struct fes_nano_usb_io io(struct test *t)
-{ return (struct fes_nano_usb_io){&t->h,read32,write32,barrier,wait_poll,ready,ready,0,ready}; }
+{ return (struct fes_nano_usb_io){&t->h,read32,write32,barrier,wait_poll,ready,ready,0,ready,0}; }
 static void init(struct test *t)
 {
     boot(t);assert(!fes_nano_usb_platform_init(&t->usb,&t->cold,io(t),FES_NANO_USB_QUALIFIED));

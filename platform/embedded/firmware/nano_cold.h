@@ -130,6 +130,11 @@ int fes_nano_cold_sd_scope(struct fes_nano_cold *, uint64_t owner,
  * targets. This function does not recursively audit USB or enable a bridge. */
 int fes_nano_cold_usb_scope(struct fes_nano_cold *, uint64_t owner,
                             uint64_t epoch, unsigned active);
+/* Trusted read-only USB containment body, enclosed by the same paired cold
+ * samples and private target checks as usb_scope(active=1). No scope cache,
+ * mutation, reset release or readiness grant. Zero means body success. */
+int fes_nano_cold_usb_check(struct fes_nano_cold *,uint64_t owner,uint64_t epoch,
+                           int (*observe)(void *),void *context);
 /* USB driver's post-reset readback only. Check the inactive hardware target
  * before it releases its cached reservation. Does not grant cold_owns access
  * or claim that all producers/bridges have stopped. */

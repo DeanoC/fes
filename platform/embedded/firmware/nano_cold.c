@@ -269,11 +269,13 @@ int fes_nano_cold_ddr_close_target(struct fes_nano_cold *s,uint64_t owner,uint64
     return 0;
 }
 static int device_scope(struct fes_nano_cold *s, uint64_t owner,
-                           uint64_t epoch, unsigned active, uint32_t mask, unsigned stopped)
+                           uint64_t epoch, unsigned active, uint32_t mask, unsigned stopped,
+                           int (*observe)(void *),void *context)
 {
     struct fes_nano_cold_sample first, last;
     if (!s || !s->valid || s->failed || active > 1 ||
         owner != s->record.boot.owner || epoch != s->record.boot.epoch) return -1;
+    unsigned control=s->control_expected,ddr=s->ddr_expected,core=s->record.core;
     if (s->devices_bound) {
         uint32_t owned,released,after;
         struct fes_nano_cold_sample expected=s->record.last;
@@ -288,35 +290,49 @@ static int device_scope(struct fes_nano_cold *s, uint64_t owner,
         if (s->control_expected) expected.bridge &= ~FES_NANO_BRIDGES_CONTROL;
         if (s->ddr_expected) expected.bridge &= ~8U;
         uint32_t per0=FES_NANO_MASTER_RESET & ~released;
-        if (sample(s,&first) || !stable(&expected,&first,s->record.core) ||
+        if (owned_sample(s,&first,observe!=0) || !stable(&expected,&first,s->record.core) ||
             (first.per0 & FES_NANO_MASTER_RESET)!=per0 ||
+            (observe && observe(context)) ||
             (mask==FES_NANO_COLD_SD_RESET && usb_contained(s,released)) ||
             released_devices(s,&after) || after!=owned ||
-            sample(s,&last) || !stable(&first,&last,s->record.core) ||
+            owned_sample(s,&last,observe!=0) || !stable(&first,&last,s->record.core) ||
             (last.per0 & FES_NANO_MASTER_RESET)!=per0) return fail(s);
+        if (observe && (!s->valid || s->failed || owner!=s->record.boot.owner ||
+            epoch!=s->record.boot.epoch || s->control_expected!=control ||
+            s->ddr_expected!=ddr || s->record.core!=core)) return fail(s);
         return 0;
     }
     if (s->control_expected || s->ddr_expected) return -1;
     uint32_t expected = FES_NANO_MASTER_RESET & ~(active ? mask : 0U);
-    if (sample(s, &first) || !stable(&s->record.last, &first, s->record.core) ||
+    if (owned_sample(s,&first,observe!=0) || !stable(&s->record.last, &first, s->record.core) ||
         (first.per0 & FES_NANO_MASTER_RESET) != expected ||
-        sample(s, &last) || !stable(&first, &last, s->record.core) ||
+        (observe && observe(context)) ||
+        owned_sample(s,&last,observe!=0) || !stable(&first, &last, s->record.core) ||
         (last.per0 & FES_NANO_MASTER_RESET) != expected) return fail(s);
+    if (observe && (!s->valid || s->failed || owner!=s->record.boot.owner ||
+        epoch!=s->record.boot.epoch || s->control_expected!=control ||
+        s->ddr_expected!=ddr || s->record.core!=core)) return fail(s);
     return 0;
 }
 int fes_nano_cold_sd_scope(struct fes_nano_cold *s, uint64_t owner,
                            uint64_t epoch, unsigned active)
 {
-    return device_scope(s,owner,epoch,active,FES_NANO_COLD_SD_RESET,0);
+    return device_scope(s,owner,epoch,active,FES_NANO_COLD_SD_RESET,0,0,0);
 }
 int fes_nano_cold_usb_scope(struct fes_nano_cold *s, uint64_t owner,
                             uint64_t epoch, unsigned active)
 {
-    return device_scope(s,owner,epoch,active,FES_NANO_COLD_USB_RESET,0);
+    return device_scope(s,owner,epoch,active,FES_NANO_COLD_USB_RESET,0,0,0);
+}
+int fes_nano_cold_usb_check(struct fes_nano_cold *s,uint64_t owner,uint64_t epoch,
+                           int (*observe)(void *),void *context)
+{
+    if (!observe) return -1;
+    return device_scope(s,owner,epoch,1,FES_NANO_COLD_USB_RESET,0,observe,context);
 }
 int fes_nano_cold_usb_stopped(struct fes_nano_cold *s,uint64_t owner,uint64_t epoch)
 {
-    return device_scope(s,owner,epoch,0,FES_NANO_COLD_USB_RESET,1);
+    return device_scope(s,owner,epoch,0,FES_NANO_COLD_USB_RESET,1,0,0);
 }
 int fes_nano_cold_consume(struct fes_nano_cold *s, const struct fes_nano_cold_record *r,
                            struct fes_nano_cold_io io, const uint8_t chain[32], uint64_t owner)

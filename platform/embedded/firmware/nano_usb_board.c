@@ -238,7 +238,51 @@ static int prepared_ready(void *context,struct fes_nano_cold *cold,uint64_t owne
     if (!ready(b) || fes_nano_cold_usb_scope(cold,owner,epoch,1)) return 0;
     return 1;
 }
+static int contained_read(struct fes_nano_usb_board *b,unsigned offset,uint32_t *value)
+{
+    uint32_t per0;
+    /* Paired full cold samples enclose the observation. Independently guard
+     * each controller access against reset being asserted inside the body. */
+    if (read_reg(b,PER0,&per0) || (per0&FES_NANO_USB_RESET)) return fail(b,-5);
+    return read_reg(b,FES_NANO_USB_BASE+offset,value);
+}
+static int contained_pio(struct fes_nano_usb_board *b)
+{
+    uint32_t ahb,mask,phy;
+    if (contained_read(b,8,&ahb) || contained_read(b,24,&mask) ||
+        contained_read(b,12,&phy)) return -1;
+    return (ahb&0x21U) || mask || (phy&0xd8U)!=0x10U ? fail(b,-5) : 0;
+}
+static int contained_body(void *context)
+{
+    struct fes_nano_usb_board *b=context;
+    uint32_t idle;
+    if (clocks(b,0) || contained_pio(b)) return -1;
+    unsigned poll;
+    for (poll=0;poll<FES_NANO_COLD_POLLS;poll++) {
+        if (contained_read(b,16,&idle)) return -1;
+        if (idle&(1U<<31)) break;
+        b->physical.wait(b->physical.context);
+    }
+    if (poll==FES_NANO_COLD_POLLS) return fail(b,-60);
+    if (clocks(b,0) || contained_pio(b) ||
+        contained_read(b,16,&idle)) return -1;
+    return idle&(1U<<31) ? 0 : fail(b,-5);
+}
+static int prepared_contained(void *context,struct fes_nano_cold *cold,uint64_t owner,uint64_t epoch)
+{
+    struct fes_nano_usb_board *b=context;
+    if (!b || !b->initialized || b->failed || b->cold!=cold ||
+        b->owner!=owner || b->epoch!=epoch) return 0;
+    /* Reuse the complete paired cold proof around the read-only body instead
+     * of recursively taking it at each clock/PIO boundary. No prior sample
+     * supplies evidence for this call. Device readiness remains independent. */
+    if (fes_nano_cold_usb_check(cold,owner,epoch,contained_body,b) ||
+        !b->initialized || b->failed || b->cold!=cold ||
+        b->owner!=owner || b->epoch!=epoch) return 0;
+    return 1;
+}
 struct fes_nano_usb_io fes_nano_usb_board_ops(struct fes_nano_usb_board *b)
 {
-    return (struct fes_nano_usb_io){b,physical_read,physical_write,physical_barrier,physical_wait,ready,prepare,prepared_ready,prepare_master};
+    return (struct fes_nano_usb_io){b,physical_read,physical_write,physical_barrier,physical_wait,ready,prepare,prepared_ready,prepare_master,prepared_contained};
 }

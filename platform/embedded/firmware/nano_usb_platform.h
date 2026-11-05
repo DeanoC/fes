@@ -35,6 +35,11 @@ struct fes_nano_usb_io {
      * boot ownership proof only; external pin/PHY/device qualification stays
      * in prepare/ready. No state cache, mutation or readiness publication. */
     int (*prepare_master)(void *);
+    /* Optional complete read-only containment observation. Fresh paired cold
+     * ownership encloses both clock scans, PIO/DMA/IRQ and bounded AHB idle
+     * observations. No PHY transaction, state cache, write or grant. Exactly
+     * one on success; failure retires without selecting the separate path. */
+    int (*contained_scope)(void *,struct fes_nano_cold *,uint64_t owner,uint64_t epoch);
 };
 struct fes_nano_usb_platform {
     struct fes_nano_cold *cold;

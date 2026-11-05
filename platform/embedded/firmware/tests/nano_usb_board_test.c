@@ -135,6 +135,17 @@ static int containment_read(void *context,uintptr_t address,uint32_t *value)
         if (fault==13) t->base.h.per0|=FES_NANO_COLD_USB_RAM_RESET;
         if (fault==14) t->base.h.per0&=~1U;
         if (fault==15) t->base.h.bridge&=~2U;
+        if (fault==16) t->base.cold.valid=0;
+        if (fault==17) t->base.cold.failed=1;
+        if (fault==18) t->base.cold.record.boot.owner++;
+        if (fault==19) t->base.cold.record.boot.epoch++;
+        if (fault==20) t->base.cold.control_expected=1;
+        if (fault==21) t->base.cold.ddr_expected=1;
+        if (fault==22) t->base.cold.record.core=2;
+        if (fault==23) t->board.owner++;
+        if (fault==24) t->board.epoch++;
+        if (fault==25) t->board.initialized=0;
+
     }
     return error;
 }
@@ -149,7 +160,7 @@ static void master_containment(void)
     assert(t.base.usb.generation==2 && t.base.usb.active && t.base.usb.confirmed);
     assert(fes_nano_usb_platform_observe(&t.base.usb,17,2));
     assert(t.base.usb.failed && t.base.cold.failed);
-    for (unsigned fault=1;fault<=15;fault++) {
+    for (unsigned fault=1;fault<=25;fault++) {
         prepared(&t);host_started(&t);assert(!fes_nano_usb_platform_confirm(&t.base.usb,17,1));
         requests=t.requests;writes=t.base.h.writes;
         containment_drift=fault;t.board.physical.read=containment_read;
@@ -185,6 +196,74 @@ static void master_containment(void)
         } else assert(fes_nano_usb_platform_idle(&t.base.usb,17,2));
         assert(t.board.failed && t.base.usb.failed && t.base.cold.failed);
         assert(t.requests==requests && t.base.h.writes==writes);
+    }
+}
+static unsigned contained_cold_reads,contained_cold_fail;
+static int contained_cold_read(void *p,unsigned reg,uint32_t *value)
+{
+    if (++contained_cold_reads==contained_cold_fail) return -99;
+    return cold_read(p,reg,value);
+}
+static void coherent_containment(void)
+{
+    struct board_test t;
+    unsigned physical[2],cold[2];
+    for(unsigned separate=0;separate<2;separate++) {
+        prepared(&t);host_started(&t);assert(!fes_nano_usb_platform_confirm(&t.base.usb,17,1));
+        if(separate)t.base.usb.io.contained_scope=0;
+        unsigned accesses=t.accesses;
+        contained_cold_reads=0;contained_cold_fail=0;t.base.cold.io.read=contained_cold_read;
+        assert(!fes_nano_usb_platform_idle(&t.base.usb,17,2));
+        physical[separate]=t.accesses-accesses;cold[separate]=contained_cold_reads;
+    }
+    assert(cold[0]+physical[0]<cold[1]+physical[1]);
+    printf("PASS coherent USB containment: board reads %u/%u, cold reads %u/%u (combined/separate)\n",
+        physical[0],physical[1],cold[0],cold[1]);
+    /* Every physical clock/PIO access can fail; no second implementation or
+     * replay may touch hardware after the complete callback rejects it. */
+    for(unsigned n=1;n<=physical[0];n++) {
+        prepared(&t);host_started(&t);assert(!fes_nano_usb_platform_confirm(&t.base.usb,17,1));
+        t.fail_at=t.accesses+n;
+        assert(fes_nano_usb_platform_idle(&t.base.usb,17,2));
+        assert(t.base.usb.failed && t.base.cold.failed);
+        unsigned accesses=t.accesses;
+        assert(fes_nano_usb_platform_idle(&t.base.usb,17,2) && t.accesses==accesses);
+    }
+    /* Both complete cold samples must succeed, including the one after all
+     * controller reads. An early cold failure cannot enter the body. */
+    for(unsigned n=1;n<=26;n++) {
+        prepared(&t);host_started(&t);assert(!fes_nano_usb_platform_confirm(&t.base.usb,17,1));
+        unsigned accesses=t.accesses;
+        contained_cold_reads=0;contained_cold_fail=n;t.base.cold.io.read=contained_cold_read;
+        assert(fes_nano_usb_platform_idle(&t.base.usb,17,2));
+        assert(t.base.usb.failed && t.base.cold.failed);
+        if(n<=13)assert(t.accesses==accesses);
+    }
+    prepared(&t);host_started(&t);assert(!fes_nano_usb_platform_confirm(&t.base.usb,17,1));
+    struct fes_nano_usb_io ops=fes_nano_usb_board_ops(&t.board);
+    unsigned accesses=t.accesses;
+    struct fes_nano_cold foreign={0},untouched=foreign;
+    assert(!ops.contained_scope(&t.board,&foreign,17,7) && !memcmp(&foreign,&untouched,sizeof(foreign)));
+    assert(!ops.contained_scope(&t.board,&t.base.cold,18,7));
+    assert(!ops.contained_scope(&t.board,&t.base.cold,17,8));
+    assert(fes_nano_cold_usb_check(&t.base.cold,17,7,0,0));
+    assert(t.accesses==accesses && !t.base.cold.failed);
+    t.base.usb.io.contained_scope=reject_ready_scope;
+    assert(fes_nano_usb_platform_idle(&t.base.usb,17,2));
+    assert(t.accesses==accesses && t.base.usb.failed);
+    prepared(&t);host_started(&t);assert(!fes_nano_usb_platform_confirm(&t.base.usb,17,1));
+    unsigned waits=t.waits,requests=t.requests,writes=t.base.h.writes;
+    t.base.h.regs[16/4]=0;
+    assert(fes_nano_usb_platform_idle(&t.base.usb,17,2));
+    assert(t.board.first_error==-60 && t.waits-waits==FES_NANO_COLD_POLLS);
+    assert(t.base.usb.failed && t.base.cold.failed && t.base.usb.generation==2);
+    assert(t.requests==requests && t.base.h.writes==writes);
+    for(unsigned fault=0;fault<5;fault++) {
+        prepared(&t);host_started(&t);assert(!fes_nano_usb_platform_confirm(&t.base.usb,17,1));
+        changed_platform=&t.base.usb;saved_ready_scope=t.base.usb.io.contained_scope;changed_field=fault;
+        t.base.usb.io.contained_scope=changed_ready_scope;
+        assert(fes_nano_usb_platform_idle(&t.base.usb,17,2));
+        assert(t.base.usb.failed && t.base.cold.failed);
     }
 }
 enum { POLICY_READ=1,POLICY_WRITE=2,POLICY_BARRIER=3 };
@@ -285,7 +364,7 @@ static void master_preparation_contract(void)
         assert(event.address!=FES_NANO_USB_BASE+0x34);
         clocks+=event.address>=0x10d10000UL && event.address<0x10d10100UL;
     }
-    assert(reads==38 && clocks==26 && t.requests==requests && t.base.usb.generation==2);
+    assert(reads==42 && clocks==26 && t.requests==requests && t.base.usb.generation==2);
     unsigned accesses=t.accesses;
     t.base.usb.io.prepare_master=0;
     assert(fes_nano_usb_platform_idle(&t.base.usb,17,2));
@@ -394,6 +473,6 @@ static void copied_policy_and_admission(void)
 #endif
 int FES_NANO_USB_BOARD_ENTRY(void)
 {
-    master_preparation_contract();policy_sampling();master_containment();completed();live_failures();changed_policy();interruptions();copied_policy_and_admission();operation_boundaries();prepared_observation_admission();
+    coherent_containment();master_preparation_contract();policy_sampling();master_containment();completed();live_failures();changed_policy();interruptions();copied_policy_and_admission();operation_boundaries();prepared_observation_admission();
     puts("PASS actual USB board clocks/pins, two-phase host confirmation and USB3320 ULPI/VBUS failures; model only");return 0;
 }
