@@ -19,6 +19,108 @@ from tests.test_pcxt_dos_application_acceptance import FakeRunner
 
 
 class SourceObserverCleanupTest(unittest.TestCase):
+    def test_parent_start_error_with_live_child_retains_claim(self):
+        real_popen = p.subprocess.Popen
+        real_killpg = p.os.killpg
+        children = []
+        def spawn_then_fail(*args, **kwargs):
+            children.append(real_popen(*args, **kwargs))
+            raise OSError('source start result unavailable')
+        try:
+            with mock.patch.object(p.subprocess, 'Popen', side_effect=spawn_then_fail):
+                with self.assertRaises(p.SourceCleanupError) as caught:
+                    p.bounded_source_command([sys.executable, '-c', 'import time; time.sleep(30)'],
+                                             p.PhaseDeadline(time.monotonic()+10))
+            self.assertTrue(caught.exception.source_cleanup_incomplete)
+            self.assertIsNone(children[0].poll())
+        finally:
+            if children:
+                try: real_killpg(children[0].pid, p.signal.SIGKILL)
+                except ProcessLookupError: pass
+                children[0].wait(timeout=5)
+
+    def test_parent_group_kill_failure_retains_claim(self):
+        real_popen = p.subprocess.Popen
+        real_killpg = p.os.killpg
+        children = []
+        def remember(*args, **kwargs):
+            child = real_popen(*args, **kwargs); children.append(child); return child
+        try:
+            with mock.patch.object(p.subprocess, 'Popen', side_effect=remember), \
+                 mock.patch.object(p.os, 'killpg', side_effect=PermissionError('denied')):
+                with self.assertRaises(p.SourceCleanupError) as caught:
+                    p._bounded_source_command([sys.executable, '-c', 'import time; time.sleep(30)'],
+                                              p.PhaseDeadline(time.monotonic()+10), cancelled=lambda:True)
+            self.assertTrue(caught.exception.source_cleanup_incomplete)
+            self.assertIsNone(children[0].poll())
+        finally:
+            if children:
+                try: real_killpg(children[0].pid, p.signal.SIGKILL)
+                except ProcessLookupError: pass
+                children[0].wait(timeout=5)
+
+    def test_parent_reap_or_group_proof_failure_retains_claim(self):
+        for mode in ('wait', 'group_proof'):
+            with self.subTest(mode=mode):
+                real_popen = p.subprocess.Popen
+                real_killpg = p.os.killpg
+                children = []
+                def remember(*args, **kwargs):
+                    child = real_popen(*args, **kwargs)
+                    children.append((child, child.wait))
+                    if mode == 'wait':
+                        child.wait = mock.Mock(side_effect=subprocess.TimeoutExpired('source', 5))
+                    return child
+                def signal_group(pgid, sig):
+                    if mode == 'group_proof' and sig == 0:
+                        raise PermissionError('cannot verify group')
+                    return real_killpg(pgid, sig)
+                try:
+                    with mock.patch.object(p.subprocess, 'Popen', side_effect=remember), \
+                         mock.patch.object(p.os, 'killpg', side_effect=signal_group):
+                        with self.assertRaises(p.SourceCleanupError) as caught:
+                            p._bounded_source_command([sys.executable, '-c', 'import time; time.sleep(30)'],
+                                p.PhaseDeadline(time.monotonic()+10), cancelled=lambda:True)
+                    self.assertTrue(caught.exception.source_cleanup_incomplete)
+                finally:
+                    if children:
+                        child, real_wait = children[0]
+                        try: real_killpg(child.pid, p.signal.SIGKILL)
+                        except ProcessLookupError: pass
+                        real_wait(timeout=5)
+
+    def test_parent_lost_child_ownership_never_signals_numeric_group(self):
+        real_popen = p.subprocess.Popen
+        real_killpg = p.os.killpg
+        children = []
+        def remember(*args, **kwargs):
+            child = real_popen(*args, **kwargs); children.append(child); return child
+        try:
+            with mock.patch.object(p.subprocess, 'Popen', side_effect=remember), \
+                 mock.patch.object(p.os, 'waitid', side_effect=ChildProcessError('ownership lost')), \
+                 mock.patch.object(p.os, 'killpg') as kill:
+                with self.assertRaises(p.SourceCleanupError) as caught:
+                    p.bounded_source_command([sys.executable, '-c', 'import time; time.sleep(30)'],
+                                             p.PhaseDeadline(time.monotonic()+10))
+            self.assertTrue(caught.exception.source_cleanup_incomplete)
+            kill.assert_not_called()
+        finally:
+            if children:
+                try: real_killpg(children[0].pid, p.signal.SIGKILL)
+                except ProcessLookupError: pass
+                children[0].wait(timeout=5)
+
+    def test_historical_source_wrapper_preserves_cleanup_failure(self):
+        args=SimpleNamespace(source_repository='DeanoC/fes',source_base='main',source_pr=None,
+            source_main=False,source_commit='a'*40,source_tool_commit='b'*40,
+            source_observed_tip='c'*40,source_minimum_tip='c'*40,source_diff_sha256='d'*64)
+        failure=p.SourceCleanupError('cleanup unverified')
+        with mock.patch.object(p, 'bounded_source_command', side_effect=failure):
+            with self.assertRaises(p.SourceCleanupError) as caught:
+                p.require_historical_main(args)
+        self.assertIs(caught.exception, failure)
+        self.assertTrue(caught.exception.source_cleanup_incomplete)
+
     def test_cleanly_reaped_timeout_does_not_retain_claim(self):
         for cancel_observer in (False, True):
             with self.subTest(cancel_observer=cancel_observer), tempfile.TemporaryDirectory() as temp:

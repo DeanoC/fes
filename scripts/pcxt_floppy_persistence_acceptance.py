@@ -45,7 +45,9 @@ class PhaseDeadline:
 
 
 class SourceCleanupError(pa.AcceptanceError):
-    pass
+    # Callers write this into failed-phase evidence; wrappers must not turn an
+    # unknown source subprocess into an ordinary, safely handed-back failure.
+    source_cleanup_incomplete = True
 
 
 def bounded_source_command(argv, deadline, *, cwd=None, maximum_seconds=20, safe_python=False, cache_prefix=None):
@@ -104,30 +106,46 @@ def _bounded_source_command(argv, deadline, *, cwd=None, maximum_seconds=20, saf
             environment['PYTHONDONTWRITEBYTECODE']='1'
             environment['PYTHONPYCACHEPREFIX']=str(cache_prefix)
         started()
-        proc=subprocess.Popen(argv,cwd=cwd,stdout=output,stderr=subprocess.DEVNULL,start_new_session=True,env=environment)
+        try:
+            proc=subprocess.Popen(argv,cwd=cwd,stdout=output,stderr=subprocess.DEVNULL,start_new_session=True,env=environment)
+        except BaseException as exc:
+            # Popen can fail after forking but before returning the handle.
+            raise SourceCleanupError('source process start cleanup unverified') from exc
+        identity_lost = False
         try:
             # Keep the leader unreaped until its entire group is killed. This
             # prevents PID/group reuse when an exited leader leaves children.
             end=time.monotonic()+min(maximum_seconds,deadline.remaining(1))
             while True:
                 if cancelled(): raise pa.AcceptanceError('source observer exited')
-                observed=os.waitid(os.P_PID,proc.pid,os.WEXITED|os.WNOHANG|os.WNOWAIT)
+                try:
+                    observed=os.waitid(os.P_PID,proc.pid,os.WEXITED|os.WNOHANG|os.WNOWAIT)
+                except OSError as exc:
+                    # Without an owned unreaped child, a numeric process group
+                    # is no longer a safe signal target.
+                    identity_lost = True
+                    raise SourceCleanupError('source process ownership unverified; no signal sent') from exc
                 if observed is not None:break
                 left=min(end-time.monotonic(),deadline.remaining(1))
                 if left<=0:raise pa.AcceptanceError('source process deadline expired')
                 time.sleep(min(.05,left))
         finally:
-            try:os.killpg(proc.pid,signal.SIGKILL)
-            except ProcessLookupError:pass
-            try:proc.wait(timeout=5)
-            except subprocess.TimeoutExpired:raise SourceCleanupError('source process cleanup failed') from None
-            # A deadline or cancellation raised above must not skip cleanup
-            # verification. Report a completed cleanup only after the whole
-            # owned group is gone, even when the command itself failed.
-            try:os.killpg(proc.pid,0)
-            except ProcessLookupError:pass
-            else:raise SourceCleanupError('source process group remains; identity unsafe')
-            cleaned()
+            if not identity_lost:
+                active_error = sys.exception()
+                try:
+                    try:os.killpg(proc.pid,signal.SIGKILL)
+                    except ProcessLookupError:pass
+                    proc.wait(timeout=5)
+                    # A deadline or cancellation must not skip group proof.
+                    try:os.killpg(proc.pid,0)
+                    except ProcessLookupError:pass
+                    else:raise RuntimeError('source process group remains')
+                    cleaned()
+                except BaseException as exc:
+                    failure = SourceCleanupError('source process cleanup unverified')
+                    if active_error is not None:
+                        failure.add_note('source check also failed: '+repr(active_error))
+                    raise failure from exc
         if proc.returncode:raise pa.AcceptanceError('source process failed')
         deadline.remaining(1)
         output.seek(0);result=output.read(16*1024*1024+1)
