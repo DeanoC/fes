@@ -84,6 +84,7 @@ def sources():
                             'nano_usb_platform.c','nano_usb_board.c','nano_usb_board.h','nano_usb_boot.inc',
                             'nano_usb_composition.c','nano_usb_composition.h',
                             'nano_program.c','nano_program.h',
+                            'nano_rom.c','nano_rom.h','nano_rom_platform.inc','generated/fes_embedded_rom.h',
                             'nano_boot.c','nano_bridges.h','nano_bridges.c','nano_bridge_platform.inc','nano_bridge_platform.h',
                             'nano_owned_sip.inc','nano_computer_control.inc','nano_window_control.inc','prepare_nano_owned.py','prepare_tfa.py','nano_digest.py',
                             'nano_mailbox.py','nano_mailbox_observe.inc','nano_mailbox_observe.h','nano_mailbox_status.inc',
