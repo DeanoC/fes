@@ -231,6 +231,49 @@ derived U-Boot programs as `core=idle.rbf`), kernel, agent and launcher
 configuration are included. On first boot no state file is necessary:
 the verified factory is selected, then the native services start normally.
 
+Fresh DE25 appliance cards also need the leftover-capacity data partition before
+managed package installation or software updates. Their fixed layout is
+`de25-nano-appliance-2g-v1`: 2 GiB FAT followed by the 32 MiB ext4 bootstrap.
+The shared expand command selects that geometry explicitly with
+`--board de25-nano`. It requires the retained, verified regular card image and
+its SHA-256. Its physical target is the removable
+`/dev/disk/by-id/usb-Generic_STORAGE_DEVICE-0:0` reader, with no mounted
+partitions. Plan against the exact card capacity reported by the kernel:
+
+```sh
+python3 scripts/appliance_expand_dry_run.py plan --board de25-nano \
+  --base-image /absolute/private/card.img --base-sha256 VERIFIED_CARD_SHA256 \
+  --card-bytes CARD_BYTES
+```
+
+With the trial card in the reader, apply and independently verify before
+putting it in the board:
+
+```sh
+umask 077
+sudo env WRITE_GO=1 python3 scripts/appliance_expand_dry_run.py apply \
+  --board de25-nano --image /dev/disk/by-id/usb-Generic_STORAGE_DEVICE-0:0 \
+  --base-image /absolute/private/card.img --base-sha256 VERIFIED_CARD_SHA256 \
+  --card-bytes CARD_BYTES > /absolute/private/de25-data.json
+sudo python3 scripts/appliance_expand_dry_run.py verify --board de25-nano \
+  --image /dev/disk/by-id/usb-Generic_STORAGE_DEVICE-0:0 \
+  --base-image /absolute/private/card.img --base-sha256 VERIFIED_CARD_SHA256 \
+  --card-bytes CARD_BYTES --data-receipt /absolute/private/de25-data.json
+```
+
+The DE25 operation adds only aligned partition 3, formats it as ext4 labelled
+`FESDATA3`, and leaves the Terasic MBR boot bytes and both existing partition
+descriptors intact. The bootstrap must match the verified reference; the
+current FAT may contain first-boot identity and SSH state. Both partitions
+are hashed before and after formatting and must remain unchanged. Existing
+third/fourth partitions, a replaced reader, mounted devices, mismatched
+capacity or a different bootstrap are refused. The apply receipt binds the
+reader instance, geometry, protected hashes and new filesystem. Verification
+is for that unmounted reader session, before a boot changes mutable data.
+The board's supplied BusyBox formatter is insufficient for this ext4 setup.
+After startup the normal data helper mounts and prepares the existing volume;
+it does not create missing partitions.
+
 The extra space holds factory, known-good, previous and a staged candidate.
 When the release volume already has room for the new image, a 1 MiB margin,
 and the splash staged at confirmation (an idle core up to 8 MiB, its sidecar,
