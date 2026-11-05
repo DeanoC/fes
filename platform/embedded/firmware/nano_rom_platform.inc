@@ -12,8 +12,9 @@ static struct fes_nano_rom computer_rom;
 static struct {
     const char *scope;
     uint64_t tick, owner_started, owner_ticks, owner_max;
+    struct {uint64_t ticks,max;uint32_t samples;} owner_cost[2]; /* full, step guard */
     uint32_t hz, reads, writes, read_offset, read_value, write_offset, owner_checks, fast_checks;
-    unsigned pending, reported, phase, owner_pending, owner_invalid;
+    unsigned pending, reported, phase, owner_pending, owner_invalid, owner_fast;
     int result;
 } computer_rom_diagnostic;
 #if defined(FES_NANO_SHARED_USB) && FES_NANO_SHARED_USB
@@ -70,6 +71,12 @@ static int computer_rom_owned(void *context,uint64_t owner,uint64_t generation)
         computer_rom_diagnostic.owner_checks++;
         computer_rom_diagnostic.owner_started=computer_rom_diagnostic.tick;
         computer_rom_diagnostic.owner_pending=1;
+        computer_rom_diagnostic.owner_fast=0;
+#if defined(FES_NANO_SHARED_USB) && FES_NANO_SHARED_USB
+        /* Classify the bracket at entry, including the common private checks.
+         * This diagnostic value grants no permission and adds no timer read. */
+        computer_rom_diagnostic.owner_fast=computer_rom_step.active!=0;
+#endif
     }
     if(context!=&provider || !cold_master_cpu_scope())return computer_rom_scope_failure("cpu");
     computer_rom_diagnostic.hz=read_cntfrq_el0();
@@ -212,12 +219,19 @@ static uint64_t computer_rom_now(void *context)
     if(computer_rom_diagnostic.owner_pending) {
         computer_rom_diagnostic.owner_pending=0;
         uint64_t began=computer_rom_diagnostic.owner_started;
-        if(tick<began || tick-began>UINT64_MAX-computer_rom_diagnostic.owner_ticks)
+        unsigned kind=computer_rom_diagnostic.owner_fast;
+        if(tick<began || tick-began>UINT64_MAX-computer_rom_diagnostic.owner_ticks || kind>1 ||
+           tick-began>UINT64_MAX-computer_rom_diagnostic.owner_cost[kind].ticks ||
+           computer_rom_diagnostic.owner_cost[kind].samples==UINT32_MAX)
             computer_rom_diagnostic.owner_invalid=1;
         else {
             uint64_t elapsed=tick-began;
             computer_rom_diagnostic.owner_ticks+=elapsed;
             if(elapsed>computer_rom_diagnostic.owner_max)computer_rom_diagnostic.owner_max=elapsed;
+            computer_rom_diagnostic.owner_cost[kind].ticks+=elapsed;
+            computer_rom_diagnostic.owner_cost[kind].samples++;
+            if(elapsed>computer_rom_diagnostic.owner_cost[kind].max)
+                computer_rom_diagnostic.owner_cost[kind].max=elapsed;
         }
     }
     computer_rom_diagnostic.tick=tick;return tick;
@@ -287,7 +301,7 @@ void fes_nano_platform_computer_rom_report(void)
 {
     if(!computer_rom_diagnostic.pending || computer_rom_diagnostic.reported)return;
     computer_rom_diagnostic.reported=1;
-    NOTICE("FES_NANO_ROM_FAILURE phase=%u scope=%s status=%d error=%d used=%u complete=%u bytes=%u reads=%u writes=%u read_offset=%x read_value=%x write_offset=%x began=%llx tick=%llx hz=%u owner_checks=%u owner_ticks=%llx owner_max=%llx owner_invalid=%u owner_pending=%u fast_checks=%u\n",
+    NOTICE("FES_NANO_ROM_FAILURE phase=%u scope=%s status=%d error=%d used=%u complete=%u bytes=%u reads=%u writes=%u read_offset=%x read_value=%x write_offset=%x began=%llx tick=%llx hz=%u owner_checks=%u owner_ticks=%llx owner_max=%llx owner_invalid=%u owner_pending=%u fast_checks=%u full_samples=%u full_ticks=%llx full_max=%llx fast_samples=%u fast_ticks=%llx fast_max=%llx\n",
         computer_rom_diagnostic.phase,computer_rom_diagnostic.scope ? computer_rom_diagnostic.scope : "none",
         computer_rom_diagnostic.result,computer_rom.first_error,computer_rom.used,computer_rom.complete,
         computer_rom.bytes,computer_rom_diagnostic.reads,computer_rom_diagnostic.writes,
@@ -295,5 +309,11 @@ void fes_nano_platform_computer_rom_report(void)
         (unsigned long long)computer_rom.began,(unsigned long long)computer_rom_diagnostic.tick,computer_rom_diagnostic.hz,
         computer_rom_diagnostic.owner_checks,(unsigned long long)computer_rom_diagnostic.owner_ticks,
         (unsigned long long)computer_rom_diagnostic.owner_max,computer_rom_diagnostic.owner_invalid,
-        computer_rom_diagnostic.owner_pending,computer_rom_diagnostic.fast_checks);
+        computer_rom_diagnostic.owner_pending,computer_rom_diagnostic.fast_checks,
+        computer_rom_diagnostic.owner_cost[0].samples,
+        (unsigned long long)computer_rom_diagnostic.owner_cost[0].ticks,
+        (unsigned long long)computer_rom_diagnostic.owner_cost[0].max,
+        computer_rom_diagnostic.owner_cost[1].samples,
+        (unsigned long long)computer_rom_diagnostic.owner_cost[1].ticks,
+        (unsigned long long)computer_rom_diagnostic.owner_cost[1].max);
 }

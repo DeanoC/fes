@@ -90,6 +90,17 @@ It also counts ownership callbacks and the total/maximum completed intervals
 between their existing timer samples, with pending/invalid accounting flags.
 These counters add no timer reads. The C/RTL fixture charges a known modeled
 supplier cost and checks exact accounting on successful transfers.
+Completed intervals are also split by the private step state at entry into
+full-proof and step-guard sample counts, totals and maxima. This includes the
+common checks before the chosen path; it does not cache an ownership result.
+The existing `fast_checks` counter still counts entry to the actual step guard,
+so it can differ from completed samples when an earlier check or clock fails.
+The two completed totals sum to the aggregate when measurements remain valid.
+Regressing clocks, invalid diagnostic classification or accumulator/sample
+overflow mark accounting invalid without changing the transfer decision.
+Accounting uses exactly the existing single timer read per callback, and a
+report still performs no reads. These fields measure ownership brackets, not
+isolated instruction execution or hardware qualification.
 The existing failure reply still clears provenance and retires the activation.
 The C/RTL fixture checks containment-before-report, one emission, unchanged
 access counts on repeated reports, and both ROM sizes across integrity, scope,

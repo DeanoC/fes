@@ -156,6 +156,10 @@ int fes_test_rom_platform_open(void)
         assert(computer_rom_diagnostic.owner_checks && computer_rom_diagnostic.owner_ticks &&
             computer_rom_diagnostic.owner_max==21 &&
             computer_rom_diagnostic.owner_ticks==(uint64_t)computer_rom_diagnostic.owner_checks*21 &&
+            computer_rom_diagnostic.owner_cost[0].samples==computer_rom_diagnostic.owner_checks &&
+            computer_rom_diagnostic.owner_cost[0].ticks==computer_rom_diagnostic.owner_ticks &&
+            computer_rom_diagnostic.owner_cost[0].max==computer_rom_diagnostic.owner_max &&
+            !computer_rom_diagnostic.owner_cost[1].samples && !computer_rom_diagnostic.owner_cost[1].ticks &&
             !computer_rom_diagnostic.owner_pending && !computer_rom_diagnostic.owner_invalid);
     }
     assert(reports==(computer_rom_diagnostic.pending ? 1U : 0U));

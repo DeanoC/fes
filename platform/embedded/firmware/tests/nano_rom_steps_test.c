@@ -95,6 +95,51 @@ static uint64_t read_cntpct_el0(void)
         (uint64_t)sink.clock_reads*30+sink.bias;
 }
 #include "rom_step_callback.h"
+static void timing_accounting(void)
+{
+    unsigned io[]={model.accesses,model.base.h.reads,cold_reads,sink.reads,sink.writes};
+    memset(&computer_rom_diagnostic,0,sizeof(computer_rom_diagnostic));
+    uint64_t tick=computer_rom_now(&provider);
+    for(unsigned kind=0;kind<2;kind++) {
+        computer_rom_diagnostic.owner_started=tick;
+        computer_rom_diagnostic.owner_pending=1;computer_rom_diagnostic.owner_fast=kind;
+        sink.bias+=970; /* Existing next sample contributes the other 30 ticks. */
+        unsigned samples=sink.clock_reads;
+        uint64_t next=computer_rom_now(&provider);
+        assert(next-tick==1000 && sink.clock_reads==samples+1);
+        assert(computer_rom_diagnostic.owner_cost[kind].ticks==1000 &&
+            computer_rom_diagnostic.owner_cost[kind].max==1000 &&
+            computer_rom_diagnostic.owner_cost[kind].samples==1);
+        tick=next;
+    }
+    assert(computer_rom_diagnostic.owner_ticks==2000 && computer_rom_diagnostic.owner_max==1000 &&
+        !computer_rom_diagnostic.owner_pending && !computer_rom_diagnostic.owner_invalid);
+    computer_rom_now(&provider); /* An idle sample must not double-account. */
+    assert(computer_rom_diagnostic.owner_ticks==2000 &&
+        computer_rom_diagnostic.owner_cost[0].samples==1 && computer_rom_diagnostic.owner_cost[1].samples==1);
+    for(unsigned fault=0;fault<7;fault++) {
+        memset(&computer_rom_diagnostic,0,sizeof(computer_rom_diagnostic));
+        computer_rom_diagnostic.owner_pending=1;
+        unsigned kind=fault&1U;computer_rom_diagnostic.owner_fast=kind;
+        if(fault==0)computer_rom_diagnostic.owner_started=UINT64_MAX; /* Regressing sample. */
+        if(fault==1)computer_rom_diagnostic.owner_ticks=UINT64_MAX;
+        if(fault==2 || fault==3)computer_rom_diagnostic.owner_cost[kind].ticks=UINT64_MAX;
+        if(fault==4 || fault==5)computer_rom_diagnostic.owner_cost[kind].samples=UINT32_MAX;
+        if(fault==6)computer_rom_diagnostic.owner_fast=2; /* Never index corrupt metadata. */
+        uint64_t total=computer_rom_diagnostic.owner_ticks,part=computer_rom_diagnostic.owner_cost[kind].ticks;
+        uint32_t count=computer_rom_diagnostic.owner_cost[kind].samples;
+        unsigned samples=sink.clock_reads;
+        computer_rom_now(&provider);
+        assert(sink.clock_reads==samples+1 && !computer_rom_diagnostic.owner_pending &&
+            computer_rom_diagnostic.owner_invalid && computer_rom_diagnostic.owner_ticks==total &&
+            computer_rom_diagnostic.owner_cost[kind].ticks==part &&
+            computer_rom_diagnostic.owner_cost[kind].samples==count);
+    }
+    unsigned after[]={model.accesses,model.base.h.reads,cold_reads,sink.reads,sink.writes};
+    assert(!memcmp(io,after,sizeof(io)));
+    memset(&computer_rom_diagnostic,0,sizeof(computer_rom_diagnostic));
+    sink.clock_reads=0;sink.bias=0;
+}
 static void step_barrier(void *p) {(void)p;dsbsy();}
 static int step_verify(void *p,const uint8_t *image,size_t bytes)
 {
@@ -171,6 +216,7 @@ int main(int argc,char **argv)
     assert(argc==4);unsigned bytes=(unsigned)strtoul(argv[1],0,0),fault=(unsigned)strtoul(argv[2],0,0);
     assert((bytes==4096 || bytes==8192) && fault<=40);
     char *args[]={argv[0],"0"};assert(!rom_owner_fixture_main(2,args));
+    timing_accounting();
     sink.bytes=bytes;sink.fault=fault;sink.crc=(uint32_t)strtoul(argv[3],0,16);
     for(unsigned i=0;i<bytes;i++)sink.source[i]=sink.expected[i]=(uint8_t)(i*37+(i>>3)+0x5a);
     configuration_program.rom_bytes=bytes;
@@ -195,6 +241,9 @@ int main(int argc,char **argv)
         assert(!result && computer_rom.complete && !computer_rom.failed && computer_rom_step.next==bytes);
         assert(!memcmp(sink.received,sink.expected,bytes) && !computer_rom_step.failed && !sink.aborts);
         assert(computer_rom.last-computer_rom.began<FES_EMBEDDED_ROM_MAX_TICKS);
+        assert(computer_rom_diagnostic.owner_cost[0].samples && computer_rom_diagnostic.owner_cost[1].samples &&
+            computer_rom_diagnostic.owner_cost[1].samples==computer_rom_diagnostic.fast_checks &&
+            computer_rom_diagnostic.owner_cost[0].ticks && computer_rom_diagnostic.owner_cost[1].ticks);
         printf("PASS ROM step model bytes=%u fault=%u elapsed_ticks=%llu fast_checks=%u full_checks=%u\n",bytes,fault,
             (unsigned long long)(computer_rom.last-computer_rom.began),computer_rom_diagnostic.fast_checks,
             computer_rom_diagnostic.owner_checks-computer_rom_diagnostic.fast_checks);
@@ -223,6 +272,12 @@ int main(int argc,char **argv)
         unsigned after[]={model.accesses,model.base.h.reads,cold_reads,sink.reads,sink.writes,sink.clock_reads};
         assert(!memcmp(before,after,sizeof(before)));
         printf("PASS ROM step model bytes=%u fault=%u status=%d words=%u; retained failure, no replay I/O\n",bytes,fault,result,sink.words);
+    }
+    if(!computer_rom_diagnostic.owner_invalid) {
+        assert(computer_rom_diagnostic.owner_cost[0].ticks+computer_rom_diagnostic.owner_cost[1].ticks==
+            computer_rom_diagnostic.owner_ticks);
+        assert(computer_rom_diagnostic.owner_cost[0].samples+computer_rom_diagnostic.owner_cost[1].samples+
+            computer_rom_diagnostic.owner_pending==computer_rom_diagnostic.owner_checks);
     }
     return 0;
 }

@@ -12,7 +12,8 @@ static struct fes_nano_program configuration_program;
 static struct {
     const char *scope;uint32_t hz,owner_checks,fast_checks,reads,writes,read_offset,read_value,write_offset;
     uint64_t tick,owner_started,owner_ticks,owner_max;
-    unsigned phase,owner_pending,owner_invalid;
+    struct {uint64_t ticks,max;uint32_t samples;} owner_cost[2];
+    unsigned phase,owner_pending,owner_invalid,owner_fast;
 } computer_rom_diagnostic;
 static struct fes_nano_rom computer_rom;
 static struct {
