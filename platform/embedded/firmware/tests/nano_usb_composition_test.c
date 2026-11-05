@@ -91,6 +91,13 @@ static void failures(void)
 }
 static void ownership(void)
 {
+    struct test missing;ready(&missing);
+    struct fes_nano_usb_io io={&missing.h,read32,write32,barrier,wait_poll,usb_ready,usb_prepare,0,0};
+    assert(!fes_nano_usb_platform_init(&missing.usb,&missing.cold,io,FES_NANO_USB_QUALIFIED));
+    unsigned untouched_reads=missing.h.reads,untouched_writes=missing.h.writes;
+    assert(fes_nano_usb_composition_init(&missing.composition,&missing.cold,&missing.usb,&missing.platform)<0);
+    assert(missing.h.reads==untouched_reads && missing.h.writes==untouched_writes);
+    assert(missing.cold.valid && !missing.cold.devices_bound && !missing.usb.failed);
     struct test t;composed(&t);
     unsigned reads=t.h.reads,writes=t.h.writes;
     assert(fes_nano_cold_owns(&t.cold,18,7)==0);

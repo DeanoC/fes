@@ -3,7 +3,8 @@
 #define main shared_boot_fixture_main
 #include "nano_usb_shared_boot_test.c"
 #undef main
-static unsigned fault,inject,fake_containment_called;
+static unsigned fault,inject,fake_containment_called,fake_prepare_called;
+static int fake_prepare(void *p) {(void)p;fake_prepare_called++;return 1;}
 static int fake_containment(struct fes_nano_usb_platform *p,uint64_t owner,uint64_t generation)
 {(void)p;(void)owner;(void)generation;fake_containment_called++;return 0;}
 static unsigned physical_reads,fail_read;
@@ -43,7 +44,7 @@ static int producer_sample(void *p,uint32_t *bits)
 }
 int main(int argc,char **argv)
 {
-    assert(argc==2);fault=(unsigned)strtoul(argv[1],0,0);assert(fault<=40);
+    assert(argc==2);fault=(unsigned)strtoul(argv[1],0,0);assert(fault<=42);
     char *setup_args[]={argv[0],"0"};assert(!shared_boot_fixture_main(2,setup_args));
     uint64_t r[4],generation=usb_platform.generation;
     fes_nano_usb_service_sip(&fes_nano_owned_usb,FES_EMBEDDED_USB_ACQUIRE,17,generation,0,r);assert(!r[0]);
@@ -64,10 +65,17 @@ int main(int argc,char **argv)
         if (fault==38) model.base.h.usb[8/4]|=1U;
         if (fault==39) fes_nano_owned_usb.ops.contained=0;
         if (fault==40) fes_nano_owned_usb.ops.contained=fake_containment;
-        assert(fes_nano_usb_service_gate(&fes_nano_owned_usb)<0);
+        if (fault==41) usb_platform.io.prepare_master=0;
+        if (fault==42) usb_platform.io.prepare_master=fake_prepare;
+        if (fault==37) {
+            assert(!fes_nano_usb_service_gate(&fes_nano_owned_usb));
+            assert(provider.valid && model.requests==requests);
+            fes_nano_usb_service_sip(&fes_nano_owned_usb,FES_EMBEDDED_USB_QUERY,0,0,0,r);
+            assert(r[0]==FES_EMBEDDED_USB_ERROR);
+        } else assert(fes_nano_usb_service_gate(&fes_nano_owned_usb)<0);
         assert(fes_nano_owned_usb.failed && model.base.bridges.failed && provider.failed);
         assert(usb_platform.active && usb_platform.confirmed && usb_platform.generation==generation+2);
-        if (fault>=39) assert(model.accesses==accesses && !fake_containment_called);
+        if (fault>=39) assert(model.accesses==accesses && !fake_containment_called && !fake_prepare_called);
         accesses=model.accesses;
         assert(fes_nano_usb_service_gate(&fes_nano_owned_usb)<0);
         assert(model.accesses==accesses && model.requests==requests);
@@ -105,7 +113,7 @@ int main(int argc,char **argv)
             physical_reads=0;state=untouched;
         }
         int status=fes_nano_bridges_observe(&model.base.bridges,&state);
-        if (fault==4) {
+        if (fault==3 || fault==4) {
             /* The master remains contained without a PHY transaction. That
              * grants no USB readiness: an explicit query still checks both
              * PHY samples and retires the complete shared source on drift. */

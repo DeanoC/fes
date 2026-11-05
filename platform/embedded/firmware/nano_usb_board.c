@@ -116,6 +116,17 @@ static int prepare(void *context)
     if (scope(b,&active) || clocks(b,0) || pins(b) || scope(b,&active)) return 0;
     return 1;
 }
+static int prepare_master(void *context)
+{
+    struct fes_nano_usb_board *b=context;unsigned active;
+    if (!b || !b->initialized || b->failed) return 0;
+    /* A controller with DMA/IRQ disabled and an independently idle AHB
+     * master cannot access HPS memory through its external USB pins. Keep
+     * the complete fresh bus-clock and cold scope proof for meaningful CSR
+     * access; pin/PHY qualification remains mandatory for device readiness. */
+    if (scope(b,&active) || clocks(b,0) || scope(b,&active)) return 0;
+    return 1;
+}
 static int ulpi(struct fes_nano_usb_board *b,unsigned address,uint8_t *value)
 {
     uint32_t v;
@@ -229,5 +240,5 @@ static int prepared_ready(void *context,struct fes_nano_cold *cold,uint64_t owne
 }
 struct fes_nano_usb_io fes_nano_usb_board_ops(struct fes_nano_usb_board *b)
 {
-    return (struct fes_nano_usb_io){b,physical_read,physical_write,physical_barrier,physical_wait,ready,prepare,prepared_ready};
+    return (struct fes_nano_usb_io){b,physical_read,physical_write,physical_barrier,physical_wait,ready,prepare,prepared_ready,prepare_master};
 }

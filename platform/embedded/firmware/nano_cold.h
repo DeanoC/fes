@@ -78,7 +78,7 @@ enum fes_nano_cold_finish_stage {
 struct fes_nano_cold_device_ops {
     void *context;
     int (*snapshot)(void *, uint32_t *released);
-    int (*usb_contained)(void *); /* exactly 1: fresh clock/pin/owner/reset,
+    int (*usb_contained)(void *); /* exactly 1: fresh bus-clock/owner/reset,
                                   * DMA/IRQ disabled and AHB idle; no PHY grant */
 };
 struct fes_nano_cold {

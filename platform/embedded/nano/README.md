@@ -1300,7 +1300,7 @@ The retained-USB boot provider can bind a coherent bridge observer through its
 trusted, boot-local master policy. This samples the independent producer bitmap
 between paired live bridge/peripheral reset reads, with the complete retained
 USB master-containment checks described below: DMA/idle, owner, generation,
-clock, pin and final live boot scope. Device readiness is checked separately.
+bus clocks and final live boot scope. Device pin/PHY readiness is checked separately.
 It avoids re-entering those same full observations through nested bridge wrappers;
 there is no cache of hardware state across calls. Only a provider supplying the
 explicit combined callback selects it. Unbound providers retain their existing
@@ -1310,7 +1310,7 @@ boot without publishing a snapshot. The configuration deadline remains 20 second
 The register-fixture work bound is a software check; physical load timing still
 requires the matched rebuilt chain on the board.
 
-Board preparation scans the complete immutable clock/pin policy once per call.
+Device preparation scans the complete immutable clock/pin policy once per call.
 The initial capture/recheck remains paired, and controller and PHY operations
 still invoke fresh preparation at their boundaries. The removed scan repeated
 immediately without an intervening operation; no hardware observation is reused
@@ -1333,7 +1333,7 @@ firmware completion that must not open a computer or release staging.
 Retained USB master containment now uses a separate live observation from device
 readiness. The cold composition's `usb_contained` callback and the shared
 firmware gate require the same confirmed private lease and fresh complete
-clock/pin/boot checks around DMA-disabled, IRQ-disabled, fixed-PIO and AHB-idle
+bus-clock/boot checks around DMA-disabled, IRQ-disabled, fixed-PIO and AHB-idle
 register observations. They issue no USB or PHY writes, change no generation
 and cannot publish USB readiness. Shared mode requires the boot-local
 `service_ops.contained` hook and checks its identity against the trusted
@@ -1351,8 +1351,8 @@ computer CSR retains its before/after firmware ownership brackets; the native
 one-second/64-poll computer guard and 20-second configuration guard are unchanged.
 
 Read-only board policy sampling brackets each complete clock/pin group with
-ordering barriers. All 13 captured clock fields and 164 sealed pins are still
-read and checked on every call, in the same order; no prior sample is reused.
+ordering barriers. Device preparation still reads and checks all 13 captured
+clock fields and 164 sealed pins on every call, in the same order; no prior sample is reused.
 Controller, reset and PHY transactions keep their existing individual ordering.
 Sample errors close the group boundary, retain the original error/address and
 previous successful value, and stop without further reads or writes. Successful
@@ -1361,3 +1361,17 @@ uncached diagnostic stores. Tests fault every supplier read, audit both group
 boundaries and complete value sequences, and require the next invocation to
 reject a newly changed pin after a successful sample. Native limits and fresh
 per-CSR containment checks remain unchanged.
+
+The physical supplier now provides an explicit `prepare_master` callback for
+internal master containment. It samples all captured bus-clock fields and cold
+ownership before and after controller checks. External HPS pin selection affects
+device signaling, not an independently DMA-disabled and idle internal AHB master;
+full pin/PHY checks remain on device preparation, QUERY and CONFIRM. Shared
+composition requires this trusted callback before binding and preserves its
+identity/context independently of any hardware observation; an absent callback
+rejects without a full-prepare fallback. This is not a cached device-ready flag.
+Tests check 38 fresh supplier reads including both complete clock vectors,
+zero pin/PHY accesses or writes, unchanged generation, and no further I/O after
+failure. Every clock and internal-master fault still rejects. Every changed pin
+can leave internal containment valid, but must fail the subsequent full device
+observation and retire the source before it can regain any permission.

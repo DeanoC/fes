@@ -62,6 +62,12 @@ static int scope(struct fes_nano_usb_platform *p)
         fes_nano_cold_usb_scope(p->cold,p->owner,p->epoch,p->active)) return fail(p,-5);
     return 0;
 }
+static int master_scope(struct fes_nano_usb_platform *p)
+{
+    if (!p->io.prepare_master || p->io.prepare_master(p->io.context)!=1 ||
+        fes_nano_cold_usb_scope(p->cold,p->owner,p->epoch,p->active)) return fail(p,-5);
+    return 0;
+}
 static int pio_owner(struct fes_nano_usb_platform *p)
 {
     uint32_t ahb, mask;
@@ -159,12 +165,12 @@ int fes_nano_usb_platform_idle(struct fes_nano_usb_platform *p,uint64_t owner,ui
     struct fes_nano_cold *cold=p->cold;
     uint64_t epoch=p->epoch;
     /* This is a fresh master-containment observation, not device readiness.
-     * Clock/pin/boot scope brackets live DMA/IRQ/PIO and AHB-master-idle checks.
+     * Bus-clock/boot scope brackets live DMA/IRQ/PIO and AHB-master-idle checks.
      * No PHY viewport transaction, reset, channel halt or generation change is
      * needed to establish that a confirmed PIO controller cannot master memory.
      * USB queries/confirmation retain their independent full PHY checks. */
     uint32_t idle;
-    if (scope(p) || pio(p) || poll(p,RESET,ENABLE,ENABLE) || scope(p) ||
+    if (master_scope(p) || pio(p) || poll(p,RESET,ENABLE,ENABLE) || master_scope(p) ||
         pio(p) || read_reg(p,FES_NANO_USB_BASE+RESET,&idle)) return -1;
     /* No second wait allowance: loss after the initial bounded idle sample is
      * a changed master state. Recheck cold ownership after the final MMIO. */

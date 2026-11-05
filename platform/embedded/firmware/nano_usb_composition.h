@@ -15,6 +15,8 @@ struct fes_nano_usb_composition {
     struct fes_nano_usb_platform *usb;
     struct fes_nano_sd_platform *sd;
     uint64_t owner,epoch;
+    void *usb_context;
+    int (*prepare_master)(void *); /* private supplier identity, never cached hardware state */
     unsigned attempted,initialized,failed;
 };
 int fes_nano_usb_composition_init(struct fes_nano_usb_composition *,

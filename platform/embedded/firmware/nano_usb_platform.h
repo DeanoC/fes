@@ -31,6 +31,10 @@ struct fes_nano_usb_io {
      * No state cache, mutation or generation publication. It subsumes the
      * separate prepare/PIO/ready/prepare sequence only after confirmation. */
     int (*ready_scope)(void *,struct fes_nano_cold *,uint64_t owner,uint64_t epoch);
+    /* Required for shared internal-master containment. Fresh bus-clock and
+     * boot ownership proof only; external pin/PHY/device qualification stays
+     * in prepare/ready. No state cache, mutation or readiness publication. */
+    int (*prepare_master)(void *);
 };
 struct fes_nano_usb_platform {
     struct fes_nano_cold *cold;
@@ -56,7 +60,7 @@ int fes_nano_usb_platform_stop(struct fes_nano_usb_platform *, uint64_t owner,
                               uint64_t generation);
 /* Confirmed shared PIO owner only: independently observe the DMA-disabled
  * interconnect master idle before granting a retained-reset stop policy.
- * Fresh clock/pin/boot scope brackets live DMA/IRQ/PIO and AHB-idle checks.
+ * Fresh bus-clock/boot scope brackets live DMA/IRQ/PIO and AHB-idle checks.
  * This is not PHY/device readiness; issues no writes and publishes no state. */
 int fes_nano_usb_platform_idle(struct fes_nano_usb_platform *,uint64_t owner,uint64_t generation);
 #endif

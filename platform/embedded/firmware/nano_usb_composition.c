@@ -18,6 +18,7 @@ static int snapshot(void *context,uint32_t *released)
     if (s->failed || !s->attempted || !u || !d || !s->cold ||
         !s->cold->valid || s->cold->failed || !u->initialized || u->failed ||
         !d->initialized || d->failed || u->cold!=s->cold || d->cold!=s->cold ||
+        !s->prepare_master || u->io.prepare_master!=s->prepare_master || u->io.context!=s->usb_context ||
         u->owner!=s->owner || u->epoch!=s->epoch ||
         s->cold->record.boot.owner!=s->owner || s->cold->record.boot.epoch!=s->epoch ||
         u->active>1 || u->confirmed>1 || d->active>1 || d->prepared>1 ||
@@ -45,10 +46,11 @@ int fes_nano_usb_composition_init(struct fes_nano_usb_composition *s,
     /* Invalid pointers must not retire some other boot's platform objects. */
     if (!cold || !cold->valid || cold->failed || !usb || !sd ||
         usb->cold!=cold || sd->cold!=cold || !usb->initialized || !sd->initialized ||
-        usb->failed || sd->failed || usb->active || usb->confirmed || usb->generation ||
+        usb->failed || sd->failed || !usb->io.prepare_master || usb->active || usb->confirmed || usb->generation ||
         sd->active || sd->prepared || cold->devices_attempted) {s->failed=1;return -1;}
     s->cold=cold;s->usb=usb;s->sd=sd;
     s->owner=cold->record.boot.owner;s->epoch=cold->record.boot.epoch;
+    s->usb_context=usb->io.context;s->prepare_master=usb->io.prepare_master;
     struct fes_nano_cold_device_ops ops={s,snapshot,observe_usb_contained};
     if (fes_nano_cold_bind_devices(cold,s->owner,s->epoch,ops)) {retire(s);return -1;}
     s->initialized=1;
