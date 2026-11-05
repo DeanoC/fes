@@ -38,6 +38,7 @@ Quartus 17.0.2.
 | [`rtl/pc386_system.sv`](rtl/pc386_system.sv) | The `fes.computer` 1.1 mailbox and [storage endpoint](../fes-common/rtl/fes_computer_storage.v), the machine, its audio and `fes_i386_cpu`: Hold and the DDR ports' hold, the record's settings, the CPU's resets, I/O and INTA handshake, attribute map, the status words |
 | [`rtl/pc386_rom.sv`](rtl/pc386_rom.sv) | The BIOS and VGA BIOS in M10K, answering the CPU's port 0 reads of their ranges |
 | [`rtl/pc386_disk.sv`](rtl/pc386_disk.sv) | The ATA image at window offset 128 MiB on port 2: the drive's image port and Commit's CRC pass |
+| [`rtl/pc386_status.sv`](rtl/pc386_status.sv) | The status ring at window offset 16 MiB on port 2, in front of the disk: the status words every 2^16 clocks, which the HPS reads with [`pc386_cpu_status.py`](../../scripts/pc386_cpu_status.py) |
 | [`rtl/pc386_snapshot.sv`](rtl/pc386_snapshot.sv) | Carries the presenter's and the plane's pixel-clock counters whole into the system clock |
 | [`rtl/pc386_system_pll.v`](rtl/pc386_system_pll.v) | The sealed system clock and the 12.288 MHz audio clock |
 | [`constraints-oss.qsf`](constraints-oss.qsf), [`toolchain.lock`](toolchain.lock) | Pins (both lanes), and the core's lock (the i386 lock's nextpnr and Mistral, Yosys main) |
