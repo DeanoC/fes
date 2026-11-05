@@ -13,6 +13,7 @@ import select
 import signal
 import struct
 import subprocess
+import sys
 import threading
 import time
 
@@ -182,9 +183,14 @@ class FFV1Recorder:
                 raise CaptureError('recording sidecar cannot be read') from exc
             if len(rows) != self.count or rows != self.entries:
                 raise CaptureError('recording sidecar was truncated or changed')
-            probe = subprocess.run(['ffprobe', '-v', 'error', '-count_frames', '-select_streams', 'v:0',
-                '-show_entries', 'stream=codec_name,width,height,nb_read_frames', '-of', 'json', str(self.video)],
-                check=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE, timeout=120)
+            try:
+                probe = subprocess.run(['ffprobe', '-v', 'error', '-count_frames', '-select_streams', 'v:0',
+                    '-show_entries', 'stream=codec_name,width,height,nb_read_frames', '-of', 'json', str(self.video)],
+                    check=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE, timeout=120)
+            except OSError as exc:
+                failure = CaptureError('FFV1 frame verification subprocess cleanup unverified')
+                failure.source_cleanup_incomplete = True
+                raise failure from exc
             streams = json.loads(probe.stdout).get('streams', [])
             if (len(streams) != 1 or streams[0].get('codec_name') != 'ffv1'
                     or streams[0].get('width') != self.width or streams[0].get('height') != self.height
@@ -209,9 +215,16 @@ class FFV1Recorder:
     def _verify_pixels(self, timeout=180):
         """Bind each sidecar row to the corresponding losslessly decoded frame."""
         deadline = time.monotonic() + timeout
-        decoder = subprocess.Popen(['ffmpeg', '-nostdin', '-hide_banner', '-loglevel', 'error',
-            '-xerror', '-i', str(self.video), '-map', '0:v:0', '-pix_fmt', 'yuyv422',
-            '-f', 'rawvideo', 'pipe:1'], stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, bufsize=0)
+        try:
+            decoder = subprocess.Popen(['ffmpeg', '-nostdin', '-hide_banner', '-loglevel', 'error',
+                '-xerror', '-i', str(self.video), '-map', '0:v:0', '-pix_fmt', 'yuyv422',
+                '-f', 'rawvideo', 'pipe:1'], stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, bufsize=0)
+        except OSError as exc:
+            # Popen may fail after its child exists but before returning its
+            # handle; absent proof of cleanup, retain the ownership warning.
+            failure = CaptureError('FFV1 decoder start cleanup unverified')
+            failure.source_cleanup_incomplete = True
+            raise failure from exc
         try:
             for row in self.entries:
                 digest = hashlib.sha256()
@@ -236,9 +249,23 @@ class FFV1Recorder:
             if left <= 0 or decoder.wait(timeout=min(10, left)) != 0:
                 raise CaptureError('FFV1 verification failed')
         finally:
-            if decoder.poll() is None:
-                decoder.kill(); decoder.wait(timeout=5)
-            decoder.stdout.close()
+            active_error = sys.exception()
+            cleanup_error = None
+            try:
+                if decoder.poll() is None:
+                    decoder.kill(); decoder.wait(timeout=5)
+            except BaseException as exc:
+                cleanup_error = exc
+            try:
+                decoder.stdout.close()
+            except BaseException as exc:
+                cleanup_error = cleanup_error or exc
+            if cleanup_error is not None:
+                failure = CaptureError('FFV1 decoder cleanup unverified')
+                failure.source_cleanup_incomplete = True
+                if active_error is not None:
+                    failure.add_note('recording verification also failed: '+repr(active_error))
+                raise failure from cleanup_error
 
     def abort(self):
         self.interrupt()
