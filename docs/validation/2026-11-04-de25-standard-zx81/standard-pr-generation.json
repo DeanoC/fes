@@ -1,4 +1,17 @@
 {
+  "CI_test_correction": {
+    "case_count": 4,
+    "log_sha256": "0d12211577fbec52ba68165ce5037c457312a6b408602c2d8de837f7175d6141",
+    "negative_control": "Original assertion deterministically fails for both cartridge types when the real replacement reply precedes confirmation release. Correct behavior suppresses that held release; synchronized tests assert neither edge reaches machine feed.",
+    "passed": true,
+    "race": true,
+    "repeats": 100,
+    "scope": "Both actual async reply orders for plain and BIOS cartridge swaps; neither Select edge enters machine feed. Test-only repair; no production behavior, FPGA or native kit change.",
+    "seconds": 15.956,
+    "source_committed": true,
+    "source_revision": "b6a0dfa43dd62e5b52a9aa634ef50d44a4c2ba6d",
+    "source_sha256": "bec836d5c44c3dc30e02f03bb16a965c4e5d9701fb4bc36ad060762f3338d909"
+  },
   "ROM_persona_composition": false,
   "aarch64_static_bus_model": {
     "BASIC": false,
@@ -30,7 +43,6 @@
   "board": "No board access. Bottom released at named baseline.",
   "canonical_affected": {
     "commands": 7,
-    "later_registered_mute_change": "separate canonical delta in flight, not covered by the7e4 result",
     "output_sha256": "b96a9f0e66fb0058d0188e3366672a423a9a3af82eae628727449e7c99970bbe",
     "passed": true,
     "plan_sha256": "edb4fe2be1c3fe26ee11ce190ff90df3fe2a6256d5680582af27993a46480a33",
@@ -69,6 +81,47 @@
     "scope": "All actual generated HPS/EMIF parameters match independent canonical internal16K generation; no fit or hardware acceptance.",
     "source_revision": "679cff130b3c7ec04178b87c08a82d2bd3328d9a"
   },
+  "canonical_followups": [
+    {
+      "base": "7e4c9b8c16886bfcb1535185b7be82ba5a191d33",
+      "commands": 7,
+      "output_sha256": "3a74192527aa5cffe765fef4bb324d9550a3df145affa57a536d63f8bc796ff7",
+      "passed": true,
+      "scope": "Complete unmodified7e4..fb82 canonical delta; actual mute RTL and CI image fixture repair. Source bound, no physical acceptance.",
+      "seconds": 1102.292,
+      "source": "fb82b41556a8aa116c7bba0d79d99989fdc522b6",
+      "source_frozen_throughout": true
+    },
+    {
+      "base": "fb82b41556a8aa116c7bba0d79d99989fdc522b6",
+      "commands": 7,
+      "output_sha256": "6f86809b519abcc813ad83b0db15f11f1eb3d90fc9377dd50126f76a94bc3062",
+      "passed": true,
+      "scope": "Complete unmodified fb82..c4 replica-source audit canonical delta and actual dated evidence. No hardware or whole-board timing claim.",
+      "seconds": 1010.386,
+      "source": "c4cc43fd72c0d2f76af01114ef50911ae8205a4a",
+      "source_frozen_throughout": true
+    },
+    {
+      "base": "c4cc43fd72c0d2f76af01114ef50911ae8205a4a",
+      "commands": 7,
+      "labels": [
+        "test_affected.py",
+        "test_test_changed.py",
+        "committed whitespace",
+        "working whitespace",
+        "parent Python regressions",
+        "working-tree generated consumer consistency",
+        "host Go and UI tests"
+      ],
+      "output_sha256": "fef1952e81c7f0d2b6f00e92b37a961703a397d24756e8535b191865330e2f5e",
+      "passed": true,
+      "scope": "Complete unmodified c4..b6a test-only host race repair affected plan. No production changes, FPGA build or hardware acceptance.",
+      "seconds": 198.717,
+      "source": "b6a0dfa43dd62e5b52a9aa634ef50d44a4c2ba6d",
+      "source_frozen_throughout": true
+    }
+  ],
   "classification": "Experimental standard PR IP generation and compatibility regression; no package or hardware admission",
   "compatibility_boundary": "Existing bring-up De25Computer/PR model; does not establish BASIC with the new standard PR profile. Actual full14 native/AArch64 cases rerun, exact actual report copied to branch fixture.",
   "compatibility_combined_proof": {
@@ -147,6 +200,12 @@
       "seconds": 340.636
     }
   ],
+  "full_persona_build": {
+    "remote_job": "/tmp/fes-de25-standard-pr-d2327361d-20261105/complete-fit",
+    "scope": "Fresh ordinary base plus empty and16K personas, preserved root QDB, strict original compiler/timing/memory/integrity/verifier checks; no programming.",
+    "source_revision": "c4cc43fd72c0d2f76af01114ef50911ae8205a4a",
+    "state": "running at this record, not accepted"
+  },
   "generation": {
     "PR_control": {
       "clock_hz": 100000000,
@@ -178,6 +237,94 @@
     "seconds": 5.279,
     "source_revision": "1812fcbd652b05d7e00e60731c070117bc9cf978"
   },
+  "ordinary_base_preflight": {
+    "base_memory_inventory_passed": true,
+    "both_personas_built": false,
+    "checks": [
+      "hold",
+      "setup"
+    ],
+    "constrained_internal_rows": 49,
+    "corners": [
+      "Fast fix4 0C Model",
+      "Slow fix4 0C Model",
+      "Slow fix4 100C Model",
+      "Slow fix4a 0C Model"
+    ],
+    "files_sha256": {
+      "job.json": "ed83e2ea1a2743260745aa5fd9912b136c36535002064c136ce0c53e0cdbdbe1",
+      "output.log": "07981fc86597730b3ed0be217d4c82d16e8068bfee5971d4f249f26f73ea53bc",
+      "spec.json": "2563207cbdd3fc0485e98d4011cfc7eb7cf3386d208737df914da1dbc38d0cd4",
+      "work/standard-base/combined/hps/project/base-boundary-preflight.json": "4c55abe123bf689278bbda8734d092cd927bef5e31b1144a81a7393c1c794015",
+      "work/standard-base/combined/hps/project/base-boundary-preflight.log": "bbcdb336f9758c8d2a6126154ab2add7f0142e7c788d727f415e812732454257",
+      "work/standard-base/combined/hps/project/base-synthesis-preflight.json": "18b763ee41b9b6014005597f8fe3b6acbeafea77ac91be0460088713ea71f7cb",
+      "work/standard-base/combined/hps/project/hps-handoff.json": "f48eba5c35be6f73951ff69062ef46259ee4eed0beaee0fbfc9993398d41de8a",
+      "work/standard-base/combined/hps/project/inputs.json": "4deba992b00feb1974bdefdcddf78a70d7e402d8b5f2aedbec958c8bfc81f608",
+      "work/standard-base/combined/hps/project/output_files/base.fit.summary": "62431a7d1fcefcd468ebd6e1ac640389ee225c4cbf805c33db4adfc0a1404895",
+      "work/standard-base/combined/hps/project/output_files/base.sta.summary": "f4ff0e560f82abb72876c8d6ecb7bce7f1b62b4627137bd14b061b0e9cdf5a34",
+      "work/standard-base/combined/hps/project/output_files/base.tq.drc.signoff.rpt": "04b8f58c0201001ff39aaf1154ccfa90e3ad4f577174ee0bed6d00da7b1bcb60",
+      "work/standard-base/combined/hps/project/root-qdb.json": "56d50d874b31bdef3164eb9f465253ff3ecce075447d849e332b98043bc0850c",
+      "work/standard-base/combined/hps/project/timing-base-preflight/boundary-paths.tsv": "b69155a7eb03412338c84e9cc5c813fde1ddc08c02bcec6c0492a36dfbd6fb2d",
+      "work/standard-base/combined/hps/project/tools.json": "8137dd1c26519a3d2dfaca282a10dea6f11880141303c0fe2c77483d8750d4d0"
+    },
+    "fitted_region_passed": true,
+    "groups": [
+      "address_ingress",
+      "bus_egress",
+      "bus_ingress",
+      "data_egress",
+      "pcm_acknowledge",
+      "pcm_hold",
+      "pcm_hold_source",
+      "pcm_payload",
+      "pcm_request",
+      "request_ingress",
+      "reset_ingress",
+      "reset_release",
+      "valid_egress"
+    ],
+    "hardware_acceptance": false,
+    "independent_rebuild": false,
+    "minimum_audited_path_slack_ns": 0.035,
+    "ordinary_base_preflight": "passed",
+    "overall_design_closure": "failed",
+    "package_admission": false,
+    "path_rows": 984,
+    "raw_unwaived_findings": [
+      {
+        "rule": "TMC-20012 - Missing Output Delay Constraint",
+        "severity": "High",
+        "violations": 33
+      },
+      {
+        "rule": "TMC-20011 - Missing Input Delay Constraint",
+        "severity": "High",
+        "violations": 2
+      },
+      {
+        "rule": "CLK-30032 - Improper Clock Targets",
+        "severity": "Medium",
+        "violations": 1
+      },
+      {
+        "rule": "TMC-20025 - Ignored or Overridden Constraints",
+        "severity": "Medium",
+        "violations": 1
+      },
+      {
+        "rule": "CDC-50102 - Synchronizer after CDC Topology with Control Signal",
+        "severity": "Low",
+        "violations": 1
+      },
+      {
+        "rule": "LNT-30010 - Nets Driving both Reset and Clock Enable Signals",
+        "severity": "Low",
+        "violations": 1
+      }
+    ],
+    "seconds": 632.928,
+    "source_revision": "c4cc43fd72c0d2f76af01114ef50911ae8205a4a"
+  },
   "parent_diff_sha256": "bda4be7caa2517cfcf57a0b7ea1cf0d4591683fb080ce1fe1e2e0a093b3594ec",
   "parent_review": {
     "peripheral_subsys/peripheral_subsys/synth/peripheral_subsys.v": {
@@ -207,7 +354,7 @@
       "protected_reports_and_root_QDB_unchanged": true
     },
     "fit": "original fb82 build failed632.528s on audit physical-replica inventory, despite successful compile and zero CDC-50011 violations. Failed build remains unchanged.",
-    "next_build": "fresh ordinary source-bound build required; no package or hardware admission",
+    "next_build": "Fresh ordinary c4 base preflight passed632.928s. A separate full base plus empty/16K persona build is running from the same frozen c4 source. Overall Design Closure, independent rebuild and hardware admission remain open.",
     "observed_receipt_sha256": "0a75124ecc433479b02c4017a6fa17760b1b617fe55f0fdf540572a494922d06",
     "original_CDC_gate": "unchanged; no exception or waived finding added",
     "remote_job": "/tmp/fes-de25-standard-pr-d2327361d-20261105/base-fit-4",
