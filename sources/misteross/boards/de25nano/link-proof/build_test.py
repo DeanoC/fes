@@ -38,14 +38,21 @@ class RecipeTests(unittest.TestCase):
                     build.convert_base_rbf(output, directory, output / "base_hps.sof", {}, packaging)
                 self.assertFalse((directory / "base.rbf").exists())
                 source.write_bytes(b"fabric payload")
-                build.convert_base_rbf(output, directory, output / "base_hps.sof", {}, packaging)
+                for name in ("linux-enrich.log", "linux-split.log"):
+                    (output.parent / name).write_text(name + " actual conversion\n")
+                logs = build.convert_base_rbf(output, directory, output / "base_hps.sof", {}, packaging)
+                self.assertFalse((output / "base-convert.log").exists())
+                self.assertEqual({name: (output / name).read_text() for name in logs},
+                    {"../" + name: name + " actual conversion\n"
+                     for name in ("linux-enrich.log", "linux-split.log")})
                 self.assertEqual((directory / "base.rbf").read_bytes(), b"fabric payload")
                 self.assertEqual(packaging["strategy"], "shared-hps-first-linux-core")
                 run.assert_not_called()
             build.PROFILE = None
             with mock.patch.object(build, "run") as run:
-                build.convert_base_rbf(output, directory, output / "base_hps.sof",
-                                       {"quartus_pfg": Path("quartus_pfg")}, packaging)
+                logs = build.convert_base_rbf(output, directory, output / "base_hps.sof",
+                                             {"quartus_pfg": Path("quartus_pfg")}, packaging)
+                self.assertEqual(logs, ("base-convert.log",))
                 self.assertEqual(run.call_args.args[0],
                     ["quartus_pfg", "-c", str(output / "base_hps.sof"), str(directory / "base.rbf")])
 

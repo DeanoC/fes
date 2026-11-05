@@ -130,8 +130,9 @@
     "current_selected_compiler_inputs": 65,
     "fixture_is_exact_actual_report": true,
     "matches_current_runtime_test_inputs": true,
-    "matches_current_selected_compiler_inputs": true,
+    "matches_current_selected_compiler_inputs": false,
     "passed": true,
+    "pending_refresh": "Actual full14 proof at34 remains passing for its recorded source; new log-selection compiler edit requires an actual refresh before fixture update.",
     "physical_PR": false,
     "producer_revision": "34e8bb3b74784ca4143cb2405bc3f2c1d1ea4d30"
   },
@@ -243,6 +244,14 @@
       "seconds": 340.636
     }
   ],
+  "fresh_linux_full_build": {
+    "followup": "Return the actual converter log names from the selected conversion path and hash only those real logs; no fabricated compatibility log or parser relaxation.",
+    "reason": "All three revisions compile and shared Linux split conversion succeeds. Final packaging evidence still requires obsolete base-convert.log, absent in a clean shared-converter run. Prior private c4 clone retained that legacy log and did not expose the error. Original failed build retained unchanged.",
+    "remote_job": "/tmp/fes-de25-standard-pr-d2327361d-20261105/complete-linux-fit",
+    "seconds": 1339.822,
+    "source_revision": "34e8bb3b74784ca4143cb2405bc3f2c1d1ea4d30",
+    "state": "failed"
+  },
   "full_persona_build": {
     "compiled_revision_inspection": {
       "base": {

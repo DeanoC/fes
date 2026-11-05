@@ -769,3 +769,14 @@ This proves native CPU composition of diagnostic base/persona bundles. It does
 not prove ROM composition, physical PR, a Linux opener, standard-persona BASIC
 or package admission. The internal16K clock exception does not apply to this
 profile.
+
+
+The fresh ordinary `34e8bb3b7` full build compiles all three revisions and
+completes the shared Linux split conversion, then fails after 1339.822 seconds
+while hashing an obsolete `base-convert.log`. The earlier private c4 clone
+retained that old log, so its changed-verifier pass did not expose this clean-build
+failure. The fix returns the real log names from the selected converter and
+records the shared `linux-enrich.log` and `linux-split.log`; the direct converter
+retains its own log. No placeholder log or timing/metadata relaxation is added.
+A fresh collector check without legacy outputs, a new ordinary full build and
+an actual source-bound compatibility proof are still required.

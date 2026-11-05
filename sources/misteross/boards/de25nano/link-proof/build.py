@@ -283,11 +283,11 @@ def design_assistant_findings(output: Path, revision: str) -> list[dict]:
 
 
 def convert_base_rbf(output: Path, directory: Path, enriched: Path,
-                     tools: dict[str, Path], packaging: dict) -> None:
+                     tools: dict[str, Path], packaging: dict) -> tuple[str, ...]:
     if PROFILE is None or not hasattr(PROFILE, "linux_base_artifacts"):
         run([str(tools["quartus_pfg"]), "-c", str(enriched), str(directory / "base.rbf")],
             output, "base-convert.log")
-        return
+        return ("base-convert.log",)
     conversion = PROFILE.linux_base_artifacts(output, tools)
     source = output.parent / "linux-boot.core.rbf"
     selected = conversion.get("artifacts", {}).get(source.name, {})
@@ -301,6 +301,7 @@ def convert_base_rbf(output: Path, directory: Path, enriched: Path,
         raise BuildError("selected Linux fabric artifact differs from its shared HPS-first conversion")
     shutil.copyfile(source, directory / "base.rbf")
     packaging.update(strategy="shared-hps-first-linux-core", linux_phase_conversion=conversion)
+    return ("../linux-enrich.log", "../linux-split.log")
 
 
 def collect(output: Path, tools: dict[str, Path], version: str) -> Path:
@@ -354,7 +355,7 @@ def collect(output: Path, tools: dict[str, Path], version: str) -> Path:
     packaging["enriched_sof"] = blob(output, enriched)
     run([str(tools["quartus_pfg"]), "-i", str(enriched)], output, "base-enriched-info.log")
     packaging["enriched_sof_pof"] = vendor_pof(output / "base-enriched-info.log")
-    convert_base_rbf(output, directory, enriched, tools, packaging)
+    conversion_logs = convert_base_rbf(output, directory, enriched, tools, packaging)
     run([str(tools["quartus_pfg"]), "-i", str(directory / "base.rbf")], output, "base-info.log")
     base_pof = vendor_pof(output / "base-info.log")
     for previous in (packaging["compiled_sof_inspection"]["vendor_pof"], packaging["enriched_sof_pof"]):
@@ -493,7 +494,8 @@ def collect(output: Path, tools: dict[str, Path], version: str) -> Path:
         "source_sha256": {name: sha(data) for name, data in verifier["files"].items()},
         "snapshot": str(verification.relative_to(output)), "timing_script": blob(output, timing_script)}
     packaging["logs_sha256"] = {name: sha((output / name).read_bytes()) for name in
-        ("base-compiled-info.log", "base-enrich.log", "base-enriched-info.log", "base-convert.log", "base-info.log", "base-integrity.log")}
+        ("base-compiled-info.log", "base-enrich.log", "base-enriched-info.log",
+         "base-info.log", "base-integrity.log", *conversion_logs)}
     build["packaging"] = packaging
     (output / "build.json").write_bytes(canonical(build) + b"\n")
     return manifest
