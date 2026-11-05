@@ -715,9 +715,11 @@ The generated PR parent has a separate reviewed source pin. Its changes add
 control ports, wires, the PR-control instance and its interconnect route; all
 ten bridge/FIFO sources retain their exact original pins. The production static
 bus module also runs in the standard real-client simulation, which passes both
-seeds. The existing bring-up combined proof was rerun fully: all14 native and
-emulated AArch64 cases pass in 570.582 seconds, including both real-ROM BASIC
-round trips. Its exact report refreshes the source-bound branch fixture; it
+seeds. The existing bring-up combined proof was rerun after the Linux split conversion
+change at `34e8bb3b7`: all14 native and emulated AArch64 cases pass in 572.568
+seconds, including both real-ROM BASIC round trips. Its exact report refreshes
+the source-bound branch fixture after checking all65 compiler and59 runtime/test
+inputs; it
 does not prove standard-core BASIC with PR personas.
 
 [standard-pr-generation.json](standard-pr-generation.json) binds the control,
@@ -747,6 +749,23 @@ unchanged. The profile now selects that shared converter. A fresh full build,
 independent rebuild and hardware acceptance remain required. The default internal16K
 wrapper and clock exceptions are unchanged. The production bus model also
 passes both diagnostic-ROM seeds under AArch64 QEMU in 23.175 seconds.
-No package, physical PR, Linux opener, standard-persona
-BASIC, native composition, or new hardware acceptance is claimed. The internal16K
-clock exception does not apply to this profile.
+A private copy of the completed `c4cc43fd7` build passes the full strict
+collector at `34e8bb3b7` in 52.956 seconds. Compiler and verifier revisions are
+recorded separately; the original failed candidate remains unchanged. The
+resulting real diagnostic base/personas pass deterministic composition on the
+host and under AArch64 QEMU in 1.817 seconds, with eight positive runs and
+12 rejection controls.
+
+The same static AArch64 composer then runs on the bottom DE25 CPU. Both empty
+and16K personas compose twice, with byte-identical output to host/QEMU. Four
+invalid selections are rejected without output. Both downloaded bundles pass
+independent host inspection. The native trial finishes in 4.426 seconds after
+two retained wrapper preflight failures before upload: the stock rootfs has no
+`timeout` utility. The corrected wrapper retains host/supervisor deadlines.
+Temporary files are removed, the same baseline image/bundle/boot is verified,
+and the kit returns idle and lease-free. No FPGA load or service change occurs.
+
+This proves native CPU composition of diagnostic base/persona bundles. It does
+not prove ROM composition, physical PR, a Linux opener, standard-persona BASIC
+or package admission. The internal16K clock exception does not apply to this
+profile.

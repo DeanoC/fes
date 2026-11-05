@@ -178,6 +178,49 @@
     "seconds": 624.968,
     "source_revision": "3503229c7e99f52e7297e51a44480229d363f6a5"
   },
+  "diagnostic_persona_composition": {
+    "arm_executable_sha256": "43c2b76eb456b6c78d6fc41f49370f09e662c676f82cc7a448c5e17486373942",
+    "bundles": {
+      "zx81_empty": {
+        "base_sha256": "74da036427a1df52a361475048073b9eadcb22c14c9515f788c534f488c26289",
+        "composition_id": "4ad8c686cc2cff64f40f9676c34bb5defc4262bae3fb7e401a6a9aed1674c655",
+        "persona_sha256": "ba0c50a1329d6f86be7374742fa45934752609762a292bd9fea2997380773bdd",
+        "sha256": "0dadbd50539082c3b98e8490b9bb0845ec73db283442a08be4bb46856a06c733",
+        "size": 2259968
+      },
+      "zx81_ram16k": {
+        "base_sha256": "74da036427a1df52a361475048073b9eadcb22c14c9515f788c534f488c26289",
+        "composition_id": "776e3263c5dd159382f1af7758ea0cb58b9911fbe42bf2615c55c197eea8e901",
+        "persona_sha256": "34a094c43fb7d93d4c012d38a924bc5b2e308111d7be5e03add7e7ad8fc84a05",
+        "sha256": "b20956958e89eba640a9796d20a17a2085b145859f2d807b614387b39b0653a1",
+        "size": 2309120
+      }
+    },
+    "collector_source_revision": "34e8bb3b74784ca4143cb2405bc3f2c1d1ea4d30",
+    "compiled_source_revision": "c4cc43fd72c0d2f76af01114ef50911ae8205a4a",
+    "descriptor_sha256": "c5c112c2cd90a552aba3cf668f3602bf4e111f3595196c94d03f164bbacc2b2d",
+    "native_DE25_CPU": {
+      "actual_result_sha256": "843144945d355328ae301c05110b08d9c3b35ca2f9b33616e86347e391dc45fb",
+      "baseline_image_bundle_boot_unchanged": true,
+      "bundle_bytes_equal_host_and_QEMU": true,
+      "downloaded_bundles_independently_inspected": true,
+      "execution_lease_released": true,
+      "negative_controls": 4,
+      "passed": true,
+      "positive_compositions": 4,
+      "release_sha256": "16e3cd9d89c8575846abe186340bdf968c6d0f89b331d36ead91d4ba054dd507",
+      "seconds": 4.426,
+      "temporary_files_removed": true
+    },
+    "native_host_and_QEMU": {
+      "actual_proof_sha256": "f192dbc63a9121b5695de43ff245b06347ff14c18df984c68f14bc5a5de33615",
+      "negative_controls": 12,
+      "passed": true,
+      "positive_compositions": 8,
+      "seconds": 1.817
+    },
+    "scope": "Actual diagnostic base plus empty or16K persona composition on native kit CPU; not ROM composition, standard PR BASIC, physical PR, Linux opener or package admission. Two wrapper preflights failed before upload because baseline lacks timeout; preserved separately, corrected wrapper uses host/supervisor deadlines."
+  },
   "failed_controls": [
     {
       "attempt": "remote root d232",
@@ -362,6 +405,14 @@
     "tool_inputs_sha256": "a7baba97ba5e6440be8219b77083c113399db44c91421afec392b553038d1f42"
   },
   "hardware_acceptance": false,
+  "linux_collector_diagnostic": {
+    "collector_source_revision": "34e8bb3b74784ca4143cb2405bc3f2c1d1ea4d30",
+    "compiled_source_revision": "c4cc43fd72c0d2f76af01114ef50911ae8205a4a",
+    "original_failed_build_unchanged": true,
+    "scope": "Full strict collector on private completed c4 clone; changed verifier diagnostic, not a fresh ordinary build or independent rebuild. Original POF0, integrity, root preservation and internal timing gates unchanged.",
+    "seconds": 52.956,
+    "status": "passed"
+  },
   "linux_phase_conversion_followup": "Use the same captured shared HPS-first split converter as canonical Linux packages. Legacy profiles keep their existing conversion. New source-bound full proof/build and independent rebuild remain required; no original failure is reclassified.",
   "linux_phase_conversion_probe": {
     "all_original_reports_SOFs_and_rootQDB_unchanged": true,
