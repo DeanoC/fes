@@ -66,6 +66,7 @@ def entry(entry_build):
     hps_context.checked_cpu_mapping(receipt,program_key='native_program')
     hps_context.checked_ddr_read(receipt,program_key='native_program')
     hps_context.checked_computer(receipt,program_key='native_program')
+    hps_context.checked_rom(receipt,program_key='native_program')
     hps_context.checked_program_platform(receipt,program_key='native_program')
     if context is not None and profile.name!=('sd-profile.json' if receipt.get('native_program')=='fpgaload' else 'probe-profile.json'):
         raise ValueError('HPS context diagnostic requires its source-derived serial/SD profile')
@@ -108,6 +109,7 @@ def make(entry_build):
     ddr_read=hps_context.checked_ddr_read(build,program_key='native_program')
     window_read=hps_context.checked_window_read(build,program_key='native_program')
     computer=hps_context.checked_computer(build,program_key='native_program')
+    rom=hps_context.checked_rom(build,program_key='native_program')
     selected=sources()+ (hps_context.inputs() if context is not None else [])
     inputs={str(p.relative_to(ROOT)):sha(p) for p in selected}
     identity={'format':1,'profile':'cold-smmu-preloaded' if profile.name=='smmu-profile.json' else 'cold-sd-pio-preloaded' if profile.name=='sd-profile.json' else 'cold-serial-preloaded',
@@ -130,6 +132,7 @@ def make(entry_build):
               'hps_reader_memory':reader_memory,'hps_reader_memory_sha256':hps_context.digest(reader_memory) if reader_memory else None,
               'hps_ddr_read':ddr_read,'hps_ddr_read_sha256':hps_context.digest(ddr_read) if ddr_read else None,
               'hps_computer':computer,'hps_computer_sha256':hps_context.digest(computer) if computer else None,
+              'hps_rom':rom,'hps_rom_sha256':hps_context.digest(rom) if rom else None,
               'window_memory':build.get('window_memory',False),
               'window_present':build.get('window_present',False),
               'window_storage_return':build.get('window_storage_return',False),
@@ -211,7 +214,8 @@ def header(profile):
     if reader_memory is not None:
         window=reader_memory.get('scope')=='sealed-cold-window-reader-memory-v1'
         if (configuration is None or control is None or not profile['sd_pio'] or
-                profile['hps_context']['programming_profile']!=('de25-embedded-hps-first-window-diagnostic-v1' if window else 'de25-embedded-hps-first-ddr-diagnostic-v1') or
+                profile['hps_context']['programming_profile'] not in (('de25-embedded-hps-first-window-diagnostic-v1',) if window else
+                    ('de25-embedded-hps-first-ddr-diagnostic-v1',hps_context.ROM_PROFILE)) or
                 type(profile.get('window_memory',False)) is not bool or profile.get('window_memory',False)!=window or
                 profile.get('hps_reader_memory_sha256')!=hps_context.digest(reader_memory)):
             raise ValueError('cold reader memory requires its source-bound DDR configuration profile')
@@ -306,6 +310,19 @@ def header(profile):
             raise ValueError('cold computer control requires its separate complete sealed internal-RAM contract')
         extra+='#define FES_NANO_COMPUTER_MAP_SHA '+array(profile['hps_computer_sha256'])+'\n'
     extra+='#define FES_NANO_COLD_COMPUTER '+str(int(computer is not None))+'\n'
+    rom=profile.get('hps_rom')
+    rom_profile=(profile.get('hps_context') or {}).get('programming_profile')==hps_context.ROM_PROFILE
+    if rom is not None:
+        if (not rom_profile or computer is None or reader_memory is None or
+                profile.get('hps_rom_sha256')!=hps_context.digest(rom)):
+            raise ValueError('cold ROM requires its complete selected computer, memory and resource contract')
+        hps_context.validate_rom(profile['hps_context'],control,computer,rom)
+        extra+=('#define FES_NANO_ROM_CPU_BASE '+hex(rom['cpu_base'])+'UL\n'
+                '#define FES_NANO_ROM_BYTES '+str(rom['bytes'])+'U\n'
+                '#define FES_NANO_ROM_MAP_SHA '+array(profile['hps_rom_sha256'])+'\n')
+    elif rom_profile or profile.get('hps_rom_sha256') is not None:
+        raise ValueError('cold ROM producer requires its complete ROM resource contract')
+    extra+='#define FES_NANO_COLD_ROM '+str(int(rom is not None))+'\n'
     reload=profile.get('computer_reload',False)
     if type(reload) is not bool or reload and computer is None:
         raise ValueError('computer reload requires its selected sealed computer contract')

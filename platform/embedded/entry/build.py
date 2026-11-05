@@ -226,7 +226,7 @@ def main():
         parser.error("cross-prefix must be absolute and end in -")
     profile_bytes = receipt_bytes = None
     native_sources = None
-    native_context = native_io = native_cpu_map = native_control = native_configuration = native_reader_memory = native_ddr_read = native_computer = native_program_platform = None
+    native_context = native_io = native_cpu_map = native_control = native_configuration = native_reader_memory = native_ddr_read = native_computer = native_rom = native_program_platform = None
     native_selected_programs = False
     native_tenfoot_serial = False
     native_reload = False
@@ -277,6 +277,7 @@ def main():
         native_ddr_read=hps.checked_ddr_read(receipt)
         native_window_read=hps.checked_window_read(receipt)
         native_computer=hps.checked_computer(receipt)
+        native_rom=hps.checked_rom(receipt)
         native_program_platform=hps.checked_program_platform(receipt)
         native_selected_programs=receipt.get('selected_programs',False)
         native_reload=receipt.get('computer_reload',False)
@@ -328,6 +329,8 @@ def main():
             raise ValueError('full-window access contract is absent from the selected native ELF')
         if native_computer is not None and base64.b64encode(hps.encode(native_computer)) not in payload.read_bytes():
             raise ValueError('computer control contract is absent from the selected native ELF')
+        if native_rom is not None and base64.b64encode(hps.encode(native_rom)) not in payload.read_bytes():
+            raise ValueError('ROM resource contract is absent from the selected native ELF')
         if native_program_platform is not None and base64.b64encode(hps.encode(native_program_platform)) not in payload.read_bytes():
             raise ValueError('program platform is absent from the selected native ELF')
         if native_configuration is not None:
@@ -510,6 +513,8 @@ def main():
               "hps_ddr_read_sha256":hps.digest(native_ddr_read) if native_ddr_read is not None else None,
               "hps_computer":native_computer,
               "hps_computer_sha256":hps.digest(native_computer) if native_computer is not None else None,
+              "hps_rom":native_rom,
+              "hps_rom_sha256":hps.digest(native_rom) if native_rom is not None else None,
               "computer_reload":native_reload,
               "window_memory":native_window_memory,
               "window_read":native_window_read is not None,"hps_window_read":native_window_read,

@@ -22,6 +22,7 @@ _usb_spec=importlib.util.spec_from_file_location('fes_hps_usb_selection',HERE/'u
 usb_selection=importlib.util.module_from_spec(_usb_spec);_usb_spec.loader.exec_module(usb_selection)
 PROTOTYPE = ROOT/'sources/misteross/prototypes/de25_board_control'
 SCOPE = 'source-bound-hps-first-context-v1'
+ROM_PROFILE = 'de25-embedded-hps-first-rom-diagnostic-v1'
 
 
 def encode(context):
@@ -33,7 +34,7 @@ def digest(context):
 
 
 def inputs():
-    return [Path(__file__), HERE/'hps_io.py', HERE/'usb_selection.py', PROTOTYPE/'verify.py', PROTOTYPE/'seal.py', PROTOTYPE/'reader_memory.py', PROTOTYPE/'computer_model.py', PROTOTYPE/'build.py',
+    return [Path(__file__), HERE/'hps_io.py', HERE/'usb_selection.py', PROTOTYPE/'verify.py', PROTOTYPE/'seal.py', PROTOTYPE/'reader_memory.py', PROTOTYPE/'computer_model.py', PROTOTYPE/'rom_transport.py', PROTOTYPE/'build.py',
             ROOT/'sources/misteross/boards/de25nano/hps/build.py', ROOT/'sources/misteross/boards/de25nano/build.py',
             PROTOTYPE.parent/'embedded_control/producer.py',
             ROOT/'sources/misteross/scripts/core_package.py',
@@ -82,6 +83,10 @@ def _hps_io(project):
 
 def computer(project):
     return _worker(project, 'computer')
+
+
+def rom(project):
+    return _worker(project, 'rom')
 
 
 def configuration(project):
@@ -213,7 +218,7 @@ def reader_memory_contract(context, parameters):
                 'cpu_attributes':'normal-uncached','lifetime':'until-reboot',
                 'fpga_addressing':'physical-identity-unqualified',
                 'row_bytes':5120,'stride':5120,'rows':720,'frame_bytes':3686400,'pixel_format':'xrgb8888'}
-    if (context['programming_profile'] != 'de25-embedded-hps-first-ddr-diagnostic-v1' or
+    if (context['programming_profile'] not in ('de25-embedded-hps-first-ddr-diagnostic-v1', ROM_PROFILE) or
             context['control_abi'] != 0x10203041 or
             parameters.get('reader_memory_backend') != 'hps-ddr' or
             type(parameters.get('reader_memory_base')) is not int or parameters['reader_memory_base'] != 0x95000000 or
@@ -371,7 +376,7 @@ def _control(project):
     result={'format':1,'scope':'sealed-lw-identity-probe-v1','architectural_lw_base':base,
             'bridge_base':bridge,'peripheral_offset':offset,'span':end-start,'cpu_base':base+bridge+offset,
             'handoff_sha256':sha,'package_id':context['package_id'],'build_id':context['build_id']}
-    if context['programming_profile'] in ('de25-embedded-hps-first-ddr-diagnostic-v1','de25-embedded-hps-first-window-diagnostic-v1'):
+    if context['programming_profile'] in ('de25-embedded-hps-first-ddr-diagnostic-v1','de25-embedded-hps-first-window-diagnostic-v1', ROM_PROFILE):
         _fabric_stop_inventory(Path(project))
         route=parameters('subsys_periph_pb_cpu_0.m0','subsys_periph_fes_ddr_probe.avs')
         probes=[s for s in slaves if s.get('name')=='subsys_periph.fes_ddr_probe.avs']
@@ -463,6 +468,87 @@ def _computer(project):
             'abi_minor':0,'capabilities':0x803,'hps_master':False,
             'endpoint_sha256':hashlib.sha256((local/'fes_de25_computer.v').read_bytes()).hexdigest(),
             'wrapper_sha256':hashlib.sha256(wrapper.read_bytes()).hexdigest()}
+
+
+def validate_rom(context, control_map, computer_map, mapping):
+    """Validate a compiled resource description, never grant bridge authority."""
+    if (not isinstance(mapping, dict) or not isinstance(context,dict) or context.get('programming_profile') != ROM_PROFILE or
+            context.get('control_abi') != 0x10203041 or not isinstance(control_map, dict) or not isinstance(computer_map, dict) or
+            computer_map.get('control_map_sha256') != digest(control_map) or
+            computer_map.get('package_id') != context['package_id'] or
+            computer_map.get('build_id') != context['build_id'] or
+            computer_map.get('handoff_sha256') != control_map['handoff_sha256'] or
+            computer_map.get('hps_master') is not False or
+            (computer_map.get('cpu_base'), computer_map.get('span')) != (0x20010300, 32) or
+            control_map.get('fabric_stop') != {'scope':'sealed-ddr-master-stop-v1',
+                'probe_cpu_base':0x20010100, 'probe_span':128,
+                'maintenance':'held-reset-from-configuration'}):
+        raise ValueError('ROM requires the matched held computer and complete master stop contract')
+    names=('fes_de25_rom.sv','fes_de25_rom_hw.tcl','fes_embedded_rom.sv',
+           'fes_embedded_rom_csr.sv','generated/fes_embedded_rom.vh')
+    hashes=mapping.get('source_sha256')
+    if (type(mapping.get('bytes')) is not int or mapping['bytes'] not in (4096,8192) or
+            not isinstance(hashes,dict) or set(hashes)!=set(names) or
+            any(not isinstance(v,str) or len(v)!=64 or any(c not in '0123456789abcdef' for c in v) or
+                int(v,16)==0 for v in hashes.values())):
+        raise ValueError('ROM requires its exact bounded size and complete source inventory')
+    expected={'format':1,'scope':'sealed-cold-held-rom-v1',
+        'package_id':context['package_id'],'build_id':context['build_id'],
+        'control_map_sha256':digest(control_map),'computer_map_sha256':digest(computer_map),
+        'handoff_sha256':control_map['handoff_sha256'],
+        'cpu_base':0x20010500,'span':128,'bytes':mapping['bytes'],
+        'clock_hz':100000000,'transport':'cpu-csr-v1','role':'firmware',
+        'held_conduit':'fes_computer.rom/fes_rom.rom','hps_master':False,
+        'source_sha256':hashes}
+    if encode(mapping)!=encode(expected):
+        raise ValueError('ROM resource differs from its complete compiled contract')
+    return expected
+
+
+def _rom(project):
+    context=_derive(project)
+    if context['programming_profile'] != ROM_PROFILE:
+        return None
+    project=Path(project).absolute();hps=project/'board/hps'
+    control_map=_control(project);computer_map=_computer(project)
+    import rom_transport
+    inputs=json.loads((hps/'inputs.json').read_text())
+    value=rom_transport.checked(inputs)
+    observed=rom_transport.verify_generated(hps/'project',inputs)
+    generation=json.loads((hps/'generation.json').read_text())
+    if value is None or encode(observed)!=encode(generation['rom_transport']):
+        raise ValueError('ROM generated route differs from its sealed generation receipt')
+    path=hps/'project/qsys_top/qsys_top.sopcinfo'
+    _rom_cpu_region(path.read_bytes(),value['peripheral_offset'],value['span'])
+    local=hps/'project/fes_mailbox'
+    result={'format':1,'scope':'sealed-cold-held-rom-v1',
+        'package_id':context['package_id'],'build_id':context['build_id'],
+        'control_map_sha256':digest(control_map),'computer_map_sha256':digest(computer_map),
+        'handoff_sha256':control_map['handoff_sha256'],
+        'cpu_base':control_map['architectural_lw_base']+control_map['bridge_base']+value['peripheral_offset'],
+        'span':value['span'],'bytes':value['bytes'],'clock_hz':observed['clock_hz'],
+        'transport':value['kind'],'role':'firmware','held_conduit':observed['held_conduit'],
+        'hps_master':observed['new_dma_master'],
+        'source_sha256':{name:hashlib.sha256((local/name).read_bytes()).hexdigest() for name in rom_transport.FILES}}
+    return validate_rom(context,control_map,computer_map,result)
+
+
+def _rom_cpu_region(raw,offset,span):
+    """Require one nonoverlapping CPU region in the sealed generated handoff."""
+    tree=ET.fromstring(raw)
+    connections=[c for c in tree.iter('connection') if
+        (c.get('kind'),c.get('start'),c.get('end'))==
+        ('avalon','subsys_hps_agilex_hps.lwhps2fpga','subsys_periph_pb_cpu_0.s0')]
+    if len(connections)!=1:raise ValueError('ROM requires the unique source-derived CPU route')
+    maps=connections[0].findall("parameter[@name='addressMapSysInfo']/value")
+    if len(maps)!=1:raise ValueError('ROM requires a unique CPU address map')
+    regions=list(ET.fromstring(maps[0].text).iter('slave'))
+    matches=[s for s in regions if s.get('name')=='subsys_periph.fes_rom.avs']
+    if (len(matches)!=1 or (int(matches[0].get('start'),0),int(matches[0].get('end'),0),
+            matches[0].get('datawidth'))!=(offset,offset+span,'32') or
+            any(s is not matches[0] and int(s.get('start'),0)<offset+span and
+                offset<int(s.get('end'),0) for s in regions)):
+        raise ValueError('ROM CPU region is missing, overlapping or has different geometry')
 
 
 def _fabric_stop_inventory(project):
@@ -737,10 +823,29 @@ def checked_program_platform(record, program_key='program'):
     return expected
 
 
+def checked_rom(record, program_key='program'):
+    keys=('hps_rom','hps_rom_sha256')
+    context=record.get('hps_context')
+    if context is not None and not isinstance(context,dict):
+        raise ValueError('ROM selection requires a complete HPS context')
+    selected=context is not None and context.get('programming_profile')==ROM_PROFILE
+    if not selected:
+        if any(record.get(k) is not None for k in keys):
+            raise ValueError('ROM resources require the explicit sealed ROM producer profile')
+        return None
+    if (record.get(program_key)!='fpgaload' or checked_computer(record,program_key) is None or
+            any(record.get(k) is None for k in keys)):
+        raise ValueError('ROM profile requires its complete contained computer configuration')
+    expected=rom(record['hps_project'])
+    if expected is None or encode(record[keys[0]])!=encode(expected) or record[keys[1]]!=digest(expected):
+        raise ValueError('ROM resources differ from the sealed hardware source')
+    return expected
+
+
 if __name__ == '__main__':
     actions = {'control': _control, 'configuration': _configuration, 'package': _package,
                'reader-memory': _reader_memory, 'ddr-read': _ddr_read, 'window-read': _window_read, 'computer': _computer,
-               'hps-io': _hps_io, 'program-platform': _program_platform, 'selected-program': _selected_program}
+               'hps-io': _hps_io, 'program-platform': _program_platform, 'selected-program': _selected_program, 'rom': _rom}
     if len(sys.argv) not in (2,3) or len(sys.argv)==3 and sys.argv[2] not in actions:
         raise SystemExit('usage: hps_context.py SEALED_PROJECT ['+'|'.join(actions)+']')
     action = _derive if len(sys.argv)==2 else actions[sys.argv[2]]

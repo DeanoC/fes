@@ -1,5 +1,15 @@
 # Nano recovery uploads and cold serial boot
 
+`hps_context.py SEALED_PROJECT rom` derives the held-ROM resource contract for
+the explicit ROM producer variant. It verifies the source seal, generated
+conduit/clock/reset, complete master inventory and nonoverlapping lightweight
+CPU address region, and binds the result to the same package, build, control
+and computer maps. Older producer profiles return no ROM resource. Native entry
+and cold firmware reject a ROM profile with a missing or altered resource;
+the cold header can select the secure ROM provider with the derived aperture.
+This is resource plumbing. The native selected-program publisher and retained
+ROM linkage remain to be connected before constructing a matched boot chain.
+
 `usb_trace.py` observes the separately selected `usbcheck` image. It requires
 the matched SPL/BL31 handoff, a successful secure USB setup, the complete HPS
 context/pin observations, entry/BSP CPU startup through `go_vectors`, and

@@ -45,10 +45,19 @@ profiles require version 2. The descriptor supplies byte integrity, not package
 authentication, a new address or platform authority.
 
 The firmware preparer includes these sources. The FPGA producer has an explicit
-ROM variant with the aperture/conduits; no generated cold profile enables it yet. The native
-package frontend still rejects unsupported ROM-linked packages; its ordinary
-launch publisher does not yet select the new encoder. No ROM-capable matched
-boot image or physical acceptance is claimed.
+ROM variant with the aperture/conduits. `nano/hps_context.py` derives its complete
+ROM resource record from the sealed generated CPU route and held computer,
+including the image size, source inventory and master-stop binding. Native entry
+and cold-chain preparation require that record for the ROM producer profile.
+The cold header emits `FES_NANO_COLD_ROM`, the verified CPU aperture, image size
+and resource digest only with that complete contract. Ordinary profiles emit
+the disabled selection and reject an attached ROM resource.
+
+The native package frontend still rejects unsupported ROM-linked packages; its
+ordinary launch publisher does not yet select the new encoder or supply the ROM
+resource in its ELF. Thus the ROM candidate cannot enter the older boot path
+without its missing native integration. No ROM-capable matched boot image or
+physical acceptance is claimed.
 
 The opt-in window SD-return path now connects the retained full-frame closure
 to the existing read-only SD lease. The secure provider checks its completed
