@@ -1687,7 +1687,7 @@
       "router": "Quartus is the FreeDOS package producer. The floppy image is loaded at runtime through the media mailbox; Nextpnr remains advisory for the PC/XT core.",
       "quartus": "Quartus (primary, policy). policy: Deano 2026-10-29. The DOS recipe uses Quartus Lite 17.0.2 Build 602, a three-seed reported internal timing gate and an independent RBF repeat. Kit A tested package af68cf5e from producer 6974817d on 2026-11-04; that historical diagnostic does not qualify later packages or external IO/HPS/reset timing.",
       "features": "Media: a 360 KiB floppy is loaded at runtime through the mailbox into SDRAM; the guest can write sectors and bound library disks support explicit Save and restore. Unbound raw inserts are volatile and unsaved writes can be lost on power loss. Input: host HID snapshots are translated into XT set-1 keyboard bytes. HDMI: CGA Direct 720p and PC speaker audio.",
-      "notes": "Experimental DOS recipe outside the bootstrap image; catalog standing remains experimental. On 2026-11-04 Kit A booted FreeDOS, accepted a COM program and keyboard input, saved and read back a guest file across Stop and relaunch, and captured bounded Digger direction and speaker observations on package af68cf5e from producer 6974817d. Sustained gameplay, power-cycle persistence, physical timing and exact-current-artifact kit acceptance remain separate.",
+      "notes": "Experimental DOS recipe outside the bootstrap image; catalog standing remains experimental. On 2026-11-05 Kit B booted FreeDOS, passed a keyboard-driven COM test, and saved and read back a guest file after Stop and relaunch on package 87fd8149, produced at bb87b9b6 and selected for then-current main 6f49758f. Digger's playfield was visible, but the active-game observation failed; game and speaker acceptance for this artifact and full exact-current-artifact kit acceptance remain open. Earlier Kit A game and speaker observations used package af68cf5e from producer 6974817d. Sustained gameplay, power-cycle persistence and physical timing are separate.",
       "evidence": [
         "sources/misteross/cores/fes-pcxt/README.md",
         "sources/misteross/cores/fes-pcxt/quartus.lock",
@@ -1695,7 +1695,8 @@
         "sources/misteross/scripts/build_fes_pcxt_quartus.py",
         "config/core-recipes.toml",
         "docs/design/quartus-cores.md",
-        "docs/validation/2026-11-04-pcxt-game-and-speaker-kit-a.md"
+        "docs/validation/2026-11-04-pcxt-game-and-speaker-kit-a.md",
+        "docs/validation/2026-11-05-pcxt-kit-b-partial.md"
       ],
       "tier_role": "bring-up",
       "family": "pc",
