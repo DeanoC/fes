@@ -155,6 +155,10 @@ gives each feature's gain on each window, with these assumptions:
 - **Divider.** A faster divider removes 30–60% of multiply and divide.
 - **Frame rates.** These scale Kit B's 26.7 fps by the window's
   kit-equivalent clocks.
+- **Far branches.** The classes count both modes, as does the estimator in
+  [profile-hook.patch](profile-hook.patch). Wolfenstein 3D and 3DBench
+  retire nothing with PE set; DOOM's far branches are DOS/4GW's in
+  protected mode, so none of them is real-mode far prediction's.
 
 | Feature | DOOM `demo3` | DOOM fps |
 | --- | ---: | ---: |
@@ -162,7 +166,7 @@ gives each feature's gain on each window, with these assumptions:
 | BTB: JMP and CALL rel | 4.1–4.3% | 27.8–27.9 |
 | Return stack | 2.6–2.7% | 27.4 |
 | BTB: indirect | 0.7–0.9% | 26.9 |
-| Real-mode far | 0.1% | 26.7 |
+| Real-mode far | 0% (its far branches, 0.1%, are protected mode) | 26.7 |
 | All prediction | 29.5–32.7% | 37.9–39.6 |
 | Store-to-load wait | 1.1–2.1% | 27.0–27.3 |
 | Early ALU | 1.8–4.9% | 27.2–28.1 |
