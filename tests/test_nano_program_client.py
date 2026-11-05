@@ -1,5 +1,6 @@
 """Request client fixtures use recorded C observations and simulated service replies."""
 import copy,json,re,sys,unittest
+from unittest.mock import patch
 from pathlib import Path
 ROOT=Path(__file__).resolve().parents[1]
 sys.path.insert(0,str(ROOT/'platform/embedded/nano'))
@@ -68,6 +69,30 @@ class Model:
             exchange=self.exchange,owns=lambda:self.owned,now=lambda:self.clock)
 
 class ProgramClientTests(unittest.TestCase):
+    def test_rom_receipt_is_expected_on_launch_stable_on_controls_and_cleared_on_return(self):
+        class ROMModel(Model):
+            receipt='1'*64
+            def reply(self,op,ok=True):
+                r=super().reply(op,ok)
+                if self.phase=='running' and self.receipt is not None:r['rom_receipt_sha256']=self.receipt
+                return r
+        programs=copy.deepcopy(PROGRAMS)
+        for row in programs:row['rom_receipt_sha256']='1'*64
+        with patch.dict(globals(),PROGRAMS=programs):
+            model=ROMModel();client=model.client()
+            self.assertEqual(client.request('launch',program=0)['rom_receipt_sha256'],'1'*64)
+            self.assertEqual(client.request('hold')['rom_receipt_sha256'],'1'*64)
+            self.assertNotIn('rom_receipt_sha256',client.request('return'))
+            for receipt in (None,'2'*64,'0'*64,True):
+                model=ROMModel();client=model.client();model.receipt=receipt
+                with self.subTest(receipt=receipt),self.assertRaises(ValueError):client.request('launch',program=0)
+                self.assertTrue(client.retired);count=len(model.commands)
+                with self.assertRaises(ValueError):client.request('status')
+                self.assertEqual(len(model.commands),count)
+            model=ROMModel();client=model.client();client.request('launch',program=0);model.receipt='2'*64
+            with self.assertRaises(ValueError):client.request('status')
+            self.assertTrue(client.retired)
+
     def test_three_request_sessions_fetch_hold_return_and_terminal_park(self):
         model=Model();client=model.client();result=exercise(client,lambda _:None)
         self.assertTrue(result['passed']);self.assertEqual(result['configuration_cycles'],3)

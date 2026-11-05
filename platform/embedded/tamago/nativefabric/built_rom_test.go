@@ -69,7 +69,9 @@ func TestBuiltROMSelectionPreflightsWithoutFirmwareIO(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		if plan.Identity() != v.Identity() || plan.ROMReceiptSHA256() != request.ReceiptSHA256 || plan.ROMReceiptSHA256() == "" {
+		expected := v.Identity()
+		expected.ActivationReceiptSHA256 = request.ReceiptSHA256
+		if plan.Identity() != expected || plan.ROMReceiptSHA256() != request.ReceiptSHA256 || plan.ROMReceiptSHA256() == "" {
 			t.Fatal("built selection lost its source identity or retained receipt")
 		}
 	}

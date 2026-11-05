@@ -22,19 +22,20 @@ type ProgramChoice struct {
 }
 
 type ProgramReply struct {
-	Scope      string                  `json:"scope"`
-	Operation  string                  `json:"op"`
-	OK         bool                    `json:"ok"`
-	State      ProgramServiceState     `json:"state"`
-	Owner      string                  `json:"owner"`
-	Generation uint64                  `json:"generation"`
-	Held       bool                    `json:"held"`
-	PackageID  string                  `json:"package_id,omitempty"`
-	BuildID    string                  `json:"build_id,omitempty"`
-	CoreID     string                  `json:"core_id,omitempty"`
-	Choices    []ProgramChoice         `json:"programs,omitempty"`
-	Activity   *computer.FetchActivity `json:"activity,omitempty"`
-	Error      string                  `json:"error,omitempty"`
+	Scope            string                  `json:"scope"`
+	Operation        string                  `json:"op"`
+	OK               bool                    `json:"ok"`
+	State            ProgramServiceState     `json:"state"`
+	Owner            string                  `json:"owner"`
+	Generation       uint64                  `json:"generation"`
+	Held             bool                    `json:"held"`
+	PackageID        string                  `json:"package_id,omitempty"`
+	BuildID          string                  `json:"build_id,omitempty"`
+	CoreID           string                  `json:"core_id,omitempty"`
+	ROMReceiptSHA256 string                  `json:"rom_receipt_sha256,omitempty"`
+	Choices          []ProgramChoice         `json:"programs,omitempty"`
+	Activity         *computer.FetchActivity `json:"activity,omitempty"`
+	Error            string                  `json:"error,omitempty"`
 }
 
 // ProgramConsole is a bounded UART request adapter, not a network server or
@@ -108,7 +109,8 @@ func (c *ProgramConsole) reply(op string, activity *computer.FetchActivity, err 
 	status := c.service.Status()
 	r := ProgramReply{Scope: "nano-contained-program-service-v1", Operation: op, OK: err == nil,
 		State: status.State, Owner: fmt.Sprintf("%016x", status.Owner), Generation: status.Generation,
-		Held: status.Held, PackageID: status.Identity.PackageID, BuildID: status.Identity.BuildID, CoreID: status.Identity.CoreID, Activity: activity}
+		Held: status.Held, PackageID: status.Identity.PackageID, BuildID: status.Identity.BuildID, CoreID: status.Identity.CoreID,
+		ROMReceiptSHA256: status.ROMReceiptSHA256, Activity: activity}
 	if err != nil {
 		r.Error = err.Error()
 	}

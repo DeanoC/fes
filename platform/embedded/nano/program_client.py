@@ -58,7 +58,7 @@ class ProgramClient:
             previous=self.view
             if reject:
                 require(not reply['ok'] and not evidence.strip(),'rejected command had firmware side effects or was accepted')
-                require(all(reply.get(k)==previous.get(k) for k in ('state','generation','held','package_id','build_id','core_id')),'rejected command changed session state')
+                require(all(reply.get(k)==previous.get(k) for k in ('state','generation','held','package_id','build_id','core_id','rom_receipt_sha256')),'rejected command changed session state')
                 require('activity' not in reply,'rejected command supplied activity')
             else:
                 require(reply['ok'],'native command rejected: '+reply.get('error',''))
@@ -68,6 +68,7 @@ class ProgramClient:
                     selected=self.programs[command['program']]
                     require(reply['state']=='running' and reply['held'] is False,'launch did not publish running')
                     require(all(reply.get(k)==v for k,v in selected['identity'].items()),'launched identity differs from retained choice')
+                    require(reply.get('rom_receipt_sha256')==selected.get('rom_receipt_sha256'),'launched ROM receipt differs from retained choice')
                     generation=4+5*self.loads
                     row['opening']=opening(evidence,selected['configuration'],int(self.owner,16),generation,self.previous_configuration)
                     require(row['opening']['configuration_timing']['first_counter']>self.last_counter,'configuration counter restarted between sessions')
@@ -76,13 +77,13 @@ class ProgramClient:
                     self.previous_configuration=generation;self.loads+=1
                 elif op in ('return','park'):
                     require(reply['state']==('ready' if op=='return' else 'parked') and reply['held'] is True,'owned return did not reach expected state')
-                    require(not any(k in reply for k in ('package_id','build_id','core_id')),'return retained a published core identity')
+                    require(not any(k in reply for k in ('package_id','build_id','core_id','rom_receipt_sha256')),'return retained a published core identity')
                     row['master_stop']=closed(evidence,int(self.owner,16),self.configuration_generation)
                     self.current=None
                 else:
                     require(not evidence.strip(),'control/status command produced unexpected firmware observations')
                     require(reply['state']==previous['state'],'control/status command changed session state')
-                    require(all(reply.get(k)==previous.get(k) for k in ('package_id','build_id','core_id')),'control/status changed program identity')
+                    require(all(reply.get(k)==previous.get(k) for k in ('package_id','build_id','core_id','rom_receipt_sha256')),'control/status changed program identity')
                     require(reply['held']==(op=='hold' if op in ('hold','run') else previous['held']),'control/status changed Hold state')
                 if op=='status':
                     require(reply.get('programs')==[{'index':i,'package_id':p['identity']['package_id']} for i,p in enumerate(self.programs)],'catalogue changed after startup')

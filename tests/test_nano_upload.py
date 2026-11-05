@@ -254,7 +254,7 @@ class NanoUploadTests(unittest.TestCase):
         model,session=self.session()
         payloads={'boot':b'b'*6144,'package':b'p'*2048,'metadata':b'm'*(16<<10),
                   'package-alt':b'q'*4096,'metadata-alt':b'n'*(16<<10),'selection':b's'*8192,'ui-catalog':b'u'*8192,
-                  'firmware':b'f'*8192}
+                  'firmware':b'f'*8192,'firmware-alt':b'a'*4096}
         written={};fresh={}
         with patch('builtins.print'):
             for purpose,payload in payloads.items():
@@ -275,25 +275,26 @@ class NanoUploadTests(unittest.TestCase):
         self.assertFalse(session.retired)
 
     def test_firmware_has_one_fixed_path_and_exact_model_sizes_before_io(self):
-        for size in (4096,8192):
-            self.payload=b'f'*size
-            model,r=self.run_upload(purpose='firmware')
-            self.assertEqual(r['destination'],'FES/FIRMWARE.BIN')
-            self.assertTrue(r['sd_readback_verified'] and r['boot_files_unchanged'])
-        for size in (0,1,4095,4097,8191,8193):
-            model,session=self.session()
-            with self.subTest(size=size),self.assertRaises(ValueError):
-                session.upload(b'f'*size,{'commands':[]},purpose='firmware')
-            with self.assertRaises(ValueError):
-                session.verify(b'f'*size,{'commands':[]},purpose='firmware')
-            self.assertEqual(model.commands,[])
-            self.assertFalse(session.retired)
+        for purpose,target in [('firmware','FES/FIRMWARE.BIN'),('firmware-alt','FES/FIRMALT.BIN')]:
+            for size in (4096,8192):
+                self.payload=b'f'*size
+                model,r=self.run_upload(purpose=purpose)
+                self.assertEqual(r['destination'],target)
+                self.assertTrue(r['sd_readback_verified'] and r['boot_files_unchanged'])
+            for size in (0,1,4095,4097,8191,8193):
+                model,session=self.session()
+                with self.subTest(purpose=purpose,size=size),self.assertRaises(ValueError):
+                    session.upload(b'f'*size,{'commands':[]},purpose=purpose)
+                with self.assertRaises(ValueError):
+                    session.verify(b'f'*size,{'commands':[]},purpose=purpose)
+                self.assertEqual(model.commands,[])
+                self.assertFalse(session.retired)
 
     def test_any_changed_selected_file_retires_the_whole_session_without_more_writes(self):
         for purpose in upload.DESTINATIONS:
             with self.subTest(purpose=purpose),patch('builtins.print'):
                 model,session=self.session()
-                payload=b'f'*4096 if purpose=='firmware' else b'known exact file'
+                payload=b'f'*4096 if purpose.startswith('firmware') else b'known exact file'
                 model.payload=payload
                 session.upload(payload,{'commands':[]},purpose=purpose)
                 model.files[upload.destination(purpose)]=b'x'*len(payload)

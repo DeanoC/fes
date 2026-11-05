@@ -16,8 +16,9 @@ digest with the sealed project before conversion and records `held_rom` in its
 output. Missing, changed or out-of-profile ROM resources cannot publish a
 composition receipt.
 
-`upload.py --purpose firmware` writes only `FES/FIRMWARE.BIN` and accepts exactly
-4 or 8 KiB. It uses the existing exclusive recovery upload, protected boot-file
+`upload.py --purpose firmware` writes only `FES/FIRMWARE.BIN`; `firmware-alt`
+writes only `FES/FIRMALT.BIN`. Both accept exactly 4 or 8 KiB. They use the
+existing exclusive recovery upload, protected boot-file
 checks and fresh SD readback. Other paths and sizes reject before device I/O.
 The upload supplies bytes only; the native store and loader separately check
 their source digest, retained activation receipt and compiled ROM resources.

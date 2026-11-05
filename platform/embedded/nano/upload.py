@@ -31,7 +31,7 @@ LIMIT = MAX_FIT_SIZE
 DESTINATIONS = {'boot':EXPERIMENTAL_FILE, 'package':'FES/PKGTEST.BIN',
                 'metadata':'FES/PROGRAM.JSN', 'selection':'FES/CORESEL.JSN',
                 'package-alt':'FES/PKGALT.BIN', 'metadata-alt':'FES/PROGALT.JSN',
-                'ui-catalog':'FES/UI.JSON', 'firmware':'FES/FIRMWARE.BIN'}
+                'ui-catalog':'FES/UI.JSON', 'firmware':'FES/FIRMWARE.BIN', 'firmware-alt':'FES/FIRMALT.BIN'}
 PREFIX_SIZE = 32768 * 512
 
 
@@ -83,11 +83,11 @@ def destination(purpose):
 def payload_limit(purpose):
     destination(purpose)
     return {'boot': LIMIT, 'package': LIMIT, 'metadata': 16<<10, 'selection': 8192,
-            'package-alt': LIMIT, 'metadata-alt': 16<<10, 'ui-catalog': 8192, 'firmware':8192}[purpose]
+            'package-alt': LIMIT, 'metadata-alt': 16<<10, 'ui-catalog': 8192, 'firmware':8192, 'firmware-alt':8192}[purpose]
 
 
 def valid_payload_length(purpose, size):
-    return 0 < size <= payload_limit(purpose) and (purpose != 'firmware' or size in (4096, 8192))
+    return 0 < size <= payload_limit(purpose) and (purpose not in ('firmware','firmware-alt') or size in (4096, 8192))
 
 
 class UploadSession:

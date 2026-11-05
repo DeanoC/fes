@@ -276,6 +276,7 @@ func (l *ProgramLoader) Preflight(selection *packagestore.Selection) (*StoredCon
 		if err != nil || len(romImage) != rm.Bytes || hex.EncodeToString(sum[:]) != receipt.ROMLink.SourceSHA256 {
 			return nil, errors.New("native fabric: retained ROM bytes differ from private receipt")
 		}
+		id.ActivationReceiptSHA256 = romReceipt
 	}
 	data, err := io.ReadAll(io.LimitReader(selection.Archive().Payload(), d.Payload.Size+1))
 	if err != nil {

@@ -45,6 +45,7 @@ type ProgramBackend struct {
 	entries       []ProgramEntry
 	session       ProgramSession
 	play          programPlay
+	romLink       *hostclient.SessionROMLink
 	keyboard      *programKeyboard
 	inputAttached bool
 	inputFault    error
@@ -111,7 +112,7 @@ func (b *ProgramBackend) snapshot() map[string]any {
 		}
 		wire["id"], wire["game_id"], wire["target"], wire["target_id"], wire["flight_id"] = p.ID, p.Game, p.Target, p.TargetID, p.Flight
 		wire["system"], wire["media"] = "native", "active"
-		wire["core_package"] = &hostclient.SessionCorePackage{CoreID: v.Identity.CoreID, PackageID: v.Identity.PackageID, Generation: v.Generation, ABI: hostclient.SessionCoreABI{ID: v.Identity.ABI, Major: v.Identity.Major, Minor: v.Identity.Minor}}
+		wire["core_package"] = &hostclient.SessionCorePackage{CoreID: v.Identity.CoreID, PackageID: v.Identity.PackageID, Generation: v.Generation, ROMLink: b.romLink, ABI: hostclient.SessionCoreABI{ID: v.Identity.ABI, Major: v.Identity.Major, Minor: v.Identity.Minor}}
 	}
 	return wire
 }
@@ -226,6 +227,13 @@ func (b *ProgramBackend) RoundTrip(r *http.Request) (*http.Response, error) {
 				return err
 			}
 			b.session = session
+			b.romLink = nil
+			if b.service.Status().Identity.ActivationReceiptSHA256 != "" {
+				// Launch retained this private immutable receipt. Do not rebuild
+				// running ROM metadata from the mutable catalog or filesystem.
+				link := b.service.state.plan.state.selection.Linked().Receipt().ROMLink
+				b.romLink = &hostclient.SessionROMLink{ROMID: link.ROMID, Role: link.Role, SourceSHA256: link.SourceSHA256, SourceSize: link.SourceSize}
+			}
 			b.play = programPlay{ID: fmt.Sprintf("nano-%016x-%d", v.Owner, session.Generation()), Game: selected.ID, Target: "de25-nano", TargetID: fmt.Sprintf("%016x", v.Owner), PackageID: selected.Request.PackageID, Generation: session.Generation(), Flight: r.Header.Get("X-FogCast-Flight-Id")}
 			return nil
 		})

@@ -74,11 +74,16 @@ def packet(data,*,startup=False,input_mode='uart',usb_records=None,fetch_records
             require(type(r['loading']) is type(r['retry_stop']) is bool,'invalid App flags')
             require(r['load_error']==r['launch_error']=='' and not r['retry_stop'],'App reported a failure')
             require(r['session'] in ('','idle','launching','active','stopping') and r['launch'] in ('idle','launching','ok'),'unknown/failed App phase')
-            v=r['native'];require(type(v) is dict and set(v)=={'State','Owner','Generation','Identity','Held','Error'},'native status fields differ')
+            v=r['native'];native_fields={'State','Owner','Generation','Identity','Held','Error'}
+            require(type(v) is dict and native_fields<=set(v) and not set(v)-native_fields-{'rom_receipt_sha256'},'native status fields differ')
             require(v['State'] in ('ready','loading','running','returning') and v['Error']=='','native service failed or retired')
             require(number(v['Owner'],(1<<64)-1) and v['Owner']>0 and number(v['Generation'],(1<<64)-1) and type(v['Held']) is bool,'invalid native ownership')
             ident=v['Identity'];require(type(ident) is dict and set(ident)==IDENTITY,'native identity fields differ')
             require(all(type(ident[k]) is str and len(ident[k])<=256 for k in IDENTITY-{'Major','Minor'}) and all(number(ident[k],65535) for k in ('Major','Minor')),'invalid native identity values')
+            receipt=ident['ActivationReceiptSHA256']
+            if receipt:
+                require(re.fullmatch('[0-9a-f]{64}',receipt) and int(receipt,16)>0 and v.get('rom_receipt_sha256')==receipt,'ROM identity/receipt differs')
+            else:require('rom_receipt_sha256' not in v,'ROM receipt has no retained identity')
             if v['State'] in ('ready','loading'):
                 require(v['Generation']%2==0 and v['Held'] and ident==ZERO,'inactive App has live identity or lost Hold')
             else:
@@ -125,7 +130,7 @@ class TenfootClient:
     """
     def __init__(self,initial,*,build_id,owner_seed,atf,package,programs,exchange,owns,now=time.monotonic,record=lambda _:None,shared_usb=None):
         require(all(callable(f) for f in (exchange,owns,now,record)),'owned exchange and clock hooks required')
-        require(type(programs) is list and len(programs)==2 and len({p['title'] for p in programs})==2 and len({p['identity']['PackageID'] for p in programs})==2,'two distinct titled program choices required')
+        require(type(programs) is list and len(programs)==2 and len({p['title'] for p in programs})==2 and len({(p['identity']['PackageID'],p['identity']['ActivationReceiptSHA256']) for p in programs})==2,'two distinct titled activation choices required')
         self.programs=copy.deepcopy(programs)
         self.usb=SharedInput(shared_usb) if shared_usb is not None else None
         usb_rows=[]

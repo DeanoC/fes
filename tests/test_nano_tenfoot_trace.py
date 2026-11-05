@@ -1,5 +1,6 @@
 """Synthetic App states over captured C observations; no hardware acceptance."""
 import copy,json,re,sys,unittest
+from unittest.mock import patch
 from pathlib import Path
 ROOT=Path(__file__).resolve().parents[1]
 sys.path.insert(0,str(ROOT/'platform/embedded/nano'))
@@ -17,7 +18,10 @@ class Model:
     def state(self,phase=None,gen=None):
         native=self.service.phase if phase is None else phase
         generation=self.service.generation if gen is None else gen
-        return dict(scope='nano-tenfoot-serial-v1',display='serial-state-only',titles=['ZX81','ZX80'],focus=self.focus,loading=False,load_error='',session='active' if native=='running' else 'idle',launch='ok' if native=='running' else 'idle',launch_error='',retry_stop=False,native=dict(State=native,Owner=int(OWNER,16),Generation=generation,Identity=copy.deepcopy(PROGRAMS[self.selected]['identity'] if native in ('running','returning') else trace.ZERO),Held=native not in ('running','returning'),Error=''))
+        row=dict(scope='nano-tenfoot-serial-v1',display='serial-state-only',titles=['ZX81','ZX80'],focus=self.focus,loading=False,load_error='',session='active' if native=='running' else 'idle',launch='ok' if native=='running' else 'idle',launch_error='',retry_stop=False,native=dict(State=native,Owner=int(OWNER,16),Generation=generation,Identity=copy.deepcopy(PROGRAMS[self.selected]['identity'] if native in ('running','returning') else trace.ZERO),Held=native not in ('running','returning'),Error=''))
+        if row['native']['Identity']['ActivationReceiptSHA256']:
+            row['native']['rom_receipt_sha256']=row['native']['Identity']['ActivationReceiptSHA256']
+        return row
     def raw(self,state):return trace.PREFIX+json.dumps(state,separators=(',',':')).encode()+b'\n'
     def client(self,programs=None):
         return trace.TenfootClient(BOOT+trace.BEGIN+b'\n'+self.raw(self.state()),build_id=SPEC['build_id'],owner_seed=SPEC['owner_seed'],atf=SPEC['atf'],package=SPEC['package'],programs=PROGRAMS if programs is None else programs,exchange=self.exchange,owns=lambda:self.service.owned,now=lambda:self.service.clock)
@@ -62,6 +66,36 @@ class Model:
         return raw
 
 class TenfootTraceTests(unittest.TestCase):
+    def test_same_package_different_rom_receipts_complete_owned_cycles(self):
+        programs=copy.deepcopy(PROGRAMS)
+        programs[1]['identity']=copy.deepcopy(programs[0]['identity'])
+        programs[1]['configuration']=copy.deepcopy(programs[0]['configuration'])
+        for index,row in enumerate(programs):row['identity']['ActivationReceiptSHA256']=str(index+1)*64
+        with patch.dict(globals(),PROGRAMS=programs):
+            model=Model();client=model.client();result=trace.exercise(client)
+            self.assertTrue(result['passed'])
+            active=[r['states'][-1]['native'] for r in client.records if r['action']=='launch']
+            self.assertEqual([r['Identity']['ActivationReceiptSHA256'] for r in active],['1'*64,'2'*64,'1'*64])
+            self.assertEqual(len({r['Identity']['PackageID'] for r in active}),1)
+            duplicate=copy.deepcopy(programs);duplicate[1]['identity']=copy.deepcopy(duplicate[0]['identity'])
+            with self.assertRaises(ValueError):model.client(duplicate)
+
+    def test_missing_foreign_and_invalid_rom_status_receipts_reject(self):
+        model=Model();model.service.phase='running';model.service.generation=1
+        good=model.state();good['native']['Identity']['ActivationReceiptSHA256']='1'*64
+        good['native']['rom_receipt_sha256']='1'*64
+        self.assertEqual(trace.packet(model.raw(good))[0][-1],good)
+        variants=[]
+        missing=copy.deepcopy(good);missing['native'].pop('rom_receipt_sha256');variants.append(missing)
+        for receipt in ('2'*64,'0'*64,'A'*64,True):
+            row=copy.deepcopy(good);row['native']['rom_receipt_sha256']=receipt;variants.append(row)
+            row=copy.deepcopy(good);row['native']['Identity']['ActivationReceiptSHA256']=receipt;variants.append(row)
+        row=copy.deepcopy(good);row['native']['Identity']['ActivationReceiptSHA256']='';variants.append(row)
+        row=copy.deepcopy(good);row['native']['State']='ready';variants.append(row)
+        for row in variants:
+            with self.subTest(receipt=row['native'].get('rom_receipt_sha256')),self.assertRaises(ValueError):
+                trace.packet(model.raw(row))
+
     def test_real_key_sequence_three_sessions_and_owned_quit(self):
         model=Model();client=model.client();result=trace.exercise(client)
         self.assertTrue(result['passed']);self.assertEqual([r['launch_generation'] for r in result['cycles']],[1,3,5])

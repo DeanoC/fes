@@ -16,6 +16,12 @@ its mapping and SD scope retained. Stale callbacks cannot publish into a later
 lease. Catalog entries may carry one `sources` record (`id`, `role: firmware`,
 `path`, `sha256`) and `rom_receipt_sha256`; these remain content selections,
 with no hardware authority. The status receipt reports selected content only.
+The running native identity carries that same receipt in
+`ActivationReceiptSHA256`. Serial status and the Tenfoot observer require the
+receipt to agree; return clears it. The existing session API publishes the ROM's
+ID, firmware role, source size and digest from the private retained receipt.
+Two firmware choices may therefore share an unchanged FPGA package and still
+have distinct activation identities. No receipt is a live ROM-completion proof.
 
 Host tests run three 8/4/8 KiB launch/return cycles through the real store,
 linker, loader, arena and service. Every publication is parsed by the actual C

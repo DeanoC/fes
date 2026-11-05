@@ -11,6 +11,7 @@ import (
 	"errors"
 	"fmt"
 	"hash/crc32"
+	"net/http"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -19,6 +20,7 @@ import (
 	"testing/fstest"
 
 	"github.com/DeanoC/FogCast/corepackage"
+	"github.com/DeanoC/FogCast/hostclient"
 	g "github.com/DeanoC/fes/platform/embedded/tamago/embeddedcontrol/generated"
 	"github.com/DeanoC/fes/platform/embedded/tamago/packagestore"
 )
@@ -283,7 +285,7 @@ func TestROMProgramServicePublishesRetainedImagesAndReturns(t *testing.T) {
 			t.Fatal(cycle, err)
 		}
 		status := r.f.s.Status()
-		if status.State != ProgramRunning || status.ROMReceiptSHA256 != req.ReceiptSHA256 || r.f.s.state.transfer.Status().CompletedBytes != len(data) {
+		if status.State != ProgramRunning || status.ROMReceiptSHA256 != req.ReceiptSHA256 || status.Identity.ActivationReceiptSHA256 != req.ReceiptSHA256 || r.f.s.state.transfer.Status().CompletedBytes != len(data) {
 			t.Fatal("ROM launch lost receipt or extended SDM bytes", status)
 		}
 		if cycle > 0 {
@@ -302,6 +304,99 @@ func TestROMProgramServicePublishesRetainedImagesAndReturns(t *testing.T) {
 	}
 	if r.cpu.preparedHeaders != 3 || r.cpu.romOpens != 3 || r.cpu.configurations != 3 || r.f.lease.returns != 3 {
 		t.Fatal("missing paired C publication or owned cycle")
+	}
+}
+
+func TestROMBackendDistinguishesTwoFirmwareImagesForOneFPGAPackage(t *testing.T) {
+	r := romProgramTest(t)
+	first, record, _ := addROMProgram(t, r, 0, 8192)
+	firstImage := bytes.Clone(r.cpu.expectedROM)
+	secondImage := bytes.Clone(firstImage)
+	secondImage[0] ^= 1
+	body := r.f.files.files[first.Path].Data
+	a, err := corepackage.RetainArchive(context.Background(), int64(len(body)), bytes.NewReader(body))
+	if err != nil {
+		t.Fatal(err)
+	}
+	linked, err := a.LinkROMs(context.Background(), []corepackage.ROMSource{{ID: "firmware", Role: "firmware", Data: secondImage}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	second := first
+	second.ReceiptSHA256 = linked.ReceiptSHA256()
+	second.MetadataPath = "FES/ROMALT.JSN"
+	second.Sources = append([]packagestore.Source(nil), first.Sources...)
+	second.Sources[0].Path = "FES/ROMALT.BIN"
+	sum := sha256.Sum256(secondImage)
+	second.Sources[0].SHA256 = hex.EncodeToString(sum[:])
+	record.ROMReceiptSHA256 = second.ReceiptSHA256
+	metadata := programJSON(t, record)
+	sum = sha256.Sum256(metadata)
+	second.MetadataSHA256 = hex.EncodeToString(sum[:])
+	r.f.files.files[second.MetadataPath] = &fstest.MapFile{Data: metadata}
+	r.f.files.files[second.Sources[0].Path] = &fstest.MapFile{Data: secondImage}
+	if first.ReceiptSHA256 == second.ReceiptSHA256 || first.PackageID != second.PackageID {
+		t.Fatal("fixture lost the same-package/different-firmware boundary")
+	}
+	b, err := NewProgramBackend(r.f.s, []ProgramEntry{{ID: "rom-a", Title: "ROM A", Request: first}, {ID: "rom-b", Title: "ROM B", Request: second}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	client := hostclient.NewClient("http://native.invalid", &http.Client{Transport: b})
+	for _, row := range []struct {
+		id, receipt string
+		image       []byte
+	}{{"rom-a", first.ReceiptSHA256, firstImage}, {"rom-b", second.ReceiptSHA256, secondImage}, {"rom-a", first.ReceiptSHA256, firstImage}} {
+		r.cpu.expectedROM = row.image
+		play, err := client.Launch(context.Background(), row.id)
+		if err != nil || play.State != "active" {
+			t.Fatal("launch", err, play)
+		}
+		view := r.f.s.Status()
+		if view.Identity.PackageID != first.PackageID || view.Identity.ActivationReceiptSHA256 != row.receipt || view.ROMReceiptSHA256 != row.receipt {
+			t.Fatal("backend lost the selected firmware identity", view)
+		}
+		sum := sha256.Sum256(row.image)
+		if play.CorePackage == nil || play.CorePackage.ROMLink == nil || play.CorePackage.ROMLink.ROMID != "firmware" ||
+			play.CorePackage.ROMLink.Role != "firmware" || play.CorePackage.ROMLink.SourceSize != int64(len(row.image)) ||
+			play.CorePackage.ROMLink.SourceSHA256 != hex.EncodeToString(sum[:]) {
+			t.Fatal("session API lost the immutable firmware source", play.CorePackage)
+		}
+		play.CorePackage.ROMLink.SourceSHA256 = "caller mutation"
+		observed, err := client.Session(context.Background())
+		if err != nil || observed.CorePackage == nil || observed.CorePackage.ROMLink == nil || observed.CorePackage.ROMLink.SourceSHA256 != hex.EncodeToString(sum[:]) {
+			t.Fatal("caller changed the retained session ROM metadata", err)
+		}
+		returned, err := client.StopExpectedStamped(context.Background(), play, hostclient.ClientStamp{})
+		if err != nil || returned.CorePackage != nil {
+			t.Fatal(err)
+		}
+		if view = r.f.s.Status(); view.Identity.ActivationReceiptSHA256 != "" || view.ROMReceiptSHA256 != "" || view.State != ProgramReady {
+			t.Fatal("returned firmware identity remained published", view)
+		}
+	}
+}
+
+func TestROMConsolePublishesOnlyTheLiveRetainedReceipt(t *testing.T) {
+	r := romProgramTest(t)
+	request, _, _ := addROMProgram(t, r, 0, 8192)
+	c, err := NewProgramConsole(r.f.s, []packagestore.Request{request})
+	if err != nil {
+		t.Fatal(err)
+	}
+	status := c.Handle(context.Background(), []byte(`{"op":"status"}`))
+	if status.ROMReceiptSHA256 != "" {
+		t.Fatal("ready status invented a ROM receipt")
+	}
+	launch := fmt.Sprintf(`{"op":"launch","owner":%q,"generation":%d,"program":0}`, status.Owner, status.Generation)
+	status = c.Handle(context.Background(), []byte(launch))
+	if !status.OK || status.ROMReceiptSHA256 != request.ReceiptSHA256 {
+		t.Fatal("console lost the actual retained ROM receipt", status)
+	}
+	stop := fmt.Sprintf(`{"op":"return","owner":%q,"generation":%d}`, status.Owner, status.Generation)
+	status = c.Handle(context.Background(), []byte(stop))
+	if !status.OK || status.State != ProgramReady || status.ROMReceiptSHA256 != "" {
+		t.Fatal("console retained a returned ROM receipt", status)
 	}
 }
 

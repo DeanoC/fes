@@ -34,7 +34,7 @@ def response(data):
     require(not any(r.startswith(('panic:','fatal error:')) or 'FES_' in r and re.search(r'\b(?:FAIL|FAILURE|REJECT|EXCEPTION)\b',r) for r in text.splitlines()),'native failure before service reply')
     r=json.loads(rows[-1][len(PREFIX):],object_pairs_hook=_unique)
     fields={'scope','op','ok','state','owner','generation','held'}
-    optional={'package_id','build_id','core_id','programs','activity','error'}
+    optional={'package_id','build_id','core_id','programs','activity','error','rom_receipt_sha256'}
     require(isinstance(r,dict) and fields<=r.keys() and not r.keys()-fields-optional,'service reply fields differ')
     require(r['scope']==SCOPE and isinstance(r['op'],str) and 0<len(r['op'])<=32,'service reply scope/operation differs')
     require(type(r['ok']) is type(r['held']) is bool and number(r['generation'],(1<<64)-1),'invalid service flags/generation')
@@ -47,6 +47,10 @@ def response(data):
                 isinstance(identity['core_id'],str) and 0<len(identity['core_id'])<=128,'invalid program identity')
     if r['state'] in ('ready','parked'):require(not identity,'inactive service carries program identity')
     if r['state']=='running':require(len(identity)==3,'running service lacks identity')
+    if 'rom_receipt_sha256' in r:
+        receipt=r['rom_receipt_sha256']
+        require(r['state'] not in ('ready','parked') and len(identity)==3 and isinstance(receipt,str) and
+                re.fullmatch('[0-9a-f]{64}',receipt) and int(receipt,16)>0,'invalid retained ROM receipt')
     require(('error' not in r) if r['ok'] else isinstance(r.get('error'),str) and 0<len(r['error'])<=1024,'service error flag differs')
     if 'programs' in r:
         require(r['op']=='status' and isinstance(r['programs'],list) and 0<len(r['programs'])<=32,'unexpected catalogue')
