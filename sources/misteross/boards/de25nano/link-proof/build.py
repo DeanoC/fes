@@ -93,12 +93,29 @@ def verify_project(directory: Path, inputs: dict) -> None:
     verify_source_closure(inputs)
 
 
+def proof_root(project: Path) -> Path:
+    """The selected base recipe owns its layout; all share one frozen source set."""
+    if PROFILE is not None and hasattr(PROFILE, "proof_root"):
+        return PROFILE.proof_root(project)
+    return project.parent.parent
+
+
 def verify_hps_inputs(project: Path) -> None:
-    hps = load_hps(project.parent.parent / "functional-source/sources/misteross/boards/de25nano/hps/build.py")
+    hps = load_hps(proof_root(project) / "functional-source/sources/misteross/boards/de25nano/hps/build.py")
     preserved = json.loads((project.parent / "inputs.json").read_bytes())
+    changes = {}
     for name, expected in preserved["vendor_hps_emif_parameters"].items():
-        if hps.module_parameters(project / name) != expected:
-            raise BuildError("changed preserved HPS/EMIF module parameters: " + name)
+        actual = hps.module_parameters(project / name)
+        delta = {key: {"before": value, "after": actual.get(key)}
+                 for key, value in expected.items() if actual.get(key) != value}
+        if delta:
+            changes[name] = delta
+        if set(actual) != set(expected):
+            raise BuildError("changed preserved HPS/EMIF parameter inventory: " + name)
+    # Reuse the existing closed canonical Linux policy. Legacy bases still
+    # require an empty delta; this does not introduce a new parameter waiver.
+    if changes != hps.reviewed_hps_parameter_changes(preserved):
+        raise BuildError("changed preserved HPS/EMIF module parameters")
     vendor = json.loads((project.parent / "vendor-inputs.json").read_bytes())
     for name, expected in vendor["source_sha256"].items():
         if name.startswith("software/") and sha((project / name).read_bytes()) != expected:
@@ -383,7 +400,7 @@ def collect(output: Path, tools: dict[str, Path], version: str) -> Path:
     if PROFILE is not None and getattr(PROFILE, "audit_path", None) is not None:
         repository = Path(subprocess.check_output(
             ["git", "rev-parse", "--show-toplevel"], cwd=BOARD, text=True).strip())
-        frozen_audit = output.parent.parent / "functional-source" / PROFILE.audit_path.resolve().relative_to(repository)
+        frozen_audit = proof_root(output) / "functional-source" / PROFILE.audit_path.resolve().relative_to(repository)
         if not frozen_audit.is_file():
             raise BuildError("profile audit source is missing from the frozen source set")
         audit = load_hps(frozen_audit)
@@ -635,7 +652,8 @@ def prepare(output: Path, placement: str, routing: str, archive: Path | None = N
     else:
         hps_output = hps.prepare_project(retained, output / "hps")
     project = hps_output / "project"
-    emif_reference_clock = remove_duplicate_emif_clock(project)
+    emif_reference_clock = (PROFILE.emif_reference_clock(project)
+        if PROFILE is not None and hasattr(PROFILE, "emif_reference_clock") else remove_duplicate_emif_clock(project))
     local = project / "fes_link"
     local.mkdir()
     for name in SOURCE_NAMES:
@@ -706,7 +724,7 @@ set_interface_property fes_pr_diagnostic EXPORT_OF subsys_periph.fes_pr_diagnost
     inputs = {"diagnostic_only": True, "source_revision": frozen["revision"],
               "source_committed": frozen["committed"], "device": DEVICE,
               "source_sha256": {name: sha(data) for name, data in frozen["files"].items()},
-              "source_snapshot": str(snapshot.relative_to(project.parent.parent)),
+              "source_snapshot": str(snapshot.relative_to(proof_root(project))),
               "vendor_archive_sha256": sha(retained.read_bytes()),
               "emif_reference_clock": emif_reference_clock,
               "control_peripheral_offset": control_offset,
@@ -735,7 +753,7 @@ set_interface_property fes_pr_diagnostic EXPORT_OF subsys_periph.fes_pr_diagnost
 
 
 def generate_hps(project: Path, tools: dict[str, Path], version: str) -> None:
-    snapshot = project.parent.parent / "functional-source"
+    snapshot = proof_root(project) / "functional-source"
     hps = load_hps(snapshot / "sources/misteross/boards/de25nano/hps/build.py")
     install = tools["quartus_sh"].parents[2]
     qsys = install / "qsys/bin/qsys-script"
@@ -745,16 +763,12 @@ def generate_hps(project: Path, tools: dict[str, Path], version: str) -> None:
     run([str(tools["quartus_ipgenerate"]), "--clear_ip_generation_dirs", "golden_top"], project, "hps-clear.log")
     run([str(tools["quartus_ipgenerate"]), "--generate_project_ip_files", "--synthesis=verilog", "golden_top"],
         project, "hps-generation.log")
-    preserved = json.loads((project.parent / "inputs.json").read_bytes())
-    for name, expected in preserved["vendor_hps_emif_parameters"].items():
-        if hps.module_parameters(project / name) != expected:
-            raise BuildError("generation changed preserved HPS/EMIF module parameters: " + name)
-    vendor = json.loads((project.parent / "vendor-inputs.json").read_bytes())
-    for name, expected in vendor["source_sha256"].items():
-        if name.startswith("software/") and sha((project / name).read_bytes()) != expected:
-            raise BuildError("generation changed preserved vendor boot data: " + name)
+    verify_hps_inputs(project)
     handoff = hps.verify_mailbox_handoff(project)
-    handoff["ddr_probe"] = hps.verify_probe_handoff(project)
+    if PROFILE is not None and hasattr(PROFILE, "verify_memory_handoff"):
+        memory = handoff["managed_memory"] = PROFILE.verify_memory_handoff(project, hps)
+    else:
+        memory = handoff["ddr_probe"] = hps.verify_probe_handoff(project)
     inputs = json.loads((project / "inputs.json").read_bytes())
     tree = ET.parse(project / "qsys_top/qsys_top.sopcinfo")
     modules = [item for item in tree.findall("module") if item.get("path") == "subsys_periph.fes_pr_control"]
@@ -772,7 +786,7 @@ def generate_hps(project: Path, tools: dict[str, Path], version: str) -> None:
                       "writeresponsevalid": ("Output", 1), "response": ("Output", 2)}
     if hps.component_ports(modules[0], "avs") != expected_ports:
         raise BuildError("generated PR control byte/address/response interface differs")
-    regions = [r for r in handoff["ddr_probe"]["peripheral_slave_map"] if r["name"] == "subsys_periph.fes_pr_control.avs"]
+    regions = [r for r in memory["peripheral_slave_map"] if r["name"] == "subsys_periph.fes_pr_control.avs"]
     if len(regions) != 1 or regions[0]["base"] != inputs["control_peripheral_offset"] or regions[0]["span"] != 64:
         raise BuildError("actual HPS bridge PR control aperture differs")
     handoff["pr_control"] = {"module": modules[0].get("path"), "peripheral_offset": inputs["control_peripheral_offset"],
@@ -833,7 +847,7 @@ def compile_project(output: Path, tools: dict[str, Path], version: str, only: st
         elif root_qdb_hash != actual_root_hash:
             raise BuildError("implementation changed the exported base root QDB")
         if revision == "base" and PROFILE is not None:
-            script = output.parent.parent / "functional-source" / PROFILE.timing_path
+            script = proof_root(output) / "functional-source" / PROFILE.timing_path
             report_hashes = {path.relative_to(output).as_posix(): sha(path.read_bytes())
                 for path in (output / "output_files").glob("base.*") if path.is_file()}
             report_hashes["root_partition.qdb"] = root_qdb_hash
@@ -892,7 +906,7 @@ def main() -> int:
     parser.add_argument("--placement")
     parser.add_argument("--routing")
     parser.add_argument("--only", choices=("base",))
-    parser.add_argument("--profile", choices=("zx81-ram", "zx81-computer"))
+    parser.add_argument("--profile", choices=("zx81-ram", "zx81-computer", "zx81-standard"))
     args = parser.parse_args()
     if args.profile:
         global PROFILE

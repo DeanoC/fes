@@ -661,6 +661,14 @@ class HpsBuildTests(unittest.TestCase):
                 "f2sdram_SMMU": {"before": "false", "after": "true"},
                 "f2s_data_width": {"before": "256", "after": "0"}}}}
         self.assertEqual(BUILD.reviewed_hps_parameter_changes(selected), selected["allowed_hps_parameter_changes"])
+        pr = copy.deepcopy(selected)
+        pr["scanout"]["build_identity_scheme"] = "standard-pr-computer-v1"
+        pr["standard_zx81"]["expansion_socket"] = True
+        self.assertEqual(BUILD.reviewed_hps_parameter_changes(pr), selected["allowed_hps_parameter_changes"])
+        for value in (False, None, 1):
+            changed = copy.deepcopy(pr); changed["standard_zx81"]["expansion_socket"] = value
+            with self.subTest(pr_socket=value), self.assertRaises(ValueError):
+                BUILD.reviewed_hps_parameter_changes(changed)
         for key, value in (("scope", "package"), ("runtime_admission", "qualified"),
                            ("computer_offset", 0x10200), ("expansion_socket", True),
                            ("build_id", "f" * 32), ("build_id", "0" * 32)):

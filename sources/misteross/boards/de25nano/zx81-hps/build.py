@@ -206,12 +206,16 @@ def standard_staged_sources(project):
             if path.is_file() and path.suffix in (".v", ".sv", ".vh", ".py", ".sdc", ".tcl", ".mif")}
 
 
-def prepare_standard_board(archive, output, revision=None, *, package_build_id=None):
+def prepare_standard_board(archive, output, revision=None, *, package_build_id=None, expansion_socket=False):
     """Select the standard machine in the managed GHRD; never deploy it.
 
-    This first board integration uses the same internal 16K configuration as
-    the standard DE10 base core. Expansion personas remain a separate link.
+    The canonical package selects internal 16K. The explicit standard PR
+    profile selects the socket and separately supplies its registered boundary.
     """
+    if type(expansion_socket) is not bool:
+        raise ValueError("standard expansion selection must be boolean")
+    if expansion_socket and (not revision or not package_build_id):
+        raise ValueError("standard PR board requires committed canonical identity")
     sources = capture_standard_board(revision)
     source = sources[BOARD + "scanout/build.py"]
     scanout = types.ModuleType("standard_selected_scanout")
@@ -223,7 +227,8 @@ def prepare_standard_board(archive, output, revision=None, *, package_build_id=N
     if package_build_id is not None and (not revision or not isinstance(package_build_id,str) or
             not re.fullmatch(r"[0-9a-f]{32}",package_build_id) or package_build_id=="0"*32):
         raise ValueError("standard package identity requires committed source and a nonzero 128-bit ID")
-    build_id = package_build_id or sha(json.dumps({name: sha(data) for name, data in sorted(sources.items())},
+    build_id = package_build_id or sha(json.dumps({"sources": {name: sha(data) for name, data in sorted(sources.items())},
+                                                 "expansion_socket": expansion_socket},
                              sort_keys=True).encode())[:32]
     scanout.capture = lambda revision=None: sources.copy()
     # Managed fabric removes the unused JTAG/F2H masters and uses the exact
@@ -250,7 +255,7 @@ def prepare_standard_board(archive, output, revision=None, *, package_build_id=N
     script = script_path.read_text()
     for before, after in (
         ("add_instance fes_scanout fes_de25_scanout 1.0", "add_instance fes_scanout fes_de25_zx81_standard 1.0\n"
-            "set_instance_parameter_value fes_scanout EXPANSION_SOCKET 0"),
+            f"set_instance_parameter_value fes_scanout EXPANSION_SOCKET {int(expansion_socket)}"),
         ("add_connection fes_pixel_clk.out_clk fes_scanout.clk", "add_connection fes_pixel_clk.out_clk fes_scanout.clk\n"
             "add_connection periph_clk.out_clk fes_scanout.clk_sys\n"
             "add_connection periph_rst_in.out_reset fes_scanout.system_reset\n"
@@ -340,13 +345,13 @@ qsys_top soc_inst (
     if revision is None:
         inputs.pop("fes_revision", None)
         inputs.update(base_revision=selected_revision, source_classification="working-copy-diagnostic")
-    inputs["standard_zx81"] = {"build_id": build_id, "expansion_socket": False,
+    inputs["standard_zx81"] = {"build_id": build_id, "expansion_socket": expansion_socket,
         "computer_offset": 0x10300, "scope": "standard-core-board-integration", "runtime_admission": "not-qualified",
         "standard_sdc_sha256": sha((local / "standard-clocks.sdc").read_bytes()),
         "audio_pll": {"vendor_sha256": sha(original), "derived_sha256": sha(audio_pll),
                       "parameters": display.pll_parameters(audio_pll)}}
-    inputs["scanout"]["build_identity_scheme"] = ("canonical-standard-computer-v2" if package_build_id
-        else "standard-board-integration-source-profile")
+    inputs["scanout"]["build_identity_scheme"] = ("standard-pr-computer-v1" if expansion_socket else
+        "canonical-standard-computer-v2" if package_build_id else "standard-board-integration-source-profile")
     inputs["standard_zx81"]["staged_source_sha256"] = standard_staged_sources(project)
     inputs["standard_zx81"]["firmware_sha256"] = sha((project / "zx8x.mif").read_bytes())
     inputs["scanout"]["compiled_top_sha256"] = sha(top_path.read_bytes())
@@ -385,11 +390,15 @@ def generate_standard_board(output, scanout, combined, hps, display, tool, versi
     generation_path.write_text(json.dumps(generation, indent=2, sort_keys=True) + "\n")
 
 
-def verify_standard_board(output, scanout, hps, display):
+def verify_standard_board(output, scanout, hps, display, *, expected_expansion_socket=False):
     directory = output / "combined/hps"
     inputs = json.loads((directory / "inputs.json").read_text())
     project = directory / "project"
     selected = inputs["standard_zx81"]
+    if (type(expected_expansion_socket) is not bool or
+            type(selected.get("expansion_socket")) is not bool or
+            selected["expansion_socket"] != expected_expansion_socket):
+        raise ValueError("standard core expansion selection differs from the selected recipe")
     if (inputs["scanout"]["build_id"] != selected["build_id"] or
             sha((project / "golden_top.v").read_bytes()) != inputs["scanout"]["compiled_top_sha256"] or
             sha((project / "integrate-mailbox.tcl").read_bytes()) != inputs["scanout"]["rendered_integration_sha256"] or
@@ -436,7 +445,8 @@ def verify_standard_board(output, scanout, hps, display):
         if ("reset", start, end) not in connections:
             raise ValueError("generated standard core reset differs: " + end)
     endpoint_parameters, _ = scanout.referenced_parameters(project, endpoint, hps)
-    scanout.require_parameters(endpoint_parameters, {"EXPANSION_SOCKET": 0, "FIRMWARE_INIT": "zx8x.mif"}, "standard core")
+    scanout.require_parameters(endpoint_parameters, {"EXPANSION_SOCKET": int(expected_expansion_socket),
+                                                   "FIRMWARE_INIT": "zx8x.mif"}, "standard core")
     bridge_parameters = {}
     for name, width, address_bits, burst, depth in (("fes_ctrl_cdc", 32, 7, 1, 4), ("fes_mem_cdc", 128, 32, 16, 256)):
         module = modules.get("subsys_periph." + name)

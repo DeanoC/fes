@@ -73,7 +73,11 @@ def replace_once(source, before, after):
 def timed_reset_release(inputs):
     scanout = inputs["scanout"]
     canonical = scanout["build_identity_scheme"] == "canonical-functional-record-v2"
-    standard = (scanout["build_identity_scheme"] in ("standard-board-integration-source-profile", "canonical-standard-computer-v2") and
+    mode = ((scanout["build_identity_scheme"] in ("standard-board-integration-source-profile", "canonical-standard-computer-v2") and
+             inputs.get("standard_zx81", {}).get("expansion_socket") is False) or
+            (scanout["build_identity_scheme"] == "standard-pr-computer-v1" and
+             inputs.get("standard_zx81", {}).get("expansion_socket") is True))
+    standard = (mode and
                 inputs.get("standard_zx81", {}).get("scope") == "standard-core-board-integration" and
                 inputs["standard_zx81"].get("runtime_admission") == "not-qualified")
     policy = scanout.get("reset_timing")

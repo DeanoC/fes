@@ -24,6 +24,21 @@ class HpsZX81BuildTests(unittest.TestCase):
         self.addCleanup(self.temporary.cleanup)
         self.root = Path(self.temporary.name)
 
+    def test_standard_socket_selection_rejects_non_boolean_before_preparation(self):
+        for value in (0, 1, None, "false", "true"):
+            with self.subTest(value=value), self.assertRaisesRegex(ValueError, "must be boolean"):
+                B.prepare_standard_board(None, self.root / "output", expansion_socket=value)
+            self.assertFalse((self.root / "output").exists())
+
+    def test_standard_admission_requires_recipe_mode_not_receipt_mode(self):
+        directory = self.root / "combined/hps"
+        directory.mkdir(parents=True)
+        for expected, selected in ((False, True), (True, False), (False, 0), (True, 1), (False, None)):
+            with self.subTest(expected=expected, selected=selected):
+                (directory / "inputs.json").write_text(json.dumps({"standard_zx81": {"expansion_socket": selected}}))
+                with self.assertRaisesRegex(ValueError, "differs from the selected recipe"):
+                    B.verify_standard_board(self.root, None, None, None, expected_expansion_socket=expected)
+
     def test_tape_ram_adaptation_preserves_the_entire_native_branch(self):
         source = B.ROOT / "sources/misteross/cores/fes-zx81/rtl/zx81_tape_store.v"
         original = source.read_bytes()

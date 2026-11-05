@@ -31,7 +31,7 @@ def run(output=None):
         scanout / 'fes_de25_scanout.v', sim.COMMON / 'rtl/fes_display_plane.v',
         sim.COMMON / 'rtl/fes_display_cdc.v', ROOT / 'cores/fes-menu/rtl/fes_menu_control.v',
         ROOT / 'cores/fes-menu/rtl/fes_menu_video.v', reader,
-        link / 'fpga/shell.v', link / 'zx81-ram/personas.v']
+        link / 'fpga/shell.v', link / 'zx81-ram/personas.v', link / 'zx81-standard/bus.v']
     derived = {p.name: p.read_bytes() for p in sources if p.is_relative_to(output)}
     derived[firmware.name] = firmware.read_bytes()
     repository = ROOT.parents[1]
@@ -39,7 +39,8 @@ def run(output=None):
     extras = [Path(__file__), HERE / 'sim.py', HERE / 'standard_expansion_harness.v',
               HERE / 'standard_expansion_tb.cpp', sim.ZX81 / 'zx81_ram_pack.v',
               sim.ZX81 / 'zx81_bus_pack.vh', link / 'fpga/shell.v', link / 'zx81-ram/personas.v',
-              link / 'generated/fes_de25_pr_control.vh', link / 'generated/fes_de25_pr_control.hpp']
+              link / 'generated/fes_de25_pr_control.vh', link / 'generated/fes_de25_pr_control.hpp',
+              link / 'zx81-standard/bus.v']
     runtime = repository / 'sources/libmister-runtime'
     client_sources = [runtime / 'src/native' / name for name in
                       ('fes_gp.cpp', 'de25_pr_control.cpp', 'artifacts.cpp', 'diagnostic.cpp')]

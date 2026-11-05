@@ -85,7 +85,7 @@ class ScanoutBuildTests(unittest.TestCase):
         path = directory / "inputs.json"
         inputs = json.loads(path.read_text())
         inputs["scanout"]["build_identity_scheme"] = "standard-board-integration-source-profile"
-        inputs["standard_zx81"] = {"scope": "standard-core-board-integration", "runtime_admission": "not-qualified"}
+        inputs["standard_zx81"] = {"scope": "standard-core-board-integration", "runtime_admission": "not-qualified", "expansion_socket": False}
         path.write_text(json.dumps(inputs))
         self.assertEqual(B.repair_generated_reset_timing(directory), B.verify_generated_reset_timing(directory))
         inputs["standard_zx81"]["runtime_admission"] = "qualified"

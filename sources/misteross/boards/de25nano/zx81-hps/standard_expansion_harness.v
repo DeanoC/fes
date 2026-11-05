@@ -21,8 +21,8 @@ module fes_de25_standard_expansion_harness (
     input wire [15:0] peek_address,
     output wire [7:0] peek_data,
     output wire frozen, running, machine_held, exec_reset, unexpected_dma, reset_mismatch,
-    output reg [45:0] bus_request = 0,
-    output reg [19:0] static_response = 0,
+    output wire [45:0] bus_request,
+    output wire [19:0] static_response,
     output reg [31:0] pack_writes = 0
 );
     localparam [127:0] BUILD_ID = 128'h00112233445566778899aabbccddeeff;
@@ -36,11 +36,14 @@ module fes_de25_standard_expansion_harness (
     // Operate through the public component port. The private signal is used
     // only as an independent checker, never to control the modeled bus.
     assign reset_mismatch = machine_held != computer.core.machine_reset;
+    fes_de25_zx81_pr_bus boundary (
+        .clk(clk_sys), .machine_reset(machine_held), .cpu_clock(cpu_clock),
+        .address(bus_address), .write_data(bus_data), .mreq_n(mreq_n),
+        .iorq_n(iorq_n), .rd_n(rd_n), .wr_n(wr_n), .m1_n(m1_n), .rfsh_n(rfsh_n),
+        .peek_address(peek_address[13:0]), .bus_response(persona_b ? b_bus : a_bus),
+        .bus_request(bus_request), .response(static_response)
+    );
     always @(posedge clk_sys) begin
-        static_response <= persona_b ? b_bus : a_bus;
-        bus_request <= {!machine_held, cpu_clock, peek_address[13:0],
-            !machine_held ? {rfsh_n, m1_n, wr_n, rd_n, iorq_n, mreq_n,
-                             bus_data, bus_address} : {6'b111111, 24'd0}};
         // Count the real RAM write enable, including reset-pipeline tails.
         if (b.core.write_enable) pack_writes <= pack_writes + 1;
     end

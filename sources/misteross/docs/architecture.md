@@ -74,6 +74,25 @@ from the retained source tree. This prepares component files only. The canonical
 board recipe consumes it with the expansion socket disabled; exposing the reset
 does not select a PR partition or enable dynamic persona loading.
 
+The explicit experimental `link-proof` profile `zx81-standard` selects that same
+managed standard board with `expansion_socket=True`. Its default-off selection
+reuses the existing PR compiler and the canonical board's Linux DMA/display,
+HPS/EMIF/boot preservation and reset verifiers. The canonical package's default
+verifier still requires the socket disabled. An expected mode is supplied by the
+selected recipe, never inferred from a mutable preparation receipt.
+
+`link-proof/zx81-standard/bus.v` is the shared static registered boundary in the
+project and expansion simulation. It fences the whole packed bus with the
+public machine reset and captures persona responses. The project ties peek
+address bits to zero; the model drives them for read-only RAM observations.
+Every boundary FF, including constants, remains subject to existing synthesis
+and paired all-corner timing checks. The generated PR-control aperture stays at
+peripheral offset `0x10700` and adds no DMA initiator. This new profile is
+unqualified: the current Linux owner/runtime has no physical PR opener, and
+standalone composition does not provide normal FES admission. Independent fits,
+whole-board timing and physical acceptance remain required; internal16K audio
+clock exceptions do not apply to this profile.
+
 `fes_de25_audio.v` connects the standard coherent stereo PCM/I2S path to
 Terasic HDMI_ASx4's separate `av_pll`, using `CLOCK1_50`. The resource PLL
 requests 12.288 MHz from 50 MHz; its supplied integer dividers produce about

@@ -67,7 +67,7 @@ class SharedResetTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "unreviewed generated input"):
             S.apply(self.directory)  # Standard parent cannot replace a MENU parent.
         self.inputs["scanout"]["build_identity_scheme"] = "standard-board-integration-source-profile"
-        self.inputs["standard_zx81"] = {"scope": "standard-core-board-integration", "runtime_admission": "not-qualified"}
+        self.inputs["standard_zx81"] = {"scope": "standard-core-board-integration", "runtime_admission": "not-qualified", "expansion_socket": False}
         path = self.directory / "inputs.json"
         path.write_text(json.dumps(self.inputs))
         result = S.apply(self.directory)

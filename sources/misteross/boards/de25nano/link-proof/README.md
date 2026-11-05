@@ -102,3 +102,34 @@ binds the previous FPGA-only, 50 MHz source and its successful compiler/QEMU
 results. It does not qualify this changed HPS base. Physical CPU/SDM execution,
 firmware pairing, electrical timing, MTBF and exact-artifact board acceptance
 remain separate gates for the arriving board.
+
+
+## Standard ZX81 base (experimental)
+
+`build.py project --profile zx81-standard` uses the standard ZX81 machine and
+managed Linux DMA/display board, with the expansion socket explicitly enabled.
+It requires committed captured sources. Supply the same explicit vendor archive,
+placement/routing regions and fresh output as the other profiles. The project is
+`standard-base/combined/hps/project` below that output. `probe` and `build` use
+the existing PR compiler, partition and timing gates; they never program hardware.
+
+The static `zx81_bus` boundary consumes the standard component's public full
+machine reset and registers every packed request and response. The same module
+runs in `zx81-hps/standard_expansion_sim.py` with the actual FES clients. The
+hardware project ties the observational peek address to zero; the simulation
+can drive it to inspect RAM. All 46/20 boundary registers remain required in
+synthesis and all-corner setup/hold checks, including source-constant bits.
+
+The standard board verifier checks `EXPANSION_SOCKET=1`, both control/display
+slaves, managed initiators, read-only allocated memory path, separate system and
+pixel resets, preserved HPS/EMIF/boot inputs, and canonical reset repairs. The
+existing PR verifier independently checks its 100 MHz, 64-byte control endpoint
+at peripheral offset `0x10700`. This is an aperture in generated hardware, not
+an admitted Linux MMIO mapping. The current runtime owner does not expose it.
+
+The canonical playable package continues to select internal 16K and its verifier
+rejects an enabled socket. This experimental PR profile inherits no clock-input
+exception, package admission, native CPU/SDM programming or physical PR evidence.
+Its base and both personas require their own complete fit/timing and hardware
+acceptance. The standalone composer remains diagnostic; normal FES deployment
+of base-plus-persona output is still open.
