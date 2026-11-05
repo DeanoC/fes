@@ -74,9 +74,11 @@ daemon can then program its selected MENU. A running computer, pinned peer,
 changed artifact or uncertain context refuses this handoff. Destruction and
 unexpected process death preserve the configuration. Production restart may
 abandon an exact applied allocated overlay only after its staged RBF matches an
-admitted outgoing package and the permanent owner records successful completed
-revocation with no exposure or uncertainty. One REAP then releases its retained
-reference, and OWNER_IDLE proves the end of peer references. The outgoing package
+admitted outgoing package and its identity-valid retained grant is revoked.
+REAP uses the kernel's serialized old-epoch STOP/drain/CLEAR proof, including
+bounded waits for a partially drained grant left by file release; cached exposure
+or uncertainty never substitutes for that proof. Errors remain sticky and
+OWNER_IDLE must prove the end of peer references. The outgoing package
 may come from either the factory package directory or the normal agent's sealed
 ID-plus-token staging publication; content identity is verified in either case.
 A retained computer must also pass live identity and the existing SAVE guard, so

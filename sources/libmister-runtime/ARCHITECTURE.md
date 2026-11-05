@@ -116,12 +116,14 @@ unacknowledged. Missing SAVE admission is also rejecting. A successful query
 allows abandonment of the lost session, not restoration of its ownership.
 
 The allocation adapter first checks ABI3 and cached owner identity, geometry and
-health. A retained grant must already have the kernel's irreversible successful
-revocation state: REVOKED, with neither exposure, uncertainty nor pending work.
-This state records a completed STOP/drain/CLEAR, independently of userspace
-closure. A clock fault, underflow or identity mismatch also blocks recovery.
-REAP may then release that retained owner reference once; unexpected EAGAIN
-is a sticky failure, not another drain attempt. OWNER_IDLE must still pass
+health. A retained grant must have REVOKED set and only known state bits, so old
+peers cannot publish again. File release may leave EXPOSED, UNCERTAIN or PENDING
+while its first STOP snapshot still has outstanding traffic. The adapter asks
+the same kernel owner to finish its serialized STOP/drain/CLEAR; EAGAIN waits
+within the existing retirement deadline. The kernel independently rechecks the
+old epoch, identity and hardware drain before releasing exposure. A real error,
+late completion, clock fault, underflow or identity mismatch remains a sticky
+recovery failure. Cached flags never authorize programming. OWNER_IDLE must still pass
 within the existing retirement bound; absence of a grant still requires
 OWNER_IDLE and never authorizes REAP of an unidentified allocation. The bound
 cannot exceed ordinary allocation retirement. No old frame is acknowledged,

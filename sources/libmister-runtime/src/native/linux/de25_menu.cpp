@@ -20,12 +20,12 @@
 namespace mister { namespace native {
 namespace {
 using namespace generated;
-constexpr std::uint32_t kAbi=3,kRevoked=1,kExposed=2,kPending=8,kNoSlot=~std::uint32_t(0),kBlackFrames=2;
+constexpr std::uint32_t kAbi=3,kRevoked=1,kExposed=2,kUncertain=4,kPending=8,kNoSlot=~std::uint32_t(0),kBlackFrames=2;
 Error Invalid(const char* s){return {ErrorCode::invalid_request,s,"menu"};}
 Error Failed(const char* s){return {ErrorCode::io_failed,s,"menu"};}
 Error Unsupported(){return {ErrorCode::unsupported_interface,"DE25 allocated display has no blitter; reopening requires selected session control","menu"};}
 #if defined(__linux__)
-static_assert(FES_DE25_DMA_ABI_VERSION==kAbi&&FES_DE25_DMA_REVOKED==kRevoked&&FES_DE25_DMA_EXPOSED==kExposed&&FES_DE25_DMA_PENDING==kPending,"kernel UAPI differs");
+static_assert(FES_DE25_DMA_ABI_VERSION==kAbi&&FES_DE25_DMA_REVOKED==kRevoked&&FES_DE25_DMA_EXPOSED==kExposed&&FES_DE25_DMA_UNCERTAIN==kUncertain&&FES_DE25_DMA_PENDING==kPending,"kernel UAPI differs");
 static_assert(sizeof(fes_de25_dma_info)==104&&sizeof(fes_de25_dma_publish)==24,"kernel ioctl layout differs");
 Error Io(const char* s){return {ErrorCode::io_failed,std::string(s)+": "+std::strerror(errno),"menu"};}
 class KernelOperations final : public De25MenuOperations {
@@ -398,24 +398,25 @@ Error LinuxDe25Menu::RetireInherited(const CoreDescriptor& descriptor,std::uint6
  bool present=false;De25MenuGrant retained;
  if(e.ok())e=operations_->OwnerInfo(&present,&retained);
  if(e.ok())e=Deadline(d);
- // REVOKED without EXPOSED/UNCERTAIN/PENDING is the kernel's irreversible
- // successful revocation state. No old peer can publish again. In particular,
- // do not race a late file-release revoke by re-attempting an exposed transfer.
+ // REVOKED prevents old peers publishing again. File release can still be
+ // draining the old exposure: cached EXPOSED/UNCERTAIN/PENDING bits are not a
+ // drain proof or a reason to bypass the kernel's serialized REAP operation.
  if(e.ok()&&present&&(retained.version!=kAbi||!retained.generation||retained.reserved||
     retained.build_id!=expected||retained.allocation_bytes!=FesDe25ScanoutAllocationBytes||
     retained.slot_bytes!=FesDe25ScanoutSlotBytes||retained.frame_bytes!=FesDe25ScanoutFrameBytes||
     retained.width!=FesDe25ScanoutFrameWidth||retained.height!=FesDe25ScanoutFrameHeight||
     retained.stride!=FesDe25ScanoutFrameStride||retained.slots!=FesDe25ScanoutSlotCount||
-    retained.state!=kRevoked||
+    !(retained.state&kRevoked)||(retained.state&~(kRevoked|kExposed|kUncertain|kPending))||
     (retained.hardware_status&~FesDe25ScanoutStatusMask)||
     (retained.hardware_status&(FesDe25ScanoutStatusFault|FesDe25ScanoutStatusClockFault))||
     retained.hardware_errors||retained.underflows))
   e=Failed("retained allocation identity or health is uncertain");
  if(!e.ok())return fail(e);
- if(present) {
+ while(present) {
   bool done=false;e=Deadline(d);if(e.ok())e=operations_->Reap(&done);if(e.ok())e=Deadline(d);
-  if(e.ok()&&!done)e=Failed("retained kernel revocation was not complete");
   if(!e.ok())return fail(e);
+  if(done)break;
+  operations_->WaitMs(1);
  }
  for(;;) {
   bool idle=false;e=Deadline(d);if(e.ok())e=operations_->Idle(&idle);if(e.ok())e=Deadline(d);

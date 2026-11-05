@@ -24,6 +24,14 @@ void Complete(LinuxDe25Menu& m,Operations& o,std::uint32_t sequence) {
  assert(info.displayed_sequence==sequence&&info.enabled&&info.configured&&!info.quiesced&&!info.faulted);
 }
 void RetainedAllocationRequiresIndependentDrainAndLastPeer() {
+ for(std::uint32_t state:{1U,3U,7U,11U,15U}) {
+  Operations o;o.retained=o.allocated=true;o.state.state=state;
+  o.drain_waits=2;o.peer_waits=2;
+  LinuxDe25Menu m(o.clock,o);auto descriptor=mister_test::De25StandardDescriptor();
+  assert(m.RetireInherited(descriptor,100).ok());
+  assert(o.reaps==3&&o.clock.now==4&&!o.allocated&&o.allocations==0&&o.published.empty());
+  assert(m.Bind(build,100).ok()&&o.allocations==1);assert(m.Revoke().ok());
+ }
  for(bool present:{false,true}) {
   Operations o;o.retained=present;o.allocated=present;o.state.state=1;o.drain_waits=0;o.peer_waits=2;
   auto descriptor=mister_test::De25StandardDescriptor();LinuxDe25Menu m(o.clock,o);
@@ -46,17 +54,26 @@ void RetainedAllocationRequiresIndependentDrainAndLastPeer() {
   if(fault==10)o.info_error=true;
   if(fault==11)o.state.state=0;
   if(fault==12)o.state.state=2;
-  if(fault==13)o.state.state=3;
+  if(fault==13)o.state.state=1|16; // Unknown state bits cannot authorize kernel retirement.
   LinuxDe25Menu m(o.clock,o);assert(!m.RetireInherited(descriptor,100).ok());
   assert(o.reaps==0&&o.allocations==0&&o.published.empty());assert(!m.Bind(build,100).ok());
  }
  for(bool peer:{false,true}) {
   Operations o;o.retained=o.allocated=true;o.state.state=1;o.drain_waits=peer?0:100;o.peers=peer?1:0;
   LinuxDe25Menu m(o.clock,o,3);auto descriptor=mister_test::De25StandardDescriptor();
-  assert(!m.RetireInherited(descriptor,100).ok()&&o.clock.now==(peer?3:0));
+  assert(!m.RetireInherited(descriptor,100).ok()&&o.clock.now==3);
   const auto reaps=o.reaps;o.drain_waits=o.peers=0;
   assert(!m.RetireInherited(descriptor,100).ok()&&o.reaps==reaps);
   assert(!m.Bind(build,100).ok()&&o.allocations==0);
+ }
+ for(bool late:{false,true}) {
+  Operations o;o.retained=o.allocated=true;o.state.state=1|2|4|8;
+  if(late)o.on_reap=[&]{o.clock.now=101;};else o.reap_error=true;
+  LinuxDe25Menu m(o.clock,o);auto descriptor=mister_test::De25StandardDescriptor();
+  assert(!m.RetireInherited(descriptor,100).ok()&&o.reaps==1&&o.allocations==0);
+  o.on_reap={};o.reap_error=false;
+  assert(!m.RetireInherited(descriptor,200).ok()&&o.reaps==1);
+  assert(!m.Bind(build,200).ok()&&o.allocations==0);
  }
  Operations o;LinuxDe25Menu m(o.clock,o);Start(m,o);const auto reaps=o.reaps;
  assert(!m.RetireInherited(mister_test::De25StandardDescriptor(),100).ok()&&o.reaps==reaps);
