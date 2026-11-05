@@ -91,13 +91,27 @@ def inspect_archive(data, args):
 def capture(device, path, phase):
     if path.exists():
         raise pa.AcceptanceError('capture already exists: ' + str(path))
+    # The Kit B loopback is safe only while its paired physical USB card and
+    # fanout retain the independently checked identity across this frame.
+    identity = None
+    if device == '/dev/v4l/by-id/fes-4kpro-hil':
+        try: identity = game_audio.capture_identity('B')
+        except game_audio.AudioError as exc:
+            raise pa.AcceptanceError('Kit B capture identity unavailable') from exc
     subprocess.run(['ffmpeg', '-hide_banner', '-loglevel', 'error', '-f', 'v4l2',
                     '-input_format', 'yuyv422', '-video_size', '1920x1080', '-i', device,
                     '-vf', r'select=eq(n\,119)', '-frames:v', '1', '-y', str(path)],
                    check=True, timeout=30)
     width, height, rgb, digest = visual.decode_capture(path)
-    return (width, height, rgb), {'file': path.name, 'sha256': digest,
-                                  'captured_at_utc': stamp(), 'phase': phase}
+    if identity is not None:
+        try: after = game_audio.capture_identity('B')
+        except game_audio.AudioError as exc:
+            raise pa.AcceptanceError('Kit B capture identity unavailable after frame') from exc
+        if after != identity: raise pa.AcceptanceError('Kit B capture identity changed during frame')
+    metadata = {'file': path.name, 'sha256': digest,
+                'captured_at_utc': stamp(), 'phase': phase}
+    if identity is not None: metadata['capture_identity'] = identity
+    return (width, height, rgb), metadata
 
 
 def prompt(frame, font):
@@ -614,6 +628,38 @@ def _observe_until(runner, expected, args, disk_sha, deadline):
         runner.api = original_api
 
 
+_OBSERVER_GUARD_FD = None
+
+
+class ObservationDeadlineExceeded(pa.AcceptanceError):
+    """A read-only observation timed out; caller must verify cleanup."""
+
+
+def _wait_observer_guard(fd, *, timeout=2.0):
+    """Wait for the observer and any owned source supervisors to close."""
+    try:
+        deadline = time.monotonic() + timeout
+        pending = False
+        while True:
+            remaining = deadline - time.monotonic()
+            if remaining <= 0 or not select.select([fd], [], [], remaining)[0]:
+                raise pa.AcceptanceError('observer source cleanup unverified; retain kit claim')
+            data = os.read(fd, 4096)
+            if not data:
+                if pending:
+                    raise pa.AcceptanceError('observer source cleanup unverified; retain kit claim')
+                return
+            for value in data:
+                if value == ord('S') and not pending:
+                    pending = True
+                elif value == ord('C') and pending:
+                    pending = False
+                else:
+                    raise pa.AcceptanceError('invalid observer source cleanup evidence; retain kit claim')
+    finally:
+        os.close(fd)
+
+
 def _kill_and_reap_observer(pid, *, timeout=2.0):
     """Do not wait forever for a child stuck in uninterruptible I/O."""
     try:
@@ -644,14 +690,19 @@ def _hard_deadline_observation(observe, seconds=5.0):
     """Reap our read-only observer before accepting its result or returning."""
     deadline = time.monotonic() + seconds
     parent, child = socket.socketpair(socket.AF_UNIX, socket.SOCK_SEQPACKET)
+    guard_read, guard_write = os.pipe2(os.O_CLOEXEC)
     parent_pid = os.getpid()
     libc = ctypes.CDLL(None, use_errno=True)
     try:
         pid = os.fork()
     except BaseException:
         parent.close(); child.close()
+        os.close(guard_read); os.close(guard_write)
         raise
     if pid == 0:
+        global _OBSERVER_GUARD_FD
+        os.close(guard_read)
+        _OBSERVER_GUARD_FD = guard_write
         parent.close()
         # Linux delivers SIGKILL if the diagnostic parent dies unexpectedly;
         # close the race where it died before this setting was installed.
@@ -671,15 +722,35 @@ def _hard_deadline_observation(observe, seconds=5.0):
         finally:
             child.close()
             os._exit(0)
-    child.close()
+    child.close(); os.close(guard_write)
     reaped = False
     result = None
+    def timeout_error():
+        nonlocal result
+        if result is None:
+            try:
+                raw = parent.recv(8193, socket.MSG_DONTWAIT)
+            except BlockingIOError:
+                raw = None
+            if raw == b'':
+                return pa.AcceptanceError('observer exited without a result before the hard phase deadline')
+            if raw is not None:
+                try:
+                    result = _decode_observer_result(raw)
+                except pa.AcceptanceError:
+                    return pa.AcceptanceError('invalid observer result before the hard phase deadline')
+        # Do not downgrade an explicit or malformed observer failure merely
+        # because the child failed to exit before its deadline.
+        if result is not None and (not isinstance(result, dict) or result.get('ok') is not True
+                                   or not isinstance(result.get('claim'), dict)):
+            return pa.AcceptanceError('observer failed before the hard phase deadline')
+        return ObservationDeadlineExceeded('selected software observation exceeded hard phase deadline')
     try:
         while True:
             check_interrupted()
             remaining = deadline - time.monotonic()
             if remaining <= 0:
-                raise pa.AcceptanceError('selected software observation exceeded hard phase deadline')
+                raise timeout_error()
             if result is None:
                 readable, _, _ = select.select([parent], [], [], min(remaining, 0.05))
                 if readable:
@@ -698,7 +769,7 @@ def _hard_deadline_observation(observe, seconds=5.0):
                     if raw:
                         result = _decode_observer_result(raw)
                 if time.monotonic() >= deadline:
-                    raise pa.AcceptanceError('selected software observation exceeded hard phase deadline')
+                    raise timeout_error()
                 if status != 0 or not isinstance(result, dict) or result.get('ok') not in (True, False):
                     raise pa.AcceptanceError('observer failed without a complete result')
                 if not result['ok']:
@@ -710,14 +781,25 @@ def _hard_deadline_observation(observe, seconds=5.0):
                 time.sleep(min(0.01, remaining))
     finally:
         parent.close()
+        original_error = sys.exception()
+        cleanup_error = None
         if not reaped:
-            original_error = sys.exception()
             try:
                 _kill_and_reap_observer(pid)
-            except BaseException:
-                if original_error is None:
-                    raise
-                original_error.add_note('observer cleanup unverified; retain kit claim')
+            except BaseException as exc:
+                cleanup_error = exc
+        try:
+            _wait_observer_guard(guard_read, timeout=2.0 if original_error else min(2.0, max(0, deadline-time.monotonic())))
+        except BaseException as exc:
+            cleanup_error = cleanup_error or exc
+        if cleanup_error is not None:
+            if original_error is None:
+                cleanup_error.source_cleanup_incomplete = True
+                raise cleanup_error
+            original_error.add_note('observer cleanup unverified; retain kit claim')
+            original_error.source_cleanup_incomplete = True
+        if original_error is None and time.monotonic() >= deadline:
+            raise ObservationDeadlineExceeded('selected software observation exceeded hard phase deadline')
 
 
 def validate_active(runner, expected, args, disk_sha):
@@ -735,14 +817,19 @@ class PrestartedObserver:
             raise pa.AcceptanceError('game observer must start before capture threads')
         self.seconds = seconds
         parent, child = socket.socketpair(socket.AF_UNIX, socket.SOCK_SEQPACKET)
+        guard_read, guard_write = os.pipe2(os.O_CLOEXEC)
         parent_pid = os.getpid()
         libc = ctypes.CDLL(None, use_errno=True)
         try:
             pid = os.fork()
         except BaseException:
             parent.close(); child.close()
+            os.close(guard_read); os.close(guard_write)
             raise
         if pid == 0:
+            global _OBSERVER_GUARD_FD
+            os.close(guard_read)
+            _OBSERVER_GUARD_FD = guard_write
             parent.close()
             if libc.prctl(1, signal.SIGKILL, 0, 0, 0) != 0 or os.getppid() != parent_pid:
                 os._exit(1)
@@ -767,8 +854,8 @@ class PrestartedObserver:
             finally:
                 child.close()
                 os._exit(0)
-        child.close()
-        self.socket, self.pid, self.reaped = parent, pid, False
+        child.close(); os.close(guard_write)
+        self.socket, self.pid, self.reaped, self.guard_read = parent, pid, False, guard_read
 
     def check(self):
         if self.reaped:
@@ -808,22 +895,27 @@ class PrestartedObserver:
 
     def close(self, force=False):
         self.socket.close()
-        if self.reaped:
-            return
-        if not force:
-            end = time.monotonic()+2
-            while time.monotonic() < end:
-                done, status = os.waitpid(self.pid, os.WNOHANG)
-                if done:
-                    self.reaped = True
-                    if status != 0:
-                        raise pa.AcceptanceError('game ownership observer did not stop cleanly')
-                    return
-                time.sleep(.01)
-        _kill_and_reap_observer(self.pid)
-        self.reaped = True
-        if not force:
-            raise pa.AcceptanceError('game ownership observer did not stop cleanly')
+        try:
+            if self.reaped:
+                return
+            if not force:
+                end = time.monotonic()+2
+                while time.monotonic() < end:
+                    done, status = os.waitpid(self.pid, os.WNOHANG)
+                    if done:
+                        self.reaped = True
+                        if status != 0:
+                            raise pa.AcceptanceError('game ownership observer did not stop cleanly')
+                        return
+                    time.sleep(.01)
+            _kill_and_reap_observer(self.pid)
+            self.reaped = True
+            if not force:
+                raise pa.AcceptanceError('game ownership observer did not stop cleanly')
+        finally:
+            if self.guard_read is not None:
+                fd, self.guard_read = self.guard_read, None
+                _wait_observer_guard(fd)
 
 
 def capture_owned(runner, owned, args, disk_sha, path, phase):
@@ -943,6 +1035,9 @@ def run_game(runner, owned, args, rec, input_session_id, font, *, probe=None, vi
         raise pa.AcceptanceError('game requires owned video, audio and playback probe; no game keys sent')
     if threading.active_count() != 1:
         raise pa.AcceptanceError('game diagnostics must start before capture threads; no game keys sent')
+    short_smoke = getattr(args, 'game_short_smoke', False) is True
+    if short_smoke and probe.plan != [0x50]:
+        raise pa.AcceptanceError('short game smoke requires its one-direction guard; no game keys sent')
     disk_sha = SCENARIOS['game']['floppy']
     before, info = capture_owned(runner, owned, args, disk_sha,
                                  args.evidence/'before.png', 'before Digger input')
@@ -1021,13 +1116,16 @@ def run_game(runner, owned, args, rec, input_session_id, font, *, probe=None, vi
             time.sleep(.05)
         rec['neutral_started_monotonic_ns'] = time.monotonic_ns()
         time.sleep(.5)
-        for direction, usage in (('left',0x50), ('right',0x4f), ('left',0x50)):
+        directions = (('left',0x50),) if short_smoke else (('left',0x50), ('right',0x4f), ('left',0x50))
+        rec['gameplay_mode'] = 'short-smoke' if short_smoke else 'full'
+        for direction, usage in directions:
             interval = {'direction':direction, 'started_monotonic_ns':time.monotonic_ns()}
             rec.setdefault('direction_intervals', []).append(interval)
             type_keys(runner, owned, args, disk_sha, input_session_id, rec['hid_events'], (usage,),
                       dispatch_guard=probe, capture_check=check_recorders, active_check=game_active)
             interval['finished_monotonic_ns'] = time.monotonic_ns()
-            time.sleep(1)
+            if not short_smoke:
+                time.sleep(1)
         rec['direction_observations'] = probe.sent
         for phase in range(3):
             toggle = {'index':phase+1, 'started_monotonic_ns':time.monotonic_ns()}
@@ -1055,6 +1153,11 @@ def run_game(runner, owned, args, rec, input_session_id, font, *, probe=None, vi
                     error.add_note('audio cleanup failed: '+repr(cleanup))
         rec['video_stop_requested_monotonic_ns'] = time.monotonic_ns()
         try:
+            if error is not None:
+                skip = getattr(video, 'skip_failed_recording_verification', None)
+                if callable(skip):
+                    skip()
+                    rec['failed_video_verification'] = 'not performed; diagnostic had already failed'
             video.stop()
         except BaseException as cleanup:
             if error is None:
@@ -1082,10 +1185,11 @@ def run_game(runner, owned, args, rec, input_session_id, font, *, probe=None, vi
         digest = hashlib.file_digest(stream, 'sha256').hexdigest()
     with video.progress_path.open('rb') as stream:
         frame_metadata_sha = hashlib.file_digest(stream, 'sha256').hexdigest()
+    visual_controls = 'neutral and left' if short_smoke else 'neutral and left/right/left'
     rec['game_video'] = {'file':video.path.name, 'sha256':digest, 'metadata':metadata,
                          'coverage':coverage, 'frame_metadata_file':video.progress_path.name,
                          'frame_metadata_sha256':frame_metadata_sha,
-                         'classification':'recorded; neutral and left/right/left need independent visual review'}
+                         'classification':f'recorded; {visual_controls} need independent visual review'}
     rec['classification'] = 'game and audio captured; independent gameplay and speaker review pending'
 
 
@@ -1118,6 +1222,8 @@ def parser():
     ap.add_argument('--game-template', type=Path, action='append', help='private 32x34 RGB opening-player template')
     ap.add_argument('--game-template-sha256', action='append', help='corresponding private template SHA-256')
     ap.add_argument('--game-max-host-age-ms', type=int, help='maximum local observation age; not a target timing bound')
+    ap.add_argument('--game-short-smoke', action='store_true',
+                    help='record one guarded direction and the full speaker toggle sequence')
     ap.add_argument('--evidence', type=Path, required=True, help='new, private output directory')
     ap.add_argument('--execute', action='store_true')
     return ap
@@ -1127,12 +1233,12 @@ def main(argv=None):
     args = parser().parse_args(argv)
     if not args.execute:
         raise pa.AcceptanceError('--execute is required inside an already owned session')
+    if args.game_short_smoke and args.scenario != 'game':
+        raise pa.AcceptanceError('--game-short-smoke requires the game scenario')
     templates = []
     if args.scenario == 'game':
         if threading.active_count() != 1:
             raise pa.AcceptanceError('game diagnostics must start before capture threads')
-        if args.kit != 'A':
-            raise pa.AcceptanceError('game audio capture currently supports Kit A only')
         if (not args.game_template or len(args.game_template) != len(args.game_template_sha256 or [])
                 or type(args.game_max_host_age_ms) is not int or args.game_max_host_age_ms <= 0):
             raise pa.AcceptanceError('game requires pinned private templates and a local age policy')
@@ -1234,14 +1340,16 @@ def main(argv=None):
             helper, helper_build = game_capture.build_capture_helper(args.evidence, helper_source,
                 provenance['diagnostic_file_sha256']['scripts/pcxt_v4l2_capture.c'],
                 check_interrupted=check_interrupted)
-            probe = gameplay.PlaybackProbe(threading.Event(), max_host_age_ns=args.game_max_host_age_ms*1000000)
+            probe = gameplay.PlaybackProbe(threading.Event(), max_host_age_ns=args.game_max_host_age_ms*1000000,
+                                           short_smoke=args.game_short_smoke)
             rec['game_probe'] = {'capture_helper':helper_build, 'template_sha256':args.game_template_sha256,
                                  'max_host_age_ms':args.game_max_host_age_ms,
-                                 'controls':['neutral','left','right','left'],
+                                 'controls':['neutral','left'] if args.game_short_smoke else ['neutral','left','right','left'],
                                  'note':'host age is not a target timing bound; audio/video clocks are not synchronized'}
             def factory(device, evidence, selected_probe):
                 return game_capture.GameCapture(device, evidence, selected_probe, helper,
-                                                 helper_build['binary_sha256'], templates)
+                                                 helper_build['binary_sha256'], templates,
+                                                 check_interrupted=check_interrupted)
             run_game(runner, owned, args, rec, input_session_id, font, probe=probe, video_factory=factory,
                      audio_factory=game_audio.AudioRecorder)
         validate_active(runner, owned, args, disk['floppy_sha256'])
@@ -1258,6 +1366,7 @@ def main(argv=None):
     except BaseException as exc:
         rec['classification'] = 'failed; owned session and kit cleanup remain with caller'
         rec['failed_at_utc'] = stamp(); rec['failure'] = repr(exc)
+        rec['failure_notes'] = [str(note)[:1000] for note in getattr(exc, '__notes__', [])[:20]]
         rec['source_cleanup_incomplete'] = bool(getattr(exc, 'source_cleanup_incomplete', False))
         rec['audio_cleanup_incomplete'] = bool(getattr(exc, 'audio_cleanup_incomplete', False))
         with (args.evidence/'failure.json').open('x') as output:

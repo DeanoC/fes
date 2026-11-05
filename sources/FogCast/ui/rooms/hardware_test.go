@@ -1145,7 +1145,9 @@ func TestHardwareRoomToolLabelsFitAtKitSize(t *testing.T) {
 		w, h := workshopKitSize(display[0], display[1])
 		t.Run(fmt.Sprintf("%dx%d-content-%dx%d", display[0], display[1], w, h), func(t *testing.T) {
 			r := openWorkshop(t, w, h, true)
-			f := r.Step(time.Unix(3000, 0))
+			// The background read may still be loading on a slow runner, so
+			// wait for it before checking the finished label.
+			f := stepUntil(t, r, func(f Frame) bool { return frameHas(f, "Refresh") })
 			assertLabelsFit(t, f, "Import expansion")
 			assertLabelsFit(t, f, "Refresh", "Checking...")
 		})

@@ -18,6 +18,16 @@ class Clock;
 class Mmio;
 class ComputerMediaSnapshot;
 
+// A kit whose clock never synced counts from 1970. Any kit time before
+// 2026-01-01 is taken as unsynced, and the clock then starts at noon that
+// day, a Thursday: MS-DOS 6.22 boots 224 bytes smaller when the clock reads
+// midnight (#1433).
+constexpr int kWallClockSyncedFloorYear = 2026, kWallClockSyncedFloorMonth = 1,
+	kWallClockSyncedFloorDay = 1, kWallClockSyncedFloorWeekday = 4,
+	kWallClockSyncedFloorHour = 12;
+bool WallClockSynced(const std::tm& local);
+std::tm WallClockSyncedFloor();
+
 struct MediaStreamInfo {
 	std::uint32_t minimum = 0;
 	std::uint32_t maximum = 0;
@@ -125,9 +135,13 @@ public:
 		std::uint16_t sectors_per_track, std::uint32_t crc, std::uint64_t deadline);
 	// After Freeze: the ascending chunk indices of the dirty map.
 	Error ReadAtaDirty(std::uint64_t deadline, std::vector<std::uint32_t>* chunks);
-	// fes.rtc.wall-clock 1.0: the four words of a local time, while held.
+	// fes.rtc.wall-clock 1.0: the four words of a local time, while held. A
+	// time before kWallClockSyncedFloor is an unsynced kit clock and sends the
+	// floor instead.
 	bool WallClockCapable() const { return wall_clock_; }
 	Error SetWallClock(const std::tm& local, std::uint64_t deadline);
+	// fes.pc386.machine 1.0: the runtime zeroes the guest's memory at launch.
+	bool Pc386MachineCapable() const { return pc386_machine_; }
 	// Units of declared media interfaces with their last live MediaInfo state.
 	const std::vector<MediaUnitCapability>& media_units() const { return media_units_; }
 	// Live transfer while execution stays released: MediaInfo, Begin, 512-byte
@@ -197,6 +211,7 @@ private:
 	bool pcxt_floppy_write_ = false;
 	bool tape_write_ = false;
 	bool wall_clock_ = false;
+	bool pc386_machine_ = false;
 	bool ata_disk_ = false;
 	KeyboardHidRows hid_rows_{};
 	bool hid_rows_known_ = false;
