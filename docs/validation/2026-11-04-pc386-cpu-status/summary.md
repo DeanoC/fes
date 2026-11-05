@@ -75,4 +75,3 @@ Sound Blaster is on IRQ 7) and EIP always restarts at 0172, so vector 0Dh is
 #GP. The ring has no CS/DS limits, so it cannot tell a data-access fault from
 a fetch fault; the [#1433 comments](https://github.com/DeanoC/fes/issues/1433#issuecomment-6638535792)
 have the measurements and the proposed bench watch.
-

@@ -79,6 +79,13 @@ class StatusReader(unittest.TestCase):
         self.assertLess(loop.index('W 0'), loop.index('W 1'))
         self.assertGreater(loop.rindex('W 0'), loop.index('W 7'))
 
+    def test_snapshot_reads_without_a_duration_guard(self):
+        # A guard there could fire on a second boundary before any read.
+        snapshot = reader.one_sample(reader.ALL_WORDS)
+        self.assertNotIn('end', snapshot)
+        self.assertNotIn('break', snapshot)
+        self.assertEqual(snapshot.count('devmem'), 10)
+
 
 if __name__ == '__main__':
     unittest.main()

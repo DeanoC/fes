@@ -49,18 +49,24 @@ SAMPLE_WORDS = (0, 1, 2, 3, 5, 7)
 ALL_WORDS = tuple(range(8))
 
 
-def remote_loop(words: tuple[int, ...], seconds: float, interval: float) -> str:
-    """The kit's busybox shell loop: per sample a line 'S <uptime> <head>',
-    then a line per word 'W <n> <value>', and 'E' once word 0 is read again.
-    It ends at --seconds, or once 'E' cannot be written: the shell sshd starts
-    ignores SIGPIPE, so a reader that goes away would otherwise leave it running."""
+def one_sample(words: tuple[int, ...]) -> str:
+    """One sample, as the kit's busybox shell runs it: a line 'S <uptime>
+    <head>', a line per word 'W <n> <value>', then 'E' once word 0 is read
+    again. It fails if 'E' cannot be written."""
     reads = ''.join(f'echo W {n} $(devmem $((r + {8 * n})) 64); ' for n in words)
+    return (f'read u _ < /proc/uptime; h=$(devmem {HEAD:#x} 64); '
+            f'n=$(( (h & 0xffffffff) - 1 )); r=$(( {RECORDS:#x} + 64 * (n & {SLOTS - 1}) )); '
+            f'echo S $u $h; {reads}echo W 0 $(devmem $r 64); echo E')
+
+
+def remote_loop(words: tuple[int, ...], seconds: float, interval: float) -> str:
+    """The kit's loop of one_sample for --seconds, every --interval. It also
+    ends once 'E' cannot be written: the shell sshd starts ignores SIGPIPE,
+    so a reader that goes away would otherwise leave it running."""
     pause = f'usleep {int(interval * 1e6)}; ' if interval > 0 else ''
     return (f'read u0 _ < /proc/uptime; end=$((${{u0%.*}} + {int(seconds) + 1})); '
             f'while :; do read u _ < /proc/uptime; [ ${{u%.*}} -ge $end ] && break; '
-            f'h=$(devmem {HEAD:#x} 64); '
-            f'n=$(( (h & 0xffffffff) - 1 )); r=$(( {RECORDS:#x} + 64 * (n & {SLOTS - 1}) )); '
-            f'echo S $u $h; {reads}echo W 0 $(devmem $r 64); echo E || break; {pause}done')
+            f'{one_sample(words)} || break; {pause}done')
 
 
 def decode(head: int, words: dict[int, int], expected: tuple[int, ...] = SAMPLE_WORDS) -> dict:
@@ -169,8 +175,7 @@ def main(argv=None) -> int:
     ssh = shlex.split(args.ssh)
     try:
         if args.mode == 'snapshot':
-            loop = remote_loop(ALL_WORDS, 0, 0).replace('while :;', 'for once in 1;')
-            for item in parse(run(ssh, loop), expected=ALL_WORDS):
+            for item in parse(run(ssh, one_sample(ALL_WORDS)), expected=ALL_WORDS):
                 print(json.dumps(item, indent=2))
                 return 0 if item['whole'] else 1
             return 1
