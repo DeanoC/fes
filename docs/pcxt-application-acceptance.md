@@ -182,6 +182,18 @@ specified open PR, with the expected base repository and base branch; the PR
 head may be in a fork. The diagnostic checkout, host, software and package
 receipts must all identify that same head. The local diagnostic and its consumed
 source inputs must match the bytes committed at that head.
+
+For an exact current-main run, `--compatible-software-source <full-commit>`
+explicitly permits a separately receipted software bundle from that commit.
+The host must still match the package producer. The diagnostic verifies and
+records identical complete `sources/libmister-runtime` and
+`sources/mister-packages` source trees at both commits, and continues to check
+the exact active bundle, base image and live session interfaces. These tree
+checks do not establish binary equality or general host/agent compatibility;
+the diagnostic records the separate software identity and tests the actual
+combination. Without this option the existing same-source requirement applies.
+This option is unavailable for PR or historical-main runs.
+
 `--phase-deadline-monotonic` is an absolute reading of the local monotonic clock,
 not a wall-clock time; it is checked at source verification gates, not enforced
 as an overall phase deadline. The Save request has its own bounded timeout.

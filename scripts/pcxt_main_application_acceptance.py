@@ -37,6 +37,7 @@ def main(argv=None):
         p.add_argument('--source-observed-tip', help='reviewed live main tip in historical mode')
         p.add_argument('--source-diff-sha256', help='reviewed raw producer-to-tip diff SHA-256')
         p.add_argument('--source-minimum-tip', help='last accepted main tip in historical mode')
+        p.add_argument('--compatible-software-source', help='explicit software source with identical runtime and contract source trees')
         p.add_argument('--host-pid', type=int, required=True)
         return p
 
@@ -48,7 +49,7 @@ def main(argv=None):
 
     def source(args, font):
         result, host_raw, software_raw = original_source(args, font)
-        floppy.check_matching_sources(result, args.source_commit)
+        floppy.check_source_admission(result, args)
         result['main_source'] = floppy.main_source_evidence(args)
         for module in (floppy, floppy.health_evidence, sys.modules[__name__]):
             path = Path(module.__file__).resolve()

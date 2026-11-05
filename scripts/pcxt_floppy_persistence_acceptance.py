@@ -615,6 +615,61 @@ def check_matching_sources(provenance, source_commit):
         raise pa.AcceptanceError('host, software and package source commits differ')
 
 
+def check_source_admission(provenance, args, *, root=None):
+    """Keep same-source default; admit one pinned software source with identical ABI trees.
+
+    The existing provenance check already pins the host binary, both receipts,
+    installed bundle and base image. This exception establishes equality of the
+    runtime and contract *source trees*, not equality of the complete software
+    bundles or proof that the live target is compatible. Normal live package,
+    ABI, ownership and session checks remain mandatory.
+    """
+    companion = getattr(args, 'compatible_software_source', None)
+    if companion is None:
+        check_matching_sources(provenance, args.source_commit)
+        return
+    if (getattr(args, 'source_main', False) is not True
+            or getattr(args, 'source_historical_main', False)
+            or getattr(args, 'source_pr', None) is not None
+            or not isinstance(args.source_commit, str) or not re.fullmatch(r'[0-9a-f]{40}', args.source_commit)
+            or not isinstance(companion, str) or not re.fullmatch(r'[0-9a-f]{40}', companion)
+            or companion == args.source_commit
+            or provenance['host']['source_commit'] != args.source_commit
+            or provenance['software']['source_commit'] != companion):
+        raise pa.AcceptanceError('invalid explicitly pinned companion software source')
+    paths = ('sources/libmister-runtime', 'sources/mister-packages')
+    root = Path(root) if root is not None else Path(__file__).resolve().parent.parent
+    deadline = PhaseDeadline(time.monotonic() + 5)
+    def trees(commit):
+        raw = bounded_source_command(['git', 'ls-tree', '-z', commit, '--', *paths], deadline, cwd=root)
+        rows = {}
+        for row in raw.split(b'\0'):
+            if not row:
+                continue
+            match = re.fullmatch(rb'040000 tree ([0-9a-f]{40})\t([^\t\n]+)', row)
+            if not match:
+                raise ValueError('unexpected source tree entry')
+            name = match.group(2).decode('ascii')
+            if name not in paths or name in rows:
+                raise ValueError('duplicate or unexpected source tree')
+            rows[name] = match.group(1).decode('ascii')
+        if set(rows) != set(paths):
+            raise ValueError('source tree missing')
+        return rows
+    try:
+        producer_trees, software_trees = trees(args.source_commit), trees(companion)
+        if producer_trees != software_trees:
+            raise ValueError('runtime or ABI contract source differs')
+    except (OSError, ValueError, UnicodeError, subprocess.SubprocessError):
+        raise pa.AcceptanceError('companion runtime or contract source could not be verified') from None
+    provenance['companion_software'] = {
+        'policy': 'identical-runtime-and-contract-source-trees-v1',
+        'source_commit': companion,
+        'trees': producer_trees,
+        'scope': 'runtime and contract source equality only; software bundles differ',
+    }
+
+
 def guarded_observation(original_validate_once, runner, owned, args, disk_sha, observer=None):
     """Recheck private host and writable binding on both owned session snapshots."""
     def validate_media(foreground, targeted):
@@ -659,6 +714,7 @@ def main(argv=None):
         p.add_argument('--source-observed-tip', help='reviewed full live main tip in historical mode')
         p.add_argument('--source-diff-sha256', help='reviewed raw producer-to-tip diff SHA-256 in historical mode')
         p.add_argument('--source-minimum-tip', help='last accepted main tip; write receipt tip on restart')
+        p.add_argument('--compatible-software-source', help='explicit software source with identical runtime and contract source trees')
         p.add_argument('--phase-deadline-monotonic', required=True, type=float)
         p.add_argument('--host-pid', required=True, type=int)
         p.add_argument('--write-receipt', type=Path)
@@ -666,7 +722,7 @@ def main(argv=None):
         return p
     def source(args, font):
         result, host_raw, software_raw = original_source(args, font)
-        check_matching_sources(result, args.source_commit)
+        check_source_admission(result, args)
         if args.source_main or args.source_historical_main:
             result['main_source'] = main_source_evidence(args)
         result['diagnostic_file_sha256']['scripts/pcxt_floppy_persistence_acceptance.py'] = hashlib.sha256(Path(__file__).read_bytes()).hexdigest()
