@@ -112,8 +112,10 @@ The release store keeps the confirmed current image and one verified fallback
 newly staged image can temporarily add a third release while an update is
 pending or on trial. Once confirmation succeeds, the store removes superseded
 images, while preserving the boot-ticket image and every release image that
-currently backs a loop device. The bootstrap ticket records the fallback hash,
-so a damaged selection-state file can still boot a verified image from FAT.
+currently backs a loop device. The bootstrap keeps `boot.json` on its stable
+three-field schema for older target agents and writes the fallback hash in an
+adjacent `boot-fallback.json` record bound to the boot ID and image hash. A
+damaged selection-state file can still boot a verified image from FAT.
 The conventional 256 MiB layout is unchanged and is too small for this
 appliance update workflow.
 

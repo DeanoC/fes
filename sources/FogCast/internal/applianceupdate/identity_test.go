@@ -6,6 +6,7 @@ import (
 	"strings"
 	"testing"
 
+	store "github.com/DeanoC/FogCast/appliance/store"
 	"github.com/DeanoC/FogCast/internal/applianceupdate"
 )
 
@@ -45,5 +46,32 @@ func TestBootTicketMustMatchCurrentLinuxBoot(t *testing.T) {
 	got, e = applianceupdate.ReadBootIdentity(ticket, proc)
 	if e != nil || !got.Trial || got.ImageSHA256 != strings.Repeat("b", 64) || got.FallbackImageSHA256 != strings.Repeat("a", 64) {
 		t.Fatalf("ticket with fallback: %+v %v", got, e)
+	}
+}
+
+func TestBootIdentityReadsMatchingFallbackSidecar(t *testing.T) {
+	dir := t.TempDir()
+	ticket := filepath.Join(dir, "boot.json")
+	proc := filepath.Join(dir, "boot_id")
+	image := strings.Repeat("a", 64)
+	fallback := strings.Repeat("b", 64)
+	if err := os.WriteFile(proc, []byte("boot-a\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if err := store.WriteBootTicket(ticket, "boot-a", image, true, fallback); err != nil {
+		t.Fatal(err)
+	}
+	got, err := applianceupdate.ReadBootIdentity(ticket, proc)
+	if err != nil || !got.Trial || got.BootID != "boot-a" || got.ImageSHA256 != image || got.FallbackImageSHA256 != fallback {
+		t.Fatalf("ticket with fallback sidecar: %+v %v", got, err)
+	}
+
+	stale := `{"boot_id":"old-boot","image_sha256":"` + image + `","fallback_image_sha256":"` + fallback + `"}`
+	if err := os.WriteFile(filepath.Join(dir, store.BootFallbackFilename), []byte(stale), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	got, err = applianceupdate.ReadBootIdentity(ticket, proc)
+	if err != nil || got.FallbackImageSHA256 != "" {
+		t.Fatalf("stale sidecar was used: %+v %v", got, err)
 	}
 }

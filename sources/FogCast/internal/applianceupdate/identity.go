@@ -6,9 +6,11 @@ import (
 	"errors"
 	"io"
 	"os"
+	"path/filepath"
 	"strings"
 
 	release "github.com/DeanoC/FogCast/appliance"
+	store "github.com/DeanoC/FogCast/appliance/store"
 )
 
 // ReadBootIdentity accepts only the bootstrap's ticket for this actual boot.
@@ -81,6 +83,12 @@ func ReadBootIdentity(ticketPath, bootIDPath string) (BootIdentity, error) {
 	}
 	if (len(seen) != 3 && len(seen) != 4) || result.BootID == "" || result.BootID != strings.TrimSpace(string(boot)) || !release.ValidHash(result.ImageSHA256) || len(seen) == 4 && !release.ValidHash(result.FallbackImageSHA256) {
 		return result, ErrIdentity
+	}
+	// The sidecar extends the ticket without changing the schema older target
+	// agents accept. Invalid or stale optional metadata does not invalidate this
+	// boot's authoritative identity.
+	if fallback, fallbackErr := store.ReadBootFallback(filepath.Join(filepath.Dir(ticketPath), store.BootFallbackFilename), result.BootID, result.ImageSHA256); fallbackErr == nil && fallback != "" {
+		result.FallbackImageSHA256 = fallback
 	}
 	return result, nil
 }

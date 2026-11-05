@@ -25,6 +25,9 @@ import (
 
 const DefaultRoot = "/media/fat/fogcast/releases"
 
+// BootFallbackFilename names the optional fallback record beside boot.json.
+const BootFallbackFilename = "boot-fallback.json"
+
 var ErrCorruptState = errors.New("release selection state is corrupt; factory fallback only")
 var ErrBusy = errors.New("release trial or pending activation already exists")
 
@@ -92,6 +95,14 @@ type Selection struct {
 	Trial               bool             `json:"trial"`
 	BootID              string           `json:"boot_id"`
 	FallbackImageSHA256 string           `json:"fallback_image_sha256"`
+}
+
+// BootTicket is the stable three-field ticket read by the bootstrap and target
+// agent. Recovery metadata lives in a separate, identity-bound sidecar.
+type BootTicket struct {
+	BootID      string `json:"boot_id"`
+	ImageSHA256 string `json:"image_sha256"`
+	Trial       bool   `json:"trial"`
 }
 type diskState struct {
 	Format         int    `json:"format"`
@@ -1061,6 +1072,67 @@ type bootTicket struct {
 	FallbackImageSHA256 string `json:"fallback_image_sha256,omitempty"`
 }
 
+type bootFallbackRecord struct {
+	BootID              string `json:"boot_id"`
+	ImageSHA256         string `json:"image_sha256"`
+	FallbackImageSHA256 string `json:"fallback_image_sha256"`
+}
+
+// WriteBootTicket writes recovery metadata first, then atomically publishes the
+// legacy-compatible boot.json. Older target agents ignore the sidecar and keep
+// accepting the unchanged three-field ticket schema.
+func WriteBootTicket(path, bootID, imageSHA string, trial bool, fallbackImageSHA string) error {
+	return writeBootTicketWithSync(path, bootID, imageSHA, trial, fallbackImageSHA, (*os.File).Sync, syncDir)
+}
+
+func writeBootTicketWithSync(path, bootID, imageSHA string, trial bool, fallbackImageSHA string, syncFile func(*os.File) error, syncDirectory func(string) error) error {
+	if !validBootID(bootID) || !release.ValidHash(imageSHA) || !release.ValidHash(fallbackImageSHA) {
+		return errors.New("invalid boot ticket identity or fallback")
+	}
+	meta := bootFallbackRecord{BootID: bootID, ImageSHA256: imageSHA, FallbackImageSHA256: fallbackImageSHA}
+	metaBody, err := json.Marshal(meta)
+	if err != nil {
+		return err
+	}
+	dir := filepath.Dir(path)
+	if err = atomicWriteWithSync(filepath.Join(dir, BootFallbackFilename), append(metaBody, '\n'), syncFile, syncDirectory); err != nil {
+		return err
+	}
+	body, err := json.Marshal(BootTicket{BootID: bootID, ImageSHA256: imageSHA, Trial: trial})
+	if err != nil {
+		return err
+	}
+	return atomicWriteWithSync(path, append(body, '\n'), syncFile, syncDirectory)
+}
+
+// ReadBootFallback returns the sidecar fallback only when it belongs to the
+// supplied ticket. A missing or stale sidecar is harmless for older tickets.
+func ReadBootFallback(path, bootID, imageSHA string) (string, error) {
+	f, err := regularOpen(path)
+	if errors.Is(err, os.ErrNotExist) {
+		return "", nil
+	}
+	if err != nil {
+		return "", err
+	}
+	defer f.Close()
+	body, err := io.ReadAll(io.LimitReader(f, 4097))
+	if err != nil || len(body) > 4096 {
+		return "", errUnreadableBootTicket
+	}
+	decoder := json.NewDecoder(bytes.NewReader(body))
+	decoder.DisallowUnknownFields()
+	var record bootFallbackRecord
+	if decoder.Decode(&record) != nil || decoder.Decode(&struct{}{}) != io.EOF ||
+		!validBootID(record.BootID) || !release.ValidHash(record.ImageSHA256) || !release.ValidHash(record.FallbackImageSHA256) {
+		return "", errUnreadableBootTicket
+	}
+	if record.BootID != bootID || record.ImageSHA256 != imageSHA {
+		return "", nil
+	}
+	return record.FallbackImageSHA256, nil
+}
+
 func (s *Store) readBootTicket() (bootTicket, error) {
 	var ticket bootTicket
 	f, err := regularOpen(filepath.Join(s.root, "boot.json"))
@@ -1092,6 +1164,13 @@ func (s *Store) readBootTicket() (bootTicket, error) {
 	}
 	if err = dec.Decode(&struct{}{}); err != io.EOF {
 		return ticket, errUnreadableBootTicket
+	}
+	fallback, err := ReadBootFallback(filepath.Join(s.root, BootFallbackFilename), ticket.BootID, ticket.ImageSHA256)
+	if err != nil {
+		return ticket, errUnreadableBootTicket
+	}
+	if fallback != "" {
+		ticket.FallbackImageSHA256 = fallback
 	}
 	return ticket, nil
 }
@@ -1175,11 +1254,7 @@ func (s *Store) clearBootTrial(bootID, imageSHA, fallbackImageSHA string) error 
 		}
 	}
 	ticket.Trial = false
-	body, err := json.Marshal(ticket)
-	if err != nil {
-		return err
-	}
-	return atomicWriteWithSync(filepath.Join(s.root, "boot.json"), append(body, '\n'), s.syncFile, s.syncDirectory)
+	return writeBootTicketWithSync(filepath.Join(s.root, "boot.json"), ticket.BootID, ticket.ImageSHA256, ticket.Trial, ticket.FallbackImageSHA256, s.syncFile, s.syncDirectory)
 }
 
 // clearConfirmedBootTicket clears a durable confirmation's trial ticket.

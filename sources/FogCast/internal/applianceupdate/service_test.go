@@ -8,6 +8,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"log/slog"
 	"os"
 	"path/filepath"
@@ -103,6 +104,26 @@ func TestConfirmClearsBootTicketTrial(t *testing.T) {
 	}
 	if e = svc.Confirm(context.Background(), "boot-a", n.ImageSHA256); e != nil {
 		t.Fatal(e)
+	}
+	body, e := os.ReadFile(filepath.Join(root, "boot.json"))
+	if e != nil {
+		t.Fatal(e)
+	}
+	var legacyTicket struct {
+		BootID      *string `json:"boot_id"`
+		ImageSHA256 *string `json:"image_sha256"`
+		Trial       *bool   `json:"trial"`
+	}
+	decoder := json.NewDecoder(bytes.NewReader(body))
+	decoder.DisallowUnknownFields()
+	if e = decoder.Decode(&legacyTicket); e != nil {
+		t.Fatalf("old strict parser rejected confirmed ticket %s: %v", body, e)
+	}
+	if e = decoder.Decode(&struct{}{}); e != io.EOF {
+		t.Fatalf("old strict parser found trailing confirmed ticket data: %v", e)
+	}
+	if legacyTicket.BootID == nil || *legacyTicket.BootID != "boot-a" || legacyTicket.ImageSHA256 == nil || *legacyTicket.ImageSHA256 != n.ImageSHA256 || legacyTicket.Trial == nil || *legacyTicket.Trial {
+		t.Fatalf("confirmed legacy ticket = %+v", legacyTicket)
 	}
 	got, e = applianceupdate.ReadBootIdentity(filepath.Join(root, "boot.json"), idPath)
 	if e != nil || got.Trial || got.BootID != "boot-a" || got.ImageSHA256 != n.ImageSHA256 || got.FallbackImageSHA256 != m.ImageSHA256 {

@@ -5,7 +5,6 @@ package main
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"flag"
 	"fmt"
@@ -138,39 +137,5 @@ func (linuxPlatform) Ticket(choice store.Selection) error {
 	return writeTicket(filepath.Join(store.DefaultRoot, "boot.json"), choice)
 }
 func writeTicket(path string, choice store.Selection) error {
-	ticket := struct {
-		BootID              string `json:"boot_id"`
-		ImageSHA256         string `json:"image_sha256"`
-		Trial               bool   `json:"trial"`
-		FallbackImageSHA256 string `json:"fallback_image_sha256"`
-	}{choice.BootID, choice.Manifest.ImageSHA256, choice.Trial, choice.FallbackImageSHA256}
-	bytes, err := json.Marshal(ticket)
-	if err != nil {
-		return err
-	}
-	dir := filepath.Dir(path)
-	f, err := os.CreateTemp(dir, ".boot-")
-	if err != nil {
-		return err
-	}
-	defer os.Remove(f.Name())
-	defer f.Close()
-	if _, err = f.Write(append(bytes, '\n')); err != nil {
-		return err
-	}
-	if err = f.Sync(); err != nil {
-		return err
-	}
-	if err = f.Close(); err != nil {
-		return err
-	}
-	if err = os.Rename(f.Name(), path); err != nil {
-		return err
-	}
-	d, err := os.Open(dir)
-	if err != nil {
-		return err
-	}
-	defer d.Close()
-	return d.Sync()
+	return store.WriteBootTicket(path, choice.BootID, choice.Manifest.ImageSHA256, choice.Trial, choice.FallbackImageSHA256)
 }

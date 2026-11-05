@@ -1694,11 +1694,13 @@ keeps those trees on FAT.
 Confirmed appliance releases retain the current image plus one verified
 fallback on FAT, and always protect the factory image as a final recovery
 anchor. Superseded non-factory releases are pruned. A staged candidate may be
-present there while an update is pending or on trial. The bootstrap's boot
-ticket records the fallback image so recovery can still select it if the
-release state file is corrupt. Authenticated `GET /v1/update` preserves and
-reports that digest as `fallback_image_sha256`; confirming a trial changes the
-trial flag without dropping its fallback. Moving
+present there while an update is pending or on trial. The bootstrap keeps
+`boot.json` on its stable `boot_id`, `image_sha256`, and `trial` schema so older
+target agents continue to accept it. A separate `boot-fallback.json` record,
+bound to that boot ID and image hash, stores the fallback so recovery can still
+select it if the release state file is corrupt. Authenticated `GET /v1/update`
+preserves and reports that digest as `fallback_image_sha256`; confirming a trial
+clears the trial flag without dropping its sidecar fallback. Moving
 previous, pending and trial image files to FESDATA3, with a read-only p3 mount
 in the bootstrap and a FAT known-good fallback when that mount fails, is the
 next appliance update step.
@@ -1764,7 +1766,9 @@ the upload, fails the stage with HTTP 507 `UPDATE_NO_SPACE`
 The FES bootstrap owns fallback ordering, Linux mounts, loops, and the
 watchdog. The bootstrap records its selected image in
 `/media/fat/fogcast/releases/boot.json`; the native agent accepts that ticket only
-for the current kernel boot ID and retained factory manifest.
+for the current kernel boot ID and retained factory manifest. The adjacent
+`boot-fallback.json` sidecar carries recovery metadata without extending the
+three-field ticket schema consumed by older agents.
 
 `internal/applianceupdate` uses the existing kit lease and coordinator transition.
 Activation drains launch/development/input/cast requests, stops the runtime so

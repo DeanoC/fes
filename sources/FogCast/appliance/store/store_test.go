@@ -785,16 +785,7 @@ func confirmRelease(t *testing.T, s *Store, hash, bootID string) {
 
 func writeSelectionTicket(t *testing.T, s *Store, selection Selection) {
 	t.Helper()
-	body, err := json.Marshal(bootTicket{
-		BootID:              selection.BootID,
-		ImageSHA256:         selection.Manifest.ImageSHA256,
-		Trial:               selection.Trial,
-		FallbackImageSHA256: selection.FallbackImageSHA256,
-	})
-	if err != nil {
-		t.Fatal(err)
-	}
-	if err = os.WriteFile(filepath.Join(s.root, "boot.json"), append(body, '\n'), 0o600); err != nil {
+	if err := WriteBootTicket(filepath.Join(s.root, "boot.json"), selection.BootID, selection.Manifest.ImageSHA256, selection.Trial, selection.FallbackImageSHA256); err != nil {
 		t.Fatal(err)
 	}
 }
