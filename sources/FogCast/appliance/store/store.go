@@ -1005,24 +1005,12 @@ func (s *Store) protectedImages() (map[string]struct{}, error) {
 	if ticketErr != nil && !errors.Is(ticketErr, os.ErrNotExist) {
 		return nil, ticketErr
 	}
-	canUsePrevious := false
 	if ticketErr == nil {
 		add(ticket.ImageSHA256)
 		add(ticket.FallbackImageSHA256)
-		canUsePrevious = st.Previous != "" && st.Previous != s.factory.ImageSHA256 &&
-			st.Good != s.factory.ImageSHA256 && st.Pending == "" && st.TrialImage == "" &&
-			!ticket.Trial && ticket.FallbackImageSHA256 == st.Previous && ticket.ImageSHA256 == st.Good
-		if canUsePrevious {
-			if _, verifyErr := s.verifyContext(context.Background(), st.Previous); verifyErr != nil {
-				canUsePrevious = false
-			} else if _, verifyErr = s.verifyContext(context.Background(), st.Good); verifyErr != nil {
-				canUsePrevious = false
-			}
-		}
 	}
-	if !canUsePrevious {
-		add(s.factory.ImageSHA256)
-	}
+	// Keep the factory image as the final recovery path even when Previous is usable.
+	add(s.factory.ImageSHA256)
 	paths, err := s.loopBackings()
 	if err != nil {
 		return nil, fmt.Errorf("refusing to prune releases: %w", err)

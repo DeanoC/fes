@@ -814,7 +814,7 @@ func confirmReleaseWithTicket(t *testing.T, s *Store, hash, bootID string) {
 	}
 }
 
-func TestRetentionKeepsCurrentAndOneFallback(t *testing.T) {
+func TestRetentionKeepsFactoryAlongsideCurrentAndPrevious(t *testing.T) {
 	s, factory, raw := fixture(t)
 	first := stageDistinct(t, s, raw, 21)
 	confirmReleaseWithTicket(t, s, first.ImageSHA256, "retention-a")
@@ -825,7 +825,7 @@ func TestRetentionKeepsCurrentAndOneFallback(t *testing.T) {
 	factoryImage, _ := releasePaths(t, s, factory.ImageSHA256)
 	firstImage, _ := releasePaths(t, s, first.ImageSHA256)
 	secondImage, _ := releasePaths(t, s, second.ImageSHA256)
-	mustAbsent(t, factoryImage)
+	mustExist(t, factoryImage)
 	mustExist(t, firstImage)
 	mustExist(t, secondImage)
 	status, err := s.Status()
