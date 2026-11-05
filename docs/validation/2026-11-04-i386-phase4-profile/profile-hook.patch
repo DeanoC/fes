@@ -97,10 +97,34 @@ diff -ruN a/sources/misteross/cores/fes-pc386/sim/cpu_profile_estimate.py b/sour
 +ref = kit_fps or 61.44e6 / (kit / F)
 +print(f'{"prediction (first five)":30s} {100 * pl / kit:7.1f}-{100 * ph / kit:5.1f}%  '
 +      f'{ref * kit / (kit - pl):5.1f}-{ref * kit / (kit - ph):5.1f}')
+diff -ruN a/sources/misteross/cores/fes-pc386/sim/cpu_profile_io.h b/sources/misteross/cores/fes-pc386/sim/cpu_profile_io.h
+--- a/sources/misteross/cores/fes-pc386/sim/cpu_profile_io.h	1970-01-01 02:00:00.000000000 +0200
++++ b/sources/misteross/cores/fes-pc386/sim/cpu_profile_io.h	2026-11-05 02:15:34.444734480 +0200
+@@ -0,0 +1,20 @@
++#pragma once
++#include <cstdint>
++
++// A page-flip marker is a byte write to CRTC start-address high (0Ch),
++// after a byte write to the CRTC index port selected that register.
++struct CrtcFrameTracker {
++    bool observe(bool write, uint16_t port, unsigned length, uint32_t value) {
++        if (!write) return false;
++        if (port == 0x3d4) {
++            crtc_index_valid = length == 1;
++            if (crtc_index_valid) crtc_index = static_cast<uint8_t>(value & 0x3f);
++            return false;
++        }
++        return port == 0x3d5 && length == 1 && crtc_index_valid && crtc_index == 0x0c;
++    }
++
++private:
++    uint8_t crtc_index = 0;
++    bool crtc_index_valid = false;
++};
 diff -ruN a/sources/misteross/cores/fes-pc386/sim/cpu_profile.h b/sources/misteross/cores/fes-pc386/sim/cpu_profile.h
 --- a/sources/misteross/cores/fes-pc386/sim/cpu_profile.h	1970-01-01 02:00:00.000000000 +0200
 +++ b/sources/misteross/cores/fes-pc386/sim/cpu_profile.h	2026-11-05 02:15:34.444734480 +0200
-@@ -0,0 +1,217 @@
+@@ -0,0 +1,219 @@
 +// SPDX-License-Identifier: MIT
 +// Phase 4 profile hook for machine_tb --cpu rtl (scratch, bench only; not committed).
 +// Reads D's issue and wait terms through cpu_profile.vlt's public_flat_rd signals and
@@ -109,6 +133,7 @@ diff -ruN a/sources/misteross/cores/fes-pc386/sim/cpu_profile.h b/sources/mister
 +
 +#include "Vfes_i386_cpu.h"
 +#include "Vfes_i386_cpu___024root.h"
++#include "cpu_profile_io.h"
 +
 +#include <algorithm>
 +#include <cstdint>
@@ -141,6 +166,7 @@ diff -ruN a/sources/misteross/cores/fes-pc386/sim/cpu_profile.h b/sources/mister
 +    uint64_t bucket[NBUCKET] = {};
 +    uint64_t commits = 0, flushes = 0, redirects = 0, l1d_waits = 0, l1i_waits = 0, retired = 0, pm_retired = 0;
 +    uint64_t frames = 0, polls_3da = 0, io_accesses = 0;
++    CrtcFrameTracker crtc_frame;
 +    Counts cls[NCLASS];
 +    uint64_t prefixes = 0;  // prefix bytes before the last one, which cost a cycle each
 +    struct Site { uint64_t n = 0, cycles = 0; uint8_t c = 0; };
@@ -197,9 +223,9 @@ diff -ruN a/sources/misteross/cores/fes-pc386/sim/cpu_profile.h b/sources/mister
 +#undef S
 +    }
 +    void parked(bool asleep) { ++sampled; ++bucket[asleep ? PARKED_HALT : PARKED_IO]; }
-+    void io(bool write, uint16_t port, uint32_t wdata) {
++    void io(bool write, uint16_t port, unsigned length, uint32_t wdata) {
 +        ++io_accesses;
-+        if (write && port == 0x3d4 && (wdata & 0xff) == 0x0c) ++frames;
++        if (crtc_frame.observe(write, port, length, wdata)) ++frames;
 +        if (!write && port == 0x3da) ++polls_3da;
 +    }
 +
@@ -471,13 +497,14 @@ diff -ruN a/sources/misteross/cores/fes-pc386/sim/machine_tb.cpp b/sources/miste
  
  #include <algorithm>
  #include <cstdint>
-@@ -499,7 +500,9 @@
+@@ -499,7 +500,10 @@
      }
      // A CPU I/O access the machine completed now: its time from the request
      // clock less its FIFO waits, the waits, and its trace lines.
-+    uint64_t flips = 0;  // CRTC start-address writes (index 0Ch), either CPU (Phase 4 profile)
++    uint64_t flips = 0;  // CRTC start-address writes (Phase 4 profile)
++    CrtcFrameTracker frame_tracker;
      void record_io(bool write, uint16_t port, unsigned length, uint32_t value, uint32_t result, uint64_t start) {
-+        if (write && port == 0x3d4 && (value & 0xff) == 0x0c) ++flips;
++        if (frame_tracker.observe(write, port, length, value)) ++flips;
          ++io_times[{io_class(port, write), length, cycles - start - vga_waits}];
          if (vga_waits) ++io_waits[{io_class(port, write), length, vga_waits}];
          vga_write_open = false;
@@ -509,7 +536,7 @@ diff -ruN a/sources/misteross/cores/fes-pc386/sim/machine_tb.cpp b/sources/miste
              m.top.io_size = io_length == 1 ? 0 : io_length == 2 ? 1 : 2;
              m.top.io_wdata = io_wdata;
              m.open_io(io_write, io_port);
-+            if (prof) prof->io(io_write, io_port, io_wdata);
++            if (prof) prof->io(io_write, io_port, io_length, io_wdata);
              io = Pending::Issued;
              io_start = m.cycles;
              issued = true;

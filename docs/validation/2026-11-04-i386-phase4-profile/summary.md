@@ -39,8 +39,8 @@ changes no RTL, and it is not a kit result.
     commits. Each retirement's clocks since the previous one go to its
     instruction class. A taken instruction's redirect is the gap to its
     target's retirement ("next").
-  - **Frames.** Frames are CRTC start-address writes (index 0Ch at 3D4h);
-    both games page-flip that way.
+  - **Frames.** Frames are byte writes to CRTC start-address register 0Ch at
+    3D5h, after selecting it through 3D4h; both games page-flip that way.
 - **Handover.** The bench is slow, about 12 wall minutes per simulated
   second on the RTL. So Bochs runs each workload up to its window and the
   RTL takes over: DOOM at its 40th page flip, the others at a set time.
