@@ -49,12 +49,26 @@ func TestBuiltROMSelectionPreflightsWithoutFirmwareIO(t *testing.T) {
 		t.Fatal(err)
 	}
 	_, _, lease, files, store := programLoaderFixture(t)
-	for name, artifact := range map[string]string{"FES/PKGTEST.BIN": "package.fcore", "FES/FIRMWARE.BIN": "FIRMWARE.BIN", "FES/PROGRAM.JSN": "PROGRAM.JSN", "FES/CORESEL.JSN": "CORESEL.JSN"} {
-		limit := int64(16384)
-		if name == "FES/PKGTEST.BIN" {
-			limit = 8 << 20
+	if catalog := os.Getenv("FES_NANO_ROM_CATALOG"); catalog != "" {
+		dir = filepath.Join(catalog, "FES")
+		entries, err := os.ReadDir(dir)
+		if err != nil || len(entries) > 16 {
+			t.Fatal("bounded private FES catalog required", err)
 		}
-		files.files[name] = &fstest.MapFile{Data: read(artifact, limit)}
+		for _, entry := range entries {
+			if !entry.Type().IsRegular() {
+				t.Fatal("regular private catalog files required", entry.Name())
+			}
+			files.files["FES/"+entry.Name()] = &fstest.MapFile{Data: read(entry.Name(), 8<<20)}
+		}
+	} else {
+		for name, artifact := range map[string]string{"FES/PKGTEST.BIN": "package.fcore", "FES/FIRMWARE.BIN": "FIRMWARE.BIN", "FES/PROGRAM.JSN": "PROGRAM.JSN", "FES/CORESEL.JSN": "CORESEL.JSN"} {
+			limit := int64(16384)
+			if name == "FES/PKGTEST.BIN" {
+				limit = 8 << 20
+			}
+			files.files[name] = &fstest.MapFile{Data: read(artifact, limit)}
+		}
 	}
 	requests, err := ReadProgramSelections(context.Background(), files, "FES/CORESEL.JSN")
 	if err != nil {

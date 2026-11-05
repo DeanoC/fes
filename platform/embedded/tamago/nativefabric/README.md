@@ -38,6 +38,9 @@ and run `go test -race -run TestBuiltROMSelectionPreflightsWithoutFirmwareIO
 firmware, metadata and catalog through the retained store/loader with a modeled
 active SD lease. Any firmware call fails the test. It proves artifact agreement
 before containment, without granting boot or hardware acceptance.
+`FES_NANO_ROM_CATALOG` can additionally select a private directory containing
+the actual `FES/` upload files, so two firmware choices and their distinct
+receipts are checked against the same compiled SDK resources.
 
 The shared-gamepad input loop now emits `FES_NATIVE_CORE_GAMEPAD` on the serial
 platform after a changed key matrix has completed its owned write. Receipts
