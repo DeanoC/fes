@@ -98,6 +98,9 @@ standalone composition does not provide normal FES admission. Independent fits,
 whole-board timing and physical acceptance remain required; internal16K audio
 clock exceptions do not apply to this profile.
 
+The PR profile registers its combined system-domain execution/fault mute
+before the audio synchronizer; the audit checks both incoming paths as well
+as the two synchronizer stages. The default internal16K wrapper is unchanged.
 The PR profile derives its shell SDC by replacing only the internal16K
 constant-PCM assertion with `pcm-clocks.sdc`. The default source remains
 unchanged. The mapped standard PCM is mono eight-bit data in bits14:7, with

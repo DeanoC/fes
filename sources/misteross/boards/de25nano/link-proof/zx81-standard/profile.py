@@ -133,6 +133,15 @@ def qsf(build_id):
 
 def top(source):
     replace = computer.replace_once
+    # Both mute causes are in the system domain. Register their combined
+    # value there, so the audio synchronizer receives one glitch-free source.
+    # Keep this selection local to the live-PCM PR profile.
+    source = replace(source, "wire standard_exec_reset;", "wire standard_exec_reset;\n"
+        "(* preserve, dont_merge *) reg standard_pr_audio_hold = 1'b1;\n"
+        "always @(posedge system_clk_100_internal)\n"
+        "  standard_pr_audio_hold <= standard_exec_reset || scanout_clock_fault;")
+    source = replace(source, ".hold(standard_exec_reset || scanout_clock_fault)",
+                     ".hold(standard_pr_audio_hold)")
     source = replace(source, "wire pr_req, pr_reset, pr_rsp_valid, pr_frozen, pr_running;",
         "wire pr_req, pr_reset, pr_rsp_valid, pr_frozen, pr_running;\n"
         "wire [45:0] zx81_request;\nwire [19:0] zx81_persona_response, zx81_response;\n"

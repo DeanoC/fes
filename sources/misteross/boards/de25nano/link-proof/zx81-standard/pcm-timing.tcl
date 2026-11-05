@@ -14,6 +14,12 @@ if {[get_collection_size $held] < 8 || [get_collection_size $pcm] < 8} {
     error "standard PR PCM lost physical payload registers"
 }
 set groups [list pcm_payload $held $pcm]
+set hold_causes [get_registers {soc_inst|subsys_periph|fes_scanout|fes_scanout|core|gp_mailbox|exec_reset fes_video_inst|fault}]
+set hold_source [get_registers {standard_pr_audio_hold}]
+if {[get_collection_size $hold_causes] != 2 || [get_collection_size $hold_source] != 1} {
+    error "standard PR PCM lost its registered system-domain mute source"
+}
+lappend groups pcm_hold_source $hold_causes $hold_source
 foreach {label head second} {
     pcm_request request_meta request_sync
     pcm_acknowledge ack_meta ack_sync
@@ -42,8 +48,8 @@ proc pcm_path_record {stream corner group check path} {
             error "$group unexpected system/audio clock relationship"
         }
     } elseif {$from_clock ne $to_clock ||
-              ($group eq "pcm_request" && $to_clock ne {pll_inst|iopll_0_outclk0}) ||
-              ($group ne "pcm_request" && ![string match {fes_audio_inst|clock|*} $to_clock])} {
+              ($group in {pcm_request pcm_hold_source} && $to_clock ne {pll_inst|iopll_0_outclk0}) ||
+              ($group ni {pcm_request pcm_hold_source} && ![string match {fes_audio_inst|clock|*} $to_clock])} {
         error "$group interstage path is not timed in its receiving domain"
     }
     set slack [get_path_info -slack $path]

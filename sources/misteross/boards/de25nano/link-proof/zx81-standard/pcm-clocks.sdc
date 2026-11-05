@@ -3,7 +3,7 @@
 foreach {label sources expected head second} {
     request {fes_audio_inst|audio|request} 1 request_meta request_sync
     acknowledge {fes_audio_inst|audio|acknowledge} 1 ack_meta ack_sync
-    hold {soc_inst|subsys_periph|fes_scanout|fes_scanout|core|gp_mailbox|exec_reset fes_video_inst|fault} 2 hold_meta hold_sync
+    hold {standard_pr_audio_hold} 1 hold_meta hold_sync
 } {
     set launches [get_registers $sources]
     set first_d [get_pins -compatibility_mode -nocase "fes_audio_inst|audio|${head}|d"]
