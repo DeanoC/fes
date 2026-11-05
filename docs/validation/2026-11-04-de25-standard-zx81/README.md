@@ -661,3 +661,40 @@ source receipts, retained-file hashes, partial visual result, restore erratum
 and release identity. Physical USB/audio, native ROM/persona composition,
 physical standard PR, current-head CI/independent review and the intermittent
 display failure remain open.
+
+
+## Standard expansion through actual runtime clients
+
+At `7be4e896379f3ff995ac264dfbc253f0baf55a48`, the existing standard expansion
+bench uses `FesGpCoreDriver` and `De25PrControl` in place of hand-coded GP/PR
+commands. The Avalon adapter only drives the model pins. Both native x86 and
+an ELF64 AArch64 executable under Cortex-A76 QEMU pass seeds 17 and 53. The ARM
+build uses the authenticated SDK from the recorded managed FES image, and runs
+the same retained standard RTL and actual runtime clients. This executes the
+compiled RTL model on an emulated CPU; neither board was accessed.
+
+The tests retain empty/16K/empty memory distinction and six live-write freeze
+phases, and check that GP HOLD and PR freeze independently hold the machine.
+A wrong-persona probe enters sticky Fault, while a callback failure after actual
+RAM selection leaves Frozen. Both keep the standard machine held; a second
+request through the poisoned PR client performs no writes or callback. An
+initial bench assertion wrongly required Frozen for both cases. The first ARM
+attempt also aborted before the scenarios because of Verilator's default
+host-sized thread pool. Both traces remain; an explicit one-worker limit passes
+the complete cases on native and emulated ARM.
+
+[standard-expansion-runtime-clients.json](standard-expansion-runtime-clients.json)
+binds sources, tools, binaries, logs and the retained jobs. This uses the existing
+17-byte diagnostic ROM, behavioral memory and a selection mux. It does not prove
+BASIC with the standard personas, target-side composition, native-kit CPU
+execution or physical PR. No RBF or package was rebuilt or admitted, and the
+stock-clock timing exception retains its internal16K scope. The previous
+intermittent display retirement fault and all remaining normal-kit gates stay
+open.
+
+The complete unmodified seven-command affected plan passes in 1112.772 seconds
+at `87e8eb79c09fff01827020d1190a71af76d429e6`, held unchanged throughout that run.
+The subsequent `7be4e896` delta only sets the bench to one worker and documents
+that limit; its full native and emulated ARM integration cases pass separately.
+Documentation links and support-matrix checks pass. These are software/model
+checks, with no new board or package acceptance.
