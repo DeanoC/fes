@@ -91,13 +91,27 @@ def inspect_archive(data, args):
 def capture(device, path, phase):
     if path.exists():
         raise pa.AcceptanceError('capture already exists: ' + str(path))
+    # The Kit B loopback is safe only while its paired physical USB card and
+    # fanout retain the independently checked identity across this frame.
+    identity = None
+    if device == '/dev/v4l/by-id/fes-4kpro-hil':
+        try: identity = game_audio.capture_identity('B')
+        except game_audio.AudioError as exc:
+            raise pa.AcceptanceError('Kit B capture identity unavailable') from exc
     subprocess.run(['ffmpeg', '-hide_banner', '-loglevel', 'error', '-f', 'v4l2',
                     '-input_format', 'yuyv422', '-video_size', '1920x1080', '-i', device,
                     '-vf', r'select=eq(n\,119)', '-frames:v', '1', '-y', str(path)],
                    check=True, timeout=30)
     width, height, rgb, digest = visual.decode_capture(path)
-    return (width, height, rgb), {'file': path.name, 'sha256': digest,
-                                  'captured_at_utc': stamp(), 'phase': phase}
+    if identity is not None:
+        try: after = game_audio.capture_identity('B')
+        except game_audio.AudioError as exc:
+            raise pa.AcceptanceError('Kit B capture identity unavailable after frame') from exc
+        if after != identity: raise pa.AcceptanceError('Kit B capture identity changed during frame')
+    metadata = {'file': path.name, 'sha256': digest,
+                'captured_at_utc': stamp(), 'phase': phase}
+    if identity is not None: metadata['capture_identity'] = identity
+    return (width, height, rgb), metadata
 
 
 def prompt(frame, font):

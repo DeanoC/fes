@@ -836,3 +836,29 @@ class VideoProcessTest(unittest.TestCase):
 
 if __name__ == '__main__':
     unittest.main()
+
+class KitBFrameIdentityTests(unittest.TestCase):
+    def test_b_frame_requires_stable_physical_capture_and_records_identity(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            path=Path(tmp)/'frame.png'
+            identity={'kit':'B','usb':{'serial':'expected'},'fanout_pid':123}
+            with mock.patch.object(app.game_audio,'capture_identity',side_effect=[identity,identity]) as check, \
+                 mock.patch.object(app.subprocess,'run') as capture, \
+                 mock.patch.object(app.visual,'decode_capture',return_value=(1,1,b'rgb','a'*64)):
+                _,info=app.capture('/dev/v4l/by-id/fes-4kpro-hil',path,'fixture')
+                self.assertEqual(check.call_count,2);capture.assert_called_once()
+                self.assertEqual(info['capture_identity'],identity)
+    def test_b_fanout_change_invalidates_frame(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            path=Path(tmp)/'frame.png'
+            with mock.patch.object(app.game_audio,'capture_identity',side_effect=[{'fanout_pid':1},{'fanout_pid':2}]), \
+                 mock.patch.object(app.subprocess,'run'), \
+                 mock.patch.object(app.visual,'decode_capture',return_value=(1,1,b'rgb','a'*64)):
+                with self.assertRaises(app.pa.AcceptanceError): app.capture('/dev/v4l/by-id/fes-4kpro-hil',path,'fixture')
+    def test_b_crosswire_rejected_before_open(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            path=Path(tmp)/'frame.png'
+            with mock.patch.object(app.game_audio,'capture_identity',side_effect=app.game_audio.AudioError('crosswired')), \
+                 mock.patch.object(app.subprocess,'run') as capture:
+                with self.assertRaises(app.pa.AcceptanceError): app.capture('/dev/v4l/by-id/fes-4kpro-hil',path,'fixture')
+                capture.assert_not_called()
