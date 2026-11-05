@@ -193,6 +193,22 @@ func (p *ProgramSerialPlatform) Present(ctx context.Context, snapshot tenfoot.Sn
 	return nil
 }
 
+// ObserveProgramGamepad emits only completed changes supplied by the owned
+// input loop. UART commands cannot inject USB reports through this method.
+func (p *ProgramSerialPlatform) ObserveProgramGamepad(ctx context.Context, observation ProgramGamepadObservation) error {
+	if ctx == nil {
+		return ErrProgramSession
+	}
+	if err := ctx.Err(); err != nil {
+		return err
+	}
+	raw, err := json.Marshal(observation)
+	if err != nil {
+		return err
+	}
+	return p.emit(ctx, append(append([]byte("FES_NATIVE_CORE_GAMEPAD "), raw...), '\n'))
+}
+
 // ProgramPreferences stays in RAM. It cannot write a FAT volume after a launch
 // has contained SD, and it makes no persistence promise across reboots.
 type ProgramPreferences struct {

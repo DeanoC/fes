@@ -194,7 +194,15 @@ func (p *ProgramInputPlatform) poll(ctx context.Context) ([]input.Event, error) 
 		var changes []input.Event
 		if v.State == ProgramRunning {
 			if p.gamepadSource != nil {
+				sequence := p.gamepad.state.observation.Sequence
 				err = p.gamepad.state.report(ctx, report)
+				if err == nil && p.gamepad.state.observation.Sequence != sequence {
+					if observer, ok := p.base.(interface {
+						ObserveProgramGamepad(context.Context, ProgramGamepadObservation) error
+					}); ok {
+						err = observer.ObserveProgramGamepad(ctx, p.gamepad.state.observation)
+					}
+				}
 			} else {
 				err = p.keyboard.state.report(ctx, report)
 			}

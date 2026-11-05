@@ -3,6 +3,8 @@ package nativefabric
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 
 	"github.com/DeanoC/fes/platform/embedded/tamago/input"
 	"github.com/DeanoC/fes/platform/embedded/tamago/usb"
@@ -60,10 +62,29 @@ func (m ProgramGamepadKeys) rows(state usb.GamepadState) [9]uint16 {
 // mapped rows are delivered directly through the owned computer service.
 type ProgramGamepad struct{ state *programGamepad }
 type programGamepad struct {
-	keys    ProgramKeyboard
-	decoder *usb.Gamepad
-	mapping ProgramGamepadKeys
-	armed   bool
+	keys        ProgramKeyboard
+	decoder     *usb.Gamepad
+	mapping     ProgramGamepadKeys
+	armed       bool
+	observation ProgramGamepadObservation
+}
+
+// ProgramGamepadObservation records a completed owned key-matrix write. It
+// proves neither that the source is physical nor that emulated software used
+// the keys. All fields are values, so observers cannot change the binding.
+type ProgramGamepadObservation struct {
+	Scope            string             `json:"scope"`
+	Owner            uint64             `json:"owner"`
+	Generation       uint64             `json:"generation"`
+	PackageID        string             `json:"package_id"`
+	BuildID          string             `json:"build_id"`
+	Sequence         uint64             `json:"sequence"`
+	DescriptorSHA256 string             `json:"descriptor_sha256"`
+	Report           string             `json:"report"`
+	State            usb.GamepadState   `json:"state"`
+	Mapping          ProgramGamepadKeys `json:"mapping"`
+	Before           [9]uint16          `json:"before"`
+	Rows             [9]uint16          `json:"rows"`
 }
 
 func (b *ProgramBackend) BindGamepad(ctx context.Context, generation uint64, descriptor []byte, mapping ProgramGamepadKeys) (ProgramGamepad, error) {
@@ -91,7 +112,11 @@ func (b *ProgramBackend) bindGamepad(ctx context.Context, generation uint64, des
 	if err != nil {
 		return ProgramGamepad{}, err
 	}
-	return ProgramGamepad{&programGamepad{keys: keys, decoder: decoder, mapping: mapping}}, nil
+	v := b.service.Status()
+	digest := sha256.Sum256(descriptor)
+	o := ProgramGamepadObservation{Scope: "nano-computer-gamepad-v1", Owner: v.Owner, Generation: v.Generation,
+		PackageID: v.Identity.PackageID, BuildID: v.Identity.BuildID, DescriptorSHA256: hex.EncodeToString(digest[:]), Mapping: mapping}
+	return ProgramGamepad{&programGamepad{keys: keys, decoder: decoder, mapping: mapping, observation: o}}, nil
 }
 func (g ProgramGamepad) Report(ctx context.Context, report []byte) error {
 	if g.state == nil {
@@ -117,10 +142,17 @@ func (p *programGamepad) report(ctx context.Context, report []byte) error {
 		*p.decoder = next
 		return nil
 	}
-	if err := p.keys.state.writeRows(ctx, p.mapping.rows(state)); err != nil {
+	before, rows := p.keys.state.rows, p.mapping.rows(state)
+	if err := p.keys.state.writeRows(ctx, rows); err != nil {
 		return err
 	}
 	*p.decoder = next
+	if rows != before {
+		p.observation.Sequence++
+		p.observation.Report = hex.EncodeToString(report)
+		p.observation.State = state
+		p.observation.Before, p.observation.Rows = before, rows
+	}
 	return nil
 }
 func (g ProgramGamepad) Disconnect(ctx context.Context) error {

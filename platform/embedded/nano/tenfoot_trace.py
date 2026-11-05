@@ -92,7 +92,7 @@ def packet(data,*,startup=False,input_mode='uart',usb_records=None,fetch_records
             exited=int(match[1]);require(exited<1<<64,'App exit generation overflow');continue
         text=raw.decode('utf-8')
         require(not text.startswith(('panic:','fatal error:')) and not re.search(r'\b(?:FAIL|FAILURE|REJECT|EXCEPTION)\b',text),'native failure before App observation')
-        require('FES_NATIVE_CORE_FETCH' not in text and 'FES_NATIVE_SHARED_USB' not in text and 'FES_NATIVE_TENFOOT' not in text and 'FES_NATIVE_PROGRAM_REPLY' not in text and 'FES_NATIVE_WINDOW_REPLY' not in text,'foreign or malformed App observation')
+        require('FES_NATIVE_CORE_GAMEPAD' not in text and 'FES_NATIVE_CORE_FETCH' not in text and 'FES_NATIVE_SHARED_USB' not in text and 'FES_NATIVE_TENFOOT' not in text and 'FES_NATIVE_PROGRAM_REPLY' not in text and 'FES_NATIVE_WINDOW_REPLY' not in text,'foreign or malformed App observation')
         evidence.append(line)
     require(states or exited is not None,'App observation absent')
     require(begins==int(startup),'App startup marker differs')
