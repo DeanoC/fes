@@ -164,7 +164,7 @@ class SoftwareWorkflowTests(unittest.TestCase):
         self.assertNotIn('GOARM', calls[-1][1]); self.assertNotIn('GOARM64', calls[-1][1])
         self.assertEqual(result['target'], 'linux/arm64 GOARM64=v8.0 CGO_ENABLED=0')
 
-    def de25_sdk_fixture(self, extra=None):
+    def de25_sdk_fixture(self, extra=None, producer_root=ROOT):
         directory = self.root / 'de25-image'; directory.mkdir(exist_ok=True)
         archive = directory / 'aarch64-sdk.tar.gz'
         with tarfile.open(archive, 'w:gz') as sdk:
@@ -175,8 +175,9 @@ class SoftwareWorkflowTests(unittest.TestCase):
         config = directory / 'buildroot.config'
         config.write_text('BR2_aarch64=y\nBR2_cortex_a53=y\nBR2_TOOLCHAIN_BUILDROOT_GLIBC=y\nBR2_TOOLCHAIN_BUILDROOT_CXX=y\n')
         lane = kit.load(ROOT / 'image/de25-nano/build.py', 'test_de25_sdk_recipe')
-        record = {'format': 1, 'board': 'de25-nano', 'architecture': 'aarch64', 'fes_revision': 'b' * 40,
-                  'recipe_sha256': lane.recipe_key(ROOT), 'rootfs_key': lane.rootfs_key(ROOT),
+        producer = subprocess.check_output(['git', '-C', producer_root, 'rev-parse', 'HEAD'], text=True).strip()
+        record = {'format': 1, 'board': 'de25-nano', 'architecture': 'aarch64', 'fes_revision': producer,
+                  'recipe_sha256': lane.recipe_key(producer_root), 'rootfs_key': lane.rootfs_key(producer_root),
                   'builder_image': 'sha256:' + 'c' * 64,
                   'files': {path.name: kit.sha(path) for path in (archive, config)}}
         (directory / 'image.json').write_text(json.dumps(record))
@@ -251,6 +252,37 @@ class SoftwareWorkflowTests(unittest.TestCase):
             (directory / 'rootfs.ext4').write_bytes(b'tampered base')
             with self.assertRaisesRegex(ValueError, 'artifact differs'):
                 kit.de25_sdk(repository, directory)
+
+    def test_headless_sdk_retains_producer_across_factory_edits_but_refuses_compiler_policy_changes(self):
+        repository, _, _, _ = self.managed_sdk_fixture()
+        directory, record = self.de25_sdk_fixture(producer_root=repository)
+        original_receipt = (directory / 'image.json').read_bytes()
+        factory = repository / 'image/de25-nano/managed_base.py'
+        factory.write_text(factory.read_text() + '\n# A later factory-only assembly edit.\n')
+        subprocess.run(['git', '-C', repository, 'add', 'image'], check=True)
+        subprocess.run(['git', '-C', repository, '-c', 'user.name=Fixture', '-c',
+                        'user.email=fixture@example.invalid', 'commit', '-qm', 'factory consumer fixture'], check=True)
+        selected = kit.de25_sdk(repository, directory)
+        self.assertEqual(selected['producer_revision'], record['fes_revision'])
+        self.assertEqual((directory / 'image.json').read_bytes(), original_receipt)
+        lane = kit.load(ROOT / 'image/de25-nano/build.py', 'headless_sdk_policy_fixture')
+        self.assertNotEqual(record['recipe_sha256'], lane.recipe_key(repository))
+        # A receipt cannot be relabelled with the later consumer's recipe.
+        (directory / 'image.json').write_text(json.dumps({**record, 'recipe_sha256': lane.recipe_key(repository)}))
+        with self.assertRaisesRegex(ValueError, 'recorded image producer'):
+            kit.de25_sdk(repository, directory)
+        (directory / 'image.json').write_bytes(original_receipt)
+        # The same actual SDK is refused if the current compiler/container or
+        # rootfs policy changes, even though the producer is still authentic.
+        dockerfile = repository / 'image/containers/target-image/Dockerfile'
+        before = dockerfile.read_bytes()
+        dockerfile.write_bytes(before + b'\n# Changed current compiler environment.\n')
+        with self.assertRaisesRegex(ValueError, 'selected image recipe'):
+            kit.de25_sdk(repository, directory)
+        dockerfile.write_bytes(before)
+        (directory / 'image.json').write_text(json.dumps({**record, 'fes_revision': 'f' * 40}))
+        with self.assertRaisesRegex(ValueError, 'producer commit is unavailable'):
+            kit.de25_sdk(repository, directory)
 
     def test_managed_sdk_never_falls_back_from_a_bad_or_ambiguous_receipt(self):
         repository, directory, record, owner = self.managed_sdk_fixture()

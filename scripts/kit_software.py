@@ -143,14 +143,35 @@ def de25_sdk(root, directory):
         profile = 'headless'
         lane = load(Path(root) / 'image/de25-nano/build.py', 'kit_de25_image')
         receipt = directory / 'image.json'
+        if receipt.is_symlink() or not receipt.is_file() or receipt.stat().st_size > 1024 * 1024:
+            raise ValueError('DE25 SDK requires a regular bounded image receipt')
         record = json.loads(receipt.read_text())
         if (record.get('format') != 1 or record.get('board') != 'de25-nano' or
                 record.get('architecture') != 'aarch64' or
-                record.get('recipe_sha256') != lane.recipe_key(root) or
+                not re.fullmatch('[0-9a-f]{64}', record.get('recipe_sha256', '')) or
                 record.get('rootfs_key') != lane.rootfs_key(root) or
                 not re.fullmatch('[0-9a-f]{40}', record.get('fes_revision', '')) or
                 not re.fullmatch('sha256:[0-9a-f]{64}', record.get('builder_image', ''))):
             raise ValueError('DE25 SDK receipt differs from the selected image recipe')
+        # The SDK's compiler, libraries and container policy must still match
+        # the consumer. Authenticate the broader image recipe against its real
+        # Git producer: later factory-only edits must not relabel that SDK or
+        # require rebuilding the identical compiler. Never execute old source.
+        producer = record['fes_revision']
+        try:
+            actual = run(['git', '-C', root, 'rev-parse', '--verify', '--end-of-options', producer + '^{commit}'])
+        except subprocess.CalledProcessError as error:
+            raise ValueError('DE25 SDK receipt differs: producer commit is unavailable') from error
+        if actual != producer:
+            raise ValueError('DE25 SDK receipt differs: producer commit is invalid')
+        with tempfile.TemporaryDirectory(prefix='fes-de25-headless-sdk-source-') as temporary:
+            source, archive = Path(temporary) / 'producer', Path(temporary) / 'source.tar'
+            source.mkdir()
+            run(['git', '-C', root, 'archive', '--format=tar', '--output', archive, producer, 'image'])
+            run(['tar', '-xf', archive, '-C', source, '--no-same-owner'])
+            if (record['recipe_sha256'] != lane.recipe_key(source) or
+                    record['rootfs_key'] != lane.rootfs_key(source)):
+                raise ValueError('DE25 SDK receipt differs from its recorded image producer')
         key = record['rootfs_key']
         required = {'BR2_TOOLCHAIN_BUILDROOT_GLIBC=y', 'BR2_TOOLCHAIN_BUILDROOT_CXX=y'}
     for name in ('aarch64-sdk.tar.gz', 'buildroot.config'):

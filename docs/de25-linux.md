@@ -78,6 +78,9 @@ does not replace that locked environment.
 Factory assembly preserves the selected prebuilt runtime bytes by excluding
 `mister-runtime` from Buildroot stripping. The final image still verifies the
 executable against its selected artifact hash.
+Software builds authenticate a headless SDK against its recorded Git producer
+and require its compiler, rootfs and container key to match the current policy.
+Factory-only edits can therefore reuse that SDK without relabelling its receipt.
 
 This requires committed sources and uses the existing authenticated builder,
 download cache and filesystem assembly. It exports rootfs ext4/tar, a developer
