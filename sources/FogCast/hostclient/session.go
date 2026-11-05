@@ -79,12 +79,13 @@ type SessionCorePackage struct {
 	Composition     *SessionComposition        `json:"composition,omitempty"`
 	// ExpansionSocket is "empty" when the kit staged and its runtime echoed no
 	// composition for the rear socket on this load. Absent means not reported, not empty.
-	ExpansionSocket  string                      `json:"expansion_socket,omitempty"`
-	PartsComposition *expansion.PartsComposition `json:"parts_composition,omitempty"`
-	Generation       uint64                      `json:"generation"`
-	Gamepad          bool                        `json:"gamepad"`
-	ABI              SessionCoreABI              `json:"abi"`
-	ActiveInterfaces []SessionCoreInterface      `json:"active_interfaces"`
+	ExpansionSocket   string                       `json:"expansion_socket,omitempty"`
+	PartsComposition  *expansion.PartsComposition  `json:"parts_composition,omitempty"`
+	StaticComposition *expansion.StaticComposition `json:"static_composition,omitempty"`
+	Generation        uint64                       `json:"generation"`
+	Gamepad           bool                         `json:"gamepad"`
+	ABI               SessionCoreABI               `json:"abi"`
+	ActiveInterfaces  []SessionCoreInterface       `json:"active_interfaces"`
 	// ROMLink is the single ROM linked into this load, such as a cartridge.
 	ROMLink *SessionROMLink `json:"rom_link,omitempty"`
 	// ROMLinks are the two sources of a format-4 load: BIOS, then cartridge.

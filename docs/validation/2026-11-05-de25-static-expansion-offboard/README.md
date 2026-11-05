@@ -328,7 +328,58 @@ The private host and passive UART observer are stopped. The working original
 card remains installed and the tested new card stays aside.
 
 This ordinary native-image/core result does not admit a static PR package or
-exercise physical partial reconfiguration. Normal static-composition admission,
-owned backend construction, raw PR Design Closure, physical expansion testing
+exercise physical partial reconfiguration. Production enablement, owned backend construction, raw PR Design Closure, physical expansion testing
 and the full normal-kit goal remain open. No new physical USB, Bluetooth, audio,
 whole-board or complete simulation-matrix acceptance is claimed.
+
+
+## Native managed software and normal library launch
+
+Source `b37a428f3c6f5f2df5b8722b78157cd6f3a97660` connects static packages to
+normal library launch preparation, readiness, saved next-start selections and
+exact reply validation. The programming profile stays unavailable; none of
+these changes enables physical partial reconfiguration. The complete affected
+parent/Go/UI selection passes, as do the focused full host service/API suites
+and the normal-library AArch64 QEMU tests.
+
+The [native software trial](native-b37-software-trial.json) runs nine actual
+AArch64 binary suites on the bottom kit's two CPUs. C++ package/composition/
+protocol and earlier Go implementation inputs remain bound to `ddf2ca7a4`;
+the normal-library service/catalog tests are built from `b37a428f3`. Synthetic
+opaque packages and target peers exercise composition and staging without
+opening hardware. The unchanged supervisor bounds every unit and the whole run.
+
+A `b37a428f3` immutable userspace bundle then installs through the managed API
+on the existing `6de6a392` Linux image. Held installation, competing client
+refusal, queue/cancel/idempotence/stale-generation checks, requester exit and
+activation pass at generation 39. An independent authenticated observation
+confirms all four executable hashes and the unchanged card/kernel/boot identity.
+A collector filename mistake after successful activation remains recorded; the
+same successful transaction is inspected without reinstalling it.
+
+The ordinary qualified standard ZX81 package launches through the private
+host's real catalog and tape-media path. Real host HID input loads and runs the
+BASIC tape, edits its output and reloads it. All three HDMI captures are
+visually inspected: [7](native-b37-02-load-run7.png),
+[9](native-b37-03-edit-run9.png), then [7](native-b37-04-reload-run7.png).
+Ordinary Stop returns to healthy MENU. This verifies that capture is updating;
+it does not qualify physical USB input, audio or any PR persona.
+
+The named `a14a53cd` baseline is explicitly reactivated at generation 40 in
+the same boot. Its original dedicated host, configuration and catalog are
+restored, the private host is stopped, and the kit is released ready, idle and
+lease-free. Image, kernel, SD, boot and flash remain unchanged; no reboot or
+power cycle occurs. Later launcher receipt-projection changes are covered by
+separate software tests, without attributing this native trial to their head.
+
+
+The launcher also preserves `static_composition` when decoding session status.
+It validates the receipt identity and package binding before showing the running
+empty socket or RAM pack, and refuses mixed legacy/parts/ROM/empty receipts.
+The saved next-start selection never substitutes for that active receipt.
+Full host-client and room suites pass against both shared conformance vectors,
+including changed drafts, wrong identities/packages and each mixed receipt.
+The first development test mistakenly waits for an unfitted-card caption after
+fitting a card; its failed log is retained. The corrected test waits for the
+actual session projection and keeps all receipt/status/Stop assertions.
+These launcher checks are software coverage, separate from the b37 deployment.
