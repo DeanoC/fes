@@ -64,7 +64,7 @@ func Run(ctx context.Context, s Store, factory, bootID string, p Platform) error
 		hash     string
 		fallback string
 	}
-	hashes := make([]fallbackImage, 0, len(candidates)+2)
+	hashes := make([]fallbackImage, 0, len(candidates)+3)
 	for _, candidate := range candidates {
 		if candidate.FallbackImageSHA256 != "" {
 			fallback := factory
@@ -78,7 +78,11 @@ func Run(ctx context.Context, s Store, factory, bootID string, p Platform) error
 	if !release.ValidHash(goodFallback) {
 		goodFallback = factory
 	}
-	hashes = append(hashes, fallbackImage{state.Good, goodFallback}, fallbackImage{factory, factory})
+	hashes = append(hashes,
+		fallbackImage{state.Good, goodFallback},
+		fallbackImage{goodFallback, factory},
+		fallbackImage{factory, factory},
+	)
 	seen := map[string]bool{}
 	for len(candidates) > 0 || len(hashes) > 0 {
 		if err := ctx.Err(); err != nil {

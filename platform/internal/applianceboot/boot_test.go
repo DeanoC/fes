@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"reflect"
+	"strings"
 	"testing"
 
 	release "github.com/DeanoC/FogCast/appliance"
@@ -15,11 +16,18 @@ type fixtureStore struct {
 	beginErr  error
 	corrupt   bool
 	fallback  store.Selection
+	good      string
+	previous  string
+	verifyBad map[string]bool
 }
 
 func (s fixtureStore) BeginBoot(string) (store.Selection, error) { return s.selection, s.beginErr }
 func (s fixtureStore) Status() (store.Status, error) {
-	return store.Status{Good: "good", Corrupt: s.corrupt}, nil
+	good := s.good
+	if good == "" {
+		good = "good"
+	}
+	return store.Status{Good: good, Previous: s.previous, Corrupt: s.corrupt}, nil
 }
 func (s fixtureStore) LastFallbackSelection(string) (store.Selection, error) {
 	if s.fallback.Manifest.ImageSHA256 == "" {
@@ -28,6 +36,9 @@ func (s fixtureStore) LastFallbackSelection(string) (store.Selection, error) {
 	return s.fallback, nil
 }
 func (s fixtureStore) Verify(hash string) (release.Manifest, error) {
+	if s.verifyBad[hash] {
+		return release.Manifest{}, errors.New("invalid image")
+	}
 	return release.Manifest{ImageSHA256: hash}, nil
 }
 func (s fixtureStore) ImagePath(hash string) (string, error)                       { return hash, nil }
@@ -100,6 +111,34 @@ func TestStableSelectionFallsBackToPreviousBeforeFactory(t *testing.T) {
 		t.Fatalf("fallback ticket = %q, want factory", p.ticket.FallbackImageSHA256)
 	}
 }
+
+func TestTrialWithUnverifiableGoodFallsBackToPreviousBeforeFactory(t *testing.T) {
+	good := strings.Repeat("a", 64)
+	previous := strings.Repeat("b", 64)
+	trial := strings.Repeat("c", 64)
+	factory := strings.Repeat("d", 64)
+	p := &fixturePlatform{bad: map[string]bool{trial: true}}
+	s := fixtureStore{
+		selection: store.Selection{
+			Manifest:            release.Manifest{ImageSHA256: trial},
+			Path:                trial,
+			Trial:               true,
+			FallbackImageSHA256: good,
+		},
+		good:      good,
+		previous:  previous,
+		verifyBad: map[string]bool{good: true},
+	}
+	_ = Run(context.Background(), s, factory, "boot", p)
+	want := []string{"prepare:" + trial, "prepare:" + previous, "ticket:" + previous, "exec:" + previous, "close:" + previous}
+	if !reflect.DeepEqual(p.events, want) {
+		t.Fatalf("events %v want %v", p.events, want)
+	}
+	if p.ticket.Manifest.ImageSHA256 != previous || p.ticket.FallbackImageSHA256 != factory {
+		t.Fatalf("fallback ticket = %+v, want previous with factory fallback", p.ticket)
+	}
+}
+
 func TestTrialArmsBeforeExecAndNeverExecutesSecondRootAfterExecError(t *testing.T) {
 	p := &fixturePlatform{}
 	s := fixtureStore{selection: store.Selection{Manifest: release.Manifest{ImageSHA256: "candidate"}, Path: "candidate", Trial: true}}

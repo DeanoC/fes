@@ -22,6 +22,7 @@ func TestBootTicketMustMatchCurrentLinuxBoot(t *testing.T) {
 		`{"boot_id":"old","image_sha256":"` + strings.Repeat("a", 64) + `","trial":true}`,
 		`{"boot_id":"` + id + `","image_sha256":"` + strings.Repeat("a", 64) + `","trial":true,"trial":false}`,
 		`{"boot_id":"` + id + `","image_sha256":"` + strings.Repeat("a", 64) + `"}`,
+		`{"boot_id":"` + id + `","image_sha256":"` + strings.Repeat("a", 64) + `","fallback_image_sha256":"` + strings.Repeat("b", 64) + `"}`,
 		`{"boot_id":"` + id + `","image_sha256":"` + strings.Repeat("a", 64) + `","trial":true,"fallback_image_sha256":"bad"}`,
 	} {
 		if e := os.WriteFile(ticket, []byte(body), 0600); e != nil {

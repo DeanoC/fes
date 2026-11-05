@@ -81,7 +81,10 @@ func ReadBootIdentity(ticketPath, bootIDPath string) (BootIdentity, error) {
 	if err != nil {
 		return result, err
 	}
-	if (len(seen) != 3 && len(seen) != 4) || result.BootID == "" || result.BootID != strings.TrimSpace(string(boot)) || !release.ValidHash(result.ImageSHA256) || len(seen) == 4 && !release.ValidHash(result.FallbackImageSHA256) {
+	if !seen["boot_id"] || !seen["image_sha256"] || !seen["trial"] ||
+		result.BootID == "" || result.BootID != strings.TrimSpace(string(boot)) ||
+		!release.ValidHash(result.ImageSHA256) ||
+		seen["fallback_image_sha256"] && !release.ValidHash(result.FallbackImageSHA256) {
 		return result, ErrIdentity
 	}
 	// The sidecar extends the ticket without changing the schema older target

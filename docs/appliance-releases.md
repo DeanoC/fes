@@ -167,9 +167,10 @@ The stable bootstrap consumes one trial before executing it and runs a hardware
 watchdog guard independently of the replaceable rootfs. Missing/broken init,
 failure to start services/networking, a hung candidate, or a disappearing host
 cannot confirm themselves. The trial deadline is 180 seconds plus hardware reset
-latency. An unconfirmed trial returns to verified known-good, then factory if
-needed. A rejected trial and factory fallback are recorded so future updates and
-rollback refer to the image actually booted.
+latency. An unconfirmed trial returns to the verified known-good image. If that
+image fails verification or preparation, the bootstrap tries its verified
+previous release before factory. A rejected trial and fallback are recorded so
+future updates and rollback refer to the image actually booted.
 
 Rollback selects the previous confirmed release as a new protected trial.
 Corrupt/torn selection state chooses factory and preserves the corrupt record
