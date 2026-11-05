@@ -4,6 +4,8 @@
 #include <assert.h>
 #include <stdio.h>
 #include <string.h>
+#include <stdlib.h>
+#include <errno.h>
 
 struct fixture {
     struct fes_nano_program program;
@@ -161,25 +163,50 @@ static void rom_cases(void)
 }
 int main(int argc,char **argv)
 {
-    if(argc==2 || argc==3) {
+    if(argc==2 || argc==3 || argc==6) {
         struct fixture f;init(&f);FILE *in=fopen(argv[1],"rb");assert(in);
         f.program.chunk=0xfffc0; /* The paired native fixture's qualified block size. */
         f.configuration.chunk=0xfffc0;
+        uint64_t generation=1;
+        if(argc==6) {
+            /* Trusted modeled boot state arrives separately from the request.
+             * Never adopt ownership, context or chunk geometry from f.wire. */
+            assert(!strcmp(argv[2],"owned-rom") && strlen(argv[4])==64);
+            char *end;errno=0;generation=strtoull(argv[3],&end,10);
+            assert(!errno && end!=argv[3] && !*end && generation && generation<UINT64_MAX);
+            errno=0;unsigned long chunk=strtoul(argv[5],&end,10);
+            assert(!errno && end!=argv[5] && !*end && chunk && chunk<=0xffff0 && !(chunk&63));
+            for(unsigned i=0;i<32;i++) {
+                unsigned value=0;
+                for(unsigned j=0;j<2;j++) {
+                    unsigned char c=(unsigned char)argv[4][2*i+j];
+                    assert((c>='0'&&c<='9') || (c>='a'&&c<='f'));
+                    value=(value<<4)|(c<='9' ? c-'0' : c-'a'+10);
+                }
+                f.context[i]=(uint8_t)value;
+            }
+            memcpy(f.program.context,f.context,32);
+            f.bridges.state.generation=generation;
+            f.program.chunk=(uint32_t)chunk;f.configuration.chunk=(uint32_t)chunk;
+        }
         assert(fread(f.wire,1,sizeof(f.wire),in)==sizeof(f.wire));
-        if(argc==3) {
+        if(argc==3 || argc==6) {
             f.program.maximum=FES_NANO_PROGRAM_MAX_BYTES;
             assert(!fes_nano_program_enable_rom(&f.program,read_rom_header));
             assert(fread(f.rom_wire,1,sizeof(f.rom_wire),in)==sizeof(f.rom_wire));
         }
         assert(fgetc(in)==EOF);fclose(in);
         /* The paired Go fixture uses this independent context and ownership. */
-        uint64_t reply[4];fes_nano_configuration_prepare(&f.configuration,17,1,0,reply);
+        uint64_t reply[4];fes_nano_configuration_prepare(&f.configuration,17,generation,0,reply);
+        if(argc==6 && (reply[0] || (uint32_t)reply[1]!=(FES_NANO_PROGRAM_BOUND_REPLY|f.program.bytes))) {
+            fputs("owned ROM descriptor rejected\n",stderr);return 2;
+        }
         assert(!reply[0] && (uint32_t)reply[1]==(FES_NANO_PROGRAM_BOUND_REPLY|f.program.bytes));
         printf("%u %u %u ",f.program.bytes,f.program.chunks,(unsigned)(reply[1]>>31)&1U);
         uint32_t words[4];assert(!fes_nano_program_build(&f.program,words));
         for(unsigned i=0;i<4;i++)printf("%08x ",words[i]);
         for(unsigned i=0;i<32;i++)printf("%02x",f.program.header[72+i]);
-        if(argc==3)printf(" %u %u %08x",f.program.rom_offset,f.program.rom_bytes,f.program.rom_crc);
+        if(argc==3 || argc==6)printf(" %u %u %08x",f.program.rom_offset,f.program.rom_bytes,f.program.rom_crc);
         putchar('\n');return 0;
     }
     unsigned cases=0;

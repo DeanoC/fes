@@ -193,6 +193,18 @@ func (v *HPSContextVerifier) prepareProgramConfiguration(control, configuration 
 	if err != nil {
 		return HPSBootObservation{}, err
 	}
+	if program != nil && len(program.rom) != 0 {
+		if v.rom == nil || region.StageROM == nil {
+			return HPSBootObservation{}, errors.New("native fabric: held ROM staging unavailable")
+		}
+		header, _, err = encodeROMProgramBinding(source, m, program.rom)
+		if err != nil {
+			return HPSBootObservation{}, err
+		}
+		if err = region.StageROM(program.rom); err != nil {
+			return HPSBootObservation{}, err
+		}
+	}
 	if err := region.PublishConfiguration(header); err != nil {
 		return HPSBootObservation{}, err
 	}

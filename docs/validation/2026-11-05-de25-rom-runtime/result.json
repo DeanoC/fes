@@ -1,0 +1,82 @@
+{
+  "base": "2b98854e58bea443aadcb0184e746ecf7a64e12d",
+  "checks": {
+    "adjacent_packagestore_modelbackend_computer_sdcontrol_race": "pass",
+    "prototype_focused": "pass",
+    "prototype_full_nativefabric_race": "pass",
+    "tamago_arm64_nativefabric_library_compile": "pass",
+    "tracked_full_nativefabric_race": "pass"
+  },
+  "failed_preparation": [
+    "prototype v1 test constant mismatch",
+    "prototype v2 C fixture assumed fixed modeled context/generation/chunk",
+    "cross compile v1 omitted the existing private module cache"
+  ],
+  "format": 1,
+  "hardware_operations": false,
+  "limits": [
+    "firmware transport and ROM gate modeled in lifecycle tests",
+    "actual C descriptor decoder runs with independently supplied modeled secure context",
+    "library cross-compile only; command/builder selection and matched boot image remain open",
+    "no new FPGA producer or board acceptance"
+  ],
+  "logs": {
+    "out/nano-rom-retention-20261105/native-rom-adjacent-v1.log": {
+      "bytes": 281,
+      "sha256": "bee1a0a547c8c25265ec5d72eb37e87baf70824c558aa318c4ee28c5986a825a"
+    },
+    "out/nano-rom-retention-20261105/native-rom-cross-compile-v1.log": {
+      "bytes": 119,
+      "sha256": "5697ed1e54320ac72e80af42572de5c5e31e8bdf8e5843f2acca65f73e4e5e6c"
+    },
+    "out/nano-rom-retention-20261105/native-rom-cross-compile-v2.log": {
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "out/nano-rom-retention-20261105/nativefabric-tracked-v1.log": {
+      "bytes": 73,
+      "sha256": "41af2bf460c0a9fc72f2e27bb71f22bc4268bd212d250f6ca77b7fa8daac1707"
+    },
+    "out/nano-rom-retention-20261105/publication-full-nativefabric-v1.log": {
+      "bytes": 73,
+      "sha256": "b1578380ed327f9ab2197c553bf60d3396d27aaaa78a65bedc204a2f7a30c529"
+    },
+    "out/nano-rom-retention-20261105/publication-lifecycle-tests-v1.log": {
+      "bytes": 280,
+      "sha256": "0daa5df8c525a298f1b0edddd8fb2009202d1c4bfa9b9ca177aaafd714caed94"
+    },
+    "out/nano-rom-retention-20261105/publication-lifecycle-tests-v2.log": {
+      "bytes": 5734,
+      "sha256": "03106625961ebe39f0d9c46a4d5a3ba37db6e792bea9c3487795561dcfef3061"
+    },
+    "out/nano-rom-retention-20261105/publication-lifecycle-tests-v3.log": {
+      "bytes": 7487,
+      "sha256": "38a7945fc9bb6871622d8c943cb4dbeec92f5f673a39da4bad18842f772c363b"
+    },
+    "out/nano-rom-retention-20261105/publication-lifecycle-tests-v4.log": {
+      "bytes": 6469,
+      "sha256": "43a36553c8af0bd0e13050d92562dd2a00496673b23ec43929cd34f229c21b4a"
+    }
+  },
+  "scope": "nano-retained-rom-runtime-host-validation-v1",
+  "source_sha256": {
+    "platform/embedded/firmware/README.md": "63985af926e5577fa18f7a573346934723ed5b35fb9bda954a83e961dfdd1acf",
+    "platform/embedded/firmware/tests/nano_program_test.c": "c5d636cfe7761c31408196cee3f938bf94194fb57c6c89f279dbe7f0972c4481",
+    "platform/embedded/tamago/nativefabric/README.md": "8d8dffaa2e0d0b285c2370ec4132dbfe6e2f760cbb2e56c92c6788939f25d865",
+    "platform/embedded/tamago/nativefabric/configuration_arena.go": "7b6fc0f4972601b19fa057632ef1a03950a9ab00acdb363091aaa2af297f8245",
+    "platform/embedded/tamago/nativefabric/controlprobe.go": "c1395b801c2e466e8eadfb5982991e9e29291437f9fd8463d9a8f262b5d92d4d",
+    "platform/embedded/tamago/nativefabric/endpoint.go": "67dce0e5528e8e71b10da31e33160fc8e9d4bedf9a6ef21d24e95d65e05b42ae",
+    "platform/embedded/tamago/nativefabric/hpscontext.go": "4be19d7963442389c66151d041b46f88f11542fc172a1d22441b03fb8d34efa5",
+    "platform/embedded/tamago/nativefabric/prepare_configuration.go": "28562df016cb5fa932c328bb3a97f51d6354a95d6604d16424172f3f92a8f585",
+    "platform/embedded/tamago/nativefabric/program_binding.go": "a9696709be968920734005505e796041e77f63d5f2987a88f87d0e3b009d8db2",
+    "platform/embedded/tamago/nativefabric/program_rom_arena_test.go": "96a6ae40e5865f25ede7ec74085bd3cf81c4fc4ced2c701853544453259fb45c",
+    "platform/embedded/tamago/nativefabric/program_selection.go": "be498c3331969dcfe47a375553d59bd633cc00626e473417a8a4109a78e8fced",
+    "platform/embedded/tamago/nativefabric/program_selection_test.go": "1bb954058a34fdabf3942ea6f5ff90422b4b0b2eb3466c4ebfcfff072ebd1ff5",
+    "platform/embedded/tamago/nativefabric/program_service.go": "7d3cf27dbfbc049e8427b773f8ec2fe37e4021e6a0d4326035451284e9c3094d",
+    "platform/embedded/tamago/nativefabric/readermemory.go": "48872ef040e1235bad9f24fa1e48ce75825ce98d42a8963a64d43893f829b05c",
+    "platform/embedded/tamago/nativefabric/rom.go": "9a56cd8328ec3fde87959a0514c814a919607aa0c4f7c3e21852d007b7c2f8d8",
+    "platform/embedded/tamago/nativefabric/rom_program_test.go": "a011429554d84ff5eb5d04190226aaf2084a8f86bd4f4048989ae0068734c744",
+    "platform/embedded/tamago/nativefabric/selected_program.go": "e88c845a9f2395bee8a2bf37eda442f4532afc9570c036ae859352eea203357b",
+    "platform/embedded/tamago/nativefabric/windowmemory.go": "ed842b9a19979694494e321fb442515b73de08316e405feb57f9bb13b5e87397"
+  }
+}

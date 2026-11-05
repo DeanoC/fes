@@ -35,6 +35,9 @@ type Region struct {
 	// The cold platform publishes one per-load descriptor in its separately
 	// reserved metadata page. Generic firmware transfers do not use this hook.
 	PublishConfiguration func([]byte) error
+	// Stages one separately retained firmware ROM after the aligned FPGA
+	// payload. It does not extend Bytes or the SDM transfer, and grants no I/O.
+	StageROM func([]byte) error
 }
 
 // Hooks are trusted, serialized, synchronous and bounded-return operations.

@@ -20,16 +20,28 @@ func encodeROMProgramBinding(source HPSBootObservation, m coldConfigurationMap, 
 	if err != nil {
 		return nil, 0, err
 	}
-	offset := (m.CoreSize + 63) &^ 63
+	ext, offset, err := programROMExtension(m.CoreSize, image)
+	if err != nil {
+		return nil, 0, err
+	}
+	raw := make([]byte, ProgramHeaderBytes+programROMHeaderBytes)
+	copy(raw, header)
+	binary.LittleEndian.PutUint32(raw[4:], 2)
+	copy(raw[ProgramHeaderBytes:], ext)
+	return raw, offset, nil
+}
+
+func programROMExtension(coreBytes int, image []byte) ([]byte, int, error) {
+	if coreBytes <= 0 || coreBytes > MaxProgramBytes {
+		return nil, 0, errors.New("native fabric: invalid core size for ROM publication")
+	}
+	offset := (coreBytes + 63) &^ 63
 	if (len(image) != 4096 && len(image) != 8192) || offset > MaxProgramBytes || len(image) > MaxProgramBytes-offset {
 		return nil, 0, errors.New("native fabric: ROM does not fit the retained program arena")
 	}
 	// Digest one private snapshot, even when the caller still owns its slice.
 	image = append([]byte(nil), image...)
-	raw := make([]byte, ProgramHeaderBytes+programROMHeaderBytes)
-	copy(raw, header)
-	binary.LittleEndian.PutUint32(raw[4:], 2)
-	ext := raw[ProgramHeaderBytes:]
+	ext := make([]byte, programROMHeaderBytes)
 	for at, value := range map[int]uint32{0: 0x31425246, 4: 1, 8: programROMHeaderBytes,
 		12: uint32(offset), 16: uint32(len(image)), 20: crc32.ChecksumIEEE(image)} {
 		binary.LittleEndian.PutUint32(ext[at:], value)
@@ -37,7 +49,7 @@ func encodeROMProgramBinding(source HPSBootObservation, m coldConfigurationMap, 
 	sha256sum, sha384sum := sha256.Sum256(image), sha512.Sum384(image)
 	copy(ext[24:], sha256sum[:])
 	copy(ext[56:], sha384sum[:])
-	return raw, offset, nil
+	return ext, offset, nil
 }
 
 const (

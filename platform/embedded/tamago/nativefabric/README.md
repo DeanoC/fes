@@ -1,5 +1,30 @@
 # Native contained-fabric endpoint
 
+`NewROMHPSContextVerifier` explicitly selects the held-ROM diagnostic contract.
+It validates complete compiled control, computer and ROM maps without I/O; the
+ordinary verifier rejects that profile. Its `ProgramLoader` accepts only a
+format-three Nano package with one retained 4/8 KiB firmware source and the exact
+private activation receipt. Selected metadata binds those resources and receipt
+to the package/build. It cannot change compiled addresses, stop policy or master
+inventory. A content rejection leaves SD usable before containment.
+
+The program arena privately copies the ROM after the aligned FPGA payload and
+before its metadata page. The SDM transfer still exposes and sends only the
+unchanged FPGA bytes. Publication uses the existing version-two ROM extension;
+ordering, copy, descriptor or firmware uncertainty retires the service and keeps
+its mapping and SD scope retained. Stale callbacks cannot publish into a later
+lease. Catalog entries may carry one `sources` record (`id`, `role: firmware`,
+`path`, `sha256`) and `rom_receipt_sha256`; these remain content selections,
+with no hardware authority. The status receipt reports selected content only.
+
+Host tests run three 8/4/8 KiB launch/return cycles through the real store,
+linker, loader, arena and service. Every publication is parsed by the actual C
+decoder against independent modeled secure context. Failure tests cover foreign
+resources/receipts, stale ownership, staging/publication corruption and a modeled
+firmware rejection. They do not execute physical SMCs or the ROM FIFO. Native
+command/cross-builder selection, a newly sealed format-three producer package,
+the matched boot chain and hardware ROM acceptance remain open.
+
 The shared-gamepad input loop now emits `FES_NATIVE_CORE_GAMEPAD` on the serial
 platform after a changed key matrix has completed its owned write. Receipts
 bind the boot owner, play generation, package/build, descriptor hash, raw report,

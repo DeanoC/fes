@@ -37,7 +37,7 @@ func readerMemoryPattern() []byte {
 }
 
 func (v *HPSContextVerifier) readerMemoryMap(raw []byte) (readerMemoryMap, error) {
-	if v == nil || v.context.ProgrammingProfile != HPSFirstDDRDiagnosticProfile || len(raw) == 0 || len(raw) > 4096 {
+	if v == nil || (v.context.ProgrammingProfile != HPSFirstDDRDiagnosticProfile && v.context.ProgrammingProfile != HPSFirstROMDiagnosticProfile) || len(raw) == 0 || len(raw) > 4096 {
 		return readerMemoryMap{}, errors.New("native fabric: compiled DDR reader source and memory map required")
 	}
 	var m readerMemoryMap

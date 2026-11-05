@@ -12,10 +12,19 @@ import (
 )
 
 type programChoice struct {
-	Path           string `json:"path"`
-	PackageID      string `json:"package_id"`
-	MetadataPath   string `json:"metadata_path"`
-	MetadataSHA256 string `json:"metadata_sha256"`
+	Path             string             `json:"path"`
+	PackageID        string             `json:"package_id"`
+	MetadataPath     string             `json:"metadata_path"`
+	MetadataSHA256   string             `json:"metadata_sha256"`
+	Sources          []programROMSource `json:"sources,omitempty"`
+	ROMReceiptSHA256 string             `json:"rom_receipt_sha256,omitempty"`
+}
+
+type programROMSource struct {
+	ID     string `json:"id"`
+	Role   string `json:"role"`
+	Path   string `json:"path"`
+	SHA256 string `json:"sha256"`
 }
 
 type programChoices struct {
@@ -93,7 +102,19 @@ func ReadProgramSelections(ctx context.Context, files fs.FS, path string) (reque
 			!nonzeroDigest(p.PackageID) || !nonzeroDigest(p.MetadataSHA256) {
 			return nil, errors.New("native fabric: incomplete program choice")
 		}
-		requests = append(requests, packagestore.Request{Path: p.Path, PackageID: p.PackageID, MetadataPath: p.MetadataPath, MetadataSHA256: p.MetadataSHA256})
+		r := packagestore.Request{Path: p.Path, PackageID: p.PackageID, MetadataPath: p.MetadataPath, MetadataSHA256: p.MetadataSHA256}
+		if len(p.Sources) != 0 || p.ROMReceiptSHA256 != "" {
+			if len(p.Sources) != 1 || !nonzeroDigest(p.ROMReceiptSHA256) {
+				return nil, errors.New("native fabric: one retained firmware source and receipt required")
+			}
+			s := p.Sources[0]
+			if s.ID == "" || len(s.ID) > 96 || s.Role != "firmware" || s.Path == "." || !fs.ValidPath(s.Path) || !nonzeroDigest(s.SHA256) {
+				return nil, errors.New("native fabric: incomplete retained ROM source choice")
+			}
+			r.ReceiptSHA256 = p.ROMReceiptSHA256
+			r.Sources = []packagestore.Source{{ID: s.ID, Role: s.Role, Path: s.Path, SHA256: s.SHA256}}
+		}
+		requests = append(requests, r)
 	}
 	if err := ctx.Err(); err != nil {
 		return nil, err

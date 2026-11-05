@@ -34,12 +34,13 @@ var (
 // Status is a cached application view. Owner identifies this boot, Generation
 // identifies this service's requests; neither is a hardware permission.
 type ProgramServiceStatus struct {
-	State      ProgramServiceState
-	Owner      uint64
-	Generation uint64
-	Identity   fabricmodel.PackageIdentity
-	Held       bool
-	Error      string
+	State            ProgramServiceState
+	Owner            uint64
+	Generation       uint64
+	Identity         fabricmodel.PackageIdentity
+	ROMReceiptSHA256 string `json:"rom_receipt_sha256,omitempty"`
+	Held             bool
+	Error            string
 }
 
 // ProgramSession can only be minted by Launch. Copies refer to the same private
@@ -193,6 +194,7 @@ func (s *ProgramService) Launch(ctx context.Context, generation uint64, request 
 	p.plan = plan // Pin the plan before containment or a possibly partial reservation.
 	view.Generation++
 	view.Identity = plan.Identity()
+	view.ROMReceiptSHA256 = plan.ROMReceiptSHA256()
 	p.publish(view)
 	handoff, err := p.store.Contain(selection)
 	if err != nil {
@@ -321,6 +323,7 @@ func (s *ProgramService) finish(ctx context.Context, session ProgramSession, res
 	}
 	view.Generation++
 	view.Identity, view.Held = fabricmodel.PackageIdentity{}, true
+	view.ROMReceiptSHA256 = ""
 	p.rearm = true
 	p.publish(view)
 	return observed, nil

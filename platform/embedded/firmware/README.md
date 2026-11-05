@@ -53,11 +53,15 @@ The cold header emits `FES_NANO_COLD_ROM`, the verified CPU aperture, image size
 and resource digest only with that complete contract. Ordinary profiles emit
 the disabled selection and reject an attached ROM resource.
 
-The native package frontend still rejects unsupported ROM-linked packages; its
-ordinary launch publisher does not yet select the new encoder or supply the ROM
-resource in its ELF. Thus the ROM candidate cannot enter the older boot path
-without its missing native integration. No ROM-capable matched boot image or
-physical acceptance is claimed.
+The native library now has an explicit ROM-profile verifier and retained-package
+publisher. It checks the private activation receipt and stages the ROM separately
+from the unchanged FPGA payload, then publishes the version-2 descriptor through
+the existing owned configuration path. Host tests decode each actual publication
+with this C decoder using separately supplied modeled ownership, generation,
+boot digest and chunk geometry. The firmware calls and ROM FIFO remain modeled
+in those lifecycle tests; the provider/RTL tests above cover a separate boundary.
+The native command and cross-builder do not yet select this verifier or link its
+ROM resource. No ROM-capable matched boot image or physical acceptance is claimed.
 
 The opt-in window SD-return path now connects the retained full-frame closure
 to the existing read-only SD lease. The secure provider checks its completed

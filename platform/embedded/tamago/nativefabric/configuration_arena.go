@@ -3,6 +3,7 @@ package nativefabric
 
 import (
 	"bytes"
+	"encoding/binary"
 	"errors"
 	"sync"
 )
@@ -68,12 +69,58 @@ func (a *ConfigurationArena) Reserve(source []byte) (*Region, error) {
 	a.active, a.ready = region, false
 	published := false
 	var header []byte
+	var rom, romExtension []byte
+	var romOffset int
+	romUnchanged := func() bool {
+		return rom == nil || bytes.Equal(a.memory[romOffset:romOffset+len(rom)], rom)
+	}
 	if a.metadata != nil {
+		region.StageROM = func(image []byte) error {
+			a.mu.Lock()
+			defer a.mu.Unlock()
+			if a.failed || a.active != region || a.ready || published || rom != nil {
+				return errors.New("native fabric: ROM staging stale or consumed")
+			}
+			if len(image) != 4096 && len(image) != 8192 {
+				return errors.New("native fabric: ROM must be exactly 4/8 KiB")
+			}
+			image = bytes.Clone(image)
+			ext, offset, err := programROMExtension(len(owned), image)
+			if err != nil || offset > len(a.memory)-len(image) {
+				return errors.New("native fabric: ROM exceeds the pinned program arena")
+			}
+			if err := a.barrier(); err != nil {
+				a.failed = true
+				return err
+			}
+			rom, romExtension, romOffset = image, ext, offset
+			clear(a.memory[len(owned):romOffset])
+			copy(a.memory[romOffset:romOffset+len(rom)], rom)
+			if err := a.barrier(); err != nil {
+				a.failed = true
+				return err
+			}
+			if !romUnchanged() {
+				a.failed = true
+				return errors.New("native fabric: staged ROM copy changed")
+			}
+			return nil
+		}
 		region.PublishConfiguration = func(raw []byte) error {
 			a.mu.Lock()
 			defer a.mu.Unlock()
-			if a.failed || a.active != region || a.ready || published || len(raw) != ProgramHeaderBytes {
+			want := ProgramHeaderBytes
+			if rom != nil {
+				want += programROMHeaderBytes
+			}
+			if a.failed || a.active != region || a.ready || published || len(raw) != want {
 				return errors.New("native fabric: configuration publication stale, consumed or invalid")
+			}
+			if rom != nil && (binary.LittleEndian.Uint32(raw[4:]) != 2 ||
+				binary.LittleEndian.Uint32(raw[12:]) != uint32(len(owned)) ||
+				!bytes.Equal(raw[ProgramHeaderBytes:], romExtension)) {
+				a.failed = true
+				return errors.New("native fabric: descriptor differs from privately staged ROM")
 			}
 			published = true
 			header = bytes.Clone(raw)
@@ -81,12 +128,16 @@ func (a *ConfigurationArena) Reserve(source []byte) (*Region, error) {
 				a.failed = true
 				return err
 			}
+			if !romUnchanged() {
+				a.failed = true
+				return errors.New("native fabric: ROM changed before publication")
+			}
 			copy(a.metadata, header)
 			if err := a.barrier(); err != nil {
 				a.failed = true
 				return err
 			}
-			if !bytes.Equal(a.metadata[:len(header)], header) {
+			if !bytes.Equal(a.metadata[:len(header)], header) || !romUnchanged() {
 				a.failed = true
 				return errors.New("native fabric: configuration publication changed")
 			}
@@ -103,7 +154,7 @@ func (a *ConfigurationArena) Reserve(source []byte) (*Region, error) {
 			a.failed = true
 			return err
 		}
-		if a.metadata != nil && (!published || !bytes.Equal(a.metadata[:len(header)], header)) {
+		if a.metadata != nil && (!published || !bytes.Equal(a.metadata[:len(header)], header) || !romUnchanged()) {
 			a.failed = true
 			return errors.New("native fabric: configuration metadata missing or changed at completion")
 		}

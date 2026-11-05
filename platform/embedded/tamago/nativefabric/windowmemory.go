@@ -36,7 +36,7 @@ type windowMemoryMap struct {
 // The ordinary fixed-reader constructor continues to reject this personality.
 // This constructor performs no I/O and grants no bridge or DDR permission.
 func NewWindowHPSContextVerifier(cpu FirmwareCaller, source, control, memory []byte) (*HPSContextVerifier, error) {
-	v, err := newHPSContextVerifier(cpu, source, true)
+	v, err := newHPSContextVerifier(cpu, source, HPSFirstWindowDiagnosticProfile)
 	if err != nil {
 		return nil, err
 	}

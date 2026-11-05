@@ -4,6 +4,7 @@ package nativefabric
 import (
 	"bytes"
 	"context"
+	"crypto/sha256"
 	"crypto/sha512"
 	"encoding/hex"
 	"encoding/json"
@@ -50,6 +51,12 @@ type selectedProgramRecord struct {
 	Platform  programPlatform `json:"platform"`
 	Control   hpsControlMap   `json:"control"`
 	Computer  computerMap     `json:"computer"`
+}
+
+type selectedROMProgramRecord struct {
+	selectedProgramRecord
+	ROM              romControlMap `json:"rom"`
+	ROMReceiptSHA256 string        `json:"rom_receipt_sha256"`
 }
 
 // decodeCompleteRecord rejects missing, duplicate, unknown and noncanonical
@@ -130,6 +137,12 @@ func NewProgramLoader(boot *HPSContextVerifier, compiledSource, control, configu
 	if err != nil {
 		return nil, err
 	}
+	if boot.context.ProgrammingProfile == HPSFirstROMDiagnosticProfile {
+		controlSHA, computerSHA := sha256.Sum256(control), sha256.Sum256(computerRaw)
+		if boot.rom == nil || boot.rom.ControlMapSHA256 != hex.EncodeToString(controlSHA[:]) || boot.rom.ComputerMapSHA256 != hex.EncodeToString(computerSHA[:]) {
+			return nil, errors.New("native fabric: loader lacks its compiled held-ROM resources")
+		}
+	}
 	return &ProgramLoader{boot, p, config, ctrl, comp}, nil
 }
 
@@ -143,6 +156,8 @@ type selectedProgram struct {
 	controlRaw       []byte
 	configurationRaw []byte
 	computerRaw      []byte
+	rom              []byte
+	romReceipt       string
 }
 
 // Preflight validates the selected package and its retained metadata while SD
@@ -153,15 +168,30 @@ func (l *ProgramLoader) Preflight(selection *packagestore.Selection) (*StoredCon
 		return nil, errors.New("native fabric: program loader and retained selection required")
 	}
 	var record selectedProgramRecord
-	if err := decodeCompleteRecord(selection.Metadata(), 16<<10, &record); err != nil {
-		return nil, err
+	romMode := l.boot.rom != nil
+	var romRecord *romControlMap
+	var romReceipt string
+	if romMode {
+		var rr selectedROMProgramRecord
+		if err := decodeCompleteRecord(selection.Metadata(), 16<<10, &rr); err != nil {
+			return nil, err
+		}
+		record, romRecord, romReceipt = rr.selectedProgramRecord, &rr.ROM, rr.ROMReceiptSHA256
+	} else {
+		if err := decodeCompleteRecord(selection.Metadata(), 16<<10, &record); err != nil {
+			return nil, err
+		}
 	}
 	i := selection.Inspection()
 	d := i.Descriptor
 	p := l.platform
-	if record.Format != 1 || record.Scope != "nano-selected-program-v1" || record.Platform != p ||
+	format, scope := int64(2), "nano-selected-program-v1"
+	if romMode {
+		format, scope = 3, "nano-selected-rom-program-v1"
+	}
+	if record.Format != 1 || record.Scope != scope || record.Platform != p ||
 		record.PackageID != i.PackageID || record.BuildID != d.Build.ID ||
-		d.Format != 2 || selection.Linked() != nil || d.Target.Platform != p.Platform || d.Target.Device != p.Device ||
+		d.Format != format || (!romMode && selection.Linked() != nil) || d.Target.Platform != p.Platform || d.Target.Device != p.Device ||
 		d.Target.ProgrammingProfile != p.ProgrammingProfile || d.ABI.ID != p.ABI || d.ABI.Major != int64(p.Major) || d.ABI.Minor != int64(p.Minor) ||
 		d.Payload.Size <= 0 || d.Payload.Size > MaxProgramBytes || d.Payload.Size%4 != 0 {
 		return nil, errors.New("native fabric: selected package differs from the contained platform contract")
@@ -170,7 +200,7 @@ func (l *ProgramLoader) Preflight(selection *packagestore.Selection) (*StoredCon
 		return nil, err
 	}
 	for _, iface := range d.Interfaces {
-		if iface.Required && (iface.ID != "fes.embedded.control" || iface.Major != 1 || iface.Minor != 0) {
+		if iface.Required && ((iface.ID != "fes.embedded.control" && (!romMode || iface.ID != "fes.embedded.rom")) || iface.Major != 1 || iface.Minor != 0) {
 			return nil, errors.New("native fabric: selected package requires an unsupported interface")
 		}
 	}
@@ -211,6 +241,42 @@ func (l *ProgramLoader) Preflight(selection *packagestore.Selection) (*StoredCon
 	if normalComp != l.computer {
 		return nil, errors.New("native fabric: selected computer changes platform hardware")
 	}
+	var romImage []byte
+	if romMode {
+		romRaw, err := canonicalProgramRecord(romRecord)
+		if err != nil {
+			return nil, err
+		}
+		rm, err := checkedROMMapFor(target, control, computerRaw, romRaw)
+		if err != nil {
+			return nil, err
+		}
+		normal := rm
+		bootROM := l.boot.rom
+		normal.PackageID, normal.BuildID = bootROM.PackageID, bootROM.BuildID
+		normal.ControlMapSHA256, normal.ComputerMapSHA256, normal.HandoffSHA256 = bootROM.ControlMapSHA256, bootROM.ComputerMapSHA256, bootROM.HandoffSHA256
+		normal.Bytes, normal.SourceSHA256 = bootROM.Bytes, bootROM.SourceSHA256
+		normalRaw, _ := canonicalProgramRecord(normal)
+		compiledRaw, _ := canonicalProgramRecord(bootROM)
+		linked := selection.Linked()
+		if !bytes.Equal(normalRaw, compiledRaw) || linked == nil || !nonzeroDigest(romReceipt) || linked.ReceiptSHA256() != romReceipt ||
+			linked.Inspection().PackageID != i.PackageID || d.ROM == nil || d.ROM.Role != "firmware" || int64(rm.Bytes) != d.ROM.SourceSize {
+			return nil, errors.New("native fabric: retained ROM or resources differ from selected program")
+		}
+		receipt := linked.Receipt()
+		if receipt.PackageID != i.PackageID || receipt.ROMLink == nil || !receipt.ROMLink.ValidFor(d) || receipt.ROMLinks != nil || receipt.PartsComposition != nil {
+			return nil, errors.New("native fabric: complete held-ROM activation receipt required")
+		}
+		reader, err := linked.Source(d.ROM.ID, "firmware")
+		if err != nil {
+			return nil, err
+		}
+		romImage, err = io.ReadAll(io.LimitReader(reader, d.ROM.SourceSize+1))
+		sum := sha256.Sum256(romImage)
+		if err != nil || len(romImage) != rm.Bytes || hex.EncodeToString(sum[:]) != receipt.ROMLink.SourceSHA256 {
+			return nil, errors.New("native fabric: retained ROM bytes differ from private receipt")
+		}
+	}
 	data, err := io.ReadAll(io.LimitReader(selection.Archive().Payload(), d.Payload.Size+1))
 	if err != nil {
 		return nil, err
@@ -229,11 +295,17 @@ func (l *ProgramLoader) Preflight(selection *packagestore.Selection) (*StoredCon
 	if err := checkConfigurationBytes(config, data); err != nil {
 		return nil, err
 	}
+	if romMode {
+		if _, _, err := programROMExtension(config.CoreSize, romImage); err != nil {
+			return nil, err
+		}
+	}
 	configurationRaw, err := canonicalProgramRecord(config)
 	if err != nil {
 		return nil, err
 	}
-	program := &selectedProgram{l, id, config, comp, control, configurationRaw, computerRaw}
+	program := &selectedProgram{loader: l, identity: id, configuration: config, computer: comp,
+		controlRaw: control, configurationRaw: configurationRaw, computerRaw: computerRaw, rom: romImage, romReceipt: romReceipt}
 	return &StoredConfigurationPlan{state: &storedConfigurationPlan{v: l.boot, program: program, selection: selection,
 		control: bytes.Clone(control), configuration: bytes.Clone(configurationRaw), payload: data}}, nil
 }
@@ -285,6 +357,9 @@ func (t *ConfigurationTransfer) ProgramIdentity() (fabricmodel.PackageIdentity, 
 
 // Kept local so descriptor assertions never become a boot verification call.
 func (v *HPSContextVerifier) programConfiguration(control, raw []byte, p *selectedProgram) (coldConfigurationMap, error) {
+	if v != nil && v.rom != nil && (p == nil || len(p.rom) == 0) {
+		return coldConfigurationMap{}, errors.New("native fabric: ROM configuration requires its retained selected program")
+	}
 	if p == nil {
 		if _, err := v.checkedControlMap(control); err != nil {
 			return coldConfigurationMap{}, err
@@ -295,4 +370,12 @@ func (v *HPSContextVerifier) programConfiguration(control, raw []byte, p *select
 		return coldConfigurationMap{}, errors.New("native fabric: selected program maps differ from retained binding")
 	}
 	return p.configuration, nil
+}
+
+// ROMReceiptSHA256 is cached retained-content evidence, not live ROM completion.
+func (p *StoredConfigurationPlan) ROMReceiptSHA256() string {
+	if p == nil || p.state == nil || p.state.program == nil {
+		return ""
+	}
+	return p.state.program.romReceipt
 }
