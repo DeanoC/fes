@@ -24,6 +24,121 @@ type fakeControl struct {
 	incompatible map[string]bool
 }
 
+type timedHealthController struct {
+	fakeControl
+	health func() error
+}
+
+func (c *timedHealthController) Healthy(context.Context, string) error { return c.health() }
+
+func TestStartupDeadlineAndContinuousReadiness(t *testing.T) {
+	for _, tc := range []struct {
+		name       string
+		readyAt    time.Duration
+		failAt     time.Duration
+		lateProbe  bool
+		wantErr    bool
+		wantFinish time.Duration
+	}{
+		{name: "ready at 59 seconds completes stability", readyAt: 59 * time.Second, wantFinish: 69 * time.Second},
+		{name: "not ready by deadline", readyAt: 60 * time.Second, wantErr: true, wantFinish: 60 * time.Second},
+		{name: "slow first probe ends after deadline", readyAt: 59 * time.Second, lateProbe: true, wantErr: true, wantFinish: 61 * time.Second},
+		{name: "late readiness failure cannot restart window", readyAt: 59 * time.Second, failAt: 64 * time.Second, wantErr: true, wantFinish: 65 * time.Second},
+		{name: "early readiness failure restarts window", readyAt: 55 * time.Second, failAt: 58 * time.Second, wantFinish: 69 * time.Second},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			start := time.Unix(100, 0)
+			now := start
+			c := &timedHealthController{}
+			c.health = func() error {
+				elapsed := now.Sub(start)
+				if elapsed < tc.readyAt || (tc.failAt != 0 && elapsed == tc.failAt) {
+					return errors.New("not ready")
+				}
+				if tc.lateProbe {
+					now = now.Add(2 * time.Second)
+				}
+				return nil
+			}
+			e := &Engine{Controller: c, Poll: time.Second, Now: func() time.Time { return now }, Wait: func(ctx context.Context, d time.Duration) error { now = now.Add(d); return ctx.Err() }}
+			e.defaults()
+			if e.Deadline != 60*time.Second || e.Stable != 10*time.Second {
+				t.Fatalf("unexpected startup and stability defaults: %v %v", e.Deadline, e.Stable)
+			}
+			err := e.switchPrepared(context.Background(), testCandidateID, req())
+			if (err != nil) != tc.wantErr {
+				t.Fatalf("switch error = %v, want error %v", err, tc.wantErr)
+			}
+			if tc.wantErr && !errors.Is(err, context.DeadlineExceeded) {
+				t.Fatalf("expected readiness deadline error: %v", err)
+			}
+			if got := now.Sub(start); got != tc.wantFinish {
+				t.Fatalf("finished at %v, want %v", got, tc.wantFinish)
+			}
+			if c.starts != 1 {
+				t.Fatalf("started %d times", c.starts)
+			}
+		})
+	}
+}
+
+func TestReadinessStabilityHonorsCallerCancellation(t *testing.T) {
+	start := time.Unix(100, 0)
+	now := start
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	c := &timedHealthController{health: func() error {
+		if now.Sub(start) < 59*time.Second {
+			return errors.New("not ready")
+		}
+		return nil
+	}}
+	e := &Engine{Controller: c, Poll: time.Second, Now: func() time.Time { return now }, Wait: func(ctx context.Context, d time.Duration) error {
+		now = now.Add(d)
+		if now.Sub(start) == 62*time.Second {
+			cancel()
+		}
+		return ctx.Err()
+	}}
+	e.defaults()
+	if err := e.switchPrepared(ctx, testCandidateID, req()); !errors.Is(err, context.Canceled) {
+		t.Fatalf("caller cancellation was not honored: %v", err)
+	}
+}
+
+func TestLateReadinessFailureKeepsFailedRecoveryFenced(t *testing.T) {
+	r, e, _, admission := setup(t)
+	start := time.Unix(100, 0)
+	now := start
+	c := &timedHealthController{}
+	c.health = func() error {
+		elapsed := now.Sub(start)
+		if c.active != testCandidateID || elapsed < 59*time.Second || elapsed >= 64*time.Second {
+			return errors.New("not ready")
+		}
+		return nil
+	}
+	e.Controller = c
+	e.Deadline = time.Minute
+	e.Stable = 10 * time.Second
+	e.Poll = time.Second
+	e.Now = func() time.Time { return now }
+	e.Wait = func(ctx context.Context, d time.Duration) error { now = now.Add(d); return ctx.Err() }
+	if err := Queue(r, req()); err != nil {
+		t.Fatal(err)
+	}
+	if err := e.Run(context.Background()); err == nil {
+		t.Fatal("failed candidate and recovery were accepted")
+	}
+	state, err := r.Read()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if state.Pending == nil || state.Pending.Phase != "blocked" || state.Selected != testFactoryID || admission.releases != 0 {
+		t.Fatalf("failed recovery lost its fence: state=%+v releases=%d", state, admission.releases)
+	}
+}
+
 func (f *fakeControl) Verify(_ context.Context, id string) error {
 	if f.incompatible[id] {
 		return fmt.Errorf("%w: release does not accept required interface menu.fes.video.menu-blitter 1.0", software.ErrIncompatible)
