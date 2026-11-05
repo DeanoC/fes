@@ -2,10 +2,43 @@
 package nativefabric
 
 import (
+	"crypto/sha256"
+	"crypto/sha512"
 	"encoding/binary"
 	"encoding/hex"
 	"errors"
+	"hash/crc32"
 )
+
+const programROMHeaderBytes = 128
+
+// encodeROMProgramBinding binds a retained ROM to the same package/build and
+// closed owner as the bitstream. It supplies no platform address or authority.
+// The ROM immediately follows the aligned bitstream in the existing arena.
+func encodeROMProgramBinding(source HPSBootObservation, m coldConfigurationMap, image []byte) ([]byte, int, error) {
+	header, err := encodeProgramBinding(source, m)
+	if err != nil {
+		return nil, 0, err
+	}
+	offset := (m.CoreSize + 63) &^ 63
+	if (len(image) != 4096 && len(image) != 8192) || offset > MaxProgramBytes || len(image) > MaxProgramBytes-offset {
+		return nil, 0, errors.New("native fabric: ROM does not fit the retained program arena")
+	}
+	// Digest one private snapshot, even when the caller still owns its slice.
+	image = append([]byte(nil), image...)
+	raw := make([]byte, ProgramHeaderBytes+programROMHeaderBytes)
+	copy(raw, header)
+	binary.LittleEndian.PutUint32(raw[4:], 2)
+	ext := raw[ProgramHeaderBytes:]
+	for at, value := range map[int]uint32{0: 0x31425246, 4: 1, 8: programROMHeaderBytes,
+		12: uint32(offset), 16: uint32(len(image)), 20: crc32.ChecksumIEEE(image)} {
+		binary.LittleEndian.PutUint32(ext[at:], value)
+	}
+	sha256sum, sha384sum := sha256.Sum256(image), sha512.Sum384(image)
+	copy(ext[24:], sha256sum[:])
+	copy(ext[56:], sha384sum[:])
+	return raw, offset, nil
+}
 
 const (
 	ProgramHeaderBytes   = 640

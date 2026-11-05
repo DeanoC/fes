@@ -6,7 +6,7 @@ adapter, and verification against actual FPGA RTL. These tools build firmware
 components; the Nano tools assemble the matched experimental boot images.
 Software tests and cross-builds remain distinct from hardware acceptance.
 
-`nano_rom.c` is an unbound ROM transfer component for trusted platform hooks.
+`nano_rom.c` transfers ROM images through trusted platform hooks.
 It snapshots an admitted 4/8 KiB input before MMIO, checks its expected CRC,
 then verifies the endpoint version, image size, sealed build words and held CPU.
 Owned, ordered FIFO writes have one qualified 400 MHz timer budget of one second
@@ -20,8 +20,35 @@ The actual C component and CSR/RAM/machine RTL are exercised together by
 `sources/misteross/prototypes/de25_board_control/verify_rom.py`. Both ROM sizes
 execute a streamed program after explicit release; damaged source, stale identity,
 wrong epoch, partial/invalid writes, lost Hold, failed I/O, clock/poll bounds and
-CRC failures cannot produce an accepted completion. No secure-platform callback,
-SiP dispatcher, native package launch or physical producer installs this path yet.
+CRC failures cannot produce an accepted completion. The model also exercises the
+actual opt-in strong-provider include and existing computer control gate, with
+modeled platform operations and an explicit exact-image digest oracle.
+
+`FES_NANO_COLD_ROM` adds the ROM transfer inside the existing control-opening
+operation under its shared secure lock. The successful open reply is withheld
+until ROM completion. Failures retire the activation, clear reply provenance
+and invoke the existing containment callback. No new SMC operation, data-bridge
+release or CPU Run is introduced. The strong provider requires the same finished
+configuration, captured build, owner and next generation, control-only scope,
+contained masters, held emulation CPU, locked boot CPU and 400 MHz timer. It
+hashes the driver's private snapshot with the pinned SHA-384 primitives before
+endpoint access. A newer successful configuration may construct a fresh ROM
+object after the preceding ROM completed; it cannot reset a failed transfer.
+
+This opt-in profile requires a version-2 program binding: the existing 640-byte
+header plus a fixed 128-byte ROM extension in the same reserved metadata page.
+Two guarded samples capture the extension's size, aligned offset, CRC, SHA-256
+and SHA-384. The ROM immediately follows the aligned bitstream within the existing
+8 MiB reservation and cannot overlap its metadata page. The native encoder and
+actual C decoder have paired tests. Legacy profiles require version 1; ROM
+profiles require version 2. The descriptor supplies byte integrity, not package
+authentication, a new address or platform authority.
+
+The firmware preparer includes these sources, but no current physical producer
+or generated cold profile supplies the required ROM aperture/conduits. The native
+package frontend still rejects unsupported ROM-linked packages; its ordinary
+launch publisher does not yet select the new encoder. No ROM-capable matched
+boot image or physical acceptance is claimed.
 
 The opt-in window SD-return path now connects the retained full-frame closure
 to the existing read-only SD lease. The secure provider checks its completed

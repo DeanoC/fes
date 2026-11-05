@@ -76,6 +76,11 @@ static int fes_nano_computer_control(uint32_t fid, uint64_t operation,
     }
     p->active=1;p->stage=FES_ID_OPEN;
     fes_nano_bridge_sip(c->bridges, operation, owner, generation, busy, result);
+#if defined(FES_NANO_COLD_ROM) && FES_NANO_COLD_ROM
+    if (!result[0] && fes_nano_platform_computer_rom(c,owner,result[3])) {
+        result[0]=4;result[1]=result[2]=result[3]=0;
+    }
+#endif
     if (!result[0]) { fes_nano_computer_phase = 1;p->stage=FES_ID_READ; }
     else {
         p->failed=1;p->bridges->failed=1;

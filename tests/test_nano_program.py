@@ -23,6 +23,7 @@ class NanoProgramTests(unittest.TestCase):
             result = subprocess.run([str(binary)], capture_output=True, text=True)
             self.assertEqual(result.returncode, 0, result.stderr + result.stdout)
             self.assertIn('PASS 36 per-load descriptor', result.stdout)
+            self.assertIn('PASS 18 ROM descriptor', result.stdout)
 
 
 if __name__ == '__main__':

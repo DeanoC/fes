@@ -62,7 +62,7 @@ def reset_source(data):
 
 
 def inputs():
-    return [HERE / name for name in ("prepare_nano_owned.py", "nano_digest.py", "nano_mailbox.py", "nano_mailbox_observe.inc", "nano_mailbox_observe.h", "nano_mailbox_status.inc", "verify.py", "nano_bridges.c", "nano_bridges.h", "nano_boot.c", "nano_boot.h", "nano_bridge_sip.c", "nano_bridge_sip.h", "nano_bridge_platform.h", "nano_bridge_platform.inc", "nano_owned_sip.inc", "nano_computer_control.inc", "nano_window_control.inc", "generated/fes_embedded_bridges.h", "nano_sd.h", "nano_sd.c", "generated/fes_embedded_sd.h", "nano_usb_service.c", "nano_usb_service.h", "nano_usb_platform.h", "nano_usb_platform.c", "nano_usb_board.c", "nano_usb_board.h", "nano_usb_boot.inc", "nano_usb_composition.c", "nano_usb_composition.h", "nano_cold.h", "generated/fes_embedded_usb.h", "nano_identity.h", "nano_identity.c", "nano_configuration.h", "nano_configuration.c", "nano_program.h", "nano_program.c", "nano_smmu.h", "nano_smmu.c", "nano_fabric_stop.c", "nano_fabric_stop.h", "nano_probe_stop.c", "nano_probe_stop.h", "nano_ddr_firewall.c", "nano_ddr_firewall.h", "nano_ddr_read.c", "nano_ddr_read.h", "nano_hps_io.c", "nano_hps_io.h", "generated/fes_de25_ddr_probe.h", "generated/fes_embedded_control.h")]
+    return [HERE / name for name in ("prepare_nano_owned.py", "nano_digest.py", "nano_mailbox.py", "nano_mailbox_observe.inc", "nano_mailbox_observe.h", "nano_mailbox_status.inc", "verify.py", "nano_bridges.c", "nano_bridges.h", "nano_boot.c", "nano_boot.h", "nano_bridge_sip.c", "nano_bridge_sip.h", "nano_bridge_platform.h", "nano_bridge_platform.inc", "nano_owned_sip.inc", "nano_computer_control.inc", "nano_window_control.inc", "generated/fes_embedded_bridges.h", "nano_sd.h", "nano_sd.c", "generated/fes_embedded_sd.h", "nano_usb_service.c", "nano_usb_service.h", "nano_usb_platform.h", "nano_usb_platform.c", "nano_usb_board.c", "nano_usb_board.h", "nano_usb_boot.inc", "nano_usb_composition.c", "nano_usb_composition.h", "nano_cold.h", "generated/fes_embedded_usb.h", "nano_identity.h", "nano_identity.c", "nano_configuration.h", "nano_configuration.c", "nano_program.h", "nano_program.c", "nano_rom.h", "nano_rom.c", "nano_rom_platform.inc", "generated/fes_embedded_rom.h", "nano_smmu.h", "nano_smmu.c", "nano_fabric_stop.c", "nano_fabric_stop.h", "nano_probe_stop.c", "nano_probe_stop.h", "nano_ddr_firewall.c", "nano_ddr_firewall.h", "nano_ddr_read.c", "nano_ddr_read.h", "nano_hps_io.c", "nano_hps_io.h", "generated/fes_de25_ddr_probe.h", "generated/fes_embedded_control.h")]
 
 
 def psci_source(text, cold_serial=False):
@@ -141,17 +141,18 @@ def install(source, cold_profile=None, cold_header=None):
     service.write_bytes(service_source(original,cold_serial=cold_profile is not None))
     reset.write_bytes(reset_source(raw))
     include = source / "plat/intel/soc/common/include"
-    for name in ("nano_bridges.h", "nano_bridge_sip.h", "nano_bridge_platform.h", "nano_boot.h", "nano_sd.h", "nano_usb_service.h", "nano_usb_platform.h", "nano_cold.h", "nano_identity.h", "nano_configuration.h", "nano_program.h", "nano_computer_control.inc", "nano_window_control.inc"):
+    for name in ("nano_bridges.h", "nano_bridge_sip.h", "nano_bridge_platform.h", "nano_boot.h", "nano_sd.h", "nano_usb_service.h", "nano_usb_platform.h", "nano_cold.h", "nano_identity.h", "nano_configuration.h", "nano_program.h", "nano_rom.h", "nano_rom_platform.inc", "nano_computer_control.inc", "nano_window_control.inc"):
         (include / name).write_bytes((HERE / name).read_bytes())
     (include / "generated").mkdir(exist_ok=True)
     (include / "generated/fes_embedded_bridges.h").write_bytes((HERE / "generated/fes_embedded_bridges.h").read_bytes())
     (include / "generated/fes_embedded_sd.h").write_bytes((HERE / "generated/fes_embedded_sd.h").read_bytes())
     (include / "generated/fes_embedded_usb.h").write_bytes((HERE / "generated/fes_embedded_usb.h").read_bytes())
     (include / "generated/fes_embedded_control.h").write_bytes((HERE / "generated/fes_embedded_control.h").read_bytes())
-    for name in ("nano_bridges.c", "nano_bridge_sip.c", "nano_boot.c", "nano_sd.c", "nano_usb_service.c", "nano_identity.c", "nano_configuration.c", "nano_program.c"):
+    (include / "generated/fes_embedded_rom.h").write_bytes((HERE / "generated/fes_embedded_rom.h").read_bytes())
+    for name in ("nano_bridges.c", "nano_bridge_sip.c", "nano_boot.c", "nano_sd.c", "nano_usb_service.c", "nano_identity.c", "nano_configuration.c", "nano_program.c", "nano_rom.c"):
         (source / "plat/intel/soc/common" / name).write_bytes((HERE / name).read_bytes())
     mk = source / MAKEFILE
-    mk.write_text(mk.read_text() + "\nBL31_SOURCES += plat/intel/soc/common/nano_bridges.c plat/intel/soc/common/nano_bridge_sip.c plat/intel/soc/common/nano_boot.c plat/intel/soc/common/nano_sd.c plat/intel/soc/common/nano_usb_service.c plat/intel/soc/common/nano_identity.c plat/intel/soc/common/nano_configuration.c plat/intel/soc/common/nano_program.c\n")
+    mk.write_text(mk.read_text() + "\nBL31_SOURCES += plat/intel/soc/common/nano_bridges.c plat/intel/soc/common/nano_bridge_sip.c plat/intel/soc/common/nano_boot.c plat/intel/soc/common/nano_sd.c plat/intel/soc/common/nano_usb_service.c plat/intel/soc/common/nano_identity.c plat/intel/soc/common/nano_configuration.c plat/intel/soc/common/nano_program.c plat/intel/soc/common/nano_rom.c\n")
     setup = source / SETUP
     text = setup.read_text()
     marker = "\tsocfpga_delay_timer_init();\n"

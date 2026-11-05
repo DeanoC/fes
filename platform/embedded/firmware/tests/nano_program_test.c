@@ -12,6 +12,8 @@ struct fixture {
     uint8_t wire[FES_NANO_PROGRAM_HEADER_BYTES],context[32];
     unsigned valid,reset,reads,guards,read_failure,guard_failure,changing;
     unsigned checks,completions;
+    uint8_t rom_wire[FES_NANO_PROGRAM_ROM_HEADER_BYTES];
+    unsigned rom_reads,rom_fault;
 };
 static void put32(uint8_t *p,uint32_t v)
 { for(unsigned i=0;i<4;i++)p[i]=(uint8_t)(v>>(8*i)); }
@@ -38,6 +40,15 @@ static int read_header(void *p,uint8_t result[FES_NANO_PROGRAM_HEADER_BYTES])
     if(f->reads==f->read_failure)return -1;
     memcpy(result,f->wire,sizeof(f->wire));
     if(f->changing && f->reads==2)result[120]^=1;
+    return 0;
+}
+static int read_rom_header(void *p,uint8_t result[FES_NANO_PROGRAM_ROM_HEADER_BYTES])
+{
+    struct fixture *f=p;f->rom_reads++;
+    if(f->rom_fault==f->rom_reads)return -1;
+    memcpy(result,f->rom_wire,sizeof(f->rom_wire));
+    if(f->rom_fault==3 && f->rom_reads==2)result[56]^=1;
+    if(f->rom_fault==4)f->valid=0;
     return 0;
 }
 static void header(struct fixture *f,uint32_t bytes,unsigned seed)
@@ -105,13 +116,62 @@ static void transfer(struct fixture *f,unsigned rearm)
     assert(!fes_nano_bridges_open(&f->bridges,17,f->bridges.state.generation,2,&open));
     assert(!fes_nano_bridges_close(&f->bridges,17,open.generation,0,1,&closed));
 }
+static void rom_request(struct fixture *f,unsigned bytes)
+{
+    init(f);header(f,132,1);put32(f->wire+4,2);
+    f->program.maximum=FES_NANO_PROGRAM_MAX_BYTES;
+    put32(f->rom_wire,FES_NANO_PROGRAM_ROM_MAGIC);put32(f->rom_wire+4,1);
+    put32(f->rom_wire+8,sizeof(f->rom_wire));put32(f->rom_wire+12,192);
+    put32(f->rom_wire+16,bytes);put32(f->rom_wire+20,0x12345678);
+    memset(f->rom_wire+24,7,32);memset(f->rom_wire+56,8,48);
+    assert(!fes_nano_program_enable_rom(&f->program,read_rom_header));
+    assert(fes_nano_program_enable_rom(&f->program,read_rom_header));
+}
+static void rom_cases(void)
+{
+    for(unsigned size=4096;size<=8192;size+=4096) {
+        struct fixture f;rom_request(&f,size);
+        assert(!fes_nano_program_capture(&f.program,17,1));
+        assert(f.program.bound && f.program.rom_offset==192 && f.program.rom_bytes==size &&
+               f.program.rom_crc==0x12345678 && f.rom_reads==2);
+        memset(f.rom_wire,0xff,sizeof(f.rom_wire));
+        assert(f.program.rom_header[24]==7 && f.program.rom_header[56]==8);
+        assert(fes_nano_program_enable_rom(&f.program,read_rom_header));
+        /* A newer closed scope captures its own ROM; replay cannot. */
+        unsigned reads=f.reads;assert(fes_nano_program_capture(&f.program,17,1));assert(f.reads==reads);
+    }
+    for(unsigned mode=0;mode<16;mode++) {
+        struct fixture f;rom_request(&f,4096);
+        if(mode<3)f.rom_wire[mode*4]^=1;
+        if(mode==3)put32(f.rom_wire+12,128);
+        if(mode==4)put32(f.rom_wire+16,4095);
+        if(mode==5)memset(f.rom_wire+24,0,32);
+        if(mode==6)memset(f.rom_wire+56,0,48);
+        if(mode==7)f.rom_wire[104]=1;
+        if(mode>=8 && mode<=11)f.rom_fault=mode-7;
+        if(mode==12)f.program.maximum=4096;
+        if(mode==13)put32(f.wire+4,1); /* No downgrade in a ROM profile. */
+        if(mode==14)f.program.read_rom=0; /* No upgrade in a legacy profile. */
+        if(mode==15)f.guard_failure=7;
+        assert(fes_nano_program_capture(&f.program,17,1) && f.program.failed && !f.program.bound);
+        unsigned reads=f.reads,rom_reads=f.rom_reads;
+        assert(fes_nano_program_capture(&f.program,17,2) && f.reads==reads && f.rom_reads==rom_reads);
+    }
+    puts("PASS 18 ROM descriptor capture, profile, span, ownership and retirement cases");
+}
 int main(int argc,char **argv)
 {
-    if(argc==2) {
+    if(argc==2 || argc==3) {
         struct fixture f;init(&f);FILE *in=fopen(argv[1],"rb");assert(in);
         f.program.chunk=0xfffc0; /* The paired native fixture's qualified block size. */
         f.configuration.chunk=0xfffc0;
-        assert(fread(f.wire,1,sizeof(f.wire),in)==sizeof(f.wire) && fgetc(in)==EOF);fclose(in);
+        assert(fread(f.wire,1,sizeof(f.wire),in)==sizeof(f.wire));
+        if(argc==3) {
+            f.program.maximum=FES_NANO_PROGRAM_MAX_BYTES;
+            assert(!fes_nano_program_enable_rom(&f.program,read_rom_header));
+            assert(fread(f.rom_wire,1,sizeof(f.rom_wire),in)==sizeof(f.rom_wire));
+        }
+        assert(fgetc(in)==EOF);fclose(in);
         /* The paired Go fixture uses this independent context and ownership. */
         uint64_t reply[4];fes_nano_configuration_prepare(&f.configuration,17,1,0,reply);
         assert(!reply[0] && (uint32_t)reply[1]==(FES_NANO_PROGRAM_BOUND_REPLY|f.program.bytes));
@@ -119,6 +179,7 @@ int main(int argc,char **argv)
         uint32_t words[4];assert(!fes_nano_program_build(&f.program,words));
         for(unsigned i=0;i<4;i++)printf("%08x ",words[i]);
         for(unsigned i=0;i<32;i++)printf("%02x",f.program.header[72+i]);
+        if(argc==3)printf(" %u %u %08x",f.program.rom_offset,f.program.rom_bytes,f.program.rom_crc);
         putchar('\n');return 0;
     }
     unsigned cases=0;
@@ -167,5 +228,6 @@ int main(int argc,char **argv)
         assert(r[0] && f.reads==reads);cases++;
     }
     printf("PASS %u per-load descriptor and actual configuration/bridge engine cases; injected digest checks, no hardware\n",cases);
+    rom_cases();
     return 0;
 }

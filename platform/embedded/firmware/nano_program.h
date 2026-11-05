@@ -24,6 +24,11 @@
 #define FES_NANO_PROGRAM_SHA256 120U
 #define FES_NANO_PROGRAM_SHA384 152U
 #define FES_NANO_PROGRAM_CHUNKS 200U
+#define FES_NANO_PROGRAM_ROM_VERSION 2U
+#define FES_NANO_PROGRAM_ROM_HEADER_BYTES 128U
+#define FES_NANO_PROGRAM_ROM_MAGIC 0x31425246U /* FRB1 */
+#define FES_NANO_PROGRAM_ROM_SHA256 24U
+#define FES_NANO_PROGRAM_ROM_SHA384 56U
 
 struct fes_nano_program_ops {
     void *context;
@@ -39,6 +44,11 @@ struct fes_nano_program {
     uint64_t owner, generation;
     uint32_t maximum, chunk, bytes, chunks;
     unsigned initialized, bound, failed;
+    /* Trusted opt-in before capture. Version 2 binds a ROM extension at the
+     * fixed metadata offset HEADER_BYTES, not a non-secure supplied address. */
+    int (*read_rom)(void *, uint8_t result[FES_NANO_PROGRAM_ROM_HEADER_BYTES]);
+    uint8_t rom_header[FES_NANO_PROGRAM_ROM_HEADER_BYTES];
+    uint32_t rom_offset, rom_bytes, rom_crc;
 };
 #ifdef __cplusplus
 extern "C" {
@@ -53,6 +63,8 @@ int fes_nano_program_capture(struct fes_nano_program *, uint64_t owner, uint64_t
 const uint8_t *fes_nano_program_expected(const struct fes_nano_program *,
                                        uint32_t offset, uint32_t bytes, unsigned whole);
 int fes_nano_program_build(const struct fes_nano_program *, uint32_t words[4]);
+int fes_nano_program_enable_rom(struct fes_nano_program *,
+    int (*read_rom)(void *, uint8_t result[FES_NANO_PROGRAM_ROM_HEADER_BYTES]));
 #ifdef __cplusplus
 }
 #endif

@@ -3,9 +3,11 @@ package nativefabric
 
 import (
 	"bytes"
+	"encoding/binary"
 	"encoding/json"
 	"errors"
 	"fmt"
+	"hash/crc32"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -25,7 +27,8 @@ func bindingFixture(t *testing.T) (HPSBootObservation, coldConfigurationMap) {
 	return source, m
 }
 
-func TestProgramBindingPairsNativeEncodingWithTheActualSecureCDecoder(t *testing.T) {
+func buildProgramDecoder(t *testing.T) string {
+	t.Helper()
 	binary := filepath.Join(t.TempDir(), "program-decoder")
 	argv := []string{"-std=c11", "-Wall", "-Wextra", "-Werror", "-fsanitize=undefined", "-fno-sanitize-recover=all", "-I../../firmware"}
 	for _, name := range []string{"nano_program.c", "nano_configuration.c", "nano_bridges.c", "tests/nano_program_test.c"} {
@@ -35,6 +38,11 @@ func TestProgramBindingPairsNativeEncodingWithTheActualSecureCDecoder(t *testing
 	if output, err := exec.Command("cc", argv...).CombinedOutput(); err != nil {
 		t.Fatalf("secure fixture build: %v\n%s", err, output)
 	}
+	return binary
+}
+
+func TestProgramBindingPairsNativeEncodingWithTheActualSecureCDecoder(t *testing.T) {
+	binary := buildProgramDecoder(t)
 	source, m := bindingFixture(t)
 	for _, id := range []string{strings.Repeat("1", 64), strings.Repeat("2", 64)} {
 		m.PackageID = id
@@ -51,6 +59,43 @@ func TestProgramBindingPairsNativeEncodingWithTheActualSecureCDecoder(t *testing
 		if err != nil || string(output) != want {
 			t.Fatalf("native/secure binding differs: %v\nwant %q\ngot %q", err, want, output)
 		}
+	}
+}
+
+func TestROMProgramBindingPairsTheRetainedImageWithTheSecureDecoder(t *testing.T) {
+	decoder := buildProgramDecoder(t)
+	for _, size := range []int{4096, 8192} {
+		source, m := bindingFixture(t)
+		m.CoreSize = 132
+		image := bytes.Repeat([]byte{0xa5}, size)
+		raw, offset, err := encodeROMProgramBinding(source, m, image)
+		if err != nil || offset != 192 || len(raw) != ProgramHeaderBytes+128 || binary.LittleEndian.Uint32(raw[4:]) != 2 {
+			t.Fatal("bounded ROM binding", offset, len(raw), err)
+		}
+		path := filepath.Join(t.TempDir(), "request.bin")
+		if err := os.WriteFile(path, raw, 0600); err != nil {
+			t.Fatal(err)
+		}
+		output, err := exec.Command(decoder, path, "rom").CombinedOutput()
+		want := fmt.Sprintf("132 1 1 0c0d0e0f 08090a0b 04050607 00010203 %s 192 %d %08x\n", m.PackageID, size, crc32.ChecksumIEEE(image))
+		if err != nil || string(output) != want {
+			t.Fatalf("ROM/native secure binding differs: %v\nwant %q\ngot %q", err, want, output)
+		}
+	}
+	for _, size := range []int{0, 4095, 4097, 8193} {
+		source, m := bindingFixture(t)
+		if raw, _, err := encodeROMProgramBinding(source, m, make([]byte, size)); err == nil || raw != nil {
+			t.Fatal("invalid ROM length accepted", size)
+		}
+	}
+	source, m := bindingFixture(t)
+	m.CoreSize = MaxProgramBytes
+	m.ChunkSHA384 = make([]string, (m.CoreSize-1)/m.ChunkBytes+1)
+	for i := range m.ChunkSHA384 {
+		m.ChunkSHA384[i] = strings.Repeat("1", 96)
+	}
+	if raw, _, err := encodeROMProgramBinding(source, m, make([]byte, 4096)); err == nil || raw != nil {
+		t.Fatal("ROM overlapped the metadata page")
 	}
 }
 

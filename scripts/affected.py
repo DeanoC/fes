@@ -37,6 +37,13 @@ EMBEDDED_ROM_INPUTS = frozenset({
     'platform/embedded/firmware/generated/fes_embedded_rom.h',
     'platform/embedded/firmware/nano_rom.c',
     'platform/embedded/firmware/nano_rom.h',
+    'platform/embedded/firmware/nano_rom_platform.inc',
+    'platform/embedded/firmware/nano_program.c',
+    'platform/embedded/firmware/nano_program.h',
+    'platform/embedded/firmware/nano_cold_platform.c',
+    'platform/embedded/firmware/nano_computer_control.inc',
+    'platform/embedded/firmware/nano_bridge_platform.h',
+    'platform/embedded/firmware/prepare_nano_owned.py',
 })
 
 

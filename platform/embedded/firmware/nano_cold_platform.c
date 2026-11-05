@@ -847,6 +847,9 @@ static int configuration_return_generation(uint64_t owner,uint64_t generation)
 #endif
 }
 #endif
+#if defined(FES_NANO_COLD_ROM) && FES_NANO_COLD_ROM
+#include "nano_rom_platform.inc"
+#endif
 static int configuration_complete(void *context, uint64_t owner, uint64_t generation, unsigned rearmed)
 {
     struct fes_nano_bridge_snapshot current;
@@ -882,6 +885,9 @@ static int configuration_complete(void *context, uint64_t owner, uint64_t genera
            (unsigned long long)owner,(unsigned long long)generation,(unsigned long long)previous,rearmed);
 #endif
     if(fes_nano_program_build(&configuration_program,identity_probe.build))return -1;
+#if defined(FES_NANO_COLD_ROM) && FES_NANO_COLD_ROM
+    if(computer_rom_prepare(owner,generation))return -1;
+#endif
 #if defined(FES_NANO_WINDOW_STORAGE_RETURN) && FES_NANO_WINDOW_STORAGE_RETURN
     if(rearmed) {
         window_prepared=window_issued=0;
@@ -910,6 +916,9 @@ int fes_nano_platform_configuration_setup(void)
     struct fes_nano_program_ops program={&provider,configuration_guard,configuration_descriptor};
     if(fes_nano_program_init(&configuration_program,program,context,FES_NANO_PROGRAM_MAX_BYTES,
                              FES_NANO_CONFIG_CHUNK,qualified))return -1;
+#if defined(FES_NANO_COLD_ROM) && FES_NANO_COLD_ROM
+    if(fes_nano_program_enable_rom(&configuration_program,configuration_rom_descriptor))return -1;
+#endif
     struct fes_nano_configuration_ops io={.context=&provider,.check=configuration_check,.trace=configuration_trace,.complete=configuration_complete,.bind=configuration_bind};
     return fes_nano_configuration_init(&configuration,&fes_nano_owned_bridges,io,FES_NANO_CONFIG_BASE,
                                        FES_NANO_PROGRAM_MAX_BYTES,FES_NANO_CONFIG_CHUNK,qualified) ? -1 : 1;

@@ -62,8 +62,13 @@ model can select this interface with `CSR_MODE=1`; the actual freestanding C
 transfer in `platform/embedded/firmware/nano_rom.c` then feeds the real machine.
 The tests also mutate the caller's source after capture and inject ownership,
 identity, timer, counters, I/O and CRC failures. No production wrapper or native
-launch currently selects this mode. The next binding must supply the existing
-trusted platform ownership/containment hooks and retained input identity.
+launch currently selects this mode. The model additionally links the real opt-in
+secure-provider include and computer control gate. It checks that ROM transfer
+and private-image digest verification finish before a successful control-open
+reply, and that failures contain/retire without replay. Platform operations and
+the digest oracle are injected; this is not a boot image or hardware result.
+The next physical binding must export the matched ROM aperture, identity and
+held-execution conduits before a cold profile can enable it.
 
 The new 256-byte Avalon aperture is at peripheral-relative `0x10400`. The
 generated handoff must also show it at `0x00110400` in the existing JTAG master.

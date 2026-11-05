@@ -45,6 +45,10 @@ int fes_nano_rom_init(struct fes_nano_rom *, struct fes_nano_rom_ops,
  * enclosing platform owns containment. A completion is saved evidence only.
  */
 int fes_nano_rom_load(struct fes_nano_rom *, const uint8_t *, size_t, uint32_t crc32);
+/* Secure provider variant: verify the private captured image against its saved
+ * digest before any endpoint I/O. A failed check retires this transfer. */
+int fes_nano_rom_load_checked(struct fes_nano_rom *, const uint8_t *, size_t, uint32_t crc32,
+    int (*verify)(void *, const uint8_t *, size_t), void *context);
 #ifdef __cplusplus
 }
 #endif

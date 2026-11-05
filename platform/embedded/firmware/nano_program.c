@@ -15,6 +15,33 @@ static unsigned nonzero(const uint8_t *p, unsigned bytes)
 static int fail(struct fes_nano_program *p)
 { p->failed=1;p->bound=0;return -1; }
 
+int fes_nano_program_enable_rom(struct fes_nano_program *p,
+    int (*read_rom)(void *, uint8_t result[FES_NANO_PROGRAM_ROM_HEADER_BYTES]))
+{
+    if(!p || !p->initialized || p->failed || p->owner || p->bound || p->read_rom || !read_rom)return -1;
+    p->read_rom=read_rom;return 0;
+}
+
+static int capture_rom(struct fes_nano_program *p,uint32_t bytes)
+{
+    uint8_t second[FES_NANO_PROGRAM_ROM_HEADER_BYTES];
+    if(!p->read_rom || p->io.guard(p->io.context,p->owner,p->generation) ||
+       p->read_rom(p->io.context,p->rom_header) ||
+       p->io.guard(p->io.context,p->owner,p->generation) ||
+       p->read_rom(p->io.context,second) ||
+       p->io.guard(p->io.context,p->owner,p->generation) ||
+       memcmp(p->rom_header,second,sizeof(second)))return fail(p);
+    const uint8_t *h=p->rom_header;
+    uint32_t offset=le32(h+12),size=le32(h+16);
+    if(le32(h)!=FES_NANO_PROGRAM_ROM_MAGIC || le32(h+4)!=1 || le32(h+8)!=sizeof(second) ||
+       offset!=((bytes+63U)&~63U) || (size!=4096 && size!=8192) ||
+       offset>p->maximum || size>p->maximum-offset ||
+       !nonzero(h+FES_NANO_PROGRAM_ROM_SHA256,32) ||
+       !nonzero(h+FES_NANO_PROGRAM_ROM_SHA384,48) || nonzero(h+104,24))return fail(p);
+    p->rom_offset=offset;p->rom_bytes=size;p->rom_crc=le32(h+20);
+    return 0;
+}
+
 int fes_nano_program_init(struct fes_nano_program *p, struct fes_nano_program_ops io,
                          const uint8_t context[32], uint32_t maximum, uint32_t chunk,
                          unsigned qualified)
@@ -37,6 +64,8 @@ int fes_nano_program_capture(struct fes_nano_program *p, uint64_t owner, uint64_
     /* Consume the attempt before reading any non-secure byte. The second sample
      * detects a changed publication; all later checks use this secure copy. */
     p->owner=owner;p->generation=generation;p->bound=0;
+    p->rom_offset=p->rom_bytes=p->rom_crc=0;
+    memset(p->rom_header,0,sizeof(p->rom_header));
     uint8_t second[FES_NANO_PROGRAM_HEADER_BYTES];
     if(p->io.guard(p->io.context,owner,generation) || p->io.read(p->io.context,p->header) ||
        p->io.guard(p->io.context,owner,generation) || p->io.read(p->io.context,second) ||
@@ -44,7 +73,9 @@ int fes_nano_program_capture(struct fes_nano_program *p, uint64_t owner, uint64_
         return fail(p);
     const uint8_t *h=p->header;
     uint32_t bytes=le32(h+12),chunk=le32(h+16),chunks=le32(h+20);
-    if(le32(h)!=FES_NANO_PROGRAM_MAGIC || le32(h+4)!=FES_NANO_PROGRAM_VERSION ||
+    uint32_t version=le32(h+4);
+    if(le32(h)!=FES_NANO_PROGRAM_MAGIC ||
+       version!=(p->read_rom ? FES_NANO_PROGRAM_ROM_VERSION : FES_NANO_PROGRAM_VERSION) ||
        le32(h+8)!=FES_NANO_PROGRAM_HEADER_BYTES || !bytes || (bytes&3U) || bytes>p->maximum ||
        chunk!=p->chunk || !chunks || chunks>FES_NANO_PROGRAM_MAX_CHUNKS ||
        chunks!=(bytes-1)/chunk+1 || le64(h+24)!=owner || le64(h+32)!=generation ||
@@ -56,6 +87,7 @@ int fes_nano_program_capture(struct fes_nano_program *p, uint64_t owner, uint64_
         if(!nonzero(h+FES_NANO_PROGRAM_CHUNKS+i*48,48))return fail(p);
     if(nonzero(h+FES_NANO_PROGRAM_CHUNKS+chunks*48,
                FES_NANO_PROGRAM_HEADER_BYTES-FES_NANO_PROGRAM_CHUNKS-chunks*48))return fail(p);
+    if(version==FES_NANO_PROGRAM_ROM_VERSION && capture_rom(p,bytes))return -1;
     if(p->io.guard(p->io.context,owner,generation))return fail(p);
     p->bytes=bytes;p->chunks=chunks;p->bound=1;
     return 0;

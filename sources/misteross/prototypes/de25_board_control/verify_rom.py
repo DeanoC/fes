@@ -37,6 +37,13 @@ def main():
               ROOT/'sources/mister-packages/packages/fabric/fes_fabric_embedded_rom.yaml',
               Path(__file__).resolve(), *machine_sources, fpga/'cores/fes-zx81/rtl/zx81_model.vh']
     inputs += list((fpga/'cores/fes-common/rtl/z80').glob('*.svh'))
+    secure_sources = [firmware/name for name in ('nano_program.c', 'nano_bridges.c', 'nano_bridge_sip.c', 'tests/nano_rom_platform_test.c')]
+    inputs += secure_sources + [firmware/name for name in ('nano_program.h', 'nano_bridges.h', 'nano_bridge_sip.h',
+        'nano_bridge_platform.h', 'nano_rom_platform.inc', 'nano_computer_control.inc', 'nano_configuration.h',
+        'nano_identity.h', 'nano_cold_platform.c', 'tests/nano_rom_platform_test.h',
+        'generated/fes_embedded_bridges.h')]
+    # The secure fixture includes the real platform service header closure.
+    inputs += sorted(firmware.glob('*.h')) + sorted((firmware/'generated').glob('*.h'))
     sources = {p: hashlib.sha256(p.read_bytes()).hexdigest() for p in inputs}
     commands = []
 
@@ -66,6 +73,14 @@ def main():
 
     run('firmware-build', ['cc', '-std=c11', '-Wall', '-Wextra', '-Werror', '-ffreestanding', '-fno-builtin',
                           '-c', firmware/'nano_rom.c', '-o', output/'nano_rom.o'])
+    objects = [output/'nano_rom.o']
+    for source in secure_sources:
+        obj = output/(source.stem+'.o')
+        run(source.stem+'-build', ['cc', '-std=c11', '-Wall', '-Wextra', '-Werror',
+            '-I'+str(firmware), '-I'+str(firmware/'tests'), '-c', source, '-o', obj])
+        objects.append(obj)
+    run('csr-lint', ['verilator', '--lint-only', '-Wall', '--top-module', 'fes_embedded_rom_csr',
+        '-I'+str(HERE/'generated'), HERE/'fes_embedded_rom.sv', HERE/'fes_embedded_rom_csr.sv'])
     for size in (4096, 8192):
         target = output/str(size)
         run('build-'+str(size), ['verilator', '-Wall', '--cc', '--exe', '--build', '-j', '2', '--Mdir', target,
@@ -91,11 +106,11 @@ def main():
             '-GROM_BYTES='+str(size), '-GCSR_MODE=1', "-GBUILD_ID=128'h00112233445566778899aabbccddeeff",
             *(['-DZX81_MODEL_ZX80'] if size == 4096 else []),
             '-I'+str(fpga/'cores/fes-zx81/rtl'), '-I'+str(fpga/'cores/fes-common/rtl/z80'), '-I'+str(HERE/'generated'),
-            '-CFLAGS', '-std=c++17 -I'+str(firmware), '-LDFLAGS', str(output/'nano_rom.o'),
+            '-CFLAGS', '-std=c++17 -I'+str(firmware), '-LDFLAGS', ' '.join(map(str,objects)),
             HERE/'fes_embedded_rom.sv', HERE/'fes_embedded_rom_csr.sv', HERE/'rom_machine.sv', *machine_sources, HERE/'rom_csr_probe.cpp'])
         run('csr-execute-'+str(size), [csr/'Vrom_machine', str(size), format(zlib.crc32(program), 'x')], cwd=fpga)
     assert all(hashlib.sha256(p.read_bytes()).hexdigest() == digest for p, digest in sources.items())
-    result = dict(status='passed', classification='actual C transport, ROM FIFO and real ZX80/ZX81 execution; no secure-platform/SMC/native admission binding or hardware proof',
+    result = dict(status='passed', classification='actual C ROM transport, opt-in secure-provider/control gate and real ZX80/ZX81 RTL; injected platform and exact-image digest oracle, no hardware or native admission proof',
                   source_sha256={str(p.relative_to(ROOT)): digest for p, digest in sources.items()}, commands=commands,
                   independent_crc_oracle='Python zlib.crc32', hardware_actions=False, ordinary_admission=False)
     (output/'result.json').write_text(json.dumps(result, indent=2)+'\n')

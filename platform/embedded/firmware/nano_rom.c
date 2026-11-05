@@ -83,7 +83,8 @@ int fes_nano_rom_init(struct fes_nano_rom *p,struct fes_nano_rom_ops io,
     p->io=io;p->owner=owner;p->generation=generation;
     memcpy(p->build,build,sizeof(p->build));return 0;
 }
-int fes_nano_rom_load(struct fes_nano_rom *p,const uint8_t *bytes,size_t size,uint32_t expected_crc)
+static int load(struct fes_nano_rom *p,const uint8_t *bytes,size_t size,uint32_t expected_crc,
+                int (*verify)(void *,const uint8_t *,size_t),void *context)
 {
     if (!p || !p->initialized || p->failed) return FES_NANO_ROM_STATE;
     if (p->busy) return FES_NANO_ROM_BUSY;
@@ -98,6 +99,9 @@ int fes_nano_rom_load(struct fes_nano_rom *p,const uint8_t *bytes,size_t size,ui
     }
     crc^=UINT32_C(0xffffffff);
     if (crc!=expected_crc) { p->busy=0;return FES_NANO_ROM_INTEGRITY; }
+    if (verify && (verify(context,p->image,size) || check(p))) {
+        fail(p,FES_NANO_ROM_INTEGRITY);goto finished;
+    }
     p->used=1;p->bytes=(uint32_t)size;p->crc=crc;
     if (identity(p) || equal_reg(p,FES_EMBEDDED_ROM_STATUS_OFFSET,FES_EMBEDDED_ROM_HELD,FES_NANO_ROM_STATE) ||
         equal_reg(p,FES_EMBEDDED_ROM_RECEIVED_OFFSET,0,FES_NANO_ROM_STATE) ||
@@ -120,4 +124,12 @@ int fes_nano_rom_load(struct fes_nano_rom *p,const uint8_t *bytes,size_t size,ui
     p->complete=1;
 finished:
     p->busy=0;return p->failed ? p->first_error : 0;
+}
+int fes_nano_rom_load(struct fes_nano_rom *p,const uint8_t *bytes,size_t size,uint32_t expected_crc)
+{ return load(p,bytes,size,expected_crc,0,0); }
+int fes_nano_rom_load_checked(struct fes_nano_rom *p,const uint8_t *bytes,size_t size,uint32_t expected_crc,
+    int (*verify)(void *,const uint8_t *,size_t),void *context)
+{
+    if(!verify)return FES_NANO_ROM_ARGUMENT;
+    return load(p,bytes,size,expected_crc,verify,context);
 }

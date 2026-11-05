@@ -2,6 +2,7 @@
 #include "Vrom_machine.h"
 #include <verilated.h>
 #include "nano_rom.h"
+#include "tests/nano_rom_platform_test.h"
 #include <algorithm>
 #include <array>
 #include <cstdint>
@@ -115,7 +116,31 @@ int main(int argc,char** argv){
    for(unsigned i=0;i<20;++i)m.tick();
    need(m.d.failed&&!m.d.loaded&&m.d.written==0,"CSR rejection wrote/exposed ROM");
   }
+  {
+   Model m(size);fes_nano_rom_ops io{&m,Model::owns,Model::read,Model::write,Model::now,Model::barrier};
+   need(!fes_test_rom_platform_init(io,m.bytes.data(),size,crc,0),"secure ROM init");
+   need(!fes_test_rom_platform_open()&&fes_test_rom_platform_complete(),"control opening preceded ROM completion");
+   m.execute();m.d.cpu_held=1;for(unsigned i=0;i<32;++i)m.tick();
+   need(!fes_test_rom_platform_close(),"secure ROM held return");
+  }
+  for(unsigned mode=1;mode<=5;++mode){
+   Model m(size);fes_nano_rom_ops io{&m,Model::owns,Model::read,Model::write,Model::now,Model::barrier};
+   need(!fes_test_rom_platform_init(io,m.bytes.data(),size,crc,mode),"secure failure init");
+   need(fes_test_rom_platform_open()!=0&&!fes_test_rom_platform_complete(),"bad ROM scope/digest completed");
+   need(m.reads==0&&m.writes==0,"bad secure source/scope touched endpoint");
+   need(fes_test_rom_platform_open()!=0&&m.reads==0&&m.writes==0,"retired control opening replayed");
+  }
+  for(const std::string fault:{"identity","late-identity","counter","crc","poll","status","read","write","owner","hold","late","clock","corrupt-data"}){
+   Model m(size,fault);fes_nano_rom_ops io{&m,Model::owns,Model::read,Model::write,Model::now,Model::barrier};
+   need(!fes_test_rom_platform_init(io,m.bytes.data(),size,crc,0),"secure transport init");
+   need(fes_test_rom_platform_open()!=0&&!fes_test_rom_platform_complete(),"secure transport failure published open receipt");
+   auto reads=m.reads,writes=m.writes;
+   need(fes_test_rom_platform_open()!=0&&m.reads==reads&&m.writes==writes,"secure failure replayed endpoint I/O");
+   for(unsigned i=0;i<32;++i)m.tick();
+   need(m.d.cpu_writes==0&&m.d.cpu_fetches==0,"secure failure ran guest CPU");
+  }
   std::cout<<"PASS C/RTL "<<size<<" ROM FIFO, real CPU execution, source snapshot, identity, epoch, I/O, clock/poll, CRC and CSR failures\n";
+  std::cout<<"PASS secure ROM provider/control opening and held return; modeled platform and exact-image digest oracle\n";
   return 0;
  }catch(const std::exception& e){std::cerr<<"FAIL "<<e.what()<<'\n';return 1;}
 }
