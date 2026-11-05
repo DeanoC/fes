@@ -21,9 +21,10 @@ var ErrBlocked = errors.New("appliance update or unconfirmed trial blocks this o
 var ErrIdentity = errors.New("confirmation does not match the running trial")
 
 type BootIdentity struct {
-	BootID      string `json:"boot_id"`
-	ImageSHA256 string `json:"image_sha256"`
-	Trial       bool   `json:"trial"`
+	BootID              string `json:"boot_id"`
+	ImageSHA256         string `json:"image_sha256"`
+	Trial               bool   `json:"trial"`
+	FallbackImageSHA256 string `json:"fallback_image_sha256,omitempty"`
 }
 
 type Status struct {

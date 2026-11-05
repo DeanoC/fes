@@ -43,7 +43,7 @@ func TestBootTicketMustMatchCurrentLinuxBoot(t *testing.T) {
 		t.Fatal(e)
 	}
 	got, e = applianceupdate.ReadBootIdentity(ticket, proc)
-	if e != nil || !got.Trial || got.ImageSHA256 != strings.Repeat("b", 64) {
+	if e != nil || !got.Trial || got.ImageSHA256 != strings.Repeat("b", 64) || got.FallbackImageSHA256 != strings.Repeat("a", 64) {
 		t.Fatalf("ticket with fallback: %+v %v", got, e)
 	}
 }

@@ -1153,7 +1153,7 @@ func (s *Store) LastFallbackSelection(bootID string) (Selection, error) {
 // clearBootTrial rewrites a matching trial ticket to trial:false. The boot id
 // and image stay as the bootstrap recorded them. A missing ticket, or a ticket
 // for another boot or image, is left untouched. The caller holds the store lock.
-func (s *Store) clearBootTrial(bootID, imageSHA string) error {
+func (s *Store) clearBootTrial(bootID, imageSHA, fallbackImageSHA string) error {
 	ticket, err := s.readBootTicket()
 	if errors.Is(err, os.ErrNotExist) {
 		return nil
@@ -1163,6 +1163,16 @@ func (s *Store) clearBootTrial(bootID, imageSHA string) error {
 	}
 	if ticket.BootID != bootID || ticket.ImageSHA256 != imageSHA || !ticket.Trial {
 		return nil
+	}
+	// Older boot writers may have omitted the fallback from the ticket. Once
+	// confirmation records the previous Good image, preserve that recovery
+	// target when clearing the trial flag.
+	if ticket.FallbackImageSHA256 == "" {
+		if release.ValidHash(fallbackImageSHA) {
+			ticket.FallbackImageSHA256 = fallbackImageSHA
+		} else {
+			ticket.FallbackImageSHA256 = s.factory.ImageSHA256
+		}
 	}
 	ticket.Trial = false
 	body, err := json.Marshal(ticket)
@@ -1175,8 +1185,8 @@ func (s *Store) clearBootTrial(bootID, imageSHA string) error {
 // clearConfirmedBootTicket clears a durable confirmation's trial ticket.
 // It is only called after the release record and its directory are synced.
 // A rewrite error is ErrBootTicketRewrite and does not undo that record.
-func (s *Store) clearConfirmedBootTicket(bootID, imageSHA string) error {
-	if err := s.clearBootTrial(bootID, imageSHA); err != nil {
+func (s *Store) clearConfirmedBootTicket(bootID, imageSHA, fallbackImageSHA string) error {
+	if err := s.clearBootTrial(bootID, imageSHA, fallbackImageSHA); err != nil {
 		return fmt.Errorf("%w: %w", ErrBootTicketRewrite, err)
 	}
 	return nil
@@ -1506,7 +1516,7 @@ func (s *Store) ConfirmContext(ctx context.Context, bootID, imageSHA string) err
 		// interrupted confirm or an older writer, so this boot does not keep
 		// reporting trial until the next reboot. A rewrite failure leaves the
 		// durable record in place.
-		if e = s.clearConfirmedBootTicket(bootID, imageSHA); e != nil {
+		if e = s.clearConfirmedBootTicket(bootID, imageSHA, st.Previous); e != nil {
 			return e
 		}
 		return s.enforceRetention(ctx, "")
@@ -1527,7 +1537,7 @@ func (s *Store) ConfirmContext(ctx context.Context, bootID, imageSHA string) err
 	if e = s.writeState(st); e != nil {
 		return e
 	}
-	if e = s.clearConfirmedBootTicket(bootID, imageSHA); e != nil {
+	if e = s.clearConfirmedBootTicket(bootID, imageSHA, st.Previous); e != nil {
 		return e
 	}
 	return s.enforceRetention(ctx, "")

@@ -33,7 +33,6 @@ func ReadBootIdentity(ticketPath, bootIDPath string) (BootIdentity, error) {
 		return result, ErrIdentity
 	}
 	seen := map[string]bool{}
-	fallbackImage := ""
 	for d.More() {
 		tok, err = d.Token()
 		if err != nil {
@@ -62,7 +61,7 @@ func ReadBootIdentity(ticketPath, bootIDPath string) (BootIdentity, error) {
 			if fallback == nil {
 				return result, ErrIdentity
 			}
-			fallbackImage = *fallback
+			result.FallbackImageSHA256 = *fallback
 		default:
 			return result, errors.New("unknown bootstrap boot ticket field")
 		}
@@ -80,7 +79,7 @@ func ReadBootIdentity(ticketPath, bootIDPath string) (BootIdentity, error) {
 	if err != nil {
 		return result, err
 	}
-	if (len(seen) != 3 && len(seen) != 4) || result.BootID == "" || result.BootID != strings.TrimSpace(string(boot)) || !release.ValidHash(result.ImageSHA256) || len(seen) == 4 && !release.ValidHash(fallbackImage) {
+	if (len(seen) != 3 && len(seen) != 4) || result.BootID == "" || result.BootID != strings.TrimSpace(string(boot)) || !release.ValidHash(result.ImageSHA256) || len(seen) == 4 && !release.ValidHash(result.FallbackImageSHA256) {
 		return result, ErrIdentity
 	}
 	return result, nil

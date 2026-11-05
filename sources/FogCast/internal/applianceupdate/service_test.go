@@ -105,7 +105,7 @@ func TestConfirmClearsBootTicketTrial(t *testing.T) {
 		t.Fatal(e)
 	}
 	got, e = applianceupdate.ReadBootIdentity(filepath.Join(root, "boot.json"), idPath)
-	if e != nil || got.Trial || got.BootID != "boot-a" || got.ImageSHA256 != n.ImageSHA256 {
+	if e != nil || got.Trial || got.BootID != "boot-a" || got.ImageSHA256 != n.ImageSHA256 || got.FallbackImageSHA256 != m.ImageSHA256 {
 		t.Fatalf("confirmed ticket = %+v %v", got, e)
 	}
 	status, e := svc.Status(context.Background())
