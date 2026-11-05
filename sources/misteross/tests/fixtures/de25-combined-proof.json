@@ -1,7 +1,7 @@
 {
   "status": "passed",
   "kind": "actual-dual-client-combined-ZX81-PR-RTL",
-  "source_revision": "8e926fe92bbada68fbef40436756722b1e8d3890",
+  "source_revision": "413eba23868bb73b2e5b5f494274fa1231ce0d56",
   "production_source_committed": true,
   "test_source_committed": true,
   "compiler_source_sha256": {
@@ -41,7 +41,7 @@
     "sources/misteross/boards/de25nano/scanout/clocks.sdc": "45ad2bec85636340f8ea84e4a4c44541a53dd0109c875199dd1b3e7401a55ffc",
     "sources/misteross/boards/de25nano/scanout/fes_de25_scanout_board.v": "ba3b2894d21f5742eae1c49a5678e9507c8619929b305657b39e0e0a07346e9b",
     "sources/misteross/boards/de25nano/scanout/hdmi_inputs.py": "8dda1b3bf48654dec48fd4492c0171f04bba78a0b1291c553fc9108e72ba2156",
-    "sources/misteross/boards/de25nano/scanout/linux_dma.py": "bdfaafc90e2fe18f12d7169c959fe0238595e3ebf09c05c1c532fa3378ff2ebc",
+    "sources/misteross/boards/de25nano/scanout/linux_dma.py": "9a5e6579e44f5fffd4aefc1de719acfe93bc1bfb4de0cf5b34ca16fb2a4e3179",
     "sources/misteross/boards/de25nano/zx81/build.py": "3bb11ae7e5343ba9772a36940734fa6529366c91eaf50bb5331560fc08acd5d3",
     "sources/misteross/boards/de25nano/zx81-hps/board.v": "e076d774e74222722620f0f605f6bd1f8456e69c8a944dfd5e180004e62dfb2d",
     "sources/misteross/boards/de25nano/zx81-hps/build.py": "e02095ca606c32d426c5e5ca5788297c5b34362908ebab8c77337595db6c31cf",
@@ -312,7 +312,7 @@
     "verilator": "Verilator 5.032 2025-01-01 rev (Debian 5.032-1+b2)",
     "cxx": "c++ (Debian 14.2.0-19) 14.2.0\nCopyright (C) 2024 Free Software Foundation, Inc.\nThis is free software; see the source for copying conditions.  There is NO\nwarranty; not even for MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.",
     "builder_image": "sha256:ea200655b92ab1211bc8b326c6e799815f1d648b2d5e5a6c982f597cb2b9650d",
-    "sdk_volume": "fes-de25-standard-real-basic-8e926fe9",
+    "sdk_volume": "fes-de25-pr-emif-413eba238",
     "sdk_before": "c07496d4fc541d3b9fee474e80c4d835840f74752bc2545026925b4ec04528b0  /build/host/bin/aarch64-buildroot-linux-gnu-g++\n29f631250421bf3c2fbe113fadf1cc1b89e8714c3530a43db06b507ada50145f  /build/host/bin/aarch64-buildroot-linux-gnu-g++.br_real\n",
     "qemu_sha256": "4f55e2e88dc05dc0f619562d5795b8eb25ed2ad2547504fb4835207a6911c350",
     "qemu_version": "qemu-aarch64 version 7.2.22 (Debian 1:7.2+dfsg-7+deb12u18+b3)\nCopyright (c) 2003-2022 Fabrice Bellard and the QEMU Project developers\n",
@@ -324,7 +324,7 @@
   "selected_build_id": "00112233445566778899aabbccddeeff",
   "binaries_sha256": {
     "client-native": "a3c8d49d179e6a13dedc740fd2e181c2ba884ef9111d35d8e955820960bd35ea",
-    "Vfes_de25_combined_sim": "ca6a485f07f2b3bfe27aeaff4808919800594411b318f762e31110c09bcee264",
+    "Vfes_de25_combined_sim": "73e4907e8c1586961f0ba0e05126e3aa88013ea83ab88cb099400afada2ad56e",
     "client-aarch64": "223a60b016dfbce80f3f9e9ea0832a50eca1ce049abf4209ea63f92517381990"
   },
   "physical_PR": "selection-mux-model-only",

@@ -886,3 +886,31 @@ establish board timing or extend an exception to the live-PCM PR profile. All ra
 Design Closure failures, independent rebuild and exact-package native gates
 remain open. See
 [standard-pr-audio-output-observations.json](standard-pr-audio-output-observations.json).
+
+
+## Generated EMIF clock ownership
+
+At source `413eba238`, the explicit standard PR profile retires the one exact
+manual `EMIF_REF_CLOCK` declaration already ignored by Quartus. The generated
+memory IP owns the existing6.000ns reference; both PR SDC and fitted boundary
+audits still require it. The shared managed-constraint verifier binds the full
+derivation and its closed receipt to the locked original. The default
+internal16K derivation stays unchanged. No clock or timing exception is added.
+The focused source/negative tests pass13 cases. The initial source-fixture gate
+correctly rejects the stale compatibility receipt; the actual14-case native and
+emulated-AArch64 rerun passes in668.244 seconds. Its report is copied verbatim
+only after all65 compiler and59 runtime/test hashes match. See
+[standard-pr-emif-compatibility.json](standard-pr-emif-compatibility.json).
+A fresh full three-revision compile remains in progress; no warning removal,
+whole-board closure, independent rebuild or hardware result is yet claimed.
+
+The unchanged shared PCM/I2S RTL also passes an external serial-decoder stress
+matrix in5.777 seconds:36 clock-ratio/phase combinations,3,024 decoded frames,
+1,980 active frames,900 held frames,34,318 data transitions on falling SCLK and
+72 lock losses. Invalid-pair and silent-source controls are rejected. The initial
+monitor expected active audio before the request/ACK transfer and first complete
+serialized frame; its corrected bounded warmup is a monitor change, not an RTL
+repair. See
+[standard-pr-audio-cdc-phase-matrix.json](standard-pr-audio-cdc-phase-matrix.json).
+This digital model evidence does not qualify metastability, board timing, the
+CDC warning or package/hardware admission.
