@@ -120,7 +120,7 @@ input trace independently and establish an active player, a neutral control,
 and the ordered left/right/left responses. Ambiguous timing, a death, an
 obscured player, continued autonomous motion, missing frames or an uncertain
 input response makes the attempt inconclusive. The diagnostic records the
-designated Kit A HDMI audio independently, with F9 phase and host progress
+designated kit's HDMI audio independently, with F9 phase and host progress
 timestamps. Speaker behavior also needs independent review; the clocks are
 not synchronized. Historical failed and inconclusive attempts remain part of
 the lineage.

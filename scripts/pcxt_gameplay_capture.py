@@ -149,7 +149,8 @@ def inspect_frame(converter, pixels, templates):
 
 class GameCapture:
     """Record one native source while an independent observer drains it."""
-    def __init__(self, device, evidence, probe, helper, helper_sha256, templates, *, startup_timeout=30):
+    def __init__(self, device, evidence, probe, helper, helper_sha256, templates, *, startup_timeout=30,
+                 check_interrupted=lambda: None):
         evidence, helper = Path(evidence), Path(helper)
         if (helper.is_symlink() or not helper.is_file() or not 0 < helper.stat().st_size <= 32*1024*1024
                 or hashlib.sha256(helper.read_bytes()).hexdigest() != helper_sha256):
@@ -157,8 +158,10 @@ class GameCapture:
         if not templates or any(not isinstance(t, bytes) or len(t) != readiness.PLAYER_SIZE for t in templates):
             raise capture.CaptureError('private game templates are invalid')
         self.observer_guard = probe
+        self.check_interrupted = check_interrupted
         self.started_ns = time.monotonic_ns()
         self.started = threading.Event(); self.stop_requested = threading.Event()
+        self.failed_run = threading.Event()
         self.done = threading.Event(); self.error = None; self.result = None
         self.converter = RGBConverter()
         self.converter_identity = self.converter.identity
@@ -191,7 +194,7 @@ class GameCapture:
             try:
                 self.result = capture.capture_experiment(self.source, self.recorder, 7200, detect,
                     sample_every=1, detector_fault=probe.fault, on_source_frame=probe.source_frame,
-                    stop_event=self.stop_requested)
+                    stop_event=self.stop_requested, defer_recording_verification=True)
             except BaseException as exc:
                 self.error = exc; probe.fault.set()
             finally:
@@ -223,6 +226,10 @@ class GameCapture:
     def poll(self):
         return 1 if self.done.is_set() else None
 
+    def skip_failed_recording_verification(self):
+        """A failed run retains its recording without the slow full decode."""
+        self.failed_run.set()
+
     def stop(self):
         self.stop_requested.set(); self.worker.join(timeout=60)
         if self.worker.is_alive():
@@ -244,3 +251,8 @@ class GameCapture:
                         raise capture.CaptureError('game frame converter library changed during capture')
         finally:
             self.converter.close()
+        # Recording verification can take minutes on large lossless captures.
+        # It runs only after the source, recorder and worker have exited, so
+        # its independent bounded phase cannot be mistaken for cleanup failure.
+        if not self.failed_run.is_set():
+            self.recorder.verify_capture(check_interrupted=self.check_interrupted)

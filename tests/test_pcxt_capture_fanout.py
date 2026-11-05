@@ -97,6 +97,107 @@ class SourceTests(unittest.TestCase):
             self.assertTrue(recorder.closed)
             self.assertEqual(recorder.proc.returncode, 0)
 
+    def test_failed_run_closes_processes_without_slow_full_decode(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            code = ("import os,struct,time\n"
+                    "for i in range(5):\n"
+                    " os.write(1,struct.pack('<4sIQQII',b'PXT1',i,i+1,i+2,0x2000,512)+bytes([i])*512)\n"
+                    " time.sleep(.05)\n"
+                    "time.sleep(30)\n")
+            source = capture.CaptureProcess([sys.executable, '-c', code], Path(tmp)/'source.stderr', 512)
+            recorder = capture.FFV1Recorder(tmp, width=16, height=16)
+            with mock.patch.object(recorder, '_verify_pixels', side_effect=AssertionError('full decode')):
+                result = capture.capture_experiment(source, recorder, 5, lambda _: None,
+                    sample_every=1, skip_recording_verification=lambda: True)
+            self.assertEqual(result.frames_recorded, 5)
+            self.assertTrue(source.closed); self.assertIsNotNone(source.proc.poll())
+            self.assertTrue(recorder.closed); self.assertEqual(recorder.proc.returncode, 0)
+            self.assertGreater(recorder.video.stat().st_size, 0)
+
+    def test_pixel_verification_has_a_total_deadline_and_reaps_decoder(self):
+        recorder=capture.FFV1Recorder.__new__(capture.FFV1Recorder)
+        recorder.video=Path('/tmp/unused');recorder.entries=[{'raw_sha256':'0'*64}];recorder.size=512
+        decoder=mock.Mock();decoder.poll.return_value=None
+        with mock.patch.object(capture.subprocess,'Popen',return_value=decoder):
+            with self.assertRaisesRegex(capture.CaptureError,'stalled'):
+                recorder._verify_pixels(timeout=0)
+        decoder.kill.assert_called_once();decoder.wait.assert_called_once_with(timeout=5)
+
+    def test_unverified_decoder_kill_or_reap_retains_source_cleanup_flag(self):
+        for problem in ('kill', 'reap'):
+            with self.subTest(problem=problem):
+                recorder=capture.FFV1Recorder.__new__(capture.FFV1Recorder)
+                recorder.video=Path('/tmp/unused');recorder.entries=[{'raw_sha256':'0'*64}];recorder.size=512
+                decoder=mock.Mock();decoder.poll.return_value=None
+                if problem=='kill':decoder.kill.side_effect=PermissionError('kill denied')
+                else:decoder.wait.side_effect=capture.subprocess.TimeoutExpired('ffmpeg',5)
+                with mock.patch.object(capture.subprocess,'Popen',return_value=decoder):
+                    with self.assertRaisesRegex(capture.CaptureError,'cleanup unverified') as caught:
+                        recorder._verify_pixels(timeout=0)
+                self.assertTrue(caught.exception.source_cleanup_incomplete)
+                decoder.stdout.close.assert_called_once()
+
+    def test_ambiguous_verifier_start_errors_retain_cleanup_flag(self):
+        recorder=capture.FFV1Recorder.__new__(capture.FFV1Recorder)
+        recorder.video=Path('/tmp/unused');recorder.entries=[{'raw_sha256':'0'*64}];recorder.size=512
+        with mock.patch.object(capture.subprocess,'Popen',side_effect=OSError('start ambiguous')):
+            with self.assertRaises(capture.CaptureError) as caught:
+                recorder._verify_pixels()
+        self.assertTrue(caught.exception.source_cleanup_incomplete)
+        with tempfile.TemporaryDirectory() as temp:
+            recorder.video=Path(temp)/'video';recorder.video.write_bytes(b'video')
+            recorder.sidecar_path=Path(temp)/'frames';recorder.sidecar_path.write_text(json.dumps(recorder.entries[0])+'\n')
+            recorder.closed=True;recorder.proc=mock.Mock(returncode=0);recorder.count=1
+            with mock.patch.object(capture.subprocess,'Popen',side_effect=OSError('probe start or cleanup ambiguous')):
+                with self.assertRaises(capture.CaptureError) as caught:
+                    recorder.verify_capture()
+            self.assertTrue(caught.exception.source_cleanup_incomplete)
+
+    def test_probe_interruption_reaps_verifier_and_preserves_failure(self):
+        recorder=capture.FFV1Recorder.__new__(capture.FFV1Recorder);recorder.video=Path('/tmp/unused')
+        probe=mock.Mock();probe.poll.return_value=None
+        def interrupted():raise RuntimeError('interrupted')
+        with mock.patch.object(capture.subprocess,'Popen',return_value=probe):
+            with self.assertRaisesRegex(RuntimeError,'interrupted') as caught:
+                recorder._probe_frames(interrupted)
+        self.assertFalse(getattr(caught.exception,'source_cleanup_incomplete',False))
+        probe.kill.assert_called_once();probe.communicate.assert_called_once_with(timeout=5)
+
+    def test_probe_poll_observes_interrupt_and_reaps_real_process(self):
+        recorder=capture.FFV1Recorder.__new__(capture.FFV1Recorder);recorder.video=Path('/tmp/unused')
+        original=capture.subprocess.Popen;children=[];calls=[]
+        def spawn(_argv,**kwargs):
+            child=original([sys.executable,'-c','import time;time.sleep(30)'],**kwargs)
+            children.append(child);return child
+        def interrupted():
+            calls.append(True)
+            if len(calls)>1:raise RuntimeError('interrupted')
+        with mock.patch.object(capture.subprocess,'Popen',side_effect=spawn):
+            with self.assertRaisesRegex(RuntimeError,'interrupted'):
+                recorder._probe_frames(interrupted)
+        self.assertEqual(len(children),1)
+        self.assertIsNotNone(children[0].poll())
+
+    def test_probe_interruption_with_unreaped_verifier_is_flagged(self):
+        recorder=capture.FFV1Recorder.__new__(capture.FFV1Recorder);recorder.video=Path('/tmp/unused')
+        probe=mock.Mock();probe.poll.return_value=None;probe.kill.side_effect=PermissionError('denied')
+        def interrupted():raise RuntimeError('interrupted')
+        with mock.patch.object(capture.subprocess,'Popen',return_value=probe):
+            with self.assertRaisesRegex(capture.CaptureError,'cleanup unverified') as caught:
+                recorder._probe_frames(interrupted)
+        self.assertTrue(caught.exception.source_cleanup_incomplete)
+
+    def test_decoder_interruption_reaps_without_false_cleanup_failure(self):
+        recorder=capture.FFV1Recorder.__new__(capture.FFV1Recorder)
+        recorder.video=Path('/tmp/unused');recorder.entries=[{'raw_sha256':'0'*64}];recorder.size=512
+        decoder=mock.Mock();decoder.poll.return_value=None
+        def interrupted():raise RuntimeError('interrupted')
+        with mock.patch.object(capture.subprocess,'Popen',return_value=decoder):
+            with self.assertRaisesRegex(RuntimeError,'interrupted') as caught:
+                recorder._verify_pixels(check_interrupted=interrupted)
+        self.assertFalse(getattr(caught.exception,'source_cleanup_incomplete',False))
+        decoder.kill.assert_called_once();decoder.wait.assert_called_once_with(timeout=5)
+
     def test_recorder_failure_terminates_source_stuck_in_read(self):
         with tempfile.TemporaryDirectory() as tmp:
             code = ('import os,struct,time; '
