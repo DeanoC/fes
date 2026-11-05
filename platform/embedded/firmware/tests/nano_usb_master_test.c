@@ -20,6 +20,8 @@ static int producer_quiet(void *p,uint32_t *bits)
         *bits&=~FES_NANO_PRODUCERS_FPGA;
     return 0;
 }
+static int producer_snapshot(void *p,uint64_t owner,uint64_t epoch,struct fes_nano_cold_observation *out)
+{struct test *t=p;return fes_nano_cold_snapshot(&t->cold,owner,epoch,producer_quiet,p,out);}
 static int master_per0(void *p,uint32_t *value)
 {struct test *t=p;t->h.reads++;*value=t->h.per0;return 0;}
 static int master_reset(void *p,uint32_t mask)
@@ -58,7 +60,8 @@ static void master_prepare(struct test *t,unsigned bind)
     struct fes_nano_usb_io usb={&t->h,read32,write32,barrier,wait_poll,usb_ready,usb_prepare,0,usb_prepare};
     assert(!fes_nano_usb_platform_init(&t->usb,&t->cold,usb,FES_NANO_USB_QUALIFIED));
     assert(!fes_nano_usb_composition_init(&t->composition,&t->cold,&t->usb,&t->platform));
-    assert(!fes_nano_usb_master_init(&t->master,&t->composition,ops));
+    struct fes_nano_usb_producer_ops producers={t,owns,producer_stop,producer_quiet,producer_snapshot};
+    assert(!fes_nano_usb_master_init(&t->master,&t->composition,producers));
     if (bind) {
         struct fes_nano_retained_master_ops retained=fes_nano_usb_master_ops(&t->master);
         if (bind==2) retained.snapshot=0; /* trusted provider declines the combined path */
@@ -138,10 +141,12 @@ static void master_ownership(void)
     unsigned reads=t.h.reads,writes=t.h.writes;
     uint32_t keep=0x1234;
     uint32_t producers=0x5678;
+    uint32_t reset=0x12345678,per0=0x87654321;
     assert(ops.observe(ops.context,18,7,&keep)<0 && keep==0x1234);
     assert(ops.observe(ops.context,17,8,&keep)<0 && keep==0x1234);
-    assert(ops.snapshot(ops.context,18,7,&keep,&producers)<0 && keep==0x1234 && producers==0x5678);
-    assert(ops.snapshot(ops.context,17,8,&keep,&producers)<0 && keep==0x1234 && producers==0x5678);
+    assert(ops.snapshot(ops.context,18,7,&keep,&producers,&reset,&per0)<0 && keep==0x1234 && producers==0x5678);
+    assert(ops.snapshot(ops.context,17,8,&keep,&producers,&reset,&per0)<0 && keep==0x1234 && producers==0x5678);
+    assert(reset==0x12345678 && per0==0x87654321);
     assert(fes_nano_usb_platform_idle(&t.usb,17,1)<0);
     assert(fes_nano_boot_bind_usb_pio(&t.master_boot,&t.bridges,17,7,ops)<0);
     assert(t.h.reads==reads && t.h.writes==writes && !t.master_boot.failed);
@@ -152,9 +157,19 @@ static void master_ownership(void)
     struct fes_nano_bridge_snapshot state;
     assert(fes_nano_bridges_observe(&t.bridges,&state)<0 && !t.h.master_resets);
 }
+static void missing_snapshot(void)
+{
+    struct test t;master_prepare(&t,0);
+    struct fes_nano_usb_master rejected={0};
+    struct fes_nano_usb_producer_ops ops=t.master.producers;ops.snapshot=0;
+    unsigned reads=t.h.reads,writes=t.h.writes;
+    assert(fes_nano_usb_master_init(&rejected,&t.composition,ops)<0);
+    assert(rejected.failed && !rejected.initialized && t.cold.valid && !t.master.failed);
+    assert(t.h.reads==reads && t.h.writes==writes);
+}
 int main(void)
 {
-    master_cycles();master_faults();master_ownership();
+    master_cycles();master_faults();master_ownership();missing_snapshot();
     struct test legacy;master_setup(&legacy,2);
     struct fes_nano_bridge_snapshot state;
     assert(!legacy.bridges.observe_state && !fes_nano_bridges_observe(&legacy.bridges,&state));

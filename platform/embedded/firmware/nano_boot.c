@@ -63,15 +63,17 @@ static int contained(void *p)
            (bits & FES_NANO_PRODUCERS_HPS) == FES_NANO_PRODUCERS_HPS &&
            (data_held || bits == FES_NANO_PRODUCERS_ALL);
 }
-/* A shared controller makes each live ownership check substantial: it observes
- * clock/pin/PHY and PIO state. Assemble the same bridge facts directly instead
- * of nesting reset/contained/quiet wrappers, each with its own full ownership
- * observations. Nothing is cached across this read-only secure operation.
+/* The trusted coherent callback supplies complete live CPU/cold/master facts,
+ * including paired full bridge/peripheral reset samples. No physical access
+ * happens outside that callback's CPU guard, and no full owns() callback
+ * recursively repeats that same hardware proof.
+ * Nothing is cached across this read-only secure operation.
  *
- * The independent producer bitmap is sampled between paired reset reads. The
+ * The independent producer bitmap is sampled between paired cold reads. The
  * retained policy then checks its exact live device reservation, generation,
  * DMA-disabled PIO state and idle interconnect master before publishing keep.
- * A final live scope brackets both observations; drift retires this boot.
+ * The callback's own paired cold samples enclose that proof; private binding
+ * checks reject drift before publishing the returned reset values.
  * Mutation/stop callbacks keep their existing independent checks. */
 static int retained_policy(const struct fes_nano_boot *s)
 {
@@ -86,23 +88,17 @@ static int retained_state(void *p,uint64_t owner,uint64_t epoch,
                            uint32_t *reset_value,unsigned *masters)
 {
     struct fes_nano_boot *s=p;
-    uint32_t first,last,per0,after,bits=0,keep=0;
-    if (owner!=s->owner || epoch!=s->epoch || !retained_policy(s) || scope(s) ||
-        s->raw.read_reset(s->raw.context,&first) ||
-        s->masters.read_per0(s->masters.context,&per0)) return failed(s,-1);
-    unsigned data_held=(first & FES_NANO_BRIDGES_DATA)==FES_NANO_BRIDGES_DATA;
-    if (data_held || s->producers_stopped) {
-        int error=s->retained.snapshot(s->retained.context,owner,epoch,&keep,&bits);
-        if (error) return failed(s,error);
-        if ((bits & ~FES_NANO_PRODUCERS_ALL) ||
-            (keep && keep!=FES_NANO_MASTER_USB0_PIO_RESET)) return failed(s,-1);
-    }
-    s->masters.barrier(s->masters.context);
-    if (s->raw.read_reset(s->raw.context,&last) || first!=last ||
-        s->masters.read_per0(s->masters.context,&after) || per0!=after ||
-        scope(s) || !retained_policy(s))
+    uint32_t reset=0,per0=0,bits=0,keep=0;
+    if (!s->attempted || s->failed || owner!=s->owner || epoch!=s->epoch || !retained_policy(s))
         return failed(s,-1);
-    *reset_value=first;
+    int error=s->retained.snapshot(s->retained.context,owner,epoch,&keep,&bits,&reset,&per0);
+    if (error) return failed(s,error);
+    if ((bits & ~FES_NANO_PRODUCERS_ALL) ||
+        (keep && keep!=FES_NANO_MASTER_USB0_PIO_RESET)) return failed(s,-1);
+    if (!s->attempted || s->failed || owner!=s->owner || epoch!=s->epoch || !retained_policy(s))
+        return failed(s,-1);
+    unsigned data_held=(reset & FES_NANO_BRIDGES_DATA)==FES_NANO_BRIDGES_DATA;
+    *reset_value=reset;
     *masters=(data_held || s->producers_stopped) &&
         (per0 & FES_NANO_MASTER_RESET)==(FES_NANO_MASTER_RESET & ~keep) &&
         (bits & FES_NANO_PRODUCERS_HPS)==FES_NANO_PRODUCERS_HPS &&

@@ -37,7 +37,10 @@ static uint32_t fes_contained_isdone_detail(int a,uint32_t b) {(void)a;return b;
 
 static int false_confirm(struct fes_nano_usb_platform *p,uint64_t owner,uint64_t generation)
 {(void)p;(void)owner;(void)generation;return 0;}
-int main(int argc,char **argv)
+#ifndef FES_NANO_SHARED_RPC_ENTRY
+#define FES_NANO_SHARED_RPC_ENTRY main
+#endif
+int FES_NANO_SHARED_RPC_ENTRY(int argc,char **argv)
 {
     master_prepare(&model,!(argc==2 && !strcmp(argv[1],"unbound")));
     struct fes_nano_usb_service_ops ops={fes_nano_usb_platform_observe,fes_nano_usb_platform_acquire,

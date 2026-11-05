@@ -79,6 +79,20 @@ int fes_nano_usb_service_gate(struct fes_nano_usb_service *s)
     if (error || healthy(s)) return fail(s);
     return s->platform->active && !s->platform->confirmed ? 1 : 0;
 }
+int fes_nano_usb_service_snapshot(struct fes_nano_usb_service *s,struct fes_nano_bridge_snapshot *out)
+{
+    if (!s || !out || !s->attempted || !s->initialized || !s->shared.valid) return -1;
+    if (healthy(s)) return -1;
+    struct fes_nano_usb_platform *p=s->platform;
+    if (s->bridges->device_lease || (p->active && !p->confirmed)) return 1;
+    uint64_t generation=p->generation;
+    unsigned active=p->active,confirmed=p->confirmed;
+    struct fes_nano_bridge_snapshot observation;
+    if (fes_nano_bridges_observe(s->bridges,&observation) || healthy(s) ||
+        p->generation!=generation || p->active!=active || p->confirmed!=confirmed) return fail(s);
+    *out=observation;
+    return 0;
+}
 static int returned(struct fes_nano_bridges *b)
 {
     uint64_t generation;

@@ -91,6 +91,9 @@ void fes_nano_platform_hps_io_sip(uint64_t operation,uint64_t owner,uint64_t gen
 static int cold_master_owns(void *,uint64_t,uint64_t);
 static int cold_master_quiesce(void *,uint32_t);
 static int cold_master_quiescent(void *,uint32_t *);
+#if defined(FES_NANO_SHARED_USB) && FES_NANO_SHARED_USB
+static int cold_master_snapshot(void *,uint64_t,uint64_t,struct fes_nano_cold_observation *);
+#endif
 #endif
 #if defined(FES_NANO_CONTROLLED_SD) && FES_NANO_CONTROLLED_SD
 static struct fes_nano_sd_platform sd_platform;
@@ -230,12 +233,13 @@ static uint64_t fabric_generation, fabric_reported_generation;
 #if defined(FES_NANO_COLD_CONFIG) && FES_NANO_COLD_CONFIG
 static uint64_t fabric_configuration_generation;
 #endif
-static int cold_master_owns(void *context,uint64_t owner,uint64_t epoch)
+static int cold_master_cpu_scope(void)
 {
     return GET_EL(read_current_el())==MODE_EL3 && !(read_sctlr_el3()&5U) &&
-        fes_nano_cold_cpu_release_locked()==1 && captured.core==MPIDR_AFFLVL1_VAL(read_mpidr()) &&
-        fes_nano_cold_owns(context,owner,epoch)==1;
+        fes_nano_cold_cpu_release_locked()==1 && captured.core==MPIDR_AFFLVL1_VAL(read_mpidr());
 }
+static int cold_master_owns(void *context,uint64_t owner,uint64_t epoch)
+{return cold_master_cpu_scope() && fes_nano_cold_owns(context,owner,epoch)==1;}
 static int fabric_owns(void *context)
 {
     struct fes_nano_cold *s=context;
@@ -327,10 +331,10 @@ static int cold_master_quiesce(void *context,uint32_t producers)
     }
     return error ? master_failure(s,error) : 0;
 }
-static int cold_master_quiescent(void *context,uint32_t *producers)
+static int cold_producer_sample(void *context,uint32_t *producers)
 {
     struct fes_nano_cold *s=context;
-    if (!producers || cold_master_owns(s,s->record.boot.owner,s->record.boot.epoch)!=1 || fabric_stop.failed)
+    if (!producers || fabric_stop.failed)
         return master_failure(s,-1);
     /* Before the live identity match, only independent cold HPS containment is
      * known. boot.contained permits that bitmap while every data path is held.
@@ -340,6 +344,23 @@ static int cold_master_quiescent(void *context,uint32_t *producers)
     *producers=FES_NANO_PRODUCERS_HPS | (fabric_stop.done ? FES_NANO_PRODUCERS_FPGA : 0U);
     return 0;
 }
+static int cold_master_quiescent(void *context,uint32_t *producers)
+{
+    struct fes_nano_cold *s=context;
+    if (cold_master_owns(s,s->record.boot.owner,s->record.boot.epoch)!=1) return master_failure(s,-1);
+    return cold_producer_sample(context,producers);
+}
+#if defined(FES_NANO_SHARED_USB) && FES_NANO_SHARED_USB
+static int cold_master_snapshot(void *context,uint64_t owner,uint64_t epoch,struct fes_nano_cold_observation *out)
+{
+    struct fes_nano_cold *s=context;
+    struct fes_nano_cold_observation observation;
+    if (!out || !cold_master_cpu_scope()) return master_failure(s,-1);
+    int error=fes_nano_cold_snapshot(s,owner,epoch,cold_producer_sample,s,&observation);
+    if (error || !cold_master_cpu_scope()) return master_failure(s,error ? error : -1);
+    *out=observation;return 0;
+}
+#endif
 
 static struct fes_nano_fabric_stop new_fabric_stop(unsigned qualified)
 {

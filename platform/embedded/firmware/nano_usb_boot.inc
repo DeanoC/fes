@@ -37,8 +37,8 @@ int fes_nano_platform_usb_setup(void)
 #if defined(FES_NANO_SHARED_USB) && FES_NANO_SHARED_USB
     ops.contained=fes_nano_usb_platform_idle;
     if (!error) error=fes_nano_usb_composition_init(&usb_composition,&provider,&usb_platform,&sd_platform);
-    struct fes_nano_master_ops producers={.context=&provider,.owns=cold_master_owns,
-        .quiesce=cold_master_quiesce,.quiescent=cold_master_quiescent};
+    struct fes_nano_usb_producer_ops producers={.context=&provider,.owns=cold_master_owns,
+        .quiesce=cold_master_quiesce,.quiescent=cold_master_quiescent,.snapshot=cold_master_snapshot};
     if (!error) error=fes_nano_usb_master_init(&usb_master,&usb_composition,producers);
     if (!error) error=fes_nano_bridge_platform_bind_usb_pio(provider.record.boot.owner,
         provider.record.boot.epoch,fes_nano_usb_master_ops(&usb_master));

@@ -19,8 +19,13 @@ static int cold_master_owns(void *p,uint64_t owner,uint64_t epoch)
 {return p==&provider && fes_nano_cold_owns(p,owner,epoch)==1;}
 static int cold_master_quiesce(void *p,uint32_t bits)
 {assert(p==&provider && bits==FES_NANO_PRODUCERS_ALL);model.base.h.producer_bits=bits;return 0;}
-static int cold_master_quiescent(void *p,uint32_t *bits)
+static int cold_producer_sample(void *p,uint32_t *bits)
 {assert(p==&provider);*bits=model.base.h.producer_bits;return 0;}
+static int (*producer_hook)(void *,uint32_t *);
+static int cold_master_quiescent(void *p,uint32_t *bits)
+{return cold_master_owns(p,17,provider.record.boot.epoch)==1 ? cold_producer_sample(p,bits) : -1;}
+static int cold_master_snapshot(void *p,uint64_t owner,uint64_t epoch,struct fes_nano_cold_observation *out)
+{return fes_nano_cold_snapshot(p,owner,epoch,producer_hook ? producer_hook : cold_producer_sample,p,out);}
 static int master_per0(void *p,uint32_t *v)
 {assert(p==&provider);*v=model.base.h.per0;return 0;}
 static int master_assert(void *p,uint32_t bits)

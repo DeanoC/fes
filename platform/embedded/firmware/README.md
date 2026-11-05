@@ -1075,3 +1075,30 @@ initialization retires the provider. The selected-startup test runs the actual
 board readiness and boot include with an injected PHY/register model and three
 SD cycles. ARM64 compilation and these checks do not qualify physical combined
 USB/SD/FPGA operation.
+
+The shared master provider requires a complete, trusted producer snapshot.
+`fes_nano_cold_snapshot` samples the independent producer bitmap between fresh
+cold-state observations, then checks USB DMA/IRQ/PIO/clock/idle containment
+before its final cold sample. The strong adapter checks CPU identity, EL3,
+translation/data-cache state and the secondary-release lock on both sides.
+Only then are producer bits published. Private device reservations, generations,
+callback identities and paired bridge/reset reads must also remain unchanged.
+Missing or substituted producer callbacks reject without a fallback.
+The returned reset values come from those paired cold samples; the consumer
+performs no MMIO outside the strong callback's CPU guard.
+
+This complete observation replaces nested full ownership calls in the shared
+read-only bridge observer. It caches no hardware permission and changes no
+per-CSR native before/after checks, deadlines, stop/reset callbacks or explicit
+USB device readiness. Software tests cover late CPU/reset/device drift, producer
+errors, callback substitution and publication after failure; physical timing
+and a complete shared core-launch cycle still require a matched kit test.
+
+The exact zero-argument read-only bridge snapshot uses this complete observer
+once inside the dispatcher, with shared-service validation before and after.
+An unconfirmed USB controller or active SD lease remains busy. Other operations,
+malformed snapshot requests and mutations retain the ordinary USB gate. The
+reply uses the same bridge codec and carries no extra capability. Dispatcher
+tests compare its actual hardware-access counts with one complete observation
+and exercise live failures, malformed requests, configuration, explicit USB
+readiness and retained reservations.

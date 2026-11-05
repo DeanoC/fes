@@ -6,6 +6,8 @@
 #ifdef __cplusplus
 extern "C" {
 #endif
+/* Encode only an already successful complete read-only observation. */
+void fes_nano_bridge_snapshot_reply(const struct fes_nano_bridge_snapshot *,uint64_t result[4]);
 void fes_nano_bridge_sip(struct fes_nano_bridges *, uint64_t operation,
                          uint64_t owner, uint64_t generation, unsigned configuring,
                          uint64_t result[4]);

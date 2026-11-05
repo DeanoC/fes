@@ -56,12 +56,15 @@ struct fes_nano_retained_master_ops {
     int (*observe)(void *,uint64_t owner,uint64_t epoch,uint32_t *retained_reset);
     int (*quiesce)(void *,uint32_t producers);
     int (*quiescent)(void *,uint32_t *producers);
-    /* Optional coherent, read-only form of observe + quiescent. It must
-     * validate the same owner/epoch, unchanged private device generation,
-     * retained reset mask and live DMA/idle proof around the independent
-     * producer bitmap. Only its trusted supplier may select this path. */
+    /* Optional complete coherent read-only observation. It validates live CPU
+     * and cold ownership as well as owner/epoch, private device generation,
+     * retained reset mask and DMA/idle around the producer bitmap. Thus its
+     * consumer must not nest ordinary full owns() callbacks around it. Only
+     * its trusted supplier may select this path. Returned bridge/peripheral
+     * reset values must come from matching, ordered complete cold samples
+     * inside that CPU guard; no consumer MMIO precedes the guard. */
     int (*snapshot)(void *,uint64_t owner,uint64_t epoch,
-                    uint32_t *retained_reset,uint32_t *producers);
+                    uint32_t *retained_reset,uint32_t *producers,uint32_t *bridge_reset,uint32_t *per0);
 };
 struct fes_nano_boot {
     struct fes_nano_master_ops masters;

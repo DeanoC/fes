@@ -106,6 +106,13 @@ int fes_nano_cold_finish(struct fes_nano_cold *, unsigned entry_verified,
 int fes_nano_cold_consume(struct fes_nano_cold *, const struct fes_nano_cold_record *,
                            struct fes_nano_cold_io, const uint8_t chain[32], uint64_t owner);
 int fes_nano_cold_owns(void *, uint64_t owner, uint64_t epoch);
+/* Trusted shared-master observation only. Sample the independent producer
+ * bitmap between fresh cold samples, before the live USB containment audit.
+ * The callback must be bounded/read-only; no NS argument supplies it. Publish
+ * bits only after the final scope succeeds. Does not stop/reset any producer. */
+struct fes_nano_cold_observation {uint32_t bridge,per0,producers;};
+int fes_nano_cold_snapshot(struct fes_nano_cold *,uint64_t owner,uint64_t epoch,
+    int (*sample_producers)(void *,uint32_t *),void *context,struct fes_nano_cold_observation *);
 int fes_nano_cold_bind_devices(struct fes_nano_cold *, uint64_t owner, uint64_t epoch,
                                struct fes_nano_cold_device_ops);
 int fes_nano_cold_control_target(struct fes_nano_cold *, uint64_t owner,

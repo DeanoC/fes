@@ -34,6 +34,18 @@ static void fes_nano_owned_call(uint32_t fid, uint64_t x1, uint64_t x2,
             request_type != NO_REQUEST || fes_nano_configuration_busy(configuration),r);
         goto out;
     }
+    /* This exact read-only query gets its full live USB/cold/producer proof
+     * from the bound bridge observer. Do not recursively audit it twice.
+     * Both computer/window policies permit this query in every phase. */
+    if (fid==FES_EMBEDDED_BRIDGE_CALL && x3==FES_EMBEDDED_BRIDGE_COOKIE &&
+        x1==FES_EMBEDDED_BRIDGE_SNAPSHOT && !x2 && !x4 && fes_nano_owned_usb.shared.valid) {
+        struct fes_nano_bridge_snapshot observation;
+        int status=fes_nano_usb_service_snapshot(&fes_nano_owned_usb,&observation);
+        r[0]=status<0 ? FES_EMBEDDED_USB_ERROR : INTEL_SIP_SMC_STATUS_BUSY;
+        r[1]=(uint64_t)FES_EMBEDDED_BRIDGE_TAG<<32;
+        if (!status) fes_nano_bridge_snapshot_reply(&observation,r);
+        goto out;
+    }
     int usb_gate=fes_nano_usb_service_gate(&fes_nano_owned_usb);
     if (usb_gate) {
         r[0]=usb_gate<0 ? FES_EMBEDDED_USB_ERROR : INTEL_SIP_SMC_STATUS_BUSY;

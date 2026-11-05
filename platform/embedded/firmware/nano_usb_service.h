@@ -43,4 +43,8 @@ int fes_nano_usb_service_active(const struct fes_nano_usb_service *);
 /* Shared dispatcher gate: 0 permits other owned calls, 1 means busy, -1 is
  * retired authority. A shared permit includes fresh live master containment, never USB readiness. */
 int fes_nano_usb_service_gate(struct fes_nano_usb_service *);
+/* Exact read-only bridge query, under the same platform lock. Its complete
+ * bridge observer supplies live containment, so the dispatcher must not run
+ * another hardware gate first. 0 publishes, 1 busy, -1 retires; no mutation. */
+int fes_nano_usb_service_snapshot(struct fes_nano_usb_service *,struct fes_nano_bridge_snapshot *);
 #endif

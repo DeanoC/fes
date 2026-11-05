@@ -34,6 +34,11 @@ static uint32_t snapshot_flags(const struct fes_nano_bridge_snapshot *s)
         (s->never_enabled ? FES_EMBEDDED_BRIDGE_NEVER_ENABLED : 0U) |
         (s->masters_contained ? FES_EMBEDDED_BRIDGE_MASTERS_CONTAINED : 0U);
 }
+void fes_nano_bridge_snapshot_reply(const struct fes_nano_bridge_snapshot *s,uint64_t result[4])
+{
+    result[0]=0;result[1]=(uint64_t)FES_EMBEDDED_BRIDGE_TAG<<32 | snapshot_flags(s);
+    result[2]=s->owner;result[3]=s->generation;
+}
 
 void fes_nano_bridge_sip(struct fes_nano_bridges *b, uint64_t operation,
                          uint64_t owner, uint64_t generation, unsigned configuring,
@@ -57,6 +62,7 @@ void fes_nano_bridge_sip(struct fes_nano_bridges *b, uint64_t operation,
     if (configuring && operation != FES_EMBEDDED_BRIDGE_SNAPSHOT) { result[0] = 1; return; }
     if (operation == FES_EMBEDDED_BRIDGE_SNAPSHOT) {
         status = fes_nano_bridges_observe(b, &s);
+        if (!status) {fes_nano_bridge_snapshot_reply(&s,result);return;}
     } else if (operation == FES_EMBEDDED_BRIDGE_CONTROL || release) {
         status = fes_nano_bridges_open(b, owner, generation,
             operation == FES_EMBEDDED_BRIDGE_CONTROL ? FES_NANO_BRIDGES_CONTROL :
