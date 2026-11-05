@@ -2,6 +2,7 @@ package hostapi_test
 
 import (
 	"context"
+	"encoding/json"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -141,6 +142,24 @@ func TestCorePackageReadRoutesRejectBodies(t *testing.T) {
 	}
 }
 
+type unavailableCoreLibraryService struct{ coreLibraryAPIService }
+
+func (s *unavailableCoreLibraryService) CorePackages(context.Context) ([]fogcast.InstalledCorePackage, error) {
+	return nil, &protocol.APIError{Code: protocol.CodeCorePackageStoreUnavailable, Message: "core package storage is unavailable"}
+}
+
+// A kit host whose durable store is not open reports 503, as mister-agent does.
+func TestCorePackageStoreUnavailableIsServiceUnavailable(t *testing.T) {
+	handler := hostapi.New(&unavailableCoreLibraryService{})
+	request := httptest.NewRequest(http.MethodGet, "/api/v1/core-packages", nil)
+	request.Host = "127.0.0.1"
+	response := httptest.NewRecorder()
+	handler.ServeHTTP(response, request)
+	if response.Code != http.StatusServiceUnavailable || !strings.Contains(response.Body.String(), `"code":"CORE_PACKAGE_STORE_UNAVAILABLE"`) || !strings.Contains(response.Body.String(), "core package storage is unavailable") {
+		t.Fatalf("response = %d %s", response.Code, response.Body.String())
+	}
+}
+
 type coreDataAPIService struct {
 	coreLibraryAPIService
 	updates int
@@ -205,6 +224,38 @@ func (s *coreFirmwareAPIService) SelectCoreFirmware(_ context.Context, slot, med
 }
 func (s *coreFirmwareAPIService) CreateCoreEntryWithFirmware(context.Context, string, string, string, string, bool) (catalog.CoreEntry, error) {
 	return catalog.CoreEntry{Title: "Frogger", FirmwareRequired: true}, nil
+}
+
+type bundledFirmwareAPIService struct {
+	coreFirmwareAPIService
+	list protocol.BundledFirmwareList
+}
+
+func (s *bundledFirmwareAPIService) BundledFirmware(context.Context) (protocol.BundledFirmwareList, error) {
+	return s.list, nil
+}
+
+func TestBundledFirmwareAPI(t *testing.T) {
+	list := protocol.BundledFirmwareList{Firmware: []protocol.BundledFirmware{{
+		ID: "emutos-192us", Name: "EmuTOS", CoreID: "fes.atari-st", ROMID: "atari-st-firmware",
+		Size: 196608, MediaID: strings.Repeat("e", 64), Licence: "GPL-2.0-only",
+	}}}
+	handler := hostapi.New(&bundledFirmwareAPIService{list: list})
+	get := httptest.NewRequest(http.MethodGet, "/api/v1/library/firmware/bundled", nil)
+	get.Host = "127.0.0.1"
+	got := httptest.NewRecorder()
+	handler.ServeHTTP(got, get)
+	var decoded protocol.BundledFirmwareList
+	if got.Code != http.StatusOK || json.Unmarshal(got.Body.Bytes(), &decoded) != nil || len(decoded.Firmware) != 1 || decoded.Firmware[0] != list.Firmware[0] {
+		t.Fatalf("get = %d %s", got.Code, got.Body.String())
+	}
+	without := httptest.NewRecorder()
+	request := httptest.NewRequest(http.MethodGet, "/api/v1/library/firmware/bundled", nil)
+	request.Host = "127.0.0.1"
+	hostapi.New(&coreFirmwareAPIService{}).ServeHTTP(without, request)
+	if without.Code != http.StatusNotImplemented {
+		t.Fatalf("service without bundled firmware = %d %s", without.Code, without.Body.String())
+	}
 }
 
 func TestHouseholdFirmwareAPI(t *testing.T) {

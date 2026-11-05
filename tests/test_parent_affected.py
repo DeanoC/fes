@@ -155,6 +155,19 @@ class GoTestOnlyParentTests(unittest.TestCase):
 
 
 class ParentAffectedTests(unittest.TestCase):
+    def test_game_test_ownership_keeps_unknown_implementation_fallback(self):
+        for name in ('pcxt_capture_fanout','pcxt_digger_readiness','pcxt_game_audio_capture',
+                     'pcxt_gameplay_capture','pcxt_gameplay_probe'):
+            self.assertEqual(policy.parent_groups('tests/test_'+name+'.py'), {'acceptance'})
+        self.assertIsNone(policy.parent_groups('scripts/pcxt_gameplay_capture.py'))
+
+    def test_v1_firmware_documentation_regressions_use_narrow_policy_group(self):
+        path = 'tests/test_v1_firmware_licensing_doc.py'
+        module = 'test_v1_firmware_licensing_doc'
+        self.assertEqual({'policy'}, policy.parent_groups(path))
+        self.assertIn(module, policy.GROUPS['policy'])
+        self.assertIn(module, policy.DOCUMENTATION_MODULES)
+
     def test_rooms_keep_build_and_policy_without_media_or_core_diagnostics(self):
         groups = policy.select_groups([ROOM])
         self.assertEqual(groups, {'policy', 'build'})
@@ -173,6 +186,23 @@ class ParentAffectedTests(unittest.TestCase):
             with self.subTest(path=path):
                 self.assertEqual(policy.select_groups([path]),
                                  {'policy', 'build', 'packages', 'acceptance'})
+
+    def test_pcxt_acceptance_modules_are_grouped_without_narrowing_unknown_sources(self):
+        modules = policy.names('''pcxt_diagnostic_acceptance pcxt_dos_application_acceptance
+            pcxt_dos_hil_acceptance pcxt_dos_keyboard_acceptance pcxt_floppy_diagnostic_acceptance
+            pcxt_floppy_persistence_acceptance pcxt_health_evidence
+            pcxt_main_application_acceptance''')
+        self.assertTrue(modules <= policy.GROUPS['acceptance'])
+        available = modules | {'test_new_unassigned'}
+        room = policy.selected_modules(policy.select_groups([ROOM]), available)
+        self.assertFalse(modules & room)
+        self.assertIn('test_new_unassigned', room)
+        for module in modules:
+            with self.subTest(module=module):
+                groups = policy.select_groups(['tests/' + module + '.py'])
+                self.assertIn('acceptance', groups)
+                self.assertTrue(modules <= policy.selected_modules(groups, available))
+        self.assertIsNone(policy.select_groups(['scripts/pcxt_unreviewed_helper.py']))
 
     def test_target_image_selector_library_keeps_media_regressions(self):
         path = 'sources/FogCast/internal/targetimage/lock.go'
@@ -233,6 +263,7 @@ class ParentAffectedTests(unittest.TestCase):
     def test_documentation_modules_exist_and_belong_to_reviewed_groups(self):
         assigned = set().union(*policy.GROUPS.values())
         self.assertTrue(policy.DOCUMENTATION_MODULES <= assigned)
+        self.assertIn('test_ci_workflow', policy.DOCUMENTATION_MODULES)
         for module in policy.DOCUMENTATION_MODULES:
             self.assertTrue((ROOT / 'tests' / (module + '.py')).is_file())
 

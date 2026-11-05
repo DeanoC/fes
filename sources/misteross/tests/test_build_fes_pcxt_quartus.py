@@ -1,4 +1,5 @@
 """Quartus package gates must preserve timing failures and artifact identity."""
+import copy
 import json
 import os
 from pathlib import Path
@@ -19,7 +20,7 @@ class PCXTQuartusPackageTests(unittest.TestCase):
                     'hdmi_i2c': 'cyclonev_hps_interface_peripheral_i2c',
                     'fes_computer_runtime_hps_gp': 'cyclonev_hps_interface_mpu_general_purpose'}},
                 'profile': {'HALF_RATE_BOARD': 0, 'ENABLE_FES_COMPUTER': 1,
-                            'ENABLE_PCXT_MEDIA': 0, 'HARDWARE_DOS': 0}, 'runs': [{
+                            'ENABLE_PCXT_MEDIA': 1, 'ENABLE_PCXT_FLOPPY_WRITE': 0, 'HARDWARE_DOS': 0}, 'runs': [{
                     'seed': 1, 'capture_complete': True, 'reported_endpoint_checks_pass': True,
                     'minimum_pulse_width': {str(c): {'failures': 0} for c in range(4)},
                     'mailbox_interstage': [{'slack_ns': '0.123'} for _ in range(24)],
@@ -36,8 +37,10 @@ class PCXTQuartusPackageTests(unittest.TestCase):
                      lambda s: s['runs'][0]['mailbox_interstage'][0].update(slack_ns='-0.000'),
                      lambda s: s['runs'][0]['timing_coverage_issues'].update(generated_clock=1),
                      lambda s: s['profile'].update(HALF_RATE_BOARD=1),
-                     lambda s: s['profile'].update(ENABLE_PCXT_MEDIA=1),
+                     lambda s: s['profile'].update(ENABLE_PCXT_MEDIA=0),
                      lambda s: s['profile'].pop('ENABLE_PCXT_MEDIA'),
+                     lambda s: s['profile'].update(ENABLE_PCXT_FLOPPY_WRITE=1),
+                     lambda s: s['profile'].pop('ENABLE_PCXT_FLOPPY_WRITE'),
                      lambda s: s['profile'].update(HARDWARE_DOS=1),
                      lambda s: s['profile'].pop('HARDWARE_DOS'),
                      lambda s: s.update(video_mailbox_contract=False),
@@ -52,7 +55,26 @@ class PCXTQuartusPackageTests(unittest.TestCase):
         summary = self.summary()
         summary['profile']['HARDWARE_DOS'] = 1
         summary['profile']['ENABLE_PCXT_MEDIA'] = 1
+        summary['profile']['ENABLE_PCXT_FLOPPY_WRITE'] = 1
+        summary['audio_binding'] = {'chains': [{}, {}, {}, {}]}
+        summary['audio_proof_log_sha256'] = 'a' * 64
+        summary['runs'][0].update(audio_clock='audio', audio_interstage=[{}] * 32, audio_payload=[{}])
         producer.require_timing(summary, [1], dos_profile=True)
+        for key in ('audio_clock', 'audio_interstage', 'audio_payload'):
+            broken = copy.deepcopy(summary)
+            broken['runs'][0].pop(key)
+            with self.assertRaises(producer.BuildError):
+                producer.require_timing(broken, [1], dos_profile=True)
+        broken = copy.deepcopy(summary); broken.pop('audio_proof_log_sha256')
+        with self.assertRaises(producer.BuildError):
+            producer.require_timing(broken, [1], dos_profile=True)
+        broken = copy.deepcopy(summary); broken.pop('audio_binding')
+        with self.assertRaises(producer.BuildError):
+            producer.require_timing(broken, [1], dos_profile=True)
+        summary['profile']['ENABLE_PCXT_FLOPPY_WRITE'] = 0
+        with self.assertRaises(producer.BuildError):
+            producer.require_timing(summary, [1], dos_profile=True)
+        summary['profile']['ENABLE_PCXT_FLOPPY_WRITE'] = 1
         with self.assertRaises(producer.BuildError):
             producer.require_timing(summary, [1])
 
@@ -96,6 +118,7 @@ class PCXTQuartusPackageTests(unittest.TestCase):
         self.assertEqual(parameters['core_id'], 'fes.pcxt-dos')
         self.assertTrue(parameters['hardware_dos'])
         self.assertTrue(parameters['enable_pcxt_media'])
+        self.assertTrue(parameters['enable_pcxt_floppy_write'])
         with mock.patch.object(producer, 'require_clean_source', return_value=('repo', 'a' * 40)) as clean:
             producer._require_clean_source(producer.ROOT, identity_version=2, **options)
             clean.assert_called_once()
@@ -198,7 +221,8 @@ class PCXTQuartusPackageTests(unittest.TestCase):
         self.assertEqual(fields['format'], 2)
         self.assertEqual(fields['toolchain'], 'quartus')
         self.assertNotIn('gpu_device', fields['parameters'])
-        self.assertFalse(fields['parameters']['enable_pcxt_media'])
+        self.assertTrue(fields['parameters']['enable_pcxt_media'])
+        self.assertFalse(fields['parameters']['enable_pcxt_floppy_write'])
         before = build_identity(record)
         fields.pop('toolchain')
         self.assertNotEqual(build_identity(encode_build_record(fields)), before)
@@ -234,7 +258,8 @@ class PCXTQuartusPackageTests(unittest.TestCase):
                                              package_profile=True, build_id='1234567890abcdef'*2)
         self.assertIn('-set HALF_RATE_BOARD 0', program)
         self.assertIn('-set ENABLE_FES_COMPUTER 1', program)
-        self.assertIn('-set ENABLE_PCXT_MEDIA 0', program)
+        self.assertIn('-set ENABLE_PCXT_MEDIA 1', program)
+        self.assertIn('-set ENABLE_PCXT_FLOPPY_WRITE 0', program)
         self.assertIn('-set PHASED_HDMI_CLOCK 1', program)
         dos_program = producer.board.elaboration(producer.ROOT, producer.ROOT / 'build',
                                                  producer.ROOT / 'unused-library',
@@ -243,6 +268,7 @@ class PCXTQuartusPackageTests(unittest.TestCase):
                                                  dos_profile=True)
         self.assertIn('-set HARDWARE_DOS 1', dos_program)
         self.assertIn('-set ENABLE_PCXT_MEDIA 1', dos_program)
+        self.assertIn('-set ENABLE_PCXT_FLOPPY_WRITE 1', dos_program)
         self.assertIn("-set BUILD_ID 128'h" + '1234567890abcdef'*2, program)
         with self.assertRaisesRegex(ValueError, 'BUILD_ID'):
             producer.board.elaboration(producer.ROOT, producer.ROOT / 'build',
@@ -255,9 +281,10 @@ class PCXTQuartusPackageTests(unittest.TestCase):
             payload = Path(directory) / 'core.rbf'
             payload.write_bytes(b'test diagnostic')
             manifest = tomllib.loads(producer.manifest(record, payload).decode())
-        self.assertEqual(manifest['abi'], {'id': 'fes.computer', 'major': 1, 'minor': 0})
+        self.assertEqual(manifest['abi'], {'id': 'fes.computer', 'major': 1, 'minor': 1})
         interfaces = {i['id']: i for i in manifest['interfaces']}
-        self.assertNotIn('fes.media.pcxt-floppy', interfaces)
+        self.assertTrue(interfaces['fes.media.pcxt-floppy']['required'])
+        self.assertNotIn('fes.media.pcxt-floppy-write', interfaces)
         self.assertTrue(interfaces['fes.video.fixed-720p60']['required'])
 
     def test_dos_manifest_declares_runtime_floppy(self):
@@ -275,8 +302,18 @@ class PCXTQuartusPackageTests(unittest.TestCase):
         self.assertEqual(manifest['abi'], {'id': 'fes.computer', 'major': 1, 'minor': 1})
         self.assertIn('image is optional', manifest['core']['description'])
         self.assertIn('empty drive', manifest['core']['description'])
-        self.assertEqual([i['id'] for i in manifest['interfaces']], ['fes.video.fixed-720p60', 'fes.media.pcxt-floppy'])
+        self.assertEqual([i['id'] for i in manifest['interfaces']],
+                         ['fes.video.fixed-720p60', 'fes.media.pcxt-floppy', 'fes.media.pcxt-floppy-write', 'fes.keyboard.hid',
+                          'fes.audio.pcm-s16-stereo-48k'])
         self.assertTrue(manifest['interfaces'][1]['required'])
+        self.assertTrue(manifest['interfaces'][2]['required'])
+        fields = json.loads(record)
+        fields['parameters']['enable_pcxt_floppy_write'] = False
+        with tempfile.TemporaryDirectory(prefix='pcxt-manifest-negative-') as directory:
+            payload = Path(directory) / 'core.rbf'
+            payload.write_bytes(b'test DOS')
+            with self.assertRaisesRegex(producer.BuildError, 'manifest profile'):
+                producer.manifest(json.dumps(fields).encode(), payload, dos_profile=True, metadata=metadata)
         self.assertIn('runtime floppy image is optional', producer.build_limits(True)[1])
         self.assertNotIn('required', producer.build_limits(True)[1])
 
@@ -344,15 +381,56 @@ class PCXTQuartusPackageTests(unittest.TestCase):
                     build_id='1234567890abcdef' * 2, dos_profile=dos_profile)
                 self.assertNotIn('pcxt_disk_boot.sv', program)
                 self.assertEqual('pcxt_xt_keyboard_bat.sv' in program, dos_profile)
+                self.assertEqual('pcxt_hid_keyboard.sv' in program, dos_profile)
                 self.assertEqual('c:dos_font.glyphs' in program, dos_profile)
                 (work / 'elaborate.ys').write_text(program)
                 result = subprocess.run([str(yosys), '-s', 'elaborate.ys'], cwd=work,
                                         capture_output=True, text=True, timeout=600, check=False)
                 self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
-                producer.board.validate_renaming(work, package_profile=True)
+                producer.board.validate_renaming(work, package_profile=True, dos_profile=dos_profile)
+                if dos_profile:
+                    # A valid port set and primitive count do not prove the audio clock.
+                    before_path, after_path = work / 'before-names.json', work / 'elaborated.json'
+                    originals = [path.read_text() for path in (before_path, after_path)]
+                    for path, original in zip((before_path, after_path), originals):
+                        data = json.loads(original)
+                        plls = [cell for cell in data['modules']['top']['cells'].values()
+                                if cell['type'] == 'altera_pll' and
+                                cell['parameters'].get('output_clock_frequency0') == '12.288 MHz']
+                        self.assertEqual(len(plls), 1)
+                        plls[0]['parameters']['output_clock_frequency0'] = '12.000 MHz'
+                        path.write_text(json.dumps(data))
+                    with self.assertRaisesRegex(ValueError, 'clock request changed'):
+                        producer.board.validate_renaming(work, package_profile=True, dos_profile=True)
+                    for path, original in zip((before_path, after_path), originals):
+                        path.write_text(original)
                 before = json.loads((work / 'before-names.json').read_text())['modules']['top']
                 after = json.loads((work / 'elaborated.json').read_text())['modules']['top']
                 producer.board.validate_mailbox(before, after, half_rate_board=False)
+                if dos_profile:
+                    binding = producer.board.validate_audio(before, after)
+                    self.assertEqual(len(binding['chains']), 4)
+                    # An extra interstage consumer invalidates the binding.
+                    head = binding['chains'][0]['head']
+                    broken = copy.deepcopy(after)
+                    bit = broken['netnames'][head]['bits']
+                    broken['cells']['extra_audio_fanout'] = {
+                        'type': '$not', 'port_directions': {'A': 'input', 'Y': 'output'},
+                        'connections': {'A': bit, 'Y': [999999]}}
+                    with self.assertRaisesRegex(ValueError, 'interstage'):
+                        producer.board.validate_audio(before, broken)
+                    broken = copy.deepcopy(after)
+                    pcm = broken['netnames']['speaker_output_audio_output_stage_pcm']['bits']
+                    pcm_ff = next(c for c in broken['cells'].values() if c['connections'].get('Q') == pcm)
+                    pcm_ff['connections']['D'][0] = '0'
+                    with self.assertRaisesRegex(ValueError, 'payload'):
+                        producer.board.validate_audio(before, broken)
+                    broken = copy.deepcopy(after)
+                    hold = broken['netnames']['speaker_output_audio_hold']['bits']
+                    hold_gate = next(c for c in broken['cells'].values() if c['connections'].get('Y') == hold)
+                    hold_gate['connections']['B'] = ['0']
+                    with self.assertRaisesRegex(ValueError, 'hold sources'):
+                        producer.board.validate_audio(before, broken)
                 elaborated_verilog = (work / 'elaborated.v').read_text()
                 bus_hold_parameters = elaborated_verilog.count('.enable_bus_hold("FALSE")')
                 self.assertEqual(bus_hold_parameters, 16,

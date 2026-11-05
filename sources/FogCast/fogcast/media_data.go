@@ -71,7 +71,7 @@ func (s *Service) InsertLibraryDisk(parent context.Context, b protocol.LibraryMe
 		return protocol.Status{}, mediaUnchanged(mapCoreMediaError(err))
 	}
 	defer reader.Close()
-	if !protocol.AdmitAtariStFloppySize(info.Size) {
+	if !protocol.AdmitLibraryFloppySize(info.Size) {
 		return protocol.Status{}, mediaUnchanged(protocol.DiskMediaRequestError())
 	}
 	status, err := s.insertBoundMediaUnitLocked(ctx, info.Size, reader, b.MediaUnitBinding, &b)

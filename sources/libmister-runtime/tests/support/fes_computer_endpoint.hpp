@@ -128,8 +128,9 @@ public:
 		}
 		if (op >= FesComputerOpcodeMediaSnapshotInfo && op <= FesComputerOpcodeMediaSnapshotData) {
 			const bool zx81 = (capabilities_ & FesComputerCapabilityMediaZx81TapeWrite) != 0;
+			const bool pcxt = (capabilities_ & FesComputerCapabilityMediaPcxtFloppyWrite) != 0;
 			if (!(capabilities_ & (FesComputerCapabilityMediaAtariStFloppyWrite |
-				FesComputerCapabilityMediaZx81TapeWrite))) return {opcode_error, 0};
+				FesComputerCapabilityMediaZx81TapeWrite | FesComputerCapabilityMediaPcxtFloppyWrite))) return {opcode_error, 0};
 			Unit& u = units_.at(0);
 			if (op == FesComputerOpcodeMediaSnapshotInfo) {
 				if (index > 7) return {index_error, 0};
@@ -137,8 +138,8 @@ public:
 				const std::vector<std::uint8_t>& snapshot = zx81 ? zx81_snapshot_ : u.data;
 				const std::uint16_t info[8] = {
 					static_cast<std::uint16_t>(((zx81 ? save_ready : u.state == 3) ? 1 : 0) | (dirty ? 2 : 0) | (frozen ? 4 : 0) | (write_busy ? 8 : 0)),
-					static_cast<std::uint16_t>(zx81 ? FesComputerZx81TapeLayoutTag : 1), 1,
-					static_cast<std::uint16_t>(zx81 ? FesComputerZx81TapeLayoutMinor : (u.data.size() == FesComputerAtariStFloppyBytes ? 0 : 1)),
+					static_cast<std::uint16_t>(zx81 ? FesComputerZx81TapeLayoutTag : pcxt ? FesComputerPcxtFloppyLayoutTag : 1), 1,
+					static_cast<std::uint16_t>(zx81 ? FesComputerZx81TapeLayoutMinor : pcxt || u.data.size() == FesComputerAtariStFloppyBytes ? 0 : 1),
 					static_cast<std::uint16_t>(snapshot.size()),
 					static_cast<std::uint16_t>(snapshot.size() >> 16), 512, epoch};
 				return {0, info[index]};

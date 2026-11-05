@@ -68,6 +68,39 @@ func TestNonHeroRoomFooterShowsActionableStatusOnly(t *testing.T) {
 	}
 }
 
+func TestNoPanelRoomFooterStatusUsesDarkInk(t *testing.T) {
+	grid := testDrawGrid()
+	const status = "Host is unreachable."
+	snap := Snapshot{
+		Grid: grid,
+		Room: RoomSnapshot{
+			Open: true, NoPanel: true,
+			OffsetX: grid.contentLeft(), OffsetY: grid.contentTop(),
+			Width: grid.contentWidth(), Height: grid.contentHeight(),
+		},
+		Health: HealthSnapshot{HostUnreachable: true, Line: status},
+	}
+	rec := gfx.NewRecorder()
+	labels := map[string]gpuTexture{}
+	drawRoom(rec, snap, map[string]gpuTexture{}, labels, map[string]struct{}{})
+
+	for _, label := range labels {
+		if label.labelSource != status {
+			continue
+		}
+		for _, call := range rec.Calls {
+			if call.Op == "DrawMask" && call.Mask == label.mask {
+				if call.Color != heroText {
+					t.Fatalf("no-panel footer status ink = %+v, want dark FES ink %+v", call.Color, heroText)
+				}
+				return
+			}
+		}
+		t.Fatal("no-panel footer status label was not painted")
+	}
+	t.Fatal("no-panel footer status label was not created")
+}
+
 func testDrawRGBA(w, h int) *image.RGBA {
 	img := image.NewRGBA(image.Rect(0, 0, w, h))
 	for i := range img.Pix {

@@ -59,33 +59,47 @@ func (a *App) suppressHeldPlayKeysLocked() {
 	}
 }
 
+// playHeldKey names one physical key in playKeyHeld and playKeySuppressed: its
+// HID usage, or its name when the caller has no usage. Keys such as F1 and the
+// keypad have no play-keyboard name, and the left and right modifiers share
+// one. The name does not depend on the session, so a key pressed before a
+// fes.keyboard.hid session starts or ends still matches its release.
+func playHeldKey(name string, usage uint8) string {
+	if usage != 0 {
+		return fmt.Sprintf("hid:%02x", usage)
+	}
+	return strings.ToLower(strings.TrimSpace(name))
+}
+
 // Every physical key passes here, including room navigation. A held key must
 // be released before either the room or the machine can see another press.
-func (a *App) consumeSuppressedPlayKey(name string, down bool) bool {
+// usage is the key's HID usage, or 0 where the caller has only a name.
+func (a *App) consumeSuppressedPlayKey(name string, usage uint8, down bool) bool {
 	if a == nil {
 		return false
 	}
 	name = strings.ToLower(strings.TrimSpace(name))
 	a.mu.Lock()
 	defer a.mu.Unlock()
+	key := playHeldKey(name, usage)
 	if a.playKeyHeld == nil {
 		a.playKeyHeld = make(map[string]bool)
 	}
 	if down {
-		a.playKeyHeld[name] = true
+		a.playKeyHeld[key] = true
 	} else {
-		delete(a.playKeyHeld, name)
+		delete(a.playKeyHeld, key)
 	}
-	suppressed := a.playKeySuppressed[name]
+	suppressed := a.playKeySuppressed[key]
 	if !down {
-		delete(a.playKeySuppressed, name)
+		delete(a.playKeySuppressed, key)
 	}
 	if a.sessionDisplayBusy || a.sessionDisplayUncertain && name != "home" && name != "escape" && name != "backspace" {
 		if down {
 			if a.playKeySuppressed == nil {
 				a.playKeySuppressed = make(map[string]bool)
 			}
-			a.playKeySuppressed[name] = true
+			a.playKeySuppressed[key] = true
 		}
 		return true
 	}

@@ -2,6 +2,7 @@ package tenfoot
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"image"
 	"os"
@@ -42,10 +43,14 @@ type RoomSnapshot struct {
 	// Hero means the room asked for the large FES destination panel and the
 	// content box is big enough for it.
 	Hero bool
+	// NoPanel is a room that draws its own copy and actions, with no FES
+	// destination panel.
+	NoPanel bool
 	// WaitAck acknowledges a Confirm received while Checking.
 	WaitAck bool
-	// CoreDetail shows the selected installed package's Details in the hero.
-	CoreDetail bool
+	// HeroDetail shows the selected installed package's or family's Details
+	// in the hero.
+	HeroDetail bool
 }
 
 // RoomPickerRow is one entry of the Home overlay.
@@ -71,7 +76,16 @@ type roomServices struct {
 	client *Client
 }
 
+var errNoHostClient = errors.New("no host connection")
+
+// connected is false without a host client: the room's library calls then
+// answer with an error.
+func (s roomServices) connected() bool { return s.client != nil && s.client.Client != nil }
+
 func (s roomServices) QueryGames(ctx context.Context, q hostclient.GameListQuery, max int) ([]hostclient.Game, error) {
+	if !s.connected() {
+		return nil, errNoHostClient
+	}
 	if q.Limit <= 0 || q.Limit > defaultPageLimit {
 		q.Limit = defaultPageLimit
 	}
@@ -99,14 +113,23 @@ func (s roomServices) QueryGames(ctx context.Context, q hostclient.GameListQuery
 }
 
 func (s roomServices) Platforms(ctx context.Context) ([]hostclient.Platform, error) {
+	if !s.connected() {
+		return nil, errNoHostClient
+	}
 	return s.client.Platforms(ctx)
 }
 
 func (s roomServices) Collections(ctx context.Context) ([]hostclient.Collection, error) {
+	if !s.connected() {
+		return nil, errNoHostClient
+	}
 	return s.client.Collections(ctx)
 }
 
 func (s roomServices) Game(ctx context.Context, id string) (hostclient.Game, error) {
+	if !s.connected() {
+		return hostclient.Game{}, errNoHostClient
+	}
 	return s.client.Game(ctx, id)
 }
 
@@ -280,6 +303,17 @@ func (a *App) openHomeRoomAsRootLocked() bool {
 	if id == "" {
 		return false
 	}
+	// Until first-run setup is finished or skipped, every way Home (Start,
+	// the Home command, Settings) opens setup instead.
+	if a.setupPendingLocked() {
+		if a.setupRoomOpenLocked() {
+			return true
+		}
+		if a.openSetupStepLocked(max(a.setup.step, 0)) {
+			return true
+		}
+	}
+	a.setup.step = -1
 	if !a.refreshInstalledRoomsLocked() {
 		return false
 	}
@@ -358,12 +392,12 @@ func (a *App) resolveHomeRoomLocked(id string) (rooms.Pack, string, bool) {
 func (a *App) reclaimHomeRoomLocked(id, revision string) bool {
 	var home *rooms.Instance
 	for _, parent := range a.roomStack {
-		if parent != nil && parent.ID() == id && parent.Revision() == revision && parent.Err() == nil {
+		if parent != nil && parent.ID() == id && parent.Revision() == revision && parent.Err() == nil && parent.ReleaseOnly() == !a.allCores {
 			home = parent
 			break
 		}
 	}
-	if home == nil && a.room != nil && a.room.ID() == id && a.room.Revision() == revision && a.room.Err() == nil {
+	if home == nil && a.room != nil && a.room.ID() == id && a.room.Revision() == revision && a.room.Err() == nil && a.room.ReleaseOnly() == !a.allCores {
 		home = a.room
 	}
 	if home == nil {
@@ -402,6 +436,9 @@ func (a *App) noteHomeRoomFallbackLocked(id, reason string) {
 
 // closeRoomLocked closes the current room only; parents on roomStack stay alive.
 func (a *App) closeRoomLocked() {
+	// A pending firmware lookup belongs to the room that requested it. Stop
+	// it when that room is closed so a late reply cannot overlay its successor.
+	a.closeFirmwareCardLocked()
 	if a.room == nil {
 		return
 	}
@@ -410,7 +447,7 @@ func (a *App) closeRoomLocked() {
 	a.room.Close()
 	a.room = nil
 	a.roomWaitAck = false
-	a.roomCoreDetail = ""
+	a.roomHeroDetail = ""
 	a.roomErr = ""
 	a.roomFrame = rooms.Frame{}
 	a.closeRoomOverlaysLocked()
@@ -440,6 +477,13 @@ func (a *App) leaveRoomLocked() {
 		a.postUIEventLocked("ui.nav", map[string]string{"reason": "room-resume", "view": "room:" + parent.ID()})
 		parent.Resume()
 		a.applyRoomActionsLocked()
+		return
+	}
+	// The release-scoped Home is the v1 root destination. Keep it on screen
+	// when Back is pressed; the broader picker is available when Home cannot
+	// open, or when Show all cores restores the full navigation routes.
+	if a.room != nil && a.room.ID() == installedCoresHomeID &&
+		a.room.ReleaseOnly() && a.room.Err() == nil {
 		return
 	}
 	a.closeRoomLocked()
@@ -486,6 +530,9 @@ func (a *App) applyRoomActionsLocked() {
 	if a.room == nil {
 		return
 	}
+	if req, ok := a.room.TakeFirmwareInfo(); ok {
+		a.openFirmwareCardLocked(req)
+	}
 	for _, act := range a.room.TakeActions() {
 		switch act.Kind {
 		case rooms.ActionHardwareSetup:
@@ -498,6 +545,8 @@ func (a *App) applyRoomActionsLocked() {
 			a.openSystemMediaLocked(act)
 		case rooms.ActionHardwareExpansions:
 			a.openSystemExpansionsLocked(act)
+		case rooms.ActionFirmwareInfo:
+			a.openFirmwareCardLocked(act)
 		case rooms.ActionLaunch:
 			a.launchFromRoomWithPackageLocked(act.GameID, act.PackageID, act.ExpectedPackageID)
 		case rooms.ActionStop:
@@ -653,13 +702,13 @@ func (a *App) tickRoomLocked(now time.Time) {
 	}
 	a.roomFrame = a.room.Step(now)
 	a.frameLua = a.room.LastStep()
-	if a.roomWaitAck || a.roomCoreDetail != "" {
+	if a.roomWaitAck || a.roomHeroDetail != "" {
 		dest := a.roomDestinationLocked()
 		if dest.Confirm() != rooms.ConfirmWait {
 			a.roomWaitAck = false
 		}
-		if dest.Kind != rooms.KindCore || dest.PackageID != a.roomCoreDetail {
-			a.roomCoreDetail = ""
+		if heroDetailKey(dest) != a.roomHeroDetail {
+			a.roomHeroDetail = ""
 		}
 	}
 	a.applyRoomActionsLocked()
@@ -749,8 +798,9 @@ func (a *App) roomSnapshotLocked(withImages bool) RoomSnapshot {
 	if a.room.Hero() {
 		_, snap.Hero = rooms.HeroPanel(w, h)
 	}
+	snap.NoPanel = a.room.NoPanel()
 	snap.WaitAck = a.roomWaitAck && snap.Destination.Confirm() == rooms.ConfirmWait
-	snap.CoreDetail = snap.Hero && a.roomCoreDetail != "" && snap.Destination.Kind == rooms.KindCore && snap.Destination.PackageID == a.roomCoreDetail
+	snap.HeroDetail = snap.Hero && a.roomHeroDetail != "" && heroDetailKey(snap.Destination) == a.roomHeroDetail
 	if withImages {
 		snap.Images = a.room.Images()
 	}
@@ -809,6 +859,8 @@ func (a *App) newRoomInstanceLocked(pack rooms.Pack, initialGameID string, initi
 		Index:                  a.roomsIndex,
 		Theme:                  a.theme,
 		ReducedMotion:          a.reducedMotion,
+		ReleaseOnly:            !a.allCores,
+		Setup:                  a.roomSetupLocked(pack.ID),
 		InitialGameID:          initialGameID,
 		InitialCoreID:          coreID,
 		SessionDisplayRequired: a.needsSessionDisplayLocked(),

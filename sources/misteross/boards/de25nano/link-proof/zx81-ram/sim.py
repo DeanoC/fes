@@ -41,7 +41,7 @@ def main():
         test_committed = test_committed and result.returncode == 0 and result.stdout == data
     before = {str(x.relative_to(output)): build.sha(x.read_bytes()) for x in local.rglob("*") if x.is_file()}
     build.run(["verilator", "--cc", "--exe", "--build", "-j", "2", "--x-initial", "unique", "-Wno-fatal",
-        "--top-module", "fes_zx81_pr_sim", "-I" + str(local), "--Mdir", str(output / "obj_dir")] +
+        "--top-module", "fes_zx81_pr_sim", "-CFLAGS", "-I" + str(local), "-I" + str(local), "--Mdir", str(output / "obj_dir")] +
         [str(x) for x in rtl] + [str(local / "tb.cpp")], output, "build.log")
     build.run([str(output / "obj_dir/Vfes_zx81_pr_sim")] + (["--drain-only"] if args.drain_only else []) + ["+verilator+rand+reset+2", "+verilator+seed+17"], output, "simulation.log")
     sources = {str(x.relative_to(output)): build.sha(x.read_bytes()) for x in local.rglob("*") if x.is_file()}

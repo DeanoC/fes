@@ -24,11 +24,46 @@ docs/pc386-machine-design.md, "Verification" and phases M1-M3.
            With --cpu rtl, fes_i386_cpu is the CPU and the oracle runs only
            what it stops on (see machine_tb.cpp); writes boot-rtl/, whose
            report lists the stops by stem against the lockstep's scope.
+           --image games boots the games image (HIMEMX, CuteMouse, MEM and
+           BLASTER; build_pc386_freedos_image.py) and writes boot-games/.
   rtl-stops
            boots cores/fes-pc386/sim/rtl_stop_test.asm on the oracle and on
            the RTL: SMSW at two sites and a protected-mode stretch from LMSW
            to MOV CR0, all unbuilt in the RTL. The RTL run must stop on
            each, record the stretch, and write what the oracle run writes.
+  a20      runs cores/fes-pc386/sim/a20_test.asm (A20TEST.COM) at the FreeDOS
+           prompt (#1386). On the boot image, which has no XMS driver, A20
+           must be off at the prompt, INT 15h AH=24h and 87h must turn it on,
+           off and back whichever control set it, and a shutdown-byte resume
+           must keep it. On the games image, HIMEMX's /VERBOSE banner must
+           name a real A20 method, not "Always on", A20 must be off at the
+           prompt, and XMS 03h/04h and 05h/06h must turn it on and off again
+           and agree with memory. Every check must print ok. With --cpu rtl,
+           the RTL must run both images without an oracle step or a stop;
+           writes a20-rtl/.
+  c2xx     runs cores/fes-pc386/sim/c2xx_test.asm (C2TEST.COM) at the
+           FreeDOS prompt (#1330): INT 15h C205h with a key or an aux byte
+           already in the 8042's output buffer, one with IRQ1 masked, and
+           C205h again and again while the bench types keys held 8 ms. Every
+           reset must return, a waiting key must reach INT 16h, and every
+           typed key must arrive in order. With --cpu rtl, the RTL must run it
+           without an oracle step or a stop; writes c2xx-rtl/.
+
+  wait     runs cores/fes-pc386/sim/wait_test.asm (WAITTEST.COM) at the
+           FreeDOS prompt (#1150): INT 15h AH=86h waits from 0 us to 300 ms,
+           each timed on PIT counter 0 or the BIOS tick, must return within
+           their bounds. The BIOS counts port 61h bit 4's changes, which
+           follow PIT counter 1 as POST programs it. Every check must print
+           ok. With --cpu rtl, the RTL must run it without an oracle step or
+           a stop; writes wait-rtl/.
+  speaker  runs cores/fes-pc386/sim/speaker_test.asm (SPKTEST.COM) at the
+           FreeDOS prompt (#1457): PIT counter 2 must be in mode 3 with LSB
+           then MSB counts, as an AT BIOS's POST leaves it, and a count-only
+           write of 60 must give what Ultima VI's port 61h toggles rely on:
+           output high after each rising gate, and a 19,886 Hz square wave
+           with the gate held. Every check must print ok. With --cpu rtl,
+           the RTL must run it without an oracle step or a stop; writes
+           speaker-rtl/.
   sound    boots FreeDOS and runs SOUND.COM; checks the speaker and DSP tones,
            OPL2 output and DSP interrupts.
   game     starts Wolfenstein 3D or Ultima VI from user-supplied eXoDOS files
@@ -37,6 +72,23 @@ docs/pc386-machine-design.md, "Verification" and phases M1-M3.
            the CPU and the oracle runs only on its stops; writes
            game-<name>-rtl/. Runs share machine/'s build, so start a second
            run only once the first has built it.
+  system   boots FreeDOS on pc386_system (everything below top.sv) at the
+           sealed clock, with a host that does the runtime's launch and Stop
+           through the mailbox and runs INPUT.COM to test keyboard and mouse.
+           After the Stop it sweeps holds across port 2's write bursts (#1372).
+  governor boots cores/fes-pc386/sim/governor_test.asm on pc386_system under
+           max and governor presets, set in the restored fes.pc386.machine
+           record as FogCast writes it: an equivalent of Turbo Pascal's CRT
+           delay calibration (delay-loop passes in one timer tick) and the
+           passes in 18 more ticks, then a port 61h speaker loop's and a VRAM
+           fill's passes in a tick, with the machine's device time. Under a
+           preset each must be within 5% of the loop's table time
+           (governor.toml, with its ISA bus time) at the preset's frequency,
+           and the record saved at Stop must hold the first three in CMOS
+           70h-79h. Its
+           synthetic boot disk skips the system suite's FreeDOS input exercise.
+           --preset runs that one preset beside max, with --frequency (the
+           table time follows it) and --turbo (it must run as max does).
   vga      runs the benches, boots
            cores/fes-pc386/sim/vga_test.asm (VGA BIOS text, mode 13h, mode Y,
            mode 12h), checks every marked picture's 720p frame from the
@@ -45,23 +97,34 @@ docs/pc386-machine-design.md, "Verification" and phases M1-M3.
            which must match frames of every marked picture.
 
 boot and vga need the oracle build, the firmware build, the FreeDOS fixture
-and NASM; --download fetches what is missing. Writes
-build/sim/fes-pc386/<suite>/report.json; vga also writes the marked frames.
+and NASM; --download fetches what is missing. --preset (with --frequency and
+--turbo) runs the system suite's record, or boot's and game's --cpu rtl, under
+that governor preset; each report uses `<suite>-preset<n>`, with
+`-frequency<n>` and/or `-turbo` appended when set. Its `report.json` lives in
+`build/sim/fes-pc386/<report-name>/`; vga also writes the marked frames.
 
 Examples:
   python3 scripts/sim_fes_pc386.py --suite devices
   python3 scripts/sim_fes_pc386.py --suite opl2
   python3 scripts/sim_fes_pc386.py --suite boot --download
   python3 scripts/sim_fes_pc386.py --suite boot --cpu rtl
+  python3 scripts/sim_fes_pc386.py --suite boot --image games --cpu rtl --type 'mem|' --expect 'high memory area'
   python3 scripts/sim_fes_pc386.py --suite rtl-stops
+  python3 scripts/sim_fes_pc386.py --suite a20 --download
+  python3 scripts/sim_fes_pc386.py --suite c2xx --cpu rtl
+  python3 scripts/sim_fes_pc386.py --suite wait --cpu rtl
+  python3 scripts/sim_fes_pc386.py --suite speaker
   python3 scripts/sim_fes_pc386.py --suite sound --download
   python3 scripts/sim_fes_pc386.py --suite game --game ultima6
   python3 scripts/sim_fes_pc386.py --suite game --game wolf3d --cpu rtl
   python3 scripts/sim_fes_pc386.py --suite vga
+  python3 scripts/sim_fes_pc386.py --suite governor
+  python3 scripts/sim_fes_pc386.py --suite system --preset 1
 """
 from __future__ import annotations
 
 import argparse
+import concurrent.futures
 import hashlib
 import json
 import math
@@ -106,6 +169,7 @@ AT_RTL = (
     CORE / 'rtl/pc386_io.sv',
     CORE / 'rtl/pc386_pic.sv',
     CORE / 'rtl/pc386_sysctl.sv',
+    CORE / 'rtl/pc386_hid_keyboard.sv',
     CORE / 'rtl/pc386_kbc.sv',
     CORE / 'rtl/pc386_rtc.sv',
     CORE / 'rtl/pc386_ram.sv',
@@ -147,7 +211,7 @@ MACHINE_RTL = AT_RTL + (
 # port 0 and the disk's port 2 master (pc386_system.sv), at the sealed clock.
 SYSTEM_RTL = (*dict.fromkeys(CPU_RTL + MACHINE_RTL + AUDIO_RTL), COMMON / 'rtl/fes_computer_mailbox.v',
               COMMON / 'rtl/fes_computer_storage.v', CORE / 'rtl/pc386_rom.sv', CORE / 'rtl/pc386_disk.sv',
-              CORE / 'rtl/pc386_snapshot.sv', CORE / 'rtl/pc386_system.sv')
+              CORE / 'rtl/pc386_snapshot.sv', CORE / 'rtl/pc386_status.sv', CORE / 'rtl/pc386_system.sv')
 # I/O completion, request clock to done clock: each device cycle's class time
 # (isa8 72 clocks, isa16 36 at 100 MHz) plus one clock to take the request and
 # one to report it. 1F0h with a dword is one word cycle and two byte cycles
@@ -175,6 +239,8 @@ VGA_RTL = (
     CORE / 'rtl/pc386_vga_scanout.sv',
     CORE / 'sim/vga_replay_top.sv',
 )
+SERPENT_ISLE_MIN_CONVENTIONAL_BYTES = 573 * 1024
+GAMES_CONVENTIONAL_HEADROOM_BYTES = 1024
 PRESENTER_RTL = (CORE / 'rtl/pc386_ram.sv', CORE / 'rtl/pc386_presenter.sv')
 CAPTURE_RTL = (
     CORE / 'rtl/pc386_rate.sv', CORE / 'rtl/pc386_ram.sv', CORE / 'rtl/pc386_vga_scanout.sv',
@@ -223,7 +289,7 @@ def verilate(verilator: str, name: str, top: str, rtl: tuple[Path, ...], testben
 def parse_boot(text: str) -> dict:
     report = {'post': [], 'debug': [], 'panic': [], 'io': {}, 'io_wait': {}, 'inta': {}, 'screen': [], 'end': None,
               'prompt_cycle': None, 'cpu_resets': 0, 'snaps': {}, 'present': {}, 'vga': {}, 'marks': {},
-              'opl2': None, 'opl2_mismatch': None, 'audio_samples': None, 'sb': None}
+              'opl2': None, 'opl2_mismatch': None, 'audio_samples': None, 'sb': None, 'mouse': None}
     rtl = {'stops': [], 'pmode': [], 'gaps': [], 'smc': [], 'notes': [], 'counters': None}
     for line in text.splitlines():
         kind, _, rest = line.partition(' ')
@@ -290,6 +356,8 @@ def parse_boot(text: str) -> dict:
             report['audio_samples'] = int(rest.partition('=')[2])
         elif kind == 'SB':
             report['sb'] = {key: int(value) for key, value in (field.split('=') for field in rest.split())}
+        elif kind == 'MOUSE':
+            report['mouse'] = {key: int(value) for key, value in (field.split('=') for field in rest.split())}
         elif kind == 'END':
             fields = rest.split()
             report['end'] = {'reason': fields[0], **{k: float(v) if '.' in v else int(v)
@@ -370,6 +438,9 @@ def run_machine(testbench: Path, suite: str, arguments: list[str], images: dict)
     if result.returncode != 0:
         report['failures'].append(f'machine_tb exited {result.returncode}: {(report["end"] or {}).get("reason")}'
                                   f' {result.stderr.strip()}')
+    if report['mouse'] and report['mouse']['sent'] != report['mouse']['scheduled']:
+        report['failures'].append(f'mouse packets accepted: {report["mouse"]["sent"]}/'
+                                  f'{report["mouse"]["scheduled"]}')
     if report['panic']:
         report['failures'].append(f'BIOS panic ports written: {report["panic"]}')
     opl2 = report['opl2'] or {}
@@ -509,21 +580,47 @@ def run_replay(args, suite: str, trace: Path) -> dict:
     return report
 
 
+def boot_suite(args) -> str:
+    """The boot suite's output name: boot, boot-games, boot-rtl, boot-games-rtl,
+    with a governed run's -preset suffix."""
+    return 'boot' + ('' if args.image == 'boot' else f'-{args.image}') + ('-rtl' if args.cpu == 'rtl' else '') \
+        + suffix(args)
+
+
 def run_boot(args, linked: list[Path]) -> dict:
     images = firmware.images(args.download, args.jobs)
-    disk = freedos.build(args.download, args.jobs) if args.rebuild_image else freedos.image(args.download, args.jobs)
+    disk = (freedos.build if args.rebuild_image else freedos.image)(args.download, args.jobs, args.image)
     testbench = machine_testbench(args, linked)
-    suite = 'boot' if args.cpu == 'oracle' else 'boot-rtl'
+    suite = boot_suite(args)
     trace = OUTPUT / suite / 'vga.trace'
     print(f'Booting FreeDOS in simulation on the {args.cpu} CPU (this takes minutes)', flush=True)
     report = run_machine(testbench, suite, ['--disk', str(disk), '--limit-seconds', str(args.limit_seconds),
                                             '--type', args.type, '--expect', args.expect, '--trace', str(trace),
-                                            '--cpu', args.cpu], images)
+                                            '--cpu', args.cpu, '--mouse', '0:0,0,0',
+                                            *governor_arguments(args)], images)
+    typed_commands = {command.strip().lower() for command in args.type.split('|')}
+    if args.image == 'games' and 'mem' in typed_commands:
+        report['failures'] += games_memory_failures(report['screen'])
     report['failures'] += rtl_boot_failures(report, args.cpu)
     print('Replaying the boot\'s VGA trace against Bochs\'s VGA', flush=True)
     report['replay'] = run_replay(args, suite, trace)
     report['failures'] += report['replay']['failures']
     return report
+
+
+def games_memory_failures(screen: list[str]) -> list[str]:
+    """Check MEM's exact conventional-memory count against the Serpent Isle requirement."""
+    text = '\n'.join(screen)
+    match = re.search(r'Largest executable program size\s+\d+K\s+\(\s*([\d,]+) bytes\)', text)
+    if not match:
+        return ['games image MEM output is missing the largest executable program size']
+    available = int(match.group(1).replace(',', ''))
+    required = SERPENT_ISLE_MIN_CONVENTIONAL_BYTES + GAMES_CONVENTIONAL_HEADROOM_BYTES
+    if available < required:
+        return [f'games image has {available:,} conventional bytes free; '
+                f'Serpent Isle needs {SERPENT_ISLE_MIN_CONVENTIONAL_BYTES:,} bytes '
+                f'with {GAMES_CONVENTIONAL_HEADROOM_BYTES:,} bytes of headroom ({required:,} total)']
+    return []
 
 
 def vga_test_disk(args) -> Path:
@@ -588,6 +685,145 @@ def run_rtl_stops(args, linked: list[Path]) -> dict:
             'checks': [f'{cpu}: {" | ".join(lines[cpu])}' for cpu in runs] + [f'RTL {gap}' for gap in rtl['gaps']]}
 
 
+# A20TEST.COM's checks on each image, and HIMEMX's /VERBOSE line naming its A20 method.
+A20_CHECKS = {
+    'boot': ('boot', 'query', 'query-2403', 'bios', 'kbc', 'port92', 'move', 'move-kbc', 'resume', 'DONE'),
+    'games': ('xms-start', 'xms-query', 'xms-global', 'xms-lock', 'DONE'),
+}
+HIMEMX_METHOD = re.compile(r'(\S.*?) A20 method used')
+
+
+def run_a20(args, linked: list[Path]) -> dict:
+    """A20TEST.COM at the FreeDOS prompt on the boot and games images."""
+    images = firmware.images(args.download, args.jobs)
+    testbench = machine_testbench(args, linked)
+    rtl = '-rtl' if args.cpu == 'rtl' else ''
+    profiles = tuple(A20_CHECKS)
+    disks = {profile: fixture_with(args, f'a20{rtl}/{profile}', 'a20_test.asm', 'A20TEST.COM',
+                                   freedos.image(args.download, args.jobs, profile)) for profile in profiles}
+
+    def run(profile: str) -> dict:
+        return run_machine(testbench, f'a20{rtl}/{profile}',
+                           ['--disk', str(disks[profile]), '--limit-seconds', str(args.limit_seconds),
+                            '--type', 'a20test|', '--expect', 'A20 DONE ok', '--cpu', args.cpu], images)
+
+    print(f'Running A20TEST.COM on the {" and ".join(profiles)} image on the {args.cpu} CPU', flush=True)
+    with concurrent.futures.ThreadPoolExecutor(len(profiles)) as pool:
+        runs = dict(zip(profiles, pool.map(run, profiles)))
+    failures, checks = [], []
+    for profile, run in runs.items():
+        lines = [entry['text'] for entry in run['debug'] if entry['port'] == '0e9']
+        run['lines'] = lines
+        failures += [f'{profile}: {failure}' for failure in run['failures']]
+        failures += [f'{profile}: {line}' for line in lines if not line.endswith(' ok')]
+        names = list(dict.fromkeys(line.split()[1] for line in lines if line.startswith('A20 ')))
+        if names != list(A20_CHECKS[profile]):
+            failures.append(f'{profile}: A20TEST.COM ran {names}, expected {list(A20_CHECKS[profile])}')
+        checks += [f'{profile}: {line}' for line in lines]
+        if profile == 'boot' and run['cpu_resets'] != 1:
+            failures.append(f'boot: expected the resume check\'s one CPU reset, saw {run["cpu_resets"]}')
+        if profile == 'games':
+            methods = [match.group(1) for row in run['screen'] if (match := HIMEMX_METHOD.search(row))]
+            run['himemx_method'] = methods[0] if methods else None
+            checks.append(f'games: HIMEMX: {run["himemx_method"]} A20 method used')
+            if len(methods) != 1 or methods[0].lower().startswith('always on'):
+                failures.append(f'games: HIMEMX must pick a real A20 method, its banner says {methods}')
+        if rtl:
+            failures += [f'{profile}: {failure}' for failure in rtl_failures(run, 'A20 run')]
+    return {'runs': runs, 'checks': checks, 'failures': failures}
+
+
+# C2TEST.COM's checks in the order it runs them, and the keys the suite types
+# after the command (the program's typed_keys), each held 8 ms as system_tb
+# holds them.
+C2XX_CHECKS = ('typing', 'stale-key', 'stale-aux', 'masked-key', 'DONE')
+C2XX_KEYS = 'abcdefghijklmnopq'
+
+
+def run_c2xx(args, linked: list[Path]) -> dict:
+    """C2TEST.COM at the FreeDOS prompt: INT 15h C2xx with keyboard bytes at the 8042."""
+    images = firmware.images(args.download, args.jobs)
+    testbench = machine_testbench(args, linked)
+    suite = 'c2xx' + ('-rtl' if args.cpu == 'rtl' else '')
+    disk = fixture_with(args, suite, 'c2xx_test.asm', 'C2TEST.COM')
+    print(f'Running C2TEST.COM on the {args.cpu} CPU', flush=True)
+    run = run_machine(testbench, suite, ['--disk', str(disk), '--limit-seconds', str(args.limit_seconds),
+                                         '--type', f'c2test|{C2XX_KEYS}', '--key-gap', '0.008',
+                                         '--expect', 'C2 DONE ok', '--cpu', args.cpu], images)
+    lines = [entry['text'] for entry in run['debug'] if entry['port'] == '0e9']
+    run['lines'] = lines
+    failures = run['failures'] + [line for line in lines if not line.endswith(' ok')]
+    names = [line.split()[1] for line in lines if line.startswith('C2 ')]
+    if names != list(C2XX_CHECKS):
+        failures.append(f'C2TEST.COM ran {names}, expected {list(C2XX_CHECKS)}')
+    if args.cpu == 'rtl':
+        failures += rtl_failures(run, 'C2xx run')
+
+    return {'run': run, 'checks': lines, 'failures': failures}
+
+# WAITTEST.COM's checks, in the order it runs them.
+WAIT_CHECKS = ('zero', '15us', '100us', '1ms', '10ms', '50ms', '300ms', 'DONE')
+
+
+def default_limit_seconds(suite: str) -> int:
+    """Return the suite's default simulated-time hang guard."""
+    if suite == 'sound':
+        return 14
+    if suite in ('boot', 'governor', 'wait', 'speaker'):
+        return 8
+    if suite == 'rtl-stops':
+        return 2
+    if suite in ('a20', 'c2xx'):
+        return 10
+    return 12
+
+
+def run_wait(args, linked: list[Path]) -> dict:
+    """WAITTEST.COM at the FreeDOS prompt: INT 15h AH=86h waits against PIT counter 0 and the BIOS tick."""
+    images = firmware.images(args.download, args.jobs)
+    testbench = machine_testbench(args, linked)
+    suite = 'wait' + ('-rtl' if args.cpu == 'rtl' else '')
+    disk = fixture_with(args, suite, 'wait_test.asm', 'WAITTEST.COM')
+    print(f'Running WAITTEST.COM on the {args.cpu} CPU', flush=True)
+    run = run_machine(testbench, suite, ['--disk', str(disk), '--limit-seconds', str(args.limit_seconds),
+                                         '--type', 'waittest|', '--expect', 'WAIT DONE ok', '--cpu', args.cpu],
+                      images)
+    lines = [entry['text'] for entry in run['debug'] if entry['port'] == '0e9']
+    run['lines'] = lines
+    failures = run['failures'] + [line for line in lines if not line.endswith(' ok')]
+    names = [line.split()[1] for line in lines if line.startswith('WAIT ')]
+    if names != list(WAIT_CHECKS):
+        failures.append(f'WAITTEST.COM ran {names}, expected {list(WAIT_CHECKS)}')
+    if args.cpu == 'rtl':
+        failures += rtl_failures(run, 'wait run')
+    return {'run': run, 'checks': lines, 'failures': failures}
+
+
+# SPKTEST.COM's checks, in the order it runs them.
+SPEAKER_CHECKS = ('post', 'rise', 'carrier', 'DONE')
+
+
+def run_speaker(args, linked: list[Path]) -> dict:
+    """SPKTEST.COM at the FreeDOS prompt: PIT counter 2 as POST leaves it, and the carrier a count-only write gives."""
+    images = firmware.images(args.download, args.jobs)
+    testbench = machine_testbench(args, linked)
+    suite = 'speaker' + ('-rtl' if args.cpu == 'rtl' else '')
+    disk = fixture_with(args, suite, 'speaker_test.asm', 'SPKTEST.COM')
+    print(f'Running SPKTEST.COM on the {args.cpu} CPU', flush=True)
+    run = run_machine(testbench, suite, ['--disk', str(disk), '--limit-seconds', str(args.limit_seconds),
+                                         '--type', 'spktest|', '--expect', 'SPK DONE ok', '--cpu', args.cpu],
+                      images)
+    lines = [entry['text'] for entry in run['debug'] if entry['port'] == '0e9']
+    run['lines'] = lines
+    failures = run['failures'] + [line for line in lines if not line.endswith(' ok')]
+    names = [line.split()[1] for line in lines if line.startswith('SPK ')]
+    if names != list(SPEAKER_CHECKS):
+        failures.append(f'SPKTEST.COM ran {names}, expected {list(SPEAKER_CHECKS)}')
+    if args.cpu == 'rtl':
+        failures += rtl_failures(run, 'speaker run')
+    return {'run': run, 'checks': lines, 'failures': failures}
+
+
 def run_bench(args, name: str, top: str, rtl: tuple[Path, ...], testbench: Path) -> dict:
     """A PASS/FAIL bench without the oracle."""
     binary = verilate(args.verilator, name, top, rtl, testbench, [], args.jobs)
@@ -613,7 +849,7 @@ def parse_system(text: str) -> dict:
     report = {'identity': None, 'restore_cycle': None, 'clock_cycle': None, 'crc_rejected': None, 'disk': None,
               'release_cycle': None, 'post': [], 'debug': [], 'counters': [], 'prompt_cycle': None, 'screen': [],
               'status': None, 'save': None, 'record': None, 'roundtrip': None, 'record_checks': [], 'write_test': None,
-              'mailbox': None, 'end': None}
+              'typed': [], 'mouse': [], 'holds': [], 'mailbox': None, 'end': None}
     for line in text.splitlines():
         kind, _, rest = line.partition(' ')
         if kind == 'IDENTITY':
@@ -632,6 +868,12 @@ def parse_system(text: str) -> dict:
             report['post'].append({'code': code, 'cycle': int(cycle)})
         elif kind == 'DEBUG':
             report['debug'].append(rest)
+        elif kind == 'TYPED':
+            cycle, _, text = rest.partition(' ')
+            report['typed'].append({'cycle': int(cycle), 'text': text})
+        elif kind == 'MOUSE':
+            cycle, dx, dy, buttons = (int(value) for value in rest.split())
+            report['mouse'].append({'cycle': cycle, 'dx': dx, 'dy': dy, 'buttons': buttons})
         elif kind == 'COUNTER':
             field, cycle = rest.split()
             name, value = field.split('=')
@@ -653,6 +895,9 @@ def parse_system(text: str) -> dict:
             report['write_test'] = None if rest == 'absent' else int(rest)
         elif kind in ('RECORD', 'ROUNDTRIP'):
             report[kind.lower()] = [int(word) for word in rest.split()]
+        elif kind == 'HOLD':
+            cycle, owed = rest.split()
+            report['holds'].append({'cycle': int(cycle), 'owed': [int(n) for n in owed.split('=')[1].split(',')]})
         elif kind == 'CHECK':
             verdict, _, what = rest.partition(' ')
             report['record_checks'].append({'pass': verdict == 'PASS', 'check': what})
@@ -699,23 +944,70 @@ def system_failures(report: dict) -> list[str]:
     return failures
 
 
-def run_system(args) -> dict:
-    """FreeDOS to the prompt on pc386_system, everything below top.sv, with the
-    DDR ports on one window model and a host that does the runtime's launch
-    and Stop through the mailbox and the window."""
+def governor_arguments(args) -> list[str]:
+    """The governor's settings for system_tb or machine_tb, if any."""
+    if not (args.preset or args.frequency or args.turbo):
+        return []
+    return ['--preset', str(args.preset), '--frequency', str(args.frequency), '--turbo', str(args.turbo)]
+
+
+def system_testbench(args) -> Path:
+    """system_tb on pc386_system at the sealed clock and guest rates."""
     from scripts import build_fes_pc386_quartus as producer
     images = firmware.images(args.download, args.jobs)
     rom = firmware.write_rom_hex(images)
-    disk = freedos.build(args.download, args.jobs) if args.rebuild_image else freedos.image(args.download, args.jobs)
     parameters = {**producer.guest_rates(producer.SYSTEM_CLOCK_HZ), 'ROM_HEX': f'"{rom}"'}
     # The OPL2 import declares a timescale and the CPU and KF imports do not.
-    testbench = verilate(args.verilator, 'system', 'pc386_system', SYSTEM_RTL, CORE / 'sim/system_tb.cpp', [],
-                         args.jobs, parameters, flags=('-Wno-TIMESCALEMOD',))
-    directory = OUTPUT / 'system'
+    return verilate(args.verilator, 'system', 'pc386_system', SYSTEM_RTL, CORE / 'sim/system_tb.cpp', [],
+                    args.jobs, parameters, flags=('-Wno-TIMESCALEMOD',))
+
+
+def suffix(args) -> str:
+    """A governed run's report directory suffix, including its overrides."""
+    if not governor_arguments(args):
+        return ''
+    suffix = f'-preset{args.preset}'
+    if args.frequency:
+        suffix += f'-frequency{args.frequency}'
+    if args.turbo:
+        suffix += '-turbo'
+    return suffix
+
+
+def fixture_with(args, suite: str, source: str, name: str, base: Path | None = None) -> Path:
+    """The FreeDOS fixture with a NASM program from sim/ added as C:\\<name>."""
+    work = OUTPUT / suite
+    work.mkdir(parents=True, exist_ok=True)
+    nasm = test386.nasm(args.download, args.jobs)
+    program = work / name
+    result = subprocess.run([str(nasm), '-f', 'bin', '-o', str(program), str(CORE / 'sim' / source)],
+                            capture_output=True, text=True)
+    if result.returncode:
+        raise SimError(f'NASM failed on {source}:\n' + result.stderr)
+    disk = work / 'disk.img'
+    shutil.copyfile(base or freedos.image(args.download, args.jobs), disk)
+    env = dict(os.environ, MTOOLS_SKIP_CHECK='1', MTOOLSRC='/dev/null', TZ='UTC')
+    result = subprocess.run(['mcopy', '-m', '-i', f'{disk}@@{freedos.PARTITION_START * 512}', str(program),
+                             f'::{name}'], capture_output=True, text=True, env=env)
+    if result.returncode:
+        raise SimError('mcopy failed:\n' + result.stdout + result.stderr)
+    return disk
+
+
+def run_system(args) -> dict:
+    """FreeDOS to the prompt on pc386_system, everything below top.sv, with the
+    DDR ports on one window model and a host that does the runtime's launch,
+    keyboard and mouse input and Stop through the mailbox and the window."""
+    from scripts import build_fes_pc386_quartus as producer
+    base = freedos.build(args.download, args.jobs) if args.rebuild_image else freedos.image(args.download, args.jobs)
+    suite = 'system' + suffix(args)
+    disk = fixture_with(args, suite, 'input_test.asm', 'INPUT.COM', base)
+    testbench = system_testbench(args)
+    directory = OUTPUT / suite
     directory.mkdir(parents=True, exist_ok=True)
     print('Booting FreeDOS on pc386_system (this takes most of an hour)', flush=True)
     command = [str(testbench), '--disk', str(disk), '--clock-hz', str(producer.SYSTEM_CLOCK_HZ),
-               '--limit-seconds', str(args.limit_seconds)]
+               '--limit-seconds', str(args.limit_seconds), *governor_arguments(args)]
     # The log fills as the bench runs, so a long boot can be followed.
     log = directory / 'system.log'
     with log.open('w') as stream:
@@ -724,12 +1016,158 @@ def run_system(args) -> dict:
     report = parse_system(log.read_text())
     report['command'] = [str(Path(arg).relative_to(ROOT)) if arg.startswith(str(ROOT)) else arg for arg in command]
     report['exit'] = run.returncode
+    report['governor'] = {'preset': args.preset, 'frequency': args.frequency, 'turbo': args.turbo}
     report['failures'] = system_failures(report)
+    governed = bool(args.preset) and not args.turbo
+    if report.get('status') and report['status'].get('governed') != int(governed):
+        report['failures'].append(f'preset {args.preset}, turbo {args.turbo}: the governor '
+                                  + ('never held the CPU' if governed else 'held the CPU'))
     if run.returncode and not report['failures']:
         report['failures'].append(f'system_tb exited {run.returncode}: {run.stderr.strip()[-400:]}')
     report['checks'] = [f'{report["end"]}', f'{report["status"]}', f'{report["save"]}',
                         *(f'{"PASS" if c["pass"] else "FAIL"} {c["check"]}' for c in report['record_checks'])]
     return report
+
+
+# The governor suite: the presets it runs beside max, and governor_test.asm's
+# loops, pass by pass. The delay loop: SUB, SBB, JC falling through, CMP with
+# ES:[DI] (one memory bus cycle) and JE taken. The speaker loop: IN and OUT
+# of port 61h (an 8-bit ISA cycle each), XOR, ADD, the CMP and JE. The VRAM
+# fill: two MOVs, REP STOSW of 512 words into VGA memory (a VGA cycle each),
+# ADD, the CMP and JE. A timer tick is 65536 PIT clocks.
+GOVERNOR_PRESETS = (1, 2, 3, 5)
+GOVERNOR_BUDGET = 0.05
+TICK_SECONDS = 65536 / (105_000_000 / 88)
+
+
+def governor_pass_ops(loop: str) -> list:
+    from scripts import test_fes_i386_governor as bench
+    compare = [bench.m('cmp_load', 1), bench.taken('jcc')]
+    if loop == 'crt':
+        return [bench.r('alu_ri'), bench.r('alu_ri'), bench.r('jcc'), *compare]
+    if loop == 'speaker':
+        return [bench.io('in_imm', 0x61), bench.r('alu_ri'), bench.io('out_imm', 0x61), bench.r('alu_ri'), *compare]
+    if loop == 'vram':
+        return [bench.r('mov_r'), bench.r('mov_r'), bench.m('rep_stos', 0),
+                *[bench.element('rep_stos', 1, vga=(1,))] * 512, bench.r('alu_ri'), *compare]
+    raise ValueError(loop)
+
+
+def governor_pass_clocks(preset, loop: str = 'crt', frequency: int = 0) -> int:
+    from scripts import fes_i386_governor as table
+    from scripts import test_fes_i386_governor as bench
+    loaded = table.load()
+    return sum(bench.charge(loaded, preset, op, frequency) for op in governor_pass_ops(loop))
+
+
+def cmos(record: list[int], byte: int) -> int:
+    word = record[8 + byte // 2]
+    return word >> 8 if byte & 1 else word & 0xff
+
+
+def run_governor(args) -> dict:
+    """governor_test.asm on pc386_system under max and the presets, each set in
+    the restored record (system_tb --preset), in parallel."""
+    from concurrent.futures import ThreadPoolExecutor
+    from scripts import build_fes_pc386_quartus as producer
+    from scripts import fes_i386_governor as table
+    nasm = test386.nasm(args.download, args.jobs)
+    directory = OUTPUT / ('governor' + suffix(args))
+    directory.mkdir(parents=True, exist_ok=True)
+    binary = directory / 'governor_test.bin'
+    result = subprocess.run([str(nasm), '-f', 'bin', '-o', str(binary), str(CORE / 'sim/governor_test.asm')],
+                            capture_output=True, text=True)
+    if result.returncode:
+        raise SimError('nasm failed on governor_test.asm\n' + result.stderr)
+    disk = directory / 'governor_test.img'
+    disk.write_bytes(binary.read_bytes().ljust(1 << 20, b'\0'))
+    testbench = system_testbench(args)
+    presets = {p.id: p for p in table.load().presets}
+    chosen = [0, *sorted(set([args.preset] if args.preset else GOVERNOR_PRESETS))]
+    print(f'Booting the governor test disk on pc386_system under presets {chosen} (this takes most of an hour)',
+          flush=True)
+
+    # The record's words 0, 1 and 3 for each run: --frequency and --turbo go
+    # with --preset's run.
+    settings = {preset: (preset, args.frequency, args.turbo) if preset and preset == args.preset else (preset, 0, 0)
+                for preset in chosen}
+
+    def boot(preset: int) -> dict:
+        run_directory = directory / f'preset{preset}'
+        run_directory.mkdir(parents=True, exist_ok=True)
+        _, frequency, turbo = settings[preset]
+        command = [str(testbench), '--disk', str(disk), '--clock-hz', str(producer.SYSTEM_CLOCK_HZ),
+                   '--limit-seconds', str(args.limit_seconds), '--prompt', 'GOV DONE', '--exercise-input', '0',
+                   '--preset', str(preset),
+                   '--frequency', str(frequency), '--turbo', str(turbo)]
+        log = run_directory / 'system.log'
+        with log.open('w') as stream:
+            run = subprocess.run(command, cwd=run_directory, stdout=stream, stderr=subprocess.PIPE, text=True)
+            stream.write(run.stderr)
+        report = parse_system(log.read_text())
+        report['exit'] = run.returncode
+        return report
+
+    with ThreadPoolExecutor(max_workers=len(chosen)) as executor:
+        runs = dict(zip(chosen, executor.map(boot, chosen)))
+    failures, checks, results = [], [], {}
+    for preset, report in runs.items():
+        _, frequency, turbo = settings[preset]
+        name = (presets[preset].name if preset else 'max') + (f' at {frequency / 10:g} MHz' if frequency else '') \
+            + (' with turbo' if turbo else '')
+        governed = bool(preset) and not turbo
+        line = next((text for text in report['debug'] if text.startswith('GOV TP=')), None)
+        line2 = next((text for text in report['debug'] if text.startswith('GOV SPK=')), None)
+        end = report.get('end') or {}
+        if end.get('reason') != 'prompt' or line is None or line2 is None:
+            failures.append(f'{name}: the test did not finish ({end.get("reason")}, {report.get("mailbox")})')
+            continue
+        fields = dict(field.split('=') for field in line.split()[1:] + line2.split()[1:])
+        tp, dc, c18 = int(fields['TP'], 16), int(fields['DC'], 16), int(fields['C18'], 16)
+        spk, vram = int(fields['SPK'], 16), int(fields['VRAM'], 16)
+        record = report['record']
+        stored = [cmos(record, byte) for byte in range(0x70, 0x7c)]
+        entry = {'tp': tp, 'delay_count': dc, 'c18': c18, 'speaker': spk, 'vram': vram, 'seconds': end['seconds'],
+                 'governed': report['status']['governed'], 'record_words': [record[0], record[1], record[3]],
+                 'cmos_70_7b': stored}
+        failures += [f'{name}: record check failed: {check["check"]}' for check in report['record_checks']
+                     if not check['pass']]
+        if stored[:10] != list((tp | dc << 32 | c18 << 48).to_bytes(10, 'little')) or stored[11] != 0xa5:
+            failures.append(f'{name}: CMOS 70h-7Bh {stored} do not hold TP={tp} DC={dc} C18={c18}')
+        if (record[0], record[1], record[3]) != settings[preset] or report['status']['governed'] != int(governed):
+            failures.append(f'{name}: record words 0, 1, 3 {(record[0], record[1], record[3])}, '
+                            f'governed {report["status"]["governed"]}')
+        if dc != tp // 55:
+            failures.append(f'{name}: DC {dc} is not TP / 55 ({tp // 55})')
+        if governed:
+            hz = (frequency or presets[preset].frequency) * 100_000
+            clocks = governor_pass_clocks(presets[preset], 'crt', frequency)
+            per_tick = TICK_SECONDS * hz / clocks
+            spk_clocks = governor_pass_clocks(presets[preset], 'speaker', frequency)
+            vram_clocks = governor_pass_clocks(presets[preset], 'vram', frequency)
+            spk_tick, vram_tick = TICK_SECONDS * hz / spk_clocks, TICK_SECONDS * hz / vram_clocks
+            entry.update(pass_clocks=clocks, table_tp=round(per_tick, 1), table_c18=round(18 * per_tick, 1),
+                         tp_error=round(tp / per_tick - 1, 5), c18_error=round(c18 / (18 * per_tick) - 1, 5),
+                         speaker_pass_clocks=spk_clocks, table_speaker=round(spk_tick, 1),
+                         speaker_error=round(spk / spk_tick - 1, 5), vram_pass_clocks=vram_clocks,
+                         table_vram=round(vram_tick, 1), vram_error=round(vram / vram_tick - 1, 5))
+            for what, value, want in (('TP', tp, per_tick), ('C18', c18, 18 * per_tick), ('SPK', spk, spk_tick),
+                                      ('VRAM', vram, vram_tick)):
+                if abs(value / want - 1) > GOVERNOR_BUDGET:
+                    failures.append(f'{name}: {what} {value} is {value / want - 1:+.2%} from the table ({want:.0f})')
+        results[name] = entry
+        checks.append(f'{name}: TP={tp} DC={dc} C18={c18} SPK={spk} VRAM={vram}' + (
+            f' table TP {entry["table_tp"]:.0f} ({entry["tp_error"]:+.2%}) C18 {entry["table_c18"]:.0f} '
+            f'({entry["c18_error"]:+.2%}) SPK {entry["table_speaker"]:.0f} ({entry["speaker_error"]:+.2%}) '
+            f'VRAM {entry["table_vram"]:.0f} ({entry["vram_error"]:+.2%})' if governed else ''))
+    # Turbo runs at max: its passes within the budget of max's.
+    if args.turbo and 'max' in results and len(results) == 2:
+        (name, entry), = [(n, e) for n, e in results.items() if n != 'max']
+        error = entry['tp'] / results['max']['tp'] - 1
+        entry['tp_error_from_max'] = round(error, 5)
+        if abs(error) > GOVERNOR_BUDGET:
+            failures.append(f'{name}: TP {entry["tp"]} is {error:+.2%} from max\'s ({results["max"]["tp"]})')
+    return {'runs': results, 'checks': checks, 'failures': failures}
 
 
 def run_vga(args, linked: list[Path]) -> dict:
@@ -818,7 +1256,11 @@ def run_devices(args) -> dict:
     failures = [line for line in checks if line.startswith('FAIL')]
     if result.returncode and not failures:
         failures.append(f'devices_tb exited {result.returncode}: {result.stderr.strip()}')
-    return {'checks': checks, 'failures': failures, 'exit': result.returncode}
+    # The host keyboard model alone, against the Linux-derived set 2 reference.
+    keyboard = run_bench(args, 'keyboard', 'pc386_hid_keyboard', (CORE / 'rtl/pc386_hid_keyboard.sv',),
+                         CORE / 'sim/keyboard_tb.cpp')
+    return {'checks': checks + keyboard['checks'], 'failures': failures + keyboard['failures'],
+            'exit': result.returncode}
 
 
 def run_checks(command: list[str], cwd: Path, log: Path) -> tuple[list[str], list[str], str]:
@@ -869,22 +1311,7 @@ SOUND_SCREEN = ('ADLIB OK', 'SB DSP 2.01', 'SB IRQS 6', 'SOUND DONE')
 
 def sound_disk(args) -> Path:
     """The FreeDOS fixture with SOUND.COM added."""
-    work = OUTPUT / 'sound'
-    work.mkdir(parents=True, exist_ok=True)
-    nasm = test386.nasm(args.download, args.jobs)
-    program = work / 'SOUND.COM'
-    result = subprocess.run([str(nasm), '-f', 'bin', '-o', str(program), str(CORE / 'sim/sound.asm')],
-                            capture_output=True, text=True)
-    if result.returncode:
-        raise SimError('NASM failed on sound.asm:\n' + result.stderr)
-    disk = work / 'disk.img'
-    shutil.copyfile(freedos.image(args.download, args.jobs), disk)
-    env = dict(os.environ, MTOOLS_SKIP_CHECK='1', MTOOLSRC='/dev/null', TZ='UTC')
-    result = subprocess.run(['mcopy', '-m', '-i', f'{disk}@@{freedos.PARTITION_START * 512}', str(program),
-                             '::SOUND.COM'], capture_output=True, text=True, env=env)
-    if result.returncode:
-        raise SimError('mcopy failed:\n' + result.stdout + result.stderr)
-    return disk
+    return fixture_with(args, 'sound', 'sound.asm', 'SOUND.COM')
 
 
 def read_wav(path: Path) -> list[int]:
@@ -1002,8 +1429,8 @@ def game_failures(report: dict, cpu: str) -> list[str]:
 def run_game(args, linked: list[Path]) -> dict:
     game = GAMES[args.game]
     rtl = '-rtl' if args.cpu == 'rtl' else ''
-    suite = f'game-{args.game}{rtl}'
-    work = Path(args.games_work) / f'{args.game}{rtl}'
+    suite = f'game-{args.game}{rtl}{suffix(args)}'
+    work = Path(args.games_work) / f'{args.game}{rtl}{suffix(args)}'
     work.mkdir(parents=True, exist_ok=True)
     disk, record = game_disk(args, game, work)
     args.limit_seconds = args.limit_seconds_given or game['limit']
@@ -1017,7 +1444,7 @@ def run_game(args, linked: list[Path]) -> dict:
     report = run_machine(testbench, suite, ['--disk', str(disk), '--limit-seconds', str(args.limit_seconds),
                                             '--type', args.type, '--expect', args.expect, '--wav', str(wav),
                                             '--opl2-log', str(opl2_log), '--frames', str(frames), *keys,
-                                            '--cpu', args.cpu], images)
+                                            '--cpu', args.cpu, *governor_arguments(args)], images)
     report['game'] = {'name': args.game, **record}
     report['work'] = str(work)
     report['failures'] = game_failures(report, args.cpu)
@@ -1029,10 +1456,14 @@ def run_game(args, linked: list[Path]) -> dict:
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument('--suite', choices=('devices', 'storage', 'audio', 'opl2', 'benches', 'boot', 'rtl-stops',
-                                            'sound', 'game', 'vga', 'system', 'all'), default='all',
+                                            'a20', 'c2xx', 'wait', 'speaker', 'sound', 'game', 'vga', 'system', 'governor',
+                                            'all'),
+                        default='all',
                         help='simulation suite to run')
     parser.add_argument('--download', action='store_true', help='fetch Bochs, dev86, FreeDOS and NASM if missing')
     parser.add_argument('--rebuild-image', action='store_true', help='rebuild the FreeDOS fixture')
+    parser.add_argument('--image', choices=sorted(freedos.PROFILES), default='boot',
+                        help='boot: the FreeDOS image profile to boot (build_pc386_freedos_image.py)')
     parser.add_argument('--limit-seconds', type=float, default=None, help='simulated seconds before giving up')
     parser.add_argument('--game', choices=sorted(GAMES), default='wolf3d', help='game: which game to start')
     parser.add_argument('--games-work', default=str(Path(tempfile.gettempdir()) / 'fes-pc386-games'),
@@ -1044,11 +1475,25 @@ def main() -> int:
     parser.add_argument('--cpu', choices=('oracle', 'rtl'), default='oracle',
                         help='boot and game: the CPU, the Bochs oracle or fes_i386_cpu (which the oracle backs on '
                              'its stops)')
+    parser.add_argument('--preset', type=int, default=0, choices=range(8),
+                        help="system, boot and game --cpu rtl: the governor's preset (fes.pc386.machine word 0); "
+                             'governor: the one preset beside max')
+    parser.add_argument('--frequency', type=int, default=0, help="the governor's frequency override, 100 kHz units")
+    parser.add_argument('--turbo', type=int, default=0, choices=(0, 1), help='turbo at launch: 1 runs at max')
     parser.add_argument('--verilator', default=os.environ.get('VERILATOR', 'verilator'))
     parser.add_argument('--jobs', type=int, default=min(os.cpu_count() or 2, 16))
     args = parser.parse_args()
-    if args.cpu == 'rtl' and args.suite not in ('boot', 'game'):
-        parser.error('--cpu rtl runs the boot and game suites only')
+    if args.cpu == 'rtl' and args.suite not in ('boot', 'game', 'a20', 'c2xx', 'wait', 'speaker'):
+        parser.error('--cpu rtl runs the boot, game, a20, c2xx, wait and speaker suites only')
+    if args.image != 'boot' and args.suite != 'boot':
+        parser.error('--image is supported by the boot suite only')
+    if (args.preset or args.frequency or args.turbo) and not (
+            args.suite in ('system', 'governor') or args.suite in ('boot', 'game') and args.cpu == 'rtl'):
+        parser.error('the governor runs on the RTL CPU: system, governor, or boot and game with --cpu rtl')
+    if (args.frequency or args.turbo) and not args.preset:
+        parser.error('--frequency and --turbo set a preset: give --preset too')
+    if args.frequency and not 10 <= args.frequency <= 1000:
+        parser.error('--frequency is 10 to 1000 (100 kHz units), as the record allows')
     limit_seconds, typed, expect = args.limit_seconds, args.type, args.expect
     args.limit_seconds_given = limit_seconds
     if shutil.which(args.verilator) is None:
@@ -1059,8 +1504,7 @@ def main() -> int:
         suites = ('devices', 'storage', 'audio', 'opl2', 'benches', 'boot', 'vga', 'sound') if args.suite == 'all' \
             else (args.suite,)
         for suite in suites:
-            args.limit_seconds = limit_seconds or (14 if suite == 'sound' else 8 if suite == 'boot' else
-                                                   2 if suite == 'rtl-stops' else 12)
+            args.limit_seconds = limit_seconds or default_limit_seconds(suite)
             args.type = typed or ('sound|' if suite == 'sound' else 'dir|')
             args.expect = expect or ('SOUND DONE' if suite == 'sound' else 'bytes free')
             if suite == 'devices':
@@ -1075,16 +1519,27 @@ def main() -> int:
                 report = run_benches(args)
             elif suite == 'system':
                 report = run_system(args)
+            elif suite == 'governor':
+                report = run_governor(args)
             elif suite == 'sound':
                 report = run_sound(args, oracle.link_inputs(args.jobs, args.download))
             elif suite == 'game':
                 report = run_game(args, oracle.link_inputs(args.jobs, args.download))
             elif suite == 'rtl-stops':
                 report = run_rtl_stops(args, oracle.link_inputs(args.jobs, args.download))
+            elif suite == 'a20':
+                report = run_a20(args, oracle.link_inputs(args.jobs, args.download))
+            elif suite == 'c2xx':
+                report = run_c2xx(args, oracle.link_inputs(args.jobs, args.download))
+            elif suite == 'wait':
+                report = run_wait(args, oracle.link_inputs(args.jobs, args.download))
+            elif suite == 'speaker':
+                report = run_speaker(args, oracle.link_inputs(args.jobs, args.download))
             else:
                 run = run_boot if suite == 'boot' else run_vga
                 report = run(args, oracle.link_inputs(args.jobs, args.download))
-            name = (f'game-{args.game}' if suite == 'game' else suite) + ('-rtl' if args.cpu == 'rtl' else '')
+            name = (f'game-{args.game}' + ('-rtl' if args.cpu == 'rtl' else '') + suffix(args) if suite == 'game' else
+                    boot_suite(args) if suite == 'boot' else suite + ('-rtl' if args.cpu == 'rtl' else '') + suffix(args))
             (OUTPUT / name).mkdir(parents=True, exist_ok=True)
             (OUTPUT / name / 'report.json').write_text(json.dumps(report, indent=2) + '\n')
             if suite == 'system':

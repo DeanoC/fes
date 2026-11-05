@@ -99,6 +99,27 @@ func (s *Service) SelectCoreEntryMedia(parent context.Context, gameID, expectedP
 	return selected, mapCoreMediaError(err)
 }
 
+type coreEntryMediaNameCatalog interface {
+	SetCoreEntryMediaName(context.Context, string, string, string, string) (catalog.CoreEntry, error)
+}
+
+// SetCoreEntryMediaName records the basename an imported cassette was chosen
+// under. It changes no launch input; a stale selection is a conflict.
+func (s *Service) SetCoreEntryMediaName(parent context.Context, gameID, expectedPackage, mediaID, name string) (catalog.CoreEntry, error) {
+	if protocol.ValidateGameID(gameID) != nil || protocol.ValidateDigest(expectedPackage) != nil ||
+		protocol.ValidateDigest(mediaID) != nil || !catalog.AdmitCoreEntryMediaName(name) {
+		return catalog.CoreEntry{}, canonicalError(protocol.CodeBadRequest, nil)
+	}
+	store, ok := s.catalog.(coreEntryMediaNameCatalog)
+	if !ok {
+		return catalog.CoreEntry{}, canonicalError(protocol.CodeUnsupportedOperation, nil)
+	}
+	ctx, cancel := serviceTimeout(parent, s.uploadTimeout)
+	defer cancel()
+	entry, err := store.SetCoreEntryMediaName(ctx, gameID, expectedPackage, mediaID, name)
+	return entry, mapCoreMediaError(err)
+}
+
 // readCoreEntryMedia validates and snapshots the selected bytes before package
 // activation. This is capability-based: a core ID never chooses content.
 type coreEntryMedia struct {

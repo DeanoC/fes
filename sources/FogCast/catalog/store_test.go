@@ -71,7 +71,7 @@ func TestSchemaMigratesNewDatabaseAndRejectsFutureVersion(t *testing.T) {
 	if err := db.QueryRowContext(ctx, "PRAGMA user_version").Scan(&version); err != nil {
 		t.Fatalf("read user_version: %v", err)
 	}
-	const currentSchemaVersion = 19
+	const currentSchemaVersion = 20
 	if version != currentSchemaVersion {
 		t.Fatalf("user_version = %d, want %d", version, currentSchemaVersion)
 	}

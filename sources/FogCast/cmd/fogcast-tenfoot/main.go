@@ -19,8 +19,8 @@ import (
 
 	"github.com/DeanoC/FogCast/fogcast"
 	"github.com/DeanoC/FogCast/hostclient"
+	"github.com/DeanoC/FogCast/internal/kitmemory"
 	"github.com/DeanoC/FogCast/launcherconfig"
-	"github.com/DeanoC/FogCast/ui/shared"
 	"github.com/DeanoC/FogCast/ui/tenfoot"
 )
 
@@ -43,7 +43,7 @@ func run(args []string, stdout, stderr io.Writer) int {
 		return 2
 	}
 	if opts.GFX == "menu-display" || opts.GFX == "linuxfb" {
-		shared.ConfigureKitMemoryLimit()
+		kitmemory.SetLimit(kitmemory.Launcher)
 	}
 	var cpuProfile *os.File
 	if opts.CPUProfile != "" {

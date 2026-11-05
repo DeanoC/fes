@@ -20,7 +20,7 @@ LGPL-2.1-or-later), configured as a 386DX:
 | Option | Why |
 | --- | --- |
 | `--enable-cpu-level=3` | 386 instruction set, CR0 reserved bits read as 1, no CPUID, BSWAP/XADD/CMPXCHG/INVD/WBINVD/INVLPG raise #UD, EFLAGS.AC not writable |
-| `--enable-fpu` | WAIT and ESC take the architected EM, MP and TS exceptions. Without the FPU Bochs raises #UD for WAIT and never faults on ESC. The FES CPU's empty-socket data results (all-ones stores) are not oracle-checked; no corpus case depends on them |
+| `--enable-fpu` | WAIT and ESC take the architected EM, MP and TS exceptions. Without the FPU Bochs raises #UD for WAIT and never faults on ESC. Its 387 is made to read as an empty socket for each ESC step (the lockstep's no-387 rule, [Known limits](#known-limits)) |
 | `--enable-x86-debugger` | DR0-DR3, DR6 and DR7 breakpoints |
 
 `scripts/fes_i386_oracle.py` fetches that revision only when a runner is given
@@ -177,7 +177,34 @@ Behaviour the design specifies that no corpus covers yet, where the oracle
 differs. Directed tests in later phases decide these, not the oracle:
 
 - Bochs models a 387: MOV CR0 forces ET to 1, ESC instructions return 387
-  results and FERR is not routed. The FES CPU models an empty socket.
+  results and FERR is not routed. The FES CPU models an empty socket. For
+  an ESC instruction with EM and TS clear and no LOCK the lockstep applies
+  the no-387 rule (`EscStep`, counted as `no387_rule`):
+  - before the step the adapter makes Bochs's 387 read as an empty socket
+    (`empty_socket`): control and tag words, opcode and registers all ones,
+    and the status word all ones for FNSTSW, FNSTENV and FNSAVE, else clear
+    so no exception is pending. Bochs then stores what the FES CPU stores,
+    and FNSTSW AX gives FFFFh;
+  - FNINIT, FNSAVE, FLDENV and FRSTOR keep the x87 pointers, which Bochs
+    clears or loads and the FES CPU leaves;
+  - a memory form that accesses nothing on the FES CPU (FST, FSTP, FIST,
+    FISTP, FBSTP and the reserved ones) and a register form Bochs's 386
+    rejects as #UD are not stepped (`no387_skips`): the oracle moves past
+    it and takes the x87 pointers it writes, its CS and EIP and a memory
+    form's segment selector and offset, which the bench works out
+    (`esc_operand`). Such a step is refused where an event could be due
+    (random programs, TF), so it runs only in the directed cases;
+  - with EM or TS set, a form Bochs's 386 rejects as #UD raises #NM on the
+    FES CPU, as every ESC form does: the oracle steps FNOP, or FLD m32real
+    with the same ModRM, in its place, which raises it.
+  Bochs's own x87 pointer updates (`FPU_update_last_instruction`) follow
+  the FES CPU's for every other form, so FNSTENV's and FNSAVE's pointer
+  fields are compared with Bochs's. The directed no-387 cases check what
+  the empty socket gives apart from the oracle as well. Bochs reads and
+  writes an 8-byte part of a 10-byte operand or of FNSAVE's and FRSTOR's
+  register image as a qword, the FES CPU as two dwords, each wrapped at
+  64 KiB under a 16-bit address size: where such a qword straddles the
+  wrap the two differ, so no case puts one there.
 - MOV to or from TR6 and TR7 (0F 24, 0F 26) raises #UD in Bochs; the design
   accepts them.
 - LOADALL is not modelled.
@@ -186,7 +213,37 @@ differs. Directed tests in later phases decide these, not the oracle:
   `decode()` reports both as #UD without calling the decoder; `step()` on
   either still crashes Bochs. No corpus case reaches them.
 - SingleStepTests has no protected-mode, V86 or paging set yet, so those paths
-  are checked only by test386.
+  are checked only by test386 and the lockstep's protected-mode programs.
+- A real-mode CS load: the FES CPU sets CS's limit to FFFFh and its access
+  rights to 93h (the 386 rule the design names), where Bochs 3.1 keeps CS's
+  cache. The lockstep gives the oracle the RTL's CS limit and access rights
+  after each such load that left them differing (`cs_rule`), and the
+  directed unreal-mode cases check the rule on the RTL.
+- Bochs does no limit check on a flat segment (base 0, limit FFFFFFFFh), so
+  an access there that wraps past 4 GiB does not fault in Bochs; the FES CPU
+  checks it. The generated programs keep their addresses clear of it.
+- Bochs's 386 reads CR0's bits 30-5 as ones and forces ET with its 387; the
+  corpus's 386EX reads bit 16 as 0. The lockstep compares PE, MP, EM, TS and
+  PG, and the random programs start from Bochs's reset CR0 and write ET set.
+- A protected-mode far CALL whose push faults: Bochs's #SS
+  (`write_new_stack_*`) has SS's selector as its error code when the RPL it
+  keeps for SS differs from CPL. A real-mode load leaves that RPL 0 and
+  `set_state` the selector's own, so it is hidden state. The FES CPU raises
+  #SS(0), as a CALL to the same privilege does on a 386 (SS's RPL is CPL
+  once SS is loaded in protected mode); the lockstep gives the oracle the
+  RTL's error code there (`ss_error_rule`).
+- Bochs reads ARPL's memory operand as a read-modify-write, which the
+  adapter logs as a write of the bytes unchanged even when ARPL writes
+  nothing; with ZF clear after ARPL the lockstep leaves that out (the
+  divergence `arpl-no-write-no-fault` decides the write and the write
+  check, and the generated programs give ARPL a writable flat FS).
+- test386.asm enters protected mode with paging on (POST 08h sets PE and PG
+  together), and paging is Phase 5: the RTL passes its real-mode part,
+  POST 00h-06h, and stops there as not built.
+- Bochs keeps CPL as CS's RPL. The adapter's state carries the CPL
+  (`State::cpl`), since protected-mode entry keeps CPL 0 whatever the
+  real-mode CS selector's low bits are, which `set_state` would otherwise
+  take for it.
 
 ## Front-end and address checks
 
@@ -234,8 +291,10 @@ the repository lock's older Yosys misreads the RTL's per-byte records.
 [`lockstep_tb.cpp`](lockstep_tb.cpp) runs `fes_i386_cpu` beside the oracle.
 The oracle steps one instruction and the RTL runs until it retires one; the
 two architectural states are then compared: EIP, the eight GPRs, EFLAGS bits
-0-17, the six segment registers with their hidden caches, and CR0's MP and
-TS, the CR0 bits the CPU holds. Memory writes
+0-17, the six segment registers with their hidden caches, CR0's PE, MP, EM,
+TS and PG, CR2, CR3, GDTR, IDTR, LDTR and TR (selector, base, limit and
+access rights; LDTR's valid bit), and in protected mode the CPL (0: no
+privilege transition is built). Memory writes
 are compared as each side reports them: each instruction must write the same
 bytes, with the same values, on both sides. So are I/O accesses, each
 instruction's in order, with their ports, lengths and data. Each side has its
@@ -246,7 +305,13 @@ or dword access covering the next ports, wrapping at 64K. An instruction that fa
 the oracle must fault in the RTL with the same vector, nothing of it
 retired. Both deliver it, and the delivery is compared as a retirement, its
 frame included. A fault in a delivery, which the oracle shows as a second
-fault or a shutdown, must stop the RTL as not built (vector 8), with nothing
+event, is delivered in its place on both sides (as a double fault when both
+are contributory): the oracle's last event is what the RTL must deliver.
+Where a delivery or a protected-mode far CALL faults part way, Bochs has
+pushed some of its slots first, where the RTL checks each slot before it
+pushes: the last delivery's frame must match, and besides it the RTL may
+write only bytes the oracle wrote, which the oracle then takes from the
+RTL. A fault in a double fault's delivery must shut both down, with nothing
 of the instruction retired and nothing of the delivery written. What the
 instruction wrote before its fault may stand: ENTER's pushes, or a REP
 string's elements with their steps of ESI, EDI and ECX. Each byte the RTL
@@ -359,7 +424,7 @@ flags, and the oracle takes the RTL's: a divide error pushes the flags the
 386EX's divide changed, where Bochs pushes them unchanged. Its `eflags`
 fields may also differ when the delivery then faults (a double fault).
 
-`scripts/test_fes_i386_lockstep.py` drives it two ways:
+`scripts/test_fes_i386_lockstep.py` drives it several ways:
 
 | Source | What runs | Checked |
 | --- | --- | --- |
@@ -367,6 +432,11 @@ fields may also differ when the delivery then faults (a double fault).
 | Random programs | Register, immediate and 16-bit-addressed memory forms of the same instructions with segment, REP, 66h and 67h prefixes (and now and then a LOCK), forward branches, bounded LOOPs, backward jumps, pushes and pops, CALLs to subroutines that return with RET or RET imm16 (two deep, their bodies leaving ESP, SS and the return address alone), far CALLs returning with RETF or RETF imm16, through a pointer in the instruction or one stored just before, far JMPs, PUSH BP / MOV BP, SP / LEAVE frames, the far pointer loads, XCHG, MOV with a direct offset, XLAT, SALC, PUSH and POP r/m, POP m with 32-bit addressing after ESP is set below 10000h (now and then to 0, so the pop wraps SP), CALL r/m near through a register or a stored pointer (until a far transfer moves CS), PUSHA and POPA, PUSHF/POPF pairs, interrupt blocks (SS above the vector table, the vector's entry stored as the handler's CS:IP, INT n, INT3 or INTO, and a handler that IRETs), MUL and IMUL in all three forms, AAM (now and then AAM 0) and AAD, BOUND with bounds stored at a direct offset, CLTS and WAIT with CR0 MP and TS varied, and DIV and IDIV after a setup that keeps the quotient in range (AH or (E)DX cleared, or CBW, CWD or CDQ) by a register, now and then one loaded with a nonzero immediate just before, or a direct memory operand stored just before; a few without the setup; the string instructions with REP, REPE and REPNE (SI, DI and a CX of 0-9 set first, now and then CLD or STD; a quarter REP MOVS or CMPS over two seeded words at SI, overlapping within 4 bytes, with ES = DS set by PUSH DS / POP ES just before), ENTER / LEAVE frames at any nesting level, and IN and OUT of a byte, word or dword, imm8 and DX forms, on a few ports (DX = FFFFh among them, whose word wraps), now and then just after DX, AH or eAX is written, or REP INS and OUTS (and one without REP) of up to four elements with ES = DS, BT, BTS, BTR and BTC by an immediate (mostly below 32) or a register, BSF and BSR, DAA, DAS, AAA and AAS, half of them right after an ADD, ADC, SUB or SBB into AL, STI, HLT, the interrupt shadow's cases back to back (MOV SS twice, POP SS twice, MOV SS then STI, CLI then STI twice, STI then POP SS, or CLI and STI, MOV SS or POP SS just before a REP string), and stores through CS that rewrite one or both bytes of a later MOV r16, imm16's or ALU AX, imm16's immediate, MOV r8, imm8's, or a one-byte instruction as another, the next instruction, one after up to three others, or one 14 to 33 bytes of others on (until a far transfer moves CS), from random register states and zeroed memory. INTR and NMI are injected throughout (above). A far target is a CS:IP for the target's linear address, so the program's state is chosen before its layout | Every retirement against the oracle, an interrupt's delivery included, under the `coherent` profile: no instruction may retire over a byte a store wrote after the front end fetched it, before the front end fetched out of sequence (`Rtl::stale`, from the fetch and store traces). A run stops at its last HLT, a delivered exception, 2,000 retirements, an interrupt through a vector entry it rewrote, or a store into its own code other than those rewrites, after which it may run anything. Two seeds run again without latency and must retire the same trace (a hash of every retirement's state) |
 | Directed checks | 66 E8 with a 32-bit target past FFFFh, a 32-bit RET to 10000h, and JMP EBX and CALL EBX to 10000h, with the #GP entry at a HLT; ENTER whose check of its final slot, at SP FFFFh, raises #SS; INT 20h at SP 1, the 66 E8 case at SP 3, and ENTER 0, 2 at SP 5 (its frame pointer's push straddles the wrap), whose deliveries fault; divide errors, with the #DE entry at a HLT: DIV BL by zero, DIV BX overflowing, DIV of a zero word in memory, IDIV EBX overflowing, AAM 0, and IDIV BL of AX −129 by 1, which overflows only once the one the 386EX owes its one's complement is added; and count-zero REP MOVS with expand-down DS and ES. Self-modifying code from CS:0 under `coherent`: a store into the next instruction's immediate and over a NOP, 20 bytes ahead, a word across a line, before a taken JMP, by PUSH with the stack in the code, by REP STOSB over the instructions after it, over the storing instruction's own bytes, through DS and in a loop that increments the immediate it adds. Then the RTL alone, to its HLT, under each profile: a store into the next instruction, the 16th and 17th bytes after the storing one, a word over both, REP STOSW over its own encoding and the next instruction, and REP STOSB over the HLT after it and 22 bytes on | Bochs throughout, the divergence list applying; the fault (#GP(0), #SS(0) or #DE) delivered with the faulting CS:IP pushed, then the handler's HLT followed by 32 cycles with no fetch request, D issue or data read. The nested cases stop the RTL with nothing of the delivery written. Both REP MOVS cases must retire as a NOP and reach the following HLT without an exception. The self-modifying-code cases run against Bochs, then the profile cases check one register each: under `queue16` the bytes up to the 16th after the storing instruction keep what the front end fetched, and a HLT among them halts |
 | Memory cases | From 0000:1000, the RTL alone: a load loop that a DMA write to its cached line must end; JMP $ cached in the L1I, which a DMA write of HLT over it must stop; a DMA read made as a store retires, with the store still in the write buffer; FLUSH made as a store retires; a store of CL, 0-3 NOPs and a load of its byte, twice in a LOOP at each of 16 alignments, to RAM, read-only RAM, a hole, the mixing device (also with the load's address from MOV BX, DI or INC BX just before the store), and under A20M through FFFF:0010h to physical 0, and without A20M; MOV BL, 1, whose immediate a DMA write rewrites at each cycle of a sweep, under both profiles, in six programs: behind six DIVs, after a loop's last JZ (WB empty), heading a loop whose JMP back lies in the next line with its target in the upper half of the line before, straight after reset, as a stream of writes, and after an uncached load of A0000h | The loop and the JMP reach HLT; the DMA read returns the store's byte; DDR holds the store when FLUSH is done; each load reads the store's byte from RAM, AAh from the ROM, FFh from the hole, the device's read of the byte, and the aliased store's byte under A20M only; each run of the MOV loads the DMA's byte when the write is done two cycles or more before it retires, the old one when after, and some write restarts it; no instruction runs the old byte once the CPU has taken the write before it (`Rtl::stale`); the stream halts; the uncached load reads its device once |
+| Protected mode | Random programs as above with protected-mode blocks, 2 per hundred items, and as many seeds of programs dense with them (30 per hundred, `--pm-programs`, seeds from 1001): from real mode, LGDT of a GDT of 24 descriptors (64K and flat data, read-only, expand-down, code at the program's CS base, execute-only, conforming, not present, DPL 1-3, random, a system descriptor, eight random bytes, flat 32-bit code for the handlers, an LDT, a TSS, 16-bit handler code, a call gate, and 16- and 32-bit code at the program's CS base under a small limit) and mostly LIDT of an IDT of 48 gates (386 and 286 interrupt and trap gates to NOP, IRET handlers in 32- and 16-bit code, and now and then one that fails a check or a task gate), PE set by MOV CR0 or LMSW, now and then a far jump (direct or through memory) to a code descriptor; segment loads by MOV Sreg from a register or memory, POP Sreg and LES and its kin with sane or random selectors, the LDT's after LLDT, accesses near their limits, SMSW, MOV to and from CR2 and CR3, SGDT and SIDT then LGDT and LIDT back, INT n, INT3 and INTO, far CALLs (direct and through memory, 16- and 32-bit) returning by RETF or RETF imm16, LLDT, LTR, SLDT, STR, LAR, LSL, VERR, VERW and ARPL by register and memory, STI, pushes and pops and random instructions, and code near a small CS limit (`pm_limit`: a far jump to the 16- or 32-bit small-limit descriptor, whose limit the program's first such jump sets up to 1K past its target, mostly a few bytes; instructions, near jumps and Jcc, LOOP, JCXZ, JMP through a register, and CALL rel or through a register to a subroutine that returns by RET or RET imm16, each forward over a few instructions, any of which may lie past the limit; a far jump back, which 16-bit code may leave out, so the block goes on, and leaves protected mode, under the limit); then LIDT of the real-mode table, sane segments, PE clear and a real-mode far jump, and accesses past 64K through the segments kept (unreal mode) | Every retirement against the oracle, CR0's PE, MP, EM, TS and PG, CR2, CR3, GDTR, IDTR, LDTR, TR and CPL with the rest. An exception or interrupt with PE set is delivered through the IDT on both sides and compared as any delivery is, its frame and error code included; the injected interrupts' handlers IRET back. A fault in a delivery is delivered in its place (EXT, a double fault), and shutdown ends the run on both sides. What this build does not build stops the RTL with its reason (`trace_unbuilt`), which the oracle's step must show the like of, and ends the run (`unbuilt_stops`): any fault, or for a task gate a TR change, for an outer return a CPL change, for a far transfer through a gate or TSS a TR or CS change, for an IRET to V86 mode VM set, for an IRET with NT set a TR change. Paging and a 16-bit stack slot past 64 KiB stop the RTL wherever they arise, and are not compared with the oracle's step. The runs count the deliveries by vector (`pm_deliveries`), this slice's instructions retired with PE set (`pm_kinds`), and the retirements and #GP deliveries under a CS limit other than FFFFh and FFFFFFFFh, with PE set and clear (`cs_limit`) |
+| Protected mode, directed (`FES_I386_MODE=pmode`, run_pmode_cases) | From 0000:1000: CLI, LGDT, LIDT, PE set, JMP to 16-bit code, flat-enough segments; then #UD; #NP(sel), #GP(sel) past the GDT, #GP(sel) and #SS(sel) for SS; #GP(0) and #SS(0) at FFFFh; #DE through a 386 and a 286 gate; INT n past the IDT's limit, through a not-present gate, a data descriptor, a null CS, a data CS, a not-present CS and an offset past CS's limit; a hardware exception's gate not present (EXT), a contributory fault in a contributory delivery (#DF), and one in the double fault's (shutdown); INT n through a 286 interrupt gate and a 386 trap gate whose handlers IRET and IRETD back, INTO, INT3, a trap gate keeping IF; an IRETD that sets RF returning to a 16-bit IRET (Bochs clears RF as the IRET is fetched, so it ends clear); a task gate (not built); far CALL ptr16:16, ptr16:32 and m16:16 to a RETF or RETF imm16, past CS's limit, to a not-present CS and with SP 2 (no wrap); RETF to data, IRET to a not-present CS, RETF to RPL 3 (not built); IRET, IRETD, RETF and RETF (32-bit) whose frame runs past a 16-bit stack's limit at 10000h, the stack in the MMIO window (#SS(0) before any read: Bochs reads IRET's slots from EFLAGS down and RETF's from CS down); IRET after POPFD sets NT (a return from a nested task: not built, where Bochs faults on TR's backlink); LLDT and LDT loads, a not-present LDT descriptor, a TI=1 load after a null LLDT, LLDT of a data descriptor; LTR with STR, LTR of a busy TSS, LTR of a null selector; LAR, LSL, VERR and VERW of code, data, a TSS and a selector past the GDT; ARPL by memory (raising RPL and not) and register; LLDT and ARPL in real mode (#UD); CS's limit (a far jump to code under 16- and 32-bit descriptors of limit 0Fh, and 32- and 16-bit ones of limit 1FFFh by G): off the end, an instruction or a prefix across it, to the last byte; JMP, a Jcc taken and not, LOOP, CALL rel16 and rel32, CALL and JMP r/m, RET and RET imm16 to the last byte and past it, JMP rel16 in 32-bit code; a far jump to an offset past it; 16-bit code under a 4 GiB limit running on past offset FFFFh; and, after LIDT of the real-mode table and PE clear under a limit of 1Fh, off the end, INT n past the limit and under it, JMP rel8, and far JMP, CALL, RETF and IRET past it | Bochs throughout, the divergence list applying: each case's ending (HLT, after the software interrupt it names; the exception its handler halts in, with its error code from the frame; shutdown; or the stop as not built) |
+| test386.asm on the RTL (`test_fes_i386_test386.py --cpu rtl`) | The ROM on the RTL alone (lockstep_tb.cpp's `test386` mode): RAM below E0000h, the ROM read-only at E0000h, every port all ones, the checks the divergence list names stepped over as on the oracle | How far it gets: its POST codes, the error routine's entries, and what stops it (`rtl-report.json`) |
+| No 387, directed (`FES_I386_MODE=no387`, run_no387_cases) | In real mode (CS 0FF0h, so the linear instruction pointer has bit 16 set), 16-bit and 32-bit protected mode: every ESC ModRM (the register forms by byte, the memory forms by reg field at [100h]) after an FLD that sets the x87 pointers and before an FNSTENV that stores them; every memory form at DS:FFFFh in real mode, four at SS:FFFFh, and in 16-bit protected mode a read-only DS and one of 256 bytes, with FNSAVE's register image past it; a 32-bit FNSTENV that wraps at 64 KiB; FNINIT, FNSTSW AX, FNOP, FCMOVB (DA C0), DB E7, FLD, FST, D9 /1, FNSTENV, FNSAVE, FRSTOR and WAIT under each combination of EM, MP and TS; LOCK on FNINIT and FLD, with EM clear and set, and before ES on FLD; FNSTENV and FNSAVE in both operand sizes in each mode after a load through ES, through a SIB address, and through a 32-bit address in real mode; FPU detection routines (Intel's FNSTSW and FNSTCW 103Fh test, the FNSTCW high byte, the WAIT forms FINIT and FSTSW, FNSTSW AX, DOS/4GW's FNINIT, FNSTSW and FNSTCW) in real and 32-bit protected mode | Bochs throughout under the no-387 rule, and apart from it the bytes the bench works out: each form's stores (FFFFh; the layouts) and nothing else at its operand, AX, the x87 pointers FNSTENV stores after it (the form's unless it is a control form), each case's ending (HLT, or the exception: #GP(0) or #SS(0) for a form that accesses memory, none for one that does not; #NM on EM or TS, WAIT's on MP and TS; #UD for LOCK), and BL 0 (no coprocessor) after each detection routine |
+| Unreal mode (directed) | From 0000:1000: enter protected mode, far-jump to a 16-bit code descriptor, load DS, ES, FS, GS and SS, clear PE, far-jump in real mode, reload them in real mode, and read and write at 2 MiB through each; the same with GS or SS loaded with a 64K descriptor and a word at FFFFh; the same through a 4 GiB code descriptor, reading at CS:10000h with PE clear and then a word at CS:FFFFh after the real-mode far jump; one that halts after that jump; one that raises #GP(0) after a real-mode 32-bit far jump to 0000:00012345h, reaches the handler, and checks pushed IP 2345h; and, in protected mode, MOV ES reading its selector from the last word of a 64K DS | Against Bochs throughout: the accesses at 2 MiB pass and the RTL's DS, ES, FS, GS and SS keep limit FFFFFFFFh; the 64K GS and SS raise #GP(0) and #SS(0) at FFFFh; the real-mode far jump sets the RTL's CS to limit FFFFh and access rights 93h where Bochs kept the 4 GiB descriptor's (taken into the oracle, `cs_rule`), so the word at CS:FFFFh raises #GP(0); the out-of-limit far target delivers #GP(0) through the IVT, reaches the handler, and pushes IP 2345h; MOV ES, [FFFEh] reads a word and loads ES without a fault |
 
 The latency-free reruns also give the cycles between retirements: in
 sequence, after an instruction with more than one prefix, after a taken
@@ -413,6 +483,36 @@ python3 scripts/test_fes_i386_lockstep.py --yosys /abs/path/to/i386-locked/yosys
 
 `--yosys` simulates the netlist the i386 lock's Yosys writes from the CPU
 (after `proc -norom; flatten; opt -purge`) instead of the RTL.
+
+`--preset N` runs every mode under that governor preset
+([speed governor](../../rtl/i386/README.md#speed-governor)), which only holds
+D, so `--same-as` with max's `report.json` must find every architectural
+result unchanged: the counts, faults, interrupts, divergences and each
+file's and seed's trace hash. Timing (cycles, memory waits, replays, the
+latency-free gaps) is left out, and a governed run does not check the
+holds' cycle counts.
+
+## Governor bench
+
+`FES_I386_MODE=governor` runs a flat program on the RTL alone, at
+0000:1000h with port 0 at its fixed latency, and prints every OUT to ports
+80h-8Fh with its cycle and the reference clocks the governor had charged
+before it. [`governor_bench.asm`](governor_bench.asm) is seventeen loops
+between such marks (ALU, memory, dword, branches, stack, multiply and divide,
+strings, shifts, Turbo Pascal's CRT delay loop, I/O, INT and IRET, a far
+pointer load with XCHG and LEA, LOOP, PUSHA and POPA, 386 instructions,
+direct-address loads and stores, ESC instructions), then a loop that the
+bench interrupts. `scripts/test_fes_i386_governor.py` runs it
+under max and every preset at the sealed clock's `GOV_N`/`GOV_D`: each
+loop's charge must equal the table's, which the script lists instruction by
+instruction, and its time must be within 5% of the table time unless max
+itself is slower (the 486 presets on branchy loops). It also checks the
+interrupt latency, the frequency override and turbo.
+
+```sh
+python3 scripts/test_fes_i386_governor.py
+python3 scripts/test_fes_i386_lockstep.py --preset 1 --same-as /abs/path/to/max/report.json
+```
 
 ## Timing spikes
 

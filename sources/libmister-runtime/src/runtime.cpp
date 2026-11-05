@@ -473,8 +473,7 @@ public:
 			}
 		}
 		if (initial_media) {
-			const Error prepared = rom_link ? hardware_.PrepareInitialComputerMedia(package.get(), *initial_media) :
-				Error{ErrorCode::invalid_request, "initial disk requires a single ROM activation", "admission"};
+			const Error prepared = hardware_.PrepareInitialComputerMedia(package.get(), *initial_media);
 			if (!prepared.ok()) {
 				std::lock_guard<std::mutex> lock(mutex_);
 				busy_ = false;
@@ -999,7 +998,7 @@ public:
 	{
 		if (!ValidAbsolutePath(path) || !ValidAbsolutePath(root) || !ValidPackageId(package_id) ||
 			!ValidPackageId(binding.base_media_id) || generation == 0 || unit != 0 || binding.unit != unit ||
-			!native::InferAtariStGeometry(size) ||
+			(size != native::generated::FesComputerPcxtFloppyBytes && !native::InferAtariStGeometry(size)) ||
 			!ValidLibraryGameId(binding.game_id))
 			return Invalid("invalid library media request");
 		std::string system, core;
@@ -1564,9 +1563,9 @@ Error Runtime::PresentMenuFrame(std::uint64_t generation,MenuFrame& frame,MenuDi
 
 Status Runtime::status() const { return impl_->status(); }
 Error Runtime::LoadCore(const std::string& directory,
-	const std::string& expected_package_id)
+	const std::string& expected_package_id, const InitialComputerMedia* initial_media)
 {
-	return impl_->LoadCore(directory, expected_package_id);
+	return impl_->LoadCore(directory, expected_package_id, "", nullptr, "", "", nullptr, nullptr, initial_media);
 }
 
 Error Runtime::LoadComposedCore(const std::string& directory, const std::string& id,

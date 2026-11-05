@@ -246,9 +246,10 @@ fields. No API response exposes the archive's private filesystem location.
 | `GET /api/v1/core-packages/{id}/media-capabilities` | Offline declared-contract projection with separate host import policy and supported role limits |
 | `POST /api/v1/library/core-entries` | `{"title":"Standalone FES Pong","package_id":"..."}`, optionally `media_role:"blob",media_id:"..."`; returns entry |
 | `GET /api/v1/library/core-entries` | `{entries:[...]}` |
-| `GET /api/v1/library/core-entries/{game_id}` | `{game_id,title,core_id,package_id}`, plus `media_role,media_id` when selected |
+| `GET /api/v1/library/core-entries/{game_id}` | `{game_id,title,core_id,package_id}`, plus `media_role,media_id` when selected and `media_name` when recorded |
 | `PUT /api/v1/library/core-entries/{game_id}` | `{"package_id":"...","expected_package_id":"..."}`; returns entry |
 | `PUT /api/v1/library/core-entries/{game_id}/media` | `{"expected_package_id":"...","expected_media_id":"","media_role":"blob","media_id":"..."}` (`media_role` is `blob` or, for `fes.computer` disks, `disk`); both expected fields required; empty new role/ID clears |
+| `PUT /api/v1/library/core-entries/{game_id}/media-name` | `{"expected_package_id":"...","media_id":"...","media_name":"GAME.P"}`; records the `.p`/`.o` basename an imported cassette was chosen under, only while that package and media are still selected; any other media selection clears it. `GET /api/v1/library/hardware` shows it as `media_name` for an imported cassette |
 | `GET /api/v1/library/core-entries/{game_id}/expansions` | Multi-socket shell slot cards: `{game_id,package_id,bus,map,sockets,expansions:[{slot,expansion_id,ready}],ready}` |
 | `PUT /api/v1/library/core-entries/{game_id}/expansions/{slot}` | `{"package_id":"...","expected_expansion_id":"","expansion_id":"..."}`; compare-and-swap on one physical slot; empty `expansion_id` clears |
 | `POST /api/v1/session/launch` | Existing `{"game_id":"..."}` request |
@@ -275,6 +276,12 @@ host compositions can set `fogcast.Paths.CorePackages` to an isolated absolute
 root. Archives are content-addressed, validated before atomic publication and
 revalidated from the same bytes sent for activation. Partial imports never
 become inventory entries. An installed ID is never silently overwritten.
+
+A kit host sets `[core_packages] kit = true`. It then ignores that root and
+uses the kit's own packages: the durable store on FESDATA3, which takes
+imports, and the image's factory packages. A factory package can be titled and
+launched without uploading it. See
+[the kit host's packages](ARCHITECTURE.md#the-kit-hosts-packages).
 
 Selections and media bytes live in the existing catalog database. Schema 13
 admits the `disk` media role beside `blob`; it rebuilds `core_entries` with
@@ -467,22 +474,33 @@ Content-Type: application/json
 {"package_id":"PACKAGE_ID","rom_id":"machine-rom","expected_media_id":"","media_id":"IMPORTED_SHA256"}
 ```
 
-`GET` on the same path returns the selection. To replace or clear it, supply
-its current digest as `expected_media_id`; an empty `media_id` clears it.
+`GET` on the same path returns the selection. When no explicit selection is
+saved and the package matches bundled firmware, it returns `media_id: ""`,
+reports the effective default in `bundled_media_id`, and marks the response
+`bundled_default: true` without storing it. Installed setup may send that
+digest as `expected_media_id` when saving a user-provided ROM; the host accepts
+it only while the stored choice is still empty and that digest is still the
+current default. Catalog setup also leaves a selected bundled default unsaved.
+To replace or clear an explicit selection,
+supply its current digest as `expected_media_id`; an empty `media_id` clears it.
 Selection verifies the binary's digest and exact declared source size. It
 binds the package ID and ROM name; replacing a title's package normally
-requires an explicit new ROM selection. For format-3 ZX81 packages, the host
-rebinds the existing media ID after a package switch only when the saved ROM ID
-and exact source size match the new `machine-rom` firmware requirement, using
-the media ID as the compare-and-swap value. Other mismatched selections remain
-stale and block launch. Import alone does not select content. These endpoints
+requires an explicit new ROM selection. The host rebinds a saved media ID
+after a package switch only when the saved ROM ID and exact source size match
+the new firmware requirement and the title is a format-3 ZX81 (`machine-rom`)
+or still on [bundled firmware](../../../docs/bundled-firmware.md), using the
+media ID as the compare-and-swap value. Other mismatched selections remain
+stale and block launch. A firmware-role title with no saved selection gets the
+current bundled image for its core, ROM ID and size, when the host has one.
+That default is recalculated after a bundle update; explicit selections stay
+unchanged. Import alone does not select content. These endpoints
 use the existing host API and catalog; the browser management panel continues
 to manage ordinary media separately.
 
 Library responses expose `rom_required`, `rom_ready`, `rom_id`, `rom_role`,
 `rom_source_size`, and `rom_media_id`. Missing, damaged, or contract-mismatched
-selections block launch before core activation; the supported ZX81 same-contract
-rebind above can repair a stale package binding. Cartridge selections report
+selections block launch before core activation; the same-contract rebind above
+can repair a stale package binding. Cartridge selections report
 `rom_required` / `rom_ready`; firmware-role selections report
 `firmware_required` / `firmware_ready` and open the package-firmware picker.
 That picker binds the selected binary to the title's ROM requirement. This

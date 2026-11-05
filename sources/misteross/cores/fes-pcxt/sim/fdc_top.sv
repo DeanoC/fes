@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
 // Complete logical ISA path for the read-only PC/XT floppy adapter.
 module fdc_top (
-    input wire clk, reset, guest_ce,
+    input wire clk, reset, cold_reset, guest_ce,
     output wire observed_commit,
     output wire [19:0] observed_seek_ticks,
     output wire observed_seek_irq,
@@ -22,7 +22,13 @@ module fdc_top (
     output wire media_read_valid,
     output wire [18:0] media_read_addr,
     input wire media_read_ready,
-    input wire [7:0] media_read_data
+    input wire [7:0] media_read_data,
+    input wire media_writable, media_frozen,
+    output wire media_write_valid, media_write_busy,
+    output wire [9:0] media_write_lba,
+    input wire [8:0] media_write_index,
+    output wire [7:0] media_write_data,
+    input wire media_write_ready, media_write_error
 );
     wire [47:0] request, card_request;
     wire [31:0] card_response, response;
@@ -31,11 +37,16 @@ module fdc_top (
     pcxt_isa_boundary boundary (
         .clk(clk), .reset(reset), .request(request), .response(response),
         .card_request(card_request), .card_response(card_response));
-    pcxt_fdc_card card (
-        .clk(clk), .reset(reset), .guest_ce(guest_ce), .request(card_request),
+    pcxt_fdc_card_rw card (
+        .clk(clk), .reset(reset), .cold_reset(cold_reset), .guest_ce(guest_ce), .request(card_request),
         .response(card_response), .media_present(media_present),
         .media_read_valid(media_read_valid), .media_read_addr(media_read_addr),
-        .media_read_ready(media_read_ready), .media_read_data(media_read_data));
+        .media_read_ready(media_read_ready), .media_read_data(media_read_data),
+        .media_writable(media_writable), .media_frozen(media_frozen),
+        .media_write_valid(media_write_valid), .media_write_busy(media_write_busy),
+        .media_write_lba(media_write_lba), .media_write_index(media_write_index),
+        .media_write_data(media_write_data), .media_write_ready(media_write_ready),
+        .media_write_error(media_write_error));
     assign observed_commit = card.commit;
     // Test-only reconstruction of the original single-counter value.
     assign observed_seek_ticks = 20'(card.seek_steps) * 20'd14318 + 20'(card.seek_phase);

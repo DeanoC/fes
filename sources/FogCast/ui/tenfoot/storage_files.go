@@ -54,6 +54,32 @@ func (a *App) driveManagerLocked() *storage.Manager {
 	}
 	return a.driveManager
 }
+
+func (a *App) forgetLocalDrivesLocked() error {
+	path := a.prefsPath
+	if path == "" {
+		path = defaultPrefsPath()
+	}
+	drivesPath := ""
+	if path != "" {
+		drivesPath = filepath.Join(filepath.Dir(path), "drives.json")
+	}
+	manager := a.driveManager
+	if manager != nil {
+		if err := manager.ForgetAll(); err != nil {
+			return err
+		}
+	}
+	if drivesPath != "" && (manager == nil || manager.ConfigPath != drivesPath) {
+		if err := storage.NewMemorySMBCredentials(drivesPath).ForgetAll(); err != nil {
+			return err
+		}
+	}
+	a.localDrives = nil
+	a.driveRootsGen++
+	return nil
+}
+
 func (a *App) refreshStorageRootsLocked() {
 	manager, client := a.driveManagerLocked(), a.client
 	a.driveRootsGen++

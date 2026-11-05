@@ -1461,7 +1461,7 @@ void TestInspectionReportsActualDriverCompatibilityWithoutMutation()
 	std::vector<std::string> computer_11_interfaces;
 	for (const auto& interface : computer_11.interfaces) computer_11_interfaces.push_back(interface.id);
 	std::vector<std::string> expected_11 = computer_interfaces;
-	expected_11.insert(expected_11.end(), {"fes.media.ata-disk", "fes.media.pcxt-floppy", "fes.pc386.machine", "fes.persistence.words",
+	expected_11.insert(expected_11.end(), {"fes.media.ata-disk", "fes.media.pcxt-floppy", "fes.media.pcxt-floppy-write", "fes.pc386.machine", "fes.persistence.words",
 		"fes.rtc.wall-clock"});
 	std::sort(expected_11.begin(), expected_11.end());
 	assert(computer_11_interfaces == expected_11);
@@ -4769,10 +4769,20 @@ void TestComputerLiveMediaLifecycleThroughRuntime()
 		rows[8] = 0x0002;
 		auto before = endpoint.requests.size();
 		assert(fixture.runtime.SetKeyboardHid(opened.package_id, generation, rows).ok());
-		assert(endpoint.requests.size() == before + 9);
+		assert(endpoint.requests.size() == before + 11);
+		for (unsigned row = 0; row < 9; ++row) {
+			const auto& request = endpoint.requests[before + row];
+			assert(request.opcode == FesComputerOpcodeKeyboardHid && request.index == row && request.argument == 0);
+		}
+		assert(endpoint.requests[before + 9].opcode == FesComputerOpcodeKeyboardHid &&
+			endpoint.requests[before + 9].index == 8 && endpoint.requests[before + 9].argument == 2);
+		assert(endpoint.requests[before + 10].opcode == FesComputerOpcodeKeyboardHid &&
+			endpoint.requests[before + 10].index == 0 && endpoint.requests[before + 10].argument == 0x10);
 		rows[0] = 0;
 		assert(fixture.runtime.SetKeyboardHid(opened.package_id, generation, rows).ok());
-		assert(endpoint.requests.size() == before + 10);
+		assert(endpoint.requests.size() == before + 12);
+		assert(endpoint.requests[before + 11].opcode == FesComputerOpcodeKeyboardHid &&
+			endpoint.requests[before + 11].index == 0 && endpoint.requests[before + 11].argument == 0);
 		assert(endpoint.rows == std::vector<std::uint16_t>({0, 0, 0, 0, 0, 0, 0, 0, 2}));
 		assert(fixture.runtime.SetController(opened.package_id, generation, 1, 0x28, 0).ok());
 		assert(endpoint.ports == std::vector<std::uint16_t>({0, 0x28}));
@@ -4867,6 +4877,29 @@ void TestPcxtFloppyLifecycleThroughRuntime()
 		status.capabilities.media_units[0].max_bytes == FesComputerPcxtFloppyBytes);
 	assert(driver.observed_capabilities() == caps && !endpoint.held);
 	const auto generation = status.generation;
+	// The 1.1 PC/XT media path must retain the same ordered HID behavior as
+	// the 1.0 computer path while the generation stays active.
+	mister::KeyboardHidRows keys{};
+	keys[0] = 0x0010; keys[8] = 0x0002; // Shift+A
+	const auto keyboard_start = endpoint.requests.size();
+	assert(fixture.runtime.SetKeyboardHid(opened.package_id, generation, keys).ok());
+	assert(endpoint.requests.size() == keyboard_start + 11);
+	for (unsigned row = 0; row < 9; ++row) {
+		const auto& request = endpoint.requests[keyboard_start + row];
+		assert(request.opcode == FesComputerOpcodeKeyboardHid && request.index == row && request.argument == 0);
+	}
+	assert(endpoint.requests[keyboard_start + 9].opcode == FesComputerOpcodeKeyboardHid &&
+		endpoint.requests[keyboard_start + 9].index == 8 && endpoint.requests[keyboard_start + 9].argument == 2);
+	assert(endpoint.requests[keyboard_start + 10].opcode == FesComputerOpcodeKeyboardHid &&
+		endpoint.requests[keyboard_start + 10].index == 0 && endpoint.requests[keyboard_start + 10].argument == 0x10);
+	keys[0] = 0; keys[8] = 0;
+	assert(fixture.runtime.SetKeyboardHid(opened.package_id, generation, keys).ok());
+	assert(endpoint.requests.size() == keyboard_start + 13);
+	assert(endpoint.requests[keyboard_start + 11].opcode == FesComputerOpcodeKeyboardHid &&
+		endpoint.requests[keyboard_start + 11].index == 0 && endpoint.requests[keyboard_start + 11].argument == 0);
+	assert(endpoint.requests[keyboard_start + 12].opcode == FesComputerOpcodeKeyboardHid &&
+		endpoint.requests[keyboard_start + 12].index == 8 && endpoint.requests[keyboard_start + 12].argument == 0);
+	assert(fixture.runtime.status().generation == generation);
 	TempDirectory media;
 	const auto bytes = ComputerDisk(FesComputerPcxtFloppyBytes);
 	const auto disk = media.File("disk.img", bytes);

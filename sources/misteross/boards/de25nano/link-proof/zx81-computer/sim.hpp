@@ -3,6 +3,7 @@
 #include "Vfes_de25_combined_sim.h"
 #include "Vfes_de25_combined_sim___024root.h"
 #include "wire.hpp"
+#include "zx81_firmware.hpp"
 #include <algorithm>
 #include <cstdio>
 #include <vector>
@@ -91,8 +92,8 @@ struct Computer {
         t.eval();
         if(sr){
             ++system_edges;retired+=C(machine__DOT__cpu__DOT__retired)!=0;
-            if(C(cpu_addr)==0x060c&&!C(machine__DOT__nM1))newline_seen=true;
-            if(!C(machine_reset)&&C(cpu_addr)==0x04cf&&word(0x4025)==0xffff&&peek(0x4027)==0)idle_seen=true;
+            if(C(cpu_addr)==Zx81Newline&&!C(machine__DOT__nM1))newline_seen=true;
+            if(!C(machine_reset)&&C(cpu_addr)==Zx81EditorPoll&&word(0x4025)==0xffff&&word(0x401f)==0xffff)idle_seen=true;
             if(!C(machine_reset)&&C(ce_6m5)&&!C(hblank)&&!C(vblank)&&C(video_pixel))++source_ink;
             if(running&&!t.running)stop_edge=system_edges;
             if(!t.running&&stop_edge&&system_edges>stop_edge+3)wire::need(!memory_write,"RAM write exceeded freeze drain bound");

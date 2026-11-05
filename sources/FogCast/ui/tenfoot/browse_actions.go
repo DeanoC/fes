@@ -12,6 +12,11 @@ import (
 
 const staleBrowseActionStatus = "The selection changed. Choose its action again."
 
+// homeHeaderCommand moves Home's focus to its header routes. Home answers
+// Up from its top row with false, so Up from there reaches the hero's
+// actions first and this command after them.
+const homeHeaderCommand = "header"
+
 // BrowseActionsSnapshot describes focus on the selected item's visible actions.
 // The item stays selected while focus moves to this row.
 type BrowseActionsSnapshot struct {
@@ -38,7 +43,7 @@ func browseGameIdentity(g hostclient.Game) string {
 }
 
 func browseDestinationIdentity(d rooms.Destination) string {
-	parts := []string{string(d.Kind), d.PackageID, d.CoreID, d.GameID, d.Query, d.Platform, strconv.Itoa(int(d.Confirm()))}
+	parts := []string{string(d.Kind), d.PackageID, d.CoreID, d.GameID, d.RoomID, d.Label, d.Query, d.Platform, strconv.Itoa(int(d.Confirm()))}
 	for _, g := range d.Matches {
 		parts = append(parts, browseGameIdentity(g))
 	}
@@ -49,7 +54,7 @@ func (a *App) browseActionsAllowedLocked() bool {
 	if a.settingsOpen || a.settingsOSKOpenLocked() || a.filtersOpen || a.searchOpen || a.viewPickerOpen || a.nameEntryOpenLocked() || a.roomPickerOpen || a.driveSettings.Open || a.coreLibrary.Open || a.firmwarePickerOpen || a.tapePickerOpen {
 		return false
 	}
-	if a.sessionStopOfferedLocked() || a.localPhase != "" || a.launch.Phase == "launching" || a.detailOpen || a.roomCoreDetail != "" {
+	if a.sessionStopOfferedLocked() || a.localPhase != "" || a.launch.Phase == "launching" || a.detailOpen || a.roomHeroDetail != "" {
 		return false
 	}
 	if a.room != nil {
@@ -72,7 +77,7 @@ func (a *App) browseActionsDestinationLocked() (rooms.Destination, string, bool)
 	d := a.detailPlayLocked()
 	if a.room != nil {
 		d = a.roomDestinationLocked()
-		if d.Kind != rooms.KindCore && d.Kind != rooms.KindGame {
+		if d.Kind != rooms.KindCore && d.Kind != rooms.KindGame && d.Kind != rooms.KindFamily {
 			return rooms.Destination{}, "", false
 		}
 	}
@@ -80,6 +85,15 @@ func (a *App) browseActionsDestinationLocked() (rooms.Destination, string, bool)
 }
 
 func browseActionLabels(d rooms.Destination) (primary string, secondary bool) {
+	if d.Kind == rooms.KindFamily {
+		switch {
+		case d.Confirm() != rooms.ConfirmEnterRoom:
+			return "", false
+		case d.FamilyNeeds == "firmware":
+			return "Add firmware", true
+		}
+		return "Open", true
+	}
 	switch d.Confirm() {
 	case rooms.ConfirmLaunch, rooms.ConfirmLaunchCore, rooms.ConfirmLaunchKit:
 		return "Play", true
@@ -100,7 +114,7 @@ func browseActionLabels(d rooms.Destination) (primary string, secondary bool) {
 // Ordinary browse frames need neither a second classification nor an identity
 // string; only an open action row checks its captured subject.
 func (a *App) browseActionsSnapshotLocked(d rooms.Destination) BrowseActionsSnapshot {
-	if !a.browseActionsAllowedLocked() || (a.room != nil && d.Kind != rooms.KindCore && d.Kind != rooms.KindGame) {
+	if !a.browseActionsAllowedLocked() || (a.room != nil && d.Kind != rooms.KindCore && d.Kind != rooms.KindGame && d.Kind != rooms.KindFamily) {
 		return BrowseActionsSnapshot{}
 	}
 	primary, _ := browseActionLabels(d)
@@ -169,7 +183,7 @@ func (a *App) handleBrowseActionsLocked(cmd Command) bool {
 		a.leaveBrowseActionsLocked()
 		if isHome && cmd == CmdUp {
 			// The hero sits above the shelf; another Up reaches its header.
-			a.room.Input("up")
+			a.room.Input(homeHeaderCommand)
 			a.applyRoomActionsLocked()
 		}
 	case CmdSelect:

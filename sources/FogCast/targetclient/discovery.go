@@ -40,6 +40,8 @@ func (l *KitLease) Endpoint() *url.URL {
 func (c *Client) AdoptEndpoint(ctx context.Context, base *url.URL, reboot bool) (KitOwnership, error) {
 	if reboot {
 		c.InvalidateKitSession()
+	} else if err := c.kitLease.resumeLocal(ctx); err != nil {
+		return KitOwnership{}, err
 	}
 	probe := NewClient(base, c.token, c.httpClient)
 	var ownership KitOwnership

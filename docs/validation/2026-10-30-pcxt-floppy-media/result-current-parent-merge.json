@@ -1,0 +1,249 @@
+{
+  "classification": "exact-package single-sector read hardware diagnostic",
+  "kit": "B",
+  "target_id": "67c5f4e2-d288-49bb-9049-39ecf39cf6f6",
+  "source_commit": "a54ea0cd501301d32ce519e0540e723e5114e8e5",
+  "manifest_build_id": "b6e2a23ef0c52b6a8abb57adb887f85b",
+  "archive_sha256": "f5cd3f0edb3e4179df34da1a82cd4cd2637d661b997939ad3283141c03d66f6c",
+  "rbf_sha256": "d312702c80460601b72cea31706dcfd75e036c94d48342f207e49df03bf92657",
+  "package_id": "65dd840f6a845f3444b4df0e430e8e57bf0bc0223a12bdd18e059d4aadbbac7a",
+  "bundle_id": "30a81040bdfc81a595abd4bf0b0d635fb56db0f365da29563183f5718b6b3262",
+  "base_image_sha256": "f904961e008a972db8f06f1bb47aff9631123d67215b9f4157ea1fbee83b98d4",
+  "fixture_sha256": "393fd97aa4cd479c08ed8d7f0b3cb36c72af220058a627a205cd35cdb313cfc5",
+  "wrong_fixture_sha256": "71ef3f414607ebd2845447611b6688f335dcc42e0d04352d386e19ad8512061c",
+  "floppy_size": 368640,
+  "capture_device": "/dev/video20",
+  "started_at_utc": "2026-10-31T12:45:19+00:00",
+  "launch_started_at_utc": "2026-10-31T12:45:29+00:00",
+  "finished_at_utc": "2026-10-31T12:46:57+00:00",
+  "captures": [
+    {
+      "file": "main-merge-idle.png",
+      "sha256": "61489945dd587825c3ed30ae1171ff28761059bf82131417531eb8c9ab5dc0ea",
+      "phase": "before launch",
+      "captured_at_utc": "2026-10-31T12:45:24+00:00"
+    },
+    {
+      "file": "baseline.png",
+      "sha256": "38b9ae7ae7f8a52b5a4356114f4098c514ec70b82f0ceb9caabb4c0ba07c8ac3",
+      "phase": "empty drive",
+      "captured_at_utc": "2026-10-31T12:45:54+00:00"
+    },
+    {
+      "file": "wrong.png",
+      "sha256": "38b9ae7ae7f8a52b5a4356114f4098c514ec70b82f0ceb9caabb4c0ba07c8ac3",
+      "phase": "wrong disk",
+      "captured_at_utc": "2026-10-31T12:46:18+00:00"
+    },
+    {
+      "file": "matching.png",
+      "sha256": "fd68c9e0488192fbcc1b4c19b144ab09f76a645648391b7cda0f82b06d81dd73",
+      "phase": "matching disk",
+      "captured_at_utc": "2026-10-31T12:46:27+00:00"
+    },
+    {
+      "file": "ejected.png",
+      "sha256": "38b9ae7ae7f8a52b5a4356114f4098c514ec70b82f0ceb9caabb4c0ba07c8ac3",
+      "phase": "after eject",
+      "captured_at_utc": "2026-10-31T12:46:48+00:00"
+    },
+    {
+      "file": "main-merge-stopped.png",
+      "sha256": "3a5401a0d2c208e3d28c342862fd0778e1ec8ccc8ddabae52d04590ba4cd5808",
+      "phase": "after owned Stop",
+      "captured_at_utc": "2026-10-31T12:46:57+00:00"
+    }
+  ],
+  "launch_capture_change": {
+    "changed_sample_fraction": 0.7311,
+    "mean_max_channel_delta": 158.64,
+    "significant": true
+  },
+  "baseline_check": {
+    "pattern_matches": true,
+    "width": 1920,
+    "height": 1080,
+    "mean_pixel_error": 28.687,
+    "worst_row_error": 29.298,
+    "completion_scanline_means": [
+      253.0,
+      253.0,
+      253.0,
+      253.0,
+      253.0,
+      253.0,
+      253.0,
+      253.611
+    ],
+    "completion_signature_verified": true,
+    "classification": "completed PC/XT hardware diagnostic picture",
+    "static_picture_expected": true,
+    "marker_expected": false,
+    "marker_roi": [
+      386,
+      5,
+      525,
+      167
+    ],
+    "marker_mean_error": 0.0,
+    "marker_worst_row_error": 0.0,
+    "marker_worst_column_error": 0.0,
+    "marker_bad_fraction": 0.0,
+    "marker_mean_brightness": 124.468,
+    "marker_dark_fraction": 0.51079,
+    "compared_with_baseline": false
+  },
+  "wrong_check": {
+    "pattern_matches": true,
+    "width": 1920,
+    "height": 1080,
+    "mean_pixel_error": 28.687,
+    "worst_row_error": 29.298,
+    "completion_scanline_means": [
+      253.0,
+      253.0,
+      253.0,
+      253.0,
+      253.0,
+      253.0,
+      253.0,
+      253.611
+    ],
+    "completion_signature_verified": true,
+    "classification": "completed PC/XT hardware diagnostic picture",
+    "static_picture_expected": true,
+    "marker_expected": false,
+    "marker_roi": [
+      386,
+      5,
+      525,
+      167
+    ],
+    "marker_mean_error": 0.0,
+    "marker_worst_row_error": 0.0,
+    "marker_worst_column_error": 0.0,
+    "marker_bad_fraction": 0.0,
+    "marker_mean_brightness": 124.468,
+    "marker_dark_fraction": 0.51079,
+    "compared_with_baseline": true
+  },
+  "matching_check": {
+    "pattern_matches": true,
+    "width": 1920,
+    "height": 1080,
+    "mean_pixel_error": 29.766,
+    "worst_row_error": 35.996,
+    "completion_scanline_means": [
+      253.0,
+      253.0,
+      253.0,
+      253.0,
+      253.0,
+      253.0,
+      253.0,
+      253.611
+    ],
+    "completion_signature_verified": true,
+    "classification": "completed PC/XT hardware diagnostic picture",
+    "static_picture_expected": true,
+    "marker_expected": true,
+    "marker_roi": [
+      386,
+      5,
+      525,
+      167
+    ],
+    "marker_mean_error": 2.0,
+    "marker_worst_row_error": 2.0,
+    "marker_worst_column_error": 2.0,
+    "marker_bad_fraction": 0.0,
+    "marker_mean_brightness": 253.0,
+    "marker_dark_fraction": 0.0,
+    "compared_with_baseline": false
+  },
+  "ejected_check": {
+    "pattern_matches": true,
+    "width": 1920,
+    "height": 1080,
+    "mean_pixel_error": 28.687,
+    "worst_row_error": 29.298,
+    "completion_scanline_means": [
+      253.0,
+      253.0,
+      253.0,
+      253.0,
+      253.0,
+      253.0,
+      253.0,
+      253.611
+    ],
+    "completion_signature_verified": true,
+    "classification": "completed PC/XT hardware diagnostic picture",
+    "static_picture_expected": true,
+    "marker_expected": false,
+    "marker_roi": [
+      386,
+      5,
+      525,
+      167
+    ],
+    "marker_mean_error": 0.0,
+    "marker_worst_row_error": 0.0,
+    "marker_worst_column_error": 0.0,
+    "marker_bad_fraction": 0.0,
+    "marker_mean_brightness": 124.468,
+    "marker_dark_fraction": 0.51079,
+    "compared_with_baseline": true
+  },
+  "stop_capture_change": {
+    "changed_sample_fraction": 0.7311,
+    "mean_max_channel_delta": 158.64,
+    "significant": true
+  },
+  "limitations": [
+    "single sector 0 diagnostic; not DOS or floppy-write acceptance",
+    "ready is protocol completion, not independent full-image SDRAM readback",
+    "wrong-disk check observes absence of marker; reads are not independently counted",
+    "external SDRAM/HDMI/HPS/reset and whole-board timing not qualified",
+    "claim, software activation and baseline restore managed separately"
+  ],
+  "session": {
+    "id": "16bb8226-1a10-4b37-b1b3-3a00e0e2d8c3",
+    "generation": 1,
+    "before_upload": "empty",
+    "owned_stop": "idle",
+    "post_stop": "idle"
+  },
+  "restore": {
+    "bundle_id": "a168c9223c7d777c7b4037ec484274d0a5917b0c4362ff28a6c7922de771db0d",
+    "generation": 172,
+    "active_and_selected": true,
+    "pending": false,
+    "image_unchanged": true,
+    "boot_unchanged": true,
+    "idle_rbf_matches_fat": true,
+    "raw_idle_ready": true,
+    "target_idle": true,
+    "lease_free": true,
+    "private_host_stopped": true,
+    "status_file_released": true
+  },
+  "quartus": {
+    "seed_worst_slack_ns": {
+      "1": {
+        "setup": 1.124,
+        "hold": 0.129
+      },
+      "2": {
+        "setup": 1.252,
+        "hold": 0.13
+      },
+      "3": {
+        "setup": 1.253,
+        "hold": 0.118
+      }
+    },
+    "corners_per_seed": 4,
+    "repeat_rbf_identical": true
+  }
+}

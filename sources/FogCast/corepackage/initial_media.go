@@ -14,6 +14,7 @@ var initialMediaGameID = regexp.MustCompile(`^[a-z0-9]+(?:-[a-z0-9]+)*$`)
 // The runtime restores any durable revision before releasing the new CPU.
 // It carries no generation: the runtime assigns the new launch generation.
 type InitialMedia struct {
+	InterfaceID string
 	GameID      string
 	BaseMediaID string
 	Unit        uint8
@@ -23,6 +24,7 @@ type InitialMedia struct {
 // StagedInitialMedia names a sealed source disk retained with the ROM input.
 // It is private staging metadata, not a caller-selected runtime storage path.
 type StagedInitialMedia struct {
+	InterfaceID string
 	GameID      string
 	BaseMediaID string
 	Unit        uint8
@@ -77,5 +79,5 @@ func stagedInitialMedia(media *InitialMedia, path string) *StagedInitialMedia {
 	if media == nil {
 		return nil
 	}
-	return &StagedInitialMedia{GameID: media.GameID, BaseMediaID: media.BaseMediaID, Unit: media.Unit, Path: path, Size: int64(len(media.Bytes))}
+	return &StagedInitialMedia{InterfaceID: media.InterfaceID, GameID: media.GameID, BaseMediaID: media.BaseMediaID, Unit: media.Unit, Path: path, Size: int64(len(media.Bytes))}
 }

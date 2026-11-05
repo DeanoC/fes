@@ -19,7 +19,7 @@ module memory_top (
     input wire [18:0] disk_load_address,
     input wire [7:0] disk_load_data,
     output wire disk_load_done,
-    input wire media_read_valid,
+    input wire media_read_valid, media_read_reset_safe,
     input wire [18:0] media_read_addr,
     output wire media_read_ready,
     output wire [7:0] media_read_data,

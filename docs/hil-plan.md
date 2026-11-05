@@ -70,7 +70,8 @@ Each changed path gets a class and a component:
   [kit software bundle](kit-software-releases.md) (`mister-runtime`,
   `mister-agent`, `fogcast-tenfoot`, other FogCast Go), a host binary
   (`host:fogcast-api`, `host:fogcast`) or a core package (`core:<name>`,
-  `core:ALL`).
+  `core:ALL`). `cmd/fogcast-api` is `kit-go+host`: the bundle ships it as
+  `bin/fogcast-kit`, the kit's FogCast host.
 - DE25 packages use `core:de25-menu`, `core:de25-zx81` and
   `core:de25-ALL` (both packages). These require a claimed DE25 and the
   corresponding Quartus package. A DE10 test cannot satisfy them; an executor

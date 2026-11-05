@@ -19,6 +19,7 @@ Quartus 17.0.2.
 | [`rtl/pc386_pic.sv`](rtl/pc386_pic.sv) | Two [KF8259](../fes-common/vendor/kf8259/README.md) in cascade, the slave on master IR2 |
 | [`rtl/pc386_sysctl.sv`](rtl/pc386_sysctl.sv) | Ports 61h, 92h and 80h |
 | [`rtl/pc386_kbc.sv`](rtl/pc386_kbc.sv) | 8042, PS/2 keyboard and PS/2 aux mouse |
+| [`rtl/pc386_hid_keyboard.sv`](rtl/pc386_hid_keyboard.sv) | The host keyboard model: `fes.keyboard.hid` rows to set 2 makes and breaks, the 1 ms rule, typematic repeat |
 | [`rtl/pc386_rtc.sv`](rtl/pc386_rtc.sv) | MC146818A clock with 128 bytes of CMOS and the configuration bytes |
 | [`rtl/pc386_ata.sv`](rtl/pc386_ata.sv) | ATA disk with a two-sector buffer on a 64-bit image port, the dirty map and the save fence |
 | [`rtl/pc386_rate.sv`](rtl/pc386_rate.sv) | Rational clock enable for every guest time base |
@@ -37,6 +38,7 @@ Quartus 17.0.2.
 | [`rtl/pc386_system.sv`](rtl/pc386_system.sv) | The `fes.computer` 1.1 mailbox and [storage endpoint](../fes-common/rtl/fes_computer_storage.v), the machine, its audio and `fes_i386_cpu`: Hold and the DDR ports' hold, the record's settings, the CPU's resets, I/O and INTA handshake, attribute map, the status words |
 | [`rtl/pc386_rom.sv`](rtl/pc386_rom.sv) | The BIOS and VGA BIOS in M10K, answering the CPU's port 0 reads of their ranges |
 | [`rtl/pc386_disk.sv`](rtl/pc386_disk.sv) | The ATA image at window offset 128 MiB on port 2: the drive's image port and Commit's CRC pass |
+| [`rtl/pc386_status.sv`](rtl/pc386_status.sv) | The status ring at window offset 16 MiB on port 2, in front of the disk: the status words every 2^16 clocks, which the HPS reads with [`pc386_cpu_status.py`](../../scripts/pc386_cpu_status.py) |
 | [`rtl/pc386_snapshot.sv`](rtl/pc386_snapshot.sv) | Carries the presenter's and the plane's pixel-clock counters whole into the system clock |
 | [`rtl/pc386_system_pll.v`](rtl/pc386_system_pll.v) | The sealed system clock and the 12.288 MHz audio clock |
 | [`constraints-oss.qsf`](constraints-oss.qsf), [`toolchain.lock`](toolchain.lock) | Pins (both lanes), and the core's lock (the i386 lock's nextpnr and Mistral, Yosys main) |
@@ -48,6 +50,9 @@ Quartus 17.0.2.
 | [`sim/system_tb.cpp`](sim/system_tb.cpp) | `pc386_system` with all three DDR ports on one window model, and a host that launches and stops it as libmister-runtime does, through the mailbox and the window |
 | [`sim/rtl_stop_test.asm`](sim/rtl_stop_test.asm) | The stop test disk: SMSW and MOV CR0 stops, LMSW, and the protected-mode oracle stretch for `--cpu rtl` |
 | [`sim/devices_tb.cpp`](sim/devices_tb.cpp) | Directed checks of the AT core through its I/O port |
+| [`sim/keyboard_tb.cpp`](sim/keyboard_tb.cpp) | The host keyboard model alone: every usage, the order of a change, the 1 ms rule, typematic timing |
+| [`sim/hid_set2_reference.py`](sim/hid_set2_reference.py), [`sim/hid_set2_reference.h`](sim/hid_set2_reference.h) | The keyboard bench's expected bytes, derived from a Linux tree's HID and AT keyboard tables |
+| [`sim/input_test.asm`](sim/input_test.asm) | INPUT.COM, the system suite's keyboard and mouse exercise through INT 15h C2xx and INT 16h |
 | [`sim/audio_tb.cpp`](sim/audio_tb.cpp) | Directed checks of the DSP, the OPL2's AdLib port and the mixer, through the AT core |
 | [`sim/opl2_tb.cpp`](sim/opl2_tb.cpp) | The OPL2 against Nuked-OPL3, sample for sample, on random programs and captured port logs |
 | [`sim/audio_link.h`](sim/audio_link.h), [`sim/opl2_reference.h`](sim/opl2_reference.h) | The AT core and audio models joined as wires; the Nuked-OPL3 stepper |
@@ -61,7 +66,8 @@ Quartus 17.0.2.
 | [`sim/capture_tb.cpp`](sim/capture_tb.cpp), [`sim/vga_capture_top.sv`](sim/vga_capture_top.sv) | Forces capture FIFO overflow and checks that the damaged frame is discarded and a later frame completes |
 | [`sim/plane_tb.cpp`](sim/plane_tb.cpp), [`sim/plane_top.sv`](sim/plane_top.sv) | The plane through the bridge and the port 2 arbiter beside the presenter and capture traffic |
 | [`sim/pc386_ddr_model.h`](sim/pc386_ddr_model.h) | The DDR window and 64-bit port model with the measured latency |
-| [`sim/freedos.lock`](sim/freedos.lock) | The FreeDOS 1.4 package commits and file hashes of the simulation disk |
+| [`sim/freedos.lock`](sim/freedos.lock) | The FreeDOS 1.4 package commits and file hashes of the simulation and games disks |
+| [`sim/fesenv.asm`](sim/fesenv.asm) | FESENV.COM: the games disk's `BLASTER` line from CMOS 60h-62h |
 
 The 8254 is the shared KF8253 with `READ_BACK = 1`; the DMA controllers are the
 shared [`fes_dma8237.sv`](../fes-common/rtl/fes_dma8237.sv) with AT parameters.
@@ -71,6 +77,7 @@ shared [`fes_dma8237.sv`](../fes-common/rtl/fes_dma8237.sv) with AT parameters.
 ```sh
 python3 scripts/build_pc386_firmware.py --download     # dev86, then both ROMs, checked against the lock
 python3 scripts/build_pc386_freedos_image.py --download  # the FreeDOS fixture in build/
+python3 scripts/build_pc386_freedos_image.py --profile games --download  # the games image (HIMEMX, UMBM, CuteMouse, MEM, BLASTER)
 python3 scripts/sim_fes_pc386.py --suite devices        # directed device checks, about 10 s
 python3 scripts/sim_fes_pc386.py --suite storage        # the fes.computer 1.1 golden exchanges, about 2 min
 python3 scripts/sim_fes_pc386.py --suite audio          # DSP, OPL2 timers, mixer, about 1 min
@@ -78,7 +85,13 @@ python3 scripts/sim_fes_pc386.py --suite opl2           # OPL2 against Nuked-OPL
 python3 scripts/sim_fes_pc386.py --suite benches        # presenter, capture overflow recovery and display plane on port 2
 python3 scripts/sim_fes_pc386.py --suite boot --download  # BIOS POST to the FreeDOS prompt and its VGA replay
 python3 scripts/sim_fes_pc386.py --suite boot --cpu rtl   # the RTL must reach the prompt without stops, stalls or oracle steps
+python3 scripts/sim_fes_pc386.py --suite boot --image games --cpu rtl --type 'mem|' --expect 'high memory area'  # the games image
+python3 scripts/sim_fes_pc386.py --suite boot --image games --type 'set|' --expect 'BLASTER=A220 I7 D1 T3'  # FESENV from CMOS
 python3 scripts/sim_fes_pc386.py --suite rtl-stops        # the RTL's stop path on the stop test disk, against the oracle
+python3 scripts/sim_fes_pc386.py --suite a20 --download   # A20TEST.COM: A20 off at boot, INT 15h 24xx/87h, a shutdown resume, HIMEMX's method and XMS 03h-06h
+python3 scripts/sim_fes_pc386.py --suite c2xx --download  # C2TEST.COM: INT 15h C205h with key and aux bytes at the 8042, and while keys are typed
+python3 scripts/sim_fes_pc386.py --suite wait --download  # WAITTEST.COM: INT 15h AH=86h waits from 0 us to 300 ms return in their time
+python3 scripts/sim_fes_pc386.py --suite speaker --download  # SPKTEST.COM: PIT counter 2 in mode 3 from POST; a count-only write gives the speaker carrier
 python3 scripts/sim_fes_pc386.py --suite sound --download  # boot, then SOUND.COM; writes sound.wav
 python3 scripts/sim_fes_pc386.py --suite vga              # presenter, capture and plane benches, VGA test disk, replay
 python3 scripts/synth_fes_pc386.py --cache-root /abs/out/cache/misteross-toolchains  # machine-only synthesis
@@ -207,8 +220,10 @@ as wires would; the machine top level will instantiate both.
   device" and logs one "IDE time out" while waiting for BSY after SRST.
 - **KF8259 INT.** The import holds INT once raised until it is acknowledged, so
   a request that is masked before INTA is taken as a spurious IR7.
-- **Keyboard input** is set 2 scan codes on `key_valid`/`key_code`. The HID
-  row model and typematic repeat of the design are not built yet.
+- **Keyboard input** is `fes.keyboard.hid`'s nine rows, through the
+  [keyboard model](../../docs/pc386-machine-design.md#keyboard-model) inside
+  the 8042; its deviations are recorded there. The aux mouse takes a packet
+  once the machine is out of reset.
 
 ## VGA
 
@@ -252,8 +267,9 @@ as wires would; the machine top level will instantiate both.
 ## M5 system
 
 `fes.pc386` is a format-2 `fes.computer` 1.1 development package: fixed 720p60
-video, 48 kHz audio, HPS DDR, the session-display plane, the ATA hard disk,
-the `fes.pc386.machine` record and the wall clock, with
+video, the HID keyboard, 48 kHz audio, the relative mouse, HPS DDR, the
+session-display plane, the ATA hard disk, the `fes.pc386.machine` record and
+the wall clock, with
 [`pc386_system`](rtl/pc386_system.sv) below the board shell.
 
 - **CPU.** `fes_i386_cpu` with its L1I, L1D and bus interface fills and
@@ -278,6 +294,9 @@ the `fes.pc386.machine` record and the wall clock, with
 - **Ports.** Port 0 is the CPU's alone. Port 1 is VRAM. Port 2 carries the
   plane, presenter and capture, and at the lowest priority the ATA image:
   the drive's single beats, and the CRC pass's bursts of one sector.
+- **Keyboard and mouse.** The mailbox's nine rows go to the 8042's HID row
+  model, and each MouseRelative packet to the aux mouse, which takes it once
+  the machine is out of reset; the mailbox acknowledges it on that clock.
 - **fes.computer 1.1.** The mailbox
   ([`fes_computer_mailbox_core`](../fes-common/rtl/fes_computer_mailbox.v))
   answers identity word 16 with capabilities 16-19 and hands the disk, record
@@ -294,10 +313,15 @@ the `fes.pc386.machine` record and the wall clock, with
     runs to its end, and the ACK waits for every accepted sector to land with
     its dirty mark. The map survives machine resets; Prepare, Eject and Saved
     clear it.
-  - *Record.* Settings words 2 and 4-6 are the CPU's self-modifying-code
-    profile and the Sound Blaster's port, IRQ and DMA at each release; the
-    governor's preset, frequency and turbo words are kept for the governor,
-    which the CPU does not have yet. The RTC loads CMOS 0Eh-7Fh from the
+  - *Record.* Settings words 0, 1 and 3 are the CPU's governor preset,
+    frequency override and turbo at launch
+    ([speed control](../../docs/i386-cpu-design.md#speed-control)), which the
+    CPU samples at its reset, and words 2 and 4-6 its self-modifying-code
+    profile and the Sound Blaster's port, IRQ and DMA, at each release. The
+    producer sets the governor's `GOV_N`/`GOV_D` (100 kHz of the sealed
+    clock) with the other guest rates
+    ([governor record](../../../../docs/validation/2026-11-01-pc386-m5-governor/summary.md)).
+    The RTC loads CMOS 0Eh-7Fh from the
     record after every reset, then writes its configuration bytes, and every
     byte written to its RAM goes to the record. 00h-0Dh are the clock's
     registers, not RAM: Freeze reads them as the guest does, and a restore
@@ -326,13 +350,26 @@ into the window, a Commit with a wrong CRC that must leave the unit loading
 with its error flag, the right one with DiskInfo polled until ready, and
 release. It follows the POST codes, debug text and status words, and reads
 the screen from VRAM. The CPU must reach the prompt alone, with no oracle
-behind it, and every underflow counter must stay at zero. Then it stops as
+behind it, and every underflow counter must stay at zero. At the prompt it
+types `echo M5:Kb!` through KeyboardHid rows and requires the echo, then runs
+the disk's INPUT.COM ([`sim/input_test.asm`](sim/input_test.asm)): ten
+MouseRelative packets must reach its INT 15h C2xx handler as the host's exact
+sums (Y counted up) with two left and one right click, and Up, F1, Delete and
+Shift+A must reach INT 16h as the BIOS codes them. Then it stops as
 the runtime does (disk Freeze, DiskDirty, Saved; record Freeze and reads;
 Hold), checks the record (the restored settings and CMOS byte, CMOS 60h-62h,
 the configuration bytes and checksum), and makes the record's round trip
-through the RTC. The storage suite replays every scenario of the 1.1 golden
+through the RTC. Last it sweeps holds across port 2's write bursts, the
+capture's: trials release the machine and hold it again a clock later each
+time until four holds have cut a burst, and port 2 must take write bursts
+again after each ([#1372](https://github.com/DeanoC/fes/issues/1372)). A held port is its
+guard's, as on a kit: the rest of a cut burst goes with byte enables clear and
+read data is hidden (`hold()` in [`sim/pc386_ddr_model.h`](sim/pc386_ddr_model.h)).
+The storage suite replays every scenario of the 1.1 golden
 exchanges against the mailbox and the storage endpoint. The [1.1 record](../../../../docs/validation/2026-10-31-pc386-m5-computer11/summary.md)
-has the seal and the Kit B run through the runtime's library launch.
+has the seal and the Kit B run through the runtime's library launch, and the
+[keyboard and mouse record](../../../../docs/validation/2026-11-01-pc386-m5-input/summary.md)
+has this slice's seal and its Kit B run with a remote keyboard and mouse.
 
 **Quartus lane.** [`scripts/build_fes_pc386_quartus.py`](../../scripts/build_fes_pc386_quartus.py)
 seals the package with Quartus 17.0.2, labelled as a Quartus build
@@ -358,8 +395,59 @@ ring, the port fence its machine reset needed, the diagnostic tool and the
 nextpnr producer are gone. Its last open exit, the disk round trip with the
 runtime, waits on the M0 contracts either way.
 
+## M5 games
+
+The games image is what the acceptance games run in on a kit, as the FogCast
+disk builder's image will be
+([FreeDOS in the builder](../../docs/pc386-machine-design.md#freedos-in-the-fogcast-disk-builder)).
+`build_pc386_freedos_image.py --profile games` writes
+`build/sim/fes-pc386/freedos-games.img`: the boot fixture's kernel and FreeCOM,
+with HIMEMX 3.38, UMBM from Jemm 5.85, CuteMouse 2.1b4 and MEM 1.12 from their
+FreeDOS 1.4 package archives in `C:\FDOS\BIN`, pinned in
+[`sim/freedos.lock`](sim/freedos.lock).
+- `FDCONFIG.SYS` loads UMBM with `/I=C800-EFFF`, `DOS=UMB`, then HIMEMX high
+  with all extended memory as XMS (15,360K on a 16 MiB machine). UMBM hands
+  the machine's upper RAM to DOS as upper memory blocks without V86 and then
+  unloads; it finds only UMBPCI's tables by itself, so the range is named.
+  All 160K of C8000-EFFFF becomes upper memory.
+- `AUTOEXEC.BAT` runs [`FESENV.COM`](sim/fesenv.asm) into
+  `C:\FDOS\FESENV.BAT` and calls it, so `BLASTER` follows the Sound Blaster
+  setting in CMOS 60h-62h at every boot, then loads CuteMouse high.
+- The games profile sets `BUFFERS=16`. MEM shows 575K (588,544 bytes) of
+  conventional memory free and 154K of upper memory free, largest block 81K.
+  This is 1,792 bytes above Serpent Isle's published 573K (586,752-byte)
+  requirement. The games-image MEM simulation requires at least 1,024 bytes
+  above that requirement.
+- HIMEMX picks its A20 method by itself. POST hands DOS a machine with A20
+  off ([A20 and CPU reset](../../docs/pc386-machine-design.md#a20-and-cpu-reset)),
+  so HIMEMX takes port 92h ("Fast A20 method used"), and XMS function 04h
+  (global disable A20) turns A20 off again. A HIMEMX that finds A20 already
+  on takes its "Always on" method, under which 04h always fails.
+- No `DOS=HIGH`: with the kernel in the HMA, its entry code enables A20 with
+  XMS function 05h whenever a program has left it off and never releases it,
+  so HIMEMX's lock count stays above zero and function 04h fails. Ultima
+  VII's Voodoo memory manager calls 04h as it exits and stops
+  (`freexmm.c` / `Program terminated by code.`) when it fails.
+- The upper memory blocks also keep Ultima VII's memory check working from
+  the prompt. Its MAINMENU.EXE measures DOS memory as the last two blocks of
+  the memory chain. FreeCOM 0.86 keeps its master environment (and, while a
+  program runs, its copy) in the last block of conventional memory when
+  there is no upper memory, where MAINMENU then counts only the memory above
+  itself and reports `Ultima VII requires 561144 bytes of DOS memory!`. With
+  upper memory FreeCOM puts both there, and with the UMB link off, as DOS
+  leaves it for programs, conventional memory ends in free memory.
+
+The images are test fixtures and are never distributed. The games
+themselves are user-supplied and go onto a copy of the image only for a kit
+run. The [games record](../../../../docs/validation/2026-11-01-pc386-m5-games/summary.md)
+has the kit runs.
+
 ## Not built yet
 
-The HID nine-row keyboard model and typematic repeat, so the package has no
-keyboard or mouse yet; the `fes.mouse.relative` wiring; the CPU's governor,
-which the record's preset, frequency and turbo words wait for; the CPU's L2.
+The main branch package does not yet include the HID nine-row keyboard model,
+typematic repeat or `fes.mouse.relative` wiring. The M5 Kit B runs recorded in
+the [games record](../../../../docs/validation/2026-11-01-pc386-m5-games/summary.md)
+used the separate sealed package from #1335, which includes those inputs. Those
+runs are historical and do not qualify this RTL update. Turbo while running
+([#1358](https://github.com/DeanoC/fes/issues/1358)) and the CPU's L2 also
+remain unbuilt.

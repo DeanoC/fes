@@ -98,7 +98,7 @@ func (s *sessionCoordinator) replaceLiveMedia(ctx context.Context, id, mediaID, 
 	s.mu.Lock()
 	s.liveMediaName, s.liveMediaBinding, s.liveMediaFlightID, s.liveMediaEjected = name, b, s.flightID, false
 	s.mu.Unlock()
-	result := s.publicSession(status, nil)
+	result := s.publicCurrentSession(status)
 	s.recordStamp("session.live_media", result, nil, clientStamp{})
 	return result, nil
 }
@@ -138,7 +138,7 @@ func (s *sessionCoordinator) clearLiveMedia(ctx context.Context, id string, b pr
 	s.liveMediaFlightID = s.flightID
 	s.liveMediaEjected = true
 	s.mu.Unlock()
-	result := s.publicSession(status, nil)
+	result := s.publicCurrentSession(status)
 	s.recordStamp("session.live_media_clear", result, nil, clientStamp{})
 	return result, nil
 }

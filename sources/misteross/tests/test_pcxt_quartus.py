@@ -19,6 +19,120 @@ from scripts.pcxt_quartus_mailbox import validate_mailbox
 YOSYS = os.environ.get('YOSYS') or shutil.which('yosys')
 
 
+class AudioClockAuditTests(unittest.TestCase):
+    def test_audio_synchronizer_protection_and_interstage_validation(self):
+        qsf = builder.project_qsf(builder.ROOT, 1, 1, audio_contract=True)
+        diagnostic = builder.project_qsf(builder.ROOT, 1, 1)
+        prefix = 'speaker_output_audio_output_stage_'
+        rows = []
+        for corner in ('slow', 'fast'):
+            for kind in ('setup', 'hold'):
+                for role in ('request', 'ack', 'hold', 'lock'):
+                    for stage in ('meta', 'sync'):
+                        self.assertIn('-to ' + prefix + role + '_' + stage, qsf)
+                        self.assertNotIn('-to ' + prefix + role + '_' + stage, diagnostic)
+                    rows.append({'corner': corner, 'kind': kind, 'from': prefix + role + '_meta',
+                                 'to': prefix + role + '_sync', 'slack_ns': '0.125'})
+        builder.validate_audio_interstage(rows, {'slow', 'fast'})
+        with self.assertRaisesRegex(ValueError, 'interstage'):
+            builder.validate_audio_interstage(rows[:-1], {'slow', 'fast'})
+        rows[0]['slack_ns'] = '-0.001'
+        with self.assertRaisesRegex(ValueError, 'slack'):
+            builder.validate_audio_interstage(rows, {'slow', 'fast'})
+
+    def test_payload_endpoint_coverage_and_narrow_constraints(self):
+        prefix = 'speaker_output_audio_output_stage_'
+        registers = [{'role': role, 'name': prefix + role + '[0]'} for role in ('held_sample', 'pcm')]
+        rows = [{'corner': c, 'kind': k, 'from': registers[0]['name'], 'to': registers[1]['name'],
+                 'slack_ns': '0.1', 'relationship_ns': '1', 'data_delay_ns': '2'}
+                for c in ('slow', 'fast') for k in ('setup', 'hold')]
+        builder.validate_audio_payload(rows, registers, {'slow', 'fast'})
+        with self.assertRaisesRegex(ValueError, 'endpoint checks'):
+            builder.validate_audio_payload(rows[:-1], registers, {'slow', 'fast'})
+        rows[0]['data_delay_ns'] = '100'
+        with self.assertRaisesRegex(ValueError, 'timing failed'):
+            builder.validate_audio_payload(rows, registers, {'slow', 'fast'})
+        sdc = (builder.ROOT / builder.AUDIO_SDC).read_text()
+        self.assertEqual(sdc.count('set_false_path'), 3)
+        self.assertIn('set_max_delay $period -from $held -to $pcm', sdc)
+        self.assertIn('set_min_delay 0 -from $held -to $pcm', sdc)
+        self.assertNotIn('set_clock_groups', sdc)
+
+    def test_audio_request_duplicate_requires_fitter_provenance(self):
+        name = 'speaker_output_audio_output_stage_request'
+        duplicate = name + '~DUPLICATE'
+        def row(src, dst):
+            return '; ' + src + ' ; Duplicated ; Router ; reason ; ; ; ' + dst + ' ; ; ;'
+        validate = builder.validate_audio_request_registers
+        self.assertEqual(validate([{'name': name}], ''), [name])
+        self.assertEqual(validate([{'name': name}, {'name': duplicate}], row(name, duplicate)), [name, duplicate])
+        for registers, report in (([{'name': name}, {'name': duplicate}], ''),
+                                  ([{'name': name}], row(name, duplicate)),
+                                  ([{'name': duplicate}], row(name, duplicate)),
+                                  ([{'name': name}, {'name': duplicate}], row('other', duplicate)),
+                                  ([{'name': name}, {'name': name + '~bad'}], ''),
+                                  ([{'name': name}, {'name': duplicate}, {'name': duplicate}], row(name, duplicate)),
+                                  ([{'name': name}, {'name': duplicate}], row(name, duplicate) + '\n' + row(name, duplicate))):
+            with self.assertRaises(ValueError):
+                validate(registers, report)
+
+    @unittest.skipUnless(shutil.which('tclsh'), 'requires Tcl for SDC collection regression')
+    def test_audio_sdc_constrains_every_launch_copy_and_rejects_unknowns(self):
+        script = r'''
+set case_name [lindex $argv 0]
+proc get_registers {pattern} {
+ global case_name
+ if {$pattern eq {speaker_output_audio_output_stage_request}} {
+  set n $pattern
+  switch $case_name {
+   clean {return [list $n]}
+   duplicate {return [list $n ${n}~DUPLICATE]}
+   missing {return [list ${n}~DUPLICATE]}
+   foreign {return [list $n ${n}~FOREIGN]}
+  }
+ }
+ return [list $pattern]
+}
+proc get_collection_size {x} {llength $x}
+proc foreach_in_collection {v coll body} {uplevel 1 [list foreach $v $coll $body]}
+proc get_node_info {option n} {return $n}
+proc set_false_path {args} {puts "FALSE [join $args |]"}
+proc set_max_delay {args} {}
+proc set_min_delay {args} {}
+proc get_clocks {args} {return clk}
+proc get_clock_info {args} {return 81.38}
+source [lindex $argv 1]
+'''
+        with tempfile.TemporaryDirectory() as d:
+            source = Path(d)/'runner.tcl'
+            source.write_text(script)
+            path = builder.ROOT / builder.AUDIO_SDC
+            for case, ok in (('clean', True), ('duplicate', True), ('missing', False), ('foreign', False)):
+                result = subprocess.run(['tclsh', str(source), case, str(path)], capture_output=True, text=True)
+                self.assertEqual(result.returncode == 0, ok, result.stderr)
+                if case == 'duplicate':
+                    self.assertIn('speaker_output_audio_output_stage_request~DUPLICATE', result.stdout)
+
+    def test_audio_clock_requires_active_inventory_fmax_and_payload_paths(self):
+        corners = {'slow', 'fast'}
+        clocks = [{'name': 'audio', 'period_ns': '81.380208', 'positive_registers': '20'},
+                  {'name': 'board', 'period_ns': '10.0', 'positive_registers': '100'}]
+        counts = {(c, k, a, b): 1 for c in corners for k in ('setup', 'hold')
+                  for a, b in (('audio', 'audio'), ('board', 'audio'))}
+        fmax = [{'corner': c, 'clock': 'audio'} for c in corners]
+        audit = builder.validate_audio_clock_audit
+        self.assertEqual(audit(clocks, counts, fmax, corners), 'audio')
+        for key in tuple(counts):
+            broken = counts.copy(); broken[key] = 0
+            with self.assertRaisesRegex(ValueError, 'endpoint coverage'):
+                audit(clocks, broken, fmax, corners)
+        with self.assertRaisesRegex(ValueError, 'Fmax'):
+            audit(clocks, counts, fmax[:-1], corners)
+        clocks[0]['positive_registers'] = '0'
+        with self.assertRaisesRegex(ValueError, 'audio clock'):
+            audit(clocks, counts, fmax, corners)
+
+
 class MailboxBindingTests(unittest.TestCase):
     def setUp(self):
         path = Path(__file__).parent / 'fixtures/pcxt_quartus_mailbox.json.gz'

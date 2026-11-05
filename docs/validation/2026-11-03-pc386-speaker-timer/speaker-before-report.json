@@ -1,0 +1,37 @@
+{
+  "bios_sha256": "47a982a5c581eeb995c010c5abba79f7c38ebd9af42b4f72272ab3298a70338c",
+  "bios_source": "main 39d79a092's firmware.lock (built by scripts/build_pc386_firmware.py from main's vendored source)",
+  "program": "SPKTEST.COM",
+  "command": [
+    "build/sim/fes-pc386/machine/obj/Vpc386_machine",
+    "--bios",
+    "pc386-bios.bin (main)",
+    "--vgabios",
+    "build/firmware/pc386/pc386-vgabios.bin",
+    "--disk",
+    "the speaker suite's disk.img",
+    "--limit-seconds",
+    "8",
+    "--type",
+    "spktest|",
+    "--expect",
+    "SPK DONE ok",
+    "--cpu",
+    "oracle"
+  ],
+  "port_e9_lines": [
+    "SPK post 20h FAIL",
+    "SPK rise 0/64 FAIL",
+    "SPK carrier 0Hz FAIL",
+    "SPK DONE FAIL"
+  ],
+  "end": "END expected-text-missing steps=95245739 cycles=420000507 seconds=4.200",
+  "last_screen_rows": [
+    "C:\\>spktest",
+    "SPK post 20h FAIL",
+    "SPK rise 0/64 FAIL",
+    "SPK carrier 0Hz FAIL",
+    "SPK DONE FAIL",
+    "C:\\>"
+  ]
+}

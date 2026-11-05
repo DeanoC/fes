@@ -2564,17 +2564,49 @@
     }
     let mouseQueue = Promise.resolve();
     let mousePending = 0;
+    // Track both the latest queued intent and the latest request the host
+    // confirmed. A full queue drops motion only; when one pending report is
+    // the only unconfirmed source of a button state, keep one later event as
+    // a fallback if that report fails.
+    let mouseQueued = { binding: null, buttons: 0, sequence: 0 };
+    let mouseConfirmed = { binding: null, buttons: 0 };
+    let mouseSequence = 0;
+    const mouseButtonRetries = new Map();
+    const mousePendingButtons = new Map();
     function sendMouseRelative(dx, dy, buttons) {
       if (![dx,dy,buttons].every(Number.isInteger) || dx < -32768 || dx > 32767 || dy < -32768 || dy > 32767 || buttons < 0 || buttons > 3 || !mouseAllowed()) return Promise.resolve(false);
-      if (mousePending >= 64 && (dx || dy || buttons)) return Promise.resolve(false);
       const binding = state.session.mouse_binding;
+      const buttonsChange = mouseQueued.binding !== binding || mouseQueued.buttons !== buttons;
+      const unconfirmedButtons = mouseConfirmed.binding !== binding || mouseConfirmed.buttons !== buttons;
+      const retryKey = JSON.stringify([binding, buttons]);
+      const pendingButtonReports = mousePendingButtons.get(retryKey) || 0;
+      const keepButtonRetry = mousePending >= 64 && !buttonsChange && unconfirmedButtons &&
+        pendingButtonReports === 1 && !mouseButtonRetries.has(retryKey);
+      if (mousePending >= 64 && !buttonsChange && !keepButtonRetry && (dx || dy || buttons)) return Promise.resolve(false);
+      const sequence = ++mouseSequence;
+      if (keepButtonRetry) mouseButtonRetries.set(retryKey, sequence);
+      mouseQueued = { binding, buttons, sequence };
       mousePending += 1;
+      mousePendingButtons.set(retryKey, pendingButtonReports + 1);
+      let confirmed = false;
       const task = mouseQueue.then(async () => {
         if (!mouseAllowed() || state.session.mouse_binding !== binding) return false;
         const spec = mouseEventRequest(dx,dy,buttons);
-        try { await request(fetchImpl,spec.path,spec.options); return true; }
+        try {
+          await request(fetchImpl,spec.path,spec.options);
+          mouseConfirmed = { binding, buttons };
+          confirmed = true;
+          return true;
+        }
         catch (_) { return false; } // Unconfirmed motion is never retried.
-      }).finally(() => { mousePending -= 1; });
+      }).finally(() => {
+        if (!confirmed && mouseQueued.sequence === sequence) mouseQueued = mouseConfirmed;
+        if (mouseButtonRetries.get(retryKey) === sequence) mouseButtonRetries.delete(retryKey);
+        const pending = mousePendingButtons.get(retryKey) || 1;
+        if (pending === 1) mousePendingButtons.delete(retryKey);
+        else mousePendingButtons.set(retryKey, pending - 1);
+        mousePending -= 1;
+      });
       mouseQueue = task.catch(() => false);
       return task;
     }

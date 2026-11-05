@@ -11,7 +11,7 @@ import (
 	"github.com/DeanoC/FogCast/protocol"
 )
 
-const schemaVersion = 19
+const schemaVersion = 20
 
 const schemaV8 = `
 CREATE TABLE core_media_chunks (
@@ -308,6 +308,13 @@ CREATE INDEX core_entries_core_id ON core_entries(core_id);
 PRAGMA user_version = 19;
 `
 
+// Schema 20 keeps the admitted basename of the selected media, so a host
+// view can name an imported cassette. Empty means no name was recorded.
+const schemaV20 = `
+ALTER TABLE core_entries ADD COLUMN media_name TEXT NOT NULL DEFAULT '';
+PRAGMA user_version = 20;
+`
+
 func migrateCoreMedia(ctx context.Context, connection *sql.Conn) error {
 	if _, err := connection.ExecContext(ctx, schemaV7); err != nil {
 		return err
@@ -491,6 +498,12 @@ func migrate(ctx context.Context, connection *sql.Conn) (err error) {
 		}
 		if err := foreignKeyCheck(ctx, connection); err != nil {
 			return fmt.Errorf("apply catalog schema version 19: %w", err)
+		}
+		version = 19
+	}
+	if version == 19 {
+		if _, err := connection.ExecContext(ctx, schemaV20); err != nil {
+			return fmt.Errorf("apply catalog schema version 20: %w", err)
 		}
 	}
 	if _, err := connection.ExecContext(ctx, "COMMIT"); err != nil {

@@ -10,6 +10,10 @@ SPEC = importlib.util.spec_from_file_location("de25_zx81_tests", BOARD / "test_b
 MODULE = importlib.util.module_from_spec(SPEC)
 SPEC.loader.exec_module(MODULE)
 ZX81BuildTests = MODULE.ZX81BuildTests
+FIRMWARE_SPEC = importlib.util.spec_from_file_location("de25_zx81_firmware_tests", BOARD / "test_firmware.py")
+FIRMWARE_MODULE = importlib.util.module_from_spec(FIRMWARE_SPEC)
+FIRMWARE_SPEC.loader.exec_module(FIRMWARE_MODULE)
+FirmwareTests = FIRMWARE_MODULE.FirmwareTests
 
 
 class ZX81SimulationTests(unittest.TestCase):

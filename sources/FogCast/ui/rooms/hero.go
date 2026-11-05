@@ -12,6 +12,10 @@ const (
 	// own card and artwork around it; FES draws title, input needs,
 	// readiness, destination and actions in the text column.
 	PanelHero = "hero"
+	// PanelNone draws no FES panel: the room draws all of its copy and
+	// actions (the first-run setup screens). Confirm still uses the
+	// published destination.
+	PanelNone = "none"
 )
 
 // PanelRect is a rectangle in room coordinates.
@@ -59,6 +63,11 @@ func HeroPanel(w, h int) (HeroLayout, bool) {
 		Shelf:  shelf,
 		Footer: PanelRect{X: 0, Y: h - footer, W: w, H: footer},
 	}, true
+}
+
+// NoPanel reports whether this room asked for no FES destination panel.
+func (r *Instance) NoPanel() bool {
+	return r != nil && r.pack.DestinationPanel == PanelNone
 }
 
 // Hero reports whether this room asked for the hero destination panel.

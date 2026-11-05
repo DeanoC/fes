@@ -17,7 +17,9 @@ import tarfile
 import tempfile
 import tomllib
 
+import bundled_firmware
 from environment import build_environment
+from recipes import shared_cache_root
 
 ROOT = Path(__file__).resolve().parents[1]
 TARGETS = {'de10-nano': ('armv7', 'arm'), 'de25-nano': ('aarch64', 'arm64')}
@@ -58,9 +60,11 @@ def build_go(snapshot, version, revision, env, board='de10-nano', *, fogcast_sou
     destination.mkdir(exist_ok=True)
     flags = ('-s -w -X github.com/DeanoC/FogCast/internal/version.Version=' + version +
              ' -X github.com/DeanoC/FogCast/internal/version.Revision=' + revision)
+    # fogcast-kit is cmd/fogcast-api built under the kit's name: a multi-call
+    # binary whose `host` mode is the kit's FogCast host (#863 slice 5).
     for command, architecture, filename in (
         ('mister-agent', target_arch, 'mister-agent-linux-' + suffix),
-        ('fogcast-kit', target_arch, 'fogcast-kit-linux-' + suffix),
+        ('fogcast-api', target_arch, 'fogcast-kit-linux-' + suffix),
         ('fogcast-tenfoot', target_arch, 'fogcast-tenfoot-linux-' + suffix),
         ('fes-kit-bundle', 'amd64', 'fes-kit-bundle-linux-amd64'),
     ):
@@ -428,6 +432,10 @@ def publish(root, base, base_sha, version, output, *, board='de10-nano', de25_im
         shutil.copyfile(image / 'build/software/runtime/build/mister-runtime', payload / 'bin/mister-runtime')
         shutil.copytree(image / 'buildroot/board/fogcast-target/native-rootfs-overlay/usr/share/fogcast',
                         payload / 'share/fogcast')
+        # Bundled firmware ships as separate objects beside the cores; the
+        # kit's /usr/share/fogcast/firmware is the host's bundled_dir.
+        firmware = [{'id': m['id'], 'sha256': m['sha256'], 'size': m['size']} for m in
+                    bundled_firmware.stage(payload / 'share/fogcast/firmware', shared_cache_root() / 'firmware')]
         if driver is not None:
             # DE10 loads its release's driver; DE25 uses the built-in owner.
             window = payload / 'share/fes-window'
@@ -457,6 +465,7 @@ def publish(root, base, base_sha, version, output, *, board='de10-nano', de25_im
                    'base_factory_manifest_sha256': sha(image / 'build/software/base/usr/share/fes/software/manifest.json'),
                    'toolchain': toolchain, 'go_toolchain': go_version,
                    **({'window_driver': driver} if driver is not None else {}),
+                   'bundled_firmware': firmware,
                    'workflow_sha256': workflow_sha, 'bundle': result,
                    'artifacts': {'bundle.tar': {'sha256': sha(candidate / 'bundle.tar'),
                                                'size': (candidate / 'bundle.tar').stat().st_size}}}

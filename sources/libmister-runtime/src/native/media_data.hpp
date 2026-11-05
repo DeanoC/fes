@@ -11,7 +11,7 @@ struct MediaDataIdentity {
     std::string core_id, game_id, base_media_id;
     std::uint8_t unit = 0;
 };
-enum class MediaDataLayout { atari_st, zx81_tape };
+enum class MediaDataLayout { atari_st, pcxt_floppy, zx81_tape };
 struct MediaDiskRecord {
     MediaDataIdentity identity;
     std::vector<unsigned char> bytes;

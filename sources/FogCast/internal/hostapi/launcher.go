@@ -337,6 +337,12 @@ func NewLauncherHandler(api http.Handler, config LauncherConfig) (http.Handler, 
 			a.routes.ServeHTTP(w, r)
 			return
 		}
+		if r.Method == http.MethodPut && launcherCoreEntryMediaNamePath(r.URL.Path) {
+			// The body stays the caller's exact selected-media name. The host
+			// checks that this package and media are still selected.
+			a.routes.ServeHTTP(w, r)
+			return
+		}
 		if r.Method == http.MethodPut && launcherCoreEntryPath(r.URL.Path) {
 			// The body stays the caller's exact package selection. Compatibility
 			// and persistence checks must use this kit, even when another target
@@ -429,7 +435,7 @@ func launcherPairedRead(method, path string) bool {
 		return false
 	}
 	switch path {
-	case "/api/v1/core-catalog", "/api/v1/core-expansions", "/api/v1/library/firmware", "/api/v1/kit/software/releases", "/api/v1/games", "/api/v1/platforms", "/api/v1/health", "/api/v1/status", "/api/v1/session/input", "/api/v1/launcher/kit-lease", "/api/v1/library/attract", "/api/v1/library/cache", "/api/v1/library/collections", "/api/v1/library/core-entries", "/api/v1/library/facets", "/api/v1/library/hardware", "/api/v1/library/titles", "/api/v1/library/zx81-tapes", "/api/v1/core-packages":
+	case "/api/v1/core-catalog", "/api/v1/core-expansions", "/api/v1/library/firmware", "/api/v1/library/firmware/bundled", "/api/v1/kit/software/releases", "/api/v1/games", "/api/v1/platforms", "/api/v1/health", "/api/v1/status", "/api/v1/session/input", "/api/v1/launcher/kit-lease", "/api/v1/library/attract", "/api/v1/library/cache", "/api/v1/library/collections", "/api/v1/library/core-entries", "/api/v1/library/facets", "/api/v1/library/hardware", "/api/v1/library/titles", "/api/v1/library/zx81-tapes", "/api/v1/core-packages":
 		return true
 	}
 	return launcherArtworkPath(path) || launcherPresentationGamePath(path) || launcherGamePath(path) || launcherCoreEntryPath(path) || launcherCorePackageReadPath(path) || launcherROMSelectionPath(path) || launcherExpansionReadPath(path) || launcherCoreCatalogSetupPath(path)
@@ -577,11 +583,14 @@ func launcherOperation(method, path string) bool {
 	if method == http.MethodPut && launcherCoreMediaSelectionPath(path) {
 		return true
 	}
+	if method == http.MethodPut && launcherCoreEntryMediaNamePath(path) {
+		return true
+	}
 	if method == http.MethodPut && launcherCoreEntryPath(path) {
 		return true
 	}
 	switch method + " " + path {
-	case "GET /api/v1/core-catalog", "POST /api/v1/core-catalog/install", "POST /api/v1/core-catalog/entries", "POST /api/v1/library/atari-st-disks", "GET /api/v1/core-expansions", "POST /api/v1/core-expansions", "GET /api/v1/library/firmware", "GET /api/v1/kit/software/releases", "GET /api/v1/games", "GET /api/v1/platforms", "GET /api/v1/health", "GET /api/v1/launcher/kit-lease", "GET /api/v1/status", "GET /api/v1/session", "GET /api/v1/session/input", "GET /api/v1/library/attract", "GET /api/v1/library/cache", "GET /api/v1/library/collections", "GET /api/v1/library/core-entries", "GET /api/v1/library/facets", "GET /api/v1/library/hardware", "GET /api/v1/library/titles", "GET /api/v1/library/zx81-tapes", "GET /api/v1/core-packages", "GET /api/v1/mesh/content/source", "GET /api/v1/mesh/content/object", "POST /api/v1/session/launch", "POST /api/v1/session/stop", "POST /api/v1/core-media", "POST /api/v1/library/core-entries":
+	case "GET /api/v1/core-catalog", "POST /api/v1/core-catalog/install", "POST /api/v1/core-catalog/entries", "POST /api/v1/library/atari-st-disks", "GET /api/v1/core-expansions", "POST /api/v1/core-expansions", "GET /api/v1/library/firmware", "GET /api/v1/library/firmware/bundled", "GET /api/v1/kit/software/releases", "GET /api/v1/games", "GET /api/v1/platforms", "GET /api/v1/health", "GET /api/v1/launcher/kit-lease", "GET /api/v1/status", "GET /api/v1/session", "GET /api/v1/session/input", "GET /api/v1/library/attract", "GET /api/v1/library/cache", "GET /api/v1/library/collections", "GET /api/v1/library/core-entries", "GET /api/v1/library/facets", "GET /api/v1/library/hardware", "GET /api/v1/library/titles", "GET /api/v1/library/zx81-tapes", "GET /api/v1/core-packages", "GET /api/v1/mesh/content/source", "GET /api/v1/mesh/content/object", "POST /api/v1/session/launch", "POST /api/v1/session/stop", "POST /api/v1/core-media", "POST /api/v1/library/core-entries":
 		return true
 	}
 	return method == http.MethodGet && (launcherArtworkPath(path) || launcherPresentationGamePath(path) || launcherGamePath(path) || launcherCoreEntryPath(path) || launcherCorePackageReadPath(path) || launcherROMSelectionPath(path) || launcherExpansionReadPath(path) || launcherCoreCatalogSetupPath(path))
@@ -639,6 +648,15 @@ func launcherROMSelectionPath(path string) bool {
 func launcherCoreMediaSelectionPath(path string) bool {
 	const prefix, suffix = "/api/v1/library/core-entries/", "/media"
 	if !strings.HasPrefix(path, prefix) || !strings.HasSuffix(path, suffix) {
+		return false
+	}
+	game := path[len(prefix) : len(path)-len(suffix)]
+	return game != "" && !strings.Contains(game, "/") && protocol.ValidateGameID(game) == nil
+}
+
+func launcherCoreEntryMediaNamePath(path string) bool {
+	const prefix, suffix = "/api/v1/library/core-entries/", "/media-name"
+	if len(path) <= len(prefix)+len(suffix) || !strings.HasPrefix(path, prefix) || !strings.HasSuffix(path, suffix) {
 		return false
 	}
 	game := path[len(prefix) : len(path)-len(suffix)]

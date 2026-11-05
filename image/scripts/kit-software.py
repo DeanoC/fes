@@ -19,6 +19,12 @@ import tomllib
 BINARIES = ('mister-agent', 'mister-runtime', 'fogcast-kit', 'fogcast-tenfoot')
 INTERFACES = {'runtime-protocol': '2', 'maintenance': 'fes-kit-maintenance-v1',
               'software-admission': 'fes-kit-software-v1'}
+# ADVERTISES lists what a bundle offers a base supervisor beyond INTERFACES.
+# These keys go only into the bundle manifest, never into the image's
+# software base: a supervisor uses one when present and treats its absence as
+# an older bundle. kit-host: bin/fogcast-kit has a `host` mode, the kit's
+# FogCast host (#863 slice 5).
+ADVERTISES = {'kit-host': '1.0'}
 MENU_SELECTION = 'usr/share/mister-runtime/selections/fes-menu.package.toml'
 INTERFACE_KEY = re.compile(r'[a-zA-Z0-9][a-zA-Z0-9._+-]{0,127}')
 VERSION = re.compile(r'(0|[1-9][0-9]{0,8})\.(0|[1-9][0-9]{0,8})')
@@ -267,7 +273,7 @@ def assemble(target, fogcast, runtime_revision, window_driver=None, board='de10-
             (payload / 'share/fes-window').mkdir(parents=True)
             for name in ('fes_window.ko', 'version'):
                 shutil.copyfile(window_driver / name, payload / 'share/fes-window' / name)
-        metadata = {**contract, 'interfaces': {**contract['interfaces'], **provides},
+        metadata = {**contract, 'interfaces': {**contract['interfaces'], **provides, **ADVERTISES},
                     'format': 1, 'version': 'factory-' + revision[:12],
                     'provenance': {'fogcast': revision, 'runtime': runtime_revision}}
         meta = temporary / 'metadata.json'
@@ -323,7 +329,7 @@ def pack_update(base_root, payload, output, version, fogcast, runtime_revision):
     revision = (fogcast / 'bin/kit-software.revision').read_text().strip()
     if not re.fullmatch(r'[a-f0-9]{40}', revision) or not re.fullmatch(r'[a-f0-9]{40}', runtime_revision):
         raise ValueError('software provenance requires full source revisions')
-    metadata = {**expected, 'interfaces': {**expected['interfaces'], **provides}, 'format': 1,
+    metadata = {**expected, 'interfaces': {**expected['interfaces'], **provides, **ADVERTISES}, 'format': 1,
                 'version': version, 'provenance': {'fogcast': revision, 'runtime': runtime_revision}}
     with tempfile.TemporaryDirectory(prefix='fes-kit-software-') as temporary:
         meta = Path(temporary) / 'metadata.json'

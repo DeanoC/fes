@@ -141,11 +141,11 @@ func TestSurroundSettingTogglesAndPersists(t *testing.T) {
 	now := time.Now()
 	app.HandleCommand(CmdSettings, now)
 	focusSettingsRow(t, app, "surround", now)
-	if row := app.Snapshot().Settings.Rows[settingsRowSurround]; row.Value != "On" {
+	if row := settingsRowByID(t, app, "surround"); row.Value != "On" {
 		t.Fatalf("row = %#v", row)
 	}
 	app.HandleCommand(CmdSelect, now)
-	if row := app.Snapshot().Settings.Rows[settingsRowSurround]; row.Value != "Off" {
+	if row := settingsRowByID(t, app, "surround"); row.Value != "Off" {
 		t.Fatalf("toggled row = %#v", row)
 	}
 	got, err := loadTenfootPrefs(path)
@@ -306,7 +306,7 @@ func TestKitSurroundTurnsOffInSettingsBetweenSessions(t *testing.T) {
 	app.HandleCommand(CmdSettings, now)
 	focusSettingsRow(t, app, "surround", now)
 	app.HandleCommand(CmdSelect, now)
-	if row := app.Snapshot().Settings.Rows[settingsRowSurround]; row.Value != "Off" {
+	if row := settingsRowByID(t, app, "surround"); row.Value != "Off" {
 		t.Fatalf("toggled row = %#v", row)
 	}
 	app.HandleCommand(CmdBack, now)

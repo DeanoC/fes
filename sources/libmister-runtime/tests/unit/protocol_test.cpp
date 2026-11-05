@@ -751,6 +751,22 @@ void TestROMLoadProtocol()
 	}
 }
 
+void TestPcxtInitialLoadProtocol()
+{
+	const std::string digest(64, 'a');
+	const std::string input = "{\"protocol\":2,\"operation\":\"load_core\",\"package_path\":\"/package\",\"package_id\":\"" + digest +
+		"\",\"initial_media\":{\"path\":\"/disk.img\",\"size\":368640,\"unit\":0,\"data_root\":\"/media-data\",\"game_id\":\"dos-game\",\"base_media_id\":\"" + digest + "\"}}";
+	Request request;
+	assert(Parse(input, &request).ok() && request.has_initial_media && request.initial_media.size == 368640);
+	for (const auto& replacement : std::vector<std::pair<std::string, std::string>>{
+		{"368640", "368639"}, {"\"unit\":0", "\"unit\":1"}, {"/disk.img", "disk.img"},
+		{"dos-game", "dos--game"}, {"load_core", "inspect_core"}}) {
+		auto bad = input;
+		bad.replace(bad.find(replacement.first), replacement.first.size(), replacement.second);
+		assert(!Parse(bad, &request).ok());
+	}
+}
+
 void TestTwoSourceROMLoadProtocol()
 {
 	const std::string digest(64, 'a');
@@ -1395,6 +1411,9 @@ void TestLibraryDiskProtocol()
  const std::string a(64,'a'),b(64,'b');Request parsed;
  const std::string prefix="{\"protocol\":2,\"operation\":\"insert_library_media\",\"path\":\"/disk.st\",\"expected_package_id\":\""+a+"\",\"expected_generation\":7,\"unit\":0,\"size\":737280,\"data_root\":\"/data\",\"game_id\":\"atari-st-desktop\",\"base_media_id\":\""+b+"\"}";
  assert(Parse(prefix,&parsed).ok()&&parsed.operation==Operation::insert_library_media&&parsed.media_binding.game_id=="atari-st-desktop");
+ auto pcxt=prefix;pcxt.replace(pcxt.find("737280"),6,"368640");
+ assert(Parse(pcxt,&parsed).ok()&&parsed.media_size==mister::native::generated::FesComputerPcxtFloppyBytes);
+ pcxt.replace(pcxt.find("368640"),6,"368639");assert(!Parse(pcxt,&parsed).ok());
  for(const auto& pair:std::vector<std::pair<std::string,std::string>>{{"737280","737279"},{"atari-st-desktop","../escape"},{"/data","relative"},{b,std::string(64,'B')}}){auto bad=prefix;bad.replace(bad.find(pair.first),pair.first.size(),pair.second);assert(!Parse(bad,&parsed).ok());}
  const std::string save="{\"protocol\":2,\"operation\":\"save_media\",\"expected_package_id\":\""+a+"\",\"expected_generation\":7,\"unit\":0}";
  assert(Parse(save,&parsed).ok()&&parsed.operation==Operation::save_media);
@@ -1495,6 +1514,7 @@ int main(int argc, char** argv)
 	TestComputerResponseFixtures();
 	TestFormat3InspectionSerialization();
 	TestROMLoadProtocol();
+	TestPcxtInitialLoadProtocol();
 	TestTwoSourceROMLoadProtocol();
 	TestCompositionProtocol();
 	TestControllerSnapshotRequest();

@@ -2,6 +2,7 @@
 #include "Vde25nano_zx81.h"
 #include "Vde25nano_zx81___024root.h"
 #include "verilated.h"
+#include "zx81_firmware.hpp"
 #include <cstdint>
 #include <cstdio>
 #include <cstdlib>
@@ -115,7 +116,7 @@ struct Board {
             system_edges++;
             if (SIGNAL(machine__DOT__cpu__DOT__retired)) retired++;
             if (SIGNAL(machine_reset)) editor_idle_seen = false;
-            else if (SIGNAL(cpu_addr) == 0x04cf && word(0x4025) == 0xffff && peek(0x4027) == 0)
+            else if (SIGNAL(cpu_addr) == Zx81EditorPoll && word(0x4025) == 0xffff && word(0x401f) == 0xffff)
                 editor_idle_seen = true;
             ula_enables += SIGNAL(machine__DOT__ce_6m5) != 0;
             cpu_positive += SIGNAL(machine__DOT__ce_cpu_p) != 0;
@@ -148,7 +149,7 @@ struct Board {
     }
     bool basic_ready() const {
         const uint16_t dfile = word(0x400c);
-        return peek(0x4000) == 0 && dfile >= 0x4070 && dfile < 0x8000 && peek(dfile) == 0x76;
+        return peek(0x4000) == 0xff && dfile >= 0x4070 && dfile < 0x8000 && peek(dfile) == 0x76;
     }
     bool editor_idle() const {
         return editor_idle_seen;

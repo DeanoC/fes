@@ -36,6 +36,27 @@ func (r *Instance) installRoom() *lua.LTable {
 	t.RawSetString("height", lua.LNumber(r.opts.Height))
 	t.RawSetString("time", lua.LNumber(0))
 	t.RawSetString("reduced_motion", lua.LBool(r.opts.ReducedMotion))
+	// room.core_shown(core_id) follows coreShown: release-only rooms hide
+	// held-back cores except for the core this room was opened for.
+	t.RawSetString("core_shown", L.NewFunction(func(L *lua.LState) int {
+		L.Push(lua.LBool(r.coreShown(L.CheckString(1))))
+		return 1
+	}))
+	// room.setup is the first-run setup state: step and steps for a setup
+	// room, unfinished and skipped once setup was skipped.
+	setup := L.NewTable()
+	setup.RawSetString("step", lua.LNumber(r.opts.Setup.Step))
+	setup.RawSetString("steps", lua.LNumber(r.opts.Setup.Steps))
+	setup.RawSetString("unfinished", lua.LBool(r.opts.Setup.Unfinished))
+	skipped := L.NewTable()
+	for _, id := range r.opts.Setup.Skipped {
+		skipped.Append(lua.LString(id))
+	}
+	setup.RawSetString("skipped", skipped)
+	t.RawSetString("setup", setup)
+	// room.release_only is true when the launcher lists only the cores in
+	// this release; Home then leaves out its Library and Systems routes.
+	t.RawSetString("release_only", lua.LBool(r.opts.ReleaseOnly))
 	t.RawSetString("live_controls", lua.LBool(!r.opts.SessionDisplayRequired))
 	t.RawSetString("overlay", lua.LBool(false))
 	t.RawSetString("initial_game_id", lua.LString(r.opts.InitialGameID))

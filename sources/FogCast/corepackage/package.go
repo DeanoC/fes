@@ -346,6 +346,27 @@ func CanonicalArchive(path string) ([]byte, error) {
 	return writeCanonicalMembers(members, MaxArchiveSize)
 }
 
+// ReadPackage is InspectPackage and CanonicalArchive from one read of path.
+func ReadPackage(path string) (Inspection, []byte, error) {
+	manifest, payload, romMap, err := readPath(path)
+	if err != nil {
+		return Inspection{}, nil, err
+	}
+	descriptor, err := decode(manifest, payload, romMap)
+	if err != nil {
+		return Inspection{}, nil, err
+	}
+	members := []canonicalMember{{name: "manifest.toml", data: manifest}, {name: "core.rbf", data: payload}}
+	if romMap != nil {
+		members = append(members, canonicalMember{name: "rom-map.json", data: romMap})
+	}
+	data, err := writeCanonicalMembers(members, MaxArchiveSize)
+	if err != nil {
+		return Inspection{}, nil, err
+	}
+	return Inspection{PackageID: packageIdentity(manifest, payload, romMap), Descriptor: descriptor}, data, nil
+}
+
 // Inspect validates a package and returns its closed manifest projection.
 func Inspect(path string) (Descriptor, error) {
 	inspection, err := InspectPackage(path)
@@ -428,6 +449,9 @@ func adoptOpenedRoot(root string, rootHandle *os.Root, rootInfo os.FileInfo) ([]
 		if err := adoptROMInput(rootHandle, &adopted[len(adopted)-1]); err != nil {
 			return nil, err
 		}
+		if err := adoptPcxtInitialInput(rootHandle, &adopted[len(adopted)-1]); err != nil {
+			return nil, err
+		}
 	}
 	return adopted, nil
 }
@@ -484,16 +508,48 @@ func Stage(ctx context.Context, root string, length int64, reader io.Reader) (St
 	if int64(n) != length {
 		return Staged{}, errors.New("core package: upload length does not match the declared length")
 	}
-	data = data[:n]
+	return StageBytes(ctx, root, data[:n])
+}
+
+// StageBytes stages an archive the caller already holds, without copying it.
+// The caller keeps data immutable until return; the published files own
+// independent bytes afterward.
+func StageBytes(ctx context.Context, root string, data []byte) (Staged, error) {
+	return stageArchive(ctx, root, data, nil)
+}
+
+// stageArchive publishes data. verified, when set, is this package's
+// inspection, already decoded from the same bytes by the caller, so the
+// archive is not decoded a second time.
+func stageArchive(ctx context.Context, root string, data []byte, verified *Inspection) (Staged, error) {
+	if ctx == nil || len(data) < 1 || len(data) > MaxArchiveSize {
+		return Staged{}, fmt.Errorf("core package: archive size must be 1 through %d bytes", MaxArchiveSize)
+	}
+	if !filepath.IsAbs(root) {
+		return Staged{}, errors.New("core package: staging root must be absolute")
+	}
+	rootInfo, err := os.Lstat(root)
+	if err != nil || !rootInfo.IsDir() || rootInfo.Mode()&os.ModeSymlink != 0 {
+		return Staged{}, errors.New("core package: staging root must be an existing non-symlink directory")
+	}
+	if err := ctx.Err(); err != nil {
+		return Staged{}, err
+	}
 	manifest, payload, romMap, err := readArchiveMembers(data, false)
 	if err != nil {
 		return Staged{}, err
 	}
-	descriptor, err := decodeContext(ctx, manifest, payload, romMap)
-	if err != nil {
-		return Staged{}, err
+	var descriptor Descriptor
+	var id string
+	if verified != nil {
+		descriptor, id = verified.Descriptor, verified.PackageID
+	} else {
+		descriptor, err = decodeContext(ctx, manifest, payload, romMap)
+		if err != nil {
+			return Staged{}, err
+		}
+		id = packageIdentity(manifest, payload, romMap)
 	}
-	id := packageIdentity(manifest, payload, romMap)
 	rootHandle, err := os.OpenRoot(root)
 	if err != nil {
 		return Staged{}, fmt.Errorf("core package: open staging root: %w", err)
@@ -912,8 +968,11 @@ func decode(manifest, payload []byte, maps ...[]byte) (Descriptor, error) {
 	return decodeContext(context.Background(), manifest, payload, maps...)
 }
 
+// decodeContext validates without keeping the parsed ROM map. A sealed map
+// decodes to several times its size, so callers that only admit a package
+// stream it through the same checks instead (#863).
 func decodeContext(ctx context.Context, manifest, payload []byte, maps ...[]byte) (Descriptor, error) {
-	d, _, err := decodeWithROMMapContext(ctx, manifest, payload, maps...)
+	d, _, err := decodeROMMapContext(ctx, false, manifest, payload, maps...)
 	return d, err
 }
 
@@ -1046,6 +1105,10 @@ func streamMemberDigest(ctx context.Context, root *os.Root, name string, declare
 }
 
 func decodeWithROMMapContext(ctx context.Context, manifest, payload []byte, maps ...[]byte) (Descriptor, *expansion.ROMMap, error) {
+	return decodeROMMapContext(ctx, true, manifest, payload, maps...)
+}
+
+func decodeROMMapContext(ctx context.Context, retain bool, manifest, payload []byte, maps ...[]byte) (Descriptor, *expansion.ROMMap, error) {
 	if err := ctx.Err(); err != nil {
 		return Descriptor{}, nil, err
 	}
@@ -1083,6 +1146,12 @@ func decodeWithROMMapContext(ctx context.Context, manifest, payload []byte, maps
 		hash := sha256.Sum256(mapping)
 		if int64(len(mapping)) != size || hex.EncodeToString(hash[:]) != sha {
 			return Descriptor{}, nil, errors.New("ROM map size or digest mismatch")
+		}
+		if !retain {
+			if err := expansion.ValidateROMMapStream(ctx, bytes.NewReader(mapping), size, descriptor.Payload.SHA256, int(sourceSize)); err != nil {
+				return Descriptor{}, nil, fmt.Errorf("ROM map: %w", err)
+			}
+			return descriptor, nil, nil
 		}
 		linkedMap, err := expansion.ParseROMMap(ctx, mapping, descriptor.Payload.SHA256, int(sourceSize))
 		if err != nil {

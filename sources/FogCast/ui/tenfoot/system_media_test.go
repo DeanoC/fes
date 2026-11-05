@@ -18,18 +18,24 @@ import (
 
 func TestSystemMediaImportSavesNextStartWithCapturedSelection(t *testing.T) {
 	for _, tc := range []struct {
-		core, role, ext string
-		size            int64
+		name, core, role, format, ext string
+		size                          int64
+		oldHost                       bool
 	}{
-		{"fes.c64", "disk", ".d64", 174848},
-		{"fes.apple2", "disk", ".do", 143360},
-		{"fes.atari-st", "disk", ".st", 737280},
-		{"fes.pcxt", "disk", ".img", 368640},
-		{"fes.spectrum128", "cassette", ".tap", 16},
+		{"c64 disk", "fes.c64", "disk", "", ".d64", 174848, false},
+		{"Apple II disk", "fes.apple2", "disk", "", ".do", 143360, false},
+		{"Atari ST disk", "fes.atari-st", "disk", "", ".st", 737280, false},
+		{"PC/XT disk", "fes.pcxt", "disk", "", ".img", 368640, false},
+		{"Spectrum tape", "fes.spectrum128", "cassette", "", ".tap", 16, false},
+		{"ZX81 tape", "fes.zx81", "cassette", "zx81-p", ".p", 16, false},
+		{"ZX80 tape", "fes.zx80", "cassette", "zx80-o", ".o", 16, false},
+		{"ZX81 tape on old host", "fes.zx81", "cassette", "zx81-p", ".p", 16, true},
 	} {
-		t.Run(tc.core, func(t *testing.T) {
+		t.Run(tc.name, func(t *testing.T) {
 			pkg, prior, next := strings.Repeat("a", 64), strings.Repeat("b", 64), strings.Repeat("c", 64)
 			var selected map[string]string
+			var named map[string]string
+			nameRequests := 0
 			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 				w.Header().Set("Content-Type", "application/json")
 				switch r.URL.Path {
@@ -42,6 +48,14 @@ func TestSystemMediaImportSavesNextStartWithCapturedSelection(t *testing.T) {
 				case "/api/v1/library/core-entries/my-machine/media":
 					json.NewDecoder(r.Body).Decode(&selected)
 					json.NewEncoder(w).Encode(hostclient.CoreEntry{GameID: "my-machine", CoreID: tc.core, PackageID: pkg, MediaRole: tc.role, MediaID: next})
+				case "/api/v1/library/core-entries/my-machine/media-name":
+					nameRequests++
+					json.NewDecoder(r.Body).Decode(&named)
+					if tc.oldHost {
+						http.NotFound(w, r)
+						return
+					}
+					json.NewEncoder(w).Encode(hostclient.CoreEntry{GameID: "my-machine", PackageID: pkg, MediaID: named["media_id"], MediaName: named["media_name"]})
 				case "/api/v1/games":
 					io.WriteString(w, `{"games":[]}`)
 				default:
@@ -53,7 +67,7 @@ func TestSystemMediaImportSavesNextStartWithCapturedSelection(t *testing.T) {
 			a := NewApp(NewClient(server.URL, server.Client()), 1280, 720, 10)
 			a.ctx = context.Background()
 			a.coreLibrary = coreLibraryState{Open: true, Online: true, HardwareMode: "system-media", HardwareGameID: "my-machine", HardwarePackageID: pkg, ExpectedMediaID: prior, PickID: "media:" + tc.role,
-				Setup: &hostclient.CoreSetup{Capabilities: protocol.CoreMediaCapabilities{Media: []protocol.CoreMediaCapability{{Role: tc.role, MinBytes: tc.size, MaxBytes: tc.size, Extensions: []string{tc.ext}}}}}}
+				Setup: &hostclient.CoreSetup{Capabilities: protocol.CoreMediaCapabilities{Media: []protocol.CoreMediaCapability{{Role: tc.role, Format: tc.format, MinBytes: tc.size, MaxBytes: tc.size, Extensions: []string{tc.ext}}}}}}
 			path := filepath.Join(t.TempDir(), "game"+strings.ToUpper(tc.ext))
 			if err := os.WriteFile(path, make([]byte, tc.size), 0600); err != nil {
 				t.Fatal(err)
@@ -66,6 +80,14 @@ func TestSystemMediaImportSavesNextStartWithCapturedSelection(t *testing.T) {
 			defer a.mu.Unlock()
 			if selected["expected_package_id"] != pkg || selected["expected_media_id"] != prior || selected["media_id"] != next || selected["media_role"] != tc.role {
 				t.Fatalf("selection identity: %+v", selected)
+			}
+			wantsName := tc.format == "zx81-p" || tc.format == "zx80-o"
+			if wantsName {
+				if nameRequests != 1 || named["expected_package_id"] != pkg || named["media_id"] != next || named["media_name"] != "game"+strings.ToUpper(tc.ext) {
+					t.Fatalf("name selection: requests=%d body=%+v", nameRequests, named)
+				}
+			} else if nameRequests != 0 {
+				t.Fatalf("unexpected media name request: %+v", named)
 			}
 			if a.coreLibrary.ExpectedMediaID != next || a.coreLibrary.PickID != "" {
 				t.Fatalf("save did not finish: %+v", a.coreLibrary)

@@ -173,7 +173,7 @@ func TestSlotTargetRelinksROMCardsAndDispatchesV2(t *testing.T) {
 	control := &slotTargetControl{romTargetControl: newROMTargetControl(t, 1)}
 	root := t.TempDir()
 	runtime := misterruntime.NewRuntime(control, "", 0, 0, misterruntime.WithCorePackageRoot(root))
-	active, attempted, apiErr := runtime.LoadCoreOwned(context.Background(), context.Background(), context.Background(), int64(len(transport.Data)), bytes.NewReader(transport.Data))
+	active, attempted, apiErr := runtime.LoadCoreOwned(context.Background(), context.Background(), context.Background(), transport.Size(), transport.Reader())
 	if apiErr != nil || !attempted || control.romSlotCalls != 1 || control.linkedCalls != 0 || active.SlotComposition == nil || active.ROMLink == nil {
 		t.Fatalf("activation=%#v attempted=%v err=%v calls=%d/%d", active, attempted, apiErr, control.romSlotCalls, control.linkedCalls)
 	}

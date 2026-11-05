@@ -31,7 +31,7 @@ LOCAL = ("build.py", "board.v", "clocks.sdc", "integrate.tcl",
          "generated/fes_computer.vh")
 CORE_FILES = ("zx81_machine.sv", "zx81_machine_clock.v", "zx81_dpram.v",
               "zx81_model.vh", "zx81_bus_pack.vh", "zx81_keyboard.v",
-              "zx81_tape_store.v", "zx8x.mif", "zx8x.hex")
+              "zx81_tape_store.v")
 
 
 def sha(data): return hashlib.sha256(data).hexdigest()
@@ -52,7 +52,9 @@ def retarget_tape(source, replacement=None):
     if replacement is None:
         replacement = (HERE / "tape_store.v").read_bytes()
     marker = b"\n`else\n"
-    if replacement.count(marker) != 1 or replacement.partition(marker)[2] != source + b"`endif\n":
+    prefix, boundary, native = replacement.partition(marker)
+    if (not boundary or prefix.count(b'`ifdef') != 1 or prefix.count(b'`endif') != 0 or
+            native != source + b"`endif\n"):
         raise ValueError("ZX81 tape RAM adaptation contract changed")
     return replacement, {"source_sha256": sha(source), "derived_sha256": sha(replacement),
                          "adapter": "explicit even/odd M20K banks; unchanged native branch"}
@@ -81,6 +83,8 @@ def capture(revision=None):
         BOARD + "display/build.py", BOARD + "display/vendor.lock.toml"}
     paths |= {BOARD + "zx81-hps/" + n for n in LOCAL}
     paths |= {"sources/misteross/cores/fes-zx81/rtl/" + n for n in CORE_FILES}
+    firmware = load(HERE.parent / 'zx81/firmware.py', 'de25_computer_firmware_inputs')
+    paths |= {p.relative_to(ROOT).as_posix() for p in firmware.source_paths(revision)}
     paths |= {"sources/misteross/cores/fes-common/rtl/z80/" + n + ".sv" for n in
               ("fes_z80_alu", "fes_z80_engine", "fes_z80_bus", "fes_z80_nmos")}
     paths.add("sources/misteross/cores/fes-common/rtl/fes_computer_mailbox.v")
@@ -564,6 +568,14 @@ def prepare_captured(archive, output, sources, selected, *, hps_first=False, pac
     files["computer-build.py"] = sources[BOARD + "zx81-hps/build.py"]
     for name in CORE_FILES:
         files[name] = sources["sources/misteross/cores/fes-zx81/rtl/" + name]
+    firmware_record = None
+    rom_paths = ["sources/misteross/cores/fes-zx81/rtl/" + name for name in ('zx8x.hex', 'zx8x.mif')]
+    if all(name in sources for name in rom_paths):
+        files.update({Path(name).name: sources[name] for name in rom_paths})
+    else:
+        firmware = load(snapshot / BOARD / 'zx81/firmware.py', 'de25_computer_selected_firmware')
+        generated, firmware_record = firmware.generate(sources, output / 'firmware')
+        files.update(generated)
     for name in ("fes_z80_alu", "fes_z80_engine", "fes_z80_bus", "fes_z80_nmos"):
         files[name + ".sv"] = sources["sources/misteross/cores/fes-common/rtl/z80/" + name + ".sv"]
     files["fes_computer_mailbox.v"] = sources["sources/misteross/cores/fes-common/rtl/fes_computer_mailbox.v"]
@@ -631,6 +643,7 @@ endmodule
     inputs = json.loads((directory / "inputs.json").read_text()); inputs.pop("base_revision", None); inputs.update(selected)
     inputs["functional_snapshot_sha256"] = {n: sha(d) for n, d in sources.items()}
     inputs["computer"] = {"hps_initialization": boot_order, "peripheral_offset": offset, "span": transport_constant(definition, "SPAN"),
+        "generated_firmware": firmware_record,
         "jtag_control_bridge_base": JTAG_CONTROL_BRIDGE_BASE,
         "system_hz": 100000000, "pixel_hz": 74250000, "ula_ratio": [13, 200],
         "build_id": fingerprint, "reviewed_ram_changes": repairs, "reviewed_pll_change": pll_change,

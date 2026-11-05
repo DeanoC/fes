@@ -67,11 +67,11 @@ func initialTargetInput(t *testing.T, kind string) corepackage.ROMInput {
 
 type initialTargetControl struct {
 	*stVideoTargetControl
-	initialCalls   int
-	initial        *misterruntime.InitialMediaRequest
-	disk           []byte
-	lost, mismatch bool
-	kind           string
+	initialCalls                    int
+	initial                         *misterruntime.InitialMediaRequest
+	disk                            []byte
+	lost, mismatch, wrongDescriptor bool
+	kind                            string
 }
 
 func (c *initialTargetControl) InspectCoreData(_ context.Context, path, id, root string) (misterruntime.Protocol2Response, error) {
@@ -152,11 +152,38 @@ func (c *initialTargetControl) finishInitial(ctx context.Context, path, id, prog
 	if c.mismatch {
 		r.Capabilities.MediaUnits[0].Persistence.GameID = "other-game"
 	}
+	if c.wrongDescriptor {
+		r.ActivePackage.Descriptor.Core.Description = "different valid descriptor"
+	}
 	c.status2 = &r
 	if c.lost {
 		return misterruntime.Protocol2Response{}, io.EOF
 	}
 	return r, nil
+}
+
+func TestInitialMediaRejectsDifferentDescriptorOnReplyOrRecovery(t *testing.T) {
+	in := initialTargetInput(t, "plain")
+	transport, err := corepackage.PrepareROMInput(context.Background(), in)
+	if err != nil {
+		t.Fatal(err)
+	}
+	inspection, err := corepackage.Stage(context.Background(), t.TempDir(), int64(len(in.Package)), bytes.NewReader(in.Package))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer inspection.Cleanup()
+	for _, lost := range []bool{false, true} {
+		t.Run(fmt.Sprintf("lost=%v", lost), func(t *testing.T) {
+			c := &initialTargetControl{stVideoTargetControl: &stVideoTargetControl{romTargetControl: newROMTargetControl(t, 1)}, kind: "plain", lost: lost, wrongDescriptor: true}
+			r := misterruntime.NewRuntime(c, "", time.Millisecond, 20*time.Millisecond, misterruntime.WithCorePackageRoot(t.TempDir()))
+			defer r.Stop(context.Background())
+			_, attempted, failure := r.LoadLibraryCoreOwned(context.Background(), context.Background(), context.Background(), transport.Size(), transport.Reader(), inspection.PackageID)
+			if !attempted || failure == nil || c.initialCalls != 1 {
+				t.Fatal("different descriptor confirmed", lost, attempted, failure)
+			}
+		})
+	}
 }
 func TestInitialSTMediaTargetAtomicDispatchAndLostReply(t *testing.T) {
 	for _, kind := range []string{"plain", "slot", "video"} {
@@ -182,9 +209,9 @@ func TestInitialSTMediaTargetAtomicDispatchAndLostReply(t *testing.T) {
 						var attempted bool
 						var failure *protocol.APIError
 						if kind == "plain" {
-							active, attempted, failure = r.LoadLibraryCoreOwned(context.Background(), context.Background(), context.Background(), int64(len(transport.Data)), bytes.NewReader(transport.Data), inspection.PackageID)
+							active, attempted, failure = r.LoadLibraryCoreOwned(context.Background(), context.Background(), context.Background(), transport.Size(), transport.Reader(), inspection.PackageID)
 						} else {
-							active, attempted, failure = r.LoadComposedCoreOwned(context.Background(), context.Background(), context.Background(), int64(len(transport.Data)), bytes.NewReader(transport.Data), inspection.PackageID)
+							active, attempted, failure = r.LoadComposedCoreOwned(context.Background(), context.Background(), context.Background(), transport.Size(), transport.Reader(), inspection.PackageID)
 						}
 						if !attempted || c.initialCalls != 1 || c.partsCalls != 0 || c.linkedCalls != 0 || !bytes.Equal(c.disk, in.InitialMedia.Bytes) {
 							t.Fatal("atomic dispatch replayed/bypassed initial media", attempted, c.initialCalls)
@@ -234,7 +261,7 @@ func TestInitialSTMediaTargetAtomicDispatchAndLostReply(t *testing.T) {
 			barrier := &replacementBarrier{}
 			root := t.TempDir()
 			r := misterruntime.NewRuntime(c, "", 0, 0, misterruntime.WithCorePackageRoot(root), misterruntime.WithCoreReplacementBarrier(barrier))
-			_, attempted, failure := r.LoadCoreOwned(context.Background(), context.Background(), context.Background(), int64(len(transport.Data)), bytes.NewReader(transport.Data))
+			_, attempted, failure := r.LoadCoreOwned(context.Background(), context.Background(), context.Background(), transport.Size(), transport.Reader())
 			if failure == nil || failure.Code != protocol.CodeInvalidArchive || attempted || c.initialCalls != 0 || barrier.begins != 0 {
 				t.Fatal("initial disk development load passed admission", failure, attempted)
 			}
@@ -267,7 +294,7 @@ func TestInitialSTMediaGenerationFenceBeforeConfirmation(t *testing.T) {
 			root := t.TempDir()
 			r := misterruntime.NewRuntime(c, "", time.Millisecond, 20*time.Millisecond, misterruntime.WithCorePackageRoot(root))
 			defer r.Stop(context.Background())
-			_, attempted, failure := r.LoadLibraryCoreOwned(context.Background(), context.Background(), context.Background(), int64(len(transport.Data)), bytes.NewReader(transport.Data), staged.PackageID)
+			_, attempted, failure := r.LoadLibraryCoreOwned(context.Background(), context.Background(), context.Background(), transport.Size(), transport.Reader(), staged.PackageID)
 			if failure == nil || !attempted || c.initialCalls != 1 {
 				t.Fatal("stale generation confirmed or replayed", failure, attempted, c.initialCalls)
 			}

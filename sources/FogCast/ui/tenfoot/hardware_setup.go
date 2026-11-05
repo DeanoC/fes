@@ -219,7 +219,13 @@ func (a *App) importHardwareFileLocked(path string) {
 			return err
 		}
 		selected, err = a.client.SelectCoreEntryMedia(ctx, game, pkg, expected, role, media.MediaID)
-		return err
+		if err != nil {
+			return err
+		}
+		// The name is display text for the cassette row. A host that predates
+		// it refuses the call, and the row keeps its digest label.
+		_, _ = a.client.SetCoreEntryMediaName(ctx, game, pkg, media.MediaID, name)
+		return nil
 	}, func() {
 		s.PickID = ""
 		s.Files = nil

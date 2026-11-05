@@ -38,15 +38,22 @@ SOURCE_PATHS.update({"display_build.py": HERE.parent / "display/build.py",
     "fes_de25_top_reset.v": HERE.parent / "hps/fes_de25_top_reset.v"})
 SOURCE_PATHS.update({name: MISTEROSS / "cores/fes-zx81/rtl" / name for name in (
     "zx81_machine.sv", "zx81_machine_clock.v", "zx81_dpram.v", "zx81_video_720p.v",
-    "zx81_model.vh", "zx8x.mif", "zx8x.hex")})
+    "zx81_model.vh")})
 SOURCE_PATHS.update({name: MISTEROSS / "cores/fes-common/rtl/z80" / name for name in (
     "fes_z80_alu.sv", "fes_z80_engine.sv", "fes_z80_bus.sv", "fes_z80_nmos.sv")})
 
 
 def capture_sources(revision=None):
+    spec = importlib.util.spec_from_file_location('de25_zx81_firmware', HERE / 'firmware.py')
+    firmware = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(firmware)
+    paths = dict(SOURCE_PATHS)
+    for path in firmware.source_paths(revision):
+        name = path.name if path.as_posix().endswith(('/zx8x.hex', '/zx8x.mif')) else path.relative_to(ROOT).as_posix()
+        paths[name] = path
     return {name: path.read_bytes() if revision is None else subprocess.check_output(
         ["git", "show", revision + ":" + path.relative_to(ROOT).as_posix()], cwd=ROOT)
-        for name, path in SOURCE_PATHS.items()}
+        for name, path in paths.items()}
 
 
 def key_assignments(source):
@@ -127,8 +134,20 @@ def prepare(archive, output=None, revision=None):
         path.parent.mkdir(parents=True, exist_ok=True)
         path.write_bytes(data)
     (output / "vendor/scs-golden.qsf").write_text(baseline)
+    snapshot = output / 'functional-source'
     for name, data in sources.items():
-        (project / name).write_bytes(data)
+        target = (snapshot if '/' in name else project) / name
+        target.parent.mkdir(parents=True, exist_ok=True)
+        target.write_bytes(data)
+    firmware_record = None
+    if 'zx8x.hex' not in sources:
+        spec = importlib.util.spec_from_file_location('de25_selected_firmware',
+            snapshot / 'sources/misteross/boards/de25nano/zx81/firmware.py')
+        firmware = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(firmware)
+        generated, firmware_record = firmware.generate(sources, output / 'firmware')
+        for name, data in generated.items():
+            (project / name).write_bytes(data)
     for name, data in {"sys_pll.ip": pixel, "agilex_reset_release.ip": reset,
         "I2C_HDMI_Config.v": vendor["HDMI_I2C/I2C_HDMI_Config.v"], "I2C_Controller.v": vendor["HDMI_I2C/I2C_Controller.v"],
         "zx81_dpram_de25.v": ram, "zx81_video_720p_de25.v": video}.items():
@@ -153,6 +172,7 @@ def prepare(archive, output=None, revision=None):
         identity = {"base_revision": identity.get("fes_revision", identity.get("base_revision")), "source_classification": "working-copy-diagnostic"}
     inputs = {**identity, "board": "de25_nano", "device": DEVICE, "diagnostic_only": True,
         "source_sha256": {name: sha(data) for name, data in sources.items()}, "vendor_archive": lock["archive"],
+        "generated_firmware": firmware_record,
         "vendor_source_sha256": {name: sha(data) for name, data in vendor.items()},
         "reviewed_pixel_pll_device_repair": pixel_repair,
         "reviewed_reset_release_device_repair": reset_repair, "reviewed_ram_derivation": ram_repair,

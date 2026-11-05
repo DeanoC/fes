@@ -21,7 +21,8 @@ def names(text):
 GROUPS = {
     'policy': names('''affected check_deadcode check_diff check_doc_links ci_gate
         ci_workflow consistency coordination generate hil_plan host_affected
-        image_assembly parent_affected test_changed test_policy'''),
+        image_assembly parent_affected test_changed test_policy
+        v1_firmware_licensing_doc'''),
     'build': names('''build_diagnostics dev_snapshot import_modules inputs
         image_artifacts kit_software module_sources native_dev receipt source_status staging status'''),
     'packages': names('''artifact_cache bundle core_build core_catalog core_dev
@@ -34,7 +35,12 @@ GROUPS = {
         atari_st_io_diagnostic atari_st_memory_diagnostic atari_st_ram_write_trace
         atari_st_raster_trace atari_st_rendered_capture frame_trace_summary gpu_lease
         input_diagnostic kit_software_acceptance package_acceptance
-        package_acceptance_isolated ramtest_notices target_acceptance'''),
+        package_acceptance_isolated pcxt_capture_fanout pcxt_diagnostic_acceptance
+        pcxt_digger_readiness pcxt_dos_application_acceptance
+        pcxt_dos_hil_acceptance pcxt_dos_keyboard_acceptance pcxt_floppy_diagnostic_acceptance
+        pcxt_floppy_persistence_acceptance pcxt_game_audio_capture pcxt_gameplay_capture
+        pcxt_gameplay_probe pcxt_health_evidence pcxt_main_application_acceptance
+        ramtest_notices target_acceptance'''),
 }
 
 # These assembly entrypoints and their subprocess helpers are consumed by the
@@ -57,6 +63,9 @@ PARENT_INPUT_GROUPS.update({
     )
 })
 
+# This source-claim regression suite is a narrow policy input, not a selector test.
+PARENT_INPUT_GROUPS['tests/test_v1_firmware_licensing_doc.py'] = frozenset({'policy'})
+
 # Test modules may supply fixtures to another group. Keep their consumers too.
 # Other current cross-test imports stay within a group or in baseline policy.
 TEST_CONSUMER_GROUPS = {
@@ -66,7 +75,7 @@ TEST_CONSUMER_GROUPS = {
 # Modules that assert against repository guides, rather than temporary Markdown
 # fixtures. Retain them for mixed code/docs edits without selecting all packages.
 DOCUMENTATION_MODULES = names('''check_doc_links image_assembly consistency
-    coordination core_build bundle''')
+    coordination core_build bundle ci_workflow v1_firmware_licensing_doc''')
 
 
 def documentation(path):

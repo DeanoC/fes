@@ -1,5 +1,8 @@
 import importlib.util
+import os
 from pathlib import Path
+import subprocess
+import tempfile
 import tomllib
 import unittest
 from unittest.mock import patch
@@ -32,6 +35,21 @@ class SupportMatrixTests(unittest.TestCase):
         self.assertIn('sealed QSF', row['notes'])
         self.assertEqual('Quartus', SUPPORT_MATRIX.de10_cell(row))
         self.assertIn('| PC/XT (FreeDOS) | Bring-up | Quartus |', SUPPORT_MATRIX.render(data))
+
+    def test_every_release_package_records_its_scope(self):
+        data = SUPPORT_MATRIX.load_json(ROOT)
+        self.assertEqual([], SUPPORT_MATRIX.validate(ROOT, data))
+        by_id = {row['id']: row for row in data['cores']}
+        self.assertEqual('v1', by_id['fes.atari-st']['release'])
+        self.assertEqual('v2', by_id['fes.pc386']['release'])
+        self.assertEqual('held-back', by_id['fes.coleco']['release'])
+        self.assertNotIn('release', by_id['fes.menu'])
+        self.assertIn('- **v2:** `fes.pcxt`, `fes.pcxt-dos`, `fes.pc386`', SUPPORT_MATRIX.render(data))
+        del by_id['fes.sms']['release']
+        by_id['z80']['release'] = 'v1'
+        errors = SUPPORT_MATRIX.validate(ROOT, data)
+        self.assertIn("fes.sms release None is not one of v1, v2, held-back", errors)
+        self.assertIn('z80 is not a release package but records release', errors)
 
     def test_de25_cell_is_blank_for_rows_without_board_bitstreams(self):
         data = SUPPORT_MATRIX.load_json(ROOT)
@@ -117,6 +135,133 @@ class SupportMatrixTests(unittest.TestCase):
                     return dict(document, recipes=entries) if text == raw else loads(text)
                 with patch.object(SUPPORT_MATRIX.tomllib, 'loads', side_effect=selected):
                     self.assertEqual([], SUPPORT_MATRIX.validate(ROOT, SUPPORT_MATRIX.load_json(ROOT)))
+
+    def test_duplicate_tier_ids_are_reported(self):
+        data = SUPPORT_MATRIX.load_json(ROOT)
+        data['tiers'].append(dict(data['tiers'][0]))
+        self.assertIn('duplicate tier ids', SUPPORT_MATRIX.validate(ROOT, data))
+
+    def test_invalid_rows_report_errors_instead_of_crashing(self):
+        data = SUPPORT_MATRIX.load_json(ROOT)
+        data['cores'][0]['tier'] = 'nonsense'
+        data['cores'].append(dict(data['cores'][1], id='fes.unknown'))
+        errors = SUPPORT_MATRIX.validate(ROOT, data)
+        self.assertIn(f"{data['cores'][0]['id']} uses unknown tier nonsense", errors)
+        self.assertFalse(any('has unknown tier' in error for error in errors))
+        self.assertTrue(any(error.startswith('highlight keys') for error in errors))
+
+    def test_invalid_tier_does_not_hide_unrelated_validation_errors(self):
+        data = SUPPORT_MATRIX.load_json(ROOT)
+        by_id = {row['id']: row for row in data['cores']}
+        data['cores'][0]['tier'] = 'nonsense'
+        data['cores'][0]['notes'] += ' Distinct model'
+        data['policy'] = []
+        by_id['fes.coleco']['notes'] = 'Coleco notes.'
+        plus2 = next(item for item in by_id['fes.spectrum128']['variants'] if item['name'] == '+2')
+        plus2['kind'] = 'model'
+        by_id['fes.riscv'].update(board='de10', primary_toolchain='quartus')
+
+        errors = SUPPORT_MATRIX.validate(ROOT, data)
+
+        self.assertIn(f"{data['cores'][0]['id']} uses unknown tier nonsense", errors)
+        self.assertTrue(any(error.startswith('human page cannot be rendered:') for error in errors))
+        self.assertIn("support matrix still says 'Distinct model'", errors)
+        self.assertIn("fes.spectrum128 must record +2 as a ROM variant", errors)
+        self.assertIn("fes.riscv DE10 cell says Quartus without the primary policy", errors)
+        self.assertIn("policy section is missing 'policy: Deano 2026-10-29'", errors)
+        self.assertIn("fes.coleco notes are missing 'Adam'", errors)
+
+    def test_shared_rows_record_the_owned_rtl_commit(self):
+        data = SUPPORT_MATRIX.load_json(ROOT)
+        by_id = {row['id']: row for row in data['cores']}
+        z80 = SUPPORT_MATRIX.owned_rtl(ROOT, by_id['z80'])
+        self.assertEqual(z80, (
+            'e4d7402bf6611aeae723eaccfcde91c735004e1f',
+            '2026-10-08',
+            'Share Z80 DAA magnitude bit tests with exhaustive equivalence proof',
+        ))
+        self.assertEqual(40, len(z80[0]))
+        # A two-file edit inside a 43-path C64 commit is not owned cpu6502 RTL.
+        self.assertIsNone(SUPPORT_MATRIX.owned_rtl(ROOT, by_id['cpu6502']))
+        by_id['z80']['signals'].update(last_rtl_change='2026-10-24', last_rtl_sha='e93b15b24')
+        errors = SUPPORT_MATRIX.validate(ROOT, data)
+        self.assertTrue(any(error.startswith(
+            'z80 owned RTL is e4d7402bf6611aeae723eaccfcde91c735004e1f on 2026-10-08'
+        ) for error in errors))
+
+    def test_shared_row_rejects_a_different_commit_with_the_same_date(self):
+        data = SUPPORT_MATRIX.load_json(ROOT)
+        by_id = {row['id']: row for row in data['cores']}
+        recorded = by_id['i386']['signals']
+        self.assertEqual('8f06961a9', recorded['last_rtl_sha'])
+        self.assertEqual(
+            'i386 Phase 1: BT, BTS, BTR, BTC by an immediate, BSF and BSR (#1185)',
+            recorded['last_rtl_subject'],
+        )
+        recorded.update(
+            last_rtl_sha='eea51e94e',
+            last_rtl_subject="i386 Phase 1: interrupts between a REP string's elements (#1181)",
+        )
+
+        errors = SUPPORT_MATRIX.validate(ROOT, data)
+
+        self.assertTrue(any(error.startswith(
+            'i386 owned RTL is 8f06961a9ec899963eda280c96af4d7149feadcb on 2026-10-29'
+        ) for error in errors))
+
+    def test_owned_rtl_uses_the_pinned_history_snapshot(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+
+            def git(*args, env=None):
+                return subprocess.run(
+                    ['git', '-C', str(root), *args], check=True,
+                    capture_output=True, text=True, env=env,
+                ).stdout.strip()
+
+            git('init', '-q')
+            git('config', 'user.name', 'Support Matrix Test')
+            git('config', 'user.email', 'support-matrix@example.invalid')
+            relative = Path('sources/misteross/cores/fes-common/rtl/z80/core.sv')
+            source = root / relative
+            source.parent.mkdir(parents=True)
+
+            def commit(message, author_date, committer_date):
+                env = os.environ.copy()
+                env.update({
+                    'GIT_AUTHOR_DATE': author_date,
+                    'GIT_COMMITTER_DATE': committer_date,
+                })
+                git('add', str(relative), env=env)
+                git('commit', '-m', message, env=env)
+                return git('rev-parse', 'HEAD')
+
+            first_date = '2026-10-20T12:00:00+00:00'
+            source.write_text('module z80_core; endmodule\n')
+            snapshot = commit('Z80 ownership baseline', first_date, first_date)
+            source.write_text('module z80_core; wire later_change; endmodule\n')
+            commit(
+                'Z80 backdated follow-up',
+                first_date,
+                '2026-11-01T12:00:00+00:00',
+            )
+
+            previous_snapshot = SUPPORT_MATRIX.AS_OF_COMMIT
+            SUPPORT_MATRIX.AS_OF_COMMIT = snapshot
+            try:
+                owned = SUPPORT_MATRIX.owned_rtl(root, {
+                    'id': 'z80',
+                    'paths': ['sources/misteross/cores/fes-common/rtl/z80'],
+                })
+            finally:
+                SUPPORT_MATRIX.AS_OF_COMMIT = previous_snapshot
+
+        self.assertEqual((snapshot, '2026-10-20', 'Z80 ownership baseline'), owned)
+
+    def test_group_features_mark_what_only_some_models_have(self):
+        self.assertEqual('tape, disk (some), keys, HDMI', SUPPORT_MATRIX.feature_union(
+            ['fes.spectrum', 'fes.spectrum128', 'fes.spectrum-plus3', 'fes.pentagon']))
+        self.assertEqual('tape, keys, HDMI', SUPPORT_MATRIX.feature_union(['fes.zx81', 'fes.zx80']))
 
 
 if __name__ == '__main__':

@@ -1,0 +1,283 @@
+{
+  "post": [
+    {
+      "code": "00",
+      "cycle": 11495
+    },
+    {
+      "code": "21",
+      "cycle": 2243826
+    },
+    {
+      "code": "31",
+      "cycle": 2343794
+    },
+    {
+      "code": "41",
+      "cycle": 2744185
+    },
+    {
+      "code": "71",
+      "cycle": 2845140
+    },
+    {
+      "code": "77",
+      "cycle": 2945099
+    }
+  ],
+  "debug": [
+    {
+      "port": "402",
+      "text": "BIOS BUILD DATE: 10/26/26"
+    },
+    {
+      "port": "500",
+      "text": "VGABios ID: vgabios.c 2026-08-07"
+    },
+    {
+      "port": "402",
+      "text": "ata0-0: PCHS=65/16/63 translation=none LCHS=65/16/63"
+    },
+    {
+      "port": "402",
+      "text": "IDE time out"
+    },
+    {
+      "port": "402",
+      "text": "Booting from 0000:7c00"
+    }
+  ],
+  "panic": [],
+  "io": {
+    "isa16 2": {
+      "38": 162048
+    },
+    "isa8 1": {
+      "74": 82248
+    },
+    "vga-in 1": {
+      "6": 6
+    },
+    "vga-out 1": {
+      "4": 823
+    },
+    "vga-out 2": {
+      "7": 4303
+    }
+  },
+  "io_wait": {},
+  "inta": {
+    "146": 79
+  },
+  "screen": [
+    "Always on A20 method used                                                       ",
+    "Kernel: allocated 46 Diskbuffers = 24472 Bytes in HMA                           ",
+    "                                                                                ",
+    "FreeCom version 0.86 - WATCOMC - XMS_Swap [Dec 30 2024 22:10:51]                ",
+    "                                                                                ",
+    "CuteMouse v2.1 beta4 [FreeDOS]                                                  ",
+    "Installed at PS/2 port                                                          ",
+    "                                                                                ",
+    "FreeCom version 0.86 - WATCOMC - XMS_Swap [Dec 30 2024 22:10:51]                ",
+    "C:\\>mem                                                                         ",
+    "                                                                                ",
+    "Memory Type         Total      Used       Free                                  ",
+    "----------------  --------   --------   --------                                ",
+    "Conventional          639K        90K       549K                                ",
+    "Upper                   0K         0K         0K                                ",
+    "Reserved              385K       385K         0K                                ",
+    "Extended (XMS)     15,360K    15,360K         0K                                ",
+    "----------------  --------   --------   --------                                ",
+    "Total memory       16,384K    15,835K       549K                                ",
+    "                                                                                ",
+    "Total under 1 MB      639K        90K       549K                                ",
+    "                                                                                ",
+    "Largest executable program size       549K (561,712 bytes)                      ",
+    "FreeDOS is resident in the high memory area.                                    ",
+    "C:\\>                                                                            "
+  ],
+  "end": {
+    "reason": "prompt",
+    "steps": 98946812,
+    "cycles": 365000053,
+    "seconds": 3.65
+  },
+  "prompt_cycle": 240000041,
+  "cpu_resets": 0,
+  "snaps": {},
+  "present": {},
+  "vga": {
+    "frames": 9809,
+    "scanout_underflows": 0,
+    "capture_drops": 0,
+    "present_underflows": 0,
+    "plane_underflows": 0,
+    "frames_shown": 0,
+    "port1_commands": 16796159,
+    "port2_commands": 2341510
+  },
+  "marks": {},
+  "opl2": {
+    "samples": 181463,
+    "exact": 181463,
+    "nonzero": 0,
+    "writes": 0
+  },
+  "opl2_mismatch": null,
+  "audio_samples": 175200,
+  "sb": {
+    "resets": 0,
+    "commands": 0,
+    "dma": 0,
+    "irqs": 0
+  },
+  "rtl": {
+    "stops": [],
+    "pmode": [],
+    "gaps": [],
+    "smc": [
+      {
+        "event": "store",
+        "cycle": 30447337,
+        "site": "8fe9:0000a04a",
+        "instruction": "00099eda",
+        "address": "00099efb"
+      },
+      {
+        "event": "store",
+        "cycle": 230266801,
+        "site": "040a:00002bae",
+        "instruction": "00006c4e",
+        "address": "00006c70"
+      },
+      {
+        "event": "store",
+        "cycle": 233804998,
+        "site": "040a:0000bc40",
+        "instruction": "0000fce0",
+        "address": "0000fcfc"
+      },
+      {
+        "event": "store",
+        "cycle": 233804998,
+        "site": "040a:0000bc40",
+        "instruction": "0000fce0",
+        "address": "0000fcfd"
+      },
+      {
+        "event": "store",
+        "cycle": 233805043,
+        "site": "040a:0000bc45",
+        "instruction": "0000fce5",
+        "address": "0000fcfe"
+      },
+      {
+        "event": "store",
+        "cycle": 233805043,
+        "site": "040a:0000bc45",
+        "instruction": "0000fce5",
+        "address": "0000fcff"
+      },
+      {
+        "event": "store",
+        "cycle": 233927017,
+        "site": "1598:00000117",
+        "instruction": "00015a97",
+        "address": "00015ae0"
+      },
+      {
+        "event": "store",
+        "cycle": 233927231,
+        "site": "1598:00000131",
+        "instruction": "00015ab1",
+        "address": "00015ae4"
+      },
+      {
+        "event": "store",
+        "cycle": 233927440,
+        "site": "1598:0000013f",
+        "instruction": "00015abf",
+        "address": "00015ae7"
+      },
+      {
+        "event": "store",
+        "cycle": 236822184,
+        "site": "159a:00001186",
+        "instruction": "00016b26",
+        "address": "00016b30"
+      },
+      {
+        "event": "store",
+        "cycle": 236822184,
+        "site": "159a:00001186",
+        "instruction": "00016b26",
+        "address": "00016b31"
+      },
+      {
+        "event": "store",
+        "cycle": 236823884,
+        "site": "159a:0000118e",
+        "instruction": "00016b2e",
+        "address": "00016b38"
+      }
+    ],
+    "notes": [],
+    "counters": {
+      "retired": 98946812,
+      "oracle_steps": 0,
+      "protected_steps": 0,
+      "parked_clocks": 8099242,
+      "tf_retired": 0,
+      "vga_loads": 51867,
+      "replays": 648,
+      "port0_reads": 1647512,
+      "port0_writes": 35603324,
+      "smc_stores": 396650,
+      "smc_addresses": 12,
+      "smc_executed": 0,
+      "smc_restarts": 620390
+    }
+  },
+  "command": [
+    "build/sim/fes-pc386/machine/obj/Vpc386_machine",
+    "--bios",
+    "build/firmware/pc386/pc386-bios.bin",
+    "--vgabios",
+    "build/firmware/pc386/pc386-vgabios.bin",
+    "--disk",
+    "build/sim/fes-pc386/freedos-games.img",
+    "--limit-seconds",
+    "10.0",
+    "--type",
+    "mem|",
+    "--expect",
+    "executable",
+    "--trace",
+    "build/sim/fes-pc386/boot-games-rtl/vga.trace",
+    "--cpu",
+    "rtl"
+  ],
+  "exit": 0,
+  "failures": [],
+  "replay": {
+    "exit": 0,
+    "counts": {
+      "events-I": 6,
+      "events-O": 5126,
+      "events-R": 51867,
+      "events-W": 76646,
+      "frames": 9776,
+      "frames-blink-phase": 96,
+      "frames-compared": 102,
+      "frames-divergence-reference-unprogrammed": 9552,
+      "frames-matched": 102,
+      "frames-matched-720x400-text": 102,
+      "frames-unstable": 26,
+      "scanout_underflows": 0,
+      "capture_drops": 0
+    },
+    "mismatches": [],
+    "summary": "match events=133645 replay_mismatches=0 read_mismatches=0 vram_mismatches=0 frame_mismatches=0 end_vram_bytes_differing=0",
+    "failures": []
+  }
+}

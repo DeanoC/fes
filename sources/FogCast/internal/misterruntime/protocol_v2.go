@@ -1597,24 +1597,37 @@ const (
 )
 
 func descriptorMediaWrite(d corepackage.Descriptor) bool {
-	base, write := false, false
+	return descriptorMediaWriteFor(d, protocol.AtariStFloppyInterface()) || descriptorMediaWriteFor(d, protocol.PcxtFloppyInterface())
+}
+
+func descriptorMediaWriteFor(d corepackage.Descriptor, medium protocol.RuntimeContract) bool {
+	base, write, pcxt, pcxtWrite := false, false, false, false
 	for _, i := range d.Interfaces {
+		if !i.Required {
+			continue
+		}
 		if i.ID == protocol.AtariStFloppyInterface().ID && i.Major == 1 && i.Minor == 0 {
 			base = true
 		}
 		if i.ID == protocol.AtariStFloppyWriteInterface().ID && i.Major == 1 && i.Minor == 0 {
 			write = true
 		}
+		if i.ID == protocol.PcxtFloppyInterface().ID && i.Major == 1 && i.Minor == 0 {
+			pcxt = true
+		}
+		if i.ID == protocol.PcxtFloppyWriteInterface().ID && i.Major == 1 && i.Minor == 0 {
+			pcxtWrite = true
+		}
 	}
-	return protocol.ComputerMediaABI(d.ABI.ID, d.ABI.Major, d.ABI.Minor) && base && write
+	return protocol.ComputerMediaABI(d.ABI.ID, d.ABI.Major, d.ABI.Minor) && ((medium == protocol.AtariStFloppyInterface() && base && write) || (medium == protocol.PcxtFloppyInterface() && d.ABI.Minor >= protocol.ComputerExtendedMinor && pcxt && pcxtWrite))
 }
 
 func descriptorPersistentMedia(d corepackage.Descriptor, units []protocol.MediaUnitStatus) bool {
 	for _, unit := range units {
 		if unit.Persistence != nil {
 			switch unit.Interface {
-			case protocol.AtariStFloppyInterface():
-				return descriptorMediaWrite(d)
+			case protocol.AtariStFloppyInterface(), protocol.PcxtFloppyInterface():
+				return descriptorMediaWriteFor(d, unit.Interface)
 			case protocol.AtaDiskInterface():
 				return protocol.DeclaresAtaDisk(d)
 			default:

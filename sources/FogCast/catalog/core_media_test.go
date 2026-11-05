@@ -465,3 +465,81 @@ func TestCoreMediaEntryPersistenceAndRollback(t *testing.T) {
 		t.Fatalf("reopened empty entry: %+v, %v", got, err)
 	}
 }
+
+func TestCoreEntryMediaNameFollowsItsSelection(t *testing.T) {
+	ctx := context.Background()
+	s, _ := mediaTestStore(t)
+	pkg := strings.Repeat("a", 64)
+	tape, _, err := s.ImportCoreMedia(ctx, []byte("tape"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	other, _, err := s.ImportCoreMedia(ctx, []byte("other"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	entry, err := s.CreateCoreMediaEntry(ctx, "Tape", "fes.zx81", pkg, "", "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := s.SetCoreEntryMediaName(ctx, entry.GameID, pkg, tape.MediaID, "MAZE.P"); !errors.Is(err, ErrCoreEntryConflict) {
+		t.Fatalf("name without a selection: %v", err)
+	}
+	if _, err := s.SelectCoreEntryMedia(ctx, entry.GameID, pkg, "", "cassette", tape.MediaID); err != nil {
+		t.Fatal(err)
+	}
+	for _, name := range []string{"", "maze.txt", "dir/maze.p", `dir\maze.p`, "../maze.p", "ma\x00ze.p", "ma\nze.p", strings.Repeat("m", 254) + ".p", "\xffmaze.p"} {
+		if _, err := s.SetCoreEntryMediaName(ctx, entry.GameID, pkg, tape.MediaID, name); !errors.Is(err, ErrInvalidCoreMedia) {
+			t.Fatalf("name %q: %v", name, err)
+		}
+	}
+	if _, err := s.SetCoreEntryMediaName(ctx, entry.GameID, pkg, other.MediaID, "MAZE.P"); !errors.Is(err, ErrCoreEntryConflict) {
+		t.Fatalf("stale media: %v", err)
+	}
+	if _, err := s.SetCoreEntryMediaName(ctx, entry.GameID, strings.Repeat("b", 64), tape.MediaID, "MAZE.P"); !errors.Is(err, ErrCoreEntryConflict) {
+		t.Fatalf("stale package: %v", err)
+	}
+	if _, err := s.SetCoreEntryMediaName(ctx, "missing", pkg, tape.MediaID, "MAZE.P"); !errors.Is(err, ErrCoreEntryNotFound) {
+		t.Fatalf("missing entry: %v", err)
+	}
+	named, err := s.SetCoreEntryMediaName(ctx, entry.GameID, pkg, tape.MediaID, "MAZE.P")
+	if err != nil || named.MediaName != "MAZE.P" || named.MediaID != tape.MediaID {
+		t.Fatalf("named = %+v, %v", named, err)
+	}
+	if got, err := s.CoreEntry(ctx, entry.GameID); err != nil || got.MediaName != "MAZE.P" {
+		t.Fatalf("stored = %+v, %v", got, err)
+	}
+	if got, err := s.SelectCoreEntryMedia(ctx, entry.GameID, pkg, tape.MediaID, "cassette", tape.MediaID); err != nil || got.MediaName != "MAZE.P" {
+		t.Fatalf("same selection dropped the name: %+v, %v", got, err)
+	}
+	if got, err := s.SelectCoreEntryMedia(ctx, entry.GameID, pkg, tape.MediaID, "cassette", other.MediaID); err != nil || got.MediaName != "" {
+		t.Fatalf("other media kept the name: %+v, %v", got, err)
+	}
+	if got, err := s.CoreEntry(ctx, entry.GameID); err != nil || got.MediaName != "" {
+		t.Fatalf("stored after reselect = %+v, %v", got, err)
+	}
+	if _, err := s.SetCoreEntryMediaName(ctx, entry.GameID, pkg, other.MediaID, "dragons-add.o"); err != nil {
+		t.Fatal(err)
+	}
+	if got, err := s.SelectCoreEntryMedia(ctx, entry.GameID, pkg, other.MediaID, "", ""); err != nil || got.MediaName != "" {
+		t.Fatalf("clear kept the name: %+v, %v", got, err)
+	}
+}
+
+func TestCoreEntryMediaNameReturnsFollowUpReadErrors(t *testing.T) {
+	ctx := context.Background()
+	s, _ := mediaTestStore(t)
+	pkg := strings.Repeat("a", 64)
+	entry, err := s.CreateCoreEntry(ctx, "Tape", "fes.zx81", pkg)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := s.db.ExecContext(ctx, `ALTER TABLE games RENAME TO unavailable_games`); err != nil {
+		t.Fatal(err)
+	}
+
+	_, err = s.SetCoreEntryMediaName(ctx, entry.GameID, pkg, strings.Repeat("c", 64), "MAZE.P")
+	if err == nil || errors.Is(err, ErrCoreEntryConflict) || !strings.Contains(err.Error(), "no such table: games") {
+		t.Fatalf("SetCoreEntryMediaName() error = %v, want wrapped follow-up read error", err)
+	}
+}

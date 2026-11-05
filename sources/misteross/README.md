@@ -32,7 +32,8 @@ serves experiments.
 
 ZX81, SMS, SG-1000, Apple II, C64, Spectrum and Atari ST seal format-3 packages
 containing a blank base RBF and an authenticated ROM map. ZX81 requires an
-exact 8192-byte firmware input; SMS requires an exact 32768-byte cartridge
+exact 8192-byte firmware input (`make zx81-openrom` builds a free one into
+`build/zx81-openrom`; see [FES ZX81](../../docs/fes-zx81.md#open-rom)); SMS requires an exact 32768-byte cartridge
 input; SG-1000 requires an exact 16384-byte cartridge input. The factory
 Coleco producer seals format-4 packages with an exact 8192-byte `coleco-bios`
 and 16384-byte `coleco-cart`. Map extraction checks the selected Mistral
@@ -104,9 +105,10 @@ boots the Bochs BIOS and FreeDOS to a prompt in host simulation with the Bochs
 oracle as CPU. Phase M2 adds the RTL VGA, capture, presenter and display plane;
 phase M3 adds the speaker, OPL2, Sound Blaster 2.0 DSP and mixer.
 `make sim-fes-pc386` runs the device and audio checks plus the presenter,
-capture and plane benches. `make sim-fes-pc386-boot` boots FreeDOS and replays
-its VGA trace; `make sim-fes-pc386-vga` checks the marked VGA modes; and
-`make sim-fes-pc386-sound` runs the audio start-up exercise. See the
+capture and plane benches. `make sim-fes-pc386-boot` boots FreeDOS, sends a
+relative-mouse packet and replays its VGA trace; `make sim-fes-pc386-vga`
+checks the marked VGA modes; and `make sim-fes-pc386-sound` runs the audio
+start-up exercise. See the
 [core README](cores/fes-pc386/README.md).
 
 ## What builds now
@@ -201,6 +203,11 @@ the HIP tools from `make toolchain-fes`, not the GPU-off build.
 | `fes.ramtest` | `make sim-fes-ramtest` | `make build-fes-ramtest-100` | `make build-fes-ramtest-quartus` | library utility, supported, OSS 100 MHz |
 | `fes.riscv` | `make sim-fes-riscv` | `make build-fes-riscv` | none | library, experimental |
 | splash / idle | `make sim-fes-splash` | `make build-fes-splash` | none | `sealed/fes-splash.rbf`, not a play package |
+
+Set `FES_ZX81_ROM` to the user-supplied edition 3 BASIC image for the BASIC,
+expansion and SAVE simulations or the Quartus oracle. Pull-request CI runs
+`make sim-fes-zx81-smoke`, which boots the open diagnostic firmware and runs the
+ROM-independent model and ZX80 tape-load probes.
 
 `fes.sms` and `fes.sg1000` use the `fes.simple-computer` ABI with sealed, linked
 cartridge ROMs. Diagnostic builds retain the media mailbox; the SMS ROM-link

@@ -1,0 +1,7 @@
+fogcast: kit host reached the agent after 50ms
+FogCast API listening on http://127.0.0.1:8797
+fogcast: kit core packages open after 23.346s
+INFO ZX81 SAVE check skipped game_id=fpga-st-k863s4-6bb0c3528527 play_system=fpga core_id=fes.atari-st play_execution=fpga_native expected_package_id=2dd2271c816ad3eb83fb73be9e47b08431eaadd9a4d12484c4d684259090bdb7 expected_generation=2 reason=core_does_not_save core_id=fes.atari-st
+fogcast: kit host reached the agent after 60ms
+FogCast API listening on http://127.0.0.1:8797
+fogcast: kit core packages open after 23.816s

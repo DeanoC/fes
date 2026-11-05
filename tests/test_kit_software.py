@@ -133,7 +133,7 @@ class SoftwareWorkflowTests(unittest.TestCase):
         with patch.object(kit, 'run', side_effect=builder):
             kit.build_go(self.root, 'v1', 'b' * 40, {})
         self.assertEqual([c[0][-1] for c in calls[:4]],
-                         ['./cmd/mister-agent', './cmd/fogcast-kit', './cmd/fogcast-tenfoot', './cmd/fes-kit-bundle'])
+                         ['./cmd/mister-agent', './cmd/fogcast-api', './cmd/fogcast-tenfoot', './cmd/fes-kit-bundle'])
         self.assertEqual([c[1]['env']['GOARCH'] for c in calls[:4]], ['arm', 'arm', 'arm', 'amd64'])
         for args, kw in calls[:4]:
             self.assertIn('-trimpath', args)
@@ -581,14 +581,22 @@ class SoftwareWorkflowTests(unittest.TestCase):
             self.assertEqual((payload / 'share/fes-window/fes_window.ko').read_bytes(), b'module')
             self.assertEqual((payload / 'share/fes-window/version').read_text(), '0123456789abcdef\n')
             self.assertEqual((payload / 'share/fes-window/version').stat().st_mode & 0o777, 0o444)
+            self.assertEqual((payload / 'share/fogcast/firmware/test-rom/manifest.json').read_text(), '{}')
             output.write_bytes(b'partial failed pack')
             raise ValueError('incompatible base')
+        def stage(output, cache):
+            self.assertEqual(cache, self.root / 'out/cache/firmware')
+            (output / 'test-rom').mkdir(parents=True)
+            (output / 'test-rom/manifest.json').write_text('{}')
+            return [{'id': 'test-rom', 'sha256': 'f' * 64, 'size': 1}]
         with patch.object(kit, 'load', return_value=sdk), \
+             patch.object(kit.bundled_firmware, 'stage', side_effect=stage), \
              patch.object(kit, 'package', side_effect=fail), \
              patch.object(kit, 'run', side_effect=clone), \
              patch.object(kit, 'build_go', return_value='go test'), \
              patch.object(kit, 'prepare_kernel_module', return_value=dict(self.DRIVER)), \
-             patch.object(kit, 'build_runtime', side_effect=runtime):
+             patch.object(kit, 'build_runtime', side_effect=runtime), \
+             patch.object(kit, 'shared_cache_root', return_value=self.root / 'out/cache'):
             with self.assertRaisesRegex(ValueError, 'incompatible base'):
                 kit.publish(self.root, self.base, kit.sha(self.base), 'v1', self.root / 'new')
         self.assertFalse((self.root / 'new').exists())

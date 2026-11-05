@@ -2,6 +2,7 @@
 /artifacts/
 /dist/
 /bin/
+/mister-agent
 /build/cache/
 /build/output/
 /.cache/

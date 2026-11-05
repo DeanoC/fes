@@ -17,6 +17,10 @@ type coreMediaLibraryService interface {
 	SelectCoreEntryMedia(context.Context, string, string, string, string, string) (catalog.CoreEntry, error)
 }
 
+type coreEntryMediaNameService interface {
+	SetCoreEntryMediaName(context.Context, string, string, string, string) (catalog.CoreEntry, error)
+}
+
 type coreMediaCapabilitiesService interface {
 	CoreMediaCapabilities(context.Context, string) (protocol.CoreMediaCapabilities, error)
 }
@@ -167,4 +171,30 @@ func registerCoreMediaLibrary(mux *http.ServeMux, service Service) {
 		}
 		writeJSON(w, http.StatusOK, value)
 	}))
+	mux.HandleFunc("PUT /api/v1/library/core-entries/{game_id}/media-name", func(w http.ResponseWriter, r *http.Request) {
+		s, ok := service.(coreEntryMediaNameService)
+		if !ok {
+			writeError(w, 501, "UNSUPPORTED_OPERATION", "core media names are unavailable")
+			return
+		}
+		var request struct {
+			ExpectedPackageID *string `json:"expected_package_id"`
+			MediaID           *string `json:"media_id"`
+			MediaName         *string `json:"media_name"`
+		}
+		if decodeSingleJSON(w, r, &request) != nil {
+			return
+		}
+		if protocol.ValidateGameID(r.PathValue("game_id")) != nil || request.ExpectedPackageID == nil || request.MediaID == nil || request.MediaName == nil ||
+			!corePackageIDRE.MatchString(*request.ExpectedPackageID) || !corePackageIDRE.MatchString(*request.MediaID) || !catalog.AdmitCoreEntryMediaName(*request.MediaName) {
+			writeError(w, 400, "BAD_REQUEST", "core media name is invalid")
+			return
+		}
+		value, err := s.SetCoreEntryMediaName(r.Context(), r.PathValue("game_id"), *request.ExpectedPackageID, *request.MediaID, *request.MediaName)
+		if err != nil {
+			writeCoreLibraryError(w, err)
+			return
+		}
+		writeJSON(w, http.StatusOK, value)
+	})
 }

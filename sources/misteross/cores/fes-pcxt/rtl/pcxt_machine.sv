@@ -1,9 +1,14 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
 // Real 8088 + motherboard + registered ISA display cards. Storage/font external.
-module pcxt_machine #(parameter bit DIAGNOSTIC_PROBE = 0, SEPARATE_CPU_CLOCK = 0, FLOPPY = 0,
+module pcxt_machine #(parameter bit DIAGNOSTIC_PROBE = 0, SEPARATE_CPU_CLOCK = 0, FLOPPY = 0, FLOPPY_WRITE = 0,
     parameter integer BOARD_CLOCK_HZ = 100000000, parameter [7:0] SWITCHES = 8'h2d) (
     input wire clk, clk_cpu, reset,
-    input wire media_present,
+    input wire media_present, cold_reset, media_frozen,
+    output wire media_write_busy, media_write_valid,
+    output wire [9:0] media_write_lba,
+    input wire [8:0] media_write_index,
+    output wire [7:0] media_write_data,
+    input wire media_write_ready, media_write_error,
     output wire media_read_valid,
     output wire [18:0] media_read_addr,
     input wire media_read_ready,
@@ -109,9 +114,13 @@ module pcxt_machine #(parameter bit DIAGNOSTIC_PROBE = 0, SEPARATE_CPU_CLOCK = 0
         .keyboard_clear(keyboard_clear), .keyboard_irq(),
         .speaker(), .audio_valid(audio_valid), .audio_sample(audio_sample), .intr(intr), .pit_out(), .pit_clock()
     );
-    pcxt_display_bus #(.DIAGNOSTIC_PROBE(DIAGNOSTIC_PROBE), .FLOPPY(FLOPPY), .CLOCK_HZ(BOARD_CLOCK_HZ)) isa (
+    pcxt_display_bus #(.DIAGNOSTIC_PROBE(DIAGNOSTIC_PROBE), .FLOPPY(FLOPPY), .FLOPPY_WRITE(FLOPPY_WRITE), .CLOCK_HZ(BOARD_CLOCK_HZ)) isa (
         .clk(clk), .reset(reset), .cycle_valid(isa_valid), .cycle_ready(isa_ready),
-        .media_present(media_present), .media_read_valid(media_read_valid),
+        .media_present(media_present), .cold_reset(cold_reset), .media_frozen(media_frozen),
+        .media_write_busy(media_write_busy), .media_write_valid(media_write_valid),
+        .media_write_lba(media_write_lba), .media_write_index(media_write_index),
+        .media_write_data(media_write_data), .media_write_ready(media_write_ready),
+        .media_write_error(media_write_error), .media_read_valid(media_read_valid),
         .media_read_addr(media_read_addr), .media_read_ready(media_read_ready), .media_read_data(media_read_data),
         .cycle_address(address), .cycle_wdata(wdata), .cycle_kind(kind),
         .cycle_write(write_cycle), .cycle_aen(aen), .cycle_lock(locked),

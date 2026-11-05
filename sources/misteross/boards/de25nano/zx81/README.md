@@ -3,7 +3,9 @@
 This standalone Quartus Pro 26.3 lane builds an FPGA-only ZX81 BASIC machine
 for the DE25-Nano revision-B `A5EB013BB23BE4SCS`. It uses the existing
 `zx81_machine`, first-party NMOS Z80, 16 KiB internal RAM and 720p renderer.
-The repository's ZX81 firmware initializes the ROM. KEY0 resets the machine;
+The builder assembles the shared first-party ZX81 OpenROM from captured
+sources and initializes the 8 KiB ROM window. The HEX and MIF contain the
+same bytes; their hashes and all assembler/font inputs are recorded. KEY0 resets the machine;
 KEY1 supplies ENTER through the real keyboard matrix. Other keys are released.
 HDMI audio pins remain low.
 

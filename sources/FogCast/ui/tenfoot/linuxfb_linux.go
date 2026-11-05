@@ -486,7 +486,7 @@ devices:
 					} else if button := nativeButton(code); button != ButtonNone {
 						in.button(app, button, value, now)
 					} else if code < 256 {
-						if in.key(app, code, value, now) {
+						if ins.key(app, in, code, value, now) {
 							return true, nil
 						}
 					}
@@ -737,6 +737,39 @@ func nativeDirectionButton(cmd Command) Button {
 	}
 }
 
+// key keeps a shared HID usage held until every connected evdev keyboard that
+// pressed it has released it, including during a session-display hand-off.
+func (ins *nativeInputs) key(app *App, in *nativeInput, code uint16, value int32, now time.Time) bool {
+	if value == 0 && in.kind == InputKeyboard && app != nil {
+		if usage := nativeHIDUsage(code); usage != 0 {
+			app.mu.Lock()
+			keyboardHID := app.session.CoreKeyboardHID
+			app.mu.Unlock()
+			if keyboardHID {
+				for _, other := range ins.devices {
+					if other == nil || other == in || other.kind != InputKeyboard {
+						continue
+					}
+					for heldCode := range other.keysHeld {
+						if nativeHIDUsage(heldCode) == usage {
+							delete(in.keysHeld, code)
+							if (code == 42 || code == 54) && in.shifts != nil {
+								in.shifts[code] = false
+							}
+							if in.commands != nil {
+								app.Release(in.commands[code])
+								delete(in.commands, code)
+							}
+							return false
+						}
+					}
+				}
+			}
+		}
+	}
+	return in.key(app, code, value, now)
+}
+
 // nativeKeyF12 is MiSTer's menu key. A kit-local core treats a press as Stop.
 // A host session that can change removable media opens that selector instead,
 // including when the library has no .p files yet. The key is never forwarded.
@@ -861,16 +894,11 @@ func nativeKeyText(code uint16, shift bool) string {
 	return strings.ToUpper(name)
 }
 
-// Linux keycodes are not USB HID usages. Preserve the shared play-keyboard path.
+// nativeHIDUsage is the USB HID usage of a Linux key, or 0 for a key that
+// fes.keyboard.hid sessions do not carry.
 func nativeHIDUsage(code uint16) uint8 {
-	name := nativeKeyName(code)
-	if len(name) == 1 && name[0] >= 'a' && name[0] <= 'z' {
-		return name[0] - 'a' + 4
-	}
-	if code >= 2 && code <= 11 {
-		return uint8(code + 28)
-	}
-	return map[uint16]uint8{1: 41, 12: 45, 13: 46, 14: 42, 15: 43, 26: 47, 27: 48, 28: 40, 29: 224, 39: 51, 40: 52, 41: 53, 42: 225, 43: 49, 51: 54, 52: 55, 53: 56, 54: 229, 56: 226, 57: 44, 58: 57, 97: 228, 100: 230, 102: 74, 103: 82, 104: 75, 105: 80, 106: 79, 107: 77, 108: 81, 109: 78, 110: 73, 111: 76, 125: 227, 126: 231}[code]
+	usage, _ := hidkeys.FromLinuxKey(code)
+	return usage
 }
 
 // EVIOCGBIT(EV_KEY, 96) reads the Linux key capability bitmap. Only actual
@@ -1054,31 +1082,47 @@ func (ins *nativeInputs) drop(app *App, lost *nativeInput) {
 }
 
 func (ins *nativeInputs) releaseLostPlayInput(app *App, lost *nativeInput) {
+	app.mu.Lock()
+	// The core sees a key's release only when no other keyboard still holds a
+	// key that sends the same core key; the suppression record goes with the
+	// lost keyboard's physical key unless another keyboard holds that key too.
+	release := func(code uint16, name string) (remoteinput.Event, bool) {
+		if app.session.CoreKeyboardHID {
+			return hidkeys.Event(nativeHIDUsage(code), false)
+		}
+		return playhid.Event(name, false, app.session.CoreKeyboard)
+	}
 	remainingKeys := map[string]bool{}
+	remainingCore := map[playHIDKey]bool{}
 	for _, in := range ins.devices {
-		for _, name := range in.keysHeld {
-			remainingKeys[name] = true
+		for code, name := range in.keysHeld {
+			key := playHeldKey(name, nativeHIDUsage(code))
+			remainingKeys[key] = true
+			// A suppressed key never reached the core, and its release will
+			// not either, so it cannot keep the core's key down.
+			if app.playKeySuppressed[key] {
+				continue
+			}
+			if event, ok := release(code, name); ok {
+				remainingCore[playHIDKey{event.Player, event.Device, event.Kind, event.Code}] = true
+			}
 		}
 	}
-	app.mu.Lock()
 	padEvents := releasePortLocked(app, lost)
 	var keyEvents []remoteinput.Event
 	for code, name := range lost.keysHeld {
-		if remainingKeys[name] {
+		if key := playHeldKey(name, nativeHIDUsage(code)); !remainingKeys[key] {
+			delete(app.playKeyHeld, key)
+			delete(app.playKeySuppressed, key)
+		}
+		event, ok := release(code, name)
+		if !ok {
 			continue
 		}
-		delete(app.playKeyHeld, name)
-		delete(app.playKeySuppressed, name)
-		event, ok := playhid.Event(name, false, app.session.CoreKeyboard)
-		if app.session.CoreKeyboardHID {
-			event, ok = hidkeys.Event(nativeHIDUsage(code), false)
-		}
-		if ok {
-			key := playHIDKey{event.Player, event.Device, event.Kind, event.Code}
-			if _, held := app.playHIDHeld[key]; held {
-				delete(app.playHIDHeld, key)
-				keyEvents = append(keyEvents, event)
-			}
+		key := playHIDKey{event.Player, event.Device, event.Kind, event.Code}
+		if _, held := app.playHIDHeld[key]; held && !remainingCore[key] {
+			delete(app.playHIDHeld, key)
+			keyEvents = append(keyEvents, event)
 		}
 	}
 	feed := app.localFeed

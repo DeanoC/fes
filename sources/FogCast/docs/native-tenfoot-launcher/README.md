@@ -441,8 +441,8 @@ make tenfoot-smoke
   attract entry, and overlays that need GPU cancel the in-flight GET, close the
   reader, and drop the texture so no goroutine holds the stream after teardown.
 - `POST /api/v1/session/development-rbf` with `Content-Type:
-  application/octet-stream` and `Content-Length` set. Settings overlay row
-  **DIAGNOSTIC RBF** opens a gamepad path OSK (symbols page; type or paste a
+  application/octet-stream` and `Content-Length` set. Settings › About &
+  help › Diagnostics › **DIAGNOSTIC RBF** opens a gamepad path OSK (symbols page; type or paste a
   local host-reachable file path). Tenfoot stats the path, rejects empty and
   >32MiB files before upload, then POSTs the file bytes. There is no browser
   file picker and no host file-list API. Load is refused while retry-Stop
@@ -514,8 +514,9 @@ make tenfoot-smoke
 Rooms are creator-defined, scripted menu screens (a Mario overworld, a
 console room, an AmigaOS desktop) that sit beside the library browser.
 Press **h**/Home or **hold B** for Home (hold B is a shortcut; GUIDE
-or `o` opens Settings, whose Home row Confirm goes Home now).
-`-home rooms` (or Settings › Home Left/Right) starts on Home.
+or `o` opens Settings; with Show all cores, its Library & rooms › Home row
+Confirm goes Home now). `-home rooms` (or that row's Left/Right) starts on
+Home.
 `-home-room ID` (then `tenfoot.json` `home_room`, then
 `FOGCAST_HOME_ROOM`) opens that room as the root at start and for Home
 when `-home` is `rooms`. When it is not opened, Home lists pinned rooms,

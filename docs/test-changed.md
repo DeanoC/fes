@@ -191,7 +191,7 @@ omits tests and is not exhaustive green.
 | --- | --- | --- |
 | `video` | Parent suite omits the full-device video classes `RealProducerEvidenceTests`, `NativeProducerEvidenceTests`, `STProducerEvidenceTests` (`test_factory_video_parts.py`) and `FactoryVideoPublicationTests`, `RasterFactoryVideoPublicationTests` (`test_factory_video_publication.py`); lightweight classes in the same files still run | Video producer/admission inputs (`scripts/factory_video_parts.py`, `core_catalog.py`, `core_dev_accept.py`, `core_dev.py`, `package_acceptance_isolated.py`, `recipes.py`, `bundle.py`, `artifact_cache.py`, `core-recipes.toml`), `sources/misteross`, `sources/FogCast/corepackage`, `corecatalog`, and non-test `.go` under `catalog`/`fogcast` |
 | `media` | Parent suite omits the container drivers `ContainerImageTests`, `RealImageTests` (`test_media_image.py`), `ContainerTests`, `RealBootstrapTests` (`test_appliance.py`), `ContainerTests`, `RealCardTests` (`test_appliance_media.py`) | Image/platform/containers/profiles roots, `scripts/media*.py`, `scripts/appliance*.py`, `platform.py`, `image_toolchain.py`, `boot-media.lock.toml`, the three media test files, `sources/FogCast/appliance`, `cmd/target-image-lock` |
-| `full_race` | Host functional coverage is partitioned exactly once: the race-expensive `fogcast`/`corepackage` run all assertions non-race, and every other package runs its whole suite under `-race -short`. `fogcast`/`corepackage` additionally get concurrency-focused `-run` race instrumentation (`HOST_RACE_FOCUS`: Concurrent/Cancel/Session/Lifecycle/Stop/Target/Lock/Queued/Drain/Lease/Discovery/Watch/Input/Mesh names). Not exhaustive — full mode races every package in all three modules | Shared contracts (`sources/mister-packages`), unknown inputs and new branches select every mode; weekly schedule and manual dispatch always run all modes |
+| `full_race` | Host functional coverage is partitioned exactly once: the race-expensive `fogcast`/`corepackage` run all assertions non-race, and every other package runs its whole suite under `-race -short`. `fogcast`/`corepackage` additionally get concurrency-focused `-run` race instrumentation (`HOST_RACE_FOCUS`: Concurrent/Cancel/Session/Lifecycle/Stop/Target/Lock/Queued/Drain/Lease/Discovery/Watch/Input/Mesh names). Not exhaustive — full mode races every package in all three modules | Shared contracts (`sources/mister-packages`), unknown inputs and new branches select every mode; nightly schedule and manual dispatch always run all modes |
 
 Shared `scripts/build.py`, `inputs.py`, `native_dev.py`, `environment.py` and
 FogCast `go.mod`/`go.sum` select both video and media. CI validates
@@ -232,15 +232,22 @@ the CPU-bus probe and registered diagnostic-through-socket test. It
 never invokes a synthesis, placement, Quartus, image-building or deployment target.
 
 CI uses the same producer-test list and affected families, but runs independent
-components and simulation targets in separate jobs. Coleco has 16 focused jobs:
-seven unit/board scenarios in default and registered OSS lanes (14 jobs), plus
-the CPU expansion probe and diagnostic through the registered socket. These
-preserve the cases and compiler flags in the local aggregate commands. Each job
-has isolated build output; the matrix runs at most eight jobs concurrently.
+components and simulation targets in separate jobs. Simulations run in two
+tiers (`scripts/ci_simulations.py`). Pull requests, the merge queue and pushes
+to `main` run the smoke tier; the nightly regression and manual runs run the
+full tier. Coleco's full tier has 24 jobs: seven unit/board scenarios in default
+and registered OSS lanes (14 jobs), the CPU expansion probe, the diagnostic
+through the registered socket, the video-parts check and seven SGM cases. Its
+smoke tier runs 5 of those jobs: unit, unit-oss, board-graphics, diagnostic and
+sgm-integrated. Outside Coleco, the smoke matrix reduces coverage for ZX81,
+C64, Atari ST, Spectrum, PC/XT and PC/386. Other families use identical target
+sets in both tiers. The full tier preserves the cases and compiler flags in the
+local aggregate commands. Each job has isolated build output; the matrix runs
+at most eight jobs concurrently.
 
 PRs run against their merge result; pushes to `main` validate the merged result.
 Feature-branch pushes do not duplicate PR runs. Merge groups remain supported;
-weekly and manual runs select the complete suite. The stable `integration`
+nightly and manual runs cover the complete suite. The stable `integration`
 check requires every planned job to succeed, including compiler preparation.
 Missing, skipped or cancelled required jobs fail the gate. Deliberately omitted
 jobs are recorded in the plan, not reported as successful tests in the CI receipt.

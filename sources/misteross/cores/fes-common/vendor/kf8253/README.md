@@ -39,3 +39,16 @@ the default `READ_BACK = 0` none of that state exists. `read_back.patch` is the
 whole change; `tests/test_fes_kf8253_read_back.py` reverses it, checks the
 result against the previous hashes and proves the `READ_BACK = 0` chip
 sequentially equivalent to it at every port and matched internal signal.
+
+Local behaviour change (2026-11-04, #1471): upstream reset the write and read
+byte pointers only when a control word changed the RW field, so a control word
+that repeated it left a half-written or half-read LSB/MSB count mid-sequence.
+On the 8253 and 8254 any control word for a counter resets its control logic,
+so every control word except the counter-latch command (RW = 00) now resets
+both pointers. This applies to both `READ_BACK` settings.
+`control_word_reset.patch` is the whole change. The read-back test reverses it
+first, checks the read-back-era hash, then reverses `read_back.patch`; its
+equivalence proof covers the read-back change alone, on the tree without this
+fix. This change has no equivalence claim: the pc386 `devices` bench (8254)
+and the PC/XT `motherboard` bench (8253) check the repeated-RW write and read
+sequences against 8254 behaviour.

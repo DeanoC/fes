@@ -96,6 +96,13 @@ version and at least the required minor. Supervisors that predate these keys
 ignore them, so a newer bundle still installs and runs on an older image. The
 image build fails when its own factory runtime does not accept its menu.
 
+A bundle manifest can also advertise what it offers a supervisor. These keys
+go only into the bundle, never into the image's `software-base.json`, so they
+neither hold a bundle back nor make `fes-update` refuse an image:
+`kit-host` (`1.x`) says `bin/fogcast-kit` has a `host` mode. A supervisor
+that knows the key starts the host for such a bundle and runs older bundles
+with the three services; an older supervisor ignores the key and runs three.
+
 The base image's supervisor checks this at install, activation, boot and
 recovery:
 
@@ -165,7 +172,10 @@ Only a pending queued operation can be cancelled. A service replacement already
 underway retains its maintenance ownership through completion or recovery.
 Mutations are sent once. If a response is lost, inspect status and the release
 inventory before repeating it. A matching completed receipt identifies the
-outcome; a newer generation rejects stale changes. The client dials with a
+outcome; a newer generation rejects stale changes. The supervisor keeps the
+receipts of the current generation and of the 64 newest older generations, and
+the unreleased completion's. A replay of an older operation is refused as a
+conflict. Its ID is forgotten, so always send a fresh request ID. The client dials with a
 10 second connect timeout and keeps `--timeout` (15 minutes by default) as
 the whole-operation deadline. After the request body is written it waits at
 most five minutes for response headers. Health, status, and list retry a
@@ -224,6 +234,30 @@ second to thirty seconds. If startup itself
 fails, the supervisor stays up, records the error in that log, and retries with
 backoff instead of exiting. A failure before the status socket is open retries
 the whole startup; a failure after it is open keeps the socket serving the error.
+
+**The kit's FogCast host** (#863 slice 5) is a fourth supervised process, kept
+apart from the service group above:
+
+- **When it runs.** The supervisor starts `bin/fogcast-kit host` only for a
+  bundle whose manifest advertises `kit-host` (next section), and only once the
+  launcher has published readiness for that bundle, so its start-up does not
+  compete with the agent and launcher.
+- **Not part of activation.** Its exit restarts it alone, with the launcher's
+  one-to-thirty-second backoff, and never stops the agent, runtime or a running
+  core. `GET /v1/kit/software`'s `service_fault` reports it while it
+  restarts, when the service group has no fault of its own; unlike a group
+  fault, it does not refuse uploads or activations.
+  Activation, recovery and their readiness window do not include it, so a host
+  that cannot start does not fail an activation. It receives the group
+  environment without `FES_SOFTWARE_REQUEST`, `FES_SOFTWARE_READY_FILE` and
+  `FES_SOFTWARE_RECOVERY_FENCE`.
+- **Backoff.** A host that keeps exiting within two seconds of starting backs
+  off from one to thirty seconds, measured on the life it had. The launcher's
+  backoff is measured the same way.
+- **Stop.** It stops alongside the launcher, so four processes still fit three
+  sequential stop slots. A process left in an exited host's group is killed.
+- **Proofs.** The operator acknowledgement and power-cycle proofs check the
+  same three services whether a host is running, restarting or absent.
 
 Bundle verification completes before the service startup clock begins, while
 the current group is still running. Each start checks that the verified tree
@@ -382,9 +416,12 @@ They do not require an execution lease:
 | `POST /v1/kit/software/activate` | Queue `{id,candidate,requester,expected_generation}` |
 | `POST /v1/kit/software/cancel` | Cancel `{id,expected_generation}` while queued |
 
-Authenticated health has a separate `software` object with `active_bundle`,
-`base_identity` and supervisor state. Existing sealed image `artifacts` retain
-their base-image provenance. Public health omits software queue details.
+Authenticated health has a separate `software` object with only `active_bundle`,
+`base_identity`, `selected` and `generation`. Health is polled, so the operation
+queue and receipts stay on `GET /v1/kit/software`. If the supervisor cannot
+answer, health reports the bundle and base identity the agent was launched with.
+Existing sealed image `artifacts` retain their base-image provenance. Public
+health omits `software`.
 
 The supervisor owns the entire group lifecycle. Managed diagnostics use a private host and an explicitly installed software
 bundle. File-swap, baseline and restore commands refuse managed images before

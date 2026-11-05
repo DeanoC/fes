@@ -1,0 +1,234 @@
+// Throwaway capture harness for docs/ux/references/v1. render.sh supplies it
+// to the tenfoot package through a Go overlay. It renders the v1ref Lua pack
+// through the production rooms engine, display-list replay and software renderer.
+package tenfoot
+
+import (
+	"context"
+	"fmt"
+	"image/png"
+	"os"
+	"path/filepath"
+	"testing"
+	"time"
+
+	"github.com/DeanoC/FogCast/ui/gfx"
+	"github.com/DeanoC/FogCast/ui/rooms"
+)
+
+// v1Scene is one reference picture. The Lua pack reads the scene name from
+// room.initial_game_id. Hint replaces the native hero footer hint on proposed
+// first-run screens. Native keeps the production footer hint; FooterOverride
+// supplies the first-run hint under a native overlay's dimmed Home footer.
+// Native overlays (Settings, the folder picker) are applied to the snapshot
+// after the room has drawn.
+type v1Scene struct {
+	Name           string
+	Room           string
+	Hint           string
+	Native         bool // keep the production footer hint
+	FooterOverride bool
+	NoFooter       bool
+	Overlay        func(*Snapshot)
+}
+
+func v1SettingsRows(rows ...string) []SettingsRow {
+	out := make([]SettingsRow, 0, len(rows)/2)
+	for i := 0; i+1 < len(rows); i += 2 {
+		out = append(out, SettingsRow{ID: fmt.Sprint(i / 2), Label: rows[i], Value: rows[i+1]})
+	}
+	return out
+}
+
+func v1Settings(index int, hint string, rows ...string) func(*Snapshot) {
+	return func(s *Snapshot) {
+		s.Settings = SettingsSnapshot{Open: true, Index: index, Rows: v1SettingsRows(rows...), Hint: hint}
+	}
+}
+
+const v1SettingsHint = "Up / Down move  ·  A open  ·  B back"
+
+func v1Scenes() []v1Scene {
+	return []v1Scene{
+		{Name: "0-splash", Room: "splash", NoFooter: true},
+		{Name: "1-welcome", Room: "welcome", Hint: "D-pad move  ·  A continue  ·  Keyboard: arrows and Enter"},
+		{Name: "1-welcome-skip", Room: "welcome-skip", Hint: "D-pad move  ·  A skip setup  ·  Keyboard: arrows and Enter"},
+		{Name: "2-controllers-waiting", Room: "pads-waiting", Hint: "B back  ·  P pair Bluetooth  ·  Enter continue with keyboard"},
+		{Name: "2-controllers-found", Room: "pads-found", Hint: "D-pad move  ·  A continue  ·  B back"},
+		{Name: "2-controllers-bluetooth", Room: "pads-bluetooth", Hint: "D-pad move  ·  A pair  ·  B stop searching"},
+		{Name: "3-folders-suggested", Room: "folders-suggested", Hint: "D-pad move  ·  A scan folders  ·  B back"},
+		{Name: "3-folders-picker", Room: "folders-suggested", Hint: "A open  ·  Y use this folder  ·  LB / RB change drive  ·  B back", Native: true, FooterOverride: true, Overlay: func(s *Snapshot) {
+			s.FirmwarePicker = FirmwarePickerSnapshot{Open: true, Title: "Spectrum games folder", Path: "USB drive  /  games", Index: 2,
+				Rows: []FirmwarePickerRow{
+					{Name: "Up one folder", Kind: "dir", Selectable: true},
+					{Name: "ZX81", Kind: "dir", Selectable: true},
+					{Name: "Spectrum  ·  suggested", Kind: "dir", Selectable: true},
+					{Name: "Atari ST", Kind: "dir", Selectable: true},
+					{Name: "Use this folder: games", Kind: "dir", Selectable: true},
+				},
+				Status: "FES only reads this folder. Nothing is moved, renamed or created.",
+				Hint:   "A open  ·  Y use this folder  ·  LB / RB change drive  ·  B back"}
+		}},
+		{Name: "3-folders-scanning", Room: "folders-scanning", Hint: "B stop scanning"},
+		{Name: "3-folders-results", Room: "folders-results", Hint: "D-pad move  ·  A continue  ·  B back"},
+		{Name: "4-ready", Room: "ready", Hint: "D-pad move  ·  A finish  ·  B back"},
+		{Name: "4-ready-skipped", Room: "ready-skipped", Hint: "D-pad move  ·  A finish  ·  B back"},
+		{Name: "5-home-first-visit", Room: "home-first", Native: true},
+		{Name: "5-home-recent", Room: "home-recent", Native: true},
+		{Name: "5-home-needs-firmware", Room: "home-needs-firmware", Native: true},
+		{Name: "5-home-no-games", Room: "home-no-games", Native: true},
+		{Name: "5-home-setup-skipped", Room: "home-skipped", Native: true},
+		{Name: "6-firmware-built-in", Room: "card-built-in", Hint: "A continue  ·  Y licence  ·  B back"},
+		{Name: "6-firmware-your-rom", Room: "card-your-rom", Hint: "A continue  ·  Y show folder  ·  B back"},
+		{Name: "settings-0-sections", Room: "home-recent", Native: true, Overlay: v1Settings(0, v1SettingsHint,
+			"Controllers", "1 pad  ·  USB gamepad (Tested)",
+			"Games folders", "3 of 4 families",
+			"Firmware", "C64 needs your files",
+			"Display & sound", "1280×720  ·  5% safe area",
+			"Network", "Optional  ·  wired connected",
+			"Updates", "Up to date",
+			"About & help", "Version, setup, diagnostics, reset")},
+		{Name: "settings-1-controllers", Room: "home-recent", Native: true, Overlay: v1Settings(0, "Controllers  ·  A change  ·  B back",
+			"Player 1", "USB gamepad  ·  Tested",
+			"Player 2", "Press a button on a second pad",
+			"Remap buttons", "Press to bind",
+			"Swap A / B", "Off",
+			"Pair a Bluetooth pad", "Search",
+			"Reset controller settings", "")},
+		{Name: "settings-2-games-folders", Room: "home-recent", Native: true, Overlay: v1Settings(1, "Games folders  ·  A change  ·  B back",
+			"ZX81", "USB drive / games/ZX81  ·  38 games",
+			"Spectrum", "USB drive / games/Spectrum  ·  241 games",
+			"Atari ST", "SD card / ST  ·  no games found",
+			"C64", "Not chosen",
+			"Rescan all folders", "",
+			"Firmware folder", "USB drive / firmware")},
+		{Name: "settings-3-firmware", Room: "home-recent", Native: true, Overlay: v1Settings(3, "Firmware  ·  A details  ·  B back",
+			"ZX81", "Built in",
+			"Spectrum", "Built in",
+			"Atari ST", "Built in  ·  EmuTOS",
+			"C64", "Needs your files",
+			"Licences", "Show the full text")},
+		{Name: "settings-4-display-sound", Room: "home-recent", Native: true, Overlay: v1Settings(0, "Display & sound  ·  Left / Right change  ·  B back",
+			"Resolution", "1280×720 (default)",
+			"Safe area", "5%",
+			"Volume", "80%")},
+		{Name: "settings-5-network", Room: "home-recent", Native: true, Overlay: v1Settings(0, "Network  ·  A change  ·  B back",
+			"Wired", "Connected",
+			"Wi-Fi", "Not set up",
+			"Pair with a computer", "Optional  ·  off")},
+		{Name: "settings-6-updates", Room: "home-recent", Native: true, Overlay: v1Settings(3, "Updates  ·  A select  ·  B back",
+			"System image", "Current",
+			"FES software", "Current",
+			"Cores", "4 families up to date",
+			"Check for updates", "",
+			"Roll back", "Previous version kept")},
+		{Name: "settings-7-about-help", Room: "home-recent", Native: true, Overlay: v1Settings(2, "About & help  ·  A select  ·  B back",
+			"Versions", "Image, software and cores",
+			"Kit ID", "Shown here",
+			"Run setup again", "",
+			"Quickstart", "Show the link",
+			"Diagnostics", "RAM tester and logs",
+			"Factory reset", "Erases settings, not your files")},
+	}
+}
+
+func v1Footer(dev gfx.Device, snap Snapshot, labels map[string]gpuTexture, sc v1Scene) {
+	layout, ok := rooms.HeroPanel(snap.Room.Width, snap.Room.Height)
+	if !ok || (sc.Native && !sc.FooterOverride) {
+		return
+	}
+	f := layout.Footer
+	x, y := snap.Room.OffsetX+f.X, snap.Room.OffsetY+f.Y
+	dev.FillRect(gfx.Rect{X: float32(x), Y: float32(y), W: float32(f.W), H: float32(f.H)}, heroBackground)
+	if sc.NoFooter {
+		return
+	}
+	dev.FillRect(gfx.Rect{X: float32(x), Y: float32(y), W: float32(f.W), H: 2}, heroDivider)
+	margin := layout.Card.X
+	textY := y + (f.H-gfx.TextHeight(heroFooterPx))/2
+	hintW := min(gfx.MeasureText(sc.Hint, heroFooterPx), f.W-2*margin)
+	heroLine(dev, labels, map[string]struct{}{}, x+f.W-margin-hintW, textY, hintW, heroFooterPx, false, heroSecondary, sc.Hint)
+}
+
+func dimV1Footer(dev gfx.Device, snap Snapshot) {
+	layout, ok := rooms.HeroPanel(snap.Room.Width, snap.Room.Height)
+	if !ok {
+		return
+	}
+	f := layout.Footer
+	dev.SetBlend(gfx.BlendAlpha)
+	dev.FillRect(gfx.Rect{X: float32(snap.Room.OffsetX + f.X), Y: float32(snap.Room.OffsetY + f.Y),
+		W: float32(f.W), H: float32(f.H)}, gfx.Color{R: 8, G: 8, B: 12, A: 180})
+	dev.SetBlend(gfx.BlendNone)
+}
+
+func TestV1Renders(t *testing.T) {
+	out, packDir := os.Getenv("FES_V1_RENDERS"), os.Getenv("FES_V1_PACK")
+	if out == "" || packDir == "" {
+		t.Skip("docs/ux/references/v1 capture harness")
+	}
+	if err := os.MkdirAll(out, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	pack := rooms.LoadPackFS(os.DirFS(packDir), packDir)
+	if !pack.Valid() {
+		t.Fatal(pack.Err)
+	}
+	index := rooms.NewIndex([]rooms.Pack{pack})
+	for _, size := range [][2]int{{1280, 720}, {1024, 600}} {
+		for _, sc := range v1Scenes() {
+			app := NewApp(nil, size[0], size[1], 100)
+			ctx, cancel := context.WithCancel(context.Background())
+			cancel()
+			app.ctx, app.roomsIndex, app.attractDisabled = ctx, index, true
+			rw, rh := app.roomContentSizeLocked(pack.ID)
+			inst, err := rooms.New(pack, rooms.Options{Width: rw, Height: rh, Index: index,
+				Budget: hardwareRenderTestBudget(), InitialGameID: sc.Room, ReducedMotion: true})
+			if err != nil {
+				t.Fatal(err)
+			}
+			app.room = inst
+			if err := inst.Load(); err != nil {
+				t.Fatal(err)
+			}
+			for i := 0; i < 10; i++ {
+				app.Tick(time.Now())
+				time.Sleep(2 * time.Millisecond)
+			}
+			if err := inst.Err(); err != nil {
+				t.Fatalf("%s: %v", sc.Name, err)
+			}
+			snap := app.Snapshot()
+			if sc.Overlay != nil {
+				sc.Overlay(&snap)
+			}
+			dev, err := gfx.NewSoftware(size[0], size[1])
+			if err != nil {
+				t.Fatal(err)
+			}
+			labels := map[string]gpuTexture{}
+			presentFrame(dev, snap, map[string]gpuTexture{}, labels, false)
+			if sc.Overlay == nil || sc.FooterOverride {
+				v1Footer(dev, snap, labels, sc)
+				if sc.FooterOverride {
+					dimV1Footer(dev, snap)
+				}
+			}
+			path := filepath.Join(out, fmt.Sprintf("%s-%dx%d.png", sc.Name, size[0], size[1]))
+			file, err := os.Create(path)
+			if err != nil {
+				t.Fatal(err)
+			}
+			err = png.Encode(file, dev.Snapshot())
+			if closeErr := file.Close(); err == nil {
+				err = closeErr
+			}
+			if err != nil {
+				t.Fatal(err)
+			}
+			dev.Close()
+			inst.Close()
+			t.Logf("%s room %dx%d at %d,%d", path, snap.Room.Width, snap.Room.Height, snap.Room.OffsetX, snap.Room.OffsetY)
+		}
+	}
+}

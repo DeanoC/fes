@@ -988,6 +988,7 @@ Error CheckCoreCompatibility(const CoreDescriptor& descriptor, NativePlatform pl
 				interface.id == FesComputerInterfaceKeyboardHidID ||
 				interface.id == FesComputerInterfaceMouseRelativeID ||
 				interface.id == FesComputerInterfaceMediaAtariStFloppyWriteID ||
+				interface.id == FesComputerInterfaceMediaPcxtFloppyWriteID ||
 				interface.id == FesComputerInterfaceMediaZx81TapeWriteID ||
 				interface.id == FesComputerInterfaceMediaSpectrumDiskID ||
                 interface.id == FesComputerInterfaceMediaAtariStFloppyGeometryID ||
@@ -1027,6 +1028,7 @@ Error CheckCoreCompatibility(const CoreDescriptor& descriptor, NativePlatform pl
 			// Capability bits 16..31 are identity word 16, which only 1.1 has.
 			if (interface.id == FesComputerInterfaceMediaAtaDiskID ||
 				interface.id == FesComputerInterfaceMediaPcxtFloppyID ||
+				interface.id == FesComputerInterfaceMediaPcxtFloppyWriteID ||
 				interface.id == FesComputerInterfacePersistenceWordsID ||
 				interface.id == FesComputerInterfacePc386MachineID ||
 				interface.id == FesComputerInterfaceRtcWallClockID) second_word = true;
@@ -1035,11 +1037,13 @@ Error CheckCoreCompatibility(const CoreDescriptor& descriptor, NativePlatform pl
 		if (second_word && descriptor.abi.minor < 1)
 			return CompatibilityError(ErrorCode::unsupported_abi,
 				"computer capability bits 16..31 require ABI 1.1");
-		bool writable = false, geometry = false, st_medium = false;
+		bool writable = false, geometry = false, st_medium = false, pcxt_medium = false, pcxt_writable = false;
 		for (const auto& interface : descriptor.interfaces) {
 			geometry |= interface.id == FesComputerInterfaceMediaAtariStFloppyGeometryID && interface.required && interface.major == 1 && interface.minor == 0;
 			writable |= interface.id == FesComputerInterfaceMediaAtariStFloppyWriteID && interface.required && interface.major == 1 && interface.minor == 0;
 			st_medium |= interface.id == FesComputerInterfaceMediaAtariStFloppyID && interface.required && interface.major == 1 && interface.minor == 0;
+			pcxt_medium |= interface.id == FesComputerInterfaceMediaPcxtFloppyID && interface.required && interface.major == 1 && interface.minor == 0;
+			pcxt_writable |= interface.id == FesComputerInterfaceMediaPcxtFloppyWriteID && interface.required && interface.major == 1 && interface.minor == 0;
 		}
 		if (display && !ddr)
 			return CompatibilityError(ErrorCode::unsupported_interface,
@@ -1047,6 +1051,7 @@ Error CheckCoreCompatibility(const CoreDescriptor& descriptor, NativePlatform pl
 		Error pairing = CheckDisplayPlanePairing(display, plane);
 		if (!pairing.ok()) return pairing;
 		if ((writable || geometry) && !st_medium) return CompatibilityError(ErrorCode::unsupported_interface, "Atari ST media extensions require the base floppy interface");
+		if (pcxt_writable && !pcxt_medium) return CompatibilityError(ErrorCode::unsupported_interface, "PC/XT write requires the base floppy interface");
 		if (zx81_tape_write && !zx81_tape)
 			return CompatibilityError(ErrorCode::unsupported_interface,
 				"ZX81 tape write requires the base tape interface");

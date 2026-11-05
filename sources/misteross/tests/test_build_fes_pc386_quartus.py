@@ -85,7 +85,7 @@ class RatesTest(unittest.TestCase):
     def test_rates_at_100_mhz_are_the_machine_defaults(self):
         rates = quartus.guest_rates(100_000_000)
         expected = {"ISA": (1, 12), "PIT": (21, 880), "US": (1, 100), "DMA": (1, 24), "DOT0": (1007, 4000),
-                    "DOT1": (14161, 50000), "OPL2": (7, 14080), "AUDIO": (3, 6250)}
+                    "DOT1": (14161, 50000), "OPL2": (7, 14080), "AUDIO": (3, 6250), "GOV": (1, 1000)}
         for name, pair in expected.items():
             self.assertEqual((rates[f"{name}_N"], rates[f"{name}_D"]), pair, name)
         self.assertEqual(rates["RTC_N"] / rates["RTC_D"], 256 / 781250)

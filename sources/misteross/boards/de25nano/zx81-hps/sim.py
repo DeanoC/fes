@@ -30,7 +30,11 @@ def prepare(bench, output=None):
         path = output / filename
         path.write_bytes(derive((ZX81 / filename).read_bytes())[0])
         adapted.append(path)
-    (output / "zx8x.hex").write_bytes((ZX81 / "zx8x.hex").read_bytes())
+    firmware = load(HERE.parent / "zx81/firmware.py", "de25_sim_firmware")
+    captured = {name: (ROOT.parents[1] / name).read_bytes() for name in firmware.INPUTS}
+    generated, record = firmware.generate(captured, output / "firmware")
+    (output / "zx8x.hex").write_bytes(generated["zx8x.hex"])
+    (output / "zx81_firmware.hpp").write_bytes(firmware.simulation_header(record))
     runtime = ROOT.parent / "libmister-runtime/src/native/generated/fes_computer.hpp"
     (output / "fes_computer.hpp").write_bytes(runtime.read_bytes())
     sources = [HERE / "fes_de25_computer.v", HERE / "video.v",
