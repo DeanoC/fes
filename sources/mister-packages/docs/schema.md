@@ -358,7 +358,7 @@ three exact member byte strings, in archive order, prefixed by its unsigned
 64-bit little-endian length. Unlike CycloneV static composition, no payload bit
 editing or monolithic RBF construction is implied. The default persona belongs
 to the package so an empty selection also has a complete cold-start artifact.
-`testdata/core-bundle-v5` is the shared Go/C++ structural corpus; its opaque
+`testdata/core-bundle-v5` is the shared Go/C++/Python structural corpus; its opaque
 synthetic payloads must never be deployed.
 
 ## Static partial expansion assets and composition

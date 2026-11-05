@@ -366,9 +366,28 @@ clock cycle. It monitors actual release edges and exercises early control,
 accepted/drained reads and late-release poisoning. The generated producer
 project is unchanged; this does not close RDC-50003 or qualify physical
 metastability, outer clock monitors, live global reset or boot/allocation epochs.
-DE25 package validation accepts only format 2 for its exact SCS device. The
-existing format-3/4 ROM-map encoding and destination geometry describe Cyclone V
-M10K storage and are refused for Agilex 5.
+DE25 package validation accepts formats 2 and 5 for its exact SCS device.
+Format5 keeps `core.rbf` and the default empty `persona.rbf` separate, alongside
+`manifest.toml`. The Python reader and exporter use the shared Go/C++/Python
+conformance corpus, exact three-member identity, restricted-ustar order and
+independent image bounds/hashes. Directory members and export inputs must be
+regular, unlinked files; FIFO sources are refused without blocking.
+
+`export_core_package.py --persona` requires format5, sibling producer outputs
+and a source-closed format-2 Quartus build record. Its parameters bind the exact
+`device`, `programming_profile`, `hps_initialization = "HPS FIRST"`,
+`static_control_build_id` and `static_default_persona_id`. The existing source
+pin/closure checks and atomic, read-only directory/archive/evidence publication
+apply to both images. Frozen QDB/interface/clock-reset/POF0 output identities
+are sealed in the manifest and package identity. They are not functional build
+inputs: hashing post-fit outputs into a build ID embedded in the base is cyclic.
+The producer still owns timing, frozen-partition reuse and independent-build
+gates; this exporter does not qualify a vendor image. A canonical static
+producer and runtime profile activation remain unfinished. No build command
+loads hardware.
+
+The existing format-3/4 ROM-map encoding and destination geometry describe
+Cyclone V M10K storage and are refused for Agilex 5.
 
 The scanout producer derives named HDMI cells from its locked Terasic sources.
 Two 50 MHz stages synchronize external SDA acknowledgements and INT, with

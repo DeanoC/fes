@@ -1,0 +1,136 @@
+[
+  {
+    "name": "valid-basic",
+    "manifest": "manifests/valid-basic.toml",
+    "payload": "payloads/base.rbf",
+    "persona": "payloads/persona.rbf",
+    "valid": true,
+    "package_id": "1ad97e43e69bdf5c70da5d3ec01dd8b86289fa6cfc920c3b83831638aacd7bb1"
+  },
+  {
+    "name": "invalid-platform",
+    "manifest": "manifests/invalid-platform.toml",
+    "payload": "payloads/base.rbf",
+    "persona": "payloads/persona.rbf",
+    "valid": false
+  },
+  {
+    "name": "invalid-device",
+    "manifest": "manifests/invalid-device.toml",
+    "payload": "payloads/base.rbf",
+    "persona": "payloads/persona.rbf",
+    "valid": false
+  },
+  {
+    "name": "invalid-profile",
+    "manifest": "manifests/invalid-profile.toml",
+    "payload": "payloads/base.rbf",
+    "persona": "payloads/persona.rbf",
+    "valid": false
+  },
+  {
+    "name": "invalid-filename",
+    "manifest": "manifests/invalid-filename.toml",
+    "payload": "payloads/base.rbf",
+    "persona": "payloads/persona.rbf",
+    "valid": false
+  },
+  {
+    "name": "invalid-default-id",
+    "manifest": "manifests/invalid-default-id.toml",
+    "payload": "payloads/base.rbf",
+    "persona": "payloads/persona.rbf",
+    "valid": false
+  },
+  {
+    "name": "invalid-float-id",
+    "manifest": "manifests/invalid-float-id.toml",
+    "payload": "payloads/base.rbf",
+    "persona": "payloads/persona.rbf",
+    "valid": false
+  },
+  {
+    "name": "invalid-float-size",
+    "manifest": "manifests/invalid-float-size.toml",
+    "payload": "payloads/base.rbf",
+    "persona": "payloads/persona.rbf",
+    "valid": false
+  },
+  {
+    "name": "invalid-empty-size",
+    "manifest": "manifests/invalid-empty-size.toml",
+    "payload": "payloads/base.rbf",
+    "persona": "payloads/persona.rbf",
+    "valid": false
+  },
+  {
+    "name": "invalid-size-binding",
+    "manifest": "manifests/invalid-size-binding.toml",
+    "payload": "payloads/base.rbf",
+    "persona": "payloads/persona.rbf",
+    "valid": false
+  },
+  {
+    "name": "invalid-hash-binding",
+    "manifest": "manifests/invalid-hash-binding.toml",
+    "payload": "payloads/base.rbf",
+    "persona": "payloads/persona.rbf",
+    "valid": false
+  },
+  {
+    "name": "invalid-zero-controller",
+    "manifest": "manifests/invalid-zero-controller.toml",
+    "payload": "payloads/base.rbf",
+    "persona": "payloads/persona.rbf",
+    "valid": false
+  },
+  {
+    "name": "invalid-zero-root",
+    "manifest": "manifests/invalid-zero-root.toml",
+    "payload": "payloads/base.rbf",
+    "persona": "payloads/persona.rbf",
+    "valid": false
+  },
+  {
+    "name": "invalid-zero-interface",
+    "manifest": "manifests/invalid-zero-interface.toml",
+    "payload": "payloads/base.rbf",
+    "persona": "payloads/persona.rbf",
+    "valid": false
+  },
+  {
+    "name": "invalid-zero-clock",
+    "manifest": "manifests/invalid-zero-clock.toml",
+    "payload": "payloads/base.rbf",
+    "persona": "payloads/persona.rbf",
+    "valid": false
+  },
+  {
+    "name": "invalid-zero-pof",
+    "manifest": "manifests/invalid-zero-pof.toml",
+    "payload": "payloads/base.rbf",
+    "persona": "payloads/persona.rbf",
+    "valid": false
+  },
+  {
+    "name": "invalid-unknown-field",
+    "manifest": "manifests/invalid-unknown-field.toml",
+    "payload": "payloads/base.rbf",
+    "persona": "payloads/persona.rbf",
+    "valid": false
+  },
+  {
+    "name": "invalid-mixed-rom",
+    "manifest": "manifests/invalid-mixed-rom.toml",
+    "payload": "payloads/base.rbf",
+    "persona": "payloads/persona.rbf",
+    "valid": false
+  },
+  {
+    "name": "invalid-missing-static",
+    "manifest": "manifests/invalid-missing-static.toml",
+    "payload": "payloads/base.rbf",
+    "persona": "payloads/persona.rbf",
+    "valid": false
+  }
+]

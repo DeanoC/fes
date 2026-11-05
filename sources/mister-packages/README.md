@@ -11,7 +11,7 @@ fixtures. Go emitters generate C, C++14, Go and Verilog consumers. FES runs
 Format5 describes a DE25 cold-start base plus its default empty partial persona.
 The three exact members, controller identity and frozen-root bindings are
 specified in [the schema guide](docs/schema.md#static-expansion-package-format-5).
-The shared Go/C++ structural fixtures do not register the unfinished static
+The shared Go/C++/Python structural fixtures do not register the unfinished static
 programming profile or qualify a physical partial configuration.
 
 Standalone board definitions support `validate` and `report`, independently of
