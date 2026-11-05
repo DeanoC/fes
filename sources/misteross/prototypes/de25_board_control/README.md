@@ -93,7 +93,13 @@ The distinct `de25-embedded-hps-first-rom-diagnostic-v1` package profile require
 files, generated slave/conduit ports, clock/reset routes and build identity.
 These checks and host execution are separate from routed timing, a matched
 ROM-capable boot profile, native retained-ROM admission and physical acceptance.
-Existing native launchers still reject this new profile.
+Its fresh sealed export uses format 3 with one `firmware` ROM requirement and a
+`cpu-csr-v1` map bound to the unchanged core RBF and model-specific ROM size.
+Firmware bytes are supplied separately. Other variants still use format 2.
+The native command/build path requires a separately selected firmware source and
+shared-linker receipt; a fresh matched ROM boot chain remains necessary before
+a hardware trial. Existing
+format-two ROM candidates are not relabeled or accepted as new exports.
 
 The new 256-byte Avalon aperture is at peripheral-relative `0x10400`. The
 generated handoff must also show it at `0x00110400` in the existing JTAG master.

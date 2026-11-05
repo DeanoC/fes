@@ -1,6 +1,7 @@
 import copy
 import importlib.util
 import json
+import tempfile
 import unittest
 from pathlib import Path
 from unittest.mock import patch
@@ -12,6 +13,36 @@ spec.loader.exec_module(seal)
 
 
 class SealedIdentityTests(unittest.TestCase):
+    def test_rom_package_roundtrips_with_unchanged_payload_and_size_bound_map(self):
+        from scripts.core_package import package_identity
+        from scripts.export_core_package import _archive_bytes
+        payload = b'unchanged FPGA payload'
+        record = json.dumps({'repository': 'https://example.invalid/fes', 'revision': 'f'*40,
+                             'recipe_sha256': 'a'*64}).encode()
+        ids = []
+        for model, size in [('zx80', 4096), ('zx81', 8192)]:
+            inputs = {'board_fes_revision': seal.rom_transport.BOARD_REVISION,
+                      'computer_model': model, 'computer': {'hps_initialization': 'HPS FIRST'},
+                      'reader_memory': seal.reader_memory.selection('hps-ddr', 0x95000000, 8192),
+                      'rom_transport': seal.rom_transport.selection(True, model)}
+            manifest, mapping = seal.package_metadata(inputs, payload, record, {'quartus-version': 'fixture'})
+            with tempfile.TemporaryDirectory() as folder:
+                archive = Path(folder)/'package.fcore'
+                archive.write_bytes(_archive_bytes(manifest, payload, mapping))
+                package = seal.read_package(archive)
+            self.assertEqual(package.fields['format'], 3)
+            self.assertEqual(package.fields['rom']['source_size'], size)
+            self.assertEqual(package.payload_bytes, payload)
+            self.assertEqual(json.loads(mapping), {'format': 1, 'device': seal.DEVICE, 'encoding': 'cpu-csr-v1',
+                             'source_size': size, 'base_sha256': seal.sha(payload)})
+            self.assertEqual(package.package_id, package_identity(manifest, payload, mapping, format_version=3))
+            ids.append(package.package_id)
+            legacy = dict(inputs); legacy.pop('rom_transport')
+            old_manifest, old_mapping = seal.package_metadata(legacy, payload, record, {'quartus-version': 'fixture'})
+            self.assertIsNone(old_mapping)
+            self.assertNotEqual(package.package_id, package_identity(old_manifest, payload))
+        self.assertNotEqual(*ids)
+
     def test_rom_record_requires_the_current_machine_closure_and_distinct_profile(self):
         inputs={'device':seal.DEVICE,'diagnostic_only':True,'board_fes_revision':seal.rom_transport.BOARD_REVISION,
             'compile_processors':2,'computer_model':'zx81','computer':{'hps_initialization':'HPS FIRST'},

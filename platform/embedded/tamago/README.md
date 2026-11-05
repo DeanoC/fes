@@ -416,6 +416,19 @@ orchestration, physical programming, board DMA containment or DE25 acceptance.
 
 ## CPU/video parts in retained activation
 
+For the explicit sealed Nano held-ROM profile, `fpgaload --selected-programs`
+also requires `--firmware-rom IMAGE --rom-host-go HOST_GO`, computer control,
+reload and storage return. `HOST_GO` is a host Go 1.26.5 compiler. The builder
+snapshots the separate 4/8 KiB firmware image and uses the existing retained
+package linker to derive its content-bound activation receipt. It exports
+`FIRMWARE.BIN`, `rom-selection.json`, `PROGRAM.JSN` and `CORESEL.JSN`, and links
+the complete sealed ROM resource map into the native command. The catalog
+references `FES/FIRMWARE.BIN`; firmware content is not added to the FPGA package.
+Wrong sizes, foreign packages, missing ROM resources and ordinary profiles reject.
+The command explicitly constructs the ROM verifier rather than inferring hardware
+capabilities from the catalog. These build connections require a fresh producer
+and matched boot chain; host receipt tests and compilation are not board acceptance.
+
 `run.py play` now runs eleven cases. In addition to the existing seven, it
 activates a synthetic Coleco application shell with one CPU expansion and one
 raster video part, then rejects changed, missing and incompatible selections.

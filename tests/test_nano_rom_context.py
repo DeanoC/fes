@@ -44,6 +44,22 @@ class ROMContextTests(unittest.TestCase):
             rom=dict(self.rom,bytes=size)
             self.assertEqual(hps.validate_rom(self.context,self.control,self.computer,rom),rom)
 
+    def test_selected_metadata_requires_an_explicit_content_receipt(self):
+        with patch.object(hps,'_derive',return_value=self.context), \
+             patch.object(hps,'_program_platform',return_value={'platform':{'sealed':'fixture'}}), \
+             patch.object(hps,'_control',return_value=self.control), \
+             patch.object(hps,'_computer',return_value=self.computer), \
+             patch.object(hps,'_rom',return_value=self.rom):
+            for receipt in (None, '', '0'*64, 'g'*64, 'a'*63, True):
+                with self.subTest(receipt=receipt),self.assertRaises(ValueError):
+                    hps._selected_program('fixture',receipt)
+            record=hps._selected_program('fixture','b'*64)
+            self.assertEqual(record['scope'],'nano-selected-rom-program-v1')
+            self.assertEqual(record['rom'],self.rom)
+            self.assertEqual(record['rom_receipt_sha256'],'b'*64)
+            with patch.object(hps,'_derive',return_value=dict(self.context,programming_profile='de25-embedded-hps-first-ddr-diagnostic-v1')):
+                with self.assertRaises(ValueError):hps._selected_program('fixture','b'*64)
+
     def test_cpu_route_requires_unique_nonoverlapping_region(self):
         # The producer seal and generated conduit checks are separate. Exercise
         # the final CPU address-map decoder with malformed handoffs here.

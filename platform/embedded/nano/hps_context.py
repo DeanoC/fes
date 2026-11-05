@@ -44,11 +44,12 @@ def inputs():
             ROOT/'sources/misteross/scripts/source_repository.py']
 
 
-def _worker(project, mode=None):
+def _worker(project, mode=None, rom_receipt_sha256=None):
     # The FPGA producer imports private modules named seal/scripts/verify and
     # adjusts sys.path. Isolate those imports from the firmware builders, whose
     # own verify module must remain authoritative after this call returns.
-    result = subprocess.run([sys.executable, str(Path(__file__).resolve()), str(project), *([mode] if mode else [])],
+    result = subprocess.run([sys.executable, str(Path(__file__).resolve()), str(project), *([mode] if mode else []),
+                            *([rom_receipt_sha256] if rom_receipt_sha256 is not None else [])],
                             stdout=subprocess.PIPE, stderr=subprocess.PIPE, timeout=120)
     if result.returncode:
         raise ValueError('sealed HPS context verification failed: '+result.stderr.decode(errors='replace')[-4096:])
@@ -97,8 +98,8 @@ def program_platform(project):
     return _worker(project, 'program-platform')
 
 
-def selected_program(project):
-    return _worker(project, 'selected-program')
+def selected_program(project, rom_receipt_sha256=None):
+    return _worker(project, 'selected-program', rom_receipt_sha256)
 
 
 def reader_memory(project):
@@ -633,7 +634,7 @@ def _program_parameters(project):
 
 def _program_platform(project, context=None):
     context = _derive(project) if context is None else context
-    if context['programming_profile'] != 'de25-embedded-hps-first-ddr-diagnostic-v1':
+    if context['programming_profile'] not in ('de25-embedded-hps-first-ddr-diagnostic-v1', ROM_PROFILE):
         raise ValueError('selected programs require the complete contained DDR-shell inventory')
     parameters = _program_parameters(project)
     pinmux = _hps_io(project)
@@ -647,12 +648,19 @@ def _program_platform(project, context=None):
             'boot_context_sha256': digest(context), 'platform': platform}
 
 
-def _selected_program(project):
+def _selected_program(project, rom_receipt_sha256=None):
     context = _derive(project)
-    return {'format': 1, 'scope': 'nano-selected-program-v1',
+    record = {'format': 1, 'scope': 'nano-selected-program-v1',
             'package_id': context['package_id'], 'build_id': context['build_id'],
             'platform': _program_platform(project, context)['platform'],
             'control': _control(project), 'computer': _computer(project)}
+    if context.get('programming_profile') == ROM_PROFILE:
+        if not isinstance(rom_receipt_sha256, str) or not re.fullmatch('[0-9a-f]{64}', rom_receipt_sha256) or rom_receipt_sha256 == '0'*64:
+            raise ValueError('ROM metadata requires the selected retained activation receipt')
+        record.update(scope='nano-selected-rom-program-v1', rom=_rom(project), rom_receipt_sha256=rom_receipt_sha256)
+    elif rom_receipt_sha256 is not None:
+        raise ValueError('ROM receipt requires the explicit ROM producer profile')
+    return record
 
 
 def checked(record, program_key='program'):
@@ -846,7 +854,8 @@ if __name__ == '__main__':
     actions = {'control': _control, 'configuration': _configuration, 'package': _package,
                'reader-memory': _reader_memory, 'ddr-read': _ddr_read, 'window-read': _window_read, 'computer': _computer,
                'hps-io': _hps_io, 'program-platform': _program_platform, 'selected-program': _selected_program, 'rom': _rom}
-    if len(sys.argv) not in (2,3) or len(sys.argv)==3 and sys.argv[2] not in actions:
-        raise SystemExit('usage: hps_context.py SEALED_PROJECT ['+'|'.join(actions)+']')
+    if (len(sys.argv) not in (2,3,4) or len(sys.argv)>=3 and sys.argv[2] not in actions or
+            len(sys.argv)==4 and sys.argv[2]!='selected-program'):
+        raise SystemExit('usage: hps_context.py SEALED_PROJECT ['+'|'.join(actions)+'] [ROM_RECEIPT for selected-program]')
     action = _derive if len(sys.argv)==2 else actions[sys.argv[2]]
-    sys.stdout.buffer.write(encode(action(sys.argv[1])))
+    sys.stdout.buffer.write(encode(action(sys.argv[1], sys.argv[3]) if len(sys.argv)==4 else action(sys.argv[1])))

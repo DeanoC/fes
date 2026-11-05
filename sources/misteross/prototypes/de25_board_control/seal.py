@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Construct the diagnostic Nano's canonical record and format-2 package.
+"""Construct the diagnostic Nano's canonical record and retained package.
 
 The board source comes from a second Git revision. Its entire captured snapshot
 and vendor archive are named in the functional inputs; this is not a
@@ -71,6 +71,31 @@ def interfaces_for(inputs):
 
 def sha(data):
     return hashlib.sha256(data).hexdigest()
+
+
+def package_metadata(inputs, data, record, tools):
+    """Describe held ROM content without bundling firmware or FPGA destinations."""
+    fields = json.loads(record)
+    rom = rom_transport.checked(inputs)
+    rom_map = None
+    if rom:
+        rom_map = (json.dumps({'format': 1, 'device': DEVICE, 'encoding': 'cpu-csr-v1',
+                              'base_sha256': sha(data), 'source_size': rom['bytes']},
+                             sort_keys=True, separators=(',', ':'))+'\n').encode()
+    fields = {
+        'format': 3 if rom else 2,
+        'core': {'id': 'fes.de25-embedded-diagnostic', 'name': 'DE25 embedded control diagnostic',
+                 'description': 'Exploratory diagnostic; not qualified for physical reconfiguration.', 'version': '0.1.0'},
+        'target': {'platform': PLATFORM, 'device': DEVICE, 'programming_profile': profile_for(inputs)},
+        'payload': {'file': 'core.rbf', 'size': len(data), 'sha256': sha(data)},
+        'abi': {'id': ABI, 'major': 1, 'minor': 0}, 'interfaces': interfaces_for(inputs),
+        'build': {'id': build_identity(record), 'repository': fields['repository'], 'revision': fields['revision'],
+                  'recipe_sha256': fields['recipe_sha256'], 'toolchain': tools['quartus-version']},
+    }
+    if rom:
+        fields['rom'] = {'id': 'firmware', 'role': 'firmware', 'source_size': rom['bytes'],
+                         'file': 'rom-map.json', 'size': len(rom_map), 'sha256': sha(rom_map)}
+    return encode_manifest(fields), rom_map
 
 
 def snapshot_digest(sources):
@@ -187,20 +212,17 @@ def publish(output, artifact, archive, tool, record, expected_tools, version):
     if not data:
         raise ValueError("empty diagnostic RBF")
     (output / "build-inputs.json").write_bytes(record)
-    manifest = encode_manifest({
-        "format": 2,
-        "core": {"id": "fes.de25-embedded-diagnostic", "name": "DE25 embedded control diagnostic",
-                 "description": "Exploratory diagnostic; not qualified for physical reconfiguration.", "version": "0.1.0"},
-        "target": {"platform": PLATFORM, "device": DEVICE, "programming_profile": profile_for(inputs)},
-        "payload": {"file": "core.rbf", "size": len(data), "sha256": sha(data)},
-        "abi": {"id": ABI, "major": 1, "minor": 0}, "interfaces": interfaces_for(inputs),
-        "build": {"id": build_identity(record), "repository": fields["repository"], "revision": fields["revision"],
-                  "recipe_sha256": fields["recipe_sha256"], "toolchain": expected_tools["quartus-version"]},
-    })
+    manifest, rom_map = package_metadata(inputs, data, record, expected_tools)
+    map_path = None
+    if rom_map is not None:
+        map_path = output / 'rom-map.json'
+        with map_path.open('xb') as stream:
+            stream.write(rom_map)
+        map_path.chmod(0o444)
     pair = None
     if order == "HPS FIRST":
         pair = {"format": 1, "classification": "unqualified-hps-first-diagnostic",
-                "package_id": package_identity(manifest, data), "build_id": build_identity(record),
+                "package_id": package_identity(manifest, data, rom_map, format_version=3 if rom_map is not None else 2), "build_id": build_identity(record),
                 "build_inputs_sha256": sha(record), "hps_io_hash": io_hash,
                 "pfg_identity": expected_tools["quartus-pfg"], "quartus_version": expected_tools["quartus-version"],
                 "phase1_sha256": sha(phase1.read_bytes()), "phase1_size": phase1.stat().st_size,
@@ -210,7 +232,7 @@ def publish(output, artifact, archive, tool, record, expected_tools, version):
         with pair_path.open("xb") as stream:
             stream.write(pair_bytes)
         pair_path.chmod(0o444)
-    directory = export_package(manifest, payload, output / "packages")
+    directory = export_package(manifest, payload, output / "packages", rom_map=map_path)
     package = read_package(directory)
     if pair is not None and pair["package_id"] != package.package_id:
         raise ValueError("HPS-first pair package identity differs")

@@ -100,6 +100,9 @@ def inputs_for(project):
         if not re.fullmatch(r"[0-9a-f]{64}", result["package_id"]):
             raise ValueError("invalid sealed package ID")
         package = seal.read_package(board / "hps/packages" / result["package_id"])
+        manifest, rom_map = seal.package_metadata(inputs, package.payload_bytes, record, fields['tools'])
+        if package.manifest_bytes != manifest or package.rom_map_bytes != rom_map:
+            raise ValueError('diagnostic package metadata differs from its sealed ROM selection')
         check_archive(board / "hps/packages" / (result["package_id"] + ".fcore"), package)
         build = json.loads((board / "hps/build.json").read_text())
         if build["artifact"] != "project/output_files/golden_top.sof":

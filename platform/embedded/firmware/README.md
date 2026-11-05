@@ -60,8 +60,10 @@ the existing owned configuration path. Host tests decode each actual publication
 with this C decoder using separately supplied modeled ownership, generation,
 boot digest and chunk geometry. The firmware calls and ROM FIFO remain modeled
 in those lifecycle tests; the provider/RTL tests above cover a separate boundary.
-The native command and cross-builder do not yet select this verifier or link its
-ROM resource. No ROM-capable matched boot image or physical acceptance is claimed.
+The native command and cross-builder select this verifier and link its ROM
+resource only for the sealed ROM profile with an explicit firmware source and
+shared-linker receipt. A freshly built matched boot chain and its physical
+acceptance are still required.
 
 The opt-in window SD-return path now connects the retained full-frame closure
 to the existing read-only SD lease. The secure provider checks its completed

@@ -22,8 +22,9 @@ linker, loader, arena and service. Every publication is parsed by the actual C
 decoder against independent modeled secure context. Failure tests cover foreign
 resources/receipts, stale ownership, staging/publication corruption and a modeled
 firmware rejection. They do not execute physical SMCs or the ROM FIFO. Native
-command/cross-builder selection, a newly sealed format-three producer package,
-the matched boot chain and hardware ROM acceptance remain open.
+command/cross-builder selection requires the sealed ROM profile and an explicit
+firmware source. A newly built sealed producer package, the matched boot chain
+and hardware ROM acceptance remain open.
 
 The shared-gamepad input loop now emits `FES_NATIVE_CORE_GAMEPAD` on the serial
 platform after a changed key matrix has completed its owned write. Receipts

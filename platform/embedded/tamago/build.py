@@ -202,6 +202,36 @@ def usb_input_option(program, requested):
     return (requested or 'boot-keyboard') if program == 'usbcheck' else None
 
 
+def prepare_rom_selection(archive, rom_path, package_id, rom_bytes, host_go, output):
+    """Snapshot selected content and derive its receipt through the shared linker."""
+    rom_path = Path(rom_path).resolve(strict=True)
+    if not rom_path.is_file() or rom_path.stat().st_size != rom_bytes or rom_bytes not in (4096, 8192):
+        raise ValueError('selected firmware ROM must match the sealed 4/8 KiB resource')
+    with rom_path.open('rb') as stream:
+        data = stream.read(8193)
+    if len(data) != rom_bytes:
+        raise ValueError('selected firmware ROM changed while snapshotting')
+    (output/'package.fcore').write_bytes(archive)
+    (output/'FIRMWARE.BIN').write_bytes(data)
+    env = dict(os.environ, GOTOOLCHAIN='local', GOWORK='off', GOENV='off', GOPROXY='off', GOSUMDB='off', GOMAXPROCS='2')
+    command = [str(Path(host_go).resolve(strict=True)), 'run', '-mod=readonly', './cmd/nano-rom-selection',
+               str(output/'package.fcore'), str(output/'FIRMWARE.BIN'), package_id]
+    result = subprocess.run(command, cwd=APP, env=env, stdout=subprocess.PIPE, stderr=subprocess.PIPE, timeout=120)
+    (output/'rom-linker.log').write_bytes(result.stderr)
+    if result.returncode:
+        raise ValueError('shared retained ROM linker failed; see rom-linker.log')
+    record = json.loads(result.stdout)
+    if (set(record) != {'package_id', 'source_id', 'source_size', 'source_sha256', 'rom_receipt_sha256'} or
+            record['package_id'] != package_id or record['source_size'] != rom_bytes or
+            record['source_sha256'] != hashlib.sha256(data).hexdigest() or
+            not isinstance(record['source_id'], str) or not record['source_id'] or
+            not isinstance(record['rom_receipt_sha256'], str) or
+            not re.fullmatch('[0-9a-f]{64}', record['rom_receipt_sha256']) or record['rom_receipt_sha256'] == '0'*64):
+        raise ValueError('shared ROM linker returned a mismatched selection')
+    (output/'rom-selection.json').write_text(json.dumps(record, sort_keys=True, indent=2)+'\n')
+    return record
+
+
 def build(args):
     if args.interactive or args.disk is not None or args.qemu is not None or args.display is not None:
         raise ValueError("Nano selection cross-builds only; QEMU/disk/interactive/display options are not accepted")
@@ -216,7 +246,10 @@ def build(args):
         raise ValueError('the source-bound SMMU profile permits only the serial probe')
     start, size, entry, frequency, usb_frequency, net, display, fpga, uart_index = profile_constants(profile)
     expected_package_id=package_option(args.program,args.package_id,profile)
-    context=io_map=cpu_map=control_map=configuration_map=reader_memory_map=ddr_read_map=computer_map=None
+    context=io_map=cpu_map=control_map=configuration_map=reader_memory_map=ddr_read_map=computer_map=rom_map=None
+    firmware_rom=getattr(args,'firmware_rom',None)
+    rom_host_go=getattr(args,'rom_host_go',None)
+    rom_selection=None
     active_ddr=getattr(args,'ddr_read',False)
     window_memory=getattr(args,'window_memory',False)
     if type(window_memory) is not bool or window_memory and (args.program!='fpgaload' or active_ddr):
@@ -274,6 +307,13 @@ def build(args):
         hps=importlib.util.module_from_spec(spec);spec.loader.exec_module(hps)
         hps_project=hps_project.resolve(strict=True)
         context=hps.derive(hps_project)
+        rom_profile=context['programming_profile']==hps.ROM_PROFILE
+        if rom_profile:
+            if not selected_programs or not computer_control or firmware_rom is None or rom_host_go is None:
+                raise ValueError('ROM source requires selected computer programs, --firmware-rom and --rom-host-go')
+            rom_map=hps.rom(hps_project)
+        elif firmware_rom is not None or rom_host_go is not None:
+            raise ValueError('firmware ROM selection requires the explicit sealed ROM producer profile')
         if (context['programming_profile']=='de25-embedded-hps-first-window-diagnostic-v1')!=window_memory:
             raise ValueError('the window source requires explicit --window-memory and cannot inherit a fixed-reader diagnostic')
         if args.program in ('hpsio','usbcheck') or usb_shared:io_map=hps.hps_io(hps_project)
@@ -287,7 +327,7 @@ def build(args):
             if computer_control:computer_map=hps.computer(hps_project)
             if selected_programs:
                 program_platform=hps.program_platform(hps_project)
-                program_metadata=hps.selected_program(hps_project)
+                if rom_map is None:program_metadata=hps.selected_program(hps_project)
             package_archive=hps.package_archive(hps_project,configuration_map)
             arena_start,arena_end=configuration_map['base'],configuration_map['base']+configuration_map['size']
             exclusions=[(start,start+size),(0x94000000,0x94800000)]+[(r['start'],r['start']+r['size']) for r in profile['reserved']]
@@ -299,12 +339,18 @@ def build(args):
                     raise ValueError('reader arena overlaps heap, sealed FIT, configuration or firmware')
     elif hps_project is not None:
         raise ValueError('--hps-first-project requires a native context diagnostic')
+    elif firmware_rom is not None or rom_host_go is not None:
+        raise ValueError('firmware ROM selection requires a sealed ROM source')
     if args.program == "fpga" and fpga is None:
         raise ValueError("fpga probe requires an explicit read-only service profile")
     output = args.output.resolve()
     if output.exists() or not output.is_relative_to(ROOT / "out"):
         raise ValueError("output must be a fresh directory beneath this worktree's out/")
     output.mkdir(parents=True)
+    if rom_map is not None:
+        rom_selection=prepare_rom_selection(package_archive,firmware_rom,context['package_id'],rom_map['bytes'],rom_host_go,output)
+        program_metadata=hps.selected_program(hps_project,rom_selection['rom_receipt_sha256'])
+        (output/'hps-rom.json').write_bytes(hps.encode(rom_map))
     (output / "handoff.json").write_bytes(raw)
     if context is not None:(output/'hps-context.json').write_bytes(hps.encode(context))
     if io_map is not None:(output/'hps-io.json').write_bytes(hps.encode(io_map))
@@ -321,6 +367,9 @@ def build(args):
         (output/'PROGRAM.JSN').write_bytes(metadata)
         request={'path':'FES/PKGTEST.BIN','package_id':context['package_id'],
                  'metadata_path':'FES/PROGRAM.JSN','metadata_sha256':hashlib.sha256(metadata).hexdigest()}
+        if rom_selection is not None:
+            request.update(sources=[{'id':rom_selection['source_id'],'role':'firmware','path':'FES/FIRMWARE.BIN',
+                                    'sha256':rom_selection['source_sha256']}],rom_receipt_sha256=rom_selection['rom_receipt_sha256'])
         choices={'format':1,'scope':'nano-program-selection-v1','programs':[request]*(2 if computer_reload else 1)}
         (output/'CORESEL.JSN').write_bytes(hps.encode(choices))
     uart_base = 0x10c02000 + uart_index * 0x100
@@ -382,6 +431,7 @@ def build(args):
         raise ValueError("Nano selected a QEMU controller implementation")
     files = {APP / "go.mod", APP / "go.sum", APP / "build.py", APP / "run.py", APP / "toolchain.lock.toml", APP.parent/'nano/smmu-profile.json'}
     if context is not None:files.update(hps.inputs())
+    if rom_map is not None:files.add(APP/'cmd/nano-rom-selection/main.go')
     for p in packages:
         directory = Path(p["Dir"])
         if directory.is_relative_to(ROOT):
@@ -407,6 +457,7 @@ def build(args):
     if window_service:link_flags+=' -X main.expectedWindowService=1'
     if tenfoot_serial:link_flags+=' -X main.expectedTenfootSerial=1'
     if computer_map is not None:link_flags+=' -X main.expectedComputerMap='+base64.b64encode(hps.encode(computer_map)).decode()
+    if rom_map is not None:link_flags+=' -X main.expectedROMMap='+base64.b64encode(hps.encode(rom_map)).decode()
     if computer_reload:link_flags+=' -X main.expectedComputerReload=1'
     if computer_storage_return:link_flags+=' -X main.expectedComputerStorageReturn=1'
     if program_platform is not None:
@@ -438,8 +489,11 @@ def build(args):
     if computer_map is not None and (hps.computer(hps_project)!=computer_map or
             base64.b64encode(hps.encode(computer_map)) not in data):
         raise ValueError('sealed computer control changed or was not linked into the native image')
+    if rom_map is not None and (hps.rom(hps_project)!=rom_map or base64.b64encode(hps.encode(rom_map)) not in data or
+            hashlib.sha256(Path(firmware_rom).read_bytes()).hexdigest()!=rom_selection['source_sha256']):
+        raise ValueError('sealed ROM resource or selected firmware content changed during build')
     if program_platform is not None and (hps.program_platform(hps_project)!=program_platform or
-            hps.selected_program(hps_project)!=program_metadata or base64.b64encode(hps.encode(program_platform)) not in data):
+            hps.selected_program(hps_project,rom_selection['rom_receipt_sha256'] if rom_selection else None)!=program_metadata or base64.b64encode(hps.encode(program_platform)) not in data):
         raise ValueError('compiled program platform or example selected metadata changed')
     if sources != {str(p.relative_to(ROOT)): sha(p) for p in sorted(files)}:
         raise ValueError("sources changed while building")
@@ -459,6 +513,8 @@ def build(args):
               "window_service":window_service,
               "window_read":window_read,"hps_window_read":window_read_map,"hps_window_read_sha256":hps.digest(window_read_map) if window_read_map else None,
               "hps_computer":computer_map,"hps_computer_sha256":hps.digest(computer_map) if computer_map else None,
+              "hps_rom":rom_map,"hps_rom_sha256":hps.digest(rom_map) if rom_map else None,
+              "rom_selection":rom_selection,"rom_host_go_sha256":sha(Path(rom_host_go).resolve()) if rom_map else None,
               "computer_reload":computer_reload,
               "computer_storage_return":computer_storage_return,
               "selected_programs":selected_programs,"tenfoot_serial":tenfoot_serial,

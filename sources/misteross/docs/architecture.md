@@ -24,8 +24,10 @@ one required `fes.embedded.rom` 1.0 interface and a 4/8 KiB firmware source,
 with no bitstream destinations or physical addresses in the map. Its payload
 stays unchanged and the source is delivered separately by a compatible native
 runtime. Cyclone V maps and linking retain their existing rules. This structural
-recognition does not change the current diagnostic producer's format-2 export,
-register a Nano programming profile or establish physical activation support.
+recognition does not register a Nano programming profile or establish physical
+activation support. The explicit held-ROM diagnostic producer exports format 3
+with a size-bound map and unchanged FPGA payload; ordinary diagnostic variants
+retain format 2. The separate firmware source is selected by the native runtime.
 
 The experimental `fes_embedded_control` component supplies immutable build/ABI
 identity and generation/cookie-bound drain for one single-ID AXI read port.

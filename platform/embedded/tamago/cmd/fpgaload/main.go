@@ -29,6 +29,7 @@ var expectedWindowReadMap string
 var expectedWindowPresent, expectedWindowStorageReturn, expectedWindowReload string
 var expectedWindowService string
 var expectedComputerMap, expectedComputerReload string
+var expectedROMMap string
 var expectedComputerStorageReturn string
 var expectedProgramPlatform, expectedSelectedPrograms string
 var expectedTenfootSerial string
@@ -76,10 +77,15 @@ func main() {
 	var v *nativefabric.HPSContextVerifier
 	var err error
 	if expectedWindowMemory != "" {
-		if expectedWindowMemory != "1" || expectedDDRReadMap != "" || expectedComputerMap != "" || expectedComputerReload != "" || expectedProgramPlatform != "" || expectedSelectedPrograms != "" || expectedComputerStorageReturn != "" {
+		if expectedWindowMemory != "1" || expectedROMMap != "" || expectedDDRReadMap != "" || expectedComputerMap != "" || expectedComputerReload != "" || expectedProgramPlatform != "" || expectedSelectedPrograms != "" || expectedComputerStorageReturn != "" {
 			panic("window memory requires its separate contained frame diagnostic")
 		}
 		v, err = nativefabric.NewWindowHPSContextVerifier(cpu, decoded(expectedBootContext, 8192), control, decoded(expectedReaderMemoryMap, 8192))
+	} else if expectedROMMap != "" {
+		if expectedWindowReadMap != "" || expectedDDRReadMap != "" || expectedSelectedPrograms != "1" || expectedComputerMap == "" {
+			panic("held ROM requires selected computer programs and its complete compiled resources")
+		}
+		v, err = nativefabric.NewROMHPSContextVerifier(cpu, decoded(expectedBootContext, 8192), control, decoded(expectedComputerMap, 8192), decoded(expectedROMMap, 8192))
 	} else {
 		if expectedWindowReadMap != "" {
 			panic("window reads require the complete compiled reservation")
