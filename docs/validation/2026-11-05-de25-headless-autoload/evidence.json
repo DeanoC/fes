@@ -1,0 +1,98 @@
+{
+  "passed": true,
+  "utc": "2026-11-05T08:23:35.757566+00:00",
+  "classification": "Physical coldboot of full-readback verified retained headless image, automatic matching FPGA module initialization, Ethernet and pinned authenticated SSH; original managed FES baseline authenticated and restored.",
+  "PR1297_review_head": "d414725e05bb62cb5aaf11f565be284ab7fabbff",
+  "producer": "0da63d1044cc7ecf9908efba52af17b3e55e6271",
+  "image_sha256_before_boot": "0d703468eeec8bddec2f591d7acd4cd3c674f94878ec589bca56a3fda22a4171",
+  "image_bytes": 3984588800,
+  "board": "TRWU8J8G",
+  "boot_id": "0483ff1b-30bb-4f10-9cf1-c377c572e044",
+  "card_cid": "123456415354430000000075f7019300",
+  "kernel": "6.12.11-gd7d192a9ddd9",
+  "service_sha256": "b479a4473ee45b6c3daebbbc5c7f1f875c361393f8e6ce613e8f39a317f1c1d3",
+  "module_manifest_sha256": "9915095b24e4d6b06244a18e9541cc30124947ed9856e8bb1701629ad0225e65",
+  "four_installed_module_hashes_verified": true,
+  "automatic_modules": [
+    "fpga_bridge",
+    "fpga_region",
+    "of_fpga_region",
+    "stratix10_soc"
+  ],
+  "manager": "Stratix10 SOC FPGA Manager",
+  "region": "/sys/class/fpga_region/region0",
+  "ipv4": "192.168.10.203/24",
+  "mac": "ea:c2:d0:74:16:61",
+  "carrier": 1,
+  "network": "Initial discovery missed link; stock selected -b client continued unattended and configured address/default route/DNS. Running udhcpc PID155 and inet dhcp configuration observed; no manual network intervention. No separately retained server-side DHCP lease record.",
+  "SSH": "Authenticated with key pinned over exclusive identified physical UART; original producer firstboot collect+verify pass.",
+  "serial_sha256": "eacce96d6b7e81afdcc7cf674791ec79744e2dbc7f881491b422aedfc8c91780",
+  "read_only_module_network_sha256": "5d626c1c1dfd61c1fccad622abae01b1159595a1b10dfe5ab7c94e733524de3a",
+  "manual_modprobe": false,
+  "FPGA_QSPI_programming": false,
+  "managed_runtime_or_PR_acceptance": false,
+  "whole_image_observed_after_boot": null,
+  "limit": "Full source/card hash verified before user-inserted coldboot; writable root subsequently generates seed and SSH key. Firstboot collector binds selected observed files, not a whole running-image hash. Single coldboot only; MAC stability/reboot and unrelated display/audio/PR gates not inferred.",
+  "original_FES_baseline_restored": true,
+  "restoration": {
+    "utc": "2026-11-05T08:32:15.310007+00:00",
+    "baseline_verified": true,
+    "base_image": "6de6a39230ce4bc364f34b7c606a5ed2c218d1315906c7e7f8b1ef9bbb566076",
+    "baseline_bundle": "a14a53cd33e2c51d7639701363bf95cc7781f62b8207c0e2bab1653276504700",
+    "software_generation": 34,
+    "boot_id": "2ae639a5-0925-4fdf-9a2e-e8c295299130",
+    "execution_lease": "free",
+    "runtime": "idle",
+    "maintenance": "none",
+    "claim": "released",
+    "original_host_and_state_unchanged": true,
+    "kernel": "6.12.11-fes-de25-owner",
+    "card_cid": "1234564153544300200000000a019300",
+    "headless_boot_proof": "/home/deano/fes/out/artifacts/de25-vendor-reference/2ba9334c3/de25-codex-parent-exact-card-trial/native-verified-pending-restore.json",
+    "FPGA_QSPI_programming": false,
+    "passive_UART_closed": true,
+    "all_owned_SSH_sessions_closed": true,
+    "release_complete_utc": "2026-11-05T08:32:45.102181+00:00"
+  },
+  "restoration_notes": "First restore stopped in SPL with MMC -110; user reseated original working card. First fresh FES claim rejected during startup; separately retained post-settle observation authenticated original baseline at same new boot, generation34, idle/free.",
+  "files": {
+    "boot-uart.log": {
+      "sha256": "eacce96d6b7e81afdcc7cf674791ec79744e2dbc7f881491b422aedfc8c91780",
+      "bytes": 25231
+    },
+    "modules-network.log": {
+      "sha256": "5d626c1c1dfd61c1fccad622abae01b1159595a1b10dfe5ab7c94e733524de3a",
+      "bytes": 5139
+    },
+    "first-boot/expectation.json": {
+      "sha256": "d7832db7c2307bdb467f405e4fa97b5f13fd86e2f3ca13c30f9cad962dd5200b",
+      "bytes": 6264
+    },
+    "first-boot/known_hosts": {
+      "sha256": "a60ef035b5eaf163450756eaf813c39b351290ff74f96c8f9a5878b6d8e091a2",
+      "bytes": 96
+    },
+    "first-boot/read-only.sh": {
+      "sha256": "3bb8f05277eca960e880a4f51f0f276e29eaf9d10ace40289e81cf187676a838",
+      "bytes": 1224
+    },
+    "first-boot/receipt.json": {
+      "sha256": "4bca01ddff256e1f0ab810a1c7cc827e48d41d193fb219513073d98a688d1b16",
+      "bytes": 4300
+    },
+    "first-boot/serial.log": {
+      "sha256": "eacce96d6b7e81afdcc7cf674791ec79744e2dbc7f881491b422aedfc8c91780",
+      "bytes": 25231
+    },
+    "first-boot/ssh.stderr": {
+      "sha256": "71073b9f530bff5873045626492718b3593c40ff5b6171d8178ce9328570473e",
+      "bytes": 2338
+    },
+    "first-boot/ssh.stdout": {
+      "sha256": "0a03745430808149933d537f3d702065cf9d8737987c2707434473ed33d81b5a",
+      "bytes": 6542
+    }
+  },
+  "software_reboot_of_this_legacy_image": "not tested",
+  "review_scope": "PR1297 P1 retained image coldboot and automatic module initialization; runtime/MENU/PR proofs remain separate."
+}

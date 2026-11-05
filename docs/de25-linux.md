@@ -177,8 +177,11 @@ AArch64 production-admission gate is unchanged.
 
 The module packaging and boot service have off-board checks, including real
 ELF files matching the factory board's hashes and isolated execution of the
-actual service. A newly built image still needs its own boot/autoload check;
-these checks do not promote the earlier manually loaded diagnostic image.
+actual service. The [retained module image now has a native coldboot/autoload
+check](validation/2026-11-05-de25-headless-autoload/README.md), including all four
+loaded module hashes, manager/region interfaces and authenticated SSH. A newly
+built image still needs its own check; the earlier manually loaded diagnostic
+image does not qualify it.
 
 ## Image artifacts
 
@@ -435,7 +438,10 @@ existing AArch64 runtime guard continues to refuse DE25 hardware access.
 
 The [2026-10-28 host validation record](validation/2026-10-28-de25-headless-linux/README.md)
 retains the exact image, verification and QEMU receipts plus the exported SDK
-probe. Physical board boot remains pending.
+probe. Those older receipts remain host-only. The later retained module image
+from source `0da63d1044cc7ecf9908efba52af17b3e55e6271` has a separate
+[native coldboot/autoload record](validation/2026-11-05-de25-headless-autoload/README.md);
+a software reboot of that exact legacy image remains untested.
 
 The [scanout ownership record](validation/2026-10-28-de25-scanout/README.md)
 retains the sixteen actual AArch64 kernel cases and links the generated
@@ -457,8 +463,9 @@ media delivery, retain:
 4. A clean reboot and successful second serial/SSH startup.
 
 Record those observations against the source revision, vendor input identity,
-image digest and board revision. Until that check completes, evidence remains
-host-only and physical boot is pending.
+image digest and board revision. The retained `0da63d1044` module image now has
+physical evidence for items 1–3. Item 4 remains open for that exact legacy image;
+the coldboot record does not establish its second-startup or reboot behavior.
 
 The HIL planner reports `FULL_IMAGE` with component `de25-nano-linux` for
 `image/de25-nano/` changes. That identifies this DE25 image's boot check; it does
