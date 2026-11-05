@@ -96,6 +96,8 @@ def prepare(local, project, frozen):
                         "standard_pr_frozen_ram")
     (local / "personas.v").write_bytes(frozen["files"][board + "link-proof/zx81-ram/personas.v"])
     (local / "bus.v").write_bytes(frozen["files"][board + "link-proof/zx81-standard/bus.v"])
+    (local / "zx81_bus_pack.vh").write_bytes(
+        frozen["files"]["sources/misteross/cores/fes-zx81/rtl/zx81_bus_pack.vh"])
     source = frozen["files"]["sources/misteross/cores/fes-zx81/rtl/zx81_ram_pack.v"]
     (local / "zx81_ram_pack.v").write_bytes(retained_ram.retarget_ram_pack(source))
     (project / "zx8x.hex").write_bytes(frozen["files"]["sources/misteross/cores/fes-zx81/rtl/zx8x.hex"])
