@@ -23,8 +23,9 @@ changes no RTL, and it is not a kit result.
 
 - **Bench.** `machine_tb --cpu rtl` (the pc386 machine with `fes_i386_cpu`),
   governor `max`, built from main `d646bcd7e` with the profile hook in
-  [profile-hook.patch](profile-hook.patch). Nothing in the repo builds the
-  hook; plan slice 1 lands it as `machine_tb --cpu-profile`.
+  [profile-hook.patch](profile-hook.patch). Plan slice 1 landed the hook as
+  `machine_tb --cpu-profile` ([baseline record](../2026-11-05-i386-phase4-baseline/summary.md));
+  the patch stays as the record of what this profile ran.
   - **Signal access.** The hook reads about 40 of `fes_i386_cpu`'s internal
     signals through a Verilator config file (`public_flat_rd`), so the RTL is
     unchanged.

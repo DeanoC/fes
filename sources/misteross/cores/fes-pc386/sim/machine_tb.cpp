@@ -34,6 +34,7 @@
 //        [--preset N] [--frequency N] [--turbo N]
 //        [--mouse S:DX,DY,BUTTONS]...
 //        [--census F] [--profile F] [--profile-from S] [--profile-to S]
+//        [--cpu-profile F] [--cpu-profile-every S] [--rtl-from S] [--rtl-at-flip N] [--rtl-for S]
 // A program on the disk marks a picture by writing "SNAP <name>" and a newline
 // to port E9h, then holding it; the bench takes the second capture after the
 // marker, runs the pixel clock for two 720p frames and compares the second
@@ -90,9 +91,24 @@
 // own interrupts included; fewest and most are steps. STRETCH is each run of
 // real-mode steps between protected-mode or V86 ones, by its first software
 // interrupt, else its first IRQ, else "none".
+//
+// --rtl-from S and --rtl-at-flip N (with --cpu rtl) hand over from the
+// oracle: the oracle runs from reset with the RTL held, and the RTL takes
+// the oracle's state at its first step at or after S simulated seconds and
+// N page flips (byte writes to CRTC register 0Ch, cpu_profile.h's
+// CrtcFrameTracker) where the RTL can run, with cold caches. It prints
+//   RTL-BEGIN <cycle> flips=<n>
+// --rtl-for S ends the run S simulated seconds after the RTL begins (or
+// from the start without a handover), as END rtl-window, a pass.
+// --cpu-profile F (with --cpu rtl) sorts every system clock the RTL runs
+// into a cause and each retirement's clocks into its instruction class
+// (cpu_profile.h), and appends a snapshot of the counters to F at RTL-BEGIN
+// (or the start), every --cpu-profile-every seconds (default 1) and at the
+// end. scripts/pc386_cpu_profile.py reports a window between two snapshots.
 #include "Vpc386_machine.h"
 #include "Vpc386_machine___024root.h"
 #include "Vfes_i386_cpu.h"
+#include "Vfes_i386_cpu___024root.h"
 #include "Vpc386_audio___024root.h"
 #include "audio_link.h"
 #include "i386_oracle.h"
@@ -101,6 +117,7 @@
 #include "pc386_presenter_model.h"
 #include "smc_stale.h"
 #include "verilated.h"
+#include "cpu_profile.h"
 
 #include <algorithm>
 #include <cstdint>
@@ -499,7 +516,10 @@ public:
     }
     // A CPU I/O access the machine completed now: its time from the request
     // clock less its FIFO waits, the waits, and its trace lines.
+    uint64_t flips = 0;  // page flips (CrtcFrameTracker), for --rtl-at-flip
+    CrtcFrameTracker frame_tracker;
     void record_io(bool write, uint16_t port, unsigned length, uint32_t value, uint32_t result, uint64_t start) {
+        if (frame_tracker.observe(write, port, length, value)) ++flips;
         ++io_times[{io_class(port, write), length, cycles - start - vga_waits}];
         if (vga_waits) ++io_waits[{io_class(port, write), length, vga_waits}];
         vga_write_open = false;
@@ -634,6 +654,7 @@ public:
     std::vector<std::string> smc_sites;  // the first stores and executions
     std::function<unsigned(uint32_t linear)> length;  // an instruction's length, from memory
     std::vector<bool> dirty;     // pages stored to since the oracle last ran
+    CpuProfile *prof = nullptr;  // --cpu-profile
     GuestMemory guest;
     pc386::Port0<GuestMemory> port0;
 
@@ -736,6 +757,7 @@ public:
                 && !m.top.flush_request && (waiting || asleep)) {
                 m.clock();
                 ++parked_clocks;
+                if (prof) prof->parked(asleep);
                 answers();
                 if (asleep) last_retire = m.cycles;
             } else {
@@ -752,6 +774,7 @@ public:
     void cycle() {
         cpu.clk = 0;
         cpu.eval();
+        if (prof) prof->sample(cpu, mmio_presented || mmio_reading || cpu.mmio_valid, resetting);
         const bool fetch = cpu.trace_fetch, store = cpu.trace_store;
         const uint32_t block = cpu.trace_fetch_block, waddr = cpu.trace_store_addr & ~3u;
         const uint64_t wdata = cpu.trace_store_data;
@@ -794,6 +817,7 @@ public:
             m.top.io_size = io_length == 1 ? 0 : io_length == 2 ? 1 : 2;
             m.top.io_wdata = io_wdata;
             m.open_io(io_write, io_port);
+            if (prof) prof->io(io_write, io_port, io_length, io_wdata);
             io = Pending::Issued;
             io_start = m.cycles;
             issued = true;
@@ -898,7 +922,13 @@ public:
             const uint32_t start = retire_next;
             retire_next = physical(cpu.arch_base[fes_i386::SEG_CS] + cpu.arch_eip, a20m);
             uint32_t byte = 0;
-            if (!cpu.trace_exception && stale.executed(start, start + length(start), byte)) {
+            const unsigned ilen = length(start);
+            if (prof) {
+                uint8_t ib[15];
+                for (unsigned k = 0; k < 15; ++k) ib[k] = read8(physical(start + k, a20m));
+                prof->retire(m.cycles, start, retire_next, ib, ilen, cpu.trace_exception, cpu.arch_cr0 & 1);
+            }
+            if (!cpu.trace_exception && stale.executed(start, start + ilen, byte)) {
                 ++smc_executed;
                 if (smc_sites.size() < 24) smc_sites.push_back(site("executed", start, byte));
             }
@@ -1166,7 +1196,9 @@ void write_wav(const std::string &path, const std::vector<int16_t> &samples) {
 
 struct Options {
     std::string bios, vgabios, disk, disk_out, prompt = "C:\\>", type, expect, trace, frames, until_debug;
-    std::string wav, opl2_log, cpu = "oracle", census, profile;
+    std::string wav, opl2_log, cpu = "oracle", census, profile, cpu_profile;
+    double cpu_profile_every = 1.0, rtl_from = 0, rtl_for = -1;
+    unsigned rtl_at_flip = 0;
     double limit_seconds = 120, pixel_from = -1, type_at = -1, key_gap = 0.03, profile_from = 0, profile_to = -1;
     unsigned preset = 0, frequency = 0, turbo = 0;  // --cpu rtl's governor settings
     std::vector<std::pair<double, std::string>> keys;
@@ -1267,6 +1299,11 @@ Options parse(int argc, char **argv) {
         else if (flag == "--cpu") options.cpu = value;
         else if (flag == "--census") options.census = value;
         else if (flag == "--profile") options.profile = value;
+        else if (flag == "--cpu-profile") options.cpu_profile = value;
+        else if (flag == "--cpu-profile-every") options.cpu_profile_every = std::stod(value);
+        else if (flag == "--rtl-from") options.rtl_from = std::stod(value);
+        else if (flag == "--rtl-for") options.rtl_for = std::stod(value);
+        else if (flag == "--rtl-at-flip") options.rtl_at_flip = unsigned(std::stoul(value));
         else if (flag == "--profile-from") options.profile_from = std::stod(value);
         else if (flag == "--profile-to") options.profile_to = std::stod(value);
         else if (flag == "--preset") options.preset = unsigned(std::stoul(value));
@@ -1292,6 +1329,10 @@ Options parse(int argc, char **argv) {
     if (options.cpu != "oracle" && options.cpu != "rtl") throw std::runtime_error("--cpu is oracle or rtl");
     // With the RTL running, the oracle's steps are only its stops and stretches.
     if (!options.profile.empty() && options.cpu != "oracle") throw std::runtime_error("--profile needs --cpu oracle");
+    if (options.cpu != "rtl" && (!options.cpu_profile.empty() || options.rtl_from > 0 || options.rtl_at_flip
+                                 || options.rtl_for >= 0))
+        throw std::runtime_error("--cpu-profile, --rtl-from, --rtl-at-flip and --rtl-for need --cpu rtl");
+    if (options.cpu_profile_every <= 0) throw std::runtime_error("--cpu-profile-every takes a time above 0");
     for (char &c : options.type) if (c == '|') c = '\n';
     for (auto &key : options.keys) for (char &c : key.second) if (c == '|') c = '\n';
     return options;
@@ -1337,6 +1378,25 @@ int main(int argc, char **argv) {
             rtl->start(oracle->get_state());
         }
         bool on_oracle = !rtl;
+        // --cpu-profile, and the handover: with --rtl-from or --rtl-at-flip
+        // the oracle runs from reset, and the RTL takes its state at the
+        // first step where both are reached and the RTL can run (RTL-BEGIN).
+        CpuProfile cpu_prof;
+        FILE *cpu_prof_out = nullptr;
+        uint64_t cpu_prof_next = 0;
+        const uint64_t rtl_from = uint64_t(options.rtl_from * CLOCK_HZ);
+        const bool handover = rtl_from || options.rtl_at_flip;
+        if (!options.cpu_profile.empty()) {
+            cpu_prof_out = std::fopen(options.cpu_profile.c_str(), "w");
+            if (!cpu_prof_out) throw std::runtime_error("cannot write " + options.cpu_profile);
+            rtl->prof = &cpu_prof;
+        }
+        if (handover) {
+            rtl->settle();
+            on_oracle = true;
+            cpu_prof_next = UINT64_MAX;  // the first snapshot is at RTL-BEGIN
+        }
+        bool rtl_begun = !handover;
         std::map<std::pair<std::string, std::string>, Gap> gaps;
         Gap *skipping = nullptr;  // the stop whose instruction the oracle runs next
         uint64_t oracle_steps = 0, protected_steps = 0, stretch_steps = 0, stretch_from = 0;
@@ -1394,6 +1454,7 @@ int main(int argc, char **argv) {
         };
         unsigned long long steps = 0;
         uint64_t limit = uint64_t(options.limit_seconds * CLOCK_HZ);
+        if (!handover && options.rtl_for >= 0) limit = uint64_t(options.rtl_for * CLOCK_HZ);
         uint64_t pixel_from = options.pixel_from < 0 ? ~0ull : uint64_t(options.pixel_from * CLOCK_HZ);
         const char *reason = "limit";
         // After the prompt appears, wait for the screen to settle, then type.
@@ -1517,7 +1578,10 @@ int main(int argc, char **argv) {
                         stretch_from = machine.cycles;
                         stretch_entry = site(state);
                     }
-                    if (!(state.eflags & 0x20000) && !(state.cr0 & 0x80000000u) && (!(state.cr0 & 1) || state.cpl == 0)) {
+                    if (machine.cycles >= rtl_from && machine.flips >= options.rtl_at_flip && !(state.eflags & 0x20000)
+                        && !(state.cr0 & 0x80000000u) && (!(state.cr0 & 1) || state.cpl == 0)) {
+                        // The oracle's run before the handover is not the RTL's.
+                        if (!rtl_begun) oracle_steps = protected_steps = stretch_steps = 0;
                         if (stretch_steps) {
                             std::printf("PMODE %llu %llu %llu %s %s\n", (unsigned long long)stretch_from,
                                         (unsigned long long)machine.cycles, (unsigned long long)stretch_steps,
@@ -1527,6 +1591,14 @@ int main(int argc, char **argv) {
                         }
                         rtl->start(state);
                         on_oracle = false;
+                        if (!rtl_begun) {
+                            rtl_begun = true;
+                            std::printf("RTL-BEGIN %llu flips=%llu\n", (unsigned long long)machine.cycles,
+                                        (unsigned long long)machine.flips);
+                            if (options.rtl_for >= 0) limit = machine.cycles + uint64_t(options.rtl_for * CLOCK_HZ);
+                            cpu_prof.begin(machine.cycles);
+                            cpu_prof_next = machine.cycles;
+                        }
                     }
                 }
             } else {
@@ -1552,6 +1624,10 @@ int main(int argc, char **argv) {
             }
             if (!options.profile.empty() && !profile.written && machine.cycles >= profile.to)
                 profile.write(options.profile, machine.cycles);
+            if (cpu_prof_out && machine.cycles >= cpu_prof_next) {
+                cpu_prof.dump(cpu_prof_out, machine.cycles, double(machine.cycles) / CLOCK_HZ);
+                cpu_prof_next = machine.cycles + uint64_t(options.cpu_profile_every * CLOCK_HZ);
+            }
 
             // Debug-port markers.
             bool finished = false;
@@ -1654,6 +1730,9 @@ int main(int argc, char **argv) {
                 }
             }
         }
+        // --rtl-for's window ran to its end.
+        if (options.rtl_for >= 0 && rtl_begun && machine.cycles >= limit && std::string(reason) == "limit")
+            reason = "rtl-window";
         double seconds = double(machine.cycles) / CLOCK_HZ;
         if (!options.census.empty()) {
             std::ofstream out(options.census);
@@ -1661,6 +1740,10 @@ int main(int argc, char **argv) {
             if (!out) throw std::runtime_error("cannot write " + options.census);
         }
         if (!options.profile.empty() && !profile.written) profile.write(options.profile, machine.cycles);
+        if (cpu_prof_out) {
+            if (rtl_begun) cpu_prof.dump(cpu_prof_out, machine.cycles, double(machine.cycles) / CLOCK_HZ);
+            std::fclose(cpu_prof_out);
+        }
         if (rtl) {
             if (stretch_steps)
                 std::printf("PMODE %llu %llu %llu %s -\n", (unsigned long long)stretch_from,
@@ -1725,7 +1808,7 @@ int main(int argc, char **argv) {
             std::ofstream(options.disk_out, std::ios::binary)
                 .write(reinterpret_cast<const char *>(machine.image.data()), std::streamsize(machine.image.size()));
         std::string done(reason);
-        return done == "prompt" || done == "debug-marker" ? 0 : 1;
+        return done == "prompt" || done == "debug-marker" || done == "rtl-window" ? 0 : 1;
     } catch (const std::exception &error) {
         std::fprintf(stderr, "machine_tb: %s\n", error.what());
         return 2;

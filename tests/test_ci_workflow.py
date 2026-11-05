@@ -84,7 +84,8 @@ class ParentWorkflowTests(unittest.TestCase):
         condition = ' '.join(step.split('if: >-', 1)[1].split('run:', 1)[0].split())
         self.assertEqual(condition, "matrix.target == 'sim-fes-pcxt-dos' || matrix.target == 'sim-fes-pc386-fesenv' "
                                     "|| matrix.target == 'sim-fes-pc386-a20' || matrix.target == 'sim-fes-pc386-c2xx' "
-                                    "|| matrix.target == 'sim-fes-pc386-wait' || matrix.target == 'sim-fes-pc386-speaker'")
+                                    "|| matrix.target == 'sim-fes-pc386-wait' || matrix.target == 'sim-fes-pc386-speaker' "
+                                    "|| matrix.target == 'sim-fes-pc386-cpu-profile'")
         self.assertIn('sudo apt-get update && sudo apt-get install -y mtools', step)
 
     def test_pcxt_fixture_test_has_image_tools(self):
