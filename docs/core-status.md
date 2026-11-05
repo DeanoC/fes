@@ -326,7 +326,8 @@ was visible, but its active-game observation failed. A later
 [Kit B short smoke](validation/2026-11-05-pcxt-kit-b-short-smoke.md) used the
 same selected package: DOS, COM and floppy readback passed, Digger's player
 changed facing after one guarded left input, and the captured speaker signal
-changed across three F9 windows. Listening quality, sustained gameplay,
+changed across three F9 windows. Deano found a listening excerpt identifiable
+and acceptable, without an original-audio reference. Sustained gameplay,
 power-cycle persistence and external interface timing remain unassessed.
 The [reviewed 29 October Quartus diagnostic](validation/2026-10-29-pcxt-quartus-package/review-followup.json)
 passes three seeds and a byte-identical independent rebuild at producer `38ef151bfa`.
