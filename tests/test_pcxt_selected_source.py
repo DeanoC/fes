@@ -18,57 +18,44 @@ RBF='94b3c222bee23d24fd027a8c908d90aa9f53eae9b01db648e655f8b1d7ac0222'
 
 class SelectionTests(unittest.TestCase):
     def setUp(self):
-        self.tmp=tempfile.TemporaryDirectory();self.addCleanup(self.tmp.cleanup)
-        self.root=Path(self.tmp.name)
-        self.orig={'format':2,'repository':selected.bundle.FES_REPOSITORY,'revision':PRODUCER,
-                   'source_path':'sources/misteross','source_inputs':{'example':'a'*64}}
-        self.curr={**self.orig,'revision':CURRENT}
-        self.enc=lambda obj:json.dumps(obj,sort_keys=True,separators=(',',':')).encode()+b'\n'
-        self.orig_bytes=self.enc(self.orig);self.curr_bytes=self.enc(self.curr)
-        self.side={'format':1,'original_repository':selected.bundle.FES_REPOSITORY,'original_revision':PRODUCER,
-                   'original_source_path':'sources/misteross','selected_repository':selected.bundle.FES_REPOSITORY,
+        self.side={'format':1,'original_repository':selected.REPOSITORY,'original_revision':PRODUCER,
+                   'original_source_path':'sources/misteross','selected_repository':selected.REPOSITORY,
                    'selected_revision':CURRENT,'selected_source_path':'sources/misteross',
-                   'original_record_sha256':hashlib.sha256(self.orig_bytes).hexdigest(),
-                   'selected_record_sha256':hashlib.sha256(self.curr_bytes).hexdigest(),
-                   'functional_inputs_sha256':selected.artifact_cache.functional_key(self.orig_bytes),
-                   'package_id':PACKAGE,'core_rbf_sha256':RBF}
+                   'original_record_sha256':'1'*64,'selected_record_sha256':'2'*64,
+                   'functional_inputs_sha256':'3'*64,'package_id':PACKAGE,'core_rbf_sha256':RBF}
         self.doc={'format':2,'core_id':'fes.pcxt-dos','archive':{'sha256':ARCHIVE},'package_id':PACKAGE,
-                  'selection':{'path':'select.toml','payload_sha256':RBF,'manifest_sha256':'a'*64},
-                  'source_selection':{'path':'provenance.json','sha256':'b'*64},'sources':{k:CURRENT for k in ('misteross','FogCast','libmister-runtime','mister-packages')}}
-        (self.root/'select.toml').write_text('format = 2\n')
-        (self.root/'provenance.json').write_text(json.dumps(self.side))
-        self.prepared=self.root/'prepared.json';self.prepared.write_text(json.dumps(self.doc))
-        self.kw={'prepared':self.prepared,'prepared_sha256':hashlib.sha256(self.prepared.read_bytes()).hexdigest(),
-                 'source_checkout':'/selected','producer_checkout':'/original','archive_sha256':ARCHIVE,
-                 'package_id':PACKAGE,'rbf_sha256':RBF,'producer':PRODUCER,'selected':CURRENT}
-        self.patches=[mock.patch.object(selected.core_dev_accept,'candidate_arguments'),
-          mock.patch.object(selected.core_dev_accept,'source_selection',return_value=self.side),
-          mock.patch.object(selected.bundle,'canonical_package_record',side_effect=lambda p,**kw:self.curr_bytes if str(p).startswith('/selected/') else self.orig_bytes),
-          mock.patch.object(selected.bundle,'_inspect_package_candidate',return_value={'package_id':PACKAGE,'core_rbf_sha256':RBF,'manifest_sha256':'a'*64})]
-        for p in self.patches:p.start();self.addCleanup(p.stop)
-        import tarfile,io
-        with tarfile.open(self.root/'core.fcore','w') as t:
-            for name in ('manifest.toml','core.rbf'):
-                info=tarfile.TarInfo(name);info.size=1;t.addfile(info,io.BytesIO(b'x'))
+                  'selection':{'path':'select.toml','sha256':'4'*64,'payload_sha256':RBF,'manifest_sha256':'a'*64},
+                  'source_selection':{'sha256':'b'*64},'sources':{k:CURRENT for k in ('misteross','FogCast','libmister-runtime','mister-packages')}}
+        self.result={'source_selection':self.side.copy(),'selection_sha256':'4'*64,'package_id':PACKAGE,
+            'payload_sha256':RBF,'manifest_sha256':'a'*64,'archive_sha256':ARCHIVE}
+        self.kw=dict(doc=self.doc,sidecar=self.side,resolved_doc=self.doc.copy(),selection_bytes=b'selection',
+            provenance_bytes=b'provenance',resolved_selection=b'selection',resolved_provenance=b'provenance',
+            prepared_sha256='5'*64,archive_sha256=ARCHIVE,package_id=PACKAGE,rbf_sha256=RBF,
+            producer=PRODUCER,selected=CURRENT)
     def test_selection_binds_original_and_current(self):
-        evidence=selected.verify(**self.kw)
+        evidence=selected.compare_resolution(**self.kw)
         self.assertEqual(evidence['selected_commit'],CURRENT)
         self.assertEqual(evidence['producer_commit'],PRODUCER)
         self.assertEqual(evidence['archive_sha256'],ARCHIVE)
-    def test_selected_or_original_record_tamper_rejected(self):
+    def test_resolver_result_and_exact_bytes_must_match(self):
+        for key in ('resolved_selection','resolved_provenance'):
+            with self.subTest(key=key),self.assertRaises(ValueError):
+                selected.compare_resolution(**dict(self.kw,**{key:b'altered'}))
+        result=dict(self.doc);result['package_id']='0'*64
+        with self.assertRaises(ValueError):
+            selected.compare_resolution(**dict(self.kw,resolved_doc=result))
+    def test_changed_selected_recipe_or_cache_winner_rejected(self):
+        # The selected commit's normal preparation output must match all
+        # pinned receipt and sidecar bytes, including canonical input records.
         for key in ('selected_record_sha256','original_record_sha256','functional_inputs_sha256'):
-            with self.subTest(key=key):
-                original=self.side[key];self.side[key]='0'*64
-                with self.assertRaises(ValueError):selected.verify(**self.kw)
-                self.side[key]=original
-    def test_other_package_or_unreviewed_preparation_rejected(self):
-        for key in ('package_id','archive_sha256','rbf_sha256','prepared_sha256'):
+            changed=dict(self.side,**{key:'0'*64})
             with self.subTest(key=key),self.assertRaises(ValueError):
-                selected.verify(**dict(self.kw,**{key:'0'*64}))
-    def test_different_selected_or_original_commit_rejected(self):
-        for key in ('selected','producer'):
+                selected.compare_resolution(**dict(self.kw,sidecar=changed,resolved_provenance=b'changed'))
+    def test_other_package_or_selected_source_rejected(self):
+        for key,value in (('package_id','0'*64),('archive_sha256','0'*64),('rbf_sha256','0'*64),
+                          ('selected','0'*40),('producer','0'*40)):
             with self.subTest(key=key),self.assertRaises(ValueError):
-                selected.verify(**dict(self.kw,**{key:'0'*40}))
+                selected.compare_resolution(**dict(self.kw,**{key:value}))
 
 
 class WrapperSelectionTests(unittest.TestCase):
