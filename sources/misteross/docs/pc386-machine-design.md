@@ -637,7 +637,10 @@ Ultima VII's INTRO heap over leftover memory (#1433). Now a kit time before
 1. the game record's last clock, from its CMOS bytes (decoded by register B,
    century from 32h), if that is a valid time no earlier than 2026-01-01, so a
    game's clock keeps moving forward from its last run;
-2. otherwise 2026-01-01 00:00:00.
+2. otherwise 2026-01-01 12:00:00. Noon, not midnight: on the Bochs bench MS-DOS 6.22
+   boots with the stalling 224-byte-smaller layout (first MCB 0245h) whenever the
+   clock reads 00:00 at boot, on 2026-01-01 and on 2026-10-26 alike, and with the
+   normal one (0253h) at 12:00. The 1980 date was not the trigger; its midnight was.
 
 A synced clock (#1279 adds NTP) is sent as it is. The runtime logs a
 substitute as phase `wall_clock`. The fallback is in the runtime, not the RTC,

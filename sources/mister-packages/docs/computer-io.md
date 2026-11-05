@@ -599,7 +599,7 @@ The host has three duties. It sends the date's own weekday, counted as the
 MC146818 counts it. It clamps a leap second to 59. It never sends an unsynced
 kit clock: a kit time before 2026-01-01 (a kit that never synced counts from
 1970) is replaced by the game record's last clock, when its CMOS bytes hold a
-valid time no earlier than that, or else by 2026-01-01 00:00:00, a Thursday
+valid time no earlier than that, or else by 2026-01-01 12:00:00, a Thursday
 (5). A synced kit time is sent as it is. The machine does not compare the
 weekday with the date. Like the MC146818, it stores the weekday it is given.
 The machine converts to its guest's BCD or binary and 12- or 24-hour forms. A

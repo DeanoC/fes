@@ -18,10 +18,13 @@ class Clock;
 class Mmio;
 class ComputerMediaSnapshot;
 
-// A kit whose clock never synced counts from 1970. Any kit time before this
-// floor, 2026-01-01 00:00:00 (a Thursday), is taken as unsynced.
+// A kit whose clock never synced counts from 1970. Any kit time before
+// 2026-01-01 is taken as unsynced, and the clock then starts at noon that
+// day, a Thursday: MS-DOS 6.22 boots 224 bytes smaller when the clock reads
+// midnight (#1433).
 constexpr int kWallClockSyncedFloorYear = 2026, kWallClockSyncedFloorMonth = 1,
-	kWallClockSyncedFloorDay = 1, kWallClockSyncedFloorWeekday = 4;
+	kWallClockSyncedFloorDay = 1, kWallClockSyncedFloorWeekday = 4,
+	kWallClockSyncedFloorHour = 12;
 bool WallClockSynced(const std::tm& local);
 std::tm WallClockSyncedFloor();
 

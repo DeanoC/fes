@@ -3143,7 +3143,7 @@ void TestPc386LibraryRecordAndWallClock()
 	fixture.native.clock.local.tm_min = 3;
 	fixture.native.clock.local.tm_wday = 4;
 	assert(fixture.runtime.LoadLibraryCore(package.path, id, data.path, "ultima-viii").ok());
-	assert(endpoint.clock == std::vector<unsigned>({2026, 1, 1, 0, 0, 0, 5}));
+	assert(endpoint.clock == std::vector<unsigned>({2026, 1, 1, 12, 0, 0, 5}));
 	// The guest left 2026-11-04 21:45:30 in BCD, 24-hour form, century 20.
 	for (const auto& cmos : std::vector<std::pair<unsigned, std::uint8_t>>{{0x00, 0x30}, {0x02, 0x45},
 		{0x04, 0x21}, {0x07, 0x04}, {0x08, 0x11}, {0x09, 0x26}, {0x0b, 0x02}, {0x32, 0x20}})
@@ -3163,7 +3163,7 @@ void TestPc386LibraryRecordAndWallClock()
 	endpoint.GuestCmosWrite(0x32, 0x19);
 	assert(fixture.runtime.Stop().ok());
 	assert(fixture.runtime.LoadLibraryCore(package.path, id, data.path, "ultima-viii").ok());
-	assert(endpoint.clock == std::vector<unsigned>({2026, 1, 1, 0, 0, 0, 5}));
+	assert(endpoint.clock == std::vector<unsigned>({2026, 1, 1, 12, 0, 0, 5}));
 	// A synced kit clock always wins over the record.
 	assert(fixture.runtime.Stop().ok());
 	fixture.native.clock.local = synced;

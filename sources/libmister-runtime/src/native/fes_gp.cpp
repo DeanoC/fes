@@ -2013,6 +2013,7 @@ std::tm WallClockSyncedFloor()
 	floor.tm_year = kWallClockSyncedFloorYear - 1900;
 	floor.tm_mon = kWallClockSyncedFloorMonth - 1;
 	floor.tm_mday = kWallClockSyncedFloorDay;
+	floor.tm_hour = kWallClockSyncedFloorHour;
 	floor.tm_wday = kWallClockSyncedFloorWeekday;
 	return floor;
 }

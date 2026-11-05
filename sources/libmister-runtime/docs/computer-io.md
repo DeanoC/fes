@@ -122,7 +122,7 @@ The core stores the weekday unchecked, so the runtime sends the local time's
 own. A kit time before 2026-01-01 means the kit's clock never synced (it
 counts from 1970). The runtime then sends the record's last clock, decoded from
 its CMOS bytes by register B with the century from 32h, when that is a valid
-time no earlier than 2026-01-01, and otherwise 2026-01-01 00:00:00, a
+time no earlier than 2026-01-01, and otherwise 2026-01-01 12:00:00, a
 Thursday; either is logged as phase `wall_clock`. A leap second holds at 59,
 and an unavailable local time fails the launch.
 Wall-clock command rejection or timeout remains a `transport`-phase failure;
