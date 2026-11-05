@@ -36,7 +36,67 @@ foreach {label head second} {
     if {[get_collection_size $launch] != 1 || [get_collection_size $capture] != 1} {
         error "$label lost its actual two-stage synchronizer"
     }
+    set fanout [get_fanouts $launch]
+    set fanin [get_fanins $capture -synch]
+    if {[get_collection_size $fanout] != 1 || [get_collection_size $fanin] != 1 ||
+        [get_node_info -name $fanout] ne "fes_audio_inst|audio|$second" ||
+        [get_node_info -name $fanin] ne "fes_audio_inst|audio|$head"} {
+        error "$label synchronizer has an unexpected intermediate fanin or fanout"
+    }
     lappend groups $label $launch $capture
+}
+proc pcm_mtbf_controls {text} {
+    set chains {}
+    set current ""
+    foreach line [split $text "\n"] {
+        if {[regexp {^Synchronizer Chain #[0-9]+:} $line]} {
+            if {$current ne ""} {lappend chains $current}
+            set current $line
+        } elseif {$current ne ""} {append current "\n" $line}
+    }
+    if {$current ne ""} {lappend chains $current}
+    set controls {}
+    foreach chain $chains {
+        set fields {}
+        foreach line [split $chain "\n"] {
+            if {![string match {;*} $line]} {continue}
+            set columns [split $line {;}]
+            if {[llength $columns] < 4} {continue}
+            set key [string trim [lindex $columns 1]]
+            set value [string trim [lindex $columns 2]]
+            if {$key ni {{Synchronization Node} {Method of Synchronizer Identification}
+                {Included in Design MTBF} {Number of Synchronization Registers in Chain}
+                {Worst-Case MTBF (years)}
+                {Data Toggle Rate Used in MTBF Calculation - Fd (millions of transitions / sec)}}} {continue}
+            if {[dict exists $fields $key] && [dict get $fields $key] ne $value} {
+                error "inconsistent PCM metastability report field $key"
+            }
+            dict set fields $key $value
+        }
+        if {![dict exists $fields {Synchronization Node}]} {continue}
+        set node [dict get $fields {Synchronization Node}]
+        if {$node ni {fes_audio_inst|audio|request_meta fes_audio_inst|audio|ack_meta fes_audio_inst|audio|hold_meta}} {continue}
+        if {[dict exists $controls $node]} {error "duplicate PCM synchronizer report $node"}
+        foreach {field expected} {
+            {Method of Synchronizer Identification} {Forced If Asynchronous}
+            {Included in Design MTBF} Yes
+            {Number of Synchronization Registers in Chain} 2
+            {Worst-Case MTBF (years)} {Greater than 1 Billion}
+        } {
+            if {![dict exists $fields $field] || [dict get $fields $field] ne $expected} {
+                error "$node has missing or unqualified PCM metastability field $field"
+            }
+        }
+        set fd {Data Toggle Rate Used in MTBF Calculation - Fd (millions of transitions / sec)}
+        if {![dict exists $fields $fd] ||
+            ![string is double -strict [dict get $fields $fd]] ||
+            [dict get $fields $fd] != 100.0} {
+            error "$node did not use the conservative 100 MHz PCM control toggle bound"
+        }
+        dict set controls $node $fields
+    }
+    if {[dict size $controls] != 3} {error "missing PCM synchronizer MTBF coverage"}
+    return $controls
 }
 proc pcm_path_record {stream corner group check path} {
     set from [get_path_info -from_clock $path]
@@ -73,6 +133,12 @@ foreach_in_collection corner $corners {
     set_operating_conditions $corner
     update_timing_netlist
     set corner_name [get_operating_conditions_info -display_name $corner]
+    set mtbf_file [file join $output "${corner}_pcm-metastability.rpt"]
+    report_metastability -nchains 1000 -file $mtbf_file
+    set mtbf_stream [open $mtbf_file r]
+    set mtbf_text [read $mtbf_stream]
+    close $mtbf_stream
+    pcm_mtbf_controls $mtbf_text
     foreach check {setup hold} {
         foreach {name sources captures} $groups {
             set expected {}

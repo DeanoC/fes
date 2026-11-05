@@ -125,11 +125,23 @@ source [file join [file dirname [info script]] .. fes_link pcm-clocks.sdc]
 
 
 def qsf(build_id):
-    return ('set_global_assignment -name SEARCH_PATH fes_link\n'
+    settings = ('set_global_assignment -name SEARCH_PATH fes_link\n'
             'set_global_assignment -name NUMBER_OF_PROTECTED_REGISTERS_REPORTED 10000\n'
             'set_global_assignment -name NUMBER_OF_INVERTED_REGISTERS_REPORTED 10000\n'
             'set_global_assignment -name VERILOG_FILE fes_link/bus.v\n'
             'set_global_assignment -name VERILOG_FILE fes_link/zx81_ram_pack.v\n')
+    # Identify both stages before fitting. Use the fastest physical source
+    # clock as a conservative bound for each registered control, including
+    # the much slower sample request. The fitted audit checks actual Fd;
+    # accepting the assignment text alone would miss ignored settings.
+    for head, tail in (("request_meta", "request_sync"),
+                       ("ack_meta", "ack_sync"), ("hold_meta", "hold_sync")):
+        for node in (head, tail):
+            settings += ('set_instance_assignment -name SYNCHRONIZER_IDENTIFICATION '
+                         'FORCED_IF_ASYNCHRONOUS -to {fes_audio_inst|audio|' + node + '}\n')
+        settings += ('set_instance_assignment -name SYNCHRONIZER_TOGGLE_RATE '
+                     '100000000.0 -to {fes_audio_inst|audio|' + head + '}\n')
+    return settings
 
 
 def top(source):

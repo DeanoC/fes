@@ -162,6 +162,13 @@ flight/skew/min/max bounds and paired all-corner physical payload and
 interstage coverage remain required. This does not supply an HDMI data
 output budget or inherit the internal16K audio-clock exception.
 
+The PR recipe explicitly identifies both registers of each PCM control
+synchronizer before fitting and requests a conservative 100 million transitions
+per second on each head. The fitted audit requires those actual rates, explicit
+identification, two stages, exclusive interstage fanin/fanout and inclusion in
+the worst-case MTBF calculation in every corner. It retains raw reports and
+rejects defaults or missing chains; assignments alone do not establish closure.
+
 The standard Linux profile uses the canonical HPS-first split converter and
 selects its `linux-boot.core.rbf` fabric phase for the base payload. A direct
 HPS-first SOF-to-RBF conversion emits boot sections and is unsuitable here.

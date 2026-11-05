@@ -4277,3 +4277,10 @@ current stock HDMI reference covers30 outputs; two extra audio-clock findings
 remain unreviewed and block the standard package. Source selection establishes
 neither native hardware nor full normal-kit acceptance. Reduced BRAM RTL remains
 in the separate diagnostic board lane.
+
+The experimental standard ZX81 PR profile retains live PCM. Its recipe
+identifies all six control synchronizer registers before fitting and requests
+100 million transitions per second at each of the three heads. The all-corner
+physical audit checks exclusive interstage connectivity, explicit identification,
+two-stage MTBF inclusion and the actual reported rate; defaults fail the audit.
+This profile remains separate from internal16K package and HDMI exceptions.
