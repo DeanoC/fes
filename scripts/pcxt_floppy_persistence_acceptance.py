@@ -68,16 +68,20 @@ def bounded_source_command(argv, deadline, *, cwd=None, maximum_seconds=20, safe
             if libc.prctl(1, signal.SIGTERM, 0, 0, 0) != 0 or os.getppid() != parent_pid:
                 os._exit(1)
             os.write(app._OBSERVER_GUARD_FD, b'S')
+            cleanup_verified = [True]  # no command has started yet
             try:
                 value = _bounded_source_command(argv, deadline, cwd=cwd, maximum_seconds=maximum_seconds,
-                    safe_python=safe_python, cache_prefix=cache_prefix, cancelled=lambda: parent_dead[0])
+                    safe_python=safe_python, cache_prefix=cache_prefix, cancelled=lambda: parent_dead[0],
+                    started=lambda: cleanup_verified.__setitem__(0, False),
+                    cleaned=lambda: cleanup_verified.__setitem__(0, True))
                 if parent_dead[0]:
                     raise pa.AcceptanceError('source observer exited')
+                if not cleanup_verified[0]:
+                    raise SourceCleanupError('source process cleanup was not verified')
                 result_file.write(value); result_file.flush()
-            except SourceCleanupError:
-                os._exit(1)
             except BaseException:
-                os.write(app._OBSERVER_GUARD_FD, b'C')
+                if cleanup_verified[0]:
+                    os.write(app._OBSERVER_GUARD_FD, b'C')
                 os._exit(1)
             os.write(app._OBSERVER_GUARD_FD, b'C')
             os._exit(0)
@@ -89,7 +93,8 @@ def bounded_source_command(argv, deadline, *, cwd=None, maximum_seconds=20, safe
 
 
 def _bounded_source_command(argv, deadline, *, cwd=None, maximum_seconds=20, safe_python=False,
-                            cache_prefix=None, cancelled=lambda: False):
+                            cache_prefix=None, cancelled=lambda: False,
+                            started=lambda: None, cleaned=lambda: None):
     deadline.remaining(1)
     with tempfile.TemporaryFile() as output:
         environment = dict(os.environ, GIT_NO_REPLACE_OBJECTS='1')
@@ -98,6 +103,7 @@ def _bounded_source_command(argv, deadline, *, cwd=None, maximum_seconds=20, saf
             environment['PYTHONNOUSERSITE']='1'
             environment['PYTHONDONTWRITEBYTECODE']='1'
             environment['PYTHONPYCACHEPREFIX']=str(cache_prefix)
+        started()
         proc=subprocess.Popen(argv,cwd=cwd,stdout=output,stderr=subprocess.DEVNULL,start_new_session=True,env=environment)
         try:
             # Keep the leader unreaped until its entire group is killed. This
@@ -118,6 +124,7 @@ def _bounded_source_command(argv, deadline, *, cwd=None, maximum_seconds=20, saf
         try:os.killpg(proc.pid,0)
         except ProcessLookupError:pass
         else:raise SourceCleanupError('source process group remains; identity unsafe')
+        cleaned()
         if proc.returncode:raise pa.AcceptanceError('source process failed')
         deadline.remaining(1)
         output.seek(0);result=output.read(16*1024*1024+1)

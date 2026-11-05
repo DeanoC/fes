@@ -61,6 +61,28 @@ class SourceObserverCleanupTest(unittest.TestCase):
             p.app._hard_deadline_observation(observe, seconds=3)
         self.assertTrue(caught.exception.source_cleanup_incomplete)
 
+    def test_failed_group_kill_retains_unverified_cleanup(self):
+        with tempfile.TemporaryDirectory() as temp:
+            path = Path(temp) / 'pid'
+            script = 'import os,sys,time; open(sys.argv[1],"w").write(str(os.getpid())); time.sleep(30)'
+            def observe(_deadline):
+                p.bounded_source_command([sys.executable, '-c', script, str(path)],
+                                         p.PhaseDeadline(time.monotonic()+30))
+                return {'owner': 'unexpected'}
+            real_killpg = os.killpg
+            try:
+                with mock.patch.object(p.os, 'killpg', side_effect=PermissionError('kill denied')):
+                    with self.assertRaises(p.pa.AcceptanceError) as caught:
+                        p.app._hard_deadline_observation(observe, seconds=.8)
+                self.assertTrue(caught.exception.source_cleanup_incomplete)
+                self.assertTrue(path.exists(), 'source process did not start before the deadline')
+            finally:
+                if path.exists():
+                    try:
+                        real_killpg(int(path.read_text()), p.signal.SIGKILL)
+                    except ProcessLookupError:
+                        pass
+
 
 def owned():
     return SimpleNamespace(session_id='session', target_id='target', target_name='kit',
