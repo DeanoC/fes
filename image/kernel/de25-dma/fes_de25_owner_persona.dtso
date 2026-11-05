@@ -7,6 +7,7 @@
 		target-path = "/fes-de25-kunit-region/fes-expansion";
 		__overlay__ {
 			firmware-name = "fes-kunit-modeled-initial-persona.rbf";
+			config-complete-timeout-us = <30000000>;
 			partial-fpga-config;
 		};
 	};

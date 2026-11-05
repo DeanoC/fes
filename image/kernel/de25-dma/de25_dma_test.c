@@ -1745,6 +1745,7 @@ static int owner_fixture_static(struct owner_fixture *f)
 		&f->profile_overlay, NULL);
 }
 
+#if IS_ENABLED(CONFIG_FES_DE25_STATIC_EXPANSION)
 static int owner_fixture_persona(struct owner_fixture *f)
 {
 	return of_overlay_fdt_apply(__dtbo_fes_de25_owner_persona_begin,
@@ -1855,6 +1856,7 @@ static void owner_static_rejects_malformed_base_before_programming(struct kunit 
 		{ "/fragment@0/__overlay__", "firmware-name", NULL },
 		{ "/fragment@0/__overlay__", "firmware-name", "" },
 		{ "/fragment@0/__overlay__", "partial-fpga-config", "" },
+		{ "/fragment@0/__overlay__", "config-complete-timeout-us", "override" },
 		{ "/fragment@0/__overlay__/fes-expansion", "firmware-name", "bad.rbf" },
 		{ "/fragment@0/__overlay__/fes-expansion", "compatible", "other-region" },
 		{ "/fragment@0/__overlay__/fes-expansion", "external-fpga-config", "" },
@@ -1887,6 +1889,7 @@ static void owner_static_rejects_invalid_persona_before_programming(struct kunit
 		{ "firmware-name", NULL }, { "firmware-name", "" },
 		{ "external-fpga-config", "" }, { "authenticate-fpga-config", "" },
 		{ "encrypted-fpga-config", "" }, { "region-freeze-timeout-us", "override" },
+		{ "config-complete-timeout-us", "override" },
 		{ "fpga-mgr", "override" }, { "compatible", "fpga-region" },
 	};
 	unsigned int i, reads;
@@ -1925,6 +1928,21 @@ static void owner_static_failed_guard_never_admits_allocation(struct kunit *test
 	KUNIT_EXPECT_EQ(test, owner_fixture_persona(f), -EIO);
 	KUNIT_EXPECT_EQ(test, f->persona_programs, 1U);
 }
+#else
+static void owner_static_disabled_refuses_base_before_programming(struct kunit *test)
+{
+	struct owner_fixture *f = owner_fixture_create(test, false);
+	unsigned int reads;
+
+	KUNIT_ASSERT_NOT_NULL(test, f);
+	KUNIT_ASSERT_EQ(test, owner_fixture_overlay_setup(f), 0);
+	reads = f->device->reads;
+	KUNIT_EXPECT_EQ(test, owner_fixture_static(f), -EOPNOTSUPP);
+	KUNIT_EXPECT_EQ(test, f->programs, 0U);
+	KUNIT_EXPECT_EQ(test, fes_de25_owner_test_ioctl(f->owner, FES_DE25_DMA_OWNER_ALLOC, 0), -ENODEV);
+	KUNIT_EXPECT_EQ(test, f->device->reads, reads);
+}
+#endif
 
 static void owner_overlay_and_control_fd_complete_two_cycles(struct kunit *test)
 {
@@ -2155,11 +2173,15 @@ static void owner_control_checks_capability_and_command_before_effects(struct ku
 }
 
 static struct kunit_case fes_de25_dma_cases[] = {
+#if IS_ENABLED(CONFIG_FES_DE25_STATIC_EXPANSION)
 	KUNIT_CASE(owner_static_persona_precedes_epoch_and_allocation),
 	KUNIT_CASE(owner_static_failed_persona_requires_fresh_base),
 	KUNIT_CASE(owner_static_rejects_malformed_base_before_programming),
 	KUNIT_CASE(owner_static_rejects_invalid_persona_before_programming),
 	KUNIT_CASE(owner_static_failed_guard_never_admits_allocation),
+#else
+	KUNIT_CASE(owner_static_disabled_refuses_base_before_programming),
+#endif
 	KUNIT_CASE(cold_poll_observes_display_ready_without_submission),
 	KUNIT_CASE(owner_cached_info_has_no_hardware_or_lifetime_effect),
 	KUNIT_CASE(build_identity_reports_hardware_words),

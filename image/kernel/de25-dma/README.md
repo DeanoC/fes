@@ -307,3 +307,12 @@ ordinary scanout profile retains its existing behavior. This candidate has no
 runtime loader or package admission yet, and no kernel image is selected or
 deployed by this source change. Kernel tests and physical acceptance remain
 required.
+
+The ordinary `scripts/de25_kernel_test.py run` keeps this option disabled and
+requires the actual OF refusal test plus the existing owner/lifetime cases.
+Use a separate output with `--static-expansion` to enable and require all five
+initial-persona lifecycle cases instead. Both modes verify the final kernel
+configuration and refuse missing, skipped or substituted cases. The fixtures
+retain the ordinary runtime's fixed 30-second configuration-completion budget;
+other timeout overrides are rejected. These tests model firmware completion,
+not SDM programming or physical PR.

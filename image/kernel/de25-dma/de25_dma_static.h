@@ -53,8 +53,17 @@ static bool static_profile(struct device_node *overlay)
 static bool static_properties(struct device_node *node, const char *first, const char *second)
 {
 	struct property *property;
+	u32 timeout;
 
 	for_each_property_of_node(node, property) {
+		/* Retain the ordinary runtime's fixed completion budget, never a
+		 * caller-supplied bridge/configuration timeout override.
+		 */
+		if (!strcmp(first, "firmware-name") &&
+		    !strcmp(property->name, "config-complete-timeout-us") &&
+		    property->length == sizeof(u32) &&
+		    !of_property_read_u32(node, property->name, &timeout) && timeout == 30000000)
+			continue;
 		if (!strcmp(property->name, "name") || !strcmp(property->name, "phandle") ||
 		    !strcmp(property->name, "linux,phandle") || !strcmp(property->name, first) ||
 		    (second && !strcmp(property->name, second)))

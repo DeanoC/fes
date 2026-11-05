@@ -65,3 +65,15 @@ class KernelEvidenceTests(unittest.TestCase):
                         {"sub_groups": [{"name": "fes-de25-dma", "test_cases": cases + cases[:1]}]}):
             with self.assertRaises(ValueError):
                 kernel.passing_cases(changed)
+
+    def test_static_suite_requires_selected_lifecycle_cases_and_no_disabled_substitute(self):
+        expected = (kernel.REQUIRED_CASES - {kernel.DISABLED_CASE}) | kernel.STATIC_CASES
+        report = {"sub_groups": [{"name": "fes-de25-dma", "test_cases": [
+            {"name": name, "status": "PASS"} for name in sorted(expected)]}]}
+        self.assertEqual(set(kernel.passing_cases(report, static_expansion=True)), expected)
+        with self.assertRaises(ValueError):
+            kernel.passing_cases(report)
+        report["sub_groups"][0]["test_cases"] = [
+            {"name": name, "status": "PASS"} for name in sorted(kernel.REQUIRED_CASES)]
+        with self.assertRaises(ValueError):
+            kernel.passing_cases(report, static_expansion=True)
