@@ -75,9 +75,18 @@ class WrapperSelectionTests(unittest.TestCase):
     def test_unpaired_options_and_pr_mode_rejected(self):
         from argparse import Namespace
         for a in (Namespace(selected_prepared=Path('/x')), Namespace(selected_prepared=Path('/x'),
-            selected_prepared_sha256='0'*64, selected_source_checkout=Path('/x'),producer_source_checkout=Path('/y'),
+            selected_prepared_sha256='0'*64, selected_source_checkout=Path('/x'),producer_source_checkout=Path('/y'),source_repository='DeanoC/fes',
             source_historical_main=False,source_main=True,source_pr=None,source_minimum_tip='x',source_observed_tip='x')):
             with self.assertRaises(floppy.pa.AcceptanceError):floppy.selected_source_admission({},a,root=Path('/tmp'))
+    def test_selected_policy_rejects_other_github_repository(self):
+        from argparse import Namespace
+        a=Namespace(selected_prepared=Path('/x'),selected_prepared_sha256='0'*64,
+            selected_source_checkout=Path('/x'),producer_source_checkout=Path('/y'),
+            source_repository='Other/fes',source_historical_main=True,source_main=False,
+            source_pr=None,source_minimum_tip=CURRENT,source_observed_tip=CURRENT)
+        with self.assertRaises(floppy.pa.AcceptanceError):
+            floppy.selected_source_admission({},a,root=Path('/tmp'))
+
     def test_selected_policy_stops_when_main_advances(self):
         from argparse import Namespace
         raw_diff=b'proof'; live={'sha':CURRENT,'parents':[{'sha':PRODUCER}]}

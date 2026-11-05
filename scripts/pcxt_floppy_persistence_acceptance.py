@@ -637,7 +637,8 @@ def selected_source_admission(provenance, args, *, root):
             'selected_source_checkout','producer_source_checkout')]
     if all(value is None for value in values):
         return False
-    if (any(value is None for value in values) or not getattr(args,'source_historical_main',False)
+    if (any(value is None for value in values) or getattr(args,'source_repository',None) != 'DeanoC/fes'
+            or not getattr(args,'source_historical_main',False)
             or getattr(args,'source_main',False) or getattr(args,'source_pr',None) is not None
             or not isinstance(args.selected_prepared_sha256,str) or not HEX64.fullmatch(args.selected_prepared_sha256)
             or getattr(args,'source_minimum_tip',None)!=getattr(args,'source_observed_tip',None)):
