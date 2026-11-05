@@ -52,6 +52,19 @@ new receiver is compiled with warnings fatal; the real-machine model uses the
 existing ZX81 simulator's source waivers. These checks perform no synthesis,
 timing qualification or hardware operation.
 
+`fes_embedded_rom_csr.sv` adds a relative 128-byte CPU-fed interface around that
+receiver. Its matching constants come from `fes.fabric.embedded-rom`. Identity
+and build words are read-only; an exact CRC is staged once before Start. Four
+ordered full-width words form each 128-bit beat. Partial, out-of-order, busy,
+unknown and repeated control writes retire the endpoint and abort its sink.
+It exposes no physical address and initiates no bus-master traffic. The same
+model can select this interface with `CSR_MODE=1`; the actual freestanding C
+transfer in `platform/embedded/firmware/nano_rom.c` then feeds the real machine.
+The tests also mutate the caller's source after capture and inject ownership,
+identity, timer, counters, I/O and CRC failures. No production wrapper or native
+launch currently selects this mode. The next binding must supply the existing
+trusted platform ownership/containment hooks and retained input identity.
+
 The new 256-byte Avalon aperture is at peripheral-relative `0x10400`. The
 generated handoff must also show it at `0x00110400` in the existing JTAG master.
 Neither address is a verified CPU physical address. The default read responder

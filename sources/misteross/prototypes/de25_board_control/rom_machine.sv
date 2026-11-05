@@ -2,7 +2,9 @@
 // Simulation integration of the real machine and the ROM stream sink. No
 // physical producer selects this wrapper or supplies a reader/CSR interface.
 module rom_machine #(
-    parameter integer ROM_BYTES = 8192
+    parameter integer ROM_BYTES = 8192,
+    parameter bit CSR_MODE = 0,
+    parameter [127:0] BUILD_ID = 128'd0
 ) (
     input wire clk,
     input wire reset_n,
@@ -14,6 +16,12 @@ module rom_machine #(
     output wire stream_ready,
     input wire [127:0] stream_data,
     input wire stream_last,
+    input wire csr_valid, csr_write,
+    input wire [6:0] csr_address,
+    input wire [31:0] csr_wdata,
+    input wire [3:0] csr_wstrb,
+    output wire [31:0] csr_rdata,
+    output wire csr_error,
     output wire loaded,
     output wire failed,
     output wire [13:0] received,
@@ -29,6 +37,18 @@ module rom_machine #(
     wire halt_n, ram_we, cpu_mreq_n, cpu_m1_n;
     wire machine_reset = !reset_n || cpu_held || !loaded || failed;
     assign halted = !halt_n;
+    generate if (CSR_MODE) begin : csr
+        assign stream_ready = 0;
+        fes_embedded_rom_csr #(.ROM_BYTES(ROM_BYTES),.BUILD_ID(BUILD_ID)) image (
+            .clk(clk),.reset_n(reset_n),.cpu_held(cpu_held),
+            .csr_valid(csr_valid),.csr_write(csr_write),.csr_address(csr_address),
+            .csr_wdata(csr_wdata),.csr_wstrb(csr_wstrb),.csr_rdata(csr_rdata),.csr_error(csr_error),
+            .loaded(loaded),.failed(failed),.received(received),.written(written),.observed_crc(observed_crc32),
+            .read_address(rom_address),.read_data(rom_data)
+        );
+    end else begin : streaming
+    assign csr_rdata = 0;
+    assign csr_error = 0;
     fes_embedded_rom #(.ROM_BYTES(ROM_BYTES)) image (
         .clk(clk),.reset_n(reset_n),.cpu_held(cpu_held),.start(start),.abort_load(abort_load),
         .expected_crc32(expected_crc32),.stream_valid(stream_valid),.stream_ready(stream_ready),
@@ -36,6 +56,7 @@ module rom_machine #(
         .received(received),.written(written),.observed_crc32(observed_crc32),
         .read_address(rom_address),.read_data(rom_data)
     );
+    end endgenerate
     zx81_machine #(.EXTERNAL_ROM(1)) machine (
         .clk_sys(clk),.reset(machine_reset),.keyboard(40'hffffffffff),
         .rom_address(rom_address),.external_rom_data(rom_data),

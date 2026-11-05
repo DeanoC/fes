@@ -16,6 +16,8 @@ GENERATED = (
     ('emit-c', 'packages/fabric/fes_fabric_embedded_usb.yaml', 'FES', 'platform/embedded/firmware/generated/fes_embedded_usb.h'),
     ('emit-go', 'packages/fabric/fes_fabric_embedded_usb.yaml', 'FES', 'platform/embedded/tamago/embeddedcontrol/generated/fes_embedded_usb.go'),
     ('emit-c', 'packages/fabric/fes_fabric_embedded_sd.yaml', 'FES', 'platform/embedded/firmware/generated/fes_embedded_sd.h'),
+    ('emit-c', 'packages/fabric/fes_fabric_embedded_rom.yaml', 'FES', 'platform/embedded/firmware/generated/fes_embedded_rom.h'),
+    ('emit-verilog', 'packages/fabric/fes_fabric_embedded_rom.yaml', 'misteross', 'prototypes/de25_board_control/generated/fes_embedded_rom.vh'),
     ('emit-go', 'packages/fabric/fes_fabric_embedded_sd.yaml', 'FES', 'platform/embedded/tamago/embeddedcontrol/generated/fes_embedded_sd.go'),
     ('emit-c', 'packages/fabric/fes_fabric_embedded_bridges.yaml', 'FES', 'platform/embedded/firmware/generated/fes_embedded_bridges.h'),
     ('emit-go', 'packages/fabric/fes_fabric_embedded_bridges.yaml', 'FES', 'platform/embedded/tamago/embeddedcontrol/generated/fes_embedded_bridges.go'),

@@ -32,10 +32,17 @@ EMBEDDED_BRIDGE_INPUTS = frozenset({
     'sources/mister-packages/testdata/oracles/fes-embedded-usb.json',
     'sources/mister-packages/testdata/oracles/fes-embedded-sd.json',
 })
+EMBEDDED_ROM_INPUTS = frozenset({
+    'sources/mister-packages/packages/fabric/fes_fabric_embedded_rom.yaml',
+    'platform/embedded/firmware/generated/fes_embedded_rom.h',
+    'platform/embedded/firmware/nano_rom.c',
+    'platform/embedded/firmware/nano_rom.h',
+})
 
 
 def embedded_control_input(path):
     return (path in EMBEDDED_CONTROL_INPUTS or path in EMBEDDED_BRIDGE_INPUTS or
+            path in EMBEDDED_ROM_INPUTS or
             path.startswith('platform/embedded/firmware/'))
 
 
@@ -70,6 +77,7 @@ def embedded_board_control_input(path):
 
 def embedded_board_control_check_input(path):
     return (embedded_board_control_input(path) or path in EMBEDDED_CONTROL_INPUTS or
+            path in EMBEDDED_ROM_INPUTS or
             path in ('platform/embedded/tamago/nativefabric/producer_integration_test.go',
                      'platform/embedded/tamago/embeddedcontrol/control.go',
                      'platform/embedded/tamago/embeddedcontrol/generated/fes_embedded_control.go'))

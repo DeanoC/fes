@@ -33,6 +33,11 @@ relative CSR/fault constants for the native FES `fes.computer` driver. It uses
 the captured board producer's exact contract and grants no physical mapping,
 boot ownership or ordinary runtime admission.
 
+The experimental [`fes.fabric.embedded-rom`](packages/fabric/fes_fabric_embedded_rom.yaml)
+definition supplies matching C and Verilog constants for the relative ROM FIFO
+endpoint. It describes identity, held state, exact byte counts and CRC; it names
+no physical address, SMC operation or accepted programming profile.
+
 The fabric-only `emit-c` command supplies standalone constant headers for C
 consumers such as the DE25 kernel diagnostic. From this module:
 

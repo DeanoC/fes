@@ -104,9 +104,15 @@ retires the image until reset. The portable ZX81 machine's explicit
 internal and linked-ROM paths retain their existing source and address decode.
 The simulation wrapper holds the real ZX80/ZX81 CPU through image admission,
 then checks a streamed program's RAM write and HALT. No physical producer
-selects that wrapper. Native retention/ownership hooks, a bulk source adapter, firmware controls
-and a source-bound physical profile remain
-unimplemented; this model grants no package admission or physical acceptance.
+selects that wrapper. A relative ROM CSR wrapper now joins the receiver to an
+unbound freestanding C firmware transfer. The shared fabric definition supplies
+its C/Verilog offsets, identity, FIFO and status constants. Secure code must
+supply owned, bounded MMIO hooks under its lifecycle lock; the transfer copies
+the input, checks its CRC, brackets accesses with live ownership and verifies
+held completion and build identity. It performs no CPU release, bridge opening,
+retry or automatic cleanup. The combined C/RTL machine model does not install
+those secure-platform hooks, an SMC operation, a physical producer or ordinary
+retained-package admission.
 
 The fingerprint is diagnostic, not the canonical record or a sealed package identity. The
 overlay records its board and overlay revisions separately. Generated handoff

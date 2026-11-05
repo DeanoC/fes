@@ -6,6 +6,23 @@ adapter, and verification against actual FPGA RTL. These tools build firmware
 components; the Nano tools assemble the matched experimental boot images.
 Software tests and cross-builds remain distinct from hardware acceptance.
 
+`nano_rom.c` is an unbound ROM transfer component for trusted platform hooks.
+It snapshots an admitted 4/8 KiB input before MMIO, checks its expected CRC,
+then verifies the endpoint version, image size, sealed build words and held CPU.
+Owned, ordered FIFO writes have one qualified 400 MHz timer budget of one second
+and at most 64 status polls per beat/completion. Ownership brackets every access;
+the final counters, CRC, identity and held completion must all match. It cannot
+open a bridge, release the CPU, reset/retry the endpoint or grant package admission.
+Uncertain I/O, owner loss, clock/poll or live-state failures retire its private
+object; the enclosing platform retains resources and owns containment.
+
+The actual C component and CSR/RAM/machine RTL are exercised together by
+`sources/misteross/prototypes/de25_board_control/verify_rom.py`. Both ROM sizes
+execute a streamed program after explicit release; damaged source, stale identity,
+wrong epoch, partial/invalid writes, lost Hold, failed I/O, clock/poll bounds and
+CRC failures cannot produce an accepted completion. No secure-platform callback,
+SiP dispatcher, native package launch or physical producer installs this path yet.
+
 The opt-in window SD-return path now connects the retained full-frame closure
 to the existing read-only SD lease. The secure provider checks its completed
 configuration, identity, reader/probe stop and exact DDR drain records. Only
