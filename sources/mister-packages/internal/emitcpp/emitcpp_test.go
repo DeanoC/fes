@@ -269,12 +269,14 @@ func TestRealProgrammingRegistriesCoexist(t *testing.T) {
 #include "de25_nano.hpp"
 using namespace mister::native::generated;
 static_assert(kDe10NanoProgrammingProfilePairCount == 5, "DE10 rows unchanged");
-static_assert(kDe25NanoProgrammingProfilePairCount == 3, "DE25 BRAM, MENU and standard computer rows");
+static_assert(kDe25NanoProgrammingProfilePairCount == 4, "DE25 BRAM, MENU, standard and gated static computer rows");
 static_assert(kDe25NanoProgrammingProfilePairs[0].major == 1, "ABI major");
 static_assert(!kDe25NanoProgrammingProfilePairs[0].diagnostic_only, "described core pair");
 static_assert(kDe25NanoProgrammingProfilePairs[1].major == 1, "MENU ABI major");
 static_assert(!kDe25NanoProgrammingProfilePairs[1].diagnostic_only, "described MENU pair");
 static_assert(!kDe25NanoProgrammingProfilePairs[2].diagnostic_only, "standard computer pair");
+static_assert(kDe25NanoProgrammingProfilePairs[3].major == 1, "static computer ABI major");
+static_assert(!kDe25NanoProgrammingProfilePairs[3].diagnostic_only, "static computer pair; runtime feature gate owns enablement");
 `
 	if err := os.WriteFile(filepath.Join(dir, "test.cpp"), []byte(source), 0600); err != nil {
 		t.Fatal(err)
