@@ -1,0 +1,364 @@
+{
+  "fetch_activity_observed": true,
+  "fetch_observations": [
+    {
+      "scope": "nano-computer-fetch-v1",
+      "owner": 12224809648010838055,
+      "generation": 1,
+      "package_id": "93a2192a0b1f0c014917dba9d27485798f105beabd466e3026422380edbf5ca5",
+      "build_id": "a44922576284d6d92781c31b27ec4f45",
+      "before": {
+        "Cycles": 0,
+        "Address": 0
+      },
+      "held": {
+        "Cycles": 0,
+        "Address": 0
+      },
+      "running": {
+        "Cycles": 38429,
+        "Address": 975
+      },
+      "delta": 38429,
+      "polls": 1,
+      "elapsed_ns": 245487150,
+      "limit_ns": 1000000000
+    },
+    {
+      "scope": "nano-computer-fetch-v1",
+      "owner": 12224809648010838055,
+      "generation": 3,
+      "package_id": "3901e5349ea384bfc2d2f3ab9c349e5d81892a39fb4dd0d68802cd4b1732eee9",
+      "build_id": "e37f06507e6bdc4c2198f06e6cd5d125",
+      "before": {
+        "Cycles": 0,
+        "Address": 0
+      },
+      "held": {
+        "Cycles": 0,
+        "Address": 0
+      },
+      "running": {
+        "Cycles": 38413,
+        "Address": 613
+      },
+      "delta": 38413,
+      "polls": 1,
+      "elapsed_ns": 245521335,
+      "limit_ns": 1000000000
+    },
+    {
+      "scope": "nano-computer-fetch-v1",
+      "owner": 12224809648010838055,
+      "generation": 5,
+      "package_id": "93a2192a0b1f0c014917dba9d27485798f105beabd466e3026422380edbf5ca5",
+      "build_id": "a44922576284d6d92781c31b27ec4f45",
+      "before": {
+        "Cycles": 0,
+        "Address": 0
+      },
+      "held": {
+        "Cycles": 0,
+        "Address": 0
+      },
+      "running": {
+        "Cycles": 38430,
+        "Address": 975
+      },
+      "delta": 38430,
+      "polls": 1,
+      "elapsed_ns": 245436175,
+      "limit_ns": 1000000000
+    }
+  ],
+  "status": "passed",
+  "classification": "Three physical selected diagnostic core launch/owned return cycles with stable Hold and forward Run fetch observations, shared idle USB reports and serial Tenfoot; not ordinary core admission",
+  "checkout": "daa153275a0314796f9790b06fc24d5848705233",
+  "native_source": "22f909e9c0de932e83ccdc5aa346c50d7de1ed18",
+  "serial": "TRWU8CBL",
+  "attempts": 1,
+  "retries": 0,
+  "qualified_recovery": true,
+  "fixed_uploads_and_fresh_readbacks": 7,
+  "native_cycles_completed": 3,
+  "startup_checkpoints": 14,
+  "identities": [
+    {
+      "PackageID": "93a2192a0b1f0c014917dba9d27485798f105beabd466e3026422380edbf5ca5",
+      "CoreID": "fes.de25-embedded-diagnostic",
+      "ABI": "fes.de25-embedded-diagnostic",
+      "BuildID": "a44922576284d6d92781c31b27ec4f45",
+      "Platform": "de25_nano",
+      "Device": "A5EB013BB23BE4SCS",
+      "ProgrammingProfile": "de25-embedded-hps-first-ddr-diagnostic-v1",
+      "ActivationReceiptSHA256": "",
+      "ProgrammedSHA256": "c0ae20b35077393f1d91dffa0c391f663559e2b4576e7867123079d0ef8d4c41",
+      "Major": 1,
+      "Minor": 0
+    },
+    {
+      "PackageID": "3901e5349ea384bfc2d2f3ab9c349e5d81892a39fb4dd0d68802cd4b1732eee9",
+      "CoreID": "fes.de25-embedded-diagnostic",
+      "ABI": "fes.de25-embedded-diagnostic",
+      "BuildID": "e37f06507e6bdc4c2198f06e6cd5d125",
+      "Platform": "de25_nano",
+      "Device": "A5EB013BB23BE4SCS",
+      "ProgrammingProfile": "de25-embedded-hps-first-ddr-diagnostic-v1",
+      "ActivationReceiptSHA256": "",
+      "ProgrammedSHA256": "d071f421316932fbf680ece77ad1830a6ef35447897f1ae0a594061c81d84668",
+      "Major": 1,
+      "Minor": 0
+    }
+  ],
+  "service": {
+    "passed": true,
+    "cycles": [
+      {
+        "selection": 0,
+        "launch_generation": 1,
+        "return_generation": 2
+      },
+      {
+        "selection": 1,
+        "launch_generation": 3,
+        "return_generation": 4
+      },
+      {
+        "selection": 0,
+        "launch_generation": 5,
+        "return_generation": 6
+      }
+    ],
+    "fetch_activity_observed": true,
+    "shared_usb_reports": 43,
+    "input_controls_exercised": false,
+    "hardware_acceptance": false,
+    "ordinary_admission": false,
+    "display": "serial-state-only"
+  },
+  "configuration": [
+    {
+      "cycle": 1,
+      "arm_to_complete_seconds": 12.7338867725,
+      "rows": [
+        {
+          "phase": "arm",
+          "counter": 32255540721,
+          "hash_ticks": 377691981
+        },
+        {
+          "phase": "start",
+          "counter": 32786386442,
+          "hash_ticks": 755361846
+        },
+        {
+          "phase": "write",
+          "counter": 33534214757,
+          "hash_ticks": 1374639467
+        },
+        {
+          "phase": "write",
+          "counter": 34410778080,
+          "hash_ticks": 1993353479
+        },
+        {
+          "phase": "poll",
+          "counter": 35480610309,
+          "hash_ticks": 2750502146
+        },
+        {
+          "phase": "poll",
+          "counter": 36217297311,
+          "hash_ticks": 3267604470
+        },
+        {
+          "phase": "status",
+          "counter": 36949988145,
+          "hash_ticks": 3783601814
+        },
+        {
+          "phase": "complete",
+          "counter": 37349095430,
+          "hash_ticks": 4162886739
+        }
+      ]
+    },
+    {
+      "cycle": 2,
+      "arm_to_complete_seconds": 12.683401995,
+      "rows": [
+        {
+          "phase": "arm",
+          "counter": 63017372091,
+          "hash_ticks": 4538614336
+        },
+        {
+          "phase": "start",
+          "counter": 63545685605,
+          "hash_ticks": 4914300377
+        },
+        {
+          "phase": "write",
+          "counter": 64293644613,
+          "hash_ticks": 5531588511
+        },
+        {
+          "phase": "write",
+          "counter": 65167672382,
+          "hash_ticks": 6148302011
+        },
+        {
+          "phase": "poll",
+          "counter": 66232430517,
+          "hash_ticks": 6901694096
+        },
+        {
+          "phase": "poll",
+          "counter": 66963961935,
+          "hash_ticks": 7415034281
+        },
+        {
+          "phase": "status",
+          "counter": 67691586566,
+          "hash_ticks": 7927256392
+        },
+        {
+          "phase": "complete",
+          "counter": 68090732889,
+          "hash_ticks": 8304666768
+        }
+      ]
+    },
+    {
+      "cycle": 3,
+      "arm_to_complete_seconds": 12.7396656125,
+      "rows": [
+        {
+          "phase": "arm",
+          "counter": 93849522777,
+          "hash_ticks": 8682280893
+        },
+        {
+          "phase": "start",
+          "counter": 94380411375,
+          "hash_ticks": 9059867009
+        },
+        {
+          "phase": "write",
+          "counter": 95128302384,
+          "hash_ticks": 9679031708
+        },
+        {
+          "phase": "write",
+          "counter": 96004940793,
+          "hash_ticks": 10297622399
+        },
+        {
+          "phase": "poll",
+          "counter": 97074833991,
+          "hash_ticks": 11054759972
+        },
+        {
+          "phase": "poll",
+          "counter": 97811488077,
+          "hash_ticks": 11571850946
+        },
+        {
+          "phase": "status",
+          "counter": 98544259190,
+          "hash_ticks": 12087831219
+        },
+        {
+          "phase": "complete",
+          "counter": 98945389022,
+          "hash_ticks": 12467118453
+        }
+      ]
+    }
+  ],
+  "commands": [
+    {
+      "action": "launch",
+      "elapsed_seconds": 73.52073844708502
+    },
+    {
+      "action": "stop",
+      "elapsed_seconds": 2.3688920059939846
+    },
+    {
+      "action": "focus",
+      "elapsed_seconds": 0.11210505303461105
+    },
+    {
+      "action": "launch",
+      "elapsed_seconds": 73.38658221298829
+    },
+    {
+      "action": "stop",
+      "elapsed_seconds": 2.380444986047223
+    },
+    {
+      "action": "focus",
+      "elapsed_seconds": 0.1766087490832433
+    },
+    {
+      "action": "launch",
+      "elapsed_seconds": 73.55419490800705
+    },
+    {
+      "action": "quit",
+      "elapsed_seconds": 2.369557678932324
+    }
+  ],
+  "raw_sha256": "30736da0b37a9ca827875235f4c93bb657abd4bb496234bcd1f3ca6bd09418dc",
+  "replay": {
+    "status": "passed",
+    "raw_bytes": 59356,
+    "raw_sha256": "30736da0b37a9ca827875235f4c93bb657abd4bb496234bcd1f3ca6bd09418dc",
+    "key_exchanges": 8,
+    "cycles": [
+      {
+        "selection": 0,
+        "launch_generation": 1,
+        "return_generation": 2
+      },
+      {
+        "selection": 1,
+        "launch_generation": 3,
+        "return_generation": 4
+      },
+      {
+        "selection": 0,
+        "launch_generation": 5,
+        "return_generation": 6
+      }
+    ],
+    "cpu_checkpoints": 14,
+    "classification": "independent replay of physical App/configuration/owned-return evidence; diagnostic scope only",
+    "ordinary_admission": false,
+    "display": "serial-state-only"
+  },
+  "cleanup": {
+    "status": "passed",
+    "scope": "independent read-only bounded-procedure host cleanup",
+    "clock_readback": "15M",
+    "exact_usb_permissions_restored": true,
+    "private_JTAG_process_gone": true,
+    "UART_free": true,
+    "claim_retained": true,
+    "hardware_retry": false,
+    "factory_restore": false,
+    "original_factory_card_untouched": true
+  },
+  "master_stops_completed": 3,
+  "usb_final_generation": 3,
+  "final_native_generation": 6,
+  "computer_and_configuration_limits_unchanged": true,
+  "physical_controls_exercised": false,
+  "display": "serial-state-only",
+  "execution_observed": false,
+  "cpu_halt_proven": false,
+  "ordinary_admission": false,
+  "core_loading_readiness": false,
+  "hardware_retry": false
+}

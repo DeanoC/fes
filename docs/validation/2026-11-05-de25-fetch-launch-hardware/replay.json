@@ -1,0 +1,27 @@
+{
+  "status": "passed",
+  "raw_bytes": 59356,
+  "raw_sha256": "30736da0b37a9ca827875235f4c93bb657abd4bb496234bcd1f3ca6bd09418dc",
+  "key_exchanges": 8,
+  "cycles": [
+    {
+      "selection": 0,
+      "launch_generation": 1,
+      "return_generation": 2
+    },
+    {
+      "selection": 1,
+      "launch_generation": 3,
+      "return_generation": 4
+    },
+    {
+      "selection": 0,
+      "launch_generation": 5,
+      "return_generation": 6
+    }
+  ],
+  "cpu_checkpoints": 14,
+  "classification": "independent replay of physical App/configuration/owned-return evidence; diagnostic scope only",
+  "ordinary_admission": false,
+  "display": "serial-state-only"
+}
