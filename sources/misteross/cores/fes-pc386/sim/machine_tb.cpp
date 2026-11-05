@@ -98,8 +98,9 @@
 // N page flips (byte writes to CRTC register 0Ch, cpu_profile.h's
 // CrtcFrameTracker) where the RTL can run, with cold caches. It prints
 //   RTL-BEGIN <cycle> flips=<n>
-// --rtl-for S ends the run S simulated seconds after the RTL begins (or
-// from the start without a handover), as END rtl-window, a pass.
+// --rtl-for S ends the run S simulated seconds after the RTL begins (at
+// RTL-BEGIN, or at its first clock without a handover), as END rtl-window,
+// a pass.
 // --cpu-profile F (with --cpu rtl) sorts every system clock the RTL runs
 // into a cause and each retirement's clocks into its instruction class
 // (cpu_profile.h), and appends a snapshot of the counters to F at RTL-BEGIN
@@ -1455,7 +1456,17 @@ int main(int argc, char **argv) {
         };
         unsigned long long steps = 0;
         uint64_t limit = uint64_t(options.limit_seconds * CLOCK_HZ);
-        if (!handover && options.rtl_for >= 0) limit = uint64_t(options.rtl_for * CLOCK_HZ);
+        // Without a handover the RTL runs from here: --rtl-for counts from now, and
+        // the first snapshot is taken before its first clock.
+        if (!handover) {
+            if (options.rtl_for >= 0) limit = machine.cycles + uint64_t(options.rtl_for * CLOCK_HZ);
+            if (cpu_prof_out) {
+                cpu_prof.begin(machine.cycles);
+                cpu_prof.dump(cpu_prof_out, machine.cycles, double(machine.cycles) / CLOCK_HZ,
+                              CpuProfile::in_flight(rtl->cpu));
+                cpu_prof_next = machine.cycles + uint64_t(options.cpu_profile_every * CLOCK_HZ);
+            }
+        }
         uint64_t pixel_from = options.pixel_from < 0 ? ~0ull : uint64_t(options.pixel_from * CLOCK_HZ);
         const char *reason = "limit";
         // After the prompt appears, wait for the screen to settle, then type.
