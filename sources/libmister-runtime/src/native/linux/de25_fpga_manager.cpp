@@ -4,6 +4,8 @@
 #include "native/sha256.hpp"
 #include "native/core_package.hpp"
 #include "native/de25_core_contract.hpp"
+#include "native/de25_pr_control.hpp"
+#include "native/generated/fes_de25_pr_control.hpp"
 #include "native/linux/menu_window.hpp"
 #include "daemon/json.hpp"
 #include <algorithm>
@@ -25,6 +27,8 @@ namespace mister { namespace native {
 namespace {
 constexpr const char* kOverlay = "fes-runtime";
 constexpr const char* kFirmware = "fes-runtime-core.rbf";
+constexpr const char* kPersonaOverlay = "fes-runtime-persona";
+constexpr const char* kPersonaFirmware = "fes-runtime-persona.rbf";
 constexpr std::uint64_t kMaximum = 32u * 1024u * 1024u;
 struct Fd {
     int n;
@@ -77,7 +81,7 @@ bool SearchExact(const std::string& path, const std::string& expected) {
     // strip a newline stored in the value itself: that is a different path.
     return actual == expected || actual == expected + "\n";
 }
-bool DirectoryIsExclusive(int fd, bool* owned) {
+bool DirectoryIsExclusive(int fd, bool* owned, bool persona = false) {
     Fd copy(fcntl(fd, F_DUPFD_CLOEXEC, 0));
     if (copy.n < 0) return false;
     DIR* dir = fdopendir(copy.n);
@@ -88,6 +92,7 @@ bool DirectoryIsExclusive(int fd, bool* owned) {
     while (auto* entry = readdir(dir)) {
         const std::string name = entry->d_name;
         if (name == "." || name == "..") continue;
+        if (persona && name == kPersonaOverlay) continue;
         if (name != kOverlay) { valid = false; break; }
         *owned = true;
     }
@@ -149,6 +154,9 @@ public:
     std::vector<unsigned char> configured_overlay;
     std::array<std::uint8_t, 32> programmed_digest{};
     std::uint64_t programmed_size = 0;
+    std::array<std::uint8_t, 32> persona_digest{};
+    std::uint64_t persona_size = 0;
+    bool persona_known = false;
     Fd lease;
     Error lease_error;
     bool poisoned = false, configuration_known = false, kernel_known = false, search_owned = false;
@@ -275,17 +283,17 @@ public:
         if (error.ok()) search_owned = false;
         return error;
     }
-    int Create(int fd) {
+    int Create(int fd, const char* name) {
 #if defined(MISTER_RUNTIME_TESTING)
-        if (test) return test->Create(fd);
+        if (test) return test->Create(fd, name);
 #endif
-        return mkdirat(fd, kOverlay, 0700);
+        return mkdirat(fd, name, 0700);
     }
-    int Remove(int fd) {
+    int Remove(int fd, const char* name) {
 #if defined(MISTER_RUNTIME_TESTING)
-        if (test) return test->Remove(fd);
+        if (test) return test->Remove(fd, name);
 #endif
-        return unlinkat(fd, kOverlay, AT_REMOVEDIR);
+        return unlinkat(fd, name, AT_REMOVEDIR);
     }
     ssize_t Write(int fd, const std::vector<unsigned char>& data) {
 #if defined(MISTER_RUNTIME_TESTING)
@@ -383,33 +391,222 @@ public:
         if (!released.error.ok()) { poisoned = true; return {released.error, true}; }
         return {{}, true};
     }
-    NativeResult Program(const Artifact& artifact, ProgrammingProfile profile, std::uint64_t deadline) {
+    Error EnsureConfigfs() {
+        if (Testing()) return {};
+#if defined(__linux__)
+        struct statfs fs{};
+        if (statfs(config.c_str(), &fs)) return SystemError("stat configfs");
+        if (fs.f_type != 0x62656570 &&
+            mount("configfs", config.c_str(), "configfs", MS_NODEV | MS_NOSUID | MS_NOEXEC, nullptr))
+            return SystemError("mount configfs");
+        return {};
+#else
+        return Failure("configfs programming requires Linux");
+#endif
+    }
+    Error ValidateArtifact(const Artifact& artifact) {
+        struct stat source{};
+        if (artifact.fd() < 0 || fstat(artifact.fd(), &source) || !S_ISREG(source.st_mode) ||
+            artifact.size() == 0 || artifact.size() > kMaximum ||
+            std::uint64_t(source.st_size) != artifact.size()) return Failure("invalid retained DE25 RBF");
+        return {};
+    }
+    Error CopyFirmware(int directory, const char* name, const Artifact& artifact,
+                       std::uint64_t deadline, const std::string& expected,
+                       std::array<std::uint8_t,32>* digest, bool* copied) {
+        Fd output(openat(directory, name, O_WRONLY | O_CREAT | O_EXCL | O_CLOEXEC | O_NOFOLLOW, 0600));
+        if (output.n < 0) return SystemError("create exclusive firmware");
+        *copied = true; unsigned char buffer[65536]; std::uint64_t offset = 0;
+        Sha256 hash;
+        while (offset < artifact.size()) {
+            auto error = Check(deadline); if (!error.ok()) return error;
+            const auto count = std::min<std::uint64_t>(sizeof(buffer), artifact.size() - offset);
+            const ssize_t n = pread(artifact.fd(), buffer, count, offset);
+            if (n < 0 && errno == EINTR) continue;
+            if (n <= 0) return Failure("retained firmware read failed");
+            hash.Update(buffer, n);
+            ssize_t done = 0;
+            while (done < n) {
+                error = Check(deadline); if (!error.ok()) return error;
+                const ssize_t written = write(output.n, buffer + done, n - done);
+                if (written < 0 && errno == EINTR) continue;
+                if (written <= 0) return Failure("firmware staging write failed");
+                done += written;
+            }
+            offset += n;
+        }
+        *digest = hash.Final();
+        if (!expected.empty() && Sha256Hex(*digest) != expected)
+            return Failure("staged firmware differs from selected payload");
+        if (fchmod(output.n, 0444) || fsync(output.n)) return SystemError("sync firmware copy");
+        const int fd = output.n; output.n = -1;
+        // The kernel must never open a staged image while a writer remains.
+        if (close(fd)) return SystemError("close firmware copy");
+        return Check(deadline);
+    }
+    Error VerifyPayload(int fw, const char* name, std::uint64_t size,
+                        const std::array<std::uint8_t,32>& expected, std::uint64_t deadline) {
+        struct stat staged{}, opened{};
+        if (fstatat(fw, name, &staged, AT_SYMLINK_NOFOLLOW) || !S_ISREG(staged.st_mode) ||
+            staged.st_uid != geteuid() || (staged.st_mode & 07777) != 0444 ||
+            staged.st_nlink != 1 || std::uint64_t(staged.st_size) != size)
+            return Failure("owned firmware identity or permissions differ");
+        Fd payload(openat(fw, name, O_RDONLY | O_CLOEXEC | O_NOFOLLOW));
+        if (payload.n < 0 || fstat(payload.n, &opened) || opened.st_dev != staged.st_dev ||
+            opened.st_ino != staged.st_ino || opened.st_size != staged.st_size)
+            return Failure("owned firmware changed while opening");
+        Sha256 digest; unsigned char buffer[65536]; std::uint64_t offset = 0;
+        while (offset < size) {
+            auto error = Check(deadline); if (!error.ok()) return error;
+            const auto count = std::min<std::uint64_t>(sizeof(buffer), size - offset);
+            const ssize_t n = pread(payload.n, buffer, count, offset);
+            if (n < 0 && errno == EINTR) continue;
+            if (n <= 0) return Failure("owned firmware read failed");
+            digest.Update(buffer, n); offset += n;
+        }
+        if (digest.Final() != expected) return Failure("owned firmware bytes differ");
+        return {};
+    }
+    Error VerifyOwned(int overlays, int fw, const char* name, const char* payload,
+                      const std::vector<unsigned char>& blob, std::uint64_t size,
+                      const std::array<std::uint8_t,32>& digest, std::uint64_t deadline) {
+        Fd dir(openat(overlays, name, O_RDONLY | O_DIRECTORY | O_CLOEXEC | O_NOFOLLOW));
+        Fd dtbo(dir.n < 0 ? -1 : openat(dir.n, "dtbo", O_RDONLY | O_CLOEXEC | O_NOFOLLOW));
+        std::vector<unsigned char> previous;
+        if (!Read(dtbo.n, &previous, blob.size()) || previous != blob ||
+            !Exact(config + "/device-tree/overlays/" + name + "/status", "applied") ||
+            !Exact(state, "operating"))
+            return Failure("owned configuration is not verified/applied; retained for recovery");
+        return VerifyPayload(fw, payload, size, digest, deadline);
+    }
+    Error PersonaFallbacks() {
+        for (const auto& prefix : {"/updates/6.12.11-fes-de25-owner/", "/updates/", "/6.12.11-fes-de25-owner/", "/"}) {
+            struct stat other{};
+            if (!lstat((default_firmware + prefix + kPersonaFirmware).c_str(), &other) ||
+                (errno != ENOENT && errno != ENOTDIR))
+                return Failure("default persona firmware fallback is occupied or inaccessible");
+        }
+        return {};
+    }
+    Error ApplyInitialPersona(std::uint64_t deadline) {
+        auto error = Check(deadline); if (!error.ok()) return error;
+        if (!configuration_known || persona_known ||
+            configured_overlay != De25ProgrammingOverlay(De25OverlayProfile::static_expansion_base))
+            return Failure("initial persona requires this context's fresh static base");
+        Fd overlays(open((config + "/device-tree/overlays").c_str(), O_RDONLY | O_DIRECTORY | O_CLOEXEC | O_NOFOLLOW));
+        Fd fw(open(firmware.c_str(), O_RDONLY | O_DIRECTORY | O_CLOEXEC | O_NOFOLLOW));
+        struct stat directory{}; bool exists = false;
+        if (overlays.n < 0 || !DirectoryIsExclusive(overlays.n, &exists) || !exists ||
+            fw.n < 0 || fstat(fw.n, &directory) || directory.st_uid != geteuid() ||
+            (directory.st_mode & 07777) != 0700)
+            return Failure("initial persona configuration or staging ownership differs");
+        error = VerifyOwned(overlays.n, fw.n, kOverlay, kFirmware, configured_overlay,
+                            programmed_size, programmed_digest, deadline);
+        if (error.ok()) error = VerifyPayload(fw.n, kPersonaFirmware, persona_size, persona_digest, deadline);
+        if (error.ok()) error = PersonaFallbacks();
+        if (!error.ok()) return error;
+        error = SetSearch(firmware);
+        // SetSearch may have changed the parameter even on a short/error write.
+        if (!error.ok()) return error;
+        search_owned = true;
+        if (Create(overlays.n, kPersonaOverlay)) return SystemError("create initial persona configuration");
+        Fd dir(openat(overlays.n, kPersonaOverlay, O_RDONLY | O_DIRECTORY | O_CLOEXEC | O_NOFOLLOW));
+        Fd dtbo(dir.n < 0 ? -1 : openat(dir.n, "dtbo", O_WRONLY | O_CLOEXEC | O_NOFOLLOW));
+        if (dtbo.n < 0) return SystemError("open initial persona configuration attribute");
+        error = Check(deadline); if (!error.ok()) return error;
+        const auto blob = De25ProgrammingOverlay(De25OverlayProfile::static_expansion_persona);
+        const ssize_t written = Write(dtbo.n, blob);
+        const int closing = dtbo.n; dtbo.n = -1;
+        const int closed = Close(closing); // No retry, including EINTR.
+        if (written != ssize_t(blob.size()) || closed)
+            return Failure("initial persona write/close was unsuccessful or partial");
+        error = Check(deadline); if (!error.ok()) return error;
+        if (!Exact(config + "/device-tree/overlays/" + kPersonaOverlay + "/status", "applied") ||
+            !Exact(state, "operating")) return Failure("initial persona completion/status is uncertain");
+        persona_known = true;
+        return RestoreSearch();
+    }
+    NativeResult ProgramStatic(const Artifact& base, const Artifact& persona,
+                               const De25StaticSelection& selection, Mmio& registers,
+                               std::uint64_t deadline) {
+        using namespace generated;
+        const auto hex = [](const std::string& value, std::size_t size) {
+            return value.size() == size && value.find_first_not_of("0123456789abcdef") == std::string::npos;
+        };
+        if (!hex(selection.base_sha256,64) || !hex(selection.persona_sha256,64) ||
+            !hex(selection.control_build_id,32) ||
+            selection.control_build_id == std::string(32,'0') ||
+            (selection.persona_id != FesDe25PrControlPersonaA && selection.persona_id != FesDe25PrControlPersonaB))
+            return {Failure("invalid admitted static expansion selection"), false};
+        auto error = Check(deadline);
+        if (error.ok()) error = ValidateArtifact(base);
+        if (error.ok()) error = ValidateArtifact(persona);
+        if (error.ok()) error = PersonaFallbacks();
+        std::string digest;
+        if (error.ok()) error = HashOpenedArtifact(base, &digest);
+        if (error.ok() && digest != selection.base_sha256) error = Failure("base differs from selected payload");
+        if (error.ok()) error = HashOpenedArtifact(persona, &digest);
+        if (error.ok() && digest != selection.persona_sha256) error = Failure("persona differs from selected payload");
+        if (error.ok()) error = Check(deadline);
+        if (error.ok()) error = EnsureConfigfs();
+        if (!error.ok()) return {error, false};
+        if (mkdir(firmware.c_str(), 0700) && errno != EEXIST)
+            return {SystemError("create firmware directory"), false};
+        Fd fw(open(firmware.c_str(), O_RDONLY | O_DIRECTORY | O_CLOEXEC | O_NOFOLLOW));
+        struct stat directory{}, staged{};
+        if (fw.n < 0 || fstat(fw.n, &directory) || directory.st_uid != geteuid() ||
+            (directory.st_mode & 07777) != 0700)
+            return {Failure("firmware staging directory ownership/permissions differ"), false};
+        if (!persona_known && (!fstatat(fw.n, kPersonaFirmware, &staged, AT_SYMLINK_NOFOLLOW) || errno != ENOENT))
+            return {Failure("persona staging belongs to an earlier or unknown context"), false};
+        // This is a new launch, never an in-place persona replacement. The
+        // existing kernel lease/drain veto applies to outgoing configurations.
+        const auto released = ReleaseConfiguration(deadline);
+        if (!released.error.ok()) return released;
+        bool attempted = released.mutation_attempted, copied = false;
+        auto fail = [&](Error failure) -> NativeResult {
+            if (attempted) poisoned = true;
+            if (!poisoned && copied && unlinkat(fw.n, kPersonaFirmware, 0)) poisoned = true;
+            return {Failure(failure.message), attempted};
+        };
+        error = CopyFirmware(fw.n, kPersonaFirmware, persona, deadline, selection.persona_sha256,
+                             &persona_digest, &copied);
+        if (!error.ok()) return fail(error);
+        persona_size = persona.size();
+        const auto loaded = Program(base, ProgrammingProfile::de25_linux_computer_v1, deadline,
+                                    De25OverlayProfile::static_expansion_base, selection.base_sha256);
+        attempted = attempted || loaded.mutation_attempted;
+        if (!loaded.error.ok()) return fail(loaded.error);
+        De25PrControl controller(registers, clock);
+        De25PrIdentity identity;
+        error = controller.Identify(selection.control_build_id, deadline, &identity);
+        if (error.ok() && (!identity.frozen || identity.completed_sequence || identity.persona_id))
+            error = Failure("new static base is not in its untouched cold frozen state");
+        if (error.ok()) error = controller.Reconfigure(selection.persona_id,
+            [&] { return ApplyInitialPersona(deadline); }, deadline);
+        if (error.ok()) error = Check(deadline);
+        if (!error.ok()) return fail(error);
+        return {{}, attempted};
+    }
+    NativeResult Program(const Artifact& artifact, ProgrammingProfile profile, std::uint64_t deadline,
+                         De25OverlayProfile selected, const std::string& expected_digest) {
         if (profile != ProgrammingProfile::de25_hps_first_v1 &&
             profile != ProgrammingProfile::de25_linux_menu_v1 &&
             profile != ProgrammingProfile::de25_linux_computer_v1)
             return {Failure("programming profile is not DE25 HPS-first"), false};
-        const auto blob = De25ProgrammingOverlay((profile == ProgrammingProfile::de25_linux_menu_v1 || profile == ProgrammingProfile::de25_linux_computer_v1) ?
-            De25OverlayProfile::allocated_scanout : De25OverlayProfile::firmware_only);
+        const auto normal = (profile == ProgrammingProfile::de25_linux_menu_v1 || profile == ProgrammingProfile::de25_linux_computer_v1) ?
+            De25OverlayProfile::allocated_scanout : De25OverlayProfile::firmware_only;
+        if (selected != normal && !(selected == De25OverlayProfile::static_expansion_base &&
+                                    profile == ProgrammingProfile::de25_linux_computer_v1))
+            return {Failure("invalid DE25 full-load overlay selection"), false};
+        const auto blob = De25ProgrammingOverlay(selected);
         if (blob.empty()) return {Failure("invalid DE25 overlay ownership profile"), false};
         auto error = Check(deadline); if (!error.ok()) return {error, false};
-        struct stat source{};
-        if (artifact.fd() < 0 || fstat(artifact.fd(), &source) || !S_ISREG(source.st_mode) ||
-            artifact.size() == 0 || artifact.size() > kMaximum ||
-            std::uint64_t(source.st_size) != artifact.size()) return {Failure("invalid retained DE25 RBF"), false};
-        if (!Testing()) {
-#if defined(__linux__)
-            struct statfs fs{};
-            if (statfs(config.c_str(), &fs)) return {SystemError("stat configfs"), false};
-            if (fs.f_type != 0x62656570 &&
-                mount("configfs", config.c_str(), "configfs", MS_NODEV | MS_NOSUID | MS_NOEXEC, nullptr))
-                return {SystemError("mount configfs"), false};
-#else
-            return {Failure("configfs programming requires Linux"), false};
-#endif
-        }
+        error = ValidateArtifact(artifact); if (!error.ok()) return {error, false};
+        error = EnsureConfigfs(); if (!error.ok()) return {error, false};
         Fd overlays(open((config + "/device-tree/overlays").c_str(), O_RDONLY | O_DIRECTORY | O_CLOEXEC | O_NOFOLLOW));
         bool exists = false;
-        if (overlays.n < 0 || !DirectoryIsExclusive(overlays.n, &exists))
+        if (overlays.n < 0 || !DirectoryIsExclusive(overlays.n, &exists, persona_known))
             return {Failure("configuration directory unavailable or owned by another loader"), false};
         std::string manager;
         if (!Text(state, &manager) || (manager != "unknown" && manager != "operating"))
@@ -427,12 +624,17 @@ public:
         if (fw.n < 0 || fstat(fw.n, &directory) || !S_ISDIR(directory.st_mode) ||
             directory.st_uid != geteuid() || (directory.st_mode & 07777) != 0700)
             return {Failure("firmware staging directory ownership/permissions differ"), false};
+        if (persona_known) {
+            const auto released = ReleaseConfiguration(deadline);
+            if (!released.error.ok()) return released;
+            attempted = released.mutation_attempted; exists = false;
+        }
         auto fail = [&](Error e) -> NativeResult {
             if (attempted) poisoned = true;
             else {
                 if (search_owned && !RestoreSearch().ok()) poisoned = true;
                 if (poisoned) return {e, false};
-                if (created && Remove(overlays.n)) poisoned = true;
+                if (created && Remove(overlays.n, kOverlay)) poisoned = true;
                 if (!poisoned && copied && unlinkat(fw.n, kFirmware, 0)) poisoned = true;
             }
             return {e, attempted};
@@ -450,38 +652,15 @@ public:
             }
             error = Check(deadline); if (!error.ok()) return {error, false};
             attempted = true;
-            if (Remove(overlays.n)) return fail(SystemError("remove previous configuration"));
+            if (Remove(overlays.n, kOverlay)) return fail(SystemError("remove previous configuration"));
             struct stat old{};
             if (fstatat(fw.n, kFirmware, &old, AT_SYMLINK_NOFOLLOW) || !S_ISREG(old.st_mode) ||
                 old.st_uid != geteuid() || unlinkat(fw.n, kFirmware, 0))
                 return fail(Failure("previous firmware identity/removal failed"));
         }
-        Fd output(openat(fw.n, kFirmware, O_WRONLY | O_CREAT | O_EXCL | O_CLOEXEC | O_NOFOLLOW, 0600));
-        if (output.n < 0) return fail(SystemError("create exclusive firmware"));
-        copied = true; unsigned char buffer[65536]; std::uint64_t offset = 0;
-        Sha256 copied_digest;
-        while (offset < artifact.size()) {
-            error = Check(deadline); if (!error.ok()) return fail(error);
-            const auto count = std::min<std::uint64_t>(sizeof(buffer), artifact.size() - offset);
-            ssize_t n = pread(artifact.fd(), buffer, count, offset);
-            if (n < 0 && errno == EINTR) continue;
-            if (n <= 0) return fail(Failure("retained firmware read failed"));
-            copied_digest.Update(buffer, n);
-            ssize_t done = 0;
-            while (done < n) {
-                error = Check(deadline); if (!error.ok()) return fail(error);
-                const ssize_t written = write(output.n, buffer + done, n - done);
-                if (written < 0 && errno == EINTR) continue;
-                if (written <= 0) return fail(Failure("firmware staging write failed"));
-                done += written;
-            }
-            offset += n;
-        }
-        if (fchmod(output.n, 0444) || fsync(output.n)) return fail(SystemError("sync firmware copy"));
-        const int copy_fd = output.n; output.n = -1;
-        // request_firmware may deny reading a file that still has a writer.
-        if (close(copy_fd)) return fail(SystemError("close firmware copy"));
-        error = Check(deadline); if (!error.ok()) return fail(error);
+        std::array<std::uint8_t,32> copied_digest{};
+        error = CopyFirmware(fw.n, kFirmware, artifact, deadline, expected_digest, &copied_digest, &copied);
+        if (!error.ok()) return fail(error);
         // firmware_class checks its explicit path before the immutable
         // /lib/firmware search paths. Keep the override and retained bytes
         // available if submission becomes uncertain or completes late.
@@ -491,7 +670,7 @@ public:
             return fail(error);
         }
         search_owned = true;
-        if (Create(overlays.n)) return fail(SystemError("create configuration"));
+        if (Create(overlays.n, kOverlay)) return fail(SystemError("create configuration"));
         created = true;
         Fd dir(openat(overlays.n, kOverlay, O_RDONLY | O_DIRECTORY | O_CLOEXEC | O_NOFOLLOW));
         Fd dtbo(dir.n < 0 ? -1 : openat(dir.n, "dtbo", O_WRONLY | O_CLOEXEC | O_NOFOLLOW));
@@ -513,7 +692,7 @@ public:
         error = RestoreSearch(); if (!error.ok()) return fail(error);
         configuration_known = true;
         configured_overlay = blob;
-        programmed_digest = copied_digest.Final();
+        programmed_digest = copied_digest;
         programmed_size = artifact.size();
         return {{}, true};
     }
@@ -523,7 +702,7 @@ public:
         Fd overlays(open((config + "/device-tree/overlays").c_str(),
             O_RDONLY | O_DIRECTORY | O_CLOEXEC | O_NOFOLLOW));
         bool exists = false;
-        if (overlays.n < 0 || !DirectoryIsExclusive(overlays.n, &exists))
+        if (overlays.n < 0 || !DirectoryIsExclusive(overlays.n, &exists, persona_known))
             return {Failure("configuration directory unavailable or owned by another loader"), false};
         Fd fw(open(firmware.c_str(), O_RDONLY | O_DIRECTORY | O_CLOEXEC | O_NOFOLLOW));
         struct stat staged{};
@@ -533,51 +712,41 @@ public:
                 return {Failure("configuration belongs to an earlier context; external recovery required"), false};
             return {{}, false};
         }
-        if (!exists || !staged_exists || !S_ISREG(staged.st_mode) ||
-            staged.st_uid != geteuid() || (staged.st_mode & 07777) != 0444 ||
-            staged.st_nlink != 1 || std::uint64_t(staged.st_size) != programmed_size)
-            return {Failure("owned configuration or firmware identity differs"), false};
+        if (!exists || !staged_exists) return {Failure("owned configuration or firmware is missing"), false};
         struct stat staging_directory{};
         if (fstat(fw.n, &staging_directory) || staging_directory.st_uid != geteuid() ||
             (staging_directory.st_mode & 07777) != 0700)
             return {Failure("firmware staging directory ownership/permissions differ"), false};
-        {
-        Fd dir(openat(overlays.n, kOverlay, O_RDONLY | O_DIRECTORY | O_CLOEXEC | O_NOFOLLOW));
-        Fd dtbo(dir.n < 0 ? -1 : openat(dir.n, "dtbo", O_RDONLY | O_CLOEXEC | O_NOFOLLOW));
-        std::vector<unsigned char> previous;
-        if (!Read(dtbo.n, &previous, configured_overlay.size()) || previous != configured_overlay ||
-            !Exact(config + "/device-tree/overlays/" + kOverlay + "/status", "applied") ||
-            !Exact(state, "operating"))
-            return {Failure("owned configuration is not verified/applied; retained for recovery"), false};
-        }
-        Fd payload(openat(fw.n, kFirmware, O_RDONLY | O_CLOEXEC | O_NOFOLLOW));
-        struct stat opened{};
-        if (payload.n < 0 || fstat(payload.n, &opened) || opened.st_dev != staged.st_dev ||
-            opened.st_ino != staged.st_ino || opened.st_size != staged.st_size)
-            return {Failure("owned firmware changed while opening"), false};
-        Sha256 digest; unsigned char buffer[65536]; std::uint64_t offset = 0;
-        while (offset < programmed_size) {
-            error = Check(deadline); if (!error.ok()) return {error, false};
-            const auto size = std::min<std::uint64_t>(sizeof(buffer), programmed_size - offset);
-            const ssize_t n = pread(payload.n, buffer, size, offset);
-            if (n < 0 && errno == EINTR) continue;
-            if (n <= 0) return {Failure("owned firmware read failed"), false};
-            digest.Update(buffer, n); offset += n;
-        }
-        if (digest.Final() != programmed_digest)
-            return {Failure("owned firmware bytes differ"), false};
+        error = VerifyOwned(overlays.n, fw.n, kOverlay, kFirmware, configured_overlay,
+                            programmed_size, programmed_digest, deadline);
+        if (error.ok() && persona_known)
+            error = VerifyOwned(overlays.n, fw.n, kPersonaOverlay, kPersonaFirmware,
+                                De25ProgrammingOverlay(De25OverlayProfile::static_expansion_persona),
+                                persona_size, persona_digest, deadline);
+        if (!error.ok()) return {error, false};
         error = Check(deadline); if (!error.ok()) return {error, false};
         // The caller already proved REAP and OWNER_IDLE. The kernel notifier
         // independently refuses overlay removal while suppliers remain busy.
-        if (Remove(overlays.n)) {
+        if (persona_known && Remove(overlays.n, kPersonaOverlay)) {
+            poisoned = true; return {SystemError("release owned persona configuration"), true};
+        }
+        if (persona_known) {
+            error = Check(deadline);
+            if (!error.ok()) { poisoned = true; return {error, true}; }
+        }
+        if (Remove(overlays.n, kOverlay)) {
             poisoned = true; return {SystemError("release owned configuration"), true};
         }
         error = Check(deadline);
         if (!error.ok()) { poisoned = true; return {error, true}; }
+        if (persona_known && unlinkat(fw.n, kPersonaFirmware, 0)) {
+            poisoned = true; return {SystemError("release owned persona firmware"), true};
+        }
         if (unlinkat(fw.n, kFirmware, 0)) {
             poisoned = true; return {SystemError("release owned firmware"), true};
         }
         configuration_known = false; configured_overlay.clear(); programmed_size = 0;
+        persona_known = false; persona_size = 0;
         return {{}, true};
     }
 };
@@ -602,7 +771,14 @@ LinuxDe25FpgaManager::LinuxDe25FpgaManager(Clock& c, int fd, const De25FpgaTestP
 LinuxDe25FpgaManager::~LinuxDe25FpgaManager() = default;
 NativeResult LinuxDe25FpgaManager::Program(const Artifact& a, ProgrammingProfile p, std::uint64_t d) {
     std::lock_guard<std::mutex> lock(impl_->mutex);
-    return impl_->Program(a, p, d);
+    const auto selected = (p == ProgrammingProfile::de25_linux_menu_v1 || p == ProgrammingProfile::de25_linux_computer_v1) ?
+        De25OverlayProfile::allocated_scanout : De25OverlayProfile::firmware_only;
+    return impl_->Program(a, p, d, selected, "");
+}
+NativeResult LinuxDe25FpgaManager::ProgramStatic(const Artifact& base, const Artifact& persona,
+        const De25StaticSelection& selection, Mmio& registers, std::uint64_t deadline) {
+    std::lock_guard<std::mutex> lock(impl_->mutex);
+    return impl_->ProgramStatic(base, persona, selection, registers, deadline);
 }
 NativeResult LinuxDe25FpgaManager::ReleaseConfiguration(std::uint64_t d) {
     std::lock_guard<std::mutex> lock(impl_->mutex);

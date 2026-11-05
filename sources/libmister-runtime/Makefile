@@ -546,6 +546,6 @@ $(BUILD_DIR)/tests/unit/menu_window_test: tests/unit/menu_window_test.cpp src/na
 	@mkdir -p "$(dir $@)"
 	$(CXX) $(TEST_CPPFLAGS) $(CXXFLAGS) $(filter %.cpp,$^) -o "$@"
 
-$(BUILD_DIR)/tests/unit/de25_fpga_manager_test: tests/unit/de25_fpga_manager_test.cpp src/native/linux/de25_fpga_manager.cpp src/native/linux/de25_menu.cpp src/native/core_package.cpp src/native/artifacts.cpp src/native/diagnostic.cpp src/native/sha256.cpp src/daemon/json.cpp
+$(BUILD_DIR)/tests/unit/de25_fpga_manager_test: tests/unit/de25_fpga_manager_test.cpp tests/support/de25_pr_endpoint.hpp src/native/de25_pr_control.cpp src/native/linux/de25_fpga_manager.cpp src/native/linux/de25_menu.cpp src/native/core_package.cpp src/native/artifacts.cpp src/native/diagnostic.cpp src/native/sha256.cpp src/daemon/json.cpp
 	@mkdir -p "$(dir $@)"
 	$(CXX) $(TEST_CPPFLAGS) -DMISTER_RUNTIME_TESTING $(CXXFLAGS) $(filter %.cpp,$^) -o "$@"

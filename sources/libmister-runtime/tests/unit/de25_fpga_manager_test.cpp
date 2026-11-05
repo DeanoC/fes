@@ -4,7 +4,9 @@
 #include "native/sha256.hpp"
 #include "native/core_package.hpp"
 #include "de25_menu_operations.hpp"
+#include "de25_pr_endpoint.hpp"
 #include <cassert>
+#include <algorithm>
 #include <cstdlib>
 #include <cstring>
 #include <fstream>
@@ -25,46 +27,70 @@ struct Ops final : De25FpgaTestOperations {
     De25FpgaTestPaths& paths; Time& time;
     int created=0, written=0, removed=0, closed=0;
     int search_writes=0;
-    std::string expected_payload="immutable test image";
+    std::string expected_payload="immutable test image", expected_persona_payload="immutable test persona";
+    std::string fault_name;
+    std::vector<std::string> events;
+    std::function<void()> base_applied, persona_applied;
+    std::function<void(const std::string&)> before_write;
+    std::function<void(const std::string&)> before_remove;
+    bool late_remove=false;
+    bool Matches(const char* name) const { return fault_name.empty() || fault_name==name; }
     bool short_write=false, error_close=false, late_close=false, unapplied=false;
     bool remove_error=false, create_error=false, open_error=false;
     bool short_search=false, restore_error=false, changed_search=false;
     bool search_newline=false;
     Ops(De25FpgaTestPaths& p, Time& t):paths(p),time(t) {}
-    std::string Dir() const {return paths.config+"/device-tree/overlays/fes-runtime";}
-    int Create(int parent) override {
-        ++created;
-        if(create_error) {errno=EACCES;return -1;}
-        if(mkdirat(parent,"fes-runtime",0700)) return -1;
-        if(!open_error) Put(Dir()+"/dtbo", "");
-        Put(Dir()+"/status","unapplied\n");return 0;
+    std::string Dir(const char* name="fes-runtime") const {return paths.config+"/device-tree/overlays/"+name;}
+    std::string Name(int fd) const {
+        struct stat opened{}, candidate{};assert(!fstat(fd,&opened));
+        for(const char* name:{"fes-runtime","fes-runtime-persona"}) {
+            if(!stat((Dir(name)+"/dtbo").c_str(),&candidate) && opened.st_dev==candidate.st_dev && opened.st_ino==candidate.st_ino) return name;
+        }
+        assert(false);return {};
+    }
+    int Create(int parent,const char* name) override {
+        ++created;events.push_back(std::string("create:")+name);
+        if(create_error && Matches(name)) {errno=EACCES;return -1;}
+        if(mkdirat(parent,name,0700)) return -1;
+        if(!open_error || !Matches(name)) Put(Dir(name)+"/dtbo", "");
+        Put(Dir(name)+"/status","unapplied\n");return 0;
     }
     ssize_t Write(int fd,const unsigned char* p,std::size_t n) override {
-        ++written;
-        assert(Get(Dir()+"/status")=="unapplied\n");
+        const auto name=Name(fd);const auto dir=Dir(name.c_str());
+        ++written;events.push_back("write:"+name);
+        assert(Get(dir+"/status")=="unapplied\n");
         assert(Get(paths.search)==paths.firmware+"\n");
-        assert(Get(paths.firmware+"/fes-runtime-core.rbf")==expected_payload);
-        struct stat staged{};assert(!stat((paths.firmware+"/fes-runtime-core.rbf").c_str(),&staged));
+        const char* file=name=="fes-runtime"?"fes-runtime-core.rbf":"fes-runtime-persona.rbf";
+        assert(Get(paths.firmware+"/"+file)==(name=="fes-runtime"?expected_payload:expected_persona_payload));
+        struct stat staged{};assert(!stat((paths.firmware+"/"+file).c_str(),&staged));
         assert((staged.st_mode & 0777)==0444);
-        // Model the actual pinned configfs binary attribute: nothing applies
-        // at write; its release callback applies the complete buffered blob.
-        return write(fd,p,short_write?n-1:n);
+        if(before_write)before_write(name);
+        // Match configfs buffering: the release callback applies the blob.
+        return write(fd,p,short_write && Matches(name.c_str())?n-1:n);
     }
     int Close(int fd) override {
-        ++closed;const int r=close(fd);assert(!r);
-        if(late_close)time.now=1000;
-        Put(Dir()+"/status",unapplied?"unapplied\n":"applied\n");
-        Put(paths.state,unapplied?"write error\n":"operating\n");
-        if(changed_search)Put(paths.search,"/another/loader\n");
-        if(search_newline)Put(paths.search,paths.firmware+"\n\n");
-        if(error_close) {errno=EINTR;return -1;}
+        const auto name=Name(fd);const auto dir=Dir(name.c_str());const bool fault=Matches(name.c_str());
+        ++closed;events.push_back("close:"+name);const int r=close(fd);assert(!r);
+        if(late_close && fault)time.now=1000;
+        Put(dir+"/status",unapplied && fault?"unapplied\n":"applied\n");
+        Put(paths.state,unapplied && fault?"write error\n":"operating\n");
+        if(changed_search && fault)Put(paths.search,"/another/loader\n");
+        if(search_newline && fault)Put(paths.search,paths.firmware+"\n\n");
+        if(!(unapplied && fault)) {
+            if(name=="fes-runtime" && base_applied)base_applied();
+            if(name=="fes-runtime-persona" && persona_applied)persona_applied();
+        }
+        if(error_close && fault) {errno=EINTR;return -1;}
         return 0;
     }
-    int Remove(int parent) override {
-        ++removed;
-        if(remove_error) {errno=EBUSY;return -1;}
-        unlink((Dir()+"/dtbo").c_str());unlink((Dir()+"/status").c_str());
-        return unlinkat(parent,"fes-runtime",AT_REMOVEDIR);
+    int Remove(int parent,const char* name) override {
+        ++removed;events.push_back(std::string("remove:")+name);
+        if(before_remove)before_remove(name);
+        if(remove_error && Matches(name)) {errno=EBUSY;return -1;}
+        unlink((Dir(name)+"/dtbo").c_str());unlink((Dir(name)+"/status").c_str());
+        const int result=unlinkat(parent,name,AT_REMOVEDIR);
+        if(late_remove && Matches(name))time.now=1000;
+        return result;
     }
     ssize_t WriteSearch(int fd,const char* p,std::size_t n) override {
         ++search_writes;
@@ -306,6 +332,192 @@ std::map<std::string, std::string> OverlayProperties(const std::vector<unsigned 
     }
     assert(false);return {};
 }
+struct StaticFixture : Fixture {
+    mister_test::de25_pr::Endpoint endpoint;
+    Artifact persona;
+    De25StaticSelection selection;
+    unsigned reads_at_entry = 0;
+    std::function<void()> after_base, after_persona;
+    StaticFixture() {
+        using namespace mister_test::de25_pr;
+        Put(root+"/persona.rbf",ops.expected_persona_payload);
+        PosixArtifactOpener opener;assert(OpenRBFArtifact(root+"/persona.rbf",opener,&persona).ok());
+        assert(HashOpenedArtifact(artifact,&selection.base_sha256).ok());
+        assert(HashOpenedArtifact(persona,&selection.persona_sha256).ok());
+        selection.control_build_id=kBuild;
+        selection.persona_id=mister::native::generated::FesDe25PrControlPersonaA;
+        ops.base_applied=[&] {endpoint=Endpoint{};if(after_base)after_base();};
+        ops.persona_applied=[&] {endpoint.loaded_persona=selection.persona_id;if(after_persona)after_persona();};
+        ops.before_write=[&](const std::string& name) {
+            assert(Get(paths.firmware+"/fes-runtime-persona.rbf")==ops.expected_persona_payload);
+            if(name=="fes-runtime") assert(endpoint.reads==reads_at_entry);
+            else {
+                assert(endpoint.registers[mister::native::generated::FesDe25PrControlStatusOffset]==kReadyFrozen);
+                assert(endpoint.Commands(mister::native::generated::FesDe25PrControlCommandFreeze)==1);
+            }
+        };
+    }
+    NativeResult Load(LinuxDe25FpgaManager& manager) {
+        reads_at_entry=endpoint.reads;
+        return manager.ProgramStatic(artifact,persona,selection,endpoint,500);
+    }
+    void ImagesRetained() {
+        Preserved();assert(Get(paths.firmware+"/fes-runtime-persona.rbf")==ops.expected_persona_payload);
+    }
+};
+void StaticStartupAndFullReplacement() {
+    using namespace mister::native::generated;
+    using namespace mister_test::de25_pr;
+    StaticFixture f;auto manager=f.Manager();
+    for(auto persona:{FesDe25PrControlPersonaA,FesDe25PrControlPersonaB,FesDe25PrControlPersonaA}) {
+        f.selection.persona_id=persona;f.ops.events.clear();
+        auto result=f.Load(*manager);assert(result.error.ok() && result.mutation_attempted && !manager->Poisoned());
+        assert(f.endpoint.registers[FesDe25PrControlStatusOffset]==kReadyRunning);
+        assert(f.endpoint.registers[FesDe25PrControlPersonaIdOffset]==persona);
+        assert(f.endpoint.Commands(FesDe25PrControlCommandFreeze)==1 && f.endpoint.Commands(FesDe25PrControlCommandResume)==1);
+        assert(f.endpoint.registers[FesDe25PrControlCompletedSeqOffset]==2);
+        f.ImagesRetained();assert(Exists(f.ops.Dir("fes-runtime-persona")) && Get(f.paths.search)=="\n");
+        const auto& events=f.ops.events;
+        const auto base=std::find(events.begin(),events.end(),"write:fes-runtime");
+        const auto child=std::find(events.begin(),events.end(),"write:fes-runtime-persona");
+        assert(base!=events.end() && child!=events.end() && base<child);
+        if(persona!=FesDe25PrControlPersonaA || events.front().find("remove:")==0) {
+            assert(events[0]=="remove:fes-runtime-persona" && events[1]=="remove:fes-runtime");
+        }
+    }
+    f.ops.before_write={};f.ops.events.clear();
+    assert(f.Program(*manager,ProgrammingProfile::de25_linux_menu_v1).error.ok());
+    assert(f.ops.events[0]=="remove:fes-runtime-persona" && f.ops.events[1]=="remove:fes-runtime");
+    assert(!Exists(f.ops.Dir("fes-runtime-persona")) && !Exists(f.paths.firmware+"/fes-runtime-persona.rbf"));
+    assert(manager->ReleaseConfiguration(500).error.ok());
+    std::cout<<"static A/B/A launches load a fresh full base each time; MENU replacement removes child before base\n";
+}
+void StaticRefusalsBeforeHardware() {
+    for(int fault=0;fault<11;++fault) {
+        StaticFixture f;auto manager=f.Manager();
+        if(fault==0)f.selection.base_sha256=std::string(64,'0');
+        if(fault==1)f.selection.persona_sha256=std::string(64,'0');
+        if(fault==2)f.selection.control_build_id="malformed";
+        if(fault==3)f.selection.persona_id=0;
+        if(fault==4)Put(f.paths.firmware+"/fes-runtime-persona.rbf","foreign");
+        if(fault==5)assert(!mkdir(f.ops.Dir("fes-runtime-persona").c_str(),0700));
+        if(fault==6)Put(f.paths.default_firmware+"/fes-runtime-persona.rbf","fallback");
+        if(fault==7)f.clock.now=500;
+        if(fault==8)Put(f.paths.notes,"different kernel");
+        if(fault==9) {unlink(f.paths.lease.c_str());int fd=open(f.paths.lease.c_str(),O_CREAT|O_RDWR,0600);assert(fd>=0);close(fd);}
+        if(fault==10)f.selection.control_build_id=std::string(32,'0');
+        const auto result=f.Load(*manager);
+        assert(!result.error.ok() && !result.mutation_attempted && !f.ops.created && !f.ops.removed && !f.ops.written && f.endpoint.reads==0);
+    }
+    std::cout<<"static payload/selection/fallback/ownership/kernel/deadline checks refuse before programming\n";
+}
+void StaticColdIdentityFailures() {
+    using namespace mister::native::generated;
+    using namespace mister_test::de25_pr;
+    for(int fault=0;fault<5;++fault) {
+        StaticFixture f;auto manager=f.Manager();
+        f.after_base=[&] {
+            if(fault==0)f.endpoint.registers[FesDe25PrControlBuildId0Offset]^=1;
+            if(fault==1)f.endpoint.registers[FesDe25PrControlStatusOffset]=kReadyRunning;
+            if(fault==2)f.endpoint.registers[FesDe25PrControlCompletedSeqOffset]=2;
+            if(fault==3)f.endpoint.registers[FesDe25PrControlPersonaIdOffset]=FesDe25PrControlPersonaA;
+            if(fault==4)f.endpoint.fail_read=FesDe25PrControlIdOffset;
+        };
+        auto result=f.Load(*manager);assert(!result.error.ok() && result.mutation_attempted && manager->Poisoned());
+        assert(f.ops.written==1 && !f.endpoint.Commands(FesDe25PrControlCommandResume));f.ImagesRetained();
+        const auto writes=f.ops.written;assert(!f.Load(*manager).error.ok() && f.ops.written==writes);
+        assert(!manager->ReleaseConfiguration(500).error.ok() && f.ops.removed==0);
+    }
+    std::cout<<"non-cold or wrong static control identity poisons context before partial submission\n";
+}
+void StaticPersonaFailuresRetainBothImages() {
+    using namespace mister::native::generated;
+    for(int fault=0;fault<8;++fault) {
+        StaticFixture f;auto manager=f.Manager();f.ops.fault_name="fes-runtime-persona";
+        if(fault==0)f.ops.short_write=true;
+        if(fault==1)f.ops.error_close=true;
+        if(fault==2)f.ops.late_close=true;
+        if(fault==3)f.ops.unapplied=true;
+        if(fault==4)f.ops.create_error=true;
+        if(fault==5)f.ops.open_error=true;
+        if(fault==6)f.after_persona=[&]{f.ops.restore_error=true;};
+        if(fault==7)f.after_persona=[&]{f.endpoint.loaded_persona^=1;};
+        auto result=f.Load(*manager);assert(!result.error.ok() && result.mutation_attempted && manager->Poisoned());
+        f.ImagesRetained();assert(f.ops.removed==0);
+        assert(f.endpoint.Commands(FesDe25PrControlCommandFreeze)==1);
+        assert(f.endpoint.Commands(FesDe25PrControlCommandResume)==(fault==7?1U:0U));
+        const auto writes=f.ops.written;const auto commands=f.endpoint.writes.size();
+        assert(!f.Load(*manager).error.ok() && f.ops.written==writes && f.endpoint.writes.size()==commands);
+        assert(!f.Program(*manager).error.ok() && f.ops.written==writes);
+    }
+    std::cout<<"partial create/write/close/status/deadline/search/identity failures retain both images, never retry or resume after ambiguity\n";
+}
+void StaticCopyAndLookupRacesNeverSubmitWrongBytes() {
+    using namespace mister::native::generated;
+    for(bool persona:{false,true}) {
+        StaticFixture f;auto manager=f.Manager();f.ops.before_write={};
+        assert(f.Program(*manager,ProgrammingProfile::de25_linux_menu_v1).error.ok());
+        const auto written=f.ops.written;
+        f.ops.before_remove=[&](const std::string&) {
+            const auto path=f.root+(persona?"/persona.rbf":"/input.rbf");
+            auto data=Get(path);data[0]^=1;Put(path,data);
+        };
+        auto result=f.Load(*manager);
+        assert(!result.error.ok() && result.mutation_attempted && manager->Poisoned());
+        assert(f.ops.written==written && f.endpoint.writes.empty());
+        assert(Exists(f.paths.firmware+"/fes-runtime-persona.rbf"));
+    }
+    for(bool persona:{false,true}) {
+        StaticFixture f;auto manager=f.Manager();
+        f.after_base=[&] {
+            const auto path=f.paths.firmware+(persona?"/fes-runtime-persona.rbf":"/fes-runtime-core.rbf");
+            assert(!chmod(path.c_str(),0600));auto data=Get(path);data[0]^=1;Put(path,data);assert(!chmod(path.c_str(),0444));
+        };
+        auto result=f.Load(*manager);assert(!result.error.ok() && result.mutation_attempted && manager->Poisoned());
+        assert(f.ops.written==1 && f.endpoint.Commands(FesDe25PrControlCommandResume)==0);
+        assert(Exists(f.ops.Dir()) && Exists(f.paths.firmware+"/fes-runtime-core.rbf") && Exists(f.paths.firmware+"/fes-runtime-persona.rbf"));
+    }
+    std::cout<<"retained-input copy races and staged base/persona changes are rejected before the next image submission\n";
+}
+void StaticReleaseChecksBothIdentitiesBeforeEffects() {
+    for(int fault=0;fault<7;++fault) {
+        StaticFixture f;auto manager=f.Manager();assert(f.Load(*manager).error.ok());
+        if(fault<2) {
+            const auto file=f.paths.firmware+(fault==0?"/fes-runtime-core.rbf":"/fes-runtime-persona.rbf");
+            assert(!chmod(file.c_str(),0600));auto content=Get(file);content[0]^=1;Put(file,content);assert(!chmod(file.c_str(),0444));
+        }
+        if(fault==2)Put(f.ops.Dir("fes-runtime-persona")+"/dtbo","changed child");
+        if(fault==3)Put(f.ops.Dir()+"/status","unapplied\n");
+        if(fault==4)assert(!mkdir((f.paths.config+"/device-tree/overlays/foreign").c_str(),0700));
+        if(fault==5)f.clock.now=500;
+        if(fault==6)assert(!chmod((f.paths.firmware+"/fes-runtime-persona.rbf").c_str(),0600));
+        const auto removed=f.ops.removed;auto result=manager->ReleaseConfiguration(500);
+        assert(!result.error.ok() && !result.mutation_attempted && f.ops.removed==removed);
+    }
+    for(const char* blocked:{"fes-runtime-persona","fes-runtime"}) {
+        StaticFixture f;auto manager=f.Manager();assert(f.Load(*manager).error.ok());
+        f.ops.fault_name=blocked;f.ops.remove_error=true;
+        auto result=manager->ReleaseConfiguration(500);assert(!result.error.ok() && result.mutation_attempted && manager->Poisoned());
+        f.ImagesRetained();assert(Exists(f.ops.Dir()));
+        assert(Exists(f.ops.Dir("fes-runtime-persona"))==(std::string(blocked)=="fes-runtime-persona"));
+        const auto removed=f.ops.removed;assert(!manager->ReleaseConfiguration(500).error.ok() && f.ops.removed==removed);
+    }
+    {
+        StaticFixture f;auto manager=f.Manager();assert(f.Load(*manager).error.ok());
+        f.ops.events.clear();f.ops.fault_name="fes-runtime-persona";f.ops.late_remove=true;
+        auto result=manager->ReleaseConfiguration(500);
+        assert(!result.error.ok() && result.mutation_attempted && manager->Poisoned());
+        assert(f.ops.events==std::vector<std::string>{"remove:fes-runtime-persona"});
+        assert(!Exists(f.ops.Dir("fes-runtime-persona")));f.ImagesRetained();
+    }
+    {
+        StaticFixture f;auto manager=f.Manager();assert(f.Load(*manager).error.ok());manager.reset();
+        auto next=f.Manager();const auto removed=f.ops.removed;const auto written=f.ops.written;
+        assert(!f.Load(*next).error.ok() && f.ops.removed==removed && f.ops.written==written);
+        f.ImagesRetained();assert(Exists(f.ops.Dir("fes-runtime-persona")));
+    }
+    std::cout<<"static release verifies both payloads/overlays before effects; removal failure and inheritance stay closed\n";
+}
 void StaticStartupProfiles() {
     auto expected = OverlayProperties(De25ProgrammingOverlay());
     const std::string root = "/fragment@0/__overlay__";
@@ -476,6 +688,6 @@ int main(int argc,char** argv) {
         const auto v=De25ProgrammingOverlay(profile);std::ofstream f(argv[argc-1],std::ios::binary);
         f.write(reinterpret_cast<const char*>(v.data()),v.size());assert(f.good());return 0;
     }
-    RecoverVerifiedAllocatedConfigurationOnlyAfterKernelRetirement();Positive();CleanRelease();ReleaseRefusals();AllocatedScanoutProfile();StaticStartupProfiles();Uncertain();BeforeMutation();FirmwareSearchLifecycle();FirmwareFallbacks();ExistingFailure();ProfilesAndLease();
+    RecoverVerifiedAllocatedConfigurationOnlyAfterKernelRetirement();Positive();CleanRelease();ReleaseRefusals();AllocatedScanoutProfile();StaticStartupProfiles();StaticStartupAndFullReplacement();StaticRefusalsBeforeHardware();StaticColdIdentityFailures();StaticPersonaFailuresRetainBothImages();StaticCopyAndLookupRacesNeverSubmitWrongBytes();StaticReleaseChecksBothIdentitiesBeforeEffects();Uncertain();BeforeMutation();FirmwareSearchLifecycle();FirmwareFallbacks();ExistingFailure();ProfilesAndLease();
     std::cout<<"de25_fpga_manager_test: passed\n";
 }

@@ -19,6 +19,13 @@ enum class De25OverlayProfile {
 std::vector<unsigned char> De25ProgrammingOverlay(
     De25OverlayProfile = De25OverlayProfile::firmware_only);
 using De25RecoveryGuard = std::function<Error(const CoreDescriptor&,std::uint64_t)>;
+class Mmio;
+// Supplied only after the base/persona descriptor and its source/root/interface
+// bindings have been admitted. This does not itself admit a composition.
+struct De25StaticSelection {
+    std::string base_sha256, persona_sha256, control_build_id;
+    std::uint32_t persona_id = 0;
+};
 
 #if defined(MISTER_RUNTIME_TESTING)
 struct De25FpgaTestPaths {
@@ -28,9 +35,9 @@ struct De25FpgaTestPaths {
 class De25FpgaTestOperations {
 public:
     virtual ~De25FpgaTestOperations() = default;
-    virtual int Create(int overlays_fd) = 0;
+    virtual int Create(int overlays_fd, const char* name) = 0;
     virtual ssize_t Write(int dtbo_fd, const unsigned char*, std::size_t) = 0;
-    virtual int Remove(int overlays_fd) = 0;
+    virtual int Remove(int overlays_fd, const char* name) = 0;
     virtual int Close(int dtbo_fd) = 0;
     virtual ssize_t WriteSearch(int fd, const char*, std::size_t) = 0;
 };
@@ -55,6 +62,13 @@ public:
 #endif
     ~LinuxDe25FpgaManager() override;
     NativeResult Program(const Artifact&, ProgrammingProfile, std::uint64_t) override;
+    // Cold startup only: caller holds execution and supplies the exclusively
+    // owned, ordered/bounded PR register backend. Creates a fresh logical
+    // controller for this new base epoch. Production construction/admission
+    // of that backend and this selection remain closed.
+    NativeResult ProgramStatic(const Artifact& base, const Artifact& persona,
+                               const De25StaticSelection&, Mmio& startup_registers,
+                               std::uint64_t absolute_deadline_ms);
     NativeResult ReleaseConfiguration(std::uint64_t) override;
     Error ReleaseHpsDdrPorts(std::uint64_t) override;
     bool BootHpsDdrLayout() override { return false; }

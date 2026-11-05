@@ -70,7 +70,17 @@ a base with the deferred-owner marker and an empty child region, followed by
 an initial partial persona targeting that child. These formats retain the fixed
 completion timeout and use distinct fixed firmware names. They do not select a
 production programming profile, admit a package, expose live expansion changes
-or open a PR-control resource. The cold-load lifecycle remains unfinished.
+or open a PR-control resource. The internal `ProgramStatic` startup sequence
+checks both selected payload digests before effects, stages the persona, loads
+a fresh full base and identifies its untouched cold frozen controller. It uses
+the existing `De25PrControl` freeze/configure/identity-probed resume sequence;
+its callback applies the child overlay only after confirmed freeze. No display
+allocation or guest Start is performed by this programmer. Replacement verifies
+both overlays and retained payloads before removing the child and then the
+base. An expired deadline after child removal prevents another base operation.
+Any programming/control uncertainty retains both images and poisons that
+context. Inherited compositions are refused. Production descriptor admission,+a matching flag-enabled kernel and the protected PR-register backend remain
+required; the normal factory does not select this path yet.
 Partial, failed or late programming poisons the context and retains the
 configuration. Software deadlines cannot abort an opaque configfs/SDM call.
 On DE25, TERM/INT request a normal server stop. Once socket workers have ended,

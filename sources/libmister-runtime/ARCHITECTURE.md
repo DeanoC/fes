@@ -237,8 +237,30 @@ The persona targets only that child, declares `partial-fpga-config` and names
 ordinary fixed completion budget. The existing firmware-only and allocated
 overlay bytes remain unchanged. These format values are internal preparation;
 the current programming-profile dispatch still selects only its existing full
-loads. Package admission, the two-load lifecycle and protected startup control
-remain required before any production selection or hardware claim.
+loads. `LinuxDe25FpgaManager::ProgramStatic` adds the cold two-load lifecycle in
+that same physical owner. Its selection must come from an admitted descriptor;
+it validates both digests and fixed identities before programming. It closes
+the staged persona writer, loads a new full base and verifies its selected
+control build, cold frozen state, zero completed sequence and empty persona.
+The existing logical PR client then freezes, invokes the configfs child-load
+callback and verifies the selected persona before resume. A fresh logical
+controller is constructed for each full base epoch. The caller must keep guest
+execution held and defer display allocation/ordinary Start until success.
+
+Successful contexts retain both exact overlays and immutable payload hashes.
+Every subsequent selection performs a full release and new base load. Release
+checks both identities before any removal; it removes child then parent and
+checks the deadline between those opaque operations. The permanent kernel
+owner still vetoes removal while client mappings or uncertain DMA remain.
+Partial writes, close/status/search errors, control ambiguity, late completion
+or removal failures poison the same context, retain images and forbid retry or
+cleanup that assumes a drain. An unknown inherited pair is never adopted.
+The file staging and root/child verification share the ordinary programmer's
+helpers; there is no new daemon, programming profile or userspace DMA API.
+
+Package admission, a matching flag-enabled kernel, production construction of
+the protected ordered/bounded PR backend and exact-artifact physical acceptance
+remain required before production selection or a hardware claim.
 
 ## DE25 diagnostic register client
 
