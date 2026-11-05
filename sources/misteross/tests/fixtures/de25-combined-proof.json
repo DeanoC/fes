@@ -1,11 +1,11 @@
 {
   "status": "passed",
   "kind": "actual-dual-client-combined-ZX81-PR-RTL",
-  "source_revision": "1812fcbd652b05d7e00e60731c070117bc9cf978",
+  "source_revision": "34e8bb3b74784ca4143cb2405bc3f2c1d1ea4d30",
   "production_source_committed": true,
   "test_source_committed": true,
   "compiler_source_sha256": {
-    "sources/misteross/boards/de25nano/link-proof/build.py": "d8132a9d13c4fe814ee27f93a1db09fe9a6f27ad92acea7ecbbd18410b29054f",
+    "sources/misteross/boards/de25nano/link-proof/build.py": "964d9acf8ba34c5d2e87ee7a391fe0868d3ff7d29c57f418d3e99813007b2c9e",
     "sources/misteross/boards/de25nano/link-proof/build_timing.tcl": "2a1bd795bd601c4f060b623f80a33fdb3a82b5474ec60ce2454f7eb6f6169ac6",
     "sources/misteross/boards/de25nano/link-proof/clocks.sdc": "bde0f37f20b84b07618cea05a9cc4f039318a591373443fe70faed8d3949dd3f",
     "sources/misteross/boards/de25nano/link-proof/fpga/shell.v": "147c77e626cad3bf0d1a4f12bed6d9bfb7eeab9b54c873b2c913754f4bfc9c0d",
@@ -312,7 +312,7 @@
     "verilator": "Verilator 5.032 2025-01-01 rev (Debian 5.032-1+b2)",
     "cxx": "c++ (Debian 14.2.0-19) 14.2.0\nCopyright (C) 2024 Free Software Foundation, Inc.\nThis is free software; see the source for copying conditions.  There is NO\nwarranty; not even for MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.",
     "builder_image": "sha256:ea200655b92ab1211bc8b326c6e799815f1d648b2d5e5a6c982f597cb2b9650d",
-    "sdk_volume": "fes-de25-standard-pr-proof-dc7c39a7",
+    "sdk_volume": "fes-de25-standard-pr-linux-core-34e8bb3b",
     "sdk_before": "c07496d4fc541d3b9fee474e80c4d835840f74752bc2545026925b4ec04528b0  /build/host/bin/aarch64-buildroot-linux-gnu-g++\n29f631250421bf3c2fbe113fadf1cc1b89e8714c3530a43db06b507ada50145f  /build/host/bin/aarch64-buildroot-linux-gnu-g++.br_real\n",
     "qemu_sha256": "4f55e2e88dc05dc0f619562d5795b8eb25ed2ad2547504fb4835207a6911c350",
     "qemu_version": "qemu-aarch64 version 7.2.22 (Debian 1:7.2+dfsg-7+deb12u18+b3)\nCopyright (c) 2003-2022 Fabrice Bellard and the QEMU Project developers\n",
@@ -324,7 +324,7 @@
   "selected_build_id": "00112233445566778899aabbccddeeff",
   "binaries_sha256": {
     "client-native": "6fba6aea95ea27e14de2b6b7e5d7e98d3b580855c85f3a79271de7056440b5d4",
-    "Vfes_de25_combined_sim": "66de42553a18d0fdc758bf1b23e77d2c56b33411bbc4f3f17cfb9fbc1bc19526",
+    "Vfes_de25_combined_sim": "37356bdc593be45f4d5943c4912ea9faed1fe0859df6339f87879b684e1c8c25",
     "client-aarch64": "ab922f2056bd6f9921b2821d1f68813aa734dd017972083f7450dbc47fababb5"
   },
   "physical_PR": "selection-mux-model-only",

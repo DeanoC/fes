@@ -125,18 +125,17 @@
   "classification": "Experimental standard PR IP generation and compatibility regression; no package or hardware admission",
   "compatibility_boundary": "Existing bring-up De25Computer/PR model; does not establish BASIC with the new standard PR profile. Actual full14 native/AArch64 cases rerun, exact actual report copied to branch fixture.",
   "compatibility_combined_proof": {
-    "actual_proof_sha256": "f833eb3e9d486efec8db86a70cd133e7dd023e3b0009cd7976f5d2aac97d28f0",
+    "actual_proof_sha256": "bbb86b6e079b18d0220d467e8782c8aaaae060362e42dd2ebaaef280bbbf0a42",
     "cases": 14,
     "current_selected_compiler_inputs": 65,
     "fixture_is_exact_actual_report": true,
     "matches_current_runtime_test_inputs": true,
-    "matches_current_selected_compiler_inputs": false,
+    "matches_current_selected_compiler_inputs": true,
     "passed": true,
-    "pending_refresh": "The new shared collector conversion hook changes the captured compiler source; the actual full native/AArch64 compatibility proof must be rerun before refreshing its branch fixture. Runtime/test inputs are unchanged.",
     "physical_PR": false,
-    "producer_revision": "1812fcbd652b05d7e00e60731c070117bc9cf978"
+    "producer_revision": "34e8bb3b74784ca4143cb2405bc3f2c1d1ea4d30"
   },
-  "compatibility_seconds": 570.582,
+  "compatibility_seconds": 572.568,
   "completed_routed_base": {
     "all_corner_boundary_and_PCM_preflight": "passed",
     "boundary_paths_sha256": "1e8909b91caf966c1ba30b23571da124315327df86bf4079d7b6ec025e48e47a",
