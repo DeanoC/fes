@@ -367,9 +367,10 @@ def publish(args):
     with image.build_lock(cache), image.output_lock(output):
         image.validate_output(output)
         volume = 'fes-de25-managed-' + hashlib.sha256((str(ROOT) + '\0' + str(cache)).encode()).hexdigest()[:16]
-        builder = image.ensure_builder(source, args.container_runtime, volume)
-        if builder != sdk_lock()['builder_image']:
-            raise ValueError('managed base builder differs from the owner-kernel lock')
+        # This lane consumes the separately locked owner-kernel SDK. Reuse its
+        # immutable environment and owned build volume rather than rebuilding
+        # a newer userspace Dockerfile and then rejecting that different ID.
+        builder = owner.dep.locked_builder(args.container_runtime, sdk_lock(), volume)
         if args.action == 'verify-base':
             verify_receipt(output)
             image.container(source, args.container_runtime, builder, volume, cache, output, 'base-verify', args.jobs)

@@ -15,6 +15,9 @@ configuration and propagates the contract into the kernel receipt. The runtime
 requires that contract after matching the running kernel notes before any
 static startup programming. This option does not assemble, install or boot an
 image, select a runtime package or qualify physical partial reconfiguration.
+The managed-base recipe consumes that same locked compiler/builder pair and
+initializes its private build volume with the pinned image's existing ownership.
+It does not substitute a newer userspace container for the kernel SDK lock.
 
 The profile makes the DMA owner, FPGA manager, FPGA region and bridge framework
 built-in. Its source-bound patch disables sysfs bind/unbind on the region,
