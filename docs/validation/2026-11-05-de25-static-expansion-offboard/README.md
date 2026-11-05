@@ -50,3 +50,24 @@ emulation matrix and from native-kit CPU or FPGA acceptance.
 No board, image, boot configuration or flash changed for these tests. Normal
 runtime base/persona loading, protected startup control, admitted package
 selection and exact-artifact board acceptance remain required.
+
+## Runtime overlay formats
+
+Source `fdbbab3547c96886135e071b728bfbc8cbe86eb8` adds the base and initial-persona formats to the existing runtime generator.
+The complete Linux programmer unit suite passes natively (29.652 seconds) and
+as a statically compiled AArch64 binary under Cortex-A76 QEMU (27.026 seconds).
+All four generated overlays are byte-identical across architectures, and both
+existing full-load formats also match the actual pre-change generator bytes.
+An independent pinned DTC reader/compiler verifies exact sorted decompilation
+equality with the kernel-tested static fixtures after only the test region path
+and firmware filename substitutions. The fixture source bytes still exactly
+match the tested kernel source.
+
+[Native proof](runtime-overlay-native.json) and
+[AArch64 proof](runtime-overlay-aarch64.json) retain the source, binary/tool and
+output identities. Their finalization verifies immutable runner outputs and
+refreshes the two changing job/log metadata hashes only after the supervisors
+exit; original pre-completion receipts remain retained in the named job
+directories. This is format preparation: the production programming-profile
+dispatch, package admission and physical programming behavior are unchanged.
+The base/persona lifecycle and protected startup control remain unfinished.

@@ -39,5 +39,16 @@
   "no_new_kernel_deployment": true,
   "hardware_acceptance": false,
   "runtime_package_admission": false,
-  "live_expansion_changes_required": false
+  "live_expansion_changes_required": false,
+  "runtime_overlay_source": "fdbbab3547c96886135e071b728bfbc8cbe86eb8",
+  "runtime_overlay_proofs": {
+    "native": {
+      "state": "passed",
+      "elapsed_seconds": 29.652
+    },
+    "aarch64": {
+      "state": "passed",
+      "elapsed_seconds": 27.026
+    }
+  }
 }
