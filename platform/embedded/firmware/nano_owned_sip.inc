@@ -40,10 +40,10 @@ static void fes_nano_owned_call(uint32_t fid, uint64_t x1, uint64_t x2,
     if (fid==FES_EMBEDDED_BRIDGE_CALL && x3==FES_EMBEDDED_BRIDGE_COOKIE &&
         x1==FES_EMBEDDED_BRIDGE_SNAPSHOT && !x2 && !x4 && fes_nano_owned_usb.shared.valid) {
         struct fes_nano_bridge_snapshot observation;
-        int status=fes_nano_usb_service_snapshot(&fes_nano_owned_usb,&observation);
-        r[0]=status<0 ? FES_EMBEDDED_USB_ERROR : INTEL_SIP_SMC_STATUS_BUSY;
+        int snapshot_status=fes_nano_usb_service_snapshot(&fes_nano_owned_usb,&observation);
+        r[0]=snapshot_status<0 ? FES_EMBEDDED_USB_ERROR : INTEL_SIP_SMC_STATUS_BUSY;
         r[1]=(uint64_t)FES_EMBEDDED_BRIDGE_TAG<<32;
-        if (!status) fes_nano_bridge_snapshot_reply(&observation,r);
+        if (!snapshot_status) fes_nano_bridge_snapshot_reply(&observation,r);
         goto out;
     }
     int usb_gate=fes_nano_usb_service_gate(&fes_nano_owned_usb);
