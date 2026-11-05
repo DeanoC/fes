@@ -3,7 +3,7 @@
   "intro": [
     "This page is the board and toolchain matrix. It is taken from `config/core-recipes.toml`, `config/core-library.toml`, `profiles/native-integration-dev.toml`, the per-core `toolchain.lock` files, the misteross producers, and the docs those files point at. A cell that is not in those sources is marked unverified or TBD.",
     "The bootstrap image installs `fes.menu` and the pinned splash bitstream. Every playable core is a catalog install. Library standing `supported` is not a claim that the current bitstream has kit acceptance. Dated notes under `docs/validation/` accept only the artifact they name.",
-    "Tiers are derived from the tier role, owned RTL dates and media generation; kit notes are recorded but do not set a tier. Catalog standing is stored on each row as a weak signal and is not an input. As of 2026-10-29. The recent cutoff is 2026-10-16. The window starts 2026-08-30. A tier_override with reason Deano 2026-10-29 replaces the derived tier."
+    "Tiers are derived from the tier role, owned RTL dates and media generation; kit notes are recorded but do not set a tier. Catalog standing is stored on each row as a weak signal and is not an input. The owned-RTL activity snapshot is as of 2026-10-29; role, media and dated kit notes may be updated later. The recent cutoff is 2026-10-16. The window starts 2026-08-30. A tier_override with reason Deano 2026-10-29 replaces the derived tier."
   ],
   "tiers": [
     {
@@ -1618,7 +1618,7 @@
       "router": "Quartus is the normal diagnostic package producer. Nextpnr remains an explicit advisory diagnostic.",
       "quartus": "Quartus (primary, policy). policy: Deano 2026-10-29. Quartus Lite 17.0.2 Build 602: common 100 MHz package profile, three-seed reported internal timing gate and independent RBF repeat. External IO/HPS/reset and exact-artifact hardware acceptance remain separate.",
       "features": "Media: read-only 360 KiB floppy through fes.computer 1.1 live media, with a guest FDC/DMA diagnostic. Input: no HID keyboard frontend. HDMI: fixed CGA Direct 720p diagnostic on the DE10-Nano shell. Mesh/Bluetooth: per-core unverified (host evdev and FogCast only).",
-      "notes": "Experimental Quartus format-2 diagnostic package outside the bootstrap image. Parent-merge package 187f31cefecc14e48c30868acb128d08dbafa703d8a352eb53b6b71a7e8d2a6f passed the Kit B empty, wrong, matching and ejected disk sector diagnostic. Whole-board physical qualification, a bootable BIOS path, host keyboard and write support remain open.",
+      "notes": "Experimental Quartus format-2 diagnostic package outside the bootstrap image. Parent-merge package 187f31cefecc14e48c30868acb128d08dbafa703d8a352eb53b6b71a7e8d2a6f passed the Kit B empty, wrong, matching and ejected disk sector diagnostic. This diagnostic profile has no bootable BIOS, host keyboard or write support; those are provided by the separate experimental fes.pcxt-dos profile. External board qualification remains open (#835); #840 tracks advisory nextpnr timing.",
       "evidence": [
         "sources/misteross/cores/fes-pcxt/README.md",
         "sources/misteross/cores/fes-pcxt/toolchain.lock",
@@ -1649,8 +1649,9 @@
         "hil_note": null,
         "hil_scope": null,
         "open_issues": [
+          "#835",
           "#840",
-          "#835"
+          "#1429"
         ],
         "media_gen": "diagnostic",
         "image_role": "none",
@@ -1664,7 +1665,7 @@
     {
       "id": "fes.pcxt-dos",
       "label": "`fes.pcxt-dos`",
-      "tier": "bring-up",
+      "tier": "current",
       "release": "v2",
       "covers": [],
       "paths": [],
@@ -1684,19 +1685,21 @@
       "board": "de10",
       "primary_toolchain": "quartus",
       "router": "Quartus is the FreeDOS package producer. The floppy image is loaded at runtime through the media mailbox; Nextpnr remains advisory for the PC/XT core.",
-      "quartus": "Quartus (primary, policy). policy: Deano 2026-10-29. The DOS recipe uses Quartus Lite 17.0.2 Build 602, a three-seed reported internal timing gate and an independent RBF repeat. Kit B recorded an A:\\> boot for package a93e3921 from source 72febda79, before the later sealed QSF and host upload changes present by source a22d567c9. That run does not qualify the current package; exact-current-artifact hardware acceptance remains open.",
-      "features": "Media: read-only 360 KiB FreeDOS floppy is loaded at runtime through the mailbox and physically copied into SDRAM before CPU release; there is no disk write path or write persistence. Input: host HID snapshots are translated into XT set-1 keyboard bytes. HDMI: CGA Direct 720p. Host simulations cover the BIOS, DOS and runtime media paths. Kit B reached A:\\> on earlier package a93e3921 from source 72febda79; there is no exact-artifact hardware acceptance for the current package.",
-      "notes": "Experimental bring-up recipe outside the bootstrap image; catalog standing remains experimental. Kit B reached A:\\> on package a93e3921 from source 72febda79. Later PR source adds sealed QSF synchronizer assignments and changes the host upload path, so timing and exact-artifact Kit acceptance for the current source remain open.",
+      "quartus": "Quartus (primary, policy). policy: Deano 2026-10-29. The DOS recipe uses Quartus Lite 17.0.2 Build 602, a three-seed reported internal timing gate and an independent RBF repeat. On 2026-11-05 Kit B tested package 87fd8149 from producer bb87b9b6, selected for then-current main 6f49758f. External IO/HPS/reset timing remains separate.",
+      "features": "Media: a 360 KiB floppy is loaded at runtime through the mailbox into SDRAM; the guest can write sectors and bound library disks support explicit Save and restore. Unbound raw inserts are volatile and unsaved writes can be lost on power loss. Input: host HID snapshots are translated into XT set-1 keyboard bytes. HDMI: CGA Direct 720p and PC speaker audio.",
+      "notes": "Package-only DOS recipe; catalog standing remains experimental. On 2026-11-05 Kit B booted FreeDOS, passed a keyboard-driven COM test, saved and read back a guest file after Stop and relaunch, and ran a short Digger and speaker smoke on package 87fd8149, produced at bb87b9b6 and selected for then-current main 6f49758f. The smoke observed a facing change after one guarded input and a signal/near-silence/signal pattern across F9 windows; listening quality was not assessed. Sustained gameplay, power-cycle persistence and physical timing are separate.",
       "evidence": [
         "sources/misteross/cores/fes-pcxt/README.md",
         "sources/misteross/cores/fes-pcxt/quartus.lock",
         "sources/misteross/cores/fes-pcxt/firmware/hardware-dos.json",
         "sources/misteross/scripts/build_fes_pcxt_quartus.py",
         "config/core-recipes.toml",
-        "docs/core-status.md",
-        "docs/design/quartus-cores.md"
+        "docs/design/quartus-cores.md",
+        "docs/validation/2026-11-04-pcxt-game-and-speaker-kit-a.md",
+        "docs/validation/2026-11-05-pcxt-kit-b-partial.md",
+        "docs/validation/2026-11-05-pcxt-kit-b-short-smoke.md"
       ],
-      "tier_role": "bring-up",
+      "tier_role": "play",
       "family": "pc",
       "variant": "XT FreeDOS",
       "display": "PC/XT (FreeDOS)",
@@ -1711,14 +1714,14 @@
         "last_host_change": null,
         "last_host_sha": null,
         "last_host_subject": null,
-        "last_hil_pass": null,
-        "hil_note": null,
-        "hil_scope": null,
+        "last_hil_pass": "2026-11-05",
+        "hil_note": "docs/validation/2026-11-05-pcxt-kit-b-short-smoke.md",
+        "hil_scope": "exact selected package: DOS, keyboard, Save/readback and one-direction game/speaker smoke; listening quality unassessed",
         "open_issues": [
-          "#840",
-          "#835"
+          "#1402",
+          "#1429"
         ],
-        "media_gen": "diagnostic",
+        "media_gen": "live",
         "image_role": "none",
         "catalog_standing": "experimental"
       },
