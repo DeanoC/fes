@@ -3,6 +3,7 @@ import importlib.util
 import json
 from pathlib import Path
 import tempfile
+import types
 import unittest
 from unittest import mock
 
@@ -12,6 +13,56 @@ SPEC.loader.exec_module(build)
 
 
 class RecipeTests(unittest.TestCase):
+    def test_linux_base_selection_rejects_boot_phase_and_changed_payload(self):
+        previous = build.PROFILE
+        self.addCleanup(setattr, build, "PROFILE", previous)
+        with tempfile.TemporaryDirectory() as tmp:
+            output = Path(tmp) / "project"; output.mkdir()
+            directory = output / "artifacts"; directory.mkdir()
+            source = output.parent / "linux-boot.core.rbf"
+            source.write_bytes(b"fabric payload")
+            selected = {"role": "Linux-fabric-configuration-candidate", "size": source.stat().st_size,
+                        "sha256": build.sha(source.read_bytes())}
+            conversion = {"hps_initialization": "HPS FIRST", "compiled_sof_sha256": "a" * 64,
+                          "bootloader_sha256": "b" * 64, "artifacts": {source.name: selected}}
+            packaging = {"compiled_sof": {"sha256": "a" * 64}, "bootloader": {"sha256": "b" * 64}}
+            build.PROFILE = types.SimpleNamespace(linux_base_artifacts=lambda *_: conversion)
+            with mock.patch.object(build, "run") as run:
+                selected["role"] = "HPS-first-QSPI-candidate-not-programmed"
+                with self.assertRaisesRegex(build.BuildError, "selected Linux fabric"):
+                    build.convert_base_rbf(output, directory, output / "base_hps.sof", {}, packaging)
+                self.assertFalse((directory / "base.rbf").exists())
+                selected["role"] = "Linux-fabric-configuration-candidate"
+                source.write_bytes(b"changed payload")
+                with self.assertRaisesRegex(build.BuildError, "selected Linux fabric"):
+                    build.convert_base_rbf(output, directory, output / "base_hps.sof", {}, packaging)
+                self.assertFalse((directory / "base.rbf").exists())
+                source.write_bytes(b"fabric payload")
+                build.convert_base_rbf(output, directory, output / "base_hps.sof", {}, packaging)
+                self.assertEqual((directory / "base.rbf").read_bytes(), b"fabric payload")
+                self.assertEqual(packaging["strategy"], "shared-hps-first-linux-core")
+                run.assert_not_called()
+            build.PROFILE = None
+            with mock.patch.object(build, "run") as run:
+                build.convert_base_rbf(output, directory, output / "base_hps.sof",
+                                       {"quartus_pfg": Path("quartus_pfg")}, packaging)
+                self.assertEqual(run.call_args.args[0],
+                    ["quartus_pfg", "-c", str(output / "base_hps.sof"), str(directory / "base.rbf")])
+
+    def test_standard_linux_base_uses_captured_shared_phase_converter(self):
+        profile = build.load_profile(build.BOARD / "zx81-standard/profile.py")
+        with tempfile.TemporaryDirectory() as tmp:
+            project = Path(tmp) / "standard-base/combined/hps/project"
+            hps = mock.Mock()
+            tools = {"quartus_sh": Path("quartus_sh")}
+            with mock.patch.object(profile, "load", return_value=hps) as load:
+                self.assertIs(profile.linux_base_artifacts(project, tools),
+                              hps.linux_configuration_artifacts.return_value)
+            self.assertEqual(load.call_args.args[0], Path(tmp) /
+                "functional-source/sources/misteross/boards/de25nano/hps/build.py")
+            hps.linux_configuration_artifacts.assert_called_once_with(project.parent, tools["quartus_sh"],
+                project / "output_files/base.sof", hps_initialization="HPS FIRST")
+
     def test_standard_pr_pcm_selection_does_not_change_internal16k_timing_source(self):
         profile = build.load_profile(build.BOARD / "zx81-standard/profile.py")
         path = build.BOARD.parent / "zx81-hps/standard-clocks.sdc"

@@ -130,8 +130,9 @@
     "current_selected_compiler_inputs": 65,
     "fixture_is_exact_actual_report": true,
     "matches_current_runtime_test_inputs": true,
-    "matches_current_selected_compiler_inputs": true,
+    "matches_current_selected_compiler_inputs": false,
     "passed": true,
+    "pending_refresh": "The new shared collector conversion hook changes the captured compiler source; the actual full native/AArch64 compatibility proof must be rerun before refreshing its branch fixture. Runtime/test inputs are unchanged.",
     "physical_PR": false,
     "producer_revision": "1812fcbd652b05d7e00e60731c070117bc9cf978"
   },
@@ -201,10 +202,143 @@
     }
   ],
   "full_persona_build": {
+    "compiled_revision_inspection": {
+      "base": {
+        "constrained_internal_timing": "passed-constrained-internal-only",
+        "findings": [
+          {
+            "rule": "TMC-20012 - Missing Output Delay Constraint",
+            "severity": "High",
+            "violations": 33
+          },
+          {
+            "rule": "TMC-20011 - Missing Input Delay Constraint",
+            "severity": "High",
+            "violations": 2
+          },
+          {
+            "rule": "CLK-30032 - Improper Clock Targets",
+            "severity": "Medium",
+            "violations": 1
+          },
+          {
+            "rule": "TMC-20025 - Ignored or Overridden Constraints",
+            "severity": "Medium",
+            "violations": 1
+          },
+          {
+            "rule": "CDC-50102 - Synchronizer after CDC Topology with Control Signal",
+            "severity": "Low",
+            "violations": 1
+          },
+          {
+            "rule": "LNT-30010 - Nets Driving both Reset and Clock Enable Signals",
+            "severity": "Low",
+            "violations": 1
+          }
+        ],
+        "memory_passed": true,
+        "numerical_rows": 49,
+        "overall_closure": "failed",
+        "partition_reuse": {
+          "root_preserved_core_logic_excluding_pr_subblocks": "0.00%",
+          "status": "not-applicable-base"
+        },
+        "region_passed": true
+      },
+      "persona_a": {
+        "constrained_internal_timing": "passed-constrained-internal-only",
+        "findings": [
+          {
+            "rule": "TMC-20012 - Missing Output Delay Constraint",
+            "severity": "High",
+            "violations": 33
+          },
+          {
+            "rule": "TMC-20011 - Missing Input Delay Constraint",
+            "severity": "High",
+            "violations": 2
+          },
+          {
+            "rule": "CLK-30032 - Improper Clock Targets",
+            "severity": "Medium",
+            "violations": 1
+          },
+          {
+            "rule": "TMC-20025 - Ignored or Overridden Constraints",
+            "severity": "Medium",
+            "violations": 1
+          },
+          {
+            "rule": "CDC-50102 - Synchronizer after CDC Topology with Control Signal",
+            "severity": "Low",
+            "violations": 1
+          },
+          {
+            "rule": "LNT-30010 - Nets Driving both Reset and Clock Enable Signals",
+            "severity": "Low",
+            "violations": 1
+          }
+        ],
+        "memory_passed": true,
+        "numerical_rows": 49,
+        "overall_closure": "failed",
+        "partition_reuse": {
+          "root_preserved_core_logic_excluding_pr_subblocks": "100.00%",
+          "status": "passed"
+        },
+        "region_passed": true
+      },
+      "persona_b": {
+        "constrained_internal_timing": "passed-constrained-internal-only",
+        "findings": [
+          {
+            "rule": "TMC-20012 - Missing Output Delay Constraint",
+            "severity": "High",
+            "violations": 33
+          },
+          {
+            "rule": "TMC-20011 - Missing Input Delay Constraint",
+            "severity": "High",
+            "violations": 2
+          },
+          {
+            "rule": "CLK-30032 - Improper Clock Targets",
+            "severity": "Medium",
+            "violations": 1
+          },
+          {
+            "rule": "TMC-20025 - Ignored or Overridden Constraints",
+            "severity": "Medium",
+            "violations": 1
+          },
+          {
+            "rule": "CDC-50102 - Synchronizer after CDC Topology with Control Signal",
+            "severity": "Low",
+            "violations": 1
+          },
+          {
+            "rule": "LNT-30010 - Nets Driving both Reset and Clock Enable Signals",
+            "severity": "Low",
+            "violations": 1
+          }
+        ],
+        "memory_passed": true,
+        "numerical_rows": 49,
+        "overall_closure": "failed",
+        "partition_reuse": {
+          "root_preserved_core_logic_excluding_pr_subblocks": "100.00%",
+          "status": "passed"
+        },
+        "region_passed": true
+      }
+    },
+    "reason": "Direct HPS-first SOF-to-RBF conversion emitted HPS boot sections without POF0 metadata. Strict existing vendor parser rejected the selection.",
     "remote_job": "/tmp/fes-de25-standard-pr-d2327361d-20261105/complete-fit",
     "scope": "Fresh ordinary base plus empty and16K personas, preserved root QDB, strict original compiler/timing/memory/integrity/verifier checks; no programming.",
+    "seconds": 1302.405,
     "source_revision": "c4cc43fd72c0d2f76af01114ef50911ae8205a4a",
-    "state": "running at this record, not accepted"
+    "state": "failed at packaging after all three compilations; original failed output remains unchanged"
   },
   "generation": {
     "PR_control": {
@@ -229,6 +363,53 @@
     "tool_inputs_sha256": "a7baba97ba5e6440be8219b77083c113399db44c91421afec392b553038d1f42"
   },
   "hardware_acceptance": false,
+  "linux_phase_conversion_followup": "Use the same captured shared HPS-first split converter as canonical Linux packages. Legacy profiles keep their existing conversion. New source-bound full proof/build and independent rebuild remain required; no original failure is reclassified.",
+  "linux_phase_conversion_probe": {
+    "all_original_reports_SOFs_and_rootQDB_unchanged": true,
+    "artifacts": {
+      "artifacts": {
+        "linux-boot.core.rbf": {
+          "role": "Linux-fabric-configuration-candidate",
+          "sha256": "74da036427a1df52a361475048073b9eadcb22c14c9515f788c534f488c26289",
+          "size": 1769472
+        },
+        "linux-boot.hps.jic": {
+          "role": "HPS-first-QSPI-candidate-not-programmed",
+          "sha256": "eceffd52654318070fc1655e3ff1593ed99eec428dea7927b77f4ed051358656",
+          "size": 16777449
+        },
+        "linux-complete.sof": {
+          "role": "volatile-JTAG-recovery-candidate",
+          "sha256": "c0cf8db9183d08f695af0d01196762b26f5ca8736668fbd0539ba7d36d4b1c9a",
+          "size": 1725981
+        }
+      },
+      "bootloader_sha256": "096f53ea0bb0ba6e7449b2acf012eae734840dbcdd2943b506567bad2f72f823",
+      "compiled_sof_sha256": "754f6b669bd69c9d4d8fa096a28778e9e5a4ed7f42716ab1561ef6d086e3e47a",
+      "hps_initialization": "HPS FIRST"
+    },
+    "compiled_pof": {
+      "hash": "f2d58523c0af4696c582e4f0fc546a1a372679592489bcfc239100b769364d31",
+      "info_sha256": "f7eedd5ab1126b25859ab2c061622f04bb97dbdeebfada46fab43a13eb72c09f",
+      "region_id": "0x01000000"
+    },
+    "compiled_sof_sha256": "754f6b669bd69c9d4d8fa096a28778e9e5a4ed7f42716ab1561ef6d086e3e47a",
+    "core_rbf_sha256": "74da036427a1df52a361475048073b9eadcb22c14c9515f788c534f488c26289",
+    "core_rbf_size": 1769472,
+    "hardware_acceptance": false,
+    "integrity": "OK",
+    "package_admission": false,
+    "programming": false,
+    "scope": "Shared canonical HPS-first Linux phase conversion on immutable completed c4 SOF; conversion-only diagnostic, not original build acceptance",
+    "seconds": 7.076,
+    "source_revision": "c4cc43fd72c0d2f76af01114ef50911ae8205a4a",
+    "status": "passed",
+    "vendor_pof": {
+      "hash": "f2d58523c0af4696c582e4f0fc546a1a372679592489bcfc239100b769364d31",
+      "info_sha256": "c1846339601264a93d75d34de4b33d52c016e781c2d474125969fc462ef751d3",
+      "region_id": "0x01000000"
+    }
+  },
   "native_standard_persona_BASIC": false,
   "native_static_bus_model": {
     "kind": "actual standard core and real FES clients, production bus.v and real RAM personas, behavioral selection/memory and17-byte diagnostic ROM",

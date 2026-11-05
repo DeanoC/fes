@@ -737,8 +737,14 @@ database passes, preserving all 26 reports/root-QDB files. A fresh ordinary
 summary rows and 984 paired path checks across all four corners. The two failed
 builds remain failed. All six raw finding groups remain visible: overall Design
 Closure still fails, including 33 missing output delays for the live PCM profile.
-The full base/empty/16K build is running on the same frozen source; both personas,
-an independent rebuild and hardware acceptance remain required. The default internal16K
+The full base/empty/16K build compiles all three revisions, preserving 100% of
+the root logic for both personas. Each revision passes its 49 constrained
+internal summary rows, memory inventory and fitted-region checks. Packaging
+then rejects the HPS-only output of a direct SOF-to-RBF conversion. A separate
+probe through the shared canonical Linux split converter produces a fabric RBF
+with matching POF0 identity and passing integrity, leaving the failed project
+unchanged. The profile now selects that shared converter. A fresh full build,
+independent rebuild and hardware acceptance remain required. The default internal16K
 wrapper and clock exceptions are unchanged. The production bus model also
 passes both diagnostic-ROM seeds under AArch64 QEMU in 23.175 seconds.
 No package, physical PR, Linux opener, standard-persona

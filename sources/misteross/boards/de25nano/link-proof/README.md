@@ -143,3 +143,10 @@ the audio synchronizer. Both paths into that register remain timed. Data
 flight/skew/min/max bounds and paired all-corner physical payload and
 interstage coverage remain required. This does not supply an HDMI data
 output budget or inherit the internal16K audio-clock exception.
+
+The standard Linux profile uses the canonical HPS-first split converter and
+selects its `linux-boot.core.rbf` fabric phase for the base payload. A direct
+HPS-first SOF-to-RBF conversion emits boot sections and is unsuitable here.
+The compiler retains the HPS boot candidate separately without programming it,
+and still requires the fabric RBF's vendor-decoded POF0 identity and integrity
+to match the compiled base and both personas.

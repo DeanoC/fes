@@ -282,6 +282,27 @@ def design_assistant_findings(output: Path, revision: str) -> list[dict]:
     return failures
 
 
+def convert_base_rbf(output: Path, directory: Path, enriched: Path,
+                     tools: dict[str, Path], packaging: dict) -> None:
+    if PROFILE is None or not hasattr(PROFILE, "linux_base_artifacts"):
+        run([str(tools["quartus_pfg"]), "-c", str(enriched), str(directory / "base.rbf")],
+            output, "base-convert.log")
+        return
+    conversion = PROFILE.linux_base_artifacts(output, tools)
+    source = output.parent / "linux-boot.core.rbf"
+    selected = conversion.get("artifacts", {}).get(source.name, {})
+    if (conversion.get("hps_initialization") != "HPS FIRST" or
+            conversion.get("compiled_sof_sha256") != packaging["compiled_sof"]["sha256"] or
+            conversion.get("bootloader_sha256") != packaging["bootloader"]["sha256"] or
+            selected.get("role") != "Linux-fabric-configuration-candidate" or
+            source.is_symlink() or not source.is_file() or not source.stat().st_size or
+            selected.get("size") != source.stat().st_size or
+            selected.get("sha256") != sha(source.read_bytes())):
+        raise BuildError("selected Linux fabric artifact differs from its shared HPS-first conversion")
+    shutil.copyfile(source, directory / "base.rbf")
+    packaging.update(strategy="shared-hps-first-linux-core", linux_phase_conversion=conversion)
+
+
 def collect(output: Path, tools: dict[str, Path], version: str) -> Path:
     verifier = capture()
     if not verifier["committed"]:
@@ -333,8 +354,7 @@ def collect(output: Path, tools: dict[str, Path], version: str) -> Path:
     packaging["enriched_sof"] = blob(output, enriched)
     run([str(tools["quartus_pfg"]), "-i", str(enriched)], output, "base-enriched-info.log")
     packaging["enriched_sof_pof"] = vendor_pof(output / "base-enriched-info.log")
-    run([str(tools["quartus_pfg"]), "-c", str(enriched), str(directory / "base.rbf")],
-        output, "base-convert.log")
+    convert_base_rbf(output, directory, enriched, tools, packaging)
     run([str(tools["quartus_pfg"]), "-i", str(directory / "base.rbf")], output, "base-info.log")
     base_pof = vendor_pof(output / "base-info.log")
     for previous in (packaging["compiled_sof_inspection"]["vendor_pof"], packaging["enriched_sof_pof"]):

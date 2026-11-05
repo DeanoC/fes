@@ -196,6 +196,15 @@ def verify_memory_handoff(project, hps):
     return hps.verify_scanout_memory_handoff(project)
 
 
+def linux_base_artifacts(project, tools):
+    # A direct HPS-first SOF -> RBF conversion emits the HPS boot phase.
+    # Use the same split-core conversion as the normal Linux package producer.
+    hps = load(proof_root(project) / "functional-source/sources/misteross/boards/de25nano/hps/build.py",
+               "standard_pr_frozen_hps_conversion")
+    return hps.linux_configuration_artifacts(project.parent, tools["quartus_sh"],
+        project / "output_files/base.sof", hps_initialization="HPS FIRST")
+
+
 def verify_generation(project, hps):
     std, scanout, display = helpers(project)
     if ((project.parent / "inputs.json").read_bytes() !=

@@ -98,6 +98,12 @@ standalone composition does not provide normal FES admission. Independent fits,
 whole-board timing and physical acceptance remain required; internal16K audio
 clock exceptions do not apply to this profile.
 
+The standard PR base selects the same shared HPS-first split conversion as the
+normal Linux package producer. Its payload is the fabric `linux-boot.core.rbf`,
+with vendor-decoded POF0 identity and integrity checked against the compiled
+base and personas. HPS boot artifacts remain separate, unprogrammed candidates;
+the direct SOF-to-RBF boot phase is never selected as the Linux fabric payload.
+
 The PR profile registers its combined system-domain execution/fault mute
 before the audio synchronizer; the audit checks both incoming paths as well
 as the two synchronizer stages. The default internal16K wrapper is unchanged.
