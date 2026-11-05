@@ -63,6 +63,10 @@ def prepare_base(archive, output, frozen):
     if not frozen["committed"]:
         raise ValueError("standard PR base requires committed captured source")
     std, _, _ = helpers(output / "standard-base/combined/hps/project")
+    # Retained helpers are not Git checkouts. As in the existing scanout
+    # recipe, bind all capture reads to the already verified frozen bytes.
+    std.capture_standard_board = lambda revision=None: frozen["files"].copy()
+    std.capture_standard = lambda revision=None: frozen["files"].copy()
     initial_id = std.sha(json.dumps({n: std.sha(d) for n,d in sorted(frozen["files"].items())},
                                     sort_keys=True).encode())[:32]
     std.prepare_standard_board(archive, output / "standard-base", frozen["revision"],
