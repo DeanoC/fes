@@ -833,8 +833,12 @@ both seeds in643.101 seconds. Its original default diagnostic mode also passes
 both seeds in6.029 seconds. The common-helper compatibility matrix passes all14
 native/emulated-AArch64 cases in764.811 seconds; the source-bound fixture copies
 that actual report after checking all65 compiler and59 runtime/test inputs.
-The independent AArch64 whole-standard-model test is still running from the
-same committed snapshot. No physical PR or hardware acceptance is inferred.
+The independent AArch64 whole-standard-model batch reaches its compute deadline
+after4203.356 seconds. Seed17 completes the full test; seed53 reaches SAVE and
+its firstRUN. The original failed job is preserved. A separate bounded run
+executes only the missing seed53 using the same immutable static ARM binary,
+source/model/SDK and QEMU, with native SAVE/result comparison. That case remains
+in progress. No physical PR or hardware acceptance is inferred.
 
 
 The complete unmodified seven-command affected plan for that committed BASIC
@@ -901,8 +905,9 @@ correctly rejects the stale compatibility receipt; the actual14-case native and
 emulated-AArch64 rerun passes in668.244 seconds. Its report is copied verbatim
 only after all65 compiler and59 runtime/test hashes match. See
 [standard-pr-emif-compatibility.json](standard-pr-emif-compatibility.json).
-A fresh full three-revision compile remains in progress; no warning removal,
-whole-board closure, independent rebuild or hardware result is yet claimed.
+The subsequent complete three-revision build and remaining acceptance boundaries
+are recorded below. The compatibility matrix alone grants no timing or hardware
+acceptance.
 
 The unchanged shared PCM/I2S RTL also passes an external serial-decoder stress
 matrix in5.777 seconds:36 clock-ratio/phase combinations,3,024 decoded frames,
@@ -914,3 +919,49 @@ repair. See
 [standard-pr-audio-cdc-phase-matrix.json](standard-pr-audio-cdc-phase-matrix.json).
 This digital model evidence does not qualify metastability, board timing, the
 CDC warning or package/hardware admission.
+
+
+## Complete generated-clock build and target CPU composition
+
+The fresh ordinary `413eba238` build passes compiler, packaging and constrained
+internal checks in1356.097 seconds. Base, empty and16K revisions each pass49
+numerical timing rows; both personas preserve100% of root logic. Both duplicate
+EMIF clock findings disappear in all three revisions. All four remaining raw
+finding groups stay visible:33 output-delay findings,2 input-delay findings,
+one PCM topology finding and one shared reset/enable finding. Overall Design
+Closure remains failed, and the artifacts remain diagnostic. The complete
+unmodified seven-command affected plan passes in976.685 seconds at`3ccb0a5ed`.
+[standard-pr-generated-clock-full-build.json](standard-pr-generated-clock-full-build.json)
+binds these actual results; no independent rebuild or hardware admission is
+claimed.
+
+The new artifacts also pass host/emulated-AArch64 bundle composition in1.720
+seconds, then actual bottom-board CPU composition in3.122 seconds. Four native
+positive compositions and four rejection controls pass; downloaded bundles are
+independently inspected and equal the host/QEMU bytes. Scratch is removed and
+the authenticated named image/bundle generation30 and same boot are verified;
+the board is released. No FPGA, software, image or host activation occurs.
+[standard-pr-generated-clock-native-composition.json](standard-pr-generated-clock-native-composition.json)
+records that CPU-only proof. ROM composition, the Linux PR opener, physical PR
+and native standard-persona BASIC remain open.
+
+The fresh fitted review checks144 audio clock/data paths and48 paired paths
+from the100MHz reset-release register to the two sticky epoch-enable receivers.
+Minimum conditional audio budgets are158.935ns setup and159.219ns hold, before
+PCB skew, additional jitter/uncertainty, signal integrity and PLL/reset transients.
+Those two enable paths have at least8.798ns setup and0.331ns hold slack across
+all three revisions and four conditions. This is not coverage of every
+asynchronous reset fanout and does not waive the raw reset/enable finding.
+
+The physical three two-stage PCM control chains have the expected isolated
+first-stage fanout in every revision. Their36 corner/chain reports are identified
+only automatically and excluded from calculated MTBF. A private post-fit probe
+shows explicit identification enables estimates at tool defaults; the requested
+100MHz toggle bound is not applied, including after preloading the private QSF.
+The failed strict probe and all reports remain retained. No conservative-rate
+reliability claim or new exception follows. The actual recipe needs explicit
+identification and verified toggle assumptions in a fresh fit before qualification;
+see [Altera's reporting reference](https://resources.altera.com/quartushelp/current/tafs/tafs/tcl_pkg_sta_ver_1.0_cmd_report_metastability.htm).
+[standard-pr-generated-clock-fitted-review.json](standard-pr-generated-clock-fitted-review.json)
+binds the observations and their limits. The internal16K clock approval is not
+extended to this live-PCM PR profile.
