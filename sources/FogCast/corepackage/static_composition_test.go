@@ -3,11 +3,13 @@ package corepackage
 import (
 	"archive/tar"
 	"bytes"
+	"context"
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
 	"io"
 	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 
@@ -207,5 +209,188 @@ func TestStaticCompositionSharedGoldenVectors(t *testing.T) {
 				t.Fatal("golden transport changed composition", err)
 			}
 		})
+	}
+}
+
+func TestStaticCompositionStageAdoptAndCleanup(t *testing.T) {
+	archive, asset := staticSelectedFixture(t)
+	for _, selected := range []*expansion.Asset{nil, &asset} {
+		bundle, err := ComposeStaticArchive(archive, selected)
+		if err != nil {
+			t.Fatal(err)
+		}
+		var transport bytes.Buffer
+		if err := bundle.Write(&transport); err != nil {
+			t.Fatal(err)
+		}
+		root := t.TempDir()
+		staged, err := StageStaticComposition(context.Background(), root, int64(transport.Len()), &transport)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if staged.StaticComposition == nil || *staged.StaticComposition != bundle.Composition || staged.Composition != nil || staged.PayloadPath != filepath.Join(staged.Directory, "core.rbf") {
+			t.Fatal("static staging lost its distinct two-image identity")
+		}
+		wantPersona := filepath.Join(staged.Directory, "persona.rbf")
+		if selected != nil {
+			wantPersona = filepath.Join(staged.ExpansionDirectory, "cart.rbf")
+			body, err := os.ReadFile(wantPersona)
+			if err != nil || !bytes.Equal(body, selected.Cart) {
+				t.Fatal("staging edited the partial image", err)
+			}
+		}
+		if staged.PersonaPath != wantPersona {
+			t.Fatal("static staging points at the wrong persona")
+		}
+		adopted, err := Adopt(root)
+		if err != nil || len(adopted) != 1 {
+			t.Fatal("restart adoption failed", err)
+		}
+		got := adopted[0]
+		if got.StaticComposition == nil || *got.StaticComposition != bundle.Composition || got.PersonaPath != staged.PersonaPath || got.PayloadPath != staged.PayloadPath || got.ExpansionDirectory != staged.ExpansionDirectory {
+			t.Fatal("restart changed the selected persona")
+		}
+		if err := got.Cleanup(); err != nil {
+			t.Fatal(err)
+		}
+		if err := staged.Cleanup(); err != nil {
+			t.Fatal("cleanup is not repeatable", err)
+		}
+		entries, err := os.ReadDir(root)
+		if err != nil || len(entries) != 0 {
+			t.Fatal("static companion cleanup left files", err)
+		}
+	}
+}
+
+func TestStaticCompositionAdoptionRejectsChangedInputs(t *testing.T) {
+	for _, variant := range []string{"receipt", "missing-receipt", "missing-selection", "partial", "root", "symlink", "extra", "linked", "slot", "default"} {
+		t.Run(variant, func(t *testing.T) {
+			archive, asset := staticSelectedFixture(t)
+			bundle, err := ComposeStaticArchive(archive, &asset)
+			if err != nil {
+				t.Fatal(err)
+			}
+			var transport bytes.Buffer
+			if err := bundle.Write(&transport); err != nil {
+				t.Fatal(err)
+			}
+			root := t.TempDir()
+			staged, err := StageStaticCompositionBytes(context.Background(), root, transport.Bytes())
+			if err != nil {
+				t.Fatal(err)
+			}
+			defer staged.Cleanup()
+			receiptDir := filepath.Join(root, "static-composition-"+staged.publication)
+			change := func(path string, body []byte) {
+				t.Helper()
+				if err := os.Chmod(filepath.Dir(path), 0700); err != nil {
+					t.Fatal(err)
+				}
+				if err := os.Chmod(path, 0600); err != nil && !os.IsNotExist(err) {
+					t.Fatal(err)
+				}
+				if err := os.WriteFile(path, body, 0400); err != nil {
+					t.Fatal(err)
+				}
+				if err := os.Chmod(path, 0400); err != nil {
+					t.Fatal(err)
+				}
+				if err := os.Chmod(filepath.Dir(path), 0500); err != nil {
+					t.Fatal(err)
+				}
+			}
+			switch variant {
+			case "receipt":
+				change(filepath.Join(receiptDir, "composition.json"), []byte(`{}`))
+			case "missing-receipt", "missing-selection":
+				dir := receiptDir
+				if variant == "missing-selection" {
+					dir = staged.ExpansionDirectory
+				}
+				if err := os.Chmod(dir, 0700); err != nil {
+					t.Fatal(err)
+				}
+				if err := os.RemoveAll(dir); err != nil {
+					t.Fatal(err)
+				}
+			case "partial":
+				change(staged.PersonaPath, []byte("changed"))
+			case "root":
+				m := bytes.Replace(asset.ManifestBytes, []byte(strings.Repeat("2", 64)), []byte(strings.Repeat("f", 64)), 1)
+				change(filepath.Join(staged.ExpansionDirectory, "manifest.json"), m)
+			case "symlink":
+				if err := os.Chmod(staged.ExpansionDirectory, 0700); err != nil {
+					t.Fatal(err)
+				}
+				if err := os.Remove(staged.PersonaPath); err != nil {
+					t.Fatal(err)
+				}
+				if err := os.Symlink(filepath.Join(staged.Directory, "persona.rbf"), staged.PersonaPath); err != nil {
+					t.Fatal(err)
+				}
+				if err := os.Chmod(staged.ExpansionDirectory, 0500); err != nil {
+					t.Fatal(err)
+				}
+			case "extra":
+				change(filepath.Join(receiptDir, "extra"), []byte("extra"))
+			case "linked", "slot":
+				prefix := "composition-"
+				if variant == "slot" {
+					prefix = slotPublicationPrefix(1)
+				}
+				if err := os.Mkdir(filepath.Join(root, prefix+staged.publication), 0500); err != nil {
+					t.Fatal(err)
+				}
+			case "default":
+				change(filepath.Join(staged.Directory, "persona.rbf"), []byte("changed"))
+			}
+			if _, err := Adopt(root); err == nil {
+				t.Fatal("adoption accepted changed static inputs")
+			}
+		})
+	}
+}
+
+func TestStaticCompositionStagingCancellationAndClosedTransport(t *testing.T) {
+	root := t.TempDir()
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+	archive, _ := staticSelectedFixture(t)
+	bundle, err := ComposeStaticArchive(archive, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var transport bytes.Buffer
+	if err := bundle.Write(&transport); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := StageStaticCompositionBytes(ctx, root, transport.Bytes()); err == nil {
+		t.Fatal("staged after cancellation")
+	}
+	if _, err := StageStaticComposition(context.Background(), root, int64(transport.Len()+1), bytes.NewReader(transport.Bytes())); err == nil {
+		t.Fatal("staged a truncated transport")
+	}
+	if _, err := StageStaticCompositionBytes(context.Background(), root, archive); err == nil {
+		t.Fatal("plain package bypassed the static receipt")
+	}
+	entries, err := os.ReadDir(root)
+	if err != nil || len(entries) != 0 {
+		t.Fatal("rejected upload left files", err)
+	}
+	staged, err := StageStaticCompositionBytes(context.Background(), root, transport.Bytes())
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer staged.Cleanup()
+	receiptDir := filepath.Join(root, "static-composition-"+staged.publication)
+	if err := os.Chmod(receiptDir, 0700); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.RemoveAll(receiptDir); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := Adopt(root); err == nil {
+		t.Fatal("missing empty-selection receipt became a plain package")
 	}
 }

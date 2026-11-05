@@ -8,7 +8,7 @@ controller ID and frozen root/interface/clock-reset/POF0 identities; the persona
 is opaque vendor data, never a CycloneV CRAM patch. Unknown members, mixed ROM
 tables, wrong targets, changed bytes and invalid default identities are refused.
 This is structural support. The static programming profile remains unregistered;
-normal activation still refuses it before hardware access. Alternate-persona
+normal activation still refuses it before hardware access. Normal library
 selection, matching runtime dispatch and physical qualification remain required.
 
 `ComposeStaticArchive` and `ReadStaticCompositionBundle` verify the format5
@@ -18,8 +18,18 @@ Every consumer recomputes the selection against the retained sealed package and
 asset; default selection uses the package's empty persona. Changed, missing or
 substituted inputs and changed receipts are refused. The bundle owns its input
 bytes and writes no combined RBF. These codecs are not yet connected to library
-selection, target staging or the runtime launch request. The static programming
-profile remains unavailable.
+selection or the runtime launch request. The static programming profile remains
+unavailable.
+
+`StageStaticComposition` verifies that transport before publishing the sealed
+base package, optional closed expansion directory and a separate canonical
+receipt. `Staged` retains distinct base/persona paths and the static composition
+identity; it uses the existing companion ownership and cleanup. Restart adoption
+independently verifies the package and selected partial, recomputes the receipt,
+and refuses a missing receipt, changed inputs or mixed full-chip/slot/ROM
+companions. Even the empty selection retains a receipt and both package images.
+These staging functions perform no device access and are not yet dispatched by
+normal target uploads or runtime launch requests.
 
 The corepackage reader recognizes format 4's two ordered ROM requirements and
 sealed map. Launch and target activation of that format require the separate

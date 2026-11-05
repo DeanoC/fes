@@ -3,9 +3,12 @@ package corepackage
 import (
 	"archive/tar"
 	"bytes"
+	"context"
 	"encoding/json"
 	"errors"
 	"io"
+	"os"
+	"path/filepath"
 
 	"github.com/DeanoC/misteross/expansion"
 )
@@ -33,8 +36,7 @@ func ComposeStaticArchive(base []byte, selected *expansion.Asset) (StaticComposi
 	if descriptor.Format != 5 || descriptor.StaticExpansion == nil {
 		return StaticCompositionBundle{}, errors.New("static composition requires a format5 package")
 	}
-	s := descriptor.StaticExpansion
-	shell := expansion.StaticShell{PackageID: packageIdentity(manifest, payload, persona), BuildID: descriptor.Build.ID, Base: payload, DefaultPersona: persona, BaseSHA256: descriptor.Payload.SHA256, DefaultPersonaSHA256: s.SHA256, Default: expansion.StaticPersona{ControlBuildID: s.ControlBuildID, HardwareID: uint32(s.HardwareID), RootQDBSHA256: s.RootQDBSHA256, InterfaceSHA256: s.InterfaceSHA256, ClockResetSHA256: s.ClockResetSHA256, POF0Hash: s.POF0Hash}}
+	shell := staticShell(descriptor, packageIdentity(manifest, payload, persona), payload, persona)
 	plan, err := expansion.ComposeStatic(shell, selected)
 	if err != nil {
 		return StaticCompositionBundle{}, err
@@ -51,6 +53,12 @@ func ComposeStaticArchive(base []byte, selected *expansion.Asset) (StaticComposi
 		result.Expansion = &owned
 	}
 	return result, nil
+}
+
+// descriptor and packageID have already been verified against all three files.
+func staticShell(descriptor Descriptor, packageID string, payload, persona []byte) expansion.StaticShell {
+	s := descriptor.StaticExpansion
+	return expansion.StaticShell{PackageID: packageID, BuildID: descriptor.Build.ID, Base: payload, DefaultPersona: persona, BaseSHA256: descriptor.Payload.SHA256, DefaultPersonaSHA256: s.SHA256, Default: expansion.StaticPersona{ControlBuildID: s.ControlBuildID, HardwareID: uint32(s.HardwareID), RootQDBSHA256: s.RootQDBSHA256, InterfaceSHA256: s.InterfaceSHA256, ClockResetSHA256: s.ClockResetSHA256, POF0Hash: s.POF0Hash}}
 }
 
 func (b StaticCompositionBundle) Write(w io.Writer) error {
@@ -153,4 +161,183 @@ func ReadStaticCompositionBundle(r io.Reader) (StaticCompositionBundle, error) {
 		return StaticCompositionBundle{}, errors.New("static composition receipt differs from recomputed inputs")
 	}
 	return verified, nil
+}
+
+// StageStaticComposition stages only verified base/default/selected files. It
+// does not select a runtime command or touch a running machine.
+func StageStaticComposition(ctx context.Context, root string, size int64, input io.Reader) (Staged, error) {
+	if ctx == nil || input == nil || size < 1 || size > MaxStaticCompositionArchiveSize {
+		return Staged{}, errors.New("invalid static composition staging input")
+	}
+	data, err := io.ReadAll(io.LimitReader(&contextReader{ctx: ctx, reader: input}, size+1))
+	if err != nil {
+		return Staged{}, err
+	}
+	if int64(len(data)) != size {
+		return Staged{}, errors.New("static composition size mismatch")
+	}
+	return StageStaticCompositionBytes(ctx, root, data)
+}
+
+func StageStaticCompositionBytes(ctx context.Context, root string, data []byte) (Staged, error) {
+	if ctx == nil || len(data) < 1 || len(data) > MaxStaticCompositionArchiveSize {
+		return Staged{}, errors.New("invalid static composition staging input")
+	}
+	if err := ctx.Err(); err != nil {
+		return Staged{}, err
+	}
+	bundle, err := ReadStaticCompositionBundle(bytes.NewReader(data))
+	if err != nil {
+		return Staged{}, err
+	}
+	staged, err := stageArchive(ctx, root, bundle.Package, nil)
+	if err != nil {
+		return Staged{}, err
+	}
+	success := false
+	defer func() {
+		if !success {
+			_ = staged.Cleanup()
+		}
+	}()
+	handle, err := os.OpenRoot(root)
+	if err != nil {
+		return Staged{}, err
+	}
+	defer handle.Close()
+	info, err := handle.Stat(".")
+	if err != nil || !os.SameFile(info, staged.rootInfo) {
+		return Staged{}, errors.New("static composition staging root changed")
+	}
+	publish := func(prefix string, files map[string][]byte) error {
+		name := prefix + staged.publication
+		if err := handle.Mkdir(name, 0700); err != nil {
+			return err
+		}
+		retained, err := handle.Lstat(name)
+		if err != nil {
+			return err
+		}
+		staged.companions = append(staged.companions, Staged{root: root, rootInfo: info, publication: name, publicationInfo: retained})
+		for file, content := range files {
+			if err := writePrivate(handle, filepath.Join(name, file), content); err != nil {
+				return err
+			}
+		}
+		return handle.Chmod(name, 0500)
+	}
+	staged.PersonaPath = filepath.Join(staged.Directory, "persona.rbf")
+	if bundle.Expansion != nil {
+		if err := publish("expansion-", map[string][]byte{"manifest.json": bundle.Expansion.ManifestBytes, "cart.rbf": bundle.Expansion.Cart}); err != nil {
+			return Staged{}, err
+		}
+		staged.ExpansionDirectory = filepath.Join(root, "expansion-"+staged.publication)
+		staged.PersonaPath = filepath.Join(staged.ExpansionDirectory, "cart.rbf")
+	}
+	receipt, err := json.Marshal(bundle.Composition)
+	if err != nil {
+		return Staged{}, err
+	}
+	if err := publish("static-composition-", map[string][]byte{"composition.json": receipt}); err != nil {
+		return Staged{}, err
+	}
+	staged.PayloadPath = filepath.Join(staged.Directory, "core.rbf")
+	staged.StaticComposition = &bundle.Composition
+	if err := ctx.Err(); err != nil {
+		return Staged{}, err
+	}
+	success = true
+	return staged, nil
+}
+
+// Adopt uses the existing ownership/cleanup path. Recompute the selection from
+// its retained inputs and receipt before retaining either companion directory.
+func adoptStaticComposition(handle *os.Root, staged *Staged) (bool, error) {
+	name := "static-composition-" + staged.publication
+	info, err := handle.Lstat(name)
+	if errors.Is(err, os.ErrNotExist) {
+		if staged.Descriptor.Format == 5 {
+			return false, errors.New("static package requires its retained composition receipt")
+		}
+		return false, nil
+	}
+	if err != nil {
+		return false, err
+	}
+	if staged.Descriptor.Format != 5 || staged.Descriptor.StaticExpansion == nil {
+		return false, errors.New("static composition requires a format5 publication")
+	}
+	incompatible := []string{"composition-", "parts-composition-", "part-video-", "part-expansion-", "rom-link-", "machine-rom-", "pcxt-initial-"}
+	for slot := 1; slot <= 7; slot++ {
+		incompatible = append(incompatible, slotPublicationPrefix(slot))
+	}
+	for _, prefix := range incompatible {
+		if _, err := handle.Lstat(prefix + staged.publication); !errors.Is(err, os.ErrNotExist) {
+			return false, errors.New("static publication mixes composition forms")
+		}
+	}
+	receipt, err := readPublication(handle, name, info, map[string]int64{"composition.json": 4096})
+	if err != nil {
+		return false, err
+	}
+	companions := []Staged{{root: staged.root, rootInfo: staged.rootInfo, publication: name, publicationInfo: info}}
+	var selected *expansion.Asset
+	expansionName := "expansion-" + staged.publication
+	expansionInfo, err := handle.Lstat(expansionName)
+	if err == nil {
+		files, err := readPublication(handle, expansionName, expansionInfo, map[string]int64{"manifest.json": expansion.MaxManifestBytes, "cart.rbf": MaxPayloadSize})
+		if err != nil {
+			return false, err
+		}
+		var manifest expansion.Manifest
+		if err := json.Unmarshal(files["manifest.json"], &manifest); err != nil {
+			return false, err
+		}
+		asset, err := expansion.NewAsset(manifest, files["cart.rbf"])
+		if err != nil || !bytes.Equal(asset.ManifestBytes, files["manifest.json"]) {
+			return false, errors.New("invalid retained static expansion")
+		}
+		selected = &asset
+		companions = append(companions, Staged{root: staged.root, rootInfo: staged.rootInfo, publication: expansionName, publicationInfo: expansionInfo})
+	} else if !errors.Is(err, os.ErrNotExist) {
+		return false, err
+	}
+	base, err := handle.OpenRoot(staged.publication)
+	if err != nil {
+		return false, err
+	}
+	defer base.Close()
+	baseInfo, err := base.Stat(".")
+	if err != nil || !os.SameFile(baseInfo, staged.publicationInfo) {
+		return false, errors.New("static package publication changed")
+	}
+	manifest, payload, persona, err := readRootContents(base)
+	if err != nil {
+		return false, err
+	}
+	descriptor, err := decode(manifest, payload, persona)
+	if err != nil {
+		return false, err
+	}
+	packageID := packageIdentity(manifest, payload, persona)
+	if packageID != staged.PackageID || descriptor.Format != 5 || descriptor.StaticExpansion == nil {
+		return false, errors.New("retained static package changed")
+	}
+	plan, err := expansion.ComposeStatic(staticShell(descriptor, packageID, payload, persona), selected)
+	if err != nil {
+		return false, err
+	}
+	canonical, err := json.Marshal(plan)
+	if err != nil || !bytes.Equal(canonical, receipt["composition.json"]) {
+		return false, errors.New("retained static composition receipt changed")
+	}
+	staged.companions = append(staged.companions, companions...)
+	staged.StaticComposition = &plan
+	staged.PayloadPath = filepath.Join(staged.Directory, "core.rbf")
+	staged.PersonaPath = filepath.Join(staged.Directory, "persona.rbf")
+	if selected != nil {
+		staged.ExpansionDirectory = filepath.Join(staged.root, expansionName)
+		staged.PersonaPath = filepath.Join(staged.ExpansionDirectory, "cart.rbf")
+	}
+	return true, nil
 }

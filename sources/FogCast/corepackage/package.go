@@ -118,15 +118,17 @@ type Build struct {
 }
 
 type Staged struct {
-	InitialMedia       *StagedInitialMedia         `json:"-"`
-	PartsComposition   *expansion.PartsComposition `json:"parts_composition,omitempty"`
-	PartDirectories    []PartDirectory             `json:"parts,omitempty"`
-	ROMLink            *ROMLinkIdentity            `json:"rom_link,omitempty"`
-	ROMLinks           *ROMLinksIdentity           `json:"rom_links,omitempty"`
-	ProgrammedPath     string                      `json:"programmed_path,omitempty"`
-	Composition        *expansion.Composition      `json:"composition,omitempty"`
-	ExpansionDirectory string                      `json:"expansion_directory,omitempty"`
-	PayloadPath        string                      `json:"payload_path,omitempty"`
+	StaticComposition  *expansion.StaticComposition `json:"static_composition,omitempty"`
+	PersonaPath        string                       `json:"persona_path,omitempty"`
+	InitialMedia       *StagedInitialMedia          `json:"-"`
+	PartsComposition   *expansion.PartsComposition  `json:"parts_composition,omitempty"`
+	PartDirectories    []PartDirectory              `json:"parts,omitempty"`
+	ROMLink            *ROMLinkIdentity             `json:"rom_link,omitempty"`
+	ROMLinks           *ROMLinksIdentity            `json:"rom_links,omitempty"`
+	ProgrammedPath     string                       `json:"programmed_path,omitempty"`
+	Composition        *expansion.Composition       `json:"composition,omitempty"`
+	ExpansionDirectory string                       `json:"expansion_directory,omitempty"`
+	PayloadPath        string                       `json:"payload_path,omitempty"`
 	companions         []Staged
 	Directory          string     `json:"directory"`
 	PackageID          string     `json:"package_id"`
@@ -443,13 +445,19 @@ func adoptOpenedRoot(root string, rootHandle *os.Root, rootInfo os.FileInfo) ([]
 			PackageID: packageID, Descriptor: inspection.Descriptor,
 			root: root, rootInfo: openedRoot, publication: name,
 			publicationInfo: publicationInfo})
-		slots, err := adoptSlotComposition(rootHandle, &adopted[len(adopted)-1])
+		static, err := adoptStaticComposition(rootHandle, &adopted[len(adopted)-1])
 		if err != nil {
 			return nil, err
 		}
-		if !slots {
-			if err := adoptComposition(rootHandle, &adopted[len(adopted)-1]); err != nil {
+		if !static {
+			slots, err := adoptSlotComposition(rootHandle, &adopted[len(adopted)-1])
+			if err != nil {
 				return nil, err
+			}
+			if !slots {
+				if err := adoptComposition(rootHandle, &adopted[len(adopted)-1]); err != nil {
+					return nil, err
+				}
 			}
 		}
 		if err := adoptParts(rootHandle, &adopted[len(adopted)-1]); err != nil {
