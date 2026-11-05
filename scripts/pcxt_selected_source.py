@@ -36,7 +36,9 @@ import hashlib,json,sys
 from pathlib import Path
 root=Path(sys.argv[1]); output=Path(sys.argv[2])/'prepared'
 sys.path.insert(0,str(root/'scripts'))
-import bundle, core_dev
+import bundle, core_dev, recipes
+if recipes.recipe_for('fes.pcxt-dos').video_profiles:
+    raise ValueError('video profile producers are not permitted in selection-only admission')
 def no_build(*args,**kwargs): raise ValueError('selected package cache miss; build prohibited')
 bundle._build_package=no_build
 receipt=core_dev.prepare('fes.pcxt-dos',output)

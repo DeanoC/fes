@@ -2,6 +2,8 @@ import hashlib
 import json
 from pathlib import Path
 import tempfile
+import subprocess
+import sys
 import unittest
 from unittest import mock
 
@@ -32,6 +34,22 @@ class SelectionTests(unittest.TestCase):
             provenance_bytes=b'provenance',resolved_selection=b'selection',resolved_provenance=b'provenance',
             prepared_sha256='5'*64,archive_sha256=ARCHIVE,package_id=PACKAGE,rbf_sha256=RBF,
             producer=PRODUCER,selected=CURRENT)
+    def test_worker_rejects_video_producers_before_prepare(self):
+        driver = """
+import sys,types
+bundle=types.ModuleType('bundle');core_dev=types.ModuleType('core_dev');recipes=types.ModuleType('recipes')
+recipes.recipe_for=lambda _core:types.SimpleNamespace(video_profiles=('extra',))
+core_dev.prepare=lambda *a,**kw: (_ for _ in ()).throw(AssertionError('prepare must not run'))
+sys.modules.update(bundle=bundle,core_dev=core_dev,recipes=recipes)
+sys.argv=['worker','/tmp','/tmp']
+exec(WORKER)
+"""
+        program='WORKER='+repr(selected.WORKER)+'\n'+driver
+        result=subprocess.run([sys.executable,'-I','-c',program],stdout=subprocess.PIPE,stderr=subprocess.PIPE)
+        self.assertNotEqual(result.returncode,0)
+        self.assertIn(b'video profile producers are not permitted',result.stderr)
+        self.assertNotIn(b'prepare must not run',result.stderr)
+
     def test_selection_binds_original_and_current(self):
         evidence=selected.compare_resolution(**self.kw)
         self.assertEqual(evidence['selected_commit'],CURRENT)
