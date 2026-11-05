@@ -31,6 +31,66 @@ type timedHealthController struct {
 
 func (c *timedHealthController) Healthy(context.Context, string) error { return c.health() }
 
+type contextHealthController struct {
+	fakeControl
+	health func(context.Context) error
+}
+
+func (c *contextHealthController) Healthy(ctx context.Context, _ string) error {
+	return c.health(ctx)
+}
+
+func TestExpiredReadinessProbeNeverCountsAsHealthy(t *testing.T) {
+	for _, lateWindow := range []bool{false, true} {
+		t.Run(fmt.Sprintf("late_window=%v", lateWindow), func(t *testing.T) {
+			start := time.Unix(100, 0)
+			now := start
+			var startedWindow bool
+			c := &contextHealthController{}
+			c.health = func(ctx context.Context) error {
+				if lateWindow && now.Sub(start) < 59*time.Second {
+					return errors.New("not ready")
+				}
+				if lateWindow && !startedWindow {
+					startedWindow = true
+					return nil
+				}
+				// Model a context-unaware final step returning success after the
+				// bounded probe has expired, with enough elapsed time that the
+				// expired sample would otherwise complete the stability window.
+				<-ctx.Done()
+				now = now.Add(10 * time.Second)
+				return nil
+			}
+			e := &Engine{Controller: c, Poll: time.Millisecond, Now: func() time.Time { return now }, Wait: func(ctx context.Context, _ time.Duration) error {
+				now = now.Add(time.Second)
+				return ctx.Err()
+			}}
+			e.defaults()
+			err := e.health(context.Background(), testCandidateID, start.Add(time.Minute))
+			if !errors.Is(err, context.DeadlineExceeded) {
+				t.Fatalf("expired probe was accepted: %v", err)
+			}
+			if lateWindow && !startedWindow {
+				t.Fatal("test did not begin the late stability window")
+			}
+		})
+	}
+}
+
+func TestExpiredReadinessProbePreservesProcessExit(t *testing.T) {
+	start := time.Unix(100, 0)
+	c := &contextHealthController{health: func(ctx context.Context) error {
+		<-ctx.Done()
+		return ErrProcessExited
+	}}
+	e := &Engine{Controller: c, Poll: time.Millisecond, Now: func() time.Time { return start }}
+	e.defaults()
+	if err := e.health(context.Background(), testCandidateID, start.Add(time.Minute)); !errors.Is(err, ErrProcessExited) {
+		t.Fatalf("expired probe hid the process exit: %v", err)
+	}
+}
+
 func TestStartupDeadlineAndContinuousReadiness(t *testing.T) {
 	for _, tc := range []struct {
 		name       string

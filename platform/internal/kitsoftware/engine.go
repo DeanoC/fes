@@ -94,9 +94,20 @@ func (e *Engine) health(ctx context.Context, id string, deadline time.Time) erro
 		}
 		probeCtx, cancel := context.WithTimeout(ctx, e.Poll*4)
 		err := e.Controller.Healthy(probeCtx, id)
+		probeErr := probeCtx.Err()
+		if probeDeadline, ok := probeCtx.Deadline(); probeErr == nil && ok && !time.Now().Before(probeDeadline) {
+			// The deadline has passed even if timer delivery is delayed.
+			probeErr = context.DeadlineExceeded
+		}
 		cancel()
 		if contextErr := ctx.Err(); contextErr != nil {
 			return contextErr
+		}
+		// A probe that returned after its own deadline cannot establish or
+		// extend readiness, even if its final context-unaware step succeeded.
+		// Retain process-exit identity if the probe also reported an exit.
+		if probeErr != nil {
+			err = errors.Join(err, probeErr)
 		}
 		if !e.Now().Before(end) {
 			break
