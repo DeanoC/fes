@@ -52,11 +52,12 @@ ALL_WORDS = tuple(range(8))
 def one_sample(words: tuple[int, ...]) -> str:
     """One sample, as the kit's busybox shell runs it: a line 'S <uptime>
     <head>', a line per word 'W <n> <value>', then 'E' once word 0 is read
-    again. It fails if 'E' cannot be written."""
-    reads = ''.join(f'echo W {n} $(devmem $((r + {8 * n})) 64); ' for n in words)
-    return (f'read u _ < /proc/uptime; h=$(devmem {HEAD:#x} 64); '
+    again. A devmem read that fails exits the shell with status 3, so the
+    reader fails too; it also fails if 'E' cannot be written."""
+    reads = ''.join(f'v=$(devmem $((r + {8 * n})) 64) || exit 3; echo W {n} $v; ' for n in words)
+    return (f'read u _ < /proc/uptime; h=$(devmem {HEAD:#x} 64) || exit 3; '
             f'n=$(( (h & 0xffffffff) - 1 )); r=$(( {RECORDS:#x} + 64 * (n & {SLOTS - 1}) )); '
-            f'echo S $u $h; {reads}echo W 0 $(devmem $r 64); echo E')
+            f'echo S $u $h; {reads}v=$(devmem $r 64) || exit 3; echo W 0 $v; echo E')
 
 
 def remote_loop(words: tuple[int, ...], seconds: float, interval: float) -> str:
@@ -175,10 +176,11 @@ def main(argv=None) -> int:
     ssh = shlex.split(args.ssh)
     try:
         if args.mode == 'snapshot':
-            for item in parse(run(ssh, one_sample(ALL_WORDS)), expected=ALL_WORDS):
+            # All of run(), so that the command's exit status is checked.
+            items = list(parse(run(ssh, one_sample(ALL_WORDS)), expected=ALL_WORDS))
+            for item in items:
                 print(json.dumps(item, indent=2))
-                return 0 if item['whole'] else 1
-            return 1
+            return 0 if items and items[-1]['whole'] else 1
         log = open(args.log, 'a') if args.log else None
         signal.signal(signal.SIGTERM, lambda *_: sys.exit(0))
         for item in parse(run(ssh, remote_loop(SAMPLE_WORDS, args.seconds, args.interval))):

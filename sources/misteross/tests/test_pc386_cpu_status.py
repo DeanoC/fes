@@ -3,6 +3,7 @@
 kit's busybox loop prints them. No kit needed."""
 from contextlib import redirect_stderr
 import io
+import shlex
 import unittest
 
 from scripts import pc386_cpu_status as reader
@@ -54,6 +55,19 @@ class StatusReader(unittest.TestCase):
             self.assertEqual(reader.main(['--ssh', 'false', 'sample', '--seconds', '1']), 2)
             self.assertEqual(reader.main(['--ssh', 'false', 'snapshot']), 2)
         self.assertIn('false exited with status 1', error.getvalue())
+
+    def test_a_snapshot_checks_the_exit_status_after_a_whole_record(self):
+        # A wrapper that prints a whole eight-word record, then exits 7. The
+        # remote command arrives as $1, which it ignores.
+        record = [*lines(41, 0, 0)[:-1], 'W 4 0x0', 'W 6 0x0', 'E']
+        script = 'printf "%s\\n" ' + ' '.join(shlex.quote(l) for l in record) + '; exit 7'
+        with redirect_stderr(io.StringIO()) as error:
+            self.assertEqual(reader.main(['--ssh', f'sh -c {shlex.quote(script)} sh', 'snapshot']), 2)
+        self.assertIn('exited with status 7', error.getvalue())
+
+    def test_a_failed_devmem_read_fails_the_remote_command(self):
+        sample = reader.one_sample(reader.SAMPLE_WORDS)
+        self.assertEqual(sample.count('|| exit 3'), len(reader.SAMPLE_WORDS) + 2)
 
     def test_needs_both_reads_of_word_0(self):
         (sample,) = reader.parse(lines(41, 0, 0)[:-2] + ['E'])
