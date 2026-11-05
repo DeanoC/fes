@@ -302,8 +302,8 @@ remounts read-only, preventing FES services from starting. UART authenticates
 the original card, kernel and `6de` image; the cause is not established. The
 board is shut down cleanly and the original card is returned to the reader for
 offline inspection. The original host service/configuration/catalog are
-preserved and restored, but the kit claim remains held until baseline recovery
-is verified. The tested trial card is retained; no baseline is promoted.
+preserved and restored. The tested trial card is retained; no baseline is
+promoted.
 
 The [offline repair proof](original-card-repair-proof.json) first retains a
 verified FAT/bootstrap/MBR snapshot. Automatic repair adds a recovered file and
@@ -316,8 +316,16 @@ changes 10 bytes across four existing bookkeeping sectors. The complete
 matches that clean candidate. MBR/bootstrap bytes are unchanged and the data
 volume is not written. The first buffered-view readback failure is retained;
 later buffered and direct reads match, without repeated writes. A device-cache
-alias is a plausible explanation, not an established cause. Native baseline
-recovery still needs the repaired card boot.
+alias is a plausible explanation, not an established cause.
+
+The repaired original card then boots successfully. The
+[restoration receipt](original-card-baseline-restored.json) authenticates its
+original card/kernel, exact `6de` image and active/selected `a14a` bundle at
+generation 38, in new boot `35d95481-a33d-4d4b-a042-28e9163b3cc4`. The original
+host is paired and ready in that same epoch; its unit/configuration/catalog are
+unchanged. The board is released ready, idle and lease-free with no maintenance.
+The private host and passive UART observer are stopped. The working original
+card remains installed and the tested new card stays aside.
 
 This ordinary native-image/core result does not admit a static PR package or
 exercise physical partial reconfiguration. Normal static-composition admission,

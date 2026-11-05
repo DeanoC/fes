@@ -1,6 +1,6 @@
 {
   "format": 1,
-  "utc": "2026-11-05T17:55:25.484563+00:00",
+  "utc": "2026-11-05T18:12:14.448144+00:00",
   "classification": "Exact-artifact native new-image trial for ordinary MENU, standard internal16K ZX81, data storage and one idle software reboot; original-card restoration blocked separately",
   "sources": {
     "factory_release_host_runtime": "e212fd51c0de96bf660207bf0c96a0e1355eed4d",
@@ -108,7 +108,7 @@
     "restoration_collectors": "After confirmed target shutdown, session APIs return503. Original service started once and exact binary/config/unit/catalog plus host health independently verified; no shutdown/reboot/service-start replay."
   },
   "original_baseline_restoration": {
-    "status": "offline metadata repair and full direct physical readback passed; original-card native boot/release pending",
+    "status": "passed; original named baseline authenticated, board released ready/idle/free",
     "original_image": "6de6a39230ce4bc364f34b7c606a5ed2c218d1315906c7e7f8b1ef9bbb566076",
     "original_bundle": "a14a53cd33e2c51d7639701363bf95cc7781f62b8207c0e2bab1653276504700",
     "generation": 38,
@@ -131,12 +131,15 @@
     },
     "original_host_service_restored": true,
     "original_host_configuration_and_catalog_unchanged": true,
-    "next": "User returns repaired original card to bottom board for exact6de/a14a/gen38 authenticated native baseline verification; tested trial card retained aside",
+    "next": "Original card remains installed; tested new card retained aside. No baseline promotion.",
     "repair_proof": "original-card-repair-proof.json",
     "repair_readback": "original-card-repair-verified.json",
     "files_unchanged": true,
     "changed_bytes": 10,
-    "changed_sectors": 4
+    "changed_sectors": 4,
+    "restored_boot_id": "35d95481-a33d-4d4b-a042-28e9163b3cc4",
+    "restored_generation": 38,
+    "native_recovery_receipt": "original-card-baseline-restored.json"
   },
   "not_accepted": {
     "physical_static_PR": true,
@@ -210,6 +213,10 @@
     "original-card-repair-verified.json": {
       "sha256": "9f3c027d8d95c6ce5e6cc15649e3efaae5a6ee0319a4557dc8bdd0431c0f0888",
       "bytes": 2243
+    },
+    "original-card-baseline-restored.json": {
+      "sha256": "c71e516504575ca0c73916739a15d53b81bab6a8b59220b38737ab78a55ce0ed",
+      "bytes": 906
     }
   },
   "private_log_retention_root": "/data/fes-de25-main-integration-20261105"

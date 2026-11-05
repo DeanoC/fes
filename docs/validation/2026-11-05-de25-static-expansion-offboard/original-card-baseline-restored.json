@@ -1,0 +1,21 @@
+{
+  "success": true,
+  "utc": "2026-11-05T18:10:48.224905+00:00",
+  "base_image": "6de6a39230ce4bc364f34b7c606a5ed2c218d1315906c7e7f8b1ef9bbb566076",
+  "baseline_bundle": "a14a53cd33e2c51d7639701363bf95cc7781f62b8207c0e2bab1653276504700",
+  "software_generation": 38,
+  "boot_id": "35d95481-a33d-4d4b-a042-28e9163b3cc4",
+  "same_original_card_CID_authenticated": true,
+  "original_kernel_notes_authenticated": true,
+  "ready_idle_lease_free": true,
+  "maintenance": "none",
+  "original_dedicated_host_verified": true,
+  "unit_config_launcher_unchanged": true,
+  "original_catalog_untouched": true,
+  "private_host_stopped": true,
+  "general_operator_host_untouched": true,
+  "trial_card": "kept aside, native MENU/ZX81/BASIC/software-reboot trial PASS",
+  "trial_image": "d11a2284af6409c8963a5fb20ac29f60a3e39ecb2f2660732708182ea0fff1ea",
+  "physical_PR": false,
+  "overall_normal_kit_acceptance": false
+}
