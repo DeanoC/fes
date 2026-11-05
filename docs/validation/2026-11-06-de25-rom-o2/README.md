@@ -26,3 +26,24 @@ Next rebuild the matched ARM chain, inspect effective flags, code and size,
 and complete changed-file checks before preparing any hardware test. This
 source change supplies no physical speedup, ROM completion, CPU Run, ordinary
 package admission or DE10-equivalent readiness.
+
+The matched SDK, entry, BL31 and U-Boot rebuilt from
+`ca2d6edf07f0a5ba081a2d98dc9b7d89e0c93fc5`. A private verbose rebuild produces
+identical loadable BL31 bytes and verifies all 131 C compile commands: exactly
+eight objects use O2, the independent SHA object retains O3, and other C objects
+retain Os. BL31 grew from 118,845 to 127,037 bytes and links inside the existing
+limits. Actual source/call-path checks, both-ROM preflight, USB/native package
+tests and the complete changed-file suite pass. The
+[matched receipt](matched-build-result.json) pins the evidence.
+
+The first host bootloader build stopped at its 300-second cap during SPL
+compilation without a compiler error. Its files/log remain intact. A fresh
+private output passed in 345 seconds with a 480-second host allowance; native
+bounds did not change. A premature read-only linked-image check rejected the
+then-missing conversion receipt; the terminal conversion and subsequent check
+pass. Both stopped host checks remain in the evidence.
+
+The [frozen bounded operator](operator-source.json) permits one attempt of the
+new compiled firmware, retaining the prior programmer/setup stops and three
+ROM-deadline trials. It uses the tested 6 MHz programming link and restores
+15 MHz and exact host permissions. No O2 hardware attempt has yet occurred.
