@@ -202,6 +202,21 @@ func TestSharedModeIsExplicitAndRequiresRealMasterBinding(t *testing.T) {
 		t.Fatal("known prepared abort failed", err)
 	}
 }
+func TestSharedModeRequiresBoundContainmentHook(t *testing.T) {
+	p := newSharedRPC(t, "missing-contained")
+	if _, err := NewSharedPIO(context.Background(), p, 17); err == nil {
+		t.Fatal("missing containment hook granted a shared USB lease")
+	}
+	if p.metrics[0] != 0 || p.metrics[1] != 0 || p.metrics[2] != 0 {
+		t.Fatal("rejected binding retained an active device grant", p.metrics)
+	}
+	before := p.metrics[4]
+	r := sharedCall(t, p, g.FesEmbeddedSdCall, g.FesEmbeddedSdQuery, g.FesEmbeddedSdCookie, 0, 0)
+	if r[0] != uint64(g.FesEmbeddedSdError) || p.metrics[4] != before {
+		t.Fatal("unbound containment reached hardware", r, p.metrics)
+	}
+}
+
 func TestSharedActualDispatcherRetiresFaultsAndRetainsReservations(t *testing.T) {
 	for _, fault := range []uint64{2, 4, 7, 8, 11} {
 		t.Run(map[uint64]string{2: "DMA", 4: "stop-reset", 7: "PHY", 8: "foreign-master", 11: "observer-binding"}[fault], func(t *testing.T) {

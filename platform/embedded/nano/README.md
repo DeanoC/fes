@@ -1335,7 +1335,10 @@ readiness. The cold composition's `usb_contained` callback and the shared
 firmware gate require the same confirmed private lease and fresh complete
 clock/pin/boot checks around DMA-disabled, IRQ-disabled, fixed-PIO and AHB-idle
 register observations. They issue no USB or PHY writes, change no generation
-and cannot publish USB readiness. Idle loss after the bounded wait rejects
+and cannot publish USB readiness. Shared mode requires the boot-local
+`service_ops.contained` hook and checks its identity against the trusted
+supplier. Unbound/exclusive profiles neither require nor call that hook.
+Idle loss after the bounded wait rejects
 without another wait allowance. Owner/epoch/generation and active/confirmed
 state are rechecked before success. Stale or foreign requests perform no I/O.
 

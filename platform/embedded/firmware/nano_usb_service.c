@@ -20,7 +20,8 @@ static int healthy(struct fes_nano_usb_service *s)
         !b->state.generation || b->state.never_enabled>1 || b->state.masters_contained>1 ||
         (b->state.fabric!=FES_NANO_FABRIC_ABSENT && b->state.fabric!=FES_NANO_FABRIC_PRESENT)) return fail(s);
     if (s->shared.valid) {
-        if (s->reservation!=p->active ||
+        if (!s->ops.contained || s->ops.contained!=s->shared.platform.contained ||
+            s->reservation!=p->active ||
             s->ops.observe!=s->shared.platform.observe || s->ops.acquire!=s->shared.platform.acquire ||
             s->ops.confirm!=s->shared.platform.confirm || s->ops.stop!=s->shared.platform.stop ||
             s->shared.valid(s->shared.context,b,p)!=1) return fail(s);
@@ -42,7 +43,7 @@ static int initialize(struct fes_nano_usb_service *s,struct fes_nano_bridges *b,
     s->attempted=1;s->platform=p;s->bridges=b;
     if (shared) {
         s->shared=*shared;
-        if (!shared->context || !shared->valid) return fail(s);
+        if (!shared->context || !shared->valid || !ops.contained) return fail(s);
     }
     if (!p || !p->initialized || p->active || p->confirmed || p->generation || !b ||
         !b->initialized || !b->state.never_enabled || b->device_lease || !ops.observe ||
@@ -73,7 +74,7 @@ int fes_nano_usb_service_gate(struct fes_nano_usb_service *s)
      * grant. Explicit USB QUERY and CONFIRM still perform full PHY readiness.
      * Partial initialization remains blocked under the original scope path. */
     struct fes_nano_usb_platform *p=s->platform;
-    int error=p->active && p->confirmed ? fes_nano_usb_platform_idle(p,s->owner,p->generation) :
+    int error=p->active && p->confirmed ? s->ops.contained(p,s->owner,p->generation) :
         s->ops.observe(p,s->owner,p->generation);
     if (error || healthy(s)) return fail(s);
     return s->platform->active && !s->platform->confirmed ? 1 : 0;

@@ -179,5 +179,5 @@ struct fes_nano_usb_shared_ops fes_nano_usb_master_service_ops(struct fes_nano_u
 {
     return (struct fes_nano_usb_shared_ops){m,shared_valid,
         {fes_nano_usb_platform_observe,fes_nano_usb_platform_acquire,
-         fes_nano_usb_platform_confirm,fes_nano_usb_platform_stop}};
+         fes_nano_usb_platform_confirm,fes_nano_usb_platform_stop,fes_nano_usb_platform_idle}};
 }

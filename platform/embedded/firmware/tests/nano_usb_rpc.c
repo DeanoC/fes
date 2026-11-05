@@ -56,7 +56,7 @@ int main(int argc,char **argv)
         struct fes_nano_usb_io physical={.context=&t,.read=board_read,.write=board_write,.barrier=barrier,.wait=board_wait};
         assert(!fes_nano_usb_board_init(&t.board,&t.base.cold,physical,compiled_pins,FES_NANO_HPS_IO_COUNT,compiled_digest));
         assert(!fes_nano_usb_platform_init(&t.base.usb,&t.base.cold,fes_nano_usb_board_ops(&t.board),FES_NANO_USB_QUALIFIED));
-        struct fes_nano_usb_service_ops ops={fes_nano_usb_platform_observe,fes_nano_usb_platform_acquire,fes_nano_usb_platform_confirm,fes_nano_usb_platform_stop};
+        struct fes_nano_usb_service_ops ops={fes_nano_usb_platform_observe,fes_nano_usb_platform_acquire,fes_nano_usb_platform_confirm,fes_nano_usb_platform_stop,0};
         assert(!fes_nano_usb_service_init(&fes_nano_owned_usb,&fes_nano_owned_bridges,&t.base.usb,ops));
     }
     unsigned long long q[7];

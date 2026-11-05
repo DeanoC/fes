@@ -41,10 +41,11 @@ int main(int argc,char **argv)
 {
     master_prepare(&model,!(argc==2 && !strcmp(argv[1],"unbound")));
     struct fes_nano_usb_service_ops ops={fes_nano_usb_platform_observe,fes_nano_usb_platform_acquire,
-        fes_nano_usb_platform_confirm,fes_nano_usb_platform_stop};
+        fes_nano_usb_platform_confirm,fes_nano_usb_platform_stop,fes_nano_usb_platform_idle};
+    if (argc==2 && !strcmp(argv[1],"missing-contained")) ops.contained=0;
     int status=fes_nano_usb_service_init_shared(&fes_nano_owned_usb,&model.bridges,&model.usb,ops,
         fes_nano_usb_master_service_ops(&model.master));
-    if (argc==2) {assert(!strcmp(argv[1],"unbound") && status<0);}
+    if (argc==2) {assert((!strcmp(argv[1],"unbound") || !strcmp(argv[1],"missing-contained")) && status<0);}
     else assert(!status);
     unsigned long long q[7];
     while (scanf("%llx %llx %llx %llx %llx %llx %llx",&q[0],&q[1],&q[2],&q[3],&q[4],&q[5],&q[6])==7) {
