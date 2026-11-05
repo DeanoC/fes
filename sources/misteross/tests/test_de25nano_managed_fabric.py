@@ -216,6 +216,30 @@ class ManagedFabricTests(unittest.TestCase):
         self.assertEqual(D.verify_managed_fabric(self.project, H)['retired_debug_constraints'],
                          D.verify_managed_debug_constraints(self.project))
 
+    def test_pr_emif_derivation_removes_only_the_ignored_clock_and_stays_audited(self):
+        self.project_removals()
+        before = (self.project / 'ghrd_timing.sdc').read_bytes()
+        receipt = D.retire_managed_emif_reference(self.project)
+        after = (self.project / 'ghrd_timing.sdc').read_bytes()
+        self.assertEqual(after, before.replace(D.EMIF_REFERENCE['removed_duplicate'].encode(),
+            b'# Generated EMIF SDC owns the 6.000 ns LPDDR4A reference clock.'))
+        self.assertEqual(receipt['emif_reference']['period_ns'], '6.000')
+        self.assertEqual(D.verify_managed_fabric(self.project, H)['retired_debug_constraints'], receipt)
+        with self.assertRaisesRegex(ValueError, 'already retired'):
+            D.retire_managed_emif_reference(self.project)
+        record_path = self.directory / 'managed-debug-constraints.json'
+        for case in ('period', 'extra', 'missing_policy', 'constraint'):
+            with self.subTest(case=case):
+                record = json.loads(json.dumps(receipt))
+                if case == 'period': record['emif_reference']['period_ns'] = '20.000'
+                elif case == 'extra': record['emif_reference']['waiver'] = True
+                elif case == 'missing_policy': del record['emif_reference']
+                else: (self.project / 'ghrd_timing.sdc').write_bytes(after+b'\nset_false_path -from *\n')
+                record_path.write_text(json.dumps(record))
+                with self.assertRaises(ValueError): D.verify_managed_fabric(self.project, H)
+                (self.project / 'ghrd_timing.sdc').write_bytes(after)
+                record_path.write_text(json.dumps(receipt))
+
     @unittest.skipUnless(shutil.which('tclsh'), 'requires Tcl')
     def test_actual_removal_script_checks_targets_and_keeps_hps_instances(self):
         script = D.isolate_managed_fabric_script('remove_instance ext_hps_f2sdram_master\nsave_system top.qsys\n',

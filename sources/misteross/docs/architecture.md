@@ -117,6 +117,14 @@ bounds. Its timing audit appends paired all-corner payload and interstage
 coverage to the existing boundary report. This supplies internal crossing
 checks; fitted numerical results and HDMI data-output timing remain required.
 
+The PR profile opts into retiring the exact ignored manual EMIF reference-clock
+declaration after the canonical managed-constraint source audit. The shared
+auditor derives and checks the complete file from the locked original and binds
+the generated-clock ownership in its receipt. The generated 6.000 ns clock
+continues to be required by both PR clock constraints and the fitted boundary
+audit. The ordinary internal16K constraint derivation stays unchanged; no
+timing exception or warning exemption is introduced.
+
 `fes_de25_audio.v` connects the standard coherent stereo PCM/I2S path to
 Terasic HDMI_ASx4's separate `av_pll`, using `CLOCK1_50`. The resource PLL
 requests 12.288 MHz from 50 MHz; its supplied integer dividers produce about

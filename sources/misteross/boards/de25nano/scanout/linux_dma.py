@@ -9,6 +9,13 @@ ADAPTER = 'custom_ip/f2sdram_adapter/f2sdram_adapter_hw.tcl'
 MANAGED_FABRIC = 'managed-scanout-initiators-v3'
 GHRD_SDC_SHA256 = '743b02b7fa6e3f6397890702f626ff7b27a5c7ab6aa9d1721c22d286900c7247'
 JTAG_SDC_SHA256 = '02d78bf9bc14eea02092569a0639f6bd4f4b11e161e4fc6349c30128d640e17a'
+EMIF_REFERENCE = {
+    'policy': 'managed-generated-emif-reference-v1',
+    'removed_duplicate': 'create_clock -name EMIF_REF_CLOCK -period "166.6666MHz" [get_ports LPDDR4A_REFCLK_p]',
+    'clock': 'soc_inst|subsys_hps|emif_hps|emif_io96b_hps|emif_0_lpddr4|emif_0_lpddr4_0_ref_clock',
+    'period_ns': '6.000', 'port': 'LPDDR4A_REFCLK_p',
+    'fitted_clock_validation': 'required',
+}
 MANAGED_MASTERS = (
     'subsys_hps_agilex_hps.hps2fpga', 'subsys_hps_agilex_hps.lwhps2fpga',
     'subsys_periph_pb_cpu_0.m0', 'subsys_periph_fes_scanout_guard.avm',
@@ -164,12 +171,34 @@ def retired_jtag_sdc(original):
     return original.replace(before, b'# Canonical MENU has no fabric JTAG interfaces.\n')
 
 
-def _debug_constraint_receipt(original, derived):
+def _debug_constraint_receipt(original, derived, *, generated_emif=False):
     return {'policy': MANAGED_FABRIC, 'original_file': 'managed-constraints-originals/ghrd_timing.sdc',
             'derived_file': 'project/ghrd_timing.sdc', 'retired_source': 'source ./jtag.sdc',
             'original_sha256': hashlib.sha256(original).hexdigest(),
             'derived_sha256': hashlib.sha256(derived).hexdigest(),
-            'retained_jtag_sdc_sha256': JTAG_SDC_SHA256}
+            'retained_jtag_sdc_sha256': JTAG_SDC_SHA256,
+            **({'emif_reference': dict(EMIF_REFERENCE)} if generated_emif else {})}
+
+
+def _generated_emif_sdc(original):
+    source = retired_jtag_sdc(original)
+    duplicate = EMIF_REFERENCE['removed_duplicate'].encode()
+    if source.splitlines().count(duplicate) != 1 or source.count(b'EMIF_REF_CLOCK') != 1:
+        raise ValueError('managed duplicate EMIF declaration differs')
+    return source.replace(duplicate, b'# Generated EMIF SDC owns the 6.000 ns LPDDR4A reference clock.')
+
+
+def retire_managed_emif_reference(project):
+    """Opt in after the canonical source audit; preserve generated IP timing."""
+    review = verify_managed_debug_constraints(project)
+    if 'emif_reference' in review:
+        raise ValueError('managed duplicate EMIF reference already retired')
+    original = (project.parent / 'managed-constraints-originals/ghrd_timing.sdc').read_bytes()
+    derived = _generated_emif_sdc(original)
+    receipt = _debug_constraint_receipt(original, derived, generated_emif=True)
+    (project / 'ghrd_timing.sdc').write_bytes(derived)
+    (project.parent / 'managed-debug-constraints.json').write_text(json.dumps(receipt, indent=2, sort_keys=True) + '\n')
+    return verify_managed_debug_constraints(project)
 
 
 def retire_managed_jtag_constraints(project):
@@ -189,11 +218,12 @@ def retire_managed_jtag_constraints(project):
 
 def verify_managed_debug_constraints(project):
     original = (project.parent / 'managed-constraints-originals/ghrd_timing.sdc').read_bytes()
-    derived = retired_jtag_sdc(original)
     receipt = json.loads((project.parent / 'managed-debug-constraints.json').read_text())
+    generated_emif = 'emif_reference' in receipt
+    derived = _generated_emif_sdc(original) if generated_emif else retired_jtag_sdc(original)
     if (hashlib.sha256((project / 'jtag.sdc').read_bytes()).hexdigest() != JTAG_SDC_SHA256 or
             (project / 'ghrd_timing.sdc').read_bytes() != derived or
-            receipt != _debug_constraint_receipt(original, derived)):
+            receipt != _debug_constraint_receipt(original, derived, generated_emif=generated_emif)):
         raise ValueError('managed fabric retired JTAG constraint source or receipt changed')
     return receipt
 

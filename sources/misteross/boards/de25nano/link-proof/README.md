@@ -168,3 +168,11 @@ HPS-first SOF-to-RBF conversion emits boot sections and is unsuitable here.
 The compiler retains the HPS boot candidate separately without programming it,
 and still requires the fabric RBF's vendor-decoded POF0 identity and integrity
 to match the compiled base and both personas.
+
+The standard PR profile also retires the one exact manual `EMIF_REF_CLOCK`
+declaration that Quartus ignores because the generated memory IP already owns
+the LPDDR4A reference. The shared managed-constraint audit binds this opt-in
+derivation to the locked original and checks the complete resulting file and
+receipt. The ordinary internal16K derivation is unchanged. The actual generated
+6.000 ns clock remains mandatory in both SDC and all-corner boundary audits;
+this change adds no clock, timing exception or reviewed-warning exemption.

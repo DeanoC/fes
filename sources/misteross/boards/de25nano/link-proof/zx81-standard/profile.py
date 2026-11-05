@@ -82,11 +82,12 @@ def prepare_base(archive, output, frozen):
 
 
 def emif_reference_clock(project):
-    # Preserve the canonical board's exact constraint derivation and its audit.
-    # The actual generated EMIF clock and fitted coverage remain required.
+    # Start from the exact audited canonical constraints. The generated EMIF
+    # SDC already owns this clock; retire only the later ignored duplicate.
+    # clocks.sdc/build_timing.tcl still require the actual generated 6 ns clock.
     _, scanout, _ = helpers(project)
-    review = scanout.managed_fabric_helper(project.parent).verify_managed_debug_constraints(project)
-    return {"owner": "canonical-managed-GHRD", "constraint_review": review,
+    review = scanout.managed_fabric_helper(project.parent).retire_managed_emif_reference(project)
+    return {"owner": "canonical-managed-generated-EMIF", "constraint_review": review,
             "generated_clock_period_ns": "6.000", "fitted_validation": "required"}
 
 
