@@ -822,11 +822,10 @@ freeze/failure cases remain unchanged in purpose.
 Two earlier adapter failures remain retained: the first called the legacy
 upload API; the second supplied a relative media path and was rejected before
 media mutation. Neither establishes a production fault. All98 selected FPGA
-compiler inputs remain byte-identical to the completed2d full build. This is
-still a working-copy functional model result. Committed native/AArch64 runs and
-the full14-case compatibility refresh are pending because the common BASIC
-helper gained client callbacks. No physical PR, kernel opener, package admission
-or hardware acceptance is supplied by this model.
+compiler inputs remain byte-identical to the completed2d full build. That working-copy result remains a development record; committed results follow
+below. The common BASIC helper gained client callbacks, so its compatibility
+matrix also requires an actual refresh. No physical PR, kernel opener, package
+admission or hardware acceptance is supplied by this model.
 
 
 At committed source `8e926fe92`, the full native standard BASIC model passes
@@ -836,3 +835,54 @@ native/emulated-AArch64 cases in764.811 seconds; the source-bound fixture copies
 that actual report after checking all65 compiler and59 runtime/test inputs.
 The independent AArch64 whole-standard-model test is still running from the
 same committed snapshot. No physical PR or hardware acceptance is inferred.
+
+
+The complete unmodified seven-command affected plan for that committed BASIC
+change and its actual refreshed compatibility fixture passes in1024.795 seconds
+at `0b990554f`, frozen through the run. The native and compatibility results stay
+separate from the still-running whole-standard-model AArch64 proof. See
+[standard-real-basic-canonical.json](standard-real-basic-canonical.json).
+
+## Early Bluetooth firmware preparation
+
+Passive authenticated checks on the bottom board find USB radio`0bda:a728`
+and an early built-in-driver firmware failure before the managed root mounts.
+BlueZ is running but exposes zero adapters. The final managed root contains the
+correct firmware; the small bootstrap does not. No pairing, driver reset,
+service restart or FPGA/image change was performed during these observations.
+
+Source `c2920cdf2` adds the existing firmware, licence and checksum manifest to
+the DE25 bootstrap only, binding every input to its content identity and reading
+it back after filesystem construction. Real pinned-tool/card regressions and
+DE10 controls pass in17.556 seconds; the full six-command canonical affected
+plan passes in154.677 seconds. The existing bootstrap component builder produces
+two identical32MiB files, SHA256
+`fa236fa35525a5781dc592f17973d47b98f3ca9e9a5d7d12ec3e69ea8cd7ae8b`.
+The rebuilt boot-selector executable, kernel and factory manifest are unchanged.
+The full-factory command correctly refuses the retained old factory against the
+current image recipe; that failure remains retained. The component build
+instead authenticates the retained factory against its actual producer and
+constructs only the bootstrap. It grants no new factory or native acceptance.
+
+[bluetooth-bootstrap-preparation.json](bluetooth-bootstrap-preparation.json)
+records the exact artifact and checks. It is not installed: a separate explicit
+boot-change approval is pending, followed by native adapter and physical-input
+checks. The working board baseline is unchanged.
+
+## Fitted live-audio output observations
+
+A read-only private copy of the completed2d project yields144 fitted min/max
+clock-network and output paths: all three revisions, four operating conditions,
+and SCLK/LRCLK/I2S. The original compiled project remains byte-identical, and all
+98 selected compiler inputs still match `c2920cdf2`. No SDC, clock, delay,
+exception or admission policy changes. The existing internal16K clock approval,
+reconfirmed by Deano on2026-11-05, retains that exact internal16K scope.
+
+The conditional normal-operation budgets, including the receiver's2ns setup
+and hold requirements, are at least158.715ns setup and159.249ns hold. These raw
+fitted phase/path calculations exclude PCB differential delay, additional clock
+jitter/uncertainty, signal integrity and PLL/reset transients. They do not
+establish board timing or extend an exception to the live-PCM PR profile. All raw
+Design Closure failures, independent rebuild and exact-package native gates
+remain open. See
+[standard-pr-audio-output-observations.json](standard-pr-audio-output-observations.json).
