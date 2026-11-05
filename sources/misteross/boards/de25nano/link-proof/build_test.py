@@ -2,6 +2,8 @@
 import importlib.util
 import json
 from pathlib import Path
+import shutil
+import subprocess
 import tempfile
 import types
 import unittest
@@ -13,6 +15,52 @@ SPEC.loader.exec_module(build)
 
 
 class RecipeTests(unittest.TestCase):
+    @unittest.skipUnless(shutil.which("tclsh"), "requires Tcl")
+    def test_standard_pcm_mtbf_audit_rejects_defaults_and_missing_coverage(self):
+        source = (build.BOARD / "zx81-standard/pcm-timing.tcl").read_text()
+        # Execute the actual report validator, without emulating Quartus paths.
+        validator = source[source.index("proc pcm_mtbf_controls "):
+                           source.index("proc pcm_path_record ")]
+        chains = []
+        for index, head in enumerate(("request_meta", "ack_meta", "hold_meta")):
+            chains.append(f"Synchronizer Chain #{index}:\n" + "\n".join(
+                f"; {key} ; {value} ;" for key, value in (
+                    ("Synchronization Node", "fes_audio_inst|audio|" + head),
+                    ("Method of Synchronizer Identification", "Forced If Asynchronous"),
+                    ("Included in Design MTBF", "Yes"),
+                    ("Number of Synchronization Registers in Chain", "2"),
+                    ("Worst-Case MTBF (years)", "Greater than 1 Billion"),
+                    ("Data Toggle Rate Used in MTBF Calculation - Fd (millions of transitions / sec)", "100.000"),
+                    # Source/capture clocks can legitimately have different periods.
+                    ("Clock Period (ns)", "10.000"), ("Clock Period (ns)", "81.379"))))
+        report = "\n".join(chains)
+        cases = {"qualified": report,
+                 "default_rate": report.replace("100.000", "12.500", 1),
+                 "excluded": report.replace("; Yes ;", "; No ;", 1),
+                 "automatic": report.replace("Forced If Asynchronous", "Automatically", 1),
+                 "one_stage": report.replace("Chain ; 2 ;", "Chain ; 1 ;", 1),
+                 "missing_chain": "\n".join(chains[:2]),
+                 "duplicate_chain": report + "\n" + chains[0],
+                 "empty": ""}
+        with tempfile.TemporaryDirectory() as tmp:
+            directory = Path(tmp)
+            script = directory / "audit.tcl"
+            script.write_text(validator + '\nset f [open [lindex $argv 0] r]\n'
+                'set text [read $f]\nclose $f\n'
+                'if {[catch {pcm_mtbf_controls $text} result]} {puts stderr $result; exit 1}\n'
+                'puts [dict size $result]\n')
+            for name, text in cases.items():
+                with self.subTest(name=name):
+                    path = directory / "report.rpt"
+                    path.write_text(text)
+                    result = subprocess.run(["tclsh", str(script), str(path)],
+                                            capture_output=True, text=True, timeout=10)
+                    if name == "qualified":
+                        self.assertEqual(result.returncode, 0, result.stderr)
+                        self.assertEqual(result.stdout.strip(), "3")
+                    else:
+                        self.assertNotEqual(result.returncode, 0, name)
+
     def test_linux_base_selection_rejects_boot_phase_and_changed_payload(self):
         previous = build.PROFILE
         self.addCleanup(setattr, build, "PROFILE", previous)
