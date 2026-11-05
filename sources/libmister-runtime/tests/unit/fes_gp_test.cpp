@@ -3327,11 +3327,17 @@ void TestPc386IdentityPersistenceAndWallClock()
 		restore[1].opcode == FesComputerOpcodeDataWrite);
 	assert(f.driver.SetWallClock(LocalTime(2026, 10, 28, 14, 5, 37, 3), kComputerDeadline).ok());
 	assert(f.endpoint.clock == std::vector<unsigned>({2026, 10, 28, 14, 5, 37, 4}));
-	// A leap second holds at 59; a time before 1980 starts the clock at 1980.
+	// A leap second holds at 59; an unsynced kit time, before 2026, starts the
+	// clock at the floor, 2026-01-01, a Thursday.
 	assert(f.driver.SetWallClock(LocalTime(2026, 12, 31, 23, 59, 60, 4), kComputerDeadline).ok());
 	assert(f.endpoint.clock == std::vector<unsigned>({2026, 12, 31, 23, 59, 59, 5}));
-	assert(f.driver.SetWallClock(LocalTime(1970, 1, 1, 0, 0, 5, 4), kComputerDeadline).ok());
-	assert(f.endpoint.clock == std::vector<unsigned>({1980, 1, 1, 0, 0, 0, 3}));
+	for (const auto& unsynced : {LocalTime(1970, 1, 1, 0, 0, 5, 4), LocalTime(2025, 12, 31, 23, 59, 59, 3)}) {
+		assert(!mister::native::WallClockSynced(unsynced));
+		assert(f.driver.SetWallClock(unsynced, kComputerDeadline).ok());
+		assert(f.endpoint.clock == std::vector<unsigned>({2026, 1, 1, 0, 0, 0, 5}));
+	}
+	assert(mister::native::WallClockSynced(LocalTime(2026, 1, 1, 0, 0, 0, 4)));
+	assert(f.driver.Pc386MachineCapable());
 	const auto out_of_range = f.driver.SetWallClock(LocalTime(2100, 1, 1, 0, 0, 0, 5), kComputerDeadline);
 	assert(out_of_range.code == mister::ErrorCode::invalid_request && out_of_range.phase == "transport");
 	for (const bool timeout : {false, true}) {

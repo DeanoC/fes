@@ -665,12 +665,27 @@ public:
 };
 
 // fes-window grants over a memory copy of the window from the ATA disk offset.
+// A grant below it (guest memory) maps a fresh buffer of stale bytes, and its
+// revoke records the span and whether every byte was zeroed by then.
 class ScriptedDiskWindow final : public mister::native::MenuWindowOperations {
 public:
+	static constexpr int kGuestFd = 1 << 20;
+	struct GuestGrant {
+		std::uint64_t offset, bytes;
+		bool zeroed;
+	};
 	mister::Error Grant(std::uint64_t offset, std::uint64_t bytes, int* fd) override
 	{
 		const std::uint64_t base = mister::native::generated::FesComputerAtaDiskWindowOffset;
-		if (offset < base || offset - base + bytes > region.size() || offset % 4096 || bytes % 4096)
+		if (offset % 4096 || bytes % 4096)
+			return {mister::ErrorCode::io_failed, "unaligned scripted grant"};
+		if (offset < base && offset + bytes <= base) {
+			guest.assign(static_cast<std::size_t>(bytes), 0xa5);
+			guest_offset = offset;
+			*fd = kGuestFd;
+			return {};
+		}
+		if (offset < base || offset - base + bytes > region.size())
 			return {mister::ErrorCode::io_failed, "grant outside the scripted disk region"};
 		grants.push_back({offset - base, bytes});
 		*fd = static_cast<int>(grants.size());
@@ -678,16 +693,30 @@ public:
 	}
 	mister::Error Map(int fd, std::size_t, void** mapping) override
 	{
-		*mapping = region.data() + grants[static_cast<std::size_t>(fd - 1)].first;
+		*mapping = fd == kGuestFd ? guest.data() :
+			region.data() + grants[static_cast<std::size_t>(fd - 1)].first;
 		return {};
 	}
 	void Unmap(void*, std::size_t) override {}
 	mister::Error Clean(int, std::uint64_t, std::uint32_t, std::uint32_t, std::uint32_t) override { return {}; }
-	mister::Error Revoke(int) override { ++revokes; return {}; }
+	mister::Error Revoke(int fd) override
+	{
+		if (fd == kGuestFd) {
+			guest_grants.push_back({guest_offset, guest.size(),
+				std::all_of(guest.begin(), guest.end(), [](std::uint8_t b) { return b == 0; })});
+			if (on_guest_revoke) on_guest_revoke();
+			return {};
+		}
+		++revokes;
+		return {};
+	}
 	mister::Error Duplicate(int, int*) override { return {mister::ErrorCode::io_failed, "unused"}; }
 	void Close(int) override { ++closes; }
-	std::vector<std::uint8_t> region;
+	std::vector<std::uint8_t> region, guest;
+	std::uint64_t guest_offset = 0;
 	std::vector<std::pair<std::uint64_t, std::uint64_t>> grants;
+	std::vector<GuestGrant> guest_grants;
+	std::function<void()> on_guest_revoke;
 	unsigned revokes = 0, closes = 0;
 };
 
@@ -3104,11 +3133,50 @@ void TestPc386LibraryRecordAndWallClock()
 	assert(inspected.revision == fault_saved.revision && inspected.words[8 + 0x20] == 0x6b);
 	assert(fixture.runtime.InspectCoreData(package.path, id, data.path, "ultima-viii", &inspected).ok());
 	assert(inspected.revision == "absent" && inspected.words == Pc386MachineDefaults());
+	const std::string games = data.path + "/games/";
+	// An unsynced kit clock (1970 plus uptime) starts a game with no record at
+	// the floor, and a game whose record holds a later time from that time.
+	const std::tm synced = fixture.native.clock.local;
+	fixture.native.clock.local = {};
+	fixture.native.clock.local.tm_year = 70;
+	fixture.native.clock.local.tm_mday = 1;
+	fixture.native.clock.local.tm_min = 3;
+	fixture.native.clock.local.tm_wday = 4;
+	assert(fixture.runtime.LoadLibraryCore(package.path, id, data.path, "ultima-viii").ok());
+	assert(endpoint.clock == std::vector<unsigned>({2026, 1, 1, 0, 0, 0, 5}));
+	// The guest left 2026-11-04 21:45:30 in BCD, 24-hour form, century 20.
+	for (const auto& cmos : std::vector<std::pair<unsigned, std::uint8_t>>{{0x00, 0x30}, {0x02, 0x45},
+		{0x04, 0x21}, {0x07, 0x04}, {0x08, 0x11}, {0x09, 0x26}, {0x0b, 0x02}, {0x32, 0x20}})
+		endpoint.GuestCmosWrite(cmos.first, cmos.second);
+	assert(fixture.runtime.Stop().ok());
+	assert(fixture.runtime.LoadLibraryCore(package.path, id, data.path, "ultima-viii").ok());
+	assert(endpoint.clock == std::vector<unsigned>({2026, 11, 4, 21, 45, 30, 4}));
+	// The same bytes in binary, 12-hour form: 9 PM.
+	for (const auto& cmos : std::vector<std::pair<unsigned, std::uint8_t>>{{0x00, 30}, {0x02, 45},
+		{0x04, 0x89}, {0x07, 4}, {0x08, 11}, {0x09, 26}, {0x0b, 0x04}})
+		endpoint.GuestCmosWrite(cmos.first, cmos.second);
+	assert(fixture.runtime.Stop().ok());
+	assert(fixture.runtime.LoadLibraryCore(package.path, id, data.path, "ultima-viii").ok());
+	assert(endpoint.clock == std::vector<unsigned>({2026, 11, 4, 21, 45, 30, 4}));
+	// A record time before the floor is no better than the floor.
+	endpoint.GuestCmosWrite(0x09, 80);
+	endpoint.GuestCmosWrite(0x32, 0x19);
+	assert(fixture.runtime.Stop().ok());
+	assert(fixture.runtime.LoadLibraryCore(package.path, id, data.path, "ultima-viii").ok());
+	assert(endpoint.clock == std::vector<unsigned>({2026, 1, 1, 0, 0, 0, 5}));
+	// A synced kit clock always wins over the record.
+	assert(fixture.runtime.Stop().ok());
+	fixture.native.clock.local = synced;
+	assert(fixture.runtime.LoadLibraryCore(package.path, id, data.path, "ultima-viii").ok());
+	assert(endpoint.clock == std::vector<unsigned>({2026, 10, 28, 14, 5, 37, 4}));
+	assert(fixture.runtime.Stop().ok());
+	// Without fes.memory.hps-ddr there is no guest memory window to clear.
+	assert(fixture.native.disk_operations.guest_grants.empty());
+	assert(unlink((games + GameDataNamespace("fes.pc386", "ultima-viii") + "/record.bin").c_str()) == 0);
 	fixture.native.clock.has_local = false;
 	assert(fixture.runtime.LoadLibraryCore(package.path, id, data.path, "ultima-vi").code ==
 		mister::ErrorCode::io_failed);
 	fixture.native.clock.has_local = true;
-	const std::string games = data.path + "/games/";
 	const std::string first = games + GameDataNamespace("fes.pc386", "ultima-vi");
 	assert(unlink((first + "/record.bin").c_str()) == 0 && rmdir(first.c_str()) == 0);
 	assert(unlink((games + GameDataNamespace("fes.pc386", "ultima-vii") + "/record.bin").c_str()) == 0);
@@ -3159,7 +3227,23 @@ void TestPc386AtaDiskLaunchSaveAndRestore()
 	hash.Update(base.data(), base.size());
 	mister::AtaDiskImage disk{images.File("disk.img", base), size, Sha256Hex(hash.Final()), media.path, 4, 16, 63};
 	const MediaDataIdentity identity{"fes.pc386", "ultima-vi", disk.base_media_id, 0};
+	bool cleared_held = true;
+	fixture.native.disk_operations.on_guest_revoke = [&] { cleared_held = cleared_held && endpoint.held; };
 	assert(fixture.runtime.LoadLibraryCore(package.path, opened.package_id, data.path, "ultima-vi").ok());
+	// Every launch zeroes guest RAM and VRAM while held (#1408).
+	const auto AssertGuestCleared = [&](std::size_t launches) {
+		const auto& cleared = fixture.native.disk_operations.guest_grants;
+		assert(cleared.size() == 5 * launches && cleared_held);
+		for (std::size_t launch = 0; launch < launches; ++launch) {
+			for (std::size_t at = 0; at < 4; ++at) {
+				const auto& grant = cleared[5 * launch + at];
+				assert(grant.offset == 0x04000000u + (at << 22) && grant.bytes == 4u << 20 && grant.zeroed);
+			}
+			const auto& vram = cleared[5 * launch + 4];
+			assert(vram.offset == 0x00800000u && vram.bytes == 256u << 10 && vram.zeroed);
+		}
+	};
+	AssertGuestCleared(1);
 	const auto empty_status = fixture.runtime.status();
 	AssertComputerABIVersions(empty_status.capabilities);
 	RecordLiveComputerStatus(empty_status);
@@ -3181,6 +3265,7 @@ void TestPc386AtaDiskLaunchSaveAndRestore()
 	assert(fixture.runtime.LoadLibraryCore(package.path, opened.package_id, data.path, "ultima-vi", &bad).code ==
 		mister::ErrorCode::invalid_request);
 	assert(fixture.runtime.LoadLibraryCore(package.path, opened.package_id, data.path, "ultima-vi", &disk).ok());
+	AssertGuestCleared(2);
 	auto& region = fixture.native.disk_operations.region;
 	assert(std::equal(base.begin(), base.end(), region.begin(),
 		[](char a, std::uint8_t b) { return static_cast<std::uint8_t>(a) == b; }));

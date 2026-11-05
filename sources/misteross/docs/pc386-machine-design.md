@@ -341,6 +341,32 @@ pixels into each 64-bit word, a 25% cut.
 idle: port 1 first data at 17–18 cycles median at 100 MHz, 32–51 at the 99th
 percentile, 54–79 worst. The VGA read path below budgets against those numbers.
 
+#### Guest memory at launch
+
+Programming the FPGA does not touch DDR, so guest RAM and VRAM would otherwise
+hold the previous run's bytes, which the Bochs BIOS's POST does not clear.
+Ultima VII under MS-DOS stalled on them (#1408, #1433) and kept a previous
+run's mouse handler armed (#1485), and no kit run matched a bench run, which
+starts from zeroed RAM.
+
+**Decision: the runtime zeroes them, not the BIOS.** On every launch of a
+package with `fes.pc386.machine` and `fes.memory.hps-ddr`, after the DDR ports
+leave reset and before the record restore, the runtime writes zeros through
+4 MiB fes-window grants over guest RAM (`0x04000000`, 16 MiB: everything below
+`ram_top`, which covers conventional, upper, HMA and extended memory) and VRAM
+(`0x00800000`, 256 KiB). Each revoke writes the zeros back from the HPS caches,
+so they are in DDR before release. It logs phase `guest_memory` with the time
+taken. A guest reset (Ctrl-Alt-Del, the 8042 reset line, a shutdown) never
+reaches the runtime, so it keeps memory as a real AT does.
+
+- It is software, so the machine, its firmware and its seal do not change. A
+  POST clear in `rombios.c` would need a reseal, would lengthen every boot, and
+  could not tell a launch from the guest's own reset without a new machine
+  signal.
+- Other cores are unaffected: the clear keys on the pc386 machine interface.
+- The capture buffers and the status ring are not guest-visible and are not
+  cleared; the ATA region is written whole at every launch anyway.
+
 ## I/O timing
 
 The CPU completes an I/O instruction only when the machine says the device is
@@ -601,6 +627,22 @@ the date. Like an MC146818, the RTC stores the weekday as given and does not
 check it against the date. The RTC converts to BCD or binary and 12- or 24-hour
 form according to its current register B. A guest that sets the time keeps it
 until Stop; the next launch takes the kit's time again.
+
+**Decision: the runtime never sends an unsynced kit clock.** A kit whose Linux
+clock never synced counts from 1970. The runtime used to clamp that to
+1980-01-01 00:00, and MS-DOS 6.22 then booted 224 bytes smaller, which put
+Ultima VII's INTRO heap over leftover memory (#1433). Now a kit time before
+2026-01-01 counts as unsynced, and the runtime sends instead:
+
+1. the game record's last clock, from its CMOS bytes (decoded by register B,
+   century from 32h), if that is a valid time no earlier than 2026-01-01, so a
+   game's clock keeps moving forward from its last run;
+2. otherwise 2026-01-01 00:00:00.
+
+A synced clock (#1279 adds NTP) is sent as it is. The runtime logs a
+substitute as phase `wall_clock`. The fallback is in the runtime, not the RTC,
+so the machine and its seal do not change, and the RTC still never runs
+without a wall clock at launch.
 
 ### Persistence
 
@@ -1054,13 +1096,14 @@ It also proves that the runtime's cache clean reached DDR.
   a staged copy whose digest matches, so relaunching does not move 128 MiB.
 - **Launch.** The runtime:
   1. checks identity and releases the DDR ports;
-  2. restores the `fes.pc386.machine` record and seeds the wall clock;
-  3. sends prepare;
-  4. grants the region, writes every byte of the base image, applies the saved
+  2. zeroes guest RAM and VRAM ([guest memory at launch](#guest-memory-at-launch));
+  3. restores the `fes.pc386.machine` record and seeds the wall clock;
+  4. sends prepare;
+  5. grants the region, writes every byte of the base image, applies the saved
      delta's chunks, cleans and revokes the grant;
-  5. sends the geometry and the CRC of what it wrote, commits, and polls until
+  6. sends the geometry and the CRC of what it wrote, commits, and polls until
      ready;
-  6. releases execution.
+  7. releases execution.
 
   Load time is roughly the image's used bytes over the kit's storage read
   rate; Phase M4 measures it.
