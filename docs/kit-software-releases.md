@@ -196,6 +196,10 @@ second to thirty seconds. If startup itself
 fails, the supervisor stays up, records the error in that log, and retries with
 backoff instead of exiting. A failure before the status socket is open retries
 the whole startup; a failure after it is open keeps the socket serving the error.
+An autonomous group restart gives the start call its own three-minute timeout,
+followed by a separate three-minute readiness budget. The readiness budget lets
+persistent core-library recovery finish before the agent's health endpoint
+becomes available.
 
 **The kit's FogCast host** (#863 slice 5) is a fourth supervised process, kept
 apart from the service group above:
