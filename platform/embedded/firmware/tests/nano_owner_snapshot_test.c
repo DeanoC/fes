@@ -39,7 +39,10 @@ static int changing_cpu_read(void *p,unsigned reg,uint32_t *value)
     }
     return error;
 }
-int main(int argc,char **argv)
+#ifndef FES_NANO_OWNER_ENTRY
+#define FES_NANO_OWNER_ENTRY main
+#endif
+int FES_NANO_OWNER_ENTRY(int argc,char **argv)
 {
     assert(argc==2);mode=(unsigned)strtoul(argv[1],0,0);assert(mode<=20);
     char *args[]={argv[0],"0"};assert(!shared_boot_fixture_main(2,args));

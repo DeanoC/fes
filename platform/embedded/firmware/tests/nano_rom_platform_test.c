@@ -28,13 +28,16 @@ static struct {
 static uint32_t reset_bits;
 static unsigned contained,valid_scope,timer_hz;
 static unsigned io_reads,io_writes,timer_reads,frequency_reads,scope_calls,owner_calls,reports,fixture_mode;
+/* The RTL clock advances only on endpoint accesses. Charge a known CPU-side
+ * supplier cost to test accounting between existing timer reads too. */
+static uint64_t simulated_owner_ticks;
 static int cold_master_cpu_scope(void) { scope_calls++;return valid_scope==1; }
 int fes_nano_cold_owns(void *p,uint64_t owner,uint64_t epoch)
-{ owner_calls++;return p==&provider && owner==19 && epoch==71 && external_io.owns(external_io.context,19,7)==1; }
+{ owner_calls++;simulated_owner_ticks+=7;return p==&provider && owner==19 && epoch==71 && external_io.owns(external_io.context,19,7)==1; }
 int fes_nano_platform_configuration_diagnostic_ready(void)
 { return valid_scope && !provider.control_expected && fes_nano_cold_owns(&provider,19,71)==1; }
 struct fes_nano_identity_probe *fes_nano_platform_identity_probe(void) { return &identity_probe; }
-static uint64_t read_cntpct_el0(void) { timer_reads++;return external_io.now(external_io.context); }
+static uint64_t read_cntpct_el0(void) { timer_reads++;return external_io.now(external_io.context)+simulated_owner_ticks; }
 static uint32_t read_cntfrq_el0(void) { frequency_reads++;return timer_hz; }
 static void dsbsy(void) { (external_io.barrier)(external_io.context); }
 static uint32_t mmio_read_32(uintptr_t address)
@@ -105,6 +108,7 @@ int fes_test_rom_platform_init(struct fes_nano_rom_ops io,const uint8_t *image,s
 {
     assert(size==4096 || size==8192);external_io=io;expected_bytes=size;
     io_reads=io_writes=timer_reads=frequency_reads=scope_calls=owner_calls=reports=0;fixture_mode=mode;
+    simulated_owner_ticks=0;
     memcpy(expected_image,image,size);memset(arena,0,sizeof(arena));memcpy(arena+128,image,size);
     memset(&provider,0,sizeof(provider));provider.record.boot.owner=19;provider.record.boot.epoch=71;
     memset(&configuration,0,sizeof(configuration));memset(&identity_probe,0,sizeof(identity_probe));
@@ -147,7 +151,13 @@ int fes_test_rom_platform_open(void)
     assert(fes_nano_computer_control(FES_EMBEDDED_BRIDGE_CALL,FES_EMBEDDED_BRIDGE_CONTROL,
         19,FES_EMBEDDED_BRIDGE_COOKIE,6,&configuration,0,result));
     if(result[0])assert(!result[1] && !result[2] && !result[3] && reset_bits==15 && contained==1 && identity_probe.failed);
-    else assert(result[2]==19 && result[3]==7 && reset_bits==13 && computer_rom.complete && !computer_rom.failed);
+    else {
+        assert(result[2]==19 && result[3]==7 && reset_bits==13 && computer_rom.complete && !computer_rom.failed);
+        assert(computer_rom_diagnostic.owner_checks && computer_rom_diagnostic.owner_ticks &&
+            computer_rom_diagnostic.owner_max==21 &&
+            computer_rom_diagnostic.owner_ticks==(uint64_t)computer_rom_diagnostic.owner_checks*21 &&
+            !computer_rom_diagnostic.owner_pending && !computer_rom_diagnostic.owner_invalid);
+    }
     assert(reports==(computer_rom_diagnostic.pending ? 1U : 0U));
     /* Reporting again, including after a rejected replay, cannot sample MMIO,
      * ownership, clocks or the timer and cannot emit another failure record. */

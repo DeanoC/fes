@@ -55,12 +55,28 @@ hashes the driver's private snapshot with the pinned SHA-384 primitives before
 endpoint access. A newer successful configuration may construct a fresh ROM
 object after the preceding ROM completed; it cannot reset a failed transfer.
 
+A shared-USB ROM profile requires the accepted private boot/master binding and
+its complete coherent bridge observer. That fresh observer supplies the full
+cold/USB/master proof for each ownership callback, so the ROM path does not run
+an adjacent duplicate cold audit. Missing, foreign or substituted observers
+fail before endpoint access; non-shared profiles keep their explicit cold audit.
+The driver still brackets every ROM read/write with fresh ownership and timer
+checks. The joined C fixture runs the actual ROM predicate, trusted boot
+constructor, board/USB composition and strong CPU/master callback: 47 cases cover
+binding/state/CPU drift and preserve independent device readiness. It measures
+52 cold-register reads per callback versus 104 with the duplicated audit; this
+is an off-board access count, not physical transfer timing.
+
 A failed strong-provider ROM load emits one `FES_NANO_ROM_FAILURE` record after
 the existing control gate invokes containment. It records the failed ownership
 scope, transfer phase/result, private driver error, access counts, last observed
 read offset/value, write offset and timer samples. These are cached during the
 original checks and accesses; reporting performs no new endpoint, ownership or
 timer reads and cannot retry the transfer. It does not log ROM payload words.
+It also counts ownership callbacks and the total/maximum completed intervals
+between their existing timer samples, with pending/invalid accounting flags.
+These counters add no timer reads. The C/RTL fixture charges a known modeled
+supplier cost and checks exact accounting on successful transfers.
 The existing failure reply still clears provenance and retires the activation.
 The C/RTL fixture checks containment-before-report, one emission, unchanged
 access counts on repeated reports, and both ROM sizes across integrity, scope,
