@@ -5,6 +5,15 @@ the kit, show MENU, install and launch a core, deliver input/media, stop back to
 MENU, and recover/update through supported interfaces. Native CPU maintenance
 and JTAG diagnostics are intermediate evidence only.
 
+Expansion selection is static for the next launch, matching the DE10 workflow.
+The DE25 target's AArch64 CPU composes and verifies the full base plus selected
+persona before the runtime starts the core or allocates its display. Changing
+selection requires ordinary Stop and a new full base load. Live expansion
+replacement is outside this milestone; using a partial image does not change
+that lifecycle. The [startup preparation record](../validation/2026-11-05-de25-static-expansion-offboard/README.md)
+separates tested CPU/model behavior from normal package admission and physical
+configuration, which remain required.
+
 The [3 November Terasic-based factory proof](../validation/2026-11-03-de25-terasic-managed-factory/README.md)
 now completes ordinary source compilation, sealed MENU admission, actual
 kernel/rootfs virtual boot, release, bootstrap and two-pass card construction.

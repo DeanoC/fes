@@ -318,7 +318,8 @@ def resolve_launcher_config(agent_config, scratch, *, auto=False):
         endpoint = urlsplit(value['api'])
         validate_launcher_token(value['token'], agent.get('token'))
         if (set(value) != {'api', 'token', 'target_id'} or endpoint.scheme != 'http'
-                or endpoint.port != 8789 or endpoint.path or endpoint.query or endpoint.fragment
+                or endpoint.port is None or not 1 <= endpoint.port <= 65535
+                or endpoint.path or endpoint.query or endpoint.fragment
                 or endpoint.username or endpoint.password or not endpoint.hostname
                 or not value['target_id'] or value['target_id'] != agent.get('target_id')):
             raise ValueError()

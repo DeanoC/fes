@@ -455,6 +455,8 @@ Normal local `make media` automatically embeds the prepared companion as
 `/fogcast/launcher.json` beside the generated agent configuration. When using a
 nondefault host configuration, pass the same absolute `FES_HOST_CONFIG` to media
 assembly. Assembly requires the launcher and agent target identities to match.
+It preserves the prepared address and explicit port, including a dedicated
+listener selected with `--host-port`.
 `CI=true`, `FES_UNPROVISIONED=1`, and explicit `AGENT_CONFIG` do not discover a
 launcher companion. Without a prepared companion, existing agent-only media
 behavior is preserved.
