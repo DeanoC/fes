@@ -5,8 +5,9 @@ and read back a guest file after Stop and relaunch. In a separate Digger flight,
 the captured player changed facing after one guarded left input. Captured audio
 showed signal, near-silence and signal across three F9 windows. This is a
 bounded game and speaker smoke; the player was essentially stationary and
-sustained gameplay was not established. Audible quality was not assessed by
-listening.
+sustained gameplay was not established. Deano listened to an excerpt and found
+the sound identifiable and acceptable, but did not know the original audio, so
+this was not a fidelity comparison.
 
 The sealed `fes.pcxt-dos` package was produced from main
 `bb87b9b657bf9f1826dd1b9e001736e7bd8484ee` and selected by the normal
@@ -37,7 +38,7 @@ capture found a right-facing player at encoded PTS 128.9 seconds and a
 left-facing player around 131.2 seconds after the recorded left input. The
 three recorded F9 windows had left-channel, DC-subtracted RMS values of about
 1467, 0.11 and 1463 signed 16-bit counts, respectively. These observations
-show a captured speaker response, not a judgment of sound quality. The audio
+show a captured speaker response, not original-audio fidelity. The audio
 and video capture clocks and buffering were not calibrated for target timing.
 External IO, HPS and reset timing remain separate from this smoke.
 
