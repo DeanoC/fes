@@ -191,6 +191,14 @@ revision, Go toolchain identity and exact build flags. Retained bootstrap
 verification rejects a stale platform or appliance-module identity. Absolute
 checkout paths are not stored in receipts or manifests.
 
+The DE25 bootstrap also includes the checked-in Realtek USB Bluetooth firmware
+and its licence in `/lib/firmware/rtl_bt`. Its built-in USB driver can probe before
+the managed root is mounted, so firmware in that later root alone is insufficient.
+The assembler verifies the closed checksum inventory before construction and
+reads every file back from both independently constructed bootstrap files.
+Firmware and checksum-manifest hashes enter the bootstrap identity and retained
+source checks. This packaging change still requires native Bluetooth acceptance.
+
 `card.img` is a file, never an automatic block-device write. The directory also
 contains external evidence. Both commands use the existing exclusive media lease;
 verification reconstructs the complete card bytes using the same source-bound

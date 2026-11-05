@@ -39,6 +39,10 @@ BOOTSTRAP_RECIPE_FILES = ('scripts/appliance.py','scripts/appliance_inside.py','
                           'scripts/media_container.py','scripts/media_inputs.py','scripts/media_uboot.py',
                           'scripts/platform.py','scripts/de25_appliance.py')
 PROFILES = {BOARD: 'native-integration-dev', 'de25-nano': 'de25-nano'}
+BOOTSTRAP_FIRMWARE_DIRECTORY = 'image/firmware/rtl_bt'
+BOOTSTRAP_FIRMWARE_NAMES = ('rtl8821c_fw.bin', 'rtl8821c_config.bin',
+                            'rtl8761bu_fw.bin', 'rtl8761bu_config.bin',
+                            'LICENCE.rtlwifi_firmware.txt')
 
 
 def canonical(data):
@@ -289,8 +293,29 @@ def require_sealed_bundle(path,names):
             raise ValueError('existing artifact file is not sealed: '+name)
 
 
-def bootstrap_recipe(root):
-    return {name:digest(regular(Path(root)/name)) for name in BOOTSTRAP_RECIPE_FILES}
+def bootstrap_firmware(root, *, board=BOARD):
+    """Firmware needed by built-in DE25 USB drivers before managed-root switch."""
+    if selected_board(board) == BOARD:
+        return {}
+    directory = Path(root)/BOOTSTRAP_FIRMWARE_DIRECTORY
+    entries = {}
+    for line in regular(directory/'SHA256SUMS').read_text().splitlines():
+        match = re.fullmatch(r'([0-9a-f]{64})  ([A-Za-z0-9_.-]+)', line)
+        if not match or match[2] in entries:
+            raise ValueError('invalid bootstrap firmware checksum inventory')
+        entries[match[2]] = match[1]
+    if set(entries) != set(BOOTSTRAP_FIRMWARE_NAMES):
+        raise ValueError('bootstrap firmware checksum inventory differs')
+    for name, expected in entries.items():
+        if digest(regular(directory/name)) != expected:
+            raise ValueError('bootstrap firmware checksum differs: '+name)
+    return {str(Path(BOOTSTRAP_FIRMWARE_DIRECTORY)/name): entries[name]
+            for name in BOOTSTRAP_FIRMWARE_NAMES} | {
+                str(Path(BOOTSTRAP_FIRMWARE_DIRECTORY)/'SHA256SUMS'): digest(directory/'SHA256SUMS')}
+
+
+def bootstrap_recipe(root, *, board=BOARD):
+    return {name:digest(regular(Path(root)/name)) for name in BOOTSTRAP_RECIPE_FILES} | bootstrap_firmware(root, board=board)
 
 
 def bootstrap_identity(binary_sha,factory,container,assembly_revision,recipe,platform_build=None,*,board=BOARD):
@@ -409,7 +434,7 @@ def assemble_bootstrap(output,bootstrap_binary,factory_manifest,kernel,*,runner,
             raise ValueError('platform build FogCast revision differs from bootstrap source revision')
     elif binary_source_revision is not None or assembly_revision is not None:
         raise ValueError('source-bound bootstrap requires platform build provenance')
-    recipe=bootstrap_recipe(runner.root)
+    recipe=bootstrap_recipe(runner.root,board=board)
     output.parent.mkdir(parents=True,exist_ok=True)
     with tempfile.TemporaryDirectory(prefix='.bootstrap-',dir=output.parent) as temporary:
         scratch=Path(temporary)
@@ -425,7 +450,7 @@ def assemble_bootstrap(output,bootstrap_binary,factory_manifest,kernel,*,runner,
         first,second=results
         if first!=second or digest(scratch/'first.img')!=first['image_sha256'] or digest(scratch/'second.img')!=first['image_sha256']:
             raise ValueError('bootstrap two-pass reproducibility failed')
-        if bootstrap_recipe(runner.root)!=recipe:
+        if bootstrap_recipe(runner.root,board=board)!=recipe:
             raise ValueError('bootstrap assembly recipe changed during construction')
         evidence={'format':1,'kind':'fes-stable-bootstrap','boot_abi':BOOT_ABI,'board':board,'bootstrap_sha256':first['image_sha256'],
             'bootstrap_binary_sha256':binary_sha,'binary_source_revision':binary_source_revision,
@@ -523,7 +548,7 @@ def main():
                     build_args={} if args.board==BOARD else {'architecture':bootstrap_architecture(args.board)}
                     binary_sha,platform_build=fes_platform.build_static_arm(root,fogcast,binary,env,**build_args)
                     assembly_revision=media.cold_build.git(root,'rev-parse','HEAD')
-                    identity=bootstrap_identity(binary_sha,factory,container,assembly_revision,bootstrap_recipe(root),platform_build,**artifact_args)
+                    identity=bootstrap_identity(binary_sha,factory,container,assembly_revision,bootstrap_recipe(root,board=args.board),platform_build,**artifact_args)
                     output=args.output or root/'out'/args.profile/'appliance/bootstrap'/identity
                     result=assemble_bootstrap(output,binary,factory_snapshot,kernel,runner=runner,
                         binary_source_revision=platform_build['fogcast_revision'],assembly_revision=assembly_revision,platform_build=platform_build,**artifact_args)

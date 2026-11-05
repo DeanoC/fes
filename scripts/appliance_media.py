@@ -90,7 +90,7 @@ def retained_assembly_revision(root,bootstrap_directory,fogcast,*,board=applianc
         raise ValueError('bootstrap lacks platform build provenance')
     # Bind the retained provenance selector to real repository source bytes.
     # Exact reconstructed evidence below checks the remaining fields and schema.
-    for name,expected in appliance.bootstrap_recipe(root).items():
+    for name,expected in appliance.bootstrap_recipe(root,board=board).items():
         source=subprocess.check_output(['git','-C',str(root),'show',f'{revision}:{name}'],stderr=subprocess.DEVNULL)
         if hashlib.sha256(source).hexdigest()!=expected:
             raise ValueError('bootstrap assembly revision differs from current recipe')
