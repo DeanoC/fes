@@ -1452,7 +1452,8 @@ workload's time. In DOOM, the column drawer's loop-back branch alone is 10%
 of all clocks. In Wolfenstein 3D, one seven-instruction loop is 60% of all
 clocks, and its loop-back branch is 35%. 3DBench takes a quarter of its taken
 branches through LOOP. Redirects after far CALL and RETF are 2.2% of
-Wolfenstein 3D's clocks and none of DOOM's or 3DBench's.
+Wolfenstein 3D's clocks, 0.02% of DOOM's (in protected mode) and none of
+3DBench's.
 
 ### Estimated gains
 
@@ -1596,7 +1597,8 @@ it runs uncapped.
      BTB and return stack with their selector. The CS base travels with the
      uop and is checked at EX.
    - **Condition.** Only if another real-mode game or benchmark shows more
-     than Wolfenstein 3D's 1.6%. 3DBench and DOOM show none.
+     than Wolfenstein 3D's 1.6%. 3DBench has no far branches, and DOOM's
+     are in protected mode.
    - **Risk.** Moderate: the far selector's displacement add already
      limited a D route.
 
