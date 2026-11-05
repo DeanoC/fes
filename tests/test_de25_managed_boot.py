@@ -178,6 +178,33 @@ class ManagedBootTests(unittest.TestCase):
                         BOOT.authenticated_image(directory, profile)
                 run.assert_not_called(); check.assert_not_called()
 
+    def test_missing_or_substituted_locked_builder_refuses_before_guest(self):
+        # Exercise the real immutable-ID selector: a newer generic builder is
+        # neither a substitute nor a reason to run the guest under another SDK.
+        for code, identity in ((1, ''), (0, 'sha256:' + '0' * 64)):
+            with self.subTest(code=code, identity=identity), tempfile.TemporaryDirectory() as temporary:
+                root = Path(temporary)
+                directory, _ = self.fixture(root)
+                args = SimpleNamespace(kernel=None, sdk=None, artifacts=None,
+                    image_profile='managed-base', boot_output=root / 'new-proof',
+                    output=directory, container_runtime='docker')
+                with mock.patch.object(BOOT.image, 'snapshot', return_value=('a' * 40, root / 'source')), \
+                        mock.patch.object(BOOT, 'authenticated_image', return_value={}), \
+                        mock.patch.object(BOOT.shutil, 'disk_usage', return_value=SimpleNamespace(free=40*1024**3)), \
+                        mock.patch.object(BOOT.base.owner.dep.subprocess, 'run',
+                            return_value=SimpleNamespace(returncode=code, stdout=identity)) as inspect, \
+                        mock.patch.object(BOOT.image, 'ensure_builder') as generic, \
+                        mock.patch.object(BOOT.image, 'run') as run:
+                    with self.assertRaisesRegex(ValueError, 'locked kernel/SDK builder is unavailable or differs'):
+                        BOOT.publish(args)
+                    inspect.assert_called_once_with(['docker', 'image', 'inspect',
+                        BOOT.base.sdk_lock()['builder_image'], '--format', '{{.Id}}'],
+                        capture_output=True, text=True)
+                    generic.assert_not_called()
+                    run.assert_not_called()
+                self.assertFalse((args.boot_output / 'boot.json').exists())
+                self.assertFalse((args.boot_output / 'qemu-smoke.log').exists())
+
     def test_host_requires_explicit_profile_and_new_disjoint_output(self):
         with tempfile.TemporaryDirectory() as temporary:
             directory, output = self.fixture(Path(temporary))

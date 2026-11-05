@@ -326,9 +326,7 @@ def publish(args):
         # Immutable output generations share one serialized compiler/base cache.
         # The key inside the volume still separates recipe, SDK and kernel policy.
         volume = 'fes-de25-factory-' + hashlib.sha256((str(ROOT) + '\0' + str(cache)).encode()).hexdigest()[:16]
-        builder = image.ensure_builder(source, args.container_runtime, volume)
-        if builder != base.sdk_lock()['builder_image']:
-            raise ValueError('factory builder differs from owner-kernel lock')
+        builder = base.owner.dep.locked_builder(args.container_runtime, base.sdk_lock(), volume)
         if not verify:
             base.stage_kernel_sdk(args.kernel, args.sdk, output, cache)
             base.platform_build.build_bluetooth(source, fogcast, env, 'aarch64')

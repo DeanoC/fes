@@ -71,6 +71,11 @@ python3 image/de25-nano/build.py verify-base \
   --output out/de25-managed-base --cache out/de25-linux-cache
 ```
 
+Managed base/factory assembly and virtual boot select the immutable builder
+from the owner-kernel SDK lock; a missing or different image is refused before
+compilation or guest execution. The separately updated headless-image builder
+does not replace that locked environment.
+
 This requires committed sources and uses the existing authenticated builder,
 download cache and filesystem assembly. It exports rootfs ext4/tar, a developer
 SDK, the matching kernel files and source-bound receipts. Verification checks

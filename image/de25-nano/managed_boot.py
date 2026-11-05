@@ -235,9 +235,7 @@ def publish(args):
         output.mkdir(parents=True)
         with image.output_lock(output):
             volume = 'fes-de25-boot-' + hashlib.sha256(str(output).encode()).hexdigest()[:16]
-            builder = image.ensure_builder(source, args.container_runtime, volume)
-            if builder != base.sdk_lock()['builder_image']:
-                raise ValueError('boot smoke builder differs from owner-kernel lock')
+            builder = base.owner.dep.locked_builder(args.container_runtime, base.sdk_lock(), volume)
             image.run([args.container_runtime, 'run', '--rm', '--name', volume,
                        '--platform', 'linux/amd64', '--network', 'none', '--cap-drop=ALL',
                        '--security-opt=no-new-privileges', '--read-only', '--tmpfs', '/tmp:rw,nosuid,nodev',
