@@ -1035,3 +1035,29 @@ receipt binds that case to the completed restoration.
 [display-retirement-stress-native.json](display-retirement-stress-native.json)
 records the final result. No main baseline is promoted and the top board remains
 untouched. Full normal-kit acceptance remains open.
+
+## Native crash with the allocated chooser visible
+
+Collector `c51c82195` records one exact runtime SIGKILL with the source-a35
+qualified core and retained source-510 bundle `4ecf08d8`. The media chooser is
+captured on HDMI and cached owner metadata reports allocation generation 19 as
+EXPOSED, without errors or underflows, before the pidfd-bound crash. The original
+recorder fails in 16.058 seconds on a transient API connection loss during group
+replacement; that recording remains failed and no second crash is injected.
+
+A separate 45.905-second observation verifies the same replacement group, ten
+seconds of stable readiness, the exact newly staged MENU payload and healthy
+allocation, and host reconciliation of the lost session. A fresh catalog ZX81
+session then displays 7, opens the real chooser, returns machine focus, displays
+9 and stops to FES Home. All five captures are visually checked. This does not
+resume the lost guest, force the partially drained EAGAIN case, prove the later
+runtime repair, or supply physical USB, audio or PR acceptance.
+
+The named `a14a` baseline is restored and authenticated at generation 34 in the
+same `e8d10b71` boot, with unchanged image, kernel and card. Original host, catalog
+and preference absence are restored; owned fixtures are removed and the board is
+released idle and lease-free. The top board is untouched. The failed original
+recorder conservatively consumes the second failure allowance for source 510;
+no further HIL on that source is planned before a source repair.
+[allocated-display-crash-native.json](allocated-display-crash-native.json)
+keeps the separate recording outcomes, identities, image hashes and restoration.

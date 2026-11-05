@@ -48,7 +48,13 @@ Captured images show the media chooser and return to the ZX81 K cursor. This
 uses virtual keyboard input; the intermittent fault is neither reproduced nor
 fixed, and this case adds no BASIC, physical USB, audio or PR acceptance.
 
-The latest final restoration verifies baseline `a14a` at software generation 32 in boot
+An additional [allocated-chooser crash trial](../validation/2026-11-04-de25-standard-zx81/README.md#native-crash-with-the-allocated-chooser-visible)
+records one runtime crash with an exposed display allocation, followed by
+automatic MENU recovery and a fresh ZX81 session. It uses the retained
+source-510 software; the later inherited-drain repair still needs its own native
+acceptance.
+
+The latest final restoration verifies baseline `a14a` at software generation 34 in boot
 `e8d10b71-cb1e-4061-bc93-81e4dc51754b`, with the same image, kernel and card. The
 original host, catalog and settings are restored, owned fixtures are removed,
 and the board is independently verified ready, idle and lease-free before
