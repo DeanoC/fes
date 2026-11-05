@@ -94,7 +94,13 @@ func TestUnpairedHostBusyDoesNotMarkInstalledCoreInUse(t *testing.T) {
 	}
 }
 
-func adoptTestLocalRun(app *App) {
+func adoptTestLocalRun(app *App, fake *fakeLocalCores) {
+	fake.mu.Lock()
+	if !fake.statusSet {
+		fake.status = localcores.RunStatus{Phase: "running", Running: true, CoreID: "fes.pong", PackageID: tenfootPongID, Generation: strings.Repeat("a", 64)}
+		fake.statusSet = true
+	}
+	fake.mu.Unlock()
 	app.mu.Lock()
 	defer app.mu.Unlock()
 	app.localStartupStatusChecked = true
@@ -119,7 +125,7 @@ func TestLocalStatusIdleWhileRunningResumes(t *testing.T) {
 	if fake.statusCount() != polled {
 		t.Fatalf("kept polling after idle startup: %d -> %d", polled, fake.statusCount())
 	}
-	adoptTestLocalRun(app)
+	adoptTestLocalRun(app, fake)
 	fake.setStatus(localcores.RunStatus{Phase: "idle", Running: false})
 	snap := waitFor(t, app, "status resume", func(s Snapshot) bool {
 		return !s.LocalCorePresentsPaused && s.LocalCorePhase == "" && s.LocalCoreRedraw >= 1 && roomTextHas(s, "resumed-1")
@@ -149,7 +155,7 @@ func TestLocalStatusPollIsSingleFlight(t *testing.T) {
 	waitFor(t, app, "pong tile", func(s Snapshot) bool {
 		return s.Room.Destination.CoreLaunchable && s.Room.Destination.Label == "FES Pong"
 	})
-	adoptTestLocalRun(app)
+	adoptTestLocalRun(app, fake)
 	waitFor(t, app, "running", func(s Snapshot) bool {
 		return s.LocalCorePhase == localPhaseRunning
 	})
@@ -183,7 +189,7 @@ func TestStaleLocalStatusPollDoesNotResumeAfterFailedStop(t *testing.T) {
 	waitFor(t, app, "pong tile", func(s Snapshot) bool {
 		return s.Room.Destination.CoreLaunchable
 	})
-	adoptTestLocalRun(app)
+	adoptTestLocalRun(app, fake)
 	waitFor(t, app, "running", func(s Snapshot) bool {
 		return s.LocalCorePhase == localPhaseRunning && s.LocalCorePresentsPaused
 	})
@@ -230,7 +236,7 @@ func TestLocalStopInUseResumes(t *testing.T) {
 	waitFor(t, app, "pong tile", func(s Snapshot) bool {
 		return s.Room.Destination.Label == "FES Pong" && s.Room.Destination.CoreLaunchable
 	})
-	adoptTestLocalRun(app)
+	adoptTestLocalRun(app, fake)
 	waitFor(t, app, "running", func(s Snapshot) bool {
 		return s.LocalCorePhase == localPhaseRunning && s.LocalCorePresentsPaused
 	})
@@ -255,7 +261,7 @@ func TestLocalStopUnavailableStaysRunning(t *testing.T) {
 	waitFor(t, app, "pong tile", func(s Snapshot) bool {
 		return s.Room.Destination.CoreLaunchable
 	})
-	adoptTestLocalRun(app)
+	adoptTestLocalRun(app, fake)
 	waitFor(t, app, "running", func(s Snapshot) bool {
 		return s.LocalCorePhase == localPhaseRunning && s.LocalCorePresentsPaused
 	})
@@ -283,7 +289,7 @@ func TestChordCompletingEventIsNotForwarded(t *testing.T) {
 	waitFor(t, app, "pong tile", func(s Snapshot) bool {
 		return s.Room.Destination.Label == "FES Pong"
 	})
-	adoptTestLocalRun(app)
+	adoptTestLocalRun(app, fake)
 	waitFor(t, app, "running", func(s Snapshot) bool {
 		return s.LocalCorePhase == localPhaseRunning
 	})
