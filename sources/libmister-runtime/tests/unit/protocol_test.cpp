@@ -890,6 +890,33 @@ void TestFormat3InspectionSerialization()
 		RomPackageResponseFixtures());
 }
 
+void TestStaticPackageInspectionSerialization()
+{
+	mister::CorePackageInspection inspection;
+	inspection.package_id = std::string(64, 'a');
+	inspection.descriptor = FixtureDescriptor();
+	auto& d = inspection.descriptor;
+	d.format = 5;
+	d.target = {"de25_nano", "A5EB013BB23BE4SCS", "de25-linux-static-computer-v1"};
+	auto& s = d.static_expansion;
+	s.file = "persona.rbf"; s.size = 26; s.sha256 = std::string(64, 'a');
+	s.control_build_id = std::string(32, '1'); s.hardware_id = 0xc001a001u;
+	s.root_qdb_sha256 = std::string(64, '2'); s.interface_sha256 = std::string(64, '3');
+	s.clock_reset_sha256 = std::string(64, '4'); s.pof0_hash = std::string(64, '5');
+	inspection.compatibility_error = {ErrorCode::unsupported_programming_profile, "static profile not registered", "admission"};
+	const auto response = mister::daemon::EncodeResponse(2, true, Status{}, "fixture", &inspection);
+	mister::daemon::json::Value parsed; std::string message;
+	assert(mister::daemon::json::ParseResponse(response, &parsed, &message));
+	const std::string fields = "\"static_expansion\":{\"file\":\"persona.rbf\",\"size\":26,\"sha256\":\"" +
+		s.sha256 + "\",\"control_build_id\":\"" + s.control_build_id + "\",\"hardware_id\":3221331969," +
+		"\"root_qdb_sha256\":\"" + s.root_qdb_sha256 + "\",\"interface_sha256\":\"" + s.interface_sha256 +
+		"\",\"clock_reset_sha256\":\"" + s.clock_reset_sha256 + "\",\"pof0_hash\":\"" + s.pof0_hash + "\"}";
+	assert(response.find(fields) != std::string::npos);
+	assert(response.find("unsupported_programming_profile") != std::string::npos);
+	d.format = 2;
+	assert(mister::daemon::EncodeResponse(2, true, Status{}, "fixture", &inspection).find("static_expansion") == std::string::npos);
+}
+
 void TestMouseRelativeRequests()
 {
 	Request r;
@@ -1513,6 +1540,7 @@ int main(int argc, char** argv)
 	TestSlotCompositionProtocol();
 	TestComputerResponseFixtures();
 	TestFormat3InspectionSerialization();
+	TestStaticPackageInspectionSerialization();
 	TestROMLoadProtocol();
 	TestPcxtInitialLoadProtocol();
 	TestTwoSourceROMLoadProtocol();
@@ -1536,5 +1564,5 @@ int main(int argc, char** argv)
 	TestSyntaxAndShapeFailures();
 	TestErrorCodeNames();
 	TestStatusErrorIsIndependentOfResponseOk();
-	std::cout << "protocol_test: 27 tests passed\n";
+	std::cout << "protocol_test: all groups passed\n";
 }

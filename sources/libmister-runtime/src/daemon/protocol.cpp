@@ -485,6 +485,19 @@ void AppendDescriptor(BoundedOutput* output, const CoreDescriptor& descriptor)
 		output->Append(",\"sha256\":"); AppendQuoted(output, descriptor.rom_map.sha256);
 		output->Append("}");
 	}
+	if (descriptor.format == 5) {
+		const auto& s = descriptor.static_expansion;
+		output->Append(",\"static_expansion\":{\"file\":"); AppendQuoted(output, s.file);
+		output->Append(",\"size\":"); output->Append(std::to_string(s.size));
+		output->Append(",\"sha256\":"); AppendQuoted(output, s.sha256);
+		output->Append(",\"control_build_id\":"); AppendQuoted(output, s.control_build_id);
+		output->Append(",\"hardware_id\":"); output->Append(std::to_string(s.hardware_id));
+		output->Append(",\"root_qdb_sha256\":"); AppendQuoted(output, s.root_qdb_sha256);
+		output->Append(",\"interface_sha256\":"); AppendQuoted(output, s.interface_sha256);
+		output->Append(",\"clock_reset_sha256\":"); AppendQuoted(output, s.clock_reset_sha256);
+		output->Append(",\"pof0_hash\":"); AppendQuoted(output, s.pof0_hash);
+		output->Append("}");
+	}
 	output->Append(",\"abi\":");
 	AppendContract(output, descriptor.abi);
 	output->Append(",\"interfaces\":[");

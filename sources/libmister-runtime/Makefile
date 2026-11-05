@@ -204,9 +204,9 @@ $(BUILD_DIR)/tests/unit/core_package_test: tests/unit/core_package_test.cpp \
 		src/native/core_package.cpp src/native/core_driver.cpp src/native/sha256.cpp \
 		src/native/artifacts.cpp src/native/diagnostic.cpp -o "$@"
 
-$(BUILD_DIR)/tests/unit/core_composition_test: tests/unit/core_composition_test.cpp src/native/core_composition.cpp src/native/sha256.cpp src/native/artifacts.cpp src/native/diagnostic.cpp
+$(BUILD_DIR)/tests/unit/core_composition_test: tests/unit/core_composition_test.cpp src/native/core_composition.cpp src/native/core_package.cpp src/native/core_driver.cpp src/native/sha256.cpp src/native/artifacts.cpp src/native/diagnostic.cpp src/daemon/json.cpp
 	@mkdir -p "$(dir $@)"
-	$(CXX) $(TEST_CPPFLAGS) $(CXXFLAGS) tests/unit/core_composition_test.cpp src/native/core_composition.cpp src/native/sha256.cpp src/native/artifacts.cpp src/native/diagnostic.cpp -o "$@"
+	$(CXX) $(TEST_CPPFLAGS) $(CXXFLAGS) tests/unit/core_composition_test.cpp src/native/core_composition.cpp src/native/core_package.cpp src/native/core_driver.cpp src/native/sha256.cpp src/native/artifacts.cpp src/native/diagnostic.cpp src/daemon/json.cpp -o "$@"
 
 $(BUILD_DIR)/tests/unit/media_data_test: tests/unit/media_data_test.cpp src/native/media_data.cpp src/native/sha256.cpp src/daemon/json.cpp
 	@mkdir -p "$(dir $@)"

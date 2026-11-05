@@ -47,8 +47,23 @@ independently. A third member, strict static metadata and a separate
 Recheck hashes both retained descriptors again, including persona size and file
 type. Shared fixtures cover cross-reader identity and refusal, while the
 programming registry deliberately has no static-computer row yet. Parsing does
-not select a driver or call `ProgramStatic`. Alternate-persona composition,
-owned bounded backend construction and physical qualification remain required.
+not select a driver or call `ProgramStatic`. Normal launch dispatch, owned
+bounded backend construction and physical qualification remain required.
+
+`OpenCoreStaticComposition` independently recomputes the format5 default or
+format2 selected-persona receipt. A selected asset must use the canonical
+DE25 partial manifest, bind the exact package/build/base, and match its
+controller, root QDB, interface, clock/reset and POF0 identities. Closed,
+no-follow directory opening retains its manifest and partial image. Recheck
+hashes the base package (including its default persona) and selected retained
+files, then verifies the receipt again. The persona accessor returns the
+retained default or selected artifact; neither image is edited. Shared
+Python/Go vectors exercise both choices and reject tampering and path aliases.
+The full-chip composition path refuses format5. This structural function adds
+no command, device access or profile registration.
+Protocol-2 package inspection includes the complete `static_expansion` object
+for format5, including when compatibility is refused. Other package formats
+retain their existing response bytes.
 
 `LinuxDe25FpgaManager` implements `FpgaManager` for the selected
 `de25_hps_first_v1` computer and `de25_linux_menu_v1` application profiles.

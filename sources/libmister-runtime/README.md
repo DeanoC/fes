@@ -12,8 +12,11 @@ The package reader recognizes format5's sealed full base and default empty
 persona, retains both open artifacts and rechecks their exact bytes. Its package
 identity matches FogCast's three-member identity and shared conformance corpus.
 The static programming profile remains unregistered and is refused before
-hardware access; this structural support does not enable physical PR, an
-alternate-persona selection or a new runtime command.
+hardware access. Structural static-composition admission also verifies an
+optional format2 partial asset against the exact package, base, build and frozen
+root identities. It recomputes FogCast's default/selected receipt and retains
+the selected files for recheck. This does not enable physical PR or add a
+runtime command.
 
 Production hardware construction selects the board before constructing physical
 adapters. DE10 requires ARMv7 and the exact FES Cyclone V device-tree identity.

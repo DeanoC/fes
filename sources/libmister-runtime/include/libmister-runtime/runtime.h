@@ -259,6 +259,19 @@ struct CoreCompositionRequest {
 	CoreComposition composition;
 };
 
+// Cold-start selection over two separate, unchanged vendor images. An empty
+// expansion_id chooses the package's sealed default persona.
+struct CoreStaticComposition {
+	std::string id, package_id, expansion_id, base_sha256, persona_sha256, control_build_id;
+	std::uint64_t base_size = 0, persona_size = 0;
+	std::uint32_t hardware_id = 0;
+};
+
+struct CoreStaticCompositionRequest {
+	std::string expansion_path;
+	CoreStaticComposition composition;
+};
+
 struct CoreROMLink {
 	std::string rom_id, map_sha256, source_sha256, programmed_sha256;
 	std::uint64_t source_size = 0, programmed_size = 0;
