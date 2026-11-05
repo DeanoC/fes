@@ -128,7 +128,7 @@ class SoftwareWorkflowTests(unittest.TestCase):
         with patch.object(kit, 'run', side_effect=builder):
             kit.build_go(self.root, 'v1', 'b' * 40, {})
         self.assertEqual([c[0][-1] for c in calls[:4]],
-                         ['./cmd/mister-agent', './cmd/fogcast-kit', './cmd/fogcast-tenfoot', './cmd/fes-kit-bundle'])
+                         ['./cmd/mister-agent', './cmd/fogcast-api', './cmd/fogcast-tenfoot', './cmd/fes-kit-bundle'])
         self.assertEqual([c[1]['env']['GOARCH'] for c in calls[:4]], ['arm', 'arm', 'arm', 'amd64'])
         for args, kw in calls[:4]:
             self.assertIn('-trimpath', args)

@@ -15,7 +15,9 @@ LABEL org.fogcast.target-image.base-digest="${BASE_DIGEST}" \
 
 ENV DEBIAN_FRONTEND=noninteractive
 
-RUN rm -f /etc/apt/sources.list.d/debian.sources \
+RUN printf 'Acquire::http::Timeout "30";\nAcquire::https::Timeout "30";\nAcquire::Retries "5";\n' \
+      > /etc/apt/apt.conf.d/80-ci-timeouts \
+ && rm -f /etc/apt/sources.list.d/debian.sources \
  && printf '%s\n' \
       'deb [check-valid-until=no] http://snapshot.debian.org/archive/debian/20260801T120000Z bookworm main' \
       'deb [check-valid-until=no] http://snapshot.debian.org/archive/debian/20260801T120000Z bookworm-updates main' \

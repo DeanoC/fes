@@ -10,6 +10,7 @@ import (
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -17,6 +18,7 @@ import (
 	"github.com/DeanoC/FogCast/catalog"
 	"github.com/DeanoC/FogCast/corepackage"
 	"github.com/DeanoC/FogCast/fogcast"
+	"github.com/DeanoC/FogCast/hostclient"
 	"github.com/DeanoC/FogCast/internal/hostapi"
 	"github.com/DeanoC/FogCast/protocol"
 )
@@ -415,4 +417,68 @@ func routingActivePackageStatus(packageID string) protocol.Status {
 	}
 	coreID := "fes.pong"
 	return protocol.Status{State: protocol.StateActive, Development: true, ObservedCore: &coreID, CorePackage: inspection}
+}
+
+type restartedKitHostService struct{ *fogcast.Service }
+
+func (*restartedKitHostService) KitHostMode() bool { return true }
+
+// A new host can attach to an agent that kept running a package but does not
+// retain the library game ID. Its generation-bound Stop must reject a newer
+// package generation before accepting the original one.
+func TestRestartedHostStopsReattachedPackageWithoutGameID(t *testing.T) {
+	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
+	defer cancel()
+	kit := newRoutingKit("kit", routingDevID, routingDevBoot, "token-kit")
+	kit.held = true
+	kit.status = routingActivePackageStatus(strings.Repeat("a", 64))
+	agent := httptest.NewServer(kit)
+	defer agent.Close()
+	root := t.TempDir()
+	configPath := filepath.Join(root, "config.toml")
+	config := fmt.Sprintf(`selected_target = "kit"
+request_timeout_seconds = 5
+upload_timeout_seconds = 5
+[[targets]]
+name = "kit"
+enabled = true
+address = %q
+agent = "token-kit"
+target_id = %q
+`, agent.URL, routingDevID)
+	if err := os.WriteFile(configPath, []byte(config), 0600); err != nil {
+		t.Fatal(err)
+	}
+	paths := fogcast.Paths{Config: configPath, Index: filepath.Join(root, "state", "library.sqlite3"), Staging: filepath.Join(root, "staging"), CorePackages: filepath.Join(root, "packages")}
+	service, err := fogcast.Open(ctx, paths, &http.Client{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer service.Close()
+	// Emulate the original grant being recovered by the restarted kit host.
+	claim, _ := http.NewRequestWithContext(ctx, http.MethodPost, agent.URL+"/v1/launch", nil)
+	if err := service.KitLease().Authorize(claim, true); err != nil {
+		t.Fatal(err)
+	}
+	server := httptest.NewServer(hostapi.New(&restartedKitHostService{service}))
+	defer server.Close()
+	client := hostclient.NewClient(server.URL, server.Client())
+	session, err := client.Session(ctx)
+	if err != nil || session.GameID != "" || session.ID == "" || session.Target != "kit" || session.TargetID != routingDevID || session.CorePackage == nil || session.CorePackage.Generation != 1 {
+		t.Fatalf("reattached session=%+v err=%v", session, err)
+	}
+	kit.mu.Lock()
+	kit.status.CorePackage.Generation++
+	kit.mu.Unlock()
+	changed, err := client.StopExpectedStamped(ctx, session, hostclient.ClientStamp{})
+	if err != nil || changed.ErrorCode != "SESSION_CHANGED" || kit.count("POST /v1/stop") != 0 {
+		t.Fatalf("replacement status=%+v err=%v stops=%d", changed, err, kit.count("POST /v1/stop"))
+	}
+	kit.mu.Lock()
+	kit.status.CorePackage.Generation--
+	kit.mu.Unlock()
+	stopped, err := client.StopExpectedStamped(ctx, session, hostclient.ClientStamp{})
+	if err != nil || stopped.State != "idle" || kit.count("POST /v1/stop") != 1 || kit.count("POST /v1/kit/release") != 1 {
+		t.Fatalf("stop=%+v err=%v stop calls=%d releases=%d", stopped, err, kit.count("POST /v1/stop"), kit.count("POST /v1/kit/release"))
+	}
 }

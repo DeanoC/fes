@@ -1,0 +1,452 @@
+1970/01/01 00:00:22 software supervisor starting
+mister-runtime operation=start phase=validate system=- core=- error=none message=-
+mister-runtime operation=start phase=starting system=- core=- error=none message=-
+mister-runtime operation=start phase=preflight system=- core=- error=none message=-
+mister-runtime operation=start phase=hdmi_quiesce system=- core=- error=none message=-
+mister-runtime operation=start phase=program system=- core=- error=none message=-
+mister-runtime operation=start phase=hdmi_init system=- core=- error=none message=-
+mister-runtime operation=start phase=video_timing system=- core=- error=none message=-
+mister-runtime operation=start phase=hdmi_wake system=- core=- error=none message=-
+mister-runtime operation=start phase=hdmi_verify system=- core=- error=none message=recipe=menu_720p60 bus=/dev/i2c-1 address=0x39 power_before=0x50 power_after=0x10 link_status=0xf0
+mister-runtime operation=start phase=idle system=- core=- error=none message=-
+mister-runtime operation=load_core phase=input_stop system=- core=fes.menu error=none message=-
+mister-runtime operation=load_core phase=hdmi_quiesce system=- core=fes.menu error=none message=-
+mister-runtime operation=load_core phase=driver_quiesce system=- core=fes.menu error=none message=-
+mister-runtime operation=load_core phase=hps_ddr system=- core=fes.menu error=none message=-
+mister-runtime operation=start phase=hdmi_init system=- core=- error=none message=-
+mister-runtime operation=start phase=video_timing system=- core=- error=none message=-
+mister-runtime operation=start phase=hdmi_wake system=- core=- error=none message=-
+mister-runtime operation=start phase=hdmi_verify system=- core=- error=none message=recipe=menu_720p60 bus=/dev/i2c-1 address=0x39 power_before=0x50 power_after=0x10 link_status=0xf0
+mister-runtime operation=load_core phase=video system=- core=fes.menu error=none message=recipe=menu_720p60 bus=/dev/i2c-1 address=0x39 power_before=0x50 power_after=0x10 link_status=0xf0
+{"time":"1970-01-01T00:00:37.38563214Z","level":"INFO","msg":"appliance data partition bind skipped","reason":"trial","device":"/dev/mmcblk0p3"}
+{"time":"1970-01-01T00:00:37.38593625Z","level":"ERROR","msg":"appliance data partition bind failed","error":"appliance data partition unavailable: trial"}
+{"time":"1970-01-01T00:00:37.41187444Z","level":"WARN","msg":"cache entry excluded from verified inventory","category":"unfamiliar","size":512}
+menu-display: gamepad /dev/input/event0: controller port 1
+tenfoot: gamepad "USB gamepad           " 081f:e401 v0110 bus 3 guid 0300cb231f08000001e4000010010000: Super Famicom Controller
+{"time":"1970-01-01T00:00:55.96796847Z","level":"INFO","msg":"request","method":"POST","path":"/v1/kit/claim","route":"/v1/kit/claim","status":200,"duration":842810}
+{"time":"1970-01-01T00:01:13.83882283Z","level":"INFO","msg":"request","method":"POST","path":"unmatched","route":"unmatched","status":200,"duration":17869388880}
+{"time":"1970-01-01T00:01:14.60360762Z","level":"INFO","msg":"request","method":"POST","path":"/v1/kit/release","route":"/v1/kit/release","status":200,"duration":242730}
+1970/01/01 00:01:41 software process launcher fogcast-tenfoot pid 782 exited: <nil>
+1970/01/01 00:01:41 software process agent mister-agent pid 781 exited: <nil>
+1970/01/01 00:01:42 software process runtime mister-runtime pid 764 exited: signal: terminated
+mister-runtime operation=start phase=validate system=- core=- error=none message=-
+mister-runtime operation=start phase=starting system=- core=- error=none message=-
+mister-runtime operation=start phase=preflight system=- core=- error=none message=-
+mister-runtime operation=start phase=hdmi_quiesce system=- core=- error=none message=-
+mister-runtime operation=start phase=program system=- core=- error=none message=-
+mister-runtime operation=start phase=hdmi_init system=- core=- error=none message=-
+mister-runtime operation=start phase=video_timing system=- core=- error=none message=-
+mister-runtime operation=start phase=hdmi_wake system=- core=- error=none message=-
+mister-runtime operation=start phase=hdmi_verify system=- core=- error=none message=recipe=menu_720p60 bus=/dev/i2c-1 address=0x39 power_before=0x50 power_after=0x10 link_status=0xf0
+mister-runtime operation=start phase=idle system=- core=- error=none message=-
+mister-runtime operation=load_core phase=input_stop system=- core=fes.menu error=none message=-
+mister-runtime operation=load_core phase=hdmi_quiesce system=- core=fes.menu error=none message=-
+mister-runtime operation=load_core phase=driver_quiesce system=- core=fes.menu error=none message=-
+mister-runtime operation=load_core phase=hps_ddr system=- core=fes.menu error=none message=-
+mister-runtime operation=start phase=hdmi_init system=- core=- error=none message=-
+mister-runtime operation=start phase=video_timing system=- core=- error=none message=-
+mister-runtime operation=start phase=hdmi_wake system=- core=- error=none message=-
+mister-runtime operation=start phase=hdmi_verify system=- core=- error=none message=recipe=menu_720p60 bus=/dev/i2c-1 address=0x39 power_before=0x50 power_after=0x10 link_status=0xf0
+mister-runtime operation=load_core phase=video system=- core=fes.menu error=none message=recipe=menu_720p60 bus=/dev/i2c-1 address=0x39 power_before=0x50 power_after=0x10 link_status=0xf0
+{"time":"1970-01-01T00:01:46.36977306Z","level":"INFO","msg":"appliance data partition bound","device":"/dev/mmcblk0p3","paths":["cache","saves","core-data","launcher-cache","evidence"]}
+tenfoot: gamepad "USB gamepad           " 081f:e401 v0110 bus 3 guid 0300cb231f08000001e4000010010000: Super Famicom Controller
+menu-display: gamepad /dev/input/event0: controller port 1
+{"time":"1970-01-01T00:02:20.53347482Z","level":"WARN","msg":"cache entry excluded from verified inventory","category":"unfamiliar","size":4096}
+1970/01/01 00:02:36 INFO stale reboot watchdog disarmed
+1970/01/01 00:02:48 software process launcher fogcast-tenfoot pid 1325 exited: <nil>
+1970/01/01 00:02:49 software process agent mister-agent pid 1324 exited: <nil>
+1970/01/01 00:02:49 software process runtime mister-runtime pid 1321 exited: signal: terminated
+mister-runtime operation=start phase=validate system=- core=- error=none message=-
+mister-runtime operation=start phase=starting system=- core=- error=none message=-
+mister-runtime operation=start phase=preflight system=- core=- error=none message=-
+mister-runtime operation=start phase=hdmi_quiesce system=- core=- error=none message=-
+mister-runtime operation=start phase=program system=- core=- error=none message=-
+mister-runtime operation=start phase=hdmi_init system=- core=- error=none message=-
+mister-runtime operation=start phase=video_timing system=- core=- error=none message=-
+mister-runtime operation=start phase=hdmi_wake system=- core=- error=none message=-
+mister-runtime operation=start phase=hdmi_verify system=- core=- error=none message=recipe=menu_720p60 bus=/dev/i2c-1 address=0x39 power_before=0x50 power_after=0x10 link_status=0xf0
+mister-runtime operation=start phase=idle system=- core=- error=none message=-
+mister-runtime operation=load_core phase=input_stop system=- core=fes.menu error=none message=-
+mister-runtime operation=load_core phase=hdmi_quiesce system=- core=fes.menu error=none message=-
+mister-runtime operation=load_core phase=driver_quiesce system=- core=fes.menu error=none message=-
+mister-runtime operation=load_core phase=hps_ddr system=- core=fes.menu error=none message=-
+mister-runtime operation=start phase=hdmi_init system=- core=- error=none message=-
+mister-runtime operation=start phase=video_timing system=- core=- error=none message=-
+mister-runtime operation=start phase=hdmi_wake system=- core=- error=none message=-
+mister-runtime operation=start phase=hdmi_verify system=- core=- error=none message=recipe=menu_720p60 bus=/dev/i2c-1 address=0x39 power_before=0x50 power_after=0x10 link_status=0xf0
+mister-runtime operation=load_core phase=video system=- core=fes.menu error=none message=recipe=menu_720p60 bus=/dev/i2c-1 address=0x39 power_before=0x50 power_after=0x10 link_status=0xf0
+{"time":"1970-01-01T00:02:53.69825676Z","level":"INFO","msg":"appliance data partition bound","device":"/dev/mmcblk0p3","paths":["cache","saves","core-data","launcher-cache","evidence"]}
+tenfoot: gamepad "USB gamepad           " 081f:e401 v0110 bus 3 guid 0300cb231f08000001e4000010010000: Super Famicom Controller
+menu-display: gamepad /dev/input/event0: controller port 1
+{"time":"1970-01-01T00:03:25.87237906Z","level":"WARN","msg":"cache entry excluded from verified inventory","category":"unfamiliar","size":4096}
+1970/01/01 00:03:42 INFO stale reboot watchdog disarmed
+1970/01/01 00:03:48 software activation: candidate failed (context deadline exceeded); recovery failed: context deadline exceeded
+1970/01/01 00:03:49 software activation: software activation blocked: candidate failed (context deadline exceeded); recovery failed: context deadline exceeded
+1970/01/01 00:03:49 software activation: software activation blocked: candidate failed (context deadline exceeded); recovery failed: context deadline exceeded
+1970/01/01 00:03:50 software activation: software activation blocked: candidate failed (context deadline exceeded); recovery failed: context deadline exceeded
+1970/01/01 00:03:51 software activation: software activation blocked: candidate failed (context deadline exceeded); recovery failed: context deadline exceeded
+1970/01/01 00:03:52 software activation: software activation blocked: candidate failed (context deadline exceeded); recovery failed: context deadline exceeded
+1970/01/01 00:03:53 software activation: software activation blocked: candidate failed (context deadline exceeded); recovery failed: context deadline exceeded
+1970/01/01 00:03:54 software activation: software activation blocked: candidate failed (context deadline exceeded); recovery failed: context deadline exceeded
+1970/01/01 00:03:55 software activation: software activation blocked: candidate failed (context deadline exceeded); recovery failed: context deadline exceeded
+1970/01/01 00:03:56 software activation: software activation blocked: candidate failed (context deadline exceeded); recovery failed: context deadline exceeded
+1970/01/01 00:03:57 software activation: software activation blocked: candidate failed (context deadline exceeded); recovery failed: context deadline exceeded
+1970/01/01 00:03:58 software activation: software activation blocked: candidate failed (context deadline exceeded); recovery failed: context deadline exceeded
+1970/01/01 00:03:59 software activation: software activation blocked: candidate failed (context deadline exceeded); recovery failed: context deadline exceeded
+1970/01/01 00:04:00 software activation: software activation blocked: candidate failed (context deadline exceeded); recovery failed: context deadline exceeded
+1970/01/01 00:04:01 software activation: software activation blocked: candidate failed (context deadline exceeded); recovery failed: context deadline exceeded
+1970/01/01 00:04:02 software activation: software activation blocked: candidate failed (context deadline exceeded); recovery failed: context deadline exceeded
+1970/01/01 00:04:03 software activation: software activation blocked: candidate failed (context deadline exceeded); recovery failed: context deadline exceeded
+1970/01/01 00:04:04 software activation: software activation blocked: candidate failed (context deadline exceeded); recovery failed: context deadline exceeded
+1970/01/01 00:04:05 software activation: software activation blocked: candidate failed (context deadline exceeded); recovery failed: context deadline exceeded
+1970/01/01 00:04:06 software activation: software activation blocked: candidate failed (context deadline exceeded); recovery failed: context deadline exceeded
+1970/01/01 00:04:07 software activation: software activation blocked: candidate failed (context deadline exceeded); recovery failed: context deadline exceeded
+1970/01/01 00:04:08 software activation: software activation blocked: candidate failed (context deadline exceeded); recovery failed: context deadline exceeded
+1970/01/01 00:04:09 software activation: software activation blocked: candidate failed (context deadline exceeded); recovery failed: context deadline exceeded
+1970/01/01 00:04:10 software activation: software activation blocked: candidate failed (context deadline exceeded); recovery failed: context deadline exceeded
+1970/01/01 00:04:11 software activation: software activation blocked: candidate failed (context deadline exceeded); recovery failed: context deadline exceeded
+1970/01/01 00:04:12 software activation: software activation blocked: candidate failed (context deadline exceeded); recovery failed: context deadline exceeded
+1970/01/01 00:04:13 software activation: software activation blocked: candidate failed (context deadline exceeded); recovery failed: context deadline exceeded
+1970/01/01 00:04:14 software activation: software activation blocked: candidate failed (context deadline exceeded); recovery failed: context deadline exceeded
+1970/01/01 00:04:15 software activation: software activation blocked: candidate failed (context deadline exceeded); recovery failed: context deadline exceeded
+1970/01/01 00:04:16 software activation: software activation blocked: candidate failed (context deadline exceeded); recovery failed: context deadline exceeded
+1970/01/01 00:04:17 software activation: software activation blocked: candidate failed (context deadline exceeded); recovery failed: context deadline exceeded
+1970/01/01 00:04:18 software activation: software activation blocked: candidate failed (context deadline exceeded); recovery failed: context deadline exceeded
+1970/01/01 00:04:19 software activation: software activation blocked: candidate failed (context deadline exceeded); recovery failed: context deadline exceeded
+1970/01/01 00:04:20 software activation: software activation blocked: candidate failed (context deadline exceeded); recovery failed: context deadline exceeded
+1970/01/01 00:04:21 software activation: software activation blocked: candidate failed (context deadline exceeded); recovery failed: context deadline exceeded
+1970/01/01 00:04:22 software activation: software activation blocked: candidate failed (context deadline exceeded); recovery failed: context deadline exceeded
+1970/01/01 00:04:23 software activation: software activation blocked: candidate failed (context deadline exceeded); recovery failed: context deadline exceeded
+1970/01/01 00:04:24 software activation: software activation blocked: candidate failed (context deadline exceeded); recovery failed: context deadline exceeded
+1970/01/01 00:04:25 software activation: software activation blocked: candidate failed (context deadline exceeded); recovery failed: context deadline exceeded
+1970/01/01 00:04:26 software activation: software activation blocked: candidate failed (context deadline exceeded); recovery failed: context deadline exceeded
+1970/01/01 00:04:27 software activation: software activation blocked: candidate failed (context deadline exceeded); recovery failed: context deadline exceeded
+1970/01/01 00:04:28 software activation: software activation blocked: candidate failed (context deadline exceeded); recovery failed: context deadline exceeded
+1970/01/01 00:04:29 software activation: software activation blocked: candidate failed (context deadline exceeded); recovery failed: context deadline exceeded
+1970/01/01 00:04:30 software activation: software activation blocked: candidate failed (context deadline exceeded); recovery failed: context deadline exceeded
+1970/01/01 00:04:31 software activation: software activation blocked: candidate failed (context deadline exceeded); recovery failed: context deadline exceeded
+1970/01/01 00:04:32 software activation: software activation blocked: candidate failed (context deadline exceeded); recovery failed: context deadline exceeded
+1970/01/01 00:04:33 software activation: software activation blocked: candidate failed (context deadline exceeded); recovery failed: context deadline exceeded
+1970/01/01 00:04:34 software activation: software activation blocked: candidate failed (context deadline exceeded); recovery failed: context deadline exceeded
+1970/01/01 00:04:35 software activation: software activation blocked: candidate failed (context deadline exceeded); recovery failed: context deadline exceeded
+1970/01/01 00:04:36 software activation: software activation blocked: candidate failed (context deadline exceeded); recovery failed: context deadline exceeded
+1970/01/01 00:04:37 software activation: software activation blocked: candidate failed (context deadline exceeded); recovery failed: context deadline exceeded
+1970/01/01 00:04:38 software activation: software activation blocked: candidate failed (context deadline exceeded); recovery failed: context deadline exceeded
+1970/01/01 00:04:39 software activation: software activation blocked: candidate failed (context deadline exceeded); recovery failed: context deadline exceeded
+1970/01/01 00:04:40 software activation: software activation blocked: candidate failed (context deadline exceeded); recovery failed: context deadline exceeded
+1970/01/01 00:04:41 software activation: software activation blocked: candidate failed (context deadline exceeded); recovery failed: context deadline exceeded
+1970/01/01 00:04:42 software activation: software activation blocked: candidate failed (context deadline exceeded); recovery failed: context deadline exceeded
+1970/01/01 00:04:43 software activation: software activation blocked: candidate failed (context deadline exceeded); recovery failed: context deadline exceeded
+1970/01/01 00:04:44 software activation: software activation blocked: candidate failed (context deadline exceeded); recovery failed: context deadline exceeded
+1970/01/01 00:04:45 software activation: software activation blocked: candidate failed (context deadline exceeded); recovery failed: context deadline exceeded
+1970/01/01 00:04:46 software activation: software activation blocked: candidate failed (context deadline exceeded); recovery failed: context deadline exceeded
+1970/01/01 00:04:47 software activation: software activation blocked: candidate failed (context deadline exceeded); recovery failed: context deadline exceeded
+1970/01/01 00:04:48 software activation: software activation blocked: candidate failed (context deadline exceeded); recovery failed: context deadline exceeded
+1970/01/01 00:04:49 software activation: software activation blocked: candidate failed (context deadline exceeded); recovery failed: context deadline exceeded
+1970/01/01 00:04:50 software activation: software activation blocked: candidate failed (context deadline exceeded); recovery failed: context deadline exceeded
+1970/01/01 00:04:51 software activation: software activation blocked: candidate failed (context deadline exceeded); recovery failed: context deadline exceeded
+1970/01/01 00:04:52 software activation: software activation blocked: candidate failed (context deadline exceeded); recovery failed: context deadline exceeded
+1970/01/01 00:04:53 software activation: software activation blocked: candidate failed (context deadline exceeded); recovery failed: context deadline exceeded
+1970/01/01 00:04:54 software activation: software activation blocked: candidate failed (context deadline exceeded); recovery failed: context deadline exceeded
+1970/01/01 00:04:55 software activation: software activation blocked: candidate failed (context deadline exceeded); recovery failed: context deadline exceeded
+1970/01/01 00:04:56 software activation: software activation blocked: candidate failed (context deadline exceeded); recovery failed: context deadline exceeded
+1970/01/01 00:04:57 software activation: software activation blocked: candidate failed (context deadline exceeded); recovery failed: context deadline exceeded
+1970/01/01 00:04:58 software activation: software activation blocked: candidate failed (context deadline exceeded); recovery failed: context deadline exceeded
+1970/01/01 00:04:59 software activation: software activation blocked: candidate failed (context deadline exceeded); recovery failed: context deadline exceeded
+1970/01/01 00:05:00 software activation: software activation blocked: candidate failed (context deadline exceeded); recovery failed: context deadline exceeded
+1970/01/01 00:05:01 software activation: software activation blocked: candidate failed (context deadline exceeded); recovery failed: context deadline exceeded
+1970/01/01 00:05:02 software activation: software activation blocked: candidate failed (context deadline exceeded); recovery failed: context deadline exceeded
+1970/01/01 00:05:03 software activation: software activation blocked: candidate failed (context deadline exceeded); recovery failed: context deadline exceeded
+1970/01/01 00:05:04 software activation: software activation blocked: candidate failed (context deadline exceeded); recovery failed: context deadline exceeded
+1970/01/01 00:05:05 software activation: software activation blocked: candidate failed (context deadline exceeded); recovery failed: context deadline exceeded
+1970/01/01 00:05:06 software activation: software activation blocked: candidate failed (context deadline exceeded); recovery failed: context deadline exceeded
+1970/01/01 00:05:07 software activation: software activation blocked: candidate failed (context deadline exceeded); recovery failed: context deadline exceeded
+1970/01/01 00:05:08 software activation: software activation blocked: candidate failed (context deadline exceeded); recovery failed: context deadline exceeded
+1970/01/01 00:05:09 software activation: software activation blocked: candidate failed (context deadline exceeded); recovery failed: context deadline exceeded
+1970/01/01 00:05:10 software activation: software activation blocked: candidate failed (context deadline exceeded); recovery failed: context deadline exceeded
+1970/01/01 00:05:11 software activation: software activation blocked: candidate failed (context deadline exceeded); recovery failed: context deadline exceeded
+1970/01/01 00:05:12 software activation: software activation blocked: candidate failed (context deadline exceeded); recovery failed: context deadline exceeded
+1970/01/01 00:05:13 software activation: software activation blocked: candidate failed (context deadline exceeded); recovery failed: context deadline exceeded
+1970/01/01 00:05:14 software activation: software activation blocked: candidate failed (context deadline exceeded); recovery failed: context deadline exceeded
+1970/01/01 00:05:15 software activation: software activation blocked: candidate failed (context deadline exceeded); recovery failed: context deadline exceeded
+1970/01/01 00:05:16 software activation: software activation blocked: candidate failed (context deadline exceeded); recovery failed: context deadline exceeded
+1970/01/01 00:05:17 software activation: software activation blocked: candidate failed (context deadline exceeded); recovery failed: context deadline exceeded
+1970/01/01 00:05:18 software activation: software activation blocked: candidate failed (context deadline exceeded); recovery failed: context deadline exceeded
+1970/01/01 00:05:19 software activation: software activation blocked: candidate failed (context deadline exceeded); recovery failed: context deadline exceeded
+1970/01/01 00:05:20 software activation: software activation blocked: candidate failed (context deadline exceeded); recovery failed: context deadline exceeded
+1970/01/01 00:05:21 software activation: software activation blocked: candidate failed (context deadline exceeded); recovery failed: context deadline exceeded
+1970/01/01 00:05:22 software activation: software activation blocked: candidate failed (context deadline exceeded); recovery failed: context deadline exceeded
+1970/01/01 00:05:23 software activation: software activation blocked: candidate failed (context deadline exceeded); recovery failed: context deadline exceeded
+1970/01/01 00:05:24 software activation: software activation blocked: candidate failed (context deadline exceeded); recovery failed: context deadline exceeded
+1970/01/01 00:05:25 software activation: software activation blocked: candidate failed (context deadline exceeded); recovery failed: context deadline exceeded
+1970/01/01 00:05:26 software activation: software activation blocked: candidate failed (context deadline exceeded); recovery failed: context deadline exceeded
+1970/01/01 00:05:27 software activation: software activation blocked: candidate failed (context deadline exceeded); recovery failed: context deadline exceeded
+1970/01/01 00:05:28 software activation: software activation blocked: candidate failed (context deadline exceeded); recovery failed: context deadline exceeded
+1970/01/01 00:05:29 software activation: software activation blocked: candidate failed (context deadline exceeded); recovery failed: context deadline exceeded
+1970/01/01 00:05:30 software activation: software activation blocked: candidate failed (context deadline exceeded); recovery failed: context deadline exceeded
+1970/01/01 00:05:31 software activation: software activation blocked: candidate failed (context deadline exceeded); recovery failed: context deadline exceeded
+1970/01/01 00:05:32 software activation: software activation blocked: candidate failed (context deadline exceeded); recovery failed: context deadline exceeded
+1970/01/01 00:05:33 software activation: software activation blocked: candidate failed (context deadline exceeded); recovery failed: context deadline exceeded
+1970/01/01 00:05:34 software activation: software activation blocked: candidate failed (context deadline exceeded); recovery failed: context deadline exceeded
+1970/01/01 00:05:35 software activation: software activation blocked: candidate failed (context deadline exceeded); recovery failed: context deadline exceeded
+1970/01/01 00:05:36 software activation: software activation blocked: candidate failed (context deadline exceeded); recovery failed: context deadline exceeded
+1970/01/01 00:05:37 software activation: software activation blocked: candidate failed (context deadline exceeded); recovery failed: context deadline exceeded
+1970/01/01 00:05:38 software activation: software activation blocked: candidate failed (context deadline exceeded); recovery failed: context deadline exceeded
+1970/01/01 00:05:39 software activation: software activation blocked: candidate failed (context deadline exceeded); recovery failed: context deadline exceeded
+1970/01/01 00:05:40 software activation: software activation blocked: candidate failed (context deadline exceeded); recovery failed: context deadline exceeded
+1970/01/01 00:05:41 software activation: software activation blocked: candidate failed (context deadline exceeded); recovery failed: context deadline exceeded
+1970/01/01 00:05:42 software activation: software activation blocked: candidate failed (context deadline exceeded); recovery failed: context deadline exceeded
+1970/01/01 00:05:43 software activation: software activation blocked: candidate failed (context deadline exceeded); recovery failed: context deadline exceeded
+1970/01/01 00:05:44 software activation: software activation blocked: candidate failed (context deadline exceeded); recovery failed: context deadline exceeded
+1970/01/01 00:05:45 software activation: software activation blocked: candidate failed (context deadline exceeded); recovery failed: context deadline exceeded
+1970/01/01 00:05:46 software activation: software activation blocked: candidate failed (context deadline exceeded); recovery failed: context deadline exceeded
+1970/01/01 00:05:47 software activation: software activation blocked: candidate failed (context deadline exceeded); recovery failed: context deadline exceeded
+1970/01/01 00:05:48 software activation: software activation blocked: candidate failed (context deadline exceeded); recovery failed: context deadline exceeded
+1970/01/01 00:05:49 software activation: software activation blocked: candidate failed (context deadline exceeded); recovery failed: context deadline exceeded
+1970/01/01 00:05:50 software activation: software activation blocked: candidate failed (context deadline exceeded); recovery failed: context deadline exceeded
+1970/01/01 00:05:51 software activation: software activation blocked: candidate failed (context deadline exceeded); recovery failed: context deadline exceeded
+1970/01/01 00:05:52 software activation: software activation blocked: candidate failed (context deadline exceeded); recovery failed: context deadline exceeded
+1970/01/01 00:05:53 software activation: software activation blocked: candidate failed (context deadline exceeded); recovery failed: context deadline exceeded
+1970/01/01 00:05:54 software activation: software activation blocked: candidate failed (context deadline exceeded); recovery failed: context deadline exceeded
+1970/01/01 00:05:55 software activation: software activation blocked: candidate failed (context deadline exceeded); recovery failed: context deadline exceeded
+1970/01/01 00:05:56 software activation: software activation blocked: candidate failed (context deadline exceeded); recovery failed: context deadline exceeded
+1970/01/01 00:05:57 software activation: software activation blocked: candidate failed (context deadline exceeded); recovery failed: context deadline exceeded
+1970/01/01 00:05:58 software activation: software activation blocked: candidate failed (context deadline exceeded); recovery failed: context deadline exceeded
+1970/01/01 00:05:59 software activation: software activation blocked: candidate failed (context deadline exceeded); recovery failed: context deadline exceeded
+1970/01/01 00:06:00 software activation: software activation blocked: candidate failed (context deadline exceeded); recovery failed: context deadline exceeded
+1970/01/01 00:06:01 software activation: software activation blocked: candidate failed (context deadline exceeded); recovery failed: context deadline exceeded
+1970/01/01 00:06:02 software activation: software activation blocked: candidate failed (context deadline exceeded); recovery failed: context deadline exceeded
+1970/01/01 00:06:03 software activation: software activation blocked: candidate failed (context deadline exceeded); recovery failed: context deadline exceeded
+1970/01/01 00:06:04 software activation: software activation blocked: candidate failed (context deadline exceeded); recovery failed: context deadline exceeded
+1970/01/01 00:06:05 software activation: software activation blocked: candidate failed (context deadline exceeded); recovery failed: context deadline exceeded
+1970/01/01 00:06:06 software activation: software activation blocked: candidate failed (context deadline exceeded); recovery failed: context deadline exceeded
+1970/01/01 00:06:07 software activation: software activation blocked: candidate failed (context deadline exceeded); recovery failed: context deadline exceeded
+1970/01/01 00:06:08 software activation: software activation blocked: candidate failed (context deadline exceeded); recovery failed: context deadline exceeded
+1970/01/01 00:06:09 software activation: software activation blocked: candidate failed (context deadline exceeded); recovery failed: context deadline exceeded
+1970/01/01 00:06:10 software activation: software activation blocked: candidate failed (context deadline exceeded); recovery failed: context deadline exceeded
+1970/01/01 00:06:11 software activation: software activation blocked: candidate failed (context deadline exceeded); recovery failed: context deadline exceeded
+1970/01/01 00:06:12 software activation: software activation blocked: candidate failed (context deadline exceeded); recovery failed: context deadline exceeded
+1970/01/01 00:06:13 software activation: software activation blocked: candidate failed (context deadline exceeded); recovery failed: context deadline exceeded
+1970/01/01 00:06:14 software activation: software activation blocked: candidate failed (context deadline exceeded); recovery failed: context deadline exceeded
+1970/01/01 00:06:15 software activation: software activation blocked: candidate failed (context deadline exceeded); recovery failed: context deadline exceeded
+1970/01/01 00:06:16 software activation: software activation blocked: candidate failed (context deadline exceeded); recovery failed: context deadline exceeded
+1970/01/01 00:06:17 software activation: software activation blocked: candidate failed (context deadline exceeded); recovery failed: context deadline exceeded
+1970/01/01 00:06:18 software activation: software activation blocked: candidate failed (context deadline exceeded); recovery failed: context deadline exceeded
+1970/01/01 00:06:19 software activation: software activation blocked: candidate failed (context deadline exceeded); recovery failed: context deadline exceeded
+1970/01/01 00:06:20 software activation: software activation blocked: candidate failed (context deadline exceeded); recovery failed: context deadline exceeded
+1970/01/01 00:06:21 software activation: software activation blocked: candidate failed (context deadline exceeded); recovery failed: context deadline exceeded
+1970/01/01 00:06:22 software activation: software activation blocked: candidate failed (context deadline exceeded); recovery failed: context deadline exceeded
+1970/01/01 00:06:23 software activation: software activation blocked: candidate failed (context deadline exceeded); recovery failed: context deadline exceeded
+1970/01/01 00:06:24 software activation: software activation blocked: candidate failed (context deadline exceeded); recovery failed: context deadline exceeded
+1970/01/01 00:06:25 software activation: software activation blocked: candidate failed (context deadline exceeded); recovery failed: context deadline exceeded
+1970/01/01 00:06:26 software activation: software activation blocked: candidate failed (context deadline exceeded); recovery failed: context deadline exceeded
+1970/01/01 00:06:27 software activation: software activation blocked: candidate failed (context deadline exceeded); recovery failed: context deadline exceeded
+1970/01/01 00:06:28 software activation: software activation blocked: candidate failed (context deadline exceeded); recovery failed: context deadline exceeded
+1970/01/01 00:06:29 software activation: software activation blocked: candidate failed (context deadline exceeded); recovery failed: context deadline exceeded
+1970/01/01 00:06:30 software activation: software activation blocked: candidate failed (context deadline exceeded); recovery failed: context deadline exceeded
+1970/01/01 00:06:31 software activation: software activation blocked: candidate failed (context deadline exceeded); recovery failed: context deadline exceeded
+1970/01/01 00:06:32 software activation: software activation blocked: candidate failed (context deadline exceeded); recovery failed: context deadline exceeded
+1970/01/01 00:06:33 software activation: software activation blocked: candidate failed (context deadline exceeded); recovery failed: context deadline exceeded
+1970/01/01 00:06:34 software activation: software activation blocked: candidate failed (context deadline exceeded); recovery failed: context deadline exceeded
+1970/01/01 00:06:35 software activation: software activation blocked: candidate failed (context deadline exceeded); recovery failed: context deadline exceeded
+1970/01/01 00:06:36 software activation: software activation blocked: candidate failed (context deadline exceeded); recovery failed: context deadline exceeded
+1970/01/01 00:06:37 software activation: software activation blocked: candidate failed (context deadline exceeded); recovery failed: context deadline exceeded
+1970/01/01 00:06:38 software activation: software activation blocked: candidate failed (context deadline exceeded); recovery failed: context deadline exceeded
+1970/01/01 00:06:39 software activation: software activation blocked: candidate failed (context deadline exceeded); recovery failed: context deadline exceeded
+1970/01/01 00:06:40 software activation: software activation blocked: candidate failed (context deadline exceeded); recovery failed: context deadline exceeded
+1970/01/01 00:06:41 software activation: software activation blocked: candidate failed (context deadline exceeded); recovery failed: context deadline exceeded
+1970/01/01 00:06:42 software activation: software activation blocked: candidate failed (context deadline exceeded); recovery failed: context deadline exceeded
+1970/01/01 00:06:43 software activation: software activation blocked: candidate failed (context deadline exceeded); recovery failed: context deadline exceeded
+1970/01/01 00:06:44 software activation: software activation blocked: candidate failed (context deadline exceeded); recovery failed: context deadline exceeded
+1970/01/01 00:06:45 software activation: software activation blocked: candidate failed (context deadline exceeded); recovery failed: context deadline exceeded
+1970/01/01 00:06:46 software activation: software activation blocked: candidate failed (context deadline exceeded); recovery failed: context deadline exceeded
+1970/01/01 00:06:47 software activation: software activation blocked: candidate failed (context deadline exceeded); recovery failed: context deadline exceeded
+1970/01/01 00:06:48 software activation: software activation blocked: candidate failed (context deadline exceeded); recovery failed: context deadline exceeded
+1970/01/01 00:06:49 software activation: software activation blocked: candidate failed (context deadline exceeded); recovery failed: context deadline exceeded
+1970/01/01 00:06:50 software activation: software activation blocked: candidate failed (context deadline exceeded); recovery failed: context deadline exceeded
+1970/01/01 00:06:51 software activation: software activation blocked: candidate failed (context deadline exceeded); recovery failed: context deadline exceeded
+1970/01/01 00:06:52 software activation: software activation blocked: candidate failed (context deadline exceeded); recovery failed: context deadline exceeded
+1970/01/01 00:06:53 software activation: software activation blocked: candidate failed (context deadline exceeded); recovery failed: context deadline exceeded
+1970/01/01 00:06:54 software activation: software activation blocked: candidate failed (context deadline exceeded); recovery failed: context deadline exceeded
+1970/01/01 00:06:55 software activation: software activation blocked: candidate failed (context deadline exceeded); recovery failed: context deadline exceeded
+1970/01/01 00:06:56 software activation: software activation blocked: candidate failed (context deadline exceeded); recovery failed: context deadline exceeded
+1970/01/01 00:06:57 software activation: software activation blocked: candidate failed (context deadline exceeded); recovery failed: context deadline exceeded
+1970/01/01 00:06:58 software activation: software activation blocked: candidate failed (context deadline exceeded); recovery failed: context deadline exceeded
+1970/01/01 00:06:59 software activation: software activation blocked: candidate failed (context deadline exceeded); recovery failed: context deadline exceeded
+1970/01/01 00:07:00 software activation: software activation blocked: candidate failed (context deadline exceeded); recovery failed: context deadline exceeded
+1970/01/01 00:07:01 software activation: software activation blocked: candidate failed (context deadline exceeded); recovery failed: context deadline exceeded
+1970/01/01 00:07:02 software activation: software activation blocked: candidate failed (context deadline exceeded); recovery failed: context deadline exceeded
+1970/01/01 00:07:03 software activation: software activation blocked: candidate failed (context deadline exceeded); recovery failed: context deadline exceeded
+1970/01/01 00:07:04 software activation: software activation blocked: candidate failed (context deadline exceeded); recovery failed: context deadline exceeded
+1970/01/01 00:07:05 software activation: software activation blocked: candidate failed (context deadline exceeded); recovery failed: context deadline exceeded
+1970/01/01 00:07:06 software activation: software activation blocked: candidate failed (context deadline exceeded); recovery failed: context deadline exceeded
+1970/01/01 00:07:07 software activation: software activation blocked: candidate failed (context deadline exceeded); recovery failed: context deadline exceeded
+1970/01/01 00:07:08 software activation: software activation blocked: candidate failed (context deadline exceeded); recovery failed: context deadline exceeded
+1970/01/01 00:07:09 software activation: software activation blocked: candidate failed (context deadline exceeded); recovery failed: context deadline exceeded
+1970/01/01 00:07:10 software activation: software activation blocked: candidate failed (context deadline exceeded); recovery failed: context deadline exceeded
+1970/01/01 00:07:11 software activation: software activation blocked: candidate failed (context deadline exceeded); recovery failed: context deadline exceeded
+1970/01/01 00:07:12 software activation: software activation blocked: candidate failed (context deadline exceeded); recovery failed: context deadline exceeded
+1970/01/01 00:07:13 software activation: software activation blocked: candidate failed (context deadline exceeded); recovery failed: context deadline exceeded
+1970/01/01 00:07:14 software activation: software activation blocked: candidate failed (context deadline exceeded); recovery failed: context deadline exceeded
+1970/01/01 00:07:15 software activation: software activation blocked: candidate failed (context deadline exceeded); recovery failed: context deadline exceeded
+1970/01/01 00:07:16 software activation: software activation blocked: candidate failed (context deadline exceeded); recovery failed: context deadline exceeded
+1970/01/01 00:07:17 software activation: software activation blocked: candidate failed (context deadline exceeded); recovery failed: context deadline exceeded
+1970/01/01 00:07:18 software activation: software activation blocked: candidate failed (context deadline exceeded); recovery failed: context deadline exceeded
+1970/01/01 00:07:19 software activation: software activation blocked: candidate failed (context deadline exceeded); recovery failed: context deadline exceeded
+1970/01/01 00:07:20 software activation: software activation blocked: candidate failed (context deadline exceeded); recovery failed: context deadline exceeded
+1970/01/01 00:07:21 software activation: software activation blocked: candidate failed (context deadline exceeded); recovery failed: context deadline exceeded
+1970/01/01 00:07:22 software activation: software activation blocked: candidate failed (context deadline exceeded); recovery failed: context deadline exceeded
+1970/01/01 00:07:23 software activation: software activation blocked: candidate failed (context deadline exceeded); recovery failed: context deadline exceeded
+1970/01/01 00:07:24 software activation: software activation blocked: candidate failed (context deadline exceeded); recovery failed: context deadline exceeded
+1970/01/01 00:07:25 software activation: software activation blocked: candidate failed (context deadline exceeded); recovery failed: context deadline exceeded
+1970/01/01 00:07:26 software activation: software activation blocked: candidate failed (context deadline exceeded); recovery failed: context deadline exceeded
+1970/01/01 00:07:27 software activation: software activation blocked: candidate failed (context deadline exceeded); recovery failed: context deadline exceeded
+1970/01/01 00:07:28 software activation: software activation blocked: candidate failed (context deadline exceeded); recovery failed: context deadline exceeded
+1970/01/01 00:07:29 software activation: software activation blocked: candidate failed (context deadline exceeded); recovery failed: context deadline exceeded
+1970/01/01 00:07:30 software activation: software activation blocked: candidate failed (context deadline exceeded); recovery failed: context deadline exceeded
+1970/01/01 00:07:31 software activation: software activation blocked: candidate failed (context deadline exceeded); recovery failed: context deadline exceeded
+1970/01/01 00:07:32 software activation: software activation blocked: candidate failed (context deadline exceeded); recovery failed: context deadline exceeded
+1970/01/01 00:07:33 software activation: software activation blocked: candidate failed (context deadline exceeded); recovery failed: context deadline exceeded
+1970/01/01 00:07:34 software activation: software activation blocked: candidate failed (context deadline exceeded); recovery failed: context deadline exceeded
+1970/01/01 00:07:35 software activation: software activation blocked: candidate failed (context deadline exceeded); recovery failed: context deadline exceeded
+1970/01/01 00:07:36 software activation: software activation blocked: candidate failed (context deadline exceeded); recovery failed: context deadline exceeded
+1970/01/01 00:07:37 software activation: software activation blocked: candidate failed (context deadline exceeded); recovery failed: context deadline exceeded
+1970/01/01 00:07:38 software activation: software activation blocked: candidate failed (context deadline exceeded); recovery failed: context deadline exceeded
+1970/01/01 00:07:39 software activation: software activation blocked: candidate failed (context deadline exceeded); recovery failed: context deadline exceeded
+1970/01/01 00:07:40 software activation: software activation blocked: candidate failed (context deadline exceeded); recovery failed: context deadline exceeded
+1970/01/01 00:07:41 software activation: software activation blocked: candidate failed (context deadline exceeded); recovery failed: context deadline exceeded
+1970/01/01 00:07:42 software activation: software activation blocked: candidate failed (context deadline exceeded); recovery failed: context deadline exceeded
+1970/01/01 00:07:43 software activation: software activation blocked: candidate failed (context deadline exceeded); recovery failed: context deadline exceeded
+1970/01/01 00:07:44 software activation: software activation blocked: candidate failed (context deadline exceeded); recovery failed: context deadline exceeded
+1970/01/01 00:07:45 software activation: software activation blocked: candidate failed (context deadline exceeded); recovery failed: context deadline exceeded
+1970/01/01 00:07:46 software activation: software activation blocked: candidate failed (context deadline exceeded); recovery failed: context deadline exceeded
+1970/01/01 00:07:47 software activation: software activation blocked: candidate failed (context deadline exceeded); recovery failed: context deadline exceeded
+1970/01/01 00:07:48 software activation: software activation blocked: candidate failed (context deadline exceeded); recovery failed: context deadline exceeded
+1970/01/01 00:07:49 software activation: software activation blocked: candidate failed (context deadline exceeded); recovery failed: context deadline exceeded
+1970/01/01 00:07:50 software activation: software activation blocked: candidate failed (context deadline exceeded); recovery failed: context deadline exceeded
+1970/01/01 00:07:51 software activation: software activation blocked: candidate failed (context deadline exceeded); recovery failed: context deadline exceeded
+1970/01/01 00:07:52 software activation: software activation blocked: candidate failed (context deadline exceeded); recovery failed: context deadline exceeded
+1970/01/01 00:07:53 software activation: software activation blocked: candidate failed (context deadline exceeded); recovery failed: context deadline exceeded
+1970/01/01 00:07:54 software activation: software activation blocked: candidate failed (context deadline exceeded); recovery failed: context deadline exceeded
+1970/01/01 00:07:55 software activation: software activation blocked: candidate failed (context deadline exceeded); recovery failed: context deadline exceeded
+1970/01/01 00:07:56 software activation: software activation blocked: candidate failed (context deadline exceeded); recovery failed: context deadline exceeded
+1970/01/01 00:07:57 software activation: software activation blocked: candidate failed (context deadline exceeded); recovery failed: context deadline exceeded
+1970/01/01 00:07:58 software activation: software activation blocked: candidate failed (context deadline exceeded); recovery failed: context deadline exceeded
+1970/01/01 00:07:59 software activation: software activation blocked: candidate failed (context deadline exceeded); recovery failed: context deadline exceeded
+1970/01/01 00:08:00 software activation: software activation blocked: candidate failed (context deadline exceeded); recovery failed: context deadline exceeded
+1970/01/01 00:08:01 software activation: software activation blocked: candidate failed (context deadline exceeded); recovery failed: context deadline exceeded
+1970/01/01 00:08:02 software activation: software activation blocked: candidate failed (context deadline exceeded); recovery failed: context deadline exceeded
+1970/01/01 00:08:03 software activation: software activation blocked: candidate failed (context deadline exceeded); recovery failed: context deadline exceeded
+1970/01/01 00:08:04 software activation: software activation blocked: candidate failed (context deadline exceeded); recovery failed: context deadline exceeded
+1970/01/01 00:08:05 software activation: software activation blocked: candidate failed (context deadline exceeded); recovery failed: context deadline exceeded
+1970/01/01 00:08:06 software activation: software activation blocked: candidate failed (context deadline exceeded); recovery failed: context deadline exceeded
+1970/01/01 00:08:07 software activation: software activation blocked: candidate failed (context deadline exceeded); recovery failed: context deadline exceeded
+1970/01/01 00:08:08 software activation: software activation blocked: candidate failed (context deadline exceeded); recovery failed: context deadline exceeded
+1970/01/01 00:08:09 software activation: software activation blocked: candidate failed (context deadline exceeded); recovery failed: context deadline exceeded
+1970/01/01 00:08:10 software activation: software activation blocked: candidate failed (context deadline exceeded); recovery failed: context deadline exceeded
+1970/01/01 00:08:11 software activation: software activation blocked: candidate failed (context deadline exceeded); recovery failed: context deadline exceeded
+1970/01/01 00:08:12 software activation: software activation blocked: candidate failed (context deadline exceeded); recovery failed: context deadline exceeded
+1970/01/01 00:08:13 software activation: software activation blocked: candidate failed (context deadline exceeded); recovery failed: context deadline exceeded
+1970/01/01 00:08:14 software activation: software activation blocked: candidate failed (context deadline exceeded); recovery failed: context deadline exceeded
+1970/01/01 00:08:15 software activation: software activation blocked: candidate failed (context deadline exceeded); recovery failed: context deadline exceeded
+1970/01/01 00:08:16 software activation: software activation blocked: candidate failed (context deadline exceeded); recovery failed: context deadline exceeded
+1970/01/01 00:08:17 software activation: software activation blocked: candidate failed (context deadline exceeded); recovery failed: context deadline exceeded
+1970/01/01 00:08:18 software activation: software activation blocked: candidate failed (context deadline exceeded); recovery failed: context deadline exceeded
+1970/01/01 00:08:19 software activation: software activation blocked: candidate failed (context deadline exceeded); recovery failed: context deadline exceeded
+1970/01/01 00:08:20 software activation: software activation blocked: candidate failed (context deadline exceeded); recovery failed: context deadline exceeded
+1970/01/01 00:08:21 software activation: software activation blocked: candidate failed (context deadline exceeded); recovery failed: context deadline exceeded
+1970/01/01 00:08:22 software activation: software activation blocked: candidate failed (context deadline exceeded); recovery failed: context deadline exceeded
+1970/01/01 00:08:23 software activation: software activation blocked: candidate failed (context deadline exceeded); recovery failed: context deadline exceeded
+1970/01/01 00:08:24 software activation: software activation blocked: candidate failed (context deadline exceeded); recovery failed: context deadline exceeded
+1970/01/01 00:08:25 software activation: software activation blocked: candidate failed (context deadline exceeded); recovery failed: context deadline exceeded
+1970/01/01 00:08:26 software activation: software activation blocked: candidate failed (context deadline exceeded); recovery failed: context deadline exceeded
+1970/01/01 00:08:27 software activation: software activation blocked: candidate failed (context deadline exceeded); recovery failed: context deadline exceeded
+1970/01/01 00:08:28 software activation: software activation blocked: candidate failed (context deadline exceeded); recovery failed: context deadline exceeded
+1970/01/01 00:08:29 software activation: software activation blocked: candidate failed (context deadline exceeded); recovery failed: context deadline exceeded
+1970/01/01 00:08:30 software activation: software activation blocked: candidate failed (context deadline exceeded); recovery failed: context deadline exceeded
+1970/01/01 00:08:31 software activation: software activation blocked: candidate failed (context deadline exceeded); recovery failed: context deadline exceeded
+1970/01/01 00:08:32 software activation: software activation blocked: candidate failed (context deadline exceeded); recovery failed: context deadline exceeded
+1970/01/01 00:08:33 software activation: software activation blocked: candidate failed (context deadline exceeded); recovery failed: context deadline exceeded
+1970/01/01 00:08:34 software activation: software activation blocked: candidate failed (context deadline exceeded); recovery failed: context deadline exceeded
+1970/01/01 00:08:35 software activation: software activation blocked: candidate failed (context deadline exceeded); recovery failed: context deadline exceeded
+1970/01/01 00:08:36 software activation: software activation blocked: candidate failed (context deadline exceeded); recovery failed: context deadline exceeded
+1970/01/01 00:08:37 software activation: software activation blocked: candidate failed (context deadline exceeded); recovery failed: context deadline exceeded
+1970/01/01 00:08:38 software activation: software activation blocked: candidate failed (context deadline exceeded); recovery failed: context deadline exceeded
+1970/01/01 00:08:39 software activation: software activation blocked: candidate failed (context deadline exceeded); recovery failed: context deadline exceeded
+1970/01/01 00:08:40 software activation: software activation blocked: candidate failed (context deadline exceeded); recovery failed: context deadline exceeded
+1970/01/01 00:08:41 software activation: software activation blocked: candidate failed (context deadline exceeded); recovery failed: context deadline exceeded
+1970/01/01 00:08:42 software activation: software activation blocked: candidate failed (context deadline exceeded); recovery failed: context deadline exceeded
+1970/01/01 00:08:43 software activation: software activation blocked: candidate failed (context deadline exceeded); recovery failed: context deadline exceeded
+1970/01/01 00:08:44 software activation: software activation blocked: candidate failed (context deadline exceeded); recovery failed: context deadline exceeded
+1970/01/01 00:08:45 software activation: software activation blocked: candidate failed (context deadline exceeded); recovery failed: context deadline exceeded
+1970/01/01 00:08:46 software activation: software activation blocked: candidate failed (context deadline exceeded); recovery failed: context deadline exceeded
+1970/01/01 00:08:47 software activation: software activation blocked: candidate failed (context deadline exceeded); recovery failed: context deadline exceeded
+1970/01/01 00:08:48 software activation: software activation blocked: candidate failed (context deadline exceeded); recovery failed: context deadline exceeded
+1970/01/01 00:08:49 software activation: software activation blocked: candidate failed (context deadline exceeded); recovery failed: context deadline exceeded
+1970/01/01 00:08:50 software activation: software activation blocked: candidate failed (context deadline exceeded); recovery failed: context deadline exceeded
+1970/01/01 00:08:51 software activation: software activation blocked: candidate failed (context deadline exceeded); recovery failed: context deadline exceeded
+1970/01/01 00:08:52 software activation: software activation blocked: candidate failed (context deadline exceeded); recovery failed: context deadline exceeded
+1970/01/01 00:08:53 software activation: software activation blocked: candidate failed (context deadline exceeded); recovery failed: context deadline exceeded
+1970/01/01 00:08:54 software activation: software activation blocked: candidate failed (context deadline exceeded); recovery failed: context deadline exceeded
+1970/01/01 00:08:55 software activation: software activation blocked: candidate failed (context deadline exceeded); recovery failed: context deadline exceeded
+1970/01/01 00:08:56 software activation: software activation blocked: candidate failed (context deadline exceeded); recovery failed: context deadline exceeded
+1970/01/01 00:08:57 software activation: software activation blocked: candidate failed (context deadline exceeded); recovery failed: context deadline exceeded
+1970/01/01 00:08:58 software activation: software activation blocked: candidate failed (context deadline exceeded); recovery failed: context deadline exceeded
+1970/01/01 00:08:59 software activation: software activation blocked: candidate failed (context deadline exceeded); recovery failed: context deadline exceeded
+1970/01/01 00:09:00 software activation: software activation blocked: candidate failed (context deadline exceeded); recovery failed: context deadline exceeded
+1970/01/01 00:09:01 software activation: software activation blocked: candidate failed (context deadline exceeded); recovery failed: context deadline exceeded
+1970/01/01 00:09:02 software activation: software activation blocked: candidate failed (context deadline exceeded); recovery failed: context deadline exceeded
+1970/01/01 00:09:03 software activation: software activation blocked: candidate failed (context deadline exceeded); recovery failed: context deadline exceeded
+1970/01/01 00:09:04 software activation: software activation blocked: candidate failed (context deadline exceeded); recovery failed: context deadline exceeded
+1970/01/01 00:09:05 software activation: software activation blocked: candidate failed (context deadline exceeded); recovery failed: context deadline exceeded
+1970/01/01 00:09:06 software activation: software activation blocked: candidate failed (context deadline exceeded); recovery failed: context deadline exceeded
+1970/01/01 00:09:07 software activation: software activation blocked: candidate failed (context deadline exceeded); recovery failed: context deadline exceeded
+1970/01/01 00:09:08 software activation: software activation blocked: candidate failed (context deadline exceeded); recovery failed: context deadline exceeded
+1970/01/01 00:09:09 software activation: software activation blocked: candidate failed (context deadline exceeded); recovery failed: context deadline exceeded
+1970/01/01 00:09:10 software activation: software activation blocked: candidate failed (context deadline exceeded); recovery failed: context deadline exceeded
+1970/01/01 00:09:11 software activation: software activation blocked: candidate failed (context deadline exceeded); recovery failed: context deadline exceeded
+1970/01/01 00:09:12 software activation: software activation blocked: candidate failed (context deadline exceeded); recovery failed: context deadline exceeded
+1970/01/01 00:09:13 software activation: software activation blocked: candidate failed (context deadline exceeded); recovery failed: context deadline exceeded
+1970/01/01 00:09:14 software activation: software activation blocked: candidate failed (context deadline exceeded); recovery failed: context deadline exceeded
+1970/01/01 00:09:15 software activation: software activation blocked: candidate failed (context deadline exceeded); recovery failed: context deadline exceeded
+1970/01/01 00:09:16 software activation: software activation blocked: candidate failed (context deadline exceeded); recovery failed: context deadline exceeded
+1970/01/01 00:09:17 software activation: software activation blocked: candidate failed (context deadline exceeded); recovery failed: context deadline exceeded
+1970/01/01 00:09:18 software activation: software activation blocked: candidate failed (context deadline exceeded); recovery failed: context deadline exceeded
+1970/01/01 00:09:19 software activation: software activation blocked: candidate failed (context deadline exceeded); recovery failed: context deadline exceeded
+1970/01/01 00:09:20 software activation: software activation blocked: candidate failed (context deadline exceeded); recovery failed: context deadline exceeded
+1970/01/01 00:09:21 software activation: software activation blocked: candidate failed (context deadline exceeded); recovery failed: context deadline exceeded
+1970/01/01 00:09:22 software activation: software activation blocked: candidate failed (context deadline exceeded); recovery failed: context deadline exceeded
+1970/01/01 00:09:23 software activation: software activation blocked: candidate failed (context deadline exceeded); recovery failed: context deadline exceeded
+1970/01/01 00:09:24 software activation: software activation blocked: candidate failed (context deadline exceeded); recovery failed: context deadline exceeded
+1970/01/01 00:09:25 software activation: software activation blocked: candidate failed (context deadline exceeded); recovery failed: context deadline exceeded
+1970/01/01 00:09:26 software activation: software activation blocked: candidate failed (context deadline exceeded); recovery failed: context deadline exceeded
+1970/01/01 00:09:27 software activation: software activation blocked: candidate failed (context deadline exceeded); recovery failed: context deadline exceeded
+1970/01/01 00:09:28 software activation: software activation blocked: candidate failed (context deadline exceeded); recovery failed: context deadline exceeded
+1970/01/01 00:09:29 software activation: software activation blocked: candidate failed (context deadline exceeded); recovery failed: context deadline exceeded
+1970/01/01 00:09:30 software activation: software activation blocked: candidate failed (context deadline exceeded); recovery failed: context deadline exceeded
+1970/01/01 00:09:31 software activation: software activation blocked: candidate failed (context deadline exceeded); recovery failed: context deadline exceeded
+1970/01/01 00:09:32 software activation: software activation blocked: candidate failed (context deadline exceeded); recovery failed: context deadline exceeded
+1970/01/01 00:09:33 software activation: software activation blocked: candidate failed (context deadline exceeded); recovery failed: context deadline exceeded
+1970/01/01 00:09:34 software activation: software activation blocked: candidate failed (context deadline exceeded); recovery failed: context deadline exceeded
+1970/01/01 00:09:35 software activation: software activation blocked: candidate failed (context deadline exceeded); recovery failed: context deadline exceeded
+1970/01/01 00:09:36 software activation: software activation blocked: candidate failed (context deadline exceeded); recovery failed: context deadline exceeded
+1970/01/01 00:09:37 software activation: software activation blocked: candidate failed (context deadline exceeded); recovery failed: context deadline exceeded
+1970/01/01 00:09:38 software activation: software activation blocked: candidate failed (context deadline exceeded); recovery failed: context deadline exceeded
+1970/01/01 00:09:39 software activation: software activation blocked: candidate failed (context deadline exceeded); recovery failed: context deadline exceeded
+1970/01/01 00:09:40 software activation: software activation blocked: candidate failed (context deadline exceeded); recovery failed: context deadline exceeded
+1970/01/01 00:09:41 software activation: software activation blocked: candidate failed (context deadline exceeded); recovery failed: context deadline exceeded
+1970/01/01 00:09:42 software activation: software activation blocked: candidate failed (context deadline exceeded); recovery failed: context deadline exceeded
+1970/01/01 00:09:43 software activation: software activation blocked: candidate failed (context deadline exceeded); recovery failed: context deadline exceeded
+1970/01/01 00:09:44 software activation: software activation blocked: candidate failed (context deadline exceeded); recovery failed: context deadline exceeded
+1970/01/01 00:09:45 software activation: software activation blocked: candidate failed (context deadline exceeded); recovery failed: context deadline exceeded
+1970/01/01 00:09:46 software activation: software activation blocked: candidate failed (context deadline exceeded); recovery failed: context deadline exceeded
+1970/01/01 00:09:47 software activation: software activation blocked: candidate failed (context deadline exceeded); recovery failed: context deadline exceeded
+1970/01/01 00:09:48 software activation: software activation blocked: candidate failed (context deadline exceeded); recovery failed: context deadline exceeded
+1970/01/01 00:09:49 software activation: software activation blocked: candidate failed (context deadline exceeded); recovery failed: context deadline exceeded
+1970/01/01 00:09:50 software activation: software activation blocked: candidate failed (context deadline exceeded); recovery failed: context deadline exceeded
+1970/01/01 00:09:51 software activation: software activation blocked: candidate failed (context deadline exceeded); recovery failed: context deadline exceeded
+1970/01/01 00:09:52 software activation: software activation blocked: candidate failed (context deadline exceeded); recovery failed: context deadline exceeded
+1970/01/01 00:09:53 software activation: software activation blocked: candidate failed (context deadline exceeded); recovery failed: context deadline exceeded
+1970/01/01 00:09:54 software activation: software activation blocked: candidate failed (context deadline exceeded); recovery failed: context deadline exceeded
+1970/01/01 00:09:55 software activation: software activation blocked: candidate failed (context deadline exceeded); recovery failed: context deadline exceeded
+1970/01/01 00:09:56 software activation: software activation blocked: candidate failed (context deadline exceeded); recovery failed: context deadline exceeded
