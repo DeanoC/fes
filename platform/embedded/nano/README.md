@@ -11,6 +11,10 @@ The native selected-program builder connects the retained ROM receipt and
 compiled resource to its explicit ROM verifier. It requires a separate firmware
 image and host linker compiler. A fresh FPGA producer and matched boot-chain
 test remain necessary for physical ROM acceptance.
+The HPS-first file composer independently compares that ROM resource and its
+digest with the sealed project before conversion and records `held_rom` in its
+output. Missing, changed or out-of-profile ROM resources cannot publish a
+composition receipt.
 
 `upload.py --purpose firmware` writes only `FES/FIRMWARE.BIN` and accepts exactly
 4 or 8 KiB. It uses the existing exclusive recovery upload, protected boot-file

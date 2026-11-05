@@ -62,6 +62,13 @@ def prepare(project, uboot, entry, pfg, output):
     if ddr_read is not None and ddr_read!=hps_context.ddr_read(project):
         raise ValueError('native DDR read contract differs from the sealed generated adapter')
     window_profile=native.get('native_handoff',{}).get('cold_boot_profile',{})
+    rom=window_profile.get('hps_rom')
+    rom_profile=source_context is not None and source_context.get('programming_profile')==hps_context.ROM_PROFILE
+    if rom_profile:
+        if rom is None or rom!=hps_context.rom(project) or window_profile.get('hps_rom_sha256')!=hps_context.digest(rom):
+            raise ValueError('native ROM resources differ from the sealed FPGA project')
+    elif rom is not None or window_profile.get('hps_rom_sha256') is not None:
+        raise ValueError('native ROM resources require the explicit ROM producer profile')
     tenfoot_serial=window_profile.get('tenfoot_serial',False)
     if type(tenfoot_serial) is not bool or tenfoot_serial and (window_profile.get('selected_programs') is not True or
             window_profile.get('computer_reload') is not True or window_profile.get('computer_storage_return') is not True or
@@ -97,7 +104,7 @@ def prepare(project, uboot, entry, pfg, output):
                 hps/'hps-first.hps.rbf', hps/'hps-first.core.rbf', fit, spl, image,
                 uboot/'result.json', uboot/'build/.config', entry/'result.json', profile, pfg, binary,
                 Path(__file__), HERE/'package.py', HERE/'sof_hps.py', HERE/'hps_context.py', HERE/'hps_io.py',
-                PROTOTYPE/'verify.py', PROTOTYPE/'build.py', PROTOTYPE/'seal.py')
+                PROTOTYPE/'verify.py', PROTOTYPE/'build.py', PROTOTYPE/'seal.py', PROTOTYPE/'rom_transport.py')
     hashes = {str(path): sha(path) for path in selected}
     output.mkdir(parents=True)
     commands = []
@@ -156,6 +163,8 @@ def prepare(project, uboot, entry, pfg, output):
         'control_probe':control_map is not None,
         'hps_control_sha256':hps_context.digest(control_map) if control_map is not None else None,
         'bounded_ddr_read':ddr_read is not None,
+        'held_rom':rom is not None,
+        'hps_rom_sha256':hps_context.digest(rom) if rom is not None else None,
         'hps_ddr_read_sha256':hps_context.digest(ddr_read) if ddr_read is not None else None,
         'bounded_window_read':window_read is not None,
         'bounded_window_presentation':window_present and not window_service,

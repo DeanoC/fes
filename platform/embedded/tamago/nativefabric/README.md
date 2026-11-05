@@ -26,6 +26,13 @@ command/cross-builder selection requires the sealed ROM profile and an explicit
 firmware source. A newly built sealed producer package, the matched boot chain
 and hardware ROM acceptance remain open.
 
+With a freshly built ROM SDK, set `FES_NANO_ROM_BUILD` to its absolute directory
+and run `go test -race -run TestBuiltROMSelectionPreflightsWithoutFirmwareIO
+./nativefabric`. This opt-in check reads the actual exported maps, package,
+firmware, metadata and catalog through the retained store/loader with a modeled
+active SD lease. Any firmware call fails the test. It proves artifact agreement
+before containment, without granting boot or hardware acceptance.
+
 The shared-gamepad input loop now emits `FES_NATIVE_CORE_GAMEPAD` on the serial
 platform after a changed key matrix has completed its owned write. Receipts
 bind the boot owner, play generation, package/build, descriptor hash, raw report,

@@ -19,7 +19,7 @@ spec.loader.exec_module(boot)
 
 
 class HpsBootTests(unittest.TestCase):
-    def run_candidate(self, base, mode='pass', order='HPS FIRST', sealed=True, context=None, control=None):
+    def run_candidate(self, base, mode='pass', order='HPS FIRST', sealed=True, context=None, control=None, rom=None):
         project = base/'project'
         hps = project/'board/hps'
         (hps/'project/output_files').mkdir(parents=True)
@@ -88,6 +88,8 @@ else:raise SystemExit(9)
             native['native_handoff']['cold_boot_profile'] = {'hps_context': context}
         if control is not None:
             native['native_handoff'].setdefault('cold_boot_profile', {})['hps_control'] = control
+        if rom is not None:
+            native['native_handoff'].setdefault('cold_boot_profile', {}).update(hps_rom=rom,hps_rom_sha256=boot.hps_context.digest(rom))
         output = base/'output'
         with patch.object(boot, 'producer_module', side_effect=lambda name, filename:
                           verifier if filename == 'verify.py' else real_module(name, filename)), \
@@ -150,6 +152,26 @@ else:raise SystemExit(9)
                         self.assertEqual(result['hps_context_sha256'], boot.hps_context.digest(context))
                         self.assertFalse(result['trusted_boot_handoff'])
                         self.assertFalse(result['physical_programming_admission'])
+
+    def test_rom_resource_requires_the_same_sealed_profile_before_conversion(self):
+        context={'programming_profile':boot.hps_context.ROM_PROFILE}
+        rom={'complete':'source-derived ROM fixture'}
+        for mode in ('pass','missing','changed','ordinary'):
+            with self.subTest(mode=mode),tempfile.TemporaryDirectory() as temp:
+                base=Path(temp)
+                source=context if mode!='ordinary' else {'programming_profile':'ordinary'}
+                selected=None if mode=='missing' else dict(rom,complete='changed') if mode=='changed' else rom
+                with patch.object(boot.hps_context,'derive',return_value=source), \
+                        patch.object(boot.hps_context,'rom',return_value=rom):
+                    if mode=='pass':
+                        result=self.run_candidate(base,context=source,rom=selected)
+                        self.assertTrue(result['held_rom'])
+                        self.assertEqual(result['hps_rom_sha256'],boot.hps_context.digest(rom))
+                    else:
+                        with self.assertRaisesRegex(ValueError,'ROM resources'):
+                            self.run_candidate(base,context=source,rom=selected)
+                        self.assertFalse((base/'calls.jsonl').exists())
+                        self.assertFalse((base/'output').exists())
 
     def test_control_probe_requires_the_same_compiled_address_map_before_conversion(self):
         fixture = ROOT/'platform/embedded/tamago/nativefabric/testdata'
