@@ -177,9 +177,9 @@ static int usb_contained(struct fes_nano_cold *s, uint32_t released)
 }
 static int owned_sample(struct fes_nano_cold *s,struct fes_nano_cold_sample *v,unsigned ordered)
 {
-    if (ordered) s->io.barrier(s->io.context);
+    if (ordered) (s->io.barrier)(s->io.context);
     int error=sample(s,v);
-    if (ordered) s->io.barrier(s->io.context);
+    if (ordered) (s->io.barrier)(s->io.context);
     return error;
 }
 static int owned(struct fes_nano_cold *s,uint64_t owner,uint64_t epoch,

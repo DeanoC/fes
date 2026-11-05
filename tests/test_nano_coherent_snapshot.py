@@ -10,6 +10,15 @@ import usb_readiness
 
 
 class NanoCoherentSnapshotTests(unittest.TestCase):
+    def test_cold_callback_compiles_with_uboot_barrier_macro(self):
+        with tempfile.TemporaryDirectory(prefix='fes-nano-cold-macro-') as tmp:
+            header = Path(tmp) / 'barrier.h'
+            header.write_text('#define barrier() __asm__ volatile ("" ::: "memory")\n')
+            subprocess.run(['cc', '-std=c11', '-Wall', '-Wextra', '-Werror',
+                            '-include', str(header), '-I' + str(board.FW), '-c',
+                            str(board.FW / 'nano_cold.c'), '-o', str(Path(tmp) / 'cold.o')],
+                           check=True, timeout=30)
+
     def test_live_snapshot_cost_and_late_faults(self):
         with tempfile.TemporaryDirectory(prefix='fes-nano-coherent-') as tmp:
             project, _ = board.NanoUSBBoardTests().project(tmp)
