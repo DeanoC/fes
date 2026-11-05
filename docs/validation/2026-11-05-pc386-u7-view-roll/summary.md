@@ -65,6 +65,25 @@ timing analysis passed. The worst slacks over the four corners: setup
 1.254 ns, hold 0.075 ns, recovery 7.334 ns, removal 0.383 ns, minimum pulse
 width 1.122 ns.
 
+## Kit check (`x1`)
+
+Kit B, core-only, this PR's package `9c1f36b7…`, the same disk and v1's
+command timing. A SCRUBX scrub ran first.
+
+- **Past Iolo.** After "I shall accompany thee." the view stays still and
+  Finnigan's conversation follows. Clicks advance it. His "Dost thou accept?"
+  takes a click on Yes, and the conversation runs on to its end. The status
+  ring has 20 of 106,861 samples from 21:52 on in the BIOS copy loop: the
+  scrolls now return.
+- **Save.** `S` opens the save dialog. Slot 1, named "fes1493", saves (the
+  SAVE button goes away and the name stays).
+- **Load after a relaunch.** Stop, load the same game again (its disk is
+  persistent), `ULTIMA7`, Escape to the menu, Journey Onward. The game
+  resumes in Trinsic at the save point.
+- **Cleanup.** The 9 FogCast data trees `w1` and `x1` created were removed
+  afterwards (`xall-clean`); the baseline is unchanged and Kit B was logged
+  FREE.
+
 ## Inputs
 
 - Kit B, core-only on baseline software `a8cd30c4`: no install, image change
