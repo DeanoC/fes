@@ -35,6 +35,18 @@ hashes the driver's private snapshot with the pinned SHA-384 primitives before
 endpoint access. A newer successful configuration may construct a fresh ROM
 object after the preceding ROM completed; it cannot reset a failed transfer.
 
+A failed strong-provider ROM load emits one `FES_NANO_ROM_FAILURE` record after
+the existing control gate invokes containment. It records the failed ownership
+scope, transfer phase/result, private driver error, access counts, last observed
+read offset/value, write offset and timer samples. These are cached during the
+original checks and accesses; reporting performs no new endpoint, ownership or
+timer reads and cannot retry the transfer. It does not log ROM payload words.
+The existing failure reply still clears provenance and retires the activation.
+The C/RTL fixture checks containment-before-report, one emission, unchanged
+access counts on repeated reports, and both ROM sizes across integrity, scope,
+I/O, clock and poll failures. This telemetry is off-board tested; the underlying
+hardware failure remains unresolved until a fresh matched image is observed.
+
 This opt-in profile requires a version-2 program binding: the existing 640-byte
 header plus a fixed 128-byte ROM extension in the same reserved metadata page.
 Two guarded samples capture the extension's size, aligned offset, CRC, SHA-256

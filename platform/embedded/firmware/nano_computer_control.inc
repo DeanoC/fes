@@ -86,6 +86,9 @@ static int fes_nano_computer_control(uint32_t fid, uint64_t operation,
         p->failed=1;p->bridges->failed=1;
         if (p->io.contain) p->cleanup_error=p->io.contain(p->io.context);
         p->active=0;
+#if defined(FES_NANO_COLD_ROM) && FES_NANO_COLD_ROM
+        fes_nano_platform_computer_rom_report();
+#endif
     }
     return 1;
 }

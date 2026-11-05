@@ -6,6 +6,8 @@
 #include "nano_rom_platform_test.h"
 #include <assert.h>
 #include <string.h>
+#include <stdio.h>
+#include <stdarg.h>
 #define FES_NANO_COLD_ROM 1
 #define FES_NANO_COLD_COMPUTER 1
 #define FES_NANO_COLD_CONFIG 1
@@ -25,18 +27,20 @@ static struct {
 } provider;
 static uint32_t reset_bits;
 static unsigned contained,valid_scope,timer_hz;
-static int cold_master_cpu_scope(void) { return valid_scope==1; }
+static unsigned io_reads,io_writes,timer_reads,frequency_reads,scope_calls,owner_calls,reports,fixture_mode;
+static int cold_master_cpu_scope(void) { scope_calls++;return valid_scope==1; }
 int fes_nano_cold_owns(void *p,uint64_t owner,uint64_t epoch)
-{ return p==&provider && owner==19 && epoch==71 && external_io.owns(external_io.context,19,7)==1; }
+{ owner_calls++;return p==&provider && owner==19 && epoch==71 && external_io.owns(external_io.context,19,7)==1; }
 int fes_nano_platform_configuration_diagnostic_ready(void)
 { return valid_scope && !provider.control_expected && fes_nano_cold_owns(&provider,19,71)==1; }
 struct fes_nano_identity_probe *fes_nano_platform_identity_probe(void) { return &identity_probe; }
-static uint64_t read_cntpct_el0(void) { return external_io.now(external_io.context); }
-static uint32_t read_cntfrq_el0(void) { return timer_hz; }
+static uint64_t read_cntpct_el0(void) { timer_reads++;return external_io.now(external_io.context); }
+static uint32_t read_cntfrq_el0(void) { frequency_reads++;return timer_hz; }
 static void dsbsy(void) { (external_io.barrier)(external_io.context); }
 static uint32_t mmio_read_32(uintptr_t address)
 {
     uint32_t value=0;
+    io_reads++;
     int status=external_io.read32(external_io.context,(uint32_t)(address-FES_NANO_ROM_CPU_BASE),&value);
     /* Real MMIO cannot return an ordinary error. Injection reports an
      * impossible CSR identity/status, which the real driver must reject. */
@@ -44,6 +48,7 @@ static uint32_t mmio_read_32(uintptr_t address)
 }
 static void mmio_write_32(uintptr_t address,uint32_t value)
 {
+    io_writes++;
     if(external_io.write32(external_io.context,(uint32_t)(address-FES_NANO_ROM_CPU_BASE),value))valid_scope=0;
 }
 typedef struct {const uint8_t *image;size_t bytes;} sha512_context;
@@ -54,8 +59,28 @@ static void sha384_finish(sha512_context *h,uint8_t result[48])
 {
     memset(result,h->bytes==expected_bytes && !memcmp(h->image,expected_image,expected_bytes) ? 0x6d : 0x6e,48);
 }
+static void rom_notice(const char *,...);
+#define NOTICE(...) rom_notice(__VA_ARGS__)
 #include "nano_rom_platform.inc"
 #include "nano_computer_control.inc"
+static void rom_notice(const char *format,...)
+{
+    /* The actual computer gate must contain before any diagnostic output. */
+    assert(contained==1 && reset_bits==15 && identity_probe.failed && !identity_probe.active);
+    assert(computer_rom_diagnostic.pending && computer_rom_diagnostic.reported && reports==0);
+    assert(computer_rom_diagnostic.reads==io_reads && computer_rom_diagnostic.writes==io_writes);
+    if(fixture_mode==1)assert(computer_rom.first_error==FES_NANO_ROM_INTEGRITY);
+    if(fixture_mode==2)assert(computer_rom_diagnostic.result==FES_NANO_ROM_INTEGRITY && !computer_rom.used);
+    if(fixture_mode>=3 && fixture_mode<=5) {
+        const char *scope=fixture_mode==3 ? "program" : fixture_mode==4 ? "cold" : "timer";
+        assert(computer_rom_diagnostic.phase==1 && !strcmp(computer_rom_diagnostic.scope,scope));
+        assert(!io_reads && !io_writes && !timer_reads);
+    }
+    char line[512];va_list args;va_start(args,format);
+    int n=vsnprintf(line,sizeof(line),format,args);va_end(args);
+    assert(n>0 && (size_t)n<sizeof(line) && strstr(line,"FES_NANO_ROM_FAILURE ")==line);
+    reports++;fputs(line,stdout);
+}
 static int owns(void *p,uint64_t owner,uint64_t epoch)
 { return fes_nano_cold_owns(p,owner,epoch); }
 static int read_reset(void *p,uint32_t *value) { (void)p;*value=reset_bits;return 0; }
@@ -79,6 +104,7 @@ static void put64(uint8_t *p,uint64_t value) { for(unsigned i=0;i<8;i++)p[i]=(ui
 int fes_test_rom_platform_init(struct fes_nano_rom_ops io,const uint8_t *image,size_t size,uint32_t crc,unsigned mode)
 {
     assert(size==4096 || size==8192);external_io=io;expected_bytes=size;
+    io_reads=io_writes=timer_reads=frequency_reads=scope_calls=owner_calls=reports=0;fixture_mode=mode;
     memcpy(expected_image,image,size);memset(arena,0,sizeof(arena));memcpy(arena+128,image,size);
     memset(&provider,0,sizeof(provider));provider.record.boot.owner=19;provider.record.boot.epoch=71;
     memset(&configuration,0,sizeof(configuration));memset(&identity_probe,0,sizeof(identity_probe));
@@ -122,6 +148,13 @@ int fes_test_rom_platform_open(void)
         19,FES_EMBEDDED_BRIDGE_COOKIE,6,&configuration,0,result));
     if(result[0])assert(!result[1] && !result[2] && !result[3] && reset_bits==15 && contained==1 && identity_probe.failed);
     else assert(result[2]==19 && result[3]==7 && reset_bits==13 && computer_rom.complete && !computer_rom.failed);
+    assert(reports==(computer_rom_diagnostic.pending ? 1U : 0U));
+    /* Reporting again, including after a rejected replay, cannot sample MMIO,
+     * ownership, clocks or the timer and cannot emit another failure record. */
+    unsigned before[]={io_reads,io_writes,timer_reads,frequency_reads,scope_calls,owner_calls,reports};
+    fes_nano_platform_computer_rom_report();
+    unsigned after[]={io_reads,io_writes,timer_reads,frequency_reads,scope_calls,owner_calls,reports};
+    assert(!memcmp(before,after,sizeof(before)));
     return (int)result[0];
 }
 int fes_test_rom_platform_close(void)

@@ -26,6 +26,8 @@ int fes_nano_platform_usb_setup(void);
 /* Opt-in ROM computer profile only, under the existing platform lock. Called
  * after control-only opening and before its successful reply reaches NS. */
 int fes_nano_platform_computer_rom(struct fes_nano_configuration *,uint64_t owner,uint64_t generation);
+/* Emit a saved ROM failure once, after containment; no fresh hardware reads. */
+void fes_nano_platform_computer_rom_report(void);
 /* Report saved first-failure observations only; never sample failed hardware. */
 void fes_nano_platform_sd_report(void);
 /* Read-only sealed pinmux observation. The weak unbound platform is not ready. */
