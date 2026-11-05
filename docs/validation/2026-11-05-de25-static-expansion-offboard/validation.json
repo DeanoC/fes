@@ -1,0 +1,43 @@
+{
+  "format": 1,
+  "classification": "Off-board static next-launch expansion preparation only",
+  "kernel_source": "fcf2c6dbc376dda29c9f07344015ad92f01a9829",
+  "FPGA_and_composer_source": "aaf5155eed2f77683742f96d1a95ee83dfd4b235",
+  "kernel_tests": {
+    "disabled": {
+      "job": "/data/fes-de25-main-integration-20261105/static-expansion-disabled-kunit-job",
+      "state": "passed",
+      "elapsed_seconds": 137.309,
+      "case_count": 49,
+      "static_expansion_enabled": false
+    },
+    "enabled": {
+      "job": "/data/fes-de25-main-integration-20261105/static-expansion-enabled-serial-kunit-job",
+      "state": "passed",
+      "elapsed_seconds": 133.643,
+      "case_count": 53,
+      "static_expansion_enabled": true
+    }
+  },
+  "focused_python_tests": {
+    "passed": 11
+  },
+  "FPGA_fit_scope": "Both complete existing compiler/internal-timing/integrity/partition/MTBF pipelines passed; three payloads byte-identical. Raw whole-board closure FAILED; manifests/source seals and opaque QDB identities remain distinct. See independent-fits.json for exact observations, not a waiver.",
+  "composition_scope": "Actual fresh primary base/empty/16K manifest and payloads, native+QEMU Cortex-A76, deterministic repeats and12negative controls; not native-kit CPU execution.",
+  "earlier_failures": [
+    {
+      "job": "/data/fes-de25-main-integration-20261105/static-expansion-kunit-49e-job",
+      "kernel_compilation_started": false,
+      "reason": "Build volume root-owned; repaired initialization from immutable builder-owned target directory."
+    },
+    {
+      "job": "/data/fes-de25-main-integration-20261105/static-expansion-enabled-kunit-job",
+      "kernel_compilation_started": false,
+      "reason": "Concurrent source-snapshot creation collided; retained failure and serialized mode runs."
+    }
+  ],
+  "no_new_kernel_deployment": true,
+  "hardware_acceptance": false,
+  "runtime_package_admission": false,
+  "live_expansion_changes_required": false
+}
