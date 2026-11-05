@@ -93,7 +93,8 @@ The runtime owns physical programming and compatibility admission; FogCast
 owns library/session context; misteross owns source builds and RBF provenance.
 Shared persistence layouts and wire contracts remain here.
 
-Run `make test` with Python `jsonschema[format]` available and Go installed.
+Run `make test` with Go and the Python dependencies from
+`requirements-test.txt` installed.
 Use `make fixtures` to regenerate canonical fixtures and `make check-fixtures`
 to verify them. See [schema](docs/schema.md),
 [application I/O](docs/application-io.md), [home-computer I/O](docs/computer-io.md)

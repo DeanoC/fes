@@ -75,6 +75,34 @@ class AffectedTests(unittest.TestCase):
             with self.subTest(pattern=pattern):
                 self.assertTrue(list(root.glob(pattern)), pattern)
 
+    def test_package_contract_software_keeps_every_software_lane_without_rtl(self):
+        root = 'sources/mister-packages/'
+        for relative in ('Makefile', 'schema/core-bundle-v5.json',
+                         'scripts/core_bundle_v5_fixtures.py',
+                         'tests/test_core_bundle_v5_fixtures.py',
+                         'testdata/core-bundle-v5',
+                         'testdata/core-bundle-v5/manifests/valid-basic.toml',
+                         'testdata/core-bundle-v5/payloads/persona.rbf',
+                         'schema/core-bundle-v2.json',
+                         'scripts/core_bundle_fixtures.py'):
+            with self.subTest(path=relative):
+                result = plan([root + relative])
+                self.assertTrue(all(result['lanes'].values()))
+                self.assertEqual(result['cores'], [])
+        for relative in ('schema/core-bundle-v5.json-other',
+                         'schema/core-bundle-v50.json',
+                         'testdata/core-bundle-v5-other/fixture.rbf',
+                         'packages/abi/fes_computer.yaml',
+                         'packages/fabric/new.yaml'):
+            with self.subTest(unknown=relative):
+                self.assertEqual(set(plan([root + relative])['cores']), set(CORES))
+        mixed = plan([root + 'schema/core-bundle-v5.json',
+                      'sources/misteross/cores/fes-zx81/new.v'])
+        self.assertEqual(mixed['cores'], ['zx81'])
+        broad = plan([root + 'schema/core-bundle-v5.json',
+                      root + 'packages/abi/fes_computer.yaml'])
+        self.assertEqual(set(broad['cores']), set(CORES))
+
     def test_contracts_and_unknown_changes_close_over_every_lane(self):
         for path in ('sources/mister-packages', 'sources/mister-packages/packages/abi/new.yaml',
                      'unknown/new.bin'):

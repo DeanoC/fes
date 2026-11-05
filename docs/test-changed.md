@@ -59,7 +59,11 @@ actual consumers. Simulation matrix/compiler changes select the FPGA lane and
 all core simulations. The parent Makefile, workflow and shared software test runner select all
 software lanes without RTL simulations. Host runner changes select parent and
 host checks. Contract Go tooling and core recipe/provisioning changes also skip
-unchanged RTL; contract definitions retain consumer coverage.
+unchanged RTL. Closed core-bundle schemas, their fixture generators/corpora and
+the contract software-test Makefile keep every software lane, including producer
+tests, without selecting unrelated RTL simulations. ABI/fabric/register
+definitions, changed generated outputs and unknown contract inputs retain their
+consumer coverage.
 
 Platform provisioning, platform Go tests and image shell tests run only when
 `media` is selected, including scheduled/manual runs. A room, host or core edit
