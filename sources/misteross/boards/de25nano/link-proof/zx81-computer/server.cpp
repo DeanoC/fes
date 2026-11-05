@@ -8,6 +8,7 @@
 int main(int argc,char**argv){
     try{
         wire::need(argc>=2,"expected socket path");Verilated::commandArgs(argc,argv);
+        Verilated::threadContextp()->threads(1);
         std::setvbuf(stdout,nullptr,_IOLBF,0);
         Computer b;auto& t=b.t;
         sockaddr_un address{};address.sun_family=AF_UNIX;
