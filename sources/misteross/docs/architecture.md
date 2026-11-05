@@ -98,6 +98,16 @@ standalone composition does not provide normal FES admission. Independent fits,
 whole-board timing and physical acceptance remain required; internal16K audio
 clock exceptions do not apply to this profile.
 
+The PR profile derives its shell SDC by replacing only the internal16K
+constant-PCM assertion with `pcm-clocks.sdc`. The default source remains
+unchanged. The mapped standard PCM is mono eight-bit data in bits14:7, with
+merged stereo register aliases. The PR constraints enumerate every physical
+payload register and all eight semantic bits, cut only the three control
+synchronizers' first-D inputs, and retain 10 ns net/data/skew/min-max bundle
+bounds. Its timing audit appends paired all-corner payload and interstage
+coverage to the existing boundary report. This supplies internal crossing
+checks; fitted numerical results and HDMI data-output timing remain required.
+
 `fes_de25_audio.v` connects the standard coherent stereo PCM/I2S path to
 Terasic HDMI_ASx4's separate `av_pll`, using `CLOCK1_50`. The resource PLL
 requests 12.288 MHz from 50 MHz; its supplied integer dividers produce about

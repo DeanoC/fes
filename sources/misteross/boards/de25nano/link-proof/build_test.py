@@ -12,6 +12,19 @@ SPEC.loader.exec_module(build)
 
 
 class RecipeTests(unittest.TestCase):
+    def test_standard_pr_pcm_selection_does_not_change_internal16k_timing_source(self):
+        profile = build.load_profile(build.BOARD / "zx81-standard/profile.py")
+        path = build.BOARD.parent / "zx81-hps/standard-clocks.sdc"
+        original = path.read_bytes()
+        selected = profile.pcm_timing_source(original)
+        self.assertIn(b'DE25 standard base unexpectedly contains a live PCM crossing', original)
+        self.assertNotIn(b'DE25 standard base unexpectedly contains a live PCM crossing', selected)
+        self.assertIn(b'.. fes_link pcm-clocks.sdc', selected)
+        self.assertEqual(path.read_bytes(), original)
+        for changed in (original + original, original.replace(b'set audio_payload', b'set changed_audio_payload', 1)):
+            with self.assertRaisesRegex(ValueError, "PCM timing selection changed"):
+                profile.pcm_timing_source(changed)
+
     def test_standard_pr_hps_defaults_are_exact_and_cannot_extend_legacy_policy(self):
         old_profile = build.PROFILE
         self.addCleanup(setattr, build, "PROFILE", old_profile)

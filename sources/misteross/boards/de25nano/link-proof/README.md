@@ -133,3 +133,11 @@ exception, package admission, native CPU/SDM programming or physical PR evidence
 Its base and both personas require their own complete fit/timing and hardware
 acceptance. The standalone composer remains diagnostic; normal FES deployment
 of base-plus-persona output is still open.
+
+The standard PR shell retains live PCM even with an initially empty persona.
+It selects `pcm-clocks.sdc` in a guarded derivation of the standard shell SDC;
+the internal16K constant-PCM assertion remains unchanged. Actual mapped
+endpoints determine the eight-bit mono payload and three first-stage control
+cuts. Data flight/skew/min/max bounds and paired all-corner physical payload
+and interstage coverage remain required. This does not supply an HDMI data
+output budget or inherit the internal16K audio-clock exception.

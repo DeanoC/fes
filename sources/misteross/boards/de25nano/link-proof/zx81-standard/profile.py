@@ -46,7 +46,7 @@ interface["machine"]["reset"] = "public-full-machine-reset-registers-an-idle-CPU
 
 def source_paths():
     return sorted(set([ROOT / n for n in computer.capture_standard_board()] + ram.source_paths() +
-        [HERE / n for n in ("profile.py", "bus.v", "timing.tcl")]))
+        [HERE / n for n in ("profile.py", "bus.v", "timing.tcl", "pcm-clocks.sdc", "pcm-timing.tcl")]))
 
 
 def proof_root(project):
@@ -98,9 +98,29 @@ def prepare(local, project, frozen):
     (local / "bus.v").write_bytes(frozen["files"][board + "link-proof/zx81-standard/bus.v"])
     (local / "zx81_bus_pack.vh").write_bytes(
         frozen["files"]["sources/misteross/cores/fes-zx81/rtl/zx81_bus_pack.vh"])
+    (local / "pcm-clocks.sdc").write_bytes(frozen["files"][board + "link-proof/zx81-standard/pcm-clocks.sdc"])
+    timing = project / "fes_mailbox/standard-clocks.sdc"
+    timing.write_bytes(pcm_timing_source(timing.read_bytes()))
     source = frozen["files"]["sources/misteross/cores/fes-zx81/rtl/zx81_ram_pack.v"]
     (local / "zx81_ram_pack.v").write_bytes(retained_ram.retarget_ram_pack(source))
     (project / "zx8x.hex").write_bytes(frozen["files"]["sources/misteross/cores/fes-zx81/rtl/zx8x.hex"])
+
+
+def pcm_timing_source(source):
+    before = b'''# The internal-16K base has no PSG persona: constant PCM removes the sample
+# crossing. Adding a sound persona must supply and qualify its coherent bundle.
+set audio_payload [get_registers -nowarn {fes_audio_inst|audio|held_sample[*] fes_audio_inst|audio|request_meta fes_audio_inst|audio|ack_meta fes_audio_inst|audio|hold_meta}]
+if {[get_collection_size $audio_payload] != 0} {error "DE25 standard base unexpectedly contains a live PCM crossing"}
+'''
+    if source.count(before) != 1:
+        raise ValueError("standard internal16K PCM timing selection changed")
+    source = source.replace(before, b'''# The PR shell retains the live expansion PCM path.
+source [file join [file dirname [info script]] .. fes_link pcm-clocks.sdc]
+''')
+    note = b"# incorrectly align their rising edges. The base PCM data output is constant."
+    if source.count(note) != 1:
+        raise ValueError("standard I2S clock phase explanation changed")
+    return source.replace(note, b"# incorrectly align their rising edges. Live PR PCM output timing is separate.")
 
 
 def qsf(build_id):
@@ -150,6 +170,10 @@ def bind_identity(project, build_id):
         "set_instance_parameter_value fes_scanout BUILD_ID 0x" + previous,
         "set_instance_parameter_value fes_scanout BUILD_ID 0x" + build_id))
     inputs["scanout"]["build_id"] = inputs["standard_zx81"]["build_id"] = build_id
+    inputs["standard_zx81"]["standard_sdc_sha256"] = std.sha(
+        (project / "fes_mailbox/standard-clocks.sdc").read_bytes())
+    inputs["standard_zx81"]["staged_source_sha256"] = std.standard_staged_sources(project)
+    inputs["standard_zx81"]["pr_pcm_timing"] = "coherent-mono8-v1"
     inputs["scanout"]["compiled_top_sha256"] = std.sha((project / "golden_top.v").read_bytes())
     inputs["scanout"]["rendered_integration_sha256"] = std.sha(script.read_bytes())
     receipt.write_text(json.dumps(inputs, indent=2, sort_keys=True) + '\n')
@@ -168,6 +192,9 @@ def verify_generation(project, hps):
     if ((project.parent / "inputs.json").read_bytes() !=
             (project / "fes_link/standard-base-inputs.json").read_bytes()):
         raise ValueError("standard base preparation receipt changed")
+    original = proof_root(project) / "functional-source/sources/misteross/boards/de25nano/zx81-hps/standard-clocks.sdc"
+    if (project / "fes_mailbox/standard-clocks.sdc").read_bytes() != pcm_timing_source(original.read_bytes()):
+        raise ValueError("standard PR PCM timing derivation changed")
     scanout.repair_generated_reset_timing(project.parent)
     scanout.shared_reset_helper(project.parent).apply(project.parent)
     result = std.verify_standard_board(standard_output(project), scanout, hps, display,
