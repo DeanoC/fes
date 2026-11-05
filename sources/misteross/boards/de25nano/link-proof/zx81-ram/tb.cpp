@@ -1,5 +1,6 @@
 #include "Vfes_zx81_pr_sim.h"
 #include "verilated.h"
+#include "zx81_firmware.hpp"
 #include <cstdint>
 #include <deque>
 #include <iostream>
@@ -53,7 +54,7 @@ struct Bench {
  uint32_t rd(unsigned a){d.address=a;d.read=1;tick();need(d.readdatavalid,"MMIO read failed");auto v=d.readdata;d.read=0;tick();return v;}
  void command(unsigned op,uint32_t arg){wr(12,arg);wr(16,(op<<24)|++seq);for(unsigned i=0;i<100;i++){need(rd(20)==0,"controller fault");if(rd(24)==seq)return;}throw std::runtime_error("command timeout");}
  void select(bool ram){freeze_monitor=false;need(d.frozen,"selection while running");d.persona_b=ram;ramtop=0;observed=0;command(2,ram?0xc002b002:0xc001a001);need(d.running,"resume missing");}
- void boot(uint16_t expected){uint64_t start=cycles;for(unsigned i=0;i<770000000;i++){tick();if(observed==3&&ramtop==expected&&d.cpu_addr==0x04cf){ticks(10000);std::cout<<"BOOT persona="<<int(d.persona_b)<<" RAMTOP="<<std::hex<<ramtop<<std::dec<<" cycles="<<cycles-start<<" CPUwrite-observed=1\n";return;}}std::cerr<<"ramtop="<<std::hex<<ramtop<<" pc="<<d.cpu_addr<<std::dec<<" observed="<<observed<<"\n";throw std::runtime_error("BASIC RAM sizing failed");}
+ void boot(uint16_t expected){uint64_t start=cycles;for(unsigned i=0;i<770000000;i++){tick();if(observed==3&&ramtop==expected&&d.cpu_addr==Zx81EditorPoll){ticks(10000);std::cout<<"BOOT persona="<<int(d.persona_b)<<" RAMTOP="<<std::hex<<ramtop<<std::dec<<" cycles="<<cycles-start<<" CPUwrite-observed=1\n";return;}}std::cerr<<"ramtop="<<std::hex<<ramtop<<" pc="<<d.cpu_addr<<std::dec<<" observed="<<observed<<"\n";throw std::runtime_error("BASIC RAM sizing failed");}
  uint8_t peek(unsigned offset){for(unsigned i=0;i<10000;i++){if(d.diagnostic_address==offset){ticks(7);auto v=d.peek_data;need((rd(36)&255)==v,"CSR LAST_DATA differs from real machine peek");return v;}tick();}throw std::runtime_error("peek scan timeout");}
  void freeze(bool require_diagnostic_data=true){freeze_monitor=true;command(1,0);need(d.frozen,"freeze missing");if(require_diagnostic_data)need(checked_diagnostic_data[d.persona_b?1:0]>0,"nonzero persona response data was not checked");need(expected_diagnostic_data.empty(),"diagnostic response data was not drained");freeze_cycle=cycles;auto old=writes;auto retired=d.retired;auto response=d.static_response;ticks(20);need(d.static_response==response,"response changed after Frozen");need(writes==old&&d.retired==retired,"activity after Frozen");std::cout<<"FREEZE cycles="<<freeze_cycle<<" lastRAMwrite="<<last_write<<" remainingWrites=0\n";}
  uint64_t packed(unsigned a,unsigned data,bool write){return (1ull<<45)|(uint64_t(a&0x3fff)<<30)|(1ull<<25)|(3ull<<28)|(uint64_t(!write)<<27)|(uint64_t(data)<<16)|a;}

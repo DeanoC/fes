@@ -5,6 +5,7 @@
 #include "fes_computer.hpp"
 #include "fes_de25_computer.hpp"
 #include "verilated.h"
+#include "zx81_firmware.hpp"
 #include <algorithm>
 #include <array>
 #include <cstdint>
@@ -143,7 +144,7 @@ struct Computer {
             ++system_edges;
             if (expect_running) check(!SIGNAL(machine_reset), "MMIO, HID, media or stopped pixel clock reset execution");
             if (SIGNAL(machine__DOT__cpu__DOT__retired)) ++retired;
-            if(SIGNAL(cpu_addr)==0x060c&&!SIGNAL(machine__DOT__nM1))newline_seen=true;
+            if(SIGNAL(cpu_addr)==Zx81Newline&&!SIGNAL(machine__DOT__nM1))newline_seen=true;
             ula_enables += SIGNAL(machine__DOT__ce_6m5) != 0;
             cpu_positive += SIGNAL(machine__DOT__ce_cpu_p) != 0;
             cpu_negative += SIGNAL(machine__DOT__ce_cpu_n) != 0;
@@ -151,7 +152,7 @@ struct Computer {
                   "positive and negative CPU enables coincide");
             if (!SIGNAL(machine_reset)) {
                 halt_seen |= !SIGNAL(halt_n);
-                if (SIGNAL(cpu_addr) == 0x04cf && word(0x4025) == 0xffff && peek(0x4027) == 0)
+                if (SIGNAL(cpu_addr) == Zx81EditorPoll && word(0x4025) == 0xffff && word(0x401f) == 0xffff)
                     idle_seen = true;
                 if (SIGNAL(ce_6m5) && !SIGNAL(machine__DOT__hblank) &&
                     !SIGNAL(machine__DOT__vblank) && SIGNAL(machine__DOT__video_pixel)) ++source_ink;
@@ -249,7 +250,9 @@ struct Computer {
     void wait_idle(uint64_t budget, const char* description) {
         const uint64_t until = system_edges + budget;
         uint64_t progress = system_edges + 50000000;
-        while (!idle_seen && system_edges < until) {
+        // OpenROM can first poll the editor before its first display frame.
+        // Readiness still requires real display execution within this budget.
+        while ((!idle_seen || !halt_seen || !source_ink) && system_edges < until) {
             cycles(4096);
             if (system_edges >= progress) {
                 std::printf("DE25 computer waiting for editor: clocks=%llu E_LINE=%04x bus=%04x\n",
@@ -260,7 +263,7 @@ struct Computer {
         if (!idle_seen)
             std::printf("idle failure: bus=%04x E_LINE=%04x LAST_K=%04x DEBOUNCE=%02x FRAMES=%04x\n",
                         SIGNAL(cpu_addr), word(0x4014), word(0x4025), peek(0x4027), word(0x4034));
-        check(idle_seen, description);
+        check(idle_seen && halt_seen && source_ink, description);
     }
     void type(const std::array<uint16_t, 9>& desired, uint64_t matrix, uint8_t token, unsigned count) {
         idle_seen = false;

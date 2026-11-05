@@ -6,6 +6,12 @@ keyboard, execution and CRC-checked tape commands. The real NMOS Z80, 16 KiB
 RAM and BASIC ROM drive the board-local 720p renderer. Audio, SAVE, expansion,
 gamepads and the session-display plane are disabled.
 
+Current builds and simulations assemble the shared first-party ZX81 OpenROM.
+The captured assembler, font and ROM sources determine both HEX/MIF outputs;
+their hashes are recorded with the project. Simulation observes editor entry
+points from that assembly's symbol table. Historical Git captures retain their
+original firmware inputs and do not qualify the current firmware.
+
 The GHRD's HPS/LPDDR4 configuration, debug paths, inherited DDR probe and boot
 data remain selected. The new computer path adds no DMA master or DDR access.
 It runs entirely on the existing 100 MHz peripheral clock, using 13/200

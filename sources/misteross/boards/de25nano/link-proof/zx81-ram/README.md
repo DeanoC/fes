@@ -1,15 +1,16 @@
 # DE25 static ZX81 and reconfigurable RAM-pack proof
 
-This opt-in profile keeps the actual ZX81 machine/NMOS CPU, stock firmware
+This opt-in profile keeps the actual ZX81 machine/NMOS CPU, first-party OpenROM
 and 1 KiB RAM in the preserved GHRD's static 100 MHz region. One Quartus PR
 partition implements either an empty expansion slot or the actual
 `zx81_ram_pack` module with 16 KiB writable memory. A guarded board-local
 derivation selects that module's portable dual-port implementation and
 retargets `zx81_dpram` to Agilex 5/M20K; shared Cyclone V RTL stays unchanged.
-Quartus reads the MIF firmware; Verilator reads the matching HEX. Both derived
-initialization files preserve all 12,288 original bytes and explicitly pad the
-unreachable 4 KiB tail with zero to match the shared 16 KiB ROM declaration.
-The ZX81 address wiring only reaches the original first 8 KiB; that guard is
+Quartus reads the MIF firmware; Verilator reads the matching HEX. Both are
+assembled from the captured shared OpenROM, assembler and font sources. They
+contain the exact 8 KiB image followed by an unreachable 8 KiB `0xff` tail to
+match the shared 16 KiB ROM declaration.
+The ZX81 address wiring only reaches the first 8 KiB; that guard is
 checked before preparation.
 
 The existing counter diagnostic remains the default. Its 64-byte control map,

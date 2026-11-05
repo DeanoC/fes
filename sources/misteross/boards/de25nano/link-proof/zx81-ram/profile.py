@@ -1,6 +1,7 @@
 """ZX81 RAM-pack proof profile for the shared exact-device PR builder."""
 from pathlib import Path
 import re
+import types
 HERE = Path(__file__).resolve().parent
 ROOT = HERE.parents[5]
 MISTEROSS = ROOT / "sources/misteross"
@@ -22,12 +23,22 @@ interface = {
 CORE = MISTEROSS / "cores/fes-zx81/rtl"
 Z80 = MISTEROSS / "cores/fes-common/rtl/z80"
 FILES = {name: CORE / name for name in ("zx81_machine.sv", "zx81_machine_clock.v", "zx81_dpram.v",
-    "zx81_ram_pack.v", "zx81_bus_pack.vh", "zx81_model.vh", "zx8x.hex", "zx8x.mif")}
+    "zx81_ram_pack.v", "zx81_bus_pack.vh", "zx81_model.vh")}
 FILES.update({name: Z80 / name for name in ("fes_z80_alu.sv", "fes_z80_engine.sv", "fes_z80_bus.sv", "fes_z80_nmos.sv")})
+FIRMWARE = MISTEROSS / "boards/de25nano/zx81/firmware.py"
+
+
+def firmware_module(source):
+    module = types.ModuleType("de25_ram_selected_firmware")
+    module.__file__ = str(FIRMWARE)
+    exec(compile(source, str(FIRMWARE), "exec"), module.__dict__)
+    return module
 
 
 def source_paths():
-    return list(FILES.values()) + [HERE / name for name in ("profile.py", "personas.v", "static.v", "timing.tcl", "audit.py")]
+    firmware = firmware_module(FIRMWARE.read_bytes())
+    return (list(FILES.values()) + [ROOT / name for name in firmware.INPUTS] +
+            [HERE / name for name in ("profile.py", "personas.v", "static.v", "timing.tcl", "audit.py")])
 
 
 def replace(source, before, after, label):
@@ -53,15 +64,12 @@ def prepare(local, project, frozen):
             if data.count(b'`ifdef') != 1 or data.count(b'`else') != 1 or data.count(b'`endif') != 1:
                 raise ValueError("RAM pack conditional derivation changed")
             data = data[:begin] + data[split + len(b'`else'):end] + data[end + len(b'`endif'):]
-        if name == "zx8x.hex":
-            words = data.split()
-            if len(words) != 16384 or any(int(word, 16) != 255 for word in words[12288:]):
-                raise ValueError("ZX81 source HEX depth or unreachable tail changed")
-            data = b"\n".join(words[:12288]) + b"\n" + b"00\n" * 4096
-        if name == "zx8x.mif":
-            data = replace(data, b"DEPTH = 12288;", b"DEPTH = 16384;", "firmware depth")
-            data = replace(data, b"END;", b"[3000..3FFF]: 00;\r\nEND;", "firmware unreachable tail")
         (local / name).write_bytes(data)
+    firmware = firmware_module(selected(FIRMWARE))
+    generated, record = firmware.generate(frozen["files"], local / "firmware")
+    for name, data in generated.items():
+        (local / name).write_bytes(data)
+    (local / "zx81_firmware.hpp").write_bytes(firmware.simulation_header(record))
     machine = selected(FILES["zx81_machine.sv"])
     if machine.count(b".address_a({1'b0, rom_a[12], rom_a[11:0]}),") != 1:
         raise ValueError("ZX81 8 KiB reachable firmware window changed")

@@ -134,7 +134,8 @@ class HpsZX81BuildTests(unittest.TestCase):
         self.assertEqual(len(recorded), 22)
         drifted = {
             item["path"] for item in recorded
-            if hashlib.sha256((B.ROOT / item["path"]).read_bytes()).hexdigest() != item["sha256"]
+            if not (B.ROOT / item["path"]).is_file() or
+            hashlib.sha256((B.ROOT / item["path"]).read_bytes()).hexdigest() != item["sha256"]
         }
         self.assertTrue({
             leaf_path,
@@ -172,7 +173,10 @@ class HpsZX81BuildTests(unittest.TestCase):
         frozen = dict(sources)
         frozen[target] += b"\n// selected Git blob differs from working file\n"
         calls = []
-        def git_blob(command, *, cwd):
+        def git_blob(command, *, cwd, text=False):
+            if command[:2] == ["git", "ls-tree"]:
+                self.assertIn(selected, command)
+                return ""
             self.assertEqual(command[:2], ["git", "show"])
             self.assertEqual(cwd, B.ROOT)
             self.assertTrue(command[2].startswith(selected + ":"))
