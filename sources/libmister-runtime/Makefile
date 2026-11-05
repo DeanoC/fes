@@ -310,7 +310,7 @@ $(BUILD_DIR)/tests/unit/native_hardware_test: tests/unit/native_hardware_test.cp
 		src/native/fes_gp.cpp src/native/menu_display.cpp src/native/diagnostic.cpp \
 		src/native/video_recipe.cpp src/native/video.cpp \
 		src/native/hardware.cpp  src/runtime.cpp src/native/linux/menu_window.cpp \
-		src/linux/production_hardware.cpp src/native/de25_core_driver.cpp src/native/de25_computer.cpp src/native/linux/de25_fpga_manager.cpp src/native/linux/de25_menu.cpp \
+		src/linux/production_hardware.cpp src/native/de25_core_driver.cpp src/native/de25_computer.cpp src/native/de25_pr_control.cpp src/native/linux/de25_fpga_manager.cpp src/native/linux/de25_menu.cpp \
 		src/native/linux/mmio.cpp src/native/linux/fpga_manager.cpp \
 		src/native/linux/i2c.cpp src/native/linux/input.cpp src/native/linux/window_driver.cpp \
 		src/daemon/json.cpp src/daemon/protocol.cpp
@@ -325,7 +325,7 @@ $(BUILD_DIR)/tests/unit/native_hardware_test: tests/unit/native_hardware_test.cp
 		src/native/fes_gp.cpp src/native/menu_display.cpp src/native/diagnostic.cpp \
 		src/native/video_recipe.cpp src/native/video.cpp \
 		src/native/hardware.cpp  src/runtime.cpp src/native/linux/menu_window.cpp \
-		src/linux/production_hardware.cpp src/native/de25_core_driver.cpp src/native/de25_computer.cpp src/native/linux/de25_fpga_manager.cpp src/native/linux/de25_menu.cpp \
+		src/linux/production_hardware.cpp src/native/de25_core_driver.cpp src/native/de25_computer.cpp src/native/de25_pr_control.cpp src/native/linux/de25_fpga_manager.cpp src/native/linux/de25_menu.cpp \
 		src/native/linux/mmio.cpp src/native/linux/fpga_manager.cpp \
 		src/native/linux/i2c.cpp src/native/linux/input.cpp src/native/linux/window_driver.cpp \
 		src/daemon/json.cpp src/daemon/protocol.cpp \
