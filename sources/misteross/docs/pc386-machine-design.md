@@ -1105,8 +1105,15 @@ itself; those files are FogCast's own. `BLASTER` follows the
 [Sound Blaster setting](#sound-blaster-setting): the builder adds `FESENV.COM`,
 a small FogCast program that reads CMOS 60h–62h and prints the matching
 `SET BLASTER=A… I… D… T3` line, and `AUTOEXEC.BAT` runs it into a batch file
-and calls that, so every boot gets the current setting. `FESENV.COM`'s
-source ships on the image beside it, under FogCast's licence. Binaries ship
+and calls that, so every boot gets the current setting. After CuteMouse,
+`AUTOEXEC.BAT` runs `MOUSEDEF.COM`, which sets the driver's event handler to
+a RETF in the BIOS ROM with mask 0 (INT 33h function 14h). CuteMouse starts
+with 0:0, where Microsoft's driver and DOSBox's start non-null, and Ultima
+VII's menu keeps a swapped-out handler only if it is not 0:0; without this
+it leaves its own handler armed for the next program
+([#1485](https://github.com/DeanoC/fes/issues/1485)). The sources of
+`FESENV.COM` and `MOUSEDEF.COM` ship on the image beside them, under
+FogCast's licence. Binaries ship
 unmodified. If a component ever needs a patch, the source that ships is the
 patched source with the changes marked. Adding a component means adding a row
 here and to the lock, with its licence. The image is an aggregate of
