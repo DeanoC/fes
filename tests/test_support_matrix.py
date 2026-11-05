@@ -25,11 +25,12 @@ class SupportMatrixTests(unittest.TestCase):
         self.assertEqual('experimental', row['library_standing'])
         self.assertIn('Experimental', row['notes'])
         self.assertEqual('diagnostic', row['signals']['media_gen'])
-        self.assertEqual('2026-11-04', row['signals']['last_hil_pass'])
-        self.assertEqual('docs/validation/2026-11-04-pcxt-game-and-speaker-kit-a.md',
-                         row['signals']['hil_note'])
-        self.assertIn('6974817d', row['signals']['hil_scope'])
-        self.assertIn('not current package', row['signals']['hil_scope'])
+        self.assertIsNone(row['signals']['last_hil_pass'])
+        self.assertIsNone(row['signals']['hil_note'])
+        self.assertIsNone(row['signals']['hil_scope'])
+        self.assertIn('docs/validation/2026-11-04-pcxt-game-and-speaker-kit-a.md',
+                      row['evidence'])
+        self.assertIn('6974817d', row['notes'])
         self.assertIn('loaded at runtime through the mailbox', row['features'])
         self.assertIn('write sectors', row['features'])
         self.assertIn('keyboard', row['features'])

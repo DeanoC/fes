@@ -1712,9 +1712,9 @@
         "last_host_change": null,
         "last_host_sha": null,
         "last_host_subject": null,
-        "last_hil_pass": "2026-11-04",
-        "hil_note": "docs/validation/2026-11-04-pcxt-game-and-speaker-kit-a.md",
-        "hil_scope": "Kit A diagnostic of producer 6974817d: DOS, COM, one saved file across Stop/relaunch, bounded Digger directional response and speaker; not current package or physical signoff",
+        "last_hil_pass": null,
+        "hil_note": null,
+        "hil_scope": null,
         "open_issues": [
           "#1402",
           "#1429"
