@@ -70,8 +70,11 @@ Remove the private cache directory after the diagnostic exits. Each invocation
 must use a freshly created directory. The isolated interpreter avoids stale
 bytecode from a previous checkout, including in the nested package parser.
 
-For Digger, use Kit A: game mode's audio capture currently supports Kit A only,
-and its capture device must be `/dev/v4l/by-id/fes-shadowcast-hil`. Select the
+For Digger, use the selected kit's stable video loopback:
+`/dev/v4l/by-id/fes-shadowcast-hil` for Kit A or
+`/dev/v4l/by-id/fes-4kpro-hil` for Kit B. The audio recorder verifies that
+the named ALSA card and loopback fanout share the kit's expected physical USB
+capture device before recording and throughout the diagnostic. Select the
 separately built game floppy in a **new owned session** and use a new evidence
 directory. Game mode also requires at least one private opening-player template
 from the exact game build. Each template is a raw 32×34 RGB image (3264 bytes)
@@ -80,6 +83,12 @@ and needs its pinned SHA-256; pass one `--game-template` and its matching
 `--game-max-host-age-ms` with a positive integer local observation-age limit.
 This is a local freshness policy, not a bound on target image age or key
 delivery. The script has no default for it.
+
+Kit B capture mapping has host-side identity checks but has not yet been
+qualified by an exact-artifact PC/XT game/audio kit run. The 4KPRO fanout can
+deliver 60 frames per second; the recorder's 30 fps is a playback convention.
+Use the per-frame source sidecar and host monotonic observations for review,
+not encoded video duration as a target timing or audio synchronization bound.
 
 Use the common identity arguments shown in the COM command, with the game
 scenario, Kit A, game floppy, capture device and evidence path. For example:

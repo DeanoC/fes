@@ -756,6 +756,28 @@ class VideoEvidenceTest(unittest.TestCase):
         take.assert_not_called()
         keys.assert_not_called()
 
+    def test_kit_b_rejects_kit_a_audio_before_game_input(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            args = mock.Mock(kit='B', capture_device='/dev/v4l/by-id/fes-4kpro-hil',
+                             evidence=Path(tmp))
+            probe = mock.Mock(spec=app.gameplay.PlaybackProbe)
+            video = mock.Mock(observer_guard=probe, started_ns=1, first_progress_ns=2,
+                              converter_identity={'test': 'scaler'})
+            audio = mock.Mock(mapping={'hil_video': '/dev/v4l/by-id/fes-shadowcast-hil'})
+            observer = mock.Mock()
+            with mock.patch.object(app, 'capture_owned', return_value=((1, 1, b'x'), {'file':'before'})), \
+                 mock.patch.object(app, 'prompt', return_value={}), \
+                 mock.patch.object(app, 'type_keys') as keys:
+                with self.assertRaisesRegex(app.pa.AcceptanceError, 'audio capture mapping'):
+                    app.run_game(None, mock.Mock(), args, {'captures': []}, 'input', b'font',
+                                 probe=probe, video_factory=lambda *_: video,
+                                 audio_factory=lambda *_: audio,
+                                 observer_factory=lambda *_: observer)
+            keys.assert_not_called()
+            audio.stop.assert_called_once_with(phases=None)
+            video.stop.assert_called_once()
+            observer.close.assert_called_once()
+
     def test_game_rejects_recorder_from_other_observation_stream(self):
         args = mock.Mock(kit='A', target_id='target', source_commit='a'*40,
                          capture_device='fixture', capture_producer_sha256='b'*64, evidence=Path('/tmp'))

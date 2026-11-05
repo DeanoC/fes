@@ -11,12 +11,27 @@ import wave
 
 class AudioError(RuntimeError): pass
 MAX_PROGRESS_STALL_NS = 8_000_000_000
+KIT_CAPTURE = {
+    'A': {'card': 'S3', 'raw': 'usb-GENKI_ShadowCast_3_KT044001-video-index0',
+          'loop': 'fes-shadowcast-hil', 'service': 'fes-shadowcast-fanout.service',
+          'usb': ('32ed', '3701', 'KT044001')},
+    'B': {'card': 'D4KPRO', 'raw': 'usb-ASUS_4KPRO_802B003090700329-video-index0',
+          'loop': 'fes-4kpro-hil', 'service': 'fes-4kpro-fanout.service',
+          'usb': ('0b05', '1ab9', '802B003090700329')},
+}
+
+
+def kit_capture(kit):
+    try:
+        return KIT_CAPTURE[kit]
+    except (KeyError, TypeError):
+        raise AudioError('unsupported kit capture mapping') from None
 
 def capture_identity(kit, *, sysroot=Path('/sys'), procroot=Path('/proc'), devroot=Path('/dev'), runner=subprocess.run):
     """Bind ALSA and fanout video to one expected physical USB capture card."""
-    if kit != 'A': raise AudioError('only Kit A capture mapping is supported')
-    raw = devroot/'v4l/by-id/usb-GENKI_ShadowCast_3_KT044001-video-index0'
-    loop = devroot/'v4l/by-id/fes-shadowcast-hil'
+    expected = kit_capture(kit)
+    raw = devroot/'v4l/by-id'/expected['raw']
+    loop = devroot/'v4l/by-id'/expected['loop']
     def usb(node):
         node=node.resolve(strict=True)
         for parent in (node,*node.parents):
@@ -25,7 +40,7 @@ def capture_identity(kit, *, sysroot=Path('/sys'), procroot=Path('/proc'), devro
                         'product':(parent/'idProduct').read_text().strip().lower(),'serial':(parent/'serial').read_text().strip()}
         raise AudioError('USB capture identity unavailable')
     try:
-        card=(procroot/'asound/S3').resolve(strict=True).name
+        card=(procroot/'asound'/expected['card']).resolve(strict=True).name
         if not card.startswith('card') or not card[4:].isdigit(): raise AudioError('ALSA card identity unavailable')
         video=raw.resolve(strict=True).name
         loopname=loop.resolve(strict=True).name
@@ -33,11 +48,11 @@ def capture_identity(kit, *, sysroot=Path('/sys'), procroot=Path('/proc'), devro
             raise AudioError('capture paths do not resolve to video devices')
         audio_usb=usb(sysroot/'class/sound'/card/'device')
         video_usb=usb(sysroot/'class/video4linux'/video/'device')
-        if audio_usb != video_usb or (audio_usb['vendor'],audio_usb['product'],audio_usb['serial']) != ('32ed','3701','KT044001'):
+        if audio_usb != video_usb or (audio_usb['vendor'],audio_usb['product'],audio_usb['serial']) != expected['usb']:
             raise AudioError('ALSA and video physical capture identities differ')
-        if (sysroot/'class/video4linux'/loopname/'name').read_text().strip() != 'fes-shadowcast-hil':
+        if (sysroot/'class/video4linux'/loopname/'name').read_text().strip() != expected['loop']:
             raise AudioError('HIL video loopback identity differs')
-        result=runner(['systemctl','show','fes-shadowcast-fanout.service','--property=MainPID','--value'],
+        result=runner(['systemctl','show',expected['service'],'--property=MainPID','--value'],
                       check=True,capture_output=True,text=True,timeout=5)
         pid=int(result.stdout.strip())
         if pid <= 0: raise AudioError('capture fanout is not running')
@@ -54,10 +69,9 @@ def capture_identity(kit, *, sysroot=Path('/sys'), procroot=Path('/proc'), devro
 
 class AudioRecorder:
     def __init__(self, evidence, kit):
-        if kit != 'A':
-            raise AudioError('only Kit A audio capture is supported')
+        expected = kit_capture(kit)
         self.evidence = Path(evidence)
-        self.device = 'hw:CARD=S3,DEV=0'
+        self.device = 'hw:CARD='+expected['card']+',DEV=0'
         self.kit = kit
         self.mapping_path = self.evidence/'audio-device.json'
         self.path = self.evidence/'hdmi-audio.wav'

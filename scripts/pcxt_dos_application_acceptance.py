@@ -1131,8 +1131,6 @@ def main(argv=None):
     if args.scenario == 'game':
         if threading.active_count() != 1:
             raise pa.AcceptanceError('game diagnostics must start before capture threads')
-        if args.kit != 'A':
-            raise pa.AcceptanceError('game audio capture currently supports Kit A only')
         if (not args.game_template or len(args.game_template) != len(args.game_template_sha256 or [])
                 or type(args.game_max_host_age_ms) is not int or args.game_max_host_age_ms <= 0):
             raise pa.AcceptanceError('game requires pinned private templates and a local age policy')
