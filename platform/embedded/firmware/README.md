@@ -97,21 +97,18 @@ scope, transfer phase/result, private driver error, access counts, last observed
 read offset/value, write offset and timer samples. These are cached during the
 original checks and accesses; reporting performs no new endpoint, ownership or
 timer reads and cannot retry the transfer. It does not log ROM payload words.
-It also counts ownership callbacks and the total/maximum completed intervals
-between their existing timer samples, with pending/invalid accounting flags.
-These counters add no timer reads. The C/RTL fixture charges a known modeled
-supplier cost and checks exact accounting on successful transfers.
-Completed intervals are also split by the private step state at entry into
-full-proof and step-guard sample counts, totals and maxima. This includes the
-common checks before the chosen path; it does not cache an ownership result.
-The existing `fast_checks` counter still counts entry to the actual step guard,
-so it can differ from completed samples when an earlier check or clock fails.
-The two completed totals sum to the aggregate when measurements remain valid.
-Regressing clocks, invalid diagnostic classification or accumulator/sample
-overflow mark accounting invalid without changing the transfer decision.
-Accounting uses exactly the existing single timer read per callback, and a
-report still performs no reads. These fields measure ownership brackets, not
-isolated instruction execution or hardware qualification.
+Detailed per-ownership cost profiling has been removed from this timed path
+following the matched physical comparison. It required thousands of uncached
+counter/accumulator updates while the ROM deadline was running. The timer
+callback now reads the counter once and caches that sample for a later failure
+report. Every ownership call still reads and checks the live timer frequency;
+the initially verified frequency is cached once, and a later mismatch records
+the unexpected frequency on failure. No live CPU, callback,
+USB, clock, reset, bridge or producer checks were removed. The 16-byte steps,
+per-access brackets, one-second deadline and 64-poll limit remain unchanged.
+Test-only counters continue to charge the injected clock for actual full/inner
+callbacks; those costs do not represent a physical speedup. Timing, successful
+ROM loading and full launch/return still need a newly matched hardware test.
 The existing failure reply still clears provenance and retires the activation.
 The C/RTL fixture checks containment-before-report, one emission, unchanged
 access counts on repeated reports, and both ROM sizes across integrity, scope,

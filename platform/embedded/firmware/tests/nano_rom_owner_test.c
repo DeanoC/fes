@@ -10,10 +10,10 @@ static struct fes_nano_configuration configuration;
 static struct fes_nano_identity_probe identity_probe;
 static struct fes_nano_program configuration_program;
 static struct {
-    const char *scope;uint32_t hz,owner_checks,fast_checks,reads,writes,read_offset,read_value,write_offset;
-    uint64_t tick,owner_started,owner_ticks,owner_max;
-    struct {uint64_t ticks,max;uint32_t samples;} owner_cost[2];
-    unsigned phase,owner_pending,owner_invalid,owner_fast;
+    const char *scope;
+    uint32_t hz,reads,writes,read_offset,read_value,write_offset;
+    uint64_t tick;
+    unsigned phase;
 } computer_rom_diagnostic;
 static struct fes_nano_rom computer_rom;
 static struct {

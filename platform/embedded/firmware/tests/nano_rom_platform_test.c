@@ -153,14 +153,8 @@ int fes_test_rom_platform_open(void)
     if(result[0])assert(!result[1] && !result[2] && !result[3] && reset_bits==15 && contained==1 && identity_probe.failed);
     else {
         assert(result[2]==19 && result[3]==7 && reset_bits==13 && computer_rom.complete && !computer_rom.failed);
-        assert(computer_rom_diagnostic.owner_checks && computer_rom_diagnostic.owner_ticks &&
-            computer_rom_diagnostic.owner_max==21 &&
-            computer_rom_diagnostic.owner_ticks==(uint64_t)computer_rom_diagnostic.owner_checks*21 &&
-            computer_rom_diagnostic.owner_cost[0].samples==computer_rom_diagnostic.owner_checks &&
-            computer_rom_diagnostic.owner_cost[0].ticks==computer_rom_diagnostic.owner_ticks &&
-            computer_rom_diagnostic.owner_cost[0].max==computer_rom_diagnostic.owner_max &&
-            !computer_rom_diagnostic.owner_cost[1].samples && !computer_rom_diagnostic.owner_cost[1].ticks &&
-            !computer_rom_diagnostic.owner_pending && !computer_rom_diagnostic.owner_invalid);
+        assert(owner_calls && frequency_reads &&
+            computer_rom_diagnostic.hz==FES_EMBEDDED_ROM_TICK_HZ && computer_rom_diagnostic.tick);
     }
     assert(reports==(computer_rom_diagnostic.pending ? 1U : 0U));
     /* Reporting again, including after a rejected replay, cannot sample MMIO,
