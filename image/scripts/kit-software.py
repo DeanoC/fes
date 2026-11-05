@@ -130,10 +130,14 @@ def base_contract(target, executables):
             missing = set(inspect(p)['required']) - provided
             if missing:
                 raise ValueError(f'unresolved base symbols in {p}: {sorted(missing)}')
-    abi = {'format': 1, 'architecture': 'armv7-linux-gnueabihf', 'libraries': inventory}
+    # The launcher is started by the base supervisor, so its invocation is
+    # part of the ABI just as much as the system libraries it links. The old
+    # supervisor passes -catalog-config; this one uses the local-host options.
+    abi = {'format': 2, 'architecture': 'armv7-linux-gnueabihf', 'libraries': inventory,
+           'launcher_supervisor': 'local-host-v1'}
     digest = hashlib.sha256(json.dumps(abi, sort_keys=True, separators=(',', ':')).encode()).hexdigest()
     return {'board': 'de10-nano', 'architecture': 'armv7',
-            'base_contract': 'fes-kit-base-v1-' + digest, 'interfaces': INTERFACES}
+            'base_contract': 'fes-kit-base-v2-' + digest, 'interfaces': INTERFACES}
 
 
 def menu_requirements(target):

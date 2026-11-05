@@ -58,6 +58,12 @@ version and at least the required minor. Supervisors that predate these keys
 ignore them, so a newer bundle still installs and runs on an older image. The
 image build fails when its own factory runtime does not accept its menu.
 
+The base contract includes both the system-library ABI and the supervisor's
+launcher invocation ABI. The local-host launcher uses the v2 contract; an older
+v1 image holds back a v2 selection and starts its own factory software, and a
+v2 image likewise holds back a v1 selection. This prevents an old supervisor
+from starting a launcher with arguments it no longer accepts.
+
 A bundle advertises `kit-host` for the supervised host and
 `kit-launcher-host` for Tenfoot's local-host mode. The current image requires
 both at version 1.0 in `software-base.json`, so a bundle without either is
@@ -198,17 +204,16 @@ the whole startup; a failure after it is open keeps the socket serving the error
 **The kit's FogCast host** (#863 slice 5) is a fourth supervised process, kept
 apart from the service group above:
 
-- **When it runs.** The supervisor starts `bin/fogcast-kit host` only for a
-  bundle whose manifest advertises `kit-host` (next section), and only once the
-  launcher has published readiness for that bundle, so its start-up does not
-  compete with the agent and launcher.
-- **Not part of activation.** Its exit restarts it alone, with the launcher's
+- **When it runs.** The supervisor starts `bin/fogcast-kit host` during
+  activation, before launcher readiness. Tenfoot reads the host session before
+  presenting or reporting readiness.
+- **Independent restart.** Its exit restarts it alone, with the launcher's
   one-to-thirty-second backoff, and never stops the agent, runtime or a running
   core. `GET /v1/kit/software`'s `service_fault` reports it while it
   restarts, when the service group has no fault of its own; unlike a group
   fault, it does not refuse uploads or activations.
-  Activation, recovery and their readiness window do not include it, so a host
-  that cannot start does not fail an activation. It receives the group
+  A host that cannot start prevents the launcher from becoming ready, so
+  activation cannot complete. It receives the group
   environment without `FES_SOFTWARE_REQUEST`, `FES_SOFTWARE_READY_FILE` and
   `FES_SOFTWARE_RECOVERY_FENCE`.
 - **Backoff.** A host that keeps exiting within two seconds of starting backs

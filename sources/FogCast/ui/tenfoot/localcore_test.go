@@ -19,11 +19,6 @@ import (
 
 const tenfootPongID = "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
 
-func readyNo() *bool {
-	v := false
-	return &v
-}
-
 func TestHostModeLeavesKitUnset(t *testing.T) {
 	prefs := filepath.Join(t.TempDir(), "prefs.json")
 	host, err := configuredApp(Options{GFX: "sdl", APIBase: "http://127.0.0.1:9", PrefsPath: prefs})
@@ -440,16 +435,6 @@ func startCoreRoomWithHost(t *testing.T, cores rooms.LocalCores, feed localPadSe
 	app.Start(t.Context())
 	t.Cleanup(app.Stop)
 	return app, h
-}
-
-func assertRoomFocus(t *testing.T, snap Snapshot, label, packageID string) {
-	t.Helper()
-	if !snap.Room.Open || snap.Room.ID != "cores" || snap.RoomPicker.Open || len(snap.Room.Parents) != 0 {
-		t.Fatalf("room was not restored: open=%v id=%q picker=%v parents=%v", snap.Room.Open, snap.Room.ID, snap.RoomPicker.Open, snap.Room.Parents)
-	}
-	if snap.Room.Destination.Label != label || snap.Room.Destination.PackageID != packageID || snap.Room.Destination.Kind != rooms.KindCore {
-		t.Fatalf("focus moved: %+v", snap.Room.Destination)
-	}
 }
 
 func TestKitSessionPadStaysLocalWhenTheFeedFails(t *testing.T) {

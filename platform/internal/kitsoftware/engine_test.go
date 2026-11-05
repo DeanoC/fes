@@ -694,3 +694,45 @@ func TestHeldBackCandidateBlocksOnlyWhenSelectionFailsToStart(t *testing.T) {
 		t.Fatal("failed selection start not recorded", s.Pending)
 	}
 }
+
+// contractCheckingControl exercises the real release compatibility check while
+// Engine.Boot decides whether to start the selection or the image's factory.
+type contractCheckingControl struct {
+	*fakeControl
+	base     software.Compatibility
+	releases map[string]software.Manifest
+}
+
+func (c *contractCheckingControl) Verify(_ context.Context, id string) error {
+	return c.releases[id].Compatible(c.base)
+}
+
+func TestBootHoldsBackLauncherABIMismatchInBothDirections(t *testing.T) {
+	old, _, _ := softwareFixture(t, "fes-kit-base-v1-old")
+	newRelease, _, _ := softwareFixture(t, "fes-kit-base-v2-new")
+	for _, tc := range []struct {
+		name              string
+		factory, selected software.Release
+	}{
+		{"old image with new launcher", old, newRelease},
+		{"new image with old launcher", newRelease, old},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			r, engine, fake, _ := setup(t)
+			selectRelease(t, r, tc.selected.ID)
+			control := &contractCheckingControl{
+				fakeControl: fake,
+				base:        software.Compatibility{Board: "de10-nano", Architecture: "armv7", BaseContract: tc.factory.Manifest.BaseContract, Interfaces: map[string]string{"runtime": "1"}},
+				releases:    map[string]software.Manifest{tc.factory.ID: tc.factory.Manifest, tc.selected.ID: tc.selected.Manifest},
+			}
+			engine.Controller, engine.Factory = control, tc.factory.ID
+			if err := engine.Boot(context.Background(), req()); err != nil {
+				t.Fatal(err)
+			}
+			state, err := r.Read()
+			if err != nil || fake.active != tc.factory.ID || fake.starts != 1 || state.Selected != tc.selected.ID || engine.HeldBack != tc.selected.ID || !strings.Contains(engine.HeldBackReason, "base contract") {
+				t.Fatalf("active=%s starts=%d state=%+v held=%s reason=%s err=%v", fake.active, fake.starts, state, engine.HeldBack, engine.HeldBackReason, err)
+			}
+		})
+	}
+}

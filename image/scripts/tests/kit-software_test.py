@@ -196,6 +196,15 @@ class SoftwareABI(unittest.TestCase):
             }
             with patch.object(software, 'elf', side_effect=lambda p: table[p]):
                 first = software.base_contract(root, [binary])
+                self.assertTrue(first['base_contract'].startswith('fes-kit-base-v2-'))
+                # The former library-only v1 contract must not identify a
+                # bundle whose launcher needs different supervisor arguments.
+                legacy = {'format': 1, 'architecture': 'armv7-linux-gnueabihf',
+                          'libraries': [{'name': 'libc.so.6', 'soname': ['libc.so.6'],
+                                         'symbols': ['memcpy@GLIBC_2.4']}]}
+                import hashlib
+                old_digest = hashlib.sha256(json.dumps(legacy, sort_keys=True, separators=(',', ':')).encode()).hexdigest()
+                self.assertNotEqual(first['base_contract'], 'fes-kit-base-v1-' + old_digest)
                 lib.write_bytes(b'new implementation, same ABI')
                 binary.write_bytes(b'another application')
                 self.assertEqual(first, software.base_contract(root, [binary]))
