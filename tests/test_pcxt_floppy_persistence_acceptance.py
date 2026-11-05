@@ -19,6 +19,30 @@ from tests.test_pcxt_dos_application_acceptance import FakeRunner
 
 
 class SourceObserverCleanupTest(unittest.TestCase):
+    def test_cleanly_reaped_timeout_does_not_retain_claim(self):
+        for cancel_observer in (False, True):
+            with self.subTest(cancel_observer=cancel_observer), tempfile.TemporaryDirectory() as temp:
+                path = Path(temp) / 'pid'
+                script = 'import os,sys,time; open(sys.argv[1],"w").write(str(os.getpid())); time.sleep(30)'
+                def observe(_deadline):
+                    p.bounded_source_command([sys.executable, '-c', script, str(path)],
+                        p.PhaseDeadline(time.monotonic()+30), maximum_seconds=20 if cancel_observer else .4)
+                    return {'owner': 'unexpected'}
+                with self.assertRaises(p.pa.AcceptanceError) as caught:
+                    p.app._hard_deadline_observation(observe, seconds=.8 if cancel_observer else 3)
+                self.assertTrue(path.exists(), 'source process did not start before the deadline')
+                self.assertFalse(getattr(caught.exception, 'source_cleanup_incomplete', False))
+                self.assertFalse((Path('/proc') / path.read_text()).exists())
+
+    def test_source_exec_failure_does_not_retain_claim(self):
+        def observe(_deadline):
+            p.bounded_source_command(['/nonexistent-pcxt-source-command'],
+                                     p.PhaseDeadline(time.monotonic()+10))
+            return {'owner': 'unexpected'}
+        with self.assertRaises(p.pa.AcceptanceError) as caught:
+            p.app._hard_deadline_observation(observe, seconds=3)
+        self.assertFalse(getattr(caught.exception, 'source_cleanup_incomplete', False))
+
     def test_timeout_stops_real_source_process_group(self):
         # The command forks a descendant in its session; neither may keep
         # running after the observer hits its hard deadline.

@@ -104,7 +104,12 @@ def _bounded_source_command(argv, deadline, *, cwd=None, maximum_seconds=20, saf
             environment['PYTHONDONTWRITEBYTECODE']='1'
             environment['PYTHONPYCACHEPREFIX']=str(cache_prefix)
         started()
-        proc=subprocess.Popen(argv,cwd=cwd,stdout=output,stderr=subprocess.DEVNULL,start_new_session=True,env=environment)
+        try:
+            proc=subprocess.Popen(argv,cwd=cwd,stdout=output,stderr=subprocess.DEVNULL,start_new_session=True,env=environment)
+        except OSError:
+            # Popen reaps its child before reporting an exec/start error.
+            cleaned()
+            raise
         try:
             # Keep the leader unreaped until its entire group is killed. This
             # prevents PID/group reuse when an exited leader leaves children.
@@ -121,10 +126,13 @@ def _bounded_source_command(argv, deadline, *, cwd=None, maximum_seconds=20, saf
             except ProcessLookupError:pass
             try:proc.wait(timeout=5)
             except subprocess.TimeoutExpired:raise SourceCleanupError('source process cleanup failed') from None
-        try:os.killpg(proc.pid,0)
-        except ProcessLookupError:pass
-        else:raise SourceCleanupError('source process group remains; identity unsafe')
-        cleaned()
+            # A deadline or cancellation raised above must not skip cleanup
+            # verification. Report a completed cleanup only after the whole
+            # owned group is gone, even when the command itself failed.
+            try:os.killpg(proc.pid,0)
+            except ProcessLookupError:pass
+            else:raise SourceCleanupError('source process group remains; identity unsafe')
+            cleaned()
         if proc.returncode:raise pa.AcceptanceError('source process failed')
         deadline.remaining(1)
         output.seek(0);result=output.read(16*1024*1024+1)
