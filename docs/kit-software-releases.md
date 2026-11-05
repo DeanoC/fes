@@ -223,9 +223,12 @@ apart from the service group above:
 
 Bundle verification completes before the service startup clock begins, while
 the current group is still running. Each start checks that the verified tree
-has not changed. Stopping services, starting replacements and observing ten
-seconds of stable readiness share one sixty-second deadline, including startup
-retries. Factory trial startup follows the same rule. Verification and elapsed
+has not changed. Stopping services, starting replacements and first observing
+readiness share one sixty-second deadline, including startup retries. Once a
+successful readiness observation occurs within that deadline, the same group
+must remain ready for ten seconds; a failure after the deadline fails the
+attempt. Polling and a bounded final probe have a small additional allowance.
+Factory trial startup follows the same rule. Verification and elapsed
 readiness do not require a working real-time clock on the kit.
 The runtime must finish native initialization through its own authenticated
 protocol socket before the agent or launcher starts. Clean idle permits normal
