@@ -538,3 +538,10 @@ S/start and Space for the selected computer. These fixed assignments grant no
 compatibility for another package. Output remains serial state, with no HDMI
 grant. A healthy idle exit closes USB through its exact receipt; uncertain core
 states keep resources retained. Hardware combined-operation acceptance is open.
+
+The shared serial diagnostic also emits the verified HPS source/pin observations,
+its exact USB Ready lease, delivered report counts at pause/resume boundaries,
+and the final owned USB Stop receipt. These counters are local observations,
+serialized by the backend; logging adds no firmware calls or device authority.
+They distinguish continued input delivery from successful enumeration. Idle
+reports do not demonstrate physical controls or normal package admission.

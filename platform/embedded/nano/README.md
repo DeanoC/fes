@@ -1271,3 +1271,27 @@ as the selected-program files. It does not activate a core or start native boot.
 The explicitly compiled `fpgaload --tenfoot-serial` mode consumes this friendly
 catalog before SD containment; see the [native launcher description](../tamago/README.md).
 Its serial state output is not an HDMI/display capability.
+
+
+`TenfootClient(..., shared_usb=policy)` observes the explicitly shared startup.
+The checked policy supplies the input protocol, descriptor hash/length and
+complete HPS context/pin map from the matched artifacts. Startup requires the
+secure USB setup, source observation and both complete pin-read passes before
+one shared Ready record and the matching App input marker. UART-only mode
+cannot adopt these records; the shared mode does not infer omitted observations.
+
+The native diagnostic reports owner/generation and delivered input counts at
+each existing pause/resume boundary. The observer requires the same confirmed
+USB generation 2 through all core transitions, increasing report counts before
+each transition and unchanged counts while paused. Native generations and
+states must match the requested launch/return; App completion follows resume.
+Quit additionally requires the same owner's generation-3 USB stop before Exit.
+Missing or malformed records, counter regressions, late boundaries and native
+configuration/closure failures retire the client with no further input.
+`exercise` accepts a bounded passive settle callback; the shared hardware test
+uses it to give the running frontend time to receive reports before each action.
+
+Counts establish delivered reports, including idle reports. They do not establish
+physical button changes, controller mapping or playable-core qualification.
+The observer still validates the actual C configuration, firewall and independent
+master-stop records. No physical combined result is supplied by its model tests.

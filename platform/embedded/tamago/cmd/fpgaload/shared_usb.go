@@ -6,6 +6,7 @@ package main
 import (
 	"context"
 	"crypto/sha256"
+	"encoding/hex"
 	"errors"
 	"fmt"
 	"time"
@@ -43,6 +44,7 @@ func openProgramUSB(v *nativefabric.HPSContextVerifier) error {
 	if !before.Bridges.NeverEnabled || before.Bridges.Generation != 1 {
 		return errors.New("shared USB lost initial cold scope")
 	}
+	fmt.Printf("FES_NATIVE_HPS_CONTEXT PASS sha256=%s package_id=%s build_id=%s owner=%x generation=%x programming=unavailable\n", hex.EncodeToString(before.Digest[:]), v.Identity().PackageID, v.Identity().BuildID, before.Bridges.Owner, before.Bridges.Generation)
 	observed, err := v.ProbeHPSIO(decoded(expectedHPSIO, 48<<10))
 	if err != nil {
 		return err
@@ -50,6 +52,7 @@ func openProgramUSB(v *nativefabric.HPSContextVerifier) error {
 	if observed.Source != before {
 		return errors.New("shared USB pins changed boot ownership")
 	}
+	fmt.Printf("FES_NATIVE_HPS_IO PASS map_sha256=%s count=%d reads=%d owner=%x generation=%x data_held=1 runtime_admission=unavailable\n", hex.EncodeToString(observed.Digest[:]), observed.Count, observed.Count*2, before.Bridges.Owner, before.Bridges.Generation)
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 	programUSBClient, err = usbcontrol.NewSharedPIO(ctx, de25nano.FabricCPUTransport{}, before.Bridges.Owner)
@@ -64,7 +67,11 @@ func openProgramUSB(v *nativefabric.HPSContextVerifier) error {
 	if err != nil {
 		return err
 	}
-	fmt.Printf("FES_NATIVE_SHARED_USB READY input=%s owner=%x descriptor_sha256=%x descriptor_bytes=%d\n", expectedUSBInput, before.Bridges.Owner, sha256.Sum256(programGamepadDescriptor), len(programGamepadDescriptor))
+	receipt, valid := programUSBClient.LastReceipt()
+	if !valid || !receipt.Active || !receipt.Confirmed || receipt.Generation != 2 || receipt.Owner != before.Bridges.Owner {
+		return errors.New("shared USB readiness receipt absent")
+	}
+	fmt.Printf("FES_NATIVE_SHARED_USB READY input=%s owner=%x generation=%d descriptor_sha256=%x descriptor_bytes=%d\n", expectedUSBInput, receipt.Owner, receipt.Generation, sha256.Sum256(programGamepadDescriptor), len(programGamepadDescriptor))
 	return nil
 }
 func closeProgramUSB() error {
@@ -88,6 +95,6 @@ func closeProgramUSB() error {
 	if !valid || receipt.Active || receipt.Confirmed {
 		return errors.New("shared USB stop receipt absent")
 	}
-	fmt.Printf("FES_NATIVE_SHARED_USB STOP owner=%x generation=%d\n", receipt.Owner, receipt.Generation)
+	fmt.Printf("FES_NATIVE_SHARED_USB STOP owner=%x generation=%d reports=%d\n", receipt.Owner, receipt.Generation, sharedInputMetrics.reports)
 	return nil
 }

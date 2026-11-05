@@ -116,7 +116,7 @@ class _ComputerContinuation:
 
 def decode_native_boot(data, build_id, owner_seed, *, storage=None, package=None, hps_context=None, hps_io=None, fpga_identity=None,
                        fpga_configuration=False, fpga_unready=False, fpga_status_only=False, configuration_storage=False,
-                       smmu_observe=False, reader_memory=None, computer=None, computer_activity=False, cpu_mapping=None, capture_trace=True, atf=None, usb_control=False, _continuation=None, _window_prefix=False):
+                       smmu_observe=False, reader_memory=None, computer=None, computer_activity=False, cpu_mapping=None, capture_trace=True, atf=None, usb_control=False, usb_shared=False, _continuation=None, _window_prefix=False):
     """Retain partial progress, but qualify only one ordered, coherent boot.
 
     A bare prompt need not end in a newline. Other incomplete lines are held
@@ -133,8 +133,10 @@ def decode_native_boot(data, build_id, owner_seed, *, storage=None, package=None
         raise ValueError('secure capture trace selection must come from the checked build')
     if type(computer_activity) is not bool or computer_activity and computer is None:
         raise ValueError('computer activity requires its explicitly selected source-bound computer probe')
+    if type(usb_shared) is not bool or usb_shared and (not usb_control or package is None):
+        raise ValueError('shared USB boot requires explicitly selected USB and SD/package prefix')
     if type(usb_control) is not bool or usb_control and (not capture_trace or hps_context is None or hps_io is None or
-            storage is not None or package is not None or fpga_identity is not None or
+            storage is not None or package is not None and not usb_shared or fpga_identity is not None or
             fpga_configuration or configuration_storage or smmu_observe or reader_memory is not None or
             computer is not None or computer_activity or cpu_mapping is not None or _continuation is not None or _window_prefix):
         raise ValueError('USB control requires its separate cold source-context and HPS I/O diagnostic')
@@ -193,8 +195,10 @@ def decode_native_boot(data, build_id, owner_seed, *, storage=None, package=None
                 any(not isinstance(hps_context[key],str) or not re.fullmatch('[0-9a-f]{'+str(size)+'}',hps_context[key]) or
                     int(hps_context[key],16)==0 for key,size in (('sha256',64),('package_id',64),('build_id',32)))):
             raise ValueError('independently checked HPS source-context identities required')
-        if storage is not None or package is not None:
+        if storage is not None or package is not None and not usb_shared:
             raise ValueError('select exactly one SD or HPS context diagnostic')
+        if usb_shared and any(hps_context[key]!=package[key] for key in ('package_id','build_id')):
+            raise ValueError('shared USB and package prefix identities differ')
     if hps_io is not None:
         if hps_context is None or fpga_identity is not None or not isinstance(hps_io,dict):
             raise ValueError('HPS I/O requires its separate compiled source-context diagnostic')
@@ -266,7 +270,8 @@ def decode_native_boot(data, build_id, owner_seed, *, storage=None, package=None
         suffix=(('storage','read','contained','resumed','sd_pass') if storage is not None else
                 ('package_probe','package_retained','package_contained','package_resumed','package_pass'))
         index=base_stages.index('provider')+1
-        stages=base_stages[:index]+('sd_platform',)+base_stages[index:-1]+suffix
+        source_stages=stages[len(base_stages)-1:] if usb_shared else ()
+        stages=base_stages[:index]+('sd_platform',)+base_stages[index:-1]+source_stages+suffix
     if _window_prefix:
         index=stages.index('hps_context');stages=stages[:index]+('window_memory',)+stages[index:]
         stages+=('smmu','ddr_firewall',)+tuple('ddr_region_'+str(i) for i in range(8))+('ddr_firewall_end',)

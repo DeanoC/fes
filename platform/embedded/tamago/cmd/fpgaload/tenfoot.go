@@ -77,9 +77,9 @@ func serveProgramTenfoot(loader *nativefabric.ProgramLoader, store *packagestore
 			keys := nativefabric.ProgramGamepadKeys{Up: 0x52, Down: 0x51, Left: 0x50, Right: 0x4f}
 			// This diagnostic assigns S/start and Space to the first two HID buttons.
 			keys.Buttons[0], keys.Buttons[1] = 0x16, 0x2c
-			platform, err = nativefabric.NewProgramGamepadPlatform(serialPlatform, nativeProgramBackend, programGamepadSource, programGamepadDescriptor, input.GamepadButtons{Confirm: 1, Back: 2}, keys)
+			platform, err = nativefabric.NewProgramGamepadPlatform(serialPlatform, nativeProgramBackend, &sharedProgramGamepad{programGamepadSource, &sharedInputMetrics}, programGamepadDescriptor, input.GamepadButtons{Confirm: 1, Back: 2}, keys)
 		} else {
-			platform, err = nativefabric.NewProgramInputPlatform(serialPlatform, nativeProgramBackend, programKeyboardSource)
+			platform, err = nativefabric.NewProgramInputPlatform(serialPlatform, nativeProgramBackend, &sharedProgramKeyboard{programKeyboardSource, &sharedInputMetrics})
 		}
 		if err != nil {
 			panic(err)

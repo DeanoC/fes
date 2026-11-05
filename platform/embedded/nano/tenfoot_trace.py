@@ -8,6 +8,7 @@ import threading
 import time
 
 from native_trace import decode_native_boot
+from shared_input_trace import SharedInput, PREFIX as USB_PREFIX, record as usb_record
 from service_trace import _unique, closed, number, opening, require
 
 PREFIX=b'FES_NATIVE_TENFOOT_STATE '
@@ -18,15 +19,28 @@ ZERO={k:0 if k in ('Major','Minor') else '' for k in IDENTITY}
 MAX_BYTES=1<<20
 
 
-def packet(data,*,startup=False):
+def packet(data,*,startup=False,input_mode='uart',usb_records=None):
     """Separate complete App observations from unchanged firmware evidence."""
     require(isinstance(data,(bytes,bytearray)) and 0<len(data)<=MAX_BYTES and data.endswith(b'\n'),'bounded complete App capture required')
-    states=[];evidence=[];exited=None;begins=0
+    require(input_mode in ('uart','uart+shared-usb-gamepad','uart+shared-usb-boot-keyboard'),'explicit App input scope required')
+    begin=BEGIN if input_mode=='uart' else b'FES_NATIVE_TENFOOT_BEGIN display=serial-state-only input='+input_mode.encode()+b' preferences=ram'
+    states=[];evidence=[];exited=None;begins=0;usb_ready=False
     def constant(_):raise ValueError('nonfinite App JSON')
     lines=bytes(data).splitlines(keepends=True)
     for index,line in enumerate(lines):
         raw=line.rstrip(b'\r\n')
-        if raw==BEGIN:
+        if raw.startswith(USB_PREFIX):
+            require(input_mode!='uart','shared USB observation in UART-only App')
+            row=usb_record(raw,index+1)
+            if startup:
+                require(row['stage']=='ready' and not usb_ready and begins==0,'unexpected shared USB startup transition')
+                require(evidence and evidence[-1].rstrip(b'\r\n').startswith(b'FES_NATIVE_HPS_IO PASS '),'shared Ready precedes sealed pin proof')
+                usb_ready=True
+            else:require(row['stage']!='ready','shared USB reinitialized during play')
+            if usb_records is not None:usb_records.append(row)
+            continue
+        if raw==begin:
+            require(input_mode=='uart' or usb_ready,'App began before shared USB Ready')
             begins+=1;require(startup and begins==1 and not states,'unexpected App begin');continue
         if raw.startswith(PREFIX):
             r=json.loads(raw[len(PREFIX):].decode('utf-8'),object_pairs_hook=_unique,parse_constant=constant)
@@ -56,7 +70,7 @@ def packet(data,*,startup=False):
             exited=int(match[1]);require(exited<1<<64,'App exit generation overflow');continue
         text=raw.decode('utf-8')
         require(not text.startswith(('panic:','fatal error:')) and not re.search(r'\b(?:FAIL|FAILURE|REJECT|EXCEPTION)\b',text),'native failure before App observation')
-        require('FES_NATIVE_TENFOOT' not in text and 'FES_NATIVE_PROGRAM_REPLY' not in text and 'FES_NATIVE_WINDOW_REPLY' not in text,'foreign or malformed App observation')
+        require('FES_NATIVE_SHARED_USB' not in text and 'FES_NATIVE_TENFOOT' not in text and 'FES_NATIVE_PROGRAM_REPLY' not in text and 'FES_NATIVE_WINDOW_REPLY' not in text,'foreign or malformed App observation')
         evidence.append(line)
     require(states or exited is not None,'App observation absent')
     require(begins==int(startup),'App startup marker differs')
@@ -87,20 +101,27 @@ class TenfootClient:
     Its predicate is framing only; this class verifies every state and all C
     evidence afterwards. Any uncertainty permanently retires the client.
     """
-    def __init__(self,initial,*,build_id,owner_seed,atf,package,programs,exchange,owns,now=time.monotonic,record=lambda _:None):
+    def __init__(self,initial,*,build_id,owner_seed,atf,package,programs,exchange,owns,now=time.monotonic,record=lambda _:None,shared_usb=None):
         require(all(callable(f) for f in (exchange,owns,now,record)),'owned exchange and clock hooks required')
         require(type(programs) is list and len(programs)==2 and len({p['title'] for p in programs})==2 and len({p['identity']['PackageID'] for p in programs})==2,'two distinct titled program choices required')
         self.programs=copy.deepcopy(programs)
-        states,evidence,exited=packet(initial,startup=True)
-        boot=decode_native_boot(evidence,build_id,owner_seed,package=package,atf=atf)
-        require(not boot['errors'] and boot['loader_ready'] and boot['last_checkpoint']=='el1','matched App boot rejected')
+        self.usb=SharedInput(shared_usb) if shared_usb is not None else None
+        usb_rows=[]
+        states,evidence,exited=self._packet(initial,startup=True,usb_records=usb_rows)
+        options={} if self.usb is None else dict(usb_control=True,usb_shared=True,hps_context=self.usb.policy['hps_context'],hps_io=self.usb.policy['hps_io'])
+        boot=decode_native_boot(evidence,build_id,owner_seed,package=package,atf=atf,**options)
+        require(not boot['errors'] and boot['loader_ready'] and boot['last_checkpoint']==('el1' if self.usb is None else 'hps_io_pass'),'matched App boot rejected')
         seal=next(r['values'] for r in boot['records'] if r['stage']=='spl_handoff')
         self.owner=seal['owner'];self.view=states[-1];self.boot=boot
+        if self.usb is not None:self.usb.startup(usb_rows,self.owner,boot)
         self.exchange,self.owns,self.now,self.record=exchange,owns,now,record
         self.active=threading.Lock();self.retired=False;self.loads=0;self.previous_configuration=0;self.last_counter=0;self.records=[]
         require(self.owns(),'App console claim absent')
         for state in states:self._state(state,0,('ready',))
         require(self._ready(self.view),'initial App is not ready')
+
+    def _packet(self,data,*,startup=False,usb_records=None):
+        return packet(data,startup=startup,input_mode='uart' if self.usb is None else self.usb.input_mode,usb_records=usb_records)
 
     def _ready(self,r):return r['native']['State']=='ready' and r['session']=='idle' and not r['loading'] and len(r['titles'])==2
     def _state(self,r,generation,allowed,identity=None):
@@ -137,14 +158,15 @@ class TenfootClient:
                 if not raw.endswith(b'\n'):return False
                 last=raw.splitlines()[-1].rstrip(b'\r')
                 if not last.startswith(PREFIX) and not EXIT.fullmatch(last):return False
-                states,_,exited=packet(raw)
+                states,_,exited=self._packet(raw)
                 for state in states:
                     require(state['native']['Owner']==self.owner,'App owner changed while waiting')
                     require(state['native']['Generation'] in (generation,generation+1),'App generation changed while waiting')
                 return terminal(states[-1] if states else None,exited)
             raw=self.exchange(payload,bound,done);after=self.now()
             require(before<=after<before+bound and self.owns(),'App deadline/clock/claim failed')
-            states,evidence,exited=packet(raw)
+            usb_rows=[]
+            states,evidence,exited=self._packet(raw,usb_records=usb_rows)
             require(terminal(states[-1] if states else None,exited),'App action did not reach its terminal observation')
             rank=-1
             for state in states:
@@ -166,7 +188,7 @@ class TenfootClient:
                     if line.startswith(PREFIX):
                         n=json.loads(line[len(PREFIX):])['native']
                         reached=reached or (n['Generation']==generation+1 and n['State']==terminal_native)
-                    elif reached:require(quiet(line) or EXIT.fullmatch(line),'firmware evidence followed published terminal ownership')
+                    elif reached:require(quiet(line) or EXIT.fullmatch(line) or self.usb is not None and line.startswith(USB_PREFIX),'firmware evidence followed published terminal ownership')
             if op=='launch':
                 require(exited is None and states[-1]['native']['Generation']==generation+1,'launch exit/generation differs')
                 source=4+5*self.loads
@@ -182,6 +204,7 @@ class TenfootClient:
             else:
                 row['master_stop']=closed(evidence,self.owner,self.previous_configuration)
                 require((exited==generation+1) if op=='quit' else exited is None and states[-1]['native']['Generation']==generation+1,'owned return/exit generation differs')
+            if self.usb is not None:row['shared_usb']=self.usb.action(op,generation,usb_rows,self.owner,raw,PREFIX)
             row.update(status='verified',states=states,exit_generation=exited,raw_bytes=len(raw));self.record(copy.deepcopy(row))
             if op=='quit':self.retired=True
             else:self.view=copy.deepcopy(states[-1])
@@ -191,13 +214,16 @@ class TenfootClient:
         finally:self.active.release()
 
 
-def exercise(client):
+def exercise(client,settle=lambda _:None):
+    require(callable(settle),'bounded settle hook required')
     cycles=[]
     for i,selection in enumerate((0,1,0)):
         title=client.programs[selection]['title']
         if client.view['titles'][client.view['focus']]!=title:client.key('focus',selection)
+        if client.usb is not None:settle(0.5)
         launch=client.key('launch',selection)
+        if client.usb is not None:settle(0.5)
         returned=client.key('quit' if i==2 else 'stop')
         cycles.append({'selection':selection,'launch_generation':launch['states'][-1]['native']['Generation'],'return_generation':returned['exit_generation'] if i==2 else returned['states'][-1]['native']['Generation']})
     require(client.loads==3 and client.retired and cycles[-1]['return_generation']==6,'App cycle incomplete')
-    return dict(passed=True,cycles=cycles,hardware_acceptance=False,ordinary_admission=False,display='serial-state-only')
+    return dict(passed=True,cycles=cycles,shared_usb_reports=None if client.usb is None else client.usb.reports,input_controls_exercised=False,hardware_acceptance=False,ordinary_admission=False,display='serial-state-only')
