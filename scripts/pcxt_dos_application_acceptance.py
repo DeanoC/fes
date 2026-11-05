@@ -741,7 +741,8 @@ def _hard_deadline_observation(observe, seconds=5.0):
                     return pa.AcceptanceError('invalid observer result before the hard phase deadline')
         # Do not downgrade an explicit or malformed observer failure merely
         # because the child failed to exit before its deadline.
-        if result is not None and (not isinstance(result, dict) or result.get('ok') is not True):
+        if result is not None and (not isinstance(result, dict) or result.get('ok') is not True
+                                   or not isinstance(result.get('claim'), dict)):
             return pa.AcceptanceError('observer failed before the hard phase deadline')
         return ObservationDeadlineExceeded('selected software observation exceeded hard phase deadline')
     try:

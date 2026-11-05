@@ -265,6 +265,18 @@ class FakeRunner:
 
 
 class HardDeadlineTest(unittest.TestCase):
+    def test_malformed_success_is_not_downgraded_to_timeout(self):
+        real_waitpid = os.waitpid
+        end = time.monotonic() + .15
+        def delayed_reap(pid, options):
+            if time.monotonic() < end:
+                return (0, 0)
+            return real_waitpid(pid, options)
+        with mock.patch.object(app.os, 'waitpid', side_effect=delayed_reap):
+            with self.assertRaises(app.pa.AcceptanceError) as caught:
+                app._hard_deadline_observation(lambda _deadline: None, seconds=.1)
+        self.assertNotIsInstance(caught.exception, app.ObservationDeadlineExceeded)
+
     def test_observer_eof_is_not_downgraded_after_select_timeout(self):
         real_select = app.select.select
         def late_select(read, write, error, timeout):
