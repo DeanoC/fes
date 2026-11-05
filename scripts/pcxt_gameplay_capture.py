@@ -192,7 +192,7 @@ class GameCapture:
             try:
                 self.result = capture.capture_experiment(self.source, self.recorder, 7200, detect,
                     sample_every=1, detector_fault=probe.fault, on_source_frame=probe.source_frame,
-                    stop_event=self.stop_requested, skip_recording_verification=self.failed_run.is_set)
+                    stop_event=self.stop_requested, defer_recording_verification=True)
             except BaseException as exc:
                 self.error = exc; probe.fault.set()
             finally:
@@ -249,3 +249,8 @@ class GameCapture:
                         raise capture.CaptureError('game frame converter library changed during capture')
         finally:
             self.converter.close()
+        # Recording verification can take minutes on large lossless captures.
+        # It runs only after the source, recorder and worker have exited, so
+        # its independent bounded phase cannot be mistaken for cleanup failure.
+        if not self.failed_run.is_set():
+            self.recorder.verify_capture()

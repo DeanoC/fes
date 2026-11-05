@@ -114,6 +114,15 @@ class SourceTests(unittest.TestCase):
             self.assertTrue(recorder.closed); self.assertEqual(recorder.proc.returncode, 0)
             self.assertGreater(recorder.video.stat().st_size, 0)
 
+    def test_pixel_verification_has_a_total_deadline_and_reaps_decoder(self):
+        recorder=capture.FFV1Recorder.__new__(capture.FFV1Recorder)
+        recorder.video=Path('/tmp/unused');recorder.entries=[{'raw_sha256':'0'*64}];recorder.size=512
+        decoder=mock.Mock();decoder.poll.return_value=None
+        with mock.patch.object(capture.subprocess,'Popen',return_value=decoder):
+            with self.assertRaisesRegex(capture.CaptureError,'stalled'):
+                recorder._verify_pixels(timeout=0)
+        decoder.kill.assert_called_once();decoder.wait.assert_called_once_with(timeout=5)
+
     def test_recorder_failure_terminates_source_stuck_in_read(self):
         with tempfile.TemporaryDirectory() as tmp:
             code = ('import os,struct,time; '

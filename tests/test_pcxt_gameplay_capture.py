@@ -107,7 +107,17 @@ for i in range(200):
             video = GameCapture('synthetic', root, probe, helper,
                                 hashlib.sha256(helper.read_bytes()).hexdigest(), [template], startup_timeout=10)
             time.sleep(.35)
-            video.stop()
+            verify = video.recorder.verify_capture
+            def verify_after_cleanup():
+                self.assertFalse(video.worker.is_alive())
+                self.assertTrue(video.source.closed)
+                self.assertTrue(video.recorder.closed)
+                self.assertIsNotNone(video.source.proc.poll())
+                self.assertIsNotNone(video.recorder.proc.poll())
+                verify()
+            with mock.patch.object(video.recorder, 'verify_capture', side_effect=verify_after_cleanup) as checked:
+                video.stop()
+            checked.assert_called_once()
             rows = [json.loads(line) for line in video.progress_path.read_text().splitlines()]
             self.assertGreaterEqual(len(rows), 2)
             self.assertEqual([r['sequence'] for r in rows], list(range(len(rows))))
