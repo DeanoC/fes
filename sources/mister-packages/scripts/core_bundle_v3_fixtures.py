@@ -83,7 +83,7 @@ def generated_files():
         add('invalid-map-nano-'+name,nano_manifest(raw),raw,'invalid held-ROM map '+name)
     for name,raw in [('duplicate',data.replace(b'"format":1',b'"format":1,"format":1')),
             ('trailing',data+b'{}'),('missing',encode_map({k:v for k,v in value.items() if k!='encoding'})),
-            ('oversized',data+b' '*1024)]:
+            ('oversized',data.replace(b'{',b'{'+b' '*1024,1))]:
         add('invalid-map-nano-'+name,nano_manifest(raw),raw,'invalid held-ROM map '+name)
     for name,bad in [('role',man.replace(b'role = "firmware"',b'role = "cartridge"')),
             ('size',man.replace(b'source_size = 4096',b'source_size = 1024')),

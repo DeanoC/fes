@@ -52,4 +52,4 @@ role = "firmware"
 source_size = 4096
 file = "rom-map.json"
 size = 1190
-sha256 = "7aa5b1f0e9b82965136c4ae3717c34670a06e64c2c88f516c2f44c87819971f5"
+sha256 = "b857e5866a21d4e2f2fc3bf8af05f91aa38a359a976358c37f0607cd85d66f08"
