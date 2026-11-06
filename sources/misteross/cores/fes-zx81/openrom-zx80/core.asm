@@ -174,9 +174,6 @@ line_skip:
 
 ; ---------------------------------------------------------------------
 ; Reports. RST 8 stops the statement; so does arithmetic overflow.
-unwind: ld sp,(ERR_SP)
-        ret
-
 overflow:
         rst 8
         db R_OVERFLOW
@@ -186,7 +183,8 @@ overflow:
 syntax_err:
         ld hl,(CH_ADD)
         ld (X_PTR),hl
-        jr unwind
+unwind: ld sp,(ERR_SP)
+        ret
 
 ; ---------------------------------------------------------------------
 ; Character fetching (RST 18 starts in hw.asm). Spaces are not significant
