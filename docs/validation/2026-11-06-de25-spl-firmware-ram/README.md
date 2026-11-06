@@ -34,6 +34,11 @@ firmware only after the trace and successful check. Separate tests keep the
 ordinary DDR-only ELF gate closed to zero-file-byte OCRAM NOBITS segments.
 The existing cold/ROM/USB ownership suites passed: 29 tests before the added
 admission regression, then all 10 firmware/admission tests passed.
+The required changed-input integration run also passed all ten steps on
+46e1aa52b358e6e83252e8ce342c88fd88affa3e: parent regressions (1,498 tests),
+producer regressions (1,581 tests), policy checks, generated-consumer
+consistency, native firmware/FPGA lifecycle, producer identity and firmware/RTL
+integration. These are host/model checks, separate from physical acceptance.
 
 Both changed SPL translation units compiled against the pinned vendor's actual
 headers, configuration and original compiler flags. The final guard is a

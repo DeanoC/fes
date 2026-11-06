@@ -24,7 +24,9 @@
     "out/nano-rom-spl-ram-guard-20261106/admission-tests.log": "8683975dde1b0a1354589c5c4e3706acf1e2468eac8c0faa0f5ec0f1a152f590",
     "out/nano-rom-spl-ram-guard-20261106/cross-check-v2.log": "d4c9e41990f665f4e92b7a45344a729efdc31add7d08871fea913856859cbf98",
     "out/nano-rom-spl-ram-guard-20261106/fes_nano_spl.su": "b9121fe195c4e06163593841fae04f086023d0fcacbac85a2ec537387948e43b",
+    "out/nano-rom-spl-ram-guard-20261106/retain.py": "a252bd2ef134a2637be2cb838cd2b028310c803b14f9e8c6c85b0d49332123db",
     "out/nano-rom-spl-ram-guard-20261106/fes_nano_spl.d": "5998becee4bd39ebec6d169816c6953353488eb8c3d3fac69f84b08d08a44f73",
+    "out/nano-rom-spl-ram-guard-20261106/changed-checks.log": "5e7b0fb2f92e6894983e33a06ecea172bf1ddf84c0480b1a999d356658f6470b",
     "out/nano-rom-spl-ram-guard-20261106/reject_config.py": "9e54871c51e2203e26ad1006c794d00624760b1ecbafe0e8f0a44b2cafc087d8",
     "out/nano-rom-spl-ram-guard-20261106/audit_compiled-v2.py": "c76bf78331c98843fc8d91033415e4c3464948c4800235d875678fcf96d96f6e",
     "out/nano-rom-spl-ram-guard-20261106/audit_compiled.py": "13c4c5ff9c16b83758e3e09793184c5de1b876c5e0a72098c1dfa22c00a2fd81",
@@ -37,12 +39,15 @@
     "out/nano-rom-spl-ram-guard-20261106/admission-tests-result.json": "82ba399b1c533c2dd80dd449bd6ee2f32c7b238f961a8a69dfc22882c00f2d3f",
     "out/nano-rom-spl-ram-guard-20261106/cross-check.log": "29abfd5390709b8a5f6ff83fed34563764303f6e99c0c993436c2e05d31ed658",
     "out/nano-rom-spl-ram-guard-20261106/cross-check-result.json": "385e1f2ad34b1bd5f0a72b55e0a7259a3416f73acccf6cb45d4a9cb871df71c1",
+    "out/nano-rom-spl-ram-guard-20261106/changed-checks-summary.json": "99eab682feb24c837a721c64786cb76b8c135c804a759ccf23de0e117890bad7",
     "out/nano-rom-spl-ram-guard-20261106/cross-check-v3-result.json": "ad7b7b302a1a49c42ee142a89ce9286a9ee5793b1fa85c28fd9a432dd2b41f7b",
+    "out/nano-rom-spl-ram-guard-20261106/software-plan.json": "f6cc89d7e56a4d837efdf6d4ea7a09ae8021ba3b9f30a493060f2a9868441ce2",
     "out/nano-rom-spl-ram-guard-20261106/cross_check-v2.py": "2ce665106109db48df523e78880a4b9c27aa4add7def76d42ee75647f4e28e2e",
     "out/nano-rom-spl-ram-guard-20261106/run.py": "8dea93a99adab57fd4721de0379fa6fbbcd75877d64f4d7e8ed80a041df6ed3c",
     "out/nano-rom-spl-ram-guard-20261106/compiled-audit-result.json": "0a34a3e341dfb0687062c715804ca2d51270d7d96af577c2ac57b7e7d387f9df",
     "out/nano-rom-spl-ram-guard-20261106/compiled-audit-v3-result.json": "e91d51328dfcfeadf69f7e0a69f63c0c46050042b95c32410fd757aec91034ce",
     "out/nano-rom-spl-ram-guard-20261106/fes_nano_spl.o": "d288395214ceedbbb51b34ab7315307612016cf88c5ee4d96b8b44df71dd17dc",
+    "out/nano-rom-spl-ram-guard-20261106/changed-checks-result.json": "0c157c6f8b6b35be6d98a0a74c478fb65a9c5e6f13f037afa2b7610d0c599334",
     "out/nano-rom-spl-ram-guard-20261106/config-rejections-result.json": "6bb0fad09985c442806bddb9592376893cdb72a1672b55a15161fc2a4d3be309",
     "out/nano-rom-spl-ram-guard-20261106/config-rejections.log": "3b6e6908436c6d2eb30d347cf377c48b4e1114ff91310dc5f7e8f959e4f1fb3f",
     "out/nano-rom-spl-ram-guard-20261106/include/nano_firmware_ram.h": "ae301b2d895d6fdeaa3843a83567ebef0117bbbbf027f8e1d526ca1cc01e3be5",
@@ -112,5 +117,30 @@
   "firmware_ram_reserved": false,
   "elf_admission_changed": false,
   "matched_chain_built": false,
-  "ordinary_admission": false
+  "ordinary_admission": false,
+  "integration_checks": {
+    "tested_head": "46e1aa52b358e6e83252e8ce342c88fd88affa3e",
+    "base": "bbb61c0bf8ec7809ebe3295ecaab6e11238e05a2",
+    "status": "passed",
+    "steps": 10,
+    "suite_counts": [
+      [
+        "32",
+        "0.304"
+      ],
+      [
+        "39",
+        "2.036"
+      ],
+      [
+        "1498",
+        "288.976"
+      ],
+      [
+        "1581",
+        "332.354"
+      ]
+    ],
+    "elapsed": 742.7738952030195
+  }
 }
