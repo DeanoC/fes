@@ -12,6 +12,7 @@ import tomllib
 import unittest
 from unittest import mock
 from scripts import build_de25_zx81_package as producer
+from scripts import build_de25_zx81_static_package as static
 from scripts.export_core_package import build_identity,verify_record_source_at_revision
 
 ROOT=Path(__file__).resolve().parents[1]
@@ -80,6 +81,50 @@ class ZX81ProducerTests(unittest.TestCase):
                 producer.build(quartus_root='',vendor_archive=None)
             with self.assertRaisesRegex(producer.BuildError,'pinned recipe'):
                 producer._require_clean_source(self.root,pinned_inputs=('foreign','ABI'))
+
+    def test_static_record_has_independent_control_identity_and_no_constant_pcm_policy(self):
+        def record(controller='1' * 32, placement='X2 Y7 X26 Y12'):
+            return static.create_build_record(self.root, 'https://github.com/DeanoC/fes', self.revision,
+                self.tools, self.execution, self.captured, control_build_id=controller,
+                placement=placement, routing='X1 Y6 X27 Y13')
+        raw = record(); fields = verify_record_source_at_revision(self.root, raw)
+        p = fields['parameters']
+        self.assertEqual(p['programming_profile'], static.PROGRAMMING_PROFILE)
+        self.assertTrue(p['expansion_socket'])
+        self.assertEqual(p['static_default_persona_id'], 0xc001a001)
+        self.assertNotEqual(build_identity(raw), p['static_control_build_id'])
+        for name in ('audio_clock_reference_policy', 'hdmi_output_policy', 'internal_ram_kib'):
+            self.assertNotIn(name, p)
+        self.assertNotEqual(build_identity(raw), build_identity(record('2' * 32)))
+        self.assertNotEqual(build_identity(raw), build_identity(record(placement='X3 Y7 X26 Y12')))
+        with self.assertRaises(producer.BuildError): record('not-an-id')
+        with self.assertRaises(producer.BuildError): record(placement='X2 Y7 X26 Y12; ignored')
+
+    def test_static_manifest_post_fit_seals_do_not_change_the_functional_id(self):
+        record = static.create_build_record(self.root, 'https://github.com/DeanoC/fes', self.revision,
+            self.tools, self.execution, self.captured, control_build_id='1' * 32,
+            placement='X2 Y7 X26 Y12', routing='X1 Y6 X27 Y13')
+        base = self.root / 'core.rbf'; base.write_bytes(b'synthetic base, never deploy')
+        persona = self.root / 'persona.rbf'; persona.write_bytes(b'synthetic empty persona, never deploy')
+        shell = dict(control_build_id='1' * 32, root_qdb_sha256='2' * 64,
+            interface_sha256='3' * 64, clock_reset_sha256='4' * 64, vendor_pof={'hash': '5' * 64})
+        first = static.manifest(record, base, persona, {'shell': shell})
+        fields = tomllib.loads(first.decode())
+        self.assertEqual(fields['format'], 5)
+        self.assertEqual(fields['build']['id'], build_identity(record))
+        self.assertEqual(fields['static_expansion']['control_build_id'], '1' * 32)
+        self.assertEqual(fields['target']['programming_profile'], static.PROGRAMMING_PROFILE)
+        shell['root_qdb_sha256'] = '6' * 64
+        second = static.manifest(record, base, persona, {'shell': shell})
+        self.assertNotEqual(first, second)
+        self.assertEqual(tomllib.loads(second.decode())['build']['id'], fields['build']['id'])
+
+    def test_static_selection_requires_explicit_regions_before_any_build(self):
+        with mock.patch.object(static, 'builder', side_effect=AssertionError('builder ran')):
+            with self.assertRaisesRegex(producer.BuildError, 'placement and --routing'):
+                producer.build(quartus_root='', vendor_archive=Path('unopened.zip'), static_expansion=True)
+        with self.assertRaisesRegex(producer.BuildError, 'require --static-expansion'):
+            producer.build(quartus_root='', vendor_archive=None, placement='X2 Y7 X26 Y12')
 
     def test_capture_contains_the_real_profile_and_hdmi_helpers(self):
         captured=producer.computer(ROOT).capture_standard_board()

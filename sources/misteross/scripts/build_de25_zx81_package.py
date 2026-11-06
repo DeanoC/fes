@@ -111,7 +111,14 @@ def manifest(record, payload):
 
 
 def build(root=ROOT, *, quartus_root, vendor_archive, output=None, package_output=None, compile_only=False,
-          license_file=None):
+          license_file=None, static_expansion=False, placement=None, routing=None):
+    if static_expansion:
+        from scripts.build_de25_zx81_static_package import build_static
+        return build_static(root, quartus_root=quartus_root, vendor_archive=vendor_archive,
+            output=output, package_output=package_output, compile_only=compile_only,
+            license_file=license_file, placement=placement, routing=routing)
+    if placement is not None or routing is not None:
+        raise BuildError('PR placement/routing require --static-expansion')
     root = Path(root).resolve()
     if vendor_archive is None:
         raise BuildError('DE25 ZX81 requires --vendor-archive or FES_DE25_VENDOR_ARCHIVE')
@@ -189,11 +196,16 @@ def main(argv=None):
     parser.add_argument('--output', type=Path)
     parser.add_argument('--package-output', type=Path)
     parser.add_argument('--compile-only', action='store_true')
+    parser.add_argument('--static-expansion', action='store_true',
+                        help='qualification-only standard base plus default empty persona; strict whole-board gates')
+    parser.add_argument('--placement', help='explicit tool-verified static PR placement region')
+    parser.add_argument('--routing', help='explicit tool-verified static PR routing region')
     args = parser.parse_args(argv)
     try:
         print(build(root=args.root, quartus_root=args.quartus_root, vendor_archive=args.vendor_archive,
                     output=args.output, package_output=args.package_output, compile_only=args.compile_only,
-                    license_file=args.license_file))
+                    license_file=args.license_file, static_expansion=args.static_expansion,
+                    placement=args.placement, routing=args.routing))
     except (OSError, ValueError, RuntimeError, subprocess.CalledProcessError) as error:
         parser.exit(1, 'de25-zx81: ' + str(error) + '\n')
 

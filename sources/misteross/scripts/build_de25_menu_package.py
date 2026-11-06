@@ -244,9 +244,13 @@ def create_build_record(root, repository, revision, identities, execution, captu
     return encode_build_record(fields)
 
 
-def timing_evidence(directory, *, async_review=None, audio_review=None):
+def timing_evidence(directory, *, async_review=None, audio_review=None, revision='golden_top'):
+    if revision not in ('golden_top', 'base', 'persona_a', 'persona_b'):
+        raise BuildError('unknown DE25 timing revision')
+    if revision != 'golden_top' and (async_review is not None or audio_review is not None):
+        raise BuildError('standard PR revisions cannot inherit internal16K timing reviews')
     reports = Path(directory) / 'combined/hps/project/output_files'
-    drc = (reports / 'golden_top.tq.drc.signoff.rpt').read_text()
+    drc = (reports / (revision + '.tq.drc.signoff.rpt')).read_text()
     declared = set(re.findall(r'Design Assistant \(Signoff\) Results - (\d+) of (\d+) Rules Failed', drc))
     if len(declared) != 1:
         raise BuildError('missing or inconsistent DE25 signoff summary')
@@ -263,7 +267,7 @@ def timing_evidence(directory, *, async_review=None, audio_review=None):
         details[rule[1]] = match.groups()
     if len(details) != total or any(details.get(n) != ('FAIL' if int(v) else 'PASS', s, v) for n, s, v, _ in rows):
         raise BuildError('DE25 signoff summary differs from rule details')
-    text = (reports / 'golden_top.sta.summary').read_text()
+    text = (reports / (revision + '.sta.summary')).read_text()
     blocks = re.findall(r'^Type\s*:\s*([^\n]+)\nSlack\s*:\s*([^\s]+)[ \t]*(?:\nTNS\s*:\s*([^\n]+)\nCorner:\s*([^\n]+))?', text, re.M)
     if len(blocks) != len(re.findall(r'^Type\s*:', text, re.M)):
         raise BuildError('unparsed DE25 timing check')
@@ -334,7 +338,8 @@ def timing_evidence(directory, *, async_review=None, audio_review=None):
             **({'corner': k} if k != 'not-reported' else {})} for t, c, s, n, k in checks],
         'all_reported_timing_pass': passing,
         'package_timing_admission': passing and unreviewed == 0 and all(int(r[3]) == 0 for r in rows),
-        'reports_sha256': {name: sha(reports / name) for name in ('golden_top.sta.summary', 'golden_top.tq.drc.signoff.rpt')}}
+        'reports_sha256': {name: sha(reports / name) for name in
+                          (revision + '.sta.summary', revision + '.tq.drc.signoff.rpt')}}
 
 
 def manifest(record, payload):

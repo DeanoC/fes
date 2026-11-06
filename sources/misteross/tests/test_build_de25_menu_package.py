@@ -58,6 +58,25 @@ class DE25MenuPackageTests(unittest.TestCase):
         with self.assertRaisesRegex(producer.BuildError, 'differs from rule details'):
             producer.timing_evidence(self.root)
 
+    def test_pr_revision_reports_are_independent_and_refuse_inherited_reviews(self):
+        for revision in ('base', 'persona_a', 'persona_b'):
+            (self.reports / (revision + '.tq.drc.signoff.rpt')).write_text(self.passing_signoff())
+            (self.reports / (revision + '.sta.summary')).write_text(self.fixture['golden_top.sta.summary'])
+            evidence = producer.timing_evidence(self.root, revision=revision)
+            self.assertTrue(evidence['package_timing_admission'])
+            self.assertEqual(set(evidence['reports_sha256']),
+                {revision + '.sta.summary', revision + '.tq.drc.signoff.rpt'})
+            for kwargs in ({'async_review': 'foreign'}, {'audio_review': 'foreign'}):
+                with self.assertRaisesRegex(producer.BuildError, 'cannot inherit'):
+                    producer.timing_evidence(self.root, revision=revision, **kwargs)
+        # A failing revision must not read another revision's passing reports.
+        (self.reports / 'persona_b.tq.drc.signoff.rpt').write_text(
+            self.fixture['golden_top.tq.drc.signoff.rpt'])
+        self.assertFalse(producer.timing_evidence(self.root, revision='persona_b')['package_timing_admission'])
+        self.assertTrue(producer.timing_evidence(self.root, revision='base')['package_timing_admission'])
+        with self.assertRaisesRegex(producer.BuildError, 'unknown DE25 timing revision'):
+            producer.timing_evidence(self.root, revision='../base')
+
     def test_waived_findings_cannot_admit_a_package(self):
         text = self.passing_signoff()
         text = re.sub(r'(?m)^(; TMC-20012 - [^;]+; High\s*;\s*0\s*;)\s*0\s*;', r'\1 1 ;', text)

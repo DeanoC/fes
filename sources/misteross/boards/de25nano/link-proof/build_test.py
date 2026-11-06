@@ -15,6 +15,46 @@ SPEC.loader.exec_module(build)
 
 
 class RecipeTests(unittest.TestCase):
+    def test_package_identity_binds_only_committed_pre_generation_computer_inputs(self):
+        previous = build.PROFILE
+        self.addCleanup(setattr, build, 'PROFILE', previous)
+        with tempfile.TemporaryDirectory() as tmp:
+            project = Path(tmp)
+            names = ('integrate-mailbox.tcl', 'fes_link/standard-base-inputs.json', 'unrelated.v')
+            for name in names:
+                path = project / name; path.parent.mkdir(exist_ok=True)
+                path.write_text('original ' + name)
+            (project / 'fes_link_proof.qpf').write_text('QUARTUS_VERSION = "26.3"\n'
+                'PROJECT_REVISION = "base"\nPROJECT_REVISION = "persona_a"\nPROJECT_REVISION = "persona_b"\n')
+            inputs = dict(source_committed=True, control_build_id='1' * 32,
+                project_sha256={n: build.sha((project / n).read_bytes()) for n in names})
+            def save():
+                build.reseal_source_closure(inputs)
+                (project / 'inputs.json').write_bytes(build.canonical(inputs))
+            save()
+            def bind(p, value):
+                (p / 'integrate-mailbox.tcl').write_text('computer ' + value)
+                (p / 'fes_link/standard-base-inputs.json').write_text('receipt ' + value)
+            build.PROFILE = types.SimpleNamespace(identity='fes.de25-standard-zx81-empty-ram16k.v1', bind_identity=bind)
+            original = (project / 'inputs.json').read_bytes()
+            (project / 'generated-inputs.json').write_text('{}')
+            with self.assertRaisesRegex(build.BuildError, 'before generation'):
+                build.bind_package_identity(project, '2' * 32)
+            self.assertEqual((project / 'inputs.json').read_bytes(), original)
+            (project / 'generated-inputs.json').unlink()
+            inputs['source_committed'] = False; save()
+            with self.assertRaisesRegex(build.BuildError, 'committed inputs'):
+                build.bind_package_identity(project, '2' * 32)
+            inputs['source_committed'] = True; save()
+            build.bind_package_identity(project, '2' * 32)
+            result = json.loads((project / 'inputs.json').read_bytes())
+            self.assertEqual(result['control_build_id'], '1' * 32)
+            self.assertEqual(result['package_build_id'], '2' * 32)
+            build.verify_project(project, result)
+            with self.assertRaisesRegex(build.BuildError, 'exactly once'):
+                build.bind_package_identity(project, '3' * 32)
+            self.assertEqual((project / 'unrelated.v').read_text(), 'original unrelated.v')
+
     @unittest.skipUnless(shutil.which("tclsh"), "requires Tcl")
     def test_standard_pcm_mtbf_audit_rejects_defaults_and_missing_coverage(self):
         source = (build.BOARD / "zx81-standard/pcm-timing.tcl").read_text()

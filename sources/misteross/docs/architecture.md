@@ -277,6 +277,17 @@ checks captured bytes and verifies the recorded Git revision. The audio-clock
 review helper selects the DE25 ZX81 hardware gate; it is a qualification input.
 Existing sealed artifacts retain their original identities. These producer
 changes require fresh fitting, independent reproduction and native acceptance.
+The same ZX81 producer accepts `--static-expansion` with explicit `--placement`
+and `--routing` regions. It uses the standard PR compiler and separate pre-IP
+computer/package and controller identities: the controller ID is a functional
+record input, while the computer exposes the resulting package build ID.
+Its compile-only candidate retains all three revisions and raw reports. Format5
+export requires every revision's complete numerical and whole-board signoff
+checks plus independently identical base, empty and 16K RBFs. Internal16K review
+receipts are refused for these revisions. Current raw findings still block
+export; partial-asset publication and physical PR acceptance remain open.
+This option never programs hardware and does not enable runtime static dispatch.
+
 The parent recipe registry selects this producer explicitly for
 `recipe_for("fes.menu", board="de25-nano")`; default lookup remains DE10.
 The producer implements the shared clean-source, tool-authentication and

@@ -93,6 +93,34 @@ def verify_project(directory: Path, inputs: dict) -> None:
     verify_source_closure(inputs)
 
 
+def bind_package_identity(project: Path, build_id: str) -> None:
+    """Bind the computer identity before generation, retaining the PR identity.
+
+    The functional package record contains the independently derived controller
+    ID. Making both IDs equal would make that record self-referential.
+    """
+    if (PROFILE is None or PROFILE.identity != "fes.de25-standard-zx81-empty-ram16k.v1"
+            or re.fullmatch(r"[0-9a-f]{32}", build_id) is None):
+        raise BuildError("package identity requires the standard PR profile and a canonical build ID")
+    inputs = json.loads((project / "inputs.json").read_bytes())
+    verify_project(project, inputs)
+    if (inputs.get("source_committed") is not True or "package_build_id" in inputs
+            or any((project / name).exists() for name in
+                   ("generated-inputs.json", "tools.json", "compile-complete.json", "build.json"))):
+        raise BuildError("package identity must bind committed inputs exactly once before generation")
+    allowed = {"integrate-mailbox.tcl", "fes_link/standard-base-inputs.json"}
+    if not allowed <= inputs["project_sha256"].keys():
+        raise BuildError("package identity lost its sealed preparation inputs")
+    PROFILE.bind_identity(project, build_id)
+    verify_files(project, {n: h for n, h in inputs["project_sha256"].items() if n not in allowed})
+    for name in allowed:
+        inputs["project_sha256"][name] = sha((project / name).read_bytes())
+    inputs["package_build_id"] = build_id
+    reseal_source_closure(inputs)
+    (project / "inputs.json").write_bytes(canonical(inputs) + b"\n")
+    verify_project(project, inputs)
+
+
 def proof_root(project: Path) -> Path:
     """The selected base recipe owns its layout; all share one frozen source set."""
     if PROFILE is not None and hasattr(PROFILE, "proof_root"):
