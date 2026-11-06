@@ -52,6 +52,24 @@ def elf():
 class SelectedFirmwareRAMTests(unittest.TestCase):
     run_c=base_fixture.NanoFirmwareRamTests.run_c
 
+    def test_every_assembly_record_offset_matches_actual_c_types(self):
+        self.run_c('''
+#include "nano_firmware_ram.h"
+#define AT(type,field,value) _Static_assert(offsetof(struct type,field)==value,"early assembly field moved")
+AT(fes_nano_cold_record,magic,0);AT(fes_nano_cold_record,version,4);AT(fes_nano_cold_record,size,8);
+AT(fes_nano_cold_record,checksum,12);AT(fes_nano_cold_record,boot,16);
+AT(fes_nano_cold_record,core,200);AT(fes_nano_cold_record,flags,204);
+AT(fes_nano_boot_record,magic,0);AT(fes_nano_boot_record,version,4);AT(fes_nano_boot_record,size,8);
+AT(fes_nano_boot_record,reserved,12);AT(fes_nano_boot_record,owner,16);AT(fes_nano_boot_record,epoch,24);
+AT(fes_nano_boot_record,chain,32);AT(fes_nano_boot_record,history,64);AT(fes_nano_boot_record,fabric,68);
+AT(fes_nano_boot_record,producers,72);AT(fes_nano_boot_record,reserved_end,76);
+_Static_assert(sizeof(struct fes_nano_boot_record)==80,"boot record size changed");
+_Static_assert(FES_NANO_COLD_MAGIC==0x464e4332 && FES_NANO_COLD_VERSION==2 && FES_NANO_COLD_FLAGS==15,"cold protocol changed");
+_Static_assert(FES_NANO_COLD_COOKIE==0x464e433200000002ULL,"cold cookie changed");
+_Static_assert(FES_NANO_FW_RAM_COOKIE==''' + hex(ram.COOKIE) + '''ULL,"RAM cookie changed");
+int main(void) { return 0; }
+''')
+
     def test_selection_requires_exact_native_exclusion_and_shared_rom(self):
         p=profile();self.assertEqual(ram.selected(p,True),ram.CONTRACT)
         self.assertIsNone(ram.selected({},False));self.assertIsNone(ram.checked(None))
