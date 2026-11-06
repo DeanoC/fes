@@ -2,8 +2,8 @@
 ; Keyboard, keyword and function tables. Key index = row * 5 + column:
 ; rows are address lines A8..A15, columns data bits 0..4; index 0 is SHIFT.
 
-key_plain:
-        db 0x00,0x3f,0x3d,0x28,0x3b             ; - Z X C V
+key_plain:                                      ; from index 1 (0 is SHIFT)
+        db 0x3f,0x3d,0x28,0x3b                  ; Z X C V
         db 0x26,0x38,0x29,0x2b,0x2c             ; A S D F G
         db 0x36,0x3c,0x2a,0x37,0x39             ; Q W E R T
         db 0x1d,0x1e,0x1f,0x20,0x21             ; 1 2 3 4 5

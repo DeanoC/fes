@@ -231,7 +231,7 @@ or_last:
 decode_key:
         ld e,a
         ld d,0
-        ld hl,key_plain         ; key_shift follows it
+        ld hl,key_plain - 1     ; key_shift follows it
         add hl,de
         cp 40
         ld a,(hl)
