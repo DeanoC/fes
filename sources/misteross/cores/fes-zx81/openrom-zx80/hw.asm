@@ -122,14 +122,7 @@ wait_key:
         ld (LAST_K),de
         rst 0x28
         jr z,wait_key           ; unchanged: same time every frame
-        call key_scan
-        inc a
-        jr z,wait_key           ; released
-        dec a
-        ret
-
-; A = the key down (row * 5 + column, +40 with SHIFT), $FF if none.
-key_scan:
+key_scan:                       ; the key down: row * 5 + column, +40 with SHIFT
         ld bc,0xfefe
         in a,(c)
         rra                     ; carry clear: SHIFT is down
@@ -153,18 +146,10 @@ key_scan:
         in a,(c)
         jr c,.row
         ld a,e
-        ret
-
-; Carry clear if SHIFT and SPACE (BREAK) are both down.
-break_key:
-        ld a,0x7f
-        in a,(0xfe)
-        rra
-        jr c,.up
-        ld a,0xfe
-        in a,(0xfe)
-        rra
-.up:    out (0xff),a            ; the reads started vertical sync
+key_got:                        ; (the fast harness gives A and comes in here)
+        inc a
+        jr z,wait_key           ; none: released
+        dec a
         ret
 
         endautofloat

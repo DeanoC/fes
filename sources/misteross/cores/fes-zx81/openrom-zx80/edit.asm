@@ -14,7 +14,39 @@ edit:   ld sp,(ERR_SP)
         ld a,d
         or e
         jr z,run_cmd            ; line 0 is a command
-        call enter_line
+
+; Store the edit line as line DE; CH_ADD -> the text after its number
+; (CH_ADD moves with the edit line). No text deletes the line.
+        ld (E_PPC),de
+        ld b,d
+        ld c,e
+        call find_line
+        jr nz,.new
+        push hl
+        call next_line
+        pop de
+        call reclaim_de         ; the old line; HL is where it was
+.new:   push hl
+        ld hl,(CH_ADD)
+        call text_len
+        pop hl
+        ld a,b
+        or c
+        jr z,edit
+        inc bc
+        inc bc
+        inc bc
+        call make_room
+        ld de,(E_PPC)
+        ld (hl),d
+        inc hl
+        ld (hl),e
+        inc hl
+        dec bc
+        dec bc                  ; the text and its NEWLINE
+        ex de,hl
+        ld hl,(CH_ADD)
+        ldir
         jr edit
 
 ; Obey the line at CH_ADD as a command.
@@ -41,7 +73,38 @@ eline_reset:
 
 ; Edit until a NEWLINE with no syntax error.
 edit_line:
-.draw:  call check_eline
+.draw:
+; Check the edit line: X_PTR = the first symbol that cannot be part of a
+; statement (0 if none); F_KMODE if the cursor stands where a keyword goes.
+        ld hl,(ERR_SP)
+        push hl
+        ld hl,.fail
+        push hl
+        ld (ERR_SP),sp
+        ld hl,0
+        ld (X_PTR),hl
+        ld hl,FLAGS
+        res F_KMODE,(hl)
+        set F_CHECK,(hl)
+        ld hl,(E_LINE)
+        call gc_store
+        bit F_INPUT,(iy+Y_FLAGS)
+        jr nz,.input
+        call parse_uint         ; a line number, 9999 at most (none: 0)
+        jr c,syntax_err
+        push hl
+        ld hl,-10000
+        add hl,de
+        pop hl
+        jr c,syntax_err
+        call gc_store
+        call k_here
+        cp C_NL                 ; empty, or a number alone (deletes it)
+        jr nz,statement         ; a statement always ends by unwinding
+.ok:    pop hl
+.fail:  pop hl
+        ld (ERR_SP),hl
+        res F_CHECK,(iy+Y_FLAGS)
         call display
         ld (iy+Y_FLAGX),1 << X_DROP     ; a key that does not fit is lost
 .key:   call wait_key
@@ -112,6 +175,11 @@ edit_line:
         jr nz,.key              ; not yet a statement
         ld (iy+Y_FLAGX),h       ; running: no room is report 4 again
         ret
+.input: call expr
+        ld a,(FLAGS)
+        and (1 << F_NUM) | (1 << F_DNUM)
+        jp po,syntax_err        ; not the type INPUT wants
+        rst 0x20                ; (unwinds)
 
 ; Insert A at the cursor (room is made after it, so E_LINE itself never
 ; moves). No room: while editing (X_DROP) nothing happens.
@@ -199,45 +267,6 @@ decode_key:
         ret
 
 ; ---------------------------------------------------------------------
-; Check the edit line: X_PTR = the first symbol that cannot be part of a
-; statement (0 if none); F_KMODE if the cursor stands where a keyword goes.
-check_eline:
-        ld hl,(ERR_SP)
-        push hl
-        ld hl,.fail
-        push hl
-        ld (ERR_SP),sp
-        ld hl,0
-        ld (X_PTR),hl
-        ld hl,FLAGS
-        res F_KMODE,(hl)
-        set F_CHECK,(hl)
-        ld hl,(E_LINE)
-        call gc_store
-        bit F_INPUT,(iy+Y_FLAGS)
-        jr nz,.input
-        call parse_uint         ; a line number, 9999 at most (none: 0)
-        jr c,syntax_err
-        push hl
-        ld hl,-10000
-        add hl,de
-        pop hl
-        jr c,syntax_err
-        call gc_store
-        call k_here
-        cp C_NL                 ; empty, or a number alone (deletes it)
-        jr nz,statement         ; a statement always ends by unwinding
-.ok:    pop hl
-.fail:  pop hl
-        ld (ERR_SP),hl
-        res F_CHECK,(iy+Y_FLAGS)
-        ret
-.input: call expr
-        ld a,(FLAGS)
-        and (1 << F_NUM) | (1 << F_DNUM)
-        jp po,syntax_err        ; not the type INPUT wants
-        rst 0x20                ; (unwinds)
-
 ; The screen while editing: for INPUT the program's output stays and the
 ; line goes in the lower part; otherwise the listing above, the edit line
 ; at the bottom. The edit line takes the RAM it needs first.
@@ -340,41 +369,6 @@ print_eline:
 
 ; ---------------------------------------------------------------------
 ; Program lines: number (high byte first), text, NEWLINE.
-
-; Store the edit line as line DE; CH_ADD -> the text after its number
-; (CH_ADD moves with the edit line). No text deletes the line.
-enter_line:
-        ld (E_PPC),de
-        ld b,d
-        ld c,e
-        call find_line
-        jr nz,.new
-        push hl
-        call next_line
-        pop de
-        call reclaim_de         ; the old line; HL is where it was
-.new:   push hl
-        ld hl,(CH_ADD)
-        call text_len
-        pop hl
-        ld a,b
-        or c
-        ret z
-        inc bc
-        inc bc
-        inc bc
-        call make_room
-        ld de,(E_PPC)
-        ld (hl),d
-        inc hl
-        ld (hl),e
-        inc hl
-        dec bc
-        dec bc                  ; the text and its NEWLINE
-        ex de,hl
-        ld hl,(CH_ADD)
-        ldir
-        ret
 
 ; HL = the first line numbered BC or more (or VARS); Z if exactly BC.
 find_line:

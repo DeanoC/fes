@@ -126,7 +126,7 @@ class Machine:
                     return
             elif pc == self.sym['key_scan']:
                 self.m.a = self.key_index()
-                self.ret()
+                self.m.pc = self.sym['key_got']
             elif pc == self.sym['load_entry']:
                 ok = bool(self.tape)
                 if ok:
@@ -146,7 +146,7 @@ class Machine:
                         self.script[0] = (keys, n - 1)
                 brk = 'SHIFT' in self.pressed and 'SP' in self.pressed
                 self.m.f = (self.m.f & ~1) | (0 if brk else 1)
-                self.ret()
+                self.m.pc = self.sym['break_got']
             else:
                 self.m.step_over_breakpoint()
 

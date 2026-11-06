@@ -210,13 +210,7 @@ gc_look:
         inc hl
         jr gc_store
 
-; Carry if A is a digit / a letter / either.
-is_digit:
-        cp C_0
-        ccf
-        ret nc
-        cp C_0 + 10
-        ret
+; Carry if A is a letter / a letter or digit.
 is_letter:
         cp C_A
         jr is_alnum.c

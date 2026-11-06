@@ -248,9 +248,11 @@ operand:
         jr z,.unary
         cp C_QUOTE
         jr z,.str
-        call is_digit
-        jr c,.num
-        call is_letter
+        cp C_0
+        jr c,.nd
+        cp C_0 + 10
+        jr c,.num               ; a digit
+.nd:    call is_letter
         jr c,name_operand
         jr syntax_err
 .unary: push af
@@ -284,9 +286,21 @@ operand:
         ret
 
 ; A function call, variable or array element.
+; A function: the name with its "(" from fn_table, then the routine.
 name_operand:
-        call find_fn
-        jr c,.var
+        ld de,fn_table
+.e:     ld a,(de)
+        or a
+        jr z,.var               ; not a function
+        push hl
+.c:     ld a,(de)
+        inc de
+        cp (hl)
+        jr nz,.no
+        inc hl
+        rla
+        jr nc,.c                ; up to and including the "("
+        pop af
         ld (CH_ADD),hl          ; past the function's "("
         ex de,hl
         ld e,(hl)
@@ -311,6 +325,13 @@ name_operand:
         ld d,a
         push de
         ret
+.no:    pop hl
+.skip:  rla                     ; the rest of this name
+        ld a,(de)
+        inc de
+        jr nc,.skip
+        inc de                  ; and its routine
+        jr .e
 .var:   call var_ref
         call run_only
         jr c,undefined
@@ -340,33 +361,6 @@ subscript:
         rst 0x30
         db T_RPAREN
         ret
-
-; HL -> a name: if it is a function followed by its "(", HL -> after the
-; "(" and DE -> its routine in fn_table; carry if not.
-find_fn:
-        ld de,fn_table
-.e:     ld a,(de)
-        or a
-        scf
-        ret z
-        push hl
-.c:     ld a,(de)
-        inc de
-        cp (hl)
-        jr nz,.no
-        inc hl
-        rla
-        jr nc,.c                ; up to and including the "("
-        pop af
-        and a
-        ret
-.no:    pop hl
-.skip:  rla                     ; the rest of this name
-        ld a,(de)
-        inc de
-        jr nc,.skip
-        inc de                  ; and its routine
-        jr .e
 
 fn_abs: bit 7,h
         ret z

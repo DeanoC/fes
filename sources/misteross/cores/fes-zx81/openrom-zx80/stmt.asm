@@ -96,7 +96,16 @@ line_end:
         inc hl
         ld (PPC),de
         ld (CH_ADD),hl
-        call break_key
+break_key:                      ; NC if SHIFT and SPACE (BREAK) are both down
+        ld a,0x7f
+        in a,(0xfe)
+        rra
+        jr c,.up
+        ld a,0xfe
+        in a,(0xfe)
+        rra
+.up:    out (0xff),a            ; the reads started vertical sync
+break_got:                      ; (the fast harness gives carry and comes in here)
         jr c,line_go
         jr unwind               ; BREAK: 0 and the next line
 
