@@ -256,18 +256,13 @@ The profile record's Wolfenstein 3D window spends 59.7% of its clocks in one
 seven-instruction loop at linear 1F9C6h. Two of its loads waited behind
 stores, 6.3% of the window each, and the plan's 6–11% gain came from them.
 
-A Bochs run of the same disk to 17 s gives the loop's bytes. It is the game's
-`CalcTics` wait for the next timer tick, at CS:0CF6h:
-
-```
-mov eax, [TimeCount]
-mov [bp-4], eax
-mov ax, [bp-4]          ; reads the bytes just stored: waits
-sub ax, [lasttimecount]
-mov [tics], ax
-cmp word [tics], 0      ; reads the bytes just stored: waits
-jz  0CF6h
-```
+A Bochs run of the same disk to 17 s gives the loop's bytes, at CS:0CF6h.
+It is the game's wait for the next timer tick:
+- **The loop.** It copies the tick count into a local, reads the local back,
+  subtracts the last frame's count, stores the difference, then compares
+  that stored word with zero and loops while it is.
+- **The two waiting loads.** They are the read-back of the local and the
+  compare of the stored difference.
 
 - **Both loads still wait.** Each reads exactly the bytes the store before
   it wrote, so they keep their hold.
