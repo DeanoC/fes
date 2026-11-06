@@ -13,6 +13,12 @@ launch, return and failures, and a matched SDK/entry/BL31/SPL/FIT/SOF candidate 
 prepared. Its FPGA timing findings remain open; this candidate has not booted or
 loaded a core on hardware and does not establish DE10 feature parity.
 
+The [follow-on timing repair](../../docs/validation/2026-11-06-de25-timing-repair/README.md)
+now clears the inferred capture reset-polarity conflict and two obsolete JTAG
+filter queries in a freshly routed package. Four signoff rules remain open.
+The new package passes native retained-ROM preflight without firmware access;
+its matched boot chain and physical acceptance remain pending.
+
 The experimental [native computer driver](tamago/computer/README.md) now checks
 the captured DE25 ZX81 Avalon/GP interface through injected platform I/O. Its
 explicit host model tests cover release, input, tape transfer, hold, relaunch
