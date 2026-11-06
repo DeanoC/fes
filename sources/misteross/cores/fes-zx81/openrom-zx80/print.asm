@@ -119,27 +119,6 @@ print_token:
         jr z,.text
         ret
 
-; Signed decimal HL.
-print_num:
-        bit 7,h
-        jr z,print_uint
-        ld a,C_MINUS
-        rst 0x10
-        call neg_hl
-; Unsigned decimal HL, no leading zeros.
-print_uint:
-        ld de,10
-        call divu
-        push de
-        ld a,h
-        or l
-        call nz,print_uint
-        pop de
-        ld a,e
-        add a,C_0
-        rst 0x10
-        ret
-
 ; The string at HL, up to its closing quote.
 print_str:
         ld a,(hl)

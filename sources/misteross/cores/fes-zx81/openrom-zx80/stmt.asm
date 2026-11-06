@@ -440,14 +440,9 @@ st_print:
         ret                     ; here: the FES core keeps no ZX80 tape output)
 .nl:    rst 0x20
         jr print_nl
-.val:   call run_only
-        bit F_NUM,(iy+Y_FLAGS)
-        jr z,print_str
-        jr print_num
 .tab:   call run_only
-; Comma: on to column 8, 16 or 24, else the next row.
-tab:    ld a,(iy+Y_COL)         ; 33 - column
-        cp 10
+        ld a,(iy+Y_COL)         ; comma: on to column 8, 16 or 24, else the
+        cp 10                   ; next row (COL is 33 - column)
         jr c,.row               ; column 24 or more
         sub 2
         and 7
@@ -457,6 +452,29 @@ tab:    ld a,(iy+Y_COL)         ; 33 - column
         djnz .sp
         ret
 .row:   ld (iy+Y_COL),1
+        ret
+.val:   call run_only
+        bit F_NUM,(iy+Y_FLAGS)
+        jr z,print_str
+; Signed decimal HL.
+print_num:
+        bit 7,h
+        jr z,print_uint
+        ld a,C_MINUS
+        rst 0x10
+        call neg_hl
+; Unsigned decimal HL, no leading zeros.
+print_uint:
+        ld de,10
+        call divu
+        push de
+        ld a,h
+        or l
+        call nz,print_uint
+        pop de
+        ld a,e
+        add a,C_0
+        rst 0x10
         ret
 
 ; LOAD through the FES core: it copies the mounted image over $4000
