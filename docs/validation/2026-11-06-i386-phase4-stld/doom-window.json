@@ -1,0 +1,444 @@
+{
+ "from": 22.726049,
+ "to": 23.226049,
+ "from_cycle": 2272604910,
+ "cycles": 50000000,
+ "rtl_clocks": 50000000,
+ "retired": 28067637,
+ "pm_retired": 28052678,
+ "commits": 29015686,
+ "issued": 31021796,
+ "in_flight_start": 0,
+ "in_flight_end": 5,
+ "flush_cycles": 455488,
+ "redirects": 455488,
+ "frames": 29,
+ "polls_3da": 0,
+ "l1d_waits": 242818,
+ "l1i_waits": 147287,
+ "prefixes": 2151,
+ "cpi": 1.7814110963455883,
+ "causes": {
+  "issued uops": 31021796,
+  "redirect: refill": 2708251,
+  "fetch and L1I": 1073197,
+  "L1D and port 0": 7451614,
+  "microcode": 935061,
+  "interlock: AGI": 4331317,
+  "interlock: store-to-load": 52008,
+  "interlock: flags": 1107,
+  "interlock: ESP": 101685,
+  "interlock: segment": 11763,
+  "multiply and divide": 1431575,
+  "I/O and VGA: I/O": 649520,
+  "I/O and VGA: MMIO load": 36767,
+  "I/O and VGA: store buffer full": 142229,
+  "halt": 0,
+  "other": 52110
+ },
+ "buckets": {
+  "issue_first": 30078250,
+  "issue_more": 943546,
+  "halt": 0,
+  "frz_l1d": 7451614,
+  "frz_mmio": 36767,
+  "frz_md": 1431575,
+  "frz_io": 321960,
+  "frz_inta": 2331,
+  "frz_store": 142229,
+  "refill": 2317205,
+  "refill_l1i": 391046,
+  "fe_l1i": 680607,
+  "fe_empty": 392590,
+  "d_stop": 52110,
+  "gov": 0,
+  "agi": 4331317,
+  "seg": 11763,
+  "st_ld": 52008,
+  "flag": 1107,
+  "sp": 101685,
+  "temp": 365631,
+  "urom": 511211,
+  "str": 58219,
+  "io_serial": 252419,
+  "replay_serial": 0,
+  "other_wait": 0,
+  "parked_io": 72810,
+  "parked_halt": 0,
+  "reset": 0
+ },
+ "classes": {
+  "jcc": {
+   "n": 2700900,
+   "taken": 1925485,
+   "own": 3796079,
+   "next": 3452930
+  },
+  "jmp": {
+   "n": 132537,
+   "taken": 131985,
+   "own": 429084,
+   "next": 251251
+  },
+  "jmp_ind": {
+   "n": 550,
+   "taken": 492,
+   "own": 5384,
+   "next": 14450
+  },
+  "call": {
+   "n": 173021,
+   "taken": 173021,
+   "own": 412654,
+   "next": 404906
+  },
+  "call_ind": {
+   "n": 40464,
+   "taken": 40464,
+   "own": 360294,
+   "next": 935345
+  },
+  "ret": {
+   "n": 213015,
+   "taken": 213015,
+   "own": 266854,
+   "next": 2592277
+  },
+  "far_call": {
+   "n": 20,
+   "taken": 20,
+   "own": 465,
+   "next": 843
+  },
+  "far_jmp": {
+   "n": 709,
+   "taken": 606,
+   "own": 21386,
+   "next": 21164
+  },
+  "retf": {
+   "n": 486,
+   "taken": 486,
+   "own": 14544,
+   "next": 8203
+  },
+  "int": {
+   "n": 195,
+   "taken": 195,
+   "own": 11226,
+   "next": 7735
+  },
+  "iret": {
+   "n": 701,
+   "taken": 701,
+   "own": 19966,
+   "next": 18792
+  },
+  "loop": {
+   "n": 0,
+   "taken": 0,
+   "own": 0,
+   "next": 0
+  },
+  "jcxz": {
+   "n": 194,
+   "taken": 92,
+   "own": 194,
+   "next": 153
+  },
+  "rep_str": {
+   "n": 6794,
+   "taken": 0,
+   "own": 311813,
+   "next": 0
+  },
+  "str": {
+   "n": 1404,
+   "taken": 0,
+   "own": 14730,
+   "next": 0
+  },
+  "io": {
+   "n": 48988,
+   "taken": 0,
+   "own": 431286,
+   "next": 0
+  },
+  "mul": {
+   "n": 98680,
+   "taken": 0,
+   "own": 194356,
+   "next": 0
+  },
+  "div": {
+   "n": 25766,
+   "taken": 0,
+   "own": 1023182,
+   "next": 0
+  },
+  "shift": {
+   "n": 3045988,
+   "taken": 0,
+   "own": 3215339,
+   "next": 0
+  },
+  "pushpop": {
+   "n": 1264751,
+   "taken": 0,
+   "own": 4012330,
+   "next": 0
+  },
+  "segload": {
+   "n": 5173,
+   "taken": 0,
+   "own": 128125,
+   "next": 0
+  },
+  "mem_op": {
+   "n": 10527374,
+   "taken": 0,
+   "own": 21257344,
+   "next": 0
+  },
+  "other": {
+   "n": 9779813,
+   "taken": 0,
+   "own": 14043423,
+   "next": 0
+  },
+  "delivery": {
+   "n": 114,
+   "taken": 114,
+   "own": 29950,
+   "next": 3733
+  }
+ },
+ "prediction": {
+  "direct": 3006652,
+  "taken": 2231135,
+  "predicted_taken": 2241730,
+  "predicted_taken_and_taken": 2150288,
+  "mispredicted": 172289,
+  "accuracy": 0.9427,
+  "fetch_replays": 0
+ },
+ "redirects_by_class": {
+  "jcc": {
+   "taken": 1925485,
+   "clocks": 3452930,
+   "per_taken": 1.79
+  },
+  "jmp": {
+   "taken": 131985,
+   "clocks": 251251,
+   "per_taken": 1.9
+  },
+  "jmp_ind": {
+   "taken": 492,
+   "clocks": 14450,
+   "per_taken": 29.37
+  },
+  "call": {
+   "taken": 173021,
+   "clocks": 404906,
+   "per_taken": 2.34
+  },
+  "call_ind": {
+   "taken": 40464,
+   "clocks": 935345,
+   "per_taken": 23.12
+  },
+  "ret": {
+   "taken": 213015,
+   "clocks": 2592277,
+   "per_taken": 12.17
+  },
+  "far_call": {
+   "taken": 20,
+   "clocks": 843,
+   "per_taken": 42.15
+  },
+  "far_jmp": {
+   "taken": 606,
+   "clocks": 21164,
+   "per_taken": 34.92
+  },
+  "retf": {
+   "taken": 486,
+   "clocks": 8203,
+   "per_taken": 16.88
+  },
+  "int": {
+   "taken": 195,
+   "clocks": 7735,
+   "per_taken": 39.67
+  },
+  "iret": {
+   "taken": 701,
+   "clocks": 18792,
+   "per_taken": 26.81
+  },
+  "jcxz": {
+   "taken": 92,
+   "clocks": 153,
+   "per_taken": 1.66
+  },
+  "delivery": {
+   "taken": 114,
+   "clocks": 3733,
+   "per_taken": 32.75
+  }
+ },
+ "sites": [
+  [
+   "0018be0d",
+   512503,
+   1268877,
+   "mem_op"
+  ],
+  [
+   "0018be16",
+   512503,
+   1249704,
+   "other"
+  ],
+  [
+   "0018be1c",
+   512507,
+   1056531,
+   "mem_op"
+  ],
+  [
+   "0018be27",
+   512505,
+   1025620,
+   "mem_op"
+  ],
+  [
+   "0018be00",
+   512504,
+   984929,
+   "mem_op"
+  ],
+  [
+   "0018c04b",
+   297315,
+   951685,
+   "mem_op"
+  ],
+  [
+   "0018bd28",
+   25811,
+   664682,
+   "pushpop"
+  ],
+  [
+   "001a66bc",
+   53972,
+   647922,
+   "mem_op"
+  ],
+  [
+   "0018bdc6",
+   25811,
+   604846,
+   "mem_op"
+  ],
+  [
+   "0018bdf8",
+   512504,
+   541860,
+   "other"
+  ],
+  [
+   "0018be3d",
+   25811,
+   540563,
+   "pushpop"
+  ],
+  [
+   "0018be25",
+   512503,
+   536147,
+   "mem_op"
+  ],
+  [
+   "0018be1f",
+   512507,
+   516788,
+   "mem_op"
+  ],
+  [
+   "0018be29",
+   512509,
+   514088,
+   "jcc"
+  ],
+  [
+   "0018be10",
+   512508,
+   513895,
+   "shift"
+  ],
+  [
+   "0018be05",
+   512505,
+   513063,
+   "other"
+  ],
+  [
+   "0018be13",
+   512504,
+   512783,
+   "mem_op"
+  ],
+  [
+   "0018bdfa",
+   512504,
+   512782,
+   "other"
+  ],
+  [
+   "0018be02",
+   512504,
+   512782,
+   "shift"
+  ],
+  [
+   "0018be07",
+   512503,
+   512503,
+   "other"
+  ],
+  [
+   "00189e28",
+   123520,
+   472622,
+   "jcc"
+  ],
+  [
+   "001a6ada",
+   11629,
+   454241,
+   "div"
+  ],
+  [
+   "0018c03c",
+   297316,
+   435268,
+   "other"
+  ],
+  [
+   "0018bdb1",
+   25812,
+   361274,
+   "other"
+  ],
+  [
+   "001a6a85",
+   11629,
+   360584,
+   "mem_op"
+  ]
+ ]
+}

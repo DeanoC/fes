@@ -1763,12 +1763,14 @@ it runs uncapped.
    ([record](../../../docs/validation/2026-11-06-i386-phase4-stld/summary.md)):
    D holds a load behind a store in AG only when a byte of each agrees in
    linear address bits 11:0 ([the store-to-load check](#the-store-to-load-check)).
-   - **DOOM.** Kit A's `demo3` goes from 37.5 to 37.9 fps (+1.2%), on slice
-     2's tree.
+   - **DOOM.** Kit A's `demo3` goes from 38.7 to 39.2 fps (+1.3%) after slice
+     3, and from 37.5 to 37.9 on slice 2's tree. In the bench window the
+     wait falls from 2.65% of clocks to 0.10%, and AGI takes back about 45%
+     of that.
    - **Wolfenstein 3D.** No gain. The plan's 6–11% came from the game's wait
      for a timer tick, whose two loads read the bytes just stored.
    - **Timing.** The seal meets every analysis, but D's registers lose about
-     4 ns: D's EIP has +1.46 ns, from +5.57. The check's 12-bit sum is on
+     4 ns: D's EIP has +1.13 ns, from +5.57. The check's 12-bit sum is on
      `issue`'s path, so slice 6 has much less room in D and AG than this
      plan assumed.
 5. **Indirect JMP and CALL.** The BTB keeps the last target. Gain: DOOM about
