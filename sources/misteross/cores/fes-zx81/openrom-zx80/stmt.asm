@@ -489,9 +489,9 @@ st_load:
         jr load_entry
 load_done:
         pop de
-        ld hl,2                 ; the image overwrote ERR_SP: the stack
-        add hl,sp               ; is still ours
-        ld (ERR_SP),hl
+        pop hl                  ; the image overwrote ERR_SP: the stack
+        ld (ERR_SP),sp          ; is still ours
+        push hl
         ld hl,(E_LINE)
         ld a,h
         or a
