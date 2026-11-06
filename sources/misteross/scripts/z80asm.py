@@ -18,13 +18,18 @@ code uses. Two layouts are tried and the one that fits, and then is smallest,
 is kept: largest first and best fit; or the sections joined by a `jr` in
 source order through the largest gaps (so the `jr` stays short), with the
 rest filling the holes left, smallest hole first, each with the sections
-that fill it best. A section must not fall through into the next one. Between `autofloat` and `endautofloat` a new
-section starts at every global label that follows an unconditional
+that fill it best. A source with `floatorder` tries a third layout: the
+sections in the order (found by a seeded annealing search) that leaves the
+fewest `jr` out of range, through the gaps in address order. A section must
+not fall through into the next one. Between `autofloat` and `endautofloat` a
+new section starts at every global label that follows an unconditional
 jump or return (a label after data continues the same table).
 """
 from __future__ import annotations
 import argparse
 import bisect
+import math
+import random
 import re
 import sys
 from pathlib import Path
@@ -294,13 +299,18 @@ class Assembler:
         if m == 'ret':
             return [0xc0 | CC[lows[0]] << 3] if ops else [0xc9]
         if m == 'djnz':
+            if self.in_float is not None:
+                index = self.in_float[0]
+                self.jr_sites.append((index, self.pc - self.float_pc[index], self.value(ops[0]), 1000))
             return [0x10, self.relative(ops[0], 2)]
         if m == 'jr':
             if len(ops) == 2 and lows[0] not in ('nz', 'z', 'nc', 'c'):
                 raise AsmError(f'jr cannot test {ops[0]}')
             target = ops[-1]
             if self.in_float is not None:
-                self.jr_edges.add((self.in_float[0], self.value(target)))
+                index = self.in_float[0]
+                self.jr_edges.add((index, self.value(target)))
+                self.jr_sites.append((index, self.pc - self.float_pc[index], self.value(target), 1))
             if self.where not in self.long_jumps:
                 offset = self.value(target) - (self.pc + 2)
                 if -128 <= offset <= 127 or not self.symbols_settled:
@@ -416,7 +426,9 @@ class Assembler:
         lines = []
         self.read(source, lines)
         best = None
-        for strategy in ('size', 'linked'):
+        self.order, self.order_runs = None, 0
+        ordered = any(strip_comment(line).strip().lower() == 'floatorder' for _, _, line in lines)
+        for strategy in ('size', 'linked') + (('order',) if ordered else ()):
             self.strategy = strategy
             self.float_at = {}
             self.float_size = {}
@@ -491,7 +503,9 @@ class Assembler:
                 start = None
         sizes = self.float_size
         placement = {}
-        if self.strategy == 'size':
+        if self.strategy == 'order':
+            left = self.place_order(free, placement)
+        elif self.strategy == 'size':
             for index in sorted(sizes, key=lambda i: (-sizes[i], i)):
                 fits = [g for g in free if g[1] - g[0] >= sizes[index]]
                 if fits:
@@ -506,6 +520,28 @@ class Assembler:
             placement[index] = scratch          # does not fit
             scratch += sizes[index]
         self.float_at = placement
+
+    def place_order(self, free, placement):
+        """The 'order' layout; returns the sections that did not fit."""
+        sizes = self.float_size
+        self.order_runs += 1
+        if self.order_runs <= 2:                # again once the sizes are known
+            starts = sorted((at, i) for i, at in self.float_pc.items())
+            addresses = [at for at, _ in starts]
+
+            def locate(address):
+                k = bisect.bisect_right(addresses, address) - 1
+                if k >= 0:
+                    at, j = starts[k]
+                    if address < at + sizes.get(j, 0):
+                        return j, address - at
+                return None, address
+            edges = [(i, offset) + locate(target) + (weight,)
+                     for i, offset, target, weight in self.jr_sites]
+            self.order = anneal_order(self.order or sorted(sizes), sizes, edges, free)
+        _, at, left = order_layout(self.order, sizes, free)
+        placement.update(at)
+        return left
 
     def place_linked(self, free, placement):
         """The 'linked' layout; returns the sections that did not fit."""
@@ -555,6 +591,7 @@ class Assembler:
             self.float_count = 0
             self.float_pc = {}                  # section index -> address this pass
             self.jr_edges = set()               # (section, jr target address)
+            self.jr_sites = []                  # (section, offset, target, cost if out of range)
             self.scratch_next = 0x10000
             self.charset_name, self.charset = 'zx81', ZX81_TEXT
             self.auto = False
@@ -617,6 +654,8 @@ class Assembler:
             self.auto = False
             if self.in_float is not None:
                 self.statement('endfloat', image, owner, where)
+            return
+        if mnemonic == 'floatorder':
             return
         if mnemonic not in ('float', 'endfloat', 'assert', 'error', 'floatlimit'):
             low = [o.lower().replace(' ', '') for o in ops]
@@ -708,6 +747,55 @@ class Assembler:
             image[address] = b
             owner[address] = where
         self.pc += len(data)
+
+
+def order_layout(order, sizes, free):
+    """Each section in this order at the end of the first gap it fits in:
+    (bytes that do not fit, the addresses, the sections left over)."""
+    ends = [start for start, _ in free]
+    at, left = {}, []
+    for i in order:
+        for k, (_, end) in enumerate(free):
+            if ends[k] + sizes[i] <= end:
+                at[i] = ends[k]
+                ends[k] += sizes[i]
+                break
+        else:
+            left.append(i)
+    return sum(sizes[i] for i in left), at, left
+
+
+def anneal_order(sections, sizes, edges, free, steps=60000, seed=1):
+    """An order of the sections that fits and leaves few jr out of range."""
+    def cost(order):
+        over, at, _ = order_layout(order, sizes, free)
+        far = 0
+        for i, offset, j, target, weight in edges:
+            if i not in at or j is not None and j not in at:
+                far += weight
+                continue
+            to = at[j] + target if j is not None else target
+            if not -128 <= to - (at[i] + offset + 2) <= 127:
+                far += weight
+        return over * 1000 + far
+    rng = random.Random(seed)
+    order = list(sections)
+    now = cost(order)
+    best, best_order, heat = now, order[:], 2.0
+    for _ in range(steps):
+        trial = order[:]
+        a, b = sorted(rng.sample(range(len(trial)), 2))
+        if rng.random() < 0.5:
+            trial[a], trial[b] = trial[b], trial[a]
+        else:
+            trial.insert(b, trial.pop(a))
+        c = cost(trial)
+        if c <= now or rng.random() < math.exp((now - c) / heat):
+            order, now = trial, c
+            if c < best:
+                best, best_order = c, order[:]
+        heat = max(0.05, heat * 0.9995)
+    return best_order
 
 
 def main():

@@ -134,6 +134,28 @@ b:      ret
         self.assertEqual(image[:3], bytes([0xc3, 0x91, 0x00]))      # jp a
         self.assertEqual(image[0x111:0x114], bytes([0x18, 0x00, 0xc9]))   # jr b, b: ret
 
+    def test_floatorder_keeps_jr_short(self):
+        # In source order section 2 is 200 bytes past section 0's jr to it.
+        sizes = {0: 100, 1: 200, 2: 100}
+        edges = [(0, 98, 2, 0, 1)]          # jr at 0+98 to the start of 2
+        order = z80asm.anneal_order([0, 1, 2], sizes, edges, [(0, 1000)], steps=200)
+        _, at, left = z80asm.order_layout(order, sizes, [(0, 1000)])
+        self.assertEqual(left, [])
+        self.assertLessEqual(at[2] - (at[0] + 100), 127)
+        image = assemble("""
+        floatlimit 0x100
+        floatorder
+        org 0
+        jp a
+        autofloat
+a:      jr b
+c:      ds 200
+        ret
+b:      ret
+        endautofloat
+        """, 0x200)
+        self.assertIn(bytes([0x18, 0x00, 0xc9]), image)             # jr b, b: ret
+
     def test_labels_after_a_jump_share_a_section(self):
         image = assemble("""
         floatlimit 8

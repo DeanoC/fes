@@ -6,6 +6,7 @@
 
         include "sysvars.inc"
         floatlimit 0x0e00
+        floatorder              ; keep as many jr short as can be
         include "hw.asm"
 
         autofloat
