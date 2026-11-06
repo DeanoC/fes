@@ -2778,8 +2778,9 @@ void run_btb_cases(fes_i386::Oracle &oracle, OracleBus &bus, Rtl &rtl, const std
 //                then a PUSH imm16; RET with no CALL
 //   ras-sizes    RET imm16 after a PUSH and CALL, and a 32-bit CALL (66h E8h)
 //                and RET (66h C3h) in 16-bit code
-//   ras-int      INT n and IRET around a CALL and RET in the handler,
-//                inside a called function
+//   ras-int      an interrupt handler's frame, PUSHF and a far CALL, then
+//                IRET, around a CALL and RET in the handler, inside a
+//                called function (a directed case fails on any INT n)
 //   ras-store    a store turns a learned RET into INC BX, with a RET
 //                after it: the RET's entry now ends at the INC (the fetch
 //                check replays the next instruction)
@@ -2812,13 +2813,11 @@ void run_ras_cases(fes_i386::Oracle &oracle, OracleBus &bus, Rtl &rtl, const std
     run_nop_case(oracle, bus, rtl, entries, summary, "ras-sizes",
                  {0xba, 0x04, 0x00, 0x50, 0xe8, 0x0b, 0x00, 0x66, 0xe8, 0x09, 0x00, 0x00, 0x00, 0x4a, 0x75, 0xf3,
                   0xeb, 0x07, 0x43, 0xc2, 0x02, 0x00, 0x46, 0x66, 0xc3}, state, 600);
-    // XOR AX, AX; MOV ES, AX; MOV WORD [ES:100h], H; MOV WORD [ES:102h], 100h;
     // MOV DX, 4; O: CALL F; DEC DX; JNZ O; JMP done;
-    // F: INT 40h; INC BX; RET; H: CALL G; IRET; G: INC SI; RET; done:
+    // F: PUSHF; CALL 0100h:H; INC BX; RET; H: CALL G; IRET; G: INC SI; RET; done:
     run_nop_case(oracle, bus, rtl, entries, summary, "ras-int",
-                 {0x31, 0xc0, 0x8e, 0xc0, 0x26, 0xc7, 0x06, 0x00, 0x01, 0x21, 0x00, 0x26, 0xc7, 0x06, 0x02, 0x01,
-                  0x00, 0x01, 0xba, 0x04, 0x00, 0xe8, 0x05, 0x00, 0x4a, 0x75, 0xfa, 0xeb, 0x0a, 0xcd, 0x40, 0x43,
-                  0xc3, 0xe8, 0x01, 0x00, 0xcf, 0x46, 0xc3}, state, 600);
+                 {0xba, 0x04, 0x00, 0xe8, 0x05, 0x00, 0x4a, 0x75, 0xfa, 0xeb, 0x0e, 0x9c, 0x9a, 0x13, 0x00, 0x00,
+                  0x01, 0x43, 0xc3, 0xe8, 0x01, 0x00, 0xcf, 0x46, 0xc3}, state, 600);
     // MOV DX, 6; O: CALL F; DEC DX; JNZ O; JMP done;
     // F: CMP DX, 3; JNE R; MOV BYTE [CS:R], 43h; R: RET; RET; done:
     run_nop_case(oracle, bus, rtl, entries, summary, "ras-store",
