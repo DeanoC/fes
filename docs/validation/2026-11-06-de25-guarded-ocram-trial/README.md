@@ -62,3 +62,23 @@ ordinary package admission, HDMI acceptance, native Ethernet acceptance or
 DE10-equivalent readiness claim. A physical result must be recorded separately;
 the source freeze and passing fixtures alone do not establish a successful
 boot or core load.
+
+
+The single physical attempt on operator
+`01bcdbd55` stopped at the matched native prompt timeout. Recovery, all eight
+uploads and fresh SD rereads, programming and SPL FIT verification passed.
+The final SPL ATF trace binds the expected BL31 SHA, but no vendor secure
+startup appeared and `fesboot` was never sent. The trace does not distinguish
+SPL's final exclusion rejection from the early EL3 guard. There was no native
+startup, ROM completion, Run or return. No retry was made. Independent cleanup
+verified 15 MHz, exact USB permissions, the private service stopped and a free
+UART. CPU/FPGA halt is not independently proved; retain the claim and spare.
+The [physical receipt](physical-result.json) binds the raw trace and results.
+
+Source investigation found a guaranteed producer/consumer mismatch:
+`FES_NANO_FABRIC_ABSENT` is 1, while the early assembly required zero. The
+hand-packed QEMU control also used zero, so its 251 passing cases did not prove
+compatibility with the real C handoff producer. Preserve those results with
+that limitation. Correct the enum binding and generate the next ARM test's
+record through the actual C producer before constructing another candidate.
+The exact first physical failing instruction remains unobserved.

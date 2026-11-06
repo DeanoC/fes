@@ -96,3 +96,11 @@ byte-exact native entry. Keep implementation, reused-native and operator source
 identities separate. Revalidate the live kit and stop at the first failed gate.
 Physical memory ownership, boot, ROM completion/Run/return, ordinary package
 admission and DE10-equivalent core loading remain open.
+
+The subsequent [bounded trial](../2026-11-06-de25-guarded-ocram-trial/README.md)
+stopped before vendor secure startup. Source inspection found that this guard
+and its hand-packed QEMU control both incorrectly encode fabric absence as zero;
+the actual C producer encodes it as one. The reported QEMU cases passed against
+that fixture, and do not establish real-producer compatibility. This selected
+image is stopped and must not be replayed. The next change must bind the actual
+wire enums and test a record emitted by the C producer.
