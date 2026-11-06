@@ -221,10 +221,7 @@ check_eline:
         call gc_store
         bit F_INPUT,(iy+Y_FLAGS)
         jr nz,.input
-        call k_here
-        call is_digit
-        jr nc,.stmt
-        call parse_uint         ; a line number, 9999 at most
+        call parse_uint         ; a line number, 9999 at most (none: 0)
         jr c,syntax_err
         push hl
         ld hl,-10000
@@ -233,7 +230,7 @@ check_eline:
         jr c,syntax_err
         call gc_store
         call k_here
-.stmt:  cp C_NL                 ; empty, or a number alone (deletes it)
+        cp C_NL                 ; empty, or a number alone (deletes it)
         jr nz,statement         ; a statement always ends by unwinding
 .ok:    pop hl
 .fail:  pop hl
@@ -253,17 +250,15 @@ display:
         bit F_INPUT,(iy+Y_FLAGS)
         jr nz,input_display
 edit_display:
-        ld (iy+Y_FLAGX),(1 << X_LOWER) | (1 << X_MEASURE) | (1 << X_DROP)
+        ld (iy+Y_FLAGX),(1 << X_LOWER) | (1 << X_DROP)
         call cls
-        call print_eline        ; count its rows
-        ld a,25
-        sub (iy+Y_LINE)         ; rows + 1 for the blank row above
-        cp 25
-        jr c,.sz
+        dec (iy+Y_LINE)         ; at most 23 rows, and the blank one above
+        call print_eline        ; count its rows (and drop them again)
         ld a,24
-.sz:    ld (iy+Y_DF_SZ),a
+        sub (iy+Y_LINE)
+        ld (iy+Y_DF_SZ),a
         ld (iy+Y_FLAGX),1 << X_DROP
-        call home
+        call cls_rows
         call list_prog
         ld a,(iy+Y_LINE)        ; close the listing's rows and the blank one
         sub (iy+Y_DF_SZ)

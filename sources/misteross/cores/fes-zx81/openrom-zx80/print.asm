@@ -75,12 +75,9 @@ next_row:
         ld l,33
         ld (S_POSN),hl
         ld a,C_NL
-; A on the end of the display file (nothing, NC, with X_MEASURE). No room:
-; with X_DROP carry (and X_FULL), else report 4.
-append: and a
-        bit X_MEASURE,(iy+Y_FLAGX)
-        ret nz
-        ld bc,1
+; A on the end of the display file. No room: with X_DROP carry (and
+; X_FULL), else report 4.
+append: ld bc,1
         call test_room          ; (keeps A)
         jr c,next_row.full
         ld hl,(DF_END)          ; nothing follows: only DF_END moves
@@ -161,11 +158,13 @@ print_str:
 ; Display file layout.
 
 ; CLS: no rows yet; two rows of lower part.
-cls:    ld hl,(D_FILE)
+cls:    ld (iy+Y_DF_SZ),2
+; An empty display file, the print position at the top.
+cls_rows:
+        ld hl,(D_FILE)
         inc hl
         ld (DF_END),hl
-        ld (iy+Y_DF_SZ),2
-home:   ld hl,0x1721            ; the top row, empty
+        ld hl,0x1721            ; the top row, empty
         ld (S_POSN),hl
         ret
 

@@ -43,7 +43,6 @@ F_CHECK  equ 7          ; syntax check only
 ; FLAGX bits (output state, all clear while editing)
 X_LOWER  equ 0          ; printing to the lower part
 X_DROP   equ 1          ; drop output that does not fit (display build)
-X_MEASURE equ 2         ; count rows without storing
 X_FULL   equ 5          ; output was dropped: the part is full
 X_STR    equ 7          ; characters go to a workspace string (STR$)
 
