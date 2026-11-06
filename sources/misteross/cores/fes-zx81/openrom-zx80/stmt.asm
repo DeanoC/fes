@@ -45,12 +45,11 @@ opt_num:
 ; A one-letter name; DEST = it, A = the character after it.
 one_letter:
         call name_at
-        inc hl
-        ld a,(hl)
-        call is_alnum
-        jr c,syntax_err
+        call name_end
         cp C_DOLLAR
         jr z,syntax_err
+        dec b
+        jr nz,syntax_err
         jr gc_store
 
 ; (HL) = record type A ^ $20 with DEST's letter ($20 + 0-31) in its low
