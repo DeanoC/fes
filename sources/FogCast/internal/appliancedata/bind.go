@@ -394,6 +394,10 @@ func copyMissing(src, dst string) error {
 }
 
 func migrateGamesOnce(src, dst, marker string) error {
+	return migrateGamesOnceWithSync(src, dst, marker, syncDirectory)
+}
+
+func migrateGamesOnceWithSync(src, dst, marker string, syncDir func(string) error) error {
 	complete, err := migrationComplete(marker)
 	if err != nil {
 		return err
@@ -402,6 +406,9 @@ func migrateGamesOnce(src, dst, marker string) error {
 		return nil
 	}
 	if err := copyMissing(src, dst); err != nil {
+		return err
+	}
+	if err := syncDestinationDirectories(src, dst, syncDir); err != nil {
 		return err
 	}
 	if err := copyFileAtomically(strings.NewReader("complete\n"), marker); err != nil {
@@ -414,7 +421,54 @@ func migrateGamesOnce(src, dst, marker string) error {
 	if !complete {
 		return fmt.Errorf("games migration marker was not published: %s", marker)
 	}
-	return syncDirectory(filepath.Dir(marker))
+	return syncDir(filepath.Dir(marker))
+}
+
+func syncDestinationDirectories(src, dst string, syncDir func(string) error) error {
+	directories := []string{dst}
+	info, err := os.Lstat(src)
+	if err != nil && !errors.Is(err, os.ErrNotExist) {
+		return err
+	}
+	if err == nil && (info.Mode()&os.ModeSymlink != 0 || !info.IsDir()) {
+		return fmt.Errorf("bind source is not a real directory: %s", src)
+	}
+	if err == nil {
+		if err := filepath.WalkDir(src, func(path string, entry fs.DirEntry, walkErr error) error {
+			if walkErr != nil {
+				return walkErr
+			}
+			if entry.Type()&os.ModeSymlink != 0 {
+				if entry.IsDir() {
+					return fs.SkipDir
+				}
+				return nil
+			}
+			if entry.IsDir() && path != src {
+				rel, err := filepath.Rel(src, path)
+				if err != nil {
+					return err
+				}
+				directories = append(directories, filepath.Join(dst, rel))
+			}
+			return nil
+		}); err != nil {
+			return err
+		}
+	}
+	// Sync deepest directories first so both their file entries and the
+	// directory entries in their parents are durable before the marker appears.
+	for i := len(directories) - 1; i >= 0; i-- {
+		if err := syncDir(directories[i]); err != nil {
+			return fmt.Errorf("sync game destination directory %s: %w", directories[i], err)
+		}
+	}
+	// copyMissing may have created the destination root itself.
+	parent := filepath.Dir(dst)
+	if err := syncDir(parent); err != nil {
+		return fmt.Errorf("sync game destination parent directory %s: %w", parent, err)
+	}
+	return nil
 }
 
 func migrationComplete(marker string) (bool, error) {

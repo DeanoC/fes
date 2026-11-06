@@ -258,6 +258,74 @@ func TestPrepareDoesNotOverwriteExistingP3Files(t *testing.T) {
 	}
 }
 
+func TestMigrateGamesOnceSyncsDestinationDirectoriesBeforeMarker(t *testing.T) {
+	t.Parallel()
+	dir := t.TempDir()
+	src := filepath.Join(dir, "fat", "games")
+	dst := filepath.Join(dir, "p3", "games")
+	marker := filepath.Join(dir, "p3", gamesMigrationMarker)
+	sourceGame := filepath.Join(src, "sms", "game.sms")
+	if err := os.MkdirAll(filepath.Dir(sourceGame), 0o700); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(sourceGame, []byte("game"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	syncFailure := errors.New("destination sync failed")
+	err := migrateGamesOnceWithSync(src, dst, marker, func(path string) error {
+		if filepath.Clean(path) == filepath.Join(dst, "sms") {
+			return syncFailure
+		}
+		return syncDirectory(path)
+	})
+	if !errors.Is(err, syncFailure) {
+		t.Fatalf("migration with failed destination sync = %v, want sync error", err)
+	}
+	if _, err := os.Lstat(marker); !errors.Is(err, os.ErrNotExist) {
+		t.Fatalf("marker exists after failed destination sync: %v", err)
+	}
+
+	markerDirSyncs := 0
+	syncedGameDir := false
+	syncDir := func(path string) error {
+		path = filepath.Clean(path)
+		if path == dst || strings.HasPrefix(path, dst+string(os.PathSeparator)) {
+			if _, err := os.Lstat(marker); !errors.Is(err, os.ErrNotExist) {
+				t.Fatalf("marker exists before destination sync %s: %v", path, err)
+			}
+			if path == filepath.Join(dst, "sms") {
+				syncedGameDir = true
+			}
+		}
+		if path == filepath.Dir(marker) {
+			markerDirSyncs++
+			complete, err := migrationComplete(marker)
+			if err != nil {
+				return err
+			}
+			if markerDirSyncs == 1 && complete {
+				t.Fatal("marker was published before destination directories were synced")
+			}
+			if markerDirSyncs == 2 && !complete {
+				t.Fatal("marker directory was synced before marker publication")
+			}
+		}
+		return syncDirectory(path)
+	}
+	if err := migrateGamesOnceWithSync(src, dst, marker, syncDir); err != nil {
+		t.Fatal(err)
+	}
+	if !syncedGameDir {
+		t.Fatal("game entry directory was not synced")
+	}
+	if markerDirSyncs != 2 {
+		t.Fatalf("marker directory syncs = %d, want pre- and post-publication syncs", markerDirSyncs)
+	}
+	if complete, err := migrationComplete(marker); err != nil || !complete {
+		t.Fatalf("migration marker complete = %v, %v", complete, err)
+	}
+}
+
 func TestPrepareDoesNotRestoreDeletedGameAfterMigration(t *testing.T) {
 	t.Parallel()
 	firstMounter := newRecordingMounter()

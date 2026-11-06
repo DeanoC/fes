@@ -1688,9 +1688,11 @@ label `FESDATA3`, agent startup bind-mounts that ext4 volume over
 when the p3 destination is absent; each copied file is published only after a
 complete same-directory temporary has been written and closed, and existing
 p3 files are preserved. The game library is imported once, with a completion
-marker on p3 outside the bound game tree, so deleting a migrated game from p3
-does not restore it from the FAT copy at a later startup. A failed game copy
-does not write the marker, so startup can retry the incomplete migration.
+marker on p3 outside the bound game tree, published only after the destination
+game directories are synced, so a crash cannot leave the marker ahead of the
+game entries. Deleting a migrated game from p3 does not restore it from the FAT
+copy at a later startup. A failed game copy or directory sync does not write
+the marker, so startup can retry the incomplete migration.
 Without p3, all these paths continue to use FAT. The helper does not create,
 grow, or format partitions and does not run from the fixed bootstrap. Bind is
 refused while `GET /v1/update` shows trial, pending, or corrupt; the agent still
