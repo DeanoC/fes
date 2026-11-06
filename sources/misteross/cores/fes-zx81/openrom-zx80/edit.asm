@@ -282,19 +282,15 @@ edit_display:
         ld (iy+Y_FLAGX),1 << X_DROP
         call cls_rows
         call list_prog
-        ld a,(iy+Y_LINE)        ; close the listing's rows and the blank one
-        sub (iy+Y_DF_SZ)
-        add a,2
-        ld b,a
-        call fill_nl
-        dec hl
-        ld (DF_EA),hl
+        set X_LOWER,(iy+Y_FLAGX)
+.nl:    call next_row           ; close the listing's rows and the blank one
         ld a,(iy+Y_DF_SZ)
         sub 2
-        ld h,a
-        ld l,33
-        ld (S_POSN),hl
-        set X_LOWER,(iy+Y_FLAGX)
+        cp (iy+Y_LINE)
+        jr nz,.nl
+        ld hl,(DF_END)
+        dec hl
+        ld (DF_EA),hl
         call print_eline
         ld bc,(E_PPC)           ; DE = the current line (or the one before)
         call find_line

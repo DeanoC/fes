@@ -127,10 +127,10 @@ report: dec sp                  ; keep the slot
         ld a,(iy+Y_LINE)        ; the output stays; the report goes on the
         cp 2                    ; bottom row
         call c,cls
-        ld b,(iy+Y_LINE)
-        call fill_nl
-        ld hl,0x0021            ; the bottom row, empty
-        ld (S_POSN),hl
+.nl:    call next_row           ; down to the bottom row
+        ld a,(iy+Y_LINE)
+        or a
+        jr nz,.nl
         pop af
         add a,C_0
         rst 0x10
