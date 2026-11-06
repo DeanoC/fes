@@ -18,7 +18,7 @@ code uses. Two layouts are tried and the one that fits, and then is smallest,
 is kept: largest first and best fit; or the sections joined by a `jr` in
 source order through the largest gaps (so the `jr` stays short), with the
 rest filling the holes left, smallest hole first, each with the sections
-that fill it best. A source with `floatorder` tries a third layout: the
+that fill it best. A source with `floatorder [seed]` tries a third layout: the
 sections in the order (found by a seeded annealing search) that leaves the
 fewest `jr` out of range, through the gaps in address order; and a `jr` out
 of range goes by way of a direct jump to the same place within its reach
@@ -449,7 +449,10 @@ class Assembler:
         self.read(source, lines)
         best = None
         self.order, self.order_runs = None, 0
-        ordered = any(strip_comment(line).strip().lower() == 'floatorder' for _, _, line in lines)
+        orders = [strip_comment(line).split() for _, _, line in lines]
+        orders = [o for o in orders if o and o[0].lower() == 'floatorder']
+        ordered = bool(orders)
+        self.order_seed = int(orders[0][1], 0) if ordered and len(orders[0]) > 1 else 1
         self.chaining = ordered
         for strategy in ('size', 'linked') + (('order',) if ordered else ()):
             self.strategy = strategy
@@ -573,7 +576,8 @@ class Assembler:
                 return None, address
             edges = [(i, offset) + locate(target) + (weight,)
                      for i, offset, target, weight in self.jr_sites]
-            self.order = anneal_order(self.order or sorted(sizes), sizes, edges, free)
+            self.order = anneal_order(self.order or sorted(sizes), sizes, edges, free,
+                                      seed=self.order_seed)
         _, at, left = order_layout(self.order, sizes, free)
         placement.update(at)
         return left
