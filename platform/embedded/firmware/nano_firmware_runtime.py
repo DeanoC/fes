@@ -3,7 +3,6 @@ import hashlib
 import importlib.util
 import re
 from pathlib import Path
-from verify import function
 
 HERE = Path(__file__).resolve().parent
 _spec = importlib.util.spec_from_file_location('fes_runtime_startup', HERE.parent/'nano/runtime_startup.py')
@@ -48,7 +47,10 @@ def c_source(text, *, platform):
     if hashlib.sha256(text.encode()).hexdigest() != expected:
         raise ValueError('unreviewed cold runtime '+('platform' if platform else 'main')+' source')
     name = 'bl31_platform_setup' if platform else 'bl31_main'
-    original = function(text,name)
+    # In these pinned sources only the outer function's brace starts in column0.
+    matches = re.findall(r'(?ms)^void '+name+r'\(void\)\n\{\n.*?^\}\n',text)
+    if len(matches)!=1:raise ValueError('cold runtime function boundary changed: '+name)
+    original = matches[0]
     body = original
     calls = (('fes_nano_bridge_platform_setup();','owned'),
              ('gicv3_driver_init(&plat_gicv3_gic_data);','gic-driver'),

@@ -5,9 +5,11 @@ import json
 import re
 from pathlib import Path
 import struct
-import nano_firmware_runtime
 
 HERE = Path(__file__).resolve().parent
+_runtime_spec = importlib.util.spec_from_file_location('fes_cold_runtime', HERE/'nano_firmware_runtime.py')
+nano_firmware_runtime = importlib.util.module_from_spec(_runtime_spec)
+_runtime_spec.loader.exec_module(nano_firmware_runtime)
 _status_spec = importlib.util.spec_from_file_location('fes_early_fault_status', HERE.parent/'nano/fault_status.py')
 fault_status = importlib.util.module_from_spec(_status_spec)
 _status_spec.loader.exec_module(fault_status)

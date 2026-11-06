@@ -3,6 +3,7 @@ import copy
 import hashlib
 from pathlib import Path
 import sys
+import subprocess
 import unittest
 from unittest.mock import patch
 
@@ -24,6 +25,13 @@ def context(phase):
 
 
 class ColdRuntimeStartupTests(unittest.TestCase):
+    def test_firmware_generator_loads_without_import_path_side_effects(self):
+        path=ROOT/'platform/embedded/firmware/nano_firmware_ram.py'
+        script=('import importlib.util; s=importlib.util.spec_from_file_location("isolated_ram",'+repr(str(path))+'); '
+                'm=importlib.util.module_from_spec(s); s.loader.exec_module(m); '
+                'assert len(m.nano_firmware_runtime.startup.RUNTIME_PHASES)==31')
+        subprocess.run([sys.executable,'-I','-c',script],check=True,capture_output=True)
+
     def test_partial_progress_and_final_receipt_are_observation_only(self):
         progress=startup.state()
         for n,phase in enumerate(startup.RUNTIME_PHASES):
