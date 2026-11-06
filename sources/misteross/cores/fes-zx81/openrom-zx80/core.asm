@@ -111,8 +111,9 @@ pointers:
         ret
 ptr_list:
         db P_PTR & 0xff, VARS & 0xff, E_LINE & 0xff, D_FILE & 0xff
-        db DF_EA & 0xff, DF_END & 0xff, X_PTR & 0xff, CH_ADD & 0xff
-        db DEST & 0xff, 0
+        db DF_EA & 0xff, DF_END & 0xff, CH_ADD & 0xff, DEST & 0xff, 0
+                                ; (nothing moves the edit line while X_PTR
+                                ; is in use)
 
 ; Clear temporary strings: the workspace after the edit line.
 temp_clear:
