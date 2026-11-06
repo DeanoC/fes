@@ -99,7 +99,8 @@ frame:  ld hl,0
         ld bc,0xfefe
 .row:   in a,(c)                ; the first read starts vertical sync
         or 0xe0
-        xor l
+        add a,l                 ; a weighted sum: a key down or up always
+                                ; changes it (XOR let two keys cancel)
         ld l,a
         add hl,hl
         rlc b
