@@ -1698,10 +1698,12 @@ directory. If that source was removed or replaced, it unbinds only a target on
 the FESDATA3 device, restores missing files from the still-visible FAT tree,
 syncs p3, and binds the live directory again.
 When p3 is absent or its bind is gated, startup records a hidden fallback marker
-beside `/media/fat/games`. On the next successful p3 bind it copies missing game
-files added during the FAT-only interval, syncs p3, and clears the marker. This
-one-time reconciliation does not overwrite an existing p3 file or repeat on
-normal startup. Without p3, all these paths continue to use FAT. The helper does
+beside `/media/fat/games`. If the FAT filesystem cannot create hard links, the
+marker is published with a same-directory rename. On the next successful p3
+bind it copies missing game files added during the FAT-only interval, syncs p3,
+and clears the marker. This one-time reconciliation does not overwrite an
+existing p3 file or repeat on normal startup. Without p3, all these paths
+continue to use FAT. The helper does
 not create, grow, or format partitions and does not run from the fixed
 bootstrap. Bind is refused while `GET /v1/update` shows trial, pending, or
 corrupt; the agent still starts and keeps those trees on FAT.

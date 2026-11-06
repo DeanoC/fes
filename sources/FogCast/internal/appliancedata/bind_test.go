@@ -203,6 +203,41 @@ func TestPrepareCopiesFATGamesAddedWhileP3IsUnavailable(t *testing.T) {
 	}
 }
 
+func TestCopyMarkerAtomicallyFallsBackWhenHardLinksAreUnsupported(t *testing.T) {
+	t.Parallel()
+	dir := t.TempDir()
+	marker := filepath.Join(dir, gamesFallbackMarker)
+	linkFailure := errors.New("hard links are unsupported")
+	linkCalls := 0
+	renameCalls := 0
+	err := copyMarkerAtomicallyWithOps(strings.NewReader("pending\n"), marker,
+		func(string, string) error {
+			linkCalls++
+			return linkFailure
+		},
+		func(old, new string) error {
+			renameCalls++
+			return os.Rename(old, new)
+		},
+	)
+	if err != nil {
+		t.Fatalf("copy marker with unsupported hard links = %v", err)
+	}
+	if linkCalls != 1 || renameCalls != 1 {
+		t.Fatalf("publication calls = link:%d rename:%d, want one each", linkCalls, renameCalls)
+	}
+	if got, err := os.ReadFile(marker); err != nil || string(got) != "pending\n" {
+		t.Fatalf("published marker = %q, %v", got, err)
+	}
+	entries, err := os.ReadDir(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(entries) != 1 || entries[0].Name() != gamesFallbackMarker {
+		t.Fatalf("marker directory entries = %v, want only the published marker", entries)
+	}
+}
+
 func TestPrepareRefusesTrialPendingAndCorrupt(t *testing.T) {
 	t.Parallel()
 	for _, tc := range []struct {

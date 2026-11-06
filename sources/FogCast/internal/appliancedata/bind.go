@@ -300,7 +300,7 @@ func markGamesFallback(libraryFATRoot string) error {
 	if err := os.MkdirAll(filepath.Dir(marker), 0o755); err != nil {
 		return err
 	}
-	if err := copyFileAtomically(strings.NewReader("pending\n"), marker); err != nil {
+	if err := copyMarkerAtomically(strings.NewReader("pending\n"), marker); err != nil {
 		return err
 	}
 	return syncDirectory(filepath.Dir(marker))
@@ -668,6 +668,37 @@ func copyRegularMissing(src, dst string) error {
 }
 
 func copyFileAtomically(in io.Reader, dst string) error {
+	return copyFileAtomicallyWithPublisher(in, dst, func(temp, dst string) error {
+		// Link publishes the complete temporary without replacing an entry that
+		// another startup or process may have created after the initial Lstat.
+		err := os.Link(temp, dst)
+		if errors.Is(err, os.ErrExist) {
+			return nil
+		}
+		return err
+	})
+}
+
+func copyMarkerAtomically(in io.Reader, dst string) error {
+	return copyMarkerAtomicallyWithOps(in, dst, os.Link, os.Rename)
+}
+
+func copyMarkerAtomicallyWithOps(in io.Reader, dst string, link, rename func(string, string) error) error {
+	return copyFileAtomicallyWithPublisher(in, dst, func(temp, dst string) error {
+		linkErr := link(temp, dst)
+		if linkErr == nil || errors.Is(linkErr, os.ErrExist) {
+			return nil
+		}
+		if renameErr := rename(temp, dst); renameErr != nil {
+			return errors.Join(fmt.Errorf("link fallback marker: %w", linkErr), fmt.Errorf("rename fallback marker: %w", renameErr))
+		}
+		// The fallback marker is an idempotent sentinel. A same-directory rename
+		// publishes it atomically on filesystems such as VFAT that lack hard links.
+		return nil
+	})
+}
+
+func copyFileAtomicallyWithPublisher(in io.Reader, dst string, publish func(temp, dst string) error) error {
 	out, err := os.CreateTemp(filepath.Dir(dst), ".fes-copy-*")
 	if err != nil {
 		return err
@@ -684,12 +715,7 @@ func copyFileAtomically(in io.Reader, dst string) error {
 	if err = out.Close(); err != nil {
 		return err
 	}
-	// Link publishes the complete temporary without replacing an entry that
-	// another startup or process may have created after the initial Lstat.
-	if err = os.Link(temp, dst); errors.Is(err, os.ErrExist) {
-		return nil
-	}
-	return err
+	return publish(temp, dst)
 }
 
 func mountpointBusy(mountInfo, target string) bool {
