@@ -455,3 +455,33 @@ original transport consumer, permits only that PR-controller consumer plus
 fitted copies, and reconciles the raw enable quantity with every timed physical
 load. Old v1 receipts and the failed b0d candidate remain unqualified; fresh
 independent fits, both persona exports and native acceptance are still required.
+
+## First static hardware load, 6 November
+
+Producer `12dbd9a4b` completes two independent canonical fits and both public
+persona exports. The base, empty and 16K revisions each pass 98 numerical
+checks and 88 reviewed rules with no waivers. Corresponding RBFs match between
+fits. Qualified package `022b2785` also passes production HTTP imports and
+file-only composition on amd64, AArch64 QEMU and the board's CPUs 0/1.
+
+Runtime `7f9b2a0d1` corrects strict format5 admission to require the producer's
+optional ZX81 bus 2.0 declaration. Its software bundle `320ac02e` activates on
+the retained `40e09847` image at generation 2; pinned SSH verifies all four
+executables and the running runtime before the load. The fresh combined
+client/RTL proof passes all 14 native/AArch64 scenarios and updates the
+source-bound fixture. This models persona selection and does not execute SDM.
+
+The first physical catalog Play completes the full base write, then Linux
+becomes unreachable after the kernel announces the default persona write.
+There is no active static identity, RAMTOP, BASIC, Stop or reboot acceptance.
+No second load is attempted. The failure's cause remains undetermined; it is
+a programming failure, not evidence of a ZX81 picture fault. Static support
+remains default-off.
+
+After the user's card replacement and power cycle, pinned SSH authenticates
+the original image `6de6a392`, bundle `a14a53cd`, generation 48 and fresh boot
+`a720f362-ca6a-4f44-8c1f-318588b9c93a`. Original kernel/module/card identity,
+all four executable hashes and the dedicated host files match. MENU is ready,
+idle and lease-free; owned temporary hosts and UART are stopped and the kit
+claim is released. The trial card and failed-load trace remain retained for
+diagnosis. No JTAG, boot-flash or SD rewrite occurs in this trial.
