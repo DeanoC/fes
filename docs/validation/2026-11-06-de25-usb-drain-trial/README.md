@@ -57,3 +57,69 @@ The copied candidate gate initially required the historical ELF reuse flag;
 it correctly rejected the fresh build. The selected gate requires rebuilt
 app/entry inputs and their independent bindings, and explicitly rejects the
 reuse claim. That off-board failure is retained and made no board attempt.
+
+## Observed result
+
+The one attempt on operator `f78fd7942414b39da903a32b8d28c3ad52765c3b`
+and freshly built native/firmware `17b41b172e89e0df13e66488bfce2b5117ebee92`
+completed recovery, eight verified uploads/eight fresh SD readbacks, native
+programming and the matched boot. All 31 runtime, two exit-cache, 26 loader and
+48 call receipts passed, including all eight initial/late SMC/cache returns.
+Native Tenfoot reached Ready in 5.09 seconds.
+
+The first launch key was sent, but USB failed before a launch completion or
+core configuration/fetch receipt. The packet timeout reported ten polls,
+expected PID2, one RX/IRQ toggle notification and zero continuations. The
+saved first observation had channel `0xe05e8808`, HCINT `0x400`, HCTSIZ
+`0x40080008`, RX-peek/pop `0xa0000` and frame `0xc28c01e4`. At that point,
+the current packet's only recorded software channel write was its arm:
+sequence229/packet40/value`0xa05e8808`. No software disable request for that
+packet preceded the observation. This does not identify the physical cause of
+the disable bit or establish that the device supplied a valid payload.
+
+The last continuation sample stopped at `reason=channel`, mask `0xf` and
+channel `0xe05e8808`. Its printed transfer/frame zeroes are unsampled fields,
+not measurements of zero remaining transfer or a frozen frame counter. The
+later containment write was sequence230/value`0xe05e8808`; its original500ms
+wait failed to observe CHENA clear. No USB halt, new snapshot helper execution,
+FPGA master-stop receipt, normal Return, second launch or Quit was observed.
+Whether this packet error surfaced in frontend polling or the pre-launch
+pause is not established by the final stack. The drain snapshot helper was
+not reached; the existing first-toggle observation supplies this evidence.
+
+The original failure was terminal and no hardware retry occurred. The passive
+two-second tail and independent raw boot replay are retained. Independent
+cleanup verifies15M, exact USB permissions, the owned JTAG server gone and
+free UART. Claim/spare remain held; the original card and bottom kit are
+untouched. CPU/USB/FPGA halt is unproved. Campaign procedure stops are now23;
+this first-launch packet stop is distinct from the preceding USB-return stop,
+eleven pre-loader stops and three native application-start stops. The consumed
+matched chain will not be replayed. Full core-loading acceptance remains open.
+
+## Primary-source comparison and next repair boundary
+
+The pinned Linux v6.12
+[PIO continuation](https://github.com/torvalds/linux/blob/v6.12/drivers/usb/dwc2/hcd.c#L1496)
+clears raw CHDIS while queuing another request for an existing IN transfer;
+its scheduler gates this on software halt state. It does not reprogram HCTSIZ.
+Its [IN toggle handler](https://github.com/torvalds/linux/blob/v6.12/drivers/usb/dwc2/hcd_intr.c#L1715)
+handles the notification without advancing the requested PID. These references
+supply protocol context, not Nano hardware qualification or a linked Linux
+implementation. Original licensed source headers and API Git-blob/SHA256
+identities are retained. A raw-source download hit429; the successful API fetch
+verified each Git blob before retaining it.
+
+Our continuation currently stops on raw CHDIS before reading remaining packet
+count. The next model prototype must assess continuation of the same owned
+non-split IN packet after an observed toggle, preserving its PID, HCTSIZ,
+buffer and deadline. Require actual expected-PID data, completion and channel
+retirement; retain the software-halt/cancel/foreign-DMA/RX/completion/error/
+queue/empty-transfer exclusions. Do not clear arbitrary disable state, extend
+timeouts, fake completion or release ambiguous input. This is a proposed repair
+boundary; no controller policy was changed by this test.
+
+Exact observations, references and hashes are in
+[physical-result.json](physical-result.json) and
+[packet-stop-interval.json](packet-stop-interval.json). Full trace/source-pack
+retention uses `/home/deano/fes-retained/de25-usb-drain-stop-20261106-r1`, with
+prerequisite `de25-usb-drain-snapshot-20261106-r1`.
