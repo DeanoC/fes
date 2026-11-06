@@ -159,7 +159,7 @@ def inside(jobs, revision, static_expansion=False):
     for name in ("fes_de25_owner_probe", "fes_de25_dma_create", "s10_probe", "of_fpga_region_probe",
                  "simple_pm_bus_probe", "hci_register_dev", "btusb_probe", "rfkill_register",
                  "uhid_misc_init", "uinput_misc_init", "ddebug_proc_open",
-                 "dynamic_debug_exec_queries"):
+                 "ddebug_exec_queries"):
         if not re.search(r" [tT] " + name + r"(?:\.[^\s]+)?$", symbols, re.M):
             raise ValueError("required built-in symbol missing: " + name)
     files = {"Image": build / "arch/arm64/boot/Image", "kernel.config": config,
