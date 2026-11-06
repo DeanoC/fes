@@ -1,5 +1,27 @@
 # DE25 permanent-owner kernel candidate
 
+The development kernel includes `CONFIG_DYNAMIC_DEBUG=y`. Debug messages remain
+disabled until explicitly selected through debugfs or a boot-time query. This
+keeps the vendor manager/service's existing before/after secure-call messages
+available without changing their commands, timeouts or failure retention. The
+owner also logs entry and return around its first guarded register claim.
+
+On a claimed diagnostic kit running this kernel, the following query enables
+those existing sites after mounting debugfs if necessary:
+
+```sh
+printf '%s\n' 'file stratix10-soc.c +p' 'file stratix10-svc.c +p' \
+  'file de25_dma_static.h +p' > /sys/kernel/debug/dynamic_debug/control
+```
+
+Use `-p` with the same queries to disable them. Retain UART from before the
+load. A secure-call entry without its return narrows the failure to that call;
+an owner guard entry without its return instead identifies the later register
+probe. Missing messages alone prove neither phase: check that the exact kernel
+contains and enables each selected site. These logs do not interrupt a stuck
+secure call, fence DMA or authorize another load after uncertainty. Verbose
+diagnostic timing is separate from ordinary hardware acceptance.
+
 This opt-in preparation recipe builds a separate AArch64 kernel and base DTB
 from the exact Terasic source, configuration, SDK and builder locked by
 [the DMA kernel tests](../de25-dma/linux.lock.toml). It does not assemble an SD

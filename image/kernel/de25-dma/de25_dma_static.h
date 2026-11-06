@@ -28,8 +28,13 @@ static int owner_arm_guard(struct fes_de25_owner *owner)
 		owner->guard->test_context = owner->test_guard_template->test_context;
 	}
 #endif
-	if (!ret)
+	if (!ret) {
+		dev_dbg(owner->dev, "FPGA owner guard claim begin epoch=%u\n",
+			owner->next_epoch + 1);
 		ret = fes_de25_guard_claim(owner->guard, ++owner->next_epoch);
+		dev_dbg(owner->dev, "FPGA owner guard claim end epoch=%u status=%d\n",
+			owner->next_epoch, ret);
+	}
 	if (ret)
 		owner_retire_guard(owner);
 	else

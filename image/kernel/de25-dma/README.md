@@ -298,6 +298,10 @@ persona before display allocation. A full base overlay declares a
 unavailable and creates no guard epoch or DMA grant at that point. A separate
 partial-configuration overlay targets that child. Only its completed
 `POST_APPLY` may claim the ordinary scanout guard and admit allocation.
+The matched development kernel compiles dynamic debug. With the
+`de25_dma_static.h` sites explicitly enabled, guard-claim entry and return
+messages bracket the first register accesses after programming; they add no
+probe or recovery operation. See the [kernel diagnostic query](../de25-platform/README.md).
 
 A failed initial persona attempt remains unavailable. Removing a completed
 persona does not permit another selection: expansion changes require another
