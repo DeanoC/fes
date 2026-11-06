@@ -7,8 +7,10 @@ It is host simulation of main `d646bcd7e` plus a Quartus timing rebuild. It
 changes no RTL, and it is not a kit result.
 
 **Result:** taken branches are the CPU's largest cost.
-- **Cost per branch.** Branches resolve at EX and redirect from WB, so each
-  taken branch's target retires 11–12 clocks after it.
+- **Cost per branch.** Branches resolve at EX and redirect from WB. In DOOM,
+  the target of a taken Jcc, JMP rel, CALL rel or RET retires 11–12 clocks
+  after it; an indirect CALL's 22 clocks after it, and those of far
+  transfers, interrupts and deliveries 17–39.
 - **DOOM.** In the `-timedemo demo3` window, redirects are 34% of all clocks
   (CPI 2.54, 0.87 of it redirects).
 - **Other workloads.** Redirects are 37% in Wolfenstein 3D's play window and
@@ -148,7 +150,9 @@ gives each feature's gain on each window, with these assumptions:
   Wolfenstein 3D.
 - **Accuracy.** Jcc, LOOP and JCXZ are 85–95% right, direct JMP and CALL and
   RET 95–99%, indirect 70–90% and far 90–98%. 5% of not-taken conditionals
-  are predicted taken and pay a redirect.
+  are predicted taken and pay a full redirect plus the predicted bubble, less
+  what a fall-through costs: the class's clocks to the target, plus one, less
+  the window's average clocks per instruction (1.60 in DOOM).
 - **Store-to-load.** The overlap check removes 50–100% of that wait.
 - **Early ALU.** It removes 30–80% of AGI. The profile does not yet split
   AGI between load producers, which the early ALU cannot help, and ALU
@@ -165,12 +169,12 @@ gives each feature's gain on each window, with these assumptions:
 
 | Feature | DOOM `demo3` | DOOM fps |
 | --- | ---: | ---: |
-| BTB: Jcc, LOOP and JCXZ | 22.1–24.7% | 34.3–35.5 |
+| BTB: Jcc, LOOP and JCXZ | 22.0–24.7% | 34.3–35.5 |
 | BTB: JMP and CALL rel | 4.1–4.3% | 27.8–27.9 |
 | Return stack | 2.6–2.7% | 27.4 |
 | BTB: indirect | 0.7–0.9% | 26.9 |
 | Real-mode far | 0% (its far branches, 0.1%, are protected mode) | 26.7 |
-| All prediction (real-mode far excluded) | 29.5–32.6% | 37.8–39.6 |
+| All prediction (real-mode far excluded) | 29.4–32.6% | 37.8–39.6 |
 | Store-to-load wait | 1.1–2.1% | 27.0–27.3 |
 | Early ALU | 1.8–4.9% | 27.2–28.1 |
 | L2 | 3.1–5.0% | 27.6–28.1 |
@@ -218,3 +222,21 @@ corner and a 16.276 ns period:
   record's.
 - **AGI by producer.** The profile does not split AGI by producer. Plan
   slice 6 starts with that split.
+
+## Corrections
+
+- **6 November: the false-taken charge.** The estimator in
+  [profile-hook.patch](profile-hook.patch) charged each falsely predicted
+  not-taken conditional `per - 1` clocks, where `per` is the class's clocks to
+  the target. A full redirect after the predicted bubble costs `per + 1`, and
+  the fall-through it replaces would have cost `base`, the window's average
+  clocks per instruction, so the patch now charges `per + 1 - base` (#1491).
+  Rerun on [profile.json](profile.json)'s windows, DOOM `demo3`'s Jcc row
+  goes from 22.1–24.7% to 22.0–24.7% and all prediction from 29.5–32.6% to
+  29.4–32.6%. The fps figures and the Wolfenstein 3D and 3DBench rows are
+  unchanged at this precision. Slice 2's BTB measured 37.5 fps on Kit A against its
+  projected 36–38 ([BTB record](../2026-11-06-i386-phase4-btb/summary.md)).
+  Slice 3's return stack, in open PR #1512's record, takes Kit A's `demo3`
+  from 37.5 to 38.7 fps (+3.3%). Its 2.6–2.7% of the baseline's clocks is
+  about 3.6–3.8% of the clocks left after the BTB, so that is in line with the
+  estimate too.

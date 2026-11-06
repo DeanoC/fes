@@ -59,7 +59,7 @@ diff -ruN a/sources/misteross/cores/fes-pc386/sim/cpu_profile_estimate.py b/sour
 +rows = []
 +jcc_nt = sum(cl[n]['n'] - cl[n]['taken'] for n in ('jcc', 'loop', 'jcxz'))
 +lo, hi, t, per = br(['jcc', 'loop', 'jcxz'], 0.85, 0.95)
-+false = jcc_nt * 0.05 * (per - 1)
++false = jcc_nt * 0.05 * (per + 1 - base)  # a full redirect plus the predicted bubble, less a fall-through's base
 +rows.append(('BTB: Jcc, LOOP, JCXZ', lo - false, hi - false, f'{t:,} taken at {per:.1f}'))
 +lo, hi, t, per = br(['jmp', 'call'], 0.95, 0.99)
 +rows.append(('BTB: JMP and CALL rel', lo, hi, f'{t:,} at {per:.1f}'))

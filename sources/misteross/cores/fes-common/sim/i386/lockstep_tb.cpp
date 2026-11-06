@@ -2004,7 +2004,7 @@ Outcome lockstep(fes_i386::Oracle &oracle, OracleBus &bus, Rtl &rtl, const std::
         if (const uint32_t limit = before.seg[fes_i386::SEG_CS].limit; limit != 0xffff && limit != 0xffffffff) {
             const std::string mode = before.cr0 & 1 ? "pm" : "real";
             if (event == Rtl::Event::Retired && !delivered) ++summary.cs_limit[mode + "-retired"];
-            else if (rtl.top.trace_vector == 13 && !interrupted) ++summary.cs_limit[mode + "-gp"];
+            else if (delivered && rtl.top.trace_vector == 13 && !interrupted) ++summary.cs_limit[mode + "-gp"];
         }
         if (event == Rtl::Event::Unimplemented) {
             out.add(at + "unimplemented", 0, 1);
@@ -5894,6 +5894,10 @@ int run_no387_cases(fes_i386::Oracle &oracle, OracleBus &bus, Rtl &rtl, const st
 //                is FFFFh (RTL), so a word at CS:FFFFh raises #GP(0).
 //   cs-rule-hlt  as cs-rule, halting after the far jump: the RTL's CS must
 //                be limit FFFFh, access rights 93h, D/B and G clear.
+//   cs-delivery  as cs-rule, but the real-mode far jump is an o32 JMP to
+//                0000:00012345h, past the FFFFh limit that jump loads, so it
+//                raises #GP(0); the delivery's frame holds the 16-bit IP
+//                2345h, at SP 0EFAh.
 //   pm-sreg-limit  in protected mode, DS loaded with 18h, MOV ES, [FFFEh]
 //                reads the selector 10h from DS's last word, which must not
 //                fault (the read is a word); then HLT with PE set.
