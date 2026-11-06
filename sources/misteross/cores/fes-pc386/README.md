@@ -130,10 +130,8 @@ The bench appends a snapshot of the counters at the handover, every
 `scripts/pc386_cpu_profile.py F --from A --to B` reports the window between two
 snapshots:
 - **Causes.** Clocks by cause:
-  - retired uops;
+  - issued uops;
   - redirect refill;
-  - wrong-path uops, the issued uops that never commit. These are counted
-    exactly at the window's edges from the uops in flight at each snapshot;
   - fetch and L1I;
   - L1D and port 0;
   - microcode;
@@ -141,6 +139,11 @@ snapshots:
   - multiply and divide;
   - I/O, MMIO, and a store buffer full behind VGA writes;
   - halt.
+- **Window counters.** The summary reports commits, in-flight uops at both
+  window boundaries and sampled flush cycles separately. A selected window
+  can split a uop's lifetime, so its issue and commit deltas cannot identify
+  which issued uops were flushed. Flush cycles include non-branch flushes and
+  are not an attribution of wrong-path uops.
 - **Redirects.** The clocks from each taken branch to its target's
   retirement, by branch class.
 - **Classes and sites.** The instruction classes, and the hottest sites

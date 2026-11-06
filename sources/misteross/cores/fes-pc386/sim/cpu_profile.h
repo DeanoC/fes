@@ -20,10 +20,10 @@
 // may start there. dump() appends one snapshot of every counter; a window is
 // the difference of two (scripts/pc386_cpu_profile.py).
 //
-// Wrong-path uops are the issued uops that never commit: over a window,
-// issued - committed - (in flight at its end - in flight at its start), where
-// in flight is the valid uops in AG, M1, M2, EX and WB, so the count is
-// exact at any window edge.
+// Issue, commit, in-flight and flush counters are reported independently.
+// A window can start or end partway through a uop's lifetime, so their deltas
+// cannot assign flushes to the uops issued in that window. A flush cycle is
+// counted directly when wb_flush is asserted during sampling.
 //
 // This header needs no Verilator header: sample() and in_flight() take any
 // CPU model whose rootp has the fes_i386_cpu__DOT__<name> fields
@@ -89,7 +89,7 @@ struct CpuProfile {
     struct Site { uint64_t n = 0, cycles = 0; uint8_t c = 0; };
 
     uint64_t bucket[NBUCKET] = {};
-    uint64_t commits = 0, flushes = 0, redirects = 0, l1d_waits = 0, l1i_waits = 0, retired = 0, pm_retired = 0;
+    uint64_t commits = 0, flush_cycles = 0, redirects = 0, l1d_waits = 0, l1i_waits = 0, retired = 0, pm_retired = 0;
     uint64_t frames = 0, polls_3da = 0, io_accesses = 0;
     uint64_t prefixes = 0;  // prefix bytes before an instruction's last one
     // Direct branches retired (Jcc, LOOP and its kin, JCXZ, JMP and CALL rel):
@@ -127,7 +127,7 @@ struct CpuProfile {
             br_pt_taken += S(prof_pt) && S(prof_taken);
         }
         if (S(prof_frp)) ++fetch_replays;
-        if (S(wb_flush)) ++flushes;
+        if (S(wb_flush)) ++flush_cycles;
         const bool l1d = S(freeze) && S(m2_load) && !S(dmem_valid) && !mmio_busy;
         if (l1d && !was_l1d) ++l1d_waits;
         was_l1d = l1d;
@@ -283,11 +283,11 @@ struct CpuProfile {
     // per class) and S (every site retired since the last dump) lines, each
     // starting with the simulated time.
     void dump(FILE *out, uint64_t cycles, double seconds, unsigned in_flight) {
-        std::fprintf(out, "T %.6f cycles=%llu sampled=%llu retired=%llu pm_retired=%llu commits=%llu flushes=%llu "
+        std::fprintf(out, "T %.6f cycles=%llu sampled=%llu retired=%llu pm_retired=%llu commits=%llu flush_cycles=%llu "
                      "redirects=%llu l1d_waits=%llu l1i_waits=%llu frames=%llu polls_3da=%llu io=%llu prefixes=%llu "
                      "in_flight=%u br=%llu br_taken=%llu br_pt=%llu br_pt_taken=%llu fetch_replays=%llu\n",
                      seconds, (unsigned long long)cycles, (unsigned long long)sampled, (unsigned long long)retired,
-                     (unsigned long long)pm_retired, (unsigned long long)commits, (unsigned long long)flushes,
+                     (unsigned long long)pm_retired, (unsigned long long)commits, (unsigned long long)flush_cycles,
                      (unsigned long long)redirects, (unsigned long long)l1d_waits, (unsigned long long)l1i_waits,
                      (unsigned long long)frames, (unsigned long long)polls_3da, (unsigned long long)io_accesses,
                      (unsigned long long)prefixes, in_flight, (unsigned long long)br, (unsigned long long)br_taken,

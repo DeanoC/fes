@@ -209,7 +209,11 @@ int main(int, char **argv) {
         p.dump(out, 100, 0.000001, CpuProfile::in_flight(cpu));
         const uint8_t jnz[] = {0x75, 0xfc};
         R(issue) = true; R(d_first) = true; R(wb_commit) = true; R(mem_valid) = true;
-        for (int n = 0; n < 6; ++n) p.sample(cpu, false, false);
+        for (int n = 0; n < 6; ++n) {
+            R(wb_flush) = n == 2;
+            p.sample(cpu, false, false);
+        }
+        R(wb_flush) = false;
         R(wb_commit) = false;
         p.sample(cpu, false, false);  // a wrong-path uop
         R(issue) = false; R(dc_valid) = false; R(redirect) = true;
@@ -250,9 +254,10 @@ class HeaderTest(unittest.TestCase):
         self.assertEqual(w['from_cycle'], 100)
         self.assertEqual(w['cycles'], 10)
         self.assertEqual(w['rtl_clocks'], 10)
-        # 7 issued, 6 committed, in flight 2 then 1: 2 never commit.
-        self.assertEqual(w['causes']['retired uops'], 5)
-        self.assertEqual(w['causes']['redirect: wrong-path uops'], 2)
+        self.assertEqual(w['causes']['issued uops'], 7)
+        self.assertEqual(w['commits'], 6)
+        self.assertEqual((w['in_flight_start'], w['in_flight_end']), (2, 1))
+        self.assertEqual(w['flush_cycles'], 1)
         self.assertEqual(w['causes']['redirect: refill'], 2)
         self.assertEqual(w['causes']['fetch and L1I'], 1)
         self.assertEqual(sum(w['causes'].values()), w['rtl_clocks'])
@@ -260,12 +265,13 @@ class HeaderTest(unittest.TestCase):
         self.assertEqual(sorted(site[:3] for site in w['sites']), [['0000000e', 1, 5], ['00000010', 1, 5]])
 
 
-def snapshot(at: float, cycles: int, sampled: int, buckets: dict, commits: int = 0, in_flight: int = 0) -> str:
+def snapshot(at: float, cycles: int, sampled: int, buckets: dict, commits: int = 0, in_flight: int = 0,
+             flush_cycles: int = 0) -> str:
     names = dict.fromkeys((b for keys in profile.CAUSES.values() for b in keys), 0)
     names.update(dict.fromkeys(profile.ISSUE, 0))
     names.update(buckets)
     return textwrap.dedent(f'''\
-        T {at} cycles={cycles} sampled={sampled} retired={commits} pm_retired=0 commits={commits} flushes=0 redirects=0 l1d_waits=0 l1i_waits=0 frames=0 polls_3da=0 io=0 prefixes=0 in_flight={in_flight} br=0 br_taken=0 br_pt=0 br_pt_taken=0 fetch_replays=0
+        T {at} cycles={cycles} sampled={sampled} retired={commits} pm_retired=0 commits={commits} flush_cycles={flush_cycles} redirects=0 l1d_waits=0 l1i_waits=0 frames=0 polls_3da=0 io=0 prefixes=0 in_flight={in_flight} br=0 br_taken=0 br_pt=0 br_pt_taken=0 fetch_replays=0
         B {at} ''') + ' '.join(f'{k}={v}' for k, v in names.items()) + '\n'
 
 
@@ -280,20 +286,23 @@ class WindowTest(unittest.TestCase):
         self.assertEqual(w['cycles'], 200)
         self.assertEqual(w['causes']['interlock: AGI'], 10)
         self.assertEqual(w['causes']['halt'], 40)
-        self.assertEqual(w['causes']['retired uops'], 150)
-        self.assertEqual(w['wrong_path_uops'], 0)
+        self.assertEqual(w['causes']['issued uops'], 150)
         self.assertIn('interlock: AGI', profile.report(w))
 
-    def test_wrong_path_counts_the_uops_in_flight_at_each_edge(self):
-        # 10 issued, 9 committed, 3 in flight at the start and 4 at the end:
-        # 10 - 9 - (4 - 3) = 0 never commit.
-        text = snapshot(1.0, 0, 0, {}, 0, 3) + snapshot(2.0, 10, 10, {'issue_first': 10}, 9, 4)
+    def test_flush_of_pre_window_uop_is_reported_separately(self):
+        # This uop was issued before the window. Its flush must not be counted
+        # as a wrong-path issue from this window or make issued clocks negative.
+        text = (snapshot(1.0, 0, 0, {}, 0, 1)
+                + snapshot(2.0, 10, 10, {'halt': 10}, 0, 0, flush_cycles=1))
         w = profile.window(profile.load(text.splitlines()))
-        self.assertEqual(w['wrong_path_uops'], 0)
-        self.assertEqual(w['causes']['retired uops'], 10)
-        text = snapshot(1.0, 0, 0, {}, 0, 0) + snapshot(2.0, 10, 10, {'issue_first': 10}, 9, 4)
-        with self.assertRaises(profile.ProfileError):
-            profile.window(profile.load(text.splitlines()))
+        self.assertEqual(w['issued'], 0)
+        self.assertEqual(w['commits'], 0)
+        self.assertEqual((w['in_flight_start'], w['in_flight_end']), (1, 0))
+        self.assertEqual(w['flush_cycles'], 1)
+        self.assertEqual(w['causes']['issued uops'], 0)
+        self.assertNotIn('wrong_path_uops', w)
+        self.assertIn('flush cycles 1', profile.report(w))
+        self.assertEqual(sum(w['causes'].values()), w['rtl_clocks'])
 
     def test_buckets_must_hold_every_sampled_clock(self):
         text = snapshot(1.0, 0, 0, {}) + snapshot(2.0, 10, 10, {'agi': 9})
@@ -305,7 +314,7 @@ class WindowTest(unittest.TestCase):
             profile.window(profile.load(snapshot(1.0, 0, 0, {}).splitlines()))
 
     def test_every_bucket_is_in_one_cause(self):
-        named = [b for keys in profile.CAUSES.values() for b in keys] + list(profile.ISSUE)
+        named = [b for keys in profile.CAUSES.values() for b in keys]
         self.assertEqual(len(named), len(set(named)))
         buckets = re.search(r'bucket_name\[NBUCKET\] = \{(.*?)\};', HEADER.read_text(), re.S).group(1)
         self.assertEqual(set(named), set(re.findall(r'"(\w+)"', buckets)))
