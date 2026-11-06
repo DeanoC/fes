@@ -2782,8 +2782,13 @@ void run_btb_cases(fes_i386::Oracle &oracle, OracleBus &bus, Rtl &rtl, const std
 //                IRET, around a CALL and RET in the handler, inside a
 //                called function (a directed case fails on any INT n)
 //   ras-store    a store turns a learned RET into INC BX, with a RET
-//                after it: the RET's entry now ends at the INC (the fetch
-//                check replays the next instruction)
+//                after it: the RET's entry now ends at the INC, where no
+//                RET ends
+//   ras-limit    a learned PUSH imm16; RET in CS 0180h, after CALLs in CS
+//                0100h left the stack's entries below its base: the
+//                predicted EIP, entry less CS.base, is past CS's limit, so
+//                the next instruction stops on the wrong path until the
+//                RET's redirect
 void run_ras_cases(fes_i386::Oracle &oracle, OracleBus &bus, Rtl &rtl, const std::vector<Entry> &entries,
                    Summary &summary) {
     State state;
@@ -2823,6 +2828,13 @@ void run_ras_cases(fes_i386::Oracle &oracle, OracleBus &bus, Rtl &rtl, const std
     run_nop_case(oracle, bus, rtl, entries, summary, "ras-store",
                  {0xba, 0x06, 0x00, 0xe8, 0x05, 0x00, 0x4a, 0x75, 0xfa, 0xeb, 0x0d, 0x83, 0xfa, 0x03, 0x75, 0x06,
                   0x2e, 0xc6, 0x06, 0x16, 0x00, 0x43, 0xc3, 0xc3}, state, 600);
+    // MOV DX, 3; O: CALL F; DEC DX; JNZ O; MOV DX, 4; JMP 0180h:0; F: RET;
+    // then at 800h, CS 0180h's offset 0: L: PUSH 4; RET; DEC DX; JNZ L.
+    std::vector<uint8_t> limit = {0xba, 0x03, 0x00, 0xe8, 0x0b, 0x00, 0x4a, 0x75, 0xfa, 0xba, 0x04, 0x00,
+                                  0xea, 0x00, 0x00, 0x80, 0x01, 0xc3};
+    limit.resize(0x800, 0x90);
+    limit.insert(limit.end(), {0x68, 0x04, 0x00, 0xc3, 0x4a, 0x75, 0xf9});
+    run_nop_case(oracle, bus, rtl, entries, summary, "ras-limit", limit, state, 600);
 }
 
 // ---- SingleStepTests mode ---------------------------------------------------------------
