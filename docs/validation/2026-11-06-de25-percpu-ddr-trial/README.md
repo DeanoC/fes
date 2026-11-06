@@ -47,3 +47,53 @@ This trial confers no ordinary profile admission, physical HDMI/native-network
 acceptance or DE10-equivalent loading status, even if all three cycles pass.
 The full active goal remains open until the normal package-loading path and
 its required device/lifecycle behavior are verified.
+
+## Observed result
+
+The one attempt on operator `8c7d3e22e046952d7b0dbffa67f8f414ec3372aa`
+completed recovery, all eight verified uploads/fresh SD readbacks, matched
+programming and firmware boot. All 31 runtime, both exit-cache, 26 loader and
+48 call receipts completed. All eight initial/late affinity cache flushes and
+SMC calls returned. The loader passed its new firmware-reservation gate. This
+observes the software reservation gate; it does not independently qualify
+physical protection of the whole DDR region.
+
+Native Tenfoot became ready in 5.10 seconds. The first ZX81 ROM launch completed
+in 73.16 seconds under the unchanged 100-second bound, with the matching retained
+ROM activation identity. Its bounded fetch observer held cycles at zero, then
+saw 19,150 cycles advance to address 975 in 122.64ms, one poll under the existing
+one-second/64-poll guard. This is an observed native ROM launch and execution
+counter, without physical video or button acceptance.
+
+Stop returned firmware master-stop generation 5 with reader drain, disabled
+probe, complete=1 and held data. Native ownership advanced to parked generation
+2. USB polling drain then timed out; its containment wait could not observe
+CHENA clear at register `0x500` (value `0xe05e8808`) within the existing 500ms
+bound. The software ring shows seven arm writes followed by the containment
+write on packet 53. It does not establish the controller cause or prove USB
+channel halt. The application panicked; no next launch, retry or Quit was sent.
+The requested three-cycle sequence failed, and no complete owned return or
+ordinary core-loading acceptance is claimed.
+
+The first observation script supplied the master-stop result generation to a
+validator that expects the preceding configuration generation; the corrected
+replay passes with generation 4 and checks the actual generation-5 receipt.
+Both off-board attempts remain retained. Independent boot replay matches the
+raw console and original decoder. Independent cleanup verifies restored 15M,
+exact USB permissions, the owned private JTAG process gone and free UART.
+No hardware retry occurred. Campaign procedure stops are now 22; the eleven
+pre-loader and three application-start stops remain distinct from this first
+USB-return stop. The consumed matched chain will not be replayed.
+
+Next audit USB polling drain, periodic/idle packet completion and return
+ordering against the source and injected controller. Preserve the original
+500ms drain/halt bounds, terminal containment and ownership retention. Do not
+release ambiguous USB state or substitute a new timeout for a completion proof.
+The FPGA Park receipt does not prove USB halt; claim and spare remain retained,
+factory restoration waived, factory/bottom untouched, CPU/FPGA halt unproved.
+
+Exact observations and source/evidence hashes are in
+[physical-result.json](physical-result.json) and
+[usb-stop-interval.json](usb-stop-interval.json). Source pack and trace retention
+use `/home/deano/fes-retained/de25-percpu-ddr-stop-20261106-r1`, with prerequisite
+`de25-percpu-ddr-20261106-r1`. The full active goal remains incomplete.

@@ -1,0 +1,1496 @@
+{
+  "format": 1,
+  "status": "bounded-native-test-stopped",
+  "classification": "one source-bound bounded physical diagnostic; no ordinary core-load acceptance",
+  "firmware_source": "718b5c1427cecce2dc64868de8a9df7b599abf3c",
+  "native_source": "31d716957759c3dede3330877dac2ce7bcd2d643",
+  "operator_source": "8c7d3e22e046952d7b0dbffa67f8f414ec3372aa",
+  "attempts": 1,
+  "failures_on_compiled_input": 1,
+  "stop_first_failure": true,
+  "replayed": false,
+  "hardware_command_passed": false,
+  "stopped_stage": "native App key 73",
+  "error": "native failure marker; no further command",
+  "recovery_qualified": true,
+  "post_power_interruption_recovery_verified": true,
+  "verified_uploads": 8,
+  "fresh_sd_readbacks": 8,
+  "sd_writes": true,
+  "native_programming_complete": true,
+  "fit_verified_before_parsing": true,
+  "secure_entry_crossing_proven": true,
+  "physical_ram_guard_passed": true,
+  "runtime_startup": {
+    "records": [
+      {
+        "phase": "main-before",
+        "line": 73
+      },
+      {
+        "phase": "platform-before",
+        "line": 76
+      },
+      {
+        "phase": "owned-before",
+        "line": 77
+      },
+      {
+        "phase": "owned-after",
+        "line": 81
+      },
+      {
+        "phase": "gic-driver-before",
+        "line": 82
+      },
+      {
+        "phase": "gic-driver-after",
+        "line": 83
+      },
+      {
+        "phase": "gic-distributor-before",
+        "line": 84
+      },
+      {
+        "phase": "gic-distributor-after",
+        "line": 85
+      },
+      {
+        "phase": "gic-redistributor-before",
+        "line": 86
+      },
+      {
+        "phase": "gic-redistributor-after",
+        "line": 87
+      },
+      {
+        "phase": "gic-cpu-before",
+        "line": 88
+      },
+      {
+        "phase": "gic-cpu-after",
+        "line": 89
+      },
+      {
+        "phase": "mailbox-before",
+        "line": 90
+      },
+      {
+        "phase": "mailbox-after",
+        "line": 91
+      },
+      {
+        "phase": "platform-after",
+        "line": 92
+      },
+      {
+        "phase": "libraries-before",
+        "line": 93
+      },
+      {
+        "phase": "libraries-after",
+        "line": 94
+      },
+      {
+        "phase": "services-before",
+        "line": 95
+      },
+      {
+        "phase": "services-after",
+        "line": 96
+      },
+      {
+        "phase": "next-image-before",
+        "line": 97
+      },
+      {
+        "phase": "next-image-after",
+        "line": 98
+      },
+      {
+        "phase": "runtime-before",
+        "line": 99
+      },
+      {
+        "phase": "runtime-after",
+        "line": 100
+      },
+      {
+        "phase": "console-before",
+        "line": 101
+      },
+      {
+        "phase": "console-after",
+        "line": 102
+      },
+      {
+        "phase": "main-after",
+        "line": 103
+      },
+      {
+        "phase": "data-clean-before",
+        "line": 104
+      },
+      {
+        "phase": "data-clean-after",
+        "line": 105
+      },
+      {
+        "phase": "bss-clean-before",
+        "line": 106
+      },
+      {
+        "phase": "bss-clean-after",
+        "line": 109
+      },
+      {
+        "phase": "exit-before",
+        "line": 110
+      }
+    ],
+    "valid": true,
+    "complete": true
+  },
+  "exit_cache": {
+    "records": [
+      {
+        "phase": "clean-before",
+        "line": 107
+      },
+      {
+        "phase": "clean-after",
+        "line": 108
+      }
+    ],
+    "valid": true,
+    "complete": true,
+    "maintenance_may_have_started": true
+  },
+  "native_command_sent_once": true,
+  "native_entry_marker_observed": true,
+  "native_application_ready": true,
+  "service_cycles": 0,
+  "verified_native_launches": 1,
+  "verified_fetch_observations": [
+    {
+      "scope": "nano-computer-fetch-v1",
+      "owner": 15155746465169622277,
+      "generation": 1,
+      "package_id": "7f1d138774d7f0a0212f80184a6349d726f885095c86d6360e380817cedae566",
+      "build_id": "edafcc95c494b73f59492f3a060bf095",
+      "before": {
+        "Cycles": 0,
+        "Address": 0
+      },
+      "held": {
+        "Cycles": 0,
+        "Address": 0
+      },
+      "running": {
+        "Cycles": 19150,
+        "Address": 975
+      },
+      "delta": 19150,
+      "polls": 1,
+      "elapsed_ns": 122641762,
+      "limit_ns": 1000000000
+    }
+  ],
+  "firmware_master_stop_returns": [
+    {
+      "status": 0,
+      "owner": 15155746465169622277,
+      "generation": 5,
+      "reset": 13,
+      "reader_reads": 88,
+      "reader_polls": 1,
+      "disable": 0,
+      "probe_polls": 2,
+      "cancel": 0,
+      "complete": 1,
+      "physical_ddr_drain_qualified": false
+    }
+  ],
+  "USB_polling_drain_failed": true,
+  "USB_channel_halt_proven": false,
+  "last_checkpoint": "el1",
+  "loader_progress": {
+    "records": [
+      {
+        "phase": "memory-before",
+        "line": 131
+      },
+      {
+        "phase": "memory-after",
+        "line": 140
+      },
+      {
+        "phase": "snapshot-before",
+        "line": 141
+      },
+      {
+        "phase": "registers-before",
+        "line": 142
+      },
+      {
+        "phase": "registers-after",
+        "line": 143
+      },
+      {
+        "phase": "cpu0-before",
+        "line": 144
+      },
+      {
+        "phase": "cpu0-after",
+        "line": 151
+      },
+      {
+        "phase": "cpu1-before",
+        "line": 152
+      },
+      {
+        "phase": "cpu1-after",
+        "line": 159
+      },
+      {
+        "phase": "cpu2-before",
+        "line": 160
+      },
+      {
+        "phase": "cpu2-after",
+        "line": 167
+      },
+      {
+        "phase": "cpu3-before",
+        "line": 168
+      },
+      {
+        "phase": "cpu3-after",
+        "line": 175
+      },
+      {
+        "phase": "reset-before",
+        "line": 176
+      },
+      {
+        "phase": "reset-after",
+        "line": 177
+      },
+      {
+        "phase": "watchdog-before",
+        "line": 178
+      },
+      {
+        "phase": "watchdog-after",
+        "line": 179
+      },
+      {
+        "phase": "uart-before",
+        "line": 180
+      },
+      {
+        "phase": "uart-after",
+        "line": 181
+      },
+      {
+        "phase": "snapshot-after",
+        "line": 182
+      },
+      {
+        "phase": "cpu-check-before",
+        "line": 183
+      },
+      {
+        "phase": "cpu-check-after",
+        "line": 184
+      },
+      {
+        "phase": "watchdog-stop-before",
+        "line": 185
+      },
+      {
+        "phase": "watchdog-stop-after",
+        "line": 186
+      },
+      {
+        "phase": "owned-before",
+        "line": 187
+      },
+      {
+        "phase": "owned-after",
+        "line": 189
+      }
+    ],
+    "valid": true,
+    "complete": true,
+    "firmware_call_may_have_started": true
+  },
+  "last_loader_phase": "owned-after",
+  "firmware_reservation_gate_return_observed": true,
+  "affinity_calls": {
+    "records": [
+      {
+        "phase": "smc-before",
+        "line": 145,
+        "call": 0,
+        "cpu": 0,
+        "scope": "initial"
+      },
+      {
+        "phase": "affinity-enter",
+        "line": 146,
+        "call": 0,
+        "cpu": 0,
+        "scope": "initial"
+      },
+      {
+        "phase": "cache-before",
+        "line": 147,
+        "call": 0,
+        "cpu": 0,
+        "scope": "initial"
+      },
+      {
+        "phase": "cache-after",
+        "line": 148,
+        "call": 0,
+        "cpu": 0,
+        "scope": "initial"
+      },
+      {
+        "phase": "affinity-return",
+        "line": 149,
+        "call": 0,
+        "cpu": 0,
+        "scope": "initial"
+      },
+      {
+        "phase": "smc-after",
+        "line": 150,
+        "call": 0,
+        "cpu": 0,
+        "scope": "initial"
+      },
+      {
+        "phase": "smc-before",
+        "line": 153,
+        "call": 1,
+        "cpu": 1,
+        "scope": "initial"
+      },
+      {
+        "phase": "affinity-enter",
+        "line": 154,
+        "call": 1,
+        "cpu": 1,
+        "scope": "initial"
+      },
+      {
+        "phase": "cache-before",
+        "line": 155,
+        "call": 1,
+        "cpu": 1,
+        "scope": "initial"
+      },
+      {
+        "phase": "cache-after",
+        "line": 156,
+        "call": 1,
+        "cpu": 1,
+        "scope": "initial"
+      },
+      {
+        "phase": "affinity-return",
+        "line": 157,
+        "call": 1,
+        "cpu": 1,
+        "scope": "initial"
+      },
+      {
+        "phase": "smc-after",
+        "line": 158,
+        "call": 1,
+        "cpu": 1,
+        "scope": "initial"
+      },
+      {
+        "phase": "smc-before",
+        "line": 161,
+        "call": 2,
+        "cpu": 2,
+        "scope": "initial"
+      },
+      {
+        "phase": "affinity-enter",
+        "line": 162,
+        "call": 2,
+        "cpu": 2,
+        "scope": "initial"
+      },
+      {
+        "phase": "cache-before",
+        "line": 163,
+        "call": 2,
+        "cpu": 2,
+        "scope": "initial"
+      },
+      {
+        "phase": "cache-after",
+        "line": 164,
+        "call": 2,
+        "cpu": 2,
+        "scope": "initial"
+      },
+      {
+        "phase": "affinity-return",
+        "line": 165,
+        "call": 2,
+        "cpu": 2,
+        "scope": "initial"
+      },
+      {
+        "phase": "smc-after",
+        "line": 166,
+        "call": 2,
+        "cpu": 2,
+        "scope": "initial"
+      },
+      {
+        "phase": "smc-before",
+        "line": 169,
+        "call": 3,
+        "cpu": 3,
+        "scope": "initial"
+      },
+      {
+        "phase": "affinity-enter",
+        "line": 170,
+        "call": 3,
+        "cpu": 3,
+        "scope": "initial"
+      },
+      {
+        "phase": "cache-before",
+        "line": 171,
+        "call": 3,
+        "cpu": 3,
+        "scope": "initial"
+      },
+      {
+        "phase": "cache-after",
+        "line": 172,
+        "call": 3,
+        "cpu": 3,
+        "scope": "initial"
+      },
+      {
+        "phase": "affinity-return",
+        "line": 173,
+        "call": 3,
+        "cpu": 3,
+        "scope": "initial"
+      },
+      {
+        "phase": "smc-after",
+        "line": 174,
+        "call": 3,
+        "cpu": 3,
+        "scope": "initial"
+      },
+      {
+        "phase": "smc-before",
+        "line": 199,
+        "call": 4,
+        "cpu": 0,
+        "scope": "late"
+      },
+      {
+        "phase": "affinity-enter",
+        "line": 200,
+        "call": 4,
+        "cpu": 0,
+        "scope": "late"
+      },
+      {
+        "phase": "cache-before",
+        "line": 201,
+        "call": 4,
+        "cpu": 0,
+        "scope": "late"
+      },
+      {
+        "phase": "cache-after",
+        "line": 202,
+        "call": 4,
+        "cpu": 0,
+        "scope": "late"
+      },
+      {
+        "phase": "affinity-return",
+        "line": 203,
+        "call": 4,
+        "cpu": 0,
+        "scope": "late"
+      },
+      {
+        "phase": "smc-after",
+        "line": 204,
+        "call": 4,
+        "cpu": 0,
+        "scope": "late"
+      },
+      {
+        "phase": "smc-before",
+        "line": 205,
+        "call": 5,
+        "cpu": 1,
+        "scope": "late"
+      },
+      {
+        "phase": "affinity-enter",
+        "line": 206,
+        "call": 5,
+        "cpu": 1,
+        "scope": "late"
+      },
+      {
+        "phase": "cache-before",
+        "line": 207,
+        "call": 5,
+        "cpu": 1,
+        "scope": "late"
+      },
+      {
+        "phase": "cache-after",
+        "line": 208,
+        "call": 5,
+        "cpu": 1,
+        "scope": "late"
+      },
+      {
+        "phase": "affinity-return",
+        "line": 209,
+        "call": 5,
+        "cpu": 1,
+        "scope": "late"
+      },
+      {
+        "phase": "smc-after",
+        "line": 210,
+        "call": 5,
+        "cpu": 1,
+        "scope": "late"
+      },
+      {
+        "phase": "smc-before",
+        "line": 211,
+        "call": 6,
+        "cpu": 2,
+        "scope": "late"
+      },
+      {
+        "phase": "affinity-enter",
+        "line": 212,
+        "call": 6,
+        "cpu": 2,
+        "scope": "late"
+      },
+      {
+        "phase": "cache-before",
+        "line": 213,
+        "call": 6,
+        "cpu": 2,
+        "scope": "late"
+      },
+      {
+        "phase": "cache-after",
+        "line": 214,
+        "call": 6,
+        "cpu": 2,
+        "scope": "late"
+      },
+      {
+        "phase": "affinity-return",
+        "line": 215,
+        "call": 6,
+        "cpu": 2,
+        "scope": "late"
+      },
+      {
+        "phase": "smc-after",
+        "line": 216,
+        "call": 6,
+        "cpu": 2,
+        "scope": "late"
+      },
+      {
+        "phase": "smc-before",
+        "line": 217,
+        "call": 7,
+        "cpu": 3,
+        "scope": "late"
+      },
+      {
+        "phase": "affinity-enter",
+        "line": 218,
+        "call": 7,
+        "cpu": 3,
+        "scope": "late"
+      },
+      {
+        "phase": "cache-before",
+        "line": 219,
+        "call": 7,
+        "cpu": 3,
+        "scope": "late"
+      },
+      {
+        "phase": "cache-after",
+        "line": 220,
+        "call": 7,
+        "cpu": 3,
+        "scope": "late"
+      },
+      {
+        "phase": "affinity-return",
+        "line": 221,
+        "call": 7,
+        "cpu": 3,
+        "scope": "late"
+      },
+      {
+        "phase": "smc-after",
+        "line": 222,
+        "call": 7,
+        "cpu": 3,
+        "scope": "late"
+      }
+    ],
+    "valid": true,
+    "initial_complete": true,
+    "complete": true,
+    "instruction_may_have_started": true,
+    "cache_may_have_started": true,
+    "instruction_returns_observed": 8
+  },
+  "SMC_instruction_crossing_observed": true,
+  "cache_flush_returns_observed": 8,
+  "SMC_returns_observed": 8,
+  "last_call_phase": "smc-after",
+  "last_console_line": "\tgithub.com/DeanoC/fes/platform/embedded/tamago/cmd/fpgaload/main.go:136 +0x7d8",
+  "physical_cache_geometry_coverage_verified": false,
+  "physical_ram_reservation_verified": false,
+  "physical_cpu_halt_proven": false,
+  "independent_replay_matched": true,
+  "raw_console_bytes": 48540,
+  "raw_console_sha256": "f59a0fa383d3de183c9237145127b2bb576432ef293b5d9ebbe2b88da019fe70",
+  "passive_failure_tail": {
+    "bound_seconds": 2,
+    "complete": true,
+    "restoration": "restored",
+    "affinity_calls": {
+      "records": [
+        {
+          "phase": "smc-before",
+          "line": 145,
+          "call": 0,
+          "cpu": 0,
+          "scope": "initial"
+        },
+        {
+          "phase": "affinity-enter",
+          "line": 146,
+          "call": 0,
+          "cpu": 0,
+          "scope": "initial"
+        },
+        {
+          "phase": "cache-before",
+          "line": 147,
+          "call": 0,
+          "cpu": 0,
+          "scope": "initial"
+        },
+        {
+          "phase": "cache-after",
+          "line": 148,
+          "call": 0,
+          "cpu": 0,
+          "scope": "initial"
+        },
+        {
+          "phase": "affinity-return",
+          "line": 149,
+          "call": 0,
+          "cpu": 0,
+          "scope": "initial"
+        },
+        {
+          "phase": "smc-after",
+          "line": 150,
+          "call": 0,
+          "cpu": 0,
+          "scope": "initial"
+        },
+        {
+          "phase": "smc-before",
+          "line": 153,
+          "call": 1,
+          "cpu": 1,
+          "scope": "initial"
+        },
+        {
+          "phase": "affinity-enter",
+          "line": 154,
+          "call": 1,
+          "cpu": 1,
+          "scope": "initial"
+        },
+        {
+          "phase": "cache-before",
+          "line": 155,
+          "call": 1,
+          "cpu": 1,
+          "scope": "initial"
+        },
+        {
+          "phase": "cache-after",
+          "line": 156,
+          "call": 1,
+          "cpu": 1,
+          "scope": "initial"
+        },
+        {
+          "phase": "affinity-return",
+          "line": 157,
+          "call": 1,
+          "cpu": 1,
+          "scope": "initial"
+        },
+        {
+          "phase": "smc-after",
+          "line": 158,
+          "call": 1,
+          "cpu": 1,
+          "scope": "initial"
+        },
+        {
+          "phase": "smc-before",
+          "line": 161,
+          "call": 2,
+          "cpu": 2,
+          "scope": "initial"
+        },
+        {
+          "phase": "affinity-enter",
+          "line": 162,
+          "call": 2,
+          "cpu": 2,
+          "scope": "initial"
+        },
+        {
+          "phase": "cache-before",
+          "line": 163,
+          "call": 2,
+          "cpu": 2,
+          "scope": "initial"
+        },
+        {
+          "phase": "cache-after",
+          "line": 164,
+          "call": 2,
+          "cpu": 2,
+          "scope": "initial"
+        },
+        {
+          "phase": "affinity-return",
+          "line": 165,
+          "call": 2,
+          "cpu": 2,
+          "scope": "initial"
+        },
+        {
+          "phase": "smc-after",
+          "line": 166,
+          "call": 2,
+          "cpu": 2,
+          "scope": "initial"
+        },
+        {
+          "phase": "smc-before",
+          "line": 169,
+          "call": 3,
+          "cpu": 3,
+          "scope": "initial"
+        },
+        {
+          "phase": "affinity-enter",
+          "line": 170,
+          "call": 3,
+          "cpu": 3,
+          "scope": "initial"
+        },
+        {
+          "phase": "cache-before",
+          "line": 171,
+          "call": 3,
+          "cpu": 3,
+          "scope": "initial"
+        },
+        {
+          "phase": "cache-after",
+          "line": 172,
+          "call": 3,
+          "cpu": 3,
+          "scope": "initial"
+        },
+        {
+          "phase": "affinity-return",
+          "line": 173,
+          "call": 3,
+          "cpu": 3,
+          "scope": "initial"
+        },
+        {
+          "phase": "smc-after",
+          "line": 174,
+          "call": 3,
+          "cpu": 3,
+          "scope": "initial"
+        },
+        {
+          "phase": "smc-before",
+          "line": 199,
+          "call": 4,
+          "cpu": 0,
+          "scope": "late"
+        },
+        {
+          "phase": "affinity-enter",
+          "line": 200,
+          "call": 4,
+          "cpu": 0,
+          "scope": "late"
+        },
+        {
+          "phase": "cache-before",
+          "line": 201,
+          "call": 4,
+          "cpu": 0,
+          "scope": "late"
+        },
+        {
+          "phase": "cache-after",
+          "line": 202,
+          "call": 4,
+          "cpu": 0,
+          "scope": "late"
+        },
+        {
+          "phase": "affinity-return",
+          "line": 203,
+          "call": 4,
+          "cpu": 0,
+          "scope": "late"
+        },
+        {
+          "phase": "smc-after",
+          "line": 204,
+          "call": 4,
+          "cpu": 0,
+          "scope": "late"
+        },
+        {
+          "phase": "smc-before",
+          "line": 205,
+          "call": 5,
+          "cpu": 1,
+          "scope": "late"
+        },
+        {
+          "phase": "affinity-enter",
+          "line": 206,
+          "call": 5,
+          "cpu": 1,
+          "scope": "late"
+        },
+        {
+          "phase": "cache-before",
+          "line": 207,
+          "call": 5,
+          "cpu": 1,
+          "scope": "late"
+        },
+        {
+          "phase": "cache-after",
+          "line": 208,
+          "call": 5,
+          "cpu": 1,
+          "scope": "late"
+        },
+        {
+          "phase": "affinity-return",
+          "line": 209,
+          "call": 5,
+          "cpu": 1,
+          "scope": "late"
+        },
+        {
+          "phase": "smc-after",
+          "line": 210,
+          "call": 5,
+          "cpu": 1,
+          "scope": "late"
+        },
+        {
+          "phase": "smc-before",
+          "line": 211,
+          "call": 6,
+          "cpu": 2,
+          "scope": "late"
+        },
+        {
+          "phase": "affinity-enter",
+          "line": 212,
+          "call": 6,
+          "cpu": 2,
+          "scope": "late"
+        },
+        {
+          "phase": "cache-before",
+          "line": 213,
+          "call": 6,
+          "cpu": 2,
+          "scope": "late"
+        },
+        {
+          "phase": "cache-after",
+          "line": 214,
+          "call": 6,
+          "cpu": 2,
+          "scope": "late"
+        },
+        {
+          "phase": "affinity-return",
+          "line": 215,
+          "call": 6,
+          "cpu": 2,
+          "scope": "late"
+        },
+        {
+          "phase": "smc-after",
+          "line": 216,
+          "call": 6,
+          "cpu": 2,
+          "scope": "late"
+        },
+        {
+          "phase": "smc-before",
+          "line": 217,
+          "call": 7,
+          "cpu": 3,
+          "scope": "late"
+        },
+        {
+          "phase": "affinity-enter",
+          "line": 218,
+          "call": 7,
+          "cpu": 3,
+          "scope": "late"
+        },
+        {
+          "phase": "cache-before",
+          "line": 219,
+          "call": 7,
+          "cpu": 3,
+          "scope": "late"
+        },
+        {
+          "phase": "cache-after",
+          "line": 220,
+          "call": 7,
+          "cpu": 3,
+          "scope": "late"
+        },
+        {
+          "phase": "affinity-return",
+          "line": 221,
+          "call": 7,
+          "cpu": 3,
+          "scope": "late"
+        },
+        {
+          "phase": "smc-after",
+          "line": 222,
+          "call": 7,
+          "cpu": 3,
+          "scope": "late"
+        }
+      ],
+      "valid": true,
+      "initial_complete": true,
+      "complete": true,
+      "instruction_may_have_started": true,
+      "cache_may_have_started": true,
+      "instruction_returns_observed": 8
+    },
+    "partial_call_record": false,
+    "loader_progress": {
+      "records": [
+        {
+          "phase": "memory-before",
+          "line": 131
+        },
+        {
+          "phase": "memory-after",
+          "line": 140
+        },
+        {
+          "phase": "snapshot-before",
+          "line": 141
+        },
+        {
+          "phase": "registers-before",
+          "line": 142
+        },
+        {
+          "phase": "registers-after",
+          "line": 143
+        },
+        {
+          "phase": "cpu0-before",
+          "line": 144
+        },
+        {
+          "phase": "cpu0-after",
+          "line": 151
+        },
+        {
+          "phase": "cpu1-before",
+          "line": 152
+        },
+        {
+          "phase": "cpu1-after",
+          "line": 159
+        },
+        {
+          "phase": "cpu2-before",
+          "line": 160
+        },
+        {
+          "phase": "cpu2-after",
+          "line": 167
+        },
+        {
+          "phase": "cpu3-before",
+          "line": 168
+        },
+        {
+          "phase": "cpu3-after",
+          "line": 175
+        },
+        {
+          "phase": "reset-before",
+          "line": 176
+        },
+        {
+          "phase": "reset-after",
+          "line": 177
+        },
+        {
+          "phase": "watchdog-before",
+          "line": 178
+        },
+        {
+          "phase": "watchdog-after",
+          "line": 179
+        },
+        {
+          "phase": "uart-before",
+          "line": 180
+        },
+        {
+          "phase": "uart-after",
+          "line": 181
+        },
+        {
+          "phase": "snapshot-after",
+          "line": 182
+        },
+        {
+          "phase": "cpu-check-before",
+          "line": 183
+        },
+        {
+          "phase": "cpu-check-after",
+          "line": 184
+        },
+        {
+          "phase": "watchdog-stop-before",
+          "line": 185
+        },
+        {
+          "phase": "watchdog-stop-after",
+          "line": 186
+        },
+        {
+          "phase": "owned-before",
+          "line": 187
+        },
+        {
+          "phase": "owned-after",
+          "line": 189
+        }
+      ],
+      "valid": true,
+      "complete": true,
+      "firmware_call_may_have_started": true
+    },
+    "partial_loader_record": false,
+    "exit_cache": {
+      "records": [
+        {
+          "phase": "clean-before",
+          "line": 107
+        },
+        {
+          "phase": "clean-after",
+          "line": 108
+        }
+      ],
+      "valid": true,
+      "complete": true,
+      "maintenance_may_have_started": true
+    },
+    "runtime_startup": {
+      "records": [
+        {
+          "phase": "main-before",
+          "line": 73
+        },
+        {
+          "phase": "platform-before",
+          "line": 76
+        },
+        {
+          "phase": "owned-before",
+          "line": 77
+        },
+        {
+          "phase": "owned-after",
+          "line": 81
+        },
+        {
+          "phase": "gic-driver-before",
+          "line": 82
+        },
+        {
+          "phase": "gic-driver-after",
+          "line": 83
+        },
+        {
+          "phase": "gic-distributor-before",
+          "line": 84
+        },
+        {
+          "phase": "gic-distributor-after",
+          "line": 85
+        },
+        {
+          "phase": "gic-redistributor-before",
+          "line": 86
+        },
+        {
+          "phase": "gic-redistributor-after",
+          "line": 87
+        },
+        {
+          "phase": "gic-cpu-before",
+          "line": 88
+        },
+        {
+          "phase": "gic-cpu-after",
+          "line": 89
+        },
+        {
+          "phase": "mailbox-before",
+          "line": 90
+        },
+        {
+          "phase": "mailbox-after",
+          "line": 91
+        },
+        {
+          "phase": "platform-after",
+          "line": 92
+        },
+        {
+          "phase": "libraries-before",
+          "line": 93
+        },
+        {
+          "phase": "libraries-after",
+          "line": 94
+        },
+        {
+          "phase": "services-before",
+          "line": 95
+        },
+        {
+          "phase": "services-after",
+          "line": 96
+        },
+        {
+          "phase": "next-image-before",
+          "line": 97
+        },
+        {
+          "phase": "next-image-after",
+          "line": 98
+        },
+        {
+          "phase": "runtime-before",
+          "line": 99
+        },
+        {
+          "phase": "runtime-after",
+          "line": 100
+        },
+        {
+          "phase": "console-before",
+          "line": 101
+        },
+        {
+          "phase": "console-after",
+          "line": 102
+        },
+        {
+          "phase": "main-after",
+          "line": 103
+        },
+        {
+          "phase": "data-clean-before",
+          "line": 104
+        },
+        {
+          "phase": "data-clean-after",
+          "line": 105
+        },
+        {
+          "phase": "bss-clean-before",
+          "line": 106
+        },
+        {
+          "phase": "bss-clean-after",
+          "line": 109
+        },
+        {
+          "phase": "exit-before",
+          "line": 110
+        }
+      ],
+      "valid": true,
+      "complete": true
+    },
+    "cache_maintenance": {
+      "records": [
+        {
+          "phase": "setway-before",
+          "line": 57
+        },
+        {
+          "phase": "setway-after",
+          "line": 58
+        }
+      ],
+      "valid": true,
+      "complete": true,
+      "maintenance_may_have_started": true
+    },
+    "decode_log": {
+      "records": [
+        {
+          "phase": "idle",
+          "line": 44
+        },
+        {
+          "phase": "setup-before",
+          "line": 52
+        },
+        {
+          "phase": "baseline-zero",
+          "line": 53
+        },
+        {
+          "phase": "enable-before",
+          "line": 54
+        },
+        {
+          "phase": "enabled",
+          "line": 55
+        },
+        {
+          "phase": "restore-before",
+          "line": 59
+        },
+        {
+          "phase": "restored",
+          "line": 60
+        }
+      ],
+      "valid": true,
+      "complete": true,
+      "write_attempted": true,
+      "restore_attempted": true,
+      "restored": true,
+      "failed": false
+    },
+    "inventory_complete": false,
+    "ras_complete": false
+  },
+  "startup_bound_seconds": 100,
+  "prompt_bound_seconds": 50,
+  "prior_procedure_stops": 21,
+  "procedure_stops_including_this_attempt": 22,
+  "prior_pre_loader_stops": 11,
+  "cleanup": {
+    "status": "passed",
+    "usb_node_unchanged": true,
+    "usb_permissions_exact": true,
+    "clock_readback": "15M",
+    "owned_private_server_gone": true,
+    "uart_owners": [],
+    "board_operations": false,
+    "native_rom_acceptance": false
+  },
+  "claim_retained": true,
+  "factory_card_touched": false,
+  "other_kit_touched": false,
+  "hardware_actions": true,
+  "ordinary_admission": false,
+  "core_load_acceptance": false,
+  "evidence_sha256": {
+    "docs/validation/2026-11-06-de25-percpu-ddr-trial/operator-source.json": "98f984a50f9281f8bc40463478e920aa209a4b92308cbb50309cf47d2030478b",
+    "out/nano-percpu-ddr-board-20261106/admission-fixtures-result.json": "4da84b19580da0f5c398a2345c282b8d3a8175cd3cff5e9bc65495f0b05240fe",
+    "out/nano-percpu-ddr-board-20261106/admission-fixtures.log": "0c55c3319dd3e8858b9ddce781973e5658ee4f90265fdf39085f2898d84f6355",
+    "out/nano-percpu-ddr-board-20261106/call-tail-fixtures-result.json": "7fd293066f00bcfdca5ce8e9dc85c6ba6f71b4a6f9732a6aa47f1f37c81f157e",
+    "out/nano-percpu-ddr-board-20261106/call-tail-fixtures-v2-result.json": "ba170334c676e88c710d695cd622ebf82b1bf712024a17afba781f3c38bf0d40",
+    "out/nano-percpu-ddr-board-20261106/call-tail-fixtures-v2.log": "e5a6677f52e368bdebf9c16900fefdc4b5f379029f3ee145eeb91983dd374edb",
+    "out/nano-percpu-ddr-board-20261106/call-tail-fixtures.log": "8088d8a0f9d5fabb59074fb1b2629b5b74a15f01f2cfa0a8cff18e7c3a18ad2a",
+    "out/nano-percpu-ddr-board-20261106/candidate-check-v4-result.json": "3f25395040668f9c95883c4454110a26926b48134697c7b07409d2d8ed380f6f",
+    "out/nano-percpu-ddr-board-20261106/candidate-check-v4.log": "1837a6ef137314484e2effb4a0baefea69c16a09971a7ee8312813aa59c38dd7",
+    "out/nano-percpu-ddr-board-20261106/candidate-check.json": "5db74b963be0df1b8ebe6461adef3de205fab060f10db1d171fdaf0fab18a5dd",
+    "out/nano-percpu-ddr-board-20261106/candidate-proof-result.json": "0fb39492fe73e23b10830be0b9a2f05486486f9af12f06db5507c19a3b163bd0",
+    "out/nano-percpu-ddr-board-20261106/candidate-proof.json": "31cc427d16c043524de09adc0631e9719a4dd244f6d84f0b8fc95c6bbabb7df7",
+    "out/nano-percpu-ddr-board-20261106/candidate-proof.log": "7305558b1c01fb41a2afcfcc445d4eda0deed572b345e77ee8389249bddb97ab",
+    "out/nano-percpu-ddr-board-20261106/catalogue-result.json": "e640a2848b6cd60c983aecb08b36565c6d4b533154f8ea90d8a786ce151e166a",
+    "out/nano-percpu-ddr-board-20261106/catalogue.log": "dd1dc58bbb77890f3d53b4aa2db475bcc37693f0a10c5658621889f7ef824f0e",
+    "out/nano-percpu-ddr-board-20261106/cleanup-audit-result.json": "dcb492a61bfed41e020700330136d1ba9a3951dc28943c8f58592c700f121d09",
+    "out/nano-percpu-ddr-board-20261106/cleanup-audit.log": "697f7641a68cae4a45acb61f8cffbb0fc7f26e06df604a89a911f458810ac9e5",
+    "out/nano-percpu-ddr-board-20261106/cleanup-evidence.json": "7fecd92dbf5fcf639e54b7c9e3b602b1171d67c1e9529f2bf67e1ce82aedfe8c",
+    "out/nano-percpu-ddr-board-20261106/decode-tail-fixtures-v4-result.json": "18122d9ea16d4babd0e4caf0c71b175fcb16d1640e441aa71cb1adf4506e5a3b",
+    "out/nano-percpu-ddr-board-20261106/decode-tail-fixtures-v4.log": "b9eed1fe6adb088666c8685cc6efb2572e17303dc4adb238ce3dc07cad0f1f06",
+    "out/nano-percpu-ddr-board-20261106/device-admission-fixtures-result.json": "c1b98a5fa691b515f2f978dc785d7b7359a0b8fb459900bf98f9d02cbf43d3d4",
+    "out/nano-percpu-ddr-board-20261106/device-admission-fixtures.log": "da2829d484c80476081917e89711e8e2206fd1320900acc37b4c6185b2453745",
+    "out/nano-percpu-ddr-board-20261106/exit-tail-fixtures-result.json": "2bad219c333f97151dde0c5203b8cdf984e44cbf4af881e7d9ee46c47ba1ca8d",
+    "out/nano-percpu-ddr-board-20261106/exit-tail-fixtures.log": "9f0a8dbaeec6ed9c8254b8b1b78f98618a3a3262fc2a7978be1a80df116fa439",
+    "out/nano-percpu-ddr-board-20261106/freeze-result.json": "5a5c620ce87ac95fb17bed925c5f32cbc29624b608877a1b744bb99227c4632e",
+    "out/nano-percpu-ddr-board-20261106/freeze.log": "6421de7271830cb2df79e5e263024dbeaa9d0a47ea635f6ffec0fc2d3174ab57",
+    "out/nano-percpu-ddr-board-20261106/hardware-result.json": "a7f4b538fb9a7bcf2163dfc5fa430b8b3f7e680d08aa35821a2a7f5b10f34269",
+    "out/nano-percpu-ddr-board-20261106/hardware.log": "f1288d271502ddfdb6a86ed7853beba5c4b87a3ddec27f85dcd9d38fd9a3477c",
+    "out/nano-percpu-ddr-board-20261106/history.json": "6a5302c668aaa6e7bc2e0074eb3e58b779b4bc4d2027910af9344b8a05cef7cc",
+    "out/nano-percpu-ddr-board-20261106/independent-boot-replay.json": "a329896d4eb82e326389fb4e660fb31832d44c036199a1ccf107665bf92e2773",
+    "out/nano-percpu-ddr-board-20261106/loader-tail-fixtures-result.json": "e42852bd850fe37ce167b73a4b84989075d8952126907907c73fbcea1009e6a6",
+    "out/nano-percpu-ddr-board-20261106/loader-tail-fixtures.log": "3ac5cd95ef411b5591a9c47acc213879f9a300e5c77d87941e09ebf322590afe",
+    "out/nano-percpu-ddr-board-20261106/operator-fixtures-call-result.json": "03ced96da84509f218650445e44a6ff0e68476da21153fb99470c06fda7b586e",
+    "out/nano-percpu-ddr-board-20261106/operator-fixtures-call.log": "da6a87e85cd409e0eeb96be6e4507a9d34ddd25f8c771fee245b9cf9344b39b7",
+    "out/nano-percpu-ddr-board-20261106/percpu-fixtures-result.json": "4632bfe256a15e7035dc40b1701e77d9b70135a1adcac99a9b683f5b18a93fb4",
+    "out/nano-percpu-ddr-board-20261106/percpu-fixtures.log": "344ec5368078b8ef82adb88361a5c20555646548797df4f97fa2824ff739dd11",
+    "out/nano-percpu-ddr-board-20261106/preflight-result.json": "a32c18e32a02ab9dfba98426ecf2631d78b4085597edc59bfd936bb3038e42bc",
+    "out/nano-percpu-ddr-board-20261106/preflight.log": "65dd11f5d733a3bce43e3284dc2d375509710c25311c03d9535b741bb3f65720",
+    "out/nano-percpu-ddr-board-20261106/record_observation_v2.py": "92ba0403647d207e5a687b00beaae5c8050b1069321820f8c362e992a87d5752",
+    "out/nano-percpu-ddr-board-20261106/recovery-source-pin.json": "3af590f4e06f1094ca5193cb70c714a94f16e4c62258447b2e87e40427438800",
+    "out/nano-percpu-ddr-board-20261106/result-record-result.json": "eb99eccccb99df21f339ca6b8bfe855cc342233fa5219fa064a064278480aa77",
+    "out/nano-percpu-ddr-board-20261106/result-record.log": "1106af026224aa5f41dcff67a892b3d2a61bb9f5f5f1ac14d2e00c565f958ac2",
+    "out/nano-percpu-ddr-board-20261106/runtime-tail-fixtures-result.json": "aec5030721bfc61d80afed5c5015307abd0588bd533070b6cba4971eb902cb1f",
+    "out/nano-percpu-ddr-board-20261106/runtime-tail-fixtures.log": "66527f97842dcd14c535a5893ccea63ff9cc4e49eafbdb2d59359a271e7eaf0e",
+    "out/nano-percpu-ddr-board-20261106/source-fixtures-v3-result.json": "552d36dcae4e4412107efdc3a8dc74b2394f51fdae76643b3b478c1eae684f66",
+    "out/nano-percpu-ddr-board-20261106/source-fixtures-v3.log": "14069a0367f6622b52c45f8e5f9c5bd39d7d514b0167183c2dd6b31e47500193",
+    "out/nano-percpu-ddr-board-20261106/source.json": "62f19cbb34b0dbd482c9b63b9de98ced0050e4dec41a15e94784cb0e52929fff",
+    "out/nano-percpu-ddr-board-20261106/tail-fixtures-cache-result.json": "6ccaeeaaa2ffc5b15b7ed8b13510d51cc506e51975d85a123c0b840ef66a5ea2",
+    "out/nano-percpu-ddr-board-20261106/tail-fixtures-cache.log": "e1aceb71e53365a7e3b9d734075592fc643b087264c2cc1a9872dce5d525b240",
+    "out/nano-percpu-ddr-board-20261106/transport-fixtures-v4-result.json": "504a8f28f28b3e3d04780afda2abfcf0cac0c86d4504e1ecca91f1ae0581fa38",
+    "out/nano-percpu-ddr-board-20261106/transport-fixtures-v4.log": "644872a3c36aa1d8dfbae8dbade7188af1c42345506f46c13b1092ce4d82b0d1",
+    "out/nano-percpu-ddr-board-20261106/trial/clock-before-native.log": "ba094c5610a8920da207759e17fe54e490eb1f2a9a2d8b45bc6c9e1bfd0a99fc",
+    "out/nano-percpu-ddr-board-20261106/trial/clock-before.log": "21907e41f81503660da9692b0242f004cb3ab449c740885a82c4e1b357ed6b18",
+    "out/nano-percpu-ddr-board-20261106/trial/clock-confirm-6m.log": "ba094c5610a8920da207759e17fe54e490eb1f2a9a2d8b45bc6c9e1bfd0a99fc",
+    "out/nano-percpu-ddr-board-20261106/trial/clock-restore-15m.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "out/nano-percpu-ddr-board-20261106/trial/clock-restored-readback.log": "21907e41f81503660da9692b0242f004cb3ab449c740885a82c4e1b357ed6b18",
+    "out/nano-percpu-ddr-board-20261106/trial/clock-set-6m.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "out/nano-percpu-ddr-board-20261106/trial/clock_policy.py": "082ea1a2646bf9dbfecf0b378274801576600265282827cce48bbbaea8a6c4f5",
+    "out/nano-percpu-ddr-board-20261106/trial/common.py": "58f1c369e499ab366af9e4c1de96be921f25153d3d8a3f3d0770b6c68dc38737",
+    "out/nano-percpu-ddr-board-20261106/trial/experiment-progress.json": "0ac4ffb1c1bb0987402e5c3bb7697b7ec50fbbcb953e722b22e5806af1439cbf",
+    "out/nano-percpu-ddr-board-20261106/trial/experiment-result.json": "f9af0d874c2d9c788a1d355fd93b77a62b724e6576b4a28b88bd9b52f5736930",
+    "out/nano-percpu-ddr-board-20261106/trial/experiment.py": "81e8760b037b031afce3875650b88578b580cdb436ae19242ec1865bcc9880fc",
+    "out/nano-percpu-ddr-board-20261106/trial/live-firmware-alt.json": "ea778dc6243be0aef5b1c41f72ceeb01b8d881b798bb60dad00fff10a005228d",
+    "out/nano-percpu-ddr-board-20261106/trial/live-firmware.json": "adb28a1e31b293677259b4121a17341ff18d2a9ef952938dd8a5cf9a4eaf62c0",
+    "out/nano-percpu-ddr-board-20261106/trial/live-fit.json": "f1a6dc1fca51131fcbb0d1db7d70edfe434326c89699dca53f777f57890a453e",
+    "out/nano-percpu-ddr-board-20261106/trial/live-metadata-alt.json": "8fd44a19ede2c2790f1196c2c40dc24d050e6de0350f8ace378c17f43974b191",
+    "out/nano-percpu-ddr-board-20261106/trial/live-metadata.json": "88e34dd368f21e83abbfe4a530cd4c5e4f896dbffa9762b33c32a0dbee93c68d",
+    "out/nano-percpu-ddr-board-20261106/trial/live-package.json": "9c99e5af66c79578867cf8d6f30cecea6ce8aeb4a8d45d01333c6db2b5453bec",
+    "out/nano-percpu-ddr-board-20261106/trial/live-selection.json": "97db005ca798b20355da10ee7b0f690cfccb5b3f56ab87b2774dc7fcbbfd6f40",
+    "out/nano-percpu-ddr-board-20261106/trial/live-ui-catalog.json": "bf54ce90ede00190842b721e44b176654e83b4dc4f4cd138744274dba73298fd",
+    "out/nano-percpu-ddr-board-20261106/trial/native-clock-before.log": "ba094c5610a8920da207759e17fe54e490eb1f2a9a2d8b45bc6c9e1bfd0a99fc",
+    "out/nano-percpu-ddr-board-20261106/trial/native-console.log": "f59a0fa383d3de183c9237145127b2bb576432ef293b5d9ebbe2b88da019fe70",
+    "out/nano-percpu-ddr-board-20261106/trial/native-jtag-query.log": "40db718d09b46a454c9973ccc1022908ecebb3ba469c0bf7061075d60ec600f6",
+    "out/nano-percpu-ddr-board-20261106/trial/native-program.log": "f2a0d10ab7328f1be98560bd6fc849cc208131ef085f301690c6d5ff620d8c61",
+    "out/nano-percpu-ddr-board-20261106/trial/native-progress.json": "0463f33463c98c8eb71a854a8b17bd6c55c1dd5b76ca6111767f70d3c1041756",
+    "out/nano-percpu-ddr-board-20261106/trial/native-result.json": "228ca1394f3c72afe9703b6588d27302f918598ad1766ad738425d0b74338aae",
+    "out/nano-percpu-ddr-board-20261106/trial/native.py": "076851707cabf94c6231347d0f14ff5436f14c5e372998b32f93036e515eee3e",
+    "out/nano-percpu-ddr-board-20261106/trial/percpu_checks.py": "8853aef10b57e999bd0b2354961584bac99db9524315b66176c31f5a76402465",
+    "out/nano-percpu-ddr-board-20261106/trial/preflight.json": "83dfcf7619a1c34afe334e8b3d449e0ec4cc541e17a040a541d4930676999b65",
+    "out/nano-percpu-ddr-board-20261106/trial/private-client-setup.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "out/nano-percpu-ddr-board-20261106/trial/private-device-admission.log": "02a6f76318430fbaf83a3607458250c617f41b5dc008ba7563f55becf0a017a6",
+    "out/nano-percpu-ddr-board-20261106/trial/private-device-clock.log": "ba094c5610a8920da207759e17fe54e490eb1f2a9a2d8b45bc6c9e1bfd0a99fc",
+    "out/nano-percpu-ddr-board-20261106/trial/private-server.log": "313024a2d27e45e1bf2ec046cf5695d802a800aa42e049777e9747e2299aa6ba",
+    "out/nano-percpu-ddr-board-20261106/trial/private-top-enumeration.log": "02a6f76318430fbaf83a3607458250c617f41b5dc008ba7563f55becf0a017a6",
+    "out/nano-percpu-ddr-board-20261106/trial/private_jtag.py": "c9b36356faf133d4a734d46743bf586eb0c74006c535a869e6a1fb36856e4023",
+    "out/nano-percpu-ddr-board-20261106/trial/recovery-boot-clock-after.log": "ba094c5610a8920da207759e17fe54e490eb1f2a9a2d8b45bc6c9e1bfd0a99fc",
+    "out/nano-percpu-ddr-board-20261106/trial/recovery-boot-clock-before.log": "ba094c5610a8920da207759e17fe54e490eb1f2a9a2d8b45bc6c9e1bfd0a99fc",
+    "out/nano-percpu-ddr-board-20261106/trial/recovery-boot-console.log": "aa8f098ed97ec965f67da81edc4ffb00eb2a6efe5f34d06a8913c973b6c8ca13",
+    "out/nano-percpu-ddr-board-20261106/trial/recovery-boot-jtag-query.log": "e58df750da3054952364199f42ac7d830fa36d94ab1f474888be05f3a1b0862e",
+    "out/nano-percpu-ddr-board-20261106/trial/recovery-boot-program.log": "afd6495ffc182690ae3629c150bc14736524980d7f3e2ef009fd0a5decbcd9e4",
+    "out/nano-percpu-ddr-board-20261106/trial/recovery-boot-progress.json": "7617e6ca4d7c95c7862e37fb76b7eec9354e63d36480537466db7a415b679976",
+    "out/nano-percpu-ddr-board-20261106/trial/recovery-boot-result.json": "c8de10eee542e0d71b70c36e1a98b4c91867270d36e59f0fe4a6fbc00bd37765",
+    "out/nano-percpu-ddr-board-20261106/trial/recovery.py": "90ed378a120d8eb4add927abf28b81f2b1d502453bb11a3e18b1936eda67b9c1",
+    "out/nano-percpu-ddr-board-20261106/trial/recovery_pin.py": "20e169fe043d7d0d9d1073112577a7a95f1b077c8c4fd6af32ef20289b807f88",
+    "out/nano-percpu-ddr-board-20261106/trial/service_checks.py": "2bd242d2b1322ddb1638eab51af3314a0688b89b684a3ef23d00310984e305ce",
+    "out/nano-percpu-ddr-board-20261106/trial/transport.json": "fc40a57e5bf85b32172d245b991e5a9281a471adc7a1e648db92586204a6868a",
+    "out/nano-percpu-ddr-board-20261106/trial/trial_inputs.py": "0d35d3671fe6a753c1ab0603bc74f89c8a42a04e55d4ac65dbe4a502072db47a",
+    "out/nano-percpu-ddr-board-20261106/trial/upload-boot/progress.json": "98bb6db35b5ea7886b2f1be175f4c2e96d5db68ae32a7eaa584346662a2a88c6",
+    "out/nano-percpu-ddr-board-20261106/trial/upload-boot/result.json": "5f0dfecb8ade74fd61a05d31aca806bb460a94cdd7730a8064195776f0fb6775",
+    "out/nano-percpu-ddr-board-20261106/trial/upload-firmware/progress.json": "d1f574669ff27ca3c6532e1d33c70ea92ebe26063927252cb8f388b96fb8a960",
+    "out/nano-percpu-ddr-board-20261106/trial/upload-firmware/result.json": "57ff283712d10b1b19877b15e32fdb73aca1575aa6aba41ff91ec62b998b6a2d",
+    "out/nano-percpu-ddr-board-20261106/trial/upload-firmware-alt/progress.json": "42c99c351b23146c7e11f6329d4cde7ee00ff71cb3ff50eac119e3aa7d8f339c",
+    "out/nano-percpu-ddr-board-20261106/trial/upload-firmware-alt/result.json": "83e75e7834a888b1d1794374e8559d8f670447723a0e3aaab69573349c232178",
+    "out/nano-percpu-ddr-board-20261106/trial/upload-metadata/progress.json": "f25e7bf3b43b5da422a2324977d7835a2f6fcf2b78fe2b12da41c607a5661048",
+    "out/nano-percpu-ddr-board-20261106/trial/upload-metadata/result.json": "4930874757aea52cb597a62880ea8da4e393749478b84ec18ae53d552fc7483e",
+    "out/nano-percpu-ddr-board-20261106/trial/upload-metadata-alt/progress.json": "bcd41003a08fb8b9de545482354b52b4f40f966d7cda44c83f20c1364b23a4b0",
+    "out/nano-percpu-ddr-board-20261106/trial/upload-metadata-alt/result.json": "4600d672072943568e906faf24030bbfb9362b6c73120683ed499da14491a9b9",
+    "out/nano-percpu-ddr-board-20261106/trial/upload-package/progress.json": "a0eeb3d679fdecd78fc15dda8b4ae3af4bdec1a2eda2e1f92d392f7da66d0ef4",
+    "out/nano-percpu-ddr-board-20261106/trial/upload-package/result.json": "132081d43a5fb0ca0cdcfb6fca5248deacd1fa2c379b40bd0c930ab9fd21b179",
+    "out/nano-percpu-ddr-board-20261106/trial/upload-selection/progress.json": "83cb81edf24761c84dc925e2143c62abea4b36de6fad5b8db7d75ac2b865522b",
+    "out/nano-percpu-ddr-board-20261106/trial/upload-selection/result.json": "a5426664229718fbfd69b25fcee769929cee9419b10673065254fa810a3a6292",
+    "out/nano-percpu-ddr-board-20261106/trial/upload-ui-catalog/progress.json": "e4a0290504562ca37927e655c2de81117f3dcf6618bba2304456625cdf295dff",
+    "out/nano-percpu-ddr-board-20261106/trial/upload-ui-catalog/result.json": "a74df974a84e04f5837b3c0a5dd6e4ae2bd03e2aded872ac56e8e84044b705c0",
+    "out/nano-percpu-ddr-board-20261106/trial/upload_both.py": "efa98f82de6ca3607926b1badf38c97d2f203cb5b17963cc55cbcb0a5745f212",
+    "out/nano-percpu-ddr-board-20261106/trial/upload_checks.py": "497636cad5390e8f6820d11d18c698efd7d8af3883a714b6dd112a6014e61fa3",
+    "out/nano-percpu-ddr-board-20261106/trial/uploads/console.log": "95b65fff7d347f8f196b080edf8e9c3c682daa40a153bc4f948adbb930494266",
+    "out/nano-percpu-ddr-board-20261106/trial/uploads/progress.json": "57415383acb8d5d120b74ca68914d5fb02c6421859a79320060e54831dd4d6b7",
+    "out/nano-percpu-ddr-board-20261106/trial/uploads/result.json": "d84bd7a2db5848bd103b9323a029c06cdd36f659a5ec6fe01ca50cb56a6cb34c",
+    "out/nano-percpu-ddr-board-20261106/upload-receipt-fixtures-final-result.json": "58caa45c35ed82c95865ab1d7901f2fd47fa23c2c5db98d91a019b92e5f42a7c",
+    "out/nano-percpu-ddr-board-20261106/upload-receipt-fixtures-final.log": "13ab09d7d9e1965905765f34084820f0a7df11c67f9c6f2fa55bd12df5c94903",
+    "out/nano-percpu-ddr-board-20261106/uploader-fixtures-final-result.json": "12cde267e4225d92af9eec9146137fcb89c50d83532b31e2623b7ae50f720862",
+    "out/nano-percpu-ddr-board-20261106/uploader-fixtures-final.log": "e65011cf9e6f3fb6cbe13b2de21593d65214c208e2f05e716d8073f9c2dfd814"
+  }
+}
