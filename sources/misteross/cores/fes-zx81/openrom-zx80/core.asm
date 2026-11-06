@@ -75,10 +75,9 @@ make_room:
 ; Carry if BC more bytes would not fit below the stack: with X_DROP set;
 ; otherwise it is report 4. Keeps A and BC.
 test_room:
-        ld hl,-MARGIN
-        add hl,sp
+        ld hl,1 - MARGIN
+        add hl,sp               ; (carry: the stack is never that low)
         ld de,(DF_END)
-        and a
         sbc hl,de
         sbc hl,bc
         ret nc

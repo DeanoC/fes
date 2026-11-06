@@ -217,7 +217,7 @@ list_number:
         call .pad
         ld de,100
         call .pad
-        ld de,10
+        ld e,10
         call .pad
         call print_uint
         pop bc
