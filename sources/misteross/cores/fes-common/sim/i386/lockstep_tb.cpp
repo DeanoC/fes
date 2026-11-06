@@ -52,7 +52,8 @@
 //           the pushed frame included.
 //   random  FES_I386_PROGRAMS random programs from FES_I386_SEED: register,
 //           immediate and 16-bit-addressed memory forms of the slice's
-//           instructions with prefixes, forward branches, bounded LOOPs,
+//           instructions with prefixes, forward branches, bounded LOOPs
+//           (some long enough to train the BTB's counters),
 //           backward jumps, pushes and pops, CALLs to subroutines that RET
 //           and PUSH BP / MOV BP, SP / LEAVE frames, IN, OUT, INS and OUTS
 //           on a few ports, so results forward between instructions and
@@ -2427,7 +2428,8 @@ void run_fault_case(fes_i386::Oracle &oracle, OracleBus &bus, Rtl &rtl, const st
 }
 
 void run_nop_case(fes_i386::Oracle &oracle, OracleBus &bus, Rtl &rtl, const std::vector<Entry> &entries,
-                  Summary &summary, const std::string &label, std::vector<uint8_t> code, State state) {
+                  Summary &summary, const std::string &label, std::vector<uint8_t> code, State state,
+                  uint64_t retire_limit = 64) {
     code.push_back(0xf4);  // HLT after the instruction under test.
     const uint32_t code_base = state.seg[fes_i386::SEG_CS].base + state.eip;
     std::vector<std::pair<uint32_t, uint8_t>> image;
@@ -2442,7 +2444,7 @@ void run_nop_case(fes_i386::Oracle &oracle, OracleBus &bus, Rtl &rtl, const std:
     Mismatches out;
     Outcome outcome;
     try {
-        outcome = lockstep(oracle, bus, rtl, entries, Fields{}, 64, false, summary, out,
+        outcome = lockstep(oracle, bus, rtl, entries, Fields{}, retire_limit, false, summary, out,
                            code_base + uint32_t(code.size()));
     } catch (const std::exception &error) {
         out.add(label + ".oracle-error:" + error.what(), 0, 1);
@@ -2716,6 +2718,44 @@ void run_smc_cases(fes_i386::Oracle &oracle, OracleBus &bus, Rtl &rtl, const std
             rtl.written.clear();
         }
     }
+}
+
+// The branch target buffer's cases, from CS:0 at linear 1000h, in lockstep
+// with the oracle. The BTB keeps its entries across runs, as across resets,
+// so every case also runs over whatever the runs before left at 1000h.
+//   btb-store-disp  a loop whose JMP back the BTB has learned, until a store
+//                   through CS rewrites the JMP's displacement: the JMP
+//                   runs the new one, though the BTB still sends fetch to
+//                   the old target (the fetch check replays it)
+//   btb-cs-size     a DEC CX; JNZ loop with a MOV AX, imm16 in 16-bit code,
+//                   then the same bytes in 32-bit code (CS.D), where the
+//                   MOV is five bytes and a CLI ends where the JNZ did: the
+//                   entry the 16-bit loop left must not make the CLI branch
+void run_btb_cases(fes_i386::Oracle &oracle, OracleBus &bus, Rtl &rtl, const std::vector<Entry> &entries,
+                   Summary &summary) {
+    State state;
+    for (int k = 0; k < 6; ++k) state.seg[k] = fes_i386::real_mode_segment(0x100);
+    state.eip = 0;
+    state.gpr[fes_i386::REG_ESP] = 0x8000;
+    // 00: MOV CX, 8; 03 L: DEC CX; JZ 19h; CMP CX, 3; JNE 11h;
+    // 0B: MOV BYTE [CS:12h], 3; 11: JMP L (then JMP 16h); NOP x3;
+    // 16: INC BX; JMP L; 19: HLT
+    run_nop_case(oracle, bus, rtl, entries, summary, "btb-store-disp",
+                 {0xb9, 0x08, 0x00, 0x49, 0x74, 0x13, 0x83, 0xf9, 0x03, 0x75, 0x06, 0x2e, 0xc6, 0x06, 0x12, 0x00,
+                  0x03, 0xeb, 0xf0, 0x90, 0x90, 0x90, 0x43, 0xeb, 0xea}, state, 400);
+    // L: MOV AX, 1; DEC CX; JNZ L; HLT. In 32-bit code: MOV EAX,
+    // 75490001h; CLI; HLT.
+    const std::vector<uint8_t> sized = {0xb8, 0x01, 0x00, 0x49, 0x75, 0xfa};
+    State real = state;
+    real.gpr[fes_i386::REG_ECX] = 6;
+    run_nop_case(oracle, bus, rtl, entries, summary, "btb-cs-size-16", sized, real, 400);
+    State pm = state;
+    pm.cr0 = 0x7ffffff1;
+    pm.seg[fes_i386::SEG_CS] = fes_i386::Segment{0x0008, 0x1000, 0xffff, 0x409b, true};
+    for (int k : {fes_i386::SEG_ES, fes_i386::SEG_SS, fes_i386::SEG_DS, fes_i386::SEG_FS, fes_i386::SEG_GS})
+        pm.seg[k] = fes_i386::Segment{0x0010, 0x1000, 0xffff, 0x93, true};
+    pm.gpr[fes_i386::REG_ECX] = 6;
+    run_nop_case(oracle, bus, rtl, entries, summary, "btb-cs-size-32", sized, pm, 400);
 }
 
 // ---- SingleStepTests mode ---------------------------------------------------------------
@@ -4549,13 +4589,15 @@ private:
         items[size_t(at)].target = int(items.size());
     }
 
-    // MOV (E)CX, 1-5; a body that leaves ECX alone; LOOP, LOOPE or LOOPNE back.
+    // MOV (E)CX, 1-5, or one time in four 6-20, which saturates the BTB's
+    // counter for the LOOP; a body that leaves ECX alone; LOOP, LOOPE or
+    // LOOPNE back.
     void loop_block() {
         const bool as32 = pick(3) == 0;
         std::vector<uint8_t> mov;
         if (as32) mov.push_back(0x66);
         mov.push_back(0xb9);
-        mov.push_back(uint8_t(1 + pick(5)));
+        mov.push_back(uint8_t(pick(4) == 0 ? 6 + pick(15) : 1 + pick(5)));
         mov.push_back(0);
         if (as32) mov.insert(mov.end(), {0, 0});
         items.push_back(Item{mov, -1, 0, 0});
@@ -6591,6 +6633,7 @@ int main(int argc, char **argv) {
     } else if (mode == "directed") {
         run_fault_regressions(*oracle, bus, rtl, entries, summary);
         run_smc_cases(*oracle, bus, rtl, entries, summary);
+        run_btb_cases(*oracle, bus, rtl, entries, summary);
     } else if (mode == "unreal") {
         run_unreal_cases(*oracle, bus, rtl, entries, summary);
     } else if (mode == "pmode") {

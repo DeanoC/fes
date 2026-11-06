@@ -140,9 +140,21 @@ def window(snaps: dict[float, dict], lo: float | None = None, hi: float | None =
             'redirects': t['redirects'], 'frames': t['frames'], 'polls_3da': t['polls_3da'],
             'l1d_waits': t['l1d_waits'], 'l1i_waits': t['l1i_waits'], 'prefixes': t['prefixes'],
             'cpi': t['cycles'] / max(t['retired'], 1), 'causes': causes, 'buckets': b, 'classes': classes,
+            'prediction': prediction(t),
             'redirects_by_class': {k: {'taken': v['taken'], 'clocks': v['next'],
                                        'per_taken': round(v['next'] / v['taken'], 2)} for k, v in taken.items()},
             'sites': sorted(([k, *v] for k, v in sites.items()), key=lambda s: -s[2])[:25]}
+
+
+def prediction(t: dict) -> dict:
+    """The BTB's direct branches (Jcc, LOOP and its kin, JCXZ, JMP and CALL
+    rel): a branch is predicted right when it was predicted taken and taken,
+    or not predicted taken and not taken."""
+    br, taken, pt, pt_taken = t['br'], t['br_taken'], t['br_pt'], t['br_pt_taken']
+    right = pt_taken + (br - taken - (pt - pt_taken))
+    return {'direct': br, 'taken': taken, 'predicted_taken': pt, 'predicted_taken_and_taken': pt_taken,
+            'mispredicted': br - right, 'accuracy': round(right / br, 4) if br else None,
+            'fetch_replays': t['fetch_replays']}
 
 
 def report(w: dict) -> str:
@@ -155,6 +167,11 @@ def report(w: dict) -> str:
     clocks = max(w['rtl_clocks'], 1)
     for name, v in w['causes'].items():
         out.append(f'{name:32s} {v:14,d} {100 * v / clocks:6.2f} {v / max(w["retired"], 1):9.4f}')
+    p = w['prediction']
+    if p['direct']:
+        out.append(f'\ndirect branches {p["direct"]:,}: {p["taken"]:,} taken, {p["predicted_taken"]:,} predicted taken, '
+                   f'{p["mispredicted"]:,} mispredicted (accuracy {100 * p["accuracy"]:.2f}%), '
+                   f'{p["fetch_replays"]:,} fetch replays')
     out.append(f'\n{"redirects":10s} {"taken":>11s} {"clocks":>13s} {"per taken":>9s}')
     for k, v in sorted(w['redirects_by_class'].items(), key=lambda kv: -kv[1]['clocks']):
         out.append(f'{k:10s} {v["taken"]:11,d} {v["clocks"]:13,d} {v["per_taken"]:9.2f}')

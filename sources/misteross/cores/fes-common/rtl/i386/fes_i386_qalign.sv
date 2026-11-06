@@ -20,6 +20,17 @@
 // avail) is a register per byte and variant, so the loop's check is part of
 // the same select. An instruction may use bytes of the next half in the cycle
 // L2 writes them; the aligner takes those bytes from L2's register.
+//
+// A predicted taken branch (fes_i386_fetchbuf's jt, jx, half_info): the
+// instruction Q issues ends where the BTB entry of half x says the branch
+// ends, so its next start is the target's offset in the other half, where
+// F2 put the target's block. One more select bit and a 2:1 in the loop. Q
+// releases the half it leaves, and the branch's half when the branch
+// started in the half before it; then Q stays in the half it released, for
+// the target, and clears avail (jump_clear), which ignores that release.
+// The record carries the match for WB's BTB update, and xbad when the
+// instruction runs into a half whose block is not the sequential
+// continuation (fes_i386_cpu replays it).
 module fes_i386_qalign import fes_i386_pkg::*; (
     input  logic                   clk,
     input  logic                   reset,
@@ -35,7 +46,14 @@ module fes_i386_qalign import fes_i386_pkg::*; (
     output logic                   start_half,
     output logic                   q_valid,
     output fetched_t               q,
-    input  logic                   d_ready
+    input  logic                   d_ready,
+    input  logic [31:0][3:0]       jm,
+    input  logic [31:0][3:0]       jt,
+    input  logic [31:0][3:0]       jx,
+    input  btb_info_t [1:0]        half_info,
+    input  logic [1:0]             half_seq,
+    input  logic                   l2_seq,
+    output logic                   jump_clear
 );
     logic [4:0]  start;
     prefixes_t   acc;
@@ -82,10 +100,25 @@ module fes_i386_qalign import fes_i386_pkg::*; (
     assign issue = !redirect && ok[start] && (!run_here || too_long_run) && out_free;
     assign consume = !redirect && ok[start] && run_here && !too_long_run;
     assign advance = issue || consume;
-    assign start_next = next[start];
-    assign release_half[0] = advance && !start[4] && start_next[4];
-    assign release_half[1] = advance && start[4] && !start_next[4];
+    // A taken jump: jt at the start, which a prefix being consumed never takes.
+    logic jt_here, jx_here, jm_here, taken, back;
+    assign jt_here = jt[start][variant];
+    assign jx_here = jx[start][variant];
+    assign jm_here = jm[start][variant];
+    assign taken = jt_here && !run_here;
+    assign start_next = taken ? {!jx_here, half_info[jx_here].toff} : next[start];
+    // back: the branch started in the half before its last byte's.
+    assign back = taken && start[4] != jx_here;
+    assign release_half[0] = advance && (!start[4] && start_next[4] || back);
+    assign release_half[1] = advance && (start[4] && !start_next[4] || back);
+    assign jump_clear = advance && back;
     assign start_half = start[4];
+
+    // The instruction runs into the other half, which does not hold its
+    // sequential continuation (the other half's block, or L2's while it is
+    // being written there).
+    logic other_seq;
+    assign other_seq = half_valid[!start[4]] ? half_seq[!start[4]] : l2_seq;
 
     // ---- Aligner ------------------------------------------------------------
     logic [31:0][7:0] source;
@@ -139,6 +172,11 @@ module fes_i386_qalign import fes_i386_pkg::*; (
             q.prefixes <= prefixes;
             q.too_long <= too_long_run || total[4];
             q.bytes <= prefix_here ? rotated[11:1] : rotated[10:0];
+            q.bm <= jm_here && !run_here;
+            q.bway <= half_info[jx_here].way;
+            q.bctr <= half_info[jx_here].ctr;
+            q.tk <= taken;
+            q.xbad <= at_start.past_half[variant] && !other_seq;
         end
     end
 endmodule

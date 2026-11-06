@@ -78,7 +78,7 @@ SIM = ROOT / 'cores/fes-common/sim/i386'
 DDR_MODEL = ROOT / 'cores/fes-pc386/sim'  # pc386_ddr_model.h: HPS DDR port 0
 OUTPUT = ROOT / 'build/sim/fes-i386-lockstep'
 CPU_RTL = ('fes_i386_pkg.sv', 'fes_i386_gov_pkg.sv', 'fes_i386_oplen.sv', 'fes_i386_lendec.sv', 'fes_i386_lstage.sv',
-           'fes_i386_fetchbuf.sv', 'fes_i386_qalign.sv', 'fes_i386_frontend.sv', 'fes_i386_amode.sv',
+           'fes_i386_btb.sv', 'fes_i386_fetchbuf.sv', 'fes_i386_qalign.sv', 'fes_i386_frontend.sv', 'fes_i386_amode.sv',
            'fes_i386_dfwd.sv', 'fes_i386_agu.sv', 'fes_i386_ucode_pkg.sv', 'fes_i386_ucode_rom.sv', 'fes_i386_decode.sv', 'fes_i386_seq.sv', 'fes_i386_dops.sv',
            'fes_i386_shift.sv', 'fes_i386_shflags.sv', 'fes_i386_exctl.sv', 'fes_i386_muldiv.sv', 'fes_i386_ex.sv',
            'fes_i386_l1i.sv', 'fes_i386_l1d.sv', 'fes_i386_biu.sv', 'fes_i386_gov_rom.sv', 'fes_i386_governor.sv',
@@ -223,8 +223,8 @@ def run_directed(testbench: str, env: dict) -> dict:
     if result.returncode not in (0, 1):
         raise LockstepError(f'directed cases: testbench exited with {result.returncode}\n{result.stderr[-4000:]}')
     summary, failures = parse_output(result.stdout)
-    if summary['runs'] != 40:
-        raise LockstepError(f'directed cases: testbench ran {summary["runs"]} of 40 cases')
+    if summary['runs'] != 43:
+        raise LockstepError(f'directed cases: testbench ran {summary["runs"]} of 43 cases')
     return {'summary': summary, 'failures': failures}
 
 
