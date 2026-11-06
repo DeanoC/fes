@@ -85,18 +85,20 @@ has the full description. In short:
 ## Lockstep
 
 `scripts/test_fes_i386_lockstep.py` ran with every default (16 seeds of 2,000
-random programs, 16 seeds of 500 protected-mode programs, the full corpus):
+random programs, 16 seeds of 500 protected-mode programs, the full corpus),
+on the RTL and on the netlist at `2b8305f63`. Its RTL is the sealed RTL, and
+its tests include every case below:
 
 | Part | RTL | Netlist (Yosys `0a7927bf`) |
 | --- | --- | --- |
 | SingleStepTests corpus | 1,758,699 of 1,758,699 | same |
 | Random programs | 31,999 of 32,000 | 31,999 of 32,000 |
 | Protected-mode programs | 8,000 of 8,000 | 8,000 of 8,000 |
-| Directed cases | 49 of 49 | 49 of 49 |
+| Directed cases | 50 of 50 | 50 of 50 |
 | Unreal, protected-mode, no-387 and memory cases | 7, 92, 1,933 and 26, all pass | same |
 | Holds without latency | pass | pass |
 
-**New cases.** Six directed cases run real-mode loops, so the BTB learns
+**New cases.** Seven directed cases run real-mode loops, so the BTB learns
 their CALLs and RETs before each case breaks the prediction:
 - `ras-deep`: recursion 20 deep, three times. The outer RETs predict entries
   the wrap overwrote.
@@ -111,8 +113,13 @@ their CALLs and RETs before each case breaks the prediction:
   case fails on any INT n, so the case builds the frame itself. The random
   programs inject real INTR and NMI between their CALLs and RETs.
 - `ras-store`: a store turns a learned RET into `INC BX`, with a RET after
-  it. The RET's entry now ends at the INC, and the fetch check replays the
-  next instruction.
+  it. The RET's entry now ends at the INC, where no RET ends. The fetch
+  check is what keeps the instruction after the INC correct; the case does
+  not count its replays.
+- `ras-limit`: CALLs in CS 0100h leave the stack's entries below the base of
+  CS 0180h. A learned `PUSH imm16; RET` there then predicts an EIP, the entry
+  less CS.base, past CS's limit. The next instruction stops on the wrong
+  path until the RET's redirect clears it.
 
 A RET whose 32-bit pop lands beyond CS's limit was already a directed case
 (`#GP`). It still passes.
@@ -171,8 +178,9 @@ Q's record: D can read it from the half's BTB information instead.
 
 ### Changes after the seal
 
-`2be3ca091` changes the `ras-int` directed case's code in `lockstep_tb.cpp`,
-which is not a sealed input. The RTL is the sealed RTL. While pc386 is in
+`2be3ca091` changes the `ras-int` directed case's code and `2b8305f63` adds
+`ras-limit`, both in `lockstep_tb.cpp` and `test_fes_i386_lockstep.py`,
+which are not sealed inputs. The RTL is the sealed RTL. While pc386 is in
 progress, a post-seal change needs no reseal before merge, and this one
 changes no sealed input. The merge of main after #1511 landed (`78830ddf1`)
 changes no file of this branch's tree outside this record.
@@ -182,7 +190,8 @@ changes no file of this branch's tree outside this record.
 Run `r1` used Kit A, core-only, on 6 November from 12:07 to 12:21
 ([kit-scores.json](kit-scores.json)).
 - **Package.** `0a16a224…`, the seal above, built from `4ee70a831`. That
-  commit has the return stack's RTL and not the `ras-int` test change.
+  commit has the return stack's RTL, but not the `ras-int` and `ras-limit`
+  test changes.
 - **Kit.** Baseline software `a8cd30c4` on image `f904961e`, with no
   install, no image change and no reboot. Kit A was restored, checked
   against its snapshot and logged FREE. The run's five FogCast data trees
