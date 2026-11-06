@@ -1,5 +1,10 @@
 # Bounded private BSS exit-clean hardware trial
 
+The one physical attempt passed the firmware exit-clean and loader-boot gates,
+then stopped at the unchanged 100-second native application startup deadline.
+No core was launched. The [physical result](physical-result.json) is separate
+from the off-board build and fixture evidence.
+
 The selected firmware is `66812745d1e460b9df15ce899bc05b5c80f41edd`.
 Its [matched build and off-board validation](../2026-11-06-de25-exit-cache/README.md)
 bind chain `43e6315533c2da45c40d4cdc96f5edd41f0099add4c854eaac92292057fa3683`.
@@ -49,3 +54,45 @@ The next step is fresh preflight and one bounded attempt. Physical results
 must be recorded separately from build/model evidence. Ordinary core loading,
 physical cache coverage, native ROM/Run/return and DE10-equivalent acceptance
 remain unproven.
+
+The exact frozen operator is `4c7dca87bf314962d8f5617d9b2402dff50d53ca`.
+The trial ran once after the power interruption: fresh recovery, eight uploads
+and eight fresh SD readbacks passed. Exact chip/programming and SPL FIT/hash
+checks passed. Both EXIT_CACHE records, BSS-clean return, all 31 runtime phases
+and the matched U-Boot prompt were captured. This is physical evidence that the
+new exit operation returned; it does not establish complete cache geometry or
+ordinary runtime acceptance.
+
+The operator sent `fesboot` once. Output reached the boot ID, memory layout and
+complete LMB reserved-region report, then no native entry marker or App Ready
+arrived within 100 seconds. No launch/control command followed. The independent
+raw replay exactly matches the stored decoder result: loader-ready, incomplete
+native boot, last checkpoint `memory`, no reported exception. The two-second
+passive tail preserved completed runtime and exit state plus restored logging.
+Later fault absence and exact stopped/faulting instruction remain unproven.
+
+An audit of the actual linked U-Boot locates the uninstrumented interval:
+LMB dump return and pure memory validation, the CPU snapshot (including four
+PSCI affinity SMCs), reset/watchdog/UART reads, CPU/watchdog checks and the owned
+snapshot SMC before its receipt. None has an individual return receipt in this
+image. The audit initially looked for SMC directly in `invoke_smc`; the actual
+pinned glue calls `smc_call`, which contains it. The corrected source/ELF audit
+passes, and both failed off-board audit attempts are retained. No firmware
+instruction or hardware safety gate was changed to make this audit pass.
+
+Independent cleanup confirms the 15M readback, exact USB permissions, private
+server gone and UART free. The claim and spare are retained; CPU/FPGA halt is
+unproved. Factory card and bottom kit remain untouched. This is campaign stop
+19; the eleven earlier pre-loader stops remain distinct from this post-loader
+application-start timeout. This compiled input is consumed and will not be
+replayed.
+
+Next add bounded loader receipts around memory-validation return, each PSCI
+call, register-read groups, watchdog stop and owned snapshot. Preserve the
+existing calls and policies, test receipt order/failure handling off board,
+rebuild the matched chain and freeze a new single attempt. Ordinary core loads
+and the requested DE10-equivalent launch/return behavior remain incomplete.
+
+Source pack and full trial evidence are retained and verified by archive
+readback/import at `/home/deano/fes-retained/de25-exit-cache-stop-20261106-r1`,
+with prerequisite `de25-exit-cache-20261106-r1`.
