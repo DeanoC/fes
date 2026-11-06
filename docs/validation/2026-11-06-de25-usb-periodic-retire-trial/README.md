@@ -49,8 +49,83 @@ exact USB identity/permissions, private server termination and free UART. Host
 cleanup does not prove a CPU/USB/FPGA halt. Keep the continuing claim and spare
 card. Factory restoration remains waived; factory/bottom kit remain untouched.
 There are 25 prior procedure stops, including one USB return stop and three USB
-packet stops before launch; this compiled input has zero prior physical attempts.
+packet stops before launch; this compiled input had zero physical attempts before
+its one-attempt fuse was consumed.
 
-Preparation performed no hardware operations. Subsequent physical result,
-raw replay and cleanup evidence must be recorded separately. Nano halt
-acknowledgement and complete core-load/return acceptance remain unproved.
+Preparation performed no hardware operations. The physical result below is
+recorded separately from those off-board checks. General core-load/return
+acceptance remains open.
+
+
+## Physical result
+
+The single attempt on operator `ec69ae251` passed in 360.44 s. Fresh recovery,
+eight bounded Ethernet/RAM uploads, eight SD writes and eight fresh SD readbacks
+passed before matched native programming. Tenfoot Ready appeared in 5.08 s.
+Independent raw replay verifies all 31 runtime, two exit-cache, 26 loader and
+48 firmware-call records, with all eight SMC/cache-flush returns and no failure
+or exception marker.
+
+All three planned serial Tenfoot cycles pass, including final owned Quit:
+
+| Selection | Native launch/return generations | Outer launch | Configuration interval | Live fetch |
+| --- | --- | --- | --- | --- |
+| ZX81 ROM | 1 → 2 | 73.18 s | 12.00 s | 20,404 cycles; address 979 |
+| JP-loop ROM | 3 → 4 | 73.11 s | 12.00 s | 15,318 cycles; address 0 |
+| ZX81 ROM | 5 → 6 | 73.25 s | 12.00 s | 19,130 cycles; address 978 |
+
+Each fetch observation is bound to the selected package/build identity,
+activation receipt, exact owner and native generation. The held and before
+cycle counters are zero; release produces positive fetch activity. The loop
+selection reaches its required address zero. This proves the stated bounded
+fetch observations, not emulator fidelity, video output or physical controls.
+The same FPGA core image is reconfigured for these two ROM selections; these
+are three repeated selected-program cycles, not three distinct emulator cores.
+
+Three independent firmware master-stop receipts return status0/complete1 at
+firmware generations5,10,15 with the same owner, reset `0xd` and data held.
+The runtime returns to native Ready generations2,4,6. The final Quit is verified.
+These fixed-scope receipts do not qualify general external DDR DMA/drain or
+physical cache-geometry coverage.
+
+Shared USB records exactly twelve ordered pause/resume transitions across menu,
+loading, play and return, then one Stop. The controller retains USB generation2
+through every transition; report counts advance 7,14,22,28,36,44 between them,
+and final Stop advances the USB lease to generation3 with44 reports. No physical
+button press was requested or claimed. The recorded interface receipts and exact
+compiled driver establish this pause/resume integration path. No raw DTE/HCHLTD
+register receipt was emitted, so a particular toggle-error recovery branch or
+physical wire-frame cause is not inferred from this success.
+
+The [lifecycle audit](lifecycle-result.json) revalidates all three activation/
+fetch/return cycles, every USB event and final Quit against the raw console and
+frozen inputs. [physical-result.json](physical-result.json) binds the complete
+raw boot replay and eight fresh SD readbacks. All launch/control/configuration
+and outer time limits are unchanged and pass. Each complete launch is about
+73 s; the measured configuration interval is about12 s. The remaining launch
+time is not attributed to a particular stage by this capture. Performance work
+remains separate from correctness; no timeout was increased.
+
+Independent host cleanup verifies original15M readback, exact USB identity and
+permissions, the owned private JTAG server gone and UART free. The continuing
+claim and spare card remain held, with factory/bottom kit untouched. No factory
+restore was performed. A software Quit and host cleanup do not prove physical
+CPU halt. This input is consumed after its one successful attempt, without
+retry/fallback. Prior procedure-stop count remains25; no new stop is recorded.
+
+This is an exact-artifact **hardware diagnostic pass** for the contained native
+serial selected-program scope. Ordinary package admission remains closed;
+general core loading, native Ethernet, physical input/video acceptance and
+launch performance remain open. U-Boot upload Ethernet is not native OS network
+qualification. Do not promote this result to a normal-kit or all-core pass.
+
+Next: connect the verified native path to ordinary sealed-package admission,
+reviewing its fixed catalog/boot-context restrictions rather than only changing
+an acceptance flag. Retain the now-working USB lifecycle, real firmware stop,
+source/identity and memory guards. Subsequent native/firmware changes require
+fresh matched artifacts and their relevant physical test.
+
+Source, frozen operator, raw trace and independent checks are retained in
+`/home/deano/fes-retained/de25-usb-periodic-retire-pass-20261106-r1`, with the
+matched build archive as prerequisite. Every member is read back and checked,
+and the incremental source pack is independently imported and verified.
