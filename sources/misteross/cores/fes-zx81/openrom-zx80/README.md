@@ -2,9 +2,10 @@
 
 A clean-room, GPL-2.0-or-later integer BASIC for the `fes.zx80` model, written
 for FES like the [open ZX81 ROM](../openrom). It fits the ZX80's 4 KiB ROM:
-`scripts/build_zx81_openrom.py --model zx80` writes `build/zx80-openrom/`
-with 7 bytes free beside the 512-byte character set (`$0E00`). It is not yet
-built by the Makefile, packaged, or documented as a user option.
+`make zx80-openrom` (in `sources/misteross`) writes `build/zx80-openrom/`
+with 7 bytes free beside the 512-byte character set (`$0E00`), and
+`make sim-fes-zx80-openrom` replays the recorded scripts on the RTL. It is not
+yet documented as a user option.
 
 ## What it does
 
@@ -45,7 +46,8 @@ report 0.
 
 (paths from this directory). The harness needs the `z80` Python package. On
 the RTL, `dev/build_probe.sh ROM.hex OUTDIR` builds `zx80_probe_tb.cpp`;
-`OUTDIR/Vzx81_machine probe "KEYS"` dumps memory and screen after typing.
+`OUTDIR/Vzx81_machine probe "KEYS"` dumps memory and screen after typing, and
+`dev/rtl_compare.py OUTDIR/Vzx81_machine` replays every recorded script.
 
 The fit is tight. The source asks the assembler for `floatorder 15`, the
 layout (from a seeded search) that keeps the most `jr` short and packs the

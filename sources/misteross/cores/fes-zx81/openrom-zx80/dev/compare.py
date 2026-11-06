@@ -7,7 +7,6 @@ variables, edit line and screen."""
 import io
 import sys
 sys.path.insert(0, sys.path[0])
-from harness80 import Machine, load_symbols
 
 REF = sys.path[0] + '/ref/'
 
@@ -31,6 +30,7 @@ def blocks(path):
 
 
 def mine(rom, sym, script, ram_top=0x8000, tape=None):
+    from harness80 import Machine
     m = Machine(rom, sym, ram_top)
     m.tape = tape
     m.type('WAIT10 ' + script)
@@ -49,6 +49,7 @@ def mine(rom, sym, script, ram_top=0x8000, tape=None):
 
 
 def main():
+    from harness80 import load_symbols
     rom = open(sys.argv[1], 'rb').read()
     sym = load_symbols(sys.argv[2])
     files = sys.argv[3:] or ['p1', 'p2', 'p3', 'p4', 'p5', 'pb', 'pc', 'pd', 'pe', 'pf', 'ph', 'pr']

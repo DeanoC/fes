@@ -8,8 +8,9 @@ set -e
 HERE=$(cd "$(dirname "$0")" && pwd)
 cd "$HERE/../../../.."
 RTL="cores/fes-common/rtl/z80/fes_z80_alu.sv cores/fes-common/rtl/z80/fes_z80_engine.sv cores/fes-common/rtl/z80/fes_z80_bus.sv cores/fes-common/rtl/z80/fes_z80_nmos.sv"
-PROC=$(verilator -Wno-PROCASSINIT --version >/dev/null 2>&1 && echo -Wno-PROCASSINIT || true)
-verilator --cc --exe --build -O3 --top-module zx81_machine -Wall \
+V=${VERILATOR:-verilator}
+PROC=$($V -Wno-PROCASSINIT --version >/dev/null 2>&1 && echo -Wno-PROCASSINIT || true)
+"$V" --cc --exe --build -O3 --top-module zx81_machine -Wall \
   -Wno-UNUSEDSIGNAL -Wno-UNOPTFLAT -Wno-CASEINCOMPLETE -Wno-WIDTHTRUNC \
   -Wno-WIDTHEXPAND -Wno-SYNCASYNCNET -Wno-PINCONNECTEMPTY \
   -Wno-DECLFILENAME -Wno-IMPLICITSTATIC -Wno-VARHIDDEN -Wno-UNUSEDPARAM \
