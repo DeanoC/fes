@@ -138,9 +138,10 @@ is linked. Physical behavior still needs a fresh matched test.
 PIO mode queues further IN tokens within an unfinished direct transfer, at most
 one per poll and only when its nonperiodic/periodic request queue has space.
 Continuation preserves setup, HCTSIZ, PID, buffer and deadline. New RX/status,
-zero remaining packet count, completion or halt prevents further queuing; an
-unexpected packet count fails. A disabled channel waits for status under the
-existing deadline, including completion races. Periodic tokens target the next frame.
+zero remaining packet count, completion or software halt prevents further
+queuing; an unexpected packet count fails. A channel with CHENA clear waits
+for status under the existing deadline, including completion races. Periodic
+tokens target the next frame.
 Further periodic requests also preserve the endpoint's advertised polling interval.
 This follows the reference's `dwc2_hc_continue_transfer` slave-mode path. The
 model requires a real queued continuation at descriptor offset88; acknowledging
@@ -172,8 +173,23 @@ completion flags. The first toggle snapshot freezes the history at that
 observation; a failed containment also records the later halt command. Entries
 are software intentions, not register readbacks or proof of a physical halt.
 Recording performs no additional register reads or clock samples and changes
-no channel command, PID, interval, deadline or ownership decision. A replay of
-the captured periodic `0xe05e8808` channel, `0x80008` transfer and toggle-only
-notification still fails closed without a report, paused state or guessed
-continuation. Its injected disable bit reproduces the observation, not its
-hardware cause. A fresh physical trace is required before choosing a repair.
+no channel command, PID, interval, deadline or ownership decision.
+
+A fresh physical first-toggle trace observed raw CHDIS before any software
+disable command for that packet. Following the pinned PIO continuation
+reference, the helper now clears raw CHDIS only within the same owned, active,
+non-split IN packet after both RX and IRQ toggle notifications and a saved first
+observation. The software fault/halt/completion/NAK/RX checks still exclude
+continuation. The enabled channel's remaining fields must match its original
+recipe; fresh PIO/link admission and exact unchanged HCTSIZ size/PID/count are
+required. New RX or status sampled during admission blocks the write. Unqualified
+disable state waits without being cleared. No setup, PID, HCTSIZ, buffer or
+packet deadline is reinitialized; advertised periodic spacing remains required.
+
+Captured-state model tests require actual expected-PID bytes, completion and
+channel retirement before input. Missing data, wrong PID/short report, expired
+packet, software halt/fault, changed channel/transfer, foreign DMA/interrupts,
+disconnect, queue pressure and completion races retain their failure/ownership
+rules. The former unqualified-disable case is now separate from this paired
+notification case. A model continuation cannot prove the physical disable cause
+or Nano hardware readiness; that still requires a fresh matched bounded test.

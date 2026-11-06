@@ -9,9 +9,9 @@ import (
 )
 
 // Replay the values captured on TRWU8CBL before ROM configuration. Injecting
-// CHDIS models the observation, not its cause: the trace must distinguish it
-// from an actual driver halt request without clearing it or guessing a PID.
-func TestCapturedPeriodicToggleAndDisableCannotAdmitPauseOrInput(t *testing.T) {
+// CHDIS models the observation, not its cause. Qualified continuation cannot
+// supply data, extend the packet deadline or bypass a real software/DMA halt.
+func TestCapturedPeriodicToggleContinuationCannotAdmitMissingDataOrForeignDMA(t *testing.T) {
 	for _, lostDMA := range []bool{false, true} {
 		t.Run(map[bool]string{false: "stuck-halt", true: "foreign-DMA"}[lostDMA], func(t *testing.T) {
 			c := newController()
@@ -32,13 +32,14 @@ func TestCapturedPeriodicToggleAndDisableCannotAdmitPauseOrInput(t *testing.T) {
 			c.rx = []uint32{0xb0000}
 			c.tick = c.tick.Add(h.interval)
 			done, data, nak, err := h.step()
-			if err != nil || done || nak || len(data) != 0 || h.pending.lastContinue.reason != "channel" ||
-				h.pending.lastContinue.channel != 0xe05e8808 || h.pending.continuations != 0 ||
+			if err != nil || done || nak || len(data) != 0 || h.pending.lastContinue.reason != "queued" ||
+				h.pending.lastContinue.channel != 0xe05e8808 || h.pending.continuations != 1 ||
 				h.pending.toggleRX != 1 || h.pending.toggleIRQs != 1 || h.pending.halting {
-				t.Fatal("captured state was restarted or accepted", done, data, nak, err, h.pending)
+				t.Fatal("captured state did not preserve unfinished packet", done, data, nak, err, h.pending)
 			}
-			if h.channelCommands.count != 1 || h.channelCommands.entries[0].reason != "arm" ||
-				h.channelCommands.entries[0].value&channelDisable != 0 {
+			if h.channelCommands.count != 2 || h.channelCommands.entries[0].reason != "arm" ||
+				h.channelCommands.entries[1].reason != "continue" || h.channelCommands.entries[1].packet != 1 ||
+				h.channelCommands.entries[1].value&channelDisable != 0 {
 				t.Fatal("trace invented a software disable request", h.channelCommands)
 			}
 			first := h.pending.firstToggle.Error()
@@ -51,15 +52,15 @@ func TestCapturedPeriodicToggleAndDisableCannotAdmitPauseOrInput(t *testing.T) {
 			err = h.PausePolling(context.Background())
 			if err == nil || h.fault == nil || h.pollingPaused || h.pending.received ||
 				h.pending.done || h.pending.nak || !h.pending.active || h.pending.pid != before.pid ||
-				h.pending.deadline != deadline || h.toggle != 0 || c.regs[hctsiz] != 0x80008 || len(c.starts) != 1 {
+				h.pending.deadline != deadline || h.toggle != 0 || c.regs[hctsiz] != 0x80008 || len(c.starts) < 2 {
 				t.Fatal("failed packet changed PID/deadline or escaped", err, h.pending)
 			}
 			if lostDMA {
-				if h.channelCommands.count != 1 || !strings.Contains(err.Error(), "PIO/interrupt ownership changed") {
+				if h.channelCommands.count != 2 || !strings.Contains(err.Error(), "PIO/interrupt ownership changed") {
 					t.Fatal("foreign DMA caused channel access", err, h.channelCommands)
 				}
-			} else if h.channelCommands.count != 2 || h.channelCommands.entries[1].reason != "containment" ||
-				h.channelCommands.entries[1].value != 0xe05e8808 ||
+			} else if h.channelCommands.count < 3 || h.channelCommands.entries[(h.channelCommands.count-1)%8].reason != "containment" ||
+				h.channelCommands.entries[(h.channelCommands.count-1)%8].value != 0xe05e8808 ||
 				!strings.Contains(err.Error(), "packet timeout") || !strings.Contains(err.Error(), "containment:") ||
 				!strings.Contains(err.Error(), "reason=arm value=0xa05e8808") ||
 				!strings.Contains(err.Error(), "reason=containment value=0xe05e8808") {
