@@ -53,7 +53,8 @@ def checked_atf_descriptor(value):
     return dict(value)
 
 
-def atf_source(text):
+def atf_source(text, *, firmware_ram=False):
+    if type(firmware_ram) is not bool:raise ValueError('explicit firmware RAM guard selection required')
     before='typedef void __noreturn (*atf_entry_t)(struct bl31_params *params, void *plat_params);'
     if text.count(before)!=1:raise ValueError('SPL ATF argument declaration changed')
     text=text.replace(before,'typedef void __noreturn (*atf_entry_t)(struct bl31_params *params, void *plat_params, const void *cold, unsigned long cookie);')
@@ -66,7 +67,12 @@ def atf_source(text):
 \t\tfes_nano_spl_atf_trace(bl31_entry, bl32_entry, bl33_entry, fdt_addr, (uintptr_t)bl31_params, (uintptr_t)cold);
 \t\tatf_entry(bl31_params, (void *)fdt_addr, cold, FES_NANO_COLD_COOKIE);
 \t}''')
-    return '#include <nano_cold.h>\n'+text
+    if firmware_ram:
+        before='\t\tatf_entry(bl31_params, (void *)fdt_addr, cold, FES_NANO_COLD_COOKIE);'
+        if text.count(before)!=1:raise ValueError('SPL final branch guard context changed')
+        text=text.replace(before,'\t\textern int fes_nano_spl_firmware_ram_guard(uintptr_t, uintptr_t);\n'
+            '\t\tif (fes_nano_spl_firmware_ram_guard((uintptr_t)bl31_params, (uintptr_t)cold)) hang();\n'+before)
+    return '#include <nano_cold.h>\n'+('#include <hang.h>\n' if firmware_ram else '')+text
 
 
 def prepare(source, entry_build, bl31_sha256, bl31_size):
@@ -105,6 +111,7 @@ def prepare(source, entry_build, bl31_sha256, bl31_size):
     types=source/'include/nano_bridges.h';text=types.read_text()
     if text.count('#include <stdint.h>')!=1:raise ValueError('shared integer type context changed')
     types.write_text(text.replace('#include <stdint.h>','#include <linux/types.h>'))
+    shutil.copyfile(firmware/'nano_firmware_ram.h',source/'include/nano_firmware_ram.h')
     shutil.copyfile(HERE/'spl_cold.c',soc/'fes_nano_spl.c')
     shutil.copyfile(HERE/'spl_console.inc',soc/'fes_nano_spl_console.inc')
     (soc/'fes_nano_cold_profile.h').write_text(cold.header(chain))
@@ -129,7 +136,7 @@ def prepare(source, entry_build, bl31_sha256, bl31_size):
     if count!=5:raise ValueError('native flash/RSU object context changed')
     mk.write_text(text[:start]+block+text[end:]+'\nifdef CONFIG_SPL_BUILD\nobj-y += fes_nano_spl.o nano_cold.o\nendif\n')
     atf=source/'common/spl/spl_atf.c'
-    atf.write_text(atf_source(atf.read_text()))
+    atf.write_text(atf_source(atf.read_text(), firmware_ram=chain.get('hps_rom') is not None and chain.get('usb_shared') is True))
     fat=source/'common/spl/spl_fat.c';text=fat.read_text()
     anchor='\terr = spl_register_fat_device(block_dev, partition);\n\tif (err)\n\t\tgoto end;\n'
     if text.count(anchor)!=1:raise ValueError('SPL FAT pre-parser context changed')

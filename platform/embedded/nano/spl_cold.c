@@ -11,6 +11,25 @@
 #include "fes_nano_cold_profile.h"
 #include "fes_nano_fit_seal.h"
 #include "fes_nano_atf_seal.h"
+#include "nano_firmware_ram.h"
+#if defined(FES_NANO_COLD_ROM) && FES_NANO_COLD_ROM && defined(FES_NANO_SHARED_USB) && FES_NANO_SHARED_USB
+#include <asm/global_data.h>
+#include <malloc.h>
+DECLARE_GLOBAL_DATA_PTR;
+extern char _image_binary_end[];
+/* This check describes only the pinned SPL allocation scheme. A different
+ * configuration needs a new source/lifetime audit, not a wider live bound. */
+_Static_assert(CONFIG_SPL_TEXT_BASE==0 && CONFIG_SPL_MAX_SIZE<=0x40000,
+               "firmware RAM exclusion requires the pinned SPL image range");
+_Static_assert(CONFIG_SPL_STACK==0x71000 && CONFIG_SPL_SYS_MALLOC_F_LEN==0x2000,
+               "firmware RAM exclusion requires the pinned early allocations");
+_Static_assert(CONFIG_SPL_BSS_START_ADDR==0xbff00000 && CONFIG_SPL_BSS_MAX_SIZE==0x100000 &&
+               CONFIG_SPL_CUSTOM_SYS_MALLOC_ADDR==0xbfa00000 && CONFIG_SPL_SYS_MALLOC_SIZE==0x500000,
+               "firmware RAM exclusion requires the pinned DDR allocations");
+#ifdef CONFIG_SPL_STACK_R
+#error "firmware RAM exclusion has no relocated SPL stack contract"
+#endif
+#endif
 #define FES_SPL_CONSOLE_READ(a) readl((void *)(a))
 #define FES_SPL_CONSOLE_WRITE(a,v) writel((v),(void *)(a))
 #define FES_SPL_CONSOLE_PARK() asm volatile("wfe" ::: "memory")
@@ -29,6 +48,36 @@ static struct fes_nano_cold source __attribute__((section(".data"),aligned(8))) 
 struct fes_nano_cold_record fes_nano_spl_record __attribute__((section(".data"),aligned(8))) = {.magic=FES_NANO_COLD_MAGIC};
 static unsigned fit_attempted __attribute__((section(".data"))) = 0;
 static unsigned fit_verified __attribute__((section(".data"))) = 0;
+
+#if defined(FES_NANO_COLD_ROM) && FES_NANO_COLD_ROM && defined(FES_NANO_SHARED_USB) && FES_NANO_SHARED_USB
+static unsigned ram_guard_attempted __attribute__((section(".data"))) = 0;
+static int fes_nano_spl_ram_snapshot(uintptr_t params,uintptr_t cold,struct fes_nano_spl_ram_view *v)
+{
+    uint64_t sp,sctlr,daif;
+    if(current_el()!=3 || source.failed || source.finish_stage!=FES_COLD_FINISH_COMPLETE ||
+       cold!=(uintptr_t)&fes_nano_spl_record) return -1;
+    asm volatile("mov %0, sp" : "=r"(sp));
+    asm volatile("mrs %0, sctlr_el3" : "=r"(sctlr));
+    asm volatile("mrs %0, daif" : "=r"(daif));
+    if((sctlr&5U) || daif!=0x3c0U || ((read_mpidr()>>8)&0xff)!=fes_nano_spl_record.core ||
+       mem_malloc_end<mem_malloc_start) return -1;
+    *v=(struct fes_nano_spl_ram_view){sp,(uintptr_t)gd,sizeof(*gd),gd->malloc_base,
+        CONFIG_SPL_SYS_MALLOC_F_LEN,(uintptr_t)_image_binary_end,cold,sizeof(fes_nano_spl_record),
+        params,mem_malloc_start,mem_malloc_end-mem_malloc_start};
+    return 0;
+}
+/* Called after the final trace and before the no-return ATF branch. Consume
+ * before observing; a failed check cannot be repaired and replayed. This
+ * excludes SPL's live allocations only, not later native or SDM users. */
+int fes_nano_spl_firmware_ram_guard(uintptr_t params,uintptr_t cold)
+{
+    struct fes_nano_spl_ram_view view;
+    if(ram_guard_attempted) return -1;
+    ram_guard_attempted=1;
+    if(fes_nano_spl_ram_snapshot(params,cold,&view) || !fes_nano_spl_ram_excluded(&view)) return -1;
+    return 0;
+}
+#endif
 
 int fes_nano_spl_fit_check(const char *filename)
 {

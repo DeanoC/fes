@@ -1,0 +1,33 @@
+/* SPDX-License-Identifier: BSD-3-Clause */
+#ifndef FES_NANO_FIRMWARE_RAM_H
+#define FES_NANO_FIRMWARE_RAM_H
+#include "nano_cold.h"
+
+/* Private candidate exclusion at the final SPL branch, not a memory grant.
+ * The matched ELF, entry and native-map contracts must qualify placement
+ * separately before BL31 may use this range. */
+#define FES_NANO_FW_RAM_BASE 0x00050000ULL
+#define FES_NANO_FW_RAM_LIMIT 0x00060000ULL
+#define FES_NANO_FW_RAM_STACK_FLOOR 0x00061000ULL
+struct fes_nano_spl_ram_view {
+    uint64_t sp, gd_base, gd_bytes, early_base, early_bytes;
+    uint64_t image_bytes, cold_base, cold_bytes, params_base;
+    uint64_t heap_base, heap_bytes;
+};
+static inline int fes_nano_ram_within(uint64_t base,uint64_t bytes,uint64_t low,uint64_t high)
+{ return bytes && base>=low && base<high && bytes<=high-base; }
+static inline int fes_nano_spl_ram_excluded(const struct fes_nano_spl_ram_view *v)
+{
+    if(!v || (v->sp&15U) || v->sp<FES_NANO_FW_RAM_STACK_FLOOR ||
+       v->sp>=0x71000ULL || !v->image_bytes || v->image_bytes>0x40000ULL ||
+       (v->cold_base&7U) || v->cold_bytes!=sizeof(struct fes_nano_cold_record) ||
+       !fes_nano_ram_within(v->cold_base,v->cold_bytes,0x1000ULL,v->image_bytes) ||
+       (v->gd_base&15U) || v->gd_bytes>0x1000ULL ||
+       !fes_nano_ram_within(v->gd_base,v->gd_bytes,FES_NANO_FW_RAM_LIMIT,0x6f000ULL) ||
+       v->sp>v->gd_base || v->early_base!=0x6f000ULL || v->early_bytes!=0x2000ULL ||
+       v->gd_base+v->gd_bytes>v->early_base || (v->params_base&7U) ||
+       !fes_nano_ram_within(v->params_base,64,0xbff00000ULL,0xc0000000ULL) ||
+       v->heap_base!=0xbfa00000ULL || v->heap_bytes!=0x500000ULL) return 0;
+    return 1;
+}
+#endif

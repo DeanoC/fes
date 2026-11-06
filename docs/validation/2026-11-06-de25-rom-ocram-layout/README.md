@@ -25,7 +25,9 @@ The range is **not reserved or hardware-admitted**. The matched SPL's maximum
 load image ends at 0x40000 (its actual ELF image ends at 0x252a8); its stack top
 is 0x71000, early allocation length is 0x2000, and the boot handoff is at
 0x7f000. These observations do not prove the complete live stack, allocator,
-firmware or SDM ownership envelope. SPL BSS and the cold record remain in DDR.
+firmware or SDM ownership envelope. SPL BSS remains in DDR. The sealed cold
+record is deliberately in SPL's loaded OCRAM `.data` (0x21e90 in the measured
+ELF), available before DDR BSS initialization; that range must also be preserved.
 A full allocation/lifetime audit and an explicit matched reservation are still
 required, including initial zeroization and native application exclusion.
 No address is declared free merely because the observed symbols fit.
