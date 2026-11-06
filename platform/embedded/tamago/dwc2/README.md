@@ -193,3 +193,20 @@ disconnect, queue pressure and completion races retain their failure/ownership
 rules. The former unqualified-disable case is now separate from this paired
 notification case. A model continuation cannot prove the physical disable cause
 or Nano hardware readiness; that still requires a fresh matched bounded test.
+
+`periodic_model_test.go` adds a separate clock and event queue for direct
+interrupt IN requests. It derives frames and remaining ticks, consumes request
+queue slots and configurable wire time, and delays data and channel halt until
+their scheduled events. Driver state does not supply its target frame or
+completion. Tests cover frame wrap, caller gaps, queue pressure, NAK, delayed
+continuation writes, frame overruns and stalled retirement. The original
+deadline, real data and observed halt remain required before input delivery.
+
+The modeled durations are synthetic scenarios, not measured Nano timings.
+Caller gaps alone do not produce overruns in these scenarios; a late channel
+write or queued wire work can exhaust a selected frame. This distinguishes
+possible timing mechanisms without establishing the physical failure's cause.
+The latest bounded Nano trial exercised the qualified continuation, then stopped
+on HCINT frame-overrun with failed containment. The model does not authorize a
+retry, hide that error or change the production scheduler. Split/PHY timing and
+the actual frame selected by the physical controller remain outside its scope.
