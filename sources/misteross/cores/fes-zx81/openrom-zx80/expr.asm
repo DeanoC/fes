@@ -199,11 +199,8 @@ signed: bit 7,b
 signs:  ld a,h
         xor d
         ld b,a
-        call abs_hl
-        ex de,hl
-        call abs_hl
-        ex de,hl
-        ret
+        call .a                 ; DE, then (coming back here) HL
+.a:     ex de,hl
 abs_hl: bit 7,h
         ret z
 neg_hl: xor a
