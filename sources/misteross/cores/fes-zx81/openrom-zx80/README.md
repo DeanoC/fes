@@ -8,9 +8,10 @@ built by the Makefile, packaged, or documented as a user option.
 
 ## What it does
 
-In an oversized development image it matches the Sinclair ZX80 ROM on every
-recorded probe (memory and screen dumps in `dev/ref`) and passes the
-regression scripts in `dev/regress.py`:
+The 4 KiB image matches the Sinclair ZX80 ROM on every recorded probe
+(memory and screen dumps in `dev/ref`), both in the fast harness and on the
+FES ZX80 RTL (`dev/build_probe.sh`), and passes the regression scripts in
+`dev/regress.py`:
 
 - the published interface: system variables, program and variable record
   formats, character codes and keywords, `.o` images loaded through the
