@@ -34,7 +34,8 @@ TARGETS = {
     'pcxt': ('sim-fes-pcxt', 'sim-fes-pcxt-fdc', 'sim-fes-pcxt-write',
              'sim-fes-pcxt-media', 'sim-fes-pcxt-mailbox', 'sim-fes-pcxt-dos'),
     'pc386': ('sim-fes-pc386', 'sim-fes-pc386-fesenv', 'sim-fes-pc386-a20',
-              'sim-fes-pc386-c2xx', 'sim-fes-pc386-wait', 'sim-fes-pc386-speaker'),
+              'sim-fes-pc386-c2xx', 'sim-fes-pc386-wait', 'sim-fes-pc386-scroll',
+              'sim-fes-pc386-speaker'),
 }
 
 # Slow families' PR-tier targets (each about 2.5 minutes or less on a runner).
@@ -46,7 +47,7 @@ SMOKE_TARGETS = {
     'spectrum': ('sim-fes-spectrum-smoke',),
     'pcxt': ('sim-fes-pcxt-smoke', 'sim-fes-pcxt-machine', 'sim-fes-pcxt-fdc', 'sim-fes-pcxt-write',
              'sim-fes-pcxt-media', 'sim-fes-pcxt-mailbox'),
-    'pc386': ('sim-fes-pc386',),
+    'pc386': ('sim-fes-pc386', 'sim-fes-pc386-scroll'),
     # Default and OSS unit benches, one board scenario, the diagnostic and the
     # integrated SGM bench; the other board scenarios and -oss twins are full.
     'coleco': ('sim-fes-coleco-unit', 'sim-fes-coleco-unit-oss', 'sim-fes-coleco-board-graphics',
