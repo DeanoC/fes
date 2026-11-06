@@ -44,6 +44,25 @@ vendor markers, with setup completion after the two EL3 capture observations,
 before accepting the U-Boot checkpoint. Partial progress locates a stop; it
 does not grant boot, RAM ownership or a firmware service.
 
+The matched RAM profile also instruments the subsequent cold BL31 path with
+31 ordered RUNTIME checkpoints. Source-pinned C transforms insert calls around
+owned setup, GIC initialization, mailbox initialization/notification, libraries,
+runtime services, next-image preparation and final console setup. Assembly
+markers bracket `bl31_main`, the original data/BSS clean calls and the cold
+`el3_exit` branch. Removing those insertions exactly reproduces the input
+sources; warm entry and the original vendor operations remain unchanged.
+Mailbox markers enclose the optional V3 initialization as well as notification.
+
+The C-call diagnostic is a bounded UART leaf using the existing fixed sink,
+100000-poll and384-byte message limits. It has no stack access, RAM store,
+nested call, console-framework dependency or vector/cache operation. Ordinary
+C callers retain their normal ABI stack handling. Partial, repeated, reordered,
+misplaced or failed runtime progress cannot qualify a loader prompt; the host
+requires the full sequence after cache/logging completion, enclosing the
+provider/SD observations and preceding U-Boot. These markers locate returned
+call boundaries without granting ownership or excluding a later vendor-vector
+fault. They do not widen any boot, ROM or operator deadline.
+
 Selected cold startup temporarily uses private exception vectors until stack
 selection has returned; it restores the vendor runtime vectors before BL31
 setup. On an exception, a stack-free handler switches to park-only vectors
@@ -115,8 +134,12 @@ without retry; missing readback leaves restoration unproven. The host requires
 the ordered logging cycle before accepting later vendor startup markers.
 Neither a completed diagnostic nor restored logging grants boot ownership.
 The logging-only predecessor captured the physical CCU error and verified
-restoration. The new set/way path still requires a matched-image bounded
-hardware test; off-board geometry execution does not qualify physical caches.
+restoration. The [bounded set/way trial](../../../docs/validation/2026-11-06-de25-setway-trial/README.md)
+observed cache/logging and all15 vendor checkpoints return, then timed out
+after the SD-platform setup line before the loader prompt. That evidence
+belongs to its exact input; the added runtime checkpoints need a new matched
+trial. Neither returned call markers nor off-board geometry execution qualify
+physical cache coverage or a complete native core-loading cycle.
 
 Only that selected profile may accept one non-executable, zero-file-byte NOBITS
 load segment in the fixed range. Packaging independently checks the actual ELF

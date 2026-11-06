@@ -156,7 +156,7 @@ def main():
     if args.nano_owned_bridges:
         import prepare_nano_owned
         producer_inputs += tuple(prepare_nano_owned.inputs())
-    producer_inputs += (HERE.parent/'nano/fault_status.py',HERE/'nano_firmware_ram.py',HERE/'nano_firmware_entry.inc',HERE/'nano_firmware_fault.inc',HERE/'nano_firmware_decode.inc',HERE/'nano_firmware_cache.inc',HERE/'nano_firmware_ram.h')
+    producer_inputs += (HERE.parent/'nano/fault_status.py',HERE.parent/'nano/runtime_startup.py',HERE/'nano_firmware_ram.py',HERE/'nano_firmware_runtime.py',HERE/'nano_firmware_runtime.inc',HERE/'nano_firmware_entry.inc',HERE/'nano_firmware_fault.inc',HERE/'nano_firmware_decode.inc',HERE/'nano_firmware_cache.inc',HERE/'nano_firmware_ram.h')
     if cold is not None:
         producer_inputs += tuple(cold.sources())
     frozen = {str(p.relative_to(ROOT)): digest(p.read_bytes()) for p in producer_inputs}

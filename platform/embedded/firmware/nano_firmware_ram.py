@@ -5,6 +5,7 @@ import json
 import re
 from pathlib import Path
 import struct
+import nano_firmware_runtime
 
 HERE = Path(__file__).resolve().parent
 _status_spec = importlib.util.spec_from_file_location('fes_early_fault_status', HERE.parent/'nano/fault_status.py')
@@ -229,10 +230,11 @@ def install(source, profile):
     c = source / 'plat/intel/soc/common/nano_cold_platform.c'
     c.write_text('#include "fes_nano_ram_entry.h"\n#include "nano_firmware_ram.h"\n' +
                  entry_assertions() + c.read_text())
+    runtime_sources = nano_firmware_runtime.install(source)
     names = [ENTRY, COMMON, CACHE, PLATFORM, INCLUDE+'/fes_nano_ram_entry.h', INCLUDE+'/nano_vendor_entry.inc', INCLUDE+'/nano_firmware_entry.inc', INCLUDE+'/nano_firmware_fault.inc', INCLUDE+'/nano_firmware_decode.inc', INCLUDE+'/nano_firmware_cache.inc', INCLUDE+'/nano_firmware_status.inc',
              INCLUDE+'/nano_firmware_ram.h', 'plat/intel/soc/common/nano_cold_platform.c']
     return dict(contract=dict(CONTRACT), chain_sha256=chain,
-                sources={name:hashlib.sha256((source/name).read_bytes()).hexdigest() for name in names})
+                sources={name:hashlib.sha256((source/name).read_bytes()).hexdigest() for name in dict.fromkeys(names+runtime_sources)})
 
 
 def verify_installed(source, binding):

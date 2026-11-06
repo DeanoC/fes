@@ -72,7 +72,18 @@ def firmware_progress(raw):
     lines=raw.splitlines(keepends=True)
     for index,line in enumerate(lines):
         if 'FES_NANO_EL3_CAPTURE phase=after ' in line:
-            lines.insert(index+1,rows[-1])
+            phases=trace.runtime_startup.RUNTIME_PHASES
+            marker=lambda p:'FES_NANO_RAM RUNTIME phase='+p+'\r\n'
+            lines.insert(index+1,rows[-1]+''.join(marker(p) for p in phases[:3]))
+            result=''.join(lines)
+            # The baseline fixture has no SD service; its existing decoder
+            # accepts only the explicit unavailable setup0/ready0 observation.
+            lines=result.splitlines(keepends=True)
+            sd=next((i for i,line in enumerate(lines) if 'FES_NANO_SD_PLATFORM ' in line),None)
+            if sd is None:
+                provider=next(i for i,line in enumerate(lines) if 'FES_NANO_OWNED_BOOT ' in line)
+                sd=provider+1;lines.insert(sd,'NOTICE:  FES_NANO_SD_PLATFORM setup=0 ready=0\r\n')
+            lines.insert(sd+1,''.join(marker(p) for p in phases[3:]))
             return ''.join(lines)
     raise AssertionError('missing capture-after fixture')
 

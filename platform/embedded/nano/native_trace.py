@@ -6,6 +6,7 @@ No device, programmer, firmware or filesystem operations are performed here.
 import hashlib
 import re
 import fault_status
+import runtime_startup
 from configuration_trace import extract as extract_configuration
 from hps_context import reader_pattern, digest as context_digest
 from hps_io import validate as validate_hps_io
@@ -301,7 +302,7 @@ def decode_native_boot(data, build_id, owner_seed, *, storage=None, package=None
               'last_checkpoint': None, 'core_load_acceptance': False,
               'firmware_ram_trace': {'records': [], 'complete': False, 'valid': True,
                                      'vendor_records': [], 'vendor_complete': False, 'exceptions': [],
-                                     'status_probe': fault_status.state(), 'ras_probe': fault_status.ras_state(), 'decode_log': fault_status.decode_state(), 'cache_maintenance': fault_status.cache_state()}}
+                                     'status_probe': fault_status.state(), 'ras_probe': fault_status.ras_state(), 'decode_log': fault_status.decode_state(), 'cache_maintenance': fault_status.cache_state(), 'runtime_startup': runtime_startup.state()}}
     if len(data) > MAX_BYTES:
         report['errors'].append('capture exceeds byte bound')
         return report
@@ -320,6 +321,17 @@ def decode_native_boot(data, build_id, owner_seed, *, storage=None, package=None
             report['errors'].append(f'failure marker at line {number}')
         if line.startswith('FES_NANO_RAM'):
             ram=report['firmware_ram_trace'];rows=ram['records']
+            if line.startswith('FES_NANO_RAM RUNTIME'):
+                decode=ram['decode_log'];cache=ram['cache_maintenance']
+                error=runtime_startup.observe(ram['runtime_startup'],line,number,
+                    startup_valid=ram['valid'],vendor_complete=ram['vendor_complete'],
+                    cache_complete=cache['valid'] and cache['complete'],
+                    logging_restored=decode['valid'] and decode['complete'] and decode['restored'] and not decode['failed'],
+                    exception=bool(ram['exceptions']),provider_seen='provider' in observed,
+                    sd_seen='sd_platform' in observed,uboot_seen='uboot' in observed)
+                if error:
+                    report['errors'].append(error);ram['valid']=False
+                continue
             if line.startswith('FES_NANO_RAM CACHE'):
                 error=fault_status.observe_cache(ram['cache_maintenance'],line,number,
                     guard_complete=ram['complete'],
@@ -403,6 +415,8 @@ def decode_native_boot(data, build_id, owner_seed, *, storage=None, package=None
             ram=report['firmware_ram_trace']
             if (firmware_ram_trace or ram['records'] or ram['vendor_records']) and not ram['vendor_complete']:
                 report['errors'].append(f'incomplete vendor startup trace before U-Boot at line {number}')
+            if (firmware_ram_trace or ram['records'] or ram['runtime_startup']['records']) and not ram['runtime_startup']['complete']:
+                report['errors'].append(f'incomplete cold runtime startup trace before U-Boot at line {number}')
         for name, pattern in RULES:
             match = pattern.fullmatch(line)
             if match is None:
@@ -423,6 +437,11 @@ def decode_native_boot(data, build_id, owner_seed, *, storage=None, package=None
             if name=='ddr_region':name+='_'+str(values['index'])
             if name in ('hps_io_begin','hps_io_end'):name+='_'+str(values['part'])
             if name=='hps_io_row':name+='_'+str(values['pass'])+'_'+str(values['index'])
+            ram=report['firmware_ram_trace']
+            if name in ('usb_setup','provider','sd_platform') and (firmware_ram_trace or ram['records'] or ram['runtime_startup']['records']):
+                progress=ram['runtime_startup']
+                if not progress['valid'] or not progress['records'] or progress['records'][-1]['phase']!='owned-before':
+                    report['errors'].append(f'platform observation outside cold runtime setup at line {number}')
             if name=='sd_platform' and not controlled:
                 if ('sd_platform' in observed or not report['records'] or report['records'][-1]['stage']!='provider' or
                         values!={'setup':0,'ready':0}):
