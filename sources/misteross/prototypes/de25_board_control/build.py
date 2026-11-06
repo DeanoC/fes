@@ -25,6 +25,7 @@ sys.path.insert(0, str(HERE))
 import reader_memory
 import computer_model
 import rom_transport
+import timing_sources
 MISTEROSS = HERE.parents[1]
 ROOT = MISTEROSS.parents[1]
 BOARD = "sources/misteross/boards/de25nano/"
@@ -37,7 +38,8 @@ INPUTS = (OVERLAY + "build.py", OVERLAY + "fes_de25_embedded.sv", OVERLAY + "fes
           OVERLAY + "fes_de25_embedded_hw.tcl", OVERLAY + "integrate.tcl", OVERLAY + "seal.py",
           OVERLAY + "fes_de25_computer.v", OVERLAY + "generated/fes_de25_computer.vh",
           OVERLAY + "generated/fes_de25_computer.hpp",
-          OVERLAY + "reader_memory.py", OVERLAY + "computer_model.py", OVERLAY + "rom_transport.py",
+          OVERLAY + "reader_memory.py", OVERLAY + "computer_model.py", OVERLAY + "rom_transport.py", OVERLAY + "video.v",
+          OVERLAY + "timing_sources.py",
           *(OVERLAY + name for name in rom_transport.FILES), ENDPOINT, WINDOW_READER, WINDOW_CONTROL, DEFINITION)
 BOOTSTRAP = ("build.py", "display/build.py", "zx81/build.py", "zx81-hps/build.py")
 BASE = 0x10400
@@ -96,9 +98,13 @@ def compile_project(output, tool):
     """Keep the standard flow, with an independent bound for every leaf task."""
     project = output/'project'
     commands = []
+    constraint_repair = None
     for task in COMPILE_TASKS:
         command = [tool, '--flow', 'compile', 'golden_top', '-start', task, '-end', task]
         commands.append(run_phase(command, project, output/('compile-'+task+'.log')))
+        if task == 'dni_ipgenerate':
+            constraint_repair = timing_sources.repair(project)
+    timing_sources.verify(project, constraint_repair)
     artifact = project/'output_files/golden_top.sof'
     if not artifact.is_file() or not artifact.stat().st_size:
         raise ValueError('Quartus produced no nonempty HPS diagnostic SOF')
@@ -112,6 +118,7 @@ def compile_project(output, tool):
               'artifact': str(artifact.relative_to(output)), 'sha256': digest(artifact.read_bytes()),
               'quartus_version': (output/'quartus-version.txt').read_text().strip(),
               'commands': commands, 'phase_limit_seconds': PHASE_LIMIT_SECONDS,
+              'obsolete_jtag_constraints': constraint_repair,
               'inputs_sha256': digest((output/'inputs.json').read_bytes()),
               'report_sha256': reports, 'generated_handoff_and_sdc_sha256': files,
               'timing_acceptance': 'not-qualified', 'hardware_acceptance': 'not-run',

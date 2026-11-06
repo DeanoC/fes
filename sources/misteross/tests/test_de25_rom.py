@@ -24,6 +24,7 @@ class ROMProducerTests(unittest.TestCase):
             'reader_memory':seal.reader_memory.selection('hps-ddr',0x95000000,8192),
             'rom_transport':rom.selection(True,'zx81')}
         self.sources={'sources/misteross/prototypes/de25_board_control/'+name:(HERE/name).read_bytes() for name in rom.FILES}
+        self.sources[rom.VIDEO_SOURCE]=(HERE/'video.v').read_bytes()
         self.sources[rom.COMPONENT]=subprocess.check_output(['git','-C',str(ROOT.parents[1]),'show',rom.BOARD_REVISION+':'+rom.COMPONENT])
         (self.local/'fes_de25_computer_hw.tcl').write_bytes(self.sources[rom.COMPONENT])
         (self.project/'golden_top.qsf').write_text('set_global_assignment -name SEED 1\n')

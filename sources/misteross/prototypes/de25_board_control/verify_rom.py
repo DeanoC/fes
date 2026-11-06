@@ -51,9 +51,9 @@ def main():
         'cores/fes-zx81/rtl/zx81_tape_store.v', 'cores/fes-zx81/rtl/zx81_bus_pack.vh',
         'cores/fes-zx81/rtl/zx8x.hex')]
     inputs += board_sources
-    video_path = 'sources/misteross/boards/de25nano/zx81-hps/video.v'
-    video_revision = '79d616e85e19d65f0d645b67a85ffe7e142dcdfc'
-    video = subprocess.check_output(['git','-C',str(ROOT),'show',video_revision+':'+video_path])
+    video_path = HERE/'video.v'
+    inputs += [video_path]
+    video = video_path.read_bytes()
     (output/'video.v').write_bytes(video)
     (output/'zx8x.hex').write_bytes((fpga/'cores/fes-zx81/rtl/zx8x.hex').read_bytes())
     sources = {p: hashlib.sha256(p.read_bytes()).hexdigest() for p in inputs}
@@ -141,7 +141,7 @@ def main():
                   source_sha256={str(p.relative_to(ROOT)): digest for p, digest in sources.items()}, commands=commands,
                   independent_crc_oracle='Python zlib.crc32', hardware_actions=False, ordinary_admission=False)
     result['board_rom_wiring_model'] = True
-    result['captured_video'] = dict(revision=video_revision,path=video_path,sha256=hashlib.sha256(video).hexdigest())
+    result['video_source'] = dict(path=str(video_path.relative_to(ROOT)),sha256=hashlib.sha256(video).hexdigest())
     (output/'result.json').write_text(json.dumps(result, indent=2)+'\n')
     print('PASS ROM stream RTL:', output, flush=True)
 

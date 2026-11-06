@@ -19,6 +19,7 @@ CORE_INPUTS = (
 FILES = ('fes_de25_rom.sv', 'fes_de25_rom_hw.tcl', 'fes_embedded_rom.sv',
          'fes_embedded_rom_csr.sv', 'generated/fes_embedded_rom.vh')
 COMPONENT = 'sources/misteross/boards/de25nano/zx81-hps/fes_de25_computer_hw.tcl'
+VIDEO_SOURCE = 'sources/misteross/prototypes/de25_board_control/video.v'
 MACRO = 'set_global_assignment -name VERILOG_MACRO FES_DE25_EXTERNAL_ROM=1\n'
 INTERFACE = '''
 # The ROM and machine share this exact clock/reset domain.
@@ -75,6 +76,10 @@ def install(project: Path, inputs, sources, script):
     if value is None:
         return script
     local = project/'fes_mailbox'
+    # The ROM variant owns this reviewed capture implementation instead of
+    # silently retaining the historical board video's inferred reset control.
+    (local/'video.v').write_bytes(sources[VIDEO_SOURCE])
+    inputs['computer']['source_sha256']['video.v'] = hashlib.sha256(sources[VIDEO_SOURCE]).hexdigest()
     for name in FILES:
         (local/name).write_bytes(sources['sources/misteross/prototypes/de25_board_control/'+name])
     component = local/'fes_de25_computer_hw.tcl'
@@ -101,6 +106,9 @@ def verify(project, inputs, sources):
     if qsf.count(MACRO) != 1:
         raise ValueError('ROM macro differs from the selected variant')
     local = project/'fes_mailbox'
+    if (VIDEO_SOURCE not in sources or (local/'video.v').read_bytes() != sources[VIDEO_SOURCE] or
+            inputs['computer']['source_sha256'].get('video.v') != hashlib.sha256(sources[VIDEO_SOURCE]).hexdigest()):
+        raise ValueError('ROM computer video differs from the selected source')
     for name in FILES:
         if (local/name).read_bytes() != sources['sources/misteross/prototypes/de25_board_control/'+name]:
             raise ValueError('ROM source differs: '+name)

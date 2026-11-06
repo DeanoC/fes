@@ -18,6 +18,7 @@ sys.path.insert(0,str(HERE))
 import reader_memory
 import computer_model
 import rom_transport
+import timing_sources
 ROOT = HERE.parents[3]
 TAMAGO = ROOT / "platform/embedded/tamago"
 SPEC = importlib.util.spec_from_file_location("embedded_sim_producer", HERE.parent / "embedded_control/producer.py")
@@ -51,6 +52,7 @@ def inputs_for(project):
     inputs = json.loads(inputs_path.read_text())
     generation = json.loads(generation_path.read_text())
     identity = inputs["embedded_control"]
+    timing_sources.verify(board/'hps/project', json.loads((board/'hps/build.json').read_text()).get('obsolete_jtag_constraints'))
     memory=reader_memory.checked(inputs['reader_memory'])
     if identity.get('reader_memory')!=memory or identity['control_abi']!=reader_memory.control_abi(memory):
         raise ValueError('embedded reader memory or control ABI differs')
@@ -165,6 +167,8 @@ def inputs_for(project):
               "fes_embedded_control.sv": "sources/misteross/cores/fes-common/rtl/fes_embedded_control.sv",
               "generated/fes_embedded_control.vh": "sources/misteross/cores/fes-common/generated/fes_embedded_control.vh"}
     computer_sources=('fes_de25_computer.v','generated/fes_de25_computer.vh','generated/fes_de25_computer.hpp')
+    if rom_transport.checked(inputs):
+        computer_sources += ('video.v',)
     selected=["sources/misteross/prototypes/de25_board_control/"+name in sources for name in computer_sources]
     if any(selected) and not all(selected):
         raise ValueError('incomplete captured computer transport overlay')

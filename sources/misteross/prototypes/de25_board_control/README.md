@@ -79,6 +79,23 @@ The machine retains the 52.224 MHz default ratio for other shells, while this
 board selects 13/200 at 100 MHz. The early WAIT/NMI declarations preserve the
 reviewed Quartus behavior rather than creating implicit input nets.
 
+This variant also selects the prototype's `video.v`. Its blank-history bit
+starts low and replaces the redundant `armed` register, so release during
+active video still waits for a complete blank interval. The actual writer
+control has an unbounded equivalence proof against the captured producer,
+including arbitrary Hold, CE, reset, blanks and returned bank tokens. A broken
+capture condition must produce a counterexample. Full dual-clock RTL comparison
+separately checks RAM writes, pixels, publication/acknowledgement, Hold and
+stopped clocks. Run `verify_video.py --yosys /absolute/yosys --output out/VIDEO`
+from the FES root. This does not prove metastability behavior or physical timing.
+
+Compilation removes only the literal obsolete generated JTAG exception whose
+two type-qualified register filters select no registers in the reviewed routed
+netlist. No broader filter or replacement cut is added. Complete before/after
+SDC hashes are recorded and independently checked after compilation. Additional
+or changed constraint commands reject. External HDMI/I2C timing and independent
+reset release remain separate qualification work; these changes waive no rules.
+
 The ROM slave occupies peripheral-relative `0x10500`, spanning 128 bytes. It
 shares the computer clock/reset and exports no bus master. This is not a verified
 CPU address. Its Hold input reports explicit mailbox Hold; an independent
