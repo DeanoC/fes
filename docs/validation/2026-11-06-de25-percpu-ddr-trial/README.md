@@ -97,3 +97,28 @@ Exact observations and source/evidence hashes are in
 [usb-stop-interval.json](usb-stop-interval.json). Source pack and trace retention
 use `/home/deano/fes-retained/de25-percpu-ddr-stop-20261106-r1`, with prerequisite
 `de25-percpu-ddr-20261106-r1`. The full active goal remains incomplete.
+
+## Return-path source audit
+
+The matched source confirms that `ProgramBackend.withInputPaused` invokes
+USB Pause before normal `ProgramService.Return`. A Pause failure latches the
+input fault and calls `parkInputFault`, which parks only the exact running
+session and does not resume SD or input. Therefore the Park receipt followed
+by the printed USB panic is the emergency cleanup path. It does not show that
+a normal Return completed before USB failed. The actual controller cause is
+still unobserved; the eight-entry command ring records software writes only.
+
+Two native backend and three DWC2 named model methods pass with the race
+detector, covering healthy launch/return boundaries, pause/resume failures,
+ambiguous packet retirement and retained ownership. These are injected model
+results, not another hardware test. Their exact source hashes and commands are
+in [usb-return-source-audit.json](usb-return-source-audit.json).
+
+The next repair step is a bounded, non-destructive snapshot when polling drain
+first fails, before containment modifies the channel. Record whether the
+4096-step or 500ms bound fired, pending packet/path-health state, saved
+continuation/toggle observations and current IRQ, RX-peek, channel, transfer,
+frame and queue registers. Test that the snapshot neither pops RX/payload,
+retries, changes PID nor issues a channel command. Keep the first failure and
+all original bounds. Those observations are needed to justify a controller
+repair; emergency Park alone cannot qualify USB halt or a normal return.

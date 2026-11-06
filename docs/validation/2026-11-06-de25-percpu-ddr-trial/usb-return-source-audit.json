@@ -1,0 +1,56 @@
+{
+  "status": "PASS",
+  "source": "20222e8732af6fb126a97b07cd1984428d2ab317",
+  "scope": "matched native source ordering and existing injected failure-path models; no physical USB cause or driver repair",
+  "normal_return_requires_successful_USB_pause": true,
+  "pause_failure_latches_input_fault": true,
+  "pause_failure_parks_exact_running_session": true,
+  "normal_return_and_SD_resume_not_invoked_by_fault_park": true,
+  "successful_pause_receipt_absent_on_error": true,
+  "physical_trace_can_show_Park_before_printed_USB_panic": true,
+  "USB_drain_bound_ms": 500,
+  "USB_drain_step_bound": 4096,
+  "controller_cause_proven": false,
+  "USB_halt_proven": false,
+  "driver_policy_changed": false,
+  "hardware_actions": false,
+  "core_load_acceptance": false,
+  "commands": [
+    [
+      "/home/deano/go/pkg/mod/golang.org/toolchain@v0.0.1-go1.26.5.linux-amd64/bin/go",
+      "test",
+      "-race",
+      "-count=1",
+      "-timeout",
+      "90s",
+      "-v",
+      "./nativefabric",
+      "-run",
+      "^TestProgramPolling(FailureParksExactPlayOrBlocksLaunch|BoundariesCoverLaunchAndReturn)$"
+    ],
+    [
+      "/home/deano/go/pkg/mod/golang.org/toolchain@v0.0.1-go1.26.5.linux-amd64/bin/go",
+      "test",
+      "-race",
+      "-count=1",
+      "-timeout",
+      "90s",
+      "-v",
+      "./dwc2",
+      "-run",
+      "^Test(OwnedPollingDrainsPacketBeforeLongCoreTransition|PollingDrainFailureRetiresWithoutRestart|CapturedPeriodicToggleAndDisableCannotAdmitPauseOrInput)$"
+    ]
+  ],
+  "source_sha256": {
+    "platform/embedded/tamago/nativefabric/program_backend.go": "da3608fd292ca4aabd661ae64655d6e20241874cd589033d6e7d191867113026",
+    "platform/embedded/tamago/nativefabric/program_polling.go": "796c82b4c2b0a1e7861c28a8a252242291caf17f1e00dc28f1291f786f0daeac",
+    "platform/embedded/tamago/dwc2/polling.go": "a525ec85b6b9ebb528d9552fe949a34fbece4b0370cf0d89e75c28ac240abdbb",
+    "platform/embedded/tamago/cmd/fpgaload/shared_input.go": "7e766491c1e5d3115cc4f7c5d7aa83c7c347270173eb6aee30d85a68418cd02a",
+    "platform/embedded/tamago/dwc2/channel_trace.go": "664736ba00ca6cb0fe15257ab7ca1fcb3132156cc5ba9500d34a232876de0cbc",
+    "platform/embedded/tamago/dwc2/host.go": "a64dbabe15bfae7efc294bb3f7617485715d4e3ffd9da2324ed376c5fa0a5400",
+    "platform/embedded/tamago/nativefabric/program_polling_test.go": "31b83bed144d3c83f3ef078026d22a918f52888f141c8835cc3849c06f2fd0ed",
+    "platform/embedded/tamago/dwc2/polling_test.go": "874f65bc32788c10e8ace84f3e42b5e39072ff753c5538a443cac7050e86b41d",
+    "platform/embedded/tamago/dwc2/channel_trace_test.go": "d363cf442c002b49e8063b1677fde99bca545ec2d07ddb092cba8b84103b1fef"
+  },
+  "next": "Add a bounded non-destructive pre-containment drain failure snapshot (elapsed time/steps, pending packet/health state, prior continuation/toggle observations, current IRQ/RX-peek/channel/transfer/frame/queue registers). Distinguish step-bound expiry from timer expiry and keep first failure, exact500ms/4096 bounds and terminal ownership. Test no FIFO pop, payload read, retry, PID change or extra channel write in that snapshot, then rebuild a matched chain for a fresh bounded test. Do not guess a physical DWC2 cause or treat emergency Park as a completed Return."
+}
