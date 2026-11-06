@@ -6,7 +6,7 @@
   "terasic_revision": "580dcb5c4e10aa7daff2bf69d493c076a6d3e665",
   "source_before_sha256": "c9e8500dc5220bb6028bfccb5a19f1b257635edd8c7cf84c7a530c2345653da9",
   "source_after_sha256": "11bad99538e2e34ef6091f06e049c01dae2211d0b50537e5cac7867134c7b4c8",
-  "patch_sha256": "be02df617215d1b65f6652618fac41b2abb5a47c178e724fba127ae6438aba86",
+  "patch_sha256": "84f73185b74a7660e80e688c881f4c16d222af01b8e743de3dfdae32e2143040",
   "build_string": "fes-de25-sdm-errors-580dcb5c4e10",
   "bl31_sha256": "6cd789a05f3cbbe66afae9efbc9d7067469c03129a1e9a1b0043f8a60b03c383",
   "bl31_elf_sha256": "d68b647905080a24cb852d8137300edf6b5180a7b565adb36750c03bcae231b2",

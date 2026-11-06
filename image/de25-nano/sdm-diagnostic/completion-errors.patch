@@ -1,9 +1,6 @@
 --- a/plat/intel/soc/common/socfpga_sip_svc.c
 +++ b/plat/intel/soc/common/socfpga_sip_svc.c
-@@ -171,6 +171,16 @@
- 				resp, &resp_len);
- 
- 		if (status < 0) {
+@@ -173,0 +174,10 @@
 +			if (status != MBOX_NO_RESPONSE && status != MBOX_TIMEOUT) {
 +				ERROR("FES_SDM completion error=%d length=%u completed=%u\n",
 +				      status, resp_len, *count);
@@ -14,6 +11,3 @@
 +				*count = 0;
 +				return INTEL_SIP_SMC_STATUS_ERROR;
 +			}
- 			break;
- 		}
- 

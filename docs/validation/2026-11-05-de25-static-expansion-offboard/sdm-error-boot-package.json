@@ -55,7 +55,7 @@
     "scripts/de25_sdm_diagnostic.py": "f30ae2d56f9c68cda6aa1b63a3f0bcac9a5e12f528165a5a1c6f6efc146f97e4",
     "scripts/de25_boot_contract.py": "731eedfe467a71773f33dcbd262a6bd444cf53d067a478100214959e2694a30b"
   },
-  "firmware_lock_sha256": "b0eeaecbd85a34af87326549ba2f6776b3e4bca1ae48b2b5c5cc5ed8df789a7f",
+  "firmware_lock_sha256": "2f8697372c5956c15850be04bb0a05f433be006e1bf8ec49ba56ba3d16351793",
   "trial_driver_synthetic_controls": {
     "passed": true,
     "classification": "Actual prepared trial driver with synthetic claim/API/input/capture/git fixtures and no hardware, network or real device access; checks single-launch and failure cleanup policy, not native correctness.",
@@ -169,5 +169,29 @@
     "hardware_acceptance": false,
     "scope": "Actual new kernel on QEMU virt with retained read-only rootfs and disposable snapshot; init shell tests compiled dynamic-debug metadata/query interface only. No FES service startup, physical programming, firmware execution or MMIO qualification.",
     "elapsed_seconds": 2.2741215630667284
-  }
+  },
+  "zero_context_rebuild_equivalence": {
+    "passed": true,
+    "utc": "2026-11-06T19:59:23.456816+00:00",
+    "old_patch_sha256": "be02df617215d1b65f6652618fac41b2abb5a47c178e724fba127ae6438aba86",
+    "new_patch_sha256": "84f73185b74a7660e80e688c881f4c16d222af01b8e743de3dfdae32e2143040",
+    "compiled_source_sha256": "11bad99538e2e34ef6091f06e049c01dae2211d0b50537e5cac7867134c7b4c8",
+    "unchanged_source_and_binary_and_ELF": true,
+    "artifacts": {
+      "bl31.bin": {
+        "sha256": "6cd789a05f3cbbe66afae9efbc9d7067469c03129a1e9a1b0043f8a60b03c383",
+        "size": 57405
+      },
+      "bl31.elf": {
+        "sha256": "d68b647905080a24cb852d8137300edf6b5180a7b565adb36750c03bcae231b2",
+        "size": 110840
+      }
+    },
+    "failed_CI_head": "5bb7ede35ba9b7702477cdc71ae258e525644dd5",
+    "failed_CI_run": 42283414812,
+    "failure": "Whitespace in context-format patch; planner correctly refused. Zero-context representation fixes metadata check without changing compiled source.",
+    "hardware_access": false,
+    "physical_writes": false
+  },
+  "new_bundle_reconstructed_from_new_and_old_matching_firmware_builds": true
 }
