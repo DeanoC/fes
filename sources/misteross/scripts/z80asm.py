@@ -457,14 +457,19 @@ class Assembler:
             self.float_size = {}
             self.symbols = {}
             biggest = {}
-            for _ in range(30):
+            held = {}
+            for tries in range(30):
                 self.relax(lines, size, fill)
                 for i, n in self.float_size.items():
                     biggest[i] = max(n, biggest.get(i, 0))
+                    if tries >= 4:
+                        held[i] = max(n, held.get(i, 0))
                 placed = dict(self.float_at)
                 actual = dict(self.float_size)
-                if strategy != 'order':                 # (which packs them as they are)
+                if strategy != 'order':
                     self.float_size = dict(biggest)      # room for the largest seen
+                elif tries >= 4:                        # packed as they are, until
+                    self.float_size = dict(held)         # that has not settled
                 self.place_floats(size)
                 self.float_size = actual
                 if placed == self.float_at and self.consistent(size):
@@ -809,24 +814,28 @@ def anneal_order(sections, sizes, edges, free, steps=60000, seed=1):
             if not -128 <= to - (at[i] + offset + 2) <= 127:
                 far += weight
         return over * 1000 + far
-    rng = random.Random(seed)
-    order = list(sections)
-    now = cost(order)
-    best, best_order, heat = now, order[:], 2.0
-    cool = (0.05 / heat) ** (1 / steps)
-    for _ in range(steps):
-        trial = order[:]
-        a, b = sorted(rng.sample(range(len(trial)), 2))
-        if rng.random() < 0.5:
-            trial[a], trial[b] = trial[b], trial[a]
-        else:
-            trial.insert(b, trial.pop(a))
-        c = cost(trial)
-        if c <= now or rng.random() < math.exp((now - c) / heat):
-            order, now = trial, c
-            if c < best:
-                best, best_order = c, order[:]
-        heat *= cool
+    best, best_order = None, None
+    for run in range(2):                        # two searches, the better kept
+        rng = random.Random(seed + run)
+        order = list(sections)
+        now = cost(order)
+        if best is None:
+            best, best_order = now, order[:]
+        heat = 2.0
+        cool = (0.05 / heat) ** (1 / steps)
+        for _ in range(steps):
+            trial = order[:]
+            a, b = sorted(rng.sample(range(len(trial)), 2))
+            if rng.random() < 0.5:
+                trial[a], trial[b] = trial[b], trial[a]
+            else:
+                trial.insert(b, trial.pop(a))
+            c = cost(trial)
+            if c <= now or rng.random() < math.exp((now - c) / heat):
+                order, now = trial, c
+                if c < best:
+                    best, best_order = c, order[:]
+            heat *= cool
     order, now = best_order, best
     for a in range(len(order)):                 # then each section where it is best
         for b in range(len(order)):
