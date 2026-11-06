@@ -2815,7 +2815,7 @@ module fes_i386_cpu #(
     // the stage (0 AG to 3 EX, 4 none) of the producer that holds D's address
     // operand: the youngest late producer of its base or index, else the
     // youngest early one (a late scaled index, or two late operands).
-    logic [3:0] prof_dcls;
+    logic [4:0] prof_dcls;
     logic       prof_d32, prof_dimm, prof_ds1, prof_ds2;
     logic [2:0] prof_agi;
     // The youngest producer of GPR r among AG to EX (0 to 3; 4 none), and
@@ -2849,28 +2849,31 @@ module fes_i386_cpu #(
     assign prof_d32 = u.size == fes_i386_pkg::SIZE_32;
     assign prof_dimm = !u.src2.valid;
     always_comb begin
-        prof_dcls = 4'd13;  // other
+        prof_dcls = 5'd13;  // other
         case (u.cls)
             fes_i386_pkg::UOP_ALU:
-                if (lea) prof_dcls = lea_early ? 4'd14 : 4'd4;
-                else if (u.sp_write && prof_ld) prof_dcls = 4'd8;
+                if (lea) prof_dcls = lea_early ? 5'd14 : 5'd4;
+                else if (u.sp_write && prof_ld) prof_dcls = 5'd8;
                 else if (prof_ld) prof_dcls = u.op == 5'(fes_i386_pkg::ALU_MOV) || u.op == 5'(fes_i386_pkg::ALU_MOVZX)
-                                         || u.op == 5'(fes_i386_pkg::ALU_MOVSX) ? 4'd6 : 4'd7;
-                else if (mem) prof_dcls = 4'd13;
+                                         || u.op == 5'(fes_i386_pkg::ALU_MOVSX) ? 5'd6 : 5'd7;
+                else if (mem) prof_dcls = 5'd13;
+                else if ((u.op == 5'(fes_i386_pkg::ALU_XOR) || u.op == 5'(fes_i386_pkg::ALU_SUB)) && u.src2.valid
+                         && u.src2.space == u.src1.space && u.src2.index == u.src1.index && u.src2.hi8 == u.src1.hi8)
+                    prof_dcls = 5'd17;  // XOR or SUB of a register with itself: zero
                 else case (u.op)
-                    5'(fes_i386_pkg::ALU_MOV): prof_dcls = 4'd1;
-                    5'(fes_i386_pkg::ALU_ADD), 5'(fes_i386_pkg::ALU_ADC), 5'(fes_i386_pkg::ALU_SUB),
-                    5'(fes_i386_pkg::ALU_SBB), 5'(fes_i386_pkg::ALU_INC), 5'(fes_i386_pkg::ALU_DEC),
-                    5'(fes_i386_pkg::ALU_NEG): prof_dcls = 4'd2;
+                    5'(fes_i386_pkg::ALU_MOV): prof_dcls = 5'd1;
+                    5'(fes_i386_pkg::ALU_ADD), 5'(fes_i386_pkg::ALU_INC), 5'(fes_i386_pkg::ALU_DEC): prof_dcls = 5'd2;
+                    5'(fes_i386_pkg::ALU_SUB): prof_dcls = 5'd15;
+                    5'(fes_i386_pkg::ALU_ADC), 5'(fes_i386_pkg::ALU_SBB), 5'(fes_i386_pkg::ALU_NEG): prof_dcls = 5'd16;
                     5'(fes_i386_pkg::ALU_AND), 5'(fes_i386_pkg::ALU_OR), 5'(fes_i386_pkg::ALU_XOR),
-                    5'(fes_i386_pkg::ALU_NOT): prof_dcls = 4'd3;
-                    5'(fes_i386_pkg::ALU_MOVZX), 5'(fes_i386_pkg::ALU_MOVSX): prof_dcls = 4'd5;
-                    default: prof_dcls = 4'd11;
+                    5'(fes_i386_pkg::ALU_NOT): prof_dcls = 5'd3;
+                    5'(fes_i386_pkg::ALU_MOVZX), 5'(fes_i386_pkg::ALU_MOVSX): prof_dcls = 5'd5;
+                    default: prof_dcls = 5'd11;
                 endcase
-            fes_i386_pkg::UOP_SHIFT: prof_dcls = 4'd9;
-            fes_i386_pkg::UOP_MUL, fes_i386_pkg::UOP_DIV: prof_dcls = 4'd10;
-            fes_i386_pkg::UOP_BRANCH: prof_dcls = 4'd12;
-            default: prof_dcls = prof_ld ? 4'd6 : 4'd13;
+            fes_i386_pkg::UOP_SHIFT: prof_dcls = 5'd9;
+            fes_i386_pkg::UOP_MUL, fes_i386_pkg::UOP_DIV: prof_dcls = 5'd10;
+            fes_i386_pkg::UOP_BRANCH: prof_dcls = 5'd12;
+            default: prof_dcls = prof_ld ? 5'd6 : 5'd13;
         endcase
     end
 

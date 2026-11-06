@@ -144,7 +144,7 @@ int main(int, char **argv) {
         CpuProfile p;
         Cpu cpu;
         R(mem_valid) = true; R(dc_valid) = true;
-        R(issue) = true; R(prof_dcls) = CpuProfile::A_ADDSUB; R(prof_dimm) = true;
+        R(issue) = true; R(prof_dcls) = CpuProfile::A_ADD; R(prof_dimm) = true;
         assert(bucket_of(p, cpu) == CpuProfile::ISSUE_MORE);
         R(issue) = false; R(prof_dcls) = 0; R(prof_dimm) = false;
         R(addr_use) = true; R(lea_stall) = true; R(prof_agi) = 0;
@@ -157,8 +157,8 @@ int main(int, char **argv) {
         assert(bucket_of(p, cpu) == CpuProfile::AGI);  // in M2
         R(prof_agi) = 4;
         assert(bucket_of(p, cpu) == CpuProfile::AGI);  // no producer
-        const auto &a = p.agi[CpuProfile::A_ADDSUB];
-        assert(a.stage[0] == 1 && a.stage[1] == 1 && a.stage[2] == 1 && a.ready == 3 && a.imm == 3);
+        const auto &a = p.agi[CpuProfile::A_ADD];
+        assert(a.stage[0] == 1 && a.stage[1] == 1 && a.stage[2] == 1 && a.ready == 3 && a.imm == 3 && a.w32 == 0);
         assert(p.agi[CpuProfile::A_NONE].stage[4] == 1);
         // A 32-bit MOV does not wait for its destination's old value; a
         // 16-bit one, or a source that is late, is not ready.
@@ -328,13 +328,13 @@ class WindowTest(unittest.TestCase):
         self.assertIn('interlock: AGI', profile.report(w))
 
     def test_the_agi_split_sums_to_agi_and_counts_early_alu_producers(self):
-        a1 = 'A 1.0 addsub ag=0 m1=0 m2=0 ex=0 none=0 ready=0 imm=0\nA 1.0 load ag=0 m1=0 m2=0 ex=0 none=0 ready=0 imm=0\n'
-        a2 = 'A 2.0 addsub ag=30 m1=5 m2=0 ex=0 none=0 ready=32 imm=20\nA 2.0 load ag=10 m1=5 m2=0 ex=0 none=0 ready=15 imm=0\n'
+        a1 = 'A 1.0 add ag=0 m1=0 m2=0 ex=0 none=0 ready=0 imm=0\nA 1.0 load ag=0 m1=0 m2=0 ex=0 none=0 ready=0 imm=0\n'
+        a2 = 'A 2.0 add ag=30 m1=5 m2=0 ex=0 none=0 ready=32 imm=20\nA 2.0 load ag=10 m1=5 m2=0 ex=0 none=0 ready=15 imm=0\n'
         text = snapshot(1.0, 0, 0, {}) + a1 + snapshot(2.0, 50, 50, {'agi': 50}) + a2
         w = profile.window(profile.load(text.splitlines()))
         self.assertEqual(w['agi']['clocks'], 50)
         self.assertEqual(w['agi']['early'], 32)  # a load's ready does not count
-        self.assertEqual(w['agi']['by_class']['addsub']['clocks'], 35)
+        self.assertEqual(w['agi']['by_class']['add']['clocks'], 35)
         self.assertIn('early ALU would run', profile.report(w))
         bad = text.replace('m1=5 m2=0 ex=0 none=0 ready=15', 'm1=6 m2=0 ex=0 none=0 ready=15')
         with self.assertRaises(profile.ProfileError):

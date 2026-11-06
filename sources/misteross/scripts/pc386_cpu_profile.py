@@ -155,9 +155,9 @@ def prediction(t: dict) -> dict:
 
 
 # The producer classes an early ALU at AG would execute: the register and
-# immediate forms of MOV, ADD and its kin, the logic ops, a 16-bit LEA and
-# MOVZX/MOVSX (cpu_profile.h AgiClass).
-EARLY = ('mov', 'addsub', 'logic', 'lea16', 'ext')
+# immediate forms of MOV, ADD, SUB, ADC and their kin, the logic ops, a
+# 16-bit LEA, MOVZX/MOVSX and zeroing (cpu_profile.h AgiClass).
+EARLY = ('mov', 'add', 'sub', 'adc', 'logic', 'lea16', 'ext', 'zero')
 STAGES = ('ag', 'm1', 'm2', 'ex', 'none')
 
 
@@ -167,7 +167,7 @@ def agi_split(agi: dict, total: int) -> dict:
     and its register sources would be ready there), so those an early ALU
     could save at most."""
     rows = {k: {'clocks': sum(v[s] for s in STAGES), **{s: v[s] for s in STAGES}, 'ready': v['ready'],
-                'imm': v['imm']} for k, v in agi.items()}
+                'imm': v['imm'], 'w32': v.get('w32', 0)} for k, v in agi.items()}
     rows = {k: v for k, v in rows.items() if v['clocks']}
     if rows and sum(v['clocks'] for v in rows.values()) != total:
         raise ProfileError(f'the AGI split holds {sum(v["clocks"] for v in rows.values())} clocks, {total} in AGI')
@@ -199,10 +199,10 @@ def report(w: dict) -> str:
         out.append(f'\nAGI {a["clocks"]:,} clocks, {a["early"]:,} from producers an early ALU would run '
                    f'({100 * a["early"] / max(a["clocks"], 1):.1f}%)')
         out.append(f'{"producer":10s} {"clocks":>11s} ' + ' '.join(f'{s:>9s}' for s in STAGES)
-                   + f' {"ready":>9s} {"imm":>9s}')
+                   + f' {"ready":>9s} {"imm":>9s} {"w32":>9s}')
         for k, v in sorted(a['by_class'].items(), key=lambda kv: -kv[1]['clocks']):
             out.append(f'{k:10s} {v["clocks"]:11,d} ' + ' '.join(f'{v[s]:9,d}' for s in STAGES)
-                       + f' {v["ready"]:9,d} {v["imm"]:9,d}')
+                       + f' {v["ready"]:9,d} {v["imm"]:9,d} {v["w32"]:9,d}')
     out.append(f'\n{"redirects":10s} {"taken":>11s} {"clocks":>13s} {"per taken":>9s}')
     for k, v in sorted(w['redirects_by_class'].items(), key=lambda kv: -kv[1]['clocks']):
         out.append(f'{k:10s} {v["taken"]:11,d} {v["clocks"]:13,d} {v["per_taken"]:9.2f}')

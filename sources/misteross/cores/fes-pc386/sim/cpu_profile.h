@@ -96,23 +96,25 @@ struct CpuProfile {
         "loop", "jcxz", "rep_str", "str", "io", "mul", "div", "shift", "pushpop", "segload", "mem_op", "other",
         "delivery"};
     // The producer classes of fes_i386_cpu prof_dcls: register and immediate
-    // forms (no memory operand) of MOV, ADD/ADC/SUB/SBB/INC/DEC/NEG,
-    // AND/OR/XOR/NOT, LEA at a 16-bit operand size, MOVZX/MOVSX; a load
-    // (MOV, MOVZX or MOVSX from memory), an ALU op with a memory source, POP;
-    // shifts, multiply and divide, the other ALU ops, branches (LOOP's ECX),
-    // everything else, and a 32-bit LEA (already early).
+    // forms (no memory operand) of MOV, ADD/INC/DEC, AND/OR/XOR/NOT, LEA at a
+    // 16-bit operand size, MOVZX/MOVSX; a load (MOV, MOVZX or MOVSX from
+    // memory), an ALU op with a memory source, POP; shifts, multiply and
+    // divide, the other ALU ops, branches (LOOP's ECX), everything else, a
+    // 32-bit LEA (already early); SUB, ADC/SBB/NEG, and XOR or SUB of a
+    // register with itself (zero).
     enum AgiClass {
-        A_NONE, A_MOV, A_ADDSUB, A_LOGIC, A_LEA16, A_EXT, A_LOAD, A_LOAD_OP, A_POP, A_SHIFT, A_MULDIV,
-        A_ALU_OTHER, A_BRANCH, A_OTHER, A_LEA32, NAGI
+        A_NONE, A_MOV, A_ADD, A_LOGIC, A_LEA16, A_EXT, A_LOAD, A_LOAD_OP, A_POP, A_SHIFT, A_MULDIV,
+        A_ALU_OTHER, A_BRANCH, A_OTHER, A_LEA32, A_SUB, A_ADC, A_ZERO, NAGI
     };
     static constexpr const char *agi_name[NAGI] = {
-        "none", "mov", "addsub", "logic", "lea16", "ext", "load", "load_op", "pop", "shift", "muldiv",
-        "alu_other", "branch", "other", "lea32"};
+        "none", "mov", "add", "logic", "lea16", "ext", "load", "load_op", "pop", "shift", "muldiv",
+        "alu_other", "branch", "other", "lea32", "sub", "adc", "zero"};
     // Per class: AGI clocks by the producer's stage (AG, M1, M2, EX, none),
-    // those whose producer was ready for an early ALU, and those whose
-    // producer took imm as its second operand.
-    struct Agi { uint64_t stage[5] = {}, ready = 0, imm = 0; };
-    struct Shadow { uint8_t cls = A_NONE; bool ready = false, imm = false; };
+    // those whose producer was ready for an early ALU, those whose producer
+    // had no second register source (imm, or a one-operand op), and those
+    // whose producer was ready and wrote 32 bits (w32).
+    struct Agi { uint64_t stage[5] = {}, ready = 0, imm = 0, w32 = 0; };
+    struct Shadow { uint8_t cls = A_NONE; bool ready = false, imm = false, w32 = false; };
     struct Counts { uint64_t n = 0, taken = 0, own = 0, next = 0; };
     struct Site { uint64_t n = 0, cycles = 0; uint8_t c = 0; };
 
@@ -197,6 +199,7 @@ struct CpuProfile {
             ++a.stage[at];
             a.ready += sh.ready;
             a.imm += sh.imm;
+            a.w32 += sh.ready && sh.w32;
         }
         else if ((S(reads_seg) && S(seg_hazard)) || (S(mem) && S(mseg_hazard))) b = SEG;
         else if (S(store_hazard)) b = STLD;
@@ -216,6 +219,7 @@ struct CpuProfile {
             if (S(issue)) {
                 d.cls = uint8_t(S(prof_dcls));
                 d.imm = S(prof_dimm);
+                d.w32 = S(prof_d32);
                 // A 32-bit MOV does not read its destination (src1).
                 d.ready = !S(prof_ds2) && (!S(prof_ds1) || (d.cls == A_MOV && S(prof_d32)));
             }
@@ -355,11 +359,11 @@ struct CpuProfile {
         for (int b = 0; b < NBUCKET; ++b) std::fprintf(out, " %s=%llu", bucket_name[b], (unsigned long long)bucket[b]);
         std::fprintf(out, "\n");
         for (int c = 0; c < NAGI; ++c)
-            std::fprintf(out, "A %.6f %s ag=%llu m1=%llu m2=%llu ex=%llu none=%llu ready=%llu imm=%llu\n", seconds,
+            std::fprintf(out, "A %.6f %s ag=%llu m1=%llu m2=%llu ex=%llu none=%llu ready=%llu imm=%llu w32=%llu\n", seconds,
                          agi_name[c], (unsigned long long)agi[c].stage[0], (unsigned long long)agi[c].stage[1],
                          (unsigned long long)agi[c].stage[2], (unsigned long long)agi[c].stage[3],
                          (unsigned long long)agi[c].stage[4], (unsigned long long)agi[c].ready,
-                         (unsigned long long)agi[c].imm);
+                         (unsigned long long)agi[c].imm, (unsigned long long)agi[c].w32);
         for (int c = 0; c < NCLASS; ++c)
             std::fprintf(out, "C %.6f %s n=%llu taken=%llu own=%llu next=%llu\n", seconds, class_name[c],
                          (unsigned long long)cls[c].n, (unsigned long long)cls[c].taken,
