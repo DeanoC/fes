@@ -71,6 +71,12 @@ func Run(policy runtimeadmission.Policy, cases []Case, read func(string) ([]byte
 	if err != nil {
 		return err
 	}
+	// This runner-owned inventory describes the model's available drivers. It
+	// remains independent of each package and the per-package C++ decisions.
+	available, err := runtimeadmission.NewRuntimeCompatibility(compatibility, policy.Drivers)
+	if err != nil {
+		return err
+	}
 	if len(cases) == 0 || len(cases) > 512 {
 		return fmt.Errorf("invalid admission case count")
 	}
@@ -108,6 +114,11 @@ func Run(policy runtimeadmission.Policy, cases []Case, read func(string) ([]byte
 		nativeCode := runtimeadmission.ErrorCode(compatibility.CheckArchive(archive, test.PackageID))
 		if nativeCode != test.RuntimeCode {
 			return fmt.Errorf("%s: native compatibility %s differs from C++ runtime %s", test.Name, nativeCode, test.RuntimeCode)
+		}
+		if nativeCode == "none" {
+			if err := available.CheckArchive(archive, test.PackageID); err != nil {
+				return fmt.Errorf("%s: compatible fixture lacks a platform driver: %w", test.Name, err)
+			}
 		}
 		// Keep an outstanding frame and capture the full current owner's state.
 		frame, err := c.BeginFrame()

@@ -1,8 +1,9 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 
-// Package runtimeadmission binds retained FES archives to a restricted software
-// backend. Policy is a trusted test input produced by the existing C++ runtime
-// compatibility checker, not a signature, hardware capability or DE25 driver.
+// Package runtimeadmission checks retained FES archive contracts against a
+// platform registry and driver inventory. The separate model Gate also requires
+// trusted test policy produced by the C++ checker. Neither supplies physical
+// activation, boot ownership or a DE25 driver registration.
 package runtimeadmission
 
 import (

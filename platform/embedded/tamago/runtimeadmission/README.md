@@ -23,6 +23,25 @@ Compatibility supplies no boot proof, physical programming profile, live
 identity, bridge operation, input/display grant or DMA reservation. It has no
 activation method. A compatible retained package is one admission prerequisite.
 
+`NewRuntimeCompatibility(registry, drivers)` additionally requires the exact
+platform driver and interface inventory. The registry and drivers are separate
+trusted integration inputs, copied at construction; package declarations and
+per-package policy decisions cannot populate them. Each selected profile/ABI
+minor must provide every required interface at its exact implemented version.
+Interfaces from another driver or ABI minor cannot fill a gap. Unknown optional
+interfaces remain optional; semantic dependencies still use the existing FES
+checker. A matching driver cannot override a diagnostic-only registry entry.
+
+The contained Nano `ProgramLoader` now uses the same `DriverSupport` check
+before storage containment. Its compiled inventory provides only embedded
+control and, on its explicit ROM personality, the held-ROM interface. This
+replaces its local interface allowlist without enabling ordinary Nano profiles.
+The admission diagnostic exercises the combined normal check for compatible
+archives and retained ROM cases before its separate model lifecycle. Its
+runner-owned inventory remains model evidence. A normal Nano integration still
+needs an ordinary producer/profile, the corresponding qualified drivers and
+trusted boot/firmware handoff; this API supplies none of those capabilities.
+
 The native `admission` diagnostic checks each retained package with this Go
 implementation and compares its result with the actual C++ oracle before
 running the existing model lifecycle. Linked ROM diagnostics check compatibility

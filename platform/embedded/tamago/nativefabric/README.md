@@ -66,6 +66,11 @@ the archive's package/build/target/ABI. Control addresses, stop policy and
 computer capabilities remain fixed by compiled maps. Required unsupported
 interfaces and HPS masters reject before SD containment. Metadata is an unsigned
 compatibility assertion; it does not establish live boot facts or authentication.
+The interface check now uses `runtimeadmission.DriverSupport` with an immutable
+inventory constructed by the loader from its compiled personality. Control-only
+loads cannot require ROM, video or input interfaces absent from that inventory.
+This diagnostic check remains distinct from `RuntimeCompatibility`, which also
+requires the normal FES ABI semantics and an independent profile registry.
 
 Preflight derives whole/chunk digests from the selected archive, rather than
 requiring its package ID, build ID, core ID or payload in the boot image.

@@ -43,6 +43,14 @@ func RunLinked(policy runtimeadmission.Policy, cases []LinkedCase, read func(str
 	if err != nil {
 		return err
 	}
+	registry, err := runtimeadmission.NewDE10Compatibility()
+	if err != nil {
+		return err
+	}
+	available, err := runtimeadmission.NewRuntimeCompatibility(registry, policy.Drivers)
+	if err != nil {
+		return err
+	}
 	if len(cases) == 0 || len(cases) > 16 {
 		return fmt.Errorf("invalid linked case count")
 	}
@@ -63,13 +71,13 @@ func RunLinked(policy runtimeadmission.Policy, cases []LinkedCase, read func(str
 		return err
 	}
 	for _, test := range cases {
-		if err = linkedCase(gate, c, &now, test, read, write, report); err != nil {
+		if err = linkedCase(gate, available, c, &now, test, read, write, report); err != nil {
 			return fmt.Errorf("%s: %w", test.Name, err)
 		}
 	}
 	return nil
 }
-func linkedCase(gate *runtimeadmission.Gate, c *fabricmodel.Controller, now *time.Duration, test LinkedCase, read func(string) ([]byte, error), write func(string, []byte) error, report func(LinkedResult)) (err error) {
+func linkedCase(gate *runtimeadmission.Gate, compatibility *runtimeadmission.RuntimeCompatibility, c *fabricmodel.Controller, now *time.Duration, test LinkedCase, read func(string) ([]byte, error), write func(string, []byte) error, report func(LinkedResult)) (err error) {
 	ctx := context.Background()
 	body, err := read(test.Path)
 	if err != nil {
@@ -81,10 +89,6 @@ func linkedCase(gate *runtimeadmission.Gate, c *fabricmodel.Controller, now *tim
 	}
 	if archive.Inspection().PackageID != test.PackageID {
 		return fmt.Errorf("package identity mismatch")
-	}
-	compatibility, err := runtimeadmission.NewDE10Compatibility()
-	if err != nil {
-		return err
 	}
 	if err = compatibility.CheckArchive(archive, test.PackageID); err != nil {
 		return fmt.Errorf("native linked package compatibility: %w", err)

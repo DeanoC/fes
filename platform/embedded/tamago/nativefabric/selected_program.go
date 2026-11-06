@@ -14,6 +14,7 @@ import (
 	"github.com/DeanoC/fes/platform/embedded/tamago/computer"
 	"github.com/DeanoC/fes/platform/embedded/tamago/fabricmodel"
 	"github.com/DeanoC/fes/platform/embedded/tamago/packagestore"
+	"github.com/DeanoC/fes/platform/embedded/tamago/runtimeadmission"
 )
 
 // These private records describe compatibility assertions, not authentication
@@ -106,6 +107,7 @@ type ProgramLoader struct {
 	configuration coldConfigurationMap
 	control       hpsControlMap
 	computer      computerMap
+	support       *runtimeadmission.DriverSupport
 }
 
 func NewProgramLoader(boot *HPSContextVerifier, compiledSource, control, configuration, computerRaw []byte) (*ProgramLoader, error) {
@@ -143,7 +145,17 @@ func NewProgramLoader(boot *HPSContextVerifier, compiledSource, control, configu
 			return nil, errors.New("native fabric: loader lacks its compiled held-ROM resources")
 		}
 	}
-	return &ProgramLoader{boot, p, config, ctrl, comp}, nil
+	interfaces := []runtimeadmission.Contract{{ID: "fes.embedded.control", Major: 1}}
+	if boot.rom != nil {
+		interfaces = append(interfaces, runtimeadmission.Contract{ID: "fes.embedded.rom", Major: 1})
+	}
+	support, err := runtimeadmission.NewDriverSupport(runtimeadmission.Target{Platform: p.Platform, Device: p.Device}, []runtimeadmission.Driver{{
+		Profile: p.ProgrammingProfile, ABI: runtimeadmission.Contract{ID: p.ABI, Major: int64(p.Major), Minor: int64(p.Minor)}, Interfaces: interfaces,
+	}})
+	if err != nil {
+		return nil, err
+	}
+	return &ProgramLoader{boot: boot, platform: p, configuration: config, control: ctrl, computer: comp, support: support}, nil
 }
 
 // selectedProgram is private, fully retained and never modified after preflight.
@@ -199,10 +211,8 @@ func (l *ProgramLoader) Preflight(selection *packagestore.Selection) (*StoredCon
 	if _, err := BuildWords(d.Build.ID); err != nil {
 		return nil, err
 	}
-	for _, iface := range d.Interfaces {
-		if iface.Required && ((iface.ID != "fes.embedded.control" && (!romMode || iface.ID != "fes.embedded.rom")) || iface.Major != 1 || iface.Minor != 0) {
-			return nil, errors.New("native fabric: selected package requires an unsupported interface")
-		}
+	if err := l.support.CheckArchive(selection.Archive(), i.PackageID); err != nil {
+		return nil, err
 	}
 	id := fabricmodel.PackageIdentity{PackageID: i.PackageID, BuildID: d.Build.ID, ProgrammedSHA256: d.Payload.SHA256,
 		CoreID: d.Core.ID, Platform: d.Target.Platform, Device: d.Target.Device, ProgrammingProfile: d.Target.ProgrammingProfile,

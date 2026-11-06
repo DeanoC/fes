@@ -19,7 +19,42 @@ import (
 
 	"github.com/DeanoC/FogCast/corepackage"
 	"github.com/DeanoC/fes/platform/embedded/tamago/packagestore"
+	"github.com/DeanoC/fes/platform/embedded/tamago/runtimeadmission"
 )
+
+func TestProgramLoaderUsesCompiledDriverInventoryBeforeContainment(t *testing.T) {
+	for _, test := range []struct {
+		name, iface string
+		required    bool
+		minor       int
+		code        string
+	}{
+		{"control", "fes.embedded.control", true, 0, "none"},
+		{"optional-video", "fes.video.fixed-720p60", false, 0, "none"},
+		{"required-video", "fes.video.fixed-720p60", true, 0, "unsupported_interface"},
+		{"required-ROM-on-non-ROM-loader", "fes.embedded.rom", true, 0, "unsupported_interface"},
+		{"new-control-version", "fes.embedded.control", true, 1, "unsupported_interface"},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			loader, cpu, lease, files, store := programLoaderFixture(t)
+			req, _, _ := addProgram(t, loader, files, 0, func(s string) string {
+				return strings.Replace(s, "interfaces = []\n", "", 1) + fmt.Sprintf("\n[[interfaces]]\nid = %q\nmajor = 1\nminor = %d\nrequired = %t\n", test.iface, test.minor, test.required)
+			})
+			selection, err := store.Retain(context.Background(), req)
+			if err != nil {
+				t.Fatal(err)
+			}
+			calls, before := cpu.calls, lease.r
+			plan, err := loader.Preflight(selection)
+			if got := runtimeadmission.ErrorCode(err); got != test.code {
+				t.Fatalf("got %s want %s: %v", got, test.code, err)
+			}
+			if (plan != nil) != (test.code == "none") || cpu.calls != calls || lease.r != before || !lease.r.Active {
+				t.Fatal("preflight touched firmware/storage containment or returned a partial plan")
+			}
+		})
+	}
+}
 
 func programJSON(t *testing.T, value any) []byte {
 	t.Helper()

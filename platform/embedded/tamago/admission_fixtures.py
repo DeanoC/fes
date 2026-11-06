@@ -124,7 +124,11 @@ def prepare(root, output, checked):
         if decision["package_id"] != case["package_id"]:
             raise ValueError("C++ oracle did not verify the fixture identity")
         decisions[case["package_id"]] = decision
-        expected = case.get("expected", "unsupported_abi" if case["format"] != 2 or case["name"].endswith("valid-unknown-abi") else "none")
+        expected = case.get("expected", decision["code"])
+        # Target/profile/ABI rejection precedes the model's raw-ROM guard.
+        # Only an otherwise compatible raw ROM needs the missing-link result.
+        if expected == "none" and case["format"] != 2:
+            expected = "unsupported_abi"
         if case in linked_cases:
             if decision["code"] != "none":
                 raise ValueError("real ROM-link fixture rejected by runtime compatibility")
