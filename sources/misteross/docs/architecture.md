@@ -4416,3 +4416,5 @@ manifest and immutable payload bytes. Its sidecar retains the exporter source
 closure and both fits' timing evidence. Missing or mismatched static-review
 receipts block publication. This build-host command programs no hardware; target-side
 composition continues through the existing Go reader and two-image plan.
+The format5 package declares optional `fes.expansion.zx81-bus` 2.0 so the host
+can validate and import either persona through the normal expansion API.

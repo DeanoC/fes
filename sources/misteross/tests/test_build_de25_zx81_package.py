@@ -117,6 +117,8 @@ class ZX81ProducerTests(unittest.TestCase):
         self.assertEqual(fields['build']['id'], build_identity(record))
         self.assertEqual(fields['static_expansion']['control_build_id'], '1' * 32)
         self.assertEqual(fields['target']['programming_profile'], static.PROGRAMMING_PROFILE)
+        self.assertEqual([i for i in fields['interfaces'] if i['id'] == 'fes.expansion.zx81-bus'],
+                         [dict(id='fes.expansion.zx81-bus', major=2, minor=0, required=False)])
         shell['root_qdb_sha256'] = '6' * 64
         second = static.manifest(record, base, persona, {'shell': shell})
         self.assertNotEqual(first, second)

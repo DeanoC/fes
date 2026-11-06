@@ -126,6 +126,8 @@ def manifest(record, payload, persona, descriptor):
     fields['format'] = 5
     fields['target']['programming_profile'] = PROGRAMMING_PROFILE
     fields['core']['description'] = 'Standard DE25 ZX81 with static expansion and a default empty persona'
+    fields['interfaces'].append(dict(id='fes.expansion.zx81-bus', major=2, minor=0,
+                                     required=False))
     shell = descriptor['shell']
     fields['static_expansion'] = dict(file='persona.rbf', size=persona.stat().st_size,
         sha256=standard.sha(persona), control_build_id=shell['control_build_id'],
