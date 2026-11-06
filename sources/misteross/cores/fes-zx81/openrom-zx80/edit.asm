@@ -9,8 +9,7 @@ edit:   ld sp,(ERR_SP)
         call eline_reset
         call edit_line
         ld hl,(E_LINE)
-        ld (CH_ADD),hl
-        rst 0x18
+        call gc_store
         call is_digit
         jr nc,run_cmd
         call parse_uint
@@ -47,18 +46,17 @@ eline_reset:
 edit_line:
 .draw:  call check_eline
         call display
-        ld (iy+Y_FLAGX),0
+        ld (iy+Y_FLAGX),1 << X_DROP     ; a key that does not fit is lost
 .key:   call wait_key
         call decode_key
         cp C_NL
         jr z,.enter
-        cp K_UP
-        jr c,.ins
-        cp K_RUBOUT + 1
+        sub K_UP
+        cp K_RUBOUT - K_UP + 1
         jr nc,.ins
         ld hl,.draw
         push hl
-        sub K_UP
+        or a
         jr z,.up
         dec a
         jr z,.down
@@ -108,22 +106,24 @@ edit_line:
         ret
 .find:  ld bc,(E_PPC)
         jr find_line
-.ins:   call edit_insert
+.ins:   add a,K_UP
+        call edit_insert
         jr .draw
 .enter: ld hl,(X_PTR)
         ld a,h
         or l
-        ret z
-        jr .key                 ; not yet a statement
+        jr nz,.key              ; not yet a statement
+        ld (iy+Y_FLAGX),h       ; running: no room is report 4 again
+        ret
 
 ; Insert A at the cursor (room is made after it, so E_LINE itself never
-; moves). No room: nothing happens.
+; moves). No room: while editing (X_DROP) nothing happens.
 edit_insert:
         push af
         ld hl,(P_PTR)
         inc hl
         ld bc,1
-        call room_drop
+        call make_room
         jr c,.no
         dec hl
         ld a,(hl)
@@ -136,13 +136,6 @@ edit_insert:
         ld (P_PTR),hl
         ret
 .no:    pop af
-        ret
-
-; make_room, but carry instead of a report when there is no room.
-room_drop:
-        set X_DROP,(iy+Y_FLAGX)
-        call make_room
-        res X_DROP,(iy+Y_FLAGX)
         ret
 
 ; EDIT: the current line (or the next, or the last) replaces the edit
@@ -162,7 +155,7 @@ edit_copy:
         push de
         push bc
         ld hl,(P_PTR)
-        call room_drop
+        call make_room
         pop bc
         pop de
         ret c
@@ -200,20 +193,16 @@ text_len:
 decode_key:
         ld e,a
         ld d,0
-        ld hl,key_shift - 40
-        cp 40
-        jr nc,.t
-        ld hl,key_plain
+        ld hl,key_plain         ; key_shift follows it
         add hl,de
+        cp 40
         ld a,(hl)
+        ret nc                  ; shifted
         bit F_KMODE,(iy+Y_FLAGS)
         ret z
         call is_letter          ; K cursor: letters type keywords, in order
         ret nc                  ; from LIST at A
         add a,T_LIST - C_A
-        ret
-.t:     add hl,de
-        ld a,(hl)
         ret
 
 ; ---------------------------------------------------------------------
