@@ -463,7 +463,8 @@ class Assembler:
                     biggest[i] = max(n, biggest.get(i, 0))
                 placed = dict(self.float_at)
                 actual = dict(self.float_size)
-                self.float_size = dict(biggest)          # room for the largest seen
+                if strategy != 'order':                 # (which packs them as they are)
+                    self.float_size = dict(biggest)      # room for the largest seen
                 self.place_floats(size)
                 self.float_size = actual
                 if placed == self.float_at and self.consistent(size):
