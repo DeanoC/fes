@@ -48,3 +48,23 @@ There is no flash write, ordinary package admission, HDMI or native Ethernet
 acceptance, or DE10-equivalent readiness claim. Hardware results must be
 recorded separately; frozen procedures and software checks do not prove a boot
 or successful ROM load.
+
+
+The single hardware attempt on operator `1bbc124b9` stopped at the matched native
+prompt timeout. Recovery, all eight uploads and fresh SD rereads, programming
+and SPL FIT verification passed. SPL's final ATF descriptor binds the corrected
+BL31 SHA `e0de8d7ce5454563f3c5d936ebbcd801fda4f56031647c8194606591c583ef34`.
+No vendor secure startup followed and `fesboot` was never sent. The trace still
+does not distinguish SPL's final exclusion from the early EL3 guard. The real
+producer controls remain useful off-board evidence; they did not prove the
+physical entry path. There was no native startup, ROM completion, Run or return.
+No retry was made. Independent cleanup verified 15 MHz, exact USB permissions,
+the private service stopped and a free UART. CPU/FPGA halt is not independently
+proved; retain the claim and spare card. The [physical receipt](physical-result.json)
+binds the raw bytes, results and source identities.
+
+Next add failure-only SPL allocation observations and bounded early EL3
+checkpoints. Preserve the final one-shot guard and its no-stack/call success
+path, all existing live checks and ROM limits. Another silent handoff timeout
+on this same input would add no evidence; keep it fused and prepare a separately
+validated diagnostic build.
