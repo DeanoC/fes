@@ -19,8 +19,6 @@ put_char:
         push hl
         push de
         push bc
-        bit X_STR,(iy+Y_FLAGX)
-        jr nz,.ws
         bit F_EDIT,(iy+Y_FLAGS)
         jr nz,.ed
         push af
@@ -37,8 +35,6 @@ put_char:
         pop de
         pop hl
         ret
-.ws:    call ws_add
-        jr .out
 .ed:    call edit_insert
         jr .out
 

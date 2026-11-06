@@ -148,10 +148,8 @@ edit_copy:
         res F_EDIT,(iy+Y_FLAGS)
         call text_len
         push de
-        push bc
         ld hl,(P_PTR)
-        call make_room
-        pop bc
+        call make_room          ; (keeps BC, HL)
         pop de
         ret c
         push hl
@@ -419,7 +417,6 @@ line_before:
         ld d,b
         ld e,c
         pop hl
-        and a
         ret
 .none:  pop hl
         scf

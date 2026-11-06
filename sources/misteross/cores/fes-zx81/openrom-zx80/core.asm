@@ -150,15 +150,6 @@ ptr_list:
         db DF_EA & 0xff, DF_END & 0xff, X_PTR & 0xff, CH_ADD & 0xff
         db DEST & 0xff, 0
 
-; Add byte A to a string being built at the end of the workspace.
-ws_add: ld hl,(D_FILE)
-        ld bc,1
-        push af
-        call make_room
-        pop af
-        ld (hl),a
-        ret
-
 ; Clear temporary strings: the workspace after the edit line.
 temp_clear:
         ld hl,(E_LINE)

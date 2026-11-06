@@ -413,18 +413,26 @@ fn_usr: call .go
         ret
 .go:    jp (hl)
 fn_chr: ld a,l
-        ld hl,(D_FILE)
-        push hl
-        call ws_add
+        call str_open
+        call put_char
         jr fn_str.q
-fn_str: ld de,(D_FILE)
-        push de
-        set X_STR,(iy+Y_FLAGX)
+fn_str: call str_open
         call print_num
-        res X_STR,(iy+Y_FLAGX)
 .q:     ld a,C_QUOTE
-        call ws_add
-        pop hl
+        call put_char
+        res F_EDIT,(iy+Y_FLAGS)
+        ld hl,(P_PTR)           ; the display file starts after it
+        ld de,(D_FILE)          ; the string
+        ld (D_FILE),hl
+        ex de,hl
+        ret
+
+; Output goes in at D_FILE (through P_PTR, as EDIT types a line in): a new
+; string at the end of the workspace.
+str_open:
+        ld de,(D_FILE)
+        ld (P_PTR),de
+        set F_EDIT,(iy+Y_FLAGS)
         ret
 fn_tl:  ld a,(hl)
         dec a                   ; ""

@@ -120,8 +120,7 @@ wait_key:
         call frame
         ld hl,(LAST_K)
         ld (LAST_K),de
-        and a
-        sbc hl,de
+        rst 0x28
         jr z,wait_key           ; unchanged: same time every frame
         call key_scan
         inc a

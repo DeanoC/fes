@@ -34,7 +34,7 @@ LAST_K   equ RESULT
 ; FLAGS bits
 F_SPACE  equ 0          ; a keyword's trailing space was just printed
 F_INPUT  equ 1          ; INPUT is collecting a line
-F_EDIT   equ 2          ; characters are typed into the edit line (EDIT)
+F_EDIT   equ 2          ; characters go in at P_PTR (EDIT, STR$, CHR$)
 F_KMODE  equ 4          ; the cursor shows K
 F_DNUM   equ 5          ; INPUT wants a number (F_NUM bit 6 just above)
 F_NUM    equ 6          ; last expression was numeric
@@ -44,7 +44,6 @@ F_CHECK  equ 7          ; syntax check only
 X_LOWER  equ 0          ; printing to the lower part
 X_DROP   equ 1          ; drop output that does not fit (display build)
 X_FULL   equ 5          ; output was dropped: the part is full
-X_STR    equ 7          ; characters go to a workspace string (STR$)
 
 ; IY-relative offsets (IY is always $4000)
 Y_ERR_NR equ 0x00
