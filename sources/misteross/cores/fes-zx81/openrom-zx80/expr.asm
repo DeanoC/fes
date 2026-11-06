@@ -466,12 +466,12 @@ var_ref:
         cp T_LPAREN
         jr z,.arr
         call run_num
-        ld c,0x60
+        ld c,0x60 ^ 0x20
         jr find_var
 .str:   djnz name_bad
         res F_NUM,(iy+Y_FLAGS)
         call run_only
-        ld bc,0x0180
+        ld bc,0x0180 ^ 0x20
         jr find_var
 .arr:   djnz name_bad
         push hl
@@ -483,14 +483,13 @@ name_bad:
         ld (CH_ADD),hl
         jr syntax_err
 
-; (HL) = a name of length B, C = record type (an integer: $60, $40 used
-; for longer names): DE -> just after the name in its record (value, text,
+; (HL) = a name of length B, C = record type ^ $20 (an integer: $60, $40
+; used for longer names): DE -> just after the name in its record (value, text,
 ; or largest subscript); carry if none. Type $60 also finds a FOR record of
 ; the same letter.
 find_var:
-        ld a,(hl)
-        and 0x1f
-        or c
+        ld a,(hl)               ; the letter is $20 + 0-31
+        xor c
         dec b
         jr z,.one
         and 0xdf                ; longer names: type $40
@@ -577,7 +576,7 @@ var_next:
 elem_addr:
         push hl
         ex de,hl
-        ld bc,0x01a0
+        ld bc,0x01a0 ^ 0x20
         call find_var
         pop hl
         jr c,undefined
@@ -641,11 +640,11 @@ store:  bit F_NUM,(iy+Y_FLAGS)
         inc bc
         call new_var
         pop bc
-        ld a,0x60               ; one letter
+        ld a,0x60 ^ 0x20        ; one letter
         djnz .multi
         call letter_byte
         jr .val
-.multi: ld a,0x40               ; longer: the letters, the last marked
+.multi: ld a,0x40 ^ 0x20        ; longer: the letters, the last marked
         call letter_byte
         ld de,(DEST)
 .mc:    inc de
@@ -681,7 +680,7 @@ store_str:
         call new_var
         pop bc
         pop de
-        ld a,0x80
+        ld a,0x80 ^ 0x20
         call letter_byte
         ex de,hl
         dec bc

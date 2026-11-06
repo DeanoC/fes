@@ -53,15 +53,14 @@ one_letter:
         jr z,syntax_err
         jr gc_store
 
-; (HL) = record type A with DEST's letter; HL + 1. Keeps BC, DE.
+; (HL) = record type A ^ $20 with DEST's letter ($20 + 0-31) in its low
+; bits; HL + 1. Keeps BC, DE.
 letter_byte:
         push de
         ld de,(DEST)
-        push af
-        ld a,(de)
-        and 0x1f
-        pop de
-        or d
+        ex de,hl
+        xor (hl)
+        ex de,hl
         pop de
         ld (hl),a
         inc hl
@@ -334,13 +333,13 @@ st_for: call one_letter
         ex (sp),hl              ; limit under start
         push hl
         ld hl,(DEST)
-        ld bc,0x0160
+        ld bc,0x0160 ^ 0x20
         call find_var           ; any integer of that letter goes
         ex de,hl
         call nc,del_var
         ld bc,7
         call new_var
-        ld a,0xe0
+        ld a,0xe0 ^ 0x20
         call letter_byte
         pop de
         call put_de
@@ -354,7 +353,7 @@ st_next:
         call one_letter
         rst 0x20
         ld hl,(DEST)
-        ld bc,0x01e0
+        ld bc,0x01e0 ^ 0x20
         call find_var
         jr nc,.got
         rst 8
@@ -405,7 +404,7 @@ st_dim: call one_letter
         ld b,h
         ld c,l
         call new_var
-        ld a,0xa0
+        ld a,0xa0 ^ 0x20
         call letter_byte
         pop de
         ld (hl),e
