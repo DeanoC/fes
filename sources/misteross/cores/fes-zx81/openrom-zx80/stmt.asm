@@ -276,13 +276,9 @@ st_let: call dest
         rst 0x30
         db T_EQ
         call expr
-        pop af
+        pop bc                  ; B = the destination's FLAGS
         pop de
-        ld c,a
-        ld a,(FLAGS)
-        xor c
-        and 1 << F_NUM
-        jr nz,syntax_err
+        call same_type
         rst 0x20
         jr store
 

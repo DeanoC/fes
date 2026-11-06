@@ -67,9 +67,7 @@ eline_reset:
         inc hl
         ld (D_FILE),hl
         ld (hl),C_NL
-        inc hl
-        ld (DF_END),hl
-        ret
+        jr cls_rows
 
 ; Edit until a NEWLINE with no syntax error.
 edit_line:

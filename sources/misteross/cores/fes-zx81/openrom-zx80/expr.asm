@@ -53,10 +53,7 @@ op_prio:                        ; - + * / AND OR ** = > <
         db 6, 6, 8, 7, 3, 2, 10, 5, 5, 5
 
 ; HL = DE <operator C> HL; B = the left value's FLAGS.
-apply:  ld a,(FLAGS)
-        xor b
-        and 1 << F_NUM
-        jr nz,syntax_err        ; mixed types
+apply:  call same_type
         ld a,c
         cp T_EQ
         jr nc,compare
@@ -95,6 +92,14 @@ apply:  ld a,(FLAGS)
         adc hl,de
 .v:     ret po
         jr overflow
+
+; The value is of the type B's F_NUM says.
+same_type:
+        ld a,(FLAGS)
+        xor b
+        and 1 << F_NUM
+        ret z
+        jr syntax_err           ; mixed types
 
 power:  bit 7,h
         jr nz,overflow          ; negative powers
