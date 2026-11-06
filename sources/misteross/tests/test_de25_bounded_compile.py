@@ -21,6 +21,9 @@ class BoundedCompileTests(unittest.TestCase):
         (output/'inputs.json').write_text('{"fes_revision":"host-test","compile_processors":2}')
         (output/'quartus-version.txt').write_text('host-test compiler; no FPGA output')
         (project/'clocks.sdc').write_text('source constraint fixture\n')
+        jtag=project/'ip/debug/altera_avalon_st_jtag_interface.sdc'
+        jtag.parent.mkdir(parents=True)
+        jtag.write_text('# Generated JTAG source fixture\n'+build.timing_sources.COMMAND+'\n')
         tool=root/'compiler';tool.write_text('''#!/usr/bin/env python3
 import json,os,subprocess,sys,time
 from pathlib import Path
@@ -54,6 +57,7 @@ if task=='assembler':
             self.assertEqual(record['parallel_processors'],2)
             self.assertEqual(record['hardware_acceptance'],'not-run')
             self.assertIn('clocks.sdc',record['generated_handoff_and_sdc_sha256'])
+            self.assertEqual(build.timing_sources.verify(project,record['obsolete_jtag_constraints']),record['obsolete_jtag_constraints'])
             for task,row in zip(expected,record['commands']):
                 self.assertEqual(row['argv'][-4:],['-start',task,'-end',task])
                 self.assertEqual(row['returncode'],0)
