@@ -457,17 +457,12 @@ st_print:
         jr print_num
 .tab:   call run_only
 ; Comma: on to column 8, 16 or 24, else the next row.
-tab:    ld a,(iy+Y_COL)
-        cp 2
-        jr c,.row
-        cpl
-        add a,34                ; the column
-        ld b,a
-        or 7
-        inc a
-        cp 32
-        jr nc,.row
-        sub b
+tab:    ld a,(iy+Y_COL)         ; 33 - column
+        cp 10
+        jr c,.row               ; column 24 or more
+        sub 2
+        and 7
+        inc a                   ; spaces to the next multiple of 8
         ld b,a
 .sp:    call space
         djnz .sp

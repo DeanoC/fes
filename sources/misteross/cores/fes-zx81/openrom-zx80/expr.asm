@@ -481,16 +481,16 @@ var_ref:
         ex (sp),hl
         pop de                  ; DE -> after the name
         cp C_DOLLAR
+        jr nz,.n
+        inc de                  ; past the $
+.n:     ld (CH_ADD),de
         jr z,.str
-        ld (CH_ADD),de
         cp T_LPAREN
         jr z,.arr
         call run_num
         ld c,0x60
         jr find_var
-.str:   inc de
-        ld (CH_ADD),de
-        djnz name_bad
+.str:   djnz name_bad
         res F_NUM,(iy+Y_FLAGS)
         call run_only
         ld bc,0x0180
@@ -500,10 +500,7 @@ var_ref:
         call subscript
         pop de
         call run_only
-        call elem_addr
-        ex de,hl
-        and a
-        ret
+        jr elem_addr
 name_bad:
         ld (CH_ADD),hl
         jr syntax_err
@@ -598,7 +595,7 @@ var_next:
         jr nc,.e
         ret
 
-; (DE) = an array's letter, HL = subscript: HL -> the element.
+; (DE) = an array's letter, HL = subscript: DE -> the element (NC).
 elem_addr:
         push hl
         ex de,hl
@@ -606,16 +603,16 @@ elem_addr:
         call find_var
         pop hl
         jr c,undefined
-        ex de,hl
-        ld a,(hl)               ; the largest subscript
-        inc hl
-        inc d
-        dec d
+        ld a,(de)               ; the largest subscript
+        inc de
+        inc h
+        dec h
         jr nz,.range
-        cp e
+        cp l
         jr c,.range
+        add hl,hl
         add hl,de
-        add hl,de
+        ex de,hl
         ret
 .range: rst 8
         db R_SUBSCR

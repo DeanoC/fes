@@ -10,9 +10,7 @@ edit:   ld sp,(ERR_SP)
         call edit_line
         ld hl,(E_LINE)
         call gc_store
-        call is_digit
-        jr nc,run_cmd
-        call parse_uint
+        call parse_uint         ; none: 0
         ld (CH_ADD),hl
         ld a,d
         or e
