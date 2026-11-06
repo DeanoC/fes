@@ -68,36 +68,10 @@ eline_reset:
 
 ; Edit until a NEWLINE with no syntax error.
 edit_line:
-.draw:
-; Check the edit line: X_PTR = the first symbol that cannot be part of a
-; statement (below $0100 if none); F_KMODE if the cursor stands where a keyword goes.
-        ld hl,(ERR_SP)
+.draw:  ld hl,(ERR_SP)
         push hl
-        ld hl,.fail
-        push hl
-        ld (ERR_SP),sp
-        xor a
-        ld (X_PTR + 1),a        ; no wrong symbol (below $0100)
-        ld hl,FLAGS
-        res F_KMODE,(hl)
-        set F_CHECK,(hl)
-        ld hl,(E_LINE)
-        call gc_store
-        bit F_INPUT,(iy+Y_FLAGS)
-        jr nz,.input
-        call parse_uint         ; a line number, 9999 at most (none: 0)
-        jr c,syntax_err
-        push hl
-        ld hl,-10000
-        add hl,de
+        call .chk               ; its return address is where errors unwind to
         pop hl
-        jr c,syntax_err
-        call gc_store
-        call k_here
-        cp C_NL                 ; empty, or a number alone (deletes it)
-        jr nz,statement         ; a statement always ends by unwinding
-.ok:    pop hl
-.fail:  pop hl
         ld (ERR_SP),hl
         res F_CHECK,(iy+Y_FLAGS)
         call display
@@ -168,6 +142,31 @@ edit_line:
         jr nz,.key              ; not yet a statement
         ld (iy+Y_FLAGX),a       ; running: no room is report 4 again
         ret
+; Check the edit line: X_PTR = the first symbol that cannot be part of a
+; statement (below $0100 if none); F_KMODE if the cursor stands where a
+; keyword goes.
+.chk:   ld (ERR_SP),sp
+        xor a
+        ld (X_PTR + 1),a        ; no wrong symbol (below $0100)
+        ld hl,FLAGS
+        res F_KMODE,(hl)
+        set F_CHECK,(hl)
+        ld hl,(E_LINE)
+        call gc_store
+        bit F_INPUT,(iy+Y_FLAGS)
+        jr nz,.input
+        call parse_uint         ; a line number, 9999 at most (none: 0)
+        jr c,syntax_err
+        push hl
+        ld hl,-10000
+        add hl,de
+        pop hl
+        jr c,syntax_err
+        call gc_store
+        call k_here
+        cp C_NL
+        jr nz,statement         ; a statement always ends by unwinding
+        ret                     ; empty, or a number alone (deletes it)
 .input: call expr
         ld a,(FLAGS)
         and (1 << F_NUM) | (1 << F_DNUM)
