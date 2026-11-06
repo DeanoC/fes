@@ -18,7 +18,7 @@ statement:
         add hl,de
         call peek_word
         push hl
-        rst 0x20                ; A = what follows the keyword
+        call next_ch                ; A = what follows the keyword
         ret
 
 stmt_table:
@@ -27,12 +27,9 @@ stmt_table:
         dw st_next, st_print, syntax_err, st_new, st_run, st_stop
         dw st_cont, st_if, st_gosub, st_load, st_clear, st_rem
 
-; The statement must end here. Running, keeps BC, DE, HL; checking, the
-; check is over and good.
+; RST 20, continued: the statement must end here (A = the character).
+; Running, keeps BC, DE, HL; checking, the check is over and good.
 stmt_end:
-        push hl
-        rst 0x18
-        pop hl
         cp C_NL
         jr nz,syntax_err
         bit F_CHECK,(iy+Y_FLAGS)
@@ -164,12 +161,12 @@ report: dec sp                  ; keep the slot
 
 st_list:
         call opt_num
-        call stmt_end
+        rst 0x20
         ld (E_PPC),hl
         jr edit
 
 st_return:
-        call stmt_end
+        rst 0x20
         ld sp,(ERR_SP)
         pop de                  ; the slot
         pop hl
@@ -186,12 +183,12 @@ st_return:
         jr jump_hl
 
 st_cont:
-        call stmt_end
+        rst 0x20
         ld hl,(OLDPPC)
         jr jump_hl
 
 st_run: call opt_num
-        call stmt_end
+        rst 0x20
         ld b,h
         ld c,l
         call clear_vars
@@ -211,7 +208,7 @@ st_run: call opt_num
 
 st_gosub:
         call expr_num
-        call stmt_end
+        rst 0x20
         ex de,hl
         ld hl,(PPC)
         inc hl                  ; RETURN comes back to the next line
@@ -225,7 +222,7 @@ st_gosub:
 
 st_goto:
         call expr_num
-        call stmt_end
+        rst 0x20
 ; Jump to line HL.
 jump_hl:
         ld (PPC),hl
@@ -233,7 +230,7 @@ jump_hl:
         jr line_end
 
 st_clear:
-        call stmt_end
+        rst 0x20
 clear_vars:
         push bc
         ld hl,(E_LINE)
@@ -244,24 +241,26 @@ clear_vars:
         ret
 
 st_stop:
-        call stmt_end
+        rst 0x20
         rst 8
         db R_STOP
 
-st_new: call stmt_end
+st_new: rst 0x20
         jr init
 
-st_cls: call stmt_end
+st_cls: rst 0x20
         jr cls
 
 st_save:
-        jr stmt_end             ; the FES core keeps no ZX80 tape output
+        rst 0x20             ; the FES core keeps no ZX80 tape output
+        ret
 
 st_rem: ld hl,(CH_ADD)
         call line_skip
         dec hl
         ld (CH_ADD),hl
-        jr stmt_end
+        rst 0x20
+        ret
 
 st_if:  call expr_num
         rst 0x30
@@ -280,7 +279,7 @@ st_poke:
         db T_COMMA
         call expr_num
         pop de
-        call stmt_end
+        rst 0x20
         ld a,l
         ld (de),a
         ret
@@ -290,7 +289,7 @@ st_rand:
         ld hl,(FRAMES)
         ld h,0
         call nz,expr_num
-        call stmt_end
+        rst 0x20
         ld (SEED),hl
         ret
 
@@ -308,14 +307,14 @@ st_let: call dest
         xor c
         and 1 << F_NUM
         jr nz,syntax_err
-        call stmt_end
+        rst 0x20
         jr store
 
 ; INPUT: edit a line in the lower part (an expression, given quotes for a
 ; string) and assign its value.
 st_input:
         call dest
-        call stmt_end
+        rst 0x20
         call cmd_line
         jr nz,.prog
         rst 8
@@ -368,7 +367,7 @@ st_for: call one_letter
         db T_TO
         call expr_num
         pop de
-        call stmt_end
+        rst 0x20
         push hl                 ; limit
         push de                 ; start
         ld hl,(DEST)
@@ -390,7 +389,7 @@ st_for: call one_letter
 
 st_next:
         call one_letter
-        call stmt_end
+        rst 0x20
         ld hl,(DEST)
         ld bc,0x01e0
         call find_var
@@ -430,7 +429,7 @@ st_dim: call one_letter
         cp T_LPAREN
         jr nz,syntax_err
         call subscript
-        call stmt_end
+        rst 0x20
         inc h
         dec h
         jr z,.ok
@@ -477,11 +476,12 @@ st_print:
         jr nz,syntax_err
 .sep:   cp T_COMMA
         call z,.tab
-        rst 0x20
+        call next_ch
         cp C_NL
         jr nz,.item
-        jr stmt_end             ; a final ; or , : no NEWLINE
-.nl:    call stmt_end
+        rst 0x20             ; a final ; or , : no NEWLINE
+        ret
+.nl:    rst 0x20
         ld a,C_NL
         rst 0x10
         ret
@@ -513,7 +513,7 @@ tab:    ld a,(iy+Y_COL)
 ; onwards and comes back at $0203. E_LINE is cleared first, so an image
 ; that arrived is recognised by its own E_LINE.
 st_load:
-        call stmt_end
+        rst 0x20
         ld hl,(E_LINE)
         push hl
         ld hl,0

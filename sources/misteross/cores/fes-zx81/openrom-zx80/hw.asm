@@ -31,9 +31,10 @@ rst_get: ld hl,(CH_ADD)         ; RST 18: current character
         jr gc_look
 
         org 0x0020
-rst_next: ld hl,(CH_ADD)        ; RST 20: advance and get character
-        inc hl
-        jr gc_store
+rst_end: push hl                ; RST 20: the statement must end here
+        rst 0x18
+        pop hl
+        jp stmt_end
 
         org 0x0028
 cp_hl_de: and a                 ; RST 28: compare HL with DE

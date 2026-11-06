@@ -9,10 +9,6 @@ need_num:
         bit F_NUM,(iy+Y_FLAGS)
         ret nz
         jr syntax_err
-need_str:
-        bit F_NUM,(iy+Y_FLAGS)
-        ret z
-        jr syntax_err
 
 ; A whole expression. An error in it (overflow) stops the statement here.
 expr:   ld b,0
@@ -49,7 +45,7 @@ expr_b: push bc
         ld a,(FLAGS)
         ld h,a
         push hl                 ; the left type, the operator
-        rst 0x20
+        call next_ch
         ld b,c
         call expr_b
         pop bc
@@ -275,7 +271,7 @@ operand:
         jr c,name_operand
         jr syntax_err
 .unary: push af
-        rst 0x20
+        call next_ch
         call expr_b
         call need_num
         pop af
@@ -289,7 +285,7 @@ operand:
         cpl
         ld l,a
         ret
-.paren: rst 0x20
+.paren: call next_ch
         call expr
         rst 0x30
         db T_RPAREN
@@ -373,7 +369,7 @@ peek_word:
 subscript:
         call .in
         jr need_num
-.in:    rst 0x20
+.in:    call next_ch
         call expr
         rst 0x30
         db T_RPAREN
@@ -506,9 +502,9 @@ var_ref:
         ld (CH_ADD),de
         cp T_LPAREN
         jr z,.arr
-        set F_NUM,(iy+Y_FLAGS)
-        call run_only
-        jr int_var
+        call run_num
+        ld c,0x60
+        jr find_var
 .str:   inc de
         ld (CH_ADD),de
         djnz name_bad
@@ -529,59 +525,55 @@ name_bad:
         ld (CH_ADD),hl
         jr syntax_err
 
-; (HL) = a name of length B, C = record type: DE -> just after the name in
-; its record (value, text, or largest subscript); carry if none. Type $60
-; also finds a FOR record of the same letter.
+; (HL) = a name of length B, C = record type (an integer: $60, $40 used
+; for longer names): DE -> just after the name in its record (value, text,
+; or largest subscript); carry if none. Type $60 also finds a FOR record of
+; the same letter.
 find_var:
         ld a,(hl)
         and 0x1f
         or c
+        dec b
+        jr z,.one
+        and 0xdf                ; longer names: type $40
+.one:   inc b
         ld c,a
-        and 0xe0
-        cp 0x60
-        ld a,0x7f
-        jr z,.m
-        ld a,0xff
-.m:     ld ixl,a
         ld de,(VARS)
 .l:     ld a,(de)
         cp 0x80
         scf
         ret z
-        and ixl
-        cp c
+        xor c
+        jr z,.hit
+        cp 0x80                 ; FOR for an integer of its letter
         jr nz,.next
-        and 0xe0
-        cp 0x40
-        jr nz,.one
+        bit 7,c
+        jr nz,.next
+.hit:   push bc
         push hl
         push de
-        push bc
         dec b
+        jr z,.yes               ; one letter: the type byte names it
 .c:     inc hl
         inc de
         ld a,(de)
-        and 0x7f
-        cp (hl)
+        xor (hl)
+        add a,a                 ; NZ: other letters; C: the record's last
         jr nz,.no
-        ld a,(de)
-        rla
         jr c,.end
         djnz .c
-        jr .no
-.end:   dec b
+        jr .no                  ; the name ended first
+.end:   dec b                   ; the name must end there too
         jr nz,.no
-        inc de                  ; past the name
-        pop bc
-        pop af
+.yes:   pop af
         pop hl
+        pop bc
+        inc de
         and a
         ret
-.one:   inc de                  ; one-letter kinds (NC)
-        ret
-.no:    pop bc
-        pop de
+.no:    pop de
         pop hl
+        pop bc
 .next:  call var_next
         jr .l
 
@@ -589,49 +581,39 @@ find_var:
 var_next:
         ld a,(de)
         inc de
-        and 0xe0
-        cp 0x80
-        jr z,.str
-        cp 0xa0
-        jr z,.arr
-        cp 0x40
-        jr nz,.fix
+        add a,a
+        jr c,.hi
+        add a,a
+        add a,a
+        jr c,.two               ; one letter
 .name:  ld a,(de)
         inc de
         rla
         jr nc,.name
         jr .two
-.fix:   cp 0x60
-        jr z,.two
-        inc de                  ; FOR: value, limit, line
+.hi:    add a,a
+        jr c,.for
+        add a,a
+        jr c,.arr
+.str:   ld a,(de)               ; up to the closing quote
+        inc de
+        dec a
+        jr nz,.str
+        ret
+.for:   inc de                  ; value, limit, line
         inc de
         inc de
         inc de
 .two:   inc de
         inc de
         ret
-.str:   ld a,(de)
-        inc de
-        cp C_QUOTE
-        jr nz,.str
-        ret
-.arr:   ld a,(de)
+.arr:   ld a,(de)               ; largest subscript, then the elements
         inc de
 .e:     inc de
         inc de
-        dec a
-        cp 0xff
-        jr nz,.e
+        sub 1
+        jr nc,.e
         ret
-
-; (HL) = an integer name of length B: DE -> its value; carry if none.
-int_var:
-        ld a,b
-        dec a
-        ld c,0x40
-        jr nz,find_var
-        ld c,0x60
-        jr find_var
 
 ; (DE) = an array's letter, HL = subscript: HL -> the element.
 elem_addr:

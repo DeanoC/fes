@@ -212,8 +212,13 @@ syntax_err:
         db R_STOP
 
 ; ---------------------------------------------------------------------
-; Character fetching (RST 18, RST 20 start in hw.asm). Spaces are not
-; significant outside strings and REM.
+; Character fetching (RST 18 starts in hw.asm). Spaces are not significant
+; outside strings and REM.
+
+; Advance and get the character.
+next_ch:
+        ld hl,(CH_ADD)
+        inc hl
 gc_store:
         ld (CH_ADD),hl
 gc_look:
@@ -278,7 +283,7 @@ expect_2:
         pop hl
         cp h
         jr nz,syntax_err
-        rst 0x20
+        call next_ch
         pop hl
         ret
 

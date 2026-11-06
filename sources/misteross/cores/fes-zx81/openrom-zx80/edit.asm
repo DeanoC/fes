@@ -250,7 +250,8 @@ check_eline:
         ld a,(FLAGS)
         and (1 << F_NUM) | (1 << F_DNUM)
         jp po,syntax_err        ; not the type INPUT wants
-        jr stmt_end
+        rst 0x20
+        ret
 .ok:    pop hl
 .fail:  pop hl
         ld (ERR_SP),hl
