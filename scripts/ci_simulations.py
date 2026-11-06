@@ -34,7 +34,8 @@ TARGETS = {
     'pcxt': ('sim-fes-pcxt', 'sim-fes-pcxt-fdc', 'sim-fes-pcxt-write',
              'sim-fes-pcxt-media', 'sim-fes-pcxt-mailbox', 'sim-fes-pcxt-dos'),
     'pc386': ('sim-fes-pc386', 'sim-fes-pc386-fesenv', 'sim-fes-pc386-a20',
-              'sim-fes-pc386-c2xx', 'sim-fes-pc386-wait', 'sim-fes-pc386-speaker'),
+              'sim-fes-pc386-c2xx', 'sim-fes-pc386-wait', 'sim-fes-pc386-speaker',
+              'sim-fes-pc386-cpu-profile'),
 }
 
 # Slow families' PR-tier targets (each about 2.5 minutes or less on a runner).
