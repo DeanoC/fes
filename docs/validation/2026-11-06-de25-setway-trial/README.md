@@ -59,3 +59,56 @@ JTAG server and independently verify free UART. Retain claim/spare; factory
 restoration is user-waived. Host cleanup does not prove CPU/FPGA halt.
 This freeze precedes live admission and physical evidence; ordinary core-load
 acceptance, HDMI, native Ethernet and DE10-equivalent behavior remain open.
+
+## Physical result
+
+One attempt on frozen operator `7126320b4` / firmware `0cab5df0c` completed
+fresh post-interruption recovery, eight uploads and eight fresh SD readbacks,
+exact6M chip admission/programming and SPL FIT verification. The trace binds
+the final selected BL31 hash. No retry or second attempt occurred.
+
+The new cache path returned with both ordered CACHE markers and verified
+normal decode-logging restoration, without a reported status failure. All15
+vendor assembly markers completed, including BSS clear, stack setup and early
+C setup. BL31 then printed its version, successful USB setup, owned-boot
+result0/reset`0000000f`, and finally:
+
+```text
+NOTICE:  FES_NANO_SD_PLATFORM setup=1 ready=1
+```
+
+This physically crosses the preceding repeated cache-maintenance failure.
+These progress receipts do not independently measure cache geometry coverage,
+prove every RAM byte or qualify the complete reservation/lifetime contract.
+No exception was reported; absent output does not exclude a later fault under
+vendor vectors. The exact subsequent stalled or failing instruction is unknown.
+
+No loader prompt arrived within the unchanged50-second prompt bound. The
+operator stopped, retained its original two-second receive-only tail and
+never sent `fesboot`. No native startup, ROM completion, Run, return or ordinary
+core-load acceptance is established. The decoder's error list is empty because
+it received an internally valid but incomplete boot; the host timeout is the
+terminal failure. Independent replay exactly matches the saved boot receipt.
+There are now17 campaign stops, including ten pre-native stops. This input
+has consumed its one attempt.
+
+Independent cleanup confirms15M readback, exact USB permissions, owned private
+JTAG termination and free UART. Claim/spare remain retained, factory card and
+bottom kit untouched. Neither host cleanup nor silence proves CPU/FPGA halt.
+The saved cache/logging completion is distinct from the still-open whole-boot
+and native ownership evidence.
+
+The next [prepared diagnostic plan](next-plan.json) pins the actual vendor
+platform/main/GIC source and calls after the last SD marker: GIC setup,
+mailbox notification, runtime services and nonsecure handoff. Their source
+order is a search boundary, not attribution of the failure to any one call.
+The plan requires bounded call-boundary diagnostics and linked/off-board
+proofs before another freshly frozen hardware input; it is not implemented.
+
+Exact evidence: [physical result](physical-result.json),
+[independent boot replay](independent-boot-replay.json), and
+[cleanup](cleanup-evidence.json). Source, successful and failed preparation
+logs, raw traces and receipts are retained with verified source-pack import
+and archive readback under
+`/home/deano/fes-retained/de25-setway-stop-20261106-r1/`, using the matched
+build prerequisite `de25-setway-20261106-r1`.
