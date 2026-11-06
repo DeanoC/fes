@@ -4,8 +4,10 @@ import (
 	"bytes"
 	"encoding/binary"
 	"errors"
+	"fmt"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"syscall"
 	"testing"
@@ -15,13 +17,15 @@ import (
 )
 
 type recordingMounter struct {
-	mounted map[string]string
-	volumes []string
-	binds   []string
+	mounted      map[string]string
+	boundSources map[string]*os.File
+	volumes      []string
+	binds        []string
+	unbinds      []string
 }
 
 func newRecordingMounter() *recordingMounter {
-	return &recordingMounter{mounted: map[string]string{}}
+	return &recordingMounter{mounted: map[string]string{}, boundSources: map[string]*os.File{}}
 }
 
 func (m *recordingMounter) MountVolume(source, target string) error {
@@ -31,13 +35,62 @@ func (m *recordingMounter) MountVolume(source, target string) error {
 }
 
 func (m *recordingMounter) Bind(source, target string) error {
+	bound, err := os.Open(source)
+	if err != nil {
+		return err
+	}
 	m.mounted[target] = source
+	m.boundSources[target] = bound
 	m.binds = append(m.binds, source+" -> "+target)
 	return nil
 }
 
+func (m *recordingMounter) Unbind(_, target string) error {
+	if m.mounted[target] == "" {
+		return errors.New("target is not mounted")
+	}
+	delete(m.mounted, target)
+	if source := m.boundSources[target]; source != nil {
+		_ = source.Close()
+	}
+	delete(m.boundSources, target)
+	m.unbinds = append(m.unbinds, target)
+	return nil
+}
+
+func (m *recordingMounter) BindMatches(source, target string) (bool, error) {
+	bound, ok := m.boundSources[target]
+	if !ok {
+		return false, nil
+	}
+	boundInfo, err := bound.Stat()
+	if err != nil {
+		return false, err
+	}
+	current, err := os.Lstat(source)
+	if errors.Is(err, os.ErrNotExist) {
+		return false, nil
+	}
+	if err != nil {
+		return false, err
+	}
+	return os.SameFile(boundInfo, current), nil
+}
+
+func (m *recordingMounter) Close() error {
+	var errs []error
+	for target, source := range m.boundSources {
+		if err := source.Close(); err != nil {
+			errs = append(errs, fmt.Errorf("close bind source for %s: %w", target, err))
+		}
+		delete(m.boundSources, target)
+	}
+	return errors.Join(errs...)
+}
+
 func testConfig(t *testing.T, mounter *recordingMounter) Config {
 	t.Helper()
+	t.Cleanup(func() { _ = mounter.Close() })
 	root := t.TempDir()
 	device := filepath.Join(root, "FESDATA3")
 	if err := os.WriteFile(device, ext4Superblock(DefaultLabel), 0o600); err != nil {
@@ -65,6 +118,7 @@ func testConfig(t *testing.T, mounter *recordingMounter) Config {
 		DevicePresent:   pathExists,
 		ReadLabel:       readExt4Label,
 		Mounted:         func(target string) bool { return mounter.mounted[target] != "" },
+		BindMatches:     mounter.BindMatches,
 		Mounter:         mounter,
 	}
 }
@@ -353,6 +407,7 @@ func TestPrepareDoesNotRestoreDeletedGameAfterMigration(t *testing.T) {
 	// A fresh mounter models startup after reboot while the p3 files and marker
 	// remain on the persistent volume.
 	secondMounter := newRecordingMounter()
+	t.Cleanup(func() { _ = secondMounter.Close() })
 	cfg.Mounter = secondMounter
 	cfg.Mounted = func(target string) bool { return secondMounter.mounted[target] != "" }
 	second, err := Prepare(cfg)
@@ -364,6 +419,48 @@ func TestPrepareDoesNotRestoreDeletedGameAfterMigration(t *testing.T) {
 	}
 	if got := secondMounter.mounted[cfg.LibraryFATRoot]; got != cfg.LibraryDataRoot {
 		t.Fatalf("game tree was not rebound after reboot: %q", got)
+	}
+}
+
+func TestPrepareRepairsStaleGameBindSource(t *testing.T) {
+	t.Parallel()
+	for _, recreate := range []bool{false, true} {
+		t.Run(fmt.Sprintf("recreated=%t", recreate), func(t *testing.T) {
+			mounter := newRecordingMounter()
+			cfg := testConfig(t, mounter)
+			fatGame := filepath.Join(cfg.LibraryFATRoot, "sms", "recovered.sms")
+			if err := os.MkdirAll(filepath.Dir(fatGame), 0o700); err != nil {
+				t.Fatal(err)
+			}
+			if err := os.WriteFile(fatGame, []byte("fat-copy"), 0o600); err != nil {
+				t.Fatal(err)
+			}
+			if _, err := Prepare(cfg); err != nil {
+				t.Fatal("initial prepare:", err)
+			}
+
+			if err := os.RemoveAll(cfg.LibraryDataRoot); err != nil {
+				t.Fatal(err)
+			}
+			if recreate {
+				if err := os.MkdirAll(cfg.LibraryDataRoot, 0o700); err != nil {
+					t.Fatal(err)
+				}
+			}
+			result, err := Prepare(cfg)
+			if err != nil || !slices.Contains(result.Bound, "games") {
+				t.Fatalf("recovery prepare = %+v %v", result, err)
+			}
+			if len(mounter.unbinds) != 1 || mounter.unbinds[0] != cfg.LibraryFATRoot {
+				t.Fatalf("stale bind unmounts = %v", mounter.unbinds)
+			}
+			if got, err := os.ReadFile(filepath.Join(cfg.LibraryDataRoot, "sms", "recovered.sms")); err != nil || string(got) != "fat-copy" {
+				t.Fatalf("recovered p3 game = %q %v", got, err)
+			}
+			if got := mounter.mounted[cfg.LibraryFATRoot]; got != cfg.LibraryDataRoot {
+				t.Fatalf("game tree was not rebound to p3: %q", got)
+			}
+		})
 	}
 }
 

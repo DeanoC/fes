@@ -1692,7 +1692,11 @@ marker on p3 outside the bound game tree, published only after the destination
 game directories are synced, so a crash cannot leave the marker ahead of the
 game entries. Deleting a migrated game from p3 does not restore it from the FAT
 copy at a later startup. A failed game copy or directory sync does not write
-the marker, so startup can retry the incomplete migration.
+the marker, so startup can retry the incomplete migration. Startup also checks
+that an existing `/media/fat/games` bind still refers to the current p3 game
+directory. If that source was removed or replaced, it unbinds only a target on
+the FESDATA3 device, restores missing files from the still-visible FAT tree,
+syncs p3, and binds the live directory again.
 Without p3, all these paths continue to use FAT. The helper does not create,
 grow, or format partitions and does not run from the fixed bootstrap. Bind is
 refused while `GET /v1/update` shows trial, pending, or corrupt; the agent still

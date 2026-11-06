@@ -84,6 +84,7 @@ type Result struct {
 type Mounter interface {
 	MountVolume(source, target string) error
 	Bind(source, target string) error
+	Unbind(volumeRoot, target string) error
 }
 
 // Config locates p3, FAT trees, and the update gate. Zero DevicePresent,
@@ -105,10 +106,11 @@ type Config struct {
 	DevicePresent   func(string) bool
 	// Probe refuses a candidate before it is opened. Nil uses the sysfs check
 	// that skips optical devices and disks with no usable media.
-	Probe     func(string) error
-	ReadLabel func(string) (string, error)
-	Mounted   func(string) bool
-	Mounter   Mounter
+	Probe       func(string) error
+	ReadLabel   func(string) (string, error)
+	Mounted     func(string) bool
+	BindMatches func(source, target string) (bool, error)
+	Mounter     Mounter
 }
 
 func ProductionConfig() Config {
@@ -208,13 +210,32 @@ func Prepare(cfg Config) (Result, error) {
 		}
 		result.Bound = append(result.Bound, name)
 	}
+	bindGames := true
+	repairGames := false
 	if cfg.Mounted(cfg.LibraryFATRoot) {
-		result.Bound = append(result.Bound, "games")
-	} else {
+		matches, err := cfg.BindMatches(cfg.LibraryDataRoot, cfg.LibraryFATRoot)
+		if err != nil {
+			bindErr = errors.Join(bindErr, fmt.Errorf("verify game library bind: %w", err))
+			bindGames = false
+		} else if matches {
+			result.Bound = append(result.Bound, "games")
+			bindGames = false
+		} else if err := cfg.Mounter.Unbind(cfg.MountPoint, cfg.LibraryFATRoot); err != nil {
+			bindErr = errors.Join(bindErr, fmt.Errorf("remove stale game library bind: %w", err))
+			bindGames = false
+		} else {
+			repairGames = true
+		}
+	}
+	if bindGames {
 		marker := filepath.Join(cfg.MountPoint, gamesMigrationMarker)
-		if err := os.MkdirAll(cfg.LibraryDataRoot, 0o700); err != nil {
-			bindErr = errors.Join(bindErr, err)
-		} else if err := migrateGamesOnce(cfg.LibraryFATRoot, cfg.LibraryDataRoot, marker); err != nil {
+		var err error
+		if repairGames {
+			err = repairGamesOnce(cfg.LibraryFATRoot, cfg.LibraryDataRoot, marker)
+		} else {
+			err = migrateGamesOnce(cfg.LibraryFATRoot, cfg.LibraryDataRoot, marker)
+		}
+		if err != nil {
 			bindErr = errors.Join(bindErr, err)
 		} else if err := ensureBindTarget(cfg.LibraryFATRoot); err != nil {
 			bindErr = errors.Join(bindErr, err)
@@ -290,6 +311,9 @@ func applyDefaults(cfg Config) Config {
 	if cfg.Mounted == nil {
 		cfg.Mounted = func(target string) bool { return mountpointBusy(cfg.MountInfo, target) }
 	}
+	if cfg.BindMatches == nil {
+		cfg.BindMatches = sameBindSource
+	}
 	if cfg.EvaluateGate == nil {
 		cfg.EvaluateGate = func() (Gate, error) {
 			return ReadUpdateGate(GatePaths{
@@ -344,6 +368,27 @@ func ensureBindTarget(path string) error {
 		return fmt.Errorf("bind target is not a real directory: %s", path)
 	}
 	return nil
+}
+
+func sameBindSource(source, target string) (bool, error) {
+	sourceInfo, err := os.Lstat(source)
+	if errors.Is(err, os.ErrNotExist) {
+		return false, nil
+	}
+	if err != nil {
+		return false, err
+	}
+	if sourceInfo.Mode()&os.ModeSymlink != 0 || !sourceInfo.IsDir() {
+		return false, fmt.Errorf("bind source is not a real directory: %s", source)
+	}
+	targetInfo, err := os.Stat(target)
+	if errors.Is(err, os.ErrNotExist) {
+		return false, nil
+	}
+	if err != nil {
+		return false, err
+	}
+	return os.SameFile(sourceInfo, targetInfo), nil
 }
 
 func copyMissing(src, dst string) error {
@@ -403,6 +448,19 @@ func migrateGamesOnceWithSync(src, dst, marker string, syncDir func(string) erro
 		return err
 	}
 	if complete {
+		info, err := os.Lstat(dst)
+		if errors.Is(err, os.ErrNotExist) {
+			if err := copyMissing(src, dst); err != nil {
+				return err
+			}
+			return syncDestinationDirectories(src, dst, syncDir)
+		}
+		if err != nil {
+			return err
+		}
+		if info.Mode()&os.ModeSymlink != 0 || !info.IsDir() {
+			return fmt.Errorf("game data root is not a real directory: %s", dst)
+		}
 		return nil
 	}
 	if err := copyMissing(src, dst); err != nil {
@@ -422,6 +480,27 @@ func migrateGamesOnceWithSync(src, dst, marker string, syncDir func(string) erro
 		return fmt.Errorf("games migration marker was not published: %s", marker)
 	}
 	return syncDir(filepath.Dir(marker))
+}
+
+func repairGamesOnce(src, dst, marker string) error {
+	complete, err := migrationComplete(marker)
+	if err != nil {
+		return err
+	}
+	if !complete {
+		return migrateGamesOnce(src, dst, marker)
+	}
+	info, err := os.Lstat(dst)
+	if err != nil && !errors.Is(err, os.ErrNotExist) {
+		return err
+	}
+	if err == nil && (info.Mode()&os.ModeSymlink != 0 || !info.IsDir()) {
+		return fmt.Errorf("game data root is not a real directory: %s", dst)
+	}
+	if err := copyMissing(src, dst); err != nil {
+		return err
+	}
+	return syncDestinationDirectories(src, dst, syncDirectory)
 }
 
 func syncDestinationDirectories(src, dst string, syncDir func(string) error) error {
