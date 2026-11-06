@@ -259,10 +259,10 @@ decode_key:
 ; line goes in the lower part; otherwise the listing above, the edit line
 ; at the bottom. The edit line takes the RAM it needs first.
 display:
+        ld (iy+Y_FLAGX),(1 << X_LOWER) | (1 << X_DROP)
         bit F_INPUT,(iy+Y_FLAGS)
         jr nz,input_display
-edit_display:
-        ld (iy+Y_FLAGX),(1 << X_LOWER) | (1 << X_DROP)
+edit_display:                   ; (X_LOWER and X_DROP set)
         call cls
         dec (iy+Y_LINE)         ; at most 23 rows, and the blank one above
         call print_eline        ; count its rows (and drop them again)
@@ -309,7 +309,6 @@ input_display:
         call out_trim
         ld hl,(S_POSN)
         push hl
-        ld (iy+Y_FLAGX),(1 << X_LOWER) | (1 << X_DROP)
         call next_row           ; close the output's row
         call next_row           ; and a blank one
         call print_eline
