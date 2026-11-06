@@ -27,8 +27,15 @@ edit:   ld sp,(ERR_SP)
         pop de
         call reclaim_de         ; the old line; HL is where it was
 .new:   push hl
-        ld hl,(CH_ADD)
-        call text_len
+        ld hl,(CH_ADD)          ; BC = the text's length before its NEWLINE
+        push hl
+        call line_skip
+        pop de
+        and a
+        sbc hl,de
+        dec hl
+        ld b,h
+        ld c,l
         pop hl
         ld a,b
         or c
@@ -229,18 +236,6 @@ or_last:
         ret nc
         call line_before
         ex de,hl
-        ret
-
-; HL -> a line's text: DE = it, BC = its length before the NEWLINE.
-text_len:
-        push hl
-        call line_skip
-        pop de
-        and a
-        sbc hl,de
-        dec hl
-        ld b,h
-        ld c,l
         ret
 
 ; A = key index -> the code it types in the cursor's mode.
