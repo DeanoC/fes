@@ -167,6 +167,13 @@ are also required when image configuration, packaging or locked inputs
 change. One parent build runs per checkout, enforced by its existing lock.
 Coordinate shared expensive runs rather than starting one per agent.
 
+Parent CI separates ordinary software regressions from real FAT/ext4 media
+construction. DE25 managed-card container tests run in the media partition,
+after its bounded tool provisioning; their lightweight layout checks still run
+in the software partition. Changes to the managed-card constructor or its tests
+select that media coverage. Standalone DE25 headless-image edits keep their
+existing focused checks.
+
 Image builds use one pass by default, including CI. `make image
 IMAGE_ARTIFACTS=/absolute/artifacts` assembles explicit prebuilt inputs without
 rebuilding their sources. `make verify` still checks the image hashes, structure,

@@ -39,6 +39,8 @@ MEDIA_CLASSES = frozenset({
     ('test_appliance', 'RealBootstrapTests'),
     ('test_appliance_media', 'ContainerTests'),
     ('test_appliance_media', 'RealCardTests'),
+    ('test_de25_managed_media', 'ContainerTests'),
+    ('test_de25_managed_media', 'RealCardTests'),
 })
 
 

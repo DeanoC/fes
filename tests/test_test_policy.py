@@ -25,6 +25,13 @@ RACE = ['go', 'test', '-race', '-short', '-timeout', '30m']
 
 
 class SelectTestModesTests(unittest.TestCase):
+    def test_de25_managed_card_inputs_select_real_media(self):
+        for path in ('image/de25-nano/managed_media.py',
+                     'tests/test_de25_managed_media.py'):
+            with self.subTest(path=path):
+                self.assertEqual(test_policy.select_test_modes([path]),
+                                 {'video': False, 'media': True, 'full_race': False})
+
     def test_de25_pr_control_selects_diagnostic_checks_without_expensive_core_modes(self):
         definition = 'sources/mister-packages/packages/fabric/fes_fabric_de25_pr_control.yaml'
         paths = [definition, 'sources/misteross/boards/de25nano/link-proof/fpga/control.v',
@@ -355,6 +362,26 @@ def _synthetic_suite():
 
 
 class ParentFilterTests(unittest.TestCase):
+    def test_de25_card_construction_runs_only_in_the_media_partition(self):
+        from tests import test_de25_managed_media as de25
+
+        def select(partition, media=True):
+            suite = unittest.defaultTestLoader.loadTestsFromModule(de25)
+            return set(parent_tests.filter_suite(suite, media=media,
+                                                 partition=partition)[1])
+
+        software, media = select('software'), select('media')
+        container = 'tests.test_de25_managed_media.ContainerTests.test_real_fat_ext4_construction_and_refusals'
+        self.assertIn(container, media)
+        self.assertNotIn(container, software)
+        self.assertTrue(any('.RealCardTests.' in name for name in media))
+        self.assertTrue(any('.LayoutTests.' in name for name in software))
+        self.assertTrue(all('.ContainerTests.' in name or '.RealCardTests.' in name
+                            for name in media))
+        self.assertEqual(software | media, select('all'))
+        self.assertFalse(software & media)
+        self.assertEqual(select('all', media=False), software)
+
     def test_partitions_are_disjoint_and_preserve_the_complete_selected_suite(self):
         for video in (False, True):
             for media in (False, True):
