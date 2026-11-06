@@ -38,6 +38,8 @@ class TestChangedTest(unittest.TestCase):
         command = next(c for c in result['commands'] if c['label'] == 'native computer transport and command failures')
         self.assertEqual(command['cwd'], 'platform/embedded/tamago')
         self.assertEqual(command['argv'], ['go', 'test', '-race', '-count=1', '-timeout', '90s', './computer/...'])
+        self.assertEqual([str(Path(command['cwd']) / path) for path in command['files']],
+                         ['platform/embedded/tamago/go.mod'])
 
     def test_de25_board_control_schedules_standalone_avalon_check(self):
         self.change("sources/misteross/prototypes/de25_board_control/fes_de25_embedded.sv")

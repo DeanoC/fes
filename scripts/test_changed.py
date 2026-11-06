@@ -70,7 +70,7 @@ def plan(root, base, head="HEAD", jobs=2, full=False):
         if any(affected.native_computer_input(path) for path in impact["paths"]):
             add("parent", "native computer transport and command failures", "platform/embedded/tamago",
                 ["go", "test", "-race", "-count=1", "-timeout", "90s", "./computer/..."], tools=["go", "cc"],
-                files=["platform/embedded/tamago/go.mod"])
+                files=["go.mod"])
         if any(affected.native_sd_input(path) for path in impact["paths"]):
             add("parent", "native SD firmware lease and PIO lifecycle", "platform/embedded/tamago",
                 ["go", "test", "-race", "-count=1", "-timeout", "90s", "./sdcontrol", "./sdhci", "./fat", "./packagestore"],
