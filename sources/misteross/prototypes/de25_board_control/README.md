@@ -104,6 +104,14 @@ negative control that bypasses the shared pixel release. The outer HDMI wrapper
 and vendor reset controllers remain separate reset cones to investigate; this
 change does not claim complete reset-domain or physical qualification.
 
+The video's RGB, DE and sync output mask uses the same qualified pixel reset
+as its scanout controls. The system reset only owns the capture/system side;
+it no longer directly gates HDMI-facing signals across clock domains. Pixel
+mask assertion still works with stopped clocks and deassertion waits for pixel
+edges. Full video comparison checks the retained frame/token and raster behavior;
+external pin timing still requires the routed all-source pad checks and board
+skew/load contract.
+
 For the reviewed CPU-fed ROM/HPS-DDR variant, both Platform Designer reset
 bridges now declare the actual 100 MHz clock and asynchronous-assert,
 synchronous-deassert contract. The generated ROM, computer and control devices

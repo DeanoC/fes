@@ -136,11 +136,14 @@ module fes_de25_zx81_video (
             vs_q <= vertical >= 725 && vertical < 730;
         end
     end
-    wire bright = reset_n && image_q && valid_q && (!stored_q || !fb_q[bit_q]);
+    // Pad data/control must be owned by the pixel domain. This reset already
+    // asserts asynchronously with the transport owner and releases on pixel
+    // edges; using the system reset here creates a direct 100 MHz pad path.
+    wire bright = pixel_reset_n && image_q && valid_q && (!stored_q || !fb_q[bit_q]);
     assign red = bright ? 8'hff : 8'h00;
     assign green = red;
     assign blue = red;
-    assign de = reset_n && de_q;
-    assign hsync = reset_n && hs_q;
-    assign vsync = reset_n && vs_q;
+    assign de = pixel_reset_n && de_q;
+    assign hsync = pixel_reset_n && hs_q;
+    assign vsync = pixel_reset_n && vs_q;
 endmodule

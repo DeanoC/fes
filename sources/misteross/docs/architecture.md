@@ -119,6 +119,13 @@ separately checks the enclosing reset wiring and stopped-clock retirement with
 a broken-wiring negative control. The outer HDMI wrapper and vendor reset
 controllers still have separate release cones; no reset-domain rule is waived.
 
+The capture's external RGB/DE/sync mask is qualified in the pixel domain by
+the same reset that owns scanout state. No direct system-reset mask reaches
+those signals. Asynchronous assertion remains available with stopped clocks;
+release waits for pixel edges. This closes a direct system-clock data path to
+the HDMI pads without a reset-to-output timing exception. Pad skew/load and the
+complete external timing contract remain separate qualification work.
+
 The reviewed ROM/HPS-DDR variant declares the 100 MHz association on both reset
 bridges. Platform Designer consequently shares the memory reset-request
 controller's reset and early request with the peripheral devices through an
