@@ -87,41 +87,6 @@ test_room:
         rst 8
         db R_MEMORY
 
-; Remove BC bytes at HL, moving everything above them down.
-reclaim:
-        ld a,b
-        or c
-        ret z
-        push hl
-        push bc
-        ld d,h
-        ld e,l
-        inc de                  ; pointers above HL move down
-        xor a
-        sub c
-        ld c,a
-        sbc a,a
-        sub b
-        ld b,a
-        call pointers
-        pop bc
-        pop de
-        push de
-        ld hl,(DF_END)
-        and a
-        sbc hl,de               ; bytes to move
-        push hl
-        ld h,d
-        ld l,e
-        add hl,bc               ; the first byte kept
-        pop bc
-        ld a,b
-        or c
-        jr z,.done
-        ldir
-.done:  pop hl
-        ret
-
 ; Pointers at or above DE move by BC. Keeps BC, DE, HL.
 pointers:
         push hl
@@ -162,8 +127,46 @@ reclaim_de:
         ld b,h
         ld c,l
         ex de,hl
-        jr reclaim
+; Remove BC bytes at HL, moving everything above them down.
+reclaim:
+        ld a,b
+        or c
+        ret z
+        push hl
+        push bc
+        ld d,h
+        ld e,l
+        inc de                  ; pointers above HL move down
+        xor a
+        sub c
+        ld c,a
+        sbc a,a
+        sub b
+        ld b,a
+        call pointers
+        pop bc
+        pop de
+        push de
+        ld hl,(DF_END)
+        and a
+        sbc hl,de               ; bytes to move
+        push hl
+        ld h,d
+        ld l,e
+        add hl,bc               ; the first byte kept
+        pop bc
+        ld a,b
+        or c
+        jr z,.done
+        ldir
+.done:  pop hl
+        ret
 
+
+; HL -> the line after the line at HL.
+next_line:
+        inc hl
+        inc hl
 ; HL -> the byte after the next NEWLINE.
 line_skip:
         ld a,C_NL

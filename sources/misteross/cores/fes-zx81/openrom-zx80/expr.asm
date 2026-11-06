@@ -12,7 +12,6 @@ need_num:
 
 ; A whole expression.
 expr:   ld b,0
-        jr expr_b
 
 ; Operators binding tighter than B, by precedence climbing.
 expr_b: push bc
@@ -340,11 +339,6 @@ name_operand:
         ex de,hl
         bit F_NUM,(iy+Y_FLAGS)
         ret z                   ; a string: HL -> its text
-        jr peek_word
-
-undefined:
-        rst 8
-        db R_UNDEF
 
 ; HL = the word at HL.
 peek_word:
@@ -353,6 +347,10 @@ peek_word:
         ld h,(hl)
         ld l,a
         ret
+
+undefined:
+        rst 8
+        db R_UNDEF
 
 ; CH_ADD -> "(": the numeric expression and ")" -> HL.
 subscript:

@@ -65,13 +65,6 @@ letter_byte:
         inc hl
         ret
 
-; (HL) = DE; HL + 2.
-put_de: ld (hl),e
-        inc hl
-        ld (hl),d
-        inc hl
-        ret
-
 ; ---------------------------------------------------------------------
 ; The run loop. ERR_SP is the stack each line starts with; its slot holds
 ; the report routine, and GOSUB records lie above it.
@@ -230,9 +223,6 @@ st_stop:
 st_new: rst 0x20
         jr init
 
-st_cls: rst 0x20
-        jr cls
-
 st_if:  call expr_num
         rst 0x30
         db T_THEN
@@ -346,7 +336,13 @@ st_for: call one_letter
         call put_de
         ld de,(PPC)
         inc de                  ; NEXT goes to the line after the FOR
-        jr put_de
+; (HL) = DE; HL + 2.
+put_de: ld (hl),e
+        inc hl
+        ld (hl),d
+        inc hl
+        ret
+
 
 st_next:
         call one_letter

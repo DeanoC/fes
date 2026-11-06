@@ -155,6 +155,7 @@ print_str:
 ; Display file layout.
 
 ; CLS: no rows yet; two rows of lower part.
+st_cls: rst 0x20
 cls:    ld (iy+Y_DF_SZ),2
 ; An empty display file, the print position at the top.
 cls_rows:

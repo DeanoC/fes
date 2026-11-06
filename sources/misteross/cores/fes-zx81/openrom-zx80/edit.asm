@@ -373,12 +373,6 @@ find_line:
 .end:   or h                    ; NZ
         ret
 
-; HL -> the line after the line at HL.
-next_line:
-        inc hl
-        inc hl
-        jr line_skip
-
 ; DE = the line before the line at HL (HL kept); carry if none.
 line_before:
         push hl
