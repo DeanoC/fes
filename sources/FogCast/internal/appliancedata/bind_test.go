@@ -25,6 +25,7 @@ type recordingMounter struct {
 	mountErr     error
 	bindErr      error
 	bindErrOn    string
+	onUnbind     func(string)
 }
 
 func newRecordingMounter() *recordingMounter {
@@ -55,6 +56,9 @@ func (m *recordingMounter) Bind(source, target string) error {
 }
 
 func (m *recordingMounter) Unbind(_, target string) error {
+	if m.onUnbind != nil {
+		m.onUnbind(target)
+	}
 	if m.mounted[target] == "" {
 		return errors.New("target is not mounted")
 	}
@@ -285,6 +289,55 @@ func TestPrepareRetriesInterruptedGameRepairBeforeBinding(t *testing.T) {
 	}
 	if pending, err := gamesFallbackPending(cfg.LibraryFATRoot); err != nil || pending {
 		t.Fatalf("successful retry did not clear marker: pending=%v err=%v", pending, err)
+	}
+}
+
+func TestPrepareRecordsFallbackBeforeRemovingStaleGameBind(t *testing.T) {
+	t.Parallel()
+	mounter := newRecordingMounter()
+	cfg := testConfig(t, mounter)
+	fatGame := filepath.Join(cfg.LibraryFATRoot, "sms", "kept.sms")
+	if err := os.MkdirAll(filepath.Dir(fatGame), 0o700); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(fatGame, []byte("fat-game"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := Prepare(cfg); err != nil {
+		t.Fatalf("initial prepare: %v", err)
+	}
+
+	// Replacing the p3 source makes its existing game bind stale. Observe the
+	// fallback marker at the instant Prepare attempts to remove that bind.
+	if err := os.RemoveAll(cfg.LibraryDataRoot); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.MkdirAll(cfg.LibraryDataRoot, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	unbound := false
+	mounter.onUnbind = func(target string) {
+		if target != cfg.LibraryFATRoot {
+			return
+		}
+		unbound = true
+		pending, err := gamesFallbackPending(cfg.LibraryFATRoot)
+		if err != nil || !pending {
+			t.Errorf("fallback marker at stale game unbind = pending:%v err:%v, want pending", pending, err)
+		}
+	}
+	result, err := Prepare(cfg)
+	if err != nil || !slices.Contains(result.Bound, "games") {
+		t.Fatalf("repair prepare = %+v %v", result, err)
+	}
+	if !unbound {
+		t.Fatal("stale game library bind was not removed")
+	}
+	if got, err := os.ReadFile(filepath.Join(cfg.LibraryDataRoot, "sms", "kept.sms")); err != nil || string(got) != "fat-game" {
+		t.Fatalf("repair did not restore the game from FAT: %q %v", got, err)
+	}
+	if pending, err := gamesFallbackPending(cfg.LibraryFATRoot); err != nil || pending {
+		t.Fatalf("successful repair did not clear fallback marker: pending=%v err=%v", pending, err)
 	}
 }
 

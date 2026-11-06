@@ -238,11 +238,28 @@ func Prepare(cfg Config) (Result, error) {
 		} else if matches {
 			result.Bound = append(result.Bound, "games")
 			bindGames = false
-		} else if err := cfg.Mounter.Unbind(cfg.MountPoint, cfg.LibraryFATRoot); err != nil {
-			bindErr = errors.Join(bindErr, fmt.Errorf("remove stale game library bind: %w", err))
-			bindGames = false
 		} else {
-			repairGames = true
+			// Record the repair before removing the stale bind. If startup stops
+			// after unbind, or marker publication fails, the next startup must
+			// still know to reconcile the p3 game tree against FAT.
+			fallbackPending, err := gamesFallbackPending(cfg.LibraryFATRoot)
+			if err != nil {
+				bindErr = errors.Join(bindErr, fmt.Errorf("check game fallback marker before removing stale bind: %w", err))
+				bindGames = false
+			} else if !fallbackPending {
+				if err := markGamesFallback(cfg.LibraryFATRoot); err != nil {
+					bindErr = errors.Join(bindErr, fmt.Errorf("record game fallback marker before removing stale bind: %w", err))
+					bindGames = false
+				}
+			}
+			if bindGames {
+				if err := cfg.Mounter.Unbind(cfg.MountPoint, cfg.LibraryFATRoot); err != nil {
+					bindErr = errors.Join(bindErr, fmt.Errorf("remove stale game library bind: %w", err))
+					bindGames = false
+				} else {
+					repairGames = true
+				}
+			}
 		}
 	}
 	if bindGames {
