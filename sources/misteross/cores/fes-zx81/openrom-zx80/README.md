@@ -4,8 +4,16 @@ A clean-room, GPL-2.0-or-later integer BASIC for the `fes.zx80` model, written
 for FES like the [open ZX81 ROM](../openrom). It fits the ZX80's 4 KiB ROM:
 `make zx80-openrom` (in `sources/misteross`) writes `build/zx80-openrom/`
 with 6 bytes free beside the 512-byte character set (`$0E00`), and
-`make sim-fes-zx80-openrom` replays the recorded scripts on the RTL. It is not
-yet documented as a user option.
+`make sim-fes-zx80-openrom` replays the recorded scripts on the RTL. Select
+the 4096-byte file as the `fes.zx80` package's `zx80-rom` like any other
+firmware.
+
+On Kit A (2026-11-06, the sealed `fes.zx80` 0.1.0 package `219d43bc`, keys
+through the kit agent's USB keyboard stream) it boots to the K cursor and
+runs the `for`, `gosub` and `if` regression programs and LIST with the same
+screens as the harness. That run found a USB keyboard's SHIFT, pressed just
+before its key, typing shifted keys twice; `wait_key` now decodes the keys
+at the moment it reads them.
 
 ## What it does
 

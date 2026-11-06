@@ -201,7 +201,8 @@ ordinary programs, strings and slicing, numeric arrays, `FOR`/`GOSUB`, `RND`,
 - No syntax check on entry: errors are reported when the line runs.
 - No printer: `LPRINT`, `LLIST` and `COPY` do nothing.
 - `LOAD`/`SAVE` ignore the name and work only through the core's tape unit.
-- `fes.zx80`'s 4 KiB ROM has no open substitute.
+- `fes.zx80` has its own open ROM: `make zx80-openrom` builds a 4096-byte
+  `zx80-rom` (see [its README](../sources/misteross/cores/fes-zx81/openrom-zx80/README.md)).
 
 Best-effort differences:
 
