@@ -126,6 +126,9 @@ func planePair(display, plane bool) error {
 // This is the runtime's ABI contract policy, independent of a board's profile
 // table. Platform I/O availability and live identity remain separate checks.
 func checkContract(d corepackage.Descriptor) error {
+	if nanoComputerProfile(d) && !nanoComputerROM(d) {
+		return reject("unsupported_abi", "native Nano computer requires ABI 1.0 and one held firmware ROM")
+	}
 	sockets, native := 0, false
 	for _, i := range d.Interfaces {
 		if i.ID == rasterSocket || i.ID == nativeSocket {

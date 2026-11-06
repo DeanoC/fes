@@ -60,8 +60,12 @@ The runtime owns physical programming and compatibility admission; FogCast
 owns library/session context; misteross owns source builds and RBF provenance.
 Shared persistence layouts and wire contracts remain here.
 The experimental native Go compatibility checker consumes the same generated
-ABI constants and DE10 programming registry. These additional Go consumers
-change no shared values and register no Nano physical programming capability.
+ABI constants and DE10 programming registry. The separate
+[`de25_nano` registry](packages/programming/de25_nano.yaml) describes the native
+computer package pairing and generates a board-specific Go consumer. It is a
+compatibility definition, with no electrical setup, boot ownership or physical
+programming capability. The native runtime separately requires implemented
+drivers, held-ROM delivery and trusted firmware integration.
 The experimental [embedded identity/drain contract](docs/embedded-control.md)
 generates constants for a standalone FPGA endpoint and FES firmware adapter.
 It registers no production ABI or Nano programming profile.

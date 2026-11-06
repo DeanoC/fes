@@ -9,6 +9,7 @@ GENERATED = (
     ('emit-go', 'packages/abi/fes_simple_computer.yaml', 'FES', 'platform/embedded/tamago/runtimeadmission/generated/fes_simple_computer.go'),
     ('emit-go', 'packages/abi/fes_application.yaml', 'FES', 'platform/embedded/tamago/runtimeadmission/generated/fes_application.go'),
     ('emit-go', 'packages/programming/de10_nano.yaml', 'FES', 'platform/embedded/tamago/runtimeadmission/generated/de10_nano.go'),
+    ('emit-go', 'packages/programming/de25_nano.yaml', 'FES', 'platform/embedded/tamago/board/de25nano/generated/programming.go'),
     ('emit-go', 'packages/fabric/fes_fabric_de25_computer.yaml', 'FES', 'platform/embedded/tamago/computer/generated/fes_de25_computer.go'),
     ('emit-verilog', 'packages/fabric/fes_fabric_de25_computer.yaml', 'misteross', 'prototypes/de25_board_control/generated/fes_de25_computer.vh'),
     ('emit-cpp', 'packages/fabric/fes_fabric_de25_computer.yaml', 'misteross', 'prototypes/de25_board_control/generated/fes_de25_computer.hpp'),

@@ -1,0 +1,16 @@
+schema: mister-packages.v1
+kind: programming_profiles
+id: de25_nano
+description: >-
+  Experimental native DE25-Nano computer package compatibility pairing.
+  This definition supplies no physical programming capability. Native runtime
+  integration must verify the HPS-first source, held-ROM resources, complete
+  master inventory, boot ownership and implemented device drivers separately.
+platform: de25_nano
+device: A5EB013BB23BE4SCS
+profiles:
+  - id: de25-native-computer-v1
+    diagnostic_only: false
+    abis:
+      - id: fes.computer
+        major: 1

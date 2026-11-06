@@ -24,11 +24,12 @@ EMBEDDED_FIRMWARE_CONTRACT_INPUTS = frozenset({
     'sources/mister-packages/testdata/oracles/fes-embedded-bridges.json',
 })
 
-# Only the experimental native Go computer adapter consumes this fabric file.
+# Only the experimental native Go computer integration consumes these files.
 # The shared fes.computer ABI retains its full existing consumer checks.
 NATIVE_COMPUTER_CONTRACT_INPUTS = frozenset({
     'sources/mister-packages/packages/fabric/fes_fabric_de25_computer.yaml',
     'sources/mister-packages/testdata/oracles/fes-de25-computer.json',
+    'sources/mister-packages/packages/programming/de25_nano.yaml',
 })
 
 # Video producer, package-admission and host library consumer inputs. Changes

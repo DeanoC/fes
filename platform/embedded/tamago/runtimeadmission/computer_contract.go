@@ -23,6 +23,12 @@ func computerContract(d corepackage.Descriptor) error {
 	present := make(map[string]bool)
 	mediaUnits, buses := 0, 0
 	for _, i := range d.Interfaces {
+		if i.ID == "fes.embedded.rom" && nanoComputerROM(d) {
+			if !i.Required || !current(i) {
+				return incompatible("held ROM requires the native Nano firmware contract at version 1.0")
+			}
+			continue
+		}
 		bus := i.ID == apple2Bus || i.ID == c64Bus || i.ID == atariBus || i.ID == spectrumBus
 		media := i.ID == c.FesComputerInterfaceMediaApple2FloppyID || i.ID == c.FesComputerInterfaceMediaC64DiskID ||
 			i.ID == c.FesComputerInterfaceMediaAtariStFloppyID || i.ID == c.FesComputerInterfaceMediaSpectrumTapeID ||

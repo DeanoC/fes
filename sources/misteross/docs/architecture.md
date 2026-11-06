@@ -139,6 +139,15 @@ selects 13/200 at 100 MHz. The board model exercises actual Avalon peripherals
 and mailbox Run/Hold, with a separate reset gate for unloaded or failed ROM.
 This source/model integration is not routed timing or a physical ROM result.
 
+The board overlay also has an explicit `--sealed-computer` export choice for
+the reviewed HPS-first CPU-fed ROM variant. It declares the existing
+`fes.computer` 1.0 ABI and the shared `de25-native-computer-v1` compatibility
+profile, with separate retained firmware. That choice and both shared
+definitions enter the pre-synthesis functional identity, so its package and
+build ID are distinct from the embedded diagnostic export. This is a package
+candidate from the private two-revision producer; normal Nano boot/firmware
+activation and physical acceptance remain separate and incomplete.
+
 The fingerprint is diagnostic, not the canonical record or a sealed package identity. The
 overlay records its board and overlay revisions separately. Generated handoff
 checks the 256-byte peripheral-relative window, its clock/reset and the JTAG

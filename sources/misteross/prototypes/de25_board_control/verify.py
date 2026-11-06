@@ -82,6 +82,8 @@ def inputs_for(project):
                 any(fields['parameters'].get(k)!=v for k,v in reader_memory.parameters(memory).items()) or
                 ('computer_model' in inputs and fields['parameters'].get('computer_model') != inputs['computer_model']) or
                 any(fields['parameters'].get(k)!=v for k,v in rom_transport.parameters(inputs).items()) or
+                {k: fields['parameters'][k] for k in ('package_contract','programming_profile') if k in fields['parameters']} != seal.package_parameters(inputs) or
+                fields['abi_definition'] != seal.definition_for(inputs) or
                 fields["parameters"].get("device") != seal.DEVICE or
                 fields["parameters"].get("parallel_processors") != inputs.get("compile_processors") or
                 fields["parameters"].get("classification") != "de25-two-revision-diagnostic" or
@@ -113,7 +115,7 @@ def inputs_for(project):
         spl = board / "hps/project/software/u-boot/spl/u-boot-spl-dtb.hex"
         if (package.package_id != result["package_id"] or package.fields["build"]["id"] != build_id or
                 package.fields["target"] != {"platform": seal.PLATFORM, "device": seal.DEVICE, "programming_profile": seal.profile_for(inputs)} or
-                package.fields["abi"] != {"id": seal.ABI, "major": 1, "minor": 0} or
+                package.fields["abi"] != {"id": seal.abi_for(inputs), "major": 1, "minor": 0} or
                 package.fields['interfaces'] != seal.interfaces_for(inputs) or
                 package.fields["build"]["revision"] != fields["revision"] or
                 package.fields["build"]["recipe_sha256"] != fields["recipe_sha256"] or

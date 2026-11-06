@@ -7,7 +7,8 @@ from pathlib import Path
 import unittest
 
 from scripts.affected import (changed_paths, plan, LANES, CORES, MODULE_ROOTS,
-                               FPGA_SOFTWARE_TESTS, PARENT_ROOTS, CI_BROAD_INPUTS)
+                               FPGA_SOFTWARE_TESTS, PARENT_ROOTS, CI_BROAD_INPUTS,
+                               native_compatibility_input)
 
 
 class AffectedTests(unittest.TestCase):
@@ -146,6 +147,14 @@ class AffectedTests(unittest.TestCase):
                 self.assertEqual({lane for lane, enabled in result['lanes'].items() if enabled}, lanes)
                 self.assertEqual(result['cores'], [])
                 self.assertFalse(any(result['test_modes'].values()))
+
+    def test_native_nano_profile_has_no_linux_or_shipped_core_consumer(self):
+        path = 'sources/mister-packages/packages/programming/de25_nano.yaml'
+        result = plan([path])
+        self.assertEqual({lane for lane, enabled in result['lanes'].items() if enabled}, {'parent', 'contracts'})
+        self.assertEqual(result['cores'], [])
+        self.assertFalse(any(result['test_modes'].values()))
+        self.assertTrue(native_compatibility_input(path))
 
     def test_de25_exception_does_not_narrow_other_boards_or_shared_changes(self):
         de25 = ['sources/mister-packages/packages/board/de25_nano.yaml',

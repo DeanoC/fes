@@ -101,6 +101,24 @@ shared-linker receipt; a fresh matched ROM boot chain remains necessary before
 a hardware trial. Existing
 format-two ROM candidates are not relabeled or accepted as new exports.
 
+The explicit `--sealed-computer` mode instead emits a source-bound computer
+package candidate with `fes.computer` 1.0 and the shared
+`de25-native-computer-v1` profile. It requires `build`, a clean committed source,
+the reviewed HPS-first DDR variant and `--external-rom`; it excludes
+`--sealed-diagnostic`. ZX80/ZX81 selection produces `fes.zx80`/`fes.zx81` with
+separate 4/8 KiB firmware requirements. Fixed video, HID keyboard, ZX81 tape and
+held-ROM delivery are required interfaces. The GP ABI remains 1.0; the Avalon
+adapter's version 1.1 describes its separate transport.
+
+The package choice, shared registry, computer ABI definition and generated GP
+header enter the functional record before synthesis. Both endpoints receive
+that record's build ID. Metadata publication and independent verification reject
+a package choice that differs from the record; a diagnostic build cannot be
+relabeled into this mode. This extends the existing private producer, with its
+two captured revisions and unqualified electrical scope. It supplies no ordinary
+runtime activation or hardware acceptance. Its normal Nano boot/firmware path
+still needs integration and a fresh matched build and physical test.
+
 The new 256-byte Avalon aperture is at peripheral-relative `0x10400`. The
 generated handoff must also show it at `0x00110400` in the existing JTAG master.
 Neither address is a verified CPU physical address. The default read responder

@@ -46,6 +46,9 @@ HPS_DDR_PROFILE = "de25-embedded-hps-first-ddr-diagnostic-v1"
 WINDOW_PROFILE = "de25-embedded-window-diagnostic-v1"
 HPS_WINDOW_PROFILE = "de25-embedded-hps-first-window-diagnostic-v1"
 HPS_ROM_PROFILE = "de25-embedded-hps-first-rom-diagnostic-v1"
+COMPUTER_PROFILE = "de25-native-computer-v1"
+COMPUTER_DEFINITION = "sources/misteross/cores/fes-common/generated/fes_computer.vh"
+COMPUTER_REGISTRY = "sources/mister-packages/packages/programming/de25_nano.yaml"
 ABI = "fes.de25-embedded-diagnostic"
 SPL_MEMBER = "Demonstration/SoC_FPGA/GHRD/software/u-boot/spl/u-boot-spl-dtb.hex"
 
@@ -57,7 +60,30 @@ def boot_order(inputs):
     return order
 
 
+def computer_package(inputs):
+    contract = inputs.get('package_contract')
+    if contract is None:
+        return False
+    if contract != 'fes.computer' or not rom_transport.checked(inputs):
+        raise ValueError('computer package requires the reviewed HPS-first held-ROM source')
+    return True
+
+
+def abi_for(inputs):
+    return 'fes.computer' if computer_package(inputs) else ABI
+
+
+def package_parameters(inputs):
+    return {'package_contract': 'fes.computer', 'programming_profile': COMPUTER_PROFILE} if computer_package(inputs) else {}
+
+
+def definition_for(inputs):
+    return COMPUTER_DEFINITION if computer_package(inputs) else DEFINITION
+
+
 def profile_for(inputs):
+    if computer_package(inputs):
+        return COMPUTER_PROFILE
     if rom_transport.checked(inputs):
         return HPS_ROM_PROFILE
     mode=reader_memory.mode(inputs['reader_memory'])
@@ -66,7 +92,11 @@ def profile_for(inputs):
 
 
 def interfaces_for(inputs):
-    return [{'id':'fes.embedded.rom','major':1,'minor':0,'required':True}] if rom_transport.checked(inputs) else []
+    interfaces = [{'id':'fes.embedded.rom','major':1,'minor':0,'required':True}] if rom_transport.checked(inputs) else []
+    if computer_package(inputs):
+        interfaces += [{'id': name, 'major': 1, 'minor': 0, 'required': True} for name in
+                       ('fes.video.fixed-720p60', 'fes.keyboard.hid', 'fes.media.zx81-tape')]
+    return interfaces
 
 
 def sha(data):
@@ -77,6 +107,11 @@ def package_metadata(inputs, data, record, tools):
     """Describe held ROM content without bundling firmware or FPGA destinations."""
     fields = json.loads(record)
     rom = rom_transport.checked(inputs)
+    ordinary = computer_package(inputs)
+    recorded = {k: fields.get('parameters', {})[k] for k in ('package_contract', 'programming_profile')
+                if k in fields.get('parameters', {})}
+    if recorded != package_parameters(inputs) or fields.get('abi_definition') != definition_for(inputs):
+        raise ValueError('package contract differs from its pre-synthesis functional record')
     rom_map = None
     if rom:
         rom_map = (json.dumps({'format': 1, 'device': DEVICE, 'encoding': 'cpu-csr-v1',
@@ -92,6 +127,11 @@ def package_metadata(inputs, data, record, tools):
         'build': {'id': build_identity(record), 'repository': fields['repository'], 'revision': fields['revision'],
                   'recipe_sha256': fields['recipe_sha256'], 'toolchain': tools['quartus-version']},
     }
+    if ordinary:
+        model = computer_model.checked(inputs['computer_model'])
+        fields['core'].update(id='fes.'+model, name='FES '+model.upper(),
+                              description='Source-bound native DE25 computer candidate; hardware acceptance pending.')
+        fields['abi']['id'] = abi_for(inputs)
     if rom:
         fields['rom'] = {'id': 'firmware', 'role': 'firmware', 'source_size': rom['bytes'],
                          'file': 'rom-map.json', 'size': len(rom_map), 'sha256': sha(rom_map)}
@@ -134,12 +174,16 @@ def make_record(inputs, revision, repository, tools):
     if type(processors) is not int or not 1 <= processors <= 16:
         raise ValueError('sealed diagnostic requires explicit compile processor count')
     roots = sorted(set(ROOTS) | (set(rom_transport.CORE_INPUTS) if rom_transport.checked(inputs) else set()))
+    definition = definition_for(inputs)
+    if computer_package(inputs):
+        roots = sorted(set(roots) | {COMPUTER_DEFINITION, COMPUTER_REGISTRY,
+                                   'sources/mister-packages/packages/abi/fes_computer.yaml'})
     closure = source_input_closure(ROOT, roots)
     order = boot_order(inputs)
     fields = {
         "format": 2, "repository": canonical_repository(repository), "revision": revision, "source_path": ".",
-        "recipe": RECIPE, "recipe_sha256": closure[RECIPE], "abi_definition": DEFINITION,
-        "abi_definition_sha256": closure[DEFINITION], "source_roots": roots, "source_inputs": closure,
+        "recipe": RECIPE, "recipe_sha256": closure[RECIPE], "abi_definition": definition,
+        "abi_definition_sha256": closure[definition], "source_roots": roots, "source_inputs": closure,
         "dependencies": {}, "tools": tools,
         "parameters": {"classification": "de25-two-revision-diagnostic", "board_revision": inputs["board_fes_revision"],
                        "snapshot_sha256": snapshot_digest(sources), "vendor_sha256": inputs["vendor_archive_sha256"],
@@ -147,6 +191,7 @@ def make_record(inputs, revision, repository, tools):
                        **reader_memory.parameters(inputs['reader_memory']),
                        **computer_model.parameters(inputs['computer_model']),
                        **rom_transport.parameters(inputs),
+                       **package_parameters(inputs),
                        "system_hz": 100000000, "pixel_hz": 74250000,
                        "spl_member": SPL_MEMBER, "hps_initialization": order,
                        "compile_flow": "quartus-pro-bounded-tasks-v1",

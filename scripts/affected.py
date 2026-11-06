@@ -141,6 +141,8 @@ def native_compatibility_input(path):
         'sources/libmister-runtime/src/native/core_package.cpp',
         'sources/libmister-runtime/src/native/core_package.hpp',
         'sources/mister-packages/packages/programming/de10_nano.yaml',
+        'sources/mister-packages/packages/programming/de25_nano.yaml',
+        'platform/embedded/tamago/board/de25nano/generated/programming.go',
         *('sources/mister-packages/packages/abi/fes_' + name + '.yaml'
           for name in ('simple_game', 'simple_computer', 'application', 'computer')),
     )

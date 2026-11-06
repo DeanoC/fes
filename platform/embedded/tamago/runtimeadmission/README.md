@@ -18,7 +18,12 @@ not supply the missing driver.
 ABI constants and the DE10 profile registry are generated from mister-packages.
 `NewDE10Compatibility` supplies that registry to compare the native port with
 the C++ runtime. It rejects Nano targets. `NewCompatibility` supplies no default
-target or profiles: a future Nano platform must provide its qualified contract.
+target or profiles. `NewNanoComputerCompatibility` explicitly selects the shared
+experimental `de25-native-computer-v1` pairing for `fes.computer` 1.0 and one
+held firmware ROM. It recognizes required `fes.embedded.rom` 1.0 only within
+that exact Nano contract; it does not change the DE10 policy or accept raw
+format-two packages under the held-ROM profile. The platform must still supply
+its actual driver inventory and qualified boot/device integration.
 Compatibility supplies no boot proof, physical programming profile, live
 identity, bridge operation, input/display grant or DMA reservation. It has no
 activation method. A compatible retained package is one admission prerequisite.

@@ -85,7 +85,7 @@ class ConsistencyTest(unittest.TestCase):
 
     def test_selected_sources_and_validation_coverage(self):
         self.assertEqual(self.module.check(self.root, self.sources), {
-            'generated_files': 47, 'source_pin_copies': 0, 'fixture_copies': 37})
+            'generated_files': 48, 'source_pin_copies': 0, 'fixture_copies': 37})
         self.assertEqual({source for command, source in self.calls if command == 'validate'}, {
             'packages/fabric/fes_fabric_embedded_bridges.yaml',
             'packages/fabric/fes_fabric_embedded_sd.yaml',
@@ -104,7 +104,7 @@ class ConsistencyTest(unittest.TestCase):
             'packages/board/de25_nano.yaml',
             'packages/abi/fes_simple_game.yaml', 'packages/abi/fes_simple_computer.yaml',
             'packages/abi/fes_application.yaml', 'packages/abi/fes_computer.yaml',
-            'packages/programming/de10_nano.yaml'})
+            'packages/programming/de10_nano.yaml', 'packages/programming/de25_nano.yaml'})
 
     def test_shared_fixture_copy_drift(self):
         fixture_copies = [(component, destination, None)

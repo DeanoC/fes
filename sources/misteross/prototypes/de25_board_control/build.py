@@ -504,7 +504,9 @@ def main():
     parser.add_argument("--output", required=True, type=Path)
     parser.add_argument("--quartus-root", default=os.environ.get("QUARTUS_ROOTDIR", ""))
     parser.add_argument("--allow-dirty", action="store_true")
-    parser.add_argument("--sealed-diagnostic", action="store_true", help="build a committed diagnostic-only format-2 package")
+    package_mode = parser.add_mutually_exclusive_group()
+    package_mode.add_argument("--sealed-diagnostic", action="store_true", help="build a committed diagnostic-only package")
+    package_mode.add_argument("--sealed-computer", action="store_true", help="build a source-bound fes.computer package candidate; no hardware acceptance")
     parser.add_argument("--hps-first", action="store_true", help="select the captured board producer's HPS-first profile")
     parser.add_argument('--reader-memory', choices=('onchip', 'hps-ddr', 'hps-ddr-window'), default='onchip')
     parser.add_argument('--ddr-bus-base', type=lambda x:int(x,0), default=0)
@@ -517,6 +519,9 @@ def main():
                         help="explicit compiler worker limit, recorded in the functional identity (default: 2)")
     args = parser.parse_args()
     try:
+        sealed = args.sealed_diagnostic or args.sealed_computer
+        if args.sealed_computer and not args.external_rom:
+            raise ValueError('sealed computer requires the explicit held-ROM variant')
         memory = reader_memory.selection(args.reader_memory, args.ddr_bus_base, args.ddr_bytes)
         if args.external_rom and (not args.hps_first or reader_memory.mode(memory)!=1):
             raise ValueError('external ROM requires HPS-first and the hps-ddr computer variant')
@@ -525,11 +530,11 @@ def main():
         output = args.output.absolute()
         if ".." in output.parts or any(p.is_symlink() for p in (output, *output.parents)) or not output.is_relative_to(ROOT / "out") or output.exists():
             raise ValueError("output must be a fresh private directory under this worktree's out/")
-        if args.sealed_diagnostic and (args.action != "build" or args.allow_dirty):
-            raise ValueError("sealed diagnostic requires build and committed source")
+        if sealed and (args.action != "build" or args.allow_dirty):
+            raise ValueError("sealed package requires build and committed source")
         revision, state, overlay = capture_overlay(args.allow_dirty,args.external_rom)
-        if args.sealed_diagnostic and git("status", "--porcelain", "--untracked-files=all").stdout:
-            raise ValueError("sealed diagnostic requires a clean checkout")
+        if sealed and git("status", "--porcelain", "--untracked-files=all").stdout:
+            raise ValueError("sealed package requires a clean checkout")
         output.mkdir(parents=True)
         board = load_builder(output, args.board_revision)
         sources = board.capture(args.board_revision)
@@ -553,9 +558,11 @@ def main():
         computer_model.install(result, inputs, sources, args.computer_model)
         if args.external_rom:
             inputs['rom_transport'] = rom_transport.selection(True,args.computer_model)
+        if args.sealed_computer:
+            inputs['package_contract'] = 'fes.computer'
         inputs_file.write_text(json.dumps(inputs, indent=2, sort_keys=True)+'\n')
         record = None
-        if args.sealed_diagnostic:
+        if sealed:
             import seal
             tool, version = hps.BOARD_BUILD.locate_quartus(args.quartus_root)
             tools = seal.tool_snapshot(tool, version)
