@@ -58,11 +58,17 @@ LOOPS: list[tuple[str, int, int]] = [
     ('agi_alu', 1000, UNROLL),
     ('store_load_same', 1000, UNROLL),
     ('store_load_other', 1000, UNROLL),
+    ('store_load_line', 1000, UNROLL),
+    ('store_load_part', 1000, UNROLL),
+    ('store_load_alias', 1000, UNROLL),
 ]
 # CPU Phase 4 slice 2, the BTB (Jcc, LOOP, JCXZ, JMP and CALL rel). Slice 1's
 # baseline, before it: jcc_loop 47999, jcc_taken 103999, call_ret 199118,
 # call_reg 245999, call_mem 246029, far_call 269029, loop 90999, agi_load
 # 44999, agi_alu 52999, store_load_same and store_load_other 36029.
+# CPU Phase 4 slice 4, the store-to-load wait only on a possible overlap.
+# Before it, with slice 2: store_load_other 26059, store_load_line 26050,
+# store_load_part 26030, store_load_alias 26059.
 EXPECTED: dict[str, int] = {
     'jcc_loop': 8039,
     'jcc_taken': 77045,
@@ -74,7 +80,10 @@ EXPECTED: dict[str, int] = {
     'agi_load': 35039,
     'agi_alu': 43029,
     'store_load_same': 26059,
-    'store_load_other': 26059,
+    'store_load_other': 18059,
+    'store_load_line': 18057,
+    'store_load_part': 26030,
+    'store_load_alias': 26059,
 }
 
 
