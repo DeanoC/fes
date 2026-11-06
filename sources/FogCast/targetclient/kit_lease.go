@@ -130,6 +130,21 @@ func (l *KitLease) Authorize(r *http.Request, acquire bool) error {
 	r.Header.Set(KitLeaseHeader, l.grant.Token)
 	return nil
 }
+
+// Acquire claims a free kit for a caller that is about to perform a leased
+// operation. It does not dispatch that operation. A held kit remains owned by
+// its current session and the claim fails without taking it over.
+func (l *KitLease) Acquire(ctx context.Context) error {
+	if l == nil || l.client == nil {
+		return ErrKitLeaseLost
+	}
+	request, err := http.NewRequestWithContext(ctx, http.MethodPost, l.client.endpoint("/v1/stop", nil).String(), nil)
+	if err != nil {
+		return err
+	}
+	return l.Authorize(request, true)
+}
+
 func validKitGrant(g kitLeaseGrant, requestStart time.Time) bool {
 	// The kit may boot without an RTC. Only local monotonic time governs client
 	// expiry; target wall time is display-only. Charge all round-trip time.

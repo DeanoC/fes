@@ -4,8 +4,10 @@ import (
 	"bytes"
 	"context"
 	"crypto/sha256"
+	"encoding/json"
 	"fmt"
 	"os"
+	"path/filepath"
 	"reflect"
 	"strings"
 	"testing"
@@ -99,6 +101,52 @@ func TestPreviousImageBootsWhenCurrentCannotBePrepared(t *testing.T) {
 	status, err := s.Status()
 	if err != nil || status.Good != previous.ImageSHA256 || status.Previous != "" {
 		t.Fatalf("recovery state = %+v, %v; want previous as Good and no failed predecessor", status, err)
+	}
+}
+
+func TestConfirmedImageBootRefreshesTicketAndFallbackForNextKernelBoot(t *testing.T) {
+	factoryImage, factory := applianceBootTestImage("factory", 1)
+	s, err := store.New(t.TempDir(), factory)
+	if err != nil {
+		t.Fatal(err)
+	}
+	stageApplianceBootTestImage(t, s, factoryImage, factory)
+
+	previousImage, previous := applianceBootTestImage("previous", 2)
+	stageApplianceBootTestImage(t, s, previousImage, previous)
+	confirmApplianceBootTestImage(t, s, previous, "confirm-previous")
+
+	currentImage, current := applianceBootTestImage("current", 3)
+	stageApplianceBootTestImage(t, s, currentImage, current)
+	confirmApplianceBootTestImage(t, s, current, "confirm-current")
+
+	const nextBootID = "after-reboot"
+	ticketPath := filepath.Join(t.TempDir(), "releases", "boot.json")
+	if err := os.MkdirAll(filepath.Dir(ticketPath), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	p := &fixturePlatform{ticketPath: ticketPath}
+	if err := Run(context.Background(), s, factory.ImageSHA256, nextBootID, p); err == nil || !strings.Contains(err.Error(), "execute selected init") {
+		t.Fatalf("Run error = %v, want selected image to reach init", err)
+	}
+	if p.ticket.BootID != nextBootID || p.ticket.Manifest.ImageSHA256 != current.ImageSHA256 || p.ticket.FallbackImageSHA256 != previous.ImageSHA256 || p.ticket.Trial {
+		t.Fatalf("next-boot ticket selection = %+v", p.ticket)
+	}
+	body, err := os.ReadFile(ticketPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var ticket store.BootTicket
+	if err = json.Unmarshal(body, &ticket); err != nil || ticket.BootID != nextBootID || ticket.ImageSHA256 != current.ImageSHA256 || ticket.Trial {
+		t.Fatalf("boot.json after reboot = %+v, %v", ticket, err)
+	}
+	fallback, err := store.ReadBootFallback(filepath.Join(filepath.Dir(ticketPath), store.BootFallbackFilename), nextBootID, current.ImageSHA256)
+	if err != nil || fallback != previous.ImageSHA256 {
+		t.Fatalf("next-boot fallback = %q, %v; want %s", fallback, err, previous.ImageSHA256)
+	}
+	status, err := s.Status()
+	if err != nil || status.Good != current.ImageSHA256 || status.Previous != previous.ImageSHA256 {
+		t.Fatalf("selection after normal reboot = %+v, %v", status, err)
 	}
 }
 

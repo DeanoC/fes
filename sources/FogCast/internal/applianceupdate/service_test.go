@@ -135,6 +135,33 @@ func TestConfirmClearsBootTicketTrial(t *testing.T) {
 	}
 }
 
+func TestStatusRecoversFallbackFromGoodAfterNextBootWithoutSidecar(t *testing.T) {
+	s, factory, n, c := fixture(t)
+	if err := s.Activate(n.ImageSHA256); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := s.BeginBoot("trial-boot"); err != nil {
+		t.Fatal(err)
+	}
+	if err := s.Confirm("trial-boot", n.ImageSHA256); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := s.BeginBoot("after-reboot"); err != nil {
+		t.Fatal(err)
+	}
+
+	svc := applianceupdate.New(s, c, applianceupdate.BootIdentity{
+		BootID: "after-reboot", ImageSHA256: n.ImageSHA256,
+	}, nil, nil)
+	status, err := svc.Status(context.Background())
+	if err != nil || status.BootID != "after-reboot" || status.ImageSHA256 != n.ImageSHA256 || status.Trial || status.FallbackImageSHA256 == "" {
+		t.Fatalf("post-reboot status = %+v, %v", status, err)
+	}
+	if status.FallbackImageSHA256 != factory.ImageSHA256 {
+		t.Fatalf("post-reboot fallback = %q, want %q", status.FallbackImageSHA256, factory.ImageSHA256)
+	}
+}
+
 func TestTrialRequiresExactBootAndRawIdleConfirmation(t *testing.T) {
 	s, m, n, c := fixture(t)
 	if e := s.Activate(n.ImageSHA256); e != nil {

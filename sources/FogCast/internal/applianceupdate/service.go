@@ -90,10 +90,11 @@ func (s *Service) Status(ctx context.Context) (Status, error) {
 	// Read durable state after the local trial snapshot so a concurrent confirm
 	// cannot return trial=false alongside a pre-confirmation known-good image.
 	st, err := s.store.StatusContext(ctx)
-	// Confirmation records the previous good image as Previous. Legacy boot
-	// tickets may omit that field, so refresh the startup identity from durable state.
-	if err == nil && boot.FallbackImageSHA256 == "" &&
-		st.ConfirmedBootID == boot.BootID && st.ConfirmedImage == boot.ImageSHA256 &&
+	// The boot ticket's sidecar is optional and identity-bound. On the first
+	// confirmed boot, and on later normal boots after BeginBoot clears the
+	// confirmation marker, recover a missing sidecar value from the durable
+	// Good/Previous selection when this ticket names Good.
+	if err == nil && !st.Corrupt && boot.FallbackImageSHA256 == "" &&
 		st.Good == boot.ImageSHA256 && release.ValidHash(st.Previous) {
 		boot.FallbackImageSHA256 = st.Previous
 		s.mu.Lock()

@@ -61,6 +61,7 @@ type fixturePlatform struct {
 	bad           map[string]bool
 	guardErr      error
 	ticket        store.Selection
+	ticketPath    string
 	beforePrepare func(string)
 }
 
@@ -77,6 +78,9 @@ func (p *fixturePlatform) Prepare(path string) (Root, error) {
 func (p *fixturePlatform) Ticket(sel store.Selection) error {
 	p.events = append(p.events, "ticket:"+sel.Manifest.ImageSHA256)
 	p.ticket = sel
+	if p.ticketPath != "" {
+		return store.WriteBootTicket(p.ticketPath, sel.BootID, sel.Manifest.ImageSHA256, sel.Trial, sel.FallbackImageSHA256)
+	}
 	return nil
 }
 func (p *fixturePlatform) Arm(context.Context, store.Selection) error {

@@ -75,4 +75,14 @@ func TestBootIdentityReadsMatchingFallbackSidecar(t *testing.T) {
 	if err != nil || got.FallbackImageSHA256 != "" {
 		t.Fatalf("stale sidecar was used: %+v %v", got, err)
 	}
+	if err = os.WriteFile(proc, []byte("boot-b\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if err = store.WriteBootTicket(ticket, "boot-b", image, false, fallback); err != nil {
+		t.Fatal(err)
+	}
+	got, err = applianceupdate.ReadBootIdentity(ticket, proc)
+	if err != nil || got.BootID != "boot-b" || got.Trial || got.ImageSHA256 != image || got.FallbackImageSHA256 != fallback {
+		t.Fatalf("rebooted boot identity = %+v, %v", got, err)
+	}
 }

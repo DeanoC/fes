@@ -1710,8 +1710,10 @@ present there while an update is pending or on trial. The bootstrap keeps
 target agents continue to accept it. A separate `boot-fallback.json` record,
 bound to that boot ID and image hash, stores the fallback so recovery can still
 select it if the release state file is corrupt. Authenticated `GET /v1/update`
-preserves and reports that digest as `fallback_image_sha256`; confirming a trial
-clears the trial flag without dropping its sidecar fallback. Moving
+reports that digest as `fallback_image_sha256`; if the optional sidecar is
+missing on a later normal boot, it recovers the value from durable Good and
+Previous when the ticket names Good. Confirming a trial clears the trial flag
+without dropping its sidecar fallback. Moving
 previous, pending and trial image files to FESDATA3, with a read-only p3 mount
 in the bootstrap and a FAT known-good fallback when that mount fails, is the
 next appliance update step.
@@ -3499,13 +3501,15 @@ confirmed clean idle response. A failed Stop keeps the recovery error visible.
 
 An idle menu therefore does not by itself establish launch readiness. A new
 explicit library launch can clear a retained idle legacy-launch error through
-one existing leased Stop request before its single activation. Source/media
-validation, target identity, API and ownership admission still apply. Cleanup
-must confirm clean idle; active sessions, save failures, attributed package
-failures and reboot-required states are not silently cleared. Cleanup failure
-blocks activation and remains visible. This does not replay the earlier failed
-launch or automatically reboot. Other recovery states still require explicit
-Stop or operator attention. Kit launch diagnostics record the submitted game ID and
+one leased Stop request before its single activation. If reboot discarded the
+session's grant, the launch claims a currently free kit after target identity
+and ownership admission; a held kit remains with its owner and the claim fails
+closed. Source/media validation and API admission still apply. Cleanup must
+confirm clean idle; active sessions, save failures, attributed package failures
+and reboot-required states are not silently cleared. Cleanup failure blocks
+activation and remains visible. This does not replay the earlier failed launch
+or automatically reboot. Other recovery states still require explicit Stop or
+operator attention. Kit launch diagnostics record the submitted game ID and
 bounded result code, separately from the currently displayed selection, without
 logging credentials or raw response bodies.
 

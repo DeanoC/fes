@@ -22,8 +22,8 @@ import (
 )
 
 func TestLibraryRecoveryLeasedTransport(t *testing.T) {
-	for _, name := range []string{"retained-lease", "lease-lost-after-stop", "lease-lost-after-load", "lease-lost-idle-after-load"} {
-		loseLease := name != "retained-lease"
+	for _, name := range []string{"retained-lease", "free-after-reboot", "lease-lost-after-stop", "lease-lost-after-load", "lease-lost-idle-after-load"} {
+		loseLease := name != "retained-lease" && name != "free-after-reboot"
 		t.Run(name, func(t *testing.T) {
 			ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 			defer cancel()
@@ -51,6 +51,7 @@ func TestLibraryRecoveryLeasedTransport(t *testing.T) {
 			const token = "retained-test-lease"
 			var mu sync.Mutex
 			var mutations []string
+			bootID := "before-reboot"
 			state := protocol.Status{State: protocol.StateIdle, LastError: &protocol.APIError{Code: protocol.CodeMiSTerUnavailable, Message: "retained idle failure"}}
 			held := false
 			var client *targetclient.Client
@@ -69,7 +70,7 @@ func TestLibraryRecoveryLeasedTransport(t *testing.T) {
 				}
 				switch r.Method + " " + r.URL.Path {
 				case "GET /v1/health":
-					json.NewEncoder(w).Encode(protocol.Health{APIVersion: "v1", TargetID: targetID, Ready: true})
+					json.NewEncoder(w).Encode(protocol.Health{APIVersion: "v1", TargetID: targetID, BootID: bootID, Ready: true})
 				case "GET /v1/kit/lease":
 					ownership := targetclient.KitOwnership{State: "free"}
 					if held {
@@ -88,6 +89,11 @@ func TestLibraryRecoveryLeasedTransport(t *testing.T) {
 					}
 					json.NewEncoder(w).Encode(protocol.CoreInspection{PackageID: pkg.PackageID, Descriptor: pkg.Descriptor, Compatible: true})
 				case "POST /v1/stop":
+					if !held {
+						w.WriteHeader(http.StatusForbidden)
+						json.NewEncoder(w).Encode(protocol.ErrorEnvelope{Error: protocol.APIError{Code: protocol.CodeKitLeaseDenied, Message: "session does not own the kit"}})
+						return
+					}
 					state = protocol.Status{State: protocol.StateIdle}
 					// Deterministically invalidate authority after cleanup but before the
 					// service receives idle and attempts activation; no timer races.
@@ -129,6 +135,16 @@ func TestLibraryRecoveryLeasedTransport(t *testing.T) {
 			claim, _ := http.NewRequestWithContext(ctx, http.MethodPost, peer.URL+"/v1/stop", nil)
 			if err := lease.Authorize(claim, true); err != nil {
 				t.Fatal(err)
+			}
+			if name == "free-after-reboot" {
+				if _, err := s.refreshTargetAdmission(ctx); err != nil {
+					t.Fatalf("initial ownership admission: %v", err)
+				}
+				mu.Lock()
+				held = false
+				bootID = "after-reboot"
+				mutations = nil
+				mu.Unlock()
 			}
 			result, err := s.Launch(ctx, entry.GameID, nil)
 			if loseLease {
