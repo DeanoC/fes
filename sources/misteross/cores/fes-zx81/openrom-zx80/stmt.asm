@@ -175,8 +175,7 @@ st_return:
         rst 8
         db R_RETURN
 .ok:    push de
-        ld (ERR_SP),sp
-        jr jump_hl
+        jr new_sp
 
 st_cont:
         rst 0x20
@@ -196,10 +195,9 @@ st_run: call opt_num
         jr nz,.r
         push hl
         push de
-        ld (ERR_SP),sp
         ld h,b
         ld l,c
-        jr jump_hl
+        jr new_sp
 
 st_gosub:
         call expr_num
@@ -210,7 +208,7 @@ st_gosub:
         pop bc
         push de
         push bc
-        ld (ERR_SP),sp
+new_sp: ld (ERR_SP),sp          ; (RETURN and RUN come in here too)
         jr jump_hl
 
 st_goto:
