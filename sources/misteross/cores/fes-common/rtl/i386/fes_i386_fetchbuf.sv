@@ -30,6 +30,12 @@
 // (btb_info_t) and whether it is the sequential successor of the block
 // filled before it (seq); both are kept per half.
 //
+// The return stack (fes_i386_ras). A taken entry for a CALL rel pushes the
+// linear address after the call's last byte, on the edge after F2 passes on
+// its block (when pred_go loads its target); one for a RET pops the stack,
+// and its target is the top it pops, not the entry's. Only a block F2
+// passes on moves the stack, once.
+//
 // jm[j][v] says the instruction at buffer byte j under variant v ends where
 // a half's BTB entry says its branch ends (that half's block holds the
 // branch's last byte; jx[j][v] names the half), and jt[j][v] that the entry
@@ -83,6 +89,11 @@ module fes_i386_fetchbuf import fes_i386_pkg::*; (
     input  btb_entry_t        btb_entry,
     input  logic              pred_en,
     input  logic              jump_clear,
+    // The return stack (fes_i386_ras): its top, and F2's push and pop.
+    input  logic [31:0]       ras_top,
+    output logic              ras_push,
+    output logic [31:0]       ras_push_lin,
+    output logic              ras_pop,
     output btb_info_t [1:0]   half_info,
     output logic [1:0]        half_seq,
     output logic              l2_seq,
@@ -117,6 +128,9 @@ module fes_i386_fetchbuf import fes_i386_pkg::*; (
     logic [3:0]       pred_enter;
     btb_info_t        f2_info, l1_info, l2_info;
     logic             btb_taken;
+    logic [31:0]      btb_target;  // the entry's target, or for a RET's the return stack's top
+    logic             push_call;   // pred_go is for a CALL rel's entry ...
+    logic [31:0]      push_last;   // ... whose last byte is here
 
     // half: the half L2's block goes to, alternately from the redirect's.
     assign l2_fire = l2_valid && !half_valid[half];
@@ -129,8 +143,12 @@ module fes_i386_fetchbuf import fes_i386_pkg::*; (
 
     assign btb_taken = btb_entry.uncond || btb_entry.ctr[1];
     assign pred_now = f2_advance && btb_hit && btb_taken && pred_en;
+    assign btb_target = btb_entry.ret ? ras_top : btb_entry.target;
     assign f2_info = '{hit: btb_hit, way: btb_way, ctr: btb_entry.ctr, last: btb_entry.last,
-                       taken: pred_now, toff: btb_entry.target[3:0]};
+                       taken: pred_now, tblk: btb_target[31:4], toff: btb_target[3:0]};
+    assign ras_pop = pred_now && btb_entry.ret;
+    assign ras_push = pred_go && push_call;
+    assign ras_push_lin = push_last + 32'd1;
     assign held_block = {pred_block, fetch_block, f2_block, l1_block, l2_block, half_block[1], half_block[0]};
     assign held_valid = {pred_go, active, active, l1_valid, l2_valid, half_valid[1], half_valid[0]};
 
@@ -248,8 +266,10 @@ module fes_i386_fetchbuf import fes_i386_pkg::*; (
             if (l2_fire) half <= !half;
             pred_go <= pred_now;
             if (pred_now) begin
-                pred_block <= btb_entry.target[31:4];
-                pred_enter <= btb_entry.target[3:0];
+                pred_block <= btb_target[31:4];
+                pred_enter <= btb_target[3:0];
+                push_call <= btb_entry.call;
+                push_last <= {f2_block, btb_entry.last};
             end
             if (pred_go) begin
                 // The sequential block F1 loaded with the pass is dropped.

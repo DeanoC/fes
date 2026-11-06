@@ -94,8 +94,11 @@ struct CpuProfile {
     uint64_t prefixes = 0;  // prefix bytes before an instruction's last one
     // Direct branches retired (Jcc, LOOP and its kin, JCXZ, JMP and CALL rel):
     // taken; predicted taken; predicted taken and taken; and fetch-check
-    // replays (fes_i386_cpu, "Branch prediction").
+    // replays (fes_i386_cpu, "Branch prediction"). Near RETs retired: those
+    // the return stack predicted, and those that redirected (not predicted,
+    // or predicted to another target).
     uint64_t br = 0, br_taken = 0, br_pt = 0, br_pt_taken = 0, fetch_replays = 0;
+    uint64_t ret = 0, ret_pt = 0, ret_mis = 0;
     uint64_t sampled = 0;   // clocks classified
     Counts cls[NCLASS];
     std::unordered_map<uint32_t, Site> sites;  // this dump interval's, by linear start
@@ -125,6 +128,11 @@ struct CpuProfile {
             br_taken += S(prof_taken);
             br_pt += S(prof_pt);
             br_pt_taken += S(prof_pt) && S(prof_taken);
+        }
+        if (S(prof_ret)) {
+            ++ret;
+            ret_pt += S(prof_pt);
+            ret_mis += S(prof_ret_mis);
         }
         if (S(prof_frp)) ++fetch_replays;
         if (S(wb_flush)) ++flush_cycles;
@@ -285,13 +293,15 @@ struct CpuProfile {
     void dump(FILE *out, uint64_t cycles, double seconds, unsigned in_flight) {
         std::fprintf(out, "T %.6f cycles=%llu sampled=%llu retired=%llu pm_retired=%llu commits=%llu flush_cycles=%llu "
                      "redirects=%llu l1d_waits=%llu l1i_waits=%llu frames=%llu polls_3da=%llu io=%llu prefixes=%llu "
-                     "in_flight=%u br=%llu br_taken=%llu br_pt=%llu br_pt_taken=%llu fetch_replays=%llu\n",
+                     "in_flight=%u br=%llu br_taken=%llu br_pt=%llu br_pt_taken=%llu fetch_replays=%llu "
+                     "ret=%llu ret_pt=%llu ret_mis=%llu\n",
                      seconds, (unsigned long long)cycles, (unsigned long long)sampled, (unsigned long long)retired,
                      (unsigned long long)pm_retired, (unsigned long long)commits, (unsigned long long)flush_cycles,
                      (unsigned long long)redirects, (unsigned long long)l1d_waits, (unsigned long long)l1i_waits,
                      (unsigned long long)frames, (unsigned long long)polls_3da, (unsigned long long)io_accesses,
                      (unsigned long long)prefixes, in_flight, (unsigned long long)br, (unsigned long long)br_taken,
-                     (unsigned long long)br_pt, (unsigned long long)br_pt_taken, (unsigned long long)fetch_replays);
+                     (unsigned long long)br_pt, (unsigned long long)br_pt_taken, (unsigned long long)fetch_replays,
+                     (unsigned long long)ret, (unsigned long long)ret_pt, (unsigned long long)ret_mis);
         std::fprintf(out, "B %.6f", seconds);
         for (int b = 0; b < NBUCKET; ++b) std::fprintf(out, " %s=%llu", bucket_name[b], (unsigned long long)bucket[b]);
         std::fprintf(out, "\n");

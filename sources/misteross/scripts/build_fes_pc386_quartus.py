@@ -93,7 +93,7 @@ SHELL_SOURCES = (
 MACHINE_SOURCES = (
     *(f"{I386}/{name}.sv" for name in (
         "fes_i386_pkg", "fes_i386_gov_pkg", "fes_i386_oplen", "fes_i386_lendec", "fes_i386_lstage", "fes_i386_btb",
-        "fes_i386_fetchbuf", "fes_i386_qalign", "fes_i386_frontend", "fes_i386_amode", "fes_i386_dfwd", "fes_i386_agu",
+        "fes_i386_ras", "fes_i386_fetchbuf", "fes_i386_qalign", "fes_i386_frontend", "fes_i386_amode", "fes_i386_dfwd", "fes_i386_agu",
         "fes_i386_ucode_pkg", "fes_i386_ucode_rom", "fes_i386_decode", "fes_i386_seq", "fes_i386_dops",
         "fes_i386_shift", "fes_i386_shflags", "fes_i386_exctl", "fes_i386_muldiv", "fes_i386_ex",
         "fes_i386_l1i", "fes_i386_l1d", "fes_i386_biu", "fes_i386_gov_rom", "fes_i386_governor", "fes_i386_cpu")),

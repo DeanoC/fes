@@ -28,7 +28,8 @@
 // releases the half it leaves, and the branch's half when the branch
 // started in the half before it; then Q stays in the half it released, for
 // the target, and clears avail (jump_clear), which ignores that release.
-// The record carries the match for WB's BTB update, and xbad when the
+// The record carries the match for WB's BTB update, the target's linear
+// address (ptgt, for D's EIP after a RET), and xbad when the
 // instruction runs into a half whose block is not the sequential
 // continuation, or a prefix of it consumed at a half's last byte took Q
 // into one (acc_xbad), so the instruction's linear address stays the first
@@ -181,6 +182,7 @@ module fes_i386_qalign import fes_i386_pkg::*; (
             q.bway <= half_info[jx_here].way;
             q.bctr <= half_info[jx_here].ctr;
             q.tk <= taken;
+            q.ptgt <= {half_info[jx_here].tblk, half_info[jx_here].toff};
             q.xbad <= at_start.past_half[variant] && !other_seq || acc_xbad;
         end
     end
