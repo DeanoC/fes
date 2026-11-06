@@ -11,7 +11,7 @@ type continuationIO struct {
 	writes []uint32
 }
 
-func TestPeriodicContinuationPreservesAdvertisedIntervalAndPacketDeadline(t *testing.T) {
+func TestPeriodicSinglePacketCannotContinueAnEnabledChannel(t *testing.T) {
 	h, c, _ := pendingIN(t)
 	io := &continuationIO{controller: c}
 	h.io = io
@@ -29,7 +29,7 @@ func TestPeriodicContinuationPreservesAdvertisedIntervalAndPacketDeadline(t *tes
 		t.Fatal("periodic request queued early")
 	}
 	c.tick = c.tick.Add(h.interval)
-	if err := h.continueIN(); err != nil || len(io.writes) != 1 {
+	if err := h.continueIN(); err != nil || len(io.writes) != 0 {
 		t.Fatal(err, io.writes)
 	}
 	for n := 0; n < 20; n++ {
@@ -37,7 +37,7 @@ func TestPeriodicContinuationPreservesAdvertisedIntervalAndPacketDeadline(t *tes
 			t.Fatal(err)
 		}
 	}
-	if len(io.writes) != 1 || h.pending.deadline != deadline {
+	if len(io.writes) != 0 || h.pending.deadline != deadline {
 		t.Fatal("periodic continuation repeated early or extended deadline")
 	}
 }
@@ -73,13 +73,16 @@ func TestContinuationUsesCorrectQueueAndNeverReinitializesPacket(t *testing.T) {
 			if err := h.continueIN(); err != nil {
 				t.Fatal(err)
 			}
+			if periodic {
+				if len(io.writes) != 0 || h.pending.continuations != 0 || h.pending.deadline != before.deadline {
+					t.Fatal("single periodic request continued", io.writes)
+				}
+				continue
+			}
 			if len(io.writes) != 1 || io.writes[0] != hcchar || h.pending.pid != before.pid ||
 				h.pending.deadline != before.deadline || h.pending.limit != before.limit || h.pending.continuations != 1 ||
 				c.regs[hctsiz] != 8|1<<19|2<<29 {
 				t.Fatal("continuation rewrote packet state", io.writes)
-			}
-			if periodic && (c.regs[hcchar]>>29)&1 != (frame+1)&1 {
-				t.Fatal("wrong periodic frame", frame, c.regs[hcchar])
 			}
 		}
 	}

@@ -9,9 +9,9 @@ import (
 )
 
 // Replay the values captured on TRWU8CBL before ROM configuration. Injecting
-// CHDIS models the observation, not its cause. Qualified continuation cannot
+// CHDIS models the observation, not its cause. Periodic retirement cannot
 // supply data, extend the packet deadline or bypass a real software/DMA halt.
-func TestCapturedPeriodicToggleContinuationCannotAdmitMissingDataOrForeignDMA(t *testing.T) {
+func TestCapturedPeriodicToggleRetirementCannotAdmitMissingDataOrForeignDMA(t *testing.T) {
 	for _, lostDMA := range []bool{false, true} {
 		t.Run(map[bool]string{false: "stuck-halt", true: "foreign-DMA"}[lostDMA], func(t *testing.T) {
 			c := newController()
@@ -32,15 +32,15 @@ func TestCapturedPeriodicToggleContinuationCannotAdmitMissingDataOrForeignDMA(t 
 			c.rx = []uint32{0xb0000}
 			c.tick = c.tick.Add(h.interval)
 			done, data, nak, err := h.step()
-			if err != nil || done || nak || len(data) != 0 || h.pending.lastContinue.reason != "queued" ||
-				h.pending.lastContinue.channel != 0xe05e8808 || h.pending.continuations != 1 ||
-				h.pending.toggleRX != 1 || h.pending.toggleIRQs != 1 || h.pending.halting {
+			if err != nil || done || nak || len(data) != 0 || h.pending.lastContinue.reason != "toggle-retire" ||
+				h.pending.lastContinue.channel != 0xe05e8808 || h.pending.continuations != 0 ||
+				h.pending.toggleRX != 1 || h.pending.toggleIRQs != 1 || !h.pending.halting {
 				t.Fatal("captured state did not preserve unfinished packet", done, data, nak, err, h.pending)
 			}
 			if h.channelCommands.count != 2 || h.channelCommands.entries[0].reason != "arm" ||
-				h.channelCommands.entries[1].reason != "continue" || h.channelCommands.entries[1].packet != 1 ||
-				h.channelCommands.entries[1].value&channelDisable != 0 {
-				t.Fatal("trace invented a software disable request", h.channelCommands)
+				h.channelCommands.entries[1].reason != "toggle-retire" || h.channelCommands.entries[1].packet != 1 ||
+				h.channelCommands.entries[1].value&channelDisable == 0 {
+				t.Fatal("trace lost its explicit software toggle retirement", h.channelCommands)
 			}
 			first := h.pending.firstToggle.Error()
 			if !strings.Contains(first, "software_channel_commands={seq=1 packet=1 reason=arm value=0xa05e8808") {
@@ -52,7 +52,7 @@ func TestCapturedPeriodicToggleContinuationCannotAdmitMissingDataOrForeignDMA(t 
 			err = h.PausePolling(context.Background())
 			if err == nil || h.fault == nil || h.pollingPaused || h.pending.received ||
 				h.pending.done || h.pending.nak || !h.pending.active || h.pending.pid != before.pid ||
-				h.pending.deadline != deadline || h.toggle != 0 || c.regs[hctsiz] != 0x80008 || len(c.starts) < 2 {
+				h.pending.deadline != deadline || h.toggle != 0 || c.regs[hctsiz] != 0x80008 || len(c.starts) != 1 {
 				t.Fatal("failed packet changed PID/deadline or escaped", err, h.pending)
 			}
 			if lostDMA {

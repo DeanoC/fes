@@ -8,7 +8,7 @@ import (
 
 // channelCommands retains software writes across packet replacement so a
 // failure can expose the preceding halt and next arm. The basic write record
-// adds no reads or clocks. Direct periodic arm/continuation records separately
+// adds no reads or clocks. Direct periodic arm/rearm records separately
 // carry the sequential observations made by writePeriodicChannel.
 type channelCommand struct {
 	sequence, packet             uint64
@@ -16,6 +16,7 @@ type channelCommand struct {
 	value, pid                   uint32
 	done, nak, received, halting bool
 	periodic                     periodicCommandTiming
+	admission                    continuationState
 }
 
 // These sequential observations bracket a command, not its exact bus commit
@@ -27,7 +28,7 @@ type periodicCommandTiming struct {
 	selectionToPreNS, windowNS int64
 }
 
-// writePeriodicChannel records only direct periodic arm/continuation writes.
+// writePeriodicChannel records only direct periodic arm/rearm writes.
 // Selection used the existing frame read. Two extra non-destructive HFNUM reads
 // and three clock samples bound the surrounding software/MMIO window. Neither
 // RX nor channel status is consumed here. Split and halt paths do not use it.
@@ -57,6 +58,9 @@ func (h *Host) writeChannel(reason string, value uint32) {
 		value: value, pid: p.pid, done: p.done, nak: p.nak,
 		received: p.received, halting: p.halting,
 	}
+	if reason == "continue" || reason == "toggle-retire" || reason == "toggle-rearm" {
+		c.entries[c.count%uint64(len(c.entries))].admission = p.lastContinue
+	}
 	c.count++
 	h.io.Write32(hcchar, value)
 }
@@ -78,6 +82,9 @@ func (c channelCommands) String() string {
 			p := v.periodic
 			s += fmt.Sprintf(" periodic_timing={sampled=true selected=%#x before=%#x after=%#x select_to_pre_ns=%d window_ns=%d}",
 				p.selected, p.before, p.after, p.selectionToPreNS, p.windowNS)
+		}
+		if v.admission.samples != 0 {
+			s += fmt.Sprintf(" admission={%s}", v.admission)
 		}
 	}
 	return s

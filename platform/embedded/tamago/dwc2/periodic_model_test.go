@@ -321,26 +321,34 @@ func TestDriverWithIndependentPeriodicClockAndFrontendGaps(t *testing.T) {
 	}
 }
 
-func TestPeriodicModelLateContinuationCommitOverrunRemainsTerminal(t *testing.T) {
+func TestPeriodicModelLateRearmCommitOverrunRemainsTerminal(t *testing.T) {
 	for _, stalled := range []bool{false, true} {
 		t.Run(fmt.Sprintf("halt-stalled-%t", stalled), func(t *testing.T) {
 			c := newPeriodicController()
 			c.toggles = 1
-			c.stalledHalt = stalled
 			c.reports = [][]byte{{0, 0, 4, 0, 0, 0, 0, 0}}
 			h := periodicHost(t, c)
 			if data, err := h.pollInput(); err != nil || data != nil {
 				t.Fatal(data, err)
 			}
 			deadline, pid := h.pending.deadline, h.pending.pid
-			// The notification has physically occurred; service it after the old
-			// interval. Only the HCCHAR commit is delayed, independently of the driver.
-			c.advance(10150*time.Microsecond - c.elapsed)
+			// Retire the first service before a new attempt. Delay only that
+			// fresh arm, after the real halt and original advertised interval.
+			c.advance(2 * time.Millisecond)
+			if _, err := h.pollInput(); err != nil {
+				t.Fatal(err)
+			}
+			c.advance(100 * time.Microsecond)
+			if _, err := h.pollInput(); err != nil || !h.pending.toggleRetry {
+				t.Fatal(err, h.pending)
+			}
+			c.advance(10100*time.Microsecond - c.elapsed)
 			c.channelDelay = 1800 * time.Microsecond
-			if data, err := h.pollInput(); err != nil || data != nil || h.pending.continuations != 1 {
+			if data, err := h.pollInput(); err != nil || data != nil || h.pending.toggleRetirements != 1 || h.pending.continuations != 0 {
 				t.Fatal(data, err, h.pending)
 			}
-			c.advance(200 * time.Microsecond)
+			c.stalledHalt = stalled
+			c.advance(300 * time.Microsecond)
 			data, err := h.pollInput()
 			if err == nil || data != nil || !strings.Contains(err.Error(), "channel error 0x200") || h.fault == nil || h.pending.received || h.pending.done || h.pending.deadline != deadline || h.pending.pid != pid || h.toggle != 2 {
 				t.Fatal("frame overrun was hidden or packet lifetime changed", data, err, h.pending, c.history)

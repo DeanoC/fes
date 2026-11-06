@@ -25,6 +25,8 @@ func (h *Host) PausePolling(ctx context.Context) error {
 	if h.pollingPaused {
 		return fmt.Errorf("dwc2: polling already paused")
 	}
+	h.draining = true
+	defer func() { h.draining = false }()
 	start := h.io.Now()
 	until := start.Add(500 * time.Millisecond)
 	for n := 0; h.pending.active || h.healthStage != 0; n++ {

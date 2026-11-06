@@ -34,7 +34,7 @@ func TestPollingDrainFailureCapturesStateBeforeContainment(t *testing.T) {
 				"dwc2: polling drain timeout; drain_snapshot={" + bound,
 				"active=true", "pid=0", "done=false", "nak=false", "received=false", "halting=false",
 				"channel=0xa05e8808", "transfer=0x80008", "peek=0x0", "first_toggle={retained first toggle observation}",
-				"continuation={reason=interval", "software_channel_commands={seq=1 packet=1 reason=arm",
+				"continuation={reason=periodic-single-request", "software_channel_commands={seq=1 packet=1 reason=arm",
 				"containment: dwc2: register wait exhausted address=0x500 value=0xe05e8808",
 				"reason=containment value=0xe05e8808",
 			} {

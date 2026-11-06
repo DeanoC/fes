@@ -63,7 +63,11 @@ func (h *Host) armPacket(complete bool) error {
 		flags |= 1 << 29
 	}
 	if periodic && !p.split {
-		h.writePeriodicChannel("arm", flags|channelEnable, selected, selectionStart)
+		reason := "arm"
+		if p.toggleRetirements != 0 {
+			reason = "toggle-rearm"
+		}
+		h.writePeriodicChannel(reason, flags|channelEnable, selected, selectionStart)
 	} else {
 		h.writeChannel("arm", flags|channelEnable)
 	}

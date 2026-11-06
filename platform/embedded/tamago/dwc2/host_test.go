@@ -125,7 +125,7 @@ func (c *controller) Write32(reg, value uint32) {
 		c.regs[reg] = value
 		if value&channelDisable != 0 {
 			if c.mode != "halt" {
-				c.regs[reg] &= ^channelEnable
+				c.regs[reg] &^= channelEnable | channelDisable
 				c.regs[hcint] |= 2
 			}
 			return

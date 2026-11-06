@@ -9,7 +9,9 @@ import (
 	"time"
 )
 
-func capturedToggleIN(t *testing.T) (*Host, *controller) {
+// Adapt paired toggle observations to a bulk IN fixture. Physical periodic
+// values and halt-first behavior are covered in periodic_retire_test.go.
+func nonperiodicToggleIN(t *testing.T) (*Host, *controller) {
 	t.Helper()
 	c := newController()
 	c.address, c.mode, c.configured, c.protocol, c.reportPID = 1, "stuck", true, true, 2
@@ -17,19 +19,27 @@ func capturedToggleIN(t *testing.T) (*Host, *controller) {
 	c.regs[reset], c.regs[ptxstatus] = 0x80000400, 0x100040
 	c.regs[nptxstatus], c.regs[hfnum] = 0x1080040, 0xc28c01e4
 	h := &Host{io: c, owned: true, address: 1, speed: 2, rootSpeed: 2, interval: 10 * time.Millisecond, toggle: 2}
-	if err := h.begin(1, 8, 3, true, 2, nil, 8, c.Now().Add(500*time.Millisecond)); err != nil {
+	if err := h.begin(1, 8, 2, true, 2, nil, 8, c.Now().Add(500*time.Millisecond)); err != nil {
 		t.Fatal(err)
 	}
-	if c.regs[hcchar] != 0xa05e8808 || c.regs[hctsiz] != 0x40080008 {
+	if c.regs[hcchar] != 0x805a8808 || c.regs[hctsiz] != 0x40080008 {
 		t.Fatal("capture setup mismatch")
 	}
-	c.regs[hcchar], c.regs[hcint] = 0xe05e8808, 0x400
+	c.regs[hcchar], c.regs[hcint] = 0xc05a8808, 0x400
 	c.rx = []uint32{0xa0000}
 	return h, c
 }
 
-func TestCapturedToggleDisableContinuesSamePacketUntilRealDataRetires(t *testing.T) {
-	h, c := capturedToggleIN(t)
+func observeNonperiodicToggle(h *Host, c *controller) error {
+	saved := c.regs[nptxstatus]
+	c.regs[nptxstatus] = 64
+	_, _, _, err := h.step()
+	c.regs[nptxstatus] = saved
+	return err
+}
+
+func TestNonperiodicToggleDisableContinuesSamePacketUntilRealDataRetires(t *testing.T) {
+	h, c := nonperiodicToggleIN(t)
 	deadline, pid, size, packet := h.pending.deadline, h.pending.pid, c.regs[hctsiz], h.packetSequence
 	want := []byte{0, 0, 4, 0, 0, 0, 0, 0}
 	c.mode = ""
@@ -56,12 +66,12 @@ func TestCapturedToggleDisableContinuesSamePacketUntilRealDataRetires(t *testing
 }
 
 func TestToggleDisableContinuationRetainsAllOwnershipAndCompletionGuards(t *testing.T) {
-	modes := []string{"no-RX-toggle", "no-IRQ-toggle", "no-first-observation", "not-owned", "fault", "halting", "done", "received", "NAK", "OUT", "split", "disabled", "new-RX", "new-status", "queue-full", "interval", "spent-count", "bad-count", "PID-changed", "size-changed", "foreign-DMA", "foreign-interrupts", "foreign-descriptor-DMA", "disconnected", "unknown-PID", "different-channel", "unexpected-control-bit"}
+	modes := []string{"no-RX-toggle", "no-IRQ-toggle", "no-first-observation", "not-owned", "fault", "halting", "done", "received", "NAK", "OUT", "split", "disabled", "new-RX", "new-status", "queue-full", "spent-count", "bad-count", "PID-changed", "size-changed", "foreign-DMA", "foreign-interrupts", "foreign-descriptor-DMA", "disconnected", "unknown-PID", "different-channel", "unexpected-control-bit"}
 	for _, mode := range modes {
 		t.Run(mode, func(t *testing.T) {
-			h, c := capturedToggleIN(t)
-			// Process the real notification without yet reaching the next interval.
-			if _, _, _, err := h.step(); err != nil || h.pending.toggleRX != 1 || h.pending.toggleIRQs != 1 || h.pending.continuations != 0 {
+			h, c := nonperiodicToggleIN(t)
+			// Process the real notification while withholding a request queue slot.
+			if err := observeNonperiodicToggle(h, c); err != nil || h.pending.toggleRX != 1 || h.pending.toggleIRQs != 1 || h.pending.continuations != 0 {
 				t.Fatal(err, h.pending)
 			}
 			c.tick = c.tick.Add(h.interval)
@@ -96,9 +106,7 @@ func TestToggleDisableContinuationRetainsAllOwnershipAndCompletionGuards(t *test
 			case "new-status":
 				c.regs[hcint] = 1
 			case "queue-full":
-				c.regs[ptxstatus] = 64
-			case "interval":
-				h.pending.requestAfter = c.tick.Add(h.interval)
+				c.regs[nptxstatus] = 64
 			case "spent-count":
 				c.regs[hctsiz] = 0
 			case "bad-count":
@@ -159,8 +167,8 @@ func (c *eventDuringToggleAdmission) Read32(reg uint32) uint32 {
 func TestToggleContinuationCannotPassNewCompletionOrChannelError(t *testing.T) {
 	for _, event := range []string{"RX", "error"} {
 		t.Run(event, func(t *testing.T) {
-			h, c := capturedToggleIN(t)
-			if _, _, _, err := h.step(); err != nil {
+			h, c := nonperiodicToggleIN(t)
+			if err := observeNonperiodicToggle(h, c); err != nil {
 				t.Fatal(err)
 			}
 			io := &eventDuringToggleAdmission{controller: c, event: event}
@@ -190,10 +198,10 @@ func TestToggleContinuationCannotPassNewCompletionOrChannelError(t *testing.T) {
 func TestToggleContinuationCannotExtendDeadlineOrAcceptWrongPID(t *testing.T) {
 	for _, mode := range []string{"deadline", "wrong-PID", "short-report"} {
 		t.Run(mode, func(t *testing.T) {
-			h, c := capturedToggleIN(t)
+			h, c := nonperiodicToggleIN(t)
 			deadline, pid := h.pending.deadline, h.pending.pid
 			if mode == "deadline" {
-				if _, _, _, err := h.step(); err != nil {
+				if err := observeNonperiodicToggle(h, c); err != nil {
 					t.Fatal(err)
 				}
 				c.tick = deadline

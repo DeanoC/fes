@@ -180,6 +180,7 @@ func TestRXOnlyAndCoalescedToggleEventsStillRequireCorrectPayload(t *testing.T) 
 // A PIO notification consumes an IN request without consuming the packet.
 // Acknowledgement alone cannot make progress: another queue-backed IN token
 // must be issued while preserving the transfer registers and control setup.
+// A periodic retry may rewrite the same HCTSIZ only after an actual halt.
 type notifyingController struct {
 	*controller
 	waiting, acknowledged               bool
@@ -187,6 +188,8 @@ type notifyingController struct {
 	sizeWrites, fifoWrites              int
 	lateACK                             bool
 	ackClears                           int
+	periodicRetired                     bool
+	periodicRearms                      int
 }
 
 func (c *notifyingController) Read32(reg uint32) uint32 {
@@ -200,16 +203,26 @@ func (c *notifyingController) Write32(reg, value uint32) {
 		c.fifoWrites++
 	}
 	if c.waiting && (reg == hctsiz || reg == fifo) {
-		panic("continuation rewrote transfer size/PID or setup")
+		if reg != hctsiz || !c.periodicRetired || c.regs[hcchar]&(channelEnable|channelDisable) != 0 || c.regs[hctsiz] != value {
+			panic("continuation rewrote transfer size/PID or setup before observed halt")
+		}
 	}
 	if c.waiting && reg == hcchar && value&channelEnable != 0 && value&channelDisable == 0 {
 		if !c.acknowledged || c.regs[hcint]&(1<<5) != 0 {
 			panic("continuation before notification acknowledgement")
 		}
-		c.continuations++
+		if c.periodicRetired {
+			c.periodicRearms++
+		} else {
+			c.continuations++
+		}
 		c.waiting, c.acknowledged = false, false
+		c.periodicRetired = false
 	}
 	c.controller.Write32(reg, value)
+	if c.waiting && reg == hcchar && value&channelDisable != 0 && (value>>18)&3 == 3 && c.regs[hcchar]&(channelEnable|channelDisable) == 0 && c.regs[hcint]&(1<<1) != 0 {
+		c.periodicRetired = true
+	}
 	if reg == hcint && value == dataToggle && c.waiting {
 		c.acknowledged = true
 		if c.lateACK {
@@ -221,7 +234,7 @@ func (c *notifyingController) Write32(reg, value uint32) {
 	}
 }
 
-func TestPeriodicInputContinuesAfterLateACKWithoutInventingReports(t *testing.T) {
+func TestPeriodicInputRearmsAfterHaltAndLateACKWithoutInventingReports(t *testing.T) {
 	c := &notifyingController{controller: gamepadController(t), lateACK: true}
 	idle := []byte{128, 128, 0, 0}
 	changed := []byte{255, 0, 1, 0}
@@ -265,8 +278,8 @@ func TestPeriodicInputContinuesAfterLateACKWithoutInventingReports(t *testing.T)
 		}
 	}
 	if len(reports) != 3 || !bytes.Equal(reports[0], idle) || !bytes.Equal(reports[1], idle) || !bytes.Equal(reports[2], changed) ||
-		c.injected != 1 || c.continuations != 1 || c.ackClears != 1 {
-		t.Fatal(reports, c.injected, c.continuations, c.ackClears)
+		c.injected != 1 || c.continuations != 0 || c.periodicRearms != 1 || c.ackClears != 1 {
+		t.Fatal(reports, c.injected, c.continuations, c.periodicRearms, c.ackClears)
 	}
 	if err := source.Close(context.Background()); err != nil || fw.confirms != 1 || fw.stops != 1 {
 		t.Fatal(err, fw)

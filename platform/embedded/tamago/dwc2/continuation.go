@@ -1,10 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 package dwc2
 
-import (
-	"fmt"
-	"time"
-)
+import "fmt"
 
 // samples identifies only registers actually read during this continuation
 // check: queue=1, global IRQ=2, channel IRQ=4, channel=8, transfer=16, frame=32.
@@ -32,20 +29,13 @@ func (h *Host) continueIN() error {
 	p := &h.pending
 	p.lastContinue = continuationState{reason: "ineligible"}
 	s := &p.lastContinue
+	if (p.char>>18)&3 == 3 {
+		return h.retirePeriodicToggle()
+	}
 	if !p.active || !p.in || p.split || p.done || p.received || p.nak || p.halting {
 		return nil
 	}
 	queue := uint32(nptxstatus)
-	periodic := (p.char>>18)&3 == 3
-	if periodic {
-		now := h.io.Now()
-		if now.Before(p.requestAfter) {
-			s.reason = "interval"
-			s.waitNS = p.requestAfter.Sub(now).Nanoseconds()
-			return nil
-		}
-		queue = ptxstatus
-	}
 	s.queueReg = queue
 	s.queue = h.io.Read32(queue)
 	s.samples |= 1
@@ -123,25 +113,8 @@ func (h *Host) continueIN() error {
 		}
 		char &^= channelDisable
 	}
-	var selectionStart time.Time
-	if periodic {
-		char &^= 1 << 29
-		selectionStart = h.io.Now()
-		s.frame = h.io.Read32(hfnum)
-		s.samples |= 32
-		if s.frame&1 == 0 {
-			char |= 1 << 29
-		}
-	}
-	if periodic {
-		h.writePeriodicChannel("continue", char|channelEnable, s.frame, selectionStart)
-	} else {
-		h.writeChannel("continue", char|channelEnable)
-	}
+	h.writeChannel("continue", char|channelEnable)
 	p.continuations++
 	s.reason = "queued"
-	if periodic {
-		p.requestAfter = h.io.Now().Add(h.interval)
-	}
 	return nil
 }

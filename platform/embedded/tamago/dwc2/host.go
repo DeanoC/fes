@@ -78,11 +78,16 @@ type packet struct {
 	requestAfter                             time.Time
 	lastContinue                             continuationState
 	firstToggle                              error
+	toggleRetiring, toggleRetry              bool
+	toggleCancelled                          bool
+	handledToggleRX, handledToggleIRQs       uint32
+	toggleRetirements                        uint32
 }
 type Host struct {
 	packetSequence        uint64
 	channelCommands       channelCommands
 	pollingPaused         bool
+	draining              bool
 	channels              uint32
 	gamepadMode           bool
 	gamepad               *usb.Gamepad
@@ -402,6 +407,9 @@ func (h *Host) step() (done bool, data []byte, nak bool, err error) {
 	if err := h.link(); err != nil {
 		return false, nil, false, err
 	}
+	if p.toggleRetry {
+		return false, nil, false, h.rearmPeriodicToggle()
+	}
 
 	if p.waiting {
 		frame := uint16(h.io.Read32(hfnum))
@@ -554,9 +562,10 @@ func (h *Host) step() (done bool, data []byte, nak bool, err error) {
 			return false, nil, false, fmt.Errorf("dwc2: completion without RX packet")
 		}
 		p.active = false
+		p.toggleRetiring, p.toggleRetry = false, false
 		return true, p.data, p.nak, nil
 	}
-	if ints&(1<<1) != 0 {
+	if ints&(1<<1) != 0 && !p.periodicTogglePending() {
 		return false, nil, false, fmt.Errorf("dwc2: unexplained channel halt")
 	}
 

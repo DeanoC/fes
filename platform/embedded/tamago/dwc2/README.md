@@ -125,7 +125,7 @@ captured descriptor for diagnosis while preventing readiness and input polling.
 The explicit Nano `usbcheck --usb-input gamepad` image uses this path under the
 secure lease. Model and cross-build results do not qualify physical gamepads.
 
-For a direct IN transaction, RX status5 and HCINT data-toggle notifications are
+For a direct nonperiodic IN transaction, RX status5 and HCINT data-toggle notifications are
 non-payload events. The core can discard the unexpected PID and continue the
 already armed packet. The polling driver clears only that interrupt and keeps
 the existing deadline, expected PID and channel. It does not reissue setup or
@@ -135,14 +135,13 @@ and split/translator toggle errors remain fatal. This follows the receive FIFO
 and IN-toggle handling in the pinned Linux v6.12 DWC2 reference; no Linux code
 is linked. Physical behavior still needs a fresh matched test.
 
-PIO mode queues further IN tokens within an unfinished direct transfer, at most
-one per poll and only when its nonperiodic/periodic request queue has space.
+PIO mode queues further IN tokens within an unfinished direct nonperiodic
+transfer, at most one per poll and only when its request queue has space.
 Continuation preserves setup, HCTSIZ, PID, buffer and deadline. New RX/status,
 zero remaining packet count, completion or software halt prevents further
 queuing; an unexpected packet count fails. A channel with CHENA clear waits
-for status under the existing deadline, including completion races. Periodic
-tokens target the next frame.
-Further periodic requests also preserve the endpoint's advertised polling interval.
+for status under the existing deadline, including completion races. Direct
+periodic single-packet services use the separate retirement path below.
 This follows the reference's `dwc2_hc_continue_transfer` slave-mode path. The
 model requires a real queued continuation at descriptor offset88; acknowledging
 the notification alone cannot supply the remaining descriptor bytes.
@@ -177,8 +176,8 @@ no channel command, PID, interval, deadline or ownership decision.
 
 A fresh physical first-toggle trace observed raw CHDIS before any software
 disable command for that packet. Following the pinned PIO continuation
-reference, the helper now clears raw CHDIS only within the same owned, active,
-non-split IN packet after both RX and IRQ toggle notifications and a saved first
+reference, the nonperiodic helper clears raw CHDIS only within the same owned,
+active, non-split IN packet after both RX and IRQ toggle notifications and a saved first
 observation. The software fault/halt/completion/NAK/RX checks still exclude
 continuation. The enabled channel's remaining fields must match its original
 recipe; fresh PIO/link admission and exact unchanged HCTSIZ size/PID/count are
@@ -199,7 +198,7 @@ interrupt IN requests. It derives frames and remaining ticks, consumes request
 queue slots and configurable wire time, and delays data and channel halt until
 their scheduled events. Driver state does not supply its target frame or
 completion. Tests cover frame wrap, caller gaps, queue pressure, NAK, delayed
-continuation writes, frame overruns and stalled retirement. The original
+request writes, frame overruns and stalled retirement. The original
 deadline, real data and observed halt remain required before input delivery.
 
 The modeled durations are synthetic scenarios, not measured Nano timings.
@@ -211,12 +210,14 @@ on HCINT frame-overrun with failed containment. The model does not authorize a
 retry, hide that error or change the production scheduler. Split/PHY timing and
 the actual frame selected by the physical controller remain outside its scope.
 
-Direct periodic arm/continuation commands now retain the full frame sample used
+Direct periodic arm/rearm commands retain the full frame sample used
 for parity selection and two additional HFNUM observations immediately around
 the software write. Three extra clock samples bracket selection and that write
 window. The fixed eight-command history stores these observations separately
 from the written value; formatting performs no new I/O. Split, nonperiodic,
 retirement and containment writes keep their original basic recording path.
+Issued continuation, toggle-retire and toggle-rearm records also freeze their
+admission samples; later checks cannot replace them with a wait reason.
 Packet errors also retain the last and maximum gap between step clock samples,
 reusing the existing deadline clock without an additional service clock read.
 
@@ -227,3 +228,34 @@ gap means no preceding step was sampled. The observations never select another
 frame, change a command/PID/buffer/deadline, clear an error or authorize input,
 retirement or reuse. Fresh native app/entry and matched firmware are required
 before using the new trace in another bounded Nano diagnostic.
+
+
+Direct periodic IN now queues one request per service, matching the pinned
+Linux caller's request/multi-count budget. A paired RX/IRQ toggle notification
+cannot clear raw CHDIS and continue an enabled periodic channel. The driver
+checks the exact channel recipe and unchanged HCTSIZ, PIO/link ownership, RX/
+status and queue capacity, then requests one halt. Both CHENA/CHDIS clear and
+an actual CHHLTD observation are required before the attempt is retired.
+A new event or changed owner/transfer cannot be cleared away to permit a retry.
+
+During ordinary polling, a retired attempt may be rearmed after the original
+advertised interval. HCTSIZ is written only on that observed idle channel;
+the public request, packet identity, buffer, expected PID and original deadline
+stay intact. A subsequent report still needs actual expected-PID bytes,
+completion and final retirement. A real completion or NAK racing the halt uses
+the original completion path. Nonperiodic continuation and split behavior are
+unchanged; frame-overrun and other fatal errors remain terminal.
+
+During PausePolling, an observed halted periodic toggle attempt can instead be
+explicitly discarded. This cancellation supplies no report, completion or NAK
+and advances no PID. It preserves the next permitted polling time across resume.
+The ordinary final PIO/link/all-channel/RX checks still gate paused state. An
+unobserved or stuck halt retains the original 500 ms/4,096-step drain bounds,
+packet deadline, containment and permanent failure ownership.
+
+The primary comparisons are Linux v6.12 `dwc2_process_periodic_channels` and
+TinyUSB's pinned [slave IN toggle handler](https://github.com/hathach/tinyusb/blob/dffc57135846a4b00aca06b2f588daa6d13b67ef/src/portable/synopsys/dwc2/hcd_dwc2.c#L1031).
+TinyUSB requests retirement before periodic retry; its unbounded queue waits
+are not adopted. No TinyUSB code is linked into this implementation. Protocol,
+model/race and ownership checks do not establish that the Nano will acknowledge
+the earlier halt; a fresh matched bounded hardware test remains necessary.
