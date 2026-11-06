@@ -1,10 +1,14 @@
 # pc386 Ultima VII at 386DX-25: character-screen clicks, 6 November 2026
 
-Issue [#1427](https://github.com/DeanoC/fes/issues/1427). Kit B run `w1`,
-on the 386DX-25 governor preset (preset 3).
+Issue [#1427](https://github.com/DeanoC/fes/issues/1427). Kit B runs `w1`
+and `w2`, on the 386DX-25 governor preset (preset 3).
+
+- **`w2`** runs four legs, each after its own SCRUBX scrub of guest RAM.
+- **`w1`** was the first pass. It ran the same legs in another order after
+  a single scrub, and got the same results.
 
 **Evidence class: hardware diagnostic.** This is not exact-artifact hardware
-acceptance. `w1` ran main's games image on #1481's core seal (`ee7ea9bb4`),
+acceptance. Both runs used main's games image on #1481's core seal (`ee7ea9bb4`),
 not on a seal of current main's RTL. It shows the cause and the effect of the
 games-image fix, and it accepts no core build.
 
@@ -53,8 +57,8 @@ run inside INTRO. At max (`g1409-k1`) the click beat the idle return, so the
 same script started the game. That is the whole preset dependence. #1486's
 run `r1` later got the same character-screen state at max too.
 
-`w1`'s keys-only leg shows that the stock image is fine at 386DX-25 when no
-mouse packet reaches the replay. Its motion leg shows that the stale call
+The keys-only leg shows that the stock image is fine at 386DX-25 when no
+mouse packet reaches the replay. The motion leg shows that the stale call
 breaks the session. We did not trace exactly how the non-crashing form in
 `k7` stopped later clicks while keys kept working. One likely reason is
 that the stray call left CuteMouse's callback state corrupt. With MOUSEDEF
@@ -64,21 +68,27 @@ so both forms are gone.
 ## Inputs
 
 - **Package.** `fes.pc386` `499f4805ca07ddc13f04e35146fc822e340c49babc3694fdae0b813fce933d2c`,
-  #1481's seal of main `ee7ea9bb4`, as in #1485's `v1`. So `w1` tested the
-  RTL of that seal, not current main's.
+  #1481's seal of main `ee7ea9bb4`, as in #1485's `v1`. So both runs tested
+  the RTL of that seal, not current main's.
   - **Since then, on main.** #1483 added the status ring
     (`pc386_status.sv`) and wired it into `pc386_system.sv`. It writes
     the ring in the DDR window and sits in front of the ATA image's DDR
     port (port 2). It does not touch the CPU or the mouse path, and
     #1485's `u1` and `u2` ran The Black Gate's menus on that ring seal
     (`01e1eebb`). #1495 changed only the games image, and #1499 only the runtime.
-  - **No ring evidence.** This seal has no status ring, so `w1` has none.
+  - **No ring evidence.** This seal has no status ring, so neither run has
+    any.
 - **Kit.** Kit B ran core-only on baseline software `a8cd30c4` (main
   `bb51f4454`) and OS `f904961e`. There was no install, no image change and
-  no reboot. A SCRUBX scrub ran before the first game. The claim (08:05
-  EET), release (08:25) and housekeeping are in Kit B's status file. The 12
-  FogCast trees that `w1` created were removed, and the baseline was
-  unchanged.
+  no reboot. That baseline predates #1499, so a core load keeps guest RAM.
+  - **Scrubs.** In `w2` a SCRUBX scrub ran before every leg, and each
+    reached `DONE flags=0000000F` with conventional, upper and extended
+    memory zeroed. In `w1` only the first leg had one.
+  - **Status file.** Claims, releases and housekeeping are logged in Kit
+    B's status file: `w1` from 08:05 to 08:25 EET and `w2` from 09:53 to
+    10:11.
+  - **Cleanup.** The 12 FogCast trees that each run created were removed,
+    and the baseline was unchanged.
 - **Disks.** These stay outside the repo. Game files come from Deano's
   eXoDOS 6.04 zip, SHA-256 `75e6eb68…`, as in #1409 and #1485.
   - **MOUSEDEF.** `eae30dea165fb0ded69b1075b36d9a69609582a820c565e86747c39555e7789d`
@@ -98,23 +108,41 @@ so both forms are gone.
 
 ## Runs
 
-All four legs ran in one lease, at preset 3.
+Every leg ran at preset 3. In `w2` each leg was a fresh library game, loaded
+after a SCRUBX scrub of guest RAM.
 
-| Leg | Disk | Steps | Result |
-| --- | --- | --- | --- |
-| `bg25` | MOUSEDEF | Esc past the intro, menu, click, "Avatar", two clicks on Journey Onward | Pass. Start New Game on the first click, game start on the second Journey Onward click. |
-| `bg25s` | stock | Esc, wait 40 s (the menu idles back to the intro), Esc (keys only), then as `bg25` | Pass. The menu returns, and the clicks and game start behave as in `bg25`. |
-| `bg25t` | stock | Esc, wait 55 s (intro replay), 10 `(+5, +5)` packets, Esc | Fail. The title frame is frozen from the motion on, and Esc does nothing. The later clicks have no effect. |
-| `bg25f` | MOUSEDEF | the same as `bg25t`, then Esc and the clicks | Pass. The replay keeps running and Esc returns to the menu. The first click missed only because the reverse nudge put the cursor on the title (`f-aim`). After the next idle return, the clicks at Start New Game and Journey Onward started the game. |
+| Leg | Disk | Steps | `w2` result | `w1` result |
+| --- | --- | --- | --- | --- |
+| `t` | stock | `ultima7`, Esc past the intro, wait 55 s (the menu idles back to the intro), 10 `(+5, +5)` packets, Esc, then the clicks | **Fail.** From the motion on, the title frame is frozen: `t-move1`, `t-move2`, `t-menu2` and `t-jo` are byte-identical. Esc and the clicks do nothing. | Fail, the same frame (third leg, after a stock leg). |
+| `f` | MOUSEDEF | the same as `t`, then Start New Game, "Avatar" and two clicks on Journey Onward | **Pass.** The replay moves on, Esc returns to the menu with the cursor at its default spot, and the game starts. | Pass (fourth leg, after `t`). The first try missed because a reverse nudge put the cursor on the title; the retry passed. |
+| `s` | stock | `ultima7`, Esc, wait 55 s (idle return), Esc with keys only, then as `f` | **Pass.** The game starts. | Pass (second leg, after a MOUSEDEF leg). |
+| `m` | MOUSEDEF | `ultima7`, Esc, then the clicks, as in `f` | **Pass.** The game starts. | Pass (first leg). |
+
+`w2` ran the legs in the order `t`, `f`, `s`, `m`, with a scrub before each.
+`w1` ran them as `m`, `s`, `t`, `f` after one scrub. The stock motion leg
+freezes on the same frame whether it follows a scrub (`w2`) or a stock leg
+(`w1`). The MOUSEDEF motion leg passes in both runs, including in `w2`
+straight after the frozen stock leg plus a scrub. So the result does not
+depend on leftover guest memory.
 
 ## Frames
 
-No frames are committed, because they are all game screens. The `w1` frames
-are on Powerboat in `~/fes-scratch/u7menu/runs/w1/fr/`, and the `k7` frames
-are in `~/fes-scratch/games/runs/g1409-k7/fr/`.
+No frames are committed, because they are all game screens. The frames are
+on Powerboat:
+
+- `w2` in `~/fes-scratch/u7menu/runs/w2/fr/`;
+- `w1` in `~/fes-scratch/u7menu/runs/w1/fr/`;
+- `k7` in `~/fes-scratch/games/runs/g1409-k7/fr/`.
 
 | SHA-256 | Frame | What it shows |
 | --- | --- | --- |
+| `d0c7052d320e945051f04e059d36b42e401ee3e529ab2b018f750c0b20b05324` | `w2/scrub1` | SCRUBX before leg `t`: `DONE flags=0000000F`, with conventional, upper and extended memory zeroed. This is not a game screen. |
+| `d11be65fb63ea0a7b3908b8c4d66fbdd021568a033e32aad4cb62757810ad197` | `w2/t-move2`, `w2/t-jo` | Stock after scrub and motion: the frozen title, 15 s after the motion and after every later click. This frame is the same as `w1`'s. |
+| `163b04dc291b648479eab2164ef4a2427d0b361775f7ba4b00e7c9d9dc68b8d0` | `w2/f-move2` | MOUSEDEF after scrub and the same motion: the replay has moved on. |
+| `825d826b9ad54aed8dbe4124fba23edeeffdd30ee23790f5affb861d6065cb24` | `w2/f-cs` | MOUSEDEF after motion: the character screen. |
+| `385dfc8a6f203bcbc532ea3312c6aa12edd9928a22fcbab17bcc81cda5b9177f` | `w2/f-jo` | MOUSEDEF after motion: the opening in Trinsic. |
+| `2ab4ffe81449df654c2cdaa8f87748bd990e618cb7a064e4ea70fb88e5dec8ff` | `w2/s-jo` | Stock, keys only during the replay: the opening in Trinsic. |
+| `f0ec187b7bbbb6148b9a2b15273dec8a851c1ed001472e7ff8fae934941e43e3` | `w2/m-jo` | MOUSEDEF, no replay: the opening in Trinsic. |
 | `02112e655c4f3bf7ec5f6a47c0ac21c013cdda2c5cae0d67bda3fc934b0f2cbf` | `w1/bg-cs` | MOUSEDEF, 386DX-25: the character screen after the first menu click. |
 | `59a18cb9b5f297e06e268acbf44a0572ffbfe2859af34315bc7f143b1e68591f` | `w1/bg-jo1` | The same after "Avatar" and the first Journey Onward click: name entry ended, cursor on Journey Onward. |
 | `dd62335bd81c135895546a4ce33f26cc9a7108dbf7b127bd7924629f7ea4a069` | `w1/bg-jo3` | 36 s after the second click: the opening in Trinsic. |
@@ -132,7 +160,7 @@ are in `~/fes-scratch/games/runs/g1409-k7/fr/`.
 
 ## Not done
 
-- **No max rerun.** `w1` has no max rerun with the MOUSEDEF image; #1485's
+- **No max rerun.** Neither run has a max rerun with the MOUSEDEF image; #1485's
   `v1` already covers that.
 - **#1427's other notes.** The low menu hit rate and the menu's idle return
   were explained in #1485's record: the cursor aim at y=144, the first Enter
