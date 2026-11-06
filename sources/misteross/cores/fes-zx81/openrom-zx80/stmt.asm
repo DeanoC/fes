@@ -47,13 +47,6 @@ stmt_end:
         ret z
         jr unwind
 
-; An optional number (A = the current character): none gives 0.
-opt_num:
-        cp C_NL
-        ld hl,0
-        ret z
-        jr expr_num
-
 ; A one-letter name; DEST = it, A = the character after it.
 one_letter:
         call name_at

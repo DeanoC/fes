@@ -3,6 +3,11 @@
 ; text, which ends at its closing quote; it is returned in HL with F_NUM
 ; giving the type. While checking, types are worked out but not values.
 
+; An optional number (A = the current character): none gives 0.
+opt_num:
+        cp C_NL
+        ld hl,0
+        ret z
 expr_num:
         call expr
 need_num:
