@@ -290,22 +290,19 @@ st_input:
         jr nz,.prog
         rst 8
         db R_INPUT
-.prog:  ld hl,FLAGS             ; F_DNUM = the destination's type
+.prog:  ld hl,(D_FILE)          ; the workspace becomes an empty edit line
+        dec hl
+        ld de,(E_LINE)
+        call reclaim_de         ; HL = E_LINE
+        ld (hl),C_NL
+        ld (P_PTR),hl
+        ld hl,FLAGS             ; F_DNUM = the destination's type
         res F_DNUM,(hl)
         bit F_NUM,(hl)
-        jr z,.n
+        jr z,.str
         set F_DNUM,(hl)
-.n:     call temp_clear
-        ld hl,(E_LINE)          ; the edit line becomes the cursor alone
-        push hl
-        call line_skip
-        dec hl
-        pop de
-        call reclaim_de         ; HL = E_LINE, now just its NEWLINE
-        ld (P_PTR),hl
-        bit F_DNUM,(iy+Y_FLAGS)
-        jr nz,.go
-        ld a,C_QUOTE            ; a string: the cursor inside quotes
+        jr .go
+.str:   ld a,C_QUOTE            ; a string: the cursor inside quotes
         call edit_insert
         call edit_insert
         call edit_line.left
