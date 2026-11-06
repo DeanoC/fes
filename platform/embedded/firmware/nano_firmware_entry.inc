@@ -1,27 +1,72 @@
 /* SPDX-License-Identifier: BSD-3-Clause */
 /* First instructions of the selected cold entry. No stack, C call, BSS or
- * candidate-memory access. Only the initialized DDR latch is written here.
+ * candidate-memory access. Writes are limited to the initialized DDR latch
+ * and the same bounded UART PIO sink already used by SPL.
  * Test harnesses may substitute register-file addresses and the reject label;
  * the producer installs the canonical addresses and a permanent park loop. */
 #ifndef FES_RAM_REJECT
-#define FES_RAM_REJECT .Lfes_ram_park
+#define FES_RAM_REJECT .Lfes_ram_reject
 #endif
+
+#ifndef FES_RAM_PARK
+#define FES_RAM_PARK .Lfes_ram_park
+#endif
+/* Match SPL's existing fixed UART sink, bounds and ready bits. These expand
+ * inline, preserve x0..x7/x15/x18..x30 and never use SP or call a function. */
+.macro fes_ram_uart_wait mask
+    ldr x10, =FES_RAM_UART_STATUS
+    ldr w11, =FES_RAM_UART_POLLS
+.Lfes_ram_tx_wait_\@:
+    ldr w12, [x10]
+    cmn w12, #1
+    b.eq FES_RAM_PARK
+    tst w12, #\mask
+    b.ne .Lfes_ram_tx_ready_\@
+    subs w11, w11, #1
+    b.ne .Lfes_ram_tx_wait_\@
+    b FES_RAM_PARK
+.Lfes_ram_tx_ready_\@:
+.endm
+.macro fes_ram_uart_char
+    fes_ram_uart_wait 0x20
+    ldr x10, =FES_RAM_UART_DATA
+    str w9, [x10]
+    dsb sy
+.endm
+.macro fes_ram_uart_text label
+    ldr x8, =\label
+    mov w13, #FES_RAM_UART_BYTES
+.Lfes_ram_tx_text_\@:
+    cbz w13, FES_RAM_PARK
+    ldrb w9, [x8], #1
+    sub w13, w13, #1
+    cbz w9, .Lfes_ram_tx_end_\@
+    fes_ram_uart_char
+    b .Lfes_ram_tx_text_\@
+.Lfes_ram_tx_end_\@:
+    fes_ram_uart_wait 0x40
+.endm
     mrs x8, CurrentEL
+    mov x15, #1
     cmp x8, #12
-    b.ne FES_RAM_REJECT
+    b.ne FES_RAM_PARK
     mrs x8, sctlr_el3
-    ldr x9, =0x03000005
-    tst x8, x9
-    b.ne FES_RAM_REJECT
+    tst x8, #1
+    b.ne FES_RAM_PARK
+    tst x8, #4
+    b.ne FES_RAM_PARK
+    tst x8, #0x03000000
+    b.ne FES_RAM_PARK
     mrs x8, daif
     cmp x8, #0x3c0
-    b.ne FES_RAM_REJECT
+    b.ne FES_RAM_PARK
     ldr x8, =fes_nano_ram_attempt
     ldr x9, [x8]
     cbnz x9, FES_RAM_REJECT
     mov x9, #1
     str x9, [x8]
     dsb sy
+    fes_ram_uart_text fes_nano_ram_trace_entry
     ldr x8, =FES_RAM_COOKIE
     cmp x4, x8
     b.ne FES_RAM_REJECT
@@ -53,6 +98,7 @@
     ldr x8, =0x3ff20
     cmp x2, x8
     b.hi FES_RAM_REJECT
+    mov x15, #2
     ldr w8, [x2]
     ldr w9, =FES_RAM_COLD_MAGIC
     cmp w8, w9
@@ -101,6 +147,7 @@
     ldr w8, [x2, #92]
     cbnz w8, FES_RAM_REJECT
 
+    mov x15, #3
     /* Exact existing cold-record CRC32, including a zero checksum field. */
     mov x10, #0
     mov w14, #-1
@@ -127,9 +174,10 @@
     cmp x10, #FES_RAM_COLD_BYTES
     b.lo .Lfes_ram_crc_byte
     mvn w14, w14
-    ldr w15, [x2, #12]
-    cmp w14, w15
+    ldr w11, [x2, #12]
+    cmp w14, w11
     b.ne FES_RAM_REJECT
+    mov x15, #4
     ldr x8, =fes_nano_ram_expected_chain
     ldp x9, x10, [x8]
     ldp x11, x12, [x2, #48]
@@ -153,6 +201,7 @@
     cmp x8, x9
     b.ne FES_RAM_REJECT
 
+    mov x15, #5
     /* The loaded ELF must describe exactly this separate stack/BSS range. */
     ldr x8, =__NOBITS_START__
     ldr x9, =0x50000
@@ -178,6 +227,7 @@
     cmp x11, x9
     b.hi FES_RAM_REJECT
 
+    mov x15, #6
     /* Read-only live containment; never touch a reset controller's data
      * registers or release a bridge/reset. The full C provider validates
      * the saved history and repeats the live policy before any service grant. */
@@ -231,7 +281,14 @@
     cmp x10, #4
     b.lo .Lfes_ram_spares
     dsb sy
+    fes_ram_uart_text fes_nano_ram_trace_pass
     b .Lfes_ram_checked
+.Lfes_ram_reject:
+    fes_ram_uart_text fes_nano_ram_trace_reject
+    add w9, w15, #48
+    fes_ram_uart_char
+    fes_ram_uart_text fes_nano_ram_trace_newline
+    b FES_RAM_PARK
 .Lfes_ram_park:
     wfe
     b .Lfes_ram_park

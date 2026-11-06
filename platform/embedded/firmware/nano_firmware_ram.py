@@ -30,6 +30,10 @@ ENTRY_CONSTANTS = {
     'PRODUCERS_ALL': (0x3ff, 'FES_NANO_PRODUCERS_ALL'),
     'MASTER_RESET': (0xff21bfbf, 'FES_NANO_MASTER_RESET'),
     'COOKIE': (COOKIE, 'FES_NANO_FW_RAM_COOKIE'),
+    'UART_DATA': (0x10c02100, 'FES_NANO_FW_RAM_UART_DATA'),
+    'UART_STATUS': (0x10c02114, 'FES_NANO_FW_RAM_UART_STATUS'),
+    'UART_POLLS': (100000, 'FES_NANO_FW_RAM_UART_POLLS'),
+    'UART_BYTES': (384, 'FES_NANO_FW_RAM_UART_BYTES'),
 }
 
 
@@ -70,7 +74,9 @@ def assembly_header(chain):
     return ('/* Source-bound private EL3 entry constants, not an NS API. */\n'
             '#define FES_RAM_CHAIN_BYTES ' + ','.join(hex(v) for v in data) + '\n'
             '#define FES_RAM_OWNER_SEED ' + hex(int(chain[:16],16)|1) + '\n' +
-            ''.join('#define FES_RAM_'+name+' '+hex(value)+'\n'
+            ''.join(('#ifndef FES_RAM_'+name+'\n' if name in ('UART_DATA','UART_STATUS') else '') +
+                    '#define FES_RAM_'+name+' '+hex(value)+'\n' +
+                    ('#endif\n' if name in ('UART_DATA','UART_STATUS') else '')
                     for name,(value,_) in ENTRY_CONSTANTS.items()) +
             '#ifndef FES_RAM_RSTMGR\n#define FES_RAM_RSTMGR 0x10d11000\n#endif\n'
             '#ifndef FES_RAM_PWRMGR\n#define FES_RAM_PWRMGR 0x10d14000\n#endif\n')
@@ -100,6 +106,12 @@ fes_nano_ram_expected_chain:
 fes_nano_ram_attempt:
 .quad 0
 .size fes_nano_ram_attempt, 8
+.popsection
+.pushsection .rodata.fes_ram_trace,"a"
+fes_nano_ram_trace_entry: .asciz "FES_NANO_RAM ENTRY\\r\\n"
+fes_nano_ram_trace_pass: .asciz "FES_NANO_RAM PASS\\r\\n"
+fes_nano_ram_trace_reject: .asciz "FES_NANO_RAM REJECT phase="
+fes_nano_ram_trace_newline: .asciz "\\r\\n"
 .popsection
 '''
 

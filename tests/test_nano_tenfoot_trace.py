@@ -66,6 +66,19 @@ class Model:
         return raw
 
 class TenfootTraceTests(unittest.TestCase):
+    def test_selected_ram_trace_is_required_before_any_app_input(self):
+        model=Model();initial=BOOT+trace.BEGIN+b'\n'+model.raw(model.state())
+        options=dict(build_id=SPEC['build_id'],owner_seed=SPEC['owner_seed'],atf=SPEC['atf'],
+                     package=SPEC['package'],programs=PROGRAMS,exchange=model.exchange,
+                     owns=lambda:True,firmware_ram_trace=True)
+        with self.assertRaises(ValueError):trace.TenfootClient(initial,**options)
+        before=b'NOTICE:  FES_NANO_EL3_CAPTURE phase=before'
+        self.assertIn(before,initial)
+        updated=initial.replace(before,b'FES_NANO_RAM ENTRY\r\nFES_NANO_RAM PASS\r\n'+before)
+        client=trace.TenfootClient(updated,**options)
+        self.assertTrue(client.boot['firmware_ram_trace']['complete'])
+        self.assertEqual(model.keys,[])
+
     def test_same_package_different_rom_receipts_complete_owned_cycles(self):
         programs=copy.deepcopy(PROGRAMS)
         programs[1]['identity']=copy.deepcopy(programs[0]['identity'])

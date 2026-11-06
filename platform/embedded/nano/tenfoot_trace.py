@@ -128,7 +128,7 @@ class TenfootClient:
     Its predicate is framing only; this class verifies every state and all C
     evidence afterwards. Any uncertainty permanently retires the client.
     """
-    def __init__(self,initial,*,build_id,owner_seed,atf,package,programs,exchange,owns,now=time.monotonic,record=lambda _:None,shared_usb=None):
+    def __init__(self,initial,*,build_id,owner_seed,atf,package,programs,exchange,owns,now=time.monotonic,record=lambda _:None,shared_usb=None,firmware_ram_trace=False):
         require(all(callable(f) for f in (exchange,owns,now,record)),'owned exchange and clock hooks required')
         require(type(programs) is list and len(programs)==2 and len({p['title'] for p in programs})==2 and len({(p['identity']['PackageID'],p['identity']['ActivationReceiptSHA256']) for p in programs})==2,'two distinct titled activation choices required')
         self.programs=copy.deepcopy(programs)
@@ -136,6 +136,8 @@ class TenfootClient:
         usb_rows=[]
         states,evidence,exited=self._packet(initial,startup=True,usb_records=usb_rows)
         options={} if self.usb is None else dict(usb_control=True,usb_shared=True,hps_context=self.usb.policy['hps_context'],hps_io=self.usb.policy['hps_io'])
+        require(type(firmware_ram_trace) is bool,'explicit firmware RAM trace selection required')
+        if firmware_ram_trace:options['firmware_ram_trace']=True
         boot=decode_native_boot(evidence,build_id,owner_seed,package=package,atf=atf,**options)
         require(not boot['errors'] and boot['loader_ready'] and boot['last_checkpoint']==('el1' if self.usb is None else 'hps_io_pass'),'matched App boot rejected')
         seal=next(r['values'] for r in boot['records'] if r['stage']=='spl_handoff')

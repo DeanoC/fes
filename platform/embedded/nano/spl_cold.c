@@ -34,6 +34,11 @@ _Static_assert(CONFIG_SPL_BSS_START_ADDR==0xbff00000 && CONFIG_SPL_BSS_MAX_SIZE=
 #define FES_SPL_CONSOLE_WRITE(a,v) writel((v),(void *)(a))
 #define FES_SPL_CONSOLE_PARK() asm volatile("wfe" ::: "memory")
 #include "fes_nano_spl_console.inc"
+_Static_assert(FES_NANO_FW_RAM_UART_DATA==FES_SPL_CONSOLE_THR &&
+               FES_NANO_FW_RAM_UART_STATUS==FES_SPL_CONSOLE_LSR &&
+               FES_NANO_FW_RAM_UART_BYTES==FES_SPL_CONSOLE_BYTES &&
+               FES_NANO_FW_RAM_UART_POLLS==FES_SPL_CONSOLE_POLLS,
+               "early EL3 trace must use the existing bounded SPL UART sink");
 #define FES_COLD_READ32(a) readl((void *)(a))
 #define FES_COLD_READ16(a) readw((void *)(a))
 #define FES_COLD_WRITE32(a,v) writel((v),(void *)(a))
@@ -51,6 +56,11 @@ static unsigned fit_verified __attribute__((section(".data"))) = 0;
 
 #if defined(FES_NANO_COLD_ROM) && FES_NANO_COLD_ROM && defined(FES_NANO_SHARED_USB) && FES_NANO_SHARED_USB
 static unsigned ram_guard_attempted __attribute__((section(".data"))) = 0;
+/* Diagnostic observations only. Retain the one consumed snapshot; reporting a
+ * rejection must never resample it, retry the guard or manufacture a grant. */
+static struct fes_nano_spl_ram_view ram_guard_view __attribute__((section(".data"),aligned(8))) = {0};
+static int ram_guard_snapshot_result __attribute__((section(".data"))) = -1;
+static int ram_guard_result __attribute__((section(".data"))) = -1;
 static int fes_nano_spl_ram_snapshot(uintptr_t params,uintptr_t cold,struct fes_nano_spl_ram_view *v)
 {
     uint64_t sp,sctlr,daif;
@@ -71,11 +81,25 @@ static int fes_nano_spl_ram_snapshot(uintptr_t params,uintptr_t cold,struct fes_
  * excludes SPL's live allocations only, not later native or SDM users. */
 int fes_nano_spl_firmware_ram_guard(uintptr_t params,uintptr_t cold)
 {
-    struct fes_nano_spl_ram_view view;
     if(ram_guard_attempted) return -1;
     ram_guard_attempted=1;
-    if(fes_nano_spl_ram_snapshot(params,cold,&view) || !fes_nano_spl_ram_excluded(&view)) return -1;
-    return 0;
+    ram_guard_snapshot_result=fes_nano_spl_ram_snapshot(params,cold,&ram_guard_view);
+    ram_guard_result=ram_guard_snapshot_result || !fes_nano_spl_ram_excluded(&ram_guard_view) ? -1 : 0;
+    return ram_guard_result;
+}
+void fes_nano_spl_firmware_ram_rejected(void) __attribute__((noreturn));
+void fes_nano_spl_firmware_ram_rejected(void)
+{
+    const struct fes_nano_spl_ram_view *v=&ram_guard_view;
+    fes_nano_spl_cold_printf("FES_NANO_SPL REJECT firmware_ram attempted=%u snapshot=%d result=%d\n",
+                           ram_guard_attempted,ram_guard_snapshot_result,ram_guard_result);
+    fes_nano_spl_cold_printf("FES_NANO_SPL RAM_VIEW sp=%llx gd=%llx gd_bytes=%llx early=%llx early_bytes=%llx image=%llx\n",
+        (unsigned long long)v->sp,(unsigned long long)v->gd_base,(unsigned long long)v->gd_bytes,
+        (unsigned long long)v->early_base,(unsigned long long)v->early_bytes,(unsigned long long)v->image_bytes);
+    fes_nano_spl_cold_printf("FES_NANO_SPL RAM_VIEW cold=%llx cold_bytes=%llx params=%llx heap=%llx heap_bytes=%llx\n",
+        (unsigned long long)v->cold_base,(unsigned long long)v->cold_bytes,(unsigned long long)v->params_base,
+        (unsigned long long)v->heap_base,(unsigned long long)v->heap_bytes);
+    fes_nano_spl_cold_stop();
 }
 #endif
 

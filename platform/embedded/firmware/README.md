@@ -12,7 +12,10 @@ It requires the version-2 native CPU exclusion, the final one-shot SPL live
 allocation check and a fifth private entry argument. Before vendor startup,
 the allocation-free EL3 guard checks the sealed record/CRC/chain, SP and linker
 layout, plus live reset/CPU containment. Failure parks before BSS or stack
-initialization. Its only early store is an initialized DDR attempt latch.
+initialization. Early stores are limited to an initialized DDR attempt latch
+and the fixed UART sink already used by SPL. Entry, pass and rejection-phase
+messages have the same 384-byte and 100,000-poll bounds as that sink. No stack
+or calls are needed for these messages; unusable UART status parks the entry.
 The full cold provider still validates history and live ownership before any
 service grant. This is an experimental source-bound handoff, not cryptographic
 secure-boot provisioning or ordinary package admission.
@@ -23,6 +26,13 @@ Regression records come from the real cold begin/finish/checksum functions over
 injected register callbacks. The initial hand-packed ARM control used the wrong
 fabric value and missed that mismatch; its passing results do not establish
 compatibility with valid producer records. The stopped image remains unqualified.
+
+After another silent handoff stop, SPL now retains its original consumed
+allocation snapshot. Only the rejection path prints those saved values and
+parks; it does not resample or retry. EL3 phases distinguish arguments, record
+fields, CRC, identity, layout and live containment. The host decoder validates
+their order and can require entry/pass before vendor capture for the selected
+RAM chain. These diagnostics alone never qualify boot or memory ownership.
 
 Only that selected profile may accept one non-executable, zero-file-byte NOBITS
 load segment in the fixed range. Packaging independently checks the actual ELF

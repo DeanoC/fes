@@ -11,6 +11,10 @@
 #define FES_NANO_FW_RAM_LIMIT 0x00060000ULL
 #define FES_NANO_FW_RAM_STACK_FLOOR 0x00061000ULL
 #define FES_NANO_FW_RAM_COOKIE 0x464e52414d000001ULL
+#define FES_NANO_FW_RAM_UART_DATA 0x10c02100ULL
+#define FES_NANO_FW_RAM_UART_STATUS 0x10c02114ULL
+#define FES_NANO_FW_RAM_UART_POLLS 100000U
+#define FES_NANO_FW_RAM_UART_BYTES 384U
 /* The allocation-free EL3 entry reads this wire record before C/BSS exists. */
 _Static_assert(sizeof(struct fes_nano_cold_record)==224 &&
                offsetof(struct fes_nano_cold_record,checksum)==12 &&

@@ -116,7 +116,7 @@ class _ComputerContinuation:
 
 def decode_native_boot(data, build_id, owner_seed, *, storage=None, package=None, hps_context=None, hps_io=None, fpga_identity=None,
                        fpga_configuration=False, fpga_unready=False, fpga_status_only=False, configuration_storage=False,
-                       smmu_observe=False, reader_memory=None, computer=None, computer_activity=False, cpu_mapping=None, capture_trace=True, atf=None, usb_control=False, usb_shared=False, _continuation=None, _window_prefix=False):
+                       smmu_observe=False, reader_memory=None, computer=None, computer_activity=False, cpu_mapping=None, capture_trace=True, atf=None, usb_control=False, usb_shared=False, firmware_ram_trace=False, _continuation=None, _window_prefix=False):
     """Retain partial progress, but qualify only one ordered, coherent boot.
 
     A bare prompt need not end in a newline. Other incomplete lines are held
@@ -129,6 +129,8 @@ def decode_native_boot(data, build_id, owner_seed, *, storage=None, package=None
         raise ValueError('checked build ID and nonzero odd uint64 owner seed required')
     if not isinstance(data, (str, bytes, bytearray, memoryview)):
         raise TypeError('serial bytes or text required')
+    if type(firmware_ram_trace) is not bool or firmware_ram_trace and (atf is None or not capture_trace or _continuation is not None):
+        raise ValueError('firmware RAM trace requires an explicit cold ATF descriptor')
     if type(capture_trace) is not bool:
         raise ValueError('secure capture trace selection must come from the checked build')
     if type(computer_activity) is not bool or computer_activity and computer is None:
@@ -293,7 +295,8 @@ def decode_native_boot(data, build_id, owner_seed, *, storage=None, package=None
         index=stages.index('provider');stages=stages[:index]+('usb_setup',)+stages[index:]
     loader_stages=() if continued else stages[:stages.index('prompt')+1]
     report = {'records': [], 'errors': [], 'loader_ready': False, 'complete': False,
-              'last_checkpoint': None, 'core_load_acceptance': False}
+              'last_checkpoint': None, 'core_load_acceptance': False,
+              'firmware_ram_trace': {'records': [], 'complete': False, 'valid': True}}
     if len(data) > MAX_BYTES:
         report['errors'].append('capture exceeds byte bound')
         return report
@@ -310,6 +313,25 @@ def decode_native_boot(data, build_id, owner_seed, *, storage=None, package=None
         line = line.rstrip('\r')
         if ('FES_' in line and re.search(r'\b(?:REJECT|FAIL|EXCEPTION)\b', line)) or line.startswith(('panic:', 'fatal error:')):
             report['errors'].append(f'failure marker at line {number}')
+        if line.startswith('FES_NANO_RAM'):
+            ram=report['firmware_ram_trace'];rows=ram['records']
+            match=re.fullmatch(r'FES_NANO_RAM (ENTRY|PASS|REJECT phase=([1-6]))',line)
+            if match is None:
+                ram['valid']=False
+                report['errors'].append(f'malformed firmware RAM marker at line {number}')
+                continue
+            kind=match[1].split()[0].lower()
+            if ('spl_atf' not in observed or any(k in observed for k in ('el3_capture_before','provider','uboot')) or
+                    len(rows)>=2 or kind=='entry' and rows or kind=='pass' and [r['kind'] for r in rows]!=['entry']):
+                ram['valid']=False
+                report['errors'].append(f'out-of-order firmware RAM marker at line {number}')
+            rows.append(dict(kind=kind,line=number,phase=int(match[2]) if match[2] else None))
+            ram['complete']=ram['valid'] and [r['kind'] for r in rows]==['entry','pass']
+            continue
+        if 'FES_NANO_EL3_CAPTURE phase=before ' in line:
+            ram=report['firmware_ram_trace']
+            if (firmware_ram_trace or ram['records']) and not ram['complete']:
+                report['errors'].append(f'incomplete firmware RAM guard trace before vendor capture at line {number}')
         for name, pattern in RULES:
             match = pattern.fullmatch(line)
             if match is None:

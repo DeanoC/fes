@@ -60,6 +60,39 @@ class NativeTraceTests(unittest.TestCase):
     def decode(self, data):
         return trace.decode_native_boot(data, BUILD, SEED)
 
+    def test_firmware_ram_trace_requires_ordered_entry_pass_and_never_grants_boot(self):
+        sys.path.insert(0,str(ROOT/'platform/embedded/nano'))
+        try:from prepare_uboot import atf_descriptor
+        finally:sys.path.pop(0)
+        expected=atf_descriptor('1'*64,90173)
+        descriptor=('FES_NANO_SPL ATF target=80000000 bl32=0 bl33=80200000 fdt=0 params=bff00008 '
+                    'cold=21768 cookie=464e433200000002 el=3 mpidr=81000000 sctlr=1000 scr=501 daif=3c0 '
+                    'bytes=90173 sha256='+'1'*64+'\r\n')
+        before='NOTICE:  FES_NANO_EL3_CAPTURE phase=before'
+        raw=fixture().replace(before,''.join(atf_progress())+descriptor+before)
+        entry='FES_NANO_RAM ENTRY\r\n';passed='FES_NANO_RAM PASS\r\n'
+        complete=raw.replace(before,entry+passed+before)
+        decode=lambda value:trace.decode_native_boot(value,BUILD,SEED,atf=expected,firmware_ram_trace=True)
+        result=decode(complete)
+        self.assertTrue(result['complete'],result)
+        self.assertTrue(result['firmware_ram_trace']['complete'])
+        self.assertFalse(result['core_load_acceptance'])
+        for changed in (raw,complete.replace(entry,''),complete.replace(passed,''),
+                        complete.replace(entry,entry+entry),complete.replace(entry+passed,passed+entry),
+                        complete.replace(entry,entry.replace('ENTRY','ENTRY extra=1')),
+                        complete.replace(passed,'FES_NANO_RAM REJECT phase=3\r\n'),
+                        complete.replace(passed,'FES_NANO_RAM REJECT phase=0\r\n')):
+            with self.subTest(changed=changed):self.assertFalse(decode(changed)['loader_ready'])
+        prefix=raw.split(before)[0]+entry
+        self.assertEqual(decode(prefix)['errors'],[])
+        self.assertFalse(decode(prefix)['firmware_ram_trace']['complete'])
+        prefix+=passed
+        self.assertTrue(decode(prefix)['firmware_ram_trace']['complete'])
+        self.assertFalse(decode(prefix)['loader_ready'])
+        for value in (None,1,'true'):
+            with self.assertRaises(ValueError):trace.decode_native_boot(raw,BUILD,SEED,atf=expected,firmware_ram_trace=value)
+        with self.assertRaises(ValueError):trace.decode_native_boot(raw,BUILD,SEED,firmware_ram_trace=True)
+
     def test_loaded_bl31_observation_uses_independent_descriptor_and_preserves_partial_progress(self):
         sys.path.insert(0,str(ROOT/'platform/embedded/nano'))
         try:from prepare_uboot import atf_descriptor,checked_atf_descriptor

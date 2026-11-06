@@ -84,7 +84,6 @@ class NanoFirmwareRamTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as temp:
             path = Path(temp) / 'ram.c'
             binary = Path(temp) / 'ram'
-            (Path(temp) / 'hang.h').write_text('void hang(void) __attribute__((noreturn));\n')
             path.write_text(source)
             built = subprocess.run(['cc', '-std=c11', '-O2', '-Wall', '-Wextra', '-Werror',
                                     '-fsanitize=undefined', '-fno-sanitize-recover=all',
@@ -129,6 +128,8 @@ int main(void) {
         guard = extract(source, 'fes_nano_spl_firmware_ram_guard')
         self.run_c(PREFIX + r'''
 static unsigned ram_guard_attempted,observations,mode;
+static struct fes_nano_spl_ram_view ram_guard_view;
+static int ram_guard_snapshot_result=-1,ram_guard_result=-1;
 static int fes_nano_spl_ram_snapshot(uintptr_t params,uintptr_t cold,struct fes_nano_spl_ram_view *v) {
     assert(ram_guard_attempted==1 && !observations++ && params==11 && cold==22);
     *v=canonical();
@@ -200,6 +201,46 @@ int main(int argc,char **argv) {
 }
 ''', 10)
 
+    def test_rejection_reports_only_the_consumed_snapshot_and_never_retries(self):
+        source=(NANO/'spl_cold.c').read_text()
+        guard=extract(source,'fes_nano_spl_firmware_ram_guard')
+        report=extract(source,'fes_nano_spl_firmware_ram_rejected')
+        self.run_c(PREFIX+r'''
+#include <setjmp.h>
+#include <stdarg.h>
+#include <stdio.h>
+static unsigned ram_guard_attempted,observations,mode;
+static struct fes_nano_spl_ram_view ram_guard_view;
+static int ram_guard_snapshot_result=-1,ram_guard_result=-1;
+static jmp_buf stopped;
+static char wire[1024];static unsigned used;
+static int fes_nano_spl_ram_snapshot(uintptr_t p,uintptr_t c,struct fes_nano_spl_ram_view *v) {
+    assert(p==11 && c==22 && ram_guard_attempted==1 && !observations++);
+    if(mode==1)return -1;
+    *v=canonical();if(mode==2)v->sp=0x50000;return 0;
+}
+static void fes_nano_spl_cold_printf(const char *format,...) {
+    assert(observations==1);va_list args;va_start(args,format);
+    int n=vsnprintf(wire+used,sizeof(wire)-used,format,args);va_end(args);
+    assert(n>0 && n<384 && (unsigned)n<sizeof(wire)-used);used+=(unsigned)n;
+}
+static void __attribute__((noreturn)) fes_nano_spl_cold_stop(void) {longjmp(stopped,1);}
+'''+guard+report+r'''
+int main(int argc,char **argv) {
+    assert(argc==2);mode=strtoul(argv[1],0,0);
+    assert(fes_nano_spl_firmware_ram_guard(11,22)==((mode==1 || mode==2)?-1:0));
+    for(unsigned i=0;i<4;i++)assert(fes_nano_spl_firmware_ram_guard(11,22)==-1);
+    assert(observations==1 && !used);
+    if(!mode)return 0;
+    if(!setjmp(stopped))fes_nano_spl_firmware_ram_rejected();
+    assert(observations==1 && ram_guard_attempted==1);
+    assert(strstr(wire,"FES_NANO_SPL REJECT firmware_ram attempted=1 snapshot="));
+    assert(strstr(wire,mode==1?"snapshot=-1 result=-1":mode==2?"snapshot=0 result=-1":"snapshot=0 result=0"));
+    assert(strstr(wire,mode==1?"RAM_VIEW sp=0":mode==2?"RAM_VIEW sp=50000":"RAM_VIEW sp=6e000"));
+    assert(strstr(wire,"heap_bytes="));return 0;
+}
+''',4)
+
     def test_generated_caller_gates_final_branch_after_trace(self):
         fixture = '''
 typedef void __noreturn (*atf_entry_t)(struct bl31_params *params, void *plat_params);
@@ -225,7 +266,7 @@ static void __noreturn entry(uintptr_t target) {
 struct bl31_params { unsigned value; };
 static unsigned mode,stage,branched,parked;
 static jmp_buf stopped;
-void __attribute__((noreturn)) hang(void) { assert(mode && stage==3);parked=1;longjmp(stopped,1); }
+void __attribute__((noreturn)) fes_nano_spl_firmware_ram_rejected(void) { assert(mode && stage==3);parked=1;longjmp(stopped,1); }
 '''
         suffix = r'''
 const void *fes_nano_spl_handoff(void) { assert(stage++==0);return (void *)22; }

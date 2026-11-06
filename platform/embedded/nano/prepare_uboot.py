@@ -73,12 +73,13 @@ def atf_source(text, *, firmware_ram=False, firmware_ocram=False):
         before='\t\tatf_entry(bl31_params, (void *)fdt_addr, cold, FES_NANO_COLD_COOKIE);'
         if text.count(before)!=1:raise ValueError('SPL final branch guard context changed')
         text=text.replace(before,'\t\textern int fes_nano_spl_firmware_ram_guard(uintptr_t, uintptr_t);\n'
-            '\t\tif (fes_nano_spl_firmware_ram_guard((uintptr_t)bl31_params, (uintptr_t)cold)) hang();\n'+before)
+            '\t\textern void __noreturn fes_nano_spl_firmware_ram_rejected(void);\n'
+            '\t\tif (fes_nano_spl_firmware_ram_guard((uintptr_t)bl31_params, (uintptr_t)cold)) fes_nano_spl_firmware_ram_rejected();\n'+before)
     if firmware_ocram:
         text=text.replace('const void *cold, unsigned long cookie);', 'const void *cold, unsigned long cookie, unsigned long ram_cookie);')
         text=text.replace('atf_entry(bl31_params, (void *)fdt_addr, cold, FES_NANO_COLD_COOKIE);',
                           'atf_entry(bl31_params, (void *)fdt_addr, cold, FES_NANO_COLD_COOKIE, FES_NANO_FW_RAM_COOKIE);')
-    return '#include <nano_cold.h>\n'+('#include <nano_firmware_ram.h>\n' if firmware_ocram else '')+('#include <hang.h>\n' if firmware_ram else '')+text
+    return '#include <nano_cold.h>\n'+('#include <nano_firmware_ram.h>\n' if firmware_ocram else '')+text
 
 
 def prepare(source, entry_build, bl31_sha256, bl31_size, *, firmware_ram=False):

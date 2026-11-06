@@ -177,7 +177,7 @@ static void __noreturn entry(uintptr_t target) {
 struct bl31_params { unsigned value; };
 static unsigned stage,mode,branched,parked;
 static jmp_buf stopped;
-void __attribute__((noreturn)) hang(void) { assert(mode && stage==3);parked=1;longjmp(stopped,1); }
+void __attribute__((noreturn)) fes_nano_spl_firmware_ram_rejected(void) { assert(mode && stage==3);parked=1;longjmp(stopped,1); }
 '''
         suffix='''
 const void *fes_nano_spl_handoff(void) { assert(stage++==0);return (void *)22; }
