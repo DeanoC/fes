@@ -157,6 +157,7 @@ help:
 		"  sim-fes-pc386-a20  Run A20TEST.COM on the boot and games images: A20 off at boot, the BIOS's A20 calls, HIMEMX's method" \
 		"  sim-fes-pc386-c2xx  Run C2TEST.COM: INT 15h C2xx mouse resets with key and aux bytes at the 8042, and while keys are typed" \
 		"  sim-fes-pc386-wait  Run WAITTEST.COM: INT 15h AH=86h waits return in their time (PIT counter 1 at 15.09 us)" \
+		"  sim-fes-pc386-scroll  Run SCROLLT.COM at the FreeDOS prompt on the oracle and RTL CPUs" \
 		"  sim-fes-pc386-speaker  Run SPKTEST.COM: PIT counter 2 in mode 3 from POST, and a count-only speaker carrier" \
 		"  sim-fes-pc386-cpu-profile  Run CPUPROF.COM on the oracle, then a machine_tb --cpu-profile window on the RTL" \
 		"  sim-fes-pc386-system  Boot FreeDOS on pc386_system, the M5 machine with fes_i386_cpu, to the prompt (about an hour)" \
@@ -2829,7 +2830,7 @@ sim-fes-pcxt-game:
 	@test -n "$(PCXT_DIGGER_EXE)" || { echo "Set PCXT_DIGGER_EXE to the separately acquired pinned executable" >&2; exit 1; }
 	$(PYTHON) scripts/sim_fes_pcxt_dos.py --scenario game --download --digger-exe "$(PCXT_DIGGER_EXE)" --verilator "$(VERILATOR)"
 
-.PHONY: sim-fes-pc386 sim-fes-pc386-boot sim-fes-pc386-fesenv sim-fes-pc386-a20 sim-fes-pc386-c2xx sim-fes-pc386-wait sim-fes-pc386-speaker sim-fes-pc386-cpu-profile sim-fes-pc386-sound sim-fes-pc386-vga sim-fes-pc386-system synth-fes-pc386 build-fes-pc386-quartus
+.PHONY: sim-fes-pc386 sim-fes-pc386-boot sim-fes-pc386-fesenv sim-fes-pc386-a20 sim-fes-pc386-c2xx sim-fes-pc386-wait sim-fes-pc386-scroll sim-fes-pc386-speaker sim-fes-pc386-cpu-profile sim-fes-pc386-sound sim-fes-pc386-vga sim-fes-pc386-system synth-fes-pc386 build-fes-pc386-quartus
 sim-fes-pc386:
 	$(require_local_sim)
 	$(PYTHON) scripts/sim_fes_pc386.py --suite devices --verilator "$(VERILATOR)"
@@ -2858,6 +2859,10 @@ sim-fes-pc386-c2xx:
 sim-fes-pc386-wait:
 	$(require_local_sim)
 	$(PYTHON) scripts/sim_fes_pc386.py --suite wait --download --verilator "$(VERILATOR)"
+
+sim-fes-pc386-scroll:
+	$(require_local_sim)
+	$(PYTHON) scripts/sim_fes_pc386.py --suite scroll --cpu oracle --download --verilator "$(VERILATOR)"
 
 sim-fes-pc386-speaker:
 	$(require_local_sim)
