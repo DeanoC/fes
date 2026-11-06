@@ -1,0 +1,342 @@
+# SPDX-License-Identifier: MIT
+"""machine_tb --cpu-profile: cpu_profile.h's clock buckets, classes and page
+flips against a model CPU, its snapshots through scripts/pc386_cpu_profile.py,
+and the latency bench's measurement. No simulation; the short window is
+sim_fes_pc386.py --suite cpu-profile."""
+import os
+from pathlib import Path
+import re
+import shutil
+import subprocess
+import tempfile
+import textwrap
+import unittest
+
+from scripts import pc386_cpu_profile as profile
+from scripts import sim_fes_pc386 as sim
+from scripts import test_fes_i386_latency as latency
+
+HEADER = sim.CORE / 'sim/cpu_profile.h'
+VLT = sim.CORE / 'sim/cpu_profile.vlt'
+COMPILER = shutil.which(os.environ.get('CXX', 'c++'))
+
+
+def vlt_signals() -> list[str]:
+    return re.findall(r'public_flat_rd -module "fes_i386_cpu" -var "(\w+)"', VLT.read_text())
+
+
+class SignalTest(unittest.TestCase):
+    def test_the_config_exposes_exactly_what_the_header_reads(self):
+        text = HEADER.read_text()
+        read = set(re.findall(r'\bS\((\w+)\)', text)) - {'name'} | set(re.findall(r'r->fes_i386_cpu__DOT__(\w+)', text))
+        self.assertEqual(read, set(vlt_signals()))
+
+    def test_every_signal_is_declared_in_the_cpu(self):
+        rtl = (sim.COMMON / 'rtl/i386/fes_i386_cpu.sv').read_text()
+        for name in vlt_signals():
+            with self.subTest(name=name):
+                self.assertRegex(rtl, rf'(?m)^\s*(logic|wire|pipe_t)\b[^;]*\b{name}\b')
+
+    def test_the_machine_bench_builds_the_cpu_with_the_config(self):
+        self.assertIn("CPU_RTL + (CORE / 'sim/cpu_profile.vlt',)", Path(sim.__file__).read_text())
+
+
+# The driver: a model CPU with every exposed signal, the cases below, and a
+# profile file the Python side reads back.
+DRIVER = r'''
+#include <cassert>
+#include <cstring>
+
+#define CPU_PROFILE_PIPE_MSB 907
+#include "cpu_profile.h"
+struct Root {
+#define F(n) bool fes_i386_cpu__DOT__##n = false;
+SIGNALS
+#undef F
+    uint32_t fes_i386_cpu__DOT__ag_s[29] = {}, fes_i386_cpu__DOT__m1_s[29] = {}, fes_i386_cpu__DOT__m2_s[29] = {},
+             fes_i386_cpu__DOT__ex_s[29] = {}, fes_i386_cpu__DOT__wb_s[29] = {};
+};
+struct Cpu { Root root; Root *rootp = &root; };
+
+static unsigned bucket_of(CpuProfile &p, Cpu &cpu, bool mmio = false) {
+    uint64_t before[CpuProfile::NBUCKET];
+    std::memcpy(before, p.bucket, sizeof before);
+    p.sample(cpu, mmio, false);
+    for (unsigned b = 0; b < CpuProfile::NBUCKET; ++b)
+        if (p.bucket[b] != before[b]) return b;
+    return CpuProfile::NBUCKET;
+}
+#define R(n) cpu.root.fes_i386_cpu__DOT__##n
+
+int main(int, char **argv) {
+    // Buckets, in priority order.
+    {
+        CpuProfile p;
+        Cpu cpu;
+        R(issue) = true; R(d_first) = true; R(freeze) = true; R(mem_valid) = true;
+        assert(bucket_of(p, cpu) == CpuProfile::ISSUE_FIRST);
+        R(d_first) = false;
+        assert(bucket_of(p, cpu) == CpuProfile::ISSUE_MORE);
+        R(issue) = false; R(halted) = true;
+        assert(bucket_of(p, cpu) == CpuProfile::HALT);
+        R(halted) = false; R(m2_load) = true;
+        assert(bucket_of(p, cpu) == CpuProfile::FRZ_L1D);
+        assert(p.l1d_waits == 1);
+        assert(bucket_of(p, cpu) == CpuProfile::FRZ_L1D);
+        assert(p.l1d_waits == 1);  // one miss, two clocks
+        assert(bucket_of(p, cpu, true) == CpuProfile::FRZ_MMIO);
+        R(m2_load) = false; R(md_busy) = true;
+        assert(bucket_of(p, cpu) == CpuProfile::FRZ_MD);
+        R(md_busy) = false; R(io_wait) = true;
+        assert(bucket_of(p, cpu) == CpuProfile::FRZ_IO);
+        R(io_wait) = false; R(int_wait) = true;
+        assert(bucket_of(p, cpu) == CpuProfile::FRZ_INTA);
+        R(int_wait) = false;
+        assert(bucket_of(p, cpu) == CpuProfile::FRZ_STORE);
+        R(freeze) = false;
+        assert(bucket_of(p, cpu) == CpuProfile::FE_EMPTY);
+        R(mem_valid) = false;
+        assert(bucket_of(p, cpu) == CpuProfile::FE_L1I);
+        // A redirect: the front end refills, and an L1I miss on the way
+        // makes the rest of the refill REFILL_L1I.
+        R(mem_valid) = true; R(dc_valid) = true; R(d_stop) = true; R(redirect) = true;
+        assert(bucket_of(p, cpu) == CpuProfile::D_STOP);
+        R(redirect) = false; R(dc_valid) = false;
+        assert(bucket_of(p, cpu) == CpuProfile::REFILL);
+        R(mem_valid) = false;
+        assert(bucket_of(p, cpu) == CpuProfile::REFILL_L1I);
+        R(mem_valid) = true;
+        assert(bucket_of(p, cpu) == CpuProfile::REFILL_L1I);
+        R(issue) = true;
+        assert(bucket_of(p, cpu) == CpuProfile::ISSUE_MORE);
+        R(issue) = false;
+        assert(bucket_of(p, cpu) == CpuProfile::FE_EMPTY);
+        assert(p.redirects == 1);
+        // D's hazards.
+        R(dc_valid) = true; R(d_stop) = false;
+        struct { bool *on; unsigned want; } held[] = {
+            {&R(gov_block), CpuProfile::GOV}, {&R(lea_stall), CpuProfile::AGI}, {&R(seg_hazard), CpuProfile::SEG},
+            {&R(store_hazard), CpuProfile::STLD}, {&R(flag_hazard), CpuProfile::FLAG},
+            {&R(sp_hazard), CpuProfile::SP}, {&R(t_wait), CpuProfile::TEMP}, {&R(uc_wait), CpuProfile::UROM},
+            {&R(str_wait), CpuProfile::STR}, {&R(io_hazard), CpuProfile::IO_SERIAL},
+            {&R(ser_wait), CpuProfile::REPLAY_SERIAL}};
+        R(addr_use) = true; R(reads_seg) = true;
+        for (auto &h : held) *h.on = true;
+        for (auto &h : held) {
+            assert(bucket_of(p, cpu) == h.want);
+            *h.on = false;
+        }
+        assert(bucket_of(p, cpu) == CpuProfile::OTHER_WAIT);
+        p.sample(cpu, false, true);
+        p.parked(true);
+        p.parked(false);
+        uint64_t sum = 0;
+        for (uint64_t b : p.bucket) sum += b;
+        assert(sum == p.sampled);
+        assert(p.bucket[CpuProfile::RESET] == 1 && p.bucket[CpuProfile::PARKED_HALT] == 1
+               && p.bucket[CpuProfile::PARKED_IO] == 1);
+    }
+    // Classes.
+    {
+        unsigned extra = 0;
+        auto c = [&](std::initializer_list<uint8_t> b) {
+            uint8_t bytes[15] = {};
+            unsigned n = 0;
+            for (uint8_t x : b) bytes[n++] = x;
+            return CpuProfile::classify(bytes, n, extra);
+        };
+        assert(c({0x75, 0xfe}) == CpuProfile::C_JCC);
+        assert(c({0x0f, 0x85, 0, 0}) == CpuProfile::C_JCC);
+        assert(c({0xe8, 0, 0}) == CpuProfile::C_CALL);
+        assert(c({0xff, 0xd3}) == CpuProfile::C_CALL_IND);
+        assert(c({0xff, 0x16, 0, 0}) == CpuProfile::C_CALL_IND);
+        assert(c({0xff, 0x1e, 0, 0}) == CpuProfile::C_FAR_CALL);
+        assert(c({0x9a, 0, 0, 0, 0}) == CpuProfile::C_FAR_CALL);
+        assert(c({0xff, 0xe0}) == CpuProfile::C_JMP_IND);
+        assert(c({0xc3}) == CpuProfile::C_RET);
+        assert(c({0xcb}) == CpuProfile::C_RETF);
+        assert(c({0xe2, 0xfe}) == CpuProfile::C_LOOP);
+        assert(c({0xf3, 0xa5}) == CpuProfile::C_REP_STR);
+        assert(c({0xa5}) == CpuProfile::C_STR);
+        assert(c({0xf7, 0xf1}) == CpuProfile::C_DIV);
+        assert(c({0xf7, 0xe1}) == CpuProfile::C_MUL);
+        assert(c({0x8b, 0x07}) == CpuProfile::C_LOAD_OP);
+        assert(c({0x8b, 0xc3}) == CpuProfile::C_OTHER);
+        assert(c({0x8d, 0x07}) == CpuProfile::C_OTHER);  // LEA does not load
+        assert(c({0x66, 0x26, 0x8b, 0x07}) == CpuProfile::C_LOAD_OP && extra == 1);
+    }
+    // Page flips: a word OUT at 3D4h, byte OUTs, and another register.
+    {
+        CrtcFrameTracker t;
+        assert(t.observe(true, 0x3d4, 2, 0x000c));
+        assert(!t.observe(true, 0x3d4, 2, 0x000d));
+        assert(!t.observe(true, 0x3d5, 1, 0));
+        assert(!t.observe(true, 0x3d4, 1, 0x0c));
+        assert(!t.observe(false, 0x3d5, 1, 0));
+        assert(t.observe(true, 0x3d5, 1, 0x20));
+    }
+    // Retirements: a taken branch's redirect is its target's gap; the
+    // handover starts the next gap.
+    {
+        CpuProfile p;
+        const uint8_t jnz[] = {0x75, 0xfc}, add[] = {0x01, 0xd8};
+        p.begin(1000);
+        p.retire(1003, 0x100, 0x102, add, 2, false, false);
+        p.retire(1005, 0x102, 0x0fe, jnz, 2, false, false);
+        p.retire(1017, 0x0fe, 0x100, add, 2, false, true);
+        assert(p.cls[CpuProfile::C_OTHER].n == 2 && p.cls[CpuProfile::C_OTHER].own == 15);
+        assert(p.cls[CpuProfile::C_JCC].taken == 1 && p.cls[CpuProfile::C_JCC].own == 2);
+        assert(p.cls[CpuProfile::C_JCC].next == 12);
+        assert(p.retired == 3 && p.pm_retired == 1);
+        p.retire(1019, 0x102, 0x104, jnz, 2, false, false);  // not taken
+        assert(p.cls[CpuProfile::C_JCC].taken == 1);
+        p.retire(1030, 0x200, 0x300, add, 0, true, false);  // a delivery is taken
+        p.begin(5000);
+        p.retire(5004, 0x300, 0x301, add, 1, false, false);
+        assert(p.cls[CpuProfile::C_DELIVERY].next == 0 && p.cls[CpuProfile::C_OTHER].own == 19);
+    }
+    // A profile file for the Python side: two snapshots.
+    {
+        CpuProfile p;
+        Cpu cpu;
+        FILE *out = std::fopen(argv[1], "w");
+        p.begin(100);
+        assert(CpuProfile::in_flight(cpu) == 0);
+        cpu.root.fes_i386_cpu__DOT__ag_s[907 / 32] = 1u << (907 % 32);  // valid only
+        cpu.root.fes_i386_cpu__DOT__wb_s[907 / 32] = ~(1u << (907 % 32)) & 0xfffu;  // not valid
+        cpu.root.fes_i386_cpu__DOT__m2_s[907 / 32] = 1u << (907 % 32);
+        assert(CpuProfile::in_flight(cpu) == 2);
+        p.dump(out, 100, 0.000001, CpuProfile::in_flight(cpu));
+        const uint8_t jnz[] = {0x75, 0xfc};
+        R(issue) = true; R(d_first) = true; R(wb_commit) = true; R(mem_valid) = true;
+        for (int n = 0; n < 6; ++n) {
+            R(wb_flush) = n == 2;
+            p.sample(cpu, false, false);
+        }
+        R(wb_flush) = false;
+        R(wb_commit) = false;
+        p.sample(cpu, false, false);  // a wrong-path uop
+        R(issue) = false; R(dc_valid) = false; R(redirect) = true;
+        p.sample(cpu, false, false);
+        R(redirect) = false;
+        p.sample(cpu, false, false);
+        p.sample(cpu, false, false);
+        p.retire(105, 0x10, 0x0e, jnz, 2, false, false);
+        p.retire(110, 0x0e, 0x10, jnz, 2, false, false);
+        cpu.root.fes_i386_cpu__DOT__ag_s[907 / 32] = 0;
+        cpu.root.fes_i386_cpu__DOT__m2_s[907 / 32] = 0;
+        cpu.root.fes_i386_cpu__DOT__ex_s[907 / 32] = 1u << (907 % 32);
+        p.dump(out, 110, 0.000002, CpuProfile::in_flight(cpu));
+        std::fclose(out);
+    }
+    return 0;
+}
+'''
+
+
+@unittest.skipUnless(COMPILER, 'requires a C++ compiler')
+class HeaderTest(unittest.TestCase):
+    def test_buckets_classes_flips_and_snapshots(self):
+        signals = ' '.join(f'F({name})' for name in vlt_signals() if name not in sim.PIPE_STAGES)
+        with tempfile.TemporaryDirectory() as directory:
+            work = Path(directory)
+            source = work / 'driver.cpp'
+            source.write_text(DRIVER.replace('SIGNALS', signals))
+            binary = work / 'driver'
+            built = subprocess.run([COMPILER, '-std=c++17', '-Wall', '-Wextra', '-Werror', '-UNDEBUG',
+                                    f'-I{HEADER.parent}', str(source), '-o', str(binary)],
+                                   capture_output=True, text=True)
+            self.assertEqual(built.returncode, 0, built.stderr)
+            output = work / 'cpu.prof'
+            ran = subprocess.run([str(binary), str(output)], capture_output=True, text=True)
+            self.assertEqual(ran.returncode, 0, ran.stderr)
+            w = profile.window(profile.load(output.read_text().splitlines()))
+        self.assertEqual(w['from_cycle'], 100)
+        self.assertEqual(w['cycles'], 10)
+        self.assertEqual(w['rtl_clocks'], 10)
+        self.assertEqual(w['causes']['issued uops'], 7)
+        self.assertEqual(w['commits'], 6)
+        self.assertEqual((w['in_flight_start'], w['in_flight_end']), (2, 1))
+        self.assertEqual(w['flush_cycles'], 1)
+        self.assertEqual(w['causes']['redirect: refill'], 2)
+        self.assertEqual(w['causes']['fetch and L1I'], 1)
+        self.assertEqual(sum(w['causes'].values()), w['rtl_clocks'])
+        self.assertEqual(w['redirects_by_class'], {'jcc': {'taken': 1, 'clocks': 5, 'per_taken': 5.0}})
+        self.assertEqual(sorted(site[:3] for site in w['sites']), [['0000000e', 1, 5], ['00000010', 1, 5]])
+
+
+def snapshot(at: float, cycles: int, sampled: int, buckets: dict, commits: int = 0, in_flight: int = 0,
+             flush_cycles: int = 0) -> str:
+    names = dict.fromkeys((b for keys in profile.CAUSES.values() for b in keys), 0)
+    names.update(dict.fromkeys(profile.ISSUE, 0))
+    names.update(buckets)
+    return textwrap.dedent(f'''\
+        T {at} cycles={cycles} sampled={sampled} retired={commits} pm_retired=0 commits={commits} flush_cycles={flush_cycles} redirects=0 l1d_waits=0 l1i_waits=0 frames=0 polls_3da=0 io=0 prefixes=0 in_flight={in_flight}
+        B {at} ''') + ' '.join(f'{k}={v}' for k, v in names.items()) + '\n'
+
+
+class WindowTest(unittest.TestCase):
+    def test_a_window_is_the_difference_of_two_snapshots(self):
+        text = (snapshot(1.0, 100, 0, {}) + snapshot(2.0, 300, 200, {'issue_first': 150, 'agi': 50}, 140)
+                + snapshot(3.0, 500, 400, {'issue_first': 300, 'agi': 60, 'halt': 40}, 290))
+        snaps = profile.load(text.splitlines())
+        w = profile.window(snaps, 1.5, 2.5)
+        self.assertEqual((w['from'], w['to'], w['cycles']), (1.0, 3.0, 400))
+        w = profile.window(snaps, 2.0, 3.0)
+        self.assertEqual(w['cycles'], 200)
+        self.assertEqual(w['causes']['interlock: AGI'], 10)
+        self.assertEqual(w['causes']['halt'], 40)
+        self.assertEqual(w['causes']['issued uops'], 150)
+        self.assertIn('interlock: AGI', profile.report(w))
+
+    def test_flush_of_pre_window_uop_is_reported_separately(self):
+        # This uop was issued before the window. Its flush must not be counted
+        # as a wrong-path issue from this window or make issued clocks negative.
+        text = (snapshot(1.0, 0, 0, {}, 0, 1)
+                + snapshot(2.0, 10, 10, {'halt': 10}, 0, 0, flush_cycles=1))
+        w = profile.window(profile.load(text.splitlines()))
+        self.assertEqual(w['issued'], 0)
+        self.assertEqual(w['commits'], 0)
+        self.assertEqual((w['in_flight_start'], w['in_flight_end']), (1, 0))
+        self.assertEqual(w['flush_cycles'], 1)
+        self.assertEqual(w['causes']['issued uops'], 0)
+        self.assertNotIn('wrong_path_uops', w)
+        self.assertIn('flush cycles 1', profile.report(w))
+        self.assertEqual(sum(w['causes'].values()), w['rtl_clocks'])
+
+    def test_buckets_must_hold_every_sampled_clock(self):
+        text = snapshot(1.0, 0, 0, {}) + snapshot(2.0, 10, 10, {'agi': 9})
+        with self.assertRaises(profile.ProfileError):
+            profile.window(profile.load(text.splitlines()))
+
+    def test_one_snapshot_is_not_a_window(self):
+        with self.assertRaises(profile.ProfileError):
+            profile.window(profile.load(snapshot(1.0, 0, 0, {}).splitlines()))
+
+    def test_every_bucket_is_in_one_cause(self):
+        named = [b for keys in profile.CAUSES.values() for b in keys]
+        self.assertEqual(len(named), len(set(named)))
+        buckets = re.search(r'bucket_name\[NBUCKET\] = \{(.*?)\};', HEADER.read_text(), re.S).group(1)
+        self.assertEqual(set(named), set(re.findall(r'"(\w+)"', buckets)))
+
+
+class LatencyTest(unittest.TestCase):
+    def test_every_loop_has_an_expected_value_and_marks(self):
+        self.assertEqual([name for name, _, _ in latency.LOOPS], list(latency.EXPECTED))
+        program = latency.PROGRAM.read_text()
+        for n in range(2 * len(latency.LOOPS)):
+            self.assertRegex(program, rf'(?m)^\s*mark {n}$')
+
+    def test_per_case_takes_the_bare_loop_out(self):
+        cycles = {name: 12 * iterations + 8 * 11 * iterations * bool(cases) for name, iterations, cases in latency.LOOPS}
+        rows = latency.measure(cycles)
+        self.assertEqual(rows[0]['per_iteration'], 12.0)
+        self.assertNotIn('per_case', rows[0])
+        self.assertTrue(all(row['per_case'] == 11.0 for row in rows[1:]))
+        self.assertEqual(latency.failures(rows, cycles), [])
+        changed = dict(cycles, call_ret=cycles['call_ret'] - 8000)
+        self.assertEqual(len(latency.failures(rows, changed)), 1)
+
+
+if __name__ == '__main__':
+    unittest.main()

@@ -1,0 +1,90 @@
+{
+  "yosys": null,
+  "loops": [
+    {
+      "name": "jcc_loop",
+      "cycles": 47999,
+      "iterations": 4000,
+      "per_iteration": 12.0
+    },
+    {
+      "name": "jcc_taken",
+      "cycles": 103999,
+      "iterations": 1000,
+      "per_iteration": 103.999,
+      "per_case": 11.5
+    },
+    {
+      "name": "call_ret",
+      "cycles": 199118,
+      "iterations": 1000,
+      "per_iteration": 199.118,
+      "per_case": 23.39
+    },
+    {
+      "name": "call_reg",
+      "cycles": 245999,
+      "iterations": 1000,
+      "per_iteration": 245.999,
+      "per_case": 29.25
+    },
+    {
+      "name": "call_mem",
+      "cycles": 246029,
+      "iterations": 1000,
+      "per_iteration": 246.029,
+      "per_case": 29.254
+    },
+    {
+      "name": "far_call",
+      "cycles": 269029,
+      "iterations": 1000,
+      "per_iteration": 269.029,
+      "per_case": 32.129
+    },
+    {
+      "name": "loop",
+      "cycles": 90999,
+      "iterations": 1000,
+      "per_iteration": 90.999,
+      "per_case": 9.875
+    },
+    {
+      "name": "agi_load",
+      "cycles": 44999,
+      "iterations": 1000,
+      "per_iteration": 44.999,
+      "per_case": 4.125
+    },
+    {
+      "name": "agi_alu",
+      "cycles": 52999,
+      "iterations": 1000,
+      "per_iteration": 52.999,
+      "per_case": 5.125
+    },
+    {
+      "name": "store_load_same",
+      "cycles": 36029,
+      "iterations": 1000,
+      "per_iteration": 36.029,
+      "per_case": 3.004
+    },
+    {
+      "name": "store_load_other",
+      "cycles": 36029,
+      "iterations": 1000,
+      "per_iteration": 36.029,
+      "per_case": 3.004
+    }
+  ],
+  "run": {
+    "cycles": 1374388,
+    "retired": 168070,
+    "halted": 1,
+    "debt_max": 0,
+    "hold_cycles": 0,
+    "charged": 0
+  },
+  "failures": []
+}

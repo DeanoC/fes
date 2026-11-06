@@ -92,6 +92,7 @@ python3 scripts/sim_fes_pc386.py --suite a20 --download   # A20TEST.COM: A20 off
 python3 scripts/sim_fes_pc386.py --suite c2xx --download  # C2TEST.COM: INT 15h C205h with key and aux bytes at the 8042, and while keys are typed
 python3 scripts/sim_fes_pc386.py --suite wait --download  # WAITTEST.COM: INT 15h AH=86h waits from 0 us to 300 ms return in their time
 python3 scripts/sim_fes_pc386.py --suite speaker --download  # SPKTEST.COM: PIT counter 2 in mode 3 from POST; a count-only write gives the speaker carrier
+python3 scripts/sim_fes_pc386.py --suite cpu-profile --download  # CPUPROF.COM on the oracle, then a 20 ms machine_tb --cpu-profile window on the RTL
 python3 scripts/sim_fes_pc386.py --suite sound --download  # boot, then SOUND.COM; writes sound.wav
 python3 scripts/sim_fes_pc386.py --suite vga              # presenter, capture and plane benches, VGA test disk, replay
 python3 scripts/synth_fes_pc386.py --cache-root /abs/out/cache/misteross-toolchains  # machine-only synthesis
@@ -112,6 +113,58 @@ suite writes the marked captures and 720p frames as PPM files in `frames/`.
 The boot takes about 7 minutes of wall time and its replay one more; the vga
 suite about 6 minutes in all. `PC386_TRACE_IO=1` makes `machine_tb` print every I/O but port
 80h.
+
+### CPU profile
+
+`machine_tb --cpu rtl --cpu-profile F` sorts every system clock that
+`fes_i386_cpu` runs into one cause, and each retirement's clocks into its
+instruction class ([`sim/cpu_profile.h`](sim/cpu_profile.h)), for CPU Phase 4
+([design](../../docs/i386-cpu-design.md#phase-4-speed)). It reads the CPU's
+D-stage issue and wait terms through
+[`sim/cpu_profile.vlt`](sim/cpu_profile.vlt) (`public_flat_rd`), so the RTL is
+unchanged. `--rtl-from S` and `--rtl-at-flip N` run the oracle from reset and
+hand its state to the RTL at that simulated time and page flip (a write to CRTC
+register 0Ch), with cold caches; `--rtl-for S` ends the run S seconds later.
+The bench appends a snapshot of the counters at the handover, every
+`--cpu-profile-every` seconds and at the end, and
+`scripts/pc386_cpu_profile.py F --from A --to B` reports the window between two
+snapshots:
+- **Causes.** Clocks by cause:
+  - issued uops;
+  - redirect refill;
+  - fetch and L1I;
+  - L1D and port 0;
+  - microcode;
+  - the AGI, store-to-load, flags, ESP and segment interlocks;
+  - multiply and divide;
+  - I/O, MMIO, and a store buffer full behind VGA writes;
+  - halt.
+- **Window counters.** The summary reports commits, in-flight uops at both
+  window boundaries and sampled flush cycles separately. A selected window
+  can split a uop's lifetime, so its issue and commit deltas cannot identify
+  which issued uops were flushed. Flush cycles include non-branch flushes and
+  are not an attribution of wrong-path uops.
+- **Redirects.** The clocks from each taken branch to its target's
+  retirement, by branch class.
+- **Classes and sites.** The instruction classes, and the hottest sites
+  summed over the window.
+
+A data load never holds D, since it is at M1-M2 ahead of the
+ALU, so a load's result into an address (AGI) is the only load-use interlock.
+The bench runs about 12 wall minutes per simulated second on the RTL.
+
+```sh
+build/sim/fes-pc386/machine/obj/Vpc386_machine --bios build/firmware/pc386/pc386-bios.bin \
+  --vgabios build/firmware/pc386/pc386-vgabios.bin --disk doom.img --cpu rtl --type 'doom -timedemo demo3|' \
+  --rtl-at-flip 40 --rtl-for 10 --cpu-profile cpu.prof
+python3 scripts/pc386_cpu_profile.py cpu.prof --from 22.7 --to 32.3 --json window.json
+```
+
+The cpu-profile suite is the short window: CPUPROF.COM
+([`sim/cpu_profile_test.asm`](sim/cpu_profile_test.asm)), typed at the FreeDOS
+prompt, runs a little of every cause each frame; the RTL takes over at its
+fourth page flip for 20 ms, and the suite requires every clock sorted, no
+stops, and taken branches and clocks in each cause the program exercises.
 
 `make sim-fes-pc386` runs the directed device, audio and OPL2 checks plus the
 presenter, capture and display-plane benches. The sound suite boots the same

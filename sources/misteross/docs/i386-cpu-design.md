@@ -1553,6 +1553,9 @@ it runs uncapped.
    - **Period benchmarks.** Run 3DBench, PCPBench and TopBench from scratch
      disks; the DOS Benchmark Pack is never committed. Record Kit B's scores
      on the current seal beside DOOM's.
+   - **Baseline.** The [baseline record](../../../docs/validation/2026-11-05-i386-phase4-baseline/summary.md)
+     has the microbenchmarks (`scripts/test_fes_i386_latency.py`) and each
+     preset's kit scores. The bench is `machine_tb --cpu-profile`.
 2. **BTB for Jcc, LOOP, JCXZ and direct JMP and CALL.**
    - **Structure.** 512 entries, two-way, in M10K, read at F1 with the L1I. F2
      compares the tag and registers the redirect, which F1 takes on the next

@@ -64,6 +64,14 @@ docs/pc386-machine-design.md, "Verification" and phases M1-M3.
            with the gate held. Every check must print ok. With --cpu rtl,
            the RTL must run it without an oracle step or a stop; writes
            speaker-rtl/.
+  cpu-profile  boots FreeDOS on the oracle and runs CPUPROF.COM
+           (cores/fes-pc386/sim/cpu_profile_test.asm); the RTL takes over at
+           its fourth page flip and runs 20 ms under machine_tb --cpu-profile
+           (cores/fes-pc386/sim/cpu_profile.h). Every clock of the window must
+           be sorted into a cause, the RTL must not stop, and each taken
+           branch class and cause the program exercises must appear
+           (scripts/pc386_cpu_profile.py prints the window); writes
+           cpu-profile/.
   sound    boots FreeDOS and runs SOUND.COM; checks the speaker and DSP tones,
            OPL2 output and DSP interrupts.
   game     starts Wolfenstein 3D or Ultima VI from user-supplied eXoDOS files
@@ -114,6 +122,7 @@ Examples:
   python3 scripts/sim_fes_pc386.py --suite c2xx --cpu rtl
   python3 scripts/sim_fes_pc386.py --suite wait --cpu rtl
   python3 scripts/sim_fes_pc386.py --suite speaker
+  python3 scripts/sim_fes_pc386.py --suite cpu-profile --download
   python3 scripts/sim_fes_pc386.py --suite sound --download
   python3 scripts/sim_fes_pc386.py --suite game --game ultima6
   python3 scripts/sim_fes_pc386.py --suite game --game wolf3d --cpu rtl
@@ -289,7 +298,8 @@ def verilate(verilator: str, name: str, top: str, rtl: tuple[Path, ...], testben
 def parse_boot(text: str) -> dict:
     report = {'post': [], 'debug': [], 'panic': [], 'io': {}, 'io_wait': {}, 'inta': {}, 'screen': [], 'end': None,
               'prompt_cycle': None, 'cpu_resets': 0, 'snaps': {}, 'present': {}, 'vga': {}, 'marks': {},
-              'opl2': None, 'opl2_mismatch': None, 'audio_samples': None, 'sb': None, 'mouse': None}
+              'opl2': None, 'opl2_mismatch': None, 'audio_samples': None, 'sb': None, 'mouse': None,
+              'rtl_begin': None}
     rtl = {'stops': [], 'pmode': [], 'gaps': [], 'smc': [], 'notes': [], 'counters': None}
     for line in text.splitlines():
         kind, _, rest = line.partition(' ')
@@ -310,6 +320,9 @@ def parse_boot(text: str) -> dict:
                                'address': address})
         elif kind == 'NOTE':
             rtl['notes'].append(rest)
+        elif kind == 'RTL-BEGIN':
+            cycle, flips = rest.split()
+            report['rtl_begin'] = {'cycle': int(cycle), 'flips': int(flips.partition('=')[2])}
         elif kind == 'RTL':
             rtl['counters'] = {key: int(value) for key, value in (field.split('=') for field in rest.split())}
         elif kind == 'POST':
@@ -411,9 +424,33 @@ def timing_failures(report: dict) -> list[str]:
 
 
 def machine_testbench(args, linked: list[Path]) -> Path:
-    cpu = verilate(args.verilator, 'machine', 'fes_i386_cpu', CPU_RTL, None, [], args.jobs)
+    # cpu_profile.vlt exposes the signals --cpu-profile reads (cpu_profile.h).
+    cpu = verilate(args.verilator, 'machine', 'fes_i386_cpu', CPU_RTL + (CORE / 'sim/cpu_profile.vlt',), None, [],
+                   args.jobs)
+    write_cpu_profile_layout(cpu.parent)
     return verilate_with_audio(args, 'machine', CORE / 'sim/machine_tb.cpp', [*linked, cpu],
                                top='pc386_machine', rtl=MACHINE_RTL, include=(cpu.parent,))
+
+
+PIPE_STAGES = ('ag_s', 'm1_s', 'm2_s', 'ex_s', 'wb_s')
+
+
+def write_cpu_profile_layout(obj: Path) -> Path:
+    """cpu_profile_layout.h beside the Verilated CPU: the top bit of its packed
+    stage registers (pipe_t), which holds valid, from Verilator's root header."""
+    header = (obj / 'Vfes_i386_cpu___024root.h').read_text()
+    tops = set()
+    for stage in PIPE_STAGES:
+        found = re.search(rf'/\*(\d+):0\*/ fes_i386_cpu__DOT__{stage};', header)
+        if not found:
+            raise SimError(f'the Verilated CPU has no {stage} (cpu_profile.vlt)')
+        tops.add(int(found.group(1)))
+    if len(tops) != 1:
+        raise SimError(f'the stage registers differ in width: {sorted(tops)}')
+    layout = obj / 'cpu_profile_layout.h'
+    layout.write_text('// Written by scripts/sim_fes_pc386.py from the Verilated CPU.\n'
+                      f'#pragma once\n#define CPU_PROFILE_PIPE_MSB {tops.pop()}\n')
+    return layout
 
 
 def verilate_with_audio(args, name: str, testbench: Path, linked: list[Path],
@@ -769,7 +806,7 @@ def default_limit_seconds(suite: str) -> int:
     """Return the suite's default simulated-time hang guard."""
     if suite == 'sound':
         return 14
-    if suite in ('boot', 'governor', 'wait', 'speaker'):
+    if suite in ('boot', 'governor', 'wait', 'speaker', 'cpu-profile'):
         return 8
     if suite == 'rtl-stops':
         return 2
@@ -822,6 +859,68 @@ def run_speaker(args, linked: list[Path]) -> dict:
     if args.cpu == 'rtl':
         failures += rtl_failures(run, 'speaker run')
     return {'run': run, 'checks': lines, 'failures': failures}
+
+
+# The cpu-profile suite's window: the RTL takes over at CPUPROF.COM's fourth
+# page flip and runs this long.
+CPU_PROFILE_FLIP = 4
+CPU_PROFILE_SECONDS = 0.02
+# The instruction classes CPUPROF.COM takes branches through, and the causes
+# it must reach in the window.
+CPU_PROFILE_TAKEN = ('jcc', 'call', 'call_ind', 'ret', 'far_call', 'retf', 'jmp')
+CPU_PROFILE_CAUSES = ('issued uops', 'redirect: refill', 'interlock: AGI',
+                      'interlock: store-to-load', 'multiply and divide', 'I/O and VGA: I/O')
+
+
+def run_cpu_profile(args, linked: list[Path]) -> dict:
+    """machine_tb --cpu-profile's short window: CPUPROF.COM at the FreeDOS prompt on the oracle, then the
+    RTL from its fourth page flip, every clock sorted into a cause (scripts/pc386_cpu_profile.py)."""
+    from scripts import pc386_cpu_profile as cpu_profile
+    images = firmware.images(args.download, args.jobs)
+    testbench = machine_testbench(args, linked)
+    suite = 'cpu-profile'
+    disk = fixture_with(args, suite, 'cpu_profile_test.asm', 'CPUPROF.COM')
+    profile = OUTPUT / suite / 'cpu.prof'
+    profile.unlink(missing_ok=True)
+    print(f'Running CPUPROF.COM on the oracle, then {CPU_PROFILE_SECONDS} s on the RTL from page flip '
+          f'{CPU_PROFILE_FLIP}', flush=True)
+    run = run_machine(testbench, suite, ['--disk', str(disk), '--limit-seconds', str(args.limit_seconds),
+                                         '--type', 'cpuprof|', '--cpu', 'rtl', '--rtl-at-flip', str(CPU_PROFILE_FLIP),
+                                         '--rtl-for', str(CPU_PROFILE_SECONDS), '--cpu-profile', str(profile),
+                                         '--cpu-profile-every', str(CPU_PROFILE_SECONDS / 4)], images)
+    failures = run['failures'] + rtl_failures(run, 'profile window')
+    restarts = ((run.get('rtl') or {}).get('counters') or {}).get('smc_restarts')
+    if restarts:
+        failures.append(f'{restarts} SMC restarts: CPUPROF.COM must not store near its code')
+    if (run['end'] or {}).get('reason') != 'rtl-window':
+        failures.append(f'the run ended with {(run["end"] or {}).get("reason")}, not its RTL window')
+    begin = run['rtl_begin']
+    if not begin or begin['flips'] < CPU_PROFILE_FLIP:
+        failures.append(f'the RTL did not take over at page flip {CPU_PROFILE_FLIP}: {begin}')
+    window = None
+    try:
+        snaps = cpu_profile.load(profile.read_text().splitlines())
+        window = cpu_profile.window(snaps)
+    except (OSError, cpu_profile.ProfileError) as error:
+        failures.append(f'the profile: {error}')
+    if window:
+        if len(snaps) < 4:
+            failures.append(f'the profile has {len(snaps)} snapshots, expected at least 4')
+        if begin and window['from_cycle'] != begin['cycle']:
+            failures.append(f'the first snapshot (cycle {window["from_cycle"]}) is not at RTL-BEGIN ({begin["cycle"]})')
+        if window['rtl_clocks'] != window['cycles']:
+            failures.append(f'{window["rtl_clocks"]} of the window\'s {window["cycles"]} clocks were sorted; '
+                            'the RTL must run all of them')
+        if not window['frames']:
+            failures.append('no page flip in the RTL window')
+        for name in CPU_PROFILE_TAKEN:
+            if not window['classes'].get(name, {}).get('taken'):
+                failures.append(f'no taken {name} in the window')
+        for cause in CPU_PROFILE_CAUSES:
+            if not window['causes'].get(cause):
+                failures.append(f'no clocks in {cause}')
+        print(cpu_profile.report(window))
+    return {'run': run, 'window': window, 'failures': failures}
 
 
 def run_bench(args, name: str, top: str, rtl: tuple[Path, ...], testbench: Path) -> dict:
@@ -1456,8 +1555,8 @@ def run_game(args, linked: list[Path]) -> dict:
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument('--suite', choices=('devices', 'storage', 'audio', 'opl2', 'benches', 'boot', 'rtl-stops',
-                                            'a20', 'c2xx', 'wait', 'speaker', 'sound', 'game', 'vga', 'system', 'governor',
-                                            'all'),
+                                            'a20', 'c2xx', 'wait', 'speaker', 'cpu-profile', 'sound', 'game', 'vga', 'system',
+                                            'governor', 'all'),
                         default='all',
                         help='simulation suite to run')
     parser.add_argument('--download', action='store_true', help='fetch Bochs, dev86, FreeDOS and NASM if missing')
@@ -1535,6 +1634,8 @@ def main() -> int:
                 report = run_wait(args, oracle.link_inputs(args.jobs, args.download))
             elif suite == 'speaker':
                 report = run_speaker(args, oracle.link_inputs(args.jobs, args.download))
+            elif suite == 'cpu-profile':
+                report = run_cpu_profile(args, oracle.link_inputs(args.jobs, args.download))
             else:
                 run = run_boot if suite == 'boot' else run_vga
                 report = run(args, oracle.link_inputs(args.jobs, args.download))
@@ -1567,7 +1668,7 @@ def main() -> int:
                         print('GAP', gap['kind'], gap['stem'], gap['name'] or '', 'built' if gap['built'] else 'unbuilt',
                               f'stops={gap["stops"]} sites={gap["sites"]} first={gap["first_site"]}')
                 print('END', report['end'])
-            else:
+            elif suite != 'cpu-profile':  # run_cpu_profile printed its window
                 print('\n'.join(report['checks']))
             for failure in report['failures']:
                 print('FAIL', failure)
