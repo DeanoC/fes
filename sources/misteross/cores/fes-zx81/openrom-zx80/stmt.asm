@@ -19,7 +19,7 @@ statement:
         jr next_ch              ; A = what follows the keyword
 
 stmt_table:
-        dw st_list, st_return, st_cls, st_dim, st_save, st_for, st_goto
+        dw st_list, st_return, st_cls, st_dim, st_print.end, st_for, st_goto
         dw st_poke, st_input, st_rand, st_let, syntax_err, syntax_err
         dw st_next, st_print, syntax_err, st_new, st_run, st_stop
         dw st_cont, st_if, st_gosub, st_load, st_clear, stmt_end.go
@@ -234,10 +234,6 @@ st_new: rst 0x20
 st_cls: rst 0x20
         jr cls
 
-st_save:
-        rst 0x20             ; the FES core keeps no ZX80 tape output
-        ret
-
 st_if:  call expr_num
         rst 0x30
         db T_THEN
@@ -438,8 +434,8 @@ st_print:
         call next_ch
         cp C_NL
         jr nz,.item
-        rst 0x20             ; a final ; or , : no NEWLINE
-        ret
+.end:   rst 0x20             ; a final ; or , : no NEWLINE (SAVE comes
+        ret                     ; here: the FES core keeps no ZX80 tape output)
 .nl:    rst 0x20
         jr print_nl
 .val:   call run_only
