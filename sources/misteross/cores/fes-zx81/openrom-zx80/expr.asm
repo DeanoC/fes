@@ -5,9 +5,10 @@
 
 ; An optional number (A = the current character): none gives 0.
 opt_num:
-        cp C_NL
-        ld hl,0
-        ret z
+        sub C_NL
+        ld h,a
+        ld l,a
+        ret z                   ; (operand reads the character again)
 expr_num:
         call expr
 need_num:
@@ -444,9 +445,11 @@ fn_tl:  ld a,(hl)
         ret
 
 ; HL -> a name: HL -> the byte after it, B = its length, A = that byte.
+; A name of 256 characters is a wrong symbol.
 name_end:
         ld b,0
 .l:     inc b
+        jr z,syntax_err         ; 256 characters: too long
         inc hl
         ld a,(hl)
         call is_alnum

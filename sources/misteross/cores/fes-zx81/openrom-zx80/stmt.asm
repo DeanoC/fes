@@ -10,16 +10,6 @@ stmt_table:
         dw st_cont, st_if, st_gosub, st_load, st_clear, stmt_end.go
         dw syntax_err
 
-; RST 20, continued: the statement must end here (A = the character).
-; Running, keeps BC, DE, HL; checking, the check is over and good.
-; REM comes in at .go: the rest of the line is not looked at.
-stmt_end:
-        cp C_NL
-        jr nz,syntax_err
-.go:    bit F_CHECK,(iy+Y_FLAGS)
-        ret z
-        jr unwind
-
 ; A one-letter name; DEST = it, A = the character after it.
 one_letter:
         call name_at
@@ -136,12 +126,11 @@ st_return:
         ld a,h
         or l
         jr nz,.ok
-        push hl
-        push de
+        push hl                 ; none: put it back
+.ok:    push de
+        jr nz,new_sp
         rst 8
         db R_RETURN
-.ok:    push de
-        jr new_sp
 
 st_cont:
         rst 0x20
@@ -166,6 +155,8 @@ st_run: call opt_num
         jr new_sp
 
 st_gosub:
+        ld bc,72                ; room for the record, and to show report 4
+        call test_room          ; and type RUN or NEW (editing drops it)
         call expr_num
         rst 0x20
         ld de,(PPC)
@@ -222,12 +213,13 @@ st_poke:
         ret
 
 st_rand:
-        cp C_NL
-        ld hl,(FRAMES)
-        ld h,0
-        call nz,expr_num
+        call opt_num
         rst 0x20
-        ld (SEED),hl
+        ld a,h
+        or l
+        jr nz,.s
+        ld hl,(FRAMES)          ; none or 0: the frame count
+.s:     ld (SEED),hl
         ret
 
 ; INPUT: edit a line in the lower part (an expression, given quotes for a

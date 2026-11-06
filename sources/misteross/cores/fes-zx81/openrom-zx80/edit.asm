@@ -80,11 +80,11 @@ edit_line:
         call decode_key
         cp C_NL
         jr z,.enter
+        ld hl,.draw
+        push hl                 ; every key redraws
         sub K_UP
         cp K_RUBOUT - K_UP + 1
         jr nc,.ins
-        ld hl,.draw
-        push hl
         or a
         jr z,.up
         dec a
@@ -135,8 +135,7 @@ edit_line:
 .set:   ld (E_PPC),hl
         ret
 .ins:   add a,K_UP
-        call edit_insert
-        jr .draw
+        jr edit_insert
 .enter: ld a,(X_PTR + 1)
         or a
         jr nz,.key              ; not yet a statement

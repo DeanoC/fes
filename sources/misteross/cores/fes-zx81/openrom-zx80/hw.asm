@@ -39,7 +39,7 @@ gc_look: ld a,(hl)              ; skipping the cursor (0)
 rst_end: push hl                ; RST 20: the statement must end here
         rst 0x18
         pop hl
-        jp stmt_end
+        jr stmt_end
 
         org 0x0028
 cp_hl_de: and a                 ; RST 28: compare HL with DE
@@ -58,6 +58,7 @@ rst_expect:                     ; RST 30: the token that follows must come next
         inc hl
         ex (sp),hl
         push hl
+        ld b,a
         jr expect_2
 
 ; INT ends each scan line. Both paths take 58 T-states so every line has
@@ -100,6 +101,27 @@ gc_skip:
 gc_store:
         ld (CH_ADD),hl
         jr gc_look
+
+; RST 20, continued (here, within a JR of it): the statement must end here (A = the character).
+; Running, keeps BC, DE, HL; checking, the check is over and good.
+; REM comes in at .go: the rest of the line is not looked at.
+stmt_end:
+        cp C_NL
+        jr nz,syntax_err
+.go:    bit F_CHECK,(iy+Y_FLAGS)
+        ret z
+        jr unwind
+
+; RST 30, continued: A = the wanted token, the caller's HL on the
+; stack (here, within a JR of it).
+expect_2:                       ; (B = A)
+        rst 0x18
+        cp b
+        jr nz,syntax_err
+        call next_ch
+        pop hl
+        ret
+
 
 ; LOAD: the core replaces $0207-$020D while it copies the mounted image to
 ; $4000, then sets carry and leaves through $0203. Without the core the

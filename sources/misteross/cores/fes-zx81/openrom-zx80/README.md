@@ -58,7 +58,7 @@ the RTL, `dev/build_probe.sh ROM.hex OUTDIR` builds `zx80_probe_tb.cpp`;
 `dev/rtl_compare.py OUTDIR/Vzx81_machine` replays every recorded script and
 types some with SHIFT pressed first, as a USB keyboard does.
 
-The fit is tight. The source asks the assembler for `floatorder 91`, the
+The fit is tight. The source asks the assembler for `floatorder 120`, the
 layout (from a seeded search) that keeps the most `jr` short and packs the
 gaps; with another seed, or a few more bytes of code, it may not fit, and
 `dev/build_dev.sh` (an 8 KiB image the harness can run whatever the size)

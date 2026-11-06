@@ -22,7 +22,7 @@ init:   ld a,font >> 8
         cp (iy+0)
         jr nz,.ram              ; not an echo of $4000
 .top:   ld sp,hl
-        ld hl,0x4000
+        ld h,0x40               ; (L is 0)
         ld b,PROG & 0xff
         xor a
 .clr:   ld (hl),a
@@ -78,9 +78,9 @@ test_room:
         ld hl,1 - MARGIN
         add hl,sp               ; (carry: the stack is never that low)
         ld de,(DF_END)
-        sbc hl,de
-        sbc hl,bc
-        ret nc
+        sbc hl,de               ; the room left, below 0 if the stack has
+        sbc hl,bc               ; already come down into the margin: all of
+        ret p                   ; it under 16 KiB, so the sign tells
         bit X_DROP,(iy+Y_FLAGX)
         scf
         ret nz
@@ -219,16 +219,6 @@ parse_uint:
         bit 7,d
         jr z,.l
         scf
-        ret
-
-; RST 30, continued: A = the wanted token, the caller's HL on the stack.
-expect_2:
-        ld b,a
-        rst 0x18
-        cp b
-        jr nz,syntax_err
-        call next_ch
-        pop hl
         ret
 
 ; While checking, return from the caller (run_num also makes it numeric).
