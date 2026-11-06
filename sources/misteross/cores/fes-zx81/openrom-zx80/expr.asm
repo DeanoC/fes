@@ -306,15 +306,14 @@ name_operand:
         rla
         jr nc,.c                ; up to and including the "("
         pop af
-        ld (CH_ADD),hl          ; past the function's "("
+        dec hl
+        ld (CH_ADD),hl          ; at the function's "("
         ex de,hl
         ld e,(hl)
         inc hl
         ld d,(hl)               ; the routine, as in fn_table
         push de
-        call expr
-        rst 0x30
-        db T_RPAREN
+        call subscript.in       ; the argument and ")"
         pop de
         ld a,(FLAGS)            ; F_NUM to bit 7: 1 for a number
         add a,a
