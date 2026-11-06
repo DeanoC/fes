@@ -538,3 +538,48 @@ Static support remains default-off. Diagnose the original SDM error before
 another physical attempt; increasing timeouts or disabling the IRQ poll is not
 justified by these results. Physical empty/16K, USB/audio and reboot acceptance,
 normal-profile enablement and current-head owner review remain open.
+
+## Corrected-firmware boot package preparation
+
+The source-bound [SDM correction](../../../image/de25-nano/sdm-diagnostic/completion-errors.patch)
+returns hard mailbox errors even when response length is zero or a buffer was
+already completed in that call. It logs the raw error, reports no reusable
+buffers, and performs no further writes after the error. The remaining buffers
+stay retained; this is not an abort or DMA fence. Two clean vendor-source builds
+produce identical BL31 binary `6cd789a0` and ELF `d68b6479`.
+Eight [actual compiled-handler cases](sdm-error-correction-emulation.json) pass
+with injected mailbox and logger behavior, preserving positive buffer returns,
+ordinary BUSY and timeout handling. Native execution remains unproven.
+
+The [diagnostic recipe](../../../image/de25-nano/sdm-diagnostic/README.md)
+packages that exact binary in the stock Terasic FIT, producing `55823732`.
+Only the external ATF slot, its length and CRC32 change. U-Boot `a9735c5a`,
+board DTB `ff637eda`, all configurations, load/entry addresses and total FIT
+length are preserved. The stock rollback FIT is included. Independent U-Boot
+`mkimage`/`dumpimage` and `fdtget` inspect/extract the actual result; all three
+payloads match. The independent firmware rebuild produces an identical bundle.
+Normal vendor boot admission still rejects the diagnostic FIT.
+
+The [packaging receipt](sdm-error-boot-package.json) also records a sparse
+regular-file simulation of the exact proposed SD update. It changes 61,509
+bytes in 18 mapped writes within the existing `u-boot.itb`. Every other FAT byte,
+MBR, bootstrap partition and data superblock is unchanged. Source-card integrity
+is retained. Wrong/already-modified preimages, a changed bundle and missing
+approval refuse before any physical write; the missing-approval control never
+accesses a reader. These are off-board checks, not an SD write or native boot.
+
+A single corrected-firmware trial is prepared for default-empty ZX81, RAMTOP68,
+BASIC LOAD/RUN/reload 7 → 9 → 7, HDMI fanout captures and ordinary Stop/MENU.
+Its driver requires the new secure-firmware notice in the same authenticated
+boot and has no implicit Stop/reset/retry after a failed load or capture.
+Five synthetic lifecycle/failure controls pass. It does not cover 16K, reboot,
+USB/audio, or full normal-kit acceptance. The two earlier physical failures
+remain retained. QSPI and the working card are unchanged; no new physical trial
+has started. SD boot-firmware replacement still requires explicit approval.
+
+The actual unchanged kernel `8ae9c46a` also passes a QEMU enable/disable and
+console-restoration check for the proposed sparse tracing: 10 manager, owner
+and secure-call entry/return sites are enabled, with the other 48 selected-file
+sites disabled. This reduces verbosity from the prior trial. Terasic's Agilex5
+platform source includes the runtime console scope; actual secure-firmware
+UART logging, the new boot notice and programming still need native proof.

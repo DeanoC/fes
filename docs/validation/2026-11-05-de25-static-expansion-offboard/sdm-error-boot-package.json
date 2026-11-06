@@ -1,0 +1,173 @@
+{
+  "passed": true,
+  "classification": "Off-board diagnostic FIT construction and independent C-tool payload verification; no SPL/EL3/SDM/DMA/board execution",
+  "same_bundle_from_independent_firmware_build": true,
+  "checks": [
+    "u-boot.itb parsed by independent U-Boot mkimage",
+    "stock-u-boot.itb parsed by independent U-Boot mkimage",
+    "uboot extracted independently and bytes matched",
+    "atf extracted independently and bytes matched",
+    "fdt-0 extracted independently and bytes matched",
+    "normal vendor boot admission refuses candidate; stock rollback still passes"
+  ],
+  "candidate_fit_sha256": "55823732ad58fbd2bf1a06a230682e638e5ba40971af426461d8c5899a327995",
+  "candidate_bl31_sha256": "6cd789a05f3cbbe66afae9efbc9d7067469c03129a1e9a1b0043f8a60b03c383",
+  "uboot_sha256": "a9735c5a3c1ba7c790fe7c0aa1f5ef2a2cfffec7eb43c386512f92a49da9116e",
+  "fdt_sha256": "ff637eda305e47fb53feb24d1461728dcf55cc026e690da343a056cb7d2f75bb",
+  "normal_admission_closed": true,
+  "hardware_access": false,
+  "physical_writes": false,
+  "boot_accepted": false,
+  "tools_sha256": {
+    "mkimage": "979c419c5aabe38ef72eb367ce4f9283ec60bb36e97410f7c03e03017f9c2c7c",
+    "dumpimage": "2f16abfff57de55ec079b13e875ccb22efab9fd0f1a3d6c28340324773d958ca"
+  },
+  "card_update_simulation": {
+    "passed": true,
+    "hardware_access": false,
+    "physical_writes": false,
+    "source_card_sha256": "a5d63fa37417647a4fd507e37f8f3958c2ae2c79554f5f5ca91917fbd6ccb652",
+    "candidate_fit_sha256": "55823732ad58fbd2bf1a06a230682e638e5ba40971af426461d8c5899a327995",
+    "write_bytes": 61509,
+    "physical_range_count": 18,
+    "original_partition_1_sha256": "eaa41eaeb70b4a35af3982cee51efee511dbb303cd3927f65fa3733236610591",
+    "new_partition_1_sha256": "920e2fe83cc29b59093fe4d4deabfc28e8db4b1fa56c7716cab98c95b1f91409",
+    "MBR_and_bootstrap_and_data_superblock_unchanged": true,
+    "full_FIT_readback": true,
+    "all_other_FAT_bytes_identical": true,
+    "negative_controls_passed": true,
+    "operation_sha256": "7c874af32b7be404fc4213a256abb12bf06cc1c669919ef751b6cd979f9319dd"
+  },
+  "card_update_negative_controls": {
+    "passed": true,
+    "hardware_access": false,
+    "physical_writes": false,
+    "checks": [
+      "all other FAT bytes identical across complete partition",
+      "wrong/already-modified preimage refuses before any write",
+      "missing approval refuses before reader access",
+      "changed bundle refuses before any write"
+    ],
+    "operation_sha256": "7c874af32b7be404fc4213a256abb12bf06cc1c669919ef751b6cd979f9319dd",
+    "source_card_unchanged": true
+  },
+  "recipe_files_sha256": {
+    "scripts/de25_sdm_diagnostic.py": "f30ae2d56f9c68cda6aa1b63a3f0bcac9a5e12f528165a5a1c6f6efc146f97e4",
+    "scripts/de25_boot_contract.py": "731eedfe467a71773f33dcbd262a6bd444cf53d067a478100214959e2694a30b"
+  },
+  "firmware_lock_sha256": "b0eeaecbd85a34af87326549ba2f6776b3e4bca1ae48b2b5c5cc5ed8df789a7f",
+  "trial_driver_synthetic_controls": {
+    "passed": true,
+    "classification": "Actual prepared trial driver with synthetic claim/API/input/capture/git fixtures and no hardware, network or real device access; checks single-launch and failure cleanup policy, not native correctness.",
+    "cases": [
+      {
+        "case": "success",
+        "passed": true,
+        "history": [
+          "launch",
+          "ramtop",
+          [
+            "capture",
+            68
+          ],
+          "load-run7",
+          [
+            "capture",
+            7
+          ],
+          "edit-run9",
+          [
+            "capture",
+            9
+          ],
+          "load-run7",
+          [
+            "capture",
+            7
+          ],
+          "stop"
+        ],
+        "implicit_cleanup_stop": false
+      },
+      {
+        "case": "launch-failure",
+        "passed": true,
+        "history": [
+          "launch"
+        ],
+        "implicit_cleanup_stop": false
+      },
+      {
+        "case": "capture-failure",
+        "passed": true,
+        "history": [
+          "launch",
+          "ramtop",
+          [
+            "capture",
+            68
+          ]
+        ],
+        "implicit_cleanup_stop": false
+      },
+      {
+        "case": "stop-failure",
+        "passed": true,
+        "history": [
+          "launch",
+          "ramtop",
+          [
+            "capture",
+            68
+          ],
+          "load-run7",
+          [
+            "capture",
+            7
+          ],
+          "edit-run9",
+          [
+            "capture",
+            9
+          ],
+          "load-run7",
+          [
+            "capture",
+            7
+          ],
+          "stop"
+        ],
+        "implicit_cleanup_stop": false
+      },
+      {
+        "case": "guard-refusal",
+        "passed": true,
+        "history": [],
+        "implicit_cleanup_stop": false
+      }
+    ],
+    "driver_sha256": "2458988264d6e2a3bea935ea4fd36335539db91e86d7909cffe3ac151bc93d82",
+    "hardware_access": false,
+    "native_acceptance": false
+  },
+  "sparse_actual_kernel_debug_proof": {
+    "passed": true,
+    "kernel_producer": "52ea35ba1587430d8abfbe9d1b14f6dc1ce570e7",
+    "kernel_sha256": "8ae9c46a8e6a1dbde5e11b8184063226dffdc9f3b2bc4d702f2ade3bd41c8e56",
+    "retained_rootfs_sha256": "40e0984763fd96b87f6836b4f52d3aae8dfdb965cba4f07fc79889b26973f94a",
+    "guest_script_sha256": "84582a229d3a27dc4f14d2497ee801c07412c2b940147a9040bb9715bd241325",
+    "qemu_log_sha256": "48c037b7c1586ce757ae65228fa4d110e4bc91647ecfd0d7d093354ca84c0fee",
+    "sites": 10,
+    "all_selected_file_sites": 58,
+    "verbose_service_sites_remain_disabled": true,
+    "actual_guest_query_enable_disable": true,
+    "actual_debug_priority_message_on_console": true,
+    "console_loglevel_restored": true,
+    "guard_begin_end_sites": true,
+    "vendor_secure_call_entry_return_sites": true,
+    "no_board_access": true,
+    "hardware_acceptance": false,
+    "scope": "Actual new kernel on QEMU virt with retained read-only rootfs and disposable snapshot; init shell tests compiled dynamic-debug metadata/query interface only. No FES service startup, physical programming, firmware execution or MMIO qualification.",
+    "elapsed_seconds": 2.2741215630667284
+  }
+}
