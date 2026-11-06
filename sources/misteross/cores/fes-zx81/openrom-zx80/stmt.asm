@@ -226,14 +226,6 @@ clear_vars:
         pop bc
         ret
 
-st_stop:
-        rst 0x20
-        rst 8
-        db R_STOP
-
-st_new: rst 0x20
-        jr init
-
 st_if:  call expr_num
         rst 0x30
         db T_THEN

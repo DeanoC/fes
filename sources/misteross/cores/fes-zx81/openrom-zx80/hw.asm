@@ -12,6 +12,8 @@ VSYNC_PAD equ 50                ; holds vertical sync for six lines
         org 0x0000
 start:  di
         jp init
+st_new: rst 0x20                ; (statements that fit between the restarts)
+        jp init
 
 ; The restarts hold the start of their routines.
         org 0x0008
@@ -41,6 +43,10 @@ cp_hl_de: and a                 ; RST 28: compare HL with DE
         sbc hl,de
         add hl,de
         ret
+st_stop:
+        rst 0x20
+        rst 8
+        db R_STOP
 
         org 0x0030
 rst_expect:                     ; RST 30: the token that follows must come next
