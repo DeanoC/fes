@@ -49,6 +49,17 @@ checks get their ordinary fresh deadlines. The typed gamepad view exposes the
 same operations. This supports retaining the controller across long core loads;
 model tests cover a 100-second gap, not physical combined-operation acceptance.
 
+If the drain exhausts its existing 500 ms or 4096-step bound, the first error
+now retains a pre-containment observation: which bound fired, elapsed time,
+pending packet/path-health state, saved continuation/toggle information and
+eleven sequential non-destructive controller reads. These include RX-peek,
+IRQs, channel, transfer, port/reset, queue and frame state. The observation does
+not pop RX or payload, issue a command, change PID, retry or release the source.
+The subsequent original halt attempt may still fail. The frozen first error
+and terminal ownership remain retained; register samples are neither atomic
+nor a USB-completion proof. This supports diagnosing the native Stop failure
+that occurs before normal return and causes emergency FPGA Park.
+
 `cmd/keyboard` is a serial-only bring-up image: initialize the selected backend,
 print `FES_KEYBOARD_READY`, then print normalized key events. It needs neither
 storage nor a working FPGA display. `run.py keyboard --board qemu` exercises

@@ -25,13 +25,14 @@ func (h *Host) PausePolling(ctx context.Context) error {
 	if h.pollingPaused {
 		return fmt.Errorf("dwc2: polling already paused")
 	}
-	until := h.io.Now().Add(500 * time.Millisecond)
+	start := h.io.Now()
+	until := start.Add(500 * time.Millisecond)
 	for n := 0; h.pending.active || h.healthStage != 0; n++ {
 		if err := ctx.Err(); err != nil {
 			return h.fail(err)
 		}
 		if n >= 4096 || !h.io.Now().Before(until) {
-			return h.fail(fmt.Errorf("dwc2: polling drain timeout"))
+			return h.fail(h.pollingDrainFault(start, n))
 		}
 		if _, err := h.pollInput(); err != nil {
 			return err
