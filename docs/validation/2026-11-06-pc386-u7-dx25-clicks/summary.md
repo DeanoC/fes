@@ -62,9 +62,11 @@ so both forms are gone.
   #1481's seal of main `ee7ea9bb4`, as in #1485's `v1`. So `w1` tested the
   RTL of that seal, not current main's.
   - **Since then, on main.** #1483 added the status ring
-    (`pc386_status.sv`) and wired it into `pc386_system.sv`. It is a
-    read-only DDR-window writer and does not change the CPU or the mouse
-    path. #1495 changed only the games image, and #1499 only the runtime.
+    (`pc386_status.sv`) and wired it into `pc386_system.sv`. It writes
+    the ring in the DDR window and sits in front of the ATA image's DDR
+    port (port 2). It does not touch the CPU or the mouse path, and
+    #1485's `u1` and `u2` ran The Black Gate's menus on that ring seal
+    (`01e1eebb`). #1495 changed only the games image, and #1499 only the runtime.
   - **No ring evidence.** This seal has no status ring, so `w1` has none.
 - **Kit.** Kit B ran core-only on baseline software `a8cd30c4` (main
   `bb51f4454`) and OS `f904961e`. There was no install, no image change and
