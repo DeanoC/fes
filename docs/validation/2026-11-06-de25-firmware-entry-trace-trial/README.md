@@ -49,3 +49,25 @@ The factory card and other kit are outside scope. There is no flash write,
 normal package admission, HDMI or native Ethernet acceptance, or DE10-equivalent
 readiness claim. Record the physical outcome separately from the frozen
 procedure and software evidence.
+
+
+The single physical attempt on operator `e4b731aa6` stopped at the matched
+native prompt timeout. Recovery, all eight uploads/fresh SD rereads,
+programming and SPL FIT verification passed. Both EL3 `ENTRY` and `PASS`
+checkpoints appeared after the exact SPL ATF descriptor, binding BL31 SHA
+`2f09b64a864176eb9369380f950f8e30f078a71b1ad12a0d2d9b28ad2d88cd6a`.
+The saved decoder independently reports a valid complete guard trace. This
+proves execution crossed the final SPL exclusion and accepted the early EL3
+checks. The final UART drain and subsequent vendor startup remain after the
+last emitted marker; the exact next instruction is not observed. These
+read-only checks do not prove writable OCRAM, vendor initialization, native
+CPU exclusion or successful core loading.
+
+No vendor output followed before the existing timeout, and `fesboot` was never
+sent. There was no ROM load/Run/return and no retry. Independent cleanup verified
+original 15 MHz, exact USB permissions, private service gone and free UART.
+CPU/FPGA halt is not independently proved; retain the claim and spare. The
+[physical receipt](physical-result.json) binds the raw trace and source
+identities. Next add checkpoints around the unchanged vendor reset, CPU-data,
+cache, BSS, stack and setup steps, preserving its calls and register contracts.
+Do not replay this consumed diagnostic input.
