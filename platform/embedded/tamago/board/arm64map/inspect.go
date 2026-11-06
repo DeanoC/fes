@@ -24,7 +24,14 @@ const (
 	Device Kind = iota + 1
 	WriteBack
 	Uncached
+	// Inaccessible is limited to the private Nano firmware candidate. It
+	// requires invalid L3 descriptors and actual read/write translation faults.
+	Inaccessible
 )
+
+const FirmwareRAMBase, FirmwareRAMBytes = uint64(0x50000), uint64(0x10000)
+
+func firmwareRAMRange() Range { return Range{FirmwareRAMBase, FirmwareRAMBytes, Inaccessible} }
 
 // CPUState is read synchronously on the calling CPU. EL contains raw CurrentEL.
 // This contract covers EL1 translation. The matched boot must separately prove
@@ -49,6 +56,7 @@ type Range struct {
 }
 
 // Observation is a read-only mapping result, not a boot or programming grant.
+// Bytes includes the inspected inaccessible range when selected.
 type Observation struct {
 	CPU                      CPUState
 	DescriptorSHA256         [32]byte
@@ -109,9 +117,13 @@ func (s *inspection) stateOK() error {
 }
 
 func (s *inspection) translation(address uint64, k Kind) error {
-	_, attribute, share, err := kindAttributes(k)
-	if err != nil {
-		return err
+	var attribute, share uint64
+	if k != Inaccessible {
+		var err error
+		_, attribute, share, err = kindAttributes(k)
+		if err != nil {
+			return err
+		}
 	}
 	for _, write := range []bool{false, true} {
 		if s.probes >= maxReads {
@@ -121,6 +133,15 @@ func (s *inspection) translation(address uint64, k Kind) error {
 		s.probes++
 		if err != nil {
 			return err
+		}
+		if k == Inaccessible {
+			// FST 0b000111 is a level-3 translation fault. A permission
+			// failure, external abort or stale successful translation is
+			// not evidence of this deliberately invalid page descriptor.
+			if par&0x37f != 15 {
+				return fmt.Errorf("firmware page remains accessible or fault is unknown at %#x (write=%t PAR=%#x)", address, write, par)
+			}
+			continue
 		}
 		// PAR.NS and implementation-defined/reserved fields are not authority.
 		// Compare the output page, resulting memory type, shareability and fault.
@@ -180,7 +201,7 @@ func (s *inspection) leaf(address uint64, k Kind) (uint64, error) {
 	span, kind := uint64(2<<20), uint64(1)
 	if descriptor&3 == 3 {
 		var expected uint64
-		if table == s.ramBase+0x5000 && index == 0 && k == Device {
+		if table == s.ramBase+0x5000 && index == 0 && (k == Device || k == Inaccessible) {
 			expected = s.ramBase + 0x7000
 		} else if table == s.ramBase+0x6000 && k == WriteBack {
 			expected = s.ramBase + 0x8000
@@ -195,6 +216,12 @@ func (s *inspection) leaf(address uint64, k Kind) (uint64, error) {
 			return 0, err
 		}
 		span, kind = 4096, 3
+	}
+	if k == Inaccessible {
+		if span != 4096 || descriptor != 0 {
+			return 0, errors.New("firmware exclusion requires an invalid pinned L3 page")
+		}
+		return span, nil
 	}
 	attributes, _, _, err := kindAttributes(k)
 	if err != nil {
@@ -236,7 +263,11 @@ func Inspect(io Access, ramBase, ramSize uint64, ranges []Range) (Observation, e
 		if r.Bytes == 0 || r.Base == 0 || r.Base >= 1<<39 || r.Bytes > 1<<39-r.Base || r.Bytes > 1<<30 {
 			return Observation{}, errors.New("mapping range exceeds address or byte bound")
 		}
-		if _, _, _, err = kindAttributes(r.Kind); err != nil {
+		if r.Kind == Inaccessible {
+			if r != firmwareRAMRange() {
+				return Observation{}, errors.New("only the complete fixed firmware exclusion may be inspected")
+			}
+		} else if _, _, _, err = kindAttributes(r.Kind); err != nil {
 			return Observation{}, err
 		}
 		if r.Kind == WriteBack && (r.Base < ramBase || r.Base+r.Bytes > ramBase+ramSize) {

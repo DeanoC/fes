@@ -14,6 +14,7 @@ import (
 type FabricResources struct {
 	Mapping                                                                                  arm64map.Observation
 	RAMBase, RAMBytes, ControlBase, ControlBytes, DMABase, DMABytes, ReaderBase, ReaderBytes uint64
+	FirmwareBase, FirmwareBytes                                                              uint64
 }
 
 func ObserveFabricResources() (FabricResources, error) {
@@ -36,5 +37,6 @@ func ObserveFabricResources() (FabricResources, error) {
 	}
 	return FabricResources{Mapping: observed, RAMBase: profileRAMStart, RAMBytes: profileRAMSize,
 		ControlBase: profileFabricControlBase, ControlBytes: profileFabricControlBytes, DMABase: profileConfigurationBase,
-		DMABytes: profileConfigurationBytes, ReaderBase: profileReaderMemoryBase, ReaderBytes: profileReaderMemoryArenaBytes}, nil
+		DMABytes: profileConfigurationBytes, ReaderBase: profileReaderMemoryBase, ReaderBytes: profileReaderMemoryArenaBytes,
+		FirmwareBase: arm64map.FirmwareRAMBase, FirmwareBytes: arm64map.FirmwareRAMBytes}, nil
 }

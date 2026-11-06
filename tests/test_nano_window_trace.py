@@ -19,9 +19,9 @@ class WindowTraceTests(unittest.TestCase):
         self.configuration=base.configuration
         self.memory=json.loads((ROOT/'platform/embedded/tamago/nativefabric/testdata/hps-window-memory.json').read_bytes())
         self.memory.update(package_id=self.identity['package_id'],build_id=self.identity['build_id'])
-        self.mapping=dict(format=1,scope='pinned-tamago-el1-resources-v1',ram_base=0x84000000,ram_bytes=256<<20,
+        self.mapping=dict(format=2,scope='pinned-tamago-el1-resources-excluded-v2',ram_base=0x84000000,ram_bytes=256<<20,
             control_base=0x20010400,control_bytes=256,dma_base=0x94800000,dma_bytes=8<<20,
-            reader_base=0x95000000,reader_bytes=4<<20)
+            reader_base=0x95000000,reader_bytes=4<<20,firmware_base=0x50000,firmware_bytes=0x10000)
         self.contract=dict(format=1,scope='sealed-cold-window-read-v1',package_id=self.identity['package_id'],
             build_id=self.identity['build_id'],reader_memory_sha256=trace.context_digest(self.memory),
             control_map_sha256=self.identity['map_sha256'],adapter_source_sha256='a'*64,
@@ -32,7 +32,7 @@ class WindowTraceTests(unittest.TestCase):
                 f'frame_sha256={"a"*64} crc32=12345678 owner={OWNER:x} generation=4 '
                 'fpga_access=held lifetime=until-reboot renderer=tenfoot\n')
         self.prefix=self.prefix.replace('FES_NATIVE_HPS_CONTEXT',pinned+'FES_NATIVE_HPS_CONTEXT',1)
-        marker=mapping_fixtures.CPUMappingTraceTests.marker(self,bytes=(256+8+4)*(1<<20)+256)
+        marker=mapping_fixtures.CPUMappingTraceTests.marker(self,bytes=(256+8+4)*(1<<20)+256+0x10000)
         self.prefix=self.prefix.replace('FES_NATIVE_HPS_CONTEXT',marker+'FES_NATIVE_HPS_CONTEXT',1)
         self.prefix+=self.gate(4,15,False)
         self.suffix=f'NOTICE:  FES_NANO_WINDOW_SCOPE phase=control owner={OWNER:x} generation=5 reset=d\n'

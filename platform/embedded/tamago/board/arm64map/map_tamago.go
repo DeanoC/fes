@@ -64,6 +64,25 @@ func NormalUncached(base, size, ramBase, ramSize uint64) error {
 	return err
 }
 
+// RequireFirmwareExclusion verifies the startup removal and pins its live
+// negative mapping to every subsequent operation by this board's mapper.
+func RequireFirmwareExclusion(ramBase, ramSize uint64) error {
+	m, err := mapper(ramBase, ramSize)
+	if err != nil {
+		return err
+	}
+	_, err = m.RequireFirmwareExclusion()
+	return err
+}
+
+// ExcludeFirmwareRAM is an allocation-free early startup operation. It removes
+// only the fixed 16 low pages after validating the pinned CPU/table state and
+// every original descriptor, then proves read/write translation faults. It
+// must run before devices or secondary CPUs, and a false result must halt boot.
+func ExcludeFirmwareRAM(ramBase uint64) bool
+
+var firmwareExclusionAttempted uint32
+
 // Verify checks live CPU state, two page-table samples and actual read/write
 // translations under the same lock used for all managed mapping changes.
 func Verify(ramBase, ramSize uint64, ranges []Range) (Observation, error) {

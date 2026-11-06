@@ -13,7 +13,8 @@ var deviceMapError error
 
 func InitDevices() error {
 	deviceMapOnce.Do(func() {
-		if profileNetworkEnabled {
+		deviceMapError = arm64map.RequireFirmwareExclusion(profileRAMStart, profileRAMSize)
+		if deviceMapError == nil && profileNetworkEnabled {
 			deviceMapError = arm64map.NormalUncached(profileNetworkDMAStart, profileNetworkDMABytes, profileRAMStart, profileRAMSize)
 		}
 		if deviceMapError == nil && profileDisplayEnabled {

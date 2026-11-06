@@ -10,6 +10,7 @@ import (
 	"runtime/goos"
 	_ "unsafe"
 
+	"github.com/DeanoC/fes/platform/embedded/tamago/board/arm64map"
 	"github.com/usbarmory/tamago/arm64"
 )
 
@@ -30,6 +31,9 @@ var cpu arm64.CPU
 //go:linkname hwinit1 runtime/goos.Hwinit1
 func hwinit1() {
 	if ExceptionLevel() != 1 || CounterFrequency() == 0 {
+		halt()
+	}
+	if !arm64map.ExcludeFirmwareRAM(profileRAMStart) {
 		halt()
 	}
 	StartupCheckpoint("go_hwinit")

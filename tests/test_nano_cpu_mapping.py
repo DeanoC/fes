@@ -17,9 +17,9 @@ class CPUMappingContractTests(unittest.TestCase):
 
     def test_layout_is_derived_from_exact_separate_source_resources(self):
         self.assertEqual(self.mapping,{
-            'format':1,'scope':'pinned-tamago-el1-resources-v1',
+            'format':2,'scope':'pinned-tamago-el1-resources-excluded-v2',
             'ram_base':0x84000000,'ram_bytes':256<<20,'control_base':0x20010400,'control_bytes':256,
-            'dma_base':0x94800000,'dma_bytes':8<<20,'reader_base':0x95000000,'reader_bytes':2<<20})
+            'dma_base':0x94800000,'dma_bytes':8<<20,'reader_base':0x95000000,'reader_bytes':2<<20,'firmware_base':0x50000,'firmware_bytes':0x10000})
         without=context.cpu_mapping(self.control,self.base.configuration,None)
         self.assertEqual((without['reader_base'],without['reader_bytes']),(0,0))
         for index,key,value in ((0,'cpu_base',0x20010300),(0,'span',128),(0,'span',True),
@@ -44,7 +44,7 @@ class CPUMappingContractTests(unittest.TestCase):
                 changed=dict(record);changed.pop(key)
                 with self.subTest(missing=key),self.assertRaises(ValueError):context.checked_cpu_mapping(changed)
             for key,value in (('format',True),('ram_base',0x80000000),('ram_bytes',128<<20),
-                              ('control_bytes',128),('dma_base',0x94000000),('reader_bytes',8192)):
+                              ('control_bytes',128),('dma_base',0x94000000),('reader_bytes',8192),('firmware_base',0x60000),('firmware_bytes',0),('format',1)):
                 changed=dict(record,cpu_mapping=dict(self.mapping,**{key:value}))
                 with self.subTest(key=key),self.assertRaises(ValueError):context.checked_cpu_mapping(changed)
             with self.assertRaises(ValueError):context.checked_cpu_mapping(dict(record,cpu_mapping_sha256='0'*64))
@@ -64,13 +64,13 @@ class CPUMappingTraceTests(unittest.TestCase):
 
     def marker(self,**changes):
         values=dict(el=1,sctlr=0xc5183d,tcr=0x200003519,root=0x84004000,mair=0x44ff00,mmfr0=0x1122,
-                    mpidr=0x81000000,reads=3840,translations=5648,bytes=(256+8+2)*(1<<20)+256,
+                    mpidr=0x81000000,reads=3840,translations=5648,bytes=(256+8+2)*(1<<20)+256+0x10000,
                     descriptor_sha256='a'*64,owner=OWNER,generation=4)
         values.update({key:value for key,value in self.mapping.items() if key not in ('format','scope')})
         values.update(changes)
-        decimal={'el','ram_bytes','control_bytes','dma_bytes','reader_bytes','reads','translations','bytes','generation'}
+        decimal={'el','ram_bytes','control_bytes','dma_bytes','reader_bytes','firmware_bytes','reads','translations','bytes','generation'}
         fields=('el','sctlr','tcr','root','mair','mmfr0','mpidr','ram_base','ram_bytes','control_base','control_bytes',
-                'dma_base','dma_bytes','reader_base','reader_bytes','reads','translations','bytes','descriptor_sha256','owner','generation')
+                'dma_base','dma_bytes','reader_base','reader_bytes','firmware_base','firmware_bytes','reads','translations','bytes','descriptor_sha256','owner','generation')
         return ('FES_NATIVE_CPU_MAPPING PASS '+' '.join(key+'='+
                 (values[key] if key=='descriptor_sha256' else str(values[key]) if key in decimal else format(values[key],'x'))
                 for key in fields)+' data_held=1 runtime_admission=unavailable\r\n')
@@ -85,8 +85,8 @@ class CPUMappingTraceTests(unittest.TestCase):
         report=self.decode(self.capture())
         self.assertTrue(report['complete'],report)
         value=report['cpu_mapping_observation']
-        self.assertEqual(value['scope'],'EL1-identity-mapping-only')
-        self.assertEqual(value['bytes'],(256+8+2)*(1<<20)+256)
+        self.assertEqual(value['scope'],'EL1-resource-mapping-and-firmware-exclusion-only')
+        self.assertEqual(value['bytes'],(256+8+2)*(1<<20)+256+0x10000)
         self.assertFalse(value['runtime_admission']);self.assertFalse(report['core_load_acceptance'])
         self.assertFalse(self.decode(self.base.capture())['complete'])
         self.assertFalse(self.base.decode(self.capture())['complete'])
@@ -107,7 +107,7 @@ class CPUMappingTraceTests(unittest.TestCase):
                  ('tcr',0x20000351a),('root',0x84005000),('mair',0xff00),('mmfr0',0x1121),
                  ('mmfr0',0x20001122),('mpidr',0x81000100),('ram_base',0x80000000),('ram_bytes',128<<20),
                  ('control_base',0x20010300),('control_bytes',128),('dma_base',0x94000000),('dma_bytes',4<<20),
-                 ('reader_base',0),('reader_bytes',8192),('reads',0),('reads',16385),('translations',0),
+                 ('reader_base',0),('reader_bytes',8192),('firmware_base',0x4f000),('firmware_bytes',0),('reads',0),('reads',16385),('translations',0),
                  ('translations',16385),('bytes',0),('descriptor_sha256','0'*64),('owner',OWNER+2),('generation',1))
         for key,value in changes:
             with self.subTest(key=key,value=value):
@@ -116,6 +116,16 @@ class CPUMappingTraceTests(unittest.TestCase):
         for key,value in (('format',True),('reader_base',0),('control_bytes',128)):
             with self.subTest(contract=key),self.assertRaises(ValueError):
                 self.base.decode(self.capture(),cpu_mapping=dict(self.mapping,**{key:value}))
+
+    def test_missing_exclusion_or_old_resource_contract_cannot_qualify(self):
+        for removed in (' firmware_base=50000', ' firmware_bytes=65536',
+                        ' firmware_base=50000 firmware_bytes=65536'):
+            with self.subTest(removed=removed):
+                self.assertFalse(self.decode(self.capture(self.marker().replace(removed, '')))['complete'])
+        old = dict(self.mapping, format=1, scope='pinned-tamago-el1-resources-v1')
+        old.pop('firmware_base');old.pop('firmware_bytes')
+        with self.assertRaises(ValueError):
+            self.base.decode(self.capture(), cpu_mapping=old)
 
     def test_two_loads_keep_one_mapping_observation_and_fresh_cycle_evidence(self):
         reload=fixtures.NativeComputerReloadTraceTests();reload.setUp()

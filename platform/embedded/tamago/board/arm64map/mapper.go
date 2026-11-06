@@ -19,10 +19,11 @@ type Mutation interface {
 // Mapper serializes the pinned page tables, owns MAIR slot 2 and retires after
 // a failed observation or mutation. It supplies no physical memory reservation.
 type Mapper struct {
-	mu                sync.Mutex
-	io                Mutation
-	ramBase, ramSize  uint64
-	attribute, failed bool
+	mu                                  sync.Mutex
+	io                                  Mutation
+	ramBase, ramSize                    uint64
+	attribute, failed                   bool
+	firmwareAttempted, firmwareExcluded bool
 }
 
 func NewMapper(io Mutation, ramBase, ramSize uint64) (*Mapper, error) {
@@ -33,6 +34,53 @@ func NewMapper(io Mutation, ramBase, ramSize uint64) (*Mapper, error) {
 }
 
 func (m *Mapper) fail(err error) error { m.failed = true; return err }
+
+// RequireFirmwareExclusion checks the early startup removal before the mapper
+// may change attributes or publish DMA mappings. It never removes a page or
+// grants firmware ownership. Any uncertainty or replay retires this mapper.
+func (m *Mapper) RequireFirmwareExclusion() (Observation, error) {
+	if m == nil {
+		return Observation{}, errors.New("mapper unavailable")
+	}
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	if m.failed || m.firmwareAttempted || m.attribute {
+		return Observation{}, m.fail(errors.New("firmware exclusion must precede device mapping exactly once"))
+	}
+	m.firmwareAttempted = true
+	v, err := Inspect(m.io, m.ramBase, m.ramSize, []Range{firmwareRAMRange()})
+	if err != nil {
+		return Observation{}, m.fail(err)
+	}
+	if v.CPU.MAIR != 0xff00 {
+		return Observation{}, m.fail(errors.New("firmware exclusion requires the initial attribute owner"))
+	}
+	m.firmwareExcluded = true
+	// The canonical hole is insufficient if another VA aliases it. Audit
+	// every leaf of the complete pinned tree before accepting this binding.
+	if err = m.unusedAttribute(v.CPU); err != nil {
+		return Observation{}, m.fail(err)
+	}
+	return v, nil
+}
+
+// Called only under the mapper lock. Every later observation includes the
+// exclusion, without changing the caller-owned range slice.
+func (m *Mapper) inspect(ranges []Range) (Observation, error) {
+	if len(ranges) == 0 {
+		return Observation{}, errors.New("explicit mapping ranges required")
+	}
+	if m.firmwareExcluded {
+		found := false
+		for _, r := range ranges {
+			found = found || r == firmwareRAMRange()
+		}
+		if !found {
+			ranges = append(append([]Range(nil), ranges...), firmwareRAMRange())
+		}
+	}
+	return Inspect(m.io, m.ramBase, m.ramSize, ranges)
+}
 
 // Before the first global MAIR change, traverse the entire bounded pinned
 // tree twice and prove that no active descriptor uses the previously unused
@@ -59,6 +107,8 @@ func (m *Mapper) unusedAttribute(state CPUState) error {
 				}
 			} else if v&3 != 1 || (v>>2)&7 > 1 {
 				return errors.New("unknown or active DMA attribute in L1")
+			} else if m.firmwareExcluded && v&pageMask&^((1<<30)-1) != index<<30 {
+				return errors.New("nonidentity L1 alias in firmware-excluded tree")
 			}
 		}
 		for _, offset := range []uint64{0x5000, 0x6000} {
@@ -71,6 +121,13 @@ func (m *Mapper) unusedAttribute(state CPUState) error {
 				if v&3 == 1 {
 					if offset == 0x5000 && index == 0 || (v>>2)&7 > 1 {
 						return errors.New("unknown or active DMA attribute in L2")
+					}
+					physical := index << 21
+					if offset == 0x6000 {
+						physical += m.ramBase &^ ((1 << 30) - 1)
+					}
+					if m.firmwareExcluded && v&pageMask&^((2<<20)-1) != physical {
+						return errors.New("nonidentity L2 alias in firmware-excluded tree")
 					}
 					continue
 				}
@@ -94,12 +151,20 @@ func (m *Mapper) unusedAttribute(state CPUState) error {
 					if err != nil {
 						return err
 					}
-					if offset == 0x5000 && page == 0 {
+					if offset == 0x5000 && (page == 0 || m.firmwareExcluded && page >= FirmwareRAMBase>>12 && page < (FirmwareRAMBase+FirmwareRAMBytes)>>12) {
 						if v != 0 {
-							return errors.New("null-page trap differs from pinned tables")
+							return errors.New("protected low page differs from required invalid mapping")
 						}
 					} else if v&3 != 3 || (v>>2)&7 > 1 {
 						return errors.New("unknown or active DMA attribute in L3")
+					} else if m.firmwareExcluded {
+						physical := page << 12
+						if offset == 0x6000 {
+							physical += (m.ramBase &^ ((1 << 30) - 1)) + (index << 21)
+						}
+						if v&pageMask != physical {
+							return errors.New("nonidentity L3 alias in firmware-excluded tree")
+						}
 					}
 				}
 			}
@@ -129,7 +194,7 @@ func (m *Mapper) Map(base, size uint64) (Observation, error) {
 	if err := Validate(base, size, m.ramBase, m.ramSize); err != nil {
 		return Observation{}, m.fail(err)
 	}
-	before, err := Inspect(m.io, m.ramBase, m.ramSize, []Range{{base, size, Device}})
+	before, err := m.inspect([]Range{{base, size, Device}})
 	if err != nil {
 		return Observation{}, m.fail(err)
 	}
@@ -195,7 +260,7 @@ func (m *Mapper) Map(base, size uint64) (Observation, error) {
 			return Observation{}, m.fail(e)
 		}
 	}
-	observed, err := Inspect(m.io, m.ramBase, m.ramSize, []Range{{base, size, Uncached}})
+	observed, err := m.inspect([]Range{{base, size, Uncached}})
 	if err != nil {
 		return Observation{}, m.fail(err)
 	}
@@ -211,7 +276,7 @@ func (m *Mapper) Inspect(ranges []Range) (Observation, error) {
 	if m.failed {
 		return Observation{}, errors.New("mapper retired until reboot")
 	}
-	v, err := Inspect(m.io, m.ramBase, m.ramSize, ranges)
+	v, err := m.inspect(ranges)
 	if err != nil {
 		return Observation{}, m.fail(err)
 	}

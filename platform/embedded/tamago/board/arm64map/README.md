@@ -5,6 +5,38 @@ TamaGo ARM64 runtime. Both QEMU and the Nano use it for their explicitly
 reserved uncached DMA windows. It supplies no physical RAM reservation,
 firmware ownership or core-activation permission.
 
+The Nano startup now calls allocation-free `ExcludeFirmwareRAM` before its
+first `go_hwinit` checkpoint. This primary-CPU ARM routine checks the pinned
+CPU state, table-page translations, low table pointers and all sixteen original
+Device descriptors before removing `[0x50000,0x60000)`. It cleans the changed
+PTEs, invalidates the EL1 TLB, and requires actual read/write level-3 translation
+faults at both ends of every page. It restores PAR_EL1, uses no stack frame or
+calls, and never reads or writes the excluded target memory. Failure halts the
+Nano boot; the attempt cannot be replayed. CPU/DMA ownership is a boot obligation.
+
+Before device mappings, `RequireFirmwareExclusion` independently checks those
+invalid descriptors and live translations under the board's mapper lock. Every
+leaf of the complete pinned table tree must also remain an identity mapping,
+with two matching samples, so another virtual address cannot alias this region.
+Every
+subsequent mapper observation, including both sides of DMA publication, includes
+the same negative mapping. Restored access or an uncertain observation retires
+the mapper; no buffer is released. Attribute initialization accepts these exact
+sixteen holes only after that proof; other missing pages still reject. The
+read-only `Inaccessible` kind accepts only this complete fixed range and grants
+no physical RAM ownership. `Observation.Bytes` includes inspected excluded bytes.
+
+The source-bound Nano CPU-resource receipt is now version 2, naming
+`firmware_base` and `firmware_bytes` as an exclusion and including them in the
+reported observation. The current decoder requires both fields and rejects the
+older resource-only contract. Earlier physical observations remain evidence
+for their original inputs; they do not qualify this startup change.
+
+For failed address translations, the check requires PAR_EL1.FST to identify a
+level-3 translation fault, with F set and S/PTW clear; permission, external and
+stage-2 faults cannot substitute for an invalid stage-1 leaf. See Arm's primary
+[Cortex-A53 register reference](https://documentation-service.arm.com/static/5e9075f9c8052b1608761519).
+
 `Inspect` requires the pinned 39-bit virtual/40-bit physical layout, enabled
 MMU and caches, the expected TTBR0, and the Device/WB/optional uncached MAIR
 attributes. It follows only the five table pages reserved before the linked

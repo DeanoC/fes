@@ -13,6 +13,7 @@ type tableModel struct {
 	readError, probeError, writeError   int
 	setError, stale, afterWriteError    bool
 	afterRead                           func(*tableModel, uint64)
+	probeOverride                       func(uint64, bool) (uint64, bool)
 }
 
 func tables() *tableModel {
@@ -66,6 +67,11 @@ func (m *tableModel) Translate(address uint64, write bool) (uint64, error) {
 	if m.probes == m.probeError {
 		return 0, errors.New("AT failed")
 	}
+	if m.probeOverride != nil {
+		if value, ok := m.probeOverride(address, write); ok {
+			return value, nil
+		}
+	}
 	d := m.words[m.cpu.TTBR0+((address>>30)&511)*8]
 	level := 1
 	if d&3 == 3 {
@@ -77,7 +83,7 @@ func (m *tableModel) Translate(address uint64, write bool) (uint64, error) {
 		d = m.words[(d&pageMask)+((address>>12)&511)*8]
 	}
 	if d&1 == 0 || d&(1<<10) == 0 || write && d&(2<<6) != 0 {
-		return 1, nil
+		return 1 | uint64(4+level)<<1, nil
 	}
 	shift := uint(30)
 	if level == 2 {

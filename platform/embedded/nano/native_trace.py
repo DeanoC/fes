@@ -60,7 +60,7 @@ RULES = [(name, re.compile(pattern)) for name, pattern in (
     ('cpu_mapping', r'FES_NATIVE_CPU_MAPPING PASS el=(?P<el>[0-3]) '+
         ' '.join(key+r'=(?P<'+key+r'>[0-9a-f]{1,16})' for key in ('sctlr','tcr','root','mair','mmfr0','mpidr'))+' '+
         ' '.join(key+r'=(?P<'+key+r'>'+('[0-9a-f]{1,16}' if key.endswith('_base') else '[0-9]{1,10}')+')'
-                 for key in ('ram_base','ram_bytes','control_base','control_bytes','dma_base','dma_bytes','reader_base','reader_bytes'))+
+                 for key in ('ram_base','ram_bytes','control_base','control_bytes','dma_base','dma_bytes','reader_base','reader_bytes','firmware_base','firmware_bytes'))+
         r' reads=(?P<reads>[0-9]{1,5}) translations=(?P<translations>[0-9]{1,5}) bytes=(?P<bytes>[0-9]{1,10}) descriptor_sha256=(?P<descriptor_sha256>[0-9a-f]{64}) '+
         rf'owner=(?P<owner>{H}) generation=(?P<generation>[0-9]{{1,20}}) data_held=1 runtime_admission=unavailable'),
     ('hps_io_begin', rf'(?:NOTICE:[ \t]+)?FES_NANO_HPS_IO_BEGIN part=(?P<part>[01]) owner=(?P<owner>{H}) generation=(?P<generation>[0-9]{{1,20}}) count=(?P<count>[0-9]{{1,3}}) busy=(?P<busy>[01])'),
@@ -102,7 +102,7 @@ DECIMAL = {'kind', 'valid', 'core', 'provider', 'result', 'status', 'counter',
            'cpu0', 'cpu1', 'cpu2', 'cpu3', 'setup', 'ready', 'bytes', 'sectors', 'sd_generation', 'payload_bytes','words','ordinal',
            'reads','identified','settled','bypass_controls_clear','arena_bytes','reader_reads','reader_polls','disable','probe_polls','cancel','complete',
            'index','layout_known','window_covered','mpfe_reset','fetches','execution_observed','part','pass','count','busy','error',
-           'ram_bytes','control_bytes','dma_bytes','reader_bytes','translations','frame_bytes','row_bytes','stride','rows','board_error','platform_error'}
+           'ram_bytes','control_bytes','dma_bytes','reader_bytes','firmware_bytes','translations','frame_bytes','row_bytes','stride','rows','board_error','platform_error'}
 TEXT = {'id', 'phase', 'sha256', 'cid', 'package_id', 'payload_sha256', 'build_id','map_sha256','pattern_sha256','descriptor_sha256','frame_sha256'}
 
 
@@ -207,9 +207,10 @@ def decode_native_boot(data, build_id, owner_seed, *, storage=None, package=None
             (fpga_identity is None or not fpga_configuration or fpga_unready or fpga_status_only)):
         raise ValueError('stored configuration requires the complete FPGA configuration diagnostic')
     if cpu_mapping is not None:
-        expected={'format':1,'scope':'pinned-tamago-el1-resources-v1','ram_base':0x84000000,'ram_bytes':256<<20,
+        expected={'format':2,'scope':'pinned-tamago-el1-resources-excluded-v2','ram_base':0x84000000,'ram_bytes':256<<20,
                   'control_base':0x20010400,'control_bytes':256,'dma_base':0x94800000,'dma_bytes':8<<20,
-                  'reader_base':0x95000000 if reader_memory else 0,'reader_bytes':(4<<20 if _window_prefix else 2<<20) if reader_memory else 0}
+                  'reader_base':0x95000000 if reader_memory else 0,'reader_bytes':(4<<20 if _window_prefix else 2<<20) if reader_memory else 0,
+                  'firmware_base':0x50000,'firmware_bytes':0x10000}
         if (not configuration_storage or not isinstance(cpu_mapping,dict) or cpu_mapping!=expected or
                 any(type(cpu_mapping[key]) is not int for key in expected if key!='scope')):
             raise ValueError('source-derived native CPU mapping contract and stored configuration required')
@@ -452,9 +453,9 @@ def decode_native_boot(data, build_id, owner_seed, *, storage=None, package=None
                 matched_owner is not None and value['owner']==matched_owner and value['generation']==source_generation,
                 'native CPU resource observation lost CPU or secure ownership')
         require(0<value['reads']<=16384 and 0<value['translations']<=16384 and int(value['descriptor_sha256'],16)!=0 and
-                value['bytes']==sum(cpu_mapping[key] for key in ('ram_bytes','control_bytes','dma_bytes','reader_bytes')),
+                value['bytes']==sum(cpu_mapping[key] for key in ('ram_bytes','control_bytes','dma_bytes','reader_bytes','firmware_bytes')),
                 'native CPU mapping observation is incomplete or exceeds its bound')
-        report['cpu_mapping_observation']=dict(value,scope='EL1-identity-mapping-only',runtime_admission=False)
+        report['cpu_mapping_observation']=dict(value,scope='EL1-resource-mapping-and-firmware-exclusion-only',runtime_admission=False)
     if hps_io is not None:
         for part in range(2):
             for kind in ('begin','end'):

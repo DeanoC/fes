@@ -1,5 +1,6 @@
 """Exercise the actual final SPL exclusion check; no memory grant or board I/O."""
 import importlib.util
+import re
 from pathlib import Path
 import subprocess
 import struct
@@ -42,6 +43,26 @@ static struct fes_nano_spl_ram_view canonical(void) {
 
 
 class NanoFirmwareRamTests(unittest.TestCase):
+    def test_native_exclusion_uses_the_same_candidate_as_spl(self):
+        header = (FW / 'nano_firmware_ram.h').read_text()
+        values = {name: int(value, 16) for name, value in re.findall(
+            r'#define FES_NANO_FW_RAM_(BASE|LIMIT) (0x[0-9a-fA-F]+)ULL', header)}
+        native = ROOT / 'platform/embedded/tamago/board/arm64map'
+        go = (native / 'inspect.go').read_text()
+        base, size = (int(v, 16) for v in re.search(
+            r'const FirmwareRAMBase, FirmwareRAMBytes = uint64\((0x[0-9a-f]+)\), uint64\((0x[0-9a-f]+)\)', go).groups())
+        self.assertEqual((base, base + size), (values['BASE'], values['LIMIT']))
+        assembly = (native / 'firmware_tamago.s').read_text()
+        self.assertEqual(assembly.count('MOVD $'+hex(base)+', R13'), 2)
+        self.assertIn('ADD $'+hex((base >> 12) * 8)+', R10, R8', assembly)
+        self.assertIn('ADD $'+hex((size >> 12) * 8)+', R8, R9', assembly)
+        board = (ROOT / 'platform/embedded/tamago/board/de25nano/board.go').read_text()
+        self.assertLess(board.index('arm64map.ExcludeFirmwareRAM(profileRAMStart)'),
+                        board.index('StartupCheckpoint("go_hwinit")'))
+        devices = (ROOT / 'platform/embedded/tamago/board/de25nano/devices.go').read_text()
+        self.assertLess(devices.index('arm64map.RequireFirmwareExclusion'),
+                        devices.index('arm64map.NormalUncached'))
+
     def test_exclusion_guard_does_not_admit_separate_nobits_load(self):
         image = bytearray(176)
         image[:6] = b'\x7fELF\x02\x01'
