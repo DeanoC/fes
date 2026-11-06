@@ -21,7 +21,7 @@ def context(phase):
     after= startup.RUNTIME_PHASES.index(phase)>=3
     return dict(startup_valid=True,vendor_complete=True,cache_complete=True,
                 logging_restored=True,exception=False,provider_seen=after,
-                sd_seen=after,uboot_seen=False)
+                sd_seen=after,uboot_seen=False,exit_cache_complete=True)
 
 
 class ColdRuntimeStartupTests(unittest.TestCase):
@@ -87,11 +87,13 @@ class ColdRuntimeStartupTests(unittest.TestCase):
         self.assertFalse(decode(raw.replace(marker('exit-before'),fault+marker('exit-before')))['loader_ready'])
 
     def test_entry_transform_preserves_original_calls_arguments_and_warm_bytes(self):
-        cold='func bl31_entrypoint\n\tbl\tbl31_main\n\tmov x0, x23\n\tbl\tclean_dcache_range\n\tmov x1, x24\n\tbl\tclean_dcache_range\n\tb\tel3_exit\nendfunc bl31_entrypoint\n'
+        cold='func bl31_entrypoint\n#include "nano_firmware_entry.inc"\n\tbl\tbl31_main\n\tmov x0, x23\n\tbl\tclean_dcache_range\n\tmov x1, x24\n\tbl\tclean_dcache_range\n\tb\tel3_exit\nendfunc bl31_entrypoint\n'
         warm='func bl31_warm_entrypoint\n\tbl\tclean_dcache_range\nendfunc bl31_warm_entrypoint\n'
         result=producer.entry_source(cold+warm)
         self.assertIn(warm,result)
         self.assertIn('\tmov x0, x23\n',result);self.assertIn('\tmov x1, x24\n',result)
+        self.assertIn('\tfes_ram_bss_clean\n',result)
+        result=result.replace('\tfes_ram_bss_clean\n','\tbl\tclean_dcache_range\n')
         for old in ('\tbl\tbl31_main\n','\tbl\tclean_dcache_range\n','\tb\tel3_exit\n'):
             self.assertEqual(result.count(old),(cold+warm).count(old))
         for bad in (cold.replace('\tbl\tbl31_main\n',''),cold.replace('\tb\tel3_exit\n',''),cold.replace('\tbl\tclean_dcache_range\n','',1)):

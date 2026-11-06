@@ -302,7 +302,7 @@ def decode_native_boot(data, build_id, owner_seed, *, storage=None, package=None
               'last_checkpoint': None, 'core_load_acceptance': False,
               'firmware_ram_trace': {'records': [], 'complete': False, 'valid': True,
                                      'vendor_records': [], 'vendor_complete': False, 'exceptions': [],
-                                     'status_probe': fault_status.state(), 'ras_probe': fault_status.ras_state(), 'decode_log': fault_status.decode_state(), 'cache_maintenance': fault_status.cache_state(), 'runtime_startup': runtime_startup.state()}}
+                                     'status_probe': fault_status.state(), 'ras_probe': fault_status.ras_state(), 'decode_log': fault_status.decode_state(), 'cache_maintenance': fault_status.cache_state(), 'runtime_startup': runtime_startup.state(), 'exit_cache': runtime_startup.exit_state()}}
     if len(data) > MAX_BYTES:
         report['errors'].append('capture exceeds byte bound')
         return report
@@ -321,6 +321,14 @@ def decode_native_boot(data, build_id, owner_seed, *, storage=None, package=None
             report['errors'].append(f'failure marker at line {number}')
         if line.startswith('FES_NANO_RAM'):
             ram=report['firmware_ram_trace'];rows=ram['records']
+            if line.startswith('FES_NANO_RAM EXIT_CACHE'):
+                progress=ram['runtime_startup']['records']
+                error=runtime_startup.observe_exit(ram['exit_cache'],line,number,
+                    startup_valid=ram['valid'] and ram['runtime_startup']['valid'],
+                    runtime_phase=progress[-1]['phase'] if progress else None,
+                    exception=bool(ram['exceptions']),uboot_seen='uboot' in observed)
+                if error:report['errors'].append(error);ram['valid']=False
+                continue
             if line.startswith('FES_NANO_RAM RUNTIME'):
                 decode=ram['decode_log'];cache=ram['cache_maintenance']
                 error=runtime_startup.observe(ram['runtime_startup'],line,number,
@@ -328,7 +336,8 @@ def decode_native_boot(data, build_id, owner_seed, *, storage=None, package=None
                     cache_complete=cache['valid'] and cache['complete'],
                     logging_restored=decode['valid'] and decode['complete'] and decode['restored'] and not decode['failed'],
                     exception=bool(ram['exceptions']),provider_seen='provider' in observed,
-                    sd_seen='sd_platform' in observed,uboot_seen='uboot' in observed)
+                    sd_seen='sd_platform' in observed,uboot_seen='uboot' in observed,
+                    exit_cache_complete=ram['exit_cache']['valid'] and ram['exit_cache']['complete'])
                 if error:
                     report['errors'].append(error);ram['valid']=False
                 continue

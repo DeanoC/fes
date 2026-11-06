@@ -48,9 +48,10 @@ The matched RAM profile also instruments the subsequent cold BL31 path with
 31 ordered RUNTIME checkpoints. Source-pinned C transforms insert calls around
 owned setup, GIC initialization, mailbox initialization/notification, libraries,
 runtime services, next-image preparation and final console setup. Assembly
-markers bracket `bl31_main`, the original data/BSS clean calls and the cold
+markers bracket `bl31_main`, the original data clean, qualified BSS clean and the cold
 `el3_exit` branch. Removing those insertions exactly reproduces the input
-sources; warm entry and the original vendor operations remain unchanged.
+sources after inverting the explicit private BSS specialization; warm entry
+and the other original vendor operations remain unchanged.
 Mailbox markers enclose the optional V3 initialization as well as notification.
 
 The C-call diagnostic is a bounded UART leaf using the existing fixed sink,
@@ -110,7 +111,7 @@ barriers and readbacks; the separate interrupt register remains zero, and
 the error-status register is never acknowledged. Restoration checks the
 captured status is unchanged. ECC detection controls remain unchanged.
 
-The version-2 selected RAM profile replaces that range's address-based PoC
+The selected RAM profile replaces that range's address-based PoC
 operation with the pinned TF-A `dcsw_op_all(DCISW)` routine. This explicitly
 invalidates the accessible data/unified cache hierarchy before initializing
 OCRAM; cache-off is not treated as proof that caches are empty. The observed
@@ -140,6 +141,38 @@ after the SD-platform setup line before the loader prompt. That evidence
 belongs to its exact input; the added runtime checkpoints need a new matched
 trial. Neither returned call markers nor off-board geometry execution qualify
 physical cache coverage or a complete native core-loading cycle.
+
+Version3 additionally specializes only the cold exit clean of the exact
+compiled private BSS range `58000..5dec0`. It retains the original writeback
+intent through the pinned `dcsw_op_all(DCCSW)` helper across the accessible
+data/unified hierarchy. `DCCSW` comes from the actual vendor header, including
+its clean/invalidate alias when `ERRATA_A53_827319` is selected; other selectors
+are assembly errors. The DDR data clean and warm-entry operations remain intact.
+The ELF admission checks the exact BSS endpoints, and the profile rejects old
+versions or a missing exit-maintenance policy.
+
+Before and after the call, the selected code checks the reviewed A55/EL3/
+primary-affinity/endianness and MMU/data-cache-off state, DAIF masks, independent
+CPU/reset/power and master containment, restored logging flag and CSSELR0.
+Only exact compiled range arguments are admitted. Unexpected state parks
+without a range fallback or retry. The macro uses no stack, private-data
+store, detection/status/interrupt-control write or additional nested helper.
+Its source binding and actual linked selector/helper/controls need fresh checks.
+
+The [A55 TRM](https://documentation-service.arm.com/static/5e7e1405b471823cb9de57ae)
+sections A6.2.3/A6.2.4 describe cache maintenance while data caching is disabled
+and clean/invalidate behavior for set/way operations. Cache-off does not mean
+empty caches. The qualification therefore requires the initial hierarchy
+invalidation, linked cold control history with no cacheable data allocation,
+fresh exclusive ownership and no cacheable aliases. Invalidation is accounted
+for even when the vendor selector spells a clean. This source/manual reasoning
+does not qualify physical cache coverage on the board revision.
+
+Two bounded EXIT_CACHE markers bracket the operation and subsequent checks,
+inside the runtime BSS-clean bracket. The decoder requires ordered completion
+before BSS-clean return/exit and U-Boot; partial/faulted/misplaced evidence is
+terminal and cannot grant boot. The new exit path still needs a freshly
+matched bounded hardware trial. All original boot and ROM limits remain.
 
 Only that selected profile may accept one non-executable, zero-file-byte NOBITS
 load segment in the fixed range. Packaging independently checks the actual ELF

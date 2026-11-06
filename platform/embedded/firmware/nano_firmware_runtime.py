@@ -1,4 +1,4 @@
-"""Source-pinned, insertion-only diagnostics in the selected cold BL31 path."""
+"""Source-pinned cold diagnostics and qualified private BSS exit maintenance."""
 import hashlib
 import importlib.util
 import re
@@ -98,12 +98,16 @@ def entry_source(text):
     call='\tbl\tclean_dcache_range\n'
     parts=before.split(call)
     if len(parts)!=3:raise ValueError('cold runtime exit cache context changed')
-    before=parts[0]+mark('data-clean-before')+call+mark('data-clean-after')+parts[1]+mark('bss-clean-before')+call+mark('bss-clean-after')+parts[2]
+    before=parts[0]+mark('data-clean-before')+call+mark('data-clean-after')+parts[1]+mark('bss-clean-before')+'\tfes_ram_bss_clean\n'+mark('bss-clean-after')+parts[2]
     exit='\tb\tel3_exit\n'
     if before.count(exit)!=1:raise ValueError('cold runtime exit branch changed')
     before=before.replace(exit,mark('exit-before')+exit)
-    if re.sub(r'^\tfes_ram_uart_text fes_nano_ram_runtime_[a-z_]+\n','',before,flags=re.M)!=original:
+    inverse=re.sub(r'^\tfes_ram_uart_text fes_nano_ram_runtime_[a-z_]+\n','',before,flags=re.M)
+    if inverse.replace('\tfes_ram_bss_clean\n',call)!=original:
         raise ValueError('cold runtime entry transformation changed original operations')
+    anchor='#include "nano_firmware_entry.inc"\n'
+    if before.count(anchor)!=1:raise ValueError('cold BSS exit include context changed')
+    before=before.replace(anchor,anchor+'#include "nano_firmware_exit_cache.inc"\n')
     return ('#include "nano_firmware_runtime.h"\n'+before+end+warm+
             '\n#include "nano_firmware_runtime.inc"\n'+assembly_data())
 

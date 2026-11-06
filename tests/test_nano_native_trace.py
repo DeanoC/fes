@@ -73,7 +73,11 @@ def firmware_progress(raw):
     for index,line in enumerate(lines):
         if 'FES_NANO_EL3_CAPTURE phase=after ' in line:
             phases=trace.runtime_startup.RUNTIME_PHASES
-            marker=lambda p:'FES_NANO_RAM RUNTIME phase='+p+'\r\n'
+            def marker(p):
+                exit_cache=(''.join('FES_NANO_RAM EXIT_CACHE phase='+phase+'\r\n'
+                                   for phase in trace.runtime_startup.EXIT_PHASES)
+                            if p=='bss-clean-after' else '')
+                return exit_cache+'FES_NANO_RAM RUNTIME phase='+p+'\r\n'
             lines.insert(index+1,rows[-1]+''.join(marker(p) for p in phases[:3]))
             result=''.join(lines)
             # The baseline fixture has no SD service; its existing decoder
