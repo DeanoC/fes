@@ -1,0 +1,74 @@
+{
+ "corner": "7_slow_1100mv_-40c, 16.276 ns",
+ "script": "stages.tcl (quartus_sta: worst setup slack into each register group)",
+ "stages": {
+  "d_eip": {
+   "slice6_c214820c_561271c3b": 2.611,
+   "this_c89d6b0c_905f50635": 1.949
+  },
+  "r_dst": {
+   "slice6_c214820c_561271c3b": 2.163,
+   "this_c89d6b0c_905f50635": 2.149
+  },
+  "r_src": {
+   "slice6_c214820c_561271c3b": 2.154,
+   "this_c89d6b0c_905f50635": 2.001
+  },
+  "r_cnt": {
+   "slice6_c214820c_561271c3b": 2.371,
+   "this_c89d6b0c_905f50635": 2.336
+  },
+  "dc0": {
+   "slice6_c214820c_561271c3b": 1.808,
+   "this_c89d6b0c_905f50635": 1.936
+  },
+  "dfwd_": {
+   "slice6_c214820c_561271c3b": 2.459,
+   "this_c89d6b0c_905f50635": 2.192
+  },
+  "decode_": {
+   "slice6_c214820c_561271c3b": 1.62,
+   "this_c89d6b0c_905f50635": 2.086
+  },
+  "frontend_": {
+   "slice6_c214820c_561271c3b": 1.507,
+   "this_c89d6b0c_905f50635": 1.642
+  },
+  "ag_": {
+   "slice6_c214820c_561271c3b": 2.847,
+   "this_c89d6b0c_905f50635": 2.803
+  },
+  "dc_": {
+   "slice6_c214820c_561271c3b": 2.149,
+   "this_c89d6b0c_905f50635": 2.236
+  },
+  "d_first": {
+   "slice6_c214820c_561271c3b": 3.57,
+   "this_c89d6b0c_905f50635": 3.037
+  },
+  "dops_": {
+   "slice6_c214820c_561271c3b": 3.179,
+   "this_c89d6b0c_905f50635": 2.447
+  },
+  "governor_": {
+   "slice6_c214820c_561271c3b": 1.068,
+   "this_c89d6b0c_905f50635": 1.685
+  },
+  "l1d_": {
+   "slice6_c214820c_561271c3b": 2.949,
+   "this_c89d6b0c_905f50635": 3.275
+  },
+  "m2_": {
+   "slice6_c214820c_561271c3b": 3.783,
+   "this_c89d6b0c_905f50635": 3.65
+  },
+  "ex_": {
+   "slice6_c214820c_561271c3b": 3.703,
+   "this_c89d6b0c_905f50635": 5.509
+  },
+  "m1_": {
+   "slice6_c214820c_561271c3b": 7.541,
+   "this_c89d6b0c_905f50635": 8.061
+  }
+ }
+}

@@ -1,0 +1,92 @@
+{
+ "kit": "A",
+ "preset": "max (0)",
+ "kit_software": "baseline a8cd30c4 on image f904961e, core-only (no install, no image change, no reboot)",
+ "disk": {
+  "sha256": "fe81c9c4f93cc34d8b4b10aa2be97c660a30c6b47e48bf205ed6d68fd2fee732",
+  "note": "the Phase 4 baseline record's bench disk, the same image"
+ },
+ "commands": {
+  "3dbench": "C:\\MARKS\\3DBENCH> 3dbench",
+  "pcpbench": "C:\\MARKS\\PCPBENCH> pcpbench /vgamode",
+  "topbench": "C:\\MARKS\\TOPBENCH> topbench, Benchmarking menu",
+  "doom_pack": "C:\\MARKS\\DOOMS> doom -config max.cfg|min.cfg -timedemo demo3",
+  "doom_demo3": "C:\\DOOM> doom -timedemo demo3"
+ },
+ "settings": "fes.pc386.machine words: 0, 0, 0, 0, 0x220, IRQ 7, DMA 1; a SCRUBX memory scrub launch first, as the baseline",
+ "grabs": {
+  "3dbench": "p0-3d-0",
+  "pcpbench": "p0-pcp-1",
+  "topbench": "p0-tb-0",
+  "doom_pack_max": "p0-dmax-1",
+  "doom_pack_min": "p0-dmin-0",
+  "doom_v19_demo3": "p0-demo3-2"
+ },
+ "date": "2026-11-06",
+ "runs": [
+  {
+   "run": "u1",
+   "tree": "905f50635 (PR #1517's head d2ac32e00 with this slice; main 21cdb60a1 has the same sources)",
+   "package": "c89d6b0ce9e8174aee3060e083393b58a59194a9714fb9b4caecfb420cb1b433",
+   "package_fcore_sha256": "0062f73ea8f8cef275415bff0b9d30a6b32a9b8eedf6305ec00108fb48180f27",
+   "time": "22:27-22:38 EET; data trees removed 22:39",
+   "before": {
+    "3dbench_fps": 76.9,
+    "pcpbench": 13.2,
+    "topbench": 309,
+    "doom_pack_max": {
+     "gametics": 2134,
+     "realtics": 2096,
+     "fps": 35.63
+    },
+    "doom_pack_min": {
+     "gametics": 2134,
+     "realtics": 759,
+     "fps": 98.41
+    },
+    "doom_v19_demo3": {
+     "gametics": 3863,
+     "realtics": 3425,
+     "fps": 39.48
+    },
+    "topbench_usec": {
+     "MemTest": 23,
+     "MemEA": 17,
+     "Opcodes": 20,
+     "VidMem": 100,
+     "3DGames": 20,
+     "Total": 180
+    },
+    "run": "t1 (Kit A, package c214820c..., PR #1517's record)"
+   },
+   "after": {
+    "3dbench_fps": 76.9,
+    "pcpbench": 13.3,
+    "topbench": 309,
+    "doom_pack_max": {
+     "gametics": 2134,
+     "realtics": 2077,
+     "fps": 35.96
+    },
+    "doom_pack_min": {
+     "gametics": 2134,
+     "realtics": 754,
+     "fps": 99.06
+    },
+    "doom_v19_demo3": {
+     "gametics": 3863,
+     "realtics": 3399,
+     "fps": 39.78
+    },
+    "topbench_usec": {
+     "MemTest": 23,
+     "MemEA": 15,
+     "Opcodes": 20,
+     "VidMem": 103,
+     "3DGames": 20,
+     "Total": 181
+    }
+   }
+  }
+ ]
+}

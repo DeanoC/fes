@@ -1830,6 +1830,15 @@ it runs uncapped.
    - **Gain.** DOOM up to 2–5%, less what loads cause.
    - **Risk.** Moderate: AG has +4.7 ns, and the result and flag paths join
      the forwarding tables.
+   - **Load forwarding (6b).** The profile's split found that
+     `fes_i386_dfwd`'s load kind was never driven. MOV r32, POP r32 and
+     MOVZX r32 loads now forward their load data into a younger address
+     ([Load forwarding](#registers-address-generation-and-the-early-alu)).
+     In DOOM's bench window a load's AGI falls by 1.1% of the clocks.
+     Kit A's `demo3` goes from 39.5 to 39.8 fps (+0.8%), and the Pack's
+     DOOM by 0.7–0.9%
+     ([record](../../../docs/validation/2026-11-06-i386-phase4-load-fwd/summary.md)).
+     MOVSX and 16-bit loads still wait.
 7. **Real-mode far prediction.**
    - **Structure.** Far CALL, JMP and RETF in real and V86 mode enter the
      BTB and return stack with their selector. The CS base travels with the
