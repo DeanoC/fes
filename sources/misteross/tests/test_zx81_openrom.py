@@ -156,6 +156,17 @@ b:      ret
         """, 0x200)
         self.assertNotIn(0xc3, image[3:0x100])                      # jr b stayed a jr
 
+    def test_far_jr_goes_by_a_jump_to_the_same_place(self):
+        image = assemble("""
+        floatorder
+        org 0
+        jr nz,far
+        jp far
+        org 0x200
+far:    ret
+        """, 0x300)
+        self.assertEqual(image[:5], bytes([0x20, 0x00, 0xc3, 0x00, 0x02]))
+
     def test_labels_after_a_jump_share_a_section(self):
         image = assemble("""
         floatlimit 8

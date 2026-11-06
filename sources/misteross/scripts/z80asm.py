@@ -20,7 +20,9 @@ source order through the largest gaps (so the `jr` stays short), with the
 rest filling the holes left, smallest hole first, each with the sections
 that fill it best. A source with `floatorder` tries a third layout: the
 sections in the order (found by a seeded annealing search) that leaves the
-fewest `jr` out of range, through the gaps in address order. A section must
+fewest `jr` out of range, through the gaps in address order; and a `jr` out
+of range goes by way of a direct jump to the same place within its reach
+before it becomes a `jp`. A section must
 not fall through into the next one. Between `autofloat` and `endautofloat` a
 new section starts at every global label that follows an unconditional
 jump or return (a label after data continues the same table).
@@ -126,6 +128,8 @@ class Assembler:
         self.float_limit_override = None
         self.where = ''
         self.grew = False
+        self.chaining = False
+        self.chains, self.jumps = {}, {}
 
     # -- expressions -------------------------------------------------------
     def value(self, expr: str) -> int:
@@ -311,22 +315,40 @@ class Assembler:
                 index = self.in_float[0]
                 self.jr_edges.add((index, self.value(target)))
                 self.jr_sites.append((index, self.pc - self.float_pc[index], self.value(target), 1))
-            if self.where not in self.long_jumps:
-                offset = self.value(target) - (self.pc + 2)
-                if -128 <= offset <= 127 or not self.symbols_settled:
-                    if len(ops) == 2:
-                        return [0x20 | CC[lows[0]] << 3, self.relative(target, 2)]
-                    return [0x18, self.relative(target, 2)]
+            to = self.value(target)
+            op = 0x20 | CC[lows[0]] << 3 if len(ops) == 2 else 0x18
+            if self.where in self.chains:
+                via = self.chains[self.where][0]
+                if -128 <= via - (self.pc + 2) <= 127 and via in self.jumps_before.get(to, ()):
+                    return [op, (via - (self.pc + 2)) & 0xff]
+                del self.chains[self.where]             # lost: a jp from now on
                 self.long_jumps.add(self.where)
                 self.grew = True
+            if self.where not in self.long_jumps:
+                offset = to - (self.pc + 2)
+                if -128 <= offset <= 127 or not self.symbols_settled:
+                    if len(ops) == 1:
+                        self.jumps.setdefault(to, set()).add(self.pc)
+                    return [op, self.relative(target, 2)]
+                for via in sorted(self.jumps_before.get(to, ()) if self.chaining else ()):
+                    if via != self.pc and -128 <= via - (self.pc + 2) <= 127:
+                        self.chains[self.where] = (via, to)     # by way of a jump to the same place
+                        self.grew = True
+                        return [op, (via - (self.pc + 2)) & 0xff]
+                self.long_jumps.add(self.where)
+                self.grew = True
+            if len(ops) == 1:
+                self.jumps.setdefault(to, set()).add(self.pc)
             if len(ops) == 2:
-                return [0xc2 | CC[lows[0]] << 3] + self.word(self.value(target))
-            return [0xc3] + self.word(self.value(target))
+                return [0xc2 | CC[lows[0]] << 3] + self.word(to)
+            return [0xc3] + self.word(to)
         if m == 'jp' and lows[0] in ('(hl)', '(ix)', '(iy)'):
             return {'(hl)': [0xe9], '(ix)': [0xdd, 0xe9], '(iy)': [0xfd, 0xe9]}[lows[0]]
         if len(ops) == 2:
             base = 0xc2 if m == 'jp' else 0xc4
             return [base | CC[lows[0]] << 3] + self.word(self.value(ops[1]))
+        if m == 'jp':
+            self.jumps.setdefault(self.value(ops[0]), set()).add(self.pc)
         return [0xc3 if m == 'jp' else 0xcd] + self.word(self.value(ops[0]))
 
     def alu(self, m, ops, lows):
@@ -428,6 +450,7 @@ class Assembler:
         best = None
         self.order, self.order_runs = None, 0
         ordered = any(strip_comment(line).strip().lower() == 'floatorder' for _, _, line in lines)
+        self.chaining = ordered
         for strategy in ('size', 'linked') + (('order',) if ordered else ()):
             self.strategy = strategy
             self.float_at = {}
@@ -459,7 +482,11 @@ class Assembler:
             raise AsmError(f'floating code does not fit: {total} bytes in '
                            f'{len(self.float_size)} sections, {over} bytes left over')
         self.final_pass = True
-        return self._pass(lines, size, fill)
+        image = self._pass(lines, size, fill)
+        for via, to in self.chains.values():
+            if via not in self.jumps.get(to, ()):
+                raise AsmError('a chained jr lost the jump it goes by')
+        return image
 
     def consistent(self, size):
         """No two placed sections (or fixed code) share a byte."""
@@ -478,6 +505,8 @@ class Assembler:
     def relax(self, lines, size, fill):
         """Fresh jump relaxation for the current placement."""
         self.long_jumps = set()
+        self.chains = {}                        # jr site -> (the jump it goes by, its target)
+        self.jumps = {}
         self.symbols_settled = False
         for passes in range(40):
             before = dict(self.symbols)
@@ -592,6 +621,7 @@ class Assembler:
             self.float_pc = {}                  # section index -> address this pass
             self.jr_edges = set()               # (section, jr target address)
             self.jr_sites = []                  # (section, offset, target, cost if out of range)
+            self.jumps_before, self.jumps = self.jumps, {}  # target -> addresses of direct jumps
             self.scratch_next = 0x10000
             self.charset_name, self.charset = 'zx81', ZX81_TEXT
             self.auto = False
