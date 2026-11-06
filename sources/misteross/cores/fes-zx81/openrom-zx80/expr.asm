@@ -253,13 +253,16 @@ operand:
         jr z,.unary
         cp C_QUOTE
         jr z,.str
-        cp C_0
-        jr c,.nd
-        cp C_0 + 10
-        jr c,.num               ; a digit
-.nd:    call is_letter
-        jr c,name_operand
-        jr syntax_err
+        call is_alnum
+        jr nc,syntax_err
+        cp C_A
+        jr nc,name_operand
+.num:   call parse_uint         ; a digit
+        jr c,syntax_err         ; 32768 or more
+        ld (CH_ADD),hl
+        ex de,hl
+        set F_NUM,(iy+Y_FLAGS)
+        ret
 .unary: push af
         call next_ch
         call expr_b
@@ -270,12 +273,6 @@ operand:
         jr nz,neg_chk
         inc hl                  ; NOT x = -(x + 1)
         jr neg_hl
-.num:   call parse_uint
-        jr c,syntax_err         ; 32768 or more
-        ld (CH_ADD),hl
-        ex de,hl
-        set F_NUM,(iy+Y_FLAGS)
-        ret
 .str:   inc hl
         push hl                 ; the text
 .s:     ld a,(hl)
@@ -319,11 +316,12 @@ name_operand:
         add a,a
         xor d
         jp p,syntax_err         ; not the argument this function takes
-        res F_NUM,(iy+Y_FLAGS)  ; the result's type
-        bit 6,d
-        jr z,.r
-        set F_NUM,(iy+Y_FLAGS)
-.r:     call run_only
+        ld a,(FLAGS)            ; F_NUM = bit 6 of D: the result's type
+        xor d
+        and ~(1 << F_NUM) & 0xff
+        xor d
+        ld (FLAGS),a
+        call run_only
         ld a,d
         and 0x3f
         ld d,a
