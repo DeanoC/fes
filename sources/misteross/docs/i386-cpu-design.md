@@ -584,9 +584,10 @@ with those stages. WB flushes and redirects wait for this freeze too.
 | Early-ALU result into an address | 0 extra |
 | Late-ALU result into the next instruction's address | +3 |
 | Any of the three results above used as a scaled index | +1 on its row |
-| Predicted taken branch | One fetch bubble, normally hidden by the fetch buffer |
+| Predicted taken branch | One fetch bubble, normally hidden by the fetch buffer: a DEC and a taken JNZ loop runs in 2.0 clocks an iteration ([BTB record](../../../docs/validation/2026-11-06-i386-phase4-btb/summary.md)) |
 | Mispredict resolved at AG / at EX | +7 / +10; DC adds one cycle to every redirect ([#1124](https://github.com/DeanoC/fes/pull/1124)) |
-| Taken branch, as built through Phase 3 | Resolved at EX, redirected from WB: the target retires 11.3–12.2 clocks after the branch in game code, 20–28 after an indirect or protected-mode far one ([Phase 4 profile](#phase-4-speed)) |
+| Taken branch the BTB does not predict | Resolved at EX, redirected from WB: the target retires 11.3–12.2 clocks after the branch in game code, 20–28 after an indirect or protected-mode far one ([Phase 4 profile](#phase-4-speed)). A predicted branch that is not taken costs the same |
+| Fetch check's replay | A flush and a restart at the instruction, as an uncached load's, without serial issue |
 | Redirect to the next instruction's issue | 6 cycles measured, 7 in 12 of 56 prefix-free runs; the DC cut adds one cycle ([#1124](https://github.com/DeanoC/fes/pull/1124)) |
 | Load bytes not yet returned | Freeze D through WB, including both forwarding tables, until the bytes arrive ([data-latency record](https://github.com/DeanoC/fes/blob/main/sources/misteross/docs/validation/2026-10-26-i386-data-latency.md)) |
 | Push or pop immediately after another push or pop | 1 cycle; ESP forwarding adds no wait in the latency-free run ([#1141](https://github.com/DeanoC/fes/pull/1141)) |
@@ -1565,6 +1566,17 @@ end, where the early ALU, the store-to-load check and far prediction go, has
 The design has 29,119 of 41,910 ALMs, 259 of 553 M10K blocks and 36 of 112
 DSP blocks in use.
 
+After slice 2 (the BTB), the seal gives the system clock +0.80 ns, still at
+the governor's ISA charge. The changes from the table are:
+- Q's start loop: +2.09 ns, from +3.20, with the jump's select bit and 2:1.
+- Q to DC: +2.15 ns.
+- The fetch buffer's registers, the jump bits among them: +3.01 ns.
+- The BTB's address registers: +4.65 ns.
+The design uses 31,502 ALMs and 264 M10K blocks. Main's seal `01e1eebb`
+used 29,485 ALMs and 259 blocks, so the slice costs about 2,000 ALMs, the
+fetch check and the self-modifying-code compares included, and 5 blocks
+([record](../../../docs/validation/2026-11-06-i386-phase4-btb/summary.md)).
+
 ### Slices
 
 Each slice is its own PR. Before it can merge, it needs:
@@ -1595,7 +1607,12 @@ it runs uncapped.
    - **Baseline.** The [baseline record](../../../docs/validation/2026-11-05-i386-phase4-baseline/summary.md)
      has the microbenchmarks (`scripts/test_fes_i386_latency.py`) and each
      preset's kit scores. The bench is `machine_tb --cpu-profile`.
-2. **BTB for Jcc, LOOP, JCXZ and direct JMP and CALL.**
+2. **BTB for Jcc, LOOP, JCXZ and direct JMP and CALL.** Built
+   ([record](../../../docs/validation/2026-11-06-i386-phase4-btb/summary.md)):
+   Kit A's DOOM `demo3` goes from 26.7 to 37.5 fps and 3DBench from 50.0 to
+   71.4. [Prediction](#prediction) describes the BTB as built. It differs
+   from the plan below in its checks: one fetch check, at AG and in Q,
+   replaces DC's type check.
    - **Structure.** 512 entries, two-way, in M10K, read at F1 with the L1I. F2
      compares the tag and registers the redirect, which F1 takes on the next
      clock. That is one bubble, kept off F2's tag compare.
