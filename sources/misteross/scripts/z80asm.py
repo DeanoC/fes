@@ -827,7 +827,16 @@ def anneal_order(sections, sizes, edges, free, steps=60000, seed=1):
             if c < best:
                 best, best_order = c, order[:]
         heat *= cool
-    return best_order
+    order, now = best_order, best
+    for a in range(len(order)):                 # then each section where it is best
+        for b in range(len(order)):
+            if a != b:
+                trial = order[:]
+                trial.insert(b, trial.pop(a))
+                c = cost(trial)
+                if c < now:
+                    order, now = trial, c
+    return order
 
 
 def main():
