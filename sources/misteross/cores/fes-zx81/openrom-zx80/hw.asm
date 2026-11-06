@@ -30,7 +30,10 @@ rst_print:                      ; RST 10: print character or token A
 
         org 0x0018
 rst_get: ld hl,(CH_ADD)         ; RST 18: current character
-        jr gc_look
+gc_look: ld a,(hl)              ; skipping the cursor (0)
+        or a
+        ret nz
+        jr gc_skip
 
         org 0x0020
 rst_end: push hl                ; RST 20: the statement must end here
@@ -74,6 +77,30 @@ int_same:
         ret z                   ; never taken; balances the other path
         jr int_go
 
+; CH_ADD -> the keyword. (Here so that it falls into next_ch, which must
+; stay within a JR of gc_look.)
+statement:
+        rst 0x18
+        call k_here
+        sub T_LIST
+        jr c,syntax_err
+        add a,a
+        ld l,a
+        ld h,0
+        ld de,stmt_table
+        add hl,de
+        call peek_word
+        push hl
+                                ; A = what follows the keyword
+; Advance and get the character (RST 18 goes on at gc_look).
+next_ch:
+        ld hl,(CH_ADD)
+gc_skip:
+        inc hl
+gc_store:
+        ld (CH_ADD),hl
+        jr gc_look
+
 ; LOAD: the core replaces $0207-$020D while it copies the mounted image to
 ; $4000, then sets carry and leaves through $0203. Without the core the
 ; same bytes return at once.
@@ -90,24 +117,10 @@ load_entry:
 ; Frame engine (placed by the assembler).
         autofloat
 
-; Show one frame. Vertical sync carries the keyboard read; then the top
-; border, the 24 rows and the bottom border, all counted by the line INT.
-; The time is the same whatever is pressed. Returns, in the alternate DE,
-; a fingerprint of the keys down (any one key changing changes it).
-; Interrupts must be off.
-frame:  ld hl,0
-        ld bc,0xfefe
-.row:   in a,(c)                ; the first read starts vertical sync
-        or 0xe0
-        add a,l                 ; a weighted sum: a key down or up always
-                                ; changes it (XOR let two keys cancel)
-        ld l,a
-        add hl,hl
-        rlc b
-        jr c,.row
-        ex de,hl
-        exx                     ; (the line interrupt uses DE: keep it aside)
-        ld hl,(FRAMES)
+; Show one frame, vertical sync already started (by wait_key's keyboard
+; read): the rest of sync, then the top border, the 24 rows and the bottom
+; border, all counted by the line INT. Interrupts must be off.
+frame:  ld hl,(FRAMES)
         inc hl
         ld (FRAMES),hl
         ld b,VSYNC_PAD
@@ -123,19 +136,18 @@ frame:  ld hl,0
 .rows:  ld a,ROW_R
         jr int_go
 
-; Wait for a new key press; the display runs meanwhile. Returns A = key
-; index. A held key does not repeat.
+; Wait for a new key press, showing frames meanwhile. Returns A = key
+; index. A held key does not repeat. The keys are read and decoded at the
+; same moment, so a key that arrives during a frame is new only once, and
+; a frame takes the same time whatever is pressed.
 wait_key:
-        call frame
-        exx                     ; DE = the keys' fingerprint again
-frame_got:                      ; (the fast harness gives DE and comes in here)
-        ld hl,(LAST_K)
-        ld (LAST_K),de
+        call keys_fp            ; its first read starts vertical sync
+        ld de,(LAST_K)
         rst 0x28
-        jr z,wait_key           ; unchanged: same time every frame
+        jr z,key_frame          ; unchanged
+        ld (LAST_K),hl
 key_scan:                       ; the key down: row * 5 + column, +40 with SHIFT
-        ld bc,0xfefe
-        in a,(c)
+        in a,(c)                ; (keys_fp leaves BC $FEFE)
         rra                     ; carry clear: SHIFT is down
         sbc a,a
         cpl
@@ -159,8 +171,25 @@ key_scan:                       ; the key down: row * 5 + column, +40 with SHIFT
         ld a,e
 key_got:                        ; (the fast harness gives A and comes in here)
         inc a
-        jr z,wait_key           ; none: released
+        jr z,key_frame          ; none: released
         dec a
+        ret
+key_frame:
+        call frame
+        jr wait_key
+
+; HL = a fingerprint of the keys down: a weighted sum of the rows, so a key
+; down or up always changes it (XOR let two keys cancel). Leaves BC $FEFE.
+keys_fp:
+        ld hl,0
+        ld bc,0xfefe
+.row:   in a,(c)
+        or 0xe0
+        add a,l
+        ld l,a
+        add hl,hl
+        rlc b
+        jr c,.row
         ret
 
         endautofloat

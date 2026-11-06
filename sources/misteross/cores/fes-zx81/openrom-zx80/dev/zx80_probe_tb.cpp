@@ -80,7 +80,24 @@ void type(Machine &m, const std::string &script) {
         if (w.rfind("WAIT", 0) == 0) { m.run_frames(std::stoul(w.substr(4)), false); continue; }
         unsigned hold = 6;
         if (w.rfind("HOLD", 0) == 0) { size_t c = w.find(':'); hold = std::stoul(w.substr(4, c - 4)); w = w.substr(c + 1); }
-        if (w.rfind("SHIFT+", 0) == 0) m.press({key("SHIFT"), key(w.substr(6))}, hold);
+        if (w.rfind("SHIFT~", 0) == 0) {
+            // As a USB keyboard: SHIFT a frame before the key and after it,
+            // each change half way through a frame.
+            auto [r, c] = key(w.substr(6));
+            auto half = [&] { for (int i = 0; i != 500000; ++i) m.tick(); };
+            half();
+            m.dut.keyboard = 0xfffffffffeull;
+            m.run_frames(1, false);
+            half();
+            m.dut.keyboard = 0xfffffffffeull & ~(1ull << (r * 5 + c));
+            m.run_frames(hold, false);
+            half();
+            m.dut.keyboard = 0xfffffffffeull;
+            m.run_frames(1, false);
+            half();
+            m.dut.keyboard = 0xffffffffffull;
+            m.run_frames(6, false);
+        } else if (w.rfind("SHIFT+", 0) == 0) m.press({key("SHIFT"), key(w.substr(6))}, hold);
         else m.press({key(w)}, hold);
         if (w == "NL") m.run_frames(50, false);
     }

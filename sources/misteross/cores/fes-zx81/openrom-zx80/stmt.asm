@@ -3,33 +3,6 @@
 ; stmt_end: while checking, that ends the check; when running, it returns
 ; so the statement can act. One statement per line, as on the ZX80.
 
-; CH_ADD -> the keyword.
-statement:
-        rst 0x18
-        call k_here
-        sub T_LIST
-        jr c,syntax_err
-        add a,a
-        ld l,a
-        ld h,0
-        ld de,stmt_table
-        add hl,de
-        call peek_word
-        push hl
-                                ; A = what follows the keyword
-; Advance and get the character.
-next_ch:
-        ld hl,(CH_ADD)
-        inc hl
-gc_store:
-        ld (CH_ADD),hl
-gc_look:
-        ld a,(hl)
-        or a
-        ret nz
-        inc hl
-        jr gc_store
-
 stmt_table:
         dw st_list, st_return, st_cls, st_dim, st_print.end, st_for, st_goto
         dw st_poke, st_input, st_rand, st_let, syntax_err, syntax_err

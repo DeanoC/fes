@@ -2,7 +2,9 @@
 # SPDX-License-Identifier: GPL-2.0-or-later
 """Replay the scripts recorded with the Sinclair ZX80 ROM (ref/*.txt) on the
 FES ZX80 RTL running the open ROM, and report differences in program,
-variables, edit line and screen by the same rules as compare.py.
+variables, edit line and screen by the same rules as compare.py. Then type
+a few scripts as a USB keyboard does, SHIFT down before the key and up after
+it (SHIFT~), and require the same result as SHIFT and the key together.
 
   rtl_compare.py PROBE [REF...]   PROBE is the bench build_probe.sh builds
 """
@@ -14,6 +16,10 @@ sys.path.insert(0, sys.path[0])
 from compare import REF, blocks
 
 FILES = ['p1', 'p2', 'p3', 'p4', 'p5', 'pb', 'pc', 'pd', 'pe', 'pf', 'ph', 'pr']
+SHIFT_FIRST = [
+    '1 0 F I SHIFT+L 1 SHIFT+4 5 NL 2 0 O I SHIFT+X NL 3 0 N I NL R NL',
+    '1 0 O SHIFT+Y H I SHIFT+Y NL 2 0 O SHIFT+Y H SHIFT+X SHIFT+Y NL R NL',
+]
 
 
 def parse(text):
@@ -28,12 +34,20 @@ def parse(text):
     return got
 
 
-def check(probe, ref):
-    out = subprocess.run([probe, 'probe', ref['script']], capture_output=True,
-                         text=True, timeout=1800)
+def run(probe, script):
+    out = subprocess.run([probe, 'probe', script], capture_output=True, text=True, timeout=1800)
     if out.returncode:
-        return [f'probe failed: {out.stderr.strip()}']
-    got = parse(out.stdout)
+        raise RuntimeError(f'probe failed: {out.stderr.strip()}')
+    return parse(out.stdout)
+
+
+def check(probe, ref):
+    try:
+        got = run(probe, ref['script'])
+        if 'shift_first' in ref:
+            ref = {**run(probe, ref['shift_first']), 'script': ref['script']}
+    except RuntimeError as exc:
+        return [str(exc)]
     for d in (ref, got):
         d['eline'] = ' '.join(b for b in d.get('eline', '').split() if b != 'b0')
     diffs = []
@@ -51,6 +65,9 @@ def check(probe, ref):
 def main():
     probe = sys.argv[1]
     refs = [(f, ref) for f in (sys.argv[2:] or FILES) for ref in blocks(REF + f + '.txt')]
+    if not sys.argv[2:]:
+        refs += [('shift-first', {'script': s.replace('SHIFT+', 'SHIFT~'), 'shift_first': s})
+                 for s in SHIFT_FIRST]
     with ThreadPoolExecutor(max(1, min(8, os.cpu_count() or 1))) as pool:
         results = list(pool.map(lambda fr: check(probe, fr[1]), refs))
     bad = 0

@@ -2,8 +2,8 @@
 # SPDX-License-Identifier: GPL-2.0-or-later
 """Fast harness for the open ZX80 ROM (not cycle accurate).
 
-The display is not run: a call of `frame` returns at once with E = the key
-index the ROM's own keyboard read would produce, and FRAMES counted. LOAD
+The display is not run: a call of `frame` returns at once with FRAMES
+counted, and `keys_fp` gives a fingerprint of the keys this harness holds. LOAD
 behaves like the FES core's trap. Screens print like the RTL probe.
 """
 import sys
@@ -49,7 +49,7 @@ class Machine:
         self.ticks = 0
         self.m.set_input_callback(lambda port: 0xff)
         self.m.set_output_callback(lambda port, value: None)
-        for name in ('frame', 'key_scan', 'load_entry', 'break_key'):
+        for name in ('frame', 'keys_fp', 'key_scan', 'load_entry', 'break_key'):
             self.m.set_breakpoint(sym[name])
         # RAM above ram_top reads $FF / ignores writes; 1 KiB echoes.
         size = ram_top - 0x4000
@@ -100,13 +100,10 @@ class Machine:
                 self.script[0] = (keys, n - 1)
         else:
             self.pressed = set()
-        k = self.key_index()
-        self.m.de = (k * 257 + 1) & 0xffff      # a fingerprint of the keys
         f = (self.word(0x401e) + 1) & 0xffff
         self.m.memory[0x401e] = f & 0xff
         self.m.memory[0x401f] = f >> 8
         self.ret()
-        self.m.pc = self.sym['frame_got']    # past the exx that fetches it
 
     def run(self, max_ticks=2_000_000_000):
         """Until the key script is used up and the ROM is idle in wait_key."""
@@ -125,6 +122,10 @@ class Machine:
                 self.next_frame()
                 if idle > 4:
                     return
+            elif pc == self.sym['keys_fp']:
+                self.m.hl = (self.key_index() * 257 + 1) & 0xffff   # a fingerprint
+                self.m.bc = 0xfefe
+                self.ret()
             elif pc == self.sym['key_scan']:
                 self.m.a = self.key_index()
                 self.m.pc = self.sym['key_got']
