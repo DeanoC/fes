@@ -1695,8 +1695,11 @@ copy at a later startup. A failed game copy or directory sync does not write
 the marker, so startup can retry the incomplete migration. Startup also checks
 that an existing `/media/fat/games` bind still refers to the current p3 game
 directory. If that source was removed or replaced, it unbinds only a target on
-the FESDATA3 device, restores missing files from the still-visible FAT tree,
-syncs p3, and binds the live directory again.
+the FESDATA3 device, records a fallback marker, restores missing files from the
+still-visible FAT tree, syncs p3, and binds the live directory again. The
+marker remains until the bind succeeds, so a failed repair, target preparation,
+or bind retries missing-file reconciliation at the next startup. A failed p3
+mount also records the marker while FAT remains usable.
 When p3 is absent or its bind is gated, startup records a hidden fallback marker
 beside `/media/fat/games`. If the FAT filesystem cannot create hard links, the
 marker is published with a same-directory rename. On the next successful p3
@@ -1715,7 +1718,9 @@ present there while an update is pending or on trial. The bootstrap keeps
 `boot.json` on its stable `boot_id`, `image_sha256`, and `trial` schema so older
 target agents continue to accept it. A separate `boot-fallback.json` record,
 bound to that boot ID and image hash, stores the fallback so recovery can still
-select it if the release state file is corrupt. Authenticated `GET /v1/update`
+select it if the release state file is corrupt. An unreadable optional sidecar
+does not invalidate a valid `boot.json` ticket; a fallback hash present in the
+ticket remains available. Authenticated `GET /v1/update`
 reports that digest as `fallback_image_sha256`; if the optional sidecar is
 missing on a later normal boot, it recovers the value from durable Good and
 Previous when the ticket names Good. Confirming a trial clears the trial flag

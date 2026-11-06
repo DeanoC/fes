@@ -1171,10 +1171,10 @@ func (s *Store) readBootTicket() (bootTicket, error) {
 		return ticket, errUnreadableBootTicket
 	}
 	fallback, err := ReadBootFallback(filepath.Join(s.root, BootFallbackFilename), ticket.BootID, ticket.ImageSHA256)
-	if err != nil {
-		return ticket, errUnreadableBootTicket
-	}
-	if fallback != "" {
+	// The sidecar is optional recovery metadata. A malformed or unreadable
+	// sidecar must not make a valid boot.json ticket unusable; retain any
+	// fallback hash carried by the ticket itself.
+	if err == nil && fallback != "" {
 		ticket.FallbackImageSHA256 = fallback
 	}
 	return ticket, nil

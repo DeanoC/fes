@@ -870,6 +870,37 @@ func TestTrialTicketKeepsKnownGoodFallbackWhenStateIsCorrupt(t *testing.T) {
 	mustExist(t, factoryImage)
 }
 
+func TestLastFallbackSelectionIgnoresMalformedOptionalSidecar(t *testing.T) {
+	s, _, raw := fixture(t)
+	first := stageDistinct(t, s, raw, 41)
+	confirmReleaseWithTicket(t, s, first.ImageSHA256, "sidecar-first")
+	second := stageDistinct(t, s, raw, 42)
+	confirmReleaseWithTicket(t, s, second.ImageSHA256, "sidecar-second")
+
+	ticketBody, err := json.Marshal(bootTicket{
+		BootID:              "sidecar-recovery",
+		ImageSHA256:         second.ImageSHA256,
+		FallbackImageSHA256: first.ImageSHA256,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(s.root, "boot.json"), append(ticketBody, '\n'), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(s.root, BootFallbackFilename), []byte("{malformed sidecar"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(s.root, "state.json"), []byte("damaged"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	fallback, err := s.LastFallbackSelection("sidecar-recovery")
+	if err != nil || fallback.Manifest.ImageSHA256 != second.ImageSHA256 || fallback.FallbackImageSHA256 != first.ImageSHA256 {
+		t.Fatalf("valid ticket was blocked by malformed optional sidecar: %+v %v", fallback, err)
+	}
+}
+
 func setAge(t *testing.T, path string, age time.Duration) {
 	t.Helper()
 	when := time.Now().Add(age)

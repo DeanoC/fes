@@ -40,9 +40,9 @@ const (
 const gamesMigrationMarker = ".fes-games-migrated-v1"
 
 // gamesFallbackMarker is stored beside the FAT game tree while p3 is
-// unavailable or its bind is gated. It lets the next successful bind copy
-// game files added during that FAT-only interval without repeating migration
-// on every normal startup.
+// unavailable, its bind is gated, or a game-tree repair/bind fails. It lets
+// the next successful bind copy game files added while FAT was visible and
+// retry interrupted repairs without repeating migration on normal startup.
 const gamesFallbackMarker = ".fes-games-fallback-v1"
 
 // DefaultBindNames are the FogCast trees that live on p3 after a successful
@@ -190,6 +190,12 @@ func Prepare(cfg Config) (Result, error) {
 		return mounted, err
 	}
 	if err != nil {
+		// The device was found, but the ext4 mount could not be prepared. FAT
+		// remains the usable game store, so preserve a retry marker for the
+		// next startup just as we do when the partition is absent or gated.
+		if mounted.Device != "" {
+			err = errors.Join(err, markGamesFallback(cfg.LibraryFATRoot))
+		}
 		return mounted, err
 	}
 	device := mounted.Device
@@ -245,6 +251,17 @@ func Prepare(cfg Config) (Result, error) {
 		if err != nil {
 			bindErr = errors.Join(bindErr, err)
 		} else {
+			if repairGames && !fallbackPending {
+				if err := markGamesFallback(cfg.LibraryFATRoot); err != nil {
+					bindErr = errors.Join(bindErr, err)
+					bindGames = false
+				} else {
+					fallbackPending = true
+				}
+			}
+			if !bindGames {
+				return result, bindErr
+			}
 			var gameErr error
 			if repairGames || fallbackPending {
 				gameErr = repairGamesOnce(cfg.LibraryFATRoot, cfg.LibraryDataRoot, marker)
@@ -254,17 +271,19 @@ func Prepare(cfg Config) (Result, error) {
 			if gameErr != nil {
 				bindErr = errors.Join(bindErr, gameErr)
 			} else {
-				if fallbackPending {
-					if err := clearGamesFallback(cfg.LibraryFATRoot); err != nil {
-						bindErr = errors.Join(bindErr, err)
-					}
-				}
 				if err := ensureBindTarget(cfg.LibraryFATRoot); err != nil {
-					bindErr = errors.Join(bindErr, err)
+					bindErr = errors.Join(bindErr, err, markGamesFallback(cfg.LibraryFATRoot))
 				} else if err := cfg.Mounter.Bind(cfg.LibraryDataRoot, cfg.LibraryFATRoot); err != nil {
-					bindErr = errors.Join(bindErr, err)
+					bindErr = errors.Join(bindErr, err, markGamesFallback(cfg.LibraryFATRoot))
 				} else {
 					result.Bound = append(result.Bound, "games")
+					// Keep the marker until the repaired p3 tree is actually
+					// visible at the FAT path. A failed bind must remain retryable.
+					if fallbackPending {
+						if err := clearGamesFallback(cfg.LibraryFATRoot); err != nil {
+							bindErr = errors.Join(bindErr, err)
+						}
+					}
 				}
 			}
 		}

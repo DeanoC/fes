@@ -22,6 +22,9 @@ type recordingMounter struct {
 	volumes      []string
 	binds        []string
 	unbinds      []string
+	mountErr     error
+	bindErr      error
+	bindErrOn    string
 }
 
 func newRecordingMounter() *recordingMounter {
@@ -29,12 +32,18 @@ func newRecordingMounter() *recordingMounter {
 }
 
 func (m *recordingMounter) MountVolume(source, target string) error {
+	if m.mountErr != nil {
+		return m.mountErr
+	}
 	m.mounted[target] = source
 	m.volumes = append(m.volumes, source+" -> "+target)
 	return nil
 }
 
 func (m *recordingMounter) Bind(source, target string) error {
+	if m.bindErr != nil && (m.bindErrOn == "" || m.bindErrOn == target) {
+		return m.bindErr
+	}
 	bound, err := os.Open(source)
 	if err != nil {
 		return err
@@ -157,6 +166,21 @@ func TestPrepareSkipsWhenP3Absent(t *testing.T) {
 	}
 }
 
+func TestPrepareRecordsFallbackAfterP3MountFailure(t *testing.T) {
+	t.Parallel()
+	mounter := newRecordingMounter()
+	mounter.mountErr = errors.New("p3 mount failed")
+	cfg := testConfig(t, mounter)
+
+	result, err := Prepare(cfg)
+	if !errors.Is(err, mounter.mountErr) || result.Device == "" {
+		t.Fatalf("failed mount = %+v %v", result, err)
+	}
+	if pending, err := gamesFallbackPending(cfg.LibraryFATRoot); err != nil || !pending {
+		t.Fatalf("FAT fallback was not recorded after mount failure: pending=%v err=%v", pending, err)
+	}
+}
+
 func TestPrepareCopiesFATGamesAddedWhileP3IsUnavailable(t *testing.T) {
 	initialMounter := newRecordingMounter()
 	cfg := testConfig(t, initialMounter)
@@ -200,6 +224,112 @@ func TestPrepareCopiesFATGamesAddedWhileP3IsUnavailable(t *testing.T) {
 	}
 	if pending, err := gamesFallbackPending(cfg.LibraryFATRoot); err != nil || pending {
 		t.Fatalf("FAT fallback marker was not cleared: pending=%v err=%v", pending, err)
+	}
+}
+
+func TestPrepareRetriesInterruptedGameRepairBeforeBinding(t *testing.T) {
+	t.Parallel()
+	firstMounter := newRecordingMounter()
+	cfg := testConfig(t, firstMounter)
+	firstGame := filepath.Join(cfg.LibraryFATRoot, "a.sms")
+	secondGame := filepath.Join(cfg.LibraryFATRoot, "zdir", "b.sms")
+	if err := os.MkdirAll(filepath.Dir(secondGame), 0o700); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(firstGame, []byte("first"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(secondGame, []byte("second"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := Prepare(cfg); err != nil {
+		t.Fatalf("initial prepare: %v", err)
+	}
+
+	// Replacing the bound source makes Prepare take its repair path. Leave a
+	// destination conflict after one file can be copied to model an interrupted
+	// repair with a completed migration marker and a partial p3 games tree.
+	if err := os.RemoveAll(cfg.LibraryDataRoot); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.MkdirAll(cfg.LibraryDataRoot, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(cfg.LibraryDataRoot, "zdir"), []byte("conflict"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := Prepare(cfg); err == nil {
+		t.Fatal("repair accepted a file where the game directory must be")
+	}
+	if got, err := os.ReadFile(filepath.Join(cfg.LibraryDataRoot, "a.sms")); err != nil || string(got) != "first" {
+		t.Fatalf("partial repair did not copy its first game: %q %v", got, err)
+	}
+	if pending, err := gamesFallbackPending(cfg.LibraryFATRoot); err != nil || !pending {
+		t.Fatalf("interrupted repair did not retain retry marker: pending=%v err=%v", pending, err)
+	}
+
+	if err := os.Remove(filepath.Join(cfg.LibraryDataRoot, "zdir")); err != nil {
+		t.Fatal(err)
+	}
+	secondMounter := newRecordingMounter()
+	t.Cleanup(func() { _ = secondMounter.Close() })
+	cfg.Mounter = secondMounter
+	cfg.Mounted = func(target string) bool { return secondMounter.mounted[target] != "" }
+	cfg.BindMatches = secondMounter.BindMatches
+	result, err := Prepare(cfg)
+	if err != nil || !slices.Contains(result.Bound, "games") {
+		t.Fatalf("retry prepare = %+v %v", result, err)
+	}
+	if got, err := os.ReadFile(filepath.Join(cfg.LibraryDataRoot, "zdir", "b.sms")); err != nil || string(got) != "second" {
+		t.Fatalf("retry did not restore game missing from partial p3 tree: %q %v", got, err)
+	}
+	if pending, err := gamesFallbackPending(cfg.LibraryFATRoot); err != nil || pending {
+		t.Fatalf("successful retry did not clear marker: pending=%v err=%v", pending, err)
+	}
+}
+
+func TestPrepareKeepsFallbackMarkerUntilGameBindSucceeds(t *testing.T) {
+	t.Parallel()
+	absentMounter := newRecordingMounter()
+	cfg := testConfig(t, absentMounter)
+	fatGame := filepath.Join(cfg.LibraryFATRoot, "sms", "kept.sms")
+	if err := os.MkdirAll(filepath.Dir(fatGame), 0o700); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(fatGame, []byte("fat-game"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	cfg.DevicePresent = func(string) bool { return false }
+	if _, err := Prepare(cfg); err != nil {
+		t.Fatal("absent prepare:", err)
+	}
+
+	failedMounter := newRecordingMounter()
+	t.Cleanup(func() { _ = failedMounter.Close() })
+	failedMounter.bindErr = errors.New("game bind failed")
+	failedMounter.bindErrOn = cfg.LibraryFATRoot
+	cfg.DevicePresent = pathExists
+	cfg.Mounter = failedMounter
+	cfg.Mounted = func(target string) bool { return failedMounter.mounted[target] != "" }
+	cfg.BindMatches = failedMounter.BindMatches
+	if _, err := Prepare(cfg); !errors.Is(err, failedMounter.bindErr) {
+		t.Fatalf("failed games bind = %v", err)
+	}
+	if pending, err := gamesFallbackPending(cfg.LibraryFATRoot); err != nil || !pending {
+		t.Fatalf("failed bind cleared FAT fallback marker: pending=%v err=%v", pending, err)
+	}
+
+	workingMounter := newRecordingMounter()
+	t.Cleanup(func() { _ = workingMounter.Close() })
+	cfg.Mounter = workingMounter
+	cfg.Mounted = func(target string) bool { return workingMounter.mounted[target] != "" }
+	cfg.BindMatches = workingMounter.BindMatches
+	result, err := Prepare(cfg)
+	if err != nil || !slices.Contains(result.Bound, "games") {
+		t.Fatalf("retry after bind failure = %+v %v", result, err)
+	}
+	if pending, err := gamesFallbackPending(cfg.LibraryFATRoot); err != nil || pending {
+		t.Fatalf("successful bind did not clear marker: pending=%v err=%v", pending, err)
 	}
 }
 
