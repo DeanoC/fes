@@ -201,26 +201,23 @@ edit_insert:
 ; EDIT: the current line (or the next, or the last) replaces the edit
 ; line: its number in four columns, the cursor, its text.
 edit_copy:
+        call eline_reset
         call find_cur
         call or_last
-        jr c,eline_reset        ; no program: an empty line
-        push hl
-        call eline_reset
-        pop hl
+        ret c                   ; no program: an empty line
         set F_EDIT,(iy+Y_FLAGS)
         call list_number        ; typed in before the cursor
-        res F_EDIT,(iy+Y_FLAGS)
-        call text_len
+        ld de,(P_PTR)
         push de
-        ld hl,(P_PTR)
-        call make_room          ; (keeps BC, HL)
-        pop de
-        ret c
-        push hl
-        ex de,hl
-        ldir
-        pop hl
+.t:     ld a,(hl)               ; then the text
+        inc hl
+        cp C_NL
+        jr z,.e
+        call put_char
+        jr .t
+.e:     pop hl
         ld (P_PTR),hl           ; the cursor stays before the text
+        res F_EDIT,(iy+Y_FLAGS)
         ret
 
 ; HL = the line at HL, or the last line if HL is past the end; carry if
