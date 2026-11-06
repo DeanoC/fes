@@ -499,14 +499,16 @@ module fes_i386_cpu #(
     uop_t       q_uop;              // dc_q.uop, .lea and the address registers, for dc_q.rd_str
     logic       q_lea, q_has_base, q_has_index, q_opsize32;
     logic [2:0] q_base, q_index;
+    logic [31:0] q_lea_disp;
+    logic        q_b_sys;
     fes_i386_decode decode (
         .q, .code32, .stack(dc_stack), .wait_nm(cr0_mp && cr0_ts), .esc_nm(cr0_em || cr0_ts), .pe(cr0_pe), .uop(q_uop), .opsize32(q_opsize32), .lea(q_lea), .lea_early(dc_q.lea_early),
-        .lea_disp(dc_q.lea_disp), .branch(dc_branch), .consumes(dc_q.consumes), .reads_seg(dc_q.reads_seg),
+        .lea_disp(q_lea_disp), .branch(dc_branch), .consumes(dc_q.consumes), .reads_seg(dc_q.reads_seg),
         .seg_index(dc_q.seg_index), .stop(dc_q.stop), .stk(q_stk), .push_eip(dc_q.push_eip),
         .cs_base(dc_q.cs_base), .seq(q_seq), .sel_part(dc_q.sel_part), .far_jmp(dc_q.far_jmp), .far_chk(dc_q.far_chk),
         .far_sel(dc_q.far_sel), .wseg(dc_q.wseg), .upc(dc_q.upc), .direct(q_direct), .xlat(q_xlat),
         .m_seg(dc_q.m_seg), .slot(dc_q.slot), .str_op(dc_q.str_op), .str_rep(dc_q.str_rep), .ecnt(dc_q.ecnt),
-        .b_sys(dc_q.b_sys), .sys_idx(dc_q.sys_idx), .moff(dc_q.moff)
+        .b_sys(q_b_sys), .sys_idx(dc_q.sys_idx), .moff(dc_q.moff)
     );
     // A stack operation's address is ESP, or EBP for LEAVE, with no index:
     // chosen here, so D's operand lookups start from dc's register.
@@ -521,18 +523,49 @@ module fes_i386_cpu #(
     assign dc_q.opsize32 = q_opsize32;
     assign dc_q.lea = q_lea;
     assign dc_q.stk = q_stk;
+    // The early ALU's uops (decoded_t ealu): a one-uop ADD, INC, DEC or MOV
+    // to a GPR, of GPRs and an immediate, with no memory operand, at a 32-bit
+    // operand size; at a 16-bit one, ADD r, imm, INC and DEC. AG's adder
+    // gives its result as base + index + displacement: ADD r, imm is r + imm,
+    // ADD r, r2 is r + r2, INC and DEC are r + 1 and r - 1, MOV r, imm is imm
+    // and MOV r, r2 is r2. At 16 bits the sum wraps as a 16-bit address does
+    // and keeps r's high half, as a 16-bit stack's ESP does. The second
+    // operand of a MOV or ADD is src2, else imm; D's other sources of its b
+    // (a system register, a far selector) leave it out.
+    logic q_ealu, q_add, q_inc, q_dec, q_mov, q_gpr2;
+    assign q_add = q_uop.op == 5'(fes_i386_pkg::ALU_ADD);
+    assign q_inc = q_uop.op == 5'(fes_i386_pkg::ALU_INC);
+    assign q_dec = q_uop.op == 5'(fes_i386_pkg::ALU_DEC);
+    assign q_mov = q_uop.op == 5'(fes_i386_pkg::ALU_MOV);
+    assign q_gpr2 = q_uop.src2.space == fes_i386_pkg::RS_GPR;
+    assign q_ealu = q_seq == fes_i386_pkg::SEQ_NONE && q_uop.cls == fes_i386_pkg::UOP_ALU && !q_lea
+                 && q_uop.mem.kind == fes_i386_pkg::MEM_NONE && q_stk == fes_i386_pkg::STK_NONE
+                 && (q_uop.size == fes_i386_pkg::SIZE_32
+                     || q_uop.size == fes_i386_pkg::SIZE_16 && (q_inc || q_dec || q_add && !q_uop.src2.valid))
+                 && !q_uop.sp_write && !q_uop.seg2 && q_uop.io == 2'd0
+                 && q_uop.dst.valid && q_uop.dst.space == fes_i386_pkg::RS_GPR && !q_b_sys
+                 && (q_mov || (q_add || q_inc || q_dec) && q_uop.src1.valid && q_uop.src1.space == fes_i386_pkg::RS_GPR
+                              && q_uop.src1.index == q_uop.dst.index)
+                 && (q_inc || q_dec || !q_uop.src2.valid || q_gpr2);
+    assign dc_q.ealu = q_ealu;
+    assign dc_q.b_sys = q_b_sys;
+    assign dc_q.lea_disp = !q_ealu ? q_lea_disp : q_inc ? 32'd1 : q_dec ? 32'hffff_ffff
+                         : q_uop.src2.valid ? 32'd0 : q_uop.imm;
     // XLAT's address is BX (or EBX) plus AL, zero-extended (index8).
-    assign q_has_base = q_stk != fes_i386_pkg::STK_NONE || am_has_base && !q_direct || q_xlat;
-    assign q_base = q_stk == fes_i386_pkg::STK_LEAVE ? 3'd5 : q_stk != fes_i386_pkg::STK_NONE ? 3'd4
+    assign q_has_base = q_ealu ? !q_mov || q_uop.src2.valid
+                      : q_stk != fes_i386_pkg::STK_NONE || am_has_base && !q_direct || q_xlat;
+    assign q_base = q_ealu ? (q_mov ? q_uop.src2.index[2:0] : q_uop.src1.index[2:0])
+                  : q_stk == fes_i386_pkg::STK_LEAVE ? 3'd5 : q_stk != fes_i386_pkg::STK_NONE ? 3'd4
                   : q_xlat ? 3'd3 : am_base;
-    assign q_has_index = q_stk == fes_i386_pkg::STK_NONE && (am_has_index && !q_direct || q_xlat);
-    assign q_index = q_xlat ? 3'd0 : am_index;
+    assign q_has_index = q_ealu ? q_add && q_uop.src2.valid
+                       : q_stk == fes_i386_pkg::STK_NONE && (am_has_index && !q_direct || q_xlat);
+    assign q_index = q_ealu ? q_uop.src2.index[2:0] : q_xlat ? 3'd0 : am_index;
     assign dc_q.has_base = q_has_base;
     assign dc_q.base = q_base;
     assign dc_q.has_index = q_has_index;
     assign dc_q.index = q_index;
     assign dc_q.rd_str = fes_i386_pkg::str_reads(q_uop, q_lea, q_has_base, q_base, q_has_index, q_index);
-    assign dc_q.scale = q_stk == fes_i386_pkg::STK_NONE && !q_xlat ? am_scale : 2'd0;
+    assign dc_q.scale = q_stk == fes_i386_pkg::STK_NONE && !q_xlat && !q_ealu ? am_scale : 2'd0;
     assign dc_q.index8 = q_xlat;
     // The ModRM operand's address registers, kept for a later uop when a
     // stack uop holds the fields above (POP r/m).
@@ -871,6 +904,11 @@ module fes_i386_cpu #(
     assign opsize32 = dc.opsize32;
     assign lea = dc.lea;
     assign lea_early = dc.lea_early;
+    // Whether the uop in D gives its result at the end of AG: a 32-bit LEA,
+    // or an early-ALU uop whose operands AG will have (lea_stall clear). An
+    // early-ALU uop that would wait for them never does: it runs at EX, as
+    // it would without the early ALU.
+    logic d_early;
     // A far pointer's selector is past its offset by the operand size,
     // wrapped by address size.
     // The interrupt vector's entry is at vector * 4 (far_sel), its selector
@@ -949,7 +987,7 @@ module fes_i386_cpu #(
     logic [2:0]  a_dist, b_dist, c_dist;
     fes_i386_dops dops (
         .clk, .reset(reset || wb_flush), .a_reg(u.src1.index[2:0]), .b_reg(u.src2.index[2:0]), .d_writes,
-        .d_dst(u.dst.index[2:0]), .d_early(lea && lea_early), .advance(issue), .hold(freeze), .prod_valid, .prod_dst,
+        .d_dst(u.dst.index[2:0]), .d_early, .advance(issue), .hold(freeze), .prod_valid, .prod_dst,
         .prod_early, .prod_sp, .gpr, .stage_value, .wb_sp(wb_s.sp_new), .a(a_val), .b(b_val), .c(c_val), .pend_a(a_pend), .pend_b(b_pend),
         .pend_c(c_pend), .dist_a(a_dist), .dist_b(b_dist), .dist_c(c_dist), .pend_all(d_pend), .value_all(d_value)
     );
@@ -958,15 +996,16 @@ module fes_i386_cpu #(
     logic        lea_stall, sp_wait, d_sp;
     logic [1:0]  late, late_hi;
     logic [31:0] row, last;
-    logic [15:0] sp_hi;
+    logic [15:0] sp_hi, base_hi;
     assign d_sp = cur_valid && u.sp_write;
     fes_i386_dfwd dfwd (
-        .clk, .reset(reset || wb_flush), .has_base(a_addr && dc.has_base), .base(dc.base),
-        .has_index(a_addr && dc.has_index), .index(dc.index), .index8(dc.index8), .scale(dc.scale),
-        .addr32(a_addr32), .d_writes, .d_dst(u.dst.index[2:0]), .d_kind(lea && lea_early ? EARLY : LATE), .d_sp,
+        .clk, .reset(reset || wb_flush), .has_base((a_addr || dc.ealu) && dc.has_base), .base(dc.base),
+        .has_index((a_addr || dc.ealu) && dc.has_index), .index(dc.index), .index8(dc.index8), .scale(dc.scale),
+        .addr32(dc.ealu ? opsize32 : a_addr32), .d_writes, .d_dst(u.dst.index[2:0]), .d_kind(d_early ? EARLY : LATE), .d_sp,
         .advance(issue), .hold(freeze), .prod_valid, .prod_dst, .prod_kind, .prod_sp, .gpr, .stage_value,
-        .wb_sp(wb_s.sp_new), .row, .last, .late, .late_hi, .stall(lea_stall), .sp_hi, .sp_wait
+        .wb_sp(wb_s.sp_new), .row, .last, .late, .late_hi, .stall(lea_stall), .sp_hi, .base_hi, .sp_wait
     );
+    assign d_early = lea && lea_early || dc.ealu && !lea_stall;
 
     // ---- The string engine ----------------------------------------------------
     // While a string instruction or ENTER runs, D keeps copies of the next
@@ -1210,7 +1249,7 @@ module fes_i386_cpu #(
     logic [31:0] ag_row, ag_last, ag_disp, ag_seg_term;
     logic [15:0] ag_seg_hi, ag_seg_hi_plus1;
     logic [1:0]  ag_late, ag_late_hi;
-    logic        ag_stack, ag_ss32, ag_leave, ag_call, ag_o32;
+    logic        ag_stack, ag_ss32, ag_leave, ag_call, ag_o32, ag_e16;
     logic [31:0] ag_sp_disp;
     logic [15:0] ag_sp_hi;
     pipe_t       d_out;
@@ -1299,7 +1338,7 @@ module fes_i386_cpu #(
         d_out.dist_a = dc.x_prev ? 3'd1 : a_dist;
         d_out.dist_b = b_dist;
         d_out.dist_c = c_dist;
-        d_out.early = lea && lea_early;
+        d_out.early = d_early;
         // A system access (mem.system) is checked against its table's limit,
         // at its first read: a real-mode vector's offset against IDTR's
         // limit less 3, a gate's against IDTR's less 7, a descriptor's low
@@ -1400,17 +1439,18 @@ module fes_i386_cpu #(
             // ENTER's last uop: ESP from the engine's offset, its high half
             // the copy's.
             ag_sp_disp <= dc.str_fin ? str_off : st_sp_disp;
-            ag_sp_hi <= dc.str_fin ? r_dst[31:16] : sp_hi;
+            ag_sp_hi <= dc.str_fin ? r_dst[31:16] : dc.ealu ? base_hi : sp_hi;
+            ag_e16 <= dc.ealu && !opsize32;
         end
         if (freeze) begin
             // AG keeps its uop's operands.
-        end else if (addr_use || dc.far_jmp) begin
+        end else if (addr_use || dc.far_jmp || dc.ealu) begin
             // LEA's offset, or a memory operand's address: its segment's
             // base, wrapped like the offset by address size. A far jump's
             // target: the new CS's base, selector * 16, plus the offset,
             // which is already its operand size's; with no base or index
             // looked up, the rows are zero.
-            ag_addr32 <= dc.far_jmp || u.mem.addr32 || dc.uop.mem.system;
+            ag_addr32 <= dc.ealu ? opsize32 : dc.far_jmp || u.mem.addr32 || dc.uop.mem.system;
             ag_row <= row;
             ag_last <= last;
             ag_late <= late;
@@ -1499,7 +1539,9 @@ module fes_i386_cpu #(
         ag_out = capture(ag_s, 3'd4, wb_s.result);
         // A stack operation's result until EX is its new ESP, so ESP forwards
         // from the M1, M2 and EX registers like any early result.
-        ag_out.result = ag_stack ? sp_new : offset;
+        // A 16-bit early-ALU result keeps its register's high half (sp_hi_ag:
+        // the late value's, else D's), as a 16-bit stack's ESP does.
+        ag_out.result = ag_stack ? sp_new : ag_e16 ? {sp_hi_ag, offset[15:0]} : offset;
         ag_out.sp_new = sp_new;
         // D's target for a st2 uop (its store) or a REPE or REPNE element
         // (the next instruction, also its EIP); CALL rel's push's target EIP.

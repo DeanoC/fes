@@ -62,6 +62,7 @@ LOOPS: list[tuple[str, int, int]] = [
     ('store_load_part', 1000, UNROLL),
     ('store_load_alias', 1000, UNROLL),
 ]
+# CPU Phase 4 slice 6, the early ALU: agi_alu 43029 before it.
 # CPU Phase 4 slice 4, the store-to-load wait only on a possible overlap.
 # Before it, with slices 2 and 3: store_load_other 26059, store_load_line
 # 26050, store_load_part 26030, store_load_alias 26059.
@@ -80,7 +81,7 @@ EXPECTED: dict[str, int] = {
     'far_call': 259060,
     'loop': 42250,
     'agi_load': 35039,
-    'agi_alu': 43029,
+    'agi_alu': 22029,
     'store_load_same': 26059,
     'store_load_other': 18059,
     'store_load_line': 18057,

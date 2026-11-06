@@ -215,6 +215,7 @@ module fes_i386_seq (
 
     always_comb begin
         n = d;
+        n.ealu = 1'b0;  // only a one-uop instruction runs early
         n.step = d.step + 3'd1;
         n.upc = d.upc + 8'd1;  // read only by SEQ_UCODE
         // The per-step controls.

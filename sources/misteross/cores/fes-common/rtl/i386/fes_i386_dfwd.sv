@@ -73,6 +73,7 @@ module fes_i386_dfwd (
     // ESP's high half for a 16-bit stack, and whether it is not yet in a
     // register (LEAVE, whose base is EBP, waits for it then).
     output logic [15:0]       sp_hi,
+    output logic [15:0]       base_hi,      // the base's high half, whatever the address size (the early ALU)
     output logic              sp_wait
 );
     localparam logic [1:0] EARLY = 2'd0, LOAD = 2'd1, LATE = 2'd2;
@@ -202,5 +203,6 @@ module fes_i386_dfwd (
     assign late = index_late ? src[index] : base_late ? src[base] : 2'd0;
     assign late_hi = addr32 ? late : 2'd0;
     assign sp_hi = value[4][31:16];
+    assign base_hi = value[base][31:16];
     assign sp_wait = lt[4] || wt[4];
 endmodule
