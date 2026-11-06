@@ -167,11 +167,57 @@ start:
     jnz .store_load_other
     mark 21
 
-    out DONE, al
-    hlt
+    ; The later loops run after the subroutines, so the code above keeps its
+    ; addresses: a JMP takes the three bytes OUT and HLT took.
+    jmp near more
 
 near_return:
     ret
 
 far_return:
     retf
+
+    ; Zeros, as past the program's end before these loops: the wrong path
+    ; after RETF fetches them.
+    times 64 db 0
+
+more:
+    ; 11: a store, then a load from the next dword of its line.
+    mark 22
+    mov bp, 1000
+.store_load_line:
+%rep UNROLL
+    mov [di], ax
+    mov cx, [di + 4]
+%endrep
+    dec bp
+    jnz .store_load_line
+    mark 23
+
+    ; 12: a word store, then a byte load from its second byte.
+    mark 24
+    mov bp, 1000
+.store_load_part:
+%rep UNROLL
+    mov [di], ax
+    mov cl, [di + 1]
+%endrep
+    dec bp
+    jnz .store_load_part
+    mark 25
+
+    ; 13: a store, then a load 4 KiB on, which agrees with it in address bits
+    ; 11:0.
+    mark 26
+    mov bp, 1000
+.store_load_alias:
+%rep UNROLL
+    mov [di], ax
+    mov cx, [di + 0x1000]
+%endrep
+    dec bp
+    jnz .store_load_alias
+    mark 27
+
+    out DONE, al
+    hlt

@@ -1033,11 +1033,68 @@ already completes at commit.
 - A committed store enters the write buffer a cycle after it retires, from
   a commit register, so the buffer's logic never waits on the freeze; the
   commit register counts as part of the buffer for whatever waits on it.
+- A load cannot take bytes from the store directly ahead of it: when the
+  load is in M2 that store is in EX, which computes its data in the same
+  cycle. So D holds a load for one cycle behind a store in AG, and the store
+  is in WB when the load reaches M2. Since Phase 4's slice 4, D holds it only
+  when the two may share a byte ([the store-to-load check](#the-store-to-load-check)).
 - I/O instructions and uncached loads drain the write buffer first. A DMA
   buffer written before the OUT that starts the DMA is then visible to the
   device. A locked operation does not: the bus interface serves DMA in the
   buffer's order, so with DMA the only other master nothing can see the
   difference.
+
+### The store-to-load check
+
+D holds a load behind the store in AG only when a byte of each may be the
+same physical byte (`store_hazard`, `st_near`). As built:
+
+- **What it compares.** Bits 11:0 of the linear address, modulo 4096. Two
+  bytes are the same physical byte only if these bits agree:
+  - A20M masks bit 20 and the reset alias moves bits 31:16.
+  - Paging, when it is built, keeps a page's offset.
+  So linear and physical addresses agree in these bits, and a load and a
+  store through two aliases of a byte (A20M, the reset alias) still wait.
+- **Granularity.** Bytes. The load's bytes are L to L + nl − 1 and the store's
+  S to S + ns − 1, so they may meet when L − S, modulo 4096, is between
+  −(nl − 1) and ns − 1. D checks e = L − S + nl − 1 ≤ nl + ns − 2. Only the
+  bits' agreement counts, so a load 4 KiB from the store waits for nothing it
+  needs.
+- **Where the address comes from.** D works out bits 11:0 from what it hands
+  AG: the segment term, the row, the last operand and the displacement
+  (`d_lo`). A store keeps its value as it enters AG (`ag_slo`).
+  - When a late value from M1, EX or WB replaces the last operand, those bits
+    are not known at D, on either side, and the load waits as before. This
+    covers a load through ESP right after a push, since the push writes ESP
+    from AG.
+  - The sum is 12 bits wide and needs no carry chain from AG's adder. The
+    store's side is a register.
+- **Misaligned and page-crossing accesses.** Each byte counts where it lands.
+  Modulo 4096, an access that crosses a line or a page needs nothing
+  more.
+- **Segment wrap.** A 16-bit offset wraps at 64 KiB, a multiple of 4096, so
+  bits 11:0 of each byte are the same either way. A linear address that
+  wraps at 4 GiB is the same.
+- **Strings and REP.** A string element's offset is the engine's register
+  copy, the displacement in D's sum, so its bits 11:0 are exact. A MOVS
+  element is a load whose store goes with it (st2), never a store D holds a
+  load behind. STOS and INS elements are stores, and the next load is
+  checked against each of them.
+- **Uncached loads, MMIO and I/O.** Nothing changes. Memory type is not known
+  at D, and the check does not need it:
+  - An uncached load reads its device only as the oldest uop. A store in EX
+    or WB makes it replay, whether D held it or not, and the write buffer
+    drains first.
+  - M2's merge takes only bytes that write RAM, so a load never takes a byte
+    from an MMIO store.
+  - IN, OUT, INS and OUTS run at commit after the write buffer drains, and
+    nothing younger issues before they retire.
+- **Forwarding.** None is added. A load that may meet the store waits one
+  cycle, as before, and then M2 merges the store's bytes from the WB
+  register. One that cannot meet it follows directly. M2's merge does not
+  compare it with that store, because no byte can match.
+- **Self-modifying code.** The check is unaffected. It is made at a store's
+  commit, against the lines in flight, whatever loads do.
 
 ### Memory types
 
@@ -1702,11 +1759,20 @@ it runs uncapped.
    - **Gain.** DOOM and 3DBench about 3%; PCPBench spends most of its set-up
      in CALL and RET.
    - **Risk.** Low, about 600 flip-flops.
-4. **Store-to-load wait only on a possible overlap.** D holds a load behind a
-   store in AG only when their addresses may overlap, not behind every store.
-   Lockstep: store and load pairs at every offset and size, across lines and
-   pages, and with MMIO. Gain: Wolfenstein 3D 6–11%, DOOM 1–2%. Risk: low; D
-   and AG have +4.7–5.4 ns.
+4. **Store-to-load wait only on a possible overlap.** Built
+   ([record](../../../docs/validation/2026-11-06-i386-phase4-stld/summary.md)):
+   D holds a load behind a store in AG only when a byte of each agrees in
+   linear address bits 11:0 ([the store-to-load check](#the-store-to-load-check)).
+   - **DOOM.** Kit A's `demo3` goes from 38.7 to 39.2 fps (+1.3%) after slice
+     3, and from 37.5 to 37.9 on slice 2's tree. In the bench window the
+     wait falls from 2.65% of clocks to 0.10%, and AGI takes back about 45%
+     of that.
+   - **Wolfenstein 3D.** No gain. The plan's 6–11% came from the game's wait
+     for a timer tick, whose two loads read the bytes just stored.
+   - **Timing.** The seal meets every analysis, but D's registers lose about
+     4 ns: D's EIP has +1.13 ns, from +5.57. The check's 12-bit sum is on
+     `issue`'s path, so slice 6 has much less room in D and AG than this
+     plan assumed.
 5. **Indirect JMP and CALL.** The BTB keeps the last target. Gain: DOOM about
    1%. Risk: none beyond slice 2.
 6. **Early ALU.**

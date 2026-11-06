@@ -1126,11 +1126,13 @@ module fes_i386_cpu #(
     assign seg_hazard = d_seg_busy[seg_index];
     assign mseg_hazard = d_seg_busy[mseg];
 
-    // A load waits one cycle behind a store, whose data EX computes in the
-    // cycle the load would be in M2. One cycle later the store is in WB,
-    // and M2 takes its bytes from the WB register.
-    logic store_hazard;
-    assign store_hazard = ag_store && mem_reads;
+    // A load waits one cycle behind a store that may write a byte it reads:
+    // EX computes the store's data in the cycle the load would be in M2, and
+    // one cycle later the store is in WB, where M2 takes its bytes from the
+    // WB register. A load whose bytes the store cannot write follows it
+    // directly (st_near, below the D/AG register).
+    logic store_hazard, st_near;
+    assign store_hazard = ag_store && mem_reads && st_near;
 
     // A flag reader waits one cycle behind a shift or rotate, whose flags
     // reach EX's running copy a cycle after the shift leaves EX (fes_i386_ex).
@@ -1212,6 +1214,44 @@ module fes_i386_cpu #(
     logic [31:0] ag_sp_disp;
     logic [15:0] ag_sp_hi;
     pipe_t       d_out;
+    // A string engine uop has no address registers: its offset is the
+    // displacement. A bit test's displacement is T1 (disp_t1, far_off with
+    // far_t). The segment term: a system access's table base (GDTR's for a
+    // descriptor, or LDTR's for a TI=1 selector; IDTR's for a real-mode
+    // vector or a gate), with no wrap; a protected-mode far jump's
+    // descriptor base, from T2 and T3.
+    logic [31:0] d_mdisp, d_mseg_term;
+    assign d_mdisp = dc.far_jmp || dc.disp_t1 ? far_off : dc.str_a || dc.str_b || dc.str_fin ? str_off
+                   : stk != fes_i386_pkg::STK_NONE ? st_disp : lea_disp;
+    assign d_mseg_term = dc.far_jmp ? (dc.uop.seg2_pm ? {t3[31:24], t3[7:0], t2[31:16]} : {12'd0, far_sel, 4'd0})
+                       : lea ? 32'd0 : dc.uop.mem.system ? (desc_t0 ? (t0[2] ? ldtr_base : gdtr_base) : idtr_base)
+                       : u.mem.addr32 ? seg_base[mseg] : {16'b0, seg_base[mseg][15:0]};
+
+    // The store-to-load check (store_hazard). Two bytes are the same physical
+    // byte only if their linear addresses agree in bits 11:0: A20M masks bit
+    // 20, the reset alias moves bits 31:16, and a page keeps its offset. A
+    // memory operand's linear address is AG's sum of its segment term, row,
+    // last and displacement, so D works out its bits 11:0 from the operands
+    // it hands AG (d_lo), unless a late value from M1, EX or WB replaces
+    // last. A store keeps its own in AG (ag_slo). The load at D may then
+    // meet the store in AG only if L + i == S + k (mod 4096) for one of its
+    // bytes i < nl and one of the store's k < ns: L - S is in
+    // [-(nl - 1), ns - 1], so e = L - S + nl - 1 is at most nl + ns - 2.
+    // Modulo 4096, a misaligned access, one that crosses a line or a page,
+    // and an offset that wraps at 64 KiB (a multiple of 4096) all count each
+    // byte where it lands. Unknown bits 11:0, on either side, wait.
+    logic [11:0] d_lo, ag_slo, st_e;
+    logic [3:0]  ag_sbytes, st_span;
+    logic        ag_slo_ok;
+    assign d_lo = d_mseg_term[11:0] + row[11:0] + last[11:0] + d_mdisp[11:0];
+    assign st_e = d_lo - ag_slo + 12'(dc.uop.mem.bytes) - 12'd1;
+    assign st_span = dc.uop.mem.bytes + ag_sbytes - 4'd2;
+    assign st_near = late != 2'd0 || !ag_slo_ok || st_e[11:4] == 8'd0 && st_e[3:0] <= st_span;
+    always_ff @(posedge clk) if (!freeze) begin
+        ag_slo <= d_lo;
+        ag_slo_ok <= late == 2'd0;
+        ag_sbytes <= dc.uop.mem.bytes;
+    end
     // A system register as src2's value (decoded_t b_sys). LAR's kin take
     // theirs in M1, from the staged descriptor. The x87 pointers' words are
     // the 387's layouts' ("x87 pointers"), by CR0.PE; a 16-bit layout
@@ -1375,18 +1415,8 @@ module fes_i386_cpu #(
             ag_last <= last;
             ag_late <= late;
             ag_late_hi <= late_hi;
-            // A string engine uop has no address registers: its offset is
-            // the displacement. A bit test's displacement is T1 (disp_t1,
-            // far_off with far_t).
-            ag_disp <= dc.far_jmp || dc.disp_t1 ? far_off : dc.str_a || dc.str_b || dc.str_fin ? str_off
-                     : stk != fes_i386_pkg::STK_NONE ? st_disp : lea_disp;
-            // A system access: its table's base (GDTR's for a descriptor, or
-            // LDTR's for a TI=1 selector; IDTR's for a real-mode vector or a
-            // gate), with no wrap. A protected-mode far jump: the
-            // descriptor's base, from T2 and T3.
-            ag_seg_term <= dc.far_jmp ? (dc.uop.seg2_pm ? {t3[31:24], t3[7:0], t2[31:16]} : {12'd0, far_sel, 4'd0})
-                         : lea ? 32'd0 : dc.uop.mem.system ? (desc_t0 ? (t0[2] ? ldtr_base : gdtr_base) : idtr_base)
-                         : u.mem.addr32 ? seg_base[mseg] : {16'b0, seg_base[mseg][15:0]};
+            ag_disp <= d_mdisp;  // and the segment term: see d_mdisp
+            ag_seg_term <= d_mseg_term;
             ag_seg_hi <= lea || dc.uop.mem.system ? 16'd0 : seg_base[mseg][31:16];
             ag_seg_hi_plus1 <= lea || dc.uop.mem.system ? 16'd0 : seg_hi1[mseg];
         end else begin

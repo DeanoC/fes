@@ -58,7 +58,13 @@ LOOPS: list[tuple[str, int, int]] = [
     ('agi_alu', 1000, UNROLL),
     ('store_load_same', 1000, UNROLL),
     ('store_load_other', 1000, UNROLL),
+    ('store_load_line', 1000, UNROLL),
+    ('store_load_part', 1000, UNROLL),
+    ('store_load_alias', 1000, UNROLL),
 ]
+# CPU Phase 4 slice 4, the store-to-load wait only on a possible overlap.
+# Before it, with slices 2 and 3: store_load_other 26059, store_load_line
+# 26050, store_load_part 26030, store_load_alias 26059.
 # CPU Phase 4 slice 3, the return stack (near RET). Slice 2's BTB, before
 # it: call_ret 180137, call_reg 236029, call_mem 236059 and loop 42270; the
 # other loops are unchanged. Slice 1's baseline, before the BTB: jcc_loop
@@ -76,7 +82,10 @@ EXPECTED: dict[str, int] = {
     'agi_load': 35039,
     'agi_alu': 43029,
     'store_load_same': 26059,
-    'store_load_other': 26059,
+    'store_load_other': 18059,
+    'store_load_line': 18057,
+    'store_load_part': 26030,
+    'store_load_alias': 26059,
 }
 
 
