@@ -84,6 +84,7 @@ fes_nano_ram_fault:
     fes_ram_uart_text fes_nano_ram_fault_r3, 1
     fes_ram_uart_hex x23
     fes_ram_uart_text fes_nano_ram_fault_newline, 1
+#include "nano_firmware_status.inc"
     b FES_RAM_FAULT_PARK
 .Lfes_ram_fault_park:
     wfe

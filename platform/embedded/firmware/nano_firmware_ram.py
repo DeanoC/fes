@@ -1,11 +1,15 @@
 """Private selected OCRAM layout for the matched SPL/BL31/native cold chain."""
 import hashlib
+import importlib.util
 import json
 import re
 from pathlib import Path
 import struct
 
 HERE = Path(__file__).resolve().parent
+_status_spec = importlib.util.spec_from_file_location('fes_early_fault_status', HERE.parent/'nano/fault_status.py')
+fault_status = importlib.util.module_from_spec(_status_spec)
+_status_spec.loader.exec_module(fault_status)
 BASE, LIMIT, STACK_END = 0x50000, 0x60000, 0x58000
 COOKIE = 0x464e52414d000001
 ENTRY = 'bl31/aarch64/bl31_entrypoint.S'
@@ -199,6 +203,7 @@ def install(source, profile):
         return None
     chain = profile['chain_sha256']
     include = source / INCLUDE
+    (include / 'nano_firmware_status.inc').write_text(fault_status.assembly())
     (include / 'nano_vendor_entry.inc').write_text(vendor_source((source / COMMON).read_text()))
     (source / ENTRY).write_text(entry_source((source / ENTRY).read_text(), chain))
     (include / 'fes_nano_ram_entry.h').write_text(assembly_header(chain))
@@ -214,7 +219,7 @@ def install(source, profile):
     c = source / 'plat/intel/soc/common/nano_cold_platform.c'
     c.write_text('#include "fes_nano_ram_entry.h"\n#include "nano_firmware_ram.h"\n' +
                  entry_assertions() + c.read_text())
-    names = [ENTRY, COMMON, PLATFORM, INCLUDE+'/fes_nano_ram_entry.h', INCLUDE+'/nano_vendor_entry.inc', INCLUDE+'/nano_firmware_entry.inc', INCLUDE+'/nano_firmware_fault.inc',
+    names = [ENTRY, COMMON, PLATFORM, INCLUDE+'/fes_nano_ram_entry.h', INCLUDE+'/nano_vendor_entry.inc', INCLUDE+'/nano_firmware_entry.inc', INCLUDE+'/nano_firmware_fault.inc', INCLUDE+'/nano_firmware_status.inc',
              INCLUDE+'/nano_firmware_ram.h', 'plat/intel/soc/common/nano_cold_platform.c']
     return dict(contract=dict(CONTRACT), chain_sha256=chain,
                 sources={name:hashlib.sha256((source/name).read_bytes()).hexdigest() for name in names})

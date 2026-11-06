@@ -54,6 +54,17 @@ record and rejects boot. These diagnostics preserve the vendor cache operations;
 they neither retry nor establish RAM ownership or writability. The tables use
 the vendor vector section, preserving its required BL31 entry ordering.
 
+After that original exception line, a fixed post-fault inventory reads seven
+architectural registers and 32 MMIO observations from the retained CS/R1 revB0
+RC28 map. The generated code marks each read before issuing it, emits returned
+values in order, and performs no status clear, selector write, initialization,
+RAM access or retry. CCU status brackets its location reads. Optional RAS error
+records are not accessed; MIDR/PFR0 are retained before interpreting any optional
+syndrome. The existing park-only vectors contain a failed diagnostic access.
+The host preserves bounded partial progress and requires every pair plus END
+for inventory completion. That means reads returned, not that a device is healthy
+or that startup/ownership succeeded; the original exception remains terminal.
+
 Only that selected profile may accept one non-executable, zero-file-byte NOBITS
 load segment in the fixed range. Packaging independently checks the actual ELF
 symbols, exact stack/BSS boundaries, initialized DDR latch and compiled chain
