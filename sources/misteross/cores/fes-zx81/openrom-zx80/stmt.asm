@@ -320,9 +320,7 @@ st_input:
         set F_INPUT,(iy+Y_FLAGS)
         call edit_line
         res F_INPUT,(iy+Y_FLAGS)
-        ld de,(DF_EA)           ; the line leaves the screen
-        ld hl,(DF_END)
-        call reclaim_de
+        call out_trim           ; the line leaves the screen
         ld hl,(E_LINE)
         ld (CH_ADD),hl
         call expr

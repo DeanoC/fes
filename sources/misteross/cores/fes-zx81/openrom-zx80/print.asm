@@ -174,8 +174,8 @@ cls:    ld hl,(D_FILE)
         inc hl
         ld (DF_END),hl
         ld (iy+Y_DF_SZ),2
-home:   ld (iy+Y_COL),33
-        ld (iy+Y_LINE),23
+home:   ld hl,0x1721            ; the top row, empty
+        ld (S_POSN),hl
         ret
 
 ; Close the open row and the rows below it: the display file is whole.

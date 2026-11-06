@@ -47,6 +47,7 @@ eline_reset:
 edit_line:
 .draw:  call check_eline
         call display
+        ld (iy+Y_FLAGX),0
 .key:   call wait_key
         call decode_key
         cp C_NL
@@ -223,13 +224,13 @@ check_eline:
         ld (ERR_SP),sp
         ld hl,0
         ld (X_PTR),hl
-        res F_KMODE,(iy+Y_FLAGS)
-        set F_CHECK,(iy+Y_FLAGS)
+        ld hl,FLAGS
+        res F_KMODE,(hl)
+        set F_CHECK,(hl)
         ld hl,(E_LINE)
-        ld (CH_ADD),hl
+        call gc_store
         bit F_INPUT,(iy+Y_FLAGS)
         jr nz,.input
-        rst 0x18
         call k_here
         call is_digit
         jr nc,.stmt
@@ -240,8 +241,7 @@ check_eline:
         add hl,de
         pop hl
         jr c,syntax_err
-        ld (CH_ADD),hl
-        rst 0x18
+        call gc_store
         call k_here
 .stmt:  cp C_NL                 ; empty, or a number alone (deletes it)
         call nz,statement
@@ -286,49 +286,38 @@ edit_display:
         ld (DF_EA),hl
         ld a,(iy+Y_DF_SZ)
         sub 2
-        ld (iy+Y_LINE),a
-        ld (iy+Y_COL),33
+        ld h,a
+        ld l,33
+        ld (S_POSN),hl
         set X_LOWER,(iy+Y_FLAGX)
         call print_eline
         call close_all
-        ld (iy+Y_FLAGX),0
-        call target             ; the current line (or the one before)
-        ret c
-        ld hl,(DEST)
-        and a
-        sbc hl,bc
-        jr c,.move              ; below the listing
-        ld hl,(S_TOP)
-        dec hl
-        and a
-        sbc hl,bc
-        ret c                   ; shown
-.move:  ld hl,(S_TOP)           ; elsewhere: it starts the listing
-        and a
-        sbc hl,bc
-        ret z                   ; too long to show whole
-        ld (S_TOP),bc
-        jr edit_display
-
-; BC = the current line's number, or the one before it; carry if neither.
-target: ld bc,(E_PPC)
+        ld bc,(E_PPC)           ; DE = the current line (or the one before)
         call find_line
         jr z,.got
         call line_before
         ret c
         ex de,hl
-.got:   ld b,(hl)
+.got:   ld d,(hl)
         inc hl
-        ld c,(hl)
-        and a
-        ret
+        ld e,(hl)
+        ld hl,(DEST)
+        rst 0x28
+        ld hl,(S_TOP)
+        jr c,.move              ; below the listing
+        dec hl
+        rst 0x28
+        ret c                   ; shown
+        inc hl
+.move:  rst 0x28                ; elsewhere: it starts the listing
+        ret z                   ; too long to show whole
+        ld (S_TOP),de
+        jr edit_display
 
 ; INPUT: the program's output (up to DF_EA) stays; a blank row, then the
 ; line, follow it.
 input_display:
-        ld de,(DF_EA)
-        ld hl,(DF_END)
-        call reclaim_de
+        call out_trim
         ld hl,(S_POSN)
         push hl
         ld (iy+Y_FLAGX),(1 << X_LOWER) | (1 << X_DROP)
@@ -338,8 +327,13 @@ input_display:
         call close_all
         pop hl
         ld (S_POSN),hl
-        ld (iy+Y_FLAGX),0
         ret
+
+; Remove the display file after DF_EA (an INPUT line).
+out_trim:
+        ld de,(DF_EA)
+        ld hl,(DF_END)
+        jr reclaim_de
 
 ; The edit line with its cursor (K or L) and, before the first wrong
 ; symbol, an inverse S.
