@@ -28,11 +28,9 @@ expr_b: push bc
         cp T_LT - T_MINUS + 1
         jr nc,.got
         ld hl,op_prio
-        add a,l
-        ld l,a
-        adc a,h
-        sub l
-        ld h,a
+        ld c,a
+        ld b,0
+        add hl,bc
         ld c,(hl)
 .got:   rst 0x18                ; A = the operator again
         pop hl
@@ -68,17 +66,17 @@ apply:  ld a,(FLAGS)
         jr nc,compare
         call need_num
         call run_only
-        cp T_PLUS
-        jr z,.add
-        cp T_MINUS
-        jr z,.sub
-        cp T_STAR
-        jr z,mul
-        cp T_SLASH
-        jr z,div
         cp T_POWER
         jr z,power
-        cp T_AND
+        sub T_MINUS
+        jr z,.sub
+        dec a
+        jr z,.add
+        dec a
+        jr z,mul
+        dec a
+        jr z,div
+        dec a                   ; AND, else OR
         ld a,h
         jr z,.and
         or d
@@ -96,11 +94,10 @@ apply:  ld a,(FLAGS)
 .sub:   ex de,hl
         and a
         sbc hl,de
-        ret po
-        jr overflow
+        jr .v
 .add:   and a
         adc hl,de
-        ret po
+.v:     ret po
         jr overflow
 
 power:  bit 7,h
@@ -126,7 +123,7 @@ power:  bit 7,h
 compare:
         ld a,(FLAGS)
         call run_num
-        ld b,0                  ; 0 equal, 1 greater, 2 less
+        ld b,T_EQ               ; the relation that holds: = > <
         and 1 << F_NUM
         jr z,.sl
         ex de,hl
@@ -136,30 +133,28 @@ compare:
         ld a,h
         jp po,.nov
         cpl
-.nov:   inc b
-        rla
-        jr nc,.rel
-        jr .lt
-.sl:    ld a,(hl)
-        cp C_QUOTE
-        jr z,.rend
-        ld a,(de)
-        cp C_QUOTE
-        jr z,.lt                ; the left one ended first
-        cp (hl)
+.nov:   rla
         jr c,.lt
-        jr nz,.gt
+.gt:    inc b
+        jr .rel
+.sl:    ld a,(de)
+        cp (hl)
+        jr nz,.diff
+        dec a                   ; both at their closing quotes
+        jr z,.rel
         inc de
         inc hl
         jr .sl
-.rend:  ld a,(de)
-        cp C_QUOTE
-        jr z,.rel
-.gt:    ld b,1
-        jr .rel
-.lt:    ld b,2
+.diff:  dec a
+        jr z,.lt                ; the left one ended first
+        ld a,(hl)
+        dec a
+        jr z,.gt                ; the right one ended first
+        ld a,(de)
+        cp (hl)
+        jr nc,.gt
+.lt:    ld b,T_LT
 .rel:   ld a,c
-        sub T_EQ                ; = 0, > 1, < 2
         cp b
         ld hl,0
         ret nz
@@ -185,16 +180,13 @@ div:    ld a,h
         pop bc
 ; Magnitude HL with sign B bit 7; overflow if it does not fit.
 signed: bit 7,b
-        jr z,.pos
-        call neg_hl
+        call nz,neg_hl
         ld a,h
         or l
         ret z
-        bit 7,h
-        ret nz
-        jr overflow
-.pos:   bit 7,h
-        ret z
+        ld a,h
+        xor b
+        ret p
         jr overflow
 
 ; DE, HL made non-negative; B bit 7 = the sign of their product.
@@ -278,18 +270,9 @@ operand:
         call run_only
         cp T_NOT
         jr nz,neg_chk
-        ld a,h
-        cpl
-        ld h,a
-        ld a,l
-        cpl
-        ld l,a
-        ret
-.paren: call next_ch
-        call expr
-        rst 0x30
-        db T_RPAREN
-        ret
+        inc hl                  ; NOT x = -(x + 1)
+        jr neg_hl
+.paren: jr subscript.in
 .num:   ld hl,(CH_ADD)
         call parse_uint
         jr c,syntax_err         ; 32768 or more
@@ -419,9 +402,9 @@ neg_chk:
         jr neg_hl
 fn_code:
         ld a,(hl)
-        ld hl,0
-        cp C_QUOTE
-        ret z
+        dec a
+        jr nz,fn_peek
+        ld h,a                  ; "": 0
         ld l,a
         ret
 fn_peek:
@@ -667,10 +650,7 @@ store:  bit F_NUM,(iy+Y_FLAGS)
         or e
         jr z,.new
         ex de,hl
-        ld (hl),e
-        inc hl
-        ld (hl),d
-        ret
+        jr put_de
 .new:   push hl
         ld hl,(DEST)
         call name_end
@@ -721,14 +701,8 @@ store_str:
         call new_var
         pop bc
         pop de
-        push hl
-        ld hl,(DEST)
-        ld a,(hl)
-        pop hl
-        and 0x1f
-        or 0x80
-        ld (hl),a
-        inc hl
+        ld a,0x80
+        call letter_byte
         ex de,hl
         dec bc
         ldir                    ; the text and its quote
@@ -742,9 +716,4 @@ del_var:                        ; remove the record whose type byte is at HL-1
         ld e,l
         call var_next
         ex de,hl
-        and a
-        sbc hl,de
-        ld b,h
-        ld c,l
-        ex de,hl
-        jr reclaim
+        jr reclaim_de
