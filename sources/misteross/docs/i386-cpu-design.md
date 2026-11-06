@@ -1686,11 +1686,21 @@ it runs uncapped.
    - **Risk.** About 6–8 M10K blocks and 500 ALMs. F1's address select gains an
      input, and the front end has +2.4–3.2 ns. This slice also updates speed
      control's reach.
-3. **Return stack.** Sixteen entries in flip-flops. CALL pushes at F2 on a BTB
-   hit of type call, RET pops, and WB repairs it on a mispredict. Lockstep: a
-   return to a modified address, unbalanced CALL and RET, and stack switches.
-   Gain: DOOM and 3DBench about 3%; PCPBench spends most of its set-up in
-   CALL and RET. Risk: low, about 600 flip-flops.
+3. **Return stack.** Built
+   ([record](../../../docs/validation/2026-11-06-i386-phase4-ras/summary.md)):
+   Kit A's DOOM `demo3` goes from 37.5 to 38.7 fps and 3DBench from 71.4 to
+   76.9. In DOOM's bench window, a near RET costs 2.55 clocks where it cost
+   12.15, 94.1% of near RETs retire without a redirect, and CPI falls from
+   1.81 to 1.74. [Prediction](#prediction) describes the stack as built. It
+   differs from the plan below in its repair: WB sets the pointer back on
+   every redirect, and EX, not the fetch check, checks the target.
+   - **Plan.** Sixteen entries in flip-flops. CALL pushes at F2 on a BTB hit
+     of type call, RET pops, and WB repairs it on a mispredict.
+   - **Lockstep.** A return to a modified address, unbalanced CALL and RET,
+     and stack switches.
+   - **Gain.** DOOM and 3DBench about 3%; PCPBench spends most of its set-up
+     in CALL and RET.
+   - **Risk.** Low, about 600 flip-flops.
 4. **Store-to-load wait only on a possible overlap.** D holds a load behind a
    store in AG only when their addresses may overlap, not behind every store.
    Lockstep: store and load pairs at every offset and size, across lines and
