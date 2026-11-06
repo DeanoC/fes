@@ -256,8 +256,11 @@ def timing_evidence(directory, *, async_review=None, audio_review=None, revision
         raise BuildError('missing or inconsistent DE25 signoff summary')
     failed, total = map(int, next(iter(declared)))
     rows = re.findall(r'^; ([A-Z]+-\d+) - [^;]+; (Critical|High|Medium|Low|Info)\s*;\s*(\d+)\s*;\s*(\d+)\s*;', drc, re.M)
-    if total != 85 or len(rows) != total or len({r[0] for r in rows}) != total or failed != sum(int(r[2]) > 0 for r in rows):
+    expected_total = 85 if revision == 'golden_top' else 88
+    if total != expected_total or len(rows) != total or len({r[0] for r in rows}) != total or failed != sum(int(r[2]) > 0 for r in rows):
         raise BuildError('incomplete or inconsistent DE25 signoff rule inventory')
+    if revision != 'golden_top' and not {'BBD-60000', 'BBD-60001', 'BBD-60002'} <= {r[0] for r in rows}:
+        raise BuildError('missing PR partition-boundary signoff rules')
     details = {}
     for section in re.split(r'(?m)^Status:\s*', drc)[1:]:
         match = re.search(r'^(PASS|FAIL)\s+Severity:\s*(Critical|High|Medium|Low|Info)\s+Number of violations:\s*(\d+)', section)

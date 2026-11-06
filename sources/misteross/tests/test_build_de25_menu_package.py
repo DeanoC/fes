@@ -35,7 +35,8 @@ class DE25MenuPackageTests(unittest.TestCase):
             (self.reports / name).write_text(self.fixture[name] if value is None else value)
 
     def passing_signoff(self):
-        text = self.fixture['golden_top.tq.drc.signoff.rpt'].replace('4 of 85 Rules Failed', '0 of 85 Rules Failed')
+        text = re.sub(r'4 of (85|88) Rules Failed', r'0 of \1 Rules Failed',
+                      self.fixture['golden_top.tq.drc.signoff.rpt'])
         text = re.sub(r'(?m)^(; [A-Z]+-\d+ - [^;]+; (?:Critical|High|Medium|Low|Info)\s*;)\s*\d+\s*;', r'\1 0 ;', text)
         text = re.sub(r'(?m)^Status:\s*FAIL', 'Status:\t\tPASS', text)
         return re.sub(r'(?m)^Number of violations:\s*\d+', 'Number of violations:\t0', text)
@@ -59,6 +60,8 @@ class DE25MenuPackageTests(unittest.TestCase):
             producer.timing_evidence(self.root)
 
     def test_pr_revision_reports_are_independent_and_refuse_inherited_reviews(self):
+        self.fixture = json.loads(gzip.decompress((Path(__file__).parent /
+            'fixtures/de25_static_timing.json.gz').read_bytes()))
         for revision in ('base', 'persona_a', 'persona_b'):
             (self.reports / (revision + '.tq.drc.signoff.rpt')).write_text(self.passing_signoff())
             (self.reports / (revision + '.sta.summary')).write_text(self.fixture['golden_top.sta.summary'])
@@ -76,6 +79,10 @@ class DE25MenuPackageTests(unittest.TestCase):
         self.assertTrue(producer.timing_evidence(self.root, revision='base')['package_timing_admission'])
         with self.assertRaisesRegex(producer.BuildError, 'unknown DE25 timing revision'):
             producer.timing_evidence(self.root, revision='../base')
+        missing = self.passing_signoff().replace('BBD-60000', 'BBD-69999')
+        (self.reports / 'base.tq.drc.signoff.rpt').write_text(missing)
+        with self.assertRaisesRegex(producer.BuildError, 'missing PR partition-boundary'):
+            producer.timing_evidence(self.root, revision='base')
 
     def test_waived_findings_cannot_admit_a_package(self):
         text = self.passing_signoff()
