@@ -44,10 +44,7 @@ opt_num:
 
 ; A one-letter name; DEST = it, A = the character after it.
 one_letter:
-        rst 0x18
-        call is_letter
-        jr nc,syntax_err
-        ld (DEST),hl
+        call name_at
         inc hl
         ld a,(hl)
         call is_alnum

@@ -22,16 +22,16 @@ init:   ld a,font >> 8
         cp (iy+0)
         jr nz,.ram              ; not an echo of $4000
 .top:   ld sp,hl
-        ld hl,GOSUB_END
-        push hl                 ; RETURN stops here
-        ld hl,report
-        push hl                 ; reports unwind to this slot
         ld hl,0x4000
         ld b,PROG & 0xff
         xor a
 .clr:   ld (hl),a
         inc hl
         djnz .clr
+        ld c,a
+        push bc                 ; GOSUB_END: RETURN stops here
+        ld de,report
+        push de                 ; reports unwind to this slot
         ld (ERR_SP),sp
         ld (hl),0x80            ; no variables
         ld (VARS),hl
@@ -73,7 +73,7 @@ make_room:
         ret
 
 ; Carry if BC more bytes would not fit below the stack: with X_DROP set;
-; otherwise it is report 4.
+; otherwise it is report 4. Keeps A and BC.
 test_room:
         ld hl,-MARGIN
         add hl,sp
@@ -276,10 +276,9 @@ parse_uint:
 
 ; RST 30, continued: A = the wanted token, the caller's HL on the stack.
 expect_2:
-        push af
+        ld b,a
         rst 0x18
-        pop hl
-        cp h
+        cp b
         jr nz,syntax_err
         call next_ch
         pop hl

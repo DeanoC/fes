@@ -80,19 +80,13 @@ next_row:
 append: and a
         bit X_MEASURE,(iy+Y_FLAGX)
         ret nz
-        push af
         ld bc,1
-        call test_room
-        jr c,.no
-        pop af
+        call test_room          ; (keeps A)
+        jr c,next_row.full
         ld hl,(DF_END)          ; nothing follows: only DF_END moves
         ld (hl),a
         inc hl
         ld (DF_END),hl
-        ret
-.no:    pop af
-        set X_FULL,(iy+Y_FLAGX)
-        scf
         ret
 
 ; Token A. Keywords and THEN, TO, NOT, AND, OR have a space each side; the

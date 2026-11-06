@@ -631,13 +631,18 @@ new_var:
 
 ; A destination for LET and INPUT: DEST = its name; DE as var_ref, 0 if
 ; it is not made yet.
-dest:   rst 0x18
-        call is_letter
-        jr nc,syntax_err
-        ld (DEST),hl
+dest:   call name_at
         call var_ref
         ret nc
         ld de,0
+        ret
+
+; A name must start here: DEST = it (HL), A = its first letter.
+name_at:
+        rst 0x18
+        call is_letter
+        jr nc,syntax_err
+        ld (DEST),hl
         ret
 
 ; Assign value HL to the destination DE found by dest.
