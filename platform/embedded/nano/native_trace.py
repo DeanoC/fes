@@ -300,7 +300,8 @@ def decode_native_boot(data, build_id, owner_seed, *, storage=None, package=None
     report = {'records': [], 'errors': [], 'loader_ready': False, 'complete': False,
               'last_checkpoint': None, 'core_load_acceptance': False,
               'firmware_ram_trace': {'records': [], 'complete': False, 'valid': True,
-                                     'vendor_records': [], 'vendor_complete': False, 'exceptions': [], 'status_probe': fault_status.state()}}
+                                     'vendor_records': [], 'vendor_complete': False, 'exceptions': [],
+                                     'status_probe': fault_status.state(), 'ras_probe': fault_status.ras_state()}}
     if len(data) > MAX_BYTES:
         report['errors'].append('capture exceeds byte bound')
         return report
@@ -319,6 +320,14 @@ def decode_native_boot(data, build_id, owner_seed, *, storage=None, package=None
             report['errors'].append(f'failure marker at line {number}')
         if line.startswith('FES_NANO_RAM'):
             ram=report['firmware_ram_trace'];rows=ram['records']
+            if line.startswith('FES_NANO_RAM RAS'):
+                inventory=ram['status_probe']
+                error=fault_status.observe_ras(ram['ras_probe'],line,number,
+                    exception=len(ram['exceptions'])==1,
+                    inventory_complete=inventory['complete'] and inventory['valid'])
+                if error:report['errors'].append(error)
+                ram['valid']=False;ram['vendor_complete']=False
+                continue
             if line.startswith('FES_NANO_RAM PROBE'):
                 error=fault_status.observe(ram['status_probe'],line,number,exception=len(ram['exceptions'])==1)
                 if error:report['errors'].append(error)

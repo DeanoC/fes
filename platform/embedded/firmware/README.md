@@ -58,12 +58,24 @@ After that original exception line, a fixed post-fault inventory reads seven
 architectural registers and 32 MMIO observations from the retained CS/R1 revB0
 RC28 map. The generated code marks each read before issuing it, emits returned
 values in order, and performs no status clear, selector write, initialization,
-RAM access or retry. CCU status brackets its location reads. Optional RAS error
-records are not accessed; MIDR/PFR0 are retained before interpreting any optional
-syndrome. The existing park-only vectors contain a failed diagnostic access.
+RAM access or retry. CCU status brackets its location reads. The existing
+park-only vectors contain a failed diagnostic access.
 The host preserves bounded partial progress and requires every pair plus END
 for inventory completion. That means reads returned, not that a device is healthy
 or that startup/ownership succeeded; the original exception remains terminal.
+
+After the fixed inventory completes, an additional read-only snapshot checks
+PFR0 for RAS v1 before reading DISR and ERRIDR. A zero or reserved NUM skips
+even ERRSELR; a selector outside NUM skips all selected-record accesses. Only
+the existing selection is observed: feature/control, status, MISC0, status and
+selector again. These registers have architecturally defined reads; optional
+ADDR/MISC1 and pseudo-fault registers are excluded. No selector, status or
+control is written. Every read has a completed before marker and bounded
+value line. Unsupported features/counts/selectors and selection changes have
+explicit terminal SKIP records. The parser validates the corresponding gates
+and keeps at most ten reads. END covers one selected record, not all core and
+shared-cache records; neither END nor SKIP grants startup or recovery. Sticky
+values may predate the exception, and changing status values remain raw evidence.
 
 Only that selected profile may accept one non-executable, zero-file-byte NOBITS
 load segment in the fixed range. Packaging independently checks the actual ELF
