@@ -376,18 +376,16 @@ st_next:
         ld (hl),e
         inc hl
         inc hl
-        push hl
-        call peek_word          ; limit - value: negative ends the loop
-        and a
-        sbc hl,de
-        ld a,h
-        pop hl
+        ld a,(hl)               ; limit - value: negative ends the loop
+        sub e
+        inc hl
+        ld a,(hl)
+        sbc a,d                 ; (its high byte gives S and P/V)
+        inc hl
         jp po,.nv
         cpl
 .nv:    rla
         ret c
-        inc hl
-        inc hl
         call peek_word
         jr jump_hl
 
