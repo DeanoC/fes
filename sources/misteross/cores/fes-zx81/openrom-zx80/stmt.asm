@@ -287,6 +287,7 @@ st_let: call dest
 st_input:
         call dest
         rst 0x20
+        push de                 ; the variables do not move while it is edited
         ld a,(PPC + 1)          ; not as a command
         inc a
         jr nz,.prog
@@ -300,6 +301,7 @@ st_input:
         ld (P_PTR),hl
         ld hl,FLAGS             ; F_DNUM = the destination's type
         res F_DNUM,(hl)
+        set F_INPUT,(hl)
         bit F_NUM,(hl)
         jr z,.str
         set F_DNUM,(hl)
@@ -310,17 +312,16 @@ st_input:
         call edit_line.left
 .go:    ld hl,(DF_END)
         ld (DF_EA),hl           ; where the output ends
-        set F_INPUT,(iy+Y_FLAGS)
         call edit_line
         res F_INPUT,(iy+Y_FLAGS)
         call out_trim           ; the line leaves the screen
         ld hl,(E_LINE)
         ld (CH_ADD),hl
         call expr
+        pop de
         push hl
-        ld hl,(DEST)
+        ld hl,(DEST)            ; line_end goes on from the INPUT line
         ld (CH_ADD),hl
-        call dest
         pop hl
         jr store
 
