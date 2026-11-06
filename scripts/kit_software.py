@@ -30,11 +30,21 @@ def software_environment():
     for name in tuple(env):
         if (name.startswith('FES_') and name != 'FES_TARGET_IMAGE_SHARED_CACHE') or name == 'FOGCAST_DIR':
             env.pop(name)
-    for name in ("CXX", "CC", "AR", "NM", "CXXFILT", "CFLAGS", "CXXFLAGS", "CPPFLAGS", "LDFLAGS", "LD_PRELOAD", "LD_LIBRARY_PATH", "GNUMAKEFLAGS", "MAKELEVEL", "LDLIBS",
+    for name in ("CXX", "CC", "AR", "NM", "CXXFILT", "CFLAGS", "CXXFLAGS", "CPPFLAGS", "LDFLAGS", "LD_PRELOAD", "LD_LIBRARY_PATH", "GNUMAKEFLAGS", "MAKELEVEL", "LDLIBS", "ENABLE_DE25_STATIC",
                  "GIT_DIR", "GIT_WORK_TREE", "GIT_INDEX_FILE", "GIT_OBJECT_DIRECTORY",
                  "GIT_ALTERNATE_OBJECT_DIRECTORIES", "GIT_NAMESPACE"):
         env.pop(name, None)
     return env
+
+
+def runtime_make_variables(board, de25_static_expansion):
+    if board not in TARGETS:
+        raise ValueError('unsupported software board')
+    if type(de25_static_expansion) is not bool:
+        raise ValueError('DE25 static expansion selection must be boolean')
+    if de25_static_expansion and board != 'de25-nano':
+        raise ValueError('DE25 static expansion requires --board de25-nano')
+    return {'ENABLE_DE25_STATIC': int(de25_static_expansion)}
 
 
 def sha(path):
@@ -259,9 +269,11 @@ def prepare_kernel_module(root, snapshot, env):
     return kernel
 
 
-def runtime_script(revision, driver, board='de10-nano', sdk_sha=None, *, base_factory=True):
+def runtime_script(revision, driver, board='de10-nano', sdk_sha=None, *, base_factory=True,
+                   de25_static_expansion=False):
     # Interpolated values are validated identities; all paths are fixed inside
     # the private snapshot. The selected board never comes from the environment.
+    variables = runtime_make_variables(board, de25_static_expansion)
     if not re.fullmatch('[0-9a-f]{40}', revision):
         raise ValueError('invalid runtime revision')
     if board == 'de10-nano':
@@ -289,7 +301,7 @@ export SOURCE_DATE_EPOCH=1751459412
 ''' + setup + '''/work/build/software/sdk/host/relocate-sdk.sh
 ''' + ('test "$("$prefix-g++" -dumpmachine)" = aarch64-buildroot-linux-gnu\n' if board == 'de25-nano' else '') + '''make -C /work/build/software/runtime -j2 all \\
  CXX="$prefix-g++" AR="$prefix-ar" NM="$prefix-nm" CXXFILT="$prefix-c++filt" \\
- MISTER_RUNTIME_VERSION=git-''' + revision + '''
+ MISTER_RUNTIME_VERSION=git-''' + revision + ' ' + ' '.join(f'{k}={v}' for k, v in variables.items()) + '''
 "$prefix-strip" --strip-unneeded /work/build/software/runtime/build/mister-runtime
 mkdir -p /work/build/software/base/etc /work/build/software/base/usr/share/fes /work/build/software/base/usr
 # Only base ABI and immutable factory trees are required. Avoid device inodes.
@@ -301,9 +313,9 @@ debugfs -R 'rdump /etc/fes /work/build/software/base/etc' /work/build/software/b
 
 
 def build_runtime(snapshot, cache, revision, env, driver, board='de10-nano', *,
-                  runtime_source=None, base_factory=True, provision=False):
-    if board not in TARGETS:
-        raise ValueError('unsupported software board')
+                  runtime_source=None, base_factory=True, provision=False,
+                  de25_static_expansion=False):
+    variables = runtime_make_variables(board, de25_static_expansion)
     image = snapshot / 'image'
     work = image / 'build/software'
     work.mkdir(parents=True, exist_ok=True)
@@ -335,6 +347,7 @@ def build_runtime(snapshot, cache, revision, env, driver, board='de10-nano', *,
     # Wrapper validates the pinned builder labels and runs without networking.
     container_env = dict(env)
     container_env.pop('FES_TARGET_IMAGE_SHARED_CACHE', None)
+    container_env.pop('ENABLE_DE25_STATIC', None)
     container_env['TARGET_IMAGE_CONTAINER_RUNTIME'] = env.get('CONTAINER_RUNTIME', 'docker')
     container_env['TARGET_IMAGE_OUTPUT_VOLUME'] = 'fes-kit-software-' + snapshot.parent.name
     lock = tomllib.loads((image / 'build/target-image.sources.lock.toml').read_text())
@@ -363,13 +376,15 @@ def build_runtime(snapshot, cache, revision, env, driver, board='de10-nano', *,
             run([image / 'scripts/target-image-container.sh', 'run', 'true'], env=container_env)
             builder_id = authenticate_builder()
         run([image / 'scripts/target-image-container.sh', 'run', 'sh', '-c',
-             runtime_script(revision, driver, board, sdk_sha, base_factory=base_factory)],
+             runtime_script(revision, driver, board, sdk_sha, base_factory=base_factory,
+                            de25_static_expansion=de25_static_expansion)],
             env=container_env)
     finally:
         subprocess.run([container_env['TARGET_IMAGE_CONTAINER_RUNTIME'], 'volume', 'rm',
                         container_env['TARGET_IMAGE_OUTPUT_VOLUME']],
                        stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, check=False)
     return {'key': sdk_key, 'archive_sha256': sdk_sha, 'container_id': builder_id,
+            'runtime_make_variables': variables,
             'container_base': lock['container'], 'container_context_sha256': context,
             **({'de25_image_sdk': selected,
                 'sdk_archive_cache': {'key': cached['key'], 'archive_sha256': sdk_sha}}
@@ -400,10 +415,12 @@ def publish_directory(candidate, output):
         os.close(fd)
 
 
-def publish(root, base, base_sha, version, output, *, board='de10-nano', de25_image=None):
+def publish(root, base, base_sha, version, output, *, board='de10-nano', de25_image=None,
+            de25_static_expansion=False):
     workflow_sha = sha(Path(__file__))
     if board not in TARGETS or (board == 'de25-nano') != (de25_image is not None):
         raise ValueError('DE25 software requires --board de25-nano and --de25-image together')
+    variables = runtime_make_variables(board, de25_static_expansion)
     if platform.system() != 'Linux' or platform.machine() not in ('x86_64', 'amd64'):
         raise ValueError('kit software builder requires Linux amd64')
     root, base, output = Path(root).resolve(), Path(base).resolve(), Path(output).absolute()
@@ -444,7 +461,8 @@ def publish(root, base, base_sha, version, output, *, board='de10-nano', de25_im
             raise ValueError('base image changed while copying')
         go_version = build_go(snapshot, version, revision, env, board)
         driver = prepare_kernel_module(root, snapshot, env) if board == 'de10-nano' else None
-        toolchain = build_runtime(snapshot, cache, revision, env, driver, board)
+        toolchain = build_runtime(snapshot, cache, revision, env, driver, board,
+                                  de25_static_expansion=de25_static_expansion)
         fogcast = snapshot / 'sources/FogCast'
         payload = Path(scratch) / 'payload'
         (payload / 'bin').mkdir(parents=True)
@@ -480,6 +498,7 @@ def publish(root, base, base_sha, version, output, *, board='de10-nano', de25_im
         factory = json.loads((image / 'build/software/base/usr/share/fes/software/manifest.json').read_text())
         receipt = {'format': 1, 'deployed': False, 'source_commit': revision,
                    'board': board, 'architecture': TARGETS[board][0],
+                   'runtime_make_variables': variables,
                    'source_trees': {name: run(['git', '-C', snapshot, 'rev-parse', 'HEAD:' + name], env=env)
                                     for name in ('sources/FogCast', 'sources/libmister-runtime', 'image')},
                    'base_image_sha256': base_sha, 'base_contract': factory['base_contract'],
@@ -515,10 +534,13 @@ def main():
     parser.add_argument('--board', choices=tuple(TARGETS), default='de10-nano')
     parser.add_argument('--de25-image', type=Path,
                         help='verified DE25 headless-image output containing its AArch64 SDK')
+    parser.add_argument('--de25-static-expansion', type=int, choices=(0, 1), default=0,
+                        help='build the DE25 static-expansion qualification runtime (default: 0)')
     args = parser.parse_args()
     output = args.output or ROOT / 'out/kit-software' / args.version
     receipt = publish(ROOT, args.base, args.base_sha256, args.version, output,
-                      board=args.board, de25_image=args.de25_image)
+                      board=args.board, de25_image=args.de25_image,
+                      de25_static_expansion=bool(args.de25_static_expansion))
     print(json.dumps({'output': str(output.absolute()), 'deployed': False, 'bundle': receipt['bundle']['id']}))
 
 

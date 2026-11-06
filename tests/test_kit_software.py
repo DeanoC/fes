@@ -338,6 +338,66 @@ class SoftwareWorkflowTests(unittest.TestCase):
                 go.assert_not_called()
                 self.assertFalse((self.root / 'release').exists())
 
+    def test_static_selection_rejects_wrong_board_and_nonbooleans_before_build(self):
+        for board, value in [('de10-nano', True), ('de25-nano', 1),
+                             ('de25-nano', '1'), ('de25-nano', None)]:
+            with self.subTest(board=board, value=value), patch.object(kit, 'run') as run:
+                with self.assertRaisesRegex(ValueError, 'static expansion'):
+                    kit.publish(self.root, self.base, kit.sha(self.base), 'v1', self.root / 'release',
+                                board=board, de25_image=self.root if board == 'de25-nano' else None,
+                                de25_static_expansion=value)
+                run.assert_not_called()
+                self.assertFalse((self.root / 'release').exists())
+
+    def test_static_build_choice_reaches_make_even_with_hostile_environment(self):
+        # Execute the generated shell with private SDK/tool stubs. Observe the
+        # actual make arguments, rather than just inspecting a script substring.
+        work = self.root / 'work'
+        host = work / 'build/software/sdk/host'
+        tools = host / 'bin'; tools.mkdir(parents=True)
+        stubs = self.root / 'stubs'; stubs.mkdir()
+        log = self.root / 'make-arguments'
+        for name in ('tar', 'debugfs', 'sha256sum'):
+            path = stubs / name
+            path.write_text('#!/bin/sh\ncat >/dev/null\n' if name == 'sha256sum' else '#!/bin/sh\nexit 0\n')
+            path.chmod(0o755)
+        make = stubs / 'make'
+        make.write_text('#!/bin/sh\nprintf "%s\\n" "$@" > "$MAKE_TEST_LOG"\n')
+        make.chmod(0o755)
+        for name, body in [('relocate-sdk.sh', 'exit 0'),
+                           ('bin/aarch64-buildroot-linux-gnu-g++', 'echo aarch64-buildroot-linux-gnu'),
+                           ('bin/aarch64-buildroot-linux-gnu-strip', 'exit 0')]:
+            path = host / name; path.write_text('#!/bin/sh\n' + body + '\n'); path.chmod(0o755)
+        for enabled in (False, True):
+            with self.subTest(enabled=enabled), patch.dict(os.environ, {'ENABLE_DE25_STATIC': '$(invalid)'}):
+                env = kit.software_environment()
+                self.assertNotIn('ENABLE_DE25_STATIC', env)
+                env.update(PATH=str(stubs) + os.pathsep + env['PATH'], MAKE_TEST_LOG=str(log))
+                script = kit.runtime_script('b'*40, None, 'de25-nano', 'c'*64,
+                                            de25_static_expansion=enabled)
+                subprocess.run(['sh', '-c', script.replace('/work/', str(work) + '/')],
+                               env=env, check=True, capture_output=True, text=True)
+                arguments = log.read_text().splitlines()
+                self.assertEqual([a for a in arguments if a.startswith('ENABLE_DE25_STATIC=')],
+                                 ['ENABLE_DE25_STATIC=' + str(int(enabled))])
+        self.assertIn('ENABLE_DE25_STATIC=0', kit.runtime_script('b'*40, self.DRIVER))
+
+    def test_make_forwards_static_choice_and_cli_rejects_invalid_values(self):
+        command = ['make', '--no-print-directory', '-n', 'kit-software',
+                   'KIT_SOFTWARE_BASE=/reviewed.img', 'KIT_SOFTWARE_BASE_SHA256=' + 'a'*64,
+                   'KIT_SOFTWARE_VERSION=trial', 'BOARD=de25-nano', 'DE25_IMAGE=/sdk',
+                   'KIT_SOFTWARE_DE25_STATIC_EXPANSION=1']
+        result = subprocess.run(command, cwd=ROOT, check=True, capture_output=True, text=True)
+        self.assertIn('--de25-static-expansion "1"', result.stdout)
+        for value in ('2', 'true', '0 1'):
+            result = subprocess.run([sys.executable, ROOT / 'scripts/kit_software.py',
+                                     '--base', self.base, '--base-sha256', kit.sha(self.base),
+                                     '--version', 'trial', '--output', self.root / 'release',
+                                     '--de25-static-expansion', value], capture_output=True, text=True)
+            self.assertEqual(result.returncode, 2)
+            self.assertIn('invalid', result.stderr)
+            self.assertFalse((self.root / 'release').exists())
+
     def test_de25_script_extracts_private_sdk_without_building_de10_driver(self):
         script = kit.runtime_script('b' * 40, None, 'de25-nano', 'c' * 64)
         subprocess.run(['sh', '-n'], input=script, text=True, check=True)
@@ -520,12 +580,17 @@ class SoftwareWorkflowTests(unittest.TestCase):
         with patch.object(kit_sdk, 'ensure_de25', return_value=cached) as ensure, \
                 patch.object(kit, 'load', return_value=sdk), patch.object(kit, 'run', side_effect=command), \
                 patch.object(kit.subprocess, 'run', return_value=Mock(returncode=1)):
-            result = kit.build_runtime(self.root, self.root / 'recorded-image', 'b'*40, {}, None, 'de25-nano')
+            result = kit.build_runtime(self.root, self.root / 'recorded-image', 'b'*40,
+                                       {'ENABLE_DE25_STATIC': 'hostile'}, None, 'de25-nano',
+                                       de25_static_expansion=True)
         ensure.assert_called_once_with(self.root, self.root / 'recorded-image')
         self.assertEqual((self.root / 'image/build/software/aarch64-sdk.tar.gz').read_bytes(), b'SDK')
         self.assertEqual(result['de25_image_sdk'], selected)
         self.assertEqual(result['sdk_archive_cache'], {'key': key, 'archive_sha256': digest})
         self.assertNotIn('fes-window', calls[1][0][-1])
+        self.assertIn('ENABLE_DE25_STATIC=1', calls[1][0][-1])
+        self.assertNotIn('ENABLE_DE25_STATIC', calls[1][1]['env'])
+        self.assertEqual(result['runtime_make_variables'], {'ENABLE_DE25_STATIC': 1})
 
     def test_de25_runtime_rejects_cache_receipt_poison_before_container(self):
         import kit_sdk
@@ -600,7 +665,8 @@ class SoftwareWorkflowTests(unittest.TestCase):
                 assets = snapshot / 'image/buildroot/board/fogcast-target/native-rootfs-overlay/usr/share/fogcast'
                 assets.mkdir(parents=True); (assets / 'config.toml').write_text('defaults')
             return 'b' * 40
-        def runtime(snapshot, *unused):
+        def runtime(snapshot, *unused, **kwargs):
+            self.assertIs(kwargs['de25_static_expansion'], False)
             binary = snapshot / 'image/build/software/runtime/build/mister-runtime'
             binary.parent.mkdir(parents=True); binary.write_bytes(b'runtime')
             module = snapshot / 'image/build/software/fes-window/fes_window.ko'
@@ -647,8 +713,9 @@ class SoftwareWorkflowTests(unittest.TestCase):
                     (snapshot / ('sources/FogCast/bin/' + name + '-linux-aarch64')).write_bytes(b'arm64')
                 (snapshot / 'image/buildroot/board/fogcast-target/native-rootfs-overlay/usr/share/fogcast').mkdir(parents=True)
             return 'b' * 40
-        def runtime(snapshot, cache, revision, env, driver, board):
+        def runtime(snapshot, cache, revision, env, driver, board, **kwargs):
             self.assertIsNone(driver); self.assertEqual(board, 'de25-nano')
+            self.assertIs(kwargs['de25_static_expansion'], True)
             binary = snapshot / 'image/build/software/runtime/build/mister-runtime'
             binary.parent.mkdir(parents=True); binary.write_bytes(b'arm64 runtime')
             return {}
@@ -665,7 +732,7 @@ class SoftwareWorkflowTests(unittest.TestCase):
              patch.object(kit, 'build_runtime', side_effect=runtime):
             with self.assertRaisesRegex(ValueError, 'incompatible base'):
                 kit.publish(self.root, self.base, kit.sha(self.base), 'v1', self.root / 'new',
-                            board='de25-nano', de25_image=self.root)
+                            board='de25-nano', de25_image=self.root, de25_static_expansion=True)
             driver.assert_not_called()
         self.assertFalse((self.root / 'new').exists())
         self.assertFalse(list(self.root.glob('.kit-software-*')))

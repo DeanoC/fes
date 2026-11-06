@@ -543,6 +543,18 @@ contains actual Make import/cache-hit, normal runtime and Cortex-A76 QEMU
 evidence. Complete factory/update publication and native kit acceptance remain
 open.
 
+Static-expansion qualification software is an explicit opt-in:
+add `KIT_SOFTWARE_DE25_STATIC_EXPANSION=1` to the DE25 command above
+(direct CLI: `--de25-static-expansion 1`). The default is `0`; other values
+and enabling it for DE10 are refused. The producer ignores an ambient
+`ENABLE_DE25_STATIC`, passes the selected value explicitly to the runtime
+build, and records it in `receipt.json` as `runtime_make_variables` and in
+the toolchain record. Ordinary factory/source builds still select `0`.
+An enabled software build does not qualify a persona or install a kernel.
+The runtime also requires the matching `de25-cold-persona-retained-v1` kernel
+contract, qualified packages and separate physical acceptance. Selection is
+static: Stop, then launch a fresh full base with the chosen persona.
+
 The default output is the new directory `out/kit-software/<version>/`, containing
 `bundle.tar` and `receipt.json`. Override the directory with
 `KIT_SOFTWARE_OUTPUT=/absolute/new-release-directory`. Existing output directories
