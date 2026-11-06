@@ -14,6 +14,23 @@ PLATFORM = 'plat/intel/soc/agilex5/include/socfpga_plat_def.h'
 INCLUDE = 'plat/intel/soc/common/include'
 CONTRACT = dict(format=1, scope='matched-spl-el3-ocram-nobits-v1', base=BASE,
                 limit=LIMIT, stack_end=STACK_END, cookie=COOKIE)
+# Assembly has no C type environment. The selected C translation unit must
+# independently check every emitted wire constant against the real producer.
+ENTRY_CONSTANTS = {
+    'COLD_MAGIC': (0x464e4332, 'FES_NANO_COLD_MAGIC'),
+    'COLD_VERSION': (2, 'FES_NANO_COLD_VERSION'),
+    'COLD_BYTES': (224, 'sizeof(struct fes_nano_cold_record)'),
+    'COLD_FLAGS': (15, 'FES_NANO_COLD_FLAGS'),
+    'COLD_COOKIE': (0x464e433200000002, 'FES_NANO_COLD_COOKIE'),
+    'BOOT_MAGIC': (0x464e4231, 'FES_NANO_BOOT_MAGIC'),
+    'BOOT_VERSION': (1, 'FES_NANO_BOOT_VERSION'),
+    'BOOT_BYTES': (80, 'sizeof(struct fes_nano_boot_record)'),
+    'HISTORY_NEVER_ENABLED': (1, 'FES_NANO_BOOT_NEVER_ENABLED'),
+    'FABRIC_ABSENT': (1, 'FES_NANO_FABRIC_ABSENT'),
+    'PRODUCERS_ALL': (0x3ff, 'FES_NANO_PRODUCERS_ALL'),
+    'MASTER_RESET': (0xff21bfbf, 'FES_NANO_MASTER_RESET'),
+    'COOKIE': (COOKIE, 'FES_NANO_FW_RAM_COOKIE'),
+}
 
 
 def selected(profile, enabled):
@@ -52,10 +69,17 @@ def assembly_header(chain):
     data = chain_bytes(chain)
     return ('/* Source-bound private EL3 entry constants, not an NS API. */\n'
             '#define FES_RAM_CHAIN_BYTES ' + ','.join(hex(v) for v in data) + '\n'
-            '#define FES_RAM_OWNER_SEED ' + hex(int(chain[:16],16)|1) + '\n'
-            '#define FES_RAM_COOKIE 0x464e52414d000001\n'
+            '#define FES_RAM_OWNER_SEED ' + hex(int(chain[:16],16)|1) + '\n' +
+            ''.join('#define FES_RAM_'+name+' '+hex(value)+'\n'
+                    for name,(value,_) in ENTRY_CONSTANTS.items()) +
             '#ifndef FES_RAM_RSTMGR\n#define FES_RAM_RSTMGR 0x10d11000\n#endif\n'
             '#ifndef FES_RAM_PWRMGR\n#define FES_RAM_PWRMGR 0x10d14000\n#endif\n')
+
+
+def entry_assertions():
+    return ''.join('_Static_assert(FES_RAM_'+name+' == ('+expression+'), '
+                   '"early EL3 '+name+' differs from C producer");\n'
+                   for name,(_,expression) in ENTRY_CONSTANTS.items())
 
 
 def support_assembly(chain):
@@ -108,7 +132,8 @@ def install(source, profile):
     platform.write_text(text + '\n/* Selected matched SPL/EL3 reservation. */\n'
         '#define BL31_NOBITS_BASE 0x00050000\n#define BL31_NOBITS_LIMIT 0x00060000\n')
     c = source / 'plat/intel/soc/common/nano_cold_platform.c'
-    c.write_text('#include "nano_firmware_ram.h"\n' + c.read_text())
+    c.write_text('#include "fes_nano_ram_entry.h"\n#include "nano_firmware_ram.h"\n' +
+                 entry_assertions() + c.read_text())
     names = [ENTRY, PLATFORM, INCLUDE+'/fes_nano_ram_entry.h', INCLUDE+'/nano_firmware_entry.inc',
              INCLUDE+'/nano_firmware_ram.h', 'plat/intel/soc/common/nano_cold_platform.c']
     return dict(contract=dict(CONTRACT), chain_sha256=chain,

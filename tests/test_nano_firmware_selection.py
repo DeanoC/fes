@@ -4,8 +4,11 @@ import hashlib
 import importlib.util
 from pathlib import Path
 import struct
+import subprocess
 import sys
+import tempfile
 import unittest
+import zlib
 from unittest.mock import patch
 
 ROOT=Path(__file__).resolve().parents[1]
@@ -51,6 +54,40 @@ def elf():
 
 class SelectedFirmwareRAMTests(unittest.TestCase):
     run_c=base_fixture.NanoFirmwareRamTests.run_c
+
+    def test_assembly_wire_constants_are_checked_against_actual_c_headers(self):
+        header=ram.assembly_header('42'*32)
+        tail='#include "nano_firmware_ram.h"\n'+ram.entry_assertions()+'int main(void) { return 0; }\n'
+        self.run_c(header+tail)
+        with tempfile.TemporaryDirectory() as directory:
+            source=Path(directory)/'mismatch.c'
+            for name,(value,_) in ram.ENTRY_CONSTANTS.items():
+                with self.subTest(constant=name):
+                    source.write_text(header.replace('#define FES_RAM_'+name+' '+hex(value)+'\n',
+                                      '#define FES_RAM_'+name+' '+hex(value^1)+'\n')+tail)
+                    result=subprocess.run(['cc','-std=c11','-I'+str(FW),'-fsyntax-only',str(source)],
+                                          capture_output=True,text=True)
+                    self.assertNotEqual(result.returncode,0)
+                    self.assertIn('differs from C producer',result.stderr)
+
+    def test_completed_real_cold_producer_record_uses_the_guard_wire_values(self):
+        with tempfile.TemporaryDirectory() as directory:
+            binary=Path(directory)/'produce'
+            subprocess.run(['cc','-std=c11','-Wall','-Wextra','-Werror','-I'+str(FW),
+                            str(ROOT/'tests/fixtures/nano-cold-record/generate.c'),str(FW/'nano_cold.c'),
+                            '-o',str(binary)],capture_output=True,check=True)
+            for core in (0,2):
+                with self.subTest(core=core):
+                    record=subprocess.check_output([str(binary),'42'*32,str(core)])
+                    self.assertEqual(len(record),ram.ENTRY_CONSTANTS['COLD_BYTES'][0])
+                    for offset,name in ((0,'COLD_MAGIC'),(4,'COLD_VERSION'),(8,'COLD_BYTES'),
+                                        (16,'BOOT_MAGIC'),(20,'BOOT_VERSION'),(24,'BOOT_BYTES'),
+                                        (80,'HISTORY_NEVER_ENABLED'),(84,'FABRIC_ABSENT'),
+                                        (88,'PRODUCERS_ALL'),(204,'COLD_FLAGS')):
+                        self.assertEqual(struct.unpack_from('<I',record,offset)[0],ram.ENTRY_CONSTANTS[name][0])
+                    self.assertEqual(struct.unpack_from('<I',record,200)[0],core)
+                    self.assertEqual(struct.unpack_from('<I',record,12)[0],
+                                     zlib.crc32(record[:12]+bytes(4)+record[16:]))
 
     def test_every_assembly_record_offset_matches_actual_c_types(self):
         self.run_c('''

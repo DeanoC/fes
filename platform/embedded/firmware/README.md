@@ -17,6 +17,13 @@ The full cold provider still validates history and live ownership before any
 service grant. This is an experimental source-bound handoff, not cryptographic
 secure-boot provisioning or ordinary package admission.
 
+The selected assembly constants are compiled against the C producer's actual
+headers with static assertions, including `FES_NANO_FABRIC_ABSENT == 1`.
+Regression records come from the real cold begin/finish/checksum functions over
+injected register callbacks. The initial hand-packed ARM control used the wrong
+fabric value and missed that mismatch; its passing results do not establish
+compatibility with valid producer records. The stopped image remains unqualified.
+
 Only that selected profile may accept one non-executable, zero-file-byte NOBITS
 load segment in the fixed range. Packaging independently checks the actual ELF
 symbols, exact stack/BSS boundaries, initialized DDR latch and compiled chain

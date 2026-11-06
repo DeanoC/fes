@@ -25,7 +25,7 @@
     ldr x8, =FES_RAM_COOKIE
     cmp x4, x8
     b.ne FES_RAM_REJECT
-    ldr x8, =0x464e433200000002
+    ldr x8, =FES_RAM_COLD_COOKIE
     cmp x3, x8
     b.ne FES_RAM_REJECT
     cbnz x1, FES_RAM_REJECT
@@ -54,17 +54,17 @@
     cmp x2, x8
     b.hi FES_RAM_REJECT
     ldr w8, [x2]
-    ldr w9, =0x464e4332
+    ldr w9, =FES_RAM_COLD_MAGIC
     cmp w8, w9
     b.ne FES_RAM_REJECT
     ldr w8, [x2, #4]
-    cmp w8, #2
+    cmp w8, #FES_RAM_COLD_VERSION
     b.ne FES_RAM_REJECT
     ldr w8, [x2, #8]
-    cmp w8, #224
+    cmp w8, #FES_RAM_COLD_BYTES
     b.ne FES_RAM_REJECT
     ldr w8, [x2, #204]
-    cmp w8, #15
+    cmp w8, #FES_RAM_COLD_FLAGS
     b.ne FES_RAM_REJECT
     mrs x8, mpidr_el1
     ldr x9, =0xff00ffffff
@@ -78,24 +78,25 @@
     cmp x8, x9
     b.ne FES_RAM_REJECT
     ldr w8, [x2, #16]
-    ldr w9, =0x464e4231
+    ldr w9, =FES_RAM_BOOT_MAGIC
     cmp w8, w9
     b.ne FES_RAM_REJECT
     ldr w8, [x2, #20]
-    cmp w8, #1
+    cmp w8, #FES_RAM_BOOT_VERSION
     b.ne FES_RAM_REJECT
     ldr w8, [x2, #24]
-    cmp w8, #80
+    cmp w8, #FES_RAM_BOOT_BYTES
     b.ne FES_RAM_REJECT
     ldr w8, [x2, #28]
     cbnz w8, FES_RAM_REJECT
     ldr w8, [x2, #80]
-    cmp w8, #1
+    cmp w8, #FES_RAM_HISTORY_NEVER_ENABLED
     b.ne FES_RAM_REJECT
     ldr w8, [x2, #84]
-    cbnz w8, FES_RAM_REJECT
+    cmp w8, #FES_RAM_FABRIC_ABSENT
+    b.ne FES_RAM_REJECT
     ldr w8, [x2, #88]
-    cmp w8, #0x3ff
+    cmp w8, #FES_RAM_PRODUCERS_ALL
     b.ne FES_RAM_REJECT
     ldr w8, [x2, #92]
     cbnz w8, FES_RAM_REJECT
@@ -123,7 +124,7 @@
     subs w13, w13, #1
     b.ne .Lfes_ram_crc_bit
     add x10, x10, #1
-    cmp x10, #224
+    cmp x10, #FES_RAM_COLD_BYTES
     b.lo .Lfes_ram_crc_byte
     mvn w14, w14
     ldr w15, [x2, #12]
@@ -183,7 +184,7 @@
     dsb sy
     ldr x8, =FES_RAM_RSTMGR
     ldr w9, [x8, #0x24]
-    ldr w10, =0xff21bfbf
+    ldr w10, =FES_RAM_MASTER_RESET
     and w9, w9, w10
     cmp w9, w10
     b.ne FES_RAM_REJECT
