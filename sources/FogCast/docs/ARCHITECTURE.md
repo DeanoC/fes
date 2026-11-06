@@ -1697,10 +1697,14 @@ that an existing `/media/fat/games` bind still refers to the current p3 game
 directory. If that source was removed or replaced, it unbinds only a target on
 the FESDATA3 device, restores missing files from the still-visible FAT tree,
 syncs p3, and binds the live directory again.
-Without p3, all these paths continue to use FAT. The helper does not create,
-grow, or format partitions and does not run from the fixed bootstrap. Bind is
-refused while `GET /v1/update` shows trial, pending, or corrupt; the agent still
-starts and keeps those trees on FAT.
+When p3 is absent or its bind is gated, startup records a hidden fallback marker
+beside `/media/fat/games`. On the next successful p3 bind it copies missing game
+files added during the FAT-only interval, syncs p3, and clears the marker. This
+one-time reconciliation does not overwrite an existing p3 file or repeat on
+normal startup. Without p3, all these paths continue to use FAT. The helper does
+not create, grow, or format partitions and does not run from the fixed
+bootstrap. Bind is refused while `GET /v1/update` shows trial, pending, or
+corrupt; the agent still starts and keeps those trees on FAT.
 
 Confirmed appliance releases retain the current image plus one verified
 fallback on FAT, and always protect the factory image as a final recovery
@@ -3502,11 +3506,12 @@ confirmed clean idle response. A failed Stop keeps the recovery error visible.
 An idle menu therefore does not by itself establish launch readiness. A new
 explicit library launch can clear a retained idle legacy-launch error through
 one leased Stop request before its single activation. If reboot discarded the
-session's grant, the launch claims a currently free kit after target identity
-and ownership admission; a held kit remains with its owner and the claim fails
-closed. Source/media validation and API admission still apply. Cleanup must
-confirm clean idle; active sessions, save failures, attributed package failures
-and reboot-required states are not silently cleared. Cleanup failure blocks
+session's grant, the recovery path reads current kit ownership even for
+address-only and target-scoped launches. It claims only after the kit reports
+free; a held kit remains with its owner and a foreign grant is never taken over.
+Source/media validation and API admission still apply. Cleanup must confirm
+clean idle; active sessions, save failures, attributed package failures and
+reboot-required states are not silently cleared. Cleanup failure blocks
 activation and remains visible. This does not replay the earlier failed launch
 or automatically reboot. Other recovery states still require explicit Stop or
 operator attention. Kit launch diagnostics record the submitted game ID and

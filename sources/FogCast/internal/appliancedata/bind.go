@@ -39,6 +39,12 @@ const (
 // gamesMigrationMarker is stored at the p3 root, outside the bound game tree.
 const gamesMigrationMarker = ".fes-games-migrated-v1"
 
+// gamesFallbackMarker is stored beside the FAT game tree while p3 is
+// unavailable or its bind is gated. It lets the next successful bind copy
+// game files added during that FAT-only interval without repeating migration
+// on every normal startup.
+const gamesFallbackMarker = ".fes-games-fallback-v1"
+
 // DefaultBindNames are the FogCast trees that live on p3 after a successful
 // bind. The game library tree is mounted separately from /media/fat/games.
 // Releases, agent.toml, launcher.json and target-id stay on FAT.
@@ -176,10 +182,16 @@ func Mount(cfg Config) (Result, error) {
 
 func Prepare(cfg Config) (Result, error) {
 	mounted, err := Mount(cfg)
-	if err != nil || mounted.Skipped != "" {
+	cfg = applyDefaults(cfg)
+	if mounted.Skipped != "" {
+		if markErr := markGamesFallback(cfg.LibraryFATRoot); markErr != nil {
+			err = errors.Join(err, markErr)
+		}
 		return mounted, err
 	}
-	cfg = applyDefaults(cfg)
+	if err != nil {
+		return mounted, err
+	}
 	device := mounted.Device
 
 	var result Result
@@ -229,23 +241,77 @@ func Prepare(cfg Config) (Result, error) {
 	}
 	if bindGames {
 		marker := filepath.Join(cfg.MountPoint, gamesMigrationMarker)
-		var err error
-		if repairGames {
-			err = repairGamesOnce(cfg.LibraryFATRoot, cfg.LibraryDataRoot, marker)
-		} else {
-			err = migrateGamesOnce(cfg.LibraryFATRoot, cfg.LibraryDataRoot, marker)
-		}
+		fallbackPending, err := gamesFallbackPending(cfg.LibraryFATRoot)
 		if err != nil {
 			bindErr = errors.Join(bindErr, err)
-		} else if err := ensureBindTarget(cfg.LibraryFATRoot); err != nil {
-			bindErr = errors.Join(bindErr, err)
-		} else if err := cfg.Mounter.Bind(cfg.LibraryDataRoot, cfg.LibraryFATRoot); err != nil {
-			bindErr = errors.Join(bindErr, err)
 		} else {
-			result.Bound = append(result.Bound, "games")
+			var gameErr error
+			if repairGames || fallbackPending {
+				gameErr = repairGamesOnce(cfg.LibraryFATRoot, cfg.LibraryDataRoot, marker)
+			} else {
+				gameErr = migrateGamesOnce(cfg.LibraryFATRoot, cfg.LibraryDataRoot, marker)
+			}
+			if gameErr != nil {
+				bindErr = errors.Join(bindErr, gameErr)
+			} else {
+				if fallbackPending {
+					if err := clearGamesFallback(cfg.LibraryFATRoot); err != nil {
+						bindErr = errors.Join(bindErr, err)
+					}
+				}
+				if err := ensureBindTarget(cfg.LibraryFATRoot); err != nil {
+					bindErr = errors.Join(bindErr, err)
+				} else if err := cfg.Mounter.Bind(cfg.LibraryDataRoot, cfg.LibraryFATRoot); err != nil {
+					bindErr = errors.Join(bindErr, err)
+				} else {
+					result.Bound = append(result.Bound, "games")
+				}
+			}
 		}
 	}
 	return result, bindErr
+}
+
+func gamesFallbackMarkerPath(libraryFATRoot string) string {
+	return filepath.Join(filepath.Dir(libraryFATRoot), gamesFallbackMarker)
+}
+
+func gamesFallbackPending(libraryFATRoot string) (bool, error) {
+	marker := gamesFallbackMarkerPath(libraryFATRoot)
+	info, err := os.Lstat(marker)
+	if errors.Is(err, os.ErrNotExist) {
+		return false, nil
+	}
+	if err != nil {
+		return false, err
+	}
+	if !info.Mode().IsRegular() {
+		return false, fmt.Errorf("games fallback marker is not a regular file: %s", marker)
+	}
+	return true, nil
+}
+
+func markGamesFallback(libraryFATRoot string) error {
+	marker := gamesFallbackMarkerPath(libraryFATRoot)
+	pending, err := gamesFallbackPending(libraryFATRoot)
+	if err != nil || pending {
+		return err
+	}
+	if err := os.MkdirAll(filepath.Dir(marker), 0o755); err != nil {
+		return err
+	}
+	if err := copyFileAtomically(strings.NewReader("pending\n"), marker); err != nil {
+		return err
+	}
+	return syncDirectory(filepath.Dir(marker))
+}
+
+func clearGamesFallback(libraryFATRoot string) error {
+	marker := gamesFallbackMarkerPath(libraryFATRoot)
+	if err := os.Remove(marker); err != nil && !errors.Is(err, os.ErrNotExist) {
+		return err
+	}
+	return syncDirectory(filepath.Dir(marker))
 }
 
 func validateConfig(cfg Config) error {

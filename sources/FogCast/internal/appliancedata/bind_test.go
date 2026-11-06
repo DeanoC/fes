@@ -152,6 +152,55 @@ func TestPrepareSkipsWhenP3Absent(t *testing.T) {
 	if got, err := os.ReadFile(fatGame); err != nil || string(got) != "fat-library" {
 		t.Fatalf("FAT library was not preserved without p3: %q %v", got, err)
 	}
+	if pending, err := gamesFallbackPending(cfg.LibraryFATRoot); err != nil || !pending {
+		t.Fatalf("FAT fallback was not recorded: pending=%v err=%v", pending, err)
+	}
+}
+
+func TestPrepareCopiesFATGamesAddedWhileP3IsUnavailable(t *testing.T) {
+	initialMounter := newRecordingMounter()
+	cfg := testConfig(t, initialMounter)
+	fatGame := filepath.Join(cfg.LibraryFATRoot, "sms", "initial.sms")
+	if err := os.MkdirAll(filepath.Dir(fatGame), 0o700); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(fatGame, []byte("initial"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if result, err := Prepare(cfg); err != nil || result.Skipped != "" {
+		t.Fatalf("initial prepare = %+v %v", result, err)
+	}
+
+	absentMounter := newRecordingMounter()
+	t.Cleanup(func() { _ = absentMounter.Close() })
+	cfg.DevicePresent = func(string) bool { return false }
+	cfg.Mounter = absentMounter
+	cfg.Mounted = func(target string) bool { return absentMounter.mounted[target] != "" }
+	cfg.BindMatches = absentMounter.BindMatches
+	if result, err := Prepare(cfg); err != nil || result.Skipped != SkipAbsent {
+		t.Fatalf("absent prepare = %+v %v", result, err)
+	}
+	addedGame := filepath.Join(cfg.LibraryFATRoot, "sms", "added-while-absent.sms")
+	if err := os.WriteFile(addedGame, []byte("added on FAT"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	restoredMounter := newRecordingMounter()
+	t.Cleanup(func() { _ = restoredMounter.Close() })
+	cfg.DevicePresent = pathExists
+	cfg.Mounter = restoredMounter
+	cfg.Mounted = func(target string) bool { return restoredMounter.mounted[target] != "" }
+	cfg.BindMatches = restoredMounter.BindMatches
+	result, err := Prepare(cfg)
+	if err != nil || !slices.Contains(result.Bound, "games") {
+		t.Fatalf("restored prepare = %+v %v", result, err)
+	}
+	if got, err := os.ReadFile(filepath.Join(cfg.LibraryDataRoot, "sms", "added-while-absent.sms")); err != nil || string(got) != "added on FAT" {
+		t.Fatalf("FAT game was hidden by the old p3 tree: %q %v", got, err)
+	}
+	if pending, err := gamesFallbackPending(cfg.LibraryFATRoot); err != nil || pending {
+		t.Fatalf("FAT fallback marker was not cleared: pending=%v err=%v", pending, err)
+	}
 }
 
 func TestPrepareRefusesTrialPendingAndCorrupt(t *testing.T) {
