@@ -9,8 +9,9 @@ on Kit B, with #1483's CPU status ring in the first.
 relaunch. The disk delta and record round trip is byte-exact. The game's save
 file matches the GAMEDAT files it was packed from. The same steps on `v1`'s
 own package, and `v1`'s whole command sequence replayed with its pacing, also
-show Serpent Isle's intro, menu and loaded game. No machine, CPU, VGA or
-runtime defect was found, and nothing here changes RTL or code.
+show Serpent Isle's intro, menu and loaded game. These reruns identified no
+machine, CPU, VGA or runtime defect in the tested paths, and nothing here
+changes RTL or code.
 
 - **Run `k1`** (status-ring package): two saves, each followed by stop,
   relaunch and Journey Onward.
@@ -118,11 +119,13 @@ bytes stay on Powerboat.
   stop and scrub, Serpent Isle's intro at 30 s (`f268560544dc`) and the menu
   at Esc + 14 s (`10562c0d0491`) are both shown where `v1` was black.
 
-What made `v1`'s Serpent Isle output black on both launches is therefore not
-known. It did not come from the package, the save, the disk delta, the game
-record, the relaunch without a scrub, or the preceding Black Gate roll. The
-roll itself is the VGA BIOS stuck in INT 10h AH=07h, which #1493's PR #1504
-fixes.
+Why `v1`'s Serpent Isle output was black on both launches remains unknown. The
+black-output symptom was not reproduced in `k1`–`k3`, including with `v1`'s
+package and command pacing. The save and delta checks establish that those
+artifacts survived the tested Stop/relaunch path; they do not rule out the
+package, save, disk delta, game record, relaunch path or preceding Black Gate
+roll as contributors to an intermittent failure. Separately, the Black Gate
+roll was the VGA BIOS stuck in INT 10h AH=07h, which #1493's PR #1504 fixes.
 
 ## Not done
 
