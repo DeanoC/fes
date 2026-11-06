@@ -301,7 +301,7 @@ def decode_native_boot(data, build_id, owner_seed, *, storage=None, package=None
               'last_checkpoint': None, 'core_load_acceptance': False,
               'firmware_ram_trace': {'records': [], 'complete': False, 'valid': True,
                                      'vendor_records': [], 'vendor_complete': False, 'exceptions': [],
-                                     'status_probe': fault_status.state(), 'ras_probe': fault_status.ras_state(), 'decode_log': fault_status.decode_state()}}
+                                     'status_probe': fault_status.state(), 'ras_probe': fault_status.ras_state(), 'decode_log': fault_status.decode_state(), 'cache_maintenance': fault_status.cache_state()}}
     if len(data) > MAX_BYTES:
         report['errors'].append('capture exceeds byte bound')
         return report
@@ -320,6 +320,14 @@ def decode_native_boot(data, build_id, owner_seed, *, storage=None, package=None
             report['errors'].append(f'failure marker at line {number}')
         if line.startswith('FES_NANO_RAM'):
             ram=report['firmware_ram_trace'];rows=ram['records']
+            if line.startswith('FES_NANO_RAM CACHE'):
+                error=fault_status.observe_cache(ram['cache_maintenance'],line,number,
+                    guard_complete=ram['complete'],
+                    vendor_phase=ram['vendor_records'][-1]['phase'] if ram['vendor_records'] else None,
+                    decode=ram['decode_log'],exception=bool(ram['exceptions']))
+                if error:
+                    report['errors'].append(error);ram['valid']=False;ram['vendor_complete']=False
+                continue
             if line.startswith('FES_NANO_RAM DECODE'):
                 inventory=ram['status_probe'];ras=ram['ras_probe']
                 error=fault_status.observe_decode(ram['decode_log'],line,number,
@@ -361,7 +369,8 @@ def decode_native_boot(data, build_id, owner_seed, *, storage=None, package=None
                 progress=ram['vendor_records'];phase=vendor[1]
                 decode=ram['decode_log']
                 if (phase=='nobits-cache-before' and (not decode['valid'] or not decode['records'] or decode['records'][-1]['phase']!='enabled') or
-                        phase=='nobits-cache-after' and (not decode['valid'] or not decode['complete'] or not decode['restored'])):
+                        phase=='nobits-cache-after' and (not decode['valid'] or not decode['complete'] or not decode['restored'] or
+                            not ram['cache_maintenance']['valid'] or not ram['cache_maintenance']['complete'])):
                     ram['valid']=False
                     report['errors'].append(f'cache logging lifetime incomplete at line {number}')
                 if (not ram['complete'] or len(progress)>=len(VENDOR_PHASES) or

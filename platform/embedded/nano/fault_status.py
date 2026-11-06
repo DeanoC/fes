@@ -252,6 +252,35 @@ def decode_state():
                 restore_attempted=False, restored=False, failed=False)
 
 
+CACHE_PHASES = ('setway-before', 'setway-after')
+
+
+def cache_state():
+    return dict(records=[], valid=True, complete=False,
+                maintenance_may_have_started=False)
+
+
+def observe_cache(probe, line, number, *, guard_complete, vendor_phase,
+                  decode, exception):
+    """An ordered cache receipt is diagnostic evidence, never ownership."""
+    def invalid():
+        probe['valid'] = probe['complete'] = False
+        return f'invalid cold cache maintenance trace at line {number}'
+
+    if (not probe['valid'] or not guard_complete or exception or
+            vendor_phase != 'nobits-cache-before' or not decode['valid'] or
+            not decode['records'] or decode['records'][-1]['phase'] != 'enabled' or
+            decode['restore_attempted'] or len(probe['records']) >= 2):
+        return invalid()
+    match = re.fullmatch(r'FES_NANO_RAM CACHE phase=(setway-before|setway-after)', line)
+    if match is None or match[1] != CACHE_PHASES[len(probe['records'])]:
+        return invalid()
+    probe['records'].append(dict(phase=match[1], line=number))
+    probe['maintenance_may_have_started'] = True
+    probe['complete'] = len(probe['records']) == 2
+    return None
+
+
 def observe_decode(probe, line, number, *, guard_complete, vendor_phase,
                    exception, fault_inventory_complete):
     """Validate bounded logging lifetime; restoration is never boot permission."""
@@ -271,7 +300,8 @@ def observe_decode(probe, line, number, *, guard_complete, vendor_phase,
         allowed = ((phase == 'identity' and not previous) or
                    (phase == 'admit' and previous and previous[-1] in DECODE_PHASES[:3]) or
                    (phase == 'enable' and previous and previous[-1] == 'enable-before') or
-                   (phase == 'restore' and previous and previous[-1] != 'restored'))
+                   (phase == 'restore' and previous and previous[-1] != 'restored') or
+                   (phase == 'status' and previous and previous[-1] == 'restored'))
         if not allowed:return invalid()
         probe['records'].append(dict(phase='fail-'+phase, line=number))
         return invalid()

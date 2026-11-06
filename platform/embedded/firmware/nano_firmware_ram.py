@@ -16,15 +16,20 @@ ENTRY = 'bl31/aarch64/bl31_entrypoint.S'
 ENTRY_SHA = '2cb7c9d1d7845f8d1338acb77b074da3975e17342127fff42d5ff37509f0efde'
 COMMON = 'include/arch/aarch64/el3_common_macros.S'
 COMMON_SHA = '731852658339cd149d0fd08762f0a70c9d5adba0336b402ce22532c98feebde6'
+CACHE = 'lib/aarch64/cache_helpers.S'
+CACHE_SHA = '675fe70fd4919347c9ac8fd3ffd5b3f09ec53f948e926ce51cf342083a68b8e6'
 VENDOR_PHASES = ('enter',) + tuple(name+'-'+edge for name in
     ('reset','cpu-data','rw-cache','nobits-cache','bss','stack','setup') for edge in ('before','after'))
 PLATFORM = 'plat/intel/soc/agilex5/include/socfpga_plat_def.h'
 INCLUDE = 'plat/intel/soc/common/include'
-CONTRACT = dict(format=1, scope='matched-spl-el3-ocram-nobits-v1', base=BASE,
-                limit=LIMIT, stack_end=STACK_END, cookie=COOKIE)
+CONTRACT = dict(format=2, scope='matched-spl-el3-ocram-nobits-v2', base=BASE,
+                limit=LIMIT, stack_end=STACK_END, cookie=COOKIE,
+                cache_policy='owned-cold-all-setway-before-nobits-v1')
 # Assembly has no C type environment. The selected C translation unit must
 # independently check every emitted wire constant against the real producer.
 ENTRY_CONSTANTS = {
+    'BASE': (BASE, 'FES_NANO_FW_RAM_BASE'),
+    'LIMIT': (LIMIT, 'FES_NANO_FW_RAM_LIMIT'),
     'COLD_MAGIC': (0x464e4332, 'FES_NANO_COLD_MAGIC'),
     'COLD_VERSION': (2, 'FES_NANO_COLD_VERSION'),
     'COLD_BYTES': (224, 'sizeof(struct fes_nano_cold_record)'),
@@ -160,7 +165,7 @@ def vendor_source(text):
     parts = entry.split(call)
     if len(parts) != 4:raise ValueError('vendor cache context changed')
     nobits = ('\tfes_decode_setup\n' +
-              vendor_call(call+'\tfes_decode_restore\n', 'nobits-cache'))
+              vendor_call('\tfes_ram_nobits_cache\n\tfes_decode_restore\n', 'nobits-cache'))
     entry = (parts[0]+vendor_call(call,'rw-cache')+parts[1]+nobits+
              parts[2]+call+parts[3])
     call = '\t\tbl\tzeromem\n'
@@ -197,7 +202,7 @@ def entry_source(text, chain):
     before = before.replace(call,vendor_call(call,'setup'))
     text = before+end+after
     return ('#include "fes_nano_ram_entry.h"\n' +
-            text.replace(anchor, anchor + '#include "nano_firmware_decode.inc"\n#include "nano_vendor_entry.inc"\n#include "nano_firmware_entry.inc"\n',1) +
+            text.replace(anchor, anchor + '#include "nano_firmware_decode.inc"\n#include "nano_firmware_cache.inc"\n#include "nano_vendor_entry.inc"\n#include "nano_firmware_entry.inc"\n',1) +
             support_assembly(chain) + '#include "nano_firmware_fault.inc"\n')
 
 
@@ -205,12 +210,14 @@ def install(source, profile):
     if checked(profile) is None:
         return None
     chain = profile['chain_sha256']
+    if hashlib.sha256((source / CACHE).read_bytes()).hexdigest() != CACHE_SHA:
+        raise ValueError('unreviewed cold set/way cache helper source')
     include = source / INCLUDE
     (include / 'nano_firmware_status.inc').write_text(fault_status.assembly())
     (include / 'nano_vendor_entry.inc').write_text(vendor_source((source / COMMON).read_text()))
     (source / ENTRY).write_text(entry_source((source / ENTRY).read_text(), chain))
     (include / 'fes_nano_ram_entry.h').write_text(assembly_header(chain))
-    for name in ('nano_firmware_entry.inc', 'nano_firmware_fault.inc', 'nano_firmware_decode.inc', 'nano_firmware_ram.h'):
+    for name in ('nano_firmware_entry.inc', 'nano_firmware_fault.inc', 'nano_firmware_decode.inc', 'nano_firmware_cache.inc', 'nano_firmware_ram.h'):
         (include / name).write_bytes((HERE / name).read_bytes())
     platform = source / PLATFORM
     text = platform.read_text()
@@ -222,7 +229,7 @@ def install(source, profile):
     c = source / 'plat/intel/soc/common/nano_cold_platform.c'
     c.write_text('#include "fes_nano_ram_entry.h"\n#include "nano_firmware_ram.h"\n' +
                  entry_assertions() + c.read_text())
-    names = [ENTRY, COMMON, PLATFORM, INCLUDE+'/fes_nano_ram_entry.h', INCLUDE+'/nano_vendor_entry.inc', INCLUDE+'/nano_firmware_entry.inc', INCLUDE+'/nano_firmware_fault.inc', INCLUDE+'/nano_firmware_decode.inc', INCLUDE+'/nano_firmware_status.inc',
+    names = [ENTRY, COMMON, CACHE, PLATFORM, INCLUDE+'/fes_nano_ram_entry.h', INCLUDE+'/nano_vendor_entry.inc', INCLUDE+'/nano_firmware_entry.inc', INCLUDE+'/nano_firmware_fault.inc', INCLUDE+'/nano_firmware_decode.inc', INCLUDE+'/nano_firmware_cache.inc', INCLUDE+'/nano_firmware_status.inc',
              INCLUDE+'/nano_firmware_ram.h', 'plat/intel/soc/common/nano_cold_platform.c']
     return dict(contract=dict(CONTRACT), chain_sha256=chain,
                 sources={name:hashlib.sha256((source/name).read_bytes()).hexdigest() for name in names})

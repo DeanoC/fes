@@ -65,6 +65,7 @@ def firmware_progress(raw):
         if phase=='nobits-cache-before':
             rows.extend('FES_NANO_RAM DECODE phase='+value+'\r\n' for value in ('setup-before','baseline-zero','enable-before','enabled'))
         if phase=='nobits-cache-after':
+            rows.extend('FES_NANO_RAM CACHE phase='+value+'\r\n' for value in ('setway-before','setway-after'))
             rows.extend('FES_NANO_RAM DECODE phase='+value+'\r\n' for value in ('restore-before','restored'))
         rows.append('FES_NANO_RAM VENDOR phase='+phase+'\r\n')
     raw=raw.replace(before,'FES_NANO_RAM ENTRY\r\nFES_NANO_RAM PASS\r\n'+''.join(rows[:-1])+before)

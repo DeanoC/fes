@@ -175,12 +175,13 @@ int main(void) { return 0; }
             for name in ('el3_arch_init_common','el3_entrypoint_common'):
                 copied=ram.vendor_macro(generated,'fes_ram_'+name)
                 restored=re.sub(r'^\t(?:fes_ram_uart_text [^\n]+|fes_decode_(?:setup|restore))\n','',copied,flags=re.M).replace('fes_ram_el3_','el3_')
+                restored=restored.replace('\tfes_ram_nobits_cache\n','\t\tbl\tinv_dcache_range\n')
                 self.assertEqual(restored,ram.vendor_macro(fixture,name))
             self.assertEqual(generated.count('\tfes_ram_uart_text '),12)
             self.assertEqual(generated.count('\tfes_decode_setup\n'),1)
             self.assertEqual(generated.count('\tfes_decode_restore\n'),1)
             self.assertIn('\tfes_decode_setup\n'+ram.vendor_call(
-                '\t\tbl\tinv_dcache_range\n\tfes_decode_restore\n','nobits-cache'),generated)
+                '\tfes_ram_nobits_cache\n\tfes_decode_restore\n','nobits-cache'),generated)
             with self.assertRaises(ValueError):ram.vendor_source(fixture+'\n')
         for bad in (fixture.replace('init_cpu_data_ptr','missing'),fixture.replace('reset_handler','missing'),
                     fixture.replace('plat_set_my_stack','missing'),fixture.replace('\t\tbl\tinv_dcache_range\n','',1),

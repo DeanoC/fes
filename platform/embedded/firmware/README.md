@@ -83,14 +83,30 @@ existing fallback; it cannot promise selector restoration or grant recovery.
 Neither END nor SKIP grants startup or ownership. Sticky values may predate the
 exception, and a clear error record with detection disabled proves no health.
 
-The selected A55 cold diagnostic now brackets the original NOBITS cache
-maintenance with CCU decode-error logging only (`CAIUUEDR.DecErrDetEn`, bit3).
+The selected A55 cold path brackets NOBITS cache maintenance with CCU
+decode-error logging only (`CAIUUEDR.DecErrDetEn`, bit3).
 It first checks CPU identity, reset/power containment and zero detection,
 interrupt and error-status baselines. Enable and disable stores each have
 barriers and readbacks; the separate interrupt register remains zero, and
 the error-status register is never acknowledged. Restoration checks the
-captured status is unchanged. ECC detection controls and the vendor cache
-instructions are untouched.
+captured status is unchanged. ECC detection controls remain unchanged.
+
+The version-2 selected RAM profile replaces that range's address-based PoC
+operation with the pinned TF-A `dcsw_op_all(DCISW)` routine. This explicitly
+invalidates the accessible data/unified cache hierarchy before initializing
+OCRAM; cache-off is not treated as proof that caches are empty. The observed
+CCU illegal-DII-access error makes an address-based operation on this range
+unsuitable for the diagnostic. Ordinary DDR and warm-entry maintenance are
+preserved. No general fallback or cache-operation skip is supplied.
+
+Only the exact private NOBITS base, length and aligned end are admitted, with
+fresh reviewed CPU/reset/power containment and MMU/data-cache-off checks before
+and after the call. CSSELR must start and finish at0. SPL compilation requires
+its data-cache-off configuration. The selected cache helper source is pinned
+and captured in the build binding; its geometry handling, register-only call
+path and retained-register preservation require linked instruction checks.
+Two bounded CACHE receipts bracket the call and subsequent checks. A partial
+receipt or exception cannot qualify startup or claim completed maintenance.
 
 Register-held state distinguishes idle, possibly enabled and restoration in
 progress. An exception prints the original fault and both existing inventories
@@ -98,7 +114,9 @@ before one guarded restoration attempt. A fault during restoration parks
 without retry; missing readback leaves restoration unproven. The host requires
 the ordered logging cycle before accepting later vendor startup markers.
 Neither a completed diagnostic nor restored logging grants boot ownership.
-This change still requires a matched-image bounded hardware test.
+The logging-only predecessor captured the physical CCU error and verified
+restoration. The new set/way path still requires a matched-image bounded
+hardware test; off-board geometry execution does not qualify physical caches.
 
 Only that selected profile may accept one non-executable, zero-file-byte NOBITS
 load segment in the fixed range. Packaging independently checks the actual ELF

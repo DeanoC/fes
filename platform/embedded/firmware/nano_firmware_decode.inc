@@ -192,6 +192,12 @@
     b.ne .Lfes_decode_restore_reject_\@
     mov x26, #0
     fes_decode_message fes_decode_restored
+    .if \fatal == 0
+    /* A new logged error is terminal even if SError delivery is delayed.
+     * Restoration is still verified first; never acknowledge the status. */
+    cbz w27, .Lfes_decode_restore_done_\@
+    fes_decode_fail fes_decode_fail_status
+    .endif
     b .Lfes_decode_restore_done_\@
 .Lfes_decode_inactive_\@:
     .if \fatal
@@ -226,6 +232,7 @@ fes_decode_fail_identity: .asciz "FES_NANO_RAM DECODE FAIL phase=identity\r\n"
 fes_decode_fail_admit: .asciz "FES_NANO_RAM DECODE FAIL phase=admit\r\n"
 fes_decode_fail_enable: .asciz "FES_NANO_RAM DECODE FAIL phase=enable\r\n"
 fes_decode_fail_restore: .asciz "FES_NANO_RAM DECODE FAIL phase=restore\r\n"
+fes_decode_fail_status: .asciz "FES_NANO_RAM DECODE FAIL phase=status\r\n"
 .popsection
 
 #endif /* FES_NANO_FIRMWARE_DECODE_INC */

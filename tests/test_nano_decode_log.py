@@ -123,5 +123,16 @@ class DecodeLogTests(unittest.TestCase):
             self.assertFalse(report['firmware_ram_trace']['valid'])
             self.assertEqual(report['firmware_ram_trace']['decode_log']['restored'],complete)
 
+    def test_new_error_without_exception_rejects_after_verified_restoration(self):
+        state,errors=observe(status.DECODE_PHASES)
+        self.assertEqual(errors,[])
+        error=status.observe_decode(state,'FES_NANO_RAM DECODE FAIL phase=status',8,
+            guard_complete=True,vendor_phase='nobits-cache-before',exception=False,
+            fault_inventory_complete=False)
+        self.assertIsNotNone(error)
+        self.assertTrue(state['restored'] and state['write_attempted'] and state['restore_attempted'])
+        self.assertFalse(state['valid'] or state['complete'])
+        self.assertTrue(state['failed'])
+
 
 if __name__=='__main__':unittest.main()

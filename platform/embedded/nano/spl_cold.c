@@ -21,6 +21,9 @@ extern char _image_binary_end[];
  * configuration needs a new source/lifetime audit, not a wider live bound. */
 _Static_assert(CONFIG_SPL_TEXT_BASE==0 && CONFIG_SPL_MAX_SIZE<=0x40000,
                "firmware RAM exclusion requires the pinned SPL image range");
+#if !defined(CONFIG_SPL_SYS_DCACHE_OFF) || !CONFIG_SPL_SYS_DCACHE_OFF
+#error "selected cold firmware requires the uncached SPL handoff"
+#endif
 _Static_assert(CONFIG_SPL_STACK==0x71000 && CONFIG_SPL_SYS_MALLOC_F_LEN==0x2000,
                "firmware RAM exclusion requires the pinned early allocations");
 _Static_assert(CONFIG_SPL_BSS_START_ADDR==0xbff00000 && CONFIG_SPL_BSS_MAX_SIZE==0x100000 &&
