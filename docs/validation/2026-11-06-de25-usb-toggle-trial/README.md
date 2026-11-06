@@ -55,3 +55,68 @@ host cleanup is not proof of CPU/USB/FPGA halt.
 This remains a bounded diagnostic. Even three completed cycles do not grant
 ordinary package admission, physical display/native-network acceptance or
 DE10-equivalent platform status. The full active goal remains incomplete.
+
+## Observed result
+
+The one attempt used operator `7fdaf6358` and native/firmware implementation
+`c8ff50c29`. Recovery, eight checked uploads/eight fresh SD readbacks, native
+programming, all31RUNTIME/twoEXIT/26LOADER/48CALL receipts and eight initial/late
+SMC/cache returns passed. Native Tenfoot became Ready in5.09s.
+
+The first launch key was sent. Packet44 expected PID2, with one RX and one IRQ
+toggle notification. The saved first observation had channel`0xe05e8808` and
+HCTSIZ`0x40080008`; its current-packet software history contained only arm
+sequence232/value`0xa05e8808`. The last continuation record sampled all six
+register groups (mask`0x3f`), verified the same transfer, read frame`0xb4e90374`
+and reported `reason=queued`. Software sequence233 continued that same packet
+with value`0xa05e8808` and PID2. This physically exercises the selected raw-
+disable continuation; it is not inferred from model results alone.
+
+The following packet poll failed on channel error`0x200`. The matched vendor
+header defines bit9 as frame overrun. The error reported two polls, one
+continuation and no received/done/NAK flags. No payload, completed launch,
+fetch, master-stop, normal Return or Quit was observed. Containment sequence234
+wrote`0xe05e8808`; its unchanged500ms wait did not observe CHENA clear. The
+new drain helper was not reached. The first failure was terminal and no
+hardware retry occurred. This is a failed hardware candidate, not USB or core-
+loading acceptance.
+
+The first-toggle HFNUM was`0xd7a20374` and the continuation HFNUM`0xb4e90374`:
+both sampled frame number`0x374`, with the remaining counter decreasing by8889
+ticks. The continuation write selected ODDFRM1. Those samples do not establish
+the originally intended wire frame, frontend service gap or physical cause of
+the overrun. No additional timing claim is derived from the two register values.
+
+Independent raw boot replay and the bounded passive tail are retained.
+Independent cleanup verifies15M, exact USB permissions, the owned private JTAG
+server gone and free UART. Claim and spare remain retained, factory restoration
+waived and factory/bottom untouched. CPU/USB/FPGA halt is unproved. Campaign
+procedure stops are now24; the earlier USB-return, packet-timeout-before-launch,
+eleven pre-loader and three application-start stops remain separate. The
+consumed C8 matched chain will not be replayed.
+
+## Model gap and next boundary
+
+The injected controller currently supplies an IN response synchronously when
+CHENA is written; it does not enforce periodic frame eligibility or wire time.
+Its success tests prove data/PID/retirement and ownership rules, not the USB
+schedule exercised here. The normal direct-IN poll advances one transaction
+step, and the frontend drives report polling; its actual hardware service gap
+was not measured. Always-next-parity selection also differs from the pinned
+[primary frame scheduler](https://github.com/torvalds/linux/blob/v6.12/drivers/usb/dwc2/hcd.c#L956),
+which accounts for queued work, bus time and the scheduled wire frame. That
+comparison identifies missing model coverage; it does not prove the cause.
+
+Next add an independent frame/queue/transfer-time controller model with delayed
+periodic completion and real retirement. Vary frontend polling gaps and frame
+parity before selecting a timing/service repair. Keep the paired-toggle and
+ownership/PID/HCTSIZ/deadline exclusions and all original bounds. Never mask
+`0x200`, fabricate NAK/completion, release an unhalted channel or reinterpret
+this failed attempt as acceptance.
+
+Exact raw observations, source comparisons and hashes are in
+[physical-result.json](physical-result.json) and
+[frame-stop-interval.json](frame-stop-interval.json). Full trace/source-pack
+retention uses `/home/deano/fes-retained/de25-usb-toggle-stop-20261106-r1`, with
+prerequisite `de25-usb-toggle-continue-20261106-r1`. The active full platform
+readiness goal remains incomplete.
