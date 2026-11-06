@@ -10,6 +10,9 @@ build ID before synthesis and installs it in both endpoints.
 
 The overlay owns its version-1.1 `fes_de25_computer.v` transport, `video.v` and
 generated register headers, installed over the captured board's original transport.
+Its owned `clocks.sdc` retains the existing clock and metadata bounds and cuts
+only asynchronous ingress. It rejects the removed video reset-release chains;
+recovery/removal from the shared qualified resets to owner state remains timed.
 Those bytes enter the same functional source snapshot, fingerprint and seal.
 Generation and verification compare both installed and actual generated HDL
 against them. The GP ABI, aperture size, clocks, master inventory and execution

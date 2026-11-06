@@ -141,7 +141,7 @@ always @(posedge pixel_clk or negedge reset_n)
         '--Mdir', output/'model', output/'pair.sv', output/'reference.v', HERE/'video.v', HERE/'video_pair.cpp'])
     run('execute', [output/'model/Vvideo_pair'])
     assert all(hashlib.sha256((ROOT/p).read_bytes()).hexdigest() == digest for p, digest in hashes.items())
-    result = dict(status='passed', classification='unbounded actual writer-control equivalence with arbitrary inputs; full actual dual-clock RTL pair simulation; no physical timing or metastability proof',
+    result = dict(status='passed', classification='unbounded actual writer-control equivalence with arbitrary qualified inputs; full actual dual-clock RTL pair simulation at identical qualified reset releases; no enclosing reset-latency, physical timing or metastability proof',
         reference_revision=REFERENCE_REVISION, reference_path=REFERENCE_PATH, reference_sha256=hashlib.sha256(original).hexdigest(),
         source_sha256=hashes, yosys_sha256=hashlib.sha256(args.yosys.resolve().read_bytes()).hexdigest(),
         simulator_sha256=hashlib.sha256((output/'model/Vvideo_pair').read_bytes()).hexdigest(), commands=commands,

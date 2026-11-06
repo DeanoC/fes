@@ -39,7 +39,7 @@ INPUTS = (OVERLAY + "build.py", OVERLAY + "fes_de25_embedded.sv", OVERLAY + "fes
           OVERLAY + "fes_de25_computer.v", OVERLAY + "generated/fes_de25_computer.vh",
           OVERLAY + "generated/fes_de25_computer.hpp",
           OVERLAY + "reader_memory.py", OVERLAY + "computer_model.py", OVERLAY + "rom_transport.py", OVERLAY + "video.v",
-          OVERLAY + "timing_sources.py",
+          OVERLAY + "timing_sources.py", OVERLAY + "clocks.sdc",
           *(OVERLAY + name for name in rom_transport.FILES), ENDPOINT, WINDOW_READER, WINDOW_CONTROL, DEFINITION)
 BOOTSTRAP = ("build.py", "display/build.py", "zx81/build.py", "zx81-hps/build.py")
 BASE = 0x10400
@@ -207,6 +207,7 @@ def overlay_project(output, board, sources, identity, record=None):
                            (OVERLAY + "fes_de25_embedded_hw.tcl", "fes_de25_embedded_hw.tcl"),
                            (OVERLAY + "fes_de25_computer.v", "fes_de25_computer.v"),
                            (OVERLAY + "video.v", "video.v"),
+                           (OVERLAY + "clocks.sdc", "clocks.sdc"),
                            (OVERLAY + "generated/fes_de25_computer.vh", "generated/fes_de25_computer.vh"),
                            (OVERLAY + "generated/fes_de25_computer.hpp", "generated/fes_de25_computer.hpp"),
                            (ENDPOINT, "fes_embedded_control.sv"),
@@ -220,7 +221,7 @@ def overlay_project(output, board, sources, identity, record=None):
     script = replace_once(script, anchor, sources[OVERLAY + "integrate.tcl"].decode() + "\n" + anchor)
     inputs_file = output / "hps/inputs.json"
     inputs = json.loads(inputs_file.read_text())
-    for name in ('fes_de25_computer.v','video.v','generated/fes_de25_computer.vh','generated/fes_de25_computer.hpp'):
+    for name in ('fes_de25_computer.v','video.v','clocks.sdc','generated/fes_de25_computer.vh','generated/fes_de25_computer.hpp'):
         inputs['computer']['source_sha256'][name]=digest(sources[OVERLAY+name])
     memory = reader_memory.checked(inputs['reader_memory'])
     mode = reader_memory.mode(memory)

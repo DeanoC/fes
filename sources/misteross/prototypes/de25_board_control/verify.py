@@ -164,6 +164,7 @@ def inputs_for(project):
     mapped = {"fes_de25_embedded.sv": "sources/misteross/prototypes/de25_board_control/fes_de25_embedded.sv",
               "fes_de25_read_width.sv": "sources/misteross/prototypes/de25_board_control/fes_de25_read_width.sv",
               "fes_de25_embedded_hw.tcl": "sources/misteross/prototypes/de25_board_control/fes_de25_embedded_hw.tcl",
+              "clocks.sdc": "sources/misteross/prototypes/de25_board_control/clocks.sdc",
               "fes_embedded_control.sv": "sources/misteross/cores/fes-common/rtl/fes_embedded_control.sv",
               "generated/fes_embedded_control.vh": "sources/misteross/cores/fes-common/generated/fes_embedded_control.vh"}
     computer_sources=('fes_de25_computer.v','video.v','generated/fes_de25_computer.vh','generated/fes_de25_computer.hpp')
@@ -182,6 +183,8 @@ def inputs_for(project):
     for installed, source in mapped.items():
         if sha(local / installed) != sources[source]:
             raise ValueError("project endpoint differs from source snapshot: " + installed)
+    if inputs['computer']['source_sha256'].get('clocks.sdc') != sources[mapped['clocks.sdc']]:
+        raise ValueError('computer timing constraints differ from the functional source snapshot')
     script = board / "hps/project/integrate-mailbox.tcl"
     if sha(script) != inputs["computer"]["integration_sha256"]:
         raise ValueError("project integration script differs")

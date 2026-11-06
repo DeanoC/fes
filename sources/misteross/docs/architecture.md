@@ -109,7 +109,9 @@ The overlay also owns the board-local capture HDL. Its system token owner uses
 the computer's already qualified 100 MHz Platform Designer reset; its pixel
 token owner and readiness synchronizer share one local pixel release chain.
 Both resets assert asynchronously, including with stopped clocks, and release
-on their own clock. Execution Hold does not reset or reclaim an outstanding
+on their own clock. The source-bound timing file rejects the removed private
+release chains, removes their obsolete ingress cuts and retains recovery/removal
+checks on the shared reset fan-out. Execution Hold does not reset or reclaim an outstanding
 frame bank. A transport reset retires the enclosing computer epoch rather than
 manufacturing a new ready session. Writer-control induction and full video
 comparison cover identical qualified release inputs; the actual board ROM model
