@@ -59,19 +59,22 @@ LOOPS: list[tuple[str, int, int]] = [
     ('store_load_same', 1000, UNROLL),
     ('store_load_other', 1000, UNROLL),
 ]
-# Main's RTL before CPU Phase 4 (slice 1, the measurement baseline).
+# CPU Phase 4 slice 2, the BTB (Jcc, LOOP, JCXZ, JMP and CALL rel). Slice 1's
+# baseline, before it: jcc_loop 47999, jcc_taken 103999, call_ret 199118,
+# call_reg 245999, call_mem 246029, far_call 269029, loop 90999, agi_load
+# 44999, agi_alu 52999, store_load_same and store_load_other 36029.
 EXPECTED: dict[str, int] = {
-    'jcc_loop': 47999,
-    'jcc_taken': 103999,
-    'call_ret': 199118,
-    'call_reg': 245999,
-    'call_mem': 246029,
-    'far_call': 269029,
-    'loop': 90999,
-    'agi_load': 44999,
-    'agi_alu': 52999,
-    'store_load_same': 36029,
-    'store_load_other': 36029,
+    'jcc_loop': 8039,
+    'jcc_taken': 77045,
+    'call_ret': 180137,
+    'call_reg': 236029,
+    'call_mem': 236059,
+    'far_call': 259060,
+    'loop': 42270,
+    'agi_load': 35039,
+    'agi_alu': 43029,
+    'store_load_same': 26059,
+    'store_load_other': 26059,
 }
 
 

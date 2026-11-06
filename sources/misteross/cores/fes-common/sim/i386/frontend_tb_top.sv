@@ -30,11 +30,15 @@ module frontend_tb_top (
     output logic [87:0]      q_bytes
 );
     fes_i386_pkg::fetched_t q;
-    logic [27:0] fetch_next;
+    logic [6:0][27:0] held_block;
+    logic [6:0]       held_valid;
 
+    // Nothing writes the BTB here, so nothing is predicted: fetch is
+    // sequential from each redirect, as frontend_tb.cpp's streams expect.
     fes_i386_frontend dut (
-        .clk, .reset, .redirect, .redirect_linear, .code32, .mem_block, .mem_load, .fetch_next,
-        .mem_data(mem_data), .mem_valid, .q_valid, .q, .d_ready
+        .clk, .reset, .redirect, .redirect_linear, .code32, .mem_block, .mem_load,
+        .mem_data(mem_data), .mem_valid, .q_valid, .q, .d_ready, .pred_en(1'b0), .btb_wr('0), .held_block,
+        .held_valid
     );
 
 `ifdef FES_I386_NETLIST
