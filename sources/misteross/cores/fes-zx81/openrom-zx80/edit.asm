@@ -56,16 +56,6 @@ edit:   ld sp,(ERR_SP)
         ldir
         jr edit
 
-; Obey the line at CH_ADD as a command.
-run_cmd:
-        rst 0x18
-        cp C_NL
-        jr z,edit               ; nothing to do
-        call cls
-        ld hl,0xfffe
-        ld (PPC),hl
-        jr line_go
-
 ; An empty edit line; a minimal display file after it.
 eline_reset:
         ld hl,(E_LINE)

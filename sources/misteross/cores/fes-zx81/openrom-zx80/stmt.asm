@@ -81,6 +81,14 @@ letter_byte:
 ; The run loop. ERR_SP is the stack each line starts with; its slot holds
 ; the report routine, and GOSUB records lie above it.
 
+; Obey the line at CH_ADD as a command.
+run_cmd:
+        rst 0x18
+        cp C_NL
+        jr z,edit               ; nothing to do
+        call cls
+        ld hl,0xfffe
+        ld (PPC),hl
 line_go:
         ld sp,(ERR_SP)
         call temp_clear

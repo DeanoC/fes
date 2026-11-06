@@ -176,16 +176,6 @@ line_skip:
         ret
 
 ; ---------------------------------------------------------------------
-; Reports. RST 8 stops the statement; so does arithmetic overflow.
-; A symbol that does not fit. While checking, mark it and leave the check;
-; a line that was never checked (a hand-made image) stops with report 0.
-syntax_err:
-        ld hl,(CH_ADD)
-        ld (X_PTR),hl
-unwind: ld sp,(ERR_SP)
-        ret
-
-; ---------------------------------------------------------------------
 ; Character fetching (RST 18 starts in hw.asm). Spaces are not significant
 ; outside strings and REM.
 

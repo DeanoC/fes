@@ -8,7 +8,13 @@ expr_num:
 need_num:
         bit F_NUM,(iy+Y_FLAGS)
         ret nz
-        jr syntax_err
+; A symbol that does not fit. While checking, mark it and leave the check;
+; a line that was never checked (a hand-made image) stops with report 0.
+syntax_err:
+        ld hl,(CH_ADD)
+        ld (X_PTR),hl
+unwind: ld sp,(ERR_SP)
+        ret
 
 ; A whole expression.
 expr:   ld b,0
@@ -90,6 +96,7 @@ apply:  call same_type
 .add:   and a
         adc hl,de
 .v:     ret po
+; Reports. RST 8 stops the statement; so does arithmetic overflow.
 overflow:
         rst 8
         db R_OVERFLOW
