@@ -85,3 +85,26 @@ injection needs an independently verified hardware recovery/fence first.
 The older standalone bounded-claim patch and source manifest have been removed;
 the platform patch is the sole active source of this algorithm and its guard.
 Dated evidence for that earlier candidate remains tied to its original commit.
+
+## Stock SDM completion diagnostic
+
+`verify_stock_sdm.py` runs the locked stock BL31's actual AArch64 completion
+handler in Unicorn 2.1.4. It authenticates the entire firmware blob before
+executing its SiP dispatch, accounting and return instructions. Mailbox replies,
+buffer records and external write-all/clear-response calls are injected; it
+does not execute SDM, MMIO, DMA, EL3 entry or a board boot.
+
+Use a separate Python environment with `unicorn==2.1.4`, then run:
+
+```sh
+python image/kernel/de25-fpga/verify_stock_sdm.py \
+  --bl31 /absolute/retained/stock-bl31.bin --output /absolute/new/sdm-proof
+```
+
+Eight cases include positive buffer returns, error-versus-BUSY distinctions
+and a mutation control. The control removes one branch in emulator memory;
+no modified firmware is written. Stock firmware can mask an injected mailbox
+error with zero response length as BUSY. A returned buffer can also hide a later
+error in that call. Thus native repeated BUSY does not establish that SDM merely
+needs more time. These tests do not prove that either injected error occurred
+on the board, and do not justify increasing timeouts or changing recovery.

@@ -485,3 +485,56 @@ all four executable hashes and the dedicated host files match. MENU is ready,
 idle and lease-free; owned temporary hosts and UART are stopped and the kit
 claim is released. The trial card and failed-load trace remain retained for
 diagnosis. No JTAG, boot-flash or SD rewrite occurs in this trial.
+
+## Instrumented second static trial and stock SDM audit
+
+Head `52ea35ba1` passes all 38 CI checks (run `42264353731`, literal gate 0).
+Its normal kernel, managed factory, virtual boot, release/card delivery and
+independent reconstruction pass. The approved diagnostic SD write and full
+readback pass, followed by independent data-volume verification.
+
+Native boot authenticates image `c9b16845`, kernel `8ae9c46a`, factory bundle
+`77e80dff` generation 0, Ethernet/SSH and all four executables. All 58 selected
+debug sites are enabled, and an actual DEBUG-priority marker is captured on the
+owned UART after raising the console threshold to 8. This is native boot and
+diagnostic-interface evidence, not static-core acceptance.
+
+The single approved catalog Play fails during the full base-image data write,
+before the persona write. One buffer is returned before persistent SDM BUSY;
+the bounded driver reports ERROR/EFAULT and joins its worker. Linux/API remain
+reachable, but the runtime requires recovery and its native lease is blocked.
+No static active-core identity, RAMTOP, BASIC, Stop or reboot passes. No second
+load, Stop/reset replay, JTAG or boot-flash operation follows the failure. This
+is the second functional failure, at a different phase from the first trial.
+
+After the user's original-card replacement and cold power cycle, pinned SSH
+authenticates original `6de6a392`/`a14a53cd`/generation 48, original kernel/module
+and card identity, and all four executable hashes in fresh boot
+`44ad974c-d1cf-4a91-b294-c2f6ef1a211d`. The exact original host files match and
+the host is idle; MENU is ready and lease-free. Owned private host and UART
+are stopped and the board is released. The diagnostic card is retained.
+Private traces and restoration receipts are under
+`/data/fes-de25-main-integration-20261105/static-persona-diagnostic-52ea/`.
+
+The returned `0x1ff80000` versus submitted `0x9ff80000` is expected: the vendor
+SMMU path adds `0x80000000` on submission and Terasic firmware subtracts it
+before returning the IOVA. Source-extracted lookup/claim tests accept that IOVA
+and preserve the bounded failure. The observed IRQ mailbox poll queues
+responses; its presence alone does not prove response theft.
+
+The [stock-binary proof](stock-sdm-completion-emulation.json) executes the actual
+hash-locked Terasic BL31 AArch64 completion handler through
+[`verify_stock_sdm.py`](../../../image/kernel/de25-fpga/verify_stock_sdm.py).
+Eight cases pass, including positive buffer returns and an emulator-only
+mutation control; changed firmware is refused before creating output. A hard
+mailbox error with zero response length is reported as BUSY. A completed buffer
+can also hide a later error in that call. Mailbox replies, buffer records and
+external write-all/clear-response calls are injected: this proves an error
+reporting ambiguity in that binary, not that the board encountered an injected
+error, not EL3/SDM/DMA execution, and not the cause of either physical failure.
+The original binary is unchanged and no modified firmware is exported.
+
+Static support remains default-off. Diagnose the original SDM error before
+another physical attempt; increasing timeouts or disabling the IRQ poll is not
+justified by these results. Physical empty/16K, USB/audio and reboot acceptance,
+normal-profile enablement and current-head owner review remain open.

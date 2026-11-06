@@ -14,6 +14,21 @@ printf '%s\n' 'file stratix10-soc.c +p' 'file stratix10-svc.c +p' \
   'file de25_dma_static.h +p' > /sys/kernel/debug/dynamic_debug/control
 ```
 
+UART also needs a console threshold that includes DEBUG messages. In the same
+diagnostic shell, save all four current printk settings before raising it:
+
+```sh
+printk_before=$(cat /proc/sys/kernel/printk)
+printf '8\n' > /proc/sys/kernel/printk
+printf '<7>FES_SDM_TRACE_READY\n' > /dev/kmsg
+```
+
+Verify that marker on the owned UART before the single approved load. After a
+healthy diagnostic run, restore all four settings with
+`printf '%s\n' "$printk_before" > /proc/sys/kernel/printk` and disable the sites
+enabled for the trial. If the transfer becomes uncertain, retain its trace and
+follow the recorded recovery procedure; these debug settings do not clear it.
+
 Use `-p` with the same queries to disable them. Retain UART from before the
 load. A secure-call entry without its return narrows the failure to that call;
 an owner guard entry without its return instead identifies the later register
