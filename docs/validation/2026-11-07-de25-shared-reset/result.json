@@ -1,0 +1,480 @@
+{
+  "status": "two-redundant-reset-chains-removed-not-qualified",
+  "compiled_source": "bb350b361cda882917d32bbcff9131208668558b",
+  "package_id": "d2b280fb954639335eb66d77b2d4bb73518ad937fe21d32012911fea29acedf9",
+  "build_id": "3450f3d47031c3b81bede281d1ae0f99",
+  "payload_bytes": 1654784,
+  "payload_sha256": "eed086e8bd84244459ec61cefa7d6a17a392a8fd22faea8bf72820b805b4dc4e",
+  "source_inputs_checked": 195,
+  "generated_SDCS_checked": 4,
+  "multicorner_before": {
+    "slacks": [
+      1.969,
+      0.0,
+      7.827,
+      0.049,
+      0.22
+    ],
+    "tns": [
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0
+    ],
+    "clocks": {
+      "EMIF_REF_CLOCK": [
+        "N/A",
+        "N/A",
+        "N/A",
+        "N/A",
+        "2.220"
+      ],
+      "adv7513_config": [
+        "16.049",
+        "0.106",
+        "17.971",
+        "0.049",
+        "50018.811"
+      ],
+      "altera_reserved_tck": [
+        "12.809",
+        "0.096",
+        "61.234",
+        "0.254",
+        "28.581"
+      ],
+      "fes_video_inst|video_clock|iopll_0_n_cnt_clk": [
+        "N/A",
+        "N/A",
+        "N/A",
+        "N/A",
+        "49.563"
+      ],
+      "fes_video_inst|video_clock|iopll_0_outclk0": [
+        "3.451",
+        "0.048",
+        "12.121",
+        "0.220",
+        "5.857"
+      ],
+      "fes_video_inst|video_clock|iopll_0_refclk": [
+        "17.569",
+        "0.109",
+        "18.557",
+        "0.265",
+        "9.591"
+      ],
+      "fes_video_inst|video_clock|iopll_0|tennm_ph2_iopll|ref_clk0": [
+        "N/A",
+        "N/A",
+        "N/A",
+        "N/A",
+        "8.583"
+      ],
+      "pll_inst|iopll_0_outclk0": [
+        "1.969",
+        "0.000",
+        "7.827",
+        "0.194",
+        "4.407"
+      ],
+      "pll_inst|iopll_0_refclk": [
+        "N/A",
+        "N/A",
+        "N/A",
+        "N/A",
+        "9.231"
+      ],
+      "pll_inst|iopll_0|tennm_ph2_iopll|ref_clk0": [
+        "N/A",
+        "N/A",
+        "N/A",
+        "N/A",
+        "8.313"
+      ],
+      "soc_inst|subsys_hps|emif_hps|emif_io96b_hps|emif_0_lpddr4|emif_0_lpddr4_0_lane_0_rxclk_gated": [
+        "N/A",
+        "N/A",
+        "N/A",
+        "N/A",
+        "4.905"
+      ],
+      "soc_inst|subsys_hps|emif_hps|emif_io96b_hps|emif_0_lpddr4|emif_0_lpddr4_0_lane_1_rxclk_gated": [
+        "N/A",
+        "N/A",
+        "N/A",
+        "N/A",
+        "4.905"
+      ],
+      "soc_inst|subsys_hps|emif_hps|emif_io96b_hps|emif_0_lpddr4|emif_0_lpddr4_0_lane_2_rxclk_gated": [
+        "N/A",
+        "N/A",
+        "N/A",
+        "N/A",
+        "4.905"
+      ],
+      "soc_inst|subsys_hps|emif_hps|emif_io96b_hps|emif_0_lpddr4|emif_0_lpddr4_0_lane_3_rxclk_gated": [
+        "N/A",
+        "N/A",
+        "N/A",
+        "N/A",
+        "4.905"
+      ],
+      "soc_inst|subsys_hps|emif_hps|emif_io96b_hps|emif_0_lpddr4|emif_0_lpddr4_0_lane_4_rxclk_gated": [
+        "N/A",
+        "N/A",
+        "N/A",
+        "N/A",
+        "4.905"
+      ],
+      "soc_inst|subsys_hps|emif_hps|emif_io96b_hps|emif_0_lpddr4|emif_0_lpddr4_0_lane_5_rxclk_gated": [
+        "N/A",
+        "N/A",
+        "N/A",
+        "N/A",
+        "4.905"
+      ],
+      "soc_inst|subsys_hps|emif_hps|emif_io96b_hps|emif_0_lpddr4|emif_0_lpddr4_0_phy_clk_0": [
+        "N/A",
+        "0.376",
+        "N/A",
+        "N/A",
+        "0.419"
+      ],
+      "soc_inst|subsys_hps|emif_hps|emif_io96b_hps|emif_0_lpddr4|emif_0_lpddr4_0_vco_base_0": [
+        "N/A",
+        "N/A",
+        "N/A",
+        "N/A",
+        "0.272"
+      ],
+      "soc_inst|subsys_hps|emif_hps|emif_io96b_hps|emif_0_lpddr4|emif_0_lpddr4_0_vco_clk_periph_0": [
+        "N/A",
+        "N/A",
+        "N/A",
+        "N/A",
+        "0.220"
+      ]
+    }
+  },
+  "multicorner_after": {
+    "slacks": [
+      1.881,
+      0.0,
+      7.259,
+      0.084,
+      0.22
+    ],
+    "tns": [
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0
+    ],
+    "clocks": {
+      "EMIF_REF_CLOCK": [
+        "N/A",
+        "N/A",
+        "N/A",
+        "N/A",
+        "2.220"
+      ],
+      "adv7513_config": [
+        "16.451",
+        "0.106",
+        "18.412",
+        "0.084",
+        "50018.510"
+      ],
+      "altera_reserved_tck": [
+        "12.809",
+        "0.096",
+        "60.852",
+        "0.172",
+        "28.581"
+      ],
+      "fes_video_inst|video_clock|iopll_0_n_cnt_clk": [
+        "N/A",
+        "N/A",
+        "N/A",
+        "N/A",
+        "49.563"
+      ],
+      "fes_video_inst|video_clock|iopll_0_outclk0": [
+        "3.283",
+        "0.035",
+        "12.056",
+        "0.254",
+        "5.857"
+      ],
+      "fes_video_inst|video_clock|iopll_0_refclk": [
+        "16.631",
+        "0.111",
+        "17.007",
+        "0.778",
+        "9.590"
+      ],
+      "fes_video_inst|video_clock|iopll_0|tennm_ph2_iopll|ref_clk0": [
+        "N/A",
+        "N/A",
+        "N/A",
+        "N/A",
+        "8.583"
+      ],
+      "pll_inst|iopll_0_outclk0": [
+        "1.881",
+        "0.000",
+        "7.259",
+        "0.204",
+        "4.407"
+      ],
+      "pll_inst|iopll_0_refclk": [
+        "N/A",
+        "N/A",
+        "N/A",
+        "N/A",
+        "9.231"
+      ],
+      "pll_inst|iopll_0|tennm_ph2_iopll|ref_clk0": [
+        "N/A",
+        "N/A",
+        "N/A",
+        "N/A",
+        "8.313"
+      ],
+      "soc_inst|subsys_hps|emif_hps|emif_io96b_hps|emif_0_lpddr4|emif_0_lpddr4_0_lane_0_rxclk_gated": [
+        "N/A",
+        "N/A",
+        "N/A",
+        "N/A",
+        "4.905"
+      ],
+      "soc_inst|subsys_hps|emif_hps|emif_io96b_hps|emif_0_lpddr4|emif_0_lpddr4_0_lane_1_rxclk_gated": [
+        "N/A",
+        "N/A",
+        "N/A",
+        "N/A",
+        "4.905"
+      ],
+      "soc_inst|subsys_hps|emif_hps|emif_io96b_hps|emif_0_lpddr4|emif_0_lpddr4_0_lane_2_rxclk_gated": [
+        "N/A",
+        "N/A",
+        "N/A",
+        "N/A",
+        "4.905"
+      ],
+      "soc_inst|subsys_hps|emif_hps|emif_io96b_hps|emif_0_lpddr4|emif_0_lpddr4_0_lane_3_rxclk_gated": [
+        "N/A",
+        "N/A",
+        "N/A",
+        "N/A",
+        "4.905"
+      ],
+      "soc_inst|subsys_hps|emif_hps|emif_io96b_hps|emif_0_lpddr4|emif_0_lpddr4_0_lane_4_rxclk_gated": [
+        "N/A",
+        "N/A",
+        "N/A",
+        "N/A",
+        "4.905"
+      ],
+      "soc_inst|subsys_hps|emif_hps|emif_io96b_hps|emif_0_lpddr4|emif_0_lpddr4_0_lane_5_rxclk_gated": [
+        "N/A",
+        "N/A",
+        "N/A",
+        "N/A",
+        "4.905"
+      ],
+      "soc_inst|subsys_hps|emif_hps|emif_io96b_hps|emif_0_lpddr4|emif_0_lpddr4_0_phy_clk_0": [
+        "N/A",
+        "0.376",
+        "N/A",
+        "N/A",
+        "0.419"
+      ],
+      "soc_inst|subsys_hps|emif_hps|emif_io96b_hps|emif_0_lpddr4|emif_0_lpddr4_0_vco_base_0": [
+        "N/A",
+        "N/A",
+        "N/A",
+        "N/A",
+        "0.272"
+      ],
+      "soc_inst|subsys_hps|emif_hps|emif_io96b_hps|emif_0_lpddr4|emif_0_lpddr4_0_vco_clk_periph_0": [
+        "N/A",
+        "N/A",
+        "N/A",
+        "N/A",
+        "0.220"
+      ]
+    }
+  },
+  "clock_inventory_unchanged": true,
+  "reset_chains_before": {
+    "pll_inst|iopll_0_outclk0": {
+      "count": 6,
+      "registers": [
+        "fes_top_reset_inst|sync_regs[0]",
+        "soc_inst|subsys_periph|rst_controller|alt_rst_sync_uq1|altera_reset_synchronizer_int_chain[1]",
+        "soc_inst|subsys_periph|fes_computer|fes_computer|video|sys_release[0]",
+        "soc_inst|rst_controller|alt_rst_sync_uq1|altera_reset_synchronizer_int_chain[1]",
+        "soc_inst|subsys_debug|fpga_m|altera_jtag_avalon_master_inst|jtag_phy_embedded_in_jtag_master|normal.jtag_dc_streaming|jtag_streaming|clock_sense_reset_n_synchronizer|din_s1",
+        "soc_inst|subsys_debug|hps_f2sdram|altera_jtag_avalon_master_inst|jtag_phy_embedded_in_jtag_master|normal.jtag_dc_streaming|jtag_streaming|clock_sense_reset_n_synchronizer|din_s1"
+      ],
+      "sources": "pll_inst|iopll_0|tennm_ph2_iopll~pll_ctrl_reg   auto_fab_0|alt_sld_fab_0|alt_sld_fab_0|configresetfabric|conf_reset_src|ag.sdm_gpo_out_user_reset~internal_ctrl_clock.reg   soc_inst|subsys_periph|rst_controller|alt_rst_sync_uq1|altera_reset_synchronizer_int_chain_out   fes_top_reset_inst|sync_regs[1]   soc_inst|subsys_debug|fpga_m|altera_jtag_avalon_master_inst|jtag_phy_embedded_in_jtag_master|normal.jtag_dc_streaming|jtag_streaming|clock_sense_reset_n   soc_inst|subsys_debug|hps_f2sdram|altera_jtag_avalon_master_inst|jtag_phy_embedded_in_jtag_master|normal.jtag_dc_streaming|jtag_streaming|clock_sense_reset_n"
+    },
+    "fes_video_inst|video_clock|iopll_0_outclk0": {
+      "count": 3,
+      "registers": [
+        "fes_video_inst|pixel_reset|sync_regs[0]",
+        "soc_inst|subsys_periph|fes_computer|fes_computer|video|pix_release[0]",
+        "soc_inst|subsys_periph|fes_computer|fes_computer|pixel_transport_reset_release[0]"
+      ],
+      "sources": "fes_video_inst|video_clock|iopll_0|tennm_ph2_iopll~pll_ctrl_reg   auto_fab_0|alt_sld_fab_0|alt_sld_fab_0|configresetfabric|conf_reset_src|ag.sdm_gpo_out_user_reset~internal_ctrl_clock.reg   soc_inst|subsys_periph|rst_controller|alt_rst_sync_uq1|altera_reset_synchronizer_int_chain_out"
+    }
+  },
+  "reset_chains_after": {
+    "pll_inst|iopll_0_outclk0": {
+      "count": 5,
+      "registers": [
+        "fes_top_reset_inst|sync_regs[0]",
+        "soc_inst|subsys_periph|rst_controller|alt_rst_sync_uq1|altera_reset_synchronizer_int_chain[1]",
+        "soc_inst|rst_controller|alt_rst_sync_uq1|altera_reset_synchronizer_int_chain[1]",
+        "soc_inst|subsys_debug|fpga_m|altera_jtag_avalon_master_inst|jtag_phy_embedded_in_jtag_master|normal.jtag_dc_streaming|jtag_streaming|clock_sense_reset_n_synchronizer|din_s1",
+        "soc_inst|subsys_debug|hps_f2sdram|altera_jtag_avalon_master_inst|jtag_phy_embedded_in_jtag_master|normal.jtag_dc_streaming|jtag_streaming|clock_sense_reset_n_synchronizer|din_s1"
+      ],
+      "sources": "pll_inst|iopll_0|tennm_ph2_iopll~pll_ctrl_reg   auto_fab_0|alt_sld_fab_0|alt_sld_fab_0|configresetfabric|conf_reset_src|ag.sdm_gpo_out_user_reset~internal_ctrl_clock.reg   fes_top_reset_inst|sync_regs[1]   soc_inst|subsys_debug|fpga_m|altera_jtag_avalon_master_inst|jtag_phy_embedded_in_jtag_master|normal.jtag_dc_streaming|jtag_streaming|clock_sense_reset_n   soc_inst|subsys_debug|hps_f2sdram|altera_jtag_avalon_master_inst|jtag_phy_embedded_in_jtag_master|normal.jtag_dc_streaming|jtag_streaming|clock_sense_reset_n"
+    },
+    "fes_video_inst|video_clock|iopll_0_outclk0": {
+      "count": 2,
+      "registers": [
+        "fes_video_inst|pixel_reset|sync_regs[0]",
+        "soc_inst|subsys_periph|fes_computer|fes_computer|pixel_transport_reset_release[0]"
+      ],
+      "sources": "fes_video_inst|video_clock|iopll_0|tennm_ph2_iopll~pll_ctrl_reg   auto_fab_0|alt_sld_fab_0|alt_sld_fab_0|configresetfabric|conf_reset_src|ag.sdm_gpo_out_user_reset~internal_ctrl_clock.reg   soc_inst|subsys_periph|rst_controller|alt_rst_sync_uq1|altera_reset_synchronizer_int_chain_out"
+    }
+  },
+  "remaining_signoff_failures": [
+    {
+      "rule": "TMC-20012 - Missing Output Delay Constraint",
+      "severity": "High",
+      "violations": 30,
+      "waived": "0"
+    },
+    {
+      "rule": "TMC-20011 - Missing Input Delay Constraint",
+      "severity": "High",
+      "violations": 2,
+      "waived": "0"
+    },
+    {
+      "rule": "RDC-50003 - Multiple Asynchronous Reset Synchronizers in the Same Clock Domain",
+      "severity": "Medium",
+      "violations": 2,
+      "waived": "0"
+    },
+    {
+      "rule": "RES-50101 - Intra-Clock False Path Reset Synchronizer",
+      "severity": "Low",
+      "violations": 2,
+      "waived": "0"
+    }
+  ],
+  "unconstrained": {
+    "Illegal Clocks": [
+      0,
+      0
+    ],
+    "Unconstrained Clocks": [
+      0,
+      0
+    ],
+    "Unconstrained Input Ports": [
+      2,
+      2
+    ],
+    "Paths from Unconstrained Input Ports (Pairs-Only)": [
+      9,
+      9
+    ],
+    "Unconstrained Output Ports": [
+      30,
+      30
+    ],
+    "Paths to Unconstrained Output Ports (Pairs-Only)": [
+      2470,
+      2470
+    ]
+  },
+  "timing_signoff": false,
+  "hardware_actions": false,
+  "core_load_acceptance": false,
+  "native_chain_for_new_package_built": false,
+  "Quartus_elapsed": 557.1411187039921,
+  "phase_limit_seconds": 120,
+  "worker_count": 8,
+  "artifacts": {
+    "out/nano-shared-reset-20261106/sealed-project/board/hps/project/output_files/golden_top.sta.rpt": "dc2c9bf3a88e0499a6b4199d6260b785bd661eab2d2ed045a256a3d87ca52a1c",
+    "out/nano-shared-reset-20261106/sealed-project/board/hps/build.json": "346dfd3a469cb4153b32f5a8ab2d1eb68afcbbf12092c2510a01a460003fa868",
+    "out/nano-shared-reset-20261106/sealed-project/board/hps/seal-result.json": "c5573195a9a41020bfbf5ae37a80d9364d7927cd40e75c562d33d9cafb5f59d9",
+    "out/nano-shared-reset-20261106/sealed-project/board/hps/build-inputs.json": "a51b410e88da9633d0d2d7adc160fe600b0a06cbfaadff29da66576f19a539a0",
+    "out/nano-shared-reset-20261106/sealed-project/board/hps/inputs.json": "b2c9363da893c93efc3fe5a7e083469650c00308c7230c14495a1e1bc3fb97ea",
+    "out/nano-shared-reset-20261106/sealed-project/board/hps/generation.json": "5dd8cfe2682b55baad4b46b17a9f0b0b9f6b5713ae942e5e8cf0e23d59839e46",
+    "out/nano-shared-reset-20261106/sealed-project/board/hps/packages/d2b280fb954639335eb66d77b2d4bb73518ad937fe21d32012911fea29acedf9.fcore": "56084c6716f30b8c9edb5aa36d955c2ec9c2b33d10a63ad1af62ff7e2017ad3b"
+  },
+  "software_aggregate_green": true,
+  "parent_tests": {
+    "total": 1425,
+    "skipped": 2
+  },
+  "FPGA_tests": {
+    "total": 1585,
+    "skipped": 75
+  },
+  "exact_compiled_commit_checked": true,
+  "focused_DE25_tests": {
+    "total": 67,
+    "skipped": 1
+  },
+  "actual_native_package_preflight": true,
+  "actual_preflight_firmware_calls": 0,
+  "shared_reset_negative_control_rejected": true,
+  "failed_candidate": {
+    "source": "d2aa3e41cedb586363a394fd1a3be913e9a219c6",
+    "failure": "stale captured video reset-ingress SDC inventory; stopped before placement",
+    "source_and_reports_verified": 1055
+  },
+  "integration_evidence_directories": [
+    "out/de25-board-control-check-cfc869a9a7664e0681fd33ae70a4cf7e",
+    "out/de25-video-equivalence-9d0dd918480044afa9b864b6094024e0",
+    "out/nano-fabric-stop-83bdfd2af43245fc93a7906907ca80b1"
+  ],
+  "evidence_sha256": {
+    "out/nano-shared-reset-20261106/candidate-analysis.json": "19e760c61c16c85f839bbdb24e78c145c055ea21b0d51c7dfde61b69c3219ce1",
+    "out/nano-shared-reset-20261106/source-and-constraint-check.json": "7873243b821c77cdfffbb1cccfcf320a419b3e378a29ab99611a265684caba13",
+    "out/nano-shared-reset-20261106/remaining-reset-inspection.json": "715aeef46399610d5590a0c417bcdecbbe4ff2cd90598e2edbc9e461a0c6174a",
+    "out/nano-shared-reset-20261106/recovery-pin-check.json": "a55e5aaa2e716759748ca026e6613a3be888fec1e508fd6abe4fee594596af25",
+    "out/nano-shared-reset-20261106/failed-transfer-result.json": "bb5310cbb533411c7cd4be3618d1542bab83afdf10e1968f3c3b14f0bf1cbcdc",
+    "out/nano-shared-reset-20261106/video-proof-final/result.json": "f71ad137001e66c745986444b0a11b0d36599e9d0093a77cd4e6bd4a498f3965",
+    "out/nano-shared-reset-20261106/rom-model-final/result.json": "a21d304808e7f9ab18d63177baffe6a53322285c0787fcb801a729b1e740ffb1",
+    "out/nano-shared-reset-20261106/transfer-result.json": "7a35583b33f3d080fa2fb2a07da383fd0579b8977b11d2a9f1038a2289270061",
+    "out/nano-shared-reset-20261106/de25-final-result.json": "5ee4fa8e056550b9b23a1ecee396a32471dcd19c10568feca30a83fd3688910c",
+    "out/nano-shared-reset-20261106/native-source-closure-final-result.json": "4791caa8b933073393b5b203ed772b642c73db7eea10e8b311b67c81d51a8af3",
+    "out/nano-shared-reset-20261106/affected-final-result.json": "ddf760bc5ebbbd86d90c1e7f1ed6e8ebf0405a2ffa10ff70c95b9288a99c316e",
+    "out/nano-shared-reset-20261106/export-actual-fixture-result.json": "74fffee1392c584479fa8a3fc4886a02b61ab31c91c43e68998c5c996baae34e",
+    "out/nano-shared-reset-20261106/actual-native-preflight-result.json": "a8f258fb6782beb40ffc5f1b362934077d536823f60f6888278357ecb33b523a",
+    "out/nano-shared-reset-20261106/de25-final.log": "b134e07542f39f9becce7de21df09f4578c0078be0ab15519162d7d78bacc062",
+    "out/nano-shared-reset-20261106/native-source-closure-final.log": "058b4114acb9cfa52065df2381c438c41ef5fe8cfe73aa8055a18e5214b3791d",
+    "out/nano-shared-reset-20261106/affected-final.log": "fe0f408ccde03c04f939c4649b441c83dbbcc8f15f01d59005bc23e4980e2b41",
+    "out/nano-shared-reset-20261106/export-actual-fixture.log": "e899d9a7ad2c540e28bdb9af2586ac738a1279dbe82c090a1a6993ac564192dd",
+    "out/nano-shared-reset-20261106/actual-native-preflight.log": "1db6bb58edfab4e6af3d3c2a88fd64ed594ade916e90830e2e05ce1ca0f3575e"
+  },
+  "board_state": "USB enumerates after user power interruption; CPU/FPGA state unqualified; no board action this work",
+  "outstanding": [
+    "Reset reconvergence/ownership for vendor system and HDMI domains",
+    "HDMI/I2C/LED endpoint timing contract",
+    "Fresh matched native boot chain for this package",
+    "Requalify TRWU8CBL and bounded ordinary package load/ROM/input/return trial",
+    "Physical menu/core display transitions and native media/network behavior toward DE10 parity"
+  ]
+}
