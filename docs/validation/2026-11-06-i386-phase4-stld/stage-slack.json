@@ -1,0 +1,74 @@
+{
+ "corner": "7_slow_1100mv_-40c, 16.276 ns",
+ "script": "stages.tcl (quartus_sta, worst setup slack into each register group)",
+ "stages": {
+  "d_eip": {
+   "slice3_ras_0a16a224": 5.574,
+   "this_seal_a587e709": 1.459
+  },
+  "r_dst": {
+   "slice3_ras_0a16a224": 5.283,
+   "this_seal_a587e709": 1.617
+  },
+  "r_src": {
+   "slice3_ras_0a16a224": 5.418,
+   "this_seal_a587e709": 1.619
+  },
+  "dc0": {
+   "slice3_ras_0a16a224": 4.309,
+   "this_seal_a587e709": 1.67
+  },
+  "dfwd_": {
+   "slice3_ras_0a16a224": 5.863,
+   "this_seal_a587e709": 1.91
+  },
+  "r_cnt": {
+   "slice3_ras_0a16a224": 6.604,
+   "this_seal_a587e709": 1.952
+  },
+  "decode_": {
+   "slice3_ras_0a16a224": 2.088,
+   "this_seal_a587e709": 2.017
+  },
+  "ag_": {
+   "slice3_ras_0a16a224": 3.618,
+   "this_seal_a587e709": 2.3
+  },
+  "dc_": {
+   "slice3_ras_0a16a224": 3.052,
+   "this_seal_a587e709": 2.339
+  },
+  "d_first": {
+   "slice3_ras_0a16a224": 8.266,
+   "this_seal_a587e709": 2.587
+  },
+  "dops_": {
+   "slice3_ras_0a16a224": 6.908,
+   "this_seal_a587e709": 2.743
+  },
+  "frontend_": {
+   "slice3_ras_0a16a224": 1.284,
+   "this_seal_a587e709": 1.831
+  },
+  "governor_": {
+   "slice3_ras_0a16a224": 1.02,
+   "this_seal_a587e709": 1.491
+  },
+  "l1d_": {
+   "slice3_ras_0a16a224": 3.644,
+   "this_seal_a587e709": 3.27
+  },
+  "m2_": {
+   "slice3_ras_0a16a224": 4.042,
+   "this_seal_a587e709": 4.065
+  },
+  "ex_": {
+   "slice3_ras_0a16a224": 6.52,
+   "this_seal_a587e709": 6.232
+  },
+  "m1_": {
+   "slice3_ras_0a16a224": 7.656,
+   "this_seal_a587e709": 6.748
+  }
+ }
+}

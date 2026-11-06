@@ -1,0 +1,88 @@
+{
+ "kit": "A",
+ "run": "s1",
+ "date": "2026-11-06",
+ "preset": "max (0)",
+ "package": "a587e7094a73d3ae7aa08172f457a78440734e20c626435b7089ab770ebdbdf6",
+ "package_seal": "Quartus 17.0.2, seed 1, clean checkout a421fb060 (seal-summary.json)",
+ "kit_software": "baseline a8cd30c4 on image f904961e, core-only (no install, no image change, no reboot)",
+ "disk": {
+  "sha256": "fe81c9c4f93cc34d8b4b10aa2be97c660a30c6b47e48bf205ed6d68fd2fee732",
+  "note": "the Phase 4 baseline record's bench disk, the same image"
+ },
+ "commands": {
+  "3dbench": "C:\\MARKS\\3DBENCH> 3dbench",
+  "pcpbench": "C:\\MARKS\\PCPBENCH> pcpbench /vgamode",
+  "topbench": "C:\\MARKS\\TOPBENCH> topbench, Benchmarking menu",
+  "doom_pack": "C:\\MARKS\\DOOMS> doom -config max.cfg|min.cfg -timedemo demo3",
+  "doom_demo3": "C:\\DOOM> doom -timedemo demo3"
+ },
+ "settings": "fes.pc386.machine words: 0, 0, 0, 0, 0x220, IRQ 7, DMA 1; a SCRUBX memory scrub launch first, as the baseline",
+ "grabs": {
+  "3dbench": "p0-3d-0",
+  "pcpbench": "p0-pcp-1",
+  "topbench": "p0-tb-0",
+  "doom_pack_max": "p0-dmax-1",
+  "doom_pack_min": "p0-dmin-0",
+  "doom_v19_demo3": "p0-demo3-2"
+ },
+ "before": {
+  "run": "k1 (Kit A, package 57a78420..., PR #1511's record)",
+  "3dbench_fps": 71.4,
+  "pcpbench": 12.8,
+  "topbench": 303,
+  "doom_pack_max": {
+   "gametics": 2134,
+   "realtics": 2218,
+   "fps": 33.67
+  },
+  "doom_pack_min": {
+   "gametics": 2134,
+   "realtics": 805,
+   "fps": 92.78
+  },
+  "doom_v19_demo3": {
+   "gametics": 3863,
+   "realtics": 3608,
+   "fps": 37.47
+  },
+  "topbench_usec": {
+   "MemTest": 22,
+   "MemEA": 18,
+   "Opcodes": 19,
+   "VidMem": 99,
+   "3DGames": 20,
+   "Total": 178
+  }
+ },
+ "after": {
+  "3dbench_fps": 71.4,
+  "pcpbench": 13.0,
+  "topbench": 307,
+  "doom_pack_max": {
+   "gametics": 2134,
+   "realtics": 2188,
+   "fps": 34.14
+  },
+  "doom_pack_min": {
+   "gametics": 2134,
+   "realtics": 803,
+   "fps": 93.01
+  },
+  "doom_v19_demo3": {
+   "gametics": 3863,
+   "realtics": 3566,
+   "fps": 37.92
+  },
+  "topbench_usec": {
+   "MemTest": 21,
+   "MemEA": 17,
+   "Opcodes": 18,
+   "VidMem": 86,
+   "3DGames": 20,
+   "Total": 162
+  }
+ },
+ "package_fcore_sha256": "375c006f4e838565b221964088179b64363b9f86d0d5885e0cb99976b05ddf9f",
+ "time": "15:30-15:43 EET; data trees removed 15:43"
+}

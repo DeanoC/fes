@@ -1693,11 +1693,18 @@ it runs uncapped.
    return to a modified address, unbalanced CALL and RET, and stack switches.
    Gain: DOOM and 3DBench about 3%; PCPBench spends most of its set-up in
    CALL and RET. Risk: low, about 600 flip-flops.
-4. **Store-to-load wait only on a possible overlap.** D holds a load behind a
-   store in AG only when their addresses may overlap, not behind every store.
-   Lockstep: store and load pairs at every offset and size, across lines and
-   pages, and with MMIO. Gain: Wolfenstein 3D 6–11%, DOOM 1–2%. Risk: low; D
-   and AG have +4.7–5.4 ns.
+4. **Store-to-load wait only on a possible overlap.** Built
+   ([record](../../../docs/validation/2026-11-06-i386-phase4-stld/summary.md)):
+   D holds a load behind a store in AG only when a byte of each agrees in
+   linear address bits 11:0 ([the store-to-load check](#the-store-to-load-check)).
+   - **DOOM.** Kit A's `demo3` goes from 37.5 to 37.9 fps (+1.2%), on slice
+     2's tree.
+   - **Wolfenstein 3D.** No gain. The plan's 6–11% came from the game's wait
+     for a timer tick, whose two loads read the bytes just stored.
+   - **Timing.** The seal meets every analysis, but D's registers lose about
+     4 ns: D's EIP has +1.46 ns, from +5.57. The check's 12-bit sum is on
+     `issue`'s path, so slice 6 has much less room in D and AG than this
+     plan assumed.
 5. **Indirect JMP and CALL.** The BTB keeps the last target. Gain: DOOM about
    1%. Risk: none beyond slice 2.
 6. **Early ALU.**
