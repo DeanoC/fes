@@ -12,13 +12,9 @@ then ranks); --json
 writes the same numbers.
 
 Causes (each system clock the RTL ran is in exactly one):
-  retired uops          issued uops that WB committed (or that are still in
-                        flight at the window's end)
-  redirect              taken-branch refill (with any L1I miss on the way)
-                        and the wrong-path uops a redirect flushed (issued,
-                        less committed, less the change in the uops in
-                        flight between the snapshots, so exact); the
-                        class table splits the redirects by branch class
+  issued uops           cycles in which a uop was issued
+  redirect              taken-branch refill (with any L1I miss on the way);
+                        the class table splits redirects by branch class
                         ("next": the clocks from a taken instruction to its
                         target's retirement)
   fetch and L1I         front end empty, an L1I miss or not
@@ -48,10 +44,10 @@ import json
 from pathlib import Path
 import sys
 
+ISSUE = ('issue_first', 'issue_more')
 CAUSES = {
-    'retired uops': [],  # issued less wrong-path, computed
+    'issued uops': list(ISSUE),
     'redirect: refill': ['refill', 'refill_l1i'],
-    'redirect: wrong-path uops': [],  # computed
     'fetch and L1I': ['fe_l1i', 'fe_empty'],
     'L1D and port 0': ['frz_l1d'],
     'microcode': ['urom', 'temp', 'str'],
@@ -67,7 +63,6 @@ CAUSES = {
     'halt': ['halt', 'parked_halt'],
     'other': ['d_stop', 'gov', 'replay_serial', 'other_wait', 'reset'],
 }
-ISSUE = ('issue_first', 'issue_more')
 BRANCHES = ('jcc', 'loop', 'jcxz', 'jmp', 'call', 'ret', 'jmp_ind', 'call_ind', 'far_call', 'far_jmp', 'retf',
             'int', 'iret', 'delivery')
 
@@ -125,18 +120,14 @@ def window(snaps: dict[float, dict], lo: float | None = None, hi: float | None =
     if clocks != t['sampled']:
         raise ProfileError(f'buckets hold {clocks} clocks, {t["sampled"]} sampled')
     issued = sum(b[k] for k in ISSUE)
-    # Issued uops either commit, are flushed, or are still in flight.
-    wrong = issued - t['commits'] - (last['t']['in_flight'] - first['t']['in_flight'])
-    if wrong < 0:
-        raise ProfileError(f'{issued} uops issued, {t["commits"]} committed: the in-flight counts are inconsistent')
     causes = {}
     for name, keys in CAUSES.items():
         causes[name] = sum(b[k] for k in keys)
-    causes['retired uops'] = issued - wrong
-    causes['redirect: wrong-path uops'] = wrong
     taken = {k: v for k, v in classes.items() if k in BRANCHES and v.get('taken')}
     return {'from': a, 'to': z, 'from_cycle': first['t']['cycles'], 'cycles': t['cycles'], 'rtl_clocks': clocks, 'retired': t['retired'],
-            'pm_retired': t['pm_retired'], 'commits': t['commits'], 'issued': issued, 'wrong_path_uops': wrong,
+            'pm_retired': t['pm_retired'], 'commits': t['commits'], 'issued': issued,
+            'in_flight_start': first['t']['in_flight'], 'in_flight_end': last['t']['in_flight'],
+            'flush_cycles': t['flush_cycles'],
             'redirects': t['redirects'], 'frames': t['frames'], 'polls_3da': t['polls_3da'],
             'l1d_waits': t['l1d_waits'], 'l1i_waits': t['l1i_waits'], 'prefixes': t['prefixes'],
             'cpi': t['cycles'] / max(t['retired'], 1), 'causes': causes, 'buckets': b, 'classes': classes,
@@ -149,7 +140,8 @@ def report(w: dict) -> str:
     out = [f'window {w["from"]}..{w["to"]}: {w["cycles"]:,} clocks ({w["rtl_clocks"]:,} on the RTL), '
            f'{w["retired"]:,} retired, CPI {w["cpi"]:.3f}, {w["frames"]} frames'
            + (f', {w["cycles"] / w["frames"]:,.0f} clocks a frame' if w['frames'] else ''),
-           f'issued {w["issued"]:,} uops, committed {w["commits"]:,}, wrong path {w["wrong_path_uops"]:,}; '
+           f'issued {w["issued"]:,} uops, committed {w["commits"]:,}, '
+           f'in flight {w["in_flight_start"]:,}->{w["in_flight_end"]:,}, flush cycles {w["flush_cycles"]:,}; '
            f'{w["redirects"]:,} redirects, {w["l1d_waits"]:,} L1D and {w["l1i_waits"]:,} L1I misses',
            f'{"cause":32s} {"clocks":>14s} {"%":>6s} {"per instr":>9s}']
     clocks = max(w['rtl_clocks'], 1)
