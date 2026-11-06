@@ -32,8 +32,18 @@ foreach_in_collection corner $corners {
   if {$check in {setup hold}} {
    foreach_in_collection node $epochs {
     set regname [get_node_info -name $node]
-    set ena [get_pins -compatibility_mode -nocase "${regname}|ena"]
-    if {[get_collection_size $ena] != 1} {error "missing epoch ENA pin"}
+    # Quartus's compatibility lookup also returns fitted copies for a base
+    # register name. Select by the actual full pin name so each physical
+    # consumer is timed once, including copies visited separately above.
+    set matches 0
+    set ena {}
+    foreach_in_collection pin $ena_pins {
+     if {[get_node_info -name $pin] eq "${regname}|ena"} {
+      set ena $pin
+      incr matches
+     }
+    }
+    if {$matches != 1} {error "missing or ambiguous exact epoch ENA pin: $regname"}
     lappend targets $ena
    }
   } else {set targets [list [get_fanouts $source]]}

@@ -4396,6 +4396,9 @@ only Quartus's `~DUPLICATE` register-copy suffix. Every physical copy still need
 its own paired recovery/removal path at every corner; the sole enable retains
 full setup/hold coverage. The raw DA reset-load quantity is retained separately
 from the complete physical inventory and never substitutes for path coverage.
+The collector selects physical enable pins by their full names because the
+compatibility query may also return a fitted duplicate. Correct collection
+does not admit an additional logical consumer; the current policy still refuses it.
 
 `scripts/export_de25_static_persona.py --producer /absolute/qualified-build
 --package /absolute/package.fcore --output /absolute/expansions` exports the

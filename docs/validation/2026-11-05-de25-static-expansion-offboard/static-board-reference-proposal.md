@@ -69,3 +69,60 @@ layout's descriptive counts and replicas. It changes no constraints or
 hardware RTL and rewrites no source/QDB/artifact seals. The rejected `4dc`
 candidate remains unqualified; the corrected producer needs fresh canonical
 fits before package or persona export.
+
+## Additional proposed scope: the two source first-seen registers
+
+Status: **pending approval**. The existing `de25-static-stock-reference-v1`
+policy remains unchanged and refuses the finding described here. The previous
+approval is not being reused for this additional logical enable consumer.
+
+The fresh `b0d985baa` primary fit compiles base, empty and 16K. Its reset timing
+collector then stops because Quartus's compatibility pin-name query returns both
+`first_seen|ena` and `first_seen~DUPLICATE|ena` for the unsuffixed name. The
+collector now selects each physical pin by its exact full name. A separate
+read-only diagnostic of the retained fitted database collects all three
+revisions without modifying the failed producer's source or seals.
+
+That inventory also exposes an additional logical consumer, beyond the one
+admitted by v1. The complete direct asynchronous-reset membership is still the
+same 313 logical registers, represented by 329 physical copies. The direct
+enable loads are:
+
+- `soc_inst|subsys_periph|fes_scanout|fes_scanout|transport|first_seen`
+- `soc_inst|subsys_periph|fes_pr_control|fes_pr_control|first_seen`
+- `soc_inst|subsys_periph|fes_pr_control|fes_pr_control|first_seen~DUPLICATE`
+
+The existing fixed hardware sources already contain both logical registers:
+`boards/de25nano/zx81-hps/fes_de25_computer.v` initializes `first_seen` to zero
+and sets it to one on `posedge clk` when `reset_n` is asserted;
+`boards/de25nano/link-proof/fpga/shell.v` has the same initial state and update.
+The new fitted pin query confirms that all three enable pins have the same
+direct reset-controller source. Every timing row has the same reviewed source
+and receiving system clock. The physical inventories, paired paths, raw finding
+and logs are retained at
+`/data/fes-de25-main-integration-20261105/static-reset-collector-b0d/`;
+the regression fixture `de25_static_reference_fit_b0d.tar.gz` retains the base
+inventory, all paths and exact old/new raw finding fields.
+
+All three revisions have 2,656 paired all-corner paths each: 329 asynchronous
+loads with recovery/removal and three enable loads with setup/hold. Minimum
+setup/hold/recovery/removal is 8.029/0.353/7.901/0.212 ns. The raw LNT violation
+count stays one, but its descriptive enable-load quantity changes from one to
+three. Its driver, representative reset and enable, synchronous-reset quantity
+zero and empty waiver field are unchanged. No numerical limit is relaxed.
+
+The proposed replacement policy, `de25-static-stock-reference-v2`, would admit
+only the original transport register and the optional PR-control register above,
+plus their anchored Quartus duplicate suffixes, while retaining the exact fixed
+source hashes. The original transport consumer remains required. Every physical
+enable copy must appear in the independent inventory and have positive paired
+setup/hold at all four corners. The raw enable quantity must equal that complete
+physical inventory. Unknown logical consumers, missing paths, changed sources,
+clocks or finding families, waivers and negative timing still refuse export.
+
+All other v1 checks remain required. V1 would not be reinterpreted or retained
+as an alternative export route. After approval, the v2 implementation would
+need fresh canonical primary and independent fits, matching base/empty/16K RBFs,
+and both public persona exports. The failed b0d candidate stays unqualified.
+This additional review scope would authorize no board load, image change or
+flash operation; target-CPU composition and physical acceptance remain separate.

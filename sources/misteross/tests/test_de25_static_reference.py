@@ -56,6 +56,38 @@ class StaticReferenceTests(unittest.TestCase):
         self.assertEqual((previous['direct_async'], previous['logical_async']), (334, 313))
         self.assertEqual(review.reset_finding_count(review.findings(self.drc, self.raw), previous), 279)
 
+    def test_new_enable_consumer_still_refused_after_exact_pin_collection(self):
+        newer = self.work / 'b0d-fit'
+        with tarfile.open(ROOT / 'tests/fixtures/de25_static_reference_fit_b0d.tar.gz') as archive:
+            archive.extractall(newer, filter='data')
+        inventory = newer / 'reset_direct/direct-inventory.tsv'
+        paths = newer / 'reset_paths/reset-paths.tsv'
+        physical = review.rows(inventory, ['kind', 'name'])
+        enabled = {r['name'] for r in physical if r['kind'] == 'direct_ena'}
+        self.assertEqual(len(enabled), 3)
+        timing = review.rows(paths, ['corner', 'check', 'from', 'to', 'slack_ns',
+                                    'from_clock', 'to_clock'])
+        self.assertEqual(len(timing), 2656)
+        for corner in review.audio.CORNERS:
+            for check in ('setup', 'hold'):
+                selected = [r for r in timing if (r['corner'], r['check']) == (corner, check)]
+                self.assertEqual({r['to'] for r in selected}, enabled)
+                self.assertTrue(all(review.audio.number(r['slack_ns']) > 0 for r in selected))
+        # Correct collection does not silently approve the additional logical
+        # consumer or change the user-approved finding's enable count.
+        with self.assertRaisesRegex(review.BuildError, 'changed direct reset/enable consumers: direct_ena'):
+            review.reset_reports(inventory, paths)
+        lnt = json.loads((newer / 'raw-LNT.json').read_text())
+        old, new = lnt['old'][1], lnt['new'][1]
+        self.assertEqual((old[6], new[6]), ('1', '3'))
+        original = next(line for line in self.drc.splitlines()
+                        if line.startswith('; ') and review.RESET in line and 'first_seen|ENA' in line)
+        fields = [f.strip() for f in original.split(';')[1:-1]]
+        self.assertEqual(fields, old)
+        drc = self.drc.replace(original, '; ' + ' ; '.join(new) + ' ;')
+        with self.assertRaisesRegex(review.BuildError, 'changed reviewed topology: LNT-30010'):
+            review.findings(drc, self.raw)
+
     def test_new_physical_copy_requires_all_corner_recovery_and_removal(self):
         inventory = self.work / 'reset_direct/direct-inventory.tsv'
         paths = self.work / 'reset_paths/reset-paths.tsv'
