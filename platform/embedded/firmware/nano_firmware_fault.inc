@@ -26,7 +26,7 @@
     fes_ram_uart_wait 0x40
 .endm
 
-.pushsection .text.fes_ram_fault,"ax"
+.pushsection .vectors,"ax"
 .balign 2048
 .global fes_nano_ram_fault_vectors
 .type fes_nano_ram_fault_vectors, %object

@@ -51,7 +51,8 @@ before its first data access, captures ESR/ELR/FAR/SPSR and four working
 registers, emits one fixed-width bounded UART line, then parks. A logging fault
 therefore cannot re-enter the logger. The decoder retains at most one exception
 record and rejects boot. These diagnostics preserve the vendor cache operations;
-they neither retry nor establish RAM ownership or writability.
+they neither retry nor establish RAM ownership or writability. The tables use
+the vendor vector section, preserving its required BL31 entry ordering.
 
 Only that selected profile may accept one non-executable, zero-file-byte NOBITS
 load segment in the fixed range. Packaging independently checks the actual ELF
