@@ -166,11 +166,13 @@ geometry. The hero uses the light seed roles in
 [the FES visual language](../../../docs/ux/visual-language.md); the room
 should paint the card in the same surface colour (`#FFFCF5`). A room too
 small for the hero (under 480×360) keeps the strip. Kit Home
-(`example.fes-cores`) still draws the Library, Systems and Settings routes
-and the visible cores above that strip, with pointer hits and a focus mark.
-When those routes do not fit on one row they stack, and Direction follows
-that column into the shelf. A row that fits keeps Left and Right, as the
-hero does.
+(`example.fes-cores`) then draws its header routes and a list of the
+families above that strip, with pointer hits and a focus mark. `none` draws
+no FES panel and no FES footer line: the room draws all of its copy,
+actions and footer hint (the first-run setup screens). Confirm still uses
+the published destination; a condition the player can act on (an
+unreachable host, a launch error) is drawn at the left of the room's footer
+band.
 
 ## Script lifecycle
 
@@ -204,7 +206,11 @@ safe content area; `0,0` is its top-left), `room.time` (seconds since
 load), `room.reduced_motion` (boolean; the launcher reduced-motion
 preference), `room.core_shown(core_id)` (true for every ID when Show all cores
 is on; otherwise true for v1 cores and the core the room was opened for, and
-false for an empty or other held-back ID), `room.overlay` (boolean; true while the room is drawn over a
+false for an empty or other held-back ID), `room.setup` (first-run setup:
+`step` and `steps` for a setup room, 0 outside setup; `unfinished` after Skip
+setup and before Finish; `skipped`, the step ids not done yet),
+`room.release_only` (true unless Show all cores is on), `room.overlay`
+(boolean; true while the room is drawn over a
 running machine on the kit's HDMI session plane with launcher focus, false
 on host windows; a room that reads it can clear translucently so the machine
 stays visible, and must include it in any reused-picture key), `room.theme`
@@ -280,18 +286,20 @@ Platform `tags` classify hardware (`cpu:z80`, `vdp:tms9918-family`,
 The selected location the launcher uses for the compact info panel, Confirm,
 and Details. Loading results must not move the player’s selection; publish
 the current destination after a match lands, without moving focus. Built-in
-Home publishes its selected machine to the hero panel; installed authored
-rooms can use the compact destination panel.
+Home publishes its selected family or recent title to the hero panel;
+installed authored rooms can use the compact destination panel.
 
 `destination.set{kind, label, system, game_id, room_id, action, package_id,
 core_id, launchable, block, needs, inputs, query, platform, matches,
-resolving, missing, pending, status, note, note_by}` publishes one location.
+resolving, missing, pending, status, explain, models, details, kicker, note,
+note_by}` publishes one location. `kicker` replaces the hero's line above
+the title ("Recently played").
 `inputs` lists required input devices (`keyboard`, `mouse`; anything else
 is ignored) so FES can say so before Play. A pad is not listed: its
 presence does not establish a mapping. With `resolving=true`, `status`
 replaces the generic Checking sentence (for example "Looking for this
 kit's machines…"); Confirm still waits.
-`kind` is `game`, `room`, `library`, `action`, `core`, or `unresolved`. Omit availability to
+`kind` is `game`, `room`, `library`, `action`, `core`, `family`, or `unresolved`. Omit availability to
 let the host classify `matches` into Checking / Missing / Needs a choice /
 Unavailable / Ready. `resolving=true` is Checking. Unresolved without a
 match probe is a non-game location (a platform row, an empty list): the
@@ -300,15 +308,17 @@ strip shows **Unresolved** and Confirm stays with the room. Republishing
 catalog rows the room already cached.
 
 `kind = "action"` is a launcher-internal operation, not a shell command.
-The only allowlisted id is `settings`:
+The allowlisted ids are `settings` and the first-run setup moves
+`setup_continue`, `setup_back`, `setup_skip`, `setup_finish` and
+`setup_resume` (see Built-in rooms):
 
 ```lua
 destination.set{ kind = "action", action = "settings", label = "Settings" }
 ```
 
 Rooms are dynamic Lua, so the check runs on every `destination.set`
-call; that API boundary is the validation. A missing id, or any id other
-than `settings`, raises a Lua error (`destination.set: unknown launcher
+call; that API boundary is the validation. A missing id, or any id
+outside the allowlist, raises a Lua error (`destination.set: unknown launcher
 action "..."` or `destination.set: launcher action required`) and is not
 stored. The room's existing error panel shows it. An accepted action is
 Ready. The host may still refuse it at Confirm — Settings does not open
@@ -319,6 +329,31 @@ status instead of doing nothing. Confirm runs the action. Details
 and does not run it. `destination.get()` keeps `action` as the panel
 copy and reports the id as `launcher_action`. There is no `rooms.action`
 call.
+
+`kind = "family"` is a computer family on Home. Confirm opens `room_id`,
+the family's workbench, on `core_id` and `game_id` (both optional; a
+present `core_id` must be a safe token), where the model is chosen:
+
+```lua
+destination.set{
+  kind = "family",
+  label = "Sinclair ZX81",
+  room_id = "example.hardware",
+  core_id = "fes.zx81",
+  game_id = machine.game_id,
+  availability = "ready",   -- "checking", "ready" or "unavailable"
+  status = "38 games",      -- the hero headline
+  explain = "Open it to choose a model and a game.",
+  models = "4 models: ZX81, ZX80, TS1000, TS1500",
+  needs = "",               -- "firmware" makes the primary "Add firmware"
+  details = { "ZX81: Ready", "ZX80: Needs firmware" },
+}
+```
+
+The hero shows kicker "Computer", the models line, the state chip with the
+headline, the explanation, and Open (or Add firmware) and Details. Details
+shows the `details` lines inside the hero. Checking waits on Confirm; every
+other state opens the workbench, where a missing firmware is added.
 
 `kind = "core"` is an installed package on this kit, not a library row:
 
@@ -358,9 +393,8 @@ not listed yet (the agent is still warming its catalog). It is Checking
 tenfoot asks the socket again while it answers `warming`, for up to 60
 seconds, and the agent starts the package only if the finished list has it
 launchable. A missing or blocked package then fails like any other launch.
-A held lease explains instead of queuing. Kit Home shows its last selected
-package this way, so A on the opening card is not lost during the warm.
-Tenfoot connects the socket when it is started with `-gfx menu-display`. A host session leaves it unset. Kit Home says "Installed machines appear here on an FES kit." when no client is present and focuses its Library route.
+A held lease explains instead of queuing.
+Tenfoot connects the socket when it is started with `-gfx menu-display`. A host session leaves it unset.
 
 `destination.classify(games, {q=})` returns that result without changing
 focus. `matches` is the viable play rows when any can play. `candidates`
@@ -512,6 +546,12 @@ package's media capabilities and saves with compare-and-swap.
 manifest-derived sockets and exact-package cards. Importing and fitting are
 separate actions. These setup actions require an idle machine; live media uses
 `session.open_tape` and its observed session binding.
+`hardware.firmware_info({core_id=..., family_id=..., family_label=...,
+core_ids={...}, first_use=...})` asks for a family's firmware card
+([bundled firmware](../../../docs/bundled-firmware.md#the-first-use-card)).
+With `first_use = true` it is a standing request, not an action: the room
+keeps only the latest one and the launcher shows the card only if the family
+has not been continued past. Without it, the card always opens.
 
 Keep configuration out of `store`: it is presentation state, not the host
 catalogue. Room code may display compatibility results but must not infer
@@ -528,6 +568,8 @@ directory separators inside the pack (`require "lib.paths"` →
 | module | purpose |
 | --- | --- |
 | `systems` | Registered model labels and family navigation (`families`, `family_by_core`); package manifests determine admission |
+| `families` | Home and first-run setup's shared computer order and readiness (`list`, `load(on_change)`, `reload`, `settled`, `state`, `tile`, `games`, `details`, `publish`, `on_kit`) plus shared art, colours and header (`grounds`, `hash`, `ground`, `mark`, `chip`, `outline`) |
+| `setup` | First-run setup chrome: `layout`, the header with its step tracker, `buttons`, `footer`, `wrap`, `text` |
 | `widgets.system_workbench` | Shared system workbench; call the returned function with an optional fixed `core_id` |
 | `widgets.list` | focusable scrolling rows: `new{x,y,w,h,row_h,items,id}`, `input(cmd)`, `selected()`, `set_items`, `on_hover/on_activate(id)`, `draw{label=, background=, focus_color=}` |
 | `widgets.grid` | cover/icon grid with the library's focus rules: `new{x,y,w,h,cell_w,cell_h,gap,items,id}`, same methods, `draw{cover=fn(item), label=fn(item), plate=, hide_labels=}` |
@@ -549,9 +591,11 @@ packs still use the same authoring, install, rollback and nested-room APIs.
 
 | id | purpose |
 | --- | --- |
-| `example.fes-cores` | **Home**: installed machines and prepared systems, with Library / Systems / Settings routes, readable readiness and direct Play / Details actions. Machine names use the selected core's plain model name; raw package names and build tags stay metadata. Selection persists by package ID. |
+| `example.fes-cores` | **Home** (#1347): a Recently played row (the library's recents, hidden until something has been played) above one tile per computer family: Sinclair ZX81, ZX Spectrum, Atari ST and Commodore 64, then every other family when Show all cores is on. A family is Ready, No games yet (Ready with no titles), Needs firmware or Unavailable, from the library's machine entries for its models (kit.cores when the library can't be read); Open goes to its workbench. The header has Settings; Show all cores adds Library and Systems. Up from the tiles reaches Recently played, then the hero's actions, then the header. Focus persists by family or title. After Skip setup a Get started banner with Finish setup (`setup_resume`) takes the Recently played slot until setup is finished. |
 | `example.computers` | **Systems**: prepared systems, models and editions. Confirm launches; Set up opens the selected model's setup. Add system stays available with an empty library. |
 | `example.system` | Internal **System setup** template for 12 families and their hardware variants. Next system changes family; Variant chooses the model. Entry, edition, media and expansion selections keep exact core/package identities. |
+| `example.welcome` | **First-run setup, step 1** (#1345): what FES is, the four computers and what is built in; Continue (`setup_continue`) or Skip setup (`setup_skip`). `destination_panel = "none"`. |
+| `example.setup-ready` | **First-run setup, last step**: each family's chip, games and firmware need; Finish (`setup_finish`) or Back (`setup_back`, also B). |
 | `example.hardware` | Internal **Sinclair setup** template with the rear-connector shelf and cassette controls for ZX81, ZX80, TS1000 and TS1500. |
 | `example.coleco-arcade` | Internal Coleco title browser opened from Home. It lists installed `fes.coleco` entries matching the arcade titles and skips titles absent from the library. |
 

@@ -247,6 +247,22 @@ start:
     jnz .direct
     mark 31
 
+    ; 16: ESC instructions, which with no 387 do nothing, store all ones or
+    ; read and discard: FNINIT, FNSTSW AX, FNSTSW and FLDCW, FLD m32, FNOP.
+    mov si, DATA
+    mark 32
+    mov bp, 1000
+.esc:
+    fninit
+    fnstsw ax
+    fnstsw [si]
+    fldcw [si]
+    fld dword [si]
+    fnop
+    dec bp
+    jnz .esc
+    mark 33
+
     ; The interrupt latency run.
     mov si, DATA
     mov di, COPY

@@ -378,3 +378,13 @@ func TestROMAdoptionRequiresPrivateFiles(t *testing.T) {
 		t.Fatal("writable retained ROM artifact adopted")
 	}
 }
+
+// writeROMInputReceiptBytes copies a hand-built envelope for tests that edit
+// or replay it.
+func writeROMInputReceiptBytes(in ROMInput, receipt romInputReceipt) ([]byte, error) {
+	stream, err := writeROMInputReceipt(in, receipt)
+	if err != nil {
+		return nil, err
+	}
+	return stream.bytes(), nil
+}

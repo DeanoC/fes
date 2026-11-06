@@ -6,6 +6,8 @@ TXT_OFF  equ AE_OFF
 TXT_LEN  equ AE_DIMS
 
 edit_main:
+        bit 6,(iy+Y_CDFLAG)     ; SLOW asked for: frames on again (an error
+        call nz,slow            ; during line entry leaves them off)
         call edit_reset
         call edit_line
         res OF_REPORT,(iy+Y_OFLAGS)
@@ -20,36 +22,23 @@ edit_main:
         call tokenize
         call cls
         jr run_direct
-.prog:  ld a,(CDFLAG)            ; program lines move the display file:
-        push af                 ; no frames meanwhile
-        call fast
-        call enter_line
-        pop af
-        call tape_mode
+.prog:  call fast               ; program lines move the display file:
+        call enter_line         ; no frames meanwhile
 .empty: call auto_list
         jr edit_main
 
 ; E_LINE = cursor, NEWLINE; workspace and calculator stack empty.
 edit_reset:
-        ld hl,(E_LINE)
-        ld de,(STKEND)
-        ex de,hl
-        and a
-        sbc hl,de
-        ld b,h
-        ld c,l
-        ex de,hl
-        call reclaim
+        ld de,(E_LINE)
+        ld hl,(STKEND)
+        call reclaim_de
         ld bc,2
         call test_room
+        ld (iy+Y_MODE),0
         ld hl,(E_LINE)
         ld (hl),C_CURSOR
         inc hl
-        ld (hl),C_NL
-        inc hl
-        ld (WORKSP),hl
-        ld (iy+Y_MODE),0
-        jr line_workspace
+        jr eline_end
 
 ; Edit until NEWLINE; the cursor is removed on return.
 edit_line:
@@ -193,7 +182,7 @@ k_mode: and a
 get_key:
         call get_key_raw
         call decode             ; HL -> key_plain or key_shift entry
-        jr c,get_key
+        jr nc,get_key
         ld b,0
         ld a,l
         cp key_shift & 0xff
@@ -226,10 +215,7 @@ get_key:
         ret
 .func:  ld (iy+Y_MODE),a
         ld de,key_func-key_plain
-        call .at
-        cp 0x78
-        jr z,get_key
-        ret
+        jr .at                  ; 0x78, no function: the editor redraws the cursor
 .graph: dec b
         jr nz,.ginv
         ld de,key_graph-key_plain
@@ -243,18 +229,34 @@ get_key:
         or 0x80
         ret
 
-; BC = a new key-down state from the frame keyboard reads. A held key
-; repeats after 24 frames, then every 4.
-get_key_raw:
+; One frame. BC = the keys down, MEM updated; NZ when keys went down that
+; were not down the frame before.
+key_frame:
         call wait_frame
         ld bc,(LAST_K)
         ld hl,(MEM)
         ld (MEM),bc
         ld a,c
         inc a
-        jr z,get_key_raw        ; no key down
+        ret z                   ; no key down
         and a
         sbc hl,bc
+        ret
+
+; MEM = the keys down now, so a key still held from before (BREAK, the
+; NEWLINE of RUN) is not a new press. It repeats only after 256 frames.
+sync_keys:
+        call wait_frame         ; a fresh scan: FAST mode leaves LAST_K old
+        ld hl,(LAST_K)
+        ld (MEM),hl
+        ld (iy+Y_DEBOUNCE),0
+        ret
+
+; BC = a new key-down state from the frame keyboard reads. A held key
+; repeats after 24 frames, then every 4. No key counts down the same way:
+; DECODE rejects the $FFFF it returns then.
+get_key_raw:
+        call key_frame
         ld a,24
         jr nz,.new
         dec (iy+DEBOUNCE-0x4000)
@@ -276,7 +278,10 @@ edit_draw:
         ld b,a
         ld a,25
         sub b                   ; rows used (at least one)
-        ld b,a
+        cp 25
+        jr c,.rows
+        ld a,24                 ; a line may be taller than the display
+.rows:  ld b,a
         inc a
         cp 25
         jr c,.sz2
@@ -290,7 +295,9 @@ edit_draw:
         ld b,a
         ld c,0
         call print_at
+        set OF_CLIP,(iy+Y_OFLAGS)
         call print_eline
+        res OF_CLIP,(iy+Y_OFLAGS)
         res OF_LOWER,(iy+Y_OFLAGS)
         ret
 
@@ -366,22 +373,15 @@ enter_line:
         sbc hl,de
         inc hl
         ld (TXT_LEN),hl
-        ld bc,(E_PPC)
-        call find_line
+        call find_e_ppc
         jr nz,.noold
         push hl
         call next_line
         pop de
-        and a
-        sbc hl,de
-        ld b,h
-        ld c,l
-        ex de,hl
-        call reclaim
+        call reclaim_de
 .noold: pop af
         ret z
-        ld bc,(E_PPC)
-        call find_line
+        call find_e_ppc
         ld bc,(TXT_LEN)
         inc bc
         inc bc
@@ -433,8 +433,7 @@ auto_list:
 
 ; EDIT: bring the current line down, cursor after its number.
 edit_copy:
-        ld bc,(E_PPC)
-        call find_line
+        call find_e_ppc
         ret nz
         push hl
         call edit_reset
@@ -469,14 +468,9 @@ edit_copy:
         dec bc
         cp C_NUMBER
         jr nz,.app
-        ld de,5
-        add hl,de
-        dec bc
-        dec bc
-        dec bc
-        dec bc
-        dec bc
-        jr .t
+        call skip_num
+        jr nc,.t
+        ld a,C_QUERY            ; a stray marker: "?", as the tokenizer makes it
 .app:   push hl
         push bc
         call edit_append

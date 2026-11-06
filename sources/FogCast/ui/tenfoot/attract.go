@@ -123,8 +123,13 @@ func (a *App) persistPrefsLocked(field string) {
 		existing.ReducedMotion = a.reducedMotion
 	case "surround":
 		existing.Surround = boolPtr(a.surround)
+	case "firmware-info":
+		existing.FirmwareInfoSeen = a.firmwareCardSeenListLocked()
 	case "all-cores":
 		existing.AllCores = a.allCores
+	case "setup":
+		existing.SetupDone = a.setup.done
+		existing.SetupSkipped = append([]string(nil), a.setup.skipped...)
 	default:
 		return
 	}

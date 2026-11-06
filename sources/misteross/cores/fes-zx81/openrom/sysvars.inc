@@ -62,6 +62,7 @@ Y_MODE   equ 0x06
 Y_FLAGX  equ 0x2D
 Y_OFLAGS equ 0x21
 Y_DF_SZ  equ 0x22
+Y_DEBOUNCE equ 0x27
 Y_CDFLAG equ 0x3B
 
 ; Floating-point scratch in MEMBOT
@@ -145,6 +146,7 @@ T_TO     equ 0xDF
 T_STEP   equ 0xE0
 T_LPRINT equ 0xE1
 T_REM    equ 0xEA
+T_STOP   equ 0xE3
 T_NEXT   equ 0xF3
 
 ; Reports (ERR_NR = report - 1)

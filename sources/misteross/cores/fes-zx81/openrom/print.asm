@@ -18,7 +18,7 @@ print_a:
         push de
         push bc
         call print_char
-        pop bc
+pop3:   pop bc
         pop de
         pop hl
         ret
@@ -59,6 +59,7 @@ put_char:
         and a
         res 0,(iy+Y_FLAGS)
         ret nz
+set_space:
         set 0,(iy+Y_FLAGS)      ; a space suppresses the next leading space
         ret
 
@@ -66,7 +67,10 @@ put_char:
 ; the upper screen is full, unless OF_CLIP is set.
 check_line:
         bit OF_MEASURE,(iy+Y_OFLAGS)
-        ret nz
+        jr z,.normal
+        and a                   ; measuring must advance for every character
+        ret
+.normal:
         ld a,(S_POSN+1)
         bit OF_LOWER,(iy+Y_OFLAGS)
         jr z,.upper
@@ -89,8 +93,7 @@ print_nl:
         and a
         ret z
         dec (hl)
-        set 0,(iy+Y_FLAGS)
-        ret
+        jr set_space
 
 ; PRINT AT: B = line, C = column.
 print_at:
@@ -102,10 +105,19 @@ print_at:
         ld (S_POSN+1),a
         call collapsed
         ret c
-        call char_addr
+.cc:    call char_addr
         ld (DF_CC),hl
         ret
 
+; PRINT AT for BASIC and $08F5: DF_CC follows on a collapsed display too,
+; the row growing with spaces up to the column (as on the ZX81).
+print_at_cc:
+        call print_at
+        jr print_at.cc
+
+; Print position to line B, column 0 (row0) or C (at_row); HL = its row.
+row0:   ld c,0
+at_row: call print_at
 ; HL = start of the print position's row.
 row_addr:
         ld a,(S_POSN+1)
@@ -173,8 +185,7 @@ row_len:
 
 ; Character at line B column C (0 past a collapsed row's end).
 read_char:
-        call print_at
-        call row_addr
+        call at_row
         call cur_col
         inc a
         ld b,a
@@ -279,9 +290,7 @@ fp_print:
 ; Clear C rows starting at line B: blank (expanded) or empty (collapsed).
 clear_rows:
         push bc
-        ld c,0
-        call print_at
-        call row_addr
+        call row0
         pop bc
 .row:   push bc
         push hl
@@ -320,14 +329,7 @@ cls:    call collapsed
         ld bc,24
         call clear_rows
         jr .home
-.exp:   ld hl,(VARS)
-        ld de,(D_FILE)
-        and a
-        sbc hl,de
-        dec hl                  ; bytes after the leading NEWLINE
-        ld de,24*33
-        and a
-        sbc hl,de
+.exp:   call dfile_excess
         jr z,.fill
         ld b,h
         ld c,l
@@ -359,24 +361,27 @@ cls:    call collapsed
         jr print_at
 
 ; SCROLL the upper screen up one line; print position to its bottom line.
+; The new row goes in before the NEWLINE that ends the row above, so with
+; DF_SZ 0 (no lower screen) it is still inside the display file, not at VARS.
 scroll: ld a,24
         sub (iy+Y_DF_SZ)
+        ret z                   ; no upper screen
+        ret c
         ld b,a
-        ld c,0
-        call print_at
-        call row_addr           ; the first row below the upper screen
+        call row0               ; the first row below the upper screen
+        dec hl
         ld bc,1
         call collapsed
         jr c,.one
         ld c,33
-.one:   call make_room          ; a blank row there
-.fz:    dec c
-        jr z,.nl
+.one:   call make_room          ; NEWLINE and a blank row there
+        ld (hl),C_NL
+.fz:    inc hl
+        dec c
+        jr z,.top
         ld (hl),0
-        inc hl
         jr .fz
-.nl:    ld (hl),C_NL
-        ld hl,(D_FILE)          ; then the top row goes
+.top:   ld hl,(D_FILE)          ; then the top row goes
         inc hl
         push hl
         call row_len

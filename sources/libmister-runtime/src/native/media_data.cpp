@@ -13,6 +13,7 @@
 #include <unistd.h>
 namespace mister { namespace native { namespace {
 const std::string kLayout = "fes.atari-st-floppy.image";
+const std::string kPcxtLayout = "fes.pcxt-floppy.image";
 const std::string kTapeLayout = "fes.zx81-tape.image";
 Error Bad(const char* text) { return {ErrorCode::corrupt_data, text, "media_data"}; }
 Error Incompatible(const char* text) { return {ErrorCode::incompatible_data, text, "media_data"}; }
@@ -184,24 +185,30 @@ Error DecodeTape(const std::vector<unsigned char>& bytes, const MediaDataIdentit
 }
 Error EncodeMediaData(const MediaDiskRecord& record,std::vector<unsigned char>* output) {
     if(!output||!ValidMediaDataIdentity(record.identity)) return Bad("invalid media-data identity");
+    if ((record.identity.core_id == "fes.pcxt-dos") != (record.layout == MediaDataLayout::pcxt_floppy)) return Incompatible("media-data layout does not match core");
     if (record.layout == MediaDataLayout::zx81_tape) return EncodeTape(record, output);
-    if(record.bytes.size()>generated::FesComputerAtariStFloppyGeometryMaxBytes || !InferAtariStGeometry(record.bytes.size())) return Bad("invalid media-data payload size");
-    std::vector<unsigned char> bytes={'F','E','S','D','I','S','K','1'};
+    const bool pcxt = record.layout == MediaDataLayout::pcxt_floppy;
+    if ((pcxt && record.bytes.size() != generated::FesComputerPcxtFloppyBytes) ||
+        (!pcxt && (record.bytes.size()>generated::FesComputerAtariStFloppyGeometryMaxBytes || !InferAtariStGeometry(record.bytes.size())))) return Bad("invalid media-data payload size");
+    const std::string& layout = pcxt ? kPcxtLayout : kLayout;
+    std::vector<unsigned char> bytes = pcxt ? std::vector<unsigned char>{'F','E','S','P','C','X','T','1'} : std::vector<unsigned char>{'F','E','S','D','I','S','K','1'};
     for(const auto& digest:{Hash(record.identity.core_id),Hash(record.identity.game_id)})
         bytes.insert(bytes.end(),digest.begin(),digest.end());
     const auto base=DigestBytes(record.identity.base_media_id);
     bytes.insert(bytes.end(),base.begin(),base.end());
-    Word(&bytes,record.identity.unit); Word(&bytes,1); Word(&bytes,record.bytes.size()==kAtariStDiskBytes ? 0 : 1); Word(&bytes,kLayout.size());
+    Word(&bytes,record.identity.unit); Word(&bytes,1); Word(&bytes,pcxt || record.bytes.size()==kAtariStDiskBytes ? 0 : 1); Word(&bytes,layout.size());
     Word(&bytes,record.bytes.size()); Word(&bytes,record.bytes.size()>>16);
-    bytes.insert(bytes.end(),kLayout.begin(),kLayout.end());
+    bytes.insert(bytes.end(),layout.begin(),layout.end());
     bytes.insert(bytes.end(),record.bytes.begin(),record.bytes.end());
     const auto sum=Hash(bytes.data(),bytes.size()); bytes.insert(bytes.end(),sum.begin(),sum.end());
     *output=std::move(bytes); return {};
 }
 Error DecodeMediaData(const std::vector<unsigned char>& bytes,const MediaDataIdentity& id,MediaDiskRecord* output) {
     if(!output||!ValidMediaDataIdentity(id)) return Bad("invalid media-data identity");
-    if (bytes.size() >= 8 && std::memcmp(bytes.data(), "FESTAPE1", 8) == 0) return DecodeTape(bytes, id, output);
-    if(bytes.size()<148+kLayout.size() || bytes.size()>kMaximumMediaDataBytes || std::memcmp(bytes.data(),"FESDISK1",8))
+    if (id.core_id != "fes.pcxt-dos" && bytes.size() >= 8 && std::memcmp(bytes.data(), "FESTAPE1", 8) == 0) return DecodeTape(bytes, id, output);
+    const bool pcxt = id.core_id == "fes.pcxt-dos";
+    const std::string& layout = pcxt ? kPcxtLayout : kLayout;
+    if(bytes.size()<148+layout.size() || bytes.size()>kMaximumMediaDataBytes || std::memcmp(bytes.data(),pcxt ? "FESPCXT1" : "FESDISK1",8))
         return Bad("invalid media-data envelope or size");
     const auto sum=Hash(bytes.data(),bytes.size()-32);
     if(!std::equal(sum.begin(),sum.end(),bytes.end()-32)) return Bad("media-data checksum mismatch");
@@ -210,12 +217,13 @@ Error DecodeMediaData(const std::vector<unsigned char>& bytes,const MediaDataIde
        !std::equal(base.begin(),base.end(),bytes.begin()+72)||Word(bytes,104)!=id.unit)
         return Incompatible("media-data identity mismatch");
     const auto size=Word(bytes,112)|(Word(bytes,114)<<16);
-    const auto minor=size==kAtariStDiskBytes ? 0u : 1u;
-    if(Word(bytes,106)!=1||Word(bytes,108)!=minor||Word(bytes,110)!=kLayout.size()||
-       !InferAtariStGeometry(size) || bytes.size()!=148+kLayout.size()+size ||
-       !std::equal(kLayout.begin(),kLayout.end(),bytes.begin()+116)) return Incompatible("media-data layout mismatch");
+    const auto minor=pcxt || size==kAtariStDiskBytes ? 0u : 1u;
+    if(Word(bytes,106)!=1||Word(bytes,108)!=minor||Word(bytes,110)!=layout.size()||
+       (pcxt ? size != generated::FesComputerPcxtFloppyBytes : !InferAtariStGeometry(size)) || bytes.size()!=148+layout.size()+size ||
+       !std::equal(layout.begin(),layout.end(),bytes.begin()+116)) return Incompatible("media-data layout mismatch");
     MediaDiskRecord record; record.identity=id;
-    record.bytes.assign(bytes.begin()+116+kLayout.size(),bytes.end()-32);
+    if (pcxt) record.layout = MediaDataLayout::pcxt_floppy;
+    record.bytes.assign(bytes.begin()+116+layout.size(),bytes.end()-32);
     record.revision=Sha256Hex(Hash(bytes.data(),bytes.size())); *output=std::move(record); return {};
 }
 MediaDataFile::MediaDataFile(int directory, MediaDataIdentity id)
@@ -288,6 +296,7 @@ Error MediaDataFile::ReadLocked(MediaDiskRecord* output) const
 			return Io("cannot open media-data record");
 		MediaDiskRecord data;
 		data.identity = identity_;
+		if (identity_.core_id == "fes.pcxt-dos") data.layout = MediaDataLayout::pcxt_floppy;
 		*output = std::move(data);
 		return {};
 	}

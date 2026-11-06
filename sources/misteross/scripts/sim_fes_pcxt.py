@@ -88,7 +88,8 @@ MEMORY_SOURCES = (
 SYSTEM_SOURCES = (SOURCES[:4] + DISPLAY_SOURCES[:-1] + CHIPSET_SOURCES[:-1] +
                   tuple(s for s in CPU_SOURCES if s.endswith('.sv') and not s.endswith('/cpu_top.sv')) +
                   MEMORY_SOURCES[:2] + VIDEO_SOURCES[:-1] +
-                  ('cores/fes-pcxt/rtl/pcxt_machine.sv', 'cores/fes-pcxt/rtl/pcxt_disk_loader.sv', 'cores/fes-pcxt/rtl/pcxt_system.sv',
+                  ('cores/fes-pcxt/rtl/pcxt_machine.sv', 'cores/fes-pcxt/rtl/pcxt_disk_loader.sv', 'cores/fes-pcxt/rtl/pcxt_sector_writer.sv',
+                   'cores/fes-pcxt/rtl/pcxt_media_arbiter.sv', 'cores/fes-pcxt/rtl/pcxt_system.sv',
                    'cores/fes-pcxt/rtl/pcxt_media_writer.sv', 'cores/fes-pcxt/rtl/pcxt_media.sv',
                    'cores/fes-pcxt/rtl/pcxt_boot.sv', 'cores/fes-pcxt/rtl/pcxt_boot_media_gate.sv'))
 
@@ -222,7 +223,9 @@ def main():
             sources = (tuple(s for s in sources if s.endswith('.sv')) +
                        tuple(s for s in CPU_SOURCES
                              if s.endswith('.sv') and not s.endswith('/cpu_top.sv')) +
-                       ('cores/fes-pcxt/sim/machine_top.sv', 'cores/fes-pcxt/sim/machine_tb.cpp'))
+                       ('cores/fes-common/rtl/fes_audio_output.v', 'cores/fes-common/rtl/fes_audio_i2s.v',
+                        'cores/fes-pcxt/rtl/pcxt_board_audio.sv',
+                        'cores/fes-pcxt/sim/machine_top.sv', 'cores/fes-pcxt/sim/machine_tb.cpp'))
         if suite in ('display-machine', 'video-machine', 'memory-machine'):
             for name in CHIP_VENDORS:
                 verify_vendor(name)

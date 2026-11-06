@@ -484,6 +484,19 @@ func (s *Service) launchCoreEntry(parent context.Context, gameID string, snap la
 		if err != nil {
 			return coreLoadSource{}, err
 		}
+		if initialPcxtDisk(inspection.Descriptor, media) {
+			initial, diskErr := snapshotInitialPcxtDisk(entry, media)
+			closeErr := media.Close()
+			media = nil
+			if err = errors.Join(diskErr, closeErr); err != nil {
+				return coreLoadSource{}, err
+			}
+			transport, err := corepackage.WritePcxtInitialInput(corepackage.PcxtInitialInput{Package: data, Media: *initial})
+			if err != nil {
+				return coreLoadSource{}, canonicalError(protocol.CodeInvalidArchive, nil)
+			}
+			return coreLoadSource{activationBudget: 300 * time.Second, size: int64(len(transport)), body: bytes.NewReader(transport), entry: &entry, initialMedia: initial}, nil
+		}
 		parts, err := s.composeVideoEntry(ctx, entry, inspection, data)
 		if err != nil {
 			return coreLoadSource{}, err
@@ -569,7 +582,7 @@ func (s *Service) launchCoreEntry(parent context.Context, gameID string, snap la
 		defer mediaCancel()
 		var unitStatus protocol.Status
 		var unitErr error
-		if u, ok := protocol.MediaUnit(status.CorePackage, *media.unit); ok && u.Interface == protocol.AtariStFloppyInterface() {
+		if u, ok := protocol.MediaUnit(status.CorePackage, *media.unit); ok && (u.Interface == protocol.AtariStFloppyInterface() || (u.Interface == protocol.PcxtFloppyInterface() && protocol.MediaWriteCapable(status.CorePackage))) {
 			library := protocol.LibraryMediaBinding{MediaUnitBinding: unitBinding, GameID: entry.GameID, BaseMediaID: entry.MediaID}
 			unitStatus, unitErr = s.insertBoundMediaUnitLocked(mediaCtx, media.size, media.ReadCloser, unitBinding, &library)
 		} else {

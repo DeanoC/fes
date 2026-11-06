@@ -12,11 +12,12 @@ import (
 var ErrInvalidCoreROM = errors.New("catalog ROM selection is invalid")
 
 type CoreEntryROM struct {
-	GameID     string `json:"game_id"`
-	PackageID  string `json:"package_id,omitempty"`
-	ROMID      string `json:"rom_id,omitempty"`
-	MediaID    string `json:"media_id,omitempty"`
-	SourceSize int64  `json:"source_size,omitempty"`
+	GameID         string `json:"game_id"`
+	PackageID      string `json:"package_id,omitempty"`
+	ROMID          string `json:"rom_id,omitempty"`
+	MediaID        string `json:"media_id,omitempty"`
+	SourceSize     int64  `json:"source_size,omitempty"`
+	BundledDefault bool   `json:"bundled_default,omitempty"`
 }
 
 func (s *Store) CoreEntryROM(ctx context.Context, gameID string) (CoreEntryROM, error) {

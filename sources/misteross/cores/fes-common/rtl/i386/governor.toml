@@ -829,6 +829,257 @@ name = "clts"
 stems = ["0F06"]
 cost = [2, 5, 7]
 
+# The ESC instructions (D8h-DFh), which with no 387 store all ones, read and
+# discard, or do nothing (docs/i386-cpu-design.md, FPU). No empty-socket
+# timing is recorded, so each charges what the instruction takes with a
+# coprocessor fitted: the 287, 387 and 486 columns of the same compilation's
+# floating-point table (https://www2.math.uni-wuppertal.de/~fpf/Uebungen/GdR-SS02/opcode_f.html),
+# the real-mode count where it gives two, and at most 255, the most a class
+# charges (FNSAVE and FRSTOR on the 387 take 375-376 and 308). The control
+# forms have their own rows; every other form charges FNOP's. FNINIT's class has FNCLEX, FENI,
+# FDISI and FSETPM too (DB E0-E4), FNSTSW AX's DF E1-E7, which a class
+# cannot tell apart.
+[[class]]
+name = "fninit"
+stems = ["DB.4/r"]
+cost = [5, 33, 17]
+
+[[class]]
+name = "fnstsw_ax"
+stems = ["DF.4/r"]
+cost = [13, 13, 3]
+
+[[class]]
+name = "fnstsw"
+stems = ["D9.7/m", "DD.7/m"]
+memory = true
+cost = [15, 15, 3]
+
+[[class]]
+name = "fldcw"
+stems = ["D9.5/m"]
+memory = true
+cost = [11, 19, 4]
+
+[[class]]
+name = "fnstenv"
+stems = ["D9.6/m"]
+memory = true
+cost = [45, 104, 67]
+
+[[class]]
+name = "fldenv"
+stems = ["D9.4/m"]
+memory = true
+cost = [40, 71, 44]
+
+[[class]]
+name = "fnsave"
+stems = ["DD.6/m"]
+memory = true
+cost = [202, 255, 154]
+
+[[class]]
+name = "frstor"
+stems = ["DD.4/m"]
+memory = true
+cost = [202, 255, 131]
+
+[[class]]
+name = "esc_r"
+stems = ["D8-DA/r", "DC-DE/r", "DB.0/r", "DB.1/r", "DB.2/r", "DB.3/r", "DB.5/r", "DB.6/r", "DB.7/r",
+         "DF.0/r", "DF.1/r", "DF.2/r", "DF.3/r", "DF.5/r", "DF.6/r", "DF.7/r"]
+cost = [13, 12, 3]
+
+[[class]]
+name = "esc_m"
+stems = ["D8/m", "DA-DC/m", "DE-DF/m", "D9.0/m", "D9.1/m", "D9.2/m", "D9.3/m", "DD.0/m", "DD.1/m", "DD.2/m",
+         "DD.3/m", "DD.5/m"]
+memory = true
+cost = [13, 12, 3]
+
+# Group 7 and MOV to and from CR0, CR2 and CR3 (Phase 2). The descriptor
+# table forms have only a memory operand.
+[[class]]
+name = "sgdt"
+stems = ["0F01.0"]
+memory = true
+cost = [11, 9, 10]
+
+[[class]]
+name = "sidt"
+stems = ["0F01.1"]
+memory = true
+cost = [12, 9, 10]
+
+[[class]]
+name = "lgdt"
+stems = ["0F01.2"]
+memory = true
+cost = [11, 11, 11]
+
+[[class]]
+name = "lidt"
+stems = ["0F01.3"]
+memory = true
+cost = [12, 11, 11]
+
+[[class]]
+name = "smsw_r"
+stems = ["0F01.4/r"]
+cost = [2, 2, 2]
+
+[[class]]
+name = "smsw_m"
+stems = ["0F01.4/m"]
+memory = true
+cost = [3, 3, 3]
+
+[[class]]
+name = "lmsw_r"
+stems = ["0F01.6/r"]
+cost = [3, 10, 13]
+
+[[class]]
+name = "lmsw_m"
+stems = ["0F01.6/m"]
+memory = true
+cost = [6, 13, 13]
+
+# 0F01h /5 and /7 raise #UD on the 386, and a faulting instruction does not
+# retire (its delivery is charged as INT), so this cost is never charged.
+[[class]]
+name = "group7_ud"
+stems = ["0F01.5", "0F01.7"]
+cost = [2, 2, 1]
+
+# MOV r32, CRn: 6 on the 386 and 4 on the i486 for every register.
+[[class]]
+name = "mov_from_cr"
+stems = ["0F20"]
+cost = [6, 6, 4]
+
+# MOV CRn, r32: the data sheets' CR0 counts (10 and 16); CR2 and CR3 take 4
+# (CR1 and CR4 to CR7 raise #UD).
+[[class]]
+name = "mov_to_cr0"
+stems = ["0F22.0"]
+cost = [10, 10, 16]
+
+[[class]]
+name = "mov_to_cr"
+stems = ["0F22.1", "0F22.2", "0F22.3", "0F22.4", "0F22.5", "0F22.6", "0F22.7"]
+cost = [4, 4, 4]
+
+# Group 6, LAR, LSL and ARPL (Phase 2), which run only in protected mode
+# (#UD in real mode, charged as INT's delivery): their protected-mode
+# counts, the only ones. LSL's 386 count is 20 or 25 by the descriptor's
+# granularity (21 or 26 from memory), so its middle, rounded up.
+[[class]]
+name = "sldt_r"
+stems = ["0F00.0/r"]
+cost = [2, 2, 2]
+
+[[class]]
+name = "sldt_m"
+stems = ["0F00.0/m"]
+memory = true
+cost = [3, 2, 3]
+
+[[class]]
+name = "str_r"
+stems = ["0F00.1/r"]
+cost = [2, 2, 2]
+
+[[class]]
+name = "str_m"
+stems = ["0F00.1/m"]
+memory = true
+cost = [3, 2, 3]
+
+[[class]]
+name = "lldt_r"
+stems = ["0F00.2/r"]
+cost = [17, 20, 11]
+
+[[class]]
+name = "lldt_m"
+stems = ["0F00.2/m"]
+memory = true
+cost = [19, 24, 11]
+
+[[class]]
+name = "ltr_r"
+stems = ["0F00.3/r"]
+cost = [17, 23, 20]
+
+[[class]]
+name = "ltr_m"
+stems = ["0F00.3/m"]
+memory = true
+cost = [19, 27, 20]
+
+[[class]]
+name = "verr_r"
+stems = ["0F00.4/r"]
+cost = [14, 10, 11]
+
+[[class]]
+name = "verr_m"
+stems = ["0F00.4/m"]
+memory = true
+cost = [16, 11, 11]
+
+[[class]]
+name = "verw_r"
+stems = ["0F00.5/r"]
+cost = [14, 15, 11]
+
+[[class]]
+name = "verw_m"
+stems = ["0F00.5/m"]
+memory = true
+cost = [16, 16, 11]
+
+# 0F00h /6 and /7 raise #UD on the 386: never charged, as group 7's.
+[[class]]
+name = "group6_ud"
+stems = ["0F00.6", "0F00.7"]
+cost = [2, 2, 1]
+
+[[class]]
+name = "lar_r"
+stems = ["0F02/r"]
+cost = [14, 15, 11]
+
+[[class]]
+name = "lar_m"
+stems = ["0F02/m"]
+memory = true
+cost = [16, 16, 11]
+
+[[class]]
+name = "lsl_r"
+stems = ["0F03/r"]
+cost = [14, 23, 10]
+
+[[class]]
+name = "lsl_m"
+stems = ["0F03/m"]
+memory = true
+cost = [16, 24, 10]
+
+[[class]]
+name = "arpl_r"
+stems = ["63/r"]
+cost = [10, 20, 9]
+
+[[class]]
+name = "arpl_m"
+stems = ["63/m"]
+memory = true
+cost = [11, 21, 9]
+
 # SALC (D6h), which the data sheets leave out: a register ALU operation's cost.
 [[class]]
 name = "salc"

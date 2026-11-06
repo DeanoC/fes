@@ -30,6 +30,43 @@ if {$mailbox_contract} {
  set interstage [open audit/mailbox-interstage.tsv w]
  puts $interstage "corner\tkind\tfrom_clock\tto_clock\tfrom_inverted\tto_inverted\tfrom\tto\tslack_ns\trelationship_ns\tdata_delay_ns"
 }
+set audio_contract [file exists audio-audit.enabled]
+if {$audio_contract} {
+ set payload_regs [open audit/audio-payload-registers.tsv w]
+ puts $payload_regs "role\tname"
+ foreach role {held_sample pcm} {
+  set pattern [format {speaker_output_audio_output_stage_%s[*]} $role]
+  set payload($role) [get_registers $pattern]
+  set size [get_collection_size $payload($role)]
+  if {$size < 1 || $size > 32} {error "Missing or duplicated audio payload: $role"}
+  foreach_in_collection reg $payload($role) {
+   set name [get_node_info -name $reg]
+   if {[regexp {~DUPLICATE[0-9]*$} $name]} {error "Duplicated audio payload: $name"}
+   puts $payload_regs "$role\t$name"
+  }
+ }
+ close $payload_regs
+ set request_regs [open audit/audio-request-registers.tsv w]
+ puts $request_regs "name"
+ foreach_in_collection reg [get_registers {speaker_output_audio_output_stage_request}] {
+  puts $request_regs [get_node_info -name $reg]
+ }
+ close $request_regs
+ set audio_payload [open audit/audio-payload.tsv w]
+ puts $audio_payload "corner\tkind\tfrom_clock\tto_clock\tfrom_inverted\tto_inverted\tfrom\tto\tslack_ns\trelationship_ns\tdata_delay_ns"
+ set audio_interstage [open audit/audio-interstage.tsv w]
+ puts $audio_interstage "corner\tkind\tfrom_clock\tto_clock\tfrom_inverted\tto_inverted\tfrom\tto\tslack_ns\trelationship_ns\tdata_delay_ns"
+ foreach role {request ack hold lock} {
+  foreach stage {meta sync} {
+   set name speaker_output_audio_output_stage_${role}_${stage}
+   set regs [get_registers ${name}*]
+   if {[get_collection_size $regs] != 1} {error "Missing or duplicated audio synchronizer: $name"}
+   foreach_in_collection reg $regs {
+    if {[get_node_info -name $reg] ne $name} {error "Audio synchronizer binding changed: $name"}
+   }
+  }
+ }
+}
 set limit 100000
 proc emit_paths {paths corner kind stream} {
  foreach_in_collection p $paths {
@@ -69,6 +106,20 @@ foreach corner [get_available_operating_conditions] {
    emit_paths $paths $corner $kind $intervals
   }
  }
+ if {$audio_contract} {
+  foreach kind {setup hold} {
+   set paths [get_timing_paths -$kind -from $payload(held_sample) -to $payload(pcm) -npaths 128 -nworst 1]
+   if {[get_collection_size $paths] != [get_collection_size $payload(pcm)]} {error "Incomplete audio payload coverage: $kind"}
+   emit_paths $paths $corner $kind $audio_payload
+  }
+  foreach role {request ack hold lock} {
+   foreach kind {setup hold} {
+    set paths [get_timing_paths -$kind -from speaker_output_audio_output_stage_${role}_meta -to speaker_output_audio_output_stage_${role}_sync -npaths 16 -nworst 1]
+    if {[get_collection_size $paths] != 1} {error "Missing or duplicated audio interstage path: $role $kind"}
+    emit_paths $paths $corner $kind $audio_interstage
+   }
+  }
+ }
  if {$mailbox_contract} {
   foreach role {ack sent hold} {
    foreach kind {setup hold} {
@@ -83,6 +134,7 @@ close $counts
 close $intervals
 close $fm
 if {$mailbox_contract} {close $interstage}
+if {$audio_contract} {close $audio_interstage; close $audio_payload}
 puts "PCXT_AUDIT_CAPTURE_COMPLETE"
 delete_timing_netlist
 project_close

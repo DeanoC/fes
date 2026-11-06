@@ -189,21 +189,27 @@ Programmer's Reference Manual (1986):
 
 The segment-cache contract for the completed CPU follows the 386:
 
-- The Phase 1 RTL implements real-mode `MOV Sreg, r/m16` loads for DS, ES, FS,
-  GS and SS. It updates the selector and sets the base to selector × 16; the
-  cached limit and attributes stay as they were. Real-mode far JMP, CALL and
-  RETF now write CS through `seg_w`, which has the same behavior: the selector
-  and base (selector × 16) change, while the cached limit and attributes stay
-  as they were, matching Bochs 3.1. Interrupt entry is still absent from this
-  slice ([RTL source](../cores/fes-common/rtl/i386/fes_i386_cpu.sv)).
-- The completed CPU must make a real-mode CS load set the base to selector ×
-  16, the limit to FFFFh, D/B=0 and G=0, and access-rights byte 93h (P=1,
-  DPL=0, S=1, read/write, expand-up, accessed data segment). This is the 386
-  rule described by Collins; the current RTL and Bochs 3.1 retain CS's cached
-  limit and access-right attributes on a real-mode load.
+- A real-mode load of DS, ES, FS, GS or SS (`MOV Sreg`, `POP Sreg`, LDS and
+  its kin) updates the selector and sets the base to selector × 16. The
+  cached limit, type, DPL, G and D/B stay as they were; P and S are set, as
+  Bochs's `load_seg_reg` sets them, so a cache that a null selector's
+  protected-mode load left not present is usable again.
+- A real-mode CS load (far JMP, CALL, RETF, IRET, an interrupt's or
+  exception's delivery) sets the base to selector × 16, the limit to FFFFh,
+  D/B=0 and G=0, and access-rights byte 93h (P=1, DPL=0, S=1, read/write,
+  expand-up, accessed data segment). This is the 386 rule described by
+  Collins. Bochs 3.1 keeps CS's cached limit and access rights instead.
+- Clearing PE keeps CS's cache but makes it a writable data segment (P and S
+  set, type 3), its DPL, limit, G and D/B kept, as Bochs's
+  `handleCpuModeChange` does; the 386's behaviour there is not documented,
+  and every return to real mode far-jumps before it matters.
 - In V86 mode every segment load sets the base to selector × 16, the limit to
-  FFFFh and the attributes to V86 values.
-- A protected-mode load replaces the whole cache from the descriptor.
+  FFFFh and the attributes to V86 values (Phase 5).
+- A protected-mode load replaces the whole cache from the descriptor, with
+  the limit scaled by G and the accessed bit set (Phase 2;
+  [RTL source](../cores/fes-common/rtl/i386/fes_i386_cpu.sv)). A null
+  selector loads a cache with base and limit 0 and access rights 10h, not
+  present, which refuses every access.
 
 So unreal mode works for DS, ES, FS, GS and SS. Software loads one of those
 segments with a large limit in protected mode and clears PE; its cached limit
@@ -213,10 +219,11 @@ are replaced when the register is loaded in protected or V86 mode. Under the
 byte 93h (read/write, expand-up, accessed data segment). DOS
 reloads DS and ES on every call, so unreal-mode programs that call DOS depend
 on the data-segment behavior, and Ultima VII's Voodoo memory manager runs in
-unreal mode. Every data access is checked against the cached limit in every
-mode: with a normal real-mode segment, a word access at offset FFFFh raises
-#GP (#SS for a stack access), while an unreal-mode data segment uses its cached
-extended limit.
+unreal mode. Every data access is checked against the cached limit, and the
+cached type (present, readable or writable, expand-down), in every mode, as
+Bochs checks them: with a normal real-mode segment, a word access at offset
+FFFFh raises #GP (#SS for a stack access), while an unreal-mode data segment
+uses its cached extended limit.
 
 The evidence:
 
@@ -244,9 +251,9 @@ The evidence:
 - Neither corpus observes hidden CS limit or access-right state:
   SingleStepTests/80386 has no unreal-mode set yet, and test386.asm has no
   unreal-mode test. This oracle difference is a known limit, not an
-  oracle-versus-corpus divergence; the planned directed unreal-mode test in
-  the general verification plan will check the RTL's 386 CS rule. It is not
-  currently listed as a Phase 2 exit criterion. See the simulation
+  oracle-versus-corpus divergence. The directed unreal-mode test checks the
+  RTL's 386 CS rule, and the lockstep gives the oracle the RTL's CS cache
+  after each real-mode CS load that Bochs left differing; see the simulation
   [known-limits entry](../cores/fes-common/sim/i386/README.md#known-limits).
 
 ### The 386, not the 486
@@ -368,7 +375,8 @@ So:
 - Other register forms, FNINIT and FNCLEX do nothing.
 
 FNSAVE, FNSTENV, FRSTOR and FLDENV are microcode loops over the 387's 16- or
-32-bit layouts; the other forms are one uop. With this behaviour, Intel's
+32-bit layouts, and an 8- or 10-byte operand's read takes a uop for each
+dword or word; the other forms are one uop. With this behaviour, Intel's
 FNSTSW check, the FNSTCW high-byte check and BIOS POST detection report no
 coprocessor. The all-ones values apply to fields the 386 writes on behalf of
 the absent FPU, not every byte of an environment or save image and not forms
@@ -650,8 +658,10 @@ F2's remaining limit is still to trace.
 
 Fetch may run ahead of the CS limit. D checks `EIP + length - 1 <= CS.limit`
 for each instruction and raises #GP only for an instruction that would
-execute. In 16-bit code D also handles EIP wrapping at 64 KiB by redirecting
-fetch.
+execute. In 16-bit code EIP does not wrap at 64 KiB: past FFFFh it faults
+under a 64 KiB limit and runs on under a larger one, as Bochs's does. A taken
+near branch, call or return checks its target against the limit and raises
+#GP at the branch.
 
 The L1I tags are a dual-port M10K. Port A serves fetch. Port B serves fills,
 the self-modifying-code snoop and L2 back-invalidation. The M10Ks Yosys maps
@@ -1112,8 +1122,8 @@ after bring-up, not to a memory slice.
   change only there.
 - A fault travels with its uop and is taken at WB: flush, then the microcode
   exception routine. Fault and trap classes, error codes, double fault and
-  shutdown follow the 386. Shutdown asserts SHUTDOWN, which the machine turns
-  into a CPU reset as an AT does.
+  shutdown follow the 386 (built in Phase 2's second slice). Shutdown
+  asserts SHUTDOWN, which the machine turns into a CPU reset as an AT does.
 - **A CPU reset keeps memory.** `reset` is driven by the machine after
   SHUTDOWN, from the 8042 or from port 92h. It first lets the write buffer
   drain into L2, then clears the pipeline, the TLBs and both L1s. The L2 keeps
@@ -1358,7 +1368,7 @@ below are the plan for the complete CPU and machine.
 | --- | --- | --- |
 | Phase 0 | Oracle adapter and corpus runners | **Complete:** Bochs is selected; both corpora run against it and known divergences have deciding cases |
 | Phase 1 | Real-mode pipeline: twelve stages, data-port latency model, static not-taken prediction and real-mode microcode | **In progress:** the first [memory slice](#memory-slices) puts L1I, L1D and the bus interface on DDR port 0, with uncached MMIO, DMA and FLUSH ([record](validation/2026-10-28-i386-memory-path.md)). That record covers 1,744,099 corpus states, 32,000 random programs, and an RTL machine boot of FreeDOS. DC decodes ahead of D; the current slice includes register, immediate and memory-operand forms, a D–WB load freeze, near stack operations, real-mode far JMP/CALL/RETF and LES/LDS/LSS/LFS/LGS. The record's Quartus fits and nextpnr routes time this memory slice as diagnostics, not package or hardware acceptance. L2, real-mode microcode and measurements of DDR and SDRAM line fills through the CPU remain. Extend lockstep and route coverage as slices land. Exit requires full real-mode lockstep, whole-CPU routed fmax and area, and DDR and SDRAM line-fill measurements through the CPU path against the [DDR check](#l2-and-coherence) ([far-transfer record](https://github.com/DeanoC/fes/blob/main/sources/misteross/docs/validation/2026-10-26-i386-far.md#result)) |
-| Phase 2 | Protected mode without V86 or paging: descriptor loads, privilege, gates, exceptions, debug registers. Enough for unreal mode and DOS extenders | test386.asm's real- and protected-mode parts pass in RTL; random protected-mode lockstep clean |
+| Phase 2 | Protected mode without V86 or paging: descriptor loads, privilege, gates, exceptions, debug registers. Enough for unreal mode and DOS extenders | **In progress:** the first slice ([#1369](https://github.com/DeanoC/fes/issues/1369)) builds MOV to and from CR0, CR2 and CR3, LMSW, SMSW, LGDT, SGDT, LIDT and SIDT, protected-mode segment loads from the GDT with their checks, error codes and accessed bit, and far JMP to a code segment at CPL 0: enough for unreal mode, which HIMEMX's XMS moves and Ultima VII's Voodoo memory manager use ([record](../../../docs/validation/2026-11-01-i386-phase2-unreal/summary.md)). The second slice ([#1406](https://github.com/DeanoC/fes/issues/1406)) delivers exceptions, INTR and NMI at CPL 0 through interrupt and trap gates with their error codes, EXT, double fault and shutdown, and builds INT n, INT3, INTO and IRET, far CALL and RETF to the same privilege, LLDT and TI=1 loads, LTR, SLDT, STR, LAR, LSL, VERR, VERW and ARPL ([record](../../../docs/validation/2026-11-02-i386-phase2-idt/summary.md)). The general CS-limit check ([#1414](https://github.com/DeanoC/fes/issues/1414)) raises #GP(0) for an instruction that starts or runs past CS's limit and for a near branch, call or return to past it, under any limit and in either mode, as DOS/4GW's 16-bit kernel segments need ([record](../../../docs/validation/2026-11-02-i386-cs-limit/summary.md)). Privilege transitions, call and task gates, IOPL and the I/O bitmap, and debug registers remain (a third slice), each stopping the CPU as not built with its reason. test386.asm enters protected mode with paging on, so its protected-mode part waits for Phase 5's paging. Exit: test386.asm's real- and protected-mode parts pass in RTL; random protected-mode lockstep clean |
 | Phase 3 | First playable: the CPU in `fes.pc386` with the scope the acceptance games set, L2 on DDR, the open BIOS, the governor | FreeDOS boots in simulation; first sealed package; Wolfenstein 3D, Ultima VI and both Ultima VII games play on a kit, with the two presets recorded |
 | Phase 4 | Speed: BTB, return stack, early ALU, real-mode far-branch prediction | Each feature with its microbenchmark and period-benchmark change, and the Wolfenstein 3D frame rate from captured frames before and after |
 | Phase 5 | V86, paging and task switches | test386.asm passes completely; JEMM386 boots; Wolfenstein 3D runs with EMS under it |

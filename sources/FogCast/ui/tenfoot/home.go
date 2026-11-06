@@ -2,6 +2,7 @@ package tenfoot
 
 import (
 	"context"
+	"slices"
 	"strings"
 
 	"github.com/DeanoC/FogCast/hostclient"
@@ -46,6 +47,9 @@ func (r RoomPickerRow) isRoom() bool {
 // Internal screens are opened from their owning navigation flow, rather than
 // offered as independent destinations or default Home rooms.
 func userFacingRoom(id string) bool {
+	if slices.ContainsFunc(setupSteps, func(s setupStep) bool { return s.room == id }) {
+		return false
+	}
 	return id != systemRoomID && id != hardwareRoomID && id != colecoArcadeRoomID
 }
 

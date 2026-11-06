@@ -1,180 +1,75 @@
--- FES Home on a kit: the Cartridge Lounge layout over installed cores.
+-- FES Home on a kit: a Recently played row above one tile per computer
+-- family (#1347).
 --
--- The shelf lists what kit.cores reports, using registered model names for
--- known core IDs, then adds the host catalog's prepared systems when
--- hardware.read provides them.
--- Those cards launch with the library, and they do not draw a keyboard. The
--- host list is still read when the kit-local listing fails.
--- FES draws the selected item's title, input needs, readiness, destination and actions
--- in the hero text column (room.toml destination_panel = "hero"); this
--- script draws the card, artwork motif, shelf and header routes.
+-- The families are systems.families: the four v1 families in a fixed order
+-- (ZX81, Spectrum, Atari ST, C64), then, when the launcher shows all cores,
+-- every other registered family. A family's state comes from the library's
+-- machine entries (platform "fpga" rows without media) for its models, and
+-- its game count from that library's titles with media. When the library
+-- can't be read, kit.cores still says which models are installed and which
+-- need firmware. Open goes to the family's workbench, where the model is
+-- chosen; FES draws the selected family's or title's copy in the hero text
+-- column (room.toml destination_panel = "hero").
 --
--- Up reaches the hero's actions, then Library, Systems and Settings, so a pad without
--- a Guide button still reaches the system menu with Direction and Confirm.
--- The hero and a compact route row use Left and Right along that header.
--- When the compact routes stack, Down and Up follow the column and then
--- the cores, and Left and Right stay put. The list arrives once; it never
--- moves the player's focus. The last selected installed package is restored
--- on a later visit. A fresh visit, or a saved package that is missing or
--- unavailable, opens on the first installed core, or on Library when every
--- row is an omission. While kit.cores is still listing, the saved package
--- is shown as a pending card: Confirm on it is queued, and the kit starts it
--- only if the finished list still has it launchable. Selecting an omitted core does not replace the saved
--- package, and the shelf count excludes it.
+-- Recently played is the library's recents collection, hidden until
+-- something has been played. Play starts the title again; there is no resume.
+-- After Skip setup, a Get started banner takes that slot until setup is
+-- finished (room.setup.unfinished); Finish setup resumes setup (#1345).
+--
+-- Up moves from the family tiles to the row above. From the top row Up is
+-- left to FES, which focuses the hero's actions and then sends "header" to
+-- reach the header routes. In a release-only launcher the header has
+-- Settings only; showing all cores adds Library and Systems.
 --
 -- Under 480×360, room.hero is nil and the launcher keeps its destination
--- strip. A compact list above that strip still offers the visible cores
--- and the three routes, with the same pointer hits and focus mark.
+-- strip. A compact list above that strip offers the families and the routes.
 
-local C = {
-  background = "#F4F0E8",
-  surface = "#FFFCF5",
-  raised = "#E9E6DC",
-  text = "#243631",
-  secondary = "#53625A",
-  divider = "#CECFC0",
-  accent = "#235A46",
-  on_accent = "#FCFCF3",
-  dark = "#22342E",
-}
-
--- Muted motif grounds. A core's id picks one so it keeps its colour.
-local GROUNDS = { "#7097A8", "#9690B5", "#E08A63", "#8DB07A", "#D9B45A", "#6E8F80" }
-
-local MENU = {
-  { id = "library", label = "Library" },
-  { id = "systems", label = "Systems" },
-  { id = "settings", label = "Settings" },
-}
-
+local systems = require "systems"
+local F = require "families"
+local C = F.colors
+local families = F.list
 local SYSTEMS = "example.computers"
-local COLECO_ARCADE = "example.coleco-arcade"
 
-local cores = nil      -- nil while listing; a table once kit.cores answers
-local remembered = nil -- the saved package as one pending card while listing
-local unavailable = false
-local row = "shelf"    -- "shelf", native hero "actions", or "menu"
-local shelf_i = 1
-local menu_i = 1
-local first = 1        -- first visible shelf card
-local status = "Looking for this kit's machines…"
-
-local function layout()
-  return room.hero
+local MENU = { { id = "settings", label = "Settings" } }
+if not room.release_only then
+  MENU = {
+    { id = "library", label = "Library" },
+    { id = "systems", label = "Systems" },
+    { id = "settings", label = "Settings" },
+  }
 end
 
-local function hash(s)
-  local h = 7
-  for i = 1, #(s or "") do
-    h = (h * 31 + string.byte(s, i)) % 1000003
-  end
-  return h
+local RECENT_MAX = 3
+local recents = {}
+local recents_loaded = false
+local generation = 0   -- bumped on every data change, for the paint cache
+F.waiting = function() return not recents_loaded end
+
+-- The Get started banner, while setup is unfinished.
+local banner = room.setup.unfinished
+
+-- The row above the family tiles: the banner or Recently played.
+local function recents_shown()
+  return room.hero ~= nil and not banner and #recents > 0
 end
 
-local function has_input(core, name)
-  for _, v in ipairs(core.inputs or {}) do
-    if v == name then return true end
-  end
-  return false
+local function top_row()
+  if room.hero == nil then return nil end
+  if banner then return "banner" end
+  if #recents > 0 then return "recent" end
+  return nil
 end
 
--- Short shelf line. Readiness itself is the hero's job: a kit lease can
--- make a launchable core unavailable, so the shelf never says Ready.
-local function card_line(core)
-  if core.pending then return "Checking…" end
-  if core.core_id == "fes.coleco" then return "Browse Coleco titles" end
-  if not core.launchable then
-    if core.needs == "parts" then return "Display setup incomplete" end
-    if core.needs == "firmware" then return "Needs firmware" end
-    if core.needs == "media" then return "Needs a cartridge" end
-    return core.block or ""
-  end
-  local kb, mouse = has_input(core, "keyboard"), has_input(core, "mouse")
-  if kb and mouse then return "Keyboard and mouse" end
-  if kb then return "Keyboard" end
-  if mouse then return "Mouse" end
-  return ""
-end
+-- Focus. row is "recent", "family", "menu", or "actions" while FES has the
+-- hero's actions; body is the row under the hero's actions.
+local row, body = "family", "family"
+local recent_i, family_i, menu_i = 1, 1, 1
+local settled = F.settled
 
--- The shelf as drawn: the listed cores, or the pending card before then.
-local function shelf_rows()
-  return cores or remembered
-end
-
-local function selected_core()
-  if row == "menu" then return nil end
-  local list = shelf_rows()
-  if not list then return nil end
-  return list[shelf_i]
-end
-
--- An omitted optional core is listed, but it is not an installed package.
-local function omitted(core)
-  return core and core.needs == "unavailable"
-end
-
-local function installed_count()
-  local n = 0
-  for _, core in ipairs(cores or {}) do
-    if not omitted(core) then n = n + 1 end
-  end
-  return n
-end
-
--- Open on the saved installed package, else the first installed core.
--- An omitted core stays on the shelf and is not the opening selection.
-local function choose_opening()
-  local want = store.get("package_id", "")
-  local saved, first_installed = 0, 0
-  for i, core in ipairs(cores) do
-    if not omitted(core) then
-      if first_installed == 0 then first_installed = i end
-      if want ~= "" and core.package_id == want then saved = i end
-    end
-  end
-  if saved ~= 0 then
-    shelf_i = saved
-  elseif first_installed ~= 0 then
-    shelf_i = first_installed
-  else
-    row = "menu"
-    menu_i = 1
-  end
-end
-
--- Host computers are catalog launches, not kit-local LoadCore calls.
--- A ready host row replaces a blocked local row for the same core.
--- A launchable local row stays. Keyboard inputs are not copied onto the
--- host card: the motif stays a disc so the first draw keeps its budget.
-local function merge_host_computers(list, rows)
-  local index = {}
-  for i, core in ipairs(list) do
-    if core.core_id and core.core_id ~= "" then index[core.core_id] = i end
-  end
-  for _, row in ipairs(rows or {}) do
-    local id = row.core_id or ""
-    if id ~= "" and row.game_id and row.game_id ~= "" and row.package_id and row.package_id ~= "" then
-      local card = {
-        package_id = row.package_id,
-        core_id = id,
-        name = row.title or id,
-        game_id = row.game_id,
-        host_launch = row.ready and true or false,
-        launchable = false,
-        needs = row.ready and "none" or "unsupported",
-        block = row.ready and "" or (row.unavailable_reason or "Unavailable"),
-        inputs = {},
-      }
-      local at = index[id]
-      if not at then
-        list[#list + 1] = card
-        index[id] = #list
-      elseif card.host_launch and not list[at].launchable and not list[at].host_launch then
-        list[at] = card
-      end
-    end
-  end
-  return list
+local function machine_label(g)
+  local value = systems.by_id[g.core_id or ""]
+  if value then return value.label end
+  return string.upper(g.system or "")
 end
 
 local function publish()
@@ -189,320 +84,181 @@ local function publish()
     end
     return
   end
-  local core = selected_core()
-  if core and core.pending then
-    -- core_id is omitted: the stored copy is only used for the card.
-    destination.set{
-      kind = "core",
-      package_id = core.package_id,
-      label = core.name,
-      pending = true,
-      inputs = core.inputs,
-    }
-  elseif core and core.core_id == "fes.coleco" then
-    destination.set{ kind = "room", room_id = COLECO_ARCADE, label = core.name }
-  elseif core and core.host_launch and core.game_id and core.game_id ~= "" then
-    destination.set{
-      kind = "game",
-      label = core.name,
-      system = "fpga",
-      game_id = core.game_id,
-      matches = {{
-        id = core.game_id,
-        title = core.name,
-        system = "fpga",
-        state = "available",
-        launchable = true,
-      }},
-    }
-  elseif core then
-    destination.set{
-      kind = "core",
-      package_id = core.package_id,
-      core_id = core.core_id,
-      label = core.name,
-      launchable = core.launchable,
-      block = core.block or "",
-      needs = core.needs or "",
-      inputs = core.inputs,
-    }
-  elseif cores == nil and not unavailable then
-    destination.set{ kind = "unresolved", label = "Home", resolving = true, status = status }
-  else
-    destination.set{ kind = "unresolved", label = "Home", status = status }
-  end
-end
-
-local compact_layout
-
-local function visible_cards()
-  local h = layout()
-  if not h then
-    local rows = compact_layout().rows
-    if rows < 1 then return 1 end
-    return rows
-  end
-  return math.max(1, math.floor((h.shelf.w + 20) / 300))
-end
-
-local function keep_visible()
-  local n = visible_cards()
-  if shelf_i < first then first = shelf_i end
-  if shelf_i > first + n - 1 then first = shelf_i - n + 1 end
-  if cores and #cores > 0 then
-    -- A wider shelf after a resize must not leave an empty slot at the end.
-    first = math.min(first, math.max(1, #cores - n + 1))
-  end
-  if first < 1 then first = 1 end
-end
-
--- Shelf changes are saved once browsing settles to limit storage writes.
--- The opening selection commits immediately when the finished list arrives.
--- An omitted optional core is not a selection: remembering it would replace
--- the last installed package Home should restore.
-local pending_save = nil
-local SAVE_AFTER = 1.0
-
--- The name and core id let a later visit show this package before
--- kit.cores answers.
-local function save(entry)
-  store.set("package_id", entry.id)
-  store.set("package_name", entry.name)
-  store.set("package_core_id", entry.core_id)
-  store.set("package_inputs", entry.inputs or {})
-end
-
-local function saved_inputs(inputs)
-  local out, seen = {}, {}
-  for _, name in ipairs(inputs or {}) do
-    if (name == "keyboard" or name == "mouse") and not seen[name] then
-      out[#out + 1] = name
-      seen[name] = true
-    end
-  end
-  return out
-end
-
-local function same_inputs(a, b)
-  if type(a) ~= "table" or #a ~= #b then return false end
-  for i, name in ipairs(b) do
-    if a[i] ~= name then return false end
-  end
-  return true
-end
-
-local function remember(commit)
-  local core = selected_core()
-  if core and not omitted(core) and not core.pending then
-    -- Only a launchable kit core can be shown as a pending card: a host
-    -- computer and the Coleco room do not start with LoadCore, and a
-    -- blocked core must not offer Play before the kit has listed it.
-    local name = core.name or ""
-    if core.host_launch or core.core_id == "fes.coleco" or not core.launchable then name = "" end
-    local core_id = core.core_id or ""
-    local inputs = saved_inputs(core.inputs)
-    if store.get("package_id", "") == core.package_id and store.get("package_name", "") == name
-      and store.get("package_core_id", "") == core_id
-      and same_inputs(store.get("package_inputs", {}), inputs) then
-      pending_save = nil
-      return
-    end
-    local entry = { id = core.package_id, core_id = core_id, name = name, inputs = inputs }
-    if commit then
-      save(entry)
-      pending_save = nil
-    else
-      entry.wait = SAVE_AFTER
-      pending_save = entry
-    end
-  end
-end
-
-function update(dt)
-  if pending_save then
-    pending_save.wait = pending_save.wait - dt
-    if pending_save.wait <= 0 then
-      save(pending_save)
-      pending_save = nil
-    end
-  end
-end
-
-function unload()
-  if pending_save then save(pending_save) end
-end
-
--- The saved package, if its id is well formed and it has a name to show.
--- remember() saves no name for a card that is not a kit launch.
-local function remembered_card()
-  local id = store.get("package_id", "")
-  local name = store.get("package_name", "")
-  if type(id) ~= "string" or not string.match(id, "^" .. string.rep("%x", 64) .. "$") then return nil end
-  if string.match(id, "%u") then return nil end
-  if type(name) ~= "string" or name == "" then return nil end
-  local core_id = store.get("package_core_id", "")
-  if type(core_id) ~= "string" then core_id = "" end
-  -- A core saved while all cores were shown stays off Home once it is not.
-  if not room.core_shown(core_id) then return nil end
-  local inputs = saved_inputs(store.get("package_inputs", {}))
-  return { {
-    package_id = id,
-    core_id = core_id,
-    name = name,
-    pending = true,
-    launchable = true,
-    inputs = inputs,
-  } }
-end
-
-function load()
-  if kit == nil or kit.cores == nil then
-    unavailable = true
-    cores = {}
-    row = "menu"
-    status = "Installed machines appear here on an FES kit."
-    publish()
+  local which = row == "actions" and body or row
+  if which == "banner" then
+    destination.set{ kind = "action", action = "setup_resume", label = "Finish setup", status = "Setup isn't finished" }
     return
   end
-  remembered = remembered_card()
+  if which == "recent" and recents[recent_i] then
+    local g = recents[recent_i]
+    destination.set{ kind = "game", label = g.title, game_id = g.id, system = g.system, kicker = "Recently played" }
+    return
+  end
+  local f = families[family_i]
+  if f then
+    F.publish(f)
+  else
+    destination.set{ kind = "unresolved", label = "Home", status = "No computers are registered." }
+  end
+end
+
+-- Saved focus: "recent:<game id>" or "family:<family id>". A fresh visit
+-- opens on the first recent title, else the first Ready family.
+local function remember()
+  local key = ""
+  if row == "recent" and recents[recent_i] then
+    key = "recent:" .. recents[recent_i].id
+  elseif row == "family" and families[family_i] then
+    key = "family:" .. families[family_i].id
+  end
+  if key ~= "" and store.get("focus", "") ~= key then store.set("focus", key) end
+end
+
+local function choose_opening()
+  local want = store.get("focus", "")
+  if type(want) ~= "string" then want = "" end
+  local kind, id = string.match(want, "^(%a+):(.+)$")
+  if kind == "recent" and recents_shown() then
+    for i, g in ipairs(recents) do
+      if g.id == id then row, body, recent_i = "recent", "recent", i return end
+    end
+  elseif kind == "family" then
+    for i, f in ipairs(families) do
+      if f.id == id then row, body, family_i = "family", "family", i return end
+    end
+  end
+  if recents_shown() then
+    row, body, recent_i = "recent", "recent", 1
+    return
+  end
+  row, body, family_i = "family", "family", 1
+  for i, f in ipairs(families) do
+    if F.state(f) == "ready" then family_i = i return end
+  end
+end
+
+-- The opening is chosen once, when every source has answered, so a late
+-- answer never moves focus the player has already moved.
+local opened, moved = false, false
+local function changed()
+  generation = generation + 1
+  if not opened and not moved and settled() then
+    opened = true
+    choose_opening()
+  end
   publish()
-  kit.cores(function(rows, err)
-    if err then
-      unavailable = true
-      status = "This kit's machines can't be listed right now."
-      local function settle_unavailable(listed)
-        cores = listed or {}
-        if #cores == 0 then
-          if row == "shelf" then row = "menu" end
-        else
-          choose_opening()
-          keep_visible()
+end
+
+local function load_recents()
+  -- Filter before paging so hidden cores do not consume the three recent slots.
+  library.query({ collection = "recents", core_ids = systems.ids, limit = RECENT_MAX }, function(games, err)
+    local focused = recents[recent_i] and recents[recent_i].id
+    recents = {}
+    if not err then
+      for _, g in ipairs(games or {}) do
+        if #recents < RECENT_MAX and g.id and (not g.core_id or room.core_shown(g.core_id)) then
+          recents[#recents + 1] = g
         end
-        publish()
       end
-      if hardware == nil or hardware.read == nil then
-        settle_unavailable({})
-        return
-      end
-      hardware.read(function(data, herr)
-        local host = {}
-        if not herr and data and data.computers then
-          host = merge_host_computers(host, data.computers)
-        end
-        settle_unavailable(host)
-      end)
-      return
     end
-    local listed = rows or {}
-    local function settle(merged)
-      cores = merged or {}
-      if #cores == 0 then
-        status = "Nothing is installed on this kit yet. The Library and Settings are above."
-        if row == "shelf" then row = "menu" end
-      else
-        choose_opening()
-        keep_visible()
-        -- Save the opening card too, so a player who only presses A still
-        -- gets a durable pending card next visit.
-        remember(true)
-      end
-      publish()
+    recents_loaded = true
+    -- The title just played moves to the front: keep focus on the same one.
+    local found = nil
+    for i, g in ipairs(recents) do
+      if g.id == focused then found = i end
     end
-    if hardware == nil or hardware.read == nil then
-      settle(listed)
-      return
+    recent_i = found or math.max(1, math.min(recent_i, #recents))
+    if #recents == 0 then
+      if row == "recent" then row = "family" end
+      if body == "recent" then body = "family" end
     end
-    -- A missing hardware service leaves the local shelf unchanged.
-    hardware.read(function(data, herr)
-      if not herr and data and data.computers then
-        listed = merge_host_computers(listed, data.computers)
-      end
-      settle(listed)
-    end)
+    changed()
   end)
 end
 
--- The core directly under a stacked route column. A later selection that
--- sits further down the list is not between Settings and this row.
-local function focus_shelf_top()
-  if not cores or #cores == 0 then return end
-  keep_visible()
-  if first < 1 or first > #cores then first = 1 end
-  shelf_i = first
-  keep_visible()
-  remember()
+function load()
+  F.load(changed)
+  load_recents()
+  publish()
 end
 
-local function move_stacked(dx, dy)
+-- Back from a workbench or a game: the library may have new titles, and
+-- the game just played leads Recently played.
+function on_resume()
+  F.reload()
+  load_recents()
+end
+
+-- The compact list is a column under the header routes: Up and Down move
+-- through it, and Up from its top reaches the header (FES sends no
+-- "header" without the hero).
+local function move_compact(dx, dy)
   if row == "menu" then
     if dy > 0 then
-      if menu_i < #MENU then
-        menu_i = menu_i + 1
-      elseif cores == nil or #cores > 0 then
-        -- The shelf stays reachable while kit.cores is still listing.
-        row = "shelf"
-        focus_shelf_top()
-      end
-      return true
+      row, body = "family", "family"
+    elseif dx ~= 0 then
+      menu_i = math.max(1, math.min(#MENU, menu_i + dx))
     end
-    if dy < 0 then
-      if menu_i > 1 then menu_i = menu_i - 1 end
-      return true
-    end
-    return dx ~= 0
+    return true
   end
+  row, body = "family", "family"
   if dy < 0 then
-    if not cores or #cores == 0 or shelf_i <= 1 then
-      row = "menu"
-      menu_i = #MENU
-    else
-      shelf_i = shelf_i - 1
-      keep_visible()
-      remember()
-    end
-    return true
+    if family_i > 1 then family_i = family_i - 1 else row, menu_i = "menu", #MENU end
+  elseif dy > 0 then
+    family_i = math.min(#families, family_i + 1)
   end
-  if dy > 0 then
-    if cores and #cores > 0 and shelf_i < #cores then
-      shelf_i = shelf_i + 1
-      keep_visible()
-      remember()
-    end
-    return true
-  end
-  return dx ~= 0
+  remember()
+  return true
 end
 
 local function move(dx, dy)
-  -- Stacked compact routes are a column. Hero and a single route row stay horizontal.
-  if not layout() and compact_layout().stacked then
-    return move_stacked(dx, dy)
-  end
-  if dy < 0 and row == "shelf" then
-    row = "menu"
-    return true
-  end
-  if dy > 0 and row == "menu" then
-    -- The shelf is reachable while it is still being listed.
-    if cores == nil or #cores > 0 then row = "shelf" end
-    return true
-  end
-  if dx ~= 0 then
-    if row == "menu" then
+  moved = true
+  if not room.hero then return move_compact(dx, dy) end
+  if row == "menu" then
+    if dy > 0 then
+      row = top_row() or "family"
+      body = row
+    elseif dx ~= 0 then
       menu_i = math.max(1, math.min(#MENU, menu_i + dx))
-    elseif cores and #cores > 0 then
-      shelf_i = math.max(1, math.min(#cores, shelf_i + dx))
-      keep_visible()
+    end
+    return true
+  end
+  if dy < 0 then
+    if row == "family" and top_row() then
+      row, body = top_row(), top_row()
+      remember()
+      return true
+    end
+    -- The top row: FES takes Up to the hero's actions, then the header.
+    return false
+  end
+  if dy > 0 then
+    if row == "recent" or row == "banner" then
+      row, body = "family", "family"
       remember()
     end
     return true
   end
-  return dy ~= 0
+  if dx ~= 0 then
+    if row == "banner" then return true end
+    if row == "recent" then
+      recent_i = math.max(1, math.min(#recents, recent_i + dx))
+    else
+      family_i = math.max(1, math.min(#families, family_i + dx))
+    end
+    remember()
+    return true
+  end
+  return false
 end
 
 function on_input(cmd)
   local handled = false
-  if cmd == "left" then handled = move(-1, 0)
+  if cmd == "header" then
+    moved = true
+    row = "menu"
+    handled = true
+  elseif cmd == "left" then handled = move(-1, 0)
   elseif cmd == "right" then handled = move(1, 0)
   elseif cmd == "up" then handled = move(0, -1)
   elseif cmd == "down" then handled = move(0, 1)
@@ -516,35 +272,46 @@ local function focus_hit(id)
   n = tonumber(n)
   if kind == "menu" and MENU[n] then
     row, menu_i = "menu", n
-  elseif kind == "core" and shelf_rows() and shelf_rows()[n] then
-    row, shelf_i = "shelf", n
-    keep_visible()
+  elseif kind == "recent" and recents[n] then
+    row, body, recent_i = "recent", "recent", n
+    remember()
+  elseif kind == "banner" and top_row() == "banner" then
+    row, body = "banner", "banner"
+  elseif kind == "family" and families[n] then
+    row, body, family_i = "family", "family", n
     remember()
   else
     return false
   end
+  moved = true
   publish()
   return true
 end
 
 function on_hover(id)
-  -- Native hero action focus retains this shelf item without drawing a
+  -- Native hero action focus keeps the selected item without drawing a
   -- second focus outline. These private hits never activate a destination.
-  if id == "native:actions" then row = "actions" return end
-  if id == "native:shelf" then row = "shelf" return end
+  if id == "native:actions" then
+    if row ~= "actions" and row ~= "menu" then body = row end
+    row = "actions"
+    return
+  end
+  if id == "native:shelf" then row = body return end
   focus_hit(id)
 end
-function on_resize() keep_visible() end
 function on_activate(id) focus_hit(id) end
+
+-- Shrinking to the compact list hides the row above the tiles.
+function on_resize()
+  if not top_row() then
+    if row == "recent" or row == "banner" then row = "family" end
+    if body == "recent" or body == "banner" then body = "family" end
+  end
+end
 
 -- Drawing ------------------------------------------------------------
 
-local function outline(x, y, w, h, t, color)
-  gfx.rect(x, y, w, t, color)
-  gfx.rect(x, y + h - t, w, t, color)
-  gfx.rect(x, y, t, h, color)
-  gfx.rect(x + w - t, y, t, h, color)
-end
+local outline = F.outline
 
 -- A disc from horizontal slices: the device has rectangles only.
 local function disc(cx, cy, r, color)
@@ -567,44 +334,19 @@ local function hills(x, y, w, h, color, phase)
   end
 end
 
-local function keyboard(x, y, w, h, key, ground)
-  local rows, cols = 4, 10
-  local gap = math.max(2, math.floor(w / 80))
-  local kw = (w - gap * (cols + 1)) / cols
-  local kh = (h - gap * (rows + 1)) / rows
-  gfx.rect(x, y, w, h, C.dark)
-  for r = 0, rows - 1 do
-    local inset = (r % 2) * kw / 3
-    for c = 0, cols - 1 do
-      local kx = x + gap + c * (kw + gap) + inset
-      if kx + kw <= x + w - gap then
-        gfx.rect(kx, y + gap + r * (kh + gap), kw, kh, key)
-      end
-    end
-  end
-  gfx.rect(x + w * 0.25, y + h - gap - kh, w * 0.5, kh, ground)
-end
-
--- Fallback artwork: a recognisable motif per item, no text over art.
-local function motif(core, x, y, w, h)
-  local ground = GROUNDS[(hash(core.core_id or core.name) % #GROUNDS) + 1]
+-- A recent title's art: its family's ground behind the moon-and-hills motif.
+local function title_art(g, x, y, w, h)
+  local ground = F.ground(g.core_id, g.id)
   gfx.rect(x, y, w, h, ground)
-  if has_input(core, "keyboard") then
-    disc(x + w * 0.80, y + h * 0.28, math.min(w, h) * 0.13, C.surface)
-    keyboard(x + w * 0.10, y + h * 0.48, w * 0.80, h * 0.40, C.surface, ground)
-  else
-    disc(x + w * 0.36, y + h * 0.42, math.min(w, h) * 0.24, "#F5E6C8")
-    hills(x, y + h * 0.45, w, h * 0.55, C.dark, hash(core.name or "") % 7 / 7)
-  end
-  if not core.launchable then
-    gfx.rect(x, y + h - 10, w, 10, C.raised)
-  end
+  disc(x + w * 0.36, y + h * 0.42, math.min(w, h) * 0.24, "#F5E6C8")
+  hills(x, y + h * 0.45, w, h * 0.55, C.dark, F.hash(g.title or "") % 7 / 7)
 end
 
 local function menu_art(id, x, y, w, h)
   gfx.rect(x, y, w, h, C.raised)
   if id == "library" then
-    local spines = { "#7097A8", "#E08A63", "#8DB07A", "#9690B5", "#D9B45A", "#6E8F80" }
+    local grounds = F.grounds
+    local spines = { grounds[1], grounds[3], grounds[4], grounds[2], grounds[5], grounds[6] }
     local sw = w / 12
     for i, color in ipairs(spines) do
       local sh = h * (0.45 + 0.07 * (i % 3))
@@ -630,18 +372,7 @@ end
 local function draw_header(h)
   local hd = h.header
   local m = h.card.x
-  gfx.rect(0, hd.h - 2, room.width, 2, C.divider)
-  local bar = math.floor(hd.h * 0.11)
-  local my = math.floor((hd.h - bar * 4) / 2)
-  gfx.rect(m, my, bar * 3, bar, C.accent)
-  gfx.rect(m, my + bar * 1.5, bar * 3, bar, C.accent)
-  gfx.rect(m, my + bar * 3, bar * 1.6, bar, C.accent)
-  local _, th = gfx.measure("FES", 28, true)
-  gfx.text("FES", m + bar * 3 + 12, (hd.h - th) / 2, { size = 28, bold = true, color = C.text })
-  local fx = m + bar * 3 + 12 + gfx.measure("FES", 28, true) + 18
-  gfx.rect(fx, hd.h * 0.3, 2, hd.h * 0.4, C.divider)
-  local _, rh = gfx.measure(room.title, 22)
-  gfx.text(room.title, fx + 18, (hd.h - rh) / 2, { size = 22, color = C.text })
+  F.header(m, hd.h, room.title)
 
   local bh = math.floor(hd.h * 0.62)
   local by = math.floor((hd.h - bh) / 2)
@@ -672,72 +403,148 @@ local function draw_hero(h)
   local a = h.art
   if row == "menu" then
     menu_art(MENU[menu_i].id, a.x, a.y, a.w, a.h)
+    return
+  end
+  local which = row == "actions" and body or row
+  if which == "banner" then
+    menu_art("settings", a.x, a.y, a.w, a.h)
+  elseif which == "recent" and recents[recent_i] then
+    title_art(recents[recent_i], a.x, a.y, a.w, a.h)
+  elseif families[family_i] then
+    F.mark(families[family_i], a.x, a.y, a.w, a.h)
   else
-    local core = selected_core()
-    if core then
-      motif(core, a.x, a.y, a.w, a.h)
-    else
-      gfx.rect(a.x, a.y, a.w, a.h, C.raised)
-      hills(a.x, a.y + a.h * 0.5, a.w, a.h * 0.5, C.divider, 0.2)
-    end
+    gfx.rect(a.x, a.y, a.w, a.h, C.raised)
   end
 end
 
-local function draw_shelf(h)
-  local s = h.shelf
-  local label = "On this kit"
-  gfx.text(label, s.x, s.y, { size = 24, bold = true, color = C.text })
-  local count = ""
-  local installed = installed_count()
-  if installed == 1 then
-    count = "1 installed"
-  elseif installed > 1 then
-    count = installed .. " installed"
-  end
-  if count ~= "" then
-    gfx.text(count, s.x, s.y + 4, { size = 18, color = C.secondary, max_w = s.w, align = "right" })
-  end
-  local _, lh = gfx.measure(label, 24, true)
-  local top = s.y + lh + 14
-  local ch = s.y + s.h - top
-  local list = shelf_rows()
-  if not list or #list == 0 then
-    gfx.rect(s.x, top, s.w, ch, C.raised)
-    gfx.text(status, s.x + 24, top + ch / 2 - 12, { size = 20, color = C.text, max_w = s.w - 48 })
-    return
-  end
-  local n = visible_cards()
-  local gap = 20
-  local cw = (s.w - gap * (n - 1)) / n
-  local art_h = math.floor(ch * 0.56)
-  for slot = 0, n - 1 do
-    local i = first + slot
-    local core = list[i]
-    if not core then break end
-    local x = s.x + slot * (cw + gap)
-    local focused = row == "shelf" and shelf_i == i
+local function draw_recents(s, top, ch)
+  local gap = 16
+  local cw = (s.w - gap * (RECENT_MAX - 1)) / RECENT_MAX
+  for i, g in ipairs(recents) do
+    local x = s.x + (i - 1) * (cw + gap)
+    local focused = row == "recent" and recent_i == i
     gfx.rect(x, top, cw, ch, C.surface)
-    gfx.clip(x, top, cw, art_h)
-    motif(core, x, top, cw, art_h)
-    gfx.unclip()
+    local pad = math.max(4, math.floor(ch * 0.1))
+    local aw = math.floor((ch - pad * 2) * 1.2)
+    title_art(g, x + pad, top + pad, aw, ch - pad * 2)
+    if focused then
+      outline(x - 3, top - 3, cw + 6, ch + 6, 3, C.accent)
+    else
+      outline(x, top, cw, ch, 1, C.divider)
+    end
+    local tx = x + pad + aw + 12
+    local tw = cw - (tx - x) - 8
+    local size = ch >= 56 and 20 or 18
+    gfx.text(g.title or "", tx, top + pad, { size = size, bold = focused, color = C.text, max_w = tw })
+    gfx.text(machine_label(g), tx, top + ch - pad - size, { size = size - 4, color = C.secondary, max_w = tw })
+    gfx.hit("recent:" .. i, x, top, cw, ch)
+  end
+end
+
+-- Tall tiles: the mark above the name, the state chip and its detail line.
+-- Compact tiles (below Recently played): a small mark, the short name and
+-- the chip. Below the 720p safe-room height (648), the detail line is left out.
+local function draw_families(s, top, ch, compact)
+  local n = #families
+  local shown = math.min(n, 4)
+  local gap = 20
+  local cw = (s.w - gap * (shown - 1)) / shown
+  local first = math.max(1, math.min(family_i, n - shown + 1))
+  if family_i > first + shown - 1 then first = family_i - shown + 1 end
+  local detail = not compact and room.height >= 648
+  for slot = 0, shown - 1 do
+    local i = first + slot
+    local f = families[i]
+    if not f then break end
+    local x = s.x + slot * (cw + gap)
+    local focused = row == "family" and family_i == i
+    local state, line = F.tile(f)
+    gfx.rect(x, top, cw, ch, C.surface)
+    if compact then
+      local pad = 8
+      local aw = math.min(math.floor(cw * 0.38), math.floor((ch - pad * 2) * 1.2))
+      F.mark(f, x + pad, top + pad, aw, ch - pad * 2)
+      local tx = x + pad + aw + 12
+      local tw = cw - (tx - x) - 8
+      gfx.text(f.art.short, tx, top + ch * 0.20, { size = 20, bold = focused, color = C.text, max_w = tw })
+      F.chip(state, tx, top + ch * 0.52, 16)
+    else
+      local art_h = math.floor(ch * (detail and 0.50 or 0.56))
+      gfx.clip(x, top, cw, art_h)
+      F.mark(f, x, top, cw, art_h)
+      gfx.unclip()
+      gfx.text(f.label, x + 14, top + art_h + 8, { size = 22, bold = focused, color = C.text, max_w = cw - 28 })
+      local cy = top + art_h + 40
+      F.chip(state, x + 14, cy, 16)
+      if detail and line ~= "" then
+        gfx.text(line, x + 14, cy + 32, { size = 18, color = C.secondary, max_w = cw - 28 })
+      end
+    end
     if focused then
       outline(x - 4, top - 4, cw + 8, ch + 8, 4, C.accent)
     else
       outline(x, top, cw, ch, 1, C.divider)
     end
-    gfx.text(core.name or "", x + 14, top + art_h + 10, { size = 22, bold = focused, color = C.text, max_w = cw - 28 })
-    local line = card_line(core)
-    if line ~= "" then
-      gfx.text(line, x + 14, top + art_h + 42, { size = 18, color = C.secondary, max_w = cw - 28 })
-    end
-    gfx.hit("core:" .. i, x, top, cw, ch)
+    gfx.hit("family:" .. i, x, top, cw, ch)
   end
   if first > 1 then
     gfx.rect(s.x - 10, top + ch / 2 - 20, 4, 40, C.accent)
   end
-  if first + n - 1 < #list then
+  if first + shown - 1 < n then
     gfx.rect(s.x + s.w + 6, top + ch / 2 - 20, 4, 40, C.accent)
   end
+end
+
+-- The Get started banner: a warm plate with a leading bar, what is left,
+-- and Finish setup.
+local function draw_banner(s, top, ch)
+  local focused = row == "banner"
+  gfx.rect(s.x, top, s.w, ch, C.raised)
+  gfx.rect(s.x, top, 6, ch, "#E8C77A")
+  local size = ch >= 56 and 20 or 18
+  gfx.text("Setup isn't finished", s.x + 24, top + ch * 0.12, { size = size, bold = true, color = C.text, max_w = s.w * 0.6 })
+  gfx.text("Your choices so far are kept.", s.x + 24, top + ch * 0.12 + size + 6, { size = size - 2, color = C.secondary, max_w = s.w * 0.6 })
+  local label = "Finish setup"
+  local bw = gfx.measure(label, size, true) + 28
+  local bh = math.min(ch - 16, size + 18)
+  local bx, by = s.x + s.w - bw - 16, top + (ch - bh) / 2
+  gfx.rect(bx, by, bw, bh, C.surface)
+  local _, th = gfx.measure(label, size, true)
+  gfx.text(label, bx + 14, by + (bh - th) / 2, { size = size, bold = true, color = C.text })
+  if focused then
+    outline(s.x - 3, top - 3, s.w + 6, ch + 6, 3, C.accent)
+  else
+    outline(bx, by, bw, bh, 2, C.divider)
+  end
+  gfx.hit("banner:1", s.x, top, s.w, ch)
+end
+
+local function draw_shelf(h)
+  local s = h.shelf
+  local label_size = s.h >= 240 and 24 or 20
+  local _, lh = gfx.measure("Computers", label_size, true)
+  local y = s.y
+  local above = top_row()
+  if above then
+    gfx.text(above == "banner" and "Get started" or "Recently played", s.x, y, { size = label_size, bold = true, color = C.text })
+    local rh = math.floor((s.h - (lh + 8) * 2 - 12) * 0.40)
+    if above == "banner" then
+      draw_banner(s, y + lh + 8, rh)
+    else
+      draw_recents(s, y + lh + 8, rh)
+    end
+    y = y + lh + 8 + rh + 12
+    gfx.text("Computers", s.x, y, { size = label_size, bold = true, color = C.text })
+    local top = y + lh + 8
+    draw_families(s, top, s.y + s.h - top, true)
+    return
+  end
+  gfx.text("Computers", s.x, y, { size = label_size, bold = true, color = C.text })
+  if settled() then
+    gfx.text(F.on_kit() .. " on this kit", s.x, y + 4, { size = 18, color = C.secondary, max_w = s.w, align = "right" })
+  end
+  local top = y + lh + 14
+  draw_families(s, top, s.y + s.h - top, false)
 end
 
 -- roomDestGeom in ui/tenfoot/overlay_layout.go draws the compact strip
@@ -755,130 +562,61 @@ local function compact_limit()
   return y
 end
 
-local function menu_row_fits()
-  local w = 0
-  for i, item in ipairs(MENU) do
-    w = w + gfx.measure(item.label, 18, true) + 28
-    if i < #MENU then w = w + 8 end
-  end
-  return w <= room.width - COMPACT_MARGIN * 2
-end
-
-compact_layout = function()
-  local limit = compact_limit()
-  local stacked = not menu_row_fits()
-  local menu_h = COMPACT_MENU_H
-  if stacked then
-    menu_h = #MENU * COMPACT_MENU_H + (#MENU - 1) * COMPACT_GAP
-  end
-  local y = 8 + menu_h + 8
-  local label = false
-  if y + 22 + COMPACT_ROW <= limit - 4 then
-    label = true
-    y = y + 22
-  end
-  local step = COMPACT_ROW + COMPACT_GAP
-  local rows = math.floor((limit - 4 - y) / step)
-  if rows < 0 then rows = 0 end
-  return { limit = limit, stacked = stacked, list_y = y, rows = rows, label = label }
-end
-
-local function draw_menu_button(i, x, y, w, h)
-  local item = MENU[i]
-  local focused = row == "menu" and menu_i == i
-  gfx.rect(x, y, w, h, C.surface)
-  if focused then
-    outline(x - 3, y - 3, w + 6, h + 6, 3, C.accent)
-  else
-    outline(x, y, w, h, 1, C.divider)
-  end
-  local _, lh = gfx.measure(item.label, 18, focused)
-  gfx.text(item.label, x + 14, y + (h - lh) / 2, {
-    size = 18, bold = focused, color = C.text, max_w = math.max(1, w - 28),
-  })
-  gfx.hit("menu:" .. i, x, y, w, h)
-end
-
-local function draw_compact_menu(lay)
+local function draw_compact()
   local m = COMPACT_MARGIN
-  local bh = COMPACT_MENU_H
-  local by = 8
-  if lay.stacked then
-    for i = 1, #MENU do
-      draw_menu_button(i, m, by + (i - 1) * (bh + COMPACT_GAP), room.width - m * 2, bh)
-    end
-    return
-  end
+  local limit = compact_limit()
   local right = room.width - m
   for i = #MENU, 1, -1 do
+    local item = MENU[i]
     local focused = row == "menu" and menu_i == i
-    local bw = gfx.measure(MENU[i].label, 18, focused) + 28
+    local bw = gfx.measure(item.label, 18, focused) + 28
     right = right - bw
-    draw_menu_button(i, right, by, bw, bh)
+    gfx.rect(right, 8, bw, COMPACT_MENU_H, C.surface)
+    if focused then
+      outline(right - 3, 5, bw + 6, COMPACT_MENU_H + 6, 3, C.accent)
+    else
+      outline(right, 8, bw, COMPACT_MENU_H, 1, C.divider)
+    end
+    local _, th = gfx.measure(item.label, 18, focused)
+    gfx.text(item.label, right + 14, 8 + (COMPACT_MENU_H - th) / 2, { size = 18, bold = focused, color = C.text })
+    gfx.hit("menu:" .. i, right, 8, bw, COMPACT_MENU_H)
     right = right - 8
   end
-  local title = room.title or "Home"
-  local tw, th = gfx.measure(title, 22, true)
-  if m + tw + 12 < right then
-    gfx.text(title, m, by + (bh - th) / 2, { size = 22, bold = true, color = C.text })
-  end
-end
-
-local function draw_compact()
-  local lay = compact_layout()
-  local m = COMPACT_MARGIN
-  draw_compact_menu(lay)
-  if lay.label then
-    gfx.text("On this kit", m, lay.list_y - 22, { size = 18, bold = true, color = C.text })
-  end
-  local list = shelf_rows()
-  if not list or #list == 0 then
-    if lay.list_y + 20 <= lay.limit then
-      gfx.text(status, m, lay.list_y, { size = 18, color = C.text, max_w = room.width - m * 2 })
-    end
-    return
-  end
-  local step = COMPACT_ROW + COMPACT_GAP
+  local y = 8 + COMPACT_MENU_H + 8
   local cw = room.width - m * 2
-  for slot = 0, lay.rows - 1 do
+  local step = COMPACT_ROW + COMPACT_GAP
+  local rows = math.max(0, math.floor((limit - 4 - y) / step))
+  local first = math.max(1, family_i - rows + 1)
+  for slot = 0, rows - 1 do
     local i = first + slot
-    local core = list[i]
-    if not core then break end
-    local y = lay.list_y + slot * step
-    local focused = row == "shelf" and shelf_i == i
-    gfx.rect(m, y, cw, COMPACT_ROW, C.surface)
+    local f = families[i]
+    if not f then break end
+    local ry = y + slot * step
+    local focused = row == "family" and family_i == i
+    gfx.rect(m, ry, cw, COMPACT_ROW, C.surface)
     if focused then
-      outline(m - 3, y - 2, cw + 6, COMPACT_ROW + 4, 3, C.accent)
+      outline(m - 3, ry - 2, cw + 6, COMPACT_ROW + 4, 3, C.accent)
     else
-      outline(m, y, cw, COMPACT_ROW, 1, C.divider)
+      outline(m, ry, cw, COMPACT_ROW, 1, C.divider)
     end
-    gfx.text(core.name or "", m + 12, y + 6, {
-      size = 18, bold = focused, color = C.text, max_w = math.max(1, cw - 24),
-    })
-    gfx.hit("core:" .. i, m, y, cw, COMPACT_ROW)
-  end
-  if first > 1 then
-    gfx.rect(room.width - 8, lay.list_y, 3, 16, C.accent)
-  end
-  if first + lay.rows - 1 < #list then
-    gfx.rect(room.width - 8, lay.list_y + math.max(0, lay.rows * step - 16), 3, 16, C.accent)
+    gfx.text(f.label, m + 12, ry + 6, { size = 18, bold = focused, color = C.text, max_w = math.max(1, cw - 24) })
+    gfx.hit("family:" .. i, m, ry, cw, COMPACT_ROW)
   end
 end
 
--- The list is a snapshot. Repaint only when its identity, focus or geometry
--- changes; store debounce still runs in update() while the picture is reused.
+-- Repaint only when the data, focus or geometry changes.
 local painted = nil
 
 function draw()
   if room.presented and painted
-    and painted.cores == cores and painted.status == status
-    and painted.row == row and painted.shelf_i == shelf_i
-    and painted.menu_i == menu_i and painted.first == first
+    and painted.generation == generation and painted.row == row
+    and painted.body == body and painted.recent_i == recent_i
+    and painted.family_i == family_i and painted.menu_i == menu_i
     and painted.width == room.width and painted.height == room.height
     and painted.title == room.title and gfx.reuse() then
     return
   end
-  local h = layout()
+  local h = room.hero
   if h then
     draw_header(h)
     draw_hero(h)
@@ -888,8 +626,8 @@ function draw()
   end
   publish()
   painted = {
-    cores = cores, status = status, row = row, shelf_i = shelf_i,
-    menu_i = menu_i, first = first, width = room.width,
+    generation = generation, row = row, body = body, recent_i = recent_i,
+    family_i = family_i, menu_i = menu_i, width = room.width,
     height = room.height, title = room.title,
   }
   -- Paint the background after assembling the full display list. The existing

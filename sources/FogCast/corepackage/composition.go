@@ -149,23 +149,34 @@ func StageComposition(ctx context.Context, root string, size int64, input io.Rea
 	if int64(len(data)) != size {
 		return Staged{}, errors.New("composition size mismatch")
 	}
+	return StageCompositionBytes(ctx, root, data)
+}
+
+// StageCompositionBytes stages a composition the caller already holds,
+// without copying it.
+func StageCompositionBytes(ctx context.Context, root string, data []byte) (Staged, error) {
+	if len(data) < 1 || len(data) > MaxCompositionArchiveSize {
+		return Staged{}, errors.New("invalid composition size")
+	}
 	if IsSlotCompositionBundle(data) {
 		slots, err := ReadSlotCompositionBundle(ctx, data)
 		if err != nil {
 			return Staged{}, err
 		}
-		return stageSlotCompositionBundle(ctx, root, slots)
+		return stageSlotCompositionBundle(ctx, root, slots, nil)
 	}
 	bundle, err := ReadCompositionBundle(bytes.NewReader(data))
 	if err != nil {
 		return Staged{}, err
 	}
-	return stageCompositionBundle(ctx, root, bundle)
+	return stageCompositionBundle(ctx, root, bundle, nil)
 }
 
-// stageCompositionBundle consumes a bundle already independently composed by this package.
-func stageCompositionBundle(ctx context.Context, root string, bundle CompositionBundle) (Staged, error) {
-	staged, err := Stage(ctx, root, int64(len(bundle.Package)), bytes.NewReader(bundle.Package))
+// stageCompositionBundle consumes a bundle already independently composed by
+// this package. verified is the base package's inspection when the caller
+// already decoded bundle.Package.
+func stageCompositionBundle(ctx context.Context, root string, bundle CompositionBundle, verified *Inspection) (Staged, error) {
+	staged, err := stageArchive(ctx, root, bundle.Package, verified)
 	if err != nil {
 		return Staged{}, err
 	}

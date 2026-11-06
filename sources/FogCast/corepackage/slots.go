@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
 	"sort"
@@ -191,17 +192,47 @@ type canonicalMember struct {
 }
 
 func writeCanonicalMembers(members []canonicalMember, limit int64) ([]byte, error) {
-	var out bytes.Buffer
+	stream, err := newCanonicalStream(members, limit)
+	if err != nil {
+		return nil, err
+	}
+	return stream.bytes(), nil
+}
+
+// canonicalStream is a closed canonical transport read from its members in
+// place. A sender streams it instead of building a second, package-sized copy
+// (#863).
+type canonicalStream struct {
+	members []canonicalMember
+	size    int64
+}
+
+func newCanonicalStream(members []canonicalMember, limit int64) (canonicalStream, error) {
+	size := int64(1024)
 	for _, member := range members {
-		out.Write(canonicalHeader(member.name, int64(len(member.data))))
-		out.Write(member.data)
-		out.Write(make([]byte, (512-len(member.data)%512)%512))
+		n := int64(len(member.data))
+		size += 512 + n + (512-n%512)%512
 	}
-	out.Write(make([]byte, 1024))
-	if int64(out.Len()) > limit {
-		return nil, errors.New("transport exceeds size limit")
+	if size > limit {
+		return canonicalStream{}, errors.New("transport exceeds size limit")
 	}
-	return out.Bytes(), nil
+	return canonicalStream{members: members, size: size}, nil
+}
+
+// reader returns a new reader over the whole transport.
+func (s canonicalStream) reader() io.Reader {
+	parts := make([]io.Reader, 0, len(s.members)*3+1)
+	for _, member := range s.members {
+		n := len(member.data)
+		parts = append(parts, bytes.NewReader(canonicalHeader(member.name, int64(n))), bytes.NewReader(member.data), bytes.NewReader(make([]byte, (512-n%512)%512)))
+	}
+	return io.MultiReader(append(parts, bytes.NewReader(make([]byte, 1024)))...)
+}
+
+func (s canonicalStream) bytes() []byte {
+	out := bytes.NewBuffer(make([]byte, 0, s.size))
+	_, _ = io.Copy(out, s.reader())
+	return out.Bytes()
 }
 
 // canonicalReader walks canonical ustar members written by writeCanonicalMembers.
@@ -368,8 +399,8 @@ func ReadSlotCompositionBundle(ctx context.Context, data []byte) (SlotCompositio
 // stageSlotCompositionBundle publishes the sealed shell, one private
 // directory per card and the linked overlay beside it. Every companion shares
 // the base publication token and is removed by Staged.Cleanup.
-func stageSlotCompositionBundle(ctx context.Context, root string, bundle SlotCompositionBundle) (Staged, error) {
-	staged, err := Stage(ctx, root, int64(len(bundle.Package)), bytes.NewReader(bundle.Package))
+func stageSlotCompositionBundle(ctx context.Context, root string, bundle SlotCompositionBundle, verified *Inspection) (Staged, error) {
+	staged, err := stageArchive(ctx, root, bundle.Package, verified)
 	if err != nil {
 		return Staged{}, err
 	}

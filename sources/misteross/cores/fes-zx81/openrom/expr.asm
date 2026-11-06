@@ -71,6 +71,8 @@ expr_byte:
 
 ; ---------------------------------------------------------------------
 operand:
+        ld bc,0                 ; every recursion comes through here: report 4
+        call test_room          ; before the machine stack reaches STKEND
         rst 0x18
         cp C_MINUS
         jr z,op_neg
@@ -153,8 +155,7 @@ op_number:
         jr z,nonsense
         jr .n
 .got:   call stk_push
-        ld (CH_ADD),hl
-        ret
+        jr set_ch
 
 
 op_pi:  rst 0x20
@@ -167,7 +168,7 @@ op_inkey:
         ld b,h
         ld c,l
         call decode
-        jr c,.none
+        jr nc,.none
         ld a,(hl)
         jr str_char
 .none:  ld bc,0                  ; "" (any address)
@@ -277,13 +278,7 @@ var_skip:
         jr z,.for
         cp 0xa0
         jr z,.long
-        inc hl
-        ld e,(hl)
-        inc hl
-        ld d,(hl)
-        inc hl
-        add hl,de
-        ret
+        jr skip_len
 .six:   ld de,6
         add hl,de
         ret
@@ -294,9 +289,7 @@ var_skip:
         ld a,(hl)
         rla
         jr nc,.long
-        ld de,6
-        add hl,de
-        ret
+        jr .six
 
 ; HL = numeric entry -> HL -> its five-byte value.
 var_value:
@@ -319,12 +312,11 @@ scan_name:
         ld b,0
 .l:     ld a,(hl)
         call is_alnum
-        jr nc,.e
+        jr nc,set_ch
         inc hl
         inc b
-        jr .l
-.e:     ld (CH_ADD),hl
-        ret
+        jr nz,.l
+        jr nonsense             ; 256 characters: the length is a byte
 
 ; A variable's value. With OF_LVAL set, where to assign it instead:
 ; TG_KIND 1 number at DEST, 2 new number (name at X_PTR, TG_LEN long),
@@ -407,8 +399,7 @@ op_variable:
         jr maybe_slice
 .fix:   ex de,hl
         ld bc,(STRLEN)
-        call stk_push_str
-        jr maybe_slice
+        jr slice.push
 
 ; Push the string variable whose entry is at HL.
 str_entry:
@@ -432,6 +423,7 @@ subscripts:
         call expr_num
         pop bc
         inc b
+        jr z,subscript_error    ; 256 subscripts: the count is a byte
         rst 0x18
         cp C_COMMA
         jr nz,.end
@@ -483,8 +475,7 @@ array_offset:
         ld de,-5
 .p:     add hl,de
         djnz .p
-        ld de,FA
-        call fp_unpack
+        call unpack_fa
         call fa_to_long
         jr c,subscript_error
         and a
@@ -565,7 +556,11 @@ slice:  rst 0x20
         jr .close
 .to:    push bc
         rst 0x20
-        ld de,0xffff
+        ld hl,(STKEND)          ; no upper bound: the string's length
+        dec hl
+        ld d,(hl)
+        dec hl
+        ld e,(hl)
         cp C_RPAREN
         jr z,.nou
         call expr_uint
@@ -575,16 +570,9 @@ slice:  rst 0x20
 .close: push bc
         push de
         call expect_rparen
-        call stk_pop_str
-        ld (AE_OFF),de
+        call pop_str_ae
         pop hl                  ; upper
-        ld a,h
-        and l
-        inc a
-        jr nz,.u
-        ld h,b
-        ld l,c
-.u:     pop de                  ; lower
+        pop de                  ; lower
         push hl
         and a
         sbc hl,de
@@ -621,8 +609,18 @@ apply_binop:
         ld a,d
         xor (iy+Y_FLAGS)
         and 0x40
-        jr nz,nonsense          ; operands of different types
+        jr z,.same
+        ld a,e                  ; mixed types: only string AND number
+        cp T_AND
+        jr nz,nonsense
         bit 6,d
+        jr nz,nonsense
+        res 6,(iy+Y_FLAGS)      ; the string if the number is not 0 ...
+        call fp_pop_zero
+        ret nz
+        call stk_drop           ; ... else ""
+        jr op_inkey.none
+.same:  bit 6,d
         jr z,.strings
         ld a,e
         cp C_PLUS
@@ -658,11 +656,10 @@ apply_binop:
         ld a,e
         cp C_PLUS
         jr z,str_concat
-        cp T_AND
-        jr z,nonsense
-        cp T_OR
-        jr z,nonsense
-        push de
+        jr c,.cmp               ; > < =
+        cp T_LE
+        jr c,nonsense           ; - * / ** OR AND are for numbers
+.cmp:   push de
         call str_compare
         pop de
 
@@ -692,9 +689,7 @@ rel_masks:
 
 ; Compare strings second, top (dropped). Z equal, carry if second < top.
 str_compare:
-        call stk_pop_str
-        ld (AE_OFF),de
-        ld (AE_DIMS),bc
+        call pop_str_ae
         call stk_pop_str
         ld hl,(AE_OFF)
 .l:     ld a,b
@@ -729,9 +724,7 @@ str_compare:
         ret
 
 str_concat:
-        call stk_pop_str
-        ld (AE_OFF),de
-        ld (AE_DIMS),bc
+        call pop_str_ae
         call stk_pop_str
         push de
         push bc
@@ -861,8 +854,7 @@ fn_val: call stk_pop_str
         cp C_NL
         jr nz,nonsense
         pop hl
-        ld (CH_ADD),hl
-        ret
+        jr set_ch
 
 ; ---------------------------------------------------------------------
 ; Insert hidden five-byte values after the numbers in the text at HL
@@ -901,19 +893,16 @@ tokenize:
         jr nz,.word
         call is_digit
         jr c,.number
-        cp C_DOT
-        jr nz,.word
-        ld a,(hl)
-        call is_digit
-        jr c,.number
-        ld a,C_DOT
+        cp C_DOT                ; a point alone is a number too (0)
+        jr z,.number
 .word:  call is_alnum
         ld c,0
         jr nc,.loop
         ld c,2
         jr .loop
-.skip5: ld de,5
-        add hl,de
+.skip5: dec hl                  ; a marker byte in typed text (CHR$ 126 in
+        ld (hl),C_QUERY         ; VAL): an ordinary symbol, never a number
+        inc hl
         jr .loop
 .number:
         dec hl
@@ -922,10 +911,7 @@ tokenize:
         call make_room
         ld (hl),C_NUMBER
         inc hl
-        push hl
-        call stk_drop
-        pop de
-        ld bc,5
-        ldir
+        ex de,hl
+        call stk_pop_de
         ex de,hl
         jr .go

@@ -39,7 +39,7 @@ SOFTWARE_CI_INPUTS = frozenset({
 # misteross unittest suite runs (about two minutes); tool-dependent cases skip.
 FPGA_SOFTWARE_TESTS = ('test_*.py',)
 FPGA_PRODUCER_HELPERS = {
-    'bootstrap.sh', 'audit_fes_pcxt_cdc.py', 'quartus_fes_pcxt.py', 'build_fes_pcxt_quartus.py', 'pcxt_quartus_mailbox.py',
+    'bootstrap.sh', 'audit_fes_pcxt_cdc.py', 'quartus_fes_pcxt.py', 'build_fes_pcxt_quartus.py', 'pcxt_quartus_mailbox.py', 'pcxt_quartus_audio.py',
     'audit_fes_pcxt_hps_i2c.py', 'characterize_fes_pcxt_hps_i2c.py', 'screen_fes_pcxt_uncertainty.py',
     'synth_fes_native_video.py', 'synth_fes_pcxt.py', 'build_fes_pcxt.py', 'build_fes_coleco_socket_v2.py',
     'build_video_part.py', 'video_parts.py', 'native_video_parts.py', 'native_video_clock.py',
@@ -83,9 +83,9 @@ SHARED_RTL = {
     'fes_computer_gp.v': COLECO_CONSUMERS,
     'fes_application_gp.v': ('demo', 'coleco', 'menu', 'ramtest', 'riscv'),
     'fes_video_720p.v': ('demo', 'pong', 'ramtest', 'riscv'),
-    'fes_audio_i2s.v': ('demo', 'zx81', 'coleco', 'sg1000', 'sms', 'apple2', 'c64', 'spectrum', 'atari-st', 'pc386'),
-    'fes_audio_pll.v': ('demo',),
-    'fes_audio_output.v': ('zx81', 'coleco', 'sg1000', 'sms', 'apple2', 'c64', 'spectrum', 'atari-st', 'pc386'),
+    'fes_audio_i2s.v': ('demo', 'zx81', 'coleco', 'sg1000', 'sms', 'apple2', 'c64', 'spectrum', 'atari-st', 'pc386', 'pcxt'),
+    'fes_audio_pll.v': ('demo', 'pcxt'),
+    'fes_audio_output.v': ('zx81', 'coleco', 'sg1000', 'sms', 'apple2', 'c64', 'spectrum', 'atari-st', 'pc386', 'pcxt'),
     'fes_sn76489.sv': ('coleco', 'sg1000'),
     'fes_z80_ce.sv': COLECO_CONSUMERS,
     'fes_computer_mailbox.v': ('apple2', 'c64', 'spectrum', 'atari-st', 'zx81', 'pc386', 'pcxt'),
@@ -106,8 +106,8 @@ ATARI_ST_SCRIPTS = frozenset({'atari_st_slot.py', 'build_atari_st_slot_card.py',
 # RTL checks and timing harness are test-only software; their unit tests run in
 # the FPGA software lane.
 I386_SCRIPTS = frozenset({'fes_i386_oracle.py', 'test_fes_i386_vectors.py', 'test_fes_i386_test386.py',
-                          'test_fes_i386_frontend.py', 'test_fes_i386_lockstep.py', 'benchmark_fes_i386.py',
-                          'quartus_fes_i386.py', 'fes_i386_ucode.py'})
+                          'test_fes_i386_frontend.py', 'test_fes_i386_lockstep.py', 'test_fes_i386_governor.py',
+                          'benchmark_fes_i386.py', 'quartus_fes_i386.py', 'fes_i386_ucode.py'})
 
 
 def fpga_cores(path):
@@ -190,7 +190,7 @@ def fpga_cores(path):
                         'sim_fes_pc386.py'):
             core = parts[1][len('sim_fes_'):-len('.py')]
             return (core,), core + ' simulation recipe'
-        if parts[1] in ('pcxt_bios.py', 'sim_fes_pcxt_fdc.py',
+        if parts[1] in ('pcxt_bios.py', 'sim_fes_pcxt_fdc.py', 'sim_fes_pcxt_write.py',
                          'sim_fes_pcxt_dos.py', 'sim_fes_pcxt_media.py', 'sim_fes_pcxt_media_diag.py',
                          'sim_fes_pcxt_mailbox.py', 'build_pcxt_freedos_image.py'):
             return ('pcxt',), 'PC/XT BIOS, floppy and DOS simulation recipes'

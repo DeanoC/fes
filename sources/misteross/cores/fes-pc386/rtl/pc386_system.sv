@@ -272,6 +272,9 @@ module pc386_system #(
     wire dma_ack_done = channel1 ? dsp_done : other_done;
     wire [7:0] dma_ack_rdata = channel1 ? dsp_rdata : 8'hff;
 
+    // The CPU's shutdown (a fault in a double fault's delivery), which the
+    // AT core turns into a CPU reset, as an AT does.
+    wire cpu_shutdown;
     pc386_machine #(
         .ISA_N(ISA_N), .ISA_D(ISA_D), .PIT_N(PIT_N), .PIT_D(PIT_D), .RTC_N(RTC_N), .RTC_D(RTC_D),
         .US_N(US_N), .US_D(US_D), .DMA_N(DMA_N), .DMA_D(DMA_D), .DOT0_N(DOT0_N), .DOT0_D(DOT0_D),
@@ -281,7 +284,7 @@ module pc386_system #(
         .io_valid(io_valid), .io_write(io_write), .io_port(io_port), .io_size(io_size), .io_wdata(io_wdata),
         .inta_valid(inta_valid), .io_busy(io_busy), .io_done(io_done), .inta_done(inta_done),
         .io_rdata(io_rdata), .inta_vector(inta_vector), .intr(intr), .a20m(a20m),
-        .cpu_shutdown(1'b0), .flush_request(flush_request), .flush_done(flush_done),
+        .cpu_shutdown(cpu_shutdown), .flush_request(flush_request), .flush_done(flush_done),
         .cpu_reset(machine_cpu_reset),
         .mem_valid(mem_valid), .mem_write(mem_write), .mem_address(cpu_mmio_address[14:0]),
         .mem_byteenable(mem_byteenable), .mem_wdata(mem_wdata), .mem_ready(mem_ready),
@@ -433,13 +436,20 @@ module pc386_system #(
         .clk(clk), .cold_reset(cpu_cold), .reset(cpu_reset),
         // The reset state, Bochs's: CS F000h at FFFF0000h, EIP FFF0h, every
         // limit FFFFh and every attribute a present read/write data segment;
-        // CR0's MP and TS clear. The GPRs' zero is sized: an unsized '0 on a
+        // CR0 clear (ET too: no 387), CR2 and CR3 0, GDTR and IDTR at 0
+        // with limit FFFFh, LDTR an LDT and TR a busy 386 TSS at 0 with limit
+        // FFFFh. The GPRs' zero is sized: an unsized '0 on a
         // parameterised cell's port asserts in the lock's Yosys under
         // hierarchy -chparam (DeanoC/yosys#71).
-        .init_gpr(256'd0), .init_eflags(32'h2), .init_cr0(32'h0), .init_eip(32'hfff0),
+        .init_gpr(256'd0), .init_eflags(32'h2), .init_cr0(32'h0), .init_cr2(32'h0), .init_cr3(32'h0),
+        .init_gdtr_base(32'h0), .init_gdtr_limit(16'hffff), .init_idtr_base(32'h0), .init_idtr_limit(16'hffff),
+        .init_eip(32'hfff0),
         .init_sel({16'h0, 16'h0, 16'h0, 16'h0, 16'hf000, 16'h0}),
         .init_base({32'h0, 32'h0, 32'h0, 32'h0, 32'hffff0000, 32'h0}),
         .init_limit({6{32'hffff}}), .init_ar({6{16'h0093}}),
+        .init_ldtr_sel(16'h0), .init_ldtr_base(32'h0), .init_ldtr_limit(32'hffff), .init_ldtr_ar(16'h0082),
+        .init_ldtr_valid(1'b1), .init_tr_sel(16'h0), .init_tr_base(32'h0), .init_tr_limit(32'hffff),
+        .init_tr_ar(16'h008b),
         .a20m(a20m), .attr_upper(ATTR_UPPER), .ram_top(7'd16), .queue16(queue16),
         .gov_preset(gov_preset), .gov_frequency(gov_frequency), .gov_turbo(gov_turbo),
         .ddr_address(cpu_ddr_address), .ddr_burstcount(cpu_ddr_burstcount), .ddr_read(cpu_ddr_read),
@@ -456,13 +466,16 @@ module pc386_system #(
         .io_wdata(cpu_io_wdata), .io_ack(io_ack), .io_rdata(io_result),
         .intr(intr), .nmi(1'b0), .inta_req(cpu_inta_req), .inta_ack(inta_ack), .inta_vector(inta_result),
         .trace_retire(cpu_retire), .trace_exception(), .trace_vector(cpu_vector), .trace_halt(cpu_halt),
-        .trace_unimplemented(cpu_stopped), .trace_issue(), .trace_md_wait(), .trace_fetch(),
+        .trace_unimplemented(cpu_stopped), .trace_unbuilt(), .shutdown(cpu_shutdown), .trace_error(), .trace_issue(),
+        .trace_md_wait(), .trace_fetch(),
         .trace_fetch_block(), .trace_dread(), .trace_dread_addr(), .trace_mem_wait(),
         .trace_mem_idle(cpu_mem_idle), .trace_replay(), .trace_smc(), .trace_smc_open(), .trace_ex_store(),
         .trace_gov_hold(gov_hold), .trace_gov_debt(), .trace_gov_charge(),
         .trace_store(), .trace_store_addr(), .trace_store_data(), .trace_store_mask(), .arch_gpr(),
-        .arch_eflags(), .arch_cr0(), .arch_eip(cpu_eip), .arch_sel(cpu_sel),
-        .arch_base(), .arch_limit(), .arch_ar()
+        .arch_eflags(), .arch_cr0(), .arch_cr2(), .arch_cr3(), .arch_gdtr_base(), .arch_gdtr_limit(),
+        .arch_idtr_base(), .arch_idtr_limit(), .arch_eip(cpu_eip), .arch_sel(cpu_sel),
+        .arch_base(), .arch_limit(), .arch_ar(), .arch_ldtr_sel(), .arch_ldtr_base(), .arch_ldtr_limit(),
+        .arch_ldtr_ar(), .arch_ldtr_valid(), .arch_tr_sel(), .arch_tr_base(), .arch_tr_limit(), .arch_tr_ar()
     );
     /* verilator lint_on PINCONNECTEMPTY */
 

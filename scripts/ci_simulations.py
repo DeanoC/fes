@@ -31,9 +31,9 @@ TARGETS = {
     'atari-st': ('sim-fes-atari-st',),
     'ramtest': ('sim-fes-ramtest',),
     'riscv': ('sim-fes-riscv',),
-    'pcxt': ('sim-fes-pcxt', 'sim-fes-pcxt-fdc', 'sim-fes-pcxt-media',
-             'sim-fes-pcxt-mailbox', 'sim-fes-pcxt-dos'),
-    'pc386': ('sim-fes-pc386', 'sim-fes-pc386-fesenv'),
+    'pcxt': ('sim-fes-pcxt', 'sim-fes-pcxt-fdc', 'sim-fes-pcxt-write',
+             'sim-fes-pcxt-media', 'sim-fes-pcxt-mailbox', 'sim-fes-pcxt-dos'),
+    'pc386': ('sim-fes-pc386', 'sim-fes-pc386-fesenv', 'sim-fes-pc386-a20', 'sim-fes-pc386-wait'),
 }
 
 # Slow families' PR-tier targets (each about 2.5 minutes or less on a runner).
@@ -43,7 +43,7 @@ SMOKE_TARGETS = {
     'c64': ('sim-fes-c64-smoke',),
     'atari-st': ('sim-fes-atari-st-smoke',),
     'spectrum': ('sim-fes-spectrum-smoke',),
-    'pcxt': ('sim-fes-pcxt-smoke', 'sim-fes-pcxt-fdc',
+    'pcxt': ('sim-fes-pcxt-smoke', 'sim-fes-pcxt-fdc', 'sim-fes-pcxt-write',
              'sim-fes-pcxt-media', 'sim-fes-pcxt-mailbox'),
     'pc386': ('sim-fes-pc386',),
     # Default and OSS unit benches, one board scenario, the diagnostic and the

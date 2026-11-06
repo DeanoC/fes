@@ -15,14 +15,14 @@ Two profiles:
          else. The simulation suites boot it.
   games  build/sim/fes-pc386/freedos-games.img: the setup the acceptance games
          run in, as the FogCast builder's image will be. FDCONFIG.SYS loads
-         HIMEMX and DOS=HIGH; AUTOEXEC.BAT sets BLASTER from CMOS 60h-62h with
-         FESENV.COM (cores/fes-pc386/sim/fesenv.asm) and loads CuteMouse. MEM
-         is in C:\\FDOS\\BIN with them. HIMEMX runs with /MAX=0, so it manages
-         the HMA and no extended memory: every XMS block move (function 0Bh)
-         runs SMSW and enters unreal mode, and fes_i386_cpu has no protected
-         mode yet. With no free XMS, FreeCOM (the FreeDOS 1.4 build swaps
-         through XMS) and Wolfenstein 3D's page manager never move a block.
-         The limit goes when the CPU has protected mode.
+         UMBM, which hands the machine's upper RAM (C800h-EFFFh) to DOS as
+         upper memory blocks (DOS=UMB), then HIMEMX high with all extended
+         memory as XMS. POST leaves A20 off, so HIMEMX picks a real A20
+         method by itself. The kernel stays low (no DOS=HIGH), so Ultima
+         VII's Voodoo memory manager can turn A20 off again on exit.
+         AUTOEXEC.BAT sets BLASTER from CMOS 60h-62h with FESENV.COM
+         (cores/fes-pc386/sim/fesenv.asm) and loads CuteMouse high. MEM is in
+         C:\\FDOS\\BIN with them.
 
 No network access occurs unless --download is given. The packages are fetched
 at the commits in cores/fes-pc386/sim/freedos.lock (each package repository's
@@ -33,13 +33,14 @@ FreeDOS-v1.4 tag) and every file used is checked against its pinned SHA-256:
   freecom  COMMAND.COM
   fdisk    bootnorm.c, the bytes of Free FDISK's master boot record
   himemx   HIMEMX.EXE (games)
+  jemm     UMBM.EXE (games)
   ctmouse  CTMOUSE.EXE (games)
   mem      MEM.EXE (games)
 
 The disk is 65 cylinders of 16 heads and 63 sectors (32.0 MiB). One active
-FAT16 partition (type 06h) starts at cylinder 0, head 1; mtools formats it and
-the kernel's boot code is laid around the BPB mtools wrote, as FreeDOS's SYS
-does. The partition entry's end CHS states the geometry, which is how the
+FAT16 partition (type 06h) starts at cylinder 0, head 1; mtools formats it with
+2 KiB clusters, as DOS FORMAT does at this size, and the kernel's boot code is
+laid around the BPB mtools wrote, as FreeDOS's SYS does. The partition entry's end CHS states the geometry, which is how the
 machine (and FogCast) infer it. The image is reproducible: file times, the
 volume serial and the label are fixed.
 
@@ -73,6 +74,10 @@ CYLINDERS, HEADS, SPT = 65, 16, 63
 TOTAL_SECTORS = CYLINDERS * HEADS * SPT
 PARTITION_START = SPT                  # cylinder 0, head 1, sector 1
 PARTITION_SECTORS = TOTAL_SECTORS - PARTITION_START
+# DOS FORMAT's FAT16 cluster for 16-128 MiB. mtools would pick 512 bytes,
+# and FreeDOS walks a file's chain from its start on every backward seek
+# (map_cluster), so a 512-byte cluster makes that walk four times as long.
+CLUSTER_SECTORS = 4
 VOLUME_SERIAL = 0x1386_0026
 # 2026-10-26 12:00 UTC: the file times on the image.
 FILE_TIME = 1793016000
@@ -90,13 +95,15 @@ PROFILES = {
     },
     'games': {
         'image': ROOT / 'build/sim/fes-pc386/freedos-games.img',
-        'packages': ('kernel', 'freecom', 'fdisk', 'himemx', 'ctmouse', 'mem'),
-        'fdconfig': ('FILES=20\r\nBUFFERS=20\r\nDOS=HIGH\r\n'
-                     'DEVICE=C:\\FDOS\\BIN\\HIMEMX.EXE /MAX=0 /VERBOSE\r\n' + SHELL),
+        'packages': ('kernel', 'freecom', 'fdisk', 'himemx', 'jemm', 'ctmouse', 'mem'),
+        'fdconfig': ('FILES=20\r\nBUFFERS=16\r\nDOS=UMB\r\n'
+                     'DEVICE=C:\\FDOS\\BIN\\UMBM.EXE /I=C800-EFFF\r\n'
+                     'DEVICEHIGH=C:\\FDOS\\BIN\\HIMEMX.EXE /VERBOSE\r\n' + SHELL),
         'autoexec': ('@ECHO OFF\r\nPROMPT $P$G\r\nPATH C:\\FDOS\\BIN;C:\\\r\n'
-                     'FESENV > C:\\FDOS\\FESENV.BAT\r\nCALL C:\\FDOS\\FESENV.BAT\r\nCTMOUSE\r\nVER\r\n'),
-        'bin': {'HIMEMX.EXE': ('himemx', 'BIN/HimemX.exe'), 'CTMOUSE.EXE': ('ctmouse', 'BIN/CTMOUSE.EXE'),
-                'MEM.EXE': ('mem', 'BIN/MEM.EXE'), 'FESENV.COM': None},
+                     'FESENV > C:\\FDOS\\FESENV.BAT\r\nCALL C:\\FDOS\\FESENV.BAT\r\nLH CTMOUSE\r\nVER\r\n'),
+        'bin': {'HIMEMX.EXE': ('himemx', 'BIN/HimemX.exe'), 'UMBM.EXE': ('jemm', 'BIN/UMBM.EXE'),
+                'CTMOUSE.EXE': ('ctmouse', 'BIN/CTMOUSE.EXE'), 'MEM.EXE': ('mem', 'BIN/MEM.EXE'),
+                'FESENV.COM': None},
     },
 }
 
@@ -227,7 +234,7 @@ def build(download: bool = False, jobs: int = 4, profile: str = 'boot') -> Path:
 
     env = dict(os.environ, MTOOLS_SKIP_CHECK='1', MTOOLSRC='/dev/null', SOURCE_DATE_EPOCH=str(FILE_TIME), TZ='UTC')
     volume = f'{disk}@@{PARTITION_START * 512}'
-    mtools('mformat', '-i', volume, '-h', str(HEADS), '-s', str(SPT),
+    mtools('mformat', '-i', volume, '-h', str(HEADS), '-s', str(SPT), '-c', str(CLUSTER_SECTORS),
            '-H', str(PARTITION_START), '-T', str(PARTITION_SECTORS), '-N', f'{VOLUME_SERIAL:08x}',
            '-v', 'FREEDOS', '::', env=env)
 
@@ -238,8 +245,8 @@ def build(download: bool = False, jobs: int = 4, profile: str = 'boot') -> Path:
     sector = bytearray(boot_sector(trees['kernel'], nasm, work))
     sector[0x0b:0x3e] = bpb
     sector[0x24] = 0x80                     # BIOS drive number: the first hard disk
-    if bytes(sector[0x36:0x3e]).rstrip() != b'FAT16':
-        raise ImageError('mformat did not make a FAT16 volume')
+    if bytes(sector[0x36:0x3e]).rstrip() != b'FAT16' or sector[0x0d] != CLUSTER_SECTORS:
+        raise ImageError(f'mformat did not make a FAT16 volume of {CLUSTER_SECTORS}-sector clusters')
     data[offset:offset + 512] = sector
     disk.write_bytes(data)
 

@@ -15,6 +15,11 @@ func TestVideoPreferenceUsesHouseholdPatchAndUpdatesOnlyAfterSuccess(t *testing.
 			patched := make(chan struct{}, 1)
 			profile := "direct"
 			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				if r.Method == "GET" && r.URL.Path == "/api/v1/library/firmware/bundled" {
+					// Settings › Firmware reads the bundled list as Settings opens.
+					http.NotFound(w, r)
+					return
+				}
 				if r.URL.Path != "/api/v1/library/settings" || r.Method != "GET" && r.Method != "PATCH" {
 					t.Errorf("unexpected lifecycle request %s %s", r.Method, r.URL.Path)
 					http.NotFound(w, r)

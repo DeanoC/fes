@@ -1,0 +1,263 @@
+{
+  "post": [
+    {
+      "code": "00",
+      "cycle": 11516
+    },
+    {
+      "code": "21",
+      "cycle": 2243826
+    },
+    {
+      "code": "31",
+      "cycle": 2343794
+    },
+    {
+      "code": "41",
+      "cycle": 2744185
+    },
+    {
+      "code": "71",
+      "cycle": 2846546
+    },
+    {
+      "code": "77",
+      "cycle": 2946638
+    }
+  ],
+  "debug": [
+    {
+      "port": "402",
+      "text": "BIOS BUILD DATE: 11/01/26"
+    },
+    {
+      "port": "500",
+      "text": "VGABios ID: vgabios.c 2026-08-07"
+    },
+    {
+      "port": "402",
+      "text": "ata0-0: PCHS=65/16/63 translation=none LCHS=65/16/63"
+    },
+    {
+      "port": "402",
+      "text": "IDE time out"
+    },
+    {
+      "port": "402",
+      "text": "Booting from 0000:7c00"
+    }
+  ],
+  "panic": [],
+  "io": {
+    "isa16 2": {
+      "38": 163328
+    },
+    "isa8 1": {
+      "74": 83068
+    },
+    "vga-in 1": {
+      "6": 6
+    },
+    "vga-out 1": {
+      "4": 823
+    },
+    "vga-out 2": {
+      "7": 4341
+    }
+  },
+  "io_wait": {},
+  "inta": {
+    "146": 80
+  },
+  "screen": [
+    "Interface : XMS 3.00 80386 4G                                                   ",
+    "Fast A20 method used                                                            ",
+    "                                                                                ",
+    "FreeCom version 0.86 - WATCOMC - XMS_Swap [Dec 30 2024 22:10:51]                ",
+    "                                                                                ",
+    "CuteMouse v2.1 beta4 [FreeDOS]                                                  ",
+    "Installed at PS/2 port                                                          ",
+    "                                                                                ",
+    "FreeCom version 0.86 - WATCOMC - XMS_Swap [Dec 30 2024 22:10:51]                ",
+    "C:\\>mem                                                                         ",
+    "                                                                                ",
+    "Memory Type         Total      Used       Free                                  ",
+    "----------------  --------   --------   --------                                ",
+    "Conventional          639K        66K       573K                                ",
+    "Upper                 160K         6K       154K                                ",
+    "Reserved              225K       225K         0K                                ",
+    "Extended (XMS)     15,360K       159K    15,201K                                ",
+    "----------------  --------   --------   --------                                ",
+    "Total memory       16,384K       456K    15,928K                                ",
+    "                                                                                ",
+    "Total under 1 MB      799K        72K       727K                                ",
+    "                                                                                ",
+    "Largest executable program size       573K (586,416 bytes)                      ",
+    "Largest free upper memory block        81K ( 82,976 bytes)                      ",
+    "C:\\>                                                                            "
+  ],
+  "end": {
+    "reason": "prompt",
+    "steps": 98307014,
+    "cycles": 365000042,
+    "seconds": 3.65
+  },
+  "prompt_cycle": 240000042,
+  "cpu_resets": 0,
+  "snaps": {},
+  "present": {},
+  "vga": {
+    "frames": 9905,
+    "scanout_underflows": 0,
+    "capture_drops": 0,
+    "present_underflows": 0,
+    "plane_underflows": 0,
+    "frames_shown": 0,
+    "port1_commands": 16794949,
+    "port2_commands": 2341358
+  },
+  "marks": {},
+  "opl2": {
+    "samples": 181463,
+    "exact": 181463,
+    "nonzero": 0,
+    "writes": 0
+  },
+  "opl2_mismatch": null,
+  "audio_samples": 175200,
+  "sb": {
+    "resets": 0,
+    "commands": 0,
+    "dma": 0,
+    "irqs": 0
+  },
+  "mouse": {
+    "sent": 1,
+    "scheduled": 1
+  },
+  "rtl": {
+    "stops": [],
+    "pmode": [],
+    "gaps": [],
+    "smc": [
+      {
+        "event": "store",
+        "cycle": 30492467,
+        "site": "8fe9:0000a04a",
+        "instruction": "00099eda",
+        "address": "00099efb"
+      },
+      {
+        "event": "store",
+        "cycle": 231009251,
+        "site": "1006:00002bae",
+        "instruction": "00012c0e",
+        "address": "00012c30"
+      },
+      {
+        "event": "store",
+        "cycle": 234968232,
+        "site": "1092:00000117",
+        "instruction": "00010a37",
+        "address": "00010a80"
+      },
+      {
+        "event": "store",
+        "cycle": 234968447,
+        "site": "1092:00000131",
+        "instruction": "00010a51",
+        "address": "00010a84"
+      },
+      {
+        "event": "store",
+        "cycle": 234968654,
+        "site": "1092:0000013f",
+        "instruction": "00010a5f",
+        "address": "00010a87"
+      },
+      {
+        "event": "store",
+        "cycle": 235520455,
+        "site": "1098:00002bae",
+        "instruction": "0001352e",
+        "address": "00013550"
+      },
+      {
+        "event": "store",
+        "cycle": 236371754,
+        "site": "8e3c:00002bae",
+        "instruction": "00090f6e",
+        "address": "00090f90"
+      },
+      {
+        "event": "store",
+        "cycle": 239044942,
+        "site": "c969:00002bae",
+        "instruction": "000cc23e",
+        "address": "000cc260"
+      }
+    ],
+    "notes": [],
+    "counters": {
+      "retired": 98307014,
+      "oracle_steps": 0,
+      "protected_steps": 0,
+      "parked_clocks": 8171222,
+      "tf_retired": 0,
+      "pe_retired": 6,
+      "pe_entries": 1,
+      "vga_loads": 51867,
+      "replays": 648,
+      "port0_reads": 1684804,
+      "port0_writes": 35414006,
+      "smc_stores": 393834,
+      "smc_addresses": 8,
+      "smc_executed": 0,
+      "smc_restarts": 614097
+    }
+  },
+  "command": [
+    "build/sim/fes-pc386/machine/obj/Vpc386_machine",
+    "--bios",
+    "build/firmware/pc386/pc386-bios.bin",
+    "--vgabios",
+    "build/firmware/pc386/pc386-vgabios.bin",
+    "--disk",
+    "build/sim/fes-pc386/freedos-games.img",
+    "--limit-seconds",
+    "8",
+    "--type",
+    "mem|",
+    "--expect",
+    "Largest executable program size",
+    "--trace",
+    "build/sim/fes-pc386/boot-games-rtl/vga.trace",
+    "--cpu",
+    "rtl",
+    "--mouse",
+    "0:0,0,0"
+  ],
+  "exit": 0,
+  "failures": [],
+  "replay": {
+    "exit": 0,
+    "counts": {
+      "events-I": 6,
+      "events-O": 5164,
+      "events-R": 51867,
+      "events-W": 76665,
+      "frames": 9873,
+      "frames-blink-phase": 98,
+      "frames-compared": 102,
+      "frames-divergence-reference-unprogrammed": 9648,
+      "frames-matched": 102,
+      "frames-matched-720x400-text": 102,
+      "frames-unstable": 25,
+      "scanout_underflows": 0,
+      "capture_drops": 0
+    },
+    "mismatches": [],
+    "summary": "match events=133702 replay_mismatches=0 read_mismatches=0 vram_mismatches=0 frame_mismatches=0 end_vram_bytes_differing=0",
+    "failures": []
+  }
+}

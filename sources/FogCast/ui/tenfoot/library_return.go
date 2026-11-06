@@ -18,6 +18,7 @@ func (a *App) suspendRoomsForLibraryLocked() {
 		// Already in the Library: keep where it was opened from.
 		return
 	}
+	a.closeFirmwareCardLocked()
 	a.discardLibraryOriginLocked()
 	if a.room == nil || a.room.Err() != nil {
 		a.closeAllRoomsLocked()
@@ -31,7 +32,7 @@ func (a *App) suspendRoomsForLibraryLocked() {
 	a.roomErr = ""
 	a.roomFrame = rooms.Frame{}
 	a.roomWaitAck = false
-	a.roomCoreDetail = ""
+	a.roomHeroDetail = ""
 	a.postUIEventLocked("ui.nav", map[string]string{"reason": "room-suspend", "view": "room:" + id})
 }
 

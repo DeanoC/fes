@@ -10,7 +10,7 @@
 #include <vector>
 
 namespace {
-constexpr unsigned kBasicBytes = 8192;
+constexpr unsigned kImageBytes = 8192;
 
 [[noreturn]] void fail(const std::string &message) {
     std::cerr << "FES ZX81 ROM: " << message << '\n';
@@ -42,17 +42,17 @@ void tick(Vrom_init_window &dut) {
 int main(int argc, char **argv) {
     Verilated::commandArgs(argc, argv);
     if (argc != 2)
-        fail("usage: Vrom_init_window zx81.hex");
+        fail("usage: Vrom_init_window <8 KiB hex>");
     const std::vector<uint8_t> image = load_hex(argv[1]);
-    if (image.size() < kBasicBytes || image[0] != 0xd3 || image[1] != 0xfd)
-        fail("BASIC image does not start with OUT (FD),A");
+    if (image.size() < kImageBytes || image[0] != 0xd3 || image[1] != 0xfd)
+        fail("image does not start with OUT ($FD),A");
 
     Vrom_init_window window;
     window.clk_sys = 0;
     window.addr = 0;
     window.eval();
     tick(window);
-    for (unsigned addr = 0; addr < kBasicBytes; ++addr) {
+    for (unsigned addr = 0; addr < kImageBytes; ++addr) {
         window.addr = addr;
         window.eval();
         tick(window);  // zx81_dpram q_a is registered
@@ -63,6 +63,6 @@ int main(int argc, char **argv) {
             return 1;
         }
     }
-    std::cout << "PASS: ZX81 BASIC 8KiB through the machine ROM port\n";
+    std::cout << "PASS: ZX81 8 KiB image through the machine ROM port\n";
     return 0;
 }

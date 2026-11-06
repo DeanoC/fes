@@ -1,10 +1,15 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
 // Reusable complete diagnostic: byte loader, real motherboard/storage and one
 // selected video pipeline. Board pads and PLL/reset synchronizers are external.
-module pcxt_system #(parameter bit MDA = 0, SCANLINES = 0, HALF_RATE_BOARD = 0, EXTERNAL_CS_REGISTER = 0, DIAGNOSTIC_PROBE = 1, FLOPPY = 0,
+module pcxt_system #(parameter bit MDA = 0, SCANLINES = 0, HALF_RATE_BOARD = 0, EXTERNAL_CS_REGISTER = 0, DIAGNOSTIC_PROBE = 1, FLOPPY = 0, FLOPPY_WRITE = 0,
     parameter [7:0] SWITCHES = 8'h2d) (
     input wire clk, clk_cpu, clk_pixel, clk_pin, cold_reset, reset_pixel, warm_reset, hold,
-    input wire media_present,
+    input wire media_present, media_frozen,
+    output wire media_write_busy, media_changed,
+    input wire snapshot_read_valid,
+    input wire [19:0] snapshot_read_address,
+    output wire snapshot_read_ready,
+    output wire [7:0] snapshot_read_data,
     input wire disk_restart,
     input wire disk_load_valid,
     output wire disk_load_ready, disk_load_done,
@@ -42,6 +47,41 @@ module pcxt_system #(parameter bit MDA = 0, SCANLINES = 0, HALF_RATE_BOARD = 0, 
     wire media_read_valid, media_read_ready;
     wire [18:0] media_read_addr;
     wire [7:0] media_read_data;
+    wire fdc_write_busy, fdc_write_valid, fdc_write_ready, fdc_write_error;
+    wire [9:0] fdc_write_lba;
+    wire [8:0] fdc_write_index;
+    wire [7:0] fdc_write_data;
+    wire writer_busy, writer_valid, writer_ready, writer_done;
+    wire [18:0] writer_address;
+    wire [7:0] writer_data;
+    wire storage_valid, storage_ready, storage_done;
+    wire [18:0] storage_address;
+    wire [7:0] storage_data;
+    wire shared_read_valid, shared_read_ready, shared_read_reset_safe;
+    wire [18:0] shared_read_address;
+    wire [7:0] shared_read_data;
+    assign media_write_busy = fdc_write_busy || writer_busy;
+    pcxt_sector_writer writer (
+        .clk(clk), .cold_reset(cold_reset), .sector_valid(fdc_write_valid),
+        .sector_lba(fdc_write_lba), .sector_index(fdc_write_index), .sector_data(fdc_write_data),
+        .sector_ready(fdc_write_ready), .sector_error(fdc_write_error), .busy(writer_busy),
+        .media_changed(media_changed), .storage_valid(writer_valid), .storage_ready(writer_ready),
+        .storage_done(writer_done), .storage_address(writer_address), .storage_data(writer_data));
+    pcxt_media_arbiter media_arbiter (
+        .clk(clk), .cold_reset(cold_reset), .machine_reset(machine_reset),
+        .host_valid(disk_storage_valid), .host_ready(disk_storage_ready), .host_done(disk_storage_done),
+        .host_address(disk_load_address), .host_data(disk_load_data),
+        .guest_valid(writer_valid), .guest_ready(writer_ready), .guest_done(writer_done),
+        .guest_address(writer_address), .guest_data(writer_data),
+        .storage_valid(storage_valid), .storage_ready(storage_ready), .storage_done(storage_done),
+        .storage_address(storage_address), .storage_data(storage_data),
+        .fdc_valid(media_read_valid && !writer_busy), .fdc_address(media_read_addr),
+        .fdc_ready(media_read_ready), .fdc_data(media_read_data),
+        .snapshot_valid(snapshot_read_valid && !snapshot_read_address[19]),
+        .snapshot_address(snapshot_read_address[18:0]),
+        .snapshot_ready(snapshot_read_ready), .snapshot_data(snapshot_read_data),
+        .read_valid(shared_read_valid), .read_reset_safe(shared_read_reset_safe), .read_address(shared_read_address),
+        .read_ready(shared_read_ready), .read_data(shared_read_data));
     wire [1:0] pixel_ce, de, hs, vs, sof, eol;
     wire [7:0] rgbi;
     // Admit exactly one sequential 64 KiB image per cold start. Count completed
@@ -87,10 +127,14 @@ module pcxt_system #(parameter bit MDA = 0, SCANLINES = 0, HALF_RATE_BOARD = 0, 
         end
     end
     /* verilator lint_off PINCONNECTEMPTY */
-    pcxt_machine #(.DIAGNOSTIC_PROBE(DIAGNOSTIC_PROBE), .SEPARATE_CPU_CLOCK(HALF_RATE_BOARD), .FLOPPY(FLOPPY),
+    pcxt_machine #(.DIAGNOSTIC_PROBE(DIAGNOSTIC_PROBE), .SEPARATE_CPU_CLOCK(HALF_RATE_BOARD), .FLOPPY(FLOPPY), .FLOPPY_WRITE(FLOPPY_WRITE),
                    .BOARD_CLOCK_HZ(HALF_RATE_BOARD ? 50000000 : 100000000), .SWITCHES(SWITCHES)) machine (
         .clk(clk), .clk_cpu(clk_cpu), .reset(machine_reset), .memory_valid(memory_valid),
-        .media_present(media_present && disk_loaded), .media_read_valid(media_read_valid),
+        .media_present(media_present && disk_loaded), .cold_reset(cold_reset), .media_frozen(media_frozen),
+        .media_write_busy(fdc_write_busy), .media_write_valid(fdc_write_valid),
+        .media_write_lba(fdc_write_lba), .media_write_index(fdc_write_index),
+        .media_write_data(fdc_write_data), .media_write_ready(fdc_write_ready),
+        .media_write_error(fdc_write_error), .media_read_valid(media_read_valid),
         .media_read_addr(media_read_addr), .media_read_ready(media_read_ready), .media_read_data(media_read_data),
         .memory_ready(memory_ready), .memory_done(memory_done), .memory_rdata(memory_rdata),
         .address(address), .wdata(wdata), .write_cycle(write_cycle), .fault(fault),
@@ -110,10 +154,11 @@ module pcxt_system #(parameter bit MDA = 0, SCANLINES = 0, HALF_RATE_BOARD = 0, 
         .address(address), .wdata(wdata), .write_cycle(write_cycle), .memory_done(memory_done), .memory_rdata(memory_rdata),
         .firmware_valid(loader_valid), .firmware_ready(loader_ready), .firmware_address(firmware_address),
         .firmware_data(firmware_data), .firmware_done(loader_done),
-        .disk_load_valid(disk_storage_valid), .disk_load_ready(disk_storage_ready),
-        .disk_load_address(disk_load_address), .disk_load_data(disk_load_data), .disk_load_done(disk_storage_done),
-        .media_read_valid(media_read_valid), .media_read_addr(media_read_addr),
-        .media_read_ready(media_read_ready), .media_read_data(media_read_data),
+        .disk_load_valid(storage_valid), .disk_load_ready(storage_ready),
+        .disk_load_address(storage_address), .disk_load_data(storage_data), .disk_load_done(storage_done),
+        .media_read_valid(shared_read_valid), .media_read_reset_safe(shared_read_reset_safe),
+        .media_read_addr(shared_read_address),
+        .media_read_ready(shared_read_ready), .media_read_data(shared_read_data),
         .sdram_clk(sdram_clk), .sdram_cke(sdram_cke), .sdram_ncs(sdram_ncs),
         .sdram_nras(sdram_nras), .sdram_ncas(sdram_ncas), .sdram_nwe(sdram_nwe),
         .sdram_ba(sdram_ba), .sdram_a(sdram_a), .sdram_dqml(sdram_dqml), .sdram_dqmh(sdram_dqmh),

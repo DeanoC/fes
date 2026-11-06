@@ -204,6 +204,8 @@ func drawFrame(dev gfx.Device, snap Snapshot, textures, labels map[string]gpuTex
 	drawFirmwarePicker(dev, snap, labels, used)
 	drawTapePicker(dev, snap, labels, used)
 	drawSettings(dev, snap, labels, used)
+	// Settings › Firmware opens a family's card over Settings.
+	drawFirmwareCard(dev, snap, labels, used)
 	if snap.CoreLibrary.Open {
 		overlay := snap
 		overlay.FirmwarePicker = snap.CoreLibrary
@@ -737,16 +739,7 @@ func drawSettings(dev gfx.Device, snap Snapshot, labels map[string]gpuTexture, u
 	rows := snap.Settings.Rows
 	dev.FillRect(gfx.Rect{X: float32(x - 4), Y: float32(y - 4), W: float32(panelW + 8), H: float32(panelH + 8)}, heroDivider)
 	dev.FillRect(gfx.Rect{X: float32(x), Y: float32(y), W: float32(panelW), H: float32(panelH)}, heroSurface)
-	title := "Settings"
-	switch {
-	case snap.Settings.TargetCount > 0 && snap.Settings.LibraryCount > 0:
-		title = fmt.Sprintf("Settings  ·  %d targets  ·  %d libraries", snap.Settings.TargetCount, snap.Settings.LibraryCount)
-	case snap.Settings.TargetCount > 0:
-		title = fmt.Sprintf("Settings  ·  %d targets", snap.Settings.TargetCount)
-	case snap.Settings.LibraryCount > 0:
-		title = fmt.Sprintf("Settings  ·  %d libraries", snap.Settings.LibraryCount)
-	}
-	heroLine(dev, labels, used, x+16, y+12, panelW-32, 26, true, heroText, title)
+	heroLine(dev, labels, used, x+16, y+12, panelW-32, 26, true, heroText, snap.Settings.Title)
 	if cache, ok := dev.(interface{ CacheBackdrop() }); ok {
 		cache.CacheBackdrop()
 	}
@@ -773,7 +766,7 @@ func drawSettings(dev gfx.Device, snap Snapshot, labels map[string]gpuTexture, u
 		status = strings.TrimSpace(snap.Settings.Hint)
 	}
 	if status == "" {
-		status = settingsDefaultHint(snap.Affinity)
+		status = settingsDefaultHint(snap.Affinity, "close")
 	}
 	if snap.Settings.Loading {
 		status = "loading host settings"

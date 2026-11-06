@@ -127,7 +127,10 @@ Only a pending queued operation can be cancelled. A service replacement already
 underway retains its maintenance ownership through completion or recovery.
 Mutations are sent once. If a response is lost, inspect status and the release
 inventory before repeating it. A matching completed receipt identifies the
-outcome; a newer generation rejects stale changes. The client dials with a
+outcome; a newer generation rejects stale changes. The supervisor keeps the
+receipts of the current generation and of the 64 newest older generations, and
+the unreleased completion's. A replay of an older operation is refused as a
+conflict. Its ID is forgotten, so always send a fresh request ID. The client dials with a
 10 second connect timeout and keeps `--timeout` (15 minutes by default) as
 the whole-operation deadline. After the request body is written it waits at
 most five minutes for response headers. Health, status, and list retry a
@@ -344,9 +347,12 @@ They do not require an execution lease:
 | `POST /v1/kit/software/activate` | Queue `{id,candidate,requester,expected_generation}` |
 | `POST /v1/kit/software/cancel` | Cancel `{id,expected_generation}` while queued |
 
-Authenticated health has a separate `software` object with `active_bundle`,
-`base_identity` and supervisor state. Existing sealed image `artifacts` retain
-their base-image provenance. Public health omits software queue details.
+Authenticated health has a separate `software` object with only `active_bundle`,
+`base_identity`, `selected` and `generation`. Health is polled, so the operation
+queue and receipts stay on `GET /v1/kit/software`. If the supervisor cannot
+answer, health reports the bundle and base identity the agent was launched with.
+Existing sealed image `artifacts` retain their base-image provenance. Public
+health omits `software`.
 
 The supervisor owns the entire group lifecycle. Managed diagnostics use a private host and an explicitly installed software
 bundle. File-swap, baseline and restore commands refuse managed images before

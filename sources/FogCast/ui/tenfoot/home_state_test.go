@@ -35,7 +35,6 @@ func startHomeState(t *testing.T, cores []localcores.Core) *App {
 	t.Helper()
 	host := newRoomHost(t)
 	app := NewApp(NewClient(host.server.URL, host.server.Client()), 1280, 720, 50)
-	// The Home fixtures install Pong, which is held back from v1.
 	app.SetAllCores(true)
 	app.SetRooms(rooms.NewIndex(rooms.Examples()), t.TempDir())
 	app.SetHomeRooms(true)
@@ -53,7 +52,7 @@ func useKitStateDir(t *testing.T, dir string) {
 	t.Cleanup(func() { kitPersistentStateDir = orig })
 }
 
-// TestHomeRestoresSelectionWhenHomeIsUnwritable saves the shelf selection
+// TestHomeRestoresSelectionWhenHomeIsUnwritable saves the Home selection
 // under the configured state directory while HOME is not a writable
 // directory, then opens Home again and reads that selection back.
 func TestHomeRestoresSelectionWhenHomeIsUnwritable(t *testing.T) {
@@ -76,14 +75,12 @@ func TestHomeRestoresSelectionFromKitStateDir(t *testing.T) {
 func restoreHomeSelection(t *testing.T, homeFile, stateDir string) {
 	t.Helper()
 	cores := homeFixtureCores()
-	wantID := cores[1].PackageID
+	const wantKey = "family:spectrum"
 	app := startHomeState(t, cores)
-	waitFor(t, app, "first core", func(s Snapshot) bool {
-		return s.Room.Destination.Label == "Pong"
-	})
+	waitFor(t, app, "first family", homeFamilySettled)
 	app.HandleCommand(CmdRight, time.Now())
-	waitFor(t, app, "moved core", func(s Snapshot) bool {
-		return s.Room.Destination.Label == "Sinclair ZX81"
+	waitFor(t, app, "moved family", func(s Snapshot) bool {
+		return s.Room.Destination.Label == "ZX Spectrum"
 	})
 	// Closing Home runs its unload save and flushes the store. These tests
 	// cover filesystem selection, not the render loop or save debounce.
@@ -94,16 +91,16 @@ func restoreHomeSelection(t *testing.T, homeFile, stateDir string) {
 	if err != nil {
 		t.Fatalf("state file: %v", err)
 	}
-	if !strings.Contains(string(data), wantID) {
-		t.Fatalf("state file %s does not contain %s", data, wantID)
+	if !strings.Contains(string(data), wantKey) {
+		t.Fatalf("state file %s does not contain %s", data, wantKey)
 	}
 	if _, err := os.Lstat(filepath.Join(homeFile, ".config")); err == nil {
 		t.Fatal("state was written under HOME")
 	}
 
 	again := startHomeState(t, cores)
-	waitFor(t, again, "restored core", func(s Snapshot) bool {
-		return s.Room.Destination.Label == "Sinclair ZX81" && s.Room.Destination.PackageID == wantID
+	waitFor(t, again, "restored family", func(s Snapshot) bool {
+		return homeFamilySettled(s) && s.Room.Destination.Label == "ZX Spectrum"
 	})
 }
 
@@ -114,12 +111,11 @@ func TestHomeRestoresSelectionFromReadOnlyConfig(t *testing.T) {
 	homeFile, kitDir := unwritableHomeFile(t)
 	config := mountTmpfs(t)
 	cores := homeFixtureCores()
-	wantID := cores[1].PackageID
 	stateFile := filepath.Join(config, "FogCast", "rooms", "example.fes-cores.state.json")
 	if err := os.MkdirAll(filepath.Dir(stateFile), 0o755); err != nil {
 		t.Fatal(err)
 	}
-	body := "{\n  \"package_id\": \"" + wantID + "\"\n}\n"
+	body := "{\n  \"focus\": \"family:spectrum\"\n}\n"
 	if err := os.WriteFile(stateFile, []byte(body), 0o644); err != nil {
 		t.Fatal(err)
 	}
@@ -132,8 +128,8 @@ func TestHomeRestoresSelectionFromReadOnlyConfig(t *testing.T) {
 	useKitStateDir(t, kitDir)
 
 	app := startHomeState(t, cores)
-	waitFor(t, app, "read-only restored core", func(s Snapshot) bool {
-		return s.Room.Destination.Label == "Sinclair ZX81" && s.Room.Destination.PackageID == wantID
+	waitFor(t, app, "read-only restored family", func(s Snapshot) bool {
+		return homeFamilySettled(s) && s.Room.Destination.Label == "ZX Spectrum"
 	})
 	if _, err := os.Lstat(filepath.Join(kitDir, "FogCast")); !os.IsNotExist(err) {
 		t.Fatalf("read-only config fell back to the kit directory: %v", err)
@@ -237,12 +233,10 @@ func TestHomeKeepsWorkingWhenStateDirIsUnwritable(t *testing.T) {
 	useKitStateDir(t, homeFile)
 
 	app := startHomeState(t, homeFixtureCores())
-	waitFor(t, app, "first core", func(s Snapshot) bool {
-		return s.Room.Destination.Label == "Pong"
-	})
+	waitFor(t, app, "first family", homeFamilySettled)
 	app.HandleCommand(CmdRight, time.Now())
-	snap := waitFor(t, app, "moved core", func(s Snapshot) bool {
-		return s.Room.Destination.Label == "Sinclair ZX81"
+	snap := waitFor(t, app, "moved family", func(s Snapshot) bool {
+		return s.Room.Destination.Label == "ZX Spectrum"
 	})
 	if snap.Room.Err != "" {
 		t.Fatalf("room failed: %s", snap.Room.Err)

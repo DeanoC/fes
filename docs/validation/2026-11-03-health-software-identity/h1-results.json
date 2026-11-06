@@ -1,0 +1,65 @@
+{
+ "tag": "h1",
+ "head": "4ae587093b0b96ef194946bbefbd97b530b4e98c",
+ "bundle": "a9659b6ff147e416bb1bcdc0904ae1350eb0647cbb273e809c289e449cc1d964",
+ "baseline_sw": "8917374885b2ffa1af5510acb41f34b3e749ea25ff9a3eff69a482b9207aab0f",
+ "receipts_before": 691,
+ "baseline": {
+  "health_auth_bytes": 210210,
+  "health_anon_bytes": 681,
+  "health_software_keys": [
+   "active_bundle",
+   "base_identity",
+   "generation",
+   "previous",
+   "receipts",
+   "selected",
+   "version"
+  ],
+  "window_s": 120,
+  "host_sent_bytes_per_s": 1250,
+  "host_recv_bytes_per_s": 594464,
+  "host_connections": [
+   "41478",
+   "45728"
+  ],
+  "idlecpu": [
+   "670 fes-kit-softwar 46% of a core",
+   "8650 fogcast-tenfoot 7% of a core",
+   "8649 mister-agent 31% of a core",
+   "8646 mister-runtime 0% of a core",
+   "cpu 13115926 5% of a core",
+   "system busy 42% of 2 cores"
+  ],
+  "idlecpu_rc": 0
+ },
+ "candidate": {
+  "health_auth_bytes": 993,
+  "health_anon_bytes": 668,
+  "health_software_keys": [
+   "active_bundle",
+   "base_identity",
+   "generation",
+   "selected"
+  ],
+  "window_s": 120,
+  "host_sent_bytes_per_s": 1269,
+  "host_recv_bytes_per_s": 4035,
+  "host_connections": [
+   "39758",
+   "47880"
+  ],
+  "idlecpu": [
+   "670 fes-kit-softwar 47% of a core",
+   "25116 fogcast-tenfoot 7% of a core",
+   "25115 mister-agent 18% of a core",
+   "25112 mister-runtime 0% of a core",
+   "cpu 13133465 5% of a core",
+   "system busy 36% of 2 cores"
+  ],
+  "idlecpu_rc": 0
+ },
+ "restored_sw": true,
+ "lease": "idle free",
+ "leftover": "end"
+}

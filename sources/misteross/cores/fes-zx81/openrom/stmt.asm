@@ -48,7 +48,7 @@ var_delete:
         pop de
         and a
         sbc hl,de
-        ld b,h
+.r:     ld b,h
         ld c,l
         ex de,hl
         jr reclaim
@@ -58,13 +58,15 @@ var_delete:
 ; with SP at ERR_SP, so GOSUB and RETURN rebuild the stack from there and
 ; carry on with the loop.
 st_gosub:
+        ld bc,40                ; room for the entry, or else for report 4
+        call test_room          ; and a command such as NEW or RUN
         call expr_uint
         ld hl,(PPC)
         inc hl                  ; RETURN goes to the line after
         ld sp,(ERR_SP)
         pop de
         push hl
-        push de
+.go:    push de
         ld (ERR_SP),sp
         call goto_line
         jr run_next
@@ -76,11 +78,10 @@ st_return:
         ld a,b
         cp 0x3e                 ; the end marker: no GOSUB
         jr z,.none
+        jr st_gosub.go
+.none:  push bc                 ; the end marker and the error slot stay
         push de
-        ld (ERR_SP),sp
-        call goto_line
-        jr run_next
-.none:  rst 8
+        rst 8
         db R_RETURN
 
 st_run: call opt_uint
@@ -98,10 +99,7 @@ clear_vars:
         and a
         sbc hl,de
         dec hl
-        ld b,h
-        ld c,l
-        ex de,hl
-        jr reclaim
+        jr var_delete.r
 
 st_rand:
         call opt_uint
@@ -117,13 +115,13 @@ st_pause:
         ld a,b
         or c
         ret z
+        call sync_keys          ; only a key pressed during the pause ends it;
+        jr .c                   ; the fresh scan (FAST) is its first frame
 .l:     push bc
-        call wait_frame
+        call key_frame
         pop bc
-        ld a,(LAST_K)
-        inc a
-        ret nz
-        bit 7,b
+        ret nz                  ; a key went down
+.c:     bit 7,b
         jr nz,.l
         dec bc
         ld a,b
@@ -205,7 +203,7 @@ st_print:
         sub (iy+Y_DF_SZ)
         cp b
         jr c,range_error
-        call print_at
+        call print_at_cc
         jr .after
 .tab:   rst 0x20
         call expr_byte
@@ -236,7 +234,10 @@ print_value:
         ld a,(hl)
         inc hl
         ld (X_PTR),hl
-        rst 0x10
+        cp 0xc0                 ; the quote image prints as one quote
+        jr nz,.p
+        ld a,C_QUOTE
+.p:     rst 0x10
         dec bc
         jr .s
 
@@ -248,12 +249,12 @@ st_unplot:
         xor a
 plot_common:
         push af
-        call expr_byte
+        call expr_abs_byte
         cp 64
         jr nc,range_error
         push af
         call expect_comma
-        call expr_byte
+        call expr_abs_byte
         cp 44
         jr nc,range_error
         ld d,a                  ; D = y, E = x
@@ -370,20 +371,12 @@ list_line:
         dec bc
         cp C_NUMBER
         jr nz,.out
-        ld de,5
-        add hl,de
-        dec bc
-        dec bc
-        dec bc
-        dec bc
-        dec bc
-        jr .ch
+        call skip_num
+        jr nc,.ch
 .out:   rst 0x10
         jr .ch
 .end:   inc hl
-        ld a,C_NL
-        rst 0x10
-        ret
+        jr st_print.nl
 
 ; ---------------------------------------------------------------------
 st_let: call parse_target
@@ -427,6 +420,15 @@ target_restore:
         ld (DEST),de
         jp (hl)
 
+; Pop the top value into the five bytes at DE.
+stk_pop_de:
+        push de
+        call stk_drop
+        pop de
+        ld bc,5
+        ldir
+        ret
+
 ; Store the value on the stack in the parse_target destination.
 assign: ld a,(TG_KIND)
         cp 3
@@ -434,11 +436,12 @@ assign: ld a,(TG_KIND)
         call need_num
         cp 2
         ld de,(DEST)
-        jr nz,.copy5
+        jr nz,stk_pop_de
         ld a,(TG_LEN)           ; a new number: name, then the value
         add a,5
         ld c,a
         ld b,0
+        rl b                    ; names up to 255 characters
         call var_room
         ld b,(iy+TG_LEN-0x4000)
         djnz .long
@@ -454,18 +457,11 @@ assign: ld a,(TG_KIND)
 .hdr:   ld (hl),a
         inc hl
         ex de,hl
-.copy5: push de
-        call stk_drop
-        pop de
-        ld bc,5
-        ldir
-        ret
+        jr stk_pop_de
 .str:   call need_str
         cp 4
         jr z,.fixed
-        call stk_pop_str
-        ld (AE_OFF),de
-        ld (AE_DIMS),bc
+        call pop_str_ae
         ld hl,3
         add hl,bc
         ld b,h
@@ -509,8 +505,16 @@ assign: ld a,(TG_KIND)
         inc bc
         ld hl,(DEST)
         jr reclaim
-.fixed: call stk_pop_str
+.fixed: call pop_str_ae
+        push de                 ; copy the text to the workspace first: it may
+        rst 0x30                ; overlap the destination, LET A$(2 TO)=A$
+        pop hl
         ld (AE_OFF),de
+        ld a,b
+        or c
+        jr z,.cpy
+        ldir
+.cpy:   ld bc,(AE_DIMS)
         ld hl,(STRLEN)
         ld de,(DEST)
 .cp:    ld a,h
@@ -550,8 +554,7 @@ st_for: call one_letter
         rst 0x20
         call expr_num
         jr .have
-.one:   ld hl,const_one
-        call stk_push
+.one:   call stk_one
 .have:  pop de
         ld (X_PTR),de
         ld bc,0x0100
@@ -584,8 +587,9 @@ one_letter:
         jr nc,nonsense
         call scan_name
         dec b
-        ret z
-        jr nonsense
+        jr nz,nonsense
+        rst 0x18                ; the next character, past spaces
+        ret
 
 ; HL -> FOR entry. Carry if the value has passed the limit.
 for_test:
@@ -624,10 +628,8 @@ st_next:
         add hl,de
         call stk_push           ; step
         call fp_add
-        call stk_drop
         pop de
-        ld bc,5
-        ldir
+        call stk_pop_de
         ld hl,(DEST)
         call for_test
         ret c
@@ -681,13 +683,15 @@ st_dim: call one_letter
         jr c,.mem
         add hl,de
         jr c,.mem
+        ld a,h                  ; far beyond any RAM: report 4 now, so the
+        cp 0xc0                 ; sizes below cannot wrap
+        jr nc,.mem
         ld a,(TG_LEN)
         ld e,a
         ld d,0
         add hl,de
         add hl,de
         inc hl
-        jr c,.mem
         ld (AE_DIMS),hl         ; length field
         inc hl
         inc hl
@@ -734,17 +738,25 @@ st_input:
         jr nz,.ok
         rst 8
         db R_INPUT
-.ok:    call parse_target
-        call target_save
-        ld hl,(CH_ADD)
-        push hl
+.ok:    ld hl,(CH_ADD)          ; the target is found again afterwards:
+        push hl                 ; typing can move the variables (1 KiB)
+        call parse_target
+        ld a,(TG_KIND)
+        push af
         ld hl,(S_POSN)          ; the upper screen keeps its print position
         push hl
         set OF_INPUT,(iy+Y_OFLAGS)
+        call sync_keys          ; a key already down is not typed
         call edit_reset
         call edit_line
         res OF_INPUT,(iy+Y_OFLAGS)
-        call clear_lower
+        ld hl,(E_LINE)          ; STOP typed: report D
+        ld a,(hl)
+        cp T_STOP
+        jr nz,.go
+        rst 8
+        db R_BREAK
+.go:    call clear_lower
         ld (iy+Y_DF_SZ),2
         pop hl
         ld (S_POSN),hl
@@ -757,12 +769,12 @@ st_input:
         ld b,h
         ld c,l
         call stk_push_str
-        ld a,(TG_KIND)
+        pop af
         cp 3
         call c,fn_val           ; a number: evaluate it like VAL
         pop hl
         ld (CH_ADD),hl
-        call target_restore
+        call parse_target
         jr assign
 
 ; ---------------------------------------------------------------------
@@ -814,10 +826,7 @@ st_load:
 after_load:
         call reset_stack
         ld hl,(E_LINE)
-        ld (hl),C_NL
-        inc hl
-        ld (WORKSP),hl
-        call line_workspace
+        call eline_end
         ld (iy+Y_OFLAGS),0
         ld (iy+Y_DF_SZ),2
         ld a,(iy+Y_CDFLAG)
@@ -827,6 +836,8 @@ after_load:
         pop af
         add a,a                 ; the mode the program asked for: bit 6
         call tape_mode
+        call wait_frame         ; refresh the key scan after tape mode resumes
+        call wait_frame         ; ignore the stale state from the transition frame
         ld hl,(NXTLIN)          ; autostart: NXTLIN inside the program
         ld de,PROG
         call cp_hl_de
@@ -841,11 +852,18 @@ after_load:
 check_dfile:
         call collapsed
         ret c
-        ld hl,(VARS)
-        ld de,(D_FILE)
-        and a
-        sbc hl,de
-        ld de,24*33+1
-        sbc hl,de
+        call dfile_excess
         ret z
         jr cls
+
+; HL = the expanded display file's bytes after its leading NEWLINE, less 24
+; full rows: Z if exact, carry if short.
+dfile_excess:
+        ld hl,(VARS)
+        ld de,(D_FILE)
+        scf
+        sbc hl,de
+        ld de,24*33
+        and a
+        sbc hl,de
+        ret

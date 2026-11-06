@@ -13,14 +13,18 @@ overwritten by floating code. A `jr` whose target is out of range is
 assembled as the equivalent `jp`.
 
 Code between `float` and `endfloat` has no fixed address: after each pass
-the sections are placed, largest first and best fit, into the bytes below
-`floatlimit` that no fixed (org) code uses. A section must not fall
-through into the next one. Between `autofloat` and `endautofloat` a new
+the sections are placed into the bytes below `floatlimit` that no fixed (org)
+code uses. Two layouts are tried and the one that fits, and then is smallest,
+is kept: largest first and best fit; or the sections joined by a `jr` in
+source order through the largest gaps (so the `jr` stays short), with the
+rest filling the holes left, smallest hole first, each with the sections
+that fill it best. A section must not fall through into the next one. Between `autofloat` and `endautofloat` a new
 section starts at every global label that follows an unconditional
 jump or return (a label after data continues the same table).
 """
 from __future__ import annotations
 import argparse
+import bisect
 import re
 import sys
 from pathlib import Path
@@ -41,6 +45,13 @@ SIMPLE = {
     'ldir': [0xed, 0xb0], 'cpir': [0xed, 0xb1], 'inir': [0xed, 0xb2], 'otir': [0xed, 0xb3],
     'lddr': [0xed, 0xb8], 'cpdr': [0xed, 0xb9], 'indr': [0xed, 0xba], 'otdr': [0xed, 0xbb],
 }
+# How many operands each instruction takes.
+OPERANDS = {'im': (1,), 'rst': (1,), 'ex': (2,), 'push': (1,), 'pop': (1,), 'inc': (1,),
+            'dec': (1,), 'djnz': (1,), 'ret': (0, 1), 'jp': (1, 2), 'call': (1, 2),
+            'jr': (1, 2), 'bit': (2,), 'set': (2,), 'res': (2,), 'in': (2,), 'out': (2,),
+            'ld': (2,)}
+OPERANDS.update({m: (1, 2) for m in ALU})
+OPERANDS.update({m: (1,) for m in ROT})
 
 
 ZX81_TEXT = {' ': 0, '"': 11, '£': 12, '$': 13, ':': 14, '?': 15, '(': 16,
@@ -149,9 +160,7 @@ class Assembler:
         prefix = 0xdd if m.group(1).lower() == 'ix' else 0xfd
         disp = 0
         if m.group(2):
-            disp = self.value(m.group(3))
-            if m.group(2) == '-':
-                disp = -disp
+            disp = self.value(m.group(2) + m.group(3))   # the sign is the first term's
         if self.final_pass and not -128 <= disp <= 127:
             raise AsmError('index displacement out of range')
         return prefix, disp & 0xff
@@ -184,6 +193,8 @@ class Assembler:
 
     # -- emission ----------------------------------------------------------
     def word(self, value):
+        if self.final_pass and not -0x8000 <= value <= 0xffff:
+            raise AsmError(f'word out of range: {value:#x}')
         value &= 0xffff
         return [value & 0xff, value >> 8]
 
@@ -205,11 +216,15 @@ class Assembler:
         lows = [o.lower().replace(' ', '') for o in ops]
         if m in SIMPLE and not ops:
             return list(SIMPLE[m])
+        if m in OPERANDS and len(ops) not in OPERANDS[m]:
+            raise AsmError(f'{m} takes {" or ".join(map(str, OPERANDS[m]))} operands')
         if m == 'im':
             return [0xed, {0: 0x46, 1: 0x56, 2: 0x5e}[self.value(ops[0])]]
         if m == 'rst':
             v = self.value(ops[0])
-            return [0xc7 | v]
+            if self.final_pass and v not in range(0, 0x40, 8):
+                raise AsmError(f'rst needs 0x00 to 0x38 in steps of 8: {ops[0]}')
+            return [0xc7 | v & 0x38]
         if m == 'ex':
             pair = tuple(lows)
             table = {('de', 'hl'): [0xeb], ('af', "af'"): [0x08], ('(sp)', 'hl'): [0xe3],
@@ -237,6 +252,9 @@ class Assembler:
                 operand, base = ops[0], ROT[m] << 3
             else:
                 bit = self.value(ops[0])
+                if self.final_pass and not 0 <= bit <= 7:
+                    raise AsmError(f'bit number out of range: {ops[0]}')
+                bit &= 7
                 operand = ops[1]
                 base = {'bit': 0x40, 'res': 0x80, 'set': 0xc0}[m] | bit << 3
             pre, code, disp = self.r8(operand)
@@ -246,14 +264,24 @@ class Assembler:
         if m == 'in':
             if lows[1] == '(c)':
                 return [0xed, 0x40 | R8[lows[0]] << 3]
-            return [0xdb, self.byte(self.memory(ops[1]))]
+            if lows[0] != 'a':
+                raise AsmError('in r,(n) needs A')
+            return [0xdb, self.byte(self.port(ops[1]))]
         if m == 'out':
             if lows[0] == '(c)':
                 return [0xed, 0x41 | R8[lows[1]] << 3]
-            return [0xd3, self.byte(self.memory(ops[0]))]
+            if lows[1] != 'a':
+                raise AsmError('out (n),r needs A')
+            return [0xd3, self.byte(self.port(ops[0]))]
         if m == 'ld':
             return self.load(ops, lows)
         raise AsmError(f'unknown instruction {mnemonic} {", ".join(ops)}')
+
+    def port(self, op):
+        port = self.memory(op)
+        if port is None:
+            raise AsmError(f'port {op} needs brackets')
+        return port
 
     def prefixed(self, pre, out, disp):
         if pre is None:
@@ -268,9 +296,11 @@ class Assembler:
         if m == 'djnz':
             return [0x10, self.relative(ops[0], 2)]
         if m == 'jr':
-            target = ops[-1]
             if len(ops) == 2 and lows[0] not in ('nz', 'z', 'nc', 'c'):
-                raise AsmError(f'jr cannot test {lows[0]}')
+                raise AsmError(f'jr cannot test {ops[0]}')
+            target = ops[-1]
+            if self.in_float is not None:
+                self.jr_edges.add((self.in_float[0], self.value(target)))
             if self.where not in self.long_jumps:
                 offset = self.value(target) - (self.pc + 2)
                 if -128 <= offset <= 127 or not self.symbols_settled:
@@ -297,6 +327,8 @@ class Assembler:
                 pre = 0xdd if lows[0] == 'ix' else 0xfd
                 reg = {'bc': 0, 'de': 1, lows[0]: 2, 'sp': 3}[lows[1]]
                 return [pre, 0x09 | reg << 4]
+            if lows[0] != 'hl':
+                raise AsmError(f'{m} {ops[0]},{ops[1]} cannot be encoded')   # only add takes IX, IY
             return [0xed, (0x4a if m == 'adc' else 0x42) | RP[lows[1]] << 4]
         operand = ops[-1]
         if len(ops) == 2 and lows[0] != 'a':
@@ -320,6 +352,21 @@ class Assembler:
         d8, s8 = self.r8(dst), self.r8(src)
         if d8 and s8:
             (pd, cd, dd), (ps, cs, ds_) = d8, s8
+            # ld (hl),(hl) is HALT, and an index prefix turns H, L and (HL) in
+            # the same instruction into its halves or (IX+d), so ld h,ixl,
+            # ld ixh,(ix+1) and ld ixh,iyl do not exist either.
+            if cd == cs == 6:
+                bad = True
+            elif pd is not None and ps is not None:
+                bad = pd != ps or 6 in (cd, cs)
+            elif pd is not None:
+                bad = cd != 6 and cs in (4, 5, 6)
+            elif ps is not None:
+                bad = cs != 6 and cd in (4, 5, 6)
+            else:
+                bad = False
+            if bad:
+                raise AsmError(f'ld {dst},{src} cannot be encoded')
             pre = pd if pd is not None else ps
             disp = dd if dd is not None else ds_
             return self.prefixed(pre, [0x40 | cd << 3 | cs], disp)
@@ -369,7 +416,7 @@ class Assembler:
         lines = []
         self.read(source, lines)
         best = None
-        for strategy in ('size', 'order'):
+        for strategy in ('size', 'linked'):
             self.strategy = strategy
             self.float_at = {}
             self.float_size = {}
@@ -442,23 +489,61 @@ class Assembler:
             elif start is not None:
                 free.append([start, a])
                 start = None
+        sizes = self.float_size
         placement = {}
-        scratch = 0x10000
         if self.strategy == 'size':
-            order = sorted(self.float_size, key=lambda i: (-self.float_size[i], i))
+            for index in sorted(sizes, key=lambda i: (-sizes[i], i)):
+                fits = [g for g in free if g[1] - g[0] >= sizes[index]]
+                if fits:
+                    gap = min(fits, key=lambda g: g[1] - g[0])
+                    placement[index] = gap[0]
+                    gap[0] += sizes[index]
+            left = [i for i in sizes if i not in placement]
         else:
-            order = sorted(self.float_size)
-        for index in order:
-            need = self.float_size[index]
-            fits = [g for g in free if g[1] - g[0] >= need]
-            if not fits:
-                placement[index] = scratch      # does not fit
-                scratch += need
-                continue
-            gap = min(fits, key=lambda g: g[1] - g[0]) if self.strategy == 'size' else fits[0]
-            placement[index] = gap[0]
-            gap[0] += need
+            left = self.place_linked(free, placement)
+        scratch = 0x10000
+        for index in sorted(left):
+            placement[index] = scratch          # does not fit
+            scratch += sizes[index]
         self.float_at = placement
+
+    def place_linked(self, free, placement):
+        """The 'linked' layout; returns the sections that did not fit."""
+        sizes = self.float_size
+        starts = sorted((at, i) for i, at in self.float_pc.items())
+        addresses = [at for at, _ in starts]
+        linked = set()
+        for i, target in self.jr_edges:
+            k = bisect.bisect_right(addresses, target) - 1
+            if k >= 0:
+                at, j = starts[k]
+                if j != i and target < at + sizes[j]:
+                    linked |= {i, j}
+        gaps = sorted(free, key=lambda g: (g[0] - g[1], g[0]))     # largest first
+        k, left = 0, []
+        for i in sorted(linked):
+            while k < len(gaps) and gaps[k][1] - gaps[k][0] < sizes[i]:
+                k += 1
+            if k == len(gaps):
+                left.append(i)
+                continue
+            placement[i] = gaps[k][0]
+            gaps[k][0] += sizes[i]
+        left += [i for i in sizes if i not in linked]
+        left.sort(key=lambda i: (-sizes[i], i))
+        for gap in sorted(free, key=lambda g: (g[1] - g[0], g[0])):
+            room = gap[1] - gap[0]
+            best = {0: ()}                      # bytes filled -> sections
+            for i in left:
+                for filled, chosen in list(best.items()):
+                    total = filled + sizes[i]
+                    if total <= room and total not in best:
+                        best[total] = chosen + (i,)
+            for i in best[max(best)]:
+                placement[i] = gap[0]
+                gap[0] += sizes[i]
+                left.remove(i)
+        return left
 
     def _pass(self, lines, size, fill):
         if True:
@@ -468,6 +553,8 @@ class Assembler:
             self.fixed_owner = [None] * size
             self.in_float = None
             self.float_count = 0
+            self.float_pc = {}                  # section index -> address this pass
+            self.jr_edges = set()               # (section, jr target address)
             self.scratch_next = 0x10000
             self.charset_name, self.charset = 'zx81', ZX81_TEXT
             self.auto = False
@@ -504,6 +591,7 @@ class Assembler:
             if self.in_float is not None:
                 self.statement('endfloat', image, owner, where)
             self.statement('float', image, owner, where)
+            self.flow_ended = False     # a second label joins this section
         if m:
             label = m.group(1)
             if not label.startswith('.'):
@@ -556,9 +644,12 @@ class Assembler:
             else:
                 self.pc = self.scratch_next
             self.float_start = self.pc
+            self.float_pc[index] = self.pc
             return
         if mnemonic == 'endfloat':
             index, saved = self.in_float
+            if self.pc == self.float_start:
+                raise AsmError('empty floating section: its labels would have no place')
             self.float_size[index] = self.pc - self.float_start
             if index not in self.float_at:
                 self.scratch_next = self.pc

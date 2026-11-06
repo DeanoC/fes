@@ -1,8 +1,8 @@
 id = "example.fes-cores"
 title = "Home"
 author = "FogCast"
-description = "This kit's installed machines and games, with Library, Systems and Settings close at hand."
-version = 2
+description = "Recently played titles and this kit's computer families, with Settings close at hand."
+version = 3
 main = "main.lua"
 destination_panel = "hero"
 

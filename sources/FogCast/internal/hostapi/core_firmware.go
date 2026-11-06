@@ -14,6 +14,10 @@ type coreFirmwareLibraryService interface {
 	CreateCoreEntryWithFirmware(context.Context, string, string, string, string, bool) (catalog.CoreEntry, error)
 }
 
+type bundledFirmwareService interface {
+	BundledFirmware(context.Context) (protocol.BundledFirmwareList, error)
+}
+
 func registerCoreFirmwareLibrary(mux *http.ServeMux, service Service) {
 	withService := func(fn func(http.ResponseWriter, *http.Request, coreFirmwareLibraryService)) http.HandlerFunc {
 		return func(w http.ResponseWriter, r *http.Request) {
@@ -40,6 +44,22 @@ func registerCoreFirmwareLibrary(mux *http.ServeMux, service Service) {
 		}
 		writeJSON(w, http.StatusOK, value)
 	}))
+	mux.HandleFunc("GET /api/v1/library/firmware/bundled", func(w http.ResponseWriter, r *http.Request) {
+		s, ok := service.(bundledFirmwareService)
+		if !ok {
+			writeError(w, 501, "UNSUPPORTED_OPERATION", "bundled firmware is unavailable")
+			return
+		}
+		if rejectCoreLibraryBody(w, r) {
+			return
+		}
+		value, err := s.BundledFirmware(r.Context())
+		if err != nil {
+			writeCoreLibraryError(w, err)
+			return
+		}
+		writeJSON(w, http.StatusOK, value)
+	})
 	mux.HandleFunc("PUT /api/v1/library/firmware", withService(func(w http.ResponseWriter, r *http.Request, s coreFirmwareLibraryService) {
 		var request struct {
 			Slot    *string `json:"slot"`

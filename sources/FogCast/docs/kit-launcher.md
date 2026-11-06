@@ -18,12 +18,57 @@ generates and embeds it through its launcher setup and media workflow.
 `kit_ui`, `theme` or `shelf` written for the removed grid launcher, are
 ignored, so older cards still load. Tenfoot preferences and per-room state live
 under `/media/fat/fogcast/state/FogCast/` (`tenfoot.json` and
-`rooms/<id>.state.json`).
+`rooms/<id>.state.json`). `tenfoot.json` `firmware_info_seen` lists the families
+whose first-use firmware card was continued past.
+
+On the kit (`-gfx menu-display` with a rooms Home), tenfoot opens first-run
+setup instead of Home until `tenfoot.json` has `setup_done` (#1345). The
+steps are rooms: Welcome (`example.welcome`), then Ready
+(`example.setup-ready`); the controllers (#980) and games folders (#1346)
+steps go between them. Finish and Skip setup both write `setup_done`; Skip
+also records the steps it left in `setup_skipped`, and Home shows a Get
+started banner whose Finish setup resumes at the first of them. Settings ›
+About & help › Run setup again starts from Welcome without clearing anything.
+Other launchers and backends start Home directly.
+
+Settings (GUIDE or `o`) opens on its sections, in the v1 order (#1349). A
+section is listed only when it has rows; Controllers waits for #980.
+
+- **Games folders:** BIOS & media drives, and the host's library roots where
+  the launcher edits them. #1346 replaces this with per-family folders.
+- **Firmware:** one row per v1 family, Built in (with the firmware's name) or
+  Needs your files, from the host's bundled firmware list. A opens that
+  family's firmware card over Settings.
+- **Display & sound:** Resolution (the menu display's fixed 1280×720, shown,
+  not chosen), Safe area, Reduced motion and TV surround. The image has no
+  volume control yet.
+- **Network:** on the kit, the wired link (`eth0`; the image has no Wi-Fi).
+  A host launcher lists its kit targets here instead.
+- **Updates:** Cores (install cores and add games). #1350 adds the rest.
+- **About & help:** Versions (the kit software bundle and base image that
+  `fes-kit-software` started tenfoot with), Kit ID (`target_id`), Run setup
+  again, Diagnostics (Show all cores, DIAGNOSTIC RBF, Release kit) and
+  Factory reset. Factory reset asks for A twice, then deletes `tenfoot.json`
+  and returns the menu settings to their defaults: safe area, layout, motion,
+  surround, attract, Show all cores, pinned rooms, firmware cards seen, pad
+  profiles and the first-run marker. On the kit it then opens Welcome.
+  Images, software, cores, the library and the user's files are untouched. A
+  pad keeps its remap until it is plugged in again.
+- **Library & rooms** (listed with Show all cores): Layout, Home, Attract, and
+  the host's Idle and Regions.
+
+B goes up one level and closes Settings from the section list. A paired kit's
+listener serves no library settings, so the host's rows (libraries, targets,
+video preference, idle, regions) are left out there.
 
 Home, the rooms and the core catalog view list only the v1 release cores
 (`internal/release`, recorded in `docs/support-matrix.md` as v1, v2 or held
-back). Settings › Show all cores, `tenfoot.json` `all_cores`, or
+back). Settings › About & help › Diagnostics › Show all cores,
+`tenfoot.json` `all_cores`, or
 `FOGCAST_TENFOOT_ALL_CORES=1` lists every core for development and HIL.
+In the release, Home has no Library or Systems route; Show all cores brings
+them back. Back at a release-scoped Home root keeps Home open. If that Home
+room cannot open, the fallback picker keeps its Library row as the way out.
 Changing it in Settings keeps Settings open until it closes, then returns Home
 with the new list. Tenfoot reuses a Home room only while its release scope
 matches the current setting. A setup room opened for a running machine always

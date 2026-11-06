@@ -11,23 +11,37 @@ ROW_DELAY equ 6                 ; 13 * 6 + 2 + 9 T-states before the rows
 start:  out (0xfd),a            ; NMI generator off
         jp init
 
+; The restarts hold the start of their routines where they fit.
         org 0x0008
-rst_err: jp error_1             ; RST 8: report code byte follows the call
+rst_err: pop hl                 ; RST 8: report code byte follows the call
+        ld a,(hl)
+        ld (iy+Y_ERR_NR),a
+        jr error_2
 
         org 0x0010
 rst_print: jp print_a           ; RST 10: print character A
 
         org 0x0018
-rst_get: jp get_char            ; RST 18: current character
+get_char:                       ; RST 18: current character
+        ld hl,(CH_ADD)
+        dec hl
+        jr gc_next
 
         org 0x0020
-rst_next: jp next_char          ; RST 20: advance and get character
+next_char:                      ; RST 20: advance and get character
+        ld hl,(CH_ADD)
+        jr gc_next
 
         org 0x0028
-rst_calc: jp fp_calc            ; RST 28: calculator (not yet provided)
+fp_calc: rst 8                  ; RST 28: the calculator is not provided yet
+        db R_ARG
 
         org 0x0030
-rst_room: jp bc_spaces          ; RST 30: BC bytes of workspace
+bc_spaces:                      ; RST 30: BC bytes of workspace, DE -> them
+        ld hl,(STKBOT)
+        call make_room
+        ex de,hl
+        ret
 
 ; INT ends each scan line of a character row. Both paths take 58 T-states
 ; so every line has the same length; B counts rows, C scan lines in a row.
@@ -98,15 +112,15 @@ key_func:                                       ; 0x78 = no function
         db 0x78,0xd4,0xc6,0xc5,0xd0             ; - USR LEN VAL SQR
         db 0x78,0x78,0x42,0xd7,0x41             ; - - PI NOT INKEY$
         assert $ == 0x00f3
-key_graph:                                      ; 0 = use the shifted key
-        db 0x00,0x00,0x00,0x00                  ; Z X C V
-        db 0x09,0x0a,0x89,0x8a,0x00             ; A S D F G
-        db 0x81,0x82,0x83,0x84,0x85             ; Q W E R T
-        db 0x01,0x02,0x03,0x04,0x05             ; 1 2 3 4 5
-        db 0x00,0x00,0x08,0x07,0x06             ; 0 9 8 7 6
-        db 0x00,0x88,0x87,0x86,0x80             ; P O I U Y
-        db 0x00,0x00,0x00,0x00,0x00             ; NEWLINE L K J H
-        db 0x00,0x00,0x00,0x00,0x00             ; SPACE . M N B
+key_graph:                                      ; the graphics on the keys;
+        db 0x00,0x00,0x00,0x00                  ; Z X C V    0 = the shifted key
+        db 0x08,0x0a,0x09,0x8a,0x89             ; A S D F G
+        db 0x81,0x82,0x07,0x84,0x06             ; Q W E R T
+        db 0x01,0x02,0x87,0x04,0x05             ; 1 2 3 4 5
+        db 0x00,0x00,0x85,0x03,0x83             ; 0 9 8 7 6
+        db 0x00,0x00,0x00,0x00,0x86             ; P O I U Y
+        db 0x00,0x00,0x00,0x00,0x88             ; NEWLINE L K J H
+        db 0x80,0x00,0x00,0x00,0x00             ; SPACE . M N B
         assert $ == 0x011a
 key_word:                                       ; K-mode keywords, 0 = plain
         db 0xff,0xfd,0xe8,0xfb                  ; COPY CLEAR CONT CLS
@@ -177,11 +191,13 @@ load_entry:
         org 0x07bd
 findchr: jp decode              ; DECODE (FINDCHR)
         org 0x08f5
-print_at_entry: jp print_at     ; PRINT-AT
+print_at_entry: jp print_at_cc  ; PRINT-AT
         org 0x0a2a
 cls_entry: jp cls               ; CLS
         org 0x0f23
-fast_entry: jp fast             ; FAST
+fast_entry:
+        res 6,(iy+Y_CDFLAG)
+        jp fast                  ; FAST clears the saved SLOW request
         org 0x0f2b
 slow_entry: jp slow             ; SLOW
         org 0x0f46
@@ -211,7 +227,8 @@ border_ix:
         jr z,.stop
         call start_frames       ; ends sync, NMI on
         jp nmi_pop
-.stop:  out (0xfd),a            ; ends sync, NMI stays off
+.stop:  res 5,(iy+Y_CDFLAG)     ; FAST may wait for this
+        out (0xfd),a            ; ends sync, NMI stays off
         jp nmi_pop
 
 ; Keyboard read (starts vertical sync while the NMI generator is off),
@@ -221,6 +238,7 @@ frame_tasks:
         ld (LAST_K),hl
         ld hl,(FRAMES)
         dec hl
+        set 7,h                 ; bit 15 stays 1; bits 0-14 count down
         ld (FRAMES),hl
         ld b,VSYNC_PAD          ; hold vertical sync for a few lines
 .pad:   djnz .pad
@@ -257,14 +275,17 @@ slow:   set 6,(iy+Y_CDFLAG)
         set 7,(iy+Y_CDFLAG)
         jr start_frames
 
-; FAST: stop after the frame in progress.
-fast:   res 6,(iy+Y_CDFLAG)
-        bit 7,(iy+Y_CDFLAG)
+; FAST: stop after the frame in progress. Keep bit 6, the saved SLOW request;
+; bit 7 alone says whether frames are currently running. Bit 5 is set before
+; bit 7 goes, and the frame engine clears it only as it stops, so FAST
+; cannot return while a frame is still being drawn.
+fast:   bit 7,(iy+Y_CDFLAG)
         ret z
+        set 5,(iy+Y_CDFLAG)
         res 7,(iy+Y_CDFLAG)
-        ld a,(FRAMES)
-        ld e,a
-        jr frame_spin
+.w:     bit 5,(iy+Y_CDFLAG)
+        jr nz,.w
+        ret
 
 ; Keyboard scan. Returns HL in the ZX81 KEYBOARD format: L has a zero bit
 ; for each address line whose row has a key down, H bits 1-5 are the
@@ -305,15 +326,29 @@ break_1:
         ret
 
 ; DECODE: BC = KEYBOARD result. Returns HL -> the key's character in
-; key_plain or key_shift; carry set if no single key is down.
+; key_plain or key_shift; carry set if exactly one key (and perhaps SHIFT)
+; is down. Two rows or two columns down: carry clear.
 decode: ld a,c
+        cpl
+        ld e,a
+        dec a
+        and e
+        ret nz                  ; more than one row
+        ld a,b
+        cpl
+        and 0x3e
+        ld e,a
+        dec a
+        and e
+        ret nz                  ; more than one column
+        ld a,c
         ld d,0
 .r:     rra
         jr nc,.rf
         inc d
         bit 3,d
         jr z,.r
-        scf
+        and a                   ; no single row: carry clear
         ret
 .rf:    ld a,b
         rra
@@ -323,7 +358,7 @@ decode: ld a,c
         inc e
         bit 3,e
         jr z,.c
-        scf
+        and a                   ; no single column: carry clear
         ret
 .cf:    ld a,d
         add a,a
@@ -338,7 +373,7 @@ decode: ld a,c
         jr nz,.plain
         ld l,key_shift & 0xff   ; same page
 .plain: add hl,de
-        and a
+        scf                     ; a key was decoded successfully
         ret
 
 save_loop:
