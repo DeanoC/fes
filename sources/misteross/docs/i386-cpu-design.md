@@ -1487,8 +1487,9 @@ classifies every system clock of `fes_i386_cpu` on the RTL machine bench
 | Everything else | 3.0% | 2.1% | 5.1% |
 | CPI | 2.54 | 3.17 | 3.26 |
 
-A taken branch costs 11–12 clocks, and taken branches take 34–43% of every
-workload's time. In DOOM, the column drawer's loop-back branch alone is 10%
+In DOOM, a taken Jcc, JMP rel, CALL rel or RET costs 11–12 clocks, an
+indirect CALL 22, and far transfers and deliveries 17–39. Taken branches take
+34–43% of every workload's time. In DOOM, the column drawer's loop-back branch alone is 10%
 of all clocks. In Wolfenstein 3D, one seven-instruction loop is 60% of all
 clocks, and its loop-back branch is 35%. 3DBench takes a quarter of its taken
 branches through LOOP. Redirects after far CALL and RETF are 2.2% of
@@ -1503,11 +1504,11 @@ timedemo frame rate from Kit B's 26.7 fps:
   target its average cost plus one bubble. Jcc prediction is 85–95% right,
   direct JMP and CALL and RET 95–99%, indirect 70–90%.
 - **False taken.** 5% of not-taken Jcc are predicted taken and pay a full
-  redirect.
+  redirect plus the predicted bubble over a fall-through.
 
 | Feature | DOOM `demo3` | DOOM fps | Wolfenstein 3D | 3DBench |
 | --- | ---: | ---: | ---: | ---: |
-| BTB: Jcc, LOOP and JCXZ | 22–25% | 34.3–35.5 | 25–28% | 32–36% |
+| BTB: Jcc, LOOP and JCXZ | 22–25% | 34.2–35.4 | 25–28% | 32–36% |
 | BTB: JMP and CALL rel | 4% | 27.9 | 2.5% | 6% |
 | Return stack | 2.7% | 27.4 | 0.6% | 2.8% |
 | BTB: indirect JMP and CALL | 0.7–0.9% | 26.9 | 0% | 0.1% |
