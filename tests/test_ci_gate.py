@@ -168,7 +168,7 @@ class SimulationMatrixTests(unittest.TestCase):
         self.assertEqual(smoke, ['sim-fes-pc386', 'sim-fes-pc386-scroll'])
         self.assertEqual(full, ['sim-fes-pc386', 'sim-fes-pc386-fesenv', 'sim-fes-pc386-a20',
                                 'sim-fes-pc386-c2xx', 'sim-fes-pc386-wait', 'sim-fes-pc386-scroll',
-                                'sim-fes-pc386-speaker'])
+                                'sim-fes-pc386-speaker', 'sim-fes-pc386-cpu-profile'])
 
     def test_coleco_includes_every_default_and_oss_scenario(self):
         from scripts.ci_simulations import simulation_matrix
