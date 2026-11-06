@@ -392,8 +392,22 @@ builds of pc386 are parked ([#1235](https://github.com/DeanoC/fes/issues/1235)).
 The CPU's speed governor takes its preset, frequency and turbo from the
 `fes.pc386.machine` record and paces the sealed package on Kit B
 ([governor record](validation/2026-11-01-pc386-m5-governor/summary.md)).
-The four games, the keyboard and mouse, the `fes.computer` 1.1 mailbox and
-the disk round trip with the runtime remain open.
+On Kit B the acceptance games play on the RTL CPU at `max`:
+- FreeDOS boots, and Wolfenstein 3D, Ultima VI and DOOM saves load after a
+  relaunch ([smoke record](validation/2026-11-04-pc386-games-smoke/summary.md),
+  [game checks](validation/2026-11-04-pc386-m5-game-checks/summary.md));
+- a Wolfenstein 3D and a DOOM level played to the exit, and Ultima VII
+  saves loaded after a relaunch
+  ([acceptance record](validation/2026-11-06-pc386-game-acceptance/summary.md)).
+
+Still open for the games ([#1368](https://github.com/DeanoC/fes/issues/1368)):
+- Ultima VI walking speed at 286-12, against a reference;
+- Ultima VII NPC pace, against a reference;
+- FreeDOS date and time, which needs a kit image with
+  [#1279](https://github.com/DeanoC/fes/issues/1279).
+
+The keyboard and mouse, the `fes.computer` 1.1 mailbox and the disk round
+trip with the runtime remain open.
 
 ## Not implemented, or not this package
 
