@@ -4,9 +4,9 @@ A clean-room, GPL-2.0-or-later integer BASIC for the `fes.zx80` model, written
 for FES like the [open ZX81 ROM](../openrom). **It does not fit the ZX80's
 4 KiB ROM yet**, so it is not built by the Makefile, not packaged, and not
 documented as a user option. `scripts/build_zx81_openrom.py --model zx80`
-stops with "floating code does not fit"; the last measurement was 4120 bytes
-of code and tables against about 3500 bytes free beside the 512-byte
-character set (`$0E00`).
+stops with "floating code does not fit"; the last measurement was 3691 bytes
+of code and tables (3618 with every `jr` short) against 3512 bytes free
+beside the 512-byte character set (`$0E00`).
 
 ## What it does
 
@@ -46,7 +46,7 @@ effects suppressed); the listing pages rather than scrolling by one line; the ed
 the RTL, `dev/build_probe.sh ROM.hex OUTDIR` builds `zx80_probe_tb.cpp`;
 `OUTDIR/Vzx81_machine probe "KEYS"` dumps memory and screen after typing.
 
-To fit 4 KiB about 620 bytes must go. Compaction of this design looked good
-for only 100-150 more; the rest needs a denser architecture (for instance a
-table-driven statement syntax shared by checking and running) or cutting
-features.
+To fit 4 KiB about 150-190 bytes must still go (it was 620). The source asks
+the assembler for `floatorder`, the layout that keeps the most `jr` short;
+about 35-45 stay long, so the code with every `jr` short has to come to
+roughly 3470 bytes. `dev/build_dev.sh` takes a few seconds for that search.
