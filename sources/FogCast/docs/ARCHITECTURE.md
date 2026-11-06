@@ -1685,7 +1685,9 @@ When leftover card capacity has already been formatted as partition 3 with
 label `FESDATA3`, agent startup bind-mounts that ext4 volume over
 `/media/fat/fogcast/{cache,saves,core-data,launcher-cache,evidence}` and
 `/media/fat/games`. Existing FAT files are copied onto p3 only when the p3
-destination is absent; existing p3 files are preserved. Without p3, all these
+destination is absent; each copied file is published only after a complete
+same-directory temporary has been written and closed, and existing p3 files
+are preserved. Without p3, all these
 paths continue to use FAT. The helper does not create, grow, or format
 partitions and does not run from the fixed bootstrap. Bind is refused while
 `GET /v1/update` shows trial, pending, or corrupt; the agent still starts and
@@ -1790,7 +1792,9 @@ reads and clears the `boot.json` trial flag. A failed or cancelled publish
 leaves the watchdog armed. A boot-ticket rewrite failure after the release
 record is durable does not undo confirmation: admission opens, the error is
 logged, and the rewrite is retried once on a later idle status read. A failed
-splash publish can be retried by the same boot. A later
+splash publish can be retried by the same boot. If release pruning fails after
+durable confirmation and boot-ticket handling, the error is logged but
+admission still opens; another confirm retry safely retries pruning. A later
 boot of that image, including one that is no longer a trial, republishes from
 the running image's verified idle core even when the staged copy was removed.
 An unconfirmed trial does not modify FAT, so watchdog fallback still programs

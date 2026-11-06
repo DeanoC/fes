@@ -43,6 +43,11 @@ var ErrInsufficientStorage = errors.New("insufficient release storage")
 // retry the rewrite; the confirmation itself has succeeded.
 var ErrBootTicketRewrite = errors.New("boot ticket rewrite failed after durable confirmation")
 
+// ErrRetentionAfterConfirmation means confirmation and matching boot-ticket
+// handling succeeded, but release pruning failed. Retrying confirmation is
+// safe and retries retention without undoing the durable confirmation.
+var ErrRetentionAfterConfirmation = errors.New("release retention failed after durable confirmation")
+
 var errUnreadableBootTicket = errors.New("refusing to prune releases: boot ticket is unreadable")
 
 const releaseHeadroom = 1 << 20
@@ -1601,7 +1606,10 @@ func (s *Store) ConfirmContext(ctx context.Context, bootID, imageSHA string) err
 		if e = s.clearConfirmedBootTicket(bootID, imageSHA, st.Previous); e != nil {
 			return e
 		}
-		return s.enforceRetention(ctx, "")
+		if e = s.enforceRetention(ctx, ""); e != nil {
+			return fmt.Errorf("%w: %w", ErrRetentionAfterConfirmation, e)
+		}
+		return nil
 	}
 	if st.TrialImage != imageSHA {
 		return errors.New("confirmation image is not this boot's trial")
@@ -1622,7 +1630,10 @@ func (s *Store) ConfirmContext(ctx context.Context, bootID, imageSHA string) err
 	if e = s.clearConfirmedBootTicket(bootID, imageSHA, st.Previous); e != nil {
 		return e
 	}
-	return s.enforceRetention(ctx, "")
+	if e = s.enforceRetention(ctx, ""); e != nil {
+		return fmt.Errorf("%w: %w", ErrRetentionAfterConfirmation, e)
+	}
+	return nil
 }
 
 // AcceptTrialContext promotes this boot's trial to known-good without recording

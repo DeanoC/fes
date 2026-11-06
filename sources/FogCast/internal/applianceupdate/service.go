@@ -181,7 +181,7 @@ func (s *Service) finishConfirmation(ctx context.Context) error {
 	err := s.store.ConfirmContext(ctx, s.boot.BootID, s.boot.ImageSHA256)
 	repair := false
 	if err != nil {
-		if !errors.Is(err, appliance.ErrBootTicketRewrite) {
+		if !errors.Is(err, appliance.ErrBootTicketRewrite) && !errors.Is(err, appliance.ErrRetentionAfterConfirmation) {
 			return err
 		}
 		confirmed, confirmErr := s.store.ConfirmedContext(ctx, s.boot.BootID, s.boot.ImageSHA256)
@@ -191,7 +191,11 @@ func (s *Service) finishConfirmation(ctx context.Context) error {
 		if !confirmed {
 			return err
 		}
-		repair = true
+		if errors.Is(err, appliance.ErrBootTicketRewrite) {
+			repair = true
+		} else {
+			s.logRetentionFailure(err)
+		}
 	}
 	s.mu.Lock()
 	s.trial = false
@@ -214,6 +218,13 @@ func (s *Service) retryBootTicket(ctx context.Context) error {
 		return err
 	}
 	err := s.store.ConfirmContext(ctx, s.boot.BootID, s.boot.ImageSHA256)
+	if errors.Is(err, appliance.ErrRetentionAfterConfirmation) {
+		s.mu.Lock()
+		s.ticketRepair = false
+		s.mu.Unlock()
+		s.logRetentionFailure(err)
+		return nil
+	}
 	if err != nil && !errors.Is(err, appliance.ErrBootTicketRewrite) {
 		return err
 	}
@@ -228,6 +239,10 @@ func (s *Service) retryBootTicket(ctx context.Context) error {
 
 func (s *Service) logBootTicket(err error) {
 	slog.Warn("appliance boot ticket rewrite failed after durable confirmation", "boot_id", s.boot.BootID, "err", err)
+}
+
+func (s *Service) logRetentionFailure(err error) {
+	slog.Warn("appliance release retention failed after durable confirmation", "boot_id", s.boot.BootID, "err", err)
 }
 
 // repairSplash publishes the running image's verified idle core when FAT does

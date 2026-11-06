@@ -3,6 +3,7 @@ package appliancedata
 import (
 	"bytes"
 	"encoding/binary"
+	"errors"
 	"os"
 	"path/filepath"
 	"strings"
@@ -538,5 +539,49 @@ func TestCopyMissingLeavesDestinationUntouchedOnExistingFile(t *testing.T) {
 	body, err := os.ReadFile(filepath.Join(dst, "a"))
 	if err != nil || string(body) != "dst" {
 		t.Fatalf("overwrite = %q %v", body, err)
+	}
+}
+
+type interruptedCopyReader struct{ sent bool }
+
+func (r *interruptedCopyReader) Read(p []byte) (int, error) {
+	if !r.sent {
+		r.sent = true
+		return copy(p, []byte("partial")), nil
+	}
+	return 0, errors.New("copy interrupted")
+}
+
+func TestInterruptedMigrationCopyDoesNotPublishPartialDestination(t *testing.T) {
+	t.Parallel()
+	dir := t.TempDir()
+	src := filepath.Join(dir, "fat")
+	dst := filepath.Join(dir, "p3")
+	if err := os.MkdirAll(src, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.MkdirAll(dst, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	want := []byte("complete FAT library file")
+	if err := os.WriteFile(filepath.Join(src, "game.sms"), want, 0o600); err != nil {
+		t.Fatal(err)
+	}
+	final := filepath.Join(dst, "game.sms")
+	if err := copyFileAtomically(&interruptedCopyReader{}, final); err == nil {
+		t.Fatal("interrupted copy succeeded")
+	}
+	if _, err := os.Lstat(final); !errors.Is(err, os.ErrNotExist) {
+		t.Fatalf("partial final path remains after interruption: %v", err)
+	}
+
+	// A later startup retries from the intact FAT source instead of treating a
+	// partial p3 path as complete and binding it over the library.
+	if err := copyMissing(src, dst); err != nil {
+		t.Fatal(err)
+	}
+	got, err := os.ReadFile(final)
+	if err != nil || !bytes.Equal(got, want) {
+		t.Fatalf("retried copy = %q %v, want %q", got, err, want)
 	}
 }

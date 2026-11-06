@@ -415,19 +415,32 @@ func copyRegularMissing(src, dst string) error {
 	if !st.Mode().IsRegular() {
 		return nil
 	}
-	out, err := os.OpenFile(dst, os.O_WRONLY|os.O_CREATE|os.O_EXCL|syscall.O_NOFOLLOW, 0o600)
+	return copyFileAtomically(in, dst)
+}
+
+func copyFileAtomically(in io.Reader, dst string) error {
+	out, err := os.CreateTemp(filepath.Dir(dst), ".fes-copy-*")
 	if err != nil {
-		if errors.Is(err, os.ErrExist) {
-			return nil
-		}
 		return err
 	}
-	defer out.Close()
-	if _, err := io.Copy(out, in); err != nil {
-		_ = os.Remove(dst)
+	temp := out.Name()
+	defer os.Remove(temp)
+
+	if _, err = io.Copy(out, in); err != nil {
+		return errors.Join(err, out.Close())
+	}
+	if err = out.Sync(); err != nil {
+		return errors.Join(err, out.Close())
+	}
+	if err = out.Close(); err != nil {
 		return err
 	}
-	return out.Close()
+	// Link publishes the complete temporary without replacing an entry that
+	// another startup or process may have created after the initial Lstat.
+	if err = os.Link(temp, dst); errors.Is(err, os.ErrExist) {
+		return nil
+	}
+	return err
 }
 
 func mountpointBusy(mountInfo, target string) bool {
