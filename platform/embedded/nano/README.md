@@ -1,5 +1,17 @@
 # Nano recovery uploads and cold serial boot
 
+Current guarded-RAM builds also emit `FES_NANO_CALL` receipts at the selected
+SMC instruction, in the PSCI affinity handler and around its existing per-CPU
+cache flush. The decoder pairs six receipts for each of four initial and four
+late queries; partial or misplaced calls cannot complete native handoff.
+The U-Boot wrapper traces only the selected 64-bit affinity call with level
+zero and one of the four compiled affinities. Its temporary callee register
+is declared to the compiler, and result/argument registers remain unchanged.
+The PSCI function keeps its original validation and cache operation. Diagnostic
+leaves use bounded direct UART writes, preserve callee registers, allocate no
+private state and call no scheduler or firmware service. A before receipt
+marks uncertainty; a handler receipt does not establish an exact fault PC.
+
 The initial `fesboot` path emits ordered `FES_NANO_LOADER` receipts around
 memory validation, the CPU snapshot and each PSCI affinity call, register-read
 groups, CPU/watchdog checks and the secure ownership observation. Markers use

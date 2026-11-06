@@ -105,6 +105,14 @@ def loader_progress_fixture(raw):
         if line.startswith('FES_NANO_OWNED phase=before-entry '):
             lines.insert(index,''.join(marker(p) for p in phases[1:-1]))
             lines.insert(index+2,marker(phases[-1]));break
+    result=''.join(lines)
+    calls=''.join('FES_NANO_CALL phase='+phase+'\r\n' for phase in trace.call_trace.PHASES)
+    for cpu in range(4):
+        marker=f'FES_NANO_LOADER phase=cpu{cpu}-before\r\n'
+        result=result.replace(marker,marker+calls)
+    lines=result.splitlines(keepends=True)
+    index=next(i for i,line in enumerate(lines) if line.startswith('FES_NANO_OWNED phase=after-remove '))
+    lines.insert(index+1,calls*4)
     return ''.join(lines)
 
 

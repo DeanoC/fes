@@ -8,6 +8,7 @@ import re
 import fault_status
 import runtime_startup
 import loader_progress
+import call_trace
 from configuration_trace import extract as extract_configuration
 from hps_context import reader_pattern, digest as context_digest
 from hps_io import validate as validate_hps_io
@@ -302,6 +303,7 @@ def decode_native_boot(data, build_id, owner_seed, *, storage=None, package=None
     report = {'records': [], 'errors': [], 'loader_ready': False, 'complete': False,
               'last_checkpoint': None, 'core_load_acceptance': False,
               'loader_progress': loader_progress.state(),
+              'affinity_calls': call_trace.state(),
               'firmware_ram_trace': {'records': [], 'complete': False, 'valid': True,
                                      'vendor_records': [], 'vendor_complete': False, 'exceptions': [],
                                      'status_probe': fault_status.state(), 'ras_probe': fault_status.ras_state(), 'decode_log': fault_status.decode_state(), 'cache_maintenance': fault_status.cache_state(), 'runtime_startup': runtime_startup.state(), 'exit_cache': runtime_startup.exit_state()}}
@@ -321,7 +323,21 @@ def decode_native_boot(data, build_id, owner_seed, *, storage=None, package=None
         line = line.rstrip('\r')
         if ('FES_' in line and re.search(r'\b(?:REJECT|FAIL|EXCEPTION)\b', line)) or line.startswith(('panic:', 'fatal error:')):
             report['errors'].append(f'failure marker at line {number}')
+        if line.startswith('FES_NANO_CALL'):
+            progress=report['loader_progress']['records']
+            error=call_trace.observe(report['affinity_calls'],line,number,
+                boot_seen='boot' in observed,
+                loader_phase=progress[-1]['phase'] if progress else None,
+                late_seen='after-remove' in observed,live_seen='live' in observed,
+                prior_valid=not report['errors'])
+            if error:report['errors'].append(error)
+            continue
         if line.startswith('FES_NANO_LOADER'):
+            calls=report['affinity_calls']
+            after=re.fullmatch(r'FES_NANO_LOADER phase=cpu([0-3])-after',line)
+            if after and (firmware_ram_trace or calls['records']) and (
+                    not calls['valid'] or len(calls['records'])!=(int(after[1])+1)*len(call_trace.PHASES)):
+                report['errors'].append(f'incomplete affinity call before loader return at line {number}')
             error=loader_progress.observe(report['loader_progress'],line,number,
                 boot_seen='boot' in observed,memory_seen='memory' in observed,
                 owned_seen='before-entry' in observed,
@@ -447,6 +463,12 @@ def decode_native_boot(data, build_id, owner_seed, *, storage=None, package=None
                 del values['execution_observed']
             if name == 'owned':
                 name = values['phase']
+            calls=report['affinity_calls']
+            if firmware_ram_trace or calls['records']:
+                if name=='before-entry' and not (calls['valid'] and calls['initial_complete']):
+                    report['errors'].append(f'incomplete initial affinity calls at line {number}')
+                if name=='live' and not (calls['valid'] and calls['complete']):
+                    report['errors'].append(f'incomplete late affinity calls at line {number}')
             progress=report['loader_progress']
             if firmware_ram_trace or progress['records']:
                 if name=='before-entry' and (not progress['valid'] or

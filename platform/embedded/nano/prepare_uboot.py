@@ -89,6 +89,11 @@ def prepare(source, entry_build, bl31_sha256, bl31_size, *, firmware_ram=False):
     image, receipt_path=cold.entry(entry_build)
     profile=cold.selected_profile(json.loads(receipt_path.read_text()))
     chain=cold.make(entry_build,firmware_ram=firmware_ram)
+    if chain.get('firmware_ram') is not None:
+        spec=importlib.util.spec_from_file_location('fes_affinity_call',HERE.parent/'firmware/nano_firmware_call.py')
+        call=importlib.util.module_from_spec(spec);spec.loader.exec_module(call)
+        path=source/call.FWCALL
+        path.write_text(call.fwcall_source(path.read_text()))
     reset=source/'drivers/reset/reset-socfpga.c'
     reset.write_text(cold_reset_source(reset.read_text()))
     bootm = source / "arch/arm/lib/bootm.c"

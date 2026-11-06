@@ -10,6 +10,9 @@ HERE = Path(__file__).resolve().parent
 _runtime_spec = importlib.util.spec_from_file_location('fes_cold_runtime', HERE/'nano_firmware_runtime.py')
 nano_firmware_runtime = importlib.util.module_from_spec(_runtime_spec)
 _runtime_spec.loader.exec_module(nano_firmware_runtime)
+_call_spec = importlib.util.spec_from_file_location('fes_affinity_call', HERE/'nano_firmware_call.py')
+nano_firmware_call = importlib.util.module_from_spec(_call_spec)
+_call_spec.loader.exec_module(nano_firmware_call)
 _status_spec = importlib.util.spec_from_file_location('fes_early_fault_status', HERE.parent/'nano/fault_status.py')
 fault_status = importlib.util.module_from_spec(_status_spec)
 _status_spec.loader.exec_module(fault_status)
@@ -238,10 +241,11 @@ def install(source, profile):
     c.write_text('#include "fes_nano_ram_entry.h"\n#include "nano_firmware_ram.h"\n' +
                  entry_assertions() + c.read_text())
     runtime_sources = nano_firmware_runtime.install(source)
+    call_sources = nano_firmware_call.install(source)
     names = [ENTRY, COMMON, CACHE, PLATFORM, INCLUDE+'/fes_nano_ram_entry.h', INCLUDE+'/nano_vendor_entry.inc', INCLUDE+'/nano_firmware_entry.inc', INCLUDE+'/nano_firmware_fault.inc', INCLUDE+'/nano_firmware_decode.inc', INCLUDE+'/nano_firmware_cache.inc', INCLUDE+'/nano_firmware_exit_cache.inc', INCLUDE+'/nano_firmware_status.inc',
              INCLUDE+'/nano_firmware_ram.h', 'plat/intel/soc/common/nano_cold_platform.c']
     return dict(contract=dict(CONTRACT), chain_sha256=chain,
-                sources={name:hashlib.sha256((source/name).read_bytes()).hexdigest() for name in dict.fromkeys(names+runtime_sources)})
+                sources={name:hashlib.sha256((source/name).read_bytes()).hexdigest() for name in dict.fromkeys(names+runtime_sources+call_sources)})
 
 
 def verify_installed(source, binding):
