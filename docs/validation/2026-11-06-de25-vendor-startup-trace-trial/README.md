@@ -31,3 +31,34 @@ provenance rejection tests pass before live admission. A preparation fixture
 initially lacked its source ledger; its failed log and helper snapshot remain
 retained, and the corrected transport fixture passes. No device was opened by
 those preparation tests. This publication precedes live preflight and hardware.
+
+## Recorded physical result
+
+One attempt on operator `4d720aba2` stopped at the unchanged 50-second
+matched-prompt gate. Recovery, all eight fixed uploads/fresh SD readbacks,
+private 6M chip admission, programming and SPL FIT verification passed. The
+SPL ATF descriptor matches BL31 SHA-256
+`e7106a45650589860c32695bd1f70b1d42455fd32a73a360e6867513d05883cc`.
+The independent raw replay exactly matches the saved decoder result.
+
+Both early guard markers and eight ordered vendor markers are present. Reset
+handling, CPU-data initialization and RW cache invalidation returned. The last
+marker is `nobits-cache-before`; no after marker or subsequent BSS/stack/setup
+marker appeared. The actual linked NOBITS range is `[0x50000,0x5dec0)`.
+The remaining interval includes the last UART drain, the original invalidation
+call and return, and the following UART message startup. The exact failing
+instruction is unobserved; do not attribute it conclusively to a cache operation.
+
+No matched U-Boot prompt appeared, fesboot was not sent, and native CPU
+exclusion, ROM transfer, CPU Run and core return were not exercised. This does
+not establish writable OCRAM or vendor C initialization. No retry occurred.
+Independent cleanup verified exact USB permissions, recorded original 15M
+readback, private JTAG termination and a free UART. CPU/FPGA halt remains
+unproven; the claim and spare card are retained, with the factory card and other
+kit untouched. There are now ten separately retained procedure stops in this
+campaign, including four pre-native startup stops on different compiled inputs.
+
+The next software investigation is the actual pinned cache helper, its linked
+range arguments and stack-free exception diagnostics around this boundary.
+Retain the cache maintenance and containment contract until evidence supports
+a specific correction; do not bypass the failed gate or widen its timeout.
