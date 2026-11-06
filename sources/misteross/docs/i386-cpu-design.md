@@ -683,10 +683,49 @@ the ITLB's page is the linear one with A20M applied.
 
 ### Prediction
 
-- **BTB:** 512 entries, 2-way, in M10K, keyed by the fetch block's linear
-  address. An entry holds the end offset of the first taken branch in the
-  block, its linear target, its type (conditional, jump, call, return,
-  real-mode far) and a 2-bit counter.
+- **BTB (built, [Phase 4 slice 2](#slices)):** 512 entries, two ways of 256
+  sets, in M10K (`fes_i386_btb`). An entry belongs to the 16-byte block that
+  holds a branch's last byte: it is indexed by linear bits 11:4 and tagged
+  with bits 31:12. It holds that byte's offset, the branch's linear target,
+  a 2-bit counter and whether the branch is unconditional. It covers Jcc,
+  LOOP, LOOPE, LOOPNE, JCXZ, JMP rel and CALL rel.
+  - **Fetch.** F1 reads the BTB with the L1I. F2 compares the tags and
+    registers its choice. An entry counts only if its branch's last byte is
+    at or past the offset fetch entered the block at: a redirect's or a
+    target's offset, else 0. When both ways count, one predicted taken
+    wins, then the one that ends first. A taken entry sends F1 to its target
+    on the next edge, in place of the sequential block it loaded with F2's
+    pass: one bubble.
+  - **Buffer and Q.** The fetch buffer fills its halves alternately from the
+    redirect's half, not by address, so the target's block follows its
+    branch's block. Each half keeps its block's lookup and whether the block
+    follows the one before it. Per byte and variant, a register says the
+    instruction there ends where a half's entry says its branch ends.
+    Q then goes on at the target's offset in the next half: one select bit
+    and a 2:1 in its loop.
+  - **D.** The instruction after a predicted branch gets the branch's own
+    target EIP, EIP plus length plus displacement, wrapped by operand size,
+    a three-input add beside D's next EIP.
+  - **Resolution.** EX resolves the branch as before. WB redirects only when
+    the branch is taken and was not predicted, or was predicted and is not
+    taken. A matched branch's retirement updates its counter. A taken one
+    that was not matched allocates an entry with the counter at 2, in a way
+    taken in turn. The two ways can hold two branches of one block.
+  - **Checks.** Nothing in an entry is trusted. AG checks each
+    instruction's fetched linear address against CS.base plus its EIP. Q
+    flags an instruction whose bytes, or a prefix consumed at a half's last
+    byte, run into a half that does not follow (`xbad`). Either marks the
+    instruction `FAULT_REPLAY` at once, so it touches no memory, and WB
+    replays it without serial issue and clears the BTB sets that sent fetch
+    there. This one check covers a wrong target, code changed under an
+    entry, a non-branch where an entry ends, and an entry from the other
+    code size. It replaces the plan's DC type check.
+  - **queue16.** The profile predicts nothing, since a taken branch there
+    must refetch as the 386's queue does.
+  - **Self-modifying code.** With prediction, the bytes after WB's
+    instruction are no longer one run of lines. The check compares a store's
+    or DMA write's line with the lines of the instructions in Q, DC and D to
+    EX, and of the blocks the front end holds or loads next.
 - **Return stack:** 16 entries in flip-flops, holding the linear return address
   and, for a far call, the CS selector.
 - **Indirect** JMP and CALL use the BTB's last target.
