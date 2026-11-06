@@ -464,8 +464,8 @@ st_load:
         rst 0x20
         ld hl,(E_LINE)
         push hl
-        ld hl,0
-        ld (E_LINE),hl
+        xor a
+        ld (E_LINE + 1),a       ; no image would have E_LINE below $0100
         jr load_entry
 load_done:
         pop de
@@ -474,7 +474,7 @@ load_done:
         ld (ERR_SP),hl
         ld hl,(E_LINE)
         ld a,h
-        or l
+        or a
         jr nz,.got
         ld (E_LINE),de          ; nothing came: carry on
         ret
