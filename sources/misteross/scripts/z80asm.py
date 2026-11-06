@@ -782,6 +782,7 @@ def anneal_order(sections, sizes, edges, free, steps=60000, seed=1):
     order = list(sections)
     now = cost(order)
     best, best_order, heat = now, order[:], 2.0
+    cool = (0.05 / heat) ** (1 / steps)
     for _ in range(steps):
         trial = order[:]
         a, b = sorted(rng.sample(range(len(trial)), 2))
@@ -794,7 +795,7 @@ def anneal_order(sections, sizes, edges, free, steps=60000, seed=1):
             order, now = trial, c
             if c < best:
                 best, best_order = c, order[:]
-        heat = max(0.05, heat * 0.9995)
+        heat *= cool
     return best_order
 
 
