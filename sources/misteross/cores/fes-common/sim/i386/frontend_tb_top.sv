@@ -37,8 +37,8 @@ module frontend_tb_top (
     // sequential from each redirect, as frontend_tb.cpp's streams expect.
     fes_i386_frontend dut (
         .clk, .reset, .redirect, .redirect_linear, .code32, .mem_block, .mem_load,
-        .mem_data(mem_data), .mem_valid, .q_valid, .q, .d_ready, .pred_en(1'b0), .btb_wr('0), .held_block,
-        .held_valid
+        .mem_data(mem_data), .mem_valid, .q_valid, .q, .d_ready, .pred_en(1'b0), .btb_wr('0), .ras_set_ptr(4'd0),
+        .ras_set_wr(1'b0), .ras_set_lin(32'd0), .held_block, .held_valid
     );
 
 `ifdef FES_I386_NETLIST

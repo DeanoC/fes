@@ -23,8 +23,17 @@
 // displacement, so the target uops issue behind the branch. EX resolves
 // every branch as before; a branch WB finds taken when it was not predicted
 // so, or not taken when it was, redirects F1 from WB and flushes every
-// younger uop, which costs 10 cycles. Every other branch is predicted not
-// taken. WB writes each direct branch's outcome to the BTB.
+// younger uop, which costs 10 cycles. WB writes each direct branch's
+// outcome to the BTB.
+//
+// The return stack (fes_i386_ras) predicts near RET (C3h, C2h): the BTB
+// keeps an entry for each RET and CALL rel, F2 pushes a predicted CALL rel's
+// return address and sends a predicted RET to the top it pops. D gives the
+// instruction after such a RET (rpt) the EIP of the target's linear address
+// less CS.base, and EX compares it with the EIP the RET pops: a RET whose
+// target differs redirects as a mispredicted branch does. On every
+// redirect WB sets the stack's pointer back to its committed count (see
+// "The return stack"). Every other branch is predicted not taken.
 //
 // Nothing the BTB holds is trusted. The fetch check: AG compares each
 // instruction's fetched linear address with CS.base plus the EIP D gave it,
@@ -34,8 +43,10 @@
 // as an uncached load's does, without serial issue; the BTB set that sent
 // fetch there is cleared. So a wrong target, an entry left by code since
 // changed, a branch found where the entry says none ends, or an entry
-// from the other code size costs a replay, never a result. Under queue16
-// nothing is predicted.
+// from the other code size costs a replay, never a result. The instruction
+// after a predicted RET passes this check by construction, as its EIP comes
+// from its linear address: for a RET's target, EX's compare is the check.
+// Under queue16 nothing is predicted.
 //
 // A load whose bytes have not arrived when it is in M2 freezes D to WB: every
 // stage behind DC keeps its uop, and nothing retires, until they do (freeze).
@@ -440,7 +451,7 @@ module fes_i386_cpu #(
     // that was not, to the next instruction: wb_rlin and wb_reip, chosen as
     // the uop enters WB (see EX).
     logic wb_faulted;
-    logic [31:0] wb_rlin, wb_reip;
+    logic [31:0] wb_rlin, wb_reip, wb_fall;
     assign wb_faulted = wb_s.uop.ctl.fault != fes_i386_pkg::FAULT_NONE;
     assign redirect = start == 2'd2 || !freeze && (wb_redir || int_take);
     assign redirect_linear = start == 2'd2 || wb_faulted || int_take ? start_linear : wb_rlin;
@@ -454,13 +465,16 @@ module fes_i386_cpu #(
     logic        q_valid, d_ready, fe_mem_load, pred_on;
     fetched_t    q;
     btb_write_t  btb_wr;
+    logic [3:0]  ras_set_ptr;
+    logic        ras_set_wr;
+    logic [31:0] ras_set_lin;
     logic [6:0][27:0] fe_block;
     logic [6:0]       fe_valid;
     always_ff @(posedge clk) if (reset) pred_on <= !queue16;
     fes_i386_frontend frontend (
         .clk, .reset, .redirect, .redirect_linear, .code32, .mem_block, .mem_load(fe_mem_load),
-        .mem_data, .mem_valid, .q_valid, .q, .d_ready, .pred_en(pred_on), .btb_wr, .held_block(fe_block),
-        .held_valid(fe_valid)
+        .mem_data, .mem_valid, .q_valid, .q, .d_ready, .pred_en(pred_on), .btb_wr, .ras_set_ptr, .ras_set_wr,
+        .ras_set_lin, .held_block(fe_block), .held_valid(fe_valid)
     );
     assign mem_load = fe_mem_load && !halted && !wb_stop;
 
@@ -566,6 +580,7 @@ module fes_i386_cpu #(
     assign dc_q.bctr = q.bctr;
     assign dc_q.tk = q.tk;
     assign dc_q.xbad = q.xbad;
+    assign dc_q.ptgt = q.ptgt;
     assign d_ready = !dc_skid_valid;
     // A fixed sequence's uops issue from dc in turn: as each but the last
     // issues, dc takes the next (fes_i386_seq), whose rewritten fields come
@@ -673,6 +688,18 @@ module fes_i386_cpu #(
     assign d_pt = dc.tk && d_dbr;
     assign d_tgt_sum = (dc.opsize32 ? d_eip : {16'd0, d_eip[15:0]}) + {28'd0, dc.length} + dc.uop.imm;
     assign d_tgt = dc.opsize32 ? d_tgt_sum : {16'd0, d_tgt_sum[15:0]};
+    // A near RET (op 10, BR_RET) the return stack predicted (rpt): the next
+    // instruction's EIP is the predicted target's linear address less
+    // CS.base, not wrapped by operand size, so a prediction with the wrong
+    // upper bits fails EX's compare. A near CALL's jump (ncall): CALL rel's
+    // (SEQ_CALL) or CALL r/m's (SEQ_CALLI, op 11, BR_JMP_IND).
+    logic        d_nret, d_rpt, d_ncall;
+    logic [31:0] d_reip;
+    assign d_nret = dc.uop.cls == fes_i386_pkg::UOP_BRANCH && dc.uop.op == 5'd10 && dc.seq == fes_i386_pkg::SEQ_NONE;
+    assign d_rpt = dc.tk && d_nret;
+    assign d_reip = dc.ptgt - seg_base[SEG_CS];
+    assign d_ncall = dc.uop.cls == fes_i386_pkg::UOP_BRANCH
+                  && (dc.seq == fes_i386_pkg::SEQ_CALL || dc.seq == fes_i386_pkg::SEQ_CALLI && dc.uop.op == 5'd11);
 
     uop_t        u;
     logic        opsize32, lea, lea_early, consumes, reads_seg, stop;
@@ -1174,7 +1201,7 @@ module fes_i386_cpu #(
             d_stop <= 1'b1;  // until the restart's redirect
         end else if (issue) begin
             d_stop <= stop;
-            if (!dc_more) d_eip <= d_pt ? d_tgt : d_eip_next;
+            if (!dc_more) d_eip <= d_pt ? d_tgt : d_rpt ? d_reip : d_eip_next;
         end
     end
 
@@ -1325,7 +1352,10 @@ module fes_i386_cpu #(
         d_out.ilen = dc.length;
         d_out.fchk = d_first && dc.fetched;
         d_out.dbr = d_dbr;
-        d_out.pt = d_pt;
+        d_out.pt = d_pt || d_rpt;
+        d_out.ncall = d_ncall;
+        d_out.nret = d_nret;
+        d_out.peip = d_reip;
         d_out.bm = dc.bm;
         d_out.bway = dc.bway;
         d_out.bctr = dc.bctr;
@@ -1884,10 +1914,13 @@ module fes_i386_cpu #(
     // A branch predicted taken (pt) that EX finds not taken redirects to the
     // next instruction, CS.base + the next EIP; one predicted taken that is
     // taken does not redirect.
+    // A RET the return stack predicted is always taken: it redirects to its
+    // target when the EIP it popped is not the one D gave the next
+    // instruction (peip).
     logic        ex_pt, ex_mis;
     logic [31:0] ex_fall;
     assign ex_pt = ex_s.pt && ex_out.uop.ctl.fault == fes_i386_pkg::FAULT_NONE;
-    assign ex_mis = ex_out.taken ^ ex_pt;
+    assign ex_mis = ex_out.taken ^ ex_pt || ex_pt && ex_s.nret && ex_ind_eip != ex_s.peip;
     assign ex_fall = seg_base[SEG_CS] + ex_s.eip_next;
     always_ff @(posedge clk) begin
         if (reset) begin
@@ -1906,6 +1939,7 @@ module fes_i386_cpu #(
         if (!freeze) begin
             wb_rlin <= ex_pt && !ex_out.taken ? ex_fall : ex_out.target;
             wb_reip <= ex_pt && !ex_out.taken ? ex_s.eip_next : ex_out.target_eip;
+            wb_fall <= ex_fall;
         end
         if (reset || wb_flush) begin
             wb_s.valid <= 1'b0;
@@ -2720,12 +2754,14 @@ module fes_i386_cpu #(
             btb_wr.valid <= 1'b1;
             btb_wr.ways <= 2'b11;
             btb_wr.index <= frp_n[1] ? frp_prev[11:4] : frp_lin[11:4];
-        end else if (wb_commit && wb_s.dbr && (wb_s.taken || wb_s.bm) && pred_on && !reset) begin
+        end else if (wb_commit && (wb_s.dbr && (wb_s.taken || wb_s.bm) || wb_s.nret) && pred_on && !reset) begin
             btb_wr.valid <= 1'b1;
             btb_wr.ways <= (wb_s.bm ? wb_s.bway : btb_rr) ? 2'b10 : 2'b01;
             btb_wr.index <= wb_blast[11:4];
             btb_wr.entry.valid <= 1'b1;
-            btb_wr.entry.uncond <= wb_s.uop.op == 5'(fes_i386_pkg::BR_JMP);
+            btb_wr.entry.uncond <= wb_s.uop.op == 5'(fes_i386_pkg::BR_JMP) || wb_s.nret;
+            btb_wr.entry.call <= wb_s.ncall;
+            btb_wr.entry.ret <= wb_s.nret;
             btb_wr.entry.ctr <= !wb_s.taken ? (wb_s.bctr == 2'd0 ? 2'd0 : wb_s.bctr - 2'd1)
                               : !wb_s.bm ? 2'd2 : wb_s.bctr == 2'd3 ? 2'd3 : wb_s.bctr + 2'd1;
             btb_wr.entry.last <= wb_blast[3:0];
@@ -2733,13 +2769,40 @@ module fes_i386_cpu #(
             btb_wr.entry.target <= wb_s.target;
         end
         if (reset) btb_rr <= 1'b0;
-        else if (wb_commit && wb_s.dbr && wb_s.taken && !wb_s.bm) btb_rr <= !btb_rr;
+        else if (wb_commit && (wb_s.dbr && wb_s.taken || wb_s.nret) && !wb_s.bm) btb_rr <= !btb_rr;
+    end
+
+    // ---- The return stack ------------------------------------------------------------
+    // The front end's return stack (fes_i386_ras) moves as F2 predicts, so
+    // on a redirect it is set back to what WB has committed: ras_c counts
+    // the near CALLs less the near RETs committed, modulo 16. The uop in WB
+    // when a branch redirects is that branch, which commits on the same
+    // edge, so the pointer counts it; a fault's or an interrupt's redirect
+    // commits nothing (the selects key on the registers redirect_linear's
+    // do). A near CALL that redirects was not predicted, so the front end
+    // never pushed its return address: it is written here, CS.base + the
+    // next EIP. The entries are not restored otherwise: a wrong path's push
+    // over a live entry, a CALL whose return address a program drops (POP
+    // then JMP, ADD SP), or more than 16 CALLs deep cost a later
+    // misprediction, which EX's compare catches.
+    logic [3:0] ras_c, ras_cw;
+    assign ras_cw = ras_c + {3'd0, wb_s.valid && wb_s.ncall} - {3'd0, wb_s.valid && wb_s.nret};
+    assign ras_set_ptr = start == 2'd2 || wb_faulted || int_take ? ras_c : ras_cw;
+    assign ras_set_wr = !(start == 2'd2 || wb_faulted || int_take) && wb_s.valid && wb_s.ncall;
+    assign ras_set_lin = wb_fall;
+    always_ff @(posedge clk) begin
+        if (reset) ras_c <= 4'd0;
+        else if (wb_commit) ras_c <= ras_cw;
     end
     // The prediction's counts for machine_tb --cpu-profile (cpu_profile.vlt
     // reads them; nothing in the CPU does): a direct branch retiring, whether
     // it was predicted taken and was taken, and a fetch check's replay.
-    logic prof_br, prof_pt, prof_taken, prof_frp;
+    logic prof_br, prof_pt, prof_taken, prof_frp, prof_ret, prof_ret_mis;
     assign prof_br = wb_commit && wb_s.dbr;
+    // A near RET retiring, and whether it redirects: not predicted, or to
+    // another target than the return stack's.
+    assign prof_ret = wb_commit && wb_s.nret;
+    assign prof_ret_mis = wb_redir;
     assign prof_pt = wb_s.pt;
     assign prof_taken = wb_s.taken;
     assign prof_frp = rp_go && wb_frp;
