@@ -1,0 +1,295 @@
+{
+  "classification": "synthetic direct interrupt-IN frame timing scenarios, not measured Nano timings",
+  "delivered": 28,
+  "rows": [
+    {
+      "CommitDelayNS": 0,
+      "DataEvents": 1,
+      "Delivered": true,
+      "Error": "",
+      "Overruns": 0,
+      "PhaseNS": 0,
+      "WireNS": 100000
+    },
+    {
+      "CommitDelayNS": 0,
+      "DataEvents": 1,
+      "Delivered": true,
+      "Error": "",
+      "Overruns": 0,
+      "PhaseNS": 0,
+      "WireNS": 300000
+    },
+    {
+      "CommitDelayNS": 100000,
+      "DataEvents": 1,
+      "Delivered": true,
+      "Error": "",
+      "Overruns": 0,
+      "PhaseNS": 0,
+      "WireNS": 100000
+    },
+    {
+      "CommitDelayNS": 100000,
+      "DataEvents": 1,
+      "Delivered": true,
+      "Error": "",
+      "Overruns": 0,
+      "PhaseNS": 0,
+      "WireNS": 300000
+    },
+    {
+      "CommitDelayNS": 900000,
+      "DataEvents": 1,
+      "Delivered": true,
+      "Error": "",
+      "Overruns": 0,
+      "PhaseNS": 0,
+      "WireNS": 100000
+    },
+    {
+      "CommitDelayNS": 900000,
+      "DataEvents": 1,
+      "Delivered": true,
+      "Error": "",
+      "Overruns": 0,
+      "PhaseNS": 0,
+      "WireNS": 300000
+    },
+    {
+      "CommitDelayNS": 1800000,
+      "DataEvents": 1,
+      "Delivered": true,
+      "Error": "",
+      "Overruns": 0,
+      "PhaseNS": 0,
+      "WireNS": 100000
+    },
+    {
+      "CommitDelayNS": 1800000,
+      "DataEvents": 0,
+      "Delivered": false,
+      "Error": "dwc2: packet address=1 endpoint=1 in=true pid=2 split=false complete_split=false received=false done=false nak=false halting=false polls=2 toggle_rx=0 toggle_irqs=0 ack_irqs=0 continuations=0 interval=10ms last_continue={reason=interval sampled=0x0 queue_reg=0x0 queue=0x0 irq=0x0 status=0x0 channel=0x0 transfer=0x0 frame=0x0 wait_ns=8089000}: dwc2: channel error 0x200; channel_commands={seq=1 packet=1 reason=arm value=0xa05e8808 pid=2 done=false nak=false received=false halting=false}",
+      "Overruns": 1,
+      "PhaseNS": 0,
+      "WireNS": 300000
+    },
+    {
+      "CommitDelayNS": 0,
+      "DataEvents": 1,
+      "Delivered": true,
+      "Error": "",
+      "Overruns": 0,
+      "PhaseNS": 100000,
+      "WireNS": 100000
+    },
+    {
+      "CommitDelayNS": 0,
+      "DataEvents": 1,
+      "Delivered": true,
+      "Error": "",
+      "Overruns": 0,
+      "PhaseNS": 100000,
+      "WireNS": 300000
+    },
+    {
+      "CommitDelayNS": 100000,
+      "DataEvents": 1,
+      "Delivered": true,
+      "Error": "",
+      "Overruns": 0,
+      "PhaseNS": 100000,
+      "WireNS": 100000
+    },
+    {
+      "CommitDelayNS": 100000,
+      "DataEvents": 1,
+      "Delivered": true,
+      "Error": "",
+      "Overruns": 0,
+      "PhaseNS": 100000,
+      "WireNS": 300000
+    },
+    {
+      "CommitDelayNS": 900000,
+      "DataEvents": 1,
+      "Delivered": true,
+      "Error": "",
+      "Overruns": 0,
+      "PhaseNS": 100000,
+      "WireNS": 100000
+    },
+    {
+      "CommitDelayNS": 900000,
+      "DataEvents": 1,
+      "Delivered": true,
+      "Error": "",
+      "Overruns": 0,
+      "PhaseNS": 100000,
+      "WireNS": 300000
+    },
+    {
+      "CommitDelayNS": 1800000,
+      "DataEvents": 0,
+      "Delivered": false,
+      "Error": "dwc2: packet address=1 endpoint=1 in=true pid=2 split=false complete_split=false received=false done=false nak=false halting=false polls=1 toggle_rx=0 toggle_irqs=0 ack_irqs=0 continuations=0 interval=10ms last_continue={reason=not-checked sampled=0x0 queue_reg=0x0 queue=0x0 irq=0x0 status=0x0 channel=0x0 transfer=0x0 frame=0x0 wait_ns=0}: dwc2: channel error 0x200; channel_commands={seq=1 packet=1 reason=arm value=0xa05e8808 pid=2 done=false nak=false received=false halting=false}",
+      "Overruns": 1,
+      "PhaseNS": 100000,
+      "WireNS": 100000
+    },
+    {
+      "CommitDelayNS": 1800000,
+      "DataEvents": 0,
+      "Delivered": false,
+      "Error": "dwc2: packet address=1 endpoint=1 in=true pid=2 split=false complete_split=false received=false done=false nak=false halting=false polls=1 toggle_rx=0 toggle_irqs=0 ack_irqs=0 continuations=0 interval=10ms last_continue={reason=not-checked sampled=0x0 queue_reg=0x0 queue=0x0 irq=0x0 status=0x0 channel=0x0 transfer=0x0 frame=0x0 wait_ns=0}: dwc2: channel error 0x200; channel_commands={seq=1 packet=1 reason=arm value=0xa05e8808 pid=2 done=false nak=false received=false halting=false}",
+      "Overruns": 1,
+      "PhaseNS": 100000,
+      "WireNS": 300000
+    },
+    {
+      "CommitDelayNS": 0,
+      "DataEvents": 1,
+      "Delivered": true,
+      "Error": "",
+      "Overruns": 0,
+      "PhaseNS": 500000,
+      "WireNS": 100000
+    },
+    {
+      "CommitDelayNS": 0,
+      "DataEvents": 1,
+      "Delivered": true,
+      "Error": "",
+      "Overruns": 0,
+      "PhaseNS": 500000,
+      "WireNS": 300000
+    },
+    {
+      "CommitDelayNS": 100000,
+      "DataEvents": 1,
+      "Delivered": true,
+      "Error": "",
+      "Overruns": 0,
+      "PhaseNS": 500000,
+      "WireNS": 100000
+    },
+    {
+      "CommitDelayNS": 100000,
+      "DataEvents": 1,
+      "Delivered": true,
+      "Error": "",
+      "Overruns": 0,
+      "PhaseNS": 500000,
+      "WireNS": 300000
+    },
+    {
+      "CommitDelayNS": 900000,
+      "DataEvents": 1,
+      "Delivered": true,
+      "Error": "",
+      "Overruns": 0,
+      "PhaseNS": 500000,
+      "WireNS": 100000
+    },
+    {
+      "CommitDelayNS": 900000,
+      "DataEvents": 1,
+      "Delivered": true,
+      "Error": "",
+      "Overruns": 0,
+      "PhaseNS": 500000,
+      "WireNS": 300000
+    },
+    {
+      "CommitDelayNS": 1800000,
+      "DataEvents": 1,
+      "Delivered": true,
+      "Error": "",
+      "Overruns": 0,
+      "PhaseNS": 500000,
+      "WireNS": 100000
+    },
+    {
+      "CommitDelayNS": 1800000,
+      "DataEvents": 1,
+      "Delivered": true,
+      "Error": "",
+      "Overruns": 0,
+      "PhaseNS": 500000,
+      "WireNS": 300000
+    },
+    {
+      "CommitDelayNS": 0,
+      "DataEvents": 1,
+      "Delivered": true,
+      "Error": "",
+      "Overruns": 0,
+      "PhaseNS": 900000,
+      "WireNS": 100000
+    },
+    {
+      "CommitDelayNS": 0,
+      "DataEvents": 1,
+      "Delivered": true,
+      "Error": "",
+      "Overruns": 0,
+      "PhaseNS": 900000,
+      "WireNS": 300000
+    },
+    {
+      "CommitDelayNS": 100000,
+      "DataEvents": 1,
+      "Delivered": true,
+      "Error": "",
+      "Overruns": 0,
+      "PhaseNS": 900000,
+      "WireNS": 100000
+    },
+    {
+      "CommitDelayNS": 100000,
+      "DataEvents": 1,
+      "Delivered": true,
+      "Error": "",
+      "Overruns": 0,
+      "PhaseNS": 900000,
+      "WireNS": 300000
+    },
+    {
+      "CommitDelayNS": 900000,
+      "DataEvents": 1,
+      "Delivered": true,
+      "Error": "",
+      "Overruns": 0,
+      "PhaseNS": 900000,
+      "WireNS": 100000
+    },
+    {
+      "CommitDelayNS": 900000,
+      "DataEvents": 0,
+      "Delivered": false,
+      "Error": "dwc2: packet address=1 endpoint=1 in=true pid=2 split=false complete_split=false received=false done=false nak=false halting=false polls=2 toggle_rx=0 toggle_irqs=0 ack_irqs=0 continuations=0 interval=10ms last_continue={reason=interval sampled=0x0 queue_reg=0x0 queue=0x0 irq=0x0 status=0x0 channel=0x0 transfer=0x0 frame=0x0 wait_ns=8989000}: dwc2: channel error 0x200; channel_commands={seq=1 packet=1 reason=arm value=0xa05e8808 pid=2 done=false nak=false received=false halting=false}",
+      "Overruns": 1,
+      "PhaseNS": 900000,
+      "WireNS": 300000
+    },
+    {
+      "CommitDelayNS": 1800000,
+      "DataEvents": 1,
+      "Delivered": true,
+      "Error": "",
+      "Overruns": 0,
+      "PhaseNS": 900000,
+      "WireNS": 100000
+    },
+    {
+      "CommitDelayNS": 1800000,
+      "DataEvents": 1,
+      "Delivered": true,
+      "Error": "",
+      "Overruns": 0,
+      "PhaseNS": 900000,
+      "WireNS": 300000
+    }
+  ],
+  "terminal_overruns": 4
+}
