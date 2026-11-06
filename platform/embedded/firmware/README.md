@@ -83,6 +83,23 @@ existing fallback; it cannot promise selector restoration or grant recovery.
 Neither END nor SKIP grants startup or ownership. Sticky values may predate the
 exception, and a clear error record with detection disabled proves no health.
 
+The selected A55 cold diagnostic now brackets the original NOBITS cache
+maintenance with CCU decode-error logging only (`CAIUUEDR.DecErrDetEn`, bit3).
+It first checks CPU identity, reset/power containment and zero detection,
+interrupt and error-status baselines. Enable and disable stores each have
+barriers and readbacks; the separate interrupt register remains zero, and
+the error-status register is never acknowledged. Restoration checks the
+captured status is unchanged. ECC detection controls and the vendor cache
+instructions are untouched.
+
+Register-held state distinguishes idle, possibly enabled and restoration in
+progress. An exception prints the original fault and both existing inventories
+before one guarded restoration attempt. A fault during restoration parks
+without retry; missing readback leaves restoration unproven. The host requires
+the ordered logging cycle before accepting later vendor startup markers.
+Neither a completed diagnostic nor restored logging grants boot ownership.
+This change still requires a matched-image bounded hardware test.
+
 Only that selected profile may accept one non-executable, zero-file-byte NOBITS
 load segment in the fixed range. Packaging independently checks the actual ELF
 symbols, exact stack/BSS boundaries, initialized DDR latch and compiled chain

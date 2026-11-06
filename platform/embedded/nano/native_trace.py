@@ -301,7 +301,7 @@ def decode_native_boot(data, build_id, owner_seed, *, storage=None, package=None
               'last_checkpoint': None, 'core_load_acceptance': False,
               'firmware_ram_trace': {'records': [], 'complete': False, 'valid': True,
                                      'vendor_records': [], 'vendor_complete': False, 'exceptions': [],
-                                     'status_probe': fault_status.state(), 'ras_probe': fault_status.ras_state()}}
+                                     'status_probe': fault_status.state(), 'ras_probe': fault_status.ras_state(), 'decode_log': fault_status.decode_state()}}
     if len(data) > MAX_BYTES:
         report['errors'].append('capture exceeds byte bound')
         return report
@@ -320,6 +320,16 @@ def decode_native_boot(data, build_id, owner_seed, *, storage=None, package=None
             report['errors'].append(f'failure marker at line {number}')
         if line.startswith('FES_NANO_RAM'):
             ram=report['firmware_ram_trace'];rows=ram['records']
+            if line.startswith('FES_NANO_RAM DECODE'):
+                inventory=ram['status_probe'];ras=ram['ras_probe']
+                error=fault_status.observe_decode(ram['decode_log'],line,number,
+                    guard_complete=ram['complete'],
+                    vendor_phase=ram['vendor_records'][-1]['phase'] if ram['vendor_records'] else None,
+                    exception=len(ram['exceptions'])==1,
+                    fault_inventory_complete=inventory['valid'] and inventory['complete'] and ras['valid'] and ras['complete'])
+                if error:
+                    report['errors'].append(error);ram['valid']=False;ram['vendor_complete']=False
+                continue
             if line.startswith('FES_NANO_RAM RAS'):
                 inventory=ram['status_probe']
                 error=fault_status.observe_ras(ram['ras_probe'],line,number,
@@ -349,6 +359,11 @@ def decode_native_boot(data, build_id, owner_seed, *, storage=None, package=None
             vendor=re.fullmatch(r'FES_NANO_RAM VENDOR phase=([a-z-]+)',line)
             if vendor:
                 progress=ram['vendor_records'];phase=vendor[1]
+                decode=ram['decode_log']
+                if (phase=='nobits-cache-before' and (not decode['valid'] or not decode['records'] or decode['records'][-1]['phase']!='enabled') or
+                        phase=='nobits-cache-after' and (not decode['valid'] or not decode['complete'] or not decode['restored'])):
+                    ram['valid']=False
+                    report['errors'].append(f'cache logging lifetime incomplete at line {number}')
                 if (not ram['complete'] or len(progress)>=len(VENDOR_PHASES) or
                         phase!=VENDOR_PHASES[len(progress)] or 'uboot' in observed or
                         phase!='setup-after' and 'el3_capture_before' in observed or
@@ -356,7 +371,7 @@ def decode_native_boot(data, build_id, owner_seed, *, storage=None, package=None
                     ram['valid']=False
                     report['errors'].append(f'out-of-order vendor startup marker at line {number}')
                 if len(progress)<len(VENDOR_PHASES):progress.append(dict(phase=phase,line=number))
-                ram['vendor_complete']=ram['valid'] and tuple(r['phase'] for r in progress)==VENDOR_PHASES
+                ram['vendor_complete']=ram['valid'] and decode['complete'] and decode['restored'] and tuple(r['phase'] for r in progress)==VENDOR_PHASES
                 continue
             match=re.fullmatch(r'FES_NANO_RAM (ENTRY|PASS|REJECT phase=([1-6]))',line)
             if match is None:

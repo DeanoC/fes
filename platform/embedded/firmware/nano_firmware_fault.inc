@@ -3,6 +3,7 @@
  * Switch to park-only vectors before any diagnostic load/store, so a fault in
  * UART logging cannot recurse into the logger. Warm/runtime vectors are not
  * replaced. FES_RAM_FAULT_PARK is injectable only for off-board fixtures. */
+#include "nano_firmware_decode.inc"
 #ifndef FES_RAM_FAULT_PARK
 #define FES_RAM_FAULT_PARK .Lfes_ram_fault_park
 #endif
@@ -85,6 +86,7 @@ fes_nano_ram_fault:
     fes_ram_uart_hex x23
     fes_ram_uart_text fes_nano_ram_fault_newline, 1
 #include "nano_firmware_status.inc"
+    fes_decode_restore 1
     b FES_RAM_FAULT_PARK
 .Lfes_ram_fault_park:
     wfe

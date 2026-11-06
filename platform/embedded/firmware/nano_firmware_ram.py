@@ -159,7 +159,10 @@ def vendor_source(text):
     call = '\t\tbl\tinv_dcache_range\n'
     parts = entry.split(call)
     if len(parts) != 4:raise ValueError('vendor cache context changed')
-    entry = parts[0]+vendor_call(call,'rw-cache')+parts[1]+vendor_call(call,'nobits-cache')+parts[2]+call+parts[3]
+    nobits = ('\tfes_decode_setup\n' +
+              vendor_call(call+'\tfes_decode_restore\n', 'nobits-cache'))
+    entry = (parts[0]+vendor_call(call,'rw-cache')+parts[1]+nobits+
+             parts[2]+call+parts[3])
     call = '\t\tbl\tzeromem\n'
     parts = entry.split(call)
     if len(parts) != 3:raise ValueError('vendor zeroization context changed')
@@ -190,11 +193,11 @@ def entry_source(text, chain):
     before = before.replace(vectors,'\t\t_exception_vectors=fes_nano_ram_fault_vectors')
     before = before.replace(restore,'\tadr\tx8, runtime_exceptions\n\tmsr\tvbar_el3, x8\n\tisb\n'+restore)
     before = before.replace('\tel3_entrypoint_common','\tfes_ram_el3_entrypoint_common')
-    before = before.replace(stash,stash+'\tfes_ram_uart_text fes_nano_ram_vendor_enter\n')
+    before = before.replace(stash,stash+'\tfes_decode_init\n\tfes_ram_uart_text fes_nano_ram_vendor_enter\n')
     before = before.replace(call,vendor_call(call,'setup'))
     text = before+end+after
     return ('#include "fes_nano_ram_entry.h"\n' +
-            text.replace(anchor, anchor + '#include "nano_vendor_entry.inc"\n#include "nano_firmware_entry.inc"\n',1) +
+            text.replace(anchor, anchor + '#include "nano_firmware_decode.inc"\n#include "nano_vendor_entry.inc"\n#include "nano_firmware_entry.inc"\n',1) +
             support_assembly(chain) + '#include "nano_firmware_fault.inc"\n')
 
 
@@ -207,7 +210,7 @@ def install(source, profile):
     (include / 'nano_vendor_entry.inc').write_text(vendor_source((source / COMMON).read_text()))
     (source / ENTRY).write_text(entry_source((source / ENTRY).read_text(), chain))
     (include / 'fes_nano_ram_entry.h').write_text(assembly_header(chain))
-    for name in ('nano_firmware_entry.inc', 'nano_firmware_fault.inc', 'nano_firmware_ram.h'):
+    for name in ('nano_firmware_entry.inc', 'nano_firmware_fault.inc', 'nano_firmware_decode.inc', 'nano_firmware_ram.h'):
         (include / name).write_bytes((HERE / name).read_bytes())
     platform = source / PLATFORM
     text = platform.read_text()
@@ -219,7 +222,7 @@ def install(source, profile):
     c = source / 'plat/intel/soc/common/nano_cold_platform.c'
     c.write_text('#include "fes_nano_ram_entry.h"\n#include "nano_firmware_ram.h"\n' +
                  entry_assertions() + c.read_text())
-    names = [ENTRY, COMMON, PLATFORM, INCLUDE+'/fes_nano_ram_entry.h', INCLUDE+'/nano_vendor_entry.inc', INCLUDE+'/nano_firmware_entry.inc', INCLUDE+'/nano_firmware_fault.inc', INCLUDE+'/nano_firmware_status.inc',
+    names = [ENTRY, COMMON, PLATFORM, INCLUDE+'/fes_nano_ram_entry.h', INCLUDE+'/nano_vendor_entry.inc', INCLUDE+'/nano_firmware_entry.inc', INCLUDE+'/nano_firmware_fault.inc', INCLUDE+'/nano_firmware_decode.inc', INCLUDE+'/nano_firmware_status.inc',
              INCLUDE+'/nano_firmware_ram.h', 'plat/intel/soc/common/nano_cold_platform.c']
     return dict(contract=dict(CONTRACT), chain_sha256=chain,
                 sources={name:hashlib.sha256((source/name).read_bytes()).hexdigest() for name in names})

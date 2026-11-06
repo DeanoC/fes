@@ -56,6 +56,19 @@ def elf():
 class SelectedFirmwareRAMTests(unittest.TestCase):
     run_c=base_fixture.NanoFirmwareRamTests.run_c
 
+    def test_decode_macros_resolve_park_in_production_include_order(self):
+        # CPP processes a GAS macro body at definition time, before expansion.
+        # The decode include precedes the entry include in the real cold path.
+        with tempfile.TemporaryDirectory() as directory:
+            source=Path(directory)/'entry.S'
+            source.write_text(ram.assembly_header('42'*32)+
+                '#include "nano_firmware_decode.inc"\n'+
+                '#include "nano_firmware_entry.inc"\n')
+            expanded=subprocess.check_output(['cc','-E','-P','-x','assembler-with-cpp',
+                '-I'+str(FW),str(source)],text=True)
+            self.assertNotRegex(expanded,r'\bFES_RAM_PARK\b')
+            self.assertIn('b .Lfes_ram_park',expanded)
+
     def test_assembly_wire_constants_are_checked_against_actual_c_headers(self):
         header=ram.assembly_header('42'*32)
         tail='#include "nano_firmware_ram.h"\n'+ram.entry_assertions()+'int main(void) { return 0; }\n'
@@ -139,7 +152,7 @@ int main(void) { return 0; }
             self.assertIn('#include "nano_firmware_fault.inc"',result)
             self.assertIn('\tadr\tx8, runtime_exceptions\n\tmsr\tvbar_el3, x8\n\tisb\n\tmov\tx0, x20\n',result)
             self.assertEqual(result.count('\tfes_ram_el3_entrypoint_common\n'),2)
-            self.assertIn('\tmov\tx23, x3\n\tfes_ram_uart_text fes_nano_ram_vendor_enter\n',result)
+            self.assertIn('\tmov\tx23, x3\n\tfes_decode_init\n\tfes_ram_uart_text fes_nano_ram_vendor_enter\n',result)
             self.assertIn(ram.vendor_call('\tbl\tbl31_setup\n','setup'),result)
             self.assertIn('.quad 0',result);self.assertIn('.data.fes_ram_attempt',result)
             with self.assertRaises(ValueError):ram.entry_source(fixture+'\n','42'*32)
@@ -161,9 +174,13 @@ int main(void) { return 0; }
             generated=ram.vendor_source(fixture)
             for name in ('el3_arch_init_common','el3_entrypoint_common'):
                 copied=ram.vendor_macro(generated,'fes_ram_'+name)
-                restored=re.sub(r'^\tfes_ram_uart_text [^\n]+\n','',copied,flags=re.M).replace('fes_ram_el3_','el3_')
+                restored=re.sub(r'^\t(?:fes_ram_uart_text [^\n]+|fes_decode_(?:setup|restore))\n','',copied,flags=re.M).replace('fes_ram_el3_','el3_')
                 self.assertEqual(restored,ram.vendor_macro(fixture,name))
             self.assertEqual(generated.count('\tfes_ram_uart_text '),12)
+            self.assertEqual(generated.count('\tfes_decode_setup\n'),1)
+            self.assertEqual(generated.count('\tfes_decode_restore\n'),1)
+            self.assertIn('\tfes_decode_setup\n'+ram.vendor_call(
+                '\t\tbl\tinv_dcache_range\n\tfes_decode_restore\n','nobits-cache'),generated)
             with self.assertRaises(ValueError):ram.vendor_source(fixture+'\n')
         for bad in (fixture.replace('init_cpu_data_ptr','missing'),fixture.replace('reset_handler','missing'),
                     fixture.replace('plat_set_my_stack','missing'),fixture.replace('\t\tbl\tinv_dcache_range\n','',1),

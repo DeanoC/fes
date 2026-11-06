@@ -241,3 +241,63 @@ def observe_ras(probe, line, number, *, exception, inventory_complete):
     probe['outcome'] = expected
     probe['record_complete'] = expected == 'both-records' and probe['selector_restored']
     return None
+
+
+DECODE_PHASES = ('idle', 'setup-before', 'baseline-zero', 'enable-before',
+                 'enabled', 'restore-before', 'restored')
+
+
+def decode_state():
+    return dict(records=[], valid=True, complete=False, write_attempted=False,
+                restore_attempted=False, restored=False, failed=False)
+
+
+def observe_decode(probe, line, number, *, guard_complete, vendor_phase,
+                   exception, fault_inventory_complete):
+    """Validate bounded logging lifetime; restoration is never boot permission."""
+    def invalid():
+        probe['valid'] = probe['complete'] = False
+        probe['failed'] = True
+        return f'invalid decode logging trace at line {number}'
+
+    if not guard_complete or not probe['valid'] or probe['failed'] or len(probe['records']) >= 10:
+        return invalid()
+    match = re.fullmatch(r'FES_NANO_RAM DECODE (FAIL )?phase=([a-z-]+)', line)
+    if match is None:
+        return invalid()
+    failure, phase = match.groups()
+    previous = [row['phase'] for row in probe['records']]
+    if failure:
+        allowed = ((phase == 'identity' and not previous) or
+                   (phase == 'admit' and previous and previous[-1] in DECODE_PHASES[:3]) or
+                   (phase == 'enable' and previous and previous[-1] == 'enable-before') or
+                   (phase == 'restore' and previous and previous[-1] != 'restored'))
+        if not allowed:return invalid()
+        probe['records'].append(dict(phase='fail-'+phase, line=number))
+        return invalid()
+    if phase in ('inactive', 'restore-interrupted'):
+        if not exception or not fault_inventory_complete or not previous:
+            return invalid()
+        if phase == 'inactive':
+            if probe['write_attempted'] and not probe['restored']:return invalid()
+        else:
+            if not probe['write_attempted'] or probe['restored']:return invalid()
+            probe['restore_attempted'] = probe['failed'] = True
+            probe['complete'] = False
+        if previous[-1] in ('inactive', 'restore-interrupted'):return invalid()
+        probe['records'].append(dict(phase=phase, line=number))
+        return None
+    expected = DECODE_PHASES[0] if not previous else (DECODE_PHASES[DECODE_PHASES.index(previous[-1])+1] if previous[-1] in DECODE_PHASES[:-1] else None)
+    interrupted_enable = exception and previous and previous[-1]=='enable-before' and phase=='restore-before'
+    if phase != expected and not interrupted_enable:return invalid()
+    if phase == 'idle' and (vendor_phase is not None or exception):return invalid()
+    if phase in DECODE_PHASES[1:5] and (vendor_phase != 'rw-cache-after' or exception):return invalid()
+    if phase in ('restore-before', 'restored'):
+        if exception:
+            if not fault_inventory_complete:return invalid()
+        elif vendor_phase != 'nobits-cache-before':return invalid()
+    if phase == 'enable-before':probe['write_attempted'] = True
+    if phase == 'restore-before':probe['restore_attempted'] = True
+    if phase == 'restored':probe['restored'] = probe['complete'] = True
+    probe['records'].append(dict(phase=phase, line=number))
+    return None
