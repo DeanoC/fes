@@ -452,10 +452,9 @@ name_end:
 ; (string); 101xxxxx max (one byte) elements (array); 111xxxxx value limit
 ; line (FOR); $80 ends them. xxxxx is the first letter's code minus 32.
 
-; CH_ADD -> a variable name. Running: DE -> an integer's or element's
-; value, or a string's text; carry if there is none.
+; HL = CH_ADD -> a variable name. Running: DE -> an integer's or
+; element's value, or a string's text; carry if there is none.
 var_ref:
-        ld hl,(CH_ADD)
         push hl
         call name_end
         ex (sp),hl
