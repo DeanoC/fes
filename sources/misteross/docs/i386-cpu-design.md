@@ -1777,7 +1777,13 @@ it runs uncapped.
    1%. Risk: none beyond slice 2.
 6. **Early ALU.**
    - **First step.** Split the AGI counter by producer: a load, or a late ALU
-     result.
+     result. Done ([record](../../../docs/validation/2026-11-06-i386-phase4-early-alu/summary.md)):
+     `machine_tb --cpu-profile` charges each AGI clock to its producer's
+     class and stage. In DOOM's window AGI is 9.1% of the clocks. Producers
+     an early ALU would run cause 2.0–2.3%, nearly all 32-bit ADD, INC, DEC,
+     SUB with an immediate, and MOV. Loads cause 4.0%, and half of that is
+     the clock `fes_i386_dfwd`'s unused load kind would save. In 3DBench
+     the early ALU's 3.1% is almost all 16-bit ADD, INC and DEC.
    - **Build.** If the ALU share warrants it, the register and immediate
      ALU forms execute at AG, and Jcc and LOOP resolve there when their
      flags or ECX are ready.
