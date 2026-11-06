@@ -10,6 +10,8 @@ __pycache__/
 *.log
 *.json
 !scripts/source_closures.json
+!boards/de25nano/link-proof/zx81-standard/reviewed-inputs.json
+!boards/de25nano/link-proof/zx81-standard/reviewed-topology.json
 !cores/fes-common/rtl/fx68k/source.json
 !cores/fes-common/generated/exchanges.json
 !cores/fes-common/generated/computer-exchanges.json
