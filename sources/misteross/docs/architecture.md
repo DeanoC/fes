@@ -4373,3 +4373,16 @@ identifies all six control synchronizer registers before fitting and requests
 physical audit checks exclusive interstage connectivity, explicit identification,
 two-stage MTBF inclusion and the actual reported rate; defaults fail the audit.
 This profile remains separate from internal16K package and HDMI exceptions.
+
+`scripts/export_de25_static_persona.py --producer /absolute/qualified-build
+--package /absolute/package.fcore --output /absolute/expansions` exports the
+selected `zx81_ram16k` persona; `--persona zx81_empty` selects the empty image.
+It requires the completed package producer's signoff and repeat projects,
+rechecks their source/output seals, all three whole-board timing reports and
+independent base/persona RBF equality, then binds the exact format5 package and
+its primary fitted root. Compile-only candidates and raw findings are refused.
+The two-member format2 `.tar` uses the existing expansion reader's canonical
+manifest and immutable payload bytes. Its sidecar retains the exporter source
+closure and both fits' timing evidence. Current live-audio/reset findings still
+block publication. This build-host command programs no hardware; target-side
+composition continues through the existing Go reader and two-image plan.

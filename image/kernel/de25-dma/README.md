@@ -303,10 +303,17 @@ A failed initial persona attempt remains unavailable. Removing a completed
 persona does not permit another selection: expansion changes require another
 full base load on the next launch. Existing lease exclusion, uncertain-load
 retention, supplier protections and the allocation ABI remain in force. The
-ordinary scanout profile retains its existing behavior. This candidate has no
-runtime loader or package admission yet, and no kernel image is selected or
-deployed by this source change. Kernel tests and physical acceptance remain
-required.
+ordinary scanout profile retains its existing behavior. A runtime qualification
+build with `ENABLE_DE25_STATIC=1` admits sealed format5 packages and uses the
+owned two-image startup programmer. It requires a matched running-kernel
+receipt declaring `de25-cold-persona-retained-v1`; neither a build flag nor
+package metadata substitutes for that kernel contract. Normal runtime builds
+omit the capability and refuse the static profile.
+
+The ordinary-core native trial does not accept physical partial reconfiguration.
+Qualified static package/partial-asset publication, board clock/bridge checks
+and exact-artifact empty/16K startup acceptance remain required. Building this
+source selects or deploys no kernel image.
 
 The ordinary `scripts/de25_kernel_test.py run` keeps this option disabled and
 requires the actual OF refusal test plus the existing owner/lifetime cases.
