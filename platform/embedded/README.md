@@ -6,6 +6,13 @@ the top kit. Playable-core readiness remains open. FES owns
 the base image; FogCast owns tenfoot and its application services; the runtime
 owns FPGA programming, reset, input delivery and DMA lifetime.
 
+The [standard-package native boot path](../../docs/validation/2026-11-06-de25-computer-runtime/README.md)
+now connects the shared Nano `fes.computer` contract to the retained-ROM loader,
+Tenfoot backend and existing owned firmware controls. Off-board tests cover
+launch, return and failures, and a matched SDK/entry/BL31/SPL/FIT/SOF candidate is
+prepared. Its FPGA timing findings remain open; this candidate has not booted or
+loaded a core on hardware and does not establish DE10 feature parity.
+
 The experimental [native computer driver](tamago/computer/README.md) now checks
 the captured DE25 ZX81 Avalon/GP interface through injected platform I/O. Its
 explicit host model tests cover release, input, tape transfer, hold, relaunch

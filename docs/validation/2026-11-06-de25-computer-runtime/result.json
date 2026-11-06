@@ -1,0 +1,115 @@
+{
+  "format": 1,
+  "status": "off-board-passed-hardware-unqualified",
+  "classification": "standard fes.computer admission wired through retained native launch/return and source-bound firmware controls; matched cross-built files only",
+  "base_source": "f7ab6e4890787af26dbf5eacd6590955bd4caa70",
+  "implementation_source": "181a75f41ffb8e1a88e022084eba88f0029442d0",
+  "composition_source": "33a5daa97fa9d93ec301c6e14971d772d76332b7",
+  "package_id": "5979c94889c6e3ee824656f1b7656c81b6a5c2df862a03db7bd8ecf0491311f0",
+  "build_id": "e415ec96ebc1148e4d7e813ae9f42bfb",
+  "ROM_receipt": "55f88d9242b4c28b0a8ee11b621bd9ca915a555445d427a841fd1254b8b38a28",
+  "parent_tests": 1582,
+  "parent_skips": 3,
+  "generated_consumers": 48,
+  "focused_python_tests": 46,
+  "composition_tests": 7,
+  "source_hash_checks": 4370,
+  "normal_ABI_and_driver_admission": true,
+  "native_launch_return_failure_model": true,
+  "actual_package_preflight_without_firmware": true,
+  "native_SDK_entry_BL31_SPL_FIT_SOF_prepared": true,
+  "FPGA_payload_unchanged": true,
+  "final_lanes_completed_after_local_pin": true,
+  "software_aggregate_green": false,
+  "aggregate_failure": "Only the final firmware/RTL integration command failed downloading its exact pinned upstream TF-A blob; the same command completed separately with the verified cached blob. Parent/always/consistency checks passed on composition_source.",
+  "firmware_reference_git_blob": "3c223c1498e3a412e075e4f921cd78acd3d0fcd6",
+  "timing_signoff": false,
+  "timing_findings": [
+    {
+      "rule": "TMC-20012 - Missing Output Delay Constraint",
+      "severity": "High",
+      "violations": 30,
+      "waived": "0"
+    },
+    {
+      "rule": "TMC-20011 - Missing Input Delay Constraint",
+      "severity": "High",
+      "violations": 2,
+      "waived": "0"
+    },
+    {
+      "rule": "RDC-50003 - Multiple Asynchronous Reset Synchronizers in the Same Clock Domain",
+      "severity": "Medium",
+      "violations": 2,
+      "waived": "0"
+    },
+    {
+      "rule": "TMC-20026 - Empty Collection Due To Unmatched Filter",
+      "severity": "Medium",
+      "violations": 2,
+      "waived": "0"
+    },
+    {
+      "rule": "LNT-30023 - Reset Nets with Polarity Conflict",
+      "severity": "Medium",
+      "violations": 1,
+      "waived": "0"
+    },
+    {
+      "rule": "RES-50101 - Intra-Clock False Path Reset Synchronizer",
+      "severity": "Low",
+      "violations": 3,
+      "waived": "0"
+    }
+  ],
+  "physical_programming_admission": false,
+  "live_secure_boot_and_master_stop_hardware_verified": false,
+  "hardware_actions": false,
+  "physical_activation": false,
+  "physical_controls_verified": false,
+  "physical_HDMI_verified": false,
+  "native_Ethernet_verified": false,
+  "core_load_acceptance": false,
+  "DE10_feature_parity": false,
+  "board_running_state": "unknown following user-reported power interruption; passive USB enumeration was checked separately; requires requalification before next hardware action",
+  "integration_evidence_directories": [
+    "out/native-fabric-hooks-d1ffffe9ad634448b6a81b3dad0fe0a1",
+    "out/native-fabric-hooks-9d7663d0421c4b95b69e6b2d7eab9b8e"
+  ],
+  "evidence_sha256": {
+    "out/nano-native-computer-runtime-20261106/native-focused-result.json": "22a3610db9244096c1b70ee9cc98c57b56e99c2293f09d6dab0761b8d886c9f0",
+    "out/nano-native-computer-runtime-20261106/python-focused-v2-result.json": "ab7aa6a90b09727f59ede5e3cbcac64d64db67b6411a1791ca9a327fad52bb02",
+    "out/nano-native-computer-runtime-20261106/composition-contract-result.json": "b4400962e7bda9810b7de0f555d5ad02840e25e1422ba398c18f8f8d93e85c6d",
+    "out/nano-native-computer-runtime-20261106/sdk-final-result.json": "3fe8d849eb7bbf4b9fd974c864261dc76a85b6afc622e62c7f4424045c3ce771",
+    "out/nano-native-computer-runtime-20261106/native-entry-final-result.json": "f7a1426d8a08cdfaa97e5c231add99c77d7e09721d383c5bf7e068a648d1f0ca",
+    "out/nano-native-computer-runtime-20261106/bl31-final-result.json": "a08e43dab74b4281da438b929bad32c71f46e6d96dae56ab9e600c2e7ef3da1f",
+    "out/nano-native-computer-runtime-20261106/uboot-final-result.json": "4d7f2dcd92ce3103c2c7fc3b0cacf8a119fe1259d1717b099968871e21001ccd",
+    "out/nano-native-computer-runtime-20261106/composition-final-result.json": "c2bc982f721ad5da761ee3b3aa368e6bf6dff79b2c614aff7aba5fa83a9fec3b",
+    "out/nano-native-computer-runtime-20261106/artifact-preflight-result.json": "9a21d7cb0652c579779e800adec4bf2a49b5aeb161963cf289731efee19603bf",
+    "out/nano-native-computer-runtime-20261106/chain-audit-v2-result.json": "e08012a8c3ff84834c4dc0feea8a4a2df205c57b20f7094d3b20c0e635fc2dee",
+    "out/nano-native-computer-runtime-20261106/integration-local-pin-result.json": "828f6fc41c299467163b94ff2f1778ff61720c881a44ed146ba3a3f9550b0077",
+    "out/nano-native-computer-runtime-20261106/affected-final-result.json": "4efa177e59cd0113ebaef3a911a2661dace0337139f371275ac340cbb7f9f31f",
+    "out/nano-native-computer-runtime-20261106/affected-final.log": "aad95d9aafb608afdaa31b75fb0a527a79ec56daa4194f5c349aca79f452929a",
+    "out/nano-native-computer-runtime-20261106/chain-audit.json": "faadfef182e31c279ab0f3724fd64d0e384ff057a4d4d070e8c5aa7a279d3be2",
+    "out/nano-native-computer-runtime-20261106/integration-local-pin/result.json": "5d63b298c77f1210afafd3576bdf908103d7bff16d951654e4f6792dcdce71fc",
+    "out/nano-native-computer-runtime-20261106/source.json": "60f9b57aeed0e28b76151ddfadf962362b99fb09a10f0a4634426093ee5b8e91",
+    "out/nano-native-computer-runtime-20261106/audit_chain.py": "3adbfc60c181ad335e2916d856ad5520ca142f2d4c743f86261d4c839c708453",
+    "out/native-fabric-hooks-9d7663d0421c4b95b69e6b2d7eab9b8e/firmware.log": "502592703fcc6720ee10c3ad55f8c5374540c6b8393f81410933729d6c107a48",
+    "out/nano-native-computer-runtime-20261106/native-sdk/result.json": "b4fc6abb600f2ed0d3d951ac77965065a7a8dd5eacca9aececb0a30695c0ed93",
+    "out/nano-native-computer-runtime-20261106/native-sdk/fpgaload.elf": "3a29de5ddd2f11b8b8abd100e85417235594579f0bb401bc2c8ea9097f9f566c",
+    "out/nano-native-computer-runtime-20261106/native-entry/result.json": "85e5b713f8971bbe8ffe9291ca48ecc1e0fd2b1c533f392b796e7ddb5f0dc151",
+    "out/nano-native-computer-runtime-20261106/native-entry/entry.img": "3ee520224bd989d98ca3eaa3032649dfbda324a0d74a776df1af5afbc7d35840",
+    "out/nano-native-computer-runtime-20261106/native-bl31-final/result.json": "894237a196888d3bde9543bb5459452359387342201dc8c36c3e1d00fb7c2fdd",
+    "out/nano-native-computer-runtime-20261106/native-bl31-final/source/build/agilex5/release/bl31.bin": "c481c88acaf6ee79490a9991987a5f8e689c0d56d512a10d844c1224ac2adf3a",
+    "out/nano-native-computer-runtime-20261106/native-uboot-final/result.json": "12649a3a13128011f720e1b8d241891aa8109258876801d7f1e4c5cd6259fb94",
+    "out/nano-native-computer-runtime-20261106/native-uboot-final/build/u-boot.itb": "5b82a7773e7bcb28ac2e19bcb1bf6ab1231ea38cd87d4b1dd0034aa88c030f99",
+    "out/nano-native-computer-runtime-20261106/native-uboot-final/build/spl/u-boot-spl-dtb.hex": "d377d600b5a35c6737ccf0b01a05546a6cb6e5be56ae2819b16a064ae209051b",
+    "out/nano-native-computer-runtime-20261106/native-composition-final/result.json": "601d218b0c18ea2ec2a7e2bf47e182cee2fc882859226373064f367ffb3181c3",
+    "out/nano-native-computer-runtime-20261106/verified-cold-profile.h": "67bbf05e320bcbfb292407c624e2bdefeecdfebb140df2b77d026ee629a3df84"
+  },
+  "next_steps": [
+    "Close the existing external timing coverage and all six signoff findings without waivers; rebuild and revalidate if FPGA producer inputs change.",
+    "Prepare a fresh bounded operator for the standard package and requalify TRWU8CBL before a hardware boot; the former diagnostic operator does not cover this package.",
+    "Continue native display/menu-to-core transitions, physical input and media acceptance, and native networking toward DE10 behavior."
+  ]
+}
