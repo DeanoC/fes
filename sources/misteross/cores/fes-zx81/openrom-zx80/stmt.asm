@@ -9,8 +9,6 @@ statement:
         call k_here
         sub T_LIST
         jr c,syntax_err
-        cp T_REM - T_LIST + 1
-        jr nc,syntax_err
         add a,a
         ld l,a
         ld h,0
@@ -18,21 +16,22 @@ statement:
         add hl,de
         call peek_word
         push hl
-        call next_ch                ; A = what follows the keyword
-        ret
+        jr next_ch              ; A = what follows the keyword
 
 stmt_table:
         dw st_list, st_return, st_cls, st_dim, st_save, st_for, st_goto
         dw st_poke, st_input, st_rand, st_let, syntax_err, syntax_err
         dw st_next, st_print, syntax_err, st_new, st_run, st_stop
-        dw st_cont, st_if, st_gosub, st_load, st_clear, st_rem
+        dw st_cont, st_if, st_gosub, st_load, st_clear, stmt_end.go
+        dw syntax_err
 
 ; RST 20, continued: the statement must end here (A = the character).
 ; Running, keeps BC, DE, HL; checking, the check is over and good.
+; REM comes in at .go: the rest of the line is not looked at.
 stmt_end:
         cp C_NL
         jr nz,syntax_err
-        bit F_CHECK,(iy+Y_FLAGS)
+.go:    bit F_CHECK,(iy+Y_FLAGS)
         ret z
         jr unwind
 
@@ -55,9 +54,7 @@ one_letter:
         jr c,syntax_err
         cp C_DOLLAR
         jr z,syntax_err
-        ld (CH_ADD),hl
-        rst 0x18
-        ret
+        jr gc_store
 
 ; (HL) = record type A with DEST's letter; HL + 1. Keeps BC, DE.
 letter_byte:
@@ -80,15 +77,6 @@ put_de: ld (hl),e
         inc hl
         ret
 
-; Z if the line running is a command.
-cmd_line:
-        ld de,(PPC)
-        inc de
-        inc de
-        ld a,d
-        or e
-        ret
-
 ; ---------------------------------------------------------------------
 ; The run loop. ERR_SP is the stack each line starts with; its slot holds
 ; the report routine, and GOSUB records lie above it.
@@ -101,16 +89,11 @@ line_end:
         ld a,(ERR_NR)
         inc a
         jr nz,unwind            ; an error: report it
-        bit F_JUMP,(iy+Y_FLAGS)
-        jr nz,.jump
-        call cmd_line
+        ld a,(PPC + 1)
+        inc a
         jr z,unwind             ; a command has finished: 0
         ld hl,(CH_ADD)
         call line_skip
-        jr .at
-.jump:  res F_JUMP,(iy+Y_FLAGS)
-        ld bc,(PPC)
-        call find_line
 .at:    ld de,(VARS)
         rst 0x28
         jr nc,unwind            ; no line: 0 and the last or wanted line
@@ -144,8 +127,8 @@ report: dec sp                  ; keep the slot
         call c,cls
         ld b,(iy+Y_LINE)
         call fill_nl
-        ld (iy+Y_LINE),0
-        ld (iy+Y_COL),33
+        ld hl,0x0021            ; the bottom row, empty
+        ld (S_POSN),hl
         pop af
         add a,C_0
         rst 0x10
@@ -171,7 +154,6 @@ st_return:
         pop de                  ; the slot
         pop hl
         ld a,h
-        xor GOSUB_END >> 8
         or l
         jr nz,.ok
         push hl
@@ -196,7 +178,6 @@ st_run: call opt_num
         pop de
 .r:     pop hl
         ld a,h
-        xor GOSUB_END >> 8
         or l
         jr nz,.r
         push hl
@@ -226,8 +207,10 @@ st_goto:
 ; Jump to line HL.
 jump_hl:
         ld (PPC),hl
-        set F_JUMP,(iy+Y_FLAGS)
-        jr line_end
+        ld b,h
+        ld c,l
+        call find_line
+        jr line_end.at
 
 st_clear:
         rst 0x20
@@ -253,13 +236,6 @@ st_cls: rst 0x20
 
 st_save:
         rst 0x20             ; the FES core keeps no ZX80 tape output
-        ret
-
-st_rem: ld hl,(CH_ADD)
-        call line_skip
-        dec hl
-        ld (CH_ADD),hl
-        rst 0x20
         ret
 
 st_if:  call expr_num
@@ -315,7 +291,8 @@ st_let: call dest
 st_input:
         call dest
         rst 0x20
-        call cmd_line
+        ld a,(PPC + 1)          ; not as a command
+        inc a
         jr nz,.prog
         rst 8
         db R_INPUT
@@ -337,9 +314,7 @@ st_input:
         ld a,C_QUOTE            ; a string: the cursor inside quotes
         call edit_insert
         call edit_insert
-        ld hl,(P_PTR)
-        dec hl
-        ld (P_PTR),hl
+        call edit_line.left
 .go:    ld hl,(DF_END)
         ld (DF_EA),hl           ; where the output ends
         set F_INPUT,(iy+Y_FLAGS)
@@ -366,10 +341,9 @@ st_for: call one_letter
         rst 0x30
         db T_TO
         call expr_num
-        pop de
         rst 0x20
-        push hl                 ; limit
-        push de                 ; start
+        ex (sp),hl              ; limit under start
+        push hl
         ld hl,(DEST)
         ld bc,0x0160
         call find_var           ; any integer of that letter goes
@@ -432,10 +406,8 @@ st_dim: call one_letter
         rst 0x20
         inc h
         dec h
-        jr z,.ok
-        rst 8                   ; 0 to 255 only
-        db R_SUBSCR
-.ok:    ld e,l
+        jr nz,elem_addr.range   ; 0 to 255 only
+        ld e,l
         push de
         inc hl
         add hl,hl
@@ -461,20 +433,18 @@ st_dim: call one_letter
 st_print:
         cp C_NL
         jr z,.nl
-.item:  cp T_SEMI
-        jr z,.sep
-        cp T_COMMA
-        jr z,.sep
+.item:  sub T_SEMI              ; 0 for ;, 1 for ,
+        cp 2
+        jr c,.sep
         call expr
         call .val
         rst 0x18
         cp C_NL
         jr z,.nl
-        cp T_SEMI
-        jr z,.sep
-        cp T_COMMA
-        jr nz,syntax_err
-.sep:   cp T_COMMA
+        sub T_SEMI
+        cp 2
+        jr nc,syntax_err
+.sep:   dec a
         call z,.tab
         call next_ch
         cp C_NL
@@ -482,9 +452,7 @@ st_print:
         rst 0x20             ; a final ; or , : no NEWLINE
         ret
 .nl:    rst 0x20
-        ld a,C_NL
-        rst 0x10
-        ret
+        jr print_nl
 .val:   call run_only
         bit F_NUM,(iy+Y_FLAGS)
         jr z,print_str

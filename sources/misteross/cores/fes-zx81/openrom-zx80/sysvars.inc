@@ -35,7 +35,6 @@ LAST_K   equ RESULT
 F_SPACE  equ 0          ; a keyword's trailing space was just printed
 F_INPUT  equ 1          ; INPUT is collecting a line
 F_EDIT   equ 2          ; characters are typed into the edit line (EDIT)
-F_JUMP   equ 3          ; PPC holds the next line to run
 F_KMODE  equ 4          ; the cursor shows K
 F_DNUM   equ 5          ; INPUT wants a number (F_NUM bit 6 just above)
 F_NUM    equ 6          ; last expression was numeric
@@ -113,4 +112,4 @@ R_RETURN   equ 6        ; 7 RETURN without GOSUB
 R_INPUT    equ 7        ; 8 INPUT as a command
 R_STOP     equ 8        ; 9 STOP
 
-GOSUB_END equ 0x8000    ; below the GOSUB records: not a line number
+GOSUB_END equ 0         ; below the GOSUB records: not a line to return to
