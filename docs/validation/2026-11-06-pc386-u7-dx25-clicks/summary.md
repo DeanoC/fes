@@ -3,6 +3,11 @@
 Issue [#1427](https://github.com/DeanoC/fes/issues/1427). Kit B run `w1`,
 on the 386DX-25 governor preset (preset 3).
 
+**Evidence class: hardware diagnostic.** This is not exact-artifact hardware
+acceptance. `w1` ran main's games image on #1481's core seal (`ee7ea9bb4`),
+not on a seal of current main's RTL. It shows the cause and the effect of the
+games-image fix, and it accepts no core build.
+
 **Result.** #1427 is the dangling INT 33h handler from
 [#1485](https://github.com/DeanoC/fes/issues/1485), which MOUSEDEF.COM in the
 games image fixed (PR [#1495](https://github.com/DeanoC/fes/pull/1495), on
