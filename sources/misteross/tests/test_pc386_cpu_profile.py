@@ -271,7 +271,7 @@ def snapshot(at: float, cycles: int, sampled: int, buckets: dict, commits: int =
     names.update(dict.fromkeys(profile.ISSUE, 0))
     names.update(buckets)
     return textwrap.dedent(f'''\
-        T {at} cycles={cycles} sampled={sampled} retired={commits} pm_retired=0 commits={commits} flush_cycles={flush_cycles} redirects=0 l1d_waits=0 l1i_waits=0 frames=0 polls_3da=0 io=0 prefixes=0 in_flight={in_flight}
+        T {at} cycles={cycles} sampled={sampled} retired={commits} pm_retired=0 commits={commits} flush_cycles={flush_cycles} redirects=0 l1d_waits=0 l1i_waits=0 frames=0 polls_3da=0 io=0 prefixes=0 in_flight={in_flight} br=0 br_taken=0 br_pt=0 br_pt_taken=0 fetch_replays=0
         B {at} ''') + ' '.join(f'{k}={v}' for k, v in names.items()) + '\n'
 
 

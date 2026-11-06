@@ -42,7 +42,15 @@ an L1D and a bus interface on HPS DDR port 0, with an uncached path to MMIO
 
 ## Front end
 
-Fetch is sequential from the last redirect; there is no prediction yet.
+Fetch is sequential from the last redirect except where the branch target
+buffer (`fes_i386_btb`) predicts a branch taken: F2 then sends F1 to the
+entry's target on the next edge, one bubble, and the fetch buffer fills its
+halves alternately so the target's block follows its branch's. Q goes on at
+the target after the instruction that ends where the entry says
+(`fes_i386_fetchbuf`'s `jm`, `jt` and `jx`, registered from next-cycle state
+as availability is). [The design's Prediction section](../../../../docs/i386-cpu-design.md#prediction)
+gives the entry, its update and the checks that make every prediction safe.
+The front-end bench writes no entries, so its fetch stays sequential.
 The fetch port is the L1I's way-selected output (`fes_i386_l1i`), an M10K
 read with address stall: `mem_data` is the block at the address registered
 on the last edge with `mem_load`, and `mem_valid` says that response is
@@ -1018,12 +1026,14 @@ FLUSH empties the buffer and clears both L1s. A CPU reset clears both L1s'
 valid bits and leaves the buffer to drain and any read in flight to finish
 unseen; `cold_reset` also empties the buffer.
 
-**Self-modifying code** (`fes_i386_cpu`). Fetch is sequential from the last
-redirect, and every redirect comes from WB, so the instructions after the
-one in WB are one run of lines: from CS.base + EIP (`smc_lo`, a cycle old,
-except that on the cycle after a redirect it is the redirect's line, where F1
-has just loaded) to the block F1 loads next (`fetch_next`), which holds every block F2
-may still read from the L1I before a clear of a line there lands. A store WB
+**Self-modifying code** (`fes_i386_cpu`). The instructions after the one in
+WB came from the lines of the instructions in Q's record, DC's two and D to
+EX (each one's first line and the next, which it may run into), and of the
+blocks the front end holds or loads next (`fes_i386_fetchbuf`'s
+`held_block`: F1's next, a predicted target F1 loads next, F2's, L1's, L2's
+and the two halves'), among them every block F2 may still read from the L1I
+before a clear of a line there lands. With prediction they are not one run
+of lines, so each is compared on its own. A store WB
 commits into one of those lines, or a DMA write (the bus interface's
 `inv_valid`), may have changed bytes the front end holds. The CPU then
 restarts an instruction after it, under the coherent profile and for DMA the
@@ -1035,8 +1045,7 @@ flushes it and everything younger and the front end restarts at it through
 uop has passed EX. By then the L1I has cleared the line, and the fill waits
 for the store's write-buffer entry, so the instruction runs the new bytes
 (the coherent profile). The instruction that stored completes as it was
-decoded. Lines compare by bits 19:5 as two carry
-chains (a subtraction and its borrow), modulo 1 MiB, where linear and
+decoded. Lines compare by bits 19:5 for equality, modulo 1 MiB, where linear and
 physical agree under A20M and for the shadow at FFFF0000h: an alias 1 MiB
 away, or a line of data next to code, restarts for nothing. Every input of
 the check but the L1D's `unc_start` is a register, and its decision reaches

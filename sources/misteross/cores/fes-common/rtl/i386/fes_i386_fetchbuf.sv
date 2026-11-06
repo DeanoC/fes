@@ -10,8 +10,8 @@
 // for every size variant (fes_i386_lstage) and writes block and decode into
 // its half of the buffer once Q has released that half.
 //
-// The buffer is two 16-byte halves; buffer byte j holds linear byte j mod 32
-// of the block in its half. A decoder needs four bytes after its own, so a
+// The buffer is two 16-byte halves; buffer byte j holds byte j mod 16 of the
+// block in its half. A decoder needs four bytes after its own, so a
 // block's bytes 0-11 are decoded as it passes L1 and its bytes 12-15 when the
 // next sequential block does: L1 sees the previous block's last four bytes,
 // which L2's register still holds, and then its own block.
@@ -21,6 +21,23 @@
 // says it has arrived. F2 waits for it, and the address stays loaded until F2
 // takes the block; a redirect replaces a request still waiting.
 //
+// Prediction (fes_i386_btb, read with the memory). When F2 passes on a block
+// whose BTB entry predicts its branch taken, F1 loads the entry's target
+// block on the next edge in place of the sequential one it loaded with the
+// pass, which F2 drops: one bubble. The halves are filled alternately, from
+// the redirect's half, not by block address, so the target block follows its
+// branch's block whatever its address. Each block carries its BTB lookup
+// (btb_info_t) and whether it is the sequential successor of the block
+// filled before it (seq); both are kept per half.
+//
+// jm[j][v] says the instruction at buffer byte j under variant v ends where
+// a half's BTB entry says its branch ends (that half's block holds the
+// branch's last byte; jx[j][v] names the half), and jt[j][v] that the entry
+// was predicted taken, so Q goes on at the target, in the half after that
+// one. They are registered from next-cycle state as avail is, so
+// Q's loop reads one register. An entry ends a branch in its half or at the
+// next half's byte 0, so the two halves' ends never coincide.
+//
 // avail[j][v] says Q may issue or consume the instruction at buffer byte j
 // under accumulator variant v: byte j's half is valid, its bytes 12-15 have
 // been decoded if j is one of them, and if the instruction ends past its half,
@@ -28,7 +45,16 @@
 // state, so Q's loop reads one register. It ignores Q's release of a half on
 // this edge: Q's start has then left that half and cannot read it next cycle.
 // For the same reason the next half's term assumes a release whenever Q is in
-// that half now.
+// that half now. A taken jump from a branch that starts in the half before
+// its last byte's leaves Q in the half it releases, for the target; Q clears
+// avail then (jump_clear).
+//
+// A block's bytes 12-15 are decoded with the block filled after it, so after
+// a predicted branch's block with the target's bytes. Every instruction up to
+// and including the branch ends at or before the branch's end, and an x86
+// length depends only on the instruction's own bytes, so their lengths are
+// right; an instruction that runs past the end into the target's half is
+// flagged by Q (xbad).
 module fes_i386_fetchbuf import fes_i386_pkg::*; (
     input  logic              clk,
     input  logic              reset,
@@ -37,7 +63,6 @@ module fes_i386_fetchbuf import fes_i386_pkg::*; (
     input  logic              code32,
     output logic [27:0]       mem_block,
     output logic              mem_load,
-    output logic [27:0]       fetch_next,     // the block F1 loads next, unless a redirect comes first
     input  logic [15:0][7:0]  mem_data,
     input  logic              mem_valid,
     input  logic [1:0]        release_half,   // Q left this half on this edge
@@ -48,7 +73,27 @@ module fes_i386_fetchbuf import fes_i386_pkg::*; (
     output logic [31:0][7:0]  bytes,
     // Each buffer byte's decode from L2 (fes_i386_lstage), by accumulator variant.
     output lbyte_t [31:0]     dec,
-    output logic [31:0][3:0]  avail
+    output logic [31:0][3:0]  avail,
+    // Prediction: the BTB's lookup of F2's block, whether to predict, the
+    // per-half BTB information and sequential flags, and Q's taken jump
+    // that empties both halves (avail clears).
+    output logic [3:0]        btb_enter,      // where fetch entered F2's block (fes_i386_btb enter)
+    input  logic              btb_hit,
+    input  logic              btb_way,
+    input  btb_entry_t        btb_entry,
+    input  logic              pred_en,
+    input  logic              jump_clear,
+    output btb_info_t [1:0]   half_info,
+    output logic [1:0]        half_seq,
+    output logic              l2_seq,
+    output logic [31:0][3:0]  jm,
+    output logic [31:0][3:0]  jt,
+    output logic [31:0][3:0]  jx,
+    // The blocks the front end holds or loads next, for the self-modifying
+    // code check (fes_i386_cpu): F1's next (fetch_block or a predicted
+    // target), F2's, L1's, L2's and the two halves', each with a valid bit.
+    output logic [6:0][27:0]  held_block,
+    output logic [6:0]        held_valid
 );
     logic [1:0]       tail_ok;  // the half's bytes 12-15 are decoded
     logic [1:0]       filling;  // L2 writes this half on this edge
@@ -63,16 +108,31 @@ module fes_i386_fetchbuf import fes_i386_pkg::*; (
     logic [15:0][7:0] l2_bytes;
     lclass_t [15:0]   l2_cls;
     logic             half, l2_fire, l1_advance, f2_advance;
+    // Prediction: pred_go, F1 loads pred_block on this edge (F2 passed on a
+    // block predicted taken on the last); f2_seq, F2's block follows the
+    // block before it; the blocks' BTB lookups and sequential flags in L1
+    // and L2.
+    logic             pred_go, pred_now, f2_seq, l1_seq;
+    logic [27:0]      pred_block;
+    logic [3:0]       pred_enter;
+    btb_info_t        f2_info, l1_info, l2_info;
+    logic             btb_taken;
 
-    assign half = l2_block[0];
+    // half: the half L2's block goes to, alternately from the redirect's.
     assign l2_fire = l2_valid && !half_valid[half];
     assign l1_advance = l1_valid && (!l2_valid || l2_fire);
-    assign f2_advance = active && mem_valid && (!l1_valid || l1_advance);
+    assign f2_advance = active && mem_valid && (!l1_valid || l1_advance) && !pred_go;
     assign filling = {l2_fire && half, l2_fire && !half};
     assign fill_bytes = l2_bytes;
-    assign mem_load = redirect || f2_advance;
-    assign mem_block = redirect ? redirect_linear[31:4] : fetch_block;
-    assign fetch_next = fetch_block;
+    assign mem_load = redirect || pred_go || f2_advance;
+    assign mem_block = redirect ? redirect_linear[31:4] : pred_go ? pred_block : fetch_block;
+
+    assign btb_taken = btb_entry.uncond || btb_entry.ctr[1];
+    assign pred_now = f2_advance && btb_hit && btb_taken && pred_en;
+    assign f2_info = '{hit: btb_hit, way: btb_way, ctr: btb_entry.ctr, last: btb_entry.last,
+                       taken: pred_now, toff: btb_entry.target[3:0]};
+    assign held_block = {pred_block, fetch_block, f2_block, l1_block, l2_block, half_block[1], half_block[0]};
+    assign held_valid = {pred_go, active, active, l1_valid, l2_valid, half_valid[1], half_valid[0]};
 
     // L1: the decoders on F2's block behind the previous block's bytes 12-15.
     lclass_t [15:0] new_cls;
@@ -91,7 +151,7 @@ module fes_i386_fetchbuf import fes_i386_pkg::*; (
     assign valid_next = half_valid | filling;
     assign tail_next = tail_ok & ~filling | ({!half, half} & {2{l2_fire}} & half_valid);
     assign l2_valid_next = l1_advance || (l2_valid && !l2_fire);
-    assign l2_half_next = l1_advance ? l1_block[0] : half;
+    assign l2_half_next = half ^ l2_fire;
     assign hold_next = {l2_valid_next && l2_half_next, l2_valid_next && !l2_half_next};
 
     logic [31:0][3:0] avail_next;
@@ -114,11 +174,49 @@ module fes_i386_fetchbuf import fes_i386_pkg::*; (
     end
 
     always_ff @(posedge clk) begin
-        if (reset || redirect) begin
+        if (reset || redirect || jump_clear) begin
             avail <= '0;
         end else begin
             avail <= avail_next;
         end
+    end
+
+    // ---- BTB matches -------------------------------------------------------
+    // Each half's entry, as next cycle sees it: the branch's end as a buffer
+    // position (the byte after its last), valid while the half is.
+    btb_info_t [1:0] info_next;
+    logic [1:0][4:0] end_next;
+    logic [1:0]      ion_next;
+    for (genvar x = 0; x < 2; x++) begin : g_info
+        assign info_next[x] = filling[x] ? l2_info : half_info[x];
+        assign end_next[x] = {1'(x), 4'd0} + {1'b0, info_next[x].last} + 5'd1;
+        assign ion_next[x] = valid_next[x] && info_next[x].hit;
+    end
+    logic [31:0][3:0] jm_next, jt_next, jx_next;
+    for (genvar j = 0; j < 32; j++) begin : g_match
+        localparam int H = j / 16;
+        localparam int K = j % 16;
+        localparam int SLOT = K < 12 ? K + 4 : K - 12;
+        logic   written;
+        lbyte_t d;
+        assign written = l2_fire && (half == (H != 0)) == (K < 12);
+        assign d = written ? new_dec[SLOT] : dec[j];
+        for (genvar v = 0; v < 4; v++) begin : g_variant
+            logic [4:0] n;
+            logic       m0, m1;
+            // Where Q goes after the instruction, as fes_i386_qalign works it out.
+            assign n = {!(d.fin[v][4] ^ ((K < 12) == (H != 0))), d.fin[v][3:0]};
+            assign m0 = ion_next[0] && n == end_next[0];
+            assign m1 = ion_next[1] && n == end_next[1];
+            assign jm_next[j][v] = m0 || m1;
+            assign jx_next[j][v] = m1;
+            assign jt_next[j][v] = m0 && info_next[0].taken || m1 && info_next[1].taken;
+        end
+    end
+    always_ff @(posedge clk) begin
+        jm <= jm_next;
+        jt <= jt_next;
+        jx <= jx_next;
     end
 
     always_ff @(posedge clk) begin
@@ -128,24 +226,44 @@ module fes_i386_fetchbuf import fes_i386_pkg::*; (
             l2_valid <= 1'b0;
             half_valid <= 2'b00;
             tail_ok <= 2'b00;
+            pred_go <= 1'b0;
         end else if (redirect) begin
             active <= 1'b1;
             f2_block <= redirect_linear[31:4];
             fetch_block <= redirect_linear[31:4] + 28'd1;
+            f2_seq <= 1'b0;
+            btb_enter <= redirect_linear[3:0];
+            half <= redirect_linear[4];
             l1_valid <= 1'b0;
             l2_valid <= 1'b0;
             half_valid <= 2'b00;
             tail_ok <= 2'b00;
+            pred_go <= 1'b0;
         end else begin
             half_valid <= (half_valid & ~release_half) | filling;
             // A fill completes the other half's tail when that half holds the
             // previous block.
             tail_ok <= tail_ok & ~release_half & ~filling
                      | ({!half, half} & {2{l2_fire}} & half_valid & ~release_half);
+            if (l2_fire) half <= !half;
+            pred_go <= pred_now;
+            if (pred_now) begin
+                pred_block <= btb_entry.target[31:4];
+                pred_enter <= btb_entry.target[3:0];
+            end
+            if (pred_go) begin
+                // The sequential block F1 loaded with the pass is dropped.
+                f2_block <= pred_block;
+                fetch_block <= pred_block + 28'd1;
+                f2_seq <= 1'b0;
+                btb_enter <= pred_enter;
+            end
             if (f2_advance) begin
                 l1_valid <= 1'b1;
                 f2_block <= fetch_block;
                 fetch_block <= fetch_block + 28'd1;
+                f2_seq <= 1'b1;
+                btb_enter <= 4'd0;
             end else if (l1_advance) begin
                 l1_valid <= 1'b0;
             end
@@ -159,16 +277,22 @@ module fes_i386_fetchbuf import fes_i386_pkg::*; (
         if (f2_advance) begin
             l1_block <= f2_block;
             l1_bytes <= mem_data;
+            l1_info <= f2_info;
+            l1_seq <= f2_seq;
         end
 
         if (l1_advance) begin
             l2_block <= l1_block;
             l2_bytes <= l1_bytes;
             l2_cls <= new_cls;
+            l2_info <= l1_info;
+            l2_seq <= l1_seq;
         end
 
         if (l2_fire) begin
             half_block[half] <= l2_block;
+            half_info[half] <= l2_info;
+            half_seq[half] <= l2_seq;
             // Slots 4-15 cover this block's bytes 0-11; slots 0-3 the other
             // half's bytes 12-15.
             if (half) begin
