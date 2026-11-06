@@ -38,6 +38,7 @@ Quartus 17.0.2.
 | [`rtl/pc386_system.sv`](rtl/pc386_system.sv) | The `fes.computer` 1.1 mailbox and [storage endpoint](../fes-common/rtl/fes_computer_storage.v), the machine, its audio and `fes_i386_cpu`: Hold and the DDR ports' hold, the record's settings, the CPU's resets, I/O and INTA handshake, attribute map, the status words |
 | [`rtl/pc386_rom.sv`](rtl/pc386_rom.sv) | The BIOS and VGA BIOS in M10K, answering the CPU's port 0 reads of their ranges |
 | [`rtl/pc386_disk.sv`](rtl/pc386_disk.sv) | The ATA image at window offset 128 MiB on port 2: the drive's image port and Commit's CRC pass |
+| [`rtl/pc386_status.sv`](rtl/pc386_status.sv) | The status ring at window offset 16 MiB on port 2, in front of the disk: the status words every 2^16 clocks, which the HPS reads with [`pc386_cpu_status.py`](../../scripts/pc386_cpu_status.py) |
 | [`rtl/pc386_snapshot.sv`](rtl/pc386_snapshot.sv) | Carries the presenter's and the plane's pixel-clock counters whole into the system clock |
 | [`rtl/pc386_system_pll.v`](rtl/pc386_system_pll.v) | The sealed system clock and the 12.288 MHz audio clock |
 | [`constraints-oss.qsf`](constraints-oss.qsf), [`toolchain.lock`](toolchain.lock) | Pins (both lanes), and the core's lock (the i386 lock's nextpnr and Mistral, Yosys main) |
@@ -67,6 +68,7 @@ Quartus 17.0.2.
 | [`sim/pc386_ddr_model.h`](sim/pc386_ddr_model.h) | The DDR window and 64-bit port model with the measured latency |
 | [`sim/freedos.lock`](sim/freedos.lock) | The FreeDOS 1.4 package commits and file hashes of the simulation and games disks |
 | [`sim/fesenv.asm`](sim/fesenv.asm) | FESENV.COM: the games disk's `BLASTER` line from CMOS 60h-62h |
+| [`sim/mousedef.asm`](sim/mousedef.asm) | MOUSEDEF.COM: the games disk's default CuteMouse event handler, run after `LH CTMOUSE` |
 
 The 8254 is the shared KF8253 with `READ_BACK = 1`; the DMA controllers are the
 shared [`fes_dma8237.sv`](../fes-common/rtl/fes_dma8237.sv) with AT parameters.
@@ -76,7 +78,7 @@ shared [`fes_dma8237.sv`](../fes-common/rtl/fes_dma8237.sv) with AT parameters.
 ```sh
 python3 scripts/build_pc386_firmware.py --download     # dev86, then both ROMs, checked against the lock
 python3 scripts/build_pc386_freedos_image.py --download  # the FreeDOS fixture in build/
-python3 scripts/build_pc386_freedos_image.py --profile games --download  # the games image (HIMEMX, UMBM, CuteMouse, MEM, BLASTER)
+python3 scripts/build_pc386_freedos_image.py --profile games --download  # the games image (HIMEMX, UMBM, CuteMouse, MOUSEDEF, MEM, BLASTER)
 python3 scripts/sim_fes_pc386.py --suite devices        # directed device checks, about 10 s
 python3 scripts/sim_fes_pc386.py --suite storage        # the fes.computer 1.1 golden exchanges, about 2 min
 python3 scripts/sim_fes_pc386.py --suite audio          # DSP, OPL2 timers, mixer, about 1 min
@@ -88,7 +90,10 @@ python3 scripts/sim_fes_pc386.py --suite boot --image games --cpu rtl --type 'me
 python3 scripts/sim_fes_pc386.py --suite boot --image games --type 'set|' --expect 'BLASTER=A220 I7 D1 T3'  # FESENV from CMOS
 python3 scripts/sim_fes_pc386.py --suite rtl-stops        # the RTL's stop path on the stop test disk, against the oracle
 python3 scripts/sim_fes_pc386.py --suite a20 --download   # A20TEST.COM: A20 off at boot, INT 15h 24xx/87h, a shutdown resume, HIMEMX's method and XMS 03h-06h
+python3 scripts/sim_fes_pc386.py --suite c2xx --download  # C2TEST.COM: INT 15h C205h with key and aux bytes at the 8042, and while keys are typed
 python3 scripts/sim_fes_pc386.py --suite wait --download  # WAITTEST.COM: INT 15h AH=86h waits from 0 us to 300 ms return in their time
+python3 scripts/sim_fes_pc386.py --suite speaker --download  # SPKTEST.COM: PIT counter 2 in mode 3 from POST; a count-only write gives the speaker carrier
+python3 scripts/sim_fes_pc386.py --suite cpu-profile --download  # CPUPROF.COM on the oracle, then a 20 ms machine_tb --cpu-profile window on the RTL
 python3 scripts/sim_fes_pc386.py --suite sound --download  # boot, then SOUND.COM; writes sound.wav
 python3 scripts/sim_fes_pc386.py --suite vga              # presenter, capture and plane benches, VGA test disk, replay
 python3 scripts/synth_fes_pc386.py --cache-root /abs/out/cache/misteross-toolchains  # machine-only synthesis
@@ -109,6 +114,58 @@ suite writes the marked captures and 720p frames as PPM files in `frames/`.
 The boot takes about 7 minutes of wall time and its replay one more; the vga
 suite about 6 minutes in all. `PC386_TRACE_IO=1` makes `machine_tb` print every I/O but port
 80h.
+
+### CPU profile
+
+`machine_tb --cpu rtl --cpu-profile F` sorts every system clock that
+`fes_i386_cpu` runs into one cause, and each retirement's clocks into its
+instruction class ([`sim/cpu_profile.h`](sim/cpu_profile.h)), for CPU Phase 4
+([design](../../docs/i386-cpu-design.md#phase-4-speed)). It reads the CPU's
+D-stage issue and wait terms through
+[`sim/cpu_profile.vlt`](sim/cpu_profile.vlt) (`public_flat_rd`), so the RTL is
+unchanged. `--rtl-from S` and `--rtl-at-flip N` run the oracle from reset and
+hand its state to the RTL at that simulated time and page flip (a write to CRTC
+register 0Ch), with cold caches; `--rtl-for S` ends the run S seconds later.
+The bench appends a snapshot of the counters at the handover, every
+`--cpu-profile-every` seconds and at the end, and
+`scripts/pc386_cpu_profile.py F --from A --to B` reports the window between two
+snapshots:
+- **Causes.** Clocks by cause:
+  - issued uops;
+  - redirect refill;
+  - fetch and L1I;
+  - L1D and port 0;
+  - microcode;
+  - the AGI, store-to-load, flags, ESP and segment interlocks;
+  - multiply and divide;
+  - I/O, MMIO, and a store buffer full behind VGA writes;
+  - halt.
+- **Window counters.** The summary reports commits, in-flight uops at both
+  window boundaries and sampled flush cycles separately. A selected window
+  can split a uop's lifetime, so its issue and commit deltas cannot identify
+  which issued uops were flushed. Flush cycles include non-branch flushes and
+  are not an attribution of wrong-path uops.
+- **Redirects.** The clocks from each taken branch to its target's
+  retirement, by branch class.
+- **Classes and sites.** The instruction classes, and the hottest sites
+  summed over the window.
+
+A data load never holds D, since it is at M1-M2 ahead of the
+ALU, so a load's result into an address (AGI) is the only load-use interlock.
+The bench runs about 12 wall minutes per simulated second on the RTL.
+
+```sh
+build/sim/fes-pc386/machine/obj/Vpc386_machine --bios build/firmware/pc386/pc386-bios.bin \
+  --vgabios build/firmware/pc386/pc386-vgabios.bin --disk doom.img --cpu rtl --type 'doom -timedemo demo3|' \
+  --rtl-at-flip 40 --rtl-for 10 --cpu-profile cpu.prof
+python3 scripts/pc386_cpu_profile.py cpu.prof --from 22.7 --to 32.3 --json window.json
+```
+
+The cpu-profile suite is the short window: CPUPROF.COM
+([`sim/cpu_profile_test.asm`](sim/cpu_profile_test.asm)), typed at the FreeDOS
+prompt, runs a little of every cause each frame; the RTL takes over at its
+fourth page flip for 20 ms, and the suite requires every clock sorted, no
+stops, and taken branches and clocks in each cause the program exercises.
 
 `make sim-fes-pc386` runs the directed device, audio and OPL2 checks plus the
 presenter, capture and display-plane benches. The sound suite boots the same
@@ -409,7 +466,13 @@ FreeDOS 1.4 package archives in `C:\FDOS\BIN`, pinned in
   All 160K of C8000-EFFFF becomes upper memory.
 - `AUTOEXEC.BAT` runs [`FESENV.COM`](sim/fesenv.asm) into
   `C:\FDOS\FESENV.BAT` and calls it, so `BLASTER` follows the Sound Blaster
-  setting in CMOS 60h-62h at every boot, then loads CuteMouse high.
+  setting in CMOS 60h-62h at every boot, then loads CuteMouse high and runs
+  [`MOUSEDEF.COM`](sim/mousedef.asm). That gives CuteMouse a default event
+  handler that is not 0:0, a RETF in the BIOS ROM with mask 0, as Microsoft's
+  driver and DOSBox's have. Ultima VII's menu keeps a swapped-out handler only
+  if it is not 0:0. After CuteMouse's 0:0 it left its own handler installed,
+  and the next program was called at a stale address on every mouse event
+  (#1485).
 - The games profile sets `BUFFERS=16`. MEM shows 575K (588,544 bytes) of
   conventional memory free and 154K of upper memory free, largest block 81K.
   This is 1,792 bytes above Serpent Isle's published 573K (586,752-byte)

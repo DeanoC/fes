@@ -92,8 +92,8 @@ SHELL_SOURCES = (
 # Yosys elaborates these into one netlist below the shell.
 MACHINE_SOURCES = (
     *(f"{I386}/{name}.sv" for name in (
-        "fes_i386_pkg", "fes_i386_gov_pkg", "fes_i386_oplen", "fes_i386_lendec", "fes_i386_lstage", "fes_i386_fetchbuf",
-        "fes_i386_qalign", "fes_i386_frontend", "fes_i386_amode", "fes_i386_dfwd", "fes_i386_agu",
+        "fes_i386_pkg", "fes_i386_gov_pkg", "fes_i386_oplen", "fes_i386_lendec", "fes_i386_lstage", "fes_i386_btb",
+        "fes_i386_ras", "fes_i386_fetchbuf", "fes_i386_qalign", "fes_i386_frontend", "fes_i386_amode", "fes_i386_dfwd", "fes_i386_agu",
         "fes_i386_ucode_pkg", "fes_i386_ucode_rom", "fes_i386_decode", "fes_i386_seq", "fes_i386_dops",
         "fes_i386_shift", "fes_i386_shflags", "fes_i386_exctl", "fes_i386_muldiv", "fes_i386_ex",
         "fes_i386_l1i", "fes_i386_l1d", "fes_i386_biu", "fes_i386_gov_rom", "fes_i386_governor", "fes_i386_cpu")),
@@ -121,7 +121,7 @@ MACHINE_SOURCES = (
         "operator", "control_operators", "dac_prep", "channels")),
     *(f"cores/fes-pc386/rtl/{name}.sv" for name in (
         "pc386_opl2", "pc386_sb", "pc386_mixer", "pc386_audio", "pc386_rom", "pc386_disk", "pc386_snapshot",
-        "pc386_system")),
+        "pc386_status", "pc386_system")),
 )
 MACHINE_TOP = "pc386_system"
 MACHINE_NETLIST = "pc386_system.v"

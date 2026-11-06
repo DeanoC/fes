@@ -66,6 +66,7 @@ type Store struct {
 	lockInfo   os.FileInfo
 	archives   *corepackage.Store
 	persistent bool
+	hostView   bool
 
 	verifyMu sync.Mutex
 	verified map[string]verifiedPackage
@@ -78,6 +79,12 @@ var fullVerificationReads atomic.Int64
 // New opens a private POSIX store. Production callers use OpenPersistent;
 // accepting a temporary directory here does not prove target persistence.
 func New(path string) (*Store, error) {
+	return openStore(path, true)
+}
+
+// openStore opens the host view without recovery when recoverInstallations is
+// false. The agent owns recovery; package access verifies on a cache miss.
+func openStore(path string, recoverInstallations bool) (*Store, error) {
 	if !filepath.IsAbs(path) || filepath.Clean(path) != path {
 		return nil, errors.New("kit packages: root must be a clean absolute path")
 	}
@@ -97,7 +104,7 @@ func New(path string) (*Store, error) {
 	if err != nil || !os.SameFile(info, opened) {
 		return nil, errors.New("kit packages: root changed while opening")
 	}
-	s := &Store{root: path, info: opened, children: make(map[string]os.FileInfo), verified: make(map[string]verifiedPackage)}
+	s := &Store{root: path, info: opened, children: make(map[string]os.FileInfo), verified: make(map[string]verifiedPackage), hostView: !recoverInstallations}
 	for _, name := range []string{"archives", "packages"} {
 		if err := r.Mkdir(name, 0o700); err != nil && !errors.Is(err, os.ErrExist) {
 			return nil, err
@@ -141,13 +148,15 @@ func New(path string) (*Store, error) {
 	if err := syncDirectory(r, "."); err != nil {
 		return nil, err
 	}
-	openedRoot, unlock, err := s.lock(context.Background())
-	if err != nil {
-		return nil, err
-	}
-	defer unlock()
-	if err := s.recover(context.Background(), openedRoot); err != nil {
-		return nil, err
+	if recoverInstallations {
+		openedRoot, unlock, err := s.lock(context.Background())
+		if err != nil {
+			return nil, err
+		}
+		defer unlock()
+		if err := s.recover(context.Background(), openedRoot); err != nil {
+			return nil, err
+		}
 	}
 	return s, nil
 }
@@ -257,6 +266,9 @@ func (s *Store) List(ctx context.Context) ([]corepackage.Inspection, error) {
 		return nil, err
 	}
 	defer unlock()
+	if err := s.validateHostView(ctx, r); err != nil {
+		return nil, err
+	}
 	ids, err := installedIDs(r)
 	if err != nil {
 		return nil, err
@@ -278,7 +290,78 @@ func (s *Store) Read(ctx context.Context, id string) (corepackage.Inspection, []
 		return corepackage.Inspection{}, nil, err
 	}
 	defer unlock()
+	if err := s.validateHostView(ctx, r); err != nil {
+		return corepackage.Inspection{}, nil, err
+	}
 	return s.read(ctx, r, id)
+}
+
+// ReadCached is Read that trusts the stat-fingerprint cache, as List does:
+// an unchanged package returns its archive bytes without hashing the unpacked
+// members or decoding a ROM map again. The kit host sends those bytes to
+// mister-agent, which verifies them before programming; the agent's own
+// selection and launch paths keep the full Read.
+func (s *Store) ReadCached(ctx context.Context, id string) (corepackage.Inspection, []byte, error) {
+	if !packageIDRE.MatchString(id) {
+		return corepackage.Inspection{}, nil, ErrInvalidPackageID
+	}
+	r, unlock, err := s.lock(ctx)
+	if err != nil {
+		return corepackage.Inspection{}, nil, err
+	}
+	defer unlock()
+	if err := s.validateHostView(ctx, r); err != nil {
+		return corepackage.Inspection{}, nil, err
+	}
+	if key, err := packageStatKey(r, id); err == nil {
+		if cached, ok := s.cachedVerified(id, key); ok {
+			inspection, data, err := s.archives.Read(ctx, id)
+			if err != nil {
+				return corepackage.Inspection{}, nil, err
+			}
+			if inspection.PackageID != cached.PackageID {
+				return corepackage.Inspection{}, nil, errors.New("kit packages: installed archive identity changed")
+			}
+			return inspection, data, nil
+		}
+	}
+	return s.read(ctx, r, id)
+}
+
+// Inspect is Read without the archive bytes. An unchanged package is not
+// read or hashed again.
+func (s *Store) Inspect(ctx context.Context, id string) (corepackage.Inspection, error) {
+	if !packageIDRE.MatchString(id) {
+		return corepackage.Inspection{}, ErrInvalidPackageID
+	}
+	r, unlock, err := s.lock(ctx)
+	if err != nil {
+		return corepackage.Inspection{}, err
+	}
+	defer unlock()
+	if err := s.validateHostView(ctx, r); err != nil {
+		return corepackage.Inspection{}, err
+	}
+	return s.listingInspection(ctx, r, id)
+}
+
+// A host opener skips recovery, so check the durable inventory and selections
+// lazily under the same lock used for each read. In particular, a missing
+// selected package is a store error, not a request to use a factory package.
+func (s *Store) validateHostView(ctx context.Context, r *os.Root) error {
+	if !s.hostView {
+		return nil
+	}
+	if _, err := installedIDs(r); err != nil {
+		return fmt.Errorf("kit packages: invalid durable inventory: %w", err)
+	}
+	if _, err := s.selectedPackages(ctx, r); err != nil {
+		if errors.Is(err, ErrPackageNotFound) {
+			return errors.New("kit packages: selected package is missing")
+		}
+		return fmt.Errorf("kit packages: invalid durable selections: %w", err)
+	}
+	return nil
 }
 
 // Path returns a local launch path only after authenticating both retained
@@ -289,6 +372,9 @@ func (s *Store) Path(ctx context.Context, id string) (string, error) {
 		return "", err
 	}
 	defer unlock()
+	if err := s.validateHostView(ctx, r); err != nil {
+		return "", err
+	}
 	if _, _, err := s.read(ctx, r, id); err != nil {
 		return "", err
 	}
@@ -461,7 +547,7 @@ func (s *Store) rememberVerified(id, key string, inspection corepackage.Inspecti
 	if s.verified == nil {
 		s.verified = make(map[string]verifiedPackage)
 	}
-	s.verified[id] = verifiedPackage{key: key, inspection: inspection}
+	s.verified[id] = verifiedPackage{key: key, inspection: inspection.Clone()}
 }
 
 func (s *Store) cachedVerified(id, key string) (corepackage.Inspection, bool) {
@@ -471,7 +557,7 @@ func (s *Store) cachedVerified(id, key string) (corepackage.Inspection, bool) {
 	if !ok || hit.key != key {
 		return corepackage.Inspection{}, false
 	}
-	return hit.inspection, true
+	return hit.inspection.Clone(), true
 }
 
 func packageStatKey(r *os.Root, id string) (string, error) {

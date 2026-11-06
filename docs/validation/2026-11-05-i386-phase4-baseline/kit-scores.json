@@ -1,0 +1,167 @@
+{
+ "kit": "A",
+ "run": "a1",
+ "date": "2026-11-05/06",
+ "package": "01e1eebb1ab03acd51958ed15b3a4be4400d6a4a3aa952f1c0e19cf83e07b9e2",
+ "package_seal": "Quartus 17.0.2, clean checkout b4558d4cd (docs/validation/2026-11-04-pc386-cpu-status/seal-summary.json); its 110 sealed inputs hash identically on main c01c878cd; core.rbf 0a2c5226... matches the seal summary",
+ "kit_software": "baseline a8cd30c4 on image f904961e, core-only (no install, no image change, no reboot)",
+ "disk": {
+  "sha256": "fe81c9c4f93cc34d8b4b10aa2be97c660a30c6b47e48bf205ed6d68fd2fee732",
+  "base": "FreeDOS games image of main c01c878cd, 36f50d527fd7c5ea46699aebcbd5b2bcab3e5c14a3c99c8be8828bbbe390ce0e",
+  "added": {
+   "DOOM (1993).zip (eXoDOS 6.04), C:\\DOOM": "06ee36b4257d2fb0daaf38ffd90485bbe5c0a45ad4129492309861fbc523b6bc",
+   "DOS Benchmark Pack v1.5 MARKS folders, C:\\MARKS": {
+    "3DBENCH/3DBENCH.EXE": "ae644264ab9cdd3f98ba6698f54cbbd1867fd4d2a1a611a17ddd0b6008cc2bf4",
+    "PCPBENCH/PCPBENCH.EXE": "b68200ddb0e11e774c551dc2bf18b046d30bc34c259f93144f8e46c85a3a95ef",
+    "TOPBENCH/TOPBENCH.EXE": "4428fc27d5c2987e5bd177540843190ebb33f31ca6ddacc6e9f8fb994076e63d",
+    "DOOMS/DOOM.EXE": "b8020523561a5ad9706e009a52d61c578f37faafd85ac471962308406292ce27",
+    "DOOMS/DOOM1.WAD": "1d7d43be501e67d927e415e0b8f3e29c3bf33075e859721816f652a526cac771",
+    "DOOMS/MAX.CFG": "6e0678ef0d4044e753206e5493f87b728ed063dc4908c729d8e0e65803134842",
+    "DOOMS/MIN.CFG": "8e033e744916db515a7a7f8647ac7b8e37eaa7fc7a9e1367ce10b9899d7018ca"
+   }
+  }
+ },
+ "commands": {
+  "3dbench": "C:\\MARKS\\3DBENCH> 3dbench",
+  "pcpbench": "C:\\MARKS\\PCPBENCH> pcpbench /vgamode",
+  "topbench": "C:\\MARKS\\TOPBENCH> topbench, Benchmarking menu",
+  "doom_pack": "C:\\MARKS\\DOOMS> doom -config max.cfg|min.cfg -timedemo demo3",
+  "doom_demo3": "C:\\DOOM> doom -timedemo demo3"
+ },
+ "settings": "fes.pc386.machine words: preset, 0, 0, 0, 0x220, IRQ 7, DMA 1; a SCRUBX memory scrub launch before each preset launch (#1499 not merged)",
+ "presets": [
+  {
+   "preset": 0,
+   "name": "max",
+   "3dbench_fps": 50.0,
+   "pcpbench": 10.7,
+   "topbench": 297,
+   "doom_pack_max": {
+    "gametics": 2134,
+    "realtics": 3072,
+    "fps": 24.31
+   },
+   "doom_pack_min": {
+    "gametics": 2134,
+    "realtics": 1072,
+    "fps": 69.67
+   }
+  },
+  {
+   "preset": 7,
+   "name": "486DX2-66",
+   "3dbench_fps": 26.3,
+   "pcpbench": 7.4,
+   "topbench": 133,
+   "doom_pack_max": {
+    "gametics": 2134,
+    "realtics": 5973,
+    "fps": 12.5
+   },
+   "doom_pack_min": {
+    "gametics": 2134,
+    "realtics": 1378,
+    "fps": 54.2
+   }
+  },
+  {
+   "preset": 6,
+   "name": "486DX-33",
+   "3dbench_fps": 20.4,
+   "pcpbench": 5.5,
+   "topbench": 102,
+   "doom_pack_max": {
+    "gametics": 2134,
+    "realtics": 7364,
+    "fps": 10.14
+   },
+   "doom_pack_min": {
+    "gametics": 2134,
+    "realtics": 1650,
+    "fps": 45.27
+   }
+  },
+  {
+   "preset": 5,
+   "name": "386DX-40",
+   "3dbench_fps": 14.9,
+   "pcpbench": 4.3,
+   "topbench": 90,
+   "doom_pack_max": {
+    "gametics": 2134,
+    "realtics": 10326,
+    "fps": 7.23
+   },
+   "doom_pack_min": {
+    "gametics": 2134,
+    "realtics": 2380,
+    "fps": 31.38
+   }
+  },
+  {
+   "preset": 4,
+   "name": "386DX-33",
+   "3dbench_fps": 12.9,
+   "pcpbench": 3.6,
+   "topbench": 81,
+   "doom_pack_max": {
+    "gametics": 2134,
+    "realtics": 11692,
+    "fps": 6.39
+   },
+   "doom_pack_min": {
+    "gametics": 2134,
+    "realtics": 2756,
+    "fps": 27.1
+   }
+  },
+  {
+   "preset": 3,
+   "name": "386DX-25",
+   "3dbench_fps": 10.4,
+   "pcpbench": 2.8,
+   "topbench": 68,
+   "doom_pack_max": {
+    "gametics": 2134,
+    "realtics": 14458,
+    "fps": 5.17
+   },
+   "doom_pack_min": {
+    "gametics": 2134,
+    "realtics": 3516,
+    "fps": 21.24
+   }
+  },
+  {
+   "preset": 2,
+   "name": "386SX-16",
+   "3dbench_fps": 6.4,
+   "pcpbench": 1.3,
+   "topbench": 42,
+   "doom_pack_max": null,
+   "doom_pack_min": null
+  },
+  {
+   "preset": 1,
+   "name": "286-12",
+   "3dbench_fps": 5.0,
+   "pcpbench": 0.9,
+   "topbench": 33,
+   "doom_pack_max": null,
+   "doom_pack_min": null
+  }
+ ],
+ "doom_v19_demo3_max": {
+  "gametics": 3863,
+  "realtics": 5064,
+  "fps": 26.7
+ },
+ "topbench_max_detail_usec": {
+  "MemTest": 20,
+  "MemEA": 17,
+  "Opcodes": 19,
+  "VidMem": 98,
+  "3DGames": 21,
+  "Total": 175
+ }
+}

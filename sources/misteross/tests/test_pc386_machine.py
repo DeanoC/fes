@@ -87,13 +87,19 @@ class FreedosImageTest(unittest.TestCase):
         for profile, spec in freedos.PROFILES.items():
             for filename, source in spec['bin'].items():
                 with self.subTest(profile=profile, filename=filename):
-                    if source is None:
-                        self.assertEqual(filename, 'FESENV.COM')
-                        self.assertTrue(freedos.FESENV.is_file())
+                    if isinstance(source, Path):
+                        self.assertEqual(filename, source.stem.upper() + '.COM')
+                        self.assertTrue(source.is_file())
                         continue
                     package_name, package_path = source
                     self.assertIn(package_name, spec['packages'])
                     self.assertIn(package_path, lock[package_name]['files'])
+
+    def test_games_autoexec_sets_the_mouse_default_handler_after_cutemouse(self):
+        # Ultima VII keeps a swapped-out event handler only if it is not 0:0 (fes#1485).
+        lines = freedos.PROFILES['games']['autoexec'].split('\r\n')
+        self.assertEqual(lines.index('MOUSEDEF'), lines.index('LH CTMOUSE') + 1)
+        self.assertEqual(freedos.PROFILES['games']['bin']['MOUSEDEF.COM'], freedos.MOUSEDEF)
 
     def test_volume_has_dos_format_fat16_clusters(self):
         # 2 KiB, as DOS FORMAT picks from 16 to 128 MiB; still FAT16 at this size.
@@ -133,8 +139,8 @@ class FreedosImageTest(unittest.TestCase):
             source.write_bytes(b'first version')
             image = root / 'freedos-games.img'
             image.write_bytes(b'disk')
-            with mock.patch.object(freedos, 'FESENV', source), \
-                    mock.patch.dict(freedos.PROFILES['games'], {'image': image}):
+            bin_files = {**freedos.PROFILES['games']['bin'], 'FESENV.COM': source}
+            with mock.patch.dict(freedos.PROFILES['games'], {'image': image, 'bin': bin_files}):
                 boot_inputs = freedos.inputs_key('boot')
                 record = {'sha256': hashlib.sha256(b'disk').hexdigest(),
                           'inputs': freedos.inputs_key('games')}
@@ -257,7 +263,66 @@ class A20TestTest(unittest.TestCase):
         self.assertIsNone(sim.HIMEMX_METHOD.search('Interface : XMS 3.00 80386 4G'))
 
 
+class C2xxTestTest(unittest.TestCase):
+    def test_suite_checks_and_keys_are_the_programs(self):
+        source = (sim.CORE / 'sim/c2xx_test.asm').read_text()
+        names = [line.split("'")[1].rstrip('$') for line in source.splitlines() if line.startswith('name_')]
+        self.assertEqual(names, list(sim.C2XX_CHECKS))
+        self.assertIn(f"typed_keys:    db '{sim.C2XX_KEYS}'", source)
+        self.assertTrue(sim.C2XX_KEYS.endswith('q'))
+
+    def test_typing_runs_before_any_flush_and_fixed_checks_follow_q(self):
+        source = (sim.CORE / 'sim/c2xx_test.asm').read_text()
+        program = source[source.index('start:'):source.index('done:')]
+        pre_typing, rest = program.split('typing:', 1)
+        typing, fixed_checks = rest.split('stale_key:', 1)
+        self.assertNotIn('call flush_keys', pre_typing)
+        self.assertIn('call wait_typing_tail', typing)
+        self.assertLess(typing.index('call wait_typing_tail'), typing.index('jmp stale_key'))
+        self.assertIn('name_stale_key', fixed_checks)
+
+    @staticmethod
+    def suite(lines, cpu='oracle', oracle_steps=0):
+        commands = []
+        def run_machine(testbench, name, arguments, images):
+            commands.append(arguments)
+            return {'debug': [{'port': '0e9', 'text': line} for line in lines], 'failures': [],
+                    'rtl': {'counters': {'retired': 1000, 'oracle_steps': oracle_steps, 'protected_steps': 0},
+                            'stops': [], 'gaps': []}}
+        args = mock.Mock(cpu=cpu, download=False, jobs=1, limit_seconds=10)
+        with mock.patch.object(sim.firmware, 'images', return_value={}), \
+                mock.patch.object(sim, 'machine_testbench'), mock.patch.object(sim, 'fixture_with'), \
+                mock.patch.object(sim, 'run_machine', run_machine), mock.patch('builtins.print'):
+            return sim.run_c2xx(args, [])['failures'], commands[0]
+
+    def test_keys_are_typed_after_the_command_with_8_ms_holds(self):
+        _, command = self.suite([])
+        self.assertEqual(command[command.index('--type') + 1], 'c2test|' + sim.C2XX_KEYS)
+        self.assertEqual(command[command.index('--key-gap') + 1], '0.008')
+
+    def test_every_check_must_print_ok(self):
+        passing = [f'C2 {name} ok' for name in sim.C2XX_CHECKS]
+        self.assertEqual(self.suite(passing)[0], [])
+        self.assertEqual(self.suite(passing[:2] + ['C2 stale-aux FAIL'] + passing[3:])[0],
+                         ['C2 stale-aux FAIL'])
+
+    def test_a_reset_that_never_returns_fails(self):
+        failures, _ = self.suite([])
+        self.assertEqual(len(failures), 1)
+        self.assertIn('C2TEST.COM ran []', failures[0])
+
+    def test_rtl_runs_fail_on_oracle_steps(self):
+        passing = [f'C2 {name} ok' for name in sim.C2XX_CHECKS]
+        self.assertEqual(self.suite(passing, 'rtl')[0], [])
+        failures, _ = self.suite(passing, 'rtl', oracle_steps=2)
+        self.assertEqual(len(failures), 1)
+        self.assertTrue(failures[0].startswith('RTL oracle_steps=2'))
+
 class WaitTestTest(unittest.TestCase):
+    def test_default_limit_keeps_the_wait_suite_at_eight_seconds(self):
+        self.assertEqual(sim.default_limit_seconds('wait'), 8)
+        self.assertEqual(sim.default_limit_seconds('c2xx'), 10)
+
     def test_suite_checks_are_the_programs_names(self):
         source = (sim.CORE / 'sim/wait_test.asm').read_text()
         names = [line.split("'")[1].rstrip('$') for line in source.splitlines() if line.startswith('name_')]
@@ -290,6 +355,80 @@ class WaitTestTest(unittest.TestCase):
         passing = [f'WAIT {name} 1us ok' for name in sim.WAIT_CHECKS]
         self.assertEqual(self.suite(passing, 'rtl'), [])
         failures = self.suite(passing, 'rtl', oracle_steps=3)
+        self.assertEqual(len(failures), 1)
+        self.assertTrue(failures[0].startswith('RTL oracle_steps=3'))
+
+
+class ScrollTestTest(unittest.TestCase):
+    def test_suite_checks_are_the_programs_names(self):
+        source = (sim.CORE / 'sim/scroll_test.asm').read_text()
+        names = [line.split("'")[1].rstrip('$') for line in source.splitlines() if line.startswith('name_')]
+        self.assertEqual(names, list(sim.SCROLL_CHECKS))
+
+    @staticmethod
+    def suite(lines, cpu='oracle', oracle_steps=0):
+        def run_machine(testbench, name, arguments, images):
+            return {'debug': [{'port': '0e9', 'text': line} for line in lines], 'failures': [],
+                    'rtl': {'counters': {'retired': 1000, 'oracle_steps': oracle_steps, 'protected_steps': 0},
+                            'stops': [], 'gaps': []}}
+        args = mock.Mock(cpu=cpu, download=False, jobs=1, limit_seconds=8)
+        with mock.patch.object(sim.firmware, 'images', return_value={}), \
+                mock.patch.object(sim, 'machine_testbench'), mock.patch.object(sim, 'fixture_with'), \
+                mock.patch.object(sim, 'run_machine', run_machine), mock.patch('builtins.print'):
+            return sim.run_scroll(args, [])['failures']
+
+    PASSING = ['SCR mode13 2/2 ok', 'SCR mode12 2/2 ok', 'SCR mode04 2/2 ok', 'SCR DONE ok']
+
+    def test_every_check_must_print_ok(self):
+        self.assertEqual(self.suite(self.PASSING), [])
+        self.assertEqual(self.suite(['SCR mode13 1/2 FAIL'] + self.PASSING[1:3] + ['SCR DONE FAIL']),
+                         ['SCR mode13 1/2 FAIL', 'SCR DONE FAIL'])
+
+    def test_a_scroll_that_never_returns_fails(self):
+        failures = self.suite([])
+        self.assertEqual(failures, ["SCROLLT.COM ran [], expected ['mode13', 'mode12', 'mode04', 'DONE']"])
+
+    def test_rtl_runs_fail_on_oracle_steps(self):
+        self.assertEqual(self.suite(self.PASSING, 'rtl'), [])
+        failures = self.suite(self.PASSING, 'rtl', oracle_steps=3)
+        self.assertEqual(len(failures), 1)
+        self.assertTrue(failures[0].startswith('RTL oracle_steps=3'))
+
+
+class SpeakerTestTest(unittest.TestCase):
+    def test_suite_checks_are_the_programs_names(self):
+        source = (sim.CORE / 'sim/speaker_test.asm').read_text()
+        names = [line.split("'")[1].rstrip('$') for line in source.splitlines() if line.startswith('name_')]
+        self.assertEqual(names, list(sim.SPEAKER_CHECKS))
+
+    @staticmethod
+    def suite(lines, cpu='oracle', oracle_steps=0):
+        def run_machine(testbench, name, arguments, images):
+            return {'debug': [{'port': '0e9', 'text': line} for line in lines], 'failures': [],
+                    'rtl': {'counters': {'retired': 1000, 'oracle_steps': oracle_steps, 'protected_steps': 0},
+                            'stops': [], 'gaps': []}}
+        args = mock.Mock(cpu=cpu, download=False, jobs=1, limit_seconds=8)
+        with mock.patch.object(sim.firmware, 'images', return_value={}), \
+                mock.patch.object(sim, 'machine_testbench'), mock.patch.object(sim, 'fixture_with'), \
+                mock.patch.object(sim, 'run_machine', run_machine), mock.patch('builtins.print'):
+            return sim.run_speaker(args, [])['failures']
+
+    PASSING = ['SPK post 36h ok', 'SPK rise 64/64 ok', 'SPK carrier 19886Hz ok', 'SPK DONE ok']
+
+    def test_every_check_must_print_ok(self):
+        self.assertEqual(self.suite(self.PASSING), [])
+        self.assertEqual(self.suite(['SPK post 20h FAIL', 'SPK rise 0/64 FAIL', 'SPK carrier 0Hz FAIL',
+                                     'SPK DONE FAIL']),
+                         ['SPK post 20h FAIL', 'SPK rise 0/64 FAIL', 'SPK carrier 0Hz FAIL', 'SPK DONE FAIL'])
+
+    def test_a_run_that_stops_early_fails(self):
+        failures = self.suite(self.PASSING[:1])
+        self.assertEqual(len(failures), 1)
+        self.assertIn("SPKTEST.COM ran ['post']", failures[0])
+
+    def test_rtl_runs_fail_on_oracle_steps(self):
+        self.assertEqual(self.suite(self.PASSING, 'rtl'), [])
+        failures = self.suite(self.PASSING, 'rtl', oracle_steps=3)
         self.assertEqual(len(failures), 1)
         self.assertTrue(failures[0].startswith('RTL oracle_steps=3'))
 

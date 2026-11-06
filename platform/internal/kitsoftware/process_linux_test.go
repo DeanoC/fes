@@ -420,6 +420,76 @@ func TestAgentExitReapsDescendantsBeforeGroupRestart(t *testing.T) {
 	}
 }
 
+func TestGroupRestartAllowsCoreLibraryRecoveryPastOneMinute(t *testing.T) {
+	now := time.Unix(100, 0)
+	c := &ProcessController{
+		RunDir:      t.TempDir(),
+		active:      "accepted",
+		readyStable: 10 * time.Second,
+		now:         func() time.Time { return now },
+	}
+	defer killChildren(c)
+	_ = startSleepTrio(t, c)
+	if err := c.children[1].cmd.Process.Signal(syscall.SIGKILL); err != nil {
+		t.Fatal(err)
+	}
+	<-c.children[1].done
+
+	var startBudget time.Duration
+	var initialReadyBudget time.Duration
+	var probes int
+	previousStart := groupRestartStart
+	previousProbe := groupReadyProbe
+	t.Cleanup(func() {
+		groupRestartStart = previousStart
+		groupReadyProbe = previousProbe
+	})
+	groupRestartStart = func(controller *ProcessController, ctx context.Context, id string, request Request) error {
+		if deadline, ok := ctx.Deadline(); ok {
+			startBudget = time.Until(deadline)
+		}
+		return replaceAcceptedGroup(controller, id, request)
+	}
+	groupReadyProbe = func(controller *ProcessController, _ context.Context, _ string) error {
+		probes++
+		if probes == 1 {
+			initialReadyBudget = controller.groupReadyBy.Sub(now)
+			// Model persistent core-library verification keeping the agent's
+			// listener unavailable for 75 seconds after Start returns.
+			now = now.Add(75 * time.Second)
+			return errors.New("core library recovery is still running")
+		}
+		return nil
+	}
+
+	if err := c.RecoverAcceptedExits(context.Background(), Request{}, true); err != nil {
+		t.Fatal(err)
+	}
+	if startBudget <= 75*time.Second {
+		t.Fatalf("autonomous group start budget %s does not cover 75-second recovery", startBudget)
+	}
+	if initialReadyBudget <= 75*time.Second+10*time.Second {
+		t.Fatalf("autonomous group readiness budget %s does not cover recovery and stable readiness", initialReadyBudget)
+	}
+	if c.pendingGroup != "accepted" || len(c.children) != 3 || c.Active() != "accepted" {
+		t.Fatalf("slow recovery stopped the replacement group pending=%s children=%d active=%s", c.pendingGroup, len(c.children), c.Active())
+	}
+
+	if err := c.RecoverAcceptedExits(context.Background(), Request{}, true); err != nil {
+		t.Fatal(err)
+	}
+	if c.pendingGroup != "accepted" {
+		t.Fatal("replacement was accepted before ten seconds of stable readiness")
+	}
+	now = now.Add(10 * time.Second)
+	if err := c.RecoverAcceptedExits(context.Background(), Request{}, true); err != nil {
+		t.Fatal(err)
+	}
+	if c.pendingGroup != "" || c.Active() != "accepted" || len(c.children) != 3 {
+		t.Fatalf("replacement did not recover after stable readiness pending=%s active=%s children=%d", c.pendingGroup, c.Active(), len(c.children))
+	}
+}
+
 func TestAgentExitKeepsOwnershipUntilDescendantsExit(t *testing.T) {
 	dir := t.TempDir()
 	ready := filepath.Join(dir, "ready")

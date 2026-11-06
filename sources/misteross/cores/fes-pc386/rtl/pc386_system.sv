@@ -11,7 +11,8 @@
 //           ROM (pc386_rom) in front of it
 //   port 1  VRAM
 //   port 2  plane, presenter, capture; pc386_disk: the ATA image at window
-//           offset 0x08000000 and its CRC pass
+//           offset 0x08000000 and its CRC pass; pc386_status: the status
+//           ring at window offset 0x01000000
 //
 // The mailbox (fes_computer_mailbox_core) answers identity, execution, the
 // keyboard's rows, mouse packets and the session-display plane, and hands the
@@ -64,7 +65,8 @@ module pc386_system #(
     output wire [27:0] video,
     // Mixer output at 48 kHz
     output wire signed [15:0] sample,
-    // What the system does, for system_tb; the shell leaves these open.
+    // What the system does, for system_tb, and in the status ring
+    // (pc386_status) for the HPS.
     //   0  flags [7:0] (halted, stopped, A20M, INTR, running, governor held D
     //      since the machine's reset), last POST code
     //      [15:8], CPU resets [23:16], instructions retired [63:32]
@@ -468,7 +470,7 @@ module pc386_system #(
         .trace_retire(cpu_retire), .trace_exception(), .trace_vector(cpu_vector), .trace_halt(cpu_halt),
         .trace_unimplemented(cpu_stopped), .trace_unbuilt(), .shutdown(cpu_shutdown), .trace_error(), .trace_issue(),
         .trace_md_wait(), .trace_fetch(),
-        .trace_fetch_block(), .trace_dread(), .trace_dread_addr(), .trace_mem_wait(),
+        .trace_fetch_block(), .trace_dread(), .trace_dread_addr(), .trace_mem_wait(), .trace_fe_wait(),
         .trace_mem_idle(cpu_mem_idle), .trace_replay(), .trace_smc(), .trace_smc_open(), .trace_ex_store(),
         .trace_gov_hold(gov_hold), .trace_gov_debt(), .trace_gov_charge(),
         .trace_store(), .trace_store_addr(), .trace_store_data(), .trace_store_mask(), .arch_gpr(),
@@ -517,15 +519,29 @@ module pc386_system #(
         retired, 8'd0, cpu_resets, last_post, 2'd0, gov_held, !reset, intr, a20m, cpu_stopped, cpu_halt
     };
 
-    // ---- The ATA image and the CRC pass on port 2
+    // ---- The ATA image and the CRC pass on port 2, and the status ring in
+    // front of them
+    wire [28:0] disk_aux_address;
+    wire [7:0] disk_aux_burstcount, disk_aux_byteenable;
+    wire disk_aux_read, disk_aux_write, disk_aux_waitrequest, disk_aux_readdatavalid;
+    wire [63:0] disk_aux_writedata;
     pc386_disk disk (
         .clk(clk), .reset(p2_reset), .verify(verifying), .sectors(disk_sectors), .crc(disk_crc),
         .verify_done(disk_verify_done), .verify_match(disk_verify_match),
         .disk_valid(disk_valid), .disk_write(disk_write), .disk_address(disk_address), .disk_wdata(disk_wdata),
         .disk_ready(disk_ready), .disk_rvalid(disk_rvalid), .disk_rdata(disk_rdata),
-        .aux_address(aux_address), .aux_burstcount(aux_burstcount), .aux_read(aux_read), .aux_write(aux_write),
-        .aux_writedata(aux_writedata), .aux_byteenable(aux_byteenable), .aux_waitrequest(aux_waitrequest),
-        .aux_readdatavalid(aux_readdatavalid), .readdata(p2_readdata)
+        .aux_address(disk_aux_address), .aux_burstcount(disk_aux_burstcount), .aux_read(disk_aux_read),
+        .aux_write(disk_aux_write), .aux_writedata(disk_aux_writedata), .aux_byteenable(disk_aux_byteenable),
+        .aux_waitrequest(disk_aux_waitrequest), .aux_readdatavalid(disk_aux_readdatavalid), .readdata(p2_readdata)
+    );
+    pc386_status status_ring (
+        .clk(clk), .reset(p2_reset), .status(status),
+        .s_address(disk_aux_address), .s_burstcount(disk_aux_burstcount), .s_read(disk_aux_read),
+        .s_write(disk_aux_write), .s_writedata(disk_aux_writedata), .s_byteenable(disk_aux_byteenable),
+        .s_waitrequest(disk_aux_waitrequest), .s_readdatavalid(disk_aux_readdatavalid),
+        .m_address(aux_address), .m_burstcount(aux_burstcount), .m_read(aux_read), .m_write(aux_write),
+        .m_writedata(aux_writedata), .m_byteenable(aux_byteenable), .m_waitrequest(aux_waitrequest),
+        .m_readdatavalid(aux_readdatavalid)
     );
 
     wire unused = ^{dma_ack_tc, mouse_dx[15:8], mouse_dy[15:8], start_latched, frame_start, frame_done, presenter_video, debug_port, opl2_sample,

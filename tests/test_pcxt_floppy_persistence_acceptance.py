@@ -4,6 +4,7 @@ import json
 import os
 from pathlib import Path
 import socket
+import subprocess
 import sys
 import tempfile
 import time
@@ -12,8 +13,226 @@ from unittest import mock
 from types import SimpleNamespace
 
 from scripts import pcxt_floppy_persistence_acceptance as p
+from scripts import pcxt_main_application_acceptance as main_app
 from tests.test_pcxt_dos_keyboard_acceptance import frame
 from tests.test_pcxt_dos_application_acceptance import FakeRunner
+
+
+class SourceObserverCleanupTest(unittest.TestCase):
+    def test_parent_start_error_with_live_child_retains_claim(self):
+        real_popen = p.subprocess.Popen
+        real_killpg = p.os.killpg
+        children = []
+        def spawn_then_fail(*args, **kwargs):
+            children.append(real_popen(*args, **kwargs))
+            raise OSError('source start result unavailable')
+        try:
+            with mock.patch.object(p.subprocess, 'Popen', side_effect=spawn_then_fail):
+                with self.assertRaises(p.SourceCleanupError) as caught:
+                    p.bounded_source_command([sys.executable, '-c', 'import time; time.sleep(30)'],
+                                             p.PhaseDeadline(time.monotonic()+10))
+            self.assertTrue(caught.exception.source_cleanup_incomplete)
+            self.assertIsNone(children[0].poll())
+        finally:
+            if children:
+                try: real_killpg(children[0].pid, p.signal.SIGKILL)
+                except ProcessLookupError: pass
+                children[0].wait(timeout=5)
+
+    def test_parent_group_kill_failure_retains_claim(self):
+        real_popen = p.subprocess.Popen
+        real_killpg = p.os.killpg
+        children = []
+        def remember(*args, **kwargs):
+            child = real_popen(*args, **kwargs); children.append(child); return child
+        try:
+            with mock.patch.object(p.subprocess, 'Popen', side_effect=remember), \
+                 mock.patch.object(p.os, 'killpg', side_effect=PermissionError('denied')):
+                with self.assertRaises(p.SourceCleanupError) as caught:
+                    p._bounded_source_command([sys.executable, '-c', 'import time; time.sleep(30)'],
+                                              p.PhaseDeadline(time.monotonic()+10), cancelled=lambda:True)
+            self.assertTrue(caught.exception.source_cleanup_incomplete)
+            self.assertIsNone(children[0].poll())
+        finally:
+            if children:
+                try: real_killpg(children[0].pid, p.signal.SIGKILL)
+                except ProcessLookupError: pass
+                children[0].wait(timeout=5)
+
+    def test_parent_reap_or_group_proof_failure_retains_claim(self):
+        for mode in ('wait', 'group_proof'):
+            with self.subTest(mode=mode):
+                real_popen = p.subprocess.Popen
+                real_killpg = p.os.killpg
+                children = []
+                def remember(*args, **kwargs):
+                    child = real_popen(*args, **kwargs)
+                    children.append((child, child.wait))
+                    if mode == 'wait':
+                        child.wait = mock.Mock(side_effect=subprocess.TimeoutExpired('source', 5))
+                    return child
+                def signal_group(pgid, sig):
+                    if mode == 'group_proof' and sig == 0:
+                        raise PermissionError('cannot verify group')
+                    return real_killpg(pgid, sig)
+                try:
+                    with mock.patch.object(p.subprocess, 'Popen', side_effect=remember), \
+                         mock.patch.object(p.os, 'killpg', side_effect=signal_group):
+                        with self.assertRaises(p.SourceCleanupError) as caught:
+                            p._bounded_source_command([sys.executable, '-c', 'import time; time.sleep(30)'],
+                                p.PhaseDeadline(time.monotonic()+10), cancelled=lambda:True)
+                    self.assertTrue(caught.exception.source_cleanup_incomplete)
+                finally:
+                    if children:
+                        child, real_wait = children[0]
+                        try: real_killpg(child.pid, p.signal.SIGKILL)
+                        except ProcessLookupError: pass
+                        real_wait(timeout=5)
+
+    def test_parent_lost_child_ownership_never_signals_numeric_group(self):
+        real_popen = p.subprocess.Popen
+        real_killpg = p.os.killpg
+        children = []
+        def remember(*args, **kwargs):
+            child = real_popen(*args, **kwargs); children.append(child); return child
+        try:
+            with mock.patch.object(p.subprocess, 'Popen', side_effect=remember), \
+                 mock.patch.object(p.os, 'waitid', side_effect=ChildProcessError('ownership lost')), \
+                 mock.patch.object(p.os, 'killpg') as kill:
+                with self.assertRaises(p.SourceCleanupError) as caught:
+                    p.bounded_source_command([sys.executable, '-c', 'import time; time.sleep(30)'],
+                                             p.PhaseDeadline(time.monotonic()+10))
+            self.assertTrue(caught.exception.source_cleanup_incomplete)
+            kill.assert_not_called()
+        finally:
+            if children:
+                try: real_killpg(children[0].pid, p.signal.SIGKILL)
+                except ProcessLookupError: pass
+                children[0].wait(timeout=5)
+
+    def test_historical_source_wrapper_preserves_cleanup_failure(self):
+        args=SimpleNamespace(source_repository='DeanoC/fes',source_base='main',source_pr=None,
+            source_main=False,source_commit='a'*40,source_tool_commit='b'*40,
+            source_observed_tip='c'*40,source_minimum_tip='c'*40,source_diff_sha256='d'*64)
+        failure=p.SourceCleanupError('cleanup unverified')
+        with mock.patch.object(p, 'bounded_source_command', side_effect=failure):
+            with self.assertRaises(p.SourceCleanupError) as caught:
+                p.require_historical_main(args)
+        self.assertIs(caught.exception, failure)
+        self.assertTrue(caught.exception.source_cleanup_incomplete)
+
+    def test_cleanly_reaped_timeout_does_not_retain_claim(self):
+        for cancel_observer in (False, True):
+            with self.subTest(cancel_observer=cancel_observer), tempfile.TemporaryDirectory() as temp:
+                path = Path(temp) / 'pid'
+                script = 'import os,sys,time; open(sys.argv[1],"w").write(str(os.getpid())); time.sleep(30)'
+                def observe(_deadline):
+                    p.bounded_source_command([sys.executable, '-c', script, str(path)],
+                        p.PhaseDeadline(time.monotonic()+30), maximum_seconds=20 if cancel_observer else .4)
+                    return {'owner': 'unexpected'}
+                with self.assertRaises(p.pa.AcceptanceError) as caught:
+                    p.app._hard_deadline_observation(observe, seconds=.8 if cancel_observer else 3)
+                self.assertTrue(path.exists(), 'source process did not start before the deadline')
+                self.assertFalse(getattr(caught.exception, 'source_cleanup_incomplete', False))
+                self.assertFalse((Path('/proc') / path.read_text()).exists())
+
+    def test_source_exec_failure_retains_claim_when_cleanup_unverified(self):
+        def observe(_deadline):
+            p.bounded_source_command(['/nonexistent-pcxt-source-command'],
+                                     p.PhaseDeadline(time.monotonic()+10))
+            return {'owner': 'unexpected'}
+        with self.assertRaises(p.pa.AcceptanceError) as caught:
+            p.app._hard_deadline_observation(observe, seconds=3)
+        self.assertTrue(getattr(caught.exception, 'source_cleanup_incomplete', False))
+
+    def test_source_start_error_after_child_spawn_retains_claim(self):
+        with tempfile.TemporaryDirectory() as temp:
+            path = Path(temp) / 'pid'
+            real_popen = p.subprocess.Popen
+            def spawn_then_fail(*args, **kwargs):
+                child = real_popen(*args, **kwargs)
+                path.write_text(str(child.pid))
+                raise OSError('source process start result unavailable')
+            def observe(_deadline):
+                p.bounded_source_command([sys.executable, '-c', 'import time; time.sleep(30)'],
+                                         p.PhaseDeadline(time.monotonic()+10))
+                return {'owner': 'unexpected'}
+            try:
+                with mock.patch.object(p.subprocess, 'Popen', side_effect=spawn_then_fail):
+                    with self.assertRaises(p.pa.AcceptanceError) as caught:
+                        p.app._hard_deadline_observation(observe, seconds=3)
+                self.assertTrue(getattr(caught.exception, 'source_cleanup_incomplete', False))
+                self.assertTrue(path.exists())
+            finally:
+                if path.exists():
+                    try:
+                        p.os.killpg(int(path.read_text()), p.signal.SIGKILL)
+                    except ProcessLookupError:
+                        pass
+
+    def test_timeout_stops_real_source_process_group(self):
+        # The command forks a descendant in its session; neither may keep
+        # running after the observer hits its hard deadline.
+        for persistent in (False, True):
+            with self.subTest(persistent=persistent), tempfile.TemporaryDirectory() as temp:
+                path = Path(temp) / 'pids.json'
+                script = ("import json,os,subprocess,sys,time; "
+                          "child=subprocess.Popen([sys.executable,'-c','import time; time.sleep(30)']); "
+                          "open(sys.argv[1],'w').write(json.dumps([os.getpid(),child.pid])); time.sleep(30)")
+                def observe(_deadline):
+                    p.bounded_source_command([sys.executable, '-c', script, str(path)],
+                                             p.PhaseDeadline(time.monotonic()+30))
+                    return {'owner': 'unexpected'}
+                if persistent:
+                    observer = p.app.PrestartedObserver(observe, seconds=.8)
+                    with self.assertRaises(p.pa.AcceptanceError): observer.check()
+                    observer.close()
+                else:
+                    with self.assertRaises(p.pa.AcceptanceError):
+                        p.app._hard_deadline_observation(observe, seconds=.8)
+                self.assertTrue(path.exists(), 'source process did not start before the deadline')
+                pids = json.loads(path.read_text())
+                for pid in pids:
+                    status = Path('/proc') / str(pid) / 'stat'
+                    if status.exists():
+                        self.assertEqual(status.read_text().split(') ')[1][0], 'Z',
+                                         f'source process {pid} is still running')
+    def test_supervised_command_completes_within_observer(self):
+        def observe(_deadline):
+            result = p.bounded_source_command([sys.executable, '-c', 'print("proof")'],
+                                              p.PhaseDeadline(time.monotonic()+10))
+            return {'proof': result.decode().strip()}
+        self.assertEqual(p.app._hard_deadline_observation(observe, seconds=3), {'proof':'proof'})
+
+    def test_incomplete_supervisor_evidence_fails_closed(self):
+        def observe(_deadline):
+            os.write(p.app._OBSERVER_GUARD_FD, b'S')
+            return {'owner': 'unexpected'}
+        with self.assertRaises(p.pa.AcceptanceError) as caught:
+            p.app._hard_deadline_observation(observe, seconds=3)
+        self.assertTrue(caught.exception.source_cleanup_incomplete)
+
+    def test_failed_group_kill_retains_unverified_cleanup(self):
+        with tempfile.TemporaryDirectory() as temp:
+            path = Path(temp) / 'pid'
+            script = 'import os,sys,time; open(sys.argv[1],"w").write(str(os.getpid())); time.sleep(30)'
+            def observe(_deadline):
+                p.bounded_source_command([sys.executable, '-c', script, str(path)],
+                                         p.PhaseDeadline(time.monotonic()+30))
+                return {'owner': 'unexpected'}
+            real_killpg = os.killpg
+            try:
+                with mock.patch.object(p.os, 'killpg', side_effect=PermissionError('kill denied')):
+                    with self.assertRaises(p.pa.AcceptanceError) as caught:
+                        p.app._hard_deadline_observation(observe, seconds=.8)
+                self.assertTrue(caught.exception.source_cleanup_incomplete)
+                self.assertTrue(path.exists(), 'source process did not start before the deadline')
+            finally:
+                if path.exists():
+                    try:
+                        real_killpg(int(path.read_text()), p.signal.SIGKILL)
+                    except ProcessLookupError:
+                        pass
 
 
 def owned():
@@ -195,6 +414,345 @@ class PersistenceAdmissionTest(unittest.TestCase):
         with self.assertRaises(p.pa.AcceptanceError):
             p.check_matching_sources(good,'a'*40)
 
+    def test_explicit_companion_admission_requires_identical_runtime_and_contract_trees(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            def git(*args):
+                return subprocess.check_output(['git', '-C', str(root), *args], stderr=subprocess.DEVNULL).decode().strip()
+            git('init', '-q')
+            git('config', 'user.email', 'pcxt-test@example.invalid')
+            git('config', 'user.name', 'PCXT Test')
+            for path in ('sources/libmister-runtime/runtime.c', 'sources/mister-packages/contract.json'):
+                f = root / path
+                f.parent.mkdir(parents=True, exist_ok=True)
+                f.write_text(path)
+            git('add', '.')
+            git('commit', '-qm', 'software')
+            software = git('rev-parse', 'HEAD')
+            (root / 'unrelated').write_text('host changed')
+            git('add', '.')
+            git('commit', '-qm', 'producer')
+            producer = git('rev-parse', 'HEAD')
+            args = SimpleNamespace(source_commit=producer, compatible_software_source=software,
+                                   source_main=True, source_historical_main=False, source_pr=None)
+            provenance = {'host': {'source_commit': producer}, 'software': {'source_commit': software}}
+            p.check_source_admission(provenance, args, root=root)
+            admission = provenance['companion_software']
+            self.assertEqual(admission['source_commit'], software)
+            self.assertEqual(set(admission['trees']), {'sources/libmister-runtime', 'sources/mister-packages'})
+
+            # No flag keeps the original same-source policy; an explicit source
+            # cannot waive a host mismatch, another software source, or PR/history mode.
+            for changes in ({'compatible_software_source': None},
+                            {'compatible_software_source': 'b'*40},
+                            {'compatible_software_source': '-bad'},
+                            {'source_main': False}, {'source_historical_main': True},
+                            {'source_pr': 1}):
+                with self.subTest(changes=changes):
+                    copy_args = SimpleNamespace(**vars(args)); vars(copy_args).update(changes)
+                    with self.assertRaises(p.pa.AcceptanceError):
+                        p.check_source_admission({'host': {'source_commit': producer},
+                                                  'software': {'source_commit': software}}, copy_args, root=root)
+            with self.assertRaises(p.pa.AcceptanceError):
+                p.check_source_admission({'host': {'source_commit': software},
+                                          'software': {'source_commit': software}}, args, root=root)
+
+            for path in ('sources/libmister-runtime/runtime.c', 'sources/mister-packages/contract.json'):
+                f = root / path
+                original = f.read_text()
+                f.write_text(original + ' changed')
+                git('add', '.')
+                git('commit', '-qm', 'incompatible tree')
+                changed = git('rev-parse', 'HEAD')
+                changed_args = SimpleNamespace(**vars(args)); changed_args.source_commit = changed
+                with self.subTest(path=path), self.assertRaises(p.pa.AcceptanceError):
+                    p.check_source_admission({'host': {'source_commit': changed},
+                                              'software': {'source_commit': software}}, changed_args, root=root)
+                f.write_text(original)
+                git('add', '.')
+                git('commit', '-qm', 'restore')
+
+    def test_both_cli_wrappers_admit_only_explicit_pinned_companion(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            def git(*args):
+                return subprocess.check_output(['git', '-C', str(root), *args], stderr=subprocess.DEVNULL).decode().strip()
+            git('init', '-q')
+            git('config', 'user.email', 'pcxt-test@example.invalid')
+            git('config', 'user.name', 'PCXT Test')
+            for path in ('sources/libmister-runtime/runtime.c', 'sources/mister-packages/contract.json'):
+                f = root/path; f.parent.mkdir(parents=True, exist_ok=True); f.write_text(path)
+            git('add', '.'); git('commit', '-qm', 'software')
+            software = git('rev-parse', 'HEAD')
+            (root/'host').write_text('changed'); git('add', '.'); git('commit', '-qm', 'producer')
+            producer = git('rev-parse', 'HEAD')
+            args = ['com', '--kit', 'B', '--owner', 'fixture', '--queue-lock-fd', '1',
+                    '--host-receipt', '/host.json', '--host-receipt-sha256', '1'*64,
+                    '--host-binary', '/host', '--software-receipt', '/software.json',
+                    '--software-receipt-sha256', '2'*64, '--host-api', 'http://127.0.0.1:1',
+                    '--config', '/config', '--owned-session', '/session', '--archive', '/archive',
+                    '--archive-sha256', '3'*64, '--rbf-sha256', '4'*64, '--package-id', '5'*64,
+                    '--source-commit', producer, '--bundle-id', '6'*64, '--image-sha256', '7'*64,
+                    '--target-id', 'target', '--expected-boot', 'boot', '--disk', '/disk',
+                    '--capture-device', '/dev/v4l/by-id/fes-4kpro-hil', '--evidence', tmp,
+                    '--source-repository', 'Example/fes', '--source-tool-commit', '8'*40, '--host-pid', '1']
+            floppy_args = ['--phase', 'write', '--source-main', '--source-base', 'main',
+                           '--phase-deadline-monotonic', str(time.monotonic()+120)]
+            provenance = {'host': {'source_commit': producer}, 'software': {'source_commit': software},
+                          'diagnostic_file_sha256': {}}
+            original_command = p.bounded_source_command
+            def command(argv, deadline, cwd=None):
+                return original_command(argv, deadline, cwd=root if argv[:2] == ['git', 'ls-tree'] else cwd)
+            def application(argv):
+                parsed = p.app.parser().parse_args(argv)
+                if not hasattr(parsed, 'source_main'):
+                    parsed.source_main = True; parsed.source_pr = None; parsed.source_base = 'main'
+                result, _, _ = p.app.source_provenance(parsed, b'font')
+                return result
+            for wrapper, extra in ((main_app.main, []), (p.main, floppy_args)):
+                for opt_in, host_matches in ((True, True), (False, True), (True, False)):
+                    with self.subTest(wrapper=wrapper.__module__, opt_in=opt_in, host_matches=host_matches):
+                        current = copy.deepcopy(provenance)
+                        if not host_matches: current['host']['source_commit'] = software
+                        argv = args + extra + (['--compatible-software-source', software] if opt_in else [])
+                        with mock.patch.object(p.app, 'main', side_effect=application) as app_main, \
+                             mock.patch.object(p.app, 'source_provenance', return_value=(current, b'host', b'software')), \
+                             mock.patch.object(p.app, 'install_signal_handler'), \
+                             mock.patch.object(p, 'require_source'), \
+                             mock.patch.object(p, 'bounded_source_command', side_effect=command):
+                            if opt_in and host_matches:
+                                wrapper(argv)
+                                admitted = app_main.call_args  # callback verified before wrapper restores hooks
+                                self.assertIsNotNone(admitted)
+                                self.assertEqual(current['companion_software']['source_commit'], software)
+                                self.assertEqual(set(current['companion_software']['trees']),
+                                                 {'sources/libmister-runtime', 'sources/mister-packages'})
+                            else:
+                                with self.assertRaises(p.pa.AcceptanceError): wrapper(argv)
+
+    def test_main_admission_binds_producer_and_separate_committed_tools(self):
+        args=SimpleNamespace(source_repository='Example/fes', source_pr=None, source_base='main',
+                             source_commit='a'*40, source_tool_commit='b'*40, source_main=True)
+        root=Path(p.__file__).resolve().parent.parent
+        main={'sha':'a'*40}
+        changed=[]
+        def command(argv, deadline, cwd=None):
+            if argv[:3] == ['git','rev-parse','HEAD']:
+                return b'b'*40+b'\n'
+            if argv[:2] == ['git','show']:
+                commit,path=argv[2].split(':',1)
+                data=(root/path).read_bytes()
+                return data+b'changed' if (commit,path) in changed else data
+            self.assertEqual(argv,['gh','api','repos/Example/fes/commits/main'])
+            return json.dumps(main).encode()
+        with mock.patch.object(p,'bounded_source_command',side_effect=command):
+            p.require_source(args)
+            main['sha']='c'*40
+            with self.assertRaises(p.pa.AcceptanceError): p.require_source(args)
+            main['sha']='a'*40
+            changed.append(('b'*40,'scripts/pcxt_health_evidence.py'))
+            with self.assertRaises(p.pa.AcceptanceError): p.require_source(args)
+            changed.clear()
+            changed.append(('a'*40,p.SOURCE_PATHS[-1]))
+            with self.assertRaises(p.pa.AcceptanceError): p.require_source(args)
+            changed.clear()
+            args.source_pr=42
+            with self.assertRaises(p.pa.AcceptanceError): p.require_source(args)
+            args.source_pr=None; args.source_base='other'
+            with self.assertRaises(p.pa.AcceptanceError): p.require_source(args)
+            args.source_base='main'; args.source_tool_commit=None
+            with self.assertRaises(p.pa.AcceptanceError): p.require_source(args)
+            args.source_tool_commit='b'*40; args.source_repository='../injected'
+            with self.assertRaises(p.pa.AcceptanceError): p.require_source(args)
+            args.source_repository='Example/fes'; args.source_main=False
+            with self.assertRaises(p.pa.AcceptanceError): p.require_source(args)
+
+    def test_historical_main_binds_live_tip_first_parent_and_reviewed_diff(self):
+        raw_diff=b':100644 100644 old new M\0changed\0'
+        args=SimpleNamespace(source_repository='Example/fes', source_pr=None, source_base='main',
+            source_commit='a'*40,source_tool_commit='b'*40,source_main=False,source_historical_main=True,
+            source_observed_tip='c'*40,source_minimum_tip='c'*40,source_diff_sha256=hashlib.sha256(raw_diff).hexdigest())
+        root=Path(p.__file__).resolve().parent.parent
+        live={'sha':'c'*40,'parents':[{'sha':'a'*40}]}; changed=[]; gh_calls=[]
+        def command(argv,deadline,cwd=None):
+            if argv[:3]==['git','rev-parse','HEAD']:return b'b'*40+b'\n'
+            if argv[:2]==['git','show']:
+                commit,path=argv[2].split(':',1);data=(root/path).read_bytes()
+                return data+b'bad' if (commit,path) in changed else data
+            if argv[:2]==['git','diff']:return raw_diff
+            if argv==['gh','api','repos/Example/fes/commits/'+'c'*40]:
+                return json.dumps({'sha':'c'*40,'parents':[{'sha':'a'*40}]}).encode()
+            if argv==['gh','api','repos/Example/fes/commits/'+'a'*40]:
+                return json.dumps({'sha':'a'*40,'parents':[]}).encode()
+            if argv==['gh','api','repos/Example/fes/commits/'+'d'*40]:
+                return json.dumps({'sha':'d'*40,'parents':[]}).encode()
+            self.assertEqual(argv,['gh','api','repos/Example/fes/commits/main'])
+            gh_calls.append(1)
+            return json.dumps(live).encode()
+        with mock.patch.object(p,'bounded_source_command',side_effect=command):
+            p.require_source(args)
+            self.assertEqual(len(gh_calls),2)
+            evidence=p.main_source_evidence(args)
+            self.assertEqual((evidence['producer_commit'],evidence['reviewed_tip']),('a'*40,'c'*40))
+            self.assertIn('later changes were not hardware-tested',evidence['scope'])
+            # This new main history no longer contains the reviewed tip.
+            live['sha']='d'*40
+            with self.assertRaises(p.pa.AcceptanceError):p.require_source(args)
+            live['parents']=[{'sha':'c'*40}]
+            p.require_source(args)
+            self.assertEqual([item['tip'] for item in args.source_tip_observations if item['accepted']],
+                             ['c'*40,'c'*40,'d'*40,'d'*40])
+            live['sha']='c'*40;live['parents']=[{'sha':'a'*40}]
+            with self.assertRaises(p.pa.AcceptanceError):p.require_source(args) # rollback
+            live['sha']='e'*40;live['parents']=[{'sha':'c'*40}]
+            with self.assertRaises(p.pa.AcceptanceError):p.require_source(args) # sibling force-push
+            args.source_last_observed_tip='c'*40
+            live['sha']='c'*40;live['parents']=[{'sha':'d'*40},{'sha':'a'*40}]
+            with self.assertRaises(p.pa.AcceptanceError):p.require_source(args)
+            live['parents']=[{'sha':'a'*40}];args.source_diff_sha256='d'*64
+            with self.assertRaises(p.pa.AcceptanceError):p.require_source(args)
+            args.source_diff_sha256=hashlib.sha256(raw_diff).hexdigest()
+            changed.append(('b'*40,'scripts/pcxt_health_evidence.py'))
+            with self.assertRaises(p.pa.AcceptanceError):p.require_source(args)
+            changed.clear();changed.append(('a'*40,p.SOURCE_PATHS[-1]))
+            with self.assertRaises(p.pa.AcceptanceError):p.require_source(args)
+            changed.clear();args.source_observed_tip=None
+            with self.assertRaises(p.pa.AcceptanceError):p.require_source(args)
+            args.source_observed_tip='c'*40;args.source_main=True
+            with self.assertRaises(p.pa.AcceptanceError):p.require_source(args)
+        args.source_main=False
+        def moved_during_check(argv,deadline,cwd=None):
+            result=command(argv,deadline,cwd=cwd)
+            if argv[0]=='gh' and len(gh_calls)%2==0:return json.dumps({'sha':'d'*40}).encode()
+            return result
+        gh_calls.clear()
+        with mock.patch.object(p,'bounded_source_command',side_effect=moved_during_check):
+            with self.assertRaises(p.pa.AcceptanceError):p.require_source(args)
+
+    def test_historical_main_rejects_producer_after_reviewed_tip(self):
+        raw_diff=b':100644 100644 old new M\0changed\0'
+        args=SimpleNamespace(source_repository='Example/fes', source_pr=None, source_base='main',
+            source_commit='b'*40,source_tool_commit='a'*40,source_main=False,source_historical_main=True,
+            source_observed_tip='c'*40,source_minimum_tip='c'*40,source_diff_sha256=hashlib.sha256(raw_diff).hexdigest())
+        root=Path(p.__file__).resolve().parent.parent
+        live={'sha':'d'*40,'parents':[{'sha':'b'*40}]}
+        def command(argv,deadline,cwd=None):
+            if argv[:3]==['git','rev-parse','HEAD']:return b'a'*40+b'\n'
+            if argv[:2]==['git','show']:
+                _,path=argv[2].split(':',1)
+                return (root/path).read_bytes()
+            if argv==['gh','api','repos/Example/fes/commits/'+'b'*40]:
+                return json.dumps({'sha':'b'*40,'parents':[{'sha':'c'*40}]}).encode()
+            if argv==['gh','api','repos/Example/fes/commits/main']:
+                return json.dumps(live).encode()
+            self.fail(f'unexpected source command: {argv!r}')
+        with mock.patch.object(p,'bounded_source_command',side_effect=command):
+            with self.assertRaises(p.pa.AcceptanceError):p.require_source(args)
+
+    def test_selected_source_receipt_boundary_rechecks_live_main_tip(self):
+        raw_diff=b':100644 100644 old new M\0changed\0'
+        args=SimpleNamespace(source_repository='Example/fes',source_pr=None,source_base='main',
+            source_commit='b'*40,source_tool_commit='a'*40,source_main=False,source_historical_main=True,
+            source_observed_tip='c'*40,source_minimum_tip='c'*40,
+            source_diff_sha256=hashlib.sha256(raw_diff).hexdigest(),source_last_observed_tip=None,
+            selected_prepared=Path('/unused/prepared.json'),phase_deadline_monotonic=time.monotonic()+120,
+            source_tip_observations=[])
+        provenance={'host':{'source_commit':args.source_commit},'software':{'source_commit':args.source_commit}}
+        root=Path(p.__file__).resolve().parent.parent
+        live={'sha':'c'*40,'parents':[{'sha':'b'*40}]}
+        def command(argv,deadline,cwd=None):
+            if argv[:3]==['git','rev-parse','HEAD']:return b'a'*40+b'\n'
+            if argv[:2]==['git','show']:
+                _,path=argv[2].split(':',1)
+                return (root/path).read_bytes()
+            if argv[:2]==['git','diff']:return raw_diff
+            if argv==['gh','api','repos/Example/fes/commits/main']:
+                return json.dumps(live).encode()
+            self.fail(f'unexpected source command: {argv!r}')
+        with mock.patch.object(p,'selected_source_admission',return_value=True), \
+             mock.patch.object(p,'bounded_source_command',side_effect=command):
+            # This models the successful post-scenario source check.
+            p.require_source(args)
+            live['sha']='d'*40
+            # The final provenance pass must reject a tip advance before it
+            # can publish the success receipt.
+            with self.assertRaises(p.pa.AcceptanceError):
+                p.check_source_admission(provenance,args,receipt_boundary=True)
+
+    def test_main_write_then_restart_requires_same_producer_and_tools(self):
+        root=Path(p.__file__).resolve().parent.parent
+        args=SimpleNamespace(source_repository='Example/fes',source_pr=None,source_base='main',
+            source_commit='a'*40,source_tool_commit='b'*40,source_main=True,phase='write',
+            compatible_software_source='c'*40,source_historical_main=False,
+            phase_deadline_monotonic=time.monotonic()+120,disk=Path('/unused'),
+            archive_sha256='d'*64,package_id='a'*64,rbf_sha256='e'*64,bundle_id='f'*64,
+            image_sha256='1'*64,target_id='target',expected_boot='boot',evidence=Path('/unused'))
+        prior=SimpleNamespace(**vars(owned()))
+        prior.session_id=owned().session_id;prior.generation=8;prior.flight_id='oldflight'
+        provenance={'main_source':{'producer_commit':args.source_commit,'tool_commit':args.source_tool_commit},
+                    'host':{'source_commit':args.source_commit},'software':{'source_commit':args.compatible_software_source}}
+        rec={'scenario':'com','source_commit':args.source_commit,'archive_sha256':args.archive_sha256,
+             'package_id':args.package_id,'rbf_sha256':args.rbf_sha256,'bundle_id':args.bundle_id,
+             'base_image_sha256':args.image_sha256,'target_id':'target','boot_id':'boot',
+             'disk':{'floppy_sha256':p.DISK_SHA},'provenance':provenance,'captures':[],
+             'hid_events':[],'session':{'id':prior.session_id,'target':prior.target_name,
+             'target_id':prior.target_id,'game_id':prior.game_id,'package_id':prior.package_id,
+             'generation':prior.generation,'flight_id':prior.flight_id,'input_session_id':'oldinput'}}
+        class API:
+            timeout=20
+            calls=0
+            def request(self,*unused):
+                self.calls+=1
+                runner.revision='9'*64
+                return session(runner.revision)
+        class Runner:
+            api=API()
+            revision='absent'
+            def session(self):return session(self.revision)
+            def session_identity(self,*unused):return prior
+        runner=Runner()
+        def command(argv, deadline, cwd=None):
+            if argv[:3]==['git','rev-parse','HEAD']:return b'b'*40+b'\n'
+            if argv[:2]==['git','ls-tree']:
+                return (b'040000 tree '+b'1'*40+b'\tsources/libmister-runtime\0'
+                        b'040000 tree '+b'2'*40+b'\tsources/mister-packages\0')
+            if argv[:2]==['git','show']:
+                return (root/argv[2].split(':',1)[1]).read_bytes()
+            return json.dumps({'sha':'a'*40}).encode()
+        with tempfile.TemporaryDirectory() as tmp, \
+             mock.patch.object(p,'bounded_source_command',side_effect=command), \
+             mock.patch.object(p.app,'verify_disk',return_value={'floppy_sha256':p.DISK_SHA}), \
+             mock.patch.object(p.app,'validate_active'), \
+             mock.patch.object(p.app,'capture_owned',return_value=((1,1,b''),{})), \
+             mock.patch.object(p.app.visual,'find_prompt',return_value=0), \
+             mock.patch.object(p.app,'read_anchored',return_value=[]), \
+             mock.patch.object(p.app,'type_keys'), \
+             mock.patch.object(p,'wait_for_output',return_value={'proof':'output'}), \
+             mock.patch.object(p,'wait_for_copy',return_value={'proof':'copy'}):
+            p.check_source_admission(provenance,args)
+            p.run_phase(runner,prior,args,rec,'oldinput',b'font')
+            self.assertEqual(runner.api.calls,1)
+            self.assertEqual(rec['saved_revision'],'9'*64)
+            raw=json.dumps(rec).encode();receipt=Path(tmp)/'write.json';receipt.write_bytes(raw)
+            args.phase='verify';args.write_receipt=receipt;args.write_receipt_sha256=hashlib.sha256(raw).hexdigest()
+            verify={'provenance':copy.deepcopy(provenance),'captures':[],'hid_events':[]}
+            p.check_source_admission(verify['provenance'],args)
+            p.run_phase(runner,owned(),args,verify,'newinput',b'font')
+            self.assertEqual(verify['classification'],'physical diagnostic: DOS saved file restored after restart')
+            self.assertEqual(runner.api.calls,1)
+            self.assertEqual(verify['provenance']['companion_software'], rec['provenance']['companion_software'])
+            for field, value in (('source_commit','d'*40), ('trees',{'sources/libmister-runtime':'f'*40})):
+                changed=copy.deepcopy(provenance)
+                changed['companion_software'][field]=value
+                with self.subTest(companion_field=field), self.assertRaises(p.pa.AcceptanceError):
+                    p.run_phase(runner,owned(),args,{'provenance':changed,'captures':[],'hid_events':[]},'newinput',b'font')
+            verify['provenance']['main_source']['tool_commit']='c'*40
+            with self.assertRaises(p.pa.AcceptanceError):p.run_phase(runner,owned(),args,verify,'newinput',b'font')
+            verify['provenance']=copy.deepcopy(provenance);args.source_tool_commit='c'*40
+            with self.assertRaises(p.pa.AcceptanceError):p.run_phase(runner,owned(),args,verify,'newinput',b'font')
+            args.source_tool_commit='b'*40;args.source_commit='c'*40
+            with self.assertRaises(p.pa.AcceptanceError):p.run_phase(runner,owned(),args,verify,'newinput',b'font')
+
     def test_exact_private_process_must_own_loopback_listener(self):
         with socket.socket() as sock:
             sock.bind(('127.0.0.1',0));sock.listen()
@@ -215,20 +773,41 @@ class PersistenceAdmissionTest(unittest.TestCase):
              'package_id':args.package_id,'rbf_sha256':args.rbf_sha256,'bundle_id':args.bundle_id,
              'base_image_sha256':args.image_sha256,'target_id':'target','boot_id':'boot',
              'disk':{'floppy_sha256':p.DISK_SHA},'saved_revision':'9'*64,'provenance':{'same':True},
-             'session':{'id':'oldsession','target':'kit','target_id':'target','game_id':owned().game_id,
-                        'package_id':'a'*64,'generation':8,'flight_id':'oldflight'}}
+             'session':{'id':'session','target':'kit','target_id':'target','game_id':owned().game_id,
+                        'package_id':'a'*64,'generation':8,'flight_id':'oldflight','input_session_id':'oldinput'}}
         with tempfile.TemporaryDirectory() as tmp:
             file=Path(tmp)/'receipt.json'
             def check():
                 data=json.dumps(rec).encode();file.write_bytes(data)
-                return p.previous_receipt(file,hashlib.sha256(data).hexdigest(),args,owned(),{'same':True})
+                return p.previous_receipt(file,hashlib.sha256(data).hexdigest(),args,owned(),{'same':True},'newinput')
             self.assertEqual(check()[0]['saved_revision'],'9'*64)
-            for name,value in (('generation',9),('generation',True),('id','session'),('flight_id','newflight'),('target_id','other')):
+            for name,value in (('generation',9),('generation',True),('id','other'),('flight_id','newflight'),('input_session_id','newinput'),('target_id','other')):
                 old=rec['session'][name];rec['session'][name]=value
                 with self.assertRaises(p.pa.AcceptanceError): check()
                 rec['session'][name]=old
             rec['saved_revision']='absent'
             with self.assertRaises(p.pa.AcceptanceError): check()
+
+    def test_historical_restart_continues_from_write_receipt_tip(self):
+        args=SimpleNamespace(source_commit='c'*40,archive_sha256='d'*64,package_id='a'*64,
+                             rbf_sha256='e'*64,bundle_id='f'*64,image_sha256='1'*64,
+                             target_id='target',expected_boot='boot',source_historical_main=True,
+                             source_minimum_tip='9'*40)
+        rec={'classification':'physical diagnostic: saved; restart pending','scenario':'com',
+             'source_commit':args.source_commit,'archive_sha256':args.archive_sha256,'package_id':args.package_id,
+             'rbf_sha256':args.rbf_sha256,'bundle_id':args.bundle_id,'base_image_sha256':args.image_sha256,
+             'target_id':'target','boot_id':'boot','disk':{'floppy_sha256':p.DISK_SHA},
+             'saved_revision':'9'*64,'provenance':{'same':True},
+             'source_tip_observations':[{'tip':'8'*40,'monotonic_ns':1,'accepted':True},
+                                        {'tip':'9'*40,'monotonic_ns':2,'accepted':True}],
+             'session':{'id':'session','target':'kit','target_id':'target','game_id':owned().game_id,
+                        'package_id':'a'*64,'generation':8,'flight_id':'oldflight','input_session_id':'oldinput'}}
+        with tempfile.TemporaryDirectory() as tmp:
+            path=Path(tmp)/'receipt.json'
+            raw=json.dumps(rec).encode();path.write_bytes(raw);sha=hashlib.sha256(raw).hexdigest()
+            p.previous_receipt(path,sha,args,owned(),{'same':True},'newinput')
+            args.source_minimum_tip='8'*40
+            with self.assertRaises(p.pa.AcceptanceError):p.previous_receipt(path,sha,args,owned(),{'same':True},'newinput')
 
     def test_save_uses_exact_binding_once_and_checks_revision(self):
         expected=owned(); after=session('9'*64)
@@ -490,6 +1069,7 @@ class HealthObserverIntegration(unittest.TestCase):
  def execute_fixture(self,args,*,fail=False):
   class Parser:
    def add_argument(self,*a,**k):pass
+   def add_mutually_exclusive_group(self,**k):return self
    def parse_args(self,argv):return args
   response={'ready':True,'target':{'reachable':False,'ready':False}}
   class API:

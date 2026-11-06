@@ -263,6 +263,73 @@ start:
     jnz .esc
     mark 33
 
+    ; 17: VGA memory (MMIO, the window at A0000h), as a fill and a blit
+    ; touch it: REP STOSB, STOSW and STOSD; a word store, one at an odd
+    ; address (two 16-bit halves), a load and a read-modify-write; REP MOVSW
+    ; from RAM; REP MOVSB within VGA memory, as a latch copy does.
+    mov ax, 0xa000
+    mov es, ax
+    mark 34
+    mov bp, 200
+.vram:
+    xor di, di
+    mov cx, 16
+    rep stosb
+    mov cx, 8
+    rep stosw
+    mov cx, 4
+    rep stosd
+    mov [es:di], ax
+    mov [es:di + 5], ax
+    mov ax, [es:di]
+    add [es:di + 2], al
+    mov si, DATA
+    mov cx, 8
+    rep movsw
+    push ds
+    push es
+    pop ds
+    mov si, 0x100
+    mov cx, 8
+    rep movsb
+    pop ds
+    dec bp
+    jnz .vram
+    mark 35
+    xor ax, ax
+    mov es, ax
+
+    ; 18: I/O by width and port: word and dword at the 16-bit ATA data port
+    ; (1F0h), REP INSW, a byte there, dwords across it from 1EEh and 1EFh
+    ; (pc386_io splits each into 8-bit cycles and one 16-bit), at an 8-bit
+    ; port (300h), and REP OUTSB.
+    mov si, DATA
+    mov di, DATA + 0x1000
+    mark 36
+    mov bp, 1000
+.iobus:
+    mov dx, 0x1f0
+    in ax, dx
+    out dx, ax
+    in eax, dx
+    mov cx, 4
+    rep insw
+    in al, dx
+    mov dx, 0x1ee
+    in eax, dx
+    mov dx, 0x1ef
+    out dx, eax
+    mov dx, 0x300
+    out dx, ax
+    in eax, dx
+    mov cx, 4
+    rep outsb
+    sub si, 4
+    sub di, 8
+    dec bp
+    jnz .iobus
+    mark 37
+
     ; The interrupt latency run.
     mov si, DATA
     mov di, COPY

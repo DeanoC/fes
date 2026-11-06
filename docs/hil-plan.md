@@ -70,7 +70,8 @@ Each changed path gets a class and a component:
   [kit software bundle](kit-software-releases.md) (`mister-runtime`,
   `mister-agent`, `fogcast-tenfoot`, other FogCast Go), a host binary
   (`host:fogcast-api`, `host:fogcast`) or a core package (`core:<name>`,
-  `core:ALL`).
+  `core:ALL`). `cmd/fogcast-api` is `kit-go+host`: the bundle ships it as
+  `bin/fogcast-kit`, the kit's FogCast host.
 - `full`: image, boot media, platform, profile, splash, video-part or kit
   software-format changes. The decision is `FULL_IMAGE`: stop and build a
   full image. A full image swap or reimage still needs Deano's explicit OK.

@@ -75,6 +75,20 @@ platform, stay `launchable` even when a cartridge platform such as Coleco
 has no host-emulator mapping. Rooms treat those titles as Ready once
 composition flags such as `firmware_ready` pass; raw Coleco library carts
 remain browse-only.
+The kit host uses an agent-held local grant, available only to authenticated
+loopback requests. The agent gives that grant a ten-minute expiry window, so
+the game survives a host restart while the agent remains running. A restarted
+host resumes the same grant before discovery, reads the running session, and
+reconstructs its input binding. From the first session read, kit mode uses its
+local target's coordinator so the session ID and input owner stay stable across
+reattachment. Host shutdown detaches its local resources without stopping the
+target or releasing this grant; an explicit Stop still stops the session and
+releases it. A local grant that is not resumed or renewed within the window
+expires and follows the normal agent cleanup path. A transient renewal failure
+retries within the last confirmed local expiry; it never extends that expiry
+without a valid response. A denial or a changed token or generation invalidates
+the grant. Remote hosts retain their ordinary lease behavior and cannot resume
+the local grant.
 A locally expired or lost kit lease remains `KIT_LEASE_DENIED` through host
 service normalization, session reads, input reconciliation, Launch and Stop.
 The host API returns HTTP 403 for this ownership refusal. An ordinary claim
@@ -83,7 +97,7 @@ input reconciliation after endpoint adoption. Neither becomes a disconnected
 target or failed input bridge. Unclassified transport and
 bridge failures retain their unavailable responses. A refusal does not establish
 whether an earlier operation completed; clients must inspect current ownership
-before issuing a new operation. Existing authenticated endpoint reconciliation
+before issuing a new operation. Remote authenticated endpoint reconciliation
 uses read-only ownership/status observations to discard stale local authority;
 it never stops or releases the replacement owner's session. A subsequent
 explicit launch uses an ordinary claim, which still refuses a foreign holder.
@@ -382,7 +396,15 @@ also reports managed software independently of that sealed base-image record.
 Target health carries only `software.active_bundle`, `base_identity`,
 `selected` and `generation`, and the host forwards them as `target.software`;
 the operation journal, requester labels and diagnostic error strings stay on
-the target's `GET /v1/kit/software`. Unmanaged targets omit `target.software`, and
+the target's `GET /v1/kit/software`. Before exposing a selection, the agent
+checks that the complete bounded supervisor response has an unambiguous,
+well-formed status envelope and no storage error. If it cannot do so, health
+retains only the active bundle and base identity supplied at launch. The
+supervisor validates its repository and journal invariants; the agent does not
+rebuild the receipt map or independently attest those invariants on each poll.
+This is an agent-side check: hosts remain wire-compatible with older agents,
+which do not gain the check until their kit software is updated.
+Unmanaged targets omit `target.software`, and
 failed health does not retain a previous identity. Public unauthenticated target
 health never exposes software status.
 
@@ -1962,8 +1984,12 @@ do not revoke the live session. A failed explicit Stop of that surviving play
 still releases the other idle grants. The tenfoot shell's rooms Soft-stop (now-playing B, Esc, Backspace, or s) is
 the retain request and keeps the grant while the shell stays up. Kit Select+Start
 is the library session's completed exit on that same route: `retain_lease` false
-with the captured play. A package play sends that package generation. A play
-without a package sends the session id, launch flight, game, and target; a
+with the captured play. A package play sends its session and target identities,
+package ID and generation, even when the restarted agent reports no game ID.
+Stop rejects a changed generation before input teardown. If an unidentified
+package has a pending ZX81 SAVE, Stop keeps the machine running because the
+captured bytes have no durable game binding. A play without a package sends the
+session id, launch flight, game, and target; a
 missing flight is not posted as an empty body, because an unbound stop would
 release whatever play is foreground at admission. Idle cleanup releases that
 play's grant. A bound stop releases only its target, and a host-only stop
@@ -2487,10 +2513,9 @@ coverage; physical reboot and DHCP acceptance belongs to the selected FES image.
 The kit UI is `fogcast-tenfoot -gfx menu-display -home rooms`. The base-image
 supervisor starts it after the runtime and agent. `ui/launcherconfig` reads the
 provisioned `launcher.json` (`api`, `token`, `target_id`) and ignores keys left
-by the removed grid launcher. `cmd/fogcast-kit` is a stub that prints `tenfoot`
-for `--print-kit-ui`; it exists only for bases whose supervisor probes it before
-starting the launcher, and kit software bundles carry it until every kit runs a
-base that starts tenfoot directly.
+by the removed grid launcher. The bundle's `bin/fogcast-kit` is
+`cmd/fogcast-api` built under the kit's name: `fogcast-kit host` is the kit's
+FogCast host ([kit mode](#kit-mode)).
 
 A paired, authenticated host listener serves a restricted set of existing
 library, artwork, and session operations. The host keeps target and input lease
@@ -2694,6 +2719,96 @@ The existing local execution mode remains volatile for settings/progress.
 
 See [durable kit library](../../../docs/kit-core-library.md) for the operator
 workflow and explicit storage/recovery boundaries.
+
+### Kit mode
+
+`fogcast-api -kit` is a kit host (#863 slice 4): it runs on the kit, owns it,
+and drives only the kit's own agent. It takes no `-config`; `internal/kithost`
+writes one before the service opens, in this order:
+
+1. It reads the agent's `/media/fat/fogcast/agent.toml` (`-kit-agent-config`).
+   A missing or invalid file stops the host: there is no token to drive the
+   agent with. The agent's `listen_address` gives the address. A wildcard host
+   maps to `127.0.0.1` and a loopback host is kept as given; an agent bound to
+   any other address is refused, because the host never dials its agent over
+   the LAN.
+2. It waits up to 30 s for the agent's authenticated `/v1/health`, which
+   reports the target ID only to a caller with the bearer. An agent that
+   answers without one has refused the token, so the wait ends there. If no
+   valid ID arrives, the host keeps the ID its config already has, or learns
+   it from the first health later. It never guesses one. An `agent.toml`
+   `target_id` that disagrees with the agent stops the host.
+3. It checks the state root, `/run/fogcast/fesdata3/fogcast-host`
+   (`-kit-state`), and the exact `state` and `staging` paths beneath it with
+   `appliancedata.CheckPersistent` before creating or rewriting the config:
+   FESDATA3 must be the writable ext4 mount of the selected device, with no
+   symlink or nested mount on the way. Checking each path catches an existing
+   child mount on another filesystem. The check follows the wait because
+   mister-agent prepares FESDATA3. Otherwise the host logs it and uses tmpfs
+   `/run/fogcast/kit-host`, which a restart loses; the kit still runs, as the
+   supervisor does without FESDATA3.
+4. It renders `config.toml` in the state root (`fogcast.KitHostConfig`, mode
+   0600). A first start begins from the image's catalog config,
+   `/usr/share/fogcast/config.toml` (`-kit-template`), which is never written.
+   A restart begins from the existing file, so libraries and settings changed
+   through the API survive; a file this host cannot read, perhaps written by a
+   newer bundle, is kept beside it as `config.toml.unreadable-<time>` and the
+   host starts from the template. Every start rewrites the keys kit mode owns:
+   the one loopback `[[targets]]` row named `kit` (agent address, token, target
+   ID), `selected_target`, `state` and `staging` beside the config,
+   `[core_packages] kit = true`, the `[firmware]` directory and request
+   timeout from the template, a 300 s upload timeout (titling an ST package
+   takes 29–48 s on a kit), and `[library] folder_watch_seconds = 0`.
+
+The host then serves and scans the library once in the background. It does
+not poll: on any host, `[library] folder_watch_seconds` is the folder-watch
+interval, omitted means the 30 s default, and 0 turns the watch off. While
+running, a kit host never looks its agent up by mDNS: a slow loopback health
+must not move it onto the agent's LAN address. The settings API refuses edits
+to its target and selection; libraries and library settings still change.
+
+### The kit host's packages
+
+A host whose config sets `[core_packages] kit = true` is a kit host (#863
+slice 3). Its installed packages are `kitpackages.View`, not the state
+directory's `core-packages` store. The view opens the durable store with the
+agent's storage checks (`OpenPersistentForHost` on
+`/run/fogcast/fesdata3/core-library`) and reads the image's factory packages under
+`/usr/share/mister-runtime/core-packages`. Imports go to the durable store.
+List, inspect and read look in the durable store first, then in the factory
+packages. A package in both is the same bytes and is listed once.
+
+A factory package is an unpacked directory named by its package ID. It hashes
+to the same ID as its canonical archive, so the host reads it as that archive
+(`corepackage.ReadPackage`). A directory that does not hash to its name is
+omitted from the list and refused by ID. As in kit-local inventory, the menu
+package is left out of the list; it can still be read by ID. The factory reader
+is independent of the selection files: catalog entries name package IDs, so
+the host needs the packages, not the per-core selections.
+
+The host and `mister-agent` open the durable store as two processes, coordinated
+by its flock. The agent recovers interrupted installations and verifies packages
+when opening; the host skips recovery and verifies durable inventory and
+selections on access before serving either durable or factory packages. The
+first access verifies selected packages under the lock; a list also verifies
+the other durable packages. Later reads reuse valid stat-fingerprint caches.
+The host view opens in the background; calls made meanwhile get the unavailable
+error at once instead of waiting. The lock waits until the caller's context
+ends, so a list, inspect or read without a deadline is bounded to one minute. An import
+reads its whole body under the lock and keeps the caller's context, as the
+agent's own install does. Durable and factory inspections are cached by stat
+fingerprint, as above. A factory cache stores only its fingerprint and
+inspection; later reads with a matching fingerprint rebuild the canonical
+archive from the package directory without hashing members or decoding a ROM
+map again. A durable read for the host trusts that fingerprint too
+(`Store.ReadCached`) and rereads the archive from disk without hashing the
+unpacked members or decoding a ROM map again; mister-agent verifies those bytes
+before programming, and its own select and launch paths keep the full `Read`. If
+the durable store cannot be opened, the host follows
+the agent: it withholds the factory packages too and reports HTTP 503
+`CORE_PACKAGE_STORE_UNAVAILABLE` for list, inspect, read and import, carrying
+the open error. It retries the open at most every five seconds, so a host that
+starts before FESDATA3 is ready recovers without a restart.
 
 ## Installed core packages and library entries
 

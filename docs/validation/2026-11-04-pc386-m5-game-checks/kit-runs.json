@@ -1,0 +1,441 @@
+{
+ "r1": {
+  "run": "r1",
+  "kit": "B",
+  "package": "499f4805ca07ddc13f04e35146fc822e340c49babc3694fdae0b813fce933d2c",
+  "package_file_sha256": "b69ca3f94b0eeb27459ab4790cce62c59090b1962d8e5234911202c32821abc9",
+  "sealed_from": "main ee7ea9bb485924d5eddbea0201f63044d6d11191 (#1481 seal); all 109 sealed inputs hash identically on main d646bcd7e",
+  "baseline": "main bb51f4454eb72048cefeea16aa16b28eb2aadaad, software a8cd30c49afd79eb7668af7ab7ae8a8e2ed2a90a31b25f164e28128b446274ee, OS f904961e008a972db8f06f1bb47aff9631123d67215b9f4157ea1fbee83b98d4 (core-only, nothing installed, no reboot)",
+  "claimed": "2026-11-04 20:45 EET",
+  "released": "2026-11-04 22:22 EET",
+  "capture": "Kit B 4KPRO through fes-4kpro-hil: 240 frames in 3.99 s (60 fps; the loopback still advertises 30); audio hw:CARD=D4KPRO 48 kHz",
+  "games_image_sha256": "b23fba2e7ffa5380661ed4377329f31c95d103cec9299b7e6882272a4d78e512",
+  "base_with_tools_sha256": "f7929ecee4bd5c6b6f950330eb9f068366acbbb1857c795166414e92d60a2689",
+  "tools": {
+   "A20TEST.COM": "6117382146e31c6bdd1a8fba3d9b1c713a8df6812babaa3d528722f5098845fc",
+   "M33.COM": "a57fda05089f91c6fa056d4b54041925ebb180994a04f37fb1a7e114fd2378a1",
+   "INPUT.COM": "95f3fc7467236a9fd95ca6f85775e7f81102ed856b5761c8b1317693f7427e70",
+   "TOPBENCH.EXE": "4428fc27d5c2987e5bd177540843190ebb33f31ca6ddacc6e9f8fb994076e63d",
+   "TOPBENCH DATABASE.INI": "6455f472fe80cc0e1afd7ffce4a486ff2c950421f5d745ef75bcfe0cadd6b394",
+   "CHKCPU.EXE": "edf5b52f400f7157c9b53cdf822f5821ccf0d228b305e7460f000f6824927a41"
+  },
+  "scrub_image_sha256": "8538495aedc52a76db41cfbc56bbf89b50e0f84a99addbf6eeba0a788b98c5bf",
+  "disks": {
+   "m-wolf3d": {
+    "sha256": "acc0f2b186678f0b014b74076c790c8be52d814b85e5a2b7bcf66a7a224c9e63",
+    "games": {
+     "wolf3d": {
+      "directory": "WOLF3D",
+      "zip": "/mnt/emuhd/Games/PC DOS/Collections/eXoDOS 6.04 Full/eXoDOS/eXo/eXoDOS/Wolfenstein 3D (1992).zip",
+      "sha256": "f451d8538266fb9f12a4fa8909a671b37d354de388a9b76d1c1033a6a541ed37",
+      "files": 11,
+      "configs": {}
+     }
+    },
+    "free": [
+     "30 590 976 bytes free"
+    ]
+   },
+   "m-doom": {
+    "sha256": "fa8ec703f5868c860cc69aec6289fd1607371cb59a8cdd0b4c23b3bb535d9d13",
+    "games": {
+     "doom": {
+      "directory": "DOOM",
+      "zip": "/mnt/emuhd/Games/PC DOS/Collections/eXoDOS 6.04 Full/eXoDOS/eXo/eXoDOS/DOOM (1993).zip",
+      "sha256": "06ee36b4257d2fb0daaf38ffd90485bbe5c0a45ad4129492309861fbc523b6bc",
+      "files": 34,
+      "configs": {}
+     }
+    },
+    "free": [
+     "20 283 392 bytes free"
+    ]
+   },
+   "m-u7bg": {
+    "sha256": "5eba644557b9765cf7d88e93774a17649ace91e4cd9b2a9f85f8d2e836d88f0a",
+    "games": {
+     "u7bg": {
+      "directory": "ULTIMA7",
+      "zip": "/mnt/emuhd/Games/PC DOS/Collections/eXoDOS 6.04 Full/eXoDOS/eXo/eXoDOS/Ultima VII Part 1 - The Black Gate + Forge of Virtue (1992).zip",
+      "sha256": "75e6eb68636aec0e06ffb9683f03b9be5dbb8de0a121da43935163d1d7c6659f",
+      "files": 399,
+      "configs": {}
+     }
+    },
+    "free": [
+     "9 658 368 bytes free"
+    ]
+   },
+   "m-u7si": {
+    "sha256": "a72e3d4e26e5f13c4fdf6922bcbc2f931223a4136782951609e77b4048f4fb53",
+    "games": {
+     "u7si": {
+      "directory": "SERPENT",
+      "zip": "/mnt/emuhd/Games/PC DOS/Collections/eXoDOS 6.04 Full/eXoDOS/eXo/eXoDOS/Ultima VII Part 2 - Serpent Isle + The Silver Seed (1993).zip",
+      "sha256": "5601ca4e2e2d23865046fbfe9c775fa5df896aa0ba4f8a66bb95521ffd1c2c1c",
+      "files": 433,
+      "configs": {
+       "SERPENT.CFG": "13ad7bdb6b057ea635899f7856b3d56cba5d44dd25d1664a98b968f2b5212c81",
+       "TEST.CFG": "13ad7bdb6b057ea635899f7856b3d56cba5d44dd25d1664a98b968f2b5212c81"
+      }
+     }
+    },
+    "free": [
+     "4 501 504 bytes free"
+    ]
+   }
+  },
+  "frames": {
+   "fd-a20": {
+    "sha256": "82b4151f65d8df62482ef91972dd993f8861a237e46f9feb96b4ae3df7e15eb0",
+    "content": "A20TEST at the prompt, every check ok"
+   },
+   "fd-set": {
+    "sha256": "101bbf484b84a864096be96fa5ef2c04da815bf6192c922dfbe371509779bb8e",
+    "content": "set (BLASTER=A240 I5 D1 T3) and MEM at r1-fd240"
+   },
+   "m33-max2": {
+    "sha256": "d30b25e26da55025e36fc12043c291a1c3d8c6f80e7348834cd3d5775d63248f",
+    "content": "M33 at max (r1-bgmax entry)"
+   },
+   "m33-25": {
+    "sha256": "30b71628fdccdb4e4ebca241e0a88682b047c20a1b34d58263c1b9139c003d95",
+    "content": "M33 at 386DX-25"
+   },
+   "fd-chkcpu": {
+    "sha256": "664bba066beeb50fc1d8e031dc3cd5a0ff85dd1e98710945bb08e537bde4ce0b",
+    "content": "CHKCPU at max"
+   },
+   "fd-tb4": {
+    "sha256": "c4538d3055fde25d3530adfb6167934d1887d139ff4632e91f0ab2265ddb7096",
+    "content": "TopBench at max"
+   },
+   "b25-chkcpu": {
+    "sha256": "1dc7709cd3e72b67b84438a984c4707a753786af3c4a39346c81da799c81d880",
+    "content": "CHKCPU at 386DX-25"
+   },
+   "b25-tb": {
+    "sha256": "4784c209b8848072c7fcd5f0ea638b82a7af584b02f6a0aa72009f84d00f47d4",
+    "content": "TopBench at 386DX-25"
+   },
+   "f286-chkcpu": {
+    "sha256": "c903849e4dbadd6b6d57bedaba5aa1015e6072ab474d225fc287eac8d9d60395",
+    "content": "CHKCPU at 286-12"
+   },
+   "f286-tb": {
+    "sha256": "8ac61bf702ef34fc3e15c5f0698a8c3ae8ae2a4eb0f6b613578a39820de27103",
+    "content": "TopBench at 286-12"
+   },
+   "bgm-c2": {
+    "sha256": "ecb9eeae2c3e51642b95b6e82b1fbc9a50bdd4c8f2a80d5330e358472824baad",
+    "content": "The Black Gate at max: first frame of the intro replay the menu idled into"
+   },
+   "bgm-stall": {
+    "sha256": "ecb9eeae2c3e51642b95b6e82b1fbc9a50bdd4c8f2a80d5330e358472824baad",
+    "content": "the same picture 2 min later (stall)"
+   },
+   "bgm2-cs6": {
+    "sha256": "33bf55f8a0df19e2be32cac5e7db2c0ee348cbd0c906b7740decd0d6f8f8b136",
+    "content": "The Black Gate at max: character screen"
+   },
+   "bgm2-h1": {
+    "sha256": "a4fe6f1779c6dea9a9f26828a12effa42eaf277d87387d14318605ea0f12a782",
+    "content": "character screen after the cursor vanished: typed keys reach the name field"
+   },
+   "bg4-k8": {
+    "sha256": "99b7a9afca60d81c8b91f40b41738a5e0036fda3b744d2ca1e8caa8e0f30b050",
+    "content": "The Black Gate at max: menu after 9 clicks on Start New Game"
+   },
+   "bg4-ent": {
+    "sha256": "e09f760af8a1fab50fdaefd8ed0b52903de4e0c46cf8f5d15442fe0239a25c9e",
+    "content": "the same menu after Enter"
+   },
+   "b25-menu": {
+    "sha256": "6efc1e18dee9981ad6ccbe40be38d131b004eef3217ab4d766b0e28d0cc532f1",
+    "content": "The Black Gate at 386DX-25: main menu"
+   },
+   "b25-k3": {
+    "sha256": "6cf6e3ba4984b3031e0cf62aed0404c8ea3d075b1d86e750e279e3f4f11bcb6b",
+    "content": "386DX-25: menu after 3 clicks"
+   },
+   "si-menu": {
+    "sha256": "10562c0d0491dc60bed21f1f5a6f161f115f6e6af9556c3889a27ec344a17cac",
+    "content": "Serpent Isle at max: main menu"
+   },
+   "si-k4": {
+    "sha256": "58beee5aedb874a1df7e0cfad5f6d25df02d4abea046f2cc427c93b66457fc4c",
+    "content": "Serpent Isle at max: menu after 5 clicks"
+   },
+   "si-ent": {
+    "sha256": "d8957e74823aa07a49d216a900f56db90166788c2c91139ccf29a3a6e2c4eece",
+    "content": "after Enter"
+   },
+   "si25-menu": {
+    "sha256": "99817b25dc19c008c2dc28f57b7565cae14b67988bfa16f83ffba73142ecdf79",
+    "content": "Serpent Isle at 386DX-25: main menu"
+   },
+   "ds5a": {
+    "sha256": "7b3e63560354ec9afe798d9505e245397a8f30c2526329bbe127603a37423055",
+    "content": "DOOM SETUP: IRQ 5 selected"
+   },
+   "ds10a": {
+    "sha256": "38c236f3e5d2758920a111b0d02305edb02ed7716538f9cc1379ed77fbf3c156",
+    "content": "DOOM SETUP: music port 240"
+   },
+   "d240-cfg2": {
+    "sha256": "5ed3d80daa74d2e8016e0ff31f749b5fc78df8c4ce3e0a314f7ca71216b844f3",
+    "content": "DEFAULT.CFG after SETUP (snd_sbport 576, snd_sbirq 5, snd_sbdma 1)"
+   },
+   "d240-demo2": {
+    "sha256": "05a30d6c098384e2bcc180f053080e2c65b32cb43d14bf107856e2c47284acae",
+    "content": "DOOM demo at 240h/IRQ 5"
+   },
+   "d25-td4": {
+    "sha256": "2fcc5501a7903b2e452256a96d5a6e22b0f3f7de386ae886e762a6903831d405",
+    "content": "DOOM -timedemo demo3 at 386DX-25"
+   },
+   "dm-demo": {
+    "sha256": "4f4ad0a5739b872eb85ce92c34326c4d894211cacb91e285b3f2af071c30bdf7",
+    "content": "DOOM demo at max"
+   },
+   "w-c0": {
+    "sha256": "2309f32cf191772a963ea9119dd857df37a17524f2f487d7f9c595f81f4fd7c1",
+    "content": "Wolfenstein 3D at max: view after a settled 360 degree mouse turn (same as start)"
+   },
+   "w25-p2": {
+    "sha256": "cc7e9ca575b557146c47c8a1c406bd02fdc9a06aa42fe11cfbba583c51223267",
+    "content": "Wolfenstein 3D at 386DX-25: E1L1"
+   },
+   "dp2": {
+    "sha256": "56225b9042cbe86261cb7a8297f6955f9d4fa42c62e6e56d906fed88704213e3",
+    "content": "DOOM E1M1 at max"
+   },
+   "dpm2": {
+    "sha256": "47f04c5cd41f9ec11920bc0c67e0f5bc391893eb9e342b1b668d54ad59b5831a",
+    "content": "DOOM E1M1 automap"
+   }
+  },
+  "entries": {
+   "r1-fd240": {
+    "machine": {
+     "preset": 0,
+     "frequency": 0,
+     "code_profile": 0,
+     "turbo": 0,
+     "sb_base": 576,
+     "sb_irq": 5,
+     "sb_dma": 1
+    },
+    "revision": "e7b2b41716334c65e711126ac7645ee9fc2290081d329864438069e6a610e8ba"
+   },
+   "r1-bgmax": {
+    "machine": {
+     "preset": 0,
+     "frequency": 0,
+     "code_profile": 0,
+     "turbo": 0,
+     "sb_base": 544,
+     "sb_irq": 7,
+     "sb_dma": 1
+    },
+    "revision": "3dd25c44409b1f2e79ff93151d6b932468c4cf5aed46651f91c3a72a77de8fc9"
+   },
+   "r1-bg25": {
+    "machine": {
+     "preset": 3,
+     "frequency": 0,
+     "code_profile": 0,
+     "turbo": 0,
+     "sb_base": 544,
+     "sb_irq": 7,
+     "sb_dma": 1
+    },
+    "revision": "78f8127376a38299a5f0984e88e7590c0dde6401a2f38afe398eb479d4de1bb5"
+   },
+   "r1-w3dmax": {
+    "machine": {
+     "preset": 0,
+     "frequency": 0,
+     "code_profile": 0,
+     "turbo": 0,
+     "sb_base": 544,
+     "sb_irq": 7,
+     "sb_dma": 1
+    },
+    "revision": "3ccf749ae3d87f92cdef4d3433b0ba6be015feed9b28cb801b6036b8e59830f9"
+   },
+   "r1-w3d25": {
+    "machine": {
+     "preset": 3,
+     "frequency": 0,
+     "code_profile": 0,
+     "turbo": 0,
+     "sb_base": 544,
+     "sb_irq": 7,
+     "sb_dma": 1
+    },
+    "revision": "73b5850fa2f8ccbb9acdc3ea8c7ea0cf5e6b55e3de64c6db4b595fb8a79a3da9"
+   },
+   "r1-fd286": {
+    "machine": {
+     "preset": 1,
+     "frequency": 0,
+     "code_profile": 0,
+     "turbo": 0,
+     "sb_base": 544,
+     "sb_irq": 7,
+     "sb_dma": 1
+    },
+    "revision": "71cba6a3a01e5244e2fb8363fc5d323943b246d486f2a7e5ca058dee782a9962"
+   },
+   "r1-doommax": {
+    "machine": {
+     "preset": 0,
+     "frequency": 0,
+     "code_profile": 0,
+     "turbo": 0,
+     "sb_base": 544,
+     "sb_irq": 7,
+     "sb_dma": 1
+    },
+    "revision": "4afaebf806a283188a8373933fc56994fbd6d434654975981696632ddbcf8873"
+   },
+   "r1-doom25": {
+    "machine": {
+     "preset": 3,
+     "frequency": 0,
+     "code_profile": 0,
+     "turbo": 0,
+     "sb_base": 544,
+     "sb_irq": 7,
+     "sb_dma": 1
+    },
+    "revision": "07119eb54fe42cc68760fdfe0e996283ebc41a0ca0db854170156fa7332fd2b5"
+   },
+   "r1-simax": {
+    "machine": {
+     "preset": 0,
+     "frequency": 0,
+     "code_profile": 0,
+     "turbo": 0,
+     "sb_base": 544,
+     "sb_irq": 7,
+     "sb_dma": 1
+    },
+    "revision": "5ae61232b22c66930a25ea645768e6b17c8bae87c0d5794be19dadb3cb81454e"
+   },
+   "r1-si25": {
+    "machine": {
+     "preset": 3,
+     "frequency": 0,
+     "code_profile": 0,
+     "turbo": 0,
+     "sb_base": 544,
+     "sb_irq": 7,
+     "sb_dma": 1
+    },
+    "revision": "c735329b6613fab9b6e7167c7b741559c9d20435d486d8fff635b7941bff8653"
+   }
+  },
+  "measurements": {
+   "topbench": {
+    "286-12": {
+     "score": 33,
+     "memtest_us": 597,
+     "memea_us": 173,
+     "opcodes_us": 199,
+     "vidmem_us": 329,
+     "3dgames_us": 191,
+     "total_us": 1489
+    },
+    "386DX-25": {
+     "score": 68,
+     "memtest_us": 250,
+     "memea_us": 52,
+     "opcodes_us": 79,
+     "vidmem_us": 267,
+     "3dgames_us": 82,
+     "total_us": 730
+    },
+    "max": {
+     "score": 298,
+     "memtest_us": 21,
+     "memea_us": 20,
+     "opcodes_us": 19,
+     "vidmem_us": 101,
+     "3dgames_us": 22,
+     "total_us": 183
+    }
+   },
+   "chkcpu_mhz": {
+    "286-12": 12.8,
+    "386DX-25": 26.4,
+    "max": 62.4
+   },
+   "wolf3d_turn_new_frames_per_60": {
+    "max": [
+     30,
+     40,
+     55,
+     59,
+     40,
+     59
+    ],
+    "386DX-25": [
+     24,
+     24,
+     23,
+     24,
+     24
+    ]
+   },
+   "doom_demo_new_pictures_per_s_max": [
+    26,
+    23,
+    18,
+    20,
+    19,
+    22,
+    25,
+    25,
+    21,
+    19,
+    21,
+    18,
+    21,
+    19,
+    16,
+    15,
+    19,
+    17,
+    16,
+    17
+   ],
+   "doom_play_new_pictures_per_s_max": [
+    32,
+    39,
+    33,
+    25,
+    19,
+    20,
+    24
+   ],
+   "doom_timedemo_demo3": {
+    "max": "3863 gametics in 5062 realtics (#1481 s2)",
+    "386DX-25": "3863 gametics in 24196 realtics"
+   },
+   "doom_240h_irq5_db": {
+    "launch1_from_setup": "SETUP and start-up silent at the -47.9 floor; title music about -40 from 22 s; demos -17.5 to -22 per second from 35 s (63.5 s recorded)",
+    "launch2_doom": "30 s of demos: median -22.4, range -45.0 to -17.0",
+    "launch3_from_setup": "30 s of demos: median -22.1, range -38.4 to -17.0",
+    "bins": "RMS of each 100 ms window in dBFS, DC offset not removed (silence reads -47.9)"
+   },
+   "serpent_isle_386dx25_intro": {
+    "new_pictures_per_s": 5.5,
+    "audio_median_db": -31.5,
+    "audio_peak_db": -12.5
+   }
+  },
+  "cleanup": "25 trees created (11 game records, 11 ATA disk deltas, 3 staged disks); the 3 staged disks were evicted by FogCast during #1433 run p1; the 22 remaining trees removed 22:38 EET; shared scrub image kept"
+ }
+}

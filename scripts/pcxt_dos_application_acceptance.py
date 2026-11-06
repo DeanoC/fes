@@ -33,12 +33,18 @@ from pathlib import Path
 if __package__:
     from . import package_acceptance as pa
     from . import pcxt_dos_hil_acceptance as visual
+    from . import pcxt_gameplay_capture as game_capture
+    from . import pcxt_gameplay_probe as gameplay
+    from . import pcxt_game_audio_capture as game_audio
 else:
     # Isolated mode omits the script directory from sys.path. Load only
     # the helpers adjacent to this diagnostic, even under python -I.
     sys.path.insert(0, str(Path(__file__).resolve().parent))
     import package_acceptance as pa
     import pcxt_dos_hil_acceptance as visual
+    import pcxt_gameplay_capture as game_capture
+    import pcxt_gameplay_probe as gameplay
+    import pcxt_game_audio_capture as game_audio
 
 FLOPPY_SIZE = 368640
 COM_SHA = '475054504cb7e96268576bcc97db4fdcbf4cf66063673145df2f69f8ff859c02'
@@ -85,13 +91,27 @@ def inspect_archive(data, args):
 def capture(device, path, phase):
     if path.exists():
         raise pa.AcceptanceError('capture already exists: ' + str(path))
+    # The Kit B loopback is safe only while its paired physical USB card and
+    # fanout retain the independently checked identity across this frame.
+    identity = None
+    if device == '/dev/v4l/by-id/fes-4kpro-hil':
+        try: identity = game_audio.capture_identity('B')
+        except game_audio.AudioError as exc:
+            raise pa.AcceptanceError('Kit B capture identity unavailable') from exc
     subprocess.run(['ffmpeg', '-hide_banner', '-loglevel', 'error', '-f', 'v4l2',
                     '-input_format', 'yuyv422', '-video_size', '1920x1080', '-i', device,
                     '-vf', r'select=eq(n\,119)', '-frames:v', '1', '-y', str(path)],
                    check=True, timeout=30)
     width, height, rgb, digest = visual.decode_capture(path)
-    return (width, height, rgb), {'file': path.name, 'sha256': digest,
-                                  'captured_at_utc': stamp(), 'phase': phase}
+    if identity is not None:
+        try: after = game_audio.capture_identity('B')
+        except game_audio.AudioError as exc:
+            raise pa.AcceptanceError('Kit B capture identity unavailable after frame') from exc
+        if after != identity: raise pa.AcceptanceError('Kit B capture identity changed during frame')
+    metadata = {'file': path.name, 'sha256': digest,
+                'captured_at_utc': stamp(), 'phase': phase}
+    if identity is not None: metadata['capture_identity'] = identity
+    return (width, height, rgb), metadata
 
 
 def prompt(frame, font):
@@ -489,7 +509,11 @@ def source_provenance(args, font):
             or software.get('base_image_sha256') != args.image_sha256):
         raise pa.AcceptanceError('software receipt does not match bundle and base image')
     root = Path(__file__).resolve().parents[1]
-    paths = ['scripts/pcxt_dos_application_acceptance.py', 'scripts/package_acceptance.py',
+    paths = ['scripts/pcxt_dos_application_acceptance.py',
+             'scripts/pcxt_gameplay_capture.py', 'scripts/pcxt_gameplay_probe.py',
+             'scripts/pcxt_game_audio_capture.py',
+             'scripts/pcxt_capture_fanout.py', 'scripts/pcxt_v4l2_capture.c',
+             'scripts/pcxt_digger_readiness.py', 'scripts/package_acceptance.py',
              'scripts/diagnostic_identity.py', 'scripts/input_diagnostic.py',
              'scripts/pcxt_dos_hil_acceptance.py', 'sources/misteross/scripts/core_package.py',
              'sources/misteross/scripts/rfc3986_validator.py',
@@ -604,6 +628,38 @@ def _observe_until(runner, expected, args, disk_sha, deadline):
         runner.api = original_api
 
 
+_OBSERVER_GUARD_FD = None
+
+
+class ObservationDeadlineExceeded(pa.AcceptanceError):
+    """A read-only observation timed out; caller must verify cleanup."""
+
+
+def _wait_observer_guard(fd, *, timeout=2.0):
+    """Wait for the observer and any owned source supervisors to close."""
+    try:
+        deadline = time.monotonic() + timeout
+        pending = False
+        while True:
+            remaining = deadline - time.monotonic()
+            if remaining <= 0 or not select.select([fd], [], [], remaining)[0]:
+                raise pa.AcceptanceError('observer source cleanup unverified; retain kit claim')
+            data = os.read(fd, 4096)
+            if not data:
+                if pending:
+                    raise pa.AcceptanceError('observer source cleanup unverified; retain kit claim')
+                return
+            for value in data:
+                if value == ord('S') and not pending:
+                    pending = True
+                elif value == ord('C') and pending:
+                    pending = False
+                else:
+                    raise pa.AcceptanceError('invalid observer source cleanup evidence; retain kit claim')
+    finally:
+        os.close(fd)
+
+
 def _kill_and_reap_observer(pid, *, timeout=2.0):
     """Do not wait forever for a child stuck in uninterruptible I/O."""
     try:
@@ -634,14 +690,19 @@ def _hard_deadline_observation(observe, seconds=5.0):
     """Reap our read-only observer before accepting its result or returning."""
     deadline = time.monotonic() + seconds
     parent, child = socket.socketpair(socket.AF_UNIX, socket.SOCK_SEQPACKET)
+    guard_read, guard_write = os.pipe2(os.O_CLOEXEC)
     parent_pid = os.getpid()
     libc = ctypes.CDLL(None, use_errno=True)
     try:
         pid = os.fork()
     except BaseException:
         parent.close(); child.close()
+        os.close(guard_read); os.close(guard_write)
         raise
     if pid == 0:
+        global _OBSERVER_GUARD_FD
+        os.close(guard_read)
+        _OBSERVER_GUARD_FD = guard_write
         parent.close()
         # Linux delivers SIGKILL if the diagnostic parent dies unexpectedly;
         # close the race where it died before this setting was installed.
@@ -661,15 +722,35 @@ def _hard_deadline_observation(observe, seconds=5.0):
         finally:
             child.close()
             os._exit(0)
-    child.close()
+    child.close(); os.close(guard_write)
     reaped = False
     result = None
+    def timeout_error():
+        nonlocal result
+        if result is None:
+            try:
+                raw = parent.recv(8193, socket.MSG_DONTWAIT)
+            except BlockingIOError:
+                raw = None
+            if raw == b'':
+                return pa.AcceptanceError('observer exited without a result before the hard phase deadline')
+            if raw is not None:
+                try:
+                    result = _decode_observer_result(raw)
+                except pa.AcceptanceError:
+                    return pa.AcceptanceError('invalid observer result before the hard phase deadline')
+        # Do not downgrade an explicit or malformed observer failure merely
+        # because the child failed to exit before its deadline.
+        if result is not None and (not isinstance(result, dict) or result.get('ok') is not True
+                                   or not isinstance(result.get('claim'), dict)):
+            return pa.AcceptanceError('observer failed before the hard phase deadline')
+        return ObservationDeadlineExceeded('selected software observation exceeded hard phase deadline')
     try:
         while True:
             check_interrupted()
             remaining = deadline - time.monotonic()
             if remaining <= 0:
-                raise pa.AcceptanceError('selected software observation exceeded hard phase deadline')
+                raise timeout_error()
             if result is None:
                 readable, _, _ = select.select([parent], [], [], min(remaining, 0.05))
                 if readable:
@@ -688,7 +769,7 @@ def _hard_deadline_observation(observe, seconds=5.0):
                     if raw:
                         result = _decode_observer_result(raw)
                 if time.monotonic() >= deadline:
-                    raise pa.AcceptanceError('selected software observation exceeded hard phase deadline')
+                    raise timeout_error()
                 if status != 0 or not isinstance(result, dict) or result.get('ok') not in (True, False):
                     raise pa.AcceptanceError('observer failed without a complete result')
                 if not result['ok']:
@@ -700,14 +781,25 @@ def _hard_deadline_observation(observe, seconds=5.0):
                 time.sleep(min(0.01, remaining))
     finally:
         parent.close()
+        original_error = sys.exception()
+        cleanup_error = None
         if not reaped:
-            original_error = sys.exception()
             try:
                 _kill_and_reap_observer(pid)
-            except BaseException:
-                if original_error is None:
-                    raise
-                original_error.add_note('observer cleanup unverified; retain kit claim')
+            except BaseException as exc:
+                cleanup_error = exc
+        try:
+            _wait_observer_guard(guard_read, timeout=2.0 if original_error else min(2.0, max(0, deadline-time.monotonic())))
+        except BaseException as exc:
+            cleanup_error = cleanup_error or exc
+        if cleanup_error is not None:
+            if original_error is None:
+                cleanup_error.source_cleanup_incomplete = True
+                raise cleanup_error
+            original_error.add_note('observer cleanup unverified; retain kit claim')
+            original_error.source_cleanup_incomplete = True
+        if original_error is None and time.monotonic() >= deadline:
+            raise ObservationDeadlineExceeded('selected software observation exceeded hard phase deadline')
 
 
 def validate_active(runner, expected, args, disk_sha):
@@ -718,6 +810,114 @@ def validate_active(runner, expected, args, disk_sha):
         lambda deadline: _observe_until(runner, expected, args, disk_sha, deadline))
 
 
+class PrestartedObserver:
+    """One read-only owner observer forked before game capture threads exist."""
+    def __init__(self, observe, seconds=5.0):
+        if threading.active_count() != 1:
+            raise pa.AcceptanceError('game observer must start before capture threads')
+        self.seconds = seconds
+        parent, child = socket.socketpair(socket.AF_UNIX, socket.SOCK_SEQPACKET)
+        guard_read, guard_write = os.pipe2(os.O_CLOEXEC)
+        parent_pid = os.getpid()
+        libc = ctypes.CDLL(None, use_errno=True)
+        try:
+            pid = os.fork()
+        except BaseException:
+            parent.close(); child.close()
+            os.close(guard_read); os.close(guard_write)
+            raise
+        if pid == 0:
+            global _OBSERVER_GUARD_FD
+            os.close(guard_read)
+            _OBSERVER_GUARD_FD = guard_write
+            parent.close()
+            if libc.prctl(1, signal.SIGKILL, 0, 0, 0) != 0 or os.getppid() != parent_pid:
+                os._exit(1)
+            try:
+                while True:
+                    raw = child.recv(1024)
+                    if not raw:
+                        break
+                    try:
+                        deadline = json.loads(raw)['deadline']
+                        if not isinstance(deadline, (int,float)) or not math.isfinite(deadline):
+                            raise ValueError('invalid observer deadline')
+                        value = {'ok':True, 'claim':observe(deadline)}
+                    except BaseException as exc:
+                        value = {'ok':False, 'error':str(exc)[:2048]}
+                    message = json.dumps(value).encode()
+                    if len(message) > 8192:
+                        message = b'{"ok":false,"error":"observation result too large"}'
+                    child.send(message)
+            except BaseException:
+                pass
+            finally:
+                child.close()
+                os._exit(0)
+        child.close(); os.close(guard_write)
+        self.socket, self.pid, self.reaped, self.guard_read = parent, pid, False, guard_read
+
+    def check(self):
+        if self.reaped:
+            raise pa.AcceptanceError('game ownership observer is unavailable')
+        deadline = time.monotonic()+self.seconds
+        try:
+            self.socket.settimeout(self.seconds)
+            self.socket.send(json.dumps({'deadline':deadline}).encode())
+            while True:
+                check_interrupted()
+                remaining = deadline-time.monotonic()
+                if remaining <= 0:
+                    raise pa.AcceptanceError('game ownership observation exceeded hard phase deadline')
+                readable, _, _ = select.select([self.socket], [], [], min(.05,remaining))
+                if readable:
+                    result = _decode_observer_result(self.socket.recv(8193))
+                    if time.monotonic() >= deadline:
+                        raise pa.AcceptanceError('game ownership observation exceeded hard phase deadline')
+                    if not isinstance(result,dict) or result.get('ok') not in (True,False):
+                        raise pa.AcceptanceError('game observer returned an invalid result')
+                    if not result['ok']:
+                        raise pa.AcceptanceError(result.get('error','game observer failed'))
+                    if not isinstance(result.get('claim'),dict):
+                        raise pa.AcceptanceError('game observer did not confirm the claim')
+                    return result['claim']
+                done, _ = os.waitpid(self.pid, os.WNOHANG)
+                if done:
+                    self.reaped = True
+                    raise pa.AcceptanceError('game ownership observer exited unexpectedly')
+        except BaseException as error:
+            try:
+                self.close(force=True)
+            except BaseException as cleanup:
+                error.source_cleanup_incomplete = True
+                error.add_note('game observer cleanup unverified: '+repr(cleanup))
+            raise
+
+    def close(self, force=False):
+        self.socket.close()
+        try:
+            if self.reaped:
+                return
+            if not force:
+                end = time.monotonic()+2
+                while time.monotonic() < end:
+                    done, status = os.waitpid(self.pid, os.WNOHANG)
+                    if done:
+                        self.reaped = True
+                        if status != 0:
+                            raise pa.AcceptanceError('game ownership observer did not stop cleanly')
+                        return
+                    time.sleep(.01)
+            _kill_and_reap_observer(self.pid)
+            self.reaped = True
+            if not force:
+                raise pa.AcceptanceError('game ownership observer did not stop cleanly')
+        finally:
+            if self.guard_read is not None:
+                fd, self.guard_read = self.guard_read, None
+                _wait_observer_guard(fd)
+
+
 def capture_owned(runner, owned, args, disk_sha, path, phase):
     validate_active(runner, owned, args, disk_sha)
     result = capture(args.capture_device, path, phase)
@@ -725,11 +925,14 @@ def capture_owned(runner, owned, args, disk_sha, path, phase):
     return result
 
 
-def type_keys(runner, owned, args, disk_sha, input_session_id, events, usages):
+def type_keys(runner, owned, args, disk_sha, input_session_id, events, usages, *, dispatch_guard=None,
+              capture_check=None, active_check=None):
     """One host-owned press/release operation per key; never retry uncertainty."""
     for usage in usages:
-        validate_active(runner, owned, args, disk_sha)
+        (active_check or validate_active)(runner, owned, args, disk_sha)
+        if capture_check is not None: capture_check()
         input_status(runner, input_session_id, events, usage, 'before tap input')
+        if capture_check is not None: capture_check()
         def tap():
             response = runner.api.post_json('/api/v1/session/input/tap', {
                 'session_id': input_session_id,
@@ -743,23 +946,31 @@ def type_keys(runner, owned, args, disk_sha, input_session_id, events, usages):
                 raise pa.AcceptanceError('host tap receipt is missing, malformed, or out of bound')
         old_timeout = runner.api.timeout
         runner.api.timeout = min(old_timeout, 5.0)
+        event_count = len(events)
         try:
-            traced_call(events, 'host tap request', usage, tap)
+            def send():
+                return traced_call(events, 'host tap request', usage, tap)
+            if dispatch_guard is None:
+                send()
+            else:
+                dispatch_guard.dispatch(usage, send)
         finally:
-            events[-1]['socket_timeout_seconds'] = runner.api.timeout
+            if len(events) > event_count:
+                events[-1]['socket_timeout_seconds'] = runner.api.timeout
             runner.api.timeout = old_timeout
         input_status(runner, input_session_id, events, usage, 'after tap input')
-        validate_active(runner, owned, args, disk_sha)
+        (active_check or validate_active)(runner, owned, args, disk_sha)
         time.sleep(0.06)
 
 
-def wait_owned(runner, owned, args, disk_sha, seconds, video):
+def wait_owned(runner, owned, args, disk_sha, seconds, video, *, capture_check=None, active_check=None):
     print('PC/XT game capture running; caller retains kit ownership', flush=True)
     deadline = time.monotonic() + seconds
     while time.monotonic() < deadline:
         if video.proc.poll() is not None:
             raise pa.AcceptanceError('continuous capture stopped during gameplay')
-        validate_active(runner, owned, args, disk_sha)
+        if capture_check is not None: capture_check()
+        (active_check or validate_active)(runner, owned, args, disk_sha)
         time.sleep(min(5, max(0, deadline-time.monotonic())))
 
 
@@ -807,57 +1018,179 @@ def run_com(runner, owned, args, rec, input_session_id, font):
     rec['classification'] = 'owned-session COM execution diagnostic passed'
 
 
-def run_game(runner, owned, args, rec, input_session_id, font):
+def check_source_coverage(path, first_input_ns, last_input_ns):
+    rows = [json.loads(line) for line in path.read_text().splitlines()]
+    if not rows or not 0 < first_input_ns <= last_input_ns:
+        raise pa.AcceptanceError('game capture or input interval is missing')
+    if not (rows[0]['arrival_ns'] <= first_input_ns <= last_input_ns <= rows[-1]['arrival_ns']):
+        raise pa.AcceptanceError('game capture does not cover the host input interval')
+    return {'first_sequence': rows[0]['sequence'], 'last_sequence': rows[-1]['sequence'],
+            'first_arrival_ns': rows[0]['arrival_ns'], 'last_arrival_ns': rows[-1]['arrival_ns'],
+            'note': 'host and V4L2 timestamps do not establish guest-input or upstream video timing'}
+
+
+def run_game(runner, owned, args, rec, input_session_id, font, *, probe=None, video_factory=None,
+             audio_factory=None, observer_factory=None):
+    if not isinstance(probe, gameplay.PlaybackProbe) or video_factory is None or audio_factory is None:
+        raise pa.AcceptanceError('game requires owned video, audio and playback probe; no game keys sent')
+    if threading.active_count() != 1:
+        raise pa.AcceptanceError('game diagnostics must start before capture threads; no game keys sent')
+    short_smoke = getattr(args, 'game_short_smoke', False) is True
+    if short_smoke and probe.plan != [0x50]:
+        raise pa.AcceptanceError('short game smoke requires its one-direction guard; no game keys sent')
     disk_sha = SCENARIOS['game']['floppy']
     before, info = capture_owned(runner, owned, args, disk_sha,
                                  args.evidence/'before.png', 'before Digger input')
     rec['captures'].append(info)
     if prompt(before, font) is None:
         raise pa.AcceptanceError('DOS prompt not observed before the game')
-    video = VideoCapture(args.capture_device, args.evidence)
+    observer_factory = observer_factory or PrestartedObserver
+    observer = observer_factory(lambda deadline: _observe_until(runner, owned, args, disk_sha, deadline))
+    def game_active(*_):
+        return observer.check()
+    try:
+        video = video_factory(args.capture_device, args.evidence, probe)
+    except BaseException as error:
+        try:
+            observer.close()
+        except BaseException as cleanup:
+            error.source_cleanup_incomplete = True
+            error.add_note('game observer cleanup failed: '+repr(cleanup))
+        raise
+    if getattr(video, 'observer_guard', None) is not probe:
+        mismatch = pa.AcceptanceError('game recorder does not feed the playback probe; no game keys sent')
+        try:
+            video.stop()
+        except BaseException as cleanup:
+            if getattr(cleanup, 'source_cleanup_incomplete', False):
+                mismatch.source_cleanup_incomplete = True
+            mismatch.add_note('recorder cleanup failed: '+repr(cleanup))
+        try:
+            observer.close()
+        except BaseException as cleanup:
+            mismatch.source_cleanup_incomplete = True
+            mismatch.add_note('game observer cleanup failed: '+repr(cleanup))
+        raise mismatch
     rec['video_start'] = {'requested_monotonic_ns': video.started_ns,
                           'first_progress_observed_monotonic_ns': video.first_progress_ns,
-                          'note': 'progress timestamps are host observations, not exact capture times'}
+                          'frame_converter':video.converter_identity,
+                          'note': 'host timestamps are not exact target capture times'}
     error = None
+    audio = None
+    audio_started = False
     try:
+        audio = audio_factory(args.evidence, args.kit)
+        audio.start()
+        audio_started = True
+        if audio.mapping.get('hil_video') != args.capture_device:
+            raise pa.AcceptanceError('audio capture mapping does not match the selected video path')
+        def check_recorders():
+            if video.proc.poll() is not None or probe.fault.is_set():
+                raise pa.AcceptanceError('game capture or observation failed')
+            audio.check()
         check_interrupted()
         rec['game_command_started_monotonic_ns'] = time.monotonic_ns()
-        type_keys(runner, owned, args, disk_sha, input_session_id, rec['hid_events'], GAME_COMMAND)
-        wait_owned(runner, owned, args, disk_sha, 30, video)
+        type_keys(runner, owned, args, disk_sha, input_session_id, rec['hid_events'], GAME_COMMAND,
+                  capture_check=check_recorders, active_check=game_active)
+        wait_owned(runner, owned, args, disk_sha, 30, video, capture_check=check_recorders, active_check=game_active)
         rec['title_start_monotonic_ns'] = time.monotonic_ns()
-        type_keys(runner, owned, args, disk_sha, input_session_id, rec['hid_events'], (0x28,))
-        wait_owned(runner, owned, args, disk_sha, 15, video)
-        rec['neutral_start_monotonic_ns'] = time.monotonic_ns()
-        wait_owned(runner, owned, args, disk_sha, 8, video)
-        for direction, usage in DIRECTIONS:
-            rec.setdefault('direction_intervals', []).append(
-                {'direction': direction, 'started_monotonic_ns': time.monotonic_ns()})
-            type_keys(runner, owned, args, disk_sha, input_session_id, rec['hid_events'], (usage,)*4)
-            wait_owned(runner, owned, args, disk_sha, 5, video)
-            rec['direction_intervals'][-1]['finished_monotonic_ns'] = time.monotonic_ns()
-        wait_owned(runner, owned, args, disk_sha, 8, video)
+        type_keys(runner, owned, args, disk_sha, input_session_id, rec['hid_events'], (0x28,),
+                  capture_check=check_recorders, active_check=game_active)
+        probe.arm(time.monotonic_ns())
+        deadline = time.monotonic()+30
+        next_claim = time.monotonic()
+        while True:
+            check_interrupted()
+            if video.proc.poll() is not None or probe.fault.is_set() or audio.proc.poll() is not None:
+                raise pa.AcceptanceError('game video, audio or observation stopped')
+            try:
+                rec['neutral_observation'] = probe.snapshot(require_player=True)
+                break
+            except gameplay.ProbeError:
+                if time.monotonic() >= deadline:
+                    raise pa.AcceptanceError('active game observation was not available') from None
+            if time.monotonic() >= next_claim:
+                check_recorders()
+                game_active()
+                next_claim = time.monotonic()+3
+            time.sleep(.05)
+        rec['neutral_started_monotonic_ns'] = time.monotonic_ns()
+        time.sleep(.5)
+        directions = (('left',0x50),) if short_smoke else (('left',0x50), ('right',0x4f), ('left',0x50))
+        rec['gameplay_mode'] = 'short-smoke' if short_smoke else 'full'
+        for direction, usage in directions:
+            interval = {'direction':direction, 'started_monotonic_ns':time.monotonic_ns()}
+            rec.setdefault('direction_intervals', []).append(interval)
+            type_keys(runner, owned, args, disk_sha, input_session_id, rec['hid_events'], (usage,),
+                      dispatch_guard=probe, capture_check=check_recorders, active_check=game_active)
+            interval['finished_monotonic_ns'] = time.monotonic_ns()
+            if not short_smoke:
+                time.sleep(1)
+        rec['direction_observations'] = probe.sent
+        for phase in range(3):
+            toggle = {'index':phase+1, 'started_monotonic_ns':time.monotonic_ns()}
+            rec.setdefault('f9_toggles', []).append(toggle)
+            type_keys(runner, owned, args, disk_sha, input_session_id, rec['hid_events'], (0x42,),
+                      capture_check=check_recorders, active_check=game_active)
+            toggle['finished_monotonic_ns'] = time.monotonic_ns()
+            toggle['observation_started_monotonic_ns'] = time.monotonic_ns()
+            wait_owned(runner, owned, args, disk_sha, 6, video, capture_check=check_recorders, active_check=game_active)
+            toggle['observation_finished_monotonic_ns'] = time.monotonic_ns()
+        audio.wait_advanced_after(rec['f9_toggles'][-1]['observation_finished_monotonic_ns'])
     except BaseException as exc:
         error = exc
         raise
     finally:
+        if audio_started:
+            try:
+                rec['audio_capture'] = audio.stop(phases=rec.get('f9_toggles') if error is None else None)
+            except BaseException as cleanup:
+                if error is None:
+                    error = cleanup
+                else:
+                    if getattr(cleanup, 'audio_cleanup_incomplete', False):
+                        error.audio_cleanup_incomplete = True
+                    error.add_note('audio cleanup failed: '+repr(cleanup))
         rec['video_stop_requested_monotonic_ns'] = time.monotonic_ns()
         try:
+            if error is not None:
+                skip = getattr(video, 'skip_failed_recording_verification', None)
+                if callable(skip):
+                    skip()
+                    rec['failed_video_verification'] = 'not performed; diagnostic had already failed'
             video.stop()
         except BaseException as cleanup:
             if error is None:
-                raise
-            error.add_note('recorder cleanup failed: '+repr(cleanup))
+                error = cleanup
+            else:
+                if getattr(cleanup, 'source_cleanup_incomplete', False):
+                    error.source_cleanup_incomplete = True
+                error.add_note('recorder cleanup failed: '+repr(cleanup))
+        try:
+            observer.close()
+        except BaseException as cleanup:
+            cleanup.source_cleanup_incomplete = True
+            if error is None:
+                error = cleanup
+            else:
+                error.source_cleanup_incomplete = True
+                error.add_note('game observer cleanup failed: '+repr(cleanup))
+        if error is not None and sys.exception() is None:
+            raise error
     check_interrupted()
     metadata = check_video(video.path)
-    coverage = check_video_coverage(metadata, video.progress_path, video.first_progress_ns,
-                                    rec['video_stop_requested_monotonic_ns'],
-                                    rec['direction_intervals'][-1]['finished_monotonic_ns'])
+    coverage = check_source_coverage(video.progress_path, rec['game_command_started_monotonic_ns'],
+                                    rec['f9_toggles'][-1]['observation_finished_monotonic_ns'])
     with video.path.open('rb') as stream:
         digest = hashlib.file_digest(stream, 'sha256').hexdigest()
-    rec['game_video'] = {'file': video.path.name, 'sha256': digest, 'metadata': metadata,
-                         'coverage': coverage, 'progress_file': video.progress_path.name,
-                         'classification': 'recorded; gameplay and movement need independent visual review'}
-    rec['classification'] = 'game capture complete; gameplay and movement review pending'
+    with video.progress_path.open('rb') as stream:
+        frame_metadata_sha = hashlib.file_digest(stream, 'sha256').hexdigest()
+    visual_controls = 'neutral and left' if short_smoke else 'neutral and left/right/left'
+    rec['game_video'] = {'file':video.path.name, 'sha256':digest, 'metadata':metadata,
+                         'coverage':coverage, 'frame_metadata_file':video.progress_path.name,
+                         'frame_metadata_sha256':frame_metadata_sha,
+                         'classification':f'recorded; {visual_controls} need independent visual review'}
+    rec['classification'] = 'game and audio captured; independent gameplay and speaker review pending'
 
 
 def parser():
@@ -886,6 +1219,11 @@ def parser():
     ap.add_argument('--expected-boot', required=True)
     ap.add_argument('--disk', type=Path, required=True)
     ap.add_argument('--capture-device', required=True)
+    ap.add_argument('--game-template', type=Path, action='append', help='private 32x34 RGB opening-player template')
+    ap.add_argument('--game-template-sha256', action='append', help='corresponding private template SHA-256')
+    ap.add_argument('--game-max-host-age-ms', type=int, help='maximum local observation age; not a target timing bound')
+    ap.add_argument('--game-short-smoke', action='store_true',
+                    help='record one guarded direction and the full speaker toggle sequence')
     ap.add_argument('--evidence', type=Path, required=True, help='new, private output directory')
     ap.add_argument('--execute', action='store_true')
     return ap
@@ -895,6 +1233,23 @@ def main(argv=None):
     args = parser().parse_args(argv)
     if not args.execute:
         raise pa.AcceptanceError('--execute is required inside an already owned session')
+    if args.game_short_smoke and args.scenario != 'game':
+        raise pa.AcceptanceError('--game-short-smoke requires the game scenario')
+    templates = []
+    if args.scenario == 'game':
+        if threading.active_count() != 1:
+            raise pa.AcceptanceError('game diagnostics must start before capture threads')
+        if (not args.game_template or len(args.game_template) != len(args.game_template_sha256 or [])
+                or type(args.game_max_host_age_ms) is not int or args.game_max_host_age_ms <= 0):
+            raise pa.AcceptanceError('game requires pinned private templates and a local age policy')
+        for path, expected in zip(args.game_template, args.game_template_sha256):
+            pa._require_sha256(expected, 'game template SHA-256')
+            if path.is_symlink() or not path.is_file() or path.stat().st_size != 32*34*3:
+                raise pa.AcceptanceError('game template must be a regular file')
+            data = path.read_bytes()
+            if len(data) != 32*34*3 or hashlib.sha256(data).hexdigest() != expected:
+                raise pa.AcceptanceError('game template size or digest differs')
+            templates.append(data)
     if not re.fullmatch('[0-9a-f]{40}', args.source_commit):
         raise pa.AcceptanceError('source commit must be a full lowercase SHA')
     for value, name in ((args.archive_sha256, 'archive'), (args.rbf_sha256, 'RBF'),
@@ -961,9 +1316,19 @@ def main(argv=None):
                'library selection and media-ready do not establish independent target-side digest',
                'host tap timing does not establish target-applied keyboard timing',
                'caller owns launch, boot evidence, Stop, software restoration and kit release',
-               'gameplay requires separate video review; audio and disk writes are not tested',
+               'gameplay and speaker audio require independent review; audio/video clocks are not synchronized',
+               'disk writes are not tested',
                'diagnostic does not qualify whole-board timing or general XT compatibility']}
     try:
+        if getattr(args, 'source_historical_main', False):
+            observations = getattr(args, 'source_tip_observations', None)
+            if observations is None:
+                observations = []
+                args.source_tip_observations = observations
+            rec['source_minimum_tip'] = args.source_minimum_tip
+            # Keep the same list as subsequent admission checks, including if
+            # an initial ownership/input observation or later phase fails.
+            rec['source_tip_observations'] = observations
         (args.evidence/'host-receipt.json').write_bytes(host_receipt)
         (args.evidence/'software-receipt.json').write_bytes(software_receipt)
         validate_active(runner, owned, args, disk['floppy_sha256'])
@@ -971,7 +1336,22 @@ def main(argv=None):
         if args.scenario == 'com':
             run_com(runner, owned, args, rec, input_session_id, font)
         else:
-            run_game(runner, owned, args, rec, input_session_id, font)
+            helper_source = Path(__file__).resolve().parent/'pcxt_v4l2_capture.c'
+            helper, helper_build = game_capture.build_capture_helper(args.evidence, helper_source,
+                provenance['diagnostic_file_sha256']['scripts/pcxt_v4l2_capture.c'],
+                check_interrupted=check_interrupted)
+            probe = gameplay.PlaybackProbe(threading.Event(), max_host_age_ns=args.game_max_host_age_ms*1000000,
+                                           short_smoke=args.game_short_smoke)
+            rec['game_probe'] = {'capture_helper':helper_build, 'template_sha256':args.game_template_sha256,
+                                 'max_host_age_ms':args.game_max_host_age_ms,
+                                 'controls':['neutral','left'] if args.game_short_smoke else ['neutral','left','right','left'],
+                                 'note':'host age is not a target timing bound; audio/video clocks are not synchronized'}
+            def factory(device, evidence, selected_probe):
+                return game_capture.GameCapture(device, evidence, selected_probe, helper,
+                                                 helper_build['binary_sha256'], templates,
+                                                 check_interrupted=check_interrupted)
+            run_game(runner, owned, args, rec, input_session_id, font, probe=probe, video_factory=factory,
+                     audio_factory=game_audio.AudioRecorder)
         validate_active(runner, owned, args, disk['floppy_sha256'])
         input_status(runner, input_session_id, rec['hid_events'], 0, 'final input')
         verify_disk(args.disk, args.scenario)
@@ -986,6 +1366,9 @@ def main(argv=None):
     except BaseException as exc:
         rec['classification'] = 'failed; owned session and kit cleanup remain with caller'
         rec['failed_at_utc'] = stamp(); rec['failure'] = repr(exc)
+        rec['failure_notes'] = [str(note)[:1000] for note in getattr(exc, '__notes__', [])[:20]]
+        rec['source_cleanup_incomplete'] = bool(getattr(exc, 'source_cleanup_incomplete', False))
+        rec['audio_cleanup_incomplete'] = bool(getattr(exc, 'audio_cleanup_incomplete', False))
         with (args.evidence/'failure.json').open('x') as output:
             json.dump(rec, output, indent=2); output.write('\n')
         raise
@@ -995,6 +1378,7 @@ if __name__ == '__main__':
     install_signal_handler()
     try:
         main()
-    except (pa.AcceptanceError, ValueError, OSError, subprocess.CalledProcessError,
+    except (pa.AcceptanceError, gameplay.ProbeError, game_capture.capture.CaptureError, game_audio.AudioError,
+            ValueError, OSError, subprocess.CalledProcessError,
             subprocess.TimeoutExpired, json.JSONDecodeError) as error:
         raise SystemExit(str(error)) from error

@@ -162,11 +162,13 @@ class GateTests(unittest.TestCase):
 
 
 class SimulationMatrixTests(unittest.TestCase):
-    def test_pc386_boot_image_simulations_run_only_in_full_tier(self):
+    def test_pc386_scroll_runs_in_smoke_and_full_tiers(self):
         smoke = [row['target'] for row in simulation_matrix(['pc386'], 'smoke')['include']]
         full = [row['target'] for row in simulation_matrix(['pc386'], 'full')['include']]
-        self.assertEqual(smoke, ['sim-fes-pc386'])
-        self.assertEqual(full, ['sim-fes-pc386', 'sim-fes-pc386-fesenv', 'sim-fes-pc386-a20', 'sim-fes-pc386-wait'])
+        self.assertEqual(smoke, ['sim-fes-pc386', 'sim-fes-pc386-scroll'])
+        self.assertEqual(full, ['sim-fes-pc386', 'sim-fes-pc386-fesenv', 'sim-fes-pc386-a20',
+                                'sim-fes-pc386-c2xx', 'sim-fes-pc386-wait', 'sim-fes-pc386-scroll',
+                                'sim-fes-pc386-speaker', 'sim-fes-pc386-cpu-profile'])
 
     def test_coleco_includes_every_default_and_oss_scenario(self):
         from scripts.ci_simulations import simulation_matrix
@@ -185,15 +187,16 @@ class SimulationMatrixTests(unittest.TestCase):
         self.assertEqual({row['target'] for row in rows}, expected)
         self.assertTrue(all(row['core'] == 'coleco' for row in rows))
 
-    def test_pcxt_pr_smoke_covers_floppy_writer_fdc_media_and_mailbox(self):
+    def test_pcxt_pr_smoke_covers_machine_and_floppy_paths(self):
         from scripts.ci_simulations import simulation_matrix
         full = [row['target'] for row in simulation_matrix(['pcxt'], 'full')['include']]
         smoke = [row['target'] for row in simulation_matrix(['pcxt'], 'smoke')['include']]
         self.assertEqual(full, ['sim-fes-pcxt', 'sim-fes-pcxt-fdc', 'sim-fes-pcxt-write',
                                 'sim-fes-pcxt-media', 'sim-fes-pcxt-mailbox', 'sim-fes-pcxt-dos'])
-        self.assertEqual(smoke, ['sim-fes-pcxt-smoke', 'sim-fes-pcxt-fdc', 'sim-fes-pcxt-write',
+        self.assertEqual(smoke, ['sim-fes-pcxt-smoke', 'sim-fes-pcxt-machine', 'sim-fes-pcxt-fdc', 'sim-fes-pcxt-write',
                                  'sim-fes-pcxt-media', 'sim-fes-pcxt-mailbox'])
         self.assertNotIn('sim-fes-pcxt-dos', smoke)
+        self.assertNotIn('sim-fes-pcxt-com', smoke)
 
     def test_coleco_smoke_is_five_jobs_and_oss_board_twins_are_full_only(self):
         from scripts.ci_simulations import simulation_matrix

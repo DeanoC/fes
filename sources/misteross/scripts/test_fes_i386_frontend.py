@@ -59,7 +59,7 @@ RTL = ROOT / 'cores/fes-common/rtl/i386'
 SIM = ROOT / 'cores/fes-common/sim/i386'
 OUTPUT = ROOT / 'build/sim/fes-i386-frontend'
 LENDEC_RTL = ('fes_i386_pkg.sv', 'fes_i386_oplen.sv', 'fes_i386_lendec.sv', 'fes_i386_lstage.sv')
-FRONTEND_RTL = (*LENDEC_RTL, 'fes_i386_fetchbuf.sv', 'fes_i386_qalign.sv', 'fes_i386_frontend.sv')
+FRONTEND_RTL = (*LENDEC_RTL, 'fes_i386_btb.sv', 'fes_i386_ras.sv', 'fes_i386_fetchbuf.sv', 'fes_i386_qalign.sv', 'fes_i386_frontend.sv')
 DAG_RTL = ('fes_i386_pkg.sv', 'fes_i386_amode.sv', 'fes_i386_dfwd.sv', 'fes_i386_agu.sv')
 # testbench name -> (top module, RTL files, extra SystemVerilog under SIM, C++ source, links the oracle,
 #                    the module --yosys turns into a netlist)

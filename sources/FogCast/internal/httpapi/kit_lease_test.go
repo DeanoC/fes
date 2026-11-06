@@ -8,6 +8,7 @@ import (
 	"net"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
 	"os"
 	"path/filepath"
 	"strings"
@@ -18,6 +19,8 @@ import (
 	"github.com/DeanoC/FogCast/internal/input"
 	"github.com/DeanoC/FogCast/internal/kitlease"
 	contractlease "github.com/DeanoC/FogCast/kitlease"
+	"github.com/DeanoC/FogCast/protocol"
+	"github.com/DeanoC/FogCast/targetclient"
 	"golang.org/x/sys/unix"
 )
 
@@ -496,5 +499,94 @@ func TestMaintenanceStatusUnavailableUntilPersistedReservationLoaded(t *testing.
 	}
 	if w := status(); w.Code != http.StatusServiceUnavailable {
 		t.Fatal("corrupt identity was reported as known", w.Code, w.Body)
+	}
+}
+
+// Exercise real HTTP admission, including discovery and explicit Stop, across
+// two clients representing successive kit-host processes.
+func TestLocalHostLeaseSurvivesHostRestart(t *testing.T) {
+	manager := kitlease.New(30*time.Millisecond, func(context.Context) error { return nil })
+	defer manager.Close()
+	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+	defer cancel()
+	if _, err := manager.Settled(ctx); err != nil {
+		t.Fatal(err)
+	}
+	controller := &fakeController{status: protocol.Status{State: protocol.StateActive}}
+	server := httptest.NewServer(httpapi.New(controller, "bearer", "test", nil, httpapi.WithKitLease(manager), httpapi.WithInput(&leaseStreamController{})))
+	defer server.Close()
+	base, _ := url.Parse(server.URL)
+	first := targetclient.NewLocalKitLease(base, "bearer", server.Client())
+	req, _ := http.NewRequestWithContext(ctx, http.MethodPost, server.URL+"/v1/launch", nil)
+	if err := first.Authorize(req, true); err != nil {
+		t.Fatal(err)
+	}
+	token := first.CurrentToken()
+	if token == "" {
+		t.Fatal("missing grant")
+	}
+	if err := first.Close(ctx); err != nil {
+		t.Fatal(err)
+	}
+	time.Sleep(60 * time.Millisecond) // exceeds the ordinary remote lease TTL
+	second := targetclient.NewLocalKitLease(base, "bearer", server.Client())
+	defer second.Close(ctx)
+	client := targetclient.NewClient(base, "bearer", server.Client()).WithKitLease(second)
+	ownership, err := client.AdoptEndpoint(ctx, base, false)
+	if err != nil || !ownership.Owned || second.CurrentToken() != token {
+		t.Fatalf("recovered ownership: %+v %v", ownership, err)
+	}
+	status, err := client.Status(ctx)
+	if err != nil || status.State != protocol.StateActive {
+		t.Fatalf("recovered status: %+v %v", status, err)
+	}
+	inputReq, _ := http.NewRequestWithContext(ctx, http.MethodPost, server.URL+"/v1/input/attach", strings.NewReader(`{"session":1,"token":"0123456789abcdef0123456789abcdef","core":"SNES"}`))
+	inputReq.Header.Set("Authorization", "Bearer bearer")
+	inputReq.Header.Set("Content-Type", "application/json")
+	if err := second.Authorize(inputReq, true); err != nil {
+		t.Fatal(err)
+	}
+	inputResp, err := server.Client().Do(inputReq)
+	if err != nil {
+		t.Fatal(err)
+	}
+	inputResp.Body.Close()
+	if inputResp.StatusCode != http.StatusOK {
+		t.Fatalf("reattach input returned %d", inputResp.StatusCode)
+	}
+	if _, err := client.Stop(ctx); err != nil || controller.stopCalls != 1 {
+		t.Fatalf("stop: calls=%d err=%v", controller.stopCalls, err)
+	}
+	if err := second.Release(ctx); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := manager.Settled(ctx); err != nil {
+		t.Fatal(err)
+	}
+	if manager.Status().State != "free" {
+		t.Fatalf("lease remains: %+v", manager.Status())
+	}
+}
+
+func TestLocalHostLeaseRequiresLoopbackAndDoesNotAdoptForeign(t *testing.T) {
+	manager := kitlease.New(time.Minute, func(context.Context) error { return nil })
+	defer manager.Close()
+	foreign := claimKit(t, manager)
+	handler := httpapi.New(&fakeController{}, "bearer", "test", nil, httpapi.WithKitLease(manager))
+	for _, tc := range []struct {
+		path, remote string
+		want         int
+	}{
+		{"/v1/kit/local/resume", "127.0.0.1:1234", http.StatusForbidden},
+		{"/v1/kit/local/claim", "192.0.2.1:1234", http.StatusForbidden},
+	} {
+		req := httptest.NewRequest(http.MethodPost, tc.path, nil)
+		req.RemoteAddr = tc.remote
+		req.Header.Set("Authorization", "Bearer bearer")
+		rec := httptest.NewRecorder()
+		handler.ServeHTTP(rec, req)
+		if rec.Code != tc.want || strings.Contains(rec.Body.String(), foreign.Token) {
+			t.Fatalf("%s from %s: %d %s", tc.path, tc.remote, rec.Code, rec.Body.String())
+		}
 	}
 }

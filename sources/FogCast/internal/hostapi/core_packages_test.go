@@ -142,6 +142,24 @@ func TestCorePackageReadRoutesRejectBodies(t *testing.T) {
 	}
 }
 
+type unavailableCoreLibraryService struct{ coreLibraryAPIService }
+
+func (s *unavailableCoreLibraryService) CorePackages(context.Context) ([]fogcast.InstalledCorePackage, error) {
+	return nil, &protocol.APIError{Code: protocol.CodeCorePackageStoreUnavailable, Message: "core package storage is unavailable"}
+}
+
+// A kit host whose durable store is not open reports 503, as mister-agent does.
+func TestCorePackageStoreUnavailableIsServiceUnavailable(t *testing.T) {
+	handler := hostapi.New(&unavailableCoreLibraryService{})
+	request := httptest.NewRequest(http.MethodGet, "/api/v1/core-packages", nil)
+	request.Host = "127.0.0.1"
+	response := httptest.NewRecorder()
+	handler.ServeHTTP(response, request)
+	if response.Code != http.StatusServiceUnavailable || !strings.Contains(response.Body.String(), `"code":"CORE_PACKAGE_STORE_UNAVAILABLE"`) || !strings.Contains(response.Body.String(), "core package storage is unavailable") {
+		t.Fatalf("response = %d %s", response.Code, response.Body.String())
+	}
+}
+
 type coreDataAPIService struct {
 	coreLibraryAPIService
 	updates int

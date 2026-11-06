@@ -93,6 +93,9 @@ func (s *Server) status() (softwarecontrol.Status, error) {
 	if s.Controller != nil {
 		out.ActiveBundle = s.Controller.Active()
 		out.ServiceFault = s.Controller.ServiceFault()
+		if out.ServiceFault == "" {
+			out.ServiceFault = s.Controller.HostFault()
+		}
 	}
 	if s.Repository != nil {
 		state, err := s.Repository.Read()

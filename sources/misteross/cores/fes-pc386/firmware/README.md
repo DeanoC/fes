@@ -49,6 +49,25 @@ a modified library:
 
   Upstream drove port 92h alone, so on pc386 A20 stayed on through POST and
   through every BIOS disable.
+- `rombios.c`: INT 15h C2xx, the PS/2 pointing-device services, run with the
+  keyboard interface disabled ([#1330](https://github.com/DeanoC/fes/issues/1330)).
+  They exchange bytes with the aux device through the 8042 with interrupts
+  off. Upstream, a key byte in the output buffer was read as the command
+  byte, or held the device's reply behind it while `get_mouse_data` spun
+  forever.
+  - `int15_handler_mouse` calls `mouse_exchange_begin` before each call and
+    `mouse_exchange_end` (AEh) after it, so every exit path enables the
+    keyboard again.
+  - `mouse_exchange_begin` sends ADh. A byte already in the output buffer
+    goes to its interrupt handler, INT 09h or INT 74h, with interrupts on, so
+    a key is not lost. A byte that no handler takes within 4,096 status
+    reads (its IRQ masked, or a higher IRQ in service) is discarded.
+    INT 09h sends AEh as it exits, so ADh is sent again until the buffer is
+    empty behind it.
+  - `get_kbd_command_byte` reads the command byte (20h) for
+    `inhibit_mouse_int_and_events` and `enable_mouse_int_and_events`,
+    discarding an aux byte ahead of the reply.
+
 - `rombios.c`, `rombios.h`: POST programs PIT counter 1, the refresh timer,
   as an AT BIOS does: binary, LSB only, mode 2, count 18 (15.09 µs). Port 61h
   bit 4 toggles with its output, and INT 15h AH=86h counts those toggles as
@@ -56,6 +75,14 @@ a modified library:
   counter, and on pc386 every AH=86h wait that needed a toggle never returned
   ([#1150](https://github.com/DeanoC/fes/issues/1150)). `rombios.h` names port
   41h `PORT_PIT_COUNTER1`.
+- `rombios.c`, `rombios.h`: POST programs PIT counter 2, the speaker timer, in
+  the mode an AT BIOS's POST beep leaves it: binary, LSB then MSB, mode 3, with
+  the IBM BIOS BEEP routine's count 0533h (896 Hz). Port 61h's gate and speaker bits stay off, so it does not beep. Games such as
+  Ultima VI write only a count to port 42h and toggle port 61h bits 0 and 1,
+  so they need that mode. Upstream never programs the counter, which then stays
+  in KF8253's reset state (mode 0, MSB-only counts), and those games' speaker
+  effects played no tones ([#1457](https://github.com/DeanoC/fes/issues/1457)).
+  `rombios.h` names port 42h `PORT_PIT_COUNTER2`.
 
 The boot order and disk-only boot need no patch: the machine writes CMOS 2Dh,
 38h, 3Dh and 3Fh. The floppy POST and INT 13h floppy paths stay; CMOS 10h says

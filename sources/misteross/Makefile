@@ -144,6 +144,7 @@ help:
 		"  sim-fes-c64-sid  Check digital SID state and staged MOS6581 audio" \
 		"  sim-fes-c64-ba-timing  Check CPU retirement at VIC BA phase boundaries" \
 		"  sim-fes-pcxt  Test the PC/XT ISA fabric, waits, IRQ and DMA transactions" \
+		"  sim-fes-pcxt-machine  Test the XT machine, including speaker output and recovery" \
 		"  sim-fes-pcxt-fdc  Test the XT floppy adapter over ISA/DMA" \
 		"  sim-fes-pcxt-write  Test floppy sector staging and disk arbitration" \
 		"  sim-fes-pcxt-dos-write  Test guest writes and floppy snapshot restore" \
@@ -156,7 +157,11 @@ help:
 		"  sim-fes-pc386-boot  Boot the Bochs BIOS and FreeDOS on the pc386 machine with the oracle CPU; replay its VGA trace" \
 		"  sim-fes-pc386-fesenv  Boot the games image and check FESENV sets BLASTER from CMOS" \
 		"  sim-fes-pc386-a20  Run A20TEST.COM on the boot and games images: A20 off at boot, the BIOS's A20 calls, HIMEMX's method" \
+		"  sim-fes-pc386-c2xx  Run C2TEST.COM: INT 15h C2xx mouse resets with key and aux bytes at the 8042, and while keys are typed" \
 		"  sim-fes-pc386-wait  Run WAITTEST.COM: INT 15h AH=86h waits return in their time (PIT counter 1 at 15.09 us)" \
+		"  sim-fes-pc386-scroll  Run SCROLLT.COM at the FreeDOS prompt on the oracle and RTL CPUs" \
+		"  sim-fes-pc386-speaker  Run SPKTEST.COM: PIT counter 2 in mode 3 from POST, and a count-only speaker carrier" \
+		"  sim-fes-pc386-cpu-profile  Run CPUPROF.COM on the oracle, then a machine_tb --cpu-profile window on the RTL" \
 		"  sim-fes-pc386-system  Boot FreeDOS on pc386_system, the M5 machine with fes_i386_cpu, to the prompt (about an hour)" \
 		"  sim-fes-pc386-sound  Boot FreeDOS and run the audio start-up exercise; writes sound.wav" \
 		"  sim-fes-pc386-vga  Check the pc386 presenter and plane, run the VGA test disk, replay its VGA trace against Bochs" \
@@ -2796,10 +2801,14 @@ sim-fes-c64-sprite-pal:
 		"$(CURDIR)/cores/fes-c64/sim/sprite_pal_tb.cpp" -CFLAGS '-O2 -std=c++17'
 	@build/sim/fes-c64-sprite-pal/Vc64_vic_sprite_pixels
 
-.PHONY: sim-fes-pcxt
+.PHONY: sim-fes-pcxt sim-fes-pcxt-machine
 sim-fes-pcxt:
 	$(require_local_sim)
 	$(PYTHON) scripts/sim_fes_pcxt.py --verilator "$(VERILATOR)"
+
+sim-fes-pcxt-machine:
+	$(require_local_sim)
+	$(PYTHON) scripts/sim_fes_pcxt.py --suite machine --verilator "$(VERILATOR)"
 
 .PHONY: sim-fes-pcxt-fdc sim-fes-pcxt-write sim-fes-pcxt-media sim-fes-pcxt-mailbox sim-fes-pcxt-dos sim-fes-pcxt-dos-write sim-fes-pcxt-com sim-fes-pcxt-game
 sim-fes-pcxt-fdc:
@@ -2836,7 +2845,7 @@ sim-fes-pcxt-game:
 	@test -n "$(PCXT_DIGGER_EXE)" || { echo "Set PCXT_DIGGER_EXE to the separately acquired pinned executable" >&2; exit 1; }
 	$(PYTHON) scripts/sim_fes_pcxt_dos.py --scenario game --download --digger-exe "$(PCXT_DIGGER_EXE)" --verilator "$(VERILATOR)"
 
-.PHONY: sim-fes-pc386 sim-fes-pc386-boot sim-fes-pc386-fesenv sim-fes-pc386-a20 sim-fes-pc386-wait sim-fes-pc386-sound sim-fes-pc386-vga sim-fes-pc386-system synth-fes-pc386 build-fes-pc386-quartus
+.PHONY: sim-fes-pc386 sim-fes-pc386-boot sim-fes-pc386-fesenv sim-fes-pc386-a20 sim-fes-pc386-c2xx sim-fes-pc386-wait sim-fes-pc386-scroll sim-fes-pc386-speaker sim-fes-pc386-cpu-profile sim-fes-pc386-sound sim-fes-pc386-vga sim-fes-pc386-system synth-fes-pc386 build-fes-pc386-quartus
 sim-fes-pc386:
 	$(require_local_sim)
 	$(PYTHON) scripts/sim_fes_pc386.py --suite devices --verilator "$(VERILATOR)"
@@ -2858,9 +2867,25 @@ sim-fes-pc386-a20:
 	$(require_local_sim)
 	$(PYTHON) scripts/sim_fes_pc386.py --suite a20 --download --verilator "$(VERILATOR)"
 
+sim-fes-pc386-c2xx:
+	$(require_local_sim)
+	$(PYTHON) scripts/sim_fes_pc386.py --suite c2xx --download --verilator "$(VERILATOR)"
+
 sim-fes-pc386-wait:
 	$(require_local_sim)
 	$(PYTHON) scripts/sim_fes_pc386.py --suite wait --download --verilator "$(VERILATOR)"
+
+sim-fes-pc386-scroll:
+	$(require_local_sim)
+	$(PYTHON) scripts/sim_fes_pc386.py --suite scroll --cpu oracle --download --verilator "$(VERILATOR)"
+
+sim-fes-pc386-speaker:
+	$(require_local_sim)
+	$(PYTHON) scripts/sim_fes_pc386.py --suite speaker --download --verilator "$(VERILATOR)"
+
+sim-fes-pc386-cpu-profile:
+	$(require_local_sim)
+	$(PYTHON) scripts/sim_fes_pc386.py --suite cpu-profile --download --verilator "$(VERILATOR)"
 
 sim-fes-pc386-sound:
 	$(require_local_sim)

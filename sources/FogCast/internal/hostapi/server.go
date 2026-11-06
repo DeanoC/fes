@@ -255,6 +255,16 @@ func requestSessionCoordinator(root *sessionCoordinator, service Service, r *htt
 		if len(foregroundOnly) > 0 && foregroundOnly[0] {
 			if resolver, ok := service.(interface{ ForegroundSessionTargetName() string }); ok {
 				target = resolver.ForegroundSessionTargetName()
+				// A restarted kit host has not observed its one local target
+				// yet. Use that coordinator on the first read as well, so
+				// adoption does not change session identity or input owner.
+				if target == "" {
+					if kit, ok := service.(interface{ KitHostMode() bool }); ok && kit.KitHostMode() {
+						if selected, ok := service.(interface{ SessionTargetName() string }); ok {
+							target = selected.SessionTargetName()
+						}
+					}
+				}
 			} else if resolver, ok := service.(interface{ SessionTargetName() string }); ok {
 				target = resolver.SessionTargetName()
 			} else if resolver, ok := service.(interface{ SelectedTargetConfig() fogcast.TargetConfig }); ok {
@@ -986,6 +996,8 @@ func publicErrorMessage(code protocol.ErrorCode) string {
 		return "target ROM path is invalid"
 	case protocol.CodeSourceUnavailable:
 		return "game source is unavailable"
+	case protocol.CodeCorePackageStoreUnavailable:
+		return "core package storage is unavailable"
 	case protocol.CodeTransferFailed:
 		return "content transfer failed"
 	case protocol.CodeKitLeaseDenied:
@@ -1180,7 +1192,7 @@ func writeSessionError(w http.ResponseWriter, err error) {
 		if apiErr.Code == protocol.CodeBusy || apiErr.Code == protocol.CodeKitLeaseBusy {
 			status = http.StatusConflict
 		}
-		if apiErr.Code == protocol.CodeUnavailable {
+		if apiErr.Code == protocol.CodeUnavailable || apiErr.Code == protocol.CodeCorePackageStoreUnavailable {
 			status = http.StatusServiceUnavailable
 		}
 		if apiErr.Code == protocol.CodeKitLeaseDenied {
