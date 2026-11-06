@@ -296,7 +296,6 @@ edit_display:
         ld (S_POSN),hl
         set X_LOWER,(iy+Y_FLAGX)
         call print_eline
-        call close_all
         ld bc,(E_PPC)           ; DE = the current line (or the one before)
         call find_line
         jr z,.got
@@ -329,7 +328,6 @@ input_display:
         call next_row           ; close the output's row
         call next_row           ; and a blank one
         call print_eline
-        call close_all
         pop hl
         ld (S_POSN),hl
         ret
@@ -341,7 +339,7 @@ out_trim:
         jr reclaim_de
 
 ; The edit line with its cursor (K or L) and, before the first wrong
-; symbol, an inverse S.
+; symbol, an inverse S; then the display file is closed.
 print_eline:
         set F_SPACE,(iy+Y_FLAGS)
         ld hl,(E_LINE)
@@ -360,7 +358,7 @@ print_eline:
         call put_char
 .c:     ld a,(hl)
         cp C_NL
-        ret z
+        jr z,close_all          ; then the rest of the rows
         inc hl
         rst 0x10
         jr .l
