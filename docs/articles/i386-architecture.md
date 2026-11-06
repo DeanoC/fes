@@ -642,18 +642,19 @@ paths.
 | 6 | 486DX-33 | i486 | 33.3 MHz | 0 | 32 |
 | 7 | 486DX2-66 | i486 | 66.7 MHz | 0 | 32 |
 
-On Kit B, a Turbo Pascal-style delay calibration counted 27,454 at 286-12
-against a table time of 27,463, and 65,375 at 386DX-25 against 65,387;
-every governed preset ran within 0.04% of its table time
+On Kit B, a Turbo Pascal-style delay calibration counted 27,454 passes a
+timer tick at 286-12 against a table time of 27,463, and 65,375 at 386DX-25
+against 65,387. On the bench, every pacing loop at presets 1 to 5, 286-12 to
+386DX-40, ran within 0.1% of its table time. The two 486 presets are not
+accepted: on loops with taken branches the RTL was slower than them
 ([governor record](../validation/2026-11-01-pc386-m5-governor/summary.md)).
 The setting persists per game: Ultima VI uses 286-12 and The Black Gate
 386DX-25
 ([design, "Estimated gains"](../../sources/misteross/docs/i386-cpu-design.md#estimated-gains)). The governor only slows the CPU, so a preset can only be met where
-the CPU is faster than it. The governor record found the RTL slower than
-both 486 presets on loops with taken branches; prediction is meant to bring
-those loops within reach
+the CPU is faster than it. Prediction is meant to bring those
+loops within reach of the 486 presets
 ([design, "Speed control"](../../sources/misteross/docs/i386-cpu-design.md#speed-control)),
-but the 486 presets' pacing has not been measured again since it landed.
+but their pacing has not been measured again since it landed.
 
 ## Verification
 
