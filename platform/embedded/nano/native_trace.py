@@ -18,6 +18,8 @@ SD_BUSY = 0xb07
 BRIDGES = 0xf
 OWNED_FLAGS = (0x46424f31 << 32) | 0xdf
 AFFINITY_MASK = 0xff00ffffff
+VENDOR_PHASES = ('enter',) + tuple(name+'-'+edge for name in
+    ('reset','cpu-data','rw-cache','nobits-cache','bss','stack','setup') for edge in ('before','after'))
 
 STAGES = ('spl', 'initial', 'scope', 'mmc', 'fit', 'spl_handoff',
           'el3_capture_before', 'el3_capture_after', 'provider',
@@ -296,7 +298,8 @@ def decode_native_boot(data, build_id, owner_seed, *, storage=None, package=None
     loader_stages=() if continued else stages[:stages.index('prompt')+1]
     report = {'records': [], 'errors': [], 'loader_ready': False, 'complete': False,
               'last_checkpoint': None, 'core_load_acceptance': False,
-              'firmware_ram_trace': {'records': [], 'complete': False, 'valid': True}}
+              'firmware_ram_trace': {'records': [], 'complete': False, 'valid': True,
+                                     'vendor_records': [], 'vendor_complete': False}}
     if len(data) > MAX_BYTES:
         report['errors'].append('capture exceeds byte bound')
         return report
@@ -315,6 +318,18 @@ def decode_native_boot(data, build_id, owner_seed, *, storage=None, package=None
             report['errors'].append(f'failure marker at line {number}')
         if line.startswith('FES_NANO_RAM'):
             ram=report['firmware_ram_trace'];rows=ram['records']
+            vendor=re.fullmatch(r'FES_NANO_RAM VENDOR phase=([a-z-]+)',line)
+            if vendor:
+                progress=ram['vendor_records'];phase=vendor[1]
+                if (not ram['complete'] or len(progress)>=len(VENDOR_PHASES) or
+                        phase!=VENDOR_PHASES[len(progress)] or 'uboot' in observed or
+                        phase!='setup-after' and 'el3_capture_before' in observed or
+                        phase=='setup-after' and 'el3_capture_after' not in observed):
+                    ram['valid']=False
+                    report['errors'].append(f'out-of-order vendor startup marker at line {number}')
+                if len(progress)<len(VENDOR_PHASES):progress.append(dict(phase=phase,line=number))
+                ram['vendor_complete']=ram['valid'] and tuple(r['phase'] for r in progress)==VENDOR_PHASES
+                continue
             match=re.fullmatch(r'FES_NANO_RAM (ENTRY|PASS|REJECT phase=([1-6]))',line)
             if match is None:
                 ram['valid']=False
@@ -325,13 +340,17 @@ def decode_native_boot(data, build_id, owner_seed, *, storage=None, package=None
                     len(rows)>=2 or kind=='entry' and rows or kind=='pass' and [r['kind'] for r in rows]!=['entry']):
                 ram['valid']=False
                 report['errors'].append(f'out-of-order firmware RAM marker at line {number}')
-            rows.append(dict(kind=kind,line=number,phase=int(match[2]) if match[2] else None))
+            if len(rows)<2:rows.append(dict(kind=kind,line=number,phase=int(match[2]) if match[2] else None))
             ram['complete']=ram['valid'] and [r['kind'] for r in rows]==['entry','pass']
             continue
         if 'FES_NANO_EL3_CAPTURE phase=before ' in line:
             ram=report['firmware_ram_trace']
             if (firmware_ram_trace or ram['records']) and not ram['complete']:
                 report['errors'].append(f'incomplete firmware RAM guard trace before vendor capture at line {number}')
+        if line.startswith('U-Boot ') and not line.startswith('U-Boot SPL'):
+            ram=report['firmware_ram_trace']
+            if (firmware_ram_trace or ram['records'] or ram['vendor_records']) and not ram['vendor_complete']:
+                report['errors'].append(f'incomplete vendor startup trace before U-Boot at line {number}')
         for name, pattern in RULES:
             match = pattern.fullmatch(line)
             if match is None:

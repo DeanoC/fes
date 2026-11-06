@@ -56,6 +56,19 @@ def fixture(core=0, bridge=0x4f):
         ''))
 
 
+def firmware_progress(raw):
+    """Place cold checkpoints around the producer capture-before/after pair."""
+    before='NOTICE:  FES_NANO_EL3_CAPTURE phase=before'
+    rows=['FES_NANO_RAM VENDOR phase='+phase+'\r\n' for phase in trace.VENDOR_PHASES]
+    raw=raw.replace(before,'FES_NANO_RAM ENTRY\r\nFES_NANO_RAM PASS\r\n'+''.join(rows[:-1])+before)
+    lines=raw.splitlines(keepends=True)
+    for index,line in enumerate(lines):
+        if 'FES_NANO_EL3_CAPTURE phase=after ' in line:
+            lines.insert(index+1,rows[-1])
+            return ''.join(lines)
+    raise AssertionError('missing capture-after fixture')
+
+
 class NativeTraceTests(unittest.TestCase):
     def decode(self, data):
         return trace.decode_native_boot(data, BUILD, SEED)
@@ -71,11 +84,12 @@ class NativeTraceTests(unittest.TestCase):
         before='NOTICE:  FES_NANO_EL3_CAPTURE phase=before'
         raw=fixture().replace(before,''.join(atf_progress())+descriptor+before)
         entry='FES_NANO_RAM ENTRY\r\n';passed='FES_NANO_RAM PASS\r\n'
-        complete=raw.replace(before,entry+passed+before)
+        complete=firmware_progress(raw)
         decode=lambda value:trace.decode_native_boot(value,BUILD,SEED,atf=expected,firmware_ram_trace=True)
         result=decode(complete)
         self.assertTrue(result['complete'],result)
         self.assertTrue(result['firmware_ram_trace']['complete'])
+        self.assertTrue(result['firmware_ram_trace']['vendor_complete'])
         self.assertFalse(result['core_load_acceptance'])
         for changed in (raw,complete.replace(entry,''),complete.replace(passed,''),
                         complete.replace(entry,entry+entry),complete.replace(entry+passed,passed+entry),
@@ -89,6 +103,22 @@ class NativeTraceTests(unittest.TestCase):
         prefix+=passed
         self.assertTrue(decode(prefix)['firmware_ram_trace']['complete'])
         self.assertFalse(decode(prefix)['loader_ready'])
+        for phase in trace.VENDOR_PHASES:
+            marker='FES_NANO_RAM VENDOR phase='+phase+'\r\n'
+            for changed in (complete.replace(marker,''),complete.replace(marker,marker+marker),
+                            complete.replace(marker,marker.replace(phase,'unknown'))):
+                with self.subTest(phase=phase):self.assertFalse(decode(changed)['loader_ready'])
+        setup_after='FES_NANO_RAM VENDOR phase=setup-after\r\n'
+        early=complete.replace(setup_after,'').replace(before,setup_after+before)
+        self.assertFalse(decode(early)['loader_ready'])
+        partial=prefix+'FES_NANO_RAM VENDOR phase=enter\r\n'
+        self.assertEqual(decode(partial)['errors'],[])
+        self.assertFalse(decode(partial)['firmware_ram_trace']['vendor_complete'])
+        self.assertFalse(decode(partial)['loader_ready'])
+        flooded=decode(complete+'FES_NANO_RAM VENDOR phase=enter\r\n'*20+entry*20)
+        self.assertEqual(len(flooded['firmware_ram_trace']['vendor_records']),15)
+        self.assertEqual(len(flooded['firmware_ram_trace']['records']),2)
+        self.assertFalse(flooded['loader_ready'])
         for value in (None,1,'true'):
             with self.assertRaises(ValueError):trace.decode_native_boot(raw,BUILD,SEED,atf=expected,firmware_ram_trace=value)
         with self.assertRaises(ValueError):trace.decode_native_boot(raw,BUILD,SEED,firmware_ram_trace=True)

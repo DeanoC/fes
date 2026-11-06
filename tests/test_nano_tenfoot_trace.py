@@ -7,6 +7,7 @@ sys.path.insert(0,str(ROOT/'platform/embedded/nano'))
 import tenfoot_trace as trace
 from test_nano_program_client import Model as ProgramModel,BOOT,SPEC,OWNER
 from service_trace import response
+from test_nano_native_trace import firmware_progress
 
 IDENTITY=dict(PackageID=SPEC['identity']['package_id'],CoreID=SPEC['identity']['core_id'],ABI='fes.de25-embedded-diagnostic',BuildID=SPEC['identity']['build_id'],Platform='de25_nano',Device='A5EB013BB23BE4SCS',ProgrammingProfile='de25-embedded-hps-first-ddr-diagnostic-v1',ActivationReceiptSHA256='',ProgrammedSHA256=SPEC['package']['payload_sha256'],Major=1,Minor=0)
 SECOND=dict(IDENTITY,PackageID='a'*64,BuildID='b'*32,ProgrammedSHA256='c'*64)
@@ -74,9 +75,10 @@ class TenfootTraceTests(unittest.TestCase):
         with self.assertRaises(ValueError):trace.TenfootClient(initial,**options)
         before=b'NOTICE:  FES_NANO_EL3_CAPTURE phase=before'
         self.assertIn(before,initial)
-        updated=initial.replace(before,b'FES_NANO_RAM ENTRY\r\nFES_NANO_RAM PASS\r\n'+before)
+        updated=firmware_progress(initial.decode()).encode()
         client=trace.TenfootClient(updated,**options)
         self.assertTrue(client.boot['firmware_ram_trace']['complete'])
+        self.assertTrue(client.boot['firmware_ram_trace']['vendor_complete'])
         self.assertEqual(model.keys,[])
 
     def test_same_package_different_rom_receipts_complete_owned_cycles(self):

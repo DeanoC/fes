@@ -10,6 +10,10 @@ BASE, LIMIT, STACK_END = 0x50000, 0x60000, 0x58000
 COOKIE = 0x464e52414d000001
 ENTRY = 'bl31/aarch64/bl31_entrypoint.S'
 ENTRY_SHA = '2cb7c9d1d7845f8d1338acb77b074da3975e17342127fff42d5ff37509f0efde'
+COMMON = 'include/arch/aarch64/el3_common_macros.S'
+COMMON_SHA = '731852658339cd149d0fd08762f0a70c9d5adba0336b402ce22532c98feebde6'
+VENDOR_PHASES = ('enter',) + tuple(name+'-'+edge for name in
+    ('reset','cpu-data','rw-cache','nobits-cache','bss','stack','setup') for edge in ('before','after'))
 PLATFORM = 'plat/intel/soc/agilex5/include/socfpga_plat_def.h'
 INCLUDE = 'plat/intel/soc/common/include'
 CONTRACT = dict(format=1, scope='matched-spl-el3-ocram-nobits-v1', base=BASE,
@@ -113,7 +117,53 @@ fes_nano_ram_trace_pass: .asciz "FES_NANO_RAM PASS\\r\\n"
 fes_nano_ram_trace_reject: .asciz "FES_NANO_RAM REJECT phase="
 fes_nano_ram_trace_newline: .asciz "\\r\\n"
 .popsection
-'''
+''' + '.pushsection .rodata.fes_ram_vendor,"a"\n' + ''.join(
+        'fes_nano_ram_vendor_'+phase.replace('-','_')+': .asciz "FES_NANO_RAM VENDOR phase='+phase+'\\r\\n"\n'
+        for phase in VENDOR_PHASES) + '.popsection\n'
+
+
+def vendor_macro(text, name):
+    matches = re.findall(r'(?ms)^[ \t]*\.macro '+re.escape(name)+r'\b.*?^[ \t]*\.endm\n', text)
+    if len(matches) != 1:
+        raise ValueError('vendor startup macro context changed: '+name)
+    return matches[0]
+
+
+def vendor_call(call, phase):
+    return ('\tfes_ram_uart_text fes_nano_ram_vendor_'+phase.replace('-','_')+'_before\n' + call +
+            '\tfes_ram_uart_text fes_nano_ram_vendor_'+phase.replace('-','_')+'_after\n')
+
+
+def vendor_source(text):
+    """Instrument source-pinned cold macro copies; vendor originals stay intact.
+
+    Trace expands only at call boundaries. x8..x14/NZCV are dead there in this
+    pinned cold entry; arguments x0..x7 and retained x18..x30 are preserved.
+    No diagnostic stack or candidate-memory access is introduced.
+    """
+    if hashlib.sha256(text.encode()).hexdigest() != COMMON_SHA:
+        raise ValueError('unreviewed vendor startup macro source')
+    arch = vendor_macro(text, 'el3_arch_init_common')
+    entry = vendor_macro(text, 'el3_entrypoint_common')
+    for original, phase in (('\tbl\tinit_cpu_data_ptr\n','cpu-data'),):
+        if arch.count(original) != 1:raise ValueError('vendor CPU-data context changed')
+        arch = arch.replace(original, vendor_call(original, phase))
+    arch = arch.replace('.macro el3_arch_init_common', '.macro fes_ram_el3_arch_init_common', 1)
+    for original, phase in (('\tbl\treset_handler\n','reset'),('\tbl\tplat_set_my_stack\n','stack')):
+        if entry.count(original) != 1:raise ValueError('vendor call context changed: '+phase)
+        entry = entry.replace(original, vendor_call(original, phase))
+    call = '\t\tbl\tinv_dcache_range\n'
+    parts = entry.split(call)
+    if len(parts) != 4:raise ValueError('vendor cache context changed')
+    entry = parts[0]+vendor_call(call,'rw-cache')+parts[1]+vendor_call(call,'nobits-cache')+parts[2]+call+parts[3]
+    call = '\t\tbl\tzeromem\n'
+    parts = entry.split(call)
+    if len(parts) != 3:raise ValueError('vendor zeroization context changed')
+    entry = parts[0]+vendor_call(call,'bss')+parts[1]+call+parts[2]
+    if entry.count('\tel3_arch_init_common\n') != 1:raise ValueError('vendor architecture context changed')
+    entry = entry.replace('\tel3_arch_init_common\n','\tfes_ram_el3_arch_init_common\n')
+    entry = entry.replace('.macro el3_entrypoint_common','.macro fes_ram_el3_entrypoint_common',1)
+    return '/* Source-pinned cold-entry diagnostics; original vendor macros remain untouched. */\n'+arch+'\n'+entry
 
 
 def entry_source(text, chain):
@@ -122,8 +172,19 @@ def entry_source(text, chain):
     anchor = 'func bl31_entrypoint\n'
     if len(re.findall(r'(?m)^func bl31_entrypoint$',text)) != 1:
         raise ValueError('BL31 first-instruction context changed')
+    before, end, after = text.partition('endfunc bl31_entrypoint\n')
+    if not end or before.count('\tel3_entrypoint_common') != 2:
+        raise ValueError('BL31 cold startup context changed')
+    stash = '\tmov\tx23, x3\n'
+    call = '\tbl\tbl31_setup\n'
+    if before.count(stash) != 1 or before.count(call) != 1:
+        raise ValueError('BL31 retained arguments/setup context changed')
+    before = before.replace('\tel3_entrypoint_common','\tfes_ram_el3_entrypoint_common')
+    before = before.replace(stash,stash+'\tfes_ram_uart_text fes_nano_ram_vendor_enter\n')
+    before = before.replace(call,vendor_call(call,'setup'))
+    text = before+end+after
     return ('#include "fes_nano_ram_entry.h"\n' +
-            text.replace(anchor, anchor + '#include "nano_firmware_entry.inc"\n',1) +
+            text.replace(anchor, anchor + '#include "nano_vendor_entry.inc"\n#include "nano_firmware_entry.inc"\n',1) +
             support_assembly(chain))
 
 
@@ -132,6 +193,7 @@ def install(source, profile):
         return None
     chain = profile['chain_sha256']
     include = source / INCLUDE
+    (include / 'nano_vendor_entry.inc').write_text(vendor_source((source / COMMON).read_text()))
     (source / ENTRY).write_text(entry_source((source / ENTRY).read_text(), chain))
     (include / 'fes_nano_ram_entry.h').write_text(assembly_header(chain))
     for name in ('nano_firmware_entry.inc', 'nano_firmware_ram.h'):
@@ -146,7 +208,7 @@ def install(source, profile):
     c = source / 'plat/intel/soc/common/nano_cold_platform.c'
     c.write_text('#include "fes_nano_ram_entry.h"\n#include "nano_firmware_ram.h"\n' +
                  entry_assertions() + c.read_text())
-    names = [ENTRY, PLATFORM, INCLUDE+'/fes_nano_ram_entry.h', INCLUDE+'/nano_firmware_entry.inc',
+    names = [ENTRY, COMMON, PLATFORM, INCLUDE+'/fes_nano_ram_entry.h', INCLUDE+'/nano_vendor_entry.inc', INCLUDE+'/nano_firmware_entry.inc',
              INCLUDE+'/nano_firmware_ram.h', 'plat/intel/soc/common/nano_cold_platform.c']
     return dict(contract=dict(CONTRACT), chain_sha256=chain,
                 sources={name:hashlib.sha256((source/name).read_bytes()).hexdigest() for name in names})

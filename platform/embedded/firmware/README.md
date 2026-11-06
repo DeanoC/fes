@@ -34,6 +34,16 @@ fields, CRC, identity, layout and live containment. The host decoder validates
 their order and can require entry/pass before vendor capture for the selected
 RAM chain. These diagnostics alone never qualify boot or memory ownership.
 
+The selected cold entry also emits bounded progress around the pinned vendor
+reset, CPU-data, cache, BSS, stack and setup calls. It generates private macro
+copies and leaves the original header and warm entry unchanged. Removing the
+trace statements and private names reproduces the original macro bodies.
+The UART expansions preserve the arguments and retained registers without a
+stack access. An explicit RAM-trace decoder selection requires all 15 ordered
+vendor markers, with setup completion after the two EL3 capture observations,
+before accepting the U-Boot checkpoint. Partial progress locates a stop; it
+does not grant boot, RAM ownership or a firmware service.
+
 Only that selected profile may accept one non-executable, zero-file-byte NOBITS
 load segment in the fixed range. Packaging independently checks the actual ELF
 symbols, exact stack/BSS boundaries, initialized DDR latch and compiled chain

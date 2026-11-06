@@ -2,6 +2,7 @@
 import copy
 import hashlib
 import importlib.util
+import re
 from pathlib import Path
 import struct
 import subprocess
@@ -124,15 +125,48 @@ int main(void) { return 0; }
             with self.subTest(selected=selected),self.assertRaises(ValueError):ram.selected(p,selected)
 
     def test_transform_puts_guard_before_stash_and_vendor_initialization(self):
-        fixture='func bl31_entrypoint\n\tmov x20, x0\n\tel3_entrypoint_common\nendfunc bl31_entrypoint\n'
+        warm='func bl31_warm_entrypoint\n\tel3_entrypoint_common\nendfunc bl31_warm_entrypoint\n'
+        fixture=('func bl31_entrypoint\n\tmov x20, x0\n\tmov\tx23, x3\n'
+                 '\tel3_entrypoint_common\n\tel3_entrypoint_common\n\tbl\tbl31_setup\n'
+                 'endfunc bl31_entrypoint\n'+warm)
         with patch.object(ram,'ENTRY_SHA',hashlib.sha256(fixture.encode()).hexdigest()):
             result=ram.entry_source(fixture,'42'*32)
             self.assertLess(result.index('#include "nano_firmware_entry.inc"'),result.index('mov x20'))
+            self.assertIn('#include "nano_vendor_entry.inc"',result)
+            self.assertIn(warm,result)
+            self.assertEqual(result.count('\tfes_ram_el3_entrypoint_common\n'),2)
+            self.assertIn('\tmov\tx23, x3\n\tfes_ram_uart_text fes_nano_ram_vendor_enter\n',result)
+            self.assertIn(ram.vendor_call('\tbl\tbl31_setup\n','setup'),result)
             self.assertIn('.quad 0',result);self.assertIn('.data.fes_ram_attempt',result)
             with self.assertRaises(ValueError):ram.entry_source(fixture+'\n','42'*32)
+            for bad in (fixture.replace('\tmov\tx23, x3\n',''),fixture.replace('\tbl\tbl31_setup\n',''),
+                        fixture.replace('\tel3_entrypoint_common\n','',1)):
+                with patch.object(ram,'ENTRY_SHA',hashlib.sha256(bad.encode()).hexdigest()),self.assertRaises(ValueError):
+                    ram.entry_source(bad,'42'*32)
         with self.assertRaises(ValueError):ram.entry_source(fixture,'42'*32)
         for chain in (None,'00'*32,'42'*31,'X'*64):
             with self.assertRaises(ValueError):ram.assembly_header(chain)
+
+    def test_private_vendor_macros_preserve_original_calls_and_reject_context_drift(self):
+        arch='.macro el3_arch_init_common\n\tbl\tinit_cpu_data_ptr\n.endm\n'
+        entry=('.macro el3_entrypoint_common args\n\tbl\treset_handler\n\tel3_arch_init_common\n'+
+               '\t\tbl\tinv_dcache_range\n'*3+'\t\tbl\tzeromem\n'*2+'\tbl\tplat_set_my_stack\n.endm\n')
+        fixture='/* unrelated vendor content */\n'+arch+entry
+        with patch.object(ram,'COMMON_SHA',hashlib.sha256(fixture.encode()).hexdigest()):
+            generated=ram.vendor_source(fixture)
+            for name in ('el3_arch_init_common','el3_entrypoint_common'):
+                copied=ram.vendor_macro(generated,'fes_ram_'+name)
+                restored=re.sub(r'^\tfes_ram_uart_text [^\n]+\n','',copied,flags=re.M).replace('fes_ram_el3_','el3_')
+                self.assertEqual(restored,ram.vendor_macro(fixture,name))
+            self.assertEqual(generated.count('\tfes_ram_uart_text '),12)
+            with self.assertRaises(ValueError):ram.vendor_source(fixture+'\n')
+        for bad in (fixture.replace('init_cpu_data_ptr','missing'),fixture.replace('reset_handler','missing'),
+                    fixture.replace('plat_set_my_stack','missing'),fixture.replace('\t\tbl\tinv_dcache_range\n','',1),
+                    fixture.replace('\t\tbl\tzeromem\n','',1),fixture+arch):
+            with patch.object(ram,'COMMON_SHA',hashlib.sha256(bad.encode()).hexdigest()),self.assertRaises(ValueError):
+                ram.vendor_source(bad)
+        from test_nano_native_trace import trace
+        self.assertEqual(ram.VENDOR_PHASES,trace.VENDOR_PHASES)
 
     def test_selected_elf_requires_layout_and_initialized_matching_chain_latch(self):
         original,locations=elf()
