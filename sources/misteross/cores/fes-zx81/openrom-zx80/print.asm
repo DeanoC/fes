@@ -118,8 +118,6 @@ print_token:
         inc hl
         jr z,.text
         ret
-space:  xor a
-        jr put_char
 
 ; Signed decimal HL.
 print_num:
@@ -226,7 +224,8 @@ list_number:
         ret
 .pad:   rst 0x28
         ret nc
-        jr space
+space:  xor a
+        jr put_char
 
 ; List from S_TOP to the bottom of the upper part (X_FULL clear). DEST =
 ; the last line shown whole (0 if none).

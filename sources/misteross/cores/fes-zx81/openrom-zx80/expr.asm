@@ -90,7 +90,9 @@ apply:  call same_type
 .add:   and a
         adc hl,de
 .v:     ret po
-        jr overflow
+overflow:
+        rst 8
+        db R_OVERFLOW
 
 ; The value is of the type B's F_NUM says.
 same_type:
@@ -465,20 +467,19 @@ var_ref:
         call run_num
         ld c,0x60 ^ 0x20
         jr find_var
-.str:   djnz name_bad
-        res F_NUM,(iy+Y_FLAGS)
-        call run_only
-        ld bc,0x0180 ^ 0x20
-        jr find_var
-.arr:   djnz name_bad
+.arr:   djnz .bad
         push hl
         call subscript
         pop de
         call run_only
         jr elem_addr
-name_bad:
+.bad:
         ld (CH_ADD),hl
         jr syntax_err
+.str:   djnz .bad
+        res F_NUM,(iy+Y_FLAGS)
+        call run_only
+        ld bc,0x0180 ^ 0x20
 
 ; (HL) = a name of length B, C = record type ^ $20 (an integer: $60, $40
 ; used for longer names): DE -> just after the name in its record (value, text,
@@ -618,6 +619,18 @@ name_at:
         jr nc,syntax_err
         ld (DEST),hl
         ret
+
+st_let: call dest
+        ld a,(FLAGS)
+        push de
+        push af
+        rst 0x30
+        db T_EQ
+        call expr
+        pop bc                  ; B = the destination's FLAGS
+        pop de
+        call same_type
+        rst 0x20
 
 ; Assign value HL to the destination DE found by dest.
 store:  bit F_NUM,(iy+Y_FLAGS)

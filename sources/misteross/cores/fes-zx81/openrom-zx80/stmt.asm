@@ -16,7 +16,19 @@ statement:
         add hl,de
         call peek_word
         push hl
-        jr next_ch              ; A = what follows the keyword
+                                ; A = what follows the keyword
+; Advance and get the character.
+next_ch:
+        ld hl,(CH_ADD)
+        inc hl
+gc_store:
+        ld (CH_ADD),hl
+gc_look:
+        ld a,(hl)
+        or a
+        ret nz
+        inc hl
+        jr gc_store
 
 stmt_table:
         dw st_list, st_return, st_cls, st_dim, st_print.end, st_for, st_goto
@@ -253,19 +265,6 @@ st_rand:
         rst 0x20
         ld (SEED),hl
         ret
-
-st_let: call dest
-        ld a,(FLAGS)
-        push de
-        push af
-        rst 0x30
-        db T_EQ
-        call expr
-        pop bc                  ; B = the destination's FLAGS
-        pop de
-        call same_type
-        rst 0x20
-        jr store
 
 ; INPUT: edit a line in the lower part (an expression, given quotes for a
 ; string) and assign its value.

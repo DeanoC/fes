@@ -177,10 +177,6 @@ line_skip:
 
 ; ---------------------------------------------------------------------
 ; Reports. RST 8 stops the statement; so does arithmetic overflow.
-overflow:
-        rst 8
-        db R_OVERFLOW
-
 ; A symbol that does not fit. While checking, mark it and leave the check;
 ; a line that was never checked (a hand-made image) stops with report 0.
 syntax_err:
@@ -192,19 +188,6 @@ unwind: ld sp,(ERR_SP)
 ; ---------------------------------------------------------------------
 ; Character fetching (RST 18 starts in hw.asm). Spaces are not significant
 ; outside strings and REM.
-
-; Advance and get the character.
-next_ch:
-        ld hl,(CH_ADD)
-        inc hl
-gc_store:
-        ld (CH_ADD),hl
-gc_look:
-        ld a,(hl)
-        or a
-        ret nz
-        inc hl
-        jr gc_store
 
 ; Carry if A is a letter / a letter or digit.
 is_letter:
