@@ -21,14 +21,15 @@ class PlaybackProbe:
     Frames observed before `arm` cannot authorize a key. This gate does not
     establish that a key reached the guest or prove gameplay.
     """
-    def __init__(self, fault, *, max_host_age_ns, clock=time.monotonic_ns):
-        if not isinstance(fault, threading.Event) or type(max_host_age_ns) is not int or max_host_age_ns <= 0:
+    def __init__(self, fault, *, max_host_age_ns, clock=time.monotonic_ns, short_smoke=False):
+        if (not isinstance(fault, threading.Event) or type(max_host_age_ns) is not int
+                or max_host_age_ns <= 0 or type(short_smoke) is not bool):
             raise ValueError('explicit fault event and positive host age are required')
         self.fault, self.max_host_age_ns, self.clock = fault, max_host_age_ns, clock
         self.lock = threading.Lock()
         self.latest_source = self.latest_result = None
         self.started_ns = None
-        self.plan = [0x50, 0x4f, 0x50]
+        self.plan = [0x50] if short_smoke else [0x50, 0x4f, 0x50]
         self.sent = []
         self.closed = False
 

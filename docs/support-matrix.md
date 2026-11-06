@@ -8,7 +8,7 @@ Package ABI and standing: [core status](core-status.md). Build steps: [misteross
 
 ## Legend
 
-Tiers are derived from signals in the JSON (as of 2026-10-29). Catalog standing is recorded and is not a tier. Owned RTL is a commit that changes that core's `rtl/` and names the core, or that core holds at least half of the commit's RTL files and at least two files. A one-file edit inside another core's commit does not count. A recorded override from Deano 2026-10-29 replaces the derived tier.
+Tiers are derived from role and media signals in the JSON and an owned-RTL activity snapshot as of 2026-10-29. Role, media and dated kit notes may be updated after that snapshot. Catalog standing is recorded and is not a tier. Owned RTL is a commit that changes that core's `rtl/` and names the core, or that core holds at least half of the commit's RTL files and at least two files. A one-file edit inside another core's commit does not count. A recorded override from Deano 2026-10-29 replaces the derived tier.
 
 Coleco is Aging: work toward Current is in progress and still needs work. Spectrum and Atari ST stay Current; their kit HIL pass on the latest RTL is pending and expected soon. C64 NTSC and Atari STE are Bring-up (queued).
 
@@ -57,7 +57,7 @@ Atari ST is still the only optional recipe (`FES_SKIP_OPTIONAL_CORES`). That fla
 | `fes.demo`, `fes.demo-media`, `fes.demo-audio` | Reference | OSS | Quartus | pad, HDMI | [cores](../sources/misteross/docs/cores.md) |
 | `cores/pong` simulation | Reference | — | — | — | [cores](../sources/misteross/docs/cores.md) |
 | PC/XT | Bring-up | Quartus | Quartus | disk, HDMI | [README](../sources/misteross/cores/fes-pcxt/README.md) |
-| PC/XT (FreeDOS) | Bring-up | Quartus | Quartus | disk, keys, HDMI | [README](../sources/misteross/cores/fes-pcxt/README.md) |
+| PC/XT (FreeDOS) | Current | Quartus | Quartus | disk, keys, HDMI | [README](../sources/misteross/cores/fes-pcxt/README.md) |
 | pc386 | Bring-up | — | — | sim | [README](../sources/misteross/cores/fes-pc386/README.md) |
 | `fes_i386_cpu` | Shared | — | — | — | [design](../sources/misteross/docs/i386-cpu-design.md) |
 | `fes_z80_nmos` / `fes_z80_fast` | Shared | — | — | — | [README](../sources/misteross/cores/fes-common/rtl/z80/README.md) |

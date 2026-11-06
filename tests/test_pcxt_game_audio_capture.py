@@ -19,20 +19,22 @@ class AudioCaptureTests(unittest.TestCase):
             i = argv.index('-f'); j = argv.index('-i', i)
             return real_popen(argv[:i] + ['-re','-f','lavfi','-i',
                 'anullsrc=channel_layout=stereo:sample_rate=48000'] + argv[j+2:], **kwargs)
-        with tempfile.TemporaryDirectory() as tmp:
-            mapping = {'kit':'A','hil_video':'/dev/v4l/by-id/fes-shadowcast-hil'}
-            with mock.patch.object(audio, 'capture_identity', return_value=mapping), \
-                 mock.patch.object(audio.subprocess, 'Popen', side_effect=synthetic):
-                recorder = audio.AudioRecorder(Path(tmp), 'A')
-                recorder.start()
-                time.sleep(1.1)
-                recorder.check()
-                result = recorder.stop()
-            self.assertEqual(result['device'], 'hw:CARD=S3,DEV=0')
-            self.assertGreaterEqual(result['frames'], 48000)
-            self.assertIn('uncalibrated', result['clock_note'])
-            self.assertEqual(len(result['sha256']), 64)
-            self.assertIsNotNone(recorder.proc.poll())
+        for kit, video, device in (('A', 'fes-shadowcast-hil', 'hw:CARD=S3,DEV=0'),
+                                   ('B', 'fes-4kpro-hil', 'hw:CARD=D4KPRO,DEV=0')):
+            with self.subTest(kit=kit), tempfile.TemporaryDirectory() as tmp:
+                mapping = {'kit':kit,'hil_video':'/dev/v4l/by-id/'+video}
+                with mock.patch.object(audio, 'capture_identity', return_value=mapping), \
+                     mock.patch.object(audio.subprocess, 'Popen', side_effect=synthetic):
+                    recorder = audio.AudioRecorder(Path(tmp), kit)
+                    recorder.start()
+                    time.sleep(1.1)
+                    recorder.check()
+                    result = recorder.stop()
+                self.assertEqual(result['device'], device)
+                self.assertGreaterEqual(result['frames'], 48000)
+                self.assertIn('uncalibrated', result['clock_note'])
+                self.assertEqual(len(result['sha256']), 64)
+                self.assertIsNotNone(recorder.proc.poll())
 
     def test_failed_start_with_uncertain_cleanup_is_marked(self):
         with tempfile.TemporaryDirectory() as tmp:
@@ -56,9 +58,70 @@ class AudioCaptureTests(unittest.TestCase):
             recorder.progress.close.assert_not_called()
             recorder.stderr.close.assert_not_called()
 
-    def test_only_designated_kit_mapping_is_supported(self):
+    def test_only_designated_kit_mappings_are_supported(self):
         with tempfile.TemporaryDirectory() as tmp:
-            with self.assertRaises(audio.AudioError): audio.AudioRecorder(Path(tmp), 'B')
+            self.assertEqual(audio.AudioRecorder(Path(tmp), 'B').device, 'hw:CARD=D4KPRO,DEV=0')
+            with self.assertRaises(audio.AudioError): audio.AudioRecorder(Path(tmp), 'C')
+
+    def test_kit_b_binds_audio_and_video_to_same_usb_and_fanout(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            sysroot, procroot, devroot = root/'sys', root/'proc', root/'dev'
+            usb = sysroot/'devices/4-5'; video_if = usb/'4-5:1.0'; audio_if = usb/'4-5:1.2'
+            video_if.mkdir(parents=True); audio_if.mkdir()
+            for name, value in (('idVendor', '0b05'), ('idProduct', '1ab9'),
+                                ('serial', '802B003090700329')):
+                (usb/name).write_text(value+'\n')
+            sound = sysroot/'class/sound/card4'; sound.mkdir(parents=True)
+            (sound/'device').symlink_to(audio_if)
+            video = sysroot/'class/video4linux/video2'; video.mkdir(parents=True)
+            (video/'device').symlink_to(video_if)
+            loop = sysroot/'class/video4linux/video20'; loop.mkdir(parents=True)
+            (loop/'name').write_text('fes-4kpro-hil\n')
+            (procroot/'asound/card4').mkdir(parents=True)
+            (procroot/'asound/D4KPRO').symlink_to('card4')
+            (procroot/'42').mkdir()
+            by_id = devroot/'v4l/by-id'; by_id.mkdir(parents=True)
+            (devroot/'video2').touch(); (devroot/'video20').touch()
+            raw = by_id/'usb-ASUS_4KPRO_802B003090700329-video-index0'
+            hil = by_id/'fes-4kpro-hil'
+            raw.symlink_to('../../video2'); hil.symlink_to('../../video20')
+            (procroot/'42/cmdline').write_bytes(b'ffmpeg\0-i\0'+str(raw).encode()+b'\0'+str(hil).encode()+b'\0')
+            runner = mock.Mock(return_value=subprocess.CompletedProcess([], 0, stdout='42\n'))
+            mapping = audio.capture_identity('B', sysroot=sysroot, procroot=procroot,
+                                             devroot=devroot, runner=runner)
+            self.assertEqual(mapping['alsa_card'], 'card4')
+            self.assertEqual(mapping['hil_video'], str(hil))
+            self.assertEqual(mapping['usb']['serial'], '802B003090700329')
+            runner.assert_called_once_with(['systemctl', 'show', 'fes-4kpro-fanout.service',
+                                            '--property=MainPID', '--value'],
+                                           check=True, capture_output=True, text=True, timeout=5)
+
+            # A different physical card with matching model and serial is not
+            # the video source; equality includes the real USB parent path.
+            other = sysroot/'devices/4-6'; other_if = other/'4-6:1.2'; other_if.mkdir(parents=True)
+            for name in ('idVendor', 'idProduct', 'serial'):
+                (other/name).write_text((usb/name).read_text())
+            (sound/'device').unlink(); (sound/'device').symlink_to(other_if)
+            with self.assertRaisesRegex(audio.AudioError, 'physical capture identities differ'):
+                audio.capture_identity('B', sysroot=sysroot, procroot=procroot, devroot=devroot, runner=runner)
+            (sound/'device').unlink(); (sound/'device').symlink_to(audio_if)
+
+            (usb/'serial').write_text('unexpected-card\n')
+            with self.assertRaisesRegex(audio.AudioError, 'physical capture identities differ'):
+                audio.capture_identity('B', sysroot=sysroot, procroot=procroot, devroot=devroot, runner=runner)
+            (usb/'serial').write_text('802B003090700329\n')
+            (loop/'name').write_text('wrong-loopback\n')
+            with self.assertRaisesRegex(audio.AudioError, 'loopback identity differs'):
+                audio.capture_identity('B', sysroot=sysroot, procroot=procroot, devroot=devroot, runner=runner)
+            (loop/'name').write_text('fes-4kpro-hil\n')
+            runner.return_value.stdout = '0\n'
+            with self.assertRaisesRegex(audio.AudioError, 'fanout is not running'):
+                audio.capture_identity('B', sysroot=sysroot, procroot=procroot, devroot=devroot, runner=runner)
+            runner.return_value.stdout = '42\n'
+            (procroot/'42/cmdline').write_bytes(b'ffmpeg\0-i\0/dev/wrong\0'+str(hil).encode()+b'\0')
+            with self.assertRaisesRegex(audio.AudioError, 'fanout does not connect'):
+                audio.capture_identity('B', sysroot=sysroot, procroot=procroot, devroot=devroot, runner=runner)
 
     def test_progress_writer_failure_is_latched_and_blocks_input(self):
         with tempfile.TemporaryDirectory() as tmp:

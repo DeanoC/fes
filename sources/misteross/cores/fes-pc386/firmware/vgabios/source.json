@@ -3,12 +3,15 @@
   "commit": "12d978bd86fe88ee6b8620b0f1e91c7fb81bc2e6",
   "tag": "v0_9d",
   "license": "LGPL-2.1-or-later",
-  "local_changes": [],
+  "local_changes": [
+    "2026-11-05 vgabios.c: biosfn_scroll's graphics scroll-down loops (planar, CGA and linear) stop once the unsigned row passes row 0, as the text loop does, and before using that row; with top row 0 (INT 10h AH=07h, CH=00h, as Ultima VII: The Black Gate calls it) they looped forever, moving video memory (#1493)."
+  ],
   "files": [
     {
       "path": "vgabios.c",
       "upstream_path": "vgabios/vgabios.c",
-      "sha256": "9da3ce70bdf29103224d6110b1eef8bba378824d3bc19aaa572164dd1f2bfe73"
+      "sha256": "90a5e63863c75c9c821449a4cc8c2f46255db5de2d2b564d56aaca369949054a",
+      "upstream_sha256": "9da3ce70bdf29103224d6110b1eef8bba378824d3bc19aaa572164dd1f2bfe73"
     },
     {
       "path": "vgabios.h",

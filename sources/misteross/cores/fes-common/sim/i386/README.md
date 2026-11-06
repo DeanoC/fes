@@ -514,6 +514,25 @@ python3 scripts/test_fes_i386_governor.py
 python3 scripts/test_fes_i386_lockstep.py --preset 1 --same-as /abs/path/to/max/report.json
 ```
 
+## Latency bench
+
+[`latency_bench.asm`](latency_bench.asm) is the governor bench's form with one
+loop per row of the latency table that CPU Phase 4 changes
+([design](../../../../docs/i386-cpu-design.md#phase-4-speed)): a bare taken
+Jcc loop, taken Jcc, CALL and RET, indirect CALL through a register and
+through memory, real-mode far CALL and RETF, LOOP, a load-into-address (AGI)
+chain, an ALU result into an address, and a store then a load from the same
+and from another address. `scripts/test_fes_i386_latency.py` runs it on the RTL
+alone under max, as governor mode does, and prints each loop's clocks, per
+iteration and per case (the bare loop's DEC and JNZ taken out). The RTL alone
+is deterministic, so each loop must take exactly the clocks in the script's
+`EXPECTED`; a slice that changes them updates `EXPECTED` and gives the before
+and after in its record. It takes about 20 seconds.
+
+```sh
+python3 scripts/test_fes_i386_latency.py
+```
+
 ## Timing spikes
 
 [`spike/`](spike) holds five routed spikes, each a block inside a

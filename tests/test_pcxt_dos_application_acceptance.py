@@ -265,9 +265,62 @@ class FakeRunner:
 
 
 class HardDeadlineTest(unittest.TestCase):
+    def test_malformed_success_is_not_downgraded_to_timeout(self):
+        real_waitpid = os.waitpid
+        end = time.monotonic() + .15
+        def delayed_reap(pid, options):
+            if time.monotonic() < end:
+                return (0, 0)
+            return real_waitpid(pid, options)
+        with mock.patch.object(app.os, 'waitpid', side_effect=delayed_reap):
+            with self.assertRaises(app.pa.AcceptanceError) as caught:
+                app._hard_deadline_observation(lambda _deadline: None, seconds=.1)
+        self.assertNotIsInstance(caught.exception, app.ObservationDeadlineExceeded)
+
+    def test_observer_eof_is_not_downgraded_after_select_timeout(self):
+        real_select = app.select.select
+        def late_select(read, write, error, timeout):
+            if read and isinstance(read[0], int):
+                return real_select(read, write, error, timeout)
+            time.sleep(.15)
+            return [], [], []
+        with mock.patch.object(app.select, 'select', side_effect=late_select):
+            with self.assertRaises(app.pa.AcceptanceError) as caught:
+                app._hard_deadline_observation(lambda _deadline: os._exit(0), seconds=.1)
+        self.assertNotIsInstance(caught.exception, app.ObservationDeadlineExceeded)
+
+    def test_queued_failure_is_not_downgraded_after_select_timeout(self):
+        real_select = app.select.select
+        def late_select(read, write, error, timeout):
+            if read and isinstance(read[0], int):
+                return real_select(read, write, error, timeout)
+            time.sleep(.15)
+            return [], [], []
+        def failed(_deadline):
+            raise app.pa.AcceptanceError('target identity changed')
+        with mock.patch.object(app.select, 'select', side_effect=late_select):
+            with self.assertRaises(app.pa.AcceptanceError) as caught:
+                app._hard_deadline_observation(failed, seconds=.1)
+        self.assertNotIsInstance(caught.exception, app.ObservationDeadlineExceeded)
+
+    def test_reported_observer_failure_is_not_downgraded_to_timeout(self):
+        real_waitpid = os.waitpid
+        end = time.monotonic() + .15
+        def delayed_reap(pid, options):
+            if time.monotonic() < end:
+                return (0, 0)
+            return real_waitpid(pid, options)
+        def failed(_deadline):
+            raise app.pa.AcceptanceError('target identity changed')
+        with mock.patch.object(app.os, 'waitpid', side_effect=delayed_reap):
+            with self.assertRaises(app.pa.AcceptanceError) as caught:
+                app._hard_deadline_observation(failed, seconds=.1)
+        self.assertNotIsInstance(caught.exception, app.ObservationDeadlineExceeded)
+
     def test_result_queued_after_select_timeout_is_read_after_child_exit(self):
         child = {}
         real_fork = os.fork
+        real_select = app.select.select
 
         def fork():
             pid = real_fork()
@@ -276,6 +329,8 @@ class HardDeadlineTest(unittest.TestCase):
             return pid
 
         def empty_select_after_child_exit(_read, _write, _error, _timeout):
+            if _read and isinstance(_read[0], int):
+                return real_select(_read, _write, _error, _timeout)
             deadline = time.monotonic() + 1.0
             while time.monotonic() < deadline:
                 exited = os.waitid(os.P_PID, child['pid'], os.WEXITED | os.WNOHANG | os.WNOWAIT)
@@ -630,6 +685,7 @@ class MainOwnershipTest(unittest.TestCase):
                     if mode == 'cleanup':
                         error = app.pa.AcceptanceError('injected cleanup uncertainty')
                         error.source_cleanup_incomplete = True
+                        error.add_note('specific capture cleanup failure')
                         raise error
                     if mode == 'audio_cleanup':
                         error = app.pa.AcceptanceError('injected audio cleanup uncertainty')
@@ -669,7 +725,9 @@ class MainOwnershipTest(unittest.TestCase):
                 self.assertEqual((evidence/'receipt.json').exists(), mode == 'ok')
                 self.assertEqual((evidence/'failure.json').exists(), mode != 'ok')
                 if mode == 'cleanup':
-                    self.assertTrue(json.loads((evidence/'failure.json').read_text())['source_cleanup_incomplete'])
+                    failure=json.loads((evidence/'failure.json').read_text())
+                    self.assertTrue(failure['source_cleanup_incomplete'])
+                    self.assertEqual(failure['failure_notes'],['specific capture cleanup failure'])
                 if mode == 'audio_cleanup':
                     self.assertTrue(json.loads((evidence/'failure.json').read_text())['audio_cleanup_incomplete'])
                 self.assertFalse(any(call[0] == 'POST' for call in fake.api.calls))
@@ -756,6 +814,31 @@ class VideoEvidenceTest(unittest.TestCase):
         take.assert_not_called()
         keys.assert_not_called()
 
+    def test_kit_b_rejects_kit_a_audio_before_game_input(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            args = mock.Mock(kit='B', capture_device='/dev/v4l/by-id/fes-4kpro-hil',
+                             evidence=Path(tmp))
+            probe = mock.Mock(spec=app.gameplay.PlaybackProbe)
+            video = mock.Mock(observer_guard=probe, started_ns=1, first_progress_ns=2,
+                              converter_identity={'test': 'scaler'})
+            audio = mock.Mock(mapping={'hil_video': '/dev/v4l/by-id/fes-shadowcast-hil'})
+            observer = mock.Mock()
+            rec = {'captures': []}
+            with mock.patch.object(app, 'capture_owned', return_value=((1, 1, b'x'), {'file':'before'})), \
+                 mock.patch.object(app, 'prompt', return_value={}), \
+                 mock.patch.object(app, 'type_keys') as keys:
+                with self.assertRaisesRegex(app.pa.AcceptanceError, 'audio capture mapping'):
+                    app.run_game(None, mock.Mock(), args, rec, 'input', b'font',
+                                 probe=probe, video_factory=lambda *_: video,
+                                 audio_factory=lambda *_: audio,
+                                 observer_factory=lambda *_: observer)
+            keys.assert_not_called()
+            audio.stop.assert_called_once_with(phases=None)
+            video.skip_failed_recording_verification.assert_called_once()
+            video.stop.assert_called_once()
+            self.assertEqual(rec['failed_video_verification'], 'not performed; diagnostic had already failed')
+            observer.close.assert_called_once()
+
     def test_game_rejects_recorder_from_other_observation_stream(self):
         args = mock.Mock(kit='A', target_id='target', source_commit='a'*40,
                          capture_device='fixture', capture_producer_sha256='b'*64, evidence=Path('/tmp'))
@@ -814,3 +897,29 @@ class VideoProcessTest(unittest.TestCase):
 
 if __name__ == '__main__':
     unittest.main()
+
+class KitBFrameIdentityTests(unittest.TestCase):
+    def test_b_frame_requires_stable_physical_capture_and_records_identity(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            path=Path(tmp)/'frame.png'
+            identity={'kit':'B','usb':{'serial':'expected'},'fanout_pid':123}
+            with mock.patch.object(app.game_audio,'capture_identity',side_effect=[identity,identity]) as check, \
+                 mock.patch.object(app.subprocess,'run') as capture, \
+                 mock.patch.object(app.visual,'decode_capture',return_value=(1,1,b'rgb','a'*64)):
+                _,info=app.capture('/dev/v4l/by-id/fes-4kpro-hil',path,'fixture')
+                self.assertEqual(check.call_count,2);capture.assert_called_once()
+                self.assertEqual(info['capture_identity'],identity)
+    def test_b_fanout_change_invalidates_frame(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            path=Path(tmp)/'frame.png'
+            with mock.patch.object(app.game_audio,'capture_identity',side_effect=[{'fanout_pid':1},{'fanout_pid':2}]), \
+                 mock.patch.object(app.subprocess,'run'), \
+                 mock.patch.object(app.visual,'decode_capture',return_value=(1,1,b'rgb','a'*64)):
+                with self.assertRaises(app.pa.AcceptanceError): app.capture('/dev/v4l/by-id/fes-4kpro-hil',path,'fixture')
+    def test_b_crosswire_rejected_before_open(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            path=Path(tmp)/'frame.png'
+            with mock.patch.object(app.game_audio,'capture_identity',side_effect=app.game_audio.AudioError('crosswired')), \
+                 mock.patch.object(app.subprocess,'run') as capture:
+                with self.assertRaises(app.pa.AcceptanceError): app.capture('/dev/v4l/by-id/fes-4kpro-hil',path,'fixture')
+                capture.assert_not_called()

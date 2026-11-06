@@ -70,8 +70,11 @@ Remove the private cache directory after the diagnostic exits. Each invocation
 must use a freshly created directory. The isolated interpreter avoids stale
 bytecode from a previous checkout, including in the nested package parser.
 
-For Digger, use Kit A: game mode's audio capture currently supports Kit A only,
-and its capture device must be `/dev/v4l/by-id/fes-shadowcast-hil`. Select the
+For Digger, use the selected kit's stable video loopback:
+`/dev/v4l/by-id/fes-shadowcast-hil` for Kit A or
+`/dev/v4l/by-id/fes-4kpro-hil` for Kit B. The audio recorder verifies that
+the named ALSA card and loopback fanout share the kit's expected physical USB
+capture device before recording and throughout the diagnostic. Select the
 separately built game floppy in a **new owned session** and use a new evidence
 directory. Game mode also requires at least one private opening-player template
 from the exact game build. Each template is a raw 32×34 RGB image (3264 bytes)
@@ -80,6 +83,19 @@ and needs its pinned SHA-256; pass one `--game-template` and its matching
 `--game-max-host-age-ms` with a positive integer local observation-age limit.
 This is a local freshness policy, not a bound on target image age or key
 delivery. The script has no default for it.
+
+For a bounded game and speaker smoke, `--game-short-smoke` records a neutral
+observation and one guarded left input, then the same three F9 audio toggle
+windows as the full diagnostic. The flag does not relax the fresh-player,
+two-lives or threat checks for that input. The default remains the full
+left/right/left sequence. The receipt identifies the chosen mode; both modes
+need independent video and audio review, and neither establishes sustained play.
+
+Kit B capture mapping has host-side identity checks but has not yet been
+qualified by an exact-artifact PC/XT game/audio kit run. The 4KPRO fanout can
+deliver 60 frames per second; the recorder's 30 fps is a playback convention.
+Use the per-frame source sidecar and host monotonic observations for review,
+not encoded video duration as a target timing or audio synchronization bound.
 
 Use the common identity arguments shown in the COM command, with the game
 scenario, Kit A, game floppy, capture device and evidence path. For example:
@@ -173,6 +189,18 @@ specified open PR, with the expected base repository and base branch; the PR
 head may be in a fork. The diagnostic checkout, host, software and package
 receipts must all identify that same head. The local diagnostic and its consumed
 source inputs must match the bytes committed at that head.
+
+For an exact current-main run, `--compatible-software-source <full-commit>`
+explicitly permits a separately receipted software bundle from that commit.
+The host must still match the package producer. The diagnostic verifies and
+records identical complete `sources/libmister-runtime` and
+`sources/mister-packages` source trees at both commits, and continues to check
+the exact active bundle, base image and live session interfaces. These tree
+checks do not establish binary equality or general host/agent compatibility;
+the diagnostic records the separate software identity and tests the actual
+combination. Without this option the existing same-source requirement applies.
+This option is unavailable for PR or historical-main runs.
+
 `--phase-deadline-monotonic` is an absolute reading of the local monotonic clock,
 not a wall-clock time; it is checked at source verification gates, not enforced
 as an overall phase deadline. The Save request has its own bounded timeout.
@@ -199,3 +227,24 @@ lock-holding process alive if observer cleanup is unverified, and reconcile the
 owned session before taking further target action. The stage trace describes the observed run, not the cause
 of any earlier timeout. A completed receipt is physical diagnostic evidence,
 not whole-board timing qualification or a claim of general DOS compatibility.
+
+A separately reviewed identity-v2 package can be tested after its original
+producer commit when the current main selection resolves to the same sealed
+bytes. This is an explicit historical-main mode: pass `--selected-prepared`,
+`--selected-prepared-sha256`, `--selected-source-checkout`, and
+`--producer-source-checkout` to the main or persistence wrapper, alongside the
+historical producer, reviewed current tip and diff. The selected and producer
+checkouts must be clean canonical FES snapshots at those exact revisions. The
+wrapper validates the prepared archive, recomputes the canonical build-input
+records for both snapshots, requires the identity-v2 functional key to match,
+and verifies the original package against its build record. Main must remain at
+the selected revision throughout the phase. The resulting `selected_package`
+provenance names the original producer and selected commit separately. It covers
+only the exact package, not the later source tree as a whole.
+
+If the kit's source differs from the package producer, the separately pinned
+`--compatible-software-source` option can be combined with this selected-package
+mode. The normal host, bundle, image, runtime-tree, contract-tree, claim and
+session checks continue to apply; no target compatibility is inferred solely
+from source equality. Omitting the selection options retains the existing strict
+admission rules.

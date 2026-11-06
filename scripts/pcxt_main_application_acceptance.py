@@ -37,6 +37,8 @@ def main(argv=None):
         p.add_argument('--source-observed-tip', help='reviewed live main tip in historical mode')
         p.add_argument('--source-diff-sha256', help='reviewed raw producer-to-tip diff SHA-256')
         p.add_argument('--source-minimum-tip', help='last accepted main tip in historical mode')
+        p.add_argument('--compatible-software-source', help='explicit software source with identical runtime and contract source trees')
+        floppy.add_selected_source_arguments(p)
         p.add_argument('--host-pid', type=int, required=True)
         return p
 
@@ -48,7 +50,7 @@ def main(argv=None):
 
     def source(args, font):
         result, host_raw, software_raw = original_source(args, font)
-        floppy.check_matching_sources(result, args.source_commit)
+        floppy.check_source_admission(result, args)
         result['main_source'] = floppy.main_source_evidence(args)
         for module in (floppy, floppy.health_evidence, sys.modules[__name__]):
             path = Path(module.__file__).resolve()
@@ -135,8 +137,15 @@ def main(argv=None):
                     if active_error is None:
                         raise
                     active_error.add_note('stage evidence collection failed; claim must be retained')
-        except BaseException:
-            HEALTH_UNSAFE = True
+        except BaseException as error:
+            # A timeout establishes no target identity, but may hand control
+            # back for the owner's separate, guarded recovery if the observer
+            # and its source workers were all reaped and the trace is intact.
+            # Every other observation or evidence failure remains unsafe.
+            if (not isinstance(error, app.ObservationDeadlineExceeded)
+                    or getattr(error, 'source_cleanup_incomplete', False)
+                    or observer.compromised):
+                HEALTH_UNSAFE = True
             raise
     app.parser, app.source_provenance = parser, source
     app._validate_active_once = guarded

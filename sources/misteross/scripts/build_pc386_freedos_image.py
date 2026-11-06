@@ -21,8 +21,9 @@ Two profiles:
          method by itself. The kernel stays low (no DOS=HIGH), so Ultima
          VII's Voodoo memory manager can turn A20 off again on exit.
          AUTOEXEC.BAT sets BLASTER from CMOS 60h-62h with FESENV.COM
-         (cores/fes-pc386/sim/fesenv.asm) and loads CuteMouse high. MEM is in
-         C:\\FDOS\\BIN with them.
+         (cores/fes-pc386/sim/fesenv.asm), loads CuteMouse high and gives it
+         a non-null default event handler with MOUSEDEF.COM
+         (cores/fes-pc386/sim/mousedef.asm). MEM is in C:\\FDOS\\BIN with them.
 
 No network access occurs unless --download is given. The packages are fetched
 at the commits in cores/fes-pc386/sim/freedos.lock (each package repository's
@@ -68,6 +69,7 @@ from scripts import test_fes_i386_test386 as test386
 ROOT = Path(__file__).resolve().parents[1]
 LOCK = ROOT / 'cores/fes-pc386/sim/freedos.lock'
 FESENV = ROOT / 'cores/fes-pc386/sim/fesenv.asm'
+MOUSEDEF = ROOT / 'cores/fes-pc386/sim/mousedef.asm'
 BUILD = ROOT / 'build/sim/fes-pc386/freedos'
 
 CYLINDERS, HEADS, SPT = 65, 16, 63
@@ -84,7 +86,8 @@ FILE_TIME = 1793016000
 
 SHELL = 'SHELL=C:\\COMMAND.COM C:\\ /E:1024 /P=C:\\AUTOEXEC.BAT\r\n'
 # Each profile: its image, the lock's packages it takes, its FDCONFIG.SYS and
-# AUTOEXEC.BAT, and the files in C:\FDOS\BIN (a package file, or fesenv.asm).
+# AUTOEXEC.BAT, and the files in C:\FDOS\BIN (a package file, or a local
+# program's source, which the build assembles).
 PROFILES = {
     'boot': {
         'image': ROOT / 'build/sim/fes-pc386/freedos.img',
@@ -100,10 +103,11 @@ PROFILES = {
                      'DEVICE=C:\\FDOS\\BIN\\UMBM.EXE /I=C800-EFFF\r\n'
                      'DEVICEHIGH=C:\\FDOS\\BIN\\HIMEMX.EXE /VERBOSE\r\n' + SHELL),
         'autoexec': ('@ECHO OFF\r\nPROMPT $P$G\r\nPATH C:\\FDOS\\BIN;C:\\\r\n'
-                     'FESENV > C:\\FDOS\\FESENV.BAT\r\nCALL C:\\FDOS\\FESENV.BAT\r\nLH CTMOUSE\r\nVER\r\n'),
+                     'FESENV > C:\\FDOS\\FESENV.BAT\r\nCALL C:\\FDOS\\FESENV.BAT\r\nLH CTMOUSE\r\nMOUSEDEF\r\n'
+                     'VER\r\n'),
         'bin': {'HIMEMX.EXE': ('himemx', 'BIN/HimemX.exe'), 'UMBM.EXE': ('jemm', 'BIN/UMBM.EXE'),
                 'CTMOUSE.EXE': ('ctmouse', 'BIN/CTMOUSE.EXE'), 'MEM.EXE': ('mem', 'BIN/MEM.EXE'),
-                'FESENV.COM': None},
+                'FESENV.COM': FESENV, 'MOUSEDEF.COM': MOUSEDEF},
     },
 }
 
@@ -119,11 +123,10 @@ def lock() -> dict:
 def inputs_key(profile: str = 'boot') -> str:
     """Identity of everything a profile's image is built from: the profile, the
     lock (package commits and file hashes), the builder, NASM helper and
-    assembler version, and FESENV's source when the image carries it."""
+    assembler version, and the source of each local program the image carries."""
     digest = hashlib.sha256(profile.encode() + b'\0')
     sources = [LOCK.resolve(), Path(__file__).resolve(), Path(test386.__file__).resolve()]
-    if 'FESENV.COM' in PROFILES[profile]['bin']:
-        sources.append(FESENV.resolve())
+    sources += [source.resolve() for source in PROFILES[profile]['bin'].values() if isinstance(source, Path)]
     for path in sources:
         digest.update(path.relative_to(ROOT).as_posix().encode())
         digest.update(b'\0')
@@ -267,8 +270,8 @@ def build(download: bool = False, jobs: int = 4, profile: str = 'boot') -> Path:
     if spec['bin']:
         mtools('mmd', '-i', volume, '::FDOS', '::FDOS/BIN', env=env)
     for name, source in spec['bin'].items():
-        if source is None:
-            assemble(nasm, FESENV, staged / name)
+        if isinstance(source, Path):
+            assemble(nasm, source, staged / name)
         else:
             shutil.copyfile(trees[source[0]] / source[1], staged / name)
         os.utime(staged / name, (FILE_TIME, FILE_TIME))

@@ -85,6 +85,82 @@ func setup(t *testing.T) (*FileRepository, *Engine, *fakeControl, *fakeAdmission
 func req() Request {
 	return Request{ID: strings.Repeat("a", 64), Candidate: testCandidateID, Requester: "host1", Generation: 0}
 }
+
+// slowAgentStartControl models the agent's persistent core-library recovery,
+// which finishes before its HTTP listener can answer readiness checks.
+type slowAgentStartControl struct {
+	*fakeControl
+	now, startAt, firstHealthyAt *time.Time
+	verifyDelay                  time.Duration
+}
+
+func (c *slowAgentStartControl) Start(ctx context.Context, id string, request Request) error {
+	*c.startAt = *c.now
+	*c.now = c.now.Add(c.verifyDelay)
+	return c.fakeControl.Start(ctx, id, request)
+}
+
+func (c *slowAgentStartControl) Healthy(ctx context.Context, id string) error {
+	if c.firstHealthyAt.IsZero() {
+		*c.firstHealthyAt = *c.now
+	}
+	return c.fakeControl.Healthy(ctx, id)
+}
+
+func TestBootAndActivationAllowCoreLibraryVerificationBeforeHealthy(t *testing.T) {
+	for _, operation := range []string{"boot", "activation"} {
+		t.Run(operation, func(t *testing.T) {
+			r, err := OpenRepository(filepath.Join(t.TempDir(), "state"), testFactoryID)
+			if err != nil {
+				t.Fatal(err)
+			}
+			t.Cleanup(func() { r.Close() })
+
+			now := time.Unix(100, 0)
+			startAt := time.Time{}
+			firstHealthyAt := time.Time{}
+			control := &slowAgentStartControl{
+				fakeControl:    &fakeControl{fail: map[string]bool{}},
+				now:            &now,
+				startAt:        &startAt,
+				firstHealthyAt: &firstHealthyAt,
+				verifyDelay:    75 * time.Second,
+			}
+			e := &Engine{
+				Repository: r,
+				Controller: control,
+				Admission:  &fakeAdmission{},
+				Now:        func() time.Time { return now },
+				Wait: func(ctx context.Context, d time.Duration) error {
+					now = now.Add(d)
+					return ctx.Err()
+				},
+			}
+
+			if operation == "activation" {
+				if err := Queue(r, req()); err != nil {
+					t.Fatal(err)
+				}
+				err = e.Run(context.Background())
+			} else {
+				err = e.Boot(context.Background(), req())
+			}
+			if err != nil {
+				t.Fatalf("startup failed after pre-health verification: %v", err)
+			}
+			if e.Deadline != 3*time.Minute {
+				t.Fatalf("startup deadline = %s, want 3m", e.Deadline)
+			}
+			if firstHealthyAt.Sub(startAt) < control.verifyDelay {
+				t.Fatalf("health checked before verification finished: start=%s first health=%s", startAt, firstHealthyAt)
+			}
+			if now.Sub(firstHealthyAt) < 10*time.Second {
+				t.Fatalf("readiness was not stable for 10 seconds: first health=%s return=%s", firstHealthyAt, now)
+			}
+		})
+	}
+}
+
 func TestQueuePersistenceAndCAS(t *testing.T) {
 	r, _, _, _ := setup(t)
 	if err := Queue(r, req()); err != nil {

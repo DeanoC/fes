@@ -341,6 +341,32 @@ pixels into each 64-bit word, a 25% cut.
 idle: port 1 first data at 17–18 cycles median at 100 MHz, 32–51 at the 99th
 percentile, 54–79 worst. The VGA read path below budgets against those numbers.
 
+#### Guest memory at launch
+
+Programming the FPGA does not touch DDR, so guest RAM and VRAM would otherwise
+hold the previous run's bytes, which the Bochs BIOS's POST does not clear.
+Ultima VII under MS-DOS stalled on them (#1408, #1433) and kept a previous
+run's mouse handler armed (#1485), and no kit run matched a bench run, which
+starts from zeroed RAM.
+
+**Decision: the runtime zeroes them, not the BIOS.** On every launch of a
+package with `fes.pc386.machine` and `fes.memory.hps-ddr`, after the DDR ports
+leave reset and before the record restore, the runtime writes zeros through
+4 MiB fes-window grants over guest RAM (`0x04000000`, 16 MiB: everything below
+`ram_top`, which covers conventional, upper, HMA and extended memory) and VRAM
+(`0x00800000`, 256 KiB). Each revoke writes the zeros back from the HPS caches,
+so they are in DDR before release. It logs phase `guest_memory` with the time
+taken. A guest reset (Ctrl-Alt-Del, the 8042 reset line, a shutdown) never
+reaches the runtime, so it keeps memory as a real AT does.
+
+- It is software, so the machine, its firmware and its seal do not change. A
+  POST clear in `rombios.c` would need a reseal, would lengthen every boot, and
+  could not tell a launch from the guest's own reset without a new machine
+  signal.
+- Other cores are unaffected: the clear keys on the pc386 machine interface.
+- The capture buffers and the status ring are not guest-visible and are not
+  cleared; the ATA region is written whole at every launch anyway.
+
 ## I/O timing
 
 The CPU completes an I/O instruction only when the machine says the device is
@@ -601,6 +627,25 @@ the date. Like an MC146818, the RTC stores the weekday as given and does not
 check it against the date. The RTC converts to BCD or binary and 12- or 24-hour
 form according to its current register B. A guest that sets the time keeps it
 until Stop; the next launch takes the kit's time again.
+
+**Decision: the runtime never sends an unsynced kit clock.** A kit whose Linux
+clock never synced counts from 1970. The runtime used to clamp that to
+1980-01-01 00:00, and MS-DOS 6.22 then booted 224 bytes smaller, which put
+Ultima VII's INTRO heap over leftover memory (#1433). Now a kit time before
+2026-01-01 counts as unsynced, and the runtime sends instead:
+
+1. the game record's last clock, from its CMOS bytes (decoded by register B,
+   century from 32h), if that is a valid time no earlier than 2026-01-01, so a
+   game's clock keeps moving forward from its last run;
+2. otherwise 2026-01-01 12:00:00. Noon, not midnight: on the Bochs bench MS-DOS 6.22
+   boots with the stalling 224-byte-smaller layout (first MCB 0245h) whenever the
+   clock reads 00:00 at boot, on 2026-01-01 and on 2026-10-26 alike, and with the
+   normal one (0253h) at 12:00. The 1980 date was not the trigger; its midnight was.
+
+A synced clock (#1279 adds NTP) is sent as it is. The runtime logs a
+substitute as phase `wall_clock`. The fallback is in the runtime, not the RTC,
+so the machine and its seal do not change, and the RTC still never runs
+without a wall clock at launch.
 
 ### Persistence
 
@@ -1054,13 +1099,14 @@ It also proves that the runtime's cache clean reached DDR.
   a staged copy whose digest matches, so relaunching does not move 128 MiB.
 - **Launch.** The runtime:
   1. checks identity and releases the DDR ports;
-  2. restores the `fes.pc386.machine` record and seeds the wall clock;
-  3. sends prepare;
-  4. grants the region, writes every byte of the base image, applies the saved
+  2. zeroes guest RAM and VRAM ([guest memory at launch](#guest-memory-at-launch));
+  3. restores the `fes.pc386.machine` record and seeds the wall clock;
+  4. sends prepare;
+  5. grants the region, writes every byte of the base image, applies the saved
      delta's chunks, cleans and revokes the grant;
-  5. sends the geometry and the CRC of what it wrote, commits, and polls until
+  6. sends the geometry and the CRC of what it wrote, commits, and polls until
      ready;
-  6. releases execution.
+  7. releases execution.
 
   Load time is roughly the image's used bytes over the kit's storage read
   rate; Phase M4 measures it.
@@ -1105,8 +1151,15 @@ itself; those files are FogCast's own. `BLASTER` follows the
 [Sound Blaster setting](#sound-blaster-setting): the builder adds `FESENV.COM`,
 a small FogCast program that reads CMOS 60h–62h and prints the matching
 `SET BLASTER=A… I… D… T3` line, and `AUTOEXEC.BAT` runs it into a batch file
-and calls that, so every boot gets the current setting. `FESENV.COM`'s
-source ships on the image beside it, under FogCast's licence. Binaries ship
+and calls that, so every boot gets the current setting. After CuteMouse,
+`AUTOEXEC.BAT` runs `MOUSEDEF.COM`, which sets the driver's event handler to
+a RETF in the BIOS ROM with mask 0 (INT 33h function 14h). CuteMouse starts
+with 0:0, where Microsoft's driver and DOSBox's start non-null, and Ultima
+VII's menu keeps a swapped-out handler only if it is not 0:0; without this
+it leaves its own handler armed for the next program
+([#1485](https://github.com/DeanoC/fes/issues/1485)). The sources of
+`FESENV.COM` and `MOUSEDEF.COM` ship on the image beside them, under
+FogCast's licence. Binaries ship
 unmodified. If a component ever needs a patch, the source that ships is the
 patched source with the changes marked. Adding a component means adding a row
 here and to the lock, with its licence. The image is an aggregate of
@@ -1237,6 +1290,7 @@ Alternatives not taken, kept as later options:
 | POST PIT channel 1 | Mode 2, count 18 (15.09 µs), the refresh rate the INT 15h AH=86h wait counts on port 61h bit 4 | Local patch ([#1150](https://github.com/DeanoC/fes/issues/1150)) |
 | POST PIT channel 2 | Mode 3, LSB then MSB, as an AT's POST beep leaves it, with the IBM BEEP count 0533h and the gate and speaker off; games write only a count | Local patch ([#1457](https://github.com/DeanoC/fes/issues/1457)) |
 | INT 10h | Modes 03h and 13h, font load, DAC and palette calls, cursor, scrolling. Games then reprogram registers for mode Y themselves | VGABIOS |
+| INT 10h AH=07h from row 0 in a graphics mode | Scrolls down and returns; upstream VGABIOS's graphics loops never ended with top row 0, which Ultima VII calls | Local patch ([#1493](https://github.com/DeanoC/fes/issues/1493)) |
 | INT 13h | AH=00h–08h, 0Ah–0Dh, 10h, 11h, 15h; EDD 41h–48h, which FreeDOS uses for LBA | Present (`int13_harddisk`, EDD cases) |
 | INT 15h | 24h A20 (through the 8042 and port 92h; local patch), 87h block move and 88h extended size for HIMEM, E801h and E820h, C0h configuration, C2h PS/2 pointing device for CuteMouse, 86h wait (counts port 61h bit 4), 83h event wait (RTC periodic interrupt), 4Fh keyboard intercept | Present |
 | INT 16h | AH=00h–02h, 05h, 10h–12h | Present |

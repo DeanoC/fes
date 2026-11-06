@@ -194,12 +194,16 @@ the new agent's startup admission, so claims stay behind it. Applying,
 recovering, or blocked maintenance stays on the reservation the new agent
 reloads. The replacement remains in recovery until the agent and runtime are
 idle and the launcher has been ready for ten uninterrupted seconds. If that
-window does not arrive within sixty seconds, the supervisor stops the group and
+window does not arrive within three minutes, the supervisor stops the group and
 retries with the same backoff. A group that dies quickly backs off from one
 second to thirty seconds. If startup itself
 fails, the supervisor stays up, records the error in that log, and retries with
 backoff instead of exiting. A failure before the status socket is open retries
 the whole startup; a failure after it is open keeps the socket serving the error.
+An autonomous group restart gives the start call its own three-minute timeout,
+followed by a separate three-minute readiness budget. The readiness budget lets
+persistent core-library recovery finish before the agent's health endpoint
+becomes available.
 
 **The kit's FogCast host** (#863 slice 5) is a fourth supervised process, kept
 apart from the service group above:
@@ -227,9 +231,11 @@ apart from the service group above:
 Bundle verification completes before the service startup clock begins, while
 the current group is still running. Each start checks that the verified tree
 has not changed. Stopping services, starting replacements and observing ten
-seconds of stable readiness share one sixty-second deadline, including startup
-retries. Factory trial startup follows the same rule. Verification and elapsed
-readiness do not require a working real-time clock on the kit.
+seconds of stable readiness share one three-minute deadline, including startup
+retries. This budget includes the agent's persistent core-library recovery,
+which completes before its HTTP listener opens. Factory trial startup follows
+the same rule. Verification and elapsed readiness do not require a working
+real-time clock on the kit.
 The runtime must finish native initialization through its own authenticated
 protocol socket before the agent or launcher starts. Clean idle permits normal
 startup. The exact terminal `reboot_required` state with `idle_failed` in the

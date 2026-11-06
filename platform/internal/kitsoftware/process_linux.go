@@ -42,7 +42,7 @@ const (
 	launcherStableLife = 2 * time.Second
 	// groupRestartTimeout bounds one accepted-group start. Native initialization
 	// shares this deadline; the supervisor tick retries with backoff after it.
-	groupRestartTimeout = 60 * time.Second
+	groupRestartTimeout = 180 * time.Second
 	// groupReadyStable is the uninterrupted agent, runtime and launcher
 	// readiness window. It is the same interval Engine.health requires before
 	// an activation is accepted.
@@ -51,7 +51,7 @@ const (
 	// ready before the supervisor stops it and retries with backoff. A runtime
 	// that is already executing a session is ready, so this budget does not
 	// stop that group.
-	groupReadyBudget = 60 * time.Second
+	groupReadyBudget = 180 * time.Second
 	// launcherGroupReapPoll is how long one restart attempt waits for init to
 	// reap a just-signaled descendant. The supervisor tick retries after that.
 	launcherGroupReapPoll = 200 * time.Millisecond
@@ -114,6 +114,8 @@ type ProcessController struct {
 	// readyStable and readyBudget override the readiness window in tests.
 	readyStable time.Duration
 	readyBudget time.Duration
+	// now overrides the recovery clock in tests.
+	now func() time.Time
 	// hostPlan is how to start the kit's FogCast host for the active bundle,
 	// host is the running
 	// host process. It is not a member of children: its exit restarts it
@@ -136,11 +138,9 @@ type groupReap struct {
 // groupRestartStart launches a replacement group after an accepted agent or
 // runtime exit. request is a durable queued activation, or the zero request
 // when none is queued. The zero request does not replay the boot credential.
-// Tests replace it.
+// Its caller supplies the bounded start context. Tests replace it.
 var groupRestartStart = func(c *ProcessController, ctx context.Context, id string, request Request) error {
-	startCtx, cancel := context.WithTimeout(ctx, groupRestartTimeout)
-	defer cancel()
-	return c.Start(startCtx, id, request)
+	return c.Start(ctx, id, request)
 }
 
 // errRecoveryExecuting means the replacement processes are up and the runtime
@@ -1139,7 +1139,9 @@ func (c *ProcessController) finishGroupStart(ctx context.Context, id string, liv
 		c.holdRecoveryClaims = false
 		c.mu.Unlock()
 	}()
-	err := groupRestartStart(c, ctx, id, pending)
+	startCtx, startCancel := context.WithTimeout(ctx, groupRestartTimeout)
+	err := groupRestartStart(c, startCtx, id, pending)
+	startCancel()
 	if err != nil {
 		stopCtx, cancel := context.WithTimeout(context.Background(), StopGroupTimeout)
 		stopErr := c.Stop(stopCtx)
@@ -1169,9 +1171,16 @@ func (c *ProcessController) readyBudgetDuration() time.Duration {
 	return groupReadyBudget
 }
 
+func (c *ProcessController) currentTime() time.Time {
+	if c.now != nil {
+		return c.now()
+	}
+	return time.Now()
+}
+
 func (c *ProcessController) armRecoveryLocked(id string) {
 	c.recoveryID = id
-	c.groupReadyBy = time.Now().Add(c.readyBudgetDuration())
+	c.groupReadyBy = c.currentTime().Add(c.readyBudgetDuration())
 	c.groupReadySince = time.Time{}
 	c.recoveryPIDs = c.recoveryPIDs[:0]
 	for _, p := range c.children {
@@ -1337,7 +1346,7 @@ func (c *ProcessController) observeGroupReady(ctx context.Context, id string) er
 
 	c.mu.Lock()
 	owned = c.recoveryOwned(id)
-	expired := owned && !time.Now().Before(c.groupReadyBy)
+	expired := owned && !c.currentTime().Before(c.groupReadyBy)
 	c.mu.Unlock()
 	if !owned {
 		return nil
@@ -1408,9 +1417,9 @@ func (c *ProcessController) acceptReadyRecovery(ctx context.Context, id string, 
 	}
 	if !executing {
 		if c.groupReadySince.IsZero() {
-			c.groupReadySince = time.Now()
+			c.groupReadySince = c.currentTime()
 		}
-		if time.Since(c.groupReadySince) < c.readyStableDuration() {
+		if c.currentTime().Sub(c.groupReadySince) < c.readyStableDuration() {
 			c.mu.Unlock()
 			return nil
 		}

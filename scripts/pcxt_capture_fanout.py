@@ -13,6 +13,7 @@ import select
 import signal
 import struct
 import subprocess
+import sys
 import threading
 import time
 
@@ -166,10 +167,14 @@ class FFV1Recorder:
         self.count += 1
 
     def finish(self, timeout=30):
+        self.finish_capture(timeout=timeout)
+        self.verify_capture()
+
+    def verify_capture(self, check_interrupted=lambda: None):
+        """Verify a closed recording without owning a live capture process."""
+        if not self.closed or self.proc.returncode != 0:
+            raise CaptureError('FFV1 capture must be closed before verification')
         try:
-            self.proc.stdin.close()
-            if self.proc.wait(timeout=timeout) != 0:
-                raise CaptureError('FFV1 recorder failed')
             if not self.count or not self.video.is_file() or not self.video.stat().st_size:
                 raise CaptureError('FFV1 recording is empty')
             try:
@@ -178,33 +183,94 @@ class FFV1Recorder:
                 raise CaptureError('recording sidecar cannot be read') from exc
             if len(rows) != self.count or rows != self.entries:
                 raise CaptureError('recording sidecar was truncated or changed')
-            probe = subprocess.run(['ffprobe', '-v', 'error', '-count_frames', '-select_streams', 'v:0',
-                '-show_entries', 'stream=codec_name,width,height,nb_read_frames', '-of', 'json', str(self.video)],
-                check=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE, timeout=120)
-            streams = json.loads(probe.stdout).get('streams', [])
+            try:
+                output = self._probe_frames(check_interrupted)
+            except OSError as exc:
+                failure = CaptureError('FFV1 frame verification subprocess cleanup unverified')
+                failure.source_cleanup_incomplete = True
+                raise failure from exc
+            streams = json.loads(output).get('streams', [])
             if (len(streams) != 1 or streams[0].get('codec_name') != 'ffv1'
                     or streams[0].get('width') != self.width or streams[0].get('height') != self.height
                     or streams[0].get('nb_read_frames') != str(self.count)):
                 raise CaptureError('FFV1 decoded frame count or format differs')
-            self._verify_pixels()
+            self._verify_pixels(check_interrupted=check_interrupted)
+        except subprocess.TimeoutExpired as exc:
+            raise CaptureError('FFV1 frame verification timed out') from exc
+
+    def finish_capture(self, timeout=30):
+        """Close and reap the recorder; its resulting file is not yet verified."""
+        try:
+            self.proc.stdin.close()
+            if self.proc.wait(timeout=timeout) != 0:
+                raise CaptureError('FFV1 recorder failed while closing capture')
         finally:
             if self.proc.poll() is None:
                 self.proc.kill(); self.proc.wait(timeout=5)
             self.sidecar.close(); self.stderr.close()
             self.closed = True
 
-    def _verify_pixels(self):
+    def _probe_frames(self, check_interrupted, timeout=120):
+        try:
+            probe = subprocess.Popen(['ffprobe', '-v', 'error', '-count_frames', '-select_streams', 'v:0',
+                '-show_entries', 'stream=codec_name,width,height,nb_read_frames', '-of', 'json', str(self.video)],
+                stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+        except OSError as exc:
+            failure = CaptureError('FFV1 frame verification subprocess cleanup unverified')
+            failure.source_cleanup_incomplete = True
+            raise failure from exc
+        deadline = time.monotonic()+timeout
+        try:
+            while True:
+                check_interrupted()
+                left=deadline-time.monotonic()
+                if left <= 0: raise CaptureError('FFV1 frame verification timed out')
+                try:
+                    stdout,_stderr=probe.communicate(timeout=min(.2,left))
+                    break
+                except subprocess.TimeoutExpired:
+                    continue
+            if probe.returncode != 0: raise CaptureError('FFV1 frame verification failed')
+            return stdout
+        finally:
+            active_error=sys.exception()
+            cleanup_error=None
+            try:
+                if probe.poll() is None:
+                    probe.kill(); probe.communicate(timeout=5)
+            except BaseException as exc:
+                cleanup_error=exc
+            for stream in (probe.stdout,probe.stderr):
+                try:
+                    if stream is not None: stream.close()
+                except BaseException as exc:
+                    cleanup_error=cleanup_error or exc
+            if cleanup_error is not None:
+                failure=CaptureError('FFV1 frame verifier cleanup unverified')
+                failure.source_cleanup_incomplete=True
+                if active_error is not None:
+                    failure.add_note('recording verification also failed: '+repr(active_error))
+                raise failure from cleanup_error
+
+    def _verify_pixels(self, timeout=180, check_interrupted=lambda: None):
         """Bind each sidecar row to the corresponding losslessly decoded frame."""
-        decoder = subprocess.Popen(['ffmpeg', '-nostdin', '-hide_banner', '-loglevel', 'error',
-            '-xerror', '-i', str(self.video), '-map', '0:v:0', '-pix_fmt', 'yuyv422',
-            '-f', 'rawvideo', 'pipe:1'], stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, bufsize=0)
+        deadline = time.monotonic() + timeout
+        try:
+            decoder = subprocess.Popen(['ffmpeg', '-nostdin', '-hide_banner', '-loglevel', 'error',
+                '-xerror', '-i', str(self.video), '-map', '0:v:0', '-pix_fmt', 'yuyv422',
+                '-f', 'rawvideo', 'pipe:1'], stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, bufsize=0)
+        except OSError as exc:
+            # Popen may fail after its child exists but before returning its
+            # handle; absent proof of cleanup, retain the ownership warning.
+            failure = CaptureError('FFV1 decoder start cleanup unverified')
+            failure.source_cleanup_incomplete = True
+            raise failure from exc
         try:
             for row in self.entries:
                 digest = hashlib.sha256()
                 remaining = self.size
                 while remaining:
-                    if not select.select([decoder.stdout], [], [], 10)[0]:
-                        raise CaptureError('FFV1 verification stalled')
+                    self._wait_decoder(decoder.stdout, deadline, check_interrupted, 'FFV1 verification stalled')
                     chunk = os.read(decoder.stdout.fileno(), min(remaining, 1024*1024))
                     if not chunk:
                         raise CaptureError('FFV1 verification ended early')
@@ -212,16 +278,39 @@ class FFV1Recorder:
                     remaining -= len(chunk)
                 if digest.hexdigest() != row['raw_sha256']:
                     raise CaptureError('FFV1 decoded pixels differ from captured frame')
-            if not select.select([decoder.stdout], [], [], 10)[0]:
-                raise CaptureError('FFV1 verification did not finish')
+            self._wait_decoder(decoder.stdout, deadline, check_interrupted, 'FFV1 verification did not finish')
             if os.read(decoder.stdout.fileno(), 1):
                 raise CaptureError('FFV1 contains unexpected decoded frames')
-            if decoder.wait(timeout=10) != 0:
+            left = deadline - time.monotonic()
+            if left <= 0 or decoder.wait(timeout=min(10, left)) != 0:
                 raise CaptureError('FFV1 verification failed')
         finally:
-            if decoder.poll() is None:
-                decoder.kill(); decoder.wait(timeout=5)
-            decoder.stdout.close()
+            active_error = sys.exception()
+            cleanup_error = None
+            try:
+                if decoder.poll() is None:
+                    decoder.kill(); decoder.wait(timeout=5)
+            except BaseException as exc:
+                cleanup_error = exc
+            try:
+                decoder.stdout.close()
+            except BaseException as exc:
+                cleanup_error = cleanup_error or exc
+            if cleanup_error is not None:
+                failure = CaptureError('FFV1 decoder cleanup unverified')
+                failure.source_cleanup_incomplete = True
+                if active_error is not None:
+                    failure.add_note('recording verification also failed: '+repr(active_error))
+                raise failure from cleanup_error
+
+    @staticmethod
+    def _wait_decoder(stream, deadline, check_interrupted, message):
+        wait_end=min(deadline,time.monotonic()+10)
+        while True:
+            check_interrupted()
+            left=wait_end-time.monotonic()
+            if left<=0: raise CaptureError(message)
+            if select.select([stream], [], [], min(.2,left))[0]: return
 
     def abort(self):
         self.interrupt()
@@ -491,12 +580,15 @@ def fanout_frames(frames, record, detect, *, sample_every, record_capacity=8, jo
 
 
 def capture_experiment(source, recorder, count, detect, *, sample_every, source_timeout=5, join_timeout=2,
-                       detector_fault=None, on_source_frame=None, stop_event=None):
+                       detector_fault=None, on_source_frame=None, stop_event=None,
+                       skip_recording_verification=None, defer_recording_verification=False):
     """Run a bounded capture without target input and clean up both processes.
 
     The capture is valid only if all requested frames were received, the source
     was still alive at the planned stop, and the recorder passed its lossless
-    verification. A false detector_valid result cannot authorize observations.
+    verification. If verification is deferred, the caller must perform it
+    before accepting the recording. A false detector_valid result cannot
+    authorize observations.
     """
     try:
         result = fanout_frames(source.take(count, stop_event), recorder.write, detect,
@@ -512,7 +604,10 @@ def capture_experiment(source, recorder, count, detect, *, sample_every, source_
         except BaseException as error:
             error.source_cleanup_incomplete = True
             raise
-        recorder.finish()
+        if defer_recording_verification or (skip_recording_verification is not None and skip_recording_verification()):
+            recorder.finish_capture()
+        else:
+            recorder.finish()
         return result
     except BaseException as error:
         if not source.closed:

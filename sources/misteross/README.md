@@ -108,7 +108,8 @@ phase M3 adds the speaker, OPL2, Sound Blaster 2.0 DSP and mixer.
 capture and plane benches. `make sim-fes-pc386-boot` boots FreeDOS, sends a
 relative-mouse packet and replays its VGA trace; `make sim-fes-pc386-vga`
 checks the marked VGA modes; and `make sim-fes-pc386-sound` runs the audio
-start-up exercise. See the
+start-up exercise. `make sim-fes-pc386-scroll` assembles and runs SCROLLT.COM
+against the FreeDOS BIOS on the Bochs oracle CPU. See the
 [core README](cores/fes-pc386/README.md).
 
 ## What builds now
