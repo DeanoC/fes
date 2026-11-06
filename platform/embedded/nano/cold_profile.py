@@ -11,6 +11,8 @@ _spec=importlib.util.spec_from_file_location('fes_cold_hps_context',HERE/'hps_co
 hps_context=importlib.util.module_from_spec(_spec);_spec.loader.exec_module(hps_context)
 _payload_spec=importlib.util.spec_from_file_location('fes_cold_entry_payload',HERE.parent/'entry/payload.py')
 entry_payload=importlib.util.module_from_spec(_payload_spec);_payload_spec.loader.exec_module(entry_payload)
+_ram_spec=importlib.util.spec_from_file_location('fes_cold_firmware_ram',FW/'nano_firmware_ram.py')
+firmware_memory=importlib.util.module_from_spec(_ram_spec);_ram_spec.loader.exec_module(firmware_memory)
 EXPERIMENTAL_FILE='FES/UPLOAD.BIN'
 MAX_FIT_SIZE=8<<20
 
@@ -79,7 +81,7 @@ def entry(entry_build):
 
 def sources():
     return [HERE.parent/'entry/payload.py']+[HERE/name for name in ('cold_profile.py','hps_context.py','hps_io.py','usb_selection.py','spl_cold.c','spl_console.inc','prepare_uboot.py','uboot.c','handoff.c','handoff.h','probe-profile.json','sd-profile.json','smmu-profile.json')]+[
-        FW/name for name in ('nano_cold.h','nano_firmware_ram.h','nano_cold.c','nano_cold_mmio.inc','nano_cold_platform.c','nano_boot.h',
+        FW/name for name in ('nano_cold.h','nano_firmware_ram.h','nano_firmware_ram.py','nano_firmware_entry.inc','nano_cold.c','nano_cold_mmio.inc','nano_cold_platform.c','nano_boot.h',
                             'nano_sd.h','nano_sd.c','nano_sd_platform.h','nano_sd_platform.c','generated/fes_embedded_sd.h',
                             'nano_usb_service.c','nano_usb_service.h','nano_usb_platform.h','generated/fes_embedded_usb.h',
                             'nano_usb_platform.c','nano_usb_board.c','nano_usb_board.h','nano_usb_boot.inc',
@@ -97,7 +99,8 @@ def sources():
                             'build_terasic.py','build_terasic_uboot.py','verify.py')]
 
 
-def make(entry_build):
+def make(entry_build, *, firmware_ram=False):
+    if type(firmware_ram) is not bool:raise ValueError('explicit firmware RAM selection required')
     image,receipt=entry(entry_build)
     build=json.loads(receipt.read_text());profile=selected_profile(build)
     context=hps_context.checked(build,program_key='native_program')
@@ -144,6 +147,7 @@ def make(entry_build):
               'hps_window_read_sha256':hps_context.digest(window_read) if window_read else None,
               'computer_reload':build.get('computer_reload',False),
               'computer_storage_return':build.get('computer_storage_return',False)}
+    identity['firmware_ram']=firmware_memory.selected(identity,firmware_ram)
     identity['chain_sha256']=hashlib.sha256(json.dumps(identity,sort_keys=True).encode()).hexdigest()
     identity['owner_seed']=int(identity['chain_sha256'][:16],16)|1
     identity['entry_receipt_sha256']=sha(receipt)
@@ -151,6 +155,7 @@ def make(entry_build):
 
 
 def header(profile):
+    ram=firmware_memory.checked(profile)
     def array(value):return '{'+','.join('0x'+value[i:i+2] for i in range(0,len(value),2))+'}'
     smmu=profile.get('smmu_observe',False)
     if type(smmu) is not bool or smmu and (profile['sd_pio'] or
@@ -171,6 +176,7 @@ def header(profile):
             any(profile.get(key) is not None for key in ('hps_control','hps_configuration','hps_reader_memory','hps_ddr_read','hps_window_read','hps_computer')))):
         raise ValueError('USB PIO requires its sealed pins and separate contained cold profile')
     control=profile.get('hps_control');extra='#define FES_NANO_CONTROL_PROBE '+str(int(control is not None))+'\n'
+    extra+='#define FES_NANO_FIRMWARE_OCRAM '+str(int(ram is not None))+'\n'
     extra+='#define FES_NANO_CONTROLLED_USB '+str(int(usb))+'\n'
     extra+='#define FES_NANO_SHARED_USB '+str(int(shared))+'\n'
     io_map=profile.get('hps_io')

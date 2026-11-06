@@ -6,6 +6,7 @@ from pathlib import Path
 import prepare_tfa
 import nano_digest
 import nano_mailbox
+import nano_firmware_ram
 from verify import function
 
 HERE = Path(__file__).resolve().parent
@@ -202,6 +203,7 @@ def install(source, cold_profile=None, cold_header=None):
     frontend = source / PSCI_FRONTEND
     if cold_profile is not None:
         frontend.write_text(psci_frontend_source(frontend.read_text()))
+    ram_binding = nano_firmware_ram.install(source, cold_profile) if cold_profile is not None else None
     return {"service_sha256": hashlib.sha256(service.read_bytes()).hexdigest(), "reset_sha256": hashlib.sha256(reset.read_bytes()).hexdigest(),
             "setup_sha256": hashlib.sha256(setup.read_bytes()).hexdigest(), "makefile_sha256": hashlib.sha256(mk.read_bytes()).hexdigest(),
             "psci_sha256": hashlib.sha256(psci.read_bytes()).hexdigest(),
@@ -209,6 +211,7 @@ def install(source, cold_profile=None, cold_header=None):
             "boot_proof_installed": cold_profile is not None,
             "configuration_digest": digest,
             "rom_compilation": rom_policy,
+            "firmware_ram": ram_binding,
             "configuration_mailbox_observer": mailbox,
             "secondary_release_locked": cold_profile is not None,
             "expected_boot_state": "validated cold serial record or rejection; hardware unqualified" if cold_profile else "recognized owned service, NOT_READY"}

@@ -63,11 +63,19 @@ def checked_bl31(bl31_build, cold_profile=None):
             receipt.get("bl31_bin_size") != len(blob) or receipt.get("bl31_bin_sha256") != hashlib.sha256(blob).hexdigest() or
             receipt.get("bl31_elf_sha256") != hashlib.sha256(image_elf).hexdigest()):
         raise ValueError("BL31 component differs from its pinned vendor build receipt")
-    entry, segments = build_terasic.bl31_load_segments(image_elf)
+    ram = build_terasic.nano_firmware_ram.checked(cold_profile)
+    entry, segments = build_terasic.bl31_load_segments(image_elf,firmware_ram=ram,
+        cold_chain=cold_profile['chain_sha256'] if ram else None)
+    if ram is not None:
+        binding=receipt.get('owned_bridge_binding',{}).get('firmware_ram')
+        if not isinstance(binding,dict) or binding.get('contract')!=ram or binding.get('chain_sha256')!=cold_profile['chain_sha256']:
+            raise ValueError('matched early EL3 memory reservation binding required')
+        build_terasic.nano_firmware_ram.verify_installed(bl31_build/'source',binding)
     if receipt.get("bl31_entry") != entry or receipt.get("bl31_load_segments") != [list(s) for s in segments]:
         raise ValueError("BL31 ELF memory ranges differ from its receipt")
     sources = (HERE / "build_terasic.py", HERE / "prepare_tfa.py", HERE / "generated/fes_embedded_control.hpp",
-               prepare_tfa.DIAG_HEADER, prepare_tfa.DIAG_HELPERS)
+               prepare_tfa.DIAG_HEADER, prepare_tfa.DIAG_HELPERS,
+               HERE/'nano_firmware_ram.py',HERE/'nano_firmware_entry.inc',HERE/'nano_firmware_ram.h')
     if any(receipt.get("producer_sources", {}).get(str(p.relative_to(ROOT))) != sha(p) for p in sources):
         raise ValueError("BL31 producer sources differ from its receipt")
     if cold_profile is not None:
@@ -96,11 +104,15 @@ def main():
     parser.add_argument("--jobs", type=int, default=2)
     parser.add_argument("--native-entry-build", type=Path,
                         help="bind the dedicated serial-only Nano handoff to this entry image")
+    parser.add_argument("--nano-firmware-ocram", action="store_true",
+                        help="require the selected matched SPL/EL3/native OCRAM reservation")
     parser.add_argument("--network-recovery", action="store_true",
                         help="separate vendor Ethernet/TFTP and SD-writing recovery loader; manual prompt only")
     args = parser.parse_args()
     if args.network_recovery and args.native_entry_build is not None:
         parser.error("network recovery and native handoff are separate boot profiles")
+    if args.nano_firmware_ocram and args.native_entry_build is None:
+        parser.error('OCRAM firmware requires the exact cold native entry')
     repo = args.reference_repo.resolve()
     bl31_build = args.bl31_build.absolute()
     output = args.output.absolute()
@@ -112,7 +124,7 @@ def main():
     if args.native_entry_build is not None:
         spec=importlib.util.spec_from_file_location('fes_nano_cold_profile',HERE.parent/'nano/cold_profile.py')
         cold=importlib.util.module_from_spec(spec);spec.loader.exec_module(cold)
-        cold_profile=cold.make(args.native_entry_build.absolute())
+        cold_profile=cold.make(args.native_entry_build.absolute(),firmware_ram=args.nano_firmware_ocram)
     receipt_path, receipt_bytes, receipt, component, blob, sources, elf, image_elf, segments = checked_bl31(bl31_build,cold_profile)
     revision = git(repo, "rev-parse", "--verify", "HEAD^{commit}").decode().strip()
     if revision != UBOOT_REVISION or git(repo, "status", "--porcelain", "--untracked-files=all"):
@@ -178,7 +190,7 @@ def main():
         spec = importlib.util.spec_from_file_location("fes_nano_prepare", HERE.parent / "nano/prepare_uboot.py")
         nano_prepare = importlib.util.module_from_spec(spec)
         spec.loader.exec_module(nano_prepare)
-        native = nano_prepare.prepare(build_repo, entry_build, hashlib.sha256(blob).hexdigest(), len(blob))
+        native = nano_prepare.prepare(build_repo, entry_build, hashlib.sha256(blob).hexdigest(), len(blob),firmware_ram=args.nano_firmware_ocram)
         if native['cold_boot_profile']!=cold_profile: raise ValueError('SPL and BL31 cold chain differ')
         (build/'fes-entry.img').write_bytes((entry_build/'entry.img').read_bytes())
     commands = []

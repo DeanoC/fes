@@ -53,8 +53,10 @@ def checked_atf_descriptor(value):
     return dict(value)
 
 
-def atf_source(text, *, firmware_ram=False):
+def atf_source(text, *, firmware_ram=False, firmware_ocram=False):
     if type(firmware_ram) is not bool:raise ValueError('explicit firmware RAM guard selection required')
+    if type(firmware_ocram) is not bool or firmware_ocram and not firmware_ram:
+        raise ValueError('selected OCRAM branch requires the final SPL memory guard')
     before='typedef void __noreturn (*atf_entry_t)(struct bl31_params *params, void *plat_params);'
     if text.count(before)!=1:raise ValueError('SPL ATF argument declaration changed')
     text=text.replace(before,'typedef void __noreturn (*atf_entry_t)(struct bl31_params *params, void *plat_params, const void *cold, unsigned long cookie);')
@@ -72,16 +74,20 @@ def atf_source(text, *, firmware_ram=False):
         if text.count(before)!=1:raise ValueError('SPL final branch guard context changed')
         text=text.replace(before,'\t\textern int fes_nano_spl_firmware_ram_guard(uintptr_t, uintptr_t);\n'
             '\t\tif (fes_nano_spl_firmware_ram_guard((uintptr_t)bl31_params, (uintptr_t)cold)) hang();\n'+before)
-    return '#include <nano_cold.h>\n'+('#include <hang.h>\n' if firmware_ram else '')+text
+    if firmware_ocram:
+        text=text.replace('const void *cold, unsigned long cookie);', 'const void *cold, unsigned long cookie, unsigned long ram_cookie);')
+        text=text.replace('atf_entry(bl31_params, (void *)fdt_addr, cold, FES_NANO_COLD_COOKIE);',
+                          'atf_entry(bl31_params, (void *)fdt_addr, cold, FES_NANO_COLD_COOKIE, FES_NANO_FW_RAM_COOKIE);')
+    return '#include <nano_cold.h>\n'+('#include <nano_firmware_ram.h>\n' if firmware_ocram else '')+('#include <hang.h>\n' if firmware_ram else '')+text
 
 
-def prepare(source, entry_build, bl31_sha256, bl31_size):
+def prepare(source, entry_build, bl31_sha256, bl31_size, *, firmware_ram=False):
     atf_handoff=atf_descriptor(bl31_sha256,bl31_size)
     spec=importlib.util.spec_from_file_location('fes_nano_cold_profile', HERE/'cold_profile.py')
     cold=importlib.util.module_from_spec(spec);spec.loader.exec_module(cold)
     image, receipt_path=cold.entry(entry_build)
     profile=cold.selected_profile(json.loads(receipt_path.read_text()))
-    chain=cold.make(entry_build)
+    chain=cold.make(entry_build,firmware_ram=firmware_ram)
     reset=source/'drivers/reset/reset-socfpga.c'
     reset.write_text(cold_reset_source(reset.read_text()))
     bootm = source / "arch/arm/lib/bootm.c"
@@ -136,7 +142,8 @@ def prepare(source, entry_build, bl31_sha256, bl31_size):
     if count!=5:raise ValueError('native flash/RSU object context changed')
     mk.write_text(text[:start]+block+text[end:]+'\nifdef CONFIG_SPL_BUILD\nobj-y += fes_nano_spl.o nano_cold.o\nendif\n')
     atf=source/'common/spl/spl_atf.c'
-    atf.write_text(atf_source(atf.read_text(), firmware_ram=chain.get('hps_rom') is not None and chain.get('usb_shared') is True))
+    atf.write_text(atf_source(atf.read_text(), firmware_ram=chain.get('hps_rom') is not None and chain.get('usb_shared') is True,
+                              firmware_ocram=chain.get('firmware_ram') is not None))
     fat=source/'common/spl/spl_fat.c';text=fat.read_text()
     anchor='\terr = spl_register_fat_device(block_dev, partition);\n\tif (err)\n\t\tgoto end;\n'
     if text.count(anchor)!=1:raise ValueError('SPL FAT pre-parser context changed')

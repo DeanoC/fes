@@ -19,7 +19,9 @@ prepare = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(prepare)
 build_spec = importlib.util.spec_from_file_location('terasic_tfa_build', PATH.parent / 'build_terasic.py')
 builder = importlib.util.module_from_spec(build_spec)
-with patch.dict(sys.modules, {'prepare_tfa': prepare}):
+ram_spec=importlib.util.spec_from_file_location('test_firmware_ram_module',PATH.parent/'nano_firmware_ram.py')
+ram=importlib.util.module_from_spec(ram_spec);ram_spec.loader.exec_module(ram)
+with patch.dict(sys.modules, {'prepare_tfa': prepare,'nano_firmware_ram':ram}):
     build_spec.loader.exec_module(builder)
 uboot_spec = importlib.util.spec_from_file_location('terasic_uboot_build', PATH.parent / 'build_terasic_uboot.py')
 uboot = importlib.util.module_from_spec(uboot_spec)
@@ -74,7 +76,8 @@ class EmbeddedFirmwareTests(unittest.TestCase):
             struct.pack_into('<IIQQQQQQ', image, 64, 1, 5, 0, 0x80000000, 0x80000000, len(image), 0x1000, 0x1000)
             elf.write_bytes(image)
             inputs = (PATH.parent / 'build_terasic.py', PATH, PATH.parent / 'generated/fes_embedded_control.hpp',
-                      prepare.DIAG_HEADER, prepare.DIAG_HELPERS)
+                      prepare.DIAG_HEADER, prepare.DIAG_HELPERS,
+                      PATH.parent/'nano_firmware_ram.py',PATH.parent/'nano_firmware_entry.inc',PATH.parent/'nano_firmware_ram.h')
             receipt = {'status': 'built', 'bridge_mode': 'strict', 'reference_revision': prepare.TERASIC_REVISION,
                        'reference_git_blob': prepare.TERASIC_BLOB, 'reset_reference_git_blob': prepare.TERASIC_RESET_BLOB,
                        'bl31_bin_size': component.stat().st_size,

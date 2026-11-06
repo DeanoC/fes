@@ -6,6 +6,24 @@ adapter, and verification against actual FPGA RTL. These tools build firmware
 components; the Nano tools assemble the matched experimental boot images.
 Software tests and cross-builds remain distinct from hardware acceptance.
 
+The explicit `--nano-firmware-ocram` option on both Terasic builders selects a
+matched shared-ROM cold chain with private stack/BSS in `[0x50000,0x60000)`.
+It requires the version-2 native CPU exclusion, the final one-shot SPL live
+allocation check and a fifth private entry argument. Before vendor startup,
+the allocation-free EL3 guard checks the sealed record/CRC/chain, SP and linker
+layout, plus live reset/CPU containment. Failure parks before BSS or stack
+initialization. Its only early store is an initialized DDR attempt latch.
+The full cold provider still validates history and live ownership before any
+service grant. This is an experimental source-bound handoff, not cryptographic
+secure-boot provisioning or ordinary package admission.
+
+Only that selected profile may accept one non-executable, zero-file-byte NOBITS
+load segment in the fixed range. Packaging independently checks the actual ELF
+symbols, exact stack/BSS boundaries, initialized DDR latch and compiled chain
+bytes. Unselected images retain DDR-only admission; an old private linker
+prototype does not qualify merely by fitting. CPU/runtime, SDM/boot data and
+remaining OCRAM users retain their separate ownership and hardware obligations.
+
 The physical USB supplier has an optional complete containment callback. Paired,
 ordered cold samples enclose both fresh bus-clock scans, both DMA/IRQ/PIO checks
 and the bounded AHB-idle observations. Each controller read independently checks

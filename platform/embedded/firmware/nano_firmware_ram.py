@@ -1,0 +1,182 @@
+"""Private selected OCRAM layout for the matched SPL/BL31/native cold chain."""
+import hashlib
+import json
+import re
+from pathlib import Path
+import struct
+
+HERE = Path(__file__).resolve().parent
+BASE, LIMIT, STACK_END = 0x50000, 0x60000, 0x58000
+COOKIE = 0x464e52414d000001
+ENTRY = 'bl31/aarch64/bl31_entrypoint.S'
+ENTRY_SHA = '2cb7c9d1d7845f8d1338acb77b074da3975e17342127fff42d5ff37509f0efde'
+PLATFORM = 'plat/intel/soc/agilex5/include/socfpga_plat_def.h'
+INCLUDE = 'plat/intel/soc/common/include'
+CONTRACT = dict(format=1, scope='matched-spl-el3-ocram-nobits-v1', base=BASE,
+                limit=LIMIT, stack_end=STACK_END, cookie=COOKIE)
+
+
+def selected(profile, enabled):
+    if type(enabled) is not bool:
+        raise ValueError('explicit boolean firmware RAM selection required')
+    if not enabled:
+        return None
+    mapping = profile.get('cpu_mapping')
+    rom = profile.get('hps_rom')
+    if (profile.get('usb_pio') is not True or profile.get('usb_shared') is not True or
+            profile.get('sd_pio') is not True or not isinstance(rom, dict) or
+            rom.get('bytes') not in (4096, 8192) or not isinstance(mapping, dict) or
+            mapping.get('format') != 2 or mapping.get('scope') != 'pinned-tamago-el1-resources-excluded-v2' or
+            mapping.get('firmware_base') != BASE or mapping.get('firmware_bytes') != LIMIT-BASE):
+        raise ValueError('OCRAM firmware requires the matched shared-ROM and native exclusion profile')
+    return dict(CONTRACT)
+
+
+def checked(profile):
+    value = profile.get('firmware_ram') if profile else None
+    if value is None:
+        return None
+    expected = selected(profile, True)
+    if json.dumps(value, sort_keys=True) != json.dumps(expected, sort_keys=True):
+        raise ValueError('firmware RAM reservation differs from the fixed matched layout')
+    return expected
+
+
+def chain_bytes(chain):
+    if not isinstance(chain, str) or len(chain) != 64 or any(c not in '0123456789abcdef' for c in chain) or int(chain, 16) == 0:
+        raise ValueError('exact nonzero cold chain identity required')
+    return bytes.fromhex(chain)
+
+
+def assembly_header(chain):
+    data = chain_bytes(chain)
+    return ('/* Source-bound private EL3 entry constants, not an NS API. */\n'
+            '#define FES_RAM_CHAIN_BYTES ' + ','.join(hex(v) for v in data) + '\n'
+            '#define FES_RAM_OWNER_SEED ' + hex(int(chain[:16],16)|1) + '\n'
+            '#define FES_RAM_COOKIE 0x464e52414d000001\n'
+            '#ifndef FES_RAM_RSTMGR\n#define FES_RAM_RSTMGR 0x10d11000\n#endif\n'
+            '#ifndef FES_RAM_PWRMGR\n#define FES_RAM_PWRMGR 0x10d14000\n#endif\n')
+
+
+def support_assembly(chain):
+    chain_bytes(chain)
+    return '''
+.pushsection .rodata.fes_ram_chain,"a"
+.balign 8
+.global fes_nano_ram_expected_chain
+.type fes_nano_ram_expected_chain, %object
+fes_nano_ram_expected_chain:
+.byte FES_RAM_CHAIN_BYTES
+.size fes_nano_ram_expected_chain, 32
+.popsection
+.pushsection .data.fes_ram_attempt,"aw"
+.balign 8
+.global fes_nano_ram_attempt
+.type fes_nano_ram_attempt, %object
+fes_nano_ram_attempt:
+.quad 0
+.size fes_nano_ram_attempt, 8
+.popsection
+'''
+
+
+def entry_source(text, chain):
+    if hashlib.sha256(text.encode()).hexdigest() != ENTRY_SHA:
+        raise ValueError('unreviewed BL31 entry source')
+    anchor = 'func bl31_entrypoint\n'
+    if len(re.findall(r'(?m)^func bl31_entrypoint$',text)) != 1:
+        raise ValueError('BL31 first-instruction context changed')
+    return ('#include "fes_nano_ram_entry.h"\n' +
+            text.replace(anchor, anchor + '#include "nano_firmware_entry.inc"\n',1) +
+            support_assembly(chain))
+
+
+def install(source, profile):
+    if checked(profile) is None:
+        return None
+    chain = profile['chain_sha256']
+    include = source / INCLUDE
+    (source / ENTRY).write_text(entry_source((source / ENTRY).read_text(), chain))
+    (include / 'fes_nano_ram_entry.h').write_text(assembly_header(chain))
+    for name in ('nano_firmware_entry.inc', 'nano_firmware_ram.h'):
+        (include / name).write_bytes((HERE / name).read_bytes())
+    platform = source / PLATFORM
+    text = platform.read_text()
+    if ('#define BL31_NOBITS_BASE' in text or '#define BL31_NOBITS_LIMIT' in text or
+            '#define OCRAM_BASE' not in text):
+        raise ValueError('Agilex5 separate memory context changed')
+    platform.write_text(text + '\n/* Selected matched SPL/EL3 reservation. */\n'
+        '#define BL31_NOBITS_BASE 0x00050000\n#define BL31_NOBITS_LIMIT 0x00060000\n')
+    c = source / 'plat/intel/soc/common/nano_cold_platform.c'
+    c.write_text('#include "nano_firmware_ram.h"\n' + c.read_text())
+    names = [ENTRY, PLATFORM, INCLUDE+'/fes_nano_ram_entry.h', INCLUDE+'/nano_firmware_entry.inc',
+             INCLUDE+'/nano_firmware_ram.h', 'plat/intel/soc/common/nano_cold_platform.c']
+    return dict(contract=dict(CONTRACT), chain_sha256=chain,
+                sources={name:hashlib.sha256((source/name).read_bytes()).hexdigest() for name in names})
+
+
+def verify_installed(source, binding):
+    if binding is not None and any(hashlib.sha256((source/name).read_bytes()).hexdigest() != value
+                                   for name,value in binding['sources'].items()):
+        raise ValueError('selected firmware RAM entry sources changed during compilation')
+
+
+def symbols(image):
+    """Read the actual static ELF symbol table; no subprocess or trusted receipt."""
+    offset = struct.unpack_from('<Q', image, 40)[0]
+    size, count = struct.unpack_from('<HH', image, 58)
+    if size != 64 or not 0 < count <= 4096 or offset+size*count > len(image):
+        raise ValueError('selected BL31 requires its complete ELF section table')
+    sections = [struct.unpack_from('<IIQQQQIIQQ', image, offset+i*size) for i in range(count)]
+    found = {}
+    for section in sections:
+        if section[1] != 2:
+            continue
+        start, length, link, stride = section[4], section[5], section[6], section[9]
+        if stride != 24 or length%24 or start+length > len(image) or link >= count:
+            raise ValueError('invalid selected BL31 symbol table')
+        strings = sections[link]
+        if strings[1] != 3 or strings[4]+strings[5] > len(image):
+            raise ValueError('invalid selected BL31 symbol names')
+        names = image[strings[4]:strings[4]+strings[5]]
+        for position in range(start, start+length, 24):
+            name, info, other, index, value, length = struct.unpack_from('<IBBHQQ', image, position)
+            if not index or name >= len(names) or info >> 4 not in (1, 2):
+                continue
+            end = names.find(b'\0', name)
+            if end < 0:
+                raise ValueError('unterminated BL31 symbol name')
+            decoded = names[name:end].decode('ascii')
+            if decoded in found and found[decoded] != (value, length):
+                raise ValueError('ambiguous selected BL31 symbol')
+            found[decoded] = (value, length)
+    return found
+
+
+def validate_elf(image, segments, chain):
+    table = symbols(image)
+    required = ('bl31_entrypoint','__NOBITS_START__','__NOBITS_END__','__STACKS_START__',
+                '__STACKS_END__','__BSS_START__','__BSS_END__','fes_nano_ram_attempt','fes_nano_ram_expected_chain')
+    if any(name not in table for name in required):
+        raise ValueError('missing selected BL31 entry/reservation symbols')
+    v = {name: table[name][0] for name in required}
+    if (v['bl31_entrypoint'] != 0x80000000 or v['__NOBITS_START__'] != BASE or
+            v['__STACKS_START__'] != BASE or v['__STACKS_END__'] != STACK_END or
+            v['__BSS_START__'] != STACK_END or not STACK_END < v['__BSS_END__'] <= v['__NOBITS_END__'] <= LIMIT):
+        raise ValueError('selected BL31 symbol layout exceeds the exact reservation')
+    low = [s for s in segments if s[0] < 0x80000000]
+    if low != [(BASE, v['__NOBITS_END__'])]:
+        raise ValueError('selected BL31 NOBITS segment differs from its symbols')
+    phoff = struct.unpack_from('<Q', image, 32)[0]
+    count = struct.unpack_from('<H', image, 56)[0]
+    for name, expected in [('fes_nano_ram_attempt',bytes(8)),('fes_nano_ram_expected_chain',chain_bytes(chain))]:
+        address, length = table[name]
+        if length != len(expected) or not 0x80000000 <= address < 0x80200000-length:
+            raise ValueError('selected BL31 entry binding is outside file-backed DDR')
+        matches = []
+        for i in range(count):
+            kind, flags, offset, va, pa, filesz, memsz, align = struct.unpack_from('<IIQQQQQQ',image,phoff+i*56)
+            if kind == 1 and va <= address and address+length <= va+filesz:
+                matches.append(image[offset+address-va:offset+address-va+length])
+        if matches != [expected]:
+            raise ValueError('selected BL31 initialized latch/chain bytes differ')

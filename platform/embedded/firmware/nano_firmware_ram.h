@@ -2,6 +2,7 @@
 #ifndef FES_NANO_FIRMWARE_RAM_H
 #define FES_NANO_FIRMWARE_RAM_H
 #include "nano_cold.h"
+#include <stddef.h>
 
 /* Private candidate exclusion at the final SPL branch, not a memory grant.
  * The matched ELF, entry and native-map contracts must qualify placement
@@ -9,6 +10,17 @@
 #define FES_NANO_FW_RAM_BASE 0x00050000ULL
 #define FES_NANO_FW_RAM_LIMIT 0x00060000ULL
 #define FES_NANO_FW_RAM_STACK_FLOOR 0x00061000ULL
+#define FES_NANO_FW_RAM_COOKIE 0x464e52414d000001ULL
+/* The allocation-free EL3 entry reads this wire record before C/BSS exists. */
+_Static_assert(sizeof(struct fes_nano_cold_record)==224 &&
+               offsetof(struct fes_nano_cold_record,checksum)==12 &&
+               offsetof(struct fes_nano_cold_record,boot)==16 &&
+               offsetof(struct fes_nano_cold_record,core)==200 &&
+               offsetof(struct fes_nano_cold_record,flags)==204,
+               "early EL3 cold record layout changed");
+_Static_assert(offsetof(struct fes_nano_boot_record,chain)==32 &&
+               FES_NANO_MASTER_RESET==0xff21bfbfU,
+               "early EL3 chain/reset layout changed");
 struct fes_nano_spl_ram_view {
     uint64_t sp, gd_base, gd_bytes, early_base, early_bytes;
     uint64_t image_bytes, cold_base, cold_bytes, params_base;
