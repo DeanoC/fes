@@ -387,16 +387,14 @@ fn_peek:
 ; as 65536); the result is n * seed / 65536 + 1.
 fn_rnd: push hl
         ld hl,(SEED)
-        ld a,h
-        or l
-        ld a,77
-        jr z,.z
+        dec hl
         ld de,77
-        call mulu
-        ld a,e
-.z:     ld e,a
-        ld d,0
-        and a
+        call mulu               ; (seed - 1) * 77, then + 77: 0 is 65536
+        ld bc,77
+        add hl,bc
+        jr nc,.z
+        inc e
+.z:     and a                   ; (D is 0)
         sbc hl,de
         ld (SEED),hl
         pop de
