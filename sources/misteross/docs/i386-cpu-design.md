@@ -1504,11 +1504,11 @@ timedemo frame rate from Kit B's 26.7 fps:
   target its average cost plus one bubble. Jcc prediction is 85–95% right,
   direct JMP and CALL and RET 95–99%, indirect 70–90%.
 - **False taken.** 5% of not-taken Jcc are predicted taken and pay a full
-  redirect plus the predicted bubble over a fall-through.
+  redirect plus the predicted bubble, less a fall-through's average cost.
 
 | Feature | DOOM `demo3` | DOOM fps | Wolfenstein 3D | 3DBench |
 | --- | ---: | ---: | ---: | ---: |
-| BTB: Jcc, LOOP and JCXZ | 22–25% | 34.2–35.4 | 25–28% | 32–36% |
+| BTB: Jcc, LOOP and JCXZ | 22–25% | 34.3–35.5 | 25–28% | 32–36% |
 | BTB: JMP and CALL rel | 4% | 27.9 | 2.5% | 6% |
 | Return stack | 2.7% | 27.4 | 0.6% | 2.8% |
 | BTB: indirect JMP and CALL | 0.7–0.9% | 26.9 | 0% | 0.1% |
