@@ -1,0 +1,473 @@
+{
+  "CPU_clock_brackets_and_HFNUM_samples_are_sequential": true,
+  "USB_halt_proven": false,
+  "actual_payload_or_completion_observed": false,
+  "classification": "one physical terminal frame-overrun with source-bound cached command/frame/service observations; no repair or retry",
+  "command_observations": {
+    "commands": [
+      {
+        "NAK": false,
+        "PID": 0,
+        "done": false,
+        "frame_changed_pre_to_post": false,
+        "frame_changed_selection_to_pre": false,
+        "frame_numbers": {
+          "after": 309,
+          "before": 309,
+          "selected": 309
+        },
+        "frame_remaining_ticks": {
+          "after": 490,
+          "before": 700,
+          "selected": 886
+        },
+        "halting": false,
+        "packet": 39,
+        "reason": "arm",
+        "received": false,
+        "sequence": 221,
+        "timing": {
+          "after": 32112949,
+          "before": 45875509,
+          "selected": 58065205,
+          "selection_to_pre_ns": 3102,
+          "write_window_ns": 4058
+        },
+        "timing_sampled": true,
+        "value": 2153678856,
+        "written_parity": 0,
+        "written_parity_is_next_from_selection": true,
+        "written_parity_matches_post_sample": false,
+        "written_parity_matches_pre_sample": false
+      },
+      {
+        "NAK": false,
+        "PID": 2,
+        "done": false,
+        "frame_changed_pre_to_post": false,
+        "frame_changed_selection_to_pre": false,
+        "frame_numbers": {
+          "after": 433,
+          "before": 433,
+          "selected": 433
+        },
+        "frame_remaining_ticks": {
+          "after": 38239,
+          "before": 38365,
+          "selected": 38545
+        },
+        "halting": false,
+        "packet": 40,
+        "reason": "arm",
+        "received": false,
+        "sequence": 222,
+        "timing": {
+          "after": 2506031537,
+          "before": 2514289073,
+          "selected": 2526085553,
+          "selection_to_pre_ns": 3000,
+          "write_window_ns": 2677
+        },
+        "timing_sampled": true,
+        "value": 2153678856,
+        "written_parity": 0,
+        "written_parity_is_next_from_selection": true,
+        "written_parity_matches_post_sample": false,
+        "written_parity_matches_pre_sample": false
+      },
+      {
+        "NAK": false,
+        "PID": 0,
+        "done": false,
+        "frame_changed_pre_to_post": false,
+        "frame_changed_selection_to_pre": false,
+        "frame_numbers": {
+          "after": 533,
+          "before": 533,
+          "selected": 533
+        },
+        "frame_remaining_ticks": {
+          "after": 34282,
+          "before": 34396,
+          "selected": 34573
+        },
+        "halting": false,
+        "packet": 41,
+        "reason": "arm",
+        "received": false,
+        "sequence": 223,
+        "timing": {
+          "after": 2246705685,
+          "before": 2254176789,
+          "selected": 2265776661,
+          "selection_to_pre_ns": 2940,
+          "write_window_ns": 2448
+        },
+        "timing_sampled": true,
+        "value": 2153678856,
+        "written_parity": 0,
+        "written_parity_is_next_from_selection": true,
+        "written_parity_matches_post_sample": false,
+        "written_parity_matches_pre_sample": false
+      },
+      {
+        "NAK": false,
+        "PID": 2,
+        "done": false,
+        "frame_changed_pre_to_post": false,
+        "frame_changed_selection_to_pre": false,
+        "frame_numbers": {
+          "after": 633,
+          "before": 633,
+          "selected": 633
+        },
+        "frame_remaining_ticks": {
+          "after": 30385,
+          "before": 30508,
+          "selected": 30682
+        },
+        "halting": false,
+        "packet": 42,
+        "reason": "arm",
+        "received": false,
+        "sequence": 224,
+        "timing": {
+          "after": 1991311993,
+          "before": 1999372921,
+          "selected": 2010776185,
+          "selection_to_pre_ns": 2925,
+          "write_window_ns": 2617
+        },
+        "timing_sampled": true,
+        "value": 2153678856,
+        "written_parity": 0,
+        "written_parity_is_next_from_selection": true,
+        "written_parity_matches_post_sample": false,
+        "written_parity_matches_pre_sample": false
+      },
+      {
+        "NAK": false,
+        "PID": 0,
+        "done": false,
+        "frame_changed_pre_to_post": false,
+        "frame_changed_selection_to_pre": false,
+        "frame_numbers": {
+          "after": 733,
+          "before": 733,
+          "selected": 733
+        },
+        "frame_remaining_ticks": {
+          "after": 26104,
+          "before": 26236,
+          "selected": 26410
+        },
+        "halting": false,
+        "packet": 43,
+        "reason": "arm",
+        "received": false,
+        "sequence": 225,
+        "timing": {
+          "after": 1710752477,
+          "before": 1719403229,
+          "selected": 1730806493,
+          "selection_to_pre_ns": 2980,
+          "write_window_ns": 2707
+        },
+        "timing_sampled": true,
+        "value": 2153678856,
+        "written_parity": 0,
+        "written_parity_is_next_from_selection": true,
+        "written_parity_matches_post_sample": false,
+        "written_parity_matches_pre_sample": false
+      },
+      {
+        "NAK": false,
+        "PID": 2,
+        "done": false,
+        "frame_changed_pre_to_post": false,
+        "frame_changed_selection_to_pre": false,
+        "frame_numbers": {
+          "after": 833,
+          "before": 833,
+          "selected": 833
+        },
+        "frame_remaining_ticks": {
+          "after": 22024,
+          "before": 22144,
+          "selected": 22324
+        },
+        "halting": false,
+        "packet": 44,
+        "reason": "arm",
+        "received": false,
+        "sequence": 226,
+        "timing": {
+          "after": 1443365697,
+          "before": 1451230017,
+          "selected": 1463026497,
+          "selection_to_pre_ns": 2955,
+          "write_window_ns": 2602
+        },
+        "timing_sampled": true,
+        "value": 2153678856,
+        "written_parity": 0,
+        "written_parity_is_next_from_selection": true,
+        "written_parity_matches_post_sample": false,
+        "written_parity_matches_pre_sample": false
+      },
+      {
+        "NAK": false,
+        "PID": 0,
+        "done": false,
+        "frame_changed_pre_to_post": false,
+        "frame_changed_selection_to_pre": false,
+        "frame_numbers": {
+          "after": 933,
+          "before": 933,
+          "selected": 933
+        },
+        "frame_remaining_ticks": {
+          "after": 18505,
+          "before": 18631,
+          "selected": 18811
+        },
+        "halting": false,
+        "packet": 45,
+        "reason": "arm",
+        "received": false,
+        "sequence": 227,
+        "timing": {
+          "after": 1212744613,
+          "before": 1221002149,
+          "selected": 1232798629,
+          "selection_to_pre_ns": 2958,
+          "write_window_ns": 2685
+        },
+        "timing_sampled": true,
+        "value": 2153678856,
+        "written_parity": 0,
+        "written_parity_is_next_from_selection": true,
+        "written_parity_matches_post_sample": false,
+        "written_parity_matches_pre_sample": false
+      },
+      {
+        "NAK": false,
+        "PID": 2,
+        "done": false,
+        "frame_changed_pre_to_post": false,
+        "frame_changed_selection_to_pre": false,
+        "frame_numbers": {
+          "after": 1033,
+          "before": 1033,
+          "selected": 1033
+        },
+        "frame_remaining_ticks": {
+          "after": 14674,
+          "before": 14800,
+          "selected": 14977
+        },
+        "halting": false,
+        "packet": 46,
+        "reason": "arm",
+        "received": false,
+        "sequence": 228,
+        "timing": {
+          "after": 961676297,
+          "before": 969933833,
+          "selected": 981533705,
+          "selection_to_pre_ns": 2970,
+          "write_window_ns": 2627
+        },
+        "timing_sampled": true,
+        "value": 2153678856,
+        "written_parity": 0,
+        "written_parity_is_next_from_selection": true,
+        "written_parity_matches_post_sample": false,
+        "written_parity_matches_pre_sample": false
+      },
+      {
+        "NAK": false,
+        "PID": 2,
+        "done": false,
+        "frame_changed_pre_to_post": false,
+        "frame_changed_selection_to_pre": false,
+        "frame_numbers": {
+          "after": 1043,
+          "before": 1043,
+          "selected": 1043
+        },
+        "frame_remaining_ticks": {
+          "after": 11416,
+          "before": 11545,
+          "selected": 11653
+        },
+        "halting": false,
+        "packet": 46,
+        "reason": "continue",
+        "received": false,
+        "sequence": 229,
+        "timing": {
+          "after": 748160019,
+          "before": 756614163,
+          "selected": 763692051,
+          "selection_to_pre_ns": 1808,
+          "write_window_ns": 2722
+        },
+        "timing_sampled": true,
+        "value": 2153678856,
+        "written_parity": 0,
+        "written_parity_is_next_from_selection": true,
+        "written_parity_matches_post_sample": false,
+        "written_parity_matches_pre_sample": false
+      },
+      {
+        "NAK": false,
+        "PID": 2,
+        "done": false,
+        "halting": false,
+        "packet": 46,
+        "reason": "containment",
+        "received": false,
+        "sequence": 230,
+        "timing_sampled": false,
+        "value": 3227420680
+      }
+    ],
+    "service": {
+      "last_gap_ns": 8355,
+      "max_gap_ns": 1174748
+    }
+  },
+  "command_window_ns": 2722,
+  "containment": {
+    "NAK": false,
+    "PID": 2,
+    "done": false,
+    "halting": false,
+    "packet": 46,
+    "reason": "containment",
+    "received": false,
+    "sequence": 230,
+    "timing_sampled": false,
+    "value": 3227420680
+  },
+  "continuation": {
+    "NAK": false,
+    "PID": 2,
+    "done": false,
+    "frame_changed_pre_to_post": false,
+    "frame_changed_selection_to_pre": false,
+    "frame_numbers": {
+      "after": 1043,
+      "before": 1043,
+      "selected": 1043
+    },
+    "frame_remaining_ticks": {
+      "after": 11416,
+      "before": 11545,
+      "selected": 11653
+    },
+    "halting": false,
+    "packet": 46,
+    "reason": "continue",
+    "received": false,
+    "sequence": 229,
+    "timing": {
+      "after": 748160019,
+      "before": 756614163,
+      "selected": 763692051,
+      "selection_to_pre_ns": 1808,
+      "write_window_ns": 2722
+    },
+    "timing_sampled": true,
+    "value": 2153678856,
+    "written_parity": 0,
+    "written_parity_is_next_from_selection": true,
+    "written_parity_matches_post_sample": false,
+    "written_parity_matches_pre_sample": false
+  },
+  "continuation_frame_number": 1043,
+  "continuations": 1,
+  "core_load_acceptance": false,
+  "declared_frame_clock_hz": 60000000,
+  "evidence_sha256": {
+    "docs/validation/2026-11-06-de25-usb-frame-trace/result.json": "6bd02791f4e508399866073ffedfe2b950d331a474102c09d197454f43dd3ceb",
+    "out/nano-usb-frame-trace-20261106/native-uboot-final/source/drivers/usb/host/dwc2.h": "8f1605bad9854caa7040d163195a8a223c3662f975e2ac12af636fec4e1749ec",
+    "out/nano-usb-frame-trace-board-20261106/audit_timing.py": "f1b055870b293da113443b23664443002edd583201089e20e9017670faf27c74",
+    "out/nano-usb-frame-trace-board-20261106/physical-result.json": "f08a7ecc6f1daead5f35e196c947de860d9dea9259b434c9c2a3ef09624037cd",
+    "out/nano-usb-frame-trace-board-20261106/timing-fixtures-result.json": "1f7f86e8c70c4f71cc30bc7d8017ab9e010d9dedc01393010f7776057d3dd6e5",
+    "out/nano-usb-frame-trace-board-20261106/timing-fixtures.json": "b150522c05cc46f63c9cfc3c71bfce4130952edd92d79035f935cf7d68841be1",
+    "out/nano-usb-frame-trace-board-20261106/timing_observations.py": "c01ea7febe2892eb3adf60cfdc3492bb549e6febb4c367549924215ffc8aa993",
+    "out/nano-usb-frame-trace-board-20261106/trial/native-console.log": "a8fbf7f9530f787f33a1fe5e92b0ee050fff7cdbcf40185872fc1a3ab7861a2a",
+    "out/nano-usb-frame-trace-board-20261106/trial/native-result.json": "aefbfb060e3af9c50668733def61c54cd42e7227af9bfb5530a2bc88161e8dcc"
+  },
+  "exact_bus_commit_time_proven": false,
+  "expected_PID": 2,
+  "first_failure_terminal": true,
+  "first_toggle_HCTSIZ": 1074266120,
+  "first_toggle_HFNUM": 1526334475,
+  "first_toggle_channel": 3227420680,
+  "frame_changed_during_observed_continuation_window": false,
+  "hardware_actions": false,
+  "hardware_replayed": false,
+  "initial_and_late_SMC_returns": 8,
+  "last_step_gap_ns": 8355,
+  "late_commit_across_frame_not_observed": true,
+  "later_channel_error": 512,
+  "latest_continuation_decision_overwritten_by_interval_wait": true,
+  "matched_header_names_bit9_frame_overrun": true,
+  "max_step_gap_ns": 1174748,
+  "native_launches": 0,
+  "native_startup_seconds": 5.115769342053682,
+  "new_drain_snapshot_reached": false,
+  "next": "Investigate DWC2 periodic request/halt queue semantics after data-toggle disable and preserve command admission state; the observed frame did not change during the continuation window. Do not select a late-write scheduling repair from the synthetic model alone, mask frame-overrun, fabricate NAK/completion, extend the deadline or release an unhalted source. This input is consumed.",
+  "observational_overhead_present": true,
+  "original_arm": {
+    "NAK": false,
+    "PID": 2,
+    "done": false,
+    "frame_changed_pre_to_post": false,
+    "frame_changed_selection_to_pre": false,
+    "frame_numbers": {
+      "after": 1033,
+      "before": 1033,
+      "selected": 1033
+    },
+    "frame_remaining_ticks": {
+      "after": 14674,
+      "before": 14800,
+      "selected": 14977
+    },
+    "halting": false,
+    "packet": 46,
+    "reason": "arm",
+    "received": false,
+    "sequence": 228,
+    "timing": {
+      "after": 961676297,
+      "before": 969933833,
+      "selected": 981533705,
+      "selection_to_pre_ns": 2970,
+      "write_window_ns": 2627
+    },
+    "timing_sampled": true,
+    "value": 2153678856,
+    "written_parity": 0,
+    "written_parity_is_next_from_selection": true,
+    "written_parity_matches_post_sample": false,
+    "written_parity_matches_pre_sample": false
+  },
+  "original_packet": 46,
+  "packet_polls": 250,
+  "paired_toggle_IRQ": 1,
+  "paired_toggle_RX": 1,
+  "panic": "panic: dwc2: packet address=1 endpoint=1 in=true pid=2 split=false complete_split=false received=false done=false nak=false halting=false polls=250 toggle_rx=1 toggle_irqs=1 ack_irqs=0 continuations=1 interval=10ms last_continue={reason=interval sampled=0x0 queue_reg=0x0 queue=0x0 irq=0x0 status=0x0 channel=0x0 transfer=0x0 frame=0x0 wait_ns=9823447} service={last_gap_ns=8355 max_gap_ns=1174748}: dwc2: channel error 0x200; first toggle observation: dwc2: IN data-toggle notification; RX snapshot irq=0x7200039 peek=0xa0000 pop=0xa0000 after=0x7200029 channel=0xc05e8808 interrupts=0x400 transfer=0x40080008 port=0x4180f reset=0x80000400 nonperiodic=0x1080040 periodic=0x100040 frame=0x5afa040b software_channel_commands={seq=221 packet=39 reason=arm value=0x805e8808 pid=0 done=false nak=false received=false halting=false periodic_timing={sampled=true selected=0x3760135 before=0x2bc0135 after=0x1ea0135 select_to_pre_ns=3102 window_ns=4058}; seq=222 packet=40 reason=arm value=0x805e8808 pid=2 done=false nak=false received=false halting=false periodic_timing={sampled=true selected=0x969101b1 before=0x95dd01b1 after=0x955f01b1 select_to_pre_ns=3000 window_ns=2677}; seq=223 packet=41 reason=arm value=0x805e8808 pid=0 done=false nak=false received=false halting=false periodic_timing={sampled=true selected=0x870d0215 before=0x865c0215 after=0x85ea0215 select_to_pre_ns=2940 window_ns=2448}; seq=224 packet=42 reason=arm value=0x805e8808 pid=2 done=false nak=false received=false halting=false periodic_timing={sampled=true selected=0x77da0279 before=0x772c0279 after=0x76b10279 select_to_pre_ns=2925 window_ns=2617}; seq=225 packet=43 reason=arm value=0x805e8808 pid=0 done=false nak=false received=false halting=false periodic_timing={sampled=true selected=0x672a02dd before=0x667c02dd after=0x65f802dd select_to_pre_ns=2980 window_ns=2707}; seq=226 packet=44 reason=arm value=0x805e8808 pid=2 done=false nak=false received=false halting=false periodic_timing={sampled=true selected=0x57340341 before=0x56800341 after=0x56080341 select_to_pre_ns=2955 window_ns=2602}; seq=227 packet=45 reason=arm value=0x805e8808 pid=0 done=false nak=false received=false halting=false periodic_timing={sampled=true selected=0x497b03a5 before=0x48c703a5 after=0x484903a5 select_to_pre_ns=2958 window_ns=2685}; seq=228 packet=46 reason=arm value=0x805e8808 pid=2 done=false nak=false received=false halting=false periodic_timing={sampled=true selected=0x3a810409 before=0x39d00409 after=0x39520409 select_to_pre_ns=2970 window_ns=2627}}; channel_commands={seq=222 packet=40 reason=arm value=0x805e8808 pid=2 done=false nak=false received=false halting=false periodic_timing={sampled=true selected=0x969101b1 before=0x95dd01b1 after=0x955f01b1 select_to_pre_ns=3000 window_ns=2677}; seq=223 packet=41 reason=arm value=0x805e8808 pid=0 done=false nak=false received=false halting=false periodic_timing={sampled=true selected=0x870d0215 before=0x865c0215 after=0x85ea0215 select_to_pre_ns=2940 window_ns=2448}; seq=224 packet=42 reason=arm value=0x805e8808 pid=2 done=false nak=false received=false halting=false periodic_timing={sampled=true selected=0x77da0279 before=0x772c0279 after=0x76b10279 select_to_pre_ns=2925 window_ns=2617}; seq=225 packet=43 reason=arm value=0x805e8808 pid=0 done=false nak=false received=false halting=false periodic_timing={sampled=true selected=0x672a02dd before=0x667c02dd after=0x65f802dd select_to_pre_ns=2980 window_ns=2707}; seq=226 packet=44 reason=arm value=0x805e8808 pid=2 done=false nak=false received=false halting=false periodic_timing={sampled=true selected=0x57340341 before=0x56800341 after=0x56080341 select_to_pre_ns=2955 window_ns=2602}; seq=227 packet=45 reason=arm value=0x805e8808 pid=0 done=false nak=false received=false halting=false periodic_timing={sampled=true selected=0x497b03a5 before=0x48c703a5 after=0x484903a5 select_to_pre_ns=2958 window_ns=2685}; seq=228 packet=46 reason=arm value=0x805e8808 pid=2 done=false nak=false received=false halting=false periodic_timing={sampled=true selected=0x3a810409 before=0x39d00409 after=0x39520409 select_to_pre_ns=2970 window_ns=2627}; seq=229 packet=46 reason=continue value=0x805e8808 pid=2 done=false nak=false received=false halting=false periodic_timing={sampled=true selected=0x2d850413 before=0x2d190413 after=0x2c980413 select_to_pre_ns=1808 window_ns=2722}}; containment: dwc2: register wait exhausted address=0x500 value=0xc05e8808 mask=0x80000000 want=0x0 elapsed=500.000745ms; channel_commands={seq=223 packet=41 reason=arm value=0x805e8808 pid=0 done=false nak=false received=false halting=false periodic_timing={sampled=true selected=0x870d0215 before=0x865c0215 after=0x85ea0215 select_to_pre_ns=2940 window_ns=2448}; seq=224 packet=42 reason=arm value=0x805e8808 pid=2 done=false nak=false received=false halting=false periodic_timing={sampled=true selected=0x77da0279 before=0x772c0279 after=0x76b10279 select_to_pre_ns=2925 window_ns=2617}; seq=225 packet=43 reason=arm value=0x805e8808 pid=0 done=false nak=false received=false halting=false periodic_timing={sampled=true selected=0x672a02dd before=0x667c02dd after=0x65f802dd select_to_pre_ns=2980 window_ns=2707}; seq=226 packet=44 reason=arm value=0x805e8808 pid=2 done=false nak=false received=false halting=false periodic_timing={sampled=true selected=0x57340341 before=0x56800341 after=0x56080341 select_to_pre_ns=2955 window_ns=2602}; seq=227 packet=45 reason=arm value=0x805e8808 pid=0 done=false nak=false received=false halting=false periodic_timing={sampled=true selected=0x497b03a5 before=0x48c703a5 after=0x484903a5 select_to_pre_ns=2958 window_ns=2685}; seq=228 packet=46 reason=arm value=0x805e8808 pid=2 done=false nak=false received=false halting=false periodic_timing={sampled=true selected=0x3a810409 before=0x39d00409 after=0x39520409 select_to_pre_ns=2970 window_ns=2627}; seq=229 packet=46 reason=continue value=0x805e8808 pid=2 done=false nak=false received=false halting=false periodic_timing={sampled=true selected=0x2d850413 before=0x2d190413 after=0x2c980413 select_to_pre_ns=1808 window_ns=2722}; seq=230 packet=46 reason=containment value=0xc05e8808 pid=2 done=false nak=false received=false halting=false}",
+  "physical_overrun_cause_proven": false,
+  "physical_wire_frame_proven": false,
+  "post_sample_remaining_ticks": 11416,
+  "post_sample_time_remaining_ns_under_declared_clock": 190266.66666666666,
+  "pre_sample_remaining_ticks": 11545,
+  "raw_channel_at_continuation_not_retained": true,
+  "selection_to_pre_ns": 1808,
+  "status": "PASS"
+}
