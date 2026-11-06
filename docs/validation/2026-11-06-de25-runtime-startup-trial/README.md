@@ -60,3 +60,62 @@ Host cleanup does not prove CPU/FPGA halt.
 
 This freeze precedes live admission and physical evidence. Ordinary core loads,
 native ROM completion/Run/return and DE10-equivalent behavior remain open.
+
+## Physical result
+
+One attempt on operator `7918a4a31` / firmware `4146f5345` passed fresh recovery,
+exact 6M chip admission/programming, eight fixed uploads, eight fresh SD
+readbacks and SPL FIT verification. The final selected BL31 hash matches the
+physical trace. No retry or second attempt occurred.
+
+Entry/pass, both cache markers, normal logging restoration and all 15 vendor
+markers completed. The new runtime trace captured 29 ordered checkpoints:
+owned setup, GIC driver/distributor/redistributor/CPU interface, mailbox,
+platform return, libraries, services, next-image preparation, runtime setup,
+console completion, cold-main return and the DDR data-clean return. It ends:
+
+```text
+FES_NANO_RAM RUNTIME phase=data-clean-before
+FES_NANO_RAM RUNTIME phase=data-clean-after
+FES_NANO_RAM RUNTIME phase=bss-clean-before
+```
+
+No BSS-clean return, cold exit or loader prompt arrived before the unchanged
+50-second prompt limit. Active commands stopped, the two-second passive tail
+preserved the same partial runtime state, and `fesboot` was never sent. The
+decoder retains a valid incomplete startup with no reported exception; the
+host timeout is terminal. Independent raw replay exactly matches the saved
+receipt. These observations locate the stop after the final marker, without
+proving its UART drain returned, the next call executed or a particular
+instruction faulted. Later vendor-vector fault absence remains unproved.
+
+The [linked interval audit](interval-audit.json) places the next call at the
+end of that marker's bounded UART expansion. Its original
+`clean_dcache_range` target contains `DC CVAC,x0` and the exact compiled BSS
+range is `58000..5dec0`. No PC/register snapshot from inside that call was
+captured. Source inspection also confirms the actual vendor
+`bl31_plat_enable_mmu` hook is a stub and its architecture setup does not
+enable the MMU. Those source facts do not replace fresh live control checks.
+
+There are now 18 campaign stops, including eleven pre-native stops. This
+firmware input has consumed its single attempt. No native startup, ROM
+completion, Run, return or ordinary core-load acceptance is established.
+Independent cleanup confirms 15M readback, exact USB permissions, termination
+of the owned private JTAG server and free UART. Claim/spare remain retained;
+factory card and bottom kit were untouched. CPU/FPGA halt is unproved.
+
+The [next prepared plan](next-plan.json) qualifies a private cold-exit BSS
+clean by set/way, after proving control history, cache/alias assumptions and
+fresh exclusive CPU/master ownership. It preserves original DDR/warm paths
+and the operation's writeback intent. It must review the actual `DCCSW`
+preprocessor selection, including the vendor erratum alias to clean/invalidate,
+rather than assume an operation number. This is not an implemented change or
+a justification for skipping cache maintenance. Its fresh image and operator
+must retain every existing bound and fail without retry/fallback.
+
+Exact [physical result](physical-result.json),
+[independent replay](independent-boot-replay.json),
+[cleanup](cleanup-evidence.json), operator helpers, fixture receipts and raw
+trace are retained with verified source-pack import and archive readback at
+`/home/deano/fes-retained/de25-runtime-startup-stop-20261106-r1`, with matched
+build prerequisite `de25-runtime-startup-20261106-r1`.
