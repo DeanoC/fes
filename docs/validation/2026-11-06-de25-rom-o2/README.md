@@ -47,3 +47,17 @@ The [frozen bounded operator](operator-source.json) permits one attempt of the
 new compiled firmware, retaining the prior programmer/setup stops and three
 ROM-deadline trials. It uses the tested 6 MHz programming link and restores
 15 MHz and exact host permissions. No O2 hardware attempt has yet occurred.
+
+The single matched O2 hardware attempt stopped at the unchanged deadline after
+400018683 ticks (1.0000467075 seconds). The final direct WRITTEN sample was
+7,824/8,192 bytes, versus 7,408 for the unprofiled size-optimized predecessor.
+Recovery, eight uploads/fresh SD hashes, native boot, USB pause and sealed
+FPGA configuration passed. No ROM completion, CPU Run or return was accepted;
+no retry followed. The [physical receipt](physical-result.json) retains the raw
+line and independent original-15-MHz/USB/private-server/UART cleanup.
+The claim and test card remain retained; the factory card is untouched.
+
+Next inspect the pinned vendor firmware memory layout for a supported private
+on-chip RAM placement, without weakening ownership observations or increasing
+frames, deadlines or polling bounds. This is a proposed investigation, not
+permission to use an unverified address range or a hardware qualification.
