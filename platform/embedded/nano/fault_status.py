@@ -24,54 +24,74 @@ MMIO = (
     ('ecc_double_address_b', 0x108cc034), ('ecc_decoder', 0x108cc084),
     ('firewall_enabled', 0x108cc400),
 ) + tuple((f'firewall{n}_{name}', 0x108cc410+12*n+offset)
-          for n in range(4) for name, offset in (('base', 0), ('limit', 4), ('access', 8)))
+          for n in range(4) for name, offset in (('base', 0), ('limit', 4), ('access', 8))) + (
+    ('dsu_detect', 0x1c000100), ('dsu_interrupt', 0x1c000104),
+    ('ocram_detect', 0x1c00c118), ('ocram_interrupt', 0x1c00c11c),
+)
 PROBES = tuple((name, 'cpu', register) for name, register in CPU) + tuple(
     (name, 'mmio', address) for name, address in MMIO)
 
-# RAS v1 registers with an architecturally defined read, including MISC0.
-# ADDR/MISC1 and pseudo-fault generators are deliberately excluded. Inspect
-# only the currently selected record; never write a selector or acknowledge it.
-RAS_READS = (
-    ('pfr0', 'id_aa64pfr0_el1'), ('disr', 'disr_el1'),
-    ('count', 'erridr_el1'), ('selector_before', 'errselr_el1'),
-    ('features', 'erxfr_el1'), ('control', 'erxctlr_el1'),
-    ('status_before', 'erxstatus_el1'), ('misc0', 'erxmisc0_el1'),
-    ('status_after', 'erxstatus_el1'), ('selector_after', 'errselr_el1'),
-)
+# Reviewed Cortex-A55 r2p0 record layout: record0 is local L1/L2, record1
+# is the shared DSU. Only ERRSELR is written (constant0/1, then saved0/1).
+# Each selector operation includes ISB and its own readback. Detection,
+# interrupt, status, ADDR/MISC1 and pseudo-fault controls are never written.
+RAS_MIDR = 0x412fd050
+RAS_STEPS = (
+    ('pfr0', 'read', 'id_aa64pfr0_el1', None),
+    ('midr', 'read', 'midr_el1', None),
+    ('disr', 'read', 'disr_el1', None),
+    ('count', 'read', 'erridr_el1', None),
+    ('original_selector', 'read', 'errselr_el1', None),
+) + tuple(step for bank in (0, 1) for step in (
+    (f'select{bank}', 'select', 'errselr_el1', bank),
+    (f'features{bank}', 'read', 'erxfr_el1', None),
+    (f'control{bank}', 'read', 'erxctlr_el1', None),
+    (f'status{bank}_before', 'read', 'erxstatus_el1', None),
+    (f'misc{bank}', 'read', 'erxmisc0_el1', None),
+    (f'status{bank}_after', 'read', 'erxstatus_el1', None),
+    (f'selector{bank}_after', 'read', 'errselr_el1', None),
+)) + (('restore', 'restore', 'errselr_el1', None),)
 
 
 def ras_assembly():
-    """Bound optional reads by observed RAS support, NUM and current SEL."""
-    rows = ['/* Read-only RAS v1 snapshot; no selector changes or error clears. */']
-    for index, (_, register) in enumerate(RAS_READS):
+    """Fixed two-record observation; selector-only writes after identity gates."""
+    rows = ['/* RAS2 A55 bank snapshot; selector-only writes, never status clears. */']
+    for index, (_, kind, register, requested) in enumerate(RAS_STEPS):
         rows += ['mov w17, #FES_RAM_UART_BYTES', 'fes_ram_uart_text fes_ras_before, 1',
                  f'mov x19, #{index}', 'fes_ram_uart_hex x19',
-                 'fes_ram_uart_text fes_nano_ram_fault_newline, 1',
-                 f'mrs x0, {register}', 'mov w17, #FES_RAM_UART_BYTES',
+                 'fes_ram_uart_text fes_nano_ram_fault_newline, 1']
+        if kind in ('select', 'restore'):
+            rows += [f'mov x0, #{requested}' if kind == 'select' else 'mov x0, x25',
+                     'msr errselr_el1, x0', 'isb']
+        rows += [f'mrs x0, {register}', 'mov w17, #FES_RAM_UART_BYTES',
                  'fes_ram_uart_text fes_ras_value, 1', 'fes_ram_uart_hex x19',
                  'fes_ram_uart_text fes_probe_data, 1', 'fes_ram_uart_hex x0',
                  'fes_ram_uart_text fes_nano_ram_fault_newline, 1']
         if index == 0:
             rows += ['ubfx x8, x0, #28, #4', 'cmp x8, #1', 'b.ne .Lfes_ras_feature']
-        elif index == 2:
-            # NUM==0 can make even ERRSELR undefined. Reserved bits must be 0.
-            rows += ['lsr x8, x0, #16', 'cbnz x8, .Lfes_ras_count',
-                     'cbz x0, .Lfes_ras_count', 'mov x24, x0']
+        elif index == 1:
+            rows += [f'ldr x8, ={RAS_MIDR:#x}', 'cmp x0, x8', 'b.ne .Lfes_ras_cpu']
         elif index == 3:
-            rows += ['cmp x0, x24', 'b.hs .Lfes_ras_selector', 'mov x25, x0']
-        elif index == 9:
+            rows += ['cmp x0, #2', 'b.ne .Lfes_ras_count']
+        elif index == 4:
+            rows += ['cmp x0, #2', 'b.hs .Lfes_ras_selector', 'mov x25, x0']
+        elif index in (5, 11):
+            rows += ['cbnz x0, .Lfes_ras_changed']
+        elif index in (12, 18):
+            rows += ['cmp x0, #1', 'b.ne .Lfes_ras_changed']
+        elif index == 19:
             rows += ['cmp x0, x25', 'b.ne .Lfes_ras_changed']
     rows += ['mov w17, #FES_RAM_UART_BYTES', 'fes_ram_uart_text fes_ras_end, 1',
              'b .Lfes_ras_done']
-    for reason in ('feature', 'count', 'selector', 'changed'):
+    for reason in ('feature', 'cpu', 'count', 'selector', 'changed'):
         rows += [f'.Lfes_ras_{reason}:', 'mov w17, #FES_RAM_UART_BYTES',
                  f'fes_ram_uart_text fes_ras_skip_{reason}, 1', 'b .Lfes_ras_done']
     rows += ['.Lfes_ras_done:', '.pushsection .rodata.fes_ras,"a"',
-             'fes_ras_before: .asciz "FES_NANO_RAM RAS before="',
-             'fes_ras_value: .asciz "FES_NANO_RAM RAS value="',
-             'fes_ras_end: .asciz "FES_NANO_RAM RAS END\\r\\n"']
-    for reason in ('feature', 'count', 'selector', 'changed'):
-        rows += [f'fes_ras_skip_{reason}: .asciz "FES_NANO_RAM RAS SKIP reason={reason}\\r\\n"']
+             'fes_ras_before: .asciz "FES_NANO_RAM RAS2 before="',
+             'fes_ras_value: .asciz "FES_NANO_RAM RAS2 value="',
+             'fes_ras_end: .asciz "FES_NANO_RAM RAS2 END\\r\\n"']
+    for reason in ('feature', 'cpu', 'count', 'selector', 'changed'):
+        rows += [f'fes_ras_skip_{reason}: .asciz "FES_NANO_RAM RAS2 SKIP reason={reason}\\r\\n"']
     return '\n'.join(rows + ['.popsection'])+'\n'
 
 
@@ -145,14 +165,35 @@ def observe(probe, line, number, *, exception):
 
 def ras_state():
     return dict(records=[], pending=None, complete=False, valid=True,
-                outcome=None, selected=None, record_complete=False)
+                outcome=None, original_selector=None, selector_may_have_changed=False,
+                selector_restored=False, record_complete=False)
+
+
+def _ras_stop(records):
+    """Return the first failed gate; only a genuine complete path returns END."""
+    for index, row in enumerate(records):
+        value = row['value']
+        if index == 0 and (value >> 28) & 15 != 1:
+            return 'feature'
+        if index == 1 and value != RAS_MIDR:
+            return 'cpu'
+        if index == 3 and value != 2:
+            return 'count'
+        if index == 4 and value >= 2:
+            return 'selector'
+        if (index in (5, 11) and value != 0) or (index in (12, 18) and value != 1):
+            return 'changed'
+        if index == 19 and value != records[4]['value']:
+            return 'changed'
+    return 'both-records' if len(records) == len(RAS_STEPS) else None
 
 
 def observe_ras(probe, line, number, *, exception, inventory_complete):
-    """Retain only ordered, feature/selector-qualified selected-record reads.
+    """Require identity gates, fixed selections and restoration for RAS2 END.
 
-    END means this one selected record was read, never that all RAS records
-    were covered or that status is fresh, stable, healthy or recoverable.
+    A partial operation marks the selector as potentially changed as soon as its
+    before marker is observed. No unsuccessful readback proves restoration.
+    All RAS2 outcomes remain terminal exception evidence, never boot permission.
     """
     def invalid():
         probe['valid'] = False
@@ -162,52 +203,41 @@ def observe_ras(probe, line, number, *, exception, inventory_complete):
     if not exception or not inventory_complete or not probe['valid'] or probe['complete']:
         return invalid()
     records = probe['records']
-
-    def allowed(index):
-        if index >= 1 and (records[0]['value'] >> 28) & 15 != 1:
-            return False
-        if index >= 3 and not 0 < records[2]['value'] <= 0xffff:
-            return False
-        if index >= 4 and records[3]['value'] >= records[2]['value']:
-            return False
-        return True
-
-    match = re.fullmatch(r'FES_NANO_RAM RAS (before|value)=([0-9a-f]{16})(?: data=([0-9a-f]{16}))?', line)
+    match = re.fullmatch(r'FES_NANO_RAM RAS2 (before|value)=([0-9a-f]{16})(?: data=([0-9a-f]{16}))?', line)
     if match:
         kind, raw_index, raw_value = match.groups()
         index = int(raw_index, 16)
-        if index != len(records) or index >= len(RAS_READS) or not allowed(index):
+        if index != len(records) or index >= len(RAS_STEPS) or _ras_stop(records) is not None:
             return invalid()
+        name, operation, target, requested = RAS_STEPS[index]
         if kind == 'before':
             if raw_value is not None or probe['pending'] is not None:
                 return invalid()
             probe['pending'] = dict(index=index, line=number)
+            if operation in ('select', 'restore'):
+                probe['selector_may_have_changed'] = True
         else:
             if raw_value is None or probe['pending'] is None or probe['pending']['index'] != index:
                 return invalid()
-            name, target = RAS_READS[index]
-            records.append(dict(index=index, name=name, target=target, value=int(raw_value, 16),
+            value = int(raw_value, 16)
+            records.append(dict(index=index, name=name, operation=operation, target=target,
+                                requested=requested, value=value,
                                 before_line=probe['pending']['line'], line=number))
             probe['pending'] = None
+            if index == 4:
+                probe['original_selector'] = value
+            if index == 19 and value == records[4]['value']:
+                probe['selector_restored'] = True
+                probe['selector_may_have_changed'] = False
         return None
     if probe['pending'] is not None:
         return invalid()
-    expected = None
-    if len(records) == 1 and not allowed(1):
-        expected = 'feature'
-    elif len(records) == 3 and not allowed(3):
-        expected = 'count'
-    elif len(records) == 4 and not allowed(4):
-        expected = 'selector'
-    elif len(records) == len(RAS_READS):
-        expected = 'changed' if records[9]['value'] != records[3]['value'] else 'selected-record'
-    end = ('FES_NANO_RAM RAS END' if expected == 'selected-record'
-           else 'FES_NANO_RAM RAS SKIP reason='+str(expected))
+    expected = _ras_stop(records)
+    end = ('FES_NANO_RAM RAS2 END' if expected == 'both-records'
+           else 'FES_NANO_RAM RAS2 SKIP reason='+str(expected))
     if expected is None or line != end:
         return invalid()
     probe['complete'] = True
     probe['outcome'] = expected
-    if len(records) >= 4:
-        probe['selected'] = records[3]['value']
-    probe['record_complete'] = expected == 'selected-record'
+    probe['record_complete'] = expected == 'both-records' and probe['selector_restored']
     return None

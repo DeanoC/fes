@@ -55,7 +55,7 @@ they neither retry nor establish RAM ownership or writability. The tables use
 the vendor vector section, preserving its required BL31 entry ordering.
 
 After that original exception line, a fixed post-fault inventory reads seven
-architectural registers and 32 MMIO observations from the retained CS/R1 revB0
+architectural registers and 36 MMIO observations from the retained CS/R1 revB0
 RC28 map. The generated code marks each read before issuing it, emits returned
 values in order, and performs no status clear, selector write, initialization,
 RAM access or retry. CCU status brackets its location reads. The existing
@@ -64,18 +64,24 @@ The host preserves bounded partial progress and requires every pair plus END
 for inventory completion. That means reads returned, not that a device is healthy
 or that startup/ownership succeeded; the original exception remains terminal.
 
-After the fixed inventory completes, an additional read-only snapshot checks
-PFR0 for RAS v1 before reading DISR and ERRIDR. A zero or reserved NUM skips
-even ERRSELR; a selector outside NUM skips all selected-record accesses. Only
-the existing selection is observed: feature/control, status, MISC0, status and
-selector again. These registers have architecturally defined reads; optional
-ADDR/MISC1 and pseudo-fault registers are excluded. No selector, status or
-control is written. Every read has a completed before marker and bounded
-value line. Unsupported features/counts/selectors and selection changes have
-explicit terminal SKIP records. The parser validates the corresponding gates
-and keeps at most ten reads. END covers one selected record, not all core and
-shared-cache records; neither END nor SKIP grants startup or recovery. Sticky
-values may predate the exception, and changing status values remain raw evidence.
+After the fixed inventory completes, the RAS2 diagnostic requires RAS v1,
+the reviewed Cortex-A55 r2p0 MIDR and exactly two error records before reading
+the original selector. The selector must be0 or1. It then selects record0 and
+record1, observes feature/control/status/MISC0/status and confirms selection
+after each record, then restores and verifies the original selector. Each of
+the three selector writes has a completed before marker, an ISB and readback.
+These are the only system-register writes added by RAS2; detection, interrupt,
+status, ADDR/MISC1 and pseudo-fault controls are untouched. The four added CCU
+detection/interrupt control observations are reads only.
+
+The decoder retains at most20 actions. Selection changes/read failures remain
+terminal, with explicit incomplete and potentially unrestored selector state.
+A completed matching restore readback proves restoration even if END is lost;
+END requires both records and restoration. Unsupported identity/count/selector
+or mismatching readback emits SKIP. A fault before readback parks under the
+existing fallback; it cannot promise selector restoration or grant recovery.
+Neither END nor SKIP grants startup or ownership. Sticky values may predate the
+exception, and a clear error record with detection disabled proves no health.
 
 Only that selected profile may accept one non-executable, zero-file-byte NOBITS
 load segment in the fixed range. Packaging independently checks the actual ELF

@@ -96,7 +96,7 @@ class FaultStatusTests(unittest.TestCase):
             self.assertFalse(report['firmware_ram_trace']['status_probe']['complete'])
 
     def test_generated_reads_exclude_writes_and_optional_ras_accesses(self):
-        assembly = status.assembly().split('/* Read-only RAS v1 snapshot;', 1)[0]
+        assembly = status.assembly().split('/* RAS2 A55 bank snapshot;', 1)[0]
         self.assertFalse(re.search(r'(?m)^\s*(?:str|stp|msr|bl|blr)\b', assembly))
         self.assertNotRegex(assembly, r'\b(?:sp|errselr_el1|erxstatus_el1|disr_el1)\b')
         self.assertEqual(re.findall(r'(?m)^mrs x0, (\w+)$', assembly), [reg for _, reg in status.CPU])
