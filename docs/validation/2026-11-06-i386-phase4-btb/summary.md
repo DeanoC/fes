@@ -19,6 +19,8 @@ LOOP, LOOPE, LOOPNE, JCXZ, JMP rel and CALL rel to `fes_i386_cpu`. Every
 - **Microbenchmarks.** A DEC and taken JNZ loop takes 2.0 clocks an
   iteration, down from 12.0. A LOOP iteration takes 5.0 clocks, down from
   9.9.
+- **Profile.** In the DOOM `demo3` bench window, CPI falls from 2.54 to
+  1.81. The BTB predicts direct branches with 94.2% accuracy.
 - **Lockstep.** It passes as main does, on the RTL and on the seal's Yosys
   netlist. The one failure also fails on main's RTL and is filed as
   [#1510](https://github.com/DeanoC/fes/issues/1510).
@@ -201,4 +203,31 @@ Run `k1` used Kit A, core-only, on 6 November from 09:32 to 09:48
 
 ## Profile
 
-PROFILE
+The machine bench reran DOOM v1.9's `-timedemo demo3` as the baseline did:
+- the profile's disk `7d98bffd…`;
+- the oracle to page flip 40, then the RTL from cycle 2,222,604,910;
+- the window 0.5–1.0 s after the handover, 50,000,000 clocks
+  ([doom-window.json](doom-window.json)).
+
+The bench was built before this branch merged main's rename of the
+`flushes` counter to `flush_cycles`, which counts the same thing. The
+profile was read with that key renamed.
+
+| | Baseline (same window) | BTB |
+| --- | ---: | ---: |
+| Instructions retired | 19,694,266 | 27,605,211 (+40%) |
+| CPI | 2.539 | 1.811 |
+| Redirect refill | 18.6% of clocks | 5.3% |
+| Wrong-path uops | 15.6% | 3.9% |
+| Clocks from a taken Jcc to its target's retirement | 11.3–12.2 | 1.79 |
+| Clocks from a CALL rel to its target | about 12 | 2.39 |
+
+**Direct branches.** The window retires 2,961,312 of them, and 2,197,261 are
+taken. The BTB predicts 2,206,200 taken and gets 171,075 wrong: **94.2%
+accuracy**. That is above the plan's 85%, which Phase 7's gshare waits for.
+No fetch check replays in the window.
+
+**What is left.** RET now takes the largest share of redirect clocks:
+209,305 RETs cost 12.15 clocks each, 5.1% of the window. Slice 3's return
+stack is for these. Next come L1D and port 0 at 14.8% and the AGI interlock
+at 7.5%.

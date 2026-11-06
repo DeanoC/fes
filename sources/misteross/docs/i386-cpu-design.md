@@ -1610,7 +1610,8 @@ it runs uncapped.
 2. **BTB for Jcc, LOOP, JCXZ and direct JMP and CALL.** Built
    ([record](../../../docs/validation/2026-11-06-i386-phase4-btb/summary.md)):
    Kit A's DOOM `demo3` goes from 26.7 to 37.5 fps and 3DBench from 50.0 to
-   71.4. [Prediction](#prediction) describes the BTB as built. It differs
+   71.4. In DOOM's bench window, direct branches are predicted with 94.2%
+   accuracy, and CPI falls from 2.54 to 1.81. [Prediction](#prediction) describes the BTB as built. It differs
    from the plan below in its checks: one fetch check, at AG and in Q,
    replaces DC's type check.
    - **Structure.** 512 entries, two-way, in M10K, read at F1 with the L1I. F2
