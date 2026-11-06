@@ -1807,6 +1807,12 @@ it runs uncapped.
      ([Early ALU](#registers-address-generation-and-the-early-alu)); Jcc and
      LOOP stay at EX, since the BTB predicts them. The latency bench's AGI
      chain (ADD SI, 2; MOV AX, [SI]) costs 2.50 clocks a case, from 5.13.
+   - **Result.** Kit A's DOOM `demo3` goes from 39.2 to 39.5 fps (+0.7%),
+     and the Pack's DOOM by 0.7–0.9%. In DOOM's bench window more than half
+     of the AGI clocks saved come back as an empty front end: D now issues
+     faster than the front end decodes. 3DBench's window retires 3.0% more,
+     though its kit score does not move. The seal keeps D's and AG's slack
+     ([record](../../../docs/validation/2026-11-06-i386-phase4-early-alu/summary.md)).
    - **Gain.** DOOM up to 2–5%, less what loads cause.
    - **Risk.** Moderate: AG has +4.7 ns, and the result and flag paths join
      the forwarding tables.

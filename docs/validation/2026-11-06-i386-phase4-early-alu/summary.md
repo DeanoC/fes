@@ -4,27 +4,46 @@ This record covers CPU Phase 4's slice 6
 ([`i386-cpu-design.md`, "Phase 4: speed"](../../../sources/misteross/docs/i386-cpu-design.md#phase-4-speed),
 tracker [#1488](https://github.com/DeanoC/fes/issues/1488)). The plan's
 first step splits the profile's AGI wait by the uop that produced the
-address register. This record has that split and the estimate it gives.
+address register. The split cleared the plan's stop line, so the slice built
+the early ALU: AG's address adder gives the result of a one-uop ADD, INC,
+DEC or MOV
+([design](../../../sources/misteross/docs/i386-cpu-design.md#registers-address-generation-and-the-early-alu)).
 
 **Tree.** Main `5e201aa3b`, which has slices 2 to 4 (#1511, #1512, #1515),
-plus the profile split on this branch. The split adds bench-only signals
-and changes nothing the CPU does.
+plus this branch. The split was measured at `e4eb91ea4` (bench-only
+signals, nothing the CPU does changes); the early ALU at `561271c3b`, which
+is what the seal, lockstep and kit runs used.
 
 **Result.**
-- **DOOM `demo3`.** AGI waits are 9.1% of the window's clocks. Producers
-  an early ALU at AG would run cause 0.96M of them, 2.0% of the window's
-  kit-equivalent clocks. Nearly all are 32-bit ADD, INC, DEC, SUB with an
-  immediate, and MOV, which AG's address adder can run as it runs a 32-bit
-  LEA today. The bracket is 2.0–2.3%: about 39.2 to 40.0 fps.
-- **3DBench.** AGI waits are 5.0%. Producers an early ALU would run cause
-  3.1%, and 2.7% of that is 16-bit ADD, INC and DEC in real mode. A 32-bit
-  early ALU gains nothing here; a 16-bit one needs the destination's high
-  half at AG.
-- **Loads.** A load's value into an address costs DOOM 4.0%, more than any
-  ALU class. Half of it, 2.2%, is a wait that `fes_i386_dfwd`'s `LOAD` kind
-  was designed to remove ([below](#loads)).
-- **Decision.** The DOOM figure is over the plan's 1.5% stop line, so
-  step 2 (the build) goes ahead.
+- **Kit A, max** (against slice 4's run `s2` on main's seal `254b2bf5`):
+  - DOOM v1.9 `-timedemo demo3`: 39.5 fps, up from 39.2 (+0.7%).
+  - The DOS Benchmark Pack's DOOM: 35.6 fps at maximum detail, up from 35.4,
+    and 98.4 at minimum, up from 97.5.
+  - 3DBench 76.9, PCPBench 13.2 and TopBench 309, all unchanged.
+- **Microbenchmark.** The AGI chain (ADD SI, 2; MOV AX, [SI]) costs 2.50
+  clocks a case, down from 5.13. No other loop changes.
+- **Bench windows.**
+  - 3DBench: AGI falls from 5.0% of clocks to 2.2%. The window retires 3.0%
+    more instructions; CPI 2.156, from 2.221. Its kit score shows no change:
+    it reads 76.9 before and after.
+  - DOOM: AGI falls by 0.71M clocks in the first half-second after the
+    handover, but more than half of that comes back as a front end that is
+    empty ([below](#where-dooms-clocks-went)). It retires 0.44% more.
+- **Lockstep.** It passes as main does, on the RTL and on the Quartus
+  build's Yosys netlist. The one failure is
+  [#1510](https://github.com/DeanoC/fes/issues/1510), as on main. The 64
+  directed cases include 7 new groups for the early ALU.
+- **Seal.** Quartus 17.0.2 meets every analysis
+  ([seal-summary.json](seal-summary.json)): worst setup +0.802 ns, hold
+  +0.104 ns, 32,629 ALMs. D and AG lose no slack against main's seal
+  ([below](#timing)).
+- **Step 1.** The split is the decision's basis:
+  - DOOM: producers an early ALU would run cause 2.0% of its kit-equivalent
+    clocks, nearly all 32-bit ADD, INC, DEC, SUB with an immediate, and MOV.
+  - 3DBench: 3.1%, almost all 16-bit ADD, INC and DEC.
+  - Loads: a load's value into an address costs DOOM 4.0%. Half of that is
+    a wait that `fes_i386_dfwd`'s `LOAD` kind was designed to remove
+    ([below](#loads)).
 
 ## The split
 
@@ -146,6 +165,115 @@ The value is in EX's `ld` field there, not its `result`, which is what
 `stage_value` and AG's late operand take. Driving the load kind needs that
 value on AG's late path for loads whose value is the whole register (32-bit
 MOV loads). It is not part of this slice.
+
+## The early ALU
+
+As built:
+- **Forms.** At a 32-bit operand size: ADD r, imm and ADD r, r2, INC, DEC,
+  MOV r, imm and MOV r, r2. At 16 bits: ADD r, imm, INC and DEC. Only
+  one-uop instructions with no memory operand that write a GPR.
+- **Left out.** SUB (its 0.4% would need a negated immediate on the Q to DC
+  path), the logic ops and shifts (their sources are loads), and 16-bit MOV
+  and ADD r, r2 (two registers' halves).
+- **Fallback.** A uop is early only when D's address forwarding has its
+  operands. Otherwise it runs at EX as before, so the early ALU never adds a
+  wait.
+
+### Where DOOM's clocks went
+
+Both runs hand over from Bochs at the same page flip, so the first
+half-second after it (22.226–22.726 s) runs the same code:
+
+| Bucket | Before | After | Change |
+| --- | ---: | ---: | ---: |
+| AGI | 2,728,722 | 2,019,117 | −709,605 |
+| Front end empty | 280,012 | 673,536 | +393,524 |
+| Uops issued | 37,102,562 | 37,312,973 | +210,411 |
+| L1D miss | 6,331,752 | 6,391,927 | +60,175 |
+| Instructions retired | 33,461,218 | 33,607,759 | +146,541 (+0.44%) |
+
+- **Front end.** D now issues faster than the front end decodes, and 55%
+  of the AGI clocks saved become clocks with nothing in DC. The front end's
+  bandwidth is now this code's limit.
+- **Kit.** That matches the kit's +0.7%, against the split's 2.0%.
+- **3DBench.** Its window has no such loss: front end empty rises by 0.1M
+  against AGI's fall of 8.9M.
+
+The second half-second, the one slices 1 to 4 used, is in
+[doom-window-after.json](doom-window-after.json). A faster CPU reaches later
+demo code in it, so its comparison is weaker: AGI 4,535,063 → 3,790,994
+clocks, CPI 1.710 → 1.701.
+
+### Latency
+
+`scripts/test_fes_i386_latency.py` ([latency-report.json](latency-report.json)):
+`agi_alu` takes 22,029 clocks, from 43,029, 2.50 a case from 5.13. Every
+other loop takes exactly the clocks it did.
+
+### Lockstep
+
+`scripts/test_fes_i386_lockstep.py`, on the RTL and with `--yosys` on the
+locked Yosys's netlist, matches main's results:
+- the corpus: 1,758,699 tests pass;
+- 32,000 random programs: one failure, `random#7#1936`, which is #1510, as
+  on main;
+- 8,000 protected-mode programs, the unbuilt encodings, the unreal-mode,
+  protected-mode, no-387 and memory cases: all pass;
+- 64 directed cases pass, 57 before this slice.
+
+The new groups (`lockstep_tb.cpp`, `run_ealu_cases`) run each form at
+distances 0 to 3 from an address or operand that uses it:
+- `ealu-16` and `ealu-16-wrap`: ADD, INC and DEC of SI, with ESI's high half
+  set and SI wrapping at FFFFh;
+- `ealu-32`: the 32-bit forms, with [ESI], [ESI + EBX] and a scaled index;
+- `ealu-late`: sources a load gives, so the ADD runs at EX;
+- `ealu-esp`: ADD ESP and SP before a push and a load, MOV EBP, ESP;
+- `ealu-chain`: one early result into another;
+- `ealu-other`: the forms that stay at EX, and the flags.
+
+## Timing
+
+`make build-fes-pc386-quartus SEED=1` ran from a clean checkout of
+`561271c3b`. Package `c214820c…` passes with every analysis met. The
+system clock is 61.44 MHz.
+
+| Analysis | Main `254b2bf5` | This slice `c214820c` |
+| --- | ---: | ---: |
+| Setup, worst | +0.410 ns | +0.802 ns |
+| Hold, worst | +0.102 ns | +0.104 ns |
+| ALMs | — | 32,629 of 41,910 |
+
+[stage-slack.json](stage-slack.json) has the worst setup slack into each
+register group at the −40 °C corner. D's and AG's groups have as much slack
+as on main or more:
+- D's EIP: +2.61 ns (main +1.13);
+- AG: +2.85 ns (+2.61);
+- the forwarding tables: +2.46 ns (+1.84);
+- DC: +2.15 ns (+2.45).
+
+The worst path into both D and AG is still D's issue decision. EX's worst
+fell from +6.80 to +3.70 ns, on the divider's flags, which this slice does
+not touch: that is placement.
+
+## Kit
+
+Kit A ran core-only at max on baseline software `a8cd30c4` and image
+`f904961e`, with no install, no image change and no reboot
+([kit-scores.json](kit-scores.json)):
+- **Run.** `t1`, 6 November 20:50–21:03, with package `c214820c…`.
+- **After.** The kit was checked against its pre-run snapshot and logged
+  FREE. The run's five FogCast data trees were removed at 21:05, and it was
+  logged FREE again.
+- **Disk and commands.** As slice 4's run.
+
+| Benchmark | Before (slice 4, `s2`) | After (`t1`) | Change |
+| --- | ---: | ---: | ---: |
+| DOOM v1.9 `-timedemo demo3` | 3,863 gametics in 3,448 realtics, 39.2 fps | 3,863 in 3,425, 39.5 fps | +0.7% |
+| 3DBench | 76.9 | 76.9 | 0 |
+| PCPBench | 13.2 | 13.2 | 0 |
+| TopBench | 309 | 309 | 0 |
+| Pack DOOM, maximum detail | 2,134 in 2,111, 35.4 fps | 2,134 in 2,096, 35.6 fps | +0.7% |
+| Pack DOOM, minimum detail | 2,134 in 766, 97.5 fps | 2,134 in 759, 98.4 fps | +0.9% |
 
 ## Commands
 
