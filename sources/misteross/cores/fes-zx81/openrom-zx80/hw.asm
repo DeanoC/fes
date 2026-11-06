@@ -112,7 +112,7 @@ frame:  ld hl,0
         pop hl
         ld bc,0x0100 + BOT_LINES
 .rows:  ld a,ROW_R
-        jp int_go
+        jr int_go
 
 ; Wait for a new key press; the display runs meanwhile. Returns A = key
 ; index. A held key does not repeat.
