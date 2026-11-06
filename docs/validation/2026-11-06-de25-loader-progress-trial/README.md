@@ -1,5 +1,10 @@
 # Bounded initial loader progress trial
 
+One physical attempt captured six loader receipts through `cpu0-before`, then
+stopped at the unchanged 100-second application startup deadline. No core was
+launched. The [physical result](physical-result.json) records this separately
+from off-board fixtures and build evidence.
+
 The selected firmware is `7f3824490acf0f9adedd1aeb16b3c3ea2bb8b358`.
 Its [matched build and off-board validation](../2026-11-06-de25-loader-progress/README.md)
 bind chain `66e99a26fe7bbfbc56d939423b1dd361026cdbf2bef103f3a51110726b5c73cf`.
@@ -46,3 +51,50 @@ factory card stays safe aside and TRWU8J8G receives no operations.
 At source freeze this input has no hardware evidence. Next run fresh preflight
 and one bounded attempt. Ordinary core loading and DE10-equivalent acceptance
 remain open; record any physical result separately from model/build evidence.
+
+The frozen operator was `5bafe64c26cc4533d18aeecdacf973f781653653`.
+Fresh recovery, eight fixed uploads and eight fresh SD readbacks passed.
+Exact chip/programming, SPL FIT/hash, both private exit-cache receipts,
+full 31-phase runtime progression and the matched U-Boot prompt passed.
+The operator sent `fesboot` once. The loader emitted `memory-before`,
+`memory-after`, `snapshot-before`, `registers-before`, `registers-after` and
+`cpu0-before`. No `cpu0-after`, owned receipt, native entry marker or App Ready
+arrived within 100 seconds. No launch/control command followed.
+
+The memory/EL validation and initial MPIDR/counter reads returned. The last
+before receipt does not prove that the actual SMC instruction ran. The static
+interval includes final UART drain/diagnostic park, `invoke_smc` argument
+preparation/memset/memcpy, `smc_call`, EL3 entry/context-save/dispatch, PSCI
+handling and return before the missing after receipt. Exact stopped/faulting
+PC, EL3 runtime entry and later fault absence remain unobserved.
+
+Actual selected BL31 symbols put `percpu_data` at `0x58000`, 256 bytes, inside
+private BSS. Its PSCI affinity handler passes the four-byte affinity-state
+member at offset `0x18` to `flush_dcache_range`; the actual helper uses
+`DC CIVAC`. CPU zero's candidate member address is therefore `0x58018`.
+These are source/ELF facts, not evidence that this operation executed or caused
+the stop. No cache policy was changed. The interval auditor initially expected
+the old uninstrumented snapshot signature; correcting it to the selected
+traced call makes the source/ELF audit pass. Its failed off-board run is retained.
+
+Independent raw replay exactly matches the stored decoder result: loader-ready,
+incomplete native boot, six valid incomplete loader receipts and firmware-call
+uncertainty. The two-second passive tail retains that state and restored logging;
+there is no partial final loader line. Independent cleanup confirms original
+15M, exact USB permissions, private-server termination and UART free. This
+host cleanup cannot prove CPU/FPGA halt. Claim and spare are retained; factory
+card and bottom kit remain untouched.
+
+This is campaign stop 20, including eleven earlier pre-loader stops and now
+two post-loader application-start stops. The `7f3824490` compiled input is
+consumed and will not be replayed. Native startup, ROM/Run/return and ordinary
+package admission remain unqualified.
+
+Next instrument actual SMC issue/return and runtime EL3/PSCI entry, including
+per-CPU cache-maintenance boundaries. Preserve existing calls, arguments,
+cache behavior, ownership gates and all time/byte/poll bounds; bind and test
+assembly effects off board before building and freezing a new single attempt.
+
+Full trial evidence and incremental source pack are verified by archive
+readback/import at `/home/deano/fes-retained/de25-loader-progress-stop-20261106-r1`,
+with prerequisite `de25-loader-progress-20261106-r1`.
