@@ -106,6 +106,7 @@ class Machine:
         self.m.memory[0x401e] = f & 0xff
         self.m.memory[0x401f] = f >> 8
         self.ret()
+        self.m.pc = self.sym['frame_got']    # past the exx that fetches it
 
     def run(self, max_ticks=2_000_000_000):
         """Until the key script is used up and the ROM is idle in wait_key."""

@@ -5,8 +5,8 @@
 ; Display timing. One scan line is 207 T-states; the INT that ends a line
 ; comes from R bit 6, so R is loaded to fire after the row's NOP run.
 ROW_R    equ 0xDD
-TOP_LINES equ 53                ; border lines above the first row
-BOT_LINES equ 58                ; border lines below the last row
+TOP_LINES equ 55                ; border lines above the first row
+BOT_LINES equ 55                ; border lines below the last row
 VSYNC_PAD equ 50                ; holds vertical sync for six lines
 
         org 0x0000
@@ -92,8 +92,9 @@ load_entry:
 
 ; Show one frame. Vertical sync carries the keyboard read; then the top
 ; border, the 24 rows and the bottom border, all counted by the line INT.
-; The time is the same whatever is pressed. Returns DE = a fingerprint of
-; the keys down (any one key changing changes it). Interrupts must be off.
+; The time is the same whatever is pressed. Returns, in the alternate DE,
+; a fingerprint of the keys down (any one key changing changes it).
+; Interrupts must be off.
 frame:  ld hl,0
         ld bc,0xfefe
 .row:   in a,(c)                ; the first read starts vertical sync
@@ -104,6 +105,7 @@ frame:  ld hl,0
         rlc b
         jr c,.row
         ex de,hl
+        exx                     ; (the line interrupt uses DE: keep it aside)
         ld hl,(FRAMES)
         inc hl
         ld (FRAMES),hl
@@ -124,6 +126,8 @@ frame:  ld hl,0
 ; index. A held key does not repeat.
 wait_key:
         call frame
+        exx                     ; DE = the keys' fingerprint again
+frame_got:                      ; (the fast harness gives DE and comes in here)
         ld hl,(LAST_K)
         ld (LAST_K),de
         rst 0x28
