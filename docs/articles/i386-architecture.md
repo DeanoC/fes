@@ -310,18 +310,19 @@ segment stores `base[31:16]` and `base[31:16] + 1` at load time, and AG picks
 one by the wrap
 ([design](../../sources/misteross/docs/i386-cpu-design.md#registers-address-generation-and-the-early-alu)).
 
-Measured latencies from the design's latency table, which cites its sources
-([design, "Latencies"](../../sources/misteross/docs/i386-cpu-design.md#latencies)):
+The design's latency table gives these costs
+([design, "Latencies"](../../sources/misteross/docs/i386-cpu-design.md#latencies)).
+Rows without a measurement in the last column are design figures:
 
-| Case | Clocks |
-| --- | --- |
-| One-uop instruction, load-op or read-modify-write | 1 |
-| Load result into the next instruction's ALU | 0 extra |
-| Load result into the next instruction's address | +2 |
-| Early-ALU result into an address | 0 extra |
-| Late-ALU result into the next instruction's address | +3 |
-| Flag reader right after a shift or rotate | +1 |
-| Access inside one 32-byte line, any alignment | 0 extra |
+| Case | Clocks | Measured |
+| --- | --- | --- |
+| One-uop instruction, load-op or read-modify-write | 1 | design figure |
+| Load result into the next instruction's ALU | 0 extra | design figure |
+| Load result into the next instruction's address | +2 by design | about +3: a `MOV BX, [BX]` chain costs 4.13 clocks a case ([baseline record](../validation/2026-11-05-i386-phase4-baseline/summary.md#latency-microbenchmarks)); see [What's next](#whats-next) |
+| Early-ALU result into an address | 0 extra | `ADD SI, 2; MOV AX, [SI]` costs 2.50 clocks a case ([early-ALU record](../validation/2026-11-06-i386-phase4-early-alu/summary.md#latency)) |
+| Late-ALU result into the next instruction's address | +3 | design figure |
+| Flag reader right after a shift or rotate | +1 | [EX-cut record](../../sources/misteross/docs/validation/2026-10-25-i386-ex-cut.md) |
+| Access inside one 32-byte line, any alignment | 0 extra | design figure |
 
 ## The memory path
 
@@ -648,8 +649,11 @@ every governed preset ran within 0.04% of its table time
 The setting persists per game: Ultima VI uses 286-12 and The Black Gate
 386DX-25
 ([design, "Estimated gains"](../../sources/misteross/docs/i386-cpu-design.md#estimated-gains)). The governor only slows the CPU, so a preset can only be met where
-the CPU is faster than it. Phase 4's prediction is what brought taken-branch
-loops within reach of the 486 presets.
+the CPU is faster than it. The governor record found the RTL slower than
+both 486 presets on loops with taken branches; prediction is meant to bring
+those loops within reach
+([design, "Speed control"](../../sources/misteross/docs/i386-cpu-design.md#speed-control)),
+but the 486 presets' pacing has not been measured again since it landed.
 
 ## Verification
 
@@ -785,6 +789,11 @@ the latency microbenchmarks, which run on the RTL alone
 | Jcc taken, not predicted | — | — | — | 11.3–12.2 | [design, "Latencies"](../../sources/misteross/docs/i386-cpu-design.md#latencies) |
 | near CALL rel, predicted | about 9 | 3 | 4 | about 1 | [BTB record](../validation/2026-11-06-i386-phase4-btb/summary.md#latency-microbenchmarks) |
 | `XCHG [m],r` | 5 | 5 | 5 | not measured | — |
+
+The 80386, i486 and z486 columns give one cost for a taken branch or call,
+since none of those designs predicts branches. The fes_i386 column splits
+the taken Jcc into predicted and not predicted because the two differ by
+about ten clocks.
 
 Read the fes_i386 column with its pipeline in mind. A predicted taken branch
 is cheap, but an unpredicted one costs 11–12 clocks, about four times the
