@@ -4391,6 +4391,11 @@ findings, changed sources or consumers, missing endpoints, waivers and negative
 timing refuse export. This accepts a stock-reference engineering basis, not
 independently derived PCB timing or physical partial-reconfiguration acceptance.
 Compile-only keeps its raw failures and cannot borrow these receipts.
+Reset consumer membership uses the reviewed logical registers after recognising
+only Quartus's `~DUPLICATE` register-copy suffix. Every physical copy still needs
+its own paired recovery/removal path at every corner; the sole enable retains
+full setup/hold coverage. The raw DA reset-load quantity is retained separately
+from the complete physical inventory and never substitutes for path coverage.
 
 `scripts/export_de25_static_persona.py --producer /absolute/qualified-build
 --package /absolute/package.fcore --output /absolute/expansions` exports the

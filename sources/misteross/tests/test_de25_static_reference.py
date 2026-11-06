@@ -1,6 +1,6 @@
 """Exercise the approved static review on retained real reports and corruptions.
 
-The reports are observations from an unadmitted 8af fit, not a package fixture.
+The reports are observations from unadmitted 8af/4dc fits, not package fixtures.
 """
 import copy
 import json
@@ -37,6 +37,76 @@ class StaticReferenceTests(unittest.TestCase):
         self.assertEqual(review.reset_reports(self.work / 'reset_direct/direct-inventory.tsv',
             self.work / 'reset_paths/reset-paths.tsv')['timed_paths'], 2680)
         self.assertEqual(len(review.audio_reports(self.work / 'audio')['conditional_external_budgets']), 8)
+
+    def test_real_fitter_replication_change_retains_counts_and_every_physical_path(self):
+        newer = self.work / 'new-fit'
+        with tarfile.open(ROOT / 'tests/fixtures/de25_static_reference_fit_4dc.tar.gz') as archive:
+            archive.extractall(newer, filter='data')
+        for p in (newer / 'timing').iterdir():
+            shutil.copyfile(p, self.project / 'output_files' / p.name)
+        raw = review.timing.timing_evidence(self.project.parents[2], revision='base')
+        reviewed = review.findings((newer / 'timing/base.tq.drc.signoff.rpt').read_text(), raw)
+        reset = review.reset_reports(newer / 'reset_direct/direct-inventory.tsv',
+                                     newer / 'reset_paths/reset-paths.tsv')
+        self.assertEqual((reset['direct_async'], reset['logical_async'], reset['direct_ena'],
+                          reset['timed_paths']), (327, 313, 1, 2624))
+        self.assertEqual(review.reset_finding_count(reviewed, reset), 278)
+        previous = review.reset_reports(self.work / 'reset_direct/direct-inventory.tsv',
+                                        self.work / 'reset_paths/reset-paths.tsv')
+        self.assertEqual((previous['direct_async'], previous['logical_async']), (334, 313))
+        self.assertEqual(review.reset_finding_count(review.findings(self.drc, self.raw), previous), 279)
+
+    def test_new_physical_copy_requires_all_corner_recovery_and_removal(self):
+        inventory = self.work / 'reset_direct/direct-inventory.tsv'
+        paths = self.work / 'reset_paths/reset-paths.tsv'
+        base = review.bound('reviewed-topology.json')['reset']['direct_async'][0]
+        copy_name = base + '~DUPLICATE99'
+        inventory.write_text(inventory.read_text() + 'direct_async\t' + copy_name + '\nall_async\t' + copy_name + '\n')
+        with self.assertRaisesRegex(review.BuildError, 'missing direct reset/enable timed endpoint'):
+            review.reset_reports(inventory, paths)
+        additions = []
+        for row in paths.read_text().splitlines()[1:]:
+            fields = row.split('\t')
+            if fields[3] == base:
+                fields[3] = copy_name
+                additions.append('\t'.join(fields))
+        self.assertEqual(len(additions), 8)
+        original = paths.read_text()
+        paths.write_text(original + '\n'.join(additions) + '\n')
+        reset = review.reset_reports(inventory, paths)
+        self.assertEqual((reset['direct_async'], reset['logical_async'], reset['timed_paths']), (335, 313, 2688))
+        paths.write_text(original + '\n'.join(additions[:-1]) + '\n')
+        with self.assertRaisesRegex(review.BuildError, 'missing direct reset/enable timed endpoint'):
+            review.reset_reports(inventory, paths)
+
+    def test_unreviewed_logical_copy_or_removed_logical_consumer_is_refused(self):
+        inventory = self.work / 'reset_direct/direct-inventory.tsv'
+        paths = self.work / 'reset_paths/reset-paths.tsv'
+        original = inventory.read_text()
+        inventory.write_text(original + 'direct_async\tunreviewed~DUPLICATE\nall_async\tunreviewed~DUPLICATE\n')
+        with self.assertRaisesRegex(review.BuildError, 'changed direct reset/enable consumers'):
+            review.reset_reports(inventory, paths)
+        base = review.bound('reviewed-topology.json')['reset']['direct_async'][0]
+        def removed(name):
+            return name == base or name.startswith(base + '~DUPLICATE')
+        inventory.write_text('\n'.join(line for line in original.splitlines()
+                             if not removed(line.split('\t')[-1])) + '\n')
+        paths.write_text('\n'.join(line for line in paths.read_text().splitlines()
+                         if not removed(line.split('\t')[3])) + '\n')
+        with self.assertRaisesRegex(review.BuildError, 'changed direct reset/enable consumers'):
+            review.reset_reports(inventory, paths)
+
+    def test_raw_reset_quantity_is_reported_and_bounded_not_used_as_coverage(self):
+        reset = review.reset_reports(self.work / 'reset_direct/direct-inventory.tsv',
+                                     self.work / 'reset_paths/reset-paths.tsv')
+        original = next(line for line in self.drc.splitlines()
+                        if line.startswith('; ') and review.RESET in line and 'first_seen|ENA' in line)
+        fields = [f.strip() for f in original.split(';')[1:-1]]
+        for count in ['0', '-1', 'unknown', '999']:
+            changed = list(fields);changed[4] = count
+            drc = self.drc.replace(original, '; ' + ' ; '.join(changed) + ' ;')
+            with self.subTest(count=count), self.assertRaises(review.BuildError):
+                review.reset_finding_count(review.findings(drc, self.raw), reset)
 
     def test_changed_findings_counts_severity_waivers_or_other_rule_refused(self):
         for key, value in [('violations', 34), ('severity', 'Medium'), ('waived', 1)]:

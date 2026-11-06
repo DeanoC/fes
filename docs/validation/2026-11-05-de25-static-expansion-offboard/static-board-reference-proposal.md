@@ -43,3 +43,29 @@ test covers logical loss/relock behavior only. Physical empty/16K loading,
 RAM/BASIC, MENU recovery, software reboot, USB and audio acceptance, and review
 of the current PR head remain required. This proposal authorizes no board
 load, image change or flash update.
+
+## First canonical-fit implementation correction
+
+The `4dc5634cb` primary fit compiles all three revisions and passes all 98
+numerical timing rows per revision, but the initial checker refuses its reset
+warning before export. The hardware/clock/integration input bytes are unchanged.
+Quartus changes its register replication: the previous fit has 334 physical
+reset loads and raw DA quantity 279; this fit has 327 and raw quantity 278.
+Both have exactly the same 313 logical reset consumers and the same single
+`first_seen` enable consumer. Every physical load in the new fit has paired
+all-corner checks (2,624 paths per revision), with positive minimum
+setup/hold/recovery/removal 8.849/0.314/8.455/0.191 ns.
+
+The implementation now compares reviewed logical consumer membership after
+recognising only the fitter's `~DUPLICATE` suffix. Timing coverage continues to
+use every original physical endpoint name, including all copies. Raw reported
+load quantities are preserved and bounded by that physical inventory. The
+four rule violation counts, driver/enable identities and all numerical checks
+remain unchanged. Tests reject a new copy without complete timing, a new
+logical consumer, and removal of the last copy of a reviewed consumer.
+
+This corrects a false refusal caused by comparing one historical physical
+layout's descriptive counts and replicas. It changes no constraints or
+hardware RTL and rewrites no source/QDB/artifact seals. The rejected `4dc`
+candidate remains unqualified; the corrected producer needs fresh canonical
+fits before package or persona export.

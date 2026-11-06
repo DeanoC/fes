@@ -103,9 +103,24 @@ def findings(drc, timing):
                 r[1:] == ['No output delay was set on the output port.', ''] for r in outputs[1:]),
             'output finding ports/reasons changed')
     async_inputs.input_findings(drc)
+    raw_reset_count = None
     for rule, table in bound('reviewed-topology.json')['findings'].items():
-        require(tables[rule] == table, 'changed reviewed topology: ' + rule)
-    return [{'id': rule, 'severity': severity, 'violations': count, 'basis': POLICY}
+        actual = tables[rule]
+        if rule == 'LNT-30010':
+            # DA's descriptive load quantity varies with fitter replication;
+            # it is not the violation count or the physical endpoint inventory.
+            # Keep the driver, representative reset, sole enable and all other
+            # fields exact, and retain this quantity without changing it.
+            require(len(actual) == 2 and actual[0] == table[0] and len(actual[1]) == 8 and
+                    all(actual[1][i] == table[1][i] for i in range(8) if i != 4),
+                    'changed reviewed topology: ' + rule)
+            require(re.fullmatch(r'[1-9][0-9]*', actual[1][4]) is not None,
+                    'invalid raw asynchronous reset quantity')
+            raw_reset_count = int(actual[1][4])
+        else:
+            require(actual == table, 'changed reviewed topology: ' + rule)
+    return [{'id': rule, 'severity': severity, 'violations': count, 'basis': POLICY,
+             **({'raw_async_reset_signals': raw_reset_count} if rule == 'LNT-30010' else {})}
             for rule, (severity, count) in expected.items()]
 
 
@@ -168,8 +183,15 @@ def reset_reports(inventory, paths):
     require({r['kind'] for r in table} == kinds, 'incomplete reset inventory')
     groups = {kind: {r['name'] for r in table if r['kind'] == kind} for kind in kinds}
     expected = bound('reviewed-topology.json')['reset']
-    for kind, names in expected.items():
-        require(groups[kind] == set(names), 'changed direct reset/enable consumers: ' + kind)
+    # Quartus may create/remove physical copies of a reviewed register. Only
+    # this exact fitter suffix identifies a copy; new logical consumers
+    # still fail. Coverage below uses the original physical names, including
+    # every copy, without coalescing a single timing endpoint.
+    logical = lambda names: {re.sub(r'~DUPLICATE[0-9]*$', '', name) for name in names}
+    require(logical(groups['direct_async']) == logical(expected['direct_async']),
+            'changed direct reset/enable consumers: direct_async')
+    require(groups['direct_ena'] == set(expected['direct_ena']),
+            'changed direct reset/enable consumers: direct_ena')
     require(groups['direct_async'] == groups['all_async'] and groups['direct_ena'] <= groups['all_ena'],
             'reset topology coverage differs')
     timing = rows(paths, ['corner', 'check', 'from', 'to', 'slack_ns', 'from_clock', 'to_clock'])
@@ -189,8 +211,16 @@ def reset_reports(inventory, paths):
                         'changed reset launch/receiving clock')
                 slack = audio.number(row['slack_ns'])
                 minimum[check] = min(slack, minimum.get(check, slack))
-    return {'direct_async': len(groups['direct_async']), 'direct_ena': len(groups['direct_ena']),
+    return {'direct_async': len(groups['direct_async']), 'logical_async': len(logical(groups['direct_async'])),
+            'direct_ena': len(groups['direct_ena']),
             'timed_paths': len(timing), 'minimum_slack_ns': {k: str(v) for k, v in minimum.items()}}
+
+
+def reset_finding_count(reviewed, reset):
+    counts = [r.get('raw_async_reset_signals') for r in reviewed if r['id'] == 'LNT-30010']
+    require(len(counts) == 1 and type(counts[0]) is int and 0 < counts[0] <= reset['direct_async'],
+            'raw reset quantity exceeds the complete physical reset inventory')
+    return counts[0]
 
 
 def project_bindings(project, record):
@@ -324,12 +354,13 @@ def verify(project, record, output=None):
         reports = output / 'reports' / revision
         raw = timing.timing_evidence(project.parents[2], revision=revision)
         reviewed = findings((project / 'output_files' / (revision + '.tq.drc.signoff.rpt')).read_text(), raw)
+        reset = reset_reports(reports / 'reset_direct/direct-inventory.tsv', reports / 'reset_paths/reset-paths.tsv')
+        reset['raw_DA_async_load_count'] = reset_finding_count(reviewed, reset)
         proof = {'policy': POLICY, 'receipt_sha256': async_inputs.sha(output / 'receipt.json'),
                  'stock_video_reference': video, 'stock_audio_reference': selected['audio'],
                  'async_inputs': async_inputs.review_reports(reports / 'async'),
                  'audio': audio_reports(reports / 'audio'),
-                 'reset': reset_reports(reports / 'reset_direct/direct-inventory.tsv',
-                                        reports / 'reset_paths/reset-paths.tsv'),
+                 'reset': reset,
                  'independent_pcb_timing_qualified': False, 'hardware_acceptance': False}
         result[revision] = dict(raw, reviewed_findings=reviewed, unreviewed_failed_rules=0,
             static_board_review=proof, package_timing_admission=raw['all_reported_timing_pass'])
