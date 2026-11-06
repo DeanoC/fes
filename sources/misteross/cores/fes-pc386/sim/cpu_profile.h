@@ -27,7 +27,17 @@
 //
 // This header needs no Verilator header: sample() and in_flight() take any
 // CPU model whose rootp has the fes_i386_cpu__DOT__<name> fields
-// cpu_profile.vlt lists. A stage register is a packed pipe_t with valid in
+// cpu_profile.vlt lists.
+//
+// AGI split: each AGI clock is charged to the producer that holds D's
+// address operand (fes_i386_cpu prof_agi: the stage, AG to EX, of the
+// youngest late producer of the base or index). A shadow of AG to EX, which
+// advances with the pipeline (D to WB only ever hold together), keeps each
+// uop's producer class (prof_dcls, AgiClass) from when it was in D, and
+// whether its register sources would be in a register by the time it is in
+// AG, so that an early ALU there could have executed it (ready).
+//
+// A stage register is a packed pipe_t with valid in
 // its top bit, CPU_PROFILE_PIPE_MSB, which the bench build reads from the
 // Verilated model into cpu_profile_layout.h.
 #pragma once
@@ -85,6 +95,26 @@ struct CpuProfile {
         "jcc", "jmp", "jmp_ind", "call", "call_ind", "ret", "far_call", "far_jmp", "retf", "int", "iret",
         "loop", "jcxz", "rep_str", "str", "io", "mul", "div", "shift", "pushpop", "segload", "mem_op", "other",
         "delivery"};
+    // The producer classes of fes_i386_cpu prof_dcls: register and immediate
+    // forms (no memory operand) of MOV, ADD/INC/DEC, AND/OR/XOR/NOT, LEA at a
+    // 16-bit operand size, MOVZX/MOVSX; a load (MOV, MOVZX or MOVSX from
+    // memory), an ALU op with a memory source, POP; shifts, multiply and
+    // divide, the other ALU ops, branches (LOOP's ECX), everything else, a
+    // 32-bit LEA (already early); SUB, ADC/SBB/NEG, and XOR or SUB of a
+    // register with itself (zero).
+    enum AgiClass {
+        A_NONE, A_MOV, A_ADD, A_LOGIC, A_LEA16, A_EXT, A_LOAD, A_LOAD_OP, A_POP, A_SHIFT, A_MULDIV,
+        A_ALU_OTHER, A_BRANCH, A_OTHER, A_LEA32, A_SUB, A_ADC, A_ZERO, NAGI
+    };
+    static constexpr const char *agi_name[NAGI] = {
+        "none", "mov", "add", "logic", "lea16", "ext", "load", "load_op", "pop", "shift", "muldiv",
+        "alu_other", "branch", "other", "lea32", "sub", "adc", "zero"};
+    // Per class: AGI clocks by the producer's stage (AG, M1, M2, EX, none),
+    // those whose producer was ready for an early ALU, those whose producer
+    // had no second register source (imm, or a one-operand op), and those
+    // whose producer was ready and wrote 32 bits (w32).
+    struct Agi { uint64_t stage[5] = {}, ready = 0, imm = 0, w32 = 0; };
+    struct Shadow { uint8_t cls = A_NONE; bool ready = false, imm = false, w32 = false; };
     struct Counts { uint64_t n = 0, taken = 0, own = 0, next = 0; };
     struct Site { uint64_t n = 0, cycles = 0; uint8_t c = 0; };
 
@@ -101,6 +131,8 @@ struct CpuProfile {
     uint64_t ret = 0, ret_pt = 0, ret_mis = 0;
     uint64_t sampled = 0;   // clocks classified
     Counts cls[NCLASS];
+    Agi agi[NAGI];
+    Shadow shadow[4];  // AG, M1, M2, EX
     std::unordered_map<uint32_t, Site> sites;  // this dump interval's, by linear start
     CrtcFrameTracker crtc_frame;
     uint64_t last_retire = 0;
@@ -159,7 +191,16 @@ struct CpuProfile {
             if (since_redirect && l1i) refill_l1i = true;
         } else if (S(d_stop)) b = D_STOP;
         else if (S(gov_block)) b = GOV;
-        else if (S(addr_use) && S(lea_stall)) b = AGI;
+        else if (S(addr_use) && S(lea_stall)) {
+            b = AGI;
+            const unsigned at = S(prof_agi) < 4 ? S(prof_agi) : 4;
+            const Shadow sh = at < 4 ? shadow[at] : Shadow{};
+            Agi &a = agi[sh.cls < NAGI ? unsigned(sh.cls) : unsigned(A_OTHER)];
+            ++a.stage[at];
+            a.ready += sh.ready;
+            a.imm += sh.imm;
+            a.w32 += sh.ready && sh.w32;
+        }
         else if ((S(reads_seg) && S(seg_hazard)) || (S(mem) && S(mseg_hazard))) b = SEG;
         else if (S(store_hazard)) b = STLD;
         else if (S(flag_hazard)) b = FLAG;
@@ -170,9 +211,21 @@ struct CpuProfile {
         else if (S(io_hazard)) b = IO_SERIAL;
         else if (S(ser_wait)) b = REPLAY_SERIAL;
         else b = OTHER_WAIT;
-#undef S
         ++bucket[b];
         if (redirect) { ++redirects; since_redirect = true; refill_l1i = false; }
+        if (!S(freeze)) {
+            for (int i = 3; i > 0; --i) shadow[i] = shadow[i - 1];
+            Shadow d;
+            if (S(issue)) {
+                d.cls = uint8_t(S(prof_dcls));
+                d.imm = S(prof_dimm);
+                d.w32 = S(prof_d32);
+                // A 32-bit MOV does not read its destination (src1).
+                d.ready = !S(prof_ds2) && (!S(prof_ds1) || (d.cls == A_MOV && S(prof_d32)));
+            }
+            shadow[0] = d;
+        }
+#undef S
     }
 #ifdef CPU_PROFILE_PIPE_MSB
     // The uops in AG, M1, M2, EX and WB, after the clock's edge.
@@ -305,6 +358,12 @@ struct CpuProfile {
         std::fprintf(out, "B %.6f", seconds);
         for (int b = 0; b < NBUCKET; ++b) std::fprintf(out, " %s=%llu", bucket_name[b], (unsigned long long)bucket[b]);
         std::fprintf(out, "\n");
+        for (int c = 0; c < NAGI; ++c)
+            std::fprintf(out, "A %.6f %s ag=%llu m1=%llu m2=%llu ex=%llu none=%llu ready=%llu imm=%llu w32=%llu\n", seconds,
+                         agi_name[c], (unsigned long long)agi[c].stage[0], (unsigned long long)agi[c].stage[1],
+                         (unsigned long long)agi[c].stage[2], (unsigned long long)agi[c].stage[3],
+                         (unsigned long long)agi[c].stage[4], (unsigned long long)agi[c].ready,
+                         (unsigned long long)agi[c].imm, (unsigned long long)agi[c].w32);
         for (int c = 0; c < NCLASS; ++c)
             std::fprintf(out, "C %.6f %s n=%llu taken=%llu own=%llu next=%llu\n", seconds, class_name[c],
                          (unsigned long long)cls[c].n, (unsigned long long)cls[c].taken,

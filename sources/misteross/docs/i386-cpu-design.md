@@ -966,11 +966,28 @@ descriptor-cache write retires.
 - **Stack:** PUSH, POP, CALL and RET compute the new ESP or SP at AG; SS.B
   selects the width. ESP is an early result, so back-to-back pushes do not
   stall.
-- **Early ALU:** the register and immediate forms of ADD, ADC, SUB, SBB, AND,
-  OR, XOR, CMP, TEST, INC, DEC, NEG, MOV and LEA execute at AG when their
-  inputs are ready there. Otherwise they execute at EX. Results and flags move
-  down the pipeline and retire at WB in order, so exceptions stay precise.
-  Shifts, multiplies and memory operands stay at EX.
+- **Early ALU (as built, Phase 4 slice 6):** AG's address adder gives the
+  result of a uop that is a sum of registers and a constant, so a younger
+  address or operand takes it from the M1 register as it takes a 32-bit LEA's.
+  - **Forms.** One-uop instructions with no memory operand that write a GPR:
+    at a 32-bit operand size ADD r, imm and ADD r, r2 (r + imm, r + r2), INC
+    and DEC (r + 1, r − 1), MOV r, imm and MOV r, r2; at 16 bits ADD r, imm,
+    INC and DEC. DC sets the uop's base, index and displacement from its
+    registers and immediate (`decoded_t ealu`), so D's forwarding and AG's
+    adder need no new input.
+  - **16 bits.** The sum wraps as a 16-bit address does, and the result
+    keeps the register's high half: the late value's, else D's
+    (`fes_i386_dfwd base_hi`), as a 16-bit stack's ESP does.
+  - **When.** The uop is early only when D's address forwarding has its
+    operands (`lea_stall` clear). Otherwise it is an ordinary late uop and
+    runs at EX: the early ALU never makes D wait.
+  - **EX.** EX still computes every result and the flags from its own
+    operands, so WB retires the same values in order and exceptions stay
+    precise. The early value only forwards.
+  - **Not built.** SUB, ADC, SBB, the logic ops, a 16-bit LEA, MOVZX and
+    MOVSX, and the 16-bit ADD r, r2 and MOV. In DOOM's and 3DBench's
+    profiles they wait on loads or are rare. Jcc and LOOP still resolve at
+    EX.
 - **Early branches:** a Jcc whose flags are ready at AG, and a LOOP or JCXZ whose
   ECX is ready there, resolve at AG.
 
@@ -1777,10 +1794,25 @@ it runs uncapped.
    1%. Risk: none beyond slice 2.
 6. **Early ALU.**
    - **First step.** Split the AGI counter by producer: a load, or a late ALU
-     result.
+     result. Done ([record](../../../docs/validation/2026-11-06-i386-phase4-early-alu/summary.md)):
+     `machine_tb --cpu-profile` charges each AGI clock to its producer's
+     class and stage. In DOOM's window AGI is 9.1% of the clocks. Producers
+     an early ALU would run cause 2.0–2.3%, nearly all 32-bit ADD, INC, DEC,
+     SUB with an immediate, and MOV. Loads cause 4.0%, and half of that is
+     the clock `fes_i386_dfwd`'s unused load kind would save. In 3DBench
+     the early ALU's 3.1% is almost all 16-bit ADD, INC and DEC.
    - **Build.** If the ALU share warrants it, the register and immediate
      ALU forms execute at AG, and Jcc and LOOP resolve there when their
-     flags or ECX are ready.
+     flags or ECX are ready. As built, AG's address adder runs the sums
+     ([Early ALU](#registers-address-generation-and-the-early-alu)); Jcc and
+     LOOP stay at EX, since the BTB predicts them. The latency bench's AGI
+     chain (ADD SI, 2; MOV AX, [SI]) costs 2.50 clocks a case, from 5.13.
+   - **Result.** Kit A's DOOM `demo3` goes from 39.2 to 39.5 fps (+0.7%),
+     and the Pack's DOOM by 0.7–0.9%. In DOOM's bench window more than half
+     of the AGI clocks saved come back as an empty front end: D now issues
+     faster than the front end decodes. 3DBench's window retires 3.0% more,
+     though its kit score does not move. The seal keeps D's and AG's slack
+     ([record](../../../docs/validation/2026-11-06-i386-phase4-early-alu/summary.md)).
    - **Gain.** DOOM up to 2–5%, less what loads cause.
    - **Risk.** Moderate: AG has +4.7 ns, and the result and flag paths join
      the forwarding tables.

@@ -19,6 +19,7 @@ from scripts import test_fes_i386_latency as latency
 HEADER = sim.CORE / 'sim/cpu_profile.h'
 VLT = sim.CORE / 'sim/cpu_profile.vlt'
 COMPILER = shutil.which(os.environ.get('CXX', 'c++'))
+NUMERIC = ('prof_agi', 'prof_dcls')  # wider than a bit
 
 
 def vlt_signals() -> list[str]:
@@ -51,7 +52,9 @@ DRIVER = r'''
 #include "cpu_profile.h"
 struct Root {
 #define F(n) bool fes_i386_cpu__DOT__##n = false;
+#define N(n) uint8_t fes_i386_cpu__DOT__##n = 0;
 SIGNALS
+#undef N
 #undef F
     uint32_t fes_i386_cpu__DOT__ag_s[29] = {}, fes_i386_cpu__DOT__m1_s[29] = {}, fes_i386_cpu__DOT__m2_s[29] = {},
              fes_i386_cpu__DOT__ex_s[29] = {}, fes_i386_cpu__DOT__wb_s[29] = {};
@@ -135,6 +138,40 @@ int main(int, char **argv) {
         assert(sum == p.sampled);
         assert(p.bucket[CpuProfile::RESET] == 1 && p.bucket[CpuProfile::PARKED_HALT] == 1
                && p.bucket[CpuProfile::PARKED_IO] == 1);
+    }
+    // The AGI split: the shadow of AG to EX keeps each issued uop's class.
+    {
+        CpuProfile p;
+        Cpu cpu;
+        R(mem_valid) = true; R(dc_valid) = true;
+        R(issue) = true; R(prof_dcls) = CpuProfile::A_ADD; R(prof_dimm) = true;
+        assert(bucket_of(p, cpu) == CpuProfile::ISSUE_MORE);
+        R(issue) = false; R(prof_dcls) = 0; R(prof_dimm) = false;
+        R(addr_use) = true; R(lea_stall) = true; R(prof_agi) = 0;
+        assert(bucket_of(p, cpu) == CpuProfile::AGI);  // the ADD in AG
+        R(prof_agi) = 1;
+        assert(bucket_of(p, cpu) == CpuProfile::AGI);  // in M1
+        R(freeze) = true;
+        assert(bucket_of(p, cpu) == CpuProfile::FRZ_STORE);  // the shadow holds
+        R(freeze) = false; R(prof_agi) = 2;
+        assert(bucket_of(p, cpu) == CpuProfile::AGI);  // in M2
+        R(prof_agi) = 4;
+        assert(bucket_of(p, cpu) == CpuProfile::AGI);  // no producer
+        const auto &a = p.agi[CpuProfile::A_ADD];
+        assert(a.stage[0] == 1 && a.stage[1] == 1 && a.stage[2] == 1 && a.ready == 3 && a.imm == 3 && a.w32 == 0);
+        assert(p.agi[CpuProfile::A_NONE].stage[4] == 1);
+        // A 32-bit MOV does not wait for its destination's old value; a
+        // 16-bit one, or a source that is late, is not ready.
+        R(addr_use) = false; R(lea_stall) = false; R(issue) = true;
+        R(prof_dcls) = CpuProfile::A_MOV; R(prof_ds1) = true; R(prof_d32) = true;
+        p.sample(cpu, false, false);
+        assert(p.shadow[0].cls == CpuProfile::A_MOV && p.shadow[0].ready);
+        R(prof_d32) = false;
+        p.sample(cpu, false, false);
+        assert(!p.shadow[0].ready && p.shadow[1].ready);
+        R(prof_ds1) = false; R(prof_ds2) = true; R(prof_d32) = true;
+        p.sample(cpu, false, false);
+        assert(!p.shadow[0].ready);
     }
     // Classes.
     {
@@ -237,7 +274,8 @@ int main(int, char **argv) {
 @unittest.skipUnless(COMPILER, 'requires a C++ compiler')
 class HeaderTest(unittest.TestCase):
     def test_buckets_classes_flips_and_snapshots(self):
-        signals = ' '.join(f'F({name})' for name in vlt_signals() if name not in sim.PIPE_STAGES)
+        signals = ' '.join(f'{"N" if name in NUMERIC else "F"}({name})' for name in vlt_signals()
+                           if name not in sim.PIPE_STAGES)
         with tempfile.TemporaryDirectory() as directory:
             work = Path(directory)
             source = work / 'driver.cpp'
@@ -288,6 +326,19 @@ class WindowTest(unittest.TestCase):
         self.assertEqual(w['causes']['halt'], 40)
         self.assertEqual(w['causes']['issued uops'], 150)
         self.assertIn('interlock: AGI', profile.report(w))
+
+    def test_the_agi_split_sums_to_agi_and_counts_early_alu_producers(self):
+        a1 = 'A 1.0 add ag=0 m1=0 m2=0 ex=0 none=0 ready=0 imm=0\nA 1.0 load ag=0 m1=0 m2=0 ex=0 none=0 ready=0 imm=0\n'
+        a2 = 'A 2.0 add ag=30 m1=5 m2=0 ex=0 none=0 ready=32 imm=20\nA 2.0 load ag=10 m1=5 m2=0 ex=0 none=0 ready=15 imm=0\n'
+        text = snapshot(1.0, 0, 0, {}) + a1 + snapshot(2.0, 50, 50, {'agi': 50}) + a2
+        w = profile.window(profile.load(text.splitlines()))
+        self.assertEqual(w['agi']['clocks'], 50)
+        self.assertEqual(w['agi']['early'], 32)  # a load's ready does not count
+        self.assertEqual(w['agi']['by_class']['add']['clocks'], 35)
+        self.assertIn('early ALU would run', profile.report(w))
+        bad = text.replace('m1=5 m2=0 ex=0 none=0 ready=15', 'm1=6 m2=0 ex=0 none=0 ready=15')
+        with self.assertRaises(profile.ProfileError):
+            profile.window(profile.load(bad.splitlines()))
 
     def test_flush_of_pre_window_uop_is_reported_separately(self):
         # This uop was issued before the window. Its flush must not be counted

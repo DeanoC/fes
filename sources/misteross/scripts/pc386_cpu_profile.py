@@ -73,7 +73,7 @@ class ProfileError(ValueError):
 
 def load(lines) -> dict[float, dict]:
     """The snapshots by time: counters, buckets, classes and that interval's sites."""
-    snaps: dict[float, dict] = defaultdict(lambda: {'t': None, 'b': None, 'c': {}, 's': {}})
+    snaps: dict[float, dict] = defaultdict(lambda: {'t': None, 'b': None, 'c': {}, 'a': {}, 's': {}})
     for line in lines:
         if not line.strip():
             continue
@@ -86,6 +86,8 @@ def load(lines) -> dict[float, dict]:
             snap['b'] = {k: int(v) for k, v in (x.split('=') for x in f[1:])}
         elif kind == 'C':
             snap['c'][f[1]] = {k: int(v) for k, v in (x.split('=') for x in f[2:])}
+        elif kind == 'A':
+            snap['a'][f[1]] = {k: int(v) for k, v in (x.split('=') for x in f[2:])}
         elif kind == 'S':
             kv = dict(x.split('=') for x in f[3:])
             snap['s'][f[1]] = [int(kv['n']), int(kv['cycles']), f[2]]
@@ -109,6 +111,7 @@ def window(snaps: dict[float, dict], lo: float | None = None, hi: float | None =
     first, last = snaps[a], snaps[z]
     t, b = sub(first['t'], last['t']), sub(first['b'], last['b'])
     classes = {k: sub(first['c'].get(k, {}), v) for k, v in last['c'].items()}
+    agi = {k: sub(first['a'].get(k, {}), v) for k, v in last['a'].items()}
     sites: dict[str, list] = defaultdict(lambda: [0, 0, ''])
     for at in times:
         if a < at <= z:
@@ -131,7 +134,7 @@ def window(snaps: dict[float, dict], lo: float | None = None, hi: float | None =
             'redirects': t['redirects'], 'frames': t['frames'], 'polls_3da': t['polls_3da'],
             'l1d_waits': t['l1d_waits'], 'l1i_waits': t['l1i_waits'], 'prefixes': t['prefixes'],
             'cpi': t['cycles'] / max(t['retired'], 1), 'causes': causes, 'buckets': b, 'classes': classes,
-            'prediction': prediction(t),
+            'prediction': prediction(t), 'agi': agi_split(agi, b['agi']),
             'redirects_by_class': {k: {'taken': v['taken'], 'clocks': v['next'],
                                        'per_taken': round(v['next'] / v['taken'], 2)} for k, v in taken.items()},
             'sites': sorted(([k, *v] for k, v in sites.items()), key=lambda s: -s[2])[:25]}
@@ -149,6 +152,27 @@ def prediction(t: dict) -> dict:
             'fetch_replays': t['fetch_replays'],
             'ret': t['ret'], 'ret_predicted': t['ret_pt'], 'ret_mispredicted': t['ret_mis'],
             'ret_accuracy': round(1 - t['ret_mis'] / t['ret'], 4) if t['ret'] else None}
+
+
+# The producer classes an early ALU at AG would execute: the register and
+# immediate forms of MOV, ADD, SUB, ADC and their kin, the logic ops, a
+# 16-bit LEA, MOVZX/MOVSX and zeroing (cpu_profile.h AgiClass).
+EARLY = ('mov', 'add', 'sub', 'adc', 'logic', 'lea16', 'ext', 'zero')
+STAGES = ('ag', 'm1', 'm2', 'ex', 'none')
+
+
+def agi_split(agi: dict, total: int) -> dict:
+    """AGI clocks by the producer's class and stage. 'early' is the clocks
+    whose producer an early ALU at AG would execute (its class is in EARLY
+    and its register sources would be ready there), so those an early ALU
+    could save at most."""
+    rows = {k: {'clocks': sum(v[s] for s in STAGES), **{s: v[s] for s in STAGES}, 'ready': v['ready'],
+                'imm': v['imm'], 'w32': v.get('w32', 0)} for k, v in agi.items()}
+    rows = {k: v for k, v in rows.items() if v['clocks']}
+    if rows and sum(v['clocks'] for v in rows.values()) != total:
+        raise ProfileError(f'the AGI split holds {sum(v["clocks"] for v in rows.values())} clocks, {total} in AGI')
+    early = sum(v['ready'] for k, v in rows.items() if k in EARLY)
+    return {'clocks': total, 'early': early, 'by_class': rows}
 
 
 def report(w: dict) -> str:
@@ -170,6 +194,15 @@ def report(w: dict) -> str:
     if p['ret']:
         out.append(f'near RETs {p["ret"]:,}: {p["ret_predicted"]:,} predicted, {p["ret_mispredicted"]:,} redirected '
                    f'(accuracy {100 * p["ret_accuracy"]:.2f}%)')
+    a = w['agi']
+    if a['by_class']:
+        out.append(f'\nAGI {a["clocks"]:,} clocks, {a["early"]:,} from producers an early ALU would run '
+                   f'({100 * a["early"] / max(a["clocks"], 1):.1f}%)')
+        out.append(f'{"producer":10s} {"clocks":>11s} ' + ' '.join(f'{s:>9s}' for s in STAGES)
+                   + f' {"ready":>9s} {"imm":>9s} {"w32":>9s}')
+        for k, v in sorted(a['by_class'].items(), key=lambda kv: -kv[1]['clocks']):
+            out.append(f'{k:10s} {v["clocks"]:11,d} ' + ' '.join(f'{v[s]:9,d}' for s in STAGES)
+                       + f' {v["ready"]:9,d} {v["imm"]:9,d} {v["w32"]:9,d}')
     out.append(f'\n{"redirects":10s} {"taken":>11s} {"clocks":>13s} {"per taken":>9s}')
     for k, v in sorted(w['redirects_by_class'].items(), key=lambda kv: -kv[1]['clocks']):
         out.append(f'{k:10s} {v["taken"]:11,d} {v["clocks"]:13,d} {v["per_taken"]:9.2f}')

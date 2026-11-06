@@ -511,6 +511,10 @@ package fes_i386_pkg;
         logic        opsize32;
         logic        lea;
         logic        lea_early;
+        // The early ALU (fes_i386_cpu, "The early ALU"): an ADD, INC, DEC or
+        // MOV of registers and an immediate, whose result AG's adder gives
+        // from has_base, base, has_index, index and lea_disp.
+        logic        ealu;
         logic [31:0] lea_disp;
         logic        consumes;
         logic        reads_seg;

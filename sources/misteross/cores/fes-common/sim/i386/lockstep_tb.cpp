@@ -2849,6 +2849,143 @@ void run_stld_cases(fes_i386::Oracle &oracle, OracleBus &bus, Rtl &rtl, const st
     });
 }
 
+// The early ALU's cases (fes_i386_cpu, "The early ALU": AG's adder gives
+// an ADD, INC, DEC or MOV's result, which a younger address or operand
+// takes from M1), from CS:0 at linear 1000h, in lockstep with the oracle.
+// Each runs MOV CX, 2; L: body; LOOP L; HLT, so the second pass runs from
+// the L1I. ESI starts at 00AB2000h, so a 16-bit result must keep its high
+// half, EBX at 10h, ESP at 8000h. Each group counts as one case:
+//   ealu-16      ADD SI, imm8 or imm16, INC SI, DEC SI, then 0-3 NOPs,
+//                then [SI] or MOV EAX, ESI
+//   ealu-16-wrap the same from SI = FFFFh, which wraps at 16 bits
+//   ealu-32      ADD ESI, imm8 or imm32, INC ESI, DEC ESI, MOV ESI, imm32,
+//                MOV ESI, EBX both ways, ADD ESI, EBX both ways, then 0-3
+//                NOPs, then [ESI], [ESI + EBX] or [EBX + ESI * 4] (a scaled
+//                index, which waits a cycle at D), or MOV EAX, ESI
+//   ealu-late    a source that is not ready at AG: a load into SI, then ADD
+//                SI, 2; two loads, then ADD ESI, EDI; the ADD runs at EX
+//   ealu-esp     ADD ESP or SP, then a push and a load from [ESP + d];
+//                MOV EBP, ESP, then [BP]
+//   ealu-chain   ADD ESI, then MOV EDI, ESI, then [EDI]; INC SI twice, then
+//                [SI]
+//   ealu-other   forms that run at EX: ADD BL, SUB SI, ADC SI, ADD SI, BX,
+//                MOV SI, imm16, LEA SI, then [SI] or [BX]; ADD ESI, -1 then
+//                SETC AL
+void run_ealu_cases(fes_i386::Oracle &oracle, OracleBus &bus, Rtl &rtl, const std::vector<Entry> &entries,
+                    Summary &summary) {
+    State base;
+    for (int k = 0; k < 6; ++k) base.seg[k] = fes_i386::real_mode_segment(0);
+    base.seg[fes_i386::SEG_CS] = fes_i386::real_mode_segment(0x100);
+    base.eip = 0;
+    base.gpr[fes_i386::REG_ESP] = 0x8000;
+    base.gpr[fes_i386::REG_ESI] = 0x00ab2000;
+    base.gpr[fes_i386::REG_EBX] = 0x10;
+    using Bytes = std::vector<uint8_t>;
+    auto loop = [](const Bytes &body) {
+        Bytes code = {0xb9, 0x02, 0x00};  // MOV CX, 2; L:
+        code.insert(code.end(), body.begin(), body.end());
+        code.push_back(0xe2);  // LOOP L
+        code.push_back(uint8_t(3 - int(code.size() + 1)));
+        return code;
+    };
+    auto group = [&](const std::function<void()> &runs) {
+        const uint64_t before = summary.runs, passed = summary.passed, failed = summary.failed;
+        runs();
+        const bool ok = summary.failed == failed;
+        summary.runs = before + 1;
+        summary.passed = passed + (ok ? 1 : 0);
+        summary.failed = failed + (ok ? 0 : 1);
+    };
+    auto run = [&](const std::string &label, const Bytes &body, const State &state) {
+        run_nop_case(oracle, bus, rtl, entries, summary, label, loop(body), state, 64);
+    };
+    // Producer, 0-3 NOPs, consumer.
+    auto distances = [&](const char *name, const std::vector<Bytes> &producers, const std::vector<Bytes> &consumers,
+                         const State &state) {
+        for (size_t p = 0; p < producers.size(); ++p)
+            for (size_t c = 0; c < consumers.size(); ++c)
+                for (int k = 0; k < 4; ++k) {
+                    Bytes body = producers[p];
+                    body.insert(body.end(), size_t(k), 0x90);
+                    body.insert(body.end(), consumers[c].begin(), consumers[c].end());
+                    run(std::string(name) + ":p" + std::to_string(p) + ":c" + std::to_string(c) + ":n" +
+                            std::to_string(k),
+                        body, state);
+                }
+    };
+    const std::vector<Bytes> p16 = {{0x83, 0xc6, 0x02}, {0x81, 0xc6, 0x34, 0x12}, {0x46}, {0x4e}, {0x83, 0xc6, 0xfe}};
+    const std::vector<Bytes> c16 = {{0x8a, 0x04}, {0x66, 0x89, 0xf0}};  // MOV AL, [SI]; MOV EAX, ESI
+    group([&] { distances("ealu-16", p16, c16, base); });
+    group([&] {
+        State wrap = base;
+        wrap.gpr[fes_i386::REG_ESI] = 0x00abffff;
+        distances("ealu-16-wrap", p16, c16, wrap);
+    });
+    group([&] {
+        const std::vector<Bytes> p32 = {
+            {0x66, 0x83, 0xc6, 0x02},                    // ADD ESI, 2
+            {0x66, 0x81, 0xc6, 0x10, 0x00, 0x00, 0x00},  // ADD ESI, 10h
+            {0x66, 0x46},                                // INC ESI
+            {0x66, 0x4e},                                // DEC ESI
+            {0x66, 0xbe, 0x00, 0x30, 0x00, 0x00},        // MOV ESI, 3000h
+            {0x66, 0x89, 0xde},                          // MOV ESI, EBX (89h)
+            {0x66, 0x8b, 0xf3},                          // MOV ESI, EBX (8Bh)
+            {0x66, 0x01, 0xde},                          // ADD ESI, EBX (01h)
+            {0x66, 0x03, 0xf3},                          // ADD ESI, EBX (03h)
+        };
+        const std::vector<Bytes> c32 = {
+            {0x67, 0x8a, 0x06},        // MOV AL, [ESI]
+            {0x67, 0x8a, 0x04, 0x1e},  // MOV AL, [ESI + EBX]
+            {0x67, 0x8a, 0x04, 0xb3},  // MOV AL, [EBX + ESI * 4]
+            {0x66, 0x89, 0xf0},        // MOV EAX, ESI
+        };
+        State low = base;
+        low.gpr[fes_i386::REG_ESI] = 0x2000;
+        distances("ealu-32", p32, c32, low);
+    });
+    group([&] {
+        State late = base;
+        late.gpr[fes_i386::REG_EBX] = 0x1800;
+        // MOV WORD [BX], 2100h; MOV SI, [BX]; ADD SI, 2; MOV AL, [SI]
+        run("ealu-late:16", {0xc7, 0x07, 0x00, 0x21, 0x8b, 0x37, 0x83, 0xc6, 0x02, 0x8a, 0x04}, late);
+        // MOV DWORD [BX], 2100h; MOV ESI, [BX]; MOV EDI, [BX]; ADD ESI, EDI; MOV AL, [ESI]
+        run("ealu-late:32", {0x66, 0xc7, 0x07, 0x00, 0x21, 0x00, 0x00, 0x66, 0x8b, 0x37, 0x66, 0x8b, 0x3f, 0x66, 0x01,
+                             0xfe, 0x67, 0x8a, 0x06},
+            late);
+        // The same with the ADD's two sources a load and an early ADD.
+        run("ealu-late:mixed", {0x66, 0xc7, 0x07, 0x00, 0x21, 0x00, 0x00, 0x66, 0x8b, 0x37, 0x66, 0x83, 0xc7, 0x04, 0x66,
+                                0x01, 0xfe, 0x67, 0x8a, 0x06},
+            late);
+    });
+    group([&] {
+        // ADD ESP, 4; PUSH EAX; MOV AX, [ESP + 4]
+        run("ealu-esp:32", {0x66, 0x83, 0xc4, 0x04, 0x66, 0x50, 0x67, 0x8b, 0x44, 0x24, 0x04}, base);
+        // ADD SP, 2; PUSH AX; MOV AX, [ESP + 2]
+        run("ealu-esp:16", {0x83, 0xc4, 0x02, 0x50, 0x67, 0x8b, 0x44, 0x24, 0x02}, base);
+        // MOV EBP, ESP; MOV AX, [BP]
+        run("ealu-esp:bp", {0x66, 0x8b, 0xec, 0x8b, 0x46, 0x00}, base);
+    });
+    group([&] {
+        State low = base;
+        low.gpr[fes_i386::REG_ESI] = 0x2000;
+        // ADD ESI, 2; MOV EDI, ESI; MOV AL, [EDI]
+        run("ealu-chain:32", {0x66, 0x83, 0xc6, 0x02, 0x66, 0x89, 0xf7, 0x67, 0x8a, 0x07}, low);
+        // INC SI; INC SI; MOV AL, [SI]
+        run("ealu-chain:16", {0x46, 0x46, 0x8a, 0x04}, base);
+    });
+    group([&] {
+        run("ealu-other:add8", {0x80, 0xc3, 0x02, 0x8a, 0x07}, base);        // ADD BL, 2; MOV AL, [BX]
+        run("ealu-other:sub", {0x83, 0xee, 0x02, 0x8a, 0x04}, base);         // SUB SI, 2; MOV AL, [SI]
+        run("ealu-other:adc", {0xf9, 0x13, 0xf3, 0x8a, 0x04}, base);         // STC; ADC SI, BX; MOV AL, [SI]
+        run("ealu-other:add-rr16", {0x03, 0xf3, 0x8a, 0x04}, base);          // ADD SI, BX; MOV AL, [SI]
+        run("ealu-other:mov-imm16", {0xbe, 0x00, 0x20, 0x8a, 0x04}, base);  // MOV SI, 2000h; MOV AL, [SI]
+        run("ealu-other:lea16", {0x8d, 0x74, 0x02, 0x8a, 0x04}, base);       // LEA SI, [SI + 2]; MOV AL, [SI]
+        State low = base;
+        low.gpr[fes_i386::REG_ESI] = 0x2000;
+        run("ealu-other:flags", {0x66, 0x83, 0xc6, 0xff, 0x0f, 0x92, 0xc0, 0x67, 0x8a, 0x26}, low);  // ADD ESI, -1; SETC AL; MOV AH, [ESI]
+    });
+}
+
 // The branch target buffer's cases, from CS:0 at linear 1000h, in lockstep
 // with the oracle. The BTB keeps its entries across runs, as across resets,
 // so every case also runs over whatever the runs before left at 1000h.
@@ -6846,6 +6983,7 @@ int main(int argc, char **argv) {
         run_btb_cases(*oracle, bus, rtl, entries, summary);
         run_ras_cases(*oracle, bus, rtl, entries, summary);
         run_stld_cases(*oracle, bus, rtl, entries, summary);
+        run_ealu_cases(*oracle, bus, rtl, entries, summary);
     } else if (mode == "unreal") {
         run_unreal_cases(*oracle, bus, rtl, entries, summary);
     } else if (mode == "pmode") {
