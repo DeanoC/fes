@@ -26,7 +26,8 @@ def control_module(source, name, previous):
     """
     start = source.index('    reg writer =')
     middle = source.index('    reg [6:0] lane;', start)
-    block = source.index('    always @(posedge clk_sys or negedge sys_release[1]) begin', middle)
+    reset = 'sys_release[1]' if previous else 'reset_n'
+    block = source.index('    always @(posedge clk_sys or negedge '+reset+') begin', middle)
     end = source.index('    reg [10:0] horizontal', block)
     fragment = source[start:middle] + source[block:end]
     # Fail rather than extracting a different state machine after a source edit.
@@ -73,14 +74,25 @@ always @* assert(old_state == new_state);
 endmodule
 '''
     (output/'control.sv').write_text(formal)
-    ports = '.clk_sys(clk_sys),.pixel_clk(pixel_clk),.reset_n(reset_n),.held(held),.ce_6m5(ce_6m5),.zx_pixel(zx_pixel),.hblank(hblank),.vblank(vblank)'
+    ports = '.clk_sys(clk_sys),.pixel_clk(pixel_clk),.held(held),.ce_6m5(ce_6m5),.zx_pixel(zx_pixel),.hblank(hblank),.vblank(vblank)'
     signals = '{red,green,blue,de,hsync,vsync,frame_tick}'
     internals = '{request,acknowledge,capturing,line_open,bad,old_hblank,x,rows,published_rows,front,front_valid,front_rows,sample}'
     wrapper = 'module video_pair(input clk_sys,pixel_clk,reset_n,held,ce_6m5,zx_pixel,hblank,vblank,output mismatch,output [3:0] events);\n'
+    # Reset qualification now belongs to the caller. Compare complete video
+    # behavior at the same qualified releases as the old internal chains.
+    # This does not claim the enclosing computer retains the old extra two
+    # system cycles: its Platform Designer reset is already qualified.
+    wrapper += '''reg [1:0] sys_qualified=0, pixel_qualified=0;
+always @(posedge clk_sys or negedge reset_n)
+    if (!reset_n) sys_qualified<=0; else sys_qualified<={sys_qualified[0],1'b1};
+always @(posedge pixel_clk or negedge reset_n)
+    if (!reset_n) pixel_qualified<=0; else pixel_qualified<={pixel_qualified[0],1'b1};
+'''
     for prefix, module in [('a', 'reference_video'), ('b', 'fes_de25_zx81_video')]:
         wrapper += f'wire [7:0] {prefix}_red,{prefix}_green,{prefix}_blue; wire {prefix}_de,{prefix}_hsync,{prefix}_vsync,{prefix}_frame_tick;\n'
         outputs = ','.join(f'.{s}({prefix}_{s})' for s in ('red','green','blue','de','hsync','vsync','frame_tick'))
-        wrapper += f'{module} {prefix}({ports},{outputs});\n'
+        resets = '.reset_n(reset_n)' if prefix=='a' else '.reset_n(sys_qualified[1]),.pixel_reset_n(pixel_qualified[1])'
+        wrapper += f'{module} {prefix}({ports},{resets},{outputs});\n'
     def select(expression, prefix):
         return re.sub(r'\b[a-z_]+\b', lambda m: prefix+'.'+m[0], expression)
     # RAM write data matters only on an actual whole-byte write. The two

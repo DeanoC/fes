@@ -59,7 +59,7 @@ def main():
     sources = {p: hashlib.sha256(p.read_bytes()).hexdigest() for p in inputs}
     commands = []
 
-    def run(name, argv, cwd=ROOT):
+    def run(name, argv, cwd=ROOT, failure_marker=None):
         started = time.monotonic()
         with (output/(name+'.log')).open('xb') as log:
             child = subprocess.Popen(list(map(str, argv)), cwd=cwd, stdout=log, stderr=subprocess.STDOUT, start_new_session=True)
@@ -78,9 +78,13 @@ def main():
                     os.killpg(child.pid, signal.SIGKILL)
                     child.wait()
             commands.append(dict(name=name, argv=list(map(str, argv)), returncode=child.returncode,
+                                 expected_failure=failure_marker is not None,
                                  elapsed_seconds=time.monotonic()-started,
                                  log_sha256=hashlib.sha256((output/(name+'.log')).read_bytes()).hexdigest()))
-            if child.returncode:
+            if failure_marker is not None:
+                if child.returncode != 1 or failure_marker not in (output/(name+'.log')).read_text():
+                    raise RuntimeError(name+' did not reject the broken reset wiring; see '+str(output/(name+'.log')))
+            elif child.returncode:
                 raise RuntimeError(name+' failed; see '+str(output/(name+'.log')))
 
     run('firmware-build', ['cc', '-std=c11', '-Wall', '-Wextra', '-Werror', '-ffreestanding', '-fno-builtin',
@@ -124,7 +128,7 @@ def main():
             HERE/'fes_embedded_rom.sv', HERE/'fes_embedded_rom_csr.sv', HERE/'rom_machine.sv', *machine_sources, HERE/'rom_csr_probe.cpp'])
         run('csr-execute-'+str(size), [csr/'Vrom_machine', str(size), format(zlib.crc32(program), 'x')], cwd=fpga)
         board = output/('board-'+str(size))
-        run('board-build-'+str(size), ['verilator', '-Wall', *('-Wno-'+v for v in waivers),
+        board_command = ['verilator', '-Wall', *('-Wno-'+v for v in waivers),
             '--cc', '--exe', '--build', '-j', '2', '--Mdir', board, '--top-module', 'rom_board_machine',
             '-GROM_BYTES='+str(size), '-DFES_DE25_EXTERNAL_ROM=1',
             *(['-DZX81_MODEL_ZX80'] if size == 4096 else []),
@@ -134,13 +138,29 @@ def main():
             HERE/'fes_embedded_rom.sv', HERE/'fes_embedded_rom_csr.sv', HERE/'fes_de25_rom.sv',
             HERE/'fes_de25_computer.v', HERE/'rom_board_machine.sv', *machine_sources,
             fpga/'cores/fes-common/rtl/fes_computer_mailbox.v', fpga/'cores/fes-zx81/rtl/zx81_keyboard.v',
-            fpga/'cores/fes-zx81/rtl/zx81_tape_store.v', output/'video.v', HERE/'rom_board_probe.cpp'])
+            fpga/'cores/fes-zx81/rtl/zx81_tape_store.v', output/'video.v', HERE/'rom_board_probe.cpp']
+        run('board-build-'+str(size), board_command)
         run('board-execute-'+str(size), [board/'Vrom_board_machine', str(size), format(zlib.crc32(program), 'x')], cwd=output)
+        if size == 8192:
+            # Prove the stopped-clock monitor detects bypassing the common
+            # pixel release, rather than merely accepting a quiet initial RAM.
+            original = (HERE/'fes_de25_computer.v').read_text()
+            anchor = '.pixel_reset_n(pixel_transport_reset_release[1])'
+            if original.count(anchor) != 1:
+                raise ValueError('shared video reset negative-control anchor changed')
+            mutated = output/'broken-reset-computer.v'
+            mutated.write_text(original.replace(anchor, '.pixel_reset_n(reset_n)'))
+            negative = output/'board-reset-negative'
+            run('board-reset-negative-build', [negative if p==board else mutated if p==HERE/'fes_de25_computer.v' else p
+                for p in board_command])
+            run('board-reset-negative-execute', [negative/'Vrom_board_machine', str(size), format(zlib.crc32(program), 'x')],
+                cwd=output, failure_marker='pixel token owner escaped the common readiness reset')
     assert all(hashlib.sha256(p.read_bytes()).hexdigest() == digest for p, digest in sources.items())
     result = dict(status='passed', classification='actual C ROM transport, opt-in secure-provider/control gate and real ZX80/ZX81 RTL; injected platform and exact-image digest oracle, no hardware or native admission proof',
                   source_sha256={str(p.relative_to(ROOT)): digest for p, digest in sources.items()}, commands=commands,
                   independent_crc_oracle='Python zlib.crc32', hardware_actions=False, ordinary_admission=False)
     result['board_rom_wiring_model'] = True
+    result['shared_reset_stopped_clock_and_negative_control'] = True
     result['video_source'] = dict(path=str(video_path.relative_to(ROOT)),sha256=hashlib.sha256(video).hexdigest())
     (output/'result.json').write_text(json.dumps(result, indent=2)+'\n')
     print('PASS ROM stream RTL:', output, flush=True)

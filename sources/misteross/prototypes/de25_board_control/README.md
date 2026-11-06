@@ -8,8 +8,8 @@ generation. The fingerprint is not a sealed FES package identity. An explicit
 `--sealed-diagnostic` build instead computes the existing canonical functional
 build ID before synthesis and installs it in both endpoints.
 
-The overlay owns its version-1.1 `fes_de25_computer.v` transport and generated
-register headers, installed over the captured board's original transport.
+The overlay owns its version-1.1 `fes_de25_computer.v` transport, `video.v` and
+generated register headers, installed over the captured board's original transport.
 Those bytes enter the same functional source snapshot, fingerprint and seal.
 Generation and verification compare both installed and actual generated HDL
 against them. The GP ABI, aperture size, clocks, master inventory and execution
@@ -79,15 +79,27 @@ The machine retains the 52.224 MHz default ratio for other shells, while this
 board selects 13/200 at 100 MHz. The early WAIT/NMI declarations preserve the
 reviewed Quartus behavior rather than creating implicit input nets.
 
-This variant also selects the prototype's `video.v`. Its blank-history bit
+The overlay's `video.v` uses a blank-history bit that
 starts low and replaces the redundant `armed` register, so release during
 active video still waits for a complete blank interval. The actual writer
 control has an unbounded equivalence proof against the captured producer,
 including arbitrary Hold, CE, reset, blanks and returned bank tokens. A broken
 capture condition must produce a counterexample. Full dual-clock RTL comparison
 separately checks RAM writes, pixels, publication/acknowledgement, Hold and
-stopped clocks. Run `verify_video.py --yosys /absolute/yosys --output out/VIDEO`
+stopped clocks at identical qualified reset releases. Run
+`verify_video.py --yosys /absolute/yosys --output out/VIDEO`
 from the FES root. This does not prove metastability behavior or physical timing.
+
+The computer supplies the video's two qualified reset inputs. The system side
+uses the same 100 MHz Platform Designer reset as the mailbox and readiness
+source, removing the video's extra two release cycles. One pixel release chain
+now resets both the readiness synchronizer and video's bank-token state.
+Asynchronous assertion still contains both owners with their clocks stopped;
+release waits for the corresponding clock. The actual board ROM model checks
+stopped-clock assertion/release and sticky epoch retirement, and rejects a
+negative control that bypasses the shared pixel release. The outer HDMI wrapper
+and vendor reset controllers remain separate reset cones to investigate; this
+change does not claim complete reset-domain or physical qualification.
 
 Compilation removes only the literal obsolete generated JTAG exception whose
 two type-qualified register filters select no registers in the reviewed routed

@@ -4,7 +4,7 @@ module rom_board_machine #(
     parameter integer ROM_BYTES = 8192,
     parameter [127:0] BUILD_ID = 128'h00112233445566778899aabbccddeeff
 ) (
-    input wire clk, reset_n,
+    input wire clk, pixel_clk, reset_n,
     input wire [6:0] rom_offset,
     input wire rom_read, rom_write,
     input wire [3:0] rom_strobes,
@@ -20,7 +20,9 @@ module rom_board_machine #(
     output wire [1:0] computer_response,
     output wire held, loaded, failed, halted, ce_6m5,
     output wire [7:0] marker,
-    output wire [31:0] fetches
+    output wire [31:0] fetches,
+    output wire pixel_reset_released, pixel_source_ready, pixel_ready,
+    output wire pixel_state_zero, writer_state_zero
 );
     wire [12:0] rom_address;
     wire [7:0] rom_data;
@@ -33,7 +35,7 @@ module rom_board_machine #(
         .rom_loaded(loaded),.rom_failed(failed)
     );
     fes_de25_computer #(.BUILD_ID(BUILD_ID)) computer (
-        .clk(clk),.pixel_clk(clk),.reset_n(reset_n),.address(computer_offset),
+        .clk(clk),.pixel_clk(pixel_clk),.reset_n(reset_n),.address(computer_offset),
         .read(computer_read),.write(computer_write),.byteenable(4'hf),
         .writedata(computer_wdata),.readdata(computer_rdata),
         .readdatavalid(computer_rvalid),.writeresponsevalid(computer_wvalid),
@@ -46,4 +48,14 @@ module rom_board_machine #(
     assign halted = !computer.halt_n;
     assign ce_6m5 = computer.ce_6m5;
     assign fetches = computer.fetch_count;
+    // Observe the real token owners, not a separate model of their resets.
+    assign pixel_reset_released = computer.pixel_transport_reset_release[1];
+    assign pixel_source_ready = computer.pixel_transport_ready_source;
+    assign pixel_ready = computer.pixel_transport_ready;
+    assign pixel_state_zero = {computer.video.request_sync, computer.video.acknowledge,
+        computer.video.front, computer.video.front_valid, computer.video.front_rows,
+        computer.video.valid_q, computer.video.de_q, computer.video.hs_q,
+        computer.video.vs_q} == 0;
+    assign writer_state_zero = {computer.video.request, computer.video.capturing,
+        computer.video.acknowledge_sync, computer.video.published_rows} == 0;
 endmodule

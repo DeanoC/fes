@@ -3,27 +3,26 @@
 // at an output frame boundary and acknowledges it. Clock loss cannot free it.
 module fes_de25_zx81_video (
     input wire clk_sys, reset_n, held, ce_6m5, zx_pixel, hblank, vblank,
-    input wire pixel_clk,
+    input wire pixel_clk, pixel_reset_n,
     output wire [7:0] red, green, blue,
     output wire de, hsync, vsync, frame_tick
 );
     localparam WIDTH = 328, HEIGHT = 270, STRIDE = WIDTH / 8, WORDS = STRIDE * HEIGHT;
     (* ramstyle = "M20K" *) reg [7:0] fb [0:WORDS*2-1];
-    (* async_reg = "true", altera_attribute = "-name SYNCHRONIZER_IDENTIFICATION FORCED_IF_ASYNCHRONOUS" *)
-    reg [1:0] sys_release = 0, pix_release = 0;
-    always @(posedge clk_sys or negedge reset_n)
-        if (!reset_n) sys_release <= 0; else sys_release <= {sys_release[0], 1'b1};
-    always @(posedge pixel_clk or negedge reset_n)
-        if (!reset_n) pix_release <= 0; else pix_release <= {pix_release[0], 1'b1};
-    wire sys_reset = !sys_release[1], pix_reset = !pix_release[1];
+    // Both inputs assert asynchronously and release on their associated clock.
+    // The enclosing computer owns the release chains: system reset is already
+    // qualified by Platform Designer; pixel reset is shared with readiness.
+    // Do not independently synchronize either reset here: divergent release
+    // cycles would split the token and readiness owners in the same domain.
+    wire sys_reset = !reset_n;
     reg request = 0, acknowledge = 0;
     (* async_reg = "true", altera_attribute = "-name SYNCHRONIZER_IDENTIFICATION FORCED_IF_ASYNCHRONOUS" *)
     reg [1:0] request_sync = 0, acknowledge_sync = 0;
-    always @(posedge clk_sys or negedge sys_release[1])
-        if (!sys_release[1]) acknowledge_sync <= 0;
+    always @(posedge clk_sys or negedge reset_n)
+        if (!reset_n) acknowledge_sync <= 0;
         else acknowledge_sync <= {acknowledge_sync[0], acknowledge};
-    always @(posedge pixel_clk or negedge pix_release[1])
-        if (!pix_release[1]) request_sync <= 0;
+    always @(posedge pixel_clk or negedge pixel_reset_n)
+        if (!pixel_reset_n) request_sync <= 0;
         else request_sync <= {request_sync[0], request};
 
     reg writer = 1, capturing = 0, line_open = 0, bad = 0;
@@ -49,8 +48,8 @@ module fes_de25_zx81_video (
         end
     end
 
-    always @(posedge clk_sys or negedge sys_release[1]) begin
-        if (!sys_release[1]) begin
+    always @(posedge clk_sys or negedge reset_n) begin
+        if (!reset_n) begin
             request <= 0; writer <= 1; capturing <= 0;
             line_open <= 0; bad <= 0; old_hblank <= 1; old_vblank <= 0;
             x <= 0; rows <= 0; published_rows <= 0;
@@ -116,8 +115,8 @@ module fes_de25_zx81_video (
     end
     // All controls share the RAM's one-edge latency, including the first and
     // last scaled pixels. Missing rows are paper; no stale RAM is selected.
-    always @(posedge pixel_clk or negedge pix_release[1]) begin
-        if (!pix_release[1]) begin
+    always @(posedge pixel_clk or negedge pixel_reset_n) begin
+        if (!pixel_reset_n) begin
             acknowledge <= 0;
             front <= 0; front_valid <= 0; front_rows <= 0;
             image_q <= 0; valid_q <= 0; stored_q <= 0; bit_q <= 0;

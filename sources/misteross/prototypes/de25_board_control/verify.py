@@ -166,9 +166,7 @@ def inputs_for(project):
               "fes_de25_embedded_hw.tcl": "sources/misteross/prototypes/de25_board_control/fes_de25_embedded_hw.tcl",
               "fes_embedded_control.sv": "sources/misteross/cores/fes-common/rtl/fes_embedded_control.sv",
               "generated/fes_embedded_control.vh": "sources/misteross/cores/fes-common/generated/fes_embedded_control.vh"}
-    computer_sources=('fes_de25_computer.v','generated/fes_de25_computer.vh','generated/fes_de25_computer.hpp')
-    if rom_transport.checked(inputs):
-        computer_sources += ('video.v',)
+    computer_sources=('fes_de25_computer.v','video.v','generated/fes_de25_computer.vh','generated/fes_de25_computer.hpp')
     selected=["sources/misteross/prototypes/de25_board_control/"+name in sources for name in computer_sources]
     if any(selected) and not all(selected):
         raise ValueError('incomplete captured computer transport overlay')

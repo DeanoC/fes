@@ -251,8 +251,10 @@ module fes_de25_computer #(
         .bus_peek_data(machine_response[`ZX81_BUS_PEEK_D]), .bus_dsel(machine_response[`ZX81_BUS_DSEL]),
         .bus_romcs(machine_response[`ZX81_BUS_ROMCS]), .bus_wait(machine_response[`ZX81_BUS_WAIT]),
         .bus_ram_present(machine_response[`ZX81_BUS_RAM_PRESENT]));
-    // Register the source before crossing domains; release the destination's
-    // reset locally. Common reset still asserts with both clocks stopped.
+    // Register the source before crossing domains. One pixel reset release
+    // owns both readiness and the video's bank-token state; the system side
+    // uses this component's already qualified Platform Designer reset_n.
+    // Common reset still asserts with both clocks stopped.
     (* preserve, dont_merge *) reg pixel_transport_ready_source = 0;
     always @(posedge clk or negedge reset_n)
         if (!reset_n) pixel_transport_ready_source <= 0;
@@ -273,7 +275,7 @@ module fes_de25_computer #(
     always @(posedge pixel_clk)
         if (frame_tick) video_ready_frame <= pixel_transport_ready;
     fes_de25_zx81_video video (
-        .reset_n(reset_n), .held(machine_reset),
+        .reset_n(reset_n), .pixel_reset_n(pixel_transport_reset_release[1]), .held(machine_reset),
         .clk_sys(clk), .ce_6m5(ce_6m5), .zx_pixel(video_pixel), .hblank(hblank), .vblank(vblank),
         .pixel_clk(pixel_clk), .red(red), .green(green), .blue(blue), .de(de), .hsync(hs), .vsync(vs),
         .frame_tick(frame_tick));

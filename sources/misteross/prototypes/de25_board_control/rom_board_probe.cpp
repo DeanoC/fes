@@ -16,6 +16,7 @@ struct Model {
  uint64_t clocks=0,enables=0;
  unsigned reads=0,writes=0;
  bool request=false;
+ bool pixel_running=true;
  std::string fault;
  Model(unsigned size,std::string mode=""):image(size,0),fault(mode){
   const uint8_t program[]={0x3e,0x5a,0x32,0,0x40,0x76};
@@ -25,7 +26,17 @@ struct Model {
   tick(128);d.reset_n=1;tick(32);
   need(d.held&&!d.loaded&&!d.failed&&!d.fetches,"board did not start held without a ROM");
  }
- void tick(unsigned count=1){while(count--){d.clk=0;d.eval();d.clk=1;d.eval();++clocks;if(d.ce_6m5)++enables;}}
+ void evaluate(){
+  d.eval();
+  need(d.pixel_reset_released||(!d.pixel_ready&&d.pixel_state_zero),"pixel token owner escaped the common readiness reset");
+  need(d.reset_n||d.writer_state_zero,"writer token owner escaped the qualified system reset");
+ }
+ void tick(unsigned count=1){while(count--){
+  d.clk=0;d.pixel_clk=0;evaluate();
+  d.clk=1;d.pixel_clk=pixel_running&&(clocks%3==0);evaluate();
+  ++clocks;if(d.ce_6m5)++enables;
+ }}
+ void pixel_tick(){d.pixel_clk=0;evaluate();d.pixel_clk=1;evaluate();}
  int rom(bool read,bool write,uint32_t offset,uint32_t* value,uint8_t strobes=15){
   need(offset<128,"ROM offset outside component");
   for(unsigned n=0;d.rom_wait&&n<64;++n)tick();need(!d.rom_wait,"ROM Avalon wait did not finish");
@@ -64,6 +75,24 @@ int main(int argc,char** argv){
  try{
   need(argc==3,"size and independent CRC required");unsigned size=std::stoul(argv[1]);uint32_t crc=std::stoul(argv[2],nullptr,16);
   {
+   Model m(size);m.pixel_running=false;m.tick(4);
+   // Assert reset with both clocks stopped. A previous ready epoch must clear
+   // without either clock, and release must wait for the pixel clock to return.
+   need(m.d.pixel_ready,"pixel readiness never became live");
+   m.d.clk=0;m.d.pixel_clk=0;m.evaluate();m.d.reset_n=0;m.evaluate();
+   need(!m.d.pixel_reset_released&&!m.d.pixel_ready&&m.d.pixel_state_zero&&m.d.writer_state_zero,
+        "stopped clocks prevented asynchronous token containment");
+   m.d.reset_n=1;m.evaluate();m.tick(32);
+   need(!m.d.pixel_reset_released&&!m.d.pixel_ready,"stopped pixel clock released reset");
+   // A later transport reset retires the epoch: pixel readiness may never
+   // reopen merely because reset and clocks return.
+   m.pixel_tick();need(!m.d.pixel_reset_released&&m.d.pixel_state_zero,"pixel reset released on its first edge");
+   m.pixel_tick();need(m.d.pixel_reset_released&&m.d.pixel_state_zero,"pixel release did not share the second edge");
+   m.pixel_tick();m.pixel_tick();m.tick(16);
+   need(!m.d.pixel_source_ready&&!m.d.pixel_ready&&!m.d.loaded&&!m.d.fetches,
+        "reset manufactured a fresh ready/ROM/execution epoch");
+  }
+  {
    Model m(size);auto before=m.enables;m.tick(10000);need(m.enables-before==650,"100 MHz board does not produce exact 6.5 MHz enables");
    m.init(crc);need(!fes_test_rom_platform_open()&&m.d.loaded&&m.d.held&&!m.d.fetches,"control opening did not finish ROM while held");
    m.execution(true);unsigned n=0;for(;n<200000&&!m.d.halted;++n)m.tick();m.tick(4);
@@ -87,7 +116,7 @@ int main(int argc,char** argv){
    need(m.rom(true,mode!=0,0,&value,mode?15:3)!=0,"malformed Avalon access accepted");m.tick(64);
    need(m.d.failed&&!m.d.loaded&&!m.d.fetches,"malformed Avalon access did not retire ROM");
   }
-  std::cout<<"PASS board ROM Avalon, actual mailbox Hold/Run, 100 MHz enables, secure load/execution/return, failure and reset gates "<<size<<"\n";
+  std::cout<<"PASS board ROM Avalon, actual mailbox Hold/Run, 100 MHz enables, secure load/execution/return, failure, shared reset and stopped-clock retirement gates "<<size<<"\n";
   return 0;
  }catch(const std::exception& e){std::cerr<<"FAIL "<<e.what()<<'\n';return 1;}
 }

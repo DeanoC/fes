@@ -105,6 +105,18 @@ preserve the count across execution Hold and add no clock, master or GP opcode.
 The generated component HDL must match those installed source bytes. This
 observation measures fetch cycles rather than retired instructions or video.
 
+The overlay also owns the board-local capture HDL. Its system token owner uses
+the computer's already qualified 100 MHz Platform Designer reset; its pixel
+token owner and readiness synchronizer share one local pixel release chain.
+Both resets assert asynchronously, including with stopped clocks, and release
+on their own clock. Execution Hold does not reset or reclaim an outstanding
+frame bank. A transport reset retires the enclosing computer epoch rather than
+manufacturing a new ready session. Writer-control induction and full video
+comparison cover identical qualified release inputs; the actual board ROM model
+separately checks the enclosing reset wiring and stopped-clock retirement with
+a broken-wiring negative control. The outer HDMI wrapper and vendor reset
+controllers still have separate release cones; no reset-domain rule is waived.
+
 The separate ROM stream prototype buffers one 4 KiB or 8 KiB image in
 synchronous FPGA RAM. It accepts complete little-endian 128-bit beats with
 backpressure and exposes no read bytes until exact length, final-beat position

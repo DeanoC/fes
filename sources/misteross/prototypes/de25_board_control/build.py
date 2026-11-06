@@ -206,6 +206,7 @@ def overlay_project(output, board, sources, identity, record=None):
                            (OVERLAY + "fes_de25_read_width.sv", "fes_de25_read_width.sv"),
                            (OVERLAY + "fes_de25_embedded_hw.tcl", "fes_de25_embedded_hw.tcl"),
                            (OVERLAY + "fes_de25_computer.v", "fes_de25_computer.v"),
+                           (OVERLAY + "video.v", "video.v"),
                            (OVERLAY + "generated/fes_de25_computer.vh", "generated/fes_de25_computer.vh"),
                            (OVERLAY + "generated/fes_de25_computer.hpp", "generated/fes_de25_computer.hpp"),
                            (ENDPOINT, "fes_embedded_control.sv"),
@@ -219,7 +220,7 @@ def overlay_project(output, board, sources, identity, record=None):
     script = replace_once(script, anchor, sources[OVERLAY + "integrate.tcl"].decode() + "\n" + anchor)
     inputs_file = output / "hps/inputs.json"
     inputs = json.loads(inputs_file.read_text())
-    for name in ('fes_de25_computer.v','generated/fes_de25_computer.vh','generated/fes_de25_computer.hpp'):
+    for name in ('fes_de25_computer.v','video.v','generated/fes_de25_computer.vh','generated/fes_de25_computer.hpp'):
         inputs['computer']['source_sha256'][name]=digest(sources[OVERLAY+name])
     memory = reader_memory.checked(inputs['reader_memory'])
     mode = reader_memory.mode(memory)
