@@ -68,15 +68,23 @@ tokens: dz """
         dz "REM"
         dz "?"
 
-; Built-in functions, each name with its "(": the first five give
-; numbers, the rest strings.
+; Built-in functions: each name with its "(", then its routine; bit 15:
+; it takes a string, bit 14: it gives a number.
 fn_table:
         db C_A, C_A + 1, C_S, T_LPAREN                          ; ABS(
+        dw fn_abs + 0x4000
         db C_A + 2, C_A + 14, C_A + 3, C_A + 4, T_LPAREN        ; CODE(
+        dw fn_code + 0xc000
         db C_A + 15, C_A + 4, C_A + 4, C_A + 10, T_LPAREN       ; PEEK(
+        dw fn_peek + 0x4000
         db C_A + 17, C_A + 13, C_A + 3, T_LPAREN                ; RND(
+        dw fn_rnd + 0x4000
         db C_A + 20, C_S, C_A + 17, T_LPAREN                    ; USR(
+        dw fn_usr + 0x4000
         db C_A + 2, C_A + 7, C_A + 17, C_DOLLAR, T_LPAREN       ; CHR$(
+        dw fn_chr
         db C_S, C_A + 19, C_A + 17, C_DOLLAR, T_LPAREN          ; STR$(
+        dw fn_str
         db C_A + 19, C_A + 11, C_DOLLAR, T_LPAREN               ; TL$(
+        dw fn_tl + 0x8000
         db 0

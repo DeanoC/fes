@@ -239,9 +239,9 @@ divu:   ld b,d
 
 ; ---------------------------------------------------------------------
 operand:
-        rst 0x18
+        rst 0x18                ; (HL = CH_ADD)
         cp T_LPAREN
-        jr z,.paren
+        jr z,subscript.in
         cp T_MINUS
         ld b,9
         jr z,.unary
@@ -265,23 +265,20 @@ operand:
         jr nz,neg_chk
         inc hl                  ; NOT x = -(x + 1)
         jr neg_hl
-.paren: jr subscript.in
-.num:   ld hl,(CH_ADD)
-        call parse_uint
+.num:   call parse_uint
         jr c,syntax_err         ; 32768 or more
         ld (CH_ADD),hl
         ex de,hl
         set F_NUM,(iy+Y_FLAGS)
         ret
-.str:   ld hl,(CH_ADD)
-        inc hl
+.str:   inc hl
         push hl                 ; the text
 .s:     ld a,(hl)
         ld (CH_ADD),hl
         cp C_NL
         jr z,syntax_err         ; not closed
         inc hl
-        cp C_QUOTE
+        dec a                   ; the closing quote
         jr nz,.s
         ld (CH_ADD),hl
         pop hl
@@ -290,18 +287,13 @@ operand:
 
 ; A function call, variable or array element.
 name_operand:
-        ld hl,(CH_ADD)
         call find_fn
         jr c,.var
         ld (CH_ADD),hl          ; past the function's "("
-        add a,a
-        ld e,a
-        ld d,0
-        ld hl,fn_jumps
-        add hl,de
+        ex de,hl
         ld e,(hl)
         inc hl
-        ld d,(hl)               ; bit 15: string argument; 14: string result
+        ld d,(hl)               ; the routine, as in fn_table
         push de
         call expr
         rst 0x30
@@ -311,10 +303,10 @@ name_operand:
         add a,a
         xor d
         jp p,syntax_err         ; not the argument this function takes
-        set F_NUM,(iy+Y_FLAGS)
+        res F_NUM,(iy+Y_FLAGS)  ; the result's type
         bit 6,d
         jr z,.r
-        res F_NUM,(iy+Y_FLAGS)
+        set F_NUM,(iy+Y_FLAGS)
 .r:     call run_only
         ld a,d
         and 0x3f
@@ -351,11 +343,10 @@ subscript:
         db T_RPAREN
         ret
 
-; HL -> a name: if it is a function followed by its "(", A = the
-; function's number and HL -> after the "("; carry if not.
+; HL -> a name: if it is a function followed by its "(", HL -> after the
+; "(" and DE -> its routine in fn_table; carry if not.
 find_fn:
         ld de,fn_table
-        ld c,0
 .e:     ld a,(de)
         or a
         scf
@@ -369,7 +360,6 @@ find_fn:
         rla
         jr nc,.c                ; up to and including the "("
         pop af
-        ld a,c
         and a
         ret
 .no:    pop hl
@@ -377,13 +367,8 @@ find_fn:
         ld a,(de)
         inc de
         jr nc,.skip
-        dec de
-        inc c
+        inc de                  ; and its routine
         jr .e
-
-fn_jumps:
-        dw fn_abs, fn_code + 0x8000, fn_peek, fn_rnd, fn_usr
-        dw fn_chr + 0x4000, fn_str + 0x4000, fn_tl + 0xc000
 
 fn_abs: bit 7,h
         ret z
@@ -444,7 +429,7 @@ fn_str: ld de,(D_FILE)
         pop hl
         ret
 fn_tl:  ld a,(hl)
-        cp C_QUOTE
+        dec a                   ; ""
         ret z
         inc hl
         ret
