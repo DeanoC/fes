@@ -2766,6 +2766,77 @@ void run_btb_cases(fes_i386::Oracle &oracle, OracleBus &bus, Rtl &rtl, const std
     run_nop_case(oracle, bus, rtl, entries, summary, "btb-cs-size-32", sized, pm, 400);
 }
 
+// The return stack's cases, from CS:0 at linear 1000h in real mode, in
+// lockstep with the oracle. Each loops so the BTB learns its CALLs and RETs
+// and the return stack predicts them, then breaks that prediction; every
+// RET must go where its pop says, whatever the stack predicted.
+//   ras-deep     recursion 20 deep, three times: past the stack's 16
+//                entries, the outer RETs predict entries the wrap overwrote
+//   ras-drop     calls whose return address is dropped: POP AX; JMP AX,
+//                and ADD SP, 2; JMP, between calls that RET
+//   ras-rewrite  a MOV over the return address on the stack before RET,
+//                then a PUSH imm16; RET with no CALL
+//   ras-sizes    RET imm16 after a PUSH and CALL, and a 32-bit CALL (66h E8h)
+//                and RET (66h C3h) in 16-bit code
+//   ras-int      an interrupt handler's frame, PUSHF and a far CALL, then
+//                IRET, around a CALL and RET in the handler, inside a
+//                called function (a directed case fails on any INT n)
+//   ras-store    a store turns a learned RET into INC BX, with a RET
+//                after it: the RET's entry now ends at the INC, where no
+//                RET ends
+//   ras-limit    a learned PUSH imm16; RET in CS 0180h, after CALLs in CS
+//                0100h left the stack's entries below its base: the
+//                predicted EIP, entry less CS.base, is past CS's limit, so
+//                the next instruction stops on the wrong path until the
+//                RET's redirect
+void run_ras_cases(fes_i386::Oracle &oracle, OracleBus &bus, Rtl &rtl, const std::vector<Entry> &entries,
+                   Summary &summary) {
+    State state;
+    for (int k = 0; k < 6; ++k) state.seg[k] = fes_i386::real_mode_segment(0x100);
+    state.eip = 0;
+    state.gpr[fes_i386::REG_ESP] = 0x8000;
+    // MOV DX, 3; O: MOV CX, 20; CALL R; DEC DX; JNZ O; JMP done;
+    // R: DEC CX; JZ Z; CALL R; Z: INC BX; RET; done:
+    run_nop_case(oracle, bus, rtl, entries, summary, "ras-deep",
+                 {0xba, 0x03, 0x00, 0xb9, 0x14, 0x00, 0xe8, 0x05, 0x00, 0x4a, 0x75, 0xf7, 0xeb, 0x08, 0x49, 0x74,
+                  0x03, 0xe8, 0xfa, 0xff, 0x43, 0xc3}, state, 1000);
+    // MOV DX, 6; O: CALL F; DEC DX; JNZ O; JMP done;
+    // F: CALL G; CALL P; CALL S; B: CALL G; RET; G: INC BX; RET;
+    // P: POP AX; JMP AX; S: ADD SP, 2; JMP B; done:
+    run_nop_case(oracle, bus, rtl, entries, summary, "ras-drop",
+                 {0xba, 0x06, 0x00, 0xe8, 0x05, 0x00, 0x4a, 0x75, 0xfa, 0xeb, 0x17, 0xe8, 0x0a, 0x00, 0xe8, 0x09,
+                  0x00, 0xe8, 0x09, 0x00, 0xe8, 0x01, 0x00, 0xc3, 0x43, 0xc3, 0x58, 0xff, 0xe0, 0x83, 0xc4, 0x02,
+                  0xeb, 0xf2}, state, 600);
+    // MOV DX, 6; O: CALL T; B: DEC DX; JNZ O; JMP done;
+    // T: CMP DX, 3; JNE R; MOV BP, SP; MOV WORD [BP], X; R: RET;
+    // X: INC SI; PUSH B; RET; done:
+    run_nop_case(oracle, bus, rtl, entries, summary, "ras-rewrite",
+                 {0xba, 0x06, 0x00, 0xe8, 0x05, 0x00, 0x4a, 0x75, 0xfa, 0xeb, 0x12, 0x83, 0xfa, 0x03, 0x75, 0x07,
+                  0x89, 0xe5, 0xc7, 0x46, 0x00, 0x18, 0x00, 0xc3, 0x46, 0x68, 0x06, 0x00, 0xc3}, state, 600);
+    // MOV DX, 4; O: PUSH AX; CALL F; CALL G (66h E8h rel32); DEC DX; JNZ O;
+    // JMP done; F: INC BX; RET 2; G: INC SI; RET (66h C3h); done:
+    run_nop_case(oracle, bus, rtl, entries, summary, "ras-sizes",
+                 {0xba, 0x04, 0x00, 0x50, 0xe8, 0x0b, 0x00, 0x66, 0xe8, 0x09, 0x00, 0x00, 0x00, 0x4a, 0x75, 0xf3,
+                  0xeb, 0x07, 0x43, 0xc2, 0x02, 0x00, 0x46, 0x66, 0xc3}, state, 600);
+    // MOV DX, 4; O: CALL F; DEC DX; JNZ O; JMP done;
+    // F: PUSHF; CALL 0100h:H; INC BX; RET; H: CALL G; IRET; G: INC SI; RET; done:
+    run_nop_case(oracle, bus, rtl, entries, summary, "ras-int",
+                 {0xba, 0x04, 0x00, 0xe8, 0x05, 0x00, 0x4a, 0x75, 0xfa, 0xeb, 0x0e, 0x9c, 0x9a, 0x13, 0x00, 0x00,
+                  0x01, 0x43, 0xc3, 0xe8, 0x01, 0x00, 0xcf, 0x46, 0xc3}, state, 600);
+    // MOV DX, 6; O: CALL F; DEC DX; JNZ O; JMP done;
+    // F: CMP DX, 3; JNE R; MOV BYTE [CS:R], 43h; R: RET; RET; done:
+    run_nop_case(oracle, bus, rtl, entries, summary, "ras-store",
+                 {0xba, 0x06, 0x00, 0xe8, 0x05, 0x00, 0x4a, 0x75, 0xfa, 0xeb, 0x0d, 0x83, 0xfa, 0x03, 0x75, 0x06,
+                  0x2e, 0xc6, 0x06, 0x16, 0x00, 0x43, 0xc3, 0xc3}, state, 600);
+    // MOV DX, 3; O: CALL F; DEC DX; JNZ O; MOV DX, 4; JMP 0180h:0; F: RET;
+    // then at 800h, CS 0180h's offset 0: L: PUSH 4; RET; DEC DX; JNZ L.
+    std::vector<uint8_t> limit = {0xba, 0x03, 0x00, 0xe8, 0x0b, 0x00, 0x4a, 0x75, 0xfa, 0xba, 0x04, 0x00,
+                                  0xea, 0x00, 0x00, 0x80, 0x01, 0xc3};
+    limit.resize(0x800, 0x90);
+    limit.insert(limit.end(), {0x68, 0x04, 0x00, 0xc3, 0x4a, 0x75, 0xf9});
+    run_nop_case(oracle, bus, rtl, entries, summary, "ras-limit", limit, state, 600);
+}
+
 // ---- SingleStepTests mode ---------------------------------------------------------------
 
 constexpr std::array<const char *, 20> MOO_REGISTERS = {
@@ -6646,6 +6717,7 @@ int main(int argc, char **argv) {
         run_fault_regressions(*oracle, bus, rtl, entries, summary);
         run_smc_cases(*oracle, bus, rtl, entries, summary);
         run_btb_cases(*oracle, bus, rtl, entries, summary);
+        run_ras_cases(*oracle, bus, rtl, entries, summary);
     } else if (mode == "unreal") {
         run_unreal_cases(*oracle, bus, rtl, entries, summary);
     } else if (mode == "pmode") {

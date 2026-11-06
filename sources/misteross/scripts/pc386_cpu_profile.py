@@ -140,12 +140,15 @@ def window(snaps: dict[float, dict], lo: float | None = None, hi: float | None =
 def prediction(t: dict) -> dict:
     """The BTB's direct branches (Jcc, LOOP and its kin, JCXZ, JMP and CALL
     rel): a branch is predicted right when it was predicted taken and taken,
-    or not predicted taken and not taken."""
+    or not predicted taken and not taken. Near RETs: a RET is predicted right
+    when it does not redirect, so the return stack gave its target."""
     br, taken, pt, pt_taken = t['br'], t['br_taken'], t['br_pt'], t['br_pt_taken']
     right = pt_taken + (br - taken - (pt - pt_taken))
     return {'direct': br, 'taken': taken, 'predicted_taken': pt, 'predicted_taken_and_taken': pt_taken,
             'mispredicted': br - right, 'accuracy': round(right / br, 4) if br else None,
-            'fetch_replays': t['fetch_replays']}
+            'fetch_replays': t['fetch_replays'],
+            'ret': t['ret'], 'ret_predicted': t['ret_pt'], 'ret_mispredicted': t['ret_mis'],
+            'ret_accuracy': round(1 - t['ret_mis'] / t['ret'], 4) if t['ret'] else None}
 
 
 def report(w: dict) -> str:
@@ -164,6 +167,9 @@ def report(w: dict) -> str:
         out.append(f'\ndirect branches {p["direct"]:,}: {p["taken"]:,} taken, {p["predicted_taken"]:,} predicted taken, '
                    f'{p["mispredicted"]:,} mispredicted (accuracy {100 * p["accuracy"]:.2f}%), '
                    f'{p["fetch_replays"]:,} fetch replays')
+    if p['ret']:
+        out.append(f'near RETs {p["ret"]:,}: {p["ret_predicted"]:,} predicted, {p["ret_mispredicted"]:,} redirected '
+                   f'(accuracy {100 * p["ret_accuracy"]:.2f}%)')
     out.append(f'\n{"redirects":10s} {"taken":>11s} {"clocks":>13s} {"per taken":>9s}')
     for k, v in sorted(w['redirects_by_class'].items(), key=lambda kv: -kv[1]['clocks']):
         out.append(f'{k:10s} {v["taken"]:11,d} {v["clocks"]:13,d} {v["per_taken"]:9.2f}')

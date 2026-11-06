@@ -727,8 +727,63 @@ the ITLB's page is the linear one with A20M applied.
     instruction are no longer one run of lines. The check compares a store's
     or DMA write's line with the lines of the instructions in Q, DC and D to
     EX, and of the blocks the front end holds or loads next.
-- **Return stack:** 16 entries in flip-flops, holding the linear return address
-  and, for a far call, the CS selector.
+- **Return stack (built, [Phase 4 slice 3](#slices)):** 16 linear return
+  addresses in flip-flops and a top pointer, in the front end
+  (`fes_i386_ras`). It predicts near RET (C3h, C2h).
+  - **Entries.** The BTB keeps an entry for every near RET and CALL rel, with
+    a bit for each. WB allocates a RET's entry as it does a taken branch's,
+    always taken.
+  - **Fetch.** When F2 passes on a block whose chosen entry is a CALL rel's,
+    the stack pushes the linear address after the call's last byte, on the
+    next edge. When it is a RET's, F1 goes to the top, which the stack pops.
+    Only a block F2 passes on moves the stack, and only once. The top's
+    16:1 select feeds only F1's predicted block register and the half's
+    target field. Nothing changes in Q's loop: Q goes on at the target's
+    offset as for any predicted branch.
+  - **D and EX.** Q gives the RET the target's linear address. D gives the
+    next instruction that address less CS.base as its EIP, not wrapped by
+    operand size. EX compares the EIP the RET pops with it. A RET that was
+    not predicted, or whose target differs, redirects to the popped target as
+    a mispredicted branch does. A RET that faults never redirects through
+    this compare.
+  - **Why EX checks.** The fetch check cannot catch a wrong return target.
+    The next instruction's EIP comes from the address fetch went to, so it
+    passes by construction. The fetch check still covers a RET entry where
+    no RET ends, and EX's compare covers the target.
+  - **Recovery.** Pushes and pops at F2 are speculative. WB keeps the
+    committed pointer: near CALLs committed (CALL rel and CALL r/m) less
+    near RETs, modulo 16. Every redirect flushes everything younger than
+    WB and sets the front end's pointer to that count. The redirecting
+    branch in WB commits on the same edge and is counted; a fault's or an
+    interrupt's redirect commits nothing. The selects key on the registers
+    `redirect_linear`'s do.
+  - **Unpredicted CALLs.** A near CALL the front end did not push always
+    redirects at WB: a CALL rel the BTB missed, or any CALL r/m. On that
+    redirect WB writes its return address, CS.base plus the next EIP, at
+    the new top. So a RET after CALL r/m predicts, though slice 5 has yet to
+    predict the CALL.
+  - **Entries are not repaired.** A wrong path's push over a live entry
+    costs a later misprediction, never a result.
+  - **Overflow and underflow.** The pointer wraps. A seventeenth CALL
+    overwrites the oldest entry, so the RETs out of deep recursion predict
+    wrongly once the stack has wrapped. A RET past the bottom predicts
+    whatever entry the wrap gives. Both redirect at EX.
+  - **Programs that drop or rewrite a return address.** These are a CALL
+    whose callee pops its address and jumps (`POP AX`; `JMP AX`), an
+    `ADD SP` past it, a store over it, or a `PUSH`; `RET` with no CALL. Each
+    leaves the stack out of step with the program. The next RETs predict
+    wrongly and redirect, until a redirect sets the pointer back to WB's
+    count. That count is out of step too, so a program that drops return
+    addresses keeps a shifted stack until its returns run out. The cost is
+    redirects, never results.
+  - **Interrupts, exceptions and far transfers.** INT, IRET, far CALL,
+    RETF, task switches and mode changes neither push nor pop. Their
+    redirect or flush sets the pointer back like any other, and a handler's
+    own CALLs and RETs balance. A CS change flushes the front end. An entry
+    left from another CS base then predicts the wrong linear address, and
+    EX's compare redirects it.
+  - **queue16.** Nothing is predicted. WB writes no BTB entry, so no
+    entry pushes or pops.
 - **Indirect** JMP and CALL use the BTB's last target.
 - **Real-mode and V86 far transfers are branches.** Fetch is linear, and in
   these modes a far CALL, JMP or RETF sets the CS base to selector × 16 with no
@@ -1632,11 +1687,21 @@ it runs uncapped.
    - **Risk.** About 6–8 M10K blocks and 500 ALMs. F1's address select gains an
      input, and the front end has +2.4–3.2 ns. This slice also updates speed
      control's reach.
-3. **Return stack.** Sixteen entries in flip-flops. CALL pushes at F2 on a BTB
-   hit of type call, RET pops, and WB repairs it on a mispredict. Lockstep: a
-   return to a modified address, unbalanced CALL and RET, and stack switches.
-   Gain: DOOM and 3DBench about 3%; PCPBench spends most of its set-up in
-   CALL and RET. Risk: low, about 600 flip-flops.
+3. **Return stack.** Built
+   ([record](../../../docs/validation/2026-11-06-i386-phase4-ras/summary.md)):
+   Kit A's DOOM `demo3` goes from 37.5 to 38.7 fps and 3DBench from 71.4 to
+   76.9. In DOOM's bench window, a near RET costs 2.55 clocks where it cost
+   12.15, 94.1% of near RETs retire without a redirect, and CPI falls from
+   1.81 to 1.74. [Prediction](#prediction) describes the stack as built. It
+   differs from the plan below in its repair: WB sets the pointer back on
+   every redirect, and EX, not the fetch check, checks the target.
+   - **Plan.** Sixteen entries in flip-flops. CALL pushes at F2 on a BTB hit
+     of type call, RET pops, and WB repairs it on a mispredict.
+   - **Lockstep.** A return to a modified address, unbalanced CALL and RET,
+     and stack switches.
+   - **Gain.** DOOM and 3DBench about 3%; PCPBench spends most of its set-up
+     in CALL and RET.
+   - **Risk.** Low, about 600 flip-flops.
 4. **Store-to-load wait only on a possible overlap.** D holds a load behind a
    store in AG only when their addresses may overlap, not behind every store.
    Lockstep: store and load pairs at every offset and size, across lines and

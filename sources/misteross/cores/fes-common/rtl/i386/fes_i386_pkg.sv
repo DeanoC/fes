@@ -69,6 +69,10 @@ package fes_i386_pkg;
         logic [1:0]       bctr;
         logic             tk;
         logic             xbad;
+        // ptgt: where Q went on after a predicted taken branch (tk), the
+        // target's linear address. D gives a RET predicted by the return
+        // stack its EIP from it.
+        logic [31:0]      ptgt;
         logic [10:0][7:0] bytes;
     } fetched_t;
 
@@ -76,10 +80,14 @@ package fes_i386_pkg;
     // from WB. An entry describes the first predicted branch of the 16-byte
     // block that holds the branch's last byte: last is that byte's offset,
     // target its target's linear address, ctr a 2-bit counter (taken at 2
-    // or more), uncond a JMP or CALL rel, always taken.
+    // or more), uncond a JMP or CALL rel or a RET, always taken. A CALL rel's
+    // entry (call) pushes the return stack (fes_i386_ras) as F2 predicts it;
+    // a RET's (ret) pops it and goes to its top, not to target.
     typedef struct packed {
         logic        valid;
         logic        uncond;
+        logic        call;
+        logic        ret;
         logic [1:0]  ctr;
         logic [3:0]  last;
         logic [19:0] tag;     // linear address bits 31:12
@@ -92,7 +100,8 @@ package fes_i386_pkg;
         logic [1:0]  ctr;
         logic [3:0]  last;
         logic        taken;   // F2 predicted it taken and fetched its target next
-        logic [3:0]  toff;    // ... at this offset in the target's block
+        logic [27:0] tblk;    // ... this block
+        logic [3:0]  toff;    // ... at this offset in it
     } btb_info_t;
 
     typedef struct packed {
@@ -620,6 +629,7 @@ package fes_i386_pkg;
         logic [1:0]  bctr;
         logic        tk;
         logic        xbad;
+        logic [31:0] ptgt;
     } decoded_t;
 
     // Which of ESI, EDI and ECX (bits 0-2) a uop reads: src1, src2, a CL
@@ -875,6 +885,10 @@ package fes_i386_pkg;
         logic        bm;          // D: the instruction matched a BTB entry (fetched_t bm)
         logic        bway;
         logic [1:0]  bctr;
+        // The return stack (fes_i386_cpu, "Branch prediction").
+        logic        ncall;       // D: a near CALL's jump (CALL rel, CALL r/m)
+        logic        nret;        // D: a near RET (C3h, C2h)
+        logic [31:0] peip;        // D: ... the EIP the return stack predicted, when pt
     } pipe_t;
 
 endpackage

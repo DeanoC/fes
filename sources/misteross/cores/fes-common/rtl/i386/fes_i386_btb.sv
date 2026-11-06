@@ -33,7 +33,7 @@ module fes_i386_btb import fes_i386_pkg::*; (
     output logic        way,
     output btb_entry_t  entry
 );
-    localparam int EW = 60;  // btb_entry_t's width ($bits of a type: not in Yosys)
+    localparam int EW = 62;  // btb_entry_t's width ($bits of a type: not in Yosys)
     (* ramstyle = "M10K" *) logic [EW-1:0] ways0 [0:255];
     (* ramstyle = "M10K" *) logic [EW-1:0] ways1 [0:255];
 
