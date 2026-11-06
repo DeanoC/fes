@@ -70,14 +70,14 @@ eline_reset:
 edit_line:
 .draw:
 ; Check the edit line: X_PTR = the first symbol that cannot be part of a
-; statement (0 if none); F_KMODE if the cursor stands where a keyword goes.
+; statement (below $0100 if none); F_KMODE if the cursor stands where a keyword goes.
         ld hl,(ERR_SP)
         push hl
         ld hl,.fail
         push hl
         ld (ERR_SP),sp
-        ld hl,0
-        ld (X_PTR),hl
+        xor a
+        ld (X_PTR + 1),a        ; no wrong symbol (below $0100)
         ld hl,FLAGS
         res F_KMODE,(hl)
         set F_CHECK,(hl)
@@ -163,11 +163,10 @@ edit_line:
 .ins:   add a,K_UP
         call edit_insert
         jr .draw
-.enter: ld hl,(X_PTR)
-        ld a,h
-        or l
+.enter: ld a,(X_PTR + 1)
+        or a
         jr nz,.key              ; not yet a statement
-        ld (iy+Y_FLAGX),h       ; running: no room is report 4 again
+        ld (iy+Y_FLAGX),a       ; running: no room is report 4 again
         ret
 .input: call expr
         ld a,(FLAGS)
