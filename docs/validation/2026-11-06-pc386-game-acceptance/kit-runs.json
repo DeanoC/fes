@@ -78,7 +78,7 @@
   "disk_sha256": "d5236fa492d88adbb6009caffd0aa9ee9ff4df0777f50f279a989985855b30fd",
   "zip_sha256": "f451d8538266fb9f12a4fa8909a671b37d354de388a9b76d1c1033a6a541ed37",
   "settings": "wolf3d -goobers; New Game, episode 1, Can I play, Daddy?; debug keys (Left Shift+Alt+Backspace), Tab+G god mode, Tab+F position readouts",
-  "route": "E1L1 normal exit, elevator (25,47); 126 tiles; doors (32,57) (34,50) (34,38) (34,28) (34,15) (28,11) (15,17) (10,21) (10,28) (10,38) (17,47) (24,47)",
+  "route": "E1L1 normal exit (elevator); 126 tiles; 11 doors and the elevator door; 7 guards shot",
   "result": "pass",
   "tally": "Floor 1 completed: time 30:03, kill ratio 63%, secret 0%, treasure 0%",
   "frames": {
@@ -91,7 +91,7 @@
    "wexit60c": {"frames": 1800, "sha256": "65d914984e4eaa79ccdce1465ed11dd903da6cd0c6a4e036d1764cde4bc688e9"},
    "wfloor2": {"frames": 1199, "sha256": "7ba8fa76279483bee62eca0e72ee368e43eb09bfe6ea1e77ced98a8f11188a11"}
   },
-  "black_capture_loads": "4 of 9 loads in this run captured pure black for the whole load (game audio still present); the next load captured normally"
+  "black_capture_loads": "4 of 9 loads in this run captured pure black for the whole load (game audio still present); a later load of the same package and disk captured normally"
  },
  "cleanup": {
   "trees_removed": {"b1": 5, "i1": 5, "d1": 5, "w1": 10},

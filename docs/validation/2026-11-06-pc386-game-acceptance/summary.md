@@ -40,7 +40,7 @@ So this PR refers to #1368 and doesn't close it.
   inputs were checked again just before the first claim. Between
   `317310c81` and `5e201aa3b` only documentation changed.
 - **Content.** Phase 4 slices 2–4 (BTB, return stack and the store-to-load
-  check), the #1504 VGA BIOS scroll fix, and the MOUSEDEF games image (#1495).
+  check) and the #1504 VGA BIOS scroll fix.
 
 ## Disks
 
@@ -124,7 +124,7 @@ no-clip or monster switches were used.
 - **How it was steered.** `IDMYPOS` after each leg gave the exact position and
   angle. The legs were planned from the map's line and sector data, read on
   Powerboat; none of it is committed.
-- **Monsters.** Zombies and imps blocked the way four times and were shot.
+- **Monsters.** Zombies and imps blocked the way several times and were shot.
 - **Exit.** The switch press was captured at 60 fps, and the capture shows
   the level ending:
   - The tally: "Hangar Finished", kills 100%, items 16%, secrets 0%, time
@@ -145,15 +145,13 @@ play, Daddy?".
   now available!").
   - Tab+G turned god mode on (frame `7a7956c3…`).
   - Tab+F gave the exact position and angle after each leg (first readout
-    X 1933312, Y 3768320, A 0, which is the start tile (29, 57) facing east;
+    X 1933312, Y 3768320, A 0, which is the start tile facing east;
     frame `e8edd922…`).
-- **Route.** E1L1, 126 tiles to the normal exit (the elevator at (25, 47)).
+- **Route.** E1L1, 126 tiles to the normal exit (the elevator).
   It was planned by a grid search over the level's own wall and object
   planes, read on Powerboat.
-  - It passes the doors at (32, 57), (34, 50), (34, 38), (34, 28), (34, 15),
-    (28, 11), (15, 17), (10, 21), (10, 28), (10, 38), (17, 47) and the
-    elevator door (24, 47).
-  - Eight guards were shot where they stood in the way.
+  - It passes through 11 doors and then the elevator door.
+  - Seven guards were shot where they stood in the way.
   - Turns used mouse counts (8 a degree with this CONFIG.WL6). Walks used
     held Up (5.61 tiles a second).
 - **Exit.** The elevator switch press was captured at 60 fps.
@@ -169,8 +167,8 @@ play, Daddy?".
 - **Black capture on some Kit B loads.** In run `w1`, 4 of 9 loads captured
   pure black (maximum level 0) for the whole load, BIOS and DOS prompt
   included.
-  - In the same session, the next load of the same package and disk captured
-    normally.
+  - A later load of the same package and disk, in the same session,
+    captured normally.
   - The game's audio still played during the black loads, and runs `b1`, `i1`
     and `d1` (10 loads) had none.
   - This looks like the 4KPRO capture or the HDMI link not locking, rather
