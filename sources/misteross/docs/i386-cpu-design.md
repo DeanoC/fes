@@ -988,6 +988,20 @@ descriptor-cache write retires.
     MOVSX, and the 16-bit ADD r, r2 and MOV. In DOOM's and 3DBench's
     profiles they wait on loads or are rare. Jcc and LOOP still resolve at
     EX.
+- **Load forwarding (as built, Phase 4 slice 6b):** a load whose result is
+  its load data, whole, forwards that data to a younger address as soon as
+  M2 has it (`fes_i386_dfwd`'s load kind, `pipe_t ldfwd`).
+  - **Forms.** MOV r32 and POP r32 from memory, and MOVZX r32, whose load
+    data is zero above its size. A 16-bit load keeps its register's high
+    half, and MOVSX and a load-op change the value in EX, so they stay late.
+  - **When.** D issues the younger uop while the load is in M2, and AG takes
+    the value late from the EX register's load data (`pipe_t ld`), not its
+    result. While the load is in EX, D takes the value from that load data
+    too: the table keeps, per GPR, whether its EX value is load data or EX's
+    result, as a POP's register and its ESP are in EX together. A late scaled
+    index still waits one cycle in D.
+  - **Data operands.** Unchanged (`fes_i386_dops`): a load is not early
+    there, and EX takes its value through its own bypass.
 - **Early branches:** a Jcc whose flags are ready at AG, and a LOOP or JCXZ whose
   ECX is ready there, resolve at AG.
 
@@ -1799,7 +1813,7 @@ it runs uncapped.
      class and stage. In DOOM's window AGI is 9.1% of the clocks. Producers
      an early ALU would run cause 2.0–2.3%, nearly all 32-bit ADD, INC, DEC,
      SUB with an immediate, and MOV. Loads cause 4.0%, and half of that is
-     the clock `fes_i386_dfwd`'s unused load kind would save. In 3DBench
+     the clock `fes_i386_dfwd`'s load kind, then unused, would save. In 3DBench
      the early ALU's 3.1% is almost all 16-bit ADD, INC and DEC.
    - **Build.** If the ALU share warrants it, the register and immediate
      ALU forms execute at AG, and Jcc and LOOP resolve there when their

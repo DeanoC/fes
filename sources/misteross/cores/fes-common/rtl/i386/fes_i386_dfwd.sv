@@ -8,7 +8,7 @@
 // A value that completes in the cycle the uop leaves D arrives late, from the
 // register it lands in when the uop is in AG:
 //   the previous uop's early-ALU result (producer in AG)  -> M1 register
-//   load data (producer in M2)                            -> EX register
+//   load data (producer in M2)                            -> EX register's load data
 //   a late-ALU result (producer in EX)                    -> WB register
 // At most one late value reaches AG, entering its last 3:2 row as a base or an
 // unscaled index. D stalls the uop when a late value would be a scaled index,
@@ -24,6 +24,13 @@
 // each GPR's registered select to the result registers, beside the addressing
 // decode, and picks its base and index, and whether they stall, by register
 // number.
+//
+// A load producer (LOAD) is one whose result is its load data, whole (pipe_t
+// ld, fes_i386_cpu ldfwd): late into AG from the EX register's load data while
+// it is in M2, then from that load data while it is in EX, then from WB's
+// result. The table keeps, per GPR, whether its EX value is load data rather
+// than EX's result register, as it keeps whether its WB value is ESP from AG:
+// a POP's ESP and its register are in EX together, from each.
 //
 // The table follows the pipeline. D to WB only ever hold together (hold),
 // when nothing moves, so the table keeps its state.
@@ -65,6 +72,7 @@ module fes_i386_dfwd (
     input  logic [7:0][31:0]  gpr,
     input  logic [3:0][31:0]  stage_value,  // M1, M2, EX and WB result registers
     input  logic [31:0]       wb_sp,        // the WB register's ESP from AG (pipe_t sp_new)
+    input  logic [31:0]       ex_ld,        // the EX register's load data (pipe_t ld)
     output logic [31:0]       row,
     output logic [31:0]       last,
     output logic [1:0]        late,
@@ -86,6 +94,7 @@ module fes_i386_dfwd (
     logic [7:0][3:0] ready_next, ready;
     logic [7:0]      late_next, wait_next, lt, wt;
     logic [7:0]      sp_wb_next, sp_wb;  // ESP from WB's sp_new, not its result
+    logic [7:0]      ld_ex_next, ld_ex;  // the value from EX's load data, not its result
     logic [7:0][1:0] source_next, src;
 
     for (genvar r = 0; r < 8; r++) begin : g_table
@@ -95,6 +104,7 @@ module fes_i386_dfwd (
             source_next[r] = 2'd0;
             wait_next[r] = 1'b0;
             sp_wb_next[r] = 1'b0;
+            ld_ex_next[r] = 1'b0;
             // Oldest first, so the youngest producer decides. A stack
             // operation's ESP is early.
             if (prod_valid[3] && prod_dst[3] == 3'(r)) begin
@@ -115,6 +125,7 @@ module fes_i386_dfwd (
                 late_next[r] = prod_kind[2] == LATE;
                 source_next[r] = 2'd3;
                 wait_next[r] = 1'b0;
+                ld_ex_next[r] = prod_kind[2] == LOAD;
             end
             if (r == 4 && prod_sp[1]) begin
                 ready_next[r] = 4'b0010;
@@ -161,9 +172,11 @@ module fes_i386_dfwd (
             lt <= '0;
             wt <= '0;
             sp_wb <= '0;
+            ld_ex <= '0;
         end else if (!hold) begin
             ready <= ready_next;
             sp_wb <= sp_wb_next;
+            ld_ex <= ld_ex_next;
             for (int r = 0; r < 8; r++) begin
                 lt[r] <= d_w[r] ? d_early[r] : late_next[r];
                 wt[r] <= d_w[r] ? !d_early[r] : wait_next[r];
@@ -179,7 +192,8 @@ module fes_i386_dfwd (
     logic [7:0][31:0] value;
     for (genvar r = 0; r < 8; r++) begin : g_value
         assign value[r] = ({32{ready[r][0]}} & stage_value[0]) | ({32{ready[r][1]}} & stage_value[1])
-                        | ({32{ready[r][2]}} & stage_value[2]) | ({32{ready[r][3] && !sp_wb[r]}} & stage_value[3])
+                        | ({32{ready[r][2] && !ld_ex[r]}} & stage_value[2]) | ({32{ready[r][2] && ld_ex[r]}} & ex_ld)
+                        | ({32{ready[r][3] && !sp_wb[r]}} & stage_value[3])
                         | ({32{ready[r][3] && sp_wb[r]}} & wb_sp) | ({32{ready[r] == 4'b0000}} & gpr[r]);
     end
 

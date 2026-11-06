@@ -844,6 +844,7 @@ package fes_i386_pkg;
         logic [2:0]  dist_b;
         logic [2:0]  dist_c;
         logic        early;       // the result is ready at the end of AG (LEA)
+        logic        ldfwd;       // the result is the load data, whole (pipe_t ld): a 32-bit MOV, MOVZX or POP load
         logic [31:0] sp_new;      // AG: ESP after a stack operation (uop sp_write)
         logic [31:0] maddr;       // AG: the memory operand's linear address
         logic [31:0] moff;        // ... its offset
