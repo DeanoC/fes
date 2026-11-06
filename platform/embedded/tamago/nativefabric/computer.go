@@ -163,7 +163,7 @@ type ComputerObservation struct {
 }
 
 // ComputerSession owns one native control-only scope. It grants no data-path
-// release, BootHandoffVerifier or ordinary runtime profile. Close must be called
+// release or BootHandoffVerifier. Close must be called
 // on success and failure; retaining Control after Close confers no MMIO access.
 type ComputerSession struct {
 	mu      sync.Mutex

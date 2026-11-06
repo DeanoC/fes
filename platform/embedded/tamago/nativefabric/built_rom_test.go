@@ -22,8 +22,15 @@ func (c *preflightOnlyROMCPU) Invoke([7]uint64) ([4]uint64, error) {
 // receipt and catalog, with a modeled active SD lease and no firmware access.
 func TestBuiltROMSelectionPreflightsWithoutFirmwareIO(t *testing.T) {
 	dir := os.Getenv("FES_NANO_ROM_BUILD")
+	constructor := NewROMHPSContextVerifier
+	if computer := os.Getenv("FES_NANO_COMPUTER_BUILD"); computer != "" {
+		if dir != "" {
+			t.Fatal("select exactly one diagnostic ROM or native computer artifact")
+		}
+		dir, constructor = computer, NewComputerHPSContextVerifier
+	}
 	if dir == "" {
-		t.Skip("set FES_NANO_ROM_BUILD to a freshly built held-ROM SDK directory")
+		t.Skip("set FES_NANO_ROM_BUILD or FES_NANO_COMPUTER_BUILD to a freshly built artifact directory")
 	}
 	read := func(name string, limit int64) []byte {
 		t.Helper()
@@ -40,7 +47,7 @@ func TestBuiltROMSelectionPreflightsWithoutFirmwareIO(t *testing.T) {
 	}
 	cpu := &preflightOnlyROMCPU{}
 	control, computer := read("hps-control.json", 8192), read("hps-computer.json", 8192)
-	v, err := NewROMHPSContextVerifier(cpu, read("hps-context.json", 8192), control, computer, read("hps-rom.json", 8192))
+	v, err := constructor(cpu, read("hps-context.json", 8192), control, computer, read("hps-rom.json", 8192))
 	if err != nil {
 		t.Fatal(err)
 	}

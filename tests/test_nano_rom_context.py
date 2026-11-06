@@ -163,4 +163,19 @@ class ROMContextTests(unittest.TestCase):
         self.assertIn('#define FES_NANO_COLD_ROM 0',cold.header(p))
 
 
+class NativeComputerContextTests(ROMContextTests):
+    def setUp(self):
+        super().setUp()
+        self.context.update(programming_profile=hps.COMPUTER_PROFILE,
+                            core_id='fes.zx81',abi='fes.computer',abi_major=1,abi_minor=0)
+
+    def test_native_source_requires_its_own_exact_boot_contract(self):
+        self.assertTrue(hps.uses_held_rom(self.context))
+        for key,value in [('abi','fes.de25-embedded-diagnostic'),('abi_major',True),
+                          ('abi_minor',1),('control_abi',0x10203040),('core_id','fes.other')]:
+            with self.subTest(field=key),self.assertRaises(ValueError):
+                hps.validate_rom(dict(self.context,**{key:value}),self.control,self.computer,self.rom)
+        self.assertTrue(hps.uses_held_rom(dict(self.context,core_id='fes.zx80')))
+
+
 if __name__=='__main__':unittest.main()

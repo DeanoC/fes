@@ -146,9 +146,14 @@ func newHPSContextVerifier(cpu FirmwareCaller, source []byte, extraProfile strin
 	profileMatchesABI := c.ProgrammingProfile == HPSFirstDiagnosticProfile && c.ControlABI == 0x10203040 ||
 		c.ProgrammingProfile == HPSFirstDDRDiagnosticProfile && c.ControlABI == 0x10203041 ||
 		extraProfile == HPSFirstWindowDiagnosticProfile && c.ProgrammingProfile == HPSFirstWindowDiagnosticProfile && c.ControlABI == 0x10203042 ||
-		extraProfile == HPSFirstROMDiagnosticProfile && c.ProgrammingProfile == HPSFirstROMDiagnosticProfile && c.ControlABI == 0x10203041
+		extraProfile == HPSFirstROMDiagnosticProfile && c.ProgrammingProfile == HPSFirstROMDiagnosticProfile && c.ControlABI == 0x10203041 ||
+		extraProfile == NativeComputerProfile && nativeComputerSource(c)
+	coreMatchesABI := c.CoreID == "fes.de25-embedded-diagnostic" && c.ABI == c.CoreID
+	if c.ProgrammingProfile == NativeComputerProfile {
+		coreMatchesABI = extraProfile == NativeComputerProfile && nativeComputerSource(c)
+	}
 	if c.Format != 1 || c.Scope != hpsContextScope || c.Platform != "de25_nano" || c.Device != "A5EB013BB23BE4SCS" ||
-		!profileMatchesABI || c.CoreID != "fes.de25-embedded-diagnostic" || c.ABI != c.CoreID ||
+		!profileMatchesABI || !coreMatchesABI ||
 		c.Major != 1 || c.Minor != 0 || c.HPSInitialization != "HPS FIRST" ||
 		!nonzeroDigest(c.PackageID) || !validHex(c.BuildID, 32) || c.BuildID == strings.Repeat("0", 32) ||
 		!nonzeroDigest(c.BuildInputsSHA256) || !nonzeroDigest(c.CoreSHA256) || !nonzeroDigest(c.HPSIOHash) ||
@@ -160,7 +165,7 @@ func newHPSContextVerifier(cpu FirmwareCaller, source []byte, extraProfile strin
 	return &HPSContextVerifier{cpu: cpu, context: c, digest: sha256.Sum256(source)}, nil
 }
 
-// Identity describes the compiled diagnostic package; it grants no admission.
+// Identity describes the compiled boot package; it grants no admission.
 func (v *HPSContextVerifier) Identity() fabricmodel.PackageIdentity {
 	c := v.context
 	return fabricmodel.PackageIdentity{PackageID: c.PackageID, BuildID: c.BuildID, ProgrammedSHA256: c.CoreSHA256,

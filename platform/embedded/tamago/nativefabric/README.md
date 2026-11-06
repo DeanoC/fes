@@ -1,5 +1,23 @@
 # Native contained-fabric endpoint
 
+`NewComputerHPSContextVerifier` explicitly selects the source-bound
+`de25-native-computer-v1` / `fes.computer` 1.0 boot contract. It requires the
+complete compiled control, computer and held-ROM maps. The default and ROM
+diagnostic constructors reject this profile; the computer constructor rejects
+diagnostic sources. `ProgramLoader` requires both the independent shared
+profile/ABI policy and the native driver's fixed video, HID, ZX81 tape and ROM
+inventory before containing SD. Neither inventory nor hardware addresses come
+from a selection. A changed live secure boot context after containment retires
+the service before reservation/configuration. Existing owned firmware prepare,
+master-stop and storage-return checks remain mandatory on every cycle.
+
+The source and build tools carry this profile through native entry and the
+cold firmware's existing held-ROM path. Selecting its verified producer project
+requires the selected-program/computer/ROM options; the builder links an explicit
+native-computer selection into `fpgaload`. This is implementation and off-board
+evidence only. Timing, physical video/input and the matched board boot remain
+separate acceptance gates.
+
 `NewROMHPSContextVerifier` explicitly selects the held-ROM diagnostic contract.
 It validates complete compiled control, computer and ROM maps without I/O; the
 ordinary verifier rejects that profile. Its `ProgramLoader` accepts only a
@@ -41,6 +59,10 @@ before containment, without granting boot or hardware acceptance.
 `FES_NANO_ROM_CATALOG` can additionally select a private directory containing
 the actual `FES/` upload files, so two firmware choices and their distinct
 receipts are checked against the same compiled SDK resources.
+For the standard package, use `FES_NANO_COMPUTER_BUILD` instead of
+`FES_NANO_ROM_BUILD`; the test then requires the explicit computer constructor
+and normal ABI/driver admission. Set only one artifact variable. This check
+never opens firmware or contains the modeled SD lease.
 
 The shared-gamepad input loop now emits `FES_NATIVE_CORE_GAMEPAD` on the serial
 platform after a changed key matrix has completed its owned write. Receipts

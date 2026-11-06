@@ -307,7 +307,7 @@ def build(args):
         hps=importlib.util.module_from_spec(spec);spec.loader.exec_module(hps)
         hps_project=hps_project.resolve(strict=True)
         context=hps.derive(hps_project)
-        rom_profile=context['programming_profile']==hps.ROM_PROFILE
+        rom_profile=hps.uses_held_rom(context)
         if rom_profile:
             if not selected_programs or not computer_control or firmware_rom is None or rom_host_go is None:
                 raise ValueError('ROM source requires selected computer programs, --firmware-rom and --rom-host-go')
@@ -457,6 +457,7 @@ def build(args):
     if window_service:link_flags+=' -X main.expectedWindowService=1'
     if tenfoot_serial:link_flags+=' -X main.expectedTenfootSerial=1'
     if computer_map is not None:link_flags+=' -X main.expectedComputerMap='+base64.b64encode(hps.encode(computer_map)).decode()
+    if context is not None and context['programming_profile']==hps.COMPUTER_PROFILE:link_flags+=' -X main.expectedNativeComputer=1'
     if rom_map is not None:link_flags+=' -X main.expectedROMMap='+base64.b64encode(hps.encode(rom_map)).decode()
     if computer_reload:link_flags+=' -X main.expectedComputerReload=1'
     if computer_storage_return:link_flags+=' -X main.expectedComputerStorageReturn=1'

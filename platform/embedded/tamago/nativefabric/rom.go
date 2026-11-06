@@ -8,6 +8,19 @@ import (
 )
 
 const HPSFirstROMDiagnosticProfile = "de25-embedded-hps-first-rom-diagnostic-v1"
+const NativeComputerProfile = "de25-native-computer-v1"
+
+// This source constructor selects only the reviewed boot producer. Runtime
+// selections are independently checked against the shared ABI/profile registry.
+func nativeComputerSource(c HPSBootContext) bool {
+	return c.ProgrammingProfile == NativeComputerProfile && c.ABI == "fes.computer" &&
+		c.Major == 1 && c.Minor == 0 && c.ControlABI == 0x10203041 &&
+		(c.CoreID == "fes.zx80" || c.CoreID == "fes.zx81")
+}
+
+func heldROMProfile(profile string) bool {
+	return profile == HPSFirstROMDiagnosticProfile || profile == NativeComputerProfile
+}
 
 type romControlMap struct {
 	Format            int               `json:"format"`
@@ -31,9 +44,24 @@ type romControlMap struct {
 // NewROMHPSContextVerifier requires all compiled ROM/computer maps explicitly.
 // It performs no I/O, maps no CSR, and grants no bridge or programming authority.
 func NewROMHPSContextVerifier(cpu FirmwareCaller, source, control, computer, rom []byte) (*HPSContextVerifier, error) {
-	v, err := newHPSContextVerifier(cpu, source, HPSFirstROMDiagnosticProfile)
+	return newHeldROMHPSContextVerifier(cpu, source, control, computer, rom, HPSFirstROMDiagnosticProfile)
+}
+
+// NewComputerHPSContextVerifier explicitly selects the native fes.computer boot
+// source and its held-ROM resources. It supplies no live boot qualification or
+// physical activation permission; ProgramLoader additionally checks semantics
+// and its compiled driver inventory before storage containment.
+func NewComputerHPSContextVerifier(cpu FirmwareCaller, source, control, computer, rom []byte) (*HPSContextVerifier, error) {
+	return newHeldROMHPSContextVerifier(cpu, source, control, computer, rom, NativeComputerProfile)
+}
+
+func newHeldROMHPSContextVerifier(cpu FirmwareCaller, source, control, computer, rom []byte, profile string) (*HPSContextVerifier, error) {
+	v, err := newHPSContextVerifier(cpu, source, profile)
 	if err != nil {
 		return nil, err
+	}
+	if v.context.ProgrammingProfile != profile {
+		return nil, errors.New("native fabric: boot source differs from explicitly selected ROM profile")
 	}
 	m, err := checkedROMMapFor(v.context, control, computer, rom)
 	if err != nil {
@@ -45,7 +73,7 @@ func NewROMHPSContextVerifier(cpu FirmwareCaller, source, control, computer, rom
 
 func checkedROMMapFor(source HPSBootContext, control, computer, raw []byte) (romControlMap, error) {
 	var m romControlMap
-	if source.ProgrammingProfile != HPSFirstROMDiagnosticProfile || source.ControlABI != 0x10203041 {
+	if !heldROMProfile(source.ProgrammingProfile) || source.ControlABI != 0x10203041 {
 		return m, errors.New("native fabric: explicit held-ROM source required")
 	}
 	c, err := checkedControlMapFor(source, control)

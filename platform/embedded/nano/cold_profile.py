@@ -221,7 +221,7 @@ def header(profile):
         window=reader_memory.get('scope')=='sealed-cold-window-reader-memory-v1'
         if (configuration is None or control is None or not profile['sd_pio'] or
                 profile['hps_context']['programming_profile'] not in (('de25-embedded-hps-first-window-diagnostic-v1',) if window else
-                    ('de25-embedded-hps-first-ddr-diagnostic-v1',hps_context.ROM_PROFILE)) or
+                    ('de25-embedded-hps-first-ddr-diagnostic-v1',*hps_context.ROM_PROFILES)) or
                 type(profile.get('window_memory',False)) is not bool or profile.get('window_memory',False)!=window or
                 profile.get('hps_reader_memory_sha256')!=hps_context.digest(reader_memory)):
             raise ValueError('cold reader memory requires its source-bound DDR configuration profile')
@@ -317,7 +317,7 @@ def header(profile):
         extra+='#define FES_NANO_COMPUTER_MAP_SHA '+array(profile['hps_computer_sha256'])+'\n'
     extra+='#define FES_NANO_COLD_COMPUTER '+str(int(computer is not None))+'\n'
     rom=profile.get('hps_rom')
-    rom_profile=(profile.get('hps_context') or {}).get('programming_profile')==hps_context.ROM_PROFILE
+    rom_profile=hps_context.uses_held_rom(profile.get('hps_context') or {})
     if rom is not None:
         if (not rom_profile or computer is None or reader_memory is None or
                 profile.get('hps_rom_sha256')!=hps_context.digest(rom)):

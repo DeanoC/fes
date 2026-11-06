@@ -23,6 +23,19 @@ usb_selection=importlib.util.module_from_spec(_usb_spec);_usb_spec.loader.exec_m
 PROTOTYPE = ROOT/'sources/misteross/prototypes/de25_board_control'
 SCOPE = 'source-bound-hps-first-context-v1'
 ROM_PROFILE = 'de25-embedded-hps-first-rom-diagnostic-v1'
+COMPUTER_PROFILE = 'de25-native-computer-v1'
+ROM_PROFILES = (ROM_PROFILE, COMPUTER_PROFILE)
+
+
+def uses_held_rom(context):
+    if context.get('programming_profile') == COMPUTER_PROFILE:
+        if (any(type(context.get(k)) is not int for k in ('abi_major', 'abi_minor', 'control_abi')) or
+                (context.get('abi'), context.get('abi_major'), context.get('abi_minor'),
+                 context.get('control_abi')) != ('fes.computer', 1, 0, 0x10203041) or
+                context.get('core_id') not in ('fes.zx80', 'fes.zx81')):
+            raise ValueError('native computer boot requires the sealed fes.computer 1.0 producer contract')
+        return True
+    return context.get('programming_profile') == ROM_PROFILE
 
 
 def encode(context):
@@ -219,7 +232,7 @@ def reader_memory_contract(context, parameters):
                 'cpu_attributes':'normal-uncached','lifetime':'until-reboot',
                 'fpga_addressing':'physical-identity-unqualified',
                 'row_bytes':5120,'stride':5120,'rows':720,'frame_bytes':3686400,'pixel_format':'xrgb8888'}
-    if (context['programming_profile'] not in ('de25-embedded-hps-first-ddr-diagnostic-v1', ROM_PROFILE) or
+    if (context['programming_profile'] not in ('de25-embedded-hps-first-ddr-diagnostic-v1', *ROM_PROFILES) or
             context['control_abi'] != 0x10203041 or
             parameters.get('reader_memory_backend') != 'hps-ddr' or
             type(parameters.get('reader_memory_base')) is not int or parameters['reader_memory_base'] != 0x95000000 or
@@ -317,7 +330,7 @@ def _derive(project):
     profile = seal.profile_for(source)
     if package.fields['target']['programming_profile'] != profile:
         raise ValueError('package profile differs from the sealed memory backend')
-    return {
+    context = {
         'format': 1, 'scope': SCOPE, 'platform': seal.PLATFORM, 'device': seal.DEVICE,
         'programming_profile': profile, 'core_id': package.fields['core']['id'],
         'abi': abi['id'], 'abi_major': abi['major'], 'abi_minor': abi['minor'],
@@ -332,6 +345,8 @@ def _derive(project):
         'peripheral_offset': source['embedded_control']['peripheral_offset'],
         'peripheral_span': source['embedded_control']['span'],
     }
+    uses_held_rom(context)
+    return context
 
 
 def _control(project):
@@ -377,7 +392,7 @@ def _control(project):
     result={'format':1,'scope':'sealed-lw-identity-probe-v1','architectural_lw_base':base,
             'bridge_base':bridge,'peripheral_offset':offset,'span':end-start,'cpu_base':base+bridge+offset,
             'handoff_sha256':sha,'package_id':context['package_id'],'build_id':context['build_id']}
-    if context['programming_profile'] in ('de25-embedded-hps-first-ddr-diagnostic-v1','de25-embedded-hps-first-window-diagnostic-v1', ROM_PROFILE):
+    if context['programming_profile'] in ('de25-embedded-hps-first-ddr-diagnostic-v1','de25-embedded-hps-first-window-diagnostic-v1', *ROM_PROFILES):
         _fabric_stop_inventory(Path(project))
         route=parameters('subsys_periph_pb_cpu_0.m0','subsys_periph_fes_ddr_probe.avs')
         probes=[s for s in slaves if s.get('name')=='subsys_periph.fes_ddr_probe.avs']
@@ -473,7 +488,7 @@ def _computer(project):
 
 def validate_rom(context, control_map, computer_map, mapping):
     """Validate a compiled resource description, never grant bridge authority."""
-    if (not isinstance(mapping, dict) or not isinstance(context,dict) or context.get('programming_profile') != ROM_PROFILE or
+    if (not isinstance(mapping, dict) or not isinstance(context,dict) or not uses_held_rom(context) or
             context.get('control_abi') != 0x10203041 or not isinstance(control_map, dict) or not isinstance(computer_map, dict) or
             computer_map.get('control_map_sha256') != digest(control_map) or
             computer_map.get('package_id') != context['package_id'] or
@@ -508,7 +523,7 @@ def validate_rom(context, control_map, computer_map, mapping):
 
 def _rom(project):
     context=_derive(project)
-    if context['programming_profile'] != ROM_PROFILE:
+    if not uses_held_rom(context):
         return None
     project=Path(project).absolute();hps=project/'board/hps'
     control_map=_control(project);computer_map=_computer(project)
@@ -634,7 +649,7 @@ def _program_parameters(project):
 
 def _program_platform(project, context=None):
     context = _derive(project) if context is None else context
-    if context['programming_profile'] not in ('de25-embedded-hps-first-ddr-diagnostic-v1', ROM_PROFILE):
+    if context['programming_profile'] not in ('de25-embedded-hps-first-ddr-diagnostic-v1', *ROM_PROFILES):
         raise ValueError('selected programs require the complete contained DDR-shell inventory')
     parameters = _program_parameters(project)
     pinmux = _hps_io(project)
@@ -654,7 +669,7 @@ def _selected_program(project, rom_receipt_sha256=None):
             'package_id': context['package_id'], 'build_id': context['build_id'],
             'platform': _program_platform(project, context)['platform'],
             'control': _control(project), 'computer': _computer(project)}
-    if context.get('programming_profile') == ROM_PROFILE:
+    if uses_held_rom(context):
         if not isinstance(rom_receipt_sha256, str) or not re.fullmatch('[0-9a-f]{64}', rom_receipt_sha256) or rom_receipt_sha256 == '0'*64:
             raise ValueError('ROM metadata requires the selected retained activation receipt')
         record.update(scope='nano-selected-rom-program-v1', rom=_rom(project), rom_receipt_sha256=rom_receipt_sha256)
@@ -837,7 +852,7 @@ def checked_rom(record, program_key='program'):
     context=record.get('hps_context')
     if context is not None and not isinstance(context,dict):
         raise ValueError('ROM selection requires a complete HPS context')
-    selected=context is not None and context.get('programming_profile')==ROM_PROFILE
+    selected=context is not None and uses_held_rom(context)
     if not selected:
         if any(record.get(k) is not None for k in keys):
             raise ValueError('ROM resources require the explicit sealed ROM producer profile')

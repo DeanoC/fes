@@ -30,6 +30,7 @@ var expectedWindowPresent, expectedWindowStorageReturn, expectedWindowReload str
 var expectedWindowService string
 var expectedComputerMap, expectedComputerReload string
 var expectedROMMap string
+var expectedNativeComputer string
 var expectedComputerStorageReturn string
 var expectedProgramPlatform, expectedSelectedPrograms string
 var expectedTenfootSerial string
@@ -76,6 +77,9 @@ func main() {
 	control, configuration := decoded(expectedControlMap, 8192), decoded(expectedConfigurationMap, 32768)
 	var v *nativefabric.HPSContextVerifier
 	var err error
+	if expectedNativeComputer != "" && (expectedNativeComputer != "1" || expectedROMMap == "" || expectedWindowMemory != "") {
+		panic("native computer requires its explicitly selected complete held-ROM resources")
+	}
 	if expectedWindowMemory != "" {
 		if expectedWindowMemory != "1" || expectedROMMap != "" || expectedDDRReadMap != "" || expectedComputerMap != "" || expectedComputerReload != "" || expectedProgramPlatform != "" || expectedSelectedPrograms != "" || expectedComputerStorageReturn != "" {
 			panic("window memory requires its separate contained frame diagnostic")
@@ -85,7 +89,11 @@ func main() {
 		if expectedWindowReadMap != "" || expectedDDRReadMap != "" || expectedSelectedPrograms != "1" || expectedComputerMap == "" {
 			panic("held ROM requires selected computer programs and its complete compiled resources")
 		}
-		v, err = nativefabric.NewROMHPSContextVerifier(cpu, decoded(expectedBootContext, 8192), control, decoded(expectedComputerMap, 8192), decoded(expectedROMMap, 8192))
+		if expectedNativeComputer == "1" {
+			v, err = nativefabric.NewComputerHPSContextVerifier(cpu, decoded(expectedBootContext, 8192), control, decoded(expectedComputerMap, 8192), decoded(expectedROMMap, 8192))
+		} else {
+			v, err = nativefabric.NewROMHPSContextVerifier(cpu, decoded(expectedBootContext, 8192), control, decoded(expectedComputerMap, 8192), decoded(expectedROMMap, 8192))
+		}
 	} else {
 		if expectedWindowReadMap != "" {
 			panic("window reads require the complete compiled reservation")

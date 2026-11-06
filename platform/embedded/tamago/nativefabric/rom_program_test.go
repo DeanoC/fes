@@ -77,10 +77,17 @@ type romProgramFixture struct {
 }
 
 func romProgramTest(t *testing.T) *romProgramFixture {
+	return romProgramTestFor(t, HPSFirstROMDiagnosticProfile)
+}
+
+func romProgramTestFor(t *testing.T, profile string) *romProgramFixture {
 	t.Helper()
 	old, cpu, lease, _, _, control, configuration, computer, _ := storedComputer(t)
 	context := old.context
-	context.ProgrammingProfile = HPSFirstROMDiagnosticProfile
+	context.ProgrammingProfile = profile
+	if profile == NativeComputerProfile {
+		context.CoreID, context.ABI = "fes.zx81", "fes.computer"
+	}
 	context.ControlABI = 0x10203041
 	var ctrl hpsControlMap
 	var comp computerMap
@@ -111,7 +118,11 @@ func romProgramTest(t *testing.T) *romProgramFixture {
 		t.Fatal(err)
 	}
 	port.chunkBytes = config.ChunkBytes
-	v, err := NewROMHPSContextVerifier(port, raw, control, computer, romRaw)
+	constructor := NewROMHPSContextVerifier
+	if profile == NativeComputerProfile {
+		constructor = NewComputerHPSContextVerifier
+	}
+	v, err := constructor(port, raw, control, computer, romRaw)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -189,6 +200,10 @@ func romProgramTest(t *testing.T) *romProgramFixture {
 }
 
 func addROMProgram(t *testing.T, r *romProgramFixture, index, size int) (packagestore.Request, selectedROMProgramRecord, []byte) {
+	return addROMProgramChanged(t, r, index, size, nil)
+}
+
+func addROMProgramChanged(t *testing.T, r *romProgramFixture, index, size int, change func(string) string) (packagestore.Request, selectedROMProgramRecord, []byte) {
 	t.Helper()
 	l := r.f.loader
 	p := l.platform
@@ -234,6 +249,29 @@ file = "rom-map.json"
 size = %d
 sha256 = "%x"
 `, index, p.Platform, p.Device, p.ProgrammingProfile, len(data), sum, p.ABI, p.Major, p.Minor, build, size, len(mapping), mapSum)
+	if p.ProgrammingProfile == NativeComputerProfile {
+		manifest = strings.Replace(manifest, fmt.Sprintf("fes.selected-rom-fixture-%d", index), "fes.zx81", 1)
+		manifest += `
+[[interfaces]]
+id = "fes.video.fixed-720p60"
+major = 1
+minor = 0
+required = true
+[[interfaces]]
+id = "fes.keyboard.hid"
+major = 1
+minor = 0
+required = true
+[[interfaces]]
+id = "fes.media.zx81-tape"
+major = 1
+minor = 0
+required = true
+`
+	}
+	if change != nil {
+		manifest = change(manifest)
+	}
 	dir := t.TempDir()
 	for name, b := range map[string][]byte{"manifest.toml": []byte(manifest), "core.rbf": data, "rom-map.json": mapping} {
 		if err := os.WriteFile(filepath.Join(dir, name), b, 0600); err != nil {
@@ -276,7 +314,13 @@ sha256 = "%x"
 }
 
 func TestROMProgramServicePublishesRetainedImagesAndReturns(t *testing.T) {
-	r := romProgramTest(t)
+	for _, profile := range []string{HPSFirstROMDiagnosticProfile, NativeComputerProfile} {
+		t.Run(profile, func(t *testing.T) { testROMProgramServicePublishesRetainedImagesAndReturns(t, profile) })
+	}
+}
+
+func testROMProgramServicePublishesRetainedImagesAndReturns(t *testing.T, profile string) {
+	r := romProgramTestFor(t, profile)
 	var old ProgramSession
 	for cycle, size := range []int{8192, 4096, 8192} {
 		req, _, data := addROMProgram(t, r, cycle, size)
@@ -308,7 +352,13 @@ func TestROMProgramServicePublishesRetainedImagesAndReturns(t *testing.T) {
 }
 
 func TestROMBackendDistinguishesTwoFirmwareImagesForOneFPGAPackage(t *testing.T) {
-	r := romProgramTest(t)
+	for _, profile := range []string{HPSFirstROMDiagnosticProfile, NativeComputerProfile} {
+		t.Run(profile, func(t *testing.T) { testROMBackendDistinguishesTwoFirmwareImagesForOneFPGAPackage(t, profile) })
+	}
+}
+
+func testROMBackendDistinguishesTwoFirmwareImagesForOneFPGAPackage(t *testing.T, profile string) {
+	r := romProgramTestFor(t, profile)
 	first, record, _ := addROMProgram(t, r, 0, 8192)
 	firstImage := bytes.Clone(r.cpu.expectedROM)
 	secondImage := bytes.Clone(firstImage)
@@ -378,7 +428,13 @@ func TestROMBackendDistinguishesTwoFirmwareImagesForOneFPGAPackage(t *testing.T)
 }
 
 func TestROMConsolePublishesOnlyTheLiveRetainedReceipt(t *testing.T) {
-	r := romProgramTest(t)
+	for _, profile := range []string{HPSFirstROMDiagnosticProfile, NativeComputerProfile} {
+		t.Run(profile, func(t *testing.T) { testROMConsolePublishesOnlyTheLiveRetainedReceipt(t, profile) })
+	}
+}
+
+func testROMConsolePublishesOnlyTheLiveRetainedReceipt(t *testing.T, profile string) {
+	r := romProgramTestFor(t, profile)
 	request, _, _ := addROMProgram(t, r, 0, 8192)
 	c, err := NewProgramConsole(r.f.s, []packagestore.Request{request})
 	if err != nil {
@@ -401,9 +457,15 @@ func TestROMConsolePublishesOnlyTheLiveRetainedReceipt(t *testing.T) {
 }
 
 func TestROMProgramServiceRetiresUncertainStageAndFirmwareFailures(t *testing.T) {
+	for _, profile := range []string{HPSFirstROMDiagnosticProfile, NativeComputerProfile} {
+		t.Run(profile, func(t *testing.T) { testROMProgramServiceRetiresUncertainStageAndFirmwareFailures(t, profile) })
+	}
+}
+
+func testROMProgramServiceRetiresUncertainStageAndFirmwareFailures(t *testing.T, profile string) {
 	for _, fault := range []string{"stage", "missing-stage", "publication", "write", "rom-after-config", "firmware-rom"} {
 		t.Run(fault, func(t *testing.T) {
-			r := romProgramTest(t)
+			r := romProgramTestFor(t, profile)
 			req, _, _ := addROMProgram(t, r, 0, 8192)
 			r.f.fault = fault
 			r.cpu.gateFailure = fault == "firmware-rom"
@@ -448,9 +510,15 @@ func TestROMCompiledResourcesRejectMismatchWithoutIO(t *testing.T) {
 }
 
 func TestROMPreflightRejectsForeignReceiptAndResourcesBeforeContainment(t *testing.T) {
+	for _, profile := range []string{HPSFirstROMDiagnosticProfile, NativeComputerProfile} {
+		t.Run(profile, func(t *testing.T) { testROMPreflightRejectsForeignReceiptAndResourcesBeforeContainment(t, profile) })
+	}
+}
+
+func testROMPreflightRejectsForeignReceiptAndResourcesBeforeContainment(t *testing.T, profile string) {
 	for _, fault := range []string{"receipt", "size", "address", "scope", "computer", "inventory"} {
 		t.Run(fault, func(t *testing.T) {
-			r := romProgramTest(t)
+			r := romProgramTestFor(t, profile)
 			req, record, _ := addROMProgram(t, r, 0, 4096)
 			switch fault {
 			case "receipt":

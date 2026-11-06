@@ -99,8 +99,9 @@ func canonicalProgramRecord(value any) ([]byte, error) {
 
 // ProgramLoader keeps immutable boot/platform facts separate from each
 // retained program. Construct it only from board-compiled source and maps.
-// It permits the existing contained computer contract, not a normal profile,
-// a new master, data release or BootHandoffVerifier.
+// It permits the compiled contained computer resources. The normal profile
+// additionally requires shared ABI semantics and native driver support. Neither
+// path supplies a new master, data release or BootHandoffVerifier.
 type ProgramLoader struct {
 	boot          *HPSContextVerifier
 	platform      programPlatform
@@ -108,6 +109,7 @@ type ProgramLoader struct {
 	control       hpsControlMap
 	computer      computerMap
 	support       *runtimeadmission.DriverSupport
+	compatibility *runtimeadmission.RuntimeCompatibility
 }
 
 func NewProgramLoader(boot *HPSContextVerifier, compiledSource, control, configuration, computerRaw []byte) (*ProgramLoader, error) {
@@ -139,7 +141,7 @@ func NewProgramLoader(boot *HPSContextVerifier, compiledSource, control, configu
 	if err != nil {
 		return nil, err
 	}
-	if boot.context.ProgrammingProfile == HPSFirstROMDiagnosticProfile {
+	if heldROMProfile(boot.context.ProgrammingProfile) {
 		controlSHA, computerSHA := sha256.Sum256(control), sha256.Sum256(computerRaw)
 		if boot.rom == nil || boot.rom.ControlMapSHA256 != hex.EncodeToString(controlSHA[:]) || boot.rom.ComputerMapSHA256 != hex.EncodeToString(computerSHA[:]) {
 			return nil, errors.New("native fabric: loader lacks its compiled held-ROM resources")
@@ -149,13 +151,31 @@ func NewProgramLoader(boot *HPSContextVerifier, compiledSource, control, configu
 	if boot.rom != nil {
 		interfaces = append(interfaces, runtimeadmission.Contract{ID: "fes.embedded.rom", Major: 1})
 	}
-	support, err := runtimeadmission.NewDriverSupport(runtimeadmission.Target{Platform: p.Platform, Device: p.Device}, []runtimeadmission.Driver{{
+	if p.ProgrammingProfile == NativeComputerProfile {
+		// checkedComputerMap fixes capabilities to video, HID and ZX81 tape;
+		// checkedROMMap fixes the separate firmware transport. Selections cannot
+		// advertise drivers or enlarge these board-compiled resources.
+		interfaces = []runtimeadmission.Contract{{ID: "fes.video.fixed-720p60", Major: 1},
+			{ID: "fes.keyboard.hid", Major: 1}, {ID: "fes.media.zx81-tape", Major: 1},
+			{ID: "fes.embedded.rom", Major: 1}}
+	}
+	drivers := []runtimeadmission.Driver{{
 		Profile: p.ProgrammingProfile, ABI: runtimeadmission.Contract{ID: p.ABI, Major: int64(p.Major), Minor: int64(p.Minor)}, Interfaces: interfaces,
-	}})
+	}}
+	loader := &ProgramLoader{boot: boot, platform: p, configuration: config, control: ctrl, computer: comp}
+	if p.ProgrammingProfile == NativeComputerProfile {
+		semantic, err := runtimeadmission.NewNanoComputerCompatibility()
+		if err != nil {
+			return nil, err
+		}
+		loader.compatibility, err = runtimeadmission.NewRuntimeCompatibility(semantic, drivers)
+	} else {
+		loader.support, err = runtimeadmission.NewDriverSupport(runtimeadmission.Target{Platform: p.Platform, Device: p.Device}, drivers)
+	}
 	if err != nil {
 		return nil, err
 	}
-	return &ProgramLoader{boot: boot, platform: p, configuration: config, control: ctrl, computer: comp, support: support}, nil
+	return loader, nil
 }
 
 // selectedProgram is private, fully retained and never modified after preflight.
@@ -211,8 +231,14 @@ func (l *ProgramLoader) Preflight(selection *packagestore.Selection) (*StoredCon
 	if _, err := BuildWords(d.Build.ID); err != nil {
 		return nil, err
 	}
-	if err := l.support.CheckArchive(selection.Archive(), i.PackageID); err != nil {
-		return nil, err
+	var admissionErr error
+	if l.platform.ProgrammingProfile == NativeComputerProfile {
+		admissionErr = l.compatibility.CheckArchive(selection.Archive(), i.PackageID)
+	} else {
+		admissionErr = l.support.CheckArchive(selection.Archive(), i.PackageID)
+	}
+	if admissionErr != nil {
+		return nil, admissionErr
 	}
 	id := fabricmodel.PackageIdentity{PackageID: i.PackageID, BuildID: d.Build.ID, ProgrammedSHA256: d.Payload.SHA256,
 		CoreID: d.Core.ID, Platform: d.Target.Platform, Device: d.Target.Device, ProgrammingProfile: d.Target.ProgrammingProfile,
