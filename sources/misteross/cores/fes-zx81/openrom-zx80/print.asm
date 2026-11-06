@@ -227,12 +227,11 @@ list_number:
         ret nc
         jr space
 
-; List from S_TOP to the bottom of the upper part. DEST = the last line
-; shown whole (0 if none).
+; List from S_TOP to the bottom of the upper part (X_FULL clear). DEST =
+; the last line shown whole (0 if none).
 list_prog:
         ld hl,0
         ld (DEST),hl
-        res X_FULL,(iy+Y_FLAGX)
         ld bc,(S_TOP)
         call find_line
 .l:     ld de,(VARS)
