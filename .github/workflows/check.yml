@@ -26,6 +26,7 @@ jobs:
       sim_tier: ${{ steps.plan.outputs.sim_tier }}
       test_modes: ${{ steps.plan.outputs.test_modes }}
       paths_artifact: ${{ steps.plan.outputs.paths_artifact }}
+      parent_partitions: ${{ steps.plan.outputs.parent_partitions }}
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
@@ -45,6 +46,7 @@ jobs:
           from scripts.ci_gate import validate_plan
           from scripts.ci_simulations import simulation_matrix, tier_for_event
           from scripts.test_policy import validate_test_modes
+          from scripts.parent_tests import parent_partitions
           plan = json.load(open('/tmp/affected.json'))
           # Pull requests, the merge queue and main run smoke sims; nightly and manual runs run full.
           tier = tier_for_event(os.environ['EVENT'])
@@ -56,6 +58,7 @@ jobs:
               output.write('simulations=' + json.dumps(simulation_matrix(plan['cores'], tier)) + '\n')
               output.write('sim_tier=' + tier + '\n')
               output.write('test_modes=' + json.dumps(plan['test_modes']) + '\n')
+              output.write('parent_partitions=' + json.dumps(parent_partitions(plan['test_modes']['media'])) + '\n')
               output.write('paths_artifact=fes-ci-plan-' + os.environ['GITHUB_RUN_ID'] + '-' + os.environ['GITHUB_RUN_ATTEMPT'] + '\n')
           with open('/tmp/changed-paths.json', 'w') as output:
               json.dump(plan['paths'], output)
@@ -94,6 +97,10 @@ jobs:
     if: fromJSON(needs.plan.outputs.lanes).parent
     runs-on: ubuntu-24.04
     timeout-minutes: 45
+    strategy:
+      fail-fast: false
+      matrix:
+        partition: ${{ fromJSON(needs.plan.outputs.parent_partitions) }}
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
@@ -111,12 +118,23 @@ jobs:
             sources/FogCast/go.sum
             platform/go.sum
       - name: Install capture test dependencies
-        run: sudo apt-get update && sudo apt-get install -y ffmpeg
-      - env:
+        if: matrix.partition == 'software'
+        run: |
+          if ! command -v ffmpeg >/dev/null; then
+            sudo timeout --signal=TERM --kill-after=30s 600s bash -e -c '
+              apt-get -o Acquire::http::Timeout=30 -o Acquire::https::Timeout=30 -o Acquire::Retries=3 update
+              apt-get -o Acquire::http::Timeout=30 -o Acquire::https::Timeout=30 -o Acquire::Retries=3 install --no-install-recommends -y ffmpeg
+            '
+          fi
+          ffmpeg -version
+      - name: Run selected parent partition
+        env:
           TEST_VIDEO: ${{ fromJSON(needs.plan.outputs.test_modes).video }}
           TEST_MEDIA: ${{ fromJSON(needs.plan.outputs.test_modes).media }}
+          PARENT_PARTITION: ${{ matrix.partition }}
         run: |
-          if [ "$TEST_MEDIA" = true ]; then
+          if [ "$PARENT_PARTITION" = media ]; then
+            test "$TEST_MEDIA" = true
             make platform-provision
             # Keep retries for transient registry/snapshot failures, with a hard per-attempt bound.
             for attempt in 1 2 3; do
@@ -125,8 +143,8 @@ jobs:
               sleep $((attempt * 20))
             done
           fi
-          python3 scripts/parent_tests.py --video "$TEST_VIDEO" --media "$TEST_MEDIA" --paths-json-file "$RUNNER_TEMP/fes-ci-plan/changed-paths.json"
-          if [ "$TEST_MEDIA" = true ]; then
+          python3 scripts/parent_tests.py --video "$TEST_VIDEO" --media "$TEST_MEDIA" --partition "$PARENT_PARTITION" --paths-json-file "$RUNNER_TEMP/fes-ci-plan/changed-paths.json"
+          if [ "$PARENT_PARTITION" = media ]; then
             make platform-test
             make -C image test FOGCAST_DIR="$PWD/sources/FogCast"
           fi

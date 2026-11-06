@@ -42,8 +42,16 @@ MEDIA_CLASSES = frozenset({
 })
 
 
-def filter_suite(suite, video=True, media=True, modules=None):
+def parent_partitions(media):
+    if type(media) is not bool:
+        raise ValueError('parent media selection must be a boolean')
+    return ['software', 'media'] if media else ['software']
+
+
+def filter_suite(suite, video=True, media=True, modules=None, partition='all'):
     """Return (filtered suite, selected ids, omitted ids) before any setUpClass."""
+    if partition not in ('all', 'software', 'media'):
+        raise ValueError('unknown parent partition')
     omitted_keys = set()
     if not video:
         omitted_keys |= VIDEO_CLASSES
@@ -60,7 +68,9 @@ def filter_suite(suite, video=True, media=True, modules=None):
             else:
                 key = (entry.__class__.__module__.rsplit('.', 1)[-1],
                        entry.__class__.__name__)
-                if key in omitted_keys or (modules is not None and key[0] in assigned
+                in_partition = (partition == 'all' or
+                                (partition == 'media') == (key in MEDIA_CLASSES))
+                if not in_partition or key in omitted_keys or (modules is not None and key[0] in assigned
                                             and key[0] not in modules):
                     omitted_ids.append(entry.id())
                 else:
@@ -81,6 +91,8 @@ def main(argv=None):
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--video', choices=('true', 'false'), default='true')
     parser.add_argument('--media', choices=('true', 'false'), default='true')
+    parser.add_argument('--partition', choices=('all', 'software', 'media'), default='all',
+                        help='split the same selected suite; real media runs separately in CI')
     parser.add_argument('--plan-only', action='store_true')
     changed_paths.add_arguments(parser, help='changed repository paths; omitted means all groups')
     parser.add_argument('--full', action='store_true', help='run all groups and extended modes')
@@ -91,6 +103,8 @@ def main(argv=None):
         parser.error('--paths-json or --paths-json-file must supply a JSON array of strings')
     video = args.full or args.video == 'true'
     media = args.full or args.media == 'true'
+    if args.partition == 'media' and not media:
+        parser.error('the media partition requires --media true or --full')
     root = Path(__file__).resolve().parents[1]
     sys.path.insert(0, str(root))
     suite = unittest.defaultTestLoader.discover(str(root / 'tests'))
@@ -98,8 +112,9 @@ def main(argv=None):
     modules = parent_affected.selected_modules(
         groups, [path.stem for path in (root / 'tests').glob('test_*.py')], paths)
     selected, selected_ids, omitted_ids = filter_suite(
-        suite, video=video, media=media, modules=modules if groups is not None else None)
-    report = {'format': 1, 'video': video, 'media': media,
+        suite, video=video, media=media, modules=modules if groups is not None else None,
+        partition=args.partition)
+    report = {'format': 1, 'video': video, 'media': media, 'partition': args.partition,
               'selected': selected_ids, 'omitted': omitted_ids,
               'groups': sorted(groups) if groups is not None else 'all',
               'documentation_modules': sorted(parent_affected.DOCUMENTATION_MODULES)
@@ -110,7 +125,7 @@ def main(argv=None):
         report['status'] = 'planned'
         print(json.dumps(report, indent=2))
         return 0
-    if media and not docker_available():
+    if media and args.partition != 'software' and not docker_available():
         report['status'] = 'error'
         report['error'] = 'media tests require a working docker; refusing to skip silently'
         print(json.dumps(report, indent=2))

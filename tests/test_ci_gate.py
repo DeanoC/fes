@@ -7,6 +7,7 @@ from unittest.mock import patch
 from scripts.affected import CORES, LANES
 from scripts.ci_gate import JOB_LANES, require_success, validate_plan
 from scripts.ci_simulations import simulation_matrix
+from scripts.parent_tests import parent_partitions
 
 
 def results_for(selected=(), cores=(), modes=None, tier='full'):
@@ -16,6 +17,7 @@ def results_for(selected=(), cores=(), modes=None, tier='full'):
     results = {'plan': {'result': 'success', 'outputs': {
         'lanes': json.dumps(lanes), 'cores': json.dumps(list(cores)),
         'test_modes': json.dumps(modes),
+        'parent_partitions': json.dumps(parent_partitions(modes['media'])),
         'sim_tier': tier,
         'simulations': json.dumps(simulation_matrix(list(cores), tier))}}}
     results.update({job: {'result': 'success' if lanes[lane] else 'skipped'}
@@ -26,6 +28,20 @@ def results_for(selected=(), cores=(), modes=None, tier='full'):
 
 
 class TierTests(unittest.TestCase):
+    def test_parent_partition_matrix_cannot_omit_duplicate_or_add_work(self):
+        for media in (False, True):
+            modes = dict(video=False, media=media, full_race=False)
+            results = results_for(['parent'], modes=modes)
+            require_success(results)
+            for partitions in (None, [], ['media'], ['software', 'software'], ['software', 'unexpected']):
+                with self.subTest(media=media, partitions=partitions):
+                    results['plan']['outputs']['parent_partitions'] = json.dumps(partitions)
+                    with self.assertRaisesRegex(ValueError, 'Parent matrix'):
+                        require_success(results)
+            results['plan']['outputs']['parent_partitions'] = json.dumps(parent_partitions(media))
+            results['parent-tests']['result'] = 'cancelled'
+            with self.assertRaises(ValueError): require_success(results)
+
     def test_workflow_regression_runs_in_unconditional_check_step(self):
         workflow = (Path(__file__).resolve().parents[1] / '.github/workflows/check.yml').read_text()
         step = workflow.split('      - name: Always-run planner and metadata checks\n', 1)[1].split(

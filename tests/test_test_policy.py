@@ -355,6 +355,53 @@ def _synthetic_suite():
 
 
 class ParentFilterTests(unittest.TestCase):
+    def test_partitions_are_disjoint_and_preserve_the_complete_selected_suite(self):
+        for video in (False, True):
+            for media in (False, True):
+                for modules in (None, {'test_media_image', 'test_recipes'}):
+                    with self.subTest(video=video, media=media, modules=modules):
+                        def ids(partition):
+                            return set(parent_tests.filter_suite(_synthetic_suite(), video=video,
+                                media=media, modules=modules, partition=partition)[1])
+                        all_ids, software, real_media = [ids(p) for p in ('all', 'software', 'media')]
+                        self.assertFalse(software & real_media)
+                        self.assertEqual(software | real_media, all_ids)
+                        self.assertEqual(bool(real_media), media)
+        self.assertEqual(parent_tests.parent_partitions(False), ['software'])
+        self.assertEqual(parent_tests.parent_partitions(True), ['software', 'media'])
+        with self.assertRaises(ValueError): parent_tests.parent_partitions('false')
+        with self.assertRaises(ValueError): parent_tests.filter_suite(_synthetic_suite(), partition='unknown')
+
+    def test_software_partition_does_not_require_or_execute_media_setup(self):
+        class SoftwareTests(unittest.TestCase):
+            def test_marker(self): pass
+        for partition, expected in (('software', 0), ('media', 2)):
+            suite = unittest.TestSuite([SoftwareTests('test_marker')])
+            with patch.object(parent_tests.unittest.defaultTestLoader, 'discover', return_value=suite), \
+                    patch.object(parent_tests, 'docker_available', return_value=False) as docker, \
+                    contextlib.redirect_stdout(io.StringIO()) as out:
+                result = parent_tests.main(['--video', 'false', '--media', 'true', '--partition', partition])
+            self.assertEqual(result, expected)
+            self.assertEqual(json.loads(out.getvalue())['partition'], partition)
+            self.assertEqual(docker.call_count, int(partition == 'media'))
+        with contextlib.redirect_stderr(io.StringIO()), self.assertRaises(SystemExit):
+            parent_tests.main(['--media', 'false', '--partition', 'media', '--plan-only'])
+
+    def test_real_discovery_has_identical_coverage_across_partitions(self):
+        script = str(ROOT / 'scripts/parent_tests.py')
+        for media in (False, True):
+            reports = {}
+            for partition in ('all', *parent_tests.parent_partitions(media)):
+                result = subprocess.run([sys.executable, script, '--plan-only', '--video', 'true',
+                    '--media', str(media).lower(), '--partition', partition],
+                    capture_output=True, text=True, check=True)
+                reports[partition] = set(json.loads(result.stdout)['selected'])
+            software = reports['software']; real_media = reports.get('media', set())
+            self.assertEqual(software | real_media, reports['all'])
+            self.assertFalse(software & real_media)
+            self.assertTrue(software)
+            self.assertEqual(bool(real_media), media)
+
     def test_fast_modes_omit_heavy_classes_before_any_setup(self):
         suite, selected, omitted = parent_tests.filter_suite(
             _synthetic_suite(), video=False, media=False)
