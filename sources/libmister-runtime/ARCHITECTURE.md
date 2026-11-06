@@ -49,6 +49,11 @@ type. Shared fixtures cover cross-reader identity and refusal, while default bui
 registry declares the pair; `ENABLE_DE25_STATIC=1` enables its qualification
 path. Parsing alone does not select a driver or call `ProgramStatic`. Qualified
 static package production and physical qualification remain required.
+The static computer contract contains the nine ordinary required interfaces
+plus exactly one optional `fes.expansion.zx81-bus` 2.0 interface. Ordinary
+format2 packages retain their nine-interface contract. Static socket capability
+discovery uses the same enabled, cold-start-capable programmer gate as the
+static programming profile.
 
 `OpenCoreStaticComposition` independently recomputes the format5 default or
 format2 selected-persona receipt. A selected asset must use the canonical

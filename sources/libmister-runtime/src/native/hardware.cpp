@@ -834,6 +834,8 @@ Capabilities NativeHardware::capabilities() const
     computer.interfaces.push_back({generated::FesComputerInterfaceVideoSessionDisplayID,1,0});
     computer.interfaces.push_back({"fes.fabric.video.display-plane",1,0});
     computer.interfaces.push_back({"fes.fabric.de25-scanout",1,1});
+    if(De25StaticEnabled() && fpga_.SupportsStaticComposition())
+     computer.interfaces.push_back({"fes.expansion.zx81-bus",2,0});
     std::sort(computer.interfaces.begin(),computer.interfaces.end(),
      [](const SupportedInterface& a,const SupportedInterface& b){return a.id<b.id;});
    }

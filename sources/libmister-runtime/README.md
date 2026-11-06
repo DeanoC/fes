@@ -67,6 +67,12 @@ existing BRAM profile remains separate; there is no automatic fallback.
 Software admission does not establish a sealed standard package or hardware
 acceptance.
 
+The static format5 variant additionally requires the optional
+`fes.expansion.zx81-bus` 2.0 declaration. It retains all nine required standard
+interfaces; a missing, duplicated, required or differently versioned socket is
+refused. The runtime advertises this socket only with the enabled static
+programmer and its matched kernel contract.
+
 DE25 advertises application and computer ABIs in ascending identity order,
 as required by the target agent's protocol-2 decoder. The native MENU fixture
 exports the production serialized status for an independent agent-client test;

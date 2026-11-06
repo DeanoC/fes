@@ -4,6 +4,7 @@
 #include "de25_standard_descriptor.hpp"
 #include "native/core_package.hpp"
 #include "native/core_driver.hpp"
+#include "native/de25_core_contract.hpp"
 #include "native/sha256.hpp"
 
 #include <algorithm>
@@ -1155,6 +1156,36 @@ void TestDe25StandardProfileBindsSharedDriverAndRejectsOtherMemory() {
  }
 }
 
+void TestDe25StaticProfileRequiresOptionalVersionTwoSocket()
+{
+ using namespace mister;using namespace mister::native;
+ auto d=mister_test::De25StandardDescriptor();
+ d.format=5;d.target.programming_profile="de25-linux-static-computer-v1";
+ d.interfaces.push_back({"fes.expansion.zx81-bus",2,0,false});
+ if(!De25StaticEnabled()) {
+  assert(!CheckDe25StandardComputerContract(d).ok());return;
+ }
+ assert(CheckDe25StandardComputerContract(d).ok());
+ ContainedCoreDriver shared,contained,bram;
+ CoreDriverRegistry registry(&shared,contained,&bram,NativePlatform::de25_nano);
+ ProgrammingProfile profile;CoreDriver* driver=nullptr;
+ assert(registry.Resolve(d,&profile,&driver).ok()&&
+  profile==ProgrammingProfile::de25_linux_static_computer_v1&&driver==&shared);
+ for(unsigned variant=0;variant<9;++variant) {
+  auto bad=d;
+  if(variant==0)bad.interfaces.pop_back();
+  if(variant==1)bad.interfaces.back().major=1;
+  if(variant==2)bad.interfaces.back().minor=1;
+  if(variant==3)bad.interfaces.back().required=true;
+  if(variant==4)bad.interfaces.back().id="fes.memory.hps-ddr";
+  if(variant==5)bad.interfaces.back()=bad.interfaces.front();
+  if(variant==6)bad.interfaces.push_back(bad.interfaces.back());
+  if(variant==7)bad.interfaces.front().required=false;
+  if(variant==8)bad.target.programming_profile="de25-linux-computer-v1";
+  assert(!CheckDe25StandardComputerContract(bad).ok());
+ }
+}
+
 void TestExplicitDe25ProfileAndDriverBinding()
 {
 	using namespace mister; using namespace mister::native;
@@ -1242,6 +1273,7 @@ int main()
  TestStaticPackageSharedStructuralCorpus();
 	TestExplicitDe25ProfileAndDriverBinding();
  TestDe25StandardProfileBindsSharedDriverAndRejectsOtherMemory();
+ TestDe25StaticProfileRequiresOptionalVersionTwoSocket();
 	TestComputerCompatibilityComposesRecognizedInterfaces();
 	TestComputerFirmwarePackageAdmission();
 	TestSharedFormat4TwoSourceFixture();

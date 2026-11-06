@@ -5292,6 +5292,7 @@ void TestDe25StandardComputerUsesSharedDriverAndAllocatedSession(StaticTrial tri
  if(static_load) {
   ReplaceAll(&manifest,"format = 2","format = 5");
   ReplaceAll(&manifest,"de25-linux-computer-v1","de25-linux-static-computer-v1");
+  manifest+="\n[[interfaces]]\nid=\"fes.expansion.zx81-bus\"\nmajor=2\nminor=0\nrequired=false\n";
   auto v5=ReadText("tests/fixtures/core-bundle-v5/manifests/valid-basic.toml");
   manifest+="\n"+v5.substr(v5.find("[static_expansion]"));
   game.File("persona.rbf",ReadText("tests/fixtures/core-bundle-v5/payloads/persona.rbf"));
@@ -5327,8 +5328,14 @@ void TestDe25StandardComputerUsesSharedDriverAndAllocatedSession(StaticTrial tri
   c.id=hash(identity);
   std::unique_ptr<AdmittedCorePackage> admitted;
   const auto preflight=hardware.AdmitCoreComposition(game.path,game_package.package_id,request,&admitted);
+  const auto caps=hardware.capabilities();
+  bool socket=false;
+  for(const auto& abi:caps.abis)for(const auto& interface:abi.interfaces)
+   if(abi.id=="fes.computer"&&interface.id=="fes.expansion.zx81-bus") {
+    assert(interface.major==2&&interface.minor==0);socket=true;
+   }
   if(!De25StaticEnabled() || !base.fpga.supports_static) {
-   const auto caps=hardware.capabilities();
+   assert(!socket);
    assert(std::find(caps.programming_profiles.begin(),caps.programming_profiles.end(),"de25-linux-static-computer-v1")==caps.programming_profiles.end());
    assert(!preflight.ok()&&base.fpga.calls==1&&base.fpga.static_calls==0);return;
   }
@@ -5337,7 +5344,7 @@ void TestDe25StandardComputerUsesSharedDriverAndAllocatedSession(StaticTrial tri
   assert(!hardware.AttachProgrammedBitstream(admitted.get(),game.path+"/core.rbf",c.base_sha256).ok());
   std::unique_ptr<AdmittedCorePackage> plain;
   assert(!hardware.AdmitCorePackage(game.path,game_package.package_id,&plain).ok());
-  const auto caps=hardware.capabilities();
+  assert(socket);
   assert(std::find(caps.programming_profiles.begin(),caps.programming_profiles.end(),"de25-linux-static-computer-v1")!=caps.programming_profiles.end());
   if(trial==StaticTrial::changed_empty || trial==StaticTrial::changed_ram) {
    const auto path=trial==StaticTrial::changed_ram?expansion.path+"/cart.rbf":game.path+"/persona.rbf";

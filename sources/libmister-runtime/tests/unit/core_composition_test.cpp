@@ -1,6 +1,7 @@
 // Copyright 2026 FogCast contributors
 // SPDX-License-Identifier: GPL-3.0-or-later
 #include "native/core_composition.hpp"
+#include "native/features.hpp"
 #include "native/sha256.hpp"
 #include "daemon/json.hpp"
 #include <cassert>
@@ -519,7 +520,9 @@ void StaticSharedGoldenAndRetainedFiles() {
   assert(result.ok());assert(out.info.id==f.request.composition.id);
   assert(out.persona(f.base).fd()==(selected ? out.expansion.cart.fd() : f.base.persona.fd()));
   assert(RecheckCoreStaticComposition(f.base,out).ok());
-  assert(CheckCoreCompatibility(f.base.descriptor,NativePlatform::de25_nano).code==ErrorCode::unsupported_programming_profile);
+  // The parser corpus has only two interfaces, not the full standard ABI.
+  assert(CheckCoreCompatibility(f.base.descriptor,NativePlatform::de25_nano).code==
+   (De25StaticEnabled()?ErrorCode::unsupported_abi:ErrorCode::unsupported_programming_profile));
   CoreCompositionRequest ordinary;OpenedCoreComposition linked;
   assert(!OpenCoreComposition({f.root},f.base,ordinary,&linked).ok());
   if (selected) {

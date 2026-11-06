@@ -67,8 +67,10 @@ Hardware-supported package paths: 0.
 | Startup load of the release's `fes-window` driver with the `fes.memory.hps-ddr` window; a loaded copy kept only on matching version and window, otherwise replaced, or reported busy while in use; a failure is logged and startup continues | covered by host tests | [Kit A diagnostic](https://github.com/DeanoC/fes/issues/949#issuecomment-6310766923) 2026-10-21 of a dev driver build (grant, cached draw, clean, revoke); runtime load of the bundled driver pending exact-artifact acceptance |
 
 Static DE25 dispatch is an unfinished, default-off feature. `ENABLE_DE25_STATIC=1`
-selects the declared format5/standard-ZX81 pair for qualification. The existing
-lifecycle retains/rechecks both images, requires a cold-start-capable programmer,
+selects the declared format5/standard-ZX81 pair for qualification. The
+contract requires optional ZX81 bus 2.0 alongside the nine required computer
+interfaces; discovery advertises that socket only with the matched programmer.
+The lifecycle retains/rechecks both images, requires a cold-start-capable programmer,
 loads base plus persona before ordinary identity/display/Start, and uses Stop
 before a new selection. Default builds, DE10 and unmatched kernels refuse it.
 No physical acceptance or timing qualification is claimed for this feature.

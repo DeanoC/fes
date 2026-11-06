@@ -68,7 +68,7 @@ inline Error CheckDe25StandardComputerContract(const CoreDescriptor& descriptor)
   return {ErrorCode::unsupported_target,"DE25 standard computer target/profile differs","compatibility"};
  if(descriptor.format!=(static_profile?5u:2u)||descriptor.core.id!="fes.zx81"||!descriptor.core.system.empty()||
     descriptor.abi.id!=FesComputerABIID||descriptor.abi.major!=1||descriptor.abi.minor!=0||
-    descriptor.interfaces.size()!=9)
+    descriptor.interfaces.size()!=(static_profile?10u:9u))
   return {ErrorCode::unsupported_abi,"DE25 standard profile requires the ZX81 computer contract","compatibility"};
  std::array<std::uint32_t,4> words{};Error e=De25BuildWords(descriptor.build.id,&words);
  if(!e.ok())return e;
@@ -82,8 +82,10 @@ inline Error CheckDe25StandardComputerContract(const CoreDescriptor& descriptor)
    interface.id==FesComputerInterfaceMediaZx81TapeWriteID?32:
    interface.id==FesComputerInterfaceVideoSessionDisplayID?64:
    interface.id=="fes.fabric.video.display-plane"?128:
-   interface.id=="fes.fabric.de25-scanout"?256:0;
-  if(!bit||(seen&bit)||!interface.required||interface.major!=1||interface.minor!=(bit==256?1u:0u))
+   interface.id=="fes.fabric.de25-scanout"?256:
+   static_profile&&interface.id=="fes.expansion.zx81-bus"?512:0;
+  if(!bit||(seen&bit)||interface.required!=(bit!=512)||
+     interface.major!=(bit==512?2u:1u)||interface.minor!=(bit==256?1u:0u))
    return {ErrorCode::unsupported_interface,"DE25 standard computer interfaces differ","compatibility"};
   seen|=bit;
  }
