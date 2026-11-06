@@ -23,6 +23,34 @@ DECLARE_GLOBAL_DATA_PTR;
 #define PSCI_AFFINITY_INFO_64 0xc4000004U
 static int attempted, armed;
 
+/* No console scheduler, timer, watchdog callback or firmware call in a marker.
+ * An unavailable UART parks rather than disguising a missing call receipt. */
+static void loader_uart_wait(unsigned mask)
+{
+    for (unsigned poll = 0; poll < 100000; poll++) {
+        unsigned status = readl(UART1 + 0x14);
+        if (status == ~0U) break;
+        if ((status & mask) == mask) return;
+    }
+    for (;;) asm volatile("wfe");
+}
+
+static void loader_progress(const char *text)
+{
+    for (unsigned n = 0; n < 128; n++) {
+        unsigned char byte = text[n];
+        if (!byte) {
+            loader_uart_wait(0x60);
+            return;
+        }
+        loader_uart_wait(0x20);
+        writel(byte, UART1);
+    }
+    for (;;) asm volatile("wfe");
+}
+
+#define LOADER_PROGRESS(phase) loader_progress("FES_NANO_LOADER phase=" phase "\r\n")
+
 static int memory_check(void)
 {
     struct fes_nano_range banks[3], used[64];
@@ -56,22 +84,44 @@ static int memory_check(void)
     return fes_nano_memory_ok(banks, nb, used, nu, FES_NANO_IMAGE_SIZE, owned, owned_count);
 }
 
-static void snapshot(struct fes_nano_state *s)
+static void snapshot(struct fes_nano_state *s, int trace_boot)
 {
+    static const char *const before[] = {
+        "FES_NANO_LOADER phase=cpu0-before\r\n",
+        "FES_NANO_LOADER phase=cpu1-before\r\n",
+        "FES_NANO_LOADER phase=cpu2-before\r\n",
+        "FES_NANO_LOADER phase=cpu3-before\r\n",
+    };
+    static const char *const after[] = {
+        "FES_NANO_LOADER phase=cpu0-after\r\n",
+        "FES_NANO_LOADER phase=cpu1-after\r\n",
+        "FES_NANO_LOADER phase=cpu2-after\r\n",
+        "FES_NANO_LOADER phase=cpu3-after\r\n",
+    };
+    if (trace_boot) LOADER_PROGRESS("registers-before");
     memset(s, 0, sizeof(*s));
     s->affinity = read_mpidr() & 0xff00ffffffULL;
     asm volatile("mrs %0, cntfrq_el0" : "=r"(s->counter_hz));
+    if (trace_boot) LOADER_PROGRESS("registers-after");
     for (unsigned i = 0; i < 4; i++) {
         u64 args[2] = {(u64)i << 8, 0};
+        if (trace_boot) loader_progress(before[i]);
         s->cpu_state[i] = invoke_smc(PSCI_AFFINITY_INFO_64, args, 2, NULL, 0);
+        if (trace_boot) loader_progress(after[i]);
     }
+    if (trace_boot) LOADER_PROGRESS("reset-before");
     s->per0_reset = readl(RSTMGR + 0x24);
     s->per1_reset = readl(RSTMGR + 0x28);
     s->bridge_reset = readl(RSTMGR + 0x2c);
+    if (trace_boot) LOADER_PROGRESS("reset-after");
+    if (trace_boot) LOADER_PROGRESS("watchdog-before");
     for (unsigned i = 0; i < 5; i++)
         s->watchdog_control[i] = readl(0x10d00200UL + i * 0x100);
+    if (trace_boot) LOADER_PROGRESS("watchdog-after");
+    if (trace_boot) LOADER_PROGRESS("uart-before");
     s->uart_lcr = readl(UART1 + 0x0c);
     s->uart_lsr = readl(UART1 + 0x14);
+    if (trace_boot) LOADER_PROGRESS("uart-after");
 }
 
 static u64 owned_owner, owned_generation;
@@ -114,7 +164,7 @@ void fes_nano_late_handoff(void)
             hang();
         }
     }
-    snapshot(&s);
+    snapshot(&s, 0);
     printf("FES_NANO_HANDOFF affinity=%llx counter=%llu cpus=%d,%d,%d,%d per0=%08x bridges=%08x\n",
            s.affinity, s.counter_hz, s.cpu_state[0], s.cpu_state[1], s.cpu_state[2], s.cpu_state[3],
            s.per0_reset, s.bridge_reset);
@@ -135,16 +185,30 @@ static int do_fesboot(struct cmd_tbl *cmdtp, int flag, int argc, char *const arg
 
     printf("FES_NANO_BOOT id=%s\n", FES_NANO_BOOT_ID);
     if (attempted++) return CMD_RET_FAILURE;
+    LOADER_PROGRESS("memory-before");
     if (current_el() != 2 || !memory_check()) {
         puts("FES_NANO_BOOT REJECT live memory/EL\n");
         return CMD_RET_FAILURE;
     }
-    snapshot(&initial);
-    if (!fes_nano_cpus_ok(&initial) || wdt_stop_all()) {
+    LOADER_PROGRESS("memory-after");
+    LOADER_PROGRESS("snapshot-before");
+    snapshot(&initial, 1);
+    LOADER_PROGRESS("snapshot-after");
+    LOADER_PROGRESS("cpu-check-before");
+    if (!fes_nano_cpus_ok(&initial)) {
         puts("FES_NANO_BOOT REJECT CPU/counter/watchdog\n");
         return CMD_RET_FAILURE;
     }
+    LOADER_PROGRESS("cpu-check-after");
+    LOADER_PROGRESS("watchdog-stop-before");
+    if (wdt_stop_all()) {
+        puts("FES_NANO_BOOT REJECT CPU/counter/watchdog\n");
+        return CMD_RET_FAILURE;
+    }
+    LOADER_PROGRESS("watchdog-stop-after");
+    LOADER_PROGRESS("owned-before");
     if (!observe_owned("before-entry")) hang();
+    LOADER_PROGRESS("owned-after");
     sha256_csum_wd(map_sysmem(FES_NANO_STAGE, FES_NANO_IMAGE_SIZE), FES_NANO_IMAGE_SIZE, hash, 65536);
     if (memcmp(hash, expected, sizeof(hash)) || lmb_reserve(FES_NANO_GO_START, FES_NANO_GO_SIZE) < 0) {
         puts("FES_NANO_BOOT REJECT preloaded entry hash/reservation\n");

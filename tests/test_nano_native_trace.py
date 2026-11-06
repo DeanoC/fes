@@ -88,8 +88,24 @@ def firmware_progress(raw):
                 provider=next(i for i,line in enumerate(lines) if 'FES_NANO_OWNED_BOOT ' in line)
                 sd=provider+1;lines.insert(sd,'NOTICE:  FES_NANO_SD_PLATFORM setup=0 ready=0\r\n')
             lines.insert(sd+1,''.join(marker(p) for p in phases[3:]))
-            return ''.join(lines)
+            result=''.join(lines)
+            return loader_progress_fixture(result)
     raise AssertionError('missing capture-after fixture')
+
+
+def loader_progress_fixture(raw):
+    """Initial loader receipts surround memory and the owned SMC observation."""
+    phases=trace.loader_progress.PHASES
+    def marker(phase):return 'FES_NANO_LOADER phase='+phase+'\r\n'
+    lines=raw.splitlines(keepends=True)
+    for index,line in enumerate(lines):
+        if line.startswith('FES_NANO_MEMORY '):
+            lines.insert(index,marker(phases[0]));break
+    for index,line in enumerate(lines):
+        if line.startswith('FES_NANO_OWNED phase=before-entry '):
+            lines.insert(index,''.join(marker(p) for p in phases[1:-1]))
+            lines.insert(index+2,marker(phases[-1]));break
+    return ''.join(lines)
 
 
 class NativeTraceTests(unittest.TestCase):

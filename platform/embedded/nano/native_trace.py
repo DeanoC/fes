@@ -7,6 +7,7 @@ import hashlib
 import re
 import fault_status
 import runtime_startup
+import loader_progress
 from configuration_trace import extract as extract_configuration
 from hps_context import reader_pattern, digest as context_digest
 from hps_io import validate as validate_hps_io
@@ -300,6 +301,7 @@ def decode_native_boot(data, build_id, owner_seed, *, storage=None, package=None
     loader_stages=() if continued else stages[:stages.index('prompt')+1]
     report = {'records': [], 'errors': [], 'loader_ready': False, 'complete': False,
               'last_checkpoint': None, 'core_load_acceptance': False,
+              'loader_progress': loader_progress.state(),
               'firmware_ram_trace': {'records': [], 'complete': False, 'valid': True,
                                      'vendor_records': [], 'vendor_complete': False, 'exceptions': [],
                                      'status_probe': fault_status.state(), 'ras_probe': fault_status.ras_state(), 'decode_log': fault_status.decode_state(), 'cache_maintenance': fault_status.cache_state(), 'runtime_startup': runtime_startup.state(), 'exit_cache': runtime_startup.exit_state()}}
@@ -319,6 +321,14 @@ def decode_native_boot(data, build_id, owner_seed, *, storage=None, package=None
         line = line.rstrip('\r')
         if ('FES_' in line and re.search(r'\b(?:REJECT|FAIL|EXCEPTION)\b', line)) or line.startswith(('panic:', 'fatal error:')):
             report['errors'].append(f'failure marker at line {number}')
+        if line.startswith('FES_NANO_LOADER'):
+            error=loader_progress.observe(report['loader_progress'],line,number,
+                boot_seen='boot' in observed,memory_seen='memory' in observed,
+                owned_seen='before-entry' in observed,
+                later_handoff_seen='after-remove' in observed,
+                prior_valid=not report['errors'])
+            if error:report['errors'].append(error)
+            continue
         if line.startswith('FES_NANO_RAM'):
             ram=report['firmware_ram_trace'];rows=ram['records']
             if line.startswith('FES_NANO_RAM EXIT_CACHE'):
@@ -437,6 +447,13 @@ def decode_native_boot(data, build_id, owner_seed, *, storage=None, package=None
                 del values['execution_observed']
             if name == 'owned':
                 name = values['phase']
+            progress=report['loader_progress']
+            if firmware_ram_trace or progress['records']:
+                if name=='before-entry' and (not progress['valid'] or
+                        tuple(row['phase'] for row in progress['records'])!=loader_progress.PHASES[:-1]):
+                    report['errors'].append(f'incomplete loader progress before owned observation at line {number}')
+                if name=='after-remove' and not (progress['valid'] and progress['complete']):
+                    report['errors'].append(f'incomplete loader progress before late handoff at line {number}')
             if name=='identity_transition':name='identity_'+values['phase']
             if name=='el3_capture':name+='_'+values['phase']
             if name=='spl_barrier':name+='_'+values['phase']

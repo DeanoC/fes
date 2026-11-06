@@ -1,5 +1,17 @@
 # Nano recovery uploads and cold serial boot
 
+The initial `fesboot` path emits ordered `FES_NANO_LOADER` receipts around
+memory validation, the CPU snapshot and each PSCI affinity call, register-read
+groups, CPU/watchdog checks and the secure ownership observation. Markers use
+direct UART writes with 100,000 polls per wait, a 128-byte string limit and a
+final transmit drain. They call no scheduler, timer, watchdog or firmware
+service; a failed wait parks. The late snapshot retains its original untraced
+behavior. Calls, arguments and rejection policies remain unchanged.
+`loader_progress.py` retains bounded partial progress and permanently rejects
+damaged order or scope. Current guarded-RAM decoding requires this progression
+before late handoff; a before marker records uncertainty rather than proving
+a firmware call executed. Progress alone grants no boot or package admission.
+
 `hps_context.py SEALED_PROJECT rom` derives the held-ROM resource contract for
 the explicit ROM producer variant. It verifies the source seal, generated
 conduit/clock/reset, complete master inventory and nonoverlapping lightweight
