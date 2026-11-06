@@ -136,6 +136,16 @@ SDC hashes are recorded and independently checked after compilation. Additional
 or changed constraint commands reject. External HDMI/I2C timing and independent
 reset release remain separate qualification work; these changes waive no rules.
 
+The source-bound timing file now forwards the actual pixel PLL clock to
+`HDMI_TX_CLK` and applies the ADV7513 Rev B receiver minima (1.8 ns setup,
+1.3 ns hold) to all 27 RGB/DE/sync pads. Missing or ambiguous clock targets or
+pad inventories reject. All launch sources stay timed; there is no new cut.
+These limits use a zero board-skew reference so the fitter can repair actual
+receiver hold paths. Board skew and loading remain unqualified. The inherited
+vendor 1.1-V clock assignment on DJ24 conflicts with the manual's 3.3 V table;
+the electrical clock path must be resolved before board signoff. No voltage,
+clock phase, receiver register or load value is changed to hide that gap.
+
 The ROM slave occupies peripheral-relative `0x10500`, spanning 128 bytes. It
 shares the computer clock/reset and exports no bus master. This is not a verified
 CPU address. Its Hold input reports explicit mailbox Hold; an independent

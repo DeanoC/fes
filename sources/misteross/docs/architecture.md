@@ -126,6 +126,14 @@ release waits for pixel edges. This closes a direct system-clock data path to
 the HDMI pads without a reset-to-output timing exception. Pad skew/load and the
 complete external timing contract remain separate qualification work.
 
+Its source-bound SDC forwards the actual pixel PLL clock to the clock pad and
+requires all 27 RGB/control pads to meet the ADV7513 Rev B receiver minima,
+1.8 ns setup and 1.3 ns hold, including every launch source. Exact clock/target
+and pad inventories reject missing constraints. This receiver-only requirement
+has a zero board-skew reference; actual board skew/loading and the inherited
+vendor clock-voltage discrepancy remain unresolved. It lets the fitter repair
+receiver timing without claiming external electrical or board qualification.
+
 The reviewed ROM/HPS-DDR variant declares the 100 MHz association on both reset
 bridges. Platform Designer consequently shares the memory reset-request
 controller's reset and early request with the peripheral devices through an

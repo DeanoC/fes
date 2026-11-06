@@ -10,7 +10,8 @@ if {[get_collection_size $computer_aclr] > 0} {set_false_path -to $computer_aclr
 if {[get_collection_size $computer_clrn] > 0} {set_false_path -to $computer_clrn}
 post_message -type info "DE25 computer HDMI reset ingress pins: $computer_clear_count (expected4)"
 # The computer runs on the preserved peripheral clock. No new GP control CDC,
-# clock groups, FIFO cuts or external HDMI/I2C delay assumptions are introduced.
+# clock groups or FIFO cuts are introduced. Receiver-only HDMI limits are below;
+# external I2C timing and the board electrical/skew/load contract remain open.
 
 # Cut only each first synchronizer D, never the second stage or whole clocks.
 foreach {label launch first} {
@@ -45,7 +46,7 @@ post_message -type info "DE25 video: 2 first-stage crossings, 9 bounded metadata
 
 # Only readiness first-stage data and raw reset-release ingress are cut.
 # The source is registered; destination reset is released in its own domain.
-# Stage-to-stage paths and both generated clocks stay timed; no broad clock groups or HDMI/I2C delay assumptions are introduced.
+# Stage-to-stage paths and both generated clocks stay timed; no broad clock groups are introduced.
 set computer_pixel_ready_source [get_registers {soc_inst|subsys_periph|fes_computer|fes_computer|pixel_transport_ready_source}]
 set computer_pixel_ready_stage0 [get_registers {soc_inst|subsys_periph|fes_computer|fes_computer|pixel_transport_ready_sync[0]}]
 set computer_pixel_ready_stage1 [get_registers {soc_inst|subsys_periph|fes_computer|fes_computer|pixel_transport_ready_sync[1]}]
@@ -66,3 +67,28 @@ set_false_path -to $computer_pixel_ready_stage0_d
 if {[get_collection_size $computer_pixel_ready_aclr] > 0} {set_false_path -to $computer_pixel_ready_aclr}
 if {[get_collection_size $computer_pixel_ready_clrn] > 0} {set_false_path -to $computer_pixel_ready_clrn}
 post_message -type info "DE25 computer pixel readiness crossing: one first-stage ingress, timed stage-to-stage and frame-gate paths"
+
+# ADV7513 Rev B, Table 2: input video setup 1.8 ns, hold 1.3 ns.
+# https://www.analog.com/media/en/technical-documentation/data-sheets/ADV7513.pdf
+# Forward the actual PLL clock to the clock pad, retaining its insertion delay
+# and uncertainty. Time every RGB/DE/HS/VS launch, including reset mask logic.
+# These are receiver-only minima at a zero board-skew reference, not a measured
+# PCB budget. The inherited clock voltage/path and output loads are unqualified;
+# meeting this requirement alone cannot establish board timing or acceptance.
+set computer_hdmi_pixel [get_clocks {fes_video_inst|video_clock|iopll_0_outclk0}]
+if {[get_collection_size $computer_hdmi_pixel] != 1} {error "DE25 HDMI requires one pixel clock"}
+foreach_in_collection computer_hdmi_clock $computer_hdmi_pixel {
+    set computer_hdmi_source [get_clock_info -targets $computer_hdmi_clock]
+    set computer_hdmi_master [get_clock_info -name $computer_hdmi_clock]
+}
+set computer_hdmi_clock_pad [get_ports HDMI_TX_CLK]
+if {[get_collection_size $computer_hdmi_source] != 1 || [get_collection_size $computer_hdmi_clock_pad] != 1} {
+    error "DE25 HDMI requires one PLL target and one forwarded-clock pad"
+}
+create_generated_clock -name adv7513_video -source $computer_hdmi_source -master_clock $computer_hdmi_master -divide_by 1 $computer_hdmi_clock_pad
+set computer_hdmi_data [get_ports {HDMI_TX_D[*] HDMI_TX_DE HDMI_TX_HS HDMI_TX_VS}]
+if {[get_collection_size $computer_hdmi_data] != 27} {error "DE25 HDMI requires all 27 RGB/control pads"}
+set_output_delay -clock adv7513_video -max 1.800 $computer_hdmi_data
+set_output_delay -clock adv7513_video -min -1.300 $computer_hdmi_data
+derive_clock_uncertainty
+post_message -type info "DE25 HDMI: 27 pads with receiver-only 1.8 ns setup/1.3 ns hold; board clock path, skew and load UNQUALIFIED"
