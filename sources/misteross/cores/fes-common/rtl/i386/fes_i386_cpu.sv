@@ -2806,6 +2806,73 @@ module fes_i386_cpu #(
     assign prof_pt = wb_s.pt;
     assign prof_taken = wb_s.taken;
     assign prof_frp = rp_go && wb_frp;
+    // The address-interlock (AGI) split for machine_tb --cpu-profile (bench
+    // only). prof_dcls is the uop in D's producer class (cpu_profile.h
+    // AgiClass), prof_d32 whether it writes 32 bits, prof_dimm whether its
+    // second operand is imm, and prof_ds1 and prof_ds2 whether each register
+    // source's youngest producer is a late one in AG, M1 or M2, so that the
+    // value is not in a register by the time the uop is in AG. prof_agi is
+    // the stage (0 AG to 3 EX, 4 none) of the producer that holds D's address
+    // operand: the youngest late producer of its base or index, else the
+    // youngest early one (a late scaled index, or two late operands).
+    logic [3:0] prof_dcls;
+    logic       prof_d32, prof_dimm, prof_ds1, prof_ds2;
+    logic [2:0] prof_agi;
+    // The youngest producer of GPR r among AG to EX (0 to 3; 4 none), and
+    // whether its value is early: an early-ALU result, or ESP from a stack
+    // operation whose destination is not ESP.
+    function automatic logic [2:0] prof_young(input logic [2:0] r);
+        prof_young = 3'd4;
+        for (int i = 3; i >= 0; i--)
+            if (prod_valid[i] && prod_dst[i] == r || r == 3'd4 && prod_sp[i]) prof_young = 3'(i);
+    endfunction
+    function automatic logic prof_late(input logic [2:0] r, input logic [2:0] at);
+        prof_late = at != 3'd4 && !(prod_early[at[1:0]]
+                                    || r == 3'd4 && prod_sp[at[1:0]] && !(prod_valid[at[1:0]] && prod_dst[at[1:0]] == r));
+    endfunction
+    logic [2:0] prof_by, prof_iy, prof_s1y, prof_s2y;
+    logic       prof_bl, prof_il, prof_ld;
+    assign prof_by = a_addr && dc.has_base ? prof_young(dc.base) : 3'd4;
+    assign prof_iy = a_addr && dc.has_index ? prof_young(dc.index) : 3'd4;
+    assign prof_bl = prof_late(dc.base, prof_by);
+    assign prof_il = prof_late(dc.index, prof_iy);
+    assign prof_s1y = prof_young(u.src1.index[2:0]);
+    assign prof_s2y = prof_young(u.src2.index[2:0]);
+    assign prof_ds1 = u.src1.valid && u.src1.space == fes_i386_pkg::RS_GPR && prof_s1y < 3'd3
+                   && prof_late(u.src1.index[2:0], prof_s1y);
+    assign prof_ds2 = u.src2.valid && u.src2.space == fes_i386_pkg::RS_GPR && prof_s2y < 3'd3
+                   && prof_late(u.src2.index[2:0], prof_s2y);
+    assign prof_agi = prof_bl && (!prof_il || prof_by < prof_iy) ? prof_by
+                    : prof_il ? prof_iy
+                    : prof_by < prof_iy ? prof_by : prof_iy;
+    assign prof_ld = mkind == fes_i386_pkg::MEM_LOAD || mkind == fes_i386_pkg::MEM_RMW;
+    assign prof_d32 = u.size == fes_i386_pkg::SIZE_32;
+    assign prof_dimm = !u.src2.valid;
+    always_comb begin
+        prof_dcls = 4'd13;  // other
+        case (u.cls)
+            fes_i386_pkg::UOP_ALU:
+                if (lea) prof_dcls = lea_early ? 4'd14 : 4'd4;
+                else if (u.sp_write && prof_ld) prof_dcls = 4'd8;
+                else if (prof_ld) prof_dcls = u.op == 5'(fes_i386_pkg::ALU_MOV) || u.op == 5'(fes_i386_pkg::ALU_MOVZX)
+                                         || u.op == 5'(fes_i386_pkg::ALU_MOVSX) ? 4'd6 : 4'd7;
+                else if (mem) prof_dcls = 4'd13;
+                else case (u.op)
+                    5'(fes_i386_pkg::ALU_MOV): prof_dcls = 4'd1;
+                    5'(fes_i386_pkg::ALU_ADD), 5'(fes_i386_pkg::ALU_ADC), 5'(fes_i386_pkg::ALU_SUB),
+                    5'(fes_i386_pkg::ALU_SBB), 5'(fes_i386_pkg::ALU_INC), 5'(fes_i386_pkg::ALU_DEC),
+                    5'(fes_i386_pkg::ALU_NEG): prof_dcls = 4'd2;
+                    5'(fes_i386_pkg::ALU_AND), 5'(fes_i386_pkg::ALU_OR), 5'(fes_i386_pkg::ALU_XOR),
+                    5'(fes_i386_pkg::ALU_NOT): prof_dcls = 4'd3;
+                    5'(fes_i386_pkg::ALU_MOVZX), 5'(fes_i386_pkg::ALU_MOVSX): prof_dcls = 4'd5;
+                    default: prof_dcls = 4'd11;
+                endcase
+            fes_i386_pkg::UOP_SHIFT: prof_dcls = 4'd9;
+            fes_i386_pkg::UOP_MUL, fes_i386_pkg::UOP_DIV: prof_dcls = 4'd10;
+            fes_i386_pkg::UOP_BRANCH: prof_dcls = 4'd12;
+            default: prof_dcls = prof_ld ? 4'd6 : 4'd13;
+        endcase
+    end
 
     // ---- Self-modifying code -------------------------------------------------------
     // The instructions after the one in WB came from the lines of the
