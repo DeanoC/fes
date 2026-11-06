@@ -18,7 +18,7 @@ class SealedIdentityTests(unittest.TestCase):
         from scripts.export_core_package import _archive_bytes
         payload = b'unchanged FPGA payload'
         record = json.dumps({'repository': 'https://example.invalid/fes', 'revision': 'f'*40,
-                             'recipe_sha256': 'a'*64}).encode()
+                             'recipe_sha256': 'a'*64, 'abi_definition': seal.DEFINITION}).encode()
         ids = []
         for model, size in [('zx80', 4096), ('zx81', 8192)]:
             inputs = {'board_fes_revision': seal.rom_transport.BOARD_REVISION,
