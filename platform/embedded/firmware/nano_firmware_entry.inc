@@ -27,13 +27,17 @@
     b FES_RAM_PARK
 .Lfes_ram_tx_ready_\@:
 .endm
-.macro fes_ram_uart_char
+.macro fes_ram_uart_char budget=0
+    .if \budget
+    cbz w17, FES_RAM_PARK
+    sub w17, w17, #1
+    .endif
     fes_ram_uart_wait 0x20
     ldr x10, =FES_RAM_UART_DATA
     str w9, [x10]
     dsb sy
 .endm
-.macro fes_ram_uart_text label
+.macro fes_ram_uart_text label, budget=0
     ldr x8, =\label
     mov w13, #FES_RAM_UART_BYTES
 .Lfes_ram_tx_text_\@:
@@ -41,7 +45,7 @@
     ldrb w9, [x8], #1
     sub w13, w13, #1
     cbz w9, .Lfes_ram_tx_end_\@
-    fes_ram_uart_char
+    fes_ram_uart_char \budget
     b .Lfes_ram_tx_text_\@
 .Lfes_ram_tx_end_\@:
     fes_ram_uart_wait 0x40

@@ -299,7 +299,7 @@ def decode_native_boot(data, build_id, owner_seed, *, storage=None, package=None
     report = {'records': [], 'errors': [], 'loader_ready': False, 'complete': False,
               'last_checkpoint': None, 'core_load_acceptance': False,
               'firmware_ram_trace': {'records': [], 'complete': False, 'valid': True,
-                                     'vendor_records': [], 'vendor_complete': False}}
+                                     'vendor_records': [], 'vendor_complete': False, 'exceptions': []}}
     if len(data) > MAX_BYTES:
         report['errors'].append('capture exceeds byte bound')
         return report
@@ -318,6 +318,19 @@ def decode_native_boot(data, build_id, owner_seed, *, storage=None, package=None
             report['errors'].append(f'failure marker at line {number}')
         if line.startswith('FES_NANO_RAM'):
             ram=report['firmware_ram_trace'];rows=ram['records']
+            if line.startswith('FES_NANO_RAM EXCEPTION'):
+                fields=('vector','esr','elr','far','spsr','r0','r1','r2','r3')
+                fault=re.fullmatch('FES_NANO_RAM EXCEPTION '+
+                    ' '.join(name+r'=(?P<'+name+r'>[0-9a-f]{16})' for name in fields),line)
+                if fault is None or int(fault['vector'],16)>15 or ram['exceptions']:
+                    report['errors'].append(f'malformed or repeated early exception at line {number}')
+                else:
+                    ram['exceptions'].append(dict(line=number,**{name:int(fault[name],16) for name in fields}))
+                ram['valid']=False;ram['vendor_complete']=False
+                # An exception is terminal evidence, even without an explicit
+                # diagnostic profile selection. It can never grant boot.
+                report['errors'].append(f'early firmware exception at line {number}')
+                continue
             vendor=re.fullmatch(r'FES_NANO_RAM VENDOR phase=([a-z-]+)',line)
             if vendor:
                 progress=ram['vendor_records'];phase=vendor[1]

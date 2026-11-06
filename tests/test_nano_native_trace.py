@@ -119,6 +119,26 @@ class NativeTraceTests(unittest.TestCase):
         self.assertEqual(len(flooded['firmware_ram_trace']['vendor_records']),15)
         self.assertEqual(len(flooded['firmware_ram_trace']['records']),2)
         self.assertFalse(flooded['loader_ready'])
+        fields=('vector','esr','elr','far','spsr','r0','r1','r2','r3')
+        values={name:(1<<64)-1 if i%2 else 0 for i,name in enumerate(fields)}
+        for vector in range(16):
+            values['vector']=vector
+            fault='FES_NANO_RAM EXCEPTION '+' '.join(name+'='+format(values[name],'016x') for name in fields)+'\r\n'
+            failed=complete.replace('FES_NANO_RAM VENDOR phase=nobits-cache-before\r\n',
+                                    'FES_NANO_RAM VENDOR phase=nobits-cache-before\r\n'+fault)
+            report=decode(failed);ram=report['firmware_ram_trace']
+            self.assertFalse(report['loader_ready']);self.assertFalse(ram['valid'])
+            self.assertEqual({name:ram['exceptions'][0][name] for name in fields},values)
+            self.assertFalse(ram['vendor_complete'])
+            self.assertEqual(len(decode(failed+fault*20)['firmware_ram_trace']['exceptions']),1)
+        for bad in (fault.replace('vector=000000000000000f','vector=0000000000000010'),
+                    fault.replace('esr=ffffffffffffffff','esr=-1'),fault.replace(' r0=',' extra=1 r0='),
+                    fault.replace(' r3='+format(values['r3'],'016x'),'')):
+            report=decode(complete+bad)
+            self.assertFalse(report['loader_ready']);self.assertEqual(report['firmware_ram_trace']['exceptions'],[])
+        partial=prefix+fault[:-2]
+        self.assertEqual(decode(partial)['firmware_ram_trace']['exceptions'],[])
+        self.assertEqual(len(decode(partial+'\r\n')['firmware_ram_trace']['exceptions']),1)
         for value in (None,1,'true'):
             with self.assertRaises(ValueError):trace.decode_native_boot(raw,BUILD,SEED,atf=expected,firmware_ram_trace=value)
         with self.assertRaises(ValueError):trace.decode_native_boot(raw,BUILD,SEED,firmware_ram_trace=True)

@@ -44,6 +44,15 @@ vendor markers, with setup completion after the two EL3 capture observations,
 before accepting the U-Boot checkpoint. Partial progress locates a stop; it
 does not grant boot, RAM ownership or a firmware service.
 
+Selected cold startup temporarily uses private exception vectors until stack
+selection has returned; it restores the vendor runtime vectors before BL31
+setup. On an exception, a stack-free handler switches to park-only vectors
+before its first data access, captures ESR/ELR/FAR/SPSR and four working
+registers, emits one fixed-width bounded UART line, then parks. A logging fault
+therefore cannot re-enter the logger. The decoder retains at most one exception
+record and rejects boot. These diagnostics preserve the vendor cache operations;
+they neither retry nor establish RAM ownership or writability.
+
 Only that selected profile may accept one non-executable, zero-file-byte NOBITS
 load segment in the fixed range. Packaging independently checks the actual ELF
 symbols, exact stack/BSS boundaries, initialized DDR latch and compiled chain

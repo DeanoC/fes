@@ -126,21 +126,26 @@ int main(void) { return 0; }
 
     def test_transform_puts_guard_before_stash_and_vendor_initialization(self):
         warm='func bl31_warm_entrypoint\n\tel3_entrypoint_common\nendfunc bl31_warm_entrypoint\n'
-        fixture=('func bl31_entrypoint\n\tmov x20, x0\n\tmov\tx23, x3\n'
-                 '\tel3_entrypoint_common\n\tel3_entrypoint_common\n\tbl\tbl31_setup\n'
-                 'endfunc bl31_entrypoint\n'+warm)
+        vector='\t\t_exception_vectors=runtime_exceptions\n'
+        fixture=('func bl31_entrypoint\n\tmov x20, x0\n\tmov\tx23, x3\n'+
+                 '\tel3_entrypoint_common\n'+vector+'\tel3_entrypoint_common\n'+vector+
+                 '\tmov\tx0, x20\n\tbl\tbl31_setup\nendfunc bl31_entrypoint\n'+warm)
         with patch.object(ram,'ENTRY_SHA',hashlib.sha256(fixture.encode()).hexdigest()):
             result=ram.entry_source(fixture,'42'*32)
             self.assertLess(result.index('#include "nano_firmware_entry.inc"'),result.index('mov x20'))
             self.assertIn('#include "nano_vendor_entry.inc"',result)
             self.assertIn(warm,result)
+            self.assertEqual(result.count('_exception_vectors=fes_nano_ram_fault_vectors'),2)
+            self.assertIn('#include "nano_firmware_fault.inc"',result)
+            self.assertIn('\tadr\tx8, runtime_exceptions\n\tmsr\tvbar_el3, x8\n\tisb\n\tmov\tx0, x20\n',result)
             self.assertEqual(result.count('\tfes_ram_el3_entrypoint_common\n'),2)
             self.assertIn('\tmov\tx23, x3\n\tfes_ram_uart_text fes_nano_ram_vendor_enter\n',result)
             self.assertIn(ram.vendor_call('\tbl\tbl31_setup\n','setup'),result)
             self.assertIn('.quad 0',result);self.assertIn('.data.fes_ram_attempt',result)
             with self.assertRaises(ValueError):ram.entry_source(fixture+'\n','42'*32)
             for bad in (fixture.replace('\tmov\tx23, x3\n',''),fixture.replace('\tbl\tbl31_setup\n',''),
-                        fixture.replace('\tel3_entrypoint_common\n','',1)):
+                        fixture.replace('\tel3_entrypoint_common\n','',1),fixture.replace(vector,'',1),
+                        fixture.replace('\tmov\tx0, x20\n','')):
                 with patch.object(ram,'ENTRY_SHA',hashlib.sha256(bad.encode()).hexdigest()),self.assertRaises(ValueError):
                     ram.entry_source(bad,'42'*32)
         with self.assertRaises(ValueError):ram.entry_source(fixture,'42'*32)
