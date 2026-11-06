@@ -88,7 +88,8 @@ class DE25SdkWorkflowTests(unittest.TestCase):
         common = ['make', '--dry-run', 'kit-software', 'BOARD=de25-nano', 'DE25_IMAGE=/verified-image',
                   'KIT_SOFTWARE_BASE=/base', 'KIT_SOFTWARE_BASE_SHA256=' + 'a'*64, 'KIT_SOFTWARE_VERSION=fixture']
         software = subprocess.run(common, cwd=ROOT, capture_output=True, text=True, check=True)
-        self.assertIn('--board "de25-nano" --de25-image "/verified-image"', software.stdout)
+        self.assertIn('--board "de25-nano"', software.stdout)
+        self.assertIn('--de25-image "/verified-image"', software.stdout)
         override = subprocess.run([*common, 'KIT_SOFTWARE_BOARD=de10-nano', 'KIT_SOFTWARE_DE25_IMAGE='],
                                   cwd=ROOT, capture_output=True, text=True, check=True)
         self.assertIn('--board "de10-nano"', override.stdout)
