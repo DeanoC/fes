@@ -154,7 +154,13 @@ else:raise SystemExit(9)
                         self.assertFalse(result['physical_programming_admission'])
 
     def test_rom_resource_requires_the_same_sealed_profile_before_conversion(self):
-        context={'programming_profile':boot.hps_context.ROM_PROFILE}
+        self.check_rom_resource_profile({'programming_profile':boot.hps_context.ROM_PROFILE})
+
+    def test_native_computer_resources_require_the_same_sealed_profile_before_conversion(self):
+        self.check_rom_resource_profile({'programming_profile':boot.hps_context.COMPUTER_PROFILE,
+            'abi':'fes.computer','abi_major':1,'abi_minor':0,'control_abi':0x10203041,'core_id':'fes.zx81'})
+
+    def check_rom_resource_profile(self, context):
         rom={'complete':'source-derived ROM fixture'}
         for mode in ('pass','missing','changed','ordinary'):
             with self.subTest(mode=mode),tempfile.TemporaryDirectory() as temp:

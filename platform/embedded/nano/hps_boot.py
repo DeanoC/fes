@@ -63,7 +63,7 @@ def prepare(project, uboot, entry, pfg, output):
         raise ValueError('native DDR read contract differs from the sealed generated adapter')
     window_profile=native.get('native_handoff',{}).get('cold_boot_profile',{})
     rom=window_profile.get('hps_rom')
-    rom_profile=source_context is not None and source_context.get('programming_profile')==hps_context.ROM_PROFILE
+    rom_profile=source_context is not None and hps_context.uses_held_rom(source_context)
     if rom_profile:
         if rom is None or rom!=hps_context.rom(project) or window_profile.get('hps_rom_sha256')!=hps_context.digest(rom):
             raise ValueError('native ROM resources differ from the sealed FPGA project')
