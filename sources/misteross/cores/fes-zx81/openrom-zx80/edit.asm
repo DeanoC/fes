@@ -145,14 +145,15 @@ edit_line:
         ret nz
         pop af                  ; none: nothing to do
         ret
-.home:  ld hl,0
+.home:  ld h,a                  ; (A is 0)
+        ld l,a
         jr .set
-.up:    call .find
+.up:    call find_cur
         call line_before
         jr c,.num               ; none before: the first line
         ex de,hl
         jr .num
-.down:  call .find
+.down:  call find_cur
         call z,next_line        ; down from an existing line
 .num:   call or_last
         ret c                   ; no program
@@ -162,8 +163,6 @@ edit_line:
         ld h,a
 .set:   ld (E_PPC),hl
         ret
-.find:  ld bc,(E_PPC)
-        jr find_line
 .ins:   add a,K_UP
         call edit_insert
         jr .draw
@@ -202,8 +201,7 @@ edit_insert:
 ; EDIT: the current line (or the next, or the last) replaces the edit
 ; line: its number in four columns, the cursor, its text.
 edit_copy:
-        ld bc,(E_PPC)
-        call find_line
+        call find_cur
         call or_last
         jr c,eline_reset        ; no program: an empty line
         push hl
@@ -292,8 +290,7 @@ edit_display:
         dec hl
         ld (DF_EA),hl
         call print_eline
-        ld bc,(E_PPC)           ; DE = the current line (or the one before)
-        call find_line
+        call find_cur           ; DE = the current line (or the one before)
         jr z,.got
         call line_before
         ret c
@@ -362,6 +359,9 @@ print_eline:
 ; ---------------------------------------------------------------------
 ; Program lines: number (high byte first), text, NEWLINE.
 
+; The current line, as find_line finds it.
+find_cur:
+        ld bc,(E_PPC)
 ; HL = the first line numbered BC or more (or VARS); Z if exactly BC.
 find_line:
         ld hl,PROG
