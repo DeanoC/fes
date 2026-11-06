@@ -100,7 +100,10 @@ edit_line:
         call z,next_line        ; down from an existing line
 .num:   call or_last
         ret c                   ; no program
-        call peek_be
+        ld a,(hl)               ; its number
+        inc hl
+        ld l,(hl)
+        ld h,a
 .set:   ld (E_PPC),hl
         ret
 .find:  ld bc,(E_PPC)

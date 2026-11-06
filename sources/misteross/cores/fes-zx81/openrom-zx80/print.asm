@@ -29,8 +29,6 @@ put_char:
         call c,next_row         ; row full or NEWLINE due
         pop bc                  ; B = the character
         jr c,.out
-        bit X_MEASURE,(iy+Y_FLAGX)
-        jr nz,.count
         ld a,b
         call append
         jr c,.out
@@ -73,15 +71,16 @@ next_row:
         ret nz
         rst 8
         db R_SCREEN
-.ok:    ld (iy+Y_LINE),a
-        ld (iy+Y_COL),33
-        and a
+.ok:    ld h,a
+        ld l,33
+        ld (S_POSN),hl
+        ld a,C_NL
+; A on the end of the display file (nothing, NC, with X_MEASURE). No room:
+; with X_DROP carry (and X_FULL), else report 4.
+append: and a
         bit X_MEASURE,(iy+Y_FLAGX)
         ret nz
-        ld a,C_NL
-; A on the end of the display file. No room: with X_DROP carry (and
-; X_FULL), else report 4.
-append: push af
+        push af
         ld bc,1
         call test_room
         jr c,.no
@@ -102,9 +101,8 @@ append: push af
 print_token:
         push hl
         push bc
-        sub T_QUOTE
+        sub T_QUOTE - 1
         ld b,a
-        inc b
         ld hl,tokens
         jr .find
 .skip:  bit 7,(hl)
@@ -121,14 +119,13 @@ print_token:
         call space
         set F_SPACE,(iy+Y_FLAGS)
         jr .done
-.sym:   res F_SPACE,(iy+Y_FLAGS)
-        call .text
+.sym:   call .text
 .done:  pop bc
         pop hl
         ret
-.text:  ld a,(hl)
+.text:  ld a,(hl)               ; (each character clears F_SPACE)
         and 0x7f
-        call put_char
+        rst 0x10
         bit 7,(hl)
         inc hl
         jr z,.text
@@ -203,9 +200,9 @@ list_line:
         ld hl,(E_PPC)
         and a
         sbc hl,bc
-        ld a,C_SPACE
-        jr nz,.mark
         ld a,C_GT + 0x80
+        jr z,.mark
+        xor a                   ; a space
 .mark:  call put_char
         set F_SPACE,(iy+Y_FLAGS)
         pop hl
@@ -251,21 +248,8 @@ list_prog:
 .l:     ld de,(VARS)
         rst 0x28
         ret nc
-        push hl
-        call list_line
-        pop de
+        call list_line          ; BC = its number
         bit X_FULL,(iy+Y_FLAGX)
         ret nz
-        ex de,hl
-        call peek_be
-        ld (DEST),hl
-        ex de,hl
+        ld (DEST),bc
         jr .l
-
-; HL = the line number (high byte first) at HL.
-peek_be:
-        ld a,(hl)
-        inc hl
-        ld l,(hl)
-        ld h,a
-        ret

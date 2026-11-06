@@ -193,11 +193,9 @@ overflow:
 ; Note report code A if the statement has none yet.
 soft_err:
         ld hl,ERR_NR
-        inc (hl)
-        jr z,.set
-        dec (hl)
-        ret
-.set:   ld (hl),a
+        bit 7,(hl)              ; $FF: none yet
+        ret z
+        ld (hl),a
         ret
 
 ; A symbol that does not fit. While checking, mark it and leave the check;
