@@ -2017,6 +2017,13 @@ the rational machine clock scheduler at an average
 refresh bus cycle. The Zon X firmware diagnostic uses the same NMOS CPU and
 expansion socket as the machine and expansion simulations.
 
+`make sim-fes-zx81-openrom` builds the generated C++ model and support code
+with `OPT_FAST=-O3 OPT_GLOBAL=-O3`. Verilator's own `-O3` controls model
+generation; the separate Make flags select the C++ optimization. The
+`build/sim/fes-zx81-openrom-cxx-o3-{1,0,ts1000}` directories separate these
+objects from earlier size-optimized builds. The target retains all three full
+machine checks and both starter-tape loads when those tapes are available.
+
 `make sim-fes-zx81` also runs `Vzx81_machine`, which waits until NEW has built
 a display file at `D_FILE` starting with `0x76`, the CPU has HALTed for slow
 display, and the ULA has emitted visible pixels. It then types `LOAD ""` on
