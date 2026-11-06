@@ -19,6 +19,7 @@ import reader_memory
 import computer_model
 import rom_transport
 import timing_sources
+import reset_domains
 ROOT = HERE.parents[3]
 TAMAGO = ROOT / "platform/embedded/tamago"
 SPEC = importlib.util.spec_from_file_location("embedded_sim_producer", HERE.parent / "embedded_control/producer.py")
@@ -180,6 +181,9 @@ def inputs_for(project):
                 raise ValueError('computer transport differs from the functional source snapshot')
             if not name.endswith('.hpp') and sha(material/name)!=sources[source]:
                 raise ValueError('generated computer transport differs from captured source')
+    if reset_domains.enabled(inputs):
+        for name in reset_domains.SOURCES:
+            mapped[name]='sources/misteross/prototypes/de25_board_control/'+name
     for installed, source in mapped.items():
         if sha(local / installed) != sources[source]:
             raise ValueError("project endpoint differs from source snapshot: " + installed)
@@ -192,6 +196,9 @@ def inputs_for(project):
     model_sources = {name: (snapshot / name).read_bytes() for name in sources if name.startswith(computer_model.ROM_PATH)}
     computer_model.verify(board/'hps/project', inputs, model_sources)
     rom_transport.verify(board/'hps/project',inputs,{name:(snapshot/name).read_bytes() for name in sources})
+    reset_domains.verify(board/'hps/project',inputs)
+    if generation.get('reset_domains') != reset_domains.verify_generated(board/'hps/project',inputs):
+        raise ValueError('generated qualified reset ownership evidence differs')
     if rom_transport.checked(inputs) and generation.get('rom_transport') != rom_transport.verify_generated(board/'hps/project',inputs):
         raise ValueError('generated ROM evidence differs')
     if re.findall(r'(?m)^set_global_assignment -name NUM_PARALLEL_PROCESSORS ([^\r\n]+)$', qsf) != [str(inputs.get('compile_processors'))]:

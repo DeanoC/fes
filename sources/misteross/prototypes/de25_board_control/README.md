@@ -104,6 +104,23 @@ negative control that bypasses the shared pixel release. The outer HDMI wrapper
 and vendor reset controllers remain separate reset cones to investigate; this
 change does not claim complete reset-domain or physical qualification.
 
+For the reviewed CPU-fed ROM/HPS-DDR variant, both Platform Designer reset
+bridges now declare the actual 100 MHz clock and asynchronous-assert,
+synchronous-deassert contract. The generated ROM, computer and control devices
+share an owned bridge combining the memory reset with its early reset request.
+The early request asserts asynchronously even when the memory reset output
+itself waits for a clock edge. Both must clear before device release. The memory
+sequencing parameters and OCM reset/request connections remain checked; the
+remaining peripheral controller serves synchronous interconnect reset.
+Generation and native context verification reject a changed clock, memory
+request sequence, endpoint reset owner or independent peripheral release chain.
+Vendor maintenance and HDMI reset ownership remain separate qualification work.
+`verify_reset_domains.py --project /absolute/generated/project --output out/RESET`
+models the actual generated vendor sequencer and owned bridge through short
+pulses, PLL/configuration events and stopped-high/low clocks. A memory-reset-only
+negative control must fail containment after a live epoch. Simulator style
+waivers for vendor RTL do not add a production timing exception.
+
 Compilation removes only the literal obsolete generated JTAG exception whose
 two type-qualified register filters select no registers in the reviewed routed
 netlist. No broader filter or replacement cut is added. Complete before/after

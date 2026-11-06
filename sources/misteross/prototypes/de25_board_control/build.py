@@ -26,6 +26,7 @@ import reader_memory
 import computer_model
 import rom_transport
 import timing_sources
+import reset_domains
 MISTEROSS = HERE.parents[1]
 ROOT = MISTEROSS.parents[1]
 BOARD = "sources/misteross/boards/de25nano/"
@@ -39,7 +40,8 @@ INPUTS = (OVERLAY + "build.py", OVERLAY + "fes_de25_embedded.sv", OVERLAY + "fes
           OVERLAY + "fes_de25_computer.v", OVERLAY + "generated/fes_de25_computer.vh",
           OVERLAY + "generated/fes_de25_computer.hpp",
           OVERLAY + "reader_memory.py", OVERLAY + "computer_model.py", OVERLAY + "rom_transport.py", OVERLAY + "video.v",
-          OVERLAY + "timing_sources.py", OVERLAY + "clocks.sdc",
+          OVERLAY + "timing_sources.py", OVERLAY + "clocks.sdc", OVERLAY + "reset_domains.py",
+          *(OVERLAY + name for name in reset_domains.SOURCES),
           *(OVERLAY + name for name in rom_transport.FILES), ENDPOINT, WINDOW_READER, WINDOW_CONTROL, DEFINITION)
 BOOTSTRAP = ("build.py", "display/build.py", "zx81/build.py", "zx81-hps/build.py")
 BASE = 0x10400
@@ -259,6 +261,7 @@ def overlay_project(output, board, sources, identity, record=None):
                      'add_connection subsys_periph.fes_maintenance_reset subsys_debug.reset\n')
         script = ''.join(lines)
     script = rom_transport.install(project,inputs,sources,script)
+    script = reset_domains.install(project,inputs,script,sources)
     integration.write_text(script)
     build_id = inputs["computer"]["build_id"]
     qsf = (project / "golden_top.qsf").read_text()
@@ -579,6 +582,7 @@ def main():
             record = seal.make_record(inputs, revision, git("remote", "get-url", "origin").stdout.decode().strip(), tools)
         build_id = overlay_project(result, board, sources, selected, record)
         rom_transport.verify(result/'hps/project',json.loads(inputs_file.read_text()),sources)
+        reset_domains.verify(result/'hps/project',json.loads(inputs_file.read_text()))
         print("DE25 embedded diagnostic:", result, "build ID:", build_id, flush=True)
         if args.action != "project":
             tool, version = hps.BOARD_BUILD.locate_quartus(args.quartus_root)
@@ -591,6 +595,7 @@ def main():
             evidence["embedded_control"] = verify_control(result / "hps/project", hps, board, memory)
             if rom_transport.checked(inputs):
                 evidence['rom_transport'] = rom_transport.verify_generated(result/'hps/project',inputs)
+                evidence['reset_domains'] = reset_domains.verify_generated(result/'hps/project',inputs)
             generation.write_text(json.dumps(evidence, indent=2, sort_keys=True) + "\n")
             if args.action == "build":
                 artifact = compile_project(result / "hps", tool)

@@ -119,6 +119,19 @@ separately checks the enclosing reset wiring and stopped-clock retirement with
 a broken-wiring negative control. The outer HDMI wrapper and vendor reset
 controllers still have separate release cones; no reset-domain rule is waived.
 
+The reviewed ROM/HPS-DDR variant declares the 100 MHz association on both reset
+bridges. Platform Designer consequently shares the memory reset-request
+controller's reset and early request with the peripheral devices through an
+owned combinational bridge. The memory reset output itself asserts on a clock
+edge, so its early asynchronous request is required to contain devices with
+stopped clocks. Both inputs must clear before release. Its OCM reset/request
+connections and complete sequencing parameters are checked in generated HDL;
+the remaining peripheral controller synchronizes interconnect reset on both
+edges. This preserves memory reset sequencing while removing the independent
+peripheral asynchronous release. Native context verification binds the helper
+and the generated ownership evidence. This does not qualify vendor maintenance
+or outer HDMI reset reconvergence.
+
 The separate ROM stream prototype buffers one 4 KiB or 8 KiB image in
 synchronous FPGA RAM. It accepts complete little-endian 128-bit beats with
 backpressure and exposes no read bytes until exact length, final-beat position
