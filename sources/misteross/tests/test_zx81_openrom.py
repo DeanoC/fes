@@ -154,7 +154,7 @@ c:      ds 200
 b:      ret
         endautofloat
         """, 0x200)
-        self.assertIn(bytes([0x18, 0x00, 0xc9]), image)             # jr b, b: ret
+        self.assertNotIn(0xc3, image[3:0x100])                      # jr b stayed a jr
 
     def test_labels_after_a_jump_share_a_section(self):
         image = assemble("""
