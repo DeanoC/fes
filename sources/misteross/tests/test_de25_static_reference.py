@@ -1,6 +1,6 @@
 """Exercise the approved static review on retained real reports and corruptions.
 
-The reports are observations from unadmitted 8af/4dc fits, not package fixtures.
+The reports are observations from unadmitted fits, not package fixtures.
 """
 import copy
 import json
@@ -56,7 +56,7 @@ class StaticReferenceTests(unittest.TestCase):
         self.assertEqual((previous['direct_async'], previous['logical_async']), (334, 313))
         self.assertEqual(review.reset_finding_count(review.findings(self.drc, self.raw), previous), 279)
 
-    def test_new_enable_consumer_still_refused_after_exact_pin_collection(self):
+    def test_approved_two_register_scope_uses_every_exact_physical_enable_path(self):
         newer = self.work / 'b0d-fit'
         with tarfile.open(ROOT / 'tests/fixtures/de25_static_reference_fit_b0d.tar.gz') as archive:
             archive.extractall(newer, filter='data')
@@ -73,10 +73,9 @@ class StaticReferenceTests(unittest.TestCase):
                 selected = [r for r in timing if (r['corner'], r['check']) == (corner, check)]
                 self.assertEqual({r['to'] for r in selected}, enabled)
                 self.assertTrue(all(review.audio.number(r['slack_ns']) > 0 for r in selected))
-        # Correct collection does not silently approve the additional logical
-        # consumer or change the user-approved finding's enable count.
-        with self.assertRaisesRegex(review.BuildError, 'changed direct reset/enable consumers: direct_ena'):
-            review.reset_reports(inventory, paths)
+        reset = review.reset_reports(inventory, paths)
+        self.assertEqual((reset['direct_async'], reset['logical_async'], reset['direct_ena'],
+                          reset['timed_paths']), (329, 313, 3, 2656))
         lnt = json.loads((newer / 'raw-LNT.json').read_text())
         old, new = lnt['old'][1], lnt['new'][1]
         self.assertEqual((old[6], new[6]), ('1', '3'))
@@ -85,8 +84,52 @@ class StaticReferenceTests(unittest.TestCase):
         fields = [f.strip() for f in original.split(';')[1:-1]]
         self.assertEqual(fields, old)
         drc = self.drc.replace(original, '; ' + ' ; '.join(new) + ' ;')
-        with self.assertRaisesRegex(review.BuildError, 'changed reviewed topology: LNT-30010'):
-            review.findings(drc, self.raw)
+        reviewed = review.findings(drc, self.raw)
+        self.assertEqual(review.reset_finding_count(reviewed, reset), 279)
+        self.assertEqual(next(r for r in reviewed if r['id'] == 'LNT-30010')['raw_clock_enable_signals'], 3)
+
+    def test_unknown_enable_or_missing_required_transport_consumer_is_refused(self):
+        inventory = self.work / 'reset_direct/direct-inventory.tsv'
+        paths = self.work / 'reset_paths/reset-paths.tsv'
+        original = inventory.read_text()
+        for name in ['unknown_first_seen', review.OPTIONAL_ENABLE + '_extra',
+                     review.OPTIONAL_ENABLE + '~DUPLICATEbad']:
+            inventory.write_text(original + 'direct_ena\t' + name + '\nall_ena\t' + name + '\n')
+            with self.subTest(name=name), self.assertRaisesRegex(review.BuildError, 'changed direct reset/enable consumers: direct_ena'):
+                review.reset_reports(inventory, paths)
+        transport = review.bound('reviewed-topology.json')['reset']['direct_ena'][0]
+        inventory.write_text(original.replace('direct_ena\t'+transport+'\n',
+                                              'direct_ena\t'+review.OPTIONAL_ENABLE+'\n'))
+        with self.assertRaisesRegex(review.BuildError, 'changed direct reset/enable consumers: direct_ena'):
+            review.reset_reports(inventory, paths)
+
+    def test_enable_copy_needs_all_paired_paths_and_exact_raw_quantity(self):
+        inventory = self.work / 'reset_direct/direct-inventory.tsv'
+        paths = self.work / 'reset_paths/reset-paths.tsv'
+        base = review.bound('reviewed-topology.json')['reset']['direct_ena'][0]
+        duplicate = base + '~DUPLICATE99'
+        inventory.write_text(inventory.read_text() + 'direct_ena\t'+duplicate+'\nall_ena\t'+duplicate+'\n')
+        with self.assertRaisesRegex(review.BuildError, 'missing direct reset/enable timed endpoint'):
+            review.reset_reports(inventory, paths)
+        original = paths.read_text()
+        additions = []
+        for row in original.splitlines()[1:]:
+            fields = row.split('\t')
+            if fields[3] == base:
+                fields[3] = duplicate
+                additions.append('\t'.join(fields))
+        self.assertEqual(len(additions), 8)
+        paths.write_text(original+'\n'.join(additions)+'\n')
+        reset = review.reset_reports(inventory, paths)
+        self.assertEqual((reset['direct_ena'], reset['timed_paths']), (2, 2688))
+        reviewed = review.findings(self.drc, self.raw)
+        with self.assertRaisesRegex(review.BuildError, 'raw enable quantity differs'):
+            review.reset_finding_count(reviewed, reset)
+        next(r for r in reviewed if r['id'] == 'LNT-30010')['raw_clock_enable_signals'] = 2
+        self.assertEqual(review.reset_finding_count(reviewed, reset), 279)
+        paths.write_text(original+'\n'.join(additions[:-1])+'\n')
+        with self.assertRaisesRegex(review.BuildError, 'missing direct reset/enable timed endpoint'):
+            review.reset_reports(inventory, paths)
 
     def test_new_physical_copy_requires_all_corner_recovery_and_removal(self):
         inventory = self.work / 'reset_direct/direct-inventory.tsv'
@@ -134,11 +177,12 @@ class StaticReferenceTests(unittest.TestCase):
         original = next(line for line in self.drc.splitlines()
                         if line.startswith('; ') and review.RESET in line and 'first_seen|ENA' in line)
         fields = [f.strip() for f in original.split(';')[1:-1]]
-        for count in ['0', '-1', 'unknown', '999']:
-            changed = list(fields);changed[4] = count
-            drc = self.drc.replace(original, '; ' + ' ; '.join(changed) + ' ;')
-            with self.subTest(count=count), self.assertRaises(review.BuildError):
-                review.reset_finding_count(review.findings(drc, self.raw), reset)
+        for index in (4, 6):
+            for count in ['0', '-1', 'unknown', '999']:
+                changed = list(fields);changed[index] = count
+                drc = self.drc.replace(original, '; ' + ' ; '.join(changed) + ' ;')
+                with self.subTest(index=index, count=count), self.assertRaises(review.BuildError):
+                    review.reset_finding_count(review.findings(drc, self.raw), reset)
 
     def test_changed_findings_counts_severity_waivers_or_other_rule_refused(self):
         for key, value in [('violations', 34), ('severity', 'Medium'), ('waived', 1)]:
@@ -237,6 +281,7 @@ class StaticReferenceTests(unittest.TestCase):
 
     def test_ordinary_or_historical_policy_and_missing_receipt_cannot_admit_static(self):
         for policy in ['de25-static-whole-board-no-exceptions-v1',
+                       'de25-static-stock-reference-v1',
                        'de25-standard-stock-audio-clocks-v1', None]:
             with self.subTest(policy=policy), self.assertRaisesRegex(review.BuildError, 'approved source-bound'):
                 producer.timing_evidence(ROOT, self.project,

@@ -1,9 +1,11 @@
 # Static ZX81 board-reference review proposal
 
-Status: approved by the user on 2026-11-06: “Approve the scoped static review
-policy.” The implementation selects `de25-static-stock-reference-v1` separately
-from the internal16K approvals. Fresh canonical build, export and native
-acceptance results are not established by this approval.
+Status: the original v1 scope was approved by the user on 2026-11-06:
+“Approve the scoped static review policy.” The additional two-register scope
+below was then approved: “Approve this two-register scope.” The implementation
+selects `de25-static-stock-reference-v2` separately from the internal16K
+approvals. Fresh canonical build, export and native acceptance results are not
+established by either approval.
 
 The proposed separate review policy would cover only source
 `8af614f4d95e71a00e63974c73e3d8f80e1a681a`'s standard static shell with its
@@ -70,11 +72,11 @@ hardware RTL and rewrites no source/QDB/artifact seals. The rejected `4dc`
 candidate remains unqualified; the corrected producer needs fresh canonical
 fits before package or persona export.
 
-## Additional proposed scope: the two source first-seen registers
+## Additional scope: the two source first-seen registers
 
-Status: **pending approval**. The existing `de25-static-stock-reference-v1`
-policy remains unchanged and refuses the finding described here. The previous
-approval is not being reused for this additional logical enable consumer.
+Status: **approved** by the user on 2026-11-06: “Approve this two-register
+scope.” V1 refused the finding described here. Its earlier approval was not
+reused for this additional logical enable consumer; v2 replaces it.
 
 The fresh `b0d985baa` primary fit compiles base, empty and 16K. Its reset timing
 collector then stops because Quartus's compatibility pin-name query returns both
@@ -94,7 +96,7 @@ enable loads are:
 
 The existing fixed hardware sources already contain both logical registers:
 `boards/de25nano/zx81-hps/fes_de25_computer.v` initializes `first_seen` to zero
-and sets it to one on `posedge clk` when `reset_n` is asserted;
+and sets it to one on `posedge clk` when `reset_n` is high (released);
 `boards/de25nano/link-proof/fpga/shell.v` has the same initial state and update.
 The new fitted pin query confirms that all three enable pins have the same
 direct reset-controller source. Every timing row has the same reviewed source
@@ -111,7 +113,7 @@ count stays one, but its descriptive enable-load quantity changes from one to
 three. Its driver, representative reset and enable, synchronous-reset quantity
 zero and empty waiver field are unchanged. No numerical limit is relaxed.
 
-The proposed replacement policy, `de25-static-stock-reference-v2`, would admit
+The replacement policy, `de25-static-stock-reference-v2`, admits
 only the original transport register and the optional PR-control register above,
 plus their anchored Quartus duplicate suffixes, while retaining the exact fixed
 source hashes. The original transport consumer remains required. Every physical
@@ -120,9 +122,9 @@ setup/hold at all four corners. The raw enable quantity must equal that complete
 physical inventory. Unknown logical consumers, missing paths, changed sources,
 clocks or finding families, waivers and negative timing still refuse export.
 
-All other v1 checks remain required. V1 would not be reinterpreted or retained
-as an alternative export route. After approval, the v2 implementation would
-need fresh canonical primary and independent fits, matching base/empty/16K RBFs,
+All other v1 checks remain required. V1 is not reinterpreted or retained
+as an alternative export route. The v2 implementation still needs
+fresh canonical primary and independent fits, matching base/empty/16K RBFs,
 and both public persona exports. The failed b0d candidate stays unqualified.
-This additional review scope would authorize no board load, image change or
+This additional review scope authorizes no board load, image change or
 flash operation; target-CPU composition and physical acceptance remain separate.

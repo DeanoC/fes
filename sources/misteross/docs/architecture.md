@@ -4382,7 +4382,7 @@ two-stage MTBF inclusion and the actual reported rate; defaults fail the audit.
 This profile remains separate from internal16K package and HDMI exceptions.
 
 Static package export selects the separately approved
-`de25-static-stock-reference-v1` policy. Its fixed implementation and topology
+`de25-static-stock-reference-v2` policy. Its fixed implementation and topology
 bindings cover only the standard base with empty/16K personas at the reviewed
 placement/routing regions. Each fresh fit retains all 88 raw rules and numerical
 timing checks, and collects the exact stock video/audio settings, HDMI input
@@ -4393,12 +4393,16 @@ independently derived PCB timing or physical partial-reconfiguration acceptance.
 Compile-only keeps its raw failures and cannot borrow these receipts.
 Reset consumer membership uses the reviewed logical registers after recognising
 only Quartus's `~DUPLICATE` register-copy suffix. Every physical copy still needs
-its own paired recovery/removal path at every corner; the sole enable retains
-full setup/hold coverage. The raw DA reset-load quantity is retained separately
-from the complete physical inventory and never substitutes for path coverage.
+its own paired recovery/removal path at every corner. The original transport
+`first_seen` enable is required; only the existing PR-controller `first_seen`
+is additionally permitted, including fitted copies of either. Every physical
+enable needs full paired setup/hold coverage, and its complete inventory must
+match the raw DA enable quantity exactly. The raw DA reset-load quantity is
+retained separately from the complete physical reset inventory and never
+substitutes for path coverage. Earlier v1 receipts do not admit v2 exports.
 The collector selects physical enable pins by their full names because the
 compatibility query may also return a fitted duplicate. Correct collection
-does not admit an additional logical consumer; the current policy still refuses it.
+does not admit any logical consumer beyond the two specifically reviewed names.
 
 `scripts/export_de25_static_persona.py --producer /absolute/qualified-build
 --package /absolute/package.fcore --output /absolute/expansions` exports the

@@ -21,7 +21,7 @@ from scripts.fes_build_common import BuildError
 PROFILE = 'fes.de25-standard-zx81-empty-ram16k.v1'
 PROGRAMMING_PROFILE = 'de25-linux-static-computer-v1'
 DEFAULT_PERSONA = 0xc001a001
-SIGNOFF_POLICY = 'de25-static-stock-reference-v1'
+SIGNOFF_POLICY = 'de25-static-stock-reference-v2'
 REVIEW_DIRECTORY = 'boards/de25nano/link-proof/zx81-standard'
 REVIEW_INPUTS = tuple(REVIEW_DIRECTORY + '/' + name for name in (
     'static_reference.py', 'reviewed-inputs.json', 'reviewed-topology.json',

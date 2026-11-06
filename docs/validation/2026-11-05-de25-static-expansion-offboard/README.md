@@ -443,3 +443,15 @@ records the scope approved by the user on 2026-11-06. The canonical static
 producer and persona exporter now require that separate, source-bound review
 on both fresh fits. The earlier compile-only candidates remain unqualified;
 no new package or hardware acceptance is implied by the implementation.
+
+The subsequent b0d primary fit exposes the PR-controller's existing `first_seen`
+register and a copy as additional enable loads. The exact-name collector fixes
+Quartus's compatibility query returning both a register and its duplicate.
+Separate read-only collection of all three retained revisions covers 2,656
+paired all-corner paths each, with positive minimum setup/hold/recovery/removal
+8.029/0.353/7.901/0.212 ns. The additional two-register scope was approved
+separately in the proposal above. The producer now selects v2, requires the
+original transport consumer, permits only that PR-controller consumer plus
+fitted copies, and reconciles the raw enable quantity with every timed physical
+load. Old v1 receipts and the failed b0d candidate remain unqualified; fresh
+independent fits, both persona exports and native acceptance are still required.

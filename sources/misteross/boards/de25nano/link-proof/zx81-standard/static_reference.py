@@ -18,11 +18,12 @@ from scripts import review_de25_audio_clocks as audio
 from scripts import build_de25_menu_package as timing
 from scripts.fes_build_common import BuildError
 
-POLICY = 'de25-static-stock-reference-v1'
+POLICY = 'de25-static-stock-reference-v2'
 HERE = Path(__file__).resolve().parent
 PINS = vendor_reference.OUTPUTS | {'HDMI_SCLK', 'HDMI_LRCLK', 'HDMI_I2S'}
 RESET = 'soc_inst|subsys_periph|rst_controller|alt_rst_sync_uq1|altera_reset_synchronizer_int_chain_out'
 SYSTEM_CLOCK = 'pll_inst|iopll_0_outclk0'
+OPTIONAL_ENABLE = 'soc_inst|subsys_periph|fes_pr_control|fes_pr_control|first_seen'
 BOUND_FILES = {'reviewed-inputs.json': '51d8e65979a42f224b7b8e41a4f74a929e9e0d7c718826767bd192d7f75c004d',
                'reviewed-topology.json': '0dbcac3fd72ccdeb60c9dc6a42968a7dd755c007ef3b06623666e30849cd7fd1'}
 SLUGS = ('4_slow_fix4_0c', '4_slow_fix4_100c', '4_slow_fix4a_0c', 'MIN_fast_fix4_0c')
@@ -103,24 +104,29 @@ def findings(drc, timing):
                 r[1:] == ['No output delay was set on the output port.', ''] for r in outputs[1:]),
             'output finding ports/reasons changed')
     async_inputs.input_findings(drc)
-    raw_reset_count = None
+    raw_reset_count = raw_enable_count = None
     for rule, table in bound('reviewed-topology.json')['findings'].items():
         actual = tables[rule]
         if rule == 'LNT-30010':
             # DA's descriptive load quantity varies with fitter replication;
             # it is not the violation count or the physical endpoint inventory.
-            # Keep the driver, representative reset, sole enable and all other
-            # fields exact, and retain this quantity without changing it.
+            # Keep the driver, representative reset/enable and all other
+            # fields exact. Retain both physical-load quantities; the enable
+            # quantity must match the complete fitted inventory below.
             require(len(actual) == 2 and actual[0] == table[0] and len(actual[1]) == 8 and
-                    all(actual[1][i] == table[1][i] for i in range(8) if i != 4),
+                    all(actual[1][i] == table[1][i] for i in range(8) if i not in (4, 6)),
                     'changed reviewed topology: ' + rule)
             require(re.fullmatch(r'[1-9][0-9]*', actual[1][4]) is not None,
                     'invalid raw asynchronous reset quantity')
             raw_reset_count = int(actual[1][4])
+            require(re.fullmatch(r'[1-9][0-9]*', actual[1][6]) is not None,
+                    'invalid raw clock enable quantity')
+            raw_enable_count = int(actual[1][6])
         else:
             require(actual == table, 'changed reviewed topology: ' + rule)
     return [{'id': rule, 'severity': severity, 'violations': count, 'basis': POLICY,
-             **({'raw_async_reset_signals': raw_reset_count} if rule == 'LNT-30010' else {})}
+             **({'raw_async_reset_signals': raw_reset_count,
+                 'raw_clock_enable_signals': raw_enable_count} if rule == 'LNT-30010' else {})}
             for rule, (severity, count) in expected.items()]
 
 
@@ -190,7 +196,8 @@ def reset_reports(inventory, paths):
     logical = lambda names: {re.sub(r'~DUPLICATE[0-9]*$', '', name) for name in names}
     require(logical(groups['direct_async']) == logical(expected['direct_async']),
             'changed direct reset/enable consumers: direct_async')
-    require(groups['direct_ena'] == set(expected['direct_ena']),
+    required_enable = logical(expected['direct_ena'])
+    require(required_enable <= logical(groups['direct_ena']) <= required_enable | {OPTIONAL_ENABLE},
             'changed direct reset/enable consumers: direct_ena')
     require(groups['direct_async'] == groups['all_async'] and groups['direct_ena'] <= groups['all_ena'],
             'reset topology coverage differs')
@@ -220,6 +227,9 @@ def reset_finding_count(reviewed, reset):
     counts = [r.get('raw_async_reset_signals') for r in reviewed if r['id'] == 'LNT-30010']
     require(len(counts) == 1 and type(counts[0]) is int and 0 < counts[0] <= reset['direct_async'],
             'raw reset quantity exceeds the complete physical reset inventory')
+    enables = [r.get('raw_clock_enable_signals') for r in reviewed if r['id'] == 'LNT-30010']
+    require(len(enables) == 1 and type(enables[0]) is int and enables[0] == reset['direct_ena'],
+            'raw enable quantity differs from the complete physical enable inventory')
     return counts[0]
 
 
