@@ -68,6 +68,7 @@ Quartus 17.0.2.
 | [`sim/pc386_ddr_model.h`](sim/pc386_ddr_model.h) | The DDR window and 64-bit port model with the measured latency |
 | [`sim/freedos.lock`](sim/freedos.lock) | The FreeDOS 1.4 package commits and file hashes of the simulation and games disks |
 | [`sim/fesenv.asm`](sim/fesenv.asm) | FESENV.COM: the games disk's `BLASTER` line from CMOS 60h-62h |
+| [`sim/mousedef.asm`](sim/mousedef.asm) | MOUSEDEF.COM: the games disk's default CuteMouse event handler, run after `LH CTMOUSE` |
 
 The 8254 is the shared KF8253 with `READ_BACK = 1`; the DMA controllers are the
 shared [`fes_dma8237.sv`](../fes-common/rtl/fes_dma8237.sv) with AT parameters.
@@ -77,7 +78,7 @@ shared [`fes_dma8237.sv`](../fes-common/rtl/fes_dma8237.sv) with AT parameters.
 ```sh
 python3 scripts/build_pc386_firmware.py --download     # dev86, then both ROMs, checked against the lock
 python3 scripts/build_pc386_freedos_image.py --download  # the FreeDOS fixture in build/
-python3 scripts/build_pc386_freedos_image.py --profile games --download  # the games image (HIMEMX, UMBM, CuteMouse, MEM, BLASTER)
+python3 scripts/build_pc386_freedos_image.py --profile games --download  # the games image (HIMEMX, UMBM, CuteMouse, MOUSEDEF, MEM, BLASTER)
 python3 scripts/sim_fes_pc386.py --suite devices        # directed device checks, about 10 s
 python3 scripts/sim_fes_pc386.py --suite storage        # the fes.computer 1.1 golden exchanges, about 2 min
 python3 scripts/sim_fes_pc386.py --suite audio          # DSP, OPL2 timers, mixer, about 1 min
