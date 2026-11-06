@@ -10,13 +10,9 @@ need_num:
         ret nz
         jr syntax_err
 
-; A whole expression. An error in it (overflow) stops the statement here.
+; A whole expression.
 expr:   ld b,0
-        call expr_b
-        ld a,(ERR_NR)
-        inc a
-        ret z
-        jr unwind
+        jr expr_b
 
 ; Operators binding tighter than B, by precedence climbing.
 expr_b: push bc
@@ -113,9 +109,6 @@ power:  bit 7,h
         call mul
         pop de
         pop bc
-        ld a,(ERR_NR)
-        inc a
-        ret nz                  ; overflowed
         dec bc
         jr .l
 

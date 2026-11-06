@@ -183,20 +183,13 @@ line_skip:
         ret
 
 ; ---------------------------------------------------------------------
-; Reports. RST 8 stops the statement; arithmetic overflow notes its report
-; and lets the statement finish, as the ZX80 does.
+; Reports. RST 8 stops the statement; so does arithmetic overflow.
 unwind: ld sp,(ERR_SP)
         ret
 
 overflow:
-        ld a,R_OVERFLOW
-; Note report code A if the statement has none yet.
-soft_err:
-        ld hl,ERR_NR
-        bit 7,(hl)              ; $FF: none yet
-        ret z
-        ld (hl),a
-        ret
+        rst 8
+        db R_OVERFLOW
 
 ; A symbol that does not fit. While checking, mark it and leave the check;
 ; a line that was never checked (a hand-made image) stops with report 9.

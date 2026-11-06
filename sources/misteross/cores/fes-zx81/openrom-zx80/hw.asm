@@ -17,7 +17,7 @@ start:  di
         org 0x0008
 rst_err: pop hl                 ; RST 8: report code byte follows the call
         ld a,(hl)
-        call soft_err
+        ld (ERR_NR),a
         jr unwind
 
         org 0x0010
@@ -149,9 +149,7 @@ key_scan:
 .up:    inc l
         dec h
         jr nz,.bit
-        ld a,d
-        add a,5
-        ld d,a
+        ld d,l                  ; the next row's first key
         rlc b
         in a,(c)
         jr c,.row

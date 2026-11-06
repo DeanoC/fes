@@ -234,19 +234,17 @@ check_eline:
         call gc_store
         call k_here
 .stmt:  cp C_NL                 ; empty, or a number alone (deletes it)
-        call nz,statement
-        jr .ok
-.input: call expr
-        ld a,(FLAGS)
-        and (1 << F_NUM) | (1 << F_DNUM)
-        jp po,syntax_err        ; not the type INPUT wants
-        rst 0x20
-        ret
+        jr nz,statement         ; a statement always ends by unwinding
 .ok:    pop hl
 .fail:  pop hl
         ld (ERR_SP),hl
         res F_CHECK,(iy+Y_FLAGS)
         ret
+.input: call expr
+        ld a,(FLAGS)
+        and (1 << F_NUM) | (1 << F_DNUM)
+        jp po,syntax_err        ; not the type INPUT wants
+        rst 0x20                ; (unwinds)
 
 ; The screen while editing: for INPUT the program's output stays and the
 ; line goes in the lower part; otherwise the listing above, the edit line

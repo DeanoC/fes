@@ -83,9 +83,6 @@ line_go:
         call temp_clear
         call statement
 line_end:
-        ld a,(ERR_NR)
-        inc a
-        jr nz,unwind            ; an error: report it
         ld a,(PPC + 1)
         inc a
         jr z,unwind             ; a command has finished: 0
