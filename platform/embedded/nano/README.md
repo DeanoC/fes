@@ -1,5 +1,12 @@
 # Nano recovery uploads and cold serial boot
 
+The current guarded-RAM contract keeps the per-CPU array in sealed initialized
+BL31 DDR instead of OCRAM BSS. Its original cache flush remains in place. The
+matched device tree reserves the complete two-MiB BL31 DDR interval, and the
+loader rejects missing, changed, overlapping or duplicate firmware reservations
+before CPU queries. Both the initialized-array ELF checks and the live LMB
+reservation check are required; a reservation is not a cache-operation proof.
+
 Current guarded-RAM builds also emit `FES_NANO_CALL` receipts at the selected
 SMC instruction, in the PSCI affinity handler and around its existing per-CPU
 cache flush. The decoder pairs six receipts for each of four initial and four

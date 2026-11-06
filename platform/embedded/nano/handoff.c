@@ -11,6 +11,24 @@ static int overlap(struct fes_nano_range a, struct fes_nano_range b)
     return a.start < b.start + b.size && b.start < a.start + a.size;
 }
 
+int fes_nano_firmware_reservation_ok(const struct fes_nano_range *regions,
+                                    const fes_u32 *flags, unsigned count)
+{
+    const struct fes_nano_range firmware = {FES_NANO_FW_DDR_START, FES_NANO_FW_DDR_BYTES};
+    unsigned found = 0;
+    if (!regions || !flags || !count || count > 60) return 0;
+    for (unsigned i = 0; i < count; i++) {
+        if (!valid_range(regions[i])) return 0;
+        if (overlap(regions[i], firmware)) {
+            /* The pinned LMB_NOMAP wire value; no broader/duplicate grant. */
+            if (regions[i].start != firmware.start || regions[i].size != firmware.size ||
+                flags[i] != 2U) return 0;
+            found++;
+        }
+    }
+    return found == 1;
+}
+
 int fes_nano_memory_ok(const struct fes_nano_range *banks, unsigned bank_count,
                        const struct fes_nano_range *used, unsigned used_count,
                        fes_u64 image_size,

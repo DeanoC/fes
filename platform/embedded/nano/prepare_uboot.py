@@ -167,6 +167,14 @@ def prepare(source, entry_build, bl31_sha256, bl31_size, *, firmware_ram=False):
     board_r.write_text(text)
     dts=source/'arch/arm/dts/socfpga_agilex5_de25_nano-u-boot.dtsi'
     dts.write_text(dts.read_text()+'''
+/ {
+    reserved-memory {
+        fes_bl31: firmware@80000000 {
+            reg = <0x0 0x80000000 0x0 0x00200000>;
+            no-map;
+        };
+    };
+};
 &images {
     fes-entry {
         description = "FES native serial entry";

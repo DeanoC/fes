@@ -142,8 +142,18 @@ belongs to its exact input; the added runtime checkpoints need a new matched
 trial. Neither returned call markers nor off-board geometry execution qualify
 physical cache coverage or a complete native core-loading cycle.
 
-Version3 additionally specializes only the cold exit clean of the exact
-compiled private BSS range `58000..5dec0`. It retains the original writeback
+Version4 places the 256-byte per-CPU array in the sealed BL31 `.data` image in
+DDR, with six independent C assertions for count, stride, alignment, size and
+affinity-member layout. ELF admission requires aligned, writable, file-backed
+zero bytes in the initialized-data interval below `80200000`, disjoint from
+other firmware symbols. SPL loads those bytes before secure initialization.
+The remaining private BSS shrinks by 256 bytes; no padding or runtime cache
+skip is added. The original per-CPU `DC CIVAC` operation remains unchanged.
+The matched loader reserves `80000000..80200000` through its device tree and
+requires that exact, unique `LMB_NOMAP` reservation before CPU queries.
+
+The cold exit clean specializes the exact compiled private BSS range
+`58000..5ddc0`. It retains the original writeback
 intent through the pinned `dcsw_op_all(DCCSW)` helper across the accessible
 data/unified hierarchy. `DCCSW` comes from the actual vendor header, including
 its clean/invalidate alias when `ERRATA_A53_827319` is selected; other selectors

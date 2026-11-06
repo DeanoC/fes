@@ -9,6 +9,8 @@ _Static_assert(sizeof(fes_u64) == 8 && sizeof(fes_u32) == 4 && sizeof(fes_s32) =
 /* Pinned Terasic Nano DDR layout; live U-Boot banks/reservations are checked. */
 #define FES_NANO_DDR_START 0x80000000ULL
 #define FES_NANO_DDR_END 0xc0000000ULL
+#define FES_NANO_FW_DDR_START 0x80000000ULL
+#define FES_NANO_FW_DDR_BYTES 0x00200000ULL
 #define FES_NANO_GO_START 0x84000000ULL
 #define FES_NANO_GO_SIZE 0x10000000ULL
 #define FES_NANO_STAGE 0x96080000ULL
@@ -32,4 +34,6 @@ int fes_nano_memory_ok(const struct fes_nano_range *banks, unsigned bank_count,
                        const struct fes_nano_range *owned, unsigned owned_count);
 int fes_nano_state_ok(const struct fes_nano_state *state);
 int fes_nano_cpus_ok(const struct fes_nano_state *state);
+int fes_nano_firmware_reservation_ok(const struct fes_nano_range *regions,
+                                    const fes_u32 *flags, unsigned count);
 #endif

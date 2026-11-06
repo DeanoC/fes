@@ -30,26 +30,27 @@ def profile():
 
 
 def elf():
-    image=bytearray(0x800);image[:7]=b'\x7fELF\x02\x01\x01'
+    image=bytearray(0x1000);image[:7]=b'\x7fELF\x02\x01\x01'
     struct.pack_into('<HHI',image,16,2,183,1)
-    struct.pack_into('<QQQ',image,24,0x80000000,64,0x700)
+    struct.pack_into('<QQQ',image,24,0x80000000,64,0xb00)
     struct.pack_into('<HHHHHH',image,52,64,56,2,64,3,0)
-    struct.pack_into('<IIQQQQQQ',image,64,1,6,0,0x50000,0x50000,0,0xdec0,1)
-    struct.pack_into('<IIQQQQQQ',image,120,1,7,0x200,0x80000000,0x80000000,0x80,0x80,1)
+    struct.pack_into('<IIQQQQQQ',image,64,1,6,0,0x50000,0x50000,0,0xddc0,1)
+    struct.pack_into('<IIQQQQQQ',image,120,1,7,0x200,0x80000000,0x80000000,0x180,0x180,1)
     image[0x210:0x230]=bytes.fromhex('42'*32)
     values=[('bl31_entrypoint',0x80000000,16),('__NOBITS_START__',0x50000,0),
-        ('__NOBITS_END__',0x5dec0,0),('__STACKS_START__',0x50000,0),('__STACKS_END__',0x58000,0),
-        ('__BSS_START__',0x58000,0),('__BSS_END__',0x5dec0,0),
+        ('__NOBITS_END__',0x5ddc0,0),('__STACKS_START__',0x50000,0),('__STACKS_END__',0x58000,0),
+        ('__BSS_START__',0x58000,0),('__BSS_END__',0x5ddc0,0),
+        ('__DATA_START__',0x80000040,0),('__DATA_END__',0x80000180,0),('percpu_data',0x80000080,256),
         ('fes_nano_ram_attempt',0x80000040,8),('fes_nano_ram_expected_chain',0x80000010,32)]
     strings=bytearray(b'\0');positions={}
     for i,(name,value,size) in enumerate(values,1):
         offset=len(strings);strings.extend(name.encode()+b'\0')
-        struct.pack_into('<IBBHQQ',image,0x400+i*24,offset,0x11,0,0xfff1,value,size)
-        positions[name]=0x400+i*24
-    assert len(strings)<=0x100
-    image[0x300:0x300+len(strings)]=strings
-    struct.pack_into('<IIQQQQIIQQ',image,0x740,0,3,0,0,0x300,len(strings),0,0,1,0)
-    struct.pack_into('<IIQQQQIIQQ',image,0x780,0,2,0,0,0x400,24*(len(values)+1),1,1,8,24)
+        struct.pack_into('<IBBHQQ',image,0x600+i*24,offset,0x11,0,0xfff1,value,size)
+        positions[name]=0x600+i*24
+    assert len(strings)<=0x200
+    image[0x900:0x900+len(strings)]=strings
+    struct.pack_into('<IIQQQQIIQQ',image,0xb40,0,3,0,0,0x900,len(strings),0,0,1,0)
+    struct.pack_into('<IIQQQQIIQQ',image,0xb80,0,2,0,0,0x600,24*(len(values)+1),1,1,8,24)
     return image,positions
 
 
@@ -195,7 +196,7 @@ int main(void) { return 0; }
         original,locations=elf()
         def checked(image,**kwargs):
             return build.bl31_load_segments(image,firmware_ram=dict(ram.CONTRACT),cold_chain='42'*32,**kwargs)
-        self.assertEqual(checked(original),(0x80000000,[(0x50000,0x5dec0),(0x80000000,0x80000080)]))
+        self.assertEqual(checked(original),(0x80000000,[(0x50000,0x5ddc0),(0x80000000,0x80000180)]))
         with self.assertRaises(ValueError):build.bl31_load_segments(original)
         for chain in (None,'43'*32,'00'*32):
             with self.subTest(chain=chain),self.assertRaises(ValueError):

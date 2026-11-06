@@ -54,6 +54,7 @@ static void loader_progress(const char *text)
 static int memory_check(void)
 {
     struct fes_nano_range banks[3], used[64];
+    fes_u32 reservation_flags[60];
     static const struct fes_nano_range owned[] = FES_NANO_OWNED_ARENAS;
     unsigned owned_count = FES_NANO_OWNED_ARENA_COUNT;
     struct lmb *lmb = lmb_get();
@@ -68,8 +69,13 @@ static int memory_check(void)
         if (nb == ARRAY_SIZE(banks)) return 0;
         banks[nb++] = (struct fes_nano_range){gd->bd->bi_dram[i].start, gd->bd->bi_dram[i].size};
     }
-    for (unsigned i = 0; i < lmb->used_mem.count; i++)
+    for (unsigned i = 0; i < lmb->used_mem.count; i++) {
+        reservation_flags[i] = regions[i].flags;
         used[nu++] = (struct fes_nano_range){regions[i].base, regions[i].size};
+    }
+    _Static_assert(LMB_NOMAP == 2U, "firmware LMB flag contract changed");
+    if (!fes_nano_firmware_reservation_ok(used, reservation_flags, nu))
+        return 0;
     asm volatile("mov %0, sp" : "=r"(sp));
     if (sp < 0x80100000UL || sp >= gd->ram_top || gd->ram_top > FES_NANO_DDR_END ||
         mem_malloc_end <= mem_malloc_start || fdt_check_header(gd->fdt_blob))

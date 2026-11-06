@@ -39,6 +39,7 @@ class NanoHandoffTests(unittest.TestCase):
         cls.lib.fes_nano_memory_ok.argtypes = [ctypes.POINTER(Range), ctypes.c_uint, ctypes.POINTER(Range), ctypes.c_uint, ctypes.c_uint64,
                                               ctypes.POINTER(Range), ctypes.c_uint]
         cls.lib.fes_nano_state_ok.argtypes = [ctypes.POINTER(State)]
+        cls.lib.fes_nano_firmware_reservation_ok.argtypes = [ctypes.POINTER(Range),ctypes.POINTER(ctypes.c_uint32),ctypes.c_uint]
 
     @classmethod
     def tearDownClass(cls):
@@ -47,6 +48,17 @@ class NanoHandoffTests(unittest.TestCase):
     def state(self, affinity=0):
         return State(affinity, 400000000, (ctypes.c_int32 * 4)(*[0 if i == affinity // 256 else 1 for i in range(4)]),
                      0xff21bfbf, 0, 0xf, (ctypes.c_uint32 * 5)(), 3, 0x60)
+
+    def test_firmware_ddr_reservation_is_exact_owned_and_unique(self):
+        def check(rows,flags):
+            return self.lib.fes_nano_firmware_reservation_ok((Range*len(rows))(*(Range(*r) for r in rows)),
+                (ctypes.c_uint32*len(flags))(*flags),len(rows))
+        self.assertEqual(check([(0,0x1000000),(0x80000000,0x200000),(0xbeb00000,0x1500000)],[2,2,4]),1)
+        for rows,flags in [([],[]),([(0,0x1000000)],[2]),([(0x80000000,0x1fffff)],[2]),
+            ([(0x80000000,0x200001)],[2]),([(0x80000040,0x200000)],[2]),([(0x80000000,0x200000)],[0]),
+            ([(0x80000000,0x200000)],[6]),([(0x80000000,0x200000)]*2,[2,2]),
+            ([(0x80000000,0x200000),(0x80100000,0x1000)],[2,2]),([(0xfffffffffffffff0,0x100)],[2])]:
+            self.assertEqual(check(rows,flags),0,(rows,flags))
 
     def test_primary_a55_or_a76_with_other_cores_off(self):
         for affinity in (0, 0x200):

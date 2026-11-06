@@ -13,11 +13,14 @@ _runtime_spec.loader.exec_module(nano_firmware_runtime)
 _call_spec = importlib.util.spec_from_file_location('fes_affinity_call', HERE/'nano_firmware_call.py')
 nano_firmware_call = importlib.util.module_from_spec(_call_spec)
 _call_spec.loader.exec_module(nano_firmware_call)
+_percpu_spec = importlib.util.spec_from_file_location('fes_percpu_placement', HERE/'nano_firmware_percpu.py')
+nano_firmware_percpu = importlib.util.module_from_spec(_percpu_spec)
+_percpu_spec.loader.exec_module(nano_firmware_percpu)
 _status_spec = importlib.util.spec_from_file_location('fes_early_fault_status', HERE.parent/'nano/fault_status.py')
 fault_status = importlib.util.module_from_spec(_status_spec)
 _status_spec.loader.exec_module(fault_status)
 BASE, LIMIT, STACK_END = 0x50000, 0x60000, 0x58000
-BSS_END = 0x5dec0
+BSS_END = 0x5ddc0
 COOKIE = 0x464e52414d000001
 ENTRY = 'bl31/aarch64/bl31_entrypoint.S'
 ENTRY_SHA = '2cb7c9d1d7845f8d1338acb77b074da3975e17342127fff42d5ff37509f0efde'
@@ -29,11 +32,11 @@ VENDOR_PHASES = ('enter',) + tuple(name+'-'+edge for name in
     ('reset','cpu-data','rw-cache','nobits-cache','bss','stack','setup') for edge in ('before','after'))
 PLATFORM = 'plat/intel/soc/agilex5/include/socfpga_plat_def.h'
 INCLUDE = 'plat/intel/soc/common/include'
-CONTRACT = dict(format=3, scope='matched-spl-el3-ocram-nobits-v3', base=BASE,
+CONTRACT = dict(format=4, scope='matched-spl-el3-ocram-nobits-v4', base=BASE,
                 limit=LIMIT, stack_end=STACK_END, cookie=COOKIE,
                 bss_base=STACK_END, bss_end=BSS_END,
                 cache_policy='owned-cold-all-setway-before-nobits-v1',
-                exit_cache_policy='owned-cold-dccsw-before-exit-v1')
+                exit_cache_policy='owned-cold-dccsw-before-exit-v1',**nano_firmware_percpu.CONTRACT)
 # Assembly has no C type environment. The selected C translation unit must
 # independently check every emitted wire constant against the real producer.
 ENTRY_CONSTANTS = {
@@ -242,10 +245,11 @@ def install(source, profile):
                  entry_assertions() + c.read_text())
     runtime_sources = nano_firmware_runtime.install(source)
     call_sources = nano_firmware_call.install(source)
+    percpu_sources = nano_firmware_percpu.install(source)
     names = [ENTRY, COMMON, CACHE, PLATFORM, INCLUDE+'/fes_nano_ram_entry.h', INCLUDE+'/nano_vendor_entry.inc', INCLUDE+'/nano_firmware_entry.inc', INCLUDE+'/nano_firmware_fault.inc', INCLUDE+'/nano_firmware_decode.inc', INCLUDE+'/nano_firmware_cache.inc', INCLUDE+'/nano_firmware_exit_cache.inc', INCLUDE+'/nano_firmware_status.inc',
              INCLUDE+'/nano_firmware_ram.h', 'plat/intel/soc/common/nano_cold_platform.c']
     return dict(contract=dict(CONTRACT), chain_sha256=chain,
-                sources={name:hashlib.sha256((source/name).read_bytes()).hexdigest() for name in dict.fromkeys(names+runtime_sources+call_sources)})
+                sources={name:hashlib.sha256((source/name).read_bytes()).hexdigest() for name in dict.fromkeys(names+runtime_sources+call_sources+percpu_sources)})
 
 
 def verify_installed(source, binding):
@@ -293,10 +297,13 @@ def validate_elf(image, segments, chain):
     if any(name not in table for name in required):
         raise ValueError('missing selected BL31 entry/reservation symbols')
     v = {name: table[name][0] for name in required}
-    if (v['bl31_entrypoint'] != 0x80000000 or v['__NOBITS_START__'] != BASE or
+    if (v['bl31_entrypoint'] != 0x80000000 or
+            struct.unpack_from('<Q',image,24)[0] != v['bl31_entrypoint'] or
+            v['__NOBITS_START__'] != BASE or
             v['__STACKS_START__'] != BASE or v['__STACKS_END__'] != STACK_END or
             v['__BSS_START__'] != STACK_END or v['__BSS_END__'] != BSS_END or not BSS_END <= v['__NOBITS_END__'] <= LIMIT):
         raise ValueError('selected BL31 symbol layout exceeds the exact reservation')
+    nano_firmware_percpu.validate(image,table)
     low = [s for s in segments if s[0] < 0x80000000]
     if low != [(BASE, v['__NOBITS_END__'])]:
         raise ValueError('selected BL31 NOBITS segment differs from its symbols')
