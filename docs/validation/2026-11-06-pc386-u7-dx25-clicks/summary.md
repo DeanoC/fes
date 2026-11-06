@@ -59,9 +59,13 @@ so both forms are gone.
 ## Inputs
 
 - **Package.** `fes.pc386` `499f4805ca07ddc13f04e35146fc822e340c49babc3694fdae0b813fce933d2c`,
-  #1481's seal of main `ee7ea9bb4`, as in #1485's `v1`. The core RTL is
-  unchanged on main since then. #1499 changed only the runtime. This seal
-  has no #1483 status ring, so `w1` has no ring evidence.
+  #1481's seal of main `ee7ea9bb4`, as in #1485's `v1`. So `w1` tested the
+  RTL of that seal, not current main's.
+  - **Since then, on main.** #1483 added the status ring
+    (`pc386_status.sv`) and wired it into `pc386_system.sv`. It is a
+    read-only DDR-window writer and does not change the CPU or the mouse
+    path. #1495 changed only the games image, and #1499 only the runtime.
+  - **No ring evidence.** This seal has no status ring, so `w1` has none.
 - **Kit.** Kit B ran core-only on baseline software `a8cd30c4` (main
   `bb51f4454`) and OS `f904961e`. There was no install, no image change and
   no reboot. A SCRUBX scrub ran before the first game. The claim (08:05
