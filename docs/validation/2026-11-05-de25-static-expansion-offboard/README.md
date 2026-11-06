@@ -383,3 +383,60 @@ The first development test mistakenly waits for an unfitted-card caption after
 fitting a card; its failed log is retained. The corrected test waits for the
 actual session projection and keeps all receipt/status/Stop assertions.
 These launcher checks are software coverage, separate from the b37 deployment.
+
+## Correction: native ZX81 picture polarity
+
+The later report that native ZX81 displayed white text on black paper was a
+misreading of image previews. The [pixel audit](native-picture-polarity-correction.json)
+checks nine original, hash-matched captures from three native 7 → 9 → 7 sequences:
+the original image, the new managed image, and that new image after software
+reboot. Every capture has white paper and black ink. An independent PNG
+CRC/unfilter decoder and FFmpeg produce byte-identical RGB. Each first and
+reloaded 7 is identical after decoding; 9 differs. The original captures are
+retained in [polarity-audit](polarity-audit/).
+
+The earlier scaler repair, commit `a963620af41a347d2ba058988d9519509d4c49b7`
+(PR #1016), remains in the shared source and both actual generated DE25 fits.
+ULA 1 represents black ink; ULA 0 represents white paper. The compiled ordinary
+RBF still hashes to `4750b93da22ef9ac3ae5623a42193dee5a7a7d6cdcc06286eca815047e99c4b1`.
+The polarity-failure classification is withdrawn; its original logs are
+preserved. Two subsequent observer runs stopped before collecting ZX81 pixels
+or BASIC input and remain diagnostic failures. They establish no display fault.
+No new board run, scaler change or SD swap was needed for this correction.
+
+## Live PCM loss and relock simulation
+
+The [receiver test](../../../sources/misteross/cores/fes-coleco/sim/audio_output_tb.cpp)
+now decodes the full shared PCM/I2S implementation through three clock ratios
+and four phase offsets. It covers 36 lock losses/relocks, stopping the audio
+clock across one relock and the sample-source clock across another, plus mute
+and relock while muted. Completed stereo samples remain coherent, delay/padding
+bits remain zero, mute produces silence, and changing samples resume after
+each interruption. This checks the real serializer rather than the serializer-free
+projection in the existing held-data formal proof.
+
+The [fresh-model receipt](audio-serializer-relock.json) records all 12 passing
+cases. A private mutation bypassing serializer mute fails the receiver's silence
+check. Production RTL, fitted inputs, constraints and admission are unchanged.
+This is digital simulation; it establishes no PLL electrical behavior, analog
+metastability, PCB timing, physical audio or partial-reconfiguration acceptance.
+Static package admission and physical empty/16K tests remain required.
+
+## Static board reference checks
+
+Both independent fits' base, empty and 16K revisions pass the existing
+[stock-reference checkers](static-stock-reference-review.json): actual fitted
+pin locations/voltages, pixel/audio PLL settings, forwarded pixel clock,
+transmitter register sequence and derived HDMI controller bytes match the
+locked Terasic resource package. Read-only file views adapt only revision
+filenames for the ordinary checkers; fitted QSF/pin bytes are unchanged.
+
+The existing asynchronous-input checker also passes all six revisions'
+[physical topology and timing reports](static-hdmi-input-review.json).
+Each HDMI input has exactly its two-stage synchronizer in one tile, with
+only the expected consumers. Worst interstage setup/hold slacks are
+19.507/0.133 ns. The tool models MTBF above one billion years at its stated
+50 MHz receiving clock and 6.25 million transitions/second default input
+activity. These are fitted observations, not new policy eligibility or an
+independent PCB timing model. The [review proposal](static-board-reference-proposal.md)
+identifies the exact remaining decision; no additional exceptions are approved.

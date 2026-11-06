@@ -1,0 +1,544 @@
+{
+  "passed": true,
+  "source_revision": "8af614f4d95e71a00e63974c73e3d8f80e1a681a",
+  "utc": "2026-11-06T10:35:24.145855+00:00",
+  "records": [
+    {
+      "fit": "primary-job",
+      "revision": "base",
+      "source_revision": "8af614f4d95e71a00e63974c73e3d8f80e1a681a",
+      "descriptor_sha256": "93ba6c6eebdc819cd76666abb226292ceaa116c400fe18bef9fbf93e67226d7d",
+      "proof": {
+        "HDMI_I2C_SDA": {
+          "registers": [
+            "fes_video_inst|hdmi_sda_sync[0]",
+            "fes_video_inst|hdmi_sda_sync[1]"
+          ],
+          "consumers": [
+            "fes_video_inst|hdmi_config|u0|ACK1",
+            "fes_video_inst|hdmi_config|u0|ACK1~DUPLICATE",
+            "fes_video_inst|hdmi_config|u0|ACK2",
+            "fes_video_inst|hdmi_config|u0|ACK3"
+          ],
+          "locations": [
+            "FF_X102_Y19_N31",
+            "FF_X102_Y19_N34"
+          ],
+          "timing": {
+            "setup": {
+              "slack_ns": "19.507",
+              "worst_case_model": "Slow fix4a 0C Model"
+            },
+            "hold": {
+              "slack_ns": "0.133",
+              "worst_case_model": "Fast fix4 0C Model"
+            }
+          },
+          "clock_mhz": 50,
+          "default_toggle_million_per_second": "6.25",
+          "modeled_worst_case_mtbf_years": "Greater than 1 Billion",
+          "included_in_design_mtbf": true
+        },
+        "HDMI_TX_INT": {
+          "registers": [
+            "fes_video_inst|hdmi_int_sync[0]",
+            "fes_video_inst|hdmi_int_sync[1]"
+          ],
+          "consumers": [
+            "fes_video_inst|hdmi_config|LUT_INDEX[0]",
+            "fes_video_inst|hdmi_config|LUT_INDEX[0]~DUPLICATE",
+            "fes_video_inst|hdmi_config|LUT_INDEX[1]",
+            "fes_video_inst|hdmi_config|LUT_INDEX[1]~DUPLICATE",
+            "fes_video_inst|hdmi_config|LUT_INDEX[2]",
+            "fes_video_inst|hdmi_config|LUT_INDEX[2]~DUPLICATE",
+            "fes_video_inst|hdmi_config|LUT_INDEX[3]",
+            "fes_video_inst|hdmi_config|LUT_INDEX[3]~DUPLICATE",
+            "fes_video_inst|hdmi_config|LUT_INDEX[4]",
+            "fes_video_inst|hdmi_config|LUT_INDEX[4]~DUPLICATE",
+            "fes_video_inst|hdmi_config|LUT_INDEX[5]"
+          ],
+          "locations": [
+            "FF_X102_Y19_N19",
+            "FF_X102_Y19_N22"
+          ],
+          "timing": {
+            "setup": {
+              "slack_ns": "19.507",
+              "worst_case_model": "Slow fix4a 0C Model"
+            },
+            "hold": {
+              "slack_ns": "0.133",
+              "worst_case_model": "Fast fix4 0C Model"
+            }
+          },
+          "clock_mhz": 50,
+          "default_toggle_million_per_second": "6.25",
+          "modeled_worst_case_mtbf_years": "Greater than 1 Billion",
+          "included_in_design_mtbf": true
+        }
+      },
+      "raw_findings": [
+        "HDMI_I2C_SDA",
+        "HDMI_TX_INT"
+      ],
+      "reports_sha256": {
+        "primary-job/base/metastability.rpt": "6a16c41b3492fdb3cf3b24667338952da2189f9a515433e73e25ba0a75c6240e",
+        "primary-job/base/hdmi_sda_sync-hold.rpt": "1fb6bc9af3faf0ed0d2c0404d1f80b6d378cc9cbaef55fc5997ae7a5552dde18",
+        "primary-job/base/sta.log": "5d7d455833ed59285c9518a9ccb8fcfa99f2ca0cca337e81973dcf38c1bcf403",
+        "primary-job/base/inventory.tsv": "b7518bad78b70105fc415d80f6a41ea67b87cd9cf4ad0afbe0feaffa3010f48a",
+        "primary-job/base/hdmi_int_sync-hold.rpt": "8d526bbdf9327f6d409fa2f5f60daf9b655d1b781dd404387070c2a9f37a980b",
+        "primary-job/base/hdmi_sda_sync-setup.rpt": "ccaadf8b576209ed1dd4f6ffaab5cbd4f01c3ef74305a81af11ada0559272ac5",
+        "primary-job/base/hdmi_int_sync-setup.rpt": "969c496ccc03e76f783b40dd191f6b6a5054744f8407697a44e4cde236bc8aba"
+      }
+    },
+    {
+      "fit": "primary-job",
+      "revision": "persona_a",
+      "source_revision": "8af614f4d95e71a00e63974c73e3d8f80e1a681a",
+      "descriptor_sha256": "93ba6c6eebdc819cd76666abb226292ceaa116c400fe18bef9fbf93e67226d7d",
+      "proof": {
+        "HDMI_I2C_SDA": {
+          "registers": [
+            "fes_video_inst|hdmi_sda_sync[0]",
+            "fes_video_inst|hdmi_sda_sync[1]"
+          ],
+          "consumers": [
+            "fes_video_inst|hdmi_config|u0|ACK1",
+            "fes_video_inst|hdmi_config|u0|ACK1~DUPLICATE",
+            "fes_video_inst|hdmi_config|u0|ACK2",
+            "fes_video_inst|hdmi_config|u0|ACK3"
+          ],
+          "locations": [
+            "FF_X102_Y19_N31",
+            "FF_X102_Y19_N34"
+          ],
+          "timing": {
+            "setup": {
+              "slack_ns": "19.507",
+              "worst_case_model": "Slow fix4a 0C Model"
+            },
+            "hold": {
+              "slack_ns": "0.133",
+              "worst_case_model": "Fast fix4 0C Model"
+            }
+          },
+          "clock_mhz": 50,
+          "default_toggle_million_per_second": "6.25",
+          "modeled_worst_case_mtbf_years": "Greater than 1 Billion",
+          "included_in_design_mtbf": true
+        },
+        "HDMI_TX_INT": {
+          "registers": [
+            "fes_video_inst|hdmi_int_sync[0]",
+            "fes_video_inst|hdmi_int_sync[1]"
+          ],
+          "consumers": [
+            "fes_video_inst|hdmi_config|LUT_INDEX[0]",
+            "fes_video_inst|hdmi_config|LUT_INDEX[0]~DUPLICATE",
+            "fes_video_inst|hdmi_config|LUT_INDEX[1]",
+            "fes_video_inst|hdmi_config|LUT_INDEX[1]~DUPLICATE",
+            "fes_video_inst|hdmi_config|LUT_INDEX[2]",
+            "fes_video_inst|hdmi_config|LUT_INDEX[2]~DUPLICATE",
+            "fes_video_inst|hdmi_config|LUT_INDEX[3]",
+            "fes_video_inst|hdmi_config|LUT_INDEX[3]~DUPLICATE",
+            "fes_video_inst|hdmi_config|LUT_INDEX[4]",
+            "fes_video_inst|hdmi_config|LUT_INDEX[4]~DUPLICATE",
+            "fes_video_inst|hdmi_config|LUT_INDEX[5]"
+          ],
+          "locations": [
+            "FF_X102_Y19_N19",
+            "FF_X102_Y19_N22"
+          ],
+          "timing": {
+            "setup": {
+              "slack_ns": "19.507",
+              "worst_case_model": "Slow fix4a 0C Model"
+            },
+            "hold": {
+              "slack_ns": "0.133",
+              "worst_case_model": "Fast fix4 0C Model"
+            }
+          },
+          "clock_mhz": 50,
+          "default_toggle_million_per_second": "6.25",
+          "modeled_worst_case_mtbf_years": "Greater than 1 Billion",
+          "included_in_design_mtbf": true
+        }
+      },
+      "raw_findings": [
+        "HDMI_I2C_SDA",
+        "HDMI_TX_INT"
+      ],
+      "reports_sha256": {
+        "primary-job/persona_a/metastability.rpt": "6a16c41b3492fdb3cf3b24667338952da2189f9a515433e73e25ba0a75c6240e",
+        "primary-job/persona_a/hdmi_sda_sync-hold.rpt": "6edb131025777f7109c8d8554fd8ce5cb9ae7f621cd33ea47099ddb6728f63c7",
+        "primary-job/persona_a/sta.log": "e368602d48a8359e8202d17e8defb91625803862ab2867dbbf33ef9b34038bec",
+        "primary-job/persona_a/inventory.tsv": "b7518bad78b70105fc415d80f6a41ea67b87cd9cf4ad0afbe0feaffa3010f48a",
+        "primary-job/persona_a/hdmi_int_sync-hold.rpt": "19bfc1a2a5f756c7ada5fefd5cc244cc62a77faaca6ce103419e0638db5f0357",
+        "primary-job/persona_a/hdmi_sda_sync-setup.rpt": "8b6ddc20bdb2415d971221ba2055b96fa92e77cab501da466c1fe95f801c8e18",
+        "primary-job/persona_a/hdmi_int_sync-setup.rpt": "6698f078d9da892ebc4c57e520bd37f99993ce72a8ec280daa6e1bb3ef91b778"
+      }
+    },
+    {
+      "fit": "primary-job",
+      "revision": "persona_b",
+      "source_revision": "8af614f4d95e71a00e63974c73e3d8f80e1a681a",
+      "descriptor_sha256": "93ba6c6eebdc819cd76666abb226292ceaa116c400fe18bef9fbf93e67226d7d",
+      "proof": {
+        "HDMI_I2C_SDA": {
+          "registers": [
+            "fes_video_inst|hdmi_sda_sync[0]",
+            "fes_video_inst|hdmi_sda_sync[1]"
+          ],
+          "consumers": [
+            "fes_video_inst|hdmi_config|u0|ACK1",
+            "fes_video_inst|hdmi_config|u0|ACK1~DUPLICATE",
+            "fes_video_inst|hdmi_config|u0|ACK2",
+            "fes_video_inst|hdmi_config|u0|ACK3"
+          ],
+          "locations": [
+            "FF_X102_Y19_N31",
+            "FF_X102_Y19_N34"
+          ],
+          "timing": {
+            "setup": {
+              "slack_ns": "19.507",
+              "worst_case_model": "Slow fix4a 0C Model"
+            },
+            "hold": {
+              "slack_ns": "0.133",
+              "worst_case_model": "Fast fix4 0C Model"
+            }
+          },
+          "clock_mhz": 50,
+          "default_toggle_million_per_second": "6.25",
+          "modeled_worst_case_mtbf_years": "Greater than 1 Billion",
+          "included_in_design_mtbf": true
+        },
+        "HDMI_TX_INT": {
+          "registers": [
+            "fes_video_inst|hdmi_int_sync[0]",
+            "fes_video_inst|hdmi_int_sync[1]"
+          ],
+          "consumers": [
+            "fes_video_inst|hdmi_config|LUT_INDEX[0]",
+            "fes_video_inst|hdmi_config|LUT_INDEX[0]~DUPLICATE",
+            "fes_video_inst|hdmi_config|LUT_INDEX[1]",
+            "fes_video_inst|hdmi_config|LUT_INDEX[1]~DUPLICATE",
+            "fes_video_inst|hdmi_config|LUT_INDEX[2]",
+            "fes_video_inst|hdmi_config|LUT_INDEX[2]~DUPLICATE",
+            "fes_video_inst|hdmi_config|LUT_INDEX[3]",
+            "fes_video_inst|hdmi_config|LUT_INDEX[3]~DUPLICATE",
+            "fes_video_inst|hdmi_config|LUT_INDEX[4]",
+            "fes_video_inst|hdmi_config|LUT_INDEX[4]~DUPLICATE",
+            "fes_video_inst|hdmi_config|LUT_INDEX[5]"
+          ],
+          "locations": [
+            "FF_X102_Y19_N19",
+            "FF_X102_Y19_N22"
+          ],
+          "timing": {
+            "setup": {
+              "slack_ns": "19.507",
+              "worst_case_model": "Slow fix4a 0C Model"
+            },
+            "hold": {
+              "slack_ns": "0.133",
+              "worst_case_model": "Fast fix4 0C Model"
+            }
+          },
+          "clock_mhz": 50,
+          "default_toggle_million_per_second": "6.25",
+          "modeled_worst_case_mtbf_years": "Greater than 1 Billion",
+          "included_in_design_mtbf": true
+        }
+      },
+      "raw_findings": [
+        "HDMI_I2C_SDA",
+        "HDMI_TX_INT"
+      ],
+      "reports_sha256": {
+        "primary-job/persona_b/metastability.rpt": "6a16c41b3492fdb3cf3b24667338952da2189f9a515433e73e25ba0a75c6240e",
+        "primary-job/persona_b/hdmi_sda_sync-hold.rpt": "642509b57facc773cfccb1d1c05a60750a6a83770b33bfa6974aacc4d760b391",
+        "primary-job/persona_b/sta.log": "9cee07aa44aa0443e22ee42481af7228cee20bd98c686292f7622d258a41c8bf",
+        "primary-job/persona_b/inventory.tsv": "b7518bad78b70105fc415d80f6a41ea67b87cd9cf4ad0afbe0feaffa3010f48a",
+        "primary-job/persona_b/hdmi_int_sync-hold.rpt": "950570021965199c5dce001693f9bfc90e22996fd957609949b5445075b356f8",
+        "primary-job/persona_b/hdmi_sda_sync-setup.rpt": "fc74d5b4e6febe6846e88ccac81e74de52fe7e58f6c7cc9baf4cb6d9b6287919",
+        "primary-job/persona_b/hdmi_int_sync-setup.rpt": "c7317b7bbcfeff995a0689832f3470c9128e1e250fe3817639eb4de2f15bc1ef"
+      }
+    },
+    {
+      "fit": "independent-job",
+      "revision": "base",
+      "source_revision": "8af614f4d95e71a00e63974c73e3d8f80e1a681a",
+      "descriptor_sha256": "b64a319a98b3b475a810dab3a63ac1d20ba8f5879a00b45fd295bc1d71b70011",
+      "proof": {
+        "HDMI_I2C_SDA": {
+          "registers": [
+            "fes_video_inst|hdmi_sda_sync[0]",
+            "fes_video_inst|hdmi_sda_sync[1]"
+          ],
+          "consumers": [
+            "fes_video_inst|hdmi_config|u0|ACK1",
+            "fes_video_inst|hdmi_config|u0|ACK1~DUPLICATE",
+            "fes_video_inst|hdmi_config|u0|ACK2",
+            "fes_video_inst|hdmi_config|u0|ACK3"
+          ],
+          "locations": [
+            "FF_X102_Y19_N31",
+            "FF_X102_Y19_N34"
+          ],
+          "timing": {
+            "setup": {
+              "slack_ns": "19.507",
+              "worst_case_model": "Slow fix4a 0C Model"
+            },
+            "hold": {
+              "slack_ns": "0.133",
+              "worst_case_model": "Fast fix4 0C Model"
+            }
+          },
+          "clock_mhz": 50,
+          "default_toggle_million_per_second": "6.25",
+          "modeled_worst_case_mtbf_years": "Greater than 1 Billion",
+          "included_in_design_mtbf": true
+        },
+        "HDMI_TX_INT": {
+          "registers": [
+            "fes_video_inst|hdmi_int_sync[0]",
+            "fes_video_inst|hdmi_int_sync[1]"
+          ],
+          "consumers": [
+            "fes_video_inst|hdmi_config|LUT_INDEX[0]",
+            "fes_video_inst|hdmi_config|LUT_INDEX[0]~DUPLICATE",
+            "fes_video_inst|hdmi_config|LUT_INDEX[1]",
+            "fes_video_inst|hdmi_config|LUT_INDEX[1]~DUPLICATE",
+            "fes_video_inst|hdmi_config|LUT_INDEX[2]",
+            "fes_video_inst|hdmi_config|LUT_INDEX[2]~DUPLICATE",
+            "fes_video_inst|hdmi_config|LUT_INDEX[3]",
+            "fes_video_inst|hdmi_config|LUT_INDEX[3]~DUPLICATE",
+            "fes_video_inst|hdmi_config|LUT_INDEX[4]",
+            "fes_video_inst|hdmi_config|LUT_INDEX[4]~DUPLICATE",
+            "fes_video_inst|hdmi_config|LUT_INDEX[5]"
+          ],
+          "locations": [
+            "FF_X102_Y19_N19",
+            "FF_X102_Y19_N22"
+          ],
+          "timing": {
+            "setup": {
+              "slack_ns": "19.507",
+              "worst_case_model": "Slow fix4a 0C Model"
+            },
+            "hold": {
+              "slack_ns": "0.133",
+              "worst_case_model": "Fast fix4 0C Model"
+            }
+          },
+          "clock_mhz": 50,
+          "default_toggle_million_per_second": "6.25",
+          "modeled_worst_case_mtbf_years": "Greater than 1 Billion",
+          "included_in_design_mtbf": true
+        }
+      },
+      "raw_findings": [
+        "HDMI_I2C_SDA",
+        "HDMI_TX_INT"
+      ],
+      "reports_sha256": {
+        "independent-job/base/metastability.rpt": "6a16c41b3492fdb3cf3b24667338952da2189f9a515433e73e25ba0a75c6240e",
+        "independent-job/base/hdmi_sda_sync-hold.rpt": "04e9b34c4c6f546562fc20225909b8a2c5c57996b7c2b262a853ed9e69313c2a",
+        "independent-job/base/sta.log": "d03afd9cd2252e013a3adadff76a51c9c1bf83997c4c0de444df7dd9ac11441c",
+        "independent-job/base/inventory.tsv": "b7518bad78b70105fc415d80f6a41ea67b87cd9cf4ad0afbe0feaffa3010f48a",
+        "independent-job/base/hdmi_int_sync-hold.rpt": "701e2d15e93bb18eca176710fd40572c13907a50d81faaac52113bc6b5f042b8",
+        "independent-job/base/hdmi_sda_sync-setup.rpt": "8f8384c5c89c527a9373e3ac03971bada7bbd463a2a94c97bf8027bedae87d94",
+        "independent-job/base/hdmi_int_sync-setup.rpt": "e2bbd0a9b7dad9329968b7ee1e73055d23df1040f310348033b585d10ed298ef"
+      }
+    },
+    {
+      "fit": "independent-job",
+      "revision": "persona_a",
+      "source_revision": "8af614f4d95e71a00e63974c73e3d8f80e1a681a",
+      "descriptor_sha256": "b64a319a98b3b475a810dab3a63ac1d20ba8f5879a00b45fd295bc1d71b70011",
+      "proof": {
+        "HDMI_I2C_SDA": {
+          "registers": [
+            "fes_video_inst|hdmi_sda_sync[0]",
+            "fes_video_inst|hdmi_sda_sync[1]"
+          ],
+          "consumers": [
+            "fes_video_inst|hdmi_config|u0|ACK1",
+            "fes_video_inst|hdmi_config|u0|ACK1~DUPLICATE",
+            "fes_video_inst|hdmi_config|u0|ACK2",
+            "fes_video_inst|hdmi_config|u0|ACK3"
+          ],
+          "locations": [
+            "FF_X102_Y19_N31",
+            "FF_X102_Y19_N34"
+          ],
+          "timing": {
+            "setup": {
+              "slack_ns": "19.507",
+              "worst_case_model": "Slow fix4a 0C Model"
+            },
+            "hold": {
+              "slack_ns": "0.133",
+              "worst_case_model": "Fast fix4 0C Model"
+            }
+          },
+          "clock_mhz": 50,
+          "default_toggle_million_per_second": "6.25",
+          "modeled_worst_case_mtbf_years": "Greater than 1 Billion",
+          "included_in_design_mtbf": true
+        },
+        "HDMI_TX_INT": {
+          "registers": [
+            "fes_video_inst|hdmi_int_sync[0]",
+            "fes_video_inst|hdmi_int_sync[1]"
+          ],
+          "consumers": [
+            "fes_video_inst|hdmi_config|LUT_INDEX[0]",
+            "fes_video_inst|hdmi_config|LUT_INDEX[0]~DUPLICATE",
+            "fes_video_inst|hdmi_config|LUT_INDEX[1]",
+            "fes_video_inst|hdmi_config|LUT_INDEX[1]~DUPLICATE",
+            "fes_video_inst|hdmi_config|LUT_INDEX[2]",
+            "fes_video_inst|hdmi_config|LUT_INDEX[2]~DUPLICATE",
+            "fes_video_inst|hdmi_config|LUT_INDEX[3]",
+            "fes_video_inst|hdmi_config|LUT_INDEX[3]~DUPLICATE",
+            "fes_video_inst|hdmi_config|LUT_INDEX[4]",
+            "fes_video_inst|hdmi_config|LUT_INDEX[4]~DUPLICATE",
+            "fes_video_inst|hdmi_config|LUT_INDEX[5]"
+          ],
+          "locations": [
+            "FF_X102_Y19_N19",
+            "FF_X102_Y19_N22"
+          ],
+          "timing": {
+            "setup": {
+              "slack_ns": "19.507",
+              "worst_case_model": "Slow fix4a 0C Model"
+            },
+            "hold": {
+              "slack_ns": "0.133",
+              "worst_case_model": "Fast fix4 0C Model"
+            }
+          },
+          "clock_mhz": 50,
+          "default_toggle_million_per_second": "6.25",
+          "modeled_worst_case_mtbf_years": "Greater than 1 Billion",
+          "included_in_design_mtbf": true
+        }
+      },
+      "raw_findings": [
+        "HDMI_I2C_SDA",
+        "HDMI_TX_INT"
+      ],
+      "reports_sha256": {
+        "independent-job/persona_a/metastability.rpt": "6a16c41b3492fdb3cf3b24667338952da2189f9a515433e73e25ba0a75c6240e",
+        "independent-job/persona_a/hdmi_sda_sync-hold.rpt": "d038d9e0aace080a0adea9d68212b2d97be9021a9f398152b9e8d0eca9446ae2",
+        "independent-job/persona_a/sta.log": "922f2c7e978ae6b8262d307cebf82085ef61fe8ed8bde4c3334c070f664dd55f",
+        "independent-job/persona_a/inventory.tsv": "b7518bad78b70105fc415d80f6a41ea67b87cd9cf4ad0afbe0feaffa3010f48a",
+        "independent-job/persona_a/hdmi_int_sync-hold.rpt": "4f49c79f83b820e1c1c8ffa517d41287224f672c3e2d4166303b84507524eb76",
+        "independent-job/persona_a/hdmi_sda_sync-setup.rpt": "b07e36d8058ec5ab40932f5738ba2754be705fbcb526e134f1a74bcf6c91fae1",
+        "independent-job/persona_a/hdmi_int_sync-setup.rpt": "1643cfec108ed488256d84625ee2ef4401329f6f4ff6226152dc38448c4ea9fc"
+      }
+    },
+    {
+      "fit": "independent-job",
+      "revision": "persona_b",
+      "source_revision": "8af614f4d95e71a00e63974c73e3d8f80e1a681a",
+      "descriptor_sha256": "b64a319a98b3b475a810dab3a63ac1d20ba8f5879a00b45fd295bc1d71b70011",
+      "proof": {
+        "HDMI_I2C_SDA": {
+          "registers": [
+            "fes_video_inst|hdmi_sda_sync[0]",
+            "fes_video_inst|hdmi_sda_sync[1]"
+          ],
+          "consumers": [
+            "fes_video_inst|hdmi_config|u0|ACK1",
+            "fes_video_inst|hdmi_config|u0|ACK1~DUPLICATE",
+            "fes_video_inst|hdmi_config|u0|ACK2",
+            "fes_video_inst|hdmi_config|u0|ACK3"
+          ],
+          "locations": [
+            "FF_X102_Y19_N31",
+            "FF_X102_Y19_N34"
+          ],
+          "timing": {
+            "setup": {
+              "slack_ns": "19.507",
+              "worst_case_model": "Slow fix4a 0C Model"
+            },
+            "hold": {
+              "slack_ns": "0.133",
+              "worst_case_model": "Fast fix4 0C Model"
+            }
+          },
+          "clock_mhz": 50,
+          "default_toggle_million_per_second": "6.25",
+          "modeled_worst_case_mtbf_years": "Greater than 1 Billion",
+          "included_in_design_mtbf": true
+        },
+        "HDMI_TX_INT": {
+          "registers": [
+            "fes_video_inst|hdmi_int_sync[0]",
+            "fes_video_inst|hdmi_int_sync[1]"
+          ],
+          "consumers": [
+            "fes_video_inst|hdmi_config|LUT_INDEX[0]",
+            "fes_video_inst|hdmi_config|LUT_INDEX[0]~DUPLICATE",
+            "fes_video_inst|hdmi_config|LUT_INDEX[1]",
+            "fes_video_inst|hdmi_config|LUT_INDEX[1]~DUPLICATE",
+            "fes_video_inst|hdmi_config|LUT_INDEX[2]",
+            "fes_video_inst|hdmi_config|LUT_INDEX[2]~DUPLICATE",
+            "fes_video_inst|hdmi_config|LUT_INDEX[3]",
+            "fes_video_inst|hdmi_config|LUT_INDEX[3]~DUPLICATE",
+            "fes_video_inst|hdmi_config|LUT_INDEX[4]",
+            "fes_video_inst|hdmi_config|LUT_INDEX[4]~DUPLICATE",
+            "fes_video_inst|hdmi_config|LUT_INDEX[5]"
+          ],
+          "locations": [
+            "FF_X102_Y19_N19",
+            "FF_X102_Y19_N22"
+          ],
+          "timing": {
+            "setup": {
+              "slack_ns": "19.507",
+              "worst_case_model": "Slow fix4a 0C Model"
+            },
+            "hold": {
+              "slack_ns": "0.133",
+              "worst_case_model": "Fast fix4 0C Model"
+            }
+          },
+          "clock_mhz": 50,
+          "default_toggle_million_per_second": "6.25",
+          "modeled_worst_case_mtbf_years": "Greater than 1 Billion",
+          "included_in_design_mtbf": true
+        }
+      },
+      "raw_findings": [
+        "HDMI_I2C_SDA",
+        "HDMI_TX_INT"
+      ],
+      "reports_sha256": {
+        "independent-job/persona_b/metastability.rpt": "6a16c41b3492fdb3cf3b24667338952da2189f9a515433e73e25ba0a75c6240e",
+        "independent-job/persona_b/hdmi_sda_sync-hold.rpt": "bfbabd4878e9b6db28ccfc80919449144d548533440108b37f8d17c04564d02c",
+        "independent-job/persona_b/sta.log": "e6ff316dba7d60696e7c4d47b1a0cdabded54b5108edb86d5c92f70027f5f081",
+        "independent-job/persona_b/inventory.tsv": "b7518bad78b70105fc415d80f6a41ea67b87cd9cf4ad0afbe0feaffa3010f48a",
+        "independent-job/persona_b/hdmi_int_sync-hold.rpt": "82c24b46741c0824d989be0ba915f3819075e7594a11c393a92ec0b03a3591e8",
+        "independent-job/persona_b/hdmi_sda_sync-setup.rpt": "fbb2443775dd8a4fdfbfc5127c9133f38cc8265ac087cf223fa4d254520e9b11",
+        "independent-job/persona_b/hdmi_int_sync-setup.rpt": "cb089fe01c6a82455c19057efa2452deca34c77d2d74d9b90576139e3c0d3639"
+      }
+    }
+  ],
+  "collector_original_sha256": "23a15177a9cff28c1cd58e880d3f2c67f501de8cf8e795f8665970eb27299346",
+  "collector_rendered_sha256": "0d2619c3d238cbb29a9e7741a7c86cb65544205b10626af287bc7695d5d107e4",
+  "tool_sha256": "06c1bd805bc078d9636015c472e09a054160c405f3f06b7c555e7a4b6f7d3f14",
+  "original_fits_unchanged": true,
+  "no_constraints_or_exceptions_changed": true,
+  "package_admission": false,
+  "hardware_acceptance": false,
+  "scope": "Same existing asynchronous HDMI topology/path/MTBF checker on exact static base/empty/16K from both fits; collector changes only project and revision selection. Observations do not extend policy eligibility.",
+  "raw_receipt_sha256": "53f336cf9ba5985fab3e86c3b8b52ed9683874fffa38ff996e7f2e45369ef8f6"
+}
