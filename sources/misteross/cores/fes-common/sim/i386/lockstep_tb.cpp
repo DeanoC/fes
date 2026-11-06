@@ -358,6 +358,7 @@ public:
     uint64_t load_waits = 0;  // cycles D to WB or F2 waited for memory
     uint64_t md_waits = 0;    // cycles D to WB waited for a multiply or divide, since the last retirement
     uint64_t last_mem_wait = 0;      // the cycle of the last memory wait
+    uint64_t last_fe_wait = 0;       // the last cycle D had no instruction from the front end
     std::set<uint32_t> step_writes;  // bytes written since the last next()
     std::set<uint32_t> written;      // bytes either side wrote since the run began, to clear after it
     uint64_t io_unstable = 0;        // I/O requests whose port, size or data changed before their ack
@@ -494,6 +495,7 @@ public:
             ++load_waits;
             last_mem_wait = cycles;
         }
+        if (top.trace_fe_wait) last_fe_wait = cycles;
         replays += top.trace_replay;
         smc_restarts += top.trace_smc;
         // Port 0, then MMIO: this edge's responses, and the command taken.
@@ -1148,11 +1150,12 @@ struct Summary {
     // is after_store: one cycle, as D's store hold must not catch it. A store
     // counts only as an instruction's last uop, which XCHG's and POP m's are
     // not. A retirement the CPU restarted for self-modifying code since the
-    // last is smc's, before any other.
+    // last is smc's, before any other. One D had to wait for from the front
+    // end, after memory's, is fetch's.
     std::map<uint64_t, uint64_t> gap_sequential, gap_prefixed, gap_lea, gap_selector, gap_after_taken,
         gap_after_not_taken, gap_shift_consumer, gap_after_shift, gap_store_load, gap_after_store,
         gap_address, gap_after_segment, gap_after_stack, gap_stack_stack, gap_several, gap_after_string,
-        gap_after_io, gap_memory, gap_smc;
+        gap_after_io, gap_memory, gap_smc, gap_fetch;
     uint64_t vector_moved = 0;  // runs stopped at an interrupt whose vector they had rewritten
     uint64_t load_waits = 0;
     uint64_t io_accesses = 0;  // I/O accesses compared
@@ -2050,11 +2053,16 @@ Outcome lockstep(fes_i386::Oracle &oracle, OracleBus &bus, Rtl &rtl, const std::
                            : shift_before ? (consumes_flags(code) ? summary.gap_shift_consumer : summary.gap_after_shift)
                            : store_before ? summary.gap_after_store
                                           : summary.gap_sequential;
-                // A wait for memory near the gap makes it memory's.
+                // A wait for memory near the gap makes it memory's. D
+                // waiting for the front end since the instruction could
+                // have issued (five cycles before the last retirement: D to
+                // WB) makes it fetch's: a predicted branch's bubble, or a
+                // fetch check's replay.
                 const bool mem_wait = rtl.last_mem_wait + 16 >= last_retirement;
+                const bool fe_wait = rtl.last_fe_wait + 5 >= last_retirement;
                 const bool smc = rtl.smc_restarts != smc_seen;
                 ++(smc ? summary.gap_smc : rtl.md_waits ? summary.gap_several : mem_wait ? summary.gap_memory
-                                                                           : gaps)[rtl.cycles - last_retirement];
+                   : fe_wait ? summary.gap_fetch : gaps)[rtl.cycles - last_retirement];
             }
             // A string's or ENTER's last store is one of several uops, and
             // what follows a string may wait for its ESI, EDI and ECX.
@@ -6695,7 +6703,7 @@ int main(int argc, char **argv) {
                 "\"gaps\": {\"sequential\": %s, \"prefixed\": %s, \"lea\": %s, \"selector\": %s, "
                 "\"after_taken\": %s, \"after_not_taken\": %s, \"shift_consumer\": %s, \"after_shift\": %s, "
                 "\"store_load\": %s, \"after_store\": %s, \"address\": %s, \"after_segment\": %s, \"after_stack\": %s, \"stack_stack\": %s, "
-                "\"several\": %s, \"after_string\": %s, \"after_io\": %s, \"memory\": %s, \"smc\": %s}, "
+                "\"several\": %s, \"after_string\": %s, \"after_io\": %s, \"memory\": %s, \"smc\": %s, \"fetch\": %s}, "
                 "\"mmio_accesses\": %llu, \"mmio_runs\": %llu, \"replays\": %llu, \"smc_restarts\": %llu, "
                 "\"window_code_stops\": %llu, \"code_store_stops\": %llu, \"stray_stops\": %llu, "
                 "\"port0_reads\": %llu, \"port0_writes\": %llu, "
@@ -6724,7 +6732,7 @@ int main(int argc, char **argv) {
                 histogram(summary.gap_stack_stack).c_str(), histogram(summary.gap_several).c_str(),
                 histogram(summary.gap_after_string).c_str(), histogram(summary.gap_after_io).c_str(),
                 histogram(summary.gap_memory).c_str(), histogram(summary.gap_smc).c_str(),
-                (unsigned long long)summary.mmio_accesses, (unsigned long long)summary.mmio_runs,
+                histogram(summary.gap_fetch).c_str(), (unsigned long long)summary.mmio_accesses, (unsigned long long)summary.mmio_runs,
                 (unsigned long long)rtl.replays, (unsigned long long)rtl.smc_restarts,
                 (unsigned long long)summary.window_code, (unsigned long long)summary.code_stores,
                 (unsigned long long)summary.stray,

@@ -200,6 +200,7 @@ module fes_i386_cpu #(
     output logic             shutdown,             // ... a fault in a double fault's delivery, until reset
     output logic [15:0]      trace_error,          // the delivered exception's error code
     output logic             trace_issue,          // D issued this cycle (lockstep observability)
+    output logic             trace_fe_wait,        // D has no instruction from the front end (ditto)
     output logic             trace_md_wait,        // D to WB wait for a multiply or divide in EX (ditto)
     output logic             trace_fetch,          // F1 sent a block to the L1I (ditto) ...
     output logic [27:0]      trace_fetch_block,    // ... this one, linear address / 16
@@ -1134,6 +1135,7 @@ module fes_i386_cpu #(
     end
     assign trace_gov_hold = gov_hold;
     assign trace_issue = issue;
+    assign trace_fe_wait = !dc_valid;
     assign trace_md_wait = md_busy;
 
     always_ff @(posedge clk) begin

@@ -470,7 +470,7 @@ module pc386_system #(
         .trace_retire(cpu_retire), .trace_exception(), .trace_vector(cpu_vector), .trace_halt(cpu_halt),
         .trace_unimplemented(cpu_stopped), .trace_unbuilt(), .shutdown(cpu_shutdown), .trace_error(), .trace_issue(),
         .trace_md_wait(), .trace_fetch(),
-        .trace_fetch_block(), .trace_dread(), .trace_dread_addr(), .trace_mem_wait(),
+        .trace_fetch_block(), .trace_dread(), .trace_dread_addr(), .trace_mem_wait(), .trace_fe_wait(),
         .trace_mem_idle(cpu_mem_idle), .trace_replay(), .trace_smc(), .trace_smc_open(), .trace_ex_store(),
         .trace_gov_hold(gov_hold), .trace_gov_debt(), .trace_gov_charge(),
         .trace_store(), .trace_store_addr(), .trace_store_data(), .trace_store_mask(), .arch_gpr(),

@@ -121,7 +121,7 @@ module spike_cpu (
     logic             trace_gov_hold;
     logic [11:0]      trace_gov_debt;
     logic [12:0]      trace_gov_charge;
-    logic             trace_fetch, trace_dread, trace_mem_wait, trace_mem_idle, trace_replay, trace_smc, trace_smc_open,
+    logic             trace_fetch, trace_dread, trace_mem_wait, trace_fe_wait, trace_mem_idle, trace_replay, trace_smc, trace_smc_open,
                       trace_store, trace_ex_store;
     logic [31:0]      trace_dread_addr;
     logic [27:0]      trace_fetch_block;
@@ -150,7 +150,7 @@ module spike_cpu (
         .io_req, .io_write, .io_port, .io_size, .io_wdata, .io_ack, .io_rdata,
         .intr, .nmi, .inta_req, .inta_ack, .inta_vector, .trace_retire, .trace_exception, .trace_vector, .trace_halt,
         .trace_unimplemented, .trace_unbuilt, .shutdown, .trace_error, .trace_issue, .trace_md_wait, .trace_fetch, .trace_fetch_block, .trace_dread,
-        .trace_mem_wait, .trace_mem_idle, .trace_replay, .trace_smc, .trace_smc_open, .trace_store, .trace_store_addr, .trace_store_data,
+        .trace_mem_wait, .trace_fe_wait, .trace_mem_idle, .trace_replay, .trace_smc, .trace_smc_open, .trace_store, .trace_store_addr, .trace_store_data,
         .trace_store_mask, .arch_gpr, .arch_eflags, .arch_eip, .arch_sel, .arch_base, .arch_limit, .arch_ar,
         .trace_dread_addr, .trace_ex_store, .trace_gov_hold, .trace_gov_debt, .trace_gov_charge, .arch_cr0, .arch_cr2,
         .arch_cr3, .arch_gdtr_base, .arch_gdtr_limit, .arch_idtr_base, .arch_idtr_limit, .arch_ldtr_sel, .arch_ldtr_base,
@@ -160,7 +160,7 @@ module spike_cpu (
     logic [31:0] signature, observed;
     always_comb begin
         observed = arch_eflags ^ arch_eip ^ {20'b0, trace_retire, trace_halt, trace_exception, trace_unimplemented, trace_vector}
-                 ^ {trace_fetch_block, trace_fetch, trace_dread, trace_mem_wait, trace_replay ^ trace_smc ^ trace_smc_open}
+                 ^ {trace_fetch_block, trace_fetch, trace_dread, trace_mem_wait, trace_replay ^ trace_smc ^ trace_smc_open ^ trace_fe_wait}
                  ^ arch_cr0 ^ arch_cr2 ^ arch_cr3 ^ arch_gdtr_base ^ arch_idtr_base ^ {arch_gdtr_limit, arch_idtr_limit}
                  ^ {11'd0, shutdown, trace_unbuilt, trace_error} ^ trace_dread_addr ^ {18'd0, trace_gov_charge, trace_ex_store}
                  ^ trace_store_addr ^ trace_store_data[3:0] ^ trace_store_data[7:4] ^ {23'b0, trace_store, trace_store_mask}

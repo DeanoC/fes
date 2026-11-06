@@ -605,7 +605,7 @@ def main() -> int:
                                   for result in steady_results), Counter()).items()))
             for key in ('sequential', 'prefixed', 'lea', 'selector', 'after_taken', 'after_not_taken',
                         'shift_consumer', 'after_shift', 'store_load', 'after_store', 'address', 'after_segment',
-                        'after_stack', 'stack_stack', 'several', 'after_string', 'after_io', 'memory', 'smc')}
+                        'after_stack', 'stack_stack', 'several', 'after_string', 'after_io', 'memory', 'smc', 'fetch')}
     # Governed, D waits for the governor between instructions: the holds'
     # cycle counts are max's alone.
     held = hold_failures(gaps) if args.preset == 0 else []
