@@ -222,18 +222,16 @@ divu:   ld b,d
         ld c,e
         ld de,0
         ld a,16
-.l:     add hl,hl
+.l:     add hl,hl               ; the next bit of HL to carry
+        inc l                   ; a 1 in the quotient, unless
         ex de,hl
-        adc hl,hl
-        and a
+        adc hl,hl               ; (no carry: the remainder is below 32768)
         sbc hl,bc
-        jr nc,.one
+        jr nc,.k
         add hl,bc
-        ex de,hl
-        jr .n
-.one:   ex de,hl
-        inc l
-.n:     dec a
+        dec e                   ; it does not go
+.k:     ex de,hl
+        dec a
         jr nz,.l
         ret
 

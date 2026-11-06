@@ -103,14 +103,15 @@ print_token:
         ld a,(hl)
         and 0x7f
         call is_letter
-        jr nc,.sym
+        push af                 ; C: a word
+        jr nc,.t
         bit F_SPACE,(iy+Y_FLAGS)
         call z,space
-        call .text
+.t:     call .text
+        pop af
+        jr nc,.done
         call space
         set F_SPACE,(iy+Y_FLAGS)
-        jr .done
-.sym:   call .text
 .done:  pop bc
         pop hl
         ret

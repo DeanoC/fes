@@ -243,27 +243,26 @@ parse_uint:
         sub C_0
         cp 10
         ret nc
+        ld b,a
+        ld a,d
+        cp 0x0d
+        ccf
+        ret c                   ; 3328 or more: ten times it is too big
         push hl
         ld h,d
         ld l,e
         add hl,hl
         add hl,hl
-        jr c,.over
         add hl,de
-        jr c,.over
         add hl,hl
-        jr c,.over
-        ld e,a
+        ld e,b
         ld d,0
         add hl,de
-        jr c,.over
-        bit 7,h
-        jr nz,.over
         ex de,hl
         pop hl
         inc hl
-        jr .l
-.over:  pop hl
+        bit 7,d
+        jr z,.l
         scf
         ret
 

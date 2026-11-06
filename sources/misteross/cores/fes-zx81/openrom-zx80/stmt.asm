@@ -183,15 +183,13 @@ st_run: call opt_num
 st_gosub:
         call expr_num
         rst 0x20
-        ex de,hl
-        ld hl,(PPC)
-        inc hl                  ; RETURN comes back to the next line
+        ld de,(PPC)
+        inc de                  ; RETURN comes back to the next line
         ld sp,(ERR_SP)
         pop bc
-        push hl
+        push de
         push bc
         ld (ERR_SP),sp
-        ex de,hl
         jr jump_hl
 
 st_goto:
@@ -395,8 +393,7 @@ st_dim: call one_letter
         inc h
         dec h
         jr nz,elem_addr.range   ; 0 to 255 only
-        ld e,l
-        push de
+        push hl                 ; L = the largest subscript
         inc hl
         add hl,hl
         inc hl
@@ -408,14 +405,14 @@ st_dim: call one_letter
         call letter_byte
         pop de
         ld (hl),e
-        dec bc
-        dec bc
+        ld b,e
+        inc b                   ; the elements (256 for 255)
+        xor a
 .z:     inc hl
-        ld (hl),0
-        dec bc
-        ld a,b
-        or c
-        jr nz,.z
+        ld (hl),a
+        inc hl
+        ld (hl),a
+        djnz .z
         ret
 
 st_print:

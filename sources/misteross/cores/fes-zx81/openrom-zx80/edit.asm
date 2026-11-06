@@ -5,7 +5,6 @@
 edit:   ld sp,(ERR_SP)
         ld hl,0x00ff
         ld (ERR_NR),hl          ; no report; FLAGS clear
-        ld (iy+Y_FLAGX),h
         call eline_reset
         call edit_line
         ld hl,(E_LINE)
@@ -124,13 +123,11 @@ edit_insert:
         call make_room
         jr c,.no
         dec hl
-        ld a,(hl)
-        inc hl
-        ld (hl),a
-        dec hl
         pop af
+        ld b,(hl)               ; the byte at the cursor moves up
         ld (hl),a
         inc hl
+        ld (hl),b
         ld (P_PTR),hl
         ret
 .no:    pop af
