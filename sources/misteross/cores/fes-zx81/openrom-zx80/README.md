@@ -34,7 +34,9 @@ sync, the cursor cell at lines 243-250, pixels 36-43, as
 
 Deliberate differences: SAVE does nothing (the core keeps no ZX80 tape
 output); an overflow stops its statement at once (the original carries on with
-effects suppressed); the listing pages rather than scrolling by one line; the edit line is not emptied while a report shows.
+effects suppressed); the listing pages rather than scrolling by one line; the edit line is not emptied while a report shows; a line that was never
+checked (only a hand-made image can hold one) stops at a wrong symbol with
+report 0.
 
 ## Working on it
 

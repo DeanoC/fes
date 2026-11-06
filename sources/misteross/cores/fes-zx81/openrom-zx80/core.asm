@@ -183,15 +183,11 @@ overflow:
         db R_OVERFLOW
 
 ; A symbol that does not fit. While checking, mark it and leave the check;
-; a line that was never checked (a hand-made image) stops with report 9.
+; a line that was never checked (a hand-made image) stops with report 0.
 syntax_err:
-        bit F_CHECK,(iy+Y_FLAGS)
-        jr z,.run
         ld hl,(CH_ADD)
         ld (X_PTR),hl
         jr unwind
-.run:   rst 8
-        db R_STOP
 
 ; ---------------------------------------------------------------------
 ; Character fetching (RST 18 starts in hw.asm). Spaces are not significant
