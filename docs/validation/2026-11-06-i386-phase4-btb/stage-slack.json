@@ -1,0 +1,224 @@
+[
+ {
+  "registers": "governor_",
+  "worst_slack_ns": 0.8,
+  "from": "cpu_governor_isa8[0]",
+  "to": "cpu_governor_s2_isa[12]"
+ },
+ {
+  "registers": "cpu_frontend_align_",
+  "worst_slack_ns": 2.085,
+  "from": "cpu_frontend_align_acc[8]~DUPLICATE",
+  "to": "cpu_frontend_align_start[0]~_Duplicate_1DUPLICATE"
+ },
+ {
+  "registers": "frontend_",
+  "worst_slack_ns": 2.085,
+  "from": "cpu_frontend_align_acc[8]~DUPLICATE",
+  "to": "cpu_frontend_align_start[0]~_Duplicate_1DUPLICATE"
+ },
+ {
+  "registers": "decode_",
+  "worst_slack_ns": 2.152,
+  "from": "cpu_frontend_align_start[0]",
+  "to": "cpu_decode_by[6]"
+ },
+ {
+  "registers": "cpu_frontend_fetch_",
+  "worst_slack_ns": 3.014,
+  "from": "cpu_frontend_align_start[0]",
+  "to": "cpu_frontend_fetch_tail_ok[0]"
+ },
+ {
+  "registers": "l1i_",
+  "worst_slack_ns": 3.298,
+  "from": "cpu_st_wait",
+  "to": "cpu_l1i_page[68]"
+ },
+ {
+  "registers": "dc0",
+  "worst_slack_ns": 3.537,
+  "from": "_32357_[1]",
+  "to": "cpu_dc0[322]"
+ },
+ {
+  "registers": "cpu_wb_rlin",
+  "worst_slack_ns": 3.614,
+  "from": "_32696_[291]",
+  "to": "cpu_wb_rlin[2]"
+ },
+ {
+  "registers": "wb_",
+  "worst_slack_ns": 3.614,
+  "from": "_32696_[291]",
+  "to": "cpu_wb_rlin[2]"
+ },
+ {
+  "registers": "m2_",
+  "worst_slack_ns": 3.706,
+  "from": "_31737_[157]~DUPLICATE",
+  "to": "cpu_m2_hit_r[2]"
+ },
+ {
+  "registers": "dc_",
+  "worst_slack_ns": 3.776,
+  "from": "cpu_frontend_align_start[0]",
+  "to": "cpu_dc_q_reg_0_"
+ },
+ {
+  "registers": "biu_",
+  "worst_slack_ns": 3.814,
+  "from": "cpu_wb_p1[6]",
+  "to": "cpu_biu_drain"
+ },
+ {
+  "registers": "smc_",
+  "worst_slack_ns": 3.948,
+  "from": "cpu_wb_p0[10]~DUPLICATE",
+  "to": "cpu_smc_due"
+ },
+ {
+  "registers": "ag_",
+  "worst_slack_ns": 3.985,
+  "from": "_31456_[75]",
+  "to": "cpu_ag_disp[18]"
+ },
+ {
+  "registers": "seg_",
+  "worst_slack_ns": 4.132,
+  "from": "_31737_[152]~DUPLICATE",
+  "to": "cpu_seg_lim[157]"
+ },
+ {
+  "registers": "l1d_",
+  "worst_slack_ns": 4.152,
+  "from": "cpu_st_wait",
+  "to": "ram_block1a0~porta_we_reg"
+ },
+ {
+  "registers": "cpu_wb_reip",
+  "worst_slack_ns": 4.183,
+  "from": "_32696_[291]",
+  "to": "cpu_wb_reip[17]"
+ },
+ {
+  "registers": "d_eip",
+  "worst_slack_ns": 4.31,
+  "from": "_31457_[43]~DUPLICATE",
+  "to": "cpu_d_eip[15]"
+ },
+ {
+  "registers": "cpu_frontend_btb_",
+  "worst_slack_ns": 4.652,
+  "from": "cpu_st_wait",
+  "to": "ram_block1a0~portb_address_reg7"
+ },
+ {
+  "registers": "cpu_frontend_fetch_pred",
+  "worst_slack_ns": 4.692,
+  "from": "cpu_l1i_blk[5]~DUPLICATE",
+  "to": "cpu_frontend_fetch_pred_block[1]"
+ },
+ {
+  "registers": "r_src",
+  "worst_slack_ns": 4.738,
+  "from": "_31457_[43]~DUPLICATE",
+  "to": "cpu_r_src[24]"
+ },
+ {
+  "registers": "r_dst",
+  "worst_slack_ns": 4.751,
+  "from": "_31457_[43]~DUPLICATE",
+  "to": "cpu_r_dst[20]"
+ },
+ {
+  "registers": "dfwd_",
+  "worst_slack_ns": 4.838,
+  "from": "_31457_[41]~DUPLICATE",
+  "to": "cpu_dfwd_wt[3]"
+ },
+ {
+  "registers": "int_",
+  "worst_slack_ns": 4.965,
+  "from": "cpu_st_wait",
+  "to": "cpu_int_wait"
+ },
+ {
+  "registers": "muldiv_",
+  "worst_slack_ns": 5.112,
+  "from": "cpu_md_busy~DUPLICATE",
+  "to": "cpu_muldiv_r[14]~DUPLICATE"
+ },
+ {
+  "registers": "r_cnt",
+  "worst_slack_ns": 5.231,
+  "from": "_31457_[43]~DUPLICATE",
+  "to": "cpu_r_cnt[25]"
+ },
+ {
+  "registers": "rom_ok",
+  "worst_slack_ns": 5.839,
+  "from": "_31457_[41]~DUPLICATE",
+  "to": "cpu_rom_ok"
+ },
+ {
+  "registers": "cs_fl",
+  "worst_slack_ns": 5.908,
+  "from": "cpu_st_wait",
+  "to": "cpu_cs_fl[22]"
+ },
+ {
+  "registers": "cpu_btb_wr",
+  "worst_slack_ns": 6.103,
+  "from": "cpu_st_wait",
+  "to": "cpu_btb_wr[10]"
+ },
+ {
+  "registers": "d_first",
+  "worst_slack_ns": 6.129,
+  "from": "cpu_st_wait",
+  "to": "cpu_d_first"
+ },
+ {
+  "registers": "m1_",
+  "worst_slack_ns": 6.382,
+  "from": "cpu_st_wait",
+  "to": "cpu_m1_s_reg_584_"
+ },
+ {
+  "registers": "ex_",
+  "worst_slack_ns": 6.386,
+  "from": "cpu_muldiv_n16",
+  "to": "cpu_ex_md_flags_reg_6_"
+ },
+ {
+  "registers": "dops_",
+  "worst_slack_ns": 6.458,
+  "from": "cpu_dops_left",
+  "to": "cpu_dops_sp_wb[4]"
+ },
+ {
+  "registers": "exc_",
+  "worst_slack_ns": 7.88,
+  "from": "cpu_st_wait",
+  "to": "cpu_exc_vec[4]"
+ },
+ {
+  "registers": "start_linear",
+  "worst_slack_ns": 8.425,
+  "from": "cpu_arch_base[32]",
+  "to": "cpu_start_linear[3]"
+ },
+ {
+  "registers": "cpu_wb_blast",
+  "worst_slack_ns": 8.708,
+  "from": "ram_block5a89",
+  "to": "cpu_wb_blast[30]"
+ },
+ {
+  "registers": "ucode_",
+  "worst_slack_ns": 13.189,
+  "from": "_31456_[4]",
+  "to": "ram_block1a0~porta_address_reg0"
+ }
+]

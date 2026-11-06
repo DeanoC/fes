@@ -57,8 +57,50 @@ package fes_i386_pkg;
         logic [3:0]       prefix_count;
         prefixes_t        prefixes;
         logic             too_long;      // over 15 bytes: #GP(0) at D
+        // The branch target buffer (fes_i386_btb; fes_i386_qalign): bm, the
+        // instruction ends where the BTB entry of the block holding its last
+        // byte says a branch ends, that entry's way and counter; tk, the
+        // entry predicted it taken and Q went on at its target. xbad: the
+        // instruction runs into a buffer half that holds no sequential
+        // continuation (a predicted target), so its bytes past that point
+        // are not its own.
+        logic             bm;
+        logic             bway;
+        logic [1:0]       bctr;
+        logic             tk;
+        logic             xbad;
         logic [10:0][7:0] bytes;
     } fetched_t;
+
+    // One BTB lookup, for the block F2 holds (fes_i386_btb), and one write,
+    // from WB. An entry describes the first predicted branch of the 16-byte
+    // block that holds the branch's last byte: last is that byte's offset,
+    // target its target's linear address, ctr a 2-bit counter (taken at 2
+    // or more), uncond a JMP or CALL rel, always taken.
+    typedef struct packed {
+        logic        valid;
+        logic        uncond;
+        logic [1:0]  ctr;
+        logic [3:0]  last;
+        logic [19:0] tag;     // linear address bits 31:12
+        logic [31:0] target;
+    } btb_entry_t;
+
+    typedef struct packed {
+        logic        hit;     // an entry of the block's set holds the block
+        logic        way;
+        logic [1:0]  ctr;
+        logic [3:0]  last;
+        logic        taken;   // F2 predicted it taken and fetched its target next
+        logic [3:0]  toff;    // ... at this offset in the target's block
+    } btb_info_t;
+
+    typedef struct packed {
+        logic       valid;
+        logic [1:0] ways;     // the ways it writes
+        logic [7:0] index;    // linear address bits 11:4
+        btb_entry_t entry;
+    } btb_write_t;
 
     function automatic logic is_prefix(input logic [7:0] b);
         case (b)
@@ -569,6 +611,15 @@ package fes_i386_pkg;
         logic [4:0]  seq;
         logic [2:0]  step;
         logic        more;
+        // The fetch (fetched_t): the instruction's linear address, and its
+        // BTB fields. fetched: it came from Q, not an exception's entry.
+        logic        fetched;
+        logic [31:0] lin;
+        logic        bm;
+        logic        bway;
+        logic [1:0]  bctr;
+        logic        tk;
+        logic        xbad;
     } decoded_t;
 
     // Which of ESI, EDI and ECX (bits 0-2) a uop reads: src1, src2, a CL
@@ -814,6 +865,16 @@ package fes_i386_pkg;
         logic        sh_wide;
         logic        def_co;
         logic        def_szap;    // EX: a shift's SF, ZF and PF follow the result; AF is set
+        // The fetch check and the BTB (fes_i386_cpu, "Branch prediction").
+        logic [31:0] lin;         // D: the instruction's fetched linear address
+        logic [3:0]  ilen;        // ... and length
+        logic        fchk;        // D: its first uop, whose lin AG checks against CS.base + EIP
+        logic        fbad;        // D, AG: the instruction's bytes are not those at its EIP: replay it
+        logic        dbr;         // D: a direct branch: Jcc, LOOP and its kin, JCXZ, JMP rel, CALL rel's jump
+        logic        pt;          // D: ... which the front end predicted taken
+        logic        bm;          // D: the instruction matched a BTB entry (fetched_t bm)
+        logic        bway;
+        logic [1:0]  bctr;
     } pipe_t;
 
 endpackage

@@ -64,6 +64,12 @@ docs/pc386-machine-design.md, "Verification" and phases M1-M3.
            with the gate held. Every check must print ok. With --cpu rtl,
            the RTL must run it without an oracle step or a stop; writes
            speaker-rtl/.
+  scroll   runs cores/fes-pc386/sim/scroll_test.asm (SCROLLT.COM) at the
+           FreeDOS prompt (#1493): INT 10h AH=07h of a window from row 0, in
+           modes 13h, 12h and 04h, must return with the picture one character
+           row lower and the top row blank, as Ultima VII's scroll needs.
+           Every check must print ok. With --cpu rtl, the RTL must run it
+           without an oracle step or a stop; writes scroll-rtl/.
   cpu-profile  boots FreeDOS on the oracle and runs CPUPROF.COM
            (cores/fes-pc386/sim/cpu_profile_test.asm); the RTL takes over at
            its fourth page flip and runs 20 ms under machine_tb --cpu-profile
@@ -122,6 +128,7 @@ Examples:
   python3 scripts/sim_fes_pc386.py --suite c2xx --cpu rtl
   python3 scripts/sim_fes_pc386.py --suite wait --cpu rtl
   python3 scripts/sim_fes_pc386.py --suite speaker
+  python3 scripts/sim_fes_pc386.py --suite scroll --cpu rtl
   python3 scripts/sim_fes_pc386.py --suite cpu-profile --download
   python3 scripts/sim_fes_pc386.py --suite sound --download
   python3 scripts/sim_fes_pc386.py --suite game --game ultima6
@@ -806,7 +813,7 @@ def default_limit_seconds(suite: str) -> int:
     """Return the suite's default simulated-time hang guard."""
     if suite == 'sound':
         return 14
-    if suite in ('boot', 'governor', 'wait', 'speaker', 'cpu-profile'):
+    if suite in ('boot', 'governor', 'wait', 'speaker', 'scroll', 'cpu-profile'):
         return 8
     if suite == 'rtl-stops':
         return 2
@@ -860,6 +867,30 @@ def run_speaker(args, linked: list[Path]) -> dict:
         failures += rtl_failures(run, 'speaker run')
     return {'run': run, 'checks': lines, 'failures': failures}
 
+
+# SCROLLT.COM's checks, in the order it runs them.
+SCROLL_CHECKS = ('mode13', 'mode12', 'mode04', 'DONE')
+
+
+def run_scroll(args, linked: list[Path]) -> dict:
+    """SCROLLT.COM at the FreeDOS prompt: INT 10h AH=07h from row 0 in each graphics memory model."""
+    images = firmware.images(args.download, args.jobs)
+    testbench = machine_testbench(args, linked)
+    suite = 'scroll' + ('-rtl' if args.cpu == 'rtl' else '')
+    disk = fixture_with(args, suite, 'scroll_test.asm', 'SCROLLT.COM')
+    print(f'Running SCROLLT.COM on the {args.cpu} CPU', flush=True)
+    run = run_machine(testbench, suite, ['--disk', str(disk), '--limit-seconds', str(args.limit_seconds),
+                                         '--type', 'scrollt|', '--expect', 'SCR DONE ok', '--cpu', args.cpu],
+                      images)
+    lines = [entry['text'] for entry in run['debug'] if entry['port'] == '0e9']
+    run['lines'] = lines
+    failures = run['failures'] + [line for line in lines if not line.endswith(' ok')]
+    names = [line.split()[1] for line in lines if line.startswith('SCR ')]
+    if names != list(SCROLL_CHECKS):
+        failures.append(f'SCROLLT.COM ran {names}, expected {list(SCROLL_CHECKS)}')
+    if args.cpu == 'rtl':
+        failures += rtl_failures(run, 'scroll run')
+    return {'run': run, 'checks': lines, 'failures': failures}
 
 # The cpu-profile suite's window: the RTL takes over at CPUPROF.COM's fourth
 # page flip and runs this long.
@@ -1555,8 +1586,8 @@ def run_game(args, linked: list[Path]) -> dict:
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument('--suite', choices=('devices', 'storage', 'audio', 'opl2', 'benches', 'boot', 'rtl-stops',
-                                            'a20', 'c2xx', 'wait', 'speaker', 'cpu-profile', 'sound', 'game', 'vga', 'system',
-                                            'governor', 'all'),
+                                            'a20', 'c2xx', 'wait', 'speaker', 'scroll', 'cpu-profile',
+                                            'sound', 'game', 'vga', 'system', 'governor', 'all'),
                         default='all',
                         help='simulation suite to run')
     parser.add_argument('--download', action='store_true', help='fetch Bochs, dev86, FreeDOS and NASM if missing')
@@ -1582,8 +1613,8 @@ def main() -> int:
     parser.add_argument('--verilator', default=os.environ.get('VERILATOR', 'verilator'))
     parser.add_argument('--jobs', type=int, default=min(os.cpu_count() or 2, 16))
     args = parser.parse_args()
-    if args.cpu == 'rtl' and args.suite not in ('boot', 'game', 'a20', 'c2xx', 'wait', 'speaker'):
-        parser.error('--cpu rtl runs the boot, game, a20, c2xx, wait and speaker suites only')
+    if args.cpu == 'rtl' and args.suite not in ('boot', 'game', 'a20', 'c2xx', 'wait', 'speaker', 'scroll'):
+        parser.error('--cpu rtl runs the boot, game, a20, c2xx, wait, speaker and scroll suites only')
     if args.image != 'boot' and args.suite != 'boot':
         parser.error('--image is supported by the boot suite only')
     if (args.preset or args.frequency or args.turbo) and not (
@@ -1634,6 +1665,8 @@ def main() -> int:
                 report = run_wait(args, oracle.link_inputs(args.jobs, args.download))
             elif suite == 'speaker':
                 report = run_speaker(args, oracle.link_inputs(args.jobs, args.download))
+            elif suite == 'scroll':
+                report = run_scroll(args, oracle.link_inputs(args.jobs, args.download))
             elif suite == 'cpu-profile':
                 report = run_cpu_profile(args, oracle.link_inputs(args.jobs, args.download))
             else:

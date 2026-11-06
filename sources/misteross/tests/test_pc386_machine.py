@@ -359,6 +359,42 @@ class WaitTestTest(unittest.TestCase):
         self.assertTrue(failures[0].startswith('RTL oracle_steps=3'))
 
 
+class ScrollTestTest(unittest.TestCase):
+    def test_suite_checks_are_the_programs_names(self):
+        source = (sim.CORE / 'sim/scroll_test.asm').read_text()
+        names = [line.split("'")[1].rstrip('$') for line in source.splitlines() if line.startswith('name_')]
+        self.assertEqual(names, list(sim.SCROLL_CHECKS))
+
+    @staticmethod
+    def suite(lines, cpu='oracle', oracle_steps=0):
+        def run_machine(testbench, name, arguments, images):
+            return {'debug': [{'port': '0e9', 'text': line} for line in lines], 'failures': [],
+                    'rtl': {'counters': {'retired': 1000, 'oracle_steps': oracle_steps, 'protected_steps': 0},
+                            'stops': [], 'gaps': []}}
+        args = mock.Mock(cpu=cpu, download=False, jobs=1, limit_seconds=8)
+        with mock.patch.object(sim.firmware, 'images', return_value={}), \
+                mock.patch.object(sim, 'machine_testbench'), mock.patch.object(sim, 'fixture_with'), \
+                mock.patch.object(sim, 'run_machine', run_machine), mock.patch('builtins.print'):
+            return sim.run_scroll(args, [])['failures']
+
+    PASSING = ['SCR mode13 2/2 ok', 'SCR mode12 2/2 ok', 'SCR mode04 2/2 ok', 'SCR DONE ok']
+
+    def test_every_check_must_print_ok(self):
+        self.assertEqual(self.suite(self.PASSING), [])
+        self.assertEqual(self.suite(['SCR mode13 1/2 FAIL'] + self.PASSING[1:3] + ['SCR DONE FAIL']),
+                         ['SCR mode13 1/2 FAIL', 'SCR DONE FAIL'])
+
+    def test_a_scroll_that_never_returns_fails(self):
+        failures = self.suite([])
+        self.assertEqual(failures, ["SCROLLT.COM ran [], expected ['mode13', 'mode12', 'mode04', 'DONE']"])
+
+    def test_rtl_runs_fail_on_oracle_steps(self):
+        self.assertEqual(self.suite(self.PASSING, 'rtl'), [])
+        failures = self.suite(self.PASSING, 'rtl', oracle_steps=3)
+        self.assertEqual(len(failures), 1)
+        self.assertTrue(failures[0].startswith('RTL oracle_steps=3'))
+
+
 class SpeakerTestTest(unittest.TestCase):
     def test_suite_checks_are_the_programs_names(self):
         source = (sim.CORE / 'sim/speaker_test.asm').read_text()

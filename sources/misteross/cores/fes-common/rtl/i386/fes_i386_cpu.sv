@@ -15,8 +15,27 @@
 //       divide (fes_i386_muldiv), over several cycles
 //   WB  in-order commit, stores and I/O accesses included
 //
-// Branches are predicted not taken. EX resolves them; a taken one redirects
-// F1 from WB and flushes every younger uop, which costs 10 cycles.
+// Branch prediction. The front end's BTB (fes_i386_btb) predicts Jcc, LOOP,
+// LOOPE, LOOPNE, JCXZ and JMP and CALL rel: F2 sends F1 to a taken entry's
+// target, and Q goes on there after the branch (fes_i386_fetchbuf,
+// fes_i386_qalign). D gives the instruction after such a branch (pt) the
+// branch's target EIP, which it works out from the branch's own
+// displacement, so the target uops issue behind the branch. EX resolves
+// every branch as before; a branch WB finds taken when it was not predicted
+// so, or not taken when it was, redirects F1 from WB and flushes every
+// younger uop, which costs 10 cycles. Every other branch is predicted not
+// taken. WB writes each direct branch's outcome to the BTB.
+//
+// Nothing the BTB holds is trusted. The fetch check: AG compares each
+// instruction's fetched linear address with CS.base plus the EIP D gave it,
+// and an instruction whose bytes ran into a half holding a predicted
+// target instead of its continuation is flagged by Q (xbad). Either is
+// marked FAULT_REPLAY at once, so it touches no memory, and replays at WB
+// as an uncached load's does, without serial issue; the BTB set that sent
+// fetch there is cleared. So a wrong target, an entry left by code since
+// changed, a branch found where the entry says none ends, or an entry
+// from the other code size costs a replay, never a result. Under queue16
+// nothing is predicted.
 //
 // A load whose bytes have not arrived when it is in M2 freezes D to WB: every
 // stage behind DC keeps its uop, and nothing retires, until they do (freeze).
@@ -181,6 +200,7 @@ module fes_i386_cpu #(
     output logic             shutdown,             // ... a fault in a double fault's delivery, until reset
     output logic [15:0]      trace_error,          // the delivered exception's error code
     output logic             trace_issue,          // D issued this cycle (lockstep observability)
+    output logic             trace_fe_wait,        // D has no instruction from the front end (ditto)
     output logic             trace_md_wait,        // D to WB wait for a multiply or divide in EX (ditto)
     output logic             trace_fetch,          // F1 sent a block to the L1I (ditto) ...
     output logic [27:0]      trace_fetch_block,    // ... this one, linear address / 16
@@ -229,6 +249,7 @@ module fes_i386_cpu #(
     typedef fes_i386_pkg::uop_t uop_t;
     typedef fes_i386_pkg::fetched_t fetched_t;
     typedef fes_i386_pkg::decoded_t decoded_t;
+    typedef fes_i386_pkg::btb_write_t btb_write_t;
 
     localparam logic [1:0] EARLY = 2'd0, LATE = 2'd2;
     localparam int SEG_CS = 1, SEG_SS = 2;
@@ -388,6 +409,8 @@ module fes_i386_cpu #(
     // window, smc_mark as the instruction's first uop enters WB, wb_smc while
     // it is there, smc_go as WB restarts it.
     logic smc_due, smc_defer, smc_mark, wb_smc, smc_go;
+    // wb_frp: the uop in WB replays for the fetch check.
+    logic wb_frp;
 
     // ---- Start and redirect -------------------------------------------------------
     // After reset the front end starts at CS.base + EIP, one cycle after the
@@ -413,23 +436,31 @@ module fes_i386_cpu #(
     // instruction's. The address selects key on WB's fault field and int_take,
     // registers (a taken branch has neither), so
     // the fetch address stays off exc_take's path.
+    // A branch's redirect goes to its target, or for one predicted taken
+    // that was not, to the next instruction: wb_rlin and wb_reip, chosen as
+    // the uop enters WB (see EX).
     logic wb_faulted;
+    logic [31:0] wb_rlin, wb_reip;
     assign wb_faulted = wb_s.uop.ctl.fault != fes_i386_pkg::FAULT_NONE;
     assign redirect = start == 2'd2 || !freeze && (wb_redir || int_take);
-    assign redirect_linear = start == 2'd2 || wb_faulted || int_take ? start_linear : wb_s.target;
+    assign redirect_linear = start == 2'd2 || wb_faulted || int_take ? start_linear : wb_rlin;
     // Real-mode interrupt and exception frames carry only the low IP, and
     // their delivery entry must restart at that same 16-bit offset. Keep the
     // full EIP for protected-mode deliveries.
     assign redirect_eip = start == 2'd2 ? eip : wb_faulted || int_take ? {cr0_pe ? eip[31:16] : 16'd0, eip[15:0]}
-                        : wb_s.target_eip;
+                        : wb_reip;
 
     // ---- F1 to Q ------------------------------------------------------------------
-    logic        q_valid, d_ready, fe_mem_load;
-    logic [27:0] fetch_next;
+    logic        q_valid, d_ready, fe_mem_load, pred_on;
     fetched_t    q;
+    btb_write_t  btb_wr;
+    logic [6:0][27:0] fe_block;
+    logic [6:0]       fe_valid;
+    always_ff @(posedge clk) if (reset) pred_on <= !queue16;
     fes_i386_frontend frontend (
-        .clk, .reset, .redirect, .redirect_linear, .code32, .mem_block, .mem_load(fe_mem_load), .fetch_next,
-        .mem_data, .mem_valid, .q_valid, .q, .d_ready
+        .clk, .reset, .redirect, .redirect_linear, .code32, .mem_block, .mem_load(fe_mem_load),
+        .mem_data, .mem_valid, .q_valid, .q, .d_ready, .pred_en(pred_on), .btb_wr, .held_block(fe_block),
+        .held_valid(fe_valid)
     );
     assign mem_load = fe_mem_load && !halted && !wb_stop;
 
@@ -528,6 +559,13 @@ module fes_i386_cpu #(
     assign dc_q.str_cnt = 1'b0;
     assign dc_q.b_fp = 1'b0;
     assign dc_q.x_prev = 1'b0;
+    assign dc_q.fetched = 1'b1;
+    assign dc_q.lin = q.linear;
+    assign dc_q.bm = q.bm;
+    assign dc_q.bway = q.bway;
+    assign dc_q.bctr = q.bctr;
+    assign dc_q.tk = q.tk;
+    assign dc_q.xbad = q.xbad;
     assign d_ready = !dc_skid_valid;
     // A fixed sequence's uops issue from dc in turn: as each but the last
     // issues, dc takes the next (fes_i386_seq), whose rewritten fields come
@@ -621,6 +659,20 @@ module fes_i386_cpu #(
     assign cs_eq1 = eip_hi == cs_lh1;
     assign cs_gp = eip_lo[4] ? cs_gt || cs_eq || cs_eq1 && eip_lo[3:0] > cs_ll : cs_gt || cs_eq && eip_lo[3:0] > cs_ll;
     assign d_eip_next = d_eip + {28'd0, dc.length};
+    // A direct branch the front end predicted taken (pt): Jcc, LOOP and its
+    // kin, JCXZ, JMP rel, and CALL rel's jump. The next instruction's EIP is
+    // the branch's target: EIP + length + displacement, wrapped by operand
+    // size, as AG works it out. A three-input add beside d_eip_next's.
+    logic        d_dbr, d_pt;
+    logic [31:0] d_tgt_sum, d_tgt;
+    assign d_dbr = dc.uop.cls == fes_i386_pkg::UOP_BRANCH && !dc.far_jmp && !dc.uop.eoi_taken
+                && (dc.uop.op == 5'(fes_i386_pkg::BR_JCC) || dc.uop.op == 5'(fes_i386_pkg::BR_JMP)
+                    || dc.uop.op == 5'(fes_i386_pkg::BR_LOOP) || dc.uop.op == 5'(fes_i386_pkg::BR_LOOPE)
+                    || dc.uop.op == 5'(fes_i386_pkg::BR_LOOPNE) || dc.uop.op == 5'(fes_i386_pkg::BR_JCXZ))
+                && (dc.seq == fes_i386_pkg::SEQ_NONE || dc.seq == fes_i386_pkg::SEQ_CALL);
+    assign d_pt = dc.tk && d_dbr;
+    assign d_tgt_sum = (dc.opsize32 ? d_eip : {16'd0, d_eip[15:0]}) + {28'd0, dc.length} + dc.uop.imm;
+    assign d_tgt = dc.opsize32 ? d_tgt_sum : {16'd0, d_tgt_sum[15:0]};
 
     uop_t        u;
     logic        opsize32, lea, lea_early, consumes, reads_seg, stop;
@@ -828,7 +880,7 @@ module fes_i386_cpu #(
     assign consumes = dc.consumes;
     assign reads_seg = dc.reads_seg;
     assign seg_index = dc.seg_index;
-    assign stop = !s_kill1 && (dc.stop || d_unimpl || cs_gp || far_bad || cr0_gp || cr0_pg_unimpl);
+    assign stop = dc.xbad || !s_kill1 && (dc.stop || d_unimpl || cs_gp || far_bad || cr0_gp || cr0_pg_unimpl);
 
     // The producers in AG, M1, M2 and EX.
     logic [3:0]       prod_valid, prod_early, prod_sp;
@@ -1083,6 +1135,7 @@ module fes_i386_cpu #(
     end
     assign trace_gov_hold = gov_hold;
     assign trace_issue = issue;
+    assign trace_fe_wait = !dc_valid;
     assign trace_md_wait = md_busy;
 
     always_ff @(posedge clk) begin
@@ -1119,7 +1172,7 @@ module fes_i386_cpu #(
             d_stop <= 1'b1;  // until the restart's redirect
         end else if (issue) begin
             d_stop <= stop;
-            if (!dc_more) d_eip <= d_eip_next;
+            if (!dc_more) d_eip <= d_pt ? d_tgt : d_eip_next;
         end
     end
 
@@ -1225,6 +1278,17 @@ module fes_i386_cpu #(
             d_out.uop.rep_stop = 2'd0;
             d_out.uop.eoi_taken = 1'b0;
         end
+        // The fetch check's fields: the instruction's linear address and
+        // length, checked at its first uop (not an exception's entry), and
+        // its BTB match for WB.
+        d_out.lin = dc.lin;
+        d_out.ilen = dc.length;
+        d_out.fchk = d_first && dc.fetched;
+        d_out.dbr = d_dbr;
+        d_out.pt = d_pt;
+        d_out.bm = dc.bm;
+        d_out.bway = dc.bway;
+        d_out.bctr = dc.bctr;
         if (s_kill1) begin
             d_out.uop.cls = fes_i386_pkg::UOP_SPECIAL;  // SPECIAL_NOP
             d_out.uop.op = 5'd0;
@@ -1237,6 +1301,12 @@ module fes_i386_cpu #(
             d_out.uop.str_cx = 1'b0;
             d_out.uop.st2 = 1'b0;
             d_out.uop.io = 2'd0;
+        end
+        // An instruction whose bytes ran into a predicted target's half
+        // (xbad) replays, whatever its decode made of them.
+        if (dc.xbad) begin
+            d_out.uop.ctl.fault = fes_i386_pkg::FAULT_REPLAY;
+            d_out.fbad = 1'b1;
         end
     end
     always_ff @(posedge clk) begin
@@ -1354,6 +1424,17 @@ module fes_i386_cpu #(
     assign ag_next_instruction = ag_s.uop.rep_stop != 2'd0 || ag_s.uop.eoi_taken
                               || (ag_s.uop.cls == fes_i386_pkg::UOP_SYSTEM
                                   && ag_s.uop.op != 5'(fes_i386_pkg::SYSOP_GATE));
+    // The fetch check (see Branch prediction): the instruction's fetched
+    // linear address is CS.base + EIP. a + b == c without a carry chain: the
+    // carries a + b would need to give c, bit by bit, must be those it makes.
+    function automatic logic sum_is(input logic [31:0] a, input logic [31:0] b, input logic [31:0] c);
+        logic [31:0] k_in, k_out;
+        k_in = a ^ b ^ c;
+        k_out = (a & b) | ((a ^ b) & ~c);
+        sum_is = k_in == {k_out[30:0], 1'b0};
+    endfunction
+    logic ag_fbad;
+    assign ag_fbad = ag_s.fchk && !sum_is(seg_base[SEG_CS], ag_s.eip, ag_s.lin);
     always_comb begin
         ag_out = capture(ag_s, 3'd4, wb_s.result);
         // A stack operation's result until EX is its new ESP, so ESP forwards
@@ -1367,6 +1448,11 @@ module fes_i386_cpu #(
                           : ag_call ? {ag_o32 ? call_tgt[31:16] : 16'd0, call_tgt[15:0]} : offset;
         ag_out.maddr = linear;
         ag_out.moff = offset;
+        // Its bytes are not those at its EIP: it replays, touching nothing.
+        if (ag_fbad) begin
+            ag_out.uop.ctl.fault = fes_i386_pkg::FAULT_REPLAY;
+            ag_out.fbad = 1'b1;
+        end
     end
     always_ff @(posedge clk) begin
         if (reset || wb_flush) begin
@@ -1759,7 +1845,20 @@ module fes_i386_cpu #(
         ex_out.sh_wide = ex_sh_wide;
         ex_out.def_co = ex_def_co;
         ex_out.def_szap = ex_def_szap;
+        // A fetch check's replay stands over anything found since.
+        if (ex_s.fbad) begin
+            ex_out.uop.ctl.fault = fes_i386_pkg::FAULT_REPLAY;
+            ex_out.taken = 1'b0;
+        end
     end
+    // A branch predicted taken (pt) that EX finds not taken redirects to the
+    // next instruction, CS.base + the next EIP; one predicted taken that is
+    // taken does not redirect.
+    logic        ex_pt, ex_mis;
+    logic [31:0] ex_fall;
+    assign ex_pt = ex_s.pt && ex_out.uop.ctl.fault == fes_i386_pkg::FAULT_NONE;
+    assign ex_mis = ex_out.taken ^ ex_pt;
+    assign ex_fall = seg_base[SEG_CS] + ex_s.eip_next;
     always_ff @(posedge clk) begin
         if (reset) begin
             ex_flags <= {init_eflags[17:2], 1'b1, init_eflags[0]};
@@ -1774,12 +1873,18 @@ module fes_i386_cpu #(
         end else begin
             ex_flags <= flags_keep;
         end
+        if (!freeze) begin
+            wb_rlin <= ex_pt && !ex_out.taken ? ex_fall : ex_out.target;
+            wb_reip <= ex_pt && !ex_out.taken ? ex_s.eip_next : ex_out.target_eip;
+        end
         if (reset || wb_flush) begin
             wb_s.valid <= 1'b0;
             wb_smc <= 1'b0;
+            wb_frp <= 1'b0;
             io_wait <= 1'b0;
         end else if (!freeze) begin
             wb_s <= ex_out;
+            wb_frp <= ex_s.valid && ex_s.fbad && !smc_mark;
             // The next instruction's first uop after a store into the bytes
             // the front end holds restarts, whatever it was to do.
             if (smc_mark) begin
@@ -1904,9 +2009,9 @@ module fes_i386_cpu #(
             wb_deliver <= 1'b0;
             wb_shut <= 1'b0;
         end else if (!freeze) begin
-            wb_flushes <= ex_s.valid && (smc_mark || ex_out.taken || ex_out.uop.ctl.fault != fes_i386_pkg::FAULT_NONE
+            wb_flushes <= ex_s.valid && (smc_mark || ex_mis || ex_out.uop.ctl.fault != fes_i386_pkg::FAULT_NONE
                                          || ex_s.uop.cls == fes_i386_pkg::UOP_SPECIAL && ex_s.uop.op == 5'd1);
-            wb_redir <= ex_s.valid && !smc_mark && (ex_out.taken || ex_deliver && !ex_shut);
+            wb_redir <= ex_s.valid && !smc_mark && (ex_mis || ex_deliver && !ex_shut);
             wb_deliver <= ex_s.valid && !smc_mark && ex_deliver && !ex_shut;
             wb_shut <= ex_s.valid && !smc_mark && ex_deliver && ex_shut;
         end
@@ -2488,7 +2593,7 @@ module fes_i386_cpu #(
     // instruction ends or anything else flushes.
     always_ff @(posedge clk) begin
         if (reset || wb_flush && !rp_go) serial <= 1'b0;
-        else if (rp_go) serial <= !wb_smc;
+        else if (rp_go) serial <= !wb_smc && !wb_frp;
         else if (wb_commit && wb_eoi) serial <= 1'b0;
     end
 
@@ -2523,7 +2628,7 @@ module fes_i386_cpu #(
     assign trace_dread = dmem_read;
     assign trace_dread_addr = dmem_addr;
     assign trace_mem_wait = m2_load && !dmem_valid || st_wait || !mem_valid;
-    assign trace_replay = rp_go && !wb_smc;
+    assign trace_replay = rp_go && !wb_smc && !wb_frp;
     assign trace_smc = smc_go;
     assign trace_smc_open = smc_open && !unc_start;
     assign trace_ex_store = st_ex;
@@ -2559,14 +2664,66 @@ module fes_i386_cpu #(
         .idle(trace_mem_idle)
     );
 
+    // ---- BTB writes ----------------------------------------------------------------
+    // A direct branch's retirement writes its entry: a taken one counts up
+    // (from 2 when it was not matched, in a way taken in turn), a matched one
+    // not taken counts down. The entry is keyed by the block that holds the
+    // branch's last byte (wb_blast, worked out as the uop enters WB). A
+    // fetch check's replay clears both ways of the sets of the block before
+    // the replayed instruction's start and of the block holding it: one of
+    // them sent fetch to the wrong bytes (a branch's block whose entry ends
+    // where no branch ends, or a block whose entry ends inside the
+    // instruction). Under queue16 nothing is written, so nothing predicts.
+    logic [31:0] wb_blast, frp_lin;
+    logic [1:0]  frp_n;
+    logic        btb_rr;
+    logic [11:0] frp_prev;
+    assign frp_prev = frp_lin[11:0] - 12'd1;
+    always_ff @(posedge clk) begin
+        if (!freeze) wb_blast <= ex_s.lin + {28'd0, ex_s.ilen} - 32'd1;
+        if (reset) frp_n <= 2'd0;
+        else if (rp_go && wb_frp && pred_on) frp_n <= 2'd2;
+        else if (frp_n != 2'd0) frp_n <= frp_n - 2'd1;
+        if (rp_go) frp_lin <= cs_eip;
+        btb_wr <= '0;
+        if (frp_n != 2'd0) begin
+            btb_wr.valid <= 1'b1;
+            btb_wr.ways <= 2'b11;
+            btb_wr.index <= frp_n[1] ? frp_prev[11:4] : frp_lin[11:4];
+        end else if (wb_commit && wb_s.dbr && (wb_s.taken || wb_s.bm) && pred_on && !reset) begin
+            btb_wr.valid <= 1'b1;
+            btb_wr.ways <= (wb_s.bm ? wb_s.bway : btb_rr) ? 2'b10 : 2'b01;
+            btb_wr.index <= wb_blast[11:4];
+            btb_wr.entry.valid <= 1'b1;
+            btb_wr.entry.uncond <= wb_s.uop.op == 5'(fes_i386_pkg::BR_JMP);
+            btb_wr.entry.ctr <= !wb_s.taken ? (wb_s.bctr == 2'd0 ? 2'd0 : wb_s.bctr - 2'd1)
+                              : !wb_s.bm ? 2'd2 : wb_s.bctr == 2'd3 ? 2'd3 : wb_s.bctr + 2'd1;
+            btb_wr.entry.last <= wb_blast[3:0];
+            btb_wr.entry.tag <= wb_blast[31:12];
+            btb_wr.entry.target <= wb_s.target;
+        end
+        if (reset) btb_rr <= 1'b0;
+        else if (wb_commit && wb_s.dbr && wb_s.taken && !wb_s.bm) btb_rr <= !btb_rr;
+    end
+    // The prediction's counts for machine_tb --cpu-profile (cpu_profile.vlt
+    // reads them; nothing in the CPU does): a direct branch retiring, whether
+    // it was predicted taken and was taken, and a fetch check's replay.
+    logic prof_br, prof_pt, prof_taken, prof_frp;
+    assign prof_br = wb_commit && wb_s.dbr;
+    assign prof_pt = wb_s.pt;
+    assign prof_taken = wb_s.taken;
+    assign prof_frp = rp_go && wb_frp;
+
     // ---- Self-modifying code -------------------------------------------------------
-    // Fetch is sequential from the last redirect, and every redirect comes
-    // from WB, so the instructions after the one in WB are the bytes from
-    // where it starts to the end of the block F1 loads next (fetch_next):
-    // one run of lines, holding every block F2 may still read from the L1I
-    // before a clear of a line there lands. A store committed into one of
-    // them, or a DMA write (inv_valid), may have changed bytes the front end
-    // already holds. Then an instruction after it restarts: its first uop
+    // The instructions after the one in WB came from the lines of the
+    // instructions D to EX hold (each one's first line and the next, which
+    // it may run into), of Q's record and DC's two, and of the blocks the
+    // front end holds or loads next (fes_i386_fetchbuf held_block), among
+    // them every block F2 may still read from the L1I before a clear of a
+    // line there lands. With prediction they are not one run of lines. A
+    // store committed into one of them, or a DMA write (inv_valid), may have
+    // changed bytes the front end already holds. Then an instruction after
+    // it restarts: its first uop
     // takes FAULT_REPLAY as it enters WB (smc_mark), WB flushes it and
     // everything younger, and the front end restarts at it through start,
     // as for an uncached load but without serial issue (smc_go). By then the
@@ -2602,29 +2759,34 @@ module fes_i386_cpu #(
     //
     // Lines compare by bits 19:5, modulo 1 MiB, where linear and physical
     // agree under A20M and for the shadow at FFFF0000h; an alias 1 MiB away
-    // restarts for nothing. The run starts at smc_lo: CS.base + EIP a cycle
-    // old, the instruction in WB or one before it, except on the cycle after
-    // a redirect, when EIP has just moved and the run starts at the
-    // redirect's line, where F1 has just loaded. Every input but unc_start
-    // is a register, unc_start reaches only smc_pend and smc_due, and the
-    // decision reaches only registers (smc_pend, smc_due, smc_defer,
-    // smc_chk, and WB's entry through smc_mark), so the freeze and WB's
-    // flush keep their depth.
+    // restarts for nothing. Every input but unc_start is a register,
+    // unc_start reaches only smc_pend and smc_due, and the decision reaches
+    // only registers (smc_pend, smc_due, smc_defer, smc_chk, and WB's entry
+    // through smc_mark), so the freeze and WB's flush keep their depth.
     logic        q16, wb_q16, smc_pend, smc_chk, smc_store, smc_dma, smc_bnd, smc_now, smc_late, smc_past;
     logic        smc_first, uc_live, smc_open;
-    logic [14:0] smc_lo, smc_span;
     logic [19:0] ex_next_lin, wb_next_lin, ex_q16_off, smc_t, smc_reach;
-    // line - lo <= span, as the borrow of a subtraction, so both are carry
-    // chains.
-    function automatic logic smc_in(input logic [14:0] line, input logic [14:0] lo, input logic [14:0] span);
-        logic [15:0] over;
-        over = {1'b0, span} - {1'b0, 15'(line - lo)};
-        smc_in = !over[15];
+    // The line is one the front end or an instruction after WB's holds.
+    function automatic logic smc_held(input logic [14:0] line, input logic [6:0][27:0] blk, input logic [6:0] bv,
+                                      input logic [6:0][31:0] lin, input logic [6:0] lv);
+        logic [14:0] prev;
+        smc_held = 1'b0;
+        prev = line - 15'd1;
+        for (int i = 0; i < 7; i++) begin
+            if (bv[i] && blk[i][15:1] == line) smc_held = 1'b1;
+            if (lv[i] && (lin[i][19:5] == line || lin[i][19:5] == prev)) smc_held = 1'b1;
+        end
     endfunction
-    assign smc_span = fetch_next[15:1] - smc_lo;
+    logic [6:0][31:0] smc_ilin;
+    logic [6:0]       smc_iv;
+    assign smc_ilin = {q.linear, dc_skid.lin, dc.lin, ag_s.lin, m1_s.lin, m2_s.lin, ex_s.lin};
+    // An exception's entry's uops, at length 0, fetched nothing.
+    assign smc_iv = {q_valid, dc_skid_valid && dc_skid.fetched, dc_valid && dc.fetched, ag_s.valid && ag_s.ilen != 4'd0,
+                     m1_s.valid && m1_s.ilen != 4'd0, m2_s.valid && m2_s.ilen != 4'd0, ex_s.valid && ex_s.ilen != 4'd0};
     assign smc_store = wb_store && !(q16 && wb_q16)
-                    && (smc_in(wb_p0[19:5], smc_lo, smc_span) || wb_cross && smc_in(wb_p1[19:5], smc_lo, smc_span));
-    assign smc_dma = inv_valid && smc_in(inv_line[14:0], smc_lo, smc_span);
+                    && (smc_held(wb_p0[19:5], fe_block, fe_valid, smc_ilin, smc_iv)
+                        || wb_cross && smc_held(wb_p1[19:5], fe_block, fe_valid, smc_ilin, smc_iv));
+    assign smc_dma = inv_valid && smc_held(inv_line[14:0], fe_block, fe_valid, smc_ilin, smc_iv);
     assign smc_open = !wb_s.valid && smc_first && !uc_live;
     assign smc_bnd = wb_commit && wb_eoi || smc_open;
     assign smc_now = smc_pend || smc_dma || smc_store && !q16;
@@ -2646,7 +2808,6 @@ module fes_i386_cpu #(
                       && ex_q16_off[3:0] <= (ex_s.uop.mem.bytes[2] ? 4'd12 : ex_s.uop.mem.bytes[1] ? 4'd14 : 4'd15);
         end
         if (!smc_defer) smc_t <= wb_next_lin + 20'd17;
-        smc_lo <= redirect ? redirect_linear[19:5] : cs_eip[19:5];
         // A mid-instruction branch's commit leaves smc_first low, as the uops
         // after it are its instruction's.
         if (reset) smc_first <= 1'b1;
