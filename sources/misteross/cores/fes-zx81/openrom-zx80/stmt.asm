@@ -502,4 +502,4 @@ load_done:
         ld a,(hl)
         cp 0x80
         jr nz,init              ; not a program image
-        jr edit
+                                ; (edit follows, in edit.asm)
