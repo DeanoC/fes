@@ -29,8 +29,10 @@ to `905f50635`.
     instructions, CPI 1.680 from 1.701.
   - DOOM, the first half-second: a load's AGI falls by 286,730 clocks
     (0.57%), and the window retires 0.45% more.
-  - In both windows, fetch and L1I clocks stay flat. Unlike slice 6's
-    saving, this one is not taken back by an empty front end.
+  - The front end does not take this saving back, unlike slice 6's. Its
+    empty clocks (the profile's raw `fe_empty`) rise by only 7,256 in the
+    second window, 646,743 to 653,999, and by 2,680 in the first, 673,536
+    to 676,216.
   - 3DBench: no change, clock for clock. It is 16-bit code, and this slice
     forwards only 32-bit loads.
 - **Lockstep.** It passes as main does, on the RTL and on the Quartus
@@ -110,8 +112,10 @@ waits:
 - **AG and M1.** Clocks with the load in AG or M1 are the load-use latency
   itself, which the design keeps.
 
-Slice 6 estimated 1,023,380 clocks for this window (2.17% of DOOM's
-kit-equivalent clocks). That estimate counted every load class. The 32-bit
+Slice 6's first step, measured before its early ALU, charged 1,023,380
+clocks of this window to a load in M2 (2.17% of DOOM's kit-equivalent
+clocks). On slice 6's final RTL, the "before" above, the same bucket holds
+1,026,673. Both count every load class. The 32-bit
 forms built here recover about half of it, which matches the kit's +0.8%.
 
 Window totals are in [doom-window-h2.json](doom-window-h2.json),

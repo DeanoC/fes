@@ -26,7 +26,7 @@
  "runs": [
   {
    "run": "u1",
-   "tree": "905f50635 (PR #1517's head d2ac32e00 with this slice; main 21cdb60a1 has the same sources)",
+   "tree": "905f50635 (PR #1517's head d2ac32e00 plus this slice; main 21cdb60a1 has d2ac32e00's sources)",
    "package": "c89d6b0ce9e8174aee3060e083393b58a59194a9714fb9b4caecfb420cb1b433",
    "package_fcore_sha256": "0062f73ea8f8cef275415bff0b9d30a6b32a9b8eedf6305ec00108fb48180f27",
    "time": "22:27-22:38 EET; data trees removed 22:39",
