@@ -4381,6 +4381,17 @@ physical audit checks exclusive interstage connectivity, explicit identification
 two-stage MTBF inclusion and the actual reported rate; defaults fail the audit.
 This profile remains separate from internal16K package and HDMI exceptions.
 
+Static package export selects the separately approved
+`de25-static-stock-reference-v1` policy. Its fixed implementation and topology
+bindings cover only the standard base with empty/16K personas at the reviewed
+placement/routing regions. Each fresh fit retains all 88 raw rules and numerical
+timing checks, and collects the exact stock video/audio settings, HDMI input
+synchronizers, live I2S paths and paired direct reset/enable coverage. New
+findings, changed sources or consumers, missing endpoints, waivers and negative
+timing refuse export. This accepts a stock-reference engineering basis, not
+independently derived PCB timing or physical partial-reconfiguration acceptance.
+Compile-only keeps its raw failures and cannot borrow these receipts.
+
 `scripts/export_de25_static_persona.py --producer /absolute/qualified-build
 --package /absolute/package.fcore --output /absolute/expansions` exports the
 selected `zx81_ram16k` persona; `--persona zx81_empty` selects the empty image.
@@ -4390,6 +4401,6 @@ independent base/persona RBF equality, then binds the exact format5 package and
 its primary fitted root. Compile-only candidates and raw findings are refused.
 The two-member format2 `.tar` uses the existing expansion reader's canonical
 manifest and immutable payload bytes. Its sidecar retains the exporter source
-closure and both fits' timing evidence. Current live-audio/reset findings still
-block publication. This build-host command programs no hardware; target-side
+closure and both fits' timing evidence. Missing or mismatched static-review
+receipts block publication. This build-host command programs no hardware; target-side
 composition continues through the existing Go reader and two-image plan.

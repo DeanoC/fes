@@ -1,6 +1,6 @@
 """Static variant of the standard ZX81 producer; never program hardware.
 
-The existing CLI selects this helper explicitly. Raw whole-board qualification
+The existing CLI selects this helper explicitly. The approved source-bound board review
 is required for all three revisions; internal16K review receipts do not apply.
 """
 from __future__ import annotations
@@ -21,6 +21,27 @@ from scripts.fes_build_common import BuildError
 PROFILE = 'fes.de25-standard-zx81-empty-ram16k.v1'
 PROGRAMMING_PROFILE = 'de25-linux-static-computer-v1'
 DEFAULT_PERSONA = 0xc001a001
+SIGNOFF_POLICY = 'de25-static-stock-reference-v1'
+REVIEW_DIRECTORY = 'boards/de25nano/link-proof/zx81-standard'
+REVIEW_INPUTS = tuple(REVIEW_DIRECTORY + '/' + name for name in (
+    'static_reference.py', 'reviewed-inputs.json', 'reviewed-topology.json',
+    'review-audio.tcl', 'review-reset-direct.tcl', 'review-reset-paths.tcl'))
+
+
+def reviewer(root):
+    path = Path(root) / REVIEW_DIRECTORY / 'static_reference.py'
+    spec = importlib.util.spec_from_file_location('de25_static_reference', path)
+    selected = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(selected)
+    if selected.POLICY != SIGNOFF_POLICY:
+        raise BuildError('static ZX81 review policy changed')
+    return selected
+
+
+def timing_evidence(root, project, record):
+    if json.loads(record)['parameters'].get('signoff_policy') != SIGNOFF_POLICY:
+        raise BuildError('static ZX81 requires its approved source-bound board review')
+    return reviewer(root).verify(project, record)
 
 
 def builder(root):
@@ -43,13 +64,16 @@ def create_build_record(root, repository, revision, identities, execution, captu
             raise BuildError('static ZX81 requires explicit canonical placement and routing regions')
     fields = json.loads(standard.create_build_record(
         root, repository, revision, identities, execution, captured))
+    roots = sorted(set(fields['source_roots']) | set(REVIEW_INPUTS))
+    fields.update(source_roots=roots, source_inputs=standard.common.source_input_closure(
+        Path(root), roots, policy=standard.common.SOURCE_POLICY))
     parameters = fields['parameters']
     # The constant-PCM reference is deliberately ineligible for this shell.
     del parameters['audio_clock_reference_policy']
     del parameters['hdmi_output_policy']
     del parameters['internal_ram_kib']
     parameters.update(programming_profile=PROGRAMMING_PROFILE, expansion_socket=True,
-        signoff_policy='de25-static-whole-board-no-exceptions-v1',
+        signoff_policy=SIGNOFF_POLICY,
         static_profile=PROFILE, static_control_build_id=control_build_id,
         static_default_persona_id=DEFAULT_PERSONA, placement=placement, routing=routing)
     return encode_build_record(fields)
@@ -118,6 +142,8 @@ def build_static(root, *, quartus_root, vendor_archive, output, package_output,
         raise BuildError('DE25 ZX81 requires --vendor-archive or FES_DE25_VENDOR_ARCHIVE')
     if placement is None or routing is None:
         raise BuildError('static ZX81 requires explicit --placement and --routing')
+    if not compile_only and (placement, routing) != ('X2 Y7 X26 Y12', 'X1 Y6 X27 Y13'):
+        raise BuildError('static ZX81 package requires the reviewed placement and routing regions')
     if compile_only and package_output is not None:
         raise BuildError('compile-only cannot select a package destination')
     if output is not None and not compile_only and not Path(output).resolve().is_relative_to(root):
@@ -158,8 +184,12 @@ def build_static(root, *, quartus_root, vendor_archive, output, package_output,
             compiler.bind_package_identity(project, build_identity(record))
             compiler.compile_project(project, tools, version, None)
             descriptor = selected_artifacts(project, compiler, record)
-            timing = {r: standard.timing_evidence(project.parents[2], revision=r)
-                      for r in ('base', 'persona_a', 'persona_b')}
+            if compile_only:
+                timing = {r: standard.timing_evidence(project.parents[2], revision=r)
+                          for r in ('base', 'persona_a', 'persona_b')}
+            else:
+                timing = reviewer(root).collect(project, record,
+                    paths['quartus'].with_name('quartus_sta'), vendor_archive)
             (output / (name + '-timing.json')).write_text(json.dumps(timing, indent=2, sort_keys=True) + '\n')
             return project, descriptor, timing
         with standard.controlled_environment(env):

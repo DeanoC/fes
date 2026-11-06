@@ -30,6 +30,7 @@ class ZX81ProducerTests(unittest.TestCase):
               'cores/fes-splash/rtl/fixture.v':b'fixture display'}
         data.update({name:b'fixture shared library' for name in producer.COMMON_LIBRARY_INPUTS})
         data.update({name:b'# fitted review fixture\n' for name in producer.REVIEW_INPUTS})
+        data.update({name:b'# static review fixture\n' for name in static.REVIEW_INPUTS})
         for name,value in data.items():
             p=self.root/name;p.parent.mkdir(parents=True,exist_ok=True);p.write_bytes(value)
         for command in (['git','init','-q'],['git','add','.'],
@@ -92,6 +93,8 @@ class ZX81ProducerTests(unittest.TestCase):
         self.assertEqual(p['programming_profile'], static.PROGRAMMING_PROFILE)
         self.assertTrue(p['expansion_socket'])
         self.assertEqual(p['static_default_persona_id'], 0xc001a001)
+        self.assertEqual(p['signoff_policy'], static.SIGNOFF_POLICY)
+        self.assertTrue(set(static.REVIEW_INPUTS) <= set(fields['source_inputs']))
         self.assertNotEqual(build_identity(raw), p['static_control_build_id'])
         for name in ('audio_clock_reference_policy', 'hdmi_output_policy', 'internal_ram_kib'):
             self.assertNotIn(name, p)

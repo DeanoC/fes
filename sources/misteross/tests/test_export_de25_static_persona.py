@@ -127,8 +127,9 @@ func main() {
         with mock.patch.object(exporter, 'verify_record_source_at_revision', return_value=fields), \
              mock.patch.object(exporter.static, 'builder'), \
              mock.patch.object(exporter.static, 'selected_artifacts', return_value=self.descriptor), \
-             mock.patch.object(exporter.static.standard, 'timing_evidence',
-                               return_value=dict(package_timing_admission=False)):
+             mock.patch.object(exporter.static, 'timing_evidence',
+                               return_value={r: dict(package_timing_admission=False)
+                                             for r in ('base', 'persona_a', 'persona_b')}):
             with self.assertRaisesRegex(exporter.BuildError, 'whole-board timing'):
                 exporter.qualified_inputs(ROOT, output, self.package_dir)
 

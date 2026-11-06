@@ -439,4 +439,7 @@ only the expected consumers. Worst interstage setup/hold slacks are
 50 MHz receiving clock and 6.25 million transitions/second default input
 activity. These are fitted observations, not new policy eligibility or an
 independent PCB timing model. The [review proposal](static-board-reference-proposal.md)
-identifies the exact remaining decision; no additional exceptions are approved.
+records the scope approved by the user on 2026-11-06. The canonical static
+producer and persona exporter now require that separate, source-bound review
+on both fresh fits. The earlier compile-only candidates remain unqualified;
+no new package or hardware acceptance is implied by the implementation.

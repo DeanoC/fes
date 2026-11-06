@@ -91,8 +91,7 @@ def qualified_inputs(root, output, package_path):
     for phase in ('signoff', 'repeat'):
         project = output / phase / 'standard-base/combined/hps/project'
         descriptor = static.selected_artifacts(project, compiler, record)
-        timing = {r: static.standard.timing_evidence(project.parents[2], revision=r)
-                  for r in ('base', 'persona_a', 'persona_b')}
+        timing = static.timing_evidence(root, project, record)
         if not all(t['package_timing_admission'] for t in timing.values()):
             raise BuildError('static persona export requires qualified whole-board timing in both fits')
         projects.append(project)

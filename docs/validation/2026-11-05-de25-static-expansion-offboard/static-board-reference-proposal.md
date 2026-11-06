@@ -1,8 +1,9 @@
 # Static ZX81 board-reference review proposal
 
-Status: proposed, not approved or implemented. Static package export still
-requires raw whole-board closure under `de25-static-whole-board-no-exceptions-v1`.
-The prior internal16K approvals do not admit this shell.
+Status: approved by the user on 2026-11-06: “Approve the scoped static review
+policy.” The implementation selects `de25-static-stock-reference-v1` separately
+from the internal16K approvals. Fresh canonical build, export and native
+acceptance results are not established by this approval.
 
 The proposed separate review policy would cover only source
 `8af614f4d95e71a00e63974c73e3d8f80e1a681a`'s standard static shell with its
