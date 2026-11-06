@@ -210,3 +210,20 @@ The latest bounded Nano trial exercised the qualified continuation, then stopped
 on HCINT frame-overrun with failed containment. The model does not authorize a
 retry, hide that error or change the production scheduler. Split/PHY timing and
 the actual frame selected by the physical controller remain outside its scope.
+
+Direct periodic arm/continuation commands now retain the full frame sample used
+for parity selection and two additional HFNUM observations immediately around
+the software write. Three extra clock samples bracket selection and that write
+window. The fixed eight-command history stores these observations separately
+from the written value; formatting performs no new I/O. Split, nonperiodic,
+retirement and containment writes keep their original basic recording path.
+Packet errors also retain the last and maximum gap between step clock samples,
+reusing the existing deadline clock without an additional service clock read.
+
+These samples are sequential and add bounded observational overhead. The write
+window includes frame reads and bookkeeping; it is neither an exact bus-commit
+timestamp nor proof of the controller's chosen wire frame. A zero first service
+gap means no preceding step was sampled. The observations never select another
+frame, change a command/PID/buffer/deadline, clear an error or authorize input,
+retirement or reuse. Fresh native app/entry and matched firmware are required
+before using the new trace in another bounded Nano diagnostic.

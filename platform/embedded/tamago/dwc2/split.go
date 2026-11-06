@@ -28,8 +28,13 @@ func (h *Host) armPacket(complete bool) error {
 		size = 0
 	}
 	h.io.Write32(hctsiz, size|1<<19|p.pid<<29)
-	frame := uint16(h.io.Read32(hfnum))
 	periodic := (p.char>>18)&3 == 3
+	var selectionStart time.Time
+	if periodic && !p.split {
+		selectionStart = h.io.Now()
+	}
+	selected := h.io.Read32(hfnum)
+	frame := uint16(selected)
 	if p.split {
 		if !complete {
 			if frame&7 > 1 {
@@ -57,7 +62,11 @@ func (h *Host) armPacket(complete bool) error {
 	if (flags>>18)&3 == 3 && frame&1 == 0 {
 		flags |= 1 << 29
 	}
-	h.writeChannel("arm", flags|channelEnable)
+	if periodic && !p.split {
+		h.writePeriodicChannel("arm", flags|channelEnable, selected, selectionStart)
+	} else {
+		h.writeChannel("arm", flags|channelEnable)
+	}
 	if !complete {
 		for i := 0; i < len(p.out); i += 4 {
 			var word [4]byte

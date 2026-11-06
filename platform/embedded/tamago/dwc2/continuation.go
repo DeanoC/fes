@@ -1,7 +1,10 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 package dwc2
 
-import "fmt"
+import (
+	"fmt"
+	"time"
+)
 
 // samples identifies only registers actually read during this continuation
 // check: queue=1, global IRQ=2, channel IRQ=4, channel=8, transfer=16, frame=32.
@@ -120,15 +123,21 @@ func (h *Host) continueIN() error {
 		}
 		char &^= channelDisable
 	}
+	var selectionStart time.Time
 	if periodic {
 		char &^= 1 << 29
+		selectionStart = h.io.Now()
 		s.frame = h.io.Read32(hfnum)
 		s.samples |= 32
 		if s.frame&1 == 0 {
 			char |= 1 << 29
 		}
 	}
-	h.writeChannel("continue", char|channelEnable)
+	if periodic {
+		h.writePeriodicChannel("continue", char|channelEnable, s.frame, selectionStart)
+	} else {
+		h.writeChannel("continue", char|channelEnable)
+	}
 	p.continuations++
 	s.reason = "queued"
 	if periodic {

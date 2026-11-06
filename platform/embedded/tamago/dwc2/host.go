@@ -70,6 +70,8 @@ type packet struct {
 	data                                     []byte
 	deadline                                 time.Time
 	polls                                    int
+	lastStep                                 time.Time
+	stepGapNS, maxStepGapNS                  int64
 	toggleRX, toggleIRQs                     uint32
 	ackIRQs                                  uint32
 	continuations                            uint32
@@ -367,8 +369,8 @@ func (h *Host) step() (done bool, data []byte, nak bool, err error) {
 	defer func() {
 		if err != nil {
 			p := &h.pending
-			err = fmt.Errorf("dwc2: packet address=%d endpoint=%d in=%t pid=%d split=%t complete_split=%t received=%t done=%t nak=%t halting=%t polls=%d toggle_rx=%d toggle_irqs=%d ack_irqs=%d continuations=%d interval=%s last_continue={%s}: %w",
-				h.address, (p.char>>11)&15, p.in, p.pid, p.split, p.completeSplit, p.received, p.done, p.nak, p.halting, p.polls, p.toggleRX, p.toggleIRQs, p.ackIRQs, p.continuations, h.interval, p.lastContinue, err)
+			err = fmt.Errorf("dwc2: packet address=%d endpoint=%d in=%t pid=%d split=%t complete_split=%t received=%t done=%t nak=%t halting=%t polls=%d toggle_rx=%d toggle_irqs=%d ack_irqs=%d continuations=%d interval=%s last_continue={%s} service={last_gap_ns=%d max_gap_ns=%d}: %w",
+				h.address, (p.char>>11)&15, p.in, p.pid, p.split, p.completeSplit, p.received, p.done, p.nak, p.halting, p.polls, p.toggleRX, p.toggleIRQs, p.ackIRQs, p.continuations, h.interval, p.lastContinue, p.stepGapNS, p.maxStepGapNS, err)
 			if p.firstToggle != nil {
 				err = fmt.Errorf("%w; first toggle observation: %v", err, p.firstToggle)
 			}
@@ -383,7 +385,18 @@ func (h *Host) step() (done bool, data []byte, nak bool, err error) {
 		return false, nil, false, fmt.Errorf("dwc2: no active packet")
 	}
 	p.polls++
-	if p.polls > 1000000 || !h.io.Now().Before(p.deadline) {
+	if p.polls > 1000000 {
+		return false, nil, false, fmt.Errorf("dwc2: packet timeout")
+	}
+	now := h.io.Now()
+	if !p.lastStep.IsZero() {
+		p.stepGapNS = now.Sub(p.lastStep).Nanoseconds()
+		if p.stepGapNS > p.maxStepGapNS {
+			p.maxStepGapNS = p.stepGapNS
+		}
+	}
+	p.lastStep = now
+	if !now.Before(p.deadline) {
 		return false, nil, false, fmt.Errorf("dwc2: packet timeout")
 	}
 	if err := h.link(); err != nil {
