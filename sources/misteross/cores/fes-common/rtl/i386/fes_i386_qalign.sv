@@ -30,7 +30,9 @@
 // the target, and clears avail (jump_clear), which ignores that release.
 // The record carries the match for WB's BTB update, and xbad when the
 // instruction runs into a half whose block is not the sequential
-// continuation (fes_i386_cpu replays it).
+// continuation, or a prefix of it consumed at a half's last byte took Q
+// into one (acc_xbad), so the instruction's linear address stays the first
+// prefix's (fes_i386_cpu replays it).
 module fes_i386_qalign import fes_i386_pkg::*; (
     input  logic                   clk,
     input  logic                   reset,
@@ -59,6 +61,7 @@ module fes_i386_qalign import fes_i386_pkg::*; (
     prefixes_t   acc;
     logic [3:0]  acc_count;    // prefixes consumed; at most 13
     logic [31:0] acc_linear;   // linear address of the first consumed prefix
+    logic        acc_xbad;     // a consumed prefix took Q into a half that does not follow
 
     // ---- Per-position view of the buffer ----------------------------------
     logic [1:0]       variant;  // {66h seen, 67h seen} among consumed prefixes
@@ -151,10 +154,12 @@ module fes_i386_qalign import fes_i386_pkg::*; (
         if (reset || redirect || issue) begin
             acc <= '0;
             acc_count <= 4'd0;
+            acc_xbad <= 1'b0;
         end else if (consume) begin
             acc <= add_prefix(acc, rotated[0]);
             acc_count <= acc_count_next[3:0];
             if (acc_count == 4'd0) acc_linear <= linear_here;
+            if (start[4] != start_next[4] && !other_seq) acc_xbad <= 1'b1;
         end
 
         if (reset || redirect) begin
@@ -176,7 +181,7 @@ module fes_i386_qalign import fes_i386_pkg::*; (
             q.bway <= half_info[jx_here].way;
             q.bctr <= half_info[jx_here].ctr;
             q.tk <= taken;
-            q.xbad <= at_start.past_half[variant] && !other_seq;
+            q.xbad <= at_start.past_half[variant] && !other_seq || acc_xbad;
         end
     end
 endmodule
