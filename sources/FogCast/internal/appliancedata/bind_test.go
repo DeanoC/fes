@@ -258,6 +258,47 @@ func TestPrepareDoesNotOverwriteExistingP3Files(t *testing.T) {
 	}
 }
 
+func TestPrepareDoesNotRestoreDeletedGameAfterMigration(t *testing.T) {
+	t.Parallel()
+	firstMounter := newRecordingMounter()
+	cfg := testConfig(t, firstMounter)
+	fatGame := filepath.Join(cfg.LibraryFATRoot, "sms", "deleted.sms")
+	if err := os.MkdirAll(filepath.Dir(fatGame), 0o700); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(fatGame, []byte("fat-game"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	first, err := Prepare(cfg)
+	if err != nil || first.Skipped != "" {
+		t.Fatalf("initial prepare = %+v %v", first, err)
+	}
+	p3Game := filepath.Join(cfg.LibraryDataRoot, "sms", "deleted.sms")
+	if got, err := os.ReadFile(p3Game); err != nil || string(got) != "fat-game" {
+		t.Fatalf("initial migration = %q %v", got, err)
+	}
+	if err := os.Remove(p3Game); err != nil {
+		t.Fatal(err)
+	}
+
+	// A fresh mounter models startup after reboot while the p3 files and marker
+	// remain on the persistent volume.
+	secondMounter := newRecordingMounter()
+	cfg.Mounter = secondMounter
+	cfg.Mounted = func(target string) bool { return secondMounter.mounted[target] != "" }
+	second, err := Prepare(cfg)
+	if err != nil || second.Skipped != "" {
+		t.Fatalf("second prepare = %+v %v", second, err)
+	}
+	if _, err := os.Lstat(p3Game); !os.IsNotExist(err) {
+		t.Fatalf("deleted game was restored from FAT: %v", err)
+	}
+	if got := secondMounter.mounted[cfg.LibraryFATRoot]; got != cfg.LibraryDataRoot {
+		t.Fatalf("game tree was not rebound after reboot: %q", got)
+	}
+}
+
 func TestPrepareSkipsSymlinksAndDoesNotFollowThem(t *testing.T) {
 	t.Parallel()
 	mounter := newRecordingMounter()

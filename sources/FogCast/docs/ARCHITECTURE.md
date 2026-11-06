@@ -1684,14 +1684,17 @@ on FAT outside every rootfs. Replacing the system image does not wipe
 When leftover card capacity has already been formatted as partition 3 with
 label `FESDATA3`, agent startup bind-mounts that ext4 volume over
 `/media/fat/fogcast/{cache,saves,core-data,launcher-cache,evidence}` and
-`/media/fat/games`. Existing FAT files are copied onto p3 only when the p3
-destination is absent; each copied file is published only after a complete
-same-directory temporary has been written and closed, and existing p3 files
-are preserved. Without p3, all these
-paths continue to use FAT. The helper does not create, grow, or format
-partitions and does not run from the fixed bootstrap. Bind is refused while
-`GET /v1/update` shows trial, pending, or corrupt; the agent still starts and
-keeps those trees on FAT.
+`/media/fat/games`. Existing FAT files in these trees are copied onto p3 only
+when the p3 destination is absent; each copied file is published only after a
+complete same-directory temporary has been written and closed, and existing
+p3 files are preserved. The game library is imported once, with a completion
+marker on p3 outside the bound game tree, so deleting a migrated game from p3
+does not restore it from the FAT copy at a later startup. A failed game copy
+does not write the marker, so startup can retry the incomplete migration.
+Without p3, all these paths continue to use FAT. The helper does not create,
+grow, or format partitions and does not run from the fixed bootstrap. Bind is
+refused while `GET /v1/update` shows trial, pending, or corrupt; the agent still
+starts and keeps those trees on FAT.
 
 Confirmed appliance releases retain the current image plus one verified
 fallback on FAT, and always protect the factory image as a final recovery

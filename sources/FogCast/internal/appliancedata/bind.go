@@ -36,6 +36,9 @@ const (
 	SkipUpdate             = "update-status"
 )
 
+// gamesMigrationMarker is stored at the p3 root, outside the bound game tree.
+const gamesMigrationMarker = ".fes-games-migrated-v1"
+
 // DefaultBindNames are the FogCast trees that live on p3 after a successful
 // bind. The game library tree is mounted separately from /media/fat/games.
 // Releases, agent.toml, launcher.json and target-id stay on FAT.
@@ -208,9 +211,10 @@ func Prepare(cfg Config) (Result, error) {
 	if cfg.Mounted(cfg.LibraryFATRoot) {
 		result.Bound = append(result.Bound, "games")
 	} else {
+		marker := filepath.Join(cfg.MountPoint, gamesMigrationMarker)
 		if err := os.MkdirAll(cfg.LibraryDataRoot, 0o700); err != nil {
 			bindErr = errors.Join(bindErr, err)
-		} else if err := copyMissing(cfg.LibraryFATRoot, cfg.LibraryDataRoot); err != nil {
+		} else if err := migrateGamesOnce(cfg.LibraryFATRoot, cfg.LibraryDataRoot, marker); err != nil {
 			bindErr = errors.Join(bindErr, err)
 		} else if err := ensureBindTarget(cfg.LibraryFATRoot); err != nil {
 			bindErr = errors.Join(bindErr, err)
@@ -387,6 +391,52 @@ func copyMissing(src, dst string) error {
 		}
 		return copyRegularMissing(path, dest)
 	})
+}
+
+func migrateGamesOnce(src, dst, marker string) error {
+	complete, err := migrationComplete(marker)
+	if err != nil {
+		return err
+	}
+	if complete {
+		return nil
+	}
+	if err := copyMissing(src, dst); err != nil {
+		return err
+	}
+	if err := copyFileAtomically(strings.NewReader("complete\n"), marker); err != nil {
+		return err
+	}
+	complete, err = migrationComplete(marker)
+	if err != nil {
+		return err
+	}
+	if !complete {
+		return fmt.Errorf("games migration marker was not published: %s", marker)
+	}
+	return syncDirectory(filepath.Dir(marker))
+}
+
+func migrationComplete(marker string) (bool, error) {
+	info, err := os.Lstat(marker)
+	if errors.Is(err, os.ErrNotExist) {
+		return false, nil
+	}
+	if err != nil {
+		return false, err
+	}
+	if !info.Mode().IsRegular() {
+		return false, fmt.Errorf("games migration marker is not a regular file: %s", marker)
+	}
+	return true, nil
+}
+
+func syncDirectory(path string) error {
+	dir, err := os.Open(path)
+	if err != nil {
+		return err
+	}
+	return errors.Join(dir.Sync(), dir.Close())
 }
 
 func copyRegularMissing(src, dst string) error {
