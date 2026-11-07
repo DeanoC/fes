@@ -1,0 +1,135 @@
+{
+  "status": "physical-repaired-observer-nine-uploads-ZX81-ZX80-ZX81-launch-return-passed",
+  "operator_source": "4dfdcfda8b7ddca008f29ac91c5206accaf4b319",
+  "native_SDK_source": "d07593783a9ebd18436856e5f83898a979209dd2",
+  "firmware_source": "c9d797a1aaa516def6e99b19fde7be9cfaa2207c",
+  "attempts": 1,
+  "compiled_candidate_attempts": 2,
+  "prior_failed_procedure_count": 1,
+  "previous_failed_attempt_preserved": true,
+  "host_observer_repaired": true,
+  "attempt_consumed": true,
+  "replay_allowed": false,
+  "total_host_seconds": 317.0021467700135,
+  "complete_return_traces": 9,
+  "return_marker_count": 306,
+  "verified_upload_write_readbacks": 9,
+  "fresh_SD_readbacks": 9,
+  "recovery_fit_sha256": "3722e24c551a794dd970e665cc4932b96cb62aefa353f39079285458d67d48e5",
+  "native_fit_sha256": "c841ea0a2b14041f5d8760c4f29f4bd29bb2c2c5620978c4f2cc0623fa424184",
+  "native_cold_boot_verified": true,
+  "ordinary_computer_constructor_exercised": true,
+  "boot_configuration_v2_exercised": true,
+  "physical_distinct_packages_verified": true,
+  "native_launch_return_cycles": 3,
+  "cycles": [
+    {
+      "selection": 0,
+      "launch_generation": 1,
+      "return_generation": 2
+    },
+    {
+      "selection": 1,
+      "launch_generation": 3,
+      "return_generation": 4
+    },
+    {
+      "selection": 0,
+      "launch_generation": 5,
+      "return_generation": 6
+    }
+  ],
+  "launches": [
+    {
+      "selection": 0,
+      "elapsed_seconds": 54.861065827077255,
+      "generation": 1,
+      "identity": {
+        "PackageID": "03c8fa017f5fcfb40d23d54a449e8464d89fa9919dc6bae301fd8c833955290a",
+        "CoreID": "fes.zx81",
+        "ABI": "fes.computer",
+        "BuildID": "0792e51a2e51512bfb8fe44e93a69ddd",
+        "Platform": "de25_nano",
+        "Device": "A5EB013BB23BE4SCS",
+        "ProgrammingProfile": "de25-native-computer-v1",
+        "ActivationReceiptSHA256": "5c40790f10fc8e0a69a4048b7f9e1c735c86d9f014ad0d3142c139bc3bbb7e2c",
+        "ProgrammedSHA256": "1da457bc4afbfce297222fa8d85754fbd4533198be7dc9f706926ce21103b949",
+        "Major": 1,
+        "Minor": 0
+      }
+    },
+    {
+      "selection": 1,
+      "elapsed_seconds": 54.33139936206862,
+      "generation": 3,
+      "identity": {
+        "PackageID": "b32ce70af93f2ae4ff665490246e5c52fbb4d76eadb5445949e5c2b4434fba86",
+        "CoreID": "fes.zx80",
+        "ABI": "fes.computer",
+        "BuildID": "ea02ee8a9026deb05317a3e7d024adde",
+        "Platform": "de25_nano",
+        "Device": "A5EB013BB23BE4SCS",
+        "ProgrammingProfile": "de25-native-computer-v1",
+        "ActivationReceiptSHA256": "ac0cfb45e61b3ee1b6dd65868943539845b7ea8a142191dedb38888e1373bb30",
+        "ProgrammedSHA256": "826aaac1cd524136079e0b10d20a34ad75af631e5fef04f4b153849cde092e1a",
+        "Major": 1,
+        "Minor": 0
+      }
+    },
+    {
+      "selection": 0,
+      "elapsed_seconds": 54.887870599050075,
+      "generation": 5,
+      "identity": {
+        "PackageID": "03c8fa017f5fcfb40d23d54a449e8464d89fa9919dc6bae301fd8c833955290a",
+        "CoreID": "fes.zx81",
+        "ABI": "fes.computer",
+        "BuildID": "0792e51a2e51512bfb8fe44e93a69ddd",
+        "Platform": "de25_nano",
+        "Device": "A5EB013BB23BE4SCS",
+        "ProgrammingProfile": "de25-native-computer-v1",
+        "ActivationReceiptSHA256": "5c40790f10fc8e0a69a4048b7f9e1c735c86d9f014ad0d3142c139bc3bbb7e2c",
+        "ProgrammedSHA256": "1da457bc4afbfce297222fa8d85754fbd4533198be7dc9f706926ce21103b949",
+        "Major": 1,
+        "Minor": 0
+      }
+    }
+  ],
+  "retained_ROM_selection_sequence": [
+    0,
+    1,
+    0
+  ],
+  "fetch_activity_observed": true,
+  "master_stop_complete_records": 3,
+  "owned_Quit_verified": true,
+  "exit_generation": 6,
+  "shared_USB_reports": 41,
+  "physical_input_controls_exercised": false,
+  "display": "serial-state-only",
+  "general_ordinary_admission": false,
+  "core_load_acceptance": false,
+  "general_native_network_acceptance": false,
+  "XGMAC_idle_DMA_proven": false,
+  "physical_DDR_drain_qualified": false,
+  "timing_signoff": false,
+  "cleanup": {
+    "status": "passed",
+    "usb_node_unchanged": true,
+    "usb_permissions_exact": true,
+    "clock_readback": "15M",
+    "owned_private_server_gone": true,
+    "uart_owners": [],
+    "board_operations": false,
+    "native_rom_acceptance": false
+  },
+  "board_state": "native Tenfoot exit ready generation6, USB stopped; no recovery prompt or factory restoration requested",
+  "claim_retained": true,
+  "original_factory_card_touched": false,
+  "bottom_kit_touched": false,
+  "hardware_actions": true,
+  "next": "connect and qualify visible launcher/core display transitions and physical navigation/media; preserve general package/failure/DDR/timing gates",
+  "raw_evidence": "out/nano-distinct-observer-board-20261107",
+  "physical_result_sha256": "a113f5636a55f7201278067549670f90fdfbfe9af6442b4f064e036c565c3b24",
+  "retention_target": "/home/deano/fes-retained/de25-distinct-observer-hardware-20261107-r1"
+}

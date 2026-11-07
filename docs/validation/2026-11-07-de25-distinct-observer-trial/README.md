@@ -3,8 +3,8 @@
 This is a new single-use procedure for TRWU8CBL. The preceding
 [attempt](../2026-11-07-de25-distinct-launch-trial/README.md) remains failed and
 consumed: it observed ZX81 launch/return and ZX80 launch, with no second
-return, third launch or Quit. The last observed board state is running ZX80
-at application generation 3; no park is inferred.
+return, third launch or Quit. At that preceding stop, the last observed board state was running ZX80
+at application generation 3; no park was inferred.
 
 The matched SDK, firmware, loader, SOF, two packages and nine upload files are
 unchanged. All 4,419 compiled-source checks still match. Only the reviewed host
@@ -46,3 +46,26 @@ sequence is nine uploads/fresh reads and ZX81 → ZX80 → ZX81 launch/return,
 ending with owned Quit. Factory restoration remains waived; the factory card
 and bottom kit stay outside the test. HDMI/input/media/native networking,
 general package acceptance, physical DDR drain and FPGA timing remain open.
+
+## Physical result
+
+The fresh procedure passed on TRWU8CBL in 317.002 seconds with operator source
+`4dfdcfda8b7ddca008f29ac91c5206accaf4b319`. All nine Ethernet uploads passed
+write/readback verification and separate fresh SD reads. The native runtime
+then completed ZX81 → return → ZX80 → return → ZX81 → return, with launch/return
+generations 1/2, 3/4 and 5/6, before owned Quit. Launches took 54.861, 54.331
+and 54.888 seconds. Package, FPGA build, payload and retained ROM identities
+matched each selected core; instruction fetch activity was observed.
+
+Three master-stop completion records and 41 shared USB reports were captured.
+Independent cleanup passed: JTAG clock restored to 15 MHz, USB identity and
+permissions unchanged, owned private server gone and UART unowned. The last
+observed board state is native Tenfoot exit ready at generation 6 with USB
+stopped. The continuing top-kit claim remains held; factory restoration was
+waived. The original factory card and bottom kit were untouched.
+
+The [result](result.json) retains exact evidence hashes and preserves the
+preceding failed attempt. This is physical serial launch/return evidence for
+the two specified packages. No physical input action or HDMI observation was
+part of this procedure. General admission, native runtime networking, physical
+DDR/DMA drain and FPGA timing signoff remain unqualified.
