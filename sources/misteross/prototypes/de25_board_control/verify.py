@@ -21,6 +21,7 @@ import rom_transport
 import timing_sources
 import reset_domains
 import hdmi_control
+import menu_transport
 ROOT = HERE.parents[3]
 TAMAGO = ROOT / "platform/embedded/tamago"
 SPEC = importlib.util.spec_from_file_location("embedded_sim_producer", HERE.parent / "embedded_control/producer.py")
@@ -68,6 +69,7 @@ def inputs_for(project):
     if 'computer_model' in inputs:
         fingerprint_fields.update(computer_model.parameters(inputs['computer_model']))
     fingerprint_fields.update(rom_transport.parameters(inputs))
+    fingerprint_fields.update(menu_transport.parameters(inputs))
     if "hps_initialization" in inputs["computer"]:
         fingerprint_fields["hps_initialization"] = inputs["computer"]["hps_initialization"]
     fingerprint = hashlib.sha256(json.dumps(fingerprint_fields, sort_keys=True).encode()).hexdigest()[:32]
@@ -86,6 +88,7 @@ def inputs_for(project):
                 any(fields['parameters'].get(k)!=v for k,v in reader_memory.parameters(memory).items()) or
                 ('computer_model' in inputs and fields['parameters'].get('computer_model') != inputs['computer_model']) or
                 any(fields['parameters'].get(k)!=v for k,v in rom_transport.parameters(inputs).items()) or
+                any(fields['parameters'].get(k)!=v for k,v in menu_transport.parameters(inputs).items()) or
                 {k: fields['parameters'][k] for k in ('package_contract','programming_profile') if k in fields['parameters']} != seal.package_parameters(inputs) or
                 fields['abi_definition'] != seal.definition_for(inputs) or
                 fields["parameters"].get("device") != seal.DEVICE or
@@ -169,6 +172,8 @@ def inputs_for(project):
               "clocks.sdc": "sources/misteross/prototypes/de25_board_control/clocks.sdc",
               "fes_embedded_control.sv": "sources/misteross/cores/fes-common/rtl/fes_embedded_control.sv",
               "generated/fes_embedded_control.vh": "sources/misteross/cores/fes-common/generated/fes_embedded_control.vh"}
+    if menu_transport.enabled(inputs):
+        mapped['clocks.sdc']=menu_transport.PREFIX+'menu_clocks.sdc'
     computer_sources=('fes_de25_computer.v','video.v','generated/fes_de25_computer.vh','generated/fes_de25_computer.hpp')
     selected=["sources/misteross/prototypes/de25_board_control/"+name in sources for name in computer_sources]
     if any(selected) and not all(selected):
@@ -199,6 +204,9 @@ def inputs_for(project):
     rom_transport.verify(board/'hps/project',inputs,{name:(snapshot/name).read_bytes() for name in sources})
     reset_domains.verify(board/'hps/project',inputs)
     hdmi_control.verify(board/'hps/project',inputs,{name:(snapshot/name).read_bytes() for name in sources})
+    menu_transport.verify(board/'hps/project',inputs,{name:(snapshot/name).read_bytes() for name in sources})
+    if generation.get('menu_transport')!=menu_transport.verify_generated(board/'hps/project',inputs):
+        raise ValueError('generated menu transport evidence differs')
     if generation.get('reset_domains') != reset_domains.verify_generated(board/'hps/project',inputs):
         raise ValueError('generated qualified reset ownership evidence differs')
     if rom_transport.checked(inputs) and generation.get('rom_transport') != rom_transport.verify_generated(board/'hps/project',inputs):
@@ -242,6 +250,8 @@ def main():
         if (project is not None and not project.is_dir()) or output.exists():
             raise ValueError("project must exist and output must be fresh")
         inputs, generation, local = inputs_for(project) if project else (None, None, None)
+        if inputs and menu_transport.enabled(inputs):
+            return subprocess.run([sys.executable,str(HERE/'verify_menu.py'),'--project',str(project),'--output',str(output)],timeout=180).returncode
         if inputs and inputs['reader_memory']['backend']=='hps-ddr-window':
             return subprocess.run([sys.executable,str(HERE.parent/'embedded_control/verify_window.py'),
                 '--project',str(project),'--output',str(output)],timeout=180).returncode
@@ -329,6 +339,8 @@ def main():
         if not project:
             run('rom-model',[sys.executable,HERE/'verify_rom.py','--output',output/'rom'],ROOT,env,output,
                 marker='PASS ROM stream RTL:')
+            run('menu-model',[sys.executable,HERE/'verify_menu.py','--allow-dirty','--output',output/'menu'],ROOT,env,output,
+                marker='PASS two-clock Nano menu:')
         report = {"status": "passed", "classification": "generated DE25 diagnostic Avalon RTL and native adapter in host simulation" if project else "standalone Avalon RTL and native adapter in host simulation",
                   "board_revision": inputs["embedded_control"]["board_fes_revision"] if project else None,
                   "overlay_revision": inputs["embedded_control"]["overlay_fes_revision"] if project else None,
@@ -340,6 +352,7 @@ def main():
                   "source_sha256": source_sha256, "model_sha256": sha(executable),
                   "ddr_model_result_sha256":sha(output/'ddr/result.json'),
                   "rom_model_result_sha256":sha(output/'rom/result.json') if not project else None,
+                  "menu_model_result_sha256":sha(output/'menu/result.json') if not project else None,
                   "project_inputs_sha256": sha(project / "board/hps/inputs.json") if project else None,
                   "generation_sha256": sha(project / "board/hps/generation.json") if project else None,
                   "command": [str(x) for x in command],

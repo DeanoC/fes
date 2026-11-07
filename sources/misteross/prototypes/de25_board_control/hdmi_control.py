@@ -16,14 +16,21 @@ IRQ = b'''    // INT is an asynchronous, active-low level. Its first stage is th
 '''
 
 
-def board(source):
+def board(source, menu=False):
+    if type(menu) is not bool:raise ValueError('explicit menu selection required')
     if hashlib.sha256(source).hexdigest() != BOARD_SHA256:
         raise ValueError('captured HDMI board wrapper changed; review interrupt ownership')
     anchor = b'    I2C_HDMI_Config hdmi_config '
     connection = b'.HDMI_TX_INT(HDMI_TX_INT)'
     if source.count(anchor) != 1 or source.count(connection) != 1:
         raise ValueError('captured HDMI interrupt connection changed')
-    return source.replace(anchor, IRQ + anchor).replace(connection, b'.HDMI_TX_INT(hdmi_irq_sync[1])')
+    source=source.replace(anchor, IRQ + anchor).replace(connection, b'.HDMI_TX_INT(hdmi_irq_sync[1])')
+    if menu:
+        before=b'    output wire pixel_clk,\n'
+        resets=b'    wire pll_locked, config_reset_n, pixel_reset_n;'
+        if source.count(before)!=1 or source.count(resets)!=1:raise ValueError('menu pixel reset export anchor changed')
+        source=source.replace(before,before+b'    output wire pixel_reset_n,\n').replace(resets,b'    wire pll_locked, config_reset_n;')
+    return source
 
 
 def configuration(source):
@@ -44,7 +51,7 @@ def install(project, inputs, sources):
     original = sources[BOARD_SOURCE]
     if path.read_bytes() != original:
         raise ValueError('HDMI wrapper differs before interrupt qualification')
-    derived = board(original)
+    derived = board(original,inputs.get('reader_memory',{}).get('backend')=='hps-ddr-menu')
     config=Path(project)/'fes_mailbox/I2C_HDMI_Config.v'
     original_config=config.read_bytes();derived_config=configuration(original_config)
     path.write_bytes(derived)
@@ -55,7 +62,7 @@ def install(project, inputs, sources):
 
 
 def verify(project, inputs, sources):
-    expected = board(sources[BOARD_SOURCE])
+    expected = board(sources[BOARD_SOURCE],inputs.get('reader_memory',{}).get('backend')=='hps-ddr-menu')
     if ((Path(project)/'fes_mailbox/board.v').read_bytes() != expected or
             inputs['computer']['source_sha256'].get('board.v') != hashlib.sha256(expected).hexdigest()):
         raise ValueError('HDMI interrupt wrapper differs from its captured source and owner')

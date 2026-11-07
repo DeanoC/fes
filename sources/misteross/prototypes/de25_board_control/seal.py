@@ -24,6 +24,7 @@ sys.path.insert(0, str(HERE))
 import reader_memory
 import computer_model
 import rom_transport
+import menu_transport
 sys.path.insert(0, str(MISTEROSS))
 from scripts.core_package import encode_manifest, package_identity, read_package
 from scripts.export_core_package import build_identity, encode_build_record, export_package, source_input_closure
@@ -36,7 +37,7 @@ ROOTS = sorted(("sources/misteross/prototypes/de25_board_control",
                 "sources/misteross/cores/fes-common/rtl/fes_embedded_control.sv",
                 "sources/misteross/prototypes/embedded_control/fes_embedded_window_reader.sv",
                 "sources/misteross/prototypes/embedded_control/fes_embedded_window_control.sv",
-                DEFINITION))
+                DEFINITION, *menu_transport.INPUTS))
 PLATFORM = "de25_nano"
 DEVICE = "A5EB013BB23BE4SCS"
 PROFILE = "de25-embedded-diagnostic-v1"
@@ -45,6 +46,7 @@ DDR_PROFILE = "de25-embedded-ddr-diagnostic-v1"
 HPS_DDR_PROFILE = "de25-embedded-hps-first-ddr-diagnostic-v1"
 WINDOW_PROFILE = "de25-embedded-window-diagnostic-v1"
 HPS_WINDOW_PROFILE = "de25-embedded-hps-first-window-diagnostic-v1"
+HPS_MENU_PROFILE = "de25-embedded-hps-first-menu-prototype-v1"
 HPS_ROM_PROFILE = "de25-embedded-hps-first-rom-diagnostic-v1"
 COMPUTER_PROFILE = "de25-native-computer-v1"
 COMPUTER_DEFINITION = "sources/misteross/cores/fes-common/generated/fes_computer.vh"
@@ -87,6 +89,9 @@ def profile_for(inputs):
     if rom_transport.checked(inputs):
         return HPS_ROM_PROFILE
     mode=reader_memory.mode(inputs['reader_memory'])
+    if mode==3:
+        menu_transport.parameters(inputs)
+        return HPS_MENU_PROFILE
     profiles=(HPS_PROFILE,HPS_DDR_PROFILE,HPS_WINDOW_PROFILE) if boot_order(inputs)=='HPS FIRST' else (PROFILE,DDR_PROFILE,WINDOW_PROFILE)
     return profiles[mode]
 
@@ -191,6 +196,7 @@ def make_record(inputs, revision, repository, tools):
                        **reader_memory.parameters(inputs['reader_memory']),
                        **computer_model.parameters(inputs['computer_model']),
                        **rom_transport.parameters(inputs),
+                       **menu_transport.parameters(inputs),
                        **package_parameters(inputs),
                        "system_hz": 100000000, "pixel_hz": 74250000,
                        "spl_member": SPL_MEMBER, "hps_initialization": order,

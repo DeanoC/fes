@@ -111,8 +111,11 @@ slots and padding against a private expected image, brackets memory/CSR work wit
 secure ownership, and performs independent firmware master-stop/bridge closure
 on return. Tests inject the secure service to cover opening, presentation,
 closure and failure ownership; they do not execute physical SMCs or DDR.
-The matched board command, sealed producer, storage resume/reconfiguration and
-clock/HDMI wiring remain open. No current board image selects this presenter.
+The board producer now has an explicit `hps-ddr-menu` choice with bounded
+100 MHz CPU / 74.25 MHz pixel control crossing and HDMI/reset routing. Its
+two-clock source model checks three actual Tenfoot frames and endpoint drain.
+The matched native board command, storage resume/reconfiguration and physical
+clock/HDMI qualification remain open. No current board image selects this presenter.
 
 ## Probes and evidence
 

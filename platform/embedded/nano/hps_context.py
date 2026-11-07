@@ -48,7 +48,7 @@ def digest(context):
 
 def inputs():
     return [Path(__file__), HERE/'hps_io.py', HERE/'usb_selection.py', PROTOTYPE/'verify.py', PROTOTYPE/'seal.py', PROTOTYPE/'reader_memory.py', PROTOTYPE/'computer_model.py', PROTOTYPE/'rom_transport.py', PROTOTYPE/'build.py',
-            PROTOTYPE/'timing_sources.py', PROTOTYPE/'reset_domains.py', PROTOTYPE/'hdmi_control.py',
+            PROTOTYPE/'timing_sources.py', PROTOTYPE/'reset_domains.py', PROTOTYPE/'hdmi_control.py', PROTOTYPE/'menu_transport.py',
             ROOT/'sources/misteross/boards/de25nano/hps/build.py', ROOT/'sources/misteross/boards/de25nano/build.py',
             PROTOTYPE.parent/'embedded_control/producer.py',
             ROOT/'sources/misteross/scripts/core_package.py',
@@ -179,6 +179,19 @@ def _ddr_read(project):
 
 def window_read(project):
     return _worker(project,'window-read')
+
+def menu_read(project):
+    return _worker(project,'menu-read')
+
+def _menu_read(project):
+    context=_derive(project);memory=_reader_memory(project);control_map=_control(project)
+    if memory is None or memory['scope']!='sealed-cold-menu-reader-memory-v1':
+        raise ValueError('menu access requires its complete sealed two-slot reservation')
+    inputs=json.loads((Path(project)/'board/hps/inputs.json').read_text())
+    attributes=_ddr_adapter(project,inputs['vendor_archive_sha256'])
+    return dict(format=1,scope='sealed-cold-menu-read-v1',package_id=context['package_id'],build_id=context['build_id'],
+        reader_memory_sha256=digest(memory),control_map_sha256=digest(control_map),
+        read_bytes=memory['frame_bytes'],open_mask=8,close_mask=10,**attributes)
 
 
 def _window_read(project):
@@ -421,7 +434,7 @@ def _control(project):
     result={'format':1,'scope':'sealed-lw-identity-probe-v1','architectural_lw_base':base,
             'bridge_base':bridge,'peripheral_offset':offset,'span':end-start,'cpu_base':base+bridge+offset,
             'handoff_sha256':sha,'package_id':context['package_id'],'build_id':context['build_id']}
-    if context['programming_profile'] in ('de25-embedded-hps-first-ddr-diagnostic-v1','de25-embedded-hps-first-window-diagnostic-v1', *ROM_PROFILES):
+    if context['programming_profile'] in ('de25-embedded-hps-first-ddr-diagnostic-v1','de25-embedded-hps-first-window-diagnostic-v1','de25-embedded-hps-first-menu-prototype-v1', *ROM_PROFILES):
         _fabric_stop_inventory(Path(project))
         route=parameters('subsys_periph_pb_cpu_0.m0','subsys_periph_fes_ddr_probe.avs')
         probes=[s for s in slaves if s.get('name')=='subsys_periph.fes_ddr_probe.avs']
@@ -429,7 +442,7 @@ def _control(project):
                 int(probes[0].get('start'),0)!=0x10100 or int(probes[0].get('end'),0)!=0x10180 or
                 probes[0].get('datawidth')!='32'):
             raise ValueError('inherited DDR probe control route differs')
-        stop_scope='sealed-window-master-stop-v1' if context['control_abi']==0x10203042 else 'sealed-ddr-master-stop-v1'
+        stop_scope='sealed-menu-master-stop-v1' if context['control_abi']==0x10203043 else 'sealed-window-master-stop-v1' if context['control_abi']==0x10203042 else 'sealed-ddr-master-stop-v1'
         result['fabric_stop']={'scope':stop_scope,'probe_cpu_base':base+0x10100,
                                'probe_span':128,'maintenance':'held-reset-from-configuration'}
     return result
@@ -607,7 +620,8 @@ def _fabric_stop_inventory(project):
     hps=project/'board/hps';record=json.loads((hps/'inputs.json').read_text())
     source=record['functional_snapshot_sha256'];memory=record['reader_memory']
     if memory not in ({'backend':'hps-ddr','bus_base':0x95000000,'bytes':8192},
-                      {'backend':'hps-ddr-window','bus_base':0x95000000,'bytes':4<<20}):
+                      {'backend':'hps-ddr-window','bus_base':0x95000000,'bytes':4<<20},
+                      {'backend':'hps-ddr-menu','bus_base':0x95000000,'bytes':8<<20}):
         raise ValueError('master stop requires an exact compiled DDR reader window')
     board=SimpleNamespace(JTAG_CONTROL_BRIDGE_BASE=record['embedded_control']['jtag_bridge_base'])
     proof=builder.verify_control(hps/'project',hps_tools,board,memory)
@@ -618,8 +632,10 @@ def _fabric_stop_inventory(project):
     # the very same source snapshot accepted by _derive. No arbitrary generated
     # source may supply the IDLE/maintenance observations used by the callback.
     local=hps/'project/fes_mailbox'
-    endpoint=(local/'fes_de25_embedded.sv').read_text()
-    if endpoint.count('assign maintenance_reset_n = !DDR_MODE;')!=1:
+    menu=memory['backend']=='hps-ddr-menu'
+    endpoint=(local/('fes_de25_menu.sv' if menu else 'fes_de25_embedded.sv')).read_text()
+    expected='assign maintenance_reset_n = !MAINTENANCE_HELD;' if menu else 'assign maintenance_reset_n = !DDR_MODE;'
+    if endpoint.count(expected)!=1 or menu and endpoint.count("localparam bit MAINTENANCE_HELD = 1'b1;")!=1:
         raise ValueError('maintenance reset constant source differs')
     generated=hps/'project/peripheral_subsys/ip/peripheral_subsys/peripheral_subsys_fes_ddr_probe/fes_de25_ddr_probe_10/synth'
     for name in ('fes_de25_ddr_probe.v','generated/fes_de25_ddr_probe.vh'):
@@ -775,7 +791,8 @@ def cpu_mapping(control_map, configuration_map, reader_map):
             'firmware_base':0x50000,'firmware_bytes':0x10000}
     if (any(type(v) is not int for v in fields.values()) or
             (fields['control_base'],fields['control_bytes'],fields['dma_base'],fields['dma_bytes'])!=(0x20010400,256,0x94800000,8<<20) or
-            (fields['reader_base'],fields['reader_bytes']) not in ((0,0),(0x95000000,2<<20),(0x95000000,4<<20))):
+            (fields['reader_base'],fields['reader_bytes']) not in ((0,0),(0x95000000,2<<20),(0x95000000,4<<20),(0x95000000,8<<20)) or
+            fields['reader_bytes']==8<<20 and reader_map.get('scope')!='sealed-cold-menu-reader-memory-v1'):
         raise ValueError('unsupported source-derived native CPU resource layout')
     return dict(format=2,scope='pinned-tamago-el1-resources-excluded-v2',**fields)
 
@@ -897,7 +914,7 @@ def checked_rom(record, program_key='program'):
 
 if __name__ == '__main__':
     actions = {'control': _control, 'configuration': _configuration, 'package': _package,
-               'reader-memory': _reader_memory, 'ddr-read': _ddr_read, 'window-read': _window_read, 'computer': _computer,
+               'reader-memory': _reader_memory, 'ddr-read': _ddr_read, 'window-read': _window_read, 'menu-read': _menu_read, 'computer': _computer,
                'hps-io': _hps_io, 'program-platform': _program_platform, 'selected-program': _selected_program, 'rom': _rom}
     if (len(sys.argv) not in (2,3,4) or len(sys.argv)>=3 and sys.argv[2] not in actions or
             len(sys.argv)==4 and sys.argv[2]!='selected-program'):

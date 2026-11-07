@@ -263,9 +263,10 @@ receipt. Neither return nor failure frees the arena.
 The C firmware selects that exact ABI/8 MiB pair explicitly and reads the menu's
 maintenance hold at `0xcc`. Tests exercise native orchestration with injected
 secure calls, and the actual C stop helper against the CSR/video/DDR RTL model.
-These are host checks. The sealed producer, matched boot-builder selection,
-storage resume/reconfiguration and physical clock/HDMI integration do not yet
-select this menu personality; this is not a registered ordinary menu package.
+These are host checks. The FPGA producer has an explicit menu source choice
+with bounded CPU/pixel CSR crossing and board HDMI/reset routing. Matched native
+boot-builder selection, storage resume/reconfiguration and physical clock/HDMI
+qualification remain open; this is not a registered ordinary menu package.
 
 The window personality has a separate constructor,
 `NewWindowHPSContextVerifier`, which requires its compiled control and 4 MiB

@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
-// Host integration of the menu video engine and actual owned read endpoint.
+// Shared pixel-clock menu pipeline, also used by the bounded board aperture.
 module embedded_menu_top #(
+    parameter [127:0] BUILD_ID = 128'd1,
+    parameter bit MAINTENANCE_HELD = 1'b1,
     parameter [31:0] WINDOW_BASE = 32'h95000000,
     parameter [31:0] WINDOW_BYTES = 32'd8388608,
     parameter bit CSR_MODE = 1'b0
@@ -85,7 +87,7 @@ module embedded_menu_top #(
             end
         end
     end
-    fes_embedded_control #(.BUILD_ID(128'd1), .ABI_ID(32'h10203043), .DATA_WIDTH(128)) control (
+    fes_embedded_control #(.BUILD_ID(BUILD_ID), .ABI_ID(32'h10203043), .DATA_WIDTH(128)) control (
         .clk(clk), .reset_n(reset_n), .csr_valid(csr_valid && (!CSR_MODE || (!csr_address[7] && csr_ready))), .csr_write(csr_write),
         .csr_address(csr_address), .csr_wdata(csr_wdata), .csr_wstrb(csr_wstrb),
         .csr_ready(control_ready), .csr_response_valid(control_response), .csr_error(control_error),
@@ -100,7 +102,7 @@ module embedded_menu_top #(
     );
     generate if (CSR_MODE) begin : csr_menu
         fes_embedded_menu_control #(.WINDOW_BASE(WINDOW_BASE), .WINDOW_BYTES(WINDOW_BYTES)) menu (
-            .clk(clk), .reset_n(reset_n && video_reset_n), .valid(menu_valid), .write(csr_write), .maintenance_held(1'b1),
+            .clk(clk), .reset_n(reset_n && video_reset_n), .valid(menu_valid), .write(csr_write), .maintenance_held(MAINTENANCE_HELD),
             .address(csr_address), .wdata(csr_wdata), .wstrb(csr_wstrb), .rdata(menu_rdata), .error(menu_error),
             .start_ready(start_ready), .submit_ready(submit_ready), .running(running), .stopped(stopped), .fault(fault),
             .displayed_sequence(displayed_sequence), .underflows(underflows), .rgb(rgb), .de(de), .hs(hs), .vs(vs),

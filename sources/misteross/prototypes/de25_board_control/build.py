@@ -28,6 +28,7 @@ import rom_transport
 import timing_sources
 import reset_domains
 import hdmi_control
+import menu_transport
 MISTEROSS = HERE.parents[1]
 ROOT = MISTEROSS.parents[1]
 BOARD = "sources/misteross/boards/de25nano/"
@@ -43,7 +44,8 @@ INPUTS = (OVERLAY + "build.py", OVERLAY + "fes_de25_embedded.sv", OVERLAY + "fes
           OVERLAY + "reader_memory.py", OVERLAY + "computer_model.py", OVERLAY + "rom_transport.py", OVERLAY + "video.v",
           OVERLAY + "timing_sources.py", OVERLAY + "clocks.sdc", OVERLAY + "reset_domains.py", OVERLAY + "hdmi_control.py",
           *(OVERLAY + name for name in reset_domains.SOURCES),
-          *(OVERLAY + name for name in rom_transport.FILES), ENDPOINT, WINDOW_READER, WINDOW_CONTROL, DEFINITION)
+          *(OVERLAY + name for name in rom_transport.FILES), ENDPOINT, WINDOW_READER, WINDOW_CONTROL, DEFINITION,
+          *menu_transport.INPUTS)
 BOOTSTRAP = ("build.py", "display/build.py", "zx81/build.py", "zx81-hps/build.py")
 BASE = 0x10400
 SPAN = 0x100
@@ -264,6 +266,7 @@ def overlay_project(output, board, sources, identity, record=None):
         script = ''.join(lines)
     script = rom_transport.install(project,inputs,sources,script)
     script = reset_domains.install(project,inputs,script,sources)
+    script = menu_transport.install(project,inputs,sources,script)
     integration.write_text(script)
     build_id = inputs["computer"]["build_id"]
     qsf = (project / "golden_top.qsf").read_text()
@@ -277,6 +280,7 @@ def overlay_project(output, board, sources, identity, record=None):
     if 'computer_model' in inputs:
         fingerprint_fields.update(computer_model.parameters(inputs['computer_model']))
     fingerprint_fields.update(rom_transport.parameters(inputs))
+    fingerprint_fields.update(menu_transport.parameters(inputs))
     if 'hps_initialization' in inputs['computer']:
         fingerprint_fields['hps_initialization'] = inputs['computer']['hps_initialization']
     fingerprint = digest(json.dumps(fingerprint_fields, sort_keys=True).encode())[:32]
@@ -315,7 +319,8 @@ def verify_control(project, hps, board, memory=None):
     tree = ET.parse(project / "qsys_top/qsys_top.sopcinfo")
     modules = {m.get("path"): m for m in tree.findall("module")}
     component = modules.get("subsys_periph.fes_embedded")
-    if component is None or component.get("kind") != "fes_de25_embedded" or component.get("version") != "1.0":
+    kind='fes_de25_menu' if mode==3 else 'fes_de25_embedded'
+    if component is None or component.get("kind") != kind or component.get("version") != "1.0":
         raise ValueError("generated embedded control endpoint is missing or differs")
     ports = hps.component_ports(component, "avs")
     expected = {"address": ("Input", 8), "read": ("Input", 1), "write": ("Input", 1),
@@ -325,14 +330,19 @@ def verify_control(project, hps, board, memory=None):
     if ports != expected:
         raise ValueError("generated embedded Avalon interface differs")
     generated = project / "peripheral_subsys/ip/peripheral_subsys/peripheral_subsys_fes_embedded"
-    material = generated / "fes_de25_embedded_10/synth"
+    material = generated / (kind+"_10/synth")
     local = project / "fes_mailbox"
-    for generated_name, source_name in (("fes_de25_embedded.sv", "fes_de25_embedded.sv"),
+    expected_sources=(("fes_de25_embedded.sv", "fes_de25_embedded.sv"),
                                         ("fes_de25_read_width.sv", "fes_de25_read_width.sv"),
                                         ("fes_embedded_control.sv", "fes_embedded_control.sv"),
                                         ("fes_embedded_window_reader.sv", "fes_embedded_window_reader.sv"),
                                         ("fes_embedded_window_control.sv", "fes_embedded_window_control.sv"),
-                                        ("fes_embedded_control.vh", "generated/fes_embedded_control.vh")):
+                                        ("fes_embedded_control.vh", "generated/fes_embedded_control.vh"))
+    if mode==3:
+        expected_sources=tuple((n,n) for n in ('fes_de25_menu.sv','fes_de25_menu_cdc.sv','embedded_menu_top.sv',
+            'fes_embedded_menu_control.sv','fes_embedded_menu_scanout.sv','fes_menu_reader.v','fes_menu_video.v',
+            'fes_de25_read_width.sv','fes_embedded_control.sv'))+(("fes_embedded_control.vh","generated/fes_embedded_control.vh"),)
+    for generated_name, source_name in expected_sources:
         if (material / generated_name).read_bytes() != (local / source_name).read_bytes():
             raise ValueError("generated embedded source differs: " + generated_name)
     computer_material=project/'peripheral_subsys/ip/peripheral_subsys/peripheral_subsys_fes_computer/fes_de25_computer_10/synth'
@@ -340,7 +350,7 @@ def verify_control(project, hps, board, memory=None):
         if (computer_material/name).read_bytes()!=(local/name).read_bytes():
             raise ValueError('generated computer source differs: '+name)
     wrapper = (generated / "synth/peripheral_subsys_fes_embedded.v").read_text()
-    matches = re.findall(r"\bfes_de25_embedded\s*#\((.*?)\)\s+fes_embedded\s*\(", wrapper, re.S)
+    matches = re.findall(r"\b"+kind+r"\s*#\((.*?)\)\s+fes_embedded\s*\(", wrapper, re.S)
     if len(matches) != 1:
         raise ValueError('generated embedded parameterized instance differs')
     pairs = re.findall(r'\.(\w+)\s*\(\s*([^()]*)\s*\)', matches[0])
@@ -387,8 +397,8 @@ def verify_control(project, hps, board, memory=None):
             raise ValueError('generated embedded DDR issuing contract differs')
         entries=points[0].findall('parameters/parameterValueMap/entry')
         properties={e.findtext('key'):e.findtext('value') for e in entries}
-        issuing=str(4 if mode==2 else 1)
-        expected_properties={'associatedClock':'clk','associatedReset':'reset',
+        issuing=str(4 if mode in (2,3) else 1)
+        expected_properties={'associatedClock':'pixel_clk' if mode==3 else 'clk','associatedReset':'pixel_reset' if mode==3 else 'reset',
             'readIssuingCapability':issuing,'combinedIssuingCapability':issuing,
             'maximumBurstLength':'256','issuesINCRBursts':'true',
             'issuesWRAPBursts':'false','issuesFIXEDBursts':'false'}
@@ -444,6 +454,9 @@ def verify_control(project, hps, board, memory=None):
         if len(matches) != 1 or matches[0]["base"] != base + BASE or matches[0]["span"] != SPAN:
             raise ValueError("generated embedded " + name + " map differs")
         maps[name] = matches[0]
+    if mode==3:
+        menu_inputs=json.loads((project.parent/'inputs.json').read_text())
+        menu_transport.verify_generated(project,menu_inputs,hps)
     return {"instance": component.get("path"), "clock_hz": 100000000, "maps": maps,
             "cpu_physical_address": "not-established", "reader_memory":memory,
             "physical_ddr": "wired-unqualified" if mode else "not-connected",
@@ -522,7 +535,7 @@ def main():
     package_mode.add_argument("--sealed-diagnostic", action="store_true", help="build a committed diagnostic-only package")
     package_mode.add_argument("--sealed-computer", action="store_true", help="build a source-bound fes.computer package candidate; no hardware acceptance")
     parser.add_argument("--hps-first", action="store_true", help="select the captured board producer's HPS-first profile")
-    parser.add_argument('--reader-memory', choices=('onchip', 'hps-ddr', 'hps-ddr-window'), default='onchip')
+    parser.add_argument('--reader-memory', choices=('onchip', 'hps-ddr', 'hps-ddr-window', 'hps-ddr-menu'), default='onchip')
     parser.add_argument('--ddr-bus-base', type=lambda x:int(x,0), default=0)
     parser.add_argument('--ddr-bytes', type=lambda x:int(x,0), default=0)
     parser.add_argument('--computer-model', choices=computer_model.MODELS, default='zx81',
@@ -537,6 +550,8 @@ def main():
         if args.sealed_computer and not args.external_rom:
             raise ValueError('sealed computer requires the explicit held-ROM variant')
         memory = reader_memory.selection(args.reader_memory, args.ddr_bus_base, args.ddr_bytes)
+        if reader_memory.mode(memory)==3 and (not args.hps_first or args.board_revision!=menu_transport.BOARD_REVISION or args.external_rom or args.sealed_computer):
+            raise ValueError('menu requires the reviewed HPS-first board and its separate non-ROM personality')
         if args.external_rom and (not args.hps_first or reader_memory.mode(memory)!=1):
             raise ValueError('external ROM requires HPS-first and the hps-ddr computer variant')
         if args.external_rom and args.board_revision != rom_transport.BOARD_REVISION:
@@ -586,6 +601,7 @@ def main():
         rom_transport.verify(result/'hps/project',json.loads(inputs_file.read_text()),sources)
         reset_domains.verify(result/'hps/project',json.loads(inputs_file.read_text()))
         hdmi_control.verify(result/'hps/project',json.loads(inputs_file.read_text()),sources)
+        menu_transport.verify(result/'hps/project',json.loads(inputs_file.read_text()),sources)
         print("DE25 embedded diagnostic:", result, "build ID:", build_id, flush=True)
         if args.action != "project":
             tool, version = hps.BOARD_BUILD.locate_quartus(args.quartus_root)
@@ -596,6 +612,8 @@ def main():
             generation = result / "hps/generation.json"
             evidence = json.loads(generation.read_text())
             evidence["embedded_control"] = verify_control(result / "hps/project", hps, board, memory)
+            if menu_transport.enabled(inputs):
+                evidence['menu_transport']=menu_transport.verify_generated(result/'hps/project',inputs,hps)
             if rom_transport.checked(inputs):
                 evidence['rom_transport'] = rom_transport.verify_generated(result/'hps/project',inputs)
                 evidence['reset_domains'] = reset_domains.verify_generated(result/'hps/project',inputs)
@@ -605,6 +623,7 @@ def main():
                 computer_model.verify(result/'hps/project', json.loads(inputs_file.read_text()), sources)
                 rom_transport.verify(result/'hps/project', json.loads(inputs_file.read_text()), sources)
                 hdmi_control.verify(result/'hps/project', json.loads(inputs_file.read_text()), sources)
+                menu_transport.verify(result/'hps/project', json.loads(inputs_file.read_text()), sources)
                 if reader_memory.mode(memory) and review_ddr_parameters(result/'hps',hps)!=evidence['reviewed_ddr_hps_parameters']:
                     raise ValueError('compile changed reviewed DDR HPS/EMIF parameters')
                 checks = {"system": board.pll_review(result / "hps/project/ip/pll", 100000000),

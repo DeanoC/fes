@@ -104,11 +104,11 @@ The existing `COMPLETE_FRAME_ACK` mode acknowledges only a fully scanned frame,
 including its final pixel. Underflow blanks missed pixels without shifting the
 remaining stream and cannot acknowledge an incomplete submission.
 
-All ports share one qualified pixel clock. Board interconnect clock crossings,
-physical HDMI setup and a matched sealed board producer are not supplied.
-The native menu reservation/control binding is described below; the existing
+The shared pipeline's ports use one qualified pixel clock. The board producer
+now has an explicit `hps-ddr-menu` personality, described below; its matched
+native boot selection and physical HDMI qualification remain open. The existing
 4 MiB window profile cannot authorize this 8 MiB source. The runtime keeps both slots
-pinned, publish immutable pixels before submission, and wait for the new slot's
+pinned, publishes immutable pixels before submission, and waits for the new slot's
 complete-frame acknowledgement before updating its predecessor. Local Quiesce
 stops new frames, preserves a stalled command and drains the menu reader before
 reporting Stopped. It neither disables the owned AXI endpoint nor grants memory
@@ -149,12 +149,46 @@ No current native board command selects this driver.
 access contracts, an ordered boot-pinned 8 MiB arena and the same owner's fresh
 completed transfer. It supplies the presenter's private CSR and memory hooks,
 then independently requests the existing firmware master-stop and bridge close.
-The menu ABI's maintenance-held register is `0xcc`; the host top ties it held,
-while a board integration must wire the actual maintenance master reset. The C
+The menu ABI's maintenance-held register is `0xcc`; the board selection derives
+it from the same static hold that drives its maintenance reset output. The C
 helper accepts only the explicit ABI/8 MiB pair. Native ownership/failure tests
 inject secure responses; separate actual C/RTL tests check active and already
 locally drained stop, wrong geometry and lost ownership. No test grants physical
 DDR, HDMI, memory release or menu storage/reconfiguration acceptance.
+
+The opt-in board producer selects `--reader-memory hps-ddr-menu` with HPS-first,
+the reviewed board revision and the exact `0x95000000` / 8 MiB arena. It installs
+`fes_de25_menu`: CPU Avalon control stays on the existing 100 MHz clock, while
+the shared video/reader/width adapter uses the existing 74.25 MHz pixel clock.
+The HDMI wrapper exports its qualified pixel reset. The generated video export
+selects the menu's RGB/sync, while Platform Designer connects its read-only AXI
+port to the retained HPS DDR adapter. Source/generation checks reject changed
+clocks, reset/video exports, widths, master inventory, FIFO derivation or source.
+Its distinct private HPS profile and canonical functional identity bind those
+files, two-slot geometry and clock/timeout parameters. It registers no normal
+FES menu programming profile.
+
+`fes_de25_menu_cdc` carries one complete CSR request and response using a
+four-phase handshake. Both packets remain stable until acknowledgement returns.
+The CPU-side timeout is 1,048,576 clocks (about 10.49 ms at the declared rate).
+After first use, pixel reset or timeout permanently retires that bridge; later
+calls return an error. A timed-out request is uncertain and may have executed
+once; timeout is neither cancellation nor drain. Backend reset waits for the
+old request to withdraw before accepting another, so reset cannot replay it.
+The 45/33-bit packets have explicit 10 ns flight/skew bounds; only the three
+first-stage control inputs and four raw reset-release ingress pins are cut.
+Second stages, reset recovery/removal and HDMI output paths remain timed.
+The menu has its own constraints because its predecessor's unused video logic
+may be pruned; existing computer/window constraints are unchanged.
+
+`prototypes/de25_board_control/verify_menu.py` tests that actual board module at
+the 100/74.25 MHz ratio with independent memory/raster checks of actual Tenfoot
+frames, three submissions, local stop and owned endpoint drain. It also checks
+640 exact CSR packets over five phases and stopped-clock/reset failure cases.
+Removing the reset re-arm fence or timeout must fail a negative control. The
+standalone board verifier includes these checks. This is host simulation;
+generated HPS AXI clock-crossing simulation, routed timing, matched native boot
+and physical display/input remain separate gates.
 
 The same verifier now runs the actual native presenter with race detection
 against the CSR/video/DDR model. CPU writes populate independent model memory,

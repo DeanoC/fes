@@ -3,7 +3,7 @@ CONTROL_ABI = 0x10203040
 
 
 def selection(backend, base, size):
-    if backend not in ('onchip', 'hps-ddr', 'hps-ddr-window') or type(base) is not int or type(size) is not int:
+    if backend not in ('onchip', 'hps-ddr', 'hps-ddr-window', 'hps-ddr-menu') or type(base) is not int or type(size) is not int:
         raise ValueError('reader memory requires an explicit backend and integer window')
     if backend == 'onchip':
         if base or size:
@@ -13,6 +13,8 @@ def selection(backend, base, size):
         raise ValueError('DDR reader requires a nonempty page-aligned 32-bit bus window')
     if backend == 'hps-ddr-window' and size != 4 << 20:
         raise ValueError('fixed 720p window reader requires a 4 MiB compiled bus window')
+    if backend == 'hps-ddr-menu' and (base != 0x95000000 or size != 8 << 20):
+        raise ValueError('menu reader requires its exact 8 MiB two-slot arena at 0x95000000')
     return {'backend': backend, 'bus_base': base, 'bytes': size}
 
 
@@ -27,7 +29,7 @@ def control_abi(value):
 
 
 def mode(value):
-    return {'onchip': 0, 'hps-ddr': 1, 'hps-ddr-window': 2}[checked(value)['backend']]
+    return {'onchip': 0, 'hps-ddr': 1, 'hps-ddr-window': 2, 'hps-ddr-menu': 3}[checked(value)['backend']]
 
 
 def parameters(value):

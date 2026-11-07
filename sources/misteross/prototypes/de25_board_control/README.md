@@ -25,6 +25,39 @@ the CPU keeps running. Hold leaves the counter intact so a bounded observer can
 check run progress, held stability and relaunch. This is not a retired-instruction,
 video, memory-containment or production-acceptance measurement.
 
+The opt-in `--reader-memory hps-ddr-menu --ddr-bus-base 0x95000000
+--ddr-bytes 8388608 --hps-first` personality installs the owned menu pipeline
+instead of the checksum reader. It requires the reviewed board revision and
+cannot share the held-ROM selection. CPU control stays at 100 MHz; the reader,
+128/256-bit adapter and video share the existing 74.25 MHz clock. The HDMI
+wrapper exports its qualified pixel reset and its video export selects the
+menu. The private source profile is
+`de25-embedded-hps-first-menu-prototype-v1`, ABI `0x10203043`; the functional
+record binds both slots, source files, clocks and the bounded CSR transport.
+Project preparation works without Quartus. Generation/build also recheck the
+actual exported clocks, reset/video routes and complete DDR master inventory.
+
+The CPU/pixel crossing uses one four-phase request and coherent reply. Reset
+after use or a 1,048,576-cycle CPU timeout retires it without replay. An uncertain
+request may have executed once; neither error nor local stop releases either
+slot. Its separate `menu_clocks.sdc` bounds both stable packet buses and cuts
+only asynchronous first-stage/reset ingress. Existing personalities retain
+their own constraints. Physical timing, native boot selection and complete
+menu/core/menu storage transitions are not established by this producer code.
+
+Run the actual two-clock source model with:
+
+```sh
+python3 sources/misteross/prototypes/de25_board_control/verify_menu.py --output out/MENU
+```
+
+Use `--allow-dirty` only for labelled working-tree models. `--project` also
+requires the exact sealed generated menu project and matching current model
+sources. The test checks real Tenfoot pixels through three frames and owned
+drain, plus 640 CSR packets, stopped clocks and short/in-flight reset. Broken
+timeout and reset re-arm controls must fail. It does not simulate the generated
+HPS AXI interconnect or establish physical HDMI/DDR acceptance.
+
 `fes_embedded_rom.sv` is a separate, currently unwired bulk-ROM receiver. A
 Start latches the expected IEEE CRC32 while execution is held. Exactly 4 KiB or
 8 KiB arrives as little-endian 128-bit beats; `stream_last` names the end of the
