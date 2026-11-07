@@ -141,9 +141,11 @@ columns count instructions.
 
 - **DTLB.** Sixteen entries miss on under 0.5% in every run, and under 0.1%
   in seven of the twelve; Angband, NetHack, Chris's 3D Benchmark, Quake and
-  U.S. Navy Fighters are the five above. A 64-entry 4-way second level would save at most
-  0.3 points (Angband), about a walk per 750 data accesses. So the second
-  level stays a Phase 7 option, built only if walks show in a profile.
+  U.S. Navy Fighters are the five above. A 64-entry 4-way second level
+  would save at most 0.3 points (Angband), a walk per about 330 data
+  accesses: under 1% of Angband's clocks at 6–10 clocks a walk. So the
+  second level stays a Phase 7 option, built only if walks show in a
+  profile.
 - **ITLB.** One entry, the current page, misses on up to 12% of
   instructions: CWSDPMI's hot loop spans three pages. Eight entries miss on
   at most 1.1%, at Master of Orion's idle DOS prompt, then 0.65% in U.S. Navy

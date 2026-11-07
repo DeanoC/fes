@@ -1972,7 +1972,8 @@ and the L1D's wait (+3.74 ns). The DTLB instead compares in parallel:
   the miss's wait. Eight alone are not enough: Wolfenstein 3D under JEMM386
   misses on 2.86% of its data accesses, and a walk takes 6–10 clocks.
 - **No second level otherwise.** A 64-entry 4-way second level behind 16
-  entries saves at most a walk per 750 data accesses (Angband). It stays a
+  entries saves at most 0.3 walks per 100 data accesses (Angband), one per
+  about 330: under 1% of Angband's clocks at 6–10 clocks a walk. It stays a
   Phase 7 option.
 - **Cost.** About 500 ALMs: the 64 compares and the 16 CAM compares are
   most of it.
@@ -2016,6 +2017,10 @@ eight replicated hit sets.
   run.
 - **A miss** holds F2's block as an L1I miss does, and the walker fills an
   entry.
+- **Rights.** Each entry keeps U/S combined from PDE and PTE, and each
+  fetch block carries its entry's bit. D checks it for every instruction at
+  CPL 3 or in V86, so an entry CPL 0 filled for a supervisor page raises #PF
+  when CPL 3 executes from it, on a hit as on a walk.
 - **Faults wait for execution.** A fetch whose walk faults, or would set A,
   marks the block. D raises the #PF, or the replay, only for an instruction
   that would execute, as the CS-limit check does now.
@@ -2077,8 +2082,9 @@ eight replicated hit sets.
   exception or an interrupt through a task gate; IRET with NT set. 16-bit
   (types 1 and 3) and 32-bit (types 9 and B) TSSs. The titles use only the
   32-bit TSS, but test386.asm checks both.
-- **The switch** saves EIP, EFLAGS, the GPRs and the six selectors into the
-  old TSS. It clears the old busy bit (JMP, IRET) and sets the new one (JMP,
+- **The switch** saves EIP, EFLAGS, the GPRs and the selectors into the
+  old TSS, in the old TSS's format: a 32-bit TSS takes all six selectors, a
+  16-bit one 16-bit fields and only ES, CS, SS and DS. It clears the old busy bit (JMP, IRET) and sets the new one (JMP,
   CALL, gates), writes the back link and sets NT for CALL and gates, then
   loads LDTR, EFLAGS, EIP, the GPRs and the selectors from the new TSS,
   loads their descriptors, sets CR0.TS and clears DR7's local enables
@@ -2194,7 +2200,8 @@ A timing miss stops the slice; it never relaxes a check. Titles that need
      back by IRET with NT, as Descent does; far JMP to a TSS between CPL 0
      and 3, as CWSDPMI does; each #TS case; a busy TSS; a fault after the
      commit point; a switch with paging off, which must leave CR3 alone; a
-     switch to a 16-bit TSS from code with live FS and GS.
+     switch to a 16-bit TSS from code with live FS and GS, and one out of a
+     16-bit task; CPL 3 executing from a supervisor page the ITLB holds.
    - **Exit.** test386.asm passes completely, POST 11's #PF table included:
      Phase 5's exit with slice 3.
    - **Unlocks.** Descent; Jump 'n Bump, Angband, NetHack and Chris's 3D
