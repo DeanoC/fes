@@ -33,6 +33,18 @@ Causes (each system clock the RTL ran is in exactly one):
   other                 D stop, the governor, replay serialisation, a bench
                         reset at a stop, anything else
 
+Front end (F and Q lines): each clock in refill, refill_l1i, fe_l1i and
+fe_empty is charged to why Q did not issue two clocks before
+(cpu_profile.h, "Front-end split"): a prefix cycle (prefix), a taken jump's
+avail clear (jclr), a redirect, or a wait for bytes not in the buffer: the
+half itself (half), bytes 12-15 whose decode needs the next block (tail),
+or an instruction that runs into a next half not yet there (cross). A wait
+is split by how Q entered its half: sequentially (seq), the first
+sequential half after a jump (seq1), a predicted taken jump (tk), one
+within its own block (tkself), a redirect (rd); and _l1i when F2 waited on
+the L1I since Q last issued. "latent" counts every clock Q did not issue,
+whatever D did.
+
   python3 scripts/pc386_cpu_profile.py cpu.prof
   python3 scripts/pc386_cpu_profile.py cpu.prof --from 22.7 --to 32.3 --json window.json
 """
@@ -73,7 +85,7 @@ class ProfileError(ValueError):
 
 def load(lines) -> dict[float, dict]:
     """The snapshots by time: counters, buckets, classes and that interval's sites."""
-    snaps: dict[float, dict] = defaultdict(lambda: {'t': None, 'b': None, 'c': {}, 'a': {}, 's': {}})
+    snaps: dict[float, dict] = defaultdict(lambda: {'t': None, 'b': None, 'c': {}, 'a': {}, 'f': {}, 'q': {}, 's': {}})
     for line in lines:
         if not line.strip():
             continue
@@ -86,6 +98,10 @@ def load(lines) -> dict[float, dict]:
             snap['b'] = {k: int(v) for k, v in (x.split('=') for x in f[1:])}
         elif kind == 'C':
             snap['c'][f[1]] = {k: int(v) for k, v in (x.split('=') for x in f[2:])}
+        elif kind == 'F':
+            snap['f'][f[1]] = {k: int(v) for k, v in (x.split('=') for x in f[2:])}
+        elif kind == 'Q':
+            snap['q'] = {k: int(v) for k, v in (x.split('=') for x in f[1:])}
         elif kind == 'A':
             snap['a'][f[1]] = {k: int(v) for k, v in (x.split('=') for x in f[2:])}
         elif kind == 'S':
@@ -112,6 +128,8 @@ def window(snaps: dict[float, dict], lo: float | None = None, hi: float | None =
     t, b = sub(first['t'], last['t']), sub(first['b'], last['b'])
     classes = {k: sub(first['c'].get(k, {}), v) for k, v in last['c'].items()}
     agi = {k: sub(first['a'].get(k, {}), v) for k, v in last['a'].items()}
+    fe = {k: sub(first['f'].get(k, {}), v) for k, v in last['f'].items()}
+    latent = sub(first['q'], last['q'])
     sites: dict[str, list] = defaultdict(lambda: [0, 0, ''])
     for at in times:
         if a < at <= z:
@@ -135,6 +153,7 @@ def window(snaps: dict[float, dict], lo: float | None = None, hi: float | None =
             'l1d_waits': t['l1d_waits'], 'l1i_waits': t['l1i_waits'], 'prefixes': t['prefixes'],
             'cpi': t['cycles'] / max(t['retired'], 1), 'causes': causes, 'buckets': b, 'classes': classes,
             'prediction': prediction(t), 'agi': agi_split(agi, b['agi']),
+            'front_end': front_end(fe, latent, b, t),
             'redirects_by_class': {k: {'taken': v['taken'], 'clocks': v['next'],
                                        'per_taken': round(v['next'] / v['taken'], 2)} for k, v in taken.items()},
             'sites': sorted(([k, *v] for k, v in sites.items()), key=lambda s: -s[2])[:25]}
@@ -175,6 +194,41 @@ def agi_split(agi: dict, total: int) -> dict:
     return {'clocks': total, 'early': early, 'by_class': rows}
 
 
+FE_BUCKETS = ('refill', 'refill_l1i', 'fe_l1i', 'fe_empty')
+FE_SPECIAL = ('prefix', 'jclr', 'redirect', 'unattr')
+FE_WAITS = ('half', 'tail', 'cross')
+FE_CTX = ('seq', 'seq1', 'tk', 'tkself', 'rd')
+
+
+def fe_rows() -> list[str]:
+    """The front-end split's reasons, without the _l1i variants."""
+    return [*FE_SPECIAL, *(f'{w}_{x}' for w in FE_WAITS for x in FE_CTX)]
+
+
+def front_end(fe: dict, latent: dict, buckets: dict, t: dict) -> dict:
+    """The front-end split: per reason (its _l1i variant folded in, and
+    counted apart as l1i), the clocks of each front-end bucket, and the
+    latent count of every clock Q did not issue. Each bucket's split must hold
+    exactly its clocks."""
+    if not fe:
+        return {}
+    for name in FE_BUCKETS:
+        held = sum(fe.get(name, {}).values())
+        if held != buckets[name]:
+            raise ProfileError(f'the front-end split of {name} holds {held} clocks, {buckets[name]} in the bucket')
+    rows = {}
+    for r in fe_rows():
+        row = {k: fe[k].get(r, 0) + fe[k].get(f'{r}_l1i', 0) for k in FE_BUCKETS}
+        row['l1i'] = sum(fe[k].get(f'{r}_l1i', 0) for k in FE_BUCKETS)
+        row['clocks'] = sum(row[k] for k in FE_BUCKETS)
+        row['latent'] = latent.get(r, 0) + latent.get(f'{r}_l1i', 0)
+        rows[r] = row
+    return {'clocks': sum(buckets[k] for k in FE_BUCKETS), 'fe_empty': buckets['fe_empty'],
+            'q_issue': latent.get('issue', 0), 'q_held': latent.get('held', 0),
+            'q_taken': t.get('q_taken', 0), 'q_tself': t.get('q_tself', 0), 'by_reason': rows,
+            'raw': fe, 'latent_raw': latent}
+
+
 def report(w: dict) -> str:
     out = [f'window {w["from"]}..{w["to"]}: {w["cycles"]:,} clocks ({w["rtl_clocks"]:,} on the RTL), '
            f'{w["retired"]:,} retired, CPI {w["cpi"]:.3f}, {w["frames"]} frames'
@@ -203,6 +257,17 @@ def report(w: dict) -> str:
         for k, v in sorted(a['by_class'].items(), key=lambda kv: -kv[1]['clocks']):
             out.append(f'{k:10s} {v["clocks"]:11,d} ' + ' '.join(f'{v[s]:9,d}' for s in STAGES)
                        + f' {v["ready"]:9,d} {v["imm"]:9,d} {v["w32"]:9,d}')
+    fe = w.get('front_end')
+    if fe:
+        out.append(f'\nfront end empty {fe["clocks"]:,} clocks (fe_empty {fe["fe_empty"]:,}), by Q\'s reason two clocks '
+                   f'before; Q issued {fe["q_issue"]:,}, held {fe["q_held"]:,}, took {fe["q_taken"]:,} predicted '
+                   f'jumps ({fe["q_tself"]:,} within a block)')
+        out.append(f'{"reason":14s} {"clocks":>11s} ' + ' '.join(f'{k:>10s}' for k in FE_BUCKETS)
+                   + f' {"l1i":>10s} {"latent":>11s}')
+        for k, v in sorted(fe['by_reason'].items(), key=lambda kv: -kv[1]['clocks']):
+            if v['clocks'] or v['latent']:
+                out.append(f'{k:14s} {v["clocks"]:11,d} ' + ' '.join(f'{v[b]:10,d}' for b in FE_BUCKETS)
+                           + f' {v["l1i"]:10,d} {v["latent"]:11,d}')
     out.append(f'\n{"redirects":10s} {"taken":>11s} {"clocks":>13s} {"per taken":>9s}')
     for k, v in sorted(w['redirects_by_class'].items(), key=lambda kv: -kv[1]['clocks']):
         out.append(f'{k:10s} {v["taken"]:11,d} {v["clocks"]:13,d} {v["per_taken"]:9.2f}')
