@@ -1,0 +1,130 @@
+"""Source-inverse and executable return observations; never a hardware claim."""
+import copy
+import hashlib
+import importlib.util
+from pathlib import Path
+import shutil
+import subprocess
+import tempfile
+import unittest
+
+ROOT = Path(__file__).resolve().parents[1]
+def module(name):
+    spec = importlib.util.spec_from_file_location(name, ROOT/'platform/embedded/nano'/f'{name}.py')
+    result = importlib.util.module_from_spec(spec); spec.loader.exec_module(result)
+    return result
+trace, recovery = module('recovery_return_trace'), module('recovery')
+
+
+def fixture(path):
+    shutil.copytree(ROOT/'tests/fixtures/nano-recovery-phy', path)
+    shutil.copytree(ROOT/'tests/fixtures/nano-recovery-return', path, dirs_exist_ok=True)
+    return recovery.prepare_phy_sources(path)
+
+
+class RecoveryReturnTests(unittest.TestCase):
+    def test_inverse_preserves_exact_original_phy_and_network_operations(self):
+        with tempfile.TemporaryDirectory() as d:
+            source = Path(d)/'source'; phy = fixture(source)
+            original = {n: (source/n).read_text() for n in trace.PINNED}
+            record = trace.prepare(source)
+            self.assertEqual(trace.reconstruct(source, record), original)
+            trace.check_phy_sources(source, record, phy, recovery)
+            with self.assertRaises(ValueError): trace.prepare(source)
+
+    def test_foreign_originals_reject_before_any_write(self):
+        for name in trace.PINNED:
+            with self.subTest(name=name), tempfile.TemporaryDirectory() as d:
+                source = Path(d)/'source'; fixture(source)
+                (source/name).write_text((source/name).read_text()+'/* foreign */\n')
+                before = {str(p.relative_to(source)): p.read_bytes() for p in source.rglob('*') if p.is_file()}
+                with self.assertRaises(ValueError): trace.prepare(source)
+                self.assertEqual(before, {str(p.relative_to(source)): p.read_bytes() for p in source.rglob('*') if p.is_file()})
+
+    def test_self_consistent_tampering_cannot_change_calls_helper_or_limits(self):
+        for name in [*trace.PINNED, trace.HEADER_PATH, trace.HELPER_PATH]:
+            with self.subTest(name=name), tempfile.TemporaryDirectory() as d:
+                source = Path(d)/'source'; fixture(source); record = trace.prepare(source)
+                p=source/name; p.write_text(p.read_text()+'/* changed */\n')
+                record['prepared'][name]=hashlib.sha256(p.read_bytes()).hexdigest()
+                with self.assertRaises(ValueError): trace.reconstruct(source, record)
+        for record in ({}, None, dict(scope='forged', originals={}, prepared={})):
+            with self.subTest(record=record), self.assertRaises(ValueError): trace.reconstruct('/nonexistent', record)
+
+    def test_decoder_retains_partial_progress_and_rejects_bad_order(self):
+        lines = [f'FES_RECOVERY_RETURN phase={p}\r\n' for p in trace.PHASES]
+        for n in range(len(lines)+1):
+            result=trace.decode('unrelated console\n'+''.join(lines[:n]))
+            self.assertTrue(result['valid']); self.assertEqual(result['complete'], n==len(lines))
+            self.assertEqual(result['phases'], list(trace.PHASES[:n]))
+        for n in range(len(lines)):
+            for bad in (lines[n] + lines[n], 'FES_RECOVERY_RETURN phase=foreign\n'):
+                self.assertFalse(trace.decode(''.join(lines[:n])+bad)['complete'])
+        self.assertFalse(trace.decode(''.join(reversed(lines)))['valid'])
+        self.assertFalse(trace.decode(''.join(lines)+lines[0])['valid'])
+        result=trace.decode(''.join(lines[:3])+'FES_RECOVERY_RETURN phase=filesize-')
+        self.assertTrue(result['partial']); self.assertFalse(result['complete'])
+        with self.assertRaises(ValueError): trace.decode('x'*(1+(1<<20)))
+
+    def test_explicit_builder_selection_is_required(self):
+        r=subprocess.run(['python3', str(ROOT/'platform/embedded/firmware/build_terasic_uboot.py'),
+            '--reference-repo','/nonexistent','--bl31-build','/nonexistent','--cross-prefix','/nonexistent-',
+            '--output','/nonexistent','--network-return-trace'],capture_output=True,text=True,timeout=5)
+        self.assertEqual(r.returncode,2); self.assertIn('require the separate network recovery profile',r.stderr)
+
+    @unittest.skipUnless(shutil.which('cc'), 'host C compiler required')
+    def test_actual_uart_helper_has_bounded_polls_strings_and_inactive_scope(self):
+        with tempfile.TemporaryDirectory() as d:
+            directory=Path(d)
+            for name,content in {'linux/types.h':'#include <stdbool.h>\n#include <stdint.h>\n',
+                                 'asm/io.h':'uint32_t readl(const void *);\nvoid writel(uint32_t,void *);\n',
+                                 'fes_recovery_return_trace.h':trace.HEADER,'helper.inc':trace.HELPER}.items():
+                p=directory/name;p.parent.mkdir(parents=True,exist_ok=True);p.write_text(content)
+            executable=directory/'uart'
+            subprocess.run(['cc','-std=c11','-Wall','-Wextra','-Werror','-fsanitize=undefined','-fno-sanitize-recover=all',
+                '-I',str(directory),str(ROOT/'platform/embedded/firmware/tests/nano_recovery_return_uart_test.c'),'-o',str(executable)],check=True,capture_output=True,timeout=30)
+            for mode in range(6):
+                with self.subTest(mode=mode):
+                    subprocess.run([str(executable),str(mode)],check=True,capture_output=True,text=True,timeout=5)
+
+    @unittest.skipUnless(shutil.which('cc'), 'host C compiler required')
+    def test_actual_vendor_success_return_and_stop_calls_match_with_faults(self):
+        with tempfile.TemporaryDirectory() as d:
+            directory=Path(d); source=directory/'source'; fixture(source)
+            original={n:(source/n).read_text() for n in trace.PINNED}; trace.prepare(source)
+            outputs=[]
+            for instrumented in (False,True):
+                files={n:(source/n).read_text() for n in trace.PINNED} if instrumented else original
+                driver=files['drivers/net/dwc_eth_xgmac.c']; start=driver.index('static void xgmac_stop(')
+                (directory/'stop.inc').write_text(driver[start:driver.index('\nstatic int xgmac_send(',start)])
+                net=files['net/net.c']; start=net.index('\t\tcase NETLOOP_SUCCESS:'); end=net.index('\t\tcase NETLOOP_FAIL:',start)
+                done=net.index('done:\n',end); tail=net[done:net.index('\n}',done)+2]
+                (directory/'success.inc').write_text('static int net_loop(enum proto_t protocol)\n{\nint ret=0;\nswitch (NETLOOP_SUCCESS) {\n'+net[start:end]+'}\n'+tail+'\n')
+                command=files['cmd/net.c']; start=command.index('\tsize = net_loop(proto);');end=command.index('\n}',start)+2
+                (directory/'command.inc').write_text('static int command_under_test(enum proto_t proto)\n{\nint size, rcode=0; struct cmd_tbl table={0}; struct cmd_tbl *cmdtp=&table; char *argv[]={"tftpboot"};\n'+command[start:end]+'\n')
+                executable=directory/str(instrumented)
+                subprocess.run(['cc','-std=c11','-Wall','-Wextra','-Werror','-fsanitize=undefined','-fno-sanitize-recover=all',
+                    '-I',str(directory),str(ROOT/'platform/embedded/firmware/tests/nano_recovery_return_test.c'),'-o',str(executable)],check=True,capture_output=True,timeout=30)
+                runs={}
+                for mode in range(6):
+                    r=subprocess.run([str(executable),str(mode),'0'],check=True,capture_output=True,text=True,timeout=5)
+                    runs[(mode,0)]=r.stdout
+                count=sum(line.startswith('OP ') for line in runs[(0,0)].splitlines())
+                for fault in range(1,count+1):
+                    r=subprocess.run([str(executable),'0',str(fault)],check=True,capture_output=True,text=True,timeout=5)
+                    runs[(0,fault)]=r.stdout
+                outputs.append(runs)
+            self.assertEqual(outputs[0].keys(),outputs[1].keys())
+            for key in outputs[0]:
+                # Observe every modeled register/call operation and final state.
+                remove=lambda s:'\n'.join(l for l in s.splitlines() if not l.startswith('FES_RECOVERY_RETURN'))
+                self.assertEqual(remove(outputs[0][key]),remove(outputs[1][key]),key)
+            self.assertTrue(trace.decode(outputs[1][(0,0)])['complete'])
+            self.assertTrue(trace.decode(outputs[1][(1,0)])['complete'])  # loop return is not drain proof
+            self.assertTrue(trace.decode(outputs[1][(4,0)])['complete'])  # nonzero command still rejects
+            self.assertIn('RESULT rc=1',outputs[1][(4,0)])
+            for key,text in outputs[1].items():
+                if key[1] or key[0] in (2,3,5): self.assertFalse(trace.decode(text)['complete'],key)
+
+
+if __name__ == '__main__': unittest.main()

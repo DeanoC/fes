@@ -108,7 +108,11 @@ def main():
                         help="require the selected matched SPL/EL3/native OCRAM reservation")
     parser.add_argument("--network-recovery", action="store_true",
                         help="separate vendor Ethernet/TFTP and SD-writing recovery loader; manual prompt only")
+    parser.add_argument("--network-return-trace", action="store_true",
+                        help="explicit recovery-only bounded return observations; separate diagnostic artifact")
     args = parser.parse_args()
+    if args.network_return_trace and not args.network_recovery:
+        parser.error("network return observations require the separate network recovery profile")
     if args.network_recovery and args.native_entry_build is not None:
         parser.error("network recovery and native handoff are separate boot profiles")
     if args.nano_firmware_ocram and args.native_entry_build is None:
@@ -169,12 +173,20 @@ def main():
     recovery = None
     recovery_hash = None
     recovery_sources = None
+    return_trace = None
+    return_sources = None
     if args.network_recovery:
         recovery_path = HERE.parent / "nano/recovery.py"
         spec = importlib.util.spec_from_file_location("fes_nano_recovery", recovery_path)
         recovery = importlib.util.module_from_spec(spec)
         spec.loader.exec_module(recovery)
         recovery_hash = sha(recovery_path)
+        if args.network_return_trace:
+            return_trace_path = HERE.parent / 'nano/recovery_return_trace.py'
+            spec = importlib.util.spec_from_file_location('fes_nano_recovery_return_trace', return_trace_path)
+            return_trace = importlib.util.module_from_spec(spec)
+            spec.loader.exec_module(return_trace)
+            return_trace_hash = sha(return_trace_path)
     build_repo = repo
     if args.native_entry_build is not None or recovery is not None:
         build_repo = output / "source"
@@ -183,6 +195,8 @@ def main():
             archive.extractall(build_repo, filter="data")
     if recovery is not None:
         recovery_sources = recovery.prepare_phy_sources(build_repo)
+        if return_trace is not None:
+            return_sources = return_trace.prepare(build_repo)
     if args.native_entry_build is not None:
         entry_build = args.native_entry_build.absolute()
         if not private_path(entry_build):
@@ -337,9 +351,20 @@ def main():
     if recovery is not None:
         if sha(recovery_path) != recovery_hash:
             raise ValueError("recovery profile changed during compilation")
-        recovery.check_phy_sources(build_repo, recovery_sources)
+        if return_trace is None:
+            recovery.check_phy_sources(build_repo, recovery_sources)
+        else:
+            if sha(return_trace_path) != return_trace_hash:
+                raise ValueError('recovery return observation source changed during compilation')
+            return_trace.check_phy_sources(build_repo, return_sources, recovery_sources, recovery)
         recovery_symbols=subprocess.check_output([tools['readelf']['path'],'-Ws',build/'u-boot'],env=env,text=True,timeout=30)
         recovery.check_linked(recovery_symbols)
+        if return_trace is not None:
+            return_trace.check_linked(recovery_symbols)
+            report['network_return_trace'] = dict(profile_sha256=return_trace_hash,
+                sources=return_sources, source_inverse_verified=True, phases=len(return_trace.PHASES),
+                UART_poll_limit=100000, string_byte_limit=96, hardware_qualified=False,
+                default_recovery_profile_compatible=False)
         report['uboot_elf_sha256']=sha(build/'u-boot')
         report["classification"] = "off-board Nano Ethernet/SD-writing recovery U-Boot; no native handoff or board acceptance"
         report["network_recovery"] = {"profile_sha256": recovery_hash, "manual_prompt": True,
@@ -352,6 +377,9 @@ def main():
                                   "Ethernet PHY/link, supplied stable MAC and SD writes remain untested on Nano",
                                   "SD writes are manual U-Boot commands; no atomic update/rollback implementation",
                                   "JTAG can recover a loader; no direct JTAG SD block writer is supplied"]
+        if return_trace is not None:
+            report['classification'] = 'off-board recovery return-observation diagnostic; not accepted by the default recovery package validator'
+            report['limitations'].append('requires separate trace-aware package/delivery validation before any hardware test')
     (output / "result.json").write_text(json.dumps(report, indent=2, sort_keys=True) + "\n")
     print("Built experimental FIT:", fit)
 

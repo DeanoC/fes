@@ -1,5 +1,20 @@
 # Nano recovery uploads and cold serial boot
 
+The explicit `build_terasic_uboot.py --network-recovery --network-return-trace`
+selection adds 34 ordered UART observations around successful TFTP return:
+the transfer-count print, environment updates, Ethernet/XGMAC/PHY stop, net-loop
+return and command completion. The source transform reconstructs the pinned
+network inputs and existing PHY preparation exactly. It retains the vendor
+operations and drain-loop bounds; a returned drain loop does not prove idle DMA.
+The UART helper uses at most 100,000 polls per wait and 96 bytes per string,
+then parks on uncertainty. Host execution compares actual vendor return/stop
+blocks before and after instrumentation and checks stalled UART/partial traces.
+The flag is off by default and requires the separate recovery profile. Its
+artifact has a distinct receipt/FIT identity and remains ineligible for the
+default recovery package validator. Trace-aware package/delivery validation and
+a fresh bounded hardware test are required. No marker grants SD or native
+programming permission, and the original transfer deadlines remain unchanged.
+
 The current guarded-RAM contract keeps the per-CPU array in sealed initialized
 BL31 DDR instead of OCRAM BSS. Its original cache flush remains in place. The
 matched device tree reserves the complete two-MiB BL31 DDR interval, and the
