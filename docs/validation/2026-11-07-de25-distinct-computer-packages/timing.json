@@ -1,0 +1,75 @@
+{
+  "status": "reported",
+  "slacks": [
+    2.091,
+    0.0,
+    6.05,
+    0.022,
+    0.22
+  ],
+  "tns": [
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0
+  ],
+  "constrained_summary_nonnegative": true,
+  "signoff_findings": [
+    {
+      "rule": "TMC-20012 - Missing Output Delay Constraint",
+      "severity": "High",
+      "violations": 3,
+      "waived": "0"
+    },
+    {
+      "rule": "TMC-20011 - Missing Input Delay Constraint",
+      "severity": "High",
+      "violations": 2,
+      "waived": "0"
+    },
+    {
+      "rule": "RDC-50003 - Multiple Asynchronous Reset Synchronizers in the Same Clock Domain",
+      "severity": "Medium",
+      "violations": 2,
+      "waived": "0"
+    },
+    {
+      "rule": "RES-50101 - Intra-Clock False Path Reset Synchronizer",
+      "severity": "Low",
+      "violations": 1,
+      "waived": "0"
+    }
+  ],
+  "unconstrained": {
+    "Illegal Clocks": [
+      0,
+      0
+    ],
+    "Unconstrained Clocks": [
+      0,
+      0
+    ],
+    "Unconstrained Input Ports": [
+      1,
+      1
+    ],
+    "Paths from Unconstrained Input Ports (Pairs-Only)": [
+      3,
+      3
+    ],
+    "Unconstrained Output Ports": [
+      2,
+      2
+    ],
+    "Paths to Unconstrained Output Ports (Pairs-Only)": [
+      11,
+      11
+    ]
+  },
+  "timing_signoff": false,
+  "hardware_actions": false,
+  "report_sha256": "b472bbb287f83bf698861bd627605fc7833f1ec702719a291f0e3c7a12ab094d",
+  "build_json_sha256": "4106cdab561967c69c3172beacbd6ec17d19967d0592bef52a634f56eef2b37f",
+  "full_physical_acceptance": false
+}

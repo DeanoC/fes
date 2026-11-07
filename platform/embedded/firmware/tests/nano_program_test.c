@@ -188,6 +188,9 @@ int main(int argc,char **argv)
             memcpy(f.program.context,f.context,32);
             f.bridges.state.generation=generation;
             f.program.chunk=(uint32_t)chunk;f.configuration.chunk=(uint32_t)chunk;
+            /* Match nano_cold_platform.c's independently fixed staging limit.
+             * The small no-argument unit fixture still has its 512-byte cap. */
+            f.configuration.maximum=FES_NANO_PROGRAM_MAX_BYTES;
         }
         assert(fread(f.wire,1,sizeof(f.wire),in)==sizeof(f.wire));
         if(argc==3 || argc==6) {

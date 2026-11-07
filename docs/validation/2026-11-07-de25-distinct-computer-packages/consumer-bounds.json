@@ -1,0 +1,19 @@
+{
+  "status": "passed",
+  "TF_A_struct_bytes": 1608,
+  "TF_A_DDR_config_offset": 1604,
+  "SPL_read_prefix_bytes": 1624,
+  "full_prefix_identical": true,
+  "source_sha256": {
+    "out/nano-fat-native-chain-20261107/native-bl31-final/source/plat/intel/soc/common/include/socfpga_handoff.h": "019a74f6035a056c6aafdee1a729e292b570719935020897fadcda7724b65918",
+    "out/nano-fat-native-chain-20261107/native-uboot-final/source/arch/arm/mach-socfpga/include/mach/handoff_soc64.h": "7dd3be3b80a150f3f5a4e1f9b019a047c8fe40eca11844dfa6a1c2d9800ad0f3",
+    "out/nano-fat-native-chain-20261107/native-uboot-final/source/drivers/ddr/altera/sdram_agilex5.c": "d84438c6576825024bd069f5a535d61139cf2ae41fc518c53831f48e171299f0",
+    "out/nano-fat-native-chain-20261107/native-uboot-final/source/arch/arm/mach-socfpga/wrap_handoff_soc64.c": "3d6196f50bfbe64770d4231323f95004e9bee95aa48f3e90f05f05572240caed",
+    "out/nano-fat-native-chain-20261107/native-bl31-final/source/plat/intel/soc/common/soc/socfpga_handoff.c": "347658b346c86546eed77f81142a584d1a59bbc851231f32ca90aa12227e14cd",
+    "out/nano-distinct-native-20261107/consumer-check/bounds.c": "1eda76ab802d843083051ac1feec83ba4e12acb80829ce621e3c59ff73ff97df"
+  },
+  "old_suffix_hex": "6c5f63730a",
+  "new_suffix_hex": "77725f690a",
+  "hardware_actions": false,
+  "boot_proof": false
+}
