@@ -99,13 +99,14 @@ def prepare(project, uboot, entry, pfg, output):
     reader_memory=native.get('native_handoff',{}).get('cold_boot_profile',{}).get('hps_reader_memory')
     if reader_memory is not None and reader_memory!=hps_context.reader_memory(project):
         raise ValueError('native reader memory differs from the sealed FPGA project')
-    cpu_map=native.get('native_handoff',{}).get('cold_boot_profile',{}).get('cpu_mapping')
-    if cpu_map is not None and cpu_map!=hps_context.cpu_mapping(control_map,hps_context.configuration(project),reader_memory):
+    window_profile=native.get('native_handoff',{}).get('cold_boot_profile',{})
+    companion=hps_context.compiled_menu_program(dict(window_profile,program='fpgaload'))
+    cpu_map=window_profile.get('cpu_mapping')
+    if cpu_map is not None and cpu_map!=hps_context.cpu_mapping(control_map,hps_context.configuration(project),reader_memory,menu_program=companion):
         raise ValueError('native CPU mapping contract differs from its sealed resources')
     ddr_read=native.get('native_handoff',{}).get('cold_boot_profile',{}).get('hps_ddr_read')
     if ddr_read is not None and ddr_read!=hps_context.ddr_read(project):
         raise ValueError('native DDR read contract differs from the sealed generated adapter')
-    window_profile=native.get('native_handoff',{}).get('cold_boot_profile',{})
     rom=window_profile.get('hps_rom')
     rom_profile=source_context is not None and hps_context.uses_held_rom(source_context)
     if rom_profile:
@@ -212,6 +213,8 @@ def prepare(project, uboot, entry, pfg, output):
         'hps_io_sha256':hps_context.digest(io_map) if io_map is not None else None,
         'cpu_mapping':cpu_map,
         'cpu_mapping_sha256':hps_context.digest(cpu_map) if cpu_map is not None else None,
+        'paired_programs':companion is not None,
+        'hps_menu_program_sha256':hps_context.digest(companion) if companion is not None else None,
         'control_probe':control_map is not None,
         'hps_control_sha256':hps_context.digest(control_map) if control_map is not None else None,
         'bounded_ddr_read':ddr_read is not None,

@@ -19,7 +19,7 @@ spec.loader.exec_module(boot)
 
 
 class HpsBootTests(unittest.TestCase):
-    def run_candidate(self, base, mode='pass', order='HPS FIRST', sealed=True, context=None, control=None, rom=None):
+    def run_candidate(self, base, mode='pass', order='HPS FIRST', sealed=True, context=None, control=None, rom=None, chain=None):
         project = base/'project'
         hps = project/'board/hps'
         (hps/'project/output_files').mkdir(parents=True)
@@ -103,6 +103,8 @@ else:raise SystemExit(9)
             native['native_handoff'].setdefault('cold_boot_profile', {})['hps_control'] = control
         if rom is not None:
             native['native_handoff'].setdefault('cold_boot_profile', {}).update(hps_rom=rom,hps_rom_sha256=boot.hps_context.digest(rom))
+        if chain is not None:
+            native['native_handoff'].setdefault('cold_boot_profile', {}).update(chain)
         output = base/'output'
         with patch.object(boot, 'producer_module', side_effect=lambda name, filename:
                           verifier if filename == 'verify.py' else real_module(name, filename)), \
@@ -110,6 +112,34 @@ else:raise SystemExit(9)
             result=boot.prepare(project, uboot, entry, pfg, output)
             checker.assert_called_once_with(uboot,entry)
             return result
+
+    def test_combined_source_requires_the_full_union_before_conversion(self):
+        import copy
+        import test_nano_combined_program as combined
+        fixture=combined.CombinedProgramTests();fixture.setUp()
+        profile=fixture.profile
+        for changed in (False,True):
+            value=copy.deepcopy(profile)
+            if changed:
+                value['cpu_mapping']['reader_bytes']=2<<20
+                value['cpu_mapping_sha256']=boot.hps_context.digest(value['cpu_mapping'])
+            with self.subTest(changed=changed),tempfile.TemporaryDirectory() as folder, \
+                 patch.object(boot.hps_context,'derive',return_value=profile['hps_context']), \
+                 patch.object(boot.hps_context,'control',return_value=profile['hps_control']), \
+                 patch.object(boot.hps_context,'configuration',return_value=profile['hps_configuration']), \
+                 patch.object(boot.hps_context,'reader_memory',return_value=profile['hps_reader_memory']), \
+                 patch.object(boot.hps_context,'rom',return_value=profile['hps_rom']):
+                base=Path(folder)
+                if changed:
+                    with self.assertRaisesRegex(ValueError,'CPU mapping'):self.run_candidate(base,chain=value)
+                    self.assertFalse((base/'calls.jsonl').exists())
+                    self.assertFalse((base/'output').exists())
+                else:
+                    result=self.run_candidate(base,chain=value)
+                    self.assertTrue(result['paired_programs'])
+                    self.assertEqual(result['cpu_mapping']['reader_bytes'],8<<20)
+                    self.assertEqual(result['hps_menu_program_sha256'],profile['hps_menu_program_sha256'])
+                    self.assertFalse(result['physical_programming_admission'])
 
     def test_native_spl_is_decoded_and_core_unchanged_without_hardware_permission(self):
         with tempfile.TemporaryDirectory() as temp:
