@@ -1,5 +1,23 @@
 # Nano recovery uploads and cold serial boot
 
+The experimental `--menu-project` option on native `tamago/run.py fpgaload`
+adds a separately sealed menu companion to the normal selected-computer boot.
+It requires `--selected-programs` and its computer/rearm/SD-return selections;
+the initial `--hps-first-project` remains the computer. Both roles must agree
+on all six shared board/HPS/DDR fingerprints and keep their own complete master
+inventories and resource maps. The SDK links the full companion and constructs
+`NewProgramLoaderWithMenu`; the entry and cold builders recheck its sealed
+source. The computer's reader descriptor stays unchanged, while CPU mapping,
+entry staging, secure firmware and SPL reserve the full 8 MiB menu area. Only
+this explicit pairing enables the role-aware secure firmware. Existing menu-only
+and computer-only selections keep their original checks.
+
+This builds the combined loader/resources; the current selected-program frontend
+still uses its existing serial service. Tenfoot's menu display ownership and the
+complete visible menu/core/menu cycle are not connected by this option. A new
+matched boot chain and bounded hardware acceptance remain required. Ethernet
+recovery remains a separate loader profile.
+
 The source-bound two-slot menu has an explicit native selection:
 `tamago/run.py fpgaload --board de25-nano --menu-present`, together with the
 sealed menu `--hps-first-project`, source-controlled SD profile and selected

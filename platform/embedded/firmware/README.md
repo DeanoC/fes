@@ -38,8 +38,10 @@ Platform ownership/digest, SD-return, ROM and reader I/O are injected. This is
 not execution of the mixed-role strong cold provider or a matched board chain.
 The cold provider now calls the activation hook in the explicitly selected
 mixed-role mode, after installing selected stop/ROM resources and proving the
-preceding role's complete return. Existing board build selections do not enable
-that mode; the matched combined builder/entry/SPL chain is still required.
+preceding role's complete return. The explicit native `--menu-project` companion
+selection binds both sealed inventories and their union memory through the
+SDK/entry/cold profile and SPL. A freshly matched chain and physical test remain
+required; the existing single-role selections do not enable mixed firmware.
 The firmware exporter includes and hashes the new dispatcher composition.
 
 The mixed cold provider keeps the normal computer boot context/control ABI and
@@ -68,12 +70,13 @@ shared USB qualification or Tenfoot App/menu/core/menu acceptance.
 Tests run five changing-role loads through the actual C configuration and
 held-bridge engines, plus twenty rejection/retirement cases. Native Go encoding
 and private arena publication are paired with the same C decoder, including all
-nine chunks and stale publication callbacks. Mixed roles remain default-off:
-the native builder/loader and entry/SPL must select both matched inventories and
-the union memory exclusion before this can support App/core/menu on hardware.
+nine chunks and stale publication callbacks. Mixed roles remain default-off.
+The native builder/loader and entry/SPL select both matched inventories and the
+union memory exclusion only with the explicit companion. Tenfoot menu
+presentation ownership and physical App/core/menu acceptance remain open.
 
 The explicit `--nano-firmware-ocram` option on both Terasic builders selects a
-matched shared-ROM or explicitly selected two-slot menu cold chain with private
+matched shared-ROM, explicitly selected two-slot menu or paired-role cold chain with private
 stack/BSS in `[0x50000,0x60000)`. The menu selection validates its complete
 8 MiB memory, read/control digests and CPU exclusion; it grants no USB or ROM path.
 The version-5 layout contract fixes the stack at `[0x50000,0x58000)` and bounds

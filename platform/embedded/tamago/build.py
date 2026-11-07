@@ -304,6 +304,10 @@ def build(args):
         usb_input=shared_input
     usb_control=args.program=='usbcheck' or usb_shared
     program_platform=program_metadata=None
+    menu_program_map=None
+    menu_project=getattr(args,'menu_project',None)
+    if menu_project is not None and (args.program!='fpgaload' or not selected_programs):
+        raise ValueError('--menu-project requires selected Nano computer programs')
     package_archive=None
     hps_project=getattr(args,'hps_first_project',None)
     if args.program in ('bootcontext','hpsio','usbcheck','fpgacontext','fpgastatus','fpgaload'):
@@ -336,13 +340,18 @@ def build(args):
             if selected_programs:
                 program_platform=hps.program_platform(hps_project)
                 if rom_map is None:program_metadata=hps.selected_program(hps_project)
+            if menu_project is not None:
+                menu_project=menu_project.resolve(strict=True)
+                menu_program_map=hps.menu_program(menu_project)
+                hps.validate_menu_program(context,program_platform,menu_program_map)
+                cpu_map=hps.cpu_mapping(control_map,configuration_map,reader_memory_map,menu_program=menu_program_map)
             package_archive=hps.package_archive(hps_project,configuration_map)
             arena_start,arena_end=configuration_map['base'],configuration_map['base']+configuration_map['size']
             exclusions=[(start,start+size),(0x94000000,0x94800000)]+[(r['start'],r['start']+r['size']) for r in profile['reserved']]
             if any(arena_start<end and begin<arena_end for begin,end in exclusions):
                 raise ValueError('configuration arena overlaps heap, sealed FIT or firmware')
             if reader_memory_map is not None:
-                begin=reader_memory_map['arena_base'];end=begin+reader_memory_map['arena_bytes']
+                begin=cpu_map['reader_base'];end=begin+cpu_map['reader_bytes']
                 if any(begin<stop and first<end for first,stop in exclusions+[(arena_start,arena_end)]):
                     raise ValueError('reader arena overlaps heap, sealed FIT, configuration or firmware')
     elif hps_project is not None:
@@ -366,6 +375,7 @@ def build(args):
     if control_map is not None:(output/'hps-control.json').write_bytes(hps.encode(control_map))
     if configuration_map is not None:(output/'hps-configuration.json').write_bytes(hps.encode(configuration_map))
     if reader_memory_map is not None:(output/'hps-reader-memory.json').write_bytes(hps.encode(reader_memory_map))
+    if menu_program_map is not None:(output/'compiled-menu-program.json').write_bytes(hps.encode(menu_program_map))
     if ddr_read_map is not None:(output/'hps-ddr-read.json').write_bytes(hps.encode(ddr_read_map))
     if window_read_map is not None:(output/'hps-window-read.json').write_bytes(hps.encode(window_read_map))
     if menu_read_map is not None:(output/'hps-menu-read.json').write_bytes(hps.encode(menu_read_map))
@@ -389,7 +399,7 @@ def build(args):
     with generated.open('a') as stream:
         stream.write('const (\nprofileConfigurationBase = '+str(configuration_map['base'] if configuration_map else 0)+'\nprofileConfigurationBytes = '+str(configuration_map['size'] if configuration_map else 0)+'\n)\n')
         stream.write('const (\nprofileFabricControlBase = '+str(control_map['cpu_base'] if control_map else 0)+'\nprofileFabricControlBytes = '+str(control_map['span'] if control_map else 0)+'\n)\n')
-        stream.write('const (\nprofileReaderMemoryBase = '+str(reader_memory_map['arena_base'] if reader_memory_map else 0)+'\nprofileReaderMemoryArenaBytes = '+str(reader_memory_map['arena_bytes'] if reader_memory_map else 0)+'\n)\n')
+        stream.write('const (\nprofileReaderMemoryBase = '+str(cpu_map['reader_base'] if cpu_map else 0)+'\nprofileReaderMemoryArenaBytes = '+str(cpu_map['reader_bytes'] if cpu_map else 0)+'\n)\n')
     network_constants = {"profileNetworkEnabled": net is not None,
                          "profileNetworkBase": 0x10810000 + (net["mac_index"] * 0x10000) if net else 0,
                          "profileNetworkPHY": net["phy_address"] if net else 0,
@@ -486,6 +496,7 @@ def build(args):
     if program_platform is not None:
         link_flags+=' -X main.expectedProgramPlatform='+base64.b64encode(hps.encode(program_platform)).decode()
         link_flags+=' -X main.expectedSelectedPrograms=1'
+    if menu_program_map is not None:link_flags+=' -X main.expectedCompiledMenuProgram='+base64.b64encode(hps.encode(menu_program_map)).decode()
     command = [str(compiler), "build", *options, "-trimpath", "-ldflags", link_flags, "-o", str(elf), "./cmd/" + args.program]
     with (output / "build.log").open("w") as log:
         subprocess.run(command, cwd=APP, env=env, stdout=log, stderr=subprocess.STDOUT, check=True)
@@ -523,6 +534,9 @@ def build(args):
         raise ValueError('compiled program platform or example selected metadata changed')
     if sources != {str(p.relative_to(ROOT)): sha(p) for p in sorted(files)}:
         raise ValueError("sources changed while building")
+    if menu_program_map is not None and (hps.menu_program(menu_project)!=menu_program_map or
+            base64.b64encode(hps.encode(menu_program_map)) not in data):
+        raise ValueError('compiled menu companion changed or was not linked into the native image')
     if feature_sources != {p: sha(p) for p in feature_sources}:
         raise ValueError('ARM64 feature discovery inputs changed while building')
     report = {"status": "cross-built", "board": "de25-nano", "program": args.program,
@@ -548,6 +562,8 @@ def build(args):
               "computer_reload":computer_reload,
               "computer_storage_return":computer_storage_return,
               "selected_programs":selected_programs,"tenfoot_serial":tenfoot_serial,
+              "hps_menu_project":str(menu_project) if menu_project else None,
+              "hps_menu_program":menu_program_map,"hps_menu_program_sha256":hps.digest(menu_program_map) if menu_program_map else None,
               "hps_program_platform":program_platform,"hps_program_platform_sha256":hps.digest(program_platform) if program_platform else None,
               "configuration_core_sha256":configuration_map["core_sha256"] if configuration_map else None,
               "configuration_package_sha256":hashlib.sha256(package_archive).hexdigest() if package_archive is not None else None,

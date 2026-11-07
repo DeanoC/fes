@@ -134,6 +134,85 @@ def selected_program(project, rom_receipt_sha256=None):
     return _worker(project, 'selected-program', rom_receipt_sha256)
 
 
+def menu_program(project):
+    """Complete independently sealed companion, never a replacement boot anchor."""
+    return dict(format=1, scope='nano-compiled-menu-program-v1', context=derive(project),
+                platform=program_platform(project), control=control(project),
+                configuration=configuration(project), memory=reader_memory(project), access=menu_read(project))
+
+
+def validate_menu_program(context, platform, companion):
+    if (not isinstance(companion, dict) or set(companion)!=
+            {'format','scope','context','platform','control','configuration','memory','access'} or
+            type(companion['format']) is not int or companion['format']!=1 or
+            companion['scope']!='nano-compiled-menu-program-v1' or
+            not isinstance(context,dict) or context.get('programming_profile')!=COMPUTER_PROFILE or
+            not uses_held_rom(context)):
+        raise ValueError('compiled menu requires the normal computer boot and complete companion')
+    menu=companion['context'];source=companion['platform']
+    if (not isinstance(menu,dict) or menu.get('programming_profile')!=MENU_PROFILE or
+            menu.get('control_abi')!=0x10203043 or not isinstance(source,dict) or
+            source.get('boot_context_sha256')!=digest(menu) or not isinstance(platform,dict) or
+            platform.get('boot_context_sha256')!=digest(context)):
+        raise ValueError('compiled menu cannot replace or cross its original boot identities')
+    try:
+        for key in ('platform','device','hps_io_hash','pfg_identity','hps_parameters_sha256','hps_configuration_sha256'):
+            if source['platform'][key]!=platform['platform'][key]:
+                raise ValueError('compiled roles have different shared HPS/DDR fingerprints: '+key)
+        # Both inventories remain individually source-bound. They are not a
+        # shared fingerprint: menu and computer have different FPGA masters.
+        for value in (source['platform']['master_inventory_sha256'],platform['platform']['master_inventory_sha256']):
+            if not isinstance(value,str) or not re.fullmatch('[0-9a-f]{64}',value) or int(value,16)==0:
+                raise ValueError('compiled role master inventory is incomplete')
+        validate_reader_memory(menu,companion['memory'])
+        validate_menu_read(menu,companion['memory'],digest(companion['control']),companion['access'])
+        c=companion['control'];cfg=companion['configuration']
+        if ((c['cpu_base'],c['span'])!=(0x20010400,256) or
+                c['package_id']!=menu['package_id'] or c['build_id']!=menu['build_id'] or
+                c['fabric_stop']!={'scope':'sealed-menu-master-stop-v1','probe_cpu_base':0x20010100,
+                                  'probe_span':128,'maintenance':'held-reset-from-configuration'} or
+                (cfg['base'],cfg['size'])!=(0x94800000,8<<20)):
+            raise ValueError('compiled menu resources differ from the fixed role inventory')
+    except (KeyError, TypeError) as error:
+        raise ValueError('compiled menu has incomplete resource or platform maps') from error
+    return companion
+
+
+def checked_menu_program(record, program_key='program'):
+    keys=('hps_menu_project','hps_menu_program','hps_menu_program_sha256')
+    if record.get(keys[0]) is None:
+        if any(record.get(key) is not None for key in keys[1:]):
+            raise ValueError('compiled menu requires its separately sealed project')
+        return None
+    if (record.get(program_key)!='fpgaload' or record.get('selected_programs') is not True or
+            record.get('computer_reload') is not True or record.get('computer_storage_return') is not True or
+            record.get('menu_present',False) is not False or record.get('window_memory',False) is not False):
+        raise ValueError('compiled menu requires selected computer programs and owned SD return')
+    source=checked(record,program_key)
+    platform=checked_program_platform(record,program_key)
+    expected=menu_program(record[keys[0]])
+    validate_menu_program(source,platform,expected)
+    if record.get(keys[1])!=expected or record.get(keys[2])!=digest(expected):
+        raise ValueError('compiled menu differs from its sealed companion source')
+    return expected
+
+
+def compiled_menu_program(record, program_key='program'):
+    """Pure cold-chain projection; source freshness is checked before packaging."""
+    companion=record.get('hps_menu_program')
+    if companion is None:
+        if record.get('hps_menu_program_sha256') is not None:
+            raise ValueError('compiled menu digest has no complete companion')
+        return None
+    if (record.get(program_key)!='fpgaload' or record.get('selected_programs') is not True or
+            record.get('computer_reload') is not True or record.get('computer_storage_return') is not True or
+            record.get('menu_present',False) is not False or record.get('window_memory',False) is not False or
+            record.get('hps_menu_program_sha256')!=digest(companion) or
+            record.get('hps_program_platform_sha256')!=digest(record.get('hps_program_platform'))):
+        raise ValueError('compiled menu requires the complete selected computer and return contract')
+    return validate_menu_program(record.get('hps_context'),record.get('hps_program_platform'),companion)
+
+
 def reader_memory(project):
     return _worker(project, 'reader-memory')
 
@@ -803,12 +882,21 @@ def checked_configuration(record, program_key='program'):
     return expected
 
 
-def cpu_mapping(control_map, configuration_map, reader_map):
+def cpu_mapping(control_map, configuration_map, reader_map, *, menu_program=None):
     """Expected EL1 resource layout, never a CPU or physical-memory grant."""
     if (not isinstance(control_map,dict) or not {'cpu_base','span'}<=set(control_map) or
             not isinstance(configuration_map,dict) or not {'base','size'}<=set(configuration_map) or
             reader_map is not None and (not isinstance(reader_map,dict) or not {'arena_base','arena_bytes'}<=set(reader_map))):
         raise ValueError('complete source-derived CPU resource inputs required')
+    if menu_program is not None:
+        # The caller validates both complete sealed role maps. Only the actual
+        # menu descriptor can supply this larger union; keep the computer's
+        # own reader descriptor unchanged in its package and boot context.
+        if (not isinstance(menu_program,dict) or menu_program.get('scope')!='nano-compiled-menu-program-v1' or
+                menu_program.get('memory',{}).get('scope')!='sealed-cold-menu-reader-memory-v1' or
+                (menu_program['memory'].get('arena_base'),menu_program['memory'].get('arena_bytes'))!=(0x95000000,8<<20)):
+            raise ValueError('union mapping requires the complete fixed menu reservation')
+        reader_map=menu_program['memory']
     fields={'ram_base':0x84000000,'ram_bytes':256<<20,
             'control_base':control_map['cpu_base'],'control_bytes':control_map['span'],
             'dma_base':configuration_map['base'],'dma_bytes':configuration_map['size'],
@@ -831,7 +919,8 @@ def checked_cpu_mapping(record, program_key='program'):
         return None
     configuration_map=checked_configuration(record,program_key)
     reader_map=checked_reader_memory(record,program_key)
-    expected=cpu_mapping(record['hps_control'],configuration_map,reader_map)
+    companion=checked_menu_program(record,program_key)
+    expected=cpu_mapping(record['hps_control'],configuration_map,reader_map,menu_program=companion)
     if record.get(keys[0])!=expected or encode(record[keys[0]])!=encode(expected) or record.get(keys[1])!=digest(expected):
         raise ValueError('native CPU mapping contract differs from the selected resources')
     return expected

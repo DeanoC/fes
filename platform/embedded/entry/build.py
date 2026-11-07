@@ -75,6 +75,22 @@ def menu_present_option(receipt, memory, access):
     return selected
 
 
+def compiled_menu_option(receipt, companion):
+    command=receipt.get('command',[])
+    try:tokens=shlex.split(command[command.index('-ldflags')+1])
+    except (ValueError,IndexError,AttributeError,TypeError):
+        raise ValueError('compiled menu requires the native link command') from None
+    name='main.expectedCompiledMenuProgram'
+    options=[(i,word) for i,word in enumerate(tokens) if name in word]
+    if companion is None:
+        if options:raise ValueError('unselected compiled menu appears in the native link command')
+        return None
+    value=base64.b64encode((json.dumps(companion,sort_keys=True,separators=(',',':'))+'\n').encode()).decode()
+    if len(options)!=1 or options[0][1]!=name+'='+value or options[0][0]==0 or tokens[options[0][0]-1]!='-X':
+        raise ValueError('compiled menu differs from its exact native link assignment')
+    return companion
+
+
 def window_memory_option(receipt, memory):
     selected=receipt.get('window_memory',False)
     if (type(selected) is not bool or selected !=
@@ -248,6 +264,7 @@ def main():
     native_sources = None
     native_context = native_io = native_cpu_map = native_control = native_configuration = native_reader_memory = native_ddr_read = native_computer = native_rom = native_program_platform = None
     native_selected_programs = False
+    native_menu_program = None
     native_tenfoot_serial = False
     native_reload = False
     native_storage_return = False
@@ -303,6 +320,7 @@ def main():
         native_computer=hps.checked_computer(receipt)
         native_rom=hps.checked_rom(receipt)
         native_program_platform=hps.checked_program_platform(receipt)
+        native_menu_program=compiled_menu_option(receipt,hps.checked_menu_program(receipt))
         native_selected_programs=receipt.get('selected_programs',False)
         native_reload=receipt.get('computer_reload',False)
         native_storage_return=receipt.get('computer_storage_return',False)
@@ -351,6 +369,8 @@ def main():
             raise ValueError('configuration map is absent from the selected native ELF')
         if native_reader_memory is not None and base64.b64encode(hps.encode(native_reader_memory)) not in payload.read_bytes():
             raise ValueError('reader memory map is absent from the selected native ELF')
+        if native_menu_program is not None and base64.b64encode(hps.encode(native_menu_program)) not in payload.read_bytes():
+            raise ValueError('native compiled menu selection differs from its linked payload')
         if native_ddr_read is not None and base64.b64encode(hps.encode(native_ddr_read)) not in payload.read_bytes():
             raise ValueError('DDR read contract is absent from the selected native ELF')
         if native_window_read is not None and base64.b64encode(hps.encode(native_window_read)) not in payload.read_bytes():
@@ -385,7 +405,7 @@ def main():
         if native_configuration is not None:
             exclusions.append((native_configuration['base'],native_configuration['base']+native_configuration['size']))
         if native_reader_memory is not None:
-            exclusions.append((native_reader_memory['arena_base'],native_reader_memory['arena_base']+native_reader_memory['arena_bytes']))
+            exclusions.append((native_cpu_map['reader_base'],native_cpu_map['reader_base']+native_cpu_map['reader_bytes']))
         for arena, base, size_key in ((network, "dma_start", "dma_size"),
                                       (display, "base", "size"), (fpga, "base", "size")):
             if arena:
@@ -557,6 +577,8 @@ def main():
               "hps_window_read_sha256":hps.digest(native_window_read) if native_window_read else None,
               "computer_storage_return":native_storage_return,
               "selected_programs":native_selected_programs,"tenfoot_serial":native_tenfoot_serial,
+              "hps_menu_project":receipt.get('hps_menu_project'),"hps_menu_program":native_menu_program,
+              "hps_menu_program_sha256":hps.digest(native_menu_program) if native_menu_program else None,
               "hps_program_platform":native_program_platform,
               "hps_program_platform_sha256":hps.digest(native_program_platform) if native_program_platform is not None else None,
               "hps_project":receipt['hps_project'] if native_context is not None else None,

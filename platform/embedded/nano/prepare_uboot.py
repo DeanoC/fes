@@ -205,7 +205,7 @@ def prepare(source, entry_build, bl31_sha256, bl31_size, *, firmware_ram=False):
     if chain.get('hps_configuration'):
         m=chain['hps_configuration'];arenas.append((m['base'],m['size']))
     if chain.get('hps_reader_memory'):
-        m=chain['hps_reader_memory'];arenas.append((m['arena_base'],m['arena_bytes']))
+        m=chain['cpu_mapping'];arenas.append((m['reader_base'],m['reader_bytes']))
     (source / "cmd/fes_nano_config.h").write_text(
         '/* Generated from the exact entry image and handoff sources. */\n#define FES_NANO_BOOT_ID "' + build_id +
         '"\n#define FES_NANO_IMAGE_SIZE ' + str(image.stat().st_size) +

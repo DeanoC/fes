@@ -35,6 +35,16 @@ func TestBuiltMenuAndDistinctComputersShareOneLoaderWithoutFirmwareIO(t *testing
 	}
 	bootID, bootDigest := v.Identity(), v.digest
 	menu := CompiledMenuProgram{read("menu/hps-context.json", 8192), read("menu/program-platform.json", 8192), read("menu/hps-control.json", 8192), read("menu/hps-reader-memory.json", 8192), read("menu/hps-menu-read.json", 8192)}
+	if path := os.Getenv("FES_NANO_COMPILED_MENU"); path != "" {
+		raw, err := os.ReadFile(path)
+		if err != nil {
+			t.Fatal(err)
+		}
+		menu, err = ParseCompiledMenuProgram(raw)
+		if err != nil {
+			t.Fatal(err)
+		}
+	}
 	l, err := NewProgramLoaderWithMenu(v, read("computer/program-platform.json", 8192), control, read("computer/hps-configuration.json", 32768), comp, menu)
 	if err != nil {
 		t.Fatal(err)

@@ -23,6 +23,45 @@ type CompiledMenuProgram struct {
 	Context, Platform, Control, Memory, Access []byte
 }
 
+// ParseCompiledMenuProgram reads the board-linked source companion. It checks
+// its complete canonical configuration against its own context, without I/O or
+// replacing the computer boot verifier. NewProgramLoaderWithMenu validates the
+// remaining resource and shared-platform contracts before any selected load.
+func ParseCompiledMenuProgram(raw []byte) (CompiledMenuProgram, error) {
+	var r struct {
+		Format        int                   `json:"format"`
+		Scope         string                `json:"scope"`
+		Context       HPSBootContext        `json:"context"`
+		Platform      programPlatformSource `json:"platform"`
+		Control       hpsControlMap         `json:"control"`
+		Configuration coldConfigurationMap  `json:"configuration"`
+		Memory        menuMemoryMap         `json:"memory"`
+		Access        menuReadMap           `json:"access"`
+	}
+	if err := decodeCompleteRecord(raw, 65536, &r); err != nil {
+		return CompiledMenuProgram{}, err
+	}
+	if r.Format != 1 || r.Scope != "nano-compiled-menu-program-v1" {
+		return CompiledMenuProgram{}, errors.New("native fabric: complete compiled menu companion required")
+	}
+	config, err := canonicalProgramRecord(r.Configuration)
+	if err != nil {
+		return CompiledMenuProgram{}, err
+	}
+	if _, err = (&HPSContextVerifier{context: r.Context}).configurationMap(config); err != nil {
+		return CompiledMenuProgram{}, err
+	}
+	fields := []any{r.Context, r.Platform, r.Control, r.Memory, r.Access}
+	encoded := make([][]byte, len(fields))
+	for i, value := range fields {
+		encoded[i], err = canonicalProgramRecord(value)
+		if err != nil {
+			return CompiledMenuProgram{}, err
+		}
+	}
+	return CompiledMenuProgram{encoded[0], encoded[1], encoded[2], encoded[3], encoded[4]}, nil
+}
+
 type menuProgramDriver struct {
 	context   HPSBootContext
 	platform  programPlatform

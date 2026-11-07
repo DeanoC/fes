@@ -73,6 +73,19 @@ def selected(profile, enabled):
     shared_rom = (profile.get('usb_pio') is True and profile.get('usb_shared') is True and
                   isinstance(rom, dict) and rom.get('bytes') in (4096, 8192))
     menu = False
+    mixed = False
+    if profile.get('hps_menu_program') is not None:
+        spec=importlib.util.spec_from_file_location('fes_ram_mixed_context',HERE.parent/'nano/hps_context.py')
+        hps=importlib.util.module_from_spec(spec);spec.loader.exec_module(hps)
+        companion=hps.compiled_menu_program(dict(profile,program='fpgaload'))
+        expected=hps.cpu_mapping(profile.get('hps_control'),profile.get('hps_configuration'),
+                                 profile.get('hps_reader_memory'),menu_program=companion)
+        if mapping!=expected or profile.get('cpu_mapping_sha256')!=hps.digest(expected) or not isinstance(rom,dict):
+            raise ValueError('mixed OCRAM requires both complete role resources and union exclusion')
+        hps.validate_rom(profile.get('hps_context'),profile.get('hps_control'),profile.get('hps_computer'),rom)
+        if profile.get('hps_rom_sha256')!=hps.digest(rom):
+            raise ValueError('mixed OCRAM ROM contract differs from the compiled resources')
+        mixed=True
     if profile.get('menu_present') is True:
         # Reuse the complete pure descriptor validators; no filesystem/board
         # observation or inferred boot permission belongs in this layout gate.
@@ -92,7 +105,7 @@ def selected(profile, enabled):
                 profile.get('hps_menu_read_sha256')!=hps.digest(profile['hps_menu_read'])):
             raise ValueError('menu OCRAM requires its unchanged complete resource digests')
         menu = True
-    if (not (shared_rom or menu) or profile.get('sd_pio') is not True or not isinstance(mapping, dict) or
+    if (not (shared_rom or menu or mixed) or profile.get('sd_pio') is not True or not isinstance(mapping, dict) or
             mapping.get('format') != 2 or mapping.get('scope') != 'pinned-tamago-el1-resources-excluded-v2' or
             mapping.get('firmware_base') != BASE or mapping.get('firmware_bytes') != LIMIT-BASE):
         raise ValueError('OCRAM firmware requires a matched shared-ROM or menu and native exclusion profile')

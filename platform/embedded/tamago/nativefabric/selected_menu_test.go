@@ -58,6 +58,54 @@ func mixedMenuTest(t *testing.T) (*romProgramFixture, CompiledMenuProgram) {
 	return r, m
 }
 
+func TestParseCompiledMenuKeepsCompleteOwnSourceAndConfiguration(t *testing.T) {
+	r, m := mixedMenuTest(t)
+	var c HPSBootContext
+	if err := json.Unmarshal(m.Context, &c); err != nil {
+		t.Fatal(err)
+	}
+	cfg := r.f.loader.configuration
+	cfg.PackageID, cfg.BuildID, cfg.CoreSHA256, cfg.CoreSize = c.PackageID, c.BuildID, c.CoreSHA256, int(c.CoreSize)
+	cfg.ChunkBytes = 0xfffc0
+	cfg.ChunkSHA384 = make([]string, (cfg.CoreSize+cfg.ChunkBytes-1)/cfg.ChunkBytes)
+	for i := range cfg.ChunkSHA384 {
+		cfg.ChunkSHA384[i] = strings.Repeat("a", 96)
+	}
+	record := map[string]any{"format": 1, "scope": "nano-compiled-menu-program-v1",
+		"context": json.RawMessage(m.Context), "platform": json.RawMessage(m.Platform),
+		"control": json.RawMessage(m.Control), "memory": json.RawMessage(m.Memory),
+		"access": json.RawMessage(m.Access), "configuration": cfg}
+	raw := programJSON(t, record)
+	parsed, err := ParseCompiledMenuProgram(raw)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := addCompiledMenu(t, r.f.loader, parsed); err != nil {
+		t.Fatal(err)
+	}
+	if !bytes.Equal(parsed.Context, m.Context) || !bytes.Equal(parsed.Memory, m.Memory) {
+		t.Fatal("companion changed its source")
+	}
+	for _, field := range []string{"context", "platform", "control", "configuration", "memory", "access"} {
+		v := make(map[string]any, len(record))
+		for k, value := range record {
+			v[k] = value
+		}
+		delete(v, field)
+		if _, err := ParseCompiledMenuProgram(programJSON(t, v)); err == nil {
+			t.Fatal("missing companion field", field)
+		}
+	}
+	cfg.Base = 0x95000000
+	record["configuration"] = cfg
+	if _, err := ParseCompiledMenuProgram(programJSON(t, record)); err == nil {
+		t.Fatal("crossed configuration arena accepted")
+	}
+	if _, err := ParseCompiledMenuProgram(append(raw, raw...)); err == nil {
+		t.Fatal("trailing companion accepted")
+	}
+}
+
 func TestSelectedMenuCannotEnterThePlayableServiceOrContainSD(t *testing.T) {
 	r, _ := mixedMenuTest(t)
 	req, _, _ := addMenuSelection(t, r, 0)

@@ -65,6 +65,7 @@ def main():
     parser.add_argument("--profile", type=Path, help="required firmware handoff JSON for Nano cross-build")
     parser.add_argument("--package-id", help="independently expected package ID for the Nano sdpackages diagnostic")
     parser.add_argument("--hps-first-project", type=Path, help="sealed HPS-first project for the Nano context diagnostics")
+    parser.add_argument("--menu-project", type=Path, help="separately sealed menu companion for selected Nano computer programs")
     parser.add_argument("--usb-input", choices=("boot-keyboard", "gamepad"), help="explicit input protocol for the Nano usbcheck diagnostic")
     parser.add_argument("--shared-usb-input", choices=("boot-keyboard", "gamepad"), help="retain owned USB with selected serial Tenfoot/core/SD transitions")
     parser.add_argument("--ddr-read", action="store_true", help="opt in to the fixed read-only FPGA DDR diagnostic (Nano fpgaload only)")
@@ -107,7 +108,7 @@ def main():
         return
     if args.arm64_features:
         parser.error('--arm64-features requires --board de25-nano')
-    if args.firmware_rom is not None or args.rom_host_go is not None or args.shared_usb_input is not None or args.usb_input is not None or args.profile is not None or args.package_id is not None or args.hps_first_project is not None or args.ddr_read or args.window_memory or args.window_read or args.window_present or args.menu_present or args.window_storage_return or args.window_reload or args.window_service or args.computer_control or args.computer_reload or args.computer_storage_return or args.selected_programs or args.tenfoot_serial:
+    if args.menu_project is not None or args.firmware_rom is not None or args.rom_host_go is not None or args.shared_usb_input is not None or args.usb_input is not None or args.profile is not None or args.package_id is not None or args.hps_first_project is not None or args.ddr_read or args.window_memory or args.window_read or args.window_present or args.menu_present or args.window_storage_return or args.window_reload or args.window_service or args.computer_control or args.computer_reload or args.computer_storage_return or args.selected_programs or args.tenfoot_serial:
         parser.error("--profile, --package-id and --hps-first-project require --board de25-nano")
     if args.program in ("fpga", "sdpackages", "bootcontext", "hpsio", "usbcheck", "fpgacontext", "fpgastatus", "fpgaload"):
         parser.error("this diagnostic requires the Nano firmware service; QEMU does not emulate it")

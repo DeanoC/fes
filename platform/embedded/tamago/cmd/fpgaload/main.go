@@ -34,6 +34,7 @@ var expectedROMMap string
 var expectedNativeComputer string
 var expectedComputerStorageReturn string
 var expectedProgramPlatform, expectedSelectedPrograms string
+var expectedCompiledMenuProgram string
 var expectedTenfootSerial string
 var retained *nativefabric.ConfigurationTransfer
 
@@ -55,7 +56,7 @@ func main() {
 			expectedWindowPresent != "" || expectedWindowStorageReturn != "" || expectedWindowReload != "" || expectedWindowService != "" ||
 			expectedDDRReadMap != "" || expectedComputerMap != "" || expectedROMMap != "" || expectedNativeComputer != "" ||
 			expectedComputerReload != "" || expectedComputerStorageReturn != "" || expectedSelectedPrograms != "" || expectedProgramPlatform != "" ||
-			expectedTenfootSerial != "" || expectedUSBControl != "" {
+			expectedTenfootSerial != "" || expectedUSBControl != "" || expectedCompiledMenuProgram != "" {
 			panic("menu presentation requires its complete separate compiled boot selection")
 		}
 	}
@@ -122,11 +123,19 @@ func main() {
 		if expectedSelectedPrograms != "1" || expectedComputerMap == "" || expectedDDRReadMap != "" || expectedComputerReload != "1" || expectedComputerStorageReturn != "1" {
 			panic("selected programs require contained computer control, rearming and owned SD return")
 		}
-		loader, err = nativefabric.NewProgramLoader(v, decoded(expectedProgramPlatform, 16384), control, configuration, decoded(expectedComputerMap, 8192))
+		if expectedCompiledMenuProgram != "" {
+			var companion nativefabric.CompiledMenuProgram
+			companion, err = nativefabric.ParseCompiledMenuProgram(decoded(expectedCompiledMenuProgram, 65536))
+			if err == nil {
+				loader, err = nativefabric.NewProgramLoaderWithMenu(v, decoded(expectedProgramPlatform, 16384), control, configuration, decoded(expectedComputerMap, 8192), companion)
+			}
+		} else {
+			loader, err = nativefabric.NewProgramLoader(v, decoded(expectedProgramPlatform, 16384), control, configuration, decoded(expectedComputerMap, 8192))
+		}
 		if err != nil {
 			panic(err)
 		}
-	} else if expectedProgramPlatform != "" {
+	} else if expectedProgramPlatform != "" || expectedCompiledMenuProgram != "" {
 		panic("program platform provided without selected program mode")
 	}
 	if err := openProgramUSB(v); err != nil {
