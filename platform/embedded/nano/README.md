@@ -816,6 +816,14 @@ report the original HPS I/O hash, and the core payload must exactly match the
 canonical package. Each conversion or inspection has a 120-second bound and
 its own log. Failed checks leave diagnostics without a success receipt.
 
+The complete native validator runs before conversion. Its checked source and
+artifact digests are verified before and after conversion, including the native
+ELF, profile, FIT/SPL/configuration and all native/entry/U-Boot producer sources.
+Receipt bytes are captured before validation, so edits between validation and
+the input snapshot also reject. FPGA provenance is fully checked again after
+conversion. This avoids repeated context derivation while retaining input-change
+rejection and the existing converter time bounds; it grants no hardware access.
+
 The output contains `native-hps-first.sof`, `native-hps-first.hps.rbf`,
 `native-hps-first.core.rbf`, the native FIT/SPL/entry copies and `result.json`.
 The native phase-one identity is recorded separately from the original vendor

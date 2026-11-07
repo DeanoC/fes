@@ -39,6 +39,9 @@ class HpsBootTests(unittest.TestCase):
         fit.write_bytes(b'synthetic native FIT')
         spl.write_bytes(sof_fixture.hex_file(native_spl))
         image.write_bytes(b'synthetic entry')
+        payload_elf=entry/'payload.elf';payload_elf.write_bytes(b'synthetic native ELF')
+        source_files={name:base/(name+'.c') for name in ('driver','entry-producer','native-producer')}
+        for name,path in source_files.items():path.write_text(name+' source\n')
         profile = base/'profile.json'
         for path in (profile, uboot/'result.json', entry/'result.json', uboot/'build/.config'):
             path.write_text('{}')
@@ -71,7 +74,8 @@ elif args[0]=='-i':
     print('Device name: '+device)
     if path.suffix=='.sof':print('HPS/FPGA configuration order: '+('HPS_AFTER_INIT_DONE' if mode=='order' else 'HPS_FIRST'))
     else:print('HPS IO hash: '+('b'*64 if mode=='hash' else {io_hash!r}))
-    if mode=='input' and path.name.endswith('.core.rbf'):Path({str(fit)!r}).write_bytes(b'changed input')
+    changes={dict(input=str(fit),payload=str(payload_elf),profile=str(profile),config=str(uboot/'build/.config'),entry_receipt=str(entry/'result.json'),uboot_receipt=str(uboot/'result.json'),**{k:str(v) for k,v in source_files.items()})!r}
+    if mode in changes and path.name.endswith('.core.rbf'):Path(changes[mode]).write_bytes(b'changed input')
 else:raise SystemExit(9)
 ''')
         pfg.chmod(0o755)
@@ -83,7 +87,16 @@ else:raise SystemExit(9)
                   'computer': {'hps_initialization': order}}
         verifier = types.SimpleNamespace(inputs_for=Mock(return_value=(inputs, {}, None)))
         real_module = boot.producer_module
-        native = {'native_handoff': {'build_id': '1234567890abcdef'}, 'bl31_sha256': 'e'*64}
+        native = {'native_handoff': {'build_id': '1234567890abcdef','producer_sources':{str(source_files['native-producer']):boot.sha(source_files['native-producer'])}}, 'bl31_sha256': 'e'*64,
+                  'fit_sha256':boot.sha(fit),'spl_sha256':boot.sha(spl),'config_sha256':boot.sha(uboot/'build/.config'),
+                  'producer_sha256':boot.sha(HERE.parent/'firmware/build_terasic_uboot.py')}
+        loaded_entry={'native_build_sources':{str(source_files['driver']):boot.sha(source_files['driver'])},
+                      'sources':{str(source_files['entry-producer']):boot.sha(source_files['entry-producer'])},
+                      'payload_sha256':boot.sha(payload_elf),'entry_image_sha256':boot.sha(image),'firmware_profile_sha256':boot.sha(profile)}
+        def checked(*args):
+            if mode=='pre-source':source_files['driver'].write_text('changed before snapshot\n')
+            if mode=='conflicting-source':loaded_entry['sources'][str(source_files['driver'])]='f'*64
+            return fit,spl,image,native,loaded_entry,profile
         if context is not None:
             native['native_handoff']['cold_boot_profile'] = {'hps_context': context}
         if control is not None:
@@ -93,8 +106,10 @@ else:raise SystemExit(9)
         output = base/'output'
         with patch.object(boot, 'producer_module', side_effect=lambda name, filename:
                           verifier if filename == 'verify.py' else real_module(name, filename)), \
-                patch.object(boot, 'checked_native', return_value=(fit, spl, image, native, {}, profile)):
-            return boot.prepare(project, uboot, entry, pfg, output)
+                patch.object(boot, 'checked_native', side_effect=checked) as checker:
+            result=boot.prepare(project, uboot, entry, pfg, output)
+            checker.assert_called_once_with(uboot,entry)
+            return result
 
     def test_native_spl_is_decoded_and_core_unchanged_without_hardware_permission(self):
         with tempfile.TemporaryDirectory() as temp:
@@ -103,6 +118,7 @@ else:raise SystemExit(9)
             self.assertEqual(result['status'], 'prepared')
             self.assertEqual(result['embedded_spl_identity']['spl_bytes'], len(b'native SPL'))
             self.assertTrue(result['core_payload_unchanged'])
+            self.assertEqual(result['native_inputs_rechecked'],12)
             self.assertNotEqual(result['phase1_sha256'], result['original_phase1_sha256'])
             self.assertFalse(result['trusted_boot_handoff'])
             self.assertFalse(result['physical_programming_admission'])
@@ -115,7 +131,8 @@ else:raise SystemExit(9)
             self.assertTrue(all(row['returncode'] == 0 for row in result['commands']))
 
     def test_wrong_spl_config_core_hash_or_changed_input_cannot_publish_receipt(self):
-        for mode in ('spl', 'sections', 'order', 'device', 'hash', 'core', 'input', 'convert'):
+        for mode in ('spl', 'sections', 'order', 'device', 'hash', 'core', 'input', 'convert',
+                     'driver','entry-producer','native-producer','payload','profile','config','entry_receipt','uboot_receipt'):
             with self.subTest(mode=mode), tempfile.TemporaryDirectory() as temp:
                 base = Path(temp)
                 with self.assertRaises((ValueError, boot.subprocess.CalledProcessError)):
@@ -124,6 +141,15 @@ else:raise SystemExit(9)
                 calls = (base/'calls.jsonl').read_text().splitlines()
                 self.assertLessEqual(len(calls), 5)
                 self.assertTrue((base/'output/pfg-combine.log').is_file())
+
+    def test_changed_or_conflicting_sources_cannot_enter_conversion(self):
+        for mode in ('pre-source','conflicting-source'):
+            with self.subTest(mode=mode),tempfile.TemporaryDirectory() as temp:
+                base=Path(temp)
+                with self.assertRaisesRegex(ValueError,'native (composition input changed|input digest)'):
+                    self.run_candidate(base,mode)
+                self.assertFalse((base/'calls.jsonl').exists())
+                self.assertFalse((base/'output').exists())
 
     def test_unsealed_or_wrong_boot_order_stops_before_conversion(self):
         for sealed, order in ((False, 'HPS FIRST'), (True, 'AFTER INIT_DONE')):

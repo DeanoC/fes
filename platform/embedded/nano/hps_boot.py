@@ -31,6 +31,48 @@ def producer_module(name, filename):
     return module
 
 
+def _check_native_inputs(expected):
+    for name, digest in expected.items():
+        if sha(Path(name)) != digest:
+            raise ValueError('native composition input changed: '+str(name))
+
+
+def _native_inputs(uboot, entry, native, loaded_entry, profile, receipts):
+    """Capture checked native sources and artifacts for bounded composition.
+
+    Receipt bytes are captured before checking. Source/artifact digests come
+    from the checked receipts and must match before and after conversion. This
+    repeats integrity checks without repeating HPS context derivation. FPGA
+    provenance is still fully checked again after conversion.
+    """
+    expected = dict(receipts)
+
+    def add(path, digest):
+        path = str(path)
+        if (not isinstance(digest, str) or not re.fullmatch('[0-9a-f]{64}', digest) or
+                path in expected and expected[path] != digest):
+            raise ValueError('conflicting or malformed native input digest: '+path)
+        expected[path] = digest
+
+    for sources in (loaded_entry['native_build_sources'], loaded_entry['sources'],
+                    native['native_handoff']['producer_sources']):
+        if not isinstance(sources, dict) or not sources:
+            raise ValueError('complete native producer source inventory required')
+        for name, digest in sources.items():
+            add(ROOT/name, digest)
+    for path, digest in (
+            (uboot/'build/u-boot.itb', native['fit_sha256']),
+            (uboot/'build/spl/u-boot-spl-dtb.hex', native['spl_sha256']),
+            (uboot/'build/.config', native['config_sha256']),
+            (entry/'entry.img', loaded_entry['entry_image_sha256']),
+            (entry/'payload.elf', loaded_entry['payload_sha256']),
+            (profile, loaded_entry['firmware_profile_sha256']),
+            (HERE.parent/'firmware/build_terasic_uboot.py', native['producer_sha256'])):
+        add(path, digest)
+    _check_native_inputs(expected)
+    return expected
+
+
 def prepare(project, uboot, entry, pfg, output):
     sys.path.insert(0, str(PROTOTYPE))
     verifier = producer_module('nano_hps_board_verifier', 'verify.py')
@@ -42,7 +84,9 @@ def prepare(project, uboot, entry, pfg, output):
         raise ValueError('requires a sealed HPS-first diagnostic project')
     hps = project/'board/hps'
     pair = json.loads((hps/'hps-first-pair.json').read_text())
-    fit, spl, image, native, _, profile = checked_native(uboot, entry)
+    native_receipts = {str(path):sha(path) for path in (uboot/'result.json', entry/'result.json')}
+    fit, spl, image, native, loaded_entry, profile = checked_native(uboot, entry)
+    native_inputs = _native_inputs(uboot, entry, native, loaded_entry, profile, native_receipts)
     source_context=native.get('native_handoff',{}).get('cold_boot_profile',{}).get('hps_context')
     if source_context is not None and source_context!=hps_context.derive(project):
         raise ValueError('native HPS source context differs from the sealed FPGA project')
@@ -101,7 +145,7 @@ def prepare(project, uboot, entry, pfg, output):
     # the same topology, using the producer's already sealed vendor-SPL SOF.
     reference = hps/'diagnostic-with-vendor-spl.sof'
     selected = (raw_sof, reference, hps/'seal-result.json', hps/'build-inputs.json', hps/'hps-first-pair.json',
-                hps/'hps-first.hps.rbf', hps/'hps-first.core.rbf', fit, spl, image,
+                hps/'hps-first.hps.rbf', hps/'hps-first.core.rbf', fit, spl, image, entry/'payload.elf',
                 uboot/'result.json', uboot/'build/.config', entry/'result.json', profile, pfg, binary,
                 Path(__file__), HERE/'package.py', HERE/'sof_hps.py', HERE/'hps_context.py', HERE/'hps_io.py',
                 PROTOTYPE/'verify.py', PROTOTYPE/'build.py', PROTOTYPE/'seal.py', PROTOTYPE/'rom_transport.py')
@@ -134,7 +178,7 @@ def prepare(project, uboot, entry, pfg, output):
     if core.read_bytes() != (hps/'hps-first.core.rbf').read_bytes():
         raise ValueError('native SPL composition changed the canonical core payload')
     verifier.inputs_for(project)
-    checked_native(uboot, entry)
+    _check_native_inputs(native_inputs)
     if hashes != {str(path): sha(path) for path in selected}:
         raise ValueError('composition inputs changed')
     for source, name in ((fit, 'u-boot.itb'), (spl, 'u-boot-spl-dtb.hex'), (image, 'ENTRY.IMG')):
@@ -142,6 +186,7 @@ def prepare(project, uboot, entry, pfg, output):
             raise ValueError('copied native boot file differs')
     result = {
         'format': 1, 'status': 'prepared',
+        'native_inputs_rechecked': len(native_inputs),
         'classification': 'unqualified HPS-first native SPL file composition',
         'package_id': pair['package_id'], 'build_id': pair['build_id'],
         'hps_io_hash': pair['hps_io_hash'], 'hps_initialization': 'HPS FIRST',
