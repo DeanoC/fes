@@ -94,17 +94,18 @@
     "out/nano-fat-native-chain-20261107/prepare.py": "1d9579e80a492caf3f8ebcedebefde4e989fffe7045b9c8e3a7c72813040734c",
     "out/nano-fat-native-chain-20261107/prepare_audits.py": "e118cca600fd98410cfb11c36d6de71e7332ff3b7a748453ea80b5086bac0601",
     "out/nano-fat-native-chain-20261107/prepare_upload_plan.py": "c220db55e74ec788a46aac4a7b898aecba3fde197101ec3b2d4aa58e957fcde6",
-    "out/nano-fat-native-chain-20261107/publication.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "out/nano-fat-native-chain-20261107/publication.log": "b14c2fbb7fdb730d1f2fc7417374d71b665dd8b7efa52aa64fdb501b1881ab07",
     "out/nano-fat-native-chain-20261107/run.py": "8dea93a99adab57fd4721de0379fa6fbbcd75877d64f4d7e8ed80a041df6ed3c",
     "out/nano-fat-native-chain-20261107/sdk-final-result.json": "0103add914542c119c971ac506a9f17a41948454c9fbee1ba71ba332ad94e9d3",
     "out/nano-fat-native-chain-20261107/sdk-final.log": "745de156bb7567017722357bf6152d4d2c19e5e7be1fbee653374665aff083e0",
     "out/nano-fat-native-chain-20261107/source.json": "7e75b8cb8853d1009e90eda7236648efa86906de7ab9421326252641b31204e0",
-    "out/nano-fat-native-chain-20261107/summarize.py": "342ce3d7ecc0d8a2bfc11691897e5a2f6aa40815fb0e39716e31c28a903bcd2b",
+    "out/nano-fat-native-chain-20261107/summarize.py": "86d2da0f14654407a97bfa135b64c252700f3f33b26b749f94f6999b053ac6f1",
     "out/nano-fat-native-chain-20261107/uboot-final-result.json": "3f65afa8286bd934c04892e9c95f356e8fc0977164ffba2b8ec4e99de0696fb4",
     "out/nano-fat-native-chain-20261107/uboot-final.log": "5ac6d6dec4d1d97a397ab7bd6d15d2639a89311f8ef983f932265e3265349240",
     "out/nano-fat-native-chain-20261107/upload-plan-result.json": "95a841987d1e76cf1d53cc16082597a4bac2560e789fdb4e7d484cc55ea6c3d0",
     "out/nano-fat-native-chain-20261107/upload-plan.json": "67e2dbbfedba9386df190a857b4c9dc4a2db992985d9ed045786ab87af128ae8",
     "out/nano-fat-native-chain-20261107/upload-plan.log": "f8d94ee56ad700339fbee7a0afaa3f4ed07c426c03c35630a729ee7a2cf7a585",
-    "out/nano-fat-native-chain-20261107/verified-cold-profile.h": "eae26c377cba66f697abce882de42696e6a88850baa9314ab59ffa0c44e0291f"
+    "out/nano-fat-native-chain-20261107/verified-cold-profile.h": "eae26c377cba66f697abce882de42696e6a88850baa9314ab59ffa0c44e0291f",
+    "out/nano-fat-native-chain-20261107/publication-result.json": "d3e76c787f736b9a9da33cf347fb8df746dfa70db67d19c25cf90833c361c70b"
   }
 }
