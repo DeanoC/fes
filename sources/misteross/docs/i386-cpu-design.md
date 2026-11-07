@@ -656,8 +656,9 @@ cycle; L1 decodes their length classes and L2 writes the bytes and lengths
 into a 32-byte fetch buffer. F2 holds its registered block until the memory
 response is ready; a miss can empty L2 while Q crosses the buffer halves, so
 Q's stored availability must withhold instructions that reach into a missing
-half. The ITLB has 16 fully associative entries in flip-flops; a miss starts
-the shared page walker.
+half. The ITLB has 8 fully associative entries in flip-flops, looked up in F1
+on the chosen block address beside the L1I's read; a miss starts the shared
+page walker ([Phase 5](#itlb-and-fetch)).
 
 F2 compares the ITLB page in eight replicated hit sets, one per two bytes, so
 no hit drives more than 16 way-select bits. Each set compares against its own
@@ -1032,17 +1033,22 @@ select ahead of it the first slice routed at 36 MHz against the base's 61
 
 ### DTLB and paging
 
-- 32 entries, fully associative, in flip-flops. M1 looks it up and registers
-  the physical page for M2, which decodes the memory type from it. With paging
-  off the linear page is the physical page.
-- The hardware walker reads the PDE and PTE through L1D and L2 like any data,
-  sets the A and D bits with a locked read-modify-write, and raises #PF with
-  CR2 and the error code.
+- 16 entries, fully associative, in flip-flops at M1. Each entry's physical
+  page is compared with the four L1D tags in parallel with the linear-page
+  CAM, so the hit's path gains two LUT levels and no select
+  ([Phase 5](#dtlb)). M1 registers the matching physical page for M2, which
+  decodes the memory type from it. With paging off the linear page is the
+  physical page.
+- The hardware walker reads the PDE and PTE through the L1D's slow path like
+  any data. It sets the A and D bits with a locked read-modify-write, only
+  for a uop that is the oldest, and raises #PF with CR2 and the error code
+  ([the walker](#the-walker)).
 - 386 rules: a CR3 write flushes every entry; no INVLPG outside `i486-isa`; no
   global pages; supervisor writes ignore R/W. The TLB is not coherent with
   page-table stores, as on a 386.
-- Later, if walks show up in profiles: a 256-entry second-level TLB in M10K.
-  EMM386 plus a DOS extender can exceed 32 pages of working set.
+- Later, if walks show up in profiles: a second-level TLB. The Phase 5
+  census found 16 entries miss on at most 0.47% of data accesses, so none is
+  planned.
 
 ### A20
 
@@ -1275,7 +1281,7 @@ lockstep, the FreeDOS boot on the RTL CPU and a record timed with Quartus:
 4. **The kit's line fills**: the DDR check above through the CPU path on
    both kits, and whatever Quartus then asks of F2's hit path (a registered
    hit, as M2's), and critical word first.
-5. **TLBs and paging** come with Phase 5.
+5. **TLBs and paging** come with Phase 5 ([its slice 1](#phase-5-v86-paging-and-task-switches)).
 
 Slice 1's nextpnr routes are 13 MHz below its base, on wire, every stage
 alike. Quartus fits it within 2 MHz of its base
@@ -1327,8 +1333,10 @@ after bring-up, not to a memory slice.
 - INTR is sampled at instruction boundaries, with the one-instruction shadow
   after MOV SS, POP SS and STI. NMI is edge-triggered and blocked until IRET.
   The INTA handshake returns the vector from the machine's PICs.
-- Instruction breakpoints compare linear EIP at D. Data breakpoints compare the
-  linear address and size at M1. Reporting, RF and TF follow the 386 rules.
+- Instruction breakpoints compare the instruction's linear address at AG,
+  not at D, whose slack Phase 4 used ([Phase 5](#debug-registers)). Data
+  breakpoints compare the linear address and size at M1. Reporting, RF and TF
+  follow the 386 rules.
 - HLT idles the pipeline until INTR, NMI or reset. Governor debt pays down
   while halted.
 
@@ -1860,6 +1868,332 @@ After these, the profile decides between the L2 (DOOM 3–5%), a deeper store
 buffer for VGA writes (a machine change) and a faster divider (DOOM about
 1%). The Phase 7 options stay where they are.
 
+## Phase 5: V86, paging and task switches
+
+Phase 5 builds the rest of the 386's protected mode: two-level paging, V86
+mode, task switches and the debug registers. Its exit is test386.asm passing
+completely, JEMM386 booting, and Wolfenstein 3D running with EMS under it.
+The plan comes from the pc386 compatibility census
+([#1533](https://github.com/DeanoC/fes/pull/1533)) and an oracle census of
+the titles it blocks
+([record](../../../docs/validation/2026-11-08-i386-phase5-plan/summary.md)).
+
+Tracker [#1548](https://github.com/DeanoC/fes/issues/1548). Phase 2's third slice ([#1535](https://github.com/DeanoC/fes/issues/1535))
+comes first and builds ring 3: IRET to CPL 3, deliveries to an inner
+privilege through the TSS's stack, call gates, #TS, the IOPL-sensitive
+instructions and the I/O permission bitmap. It leaves task gates and task
+switches to Phase 5 and does not build the debug registers, so Phase 5
+builds both.
+
+### What the titles use
+
+From the [record](../../../docs/validation/2026-11-08-i386-phase5-plan/summary.md),
+20 simulated seconds of each title on the oracle:
+
+| Title (host) | Paging | Task switches | V86 | Debug registers | Also needs |
+| --- | --- | --- | --- | --- | --- |
+| Jump 'n Bump, Angband, NetHack, Chris's 3D Benchmark, Quake (CWSDPMI) | yes; PG toggled around each DOS call; #PF at CPL 3 for demand paging | far JMP to a 32-bit TSS, CPL 0 to 3 and back: 1,500–5,800 | no | MOV writes and reads; DR7 never armed | #1535; Quake then an x87 |
+| Descent (DOS/4GW Professional) | yes, CPL 0; 829 #PF | each #PF through a task gate, and back by IRET with NT | no | no | none |
+| Time Circle (Borland 32RTM) | yes; 126 #PF | no | no | no | #1535 |
+| U.S. Navy Fighters (own extender) | yes | no | no | MOV only | #1535; then a CD-ROM |
+| Pinball Fantasies (eXceed) | no | no | IOPL 3; INT n reflected from #GP(vector × 8 + 2) | no | #1535's I/O bitmap |
+| Strike Commander (own manager) | yes; 18,960 CR3 writes | one: IRETD with NT into a V86 task | IOPL 3; INT n reflected from #GP | MOV only | none |
+| Wolfenstein 3D, DOOM and Master of Orion under JEMM386 | yes | no (VCPI reloads TR) | IOPL 3; every INT n through DPL-3 gates to the monitor; every IN and OUT through the bitmap | no | none |
+| Ultima Underworld, Master of Orion, Darklands, Frontier (EMS) | under JEMM386 | as JEMM386 | as JEMM386 | no | each title's own recheck |
+
+- No title arms a breakpoint, raises #DB, uses INVLPG or uses a 16-bit TSS.
+- test386.asm turns paging on at POST 08, before any other protected-mode
+  test, checks #PF's codes and the D bit (POST 11), ring 3 (POST 20), V86
+  (POST 21) and task switches through 16- and 32-bit TSSs and task gates,
+  including one into V86 (POST 22). It does not touch the debug registers.
+- Under JEMM386, Wolfenstein 3D makes about 1M V86 interrupt round trips and
+  26.5M bitmap-checked I/O accesses in 24 simulated seconds. At 61.44 MHz,
+  every 100 clocks of a round trip costs about 7% of the machine, so the V86
+  delivery and the IRETD back are hot paths, not cold microcode.
+
+### Paging
+
+The 386's rules:
+
+- CR0.PG turns paging on; CR3 holds the page directory's page; CR2 takes a
+  page fault's linear address. A CR3 write flushes every TLB entry, and so
+  does a CR0 write that changes PG. There is no INVLPG (#UD under
+  `i386dx`), no global page and no 4 MiB page.
+- A translation reads the PDE at CR3 plus bits 31:22 times 4, then the PTE
+  at the PDE's page plus bits 21:12 times 4. Rights are the PDE's and the
+  PTE's together. An access at CPL 3, V86 included, needs U/S set in both,
+  and a write there needs R/W set in both. CPL 0–2 ignore U/S and R/W (no
+  CR0.WP). Descriptor, TSS, IDT and page-table accesses are supervisor
+  accesses at any CPL (the uop's system bit).
+- A walk sets A in the PDE and the PTE, and a write sets D in the PTE. A
+  TLB entry a read made keeps D clear, so the first write through it walks
+  again to set D.
+- #PF carries CR2 and an error code: P (a protection fault, not a
+  not-present one), W/R and U/S (the access was at CPL 3).
+- An access that crosses a page translates both pages before either part
+  commits; a fault in either part is that part's #PF.
+- The TLBs are not coherent with page-table stores; software flushes by
+  writing CR3.
+
+#### DTLB
+
+The [2026-10-29 decision](#decisions) compares the L1D's tags with the
+physical page in M1 and registers the hit for M2, so that the D to WB freeze
+waits only on registers. A CAM ahead of that compare would put the CAM, a
+select of the physical page and the tag compare in series, in M1 (+6.92 ns)
+and the L1D's wait (+3.74 ns). The DTLB instead compares in parallel:
+
+- **16 entries, fully associative, in flip-flops at M1.** Each holds the
+  linear page, the physical page (PA − 12 = 14 bits), U/S and R/W combined
+  from PDE and PTE, and D. Sixteen entries miss on at most 0.47% of data
+  accesses in every run, and on 0.033% of Wolfenstein 3D's under JEMM386.
+- **The lookup.** M1 compares each entry's linear page with its address
+  register. In parallel, it compares each of the four L1D tags, the M10K
+  output, with each entry's physical page: 64 compares of 14 bits, each as
+  deep as the one compare per way M1 makes now. A way hits when an entry
+  matches the linear page and its physical page matches the way's tag: an
+  AND-OR over 16 terms, two LUT levels after the compares. Those two levels
+  are what paging adds to the hit's path.
+- **The rest of M1.** The matching entry's physical page, with A20M applied,
+  goes to the memory-type decode and M2's register as the page does now.
+  With paging off, the linear page is the physical page and the entries are
+  not used, so real-mode and unpaged code keep today's path.
+- **A miss** is an L1D miss: it enters the slow path through the same wait,
+  and the walker fills an entry while D to WB hold.
+- **Checks.** U/S and R/W are checked in M1 against the matching entry's
+  bits; a failure marks the uop with #PF, taken at WB like every fault. A
+  store through an entry with D clear is a miss.
+- **Fallback.** If the seal cannot meet M1 with 16 entries, the plan is 8
+  entries in M1 and a 64-entry 4-way second level in MLAB looked up during
+  the miss's wait. Eight alone are not enough: Wolfenstein 3D under JEMM386
+  misses on 2.86% of its data accesses, and a walk takes 6–10 clocks.
+- **No second level otherwise.** A 64-entry 4-way second level behind 16
+  entries saves at most a walk per 750 data accesses (Angband). It stays a
+  Phase 7 option.
+- **Cost.** About 500 ALMs: the 64 compares and the 16 CAM compares are
+  most of it.
+
+#### The walker
+
+- **Reads.** One walker serves both TLBs. It reads the PDE and the PTE
+  through the L1D's slow path, so a page-table line software stored into
+  comes from the L1D or the write buffer as for any load. About 6–10 clocks
+  when both hit the L1D.
+- **A and D are architectural.** Bochs, the lockstep's oracle, sets them only
+  for accesses that retire, so a wrong-path access must not set them. A walk
+  on any path may read, and may fill a TLB entry whose A bits (and D, for a
+  store) are set already. A walk that would set A or D waits until its uop
+  is the oldest, as an uncached load does. If the uop is not the oldest, it
+  replays (`FAULT_REPLAY`) and WB restarts its instruction, which issues
+  alone and walks as the oldest. Pages are touched first rarely, so a replay
+  costs once per page, not per access.
+- **The A/D write** is a locked read-modify-write of the entry, held against
+  DMA at the bus interface as a descriptor's accessed bit is now. It goes
+  through the write buffer and updates the L1D line if the L1D holds it, so
+  later page-table reads see the bit.
+- **Faults.** #PF needs no walker state: the uop carries the fault and its
+  error code to WB, and WB writes CR2 as it takes the fault.
+- **Cost.** About 400 ALMs: the state machine, the PDE and PTE address muxes,
+  the rights combine and the port into the L1D's slow path.
+
+#### ITLB and fetch
+
+Fetch stays linear. The L1I is indexed by linear bits 11:5 and tagged with
+the physical page, and F1 registers the block's physical page for F2's
+eight replicated hit sets.
+
+- **Eight entries, fully associative, in flip-flops, looked up in F1** on
+  the block address F1 chooses, in parallel with the L1I's M10K read. The
+  matching entry's physical page goes into the replicated page registers in
+  place of today's `phys()` of the address. A current-page register alone
+  would miss on up to 12% of instructions (CWSDPMI's hot loop spans three
+  pages); eight entries miss on at most 1.1%, and on 0.21% or less in every
+  title that runs.
+- **A miss** holds F2's block as an L1I miss does, and the walker fills an
+  entry.
+- **Faults wait for execution.** A fetch whose walk faults, or would set A,
+  marks the block. D raises the #PF, or the replay, only for an instruction
+  that would execute, as the CS-limit check does now.
+- **Timing.** The lookup adds a 20-bit CAM and an 8:1 select to the page
+  registers' path in F1, not to the M10K's address. If F1 cannot meet it,
+  the fallback looks each source of the next block up a cycle ahead: the
+  sequential block, the BTB's and the return stack's targets as F2
+  registers them, and the redirect from WB's register.
+- **BTB and return stack stay linear.** Nothing in an entry is trusted. The
+  fetch check at AG and in Q, and EX's return compare, catch a target in a
+  remapped page (a non-branch where an entry ends, or bytes that do not
+  follow) and replay. So a CR3 write needs no BTB flush. `queue16` predicts
+  nothing, as now.
+- **Cost.** About 250 ALMs.
+
+#### Self-modifying code, the store-to-load check and memory types
+
+- **Self-modifying code** compares a store's or DMA write's physical line
+  with the lines in flight, by bits 19:5. Under paging those lines are
+  linear, and linear and physical agree only in bits 11:0. Each fetch block,
+  and each instruction from Q to EX, therefore carries its page's physical
+  bits 19:12 from the ITLB in place of the linear ones. The compare keeps its
+  width and depth, and an alias 1 MiB apart still restarts for nothing.
+- **The store-to-load check** compares bits 11:0 and needs nothing.
+- **M2's merge** and the **memory type** use the physical page already.
+- **A20M** masks bit 20 of the physical page after translation.
+
+### V86 mode
+
+- **Entry.** IRETD at CPL 0 popping EFLAGS with VM set, which also pops ESP,
+  SS, ES, DS, FS and GS, or a task switch to a TSS with VM set.
+- **Segments** behave as in real mode at CPL 3: each load sets the base to
+  selector × 16, the limit to FFFFh and V86 attributes. The real-mode
+  segment path already does this.
+- **Exit.** An interrupt or exception through an interrupt or trap gate to
+  a non-conforming CPL-0 code segment. It pushes GS, FS, DS and ES, then
+  SS, ESP, EFLAGS, CS and EIP, on the CPL-0 stack from the TSS, and loads
+  null into DS, ES, FS and GS. Any other gate target is #GP(selector).
+- **IOPL-sensitive instructions.** Below IOPL 3, CLI, STI, PUSHF, POPF,
+  INT n and IRET raise #GP(0). INT n at IOPL 3 through a gate whose DPL is
+  below 3 raises #GP(vector × 8 + 2), which eXceed and Strike Commander rely
+  on. INT3 and INTO are not IOPL-sensitive. POPF at IOPL 3 leaves IOPL
+  alone. HLT, LMSW, CLTS and MOV to or from CRn and DRn raise #GP(0). LAR,
+  LSL, VERR, VERW, ARPL and the 0F00 group raise #UD.
+- **I/O.** IN, OUT, INS and OUTS in V86 always read the TSS I/O bitmap
+  (#1535's check), whatever IOPL is. The bitmap's read is one load uop with
+  the access, never a routine: under JEMM386 it runs about a million times a
+  simulated second.
+- **No VME, no VIF.** They are Pentium features; a 386 has neither.
+- **Microcode.** The V86 delivery's four extra pushes and segment clears,
+  and the IRETD to V86's four extra pops, about 30–40 uops. Both are hot
+  under JEMM386, so each is a straight sequence with no microbranch after
+  its first uop.
+- **Cost.** About 400 ALMs, mostly in D's and EX's CPL and VM checks.
+
+### Task switches
+
+- **Forms.** JMP or CALL to a TSS descriptor or a task gate; INT n, an
+  exception or an interrupt through a task gate; IRET with NT set. 16-bit
+  (types 1 and 3) and 32-bit (types 9 and B) TSSs. The titles use only the
+  32-bit TSS, but test386.asm checks both.
+- **The switch** saves EIP, EFLAGS, the GPRs and the six selectors into the
+  old TSS. It clears the old busy bit (JMP, IRET) and sets the new one (JMP,
+  CALL, gates), writes the back link and sets NT for CALL and gates, then
+  loads CR3, LDTR, EFLAGS, EIP, the GPRs and the six selectors from the new
+  TSS, loads their descriptors and sets CR0.TS. A CR3 load flushes the TLBs.
+  A TSS with VM set enters V86.
+- **Checks.** #TS, #NP, #GP and #SS with the 386's selectors and order. A
+  fault after the commit point is raised in the new task.
+- **Microcode.** About 80–100 uops, with the 16-bit TSS as a size variant.
+  The ROM is 256 words of 101 bits with 197 used, so it grows to 512 words,
+  three more M10K blocks. New uop forms: a TSS field access through TR's
+  base (a system access), a CR3 load inside a routine, and a busy-bit store
+  like LTR's.
+- **Speed.** The busiest title switches about 290 times a simulated second
+  (Jump 'n Bump). Nothing in a switch is on a fast path.
+- **Cost.** About 300 ALMs, mostly the new uop forms' controls in D and EX.
+
+### Debug registers
+
+- **Registers.** MOV to and from DR0–DR3, DR6 and DR7 at CPL 0; #GP(0) at
+  CPL > 0 and in V86. DR4 and DR5 follow the reference results, as the
+  compatibility contract says. DR6's and DR7's fixed bits read as the 386
+  sets them. DR7.GD makes the next MOV DRn raise #DB with DR6.BD. This is all
+  CWSDPMI, U.S. Navy Fighters and Strike Commander use.
+- **Breakpoints.** DR7's enables, R/W and LEN fields arm four breakpoints.
+  - Instruction breakpoints compare the instruction's linear address at AG,
+    where the fetch check already has it. D's EIP had +1.13 ns after Phase
+    4's slice 4, so they are not compared at D, as the
+    [commit section](#commit-exceptions-and-interrupts) first placed them.
+  - Data breakpoints compare the linear address and length at M1.
+  - A hit marks the uop, as a fault does, off the freeze. It raises #DB with
+    DR6's B bits: an instruction breakpoint as a fault, which RF suppresses
+    after IRETD, a data breakpoint as a trap after the instruction. A task
+    switch to a TSS with its T bit set traps too.
+- **Cost.** Registers and MOV: about 150 ALMs. Breakpoints: four 32-bit
+  compares with length masks at AG and at M1, about 250 ALMs.
+
+### Budget and timing risk
+
+| Feature | ALMs | M10K | Timing risk |
+| --- | ---: | ---: | --- |
+| DTLB, 16 entries at M1 | 500 | 0 | Medium: two LUT levels on M1's hit, into the L1D's wait (+3.74 ns) |
+| Walker and A/D replay | 400 | 0 | Low: slow path, behind the freeze |
+| ITLB, 8 entries at F1 | 250 | 0 | Medium-high: the front end has the least slack; a fallback is planned |
+| Physical lines for self-modifying code, CR2, CR3 and PG | 150 | 0 | Low: same compare width |
+| V86 | 400 | 0 | Low: CPL and VM checks beside today's |
+| Task switches | 300 | 3 | Low: cold microcode |
+| Debug registers and MOV | 150 | 0 | None |
+| Breakpoints | 250 | 0 | Low-moderate: AG (+4.73 ns) and M1, off the freeze |
+| Phase 5 | about 2,400 | 3 | |
+
+The pc386 seal used 31,502 of 41,910 ALMs after Phase 4's slice 2; Phase 5
+takes it to about 34,000 (81%).
+
+### Slices
+
+Each slice is its own PR. Before it can merge, it needs:
+- lockstep against Bochs on RTL and on the locked-Yosys netlist, with the
+  slice's directed cases and random programs in each mode it adds;
+- test386.asm on the RTL to the POST the slice reaches;
+- a Quartus 17.0.2 seal with every analysis met;
+- a kit run on that seal: the titles it unlocks, and DOOM's `-timedemo
+  demo3` and the acceptance games rechecked, since paging off must keep
+  today's speed.
+
+A timing miss stops the slice; it never relaxes a check. Titles that need
+#1535 count as unlocked once both have landed.
+
+0. **Census.** Land the record's census extensions in `machine_tb --census`
+   (paged stems, system registers by number, task switches, V86, the TLB
+   models, and a flush on every CR3 write), so each slice reruns the record.
+1. **Paging.** CR0.PG, CR2, CR3 and their flushes; the 16-entry DTLB, the
+   8-entry ITLB and the walker; A and D; #PF; physical lines for
+   self-modifying code.
+   - **Lockstep.** #PF inside REP MOVS and STOS; a page-crossing access
+     faulting on its second page; D set by the first write through a read's
+     entry; a CR3 write mid-REP; a wrong path that must not set A or D; a
+     store into a live page table; every PDE and PTE rights combination at
+     CPL 0 and 3; paging toggled around a far jump, as CWSDPMI does.
+   - **Exit.** test386.asm passes through POST 11, and on to POST 20 with
+     #1535. Paging off keeps DOOM's demo3 rate.
+   - **Unlocks.** Time Circle (32RTM), with #1535.
+2. **Debug register file.** MOV DRn, DR6 and DR7's fixed bits, GD.
+   - **Lockstep.** Every DRn at CPL 0 and 3, and GD.
+   - **Unlocks.** U.S. Navy Fighters to its CD-ROM check, with slice 1 and
+     #1535.
+3. **V86.** Entry by IRETD, the V86 delivery to CPL 0, IOPL-sensitive
+   faults, #GP(vector × 8 + 2), I/O through the bitmap in V86, V86 segment
+   loads.
+   - **Lockstep.** test386.asm's V86 cases; INT n at IOPL 0 and 3 through
+     gates of DPL 0 and 3; IRETD to V86 from CPL 0 and its refusal from
+     elsewhere; I/O at each bitmap edge; an interrupt and a #PF taken from
+     V86; HLT and the #UD forms.
+   - **Speed.** The V86 delivery's and IRETD's clocks on the latency bench;
+     Wolfenstein 3D's page flips per second under JEMM386 against without.
+   - **Exit.** test386.asm through POST 21. JEMM386 boots on the RTL, and
+     Wolfenstein 3D runs with EMS under it on the kit.
+   - **Unlocks.** Pinball Fantasies (with #1535's bitmap); JEMM386, and with
+     it Wolfenstein 3D with EMS and DOOM through VCPI; Ultima Underworld,
+     Master of Orion, Darklands and Frontier past their EMS checks, each
+     then rechecked.
+4. **Task switches.** Every form above, both TSS sizes, busy bits, the back
+   link, NT, CR0.TS, and a switch into V86.
+   - **Lockstep.** test386.asm's task cases; #PF through a task gate and
+     back by IRET with NT, as Descent does; far JMP to a TSS between CPL 0
+     and 3, as CWSDPMI does; each #TS case; a busy TSS; a fault after the
+     commit point.
+   - **Exit.** test386.asm passes completely: Phase 5's exit with slice 3.
+   - **Unlocks.** Descent; Jump 'n Bump, Angband, NetHack and Chris's 3D
+     Benchmark, with #1535; Quake to its x87 stop; Strike Commander.
+5. **Breakpoints.** DR7's instruction and data breakpoints, RF, DR6's B
+   bits and the T bit's trap, for the compatibility contract.
+   - **Lockstep.** Each breakpoint kind and length, RF after IRETD, a data
+     breakpoint inside REP, and a breakpoint in V86.
+   - **Unlocks.** No title in the census; DOS debuggers.
+
+After slice 4, by the census, eight titles that stop on Phase 5 today run:
+Time Circle, Pinball Fantasies, Descent, Strike Commander and the four
+CWSDPMI titles that need nothing else. U.S. Navy Fighters and Quake reach
+their next stops, the four EMS titles get past their EMS checks, and
+Wolfenstein 3D runs with EMS under JEMM386.
+
 ## Milestones
 
 | Milestone | Content | Exit |
@@ -1869,7 +2203,7 @@ buffer for VGA writes (a machine change) and a faster divider (DOOM about
 | Phase 2 | Protected mode without V86 or paging: descriptor loads, privilege, gates, exceptions, debug registers. Enough for unreal mode and DOS extenders | **In progress:** the first slice ([#1369](https://github.com/DeanoC/fes/issues/1369)) builds MOV to and from CR0, CR2 and CR3, LMSW, SMSW, LGDT, SGDT, LIDT and SIDT, protected-mode segment loads from the GDT with their checks, error codes and accessed bit, and far JMP to a code segment at CPL 0: enough for unreal mode, which HIMEMX's XMS moves and Ultima VII's Voodoo memory manager use ([record](../../../docs/validation/2026-11-01-i386-phase2-unreal/summary.md)). The second slice ([#1406](https://github.com/DeanoC/fes/issues/1406)) delivers exceptions, INTR and NMI at CPL 0 through interrupt and trap gates with their error codes, EXT, double fault and shutdown, and builds INT n, INT3, INTO and IRET, far CALL and RETF to the same privilege, LLDT and TI=1 loads, LTR, SLDT, STR, LAR, LSL, VERR, VERW and ARPL ([record](../../../docs/validation/2026-11-02-i386-phase2-idt/summary.md)). The general CS-limit check ([#1414](https://github.com/DeanoC/fes/issues/1414)) raises #GP(0) for an instruction that starts or runs past CS's limit and for a near branch, call or return to past it, under any limit and in either mode, as DOS/4GW's 16-bit kernel segments need ([record](../../../docs/validation/2026-11-02-i386-cs-limit/summary.md)). Privilege transitions, call and task gates, IOPL and the I/O bitmap, and debug registers remain (a third slice), each stopping the CPU as not built with its reason. test386.asm enters protected mode with paging on, so its protected-mode part waits for Phase 5's paging. Exit: test386.asm's real- and protected-mode parts pass in RTL; random protected-mode lockstep clean |
 | Phase 3 | First playable: the CPU in `fes.pc386` with the scope the acceptance games set, L2 on DDR, the open BIOS, the governor | FreeDOS boots in simulation; first sealed package; Wolfenstein 3D, Ultima VI, DOOM and both Ultima VII games play on a kit, with the two presets recorded |
 | Phase 4 | Speed: BTB, return stack, early ALU, real-mode far-branch prediction; the [plan](#phase-4-speed) adds the store-to-load wait and orders the slices by the measured profile | Each feature with its microbenchmark and period-benchmark change, DOOM's `-timedemo demo3` frame rate on the kit before and after, and Wolfenstein 3D's page flips a second on the bench (the kit's capture holds it at 30 fps, so the kit run checks for regressions) |
-| Phase 5 | V86, paging and task switches | test386.asm passes completely; JEMM386 boots; Wolfenstein 3D runs with EMS under it |
+| Phase 5 | V86, paging and task switches, and the debug registers; the [plan](#phase-5-v86-paging-and-task-switches) orders five slices by the titles each unlocks: paging, the debug register file, V86, task switches, breakpoints ([#1535](https://github.com/DeanoC/fes/issues/1535)'s ring 3 first) | test386.asm passes completely; JEMM386 boots; Wolfenstein 3D runs with EMS under it |
 | Phase 6 | x87 | An x87 corpus (to choose) and FPU-using games |
 | Phase 7 | Options: `i486-isa`, second-level TLB, line-wide strings, gshare, descriptor lookaside, LOADALL (0F07) | Only with a measured need |
 
@@ -1948,6 +2282,20 @@ Settled on 2026-10-29:
   `coherent` against Bochs
   ([self-modifying code](#self-modifying-code),
   [record](validation/2026-10-29-i386-smc.md)).
+
+Settled on 2026-11-08 ([Phase 5](#phase-5-v86-paging-and-task-switches)):
+
+- The DTLB is 16 entries at M1, each entry's physical page compared with the
+  L1D's tags in parallel with its linear-page CAM, so the 2026-10-29
+  decision's registered hit stands. No second-level TLB, and 8 ITLB entries
+  looked up in F1, from the oracle census of the Phase 5 titles.
+- A walk that sets A or D waits until its uop is the oldest, replaying
+  otherwise, so no wrong path changes a page table.
+- The BTB and return stack stay linear, with no flush on a CR3 write: the
+  fetch check and EX's return compare already catch a remapped target.
+- Phase 5's slices run paging, the debug register file, V86, task switches,
+  then breakpoints. Paging alone unlocks no blocked title, and a switch
+  into V86 needs V86 first.
 
 No decision is open.
 
