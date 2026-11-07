@@ -88,7 +88,7 @@ help:
 		"  zx81-openrom  Assemble the open ZX81 ROM: build/zx81-openrom/zx81-openrom.bin (8192 bytes)" \
 		"  sim-fes-zx81-openrom  Run the open ZX81 ROM on 1 KiB, 16 KiB and NTSC TS1000 machines: display, keys, BASIC, SAVE, LOAD" \
 		"  zx80-openrom  Assemble the open ZX80 ROM: build/zx80-openrom/zx80-openrom.bin (4096 bytes)" \
-		"  sim-fes-zx80-openrom  Replay the scripts recorded with Sinclair's ZX80 ROM on the ZX80 RTL with the open ROM" \
+		"  sim-fes-zx80-openrom  Replay Sinclair probes and the prog3.o LOAD fixture on ZX80 RTL with the open ROM" \
 		"  sim-fes-coleco  Test the FES application ColecoVision slice and native controller ports" \
 		"  sim-fes-native-video  Test native frame capture, Direct/Scanlines and clock crossing" \
 		"  sim-fes-display-plane  Test the shared session-display blend, latency, raster lock and fault return" \
@@ -586,7 +586,8 @@ zx80-openrom:
 
 # The open ZX80 ROM on the ZX80 machine RTL (16 KiB): each script recorded
 # with Sinclair's ROM (openrom-zx80/dev/ref) must leave the same program,
-# variables, edit line and screen.
+# variables, edit line and screen. The checked-in prog3.o LOAD fixture also
+# exercises the machine's $0207 trap and is compared against regress.expected.
 sim-fes-zx80-openrom: zx80-openrom
 	$(require_local_sim)
 	@VERILATOR="$(VERILATOR)" cores/fes-zx81/openrom-zx80/dev/build_probe.sh "$(CURDIR)/build/zx80-openrom/zx80-openrom.hex" \

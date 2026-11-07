@@ -8,6 +8,7 @@ it (SHIFT~), and require the same result as SHIFT and the key together.
 
   rtl_compare.py PROBE [REF...]   PROBE is the bench build_probe.sh builds
 """
+import json
 import os
 import subprocess
 import sys
@@ -16,6 +17,8 @@ sys.path.insert(0, sys.path[0])
 from compare import REF, blocks
 
 FILES = ['p1', 'p2', 'p3', 'p4', 'p5', 'pb', 'pc', 'pd', 'pe', 'pf', 'ph', 'pr']
+HERE = os.path.dirname(os.path.abspath(__file__))
+LOAD_SCRIPT = 'W NL SHIFT+9 R NL'
 SHIFT_FIRST = [
     '1 0 F I SHIFT+L 1 SHIFT+4 5 NL 2 0 O I SHIFT+X NL 3 0 N I NL R NL',
     '1 0 O SHIFT+Y H I SHIFT+Y NL 2 0 O SHIFT+Y H SHIFT+X SHIFT+Y NL R NL',
@@ -48,6 +51,34 @@ def check(probe, ref):
             ref = {**run(probe, ref['shift_first']), 'script': ref['script']}
     except RuntimeError as exc:
         return [str(exc)]
+    return compare(ref, got)
+
+
+def check_load(probe):
+    """Run the checked-in .o fixture through the RTL's $0207 LOAD trap."""
+    fixture = os.path.join(HERE, 'ref', 'prog3.o')
+    expected_path = os.path.join(HERE, 'regress.expected')
+    try:
+        with open(expected_path) as f:
+            expected = json.load(f)['load']
+        out = subprocess.run([probe, 'load', fixture, LOAD_SCRIPT],
+                             capture_output=True, text=True, timeout=1800)
+        if out.returncode:
+            raise RuntimeError(f'probe failed: {out.stderr.strip()}')
+        got = parse(out.stdout)
+    except (OSError, KeyError, ValueError, RuntimeError) as exc:
+        return [str(exc)]
+
+    ref = {
+        'script': f'LOAD prog3.o; {LOAD_SCRIPT}',
+        'prog': expected['prog'],
+        'vars': expected['vars'],
+        'screen': {row: text for row, text in enumerate(expected['screen'])},
+    }
+    return compare(ref, got)
+
+
+def compare(ref, got):
     for d in (ref, got):
         d['eline'] = ' '.join(b for b in d.get('eline', '').split() if b != 'b0')
     diffs = []
@@ -77,7 +108,13 @@ def main():
             print(f'{f}: {ref["script"]}')
             for d in diffs:
                 print('   ' + d)
-    print(f'RTL differences: {bad} of {len(refs)}')
+    load_diffs = check_load(probe)
+    if load_diffs:
+        bad += 1
+        print(f'load: LOAD prog3.o; {LOAD_SCRIPT}')
+        for d in load_diffs:
+            print('   ' + d)
+    print(f'RTL differences: {bad} of {len(refs) + 1}')
     sys.exit(1 if bad else 0)
 
 

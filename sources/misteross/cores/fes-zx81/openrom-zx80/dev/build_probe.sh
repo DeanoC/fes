@@ -10,6 +10,7 @@ cd "$HERE/../../../.."
 RTL="cores/fes-common/rtl/z80/fes_z80_alu.sv cores/fes-common/rtl/z80/fes_z80_engine.sv cores/fes-common/rtl/z80/fes_z80_bus.sv cores/fes-common/rtl/z80/fes_z80_nmos.sv"
 V=${VERILATOR:-verilator}
 PROC=$($V -Wno-PROCASSINIT --version >/dev/null 2>&1 && echo -Wno-PROCASSINIT || true)
+mkdir -p "$2"
 "$V" --cc --exe --build -O3 --top-module zx81_machine -Wall \
   -Wno-UNUSEDSIGNAL -Wno-UNOPTFLAT -Wno-CASEINCOMPLETE -Wno-WIDTHTRUNC \
   -Wno-WIDTHEXPAND -Wno-SYNCASYNCNET -Wno-PINCONNECTEMPTY \

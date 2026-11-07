@@ -118,6 +118,7 @@ def main():
             print('  want', want[name])
             print('  got ', got.get(name))
     print('regressions:', bad, 'of', len(want))
+    sys.exit(1 if bad else 0)
 
 
 if __name__ == '__main__':

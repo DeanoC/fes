@@ -19,8 +19,10 @@ at the moment it reads them.
 
 The 4 KiB image matches the Sinclair ZX80 ROM on every recorded probe
 (memory and screen dumps in `dev/ref`), both in the fast harness and on the
-FES ZX80 RTL (`dev/build_probe.sh`), and passes the regression scripts in
-`dev/regress.py`:
+FES ZX80 RTL (`dev/build_probe.sh`). The RTL comparator also loads
+`dev/ref/prog3.o` through the machine's `$0207` trap and checks its program,
+variables and screen against `dev/regress.expected`. The fast-harness
+regressions in `dev/regress.py` cover:
 
 - the published interface: system variables, program and variable record
   formats, character codes and keywords, `.o` images loaded through the
