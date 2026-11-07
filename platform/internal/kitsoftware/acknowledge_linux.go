@@ -63,6 +63,20 @@ func acknowledgmentReason(a acknowledgmentAudit) string {
 	return reason + "; original failure: " + a.Failed.Reason
 }
 
+func legacyAcknowledgmentReason(a acknowledgmentAudit) string {
+	return "operator acknowledgment " + a.Request.Action + " of already-running prior release; automatic recovery remains spent; original failure: " + a.Failed.Reason
+}
+
+func acknowledgmentReceiptReasonMatches(reason string, a acknowledgmentAudit) bool {
+	if reason == acknowledgmentReason(a) {
+		return true
+	}
+	// Older audits omitted Running and wrote this reason. Its acceptance is
+	// limited to that exact audit shape; all action and receipt identities are
+	// checked by the caller before a replay is accepted.
+	return a.Running == "" && reason == legacyAcknowledgmentReason(a)
+}
+
 // failedReservation is the failed operation's existing maintenance reservation.
 // Held only reads it. Release ends it with the operation's stored grant.
 type failedReservation interface {
@@ -132,7 +146,7 @@ func acknowledgePriorAs(ctx context.Context, repo *FileRepository, reservation f
 	}
 	receipt, completed := state.Receipts[req.Operation]
 	if completed {
-		if !exists || !acknowledgmentFinalSelection(state, audit) || state.Pending != nil || receipt.Request != audit.Failed.Request || receipt.Result != "recovered" || receipt.Reason != acknowledgmentReason(audit) {
+		if !exists || !acknowledgmentFinalSelection(state, audit) || state.Pending != nil || receipt.Request != audit.Failed.Request || receipt.Result != "recovered" || !acknowledgmentReceiptReasonMatches(receipt.Reason, audit) {
 			return result, ErrConflict
 		}
 		if state.Unreleased == nil {

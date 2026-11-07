@@ -2606,14 +2606,15 @@ the readiness budget. The supervisor verifies process exit before replacement, p
 one bundle, checks startup and finishes the exact maintenance generation.
 Accepted bundles remain selected. Failed startup permits one durably recorded
 prior-bundle recovery attempt. If that prior is incompatible with this image,
-successful recovery to the verified factory group commits that compatible group
-as the selection and leaves the incompatible prior only as history. A blocked
-recovery can be cancelled only after the exact maintenance reservation and an
-idle, healthy factory group are proved; the supervisor keeps the reservation in
-its durable release journal until it ends it with the original grant. Failed
-recovery remains blocked. Appliance trials run factory software, then reconcile persistent storage and queued work after
-confirmation. Confirmation records the durable release, then rewrites that
-boot's ticket to `trial:false` without changing its boot id or image, so
+recovery runs the verified compatible factory group while preserving durable
+`Selected`, `Previous` and `Generation`; the incompatible selection remains
+held back and is reported as `held_back`. A blocked recovery can be cancelled
+only after the exact maintenance reservation and an idle, healthy factory group
+are proved; the supervisor keeps the reservation in its durable release journal
+until it ends it with the original grant. Failed recovery remains blocked.
+Appliance trials run factory software, then reconcile persistent storage and
+queued work after confirmation. Confirmation records the durable release, then
+rewrites that boot's ticket to `trial:false` without changing its boot id or image, so
 bundle operations are not refused until another reboot. When the rewrite
 fails, the durable record still confirms the release and admission opens.
 The storage gate accepts the leftover `trial:true` ticket for that boot and

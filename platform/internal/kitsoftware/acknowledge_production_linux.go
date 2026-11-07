@@ -226,10 +226,6 @@ func sameExecutable(pid int, path string) error {
 	}
 	return nil
 }
-func captureRunningPrior(ctx context.Context, req AcknowledgeRequest, c *ProcessController) (runningPriorProof, error) {
-	return captureRunningPriorForBundle(ctx, req, c, req.Selected)
-}
-
 func captureRunningPriorForBundle(ctx context.Context, req AcknowledgeRequest, c *ProcessController, bundleID string) (runningPriorProof, error) {
 	return captureRunningPriorAtBundle(ctx, req, c, acknowledgmentRunDir, "/usr/sbin/fes-kit-software", bundleID)
 }

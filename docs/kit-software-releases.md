@@ -380,6 +380,12 @@ factory software is already selected, only the failed request ends. It never
 starts, stops or signals a service, calls the agent, mints a credential or
 changes the image. Its result is `factory-selected`.
 
+This explicit selection after recovery is exhausted is separate from automatic
+factory fallback. During boot or the single prior-bundle recovery attempt, a
+compatible factory runs in place of an incompatible selection while durable
+`Selected`, `Previous` and `Generation` stay unchanged; the selection remains
+held back and is reported as `held_back`.
+
 The waiting supervisor retries startup at most 30 seconds apart. Its next
 attempt starts the factory software with a fresh boot admission and the usual
 readiness checks. Verify that status reports the factory software as active and
