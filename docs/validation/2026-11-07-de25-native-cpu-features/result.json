@@ -1,0 +1,184 @@
+{
+  "status": "native-cpu-feature-overlay-and-matched-chain-passed",
+  "scope": "matched native CPU-feature SDK/entry/firmware/SPL/composition with actual ELF and linked guard audit",
+  "input_hash_counts": {
+    "SDK": 2098,
+    "entry": 44,
+    "entry-native": 2098,
+    "BL31": 97,
+    "SPL": 97,
+    "composition": 26
+  },
+  "chain_sha256": "3d00b0b368dfaf8a5b0b91788290419a0169888e2061d219d32d424bd48eb08d",
+  "package_id": "c69484491de11e1ee6d1c955b7d54e02e3fe513a0ad39d5376e23e539ba75444",
+  "build_id": "40bf9e4b00c1d25192fd06df5d97c5bd",
+  "native_boot_id": "0f7efb02173ce939",
+  "fit_sha256": "f706e15c3761c6b4e33cc0f4032c6af26ca9c2dd850d87e068288dc7d09d5816",
+  "fit_bytes": 8055344,
+  "entry_sha256": "f3756442dbee5ad8efb199e413e59ca65949e94b892ab1f270470958d81d6a66",
+  "bl31_sha256": "962fe0055790a65d6227a47cb141457a4e56f9f451b77ebec792f7929e17f61b",
+  "core_sha256": "a9baf204120486cf49ad6c0bd235893c111a49a829cfe7701996cd0ba063ab26",
+  "core_payload_unchanged": true,
+  "firmware_ram": {
+    "base": 327680,
+    "bss_base": 360448,
+    "bss_limit": 393216,
+    "cache_policy": "owned-cold-all-setway-before-nobits-v1",
+    "cookie": 5066077071256584193,
+    "exit_cache_policy": "owned-cold-dccsw-before-exit-v1",
+    "format": 5,
+    "limit": 393216,
+    "percpu_affinity_bytes": 4,
+    "percpu_affinity_offset": 24,
+    "percpu_alignment": 64,
+    "percpu_bytes": 256,
+    "percpu_count": 4,
+    "percpu_policy": "sealed-file-backed-ddr-percpu-v1",
+    "percpu_stride": 64,
+    "scope": "matched-spl-el3-ocram-nobits-v5",
+    "stack_end": 360448
+  },
+  "actual_bss_end": "0x5afc0",
+  "spl_final_guard_after_trace_before_atf": true,
+  "spl_guard_rejection_branch": true,
+  "private_ram_cookie_preserved": true,
+  "hardware_actions": false,
+  "core_load_acceptance": false,
+  "goal_complete": false,
+  "implementation_source": "d7e3ee198e7eb33ce607b1f8908faea6ab0bed46",
+  "fpga_source": "0a91a980ab76459b9f5fa0ef672c98291051f5b9",
+  "native_sdk_entry_source": "d7e3ee198e7eb33ce607b1f8908faea6ab0bed46",
+  "firmware_spl_source": "d7e3ee198e7eb33ce607b1f8908faea6ab0bed46",
+  "checks": [
+    {
+      "label": "focused-python",
+      "receipt": "out/nano-cpu-feature-build-20261107/focused-python-result.json",
+      "sha256": "9b84236c4fe7836f2981775aa45ce45b354c35e5c2e100263c1ed30ea6c04fe6",
+      "elapsed": 0.2006297460757196
+    },
+    {
+      "label": "native-entry-cpu-crypto-model",
+      "receipt": "out/nano-cpu-feature-build-20261107/native-entry-cpu-crypto-model-result.json",
+      "sha256": "7a4497a6b6057569908847cf25c0f52b7fb508648358455983840ec1594e2bde",
+      "elapsed": 4.602756355889142
+    },
+    {
+      "label": "software-0",
+      "receipt": "out/nano-cpu-feature-build-20261107/software-0-result.json",
+      "sha256": "4a294e688884fb67937426f76660b00b1aaf8dafab4c6a1f94b057920808c0b1",
+      "elapsed": 0.4006028741132468
+    },
+    {
+      "label": "software-1",
+      "receipt": "out/nano-cpu-feature-build-20261107/software-1-result.json",
+      "sha256": "0f59273cd92ec61f9fe9acb51684336f1920f36c95a210217762c992410bf475",
+      "elapsed": 1.60127290408127
+    },
+    {
+      "label": "software-2",
+      "receipt": "out/nano-cpu-feature-build-20261107/software-2-result.json",
+      "sha256": "d456c55beca9f191b00148afac1ac966a52d2956be7276c1da223b076d5df0cd",
+      "elapsed": 0.20077571691945195
+    },
+    {
+      "label": "software-3",
+      "receipt": "out/nano-cpu-feature-build-20261107/software-3-result.json",
+      "sha256": "1c6e203745e8d829b404c5343fbc24efd1b9f5fb0e1cb95eadaa839c95917c75",
+      "elapsed": 0.20057098381221294
+    },
+    {
+      "label": "software-4",
+      "receipt": "out/nano-cpu-feature-build-20261107/software-4-result.json",
+      "sha256": "9987f9b11c23450e953b0231c8326c5d4608b03e36b6f0cf0f7cbaf37e61fe56",
+      "elapsed": 425.6902986159548
+    },
+    {
+      "label": "software-5",
+      "receipt": "out/nano-cpu-feature-build-20261107/software-5-result.json",
+      "sha256": "f8bee5dc66fd441192c707d53931715d50116370cd78f32f6713a753600b48c8",
+      "elapsed": 9.218239733949304
+    },
+    {
+      "label": "native-sdk-publication",
+      "receipt": "out/nano-cpu-feature-build-20261107/native-sdk-publication-result.json",
+      "sha256": "1aa7abdfe974e76913e4812bd42e21079d58fcb73ff4f8a409a3b32944ba4053",
+      "elapsed": 27.213947841897607
+    },
+    {
+      "label": "native-entry-publication",
+      "receipt": "out/nano-cpu-feature-build-20261107/native-entry-publication-result.json",
+      "sha256": "348e3eb76df12963e32e1d87f5e296bec073daa08c2500153487509ef7f2b809",
+      "elapsed": 44.27135106292553
+    },
+    {
+      "label": "bl31-publication",
+      "receipt": "out/nano-cpu-feature-build-20261107/bl31-publication-result.json",
+      "sha256": "88a480f44a2a5ff4212755e40bd1e807774892db1252537b86b62ac3c3648b41",
+      "elapsed": 165.31489198096097
+    },
+    {
+      "label": "uboot-publication",
+      "receipt": "out/nano-cpu-feature-build-20261107/uboot-publication-result.json",
+      "sha256": "507f731a6e0d7d168635bcd1037af2899df17d6cec18c46cb71da2e735a51a00",
+      "elapsed": 216.5462847519666
+    },
+    {
+      "label": "compose-publication",
+      "receipt": "out/nano-cpu-feature-build-20261107/compose-publication-result.json",
+      "sha256": "0e0b8c31d0aeb83012631ca1e3a9936e103b1951300288c7a8ff531979f46eeb",
+      "elapsed": 43.42237650300376
+    },
+    {
+      "label": "audit-chain",
+      "receipt": "out/nano-cpu-feature-build-20261107/audit-chain-result.json",
+      "sha256": "9fae120f2c58f1e26729d064cb1ef5bb89d60fd19bc7416702ecb124cd484bc7",
+      "elapsed": 0.20065262797288597
+    }
+  ],
+  "feature_scope": "tamago-arm64-el1-register-discovery-v1",
+  "parent_tests": 1638,
+  "parent_skips": 3,
+  "cpu_guard_tests": 5,
+  "qemu_modes": [
+    "baseline",
+    "discovered",
+    "sha2-masked"
+  ],
+  "hash_vectors_per_mode": 12,
+  "hash_algorithms": [
+    "SHA1",
+    "SHA256",
+    "chunked SHA256",
+    "SHA384"
+  ],
+  "additional_crypto_checks": [
+    "AES-128",
+    "AES-256",
+    "AES-GCM known vector and corrupt tag",
+    "CRC32 IEEE and Castagnoli"
+  ],
+  "qemu_selected_sources": 1315,
+  "unchanged_native_integration": {
+    "status": "unchanged-input-evidence-reused",
+    "receipt": "out/nano-menu-publication-fix-20261107/native-integration/result.json",
+    "receipt_sha256": "a6418822da8d43e5363fe733358d22488ca8b5c190d1a2f0b3bb0b1aa6a89761",
+    "source_hashes_verified": 327,
+    "fixture_hashes_verified": 220,
+    "scope": "host native Go lifecycle/tenfoot with actual patched TF-A C and Verilated FPGA RTL; simulated bridges, memory and SDM; no hardware acceptance",
+    "new_cpu_dispatch_evidence": "qemu-crypto/result.json; physical candidate remains distinct and pending",
+    "hardware_actions": false
+  },
+  "partial_verifier_failures_retained": [
+    "native-entry-cpu-model-result.json",
+    "native-entry-cpu-model-final-result.json"
+  ],
+  "publication_timeout_seconds": 4,
+  "hardware_timeout_seconds": 1,
+  "max_polls": 64,
+  "outer_native_probe_seconds": 45,
+  "hardware_acceptance": "not-run",
+  "physical_performance_qualified": false,
+  "native_menu_core_menu": false,
+  "physical_HDMI_qualified": false,
+  "timing_signoff": false
+}
