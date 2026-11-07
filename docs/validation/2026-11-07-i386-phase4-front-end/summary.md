@@ -207,6 +207,10 @@ How the savings are worked out:
   - DOOM: 42,841 `CALL r/m` at 23.05 clocks each (987k clocks), against
     2.44 for a predicted `CALL rel`.
   - 3DBench: 73,655 at 14.81.
+- **Basis.** Six call sites carry 96% of DOOM's indirect calls in the
+  window. The 70–90% below assumes each mostly repeats its last target. The
+  profile does not measure that, so the slice's first step should count
+  target repeats per site on the bench.
 - **Saving.** 70–90% of them predicted at the CALL rel cost:
   - DOOM: 0.62–0.80M (1.30–1.68%). The first half-second gives 0.36–0.47M
     (0.75–0.97%).

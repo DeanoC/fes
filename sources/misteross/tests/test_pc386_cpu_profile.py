@@ -42,7 +42,7 @@ class SignalTest(unittest.TestCase):
         read = (set(re.findall(r'\bS\((\w+)\)', text)) | set(re.findall(r'r->fes_i386_cpu__DOT__(\w+)', text))
                 | {MODULES['fes_i386_qalign'] + n for n in re.findall(r'\bQA\((\w+)\)', text)}
                 | {MODULES['fes_i386_fetchbuf'] + n for n in re.findall(r'\bFB\((\w+)\)', text)})
-        read = {n for n in read if not n.endswith('name') and '##' not in n}
+        read -= {prefix + 'name' for prefix in MODULES.values()}  # the macros' own parameter
         self.assertEqual(read, set(vlt_signals()))
 
     def test_every_signal_is_declared_in_its_module(self):
