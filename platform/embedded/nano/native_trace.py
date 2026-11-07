@@ -819,17 +819,17 @@ def decode_native_configuration(data, build_id, owner_seed, *, fpga_identity, co
     """
     if type(computer_reload) is not bool:
         raise ValueError('computer reload must come from the checked build selection')
+    if type(window_present) is not bool or window_present and window_read is None:
+        raise ValueError('window presentation requires the explicitly selected read path')
+    if type(computer_storage_return) is not bool or computer_storage_return and not computer_reload:
+        raise ValueError('computer storage return requires the selected two-load diagnostic')
     if menu_read is not None:
-        if (from_storage is not True or reader_memory is None or cpu_mapping is None or ddr_read is not None or computer is not None or computer_activity or
+        if (type(computer_activity) is not bool or from_storage is not True or reader_memory is None or cpu_mapping is None or ddr_read is not None or computer is not None or computer_activity or
                 computer_reload or computer_storage_return or window_read is not None or window_present or _continuation is not None or _require_activation or _window_prefix or _menu_prefix):
             raise ValueError('menu presentation requires its separate complete stored configuration path')
         return decode_menu_trace(data,identity=fpga_identity,memory=reader_memory,contract=menu_read,rules=dict(RULES),
             base_decode=lambda prefix:decode_native_configuration(prefix,build_id,owner_seed,fpga_identity=fpga_identity,
                 configuration=configuration,from_storage=True,reader_memory=reader_memory,cpu_mapping=cpu_mapping,atf=atf,_menu_prefix=True))
-    if type(window_present) is not bool or window_present and window_read is None:
-        raise ValueError('window presentation requires the explicitly selected read path')
-    if type(computer_storage_return) is not bool or computer_storage_return and not computer_reload:
-        raise ValueError('computer storage return requires the selected two-load diagnostic')
     if window_read is not None:
         if (from_storage is not True or reader_memory is None or cpu_mapping is None or ddr_read is not None or computer is not None or computer_activity or
                 computer_reload or computer_storage_return or _continuation is not None or _require_activation or _window_prefix or _menu_prefix):

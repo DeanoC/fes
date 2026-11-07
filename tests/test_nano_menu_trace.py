@@ -130,7 +130,8 @@ class MenuTraceTests(unittest.TestCase):
             with self.subTest(field=key),self.assertRaises(ValueError):
                 self.decode(self.raw,menu_read=changed)
         for key,value in [('from_storage',False),('cpu_mapping',None),('ddr_read',{}),('computer',{}),
-                          ('window_read',self.window.contract),('window_present',True),('computer_reload',True),
+                          ('window_read',self.window.contract),('window_present',True),('window_present',0),
+                          ('computer_storage_return',0),('computer_activity',0),('computer_reload',True),
                           ('reader_memory',self.window.memory),('fpga_identity',self.window.identity)]:
             with self.subTest(mode=key),self.assertRaises(ValueError): self.decode(self.raw,**{key:value})
         with self.assertRaises(ValueError): self.decode(self.raw,menu_read=None)
