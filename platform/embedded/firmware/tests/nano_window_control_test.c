@@ -17,6 +17,10 @@ struct fes_nano_identity_probe *fes_nano_platform_identity_probe(void) { return 
 #include "nano_window_control.inc"
 static uint32_t reset=15;
 static unsigned ctrl,data,stops,disables,contains,prepares,contained=1,mutation;
+#ifdef FES_TEST_MENU_SCOPE
+static unsigned firewall_reads;
+static int firewall_coverage(void);
+#endif
 static int owns(void *p,uint64_t owner,uint64_t epoch) { (void)p;return owner==17 && epoch==7; }
 static int read_reset(void *p,uint32_t *v) { (void)p;*v=reset;return 0; }
 static int masters(void *p) { (void)p;return contained; }
@@ -28,6 +32,9 @@ static int enable(void *p,uint32_t mask,unsigned fabric)
         return mutation==13?-7:0;
     }
     assert(mask==8 && reset==13 && probe.stage==FES_ID_DDR_RELEASE && prepares==1);data++;
+#ifdef FES_TEST_MENU_SCOPE
+    assert(firewall_coverage());
+#endif
     if(mutation==15)return -7;
     reset=5;contained=0;return mutation==16?-7:0;
 }
@@ -51,8 +58,7 @@ static int contain(void *p)
     return reset==15?0:-1;
 }
 #ifdef FES_TEST_MENU_SCOPE
-static unsigned firewall_reads;
-static int firewall_owns(void *p) { (void)p;return reset==15 && !ctrl && contained ? 1:0; }
+static int firewall_owns(void *p) { (void)p;return contained && ((reset==15 && !ctrl) || (reset==13 && ctrl==1)) ? 1:0; }
 static int firewall_read(void *p,uint32_t offset,uint32_t *value)
 {
     (void)p;unsigned word=firewall_reads++%33;
@@ -62,17 +68,24 @@ static int firewall_read(void *p,uint32_t offset,uint32_t *value)
         (offset&15U)==8?0xffff:0;
     return 0;
 }
+static int firewall_coverage(void)
+{
+    struct fes_nano_ddr_firewall_probe s={.io={0,firewall_owns,firewall_read},.window_bytes=8U<<20};
+    struct fes_nano_ddr_firewall_observation out={0};
+    unsigned before=firewall_reads;
+    int error=fes_nano_ddr_firewall_observe(&s,&out);
+    assert(!error && firewall_reads==before+66 && out.layout_known);
+    return out.window_covered ? 1:0;
+}
 #endif
 static int configured(void *p)
 {
     (void)p;assert(reset==15 && !probe.active);
     if(mutation==12)return 0;
 #ifdef FES_TEST_MENU_SCOPE
-    struct fes_nano_ddr_firewall_probe s={.io={0,firewall_owns,firewall_read},.window_bytes=8U<<20};
-    struct fes_nano_ddr_firewall_observation out={0};
-    int error=fes_nano_ddr_firewall_observe(&s,&out);
-    assert(!error && firewall_reads==66 && out.layout_known);
-    return out.window_covered ? 1:0;
+    /* Readiness observes the route; the data release separately requires it. */
+    (void)firewall_coverage();
+    return 1;
 #else
     return 1;
 #endif
@@ -81,6 +94,9 @@ int fes_nano_platform_window_prepare(void)
 {
     assert(probe.active && probe.reader==FES_NANO_READER_WINDOW && probe.stage==FES_ID_DDR_PREPARE && reset==13);
     prepares++;
+#ifdef FES_TEST_MENU_SCOPE
+    if(!firewall_coverage())return -7;
+#endif
     if(mutation==20)bridges.state.owner=19;
     return mutation==14?-7:0;
 }
@@ -113,11 +129,8 @@ int main(int argc,char **argv)
     uint64_t r[4],release=FES_EMBEDDED_BRIDGE_RELEASE | (8ULL<<FES_EMBEDDED_BRIDGE_RELEASE_SHIFT);
     assert(call(&c,release,17,1,0,r) && r[0] && !ctrl && !data);
     assert(call(&c,FES_EMBEDDED_BRIDGE_CONTROL,17,mutation==7?2:1,mutation==4,r));
-    if((mutation>=1 && mutation<=12) || mutation==22) {
+    if(mutation>=1 && mutation<=12) {
         assert(r[0] && !ctrl && !data && !disables && reset==15);
-#ifdef FES_TEST_MENU_SCOPE
-        if(mutation==22)assert(firewall_reads==66);
-#endif
         puts("PASS window preconditions reject before hardware");return 0;
     }
     if(mutation==13) {
@@ -137,8 +150,11 @@ int main(int argc,char **argv)
         goto retired;
     }
     assert(call(&c,release,17,2,0,r));
-    if(mutation==14 || mutation==15 || mutation==16 || mutation==20) {
+    if(mutation==14 || mutation==15 || mutation==16 || mutation==20 || mutation==22) {
         assert(r[0] && ctrl==1 && prepares==1 && contains==1 && bridges.failed && !probe.active);
+#ifdef FES_TEST_MENU_SCOPE
+        if(mutation==22)assert(!data && firewall_reads==132);
+#endif
         assert(reset==(mutation==16?5U:15U));goto retired;
     }
     assert(!r[0] && r[3]==3 && reset==5 && data==1 && !contained);

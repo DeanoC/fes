@@ -827,7 +827,7 @@ and owned dispatcher compile under that menu contract. `verify_menu.py` tests
 the actual C stop helper against the menu CSR/video/DDR RTL, including active
 and already locally drained readers, inherited-size rejection and ownership
 loss. Its maintenance probe is injected idle/held there; the separate complete
-fabric verifier covers the inherited probe RTL. These are host checks, with
+fabric verifier covers the inherited probe RTL. These are host checks.
 Matched menu boot files and the first serial firewall stop are retained in the
 [bounded menu trial](../../../docs/validation/2026-11-07-de25-native-menu-trial/README.md).
 That attempt accepted no menu frame; physical DDR and HDMI remain unqualified.
