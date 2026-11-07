@@ -1,6 +1,8 @@
 {
   "status": "mixed-role-publication-and-secure-capture-software-passed",
   "implementation_source": "7417085d08bf1ae85c14c04da399ce2ff440f069",
+  "validation_complete": true,
+  "planned_steps": 11,
   "receipts": {
     "software-0": {
       "receipt_sha256": "723c4ddcf7ec1f6a53d0d0a7fa824964771b89fb9cb069e8e5f3876db03efe54",
@@ -37,6 +39,26 @@
       "log_sha256": "25f5206442e41c1014f2e6f86a275f54bc06469b8f5102518a39556f31083764",
       "elapsed": 191.93675486394204
     },
+    "software-7": {
+      "receipt_sha256": "903a39725649ccdadae691b4dd91f01fe24b5042b1640f788cad488d0fce57f8",
+      "log_sha256": "c0a971817418290a3e157c28f41549eb8bd4e8e0af2c3e11620e65599a0c653e",
+      "elapsed": 57.77610145113431
+    },
+    "software-8": {
+      "receipt_sha256": "3acafedd73b68e77f2f94c929ab811f377f7b6627fe71cd20bc1608f7ea35634",
+      "log_sha256": "9609afdc08e4aba1b4de9a26e3e3f5d6b4b6d4a3f83bd3e5568d95f8471f4bdb",
+      "elapsed": 109.52493092510849
+    },
+    "software-9": {
+      "receipt_sha256": "ec779d7f840fc22877c795c96b6d06634210688378bbb46b744fac4c6d0095fc",
+      "log_sha256": "e8ad7d59c37dbc224197cdddda5773f10449084ae7364b2548ee7407bcb7ac5e",
+      "elapsed": 10.010619398904964
+    },
+    "software-10": {
+      "receipt_sha256": "6cfeec0d7450689ed91ded5960f4b80c8bc2b5f6cf32891e018c24d716c64d85",
+      "log_sha256": "6f28d6f70de4e990ac976fcbce0f64e455f60f0a963bf5daea25d5d5fe245308",
+      "elapsed": 530.4294525762089
+    },
     "role-c-final": {
       "receipt_sha256": "55613707561cb5ed3e33f31e4732ee77e00ea1d2769c7a754f9ddabc68e089d2",
       "log_sha256": "8e4549c724dbf79a38c5a2cb6a355ebbc532b287091af9d46d4cc9a58ddf226c",
@@ -60,6 +82,21 @@
   },
   "parent_checks": 1638,
   "parent_skips": 3,
+  "full_python_checks": 1595,
+  "additional_check_outputs": {
+    "7": {
+      "output": "out/de25-producer-check-c7bf7527dc944d13b20166531e3dfb2d",
+      "result_sha256": "a87005f5c486f6e6f6cf693cb01962daca4c81c05891e3828304c272b9d50f68"
+    },
+    "8": {
+      "output": "out/de25-board-control-check-417bf64b33614750a919f30173e7ec53",
+      "result_sha256": "31f822d14cdd75d76fb0ce5a164b5e4c3d7b308480300d105e58207064da4803"
+    },
+    "9": {
+      "output": "out/embedded-control-ade65540af304ba394752f9383f3c3ea",
+      "result_sha256": "df42e2282a4c120076093b6f02756ca4ae2bbbe924541756432e843aacc61a14"
+    }
+  },
   "native_result_sha256": "f5cd45914fd0660f00479670e11bc0b33088fddcc38548f2e245ddd220147eab",
   "sdk_result_sha256": "9923e7874c5871d863df8d43cbb58491e6d0b181ae396c8f9f25d5537262d94d",
   "native_elf_sha256": "f5be77c338f6a4a838b9710a206b51e083346b41f7d828df7b61c47d8ee42d59",
@@ -78,12 +115,5 @@
   "physical_HDMI_qualified": false,
   "timing_signoff": false,
   "goal_complete": false,
-  "next": "Compile both source-checked role resource sets into the existing loader/cold platform, bind active identity and master-stop/ROM policy to captured role, and join menu SD return to the real ProgramService/Tenfoot launch/return path. Then prepare a combined bounded board test.",
-  "validation_complete": false,
-  "additional_planned_checks_pending": [
-    7,
-    8,
-    9,
-    10
-  ]
+  "next": "Compile both source-checked role resource sets into the existing loader/cold platform, bind active identity and master-stop/ROM policy to captured role, and join menu SD return to the real ProgramService/Tenfoot launch/return path. Then prepare a combined bounded board test."
 }

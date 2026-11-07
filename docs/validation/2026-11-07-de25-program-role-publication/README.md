@@ -20,7 +20,9 @@ alter the next lease; malformed resources cannot publish or release an arena.
 This executes no mixed-role scanout reader or ROM FIFO.
 
 The SDK cross-build and freestanding AArch64 module compilation passed, as did
-the affected parent, generated-consumer and native C/RTL/Go/real-Tenfoot checks.
+all eleven affected-plan steps, including producer identity, board-control RTL,
+firmware/RTL, generated consumers, native C/RTL/Go/real-Tenfoot integration,
+the parent checks and unfiltered Python suite.
 [result.json](result.json) identifies the exact source and evidence hashes.
 An initial focused compile failed after moving the extension sampler because its
 size check still named the former local variable; that reference was corrected
@@ -38,7 +40,3 @@ master-stop/ROM policy, then join the existing menu SD-return and ProgramService
 with the real Tenfoot launch/return path. Native menu/core/menu, physical display,
 input/media/networking, broader admission and timing remain open. No board was
 programmed or card written during this step.
-
-The main native integration and cross-build evidence above is complete. Additional
-planned producer identity, board-control RTL, firmware/RTL and unfiltered Python
-checks are still running; the complete affected plan is not yet finished.
