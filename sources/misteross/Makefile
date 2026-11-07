@@ -87,6 +87,8 @@ help:
 		"  sim-fes-zx81-variants  Probe family variants and verify the ZX80 tape load address" \
 		"  zx81-openrom  Assemble the open ZX81 ROM: build/zx81-openrom/zx81-openrom.bin (8192 bytes)" \
 		"  sim-fes-zx81-openrom  Run the open ZX81 ROM on 1 KiB, 16 KiB and NTSC TS1000 machines: display, keys, BASIC, SAVE, LOAD" \
+		"  zx80-openrom  Assemble the open ZX80 ROM: build/zx80-openrom/zx80-openrom.bin (4096 bytes)" \
+		"  sim-fes-zx80-openrom  Replay Sinclair probes and the prog3.o LOAD fixture on ZX80 RTL with the open ROM" \
 		"  sim-fes-coleco  Test the FES application ColecoVision slice and native controller ports" \
 		"  sim-fes-native-video  Test native frame capture, Direct/Scanlines and clock crossing" \
 		"  sim-fes-display-plane  Test the shared session-display blend, latency, raster lock and fault return" \
@@ -214,7 +216,7 @@ FES_SHARED_MAKE_ENV = $(if $(strip $(FES_TOOLCHAIN_CACHE_ROOT_EFFECTIVE)),MAKEFL
 # ROM generation) can write output; the recipe guard above also covers an
 # indirect invocation through a future aggregate target.
 ifneq ($(strip $(FES_TOOLCHAIN_CACHE_ROOT_EFFECTIVE)),)
-_SHARED_LEGACY_SIM_GOALS := $(filter sim sim-pong sim-fes-riscv sim-fes-pong sim-fes-zx81 sim-fes-zx81-session sim-fes-display-plane sim-fes-zx81-rom sim-fes-zx81-machine sim-fes-zx81-save sim-fes-zx81-diagnostic sim-fes-zx81-bus sim-fes-zx81-expansion sim-fes-zx81-variants sim-fes-zx81-openrom sim-fes-coleco sim-fes-coleco-% sim-fes-tms9918-timing sim-fes-sg1000 sim-fes-sg1000-oss sim-fes-sg1000-rom-link sim-fes-sg1000-quartus sim-fes-sms sim-fes-sms-oss sim-fes-sms-rom-link-mailbox sim-fes-sms-quartus sim-fes-splash sim-fes-ramtest sim-fes-apple2 sim-fes-apple2-% sim-fes-c64 sim-fes-c64-% sim-fes-z80 sim-fes-z80-timing sim-fes-spectrum sim-fes-spectrum-% sim-fes-atari-st sim-fes-atari-st-%,$(MAKECMDGOALS))
+_SHARED_LEGACY_SIM_GOALS := $(filter sim sim-pong sim-fes-riscv sim-fes-pong sim-fes-zx81 sim-fes-zx81-session sim-fes-display-plane sim-fes-zx81-rom sim-fes-zx81-machine sim-fes-zx81-save sim-fes-zx81-diagnostic sim-fes-zx81-bus sim-fes-zx81-expansion sim-fes-zx81-variants sim-fes-zx81-openrom sim-fes-zx80-openrom sim-fes-coleco sim-fes-coleco-% sim-fes-tms9918-timing sim-fes-sg1000 sim-fes-sg1000-oss sim-fes-sg1000-rom-link sim-fes-sg1000-quartus sim-fes-sms sim-fes-sms-oss sim-fes-sms-rom-link-mailbox sim-fes-sms-quartus sim-fes-splash sim-fes-ramtest sim-fes-apple2 sim-fes-apple2-% sim-fes-c64 sim-fes-c64-% sim-fes-z80 sim-fes-z80-timing sim-fes-spectrum sim-fes-spectrum-% sim-fes-atari-st sim-fes-atari-st-%,$(MAKECMDGOALS))
 ifneq ($(strip $(_SHARED_LEGACY_SIM_GOALS)),)
 $(error misteross: shared toolchain cache is unsupported for Make simulation targets; unset FES_TOOLCHAIN_CACHE_ROOT for the local simulation lane)
 endif
@@ -578,7 +580,21 @@ sim-fes-zx81-openrom: zx81-openrom
 		build/sim/fes-zx81-openrom-0/Vzx81_machine load "$(ZX81_TAPES)/aritm.p"; \
 	else echo "SKIP tape loads: no FogCast starter tapes at $(ZX81_TAPES)"; fi
 
-sim-fes-zx81: sim-fes-zx81-diagnostic sim-fes-zx81-rom sim-fes-zx81-machine sim-fes-zx81-expansion sim-fes-display-plane sim-fes-zx81-session sim-fes-zx81-variants sim-fes-zx81-save sim-fes-zx81-openrom
+.PHONY: zx80-openrom sim-fes-zx80-openrom
+zx80-openrom:
+	@python3 scripts/build_zx81_openrom.py --model zx80
+
+# The open ZX80 ROM on the ZX80 machine RTL (16 KiB): each script recorded
+# with Sinclair's ROM (openrom-zx80/dev/ref) must leave the same program,
+# variables, edit line and screen. The checked-in prog3.o LOAD fixture also
+# exercises the machine's $0207 trap and is compared against regress.expected.
+sim-fes-zx80-openrom: zx80-openrom
+	$(require_local_sim)
+	@VERILATOR="$(VERILATOR)" cores/fes-zx81/openrom-zx80/dev/build_probe.sh "$(CURDIR)/build/zx80-openrom/zx80-openrom.hex" \
+		"$(CURDIR)/build/sim/fes-zx80-openrom" >/dev/null
+	@python3 cores/fes-zx81/openrom-zx80/dev/rtl_compare.py build/sim/fes-zx80-openrom/Vzx81_machine
+
+sim-fes-zx81: sim-fes-zx81-diagnostic sim-fes-zx81-rom sim-fes-zx81-machine sim-fes-zx81-expansion sim-fes-display-plane sim-fes-zx81-session sim-fes-zx81-variants sim-fes-zx81-save sim-fes-zx81-openrom sim-fes-zx80-openrom
 	$(require_local_sim)
 	@mkdir -p build/sim/fes-zx81-video
 	$(VERILATOR) --cc --exe --build --top-module zx81_video_720p -Wall \
