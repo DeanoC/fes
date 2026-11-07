@@ -20,19 +20,20 @@ import (
 // Register offsets follow Altera's MIT-0 socfpga_sdmmc_reg.h, commit
 // 66bdcc347564c5698a8997169bce83a31647d618 (Copyright 2026 Altera).
 const (
-	blockSize    = 0x204
-	argument     = 0x208
-	command      = 0x20c
-	response     = 0x210
-	dataPort     = 0x220
-	present      = 0x224
-	host         = 0x228
-	clock        = 0x22c
-	status       = 0x230
-	statusEnable = 0x234
-	signalEnable = 0x238
-	statusErrors = uint32(0xffff8000)
-	busy         = uint32(0xb07)
+	blockSize     = 0x204
+	argument      = 0x208
+	command       = 0x20c
+	response      = 0x210
+	dataPort      = 0x220
+	present       = 0x224
+	host          = 0x228
+	clock         = 0x22c
+	status        = 0x230
+	statusEnable  = 0x234
+	signalEnable  = 0x238
+	statusErrors  = uint32(0xffff8000)
+	busy          = uint32(0xb07)
+	clockModeMask = uint32(0x070fffff)
 )
 
 var (
@@ -60,6 +61,10 @@ type Device struct {
 	config        Config
 	cid           [15]byte
 	stopRequested atomic.Bool
+	identClock    uint32
+	dataClock     uint32
+	dataClockHz   uint32
+	defaultSpeed  bool
 }
 
 // Identity contains the CID bits supplied by SDHCI's R2 registers (CID[127:8],
@@ -76,6 +81,10 @@ func (d *Device) Identity() Identity { return Identity{CID: d.cid, Sectors: d.se
 // requested SD bus rate. The initial transport stays at <=400 kHz, one bit.
 type Config struct {
 	InputClockHz uint32
+	// TransferClockHz explicitly selects 25 MHz maximum after identification.
+	// Zero retains the existing <=400 kHz transport. Width, voltage and PIO
+	// remain unchanged; the identification divider is restored at quiescence.
+	TransferClockHz uint32
 	// PrepareClock, when supplied, runs after host software reset and stable
 	// internal clock, before enabling card clocks or issuing any command.
 	// A firmware-controlled platform uses it for its qualified PHY preparation.
@@ -86,12 +95,27 @@ type Config struct {
 // card. SDSC, SDUC and eMMC reject. Platform clocks/reset/pinmux must permit
 // register access. PrepareClock, or prior firmware setup, must establish PHY
 // readiness before the driver enables card clocks.
+func validateConfig(config Config) error {
+	if config.InputClockHz < 400000 || config.InputClockHz > 200000000 ||
+		(config.TransferClockHz != 0 && config.TransferClockHz != 25000000) ||
+		(config.TransferClockHz != 0 && config.InputClockHz < config.TransferClockHz) {
+		return fmt.Errorf("sdhci: invalid firmware input or selected transfer clock")
+	}
+	return nil
+}
+
 func Open(io Registers, config Config) (*Device, error) {
-	if io == nil || config.InputClockHz < 400000 || config.InputClockHz > 200000000 {
-		return nil, fmt.Errorf("sdhci: invalid firmware input clock")
+	if io == nil {
+		return nil, fmt.Errorf("sdhci: controller required")
+	}
+	if err := validateConfig(config); err != nil {
+		return nil, err
 	}
 	d := &Device{io: io, config: config}
 	if err := d.initialize(config); err != nil {
+		return nil, err
+	}
+	if err := d.selectTransferClock(); err != nil {
 		return nil, err
 	}
 	return d, nil
@@ -135,7 +159,10 @@ func (d *Device) initialize(config Config) error {
 	if divisor == 0 {
 		divisor = 1
 	}
-	d.io.Write32(clock, uint32(divisor)<<8|14<<16|1)
+	d.identClock = uint32(divisor)<<8 | 14<<16
+	d.dataClock = d.identClock
+	d.dataClockHz = uint32(uint64(config.InputClockHz) / (2 * divisor))
+	d.io.Write32(clock, d.identClock|1)
 	if err := d.wait(clock, 2, 2, false); err != nil {
 		return err
 	}
@@ -224,11 +251,80 @@ func (d *Device) initialize(config Config) error {
 		return fmt.Errorf("sdhci: unsupported CSD structure")
 	}
 	csize := (d.io.Read32(response+4) >> 8) & 0x3fffff
+	// CSD[103:96] is R2 register 2's high byte after SDHCI's eight-bit
+	// shift. SDHC/SDXC Default Speed advertises TRAN_SPEED 0x32 (25 MHz).
+	d.defaultSpeed = byte(d.io.Read32(response+8)>>24) == 0x32
 	d.sectors = (uint64(csize) + 1) * 1024
 	if err := d.issue(7, uint32(d.rca)<<16, responseR1Busy, false); err != nil {
 		return err
 	}
 	return d.ready()
+}
+
+func (d *Device) selectTransferClock() error {
+	if d.config.TransferClockHz == 0 {
+		return nil
+	}
+	if !d.defaultSpeed {
+		return errors.New("sdhci: card does not declare default-speed 25 MHz")
+	}
+	divisor := uint64(0)
+	if d.config.InputClockHz > d.config.TransferClockHz {
+		denominator := 2 * uint64(d.config.TransferClockHz)
+		divisor = (uint64(d.config.InputClockHz) + denominator - 1) / denominator
+	}
+	selected := uint32(divisor)<<8 | 14<<16
+	if err := d.programClock(d.identClock|7, selected, true); err != nil {
+		return err
+	}
+	if err := d.ready(); err != nil {
+		return err
+	}
+	d.dataClock = selected
+	d.dataClockHz = d.config.InputClockHz
+	if divisor != 0 {
+		d.dataClockHz = uint32(uint64(d.config.InputClockHz) / (2 * divisor))
+	}
+	return nil
+}
+
+// Change only the SDHCI divider while the command/data engines are idle.
+// Keep the firmware-owned input/PHY, 3.3V, one-bit mode and IRQ/DMA policy.
+func (d *Device) programClock(expected, selected uint32, enable bool) error {
+	value := d.io.Read32(clock)
+	if value&clockModeMask != expected || d.io.Read32(host) != 7<<9|1<<8 ||
+		d.io.Read32(signalEnable) != 0 || d.io.Read32(command)&1 != 0 || d.io.Read32(status)&statusErrors != 0 {
+		return errors.New("sdhci: unexpected mode before clock transition")
+	}
+	if err := d.wait(present, busy, 0, true); err != nil {
+		return err
+	}
+	d.io.Write32(clock, value&^4)
+	if d.io.Read32(clock)&4 != 0 {
+		return errors.New("sdhci: card clock did not stop")
+	}
+	if err := d.wait(present, busy, 0, true); err != nil {
+		return err
+	}
+	d.io.Write32(clock, value&^7)
+	if d.io.Read32(clock)&1 != 0 {
+		return errors.New("sdhci: internal clock did not stop")
+	}
+	d.io.Write32(clock, selected|1)
+	if err := d.wait(clock, 2, 2, true); err != nil {
+		return err
+	}
+	if d.io.Read32(clock)&clockModeMask != selected|3 {
+		return errors.New("sdhci: divider/stable readback differs")
+	}
+	if enable {
+		d.io.Write32(clock, selected|5)
+		if d.io.Read32(clock)&clockModeMask != selected|7 {
+			return errors.New("sdhci: transfer clock readback differs")
+		}
+		return d.pause(time.Millisecond)
+	}
+	return nil
 }
 func (d *Device) SectorCount() uint64 { return d.sectors }
 func (d *Device) wait(offset, mask, value uint32, checkErrors bool) error {
@@ -324,6 +420,11 @@ func (d *Device) ReadSectors(lba uint64, dst []byte) error {
 	}
 	if d.quiesced || d.stopRequested.Load() {
 		return ErrQuiesced
+	}
+	if d.config.TransferClockHz != 0 && (d.io.Read32(clock)&clockModeMask != d.dataClock|7 ||
+		d.io.Read32(host) != 7<<9|1<<8 || d.io.Read32(signalEnable) != 0 || d.io.Read32(command)&1 != 0) {
+		d.failed = true
+		return errors.New("sdhci: transfer mode changed before read")
 	}
 	for n := 0; n < len(dst); n += 512 {
 		if d.stopRequested.Load() {
@@ -425,6 +526,11 @@ func (d *Device) Quiesce() error {
 		d.io.Read32(statusEnable) != 0 || d.io.Read32(command)&1 != 0 || d.io.Read32(status)&statusErrors != 0 {
 		return fail(fmt.Errorf("sdhci: quiesce readback changed"))
 	}
+	if d.config.TransferClockHz != 0 {
+		if err := d.programClock(d.dataClock|3, d.identClock, false); err != nil {
+			return fail(err)
+		}
+	}
 	d.quiesced = true
 	return nil
 }
@@ -452,6 +558,14 @@ func (d *Device) Resume() error {
 	if next.Identity() != d.Identity() {
 		d.failed = true
 		return ErrCardChanged
+	}
+	if err := next.selectTransferClock(); err != nil {
+		d.failed = true
+		return err
+	}
+	if next.dataClockHz != d.dataClockHz || next.dataClock != d.dataClock {
+		d.failed = true
+		return errors.New("sdhci: transfer clock changed across resume")
 	}
 	d.rca = next.rca
 	d.quiesced = false

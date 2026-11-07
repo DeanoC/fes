@@ -6,7 +6,26 @@ exclusive controller ownership and prepared SoC clocks, reset, pinmux and
 ComboPHY before `Open` accesses registers. The
 [serial Go hardware diagnostic](../../../../docs/validation/2026-11-01-de25-native-go-boot/README.md)
 keeps native SD disabled; this driver has model/race and ARM64 cross-build
-evidence, not physical Nano SD acceptance.
+evidence for its original scope. Later [native launch/return tests](../../../../docs/validation/2026-11-07-de25-fat-launch-trial/README.md)
+exercise the real conservative PIO/SD/FAT path through repeated package loads,
+containment and resume. Those results do not qualify the optional faster mode
+below or general concurrent FPGA/SD access.
+
+`Config.TransferClockHz=25000000` is a separate, default-off driver prototype.
+Discovery and PHY preparation remain at the original <=400 kHz, one-bit,
+3.3V setting. After selecting the card, the prototype requires its default-speed
+CSD declaration, stops card/internal clocks, checks the new divider and stable
+state, restarts the card clock and verifies readiness. Reads reject a changed
+mode. Quiescence restores the exact original disabled-clock setting required by
+the existing secure stop callback. Resume rediscovers and checks the original
+card before selecting the faster rate again. Every transition is bounded and
+failure retires the device; it never retries at the slower rate.
+
+This option currently has model/race evidence only and is not selected by the
+Nano board adapter or build recipe. It grants no new firmware/PHY, DMA, voltage
+or bus-width capability. The [Altera clock description](https://docs.altera.com/r/docs/814346/26.1.1/hard-processor-system-technical-reference-manual-agilex-5-socs/clocks?contentId=vITZ5tUjusRdH5RE7r9jwg)
+documents the qualified-input divider relationship; the card's CSD field follows
+the pinned Terasic U-Boot `drivers/mmc/mmc.c` default-speed interpretation.
 
 `Identity` returns a copy of CID[127:8] and discovered sector count. SDHCI's
 R2 response omits the CID CRC/end byte and reserves its high register byte;
