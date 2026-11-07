@@ -178,7 +178,20 @@ static struct fes_nano_identity_probe identity_probe;
 static unsigned identity_reported;
 struct fes_nano_identity_probe *fes_nano_platform_identity_probe(void) { return &identity_probe; }
 #ifdef FES_NANO_READER_CPU_BASE
-#if defined(FES_NANO_MENU_MEMORY) && FES_NANO_MENU_MEMORY
+#if defined(FES_NANO_PROGRAM_ROLES) && FES_NANO_PROGRAM_ROLES
+#if !defined(FES_NANO_MENU_MEMORY) || !FES_NANO_MENU_MEMORY || !defined(FES_NANO_COLD_ROM) || !FES_NANO_COLD_ROM || !defined(FES_NANO_WINDOW_MEMORY) || !FES_NANO_WINDOW_MEMORY
+#error "mixed roles require both compiled resource inventories and the union arena"
+#endif
+_Static_assert(FES_NANO_CONTROL_ABI==FES_NANO_PROGRAM_COMPUTER_ABI &&
+    FES_NANO_READER_CPU_BASE==0x95000000ULL && FES_NANO_READER_BUS_BASE==0x95000000ULL &&
+    FES_NANO_READER_BYTES==8192U && FES_NANO_READER_ARENA_BYTES==(8U<<20) &&
+    FES_NANO_MENU_SLOTS==2U && FES_NANO_MENU_SLOT_BYTES==(4U<<20) &&
+    FES_NANO_WINDOW_FRAME_BYTES==3686400U && FES_NANO_WINDOW_ROW_BYTES==5120U &&
+    FES_NANO_WINDOW_STRIDE==5120U && FES_NANO_WINDOW_ROWS==720U &&
+    FES_NANO_PROBE_CPU_BASE==0x20010100UL && FES_NANO_PROBE_SPAN==FES_DE25_DDR_PROBE_SPAN,
+    "source-bound mixed role resources and union memory");
+static uint32_t active_program_role;
+#elif defined(FES_NANO_MENU_MEMORY) && FES_NANO_MENU_MEMORY
 #if !defined(FES_NANO_WINDOW_MEMORY) || !FES_NANO_WINDOW_MEMORY || !defined(FES_NANO_WINDOW_READ_DIAGNOSTIC) || !FES_NANO_WINDOW_READ_DIAGNOSTIC
 #error "menu memory requires its owned read-only window lifecycle"
 #endif
@@ -210,6 +223,14 @@ _Static_assert(FES_NANO_READER_BUS_BASE==FES_NANO_DDR_FIREWALL_WINDOW &&
      (FES_NANO_CONTROL_ABI==0x10203042U && FES_NANO_READER_BYTES==(4U<<20)) ||
      (FES_NANO_CONTROL_ABI==0x10203043U && FES_NANO_READER_BYTES==(8U<<20))),"sealed observed DDR firewall window");
 static uint32_t firewall_bridge;
+static uint32_t active_reader_bytes(void)
+{
+#if defined(FES_NANO_PROGRAM_ROLES) && FES_NANO_PROGRAM_ROLES
+    return active_program_role==FES_NANO_PROGRAM_ROLE_MENU ? (8U<<20) : FES_NANO_READER_BYTES;
+#else
+    return FES_NANO_READER_BYTES;
+#endif
+}
 static int firewall_owns(void *context)
 {
     if (smmu_owns(context)!=1) return 0;
@@ -225,14 +246,15 @@ static int firewall_read(void *context,uint32_t offset,uint32_t *value)
 }
 static int firewall_report(struct fes_nano_cold *s,struct fes_nano_ddr_firewall_observation *out)
 {
-    struct fes_nano_ddr_firewall_probe probe={.io={s,firewall_owns,firewall_read},.window_bytes=FES_NANO_READER_BYTES};
+    uint32_t bytes=active_reader_bytes();
+    struct fes_nano_ddr_firewall_probe probe={.io={s,firewall_owns,firewall_read},.window_bytes=bytes};
     struct fes_nano_ddr_firewall_observation observation={0};
     firewall_bridge=0;
     int status=fes_nano_ddr_firewall_observe(&probe,&observation);
     NOTICE("FES_NANO_DDR_FIREWALL status=%d owner=%llx generation=%llu reset=%x mpfe_reset=%u reads=%u enable=%x base=%llx bytes=%u access=unqualified\n",
         status,(unsigned long long)fes_nano_owned_bridges.state.owner,
         (unsigned long long)fes_nano_owned_bridges.state.generation,fes_nano_owned_bridges.state.reset,
-        !!(firewall_bridge&0x40U),probe.reads,observation.registers.enable,(unsigned long long)FES_NANO_DDR_FIREWALL_WINDOW,FES_NANO_READER_BYTES);
+        !!(firewall_bridge&0x40U),probe.reads,observation.registers.enable,(unsigned long long)FES_NANO_DDR_FIREWALL_WINDOW,bytes);
     for (unsigned i=0;i<8;i++) {
         const struct fes_nano_ddr_region *r=&observation.registers.region[i];
         NOTICE("FES_NANO_DDR_REGION index=%u base=%x baseext=%x limit=%x limitext=%x\n",i,r->base,r->baseext,r->limit,r->limitext);
@@ -267,7 +289,7 @@ static int fabric_owns(void *context)
 }
 static int fabric_read(void *context,uint32_t offset,uint32_t *value)
 {
-    const uint32_t held=FES_NANO_CONTROL_ABI==0x10203043U ? 0xccU : FES_NANO_CONTROL_ABI==0x10203042U ? 0xc8U : 0xb8U;
+    const uint32_t held=fabric_stop.abi==0x10203043U ? 0xccU : fabric_stop.abi==0x10203042U ? 0xc8U : 0xb8U;
     if ((offset>0x4c && offset!=0xb0 && offset!=0xb4 && offset!=held) ||
         offset==FES_EMBEDDED_REG_COMMAND || offset&3U || fabric_owns(context)!=1) return -1;
     dsbsy();*value=mmio_read_32(FES_NANO_CONTROL_BASE+offset);dsbsy();
@@ -384,6 +406,15 @@ static struct fes_nano_fabric_stop new_fabric_stop(unsigned qualified)
         .bus_base=FES_NANO_READER_BUS_BASE,.bytes=FES_NANO_READER_BYTES,.cookie=7,.qualified=qualified};
 #if defined(FES_NANO_COLD_CONFIG) && FES_NANO_COLD_CONFIG
     if(configuration_program.initialized && fes_nano_program_build(&configuration_program,out.build))out.qualified=0;
+#if defined(FES_NANO_PROGRAM_ROLES) && FES_NANO_PROGRAM_ROLES
+    /* Only completion constructs this object after capture. The initial cold
+     * identity setup precedes configuration_program initialization. */
+    if(configuration_program.initialized) {
+        uint32_t role=0,abi=0;
+        if(fes_nano_program_role(&configuration_program,&role,&abi))out.qualified=0;
+        else {out.abi=abi;out.bytes=role==FES_NANO_PROGRAM_ROLE_MENU ? (8U<<20) : FES_NANO_READER_BYTES;}
+    }
+#endif
 #endif
     return out;
 }
@@ -479,7 +510,7 @@ static int window_gate(void)
 out:
     NOTICE("FES_NANO_WINDOW_GATE status=%d owner=%llx generation=%llu reset=%x bytes=%u permit=%s\n",
         status,(unsigned long long)fes_nano_owned_bridges.state.owner,
-        (unsigned long long)fes_nano_owned_bridges.state.generation,fes_nano_owned_bridges.state.reset,FES_NANO_READER_BYTES,
+        (unsigned long long)fes_nano_owned_bridges.state.generation,fes_nano_owned_bridges.state.reset,active_reader_bytes(),
         status?"denied":"owned-read");
     return status;
 }
@@ -838,6 +869,9 @@ static int configuration_return_generation(uint64_t owner,uint64_t generation)
 {
     uint64_t returned;
 #if defined(FES_NANO_WINDOW_STORAGE_RETURN) && FES_NANO_WINDOW_STORAGE_RETURN
+#if defined(FES_NANO_PROGRAM_ROLES) && FES_NANO_PROGRAM_ROLES
+    if(active_program_role==FES_NANO_PROGRAM_ROLE_MENU) {
+#endif
     struct fes_nano_sd *s=&fes_nano_owned_sd;
     return window_rearm_owner==owner && window_rearm_generation==generation &&
         window_rearm_return && window_rearm_return<=UINT64_MAX-3 && generation==window_rearm_return+3 &&
@@ -847,7 +881,11 @@ static int configuration_return_generation(uint64_t owner,uint64_t generation)
         s->stopped_generation==generation &&
         fabric_generation!=UINT64_MAX && window_rearm_return==fabric_generation+1 &&
         fes_nano_bridges_window_return(&fes_nano_owned_bridges,&returned) && returned==window_rearm_return;
-#else
+#if defined(FES_NANO_PROGRAM_ROLES) && FES_NANO_PROGRAM_ROLES
+    }
+#endif
+#endif
+#if !defined(FES_NANO_WINDOW_STORAGE_RETURN) || !FES_NANO_WINDOW_STORAGE_RETURN || (defined(FES_NANO_PROGRAM_ROLES) && FES_NANO_PROGRAM_ROLES)
     if(fabric_generation==UINT64_MAX ||
        !fes_nano_bridges_held_return(&fes_nano_owned_bridges,&returned) ||
        returned!=fabric_generation+1)return 0;
@@ -899,7 +937,16 @@ static int configuration_complete(void *context, uint64_t owner, uint64_t genera
 #endif
     if(fes_nano_program_build(&configuration_program,identity_probe.build))return -1;
 #if defined(FES_NANO_COLD_ROM) && FES_NANO_COLD_ROM
+#if defined(FES_NANO_PROGRAM_ROLES) && FES_NANO_PROGRAM_ROLES
+    uint32_t role=0,abi=0;
+    if(fes_nano_program_role(&configuration_program,&role,&abi))return -1;
+    if(role==FES_NANO_PROGRAM_ROLE_COMPUTER ? computer_rom_prepare(owner,generation) :
+                                             computer_rom_retire(owner,generation))return -1;
+    if(fes_nano_program_control_activate(&configuration,&configuration_program))return -1;
+    active_program_role=role;
+#else
     if(computer_rom_prepare(owner,generation))return -1;
+#endif
 #endif
 #if defined(FES_NANO_WINDOW_STORAGE_RETURN) && FES_NANO_WINDOW_STORAGE_RETURN
     if(rearmed) {
@@ -931,6 +978,9 @@ int fes_nano_platform_configuration_setup(void)
                              FES_NANO_CONFIG_CHUNK,qualified))return -1;
 #if defined(FES_NANO_COLD_ROM) && FES_NANO_COLD_ROM
     if(fes_nano_program_enable_rom(&configuration_program,configuration_rom_descriptor))return -1;
+#if defined(FES_NANO_PROGRAM_ROLES) && FES_NANO_PROGRAM_ROLES
+    if(fes_nano_program_enable_roles(&configuration_program))return -1;
+#endif
 #endif
     struct fes_nano_configuration_ops io={.context=&provider,.check=configuration_check,.trace=configuration_trace,.complete=configuration_complete,.bind=configuration_bind};
     return fes_nano_configuration_init(&configuration,&fes_nano_owned_bridges,io,FES_NANO_CONFIG_BASE,
@@ -959,6 +1009,10 @@ void fes_nano_platform_sd_report(void)
 #if defined(FES_NANO_WINDOW_STORAGE_RETURN) && FES_NANO_WINDOW_STORAGE_RETURN
 static int window_sd_return(void *context,const struct fes_nano_bridges *b,uint64_t *generation)
 {
+#if defined(FES_NANO_PROGRAM_ROLES) && FES_NANO_PROGRAM_ROLES
+    if(active_program_role==FES_NANO_PROGRAM_ROLE_COMPUTER)
+        return context==&sd_platform && b==&fes_nano_owned_bridges ? fes_nano_bridges_held_return(b,generation) : 0;
+#endif
     return context==&sd_platform && b==&fes_nano_owned_bridges ?
            fes_nano_platform_window_return(generation) : 0;
 }

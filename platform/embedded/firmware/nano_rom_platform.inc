@@ -61,6 +61,9 @@ static int computer_rom_step_guard(uint64_t owner,uint64_t generation)
 #endif
 static int computer_rom_owned(void *context,uint64_t owner,uint64_t generation)
 {
+#if defined(FES_NANO_PROGRAM_ROLES) && FES_NANO_PROGRAM_ROLES
+    if(active_program_role!=FES_NANO_PROGRAM_ROLE_COMPUTER)return computer_rom_scope_failure("role");
+#endif
     struct fes_nano_bridge_snapshot s;
     struct fes_nano_configuration *c=&configuration;
     struct fes_nano_identity_probe *p=&identity_probe;
@@ -246,6 +249,19 @@ static int computer_rom_prepare(uint64_t owner,uint64_t generation)
 #endif
     return fes_nano_rom_init(&computer_rom,io,owner,generation+1,words);
 }
+#if defined(FES_NANO_PROGRAM_ROLES) && FES_NANO_PROGRAM_ROLES
+static int computer_rom_retire(uint64_t owner,uint64_t generation)
+{
+    if(computer_rom.initialized && (!computer_rom.complete || computer_rom.failed || computer_rom.busy ||
+       computer_rom.owner!=owner || computer_rom.generation>=generation))return -1;
+    memset(&computer_rom,0,sizeof(computer_rom));
+    memset(&computer_rom_diagnostic,0,sizeof(computer_rom_diagnostic));
+#if defined(FES_NANO_SHARED_USB) && FES_NANO_SHARED_USB
+    memset(&computer_rom_step,0,sizeof(computer_rom_step));
+#endif
+    return 0;
+}
+#endif
 int fes_nano_platform_computer_rom(struct fes_nano_configuration *c,uint64_t owner,uint64_t generation)
 {
     computer_rom_diagnostic.phase=1;

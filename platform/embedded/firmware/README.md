@@ -36,16 +36,41 @@ role, role-specific closures, completion/open/ROM/stop failures, activation
 replay, sixteen invalid activation states and six incomplete compile selections.
 Platform ownership/digest, SD-return, ROM and reader I/O are injected. This is
 not execution of the mixed-role strong cold provider or a matched board chain.
-The cold provider does not yet call the activation hook: it must first install
-the selected stop/ROM resources and prove the preceding role's complete return.
+The cold provider now calls the activation hook in the explicitly selected
+mixed-role mode, after installing selected stop/ROM resources and proving the
+preceding role's complete return. Existing board build selections do not enable
+that mode; the matched combined builder/entry/SPL chain is still required.
 The firmware exporter includes and hashes the new dispatcher composition.
+
+The mixed cold provider keeps the normal computer boot context/control ABI and
+8 KiB reader descriptor, while requiring the complete 8 MiB CPU reservation and
+compiled two-slot menu geometry. Active role selects the reader/firewall size,
+held acknowledgement register and SD-return predicate. Capture does not change
+that role or the preceding stop object. Completion first consumes the old
+held-data or window/SD return proof, then constructs a fresh selected stop,
+prepares ROM only for a computer (or retires a completed ROM for menu), publishes
+the selected identity/dispatcher role and clears stale window/rearm state.
+Failed or unfinished ROM state cannot be recycled, and a menu cannot use the
+computer ROM ownership callback.
+
+Thirteen strong-provider scenarios execute actual cold boot acceptance, owned
+SiP/configuration, SD platform, ROM FIFO driver, SHA-384 and master-stop callbacks
+with injected MMIO/mailbox responses. Four five-load sequences exercise changing
+roles in both starting orders and repeated menu/computer loads, with distinct
+selected build IDs and actual 4 KiB ROM bytes checked. Nine failures cover
+invalid role resources/ABI, CPU drift before START, ROM digest mismatch before
+FIFO writes, held acknowledgement mismatch, corrupted configuration, bad SD
+route/closure and a missing drain acknowledgement. Each refuses further launch
+and SD I/O. A smaller CPU arena fails compilation. This is host execution of the
+strong callbacks; it is not a matched boot-chain build, physical FPGA execution,
+shared USB qualification or Tenfoot App/menu/core/menu acceptance.
 
 Tests run five changing-role loads through the actual C configuration and
 held-bridge engines, plus twenty rejection/retirement cases. Native Go encoding
 and private arena publication are paired with the same C decoder, including all
-nine chunks and stale publication callbacks. The cold platform does not yet
-enable mixed roles: its active identity, master-stop/ROM policy and native loader
-must select the matched role inventory before this can support App/core/menu.
+nine chunks and stale publication callbacks. Mixed roles remain default-off:
+the native builder/loader and entry/SPL must select both matched inventories and
+the union memory exclusion before this can support App/core/menu on hardware.
 
 The explicit `--nano-firmware-ocram` option on both Terasic builders selects a
 matched shared-ROM or explicitly selected two-slot menu cold chain with private
