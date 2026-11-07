@@ -160,9 +160,10 @@ class PairedTenfootClient(app.TenfootClient):
                 package_id=build_record['hps_context']['package_id'],
                 build_id=build_record['hps_context']['build_id']), 'shared USB uses another boot anchor')
             usb_rows = [r['value'] for r in prefix if r['kind'] == 'usb']
-            require(len(usb_rows) == 1 and prefix[-1]['kind'] == 'usb' and
-                    prefix[-2]['kind'] == 'firmware' and
-                    prefix[-2]['value'].rstrip().startswith(b'FES_NATIVE_HPS_IO PASS '),
+            ready_at = next((i for i, row in enumerate(prefix) if row['kind'] == 'usb'), 0)
+            require(len(usb_rows) == 1 and ready_at > 0 and
+                    prefix[ready_at-1]['kind'] == 'firmware' and
+                    prefix[ready_at-1]['value'].rstrip().startswith(b'FES_NATIVE_HPS_IO PASS '),
                     'shared Ready must immediately follow sealed pin proof')
             self.usb.startup(usb_rows, self.owner, boot)
         else:

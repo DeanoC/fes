@@ -123,8 +123,10 @@ class Model(AppModel):
             boot = SHARED_BOOT.replace(SOURCE, actual)
             ready = (f"FES_NATIVE_SHARED_USB READY input={self.policy['input']} owner={OWNER} generation=2 "
                      f"descriptor_sha256={self.policy['descriptor_sha256']} descriptor_bytes={self.policy['descriptor_bytes']}\n").encode()
-        # Keep the final HPS_IO PASS immediately adjacent to shared READY.
-        prefix = CPU+boot+ready
+        # main opens shared USB before verifier_ready and the SD/FAT steps.
+        # READY must follow HPS_IO PASS, but is not the final boot-prefix row.
+        cpu = CPU.splitlines(keepends=True)
+        prefix = b''.join(cpu[:10])+boot+ready+b''.join(cpu[10:])
         mode = self.policy['input'].encode() if self.shared else b''
         begin = paired.BEGIN+(b'uart+shared-usb-'+mode if self.shared else b'uart')+b' preferences=ram\n'
         return prefix+self.configure(4)+self.source_lines(MENU_OPEN, 4)+self.menu_wire()+begin+self.raw(self.state())
