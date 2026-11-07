@@ -2,7 +2,7 @@
 +++ b/KF8253_Counter.sv	2026-11-07 23:31:59.682663427 +0200
 @@ -67,6 +67,7 @@
      logic   [16:0]  count_latched;
- 
+
      logic           count_read_negedge;
 +    logic           strobe_armed;
      logic           status_latched_flag;
@@ -11,7 +11,7 @@
 @@ -356,9 +357,12 @@
              first_count_edge    <= first_count_edge;
      end
- 
+
 -    // Saturating decrement by one or two, with independent BCD borrow
 -    // prefixes. Mode 3 must not place two complete decrementers in series.
 -    // The extra high bit represents 65536 (binary) or 10000 (BCD).
@@ -32,7 +32,7 @@
 +            decrement = count < 17'(step) ? {1'b0, result[15:0]} : result;
          end
      endfunction
- 
+
 @@ -391,13 +395,13 @@
      logic count_zero_q, count_le_one_q, count_le_two_q, count_le_three_q, count_two_q;
      always_ff @(posedge clock, posedge reset) begin
@@ -54,7 +54,7 @@
 @@ -561,6 +565,27 @@
              prev_count_period <= prev_count_period;
      end
- 
+
 +    // Modes 4 and 5 strobe OUT once per count loaded (mode 4) or trigger
 +    // (mode 5). The count wraps and keeps going after terminal count, so
 +    // without this it would strobe again every wrap.
