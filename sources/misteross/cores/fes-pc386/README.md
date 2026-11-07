@@ -69,6 +69,7 @@ Quartus 17.0.2.
 | [`sim/freedos.lock`](sim/freedos.lock) | The FreeDOS 1.4 package commits and file hashes of the simulation and games disks |
 | [`sim/fesenv.asm`](sim/fesenv.asm) | FESENV.COM: the games disk's `BLASTER` line from CMOS 60h-62h |
 | [`sim/mousedef.asm`](sim/mousedef.asm) | MOUSEDEF.COM: the games disk's default CuteMouse event handler, run after `LH CTMOUSE` |
+| [`sim/game-drives.toml`](sim/game-drives.toml) | The game drives' titles: source zips and their SHA-256, folders, launch commands and keys |
 
 The 8254 is the shared KF8253 with `READ_BACK = 1`; the DMA controllers are the
 shared [`fes_dma8237.sv`](../fes-common/rtl/fes_dma8237.sv) with AT parameters.
@@ -79,6 +80,7 @@ shared [`fes_dma8237.sv`](../fes-common/rtl/fes_dma8237.sv) with AT parameters.
 python3 scripts/build_pc386_firmware.py --download     # dev86, then both ROMs, checked against the lock
 python3 scripts/build_pc386_freedos_image.py --download  # the FreeDOS fixture in build/
 python3 scripts/build_pc386_freedos_image.py --profile games --download  # the games image (HIMEMX, UMBM, CuteMouse, MOUSEDEF, MEM, BLASTER)
+python3 scripts/build_pc386_game_drive.py --download real  # a game drive: the games image plus user-supplied titles, in ~/fes-drives/pc386
 python3 scripts/sim_fes_pc386.py --suite devices        # directed device checks, about 10 s
 python3 scripts/sim_fes_pc386.py --suite storage        # the fes.computer 1.1 golden exchanges, about 2 min
 python3 scripts/sim_fes_pc386.py --suite audio          # DSP, OPL2 timers, mixer, about 1 min
@@ -172,9 +174,10 @@ presenter, capture and display-plane benches. The sound suite boots the same
 FreeDOS fixture, runs SOUND.COM, checks the OPL2 samples against Nuked-OPL3,
 and checks the speaker and DSP tones in the 48 kHz output. It writes
 `build/sim/fes-pc386/sound/sound.wav`, section measurements and the captured
-OPL2 port log. The game suite starts Wolfenstein 3D or Ultima VI from
-`$FES_PC386_GAMES` and reports its audio activity; the supplied game files and
-captures stay outside the repository.
+OPL2 port log. The game suite boots a prebuilt game drive
+([game drives](../../docs/pc386-game-drives.md)), starts a title and reports
+its audio activity and the RTL's stops; the user-supplied game files stay
+outside the repository.
 
 ## Simulation model
 
@@ -498,8 +501,8 @@ FreeDOS 1.4 package archives in `C:\FDOS\BIN`, pinned in
   leaves it for programs, conventional memory ends in free memory.
 
 The images are test fixtures and are never distributed. The games
-themselves are user-supplied and go onto a copy of the image only for a kit
-run. The [games record](../../../../docs/validation/2026-11-01-pc386-m5-games/summary.md)
+themselves are user-supplied and go onto the reusable game drives, which stay
+outside the repository ([game drives](../../docs/pc386-game-drives.md)). The [games record](../../../../docs/validation/2026-11-01-pc386-m5-games/summary.md)
 has the kit runs.
 
 ## Not built yet
