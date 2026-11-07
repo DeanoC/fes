@@ -25,6 +25,12 @@ including pixel comparison and terminal failure paths. A new matched boot chain,
 active-menu/shared-USB qualification and bounded hardware acceptance remain
 required. Ethernet recovery remains a separate loader profile.
 
+The recovery uploader accepts `--purpose menu-package`, `menu-metadata` and
+`menu-selection` for those three fixed files. It keeps the existing 8 MiB,
+16 KiB and 8 KiB bounds respectively, with RAM hash, SD write/readback and
+unchanged boot-file checks. Upload the archive and metadata before the selection;
+uploading files does not activate the native image or grant runtime admission.
+
 The source-bound two-slot menu has an explicit native selection:
 `tamago/run.py fpgaload --board de25-nano --menu-present`, together with the
 sealed menu `--hps-first-project`, source-controlled SD profile and selected

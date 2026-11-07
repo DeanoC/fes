@@ -232,6 +232,9 @@ class NanoUploadTests(unittest.TestCase):
     def test_selected_program_files_use_fixed_destinations_and_smaller_bounds(self):
         for purpose,target,limit in (('metadata','FES/PROGRAM.JSN',16<<10),('selection','FES/CORESEL.JSN',8192),
                                     ('ui-catalog','FES/UI.JSON',8192),
+                                    ('menu-package','FES/MENU.FCP',upload.LIMIT),
+                                    ('menu-metadata','FES/MENU.JSN',16<<10),
+                                    ('menu-selection','FES/MENUSEL.JSN',8192),
                                     ('package-alt','FES/PKGALT.BIN',upload.LIMIT),('metadata-alt','FES/PROGALT.JSN',16<<10)):
             for size in (1,limit):
                 with self.subTest(purpose=purpose,size=size):
@@ -254,7 +257,8 @@ class NanoUploadTests(unittest.TestCase):
         model,session=self.session()
         payloads={'boot':b'b'*6144,'package':b'p'*2048,'metadata':b'm'*(16<<10),
                   'package-alt':b'q'*4096,'metadata-alt':b'n'*(16<<10),'selection':b's'*8192,'ui-catalog':b'u'*8192,
-                  'firmware':b'f'*8192,'firmware-alt':b'a'*4096}
+                  'firmware':b'f'*8192,'firmware-alt':b'a'*4096,
+                  'menu-package':b'c'*4096,'menu-metadata':b'd'*2676,'menu-selection':b'e'*282}
         written={};fresh={}
         with patch('builtins.print'):
             for purpose,payload in payloads.items():
