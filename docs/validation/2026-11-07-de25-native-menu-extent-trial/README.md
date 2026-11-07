@@ -37,3 +37,20 @@ and exact USB permissions and stops only its private server, independently of
 the result. TRWU8CBL's spare and continuing claim may remain under the existing
 factory-restoration waiver; the original factory card and bottom kit are
 untouched. No physical controller action is required.
+
+The one physical attempt stopped before the first frame command. Both uploads
+and fresh SD reads passed. Native boot/configuration completed; all 8 MiB passed
+the SMMU/firewall route observations, followed by control generation 5 and data
+generation 6 (reset `5`). The real Tenfoot renderer produced the first frame.
+CPU publication copied 3,686,400 bytes but exceeded the presenter's one-second
+operation budget before START: zero command attempts, polls or accepted frames.
+The measured presentation-to-return interval was 2,538,634 microseconds.
+
+Independent firmware master-stop completed against the active data path, then
+closed the bridges at generation 7/reset `f`. The arena remains retained until
+reboot. Host cleanup independently passed: exact USB permissions, 15 MHz
+readback, private server gone and UART free. The consumed attempt cannot be
+replayed. This establishes memory-route opening and active-path closure for
+this diagnostic; it establishes neither scanned menu frames nor physical HDMI.
+The next repair separates bounded CPU publication from the hardware wait budget
+while preserving ownership and integrity checks. See [result.json](result.json).
