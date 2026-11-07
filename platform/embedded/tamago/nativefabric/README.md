@@ -1,5 +1,25 @@
 # Native contained-fabric endpoint
 
+`MenuSession` now carries its completed transfer's private storage handoff.
+After a successful frame and independent secure closure,
+`ResumeStorageAfterReturn` revalidates the live source and complete pinned
+two-slot arena before resuming that original store once. A fresh retained
+selection and containment can then enter `NewStoredReconfigurationTransfer`.
+The existing plan checks private store identity, exact return/SD generations,
+live ownership and the arena again immediately before START. A completed
+transfer can open the next menu session with the same boot-pinned arena;
+sequences restart only after reconfiguration. Failed grants and transfers
+cannot be replayed, and neither slot is released.
+
+Host tests join real retained archives, the store, configuration transfer and
+menu driver for three fresh cycles, plus corrupted memory, foreign stores with
+matching public receipts, stale/copied/busy handles, changed ownership and
+uncertain grant/configuration/closure failures. Firmware calls and SD/register
+responses are modeled in these cases. This is a lifecycle prerequisite, not a
+native boot selection or general menu/computer admission: the menu command and
+matched firmware still need an explicit SD-return selection, followed by real
+App/core/menu integration and hardware acceptance.
+
 `NewComputerHPSContextVerifier` explicitly selects the source-bound
 `de25-native-computer-v1` / `fes.computer` 1.0 boot contract. It requires the
 complete compiled control, computer and held-ROM maps. The default and ROM

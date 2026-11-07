@@ -46,6 +46,7 @@ type configurationBinding struct {
 	program      *selectedProgram
 	handoff      *packagestore.Handoff
 	windowReturn *WindowSession
+	menuReturn   *MenuSession
 	windowOpened bool
 	menuOpened   bool
 }

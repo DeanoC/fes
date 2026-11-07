@@ -394,7 +394,7 @@ func (s *WindowSession) NewStoredReconfigurationTransfer(plan *StoredConfigurati
 	if err := s.checkArena(); err != nil {
 		return nil, HPSBootObservation{}, err
 	}
-	return plan.newTransfer(handoff, reserve, true, s)
+	return plan.newTransfer(handoff, reserve, true, s, nil)
 }
 
 // windowFrameMemory exposes only bounded, sequential visible-row writes while

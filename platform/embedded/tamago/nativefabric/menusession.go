@@ -12,6 +12,7 @@ import (
 
 	"github.com/DeanoC/fes/platform/embedded/tamago/embeddedcontrol"
 	g "github.com/DeanoC/fes/platform/embedded/tamago/embeddedcontrol/generated"
+	"github.com/DeanoC/fes/platform/embedded/tamago/packagestore"
 	"github.com/DeanoC/fes/platform/embedded/tamago/scanout"
 )
 
@@ -38,6 +39,10 @@ type MenuSession struct {
 	last                      scanout.MenuFrame
 	controlSHA, accessSHA     [32]byte
 	returned                  MenuSessionReturn
+	storage                   *packagestore.Handoff
+	storageAttempted          bool
+	storageResumed            bool
+	nextAttempted             bool
 }
 
 // MenuSessionReturn exists only after independent secure master-stop, exact
@@ -82,13 +87,16 @@ func (v *HPSContextVerifier) OpenMenuSession(ctx context.Context, control, acces
 		v.readerMemoryRegion.OrderFrameStores == nil || !comparison.equal(v.readerMemoryRegion.Bytes, v.menuExpected) {
 		return nil, errors.New("native menu: fresh full pinned arena required")
 	}
-	if transfer == nil || transfer.binding == nil || v.ddrReaderAttempted {
+	if transfer == nil || transfer.binding == nil {
 		return nil, errors.New("native menu: fresh completed transfer required")
 	}
 	b := transfer.binding
+	repeat := b.rearm && b.menuReturn != nil && b.menuReturn.self == b.menuReturn && b.menuReturn.verifier == v &&
+		v.menuSession == b.menuReturn && b.menuReturn.closed && b.menuReturn.closeErr == nil && b.menuReturn.nextAttempted && b.menuReturn.storageResumed
 	if !transfer.done || transfer.err != nil || transfer.region != nil || transfer.phase != "complete" || len(transfer.source) == 0 || len(transfer.pending) != 0 ||
-		transfer.offset != len(transfer.source) || transfer.accepted != len(transfer.source) || b.verifier != v || b.program != nil || b.rearm || b.windowOpened || b.menuOpened {
-		return nil, errors.New("native menu: completion does not belong to this cold scope")
+		transfer.offset != len(transfer.source) || transfer.accepted != len(transfer.source) || b.verifier != v || b.program != nil ||
+		b.windowReturn != nil || b.windowOpened || b.menuOpened || !(repeat && v.ddrReaderAttempted || !b.rearm && !v.ddrReaderAttempted) {
+		return nil, errors.New("native menu: completion does not belong to this owned scope")
 	}
 	v.ddrReaderAttempted = true
 	b.menuOpened = true
@@ -96,10 +104,19 @@ func (v *HPSContextVerifier) OpenMenuSession(ctx context.Context, control, acces
 	if err != nil {
 		return nil, err
 	}
-	if !v.coldSource(source) || source != v.menuPublication.Source || source != b.source || source.Bridges.Generation > math.MaxUint64-3 {
+	held := v.coldSource(source) && source == v.menuPublication.Source
+	if repeat {
+		closed := b.menuReturn.returned.After
+		held = v.reconfigurationSource(source) && source.Digest == b.menuReturn.source.Digest &&
+			source.Bridges.Owner == closed.Owner && closed.Generation <= math.MaxUint64-3 && source.Bridges.Generation == closed.Generation+3
+	}
+	if !held || source != b.source || source.Bridges.Generation > math.MaxUint64-3 {
 		return nil, errors.New("native menu: opening lost closed publication/transfer ownership")
 	}
-	s := &MenuSession{comparison: comparison, verifier: v, region: v.readerMemoryRegion, bytes: v.readerMemoryRegion.Bytes, source: source, opened: source.Bridges,
+	if repeat {
+		v.menuPublication.Source = source
+	}
+	s := &MenuSession{storage: b.handoff, comparison: comparison, verifier: v, region: v.readerMemoryRegion, bytes: v.readerMemoryRegion.Bytes, source: source, opened: source.Bridges,
 		bridges: &FirmwareBridges{cpu: cpu}, context: ctx, operationContext: ctx, controlSHA: sha256.Sum256(control), accessSHA: sha256.Sum256(access)}
 	s.self = s
 	session = s
