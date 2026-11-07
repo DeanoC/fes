@@ -308,6 +308,59 @@ void pit(Bench &b) {
     b.out(0x43, 0x80);
     count = read2();
     check("PIT counter latch between count bytes keeps the write byte pointer", near533(count), hex(count));
+    // After terminal count the count wraps to FFFFh (9999 in BCD) and keeps
+    // going in modes 0, 1, 4 and 5 (#1532). Channel 2's OUT is watched on the
+    // speaker with port 61h's gate and data bits set. A wrap is 65536 PIT
+    // clocks, 5,492,541 system clocks; WRAP covers one and a bit.
+    const uint64_t WRAP = 5600000;
+    struct Pulses { unsigned falls = 0, rises = 0; bool last = false; };
+    auto watch = [&](uint64_t clocks) {
+        Pulses seen;
+        seen.last = b.top.speaker;
+        for (uint64_t n = 0; n < clocks; ++n) {
+            b.clock();
+            bool now = b.top.speaker;
+            if (seen.last && !now) ++seen.falls;
+            if (!seen.last && now) ++seen.rises;
+            seen.last = now;
+        }
+        return seen;
+    };
+    b.out(0x61, 0x03);
+    b.out(0x43, 0xb0); b.out(0x42, 0x10); b.out(0x42, 0x00);
+    b.run(3000);
+    b.out(0x43, 0x80);
+    count = read2();
+    check("PIT mode 0 count wraps past zero to FFFFh", count >= 0xff00, hex(count));
+    Pulses seen = watch(WRAP);
+    check("PIT mode 0 OUT stays high through the next wrap", seen.last && seen.falls == 0,
+          std::to_string(seen.falls) + " falls");
+    b.out(0x43, 0xb1); b.out(0x42, 0x10); b.out(0x42, 0x00);
+    b.run(3000);
+    b.out(0x43, 0x80);
+    count = read2();
+    bool decimal = (count & 0xf) <= 9 && (count >> 4 & 0xf) <= 9;
+    check("PIT mode 0 BCD count wraps past zero to 9999", count >= 0x9900 && count <= 0x9999 && decimal, hex(count));
+    b.out(0x43, 0xb8); b.out(0x42, 0x10); b.out(0x42, 0x00);
+    seen = watch(WRAP);
+    check("PIT mode 4 strobes once per count, not every wrap", seen.falls == 1 && seen.rises == 1 && seen.last,
+          std::to_string(seen.falls) + " falls");
+    b.out(0x61, 0x02);
+    b.out(0x43, 0xba); b.out(0x42, 0x10); b.out(0x42, 0x00);
+    seen = watch(WRAP);
+    check("PIT mode 5 does not strobe before a trigger", seen.falls == 0 && seen.last, std::to_string(seen.falls) + " falls");
+    b.out(0x61, 0x03);
+    seen = watch(WRAP);
+    check("PIT mode 5 strobes once per trigger, not every wrap", seen.falls == 1 && seen.rises == 1 && seen.last,
+          std::to_string(seen.falls) + " falls");
+    b.out(0x61, 0x02);
+    b.out(0x43, 0xb2); b.out(0x42, 0x10); b.out(0x42, 0x00);
+    b.run(3000);
+    b.out(0x61, 0x03);
+    seen = watch(WRAP);
+    check("PIT mode 1 OUT goes low once per trigger and stays high through the wrap",
+          seen.falls == 1 && seen.rises == 1 && seen.last, std::to_string(seen.falls) + " falls");
+    b.out(0x61, 0x00);
     // Port 61h bit 4 toggles with channel 1 (BIOS programs 15 us).
     b.out(0x43, 0x54); b.out(0x41, 18);
     int toggles = 0;
