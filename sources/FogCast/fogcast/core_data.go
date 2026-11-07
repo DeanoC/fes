@@ -67,6 +67,15 @@ func (s *Service) entryCoreData(parent context.Context, gameID string, u *protoc
 			return CoreDataResult{}, canonicalError(protocol.CodeBusy, nil)
 		}
 	}
+	if u != nil {
+		if detach, ok := s.catalog.(interface {
+			DetachKitHostEntry(context.Context, string) error
+		}); ok {
+			if err := detach.DetachKitHostEntry(ctx, gameID); err != nil {
+				return CoreDataResult{}, canonicalError(protocol.CodeInternal, safeContextError(err))
+			}
+		}
+	}
 	result, err := s.inspectInstalledCoreData(ctx, entry.PackageID, entry.GameID, u)
 	if err == nil && result.CoreID != entry.CoreID {
 		return CoreDataResult{}, canonicalError(protocol.CodeMiSTerUnavailable, nil)

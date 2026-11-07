@@ -3,15 +3,12 @@ package tenfoot
 import (
 	"context"
 	"errors"
-	"fmt"
-	"os"
 	"path/filepath"
 	"strings"
 	"sync"
 	"testing"
 	"time"
 
-	"github.com/DeanoC/FogCast/hostclient"
 	"github.com/DeanoC/FogCast/internal/localcores"
 	"github.com/DeanoC/FogCast/internal/testwait"
 	"github.com/DeanoC/FogCast/remoteinput"
@@ -21,99 +18,6 @@ import (
 )
 
 const tenfootPongID = "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
-
-func TestSelectStartDuringLocalLoadDefersStopUntilRunning(t *testing.T) {
-	now := time.Unix(10, 0)
-	app := &App{localPhase: localPhaseLaunching}
-	selectPress, _ := remoteinput.NormalizeGamepad("select", true)
-	startPress, _ := remoteinput.NormalizeGamepad("start", true)
-	if !app.HandleLocalPad(selectPress, now) || !app.HandleLocalPad(startPress, now.Add(10*time.Millisecond)) {
-		t.Fatal("launching core did not consume the stop chord")
-	}
-	app.mu.Lock()
-	app.tickLocalCoreLocked(now.Add(10*time.Millisecond + localChordHold))
-	if !app.localStopAfterStart || app.localPhase != localPhaseLaunching {
-		t.Fatalf("loading chord phase=%q deferred=%v", app.localPhase, app.localStopAfterStart)
-	}
-	app.mu.Unlock()
-	selectRelease, _ := remoteinput.NormalizeGamepad("select", false)
-	app.HandleLocalPad(selectRelease, now.Add(localChordHold+time.Millisecond))
-	app.mu.Lock()
-	deferred := app.localStopAfterStart
-	app.mu.Unlock()
-	if !deferred {
-		t.Fatal("releasing the chord canceled the already-triggered stop")
-	}
-}
-
-func TestSMSPlayRequiresInstalledMasterSystemCore(t *testing.T) {
-	game := hostclient.Game{
-		ID: "sms-data-storm", Title: "Data Storm 1.00", System: "sms",
-		State: "available", RootOnline: true,
-	}
-	dest := rooms.Destination{Kind: rooms.KindGame, GameID: game.ID, Matches: []hostclient.Game{game}}
-	app := NewApp(nil, 1280, 720, 50)
-	t.Cleanup(app.Stop)
-
-	app.SetKitLocal(&fakeLocalCores{}, &fakePadFeed{})
-	missing := app.applyKitDirectLocked(dest)
-	if missing.Availability == rooms.AvailReady || missing.Confirm() == rooms.ConfirmLaunchKit || missing.Action == "Play" || missing.KitDirect {
-		t.Fatalf("playable without fes.sms: %+v", missing)
-	}
-	if missing.Status != localCoreMissingCopy || missing.Action != localCoreMissingAction || missing.Confirm() != rooms.ConfirmExplain {
-		t.Fatalf("missing-core copy %+v", missing)
-	}
-
-	app.SetKitLocal(&fakeLocalCores{listErr: errors.New("socket is not ready")}, &fakePadFeed{})
-	checking := app.applyKitDirectLocked(dest)
-	if checking.Availability != rooms.AvailChecking || checking.KitDirect || checking.Action == "Play" || checking.Confirm() == rooms.ConfirmLaunchKit {
-		t.Fatalf("unknown install showed play: %+v", checking)
-	}
-	if checking.Status != localCoreCheckingCopy || checking.Action != localCoreCheckingAction {
-		t.Fatalf("checking copy %+v", checking)
-	}
-
-	app.SetKitLocal(&fakeLocalCores{cores: []localcores.Core{{CoreID: "fes.sms", Name: "Master System"}}}, &fakePadFeed{})
-	ready := app.applyKitDirectLocked(dest)
-	if ready.Availability != rooms.AvailReady || ready.Confirm() != rooms.ConfirmLaunchKit || !ready.KitDirect || ready.Action != "Play" {
-		t.Fatalf("installed core did not enable play: %+v", ready)
-	}
-}
-
-func TestKitDirectKeepsARetainedCartridgeAndDoesNotStealAReadyHostRow(t *testing.T) {
-	sms := hostclient.Game{
-		ID: "sms-data-storm", Title: "Data Storm", System: "sms",
-		State: "available", RootOnline: true, Launchable: false,
-	}
-	emu := hostclient.Game{
-		ID: "sms-emu", Title: "Data Storm", System: "sms",
-		State: "available", RootOnline: true, Launchable: true,
-		Execution: hostclient.ExecutionHostOnly,
-	}
-	ready := rooms.Destination{
-		Kind: rooms.KindGame, Availability: rooms.AvailReady, GameID: emu.ID,
-		Matches:    []hostclient.Game{emu},
-		Candidates: []hostclient.Game{emu, sms},
-	}
-	if game, ok := kitDirectMatch(ready); ok {
-		t.Fatalf("kit direct stole a ready host row %+v", game)
-	}
-
-	blocked := rooms.Destination{
-		Kind: rooms.KindGame, Availability: rooms.AvailUnavailable,
-		Matches:    []hostclient.Game{{ID: "fpga-data-storm", Title: "Data Storm", System: "sms", State: "available", RootOnline: true, Launchable: true, ReadyHere: readyNo(), ReadyBlock: string(hostclient.LaunchVersionSkew)}},
-		Candidates: []hostclient.Game{sms},
-	}
-	game, ok := kitDirectMatch(blocked)
-	if !ok || game.ID != sms.ID {
-		t.Fatalf("retained cartridge %+v ok=%v", game, ok)
-	}
-}
-
-func readyNo() *bool {
-	v := false
-	return &v
-}
 
 func TestHostModeLeavesKitUnset(t *testing.T) {
 	prefs := filepath.Join(t.TempDir(), "prefs.json")
@@ -160,110 +64,6 @@ func TestHostModeLeavesKitUnset(t *testing.T) {
 	}
 }
 
-func TestKitCoreLaunchChordStopAndResume(t *testing.T) {
-	hold := make(chan struct{})
-	fake := &fakeLocalCores{hold: hold}
-	feed := &fakePadFeed{}
-	app := startCoreRoom(t, fake, feed, coreRoomScript(tenfootPongID, "FES Pong", true, ""))
-	waitFor(t, app, "pong tile", func(s Snapshot) bool {
-		return s.Room.Open && s.Room.Destination.Kind == rooms.KindCore && s.Room.Destination.Label == "FES Pong"
-	})
-	app.HandleCommand(CmdSelect, time.Unix(100, 0))
-	snap := app.Snapshot()
-	if !snap.LocalCorePresentsPaused || snap.LocalCorePhase != localPhaseLaunching || !strings.Contains(snap.Status, "Starting FES Pong…") {
-		t.Fatalf("launch snapshot phase=%s paused=%v status=%q", snap.LocalCorePhase, snap.LocalCorePresentsPaused, snap.Status)
-	}
-	close(hold)
-	waitFor(t, app, "running", func(s Snapshot) bool {
-		return s.LocalCorePhase == localPhaseRunning && s.LocalCorePresentsPaused
-	})
-	if got := fake.launchCount(); got != 1 {
-		t.Fatalf("launches %d", got)
-	}
-
-	t0 := time.Unix(200, 0)
-	app.HandleLocalPad(padButton(remoteinput.ButtonSelect, true), t0)
-	app.HandleLocalPad(padButton(remoteinput.ButtonStart, true), t0)
-	app.HandleLocalPad(padButton(remoteinput.ButtonStart, false), t0.Add(400*time.Millisecond))
-	app.Tick(t0.Add(2 * time.Second))
-	if fake.stopCount() != 0 {
-		t.Fatal("short chord stopped the core")
-	}
-	if feed.saw(remoteinput.ButtonStart, remoteinput.ActionPress) {
-		t.Fatal("short chord forwarded Start")
-	}
-	if !feed.saw(remoteinput.ButtonSelect, remoteinput.ActionPress) || !feed.saw(remoteinput.ButtonSelect, remoteinput.ActionRelease) {
-		t.Fatalf("select was not pressed and released: %+v", feed.snapshot())
-	}
-
-	t1 := time.Unix(300, 0)
-	app.HandleLocalPad(padButton(remoteinput.ButtonSelect, true), t1)
-	app.HandleLocalPad(padButton(remoteinput.ButtonStart, true), t1.Add(10*time.Millisecond))
-	app.Tick(t1.Add(10*time.Millisecond + time.Second))
-	snap = waitFor(t, app, "resume", func(s Snapshot) bool {
-		return !s.LocalCorePresentsPaused && s.LocalCorePhase == "" && s.LocalCoreRedraw >= 1 && roomTextHas(s, "resumed-1")
-	})
-	if fake.stopCount() != 1 || fake.launchCount() != 1 {
-		t.Fatalf("stops %d launches %d", fake.stopCount(), fake.launchCount())
-	}
-	if snap.LocalCoreRedraw != 1 {
-		t.Fatalf("redraw %d", snap.LocalCoreRedraw)
-	}
-}
-
-func TestPairedForeignLeaseBlocksInstalledCoreVisiblyAndClearsLive(t *testing.T) {
-	fake := &fakeLocalCores{}
-	app := startCoreRoom(t, fake, nil, coreRoomScript(tenfootPongID, "Pong", true, ""), true)
-	waitFor(t, app, "ready Pong", func(s Snapshot) bool {
-		return s.Room.Open && s.Room.Destination.Kind == rooms.KindCore && s.Room.Destination.Status == "Ready to play."
-	})
-
-	app.mu.Lock()
-	app.kitLeaseHave = true
-	app.kitLease = KitLeaseStatus{State: "held", Owner: "hil-355", Purpose: "hil-355-in-use"}
-	app.mu.Unlock()
-	snap := app.Snapshot()
-	if snap.Room.Destination.Status != rooms.InUseStatus || snap.Room.Destination.Action != "" {
-		t.Fatalf("foreign Pong copy: status=%q action=%q", snap.Room.Destination.Status, snap.Room.Destination.Action)
-	}
-	if strings.Contains(strings.ToLower(snap.HeaderHint()), "play") {
-		t.Fatalf("foreign Pong hint offers play: %q", snap.HeaderHint())
-	}
-	app.HandleCommand(CmdSelect, time.Now())
-	snap = app.Snapshot()
-	if snap.Status != localInUseCopy {
-		t.Fatalf("A did not surface in-use copy: %q", snap.Status)
-	}
-	app.mu.Lock()
-	wasForeign := app.foreignKitLeaseLocked()
-	app.kitLease = KitLeaseStatus{State: "free"}
-	app.clearLeaseRefusalAfterTransitionLocked(wasForeign)
-	app.mu.Unlock()
-	if got := app.Snapshot().Status; got == localInUseCopy {
-		t.Fatalf("lease refusal stayed in status after lease release: %q", got)
-	}
-	if fake.launchCount() != 0 || snap.LocalCorePhase != "" {
-		t.Fatalf("foreign A launched core: launches=%d phase=%q", fake.launchCount(), snap.LocalCorePhase)
-	}
-
-	snap = app.Snapshot()
-	if snap.Room.Destination.Status != "Ready to play." || snap.Room.Destination.Action != "Play" || snap.Room.Destination.Confirm() != rooms.ConfirmLaunchCore {
-		t.Fatalf("Pong did not become ready after lease free: %+v", snap.Room.Destination)
-	}
-
-	app.mu.Lock()
-	app.kitLease = KitLeaseStatus{Unavailable: true}
-	app.mu.Unlock()
-	snap = app.Snapshot()
-	if snap.Room.Destination.Status != machineStatusUnknown || snap.Room.Destination.Action != machineStatusUnknown || snap.Room.Destination.Confirm() != rooms.ConfirmExplain {
-		t.Fatalf("unavailable lease did not gate Pong visibly: %+v", snap.Room.Destination)
-	}
-	app.HandleCommand(CmdSelect, time.Now())
-	if fake.launchCount() != 0 || app.Snapshot().Status != machineStatusUnknown {
-		t.Fatalf("unavailable lease A was not refused visibly: launches=%d status=%q", fake.launchCount(), app.Snapshot().Status)
-	}
-}
-
 func TestLeaseReleaseKeepsUnrelatedStatus(t *testing.T) {
 	app := &App{status: "Loading library", kitLeaseHave: true, kitLease: KitLeaseStatus{State: "held", Owner: "other"}}
 	app.mu.Lock()
@@ -289,9 +89,24 @@ func TestUnpairedHostBusyDoesNotMarkInstalledCoreInUse(t *testing.T) {
 	}
 }
 
+func adoptTestLocalRun(app *App, fake *fakeLocalCores) {
+	fake.mu.Lock()
+	if !fake.statusSet {
+		fake.status = localcores.RunStatus{Phase: "running", Running: true, CoreID: "fes.pong", PackageID: tenfootPongID, Generation: strings.Repeat("a", 64)}
+		fake.statusSet = true
+	}
+	fake.mu.Unlock()
+	app.mu.Lock()
+	defer app.mu.Unlock()
+	// Production adopts inside the single-flight status callback. This test
+	// injects adoption directly, so fence any startup poll it left in flight.
+	app.localStatusEpoch++
+	app.localStartupStatusChecked = true
+	app.adoptStartupLocalRunLocked(localcores.RunStatus{Phase: "running", Running: true, CoreID: "fes.pong", PackageID: tenfootPongID, Generation: strings.Repeat("a", 64)})
+}
+
 func TestLocalStatusIdleWhileRunningResumes(t *testing.T) {
-	hold := make(chan struct{})
-	fake := &fakeLocalCores{hold: hold}
+	fake := &fakeLocalCores{}
 	app := startCoreRoom(t, fake, nil, coreRoomScript(tenfootPongID, "FES Pong", true, ""))
 	waitFor(t, app, "pong tile", func(s Snapshot) bool {
 		return s.Room.Open && s.Room.Destination.Label == "FES Pong"
@@ -308,17 +123,7 @@ func TestLocalStatusIdleWhileRunningResumes(t *testing.T) {
 	if fake.statusCount() != polled {
 		t.Fatalf("kept polling after idle startup: %d -> %d", polled, fake.statusCount())
 	}
-	app.HandleCommand(CmdSelect, base)
-	for i := 0; i < 4; i++ {
-		app.Tick(base.Add(time.Duration(i) * time.Second))
-	}
-	if fake.statusCount() != polled {
-		t.Fatalf("polled while launching: %d -> %d", polled, fake.statusCount())
-	}
-	close(hold)
-	waitFor(t, app, "running", func(s Snapshot) bool {
-		return s.LocalCorePhase == localPhaseRunning && s.LocalCorePresentsPaused
-	})
+	adoptTestLocalRun(app, fake)
 	fake.setStatus(localcores.RunStatus{Phase: "idle", Running: false})
 	snap := waitFor(t, app, "status resume", func(s Snapshot) bool {
 		return !s.LocalCorePresentsPaused && s.LocalCorePhase == "" && s.LocalCoreRedraw >= 1 && roomTextHas(s, "resumed-1")
@@ -339,173 +144,6 @@ func TestLocalStatusIdleWhileRunningResumes(t *testing.T) {
 	}
 }
 
-func TestAmbiguousLocalLaunchDoesNotAdoptReplacement(t *testing.T) {
-	for _, cartridge := range []bool{false, true} {
-		t.Run(fmt.Sprint(cartridge), func(t *testing.T) {
-			fake := &fakeLocalCores{err: localcores.ErrUnavailable, cores: []localcores.Core{{CoreID: "fes.sms", PackageID: tenfootPongID}}, statusSet: true, status: localcores.RunStatus{Phase: "running", Running: true, PackageID: tenfootPongID, Generation: strings.Repeat("b", 64)}}
-			app := NewApp(nil, 1280, 720, 50)
-			app.localCores = fake
-			app.localContent = func(context.Context, string) (string, string, error) {
-				return "/tmp", "game.sms", nil
-			}
-			app.mu.Lock()
-			if cartridge {
-				app.startLocalTitleLocked(hostclient.Game{ID: "game", Title: "Data Storm", System: "sms"})
-			} else {
-				app.startLocalCoreLocked(rooms.Destination{Label: "Pong", PackageID: tenfootPongID})
-			}
-			app.mu.Unlock()
-			waitFor(t, app, "unowned status observed", func(Snapshot) bool { return fake.statusCount() > 0 })
-			app.mu.Lock()
-			if app.localPhase == localPhaseRunning || app.localLeaseGeneration != "" {
-				t.Error("ambiguous launch adopted replacement")
-			}
-			app.beginLocalStopLocked()
-			app.mu.Unlock()
-			if fake.stopCount() != 0 {
-				t.Fatal("unowned replacement was stopped")
-			}
-		})
-	}
-}
-
-func TestAmbiguousLocalLaunchDeadlineReturnsToMenuAndKeepsReconciling(t *testing.T) {
-	fake := &fakeLocalCores{err: localcores.ErrUnavailable, statusErr: errors.New("status unavailable")}
-	app := NewApp(nil, 1280, 720, 50)
-	app.localCores = fake
-	app.mu.Lock()
-	app.startLocalCoreLocked(rooms.Destination{Label: "FES Pong", PackageID: tenfootPongID})
-	app.mu.Unlock()
-	waitFor(t, app, "ambiguous launch", func(s Snapshot) bool {
-		app.mu.Lock()
-		defer app.mu.Unlock()
-		return app.localReconcileAfterFailure && !app.localReconcileDeadline.IsZero() && fake.statusCount() > 0
-	})
-	app.mu.Lock()
-	deadline := app.localReconcileDeadline
-	app.mu.Unlock()
-	app.Tick(deadline.Add(time.Nanosecond))
-	snap := app.Snapshot()
-	if snap.LocalCorePhase != "" || snap.LocalCorePresentsPaused || !strings.Contains(snap.Status, "core did not confirm it started") {
-		t.Fatalf("deadline did not return to menu with failure copy: %+v", snap)
-	}
-
-	fake.mu.Lock()
-	fake.statusErr = nil
-	fake.status = localcores.RunStatus{Generation: strings.Repeat("a", 64), Phase: "running", Running: true}
-	fake.statusSet = true
-	fake.mu.Unlock()
-	app.mu.Lock()
-	app.localStatusNext = time.Time{}
-	app.mu.Unlock()
-	app.Tick(deadline.Add(localStatusEvery + time.Second))
-	waitFor(t, app, "late status observed", func(Snapshot) bool { return fake.statusCount() >= 2 })
-	app.mu.Lock()
-	defer app.mu.Unlock()
-	if app.localPhase == localPhaseRunning || app.localLeaseGeneration != "" {
-		t.Fatal("late replacement adopted after deadline")
-	}
-
-}
-
-func TestAmbiguousLocalLaunchBlocksRelaunchUntilIdle(t *testing.T) {
-	fake := &fakeLocalCores{err: localcores.ErrUnavailable, statusErr: errors.New("status unavailable")}
-	app := NewApp(nil, 1280, 720, 50)
-	app.localCores = fake
-	app.localContent = func(context.Context, string) (string, string, error) { return "/tmp", "game.sms", nil }
-	app.mu.Lock()
-	app.startLocalTitleLocked(hostclient.Game{ID: "game", Title: "Data Storm", System: "sms"})
-	app.mu.Unlock()
-	waitFor(t, app, "ambiguous launch", func(Snapshot) bool {
-		app.mu.Lock()
-		defer app.mu.Unlock()
-		return app.localReconcileAfterFailure && !app.localReconcileDeadline.IsZero() && fake.statusCount() > 0
-	})
-	app.mu.Lock()
-	deadline := app.localReconcileDeadline
-	app.mu.Unlock()
-	app.Tick(deadline.Add(time.Nanosecond))
-	before := fake.launchCount()
-	app.mu.Lock()
-	app.startLocalCoreLocked(rooms.Destination{Label: "Again", PackageID: tenfootPongID})
-	blockedCopy := app.status
-	app.mu.Unlock()
-	if fake.launchCount() != before || blockedCopy != localLaunchCheckingCopy {
-		t.Fatalf("relaunch was not refused: launches %d -> %d, copy=%q", before, fake.launchCount(), blockedCopy)
-	}
-	fake.mu.Lock()
-	fake.statusErr = nil
-	fake.status = localcores.RunStatus{Phase: "idle"}
-	fake.statusSet = true
-	fake.mu.Unlock()
-	app.mu.Lock()
-	app.localStatusNext = time.Time{}
-	app.mu.Unlock()
-	app.Tick(deadline.Add(localStatusEvery + time.Second))
-	waitFor(t, app, "idle reconciliation", func(Snapshot) bool {
-		app.mu.Lock()
-		defer app.mu.Unlock()
-		return !app.localReconcileAfterFailure
-	})
-	app.mu.Lock()
-	app.startLocalCoreLocked(rooms.Destination{Label: "Again", PackageID: tenfootPongID})
-	app.mu.Unlock()
-	waitFor(t, app, "relaunch after idle", func(Snapshot) bool { return fake.launchCount() == before+1 })
-}
-
-func TestROMLaunchErrorLateIdleClearsOnce(t *testing.T) {
-	fake := &fakeLocalCores{err: localcores.ErrUnavailable, cores: []localcores.Core{{CoreID: "fes.sms", PackageID: tenfootPongID}}, statusQueue: []localcores.RunStatus{{Phase: "launching"}, {Phase: "idle"}}}
-	app := NewApp(nil, 1280, 720, 50)
-	app.localCores = fake
-	app.localContent = func(context.Context, string) (string, string, error) { return "/tmp", "game.sms", nil }
-	app.mu.Lock()
-	app.startLocalTitleLocked(hostclient.Game{ID: "game", Title: "Data Storm", System: "sms"})
-	app.mu.Unlock()
-	snap := waitFor(t, app, "late idle ROM", func(s Snapshot) bool {
-		return s.LocalCorePhase == "" && !s.LocalCorePresentsPaused && fake.statusCount() >= 2
-	})
-	if !strings.Contains(snap.Status, localUnavailableCopy) {
-		t.Fatalf("missing failure copy: %+v", snap)
-	}
-	redraw, polls := snap.LocalCoreRedraw, fake.statusCount()
-	for i := 0; i < 3; i++ {
-		app.Tick(time.Now().Add(time.Duration(i+2) * localStatusEvery))
-	}
-	if next := app.Snapshot(); next.LocalCoreRedraw != redraw || fake.statusCount() != polls {
-		t.Fatalf("idle processed again: %+v polls=%d", next, fake.statusCount())
-	}
-}
-
-func TestAmbiguousLocalLaunchDoesNotApplyDeferredStopToReplacement(t *testing.T) {
-	// The startup read takes idle, so the ambiguous launch reads launching
-	// and then a generation-free running.
-	fake := &fakeLocalCores{err: localcores.ErrUnavailable, statusQueue: []localcores.RunStatus{{Phase: "idle"}, {Phase: "launching"}, {Phase: "running", Running: true}}}
-	app := startCoreRoom(t, fake, nil, coreRoomScript(tenfootPongID, "FES Pong", true, ""))
-	waitFor(t, app, "pong tile after startup status", func(s Snapshot) bool {
-		app.mu.Lock()
-		checked := app.localStartupStatusChecked
-		app.mu.Unlock()
-		return s.Room.Open && s.Room.Destination.CoreLaunchable && checked
-	})
-	app.HandleCommand(CmdSelect, time.Now())
-	// The chord must land after the launch POST. Before it, Stop cancels the
-	// queued launch and nothing is ambiguous.
-	waitFor(t, app, "ambiguous launching", func(s Snapshot) bool {
-		app.mu.Lock()
-		reconciling := app.localReconcileAfterFailure
-		app.mu.Unlock()
-		return s.LocalCorePhase == localPhaseLaunching && fake.launchCount() == 1 && reconciling && fake.statusCount() >= 2
-	})
-	now := time.Now()
-	app.HandleLocalPad(padButton(remoteinput.ButtonSelect, true), now)
-	app.HandleLocalPad(padButton(remoteinput.ButtonStart, true), now.Add(time.Millisecond))
-	app.Tick(now.Add(localChordHold + time.Millisecond))
-	waitFor(t, app, "late-running status", func(Snapshot) bool { return fake.statusCount() >= 3 })
-	if fake.stopCount() != 0 {
-		t.Fatal("old chord stopped replacement local session")
-	}
-}
-
 func TestLocalStatusPollIsSingleFlight(t *testing.T) {
 	block := make(chan struct{})
 	var once sync.Once
@@ -515,7 +153,7 @@ func TestLocalStatusPollIsSingleFlight(t *testing.T) {
 	waitFor(t, app, "pong tile", func(s Snapshot) bool {
 		return s.Room.Destination.CoreLaunchable && s.Room.Destination.Label == "FES Pong"
 	})
-	app.HandleCommand(CmdSelect, time.Unix(10, 0))
+	adoptTestLocalRun(app, fake)
 	waitFor(t, app, "running", func(s Snapshot) bool {
 		return s.LocalCorePhase == localPhaseRunning
 	})
@@ -549,7 +187,7 @@ func TestStaleLocalStatusPollDoesNotResumeAfterFailedStop(t *testing.T) {
 	waitFor(t, app, "pong tile", func(s Snapshot) bool {
 		return s.Room.Destination.CoreLaunchable
 	})
-	app.HandleCommand(CmdSelect, time.Unix(20, 0))
+	adoptTestLocalRun(app, fake)
 	waitFor(t, app, "running", func(s Snapshot) bool {
 		return s.LocalCorePhase == localPhaseRunning && s.LocalCorePresentsPaused
 	})
@@ -596,7 +234,7 @@ func TestLocalStopInUseResumes(t *testing.T) {
 	waitFor(t, app, "pong tile", func(s Snapshot) bool {
 		return s.Room.Destination.Label == "FES Pong" && s.Room.Destination.CoreLaunchable
 	})
-	app.HandleCommand(CmdSelect, time.Unix(20, 0))
+	adoptTestLocalRun(app, fake)
 	waitFor(t, app, "running", func(s Snapshot) bool {
 		return s.LocalCorePhase == localPhaseRunning && s.LocalCorePresentsPaused
 	})
@@ -621,7 +259,7 @@ func TestLocalStopUnavailableStaysRunning(t *testing.T) {
 	waitFor(t, app, "pong tile", func(s Snapshot) bool {
 		return s.Room.Destination.CoreLaunchable
 	})
-	app.HandleCommand(CmdSelect, time.Unix(20, 0))
+	adoptTestLocalRun(app, fake)
 	waitFor(t, app, "running", func(s Snapshot) bool {
 		return s.LocalCorePhase == localPhaseRunning && s.LocalCorePresentsPaused
 	})
@@ -649,7 +287,7 @@ func TestChordCompletingEventIsNotForwarded(t *testing.T) {
 	waitFor(t, app, "pong tile", func(s Snapshot) bool {
 		return s.Room.Destination.Label == "FES Pong"
 	})
-	app.HandleCommand(CmdSelect, time.Unix(20, 0))
+	adoptTestLocalRun(app, fake)
 	waitFor(t, app, "running", func(s Snapshot) bool {
 		return s.LocalCorePhase == localPhaseRunning
 	})
@@ -668,53 +306,6 @@ func TestChordCompletingEventIsNotForwarded(t *testing.T) {
 	}
 	if fake.stopCount() != 1 {
 		t.Fatalf("stops %d", fake.stopCount())
-	}
-}
-
-func TestKitCoreInUseAndBlockedCopy(t *testing.T) {
-	blocked := &fakeLocalCores{}
-	app := startCoreRoom(t, blocked, nil, coreRoomScript(tenfootPongID, "ColecoVision", false, "Needs a cartridge"), true)
-	waitFor(t, app, "blocked tile", func(s Snapshot) bool {
-		return s.Room.Open && !s.RoomPicker.Open && !s.Loading &&
-			s.Room.ID == "cores" &&
-			s.Room.Destination.Kind == rooms.KindCore &&
-			s.Room.Destination.Label == "ColecoVision" &&
-			!s.Room.Destination.CoreLaunchable &&
-			s.Room.Destination.Status == "Needs a cartridge" &&
-			s.Room.Destination.Action == "Needs a cartridge" &&
-			s.Room.Destination.Confirm() == rooms.ConfirmExplain
-	})
-	app.HandleCommand(CmdSelect, time.Unix(10, 0))
-	snap := app.Snapshot()
-	if snap.LocalCorePresentsPaused || snap.LocalCorePhase != "" || !strings.Contains(snap.Status, "Needs a cartridge") {
-		t.Fatalf("blocked snapshot phase=%s paused=%v status=%q", snap.LocalCorePhase, snap.LocalCorePresentsPaused, snap.Status)
-	}
-	if blocked.launchCount() != 0 || blocked.stopCount() != 0 {
-		t.Fatalf("blocked called the runtime launches=%d stops=%d", blocked.launchCount(), blocked.stopCount())
-	}
-	app.mu.Lock()
-	app.kitLeaseHave = true
-	app.kitLease = KitLeaseStatus{State: "held", Owner: "other", Purpose: "in-use"}
-	app.mu.Unlock()
-	snap = app.Snapshot()
-	if snap.Room.Destination.Status != "Needs a cartridge" || snap.Room.Destination.Action != "Needs a cartridge" {
-		t.Fatalf("lease overrode blocked-core copy: %+v", snap.Room.Destination)
-	}
-
-	busy := &fakeLocalCores{err: localcores.ErrInUse}
-	app = startCoreRoom(t, busy, nil, coreRoomScript(tenfootPongID, "FES Pong", true, ""))
-	waitFor(t, app, "busy tile", func(s Snapshot) bool {
-		return s.Room.Destination.CoreLaunchable && s.Room.Destination.Label == "FES Pong"
-	})
-	app.HandleCommand(CmdSelect, time.Unix(20, 0))
-	snap = waitFor(t, app, "in use", func(s Snapshot) bool {
-		return strings.Contains(s.Status, "In use") && strings.Contains(s.Status, "Someone else is playing on this machine")
-	})
-	if snap.LocalCorePresentsPaused || snap.LocalCorePhase != "" {
-		t.Fatalf("in use left the core up phase=%s paused=%v", snap.LocalCorePhase, snap.LocalCorePresentsPaused)
-	}
-	if busy.launchCount() != 1 {
-		t.Fatalf("launches %d", busy.launchCount())
 	}
 }
 
@@ -822,310 +413,6 @@ func TestPresentHoldLateAdoptionPausesAfterStaleFailure(t *testing.T) {
 	}
 }
 
-func TestMenuLaunchWaitsForFrameDrainAndPause(t *testing.T) {
-	gate := make(chan struct{})
-	rec := &recordingMenu{presentEntered: make(chan struct{}, 1), presentGate: gate}
-	dev, err := gfx.NewMenuDisplayWithPresenter(rec)
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer dev.Close()
-	fake := &fakeLocalCores{hold: make(chan struct{})}
-	defer close(fake.hold)
-	app := NewApp(nil, 1280, 720, 50)
-	app.SetMenuDisplay(dev)
-	app.localCores = fake
-	app.mu.Lock()
-	app.startLocalCoreLocked(rooms.Destination{Label: "FES Pong", PackageID: tenfootPongID})
-	app.mu.Unlock()
-	snap := app.Snapshot()
-	copy := launchOverlayCopy(Snapshot{Room: RoomSnapshot{Open: true}, LocalCorePhase: snap.LocalCorePhase, LocalCoreTitle: snap.LocalCoreTitle, LocalCoreStartedAt: snap.LocalCoreStartedAt, LocalCorePresentsPaused: true})
-	if copy.Phase == "" || copy.Elapsed == "" {
-		t.Fatalf("first frame copy %+v", copy)
-	}
-	var hold presentHold
-	if skip, err := hold.skip(context.Background(), dev, snap); skip || err != nil {
-		t.Fatalf("first frame skip=%v err=%v", skip, err)
-	}
-	dev.Present()
-	select {
-	case <-rec.presentEntered:
-	case <-time.After(testwait.Timeout):
-		t.Fatal("frame did not reach presenter")
-	}
-	if fake.launchCount() != 0 {
-		t.Fatal("launch dispatched before drain")
-	}
-	type result struct {
-		skip bool
-		err  error
-	}
-	finished := make(chan result, 1)
-	go func() { skip, err := hold.skip(context.Background(), dev, snap); finished <- result{skip, err} }()
-	select {
-	case <-finished:
-		t.Fatal("pause returned while frame blocked")
-	case <-time.After(20 * time.Millisecond):
-	}
-	if fake.launchCount() != 0 {
-		t.Fatal("launch dispatched during drain")
-	}
-	close(gate)
-	select {
-	case got := <-finished:
-		if !got.skip || got.err != nil {
-			t.Fatalf("handoff %+v", got)
-		}
-	case <-time.After(testwait.Timeout):
-		t.Fatal("pause did not complete")
-	}
-	app.completeLocalLaunchHandoff(nil)
-	waitFor(t, app, "launch dispatched", func(Snapshot) bool { return fake.launchCount() == 1 })
-	if skip, err := hold.skip(context.Background(), dev, snap); !skip || err != nil {
-		t.Fatal("frame presented after pause")
-	}
-}
-
-func TestQueuedStopDuringWarmListDoesNotPostLaunch(t *testing.T) {
-	app := NewApp(nil, 1280, 720, 50)
-	defer app.Stop()
-	app.mu.Lock()
-	app.localGen = 7
-	app.localPhase = localPhaseLaunching
-	app.mu.Unlock()
-
-	fake := &stopOnWarmListLocalCores{fakeLocalCores: &fakeLocalCores{}, app: app}
-	_, err := app.launchAfterWarm(fake, tenfootPongID, 7)
-	if !errors.Is(err, errQueuedLaunchStopped) {
-		t.Fatalf("launch result after Stop during warm list = %v", err)
-	}
-	if n := fake.launchCount(); n != 0 {
-		t.Fatalf("Stop during warm list posted %d launches", n)
-	}
-}
-
-type stopOnWarmListLocalCores struct {
-	*fakeLocalCores
-	app *App
-}
-
-func (f *stopOnWarmListLocalCores) List(ctx context.Context) ([]localcores.Core, error) {
-	if !f.app.RequestLocalStop() {
-		return nil, errors.New("Stop did not own the queued launch")
-	}
-	return f.fakeLocalCores.List(ctx)
-}
-
-func TestQueuedLocalPlayReadinessFollowsAgentDecision(t *testing.T) {
-	for _, tc := range []struct {
-		name        string
-		launchErr   error
-		wantRunning bool
-	}{
-		{name: "package disappeared", launchErr: localcores.ErrNotFound},
-		{name: "software admission fence", launchErr: localcores.ErrInUse},
-		{name: "accepted", wantRunning: true},
-	} {
-		t.Run(tc.name, func(t *testing.T) {
-			readyPath := filepath.Join(t.TempDir(), "launcher-ready.json")
-			t.Setenv("FES_SOFTWARE_READY_FILE", readyPath)
-			t.Setenv("FES_SOFTWARE_BUNDLE_ID", "bundle")
-
-			rec := &recordingMenu{}
-			dev, err := gfx.NewMenuDisplayWithPresenter(rec)
-			if err != nil {
-				t.Fatal(err)
-			}
-			defer dev.Close()
-			dev.SetChangeDriven(true)
-			dev.Present()
-			waitCtx, cancel := context.WithTimeout(context.Background(), testwait.Timeout)
-			if err := dev.WaitIdle(waitCtx); err != nil {
-				cancel()
-				t.Fatalf("initial menu frame: %v", err)
-			}
-			cancel()
-			requireLauncherReady(t, readyPath, true)
-
-			fake := &fakeLocalCores{}
-			agent := &warmingDecisionLocalCores{
-				fakeLocalCores: fake,
-				secondList:     make(chan struct{}),
-				releaseList:    make(chan struct{}),
-				launchStarted:  make(chan struct{}),
-				releaseLaunch:  make(chan struct{}),
-				outcome:        tc.launchErr,
-			}
-			var listOnce, launchOnce sync.Once
-			openList := func() { listOnce.Do(func() { close(agent.releaseList) }) }
-			finishLaunch := func() { launchOnce.Do(func() { close(agent.releaseLaunch) }) }
-			defer func() { openList(); finishLaunch() }()
-			app := NewApp(nil, 1280, 720, 50)
-			defer app.Stop()
-			app.SetMenuDisplay(dev)
-			app.localCores = agent
-			app.mu.Lock()
-			app.startLocalCoreLocked(rooms.Destination{Label: "FES Pong", PackageID: tenfootPongID})
-			app.mu.Unlock()
-
-			var hold presentHold
-			snap := app.Snapshot()
-			if skip, err := hold.skip(context.Background(), dev, snap); skip || err != nil {
-				t.Fatalf("loading frame skip=%v err=%v", skip, err)
-			}
-			dev.Present()
-			if skip, err := hold.skip(context.Background(), dev, snap); !skip || err != nil {
-				t.Fatalf("launch handoff skip=%v err=%v", skip, err)
-			}
-			requireLauncherReady(t, readyPath, true)
-			app.completeLocalLaunchHandoff(nil)
-			select {
-			case <-agent.secondList:
-			case <-time.After(testwait.Timeout):
-				t.Fatal("launch did not wait on the catalog list")
-			}
-			requireLauncherReady(t, readyPath, true)
-			openList()
-			select {
-			case <-agent.launchStarted:
-			case <-time.After(testwait.Timeout):
-				t.Fatal("launch was not posted after catalog readiness")
-			}
-			requireLauncherReady(t, readyPath, true)
-
-			finishLaunch()
-			if tc.wantRunning {
-				waitFor(t, app, "accepted launch", func(s Snapshot) bool { return s.LocalCorePhase == localPhaseRunning })
-				requireLauncherReady(t, readyPath, false)
-				return
-			}
-			waitFor(t, app, "rejected launch", func(s Snapshot) bool { return s.LocalCorePhase == "" && s.Status != "" })
-			if skip, err := hold.skip(context.Background(), dev, app.Snapshot()); skip || err != nil {
-				t.Fatalf("rejected launch should resume menu: skip=%v err=%v", skip, err)
-			}
-			requireLauncherReady(t, readyPath, true)
-		})
-	}
-}
-
-func requireLauncherReady(t *testing.T, path string, want bool) {
-	t.Helper()
-	_, err := os.Stat(path)
-	if want && err != nil {
-		t.Fatalf("launcher readiness missing: %v", err)
-	}
-	if !want && !errors.Is(err, os.ErrNotExist) {
-		t.Fatalf("launcher readiness retained: %v", err)
-	}
-}
-
-type warmingDecisionLocalCores struct {
-	*fakeLocalCores
-	secondList    chan struct{}
-	releaseList   chan struct{}
-	launchStarted chan struct{}
-	releaseLaunch chan struct{}
-	listCalls     int
-	outcome       error
-}
-
-func (f *warmingDecisionLocalCores) List(ctx context.Context) ([]localcores.Core, error) {
-	f.mu.Lock()
-	f.listCalls++
-	attempt := f.listCalls
-	f.mu.Unlock()
-	if attempt == 1 {
-		return nil, localcores.ErrWarming
-	}
-	if attempt == 2 {
-		close(f.secondList)
-		<-f.releaseList
-	}
-	return f.fakeLocalCores.List(ctx)
-}
-
-func (f *warmingDecisionLocalCores) Launch(_ context.Context, id string) (localcores.LaunchResult, error) {
-	f.mu.Lock()
-	f.launches = append(f.launches, id)
-	outcome := f.outcome
-	f.mu.Unlock()
-	close(f.launchStarted)
-	<-f.releaseLaunch
-	return localcores.LaunchResult{Core: localcores.Core{PackageID: id}, Generation: strings.Repeat("a", 64)}, outcome
-}
-
-func TestMenuPauseFailureClearsLaunchBeforeResume(t *testing.T) {
-	gate := make(chan struct{})
-	rec := &recordingMenu{presentEntered: make(chan struct{}, 1), presentGate: gate}
-	dev, err := gfx.NewMenuDisplayWithPresenter(rec)
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer dev.Close()
-	fake := &fakeLocalCores{}
-	app := NewApp(nil, 1280, 720, 50)
-	app.SetMenuDisplay(dev)
-	app.localCores = fake
-	app.mu.Lock()
-	app.startLocalCoreLocked(rooms.Destination{Label: "FES Pong", PackageID: tenfootPongID})
-	app.mu.Unlock()
-	snap := app.Snapshot()
-	var hold presentHold
-	if skip, err := hold.skip(context.Background(), dev, snap); skip || err != nil {
-		t.Fatal("first frame skipped")
-	}
-	dev.Present()
-	select {
-	case <-rec.presentEntered:
-	case <-time.After(testwait.Timeout):
-		t.Fatal("frame did not reach presenter")
-	}
-	ctx, cancel := context.WithCancel(context.Background())
-	cancel()
-	if skip, err := hold.skip(ctx, dev, snap); !skip || err == nil {
-		t.Fatalf("pause skip=%v err=%v", skip, err)
-	} else {
-		app.completeLocalLaunchHandoff(err)
-	}
-	state := app.Snapshot()
-	if state.LocalCorePhase != "" || state.LocalCorePresentsPaused || state.Status == "" || fake.launchCount() != 0 {
-		t.Fatalf("failed handoff %+v", state)
-	}
-	dev.Resume()
-	close(gate)
-	dev.Present()
-	resumeCtx, resumeCancel := context.WithTimeout(context.Background(), time.Second)
-	defer resumeCancel()
-	if err := dev.WaitIdle(resumeCtx); err != nil {
-		t.Fatalf("menu did not resume: %v", err)
-	}
-	if calls, _, _ := rec.snapshot(); calls < 2 {
-		t.Fatalf("resumed menu presented %d frames", calls)
-	}
-}
-
-func TestDeferredLocalStopDispatchesAfterRunning(t *testing.T) {
-	hold := make(chan struct{})
-	fake := &fakeLocalCores{hold: hold}
-	app := startCoreRoom(t, fake, &fakePadFeed{}, coreRoomScript(tenfootPongID, "FES Pong", true, ""))
-	waitFor(t, app, "pong tile", func(s Snapshot) bool { return s.Room.Open && s.Room.Destination.Label == "FES Pong" })
-	app.HandleCommand(CmdSelect, time.Unix(100, 0))
-	waitFor(t, app, "armed frame", func(s Snapshot) bool { return s.LocalCorePhase == localPhaseLaunching && launchOverlayCopy(s).Visible })
-	waitFor(t, app, "launch in progress", func(Snapshot) bool { return fake.launchCount() == 1 })
-	now := time.Now()
-	app.HandleLocalPad(padButton(remoteinput.ButtonSelect, true), now)
-	app.HandleLocalPad(padButton(remoteinput.ButtonStart, true), now.Add(time.Millisecond))
-	app.Tick(now.Add(localChordHold + time.Second))
-	app.mu.Lock()
-	deferred := app.localStopAfterStart
-	app.mu.Unlock()
-	if !deferred || fake.stopCount() != 0 {
-		t.Fatalf("stop was not deferred: deferred=%v stops=%d", deferred, fake.stopCount())
-	}
-	close(hold)
-	waitFor(t, app, "deferred stop", func(s Snapshot) bool { return fake.stopCount() == 1 && s.LocalCorePhase != localPhaseLaunching })
-}
-
 func startCoreRoom(t *testing.T, cores rooms.LocalCores, feed localPadSender, script string, paired ...bool) *App {
 	t.Helper()
 	app, _ := startCoreRoomWithHost(t, cores, feed, script, paired...)
@@ -1151,102 +438,6 @@ func startCoreRoomWithHost(t *testing.T, cores rooms.LocalCores, feed localPadSe
 	app.Start(t.Context())
 	t.Cleanup(app.Stop)
 	return app, h
-}
-
-func TestKitDirectPadLaunchInputStopAndRelaunch(t *testing.T) {
-	hold := make(chan struct{})
-	fake := &fakeLocalCores{hold: hold}
-	feed := &fakePadFeed{}
-	app, host := startCoreRoomWithHost(t, fake, feed, coreRoomScript(tenfootPongID, "FES Pong", true, ""))
-	snap := waitFor(t, app, "pong tile", func(s Snapshot) bool {
-		return s.Room.Open && s.Room.ID == "cores" && s.Room.Destination.Kind == rooms.KindCore && s.Room.Destination.Label == "FES Pong"
-	})
-	focus := snap.Room.Destination.Label
-	packageID := snap.Room.Destination.PackageID
-
-	app.HandleCommand(CmdSelect, time.Unix(100, 0))
-	snap = app.Snapshot()
-	if !snap.LocalCorePresentsPaused || snap.LocalCorePhase != localPhaseLaunching {
-		t.Fatalf("launch did not pause the menu phase=%s paused=%v", snap.LocalCorePhase, snap.LocalCorePresentsPaused)
-	}
-	app.HandleLocalPad(padButton(remoteinput.ButtonA, true), time.Unix(110, 0))
-	if feed.count(remoteinput.ButtonA, remoteinput.ActionPress) != 0 {
-		t.Fatal("launch forwarded A to the core")
-	}
-	if host.launchCount() != 0 || host.inputCount() != 0 {
-		t.Fatalf("launch touched the host launches=%d inputs=%d", host.launchCount(), host.inputCount())
-	}
-
-	close(hold)
-	waitFor(t, app, "running", func(s Snapshot) bool {
-		return s.LocalCorePhase == localPhaseRunning && s.LocalCorePresentsPaused && s.Room.Destination.Label == focus
-	})
-	if fake.launchCount() != 1 {
-		t.Fatalf("local launches %d", fake.launchCount())
-	}
-	tPlay := time.Unix(200, 0)
-	app.HandleLocalPad(padButton(remoteinput.ButtonA, true), tPlay)
-	app.HandleLocalPad(padButton(remoteinput.ButtonA, false), tPlay.Add(20*time.Millisecond))
-	if feed.count(remoteinput.ButtonA, remoteinput.ActionPress) != 1 || feed.count(remoteinput.ButtonA, remoteinput.ActionRelease) != 1 {
-		t.Fatalf("running core did not see A: %+v", feed.snapshot())
-	}
-
-	t0 := time.Unix(210, 0)
-	app.HandleLocalPad(padButton(remoteinput.ButtonSelect, true), t0)
-	app.HandleLocalPad(padButton(remoteinput.ButtonStart, true), t0)
-	app.HandleLocalPad(padButton(remoteinput.ButtonStart, false), t0.Add(400*time.Millisecond))
-	app.Tick(t0.Add(2 * time.Second))
-	if fake.stopCount() != 0 || !app.Snapshot().LocalCorePresentsPaused {
-		t.Fatal("short chord stopped the core or resumed the menu")
-	}
-
-	t1 := time.Unix(300, 0)
-	app.HandleLocalPad(padButton(remoteinput.ButtonSelect, true), t1)
-	app.HandleLocalPad(padButton(remoteinput.ButtonStart, true), t1.Add(10*time.Millisecond))
-	app.Tick(t1.Add(10*time.Millisecond + time.Second))
-	snap = waitFor(t, app, "resume", func(s Snapshot) bool {
-		return !s.LocalCorePresentsPaused && s.LocalCorePhase == "" && s.LocalCoreRedraw >= 1 && roomTextHas(s, "resumed-1")
-	})
-	if fake.stopCount() != 1 || fake.launchCount() != 1 {
-		t.Fatalf("stops %d launches %d", fake.stopCount(), fake.launchCount())
-	}
-	assertRoomFocus(t, snap, focus, packageID)
-
-	app.HandleCommand(CmdSelect, time.Unix(400, 0))
-	waitFor(t, app, "relaunch", func(s Snapshot) bool {
-		return s.LocalCorePhase == localPhaseRunning && s.LocalCorePresentsPaused && s.Room.Destination.Label == focus
-	})
-	if fake.launchCount() != 2 {
-		t.Fatalf("relaunch count %d", fake.launchCount())
-	}
-	t2 := time.Unix(500, 0)
-	app.HandleLocalPad(padButton(remoteinput.ButtonA, true), t2)
-	if feed.count(remoteinput.ButtonA, remoteinput.ActionPress) != 2 {
-		t.Fatalf("relaunch did not take A locally: %+v", feed.snapshot())
-	}
-	app.HandleLocalPad(padButton(remoteinput.ButtonSelect, true), t2.Add(time.Second))
-	app.HandleLocalPad(padButton(remoteinput.ButtonStart, true), t2.Add(time.Second+10*time.Millisecond))
-	app.Tick(t2.Add(2*time.Second + 10*time.Millisecond))
-	snap = waitFor(t, app, "second resume", func(s Snapshot) bool {
-		return !s.LocalCorePresentsPaused && s.LocalCorePhase == "" && roomTextHas(s, "resumed-2")
-	})
-	assertRoomFocus(t, snap, focus, packageID)
-	if fake.stopCount() != 2 {
-		t.Fatalf("stops %d", fake.stopCount())
-	}
-	if host.launchCount() != 0 || host.inputCount() != 0 {
-		t.Fatalf("pad path used the host launches=%d inputs=%d", host.launchCount(), host.inputCount())
-	}
-}
-
-func assertRoomFocus(t *testing.T, snap Snapshot, label, packageID string) {
-	t.Helper()
-	if !snap.Room.Open || snap.Room.ID != "cores" || snap.RoomPicker.Open || len(snap.Room.Parents) != 0 {
-		t.Fatalf("room was not restored: open=%v id=%q picker=%v parents=%v", snap.Room.Open, snap.Room.ID, snap.RoomPicker.Open, snap.Room.Parents)
-	}
-	if snap.Room.Destination.Label != label || snap.Room.Destination.PackageID != packageID || snap.Room.Destination.Kind != rooms.KindCore {
-		t.Fatalf("focus moved: %+v", snap.Room.Destination)
-	}
 }
 
 func TestKitSessionPadStaysLocalWhenTheFeedFails(t *testing.T) {
@@ -1490,25 +681,6 @@ func (f *fakePadFeed) snapshot() []remoteinput.Event {
 	return append([]remoteinput.Event(nil), f.events...)
 }
 
-func TestLocalStopUsesSuccessfulLaunchGeneration(t *testing.T) {
-	fake := &fakeLocalCores{}
-	app := NewApp(nil, 1280, 720, 50)
-	app.localCores = fake
-	app.mu.Lock()
-	app.startLocalCoreLocked(rooms.Destination{Label: "Pong", PackageID: tenfootPongID})
-	app.mu.Unlock()
-	waitFor(t, app, "owned launch", func(s Snapshot) bool { return s.LocalCorePhase == localPhaseRunning })
-	app.mu.Lock()
-	app.beginLocalStopLocked()
-	app.mu.Unlock()
-	waitFor(t, app, "stop complete", func(s Snapshot) bool { return s.LocalCorePhase == "" })
-	fake.mu.Lock()
-	defer fake.mu.Unlock()
-	if len(fake.stopGenerations) != 1 || fake.stopGenerations[0] != strings.Repeat("a", 64) {
-		t.Fatalf("Stop generations = %v", fake.stopGenerations)
-	}
-}
-
 func TestFreshLauncherAdoptsSurvivingLocalRunAndChordStopsIt(t *testing.T) {
 	generation := strings.Repeat("b", 64)
 	fake := &fakeLocalCores{statusSet: true, status: localcores.RunStatus{
@@ -1575,67 +747,6 @@ func TestLocalStatusReplacementRevokesStopOwnership(t *testing.T) {
 	app.beginLocalStopLocked()
 	if fake.stopCount() != 0 {
 		t.Fatal("replacement was stopped")
-	}
-}
-
-func TestReplacementRunKeepsPadUntilGenerationFreeIdle(t *testing.T) {
-	owned := strings.Repeat("a", 64)
-	replacement := strings.Repeat("b", 64)
-	fake := &fakeLocalCores{statusSet: true, status: localcores.RunStatus{
-		Phase: "running", Running: true, PackageID: tenfootPongID, Generation: replacement,
-	}}
-	feed := &fakePadFeed{}
-	app := NewApp(nil, 1280, 720, 50)
-	app.localCores = fake
-	app.localFeed = feed
-	app.mu.Lock()
-	app.localPhase = localPhaseRunning
-	app.localLeaseGeneration = owned
-	app.localPackageID = tenfootPongID
-	app.localPresentsPaused = true
-	app.mu.Unlock()
-
-	base := time.Unix(1000, 0)
-	app.Tick(base)
-	waitFor(t, app, "replacement held", func(s Snapshot) bool {
-		return s.LocalCorePhase == localPhaseLaunching && s.LocalCorePresentsPaused && strings.Contains(s.Status, "In use")
-	})
-	app.Tick(base.Add(localReconcileTimeout + time.Second))
-	if snap := app.Snapshot(); snap.LocalCorePhase == "" || !snap.LocalCorePresentsPaused {
-		t.Fatalf("deadline released a running replacement: %+v", snap)
-	}
-	if !app.HandleLocalPad(padButton(remoteinput.ButtonA, true), base.Add(localReconcileTimeout+2*time.Second)) {
-		t.Fatal("menu took the replacement pad")
-	}
-	if feed.count(remoteinput.ButtonA, remoteinput.ActionPress) != 1 {
-		t.Fatal("replacement did not receive play input")
-	}
-	app.mu.Lock()
-	app.beginLocalStopLocked()
-	app.startLocalCoreLocked(rooms.Destination{Label: "Again", PackageID: tenfootPongID})
-	app.mu.Unlock()
-	if fake.stopCount() != 0 {
-		t.Fatal("unowned replacement was stopped")
-	}
-	if fake.launchCount() != 0 {
-		t.Fatal("replacement hold allowed another launch")
-	}
-
-	fake.setStatus(localcores.RunStatus{Phase: "idle", Generation: replacement})
-	polls := fake.statusCount()
-	app.Tick(base.Add(localReconcileTimeout + 3*time.Second))
-	waitFor(t, app, "generation-bearing idle observed", func(Snapshot) bool { return fake.statusCount() > polls })
-	if snap := app.Snapshot(); snap.LocalCorePhase == "" || !snap.LocalCorePresentsPaused {
-		t.Fatalf("idle with a generation resumed the menu: %+v", snap)
-	}
-
-	fake.setStatus(localcores.RunStatus{Phase: "idle"})
-	app.Tick(base.Add(localReconcileTimeout + 5*time.Second))
-	waitFor(t, app, "generation-free idle", func(s Snapshot) bool {
-		return s.LocalCorePhase == "" && !s.LocalCorePresentsPaused
-	})
-	if app.HandleLocalPad(padButton(remoteinput.ButtonA, true), base.Add(localReconcileTimeout+6*time.Second)) {
-		t.Fatal("menu did not regain the pad after idle")
 	}
 }
 
@@ -1734,43 +845,6 @@ func TestLauncherStartupRetriesStatusThenAdopts(t *testing.T) {
 	waitFor(t, app, "adopted after retry", func(s Snapshot) bool {
 		return adoptedInUseScreen(s) && s.LocalCorePresentsPaused && s.LocalCoreLateAdopt
 	})
-}
-
-func TestRejectedLaunchDoesNotAdoptExistingRun(t *testing.T) {
-	generation := strings.Repeat("b", 64)
-	fake := &fakeLocalCores{
-		err:       localcores.ErrInUse,
-		statusSet: true,
-		status: localcores.RunStatus{
-			Phase: "running", Running: true, PackageID: tenfootPongID, CoreID: "fes.pong", Generation: generation,
-		},
-	}
-	app := NewApp(nil, 1280, 720, 50)
-	app.localCores = fake
-	t.Cleanup(app.Stop)
-	app.mu.Lock()
-	app.startLocalCoreLocked(rooms.Destination{Label: "Pong", PackageID: tenfootPongID})
-	app.mu.Unlock()
-	waitFor(t, app, "rejected launch", func(s Snapshot) bool {
-		return s.LocalCorePhase == "" && s.Status == localInUseCopy
-	})
-	app.mu.Lock()
-	app.localStatusNext = time.Time{}
-	app.mu.Unlock()
-	app.Tick(time.Unix(30, 0))
-	deadline := time.Now().Add(200 * time.Millisecond)
-	for time.Now().Before(deadline) {
-		app.mu.Lock()
-		phase, generation, checked := app.localPhase, app.localLeaseGeneration, app.localStartupStatusChecked
-		app.mu.Unlock()
-		if phase != "" || generation != "" || !checked {
-			t.Fatalf("rejected launch adopted phase=%q generation=%q checked=%v", phase, generation, checked)
-		}
-		time.Sleep(time.Millisecond)
-	}
-	if fake.statusCount() != 0 || fake.stopCount() != 0 {
-		t.Fatalf("rejected launch polled=%d stopped=%d", fake.statusCount(), fake.stopCount())
-	}
 }
 
 func TestLauncherStartupIgnoresIdleAndUnnamedRuns(t *testing.T) {

@@ -66,6 +66,13 @@ func TestParseArgsSmokeAndAPI(t *testing.T) {
 	}
 }
 
+func TestParseArgsKitHost(t *testing.T) {
+	opts, err := parseArgs([]string{"-api", "http://127.0.0.1:8787", "-kit-host"})
+	if err != nil || !opts.KitHost || opts.APIBase != "http://127.0.0.1:8787" {
+		t.Fatalf("opts = %#v, err = %v", opts, err)
+	}
+}
+
 func TestParseArgsAPIHost(t *testing.T) {
 	t.Parallel()
 	opts, err := parseArgs([]string{"-api", "http://host.docker.internal:8787", "-api-host", "127.0.0.1:8787"})
@@ -154,33 +161,6 @@ func TestParseArgsHomeRoom(t *testing.T) {
 	}
 	if opts.HomeRoom != "" {
 		t.Fatalf("unset home room %#v", opts.HomeRoom)
-	}
-}
-
-func TestParseArgsWiresSiblingCatalogConfig(t *testing.T) {
-	dir := t.TempDir()
-	launcher := filepath.Join(dir, "launcher.json")
-	catalog := filepath.Join(dir, "config.toml")
-	if err := os.WriteFile(launcher, []byte(`{"api":"http://kit.test:8789","token":"launcher-token-012345678901234567890123456789","target_id":"73dc9f5f-1a12-4a95-a820-a9b4e600769a"}`), 0o600); err != nil {
-		t.Fatal(err)
-	}
-	if err := os.WriteFile(catalog, []byte("token = \"synthetic\"\n"), 0o600); err != nil {
-		t.Fatal(err)
-	}
-	getenv := func(string) string { return "" }
-	opts, err := parseArgsWithEnv([]string{"-config", launcher, "-gfx", "menu-display"}, getenv)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if opts.CatalogConfig != catalog || opts.GFX != "menu-display" {
-		t.Fatalf("catalog = %q gfx = %q", opts.CatalogConfig, opts.GFX)
-	}
-	opts, err = parseArgsWithEnv([]string{"-config", launcher, "-catalog-config", filepath.Join(dir, "missing.toml")}, getenv)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if opts.CatalogConfig != "" {
-		t.Fatalf("missing explicit catalog = %q", opts.CatalogConfig)
 	}
 }
 

@@ -24,9 +24,12 @@ type AcknowledgeRequest struct {
 	Action     string `json:"action"`
 }
 type AcknowledgeResult struct {
-	Action     string `json:"action"`
-	Operation  string `json:"operation"`
+	Action    string `json:"action"`
+	Operation string `json:"operation"`
+	// Selected is the durable user selection. Running may be a compatible
+	// factory fallback while that selection remains held back.
 	Selected   string `json:"selected"`
+	Running    string `json:"running"`
 	Generation uint64 `json:"generation"`
 	Completed  bool   `json:"completed"`
 }
@@ -34,6 +37,7 @@ type acknowledgmentAudit struct {
 	Request  AcknowledgeRequest `json:"request"`
 	Failed   Operation          `json:"failed_operation"`
 	Previous string             `json:"previous"`
+	Running  string             `json:"running_bundle,omitempty"`
 }
 
 func (r AcknowledgeRequest) validate() error {
@@ -52,7 +56,11 @@ func (r AcknowledgeRequest) validate() error {
 	return nil
 }
 func acknowledgmentReason(a acknowledgmentAudit) string {
-	return "operator acknowledgment " + a.Request.Action + " of already-running prior release; automatic recovery remains spent; original failure: " + a.Failed.Reason
+	reason := "operator acknowledgment " + a.Request.Action + " of already-running release; automatic recovery remains spent"
+	if a.Running != "" && a.Running != a.Request.Selected {
+		reason += "; compatible running bundle " + a.Running + " acknowledged while held-back selection " + a.Request.Selected + " remains recorded"
+	}
+	return reason + "; original failure: " + a.Failed.Reason
 }
 
 // failedReservation is the failed operation's existing maintenance reservation.
@@ -66,9 +74,16 @@ type failedReservation interface {
 // exact blocked operation after independently proving its prior group healthy.
 // WorkerLock excludes the live supervisor, including its unreleased retry path.
 func acknowledgePrior(ctx context.Context, repo *FileRepository, reservation failedReservation, req AcknowledgeRequest, stable func(context.Context) error) (AcknowledgeResult, error) {
-	result := AcknowledgeResult{Action: req.Action, Operation: req.Operation, Selected: req.Selected, Generation: req.Generation}
+	return acknowledgePriorAs(ctx, repo, reservation, req, req.Selected, stable)
+}
+
+func acknowledgePriorAs(ctx context.Context, repo *FileRepository, reservation failedReservation, req AcknowledgeRequest, running string, stable func(context.Context) error) (AcknowledgeResult, error) {
+	result := AcknowledgeResult{Action: req.Action, Operation: req.Operation, Selected: req.Selected, Running: running, Generation: req.Generation}
 	if err := req.validate(); err != nil {
 		return result, err
+	}
+	if !software.ValidID(running) {
+		return result, ErrConflict
 	}
 	unlock, err := repo.WorkerLock()
 	if err != nil {
@@ -79,7 +94,11 @@ func acknowledgePrior(ctx context.Context, repo *FileRepository, reservation fai
 	if err != nil {
 		return result, err
 	}
-	if state.Selected != req.Selected || state.Generation != req.Generation {
+	audit, exists, err := repo.readAcknowledgment(req.Action)
+	if err != nil {
+		return result, err
+	}
+	if exists && (audit.Request != req || auditRunning(audit) != running) {
 		return result, ErrConflict
 	}
 	if err := repo.repairActionTaken(req.Action, "acknowledgment"); err != nil {
@@ -102,25 +121,18 @@ func acknowledgePrior(ctx context.Context, repo *FileRepository, reservation fai
 			}
 		}
 	}
-	audit, exists, err := repo.readAcknowledgment(req.Action)
-	if err != nil {
-		return result, err
-	}
-	if exists && audit.Request != req {
-		return result, ErrConflict
-	}
 	if !exists {
+		if state.Selected != req.Selected || state.Generation != req.Generation {
+			return result, ErrConflict
+		}
 		if state.Pending == nil || state.Pending.Phase != "blocked" || state.Pending.ID != req.Operation || state.Pending.Previous != req.Selected || state.Unreleased != nil {
 			return result, ErrConflict
 		}
-		audit = acknowledgmentAudit{Request: req, Failed: *state.Pending, Previous: state.Previous}
-	}
-	if state.Previous != audit.Previous {
-		return result, ErrConflict
+		audit = acknowledgmentAudit{Request: req, Failed: *state.Pending, Previous: state.Previous, Running: running}
 	}
 	receipt, completed := state.Receipts[req.Operation]
 	if completed {
-		if !exists || state.Pending != nil || receipt.Request != audit.Failed.Request || receipt.Result != "recovered" || receipt.Reason != acknowledgmentReason(audit) {
+		if !exists || !acknowledgmentFinalSelection(state, audit) || state.Pending != nil || receipt.Request != audit.Failed.Request || receipt.Result != "recovered" || receipt.Reason != acknowledgmentReason(audit) {
 			return result, ErrConflict
 		}
 		if state.Unreleased == nil {
@@ -131,7 +143,7 @@ func acknowledgePrior(ctx context.Context, repo *FileRepository, reservation fai
 			return result, ErrConflict
 		}
 	} else {
-		if state.Pending == nil || *state.Pending != audit.Failed || audit.Failed.Phase != "blocked" {
+		if state.Selected != req.Selected || state.Generation != req.Generation || state.Previous != audit.Previous || state.Pending == nil || *state.Pending != audit.Failed || audit.Failed.Phase != "blocked" {
 			return result, ErrConflict
 		}
 		// Prove the prior group healthy before anything changes. The reservation
@@ -163,7 +175,7 @@ func acknowledgePrior(ctx context.Context, repo *FileRepository, reservation fai
 		return result, err
 	}
 	if err := repo.Update(func(s *State) error {
-		if s.Selected != req.Selected || s.Generation != req.Generation || s.Unreleased == nil || *s.Unreleased != audit.Failed.Request {
+		if !acknowledgmentFinalSelection(*s, audit) || s.Unreleased == nil || *s.Unreleased != audit.Failed.Request {
 			return ErrConflict
 		}
 		s.Unreleased = nil
@@ -172,7 +184,20 @@ func acknowledgePrior(ctx context.Context, repo *FileRepository, reservation fai
 		return result, err
 	}
 	result.Completed = true
+	result.Selected = req.Selected
+	result.Running = running
 	return result, nil
+}
+
+func auditRunning(a acknowledgmentAudit) string {
+	if a.Running == "" {
+		return a.Request.Selected
+	}
+	return a.Running
+}
+
+func acknowledgmentFinalSelection(s State, a acknowledgmentAudit) bool {
+	return s.Selected == a.Request.Selected && s.Previous == a.Previous && s.Generation == a.Request.Generation
 }
 
 // repairActionTaken refuses an action identifier that another operator repair
@@ -226,7 +251,7 @@ func (r *FileRepository) readAcknowledgment(action string) (acknowledgmentAudit,
 	if err := decoder.Decode(&extra); err != io.EOF {
 		return audit, false, errors.New("trailing acknowledgment audit data")
 	}
-	if audit.Request.Action != action || audit.Request.validate() != nil || audit.Failed.ID != audit.Request.Operation || audit.Failed.Previous != audit.Request.Selected || audit.Failed.Generation != audit.Request.Generation || audit.Failed.Phase != "blocked" {
+	if audit.Request.Action != action || audit.Request.validate() != nil || (audit.Running != "" && !software.ValidID(audit.Running)) || audit.Failed.ID != audit.Request.Operation || audit.Failed.Previous != audit.Request.Selected || audit.Failed.Generation != audit.Request.Generation || audit.Failed.Phase != "blocked" {
 		return audit, false, errors.New("invalid acknowledgment audit identity")
 	}
 	return audit, true, nil

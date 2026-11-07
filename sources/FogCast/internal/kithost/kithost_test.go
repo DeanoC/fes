@@ -4,6 +4,8 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -72,7 +74,7 @@ func newFixture(t *testing.T, listen, token string) *fixture {
 		FallbackRoot:    filepath.Join(dir, "tmpfs", "kit-host"),
 		AgentWait:       3 * time.Second,
 		CheckPersistent: func(string) error { return nil },
-		Logf:            func(format string, args ...any) { f.logs = append(f.logs, format) },
+		Logf:            func(format string, args ...any) { f.logs = append(f.logs, fmt.Sprintf(format, args...)) },
 	}
 	return f
 }
@@ -109,16 +111,57 @@ func TestPrepareWaitsForTheAgentAndWritesItsTargetID(t *testing.T) {
 }
 
 func TestPrepareStartsWithoutATargetIDWhenTheAgentStaysAway(t *testing.T) {
-	agent, _ := fakeAgent(t, "agent-token", 1<<30)
-	f := newFixture(t, listenOf(agent), "agent-token")
+	f := newFixture(t, "0.0.0.0:8182", "agent-token")
 	f.options.AgentWait = 600 * time.Millisecond
+	f.options.HTTPClient = &http.Client{Transport: roundTripFunc(func(r *http.Request) (*http.Response, error) {
+		return agentResponse(r, http.StatusServiceUnavailable, "starting"), nil
+	})}
+	started := time.Now()
 	path, err := Prepare(context.Background(), f.options)
 	if err != nil {
 		t.Fatal(err)
 	}
+	if elapsed := time.Since(started); elapsed < f.options.AgentWait || elapsed > 2*time.Second {
+		t.Fatalf("missing agent wait lasted %s; want bounded wait around %s", elapsed, f.options.AgentWait)
+	}
 	config, err := fogcast.LoadConfig(path)
 	if err != nil || config.Targets[0].TargetID != "" {
 		t.Fatalf("target %+v %v", config.Targets, err)
+	}
+	if !strings.Contains(strings.Join(f.logs, "|"), "did not get the agent's target ID") {
+		t.Fatalf("missing target ID was not recorded: %q", f.logs)
+	}
+}
+
+func TestDefaultAgentWaitRemainsThirtySeconds(t *testing.T) {
+	if DefaultAgentWait != 30*time.Second {
+		t.Fatalf("default agent wait = %s, want 30s", DefaultAgentWait)
+	}
+}
+
+func TestWaitForAgentFailsWithinBoundWhenAgentNeverAppears(t *testing.T) {
+	const wait = 350 * time.Millisecond
+	client := &http.Client{Transport: roundTripFunc(func(r *http.Request) (*http.Response, error) {
+		return agentResponse(r, http.StatusServiceUnavailable, "starting"), nil
+	})}
+	started := time.Now()
+	_, err := WaitForAgent(context.Background(), client, "http://agent.invalid", "agent-token", wait)
+	if err == nil {
+		t.Fatal("agent that never appeared returned a target ID")
+	}
+	if elapsed := time.Since(started); elapsed < wait || elapsed > wait+250*time.Millisecond {
+		t.Fatalf("missing agent wait lasted %s; want bounded wait around %s", elapsed, wait)
+	}
+}
+
+type roundTripFunc func(*http.Request) (*http.Response, error)
+
+func (f roundTripFunc) RoundTrip(r *http.Request) (*http.Response, error) { return f(r) }
+
+func agentResponse(request *http.Request, status int, body string) *http.Response {
+	return &http.Response{
+		StatusCode: status, Header: http.Header{"Content-Type": []string{"application/json"}},
+		Body: io.NopCloser(strings.NewReader(body)), Request: request,
 	}
 }
 

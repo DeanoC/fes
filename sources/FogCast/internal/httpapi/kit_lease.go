@@ -181,7 +181,24 @@ func guardKitLease(next http.Handler, token string, manager *internallease.Manag
 	}))
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
-		case "/v1/session/display", "/v1/development/media-stream", "/v1/development/media", "/v1/development/live-media", "/v1/development/clear-media", "/v1/development/insert-media", "/v1/development/eject-media", "/v1/library/media/insert", "/v1/library/media/save", "/v1/development/firmware", "/v1/library/core/load", "/v1/library/core/compose", "/v1/library/core/parts", "/v1/library/core/settings", "/v1/library/disk-images", "/v1/stop", "/v1/development/rbf", "/v1/development/core", "/v1/development/core/parts", "/v1/development/reboot", "/v1/kit/debug/snapshot-before-reboot", "/v1/input/attach", "/v1/input/detach", "/v1/input/stream", "/v1/cast/start", "/v1/cast/stop", "/v1/update/stage", "/v1/update/activate", "/v1/update/rollback", "/v1/update/confirm", "/v1/mesh/content/pull", "/v1/mesh/content/link":
+		case "/v1/session/display", "/v1/development/media-stream", "/v1/development/media", "/v1/development/live-media", "/v1/development/clear-media", "/v1/development/insert-media", "/v1/development/eject-media", "/v1/library/media/insert", "/v1/library/media/save", "/v1/development/firmware", "/v1/library/core/load", "/v1/library/core/compose", "/v1/library/core/parts", "/v1/library/core/settings", "/v1/library/disk-images", "/v1/stop", "/v1/development/rbf", "/v1/development/core", "/v1/development/core/parts", "/v1/development/reboot", "/v1/kit/debug/snapshot-before-reboot", "/v1/input/attach", "/v1/input/detach", "/v1/input/stream", "/v1/cast/start", "/v1/cast/stop", "/v1/update/stage", "/v1/update/activate", "/v1/update/confirm", "/v1/mesh/content/pull", "/v1/mesh/content/link":
+			guarded.ServeHTTP(w, r)
+		case "/v1/update/rollback":
+			status := manager.Status()
+			maintenance, err := manager.MaintenanceStatusChecked()
+			if err == nil && status.State == "recovery-required" && maintenance.State == "blocked" {
+				authenticate(token, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+					if hostlessMutationDenied(manager.Status(), r.URL.Path) {
+						writeError(w, http.StatusForbidden, "KIT_LEASE_DENIED", "hostless owner cannot mutate this path")
+						return
+					}
+					// Appliance rollback has its own coordinator, which stops the
+					// runtime and proves idle before requesting a reboot. It is the
+					// recovery route for this exact stale maintenance state.
+					next.ServeHTTP(w, r)
+				})).ServeHTTP(w, r)
+				return
+			}
 			guarded.ServeHTTP(w, r)
 		default:
 			next.ServeHTTP(w, r)

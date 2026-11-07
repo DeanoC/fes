@@ -44,9 +44,9 @@ type Engine struct {
 	// HeldBackReason says why. The selection stays recorded for an image that
 	// can run it.
 	HeldBack, HeldBackReason string
-	// Agent startup can recover a large persistent core library before it serves
-	// health, so the shared startup deadline allows 180 seconds. Readiness still
-	// has to hold for 10 seconds uninterrupted, with 250 milliseconds polling.
+	// Candidate startup and health share a 180-second deadline. Readiness must
+	// hold for 10 seconds uninterrupted and is polled every 250ms. Keep the
+	// deadline bounded so a launcher that never presents cannot be accepted.
 	// Tests can use a virtual clock.
 	Deadline, Stable, Poll time.Duration
 	Now                    func() time.Time

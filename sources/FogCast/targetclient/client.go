@@ -192,7 +192,9 @@ func decodeResponse(response *http.Response, responseBody any) error {
 		if envelope.Error.Code == "" {
 			return fmt.Errorf("HTTP %d response has no symbolic error code", response.StatusCode)
 		}
-		return &envelope.Error
+		apiErr := envelope.Error
+		apiErr.StatusCode = response.StatusCode
+		return &apiErr
 	}
 	if err := json.Unmarshal(data, responseBody); err != nil {
 		return fmt.Errorf("decode HTTP %d response: %w", response.StatusCode, err)

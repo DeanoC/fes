@@ -348,8 +348,8 @@ func TestCoreVideoPartMigration16PreservesCPUSelectionAndMedia(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	// Reconstruct exactly schema 16, without leaving schema-17 or schema-18 tables behind.
-	if _, err := db.ExecContext(ctx, `DROP TABLE zx81_saves; DROP TABLE core_video_parts; PRAGMA user_version=16;`); err != nil {
+	// Remove later tables to reconstruct the schema-16 fixture.
+	if _, err := db.ExecContext(ctx, `DROP TRIGGER kit_host_entry_edit; DROP TRIGGER kit_host_rom_insert; DROP TRIGGER kit_host_rom_update; DROP TRIGGER kit_host_rom_delete; DROP TRIGGER kit_host_expansion_insert; DROP TRIGGER kit_host_expansion_update; DROP TRIGGER kit_host_expansion_delete; DROP TRIGGER kit_host_slot_insert; DROP TRIGGER kit_host_slot_update; DROP TRIGGER kit_host_slot_delete; DROP TABLE kit_host_entries; DROP TABLE zx81_saves; DROP TABLE core_video_parts; PRAGMA user_version=16;`); err != nil {
 		t.Fatal(err)
 	}
 	if err := db.Close(); err != nil {

@@ -739,6 +739,30 @@ func attachCoreIdentities(ctx context.Context, service Service, games []gameResu
 			mediaRole: strings.TrimSpace(entry.MediaRole),
 		}
 	}
+	// Exact-ID detail can address a generated kit-host entry that is omitted
+	// from the ordinary entry list. Preserve its launch identity on that read.
+	if exact, ok := service.(interface {
+		CoreEntry(context.Context, string) (catalog.CoreEntry, error)
+	}); ok {
+		add := func(game gameResult) {
+			if !gameWantsCoreID(game) {
+				return
+			}
+			if _, exists := byGame[game.ID]; exists {
+				return
+			}
+			entry, err := exact.CoreEntry(ctx, game.ID)
+			if err == nil && entry.GameID == game.ID {
+				byGame[game.ID] = stampedCore{coreID: strings.TrimSpace(entry.CoreID), packageID: strings.TrimSpace(entry.PackageID), mediaID: strings.TrimSpace(entry.MediaID), mediaRole: strings.TrimSpace(entry.MediaRole)}
+			}
+		}
+		for _, game := range games {
+			add(game)
+			for _, variant := range game.Variants {
+				add(variant)
+			}
+		}
+	}
 	for i := range games {
 		stampCoreID(&games[i], byGame)
 		for j := range games[i].Variants {
