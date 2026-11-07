@@ -68,6 +68,40 @@ and 4 MiB CRC-window firmware do not provide those contracts. Local Stopped is
 not firmware master drain or permission to release the arena. No current Nano
 boot or core package selects this prototype; physical display remains open.
 
+`NewMenuPresenter` now supplies the native `Present(*image.RGBA)` binding through
+injected relative CSR I/O, an exclusive pinned `Memory` and a platform `Owns`
+callback. Construction checks the compiled base, 8 MiB extent, geometry and
+live build/generation before any copy. Each presentation writes only the spare
+slot through the existing bounded XRGB copier, publishes its stores, submits
+one sequence and waits for its coherent full-frame acknowledgement. Submission
+readiness is polled separately from display completion. The prior slot becomes
+writable only after the new frame's acknowledgement within that same owner.
+
+The opt-in `fes_embedded_menu_control.sv` provides the private FMS1 register
+interface in the existing upper aperture. STATUS latches the active generation,
+accepted/displayed sequences, slot and underflows together. Invalid/partial and
+stale commands reject. This is a private experimental interface, with no new
+registered FES ABI or board programming profile.
+
+`Stop(ctx, cookie)` sends local Quiesce once, waits for the actual menu reader to
+stop, then obtains the existing endpoint's exact generation/cookie drain. It
+supplies **only** that local `ReaderDrain`: the native platform must still run
+its independent all-master stop and bridge closure. A partial copy, ownership
+loss, cancellation after work starts, uncertain command or failed drain retires
+the presenter without replay and retains both slots. Copied handles cannot fork
+ownership; concurrent calls reject before I/O. Limits include a monotonic
+one-second deadline and at most 64 polls across all phases. Platform callbacks
+must themselves be bounded; a cooperative Yield must let the pixel clock advance.
+
+`verify_menu.py` additionally runs this Go presenter, with race detection,
+against the actual CSR/scanout/256-bit DDR RTL. CPU writes fill independent model
+memory; publication and every output pixel are checked against the two actual
+Tenfoot renderings. Failure cases cover completed-but-uncertain commands, partial
+writes/publication, clock regression, stale/corrupt snapshots, real held-address
+stop, ownership loss, cancellation, source reset and concurrency. This remains
+host evidence. Current board commands and firmware do not select this presenter;
+the secure reservation, global return and board clock/HDMI binding remain open.
+
 ## Probes and evidence
 
 `NewWindowReader` controls the separate CPU-started window diagnostic through

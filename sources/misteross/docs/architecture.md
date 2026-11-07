@@ -127,6 +127,32 @@ hint replacement. Verilator suppresses inherited empty-pin and unused-signal
 style warnings; functional warnings remain fatal. This is a host simulation,
 not a compiled Nano package, physical HDMI result or runtime admission grant.
 
+The separate private `fes_embedded_menu_control.sv` now binds that source to
+relative CSR commands in the upper aperture: generation/sequence/slot staging,
+Start, Submit and Quiesce, plus coherent STATUS/result and fixed geometry reads.
+Its FMS1 layout and `0x10203043` test ABI are experimental; no registered package
+or production profile selects them. The host top's opt-in CSR mode shares the
+existing endpoint response channel and the same qualified pixel clock.
+
+The native `scanout.MenuPresenter` now drives those controls through injected
+platform ownership, memory and register hooks. It copies only the spare slot
+through `Surface.Present`, orders publication, then submits once and waits for
+full display completion. Submission readiness may temporarily deassert during
+repeat-frame prefetch after an earlier frame completes; the driver waits for
+that handshake separately. Stop must complete local Quiesce before the existing
+endpoint Disable/drain. Both slots stay pinned and firmware's independent
+all-master stop/bridge closure is still required. Unknown ownership, partial
+copy/publication, uncertain commands and failed stops retire without replay.
+No current native board command selects this driver.
+
+The same verifier now runs the actual native presenter with race detection
+against the CSR/video/DDR model. CPU writes populate independent model memory,
+whose published bytes and output pixels must equal actual Tenfoot renderings.
+It rejects writes into a currently fetched slot or outstanding DDR request.
+The direct video checks retain their independent final-pixel/early-ack negative
+control. Source-only reset, held addresses, corruption, callback failures and
+concurrent/replayed calls supply no frame, drain or memory-release receipt.
+
 The separate `prototypes/de25_board_control` overlay builds a private copy of
 an explicitly selected DE25 ZX81 diagnostic producer and adds an Avalon
 aperture for this endpoint. It includes its adapter and endpoint sources in

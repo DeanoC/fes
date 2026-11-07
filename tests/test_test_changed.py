@@ -62,6 +62,11 @@ class TestChangedTest(unittest.TestCase):
 
     def test_menu_scanout_consumers_run_actual_pixel_integration(self):
         paths = ('sources/misteross/prototypes/embedded_control/fes_embedded_menu_scanout.sv',
+                 'sources/misteross/prototypes/embedded_control/fes_embedded_menu_control.sv',
+                 'sources/misteross/prototypes/embedded_control/menu_bench.hpp',
+                 'sources/misteross/prototypes/embedded_control/menu_rpc.cpp',
+                 'platform/embedded/tamago/scanout/menu.go',
+                 'platform/embedded/tamago/scanout/menu_integration_test.go',
                  'sources/misteross/cores/fes-menu/rtl/fes_menu_reader.v',
                  'sources/misteross/prototypes/de25_board_control/fes_de25_read_width.sv',
                  'sources/misteross/cores/fes-common/rtl/fes_embedded_control.sv',

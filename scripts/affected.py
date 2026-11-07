@@ -91,8 +91,11 @@ def embedded_board_control_check_input(path):
 
 
 def embedded_menu_input(path):
-    return path in EMBEDDED_CONTROL_INPUTS or path in (
+    return (path.startswith('platform/embedded/tamago/scanout/menu') and path.endswith('.go')) or path in EMBEDDED_CONTROL_INPUTS or path in (
         'sources/misteross/prototypes/embedded_control/fes_embedded_menu_scanout.sv',
+        'sources/misteross/prototypes/embedded_control/fes_embedded_menu_control.sv',
+        'sources/misteross/prototypes/embedded_control/menu_bench.hpp',
+        'sources/misteross/prototypes/embedded_control/menu_rpc.cpp',
         'sources/misteross/prototypes/embedded_control/embedded_menu_top.sv',
         'sources/misteross/prototypes/embedded_control/menu_probe.cpp',
         'sources/misteross/prototypes/embedded_control/verify_menu.py',

@@ -11,7 +11,10 @@ from verify_window import FES, HERE, first_party_go_sources, producer, run, sha
 
 MENU = FES/'sources/misteross/cores/fes-menu/rtl'
 INPUTS = [Path(__file__), HERE/'verify_window.py', HERE/'producer.py',
-          HERE/'fes_embedded_menu_scanout.sv', HERE/'embedded_menu_top.sv', HERE/'menu_probe.cpp',
+          HERE/'fes_embedded_menu_scanout.sv', HERE/'fes_embedded_menu_control.sv',
+          HERE/'embedded_menu_top.sv', HERE/'menu_probe.cpp', HERE/'menu_bench.hpp', HERE/'menu_rpc.cpp',
+          FES/'platform/embedded/tamago/scanout/menu.go',
+          FES/'platform/embedded/tamago/scanout/menu_integration_test.go',
           HERE.parent/'de25_board_control/fes_de25_read_width.sv',
           MENU/'fes_menu_video.v', MENU/'fes_menu_reader.v',
           FES/'sources/misteross/cores/fes-common/rtl/fes_embedded_control.sv',
@@ -72,7 +75,7 @@ def main():
     tools, paths = producer.tools_snapshot()
     tools['go'] = dict(path=str(go), sha256=sha(go), version=subprocess.check_output([go, 'version'], env=env, text=True).strip())
     model_env = producer.build_environment(paths)
-    def build(label, scanout, parameters=()):
+    def build(label, scanout, parameters=(), probe=HERE/'menu_probe.cpp'):
         obj = output/(label+'-obj')
         run(output, label+'-build', [paths['verilator'], '--cc', '--exe', '--build', '-j', '2',
             '--top-module', 'embedded_menu_top', *parameters, '-Wall', '-Wno-UNUSEDSIGNAL', '-Wno-PINCONNECTEMPTY', '--Mdir', obj,
@@ -80,7 +83,7 @@ def main():
             '-std=c++17 -O2 -I'+str(FES/'platform/embedded/firmware/generated'),
             FES/'sources/misteross/cores/fes-common/rtl/fes_embedded_control.sv',
             HERE.parent/'de25_board_control/fes_de25_read_width.sv',
-            MENU/'fes_menu_video.v', reader, scanout, HERE/'embedded_menu_top.sv', HERE/'menu_probe.cpp'], model_env)
+            MENU/'fes_menu_video.v', reader, scanout, HERE/'fes_embedded_menu_control.sv', HERE/'embedded_menu_top.sv', probe], model_env)
         return obj/'Vembedded_menu_top'
     executable = build('menu', HERE/'fes_embedded_menu_scanout.sv')
     arguments = [output/'frames/frame-0.bin', output/'frames/frame-1.bin']
@@ -100,6 +103,16 @@ def main():
     invalid_executable = build('invalid-arena', HERE/'fes_embedded_menu_scanout.sv', ['-GWINDOW_BYTES=4194304'])
     invalid = run(output, 'invalid-arena-model', [invalid_executable, *arguments, 'invalid'], model_env, cap=30)
     assert 'PASS invalid single-slot arena rejected before DDR access' in invalid
+    native = output/'native-csr'
+    native.mkdir()
+    rpc = build('menu-csr', HERE/'fes_embedded_menu_scanout.sv', ["-GCSR_MODE=1'b1"], HERE/'menu_rpc.cpp')
+    (native/'descriptor.json').write_text(json.dumps(dict(Executable=str(rpc), Frames=[str(p) for p in arguments]), indent=2)+'\n')
+    native_env = dict(env, FES_MENU_CSR_DIR=str(native))
+    raw_native = run(output, 'native-menu', [go, '-C', 'platform/embedded/tamago', 'test', '-race', '-count=1',
+        '-timeout', '90s', '-json', '-run', '^TestMenuActualRTL$', './scanout'], native_env, cap=120)
+    events = [json.loads(line) for line in raw_native.splitlines() if line.startswith('{')]
+    native_cases = [e['Test'] for e in events if e.get('Action') == 'pass' and e.get('Test', '').startswith('TestMenuActualRTL/')]
+    assert len(native_cases) >= 25 and not any(e.get('Action') in ('fail', 'skip') for e in events)
     assert all(sha(FES/name) == digest for name, digest in sources.items())
     assert all(sha(output/f'frames/frame-{i}.bin') == digest for i, digest in enumerate(frames['sha256']))
     result = dict(status='passed', source_state='working-tree' if dirty else 'committed',
@@ -107,6 +120,7 @@ def main():
         source_inputs_sha256=sha(output/'source-inputs.json'), tools=tools, frames=frames,
         reader_derivation=dict(original_sha256=sha(MENU/'fes_menu_reader.v'), derived_sha256=sha(reader),
                                change='RAM style M10K to M20K only'),
+        native_presenter=dict(status='passed', executable_sha256=sha(rpc), cases=native_cases, log_sha256=sha(output/'native-menu.log')),
         executable_sha256=sha(executable), observed=observed.strip(), early_ack_negative_rejected=True, invalid_arena_rejected=True,
         pixel_clock_domain='single; board CDC not supplied', hardware_actions=False,
         memory_bus_bits=256, reader_bus_bits=128,
