@@ -105,7 +105,19 @@ def main():
         test_env["FES_NANO_BRIDGE_RPC"] = test_env["FES_EMBEDDED_RPC"]
         native_cases = ["-run", "^TestNanoFirmwareBridge", "./nativefabric"]
         tenfoot_cases = ["-run", "^(TestTenfootInjectedEndpointLaunchReturnAndIdentityFailure|TestCPUBridgeFailureStopsActorBeforeProgramming)$", "./modelbackend"]
-    run("native-tests", [go, "test", "-race", "-count=1", "-timeout", "90s", "-v", *native_cases], cwd=TAMAGO, extra_env=test_env)
+    native_logs = ["native-tests"]
+    if nano:
+        run("native-tests", [go, "test", "-race", "-count=1", "-timeout", "90s", "-v", *native_cases], cwd=TAMAGO, extra_env=test_env)
+    else:
+        # Large frame-copy/hash cases share no test budget with the control
+        # lifecycle. The filters partition every top-level test exactly once;
+        # each phase retains the existing 90-second package deadline.
+        phases = [("native-tests", ["-skip", "^Test(Window|Menu)"]),
+                  ("window-native-tests", ["-run", "^TestWindow"]),
+                  ("menu-native-tests", ["-run", "^TestMenu"])]
+        native_logs = [name for name, _ in phases]
+        for name, selected in phases:
+            run(name, [go, "test", "-race", "-count=1", "-timeout", "90s", "-v", *selected, *native_cases], cwd=TAMAGO, extra_env=test_env)
     run("tenfoot-tests", [go, "test", "-race", "-count=1", "-timeout", "90s", "-v", *tenfoot_cases], cwd=TAMAGO, extra_env=test_env)
     if sources != {str(p.relative_to(ROOT)): sha(p) for p in sorted(files)} or fixture_snapshot != {str(p.relative_to(ROOT)): sha(p) for p in fixture_sources if p.is_file() and p.is_relative_to(ROOT)}:
         raise RuntimeError("source changed during verification")
@@ -124,7 +136,7 @@ def main():
         "host_go_sha256": sha(go.resolve()),
         "nano_bridge_service": nano,
         "fixture_sha256": {p.name: sha(p) for p in sorted(fixture_dir.iterdir()) if p.is_file()},
-        "test_logs_sha256": {name: sha(output / (name + ".log")) for name in ("native-tests", "tenfoot-tests", "rpc-build", "firmware")},
+        "test_logs_sha256": {name: sha(output / (name + ".log")) for name in (*native_logs, "tenfoot-tests", "rpc-build", "firmware")},
     }
     if nano:
         report["classification"] = "host native lifecycle/tenfoot with C Nano bridge service, actual pinned vendor bridge functions, prepared TF-A functions and Verilated FPGA RTL; injected registers, ownership, memory and SDM; no physical acceptance"

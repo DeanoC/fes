@@ -20,8 +20,22 @@ remove_interface fes_computer_video
 add_interface fes_computer_video conduit end
 set_interface_property fes_computer_video EXPORT_OF fes_embedded.video
 '''
-PARENT='''add_interface fes_menu_pixel_reset reset sink
-set_interface_property fes_menu_pixel_reset EXPORT_OF subsys_periph.fes_menu_pixel_reset
+PARENT='''# Explicit parent clock/reset bridges let generated interconnect use the pixel owner.
+remove_interface fes_computer_pixel_clk
+add_instance fes_menu_pixel_clk altera_clock_bridge 19.2.0
+set_instance_parameter_value fes_menu_pixel_clk EXPLICIT_CLOCK_RATE 74250000
+add_connection fes_menu_pixel_clk.out_clk subsys_periph.fes_computer_pixel_clk
+add_interface fes_computer_pixel_clk clock sink
+set_interface_property fes_computer_pixel_clk EXPORT_OF fes_menu_pixel_clk.in_clk
+add_instance fes_menu_reset altera_reset_bridge 19.2.0
+set_instance_parameter_value fes_menu_reset ACTIVE_LOW_RESET 1
+set_instance_parameter_value fes_menu_reset SYNCHRONOUS_EDGES deassert
+set_instance_parameter_value fes_menu_reset USE_RESET_REQUEST 0
+set_instance_parameter_value fes_menu_reset SYNC_RESET 0
+add_connection fes_menu_pixel_clk.out_clk fes_menu_reset.clk
+add_connection fes_menu_reset.out_reset subsys_periph.fes_menu_pixel_reset
+add_interface fes_menu_pixel_reset reset sink
+set_interface_property fes_menu_pixel_reset EXPORT_OF fes_menu_reset.in_reset
 '''
 
 def enabled(inputs):return inputs.get('reader_memory',{}).get('backend')=='hps-ddr-menu'
@@ -114,9 +128,25 @@ def verify_generated(project,inputs,hps=None):
         if child.get(name)!=name or endpoint.get('video_'+signal)!=name:
             raise ValueError('generated menu HDMI source is not its pixel output')
     reset='fes_menu_pixel_reset_reset_n'
-    if child.get(reset)!=reset or endpoint.get('pixel_reset_n')!=reset or endpoint.get('pixel_clk')!='fes_computer_pixel_clk_out_clk_clk':
+    if child.get(reset)!='fes_menu_reset_out_reset_reset' or endpoint.get('pixel_reset_n')!=reset or endpoint.get('pixel_clk')!='fes_computer_pixel_clk_out_clk_clk':
         raise ValueError('generated menu pixel reset/clock export changed')
+    _,clock=reset_domains.instance(top,'qsys_top_fes_menu_pixel_clk','fes_menu_pixel_clk')
+    _,reset_owner=reset_domains.instance(top,'qsys_top_fes_menu_reset','fes_menu_reset')
+    if (clock!=dict(in_clk='fes_computer_pixel_clk_clk',out_clk='fes_menu_pixel_clk_out_clk_clk') or
+        reset_owner!=dict(clk='fes_menu_pixel_clk_out_clk_clk',in_reset_n=reset,out_reset_n='fes_menu_reset_out_reset_reset') or
+        child.get('fes_computer_pixel_clk_clk')!='fes_menu_pixel_clk_out_clk_clk'):
+        raise ValueError('generated menu parent clock/reset bridge changed')
+    bridge_parameters={
+        'fes_menu_reset':dict(ACTIVE_LOW_RESET='1',SYNCHRONOUS_EDGES='deassert',NUM_RESET_OUTPUTS='1',
+            USE_RESET_REQUEST='0',SYNC_RESET='0',AUTO_CLK_CLOCK_RATE='74250000'),
+        'fes_menu_pixel_clk':dict(DERIVED_CLOCK_RATE='0',EXPLICIT_CLOCK_RATE='74250000',NUM_CLOCK_OUTPUTS='1')}
+    bridge_files=[]
+    for name,expected in bridge_parameters.items():
+        path=project/'ip/qsys_top'/('qsys_top_'+name+'.ip');bridge_files.append(path)
+        observed={n.get('parameterId'):n.findtext('{*}value') for n in
+            ET.parse(path).findall('.//{*}altera_module_parameters/{*}parameters/{*}parameter')}
+        if observed!=expected:raise ValueError('generated menu parent bridge parameters changed: '+name)
     return dict(scope='bounded-cpu-pixel-menu-v1',system_hz=100000000,pixel_hz=74250000,
         slots=2,slot_bytes=4<<20,csr_timeout_cycles=1048576,physical_qualification=False,
         generated_sha256={str(p.relative_to(project)):hashlib.sha256(p.read_bytes()).hexdigest() for p in
-            (project/'qsys_top/qsys_top.sopcinfo',project/'qsys_top/synth/qsys_top.v',project/'peripheral_subsys/peripheral_subsys/synth/peripheral_subsys.v')})
+            (project/'qsys_top/qsys_top.sopcinfo',project/'qsys_top/synth/qsys_top.v',project/'peripheral_subsys/peripheral_subsys/synth/peripheral_subsys.v',*bridge_files)})

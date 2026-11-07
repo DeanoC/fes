@@ -164,6 +164,8 @@ The HDMI wrapper exports its qualified pixel reset. The generated video export
 selects the menu's RGB/sync, while Platform Designer connects its read-only AXI
 port to the retained HPS DDR adapter. Source/generation checks reject changed
 clocks, reset/video exports, widths, master inventory, FIFO derivation or source.
+Explicit parent clock/reset bridges supply that clock owner to generated
+interconnect; their complete generated parameters and connections are checked.
 Its distinct private HPS profile and canonical functional identity bind those
 files, two-slot geometry and clock/timeout parameters. It registers no normal
 FES menu programming profile.
