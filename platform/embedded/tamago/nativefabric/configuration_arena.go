@@ -110,13 +110,24 @@ func (a *ConfigurationArena) Reserve(source []byte) (*Region, error) {
 			a.mu.Lock()
 			defer a.mu.Unlock()
 			want := ProgramHeaderBytes
-			if rom != nil {
+			roleMode := len(raw) >= 8 && binary.LittleEndian.Uint32(raw[4:]) == programRoleVersion
+			if rom != nil || roleMode {
 				want += programROMHeaderBytes
 			}
 			if a.failed || a.active != region || a.ready || published || len(raw) != want {
 				return errors.New("native fabric: configuration publication stale, consumed or invalid")
 			}
-			if rom != nil && (binary.LittleEndian.Uint32(raw[4:]) != 2 ||
+			if roleMode {
+				role := programRole(binary.LittleEndian.Uint32(raw[programRoleOffset:]))
+				if role.controlABI() == 0 || binary.LittleEndian.Uint32(raw[programRoleOffset+4:]) != role.controlABI() ||
+					binary.LittleEndian.Uint32(raw[12:]) != uint32(len(owned)) ||
+					role == programRoleMenu && (rom != nil || !bytes.Equal(raw[ProgramHeaderBytes:], make([]byte, programROMHeaderBytes))) ||
+					role == programRoleComputer && (rom == nil || !bytes.Equal(raw[ProgramHeaderBytes:], romExtension)) {
+					a.failed = true
+					return errors.New("native fabric: program role differs from privately staged resources")
+				}
+			}
+			if rom != nil && (!roleMode && binary.LittleEndian.Uint32(raw[4:]) != 2 ||
 				binary.LittleEndian.Uint32(raw[12:]) != uint32(len(owned)) ||
 				!bytes.Equal(raw[ProgramHeaderBytes:], romExtension)) {
 				a.failed = true

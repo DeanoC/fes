@@ -1,5 +1,16 @@
 # Native contained-fabric endpoint
 
+The private program publication prototype also supports an explicit version-three
+menu/computer role. It uses the existing fixed metadata page and keeps all nine
+chunk digests. The arena requires a zero ROM extension for menu or its exact
+privately staged 4/8 KiB image for the current computer role. Crossed ABI,
+role, payload size or ROM resources retire publication without releasing it.
+Go publications pair with the actual C decoder under separately supplied boot
+context, owner/generation and chunk geometry. Mixed-role configuration is not
+enabled by the current `ProgramLoader` or cold firmware. Those still require
+compiled per-role resources and active stop-policy integration; the descriptor
+itself grants neither hardware access nor normal package admission.
+
 `MenuSession` now carries its completed transfer's private storage handoff.
 After a successful frame and independent secure closure,
 `ResumeStorageAfterReturn` revalidates the live source and complete pinned

@@ -24,6 +24,7 @@ class NanoProgramTests(unittest.TestCase):
             self.assertEqual(result.returncode, 0, result.stderr + result.stdout)
             self.assertIn('PASS 36 per-load descriptor', result.stdout)
             self.assertIn('PASS 18 ROM descriptor', result.stdout)
+            self.assertIn('PASS 5 mixed menu/computer configuration cycles and 20 role', result.stdout)
 
 
 if __name__ == '__main__':

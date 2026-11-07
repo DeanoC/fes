@@ -6,6 +6,25 @@ adapter, and verification against actual FPGA RTL. These tools build firmware
 components; the Nano tools assemble the matched experimental boot images.
 Software tests and cross-builds remain distinct from hardware acceptance.
 
+The per-load descriptor now has a version-three mixed-role prototype. A trusted
+`fes_nano_program_enable_roles` call, after installing the fixed ROM-extension
+reader and before the first capture, selects it instead of fixed version one or
+two. Requests cannot enable or downgrade that mode. Its final eight header bytes
+follow all nine digest slots and bind menu/control ABI `0x10203043` or the current
+held-ROM computer/control ABI `0x10203041`. Both use the same fixed 128-byte
+extension slot: all zero for menu, exact 4/8 KiB ROM binding for computer.
+Header and extension are sampled twice under the existing ownership guard.
+Each capture clears prior role/ROM state; an uncertain capture retires it.
+The captured role is metadata for the platform's control policy, not a live
+configuration-completion or master-access proof.
+
+Tests run five changing-role loads through the actual C configuration and
+held-bridge engines, plus twenty rejection/retirement cases. Native Go encoding
+and private arena publication are paired with the same C decoder, including all
+nine chunks and stale publication callbacks. The cold platform does not yet
+enable mixed roles: its active identity, master-stop/ROM policy and native loader
+must select the matched role inventory before this can support App/core/menu.
+
 The explicit `--nano-firmware-ocram` option on both Terasic builders selects a
 matched shared-ROM or explicitly selected two-slot menu cold chain with private
 stack/BSS in `[0x50000,0x60000)`. The menu selection validates its complete

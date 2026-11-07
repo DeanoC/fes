@@ -13,7 +13,7 @@ struct fixture {
     struct fes_nano_bridges bridges;
     uint8_t wire[FES_NANO_PROGRAM_HEADER_BYTES],context[32];
     unsigned valid,reset,reads,guards,read_failure,guard_failure,changing;
-    unsigned checks,completions;
+    unsigned checks,completions,expected_role;
     uint8_t rom_wire[FES_NANO_PROGRAM_ROM_HEADER_BYTES];
     unsigned rom_reads,rom_fault;
 };
@@ -41,7 +41,7 @@ static int read_header(void *p,uint8_t result[FES_NANO_PROGRAM_HEADER_BYTES])
     struct fixture *f=p;f->reads++;
     if(f->reads==f->read_failure)return -1;
     memcpy(result,f->wire,sizeof(f->wire));
-    if(f->changing && f->reads==2)result[120]^=1;
+    if(f->changing && f->reads==2)result[f->changing==2 ? FES_NANO_PROGRAM_ROLE_OFFSET : 120]^=1;
     return 0;
 }
 static int read_rom_header(void *p,uint8_t result[FES_NANO_PROGRAM_ROM_HEADER_BYTES])
@@ -80,6 +80,13 @@ static int complete(void *p,uint64_t owner,uint64_t generation,unsigned rearmed)
 {
     struct fixture *f=p;
     assert(owner==17 && generation==f->program.generation && rearmed==!!f->completions);
+    if(f->expected_role) {
+        uint32_t role=0,abi=0;
+        assert(!fes_nano_program_role(&f->program,&role,&abi) && role==f->expected_role &&
+               abi==(role==FES_NANO_PROGRAM_ROLE_MENU ? FES_NANO_PROGRAM_MENU_ABI : FES_NANO_PROGRAM_COMPUTER_ABI));
+        assert((role==FES_NANO_PROGRAM_ROLE_MENU && !f->program.rom_bytes && !f->program.rom_offset && !f->program.rom_crc) ||
+               (role==FES_NANO_PROGRAM_ROLE_COMPUTER && f->program.rom_bytes));
+    }
     f->completions++;return 0;
 }
 static void init(struct fixture *f)
@@ -161,6 +168,75 @@ static void rom_cases(void)
     }
     puts("PASS 18 ROM descriptor capture, profile, span, ownership and retirement cases");
 }
+
+static void role_request(struct fixture *f,unsigned role,unsigned bytes,unsigned rom_bytes,unsigned seed)
+{
+    header(f,bytes,seed);put32(f->wire+4,FES_NANO_PROGRAM_ROLE_VERSION);
+    put32(f->wire+FES_NANO_PROGRAM_ROLE_OFFSET,role);
+    put32(f->wire+FES_NANO_PROGRAM_ROLE_OFFSET+4,
+          role==FES_NANO_PROGRAM_ROLE_MENU ? FES_NANO_PROGRAM_MENU_ABI : FES_NANO_PROGRAM_COMPUTER_ABI);
+    memset(f->rom_wire,0,sizeof(f->rom_wire));f->expected_role=role;
+    if(role==FES_NANO_PROGRAM_ROLE_COMPUTER) {
+        put32(f->rom_wire,FES_NANO_PROGRAM_ROM_MAGIC);put32(f->rom_wire+4,1);
+        put32(f->rom_wire+8,sizeof(f->rom_wire));put32(f->rom_wire+12,(bytes+63U)&~63U);
+        put32(f->rom_wire+16,rom_bytes);put32(f->rom_wire+20,0x12345678);
+        memset(f->rom_wire+24,7,32);memset(f->rom_wire+56,8,48);
+    }
+}
+
+static void role_init(struct fixture *f)
+{
+    init(f);f->program.maximum=FES_NANO_PROGRAM_MAX_BYTES;
+    assert(fes_nano_program_enable_roles(&f->program)); /* No implicit ROM callback. */
+    assert(!fes_nano_program_enable_rom(&f->program,read_rom_header));
+    assert(!fes_nano_program_enable_roles(&f->program));
+    assert(fes_nano_program_enable_roles(&f->program));
+}
+
+static void role_cases(void)
+{
+    /* Actual descriptor/configuration/held-bridge engines, injected I/O and
+     * digest checks. This does not execute a menu reader or computer ROM FIFO. */
+    struct fixture f;role_init(&f);
+    for(unsigned cycle=0;cycle<5;cycle++) {
+        unsigned role=cycle&1U ? FES_NANO_PROGRAM_ROLE_COMPUTER : FES_NANO_PROGRAM_ROLE_MENU;
+        role_request(&f,role,cycle==1?132:128,cycle==1?8192:4096,cycle+1);
+        unsigned reads=f.rom_reads;
+        transfer(&f,cycle!=0);
+        uint32_t observed=0,abi=0;
+        assert(!fes_nano_program_role(&f.program,&observed,&abi) && observed==role && f.rom_reads==reads+2);
+        assert(fes_nano_program_enable_roles(&f.program));
+    }
+    for(unsigned mode=0;mode<20;mode++) {
+        role_init(&f);role_request(&f,mode==7?FES_NANO_PROGRAM_ROLE_COMPUTER:FES_NANO_PROGRAM_ROLE_MENU,128,4096,1);
+        if(mode==0)put32(f.wire+FES_NANO_PROGRAM_ROLE_OFFSET,0);
+        if(mode==1)put32(f.wire+FES_NANO_PROGRAM_ROLE_OFFSET,3);
+        if(mode==2)put32(f.wire+FES_NANO_PROGRAM_ROLE_OFFSET+4,FES_NANO_PROGRAM_COMPUTER_ABI);
+        if(mode==3)put32(f.wire+4,1);
+        if(mode==4)put32(f.wire+4,2);
+        if(mode==5)f.rom_wire[0]=1;
+        if(mode==6)f.rom_wire[127]=1;
+        if(mode==7)memset(f.rom_wire,0,sizeof(f.rom_wire));
+        if(mode==8)f.wire[296]=1;
+        if(mode==9)put64(f.wire+24,18);
+        if(mode==10)put64(f.wire+32,2);
+        if(mode==11)f.changing=1;
+        if(mode>=12 && mode<=15)f.rom_fault=mode-11;
+        if(mode==16)f.guard_failure=7;
+        if(mode==17)f.program.mixed_roles=0; /* A request cannot opt in. */
+        if(mode==18)f.changing=2;
+        if(mode==19)put32(f.wire+FES_NANO_PROGRAM_ROLE_OFFSET,FES_NANO_PROGRAM_ROLE_COMPUTER);
+        uint64_t reply[4];fes_nano_configuration_prepare(&f.configuration,17,1,0,reply);
+        assert(reply[0] && f.configuration.failed && f.bridges.failed && !f.program.bound);
+        uint32_t role=99,abi=99;assert(fes_nano_program_role(&f.program,&role,&abi) && role==99 && abi==99);
+        unsigned reads=f.reads,rom_reads=f.rom_reads;
+        role_request(&f,FES_NANO_PROGRAM_ROLE_MENU,128,0,1);
+        fes_nano_configuration_prepare(&f.configuration,17,1,0,reply);
+        assert(reply[0] && f.reads==reads && f.rom_reads==rom_reads);
+    }
+    puts("PASS 5 mixed menu/computer configuration cycles and 20 role capture/retirement failures; no hardware");
+}
+
 int main(int argc,char **argv)
 {
     if(argc==2 || argc==3 || argc==6) {
@@ -171,7 +247,7 @@ int main(int argc,char **argv)
         if(argc==6) {
             /* Trusted modeled boot state arrives separately from the request.
              * Never adopt ownership, context or chunk geometry from f.wire. */
-            assert(!strcmp(argv[2],"owned-rom") && strlen(argv[4])==64);
+            assert((!strcmp(argv[2],"owned-rom") || !strcmp(argv[2],"owned-role")) && strlen(argv[4])==64);
             char *end;errno=0;generation=strtoull(argv[3],&end,10);
             assert(!errno && end!=argv[3] && !*end && generation && generation<UINT64_MAX);
             errno=0;unsigned long chunk=strtoul(argv[5],&end,10);
@@ -196,6 +272,7 @@ int main(int argc,char **argv)
         if(argc==3 || argc==6) {
             f.program.maximum=FES_NANO_PROGRAM_MAX_BYTES;
             assert(!fes_nano_program_enable_rom(&f.program,read_rom_header));
+            if(argc==6 && !strcmp(argv[2],"owned-role"))assert(!fes_nano_program_enable_roles(&f.program));
             assert(fread(f.rom_wire,1,sizeof(f.rom_wire),in)==sizeof(f.rom_wire));
         }
         assert(fgetc(in)==EOF);fclose(in);
@@ -210,6 +287,10 @@ int main(int argc,char **argv)
         for(unsigned i=0;i<4;i++)printf("%08x ",words[i]);
         for(unsigned i=0;i<32;i++)printf("%02x",f.program.header[72+i]);
         if(argc==3 || argc==6)printf(" %u %u %08x",f.program.rom_offset,f.program.rom_bytes,f.program.rom_crc);
+        if(argc==6 && !strcmp(argv[2],"owned-role")) {
+            uint32_t role=0,abi=0;assert(!fes_nano_program_role(&f.program,&role,&abi));
+            printf(" role=%u abi=%08x",role,abi);
+        }
         putchar('\n');return 0;
     }
     unsigned cases=0;
@@ -259,5 +340,6 @@ int main(int argc,char **argv)
     }
     printf("PASS %u per-load descriptor and actual configuration/bridge engine cases; injected digest checks, no hardware\n",cases);
     rom_cases();
+    role_cases();
     return 0;
 }

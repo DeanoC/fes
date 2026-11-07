@@ -29,6 +29,16 @@
 #define FES_NANO_PROGRAM_ROM_MAGIC 0x31425246U /* FRB1 */
 #define FES_NANO_PROGRAM_ROM_SHA256 24U
 #define FES_NANO_PROGRAM_ROM_SHA384 56U
+/* The final eight bytes follow all nine digest slots. Version 3 selects one
+ * of the platform's two compiled personalities; it supplies no address, mask
+ * or master inventory. Both roles carry the fixed ROM-extension slot, zero
+ * for menu and mandatory for the current held-ROM computer driver. */
+#define FES_NANO_PROGRAM_ROLE_VERSION 3U
+#define FES_NANO_PROGRAM_ROLE_OFFSET 632U
+#define FES_NANO_PROGRAM_ROLE_MENU 1U
+#define FES_NANO_PROGRAM_ROLE_COMPUTER 2U
+#define FES_NANO_PROGRAM_MENU_ABI 0x10203043U
+#define FES_NANO_PROGRAM_COMPUTER_ABI 0x10203041U
 
 struct fes_nano_program_ops {
     void *context;
@@ -49,6 +59,8 @@ struct fes_nano_program {
     int (*read_rom)(void *, uint8_t result[FES_NANO_PROGRAM_ROM_HEADER_BYTES]);
     uint8_t rom_header[FES_NANO_PROGRAM_ROM_HEADER_BYTES];
     uint32_t rom_offset, rom_bytes, rom_crc;
+    unsigned mixed_roles;
+    uint32_t role, control_abi;
 };
 #ifdef __cplusplus
 extern "C" {
@@ -65,6 +77,12 @@ const uint8_t *fes_nano_program_expected(const struct fes_nano_program *,
 int fes_nano_program_build(const struct fes_nano_program *, uint32_t words[4]);
 int fes_nano_program_enable_rom(struct fes_nano_program *,
     int (*read_rom)(void *, uint8_t result[FES_NANO_PROGRAM_ROM_HEADER_BYTES]));
+/* Trusted platform opt-in, before any capture and after installing read_rom.
+ * It replaces fixed v1/v2 capture with v3; requests cannot enable or downgrade
+ * it. Captured role is available only after successful capture; it is not a
+ * configuration-completion or live activation proof. */
+int fes_nano_program_enable_roles(struct fes_nano_program *);
+int fes_nano_program_role(const struct fes_nano_program *, uint32_t *role, uint32_t *control_abi);
 #ifdef __cplusplus
 }
 #endif

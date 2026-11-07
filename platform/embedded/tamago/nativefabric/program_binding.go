@@ -12,6 +12,54 @@ import (
 
 const programROMHeaderBytes = 128
 
+type programRole uint32
+
+const (
+	programRoleMenu     programRole = 1
+	programRoleComputer programRole = 2
+	programRoleVersion              = 3
+	programRoleOffset               = 632
+)
+
+func (r programRole) controlABI() uint32 {
+	switch r {
+	case programRoleMenu:
+		return 0x10203043
+	case programRoleComputer:
+		return 0x10203041
+	default:
+		return 0
+	}
+}
+
+// encodeRoleProgramBinding binds an explicit personality to the same per-load
+// owner, package, build and staged bytes. Only a matched platform can opt into
+// this wire; neither the role nor its ABI grants a master or memory range.
+func encodeRoleProgramBinding(source HPSBootObservation, m coldConfigurationMap, role programRole, image []byte) ([]byte, int, error) {
+	if role.controlABI() == 0 || role == programRoleMenu && len(image) != 0 {
+		return nil, 0, errors.New("native fabric: invalid compiled program role")
+	}
+	header, err := encodeProgramBinding(source, m)
+	if err != nil {
+		return nil, 0, err
+	}
+	raw := make([]byte, ProgramHeaderBytes+programROMHeaderBytes)
+	copy(raw, header)
+	binary.LittleEndian.PutUint32(raw[4:], programRoleVersion)
+	binary.LittleEndian.PutUint32(raw[programRoleOffset:], uint32(role))
+	binary.LittleEndian.PutUint32(raw[programRoleOffset+4:], role.controlABI())
+	offset := 0
+	if role == programRoleComputer {
+		var ext []byte
+		ext, offset, err = programROMExtension(m.CoreSize, image)
+		if err != nil {
+			return nil, 0, err
+		}
+		copy(raw[ProgramHeaderBytes:], ext)
+	}
+	return raw, offset, nil
+}
+
 // encodeROMProgramBinding binds a retained ROM to the same package/build and
 // closed owner as the bitstream. It supplies no platform address or authority.
 // The ROM immediately follows the aligned bitstream in the existing arena.
