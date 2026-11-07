@@ -43,9 +43,16 @@ Each title's folders go into their own `C:` directory. A drive is at most 260
 cylinders: 128 MiB, the most the ATA disk window holds
 (`fes.media.ata-disk`, and the kit agent's limit).
 
-Built 2026-11-07 from manifest commit DRIVES_COMMIT:
+Built 2026-11-07 from the manifest with SHA-256 `3fc4306cedf128ac…`:
 
-DRIVES_TABLE
+| Drive | SHA-256 | Size | Titles | Free | What |
+| --- | --- | --- | --- | --- | --- |
+| `real` | `b460ca550cc7a8b8df525e7fbb258b03c18acb1f82e22289dcdb0c54b335dff2` | 260 cylinders, 128.0 MiB | keen4, prince, civ, jill, stunts, vikings, starcon2, wolf3d, ultima6, jazz, pinfan, wacky, hocus, monkey2, wc1, falcon3, xwing | 25.4 MiB | Real-mode and 386 real-mode games, EMS users and sound setups |
+| `xms` | `64f68024ffbd114bed1070770267100fe8415f625c1e3cd4266270468da0a39f` | 260 cylinders, 128.0 MiB | ultima7, strike, uw1, frontier, moo, darklands, tnt | 12.5 MiB | XMS and unreal-mode games and other own 386 memory managers |
+| `pmode` | `70713edb73d554dec709af5d4ff75e14ce67af0cf6e6aa09f9fc53293336f986` | 260 cylinders, 128.0 MiB | doom, heretic, duke3d, descent, raptor, omf, rott, machines, hotspeed | 16.1 MiB | DOS/4GW and other CPL-0 DOS extenders |
+| `dpmi` | `bb659032ad7006bd951c5b147e2ee47b6557c10f11483a2f9aa7824e3d407c50` | 260 cylinders, 128.0 MiB | jumpbump, angband, nethack, tyrian, cyberdogs, tcircle, screamer, tv | 31.1 MiB | Ring-3 DPMI hosts (CWSDPMI, Borland RTM and 32RTM) and FPU users |
+| `fpu` | `03e430f9df0637d29707e62a30e94f02fd4f06350ea5d6abdde94bf8970a9f12` | 260 cylinders, 128.0 MiB | gp2, usnf | 54.0 MiB | FPU-required simulations |
+| `bench` | `4fbeb7d9d7391e25e5b54393d4fcb85ffc74fb2c3717ea4e0dae838828a331ef` | 80 cylinders, 39.4 MiB | 3dbench, pcpbench, topbench, speedsys, chkcpu, cachechk, si8, chrisb, quakes | 18.9 MiB | Non-game programs: PhilsComputerLab's DOS Benchmark Pack v1.5 tools |
 
 The census record,
 [2026-11-07 pc386 compatibility census](../../../docs/validation/2026-11-07-pc386-compat-census/summary.md),
