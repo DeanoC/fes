@@ -180,6 +180,9 @@ func (s *ProgramService) Launch(ctx context.Context, generation uint64, request 
 	if err == nil {
 		plan, err = p.loader.Preflight(selection)
 	}
+	if err == nil && plan.state.program != nil && plan.state.program.role == programRoleMenu {
+		err = errors.New("native program service: menu package is not a playable computer")
+	}
 	if err == nil {
 		err = ctx.Err()
 	}

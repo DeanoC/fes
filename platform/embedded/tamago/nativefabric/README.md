@@ -30,6 +30,9 @@ They need both compiled role resource sets, the full 8 MiB CPU/firmware exclusio
 and role-specific active identity/master-stop/ROM policy before a matched board
 test. ProgramService/Tenfoot display ownership also remains to be connected.
 The menu profile is still the explicit prototype, not ordinary menu ABI admission.
+The existing playable ProgramService rejects a menu selection before SD
+containment or programming, leaving healthy storage ready. Launcher display
+activation belongs to its upcoming explicit menu lifecycle.
 
 The private program publication prototype also supports an explicit version-three
 menu/computer role. It uses the existing fixed metadata page and keeps all nine

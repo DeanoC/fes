@@ -54,7 +54,20 @@ func mixedMenuTest(t *testing.T) (*romProgramFixture, CompiledMenuProgram) {
 		t.Fatal(err)
 	}
 	r.f.loader = l
+	r.f.s.state.loader = l
 	return r, m
+}
+
+func TestSelectedMenuCannotEnterThePlayableServiceOrContainSD(t *testing.T) {
+	r, _ := mixedMenuTest(t)
+	req, _, _ := addMenuSelection(t, r, 0)
+	calls := r.cpu.calls
+	if _, err := r.f.s.Launch(context.Background(), r.f.s.Status().Generation, req); err == nil {
+		t.Fatal("menu entered the playable service")
+	}
+	if r.f.s.Status().State != ProgramReady || r.f.s.Status().Generation != 0 || r.cpu.calls != calls || !r.f.lease.r.Active || r.f.s.state.transfer != nil {
+		t.Fatal("wrong-role launch reached containment or retired healthy storage", r.f.s.Status())
+	}
 }
 
 func addMenuSelection(t *testing.T, r *romProgramFixture, index int) (packagestore.Request, selectedMenuProgramRecord, []byte) {
