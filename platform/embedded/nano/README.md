@@ -12,11 +12,18 @@ entry staging, secure firmware and SPL reserve the full 8 MiB menu area. Only
 this explicit pairing enables the role-aware secure firmware. Existing menu-only
 and computer-only selections keep their original checks.
 
-This builds the combined loader/resources; the current selected-program frontend
-still uses its existing serial service. Tenfoot's menu display ownership and the
-complete visible menu/core/menu cycle are not connected by this option. A new
-matched boot chain and bounded hardware acceptance remain required. Ethernet
-recovery remains a separate loader profile.
+With `--tenfoot-serial`, the native frontend now selects the service's menu
+lifecycle and presents the actual Tenfoot software-rendered frames. The SDK
+exports `MENU.FCP`, `MENU.JSN` and `MENUSEL.JSN` for the card's `FES/` directory,
+with their byte hashes and sizes in its receipt. Startup reads the single menu
+selection alongside `CORESEL.JSN` and `UI.JSON` before the service owns SD.
+Every return restores a freshly loaded menu and cached frame before Ready;
+application shutdown parks it independently with SD contained.
+
+The actual App/backend/service cycle passes host tests with injected hardware,
+including pixel comparison and terminal failure paths. A new matched boot chain,
+active-menu/shared-USB qualification and bounded hardware acceptance remain
+required. Ethernet recovery remains a separate loader profile.
 
 The source-bound two-slot menu has an explicit native selection:
 `tamago/run.py fpgaload --board de25-nano --menu-present`, together with the

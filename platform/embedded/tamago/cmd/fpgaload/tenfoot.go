@@ -5,6 +5,7 @@ package main
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"io/fs"
 	"net/http"
@@ -18,6 +19,7 @@ import (
 	"github.com/DeanoC/fes/platform/embedded/tamago/input"
 	"github.com/DeanoC/fes/platform/embedded/tamago/nativefabric"
 	"github.com/DeanoC/fes/platform/embedded/tamago/packagestore"
+	"github.com/DeanoC/fes/platform/embedded/tamago/scanout"
 	"github.com/DeanoC/fes/platform/embedded/tamago/serial"
 )
 
@@ -28,6 +30,7 @@ var nativeProgramPlatform tenfoot.Platform
 const tenfootSerialLinked = true
 
 func serveProgramTenfoot(loader *nativefabric.ProgramLoader, store *packagestore.Store, files fs.FS) {
+	paired := expectedCompiledMenuProgram != ""
 	ctx, cancel := context.WithTimeout(context.Background(), 100*time.Second)
 	choices, err := nativefabric.ReadProgramSelections(ctx, files, "FES/CORESEL.JSN")
 	if err != nil {
@@ -35,14 +38,36 @@ func serveProgramTenfoot(loader *nativefabric.ProgramLoader, store *packagestore
 		panic(err)
 	}
 	entries, err := nativefabric.ReadProgramCatalog(ctx, files, "FES/UI.JSON", choices)
+	var menuChoices []packagestore.Request
+	if err == nil && paired {
+		menuChoices, err = nativefabric.ReadProgramSelections(ctx, files, "FES/MENUSEL.JSN")
+		if err == nil && len(menuChoices) != 1 {
+			err = errors.New("native menu requires exactly one startup selection")
+		}
+	}
 	cancel()
 	if err != nil {
 		panic(err)
 	}
-	programService, err = nativefabric.NewProgramService(loader, store, de25nano.ReserveConfiguration, computer.Limits{Timeout: time.Second, MaxPolls: 64, Now: time.Now, Yield: runtime.Gosched})
+	limits := computer.Limits{Timeout: time.Second, MaxPolls: 64, Now: time.Now, Yield: runtime.Gosched}
+	if paired {
+		load, done := context.WithTimeout(context.Background(), 100*time.Second)
+		programService, err = nativefabric.NewProgramServiceWithMenu(load, loader, store, de25nano.ReserveConfiguration, limits,
+			nativefabric.ProgramMenuOptions{Request: menuChoices[0], Reserve: de25nano.ReserveMenuMemory,
+				Limits: scanout.MenuLimits{PublicationTimeout: 4 * time.Second,
+					ReaderLimits: scanout.ReaderLimits{Timeout: time.Second, MaxPolls: 64, Now: time.Now, Yield: runtime.Gosched}}})
+		done()
+	} else {
+		programService, err = nativefabric.NewProgramService(loader, store, de25nano.ReserveConfiguration, limits)
+	}
 	if err != nil {
 		panic(err)
 	}
+	defer func() {
+		if paired && programService.Status().State != nativefabric.ProgramParked && programService.Status().State != nativefabric.ProgramRebootRequired {
+			_ = programService.Retire(errors.New("native Tenfoot exited before owned menu shutdown"))
+		}
+	}()
 	nativeProgramBackend, err = nativefabric.NewProgramBackend(programService, entries)
 	if err != nil {
 		panic(err)
@@ -87,7 +112,15 @@ func serveProgramTenfoot(loader *nativefabric.ProgramLoader, store *packagestore
 		inputMode = "uart+shared-usb-" + expectedUSBInput
 	}
 
-	fmt.Printf("FES_NATIVE_TENFOOT_BEGIN display=serial-state-only input=%s preferences=ram\n", inputMode)
+	display := "serial-state-only"
+	if paired {
+		platform, err = nativefabric.NewProgramMenuPlatform(programService, platform, device.Framebuffer)
+		if err != nil {
+			panic(err)
+		}
+		display = "fpga-menu"
+	}
+	fmt.Printf("FES_NATIVE_TENFOOT_BEGIN display=%s input=%s preferences=ram\n", display, inputMode)
 	nativeProgramPlatform = platform
 	if err := tenfoot.RunPlatform(context.Background(), app, device, nativeProgramPlatform); err != nil {
 		panic(err)
@@ -99,6 +132,12 @@ func serveProgramTenfoot(loader *nativefabric.ProgramLoader, store *packagestore
 		panic("Tenfoot exited without a completed owned transition")
 	}
 	if status.State == nativefabric.ProgramReady {
+		if paired {
+			if err := programService.ParkMenu(context.Background()); err != nil {
+				panic(err)
+			}
+			status = programService.Status()
+		}
 		if err := closeProgramUSB(); err != nil {
 			panic(err)
 		}

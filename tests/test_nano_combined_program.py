@@ -1,6 +1,8 @@
 """One computer boot anchor, two sealed resource sets and one full exclusion."""
 import copy
 import base64
+import hashlib
+import json
 import unittest
 from unittest.mock import patch
 
@@ -31,6 +33,35 @@ class CombinedProgramTests(unittest.TestCase):
         self.profile['cpu_mapping']=hps.cpu_mapping(c.control,self.profile['hps_configuration'],
             self.profile['hps_reader_memory'],menu_program=self.companion)
         self.profile['cpu_mapping_sha256']=hps.digest(self.profile['cpu_mapping'])
+
+    def test_menu_sidecars_bind_archive_metadata_and_single_startup_selection(self):
+        companion=self.companion
+        context=companion['context']
+        metadata=dict(format=1,scope='nano-selected-menu-program-v1',
+                      package_id=context['package_id'],build_id=context['build_id'],
+                      platform=companion['platform']['platform'],control=companion['control'],
+                      memory=companion['memory'],access=companion['access'])
+        with patch.object(hps,'menu_program',return_value=companion), \
+             patch.object(hps,'selected_program',return_value=metadata), \
+             patch.object(hps,'package_archive',return_value=b'canonical archive') as archive:
+            assets=hps.menu_assets('menu',companion)
+            archive.assert_called_once_with('menu',companion['configuration'])
+            self.assertEqual(set(assets),{'MENU.FCP','MENU.JSN','MENUSEL.JSN'})
+            self.assertEqual(assets['MENU.FCP'],b'canonical archive')
+            self.assertEqual(json.loads(assets['MENU.JSN']),metadata)
+            choices=json.loads(assets['MENUSEL.JSN'])
+            self.assertEqual(choices,dict(format=1,scope='nano-program-selection-v1',programs=[
+                dict(path='FES/MENU.FCP',package_id=context['package_id'],metadata_path='FES/MENU.JSN',
+                     metadata_sha256=hashlib.sha256(assets['MENU.JSN']).hexdigest())]))
+        for field in ('control','memory','access','platform','build_id','package_id'):
+            changed=copy.deepcopy(metadata);changed[field]={} if isinstance(changed[field],dict) else '0'*64
+            with self.subTest(field=field),patch.object(hps,'menu_program',return_value=companion), \
+                 patch.object(hps,'selected_program',return_value=changed), \
+                 patch.object(hps,'package_archive') as archive,self.assertRaises(ValueError):
+                hps.menu_assets('menu',companion)
+            archive.assert_not_called()
+        with patch.object(hps,'menu_program',return_value={}),self.assertRaises(ValueError):
+            hps.menu_assets('changed',companion)
 
     def test_pair_keeps_anchor_and_separate_inventories_with_exact_union(self):
         p=self.profile;before=copy.deepcopy(p)

@@ -236,6 +236,12 @@ func (l *ProgramLoader) preflightMenu(selection *packagestore.Selection) (*Store
 }
 
 func (l *ProgramLoader) OpenMenu(ctx context.Context, transfer *ConfigurationTransfer, limits scanout.MenuLimits) (*MenuSession, error) {
+	return l.openMenu(ctx, ctx, transfer, limits)
+}
+
+// The service owns the displayed menu beyond its bounded load request. Keep
+// opening cancellable while checking later frames against that owner's lifetime.
+func (l *ProgramLoader) openMenu(ctx, lifetime context.Context, transfer *ConfigurationTransfer, limits scanout.MenuLimits) (*MenuSession, error) {
 	p, err := l.program(transfer)
 	if err != nil {
 		return nil, err
@@ -243,5 +249,5 @@ func (l *ProgramLoader) OpenMenu(ctx context.Context, transfer *ConfigurationTra
 	if p.role != programRoleMenu || p.menu == nil || l.menu == nil {
 		return nil, errors.New("native fabric: completed transfer is not a menu")
 	}
-	return l.boot.openMenuSession(ctx, p.controlRaw, p.menu.accessRaw, transfer, limits, p)
+	return l.boot.openMenuSession(ctx, lifetime, p.controlRaw, p.menu.accessRaw, transfer, limits, p)
 }

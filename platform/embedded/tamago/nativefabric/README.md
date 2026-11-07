@@ -25,14 +25,33 @@ replay. Optional `FES_NANO_MIXED_INPUTS` tests preflight the actual retained ZX8
 ZX80 and menu packages with zero firmware calls or containment. The producer now
 exports `nano-selected-menu-program-v1` with its complete memory/access maps.
 
-The native command and cold platform still do not select this combined loader.
-They need both compiled role resource sets, the full 8 MiB CPU/firmware exclusion
-and role-specific active identity/master-stop/ROM policy before a matched board
-test. ProgramService/Tenfoot display ownership also remains to be connected.
-The menu profile is still the explicit prototype, not ordinary menu ABI admission.
-The existing playable ProgramService rejects a menu selection before SD
-containment or programming, leaving healthy storage ready. Launcher display
-activation belongs to its upcoming explicit menu lifecycle.
+`NewProgramServiceWithMenu` owns the combined lifecycle. Ready means an active
+menu with an initial frame and contained SD. Launch independently closes and
+drains that menu, resumes its original store, retains the selected computer and
+carries the exact menu return into configuration. Return closes the computer,
+resumes SD, freshly retains/configures the menu and restores the cached launcher
+frame before publishing Ready. Rejected content restores the menu without
+consuming the application's generation. The complete two-slot arena stays
+reserved once until reboot; uncertain operations retire without replay.
+
+`ProgramMenuPlatform` copies the actual Tenfoot software device's completed
+frame through that service. It skips presentation during a serialized transition
+or running core, preserves the previous launcher frame, and retires the service
+on a terminal input/presentation failure. The load request's cancellation stays
+separate from the displayed session's lifetime; opening and individual frames
+still honor their request contexts and existing driver limits. `ParkMenu` is a
+terminal independent close with SD left contained.
+
+The native `--menu-project` plus `--tenfoot-serial` path selects this owner and
+wraps the existing UART/shared-USB platform with the actual display presenter.
+The paired build/cold platform carries both resource sets and the full 8 MiB
+exclusion with per-role identity/master-stop/ROM policy. Host tests now drive
+the actual App/backend/service through menu/core/menu and compare every rendered
+pixel with the modeled scanout arena, including launch, return, restoration,
+display and serial failures. Secure calls, SD and MMIO remain injected: a fresh
+matched boot chain, shared USB during active menu DDR, visible transitions and
+physical acceptance are still required. The menu ABI remains an explicit
+prototype; menu packages cannot be launched as playable computers.
 
 The private program publication prototype also supports an explicit version-three
 menu/computer role. It uses the existing fixed metadata page and keeps all nine
@@ -40,10 +59,9 @@ chunk digests. The arena requires a zero ROM extension for menu or its exact
 privately staged 4/8 KiB image for the current computer role. Crossed ABI,
 role, payload size or ROM resources retire publication without releasing it.
 Go publications pair with the actual C decoder under separately supplied boot
-context, owner/generation and chunk geometry. The optional combined loader emits these bindings. The native command and
-cold firmware still need matched per-role resource and active stop-policy
-integration; the descriptor itself grants neither hardware access nor normal
-package admission.
+context, owner/generation and chunk geometry. The optional combined loader emits
+these bindings through the paired native/cold selection; the descriptor itself
+grants neither hardware access nor normal package admission.
 
 `MenuSession` now carries its completed transfer's private storage handoff.
 After a successful frame and independent secure closure,

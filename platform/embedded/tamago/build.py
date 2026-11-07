@@ -305,6 +305,7 @@ def build(args):
     usb_control=args.program=='usbcheck' or usb_shared
     program_platform=program_metadata=None
     menu_program_map=None
+    menu_assets={}
     menu_project=getattr(args,'menu_project',None)
     if menu_project is not None and (args.program!='fpgaload' or not selected_programs):
         raise ValueError('--menu-project requires selected Nano computer programs')
@@ -345,6 +346,7 @@ def build(args):
                 menu_program_map=hps.menu_program(menu_project)
                 hps.validate_menu_program(context,program_platform,menu_program_map)
                 cpu_map=hps.cpu_mapping(control_map,configuration_map,reader_memory_map,menu_program=menu_program_map)
+                menu_assets=hps.menu_assets(menu_project,menu_program_map)
             package_archive=hps.package_archive(hps_project,configuration_map)
             arena_start,arena_end=configuration_map['base'],configuration_map['base']+configuration_map['size']
             exclusions=[(start,start+size),(0x94000000,0x94800000)]+[(r['start'],r['start']+r['size']) for r in profile['reserved']]
@@ -376,6 +378,7 @@ def build(args):
     if configuration_map is not None:(output/'hps-configuration.json').write_bytes(hps.encode(configuration_map))
     if reader_memory_map is not None:(output/'hps-reader-memory.json').write_bytes(hps.encode(reader_memory_map))
     if menu_program_map is not None:(output/'compiled-menu-program.json').write_bytes(hps.encode(menu_program_map))
+    for name,raw_asset in menu_assets.items():(output/name).write_bytes(raw_asset)
     if ddr_read_map is not None:(output/'hps-ddr-read.json').write_bytes(hps.encode(ddr_read_map))
     if window_read_map is not None:(output/'hps-window-read.json').write_bytes(hps.encode(window_read_map))
     if menu_read_map is not None:(output/'hps-menu-read.json').write_bytes(hps.encode(menu_read_map))
@@ -534,7 +537,7 @@ def build(args):
         raise ValueError('compiled program platform or example selected metadata changed')
     if sources != {str(p.relative_to(ROOT)): sha(p) for p in sorted(files)}:
         raise ValueError("sources changed while building")
-    if menu_program_map is not None and (hps.menu_program(menu_project)!=menu_program_map or
+    if menu_program_map is not None and (hps.menu_assets(menu_project,menu_program_map)!=menu_assets or
             base64.b64encode(hps.encode(menu_program_map)) not in data):
         raise ValueError('compiled menu companion changed or was not linked into the native image')
     if feature_sources != {p: sha(p) for p in feature_sources}:
@@ -564,6 +567,7 @@ def build(args):
               "selected_programs":selected_programs,"tenfoot_serial":tenfoot_serial,
               "hps_menu_project":str(menu_project) if menu_project else None,
               "hps_menu_program":menu_program_map,"hps_menu_program_sha256":hps.digest(menu_program_map) if menu_program_map else None,
+              "menu_assets":{name:{"sha256":hashlib.sha256(raw).hexdigest(),"size":len(raw)} for name,raw in menu_assets.items()},
               "hps_program_platform":program_platform,"hps_program_platform_sha256":hps.digest(program_platform) if program_platform else None,
               "configuration_core_sha256":configuration_map["core_sha256"] if configuration_map else None,
               "configuration_package_sha256":hashlib.sha256(package_archive).hexdigest() if package_archive is not None else None,

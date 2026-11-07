@@ -59,14 +59,17 @@ type MenuSessionReturn struct {
 }
 
 func (v *HPSContextVerifier) OpenMenuSession(ctx context.Context, control, access []byte, transfer *ConfigurationTransfer, limits scanout.MenuLimits) (session *MenuSession, err error) {
-	return v.openMenuSession(ctx, control, access, transfer, limits, nil)
+	return v.openMenuSession(ctx, ctx, control, access, transfer, limits, nil)
 }
 
-func (v *HPSContextVerifier) openMenuSession(ctx context.Context, control, access []byte, transfer *ConfigurationTransfer, limits scanout.MenuLimits, program *selectedProgram) (session *MenuSession, err error) {
-	if v == nil || ctx == nil || limits.Validate() != nil {
+func (v *HPSContextVerifier) openMenuSession(ctx, lifetime context.Context, control, access []byte, transfer *ConfigurationTransfer, limits scanout.MenuLimits, program *selectedProgram) (session *MenuSession, err error) {
+	if v == nil || ctx == nil || lifetime == nil || limits.Validate() != nil {
 		return nil, scanout.ErrReaderArgument
 	}
 	if err = ctx.Err(); err != nil {
+		return nil, err
+	}
+	if err = lifetime.Err(); err != nil {
 		return nil, err
 	}
 	var mapping hpsControlMap
@@ -141,7 +144,7 @@ func (v *HPSContextVerifier) openMenuSession(ctx context.Context, control, acces
 		}
 	}
 	s := &MenuSession{storage: b.handoff, comparison: comparison, verifier: v, region: v.readerMemoryRegion, bytes: v.readerMemoryRegion.Bytes, source: source, opened: source.Bridges,
-		bridges: &FirmwareBridges{cpu: cpu}, context: ctx, operationContext: ctx, controlSHA: sha256.Sum256(control), accessSHA: sha256.Sum256(access)}
+		bridges: &FirmwareBridges{cpu: cpu}, context: lifetime, operationContext: ctx, controlSHA: sha256.Sum256(control), accessSHA: sha256.Sum256(access)}
 	s.self = s
 	session = s
 	v.menuSession = s

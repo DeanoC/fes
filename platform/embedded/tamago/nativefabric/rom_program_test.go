@@ -81,6 +81,10 @@ func romProgramTest(t *testing.T) *romProgramFixture {
 }
 
 func romProgramTestFor(t *testing.T, profile string) *romProgramFixture {
+	return romProgramFixtureFor(t, profile, true)
+}
+
+func romProgramFixtureFor(t *testing.T, profile string, claim bool) *romProgramFixture {
 	t.Helper()
 	old, cpu, lease, _, _, control, configuration, computer, _ := storedComputer(t)
 	context := old.context
@@ -192,9 +196,11 @@ func romProgramTestFor(t *testing.T, profile string) *romProgramFixture {
 		}
 		return r, nil
 	}
-	f.s, err = NewProgramService(l, store, reserve, computerLimits())
-	if err != nil {
-		t.Fatal(err)
+	if claim {
+		f.s, err = NewProgramService(l, store, reserve, computerLimits())
+		if err != nil {
+			t.Fatal(err)
+		}
 	}
 	return &romProgramFixture{f, port, control, computer, raw, romRaw}
 }

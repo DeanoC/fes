@@ -141,6 +141,26 @@ def menu_program(project):
                 configuration=configuration(project), memory=reader_memory(project), access=menu_read(project))
 
 
+def menu_assets(project, companion):
+    """Matched FAT sidecars for the native service's privately owned menu."""
+    if menu_program(project) != companion:
+        raise ValueError('menu assets differ from the compiled companion')
+    context = companion['context']
+    expected = dict(format=1, scope='nano-selected-menu-program-v1',
+                    package_id=context['package_id'], build_id=context['build_id'],
+                    platform=companion['platform']['platform'], control=companion['control'],
+                    memory=companion['memory'], access=companion['access'])
+    metadata = selected_program(project)
+    if metadata != expected:
+        raise ValueError('selected menu metadata differs from the compiled companion')
+    raw = encode(metadata)
+    request = dict(path='FES/MENU.FCP', package_id=context['package_id'],
+                   metadata_path='FES/MENU.JSN', metadata_sha256=hashlib.sha256(raw).hexdigest())
+    choices = dict(format=1, scope='nano-program-selection-v1', programs=[request])
+    return {'MENU.FCP': package_archive(project, companion['configuration']),
+            'MENU.JSN': raw, 'MENUSEL.JSN': encode(choices)}
+
+
 def validate_menu_program(context, platform, companion):
     if (not isinstance(companion, dict) or set(companion)!=
             {'format','scope','context','platform','control','configuration','memory','access'} or

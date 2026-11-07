@@ -75,6 +75,7 @@ type programService struct {
 	rearm          bool
 	backendClaimed bool
 	execution      ProgramFetchObservation
+	menu           *programServiceMenu
 }
 
 // NewProgramService takes exclusive lifecycle ownership of this verifier once.
@@ -152,6 +153,11 @@ func (p *programService) fail(err error) error {
 		cancel()
 		err = errors.Join(err, cleanup)
 	}
+	if p.menu != nil && p.menu.session != nil && !p.menu.closed {
+		p.menu.closed = true
+		_, cleanup := p.menu.session.Close()
+		err = errors.Join(err, cleanup)
+	}
 	p.viewMu.Lock()
 	p.view.State, p.view.Error = ProgramRebootRequired, err.Error()
 	p.viewMu.Unlock()
@@ -173,6 +179,11 @@ func (s *ProgramService) Launch(ctx context.Context, generation uint64, request 
 	}
 	view.State, view.Error = ProgramLoading, ""
 	p.publish(view)
+	if p.menu != nil {
+		if err := p.closeMenu(true); err != nil {
+			return ProgramSession{}, p.fail(err)
+		}
+	}
 	request.Sources = append([]packagestore.Source(nil), request.Sources...)
 	request.Parts = append([]packagestore.Part(nil), request.Parts...)
 	selection, err := p.store.Retain(ctx, request)
@@ -190,6 +201,11 @@ func (s *ProgramService) Launch(ctx context.Context, generation uint64, request 
 		if _, storageErr := p.store.ActiveReceipt(); storageErr != nil {
 			return ProgramSession{}, p.fail(errors.Join(err, storageErr))
 		}
+		if p.menu != nil {
+			if restoreErr := p.restoreMenu(); restoreErr != nil {
+				return ProgramSession{}, p.fail(errors.Join(err, restoreErr))
+			}
+		}
 		view.State, view.Error = ProgramReady, err.Error()
 		p.publish(view)
 		return ProgramSession{}, err
@@ -203,11 +219,7 @@ func (s *ProgramService) Launch(ctx context.Context, generation uint64, request 
 	if err != nil {
 		return ProgramSession{}, p.fail(err)
 	}
-	if !p.rearm {
-		p.transfer, _, err = plan.NewTransfer(handoff, p.reserve)
-	} else {
-		p.transfer, _, err = plan.NewReconfigurationTransfer(handoff, p.reserve)
-	}
+	p.transfer, err = p.newTransfer(plan, handoff)
 	if err != nil {
 		return ProgramSession{}, p.fail(err)
 	}
@@ -233,6 +245,10 @@ func (s *ProgramService) Launch(ctx context.Context, generation uint64, request 
 }
 
 func (p *programService) configure(ctx context.Context) error {
+	return p.configureTransfer(ctx, p.transfer)
+}
+
+func (p *programService) configureTransfer(ctx context.Context, transfer *ConfigurationTransfer) error {
 	start := p.limits.Now()
 	last := start
 	check := func() error {
@@ -252,11 +268,11 @@ func (p *programService) configure(ctx context.Context) error {
 	}
 	for {
 		if err := check(); err != nil {
-			return p.transfer.Cancel(err)
+			return transfer.Cancel(err)
 		}
-		done, busy, err := p.transfer.Advance()
+		done, busy, err := transfer.Advance()
 		if late := check(); late != nil {
-			return p.transfer.Cancel(late)
+			return transfer.Cancel(late)
 		}
 		if err != nil {
 			return err
@@ -321,6 +337,16 @@ func (s *ProgramService) finish(ctx context.Context, session ProgramSession, res
 			return observed, p.fail(errors.Join(err, errors.New("native program service: SD lost the owned return")))
 		}
 		view.State = ProgramReady
+		p.rearm = true
+		if p.menu != nil {
+			// The known core close/SD return keeps its original five-second
+			// bound. A fresh menu load has the existing request budget; its
+			// configuration and frame operations retain their own strict limits.
+			err = p.restoreMenu()
+			if err != nil {
+				return observed, p.fail(err)
+			}
+		}
 	} else {
 		view.State = ProgramParked
 	}
