@@ -8,3 +8,7 @@ import "errors"
 func CheckPersistent(string) error {
 	return errors.New("appliance data: persistent target storage requires Linux")
 }
+
+func verifyMountedVolume(string, string, string) error {
+	return errors.New("appliance data: persistent target storage requires Linux")
+}

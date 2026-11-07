@@ -75,6 +75,7 @@ func updateFixtureLogged(t *testing.T, trial bool, reboot func(context.Context) 
 		}
 		boot.ImageSHA256 = n.ImageSHA256
 		boot.Trial = true
+		boot.FallbackImageSHA256 = m.ImageSHA256
 	}
 	c := agent.New(misterruntime.NewRuntime(updateControl{}, "", time.Millisecond, time.Second), time.Second, time.Second)
 	svc := applianceupdate.New(s, c, boot, reboot, nil)
@@ -193,6 +194,25 @@ func TestUpdateHTTPAuthenticationLeaseAndTrialGate(t *testing.T) {
 		if w.Code != 401 {
 			t.Fatalf("unauthenticated %s: %d", path, w.Code)
 		}
+	}
+	statusRequest := httptest.NewRequest(http.MethodGet, "/v1/update", nil)
+	statusRequest.Header.Set("Authorization", "Bearer bearer")
+	statusResponse := httptest.NewRecorder()
+	h.ServeHTTP(statusResponse, statusRequest)
+	if statusResponse.Code != http.StatusOK {
+		t.Fatalf("update status: %d %s", statusResponse.Code, statusResponse.Body.String())
+	}
+	var statusJSON map[string]json.RawMessage
+	if err := json.Unmarshal(statusResponse.Body.Bytes(), &statusJSON); err != nil {
+		t.Fatal(err)
+	}
+	var fallback string
+	if err := json.Unmarshal(statusJSON["fallback_image_sha256"], &fallback); err != nil {
+		t.Fatal(err)
+	}
+	state, err := s.Status()
+	if err != nil || fallback != state.Good {
+		t.Fatalf("update fallback = %q, previous good = %q, err = %v", fallback, state.Good, err)
 	}
 	for _, path := range []string{"/v1/update/stage", "/v1/update/activate", "/v1/update/rollback", "/v1/update/confirm"} {
 		if w := updateRequest(h, path, "", "foreign"); w.Code != 403 {

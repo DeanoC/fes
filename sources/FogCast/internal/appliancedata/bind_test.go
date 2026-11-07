@@ -3,8 +3,11 @@ package appliancedata
 import (
 	"bytes"
 	"encoding/binary"
+	"errors"
+	"fmt"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"syscall"
 	"testing"
@@ -14,29 +17,93 @@ import (
 )
 
 type recordingMounter struct {
-	mounted map[string]string
-	volumes []string
-	binds   []string
+	mounted      map[string]string
+	boundSources map[string]*os.File
+	volumes      []string
+	binds        []string
+	unbinds      []string
+	mountErr     error
+	bindErr      error
+	bindErrOn    string
+	onUnbind     func(string)
 }
 
 func newRecordingMounter() *recordingMounter {
-	return &recordingMounter{mounted: map[string]string{}}
+	return &recordingMounter{mounted: map[string]string{}, boundSources: map[string]*os.File{}}
 }
 
 func (m *recordingMounter) MountVolume(source, target string) error {
+	if m.mountErr != nil {
+		return m.mountErr
+	}
 	m.mounted[target] = source
 	m.volumes = append(m.volumes, source+" -> "+target)
 	return nil
 }
 
 func (m *recordingMounter) Bind(source, target string) error {
+	if m.bindErr != nil && (m.bindErrOn == "" || m.bindErrOn == target) {
+		return m.bindErr
+	}
+	bound, err := os.Open(source)
+	if err != nil {
+		return err
+	}
 	m.mounted[target] = source
+	m.boundSources[target] = bound
 	m.binds = append(m.binds, source+" -> "+target)
 	return nil
 }
 
+func (m *recordingMounter) Unbind(_, target string) error {
+	if m.onUnbind != nil {
+		m.onUnbind(target)
+	}
+	if m.mounted[target] == "" {
+		return errors.New("target is not mounted")
+	}
+	delete(m.mounted, target)
+	if source := m.boundSources[target]; source != nil {
+		_ = source.Close()
+	}
+	delete(m.boundSources, target)
+	m.unbinds = append(m.unbinds, target)
+	return nil
+}
+
+func (m *recordingMounter) BindMatches(source, target string) (bool, error) {
+	bound, ok := m.boundSources[target]
+	if !ok {
+		return false, nil
+	}
+	boundInfo, err := bound.Stat()
+	if err != nil {
+		return false, err
+	}
+	current, err := os.Lstat(source)
+	if errors.Is(err, os.ErrNotExist) {
+		return false, nil
+	}
+	if err != nil {
+		return false, err
+	}
+	return os.SameFile(boundInfo, current), nil
+}
+
+func (m *recordingMounter) Close() error {
+	var errs []error
+	for target, source := range m.boundSources {
+		if err := source.Close(); err != nil {
+			errs = append(errs, fmt.Errorf("close bind source for %s: %w", target, err))
+		}
+		delete(m.boundSources, target)
+	}
+	return errors.Join(errs...)
+}
+
 func testConfig(t *testing.T, mounter *recordingMounter) Config {
 	t.Helper()
+	t.Cleanup(func() { _ = mounter.Close() })
 	root := t.TempDir()
 	device := filepath.Join(root, "FESDATA3")
 	if err := os.WriteFile(device, ext4Superblock(DefaultLabel), 0o600); err != nil {
@@ -44,20 +111,29 @@ func testConfig(t *testing.T, mounter *recordingMounter) Config {
 	}
 	fat := filepath.Join(root, "fat", "fogcast")
 	mount := filepath.Join(root, "run", "fesdata3")
+	libraryFAT := filepath.Join(root, "fat", "games")
+	libraryData := filepath.Join(mount, "games")
 	if err := os.MkdirAll(fat, 0o700); err != nil {
 		t.Fatal(err)
 	}
+	if err := os.MkdirAll(libraryFAT, 0o700); err != nil {
+		t.Fatal(err)
+	}
 	return Config{
-		Devices:       []string{device},
-		Label:         DefaultLabel,
-		MountPoint:    mount,
-		FATRoot:       fat,
-		BindNames:     append([]string(nil), DefaultBindNames...),
-		EvaluateGate:  func() (Gate, error) { return Gate{}, nil },
-		DevicePresent: pathExists,
-		ReadLabel:     readExt4Label,
-		Mounted:       func(target string) bool { return mounter.mounted[target] != "" },
-		Mounter:       mounter,
+		Devices:         []string{device},
+		Label:           DefaultLabel,
+		MountPoint:      mount,
+		FATRoot:         fat,
+		LibraryFATRoot:  libraryFAT,
+		LibraryDataRoot: libraryData,
+		BindNames:       append([]string(nil), DefaultBindNames...),
+		EvaluateGate:    func() (Gate, error) { return Gate{}, nil },
+		DevicePresent:   pathExists,
+		ReadLabel:       readExt4Label,
+		Mounted:         func(target string) bool { return mounter.mounted[target] != "" },
+		VerifyMounted:   func(string, string) error { return nil },
+		BindMatches:     mounter.BindMatches,
+		Mounter:         mounter,
 	}
 }
 
@@ -72,6 +148,13 @@ func TestPrepareSkipsWhenP3Absent(t *testing.T) {
 	t.Parallel()
 	mounter := newRecordingMounter()
 	cfg := testConfig(t, mounter)
+	fatGame := filepath.Join(cfg.LibraryFATRoot, "sms", "kept.sms")
+	if err := os.MkdirAll(filepath.Dir(fatGame), 0o700); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(fatGame, []byte("fat-library"), 0o600); err != nil {
+		t.Fatal(err)
+	}
 	cfg.DevicePresent = func(string) bool { return false }
 	result, err := Prepare(cfg)
 	if err != nil || result.Skipped != SkipAbsent || len(result.Bound) != 0 {
@@ -79,6 +162,451 @@ func TestPrepareSkipsWhenP3Absent(t *testing.T) {
 	}
 	if len(mounter.volumes) != 0 || len(mounter.binds) != 0 {
 		t.Fatalf("absent mutated mounts: %+v %+v", mounter.volumes, mounter.binds)
+	}
+	if got, err := os.ReadFile(fatGame); err != nil || string(got) != "fat-library" {
+		t.Fatalf("FAT library was not preserved without p3: %q %v", got, err)
+	}
+	if pending, err := gamesFallbackPending(cfg.LibraryFATRoot); err != nil || !pending {
+		t.Fatalf("FAT fallback was not recorded: pending=%v err=%v", pending, err)
+	}
+}
+
+func TestPrepareRecordsFallbackAfterP3MountFailure(t *testing.T) {
+	t.Parallel()
+	mounter := newRecordingMounter()
+	mounter.mountErr = errors.New("p3 mount failed")
+	cfg := testConfig(t, mounter)
+
+	result, err := Prepare(cfg)
+	if !errors.Is(err, mounter.mountErr) || result.Device == "" {
+		t.Fatalf("failed mount = %+v %v", result, err)
+	}
+	if pending, err := gamesFallbackPending(cfg.LibraryFATRoot); err != nil || !pending {
+		t.Fatalf("FAT fallback was not recorded after mount failure: pending=%v err=%v", pending, err)
+	}
+}
+
+func TestPrepareRejectsExistingMountThatIsNotWritableFESDATA3(t *testing.T) {
+	t.Parallel()
+	mounter := newRecordingMounter()
+	cfg := testConfig(t, mounter)
+	mounter.mounted[cfg.MountPoint] = "tmpfs"
+	invalidMount := errors.New("FESDATA3 must be a writable ext4 filesystem")
+	cfg.VerifyMounted = func(source, target string) error {
+		if source != cfg.Devices[0] || target != cfg.MountPoint {
+			t.Errorf("verified %s -> %s", source, target)
+		}
+		return invalidMount
+	}
+
+	result, err := Prepare(cfg)
+	if !errors.Is(err, invalidMount) || result.Device != cfg.Devices[0] {
+		t.Fatalf("invalid existing mount = %+v %v", result, err)
+	}
+	if len(mounter.volumes) != 0 || len(mounter.binds) != 0 {
+		t.Fatalf("invalid mount was used for durable binds: mounts=%v binds=%v", mounter.volumes, mounter.binds)
+	}
+	if pending, err := gamesFallbackPending(cfg.LibraryFATRoot); err != nil || !pending {
+		t.Fatalf("FAT fallback was not recorded: pending=%v err=%v", pending, err)
+	}
+}
+
+func TestPrepareCopiesFATGamesAddedWhileP3IsUnavailable(t *testing.T) {
+	initialMounter := newRecordingMounter()
+	cfg := testConfig(t, initialMounter)
+	fatGame := filepath.Join(cfg.LibraryFATRoot, "sms", "initial.sms")
+	if err := os.MkdirAll(filepath.Dir(fatGame), 0o700); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(fatGame, []byte("initial"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if result, err := Prepare(cfg); err != nil || result.Skipped != "" {
+		t.Fatalf("initial prepare = %+v %v", result, err)
+	}
+
+	absentMounter := newRecordingMounter()
+	t.Cleanup(func() { _ = absentMounter.Close() })
+	cfg.DevicePresent = func(string) bool { return false }
+	cfg.Mounter = absentMounter
+	cfg.Mounted = func(target string) bool { return absentMounter.mounted[target] != "" }
+	cfg.BindMatches = absentMounter.BindMatches
+	if result, err := Prepare(cfg); err != nil || result.Skipped != SkipAbsent {
+		t.Fatalf("absent prepare = %+v %v", result, err)
+	}
+	addedGame := filepath.Join(cfg.LibraryFATRoot, "sms", "added-while-absent.sms")
+	if err := os.WriteFile(addedGame, []byte("added on FAT"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	restoredMounter := newRecordingMounter()
+	t.Cleanup(func() { _ = restoredMounter.Close() })
+	cfg.DevicePresent = pathExists
+	cfg.Mounter = restoredMounter
+	cfg.Mounted = func(target string) bool { return restoredMounter.mounted[target] != "" }
+	cfg.BindMatches = restoredMounter.BindMatches
+	result, err := Prepare(cfg)
+	if err != nil || !slices.Contains(result.Bound, "games") {
+		t.Fatalf("restored prepare = %+v %v", result, err)
+	}
+	if got, err := os.ReadFile(filepath.Join(cfg.LibraryDataRoot, "sms", "added-while-absent.sms")); err != nil || string(got) != "added on FAT" {
+		t.Fatalf("FAT game was hidden by the old p3 tree: %q %v", got, err)
+	}
+	if pending, err := gamesFallbackPending(cfg.LibraryFATRoot); err != nil || pending {
+		t.Fatalf("FAT fallback marker was not cleared: pending=%v err=%v", pending, err)
+	}
+}
+
+func TestPrepareRetriesInterruptedGameRepairBeforeBinding(t *testing.T) {
+	t.Parallel()
+	firstMounter := newRecordingMounter()
+	cfg := testConfig(t, firstMounter)
+	firstGame := filepath.Join(cfg.LibraryFATRoot, "a.sms")
+	secondGame := filepath.Join(cfg.LibraryFATRoot, "zdir", "b.sms")
+	if err := os.MkdirAll(filepath.Dir(secondGame), 0o700); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(firstGame, []byte("first"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(secondGame, []byte("second"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := Prepare(cfg); err != nil {
+		t.Fatalf("initial prepare: %v", err)
+	}
+
+	// Replacing the bound source makes Prepare take its repair path. Leave a
+	// destination conflict after one file can be copied to model an interrupted
+	// repair with a completed migration marker and a partial p3 games tree.
+	if err := os.RemoveAll(cfg.LibraryDataRoot); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.MkdirAll(cfg.LibraryDataRoot, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(cfg.LibraryDataRoot, "zdir"), []byte("conflict"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := Prepare(cfg); err == nil {
+		t.Fatal("repair accepted a file where the game directory must be")
+	}
+	if got, err := os.ReadFile(filepath.Join(cfg.LibraryDataRoot, "a.sms")); err != nil || string(got) != "first" {
+		t.Fatalf("partial repair did not copy its first game: %q %v", got, err)
+	}
+	if pending, err := gamesFallbackPending(cfg.LibraryFATRoot); err != nil || !pending {
+		t.Fatalf("interrupted repair did not retain retry marker: pending=%v err=%v", pending, err)
+	}
+
+	if err := os.Remove(filepath.Join(cfg.LibraryDataRoot, "zdir")); err != nil {
+		t.Fatal(err)
+	}
+	secondMounter := newRecordingMounter()
+	t.Cleanup(func() { _ = secondMounter.Close() })
+	cfg.Mounter = secondMounter
+	cfg.Mounted = func(target string) bool { return secondMounter.mounted[target] != "" }
+	cfg.BindMatches = secondMounter.BindMatches
+	result, err := Prepare(cfg)
+	if err != nil || !slices.Contains(result.Bound, "games") {
+		t.Fatalf("retry prepare = %+v %v", result, err)
+	}
+	if got, err := os.ReadFile(filepath.Join(cfg.LibraryDataRoot, "zdir", "b.sms")); err != nil || string(got) != "second" {
+		t.Fatalf("retry did not restore game missing from partial p3 tree: %q %v", got, err)
+	}
+	if pending, err := gamesFallbackPending(cfg.LibraryFATRoot); err != nil || pending {
+		t.Fatalf("successful retry did not clear marker: pending=%v err=%v", pending, err)
+	}
+}
+
+func TestPrepareRecordsFallbackBeforeRemovingStaleGameBind(t *testing.T) {
+	t.Parallel()
+	mounter := newRecordingMounter()
+	cfg := testConfig(t, mounter)
+	fatGame := filepath.Join(cfg.LibraryFATRoot, "sms", "kept.sms")
+	if err := os.MkdirAll(filepath.Dir(fatGame), 0o700); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(fatGame, []byte("fat-game"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := Prepare(cfg); err != nil {
+		t.Fatalf("initial prepare: %v", err)
+	}
+
+	// Replacing the p3 source makes its existing game bind stale. Observe the
+	// fallback marker at the instant Prepare attempts to remove that bind.
+	if err := os.RemoveAll(cfg.LibraryDataRoot); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.MkdirAll(cfg.LibraryDataRoot, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	unbound := false
+	mounter.onUnbind = func(target string) {
+		if target != cfg.LibraryFATRoot {
+			return
+		}
+		unbound = true
+		pending, err := gamesFallbackPending(cfg.LibraryFATRoot)
+		if err != nil || !pending {
+			t.Errorf("fallback marker at stale game unbind = pending:%v err:%v, want pending", pending, err)
+		}
+	}
+	result, err := Prepare(cfg)
+	if err != nil || !slices.Contains(result.Bound, "games") {
+		t.Fatalf("repair prepare = %+v %v", result, err)
+	}
+	if !unbound {
+		t.Fatal("stale game library bind was not removed")
+	}
+	if got, err := os.ReadFile(filepath.Join(cfg.LibraryDataRoot, "sms", "kept.sms")); err != nil || string(got) != "fat-game" {
+		t.Fatalf("repair did not restore the game from FAT: %q %v", got, err)
+	}
+	if pending, err := gamesFallbackPending(cfg.LibraryFATRoot); err != nil || pending {
+		t.Fatalf("successful repair did not clear fallback marker: pending=%v err=%v", pending, err)
+	}
+}
+
+func TestPrepareKeepsFallbackMarkerUntilGameBindSucceeds(t *testing.T) {
+	t.Parallel()
+	absentMounter := newRecordingMounter()
+	cfg := testConfig(t, absentMounter)
+	fatGame := filepath.Join(cfg.LibraryFATRoot, "sms", "kept.sms")
+	if err := os.MkdirAll(filepath.Dir(fatGame), 0o700); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(fatGame, []byte("fat-game"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	cfg.DevicePresent = func(string) bool { return false }
+	if _, err := Prepare(cfg); err != nil {
+		t.Fatal("absent prepare:", err)
+	}
+
+	failedMounter := newRecordingMounter()
+	t.Cleanup(func() { _ = failedMounter.Close() })
+	failedMounter.bindErr = errors.New("game bind failed")
+	failedMounter.bindErrOn = cfg.LibraryFATRoot
+	cfg.DevicePresent = pathExists
+	cfg.Mounter = failedMounter
+	cfg.Mounted = func(target string) bool { return failedMounter.mounted[target] != "" }
+	cfg.BindMatches = failedMounter.BindMatches
+	if _, err := Prepare(cfg); !errors.Is(err, failedMounter.bindErr) {
+		t.Fatalf("failed games bind = %v", err)
+	}
+	if pending, err := gamesFallbackPending(cfg.LibraryFATRoot); err != nil || !pending {
+		t.Fatalf("failed bind cleared FAT fallback marker: pending=%v err=%v", pending, err)
+	}
+
+	workingMounter := newRecordingMounter()
+	t.Cleanup(func() { _ = workingMounter.Close() })
+	cfg.Mounter = workingMounter
+	cfg.Mounted = func(target string) bool { return workingMounter.mounted[target] != "" }
+	cfg.BindMatches = workingMounter.BindMatches
+	result, err := Prepare(cfg)
+	if err != nil || !slices.Contains(result.Bound, "games") {
+		t.Fatalf("retry after bind failure = %+v %v", result, err)
+	}
+	if pending, err := gamesFallbackPending(cfg.LibraryFATRoot); err != nil || pending {
+		t.Fatalf("successful bind did not clear marker: pending=%v err=%v", pending, err)
+	}
+}
+
+func TestPrepareRetriesFallbackMarkerDirectorySyncBeforeUnbinding(t *testing.T) {
+	t.Parallel()
+	mounter := newRecordingMounter()
+	cfg := testConfig(t, mounter)
+	fatGame := filepath.Join(cfg.LibraryFATRoot, "sms", "kept.sms")
+	if err := os.MkdirAll(filepath.Dir(fatGame), 0o700); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(fatGame, []byte("fat-game"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := Prepare(cfg); err != nil {
+		t.Fatalf("initial prepare: %v", err)
+	}
+	if err := os.RemoveAll(cfg.LibraryDataRoot); err != nil {
+		t.Fatal(err)
+	}
+
+	fallbackDir := filepath.Dir(gamesFallbackMarkerPath(cfg.LibraryFATRoot))
+	syncFailure := errors.New("fallback marker directory sync failed")
+	syncAttempts := 0
+	syncDir := func(path string) error {
+		if filepath.Clean(path) == filepath.Clean(fallbackDir) {
+			syncAttempts++
+			if syncAttempts == 1 {
+				return syncFailure
+			}
+		}
+		return syncDirectory(path)
+	}
+	if _, err := prepareWithSync(cfg, syncDir); !errors.Is(err, syncFailure) {
+		t.Fatalf("prepare after failed marker sync = %v, want sync error", err)
+	}
+	if len(mounter.unbinds) != 0 || mounter.mounted[cfg.LibraryFATRoot] == "" {
+		t.Fatalf("stale game bind was removed after failed marker sync: unbinds=%v", mounter.unbinds)
+	}
+	if pending, err := gamesFallbackPending(cfg.LibraryFATRoot); err != nil || !pending {
+		t.Fatalf("fallback marker visibility after failed sync = %v, %v", pending, err)
+	}
+
+	markerSynced := false
+	mounter.onUnbind = func(target string) {
+		if target == cfg.LibraryFATRoot && !markerSynced {
+			t.Error("stale game bind was removed before retrying the fallback marker directory sync")
+		}
+	}
+	secondSync := func(path string) error {
+		if filepath.Clean(path) == filepath.Clean(fallbackDir) {
+			markerSynced = true
+		}
+		return syncDirectory(path)
+	}
+	result, err := prepareWithSync(cfg, secondSync)
+	if err != nil || !slices.Contains(result.Bound, "games") {
+		t.Fatalf("retry prepare = %+v %v", result, err)
+	}
+	if !markerSynced {
+		t.Fatal("retry did not sync the fallback marker directory")
+	}
+	if got, err := os.ReadFile(filepath.Join(cfg.LibraryDataRoot, "sms", "kept.sms")); err != nil || string(got) != "fat-game" {
+		t.Fatalf("retry did not restore game data: %q %v", got, err)
+	}
+}
+
+func TestPrepareRejectsSymlinkedGameDestinationBeforeCopy(t *testing.T) {
+	t.Parallel()
+	mounter := newRecordingMounter()
+	cfg := testConfig(t, mounter)
+	fatGame := filepath.Join(cfg.LibraryFATRoot, "sms", "game.sms")
+	if err := os.MkdirAll(filepath.Dir(fatGame), 0o700); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(fatGame, []byte("fat-game"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	outside := t.TempDir()
+	if err := os.MkdirAll(cfg.MountPoint, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.MkdirAll(cfg.LibraryDataRoot, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Symlink(outside, filepath.Join(cfg.LibraryDataRoot, "sms")); err != nil {
+		t.Fatal(err)
+	}
+	result, err := Prepare(cfg)
+	if err == nil || !strings.Contains(err.Error(), "symlink") {
+		t.Fatalf("prepare with symlinked game destination = %+v %v, want symlink error", result, err)
+	}
+	if _, err := os.Lstat(filepath.Join(outside, "game.sms")); !errors.Is(err, os.ErrNotExist) {
+		t.Fatalf("game was copied through destination symlink: %v", err)
+	}
+	if mounter.mounted[cfg.LibraryFATRoot] != "" {
+		t.Fatal("symlinked game destination was bound")
+	}
+}
+
+func TestPrepareRetriesInterruptedRestoreWithCompletedMigrationMarker(t *testing.T) {
+	t.Parallel()
+	firstMounter := newRecordingMounter()
+	cfg := testConfig(t, firstMounter)
+	firstGame := filepath.Join(cfg.LibraryFATRoot, "a.sms")
+	secondGame := filepath.Join(cfg.LibraryFATRoot, "zdir", "b.sms")
+	if err := os.MkdirAll(filepath.Dir(secondGame), 0o700); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(firstGame, []byte("first"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(secondGame, []byte("second"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.MkdirAll(cfg.MountPoint, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	migrationMarker := filepath.Join(cfg.MountPoint, gamesMigrationMarker)
+	if err := os.WriteFile(migrationMarker, []byte("complete\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	syncFailure := errors.New("restore directory sync failed")
+	failedRestoreSync := false
+	syncDir := func(path string) error {
+		if !failedRestoreSync && filepath.Clean(path) == filepath.Clean(cfg.LibraryDataRoot) {
+			failedRestoreSync = true
+			return syncFailure
+		}
+		return syncDirectory(path)
+	}
+	if _, err := prepareWithSync(cfg, syncDir); !errors.Is(err, syncFailure) {
+		t.Fatalf("interrupted restore prepare = %v, want sync error", err)
+	}
+	if !failedRestoreSync {
+		t.Fatal("restore did not reach destination directory sync")
+	}
+	if pending, err := gamesFallbackPending(cfg.LibraryFATRoot); err != nil || !pending {
+		t.Fatalf("restore retry marker = %v, %v; want pending", pending, err)
+	}
+	if _, err := os.Lstat(migrationMarker); err != nil {
+		t.Fatalf("completed migration marker was lost: %v", err)
+	}
+	// Model the missing portion left by a power loss during the restore.
+	if err := os.Remove(filepath.Join(cfg.LibraryDataRoot, "zdir", "b.sms")); err != nil {
+		t.Fatal(err)
+	}
+
+	secondMounter := newRecordingMounter()
+	t.Cleanup(func() { _ = secondMounter.Close() })
+	cfg.Mounter = secondMounter
+	cfg.Mounted = func(target string) bool { return secondMounter.mounted[target] != "" }
+	cfg.BindMatches = secondMounter.BindMatches
+	result, err := Prepare(cfg)
+	if err != nil || !slices.Contains(result.Bound, "games") {
+		t.Fatalf("startup after interrupted restore = %+v %v", result, err)
+	}
+	if got, err := os.ReadFile(filepath.Join(cfg.LibraryDataRoot, "zdir", "b.sms")); err != nil || string(got) != "second" {
+		t.Fatalf("startup retry did not restore missing game: %q %v", got, err)
+	}
+	if pending, err := gamesFallbackPending(cfg.LibraryFATRoot); err != nil || pending {
+		t.Fatalf("successful restore retry left marker: %v, %v", pending, err)
+	}
+}
+
+func TestCopyMarkerAtomicallyFallsBackWhenHardLinksAreUnsupported(t *testing.T) {
+	t.Parallel()
+	dir := t.TempDir()
+	marker := filepath.Join(dir, gamesFallbackMarker)
+	linkFailure := errors.New("hard links are unsupported")
+	linkCalls := 0
+	renameCalls := 0
+	err := copyMarkerAtomicallyWithOps(strings.NewReader("pending\n"), marker,
+		func(string, string) error {
+			linkCalls++
+			return linkFailure
+		},
+		func(old, new string) error {
+			renameCalls++
+			return os.Rename(old, new)
+		},
+	)
+	if err != nil {
+		t.Fatalf("copy marker with unsupported hard links = %v", err)
+	}
+	if linkCalls != 1 || renameCalls != 1 {
+		t.Fatalf("publication calls = link:%d rename:%d, want one each", linkCalls, renameCalls)
+	}
+	if got, err := os.ReadFile(marker); err != nil || string(got) != "pending\n" {
+		t.Fatalf("published marker = %q, %v", got, err)
+	}
+	entries, err := os.ReadDir(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(entries) != 1 || entries[0].Name() != gamesFallbackMarker {
+		t.Fatalf("marker directory entries = %v, want only the published marker", entries)
 	}
 }
 
@@ -112,6 +640,13 @@ func TestPrepareBindsMutableTreesAndCopiesExistingFiles(t *testing.T) {
 	if err := os.WriteFile(filepath.Join(cache, "snes", "game.sfc"), []byte("rom"), 0o600); err != nil {
 		t.Fatal(err)
 	}
+	game := filepath.Join(cfg.LibraryFATRoot, "sms", "game.sms")
+	if err := os.MkdirAll(filepath.Dir(game), 0o700); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(game, []byte("game"), 0o600); err != nil {
+		t.Fatal(err)
+	}
 	releases := filepath.Join(cfg.FATRoot, "releases", "images")
 	if err := os.MkdirAll(releases, 0o700); err != nil {
 		t.Fatal(err)
@@ -129,14 +664,22 @@ func TestPrepareBindsMutableTreesAndCopiesExistingFiles(t *testing.T) {
 	if result.Skipped != "" || result.Device == "" {
 		t.Fatalf("result = %+v", result)
 	}
-	if got := strings.Join(result.Bound, ","); got != strings.Join(DefaultBindNames, ",") {
+	wantBound := append(append([]string(nil), DefaultBindNames...), "games")
+	if got := strings.Join(result.Bound, ","); got != strings.Join(wantBound, ",") {
 		t.Fatalf("bound = %s", got)
 	}
 	if len(mounter.volumes) != 1 || !strings.Contains(mounter.volumes[0], cfg.MountPoint) {
 		t.Fatalf("volume mounts = %v", mounter.volumes)
 	}
-	if len(mounter.binds) != len(DefaultBindNames) {
+	if len(mounter.binds) != len(DefaultBindNames)+1 {
 		t.Fatalf("binds = %v", mounter.binds)
+	}
+	gameCopy, err := os.ReadFile(filepath.Join(cfg.LibraryDataRoot, "sms", "game.sms"))
+	if err != nil || string(gameCopy) != "game" {
+		t.Fatalf("game library was not copied to p3: %q %v", gameCopy, err)
+	}
+	if got := mounter.mounted[cfg.LibraryFATRoot]; got != cfg.LibraryDataRoot {
+		t.Fatalf("game library bind = %q, want %q", got, cfg.LibraryDataRoot)
 	}
 	copied := filepath.Join(cfg.MountPoint, "cache", "snes", "game.sfc")
 	body, err := os.ReadFile(copied)
@@ -186,6 +729,20 @@ func TestPrepareDoesNotOverwriteExistingP3Files(t *testing.T) {
 	if err := os.WriteFile(fatOnly, []byte("from-fat"), 0o600); err != nil {
 		t.Fatal(err)
 	}
+	fatGame := filepath.Join(cfg.LibraryFATRoot, "sms", "game.sms")
+	p3Game := filepath.Join(cfg.LibraryDataRoot, "sms", "game.sms")
+	if err := os.MkdirAll(filepath.Dir(fatGame), 0o700); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.MkdirAll(filepath.Dir(p3Game), 0o700); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(fatGame, []byte("fat-game"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(p3Game, []byte("p3-game"), 0o600); err != nil {
+		t.Fatal(err)
+	}
 	result, err := Prepare(cfg)
 	if err != nil || result.Skipped != "" {
 		t.Fatalf("prepare = %+v %v", result, err)
@@ -201,6 +758,165 @@ func TestPrepareDoesNotOverwriteExistingP3Files(t *testing.T) {
 	copied, err := os.ReadFile(filepath.Join(cfg.MountPoint, "saves", "snes", "trial.srm"))
 	if err != nil || string(copied) != "from-fat" {
 		t.Fatalf("missing FAT file not copied: %q %v", copied, err)
+	}
+	game, err := os.ReadFile(p3Game)
+	if err != nil || string(game) != "p3-game" {
+		t.Fatalf("existing p3 game was overwritten: %q %v", game, err)
+	}
+	if got := mounter.mounted[cfg.LibraryFATRoot]; got != cfg.LibraryDataRoot {
+		t.Fatalf("game tree is not backed by p3: %q", got)
+	}
+}
+
+func TestMigrateGamesOnceSyncsDestinationDirectoriesBeforeMarker(t *testing.T) {
+	t.Parallel()
+	dir := t.TempDir()
+	src := filepath.Join(dir, "fat", "games")
+	dst := filepath.Join(dir, "p3", "games")
+	marker := filepath.Join(dir, "p3", gamesMigrationMarker)
+	sourceGame := filepath.Join(src, "sms", "game.sms")
+	if err := os.MkdirAll(filepath.Dir(sourceGame), 0o700); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(sourceGame, []byte("game"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	syncFailure := errors.New("destination sync failed")
+	err := migrateGamesOnceWithSync(src, dst, marker, func(path string) error {
+		if filepath.Clean(path) == filepath.Join(dst, "sms") {
+			return syncFailure
+		}
+		return syncDirectory(path)
+	})
+	if !errors.Is(err, syncFailure) {
+		t.Fatalf("migration with failed destination sync = %v, want sync error", err)
+	}
+	if _, err := os.Lstat(marker); !errors.Is(err, os.ErrNotExist) {
+		t.Fatalf("marker exists after failed destination sync: %v", err)
+	}
+
+	markerDirSyncs := 0
+	syncedGameDir := false
+	syncDir := func(path string) error {
+		path = filepath.Clean(path)
+		if path == dst || strings.HasPrefix(path, dst+string(os.PathSeparator)) {
+			if _, err := os.Lstat(marker); !errors.Is(err, os.ErrNotExist) {
+				t.Fatalf("marker exists before destination sync %s: %v", path, err)
+			}
+			if path == filepath.Join(dst, "sms") {
+				syncedGameDir = true
+			}
+		}
+		if path == filepath.Dir(marker) {
+			markerDirSyncs++
+			complete, err := migrationComplete(marker)
+			if err != nil {
+				return err
+			}
+			if markerDirSyncs == 1 && complete {
+				t.Fatal("marker was published before destination directories were synced")
+			}
+			if markerDirSyncs == 2 && !complete {
+				t.Fatal("marker directory was synced before marker publication")
+			}
+		}
+		return syncDirectory(path)
+	}
+	if err := migrateGamesOnceWithSync(src, dst, marker, syncDir); err != nil {
+		t.Fatal(err)
+	}
+	if !syncedGameDir {
+		t.Fatal("game entry directory was not synced")
+	}
+	if markerDirSyncs != 2 {
+		t.Fatalf("marker directory syncs = %d, want pre- and post-publication syncs", markerDirSyncs)
+	}
+	if complete, err := migrationComplete(marker); err != nil || !complete {
+		t.Fatalf("migration marker complete = %v, %v", complete, err)
+	}
+}
+
+func TestPrepareDoesNotRestoreDeletedGameAfterMigration(t *testing.T) {
+	t.Parallel()
+	firstMounter := newRecordingMounter()
+	cfg := testConfig(t, firstMounter)
+	fatGame := filepath.Join(cfg.LibraryFATRoot, "sms", "deleted.sms")
+	if err := os.MkdirAll(filepath.Dir(fatGame), 0o700); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(fatGame, []byte("fat-game"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	first, err := Prepare(cfg)
+	if err != nil || first.Skipped != "" {
+		t.Fatalf("initial prepare = %+v %v", first, err)
+	}
+	p3Game := filepath.Join(cfg.LibraryDataRoot, "sms", "deleted.sms")
+	if got, err := os.ReadFile(p3Game); err != nil || string(got) != "fat-game" {
+		t.Fatalf("initial migration = %q %v", got, err)
+	}
+	if err := os.Remove(p3Game); err != nil {
+		t.Fatal(err)
+	}
+
+	// A fresh mounter models startup after reboot while the p3 files and marker
+	// remain on the persistent volume.
+	secondMounter := newRecordingMounter()
+	t.Cleanup(func() { _ = secondMounter.Close() })
+	cfg.Mounter = secondMounter
+	cfg.Mounted = func(target string) bool { return secondMounter.mounted[target] != "" }
+	second, err := Prepare(cfg)
+	if err != nil || second.Skipped != "" {
+		t.Fatalf("second prepare = %+v %v", second, err)
+	}
+	if _, err := os.Lstat(p3Game); !os.IsNotExist(err) {
+		t.Fatalf("deleted game was restored from FAT: %v", err)
+	}
+	if got := secondMounter.mounted[cfg.LibraryFATRoot]; got != cfg.LibraryDataRoot {
+		t.Fatalf("game tree was not rebound after reboot: %q", got)
+	}
+}
+
+func TestPrepareRepairsStaleGameBindSource(t *testing.T) {
+	t.Parallel()
+	for _, recreate := range []bool{false, true} {
+		t.Run(fmt.Sprintf("recreated=%t", recreate), func(t *testing.T) {
+			mounter := newRecordingMounter()
+			cfg := testConfig(t, mounter)
+			fatGame := filepath.Join(cfg.LibraryFATRoot, "sms", "recovered.sms")
+			if err := os.MkdirAll(filepath.Dir(fatGame), 0o700); err != nil {
+				t.Fatal(err)
+			}
+			if err := os.WriteFile(fatGame, []byte("fat-copy"), 0o600); err != nil {
+				t.Fatal(err)
+			}
+			if _, err := Prepare(cfg); err != nil {
+				t.Fatal("initial prepare:", err)
+			}
+
+			if err := os.RemoveAll(cfg.LibraryDataRoot); err != nil {
+				t.Fatal(err)
+			}
+			if recreate {
+				if err := os.MkdirAll(cfg.LibraryDataRoot, 0o700); err != nil {
+					t.Fatal(err)
+				}
+			}
+			result, err := Prepare(cfg)
+			if err != nil || !slices.Contains(result.Bound, "games") {
+				t.Fatalf("recovery prepare = %+v %v", result, err)
+			}
+			if len(mounter.unbinds) != 1 || mounter.unbinds[0] != cfg.LibraryFATRoot {
+				t.Fatalf("stale bind unmounts = %v", mounter.unbinds)
+			}
+			if got, err := os.ReadFile(filepath.Join(cfg.LibraryDataRoot, "sms", "recovered.sms")); err != nil || string(got) != "fat-copy" {
+				t.Fatalf("recovered p3 game = %q %v", got, err)
+			}
+			if got := mounter.mounted[cfg.LibraryFATRoot]; got != cfg.LibraryDataRoot {
+				t.Fatalf("game tree was not rebound to p3: %q", got)
+			}
+		})
 	}
 }
 
@@ -245,17 +961,17 @@ func TestPrepareIsIdempotentWhenAlreadyBound(t *testing.T) {
 	mounter := newRecordingMounter()
 	cfg := testConfig(t, mounter)
 	first, err := Prepare(cfg)
-	if err != nil || len(first.Bound) != len(DefaultBindNames) {
+	if err != nil || len(first.Bound) != len(DefaultBindNames)+1 {
 		t.Fatalf("first = %+v %v", first, err)
 	}
 	second, err := Prepare(cfg)
-	if err != nil || len(second.Bound) != len(DefaultBindNames) {
+	if err != nil || len(second.Bound) != len(DefaultBindNames)+1 {
 		t.Fatalf("second = %+v %v", second, err)
 	}
 	if len(mounter.volumes) != 1 {
 		t.Fatalf("remounted volume: %v", mounter.volumes)
 	}
-	if len(mounter.binds) != len(DefaultBindNames) {
+	if len(mounter.binds) != len(DefaultBindNames)+1 {
 		t.Fatalf("rebound directories: %v", mounter.binds)
 	}
 }
@@ -485,5 +1201,49 @@ func TestCopyMissingLeavesDestinationUntouchedOnExistingFile(t *testing.T) {
 	body, err := os.ReadFile(filepath.Join(dst, "a"))
 	if err != nil || string(body) != "dst" {
 		t.Fatalf("overwrite = %q %v", body, err)
+	}
+}
+
+type interruptedCopyReader struct{ sent bool }
+
+func (r *interruptedCopyReader) Read(p []byte) (int, error) {
+	if !r.sent {
+		r.sent = true
+		return copy(p, []byte("partial")), nil
+	}
+	return 0, errors.New("copy interrupted")
+}
+
+func TestInterruptedMigrationCopyDoesNotPublishPartialDestination(t *testing.T) {
+	t.Parallel()
+	dir := t.TempDir()
+	src := filepath.Join(dir, "fat")
+	dst := filepath.Join(dir, "p3")
+	if err := os.MkdirAll(src, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.MkdirAll(dst, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	want := []byte("complete FAT library file")
+	if err := os.WriteFile(filepath.Join(src, "game.sms"), want, 0o600); err != nil {
+		t.Fatal(err)
+	}
+	final := filepath.Join(dst, "game.sms")
+	if err := copyFileAtomically(&interruptedCopyReader{}, final); err == nil {
+		t.Fatal("interrupted copy succeeded")
+	}
+	if _, err := os.Lstat(final); !errors.Is(err, os.ErrNotExist) {
+		t.Fatalf("partial final path remains after interruption: %v", err)
+	}
+
+	// A later startup retries from the intact FAT source instead of treating a
+	// partial p3 path as complete and binding it over the library.
+	if err := copyMissing(src, dst); err != nil {
+		t.Fatal(err)
+	}
+	got, err := os.ReadFile(final)
+	if err != nil || !bytes.Equal(got, want) {
+		t.Fatalf("retried copy = %q %v, want %q", got, err, want)
 	}
 }
