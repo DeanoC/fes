@@ -95,7 +95,7 @@ IOPL-sensitive instructions and I/O bitmap outside V86.
 | Angband (CWSDPMI) | yes; 3,224 toggles; 656 #PF, errors 4 and 6 | 4,830 far JMPs to TSSs | no | 9,672 writes | as above |
 | NetHack (CWSDPMI) | yes; 546 #PF, error 6 | 3,426 far JMPs to TSSs | no | 6,864 writes | as above |
 | Chris's 3D Benchmark (CWSDPMI) | yes; 238 #PF, error 6 | 1,495 far JMPs to TSSs | no | 2,495 writes | as above; 164 #NM (x87 emulation) |
-| Quake timedemo (CWSDPMI) | see below | | | | then needs an x87 |
+| Quake timedemo (CWSDPMI) | yes; 2,547 toggles; 226 #PF, error 6 | 3,817 far JMPs to TSSs | no | 6,370 writes, 1,273 reads | as above; then needs an x87 (45.7M x87 instructions on the oracle's FPU) |
 | Time Circle (Borland 32RTM) | yes; 2,655 CR3 writes; 126 #PF, error 2 (a CPL-0 write) | none (LTR once) | no | none | IRETD to CPL 3 (7,296) |
 | Descent (DOS/4GW Professional) | yes, at CPL 0 only; 829 #PF, errors 0 and 2 | every #PF through a task gate to a 32-bit TSS (829, 441 of them switching LDT), and back by IRET with NT (829) | no | none | none |
 | U.S. Navy Fighters (its own extender) | yes; no #PF | none (LTR once) | no | 726 writes, 363 reads | IRET to CPL 3 (1,356), call gate back (891); then needs its CD |
@@ -104,9 +104,6 @@ IOPL-sensitive instructions and I/O bitmap outside V86.
 | Wolfenstein 3D under JEMM386 | yes; 959 CR3 writes; no #PF | none (LTR once) | at IOPL 3; 984,044 INT n straight through DPL-3 gates to JEMM386 and 998,776 IRETDs back; 26.5M I/O accesses through the bitmap, 3,535 trapped as #GP(0) | none | none |
 | DOOM under JEMM386 (VCPI) | yes; 13,315 CR3 writes | none; DOS/4GW's VCPI switches load TR 8,532 times | as above; 221,539 INT n | none | none |
 | Master of Orion under JEMM386 | yes | none | as above; 2.1M INT n at the DOS prompt | none | none |
-
-Quake's rerun is in [`census.jsonl`](census.jsonl) when it finished; its
-host is the CWSDPMI the other four use.
 
 **JEMM386's results.**
 - **Wolfenstein 3D** makes 781 EMS calls (INT 67h) and reaches its options
@@ -133,6 +130,7 @@ columns count instructions.
 | Angband | 22.6M | 1.124 | 0.469 | 0.240 | 0.168 | 1.82 | 0.393 | 0.182 | 0.026 |
 | NetHack | 3.3M | 0.972 | 0.429 | 0.418 | 0.417 | 1.47 | 0.215 | 0.173 | 0.159 |
 | Chris's 3D Benchmark | 123.5M | 0.757 | 0.140 | 0.034 | 0.016 | 0.29 | 0.010 | 0.001 | 0.001 |
+| Quake timedemo | 243.9M | 1.687 | 0.321 | 0.106 | 0.066 | 0.68 | 0.021 | 0.006 | 0.005 |
 | Time Circle | 155.3M | 0.038 | 0.023 | 0.017 | 0.016 | 7.71 | 0.019 | 0.008 | 0.005 |
 | Descent | 102.8M | 1.196 | 0.098 | 0.062 | 0.060 | 3.07 | 0.354 | 0.035 | 0.020 |
 | U.S. Navy Fighters | 2.3M | 0.444 | 0.219 | 0.205 | 0.202 | 2.92 | 1.067 | 0.653 | 0.508 |
@@ -141,24 +139,24 @@ columns count instructions.
 | DOOM, JEMM386 | 239.7M | 0.534 | 0.091 | 0.080 | 0.080 | 3.15 | 0.454 | 0.205 | 0.068 |
 | Master of Orion, JEMM386 | 363.1M | 2.598 | 0.001 | 0.000 | 0.000 | 5.08 | 3.280 | 1.095 | 0.003 |
 
-- **DTLB.** Sixteen entries take every run but Angband and NetHack, the two
-  smallest, below 0.1%. A 64-entry 4-way second level would save at most
+- **DTLB.** Sixteen entries miss on under 0.5% in every run, and under 0.1%
+  in seven of the twelve; Angband, NetHack, Chris's 3D Benchmark, Quake and
+  U.S. Navy Fighters are the five above. A 64-entry 4-way second level would save at most
   0.3 points (Angband), about a walk per 750 data accesses. So the second
   level stays a Phase 7 option, built only if walks show in a profile.
 - **ITLB.** One entry, the current page, misses on up to 12% of
   instructions: CWSDPMI's hot loop spans three pages. Eight entries miss on
-  at most 1.1%, Master of Orion's idle DOS prompt; on 0.21% or less in every
-  title that runs.
+  at most 1.1%, at Master of Orion's idle DOS prompt, then 0.65% in U.S. Navy
+  Fighters, and on 0.21% or less in every other run.
 
 ## test386.asm
 
-From the pinned source (`cfd052d1e64d…`):
+From the pinned source (`cfd052d1e64d…`). The ROM runs its POSTs in the
+order 08, 09, 20, 21, 22, 0B–1C, E0, EE, FF, so its paging checks come after
+ring 3, V86 and task switching:
 - POST 08 builds a page directory and two page tables and enters protected
   mode with paging on. Its whole protected-mode part therefore waits for
   paging.
-- POST 11 checks #PF's error codes over every PDE and PTE combination of P,
-  U/S and R/W, at CPL 0 and CPL 3 (supervisor writes ignore R/W), and that a
-  write sets D.
 - POST 20 is ring 3 (#1535).
 - POST 21 is V86: CLI, STI, PUSHF(D), POPF(D), INT n and IRET at IOPL 0
   (#GP(0)), I/O through the TSS bitmap, INT n at IOPL 3 to a non-CPL-0 or a
@@ -166,6 +164,9 @@ From the pinned source (`cfd052d1e64d…`):
 - POST 22 is task switching: 16- and 32-bit TSSs, JMP and CALL through task
   gates, INT through task gates, the busy bit, the back link and NT, a ring-2
   handler from each TSS type, and a switch into V86 through a task.
+- POST 11, after POST 22, checks #PF's error codes over every PDE and PTE
+  combination of P, U/S and R/W, at CPL 0 and CPL 3 (supervisor writes
+  ignore R/W), and that a write sets D.
 - It does not touch the debug registers.
 
 ## Follow-ups

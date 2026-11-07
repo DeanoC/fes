@@ -560,8 +560,8 @@ endpoints are recorded in the [far-transfer record](https://github.com/DeanoC/fe
 | L2 | Sum each byte's classes, for every 66h/67h accumulator variant, into its length, end and next-half bit; write the fetch buffer. | Small sums built from LUTs; no carry chain | 89.2–94.5 MHz |
 | Q | Pick the stored end at the current start by the accumulator's flags, check availability, strip the last prefix, rotate the instruction bytes. | 32:1 select of a stored end; no add in the loop | 78.7–82.5 MHz, slowest isolated front-end endpoint |
 | DC | Decode Q's instruction and address mode into a `decoded_t` record, including immediate, displacement, memory and segment controls; hold it in the two-entry `dc`/`dc_skid` buffer. | Opcode and address-mode logic; no carry chain | 70.0–75.8 MHz in the latest far-transfer whole-CPU stage report |
-| D | Read GPRs and segment bases, select forwarded operands from a per-GPR table, scale the index, check hazards and issue the decoded uop; governor gate, instruction-breakpoint and CS-limit checks. | Register and forwarding muxes, index scale, and the far-selector displacement add; one 32-bit carry chain from `dc` to `ag_disp` | 69.4–77.4 MHz in the latest far-transfer whole-CPU stage report; 85.8–90.1 MHz in the historical pre-DC D+AG route |
-| AG | Take the operands registered by D plus at most one late operand; compute the linear address and offset; run the early ALU; resolve early branches; adjust ESP. | Last 3:2 row and compression, one carry chain, one select | 85.5–95.7 MHz (address unit, D+AG route) |
+| D | Read GPRs and segment bases, select forwarded operands from a per-GPR table, scale the index, check hazards and issue the decoded uop; governor gate and CS-limit checks. | Register and forwarding muxes, index scale, and the far-selector displacement add; one 32-bit carry chain from `dc` to `ag_disp` | 69.4–77.4 MHz in the latest far-transfer whole-CPU stage report; 85.8–90.1 MHz in the historical pre-DC D+AG route |
+| AG | Take the operands registered by D plus at most one late operand; compute the linear address and offset; run the early ALU; resolve early branches; adjust ESP; check the fetch and instruction breakpoints. | Last 3:2 row and compression, one carry chain, one select | 85.5–95.7 MHz (address unit, D+AG route) |
 | M1 | Read L1D data (index from linear bits 11:5); compare the L1D tags, read as the uop entered M1, with the physical page and register the hit; look up the DTLB; check the segment limit; compare data breakpoints. | M10K output and equality compares into a register; DTLB CAM; the limit compare is the only carry chain | — |
 | M2 | Select the way M1's hit names; merge bytes from older in-flight stores; decide faults and the memory type. | M10K output, a way select, muxes; no carry chain | 97.8–106.5 MHz (control spike, with M2's tag compare; fixes RTL, not re-routed for record RTL) |
 | EX | Consume operands prepared in M2, including aligned and extended load data; late ALU and shifter, with shift controls decoded in M2 and shift flags applied a cycle later from WB; issue multiply and divide; resolve branches; check descriptors. | Byte rotate, one carry chain, result mux; the shifter stays off the flag path | 66.6–70.0 MHz on nextpnr, 97.2–105.5 on Quartus in the historical #1115 whole-CPU route |
@@ -1902,10 +1902,12 @@ From the [record](../../../docs/validation/2026-11-08-i386-phase5-plan/summary.m
 | Ultima Underworld, Master of Orion, Darklands, Frontier (EMS) | under JEMM386 | as JEMM386 | as JEMM386 | no | each title's own recheck |
 
 - No title arms a breakpoint, raises #DB, uses INVLPG or uses a 16-bit TSS.
-- test386.asm turns paging on at POST 08, before any other protected-mode
-  test, checks #PF's codes and the D bit (POST 11), ring 3 (POST 20), V86
-  (POST 21) and task switches through 16- and 32-bit TSSs and task gates,
-  including one into V86 (POST 22). It does not touch the debug registers.
+- test386.asm runs its POSTs in the order 08, 09, 20, 21, 22, 0B–1C, E0,
+  EE, FF. It turns paging on at POST 08, before any other protected-mode
+  test. POST 20 is ring 3, POST 21 V86, and POST 22 task switches through
+  16- and 32-bit TSSs and task gates, including one into V86. POST 11, which
+  checks #PF's codes and the D bit, runs only after those. It does not
+  touch the debug registers.
 - Under JEMM386, Wolfenstein 3D makes about 1M V86 interrupt round trips and
   26.5M bitmap-checked I/O accesses in 24 simulated seconds. At 61.44 MHz,
   every 100 clocks of a round trip costs about 7% of the machine, so the V86
@@ -1946,7 +1948,8 @@ and the L1D's wait (+3.74 ns). The DTLB instead compares in parallel:
 - **16 entries, fully associative, in flip-flops at M1.** Each holds the
   linear page, the physical page (PA − 12 = 14 bits), U/S and R/W combined
   from PDE and PTE, and D. Sixteen entries miss on at most 0.47% of data
-  accesses in every run, and on 0.033% of Wolfenstein 3D's under JEMM386.
+  accesses in every run (Angband), below 0.1% in seven of the twelve, and
+  on 0.033% of Wolfenstein 3D's under JEMM386.
 - **The lookup.** M1 compares each entry's linear page with its address
   register. In parallel, it compares each of the four L1D tags, the M10K
   output, with each entry's physical page: 64 compares of 14 bits, each as
@@ -1956,8 +1959,9 @@ and the L1D's wait (+3.74 ns). The DTLB instead compares in parallel:
   are what paging adds to the hit's path.
 - **The rest of M1.** The matching entry's physical page, with A20M applied,
   goes to the memory-type decode and M2's register as the page does now.
-  With paging off, the linear page is the physical page and the entries are
-  not used, so real-mode and unpaged code keep today's path.
+- **Paging off.** A seventeenth term compares the tags with `phys()` of the
+  address, as M1 does now, and joins the same AND-OR. So there is one path,
+  and unpaged code, real mode included, takes the same two levels.
 - **A miss** is an L1D miss: it enters the slow path through the same wait,
   and the walker fills an entry while D to WB hold.
 - **Checks.** U/S and R/W are checked in M1 against the matching entry's
@@ -2007,8 +2011,9 @@ eight replicated hit sets.
   matching entry's physical page goes into the replicated page registers in
   place of today's `phys()` of the address. A current-page register alone
   would miss on up to 12% of instructions (CWSDPMI's hot loop spans three
-  pages); eight entries miss on at most 1.1%, and on 0.21% or less in every
-  title that runs.
+  pages). Eight entries miss on at most 1.1% (Master of Orion's idle DOS
+  prompt), 0.65% in U.S. Navy Fighters, and 0.21% or less in every other
+  run.
 - **A miss** holds F2's block as an L1I miss does, and the walker fills an
   entry.
 - **Faults wait for execution.** A fetch whose walk faults, or would set A,
@@ -2098,9 +2103,8 @@ eight replicated hit sets.
   CWSDPMI, U.S. Navy Fighters and Strike Commander use.
 - **Breakpoints.** DR7's enables, R/W and LEN fields arm four breakpoints.
   - Instruction breakpoints compare the instruction's linear address at AG,
-    where the fetch check already has it. D's EIP had +1.13 ns after Phase
-    4's slice 4, so they are not compared at D, as the
-    [commit section](#commit-exceptions-and-interrupts) first placed them.
+    where the fetch check already has it. The design first placed them at
+    D, but D's EIP had +1.13 ns after Phase 4's slice 4.
   - Data breakpoints compare the linear address and length at M1.
   - A hit marks the uop, as a fault does, off the freeze. It raises #DB with
     DR6's B bits: an instruction breakpoint as a fault, which RF suppresses
@@ -2123,8 +2127,8 @@ eight replicated hit sets.
 | Breakpoints | 250 | 0 | Low-moderate: AG (+4.73 ns) and M1, off the freeze |
 | Phase 5 | about 2,400 | 3 | |
 
-The pc386 seal used 31,502 of 41,910 ALMs after Phase 4's slice 2; Phase 5
-takes it to about 34,000 (81%).
+The pc386 seal of Phase 4's slice 6b used 33,118 of 41,910 ALMs; Phase 5
+takes it to about 35,500 (85%).
 
 ### Slices
 
@@ -2151,8 +2155,10 @@ A timing miss stops the slice; it never relaxes a check. Titles that need
      entry; a CR3 write mid-REP; a wrong path that must not set A or D; a
      store into a live page table; every PDE and PTE rights combination at
      CPL 0 and 3; paging toggled around a far jump, as CWSDPMI does.
-   - **Exit.** test386.asm passes through POST 11, and on to POST 20 with
-     #1535. Paging off keeps DOOM's demo3 rate.
+   - **Exit.** test386.asm passes POSTs 08 and 09 and stops at POST 20, or
+     at POST 21 with #1535. Its #PF checks (POST 11) run only after POST
+     22, so the directed cases above carry the slice's paging coverage.
+     Paging off keeps DOOM's demo3 rate.
    - **Unlocks.** Time Circle (32RTM), with #1535.
 2. **Debug register file.** MOV DRn, DR6 and DR7's fixed bits, GD.
    - **Lockstep.** Every DRn at CPL 0 and 3, and GD.
@@ -2167,7 +2173,8 @@ A timing miss stops the slice; it never relaxes a check. Titles that need
      V86; HLT and the #UD forms.
    - **Speed.** The V86 delivery's and IRETD's clocks on the latency bench;
      Wolfenstein 3D's page flips per second under JEMM386 against without.
-   - **Exit.** test386.asm through POST 21. JEMM386 boots on the RTL, and
+   - **Exit.** test386.asm through POST 21, stopping at POST 22. JEMM386
+     boots on the RTL, and
      Wolfenstein 3D runs with EMS under it on the kit.
    - **Unlocks.** Pinball Fantasies (with #1535's bitmap); JEMM386, and with
      it Wolfenstein 3D with EMS and DOOM through VCPI; Ultima Underworld,
@@ -2179,7 +2186,8 @@ A timing miss stops the slice; it never relaxes a check. Titles that need
      back by IRET with NT, as Descent does; far JMP to a TSS between CPL 0
      and 3, as CWSDPMI does; each #TS case; a busy TSS; a fault after the
      commit point.
-   - **Exit.** test386.asm passes completely: Phase 5's exit with slice 3.
+   - **Exit.** test386.asm passes completely, POST 11's #PF table included:
+     Phase 5's exit with slice 3.
    - **Unlocks.** Descent; Jump 'n Bump, Angband, NetHack and Chris's 3D
      Benchmark, with #1535; Quake to its x87 stop; Strike Commander.
 5. **Breakpoints.** DR7's instruction and data breakpoints, RF, DR6's B
