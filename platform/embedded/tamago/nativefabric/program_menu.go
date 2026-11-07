@@ -20,6 +20,9 @@ type ProgramMenuOptions struct {
 	Request packagestore.Request
 	Reserve func([]byte) (*Region, error)
 	Limits  scanout.MenuLimits
+	// Observe must be bounded and must not reenter service operations. Its
+	// failure retires the owner; observations cannot authorize any transition.
+	Observe func(ProgramMenuObservation) error
 }
 
 type programServiceMenu struct {
@@ -31,6 +34,8 @@ type programServiceMenu struct {
 	session                               *MenuSession
 	returned                              *MenuSession
 	frame                                 *stdimage.RGBA
+	observe                               func(ProgramMenuObservation) error
+	index                                 uint64
 	reserved, closed, presentationClaimed bool
 }
 
@@ -56,7 +61,7 @@ func NewProgramServiceWithMenu(ctx context.Context, loader *ProgramLoader, store
 		return s, err
 	}
 	p := s.state
-	p.menu = &programServiceMenu{request: options.Request, reserve: options.Reserve, limits: options.Limits,
+	p.menu = &programServiceMenu{request: options.Request, reserve: options.Reserve, limits: options.Limits, observe: options.Observe,
 		frame: stdimage.NewRGBA(stdimage.Rect(0, 0, 1280, 720))}
 	p.operation.Lock()
 	defer p.operation.Unlock()
@@ -73,7 +78,7 @@ func NewProgramServiceWithMenu(ctx context.Context, loader *ProgramLoader, store
 
 func (p *programService) loadMenu(ctx context.Context) error {
 	m := p.menu
-	if m == nil || (m.session != nil && !m.closed) {
+	if m == nil || m.index == math.MaxUint64 || (m.session != nil && !m.closed) {
 		return ErrProgramSession
 	}
 	selection, err := p.store.Retain(ctx, m.request)
@@ -110,8 +115,11 @@ func (p *programService) loadMenu(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
-	_, err = m.session.PresentFrame(ctx, m.frame)
-	return err
+	m.index++
+	if _, err = m.session.PresentFrame(ctx, m.frame); err != nil {
+		return err
+	}
+	return p.observeMenu(nil)
 }
 
 func (p *programService) restoreMenu() error {
@@ -128,6 +136,9 @@ func (p *programService) closeMenu(resume bool) error {
 	m.closed = true
 	returned, err := m.session.Close()
 	if err != nil {
+		return err
+	}
+	if err = p.observeMenu(&returned); err != nil {
 		return err
 	}
 	if !resume {
@@ -198,6 +209,9 @@ func (s *ProgramService) PresentMenu(ctx context.Context, frame *stdimage.RGBA) 
 		return p.fail(ErrProgramSession)
 	}
 	if _, err := p.menu.session.PresentFrame(ctx, p.menu.frame); err != nil {
+		return p.fail(err)
+	}
+	if err := p.observeMenu(nil); err != nil {
 		return p.fail(err)
 	}
 	return nil

@@ -5,6 +5,7 @@ package main
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io/fs"
@@ -54,6 +55,7 @@ func serveProgramTenfoot(loader *nativefabric.ProgramLoader, store *packagestore
 		load, done := context.WithTimeout(context.Background(), 100*time.Second)
 		programService, err = nativefabric.NewProgramServiceWithMenu(load, loader, store, de25nano.ReserveConfiguration, limits,
 			nativefabric.ProgramMenuOptions{Request: menuChoices[0], Reserve: de25nano.ReserveMenuMemory,
+				Observe: emitProgramMenu,
 				Limits: scanout.MenuLimits{PublicationTimeout: 4 * time.Second,
 					ReaderLimits: scanout.ReaderLimits{Timeout: time.Second, MaxPolls: 64, Now: time.Now, Yield: func() { time.Sleep(time.Millisecond) }}}})
 		done()
@@ -143,4 +145,13 @@ func serveProgramTenfoot(loader *nativefabric.ProgramLoader, store *packagestore
 		}
 	}
 	fmt.Printf("FES_NATIVE_TENFOOT_EXIT state=%s generation=%d\n", status.State, status.Generation)
+}
+
+func emitProgramMenu(observation nativefabric.ProgramMenuObservation) error {
+	raw, err := json.Marshal(observation)
+	if err != nil {
+		return err
+	}
+	_, err = fmt.Printf("FES_NATIVE_MENU_STATE %s\n", raw)
+	return err
 }

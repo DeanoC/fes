@@ -23,7 +23,17 @@ application shutdown parks it independently with SD contained.
 The actual App/backend/service cycle passes host tests with injected hardware,
 including pixel comparison and terminal failure paths. A new matched boot chain,
 active-menu/shared-USB qualification and bounded hardware acceptance remain
-required. Ethernet recovery remains a separate loader profile.
+required. The actual strong cold provider now passes shared confirmed USB/menu
+composition tests with injected registers, including USB-specific failures;
+electrical behavior, enumeration and controller input still need hardware.
+Ethernet recovery remains a separate loader profile.
+
+The paired frontend emits `FES_NATIVE_MENU_STATE` after successful frames and
+independent menu returns, before resuming SD. `menu_service_trace.MenuTrace`
+validates their identities, hashes, ownership, generations and frame/closure
+sequence against independently admitted source fields. It is a menu-only
+decoder: the existing serial-only board operator still needs explicit paired
+CPU mapping and App/core/USB/boot integration before it can run this new mode.
 
 The recovery uploader accepts `--purpose menu-package`, `menu-metadata` and
 `menu-selection` for those three fixed files. It keeps the existing 8 MiB,

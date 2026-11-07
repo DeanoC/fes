@@ -53,6 +53,23 @@ matched boot chain, shared USB during active menu DDR, visible transitions and
 physical acceptance are still required. The menu ABI remains an explicit
 prototype; menu packages cannot be launched as playable computers.
 
+Trusted startup may supply `ProgramMenuOptions.Observe`. It receives copied
+`nano-program-menu-v1` evidence only after a successful displayed frame or
+independent normal return. Each record binds the selected identity, immutable
+boot digest, menu instance, source/opened/returned bridge generations, frame
+sequence/slot and control/memory/access hashes. Return is observed before SD
+resumes. An observer failure retires the service without replay or a new SD
+grant. The callback runs synchronously under ownership and must be bounded;
+it cannot reenter service operations. The paired native frontend emits these
+as `FES_NATIVE_MENU_STATE` lines, including the initial frame before App startup.
+
+`nano/menu_service_trace.py` checks the actual Go service records against an
+independently checked source contract. It rejects malformed, changed, skipped,
+replayed or truncated records and incomplete closure; a failed observation
+retires the parser. It proves only the menu stream. The board operator still
+needs explicit paired CPU mapping and App/USB/core/boot trace integration; two
+menus alone do not establish a core launch or physical display acceptance.
+
 The private program publication prototype also supports an explicit version-three
 menu/computer role. It uses the existing fixed metadata page and keeps all nine
 chunk digests. The arena requires a zero ROM extension for menu or its exact

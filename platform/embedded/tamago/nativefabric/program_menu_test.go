@@ -35,13 +35,14 @@ func (c *programMenuCPU) Invoke(a [7]uint64) ([4]uint64, error) {
 }
 
 type programMenuFixture struct {
-	r        *romProgramFixture
-	menu     *menuFixture
-	cpu      *programMenuCPU
-	s        *ProgramService
-	request  packagestore.Request
-	reserves int
-	fault    string
+	r            *romProgramFixture
+	menu         *menuFixture
+	cpu          *programMenuCPU
+	s            *ProgramService
+	request      packagestore.Request
+	reserves     int
+	fault        string
+	observations []ProgramMenuObservation
 }
 
 func newProgramMenuFixture(t *testing.T, startupFault string) *programMenuFixture {
@@ -106,6 +107,16 @@ func newProgramMenuFixtureContext(t *testing.T, ctx context.Context, startupFaul
 		return region, err
 	}
 	opts := ProgramMenuOptions{Request: request, Limits: scanout.MenuLimits{ReaderLimits: windowReadLimits(), PublicationTimeout: 4 * time.Second},
+		Observe: func(observation ProgramMenuObservation) error {
+			if r.f.lease.r.Active {
+				t.Fatal("menu evidence escaped its contained storage scope")
+			}
+			fixture.observations = append(fixture.observations, observation)
+			if fixture.fault == "observe-"+observation.Event {
+				return errors.New("trace output failed")
+			}
+			return nil
+		},
 		Reserve: func(data []byte) (*Region, error) {
 			fixture.reserves++
 			return &Region{Address: 0x95000000, Bytes: bytes.Clone(data), Release: func() error { f.cpu.releases++; return nil }, OrderFrameStores: func() error { return nil }}, nil
