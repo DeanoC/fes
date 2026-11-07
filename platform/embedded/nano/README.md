@@ -10,6 +10,9 @@ through `MenuSession` and performs independent secure master-stop/bridge close.
 The HPS-first composer checks the same access digest. It does not write a card
 or program a board. This cold test does not resume SD or supply the full native
 menu/core/menu lifecycle, and has no physical display acceptance yet.
+An OCRAM-selected menu uses the same final SPL allocation snapshot and exclusion
+guard as the shared-ROM chain, after the final trace and before entering BL31.
+Selecting the reserved layout never omits that one-shot guard.
 
 Native selected-program platform version two compares the complete boot
 configuration through byte `0x657`, using `hps_configuration_sha256`. The pinned

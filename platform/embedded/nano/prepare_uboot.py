@@ -148,7 +148,8 @@ def prepare(source, entry_build, bl31_sha256, bl31_size, *, firmware_ram=False):
     if count!=5:raise ValueError('native flash/RSU object context changed')
     mk.write_text(text[:start]+block+text[end:]+'\nifdef CONFIG_SPL_BUILD\nobj-y += fes_nano_spl.o nano_cold.o\nendif\n')
     atf=source/'common/spl/spl_atf.c'
-    atf.write_text(atf_source(atf.read_text(), firmware_ram=chain.get('hps_rom') is not None and chain.get('usb_shared') is True,
+    atf.write_text(atf_source(atf.read_text(), firmware_ram=chain.get('firmware_ram') is not None or
+                              chain.get('hps_rom') is not None and chain.get('usb_shared') is True,
                               firmware_ocram=chain.get('firmware_ram') is not None))
     fat=source/'common/spl/spl_fat.c';text=fat.read_text()
     anchor='\terr = spl_register_fat_device(block_dev, partition);\n\tif (err)\n\t\tgoto end;\n'

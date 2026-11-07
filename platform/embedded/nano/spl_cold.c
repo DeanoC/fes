@@ -12,7 +12,13 @@
 #include "fes_nano_fit_seal.h"
 #include "fes_nano_atf_seal.h"
 #include "nano_firmware_ram.h"
-#if defined(FES_NANO_COLD_ROM) && FES_NANO_COLD_ROM && defined(FES_NANO_SHARED_USB) && FES_NANO_SHARED_USB
+#if (defined(FES_NANO_FIRMWARE_OCRAM) && FES_NANO_FIRMWARE_OCRAM) || \
+    (defined(FES_NANO_COLD_ROM) && FES_NANO_COLD_ROM && defined(FES_NANO_SHARED_USB) && FES_NANO_SHARED_USB)
+#define FES_NANO_SPL_RAM_GUARD 1
+#else
+#define FES_NANO_SPL_RAM_GUARD 0
+#endif
+#if FES_NANO_SPL_RAM_GUARD
 #include <asm/global_data.h>
 #include <malloc.h>
 DECLARE_GLOBAL_DATA_PTR;
@@ -57,7 +63,7 @@ struct fes_nano_cold_record fes_nano_spl_record __attribute__((section(".data"),
 static unsigned fit_attempted __attribute__((section(".data"))) = 0;
 static unsigned fit_verified __attribute__((section(".data"))) = 0;
 
-#if defined(FES_NANO_COLD_ROM) && FES_NANO_COLD_ROM && defined(FES_NANO_SHARED_USB) && FES_NANO_SHARED_USB
+#if FES_NANO_SPL_RAM_GUARD
 static unsigned ram_guard_attempted __attribute__((section(".data"))) = 0;
 /* Diagnostic observations only. Retain the one consumed snapshot; reporting a
  * rejection must never resample it, retry the guard or manufacture a grant. */

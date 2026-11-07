@@ -2,6 +2,7 @@
 import base64
 import copy
 import json
+import re
 from pathlib import Path
 import subprocess
 import unittest
@@ -131,6 +132,21 @@ class MenuBootTests(unittest.TestCase):
                 {'hps_context':dict(self.source,control_abi=0x10203042)}):
             with self.subTest(change=change),self.assertRaises(ValueError):ram.selected(dict(p,**change),True)
         with self.assertRaises(ValueError):ram.checked(dict(p,firmware_ram=dict(contract,limit=0x61000)))
+
+    def test_actual_spl_preprocessor_selects_guard_for_ocram_menu(self):
+        source=(ROOT/'platform/embedded/nano/spl_cold.c').read_text()
+        # Preprocess the actual consumer. U-Boot types are irrelevant here;
+        # the actual cross-build separately checks the pinned allocation constants.
+        source=re.sub(r'^#include .*\n','',source,flags=re.M)
+        for ocram,rom,shared,want in ((1,0,0,True),(1,1,1,True),(0,1,1,True),
+                                      (0,1,0,False),(0,0,1,False),(0,0,0,False)):
+            with self.subTest(ocram=ocram,rom=rom,shared=shared):
+                result=subprocess.run(['cc','-E','-P','-x','c','-','-DCONFIG_SPL_SYS_DCACHE_OFF=1',
+                    '-DFES_NANO_FIRMWARE_OCRAM='+str(ocram),'-DFES_NANO_COLD_ROM='+str(rom),
+                    '-DFES_NANO_SHARED_USB='+str(shared)],input=source,capture_output=True,text=True,timeout=15)
+                self.assertEqual(result.returncode,0,result.stderr)
+                self.assertEqual('int fes_nano_spl_firmware_ram_guard(' in result.stdout,want)
+                self.assertEqual('static int fes_nano_spl_ram_snapshot(' in result.stdout,want)
 
 
 if __name__=='__main__':unittest.main()
