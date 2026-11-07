@@ -54,7 +54,7 @@
 // half it waits in (FeCtx: sequentially, the first sequential half after a
 // jump, a predicted taken jump, one whose target is the branch's own block,
 // a redirect) and by whether F2 has waited on the L1I since Q last issued
-// (l1i). A clock Q issued or held two clocks before is unattributed. Every
+// or the last redirect (l1i). A clock Q issued or held two clocks before is unattributed. Every
 // clock Q did not issue is also counted by its reason as it happens (q),
 // whatever D did then: the bubbles D's waits hide today.
 //
@@ -226,7 +226,9 @@ struct CpuProfile {
             qr = fe_wait(w, q_ctx, q_l1i);
         }
         ++q[qr];
-        if (QA(issue)) q_l1i = false;
+        // A redirect replaces F2's request, so an old path's L1I wait does
+        // not mark the new stream's.
+        if (QA(issue) || redirect) q_l1i = false;
         q_jclr = QA(jump_clear);
         if (redirect) q_ctx = X_RD;
         else if (QA(advance)) {

@@ -236,6 +236,16 @@ int main(int, char **argv) {
         p.sample(cpu, false, false);
         p.sample(cpu, false, false);
         assert(p.fe[0][CpuProfile::F_REDIRECT] == 2 && fe(CpuProfile::F_UNATTR) == 2);
+        // An L1I wait before a redirect does not mark the new stream's waits.
+        const unsigned half_rd = CpuProfile::fe_wait(CpuProfile::W_HALF, CpuProfile::X_RD, false);
+        const uint64_t before = p.q[half_rd];
+        QA(start) = 20; QA(out_free) = true; R(mem_valid) = false;
+        p.sample(cpu, false, false);
+        R(redirect) = true; R(dc_valid) = true; R(issue) = true;
+        p.sample(cpu, false, false);
+        R(redirect) = false; R(mem_valid) = true;
+        p.sample(cpu, false, false);  // waits for half 1 after the redirect, F2 hit
+        assert(p.q[half_rd] == before + 1);
         uint64_t sum = 0;
         for (uint64_t n : p.fe[3]) sum += n;
         assert(sum == p.bucket[CpuProfile::FE_EMPTY]);
