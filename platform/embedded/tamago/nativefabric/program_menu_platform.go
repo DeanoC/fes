@@ -44,7 +44,11 @@ func (p *ProgramMenuPlatform) Present(ctx context.Context, snapshot tenfoot.Snap
 	if err := p.inner.Present(ctx, snapshot); err != nil {
 		return p.service.Retire(err)
 	}
-	if err := p.service.PresentMenu(ctx, p.framebuffer()); err != nil {
+	var serviceInput func(context.Context) error
+	if input, ok := p.inner.(interface{ serviceMenuInput(context.Context) error }); ok {
+		serviceInput = input.serviceMenuInput
+	}
+	if err := p.service.presentMenu(ctx, p.framebuffer(), serviceInput); err != nil {
 		return p.service.Retire(err)
 	}
 	return nil

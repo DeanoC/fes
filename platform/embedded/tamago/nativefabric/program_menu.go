@@ -177,6 +177,10 @@ func (p *programService) newTransfer(plan *StoredConfigurationPlan, handoff *pac
 // PresentMenu consumes only completed launcher frames. Busy/loading/running
 // transitions keep the previous launcher cache and perform no scanout I/O.
 func (s *ProgramService) PresentMenu(ctx context.Context, frame *stdimage.RGBA) error {
+	return s.presentMenu(ctx, frame, nil)
+}
+
+func (s *ProgramService) presentMenu(ctx context.Context, frame *stdimage.RGBA, serviceInput func(context.Context) error) error {
 	if s == nil || s.state == nil || ctx == nil {
 		return ErrProgramSession
 	}
@@ -203,12 +207,17 @@ func (s *ProgramService) PresentMenu(ctx context.Context, frame *stdimage.RGBA) 
 		return errors.New("native program menu: complete tightly packed 1280x720 frame required")
 	}
 	for row := 0; row < 720; row++ {
+		if serviceInput != nil && row%4 == 0 {
+			if err := serviceInput(ctx); err != nil {
+				return p.fail(err)
+			}
+		}
 		copy(p.menu.frame.Pix[row*5120:(row+1)*5120], frame.Pix[row*frame.Stride:row*frame.Stride+5120])
 	}
 	if p.menu.session == nil || p.menu.closed {
 		return p.fail(ErrProgramSession)
 	}
-	if _, err := p.menu.session.PresentFrame(ctx, p.menu.frame); err != nil {
+	if _, err := p.menu.session.presentFrame(ctx, p.menu.frame, serviceInput); err != nil {
 		return p.fail(err)
 	}
 	if err := p.observeMenu(nil); err != nil {

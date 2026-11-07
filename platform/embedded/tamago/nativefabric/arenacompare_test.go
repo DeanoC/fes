@@ -3,6 +3,7 @@ package nativefabric
 
 import (
 	"bytes"
+	"errors"
 	"testing"
 )
 
@@ -40,5 +41,35 @@ func TestMenuArenaBufferedEqualityCoversLengthsAlignmentAndFreshBytes(t *testing
 	}
 	if !comparison.equal(nil, nil) || (*arenaComparison)(nil).equal(nil, nil) {
 		t.Fatal("invalid empty/nil receiver handling")
+	}
+}
+
+func TestMenuArenaProgressDoesNotSkipFreshBytesOrHideFailure(t *testing.T) {
+	var comparison arenaComparison
+	actual, expected := make([]byte, 8<<20), make([]byte, 8<<20)
+	steps := 0
+	progress := func() error { steps++; return nil }
+	if equal, err := comparison.compare(actual, expected, progress); err != nil || !equal || steps < 2 {
+		t.Fatal("complete buffered comparison failed", steps, err)
+	}
+	// Both displayed-image bytes and slot padding remain covered on every call.
+	for _, at := range []int{0, 3686400, 4 << 20, (8 << 20) - 1} {
+		actual[at] ^= 1
+		if equal, err := comparison.compare(actual, expected, progress); err != nil || equal {
+			t.Fatal("progress hid fresh corruption", at, equal, err)
+		}
+		actual[at] ^= 1
+	}
+	failure := errors.New("USB polling failed")
+	steps = 0
+	equal, err := comparison.compare(actual, expected, func() error {
+		steps++
+		if steps == 2 {
+			return failure
+		}
+		return nil
+	})
+	if equal || !errors.Is(err, failure) || steps != 2 {
+		t.Fatal("continued after progress failed", equal, steps, err)
 	}
 }

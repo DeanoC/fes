@@ -35,7 +35,10 @@ type ProgramInputPlatform struct {
 	boundary          uint64
 	menuArmed         bool
 	fault             error
+	pending           []input.Event
 }
+
+const maxProgramMenuEvents = 64
 
 func NewProgramInputPlatform(base tenfoot.Platform, backend *ProgramBackend, source input.USBReports) (*ProgramInputPlatform, error) {
 	if source == nil {
@@ -109,7 +112,7 @@ func (p *ProgramInputPlatform) Next(ctx context.Context) (tenfoot.PlatformInput,
 	if err != nil {
 		return frame, err
 	}
-	events, err := p.poll(ctx)
+	events, err := p.poll(ctx, false)
 	if err != nil {
 		// A failed source is never polled again. Close only this exact play with a
 		// separate bounded control cleanup; do not resume SD or release its memory.
@@ -132,7 +135,25 @@ func (p *ProgramInputPlatform) Next(ctx context.Context) (tenfoot.PlatformInput,
 	return frame, nil
 }
 
-func (p *ProgramInputPlatform) poll(ctx context.Context) ([]input.Event, error) {
+// serviceMenuInput advances the same exclusively owned source while the menu
+// copies/checks uncached pixels. Preserve decoded press edges until Next; never
+// invoke App commands or reenter the service under its presentation lock.
+func (p *ProgramInputPlatform) serviceMenuInput(ctx context.Context) error {
+	if !p.operation.TryLock() {
+		return ErrProgramBusy
+	}
+	defer p.operation.Unlock()
+	if p.fault != nil {
+		return p.fault
+	}
+	_, err := p.poll(ctx, true)
+	if err != nil {
+		p.fault = err
+	}
+	return err
+}
+
+func (p *ProgramInputPlatform) poll(ctx context.Context, buffer bool) ([]input.Event, error) {
 	b := p.backend
 	if !b.operation.TryLock() {
 		return nil, nil
@@ -144,6 +165,9 @@ func (p *ProgramInputPlatform) poll(ctx context.Context) ([]input.Event, error) 
 	v := b.service.Status()
 	if v.State != ProgramReady && v.State != ProgramRunning {
 		return nil, nil
+	}
+	if p.boundary != b.inputBoundary || p.mode != v.State || p.generation != v.Generation {
+		p.pending = nil
 	}
 	if v.State == ProgramRunning {
 		p.session = b.session
@@ -171,7 +195,8 @@ func (p *ProgramInputPlatform) poll(ctx context.Context) ([]input.Event, error) 
 		p.menuArmed = false
 	}
 	p.mode, p.generation, p.boundary = v.State, v.Generation, b.inputBoundary
-	var events []input.Event
+	events := p.pending
+	p.pending = nil
 	for n := 0; n < 8; n++ {
 		if err := ctx.Err(); err != nil {
 			b.inputFault = err
@@ -235,7 +260,15 @@ func (p *ProgramInputPlatform) poll(ctx context.Context) ([]input.Event, error) 
 				continue
 			}
 			events = append(events, changes...)
+			if len(events) > maxProgramMenuEvents {
+				b.inputFault = errors.New("native input: menu event queue exhausted")
+				return nil, b.inputFault
+			}
 		}
+	}
+	if buffer {
+		p.pending = events
+		return nil, nil
 	}
 	return events, nil
 }

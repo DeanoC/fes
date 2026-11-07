@@ -16,7 +16,7 @@ import (
 )
 
 func TestMenuProgramFullTenfootDisplayCoreReturnAndFailures(t *testing.T) {
-	for _, fault := range []string{"", "launch", "return", "restore", "present", "serial"} {
+	for _, fault := range []string{"", "launch", "return", "restore", "present", "serial", "input"} {
 		t.Run(fault, func(t *testing.T) {
 			f := newProgramMenuFixture(t, "")
 			request, _, _ := addROMProgram(t, f.r, 0, 8192)
@@ -30,6 +30,7 @@ func TestMenuProgramFullTenfootDisplayCoreReturnAndFailures(t *testing.T) {
 			}
 			defer device.Close()
 			queue := []byte{}
+			source := &pausableKeyboard{}
 			stage, frames := 0, 0
 			serial, err := NewProgramSerialPlatform(f.s, func() (byte, bool) {
 				if len(queue) == 0 {
@@ -67,6 +68,9 @@ func TestMenuProgramFullTenfootDisplayCoreReturnAndFailures(t *testing.T) {
 					}
 				case 1:
 					if view.Session == "active" && view.Native.State == ProgramRunning {
+						if fault == "input" {
+							source.err = errors.New("USB input disconnected during play")
+						}
 						if fault == "return" {
 							f.r.f.cpu.loseClose = true
 						}
@@ -86,7 +90,11 @@ func TestMenuProgramFullTenfootDisplayCoreReturnAndFailures(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			platform, err := NewProgramMenuPlatform(f.s, serial, func() *stdimage.RGBA {
+			usb, err := NewProgramInputPlatform(serial, backend, source)
+			if err != nil {
+				t.Fatal(err)
+			}
+			platform, err := NewProgramMenuPlatform(f.s, usb, func() *stdimage.RGBA {
 				frames++
 				return device.Framebuffer()
 			})
@@ -112,6 +120,9 @@ func TestMenuProgramFullTenfootDisplayCoreReturnAndFailures(t *testing.T) {
 			}
 			if err != nil || stage != 3 || frames < 3 || f.r.f.cpu.configurations != 3 || f.s.Status().State != ProgramReady || f.r.f.lease.r.Active {
 				t.Fatal("App did not finish displayed menu/core/menu cycle", stage, frames, f.s.Status(), err)
+			}
+			if source.polls == 0 || source.pauses != 2 || source.resumes != 2 || source.paused {
+				t.Fatal("display/core/return lost input servicing or transition drains", source.polls, source.pauses, source.resumes)
 			}
 			// Compare every pixel, including channel conversion, against the
 			// actual App renderer, not a synthetic service frame or UART state.

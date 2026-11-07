@@ -42,6 +42,20 @@ separate from the displayed session's lifetime; opening and individual frames
 still honor their request contexts and existing driver limits. `ParkMenu` is a
 terminal independent close with SD left contained.
 
+When the inner platform is `ProgramInputPlatform`, presentation also advances
+its existing USB polling owner between four-row copies, ownership checks and
+32 KiB reads of the complete uncached arena. Decoded menu edges are queued for
+the next App update, with a 64-event limit; overflow or a source error retires
+the service. Press/release/press is preserved. Queued events are discarded at
+each backend transition boundary, and a fresh neutral report is still required
+after return or rejected content. These synchronous hooks run only during the
+Ready menu presentation; they start no background poller, issue no App command
+under the display lock and add no pause/resume ownership transitions. The
+existing backend still drains USB before configuration and return. The full
+arena comparisons, original USB packet deadline and scanout phase bounds remain
+in force. This services bounded menu work, not arbitrary blocking application
+code; a matched native board test remains necessary.
+
 The native `--menu-project` plus `--tenfoot-serial` path selects this owner and
 wraps the existing UART/shared-USB platform with the actual display presenter.
 The paired build/cold platform carries both resource sets and the full 8 MiB

@@ -33,6 +33,7 @@ type MenuSession struct {
 	memory                    *menuFrameMemory
 	presenter                 *scanout.MenuPresenter
 	context, operationContext context.Context
+	serviceInput              func(context.Context) error
 	active                    atomic.Bool
 	known, closed             bool
 	fault, closeErr           error
@@ -239,7 +240,20 @@ func (s *MenuSession) check(ctx context.Context) error {
 	if err := ctx.Err(); err != nil {
 		return err
 	}
-	return s.checkRegion()
+	if err := s.checkRegion(); err != nil {
+		return err
+	}
+	return s.progress()
+}
+
+func (s *MenuSession) progress() error {
+	if s.serviceInput == nil {
+		return nil
+	}
+	if err := s.operationContext.Err(); err != nil {
+		return err
+	}
+	return s.serviceInput(s.operationContext)
 }
 func (s *MenuSession) checkArena() error {
 	if err := s.checkRegion(); err != nil {
@@ -247,7 +261,11 @@ func (s *MenuSession) checkArena() error {
 	}
 	// Read every arena byte afresh through private scratch, including both
 	// slots and their padding. No hash or earlier comparison substitutes for it.
-	if !s.comparison.equal(s.bytes, s.verifier.menuExpected) {
+	equal, err := s.comparison.compare(s.bytes, s.verifier.menuExpected, s.progress)
+	if err != nil {
+		return err
+	}
+	if !equal {
 		return errors.New("native menu: arena bytes differ from private publication")
 	}
 	return nil
@@ -260,6 +278,10 @@ func (s *MenuSession) Present(frame *stdimage.RGBA) error {
 	return err
 }
 func (s *MenuSession) PresentFrame(ctx context.Context, frame *stdimage.RGBA) (result scanout.MenuFrame, err error) {
+	return s.presentFrame(ctx, frame, nil)
+}
+
+func (s *MenuSession) presentFrame(ctx context.Context, frame *stdimage.RGBA, serviceInput func(context.Context) error) (result scanout.MenuFrame, err error) {
 	if s == nil || s.self != s || ctx == nil {
 		return result, scanout.ErrReaderArgument
 	}
@@ -267,6 +289,8 @@ func (s *MenuSession) PresentFrame(ctx context.Context, frame *stdimage.RGBA) (r
 		return result, scanout.ErrReaderBusy
 	}
 	defer s.active.Store(false)
+	s.serviceInput = serviceInput
+	defer func() { s.serviceInput = nil }()
 	if s.closed || s.fault != nil || s.presenter == nil {
 		return result, scanout.ErrReaderRetired
 	}
