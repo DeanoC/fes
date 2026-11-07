@@ -2080,9 +2080,11 @@ eight replicated hit sets.
 - **The switch** saves EIP, EFLAGS, the GPRs and the six selectors into the
   old TSS. It clears the old busy bit (JMP, IRET) and sets the new one (JMP,
   CALL, gates), writes the back link and sets NT for CALL and gates, then
-  loads CR3, LDTR, EFLAGS, EIP, the GPRs and the six selectors from the new
-  TSS, loads their descriptors and sets CR0.TS. A CR3 load flushes the TLBs.
-  A TSS with VM set enters V86.
+  loads LDTR, EFLAGS, EIP, the GPRs and the six selectors from the new TSS,
+  loads their descriptors and sets CR0.TS. It loads CR3 from a 32-bit TSS
+  only while paging is on, as Bochs does (`tasking.cc`); a 16-bit TSS has
+  no CR3 field, and with PG clear CR3 keeps its value. A CR3 load flushes
+  the TLBs. A TSS with VM set enters V86.
 - **Checks.** #TS, #NP, #GP and #SS with the 386's selectors and order. A
   fault after the commit point is raised in the new task.
 - **Microcode.** About 80–100 uops, with the 16-bit TSS as a size variant.
@@ -2139,7 +2141,8 @@ Each slice is its own PR. Before it can merge, it needs:
 - a Quartus 17.0.2 seal with every analysis met;
 - a kit run on that seal: the titles it unlocks, and DOOM's `-timedemo
   demo3` and the acceptance games rechecked, since paging off must keep
-  today's speed.
+  today's speed. This is the slice's own evidence, as in Phase 4; the merge
+  gate's HIL stays N/A for pc386.
 
 A timing miss stops the slice; it never relaxes a check. Titles that need
 #1535 count as unlocked once both have landed.
@@ -2185,7 +2188,7 @@ A timing miss stops the slice; it never relaxes a check. Titles that need
    - **Lockstep.** test386.asm's task cases; #PF through a task gate and
      back by IRET with NT, as Descent does; far JMP to a TSS between CPL 0
      and 3, as CWSDPMI does; each #TS case; a busy TSS; a fault after the
-     commit point.
+     commit point; a switch with paging off, which must leave CR3 alone.
    - **Exit.** test386.asm passes completely, POST 11's #PF table included:
      Phase 5's exit with slice 3.
    - **Unlocks.** Descent; Jump 'n Bump, Angband, NetHack and Chris's 3D
