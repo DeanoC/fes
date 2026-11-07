@@ -25,9 +25,9 @@
     cmp x8, x9
     b.ne .Lfes_exit_reject_\@
     ldr x9, =FES_EXIT_END
-    ldr x10, =FES_RAM_BSS_END
+    ldr x10, =FES_RAM_BSS_LIMIT
     cmp x9, x10
-    b.ne .Lfes_exit_reject_\@
+    b.hi .Lfes_exit_reject_\@
     cmp x9, x8
     b.ls .Lfes_exit_reject_\@
     tst x8, #63

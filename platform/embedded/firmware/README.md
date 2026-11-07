@@ -10,6 +10,11 @@ The explicit `--nano-firmware-ocram` option on both Terasic builders selects a
 matched shared-ROM or explicitly selected two-slot menu cold chain with private
 stack/BSS in `[0x50000,0x60000)`. The menu selection validates its complete
 8 MiB memory, read/control digests and CPU exclusion; it grants no USB or ROM path.
+The version-5 layout contract fixes the stack at `[0x50000,0x58000)` and bounds
+the actual ELF BSS/NOBITS end by `0x60000`, with 64-byte alignment. Different
+firmware selections may use different BSS sizes. The ELF loader and early/exit
+assembly check those actual symbols; cache maintenance still uses the exact
+linked BSS range. Older layout metadata rejects and needs a fresh matched chain.
 It requires the version-2 native CPU exclusion, the final one-shot SPL live
 allocation check and a fifth private entry argument. Before vendor startup,
 the allocation-free EL3 guard checks the sealed record/CRC/chain, SP and linker

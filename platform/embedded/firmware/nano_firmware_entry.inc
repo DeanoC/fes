@@ -206,7 +206,7 @@
     b.ne FES_RAM_REJECT
 
     mov x15, #5
-    /* The loaded ELF must describe exactly this separate stack/BSS range. */
+    /* Fixed stack/BSS start and reservation; actual BSS size comes from ELF. */
     ldr x8, =__NOBITS_START__
     ldr x9, =0x50000
     cmp x8, x9
@@ -222,9 +222,13 @@
     cmp x8, x9
     b.ne FES_RAM_REJECT
     ldr x10, =__BSS_END__
+    tst x10, #63
+    b.ne FES_RAM_REJECT
     cmp x10, x8
     b.ls FES_RAM_REJECT
     ldr x11, =__NOBITS_END__
+    tst x11, #63
+    b.ne FES_RAM_REJECT
     cmp x10, x11
     b.hi FES_RAM_REJECT
     ldr x9, =0x60000

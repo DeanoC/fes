@@ -44,7 +44,8 @@ class ExitCacheTests(unittest.TestCase):
         from test_nano_firmware_selection import profile
         p=profile();p['firmware_ram']=dict(ram.CONTRACT)
         self.assertEqual(ram.checked(p)['exit_cache_policy'],'owned-cold-dccsw-before-exit-v1')
-        for change in (dict(format=2,scope='matched-spl-el3-ocram-nobits-v2'),dict(bss_base=0x58040),dict(bss_end=0x5df00),dict(exit_cache_policy=None)):
+        for change in (dict(format=4,scope='matched-spl-el3-ocram-nobits-v4',bss_end=0x5ddc0),
+                       dict(bss_base=0x58040),dict(bss_limit=0x60040),dict(exit_cache_policy=None)):
             altered=copy.deepcopy(p);altered['firmware_ram'].update(change)
             with self.assertRaises(ValueError):ram.checked(altered)
 

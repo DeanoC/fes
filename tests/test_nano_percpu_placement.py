@@ -49,10 +49,10 @@ cpu_data_t percpu_data[PLATFORM_CORE_COUNT];
             changed=copy.deepcopy(table);del changed[name]
             with self.assertRaises(ValueError):placement.validate(image,changed)
 
-    def test_profile_requires_new_placement_and_shrunken_bss(self):
+    def test_profile_requires_percpu_placement_and_bounded_bss(self):
         good=profile();good['firmware_ram']=dict(ram.CONTRACT)
-        self.assertEqual(ram.checked(good)['format'],4)
-        self.assertEqual(ram.BSS_END,0x5ddc0)
+        self.assertEqual(ram.checked(good)['format'],5)
+        self.assertEqual(ram.CONTRACT['bss_limit'],0x60000)
         for delta in (dict(format=3,scope='matched-spl-el3-ocram-nobits-v3'),dict(bss_end=0x5dec0),
                       dict(percpu_policy=None),dict(percpu_bytes=255),dict(percpu_alignment=8)):
             changed=copy.deepcopy(good);changed['firmware_ram'].update(delta)

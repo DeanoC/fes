@@ -215,6 +215,27 @@ int main(void) { return 0; }
             image=original.copy();struct.pack_into('<'+kind,image,offset,value)
             with self.subTest(offset=offset,value=value),self.assertRaises(ValueError):checked(image)
 
+    def test_bss_sizes_follow_actual_elf_with_fixed_stack_and_reservation(self):
+        original,locations=elf()
+        def with_bounds(bss_end,nobits_end):
+            changed=original.copy()
+            struct.pack_into('<Q',changed,locations['__BSS_END__']+8,bss_end)
+            struct.pack_into('<Q',changed,locations['__NOBITS_END__']+8,nobits_end)
+            struct.pack_into('<Q',changed,104,nobits_end-ram.BASE)
+            return changed
+        def checked(image):return build.bl31_load_segments(image,firmware_ram=dict(ram.CONTRACT),cold_chain='42'*32)
+        # Actual menu, previous ROM, small and full reservation; the PT_LOAD
+        # receipt must retain the ELF's end rather than substitute a default.
+        for bss_end,nobits_end in ((0x58040,0x58040),(0x5afc0,0x5afc0),
+                                  (0x5ddc0,0x5ddc0),(0x5afc0,0x5b000),(0x60000,0x60000)):
+            with self.subTest(bss_end=bss_end,nobits_end=nobits_end):
+                _,segments=checked(with_bounds(bss_end,nobits_end))
+                self.assertEqual(segments[0],(0x50000,nobits_end))
+        for bss_end,nobits_end in ((0x58000,0x58000),(0x57fc0,0x58000),(0x58041,0x58080),
+                                  (0x60040,0x60040),(0x5b000,0x5afc0),(0x5afc0,0x5afc1)):
+            with self.subTest(bss_end=bss_end,nobits_end=nobits_end),self.assertRaises(ValueError):
+                checked(with_bounds(bss_end,nobits_end))
+
     def test_selected_spl_caller_checks_then_passes_private_fifth_argument(self):
         fixture='''
 typedef void __noreturn (*atf_entry_t)(struct bl31_params *params, void *plat_params);
