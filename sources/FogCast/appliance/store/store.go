@@ -1161,6 +1161,18 @@ func (s *Store) readBootTicket() (bootTicket, error) {
 	if json.Unmarshal(b, &fields) != nil {
 		return ticket, errUnreadableBootTicket
 	}
+	if _, ok := fields["boot_id"]; !ok || !validBootID(ticket.BootID) {
+		return ticket, errUnreadableBootTicket
+	}
+	trialRaw, ok := fields["trial"]
+	if !ok {
+		return ticket, errUnreadableBootTicket
+	}
+	var trial *bool
+	if json.Unmarshal(trialRaw, &trial) != nil || trial == nil {
+		return ticket, errUnreadableBootTicket
+	}
+	ticket.Trial = *trial
 	if raw, ok := fields["fallback_image_sha256"]; ok {
 		var fallback *string
 		if json.Unmarshal(raw, &fallback) != nil || fallback == nil || !release.ValidHash(*fallback) {

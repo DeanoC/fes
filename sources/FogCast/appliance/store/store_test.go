@@ -901,6 +901,74 @@ func TestLastFallbackSelectionIgnoresMalformedOptionalSidecar(t *testing.T) {
 	}
 }
 
+func TestLastFallbackSelectionRequiresBootIDAndExplicitTrial(t *testing.T) {
+	s, _, raw := fixture(t)
+	first := stageDistinct(t, s, raw, 43)
+	confirmReleaseWithTicket(t, s, first.ImageSHA256, "ticket-first")
+	second := stageDistinct(t, s, raw, 44)
+	confirmReleaseWithTicket(t, s, second.ImageSHA256, "ticket-second")
+	if err := os.WriteFile(filepath.Join(s.root, "state.json"), []byte("damaged"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Remove(filepath.Join(s.root, BootFallbackFilename)); err != nil && !errors.Is(err, os.ErrNotExist) {
+		t.Fatal(err)
+	}
+
+	stableTicket := func(bootID, trial string) string {
+		return fmt.Sprintf(`{"boot_id":%s,"image_sha256":%q,"fallback_image_sha256":%q,"trial":%s}`,
+			bootID, second.ImageSHA256, first.ImageSHA256, trial)
+	}
+	malformed := []struct {
+		name string
+		body string
+	}{
+		{
+			name: "missing boot_id",
+			body: fmt.Sprintf(`{"image_sha256":%q,"fallback_image_sha256":%q,"trial":false}`, second.ImageSHA256, first.ImageSHA256),
+		},
+		{name: "null boot_id", body: stableTicket("null", "false")},
+		{name: "wrong boot_id type", body: stableTicket("7", "false")},
+		{name: "invalid boot_id value", body: stableTicket(`"bad id"`, "false")},
+		{
+			name: "missing trial",
+			body: fmt.Sprintf(`{"boot_id":"ticket-recovery","image_sha256":%q,"fallback_image_sha256":%q}`, second.ImageSHA256, first.ImageSHA256),
+		},
+		{name: "null trial", body: stableTicket(`"ticket-recovery"`, "null")},
+		{name: "string trial", body: stableTicket(`"ticket-recovery"`, `"false"`)},
+		{name: "number trial", body: stableTicket(`"ticket-recovery"`, "0")},
+	}
+	for _, tc := range malformed {
+		t.Run(tc.name, func(t *testing.T) {
+			if err := os.WriteFile(filepath.Join(s.root, "boot.json"), []byte(tc.body), 0o600); err != nil {
+				t.Fatal(err)
+			}
+			if _, err := s.LastFallbackSelection("fallback-recovery"); !errors.Is(err, errUnreadableBootTicket) {
+				t.Fatalf("LastFallbackSelection error = %v, want %v", err, errUnreadableBootTicket)
+			}
+		})
+	}
+
+	valid := []struct {
+		name string
+		body string
+		want string
+	}{
+		{name: "stable", body: stableTicket(`"ticket-recovery"`, "false"), want: second.ImageSHA256},
+		{name: "trial", body: stableTicket(`"ticket-recovery"`, "true"), want: first.ImageSHA256},
+	}
+	for _, tc := range valid {
+		t.Run("valid "+tc.name, func(t *testing.T) {
+			if err := os.WriteFile(filepath.Join(s.root, "boot.json"), []byte(tc.body), 0o600); err != nil {
+				t.Fatal(err)
+			}
+			fallback, err := s.LastFallbackSelection("fallback-recovery")
+			if err != nil || fallback.Manifest.ImageSHA256 != tc.want {
+				t.Fatalf("LastFallbackSelection = %+v, %v; want image %s", fallback, err, tc.want)
+			}
+		})
+	}
+}
+
 func setAge(t *testing.T, path string, age time.Duration) {
 	t.Helper()
 	when := time.Now().Add(age)
