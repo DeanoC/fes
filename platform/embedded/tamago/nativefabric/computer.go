@@ -185,7 +185,7 @@ func (v *HPSContextVerifier) OpenComputer(ctx context.Context, control, raw []by
 	var m computerMap
 	if transfer != nil && transfer.binding != nil && transfer.binding.program != nil {
 		p := transfer.binding.program
-		if p.loader == nil || p.loader.boot != v || !bytes.Equal(control, p.controlRaw) || !bytes.Equal(raw, p.computerRaw) {
+		if p.loader == nil || p.loader.boot != v || p.role == programRoleMenu || !bytes.Equal(control, p.controlRaw) || !bytes.Equal(raw, p.computerRaw) {
 			return nil, errors.New("native fabric: computer differs from selected program")
 		}
 		m = p.computer
@@ -210,8 +210,13 @@ func (v *HPSContextVerifier) OpenComputer(ctx context.Context, control, raw []by
 		return nil, errors.New("native fabric: completed compiled-source transfer required for computer opening")
 	}
 	binding := *transfer.binding
+	menu := binding.menuReturn
+	fromMenu := binding.program != nil && binding.program.role == programRoleComputer && binding.program.loader.menu != nil &&
+		menu != nil && menu.self == menu && menu.verifier == v && v.menuSession == menu &&
+		menu.closed && menu.closeErr == nil && menu.storageResumed && menu.nextAttempted && menu.returned.Frames > 0 &&
+		menu.returned.After.Generation <= math.MaxUint64-3 && binding.source.Bridges.Generation == menu.returned.After.Generation+3
 	if binding.source.Bridges.Generation <= v.computerGeneration ||
-		(v.computerGeneration == 0 && binding.rearm) || (v.computerGeneration != 0 && (!v.computerClosed || !binding.rearm)) {
+		(v.computerGeneration == 0 && binding.rearm && !fromMenu) || (v.computerGeneration != 0 && (!v.computerClosed || !binding.rearm)) {
 		v.computerMu.Unlock()
 		return nil, errors.New("native fabric: computer configuration consumed or prior return incomplete")
 	}

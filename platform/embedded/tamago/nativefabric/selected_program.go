@@ -110,6 +110,7 @@ type ProgramLoader struct {
 	computer      computerMap
 	support       *runtimeadmission.DriverSupport
 	compatibility *runtimeadmission.RuntimeCompatibility
+	menu          *menuProgramDriver
 }
 
 func NewProgramLoader(boot *HPSContextVerifier, compiledSource, control, configuration, computerRaw []byte) (*ProgramLoader, error) {
@@ -181,6 +182,8 @@ func NewProgramLoader(boot *HPSContextVerifier, compiledSource, control, configu
 // selectedProgram is private, fully retained and never modified after preflight.
 // Public observations, caller maps and package metadata cannot construct it.
 type selectedProgram struct {
+	role             programRole
+	menu             *selectedMenuProgram
 	loader           *ProgramLoader
 	identity         fabricmodel.PackageIdentity
 	configuration    coldConfigurationMap
@@ -198,6 +201,9 @@ type selectedProgram struct {
 func (l *ProgramLoader) Preflight(selection *packagestore.Selection) (*StoredConfigurationPlan, error) {
 	if l == nil || l.boot == nil || selection == nil {
 		return nil, errors.New("native fabric: program loader and retained selection required")
+	}
+	if selection.Inspection().Descriptor.Target.ProgrammingProfile == HPSFirstMenuProfile {
+		return l.preflightMenu(selection)
 	}
 	var record selectedProgramRecord
 	romMode := l.boot.rom != nil
@@ -343,6 +349,9 @@ func (l *ProgramLoader) Preflight(selection *packagestore.Selection) (*StoredCon
 	}
 	program := &selectedProgram{loader: l, identity: id, configuration: config, computer: comp,
 		controlRaw: control, configurationRaw: configurationRaw, computerRaw: computerRaw, rom: romImage, romReceipt: romReceipt}
+	if l.menu != nil {
+		program.role = programRoleComputer
+	}
 	return &StoredConfigurationPlan{state: &storedConfigurationPlan{v: l.boot, program: program, selection: selection,
 		control: bytes.Clone(control), configuration: bytes.Clone(configurationRaw), payload: data}}, nil
 }
@@ -359,6 +368,9 @@ func (l *ProgramLoader) OpenComputer(ctx context.Context, transfer *Configuratio
 	p, err := l.program(transfer)
 	if err != nil {
 		return nil, err
+	}
+	if p.role == programRoleMenu {
+		return nil, errors.New("native fabric: menu completion cannot open computer controls")
 	}
 	return l.boot.OpenComputer(ctx, p.controlRaw, p.computerRaw, transfer, limits)
 }
@@ -394,7 +406,8 @@ func (t *ConfigurationTransfer) ProgramIdentity() (fabricmodel.PackageIdentity, 
 
 // Kept local so descriptor assertions never become a boot verification call.
 func (v *HPSContextVerifier) programConfiguration(control, raw []byte, p *selectedProgram) (coldConfigurationMap, error) {
-	if v != nil && v.rom != nil && (p == nil || len(p.rom) == 0) {
+	menu := p != nil && p.loader != nil && p.loader.boot == v && p.loader.menu != nil && p.role == programRoleMenu && p.menu != nil
+	if v != nil && v.rom != nil && !menu && (p == nil || len(p.rom) == 0) {
 		return coldConfigurationMap{}, errors.New("native fabric: ROM configuration requires its retained selected program")
 	}
 	if p == nil {

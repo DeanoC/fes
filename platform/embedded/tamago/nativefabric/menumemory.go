@@ -127,6 +127,10 @@ func (v *HPSContextVerifier) ReserveMenuMemory(reserve func([]byte) (*Region, er
 	}
 	v.readerMemoryMu.Lock()
 	defer v.readerMemoryMu.Unlock()
+	return v.reserveMenuMemoryLocked(reserve)
+}
+
+func (v *HPSContextVerifier) reserveMenuMemoryLocked(reserve func([]byte) (*Region, error)) (MenuMemoryObservation, error) {
 	if v.readerMemoryAttempted {
 		return MenuMemoryObservation{}, errors.New("native menu: memory attempt consumed")
 	}

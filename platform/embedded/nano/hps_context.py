@@ -712,7 +712,7 @@ def _program_parameters(project):
 
 def _program_platform(project, context=None):
     context = _derive(project) if context is None else context
-    if context['programming_profile'] not in ('de25-embedded-hps-first-ddr-diagnostic-v1', *ROM_PROFILES):
+    if context['programming_profile'] not in ('de25-embedded-hps-first-ddr-diagnostic-v1', MENU_PROFILE, *ROM_PROFILES):
         raise ValueError('selected programs require the complete contained DDR-shell inventory')
     parameters = _program_parameters(project)
     configuration_sha256 = _pinmux_module().configuration_sha256(project, context)
@@ -728,6 +728,14 @@ def _program_platform(project, context=None):
 
 def _selected_program(project, rom_receipt_sha256=None):
     context = _derive(project)
+    if context['programming_profile'] == MENU_PROFILE:
+        if rom_receipt_sha256 is not None:
+            raise ValueError('menu metadata cannot carry a ROM activation receipt')
+        return {'format': 1, 'scope': 'nano-selected-menu-program-v1',
+                'package_id': context['package_id'], 'build_id': context['build_id'],
+                'platform': _program_platform(project, context)['platform'],
+                'control': _control(project), 'memory': _reader_memory(project),
+                'access': _menu_read(project)}
     record = {'format': 1, 'scope': 'nano-selected-program-v1',
             'package_id': context['package_id'], 'build_id': context['build_id'],
             'platform': _program_platform(project, context)['platform'],

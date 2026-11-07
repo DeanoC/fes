@@ -22,6 +22,34 @@ ALTERA_NS = 'http://www.altera.com/XMLSchema/IPXact2014/extensions'
 
 
 class SelectedProgramTests(unittest.TestCase):
+    def test_menu_metadata_keeps_its_own_memory_and_adapter_without_computer_or_rom(self):
+        source = {'programming_profile': hps.MENU_PROFILE, 'package_id': 'a'*64, 'build_id': 'b'*32}
+        with patch.object(hps, '_derive', return_value=source), \
+             patch.object(hps, '_program_platform', return_value={'platform': {'compiled': 'menu'}}), \
+             patch.object(hps, '_control', return_value={'compiled': 'control'}), \
+             patch.object(hps, '_reader_memory', return_value={'compiled': 'two-slot-memory'}), \
+             patch.object(hps, '_menu_read', return_value={'compiled': 'adapter'}), \
+             patch.object(hps, '_computer', side_effect=AssertionError('menu cannot inherit computer controls')), \
+             patch.object(hps, '_rom', side_effect=AssertionError('menu cannot inherit ROM controls')):
+            record = hps._selected_program('fixture')
+            self.assertEqual(record, dict(format=1, scope='nano-selected-menu-program-v1',
+                package_id='a'*64, build_id='b'*32, platform={'compiled': 'menu'},
+                control={'compiled': 'control'}, memory={'compiled': 'two-slot-memory'}, access={'compiled': 'adapter'}))
+            with self.assertRaises(ValueError):
+                hps._selected_program('fixture', 'c'*64)
+
+    def test_menu_platform_pins_a_separate_master_inventory_and_same_hps_parameters(self):
+        source = json.loads((ROOT/'platform/embedded/tamago/nativefabric/testdata/hps-context.json').read_bytes())
+        source.update(programming_profile=hps.MENU_PROFILE,control_abi=0x10203043)
+        with patch.object(hps,'_program_parameters',return_value={'all-hps-parameters':'fixed'}), \
+             patch.object(hps,'_pinmux_module',return_value=SimpleNamespace(configuration_sha256=lambda project, source:'1'*64)), \
+             patch.object(hps,'_fabric_stop_inventory',return_value={'menu-reader':'exact'}):
+            p=hps._program_platform(Path('fixture'),source)['platform']
+            self.assertEqual(p['programming_profile'],hps.MENU_PROFILE)
+            self.assertEqual(p['control_abi'],0x10203043)
+            self.assertEqual(p['hps_parameters_sha256'],hps.digest({'all-hps-parameters':'fixed'}))
+            self.assertEqual(p['master_inventory_sha256'],hps.digest({'menu-reader':'exact'}))
+
     def project(self, folder):
         project = Path(folder)
         hps_dir = project/'board/hps'
@@ -104,7 +132,7 @@ class SelectedProgramTests(unittest.TestCase):
                 self.assertNotEqual(first['platform'], hps._program_platform(Path('fixture'), source)['platform'])
 
     def test_selected_record_binds_maps_and_requires_explicit_build_mode(self):
-        source = {'package_id': 'a'*64, 'build_id': 'b'*32}
+        source = {'package_id': 'a'*64, 'build_id': 'b'*32, 'programming_profile': 'de25-embedded-hps-first-ddr-diagnostic-v1'}
         contract = {'platform': {'complete': 'fixture'}}
         with patch.object(hps, '_derive', return_value=source), \
              patch.object(hps, '_program_platform', return_value=contract), \

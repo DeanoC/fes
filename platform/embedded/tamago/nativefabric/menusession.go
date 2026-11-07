@@ -2,6 +2,7 @@
 package nativefabric
 
 import (
+	"bytes"
 	"context"
 	"crypto/sha256"
 	"errors"
@@ -58,15 +59,29 @@ type MenuSessionReturn struct {
 }
 
 func (v *HPSContextVerifier) OpenMenuSession(ctx context.Context, control, access []byte, transfer *ConfigurationTransfer, limits scanout.MenuLimits) (session *MenuSession, err error) {
+	return v.openMenuSession(ctx, control, access, transfer, limits, nil)
+}
+
+func (v *HPSContextVerifier) openMenuSession(ctx context.Context, control, access []byte, transfer *ConfigurationTransfer, limits scanout.MenuLimits, program *selectedProgram) (session *MenuSession, err error) {
 	if v == nil || ctx == nil || limits.Validate() != nil {
 		return nil, scanout.ErrReaderArgument
 	}
 	if err = ctx.Err(); err != nil {
 		return nil, err
 	}
-	mapping, err := v.checkedMenuRead(control, access)
-	if err != nil {
-		return nil, err
+	var mapping hpsControlMap
+	if program == nil {
+		mapping, err = v.checkedMenuRead(control, access)
+		if err != nil {
+			return nil, err
+		}
+	} else {
+		if program.loader == nil || program.loader.boot != v || program.loader.menu == nil || program.role != programRoleMenu || program.menu == nil ||
+			transfer == nil || transfer.binding == nil || transfer.binding.program != program ||
+			!bytes.Equal(control, program.controlRaw) || !bytes.Equal(access, program.menu.accessRaw) {
+			return nil, errors.New("native menu: selected driver binding differs from completion")
+		}
+		mapping = program.menu.control
 	}
 	cpu, ok := v.cpu.(CPUTransport)
 	if !ok {
@@ -82,7 +97,7 @@ func (v *HPSContextVerifier) OpenMenuSession(ctx context.Context, control, acces
 		}
 	}()
 	comparison := new(arenaComparison)
-	if !v.readerMemoryReady || v.readerMemoryRegion == nil ||
+	if !v.readerMemoryReady || v.menuMemory == nil || v.readerMemoryRegion == nil ||
 		v.readerMemoryRegion.Address != v.menuMemory.CPUBase || uint64(len(v.readerMemoryRegion.Bytes)) != v.menuMemory.ArenaBytes ||
 		v.readerMemoryRegion.OrderFrameStores == nil || !comparison.equal(v.readerMemoryRegion.Bytes, v.menuExpected) {
 		return nil, errors.New("native menu: fresh full pinned arena required")
@@ -93,9 +108,10 @@ func (v *HPSContextVerifier) OpenMenuSession(ctx context.Context, control, acces
 	b := transfer.binding
 	repeat := b.rearm && b.menuReturn != nil && b.menuReturn.self == b.menuReturn && b.menuReturn.verifier == v &&
 		v.menuSession == b.menuReturn && b.menuReturn.closed && b.menuReturn.closeErr == nil && b.menuReturn.nextAttempted && b.menuReturn.storageResumed
+	roleReturn := program != nil && b.rearm
 	if !transfer.done || transfer.err != nil || transfer.region != nil || transfer.phase != "complete" || len(transfer.source) == 0 || len(transfer.pending) != 0 ||
-		transfer.offset != len(transfer.source) || transfer.accepted != len(transfer.source) || b.verifier != v || b.program != nil ||
-		b.windowReturn != nil || b.windowOpened || b.menuOpened || !(repeat && v.ddrReaderAttempted || !b.rearm && !v.ddrReaderAttempted) {
+		transfer.offset != len(transfer.source) || transfer.accepted != len(transfer.source) || b.verifier != v || b.program != program ||
+		b.windowReturn != nil || b.windowOpened || b.menuOpened || !(roleReturn || repeat && v.ddrReaderAttempted || !b.rearm && !v.ddrReaderAttempted) {
 		return nil, errors.New("native menu: completion does not belong to this owned scope")
 	}
 	v.ddrReaderAttempted = true
@@ -110,11 +126,19 @@ func (v *HPSContextVerifier) OpenMenuSession(ctx context.Context, control, acces
 		held = v.reconfigurationSource(source) && source.Digest == b.menuReturn.source.Digest &&
 			source.Bridges.Owner == closed.Owner && closed.Generation <= math.MaxUint64-3 && source.Bridges.Generation == closed.Generation+3
 	}
+	if roleReturn {
+		// The private selected plan checked its owned menu or computer return
+		// before START. Generic reconfiguration cannot mint this binding.
+		held = v.reconfigurationSource(source)
+	}
 	if !held || source != b.source || source.Bridges.Generation > math.MaxUint64-3 {
 		return nil, errors.New("native menu: opening lost closed publication/transfer ownership")
 	}
-	if repeat {
+	if repeat || program != nil {
 		v.menuPublication.Source = source
+		if program != nil {
+			v.menuPublication.MapSHA256 = sha256.Sum256(program.menu.memoryRaw)
+		}
 	}
 	s := &MenuSession{storage: b.handoff, comparison: comparison, verifier: v, region: v.readerMemoryRegion, bytes: v.readerMemoryRegion.Bytes, source: source, opened: source.Bridges,
 		bridges: &FirmwareBridges{cpu: cpu}, context: ctx, operationContext: ctx, controlSHA: sha256.Sum256(control), accessSHA: sha256.Sum256(access)}
@@ -152,7 +176,11 @@ func (v *HPSContextVerifier) OpenMenuSession(ctx context.Context, control, acces
 		s.opened = opened
 		s.known = true
 	}
-	build, err := BuildWords(v.context.BuildID)
+	buildID := v.context.BuildID
+	if program != nil {
+		buildID = program.identity.BuildID
+	}
+	build, err := BuildWords(buildID)
 	if err != nil {
 		return session, err
 	}

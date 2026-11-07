@@ -1,15 +1,46 @@
 # Native contained-fabric endpoint
 
+`NewProgramLoaderWithMenu` now joins the normal computer driver and a separately
+compiled menu driver under the original immutable boot verifier. Complete menu
+context/platform/control/memory/access maps must agree with the computer's six
+shared board/HPS/DDR fingerprints. Each role keeps its own exact master
+inventory, stop policy and required interfaces. Selected menu metadata may change
+package/build/payload identity, with fresh control/memory/access hashes; it cannot
+change the compiled addresses, two-slot geometry or adapter. Both roles publish
+version-three bindings through the existing owned configuration preparation.
+
+The loader reserves the full menu arena once through the original boot owner.
+`OpenMenu` consumes only its private completed menu transfer, checks the live
+boot source and selected build, and uses the existing MenuSession presenter and
+independent closure. A menu return can authorize the first computer opening;
+wrong-role completions cannot reach either aperture. The existing SD handoffs
+carry menu-to-computer and computer-to-menu reconfiguration without releasing
+frame memory or changing the boot identity.
+
+Host tests run menu/frame/return → computer/Run/return → menu/frame/return using
+real store/loader/transfer/drivers and the actual C descriptor decoder, with
+injected secure calls, SD and register responses. Failed core open/identity,
+menu identity/closure and pre-START arena corruption retain ownership without
+replay. Optional `FES_NANO_MIXED_INPUTS` tests preflight the actual retained ZX81,
+ZX80 and menu packages with zero firmware calls or containment. The producer now
+exports `nano-selected-menu-program-v1` with its complete memory/access maps.
+
+The native command and cold platform still do not select this combined loader.
+They need both compiled role resource sets, the full 8 MiB CPU/firmware exclusion
+and role-specific active identity/master-stop/ROM policy before a matched board
+test. ProgramService/Tenfoot display ownership also remains to be connected.
+The menu profile is still the explicit prototype, not ordinary menu ABI admission.
+
 The private program publication prototype also supports an explicit version-three
 menu/computer role. It uses the existing fixed metadata page and keeps all nine
 chunk digests. The arena requires a zero ROM extension for menu or its exact
 privately staged 4/8 KiB image for the current computer role. Crossed ABI,
 role, payload size or ROM resources retire publication without releasing it.
 Go publications pair with the actual C decoder under separately supplied boot
-context, owner/generation and chunk geometry. Mixed-role configuration is not
-enabled by the current `ProgramLoader` or cold firmware. Those still require
-compiled per-role resources and active stop-policy integration; the descriptor
-itself grants neither hardware access nor normal package admission.
+context, owner/generation and chunk geometry. The optional combined loader emits these bindings. The native command and
+cold firmware still need matched per-role resource and active stop-policy
+integration; the descriptor itself grants neither hardware access nor normal
+package admission.
 
 `MenuSession` now carries its completed transfer's private storage handoff.
 After a successful frame and independent secure closure,
