@@ -2065,6 +2065,15 @@ eight replicated hit sets.
   on. INT3 and INTO are not IOPL-sensitive. POPF at IOPL 3 leaves IOPL
   alone. HLT, LMSW, CLTS and MOV to or from CRn and DRn raise #GP(0). LAR,
   LSL, VERR, VERW, ARPL and the 0F00 group raise #UD.
+- **LOCK below IOPL 3, open.** The 386 manual
+  ([§15.4](https://www.css.csail.mit.edu/6.858/2013/readings/i386/s15_04.htm))
+  also lists LOCK as IOPL-sensitive in V86, a #GP(0) below IOPL 3. Bochs,
+  the lockstep's oracle, does not trap it, and Intel's later manuals drop
+  it. No V86 monitor in the census runs below IOPL 3. The plan follows the
+  386 manual, as [the 386, not the 486](#the-386-not-the-486) does
+  elsewhere. Slice 3 records the decision with a directed case, and the
+  lockstep then gives the oracle the CPU's result there, as for its other
+  known limits.
 - **I/O.** IN, OUT, INS and OUTS in V86 always read the TSS I/O bitmap
   (#1535's check), whatever IOPL is. The bitmap's read is one load uop with
   the access, never a routine: under JEMM386 it runs about a million times a
@@ -2185,7 +2194,7 @@ A timing miss stops the slice; it never relaxes a check. Titles that need
    - **Lockstep.** test386.asm's V86 cases; INT n at IOPL 0 and 3 through
      gates of DPL 0 and 3; IRETD to V86 from CPL 0 and its refusal from
      elsewhere; I/O at each bitmap edge; an interrupt and a #PF taken from
-     V86; HLT and the #UD forms.
+     V86; HLT and the #UD forms; a LOCK-prefixed instruction at IOPL 0.
    - **Speed.** The V86 delivery's and IRETD's clocks on the latency bench;
      Wolfenstein 3D's page flips per second under JEMM386 against without.
    - **Exit.** test386.asm through POST 21, stopping at POST 22. JEMM386
