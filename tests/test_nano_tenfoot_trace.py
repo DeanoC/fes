@@ -126,6 +126,32 @@ class TenfootTraceTests(unittest.TestCase):
         self.assertEqual(trace.fetch_observation(json.dumps(record))['delta'],5)
         model.service.generation=0
         with self.assertRaises(ValueError):trace.packet(model.fetch()+model.raw(model.state()))
+
+    def test_fetch_address_is_a_copied_package_expectation_not_a_selection_index(self):
+        programs=copy.deepcopy(PROGRAMS);programs[0]['fetch_address']=1
+        model=Model();client=model.client(programs)
+        programs[0]['fetch_address']=0
+        # Both real machines may fetch at nonzero addresses. Only an explicit
+        # fixture expectation restricts the selected address, including zero.
+        self.assertTrue(trace.exercise(client)['passed'])
+        model=Model();programs[0]['fetch_address']=0;client=model.client(programs)
+        with self.assertRaisesRegex(ValueError,'selected fetch address'):client.key('launch',0)
+        self.assertTrue(client.retired);keys=list(model.keys)
+        with self.assertRaises(ValueError):client.key('stop')
+        self.assertEqual(model.keys,keys)
+        model=Model();original=model.fetch
+        def at_zero():
+            r=json.loads(original()[len(trace.FETCH):]);r['running']['Address']=0
+            return trace.FETCH+json.dumps(r).encode()+b'\n'
+        model.fetch=at_zero
+        self.assertTrue(trace.exercise(model.client(programs))['passed'])
+
+    def test_invalid_fetch_expectations_reject_before_any_command(self):
+        for address in (True,False,None,-1,65536,1.0,'0'):
+            model=Model();programs=copy.deepcopy(PROGRAMS);programs[1]['fetch_address']=address
+            with self.subTest(address=address),self.assertRaisesRegex(ValueError,'16-bit integer'):
+                model.client(programs)
+            self.assertEqual(model.keys,[])
     def test_corrupt_launch_retires_without_another_key(self):
         for fault in ('transfer','smmu','late','clock','claim','raise','activation','owner','identity','bool-generation','scope','queue','duplicate-field','truncated','side-effect','early-state','regress','fetch-stuck','fetch-held','fetch-reset','fetch-identity','fetch-generation','fetch-clock','fetch-bool','fetch-missing','fetch-duplicate','fetch-early'):
             with self.subTest(fault=fault):

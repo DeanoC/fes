@@ -131,6 +131,7 @@ class TenfootClient:
     def __init__(self,initial,*,build_id,owner_seed,atf,package,programs,exchange,owns,now=time.monotonic,record=lambda _:None,shared_usb=None,firmware_ram_trace=False):
         require(all(callable(f) for f in (exchange,owns,now,record)),'owned exchange and clock hooks required')
         require(type(programs) is list and len(programs)==2 and len({p['title'] for p in programs})==2 and len({(p['identity']['PackageID'],p['identity']['ActivationReceiptSHA256']) for p in programs})==2,'two distinct titled activation choices required')
+        require(all('fetch_address' not in p or number(p['fetch_address'],65535) for p in programs),'explicit fetch address must be a 16-bit integer')
         self.programs=copy.deepcopy(programs)
         self.usb=SharedInput(shared_usb) if shared_usb is not None else None
         usb_rows=[]
@@ -226,6 +227,8 @@ class TenfootClient:
                 complete=raw.find(b'FES_NANO_CORE_TRANSFER phase=complete ')
                 require(complete>=0 and raw.find(FETCH)>complete,'fetch observation precedes FPGA configuration completion')
                 row['fetch']=fetch
+                if 'fetch_address' in selected:
+                    require(fetch['running']['Address']==selected['fetch_address'],'selected fetch address differs')
                 require(exited is None and states[-1]['native']['Generation']==generation+1,'launch exit/generation differs')
                 source=4+5*self.loads
                 row['opening']=opening(evidence,selected['configuration'],self.owner,source,self.previous_configuration)
