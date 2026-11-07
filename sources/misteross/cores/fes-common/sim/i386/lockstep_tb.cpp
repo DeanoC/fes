@@ -2302,7 +2302,14 @@ Outcome lockstep(fes_i386::Oracle &oracle, OracleBus &bus, Rtl &rtl, const std::
             for (int n = 0; n < 6; ++n)
                 if (oracle_state.seg[n].selector != before.seg[n].selector && (oracle_state.seg[n].selector & 4))
                     ++summary.pm_kinds["ldt-load"];
+            // The third slice's: retirements at CPL 3, returns to an outer
+            // privilege, IN and OUT at a CPL above IOPL (the bitmap).
+            if (before.cpl == 3) ++summary.pm_kinds["cpl3"];
+            if (oracle_state.cpl > before.cpl) ++summary.pm_kinds["outer-return"];
+            if (before.cpl > ((before.eflags >> 12) & 3) && is_io(op) && !is_string(op)) ++summary.pm_kinds["io-bitmap"];
         }
+        // A delivery from an outer privilege to an inner one.
+        if ((before.cr0 & 1) && delivered && oracle_state.cpl < before.cpl) ++summary.pm_kinds["inner-delivery"];
         compare(oracle_state, rtl_state, skip, at, out);
         hash_state(summary, rtl_state);
         if (!out.items.empty()) return outcome;
@@ -5020,8 +5027,11 @@ private:
         items.push_back(off);
         emit(d32 ? std::vector<uint8_t>{0x66, 0xcf} : std::vector<uint8_t>{0xcf});
         items[size_t(at)].target = int(items.size());
-        for (unsigned n = 1 + pick(6); n > 0; --n) {
-            switch (pick(11)) {
+        // DS and ES at DPL 3 mostly, so the body's accesses run.
+        if (pick(3)) load_seg(3, 0xd3);
+        if (pick(3)) load_seg(0, pick(2) ? 0xcb : 0xd3);
+        for (unsigned n = 1 + pick(8); n > 0; --n) {
+            switch (pick(16)) {
             case 0: {  // CLI, STI, PUSHF and POPF of a random image
                 switch (pick(4)) {
                 case 0: emit({0xfa}); break;
@@ -5050,7 +5060,8 @@ private:
                 break;
             }
             case 4: pm_access(); break;
-            case 5: {  // what only CPL 0 runs
+            case 5: {  // what only CPL 0 runs, now and then
+                if (pick(3)) { emit(pm_instruction()); break; }
                 switch (pick(5)) {
                 case 0: emit({0xf4}); break;                      // HLT
                 case 1: emit({0x0f, 0x06}); break;                // CLTS
@@ -5133,8 +5144,8 @@ private:
         }
         const unsigned ops = 1 + pick(8);
         for (unsigned n = 0; n < ops; ++n) {
-            switch (pick(20)) {
-            case 18: case 19: pm_ring3(); break;
+            switch (pick(21)) {
+            case 18: case 19: case 20: pm_ring3(); break;
             case 17: pm_limit(); break;
             case 12: pm_int(); break;
             case 13: pm_call(); break;
