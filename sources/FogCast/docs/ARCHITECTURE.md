@@ -1717,6 +1717,16 @@ not create, grow, or format partitions and does not run from the fixed
 bootstrap. Bind is refused while `GET /v1/update` shows trial, pending, or
 corrupt; the agent still starts and keeps those trees on FAT.
 
+While that gate is closed, the helper leaves `/run/fogcast/fesdata3` unmounted;
+the path is on `/run` tmpfs, so persistent-store checks correctly reject it and
+kit-host mode may use its tmpfs fallback. After confirmation clears the gate,
+the base software supervisor mounts and verifies p3, then reconciles the
+selected software bundle. That reconciliation can restart the managed service
+group once. Health sampling for an old bundle must begin after the selected
+bundle is active and the p3 mount is verified, not during this trial handoff.
+Whenever the mountpoint is already mounted, the helper verifies writable ext4,
+device identity and the exact mountinfo entry before treating it as FESDATA3.
+
 Confirmed appliance releases retain the current image plus one verified
 fallback on FAT, and always protect the factory image as a final recovery
 anchor. Superseded non-factory releases are pruned. A staged candidate may be

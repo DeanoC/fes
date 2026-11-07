@@ -131,6 +131,7 @@ func testConfig(t *testing.T, mounter *recordingMounter) Config {
 		DevicePresent:   pathExists,
 		ReadLabel:       readExt4Label,
 		Mounted:         func(target string) bool { return mounter.mounted[target] != "" },
+		VerifyMounted:   func(string, string) error { return nil },
 		BindMatches:     mounter.BindMatches,
 		Mounter:         mounter,
 	}
@@ -182,6 +183,31 @@ func TestPrepareRecordsFallbackAfterP3MountFailure(t *testing.T) {
 	}
 	if pending, err := gamesFallbackPending(cfg.LibraryFATRoot); err != nil || !pending {
 		t.Fatalf("FAT fallback was not recorded after mount failure: pending=%v err=%v", pending, err)
+	}
+}
+
+func TestPrepareRejectsExistingMountThatIsNotWritableFESDATA3(t *testing.T) {
+	t.Parallel()
+	mounter := newRecordingMounter()
+	cfg := testConfig(t, mounter)
+	mounter.mounted[cfg.MountPoint] = "tmpfs"
+	invalidMount := errors.New("FESDATA3 must be a writable ext4 filesystem")
+	cfg.VerifyMounted = func(source, target string) error {
+		if source != cfg.Devices[0] || target != cfg.MountPoint {
+			t.Errorf("verified %s -> %s", source, target)
+		}
+		return invalidMount
+	}
+
+	result, err := Prepare(cfg)
+	if !errors.Is(err, invalidMount) || result.Device != cfg.Devices[0] {
+		t.Fatalf("invalid existing mount = %+v %v", result, err)
+	}
+	if len(mounter.volumes) != 0 || len(mounter.binds) != 0 {
+		t.Fatalf("invalid mount was used for durable binds: mounts=%v binds=%v", mounter.volumes, mounter.binds)
+	}
+	if pending, err := gamesFallbackPending(cfg.LibraryFATRoot); err != nil || !pending {
+		t.Fatalf("FAT fallback was not recorded: pending=%v err=%v", pending, err)
 	}
 }
 

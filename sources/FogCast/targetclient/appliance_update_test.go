@@ -229,6 +229,94 @@ func TestInspectApplianceRediscoversRecordedIdentityWithoutMutation(t *testing.T
 	}
 }
 
+func TestRollbackRetriesMalformed503AfterStatusProvesNoActivation(t *testing.T) {
+	oldImage := strings.Repeat("a", 64)
+	previous := strings.Repeat("b", 64)
+	var rollbacks, statusReads atomic.Int32
+	var rebooted atomic.Bool
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		boot, image, good, prior, pending := "old", oldImage, oldImage, previous, ""
+		if rebooted.Load() {
+			boot, image, good, prior = "new", previous, previous, oldImage
+		}
+		switch r.URL.Path {
+		case "/v1/health":
+			fmt.Fprintf(w, `{"target_id":"kit","boot_id":%q}`, boot)
+		case "/v1/update":
+			statusReads.Add(1)
+			fmt.Fprintf(w, `{"boot_id":%q,"image_sha256":%q,"trial":false,"raw_idle_ready":true,"good":%q,"previous":%q,"pending":%q}`, boot, image, good, prior, pending)
+		case "/v1/update/rollback":
+			n := rollbacks.Add(1)
+			if n == 1 {
+				w.WriteHeader(http.StatusServiceUnavailable)
+				_, _ = fmt.Fprint(w, "kit restarting")
+				return
+			}
+			rebooted.Store(true)
+			fmt.Fprint(w, `{}`)
+		default:
+			t.Errorf("unexpected request %s", r.URL.Path)
+			http.NotFound(w, r)
+		}
+	}))
+	defer srv.Close()
+	u, _ := url.Parse(srv.URL)
+	c := NewClient(u, "secret", srv.Client())
+	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+	defer cancel()
+
+	got, err := c.RollbackAppliance(ctx, "kit", nil)
+	if err != nil || got.BootID != "new" || got.ImageSHA256 != previous {
+		t.Fatalf("rollback result %+v, err=%v", got, err)
+	}
+	if rollbacks.Load() != 2 {
+		t.Fatalf("rollback requests=%d, want 2", rollbacks.Load())
+	}
+	if statusReads.Load() < 3 {
+		t.Fatalf("status reads=%d, want initial read plus recovery observations", statusReads.Load())
+	}
+}
+
+func TestRollbackDoesNotRetryWhen503MayHaveCommitted(t *testing.T) {
+	oldImage := strings.Repeat("c", 64)
+	previous := strings.Repeat("d", 64)
+	var rollbacks atomic.Int32
+	var rebooted atomic.Bool
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		boot, image, good, prior, pending := "old", oldImage, oldImage, previous, ""
+		if rebooted.Load() {
+			boot, image, good, prior = "new", previous, previous, oldImage
+		}
+		switch r.URL.Path {
+		case "/v1/health":
+			fmt.Fprintf(w, `{"target_id":"kit","boot_id":%q}`, boot)
+		case "/v1/update":
+			fmt.Fprintf(w, `{"boot_id":%q,"image_sha256":%q,"trial":false,"raw_idle_ready":true,"good":%q,"previous":%q,"pending":%q}`, boot, image, good, prior, pending)
+		case "/v1/update/rollback":
+			rollbacks.Add(1)
+			rebooted.Store(true)
+			w.WriteHeader(http.StatusServiceUnavailable)
+			_, _ = fmt.Fprint(w, "kit restarting")
+		default:
+			t.Errorf("unexpected request %s", r.URL.Path)
+			http.NotFound(w, r)
+		}
+	}))
+	defer srv.Close()
+	u, _ := url.Parse(srv.URL)
+	c := NewClient(u, "secret", srv.Client())
+	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+	defer cancel()
+
+	got, err := c.RollbackAppliance(ctx, "kit", nil)
+	if err != nil || got.BootID != "new" || got.ImageSHA256 != previous {
+		t.Fatalf("rollback result %+v, err=%v", got, err)
+	}
+	if rollbacks.Load() != 1 {
+		t.Fatalf("rollback requests=%d, want no duplicate after changed boot", rollbacks.Load())
+	}
+}
+
 func TestConfirmApplianceTrialStates(t *testing.T) {
 	expected := strings.Repeat("a", 64)
 	other := strings.Repeat("b", 64)

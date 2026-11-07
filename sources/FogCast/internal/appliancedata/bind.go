@@ -113,11 +113,16 @@ type Config struct {
 	DevicePresent   func(string) bool
 	// Probe refuses a candidate before it is opened. Nil uses the sysfs check
 	// that skips optical devices and disks with no usable media.
-	Probe       func(string) error
-	ReadLabel   func(string) (string, error)
-	Mounted     func(string) bool
-	BindMatches func(source, target string) (bool, error)
-	Mounter     Mounter
+	Probe     func(string) error
+	ReadLabel func(string) (string, error)
+	Mounted   func(string) bool
+	// VerifyMounted proves that an existing or newly created mount is the
+	// selected writable ext4 FESDATA3 volume. Mountpoint presence alone is not
+	// enough: /run is tmpfs, and an unrelated or read-only mount must not be
+	// treated as durable appliance data.
+	VerifyMounted func(source, target string) error
+	BindMatches   func(source, target string) (bool, error)
+	Mounter       Mounter
 }
 
 func ProductionConfig() Config {
@@ -173,9 +178,16 @@ func Mount(cfg Config) (Result, error) {
 	if err := os.MkdirAll(cfg.MountPoint, 0o755); err != nil {
 		return Result{Device: device}, err
 	}
-	if !cfg.Mounted(cfg.MountPoint) {
+	if cfg.Mounted(cfg.MountPoint) {
+		if err := cfg.VerifyMounted(device, cfg.MountPoint); err != nil {
+			return Result{Device: device}, fmt.Errorf("verify existing FESDATA3 mount: %w", err)
+		}
+	} else {
 		if err := cfg.Mounter.MountVolume(device, cfg.MountPoint); err != nil {
 			return Result{Device: device}, err
+		}
+		if err := cfg.VerifyMounted(device, cfg.MountPoint); err != nil {
+			return Result{Device: device}, fmt.Errorf("verify new FESDATA3 mount: %w", err)
 		}
 	}
 	return Result{Device: device}, nil
@@ -440,6 +452,11 @@ func applyDefaults(cfg Config) Config {
 	}
 	if cfg.Mounted == nil {
 		cfg.Mounted = func(target string) bool { return mountpointBusy(cfg.MountInfo, target) }
+	}
+	if cfg.VerifyMounted == nil {
+		cfg.VerifyMounted = func(source, target string) error {
+			return verifyMountedVolume(source, target, cfg.MountInfo)
+		}
 	}
 	if cfg.BindMatches == nil {
 		cfg.BindMatches = sameBindSource

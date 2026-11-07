@@ -32,6 +32,11 @@ type ApplianceStatus struct {
 	SplashWarning string `json:"splash_warning,omitempty"`
 }
 
+const (
+	maxRollbackAttempts        = 3
+	rollbackStatusObservations = 2
+)
+
 func (c *Client) ApplianceStatus(ctx context.Context) (ApplianceStatus, error) {
 	var status ApplianceStatus
 	err := c.doJSON(ctx, http.MethodGet, "/v1/update", nil, &status)
@@ -181,14 +186,66 @@ func (c *Client) RollbackAppliance(ctx context.Context, targetID string, resolve
 	if !appliance.ValidHash(before.Previous) {
 		return before, errors.New("no previous release to roll back to")
 	}
-	var accepted ApplianceStatus
-	err = c.doJSON(ctx, http.MethodPost, "/v1/update/rollback", nil, &accepted)
-	if err == nil {
-		c.reportProgress("activation accepted", before.Previous)
-	} else {
-		c.reportProgress("activation response lost", err.Error())
+	var lastErr error
+	for attempt := 1; attempt <= maxRollbackAttempts; attempt++ {
+		var accepted ApplianceStatus
+		lastErr = c.doJSON(ctx, http.MethodPost, "/v1/update/rollback", nil, &accepted)
+		if lastErr == nil {
+			c.reportProgress("activation accepted", before.Previous)
+			return c.finishAppliance(ctx, targetID, before, before.Previous, nil, resolve)
+		}
+		var apiErr *protocol.APIError
+		var statusErr *httpStatusError
+		if errors.As(lastErr, &apiErr) && (!errors.As(lastErr, &statusErr) || statusErr.status != http.StatusServiceUnavailable) {
+			return before, lastErr
+		}
+		c.reportProgress("activation response lost", lastErr.Error())
+		retry, current, observeErr := c.rollbackStatusAllowsRetry(ctx, targetID, before, before.Previous, resolve)
+		if observeErr != nil {
+			return c.finishAppliance(ctx, targetID, before, before.Previous, errors.Join(lastErr, observeErr), resolve)
+		}
+		if !retry {
+			return c.finishAppliance(ctx, targetID, before, before.Previous, lastErr, resolve)
+		}
+		if attempt == maxRollbackAttempts {
+			return current, fmt.Errorf("rollback remained unaccepted after %d attempts: %w", maxRollbackAttempts, lastErr)
+		}
+		c.reportProgress("rollback retry", fmt.Sprintf("status still shows boot=%s image=%s with no pending image (%d/%d)", current.BootID, current.ImageSHA256, attempt+1, maxRollbackAttempts))
 	}
-	return c.finishAppliance(ctx, targetID, before, before.Previous, err, resolve)
+	return before, fmt.Errorf("rollback did not start: %w", lastErr)
+}
+
+// rollbackStatusAllowsRetry retries the side-effecting rollback only after two
+// consecutive authenticated reads prove that the same stable boot still runs
+// and no image is pending. If activation may have committed, the caller polls
+// for its boot instead of sending another mutation.
+func (c *Client) rollbackStatusAllowsRetry(ctx context.Context, targetID string, before ApplianceStatus, expected string, resolve ResolveAppliance) (bool, ApplianceStatus, error) {
+	var last ApplianceStatus
+	for observation := 0; observation < rollbackStatusObservations; observation++ {
+		endpoint, status, err := c.findApplianceBoot(ctx, targetID, resolve)
+		if err != nil {
+			return false, status, fmt.Errorf("inspect rollback outcome: %w", err)
+		}
+		if endpoint.String() != c.EndpointURL().String() {
+			if _, err := c.AdoptEndpoint(ctx, endpoint, false); err != nil {
+				return false, status, fmt.Errorf("adopt rollback status endpoint: %w", err)
+			}
+		}
+		last = status
+		if status.Corrupt {
+			return false, status, errors.New("rollback outcome has corrupt target state")
+		}
+		if status.BootID != before.BootID || status.ImageSHA256 != before.ImageSHA256 || status.Pending == expected || status.TrialImage == expected {
+			return false, status, nil
+		}
+		if status.Trial || status.Pending != "" || status.Good != before.Good || status.Previous != before.Previous {
+			return false, status, fmt.Errorf("rollback outcome changed unexpectedly: boot=%s image=%s good=%s previous=%s pending=%s trial=%t", status.BootID, status.ImageSHA256, status.Good, status.Previous, status.Pending, status.Trial)
+		}
+		if observation+1 < rollbackStatusObservations && !waitAppliancePoll(ctx) {
+			return false, status, ctx.Err()
+		}
+	}
+	return true, last, nil
 }
 
 func (c *Client) applianceBefore(ctx context.Context, targetID string, resolve ResolveAppliance) (ApplianceStatus, error) {
