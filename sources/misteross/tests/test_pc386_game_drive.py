@@ -139,6 +139,7 @@ class BuildTest(unittest.TestCase):
         self.assertEqual(image.name, f'{digest}.img')
         self.assertEqual(self.build(), image)
         self.assertEqual((self.store / 'by-name/test.img').resolve(), image)
+        self.assertEqual(self.store.stat().st_mode & 0o777, 0o700)
         record = json.loads(image.with_suffix('.json').read_text())
         self.assertEqual(record['sha256'], digest)
         self.assertEqual(record['geometry'], {'cylinders': 20, 'heads': 16, 'sectors_per_track': 63})

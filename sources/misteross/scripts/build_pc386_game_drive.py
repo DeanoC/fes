@@ -237,7 +237,9 @@ def free_bytes(volume: str, env: dict) -> int:
 
 def build(name: str, data: dict, download: bool = False, jobs: int = 4) -> Path:
     drive = data['drives'][name]
-    STORE.mkdir(parents=True, exist_ok=True)
+    # The store holds user-supplied commercial programs: private to the account.
+    STORE.mkdir(mode=0o700, parents=True, exist_ok=True)
+    os.chmod(STORE, 0o700)
     work = STORE / '.work' / name
     work.parent.mkdir(mode=0o700, exist_ok=True)
     os.chmod(work.parent, 0o700)
