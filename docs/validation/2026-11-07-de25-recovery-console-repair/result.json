@@ -1,0 +1,122 @@
+{
+  "status": "exact-UART0-to-UART1-repair-passed-off-board-physical-operator-pending",
+  "implementation_source": "03b8ec56d01cbf5ea64184c1987058228fa0ddf6",
+  "compiled_trace_source": "ca87b32780372567507f17d9b765087fecdde69d",
+  "software_aggregate_green": true,
+  "focused_tests": 32,
+  "parent_tests": {
+    "total": 1606,
+    "skipped": 3
+  },
+  "existing_updater_original_baseline_restriction_preserved": true,
+  "repair_old_FIT_manifest_prefix_exact": true,
+  "new_fit_sha256": "ccb6a597052c69f982713c327eeaab02adda4bd8ef21905deed2db7e7d47f353",
+  "new_prefix_sha256": "b8ea5c763ffc9d6ccca750aa476cc0739cf896af995959437fa41f65183a039f",
+  "old_fit_sha256": "0f15b11576e91a6cb705de1f1b97e0960a03437b1821628abbd74bd4367f9855",
+  "old_prefix_sha256": "371cd116055bc7f458dc8254071f62768dcf7bd3c2498e70e8c3e6e04f62a956",
+  "original_R1107A_rollback_required_and_preserved": true,
+  "fresh_R1107B_backups": true,
+  "actual_artifact_bytes_modeled": true,
+  "modeled_writes": [
+    {
+      "target": "FES/R1107B.ITB",
+      "sha256": "0f15b11576e91a6cb705de1f1b97e0960a03437b1821628abbd74bd4367f9855",
+      "bytes": 954288,
+      "attempted": true,
+      "acknowledged": true,
+      "readback_verified": true
+    },
+    {
+      "target": "FES/R1107B.JSN",
+      "sha256": "722ed9592c04f19dc19b7e6bd21c50c87aada7712fbd056f86b4e45551d7f0de",
+      "bytes": 1464,
+      "attempted": true,
+      "acknowledged": true,
+      "readback_verified": true
+    },
+    {
+      "target": "u-boot.itb",
+      "sha256": "ccb6a597052c69f982713c327eeaab02adda4bd8ef21905deed2db7e7d47f353",
+      "bytes": 954288,
+      "attempted": true,
+      "acknowledged": true,
+      "readback_verified": true
+    },
+    {
+      "target": "raw-fit-sector-512",
+      "bytes": 954368,
+      "sha256": "a5015f0a0c73ded2b189d3f4e667c5c2bed753e5dbb76941699f534f1b5b4d8c",
+      "attempted": true,
+      "acknowledged": true,
+      "readback_verified": true
+    },
+    {
+      "target": "FES/RECOVERY.JSON",
+      "sha256": "b63eb77506898bc53f6082e8575fe6387ea2525425754aced31ca7ccbff62fcf",
+      "bytes": 1464,
+      "attempted": true,
+      "acknowledged": true,
+      "readback_verified": true
+    }
+  ],
+  "original_rollback": [
+    {
+      "target": "FES/R1107A.ITB",
+      "bytes": 953032,
+      "sha256": "c27efed4828f73ad000fe78649ae01d665e12452f457c3e569d25b20b5b031dd"
+    },
+    {
+      "target": "FES/R1107A.JSN",
+      "bytes": 1315,
+      "sha256": "4fa13be7cfecd0d756a492e945c6184c011814bafb903aeb626ee2155a00b8fb"
+    }
+  ],
+  "receipt_fixture_rejections": 26,
+  "receipt_boot_and_wire_fields_synthetic": true,
+  "qualified_base_receipt_checker_unchanged": true,
+  "retirement_on_failure_and_success": true,
+  "physical_operator_frozen": false,
+  "hardware_actions": false,
+  "UART_transport_executed": false,
+  "physical_SD_writes": false,
+  "live_card_verified": false,
+  "native_activation": false,
+  "core_load_acceptance": false,
+  "timing_signoff": false,
+  "original_network_stall_cause_proven": false,
+  "board_state": "continuing claim retained; exact USB adapter returned after user power loss; boot/card state unverified since previous v1 installation",
+  "next": "freeze a fresh single-attempt UART repair/traced-network operator, verify fresh boot and live card/files before any write; never replay the consumed operator",
+  "raw_evidence": "out/nano-recovery-console-repair-20261107",
+  "retention_target": "/home/deano/fes-retained/de25-recovery-console-repair-20261107-r1",
+  "evidence_sha256": {
+    "out/nano-recovery-console-repair-20261107/actual-input-model-result.json": "70f1906cb9c69f0cf00288c0126ea29bf0105ee5308a7ad372ef7138ffbc8a11",
+    "out/nano-recovery-console-repair-20261107/actual-input-model.json": "028f43ab7692e6b8c765c1a63ed4a07bda5831112f3732d3a03c1ec33e1b2d4d",
+    "out/nano-recovery-console-repair-20261107/actual-input-model.log": "58f6c55c6ba73e75517c7cd3404b493ae6ffa905ff3176d499730f3b28b5bfbb",
+    "out/nano-recovery-console-repair-20261107/affected-result.json": "bb9f1f50f05b536f3072f721c40fdf1a22fb330af34ffd5c7f3b6a79f3e72d87",
+    "out/nano-recovery-console-repair-20261107/affected.log": "626eb969e730888986571ac4d91187263071421dfbd939ac72ec0ace4bd0cdad",
+    "out/nano-recovery-console-repair-20261107/focused-result.json": "100c332e0fbc2aa18494a05b4aeb9b6a8a0ff65f28f03b35496a1a46e33708fe",
+    "out/nano-recovery-console-repair-20261107/focused.log": "e45754837d6f127b1ac324e847dd670100c7922c3cb80dade0d262099bbea755",
+    "out/nano-recovery-console-repair-20261107/model-progress.json": "c1215ae33f938519d60cf0545dfeb86ca837e92bade6773f887bbb6be52804f7",
+    "out/nano-recovery-console-repair-20261107/model_actual_inputs.py": "4be0c9e82070eba882f2c55d3ad77604bb4115cadd37ac89a1cc3d8791302d6b",
+    "out/nano-recovery-console-repair-20261107/prepare_plan.py": "db747fbe26f80bd73a398d9b3ce7e85771a11788a2fae5283f8e2d95de670242",
+    "out/nano-recovery-console-repair-20261107/receipt-fixtures-result.json": "797905bb2e099b3f4e09eca996aef57424f0d3fcc7ca416e78be54a61bd50808",
+    "out/nano-recovery-console-repair-20261107/receipt-fixtures.log": "9a537e70495735b3515831c8c7392593dd53310f401bb04af141b2ad802dde30",
+    "out/nano-recovery-console-repair-20261107/recovery_trace_upgrade.proposed.py": "bd29ad841c88e1b68e6197e2bf19ff9f89bbc8e6f498dcc8c75492c895f49fd3",
+    "out/nano-recovery-console-repair-20261107/repair-gate-fixtures.json": "8d992914305076a1843228a6d39137a2b0b1edf47e6ea57c5a3a4eca590d0e44",
+    "out/nano-recovery-console-repair-20261107/repair_gate_fixtures.py": "9711f438e2942f68aabb432e02b27509ca36d49191c673eb45263c8723b0c1d4",
+    "out/nano-recovery-console-repair-20261107/retain.py": "06d98eebd054bf8d5ffb9302abc93eb7059014d879d4111b07ab95f687dd563a",
+    "out/nano-recovery-console-repair-20261107/run.py": "8dea93a99adab57fd4721de0379fa6fbbcd75877d64f4d7e8ed80a041df6ed3c",
+    "out/nano-recovery-console-repair-20261107/software-plan.json": "2de63847db307d8b793b9547fe1b87c98c0ddeca12a387d82b12f56e2e715c20",
+    "out/nano-recovery-console-repair-20261107/source-base.json": "62d6b9b1b6117263a20952adcdfe8f2b8d5d4f492b34a436ff52fd2315f13037",
+    "out/nano-recovery-console-repair-20261107/source.json": "f9055d6eb876f4fbb5f8c89cb13d2ba52b6f361b1c929a8fb85792a62b800ef5",
+    "out/nano-recovery-console-repair-20261107/summarize.py": "98f597054deb0003bf198f71fe0a7f391041cba00dfc1b56a4a90a7f94265f44",
+    "out/nano-recovery-console-repair-20261107/test_repair.proposed.py": "031066ef9ef1fecfb5e069573371a472decb8255b25fed31fcc6787cc8a72a84",
+    "out/nano-recovery-console-repair-20261107/trial/repair_checks.py": "a8dff961b5dbfddf72a247b02f79dd5a9a2ee9467330ae67ac6b48b05af33d4a",
+    "out/nano-recovery-console-repair-20261107/trial/upgrade_checks.py": "884aa70632380959200a7058b214c3fa2c66d8bee2b0ca6b70c34eb97d108cd8",
+    "out/nano-recovery-console-repair-20261107/uart-plan-result.json": "3b980eca41459c7b87d9727c215de66d8f6fd49fd4cab1a4ad64bdd3d6ca98a3",
+    "out/nano-recovery-console-repair-20261107/uart-plan.json": "b08f61bfcbfd01a705e001ef9ef4ccb71ae20f265555d57a413b010b11b9b24a",
+    "out/nano-recovery-console-repair-20261107/uart-plan.log": "8926bce76bea90aa2231d0fc398e8460d1bf866395bd90c32e6332b7719282a4",
+    "platform/embedded/nano/recovery_trace_upgrade.py": "c7d94d6f43910d2afddebae2de950d712684430a2aa545e4b63b078100094011",
+    "tests/test_nano_recovery_trace_repair.py": "cd7ae052bdc54d436465c21f562d27ad5612e03530ddd9dbb93f5516436dfd73"
+  }
+}
