@@ -200,6 +200,10 @@ module pc386_system #(
     wire [7:0] sb_base_high = settings[75:68];
     wire [7:0] sb_irq = settings[87:80];
     wire [7:0] sb_dma = settings[103:96];
+    // The EMS board: fitted with 2 MiB. Word 7 is to choose its size
+    // (docs/pc386-machine-design.md, "Size and setting"); until the record
+    // accepts that, it is reserved and zero.
+    localparam [7:0] EMS_PAGES = 8'd128;
 
     // ---- Hold and the machine reset
     wire cpu_mem_idle, rom_idle;
@@ -288,7 +292,7 @@ module pc386_system #(
         .io_rdata(io_rdata), .inta_vector(inta_vector), .intr(intr), .a20m(a20m),
         .cpu_shutdown(cpu_shutdown), .flush_request(flush_request), .flush_done(flush_done),
         .cpu_reset(machine_cpu_reset),
-        .mem_valid(mem_valid), .mem_write(mem_write), .mem_address(cpu_mmio_address[14:0]),
+        .mem_valid(mem_valid), .mem_write(mem_write), .mem_address(cpu_mmio_address[17:0]),
         .mem_byteenable(mem_byteenable), .mem_wdata(mem_wdata), .mem_ready(mem_ready),
         .mem_rvalid(mem_rvalid), .mem_rdata(mem_rdata),
         .dma_valid(dma_valid), .dma_write(dma_write), .dma_address(dma_address), .dma_wdata(dma_wdata),
@@ -305,7 +309,7 @@ module pc386_system #(
         .mouse_dy(mouse_dy[7:0]), .mouse_buttons(mouse_buttons), .mouse_ready(mouse_ready),
         // 640 KiB and 15 MiB of extended memory: 16 MiB of RAM, ram_top below.
         .base_kib(16'd640), .extended_kib(16'd15360), .above16m_64k(16'd0),
-        .sb_base_high(sb_base_high), .sb_irq(sb_irq), .sb_dma(sb_dma), .cmos_busy(cmos_busy),
+        .sb_base_high(sb_base_high), .sb_irq(sb_irq), .sb_dma(sb_dma), .ems_pages(EMS_PAGES), .cmos_busy(cmos_busy),
         .wall_valid(wall_valid), .wall_year(wall_year), .wall_month(wall_month), .wall_day(wall_day),
         .wall_hour(wall_hour), .wall_minute(wall_minute), .wall_second(wall_second), .wall_weekday(wall_weekday),
         .disk_present(disk_present), .disk_sectors(disk_sectors), .disk_cylinders(disk_cylinders),
@@ -423,8 +427,10 @@ module pc386_system #(
     end
 
     // The attribute map, 640 KiB to 1 MiB in 16 KiB slots: VGA memory MMIO,
-    // the VGA and system BIOS read-only, upper RAM on; 16 MiB of RAM.
-    localparam [47:0] ATTR_UPPER = {{4{2'd1}}, {10{2'd0}}, {2{2'd1}}, {8{2'd2}}};
+    // the VGA and system BIOS read-only, upper RAM on, and the EMS board's
+    // frame (E0000h-EFFFFh) MMIO when it is fitted; 16 MiB of RAM.
+    localparam [47:0] ATTR_UPPER = {{4{2'd1}}, {4{EMS_PAGES != 8'd0 ? 2'd2 : 2'd0}}, {6{2'd0}}, {2{2'd1}},
+                                    {8{2'd2}}};
     wire [27:0] cpu_ddr_address;
     wire [7:0] cpu_ddr_burstcount;
     wire cpu_ddr_read, cpu_ddr_write, cpu_ddr_waitrequest, cpu_ddr_readdatavalid;

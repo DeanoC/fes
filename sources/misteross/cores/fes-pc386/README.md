@@ -27,8 +27,9 @@ Quartus 17.0.2.
 | [`rtl/pc386_vga_scanout.sv`](rtl/pc386_vga_scanout.sv) | CRTC raster at the guest dot clock, line prefetch, attribute controller, DAC, capture writer |
 | [`rtl/pc386_presenter.sv`](rtl/pc386_presenter.sv) | Area-weighted scaling of the newest capture to 960 x 720 in the 720p raster |
 | [`rtl/pc386_plane_bridge.sv`](rtl/pc386_plane_bridge.sv) | The display plane's reads on port 2: clock crossing, 128-to-64-bit beats, the plane's port guard |
-| [`rtl/pc386_port2.sv`](rtl/pc386_port2.sv) | DDR port 2 arbiter: plane, presenter, capture, then the shell's reads and single-beat writes |
-| [`rtl/pc386_machine.sv`](rtl/pc386_machine.sv) | The machine without the CPU: AT core, VGA, presenter, port 2, display plane |
+| [`rtl/pc386_ems.sv`](rtl/pc386_ems.sv) | The [EMS board](../../docs/pc386-machine-design.md#ems-board): four write-only page registers (260h-263h) and the E0000h frame's single beats into board memory at window offset 20 MiB on port 2 |
+| [`rtl/pc386_port2.sv`](rtl/pc386_port2.sv) | DDR port 2 arbiter: plane, presenter, capture, the EMS board, then the shell's reads and single-beat writes |
+| [`rtl/pc386_machine.sv`](rtl/pc386_machine.sv) | The machine without the CPU: AT core, VGA, EMS board, presenter, port 2, display plane |
 | [`rtl/pc386_ram.sv`](rtl/pc386_ram.sv) | Inferred RAMs and FIFOs: one clock, two clocks, show-ahead |
 | [`rtl/pc386_audio.sv`](rtl/pc386_audio.sv) | Audio beside the AT core: the OPL2 and DSP on its sound port, IRQ routing, the mixer |
 | [`rtl/pc386_opl2.sv`](rtl/pc386_opl2.sv) | OPL2: the [opl2_fpga import](vendor/opl2_fpga/README.md) behind the AdLib port, with status, timers and the 49,715.9 Hz enable |
@@ -50,6 +51,8 @@ Quartus 17.0.2.
 | [`sim/system_tb.cpp`](sim/system_tb.cpp) | `pc386_system` with all three DDR ports on one window model, and a host that launches and stops it as libmister-runtime does, through the mailbox and the window |
 | [`sim/rtl_stop_test.asm`](sim/rtl_stop_test.asm) | The stop test disk: SMSW and MOV CR0 stops, LMSW, and the protected-mode oracle stretch for `--cpu rtl` |
 | [`sim/devices_tb.cpp`](sim/devices_tb.cpp) | Directed checks of the AT core through its I/O port |
+| [`sim/ems_tb.cpp`](sim/ems_tb.cpp) | The EMS board alone on the port 2 model: directed cases and a random run against a reference board (`benches` suite) |
+| [`sim/fesems.asm`](sim/fesems.asm) | FESEMS.SYS, the EMS board's LIM 4.0 driver ([EMS driver](#ems-driver)) |
 | [`sim/keyboard_tb.cpp`](sim/keyboard_tb.cpp) | The host keyboard model alone: every usage, the order of a change, the 1 ms rule, typematic timing |
 | [`sim/hid_set2_reference.py`](sim/hid_set2_reference.py), [`sim/hid_set2_reference.h`](sim/hid_set2_reference.h) | The keyboard bench's expected bytes, derived from a Linux tree's HID and AT keyboard tables |
 | [`sim/input_test.asm`](sim/input_test.asm) | INPUT.COM, the system suite's keyboard and mouse exercise through INT 15h C2xx and INT 16h |
@@ -462,11 +465,12 @@ disk builder's image will be
 with HIMEMX 3.38, UMBM from Jemm 5.85, CuteMouse 2.1b4 and MEM 1.12 from their
 FreeDOS 1.4 package archives in `C:\FDOS\BIN`, pinned in
 [`sim/freedos.lock`](sim/freedos.lock).
-- `FDCONFIG.SYS` loads UMBM with `/I=C800-EFFF`, `DOS=UMB`, then HIMEMX high
-  with all extended memory as XMS (15,360K on a 16 MiB machine). UMBM hands
-  the machine's upper RAM to DOS as upper memory blocks without V86 and then
-  unloads; it finds only UMBPCI's tables by itself, so the range is named.
-  All 160K of C8000-EFFFF becomes upper memory.
+- `FDCONFIG.SYS` loads UMBM with `/I=C800-DFFF`, `DOS=UMB`, then HIMEMX high
+  with all extended memory as XMS (15,360K on a 16 MiB machine), then the
+  [EMS driver](#ems-driver) high. UMBM hands the machine's upper RAM to DOS
+  as upper memory blocks without V86 and then unloads; it finds only UMBPCI's
+  tables by itself, so the range is named. All 96K of C8000-DFFFF becomes
+  upper memory; E0000-EFFFF is the EMS board's frame.
 - `AUTOEXEC.BAT` runs [`FESENV.COM`](sim/fesenv.asm) into
   `C:\FDOS\FESENV.BAT` and calls it, so `BLASTER` follows the Sound Blaster
   setting in CMOS 60h-62h at every boot, then loads CuteMouse high and runs
@@ -515,6 +519,28 @@ The images are test fixtures and are never distributed. The games
 themselves are user-supplied and go onto the reusable game drives, which stay
 outside the repository ([game drives](../../docs/pc386-game-drives.md)). The [games record](../../../../docs/validation/2026-11-01-pc386-m5-games/summary.md)
 has the kit runs.
+
+## EMS driver
+
+[`FESEMS.SYS`](sim/fesems.asm) is FES's LIM EMS 4.0 driver for the
+[EMS board](../../docs/pc386-machine-design.md#ems-board), MIT-licensed and
+assembled from source by the games-image builder. No open-licensed driver
+for the board's interface exists: Lo-tech's LTEMM is under the Standard
+Lo-tech Licence. The games image loads it with
+`DEVICEHIGH=C:\FDOS\BIN\FESEMS.SYS` after HIMEMX; its resident part is about
+4.1 KiB.
+
+- It reads the board from CMOS 63h-65h and does not install when 63h is 0.
+- At load it writes zeros through every board page and checks a marker at
+  each page's ends, then prints `FESEMS:  2048K of EMS at E000h, registers at
+  0260h`.
+- 64 handles, handle 0 the operating system's. Raw and standard pages are both
+  16 KiB.
+- Functions: 40h-48h, 4Bh-4Fh, 50h (map multiple, by page number or
+  segment), 51h, 52h (volatile only; non-volatile answers 91h), 53h, 54h,
+  57h (move and exchange, overlapping moves in the safe direction), 58h,
+  59h, 5Ah, 5Bh (no alternate register sets), 5Ch and 5Dh. 49h, 4Ah, 55h and
+  56h answer 84h and write `FESEMS: function <AX>` to port E9h.
 
 ## Not built yet
 

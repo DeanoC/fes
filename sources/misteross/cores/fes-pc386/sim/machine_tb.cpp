@@ -35,6 +35,7 @@
 //        [--mouse S:DX,DY,BUTTONS]...
 //        [--census F] [--profile F] [--profile-from S] [--profile-to S]
 //        [--cpu-profile F] [--cpu-profile-every S] [--rtl-from S] [--rtl-at-flip N] [--rtl-for S]
+//        [--ems-pages N]
 //        [--rtl-at-prompt 1] [--keys-after-type 1] [--frame-every S]
 // A program on the disk marks a picture by writing "SNAP <name>" and a newline
 // to port E9h, then holding it; the bench takes the second capture after the
@@ -52,6 +53,12 @@
 // keys. --mouse sends one fes.mouse.relative packet at that time (dy
 // screen-down), as the mailbox delivers it.
 // PC386_TRACE_IO=1 prints every I/O but port 80h to stderr.
+// --ems-pages is the EMS board's size in 16 KiB pages, 128 (2 MiB, the
+// machine's) by default and 0 for no board. With a board, E0000h-EFFFFh is
+// MMIO into the RTL board for either CPU, whose memory is port 2's model, and
+// an 8237 cycle there reads FFh and writes nothing, as the CPU's DMA port does
+// outside RAM. It prints at the end:
+//   EMS pages=<n> reads=<n> writes=<n> dma=<n>   frame accesses and DMA cycles into the frame
 // --preset, --frequency and --turbo are --cpu rtl's governor settings
 // (fes_i386_governor; fes.pc386.machine words 0, 1 and 3), max by default.
 //
@@ -221,8 +228,10 @@ pc386::PortSignals port2(Vpc386_machine &top) {
 
 class Machine final : public fes_i386::Bus {
 public:
-    Machine(const std::vector<uint8_t> &bios, const std::vector<uint8_t> &vgabios, const std::string &disk)
-        : image(read_file(disk)) {
+    Machine(const std::vector<uint8_t> &bios, const std::vector<uint8_t> &vgabios, const std::string &disk,
+            unsigned ems_pages)
+        : image(read_file(disk)), ems_pages(ems_pages) {
+        if (ems_pages > 255) throw std::runtime_error("--ems-pages is 0 to 255");
         if (bios.size() != 0x10000) throw std::runtime_error("the BIOS must be 64 KiB");
         if (vgabios.size() > 0x8000) throw std::runtime_error("the VGA BIOS must fit 32 KiB");
         if (image.size() % 512 || image.size() > (128u << 20)) throw std::runtime_error("bad disk image size");
@@ -242,6 +251,7 @@ public:
         top.extended_kib = (RAM_BYTES >> 10) - 1024;
         top.above16m_64k = 0;
         top.sb_base_high = 0x22; top.sb_irq = 7; top.sb_dma = 1;
+        top.ems_pages = uint8_t(ems_pages);
         for (int n = 0; n < 4; ++n) clock();
         top.reset = 0;
         top.port2_reset = 0;
@@ -269,6 +279,8 @@ public:
     fes_i386::PageMemory rom_bios{0x10000};
     fes_i386::PageMemory rom_vga{0x8000};
     std::vector<uint8_t> image;
+    unsigned ems_pages;
+    uint64_t ems_reads = 0, ems_writes = 0, ems_dma = 0;  // frame accesses; DMA cycles into the frame
     uint16_t cylinders = 0;
     uint8_t heads = 0, spt = 0;
     uint64_t cycles = 0;
@@ -361,7 +373,10 @@ public:
             if (top.dma_valid && !top.dma_done) {
                 dma_pending = true;
                 uint32_t address = top.dma_address & (RAM_BYTES - 1);
-                if (top.dma_write) ram[address] = top.dma_wdata;
+                if (in_frame(address)) {
+                    ++ems_dma;
+                    top.dma_rdata = 0xff;
+                } else if (top.dma_write) ram[address] = top.dma_wdata;
                 else top.dma_rdata = ram[address];
             }
             top.flush_done = top.flush_request;
@@ -435,13 +450,17 @@ public:
         if (paddr >= 0xf0000 && paddr < 0x100000) return write ? nullptr : &rom_bios[paddr & 0xf000];
         if (paddr >= 0xc0000 && paddr < 0xc8000) return write ? nullptr : &rom_vga[(paddr - 0xc0000) & ~0xfffu];
         if (paddr >= 0xa0000 && paddr < 0xc0000) return nullptr;
+        if (in_frame(paddr)) return nullptr;
         if (paddr < RAM_BYTES) return &ram[paddr & ~0xfffu];
         return nullptr;
     }
+    // The EMS board's frame, when the board is fitted.
+    bool in_frame(uint32_t paddr) const { return ems_pages && paddr >= 0xe0000 && paddr < 0xf0000; }
+    bool mmio_range(uint32_t paddr) const { return (paddr >= 0xa0000 && paddr < 0xc0000) || in_frame(paddr); }
     // MMIO: each access becomes dword requests in address order.
     void read(uint32_t paddr, unsigned length, uint8_t *data) override {
         std::memset(data, 0xff, length);
-        if (paddr < 0xa0000 || paddr >= 0xc0000) return;
+        if (!mmio_range(paddr)) return;
         for (unsigned done = 0; done < length;) {
             uint32_t address = paddr + done, dword = address & ~3u;
             unsigned lane = address & 3, count = std::min(4 - lane, length - done);
@@ -452,7 +471,7 @@ public:
         }
     }
     void write(uint32_t paddr, unsigned length, const uint8_t *data) override {
-        if (paddr < 0xa0000 || paddr >= 0xc0000) return;
+        if (!mmio_range(paddr)) return;
         for (unsigned done = 0; done < length;) {
             uint32_t address = paddr + done, dword = address & ~3u;
             unsigned lane = address & 3, count = std::min(4 - lane, length - done);
@@ -466,7 +485,7 @@ public:
     uint32_t mmio(bool write, uint32_t dword, uint8_t enables, uint32_t value) {
         top.mem_valid = 1;
         top.mem_write = write;
-        top.mem_address = (dword - 0xa0000) >> 2;
+        top.mem_address = dword >> 2;
         top.mem_byteenable = enables;
         top.mem_wdata = value;
         uint64_t start = cycles;
@@ -489,7 +508,12 @@ public:
         record_mmio(write, start, dword, enables, write ? value : result);
         return result;
     }
+    // The VGA trace takes VGA memory only; the frame's accesses are counted.
     void record_mmio(bool write, uint64_t start, uint32_t dword, uint8_t enables, uint32_t value) {
+        if (in_frame(dword)) {
+            ++(write ? ems_writes : ems_reads);
+            return;
+        }
         if (trace)
             std::fprintf(trace, "%c %llu %05x %x %08x\n", write ? 'W' : 'R', (unsigned long long)start,
                          dword - 0xa0000, enables, value);
@@ -620,14 +644,15 @@ struct GuestMemory {
 // loads only by the oldest uop, the CPU's own rule), its DMA and FLUSH
 // ports, I/O and INTA through the AT core with its device time, INTR from
 // the PICs, no NMI, and A20M. The attribute map is the machine's: VGA
-// memory MMIO, the VGA and system BIOS read-only, upper RAM on.
+// memory MMIO, the VGA and system BIOS read-only, upper RAM on, and the EMS
+// board's frame MMIO when it is fitted.
 class RtlCpu {
 public:
     explicit RtlCpu(Machine &machine)
         : m(machine), dirty(RAM_BYTES >> 12), guest{machine}, port0(guest, 0x5eed0000, "port 0") {
         uint64_t map = 0;
         for (int slot = 0; slot < 24; ++slot) {
-            const uint64_t attr = slot < 8 ? 2 : slot < 10 ? 1 : slot < 20 ? 0 : 1;
+            const uint64_t attr = slot < 8 ? 2 : slot < 10 ? 1 : slot < 16 ? 0 : slot < 20 ? (m.ems_pages ? 2 : 0) : 1;
             map |= attr << (2 * slot);
         }
         cpu.attr_upper = map;
@@ -842,7 +867,7 @@ public:
         const uint32_t mmio_dword = uint32_t(cpu.mmio_address) << 2;
         m.top.mem_valid = cpu.mmio_valid;
         m.top.mem_write = cpu.mmio_write;
-        m.top.mem_address = (mmio_dword - 0xa0000) >> 2;
+        m.top.mem_address = mmio_dword >> 2;
         m.top.mem_byteenable = cpu.mmio_byteenable;
         m.top.mem_wdata = cpu.mmio_wdata;
         m.top.dma_done = cpu.dma_done;
@@ -896,6 +921,7 @@ public:
         // Attribute a DMA write like the lockstep harness: when WB is open,
         // it must restart the next instruction; during an instruction that
         // instruction is allowed to finish.
+        if (cpu.dma_done && m.in_frame(physical(dma_address, a20m))) ++m.ems_dma;
         if (cpu.dma_done && dma_write && !resetting) {
             const uint32_t at = physical(dma_address, a20m);
             if (smc_cycle.store(at, dma_owner, current)) {
@@ -911,7 +937,7 @@ public:
             for (unsigned lane = 0; lane < 8; ++lane) {
                 if (!(wmask >> lane & 1)) continue;
                 const uint32_t at = physical(waddr + lane, a20m);
-                if (at >= RAM_BYTES || (at >= 0xa0000 && at < 0xc0000)) continue;
+                if (at >= RAM_BYTES || m.mmio_range(at)) continue;
                 dirty[at >> 12] = true;
                 // Code the front end holds ahead of the next instruction.
                 if (smc_cycle.store(at, current, next)) {
@@ -1213,6 +1239,7 @@ struct Options {
     double frame_every = 0;
     double limit_seconds = 120, pixel_from = -1, type_at = -1, key_gap = 0.03, profile_from = 0, profile_to = -1;
     unsigned preset = 0, frequency = 0, turbo = 0;  // --cpu rtl's governor settings
+    unsigned ems_pages = 128;
     std::vector<std::pair<double, std::string>> keys;
     struct Mouse { double at; int dx, dy, buttons; };
     std::vector<Mouse> mouse;
@@ -1324,6 +1351,7 @@ Options parse(int argc, char **argv) {
         else if (flag == "--preset") options.preset = unsigned(std::stoul(value));
         else if (flag == "--frequency") options.frequency = unsigned(std::stoul(value));
         else if (flag == "--turbo") options.turbo = unsigned(std::stoul(value));
+        else if (flag == "--ems-pages") options.ems_pages = unsigned(std::stoul(value));
         else if (flag == "--keys") {
             size_t colon = value.find(':');
             if (colon == std::string::npos) throw std::runtime_error("--keys takes SECONDS:TEXT");
@@ -1367,7 +1395,7 @@ int main(int argc, char **argv) {
             || RtlCpu::physical(0x00100000u, true) != 0u)
             throw std::runtime_error("pc386 RTL physical address translation self-check failed");
         Options options = parse(argc, argv);
-        Machine machine(read_file(options.bios), read_file(options.vgabios), options.disk);
+        Machine machine(read_file(options.bios), read_file(options.vgabios), options.disk, options.ems_pages);
         if (!options.opl2_log.empty() && !(machine.opl2_log = std::fopen(options.opl2_log.c_str(), "w")))
             throw std::runtime_error("cannot write " + options.opl2_log);
         if (!options.trace.empty()) {
@@ -1843,6 +1871,9 @@ int main(int argc, char **argv) {
         if (snap_failures) reason = "presenter-mismatch";
         if (!options.wav.empty()) write_wav(options.wav, machine.link.samples);
         std::printf("MOUSE sent=%zu scheduled=%zu\n", mouse_sent, options.mouse.size());
+        std::printf("EMS pages=%u reads=%llu writes=%llu dma=%llu\n", machine.ems_pages,
+                    (unsigned long long)machine.ems_reads, (unsigned long long)machine.ems_writes,
+                    (unsigned long long)machine.ems_dma);
         std::printf("END %s steps=%llu cycles=%llu seconds=%.3f\n", reason, steps,
                     (unsigned long long)machine.cycles, seconds);
         if (!options.disk_out.empty())

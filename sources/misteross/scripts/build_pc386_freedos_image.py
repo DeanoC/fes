@@ -15,9 +15,10 @@ Two profiles:
          else. The simulation suites boot it.
   games  build/sim/fes-pc386/freedos-games.img: the setup the acceptance games
          run in, as the FogCast builder's image will be. FDCONFIG.SYS loads
-         UMBM, which hands the machine's upper RAM (C800h-EFFFh) to DOS as
-         upper memory blocks (DOS=UMB), then HIMEMX high with all extended
-         memory as XMS. POST leaves A20 off, so HIMEMX picks a real A20
+         UMBM, which hands the machine's upper RAM below the EMS board's
+         frame (C800h-DFFFh) to DOS as upper memory blocks (DOS=UMB), then
+         HIMEMX high with all extended memory as XMS, then the EMS board's
+         driver FESEMS.SYS (cores/fes-pc386/sim/fesems.asm) high. POST leaves A20 off, so HIMEMX picks a real A20
          method by itself. A boot menu offers two setups and takes the
          first after 3 seconds, so runs that press nothing get it:
            1  the kernel stays low (no DOS=HIGH), so Ultima VII's Voodoo
@@ -77,6 +78,7 @@ ROOT = Path(__file__).resolve().parents[1]
 LOCK = ROOT / 'cores/fes-pc386/sim/freedos.lock'
 FESENV = ROOT / 'cores/fes-pc386/sim/fesenv.asm'
 MOUSEDEF = ROOT / 'cores/fes-pc386/sim/mousedef.asm'
+FESEMS = ROOT / 'cores/fes-pc386/sim/fesems.asm'
 BUILD = ROOT / 'build/sim/fes-pc386/freedos'
 
 CYLINDERS, HEADS, SPT = 65, 16, 63
@@ -112,8 +114,9 @@ PROFILES = {
                      'MENU 1 - Games: DOS in conventional memory (default; Ultima VII needs this)\r\n'
                      'MENU 2 - More memory: DOS=HIGH, not for Ultima VII\r\n'
                      '1?DOS=UMB\r\n1?DOSDATA=UMB\r\n2?DOS=HIGH,UMB\r\n'
-                     'DEVICE=C:\\FDOS\\BIN\\UMBM.EXE /I=C800-EFFF\r\n'
+                     'DEVICE=C:\\FDOS\\BIN\\UMBM.EXE /I=C800-DFFF\r\n'
                      'DEVICEHIGH=C:\\FDOS\\BIN\\HIMEMX.EXE /VERBOSE\r\n'
+                     'DEVICEHIGH=C:\\FDOS\\BIN\\FESEMS.SYS\r\n'
                      '1?FILESHIGH=30\r\n1?BUFFERSHIGH=16\r\n2?FILES=30\r\n2?BUFFERS=16\r\n'
                      '1?' + SHELL.replace('SHELL=', 'SHELLHIGH=') + '2?' + SHELL),
         'autoexec': ('@ECHO OFF\r\nPROMPT $P$G\r\nPATH C:\\FDOS\\BIN;C:\\\r\n'
@@ -121,7 +124,7 @@ PROFILES = {
                      'VER\r\n'),
         'bin': {'HIMEMX.EXE': ('himemx', 'BIN/HimemX.exe'), 'UMBM.EXE': ('jemm', 'BIN/UMBM.EXE'),
                 'CTMOUSE.EXE': ('ctmouse', 'BIN/CTMOUSE.EXE'), 'MEM.EXE': ('mem', 'BIN/MEM.EXE'),
-                'FESENV.COM': FESENV, 'MOUSEDEF.COM': MOUSEDEF},
+                'FESENV.COM': FESENV, 'MOUSEDEF.COM': MOUSEDEF, 'FESEMS.SYS': FESEMS},
     },
 }
 

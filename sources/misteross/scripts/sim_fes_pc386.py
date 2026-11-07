@@ -219,6 +219,7 @@ MACHINE_RTL = AT_RTL + (
     CORE / 'rtl/pc386_vga_scanout.sv',
     CORE / 'rtl/pc386_presenter.sv',
     CORE / 'rtl/pc386_plane_bridge.sv',
+    CORE / 'rtl/pc386_ems.sv',
     CORE / 'rtl/pc386_port2.sv',
     CORE / 'rtl/pc386_machine.sv',
     COMMON / 'rtl/fes_display_plane.v',
@@ -266,6 +267,7 @@ GAMES_CONVENTIONAL_HEADROOM_BYTES = 1024
 # title needs from the games image's default boot entry (#1526).
 FRONTIER_MIN_CONVENTIONAL_BYTES = 594_000
 PRESENTER_RTL = (CORE / 'rtl/pc386_ram.sv', CORE / 'rtl/pc386_presenter.sv')
+EMS_RTL = (CORE / 'rtl/pc386_ems.sv',)
 CAPTURE_RTL = (
     CORE / 'rtl/pc386_rate.sv', CORE / 'rtl/pc386_ram.sv', CORE / 'rtl/pc386_vga_scanout.sv',
     CORE / 'sim/vga_capture_top.sv',
@@ -992,7 +994,8 @@ def run_bench(args, name: str, top: str, rtl: tuple[Path, ...], testbench: Path)
 def run_benches(args) -> dict:
     benches = {'presenter': run_bench(args, 'presenter', 'pc386_presenter', PRESENTER_RTL, CORE / 'sim/presenter_tb.cpp'),
                'capture': run_bench(args, 'capture', 'vga_capture_top', CAPTURE_RTL, CORE / 'sim/capture_tb.cpp'),
-               'plane': run_bench(args, 'plane', 'plane_top', PLANE_RTL, CORE / 'sim/plane_tb.cpp')}
+               'plane': run_bench(args, 'plane', 'plane_top', PLANE_RTL, CORE / 'sim/plane_tb.cpp'),
+               'ems': run_bench(args, 'ems', 'pc386_ems', EMS_RTL, CORE / 'sim/ems_tb.cpp')}
     return {'checks': [line for bench in benches.values() for line in bench['checks']],
             'failures': [line for bench in benches.values() for line in bench['failures']], 'benches': benches}
 
@@ -1576,6 +1579,8 @@ def run_game(args, linked: list[Path]) -> dict:
         extra += ['--rtl-at-prompt', '1']
     if args.instruction_census:
         extra += ['--census', str(work / 'census.txt')]
+    if args.oracle_profile:
+        extra += ['--profile', str(work / 'profile.txt')]
     report = run_machine(testbench, suite, ['--disk', str(disk), '--limit-seconds', str(args.limit_seconds),
                                             '--type', args.type, '--keys-after-type', '1', '--wav', str(wav),
                                             '--opl2-log', str(opl2_log), '--frames', str(frames), *keys, *extra,
@@ -1618,6 +1623,9 @@ def main() -> int:
                         help='game --cpu rtl: boot on the oracle and hand over to the RTL at the prompt')
     parser.add_argument('--instruction-census', action='store_true',
                         help="game: write the oracle's instruction census (machine_tb --census) to census.txt")
+    parser.add_argument('--oracle-profile', action='store_true',
+                        help="game --cpu oracle: write machine_tb's profile (each real-mode INT by AH, such as "
+                             'int67.4f for EMS) to profile.txt')
     parser.add_argument('--update-fixture', action='store_true',
                         help='sound: copy the captured OPL2 port log to sim/fixtures/sound-opl2.log')
     parser.add_argument('--type', default=None, help="keys typed at the prompt; '|' is Enter")
@@ -1635,6 +1643,8 @@ def main() -> int:
     args = parser.parse_args()
     if args.cpu == 'rtl' and args.suite not in ('boot', 'game', 'a20', 'c2xx', 'wait', 'speaker', 'scroll'):
         parser.error('--cpu rtl runs the boot, game, a20, c2xx, wait, speaker and scroll suites only')
+    if args.oracle_profile and not (args.suite == 'game' and args.cpu == 'oracle'):
+        parser.error('--oracle-profile is for the game suite with --cpu oracle')
     if args.rtl_at_prompt and not (args.suite == 'game' and args.cpu == 'rtl'):
         parser.error('--rtl-at-prompt is for the game suite with --cpu rtl')
     if args.image != 'boot' and args.suite != 'boot':
