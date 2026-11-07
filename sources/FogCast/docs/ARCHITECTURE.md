@@ -1691,16 +1691,21 @@ p3 files are preserved. The game library is imported once, with a completion
 marker on p3 outside the bound game tree, published only after the destination
 game directories are synced, so a crash cannot leave the marker ahead of the
 game entries. Deleting a migrated game from p3 does not restore it from the FAT
-copy at a later startup. A failed game copy or directory sync does not write
-the marker, so startup can retry the incomplete migration. Startup also checks
-that an existing `/media/fat/games` bind still refers to the current p3 game
-directory. If that source was removed or replaced, it records a fallback marker
-before unbinding a target on the FESDATA3 device; if marker publication fails,
-the existing bind remains. It then restores missing files from the still-visible
-FAT tree, syncs p3, and binds the live directory again. The marker remains until
-the bind succeeds, so a failed repair, target preparation, or bind retries
-missing-file reconciliation at the next startup. A failed p3
-mount also records the marker while FAT remains usable.
+copy at a later startup. A failed initial game copy or directory sync does not
+write the completion marker, so startup can retry the incomplete migration.
+Before copying into or binding the p3 game tree, startup rejects symlinked
+destination paths without following them. If the completion marker exists but
+the p3 game directory is missing, startup records and syncs a fallback marker
+before restoring it; an interrupted restore retries missing-file
+reconciliation across startups. Startup also checks that an existing
+`/media/fat/games` bind still refers to the current p3 game directory. If that
+source was removed or replaced, it records and syncs a fallback marker before
+unbinding a target on the FESDATA3 device, including when a marker from an
+earlier failed directory sync is already visible. It then restores missing
+files from the still-visible FAT tree, syncs p3, and binds the live directory
+again. The marker remains until the bind succeeds, so a failed repair, target
+preparation, or bind retries missing-file reconciliation at the next startup.
+A failed p3 mount also records the marker while FAT remains usable.
 When p3 is absent or its bind is gated, startup records a hidden fallback marker
 beside `/media/fat/games`. If the FAT filesystem cannot create hard links, the
 marker is published with a same-directory rename. On the next successful p3

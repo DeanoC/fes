@@ -386,6 +386,169 @@ func TestPrepareKeepsFallbackMarkerUntilGameBindSucceeds(t *testing.T) {
 	}
 }
 
+func TestPrepareRetriesFallbackMarkerDirectorySyncBeforeUnbinding(t *testing.T) {
+	t.Parallel()
+	mounter := newRecordingMounter()
+	cfg := testConfig(t, mounter)
+	fatGame := filepath.Join(cfg.LibraryFATRoot, "sms", "kept.sms")
+	if err := os.MkdirAll(filepath.Dir(fatGame), 0o700); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(fatGame, []byte("fat-game"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := Prepare(cfg); err != nil {
+		t.Fatalf("initial prepare: %v", err)
+	}
+	if err := os.RemoveAll(cfg.LibraryDataRoot); err != nil {
+		t.Fatal(err)
+	}
+
+	fallbackDir := filepath.Dir(gamesFallbackMarkerPath(cfg.LibraryFATRoot))
+	syncFailure := errors.New("fallback marker directory sync failed")
+	syncAttempts := 0
+	syncDir := func(path string) error {
+		if filepath.Clean(path) == filepath.Clean(fallbackDir) {
+			syncAttempts++
+			if syncAttempts == 1 {
+				return syncFailure
+			}
+		}
+		return syncDirectory(path)
+	}
+	if _, err := prepareWithSync(cfg, syncDir); !errors.Is(err, syncFailure) {
+		t.Fatalf("prepare after failed marker sync = %v, want sync error", err)
+	}
+	if len(mounter.unbinds) != 0 || mounter.mounted[cfg.LibraryFATRoot] == "" {
+		t.Fatalf("stale game bind was removed after failed marker sync: unbinds=%v", mounter.unbinds)
+	}
+	if pending, err := gamesFallbackPending(cfg.LibraryFATRoot); err != nil || !pending {
+		t.Fatalf("fallback marker visibility after failed sync = %v, %v", pending, err)
+	}
+
+	markerSynced := false
+	mounter.onUnbind = func(target string) {
+		if target == cfg.LibraryFATRoot && !markerSynced {
+			t.Error("stale game bind was removed before retrying the fallback marker directory sync")
+		}
+	}
+	secondSync := func(path string) error {
+		if filepath.Clean(path) == filepath.Clean(fallbackDir) {
+			markerSynced = true
+		}
+		return syncDirectory(path)
+	}
+	result, err := prepareWithSync(cfg, secondSync)
+	if err != nil || !slices.Contains(result.Bound, "games") {
+		t.Fatalf("retry prepare = %+v %v", result, err)
+	}
+	if !markerSynced {
+		t.Fatal("retry did not sync the fallback marker directory")
+	}
+	if got, err := os.ReadFile(filepath.Join(cfg.LibraryDataRoot, "sms", "kept.sms")); err != nil || string(got) != "fat-game" {
+		t.Fatalf("retry did not restore game data: %q %v", got, err)
+	}
+}
+
+func TestPrepareRejectsSymlinkedGameDestinationBeforeCopy(t *testing.T) {
+	t.Parallel()
+	mounter := newRecordingMounter()
+	cfg := testConfig(t, mounter)
+	fatGame := filepath.Join(cfg.LibraryFATRoot, "sms", "game.sms")
+	if err := os.MkdirAll(filepath.Dir(fatGame), 0o700); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(fatGame, []byte("fat-game"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	outside := t.TempDir()
+	if err := os.MkdirAll(cfg.MountPoint, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.MkdirAll(cfg.LibraryDataRoot, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Symlink(outside, filepath.Join(cfg.LibraryDataRoot, "sms")); err != nil {
+		t.Fatal(err)
+	}
+	result, err := Prepare(cfg)
+	if err == nil || !strings.Contains(err.Error(), "symlink") {
+		t.Fatalf("prepare with symlinked game destination = %+v %v, want symlink error", result, err)
+	}
+	if _, err := os.Lstat(filepath.Join(outside, "game.sms")); !errors.Is(err, os.ErrNotExist) {
+		t.Fatalf("game was copied through destination symlink: %v", err)
+	}
+	if mounter.mounted[cfg.LibraryFATRoot] != "" {
+		t.Fatal("symlinked game destination was bound")
+	}
+}
+
+func TestPrepareRetriesInterruptedRestoreWithCompletedMigrationMarker(t *testing.T) {
+	t.Parallel()
+	firstMounter := newRecordingMounter()
+	cfg := testConfig(t, firstMounter)
+	firstGame := filepath.Join(cfg.LibraryFATRoot, "a.sms")
+	secondGame := filepath.Join(cfg.LibraryFATRoot, "zdir", "b.sms")
+	if err := os.MkdirAll(filepath.Dir(secondGame), 0o700); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(firstGame, []byte("first"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(secondGame, []byte("second"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.MkdirAll(cfg.MountPoint, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	migrationMarker := filepath.Join(cfg.MountPoint, gamesMigrationMarker)
+	if err := os.WriteFile(migrationMarker, []byte("complete\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	syncFailure := errors.New("restore directory sync failed")
+	failedRestoreSync := false
+	syncDir := func(path string) error {
+		if !failedRestoreSync && filepath.Clean(path) == filepath.Clean(cfg.LibraryDataRoot) {
+			failedRestoreSync = true
+			return syncFailure
+		}
+		return syncDirectory(path)
+	}
+	if _, err := prepareWithSync(cfg, syncDir); !errors.Is(err, syncFailure) {
+		t.Fatalf("interrupted restore prepare = %v, want sync error", err)
+	}
+	if !failedRestoreSync {
+		t.Fatal("restore did not reach destination directory sync")
+	}
+	if pending, err := gamesFallbackPending(cfg.LibraryFATRoot); err != nil || !pending {
+		t.Fatalf("restore retry marker = %v, %v; want pending", pending, err)
+	}
+	if _, err := os.Lstat(migrationMarker); err != nil {
+		t.Fatalf("completed migration marker was lost: %v", err)
+	}
+	// Model the missing portion left by a power loss during the restore.
+	if err := os.Remove(filepath.Join(cfg.LibraryDataRoot, "zdir", "b.sms")); err != nil {
+		t.Fatal(err)
+	}
+
+	secondMounter := newRecordingMounter()
+	t.Cleanup(func() { _ = secondMounter.Close() })
+	cfg.Mounter = secondMounter
+	cfg.Mounted = func(target string) bool { return secondMounter.mounted[target] != "" }
+	cfg.BindMatches = secondMounter.BindMatches
+	result, err := Prepare(cfg)
+	if err != nil || !slices.Contains(result.Bound, "games") {
+		t.Fatalf("startup after interrupted restore = %+v %v", result, err)
+	}
+	if got, err := os.ReadFile(filepath.Join(cfg.LibraryDataRoot, "zdir", "b.sms")); err != nil || string(got) != "second" {
+		t.Fatalf("startup retry did not restore missing game: %q %v", got, err)
+	}
+	if pending, err := gamesFallbackPending(cfg.LibraryFATRoot); err != nil || pending {
+		t.Fatalf("successful restore retry left marker: %v, %v", pending, err)
+	}
+}
+
 func TestCopyMarkerAtomicallyFallsBackWhenHardLinksAreUnsupported(t *testing.T) {
 	t.Parallel()
 	dir := t.TempDir()

@@ -40,9 +40,10 @@ const (
 const gamesMigrationMarker = ".fes-games-migrated-v1"
 
 // gamesFallbackMarker is stored beside the FAT game tree while p3 is
-// unavailable, its bind is gated, or a game-tree repair/bind fails. It lets
-// the next successful bind copy game files added while FAT was visible and
-// retry interrupted repairs without repeating migration on normal startup.
+// unavailable, its bind is gated, a game-tree repair/bind fails, or a completed
+// migration's p3 game tree is being restored. It lets the next successful bind
+// copy missing game files from FAT and retry interrupted repairs without
+// repeating migration on normal startup.
 const gamesFallbackMarker = ".fes-games-fallback-v1"
 
 // DefaultBindNames are the FogCast trees that live on p3 after a successful
@@ -181,10 +182,14 @@ func Mount(cfg Config) (Result, error) {
 }
 
 func Prepare(cfg Config) (Result, error) {
+	return prepareWithSync(cfg, syncDirectory)
+}
+
+func prepareWithSync(cfg Config, syncDir func(string) error) (Result, error) {
 	mounted, err := Mount(cfg)
 	cfg = applyDefaults(cfg)
 	if mounted.Skipped != "" {
-		if markErr := markGamesFallback(cfg.LibraryFATRoot); markErr != nil {
+		if markErr := markGamesFallbackWithSync(cfg.LibraryFATRoot, syncDir); markErr != nil {
 			err = errors.Join(err, markErr)
 		}
 		return mounted, err
@@ -194,7 +199,7 @@ func Prepare(cfg Config) (Result, error) {
 		// remains the usable game store, so preserve a retry marker for the
 		// next startup just as we do when the partition is absent or gated.
 		if mounted.Device != "" {
-			err = errors.Join(err, markGamesFallback(cfg.LibraryFATRoot))
+			err = errors.Join(err, markGamesFallbackWithSync(cfg.LibraryFATRoot, syncDir))
 		}
 		return mounted, err
 	}
@@ -240,17 +245,12 @@ func Prepare(cfg Config) (Result, error) {
 			bindGames = false
 		} else {
 			// Record the repair before removing the stale bind. If startup stops
-			// after unbind, or marker publication fails, the next startup must
-			// still know to reconcile the p3 game tree against FAT.
-			fallbackPending, err := gamesFallbackPending(cfg.LibraryFATRoot)
-			if err != nil {
-				bindErr = errors.Join(bindErr, fmt.Errorf("check game fallback marker before removing stale bind: %w", err))
+			// after unbind, or a prior marker publication was not durable, the
+			// next startup must still know to reconcile the p3 game tree against
+			// FAT. markGamesFallback also syncs an already visible marker.
+			if err := markGamesFallbackWithSync(cfg.LibraryFATRoot, syncDir); err != nil {
+				bindErr = errors.Join(bindErr, fmt.Errorf("record game fallback marker before removing stale bind: %w", err))
 				bindGames = false
-			} else if !fallbackPending {
-				if err := markGamesFallback(cfg.LibraryFATRoot); err != nil {
-					bindErr = errors.Join(bindErr, fmt.Errorf("record game fallback marker before removing stale bind: %w", err))
-					bindGames = false
-				}
 			}
 			if bindGames {
 				if err := cfg.Mounter.Unbind(cfg.MountPoint, cfg.LibraryFATRoot); err != nil {
@@ -269,35 +269,60 @@ func Prepare(cfg Config) (Result, error) {
 			bindErr = errors.Join(bindErr, err)
 		} else {
 			if repairGames && !fallbackPending {
-				if err := markGamesFallback(cfg.LibraryFATRoot); err != nil {
+				if err := markGamesFallbackWithSync(cfg.LibraryFATRoot, syncDir); err != nil {
 					bindErr = errors.Join(bindErr, err)
 					bindGames = false
 				} else {
 					fallbackPending = true
+				}
+			} else if fallbackPending && !repairGames {
+				// The marker may have been published before an earlier directory
+				// sync failed. Make it durable before using it to authorize repair.
+				if err := markGamesFallbackWithSync(cfg.LibraryFATRoot, syncDir); err != nil {
+					bindErr = errors.Join(bindErr, err)
+					bindGames = false
 				}
 			}
 			if !bindGames {
 				return result, bindErr
 			}
 			var gameErr error
-			if repairGames || fallbackPending {
-				gameErr = repairGamesOnce(cfg.LibraryFATRoot, cfg.LibraryDataRoot, marker)
+			if err := validateGameDestination(cfg.MountPoint, cfg.LibraryDataRoot); err != nil {
+				gameErr = err
+			} else if repairGames || fallbackPending {
+				gameErr = repairGamesOnceWithSync(cfg.LibraryFATRoot, cfg.LibraryDataRoot, marker, syncDir)
 			} else {
-				gameErr = migrateGamesOnce(cfg.LibraryFATRoot, cfg.LibraryDataRoot, marker)
+				gameErr = migrateGamesOnceWithSync(cfg.LibraryFATRoot, cfg.LibraryDataRoot, marker, syncDir)
 			}
 			if gameErr != nil {
 				bindErr = errors.Join(bindErr, gameErr)
 			} else {
-				if err := ensureBindTarget(cfg.LibraryFATRoot); err != nil {
-					bindErr = errors.Join(bindErr, err, markGamesFallback(cfg.LibraryFATRoot))
+				// A completed migration marker can coexist with a recovery marker
+				// while a previously missing p3 tree is being restored.
+				fallbackPending, err = gamesFallbackPending(cfg.LibraryFATRoot)
+				if err != nil {
+					bindErr = errors.Join(bindErr, err)
+				} else if fallbackPending {
+					if err := markGamesFallbackWithSync(cfg.LibraryFATRoot, syncDir); err != nil {
+						bindErr = errors.Join(bindErr, err)
+						bindGames = false
+					}
+				}
+				if !bindGames {
+					return result, bindErr
+				}
+				if err := validateGameDestination(cfg.MountPoint, cfg.LibraryDataRoot); err != nil {
+					bindErr = errors.Join(bindErr, err, markGamesFallbackWithSync(cfg.LibraryFATRoot, syncDir))
+				} else if err := ensureBindTarget(cfg.LibraryFATRoot); err != nil {
+					bindErr = errors.Join(bindErr, err, markGamesFallbackWithSync(cfg.LibraryFATRoot, syncDir))
 				} else if err := cfg.Mounter.Bind(cfg.LibraryDataRoot, cfg.LibraryFATRoot); err != nil {
-					bindErr = errors.Join(bindErr, err, markGamesFallback(cfg.LibraryFATRoot))
+					bindErr = errors.Join(bindErr, err, markGamesFallbackWithSync(cfg.LibraryFATRoot, syncDir))
 				} else {
 					result.Bound = append(result.Bound, "games")
 					// Keep the marker until the repaired p3 tree is actually
 					// visible at the FAT path. A failed bind must remain retryable.
 					if fallbackPending {
-						if err := clearGamesFallback(cfg.LibraryFATRoot); err != nil {
+						if err := clearGamesFallbackWithSync(cfg.LibraryFATRoot, syncDir); err != nil {
 							bindErr = errors.Join(bindErr, err)
 						}
 					}
@@ -327,11 +352,14 @@ func gamesFallbackPending(libraryFATRoot string) (bool, error) {
 	return true, nil
 }
 
-func markGamesFallback(libraryFATRoot string) error {
+func markGamesFallbackWithSync(libraryFATRoot string, syncDir func(string) error) error {
 	marker := gamesFallbackMarkerPath(libraryFATRoot)
 	pending, err := gamesFallbackPending(libraryFATRoot)
-	if err != nil || pending {
+	if err != nil {
 		return err
+	}
+	if pending {
+		return syncDir(filepath.Dir(marker))
 	}
 	if err := os.MkdirAll(filepath.Dir(marker), 0o755); err != nil {
 		return err
@@ -339,15 +367,15 @@ func markGamesFallback(libraryFATRoot string) error {
 	if err := copyMarkerAtomically(strings.NewReader("pending\n"), marker); err != nil {
 		return err
 	}
-	return syncDirectory(filepath.Dir(marker))
+	return syncDir(filepath.Dir(marker))
 }
 
-func clearGamesFallback(libraryFATRoot string) error {
+func clearGamesFallbackWithSync(libraryFATRoot string, syncDir func(string) error) error {
 	marker := gamesFallbackMarkerPath(libraryFATRoot)
 	if err := os.Remove(marker); err != nil && !errors.Is(err, os.ErrNotExist) {
 		return err
 	}
-	return syncDirectory(filepath.Dir(marker))
+	return syncDir(filepath.Dir(marker))
 }
 
 func validateConfig(cfg Config) error {
@@ -540,11 +568,10 @@ func copyMissing(src, dst string) error {
 	})
 }
 
-func migrateGamesOnce(src, dst, marker string) error {
-	return migrateGamesOnceWithSync(src, dst, marker, syncDirectory)
-}
-
 func migrateGamesOnceWithSync(src, dst, marker string, syncDir func(string) error) error {
+	if err := validateGameDestination(filepath.Dir(dst), dst); err != nil {
+		return err
+	}
 	complete, err := migrationComplete(marker)
 	if err != nil {
 		return err
@@ -552,7 +579,15 @@ func migrateGamesOnceWithSync(src, dst, marker string, syncDir func(string) erro
 	if complete {
 		info, err := os.Lstat(dst)
 		if errors.Is(err, os.ErrNotExist) {
+			// Preserve evidence that this is a restoration, so an interrupted
+			// copy is retried even though the original migration marker is complete.
+			if err := markGamesFallbackWithSync(src, syncDir); err != nil {
+				return err
+			}
 			if err := copyMissing(src, dst); err != nil {
+				return err
+			}
+			if err := validateGameDestination(filepath.Dir(dst), dst); err != nil {
 				return err
 			}
 			return syncDestinationDirectories(src, dst, syncDir)
@@ -566,6 +601,9 @@ func migrateGamesOnceWithSync(src, dst, marker string, syncDir func(string) erro
 		return nil
 	}
 	if err := copyMissing(src, dst); err != nil {
+		return err
+	}
+	if err := validateGameDestination(filepath.Dir(dst), dst); err != nil {
 		return err
 	}
 	if err := syncDestinationDirectories(src, dst, syncDir); err != nil {
@@ -584,13 +622,16 @@ func migrateGamesOnceWithSync(src, dst, marker string, syncDir func(string) erro
 	return syncDir(filepath.Dir(marker))
 }
 
-func repairGamesOnce(src, dst, marker string) error {
+func repairGamesOnceWithSync(src, dst, marker string, syncDir func(string) error) error {
 	complete, err := migrationComplete(marker)
 	if err != nil {
 		return err
 	}
 	if !complete {
-		return migrateGamesOnce(src, dst, marker)
+		return migrateGamesOnceWithSync(src, dst, marker, syncDir)
+	}
+	if err := validateGameDestination(filepath.Dir(dst), dst); err != nil {
+		return err
 	}
 	info, err := os.Lstat(dst)
 	if err != nil && !errors.Is(err, os.ErrNotExist) {
@@ -602,7 +643,56 @@ func repairGamesOnce(src, dst, marker string) error {
 	if err := copyMissing(src, dst); err != nil {
 		return err
 	}
-	return syncDestinationDirectories(src, dst, syncDirectory)
+	if err := validateGameDestination(filepath.Dir(dst), dst); err != nil {
+		return err
+	}
+	return syncDestinationDirectories(src, dst, syncDir)
+}
+
+// validateGameDestination checks each existing destination path component
+// under the mounted p3 root and walks the game tree without following links.
+func validateGameDestination(p3Root, dst string) error {
+	p3Root = filepath.Clean(p3Root)
+	dst = filepath.Clean(dst)
+	rel, err := filepath.Rel(p3Root, dst)
+	if err != nil || rel == ".." || strings.HasPrefix(rel, ".."+string(os.PathSeparator)) {
+		return fmt.Errorf("game data destination is outside FESDATA3: %s", dst)
+	}
+	rootInfo, err := os.Lstat(p3Root)
+	if errors.Is(err, os.ErrNotExist) {
+		return nil
+	}
+	if err != nil {
+		return err
+	}
+	if rootInfo.Mode()&os.ModeSymlink != 0 || !rootInfo.IsDir() {
+		return fmt.Errorf("FESDATA3 game destination root is not a real directory: %s", p3Root)
+	}
+	current := p3Root
+	if rel != "." {
+		for _, component := range strings.Split(rel, string(os.PathSeparator)) {
+			current = filepath.Join(current, component)
+			info, err := os.Lstat(current)
+			if errors.Is(err, os.ErrNotExist) {
+				return nil
+			}
+			if err != nil {
+				return err
+			}
+			if info.Mode()&os.ModeSymlink != 0 || !info.IsDir() {
+				return fmt.Errorf("game data destination is not a real directory: %s", current)
+			}
+		}
+	}
+	return filepath.WalkDir(dst, func(path string, entry fs.DirEntry, walkErr error) error {
+		if walkErr != nil {
+			return walkErr
+		}
+		if entry.Type()&os.ModeSymlink != 0 {
+			return fmt.Errorf("game data destination contains a symlink: %s", path)
+		}
+		return nil
+	})
 }
 
 func syncDestinationDirectories(src, dst string, syncDir func(string) error) error {
