@@ -25,6 +25,7 @@ proc nodes {count} {set result {}; for {set i 0} {$i<$count} {incr i} {lappend r
 proc get_registers {args} {
     global fault
     set pattern [lindex $args end]
+    if {[string first hdmi_irq_sync $pattern]>=0} {return [nodes [expr {$fault eq "irq-stages" ? 1 : 2}]]}
     if {[string first sys_release $pattern]>=0} {return [nodes [expr {$fault eq "old-reset"}]]}
     if {[string first published_rows $pattern]>=0 || [string first front_rows $pattern]>=0} {
         return [nodes [expr {$fault eq "metadata" ? 8 : 9}]]
@@ -35,6 +36,7 @@ proc get_registers {args} {
 proc get_pins {args} {
     global fault
     set pattern [lindex $args end]
+    if {[string first hdmi_irq_sync $pattern]>=0} {return [nodes [expr {$fault eq "irq-pin" ? 0 : 1}]]}
     if {[string first clrn $pattern]>=0} {return {}}
     if {[string first sync_regs $pattern]>=0} {return [nodes 4]}
     if {[string first pixel_transport_reset_release $pattern]>=0} {
@@ -45,6 +47,7 @@ proc get_pins {args} {
 }
 proc get_ports {name} {
     global fault
+    if {$fault eq "irq-raw" && $name eq "HDMI_TX_INT"} {return {}}
     if {[string first HDMI_TX_D $name]>=0} {return [nodes [expr {$fault eq "hdmi-data" ? 26 : 27}]]}
     if {$fault eq "hdmi-clock-pad" && $name eq "HDMI_TX_CLK"} {return {}}
     return [list $name]
@@ -74,9 +77,9 @@ foreach command {set_net_delay set_data_delay set_max_skew set_max_delay set_min
 }
 '''
         for fault in ('none','old-reset','metadata','token','pixel-reset','ready',
-                      'hdmi-master','hdmi-multiple','hdmi-target','hdmi-clock-pad','hdmi-data'):
+                      'hdmi-master','hdmi-multiple','hdmi-target','hdmi-clock-pad','hdmi-data','irq-stages','irq-pin','irq-raw'):
             script='set fault '+fault+'\n'+stub+'\nsource {'+str(SDC)+'}\n'
-            script+='if {[llength $cuts]!=5 || [llength $bounds]!=5} {error "timing contract lost cuts or metadata bounds"}\nputs PASS\n'
+            script+='if {[llength $cuts]!=6 || [llength $bounds]!=5} {error "timing contract lost cuts or metadata bounds"}\nputs PASS\n'
             script+='''
 if {[llength $clocks]!=2 || [llength $delays]!=2 || $uncertainty!=1} {error "HDMI timing contract lost"}
 set forwarded [lindex $clocks 1]

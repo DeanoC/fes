@@ -146,6 +146,28 @@ vendor 1.1-V clock assignment on DJ24 conflicts with the manual's 3.3 V table;
 the electrical clock path must be resolved before board signoff. No voltage,
 clock phase, receiver register or load value is changed to hide that gap.
 
+`hdmi_control.py` derives the captured board wrapper with a two-stage,
+50 MHz interrupt synchronizer sharing its existing qualified configuration
+reset. Only the raw interrupt's first D pin is cut; stage-to-stage and the
+related divided-clock consumer remain timed. Both reset to the inactive level.
+The same guarded derivation makes the initializer wait for `END` to go low
+(actual busy entry) before accepting completion. Otherwise stale completion
+can end a new request before it starts. The captured register table, divider
+and byte controller are unchanged; original/derived hashes are verified.
+
+`verify_hdmi.py --project /absolute/prepared/board/hps/project --output out/HDMI
+--yosys /absolute/yosys` runs the actual board/reset HDL and a process-synthesized
+model of the captured initializer/controller against an open-drain slave model.
+It checks 99 accepted writes across startup, IRQ reinitialization and reset
+recovery, a NACK retry and immediate reset with the clock parked. Restoring
+raw IRQ wiring or the stale-completion handshake must fail. The vendor's
+blocking clocked processes race under direct event simulation; Yosys lowers
+them to explicit register next-state logic for this digital circuit model.
+This is not Quartus circuit equivalence, metastability or physical I2C timing
+proof. External SDA/SCL timing/loading still needs qualification. The full
+affected suite enables this model with `FES_NANO_HDMI_PROJECT` and the selected
+`FES_YOSYS`; `FES_DE25_VENDOR_ARCHIVE` enables original-source mutation checks.
+
 The ROM slave occupies peripheral-relative `0x10500`, spanning 128 bytes. It
 shares the computer clock/reset and exports no bus master. This is not a verified
 CPU address. Its Hold input reports explicit mailbox Hold; an independent

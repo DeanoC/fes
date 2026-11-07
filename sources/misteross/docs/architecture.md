@@ -134,6 +134,18 @@ has a zero board-skew reference; actual board skew/loading and the inherited
 vendor clock-voltage discrepancy remain unresolved. It lets the fitter repair
 receiver timing without claiming external electrical or board qualification.
 
+The captured HDMI wrapper qualifies the asynchronous interrupt through two
+50 MHz stages using the existing configuration reset. Only its first D pin
+has an asynchronous-input exception; the second stage and divided-clock
+consumer remain timed. A guarded initializer change waits for actual busy
+entry before accepting completion, preventing a stale `END` from completing
+a newly asserted `GO`. Its byte controller, divider and register table retain
+their captured bytes. Original/derived source hashes enter verification.
+The actual wrapper/reset and process-synthesized control circuit are tested
+with an open-drain bus model, NACK retry, IRQ reinitialization, reset mid-transfer
+and negative controls for both repairs. Digital circuit modeling does not
+establish Quartus circuit equivalence or board I2C timing/loading.
+
 The reviewed ROM/HPS-DDR variant declares the 100 MHz association on both reset
 bridges. Platform Designer consequently shares the memory reset-request
 controller's reset and early request with the peripheral devices through an

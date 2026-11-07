@@ -20,6 +20,7 @@ import computer_model
 import rom_transport
 import timing_sources
 import reset_domains
+import hdmi_control
 ROOT = HERE.parents[3]
 TAMAGO = ROOT / "platform/embedded/tamago"
 SPEC = importlib.util.spec_from_file_location("embedded_sim_producer", HERE.parent / "embedded_control/producer.py")
@@ -197,6 +198,7 @@ def inputs_for(project):
     computer_model.verify(board/'hps/project', inputs, model_sources)
     rom_transport.verify(board/'hps/project',inputs,{name:(snapshot/name).read_bytes() for name in sources})
     reset_domains.verify(board/'hps/project',inputs)
+    hdmi_control.verify(board/'hps/project',inputs,{name:(snapshot/name).read_bytes() for name in sources})
     if generation.get('reset_domains') != reset_domains.verify_generated(board/'hps/project',inputs):
         raise ValueError('generated qualified reset ownership evidence differs')
     if rom_transport.checked(inputs) and generation.get('rom_transport') != rom_transport.verify_generated(board/'hps/project',inputs):

@@ -2,6 +2,15 @@
 set hdmi_config_clock [get_registers {fes_video_inst|hdmi_config|mI2C_CTRL_CLK}]
 if {[get_collection_size $hdmi_config_clock] != 1} {error "DE25 computer I2C clock register changed"}
 create_generated_clock -name adv7513_config -source [get_ports CLOCK0_50] -divide_by 5002 $hdmi_config_clock
+# Only the raw asynchronous interrupt's first D pin is exempt. The second
+# stage and the related divided-clock configuration consumer remain timed.
+set hdmi_irq_pin [get_ports HDMI_TX_INT]
+set hdmi_irq_first [get_pins -compatibility_mode -nocase -nowarn {fes_video_inst|hdmi_irq_sync[0]|D}]
+set hdmi_irq_stages [get_registers {fes_video_inst|hdmi_irq_sync[*]}]
+if {[get_collection_size $hdmi_irq_pin] != 1 || [get_collection_size $hdmi_irq_first] != 1 || [get_collection_size $hdmi_irq_stages] != 2} {
+    error "DE25 HDMI interrupt requires exactly two stages and one raw first-stage D pin"
+}
+set_false_path -from $hdmi_irq_pin -to $hdmi_irq_first
 set computer_aclr [get_pins -compatibility_mode -nocase -nowarn {fes_video_inst|config_reset|sync_regs*|aclr fes_video_inst|pixel_reset|sync_regs*|aclr}]
 set computer_clrn [get_pins -compatibility_mode -nocase -nowarn {fes_video_inst|config_reset|sync_regs*|clrn fes_video_inst|pixel_reset|sync_regs*|clrn}]
 set computer_clear_count [expr {[get_collection_size $computer_aclr] + [get_collection_size $computer_clrn]}]

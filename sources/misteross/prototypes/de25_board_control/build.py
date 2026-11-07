@@ -27,6 +27,7 @@ import computer_model
 import rom_transport
 import timing_sources
 import reset_domains
+import hdmi_control
 MISTEROSS = HERE.parents[1]
 ROOT = MISTEROSS.parents[1]
 BOARD = "sources/misteross/boards/de25nano/"
@@ -40,7 +41,7 @@ INPUTS = (OVERLAY + "build.py", OVERLAY + "fes_de25_embedded.sv", OVERLAY + "fes
           OVERLAY + "fes_de25_computer.v", OVERLAY + "generated/fes_de25_computer.vh",
           OVERLAY + "generated/fes_de25_computer.hpp",
           OVERLAY + "reader_memory.py", OVERLAY + "computer_model.py", OVERLAY + "rom_transport.py", OVERLAY + "video.v",
-          OVERLAY + "timing_sources.py", OVERLAY + "clocks.sdc", OVERLAY + "reset_domains.py",
+          OVERLAY + "timing_sources.py", OVERLAY + "clocks.sdc", OVERLAY + "reset_domains.py", OVERLAY + "hdmi_control.py",
           *(OVERLAY + name for name in reset_domains.SOURCES),
           *(OVERLAY + name for name in rom_transport.FILES), ENDPOINT, WINDOW_READER, WINDOW_CONTROL, DEFINITION)
 BOOTSTRAP = ("build.py", "display/build.py", "zx81/build.py", "zx81-hps/build.py")
@@ -223,6 +224,7 @@ def overlay_project(output, board, sources, identity, record=None):
     script = replace_once(script, anchor, sources[OVERLAY + "integrate.tcl"].decode() + "\n" + anchor)
     inputs_file = output / "hps/inputs.json"
     inputs = json.loads(inputs_file.read_text())
+    hdmi_control.install(project, inputs, sources)
     for name in ('fes_de25_computer.v','video.v','clocks.sdc','generated/fes_de25_computer.vh','generated/fes_de25_computer.hpp'):
         inputs['computer']['source_sha256'][name]=digest(sources[OVERLAY+name])
     memory = reader_memory.checked(inputs['reader_memory'])
@@ -583,6 +585,7 @@ def main():
         build_id = overlay_project(result, board, sources, selected, record)
         rom_transport.verify(result/'hps/project',json.loads(inputs_file.read_text()),sources)
         reset_domains.verify(result/'hps/project',json.loads(inputs_file.read_text()))
+        hdmi_control.verify(result/'hps/project',json.loads(inputs_file.read_text()),sources)
         print("DE25 embedded diagnostic:", result, "build ID:", build_id, flush=True)
         if args.action != "project":
             tool, version = hps.BOARD_BUILD.locate_quartus(args.quartus_root)
@@ -601,6 +604,7 @@ def main():
                 artifact = compile_project(result / "hps", tool)
                 computer_model.verify(result/'hps/project', json.loads(inputs_file.read_text()), sources)
                 rom_transport.verify(result/'hps/project', json.loads(inputs_file.read_text()), sources)
+                hdmi_control.verify(result/'hps/project', json.loads(inputs_file.read_text()), sources)
                 if reader_memory.mode(memory) and review_ddr_parameters(result/'hps',hps)!=evidence['reviewed_ddr_hps_parameters']:
                     raise ValueError('compile changed reviewed DDR HPS/EMIF parameters')
                 checks = {"system": board.pll_review(result / "hps/project/ip/pll", 100000000),
