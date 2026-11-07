@@ -238,8 +238,8 @@ On the Rogue disk, bound as `xt1529-rogue`:
   | MAME, upper lane | 3 | 72.84 (72.71–72.86) | 3 |
   | MAME, lower lane | 1 | 72.83 | 3 |
 
-- The kit's clip 2 holds 3553 frames for 60 s, so the capture dropped about
-  1.3% of its frames there. Clip 1 holds all 3600.
+- The kit's clip 2 holds 3553 frames for its 60 s request (clip 1 holds all
+  3600). Why is not established.
 
 **Paratrooper speaker.**
 - `tones.py` estimates each 50 ms window's tone from its zero crossings.
@@ -279,9 +279,10 @@ On the Rogue disk, bound as `xt1529-rogue`:
 This is recorded apart from play and filed as
 [#1534](https://github.com/DeanoC/fes/issues/1534).
 
-- **Every ordinary Stop and relaunch worked.** Eight library launches before
-  the reset came up `Boot [ COLD ]` and booted FreeDOS. Seven were in `s1`
-  and one in `s2`.
+- **Every launch before the reset booted FreeDOS.** That was five launches
+  with a bound floppy (four in `s1`, one in `s2`) and two with a raw insert
+  (`s1`). The two whose POST screen was grabbed, both in `s1`, showed
+  `Boot [ COLD ]`.
   - A load took 6.75–7.25 s. A floppy insert took 4.2–5.9 s.
 - **Ctrl+Alt+Del in Alley Cat.**
   - The HDMI picture went fully black. Every captured pixel was 0 for over
@@ -327,6 +328,13 @@ This is recorded apart from play and filed as
   the play objective.
 
 ## Kit use and cleanup
+
+The private evidence is on Powerboat under `~/fes-scratch/xt1529/`:
+- `runs/s1`–`s3`: commands, acks, frames, clips and WAVs;
+- `records/`: the pulled floppy records;
+- `mame/`: the reference sessions;
+- `nasm/`: the probe.
+
 
 Each run was claimed in `~/kit-status/kitB-STATUS.md` under the Kit B queue
 lock, and only after the status file read FREE, the kit was on its baseline
