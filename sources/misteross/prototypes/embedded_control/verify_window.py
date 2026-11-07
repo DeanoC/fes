@@ -252,8 +252,10 @@ def main():
         frames=[str(output/f'packed/frames/frame-{i}.bin') for i in range(2)])
     (aperture/'descriptor.json').write_bytes(producer.canonical(descriptor))
     native_env = dict(environment, FES_WINDOW_APERTURE_DIR=str(aperture))
+    # Menu tests require a different live RTL fixture, supplied by verify_menu.py.
+    # Keep every checksum-window/unit test and the strict no-skip assertion here.
     native = run(aperture, 'native', [go, '-C', 'platform/embedded/tamago', 'test', '-race', '-count=1',
-        '-json', './scanout'], native_env, cap=60)
+        '-json', '-skip', '^TestMenuActualRTL$', './scanout'], native_env, cap=60)
     events = [json.loads(line) for line in native.splitlines()]
     passed = [e['Test'] for e in events if e['Action']=='pass' and e.get('Test','').startswith('TestWindowReaderActualAvalon/')]
     expected_cases={f'TestWindowReaderActualAvalon/{name}' for name in (
