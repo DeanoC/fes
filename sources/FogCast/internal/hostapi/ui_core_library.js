@@ -94,6 +94,22 @@
       return match ? match.role : '';
     }
     function mediaAllowed() { return mediaRole() !== ''; }
+    // The host's import limit for the selected package's media route.
+    function importLimit() { return hardDisk() ? MAX_HARD_DISK_BYTES : MAX_MEDIA_BYTES; }
+    // The geometry the selected entry's hard disk would launch with: its
+    // override, or what the imported image's partition table implies. Only
+    // an image imported in this panel carries the inferred geometry.
+    function entryDiskGeometry() {
+      const entry = selectedEntry();
+      if (!entry || entry.media_role !== 'hard-disk' || !digest(entry.media_id)) return null;
+      const imported = state.media && state.media.media_id === entry.media_id ? state.media : null;
+      return {
+        override: chs(entry.disk_geometry) ? {...entry.disk_geometry} : null,
+        inferred: imported && chs(imported.geometry) ? {...imported.geometry} : null,
+        error: imported && typeof imported.geometry_error === 'string' ? imported.geometry_error : '',
+        size: imported ? imported.size : 0,
+      };
+    }
     function stFloppy() {
       const caps = state.capabilities;
       if (!caps || caps.package_id !== state.packageId) return null;
@@ -410,7 +426,7 @@
         return mutate(async () => {
           requirePackage();
           const disk = hardDisk();
-          boundedFile(file, disk ? MAX_HARD_DISK_BYTES : MAX_MEDIA_BYTES);
+          boundedFile(file, importLimit());
           if (disk && (file.size < 1024 * 1024 || file.size % 512 !== 0)) throw new Error('Choose a raw hard-disk image of 1 to 128 MiB in whole 512-byte sectors.');
           const value = await request(disk ? '/api/v1/core-media/hard-disk' : '/api/v1/core-media', {method:'POST', headers:{'Content-Type':'application/octet-stream'}, body:file},
             disk ? Math.max(requestTimeoutMs, hardDiskImportMs(file.size)) : requestTimeoutMs);
@@ -457,6 +473,24 @@
           return {expected_package_id:entry.package_id, expected_media_id:entry.media_id || '', media_role:mediaRole(), media_id:state.media.media_id};
         }, '/media', 'Media selected for the next launch.');
       },
+      // setDiskGeometry overrides the selected hard disk's geometry for the
+      // next launch; null restores the one its partition table implies.
+      setDiskGeometry(geometry) {
+        return entryMutation(entry => {
+          if (entry.media_role !== 'hard-disk' || !digest(entry.media_id)) throw new Error('Select a hard-disk image for this entry first.');
+          if (geometry !== null) {
+            const g = {cylinders:Number(geometry && geometry.cylinders), heads:Number(geometry && geometry.heads),
+              sectors_per_track:Number(geometry && geometry.sectors_per_track)};
+            if (!Object.values(g).every(n => Number.isInteger(n) && n >= 1)) throw new Error('Cylinders, heads and sectors per track must be whole numbers from 1.');
+            const known = entryDiskGeometry();
+            if (known && known.size && g.cylinders * g.heads * g.sectors_per_track * 512 > known.size) throw new Error('That geometry addresses more sectors than the image holds.');
+            geometry = g;
+          }
+          return {expected_package_id:entry.package_id, expected_media_id:entry.media_id, geometry};
+        }, '/disk-geometry', geometry === null ? 'Disk geometry restored to the partition table for the next launch.' : 'Disk geometry override saved for the next launch.');
+      },
+      diskGeometry() { return entryDiskGeometry(); },
+      importLimit() { return importLimit(); },
       clearEntryMedia() {
         return entryMutation(entry => ({expected_package_id:entry.package_id,
           expected_media_id:entry.media_id || '', media_role:'', media_id:''}), '/media', 'Media selection cleared for the next launch.');
@@ -508,6 +542,7 @@
       node.replaceChildren(...values.map(([value,text]) => { const option = el('option', text); option.value = value; return option; }));
       node.value = selected;
     };
+    let geometryKey = null;
     controller.subscribe(state => {
       dialog.hidden = !state.open;
       if (state.open && !dialog.open) dialog.showModal?.();
@@ -563,6 +598,26 @@
         (media ? ' Imported SHA-256 ' + media.media_id + ' — ' + media.size + ' bytes.' + diskGeometryText(media) : ' New entry: no media selected.');
       byId('core-entry-current').textContent = entry ? 'Current package ' + entry.package_id + '; media ' + (entry.media_id || 'none') +
         (chs(entry.disk_geometry) ? '; disk geometry override ' + chs(entry.disk_geometry) : '') : 'Create an explicitly titled library entry.';
+      if (byId('core-media-file-label')) {
+        byId('core-media-file-label').textContent = 'Media file (host storage up to ' + Math.floor(controller.importLimit() / (1024 * 1024)) + ' MiB; core limits may be smaller)';
+      }
+      if (byId('core-disk-geometry-save')) {
+        const disk = controller.diskGeometry();
+        const fields = {cylinders:'core-disk-cylinders', heads:'core-disk-heads', sectors_per_track:'core-disk-sectors'};
+        const shown = disk && (disk.override || disk.inferred);
+        // Refill the fields only when the entry, image or saved geometry
+        // changes, so typing is not overwritten by the next render.
+        const key = disk ? entry.game_id + '|' + entry.media_id + '|' + chs(disk.override) + '|' + chs(disk.inferred) : '';
+        if (geometryKey !== key) {
+          geometryKey = key;
+          for (const [field, id] of Object.entries(fields)) byId(id).value = shown ? String(shown[field]) : '';
+        }
+        byId('core-disk-geometry-status').textContent = !disk ? 'Select an imported hard-disk image for an entry to set its geometry.' :
+          (disk.override ? 'Next launch uses the override ' + chs(disk.override) + ' (cylinders/heads/sectors).' : 'Next launch uses the geometry from the partition table.') +
+          (disk.inferred ? ' Partition table implies ' + chs(disk.inferred) + '.' : disk.error ? ' Partition table implies none: ' + disk.error + '. Set an override to launch.' : '');
+        for (const id of [...Object.values(fields), 'core-disk-geometry-save']) byId(id).disabled = state.busy || state.loading || !disk;
+        byId('core-disk-geometry-infer').disabled = state.busy || state.loading || !disk || !disk.override;
+      }
       if (byId('core-video-status')) {
         const video = state.video;
         const name = profile => profile === 'scanlines' ? 'Scanlines' : 'Direct';
@@ -635,9 +690,14 @@
     click('core-entry-package-save', () => controller.selectEntryPackage());
     click('core-entry-media-save', () => controller.selectEntryMedia());
     click('core-entry-media-clear', () => controller.clearEntryMedia());
+    if (byId('core-disk-geometry-save')) {
+      click('core-disk-geometry-save', () => controller.setDiskGeometry({cylinders:byId('core-disk-cylinders').value,
+        heads:byId('core-disk-heads').value, sectors_per_track:byId('core-disk-sectors').value}));
+      click('core-disk-geometry-infer', () => controller.setDiskGeometry(null));
+    }
     if (byId('core-video-import')) click('core-video-import', () => controller.importVideoPart(byId('core-video-profile').value, byId('core-video-file').files[0]));
   }
-  const api = {createController, mount, MAX_PACKAGE_BYTES, MAX_MEDIA_BYTES, MAX_VIDEO_PART_BYTES};
+  const api = {createController, mount, MAX_PACKAGE_BYTES, MAX_MEDIA_BYTES, MAX_HARD_DISK_BYTES, MAX_VIDEO_PART_BYTES};
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   root.FogCastCoreLibrary = api;
 })(globalThis);

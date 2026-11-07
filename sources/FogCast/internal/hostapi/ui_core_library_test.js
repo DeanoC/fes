@@ -1,7 +1,7 @@
 'use strict';
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const {createController, mount, MAX_PACKAGE_BYTES, MAX_MEDIA_BYTES, MAX_VIDEO_PART_BYTES} = require('./ui_core_library.js');
+const {createController, mount, MAX_PACKAGE_BYTES, MAX_MEDIA_BYTES, MAX_HARD_DISK_BYTES, MAX_VIDEO_PART_BYTES} = require('./ui_core_library.js');
 const A = 'a'.repeat(64), B = 'b'.repeat(64), C = 'c'.repeat(64), M = 'd'.repeat(64);
 const copy = value => JSON.parse(JSON.stringify(value));
 const pkg = (id, core = 'fes.fixture') => ({package_id:id, descriptor:{core:{id:core, version:'1.0'}}});
@@ -259,7 +259,8 @@ function mountPanel(controller) {
     'core-media-file','core-media-drive','core-media-import','core-media-discard','core-media-status','core-entry-title',
     'core-entry-create','core-entry-select','core-entry-current','core-entry-package-save',
     'core-entry-media-save','core-entry-media-clear','core-blank-disk-name','core-blank-disk-geometry',
-    'core-blank-disk','core-blank-disk-status','core-library-message'];
+    'core-blank-disk','core-blank-disk-status','core-library-message','core-media-file-label',
+    'core-disk-geometry-status','core-disk-cylinders','core-disk-heads','core-disk-sectors','core-disk-geometry-save','core-disk-geometry-infer'];
   ids.push('core-video-status','core-video-choices','core-video-profile','core-video-file','core-video-import','core-video-parts');
   const nodes=Object.fromEntries(ids.map(id=>[id,new Node()]));
   nodes['core-library'].querySelectorAll=()=>ids.filter(id=>!id.endsWith('status') && id!=='core-library').map(id=>nodes[id]);
@@ -513,4 +514,65 @@ test('hard-disk import outlasts the request deadline and shows its geometry',asy
     geometry:{cylinders:2,heads:16,sectors_per_track:63}},201):undefined);
   await f.controller.importMedia({size:1<<20});
   assert.match(nodes['core-media-status'].textContent,/Disk geometry 2\/16\/63 \(cylinders\/heads\/sectors\) from its partition table\./);
+});
+test('hard-disk entry shows the inferred geometry and overrides it through disk-geometry',async()=>{
+  const f=fixture();
+  const puts=[];
+  f.intercept((path,options)=>{
+    if (path.endsWith('/media-capabilities')) return response({...caps(A),media:[{role:'hard-disk',min_bytes:1<<20,max_bytes:128<<20,
+      transport:'fes-computer-ata-disk-window-v1',unit:0}]});
+    if (path==='/api/v1/core-media/hard-disk') return response({media_id:M,size:options.body.size,
+      geometry:{cylinders:130,heads:16,sectors_per_track:63}},201);
+    if (path.endsWith('/disk-geometry')) {
+      const body=JSON.parse(options.body); puts.push(body);
+      if (body.geometry) f.db.entries[0].disk_geometry=body.geometry; else delete f.db.entries[0].disk_geometry;
+      return response(f.db.entries[0]);
+    }
+    return undefined;
+  });
+  const nodes=mountPanel(f.controller);
+  await f.controller.open(); await f.controller.selectEntry('entry');
+  assert.match(nodes['core-media-file-label'].textContent,/up to 128 MiB/);
+  // The entry still holds a blob: no geometry to set yet.
+  assert.equal(nodes['core-disk-geometry-save'].disabled,true);
+  assert.match(nodes['core-disk-geometry-status'].textContent,/Select an imported hard-disk image/);
+  await f.controller.setDiskGeometry({cylinders:1,heads:1,sectors_per_track:1});
+  assert.match(f.controller.snapshot().message,/Select a hard-disk image/);
+  assert.equal(puts.length,0);
+  const size=130*16*63*512;
+  await f.controller.importMedia({size});
+  await f.controller.selectEntryMedia();
+  assert.equal(f.db.entries[0].media_role,'hard-disk');
+  assert.equal(nodes['core-disk-geometry-save'].disabled,false);
+  assert.equal(nodes['core-disk-geometry-infer'].disabled,true);
+  assert.deepEqual([nodes['core-disk-cylinders'].value,nodes['core-disk-heads'].value,nodes['core-disk-sectors'].value],['130','16','63']);
+  assert.match(nodes['core-disk-geometry-status'].textContent,/from the partition table\. Partition table implies 130\/16\/63\./);
+  // Typing survives a re-render that changes nothing the fields come from.
+  nodes['core-disk-cylinders'].value='260'; nodes['core-disk-heads'].value='8';
+  await f.controller.refresh();
+  assert.equal(nodes['core-disk-cylinders'].value,'260');
+  nodes['core-disk-geometry-save'].listeners.click();
+  await new Promise(resolve=>setTimeout(resolve,0));
+  await f.controller.refresh();
+  assert.deepEqual(puts[0],{expected_package_id:A,expected_media_id:M,geometry:{cylinders:260,heads:8,sectors_per_track:63}});
+  assert.match(nodes['core-disk-geometry-status'].textContent,/override 260\/8\/63/);
+  assert.match(nodes['core-entry-current'].textContent,/disk geometry override 260\/8\/63/);
+  assert.equal(nodes['core-disk-geometry-infer'].disabled,false);
+  // More sectors than the image holds never reaches the host.
+  await f.controller.setDiskGeometry({cylinders:261,heads:8,sectors_per_track:63});
+  assert.match(f.controller.snapshot().message,/more sectors than the image holds/);
+  await f.controller.setDiskGeometry({cylinders:'x',heads:8,sectors_per_track:63});
+  assert.match(f.controller.snapshot().message,/whole numbers/);
+  assert.equal(puts.length,1);
+  await f.controller.setDiskGeometry(null);
+  assert.deepEqual(puts[1],{expected_package_id:A,expected_media_id:M,geometry:null});
+  assert.match(f.controller.snapshot().message,/restored to the partition table/);
+  assert.deepEqual([nodes['core-disk-cylinders'].value,nodes['core-disk-heads'].value],['130','16']);
+});
+test('media label states the host limit of the selected route',async()=>{
+  const f=fixture();
+  const nodes=mountPanel(f.controller);
+  await f.controller.open(); await f.controller.selectPackage(A);
+  assert.equal(nodes['core-media-file-label'].textContent,'Media file (host storage up to '+(MAX_MEDIA_BYTES>>20)+' MiB; core limits may be smaller)');
+  assert.equal(MAX_HARD_DISK_BYTES,128<<20);
 });
