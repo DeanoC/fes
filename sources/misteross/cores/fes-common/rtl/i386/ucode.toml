@@ -56,9 +56,9 @@
 # true on a CS check's uop makes WB keep the staged CS descriptor and
 # whether the transfer changes privilege (xp): an IRET to an outer
 # privilege, a delivery to an inner one. xc = "xp" issues the uop only with
-# xp, xc = "same" only without; D turns the other into a NOP. xs = true
-# moves a delivery's push or probe two slots down onto the new stack with
-# xp (nstk). nstk = true addresses the new stack: the staged SS's base at
+# xp, xc = "same" only without; D turns the other into a NOP. xs = true on a
+# delivery's jump steps ESP two slots further with xp (the old SS and ESP).
+# nstk = true addresses the new stack: the staged SS's base at
 # T5 plus the slot, checked against the staged SS (#SS with its selector).
 # tss = "esp" and "ss" read the new stack's ESP and SS from the TSS for
 # the held CS's DPL, the first checked against TR's limit (#TS with TR's
@@ -329,7 +329,7 @@ uops = [
 # check against the held CS's limit; a probe of each slot the delivery
 # pushes, at the gate's size, as Bochs pushes each (with xp on the new
 # stack, two more, for the old SS and ESP, which it pushes first); the
-# stores: with xp the old SS and ESP, then EFLAGS (RF set for a fault, TF
+# stores (with xp on the new stack): with xp the old SS and ESP, then EFLAGS (RF set for a fault, TF
 # and NT cleared, IF for an interrupt gate), CS, EIP and the error code,
 # if the exception has one; CS's accessed bit, with xp SS's; then the far
 # jump, which steps ESP past the pushes, or with xp loads SS and ESP and
@@ -357,16 +357,24 @@ uops = [
     { cls = "alu", op = "mov", segchk = "hoff" },
     { cls = "alu", op = "mov", mkind = "load", stk = "probe", slot = -1, gsz = true, nstk = true, xc = "xp" },
     { cls = "alu", op = "mov", mkind = "load", stk = "probe", slot = -2, gsz = true, nstk = true, xc = "xp" },
-    { cls = "alu", op = "mov", mkind = "load", stk = "probe", slot = -1, gsz = true, xs = true },
-    { cls = "alu", op = "mov", mkind = "load", stk = "probe", slot = -2, gsz = true, xs = true },
-    { cls = "alu", op = "mov", mkind = "load", stk = "probe", slot = -3, gsz = true, xs = true },
-    { cls = "alu", op = "mov", mkind = "load", stk = "probe", slot = -4, gsz = true, errp = true, xs = true },
+    { cls = "alu", op = "mov", mkind = "load", stk = "probe", slot = -3, gsz = true, nstk = true, xc = "xp" },
+    { cls = "alu", op = "mov", mkind = "load", stk = "probe", slot = -4, gsz = true, nstk = true, xc = "xp" },
+    { cls = "alu", op = "mov", mkind = "load", stk = "probe", slot = -5, gsz = true, nstk = true, xc = "xp" },
+    { cls = "alu", op = "mov", mkind = "load", stk = "probe", slot = -6, gsz = true, errp = true, nstk = true, xc = "xp" },
+    { cls = "alu", op = "mov", mkind = "load", stk = "probe", slot = -1, gsz = true, xc = "same" },
+    { cls = "alu", op = "mov", mkind = "load", stk = "probe", slot = -2, gsz = true, xc = "same" },
+    { cls = "alu", op = "mov", mkind = "load", stk = "probe", slot = -3, gsz = true, xc = "same" },
+    { cls = "alu", op = "mov", mkind = "load", stk = "probe", slot = -4, gsz = true, errp = true, xc = "same" },
     { cls = "alu", op = "movzx", src_size = "16", b = "sel", seg = "ss", mkind = "store", in_a = true, stk = "peek", slot = -1, gsz = true, nstk = true, xc = "xp" },
     { cls = "alu", op = "mov", s2 = "esp", mkind = "store", in_a = true, stk = "peek", slot = -2, gsz = true, nstk = true, xc = "xp" },
-    { cls = "alu", op = "flags", imm = 13, mkind = "store", in_a = true, stk = "peek", slot = -1, gsz = true, rd_cf = true, rd_oszap = true, xs = true },
-    { cls = "alu", op = "movzx", src_size = "16", b = "sel", seg = "cs", mkind = "store", in_a = true, stk = "peek", slot = -2, gsz = true, xs = true },
-    { cls = "alu", op = "mov", b = "eip", mkind = "store", in_a = true, stk = "peek", slot = -3, gsz = true, xs = true },
-    { cls = "alu", op = "mov", b = "sys", sys = "err", mkind = "store", in_a = true, stk = "peek", slot = -4, gsz = true, errp = true, xs = true },
+    { cls = "alu", op = "flags", imm = 13, mkind = "store", in_a = true, stk = "peek", slot = -3, gsz = true, rd_cf = true, rd_oszap = true, nstk = true, xc = "xp" },
+    { cls = "alu", op = "movzx", src_size = "16", b = "sel", seg = "cs", mkind = "store", in_a = true, stk = "peek", slot = -4, gsz = true, nstk = true, xc = "xp" },
+    { cls = "alu", op = "mov", b = "eip", mkind = "store", in_a = true, stk = "peek", slot = -5, gsz = true, nstk = true, xc = "xp" },
+    { cls = "alu", op = "mov", b = "sys", sys = "err", mkind = "store", in_a = true, stk = "peek", slot = -6, gsz = true, errp = true, nstk = true, xc = "xp" },
+    { cls = "alu", op = "flags", imm = 13, mkind = "store", in_a = true, stk = "peek", slot = -1, gsz = true, rd_cf = true, rd_oszap = true, xc = "same" },
+    { cls = "alu", op = "movzx", src_size = "16", b = "sel", seg = "cs", mkind = "store", in_a = true, stk = "peek", slot = -2, gsz = true, xc = "same" },
+    { cls = "alu", op = "mov", b = "eip", mkind = "store", in_a = true, stk = "peek", slot = -3, gsz = true, xc = "same" },
+    { cls = "alu", op = "mov", b = "sys", sys = "err", mkind = "store", in_a = true, stk = "peek", slot = -4, gsz = true, errp = true, xc = "same" },
     { cls = "alu", op = "mov", size = "8", mkind = "store", mbytes = "1", in_a = true, desc = "hacc" },
     { cls = "alu", op = "mov", size = "8", mkind = "store", mbytes = "1", in_a = true, desc = "acc", xc = "xp" },
     { cls = "branch", op = "jmp", far_jmp = true, far_t = true, segw = true, sp_add = true, stk = "retf", slot = -4, gsz = true, errp = true, xs = true, xfer = true },

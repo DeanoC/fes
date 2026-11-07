@@ -454,7 +454,7 @@ module fes_i386_seq (
                 // A stack operation's address is ESP; the vector's entry
                 // has neither base nor index; the ModRM operand (rm) has
                 // the first uop's.
-                n.has_base = w.stk != 3'd0 || w.rm && d0.has_base;
+                n.has_base = (w.stk != 3'd0 || w.rm && d0.has_base) && !w.nstk;  // a new-stack access: T5 plus its slot
                 n.base = w.rm ? d0.base : 3'd4;
                 n.has_index = w.rm && d0.has_index;
                 n.scale = w.rm ? d0.scale : 2'd0;

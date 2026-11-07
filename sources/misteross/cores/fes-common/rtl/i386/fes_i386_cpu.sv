@@ -808,14 +808,18 @@ module fes_i386_cpu #(
     logic [31:0] slot_off;
     // A privilege transition (see "Privilege transitions"): xp, WB's hold
     // says the transfer changes privilege; a uop for the other case is a
-    // NOP (x_drop); a delivery's push or probe moves two slots down onto
-    // the new stack (x_shift, d_nstk).
-    logic        xp, x_drop, x_shift, d_nstk;
+    // NOP (x_drop); a new-stack access (d_nstk, the ROM's); a delivery's
+    // jump with xp steps ESP two slots further (xs: the old SS and ESP),
+    // which slot_x gives apart, off the address's path.
+    logic        xp, x_drop, d_nstk;
+    logic [3:0]  slot_x;
+    logic [31:0] slot_xoff;
     assign x_drop = dc.xc == 2'(fes_i386_pkg::XC_XP) && !xp || dc.xc == 2'(fes_i386_pkg::XC_SAME) && xp;
-    assign x_shift = dc.xs && xp;
-    assign d_nstk = dc.uop.nstk || x_shift;
+    assign d_nstk = dc.uop.nstk;
     assign no_err = !(exc_active && exc_haserr);
-    assign slot_eff = dc.slot + 4'(dc.errp && no_err && stk == fes_i386_pkg::STK_RETF) - {2'b00, x_shift, 1'b0};
+    assign slot_eff = dc.slot + 4'(dc.errp && no_err && stk == fes_i386_pkg::STK_RETF);
+    assign slot_x = slot_eff - 4'd2;
+    assign slot_xoff = dc.opsize32 ? {{26{slot_x[3]}}, slot_x, 2'b00} : {{27{slot_x[3]}}, slot_x, 1'b0};
     // A slot, as a shift of the signed slot (no carry chain).
     assign slot_off = dc.opsize32 ? {{26{slot_eff[3]}}, slot_eff, 2'b00} : {{27{slot_eff[3]}}, slot_eff, 1'b0};
     always_comb begin
@@ -951,7 +955,7 @@ module fes_i386_cpu #(
             u.ctl.fault = fes_i386_pkg::FAULT_GP0;
         if (dc.uop.xfer && xp) begin
             u.sp_add = 1'b0;
-            u.imm = dc.xs ? slot_off : 32'd0;
+            u.imm = dc.xs ? slot_xoff : 32'd0;
         end
         // The case the transfer is not: a NOP.
         if (x_drop) begin
@@ -1010,7 +1014,6 @@ module fes_i386_cpu #(
         case (dc.uop.desc)  // not cast to desc_e: DeanoC/yosys#72
             3'(fes_i386_pkg::DESC_HI), 3'(fes_i386_pkg::DESC_BUSY): desc_disp = {16'b0, t0[15:3], 3'd4};
             3'(fes_i386_pkg::DESC_ACC): desc_disp = {16'b0, t0[15:3], 3'd5};
-            3'(fes_i386_pkg::DESC_HACC): desc_disp = {16'b0, hs_sel[15:3], 3'd5};
             3'(fes_i386_pkg::DESC_IDT_LO): desc_disp = {21'b0, dc.far_sel[9:2], 3'd0};
             3'(fes_i386_pkg::DESC_IDT_HI): desc_disp = {21'b0, dc.far_sel[9:2], 3'd4};
             default: desc_disp = {16'b0, t0[15:3], 3'd0};
@@ -1028,7 +1031,6 @@ module fes_i386_cpu #(
                     : dc.tss == 3'(fes_i386_pkg::TSS_BITMAP) ? t4 + {19'd0, t5[15:3]}
                     : tr_ar[3] ? {26'd0, hs_ar[6:5], tss_ss, !tss_ss, 2'b00} : {27'd0, hs_ar[6:5], tss_ss, !tss_ss, 1'b0};
     assign lea_disp = dc.uop.desc != 3'd0 ? desc_disp
-                    : dc.tss != 3'd0 ? tss_disp
                     : dc.uop.mem.system ? {16'b0, dc.far_sel[15:2], dc.sel_part, 1'b0}
                     : !dc.sel_part && dc.moff == 7'd0 && dc.esp_adj == 6'd0 ? dc.lea_disp
                     : dc.uop.mem.addr32 ? dc.lea_disp + disp_add : {16'b0, dc.lea_disp[15:0] + disp_add[15:0]};
@@ -1089,7 +1091,7 @@ module fes_i386_cpu #(
     logic [15:0] sp_hi, base_hi;
     assign d_sp = cur_valid && u.sp_write;
     fes_i386_dfwd dfwd (
-        .clk, .reset(reset || wb_flush), .has_base((a_addr || dc.ealu) && dc.has_base && !d_nstk), .base(dc.base),
+        .clk, .reset(reset || wb_flush), .has_base((a_addr || dc.ealu) && dc.has_base), .base(dc.base),
         .has_index((a_addr || dc.ealu) && dc.has_index), .index(dc.index), .index8(dc.index8), .scale(dc.scale),
         .addr32(dc.ealu ? opsize32 : a_addr32), .d_writes, .d_dst(u.dst.index[2:0]), .d_kind(d_early ? EARLY : LATE), .d_sp,
         .advance(issue), .hold(freeze), .prod_valid, .prod_dst, .prod_kind, .prod_sp, .gpr, .stage_value,
@@ -1354,17 +1356,25 @@ module fes_i386_cpu #(
     // staged SS's width, in the staged SS; a TSS read at TR's base; the
     // held CS's accessed bit in its table; a privilege transition's far
     // jump to the held CS's base.
-    logic [31:0] d_mdisp, d_mseg_term, nst_off;
+    // These rare uops' address terms (d_xaddr) come in after the
+    // store-to-load check's (d_lo), which takes them as unknown: a load
+    // among them waits for an older store, and a store among them makes a
+    // younger load wait (st_near, ag_slo_ok).
+    logic [31:0] d_mdisp, d_mseg_term, d_mdisp_lo, d_mseg_lo, nst_off, x_mdisp, x_mseg;
+    logic        d_xaddr;
+    assign d_xaddr = d_nstk || dc.tss != 3'd0 || dc.uop.desc == 3'(fes_i386_pkg::DESC_HACC) || dc.uop.xfer;
     assign nst_off = t5 + slot_off;
-    assign d_mdisp = dc.far_jmp || dc.disp_t1 ? far_off : dc.str_a || dc.str_b || dc.str_fin ? str_off
-                   : d_nstk ? (ds_ar[14] ? nst_off : {16'b0, nst_off[15:0]})
-                   : stk != fes_i386_pkg::STK_NONE ? st_disp : lea_disp;
-    assign d_mseg_term = dc.far_jmp ? (dc.uop.xfer ? hs_base : dc.uop.seg2_pm ? {t3[31:24], t3[7:0], t2[31:16]}
-                                                                              : {12'd0, far_sel, 4'd0})
-                       : lea ? 32'd0 : d_nstk ? ds_base : dc.tss != 3'd0 ? tr_base
-                       : dc.uop.mem.system ? (dc.uop.desc == 3'(fes_i386_pkg::DESC_HACC) ? (hs_sel[2] ? ldtr_base : gdtr_base)
-                                              : desc_t0 ? (t0[2] ? ldtr_base : gdtr_base) : idtr_base)
-                       : u.mem.addr32 ? seg_base[mseg] : {16'b0, seg_base[mseg][15:0]};
+    assign d_mdisp_lo = dc.far_jmp || dc.disp_t1 ? far_off : dc.str_a || dc.str_b || dc.str_fin ? str_off
+                      : stk != fes_i386_pkg::STK_NONE ? st_disp : lea_disp;
+    assign d_mseg_lo = dc.far_jmp ? (dc.uop.seg2_pm ? {t3[31:24], t3[7:0], t2[31:16]} : {12'd0, far_sel, 4'd0})
+                     : lea ? 32'd0 : dc.uop.mem.system ? (desc_t0 ? (t0[2] ? ldtr_base : gdtr_base) : idtr_base)
+                     : u.mem.addr32 ? seg_base[mseg] : {16'b0, seg_base[mseg][15:0]};
+    assign x_mdisp = d_nstk ? (ds_ar[14] ? nst_off : {16'b0, nst_off[15:0]}) : dc.tss != 3'd0 ? tss_disp
+                   : dc.uop.desc == 3'(fes_i386_pkg::DESC_HACC) ? {16'b0, hs_sel[15:3], 3'd5} : d_mdisp_lo;
+    assign x_mseg = dc.uop.xfer ? hs_base : d_nstk ? ds_base : dc.tss != 3'd0 ? tr_base
+                  : dc.uop.desc == 3'(fes_i386_pkg::DESC_HACC) ? (hs_sel[2] ? ldtr_base : gdtr_base) : d_mseg_lo;
+    assign d_mdisp = d_xaddr ? x_mdisp : d_mdisp_lo;
+    assign d_mseg_term = d_xaddr ? x_mseg : d_mseg_lo;
 
     // The store-to-load check (store_hazard). Two bytes are the same physical
     // byte only if their linear addresses agree in bits 11:0: A20M masks bit
@@ -1382,13 +1392,13 @@ module fes_i386_cpu #(
     logic [11:0] d_lo, ag_slo, st_e;
     logic [3:0]  ag_sbytes, st_span;
     logic        ag_slo_ok;
-    assign d_lo = d_mseg_term[11:0] + row[11:0] + last[11:0] + d_mdisp[11:0];
+    assign d_lo = d_mseg_lo[11:0] + row[11:0] + last[11:0] + d_mdisp_lo[11:0];
     assign st_e = d_lo - ag_slo + 12'(dc.uop.mem.bytes) - 12'd1;
     assign st_span = dc.uop.mem.bytes + ag_sbytes - 4'd2;
-    assign st_near = late != 2'd0 || !ag_slo_ok || st_e[11:4] == 8'd0 && st_e[3:0] <= st_span;
+    assign st_near = late != 2'd0 || !ag_slo_ok || d_xaddr || st_e[11:4] == 8'd0 && st_e[3:0] <= st_span;
     always_ff @(posedge clk) if (!freeze) begin
         ag_slo <= d_lo;
-        ag_slo_ok <= late == 2'd0;
+        ag_slo_ok <= late == 2'd0 && !d_xaddr;
         ag_sbytes <= dc.uop.mem.bytes;
     end
     // A system register as src2's value (decoded_t b_sys). LAR's kin take
