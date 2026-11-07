@@ -54,6 +54,7 @@ if task=='assembler':
             record=json.loads((output/'build.json').read_text())
             self.assertEqual(record['sha256'],build.digest(artifact.read_bytes()))
             self.assertEqual(record['phase_limit_seconds'],120)
+            self.assertEqual(record['task_limit_seconds'],dict.fromkeys(expected,120))
             self.assertEqual(record['parallel_processors'],2)
             self.assertEqual(record['hardware_acceptance'],'not-run')
             self.assertIn('clocks.sdc',record['generated_handoff_and_sdc_sha256'])
@@ -61,7 +62,52 @@ if task=='assembler':
             for task,row in zip(expected,record['commands']):
                 self.assertEqual(row['argv'][-4:],['-start',task,'-end',task])
                 self.assertEqual(row['returncode'],0)
+                self.assertEqual(row['limit_seconds'],120)
                 self.assertEqual(row['log_sha256'],build.digest((output/('compile-'+task+'.log')).read_bytes()))
+
+    def menu_inputs(self, output):
+        inputs=json.loads((output/'inputs.json').read_text())
+        inputs.update(board_fes_revision=build.menu_transport.BOARD_REVISION,
+                      computer={'hps_initialization':'HPS FIRST'},
+                      reader_memory={'backend':'hps-ddr-menu','bus_base':0x95000000,'bytes':8<<20})
+        (output/'inputs.json').write_text(json.dumps(inputs))
+
+    def test_menu_changes_only_placement_budget_and_records_actual_task_caps(self):
+        with tempfile.TemporaryDirectory() as temp:
+            output,project,tool=self.fixture(Path(temp))
+            self.menu_inputs(output)
+            build.compile_project(output,tool)
+            record=json.loads((output/'build.json').read_text())
+            self.assertEqual([row['argv'][-1] for row in record['commands']],list(build.COMPILE_TASKS))
+            expected=dict.fromkeys(build.COMPILE_TASKS,120)
+            expected['fitter_place']=180
+            self.assertEqual(record['task_limit_seconds'],expected)
+            self.assertEqual({row['argv'][-1]:row['limit_seconds'] for row in record['commands']},expected)
+
+    def test_menu_placement_still_times_out_and_stops_before_route_or_seal(self):
+        with tempfile.TemporaryDirectory() as temp:
+            output,project,tool=self.fixture(Path(temp))
+            self.menu_inputs(output)
+            with patch.dict(os.environ,FES_TEST_STALL='fitter_place'),patch.object(build,'MENU_PLACEMENT_LIMIT_SECONDS',.5):
+                with self.assertRaises(subprocess.TimeoutExpired) as caught:
+                    build.compile_project(output,tool)
+            self.assertEqual(caught.exception.timeout,.5)
+            calls=[json.loads(line) for line in (project/'calls.jsonl').read_text().splitlines()]
+            self.assertEqual([row['task'] for row in calls],list(build.COMPILE_TASKS[:5]))
+            with self.assertRaises(ProcessLookupError):os.kill(calls[-1]['pid'],0)
+            self.assertFalse((output/'build.json').exists())
+            self.assertFalse((project/'output_files/golden_top.sof').exists())
+
+    def test_invalid_menu_layout_is_rejected_before_starting_compiler(self):
+        with tempfile.TemporaryDirectory() as temp:
+            output,project,tool=self.fixture(Path(temp))
+            self.menu_inputs(output)
+            inputs=json.loads((output/'inputs.json').read_text())
+            inputs['reader_memory']['bytes']=4<<20
+            (output/'inputs.json').write_text(json.dumps(inputs))
+            with self.assertRaisesRegex(ValueError,'complete two-slot layout'):
+                build.compile_project(output,tool)
+            self.assertFalse((project/'calls.jsonl').exists())
 
     def test_failed_route_stops_without_later_tasks_artifact_or_success_receipt(self):
         with tempfile.TemporaryDirectory() as temp:

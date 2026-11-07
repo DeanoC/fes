@@ -400,7 +400,11 @@ containment and board acceptance require separate evidence.
 
 Compilation runs the standard Quartus Pro leaf tasks in order, through
 elaboration/synthesis, all fitter stages, signoff timing and assembly. Each
-task has its own 120-second limit, log and heartbeat. A failure stops before
+task has its own 120-second limit, log and heartbeat. The reviewed HPS-first
+`hps-ddr-menu` personality gives placement 180 seconds: a same-source,
+same-constraints/seed placement measurement took 139 seconds. Other tasks and
+personalities retain 120 seconds. The build receipt records every task's actual
+limit. A failure stops before
 sealing and terminates only that task's process group; partial outputs remain
 for diagnosis. No timing option, seed, constraint or optimization mode changes.
 The canonical record binds this recipe and the actual `quartus_syn` executable;

@@ -54,11 +54,14 @@ COMPILE_TASKS = ('dni_ipgenerate', 'dni_elaboration', 'dni_synthesis',
                  'fitter_plan', 'fitter_place', 'fitter_route', 'fitter_retime',
                  'fitter_finalize', 'sta_signoff', 'assembler')
 PHASE_LIMIT_SECONDS = 120
+MENU_PLACEMENT_LIMIT_SECONDS = 180
 
 
-def run_phase(command, directory, log):
+def run_phase(command, directory, log, limit_seconds=None):
     """Bound one standard Quartus task and stop only its own process group."""
     command = [str(value) for value in command]
+    if limit_seconds is None:
+        limit_seconds = PHASE_LIMIT_SECONDS
     print('+ ' + ' '.join(command), flush=True)
     started = time.monotonic()
     with log.open('xb') as stream:
@@ -69,8 +72,8 @@ def run_phase(command, directory, log):
         try:
             while child.poll() is None:
                 now = time.monotonic()
-                if now - started >= PHASE_LIMIT_SECONDS:
-                    raise subprocess.TimeoutExpired(command, PHASE_LIMIT_SECONDS)
+                if now - started >= limit_seconds:
+                    raise subprocess.TimeoutExpired(command, limit_seconds)
                 if now >= beat:
                     print('Quartus task ' + command[-1] + ': ' + str(int(now-started)) + 's', flush=True)
                     beat = now + 12
@@ -95,18 +98,23 @@ def run_phase(command, directory, log):
                 except ProcessLookupError:
                     pass
                 child.wait(timeout=5)
-    return {'argv': command, 'elapsed_seconds': time.monotonic()-started,
+    return {'argv': command, 'elapsed_seconds': time.monotonic()-started, 'limit_seconds': limit_seconds,
             'log_sha256': digest(log.read_bytes()), 'returncode': child.returncode}
 
 
 def compile_project(output, tool):
     """Keep the standard flow, with an independent bound for every leaf task."""
     project = output/'project'
+    inputs = json.loads((output/'inputs.json').read_text())
+    limits = dict.fromkeys(COMPILE_TASKS, PHASE_LIMIT_SECONDS)
+    if menu_transport.enabled(inputs):
+        menu_transport.parameters(inputs)
+        limits['fitter_place'] = MENU_PLACEMENT_LIMIT_SECONDS
     commands = []
     constraint_repair = None
     for task in COMPILE_TASKS:
         command = [tool, '--flow', 'compile', 'golden_top', '-start', task, '-end', task]
-        commands.append(run_phase(command, project, output/('compile-'+task+'.log')))
+        commands.append(run_phase(command, project, output/('compile-'+task+'.log'), limits[task]))
         if task == 'dni_ipgenerate':
             constraint_repair = timing_sources.repair(project)
     timing_sources.verify(project, constraint_repair)
@@ -118,11 +126,12 @@ def compile_project(output, tool):
     reports = {str(path.relative_to(project)): digest(path.read_bytes()) for path in (project/'output_files').glob('*')
                if path.is_file() and path.suffix in ('.rpt', '.summary')}
     record = {'diagnostic_only': True, 'board': 'de25_nano', 'device': 'A5EB013BB23BE4SCS',
-              'fes_revision': json.loads((output/'inputs.json').read_text()).get('fes_revision'),
-              'parallel_processors': json.loads((output/'inputs.json').read_text())['compile_processors'],
+              'fes_revision': inputs.get('fes_revision'),
+              'parallel_processors': inputs['compile_processors'],
               'artifact': str(artifact.relative_to(output)), 'sha256': digest(artifact.read_bytes()),
               'quartus_version': (output/'quartus-version.txt').read_text().strip(),
               'commands': commands, 'phase_limit_seconds': PHASE_LIMIT_SECONDS,
+              'task_limit_seconds': limits,
               'obsolete_jtag_constraints': constraint_repair,
               'inputs_sha256': digest((output/'inputs.json').read_bytes()),
               'report_sha256': reports, 'generated_handoff_and_sdc_sha256': files,
