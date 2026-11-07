@@ -117,6 +117,11 @@ module fes_i386_qalign import fes_i386_pkg::*; (
     assign release_half[1] = advance && (start[4] && !start_next[4] || back);
     assign jump_clear = advance && back;
     assign start_half = start[4];
+    // For machine_tb --cpu-profile only (cpu_profile.vlt reads it; nothing
+    // in the CPU does, so synthesis drops it): a taken jump's target block is
+    // the block that holds the branch's last byte, a loop within one block.
+    logic prof_tself;
+    assign prof_tself = half_info[jx_here].tblk == half_block[jx_here];
 
     // The instruction runs into the other half, which does not hold its
     // sequential continuation (the other half's block, or L2's while it is

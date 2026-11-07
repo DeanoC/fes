@@ -75,7 +75,8 @@ docs/pc386-machine-design.md, "Verification" and phases M1-M3.
            its fourth page flip and runs 20 ms under machine_tb --cpu-profile
            (cores/fes-pc386/sim/cpu_profile.h). Every clock of the window must
            be sorted into a cause, the RTL must not stop, and each taken
-           branch class and cause the program exercises must appear
+           branch class and cause the program exercises must appear, and the
+           front-end split must charge D's empty clocks to Q
            (scripts/pc386_cpu_profile.py prints the window); writes
            cpu-profile/.
   sound    boots FreeDOS and runs SOUND.COM; checks the speaker and DSP tones,
@@ -899,6 +900,9 @@ CPU_PROFILE_SECONDS = 0.02
 # The instruction classes CPUPROF.COM takes branches through, and the causes
 # it must reach in the window.
 CPU_PROFILE_TAKEN = ('jcc', 'call', 'call_ind', 'ret', 'far_call', 'retf', 'jmp')
+# The share of front-end empty clocks the split may leave unattributed (the
+# handover's first two).
+CPU_PROFILE_UNATTR = 0.001
 CPU_PROFILE_CAUSES = ('issued uops', 'redirect: refill', 'interlock: AGI',
                       'interlock: store-to-load', 'multiply and divide', 'I/O and VGA: I/O')
 
@@ -950,6 +954,14 @@ def run_cpu_profile(args, linked: list[Path]) -> dict:
         for cause in CPU_PROFILE_CAUSES:
             if not window['causes'].get(cause):
                 failures.append(f'no clocks in {cause}')
+        # The front-end split charges D's empty clocks to Q two clocks
+        # before; one Q issued or held then means the offset is wrong.
+        fe = window['front_end']
+        unattr = fe['by_reason']['unattr']['clocks'] if fe else None
+        if not fe or not fe['clocks']:
+            failures.append('no front-end split')
+        elif unattr > CPU_PROFILE_UNATTR * fe['clocks']:
+            failures.append(f'{unattr} of {fe["clocks"]} front-end empty clocks have no reason in Q two clocks before')
         print(cpu_profile.report(window))
     return {'run': run, 'window': window, 'failures': failures}
 
