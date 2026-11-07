@@ -38,3 +38,21 @@ recovery checks are required. Native work is capped at 240 seconds, with
 presentation and return. The existing 740-second outer and 850-second host
 bounds remain. The spare card and continuing top-kit claim may remain afterward
 under Deano's existing factory-restoration waiver.
+
+
+The first attempt is consumed and stopped. Both Ethernet uploads and fresh final
+SD readbacks passed. The matched native loader, reserved firmware startup,
+configuration transfer and FPGA ready response were observed. The firewall probe
+then rejected the menu's 8 MiB request with status `-22` and zero register reads:
+its implementation still accepts only 8 KiB or 4 MiB. This does not establish an
+unknown physical firewall layout. No control/data opening or menu frame was
+observed. The decoder also needs to place readiness and initial route records
+inside the actual `open_begin` interval. These are separate software repairs;
+this procedure is not replayed.
+
+Independent cleanup passed: 15 MHz clock readback, exact USB permissions,
+private server gone and UART free. The last native observation is its panic at
+the first menu opening request, with the firmware record still generation 4 and
+reset mask `f`. The factory card and bottom kit were untouched; the continuing
+claim and spare remain. [result.json](result.json) records the exact evidence
+boundary and remaining work.
