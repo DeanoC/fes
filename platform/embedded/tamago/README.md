@@ -48,6 +48,18 @@ all-master stop and DDR drain. Both the full memory window and its contents
 remain pinned until reboot, including on failure. Software and RTL model
 checks do not establish physical display or normal core-load acceptance.
 
+The separate `fpgaload --menu-present` selection accepts the source-bound
+`hps-ddr-menu` producer and its complete two-slot 8 MiB reservation. The native
+command retains the selected package through SD containment, reserves that
+uncached arena, configures the sealed core, then uses `MenuSession` to present
+three changing actual Tenfoot frames. It finishes through independent secure
+master-stop and bridge closure. The SDK, native entry, cold firmware header and
+HPS-first composition bind the same menu access digest and ABI `0x10203043`.
+Other reader/computer modes and USB selections cannot be combined with this
+initial cold test. Both slots remain pinned after success or failure. This
+adds the native boot path; physical HDMI, storage resume, input and the full
+menu/core/menu application lifecycle still require integration and acceptance.
+
 Adding `--window-present` selects the owned presenter in the native command.
 It renders twelve changing tenfoot states and waits for the matching full-frame
 CRC and local reader drain before updating the same pinned arena. Each frame

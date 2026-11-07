@@ -1,5 +1,16 @@
 # Nano recovery uploads and cold serial boot
 
+The source-bound two-slot menu has an explicit native selection:
+`tamago/run.py fpgaload --board de25-nano --menu-present`, together with the
+sealed menu `--hps-first-project`, source-controlled SD profile and selected
+TamaGo compiler. The SDK, entry and cold-profile builders require its complete
+menu access map, 8 MiB reservation and menu ABI; they do not treat a 4 MiB
+checksum window as a menu. The command presents three changing Tenfoot frames
+through `MenuSession` and performs independent secure master-stop/bridge close.
+The HPS-first composer checks the same access digest. It does not write a card
+or program a board. This cold test does not resume SD or supply the full native
+menu/core/menu lifecycle, and has no physical display acceptance yet.
+
 Native selected-program platform version two compares the complete boot
 configuration through byte `0x657`, using `hps_configuration_sha256`. The pinned
 TF-A handoff struct occupies `0x648` bytes; the pinned SPL additionally reads

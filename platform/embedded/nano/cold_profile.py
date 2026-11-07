@@ -62,6 +62,7 @@ def entry(entry_build):
     configuration=hps_context.checked_configuration(receipt,program_key='native_program')
     reader_memory=hps_context.checked_reader_memory(receipt,program_key='native_program')
     hps_context.checked_window_read(receipt,program_key='native_program')
+    hps_context.checked_menu_read(receipt,program_key='native_program')
     window=reader_memory is not None and reader_memory.get('scope')=='sealed-cold-window-reader-memory-v1'
     if type(receipt.get('window_memory',False)) is not bool or receipt.get('window_memory',False)!=window:
         raise ValueError('cold window memory requires the explicitly selected native entry')
@@ -111,6 +112,7 @@ def make(entry_build, *, firmware_ram=False):
     cpu_map=hps_context.checked_cpu_mapping(build,program_key='native_program')
     ddr_read=hps_context.checked_ddr_read(build,program_key='native_program')
     window_read=hps_context.checked_window_read(build,program_key='native_program')
+    menu_read=hps_context.checked_menu_read(build,program_key='native_program')
     computer=hps_context.checked_computer(build,program_key='native_program')
     rom=hps_context.checked_rom(build,program_key='native_program')
     selected=sources()+ (hps_context.inputs() if context is not None else [])
@@ -137,6 +139,8 @@ def make(entry_build, *, firmware_ram=False):
               'hps_computer':computer,'hps_computer_sha256':hps_context.digest(computer) if computer else None,
               'hps_rom':rom,'hps_rom_sha256':hps_context.digest(rom) if rom else None,
               'window_memory':build.get('window_memory',False),
+              'menu_present':build.get('menu_present',False),'hps_menu_read':menu_read,
+              'hps_menu_read_sha256':hps_context.digest(menu_read) if menu_read else None,
               'window_present':build.get('window_present',False),
               'window_storage_return':build.get('window_storage_return',False),
               'window_reload':build.get('window_reload',False),
@@ -156,6 +160,7 @@ def make(entry_build, *, firmware_ram=False):
 
 def header(profile):
     ram=firmware_memory.checked(profile)
+    menu_present=hps_context.menu_selection(dict(profile,program='fpgaload',usb_control=profile.get('usb_pio',False)))
     def array(value):return '{'+','.join('0x'+value[i:i+2] for i in range(0,len(value),2))+'}'
     smmu=profile.get('smmu_observe',False)
     if type(smmu) is not bool or smmu and (profile['sd_pio'] or
@@ -217,17 +222,20 @@ def header(profile):
                 '#define FES_NANO_CONFIG_SHA384 '+array(configuration['core_sha384'])+'\n'
                 '#define FES_NANO_CONFIG_CHUNK_DIGESTS {'+','.join(array(value) for value in configuration['chunk_sha384'])+'}\n')
     reader_memory=profile.get('hps_reader_memory')
+    menu=reader_memory is not None and reader_memory.get('scope')=='sealed-cold-menu-reader-memory-v1'
+    if menu!=menu_present:
+        raise ValueError('cold menu memory requires its complete selected presentation profile')
     if reader_memory is not None:
         window=reader_memory.get('scope')=='sealed-cold-window-reader-memory-v1'
         if (configuration is None or control is None or not profile['sd_pio'] or
-                profile['hps_context']['programming_profile'] not in (('de25-embedded-hps-first-window-diagnostic-v1',) if window else
+                profile['hps_context']['programming_profile'] not in ((hps_context.MENU_PROFILE,) if menu else ('de25-embedded-hps-first-window-diagnostic-v1',) if window else
                     ('de25-embedded-hps-first-ddr-diagnostic-v1',*hps_context.ROM_PROFILES)) or
                 type(profile.get('window_memory',False)) is not bool or profile.get('window_memory',False)!=window or
                 profile.get('hps_reader_memory_sha256')!=hps_context.digest(reader_memory)):
             raise ValueError('cold reader memory requires its source-bound DDR configuration profile')
         hps_context.validate_reader_memory(profile['hps_context'],reader_memory)
         stop=control.get('fabric_stop')
-        if stop!={'scope':'sealed-window-master-stop-v1' if window else 'sealed-ddr-master-stop-v1','probe_cpu_base':0x20010100,
+        if stop!={'scope':'sealed-menu-master-stop-v1' if menu else 'sealed-window-master-stop-v1' if window else 'sealed-ddr-master-stop-v1','probe_cpu_base':0x20010100,
                   'probe_span':128,'maintenance':'held-reset-from-configuration'}:
             raise ValueError('cold DDR reader requires the sealed complete master stop map')
         extra+=('#define FES_NANO_READER_CPU_BASE '+hex(reader_memory['cpu_base'])+'ULL\n'
@@ -237,7 +245,7 @@ def header(profile):
                 '#define FES_NANO_READER_MAP_SHA '+array(profile['hps_reader_memory_sha256'])+'\n'
                 '#define FES_NANO_PROBE_CPU_BASE '+hex(stop['probe_cpu_base'])+'UL\n'
                 '#define FES_NANO_PROBE_SPAN '+str(stop['probe_span'])+'U\n')
-        if window:
+        if window or menu:
             if profile.get('hps_ddr_read') is not None or profile.get('hps_computer') is not None:
                 raise ValueError('window memory cannot inherit a fixed-burst or computer command recipe')
             extra+=('#define FES_NANO_WINDOW_MEMORY 1\n'
@@ -245,6 +253,10 @@ def header(profile):
                     '#define FES_NANO_WINDOW_ROW_BYTES '+str(reader_memory['row_bytes'])+'U\n'
                     '#define FES_NANO_WINDOW_STRIDE '+str(reader_memory['stride'])+'U\n'
                     '#define FES_NANO_WINDOW_ROWS '+str(reader_memory['rows'])+'U\n')
+            if menu:
+                extra+=('#define FES_NANO_MENU_MEMORY 1\n'
+                        '#define FES_NANO_MENU_SLOTS '+str(reader_memory['slots'])+'U\n'
+                        '#define FES_NANO_MENU_SLOT_BYTES '+str(reader_memory['slot_bytes'])+'U\n')
         else:extra+='#define FES_NANO_READER_PATTERN_SHA '+array(reader_memory['pattern_sha256'])+'\n'
     elif profile.get('window_memory',False) is not False:
         raise ValueError('window memory requires its complete compiled reservation')
@@ -279,7 +291,16 @@ def header(profile):
         hps_context.validate_window_read(profile['hps_context'],reader_memory,profile['hps_control_sha256'],window_read)
         extra+='#define FES_NANO_WINDOW_READ_ATTRS_VERIFIED 1\n'
         extra+='#define FES_NANO_WINDOW_READ_MAP_SHA '+array(profile['hps_window_read_sha256'])+'\n'
-    extra+='#define FES_NANO_WINDOW_READ_DIAGNOSTIC '+str(int(window_read is not None))+'\n'
+    menu_read=profile.get('hps_menu_read')
+    if menu_read is not None:
+        if not menu or profile.get('hps_menu_read_sha256')!=hps_context.digest(menu_read):
+            raise ValueError('cold menu read requires its complete selected contract')
+        hps_context.validate_menu_read(profile['hps_context'],reader_memory,profile['hps_control_sha256'],menu_read)
+        extra+='#define FES_NANO_WINDOW_READ_ATTRS_VERIFIED 1\n'
+        extra+='#define FES_NANO_WINDOW_READ_MAP_SHA '+array(profile['hps_menu_read_sha256'])+'\n'
+    elif menu or profile.get('hps_menu_read_sha256') is not None:
+        raise ValueError('cold menu access requires its complete compiled adapter')
+    extra+='#define FES_NANO_WINDOW_READ_DIAGNOSTIC '+str(int(window_read is not None or menu))+'\n'
     present=profile.get('window_present',False)
     if type(present) is not bool or present and window_read is None:
         raise ValueError('window presentation requires its complete selected read path')

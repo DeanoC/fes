@@ -69,6 +69,7 @@ def main():
     parser.add_argument("--window-memory", action="store_true", help="reserve the sealed 4 MiB window and publish one tenfoot frame while FPGA data access remains held (Nano fpgaload only)")
     parser.add_argument("--window-read", action="store_true", help="read and drain one complete frame through the owned firmware and native driver; requires --window-memory")
     parser.add_argument("--window-present", action="store_true", help="present twelve changing tenfoot frames with local drain and final firmware return; requires --window-read")
+    parser.add_argument("--menu-present", action="store_true", help="present three Tenfoot frames through the sealed two-slot menu and independently close through firmware (Nano fpgaload only)")
     parser.add_argument("--window-storage-return", action="store_true", help="resume SD and freshly retain the selected package after a verified window return; requires --window-present")
     parser.add_argument("--window-reload", action="store_true", help="load a second verified window after fresh SD retention; requires --window-storage-return")
     parser.add_argument("--window-service", action="store_true", help="serve persistent fixed-package native window requests; requires --window-storage-return and excludes --window-reload")
@@ -102,7 +103,7 @@ def main():
         except (ValueError, OSError, subprocess.CalledProcessError) as error:
             parser.error(str(error))
         return
-    if args.firmware_rom is not None or args.rom_host_go is not None or args.shared_usb_input is not None or args.usb_input is not None or args.profile is not None or args.package_id is not None or args.hps_first_project is not None or args.ddr_read or args.window_memory or args.window_read or args.window_present or args.window_storage_return or args.window_reload or args.window_service or args.computer_control or args.computer_reload or args.computer_storage_return or args.selected_programs or args.tenfoot_serial:
+    if args.firmware_rom is not None or args.rom_host_go is not None or args.shared_usb_input is not None or args.usb_input is not None or args.profile is not None or args.package_id is not None or args.hps_first_project is not None or args.ddr_read or args.window_memory or args.window_read or args.window_present or args.menu_present or args.window_storage_return or args.window_reload or args.window_service or args.computer_control or args.computer_reload or args.computer_storage_return or args.selected_programs or args.tenfoot_serial:
         parser.error("--profile, --package-id and --hps-first-project require --board de25-nano")
     if args.program in ("fpga", "sdpackages", "bootcontext", "hpsio", "usbcheck", "fpgacontext", "fpgastatus", "fpgaload"):
         parser.error("this diagnostic requires the Nano firmware service; QEMU does not emulate it")

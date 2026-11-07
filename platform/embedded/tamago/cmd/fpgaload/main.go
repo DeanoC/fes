@@ -28,6 +28,7 @@ var expectedWindowMemory string
 var expectedWindowReadMap string
 var expectedWindowPresent, expectedWindowStorageReturn, expectedWindowReload string
 var expectedWindowService string
+var expectedMenuPresent, expectedMenuReadMap string
 var expectedComputerMap, expectedComputerReload string
 var expectedROMMap string
 var expectedNativeComputer string
@@ -49,6 +50,15 @@ func decoded(s string, limit int) []byte {
 
 func main() {
 	de25nano.StartupCheckpoint("go_main")
+	if expectedMenuPresent != "" || expectedMenuReadMap != "" {
+		if expectedMenuPresent != "1" || expectedMenuReadMap == "" || expectedWindowMemory != "" || expectedWindowReadMap != "" ||
+			expectedWindowPresent != "" || expectedWindowStorageReturn != "" || expectedWindowReload != "" || expectedWindowService != "" ||
+			expectedDDRReadMap != "" || expectedComputerMap != "" || expectedROMMap != "" || expectedNativeComputer != "" ||
+			expectedComputerReload != "" || expectedComputerStorageReturn != "" || expectedSelectedPrograms != "" || expectedProgramPlatform != "" ||
+			expectedTenfootSerial != "" || expectedUSBControl != "" {
+			panic("menu presentation requires its complete separate compiled boot selection")
+		}
+	}
 	if expectedWindowPresent != "" && (expectedWindowPresent != "1" || expectedWindowReadMap == "" || expectedWindowMemory != "1") {
 		panic("window presentation requires the selected full-window read path")
 	}
@@ -80,7 +90,10 @@ func main() {
 	if expectedNativeComputer != "" && (expectedNativeComputer != "1" || expectedROMMap == "" || expectedWindowMemory != "") {
 		panic("native computer requires its explicitly selected complete held-ROM resources")
 	}
-	if expectedWindowMemory != "" {
+	if expectedMenuPresent == "1" {
+		v, err = nativefabric.NewMenuHPSContextVerifier(cpu, decoded(expectedBootContext, 8192), control,
+			decoded(expectedReaderMemoryMap, 8192), decoded(expectedMenuReadMap, 8192))
+	} else if expectedWindowMemory != "" {
 		if expectedWindowMemory != "1" || expectedROMMap != "" || expectedDDRReadMap != "" || expectedComputerMap != "" || expectedComputerReload != "" || expectedProgramPlatform != "" || expectedSelectedPrograms != "" || expectedComputerStorageReturn != "" {
 			panic("window memory requires its separate contained frame diagnostic")
 		}
@@ -175,6 +188,16 @@ func main() {
 		}
 		fmt.Printf("FES_NATIVE_FPGA_READER_MEMORY PINNED cpu_base=%x bus_base=%x bytes=%d arena_bytes=%d map_sha256=%x pattern_sha256=%x owner=%x generation=%d fpga_access=unqualified\n",
 			memory.CPUBase, memory.BusBase, memory.Bytes, memory.ArenaBytes, memory.MapSHA256, memory.PatternSHA256, closed.Owner, closed.Generation)
+	} else if expectedMenuPresent == "1" {
+		memory, err := v.ReserveMenuMemory(de25nano.ReserveMenuMemory)
+		if err != nil {
+			panic(err)
+		}
+		if memory.Source.Bridges.Owner != closed.Owner || memory.Source.Bridges.Generation != closed.Generation {
+			panic("menu publication differs from storage containment")
+		}
+		fmt.Printf("FES_NATIVE_FPGA_MENU_MEMORY PINNED cpu_base=%x bytes=%d slots=%d slot_bytes=%d map_sha256=%x initial_sha256=%x owner=%x generation=%d fpga_access=held lifetime=until-reboot\n",
+			memory.CPUBase, memory.ArenaBytes, memory.Slots, memory.SlotBytes, memory.MapSHA256, memory.InitialSHA256, closed.Owner, closed.Generation)
 	} else if expectedWindowMemory == "1" {
 		frame, err := windowFrame()
 		if err != nil {
@@ -286,6 +309,12 @@ func main() {
 		return
 	}
 	program(v, configuration, source)
+	if expectedMenuPresent == "1" {
+		if err := presentMenuFrames(v, control, decoded(expectedMenuReadMap, 8192)); err != nil {
+			panic(err)
+		}
+		return
+	}
 	if expectedWindowReadMap != "" {
 		limits := scanout.ReaderLimits{Timeout: time.Second, MaxPolls: 64, Now: time.Now, Yield: func() { time.Sleep(time.Millisecond) }}
 		if expectedWindowService == "1" {

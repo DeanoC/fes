@@ -136,6 +136,13 @@ def prepare(project, uboot, entry, pfg, output):
         raise ValueError('native window read selection differs from its sealed contract')
     if window_read is not None and window_read!=hps_context.window_read(project):
         raise ValueError('native window read contract differs from the complete sealed generated adapter')
+    menu_read=window_profile.get('hps_menu_read')
+    menu_present=hps_context.menu_selection(dict(window_profile,program='fpgaload',usb_control=window_profile.get('usb_pio',False)))
+    if menu_present!=(menu_read is not None):
+        raise ValueError('native menu requires its complete selected access contract')
+    if menu_read is not None and (menu_read!=hps_context.menu_read(project) or
+            window_profile.get('hps_menu_read_sha256')!=hps_context.digest(menu_read)):
+        raise ValueError('native menu contract differs from the sealed generated adapter')
     binary = pfg.parent.parent/'linux64/quartus_pfg'
     identity = 'wrapper-sha256:'+sha(pfg)+'; binary-sha256:'+sha(binary)
     if identity != pair['pfg_identity']:
@@ -212,6 +219,8 @@ def prepare(project, uboot, entry, pfg, output):
         'hps_rom_sha256':hps_context.digest(rom) if rom is not None else None,
         'hps_ddr_read_sha256':hps_context.digest(ddr_read) if ddr_read is not None else None,
         'bounded_window_read':window_read is not None,
+        'bounded_menu_presentation':menu_present,
+        'hps_menu_read_sha256':hps_context.digest(menu_read) if menu_read is not None else None,
         'bounded_window_presentation':window_present and not window_service,
         'bounded_window_storage_return':window_storage_return and not window_service,
         'bounded_window_reload':window_reload,

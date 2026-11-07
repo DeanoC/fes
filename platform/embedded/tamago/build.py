@@ -246,6 +246,10 @@ def build(args):
         raise ValueError('the source-bound SMMU profile permits only the serial probe')
     start, size, entry, frequency, usb_frequency, net, display, fpga, uart_index = profile_constants(profile)
     expected_package_id=package_option(args.program,args.package_id,profile)
+    spec=importlib.util.spec_from_file_location('fes_native_hps_context',APP.parent/'nano/hps_context.py')
+    hps=importlib.util.module_from_spec(spec);spec.loader.exec_module(hps)
+    menu_present=hps.menu_selection(vars(args))
+    menu_read_map=None
     context=io_map=cpu_map=control_map=configuration_map=reader_memory_map=ddr_read_map=computer_map=rom_map=None
     firmware_rom=getattr(args,'firmware_rom',None)
     rom_host_go=getattr(args,'rom_host_go',None)
@@ -303,10 +307,10 @@ def build(args):
         required_profile='sd-profile.json' if args.program=='fpgaload' else 'probe-profile.json'
         if hps_project is None or raw!=(APP.parent/'nano'/required_profile).read_bytes():
             raise ValueError('context diagnostics require a sealed HPS-first project and their source-derived serial/SD profile')
-        spec=importlib.util.spec_from_file_location('fes_native_hps_context',APP.parent/'nano/hps_context.py')
-        hps=importlib.util.module_from_spec(spec);spec.loader.exec_module(hps)
         hps_project=hps_project.resolve(strict=True)
         context=hps.derive(hps_project)
+        if (context['programming_profile']==hps.MENU_PROFILE)!=(menu_present) and args.program=='fpgaload':
+            raise ValueError('menu source requires explicit --menu-present and cannot inherit another reader mode')
         rom_profile=hps.uses_held_rom(context)
         if rom_profile:
             if not selected_programs or not computer_control or firmware_rom is None or rom_host_go is None:
@@ -324,6 +328,7 @@ def build(args):
             cpu_map=hps.cpu_mapping(control_map,configuration_map,reader_memory_map)
             if active_ddr:ddr_read_map=hps.ddr_read(hps_project)
             if window_read:window_read_map=hps.window_read(hps_project)
+            if menu_present:menu_read_map=hps.menu_read(hps_project)
             if computer_control:computer_map=hps.computer(hps_project)
             if selected_programs:
                 program_platform=hps.program_platform(hps_project)
@@ -360,6 +365,7 @@ def build(args):
     if reader_memory_map is not None:(output/'hps-reader-memory.json').write_bytes(hps.encode(reader_memory_map))
     if ddr_read_map is not None:(output/'hps-ddr-read.json').write_bytes(hps.encode(ddr_read_map))
     if window_read_map is not None:(output/'hps-window-read.json').write_bytes(hps.encode(window_read_map))
+    if menu_read_map is not None:(output/'hps-menu-read.json').write_bytes(hps.encode(menu_read_map))
     if computer_map is not None:(output/'hps-computer.json').write_bytes(hps.encode(computer_map))
     if program_platform is not None:
         (output/'program-platform.json').write_bytes(hps.encode(program_platform))
@@ -450,6 +456,9 @@ def build(args):
     if reader_memory_map is not None:link_flags+=' -X main.expectedReaderMemoryMap='+base64.b64encode(hps.encode(reader_memory_map)).decode()
     if ddr_read_map is not None:link_flags+=' -X main.expectedDDRReadMap='+base64.b64encode(hps.encode(ddr_read_map)).decode()
     if window_memory:link_flags+=' -X main.expectedWindowMemory=1'
+    if menu_present:
+        link_flags+=' -X main.expectedMenuPresent=1'
+        link_flags+=' -X main.expectedMenuReadMap='+base64.b64encode(hps.encode(menu_read_map)).decode()
     if window_read_map is not None:link_flags+=' -X main.expectedWindowReadMap='+base64.b64encode(hps.encode(window_read_map)).decode()
     if window_present:link_flags+=' -X main.expectedWindowPresent=1'
     if window_storage_return:link_flags+=' -X main.expectedWindowStorageReturn=1'
@@ -487,6 +496,9 @@ def build(args):
     if window_read_map is not None and (hps.window_read(hps_project)!=window_read_map or
             base64.b64encode(hps.encode(window_read_map)) not in data):
         raise ValueError('sealed full-window access changed or was not linked into the native image')
+    if menu_read_map is not None and (hps.menu_read(hps_project)!=menu_read_map or
+            base64.b64encode(hps.encode(menu_read_map)) not in data):
+        raise ValueError('sealed menu access changed or was not linked into the native image')
     if computer_map is not None and (hps.computer(hps_project)!=computer_map or
             base64.b64encode(hps.encode(computer_map)) not in data):
         raise ValueError('sealed computer control changed or was not linked into the native image')
@@ -508,6 +520,7 @@ def build(args):
               "hps_reader_memory":reader_memory_map,"hps_reader_memory_sha256":hps.digest(reader_memory_map) if reader_memory_map else None,
               "hps_ddr_read":ddr_read_map,"hps_ddr_read_sha256":hps.digest(ddr_read_map) if ddr_read_map else None,
               "window_memory":window_memory,
+              "menu_present":menu_present,"hps_menu_read":menu_read_map,"hps_menu_read_sha256":hps.digest(menu_read_map) if menu_read_map else None,
               "window_present":window_present,
               "window_storage_return":window_storage_return,
               "window_reload":window_reload,

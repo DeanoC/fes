@@ -25,6 +25,24 @@ SCOPE = 'source-bound-hps-first-context-v1'
 ROM_PROFILE = 'de25-embedded-hps-first-rom-diagnostic-v1'
 COMPUTER_PROFILE = 'de25-native-computer-v1'
 ROM_PROFILES = (ROM_PROFILE, COMPUTER_PROFILE)
+MENU_PROFILE = 'de25-embedded-hps-first-menu-prototype-v1'
+
+
+def menu_selection(record, program_key='program'):
+    """The initial native menu uses one complete, separate boot selection."""
+    selected = record.get('menu_present', False)
+    if type(selected) is not bool:
+        raise ValueError('menu presentation selection must be boolean')
+    if selected and (record.get(program_key) != 'fpgaload' or
+            any(record.get(k, False) is not False for k in
+                ('ddr_read', 'window_memory', 'window_read', 'window_present', 'window_storage_return',
+                 'window_reload', 'window_service', 'computer_control', 'computer_reload',
+                 'computer_storage_return', 'selected_programs', 'tenfoot_serial', 'usb_control', 'usb_shared')) or
+            any(record.get(k) is not None for k in
+                ('hps_ddr_read', 'hps_window_read', 'hps_computer', 'hps_rom', 'hps_program_platform',
+                 'usb_input', 'shared_usb_input', 'firmware_rom', 'rom_host_go'))):
+        raise ValueError('menu presentation requires its separate native configuration mode')
+    return selected
 
 
 def uses_held_rom(context):
@@ -854,6 +872,27 @@ def checked_window_read(record,program_key='program'):
     expected=window_read(record['hps_project'])
     if encode(record['hps_window_read'])!=encode(expected) or record['hps_window_read_sha256']!=digest(expected):
         raise ValueError('window access differs from the sealed adapter')
+    return expected
+
+
+def checked_menu_read(record, program_key='program'):
+    selected = menu_selection(record, program_key)
+    keys = ('hps_menu_read', 'hps_menu_read_sha256')
+    source = record.get('hps_context') or {}
+    if not selected:
+        if any(record.get(k) is not None for k in keys) or (
+                record.get(program_key) == 'fpgaload' and source.get('programming_profile') == MENU_PROFILE):
+            raise ValueError('menu access supplied without explicit native selection')
+        return None
+    if source.get('programming_profile') != MENU_PROFILE or any(record.get(k) is None for k in keys):
+        raise ValueError('menu access requires its complete compiled source')
+    memory = checked_reader_memory(record, program_key)
+    if memory is None or memory.get('scope') != 'sealed-cold-menu-reader-memory-v1':
+        raise ValueError('menu access requires its complete pinned two-slot arena')
+    expected = menu_read(record['hps_project'])
+    if encode(record[keys[0]]) != encode(expected) or record[keys[1]] != digest(expected):
+        raise ValueError('menu access differs from the sealed generated adapter')
+    validate_menu_read(source, memory, record['hps_control_sha256'], expected)
     return expected
 
 

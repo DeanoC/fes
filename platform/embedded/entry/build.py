@@ -55,6 +55,26 @@ def usb_control_option(receipt):
     return selected
 
 
+def menu_present_option(receipt, memory, access):
+    selected=receipt.get('menu_present',False)
+    if (type(selected) is not bool or selected!=(access is not None) or
+            selected and (memory is None or memory.get('scope')!='sealed-cold-menu-reader-memory-v1')):
+        raise ValueError('menu presentation requires its complete two-slot memory and read contract')
+    command=receipt.get('command',[])
+    try:tokens=shlex.split(command[command.index('-ldflags')+1])
+    except (ValueError,IndexError,AttributeError,TypeError):
+        raise ValueError('menu presentation requires the native link command') from None
+    assignments={'main.expectedMenuPresent':'1', 'main.expectedMenuReadMap':
+                 base64.b64encode((json.dumps(access,sort_keys=True,separators=(',',':'))+'\n').encode()).decode()}
+    for name,value in assignments.items():
+        options=[(i,word) for i,word in enumerate(tokens) if name in word]
+        if selected:
+            if len(options)!=1 or options[0][1]!=name+'='+value or options[0][0]==0 or tokens[options[0][0]-1]!='-X':
+                raise ValueError('menu presentation differs from the exact native link assignments')
+        elif options:raise ValueError('unselected menu presentation appears in the native link command')
+    return selected
+
+
 def window_memory_option(receipt, memory):
     selected=receipt.get('window_memory',False)
     if (type(selected) is not bool or selected !=
@@ -233,6 +253,8 @@ def main():
     native_storage_return = False
     native_window_memory = False
     native_window_read = None
+    native_menu_read = None
+    native_menu_present = False
     native_window_present = False
     native_window_storage_return = False
     native_window_reload = False
@@ -276,6 +298,8 @@ def main():
         native_cpu_map=hps.checked_cpu_mapping(receipt)
         native_ddr_read=hps.checked_ddr_read(receipt)
         native_window_read=hps.checked_window_read(receipt)
+        native_menu_read=hps.checked_menu_read(receipt)
+        native_menu_present=menu_present_option(receipt,native_reader_memory,native_menu_read)
         native_computer=hps.checked_computer(receipt)
         native_rom=hps.checked_rom(receipt)
         native_program_platform=hps.checked_program_platform(receipt)
@@ -305,6 +329,10 @@ def main():
                 (b'FES_NATIVE_FPGA_WINDOW_PRESENT STEP ',b'FES_NATIVE_FPGA_WINDOW_PRESENT FRAME ',b'FES_NATIVE_FPGA_WINDOW_PRESENT PASS ',
                  b'WindowSession).PresentFrame',b'WindowReader).Drain')):
             raise ValueError('window presentation is absent from the selected native ELF')
+        if native_menu_present and any(value not in payload.read_bytes() for value in
+                (b'FES_NATIVE_FPGA_MENU_PRESENT FRAME ',b'FES_NATIVE_FPGA_MENU_PRESENT PASS ',
+                 b'NewMenuHPSContextVerifier',b'MenuSession).PresentFrame',b'MenuSession).Close')):
+            raise ValueError('menu presentation is absent from the selected native ELF')
         command=receipt.get('command',[])
         flags=command[command.index('-ldflags')+1] if isinstance(command,list) and '-ldflags' in command and command.index('-ldflags')+1<len(command) else ''
         if not isinstance(flags,str) or native_reload!=('-X main.expectedComputerReload=1' in flags):
@@ -327,6 +355,8 @@ def main():
             raise ValueError('DDR read contract is absent from the selected native ELF')
         if native_window_read is not None and base64.b64encode(hps.encode(native_window_read)) not in payload.read_bytes():
             raise ValueError('full-window access contract is absent from the selected native ELF')
+        if native_menu_read is not None and base64.b64encode(hps.encode(native_menu_read)) not in payload.read_bytes():
+            raise ValueError('menu access contract is absent from the selected native ELF')
         if native_computer is not None and base64.b64encode(hps.encode(native_computer)) not in payload.read_bytes():
             raise ValueError('computer control contract is absent from the selected native ELF')
         if native_rom is not None and base64.b64encode(hps.encode(native_rom)) not in payload.read_bytes():
@@ -517,6 +547,8 @@ def main():
               "hps_rom_sha256":hps.digest(native_rom) if native_rom is not None else None,
               "computer_reload":native_reload,
               "window_memory":native_window_memory,
+              "menu_present":native_menu_present,"hps_menu_read":native_menu_read,
+              "hps_menu_read_sha256":hps.digest(native_menu_read) if native_menu_read else None,
               "window_read":native_window_read is not None,"hps_window_read":native_window_read,
               "window_present":native_window_present,
               "window_storage_return":native_window_storage_return,
