@@ -102,6 +102,11 @@ type HPSContextVerifier struct {
 	readerMemoryAttempted  bool
 	readerMemoryReady      bool
 	readerMemoryRegion     *Region
+	menuSession            *MenuSession
+	menuMemory             *menuMemoryMap
+	menuMemorySHA          [32]byte
+	menuPublication        MenuMemoryObservation
+	menuExpected           []byte
 	windowMemory           *windowMemoryMap
 	windowMemorySHA        [32]byte
 	windowPublication      WindowMemoryObservation
@@ -146,6 +151,7 @@ func newHPSContextVerifier(cpu FirmwareCaller, source []byte, extraProfile strin
 	profileMatchesABI := c.ProgrammingProfile == HPSFirstDiagnosticProfile && c.ControlABI == 0x10203040 ||
 		c.ProgrammingProfile == HPSFirstDDRDiagnosticProfile && c.ControlABI == 0x10203041 ||
 		extraProfile == HPSFirstWindowDiagnosticProfile && c.ProgrammingProfile == HPSFirstWindowDiagnosticProfile && c.ControlABI == 0x10203042 ||
+		extraProfile == HPSFirstMenuProfile && c.ProgrammingProfile == HPSFirstMenuProfile && c.ControlABI == 0x10203043 ||
 		extraProfile == HPSFirstROMDiagnosticProfile && c.ProgrammingProfile == HPSFirstROMDiagnosticProfile && c.ControlABI == 0x10203041 ||
 		extraProfile == NativeComputerProfile && nativeComputerSource(c)
 	coreMatchesABI := c.CoreID == "fes.de25-embedded-diagnostic" && c.ABI == c.CoreID

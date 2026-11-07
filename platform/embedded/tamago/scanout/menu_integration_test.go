@@ -441,7 +441,7 @@ func TestMenuActualRTL(t *testing.T) {
 	t.Run("bad_CSR_requests_do_not_start_or_submit", func(t *testing.T) {
 		p := newMenuProbe(t)
 		m := p.open(t)
-		for _, request := range []string{"write 80 1 1", "write 81 1 f", "write 80 4 f", "write 90 2 f", "write 80 2 f", "write 80 3 f", "read cc"} {
+		for _, request := range []string{"write 80 1 1", "write 81 1 f", "write 80 4 f", "write 90 2 f", "write 80 2 f", "write 80 3 f", "read d0"} {
 			if _, err := p.call(request); err == nil {
 				t.Fatal("bad CSR accepted", request)
 			}
@@ -476,6 +476,54 @@ func TestMenuActualRTL(t *testing.T) {
 		}
 		p.retired(t, m)
 	})
+	t.Run("independent_C_firmware_rechecks_local_stop", func(t *testing.T) {
+		p := newMenuProbe(t)
+		m := p.open(t)
+		if _, err := m.PresentFrame(context.Background(), p.frames[0]); err != nil {
+			t.Fatal(err)
+		}
+		if _, err := m.Stop(context.Background(), 7); err != nil {
+			t.Fatal(err)
+		}
+		v := p.must(t, "fw-stop")
+		if v[0] != 1 || v[1] != 0 || v[2] != 0 || v[3] == 0 || v[4] != 0 {
+			t.Fatal("independent C readback did not verify the existing receipt", v)
+		}
+	})
+	t.Run("independent_C_firmware_stops_active_reader_once", func(t *testing.T) {
+		p := newMenuProbe(t)
+		m := p.open(t)
+		if _, err := m.PresentFrame(context.Background(), p.frames[0]); err != nil {
+			t.Fatal(err)
+		}
+		v := p.must(t, "fw-stop")
+		if v[0] != 1 || v[1] != 1 || v[4] != 3 {
+			t.Fatal("C callback did not stop active reader once", v)
+		}
+		_, err := m.PresentFrame(context.Background(), p.frames[1])
+		if err == nil {
+			t.Fatal("reader remained usable after independent stop")
+		}
+		p.retired(t, m)
+	})
+	for _, command := range []string{"fw-layout 400000", "fw-owned 0"} {
+		t.Run(strings.ReplaceAll(command, " ", "_"), func(t *testing.T) {
+			p := newMenuProbe(t)
+			p.open(t)
+			p.must(t, command)
+			if _, err := p.call("fw-stop"); err == nil {
+				t.Fatal("foreign C scope accepted")
+			}
+			before := p.must(t, "fw-stats")
+			if _, err := p.call("fw-stop"); err == nil {
+				t.Fatal("C failure replayed")
+			}
+			after := p.must(t, "fw-stats")
+			if before[2] != after[2] || before[3] != after[3] || after[0] != 0 {
+				t.Fatal("retired C helper touched devices", before, after)
+			}
+		})
+	}
 	t.Run("snapshot_and_geometry_corruption_reject", func(t *testing.T) {
 		for _, offset := range []uint32{8, 12, 0xb4, 0x94, 0x98, 0xa0, 0xac} {
 			t.Run(fmt.Sprintf("offset_%x", offset), func(t *testing.T) {

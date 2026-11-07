@@ -26,7 +26,7 @@ static int snapshot(struct fes_nano_fabric_stop *s,struct fes_nano_fabric_snapsh
         FES_EMBEDDED_REG_STATUS,FES_EMBEDDED_REG_PENDING,
         FES_EMBEDDED_REG_ACK_GENERATION_LO,FES_EMBEDDED_REG_ACK_GENERATION_HI,
         FES_EMBEDDED_REG_ACK_COOKIE_LO,FES_EMBEDDED_REG_ACK_COOKIE_HI,0xb0,0xb4,
-        s->abi==0x10203042U ? 0xc8U : 0xb8U};
+        s->abi==0x10203043U ? 0xccU : s->abi==0x10203042U ? 0xc8U : 0xb8U};
     for (unsigned i=0;i<22;i++) {
         if (scope(s)) return s->first_error;
         s->reads++;
@@ -128,7 +128,8 @@ int fes_nano_fabric_stop(struct fes_nano_fabric_stop *s)
     unsigned build=0;
     for (unsigned i=0;i<4;i++) build|=s->build[i];
     unsigned reader=(s->abi==0x10203041U && s->bytes==8192U) ||
-                    (s->abi==0x10203042U && s->bytes==(4U<<20));
+                    (s->abi==0x10203042U && s->bytes==(4U<<20)) ||
+                    (s->abi==0x10203043U && s->bytes==(8U<<20));
     if (s->qualified!=1 || !reader || !build || !s->cookie ||
         s->bus_base!=0x95000000U ||
         !s->io.owns || !s->io.read32 || !s->io.write32 || !s->io.wait ||

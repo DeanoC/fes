@@ -266,6 +266,21 @@ class NanoConfigurationTests(unittest.TestCase):
                 '#define FES_NANO_WINDOW_READ_ATTRS_VERIFIED 1\n'
                 '#define FES_NANO_WINDOW_FRAME_BYTES 3686400U\n#define FES_NANO_WINDOW_ROW_BYTES 5120U\n'
                 '#define FES_NANO_WINDOW_STRIDE 5120U\n#define FES_NANO_WINDOW_ROWS 720U\n')
+            # Compile the private menu under this complete configuration
+            # fixture. A reservation-only cold profile cannot exercise its
+            # owned dispatcher: it deliberately requires sealed configuration.
+            # This is compilation, not a joined menu/secure-service execution.
+            menu_profile=(window_profile.replace('0x10203042U','0x10203043U')
+                          .replace('4194304U','8388608U')+
+                '#define FES_NANO_MENU_MEMORY 1\n#define FES_NANO_MENU_SLOTS 2U\n'
+                '#define FES_NANO_MENU_SLOT_BYTES 4194304U\n')
+            (inc/'fes_nano_cold_profile.h').write_text(menu_profile)
+            for name in reader_sources:
+                obj=base/('menu-'+Path(name).name+'.o')
+                compiled=subprocess.run(['cc',*flags,'-Wextra','-DFES_TEST_HPS_CONTEXT',
+                                         '-c',str(FW/name),'-o',str(obj)],capture_output=True,text=True,timeout=30)
+                self.assertEqual(compiled.returncode,0,compiled.stderr)
+            print('PASS compile complete cold menu configuration/8 MiB reservation/owned dispatcher',flush=True)
             (inc/'fes_nano_cold_profile.h').write_text(window_profile)
             window_objects=[sha_object]
             for name in reader_sources:

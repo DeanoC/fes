@@ -47,6 +47,7 @@ type configurationBinding struct {
 	handoff      *packagestore.Handoff
 	windowReturn *WindowSession
 	windowOpened bool
+	menuOpened   bool
 }
 
 // The pinned SiP engine has four buffer descriptors. BUSY accepts the latest

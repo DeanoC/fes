@@ -6,6 +6,9 @@
 #include "nano_identity.h"
 #include "nano_sd.h"
 #define FES_NANO_WINDOW_READ_DIAGNOSTIC 1
+#ifdef FES_TEST_MENU_SCOPE
+#define FES_NANO_MENU_MEMORY 1
+#endif
 #define FES_NANO_COLD_CONFIG 1
 static struct fes_nano_bridges bridges;
 static struct fes_nano_identity_probe probe;
@@ -67,13 +70,13 @@ int main(int argc,char **argv)
     struct fes_nano_bridge_ops ops={0};ops.owns=owns;ops.read_reset=read_reset;ops.masters_contained=masters;
     ops.stop_producers=stop;ops.enable=enable;ops.disable=disable;
     assert(!fes_nano_bridges_init(&bridges,ops,17,7,1,1));
-    probe=(struct fes_nano_identity_probe){.bridges=&bridges,.initialized=1,.abi=0x10203042,
+    probe=(struct fes_nano_identity_probe){.bridges=&bridges,.initialized=1,.abi=FES_NANO_WINDOW_SESSION_ABI,
         .build={1,2,3,4},.io={.contain=contain,.configured=configured}};
     struct fes_nano_configuration c={.bridges=&bridges,.initialized=1,.attempted=1,.prepared=1,.started=1,.finished=1,
         .owner=17,.generation=1,.completed=128,.bytes=128};
     switch(mutation) {
     case 1:c.finished=0;break;case 2:c.pending=4;break;case 3:c.failed=1;break;
-    case 5:bridges.device_lease=1;break;case 6:c.owner=19;break;case 8:probe.abi=0x10203041;break;
+    case 5:bridges.device_lease=1;break;case 6:c.owner=19;break;case 8:probe.abi=FES_NANO_WINDOW_SESSION_ABI==0x10203043U ? 0x10203042U : 0x10203043U;break;
     case 9:probe.attempted=1;break;case 10:c.rearmed=1;break;case 11:c.issued=1;break;
     }
     uint64_t r[4],release=FES_EMBEDDED_BRIDGE_RELEASE | (8ULL<<FES_EMBEDDED_BRIDGE_RELEASE_SHIFT);

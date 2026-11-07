@@ -62,9 +62,10 @@ checks actual Tenfoot frames through the owned endpoint and Nano 256-bit DDR
 boundary, with full-frame acknowledgement, local quiescence and failure paths.
 It requires committed inputs; `--allow-dirty` labels working-tree simulations.
 
-This source needs a separately admitted **8 MiB** double-buffer arena, a native
-control binding and board pixel-clock/HDMI integration. The existing boot copier
-and 4 MiB CRC-window firmware do not provide those contracts. Local Stopped is
+This source requires its own **8 MiB** double-buffer arena and board
+pixel-clock/HDMI integration. `nativefabric.MenuSession` supplies the native
+reservation/control/return binding described below; the existing boot copier
+and 4 MiB CRC-window profile cannot grant that scope. Local Stopped is
 not firmware master drain or permission to release the arena. No current Nano
 boot or core package selects this prototype; physical display remains open.
 
@@ -99,8 +100,19 @@ memory; publication and every output pixel are checked against the two actual
 Tenfoot renderings. Failure cases cover completed-but-uncertain commands, partial
 writes/publication, clock regression, stale/corrupt snapshots, real held-address
 stop, ownership loss, cancellation, source reset and concurrency. This remains
-host evidence. Current board commands and firmware do not select this presenter;
-the secure reservation, global return and board clock/HDMI binding remain open.
+host evidence. The actual C firmware stop helper also checks active and already
+locally drained readers through this RTL, rejecting an inherited 4 MiB layout or
+lost ownership without replay. Its independent maintenance-hold read uses `0xcc`.
+
+`nativefabric.NewMenuHPSContextVerifier`, `ReserveMenuMemory` and `OpenMenuSession`
+now bind this presenter to the exact private menu profile, a complete boot-pinned
+8 MiB publication and its single completed transfer. The session checks both
+slots and padding against a private expected image, brackets memory/CSR work with
+secure ownership, and performs independent firmware master-stop/bridge closure
+on return. Tests inject the secure service to cover opening, presentation,
+closure and failure ownership; they do not execute physical SMCs or DDR.
+The matched board command, sealed producer, storage resume/reconfiguration and
+clock/HDMI wiring remain open. No current board image selects this presenter.
 
 ## Probes and evidence
 

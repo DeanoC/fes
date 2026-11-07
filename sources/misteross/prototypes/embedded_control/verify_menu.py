@@ -12,7 +12,10 @@ from verify_window import FES, HERE, first_party_go_sources, producer, run, sha
 MENU = FES/'sources/misteross/cores/fes-menu/rtl'
 INPUTS = [Path(__file__), HERE/'verify_window.py', HERE/'producer.py',
           HERE/'fes_embedded_menu_scanout.sv', HERE/'fes_embedded_menu_control.sv',
-          HERE/'embedded_menu_top.sv', HERE/'menu_probe.cpp', HERE/'menu_bench.hpp', HERE/'menu_rpc.cpp',
+          HERE/'embedded_menu_top.sv', HERE/'menu_probe.cpp', HERE/'menu_bench.hpp', HERE/'menu_rpc.cpp', HERE/'menu_firmware.hpp',
+          FES/'platform/embedded/firmware/nano_fabric_stop.c', FES/'platform/embedded/firmware/nano_fabric_stop.h',
+          FES/'platform/embedded/firmware/nano_probe_stop.c', FES/'platform/embedded/firmware/nano_probe_stop.h',
+          FES/'platform/embedded/firmware/generated/fes_de25_ddr_probe.h',
           FES/'platform/embedded/tamago/scanout/menu.go',
           FES/'platform/embedded/tamago/scanout/menu_integration_test.go',
           HERE.parent/'de25_board_control/fes_de25_read_width.sv',
@@ -75,12 +78,13 @@ def main():
     tools, paths = producer.tools_snapshot()
     tools['go'] = dict(path=str(go), sha256=sha(go), version=subprocess.check_output([go, 'version'], env=env, text=True).strip())
     model_env = producer.build_environment(paths)
-    def build(label, scanout, parameters=(), probe=HERE/'menu_probe.cpp'):
+    def build(label, scanout, parameters=(), probe=HERE/'menu_probe.cpp', objects=()):
         obj = output/(label+'-obj')
         run(output, label+'-build', [paths['verilator'], '--cc', '--exe', '--build', '-j', '2',
             '--top-module', 'embedded_menu_top', *parameters, '-Wall', '-Wno-UNUSEDSIGNAL', '-Wno-PINCONNECTEMPTY', '--Mdir', obj,
             '-I'+str(FES/'sources/misteross/cores/fes-common/generated'), '-CFLAGS',
-            '-std=c++17 -O2 -I'+str(FES/'platform/embedded/firmware/generated'),
+            '-std=c++17 -O2 -I'+str(FES/'platform/embedded/firmware/generated')+' -I'+str(FES/'platform/embedded/firmware'),
+            *(['-LDFLAGS', ' '.join(str(p) for p in objects)] if objects else []),
             FES/'sources/misteross/cores/fes-common/rtl/fes_embedded_control.sv',
             HERE.parent/'de25_board_control/fes_de25_read_width.sv',
             MENU/'fes_menu_video.v', reader, scanout, HERE/'fes_embedded_menu_control.sv', HERE/'embedded_menu_top.sv', probe], model_env)
@@ -105,7 +109,12 @@ def main():
     assert 'PASS invalid single-slot arena rejected before DDR access' in invalid
     native = output/'native-csr'
     native.mkdir()
-    rpc = build('menu-csr', HERE/'fes_embedded_menu_scanout.sv', ["-GCSR_MODE=1'b1"], HERE/'menu_rpc.cpp')
+    firmware_objects = []
+    for name in ('nano_fabric_stop', 'nano_probe_stop'):
+        obj = native/(name+'.o'); firmware_objects.append(obj)
+        run(output, name+'-build', ['cc', '-std=c11', '-Wall', '-Wextra', '-Werror',
+            '-I'+str(FES/'platform/embedded/firmware'), '-c', FES/('platform/embedded/firmware/'+name+'.c'), '-o', obj], env)
+    rpc = build('menu-csr', HERE/'fes_embedded_menu_scanout.sv', ["-GCSR_MODE=1'b1"], HERE/'menu_rpc.cpp', firmware_objects)
     (native/'descriptor.json').write_text(json.dumps(dict(Executable=str(rpc), Frames=[str(p) for p in arguments]), indent=2)+'\n')
     native_env = dict(env, FES_MENU_CSR_DIR=str(native))
     raw_native = run(output, 'native-menu', [go, '-C', 'platform/embedded/tamago', 'test', '-race', '-count=1',

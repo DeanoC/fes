@@ -5,7 +5,7 @@ module fes_embedded_menu_control #(
     parameter [31:0] WINDOW_BASE = 32'h95000000,
     parameter [31:0] WINDOW_BYTES = 32'd8388608
 )(
-    input wire clk, reset_n, valid, write,
+    input wire clk, reset_n, valid, write, maintenance_held,
     input wire [7:0] address,
     input wire [31:0] wdata,
     input wire [3:0] wstrb,
@@ -28,7 +28,7 @@ module fes_embedded_menu_control #(
         SEQUENCE=8'h8c, SLOT=8'h90, STATUS=8'h94, RESULT_LO=8'h98,
         RESULT_HI=8'h9c, ACCEPTED=8'ha0, DISPLAYED=8'ha4, UNDERFLOWS=8'ha8,
         RESULT_SLOT=8'hac, BASE=8'hb0, SPAN=8'hb4, STRIDE=8'hb8,
-        WIDTH=8'hbc, HEIGHT=8'hc0, MAGIC=8'hc4, VERSION=8'hc8;
+        WIDTH=8'hbc, HEIGHT=8'hc0, MAGIC=8'hc4, VERSION=8'hc8, MAINTENANCE_HELD=8'hcc;
     reg [63:0] expected_generation, active_generation, snapshot_generation;
     reg [31:0] staged_sequence, accepted_sequence, snapshot_accepted,
         snapshot_displayed, snapshot_underflows;
@@ -85,6 +85,7 @@ module fes_embedded_menu_control #(
                 HEIGHT: rdata=720;
                 MAGIC: rdata=32'h31534d46; // FMS1
                 VERSION: rdata=1;
+                MAINTENANCE_HELD: rdata={31'd0,maintenance_held};
                 default: error=1;
             endcase
         end

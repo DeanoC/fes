@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Native Go drives actual CSR/video/AXI RTL. Memory is an independent CPU arena.
-#include "menu_bench.hpp"
+#include "menu_firmware.hpp"
 #include <sstream>
 #include <string>
 static unsigned nibble(char c) {
@@ -12,7 +12,7 @@ int main(int argc,char** argv) {
     try {
         require(argc==3,"two actual Tenfoot frames required");
         std::array<std::vector<uint8_t>,2> frames{load(argv[1]),load(argv[2])};
-        Bench b(frames,false,true);
+        Bench b(frames,false,true);MenuFirmware firmware(b);
         std::string line;
         while(std::getline(std::cin,line)) {
             require(line.size()<65550,"menu RPC command bound");
@@ -55,6 +55,15 @@ int main(int argc,char** argv) {
                 b.strict=a==0;
             } else if(op=="reset-video") {
                 b.d.video_reset_n=0;b.tick();b.d.video_reset_n=1;b.tick();
+            } else if(op=="fw-stop") {
+                int status=fes_nano_fabric_stop(&firmware.stop);ok=status==0;
+                values={firmware.stop.done,firmware.stop.disable_issued,firmware.stop.probe.cancel_issued,firmware.reads,firmware.writes};
+            } else if(op=="fw-stats") {
+                values={firmware.stop.done,firmware.stop.failed,firmware.reads,firmware.writes};
+            } else if(op=="fw-layout") {
+                require(bool(in>>a),"firmware layout syntax");firmware.stop.bytes=a;
+            } else if(op=="fw-owned") {
+                require(bool(in>>a) && a<=1,"firmware owner syntax");firmware.owned=a;
             } else if(op=="stats") {
                 values={b.addresses,b.beats,b.queue.size(),b.checked_pixels,b.acknowledgements,b.d.underflows,b.d.fault,b.d.stopped,b.d.m_arvalid,b.d.m_arready};
             } else throw std::runtime_error("unknown menu RPC command");

@@ -178,7 +178,18 @@ static struct fes_nano_identity_probe identity_probe;
 static unsigned identity_reported;
 struct fes_nano_identity_probe *fes_nano_platform_identity_probe(void) { return &identity_probe; }
 #ifdef FES_NANO_READER_CPU_BASE
-#if defined(FES_NANO_WINDOW_MEMORY) && FES_NANO_WINDOW_MEMORY
+#if defined(FES_NANO_MENU_MEMORY) && FES_NANO_MENU_MEMORY
+#if !defined(FES_NANO_WINDOW_MEMORY) || !FES_NANO_WINDOW_MEMORY || !defined(FES_NANO_WINDOW_READ_DIAGNOSTIC) || !FES_NANO_WINDOW_READ_DIAGNOSTIC
+#error "menu memory requires its owned read-only window lifecycle"
+#endif
+_Static_assert(FES_NANO_CONTROL_ABI==0x10203043U && FES_NANO_READER_CPU_BASE==0x95000000ULL &&
+    FES_NANO_READER_BUS_BASE==0x95000000ULL && FES_NANO_READER_BYTES==(8U<<20) &&
+    FES_NANO_READER_ARENA_BYTES==(8U<<20) && FES_NANO_MENU_SLOTS==2U && FES_NANO_MENU_SLOT_BYTES==(4U<<20) &&
+    FES_NANO_WINDOW_FRAME_BYTES==3686400U && FES_NANO_WINDOW_ROW_BYTES==5120U &&
+    FES_NANO_WINDOW_STRIDE==5120U && FES_NANO_WINDOW_ROWS==720U &&
+    FES_NANO_PROBE_CPU_BASE==0x20010100UL && FES_NANO_PROBE_SPAN==FES_DE25_DDR_PROBE_SPAN,
+    "source-bound cold menu memory profile");
+#elif defined(FES_NANO_WINDOW_MEMORY) && FES_NANO_WINDOW_MEMORY
 _Static_assert(FES_NANO_CONTROL_ABI==0x10203042U && FES_NANO_READER_CPU_BASE==0x95000000ULL &&
     FES_NANO_READER_BUS_BASE==0x95000000ULL && FES_NANO_READER_BYTES==(4U<<20) &&
     FES_NANO_READER_ARENA_BYTES==(4U<<20) && FES_NANO_WINDOW_FRAME_BYTES==3686400U &&
@@ -195,7 +206,9 @@ _Static_assert(FES_NANO_CONTROL_ABI==0x10203041U && FES_NANO_READER_CPU_BASE==0x
     FES_NANO_PROBE_SPAN==FES_DE25_DDR_PROBE_SPAN,"source-bound cold DDR reader profile");
 #endif
 _Static_assert(FES_NANO_READER_BUS_BASE==FES_NANO_DDR_FIREWALL_WINDOW &&
-    (FES_NANO_READER_BYTES==8192U || FES_NANO_READER_BYTES==(4U<<20)),"sealed observed DDR firewall window");
+    ((FES_NANO_CONTROL_ABI==0x10203041U && FES_NANO_READER_BYTES==8192U) ||
+     (FES_NANO_CONTROL_ABI==0x10203042U && FES_NANO_READER_BYTES==(4U<<20)) ||
+     (FES_NANO_CONTROL_ABI==0x10203043U && FES_NANO_READER_BYTES==(8U<<20))),"sealed observed DDR firewall window");
 static uint32_t firewall_bridge;
 static int firewall_owns(void *context)
 {
@@ -254,7 +267,7 @@ static int fabric_owns(void *context)
 }
 static int fabric_read(void *context,uint32_t offset,uint32_t *value)
 {
-    const uint32_t held=FES_NANO_CONTROL_ABI==0x10203042U ? 0xc8U : 0xb8U;
+    const uint32_t held=FES_NANO_CONTROL_ABI==0x10203043U ? 0xccU : FES_NANO_CONTROL_ABI==0x10203042U ? 0xc8U : 0xb8U;
     if ((offset>0x4c && offset!=0xb0 && offset!=0xb4 && offset!=held) ||
         offset==FES_EMBEDDED_REG_COMMAND || offset&3U || fabric_owns(context)!=1) return -1;
     dsbsy();*value=mmio_read_32(FES_NANO_CONTROL_BASE+offset);dsbsy();

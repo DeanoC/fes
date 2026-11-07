@@ -9,6 +9,13 @@
 #if defined(FES_NANO_COLD_COMPUTER) && FES_NANO_COLD_COMPUTER
 #error "window and computer sessions cannot share a boot grant"
 #endif
+/* The menu uses this same owned read-only window lifecycle, with a separate
+ * compiled ABI. The opt-in cannot make a checksum source into a menu source. */
+#if defined(FES_NANO_MENU_MEMORY) && FES_NANO_MENU_MEMORY
+#define FES_NANO_WINDOW_SESSION_ABI 0x10203043U
+#else
+#define FES_NANO_WINDOW_SESSION_ABI 0x10203042U
+#endif
 enum { FES_WINDOW_FRESH, FES_WINDOW_CONTROL, FES_WINDOW_DATA, FES_WINDOW_RETIRED, FES_WINDOW_RECONFIGURING };
 static unsigned fes_nano_window_phase;
 static uint64_t fes_nano_window_generation;
@@ -69,7 +76,7 @@ static int fes_nano_window_control(uint32_t fid,uint64_t operation,uint64_t owne
            c->owner!=owner || c->generation!=generation || generation>UINT64_MAX-3 || busy ||
            !c->bridges || c->bridges->failed || c->bridges->device_lease ||
            !p || !p->initialized || p->failed || p->active || p->first_error ||
-           p->cleanup_error || p->abi!=0x10203042U || p->bridges!=c->bridges || !p->io.configured)return 1;
+           p->cleanup_error || p->abi!=FES_NANO_WINDOW_SESSION_ABI || p->bridges!=c->bridges || !p->io.configured)return 1;
         if(fes_nano_window_phase==FES_WINDOW_FRESH ? (c->rearmed || p->attempted) :
            (!c->rearmed || !p->attempted || p->stage!=FES_ID_COMPLETE ||
             generation<=fes_nano_window_generation))return 1;

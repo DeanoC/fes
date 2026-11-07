@@ -469,8 +469,8 @@ separate requirements. No observer result grants a bridge or DMA capability.
 
 The cold DDR profile also observes all eight F2SDRAM firewall regions twice
 through `nano_ddr_firewall.c`. It checks the RC28 register layout and whether
-an enabled region covers the explicitly selected 8192-byte or 4 MiB sealed bus
-window. Missing, unsupported or changed window requests reject without a usable
+an enabled region covers the explicitly selected 8192-byte, 4 MiB or private
+8 MiB menu bus window. Missing, unsupported or changed window requests reject without a usable
 observation. The provider requires
 closed cold ownership, EL3 with MMU/cache off, and MPFE out of reset around
 every read. Unstable samples, access failures and lost scope retire the
@@ -810,6 +810,17 @@ or already-drained reader needs no command; an enabled reader receives one
 DISABLE, then a bounded wait for the same generation and cookie with zero
 pending traffic. The inherited probe independently receives CANCEL only if
 needed. A final fresh observation of both receipts precedes completion.
+The private menu selection explicitly requires control ABI `0x10203043`, an
+8 MiB arena with two 4 MiB slots, and its read-only configuration lifecycle.
+It uses the same independent stop algorithm with the menu's maintenance-held
+register at `0xcc`; the 4 MiB CRC window uses `0xc8`. The complete cold-provider
+and owned dispatcher compile under that menu contract. `verify_menu.py` tests
+the actual C stop helper against the menu CSR/video/DDR RTL, including active
+and already locally drained readers, inherited-size rejection and ownership
+loss. Its maintenance probe is injected idle/held there; the separate complete
+fabric verifier covers the inherited probe RTL. These are host checks, with
+no matched menu boot image, physical DDR or HDMI acceptance yet.
+
 The configured stop cookie is a nonzero minimum. If frame updates have advanced
 the endpoint's request cookie, the callback selects the next full 64-bit token
 from the validated snapshot before its single DISABLE. Exhaustion fails before

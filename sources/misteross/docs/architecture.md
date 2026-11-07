@@ -105,9 +105,9 @@ including its final pixel. Underflow blanks missed pixels without shifting the
 remaining stream and cannot acknowledge an incomplete submission.
 
 All ports share one qualified pixel clock. Board interconnect clock crossings,
-physical HDMI setup, secure framebuffer reservation and native register/control
-binding are not supplied. In particular the existing 4 MiB window firmware
-cannot authorize this 8 MiB source. The integrating runtime must keep both slots
+physical HDMI setup and a matched sealed board producer are not supplied.
+The native menu reservation/control binding is described below; the existing
+4 MiB window profile cannot authorize this 8 MiB source. The runtime keeps both slots
 pinned, publish immutable pixels before submission, and wait for the new slot's
 complete-frame acknowledgement before updating its predecessor. Local Quiesce
 stops new frames, preserves a stalled command and drains the menu reader before
@@ -144,6 +144,17 @@ endpoint Disable/drain. Both slots stay pinned and firmware's independent
 all-master stop/bridge closure is still required. Unknown ownership, partial
 copy/publication, uncertain commands and failed stops retire without replay.
 No current native board command selects this driver.
+
+`nativefabric.MenuSession` now requires its own compiled source/control/memory/
+access contracts, an ordered boot-pinned 8 MiB arena and the same owner's fresh
+completed transfer. It supplies the presenter's private CSR and memory hooks,
+then independently requests the existing firmware master-stop and bridge close.
+The menu ABI's maintenance-held register is `0xcc`; the host top ties it held,
+while a board integration must wire the actual maintenance master reset. The C
+helper accepts only the explicit ABI/8 MiB pair. Native ownership/failure tests
+inject secure responses; separate actual C/RTL tests check active and already
+locally drained stop, wrong geometry and lost ownership. No test grants physical
+DDR, HDMI, memory release or menu storage/reconfiguration acceptance.
 
 The same verifier now runs the actual native presenter with race detection
 against the CSR/video/DDR model. CPU writes populate independent model memory,

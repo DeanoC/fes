@@ -100,7 +100,7 @@ module embedded_menu_top #(
     );
     generate if (CSR_MODE) begin : csr_menu
         fes_embedded_menu_control #(.WINDOW_BASE(WINDOW_BASE), .WINDOW_BYTES(WINDOW_BYTES)) menu (
-            .clk(clk), .reset_n(reset_n && video_reset_n), .valid(menu_valid), .write(csr_write),
+            .clk(clk), .reset_n(reset_n && video_reset_n), .valid(menu_valid), .write(csr_write), .maintenance_held(1'b1),
             .address(csr_address), .wdata(csr_wdata), .wstrb(csr_wstrb), .rdata(menu_rdata), .error(menu_error),
             .start_ready(start_ready), .submit_ready(submit_ready), .running(running), .stopped(stopped), .fault(fault),
             .displayed_sequence(displayed_sequence), .underflows(underflows), .rgb(rgb), .de(de), .hs(hs), .vs(vs),

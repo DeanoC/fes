@@ -147,7 +147,47 @@ class WindowContractTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             cold.header(dict(profile,window_present=True,window_read=False,hps_window_read=None))
 
+class MenuMemoryContractTests(unittest.TestCase):
+    def test_two_slot_contract_matches_native_and_rejects_mutations(self):
+        source=json.loads((FIXTURES/'hps-context.json').read_bytes())
+        source.update(programming_profile='de25-embedded-hps-first-menu-prototype-v1',control_abi=0x10203043,
+                      package_id='d'*64,build_id='e'*32)
+        parameters=dict(reader_memory_backend='hps-ddr-menu',reader_memory_base=0x95000000,reader_memory_bytes=8<<20)
+        memory=context.reader_memory_contract(source,parameters)
+        self.assertEqual(context.encode(memory),(FIXTURES/'hps-menu-memory.json').read_bytes())
+        self.assertEqual(context.validate_reader_memory(source,memory),memory)
+        access=json.loads((FIXTURES/'hps-menu-read.json').read_bytes())
+        control=json.loads((FIXTURES/'hps-control.json').read_bytes())
+        control.update(package_id='d'*64,build_id='e'*32,fabric_stop=dict(scope='sealed-menu-master-stop-v1',
+            probe_cpu_base=0x20010100,probe_span=128,maintenance='held-reset-from-configuration'))
+        self.assertEqual(context.validate_menu_read(source,memory,context.digest(control),access),access)
+        for key,value in memory.items():
+            with self.subTest(key=key),self.assertRaises(ValueError):
+                context.validate_reader_memory(source,dict(memory,**{key:True if type(value) is int else 'changed'}))
+        for key,value in access.items():
+            with self.subTest(key=key),self.assertRaises(ValueError):
+                context.validate_menu_read(source,memory,context.digest(control),dict(access,**{key:True if type(value) is int else 'changed'}))
+        for bad in (dict(parameters,reader_memory_bytes=4<<20),dict(parameters,reader_memory_base=0x95001000),
+                    dict(parameters,reader_memory_backend='hps-ddr-window'),dict(parameters,reader_memory_bytes=True)):
+            with self.assertRaises(ValueError):context.reader_memory_contract(source,bad)
+        old=dict(source,programming_profile='de25-embedded-hps-first-window-diagnostic-v1',control_abi=0x10203042)
+        with self.assertRaises(ValueError):context.validate_reader_memory(old,memory)
+        with self.assertRaises(ValueError):context.validate_window_read(source,memory,context.digest(control),access)
+
 class WindowFirmwareTests(unittest.TestCase):
+    def test_menu_dispatcher_requires_its_own_compiled_abi(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            binary=Path(temporary)/'menu'
+            run=subprocess.run(['cc','-std=c11','-Wall','-Wextra','-Werror','-fsanitize=undefined',
+                '-fno-sanitize-recover=all','-DFES_TEST_MENU_SCOPE=1','-I'+str(FW),str(FW/'nano_bridges.c'),str(FW/'nano_bridge_sip.c'),
+                str(FW/'tests/nano_window_control_test.c'),'-o',str(binary)],capture_output=True,text=True,timeout=30)
+            self.assertEqual(run.returncode,0,run.stderr)
+            for mutation in range(22):
+                with self.subTest(mutation=mutation):
+                    result=subprocess.run([str(binary),str(mutation)],capture_output=True,text=True,timeout=5)
+                    self.assertEqual(result.returncode,0,result.stderr+result.stdout)
+                    self.assertIn('PASS ',result.stdout)
+
     def test_actual_dispatcher_uses_owned_control_ddr_and_complete_return(self):
         with tempfile.TemporaryDirectory() as temporary:
             binary=Path(temporary)/'window'

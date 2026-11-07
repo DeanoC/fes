@@ -240,6 +240,33 @@ one 32-byte read, forced reader drain, complete master stop and bridge reclosure
 That result grants no wider window access, buffer reclamation or ordinary
 runtime admission.
 
+The menu personality has its own `NewMenuHPSContextVerifier` and private
+`de25-embedded-hps-first-menu-prototype-v1` / control ABI `0x10203043` contract.
+It requires complete canonical control, memory and read-access maps before I/O;
+the earlier constructors cannot admit it. `ReserveMenuMemory` retains an ordered,
+zeroed, uncached 8 MiB arena at `0x95000000`, with two 4 MiB XRGB slots, under
+unchanged closed secure ownership. The board allocator consumes one reservation
+attempt and never releases it, including on failure. A separate private expected
+image checks all frame bytes, unused slot bytes and trailing padding.
+
+`OpenMenuSession` accepts only this verifier's fresh completed compiled-source
+transfer and reservation. It opens control and DDR through the existing owned
+firmware bridge service, then connects `scanout.MenuPresenter` to private,
+ownership-bracketed CSR and spare-slot memory hooks. It retains one exclusive
+session; copied, foreign, partial, stale and concurrent requests cannot gain I/O.
+`Close` first attempts local video/endpoint stop, then independently requests
+firmware all-master stop and exact bridge closure. Successful return also checks
+source identity, drain coverage and every arena byte. Cancellation cannot prevent
+known containment; uncertainty retires without replay or a successful return
+receipt. Neither return nor failure frees the arena.
+
+The C firmware selects that exact ABI/8 MiB pair explicitly and reads the menu's
+maintenance hold at `0xcc`. Tests exercise native orchestration with injected
+secure calls, and the actual C stop helper against the CSR/video/DDR RTL model.
+These are host checks. The sealed producer, matched boot-builder selection,
+storage resume/reconfiguration and physical clock/HDMI integration do not yet
+select this menu personality; this is not a registered ordinary menu package.
+
 The window personality has a separate constructor,
 `NewWindowHPSContextVerifier`, which requires its compiled control and 4 MiB
 memory maps before any firmware call. `ReserveWindowMemory` publishes a complete

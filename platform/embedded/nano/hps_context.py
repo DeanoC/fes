@@ -206,6 +206,21 @@ def validate_window_read(context,memory,control_sha,mapping):
     return expected
 
 
+def validate_menu_read(context,memory,control_sha,mapping):
+    """Compiled two-slot menu access; this supplies no live memory/bridge grant."""
+    validate_reader_memory(context,memory)
+    if (memory['scope']!='sealed-cold-menu-reader-memory-v1' or not isinstance(mapping,dict) or
+            any(not isinstance(mapping.get(k),str) or not re.fullmatch('[0-9a-f]{64}',mapping[k]) or int(mapping[k],16)==0
+                for k in ('adapter_source_sha256','adapter_generated_sha256'))):
+        raise ValueError('complete compiled menu adapter contract required')
+    expected=dict(format=1,scope='sealed-cold-menu-read-v1',package_id=context['package_id'],build_id=context['build_id'],
+                  reader_memory_sha256=digest(memory),control_map_sha256=control_sha,
+                  adapter_source_sha256=mapping['adapter_source_sha256'],adapter_generated_sha256=mapping['adapter_generated_sha256'],
+                  arcache=2,arprot=3,aruser=224,read_bytes=memory['frame_bytes'],open_mask=8,close_mask=10)
+    if encode(mapping)!=encode(expected):raise ValueError('menu access differs from complete compiled source')
+    return expected
+
+
 def reader_pattern():
     return b''.join(struct.pack('<I', (0x4e414e4f ^ (i * 0x9e3779b9)) & 0xffffffff)
                     for i in range(8192 // 4))
@@ -221,6 +236,18 @@ def _reader_memory(project):
 
 def reader_memory_contract(context, parameters):
     """Exact compiled memory layout. This descriptor grants no FPGA access."""
+    if context['programming_profile']=='de25-embedded-hps-first-menu-prototype-v1':
+        if (context['control_abi']!=0x10203043 or parameters.get('reader_memory_backend')!='hps-ddr-menu' or
+                type(parameters.get('reader_memory_base')) is not int or parameters['reader_memory_base']!=0x95000000 or
+                type(parameters.get('reader_memory_bytes')) is not int or parameters['reader_memory_bytes']!=8<<20):
+            raise ValueError('native menu requires its exact compiled two-slot 8 MiB arena')
+        return {'format':1,'scope':'sealed-cold-menu-reader-memory-v1',
+                'package_id':context['package_id'],'build_id':context['build_id'],
+                'cpu_base':0x95000000,'bus_base':0x95000000,'bytes':8<<20,
+                'arena_base':0x95000000,'arena_bytes':8<<20,
+                'cpu_attributes':'normal-uncached','lifetime':'until-reboot',
+                'fpga_addressing':'physical-identity-unqualified','slots':2,'slot_bytes':4<<20,
+                'row_bytes':5120,'stride':5120,'rows':720,'frame_bytes':3686400,'pixel_format':'xrgb8888'}
     if context['programming_profile']=='de25-embedded-hps-first-window-diagnostic-v1':
         if (context['control_abi']!=0x10203042 or parameters.get('reader_memory_backend')!='hps-ddr-window' or
                 type(parameters.get('reader_memory_base')) is not int or parameters['reader_memory_base']!=0x95000000 or
@@ -254,7 +281,8 @@ def validate_reader_memory(context, mapping):
     if not isinstance(mapping,dict):
         raise ValueError('compiled reader memory descriptor required')
     window=context['programming_profile']=='de25-embedded-hps-first-window-diagnostic-v1'
-    expected=reader_memory_contract(context,{'reader_memory_backend':'hps-ddr-window' if window else 'hps-ddr',
+    menu=context['programming_profile']=='de25-embedded-hps-first-menu-prototype-v1'
+    expected=reader_memory_contract(context,{'reader_memory_backend':'hps-ddr-menu' if menu else 'hps-ddr-window' if window else 'hps-ddr',
         'reader_memory_base':mapping.get('bus_base'),'reader_memory_bytes':mapping.get('bytes')})
     if encode(mapping)!=encode(expected):
         raise ValueError('reader memory differs from its compiled geometry and lifetime')
