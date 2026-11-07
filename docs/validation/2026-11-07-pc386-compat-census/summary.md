@@ -118,7 +118,11 @@ No game bytes, frames, audio or instruction bytes are committed.
   records, disk deltas and staged drive were removed; the baseline was
   unchanged, the agent idle, the lease free.
 - **Drives.** Each run staged its game drive by SHA-256: 134,184,960 bytes
-  (260/16/63), in 46 s on the first stage
+  (260/16/63), in 46 s on the first stage. The kit runs and the first oracle
+  runs used `real` `b460ca55…`, `xms` `64f68024…`, `pmode` `70713edb…`,
+  `dpmi` `bb659032…`, `fpu` `03e430f9…` and `bench` `4fbeb7d9…`
+  (`kit_drive_sha256` in the jsonl). The games-image fix below rebuilt every
+  drive. Its oracle reruns name the rebuilt drive in their own rows
   ([game drives](../../../sources/misteross/docs/pc386-game-drives.md)).
 
 ## Results by bucket
