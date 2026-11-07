@@ -1,0 +1,231 @@
+{
+ "common": {
+  "issue": "https://github.com/DeanoC/fes/issues/1528",
+  "scope": "Atari 520ST: 8 MHz 68000, 512 KiB, DE10-Nano",
+  "matrix_published": "https://github.com/DeanoC/fes/issues/1528#issuecomment-6707411136",
+  "kit": "B",
+  "baseline": {
+   "software": "a8cd30c49afd79eb7668af7ab7ae8a8e2ed2a90a31b25f164e28128b446274ee",
+   "image": "f904961e008a972db8f06f1bb47aff9631123d67215b9f4157ea1fbee83b98d4",
+   "mode": "core-only: no install, no image change"
+  },
+  "package": "2dd2271c816ad3eb83fb73be9e47b08431eaadd9a4d12484c4d684259090bdb7",
+  "package_file_sha256": "9549c98891c36f156b68ac1ab0d43f8141f762ca71ff3e0bdd289dc8a1a7a6e9",
+  "package_build": "fes.atari-st 0.2.0, build b6f137e9f6602bfbd2f35c9eb92361e4, fes f53eba7614eb98a3103e9d946b86bcefbebed5e6; nextpnr 9128800f, mistral 8fcc4cb4, yosys 5391eeb1, HIP; built-in Direct video",
+  "main_seal_attempt": "fes 607922c63d45f798dd3f6fb0ce443f346c324852, HIP: producer stopped after synthesis with 'source list outside audited closure: .'; the check was not relaxed",
+  "firmware": {
+   "name": "TOS 1.04 UK",
+   "bytes": 196608,
+   "sha256": "c005b0ae8ccd5bf2569add2a0d0a42583b2fb70eec3e1202d82311e96664a88e"
+  },
+  "host": "private Powerboat fogcast-api bb51f4454eb72048cefeea16aa16b28eb2aadaad (promoted binary), private HOME, single kit2 target; library title, POST /api/v1/session/launch, /api/v1/session/input/event, /api/v1/session/stop",
+  "capture": "Kit B 4KPRO (fes-4kpro-hil) 1920x1080 frames; play recordings 640x360 h264; audio hw:CARD=D4KPRO stereo 48 kHz",
+  "converter": {
+   "script": "ipf2st.py",
+   "script_sha256": "ed2bd6903463fd88c491f5480d9abcf8e53302039dee417a84b34a35264a66f7",
+   "decoder": "FrodeSolheim/capsimg ed4cb0912fb1a2a0d5203111c6f6abd50d411b56, private build",
+   "decoder_sha256": "9e702ffa36aa5ffc990c8db569133b16ae0aec045e41fc2dc459521d6d7c6623",
+   "triage": "166 of 408 IPFs give a BPB-consistent .st with every sector CRC-good"
+  },
+  "reference": {
+   "emulator": "Hatari 2.4.1 (Debian 2.4.1+dfsg-2)",
+   "binary_sha256": "dab1d8a0aae8cfc13584e916c4a3e66955621f6a36a0f9a12de177ed7575900d",
+   "options": "--machine st --memsize 0 --cpuclock 8 --cpulevel 0 --compatible on --patch-tos off --fast-boot off --fastfdc off --monitor rgb --tos-res low, TOS 1.04"
+  }
+ },
+ "disks": {
+  "xenon": {
+   "title": "Xenon (Europe) (Budget - 16 Blitz)",
+   "zip_sha256": "dbdcaad19c3de3c3f872382f7816e2254752135b30d47635d1d64e6e4b8c57e7",
+   "ipf_sha256": "7462077f5c9df88c8f64f8fbc5b2cdc622c51937a4e7a3e2f445215a97543fe6",
+   "st_sha256": "660e544ffa7eb8e0f9201614711f5d4b2a935870bb89f5ea707fed314e056f9e",
+   "st_bytes": 409600,
+   "bpb": {
+    "bps": 512,
+    "spt": 10,
+    "sides": 1,
+    "sectors": 800
+   }
+  },
+  "logical": {
+   "title": "Logical (Europe)",
+   "zip_sha256": "dddc9f4a5eaefd6a6aadebc7404850d8d7b0dcebc235b88f03c9344322e96e37",
+   "ipf_sha256": "f340bf07e41a3f2a0c5ceb01b095812795b4aafa30838c664d5f4af117a791fc",
+   "st_sha256": "da73eb0eb5797b620074143c17b9fae40c955102d5b801ca821dd43c358ee924",
+   "st_bytes": 409600,
+   "bpb": {
+    "bps": 512,
+    "spt": 10,
+    "sides": 1,
+    "sectors": 800
+   }
+  },
+  "lurking_horror": {
+   "title": "Lurking Horror, The (Europe) (r203)",
+   "zip_sha256": "70ad92322f673ac35c73ed8822f7ba2b6d42356f6054a8cb080b8f32dc609613",
+   "ipf_sha256": "06b3820a2d2a1a6fa1e2b3a5e1649d76565d351002bcb4c36dbaeb531f0169c7",
+   "st_sha256": "287ff5d0a1069cb1ece93929004bf25a776b9291211c3cabe27b5a609efbebb4",
+   "st_bytes": 368640,
+   "bpb": {
+    "bps": 512,
+    "spt": 9,
+    "sides": 1,
+    "sectors": 720
+   }
+  }
+ },
+ "hatari_lurking_horror": {
+  "script": "lh-script.txt",
+  "script_sha256": "794dcc664da7241c2d33a507c174aa1edd0048e1430d318ec668b3b6beffbb11",
+  "runs": {
+   "lhref1": {
+    "save_sha256": "56ffdcd353006f515a3023f08c45fd66c8dbf492f4845226df9c487c527a2cf6",
+    "disk_sha256": "0833c310ff81650eaf8b9cdb2936bb94acf12e9f4f018dfb3493a2103a6ae197"
+   },
+   "lhref2": {
+    "save_sha256": "56ffdcd353006f515a3023f08c45fd66c8dbf492f4845226df9c487c527a2cf6",
+    "disk_sha256": "0833c310ff81650eaf8b9cdb2936bb94acf12e9f4f018dfb3493a2103a6ae197"
+   },
+   "lhref3_start_plus_17s": {
+    "save_sha256": "56ffdcd353006f515a3023f08c45fd66c8dbf492f4845226df9c487c527a2cf6",
+    "disk_sha256": "6b7e829aa42e51ca5b479d4fa145c1ee08b02de8cac4c5a707caa917b56e57d8"
+   },
+   "lhref4_start_plus_33s": {
+    "save_sha256": "56ffdcd353006f515a3023f08c45fd66c8dbf492f4845226df9c487c527a2cf6",
+    "disk_sha256": "ada29e35b4edfda19737b27b1e142f2e2a5e7e2fb0b9cb40dbf6597fcc9d92a5"
+   }
+  },
+  "end_state": "Terminal Room, Score 5, 19 moves, 'Okay.' after SAVE"
+ },
+ "runs": {
+  "x1": {
+   "claimed": "15:54 EET",
+   "released": "17:00 EET (after Deano's power cycle; baseline verified, boot_id changed)",
+   "case": "xenon run 1 (first attempt)",
+   "result": "INCONCLUSIVE",
+   "events": "launch 16:00:46 (45.5 s); fire 16:01:33; play to 16:05:37 (score 250, lives 3 to 2); YM audio stopped and Kit B left the network at 16:05:37 (physical fault per Deano)",
+   "frames": {
+    "x1-boot10": "9184f944b2e00b02cf55fe66d36427e8b304c7baf74b92d6342f4f3507316976",
+    "x1-title25": "ce52807d9260edd6ca8d4a657d547a92ca354c4d989a6dfbbb4ffe6400f6eb46",
+    "x1-start": "5130b56a7c7bf512a359d7d675a8b35784908e936244123c8da3ed5cb04ef57e",
+    "x1-t90": "c1b0e3a4cd20efcd5325f61bf3bbddbcf83b176e71effaa85a44a9d0db94bfc9",
+    "x1-after-drop": "afb0e538dec8cfe6d215596b037c7944e7d9189e9dad7225bc20b1c8b1566971"
+   },
+   "play_video_sha256": "9adc550ce256228347d498dc404f36410ed04e3b33dfbc0d5da54272a292f81b",
+   "audio_sha256": "63b055fa1324a46a735cc1d05e88a757faa019f36ae4fdc937442bc6e602b3de"
+  },
+  "x2": {
+   "claimed": "17:04 EET",
+   "released": "17:47 EET",
+   "removed_trees": 3,
+   "xenon": {
+    "case": "xenon run 1",
+    "result": "PASS",
+    "game_id": "fpga-xenon-1528-r1b-0e6477de741c",
+    "launch_seconds": 39.2,
+    "play": "17:07 to 17:18 EET, about 11.5 min",
+    "outcomes": "moves and fire respond; several games: lives 3/2/1, game over, fire restarts at 3 lives; best score 850; Ctrl+Alt+Del ignored; Stop, relaunch to 'GAME OVER PRESS FIRE TO START', fire starts a game",
+    "frames": {
+     "x2-title": "b283e13b844eee16ee3113e67dd0afe7d37becb0c3bbfbcad3fc86fd01340fcb",
+     "x2-p1": "5e2f6261ead672f93c9c6011410c4214e39dfe5e6b36d8764bef3280db862371",
+     "x2-p5": "f77f8e27c5589b86e2d1070660d794bd94659930d90f89a7b2f5327d67643bf9",
+     "x2-after-cad": "c4d4c2015b02ab15a4896977c0df8649c3cb37dd9f4a8fbf3da7912e49a1c843",
+     "x2-relaunch": "613df0dc17fc950ed389e2dd3e4d281f98d9383fdd11f4fb5b10fc070631d18f",
+     "x2-relaunch-play": "6562f9260c383d78cbc376856dea8ec93b8c05f229c19e64f6dd27091efdf98b"
+    },
+    "play_video_sha256": "17e661aaad7d56a710ca50b2a009de44693a2ab27c88b28ab99fe86ad2786d32",
+    "audio_sha256": "db75cca781b04d128c67b6f8830e6940b67d4cd922192a9ed1cf245619a3b911"
+   },
+   "logical": {
+    "case": "logical attempt 1",
+    "result": "INCONCLUSIVE",
+    "game_id": "fpga-logical-1528-r1-30cd6d49e9cc",
+    "outcomes": "GEM desktop, mouse select LOGICAL.PRG + File > Open starts it; title/options/high-score attract cycles; joystick fire (ports 1 and 0), Space, Return, F1, S and mouse clicks did not start play",
+    "frames": {
+     "l1-desktop": "8ae643a49f1eb95821ff9d2a8efdb155d5a98e5d5d03313149a6dc08975be121",
+     "l1-title": "608281a2365741d41998d70144fb311d8b1d79dd9e54a42bcf20cdf0b90e6515"
+    },
+    "video_sha256": "c6ccdc527c31d9da6c7a01885ea63cdcd9078f0ceb41728c17bdbf8ff5f0f88f",
+    "audio_sha256": "d0fddd8eafce04ecc9983e13078a7957af7d181b2c47822e5a344a249a157adc"
+   },
+   "lurking_horror": {
+    "case": "lurking horror run 1",
+    "result": "PASS",
+    "game_id": "fpga-lurking-horror-1528-r1-8c052ded6a6c",
+    "session": "launch 17:35:07, stop 17:40:24, relaunch 17:41:07, stop 17:46:47",
+    "outcomes": "script reaches Score 5/19, SAVE 'Okay.'; relaunch lists FES1528.SAV; RESTORE 'Okay.', inventory stone + assignment at 5/20; play to 5/29; Ctrl+Alt+Del to desktop",
+    "saved_disk_sha256": "f9a5babdad437d0f2074b0bbe4a67fe6e2159c113bd4df4e7326acc465de80f3",
+    "saved_disk_after_restore_session_sha256": "f9a5babdad437d0f2074b0bbe4a67fe6e2159c113bd4df4e7326acc465de80f3",
+    "save_file_sha256": "56ffdcd353006f515a3023f08c45fd66c8dbf492f4845226df9c487c527a2cf6",
+    "vs_hatari_disk": "1 byte differs: offset 5686 (sector 11, FES1528.SAV directory time 0:04 vs 0:03)",
+    "vs_hatari_save": "identical",
+    "frames": {
+     "h1-desktop": "bd09294b11a2294dccb8140a13c54e904f5cdfc6351aba66aaa40044e2e1b381",
+     "h1-game": "646a462dee4abfc8751a7bdbfd491da129b95385f9d6fcb77d9778d712c3c1f7",
+     "h1-saved": "cf4d755a4b7fae560b66c40ad90efc955aa1e19b7417ca206731f3ec1bdc9d2e",
+     "h1-relaunch-desktop": "25ca8879e4442a1ecc6c17bc048ee9d26d537ccdc4c071605235691b0f6021e2",
+     "h1-back": "6c289f991cff94e37067c9ea458491e30400e1836d630a2b4c96bf779f8dd9f0",
+     "h1-restored": "21bd46dac1ca314fd3b3f4faee8386e57066f906b9d5fdc2612872656e7c9f77",
+     "h1-played": "5934ebd98d628929dad0b6460d983a47d93d358ab9176166fa93e9e7cefad346",
+     "h1-warmreset": "24e1a88a8f5845687723374c34202c93a1bc7ef6c63abe54d12042e8e5ed5228"
+    },
+    "audio_sha256": "cff588232902b5c194db86382d5249d6e6666077b48a3f14bd348cd71e76d30b"
+   }
+  },
+  "x3": {
+   "claimed": "17:52 EET",
+   "released": "18:22 EET",
+   "result": "no launch (library entry step failed before launch); nothing left on the kit"
+  },
+  "x4": {
+   "claimed": "20:20 EET",
+   "released": "20:51 EET",
+   "removed_trees": 3,
+   "logical": {
+    "case": "logical attempt 2",
+    "result": "INCONCLUSIVE",
+    "game_id": "fpga-logical-1528-r2-738d422dc682",
+    "outcomes": "same as attempt 1; joystick down/fire and clicks on title and options do not start play",
+    "frames": {
+     "l2-desktop": "9a831e2c03d6ae178466f469664566944e75c6f92559db53d765f5e34d618f7f",
+     "l2-title": "baa682d9ffa2abf96ad7ae8394691b29bda823abe039d04f8f229383dbd889eb"
+    },
+    "video_sha256": "6c10ee044678c18bb83d54359e182df315f7141f7c00c48766ff33e377167b94",
+    "audio_sha256": "0df05c39fd812993edf12d181f3017db9190d095794f1fa153a4df64b6f07770"
+   },
+   "xenon": {
+    "case": "xenon run 2",
+    "result": "PASS",
+    "game_id": "fpga-xenon-1528-r2-917142002290",
+    "launch_seconds": 40.3,
+    "play": "20:27:39 to 20:38:33 EET, about 11 min",
+    "outcomes": "moves and fire respond; lives 3/2/1 and restarts; best score 600; Stop, relaunch and fire start a game",
+    "frames": {
+     "x4-title": "25bbcbd2c3e1a22dc4bf3c76804112d5d51173a352cbec1a6a3b66e66031e13a",
+     "x4-p1": "2e3eced184b6411d54e3aafdee41a09df56ad4a78b3ec15ecf7157d2e438301e",
+     "x4-p5": "3f97fecc7d8f920ff97582bdd971c7f0dfcae3beaee69d074223148297888810",
+     "x4-relaunch-play": "0bdf514fd574194cd0bab0a574c867c4573b49b83e66ffd9261e8e679cac210e"
+    },
+    "play_video_sha256": "f512487ea7b2ce00c1d8fb4f8e322995320caf17eef95baa408638ff7c19fbf0"
+   },
+   "lurking_horror": {
+    "case": "lurking horror run 2",
+    "result": "INCONCLUSIVE",
+    "game_id": "fpga-lurking-horror-1528-r2-6e0612581463",
+    "session": "launch 20:41:27, stop 20:46:22, relaunch 20:47:05, stop 20:50:35 (about 8 min of play)",
+    "outcomes": "same text, score and moves as run 1: 5/19 SAVE 'Okay.', RESTORE 'Okay.' 5/20, play to 5/29, Ctrl+Alt+Del to desktop",
+    "saved_disk_sha256": "37355bc1f4ad741ee1ff2925911ab4e3bd2fd28478ff50a5547d2ea7817815f2",
+    "save_file_sha256": "d52277561dc7200ebfc3d0ebb246c2ea2957aa502fd653eb781b7c3e3a0e10d9",
+    "vs_hatari_disk": "5 bytes differ: directory time at 5686, and FES1528.SAV offsets 1579, 2162, 2163, 3226",
+    "cross_check": "Hatari restoring this disk and the reference disk prints the same inventory, look, move and look text",
+    "frames": {
+     "h2-game": "96b187ab27c6f2c4e6a375caefc31c65279353671b58c75a0589444f4109333d",
+     "h2-saved": "4ad7842a4708b09b2c1497cc8aff50998104e821749488b9383ee2a11c7b957a",
+     "h2-restored": "21bd46dac1ca314fd3b3f4faee8386e57066f906b9d5fdc2612872656e7c9f77",
+     "h2-played": "efff94434ab1c7705e24206f41ac0777731896a4ba2faf54666b67e599dc89cb",
+     "h2-warmreset": "bd09294b11a2294dccb8140a13c54e904f5cdfc6351aba66aaa40044e2e1b381"
+    }
+   }
+  }
+ }
+}

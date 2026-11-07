@@ -283,6 +283,27 @@ populated free menu are restored, and the private host/credential copy removed.
 Full current-image acceptance remains separate; opened-region RGB still crops
 to ordinary 320×200, and later demo sections/audio fidelity remain unqualified.
 
+The [game acceptance record](validation/2026-11-07-atari-st-game-acceptance/summary.md)
+(#1528) ran three real 520ST games on Kit B. They used factory package
+`2dd2271c` (fes `f53eba76`), TOS 1.04 and normal library Play through a private
+host. Results:
+
+- **Xenon (joystick).** Passes two runs of about 11 minutes each: play, deaths,
+  restarts, Stop and relaunch.
+- **The Lurking Horror (keyboard).** Passes one run: an explicit SAVE, Stop,
+  library relaunch and RESTORE. The saved disk matches a Hatari 2.4.1 run of
+  the same script except one directory time byte. Its second run was short,
+  and 4 bytes of its save differ, so it is INCONCLUSIVE.
+- **Logical (mouse).** Launches from the GEM desktop with the mouse, but play
+  was never started, so the case is INCONCLUSIVE.
+
+Still owed:
+
+- A mouse game that reaches play.
+- Disk replacement during play.
+- Runs on a seal of main's ST tree. The ST producer stopped at its source read
+  audit on 7 November.
+
 ## PC/XT development packages
 
 PC/XT is outside the factory image package set. Its assembled 8088, motherboard,
