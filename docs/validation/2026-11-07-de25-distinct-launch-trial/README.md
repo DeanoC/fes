@@ -51,3 +51,31 @@ and one recorded preflight before the attempt fuse is consumed. Factory
 restoration remains waived by Deano; the factory card and bottom kit remain
 outside this test. Physical display/input/media/native-network behavior,
 general package acceptance, DDR drain and timing qualification remain open.
+
+## Physical attempt and observer stop
+
+The single attempt stopped after 260.6 seconds. Nine Ethernet uploads, all
+306 return markers and nine independent SD reads passed. The new native image
+booted; ZX81 launched and returned, then the distinct ZX80 package launched
+with its expected build/payload identity and 4 KiB ROM receipt. Both launch
+responses passed the ordinary state, transfer, ownership and fetch decoders.
+
+The reused native runner then incorrectly required address zero for the second
+selection, an assumption from the previous `JP 0000` ROM fixture. Its separate
+`during_play` callback had not been covered by the outer lifecycle fixtures.
+The actual ZX80 fetch address was 612. The observer stopped outgoing commands
+and retained its bounded passive tail. This is a failed procedure: the second
+return, third launch and owned Quit were not observed. The attempt is consumed
+and cannot be continued or replayed.
+
+Independent cleanup verifies recorded 15 MHz readback, exact USB permissions,
+the owned private JTAG server gone and UART free. The last observed board state
+is ZX80 running at application generation 3 with USB polling. No park, storage
+handback, recovery prompt or factory restoration is claimed. The continuing
+exclusive claim remains held, and the factory card/bottom kit were untouched.
+The [result](result.json) preserves this boundary and exact identities.
+
+Next, move package-specific address expectations into the shared observer,
+check the saved capture off-board, and prepare a fresh one-attempt procedure.
+Keep the failed trace and unchanged deadlines. The two successful load
+observations do not substitute for the requested full three-cycle result.
