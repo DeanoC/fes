@@ -121,10 +121,11 @@ The board producer now has an explicit `hps-ddr-menu` choice with bounded
 100 MHz CPU / 74.25 MHz pixel control crossing and HDMI/reset routing. Its
 two-clock source model checks three actual Tenfoot frames and endpoint drain.
 The explicit matched native board command now passes a
-[bounded physical serial test](../../../../docs/validation/2026-11-07-de25-native-menu-publication-trial/README.md):
+[bounded physical serial test](../../../../docs/validation/2026-11-07-de25-native-cpu-feature-trial/README.md):
 three real Tenfoot frames are acknowledged in slots 0/1/0 with zero reported
 underflows, then local drain and independent firmware closure complete. Frame
-presentation takes about 3.8 seconds; interactive throughput, storage
+presentation now takes about 1.3 seconds with the explicit CPU feature overlay,
+versus 3.8 seconds in the saved control. Interactive throughput, storage
 resume/reconfiguration, full menu/core/menu and physical clock/HDMI qualification
 remain open. The arena stays pinned until reboot.
 

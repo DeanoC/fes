@@ -31,7 +31,10 @@ existing parser before crypto packages select their implementations. It forces
 no ISA flags and changes no installed compiler files. Unsupported features keep
 the standard generic path. The generated overlay and selected sources are
 included in the native source proof; the option is rejected by the normal QEMU
-runner. This option is exploratory until its rebuilt board chain is qualified.
+runner. Its rebuilt chain now passes a [bounded physical menu/return comparison](../../../docs/validation/2026-11-07-de25-native-cpu-feature-trial/README.md),
+with presentation falling from about 3.8 to 1.3 seconds per frame. The option
+remains an explicit experiment; full application and platform qualification
+remain open.
 
 The standalone check uses the same overlay at QEMU EL1, verifies known SHA-1,
 SHA-256/SHA-384, AES/GCM and CRC32 results, and reads the actual SHA2 dispatch
