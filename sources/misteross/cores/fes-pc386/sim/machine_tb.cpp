@@ -35,6 +35,7 @@
 //        [--mouse S:DX,DY,BUTTONS]...
 //        [--census F] [--profile F] [--profile-from S] [--profile-to S]
 //        [--cpu-profile F] [--cpu-profile-every S] [--rtl-from S] [--rtl-at-flip N] [--rtl-for S]
+//        [--rtl-at-prompt 1] [--keys-after-type 1] [--frame-every S]
 // A program on the disk marks a picture by writing "SNAP <name>" and a newline
 // to port E9h, then holding it; the bench takes the second capture after the
 // marker, runs the pixel clock for two 720p frames and compares the second
@@ -98,6 +99,13 @@
 // N page flips (byte writes to CRTC register 0Ch, cpu_profile.h's
 // CrtcFrameTracker) where the RTL can run, with cold caches. It prints
 //   RTL-BEGIN <cycle> flips=<n>
+// --rtl-at-prompt 1 adds a third condition: the FreeDOS prompt has been seen,
+// so a game drive's proven boot runs on the oracle and the RTL takes the
+// typed command and the program it starts.
+// --keys-after-type 1 counts --keys times from when the --type text is
+// queued at the prompt instead of from reset, so a program's keys keep their
+// place whichever CPU booted DOS. --frame-every S (with --frames) writes the
+// captured frame every S simulated seconds as t<seconds>.ppm.
 // --rtl-for S ends the run S simulated seconds after the RTL begins (at
 // RTL-BEGIN, or at its first clock without a handover), as END rtl-window,
 // a pass.
@@ -1201,6 +1209,8 @@ struct Options {
     std::string wav, opl2_log, cpu = "oracle", census, profile, cpu_profile;
     double cpu_profile_every = 1.0, rtl_from = 0, rtl_for = -1;
     unsigned rtl_at_flip = 0;
+    bool rtl_at_prompt = false, keys_after_type = false;
+    double frame_every = 0;
     double limit_seconds = 120, pixel_from = -1, type_at = -1, key_gap = 0.03, profile_from = 0, profile_to = -1;
     unsigned preset = 0, frequency = 0, turbo = 0;  // --cpu rtl's governor settings
     std::vector<std::pair<double, std::string>> keys;
@@ -1306,6 +1316,9 @@ Options parse(int argc, char **argv) {
         else if (flag == "--rtl-from") options.rtl_from = std::stod(value);
         else if (flag == "--rtl-for") options.rtl_for = std::stod(value);
         else if (flag == "--rtl-at-flip") options.rtl_at_flip = unsigned(std::stoul(value));
+        else if (flag == "--rtl-at-prompt") options.rtl_at_prompt = std::stoul(value) != 0;
+        else if (flag == "--keys-after-type") options.keys_after_type = std::stoul(value) != 0;
+        else if (flag == "--frame-every") options.frame_every = std::stod(value);
         else if (flag == "--profile-from") options.profile_from = std::stod(value);
         else if (flag == "--profile-to") options.profile_to = std::stod(value);
         else if (flag == "--preset") options.preset = unsigned(std::stoul(value));
@@ -1332,8 +1345,10 @@ Options parse(int argc, char **argv) {
     // With the RTL running, the oracle's steps are only its stops and stretches.
     if (!options.profile.empty() && options.cpu != "oracle") throw std::runtime_error("--profile needs --cpu oracle");
     if (options.cpu != "rtl" && (!options.cpu_profile.empty() || options.rtl_from > 0 || options.rtl_at_flip
-                                 || options.rtl_for >= 0))
-        throw std::runtime_error("--cpu-profile, --rtl-from, --rtl-at-flip and --rtl-for need --cpu rtl");
+                                 || options.rtl_at_prompt || options.rtl_for >= 0))
+        throw std::runtime_error("--cpu-profile, --rtl-from, --rtl-at-flip, --rtl-at-prompt and --rtl-for need --cpu rtl");
+    if (options.frame_every < 0) throw std::runtime_error("--frame-every takes a time of 0 (off) or above");
+    if (options.frame_every > 0 && options.frames.empty()) throw std::runtime_error("--frame-every needs --frames");
     if (options.cpu_profile_every <= 0) throw std::runtime_error("--cpu-profile-every takes a time above 0");
     for (char &c : options.type) if (c == '|') c = '\n';
     for (auto &key : options.keys) for (char &c : key.second) if (c == '|') c = '\n';
@@ -1387,7 +1402,7 @@ int main(int argc, char **argv) {
         FILE *cpu_prof_out = nullptr;
         uint64_t cpu_prof_next = 0;
         const uint64_t rtl_from = uint64_t(options.rtl_from * CLOCK_HZ);
-        const bool handover = rtl_from || options.rtl_at_flip;
+        const bool handover = rtl_from || options.rtl_at_flip || options.rtl_at_prompt;
         if (!options.cpu_profile.empty()) {
             cpu_prof_out = std::fopen(options.cpu_profile.c_str(), "w");
             if (!cpu_prof_out) throw std::runtime_error("cannot write " + options.cpu_profile);
@@ -1471,6 +1486,10 @@ int main(int argc, char **argv) {
         const char *reason = "limit";
         // After the prompt appears, wait for the screen to settle, then type.
         uint64_t prompt_at = 0, settled_at = 0;
+        // --keys times count from 0, or with --keys-after-type from when --type was queued.
+        uint64_t keys_base = options.keys_after_type ? UINT64_MAX : 0;
+        const uint64_t frame_step = uint64_t(options.frame_every * CLOCK_HZ);
+        uint64_t next_frame = frame_step;
         size_t typed = 0;
         std::deque<KeyChange> keys;
         uint64_t next_key = 0;
@@ -1590,7 +1609,8 @@ int main(int argc, char **argv) {
                         stretch_from = machine.cycles;
                         stretch_entry = site(state);
                     }
-                    if (machine.cycles >= rtl_from && machine.flips >= options.rtl_at_flip && !(state.eflags & 0x20000)
+                    if (machine.cycles >= rtl_from && machine.flips >= options.rtl_at_flip &&
+                        (!options.rtl_at_prompt || prompt_at) && !(state.eflags & 0x20000)
                         && !(state.cr0 & 0x80000000u) && (!(state.cr0 & 1) || state.cpl == 0)) {
                         // The oracle's run before the handover is not the RTL's.
                         if (!rtl_begun) oracle_steps = protected_steps = stretch_steps = 0;
@@ -1685,9 +1705,17 @@ int main(int argc, char **argv) {
                 if (machine.cycles < pixel_from) machine.stop_pixel_clock();
             }
             if (finished && snap_name.empty()) { reason = "debug-marker"; break; }
+            if (frame_step && machine.cycles >= next_frame) {
+                if (machine.frames_done) {
+                    char name[32];
+                    std::snprintf(name, sizeof name, "/t%07.2f.ppm", double(next_frame) / CLOCK_HZ);
+                    pc386::write_ppm(options.frames + name, machine.captured());
+                }
+                next_frame += frame_step;
+            }
 
             if (scheduled < options.keys.size() && keys.empty() &&
-                machine.cycles >= uint64_t(options.keys[scheduled].first * CLOCK_HZ)) {
+                keys_base != UINT64_MAX && machine.cycles >= keys_base + uint64_t(options.keys[scheduled].first * CLOCK_HZ)) {
                 for (auto [usage, shift] : taps(options.keys[scheduled].second)) {
                     keys.push_back({usage, shift, true, uint64_t(0.2 * CLOCK_HZ)});
                     keys.push_back({usage, shift, false, uint64_t(0.1 * CLOCK_HZ)});
@@ -1731,6 +1759,7 @@ int main(int argc, char **argv) {
                     }
                     typed = options.type.size();
                     next_key = machine.cycles;
+                    if (options.keys_after_type) keys_base = machine.cycles;
                     settled_at = machine.cycles;
                 }
                 // Done when everything is typed and the prompt is back on the

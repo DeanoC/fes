@@ -80,12 +80,18 @@ docs/pc386-machine-design.md, "Verification" and phases M1-M3.
            cpu-profile/.
   sound    boots FreeDOS and runs SOUND.COM; checks the speaker and DSP tones,
            OPL2 output and DSP interrupts.
-  game     starts Wolfenstein 3D or Ultima VI from user-supplied eXoDOS files
-           and checks the game's OPL2 output; writes the last captured frame.
-           Supply the games outside the repo. With --cpu rtl, fes_i386_cpu is
-           the CPU and the oracle runs only on its stops; writes
-           game-<name>-rtl/. Runs share machine/'s build, so start a second
-           run only once the first has built it.
+  game     boots a prebuilt game drive (build_pc386_game_drive.py;
+           docs/pc386-game-drives.md), types --game's launch command at the
+           prompt and sends its keys, timed from the launch; writes the last
+           captured frame, and one every --frame-every seconds. --drive names
+           the drive by path, SHA-256 or name; without it the store's drive
+           that holds the title is used. The drive is read in place and never
+           written. Titles the manifest marks opl2 (Wolfenstein 3D, Ultima VI)
+           must play the OPL2. With --cpu rtl, fes_i386_cpu is the CPU and the
+           oracle runs only on its stops; --rtl-at-prompt boots on the oracle
+           and hands over at the prompt. Writes game-<name>[-rtl]/. Runs share
+           machine/'s build, so start a second run only once the first has
+           built it.
   system   boots FreeDOS on pc386_system (everything below top.sv) at the
            sealed clock, with a host that does the runtime's launch and Stop
            through the mailbox and runs INPUT.COM to test keyboard and mouse.
@@ -141,7 +147,6 @@ from __future__ import annotations
 
 import argparse
 import concurrent.futures
-import hashlib
 import json
 import math
 import os
@@ -151,14 +156,13 @@ import shutil
 import struct
 import subprocess
 import sys
-import tempfile
-import zipfile
 
 if __package__ in (None, ''):
     sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from scripts import build_pc386_firmware as firmware
 from scripts import build_pc386_freedos_image as freedos
+from scripts import build_pc386_game_drive as drives
 from scripts import fes_i386_oracle as oracle
 from scripts import test_fes_i386_lockstep as lockstep
 from scripts import test_fes_i386_test386 as test386
@@ -1500,56 +1504,32 @@ def run_sound(args, linked: list[Path]) -> dict:
     return report
 
 
-GAMES_DIR = Path(os.environ.get('FES_PC386_GAMES',
-                                '/mnt/emuhd/Games/PC DOS/Collections/eXoDOS 6.04 Full/eXoDOS/eXo/eXoDOS'))
-GAMES = {
-    'wolf3d': {'zip': 'Wolfenstein 3D (1992).zip', 'folder': 'Wolf3D/WOLF3D/WOLF3D/', 'directory': '',
-               'shell': 'WOLF3D.EXE', 'type': '', 'limit': 24.0,
-               'keys': [(4.0 + 1.5 * n, '|') for n in range(9)] + [(17.5 + 0.8 * n, '^ ') for n in range(8)]},
-    'ultima6': {'zip': 'Ultima VI - The False Prophet (1990).zip', 'folder': 'ultima6/', 'directory': 'ULTIMA6',
-                'type': 'cd ultima6|ultima6|', 'limit': 16.0, 'keys': []},
-}
+def game_drive(args) -> tuple[Path, dict, dict]:
+    """The prebuilt drive (build_pc386_game_drive.py) holding --game: --drive by
+    path, SHA-256 or name, else the store's drive whose record lists the title."""
+    if args.drive:
+        image, record = drives.resolve(args.drive)
+    else:
+        found = [link for link in sorted((drives.STORE / 'by-name').glob('*.json'))
+                 if any(title['id'] == args.game for title in json.loads(link.read_text()).get('titles', []))]
+        if len(found) != 1:
+            raise SimError(f'{len(found)} drives in {drives.STORE}/by-name hold {args.game}; pass --drive '
+                           '(build them with build_pc386_game_drive.py)')
+        image, record = drives.resolve(found[0].stem)
+    try:
+        title = drives.title_of(record, args.game)
+    except drives.DriveError as error:
+        raise SimError(str(error)) from error
+    return image, record, title
 
 
-def game_disk(args, game: dict, work: Path) -> tuple[Path, dict]:
-    """The FreeDOS fixture with the game in C:\\<directory>, built in work."""
-    source = GAMES_DIR / game['zip']
-    if not source.is_file():
-        raise SimError(f'{source} not found; set FES_PC386_GAMES to the eXoDOS game folder')
-    record = {'zip': str(source), 'sha256': hashlib.sha256(source.read_bytes()).hexdigest()}
-    files = work / 'files'
-    shutil.rmtree(files, ignore_errors=True)
-    with zipfile.ZipFile(source) as archive:
-        for item in archive.infolist():
-            if item.is_dir() or not item.filename.startswith(game['folder']):
-                continue
-            target = files / item.filename[len(game['folder']):]
-            target.parent.mkdir(parents=True, exist_ok=True)
-            target.write_bytes(archive.read(item))
-    record['files'] = sum(1 for path in files.rglob('*') if path.is_file())
-    disk = work / 'disk.img'
-    shutil.copyfile(freedos.image(args.download, args.jobs), disk)
-    env = dict(os.environ, MTOOLS_SKIP_CHECK='1', MTOOLSRC='/dev/null', TZ='UTC')
-    volume = f'{disk}@@{freedos.PARTITION_START * 512}'
-    if game.get('shell'):
-        (files / 'FDCONFIG.SYS').write_bytes(
-            f'FILES=20\r\nBUFFERS=20\r\nSHELL=C:\\{game["shell"]}\r\n'.encode())
-    sources = sorted(files.iterdir()) if not game['directory'] else [files]
-    result = subprocess.run(['mcopy', '-s', '-m', '-o', '-i', volume, *map(str, sources), '::' + game['directory']],
-                            capture_output=True, text=True, env=env)
-    if result.returncode:
-        raise SimError('mcopy failed:\n' + result.stdout + result.stderr)
-    shutil.rmtree(files)
-    return disk, record
-
-
-def game_failures(report: dict, cpu: str) -> list[str]:
+def game_failures(report: dict, cpu: str, opl2_expected: bool = True) -> list[str]:
     """The game checks, allowing the expected simulation time-limit exit."""
     failures = list(report['failures'])
     if (report.get('end') or {}).get('reason') == 'limit':
         failures = [failure for failure in failures if not failure.startswith('machine_tb exited 1')]
     opl2 = report['opl2'] or {}
-    if not opl2.get('writes') or not opl2.get('nonzero'):
+    if opl2_expected and (not opl2.get('writes') or not opl2.get('nonzero')):
         failures.append(f'the game did not play the OPL2: {opl2}')
     if cpu == 'rtl':
         failures += rtl_failures(report, 'game')
@@ -1557,30 +1537,44 @@ def game_failures(report: dict, cpu: str) -> list[str]:
 
 
 def run_game(args, linked: list[Path]) -> dict:
-    game = GAMES[args.game]
-    rtl = '-rtl' if args.cpu == 'rtl' else ''
-    suite = f'game-{args.game}{rtl}{suffix(args)}'
-    work = Path(args.games_work) / f'{args.game}{rtl}{suffix(args)}'
+    """A title from a prebuilt game drive, typed at the games image's prompt;
+    the drive is read in place (machine_tb never writes it back)."""
+    disk, record, title = game_drive(args)
+    suite = game_suite(args)
+    work = OUTPUT / suite
     work.mkdir(parents=True, exist_ok=True)
-    disk, record = game_disk(args, game, work)
-    args.limit_seconds = args.limit_seconds_given or game['limit']
-    args.type, args.expect = game['type'], ''
+    args.limit_seconds = args.limit_seconds_given or title.get('limit', 20.0)
+    args.type, args.expect = title['launch'], ''
     images = firmware.images(args.download, args.jobs)
     testbench = machine_testbench(args, linked)
     wav, opl2_log = work / f'{args.game}.wav', work / f'{args.game}-opl2.log'
-    keys = [arg for seconds, text in game['keys'] for arg in ('--keys', f'{seconds}:{text}')]
-    frames = OUTPUT / suite / 'frames'
-    frames.mkdir(parents=True, exist_ok=True)
+    keys = [arg for seconds, text in title.get('keys', []) for arg in ('--keys', f'{seconds}:{text}')]
+    frames = work / 'frames'
+    shutil.rmtree(frames, ignore_errors=True)
+    frames.mkdir(parents=True)
+    extra = ['--frame-every', str(args.frame_every)] if args.frame_every else []
+    if args.rtl_at_prompt:
+        extra += ['--rtl-at-prompt', '1']
+    if args.instruction_census:
+        extra += ['--census', str(work / 'census.txt')]
     report = run_machine(testbench, suite, ['--disk', str(disk), '--limit-seconds', str(args.limit_seconds),
-                                            '--type', args.type, '--expect', args.expect, '--wav', str(wav),
-                                            '--opl2-log', str(opl2_log), '--frames', str(frames), *keys,
+                                            '--type', args.type, '--keys-after-type', '1', '--wav', str(wav),
+                                            '--opl2-log', str(opl2_log), '--frames', str(frames), *keys, *extra,
                                             '--cpu', args.cpu, *governor_arguments(args)], images)
-    report['game'] = {'name': args.game, **record}
+    report['game'] = {'name': args.game, 'drive': record.get('drive'), 'drive_sha256': record['sha256'],
+                      'title': title['title'], 'bucket': title['bucket'], 'zip_sha256': title['sha256']}
     report['work'] = str(work)
-    report['failures'] = game_failures(report, args.cpu)
+    # A program that ends at the prompt ends the run there; that is not a bench failure.
+    if (report.get('end') or {}).get('reason') == 'prompt':
+        report['failures'] = [failure for failure in report['failures'] if not failure.startswith('machine_tb exited')]
+    report['failures'] = game_failures(report, args.cpu, title.get('opl2', False))
     if wav.exists():
         report['audio'] = tone(read_wav(wav))
     return report
+
+
+def game_suite(args) -> str:
+    return f'game-{args.game}' + ('-rtl' if args.cpu == 'rtl' else '') + suffix(args)
 
 
 def main() -> int:
@@ -1595,9 +1589,16 @@ def main() -> int:
     parser.add_argument('--image', choices=sorted(freedos.PROFILES), default='boot',
                         help='boot: the FreeDOS image profile to boot (build_pc386_freedos_image.py)')
     parser.add_argument('--limit-seconds', type=float, default=None, help='simulated seconds before giving up')
-    parser.add_argument('--game', choices=sorted(GAMES), default='wolf3d', help='game: which game to start')
-    parser.add_argument('--games-work', default=str(Path(tempfile.gettempdir()) / 'fes-pc386-games'),
-                        help='game: scratch directory outside the repository for the game disk and captures')
+    parser.add_argument('--game', default='wolf3d', help="game: the title to start, by its id in the drive's record")
+    parser.add_argument('--drive', default=None,
+                        help='game: the prebuilt drive (build_pc386_game_drive.py) by path, SHA-256 or name; '
+                             'default: the drive in the store that holds --game')
+    parser.add_argument('--frame-every', type=float, default=0,
+                        help='game: write the captured frame every this many simulated seconds')
+    parser.add_argument('--rtl-at-prompt', action='store_true',
+                        help='game --cpu rtl: boot on the oracle and hand over to the RTL at the prompt')
+    parser.add_argument('--instruction-census', action='store_true',
+                        help="game: write the oracle's instruction census (machine_tb --census) to census.txt")
     parser.add_argument('--update-fixture', action='store_true',
                         help='sound: copy the captured OPL2 port log to sim/fixtures/sound-opl2.log')
     parser.add_argument('--type', default=None, help="keys typed at the prompt; '|' is Enter")
@@ -1615,6 +1616,8 @@ def main() -> int:
     args = parser.parse_args()
     if args.cpu == 'rtl' and args.suite not in ('boot', 'game', 'a20', 'c2xx', 'wait', 'speaker', 'scroll'):
         parser.error('--cpu rtl runs the boot, game, a20, c2xx, wait, speaker and scroll suites only')
+    if args.rtl_at_prompt and not (args.suite == 'game' and args.cpu == 'rtl'):
+        parser.error('--rtl-at-prompt is for the game suite with --cpu rtl')
     if args.image != 'boot' and args.suite != 'boot':
         parser.error('--image is supported by the boot suite only')
     if (args.preset or args.frequency or args.turbo) and not (
@@ -1672,7 +1675,7 @@ def main() -> int:
             else:
                 run = run_boot if suite == 'boot' else run_vga
                 report = run(args, oracle.link_inputs(args.jobs, args.download))
-            name = (f'game-{args.game}' + ('-rtl' if args.cpu == 'rtl' else '') + suffix(args) if suite == 'game' else
+            name = (game_suite(args) if suite == 'game' else
                     boot_suite(args) if suite == 'boot' else suite + ('-rtl' if args.cpu == 'rtl' else '') + suffix(args))
             (OUTPUT / name).mkdir(parents=True, exist_ok=True)
             (OUTPUT / name / 'report.json').write_text(json.dumps(report, indent=2) + '\n')
@@ -1707,7 +1710,8 @@ def main() -> int:
                 print('FAIL', failure)
             failed |= bool(report['failures'])
             print(('FAIL' if report['failures'] else 'PASS') + f' {suite}', flush=True)
-    except (SimError, firmware.FirmwareError, freedos.ImageError, oracle.OracleError, test386.Test386Error) as error:
+    except (SimError, firmware.FirmwareError, freedos.ImageError, drives.DriveError, oracle.OracleError,
+            test386.Test386Error) as error:
         print(f'sim_fes_pc386: {error}', file=sys.stderr)
         return 1
     return 1 if failed else 0
