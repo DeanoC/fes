@@ -205,7 +205,9 @@ func (c *Client) RollbackAppliance(ctx context.Context, targetID string, resolve
 			return c.finishAppliance(ctx, targetID, before, before.Previous, errors.Join(lastErr, observeErr), resolve)
 		}
 		if !retry {
-			return c.finishAppliance(ctx, targetID, before, before.Previous, lastErr, resolve)
+			// Status changed in a way that may prove rollback was accepted. The
+			// original 503 can contain an APIError, but it is still ambiguous here.
+			return c.finishAppliance(ctx, targetID, before, before.Previous, nil, resolve)
 		}
 		if attempt == maxRollbackAttempts {
 			return current, fmt.Errorf("rollback remained unaccepted after %d attempts: %w", maxRollbackAttempts, lastErr)

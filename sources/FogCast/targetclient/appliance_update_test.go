@@ -5,6 +5,7 @@ import (
 	"crypto/sha256"
 	"encoding/base64"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -17,6 +18,7 @@ import (
 	"time"
 
 	"github.com/DeanoC/FogCast/appliance"
+	"github.com/DeanoC/FogCast/protocol"
 )
 
 func updateManifest(body string) appliance.Manifest {
@@ -278,25 +280,70 @@ func TestRollbackRetriesMalformed503AfterStatusProvesNoActivation(t *testing.T) 
 }
 
 func TestRollbackDoesNotRetryWhen503MayHaveCommitted(t *testing.T) {
-	oldImage := strings.Repeat("c", 64)
-	previous := strings.Repeat("d", 64)
-	var rollbacks atomic.Int32
-	var rebooted atomic.Bool
+	for _, tc := range []struct {
+		name         string
+		responseBody string
+	}{
+		{name: "valid JSON envelope", responseBody: `{"error":{"code":"TEMPORARY","message":"rollback response unavailable"}}`},
+		{name: "malformed body", responseBody: "kit restarting"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			oldImage := strings.Repeat("c", 64)
+			previous := strings.Repeat("d", 64)
+			var rollbacks atomic.Int32
+			var rebooted atomic.Bool
+			srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				boot, image, good, prior, pending := "old", oldImage, oldImage, previous, ""
+				if rebooted.Load() {
+					boot, image, good, prior = "new", previous, previous, oldImage
+				}
+				switch r.URL.Path {
+				case "/v1/health":
+					fmt.Fprintf(w, `{"target_id":"kit","boot_id":%q}`, boot)
+				case "/v1/update":
+					fmt.Fprintf(w, `{"boot_id":%q,"image_sha256":%q,"trial":false,"raw_idle_ready":true,"good":%q,"previous":%q,"pending":%q}`, boot, image, good, prior, pending)
+				case "/v1/update/rollback":
+					rollbacks.Add(1)
+					rebooted.Store(true)
+					w.WriteHeader(http.StatusServiceUnavailable)
+					_, _ = fmt.Fprint(w, tc.responseBody)
+				default:
+					t.Errorf("unexpected request %s", r.URL.Path)
+					http.NotFound(w, r)
+				}
+			}))
+			defer srv.Close()
+			u, _ := url.Parse(srv.URL)
+			c := NewClient(u, "secret", srv.Client())
+			ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+			defer cancel()
+
+			got, err := c.RollbackAppliance(ctx, "kit", nil)
+			if err != nil || got.BootID != "new" || got.ImageSHA256 != previous {
+				t.Fatalf("rollback result %+v, err=%v", got, err)
+			}
+			if rollbacks.Load() != 1 {
+				t.Fatalf("rollback requests=%d, want no duplicate after changed boot", rollbacks.Load())
+			}
+		})
+	}
+}
+
+func TestRollbackPreservesExplicitRejection(t *testing.T) {
+	oldImage := strings.Repeat("e", 64)
+	previous := strings.Repeat("f", 64)
+	var rollbacks, statusReads atomic.Int32
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		boot, image, good, prior, pending := "old", oldImage, oldImage, previous, ""
-		if rebooted.Load() {
-			boot, image, good, prior = "new", previous, previous, oldImage
-		}
 		switch r.URL.Path {
 		case "/v1/health":
-			fmt.Fprintf(w, `{"target_id":"kit","boot_id":%q}`, boot)
+			fmt.Fprint(w, `{"target_id":"kit","boot_id":"old"}`)
 		case "/v1/update":
-			fmt.Fprintf(w, `{"boot_id":%q,"image_sha256":%q,"trial":false,"raw_idle_ready":true,"good":%q,"previous":%q,"pending":%q}`, boot, image, good, prior, pending)
+			statusReads.Add(1)
+			fmt.Fprintf(w, `{"boot_id":"old","image_sha256":%q,"trial":false,"raw_idle_ready":true,"good":%q,"previous":%q}`, oldImage, oldImage, previous)
 		case "/v1/update/rollback":
 			rollbacks.Add(1)
-			rebooted.Store(true)
-			w.WriteHeader(http.StatusServiceUnavailable)
-			_, _ = fmt.Fprint(w, "kit restarting")
+			w.WriteHeader(http.StatusConflict)
+			_, _ = fmt.Fprint(w, `{"error":{"code":"UPDATE_CONFLICT","message":"rollback rejected"}}`)
 		default:
 			t.Errorf("unexpected request %s", r.URL.Path)
 			http.NotFound(w, r)
@@ -309,11 +356,15 @@ func TestRollbackDoesNotRetryWhen503MayHaveCommitted(t *testing.T) {
 	defer cancel()
 
 	got, err := c.RollbackAppliance(ctx, "kit", nil)
-	if err != nil || got.BootID != "new" || got.ImageSHA256 != previous {
-		t.Fatalf("rollback result %+v, err=%v", got, err)
+	var apiErr *protocol.APIError
+	if !errors.As(err, &apiErr) || apiErr.Code != "UPDATE_CONFLICT" {
+		t.Fatalf("rollback result %+v, err=%v, want typed UPDATE_CONFLICT rejection", got, err)
 	}
 	if rollbacks.Load() != 1 {
-		t.Fatalf("rollback requests=%d, want no duplicate after changed boot", rollbacks.Load())
+		t.Fatalf("rollback requests=%d, want 1 for explicit rejection", rollbacks.Load())
+	}
+	if statusReads.Load() != 1 {
+		t.Fatalf("status reads=%d, want only the initial read after explicit rejection", statusReads.Load())
 	}
 }
 
