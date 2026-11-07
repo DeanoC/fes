@@ -17,11 +17,44 @@ import tomllib
 ROOT = Path(__file__).resolve().parents[1]
 DRIVER = "image/kernel/de25-dma"
 KERNEL_DRIVER = "drivers/misc/fes-de25-dma"
+STATIC_CASES = frozenset((
+    "owner_static_persona_precedes_epoch_and_allocation",
+    "owner_static_failed_persona_requires_fresh_base",
+    "owner_static_rejects_malformed_base_before_programming",
+    "owner_static_rejects_invalid_persona_before_programming",
+    "owner_static_failed_guard_never_admits_allocation",
+))
+DISABLED_CASE = "owner_static_disabled_refuses_base_before_programming"
 REQUIRED_CASES = frozenset((
+    DISABLED_CASE,
+    "cold_poll_observes_display_ready_without_submission",
+    "owner_cached_info_has_no_hardware_or_lifetime_effect",
+    "build_identity_reports_hardware_words",
+    "zero_build_identity_refuses_allocation",
+    "changed_build_identity_retains_uncertain_lease",
+    "owner_idle_waits_for_last_client_mapping",
+    "owner_overlay_and_control_fd_complete_two_cycles",
+    "owner_overlay_refuses_remove_after_uncertain_last_close",
+    "owner_overlay_failure_never_admits_a_guard",
+    "owner_control_checks_capability_and_command_before_effects",
+    "permanent_owner_checks_real_supplier_links",
+    "permanent_owner_probe_refuses_unbound_device",
+    "permanent_owner_rejects_topology_overrides", "permanent_owner_rejects_ancestor_mutation",
+    "permanent_owner_blocks_configuration_before_first_submit",
+    "permanent_owner_retains_uncertain_closed_client",
+    "permanent_owner_never_adopts_unknown_configuration",
+    "owner_recovers_drain_after_last_client_close",
+    "owner_recovery_cannot_use_reset_as_drain",
+    "owner_reference_release_does_not_revoke_client",
+    "guard_real_access_and_bounds", "guard_claim_rejects_wrong_or_existing_identity",
+    "guard_dummy_zero_timeout_is_not_success", "guard_post_access_fault_and_reset_reject_results",
+    "guard_busy_or_unknown_status_prevents_access", "guarded_transport_constructs_real_dma_grant",
+    "backend_lease_required_before_access", "unconfigured_engine_has_one_allocation_lease",
+    "constructor_failure_releases_backend_lease", "uncertain_dma_retains_lease_until_storage_free",
     "binding_stays_closed", "rejects_bad_publish_before_effects",
     "kernel_owns_descriptor_and_drain_lifetime", "failed_start_is_held_until_drain",
     "unreadable_epoch_retains_exposed_storage",
-    "coherent_mapping_uapi_and_revoke", "rejects_invalid_mapping_shapes",
+    "coherent_mapping_uapi_and_revoke", "contiguous_aliases_are_revoked", "rejects_invalid_mapping_shapes",
     "refused_mapping_releases_new_mm_reference",
     "revoke_catches_inflight_mmap_link",
     "acceptance_is_not_display_and_slots_alternate",
@@ -59,6 +92,25 @@ def checked(argv, **kwargs):
     return subprocess.run(list(map(str, argv)), check=True, **kwargs)
 
 
+def locked_builder(container_runtime, lock, volume):
+    # Kernel tests and the platform kernel consume a separately locked SDK.
+    # Selecting a newer userspace Dockerfile must not silently change that
+    # compiler's immutable execution environment.
+    expected = lock["builder_image"]
+    result = subprocess.run([container_runtime, "image", "inspect", expected,
+                             "--format", "{{.Id}}"], capture_output=True, text=True)
+    if result.returncode or result.stdout.strip() != expected:
+        raise ValueError("locked kernel/SDK builder is unavailable or differs")
+    # Docker initializes an empty volume from the mount destination's metadata.
+    # The locked image owns /target-image-output as its build user; /build is
+    # absent and would instead create a root-owned volume. Preserve the normal
+    # builder's initialization without rebuilding its immutable environment.
+    checked([container_runtime, "run", "--rm", "--network", "none", "--platform", "linux/amd64",
+             "--user", f"{os.getuid()}:{os.getgid()}", "--volume", f"{volume}:/target-image-output",
+             expected, "test", "-w", "/target-image-output"])
+    return expected
+
+
 def image_builder():
     lane = ROOT / "image/de25-nano"
     sys.path.insert(0, str(lane))
@@ -87,7 +139,7 @@ def config_from_image(data):
     return config
 
 
-def passing_cases(report):
+def passing_cases(report, static_expansion=False):
     """Require real, passing cases from the driver's KUnit suite."""
     suites = report.get("sub_groups", [])
     found = [suite for suite in suites if suite.get("name") == "fes-de25-dma"]
@@ -95,7 +147,8 @@ def passing_cases(report):
         raise ValueError("KUnit result lacks the unique DE25 DMA suite")
     cases = found[0].get("test_cases", [])
     names = [case.get("name") for case in cases]
-    if (set(names) != REQUIRED_CASES or len(set(names)) != len(names) or
+    expected = (REQUIRED_CASES - {DISABLED_CASE}) | STATIC_CASES if static_expansion else REQUIRED_CASES
+    if (set(names) != expected or len(set(names)) != len(names) or
             any(case.get("status") != "PASS" for case in cases)):
         raise ValueError("KUnit DMA cases are missing, duplicate, skipped or failed")
     return names
@@ -136,7 +189,7 @@ def extract_kernel(cache, revision, destination):
             archive.wait()
 
 
-def inside(jobs, revision):
+def inside(jobs, revision, static_expansion=False):
     lock = selected_lock()
     export = Path("/export")
     work = Path("/build")
@@ -159,6 +212,10 @@ def inside(jobs, revision):
             raise ValueError("kernel source already contains the diagnostic driver")
         path.write_text(source + addition)
     configuration = target / ".kunitconfig"
+    if static_expansion:
+        configuration = work / "static-expansion.kunitconfig"
+        configuration.write_text((target / ".kunitconfig").read_text() +
+                                 "\nCONFIG_FES_DE25_STATIC_EXPANSION=y\n")
     build = work / "kunit"
     command = [sys.executable, kernel / "tools/testing/kunit/kunit.py", "run",
                "--arch=arm64", "--cross_compile=" + str(prefix),
@@ -170,7 +227,10 @@ def inside(jobs, revision):
         env.pop(name, None)
     with (export / "kunit-run.log").open("w") as log:
         checked(command, cwd=kernel, env=env, stdout=log, stderr=subprocess.STDOUT, timeout=2400)
-    names = passing_cases(json.loads((export / "kunit.json").read_text()))
+    names = passing_cases(json.loads((export / "kunit.json").read_text()), static_expansion)
+    final_config = (build / ".config").read_text()
+    if ("CONFIG_FES_DE25_STATIC_EXPANSION=y" in final_config.splitlines()) != static_expansion:
+        raise ValueError("kernel static-expansion selection differs from requested test mode")
     check_kernel_log((build / "test.log").read_text())
     for name, source in (("kunit-Image", build / "arch/arm64/boot/Image"),
                          ("kunit.config", build / ".config"),
@@ -179,6 +239,7 @@ def inside(jobs, revision):
                          ("de25_dma_test.o", build / KERNEL_DRIVER / "de25_dma_test.o")):
         shutil.copy2(source, export / name)
     result = {"classification": "AArch64 QEMU kernel DMA ownership tests", "fes_revision": revision,
+              "static_expansion_enabled": static_expansion,
               "kernel_revision": lock["revision"], "cases": names, "command": list(map(str, command)),
               "compiler": subprocess.check_output([str(prefix) + "gcc", "--version"], text=True).splitlines()[0],
               "qemu": subprocess.check_output(["qemu-system-aarch64", "--version"], text=True).splitlines()[0],
@@ -197,6 +258,8 @@ def main(argv=None):
     parser.add_argument("--output", type=Path)
     parser.add_argument("--jobs", type=int, default=8)
     parser.add_argument("--container-runtime", default="docker")
+    parser.add_argument("--static-expansion", action="store_true",
+                        help="also enable and require the initial static-persona lifecycle cases")
     parser.add_argument("--inside", help=argparse.SUPPRESS)
     args = parser.parse_args(argv)
     if not 1 <= args.jobs <= 16:
@@ -205,7 +268,7 @@ def main(argv=None):
         if args.inside:
             if ROOT != Path("/src") or not re.fullmatch(r"[a-f0-9]{40}", args.inside):
                 raise ValueError("internal action requires the isolated source mount")
-            inside(args.jobs, args.inside)
+            inside(args.jobs, args.inside, args.static_expansion)
             return 0
         lock = selected_lock()
         cache = fetch_kernel(args.cache, lock)
@@ -231,10 +294,9 @@ def main(argv=None):
         kernel = output / "kernel-input"
         extract_kernel(cache, lock["revision"], kernel)
         volume = "fes-de25-kunit-" + hashlib.sha256(str(output).encode()).hexdigest()[:16]
-        builder = lane.ensure_builder(source, args.container_runtime, volume)
-        if builder != lock["builder_image"]:
-            raise ValueError("kernel test builder differs from the SDK producer")
+        builder = locked_builder(args.container_runtime, lock, volume)
         inputs = {"format": 1, "fes_revision": revision, "kernel": lock,
+                  "static_expansion_enabled": args.static_expansion,
                   "source_sha256": {str(p.relative_to(source)): digest(p) for p in (source / DRIVER).rglob("*") if p.is_file()},
                   "runner_sha256": digest(source / "scripts/de25_kernel_test.py")}
         (output / "inputs.json").write_text(json.dumps(inputs, indent=2, sort_keys=True) + "\n")
@@ -243,7 +305,8 @@ def main(argv=None):
                  "--volume", f"{source}:/src:ro", "--volume", f"{image}:/image:ro",
                  "--volume", f"{kernel}:/kernel-input:ro", "--volume", f"{volume}:/build",
                  "--volume", f"{output}:/export", "--env", "LC_ALL=C", "--env", "TZ=UTC", builder,
-                 "python3", "/src/scripts/de25_kernel_test.py", "run", "--inside", revision, "--jobs", args.jobs])
+                 "python3", "/src/scripts/de25_kernel_test.py", "run", "--inside", revision, "--jobs", args.jobs,
+                 *(["--static-expansion"] if args.static_expansion else [])])
         print("Kernel DMA evidence: " + str(output / "checks.json"))
         return 0
     except (OSError, ValueError, KeyError, subprocess.CalledProcessError, subprocess.TimeoutExpired) as error:

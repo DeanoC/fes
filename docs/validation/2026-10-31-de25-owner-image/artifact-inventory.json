@@ -1,0 +1,190 @@
+{
+  "directory": "/home/deano/fes/out/artifacts/de25-owner-image/829cf0353/candidate",
+  "files": {
+    "boot-contract.json": {
+      "sha256": "7d8ff49cdad798abcfcc19fe6d16c47cb60503e8e2c0081f9ee75cb6119c75a5",
+      "size": 4640
+    },
+    "boot/Image": {
+      "sha256": "b5a68fa8c0fef8679931af008811676b608f13214e5afb863cbd3626d43c1769",
+      "size": 46701056
+    },
+    "boot/boot.scr.uimg": {
+      "sha256": "b38747a4b43abcc04d84b8f46ea514594e9cc59c8188633e4d24ba36da3728ef",
+      "size": 1783
+    },
+    "boot/factory-boot/golden_top_hps.jic": {
+      "sha256": "e3d20c2d066761fd02897422ba361aa19faafcd0240dd2782965754cc61b38a4",
+      "size": 16777447
+    },
+    "boot/factory-boot/resource-golden_top_hps.sof": {
+      "sha256": "e71a72180cb77ddd05a9c2ae49afa739d74786f9366f00233fd27bbebff6ea09",
+      "size": 1480451
+    },
+    "boot/factory-boot/vendor-readme.txt": {
+      "sha256": "bb81c63795a18a22f30001eed7a2bd4acea2704d1ebed20c4ad60092001eb5cc",
+      "size": 1127
+    },
+    "boot/socfpga_agilex5_de25_nano.dtb": {
+      "sha256": "d57bac64ffbb1ff4ace06dc0ba3fbb2d589055340274493efbfba687c4f244f7",
+      "size": 28907
+    },
+    "boot/u-boot.itb": {
+      "sha256": "bb6a48c77d2559a2f9710153cc616a242bfe701ff891cb5a14bddba33eaf2cf7",
+      "size": 1013832
+    },
+    "boot/vendor-boot-prefix.bin": {
+      "sha256": "9d13748dfc766083889a563102cb906f90a5178829dcd20f5fd47f9024e89dfd",
+      "size": 315621888
+    },
+    "build-job.json": {
+      "sha256": "190bfda4cdf697c55255f5583062a7be7b997f68f6a0dd48146bbdb987597ced",
+      "size": 227
+    },
+    "fes-de25-owner.img": {
+      "sha256": "de2a9a4ca35214ab75230d5807a0a8900d99f7869e1346c83f4e41bce0853138",
+      "size": 3984588800
+    },
+    "first-boot-expectation.json": {
+      "sha256": "277a4a30246c24bc31ce3808c7c9ef3b94215a523d49618b60ec125ef91c34ab",
+      "size": 6046
+    },
+    "owner-image.json": {
+      "sha256": "f491098ec2d7b86c822110e8c0a21e6a8a4fe333976d1e67a66395c57a7e6fd9",
+      "size": 9277
+    },
+    "pass-1/debugfs.commands": {
+      "sha256": "152bfd805a0a0846d2b1587820e44d0a53517829020a84bc629c67691353089b",
+      "size": 2758
+    },
+    "pass-1/debugfs.log": {
+      "sha256": "d9d9ffe65f8c97331c84c509bd04c71f3db5fc94c5480fa8ba83fc025415eaf1",
+      "size": 3312
+    },
+    "pass-1/fat-readback/Image": {
+      "sha256": "b5a68fa8c0fef8679931af008811676b608f13214e5afb863cbd3626d43c1769",
+      "size": 46701056
+    },
+    "pass-1/fat-readback/boot.scr.uimg": {
+      "sha256": "b38747a4b43abcc04d84b8f46ea514594e9cc59c8188633e4d24ba36da3728ef",
+      "size": 1783
+    },
+    "pass-1/fat-readback/socfpga_agilex5_de25_nano.dtb": {
+      "sha256": "d57bac64ffbb1ff4ace06dc0ba3fbb2d589055340274493efbfba687c4f244f7",
+      "size": 28907
+    },
+    "pass-1/fat-readback/u-boot.itb": {
+      "sha256": "bb6a48c77d2559a2f9710153cc616a242bfe701ff891cb5a14bddba33eaf2cf7",
+      "size": 1013832
+    },
+    "pass-1/patch-files/0": {
+      "sha256": "3134c56dd2bda9a457aa6fa201b901f43c45f57d9c60689488ec5c3c30e10f02",
+      "size": 23
+    },
+    "pass-1/patch-files/1": {
+      "sha256": "720beb6ec383da4f38db073817862974f5b87891f2045c3f893ec5c1beb05dc7",
+      "size": 732
+    },
+    "pass-1/patch-files/2": {
+      "sha256": "206748ae3cb7e92afd77d8a4719638a09f20ecfb2ee047966a865759a6ca79eb",
+      "size": 563
+    },
+    "pass-2/boot/Image": {
+      "sha256": "b5a68fa8c0fef8679931af008811676b608f13214e5afb863cbd3626d43c1769",
+      "size": 46701056
+    },
+    "pass-2/boot/boot.scr.uimg": {
+      "sha256": "b38747a4b43abcc04d84b8f46ea514594e9cc59c8188633e4d24ba36da3728ef",
+      "size": 1783
+    },
+    "pass-2/boot/factory-boot/golden_top_hps.jic": {
+      "sha256": "e3d20c2d066761fd02897422ba361aa19faafcd0240dd2782965754cc61b38a4",
+      "size": 16777447
+    },
+    "pass-2/boot/factory-boot/resource-golden_top_hps.sof": {
+      "sha256": "e71a72180cb77ddd05a9c2ae49afa739d74786f9366f00233fd27bbebff6ea09",
+      "size": 1480451
+    },
+    "pass-2/boot/factory-boot/vendor-readme.txt": {
+      "sha256": "bb81c63795a18a22f30001eed7a2bd4acea2704d1ebed20c4ad60092001eb5cc",
+      "size": 1127
+    },
+    "pass-2/boot/socfpga_agilex5_de25_nano.dtb": {
+      "sha256": "d57bac64ffbb1ff4ace06dc0ba3fbb2d589055340274493efbfba687c4f244f7",
+      "size": 28907
+    },
+    "pass-2/boot/u-boot.itb": {
+      "sha256": "bb6a48c77d2559a2f9710153cc616a242bfe701ff891cb5a14bddba33eaf2cf7",
+      "size": 1013832
+    },
+    "pass-2/boot/vendor-boot-prefix.bin": {
+      "sha256": "9d13748dfc766083889a563102cb906f90a5178829dcd20f5fd47f9024e89dfd",
+      "size": 315621888
+    },
+    "pass-2/debugfs.commands": {
+      "sha256": "1341b7fbf509e56a8e300719124c11a230981b99a93e2045f8ddf631402a4ddd",
+      "size": 2758
+    },
+    "pass-2/debugfs.log": {
+      "sha256": "e29e1b9df7cacca8d17615ea2d0362e0152e87c72c4b98d4f938e9c2aad11425",
+      "size": 3312
+    },
+    "pass-2/fat-readback/Image": {
+      "sha256": "b5a68fa8c0fef8679931af008811676b608f13214e5afb863cbd3626d43c1769",
+      "size": 46701056
+    },
+    "pass-2/fat-readback/boot.scr.uimg": {
+      "sha256": "b38747a4b43abcc04d84b8f46ea514594e9cc59c8188633e4d24ba36da3728ef",
+      "size": 1783
+    },
+    "pass-2/fat-readback/socfpga_agilex5_de25_nano.dtb": {
+      "sha256": "d57bac64ffbb1ff4ace06dc0ba3fbb2d589055340274493efbfba687c4f244f7",
+      "size": 28907
+    },
+    "pass-2/fat-readback/u-boot.itb": {
+      "sha256": "bb6a48c77d2559a2f9710153cc616a242bfe701ff891cb5a14bddba33eaf2cf7",
+      "size": 1013832
+    },
+    "pass-2/fes-de25-owner.img": {
+      "sha256": "de2a9a4ca35214ab75230d5807a0a8900d99f7869e1346c83f4e41bce0853138",
+      "size": 3984588800
+    },
+    "pass-2/patch-files/0": {
+      "sha256": "3134c56dd2bda9a457aa6fa201b901f43c45f57d9c60689488ec5c3c30e10f02",
+      "size": 23
+    },
+    "pass-2/patch-files/1": {
+      "sha256": "720beb6ec383da4f38db073817862974f5b87891f2045c3f893ec5c1beb05dc7",
+      "size": 732
+    },
+    "pass-2/patch-files/2": {
+      "sha256": "206748ae3cb7e92afd77d8a4719638a09f20ecfb2ee047966a865759a6ca79eb",
+      "size": 563
+    },
+    "pass-2/rootfs.ext4": {
+      "sha256": "0430c556239b6ebc52fab103557fff2f649dafc297e79e44f2d27e5c4d666654",
+      "size": 134217728
+    },
+    "pass-2/rootfs.tar": {
+      "sha256": "7e0a6af737520bdf90c77a8779ccab713a5eb6931d12a4b0651318be92dadc0b",
+      "size": 5908480
+    },
+    "rootfs.ext4": {
+      "sha256": "0430c556239b6ebc52fab103557fff2f649dafc297e79e44f2d27e5c4d666654",
+      "size": 134217728
+    },
+    "rootfs.tar": {
+      "sha256": "7e0a6af737520bdf90c77a8779ccab713a5eb6931d12a4b0651318be92dadc0b",
+      "size": 5908480
+    },
+    "tools.json": {
+      "sha256": "183bac4c2e57106d9d7ceb37f33fac4da0015a2286f8dfc89eb339af4bea525b",
+      "size": 134
+    },
+    "verify.json": {
+      "sha256": "4f221ec5b8297840b0945472c4e494d39437c57544c69b8456fe7a8fcfc7b375",
+      "size": 275
+    }
+  },
+  "producer": "829cf0353d1ea7a479f95bdbdf3d72e0391ab810"
+}

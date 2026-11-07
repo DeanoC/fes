@@ -1,0 +1,12 @@
+{
+  "build_id": "26921a8281abaf2f9b96ac388a5a63e5",
+  "classification": "separate clean canonical compile-only rebuild; not package admission or board acceptance",
+  "elapsed_seconds": 643.527,
+  "hardware_changed": false,
+  "independent_rbf_match": true,
+  "independent_records_match": true,
+  "numeric_timing_pass": true,
+  "package_timing_admission": false,
+  "rbf_sha256": "7d17a234408fbfe4984dc1caf88029c99b2b4dc0ffc11a5eba671055fd34c2aa",
+  "source_revision": "ea874ec412d44b9887da134667a166382840ba0a"
+}

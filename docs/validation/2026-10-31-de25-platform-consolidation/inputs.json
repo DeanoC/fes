@@ -1,0 +1,27 @@
+{
+  "fes_revision": "cb7b307ef4c3baad531adf8399f0fac101a7c2eb",
+  "format": 1,
+  "kernel": {
+    "builder_image": "sha256:ea200655b92ab1211bc8b326c6e799815f1d648b2d5e5a6c982f597cb2b9650d",
+    "format": 1,
+    "repository": "https://github.com/terasic/linux-socfpga.git",
+    "revision": "d7d192a9ddd955fe206aa350afed8f82e368a74c",
+    "sdk_sha256": "7912076c08d93c8d8c28c0ef81bd406abf6b1acb9e01ccac37d44307e39759a7",
+    "vendor_config_sha256": "3ec2812cffb3c37bf677941283c9b65c3f5620b519cb58a4ded5f230cadbcdf7",
+    "vendor_image_sha256": "874f75d81f6452406f0f0ea5e0849ea269e92599fe728eb02b1bdbb56ada1aa8"
+  },
+  "runner_sha256": "ec0e64fe278386189a84ec1679c90be323c4f7e2b3ff0d0c4b48a99cdd055313",
+  "source_sha256": {
+    "image/kernel/de25-dma/.kunitconfig": "16eb3ccfc929a326dbe53fd4003d5fea1ad076b52c45e8bd17274012c3b66682",
+    "image/kernel/de25-dma/Kconfig": "b22cb29d2c345becdfd0e03aaa5f174ce110c4c6922b8e6120dc88e096d60956",
+    "image/kernel/de25-dma/Makefile": "f927dfb3939e67b42d87d890bd5872197e99f7ce0a7e3810259103227819c838",
+    "image/kernel/de25-dma/README.md": "e25b0b472d6315ef21b04a1f8bf2ea77da0e8669b736d7f8151236c4287d229e",
+    "image/kernel/de25-dma/de25_dma.c": "005c6ed92b1b76eee817ae07e7841ea38ac41f0432fc9f32642cfa3cadcf83f6",
+    "image/kernel/de25-dma/de25_dma.h": "add29742c88700838d54eb6ade32b6a5e7cc7da010d41fa535d18b92dbfb97d2",
+    "image/kernel/de25-dma/de25_dma_internal.h": "1b0edc912505543b67e702efcd72238c14492da9fac981c82f4cda05e050e2de",
+    "image/kernel/de25-dma/de25_dma_test.c": "90e998d6277939944eefa139cce39717b1f06e7ea906c3d59073116a50ecf3e0",
+    "image/kernel/de25-dma/generated/fes_de25_ddr_probe.h": "ab89732c139512edbdd0610783f1001dfd2ede9839d92ef767b1d5a34f2fc5cf",
+    "image/kernel/de25-dma/generated/fes_de25_scanout.h": "ad72ed75e8a859766b71b37d03adaba453ab94a4393a9454b9b14b41879999b5",
+    "image/kernel/de25-dma/linux.lock.toml": "44e15dea10c976f62d8c06bdf6d75f1094058353236295876d82e59c4ca3633c"
+  }
+}

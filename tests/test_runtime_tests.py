@@ -108,10 +108,13 @@ class RuntimeChecks(unittest.TestCase):
                     make = root / 'make'
                     make.write_text('#!/bin/sh\nprintf "%s\\n" "$*" > "$COMMAND_LOG"\nexit "$MAKE_STATUS"\n')
                     make.chmod(0o755)
+                    selection = root / 'fes-ci-plan'
+                    selection.mkdir()
+                    (selection / 'changed-paths.json').write_text(json.dumps(paths))
                     result = subprocess.run(['bash', '-e', '-c', script], cwd=ROOT,
                         capture_output=True, text=True, env={**os.environ,
                         'PATH': str(root) + os.pathsep + os.environ['PATH'],
-                        'CHANGED_PATHS': json.dumps(paths), 'MAKE_STATUS': str(status),
+                        'RUNNER_TEMP': str(root), 'MAKE_STATUS': str(status),
                         'COMMAND_LOG': str(root / 'commands')})
                     self.assertEqual(result.returncode, status)
                     self.assertEqual((root / 'commands').read_text().strip(), '-j2 ' + target)

@@ -1,0 +1,635 @@
+{
+  "classification": "off-board source-bound build, model and fitted evidence",
+  "cores": {
+    "MENU": {
+      "build_id": "26508631f95d180199d674313193a242",
+      "classification": "de25-menu-compile-candidate",
+      "hardware_acceptance": false,
+      "input_record_sha256": "23a991f3ebaa68fe15662ffd93cd17540397a7441c33257c3ccaa561f5b32297",
+      "nonzero_rules": [
+        {
+          "id": "TMC-20012",
+          "severity": "High",
+          "violations": 30,
+          "waived": 0
+        },
+        {
+          "id": "TMC-20011",
+          "severity": "High",
+          "violations": 2,
+          "waived": 0
+        },
+        {
+          "id": "RDC-50003",
+          "severity": "Medium",
+          "violations": 2,
+          "waived": 0
+        }
+      ],
+      "normal_kit_acceptance": false,
+      "package_timing_admission": false,
+      "rbf_sha256": "df3d55344f49844b190d4405f6bce4d0c27c61464b095422caa48eb02a3a0245",
+      "reported_timing_checks": 69,
+      "reviewed_findings": [
+        {
+          "id": "TMC-20011",
+          "ports": [
+            "HDMI_I2C_SDA",
+            "HDMI_TX_INT"
+          ],
+          "violations": 2
+        }
+      ],
+      "revision": "1937f9ac76b7c383ab3bc9e8f948a3ba67fdab3d",
+      "seconds": 629.6,
+      "signoff_rules": 85,
+      "source_inputs": 377,
+      "timing_record_sha256": "c6bde465b3c7a5e5af175e9ac52ce66f9f2bd7587d9875c7e334c2e5e056959c",
+      "unreviewed_failed_rules": 2,
+      "waived_findings": 0
+    },
+    "ZX81": {
+      "build_id": "0276dccace12a773359f7184ef71d476",
+      "classification": "de25-zx81-compile-candidate",
+      "hardware_acceptance": false,
+      "input_record_sha256": "930aa37b6083e2dc07e09f1a3c79425d746f0158c1c00eb0bbc7c8db85073fce",
+      "nonzero_rules": [
+        {
+          "id": "TMC-20012",
+          "severity": "High",
+          "violations": 30,
+          "waived": 0
+        },
+        {
+          "id": "TMC-20011",
+          "severity": "High",
+          "violations": 2,
+          "waived": 0
+        },
+        {
+          "id": "RDC-50003",
+          "severity": "Medium",
+          "violations": 1,
+          "waived": 0
+        }
+      ],
+      "normal_kit_acceptance": false,
+      "package_timing_admission": false,
+      "rbf_sha256": "e3929f8c1d695fa93affaadb0511917e2b51854832c191b56cb80b19174d7fac",
+      "reported_timing_checks": 41,
+      "reviewed_findings": [
+        {
+          "id": "TMC-20011",
+          "ports": [
+            "HDMI_I2C_SDA",
+            "HDMI_TX_INT"
+          ],
+          "violations": 2
+        }
+      ],
+      "revision": "1937f9ac76b7c383ab3bc9e8f948a3ba67fdab3d",
+      "seconds": 629.7,
+      "signoff_rules": 85,
+      "source_inputs": 577,
+      "timing_record_sha256": "17e4a4a195552b01d716bacf824e4b2efb79d7d508caa0534dd502c98318fa49",
+      "unreviewed_failed_rules": 2,
+      "waived_findings": 0
+    }
+  },
+  "fitted": {
+    "classification": "Actual fresh private fitted reset topology, interstage and consumer timing across four corners; original project unchanged; no native or analogue qualification",
+    "fanout_counts": {
+      "async_reset": 5,
+      "sync_data": 11
+    },
+    "files_sha256": {
+      "fitted-audit-inputs.json": "2a51850c56671d30c8b8e362e0c08bdd8bf580a53785d5b093a8e894ad44a258",
+      "shared-fanout-final.tsv": "1a92cbdff70178c415e6d0264c2155de025830ea8b1b33706cb5f7fdd7d05b56",
+      "shared-paths-final.tsv": "a7c2a99d372d47586805e5945898bfc4637fa063adb3a71c115e395d74870dec",
+      "system-paths.tsv": "c2a9c3026e3a6a411557a21c6b71440c9dab35881bc896378dbe0c1f6d5b8ebc"
+    },
+    "hardware_access": "not-performed",
+    "minimum_slack_ns": {
+      "shared_data_consumers": 0.132,
+      "shared_interstage": 0.11,
+      "shared_reset_consumers": 0.228
+    },
+    "original_query_failure": "The original get_fanouts -synch/-asynch walks returned empty. Direct unfiltered fanout and report_timing show the one interstage connection and16 final-stage consumers. Final query uses exact source-bound consumer inventory and actual timing checks, preserving original failed script/job/log.",
+    "seconds": 7.287,
+    "shared_paths": 136,
+    "source_revision": "1937f9ac76b7c383ab3bc9e8f948a3ba67fdab3d",
+    "status": "passed",
+    "system_paths": 24
+  },
+  "fixture_revision": "5e56245d4a7444f9352812e365085d093aed9f42",
+  "focused": {
+    "checks": [
+      {
+        "argv": [
+          "/usr/bin/python3",
+          "-m",
+          "unittest",
+          "discover",
+          "-s",
+          "tests",
+          "-p",
+          "test_build_de25_zx81_package.py",
+          "-v"
+        ],
+        "log_sha256": "394f27736bb8618728fd988ecc0911c19651263d2aa9875e9b1d1b3d88fe19a5",
+        "name": "package-final",
+        "returncode": 0,
+        "seconds": 0.223
+      },
+      {
+        "argv": [
+          "/usr/bin/python3",
+          "/home/deano/fes/out/dev/de25-managed-image/sources/misteross/boards/de25nano/zx81-hps/video_sim.py",
+          "--output",
+          "/home/deano/fes/out/artifacts/de25-shared-pixel-reset/1937f9ac7/video-frames"
+        ],
+        "log_sha256": "c9c6867255303e506594132ab0adfaa88846e4a03e3d788efcb3371066ff292f",
+        "name": "video",
+        "returncode": 0,
+        "seconds": 75.767
+      },
+      {
+        "argv": [
+          "/usr/bin/python3",
+          "/home/deano/fes/out/dev/de25-managed-image/sources/misteross/boards/de25nano/zx81-hps/sim.py",
+          "--bench",
+          "endpoint"
+        ],
+        "log_sha256": "8359c16cbaa9b32d06d3f166d662f2e3c89ca0020ff204ab92ee7e86301deb5a",
+        "name": "endpoint",
+        "returncode": 0,
+        "seconds": 21.218
+      }
+    ],
+    "hardware_access": "not-performed",
+    "initial_board_tests": {
+      "cases": 26,
+      "log_sha256": "aa50959f6614ca78ae0300098dd1239465fa14c3239d11c742f4e9ea52712728",
+      "seconds": 0.116,
+      "status": "passed"
+    },
+    "original_runner_failure": "Package discovery used the parent cwd and imported the wrong scripts namespace. Original failed job/log/script preserved; only remaining checks run here with the correct module cwd.",
+    "seconds": 97.209,
+    "source_revision": "1937f9ac76b7c383ab3bc9e8f948a3ba67fdab3d",
+    "status": "passed"
+  },
+  "formal": {
+    "classification": "Actual projected two-stage release/readiness/frame-mask RTL, two-state arbitrary pixel-edge inputs and async2sync reset modelling; no analogue metastability, physical reset or whole-renderer proof",
+    "compared_bits": 5,
+    "hardware_access": "not-performed",
+    "induction_script": "read_verilog -formal -sv gold.v gate.v miter.v; prep -top miter -flatten; opt; async2sync; opt; sat -verify -prove equal 1 -tempinduct -seq 4 -maxsteps 12 -timeout 60 -show-inputs -show-outputs",
+    "negative_control": "Changing only the shared release from the final stage to the first stage produces an initialized eight-step counterexample; solver returns0 for a search without -verify, property result FAIL.",
+    "negative_counterexample_sha256": "62fb4b2291cf1b4d26a9d8b8b2035d08e6ee41cc4e1ec032c1560094149b196d",
+    "positive_returncode": 0,
+    "previous_revision": "dfe1287d7d7ac0aa836739a8b40acad1b13b19b2",
+    "renderer_unchanged_except_shared_output": true,
+    "seconds": 0.061,
+    "source_revision": "1937f9ac76b7c383ab3bc9e8f948a3ba67fdab3d",
+    "source_sha256": {
+      "fes_de25_computer.v": {
+        "gate": "ca297d720f8657d8a551e98390e92b819e7eef5c04cefaaa7c98381462c59943",
+        "gold": "caeab67825bdd9b07cf5e362367e653e040de94090d8e8c8207dfa9a1e8dbac4"
+      },
+      "video.v": {
+        "gate": "79076843ef2b223f8ad1824cf97416a83e705ed5d96b71a8740062c079d3b61d",
+        "gold": "21f8abf7f56b82629a0b190bd9229c2ca127152b4f26529b923e60346f2c7459"
+      }
+    },
+    "status": "passed",
+    "yosys_sha256": "88c0a12bb814a1a8716b1ae10b482e35d3005ed558e1f5f626b3dc983ea3abd0"
+  },
+  "hardware_access": "not-performed",
+  "models": {
+    "combined": {
+      "captured_inputs": {
+        "compiler_source_sha256": 65,
+        "test_runtime_source_sha256": 58
+      },
+      "cases": [
+        {
+          "architecture": "native",
+          "callbacks": 3,
+          "interrupted_bytes": 9,
+          "loaded_bytes": 923,
+          "ramtop_16k": 32768,
+          "ramtop_empty": 17408,
+          "result": "passed",
+          "roundtrip": {
+            "editor_returns": 24,
+            "loads": 2,
+            "printed_value": 7,
+            "reload_removed_edit": true,
+            "runs": 2,
+            "saved_bytes": 923,
+            "saved_cdflag": 64
+          },
+          "saved_image_sha256": "b4e6e04e3063149a0e7232f23e4aa24b96d0631d557920e97c65d1e01dfb3c71",
+          "scenario": "session",
+          "writes": 1548
+        },
+        {
+          "architecture": "native",
+          "callbacks": 0,
+          "interrupted_bytes": 0,
+          "loaded_bytes": 0,
+          "ramtop_16k": 0,
+          "ramtop_empty": 0,
+          "result": "passed",
+          "scenario": "wrong-build",
+          "writes": 0
+        },
+        {
+          "architecture": "native",
+          "callbacks": 1,
+          "interrupted_bytes": 0,
+          "loaded_bytes": 0,
+          "ramtop_16k": 0,
+          "ramtop_empty": 0,
+          "result": "passed",
+          "scenario": "program-failure",
+          "writes": 25
+        },
+        {
+          "architecture": "native",
+          "callbacks": 1,
+          "interrupted_bytes": 0,
+          "loaded_bytes": 0,
+          "ramtop_16k": 0,
+          "ramtop_empty": 0,
+          "result": "passed",
+          "scenario": "wrong-persona",
+          "writes": 27
+        },
+        {
+          "architecture": "native",
+          "callbacks": 0,
+          "interrupted_bytes": 0,
+          "loaded_bytes": 0,
+          "ramtop_16k": 0,
+          "ramtop_empty": 0,
+          "result": "passed",
+          "scenario": "ambiguous-write",
+          "writes": 24
+        },
+        {
+          "architecture": "native",
+          "callbacks": 1,
+          "interrupted_bytes": 0,
+          "loaded_bytes": 0,
+          "ramtop_16k": 0,
+          "ramtop_empty": 0,
+          "result": "passed",
+          "scenario": "missing-response",
+          "writes": 27
+        },
+        {
+          "architecture": "native",
+          "callbacks": 0,
+          "interrupted_bytes": 0,
+          "loaded_bytes": 0,
+          "ramtop_16k": 0,
+          "ramtop_empty": 0,
+          "result": "passed",
+          "scenario": "late-reset",
+          "writes": 23
+        },
+        {
+          "architecture": "aarch64-cortex-a76",
+          "callbacks": 3,
+          "interrupted_bytes": 9,
+          "loaded_bytes": 923,
+          "ramtop_16k": 32768,
+          "ramtop_empty": 17408,
+          "result": "passed",
+          "roundtrip": {
+            "editor_returns": 24,
+            "loads": 2,
+            "printed_value": 7,
+            "reload_removed_edit": true,
+            "runs": 2,
+            "saved_bytes": 923,
+            "saved_cdflag": 64
+          },
+          "saved_image_sha256": "b4e6e04e3063149a0e7232f23e4aa24b96d0631d557920e97c65d1e01dfb3c71",
+          "scenario": "session",
+          "writes": 1548
+        },
+        {
+          "architecture": "aarch64-cortex-a76",
+          "callbacks": 0,
+          "interrupted_bytes": 0,
+          "loaded_bytes": 0,
+          "ramtop_16k": 0,
+          "ramtop_empty": 0,
+          "result": "passed",
+          "scenario": "wrong-build",
+          "writes": 0
+        },
+        {
+          "architecture": "aarch64-cortex-a76",
+          "callbacks": 1,
+          "interrupted_bytes": 0,
+          "loaded_bytes": 0,
+          "ramtop_16k": 0,
+          "ramtop_empty": 0,
+          "result": "passed",
+          "scenario": "program-failure",
+          "writes": 25
+        },
+        {
+          "architecture": "aarch64-cortex-a76",
+          "callbacks": 1,
+          "interrupted_bytes": 0,
+          "loaded_bytes": 0,
+          "ramtop_16k": 0,
+          "ramtop_empty": 0,
+          "result": "passed",
+          "scenario": "wrong-persona",
+          "writes": 27
+        },
+        {
+          "architecture": "aarch64-cortex-a76",
+          "callbacks": 0,
+          "interrupted_bytes": 0,
+          "loaded_bytes": 0,
+          "ramtop_16k": 0,
+          "ramtop_empty": 0,
+          "result": "passed",
+          "scenario": "ambiguous-write",
+          "writes": 24
+        },
+        {
+          "architecture": "aarch64-cortex-a76",
+          "callbacks": 1,
+          "interrupted_bytes": 0,
+          "loaded_bytes": 0,
+          "ramtop_16k": 0,
+          "ramtop_empty": 0,
+          "result": "passed",
+          "scenario": "missing-response",
+          "writes": 27
+        },
+        {
+          "architecture": "aarch64-cortex-a76",
+          "callbacks": 0,
+          "interrupted_bytes": 0,
+          "loaded_bytes": 0,
+          "ramtop_16k": 0,
+          "ramtop_empty": 0,
+          "result": "passed",
+          "scenario": "late-reset",
+          "writes": 23
+        }
+      ],
+      "hardware_acceptance": false,
+      "identity": "explicit synthetic persona-model identity",
+      "proof_sha256": "de1941018b1dfef0056e49475a91229f3d521f4881ad94b38f425d200853fa15",
+      "seconds": 1785.0,
+      "selected_build_id": "00112233445566778899aabbccddeeff",
+      "status": "passed"
+    },
+    "internal": {
+      "captured_inputs": {
+        "source": 104
+      },
+      "cases": [
+        {
+          "architecture": "native",
+          "complete_frames": 637,
+          "image_bytes": 923,
+          "loaded_bytes": 923,
+          "result": "passed",
+          "roundtrip": {
+            "editor_returns": 24,
+            "loads": 2,
+            "printed_value": 7,
+            "reload_removed_edit": true,
+            "runs": 2,
+            "saved_bytes": 923,
+            "saved_cdflag": 64
+          },
+          "saved_image_sha256": "b4e6e04e3063149a0e7232f23e4aa24b96d0631d557920e97c65d1e01dfb3c71",
+          "scenario": "session",
+          "writes": 1475
+        },
+        {
+          "architecture": "native",
+          "complete_frames": 0,
+          "image_bytes": 0,
+          "loaded_bytes": 0,
+          "result": "passed",
+          "scenario": "tape-bounds",
+          "writes": 8989
+        },
+        {
+          "architecture": "native",
+          "complete_frames": 0,
+          "image_bytes": 0,
+          "loaded_bytes": 0,
+          "result": "passed",
+          "scenario": "wrong-build",
+          "writes": 16
+        },
+        {
+          "architecture": "native",
+          "complete_frames": 0,
+          "image_bytes": 0,
+          "loaded_bytes": 0,
+          "result": "passed",
+          "scenario": "bad-signature",
+          "writes": 23
+        },
+        {
+          "architecture": "native",
+          "complete_frames": 0,
+          "image_bytes": 0,
+          "loaded_bytes": 0,
+          "result": "passed",
+          "scenario": "missing-ack",
+          "writes": 23
+        },
+        {
+          "architecture": "native",
+          "complete_frames": 0,
+          "image_bytes": 0,
+          "loaded_bytes": 0,
+          "result": "passed",
+          "scenario": "late-ack",
+          "writes": 23
+        },
+        {
+          "architecture": "native",
+          "complete_frames": 0,
+          "image_bytes": 0,
+          "loaded_bytes": 0,
+          "result": "passed",
+          "scenario": "post-write-reset",
+          "writes": 23
+        },
+        {
+          "architecture": "native",
+          "complete_frames": 0,
+          "image_bytes": 0,
+          "loaded_bytes": 0,
+          "result": "passed",
+          "scenario": "ambiguous-write",
+          "writes": 23
+        },
+        {
+          "architecture": "native",
+          "complete_frames": 0,
+          "image_bytes": 0,
+          "loaded_bytes": 0,
+          "result": "passed",
+          "scenario": "held-word-change",
+          "writes": 23
+        },
+        {
+          "architecture": "native",
+          "complete_frames": 0,
+          "image_bytes": 0,
+          "loaded_bytes": 0,
+          "result": "passed",
+          "scenario": "late-reset",
+          "writes": 22
+        },
+        {
+          "architecture": "aarch64-cortex-a76",
+          "complete_frames": 637,
+          "image_bytes": 923,
+          "loaded_bytes": 923,
+          "result": "passed",
+          "roundtrip": {
+            "editor_returns": 24,
+            "loads": 2,
+            "printed_value": 7,
+            "reload_removed_edit": true,
+            "runs": 2,
+            "saved_bytes": 923,
+            "saved_cdflag": 64
+          },
+          "saved_image_sha256": "b4e6e04e3063149a0e7232f23e4aa24b96d0631d557920e97c65d1e01dfb3c71",
+          "scenario": "session",
+          "writes": 1475
+        },
+        {
+          "architecture": "aarch64-cortex-a76",
+          "complete_frames": 0,
+          "image_bytes": 0,
+          "loaded_bytes": 0,
+          "result": "passed",
+          "scenario": "tape-bounds",
+          "writes": 8989
+        },
+        {
+          "architecture": "aarch64-cortex-a76",
+          "complete_frames": 0,
+          "image_bytes": 0,
+          "loaded_bytes": 0,
+          "result": "passed",
+          "scenario": "wrong-build",
+          "writes": 16
+        },
+        {
+          "architecture": "aarch64-cortex-a76",
+          "complete_frames": 0,
+          "image_bytes": 0,
+          "loaded_bytes": 0,
+          "result": "passed",
+          "scenario": "bad-signature",
+          "writes": 23
+        },
+        {
+          "architecture": "aarch64-cortex-a76",
+          "complete_frames": 0,
+          "image_bytes": 0,
+          "loaded_bytes": 0,
+          "result": "passed",
+          "scenario": "missing-ack",
+          "writes": 23
+        },
+        {
+          "architecture": "aarch64-cortex-a76",
+          "complete_frames": 0,
+          "image_bytes": 0,
+          "loaded_bytes": 0,
+          "result": "passed",
+          "scenario": "late-ack",
+          "writes": 23
+        },
+        {
+          "architecture": "aarch64-cortex-a76",
+          "complete_frames": 0,
+          "image_bytes": 0,
+          "loaded_bytes": 0,
+          "result": "passed",
+          "scenario": "post-write-reset",
+          "writes": 23
+        },
+        {
+          "architecture": "aarch64-cortex-a76",
+          "complete_frames": 0,
+          "image_bytes": 0,
+          "loaded_bytes": 0,
+          "result": "passed",
+          "scenario": "ambiguous-write",
+          "writes": 23
+        },
+        {
+          "architecture": "aarch64-cortex-a76",
+          "complete_frames": 0,
+          "image_bytes": 0,
+          "loaded_bytes": 0,
+          "result": "passed",
+          "scenario": "held-word-change",
+          "writes": 23
+        },
+        {
+          "architecture": "aarch64-cortex-a76",
+          "complete_frames": 0,
+          "image_bytes": 0,
+          "loaded_bytes": 0,
+          "result": "passed",
+          "scenario": "late-reset",
+          "writes": 22
+        }
+      ],
+      "hardware_acceptance": false,
+      "identity": "actual canonical producer",
+      "proof_sha256": "120804c2dfe790d66ca692e322b84ea904a5bb72e06ec741de55284df382e559",
+      "seconds": 1538.4,
+      "selected_build_id": "0276dccace12a773359f7184ef71d476",
+      "status": "passed"
+    }
+  },
+  "normal_api": {
+    "classification": "actual parent board-selected API on materialized committed snapshot",
+    "hardware_access": "not-performed",
+    "rows": [
+      {
+        "actual_producer_record_sha256": "930aa37b6083e2dc07e09f1a3c79425d746f0158c1c00eb0bbc7c8db85073fce",
+        "core": "fes.zx81",
+        "normal_api_record_sha256": "930aa37b6083e2dc07e09f1a3c79425d746f0158c1c00eb0bbc7c8db85073fce",
+        "seconds": 61.406,
+        "source_inputs": 577,
+        "source_revision": "1937f9ac76b7c383ab3bc9e8f948a3ba67fdab3d",
+        "status": "passed"
+      },
+      {
+        "actual_producer_record_sha256": "23a991f3ebaa68fe15662ffd93cd17540397a7441c33257c3ccaa561f5b32297",
+        "core": "fes.menu",
+        "normal_api_record_sha256": "23a991f3ebaa68fe15662ffd93cd17540397a7441c33257c3ccaa561f5b32297",
+        "seconds": 59.108,
+        "source_inputs": 377,
+        "source_revision": "1937f9ac76b7c383ab3bc9e8f948a3ba67fdab3d",
+        "status": "passed"
+      }
+    ]
+  },
+  "source_revision": "1937f9ac76b7c383ab3bc9e8f948a3ba67fdab3d"
+}

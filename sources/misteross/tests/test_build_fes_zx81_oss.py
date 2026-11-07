@@ -488,8 +488,10 @@ class BuildFesZx81OssTests(unittest.TestCase):
         self.assertEqual(default["parameters"]["model_define"], "none")
         self.assertEqual(default["parameters"]["rom_source_size"], 8192)
         top = (ROOT / "cores/fes-zx81/rtl/top.v").read_text(encoding="utf-8")
-        self.assertIn("`ifdef ZX81_MODEL_ZX80\n        .ENABLE_ZX81_TAPE_WRITE(0),", top)
-        self.assertIn(".ENABLE_ZX81_TAPE_WRITE(1),", top)
+        core = (ROOT / "cores/fes-zx81/rtl/fes_zx81_core.v").read_text(encoding="utf-8")
+        self.assertIn("`ifdef ZX81_MODEL_ZX80\n        .ENABLE_ZX81_TAPE_WRITE(0),", core)
+        self.assertIn(".ENABLE_ZX81_TAPE_WRITE(1),", core)
+        self.assertIn("cores/fes-zx81/rtl/fes_zx81_core.v", RTL_SOURCES)
 
     def test_oss_rejects_wrong_output_directory(self) -> None:
         with self.assertRaises(BuildError):

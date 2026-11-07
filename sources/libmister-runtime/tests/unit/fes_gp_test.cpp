@@ -10,6 +10,9 @@
 #include "native/generated/fes_simple_computer.hpp"
 #include "native/generated/fes_application.hpp"
 #include "native/generated/fes_computer.hpp"
+#include "native/linux/de25_computer_mmio.hpp"
+#include "de25_standard_descriptor.hpp"
+#include "de25_computer_endpoint.hpp"
 #include "native/hardware.hpp"
 #include "native/artifacts.hpp"
 
@@ -2688,6 +2691,160 @@ void TestZx81SaveStaysDirtyUntilAcknowledged()
 	assert(!clean.endpoint.frozen);
 }
 
+using mister_test::AtomicComputerBridge;
+
+void TestRetainedZx81SaveGuardDoesNotRequireEmptyMedia()
+{
+    for(unsigned mode=0;mode<8;++mode) {
+        AtomicComputerBridge bridge;
+        mister::native::De25ComputerMmio registers(bridge);
+        TickClock clock;
+        mister::native::FesGp gp(registers,clock,mister::native::FesGpTransport::de25_computer);
+        mister::native::FesGpCoreDriver driver(gp);
+        auto descriptor=ComputerDescriptor({FesComputerInterfaceVideoFixed720p60ID,
+            FesComputerInterfaceKeyboardHidID,FesComputerInterfaceMediaZx81TapeID,
+            FesComputerInterfaceMediaZx81TapeWriteID});
+        descriptor.core.id="fes.zx81";
+        mister::native::CoreDriverContext context;context.descriptor=&descriptor;
+        assert(driver.Identify(context,kComputerDeadline).error.ok());
+        assert(driver.Start(context,kComputerDeadline).error.ok());
+        ComputerMediaFile tape(std::string("\x00\x0a\x76",3));
+        mister::native::ComputerMediaSnapshot media;
+        assert(media.Prepare(tape.path,1,FesComputerZx81TapeMaxBytes,clock,kComputerDeadline).ok());
+        assert(driver.InsertMedia(0,media,clock,kComputerDeadline,10000).ok());
+        const auto retained=bridge.endpoint.unit(0).data;
+        if(mode==1)bridge.endpoint.SetZx81Snapshot({0x00,0x0a,0x76});
+        if(mode==2)bridge.held=FesGpRequestMask;
+        if(mode==3)descriptor.build.id[0]='f';
+        if(mode==4)bridge.endpoint.SetZx81Snapshot({0x00,0x0a,0x76},false);
+        if(mode==5)descriptor.interfaces.erase(descriptor.interfaces.begin()+3);
+        if(mode==6)descriptor.core.id="fes.apple2";
+        mister::native::FesGp fresh_gp(registers,clock,mister::native::FesGpTransport::de25_computer);
+        mister::native::FesGpCoreDriver fresh(fresh_gp);
+        const auto start=bridge.endpoint.requests.size();
+        fresh.BeginSession();
+        const auto error=fresh.EnsureRetainedZx81TapeSaved(descriptor,mode==7?0:kComputerDeadline);
+        if(mode==0||mode==4)assert(error.ok());else assert(!error.ok());
+        if(mode==1)assert(error.code==mister::ErrorCode::save_failed&&bridge.endpoint.dirty&&bridge.endpoint.frozen);
+        assert(!bridge.endpoint.held&&bridge.endpoint.unit(0).state==FesComputerMediaStateReady&&bridge.endpoint.unit(0).data==retained);
+        assert(!fresh.home_computer()&&!fresh.TapeWriteCapable()&&fresh.media_units().empty());
+        for(std::size_t n=start;n<bridge.endpoint.requests.size();++n) {
+            const auto& r=bridge.endpoint.requests[n];
+            assert(r.opcode==FesComputerOpcodeIdentity||r.opcode==FesComputerOpcodeMediaSnapshotInfo||
+                (r.opcode==FesComputerOpcodeMediaSnapshotControl&&r.argument==FesComputerMediaSnapshotFreeze));
+        }
+    }
+}
+
+void TestStandardZx81DriverThroughAtomicDe25Transport()
+{
+	AtomicComputerBridge bridge;
+	mister::native::De25ComputerMmio registers(bridge);
+	TickClock clock;
+	mister::native::FesGp gp(registers, clock, mister::native::FesGpTransport::de25_computer);
+	mister::native::FesGpCoreDriver driver(gp);
+	auto descriptor = ComputerDescriptor({FesComputerInterfaceVideoFixed720p60ID,
+		FesComputerInterfaceKeyboardHidID, FesComputerInterfaceMediaZx81TapeID,
+		FesComputerInterfaceMediaZx81TapeWriteID});
+	descriptor.core.id = "fes.zx81";
+	mister::native::CoreDriverContext context;
+	context.descriptor = &descriptor;
+	assert(driver.Identify(context, kComputerDeadline).error.ok());
+	assert(driver.TapeWriteCapable());
+	assert(driver.Start(context, kComputerDeadline).error.ok() && !bridge.endpoint.held);
+	mister::KeyboardHidRows rows{};
+	rows[0] = 0x10; // HID usage 0x04, A; low four bits are reserved.
+	assert(driver.SetKeyboardHid(rows, kComputerDeadline).ok());
+	assert(bridge.endpoint.rows[0] == 0x10);
+	ComputerMediaFile tape(std::string("\x00\x0a\x76", 3));
+	mister::native::ComputerMediaSnapshot media;
+	assert(media.Prepare(tape.path, 1, FesComputerZx81TapeMaxBytes, clock, kComputerDeadline).ok());
+	assert(driver.InsertMedia(0, media, clock, kComputerDeadline, 10000).ok());
+	assert(!bridge.endpoint.held && bridge.endpoint.unit(0).state == FesComputerMediaStateReady);
+	assert(driver.EjectMedia(0, kComputerDeadline).ok() && !bridge.endpoint.held);
+	bridge.endpoint.SetZx81Snapshot({0x00, 0x0a, 0x76});
+	std::vector<unsigned char> saved;
+	assert(driver.CaptureZx81Tape(clock, kComputerDeadline, &saved).ok());
+	assert(saved == std::vector<unsigned char>({0x00, 0x0a, 0x76}));
+	assert(driver.EnsureZx81TapeSaved(kComputerDeadline).code == mister::ErrorCode::save_failed);
+	assert(driver.AcknowledgeZx81Tape(kComputerDeadline).ok());
+	assert(driver.EnsureZx81TapeSaved(kComputerDeadline).ok());
+	assert(bridge.writes == bridge.endpoint.requests.size());
+}
+
+void TestStandardDe25ReadinessChecksHealthWithoutCommands() {
+ for(unsigned failure=0;failure<7;++failure) {
+  AtomicComputerBridge bridge;
+  if(failure==1)bridge.id^=1;
+  if(failure==2)bridge.status|=FesDe25ComputerStatusBusy;
+  if(failure==3)bridge.fault=FesDe25ComputerFaultReset;
+  if(failure==4)bridge.video=8;
+  if(failure==5)bridge.video=0;
+  if(failure==6)bridge.version^=1;
+  mister::native::De25ComputerMmio registers(bridge);TickClock clock;
+  mister::native::FesGp gp(registers,clock,mister::native::FesGpTransport::de25_computer);
+  const auto e=gp.WaitVideoReady(100);
+  assert(e.ok()==(failure==0)&&bridge.writes==0);
+  assert(gp.Poisoned()==(failure!=0));
+ }
+ AtomicComputerBridge bridge;mister::native::De25ComputerMmio registers(bridge);TickClock clock;
+ mister::native::FesGp gp(registers,clock,mister::native::FesGpTransport::de25_computer);
+ mister::native::FesGpCoreDriver driver(gp);
+ auto d=mister_test::De25StandardDescriptor();d.build.id="00112233445566778899aabbccddeeff";
+ // Keep this independent core model's four operational capabilities. Profile
+ // admission is exercised above the driver by core_package_test.
+ d.interfaces=ComputerDescriptor({FesComputerInterfaceVideoFixed720p60ID,
+  FesComputerInterfaceKeyboardHidID,FesComputerInterfaceMediaZx81TapeID,
+  FesComputerInterfaceMediaZx81TapeWriteID}).interfaces;
+ mister::native::CoreDriverContext context;context.descriptor=&d;
+ assert(!driver.OwnsAudio()&&!driver.WaitVideoReady(100).ok());
+ assert(driver.Identify(context,kComputerDeadline).error.ok());
+ const auto writes=bridge.writes;
+ assert(driver.WaitVideoReady(kComputerDeadline).ok()&&bridge.writes==writes);
+ driver.BeginSession();assert(!driver.WaitVideoReady(kComputerDeadline).ok());
+}
+
+void TestAtomicDe25TransportFailsClosed()
+{
+	for (unsigned failure = 0; failure < 12; ++failure) {
+		AtomicComputerBridge bridge;
+		if (failure == 0) bridge.id ^= 1;
+		if (failure == 1) bridge.version ^= 1;
+		if (failure == 2) bridge.status = FesDe25ComputerStatusBusy | FesDe25ComputerStatusReady;
+		if (failure == 3) bridge.status = 0;
+		if (failure == 4) bridge.status |= 8;
+		if (failure == 5) bridge.fault = FesDe25ComputerFaultReset;
+		if (failure == 6) bridge.held = FesGpRequestMask;
+		if (failure == 7) bridge.changed_word = true;
+		if (failure == 8) bridge.post_fault = true;
+		if (failure == 9) bridge.post_busy = true;
+		if (failure == 10) bridge.write_error = true;
+		if (failure == 11) bridge.endpoint.lose_request = [](const mister_test::ComputerEndpoint::Request&) { return true; };
+		mister::native::De25ComputerMmio registers(bridge);
+		TickClock clock;
+		mister::native::FesGp gp(registers, clock, mister::native::FesGpTransport::de25_computer);
+		std::uint16_t reply = 0;
+		assert(!gp.Exchange(FesGpOpcodeIdentity, 0, 0, 10000, &reply).ok());
+		assert(gp.Poisoned() && bridge.writes == (failure < 7 ? 0u : 1u));
+		const auto writes = bridge.writes;
+		assert(!gp.Exchange(FesGpOpcodeIdentity, 0, 0, 10000, &reply).ok());
+		assert(!gp.Realign(10000).ok());
+		gp.BeginSession();
+		assert(gp.Poisoned());
+		assert(!gp.Exchange(FesGpOpcodeIdentity, 0, 0, 10000, &reply).ok());
+		assert(bridge.writes == writes);
+	}
+	// A known acknowledged rejection leaves transport usable, without replay.
+	AtomicComputerBridge bridge;
+	mister::native::De25ComputerMmio registers(bridge);
+	TickClock clock;
+	mister::native::FesGp gp(registers, clock, mister::native::FesGpTransport::de25_computer);
+	std::uint16_t reply = 0;
+	assert(!gp.Exchange(127, 0, 0, 10000, &reply).ok() && !gp.Poisoned());
+	assert(gp.Exchange(FesGpOpcodeIdentity, 0, 0, 10000, &reply).ok());
+	assert(reply == FesGpIdentityMagic0 && bridge.writes == 2);
+}
+
 void TestAtariStFloppyDiscoveryAndLiveInsert()
 {
 	auto descriptor = ComputerDescriptor({FesComputerInterfaceVideoFixed720p60ID,
@@ -3428,6 +3585,10 @@ void TestPc386AtaDiskCommitPollAndDirtyMap()
 
 int main()
 {
+    TestRetainedZx81SaveGuardDoesNotRequireEmptyMedia();
+	TestStandardZx81DriverThroughAtomicDe25Transport();
+	TestAtomicDe25TransportFailsClosed();
+ TestStandardDe25ReadinessChecksHealthWithoutCommands();
  TestMediaSnapshotFrozenCaptureAndRecovery();
  TestPcxtMediaSnapshot();
  TestMouseRelativeSplittingAndUncertainDelivery();

@@ -1,0 +1,208 @@
+{
+  "archive_sha256": "b75600b945cec27a46cbfac0715c3b7b811f38dfb8ee3eedc2d6e7395b455d84",
+  "archive_size": 83631,
+  "archived_regular_files_verified": 31,
+  "classification": "Ordinary DE25 image/verify routing, real ext4 export with unqualified authority fixtures and actual command refusals; no admitted factory/export/card or native acceptance",
+  "completed_own_pids_pgids": [
+    2134767,
+    2134794,
+    2136134,
+    2136135,
+    2136136,
+    2136137,
+    2136220,
+    2136221,
+    2136222,
+    2136223,
+    2260600,
+    2260623
+  ],
+  "completion_files": {
+    "completion/source-retention-job-launch.json": {
+      "sha256": "f6560b1400cecd5d816b866a6be95ebae7e3b5a347fe8206958160561ad62d26",
+      "size": 361
+    },
+    "completion/source-retention-job-supervisor.log": {
+      "sha256": "3614d94b06bf84a9ba90aa3eadac09c416ceb1b8da50f39986f60f9f9164714e",
+      "size": 1030
+    },
+    "completion/source-retention-job/job.json": {
+      "sha256": "55a7e1f0c543644a62beee8f475bc05890fc8f816331bff4172276702a9ac670",
+      "size": 559
+    },
+    "completion/source-retention-job/stdout.log": {
+      "sha256": "00dc7dcd2c14b59540e5bc0e7fbeaf6e8d7987fa1e7a9171369a448f836f0881",
+      "size": 2044
+    }
+  },
+  "completion_job": {
+    "command": [
+      "/usr/bin/python3",
+      "/home/deano/fes/out/dev/de25-managed-image/out/de25-image-entrypoints/retain-source.py"
+    ],
+    "cwd": "/home/deano/fes/out/dev/de25-managed-image/out/work/de25-image-entrypoints-c1152ba3c",
+    "elapsed_seconds": 1.6,
+    "hardware_access": "not-performed",
+    "heartbeat_utc": "2026-11-02T02:02:37.078953+00:00",
+    "pid": 2260623,
+    "returncode": 0,
+    "source_revision": "c1152ba3cd4e2d7bdd079e0cc4e40478aee23d44",
+    "started_utc": "2026-11-02T02:02:35.528620+00:00",
+    "state": "passed",
+    "time_cap_seconds": 600
+  },
+  "component_evidence_reuse": {
+    "scope": "Prior host/UI, runtime, contracts and standalone FPGA software suite; original aggregate timeout is unchanged. No new full14 native/AArch64, image, Quartus or physical qualification.",
+    "source_retention": "/home/deano/fes/out/artifacts/de25-appliance-workflow/c68b96d12/retention.json",
+    "source_retention_sha256": "4fb5ae368858fc2054e92fad933e3dbc479c2761a65f7228e557fde43ca404c7",
+    "unchanged_git_objects": {
+      "boot-media.lock.toml": "23c6d1b428956d10e742f36825cecb0d3595439b",
+      "config": "c642a25ca5ba6968df98522217769ee16aca59a9",
+      "image": "b5f45c20353db25998c06228c025090c26cdcf5a",
+      "platform": "b2582a7f5f1e246b2a508503e867b4aee0cbc430",
+      "profiles": "77c6d028aeaa59d3d2d8757bdcb397ff527428ce",
+      "sources/FogCast": "0c5998dbc62380b4a885c268f48af2c079c91588",
+      "sources/libmister-runtime": "76fd790345deed71592c70bc373e76346c664707",
+      "sources/mister-packages": "ef006ed0adb1b60b596bf05fc8c5096252b65754",
+      "sources/misteross": "1dd9c9f56e5e9db7223e980ac28c62fa6bdc615f"
+    }
+  },
+  "files": {
+    "proofs/affected-plan.json": {
+      "sha256": "2236924d4c1f86f1a258ef165ea419256030dfddeda0c5fd590e075ec2524357",
+      "size": 7482
+    },
+    "proofs/committed-check-job-launch.json": {
+      "sha256": "8ff0246d1c4160ba055ea2205b082112e0a6e75c08027bef7a02d9163e33a2b9",
+      "size": 268
+    },
+    "proofs/committed-check-job-supervisor.log": {
+      "sha256": "cf3f03143480ab24be4c8c443290fbadd8f5a9f33454e690d0d02105bf04a233",
+      "size": 844
+    },
+    "proofs/committed-check-job/job.json": {
+      "sha256": "7fe5a34d84fab093e005c8cd8f0933dca5f125837aa43e86f340af86dc1a8b38",
+      "size": 466
+    },
+    "proofs/committed-check-job/stdout.log": {
+      "sha256": "8015336a883d42c83467aca55d2eaf22bdd1c0805c526f1b247c09f3f4571885",
+      "size": 137
+    },
+    "proofs/focused-job-launch.json": {
+      "sha256": "841f8c3cea0f4c490177ef31be802118ed4bd090dc6162c7dc65607100f06d2b",
+      "size": 471
+    },
+    "proofs/focused-job-supervisor.log": {
+      "sha256": "5cc3ee5c93338b3f06795a9f8a23c578a4d59feec4afbcd6e0483ee8ea689bdb",
+      "size": 1202
+    },
+    "proofs/focused-job/job.json": {
+      "sha256": "d2b7d44039e97a1ab2ab8461f9442cb2cb24e4779233900c638a011f0b1ef21f",
+      "size": 669
+    },
+    "proofs/focused-job/stdout.log": {
+      "sha256": "8a02dd9802c6b5c742038e725853f9217a7ce35af4494d35f080c6bebcd8391f",
+      "size": 12920
+    },
+    "proofs/next-workflow-notes.json": {
+      "sha256": "ce27fb896d3e3375505e7948a7174217c33f0d974775fb38d7d4659b24f190c3",
+      "size": 1494
+    },
+    "proofs/parent-job-launch.json": {
+      "sha256": "7ef6413fcd64139d8d8e50a1e0d62c120cf5f8d9c9e55c0b763d148a4ffb376a",
+      "size": 434
+    },
+    "proofs/parent-job-supervisor.log": {
+      "sha256": "cbb3be138f52f25f2ccf4c675ef1354185f34acd58402ddca66bde60c62127d8",
+      "size": 17471
+    },
+    "proofs/parent-job/job.json": {
+      "sha256": "467ec9fefcf10c33c210368289af01ae409020ec033c45cf32c39efe88f017ba",
+      "size": 634
+    },
+    "proofs/parent-job/stdout.log": {
+      "sha256": "ad4f3c3c878fae442793b1ba73905e937f77336541dda74c8c4c2b6bbed184c6",
+      "size": 395142
+    },
+    "proofs/parent-result.json": {
+      "sha256": "a40f6802becddc042380bb3c49a5fd6def54e2b4cdcae73758d184af73059fc2",
+      "size": 7652
+    },
+    "proofs/phase.json": {
+      "sha256": "7cc24c19bd004cdf311c733260ebcfad0f9c0677a1f51076f441dfb9ffa1a174",
+      "size": 442
+    },
+    "proofs/prepare-doc-evidence.py": {
+      "sha256": "83e3c3e25b47860dba4ecead6101d6fe62c9cf5f53c34dfd53e02f5753bc94fc",
+      "size": 1824
+    },
+    "proofs/refusals-job-launch.json": {
+      "sha256": "52155492bf3ccf6672b3c946539bfd3fe9005099c480768ca25064e0036dd651",
+      "size": 356
+    },
+    "proofs/refusals-job-supervisor.log": {
+      "sha256": "4800ea64073c2ca3ac48f98e6178c530874882d649ed3cd95712bb8e1a5c04f3",
+      "size": 1020
+    },
+    "proofs/refusals-job/job.json": {
+      "sha256": "d04163dc4a7459e65592c431f4fcf8714594517d374cc6aee87b48f255f9a728",
+      "size": 554
+    },
+    "proofs/refusals-job/stdout.log": {
+      "sha256": "ab379e18b395c497e38fc7ea007250bb971e9cac2d82781f0e38cc84e5e3ec04",
+      "size": 8267
+    },
+    "proofs/refusals.json": {
+      "sha256": "88b1b0316ab8911be2650e5819311f3993bddf2339bfffdc89801a8279d0f2a7",
+      "size": 8267
+    },
+    "proofs/refusals.py": {
+      "sha256": "d66166080f22beb941d08a55bd4a63345a714efb3949067bd39011777255ab42",
+      "size": 3540
+    },
+    "proofs/retain-source.py": {
+      "sha256": "65f6fad978ec0189c555077c0efd918329a3c123e0406cd3776e75c18c4ed3dd",
+      "size": 4868
+    },
+    "proofs/run-parent.py": {
+      "sha256": "2b06aaeadfa6a0a1c35f6f8957a873b5f38d1460cb4c408a18095c71d412627e",
+      "size": 3009
+    },
+    "proofs/source-scope-job-launch.json": {
+      "sha256": "4f6d208351f0433ae90f8f2b539529fb56b066e499fa71d6b8fde54da92cbac5",
+      "size": 360
+    },
+    "proofs/source-scope-job-supervisor.log": {
+      "sha256": "e78d0a476d616929256625deff5e42b15bf12b13502f229ad03b2ec23a9b73b9",
+      "size": 1028
+    },
+    "proofs/source-scope-job/job.json": {
+      "sha256": "d460f6932996274aec006d6d8734e1d8b5920476fca248951f4f9cf6f58a56e1",
+      "size": 558
+    },
+    "proofs/source-scope-job/stdout.log": {
+      "sha256": "9b70e0419dc6dd669b2a8db13f34032cc0ac30717bbe7d145b23aefcf97e87e1",
+      "size": 981
+    },
+    "proofs/source-scope.json": {
+      "sha256": "13b2a25d0714b9ded95193dfd925fbee590fc248f09a29f528912e80b9eda670",
+      "size": 981
+    },
+    "proofs/source-scope.py": {
+      "sha256": "c3b4fb1e3981afc43acdb41b378e6acea3bc1b87998015dc973b1cba48358aa3",
+      "size": 1462
+    },
+    "source.bundle": {
+      "sha256": "88a413a8e6fcd35ac78e0ae423e1559eddd6385f60c9b4f36e219f670e98fc1e",
+      "size": 13049
+    }
+  },
+  "hardware_access": "not-performed",
+  "live_completed_processes": [],
+  "new_factory_builder_containers": "none launched; producer route is mocked in unit cases and real commands refuse the intermediate",
+  "positive_factory_authority": "Explicitly mocked only in unit fixtures; actual 8MiB ext4 extraction and package/ELF/interface checks execute",
+  "previous_publication_retention_sha256": "7389d609f05d45af3eea4b9d424bdd368bf3dfd0576b7029fd875b399b9def48",
+  "restored_tree": "e7247e3b4c0be7bc0508652d28a180cdef52a138",
+  "source_restored": true,
+  "source_revision": "c1152ba3cd4e2d7bdd079e0cc4e40478aee23d44"
+}

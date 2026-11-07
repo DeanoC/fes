@@ -9,9 +9,20 @@ DE25-Nano bring-up includes a [headless AArch64 image](docs/de25-linux.md),
 and [off-board runtime software checks](docs/de25-linux.md#aarch64-runtime-and-agent-checks-without-a-board).
 [Physical HPS-first bring-up](docs/validation/2026-10-31-de25-hps-first-hardware/README.md)
 boots FES Linux, loads ZX81 through Linux and runs BASIC through native CPU
-control with captured HDMI. Managed runtime, MENU and normal catalog/core
-launch acceptance remain open.
+control with captured HDMI. The
+[managed ZX81 integration proof](docs/validation/2026-11-04-de25-normal-zx81/README.md)
+exercises catalog Play/Stop, BASIC load/run/reload and software reboot.
+[Permanent Ethernet pairing](docs/validation/2026-11-04-de25-permanent-pairing/README.md)
+survives a kit reboot and host-service restart. Full normal-kit acceptance,
+including allocated in-play display and fault recovery, remains open.
 The default appliance and playable packages target DE10-Nano.
+The [image commands](docs/image-artifacts.md#de25-image-and-export-commands)
+also select DE25 explicitly for managed factory assembly, verification and
+artifact export. The [Terasic-based factory proof](docs/validation/2026-11-03-de25-terasic-managed-factory/README.md)
+builds the AArch64 runtime/agent, sealed MENU, release, boot selector and
+reproducible card through ordinary FES commands. Its real kernel/rootfs virtual
+boot passes; the subsequent managed native integration proof covers MENU and
+catalog ZX81, with full normal-kit acceptance still open.
 
 Agents: read [AGENTS.md](AGENTS.md), then the
 [development guide](docs/development.md) and the selected component's guidance.
@@ -78,8 +89,22 @@ packages and publishes a structurally checked diagnostic image under
 seed that cache; otherwise the first run builds the base once. See
 [the incremental workflow](docs/development.md#incremental-native-image).
 
+DE25 uses the same source workflow with an explicit managed AArch64 SDK/base
+and matching owner kernel/compiler: `make dev BOARD=de25-nano
+DE25_IMAGE=/absolute/managed-base IMAGE_KERNEL=/absolute/kernel
+IMAGE_SDK=/absolute/owner-sdk.tar.gz`. MENU must first be admitted through its
+Quartus recipe. The source path builds the selected Go/C++ components, reuses
+the existing factory compiler/base cache and publishes a verified immutable
+generation under `out/de25-nano/development/`. Missing MENU is refused before
+target software or OS compilation. See the
+[DE25 source-build requirements](docs/development.md#de25-source-development).
+
 For compatible kit software updates, use `make kit-software` with a retained
 verified base image; see [kit software releases](docs/kit-software-releases.md).
+DE25 selects the compiler and software target with `BOARD=de25-nano
+DE25_IMAGE=/absolute/verified-image`; `make kit-sdk` authenticates and caches
+that image's AArch64 SDK without rebuilding Linux. A software update still
+requires a managed factory image with its software manifest and MENU contract.
 
 For clean integration and release verification:
 
@@ -182,8 +207,9 @@ boot and play checks remain separate. See [bootable media](docs/bootable-media.m
 | Profile | Selected source combination |
 | --- | --- |
 | `native-integration-dev` (default) | Current FES commit, locked idle RBF and MENU display firmware; install playable cores separately |
+| `de25-nano` (explicit `BOARD=de25-nano`) | Committed AArch64 sources, authenticated managed SDK/base and matching owner kernel/compiler; requires an admitted Quartus Pro MENU package ([commands](docs/development.md#de25-source-development)) |
 
-The parent exposes one FES integration profile. Systems whose nextpnr route is
+The parent defaults to the DE10 integration profile. Systems whose nextpnr route is
 not implemented yet are checked explicitly with Quartus when their recipe
 requires it; that check does not create an image package or change the default
 package-only path. The accepted policy also allows labelled Quartus variants,

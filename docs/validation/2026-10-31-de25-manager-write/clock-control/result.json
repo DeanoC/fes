@@ -1,0 +1,5 @@
+{
+  "returncode": -6,
+  "stderr": "write-test: out/de25-write-clock-regression/write-test.c:66: wait_for_completion_timeout: Assertion `timeout == 1' failed.\n",
+  "expected": "one-sample wait budget assertion fails on initial repair"
+}

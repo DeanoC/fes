@@ -1,0 +1,12 @@
+{
+  "sdk-build.json": "d5087a08153779d26ac927a2a0694ecf58c1089816dd9166df989e0abd95b8db",
+  "README.md": "d1308bfd246066f9ed6170db964d45006eaf7fb5576a99eeb2cbc5fb7af9b503",
+  "de25-core-driver-sdk-job/job.json": "1bb82cec44b746e060a4da7bc156803ed2f4d6646b7ae0d52d5dad91f8b09125",
+  "de25-core-driver-sdk-job/stdout.log": "521d119c559b8539e8863a91e37f172924e3cd988cc04340d48b82d3cdf8fe2d",
+  "de25-core-driver-sdk-dynamic-job/job.json": "d4b348a0115ab193dd9f8ddde24b029346b599e6d38cd22eda41cf0e49cb1ca9",
+  "de25-core-driver-sdk-dynamic-job/stdout.log": "5b93b7a7e6aef5ad24386375563893201156408696e3d00b3375d85b4c6592f1",
+  "de25-core-driver-affected-job/job.json": "86dc8b10b1f327ff375689e906d5ee390258d88ec39c80e124a0cbf7a9f52b51",
+  "de25-core-driver-affected-job/stdout.log": "c7241c576ec21f35026e76fb009e416ca1e8556897a5cd6e45091e6643b8f2ee",
+  "de25-core-driver-check-job/job.json": "f5a9af8074c3f8b8ff375d920bb7450b1112eaf65edd10d02add0301698b26f9",
+  "de25-core-driver-check-job/stdout.log": "296433e8efe17aab2966db6a9c3bb0effce550c523226125a01539a0a8ffc211"
+}

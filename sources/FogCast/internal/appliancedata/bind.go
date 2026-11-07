@@ -105,17 +105,18 @@ type Config struct {
 
 func ProductionConfig() Config {
 	return Config{
-		Devices:     []string{DefaultLabelDevice, DefaultMMCDevice},
-		Label:       DefaultLabel,
-		MountPoint:  DefaultMountPoint,
-		FATRoot:     DefaultFATRoot,
-		BindNames:   append([]string(nil), DefaultBindNames...),
-		MountInfo:   "/proc/self/mountinfo",
-		FactoryPath: "/.fes-bootstrap/etc/fes/factory.json",
-		BootJSON:    filepath.Join(appliance.DefaultRoot, "boot.json"),
-		BootIDPath:  "/proc/sys/kernel/random/boot_id",
-		ReleaseRoot: appliance.DefaultRoot,
-		Mounter:     platformMounter(),
+		Devices:      []string{DefaultLabelDevice, DefaultMMCDevice},
+		Label:        DefaultLabel,
+		MountPoint:   DefaultMountPoint,
+		FATRoot:      DefaultFATRoot,
+		BindNames:    append([]string(nil), DefaultBindNames...),
+		MountInfo:    "/proc/self/mountinfo",
+		FactoryPath:  "/.fes-bootstrap/etc/fes/factory.json",
+		BootJSON:     filepath.Join(appliance.DefaultRoot, "boot.json"),
+		BootIDPath:   "/proc/sys/kernel/random/boot_id",
+		ReleaseRoot:  appliance.DefaultRoot,
+		Mounter:      platformMounter(),
+		EvaluateGate: ReadProductionUpdateGate,
 	}
 }
 

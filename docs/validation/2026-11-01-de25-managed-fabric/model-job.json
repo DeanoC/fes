@@ -1,0 +1,20 @@
+{
+  "source_revision": "d8549cc79132f6d6a0752021552125c1220e337f",
+  "command": [
+    "python3",
+    "sources/misteross/boards/de25nano/scanout/interconnect_sim.py",
+    "--project",
+    "/data/fes-de25-managed-fabric-d8549cc79/source/sources/misteross/build/de25-menu/546f89796e415930cc4a87eafaacd67b/attempt-6m2mexcz/signoff/combined/hps/project",
+    "--output",
+    "/data/fes-de25-managed-fabric-d8549cc79/model"
+  ],
+  "cwd": "/data/fes-de25-managed-fabric-d8549cc79/source",
+  "started_utc": "2026-11-01T19:27:42.468954+00:00",
+  "time_cap_seconds": 300,
+  "hardware_access": "not-performed",
+  "pid": 2116639,
+  "state": "passed",
+  "elapsed_seconds": 66.0,
+  "heartbeat_utc": "2026-11-01T19:28:48.464151+00:00",
+  "returncode": 0
+}

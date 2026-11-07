@@ -1,0 +1,25 @@
+{
+  "source_revision": "96116fb8de6d36809ec25898b5ce3254b50fe79d",
+  "producer_revision": "7656e1954f7e27d0dc3634f60e869f97cf14301d",
+  "excluded_cases": [
+    "test_build_fes_apple2.Apple2YosysM10kTests.test_mapped_netlist_has_no_async_m10k",
+    "test_build_fes_c64.C64YosysM10kTests.test_mapped_netlist_has_no_async_m10k",
+    "test_build_fes_c64.C64YosysM10kTests.test_full_synth_has_live_memory_clocks",
+    "test_build_fes_sg1000.Sg1000YosysM10kTests.test_mapped_netlist_has_no_async_m10k",
+    "test_build_fes_sms.SmsYosysM10kTests.test_mapped_netlist_has_no_async_m10k",
+    "test_build_fes_zx81_oss.Zx81YosysM10kTests.test_mapped_shell_has_no_async_m10k",
+    "test_coleco_megacart_build.ColecoMegacartYosysM10kTests.test_mapped_netlist_has_no_async_m10k",
+    "test_pcxt_quartus.QuartusElaborationTests.test_headers_byte_write_memory_and_signed_pll_parameters_survive"
+  ],
+  "reason": "User-directed DE25 software scope excludes eight DE10-only Cyclone V cases: seven M10K mappings and one PC/XT-specific legacy elaborator. All other cases remain required. No timing/signoff exception is added.",
+  "unchanged_excluded_test_source_sha256": {
+    "sources/misteross/tests/test_build_fes_apple2.py": "314482ceba32985c87fddf2811ea7614e2430f76d5fa90deb71e2ce26f048b9a",
+    "sources/misteross/tests/test_build_fes_c64.py": "195d8225a3866691bf069a535b0f81563ab511b3ee0356697bbc3b4dafd25b80",
+    "sources/misteross/tests/test_build_fes_sg1000.py": "55c6e9943d62c840e2d606403bf4113e2b40f12dfb1652ac39ae9a19ae34b31a",
+    "sources/misteross/tests/test_build_fes_sms.py": "775f2d63882f9cd93a55eba8c67c763ee58a152a56f1c0599086dd1796690481",
+    "sources/misteross/tests/test_build_fes_zx81_oss.py": "4db492a08b03ccdd931f5b23917e31696424c893b1dbb204174f859ee33cd05f",
+    "sources/misteross/tests/test_coleco_megacart_build.py": "eafc407777a4e2ebca3bb474a34ded485c6be1c51a8c0c8eb9d2fb831452da53",
+    "sources/misteross/tests/test_pcxt_quartus.py": "799a61bd1ef5c856584450180de4b6588eacdd643a094049828c9896ac6e57b7"
+  },
+  "prior_scope_source": "5e56245d4a7444f9352812e365085d093aed9f42"
+}

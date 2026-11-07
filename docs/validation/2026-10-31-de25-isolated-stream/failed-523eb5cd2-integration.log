@@ -1,0 +1,26 @@
+***************************************************************
+Quartus is a registered trademark of Altera Corporation in the
+US and other countries.  Portions of the Quartus Prime software
+code, and other portions of the code included in this download
+or on this DVD, are licensed to Altera Corporation and are the
+copyrighted property of third parties. For license details,
+refer to the Altera Software License Subscription Agreements 
+on the Quartus Prime software download page.
+***************************************************************
+
+2026.10.31.14:01:37 Info: Doing: qsys-script --quartus-project=golden_top --search-path=custom_ip/**/*,fes_mailbox,$ --script=integrate-mailbox.tcl
+2026.10.31.14:01:40 Info: load_system /data/fes-de25-isolated-523eb5cd2/output/combined/hps/project/hps_subsys/hps_subsys.qsys
+2026.10.31.14:01:41 Info: load_component agilex_hps
+2026.10.31.14:01:47 Info: set_component_parameter_value f2sdram_SMMU true
+2026.10.31.14:01:47 Info: get_component_parameter_value f2sdram_SMMU
+2026.10.31.14:01:47 Info: save_component 
+2026.10.31.14:01:49 Info: load_component f2sdram_adapter
+2026.10.31.14:01:49 Info: get_component_parameter_value DATA_WIDTH
+2026.10.31.14:01:49 Info: get_component_interface_port_property axi4_man man_aruser WIDTH
+2026.10.31.14:01:49 Info: get_component_interface_port_property axi4_man man_awuser WIDTH
+2026.10.31.14:01:49 Info: save_component 
+2026.10.31.14:01:49 Info: save_system /data/fes-de25-isolated-523eb5cd2/output/combined/hps/project/hps_subsys/hps_subsys.qsys
+2026.10.31.14:01:49 Info: Info: All modules have been converted to Generic Components.
+2026.10.31.14:01:49 Info: load_system /data/fes-de25-isolated-523eb5cd2/output/combined/hps/project/jtag_subsys/jtag_subsys.qsys
+2026.10.31.14:01:49 Info: get_interface_property hps_f2sdram_master EXPORT_OF
+2026.10.31.14:01:49 Error: syntax error in expression "[get_interface_property hps_f2sdram_master EXPORT_OF] ne "hps_f2sdram.master""

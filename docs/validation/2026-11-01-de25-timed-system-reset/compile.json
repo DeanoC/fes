@@ -1,0 +1,21 @@
+{
+  "source_revision": "34c3a6cb4d2858c273e2f95a0a94fcb46f8b416b",
+  "command": [
+    "python3",
+    "/data/de25-timed-reset-34c3a6cb4/source/sources/misteross/scripts/build_de25_menu_package.py",
+    "--quartus-root",
+    "/data/altera_pro/26.3",
+    "--vendor-archive",
+    "/data/fes-de25-1297-9b36e4729/DE25-Nano_revB_v.1.0.0_ResourcePackage.zip",
+    "--compile-only"
+  ],
+  "cwd": "/data/de25-timed-reset-34c3a6cb4/source",
+  "started_utc": "2026-11-01T16:58:34.405377+00:00",
+  "time_cap_seconds": 2400,
+  "hardware_access": "not-performed",
+  "pid": 2023569,
+  "state": "passed",
+  "elapsed_seconds": 639.3,
+  "heartbeat_utc": "2026-11-01T17:09:13.678260+00:00",
+  "returncode": 0
+}

@@ -1,0 +1,15 @@
+{
+  "status": "passed",
+  "classification": "Actual unpatched prepared-candidate reader accepts the reconstructed DE25 archive/provenance from explicitly unqualified cache fixtures; no host runner or kit execution",
+  "package_id": "041ac242968df826a8f6f6866bed7ef2f753c8f8a59bfdcb780773378577a2b2",
+  "target": {
+    "platform": "de25_nano",
+    "device": "A5EB013BB23BE4SCS",
+    "programming_profile": "de25-hps-first-v1"
+  },
+  "preparation_format": 2,
+  "reader_registry": "actual current registry; fixture recipe_for patch removed before candidate_arguments",
+  "fixture_boundaries": "Source validation/staging, canonical record and cache candidate discovery use existing unit fixtures. Actual package parser, archive reconstruction and acceptance reader execute.",
+  "seconds": 0.347,
+  "hardware_access": "not-performed"
+}

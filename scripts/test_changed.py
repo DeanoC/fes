@@ -8,6 +8,7 @@ from pathlib import Path
 import shutil
 import subprocess
 import sys
+import tempfile
 
 import affected
 import host_tests
@@ -177,14 +178,21 @@ def execute(result):
     for key in ("GOOS", "GOARCH", "GOARM", "MAKEFLAGS", "MFLAGS", "MAKELEVEL", "GNUMAKEFLAGS"):
         environment.pop(key, None)
     result["results"] = []
-    for command in result["commands"]:
-        completed = subprocess.run(command["argv"], cwd=Path(result["root"]) / command["cwd"],
-                                   env=environment, stdout=sys.stderr, stderr=sys.stderr)
-        result["results"].append({"label": command["label"], "lane": command["lane"], "returncode": completed.returncode})
-        if completed.returncode:
-            result["status"] = "failed"
-            result["not_started"] = [step["label"] for step in result["commands"][len(result["results"]):]]
-            return False
+    with tempfile.TemporaryDirectory(prefix="fes-test-paths-") as temporary:
+        for command in result["commands"]:
+            argv = list(command["argv"])
+            if "--paths-json" in argv:
+                index = argv.index("--paths-json")
+                paths_file = Path(temporary) / "paths.json"
+                paths_file.write_text(argv[index + 1])
+                argv[index:index + 2] = ["--paths-json-file", str(paths_file)]
+            completed = subprocess.run(argv, cwd=Path(result["root"]) / command["cwd"],
+                                       env=environment, stdout=sys.stderr, stderr=sys.stderr)
+            result["results"].append({"label": command["label"], "lane": command["lane"], "returncode": completed.returncode})
+            if completed.returncode:
+                result["status"] = "failed"
+                result["not_started"] = [step["label"] for step in result["commands"][len(result["results"]):]]
+                return False
     result["status"] = "passed"
     return True
 

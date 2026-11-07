@@ -39,6 +39,8 @@ SOFTWARE_CI_INPUTS = frozenset({
 # misteross unittest suite runs (about two minutes); tool-dependent cases skip.
 FPGA_SOFTWARE_TESTS = ('test_*.py',)
 FPGA_PRODUCER_HELPERS = {
+    'build_de25_menu_package.py', 'build_de25_zx81_package.py',
+    'build_de25_zx81_static_package.py',
     'bootstrap.sh', 'audit_fes_pcxt_cdc.py', 'quartus_fes_pcxt.py', 'build_fes_pcxt_quartus.py', 'pcxt_quartus_mailbox.py', 'pcxt_quartus_audio.py',
     'audit_fes_pcxt_hps_i2c.py', 'characterize_fes_pcxt_hps_i2c.py', 'screen_fes_pcxt_uncertainty.py',
     'synth_fes_native_video.py', 'synth_fes_pcxt.py', 'build_fes_pcxt.py', 'build_fes_coleco_socket_v2.py',
@@ -239,6 +241,25 @@ def runtime_test_source(path):
                 for area in ('unit', 'integration', 'support')))
 
 
+def contract_package_software(path):
+    """Closed package schemas/fixtures have no generated or simulated RTL input."""
+    prefix = MODULE_ROOTS['contracts'] + '/'
+    if not path.startswith(prefix):
+        return False
+    relative = path[len(prefix):]
+    versions = ('2', '3', '4', '5')
+    files = {'Makefile', 'scripts/core_bundle_fixtures.py',
+             'tests/test_core_bundle_fixtures.py'}
+    for version in versions:
+        files.add('schema/core-bundle-v' + version + '.json')
+        files.add('scripts/core_bundle_v' + version + '_fixtures.py')
+        files.add('tests/test_core_bundle_v' + version + '_fixtures.py')
+        root = 'testdata/core-bundle-v' + version
+        if relative == root or relative.startswith(root + '/'):
+            return True
+    return relative in files
+
+
 def documentation(path):
     parts = Path(path).parts
     return 'docs' in parts or path.endswith('.md')
@@ -296,6 +317,9 @@ def plan(paths):
         elif path in (DE25_DDR_PROBE_DEFINITION, DE25_SCANOUT_DEFINITION, DE25_COMPUTER_DEFINITION, DE25_RAMTEST_DEFINITION):
             selected.update(('parent', 'contracts', 'fpga'))
             reasons.append(f'{path}: standalone DE25 diagnostic consumers; no existing core consumer')
+        elif contract_package_software(path):
+            selected.update(LANES)
+            reasons.append(f'{path}: package schema/fixture or software test entrypoint; no RTL consumer')
         elif owner == 'contracts' and path.endswith(('.go', '/go.mod', '/go.sum')):
             selected.update(LANES)
             reasons.append(f'{path}: contract tooling software; generated RTL unchanged')

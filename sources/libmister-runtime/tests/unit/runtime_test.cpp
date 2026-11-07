@@ -10,6 +10,7 @@
 #include <stdio.h>
 
 #include <chrono>
+#include <atomic>
 #include <fcntl.h>
 #include <unistd.h>
 #include <condition_variable>
@@ -247,6 +248,25 @@ void TestStartLoadsIdleOnceAndPublishesIdle()
 	assert(fixture.runtime.Start().ok());
 	assert(fixture.hardware.idle_calls == 1);
 	assert(fixture.runtime.status().state == State::idle);
+}
+
+void TestStartWithSelectedMenuAvoidsSplash()
+{
+	Fixture f;
+	const std::string id(64, 'a');
+	assert(f.runtime.Start("/menu", "").code == ErrorCode::invalid_request);
+	assert(f.hardware.idle_calls == 0 && f.hardware.menu_configure_calls == 0);
+	assert(f.runtime.Start("/menu", id).ok());
+	assert(f.hardware.idle_calls == 0 && f.hardware.menu_configure_calls == 1);
+	const auto status=f.runtime.status();
+	assert(status.state == State::idle && status.menu_display.available && status.menu_display.package_id == id && status.menu_display.generation);
+	assert(f.runtime.Start("/menu", id).code == ErrorCode::busy);
+	assert(f.hardware.menu_configure_calls == 1);
+	Fixture failed;
+	failed.hardware.menu_configure_result = {{ErrorCode::program_failed, "selected menu failed"},true,""};
+	assert(failed.runtime.Start("/menu",id).code == ErrorCode::idle_failed);
+	assert(failed.runtime.status().state == State::reboot_required);
+	assert(failed.hardware.idle_calls == 0 && failed.hardware.menu_configure_calls == 1);
 }
 
 void TestNonMenuIdlePublishesIdleWithoutReboot()
@@ -1009,6 +1029,35 @@ void TestStreamBindingCapacityOwnershipAndStop()
 	assert(f.hardware.media_stream_calls == calls);
 }
 
+void TestStaticCompositionRequiresStopAndReportsExactSelection()
+{
+    Fixture f;assert(f.runtime.Start().ok());
+    const std::string id(64,'a');mister::CoreCompositionRequest request;
+    request.has_static_selection=true;
+    auto& c=request.static_selection.composition;
+    c.id=std::string(64,'e');c.package_id=id;c.base_sha256=std::string(64,'b');
+    c.base_size=12;c.persona_sha256=std::string(64,'c');c.persona_size=26;
+    c.control_build_id=std::string(32,'d');c.hardware_id=0xc001a001u;
+    assert(f.runtime.LoadComposedCore("/base",id,request).ok());
+    const auto generation=f.runtime.status().generation;
+    assert(f.runtime.status().active_package.static_composition.id==c.id);
+    assert(f.runtime.status().active_package.composition.id.empty());
+    const auto calls=f.hardware.core_calls, admissions=f.hardware.admission_calls;
+    c.hardware_id=0xc002b002u;c.expansion_id=std::string(64,'f');c.id=std::string(64,'f');
+    request.static_selection.expansion_path="/partial";
+    assert(f.runtime.LoadComposedCore("/base",id,request).code==ErrorCode::busy);
+    assert(f.hardware.core_calls==calls && f.hardware.admission_calls==admissions);
+    assert(f.runtime.status().generation==generation && f.runtime.status().active_package.static_composition.hardware_id==0xc001a001u);
+    assert(f.runtime.Stop().ok());assert(f.runtime.status().active_package.static_composition.id.empty());
+    request.payload_path="/linked.rbf";
+    assert(f.runtime.LoadComposedCore("/base",id,request).code==ErrorCode::invalid_request);
+    assert(f.hardware.core_calls==calls);request.payload_path.clear();
+    assert(f.runtime.LoadComposedCore("/base",id,request).ok());
+    assert(f.runtime.status().generation>generation);
+    assert(f.runtime.status().active_package.static_composition.id==c.id);
+    assert(f.runtime.Stop().ok());assert(f.runtime.status().active_package.static_composition.id.empty());
+}
+
 void TestCompositionUsesExistingLifecycle()
 {
 	Fixture f;
@@ -1724,6 +1773,17 @@ void TestSessionDisplayFailuresNeverReloadIdleOrRetireCore()
  f.hardware.session_display_result={ErrorCode::io_failed,"enable failed","menu"};
  assert(!f.runtime.SetSessionDisplay(id,generation,true,true).ok());
  assert(f.runtime.status().generation==generation&&f.hardware.idle_calls==1);
+ // Keep the earlier close failure in the event stream even after a later
+ // reopen replaces the status error; that first failure owns the diagnosis.
+ const auto records=f.log.records();
+ bool close_failure=false,open_failure=false;
+ for(const auto& record:records) if(record.operation=="session_display") {
+  if(record.phase=="close"&&record.error.message=="drain not proved")close_failure=true;
+  if(record.phase=="show"&&record.error.message=="enable failed") {
+   assert(close_failure);open_failure=true;
+  }
+ }
+ assert(close_failure&&open_failure);
 }
 
 void TestSessionCloseAndStopWaitForInFlightFrame()
@@ -1750,6 +1810,73 @@ void TestSessionCloseAndStopWaitForInFlightFrame()
   present.join();mutation.join();assert(result.ok());
   assert(!f.runtime.status().menu_display.available);
   assert(f.runtime.status().state==(stop?State::idle:State::running_development));
+ }
+}
+
+void TestComputerMediaWaitsForInFlightSessionFrame()
+{
+	for (unsigned operation = 0; operation < 4; ++operation) for (bool stale : {false, true}) {
+		Fixture f;
+		const std::string id(64, 'a');
+		mister::MediaUnitCapability unit;
+		unit.unit = 0; unit.interface = {"fes.media.zx81-tape", 1, 0};
+		unit.min_bytes = 1; unit.max_bytes = 16384; unit.chunk_bytes = 512;
+		f.hardware.supported.media_units = {unit};
+		f.hardware.on_capture_tape = [] { return mister::Error{}; };
+		f.hardware.on_acknowledge_tape = [] { return mister::Error{}; };
+		StartComputerSessionDisplayFixture(f, id);
+		const auto generation = f.runtime.status().generation;
+		assert(f.runtime.SetSessionDisplay(id, generation, true, false).ok());
+		const auto display = f.runtime.status().menu_display.generation;
+		std::unique_ptr<mister::MenuFrame> frame;
+		PrepareMenuFrame(f.runtime, display, &frame);
+		std::mutex mutex; std::condition_variable ready;
+		bool entered = false, release = false;
+		f.hardware.on_menu_present = [&] {
+			std::unique_lock<std::mutex> lock(mutex);
+			entered = true; ready.notify_all();
+			ready.wait(lock, [&] { return release; });
+		};
+		mister::MenuDisplayInfo info;
+		std::thread present([&] { assert(f.runtime.PresentMenuFrame(display, *frame, &info).ok()); });
+		{ std::unique_lock<std::mutex> lock(mutex); ready.wait(lock, [&] { return entered; }); }
+		mister::Error result;
+		std::atomic<bool> completed{false};
+		const auto requested = generation + (stale ? 1 : 0);
+		std::thread save([&] {
+			if (operation == 0) result = f.runtime.InsertMedia("/tmp/tape.p", id, requested, 0, 923);
+			else if (operation == 1) result = f.runtime.EjectMedia(id, requested, 0);
+			else if (operation == 2) result = f.runtime.CaptureZx81Tape("/tmp/capture.p", id, requested);
+			else result = f.runtime.AcknowledgeZx81Tape(id, requested);
+			completed = true;
+		});
+		std::this_thread::sleep_for(std::chrono::milliseconds(25));
+		assert(!completed);
+		{ std::lock_guard<std::mutex> lock(mutex); release = true; ready.notify_all(); }
+		present.join(); save.join();
+		assert(stale ? result.code == ErrorCode::invalid_request : result.ok());
+		assert(f.hardware.insert_media_calls == (!stale && operation == 0 ? 1 : 0));
+		assert(f.hardware.eject_media_calls == (!stale && operation == 1 ? 1 : 0));
+		assert(f.hardware.capture_tape_calls == (!stale && operation == 2 ? 1 : 0));
+		assert(f.hardware.acknowledge_tape_calls == (!stale && operation == 3 ? 1 : 0));
+		assert(f.runtime.status().state == State::running_development);
+		assert(f.runtime.status().generation == generation);
+	}
+}
+
+void TestMenuFrameMappingRequiresExplicitClientAgreement()
+{
+ for(bool blitter:{false,true}) {
+  Fixture f;const std::string id(64,'a');
+  f.hardware.menu_status.frame_mapping=true;f.hardware.menu_status.blitter=blitter;
+  assert(f.runtime.Start().ok());assert(f.runtime.ConfigureMenuPackage("/menu",id).ok());
+  const auto generation=f.runtime.status().menu_display.generation;
+  int fd=-1;bool granted=false,mapping=false;std::uint16_t minor=0;
+  assert(f.runtime.ShareMenuWindow(generation,&fd,&granted,&minor).code==ErrorCode::unsupported_interface);
+  assert(fd==-1&&f.hardware.menu_share_calls==0);
+  const auto result=f.runtime.ShareMenuWindow(generation,&fd,&granted,&minor,true,&mapping);
+  if(blitter)assert(result.code==ErrorCode::unsupported_interface&&fd==-1&&f.hardware.menu_share_calls==0);
+  else {assert(result.ok()&&fd>=0&&mapping&&!granted&&f.hardware.menu_share_calls==1);close(fd);}
  }
 }
 
@@ -1835,11 +1962,13 @@ void TestMenuPreparationFencesLifecycle()
 
 int main()
 {
+ TestStartWithSelectedMenuAvoidsSplash();
  TestComputerSessionDisplayPresentsFramesAndRestoresVideo();
  TestSessionDisplayBindingsFocusAndFrameRevocation();
  TestSessionDisplayMachineFocusKeepsInput();
  TestSessionDisplayFailuresNeverReloadIdleOrRetireCore();
  TestSessionCloseAndStopWaitForInFlightFrame();
+ TestComputerMediaWaitsForInFlightSessionFrame();
  TestLibraryDiskPersistenceFailureRetainsSession();
  TestMenuFrameYieldsToLifecycleOps();
  TestMenuLifecycleWaitIsBounded();
@@ -1847,6 +1976,7 @@ int main()
  TestMenuFrameYieldsToCoreDataAndLaunch();
  TestMenuFrameWaitIsBounded();
  TestMenuGenerationAndPreparationFencing();
+ TestMenuFrameMappingRequiresExplicitClientAgreement();
  TestMenuFramesAlternateSlots();
  TestMenuBlitterGrantTakesCpuFramesUntilAList();
  TestMenuPreparationFencesLifecycle();
@@ -1855,6 +1985,7 @@ int main()
 	TestComputerMouseBindingAndFaultRetirement();
 	TestComputerKeyboardBindingSerializationAndFaults();
 	TestComputerMediaUnitsStayLiveAndReportUnitState();
+	TestStaticCompositionRequiresStopAndReportsExactSelection();
 	TestCompositionUsesExistingLifecycle();
 	TestControllerSnapshotBindingAndFaultCleanup();
 	TestStreamBindingCapacityOwnershipAndStop();
@@ -1900,6 +2031,6 @@ int main()
 	TestActiveFaultRetiresPublishedIdentityBeforeBlockedRecovery();
 	TestQueuedActiveFaultReservesCleanupBeforeStopAndPreservesError();
 	TestInspectionAndProtocol2IdentityShareTheLifecycleGeneration();
-	puts("runtime_test: 56 passed");
+	puts("runtime_test: all groups passed");
 	return 0;
 }

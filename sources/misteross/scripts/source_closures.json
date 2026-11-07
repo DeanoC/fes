@@ -445,6 +445,7 @@
     "cores/fes-zx81/constraints.qsf",
     "cores/fes-zx81/expansions",
     "cores/fes-zx81/generated",
+    "cores/fes-zx81/rtl/fes_zx81_core.v",
     "cores/fes-zx81/rtl/pixel_pll.v",
     "cores/fes-zx81/rtl/sys_pll.v",
     "cores/fes-zx81/rtl/t80/T80.vhd",

@@ -1,0 +1,19 @@
+{
+  "links": [
+    {
+      "after": "../bin/lowntfs-3g",
+      "before": "/usr/bin/lowntfs-3g",
+      "path": "aarch64-buildroot-linux-gnu_sdk-buildroot/aarch64-buildroot-linux-gnu/sysroot/usr/sbin/mount.lowntfs-3g"
+    },
+    {
+      "after": "../bin/ntfs-3g",
+      "before": "/usr/bin/ntfs-3g",
+      "path": "aarch64-buildroot-linux-gnu_sdk-buildroot/aarch64-buildroot-linux-gnu/sysroot/usr/sbin/mount.ntfs-3g"
+    },
+    {
+      "after": "gettext-tiny",
+      "before": "/build/6e02fef9d46d975fb7b79eb3526feb7dece7901083037ccdcf23a9eb1d7f8d0d/host/usr/share/gettext-tiny",
+      "path": "aarch64-buildroot-linux-gnu_sdk-buildroot/share/gettext"
+    }
+  ]
+}

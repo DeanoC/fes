@@ -1,0 +1,55 @@
+{
+  "status": "source and fitted engineering review passed; full canonical package qualification and hardware remain pending",
+  "approved_control": "5bf7202ca338754f2f7966b522306ac7992d4206",
+  "candidate_source": "bc36e7c45078249988253115029ffe2c2cac7881",
+  "old_builder_sha256": "e02095ca606c32d426c5e5ca5788297c5b34362908ebab8c77337595db6c31cf",
+  "new_builder_sha256": "32046be42877ee08d87e46d97aba13d30eda50296c6a6054d2a63914a5f1fcd6",
+  "changed_functions": [
+    "capture",
+    "complete_standard_firmware",
+    "prepare_captured",
+    "prepare_standard_component",
+    "retarget_tape"
+  ],
+  "identical_audio_integration_AST": [
+    "standard_audio_paths",
+    "capture_standard_board",
+    "standard_staged_sources",
+    "prepare_standard_board",
+    "generate_standard_board",
+    "verify_standard_board"
+  ],
+  "scope": "Exactly seven frozen audio implementation/clock sources still match. Changes only captured OpenROM generation/dependency records, native tape conditional guard, and historical ROM handling. No serializer, wrapper, audio wiring, PLL, SDC, exception ports or numerical check change.",
+  "compiled_top_identical": true,
+  "compiled_top_control_sha256": "48db452c7beb64d2fafba83c4d92793f5b9c837f55a2ecfd6d261993d747632f",
+  "compiled_top_candidate_sha256": "48db452c7beb64d2fafba83c4d92793f5b9c837f55a2ecfd6d261993d747632f",
+  "fitted_receipt_sha256": "2df90485907e9f26f460bff96cf8c4a2d2b178c3671af83290537923859cac6a",
+  "fitted_corner_count": 4,
+  "fitted_path_count": 32,
+  "conditional_pin_budgets": [
+    {
+      "corner": "Fast fix4 0C Model",
+      "setup_budget_before_unmodeled_skew_and_jitter_ns": "159.874",
+      "hold_budget_before_unmodeled_skew_and_jitter_ns": "159.616"
+    },
+    {
+      "corner": "Slow fix4 0C Model",
+      "setup_budget_before_unmodeled_skew_and_jitter_ns": "159.471",
+      "hold_budget_before_unmodeled_skew_and_jitter_ns": "159.231"
+    },
+    {
+      "corner": "Slow fix4 100C Model",
+      "setup_budget_before_unmodeled_skew_and_jitter_ns": "159.541",
+      "hold_budget_before_unmodeled_skew_and_jitter_ns": "159.276"
+    },
+    {
+      "corner": "Slow fix4a 0C Model",
+      "setup_budget_before_unmodeled_skew_and_jitter_ns": "159.574",
+      "hold_budget_before_unmodeled_skew_and_jitter_ns": "159.286"
+    }
+  ],
+  "exceptions_unchanged": [
+    "HDMI_SCLK",
+    "HDMI_LRCLK"
+  ]
+}

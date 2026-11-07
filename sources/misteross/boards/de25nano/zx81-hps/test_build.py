@@ -1,5 +1,6 @@
 """Focused source, PLL and generated-topology guards for the HPS ZX81 lane."""
 import hashlib
+import gzip
 import importlib.util
 import io
 import json
@@ -23,6 +24,21 @@ class HpsZX81BuildTests(unittest.TestCase):
         self.addCleanup(self.temporary.cleanup)
         self.root = Path(self.temporary.name)
 
+    def test_standard_socket_selection_rejects_non_boolean_before_preparation(self):
+        for value in (0, 1, None, "false", "true"):
+            with self.subTest(value=value), self.assertRaisesRegex(ValueError, "must be boolean"):
+                B.prepare_standard_board(None, self.root / "output", expansion_socket=value)
+            self.assertFalse((self.root / "output").exists())
+
+    def test_standard_admission_requires_recipe_mode_not_receipt_mode(self):
+        directory = self.root / "combined/hps"
+        directory.mkdir(parents=True)
+        for expected, selected in ((False, True), (True, False), (False, 0), (True, 1), (False, None)):
+            with self.subTest(expected=expected, selected=selected):
+                (directory / "inputs.json").write_text(json.dumps({"standard_zx81": {"expansion_socket": selected}}))
+                with self.assertRaisesRegex(ValueError, "differs from the selected recipe"):
+                    B.verify_standard_board(self.root, None, None, None, expected_expansion_socket=expected)
+
     def test_tape_ram_adaptation_preserves_the_entire_native_branch(self):
         source = B.ROOT / "sources/misteross/cores/fes-zx81/rtl/zx81_tape_store.v"
         original = source.read_bytes()
@@ -37,6 +53,21 @@ class HpsZX81BuildTests(unittest.TestCase):
                 B.retarget_tape(changed)
         with self.assertRaisesRegex(ValueError, "adaptation contract changed"):
             B.retarget_tape(original, replacement + b"\n`else\n")
+
+    def test_standard_firmware_uses_captured_openrom_and_guards_reachable_window(self):
+        output = B.prepare_standard_component(self.root / "component")
+        audit = B.load(B.HERE.parent / "link-proof/zx81-ram/audit.py", "standard_firmware_audit")
+        mif = (output / "zx8x.mif").read_bytes()
+        expected = (output.parent / "firmware/assembled/zx81-openrom.bin").read_bytes()
+        self.assertEqual(audit.mif_bytes(mif.decode()), expected)
+        self.assertIn(b"DEPTH = 16384;", mif)
+        self.assertIn(b"3FFF: FF;", mif)
+        sources = B.capture_standard()
+        machine = "sources/misteross/cores/fes-zx81/rtl/zx81_machine.sv"
+        sources[machine] = sources[machine].replace(b".address_a({1'b0, rom_a[12]", b".address_a({1'b1, rom_a[12]")
+        with mock.patch.object(B, "capture_standard", return_value=sources):
+            with self.assertRaisesRegex(ValueError, "reachable firmware window"):
+                B.prepare_standard_component(self.root / "wrong-window")
 
     def test_capture_selects_only_the_owned_board_renderer(self):
         sources = B.capture()
@@ -67,24 +98,50 @@ class HpsZX81BuildTests(unittest.TestCase):
         for name in required:
             self.assertEqual(sources[name], (B.ROOT / name).read_bytes())
 
-    def test_readiness_cdc_cut_is_narrow_and_same_domain_visibility_stays_timed(self):
+    def test_hdmi_readiness_has_registered_sources_and_only_first_stage_cuts(self):
+        files = B.capture()
+        sdc = files[B.BOARD + "zx81-hps/clocks.sdc"].decode()
+        board = files[B.BOARD + "zx81-hps/board.v"].decode()
+        self.assertIn("reg video_ready_source", board)
+        self.assertIn("assign video_ready = video_ready_source;", board)
+        self.assertIn("{fes_video_inst|hdmi_config|READY} {fes_video_inst|hdmi_ready_sync[0]} {fes_video_inst|hdmi_ready_sync[1]}", sdc)
+        self.assertIn("{fes_video_inst|video_ready_source} {soc_inst|subsys_periph|fes_computer|fes_computer|transport|video_ready_sync[0]}", sdc)
+        self.assertIn('"${ready_stage0}|D"', sdc)
+        self.assertIn("set_false_path -from $ready_source_reg -to $ready_stage0_d", sdc)
+        self.assertIn('if {[get_collection_size $ready_nodes] != 1}', sdc)
+        self.assertNotIn("set_false_path -to $ready_stage1_reg", sdc)
+        self.assertNotIn("set_clock_groups", sdc)
+
+    def test_readiness_and_visibility_cut_only_registered_first_stage_data(self):
         sdc = B.capture()[B.BOARD + "zx81-hps/clocks.sdc"].decode()
         self.assertIn("{soc_inst|subsys_periph|fes_computer|fes_computer|pixel_transport_ready_sync[0]|D}", sdc)
         self.assertIn("set_false_path -to $computer_pixel_ready_stage0_d", sdc)
-        self.assertIn("if {$computer_pixel_ready_clear_count != 2}", sdc)
-        self.assertIn("pixel_transport_reset_release[0]|aclr", sdc)
-        self.assertIn("pixel_transport_reset_release[1]|aclr", sdc)
+        self.assertNotIn("pixel_transport_reset_release", sdc)
+        self.assertIn("shared renderer reset release", sdc)
+        computer = B.capture()[B.BOARD + "zx81-hps/fes_de25_computer.v"].decode()
+        video = B.capture()[B.BOARD + "zx81-hps/video.v"].decode()
+        self.assertNotIn("pixel_transport_reset_release", computer)
+        self.assertIn(".pixel_reset_n(pixel_transport_reset_n)", computer)
+        self.assertIn("posedge pixel_clk or negedge pixel_transport_reset_n", computer)
+        self.assertIn("assign pixel_reset_n = pix_release[1];", video)
         self.assertIn("Stage-to-stage paths and both generated clocks stay timed", sdc)
-        # The board's pixel_reset_n is released by a pixel-clock chain whose
-        # clear pins are already cut, so its visibility synchronizer D path is
-        # same-domain and must remain timed.
-        self.assertNotIn("visible_sync", sdc)
+        for source, destination in (("visible_allow", "visible_sync"),
+                                    ("visibility_epoch", "visibility_epoch_sync"),
+                                    ("visibility_ack", "visibility_ack_sync"),
+                                    ("video_active", "active_sync")):
+            self.assertIn("{fes_video_inst|" + source + "} {fes_video_inst|" +
+                          destination + "[0]} {fes_video_inst|" + destination + "[1]}", sdc)
+        self.assertIn('"${visibility_stage0}|D"', sdc)
+        self.assertIn("set_false_path -from $visibility_source_reg -to $visibility_stage0_d", sdc)
+        self.assertIn('if {[get_collection_size $visibility_nodes] != 1}', sdc)
+        self.assertNotIn("set_false_path -to $visibility_stage1_reg", sdc)
+        self.assertNotIn("fes_video_inst|pixel_reset", sdc)
         self.assertNotIn("transport_ready_meta", sdc)
         self.assertNotIn("set_clock_groups", sdc)
 
     def test_frame_ownership_constraints_and_reset_pin_counts_match_rtl(self):
         sdc = B.capture()[B.BOARD + "zx81-hps/clocks.sdc"].decode()
-        self.assertIn("if {$computer_clear_count != 4}", sdc)
+        self.assertIn("if {$computer_clear_count != 2}", sdc)
         self.assertIn("request {*|video|request} {*|video|request_sync[0]}", sdc)
         self.assertIn("acknowledge {*|video|acknowledge} {*|video|acknowledge_sync[0]}", sdc)
         self.assertIn("if {[get_collection_size $owner_rows_source] != 9 || [get_collection_size $owner_rows_sink] != 9}", sdc)
@@ -92,6 +149,73 @@ class HpsZX81BuildTests(unittest.TestCase):
         self.assertIn("sys_release*|aclr", sdc)
         self.assertIn("pix_release*|aclr", sdc)
         self.assertNotIn("set_clock_groups", sdc)
+
+    def reset_timing_fixture(self):
+        directory = self.root / "hps"
+        project = directory / "project"
+        (project / "fes_mailbox").mkdir(parents=True)
+        raw = self.root / "functional-source" / B.BOARD
+        for name in ("scanout/build.py", "scanout/clocks.sdc", "zx81-hps/clocks.sdc"):
+            path = raw / name
+            path.parent.mkdir(parents=True, exist_ok=True)
+            path.write_bytes((B.HERE.parent / name).read_bytes())
+        scanout_sdc = (raw / "scanout/clocks.sdc").read_text()
+        start = scanout_sdc.index("# The two external inputs terminate")
+        stop = scanout_sdc.index("# Configuration release,", start)
+        (project / "fes_mailbox/clocks.sdc").write_text(B.timed_computer_sdc(
+            (raw / "zx81-hps/clocks.sdc").read_text()) + "\n" + scanout_sdc[start:stop])
+        (directory / "inputs.json").write_text(json.dumps({"f2sdram_master_profile": "bram-computer",
+            "computer": {"build_identity_scheme": "canonical-functional-record-v2", "hps_initialization": "HPS FIRST",
+                         "reset_timing": B.TIMED_RESET_RELEASE}}))
+        vendor = gzip.decompress((B.HERE.parents[2] / "tests/fixtures/de25_reset_controller.sdc.gz").read_bytes())
+        for index in range(6):
+            path = project / f"generated-{index}/altera_reset_controller.sdc"
+            path.parent.mkdir()
+            path.write_bytes(vendor)
+        for name, clock, reset in (
+                ("qsys_top/synth/qsys_top.v", "clk_100_out_clk_clk", "~rst_in_out_reset_reset"),
+                ("peripheral_subsys/peripheral_subsys/synth/peripheral_subsys.v",
+                 "periph_clk_out_clk_clk", "~periph_rst_in_out_reset_reset")):
+            path = project / name
+            path.parent.mkdir(parents=True)
+            path.write_text('altera_reset_controller #(.NUM_RESET_INPUTS(1), .OUTPUT_RESET_SYNC_EDGES("deassert"), '
+                '.SYNC_DEPTH(2)) rst_controller (.clk(' + clock + '), .reset_in0(' + reset + '));\n')
+        return directory
+
+    def test_canonical_reset_derivation_keeps_pixel_cuts_and_rechecks_vendor_and_board_inputs(self):
+        directory = self.reset_timing_fixture()
+        record = B.repair_generated_reset_timing(directory)
+        self.assertEqual(record["timed_instances"], list(B.TIMED_RESET_INSTANCES))
+        self.assertEqual(len(record["files"]), 6)
+        self.assertEqual(B.verify_generated_reset_timing(directory), record)
+        sdc = (directory / "project/fes_mailbox/clocks.sdc").read_text()
+        self.assertNotIn("sys_release*|", sdc)
+        self.assertIn("pix_release*|aclr", sdc)
+        for name in ("project/generated-0/altera_reset_controller.sdc",
+                     "reset-timing-originals/generated-0/altera_reset_controller.sdc", "project/fes_mailbox/clocks.sdc"):
+            path = directory / name
+            original = path.read_bytes()
+            try:
+                path.write_bytes(original + b"\n")
+                with self.subTest(name=name), self.assertRaises(ValueError):
+                    B.verify_generated_reset_timing(directory)
+            finally:
+                path.write_bytes(original)
+
+    def test_reset_repair_refuses_changed_controller_clock_reset_or_release(self):
+        directory = self.reset_timing_fixture()
+        B.repair_generated_reset_timing(directory)
+        path = directory / "project/qsys_top/synth/qsys_top.v"
+        original = path.read_text()
+        for before, after in (("clk_100_out_clk_clk", "other_clock"),
+                              ("~rst_in_out_reset_reset", "other_reset"), ('"deassert"', '"both"'),
+                              ("SYNC_DEPTH(2)", "SYNC_DEPTH(3)")):
+            try:
+                path.write_text(original.replace(before, after))
+                with self.subTest(before=before), self.assertRaisesRegex(ValueError, "clock/source/release differs"):
+                    B.verify_generated_reset_timing(directory)
+            finally:
+                path.write_text(original)
 
     def test_historical_quartus_report_is_not_presented_as_current_head_evidence(self):
         record = B.ROOT / "sources/misteross/docs/validation/2026-10-29-de25-zx81-hps"
@@ -232,6 +356,14 @@ class HpsZX81BuildTests(unittest.TestCase):
                 B.package_hps_first(self.root, HPS, Path("/tool/quartus_sh"), artifact)
             run.assert_not_called()
 
+    def test_linux_packaging_refuses_stale_phase_artifacts_before_tools(self):
+        directory, _, artifact = self.linux_fixture()
+        (directory / "linux-boot.core.rbf").write_bytes(b"stale-not-a-bitstream")
+        with mock.patch.object(HPS, "run_logged") as run:
+            with self.assertRaisesRegex(ValueError, "output already exists"):
+                B.package_hps_first(self.root, HPS, Path("/tool/quartus_sh"), artifact)
+            run.assert_not_called()
+
     def test_linux_packaging_binds_phase_artifacts_without_programmer(self):
         directory, project, artifact = self.linux_fixture()
         calls = []
@@ -323,13 +455,14 @@ class HpsZX81BuildTests(unittest.TestCase):
 
     def sopc(self):
         project = self.root / "project"
+        (self.root / "inputs.json").write_text("{}\n")
         handoff = project / "qsys_top/qsys_top.sopcinfo"
         handoff.parent.mkdir(parents=True, exist_ok=True)
         definition_path = project / "fes_mailbox/generated/fes_de25_computer.vh"
         definition_path.parent.mkdir(parents=True, exist_ok=True)
         definition_path.write_bytes((HERE / "generated/fes_de25_computer.vh").read_bytes())
         root = ET.Element("Ensemble")
-        module = ET.SubElement(root, "module", {"path": "subsys_periph.fes_computer", "kind": "fes_de25_computer", "version": "1.0"})
+        module = ET.SubElement(root, "module", {"path": "subsys_periph.fes_computer", "kind": "fes_de25_computer", "version": "1.1"})
         definition = ET.Element("component")
         boundary = ET.SubElement(ET.SubElement(definition, "boundary"), "interfaces")
         point = ET.SubElement(boundary, "interface")
@@ -383,6 +516,36 @@ class HpsZX81BuildTests(unittest.TestCase):
         self.assertEqual((computer["base"], computer["span"]), (0x10300, 32))
         self.assertEqual(result["jtag_computer_base"], 0x110300)
 
+    def test_canonical_computer_requires_no_probe_before_its_separate_fabric_review(self):
+        project, handoff, root = self.sopc()
+        (project.parent / "inputs.json").write_text(json.dumps({"f2sdram_master_profile": "bram-computer"}))
+        with self.assertRaisesRegex(ValueError, "retains the DDR probe"):
+            B.verify_computer(project, HPS)
+        lw = next(c for c in root.findall("connection") if c.get("start") == "subsys_hps_agilex_hps.lwhps2fpga")
+        parameter = lw.find("parameter[@name='addressMapSysInfo']/value")
+        mapping = ET.fromstring(parameter.text)
+        mapping.remove(next(n for n in mapping if n.get("name") == "subsys_periph.fes_ddr_probe.avs"))
+        parameter.text = ET.tostring(mapping, encoding="unicode")
+        ET.ElementTree(root).write(handoff)
+        # This seam checks profile selection only. The real graph verifier and
+        # real generated project are tested separately; this stub is unqualified.
+        with mock.patch.object(B, "verify_canonical", return_value={"unqualified_fixture": True}) as review:
+            result = B.verify_computer(project, HPS)
+        review.assert_called_once_with(project.parent, HPS)
+        self.assertNotIn("jtag_slave_map", result)
+
+    def test_generated_qsf_derivation_preserves_inputs_and_requires_exact_vendor_version(self):
+        raw = ('set_global_assignment -name DEVICE A5EB013BB23BE4SCS\n'
+               'set_global_assignment -name LAST_QUARTUS_VERSION "25.1.1 Pro Edition"\n'
+               'set_global_assignment -name LAST_QUARTUS_VERSION "26.3.0 Pro Edition"\n')
+        derived = B.generated_computer_qsf(raw)
+        self.assertIn('set_global_assignment -name DEVICE A5EB013BB23BE4SCS\n', derived)
+        self.assertIn('LAST_QUARTUS_VERSION "26.3.0 Pro Edition"', derived)
+        self.assertNotIn('25.1.1', derived)
+        self.assertEqual(derived.count('set_global_assignment -name IP_FILE '), 3)
+        with self.assertRaisesRegex(ValueError, "patch target changed"):
+            B.generated_computer_qsf(raw.replace('25.1.1', 'unreviewed'))
+
     def test_generated_computer_missing_routes_wrong_clock_base_or_overlapping_slave_fail(self):
         for index in range(4):
             project, handoff, root = self.sopc()
@@ -409,7 +572,7 @@ class HpsZX81BuildTests(unittest.TestCase):
 
     def test_generated_computer_version_and_native_response_ports_are_required(self):
         project, handoff, root = self.sopc()
-        root.find("module").set("version", "2.0")
+        root.find("module").set("version", "1.0")
         ET.ElementTree(root).write(handoff)
         with self.assertRaisesRegex(ValueError, "endpoint/version"):
             B.verify_computer(project, HPS)

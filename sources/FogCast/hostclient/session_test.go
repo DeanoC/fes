@@ -2,10 +2,13 @@ package hostclient
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"os"
+	"reflect"
 	"strings"
 	"testing"
 
@@ -280,5 +283,48 @@ func TestDecodeSessionArmsComputer11HIDAndMouse(t *testing.T) {
 	result, err := DecodeSession(http.StatusOK, raw)
 	if err != nil || !result.CoreKeyboardHID || !result.CoreMouse {
 		t.Fatalf("computer 1.1 input flags = %+v, error = %v", result, err)
+	}
+}
+
+func TestDecodeSessionPreservesStaticComposition(t *testing.T) {
+	raw, err := os.ReadFile("../corepackage/testdata/core-bundle-v5/compositions.json")
+	if err != nil {
+		t.Fatal(err)
+	}
+	var vectors []struct {
+		Name        string          `json:"name"`
+		Composition json.RawMessage `json:"composition"`
+	}
+	if err := json.Unmarshal(raw, &vectors); err != nil {
+		t.Fatal(err)
+	}
+	for _, vector := range vectors {
+		t.Run(vector.Name, func(t *testing.T) {
+			body := []byte(`{"state":"active","core_package":{"generation":18446744073709551614,"static_composition":` + string(vector.Composition) + `}}`)
+			result, err := DecodeSession(http.StatusOK, body)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if result.CorePackage == nil || result.CorePackage.StaticComposition == nil {
+				t.Fatal("static receipt lost")
+			}
+			if result.CorePackage.Generation != ^uint64(0)-1 {
+				t.Fatal("generation lost precision")
+			}
+			got, err := json.Marshal(result.CorePackage.StaticComposition)
+			if err != nil {
+				t.Fatal(err)
+			}
+			var wantObject, gotObject any
+			if err := json.Unmarshal(vector.Composition, &wantObject); err != nil {
+				t.Fatal(err)
+			}
+			if err := json.Unmarshal(got, &gotObject); err != nil {
+				t.Fatal(err)
+			}
+			if !reflect.DeepEqual(gotObject, wantObject) {
+				t.Fatalf("receipt changed: %s", got)
+			}
+		})
 	}
 }

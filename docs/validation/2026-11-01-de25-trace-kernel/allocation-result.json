@@ -1,0 +1,19 @@
+{
+  "classification": "actual kernel allocation map and complete unmap; no FPGA memory reads",
+  "boot_id": "e5e896ba-e01e-4ab4-9b2f-a236045b7d39",
+  "observer_pid": 270,
+  "client_exit": 0,
+  "frame_publication": false,
+  "owner_reap": "one successful unexposed reap",
+  "iova_start": "0xff800000",
+  "iova_end_exclusive": "0x100000000",
+  "physical_start": "0xbcd00000",
+  "physical_end_exclusive": "0xbd500000",
+  "bytes": 8388608,
+  "trace_map_unmap_events": 2,
+  "trace_overruns_dropped": 0,
+  "in_previously_observed_firewall_window": true,
+  "firewall_window_scope": "previous boot read-only record, not re-read during this trial",
+  "physical_translation_ddr_display_acceptance": "not established",
+  "original_response_error_cause": "not established"
+}

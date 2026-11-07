@@ -16,6 +16,11 @@ import json
 import os
 from pathlib import Path
 import re
+
+try:
+    from scripts import changed_paths
+except ImportError:
+    import changed_paths
 import subprocess
 import sys
 import tempfile
@@ -134,15 +139,13 @@ def main(argv=None):
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     parser.add_argument('--positions', action='store_true',
                         help='print absolute file:line:col only, for deletion tooling')
-    parser.add_argument('--paths-json', help='changed paths; omitted runs the full check')
+    changed_paths.add_arguments(parser, help='changed paths; omitted runs the full check')
     parser.add_argument('--plan-only', action='store_true', help='report selection without installing tools')
     args = parser.parse_args(argv)
     try:
-        paths = json.loads(args.paths_json) if args.paths_json is not None else None
-        if args.paths_json is not None and paths is None:
-            raise ValueError('changed paths must be an array of nonempty strings')
+        paths = changed_paths.read(args)
         selected = required(paths)
-    except ValueError as error:
+    except (ValueError, OSError) as error:
         parser.error(str(error))
     if args.plan_only:
         print(json.dumps({'selected': selected, 'paths': paths}))

@@ -47,6 +47,15 @@ def replace(source, before, after, label):
     return source.replace(before, after)
 
 
+def retarget_ram_pack(data):
+    begin = data.index(b'`ifdef SYNTHESIS')
+    split = data.index(b'`else', begin)
+    end = data.index(b'`endif', split)
+    if data.count(b'`ifdef') != 1 or data.count(b'`else') != 1 or data.count(b'`endif') != 1:
+        raise ValueError("RAM pack conditional derivation changed")
+    return data[:begin] + data[split + len(b'`else'):end] + data[end + len(b'`endif'):]
+
+
 def prepare(local, project, frozen):
     def selected(path):
         return frozen["files"][path.relative_to(ROOT).as_posix()]
@@ -58,12 +67,7 @@ def prepare(local, project, frozen):
                                   (b'ramstyle = "M10K"', b'ramstyle = "M20K"')):
                 data = replace(data, before, after, name)
         if name == "zx81_ram_pack.v":
-            begin = data.index(b'`ifdef SYNTHESIS')
-            split = data.index(b'`else', begin)
-            end = data.index(b'`endif', split)
-            if data.count(b'`ifdef') != 1 or data.count(b'`else') != 1 or data.count(b'`endif') != 1:
-                raise ValueError("RAM pack conditional derivation changed")
-            data = data[:begin] + data[split + len(b'`else'):end] + data[end + len(b'`endif'):]
+            data = retarget_ram_pack(data)
         (local / name).write_bytes(data)
     firmware = firmware_module(selected(FIRMWARE))
     generated, record = firmware.generate(frozen["files"], local / "firmware")

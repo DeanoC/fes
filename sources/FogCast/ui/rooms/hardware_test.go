@@ -2,6 +2,7 @@ package rooms
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"github.com/DeanoC/FogCast/internal/testwait"
@@ -17,6 +18,7 @@ import (
 	"github.com/DeanoC/FogCast/hostclient"
 	"github.com/DeanoC/FogCast/protocol"
 	"github.com/DeanoC/FogCast/ui/gfx"
+	"github.com/DeanoC/misteross/expansion"
 )
 
 type hardwareFixture struct {
@@ -1469,6 +1471,96 @@ func TestHardwareRoomColdOpenFollowsAnOverlayFlip(t *testing.T) {
 					t.Fatalf("start %v flip at %d: draw %d presented clear %+v with overlay %v", start, flipAt, step, f.Clear, overlay)
 				}
 			}
+		}
+	}
+}
+
+func TestHardwareRoomStaticReceiptBindsRunningSetup(t *testing.T) {
+	raw, err := os.ReadFile("../../corepackage/testdata/core-bundle-v5/compositions.json")
+	if err != nil {
+		t.Fatal(err)
+	}
+	var vectors []struct {
+		Name        string                      `json:"name"`
+		Composition expansion.StaticComposition `json:"composition"`
+	}
+	if err := json.Unmarshal(raw, &vectors); err != nil {
+		t.Fatal(err)
+	}
+	for _, vector := range vectors {
+		for _, mutation := range []string{"valid", "draft-changed", "bad-id", "wrong-package", "legacy", "parts", "rom", "roms", "empty-flag"} {
+			t.Run(vector.Name+"/"+mutation, func(t *testing.T) {
+				s := hardwareData(true)
+				receipt := vector.Composition
+				c := s.value.Session.CorePackage
+				c.PackageID = receipt.PackageID
+				c.ExpansionSocket = ""
+				c.StaticComposition = &receipt
+				m := &s.value.Machines[0]
+				m.PackageID = receipt.PackageID
+				if vector.Name == "ram16k" {
+					m.Choices[0].ExpansionID = receipt.ExpansionID
+				}
+				m.DraftExpansionID = receipt.ExpansionID
+				switch mutation {
+				case "draft-changed":
+					if receipt.ExpansionID == "" {
+						m.DraftExpansionID = m.Choices[0].ExpansionID
+					} else {
+						m.DraftExpansionID = ""
+					}
+				case "bad-id":
+					receipt.ID = strings.Repeat("0", 64)
+				case "wrong-package":
+					c.PackageID = strings.Repeat("c", 64)
+				case "legacy":
+					c.Composition = &hostclient.SessionComposition{PackageID: c.PackageID}
+				case "parts":
+					c.PartsComposition = &expansion.PartsComposition{}
+				case "rom":
+					c.ROMLink = &hostclient.SessionROMLink{}
+				case "roms":
+					c.ROMLinks = &hostclient.SessionROMLinks{}
+				case "empty-flag":
+					c.ExpansionSocket = protocol.ExpansionSocketEmpty
+				}
+				r := newRoom(t, examplePack(t, "example.hardware"), Options{Services: s, StorePath: filepath.Join(t.TempDir(), "room.json")})
+				if err := r.Load(); err != nil {
+					t.Fatal(err)
+				}
+				// A fitted next-start card replaces the generic compatibility
+				// caption; wait for the session projection, not that caption.
+				stepUntil(t, r, func(f Frame) bool {
+					return !r.hardwareReading && (frameHas(f, "Running:") || frameHas(f, "Machine running · setup unavailable"))
+				})
+				f := r.Step(time.Now())
+				valid := mutation == "valid" || mutation == "draft-changed"
+				if !valid {
+					if !frameHas(f, "Machine running · setup unavailable") || frameHas(f, "Restart needed") {
+						t.Fatal("invalid static receipt became known")
+					}
+					r.Activate("power")
+					if len(r.TakeActions()) != 0 {
+						t.Fatal("invalid static receipt enabled Stop")
+					}
+					return
+				}
+				label := "Running: Empty socket"
+				if receipt.ExpansionID != "" {
+					label = "Running: Test memory pack"
+				}
+				if !frameHas(f, label) {
+					t.Fatalf("running setup did not follow static receipt: %s", label)
+				}
+				if frameHas(f, "Restart needed") != (mutation == "draft-changed") {
+					t.Fatal("draft replaced active receipt")
+				}
+				r.Activate("power")
+				acts := r.TakeActions()
+				if len(acts) != 1 || acts[0].Kind != ActionStop {
+					t.Fatal("valid static receipt lost Stop")
+				}
+			})
 		}
 	}
 }

@@ -1,0 +1,94 @@
+{
+  "classification": "Actual canonical compile candidates; no package/native admission",
+  "compile_seconds": {
+    "MENU": 619.3,
+    "ZX81": 619.4
+  },
+  "cores": {
+    "MENU": {
+      "SDCs": {
+        "fes_combined/sys_pll/altera_iopll_2110/synth/sys_pll_altera_iopll_2110_msdzeyq.sdc": "70e5595b0ccdda88b2d9c7409a2c26ee77b067e1ca7eece57b5b41465cfe510a",
+        "fes_mailbox/clocks.sdc": "8fe73ee828a23aace5c6dca2e2ef01959d2ceebdd9f6ab72be4f5a640c32c591",
+        "fes_mailbox/fes_de25_top.sdc": "bfeec4459f58d8287a55119b899bd663805942f7d51e915bc7c8e2dc7d77c2e7",
+        "ghrd_timing.sdc": "abf34be146818993465c0757c799689afc1d87f1eccd43ca5918be613b12ac80",
+        "hps_subsys/ip/hps_subsys/agilex_hps/intel_sundancemesa_hps_100/synth/agilex_hps_intel_sundancemesa_hps_100_672uiai.sdc": "c53df63e8434bd17abbaf58ecba294c6bda5e81fd7955fcff4689f1d070c9a76",
+        "hps_subsys/ip/qsys_top/emif_io96b_hps/emif_io96b_hps_emif_io96b_hps_510_z7xh4ha/synth/ip/emif_io96b_hps_emif_io96b_hps_510_z7xh4ha/emif_io96b_hps_emif_io96b_hps_510_z7xh4ha_emif_0_lpddr4/altera_jtag_dc_streaming_191/synth/altera_avalon_st_jtag_interface.sdc": "cac36d552c963acf54fa79b8cf14c211e99d449f45f5e87b095bb4ba1fa91e40",
+        "hps_subsys/ip/qsys_top/emif_io96b_hps/emif_io96b_hps_emif_io96b_hps_510_z7xh4ha/synth/ip/emif_io96b_hps_emif_io96b_hps_510_z7xh4ha/emif_io96b_hps_emif_io96b_hps_510_z7xh4ha_emif_0_lpddr4/altera_reset_controller_1925/synth/altera_reset_controller.sdc": "5ee450b6da0e63a0f1f805401370c13de7fefa7122bf066c940f30fbbbfe8166",
+        "hps_subsys/ip/qsys_top/emif_io96b_hps/emif_io96b_hps_emif_io96b_hps_510_z7xh4ha/synth/ip/emif_io96b_hps_emif_io96b_hps_510_z7xh4ha/emif_io96b_hps_emif_io96b_hps_510_z7xh4ha_emif_0_lpddr4/emif_io96b_lpddr4_510/synth/emif_io96b_hps_emif_io96b_hps_510_z7xh4ha_emif_0_lpddr4_emif_io96b_lpddr4_510_r23assy.sdc": "9f42be22d4612c50f1891115968f61f6003411c1b915354568af3417f494def7",
+        "ip/pll/altera_iopll_2110/synth/pll_altera_iopll_2110_xltklsq.sdc": "987cf8dab4b956a89ab135c4dfb3e8bdef08523ca7a6cf7b144de83833b95b35",
+        "ip/qsys_top/user_rst_clkgate_0/intel_user_rst_clkgate_101/synth/intel_user_rst_clkgate_agilex.sdc": "5996a3812dce6289c2597c26e9539aa214a71dd42ace89fbfc28ac4979f21ebf",
+        "jtag.sdc": "02d78bf9bc14eea02092569a0639f6bd4f4b11e161e4fc6349c30128d640e17a",
+        "jtag_subsys/ip/jtag_subsys/fpga_m/altera_jtag_dc_streaming_191/synth/altera_avalon_st_jtag_interface.sdc": "cac36d552c963acf54fa79b8cf14c211e99d449f45f5e87b095bb4ba1fa91e40",
+        "jtag_subsys/ip/jtag_subsys/fpga_m/altera_reset_controller_1925/synth/altera_reset_controller.sdc": "5ee450b6da0e63a0f1f805401370c13de7fefa7122bf066c940f30fbbbfe8166",
+        "jtag_subsys/ip/jtag_subsys/hps_f2sdram/altera_jtag_dc_streaming_191/synth/altera_avalon_st_jtag_interface.sdc": "cac36d552c963acf54fa79b8cf14c211e99d449f45f5e87b095bb4ba1fa91e40",
+        "jtag_subsys/ip/jtag_subsys/hps_f2sdram/altera_reset_controller_1925/synth/altera_reset_controller.sdc": "5ee450b6da0e63a0f1f805401370c13de7fefa7122bf066c940f30fbbbfe8166",
+        "jtag_subsys/ip/jtag_subsys/hps_m/altera_jtag_dc_streaming_191/synth/altera_avalon_st_jtag_interface.sdc": "cac36d552c963acf54fa79b8cf14c211e99d449f45f5e87b095bb4ba1fa91e40",
+        "jtag_subsys/ip/jtag_subsys/hps_m/altera_reset_controller_1925/synth/altera_reset_controller.sdc": "5ee450b6da0e63a0f1f805401370c13de7fefa7122bf066c940f30fbbbfe8166",
+        "peripheral_subsys/ip/peripheral_subsys/peripheral_subsys_fes_ctrl_cdc/st_dc_fifo_1953/synth/peripheral_subsys_fes_ctrl_cdc_st_dc_fifo_1953_phmrs5y.sdc": "51728a39f80e496f7b883c44869dfe9b60a2997cf5f7dbb9aa93b633a99211b5",
+        "peripheral_subsys/ip/peripheral_subsys/peripheral_subsys_fes_mem_cdc/st_dc_fifo_1953/synth/peripheral_subsys_fes_mem_cdc_st_dc_fifo_1953_phmrs5y.sdc": "d4b6cfe106c519ab97cab890a9a8dda19112f314002f9859ebbfcee6d8aa0378",
+        "peripheral_subsys/peripheral_subsys/altera_reset_controller_1925/synth/altera_reset_controller.sdc": "5ee450b6da0e63a0f1f805401370c13de7fefa7122bf066c940f30fbbbfe8166",
+        "qsys_top/altera_reset_controller_1925/synth/altera_reset_controller.sdc": "5ee450b6da0e63a0f1f805401370c13de7fefa7122bf066c940f30fbbbfe8166"
+      },
+      "build": {
+        "build_id": "a3fe788e9d42b01f5ba68fdb4a381c5a",
+        "classification": "de25-menu-compile-candidate",
+        "hardware_acceptance": false,
+        "normal_kit_acceptance": false,
+        "package_timing_admission": false,
+        "rbf_sha256": "471bd2296a9a39db2d1b33a54d6c937dce3ab8e036dd9d951483c61e3db5460c",
+        "revision": "658c97ac41079b3f8ed0ac9e0cc45c1ece803b69"
+      },
+      "raw_findings": {
+        "RDC-50003": 2,
+        "TMC-20011": 2,
+        "TMC-20012": 30
+      },
+      "rules": 85,
+      "source_inputs": 377,
+      "timing_checks": 69
+    },
+    "ZX81": {
+      "SDCs": {
+        "fes_mailbox/clocks.sdc": "e24cf57d79d2fcb5a497cfe0319ae21795ca1b458ad56c9e08872b97889c2971",
+        "fes_mailbox/fes_de25_top.sdc": "bfeec4459f58d8287a55119b899bd663805942f7d51e915bc7c8e2dc7d77c2e7",
+        "ghrd_timing.sdc": "abf34be146818993465c0757c799689afc1d87f1eccd43ca5918be613b12ac80",
+        "hps_subsys/ip/hps_subsys/agilex_hps/intel_sundancemesa_hps_100/synth/agilex_hps_intel_sundancemesa_hps_100_akzbaji.sdc": "c53df63e8434bd17abbaf58ecba294c6bda5e81fd7955fcff4689f1d070c9a76",
+        "hps_subsys/ip/qsys_top/emif_io96b_hps/emif_io96b_hps_emif_io96b_hps_510_z7xh4ha/synth/ip/emif_io96b_hps_emif_io96b_hps_510_z7xh4ha/emif_io96b_hps_emif_io96b_hps_510_z7xh4ha_emif_0_lpddr4/altera_jtag_dc_streaming_191/synth/altera_avalon_st_jtag_interface.sdc": "cac36d552c963acf54fa79b8cf14c211e99d449f45f5e87b095bb4ba1fa91e40",
+        "hps_subsys/ip/qsys_top/emif_io96b_hps/emif_io96b_hps_emif_io96b_hps_510_z7xh4ha/synth/ip/emif_io96b_hps_emif_io96b_hps_510_z7xh4ha/emif_io96b_hps_emif_io96b_hps_510_z7xh4ha_emif_0_lpddr4/altera_reset_controller_1925/synth/altera_reset_controller.sdc": "bc33f9a046966d3c47097408eabb3874865689bafc461396b8d3118dfeb047d6",
+        "hps_subsys/ip/qsys_top/emif_io96b_hps/emif_io96b_hps_emif_io96b_hps_510_z7xh4ha/synth/ip/emif_io96b_hps_emif_io96b_hps_510_z7xh4ha/emif_io96b_hps_emif_io96b_hps_510_z7xh4ha_emif_0_lpddr4/emif_io96b_lpddr4_510/synth/emif_io96b_hps_emif_io96b_hps_510_z7xh4ha_emif_0_lpddr4_emif_io96b_lpddr4_510_r23assy.sdc": "9f42be22d4612c50f1891115968f61f6003411c1b915354568af3417f494def7",
+        "ip/pll/altera_iopll_2110/synth/pll_altera_iopll_2110_xltklsq.sdc": "987cf8dab4b956a89ab135c4dfb3e8bdef08523ca7a6cf7b144de83833b95b35",
+        "ip/qsys_top/user_rst_clkgate_0/intel_user_rst_clkgate_101/synth/intel_user_rst_clkgate_agilex.sdc": "5996a3812dce6289c2597c26e9539aa214a71dd42ace89fbfc28ac4979f21ebf",
+        "jtag.sdc": "02d78bf9bc14eea02092569a0639f6bd4f4b11e161e4fc6349c30128d640e17a",
+        "jtag_subsys/ip/jtag_subsys/fpga_m/altera_jtag_dc_streaming_191/synth/altera_avalon_st_jtag_interface.sdc": "cac36d552c963acf54fa79b8cf14c211e99d449f45f5e87b095bb4ba1fa91e40",
+        "jtag_subsys/ip/jtag_subsys/fpga_m/altera_reset_controller_1925/synth/altera_reset_controller.sdc": "bc33f9a046966d3c47097408eabb3874865689bafc461396b8d3118dfeb047d6",
+        "jtag_subsys/ip/jtag_subsys/hps_f2sdram/altera_jtag_dc_streaming_191/synth/altera_avalon_st_jtag_interface.sdc": "cac36d552c963acf54fa79b8cf14c211e99d449f45f5e87b095bb4ba1fa91e40",
+        "jtag_subsys/ip/jtag_subsys/hps_f2sdram/altera_reset_controller_1925/synth/altera_reset_controller.sdc": "bc33f9a046966d3c47097408eabb3874865689bafc461396b8d3118dfeb047d6",
+        "jtag_subsys/ip/jtag_subsys/hps_m/altera_jtag_dc_streaming_191/synth/altera_avalon_st_jtag_interface.sdc": "cac36d552c963acf54fa79b8cf14c211e99d449f45f5e87b095bb4ba1fa91e40",
+        "jtag_subsys/ip/jtag_subsys/hps_m/altera_reset_controller_1925/synth/altera_reset_controller.sdc": "bc33f9a046966d3c47097408eabb3874865689bafc461396b8d3118dfeb047d6",
+        "peripheral_subsys/peripheral_subsys/altera_reset_controller_1925/synth/altera_reset_controller.sdc": "bc33f9a046966d3c47097408eabb3874865689bafc461396b8d3118dfeb047d6",
+        "qsys_top/altera_reset_controller_1925/synth/altera_reset_controller.sdc": "bc33f9a046966d3c47097408eabb3874865689bafc461396b8d3118dfeb047d6",
+        "sys_pll/altera_iopll_2110/synth/sys_pll_altera_iopll_2110_msdzeyq.sdc": "70e5595b0ccdda88b2d9c7409a2c26ee77b067e1ca7eece57b5b41465cfe510a"
+      },
+      "build": {
+        "build_id": "87581166e76ae0d8416d5dd70c8337e3",
+        "classification": "de25-zx81-compile-candidate",
+        "hardware_acceptance": false,
+        "normal_kit_acceptance": false,
+        "package_timing_admission": false,
+        "rbf_sha256": "60ebec56635d258c00e80aaab080e32eca1456ba91755345b6191d8cd3522018",
+        "revision": "658c97ac41079b3f8ed0ac9e0cc45c1ece803b69"
+      },
+      "raw_findings": {
+        "RDC-50003": 1,
+        "TMC-20011": 2,
+        "TMC-20012": 30
+      },
+      "rules": 85,
+      "source_inputs": 577,
+      "timing_checks": 41
+    }
+  },
+  "hardware_access": "not-performed",
+  "normal_parent_API": "Both actual materialized source/tool API records exactly match the producer records",
+  "producer_revision": "658c97ac41079b3f8ed0ac9e0cc45c1ece803b69"
+}

@@ -68,6 +68,9 @@ func New(controller Controller, token string, version string, logger *slog.Logge
 		writeJSON(w, http.StatusOK, status)
 	})))
 	mux.Handle("POST /v1/stop", authenticate(token, stopHandler(controller)))
+	if settings.launcherPairingPath != "" && settings.targetID != "" && settings.kitLease != nil {
+		mux.Handle("POST /v1/launcher/pairing", authenticate(token, launcherPairingHandler(controller, token, settings)))
+	}
 	if settings.corePackagesEnabled {
 		registerCorePackageRoutes(mux, token, settings.corePackages, settings.corePackageInspect)
 	}

@@ -345,6 +345,7 @@ def validate(root: Path, data: dict) -> list[str]:
     recipes = {
         row['core_id']: row
         for row in tomllib.loads((root / ROOT_FILES['recipes']).read_text())['recipes']
+        if row.get('board', 'de10-nano') == 'de10-nano'
     }
     library = {
         row['core_id']: row['standing']

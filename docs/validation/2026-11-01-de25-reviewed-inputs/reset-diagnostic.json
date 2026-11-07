@@ -1,0 +1,44 @@
+{
+  "source_revision": "d8b23267cc8301361bdc5c2ef7db89593462f4a6",
+  "classification": "private fitted-netlist constraint-strengthening diagnostic only",
+  "original_artifacts_unchanged": {
+    "core.rbf": "ee0cac2f36644d1ff1cd39203a2fdfecd0a3f5440ce44766e06daa918064391f",
+    "timing.json": "33a298c928721f9be991c7bc0831b2143553a56d69862a6e172411fc38ec675d"
+  },
+  "modified_sdc": {
+    "hps_subsys/ip/qsys_top/emif_io96b_hps/emif_io96b_hps_emif_io96b_hps_510_z7xh4ha/synth/ip/emif_io96b_hps_emif_io96b_hps_510_z7xh4ha/emif_io96b_hps_emif_io96b_hps_510_z7xh4ha_emif_0_lpddr4/altera_reset_controller_1925/synth/altera_reset_controller.sdc": {
+      "before": "8834ac8de6421bc2c052c2ac8d7a71127477590111c6daab3bf9c8623501d769",
+      "after": "5ee450b6da0e63a0f1f805401370c13de7fefa7122bf066c940f30fbbbfe8166"
+    },
+    "jtag_subsys/ip/jtag_subsys/fpga_m/altera_reset_controller_1925/synth/altera_reset_controller.sdc": {
+      "before": "8834ac8de6421bc2c052c2ac8d7a71127477590111c6daab3bf9c8623501d769",
+      "after": "5ee450b6da0e63a0f1f805401370c13de7fefa7122bf066c940f30fbbbfe8166"
+    },
+    "jtag_subsys/ip/jtag_subsys/hps_f2sdram/altera_reset_controller_1925/synth/altera_reset_controller.sdc": {
+      "before": "8834ac8de6421bc2c052c2ac8d7a71127477590111c6daab3bf9c8623501d769",
+      "after": "5ee450b6da0e63a0f1f805401370c13de7fefa7122bf066c940f30fbbbfe8166"
+    },
+    "jtag_subsys/ip/jtag_subsys/hps_m/altera_reset_controller_1925/synth/altera_reset_controller.sdc": {
+      "before": "8834ac8de6421bc2c052c2ac8d7a71127477590111c6daab3bf9c8623501d769",
+      "after": "5ee450b6da0e63a0f1f805401370c13de7fefa7122bf066c940f30fbbbfe8166"
+    },
+    "peripheral_subsys/peripheral_subsys/altera_reset_controller_1925/synth/altera_reset_controller.sdc": {
+      "before": "8834ac8de6421bc2c052c2ac8d7a71127477590111c6daab3bf9c8623501d769",
+      "after": "5ee450b6da0e63a0f1f805401370c13de7fefa7122bf066c940f30fbbbfe8166"
+    },
+    "qsys_top/altera_reset_controller_1925/synth/altera_reset_controller.sdc": {
+      "before": "8834ac8de6421bc2c052c2ac8d7a71127477590111c6daab3bf9c8623501d769",
+      "after": "5ee450b6da0e63a0f1f805401370c13de7fefa7122bf066c940f30fbbbfe8166"
+    },
+    "fes_mailbox/clocks.sdc": {
+      "before": "f77359a440f47d7e26bb2faeaa1253d3cdca3f2a9e34dc72d626575676c76148",
+      "after": "8fe73ee828a23aace5c6dca2e2ef01959d2ceebdd9f6ab72be4f5a640c32c591"
+    }
+  },
+  "fresh_reports": {
+    "golden_top.tq.drc.signoff.rpt": "132b7bea6bc38e7f3ca1d9497314b2dfe31018f9bca8d6c8e11a91b0710e02b6",
+    "golden_top.sta.summary": "3086a7c5522f9fc570d9881672cf5b168be213e1ca6ea0b6af87ba2ec03f98ea"
+  },
+  "hardware_access": "not-performed",
+  "package_exported": false
+}

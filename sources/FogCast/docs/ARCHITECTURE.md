@@ -1,5 +1,56 @@
 # FogCast architecture
 
+The corepackage reader also recognizes format5's three closed members:
+`manifest.toml`, the full `core.rbf` base and default empty `persona.rbf`.
+Archive, directory, streamed listing and private staging paths bind both images
+to the same domain-separated package ID. The descriptor carries the expected
+controller ID and frozen root/interface/clock-reset/POF0 identities; the persona
+is opaque vendor data, never a CycloneV CRAM patch. Unknown members, mixed ROM
+tables, wrong targets, changed bytes and invalid default identities are refused.
+This is structural support. The static programming profile remains unregistered;
+normal activation still refuses it before hardware access. Package production,
+the bounded physical backend and physical qualification remain required.
+
+`ComposeStaticArchive` and `ReadStaticCompositionBundle` verify the format5
+package with an optional format2 partial expansion. The closed transport carries
+canonical `static-composition.json` first, then `package.tar` and optional
+`expansion.tar`. This distinct first member selects the existing composed-upload
+route without guessing from opaque payload bytes.
+Every consumer recomputes the selection against the retained sealed package and
+asset; default selection uses the package's empty persona. Changed, missing or
+substituted inputs and changed receipts are refused. The bundle owns its input
+bytes and writes no combined RBF. Normal library launches prepare this transport
+for both the default empty persona and a saved selected partial. Expansion import,
+selection and setup readiness require the declared optional ZX81 bus 2.0 and the
+exact sealed package/root identities. Selection changes affect the next launch;
+an active static core requires ordinary Stop first. The static programming
+profile remains unavailable.
+
+Format5 firmware is sealed into the base. Library launch bypasses the DE10
+machine-ROM linker, rejects a setup requiring a later household firmware upload,
+and never substitutes another static package to provide a media selector. The
+existing composed-load operation carries the two-image selection. The host
+requires the exact returned static receipt and rejects mixed ROM, parts or
+full-chip receipts; an unexpected persona uses the existing rejected-load Stop.
+
+`StageStaticComposition` verifies that transport before publishing the sealed
+base package, optional closed expansion directory and a separate canonical
+receipt. `Staged` retains distinct base/persona paths and the static composition
+identity; it uses the existing companion ownership and cleanup. Restart adoption
+independently verifies the package and selected partial, recomputes the receipt,
+and refuses a missing receipt, changed inputs or mixed full-chip/slot/ROM
+companions. Even the empty selection retains a receipt and both package images.
+The existing composed target upload dispatches this shape to static staging
+and issues `load_composed_core` with the static tuple and optional expansion
+path. It supplies no linked payload path. The runtime's serialized lifecycle
+requires idle/Stop before a static load. Its normal status carries that exact
+two-image receipt; lost-load reconciliation and restart adoption match every
+field before retaining the active package. The coordinator, public target
+client and copied host status preserve it as `static_composition`. Ordinary
+uncomposed launches refuse an unexpected static reply. No hot-persona command
+is exposed, and the unregistered
+profile plus the explicit unavailable-backend guard still refuse physical loads.
+
 The corepackage reader recognizes format 4's two ordered ROM requirements and
 sealed map. Launch and target activation of that format require the separate
 two-source transport and linked-load path before it becomes selectable.
@@ -314,6 +365,11 @@ they are not a distributed ownership, failover, or recovery protocol.
 
 ### Source ownership
 
+The native target-image selector copies a closed core package into its private
+cache and explicitly seals each copied member as `0444` before publication.
+The caller's private `077` umask does not change those final artifact modes;
+image assembly still requires exact `0555` directories and `0444` members.
+
 Appliance release manifests and immutable image storage form the independent
 Go module `github.com/DeanoC/FogCast/appliance` in `appliance/`. The store lives
 in `appliance/store`; both boot selection and target update handling consume
@@ -343,7 +399,7 @@ module, but the source tree names their ownership explicitly. The ten-foot sofa
 app lives under `ui/tenfoot`; it is also the kit UI. Shared drawing, input,
 theme, and library helpers live under `ui/shared`, `ui/gfx`, `ui/controller`,
 `ui/inputmap`, `ui/localfeed`, `ui/menudisplay`, and `ui/theme`;
-`ui/launcherconfig` reads the kit's `launcher.json`. `host` and
+`launcherconfig` reads the kit's `launcher.json`. `host` and
 `internal/hostapi` own host catalog/config/library services and host-owned
 remote-input bridges. `targetclient` owns the authenticated host-to-target
 HTTP/cache/core/development transport and endpoint reconciliation. UI packages
@@ -441,6 +497,20 @@ source revision comparison. Configuration is not rewritten to hide failures.
 ## Agent runtime
 
 The agent uses only local runtime protocol 2 through `/run/mister-runtime.sock`.
+Its closed response validation requires capability ABI identities in ascending
+order. A status fixture emitted by the production C++ DE25 MENU lifecycle test
+passes through the actual Unix client, so a running display cannot conceal an
+unreadable capability reply. Decoder rejection keeps native readiness false.
+Active-package validation accepts the declared DE25 BRAM computer, standard
+`de25-linux-computer-v1` computer and MENU profiles
+with the exact DE25 target, ABI family and observed build/ABI identity. A native
+computer status fixture exercises the actual Unix client after FPGA Start;
+unknown profiles, crossed targets and missing observed identity remain rejected.
+The live ZX81 tape limit is checked against that selected target. DE25's BRAM
+window accepts exactly 16,375 bytes; the shared definition generates the Go and
+C++ values. The standard DE25 profile and other targets retain the 16,384-byte
+computer window. Library media
+admission reports the same selected-target limit before launch.
 There is no backend selector, Main process probing, MGL dispatch or protocol-1
 fallback. Normal FPGA launches require described FES packages; bare catalog
 records and old raw-core profiles are rejected before stopping an active package.
@@ -471,14 +541,17 @@ keyboard interfaces do not enable this mapping. This is software coverage,
 not physical USB/controller or SMS hardware acceptance.
 A host library entry for `fes.zx81` uses `load_library_core` like other
 ROM-less FPGA cores; development `core-load` stays a separate volatile
-activation and does not create that entry. The sealed shell's machine ROM
-is empty. Launch requires `[zx81_machine_rom]` with `script`, `image`, and
+activation and does not create that entry. The DE10-Nano sealed shell's machine ROM
+is empty. Its launch requires `[zx81_machine_rom]` with `script`, `image`, and
 `mistral_cv`, each a clean absolute path, and refuses the launch when that
 section is absent. The host splices the 8 KiB BASIC image after package
 identity is fixed, keeps that package id, and records `image_sha256` on the
 launch status after firmware and media binding. A selected cart is composed
 first and stays on the launch source, so the activated composition matches
-the selection. The ROM splice is last.
+the selection. The ROM splice is last. The DE25-Nano package contains its BASIC
+ROM in the sealed RBF. Its catalog launch and Home readiness use that package
+without invoking the Cyclone V ROM linker, even when a DE10 linker is configured.
+The package's declared target selects this behavior; its core name alone does not.
 A selected `.p` tape on the current `fes.computer` ZX81 package is role
 `cassette` (`fes.media.zx81-tape` 1.0, 1..16384 bytes, unit 0) and is
 inserted after Start. A setup saved earlier with role `blob` still launches
@@ -562,6 +635,10 @@ inspects closed directories or restricted uncompressed ustar archives,
 validates the closed typed manifest and payload bytes, and computes package
 identity from the original manifest and payload. Unknown but well-formed ABIs
 remain inspectable; hardware compatibility belongs to the native runtime.
+Target validation accepts the exact DE10-Nano/Cyclone V and
+DE25-Nano/Agilex 5 SCS platform/device pairs. Crossed pairs and other devices
+remain invalid. Catalog import establishes archive validity; native profile,
+interface and hardware admission still run before launch.
 `corepackage.InspectPackage` returns the package ID and closed `Descriptor`
 from the same pinned read for identity-reporting consumers such as
 `core-inspect`; the smaller `Inspect` wrapper returns only the descriptor.
@@ -759,12 +836,17 @@ generation that reports `fes.media.zx81-tape`, `change-tape` inserts the `.p`
 into unit 0 and `eject-tape` ejects that unit. An active `fes.simple-computer`
 generation with `fes.media.blob` still uses `replace_live_media` /
 `clear_media`. Live-media capability is that active tape interface or the
-legacy blob interface. The host session projection keeps those active
+legacy blob interface. A host transition-guard rejection reports no change
+because it occurs before dispatch. The captured session and package binding
+remain unchanged; the host never replays an issued media mutation.
+The host session projection keeps those active
 interfaces and media units, so the tape picker and `change-tape` form a
 binding for either generation. On a menu-display kit, both that tape unit
 and a legacy blob session open the media selector only
-when the running package reports `fes.video.session-display` 1.0 and
-`fes.memory.hps-ddr` 1.0. Home posts `visible: true`, the runtime makes menu
+when the running package reports `fes.video.session-display` 1.0 with
+`fes.memory.hps-ddr` 1.0, or a `fes.computer` session reports that display
+interface with both `fes.fabric.de25-scanout` 1.1 and
+`fes.fabric.video.display-plane` 1.0. Home posts `visible: true`, the runtime makes menu
 presentation available, and `BindSession` authorizes the launcher frames.
 On a kit, Home or Select/View opens **Change media** directly over the running
 machine, with transparent pixels outside the opaque picker. The launch room
@@ -783,7 +865,7 @@ shows the existing starter-tape shelf only when its game entry identifies
 `fes.zx81`; saved programs remain scoped to that game. Files come from the launcher machine
 (home, mounted media and accessible library roots); saved FogCast host drives are browsed through drive-relative storage APIs. Import, insert and eject retain the session captured when
 the selector opened. Session-display admission checks the captured generation,
-observed DDR and display interfaces, and a supported observed unit 0 for disk
+observed memory and display interfaces, and a supported observed unit 0 for disk
 or Spectrum media. The host, target agent and runtime adapter share that
 admission predicate; the native runtime already admits the observed display
 interface independently of media type. Insert and eject use a bounded
@@ -1137,7 +1219,9 @@ the flag is true. An older paired host omits the flag and the kit stays
 inspect-only. Catalogue schema 14 adds optional household expansion labels
 and descriptions; these never influence admission. The session receipt's
 composition identifies running hardware independently of the saved setup.
-Missing or mismatched composition receipts remain unknown. Bound Stop checks
+Static base/persona receipts survive the launcher projection: their identity
+is recomputed and bound to the active package, independently of the saved
+next-start selection. Mixed, missing or mismatched receipts remain unknown. Bound Stop checks
 the active package under the existing service lifecycle admission before
 coordinator input/media cleanup, and holds that admission through physical
 Stop. A rejected changed-session action triggers a refresh; a subsequent
@@ -1350,7 +1434,7 @@ Library to Rooms in Settings applies that default for the rest of the session.
 The implicit room stays out of `tenfoot.json`. An already selected room stays
 selected. Library home is unchanged.
 
-Load/update/draw and asynchronous room callback errors identify their callback; deadline-expiry errors also report elapsed wall time and, on Linux, the script run's wall time with the callback thread's own CPU time and its voluntary/involuntary context switches over that run, so a kit report separates slow script work from waiting for a CPU (`ui/rooms/thread_usage.go`). Elapsed covers the whole callback, including pinning and sampling its OS thread and the cleanup after the script; the callback deadline starts with it and the soft and hard budget checks compare it. A room retired after consecutive soft overruns lists each overrun's elapsed time with that script-run usage, the process-wide Go GC cycles completed during that run (context beside those times, not pause time inside the callbacks), and the most images the launcher had already been asked to fetch, so a kit report can correlate GC or decode contention with the script's own work (`ui/rooms/overrun_streak.go`). Scheduler pauses count against the unchanged callback deadline. Installed-core listing retries transient startup socket/time-out and catalog-warming failures for up to 60 seconds; leaving the room cancels those reads. Back from a nested room resumes its parent; Back from a root room opens the picker, except release-scoped Home stays open. Opening the Library from a room, the Home overlay's Library row or Recents suspends that room and its nested parents instead of closing them (`ui/tenfoot/library_return.go`); Back from the Library resumes the same instance with its selection, and Home reclaims a suspended home room and resumes it; either way the Library's Details, filters and view overlays close first. A Library refusal is cleared on that return, so the resumed room does not show it as a launch failure. Opening another room discards the suspended one. Library Details shows the focused title's readiness pill, block headline and the launcher's own reason (`classifyLibraryGame` with the snapshot's `KitPlay`: `libraryPlayDestination` plus the paired kit's unknown status or foreign lease, checked in the same order as Confirm; in a room, a chosen edition is classified itself). The Library header's readiness word, list rows and cover cells use the same classifier. A Ready title on a paired client that is not host-only also says "Plays on this TV", because a paired launch targets that kit, the creator beside the title, and offers A only for what Confirm will do (play, or import the Coleco BIOS). A blocked Confirm opens Details for the title that was refused, including a Home recent that is not the focused Library row. Favorite, pointer confirm, and presentation for that Details follow the same title. When a paired kit cannot report its status, the headline is that unknown status. Cancelling the BIOS picker returns to that Details. A Coleco BIOS import also refreshes a suspended room's cached titles, so Back shows the updated readiness. Library cells that cannot play carry a labelled tag from that classifier, keeping a catalog reason such as Needs BIOS, and missing art names the platform. Other backends keep their existing defaults. A room may publish an allowlisted `settings` action; Confirm opens Settings when the launcher can, and otherwise shows a short status. There is no host
+Load/update/draw and asynchronous room callback errors identify their callback; deadline-expiry errors also report elapsed wall time and, on Linux, the script run's wall time with the callback thread's own CPU time and its voluntary/involuntary context switches over that run, so a kit report separates slow script work from waiting for a CPU (`ui/rooms/thread_usage.go`). Elapsed covers the whole callback, including pinning and sampling its OS thread and the cleanup after the script; the callback deadline starts with it and the soft and hard budget checks compare it. A room retired after consecutive soft overruns lists each overrun's elapsed time with that script-run usage, the process-wide Go GC cycles completed during that run (context beside those times, not pause time inside the callbacks), and the most images the launcher had already been asked to fetch, so a kit report can correlate GC or decode contention with the script's own work (`ui/rooms/overrun_streak.go`). Scheduler pauses count against the unchanged callback deadline. Installed-core listing retries transient startup socket/time-out and catalog-warming failures for up to 60 seconds; leaving the room cancels those reads. Back from a nested room resumes its parent; Back from a root room opens the picker, except release-scoped Home stays open. Opening the Library from a room, the Home overlay's Library row or Recents suspends that room and its nested parents instead of closing them (`ui/tenfoot/library_return.go`); Back from the Library resumes the same instance with its selection, and Home reclaims a suspended home room and resumes it; either way the Library's Details, filters and view overlays close first. The Library's Back prompt names the suspended room both while readiness loads and after Play/Details actions appear. A Library refusal is cleared on that return, so the resumed room does not show it as a launch failure. Opening another room discards the suspended one. Library Details shows the focused title's readiness pill, block headline and the launcher's own reason (`classifyLibraryGame` with the snapshot's `KitPlay`: `libraryPlayDestination` plus the paired kit's unknown status or foreign lease, checked in the same order as Confirm; in a room, a chosen edition is classified itself). The Library header's readiness word, list rows and cover cells use the same classifier. A Ready title on a paired client that is not host-only also says "Plays on this TV", because a paired launch targets that kit, the creator beside the title, and offers A only for what Confirm will do (play, or import the Coleco BIOS). A blocked Confirm opens Details for the title that was refused, including a Home recent that is not the focused Library row. Favorite, pointer confirm, and presentation for that Details follow the same title. When a paired kit cannot report its status, the headline is that unknown status. Cancelling the BIOS picker returns to that Details. A Coleco BIOS import also refreshes a suspended room's cached titles, so Back shows the updated readiness. Library cells that cannot play carry a labelled tag from that classifier, keeping a catalog reason such as Needs BIOS, and missing art names the platform. Other backends keep their existing defaults. A room may publish an allowlisted `settings` action; Confirm opens Settings when the launcher can, and otherwise shows a short status. There is no host
 safe-area or layout API. Host attract idle, preferred regions, selected target, library roots, and
 targets use the existing public library settings endpoints. Tenfoot can add,
 edit, and remove targets from the sofa settings overlay. Agent secrets are
@@ -1565,7 +1649,14 @@ complete pixels; Pause, Resume, rebinding and any failure drop both
 shortcuts. On this backend tenfoot opens
 the kit-local control socket and submits one room launch overlay frame with
 phase and elapsed time. Dispatch waits until that frame has been presented,
-then pauses presents and dispatches the local launch. A failed or unpresented
+then pauses presents and dispatches the local launch. A completed pause also
+releases the menu client's grant mapping after its last frame transaction has
+finished. This permits a kernel-owned allocation to retire when the runtime
+revokes it, rather than leaving the paused UI's VMA holding the device lease.
+An unmap error or cancelled drain refuses launch; a concurrent Resume prevents
+the old pause from releasing a new mapping. Resume after a rejected launch
+can remap the same generation without clearing its pixels. This uses the
+existing menu client/socket and changes no programming authority. A failed or unpresented
 frame aborts dispatch. A status probe acknowledges only the submission
 sequence that was presented, so a healthy status for an older frame does not
 accept a newer frame that never reached the display. Late adoption submits no
@@ -1667,6 +1758,25 @@ arms or ejects through the session live-media API without relaunch or
 hold-reset `load_media`.
 
 ## FES appliance releases
+
+The release codec and store accept DE25 only through explicit selected-board
+entry points (`ValidateForBoard`, `DecodeManifestForBoard`, `CompatibleForBoard`
+and `store.NewForBoard`). The selection comes from the caller, not the uploaded
+manifest. Factory, staged and retained manifests must match that board and
+kernel; foreign uploads are refused before their body is read or storage is
+changed. Default entry points remain DE10-only. FES's Python release exporter
+also takes an explicit board for caller-verified images. With a bootstrap
+factory present, the target agent and storage gate select from the immutable
+image's `/etc/fes-board` and require the matching ARM/ARM64 CPU target. Older
+ARM DE10 images may lack that file; AArch64 requires exactly `de25-nano`.
+The API reports its store's board and validates upload headers against that
+selection before reading image bodies. `fes-update --board de25-nano` selects
+DE25 explicitly, requires the authenticated target to report DE25 before an
+upload and checks the image's AArch64 software base. A status without a board
+is accepted only by the DE10 client path. The base storage helper builds with
+`make build-fes-kit-data FES_KIT_DATA_ARCH=aarch64`; its default stays ARMv7.
+Bootstrap/media assembly is still DE10-specific. These software paths do not
+establish DE25 managed boot, watchdog recovery or hardware acceptance.
 
 FES owns compatible source selection, release/media assembly, and the fixed
 bootstrap. FogCast supplies the public appliance module, target update API, and
@@ -1903,6 +2013,14 @@ then waits for admitted operations and invokes input neutralization, cast Stop,
 and runtime Stop. Ownership becomes available only after successful cleanup;
 failed recovery leaves it blocked. Agent startup performs the same cleanup.
 The retained uinput device survives lease release.
+
+Signal cancellation stops agent serving before deferred lease cleanup. The
+Coordinator operation lifetime remains live until lease Close has drained
+admitted requests and performed its owned Stop, then is canceled before the
+remaining runtime dependencies are destroyed. Shutdown Stop retains its existing
+five-second deadline and lease Close its existing thirty-second bound. Signal
+cancellation cannot pre-cancel that cleanup operation; request and lease
+cancellation still fence admission, and ordinary operation deadlines remain.
 
 An operator using the configured bearer credential may explicitly request
 `POST /v1/kit/takeover` with `request_id`, `owner`, `purpose`,
@@ -2511,11 +2629,23 @@ coverage; physical reboot and DHCP acceptance belongs to the selected FES image.
 ## Native kit launcher
 
 The kit UI is `fogcast-tenfoot -gfx menu-display -home rooms`. The base-image
-supervisor starts it after the runtime and agent. `ui/launcherconfig` reads the
+supervisor starts it after the runtime and agent. `launcherconfig` reads the
 provisioned `launcher.json` (`api`, `token`, `target_id`) and ignores keys left
 by the removed grid launcher. The bundle's `bin/fogcast-kit` is
 `cmd/fogcast-api` built under the kit's name: `fogcast-kit host` is the kit's
 FogCast host ([kit mode](#kit-mode)).
+
+`POST /v1/launcher/pairing` updates the fixed
+`/media/fat/fogcast/launcher.json` through the authenticated target agent. It
+requires the current kit lease, software and image admission, a ready idle
+runtime and no kit-local core. The shared `launcherconfig` validator checks the
+host origin, distinct launcher bearer and unchanged target UUID. The handler
+serializes writes, checks any existing private regular file's identity, and
+uses `atomicwrite` to sync and replace it. Its response contains the saved
+digest and `restart_required`, never credentials. A normal reboot applies the
+pairing; the handler does not restart processes or alter a running session.
+FES `scripts/prepare_launcher.py --apply` uses the existing lease client to
+perform setup, with `--host-port` available for a dedicated host listener.
 
 A paired, authenticated host listener serves a restricted set of existing
 library, artwork, and session operations. The host keeps target and input lease
@@ -3960,6 +4090,18 @@ For described cores, enrichment requires the observed package and core generatio
 to match the record. This keeps the captured game identity consistent between
 session reads and display replies.
 
+MENU generations that advertise `frame_mapping` require the client to opt in
+when requesting their grant. The client checks the returned lifetime, closes
+the received fd and unmaps before sending a frame commit. Its pixels remain in
+the runtime's allocation; the next frame remaps the same generation while
+preserving damage history. Grant inspection also releases the view. This lets
+runtime recovery finish before a failed commit reply without pinning storage
+through a peer VMA. Older persistent-window servers receive the existing grant
+request, and DE10 keeps its persistent mapping and blitter behavior. This
+prepares allocation-backed MENU; it does not enable a DE25 physical presenter.
+The target agent also accepts this optional boolean in strict runtime status
+validation; nonbooleans and unrelated unknown fields remain errors.
+
 The runtime opens a separate display generation. The asynchronous presenter pins
 package, core and display generations instead of following a replacement;
 idle presenters cannot acquire an active session plane. ZX81 selects launcher
@@ -4010,7 +4152,10 @@ probe clears that presentation error and its retry delay; the room removes the
 temporary HDMI notice while retaining the cassette operation's status.
 A running `fes.computer` generation that reports `fes.media.zx81-tape` 1.0 uses
 that same `POST /api/v1/session/display` when it also reports
-`fes.video.session-display` 1.0 and `fes.memory.hps-ddr` 1.0. The plane
+`fes.video.session-display` 1.0 and either `fes.memory.hps-ddr` 1.0 or the
+DE25 allocation pair, `fes.fabric.de25-scanout` 1.1 plus
+`fes.fabric.video.display-plane` 1.0. All three DE25 interfaces must be
+observed on the active `fes.computer` generation. The plane
 composites launcher frames over ZX81 video; closing it restores those pixels
 without reprogramming the core. A tape unit without the plane does not open
 the kit routes. Older packages keep prelaunch controls and the separate

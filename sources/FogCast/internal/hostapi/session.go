@@ -2044,7 +2044,7 @@ func (s *sessionCoordinator) clearLiveMediaNameLocked() {
 	s.liveMediaEjected = false
 }
 
-func busyError() error {
+func busyError() *protocol.APIError {
 	return &protocol.APIError{Code: protocol.CodeBusy, Message: "another launch or stop transition is running"}
 }
 
@@ -2184,6 +2184,10 @@ func cloneCorePackageStatus(value *protocol.CorePackageStatus) *protocol.CorePac
 		return nil
 	}
 	copy := *value
+	if value.StaticComposition != nil {
+		static := *value.StaticComposition
+		copy.StaticComposition = &static
+	}
 	copy.ActiveInterfaces = append([]protocol.RuntimeInterface(nil), value.ActiveInterfaces...)
 	if value.MediaStream != nil {
 		stream := *value.MediaStream

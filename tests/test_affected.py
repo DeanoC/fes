@@ -75,6 +75,34 @@ class AffectedTests(unittest.TestCase):
             with self.subTest(pattern=pattern):
                 self.assertTrue(list(root.glob(pattern)), pattern)
 
+    def test_package_contract_software_keeps_every_software_lane_without_rtl(self):
+        root = 'sources/mister-packages/'
+        for relative in ('Makefile', 'schema/core-bundle-v5.json',
+                         'scripts/core_bundle_v5_fixtures.py',
+                         'tests/test_core_bundle_v5_fixtures.py',
+                         'testdata/core-bundle-v5',
+                         'testdata/core-bundle-v5/manifests/valid-basic.toml',
+                         'testdata/core-bundle-v5/payloads/persona.rbf',
+                         'schema/core-bundle-v2.json',
+                         'scripts/core_bundle_fixtures.py'):
+            with self.subTest(path=relative):
+                result = plan([root + relative])
+                self.assertTrue(all(result['lanes'].values()))
+                self.assertEqual(result['cores'], [])
+        for relative in ('schema/core-bundle-v5.json-other',
+                         'schema/core-bundle-v50.json',
+                         'testdata/core-bundle-v5-other/fixture.rbf',
+                         'packages/abi/fes_computer.yaml',
+                         'packages/fabric/new.yaml'):
+            with self.subTest(unknown=relative):
+                self.assertEqual(set(plan([root + relative])['cores']), set(CORES))
+        mixed = plan([root + 'schema/core-bundle-v5.json',
+                      'sources/misteross/cores/fes-zx81/new.v'])
+        self.assertEqual(mixed['cores'], ['zx81'])
+        broad = plan([root + 'schema/core-bundle-v5.json',
+                      root + 'packages/abi/fes_computer.yaml'])
+        self.assertEqual(set(broad['cores']), set(CORES))
+
     def test_contracts_and_unknown_changes_close_over_every_lane(self):
         for path in ('sources/mister-packages', 'sources/mister-packages/packages/abi/new.yaml',
                      'unknown/new.bin'):
@@ -155,6 +183,7 @@ class AffectedTests(unittest.TestCase):
             ('misteross', 'boards/de25nano/scanout/generated/fes_de25_scanout.vh'),
             ('misteross', 'boards/de25nano/scanout/generated/fes_de25_scanout.h'),
             ('FES', 'image/kernel/de25-dma/generated/fes_de25_scanout.h'),
+            ('libmister-runtime', 'src/native/generated/fes_de25_scanout.hpp'),
         })
         result = plan([definition])
         self.assertEqual({lane for lane, enabled in result['lanes'].items() if enabled},
@@ -399,7 +428,9 @@ class AffectedTests(unittest.TestCase):
                      'scripts/rom_map.py', 'scripts/rom_map_oracle.py', 'tests/test_rom_map.py',
                      'tests/test_core_package_v3.py', 'scripts/build_fes_atari_st_oss.py',
                      'tests/test_atari_st_producer.py', 'tests/test_atari_st_slot_card.py',
-                     'scripts/synth_fes_pc386.py', 'scripts/build_fes_pcxt_quartus.py'):
+                     'scripts/synth_fes_pc386.py', 'scripts/build_fes_pcxt_quartus.py',
+                     'scripts/build_de25_menu_package.py', 'scripts/build_de25_zx81_package.py',
+                     'scripts/build_de25_zx81_static_package.py'):
             with self.subTest(path=path):
                 result = plan(['sources/misteross/' + path])
                 self.assertTrue(result['lanes']['fpga'])

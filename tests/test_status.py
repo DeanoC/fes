@@ -266,6 +266,7 @@ class StatusTest(unittest.TestCase):
             'lanes': json.dumps({lane: False for lane in LANES}),
             'cores': '[]', 'sim_tier': 'smoke',
             'simulations': json.dumps(simulation_matrix([], 'smoke')),
+            'parent_partitions': json.dumps(['software']),
             'test_modes': json.dumps({'video': False, 'media': False, 'full_race': False})}}
         environment = dict(os.environ, RESULTS=json.dumps(results),
                            PYTHONPATH=str(Path(__file__).resolve().parents[1]),

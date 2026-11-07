@@ -14,17 +14,25 @@ BUILD_DIR ?= build
 ARCHIVE := $(BUILD_DIR)/libmister-runtime.a
 DAEMON := $(BUILD_DIR)/mister-runtime
 VERSION_INPUT := $(BUILD_DIR)/.mister-runtime-version
+FEATURE_INPUT := $(BUILD_DIR)/.mister-runtime-features
+ENABLE_DE25_STATIC ?= 0
+ifneq ($(ENABLE_DE25_STATIC),0)
+ifneq ($(ENABLE_DE25_STATIC),1)
+$(error ENABLE_DE25_STATIC must be 0 or 1)
+endif
+endif
 
 VERSION_DIRTY = $(shell test -z "$$(git status --porcelain --untracked-files=normal -- .)" || printf '%s' -dirty)
 MISTER_RUNTIME_VERSION ?= git-$(shell git rev-parse --short=12 HEAD)$(VERSION_DIRTY)
 
 CPPFLAGS := -D_FILE_OFFSET_BITS=64 -Iinclude -Isrc -isystem third_party/toml11/include
+CPPFLAGS += -DMISTER_RUNTIME_ENABLE_DE25_STATIC=$(ENABLE_DE25_STATIC)
 TEST_CPPFLAGS := $(CPPFLAGS) -Itests/support
 CXXFLAGS ?= -O2 -std=c++14 -Wall -Wextra -Werror -pthread -MMD -MP
 
 # GNU ar accepts -D (deterministic). BSD/Apple ar does not; ZERO_AR_DATE=1
 # already zeros timestamps on those implementations.
-ifeq ($(shell $(AR) --help 2>&1 | grep -c -- '-D'),0)
+ifeq ($(shell $(AR) --help 2>&1 | grep -Ec '(^|[[:space:]])(\[D\]|-D)([[:space:]]|$$)'),0)
 AR_CREATE_FLAGS := rcs
 else
 AR_CREATE_FLAGS := rcsD
@@ -40,6 +48,7 @@ endif
 
 LIB_SOURCES := \
 	src/runtime.cpp \
+	src/daemon/json.cpp \
 	src/native/artifacts.cpp \
 	src/native/core_package.cpp \
 	src/native/core_composition.cpp \
@@ -49,15 +58,18 @@ LIB_SOURCES := \
 	src/native/core_driver.cpp \
 	src/native/fes_gp.cpp \
 	src/native/de25_computer.cpp \
+	src/native/de25_core_driver.cpp \
 	src/native/de25_pr_control.cpp \
 	src/native/menu_display.cpp \
 	src/native/linux/menu_window.cpp \
+	src/native/linux/de25_menu.cpp \
 	src/native/diagnostic.cpp \
 	src/native/sha256.cpp \
 	src/native/input.cpp \
 	src/native/video_recipe.cpp \
 	src/native/video.cpp \
 	src/native/hardware.cpp \
+	src/native/linux/de25_fpga_manager.cpp \
 	src/native/linux/fpga_manager.cpp \
 	src/native/linux/i2c.cpp \
 	src/native/linux/mmio.cpp \
@@ -66,7 +78,6 @@ LIB_SOURCES := \
 LIB_OBJECTS := $(patsubst %.cpp,$(BUILD_DIR)/%.o,$(LIB_SOURCES)) \
 	$(BUILD_DIR)/src/native/linux/linux_input.o
 DAEMON_SOURCES := \
-	src/daemon/json.cpp \
 	src/daemon/protocol.cpp \
 	src/daemon/controller.cpp \
 	src/daemon/server.cpp \
@@ -77,9 +88,11 @@ DAEMON_OBJECTS := $(patsubst %.cpp,$(BUILD_DIR)/%.o,$(DAEMON_SOURCES))
 DEPENDENCIES := $(LIB_OBJECTS:.o=.d) $(DAEMON_OBJECTS:.o=.d)
 
 TEST_BINS := \
+ $(BUILD_DIR)/tests/unit/de25_fpga_manager_test \
  $(BUILD_DIR)/tests/unit/production_hardware_test \
  $(BUILD_DIR)/tests/unit/menu_frame_transport_test \
 	$(BUILD_DIR)/tests/unit/menu_window_test \
+	$(BUILD_DIR)/tests/unit/de25_menu_test \
 	$(BUILD_DIR)/tests/unit/menu_display_test \
 	$(BUILD_DIR)/tests/unit/runtime_test \
 	$(BUILD_DIR)/tests/unit/diagnostic_test \
@@ -110,6 +123,7 @@ TEST_HEADERS := $(wildcard \
 	src/native/*.hpp \
 	src/native/generated/*.hpp \
 	src/native/linux/*.hpp \
+	src/native/linux/*.h \
 	src/daemon/*.hpp \
 	src/linux/*.hpp \
 	third_party/toml11/include/*.hpp \
@@ -120,7 +134,18 @@ TEST_HEADERS := $(wildcard \
 	force-version sanitize tsan archive-audit active-tree-test \
 	hardware-support-truth-test target menu-pattern-client
 
+.DEFAULT_GOAL := all
 all: $(ARCHIVE) $(DAEMON)
+
+.PHONY: force-features
+ifneq ($(shell cat "$(FEATURE_INPUT)" 2>/dev/null),$(ENABLE_DE25_STATIC))
+$(FEATURE_INPUT): force-features
+endif
+$(FEATURE_INPUT):
+	@mkdir -p "$(dir $@)"
+	@temporary="$@.tmp"; printf '%s\n' '$(ENABLE_DE25_STATIC)' >"$$temporary"; \
+	if ! cmp -s "$$temporary" "$@"; then mv -f "$$temporary" "$@"; \
+	else rm -f -- "$$temporary"; fi
 
 $(BUILD_DIR)/src/daemon/main.o: CPPFLAGS += \
 	-DMISTER_RUNTIME_VERSION=\"$(MISTER_RUNTIME_VERSION)\"
@@ -154,7 +179,7 @@ $(DAEMON): $(DAEMON_OBJECTS) $(ARCHIVE)
 .PHONY: de25-computer
 de25-computer: $(BUILD_DIR)/tools/de25-computer
 
-$(BUILD_DIR)/tools/de25-computer: tools/de25_computer_client.cpp src/native/de25_computer.cpp src/native/linux/mmio.cpp src/native/de25_computer.hpp src/native/generated/fes_de25_computer.hpp
+$(BUILD_DIR)/tools/de25-computer: tools/de25_computer_client.cpp src/native/de25_computer.cpp src/native/linux/mmio.cpp src/native/de25_computer.hpp src/native/generated/fes_de25_computer.hpp src/native/linux/de25_computer_mmio.hpp
 	@mkdir -p $(dir $@)
 	$(CXX) $(CPPFLAGS) $(CXXFLAGS) tools/de25_computer_client.cpp src/native/de25_computer.cpp src/native/linux/mmio.cpp -o $@
 
@@ -191,16 +216,16 @@ $(BUILD_DIR)/tests/unit/artifacts_test: tests/unit/artifacts_test.cpp \
 		src/native/artifacts.cpp src/native/diagnostic.cpp -o "$@"
 
 $(BUILD_DIR)/tests/unit/core_package_test: tests/unit/core_package_test.cpp \
-		src/native/core_package.cpp src/native/sha256.cpp src/native/artifacts.cpp \
+		src/native/core_package.cpp src/native/core_driver.cpp src/native/sha256.cpp src/native/artifacts.cpp \
 		src/native/diagnostic.cpp
 	@mkdir -p "$(dir $@)"
 	$(CXX) $(TEST_CPPFLAGS) $(CXXFLAGS) tests/unit/core_package_test.cpp \
-		src/native/core_package.cpp src/native/sha256.cpp \
+		src/native/core_package.cpp src/native/core_driver.cpp src/native/sha256.cpp \
 		src/native/artifacts.cpp src/native/diagnostic.cpp -o "$@"
 
-$(BUILD_DIR)/tests/unit/core_composition_test: tests/unit/core_composition_test.cpp src/native/core_composition.cpp src/native/sha256.cpp src/native/artifacts.cpp src/native/diagnostic.cpp
+$(BUILD_DIR)/tests/unit/core_composition_test: tests/unit/core_composition_test.cpp src/native/core_composition.cpp src/native/core_package.cpp src/native/core_driver.cpp src/native/sha256.cpp src/native/artifacts.cpp src/native/diagnostic.cpp src/daemon/json.cpp
 	@mkdir -p "$(dir $@)"
-	$(CXX) $(TEST_CPPFLAGS) $(CXXFLAGS) tests/unit/core_composition_test.cpp src/native/core_composition.cpp src/native/sha256.cpp src/native/artifacts.cpp src/native/diagnostic.cpp -o "$@"
+	$(CXX) $(TEST_CPPFLAGS) $(CXXFLAGS) tests/unit/core_composition_test.cpp src/native/core_composition.cpp src/native/core_package.cpp src/native/core_driver.cpp src/native/sha256.cpp src/native/artifacts.cpp src/native/diagnostic.cpp src/daemon/json.cpp -o "$@"
 
 $(BUILD_DIR)/tests/unit/media_data_test: tests/unit/media_data_test.cpp src/native/media_data.cpp src/native/sha256.cpp src/daemon/json.cpp
 	@mkdir -p "$(dir $@)"
@@ -214,7 +239,7 @@ $(BUILD_DIR)/tests/unit/core_data_test: tests/unit/core_data_test.cpp src/native
 	@mkdir -p "$(dir $@)"
 	$(CXX) $(TEST_CPPFLAGS) $(CXXFLAGS) tests/unit/core_data_test.cpp src/native/core_data.cpp src/native/sha256.cpp -o "$@"
 
-$(BUILD_DIR)/tests/unit/de25_computer_test: tests/unit/de25_computer_test.cpp src/native/de25_computer.cpp
+$(BUILD_DIR)/tests/unit/de25_computer_test: tests/unit/de25_computer_test.cpp src/native/de25_computer.cpp src/native/de25_core_driver.cpp src/native/linux/de25_menu.cpp src/native/artifacts.cpp src/native/diagnostic.cpp
 	@mkdir -p "$(dir $@)"
 	$(CXX) $(TEST_CPPFLAGS) $(CXXFLAGS) $(filter %.cpp,$^) -o "$@"
 
@@ -280,10 +305,11 @@ $(BUILD_DIR)/tests/unit/fpga_manager_test: tests/unit/fpga_manager_test.cpp \
 		src/native/linux/fpga_manager.cpp -o "$@"
 
 $(BUILD_DIR)/tests/unit/mmio_test: tests/unit/mmio_test.cpp \
-		src/native/linux/mmio.cpp
+		src/native/linux/mmio.cpp src/native/de25_pr_control.cpp \
+		src/native/linux/de25_computer_mmio.hpp src/native/linux/de25_pr_mmio.hpp tests/support/de25_pr_endpoint.hpp
 	@mkdir -p "$(dir $@)"
 	$(CXX) $(TEST_CPPFLAGS) -DMISTER_RUNTIME_TESTING $(CXXFLAGS) \
-		tests/unit/mmio_test.cpp src/native/linux/mmio.cpp -o "$@"
+		$(filter %.cpp,$^) -o "$@"
 
 $(BUILD_DIR)/tests/unit/window_driver_test: tests/unit/window_driver_test.cpp \
 		src/native/linux/window_driver.cpp
@@ -303,7 +329,7 @@ $(BUILD_DIR)/tests/unit/native_hardware_test: tests/unit/native_hardware_test.cp
 		src/native/fes_gp.cpp src/native/menu_display.cpp src/native/diagnostic.cpp \
 		src/native/video_recipe.cpp src/native/video.cpp \
 		src/native/hardware.cpp  src/runtime.cpp src/native/linux/menu_window.cpp \
-		src/linux/production_hardware.cpp \
+		src/linux/production_hardware.cpp src/native/de25_core_driver.cpp src/native/de25_computer.cpp src/native/de25_pr_control.cpp src/native/linux/de25_fpga_manager.cpp src/native/linux/de25_menu.cpp \
 		src/native/linux/mmio.cpp src/native/linux/fpga_manager.cpp \
 		src/native/linux/i2c.cpp src/native/linux/input.cpp src/native/linux/window_driver.cpp \
 		src/daemon/json.cpp src/daemon/protocol.cpp
@@ -318,7 +344,7 @@ $(BUILD_DIR)/tests/unit/native_hardware_test: tests/unit/native_hardware_test.cp
 		src/native/fes_gp.cpp src/native/menu_display.cpp src/native/diagnostic.cpp \
 		src/native/video_recipe.cpp src/native/video.cpp \
 		src/native/hardware.cpp  src/runtime.cpp src/native/linux/menu_window.cpp \
-		src/linux/production_hardware.cpp \
+		src/linux/production_hardware.cpp src/native/de25_core_driver.cpp src/native/de25_computer.cpp src/native/de25_pr_control.cpp src/native/linux/de25_fpga_manager.cpp src/native/linux/de25_menu.cpp \
 		src/native/linux/mmio.cpp src/native/linux/fpga_manager.cpp \
 		src/native/linux/i2c.cpp src/native/linux/input.cpp src/native/linux/window_driver.cpp \
 		src/daemon/json.cpp src/daemon/protocol.cpp \
@@ -421,8 +447,8 @@ archive-audit: $(ARCHIVE)
 		exit 1; \
 	}; \
 	member_count="$$(printf '%s\n' "$$actual_members" | sed '/^$$/d' | wc -l | tr -d ' ')"; \
-	[[ "$$member_count" == 25 ]] || { \
-		echo "canonical archive must contain exactly 25 production members" >&2; \
+	[[ "$$member_count" == 29 ]] || { \
+		echo "canonical archive must contain exactly 29 production members" >&2; \
 		exit 1; \
 	}; \
 	archive_list="$$(find "$(BUILD_DIR)" -maxdepth 1 -type f -name '*.a' | sed 's|^.*/||' | LC_ALL=C sort)"; \
@@ -436,7 +462,7 @@ archive-audit: $(ARCHIVE)
 		echo "archive members differ from production objects" >&2; \
 		exit 1; \
 	}; \
-	for required in runtime.o artifacts.o core_composition.o core_data.o media_data.o core_package.o core_driver.o fes_gp.o de25_computer.o de25_pr_control.o \
+	for required in runtime.o artifacts.o core_composition.o core_data.o media_data.o core_package.o core_driver.o fes_gp.o de25_computer.o de25_core_driver.o de25_fpga_manager.o de25_menu.o de25_pr_control.o json.o \
 		diagnostic.o sha256.o input.o hardware.o \
 		fpga_manager.o mmio.o production_hardware.o video_recipe.o \
 		video.o i2c.o linux_input.o; do \
@@ -453,7 +479,7 @@ archive-audit: $(ARCHIVE)
 		else source="$${relative_object%.o}.cpp"; fi; \
 		[[ -f "$$source" ]] || { echo "object has no production source: $$relative_object" >&2; exit 1; }; \
 		case "$$source" in \
-			src/runtime.cpp|src/native/artifacts.cpp|src/native/core_package.cpp|src/native/core_composition.cpp|src/native/core_data.cpp|src/native/media_data.cpp|src/native/ata_disk.cpp|src/native/core_driver.cpp|src/native/fes_gp.cpp|src/native/de25_computer.cpp|src/native/de25_pr_control.cpp|src/native/menu_display.cpp|src/native/linux/menu_window.cpp|src/native/diagnostic.cpp|src/native/sha256.cpp|src/native/input.cpp|src/native/video_recipe.cpp|src/native/video.cpp|src/native/hardware.cpp|src/native/linux/fpga_manager.cpp|src/native/linux/i2c.cpp|src/native/linux/input.cpp|src/native/linux/mmio.cpp|src/native/linux/window_driver.cpp|src/linux/production_hardware.cpp) ;; \
+			src/runtime.cpp|src/daemon/json.cpp|src/native/artifacts.cpp|src/native/core_package.cpp|src/native/core_composition.cpp|src/native/core_data.cpp|src/native/media_data.cpp|src/native/ata_disk.cpp|src/native/core_driver.cpp|src/native/fes_gp.cpp|src/native/de25_computer.cpp|src/native/de25_core_driver.cpp|src/native/de25_pr_control.cpp|src/native/menu_display.cpp|src/native/linux/menu_window.cpp|src/native/linux/de25_menu.cpp|src/native/diagnostic.cpp|src/native/sha256.cpp|src/native/input.cpp|src/native/video_recipe.cpp|src/native/video.cpp|src/native/hardware.cpp|src/native/linux/de25_fpga_manager.cpp|src/native/linux/fpga_manager.cpp|src/native/linux/i2c.cpp|src/native/linux/input.cpp|src/native/linux/mmio.cpp|src/native/linux/window_driver.cpp|src/linux/production_hardware.cpp) ;; \
 			*) echo "archive contains non-production source: $$source" >&2; exit 1 ;; \
 		esac; \
 		compiled_sources+="$$source"$$'\n'; \
@@ -463,7 +489,10 @@ archive-audit: $(ARCHIVE)
 			printf '%s\n' "$${object#"$(BUILD_DIR)/"}"; \
 		fi; \
 	done < <(printf '%s\n' $(LIB_OBJECTS) | LC_ALL=C sort))"; \
-	expected_raw_owners=$$'src/native/artifacts.o\nsrc/native/ata_disk.o\nsrc/native/core_composition.o\nsrc/native/core_data.o\nsrc/native/core_package.o\nsrc/native/diagnostic.o\nsrc/native/hardware.o\nsrc/native/linux/fpga_manager.o\nsrc/native/linux/i2c.o\nsrc/native/linux/linux_input.o\nsrc/native/linux/menu_window.o\nsrc/native/linux/mmio.o\nsrc/native/linux/window_driver.o\nsrc/native/media_data.o'; \
+	expected_raw_owners=$$'src/native/artifacts.o\nsrc/native/ata_disk.o\nsrc/native/core_composition.o\nsrc/native/core_data.o\nsrc/native/core_package.o\nsrc/native/diagnostic.o\nsrc/native/hardware.o\nsrc/native/linux/de25_fpga_manager.o\nsrc/native/linux/de25_menu.o\nsrc/native/linux/fpga_manager.o\nsrc/native/linux/i2c.o\nsrc/native/linux/linux_input.o\nsrc/native/linux/menu_window.o\nsrc/native/linux/mmio.o\nsrc/native/linux/window_driver.o\nsrc/native/media_data.o'; \
+	if ! $(CXX) -dM -E -x c++ /dev/null | grep -Fx '#define __linux__ 1' >/dev/null; then \
+		expected_raw_owners="$$(printf '%s\n' "$$expected_raw_owners" | grep -Fxv 'src/native/linux/de25_menu.o')"; \
+	fi; \
 	[[ "$$raw_owners" == "$$expected_raw_owners" ]] || { \
 		echo "raw I/O ownership differs from the canonical native boundary" >&2; \
 		diff -u <(printf '%s\n' "$$expected_raw_owners") \
@@ -529,6 +558,19 @@ $(BUILD_DIR)/tests/unit/menu_display_test: tests/unit/menu_display_test.cpp src/
 	@mkdir -p "$(dir $@)"
 	$(CXX) $(TEST_CPPFLAGS) $(CXXFLAGS) $(filter %.cpp,$^) -o "$@"
 
+$(BUILD_DIR)/tests/unit/de25_menu_test: tests/unit/de25_menu_test.cpp src/native/linux/de25_menu.cpp src/native/de25_core_driver.cpp src/native/de25_computer.cpp src/native/artifacts.cpp src/native/diagnostic.cpp
+	@mkdir -p "$(dir $@)"
+	$(CXX) $(TEST_CPPFLAGS) $(CXXFLAGS) $(filter %.cpp,$^) -o "$@"
+
 $(BUILD_DIR)/tests/unit/menu_window_test: tests/unit/menu_window_test.cpp src/native/linux/menu_window.cpp
 	@mkdir -p "$(dir $@)"
 	$(CXX) $(TEST_CPPFLAGS) $(CXXFLAGS) $(filter %.cpp,$^) -o "$@"
+
+$(BUILD_DIR)/tests/unit/de25_fpga_manager_test: tests/unit/de25_fpga_manager_test.cpp tests/support/de25_pr_endpoint.hpp src/native/de25_pr_control.cpp src/native/linux/de25_fpga_manager.cpp src/native/linux/mmio.cpp src/native/linux/de25_menu.cpp src/native/core_package.cpp src/native/artifacts.cpp src/native/diagnostic.cpp src/native/sha256.cpp src/daemon/json.cpp
+	@mkdir -p "$(dir $@)"
+	$(CXX) $(TEST_CPPFLAGS) -DMISTER_RUNTIME_TESTING $(CXXFLAGS) $(filter %.cpp,$^) -o "$@"
+
+# Flag changes invalidate production objects and directly compiled tests.
+# Matching flags have no phony prerequisite, so incremental `make -q` works.
+# Concurrent configurations must use separate BUILD_DIRs.
+$(LIB_OBJECTS) $(DAEMON_OBJECTS) $(TEST_BINS): $(FEATURE_INPUT)

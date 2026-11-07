@@ -6,7 +6,7 @@ import subprocess
 import tempfile
 import time
 
-from build import retarget_ram, retarget_tape, load
+from build import load, retarget_ram, retarget_tape
 
 HERE = Path(__file__).resolve().parent
 ROOT = HERE.parents[2]
@@ -47,19 +47,31 @@ def prepare(bench, output=None):
 
 
 def run(bench):
+    if bench == "standard-expansion":
+        from standard_expansion_sim import run as expansion
+        expansion()
+        return
+    if bench == "standard":
+        run_standard()
+        return
     if bench == "board":
         run_board()
         return
     output, sources = prepare(bench)
+    # These benches drive top-level pins and only read internal RTL state.
+    # Writable internal visibility needlessly makes every signal an input to eval.
+    observers = output / "read-only-observers.vlt"
+    observers.write_text('`verilator_config\npublic_flat_rd -module "*" -var "*"\n')
     parameters = ["-GBUILD_ID=128'h00112233445566778899aabbccddeeff"] if bench == "endpoint" else []
     testbench = HERE / ("endpoint_tb.cpp" if bench == "endpoint" else "computer_tb.cpp")
     subprocess.run(["verilator", "--cc", "--exe", "--build", "-j", "2",
-                    "--public-flat-rw", "-O3", "--top-module", "fes_de25_computer",
+                    str(observers), "-O3", "--top-module", "fes_de25_computer",
                     "-Wno-UNOPTFLAT", "-Wno-CASEINCOMPLETE", "-Wno-WIDTHTRUNC",
                     "-Wno-WIDTHEXPAND", "-Wno-PINCONNECTEMPTY", "-Wno-IMPLICITSTATIC",
                     "-Wno-CASEX", "-I" + str(HERE), "-I" + str(HERE / "generated"),
                     "-I" + str(COMMON / "generated"), "-I" + str(ZX81), "-I" + str(Z80),
-                    "-CFLAGS", "-O2 -I" + str(output) + " -I" + str(HERE) + " -I" + str(HERE / "generated"),
+                    "-MAKEFLAGS", "OPT_FAST=-O3",
+                    "-CFLAGS", "-O3 -I" + str(output) + " -I" + str(HERE) + " -I" + str(HERE / "generated"),
                     "--Mdir", str(output), *parameters, *map(str, sources), str(testbench)],
                    cwd=ROOT, check=True)
     started = time.monotonic()
@@ -83,11 +95,37 @@ def run_board():
     subprocess.run([str(output / "Vfes_de25_zx81_board")], cwd=output, check=True)
 
 
+def run_standard():
+    output, sources = prepare("standard")
+    scanout = HERE.parent / "scanout"
+    display = load(HERE.parent / "display/build.py", "standard_session_display_ram")
+    reader = output / "fes_menu_reader_de25.v"
+    reader.write_bytes(display.retarget_menu_ram((ROOT / "cores/fes-menu/rtl/fes_menu_reader.v").read_bytes())[0])
+    # DI; marker=5a at5000; continuously increment5001 without firmware services.
+    program = bytes.fromhex("f3 31 ff 7f 3e 5a 32 00 50 3a 01 50 3c 32 01 50 c3 09 00")
+    (output / "standard-session-rom.hex").write_text("".join(f"{b:02x}\n" for b in program + bytes(8192-len(program))))
+    sources += [HERE / "fes_de25_zx81_standard.v", HERE / "standard_session_harness.v",
+        ZX81 / "fes_zx81_core.v", ZX81 / "zx81_video_720p.v",
+        scanout / "fes_de25_session_display.v", scanout / "fes_de25_scanout.v",
+        COMMON / "rtl/fes_display_plane.v", COMMON / "rtl/fes_display_cdc.v",
+        ROOT / "cores/fes-menu/rtl/fes_menu_control.v", ROOT / "cores/fes-menu/rtl/fes_menu_video.v", reader]
+    waivers = ("UNUSEDSIGNAL", "UNUSEDPARAM", "UNOPTFLAT", "CASEINCOMPLETE", "WIDTHTRUNC",
+        "WIDTHEXPAND", "SYNCASYNCNET", "PINCONNECTEMPTY", "DECLFILENAME", "IMPLICITSTATIC", "VARHIDDEN", "CASEX", "BLKSEQ")
+    subprocess.run(["verilator", "--cc", "--exe", "--build", "-j", "2", "--public-flat-rw",
+        "-O3", "-Wall", *["-Wno-" + name for name in waivers],
+        "--top-module", "fes_de25_standard_session_harness", "--Mdir", str(output),
+        "-I" + str(HERE), "-I" + str(COMMON / "generated"), "-I" + str(ZX81),
+        "-I" + str(Z80), "-I" + str(scanout),
+        "-CFLAGS", "-O2 -DFES_DE25_STANDARD_CORE -I" + str(scanout),
+        *map(str, sources), str(scanout / "session_tb.cpp")], cwd=ROOT, check=True)
+    subprocess.run([str(output / "Vfes_de25_standard_session_harness")], cwd=output, check=True)
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--bench", choices=("all", "endpoint", "machine", "board"), default="all")
+    parser.add_argument("--bench", choices=("all", "endpoint", "machine", "board", "standard", "standard-expansion"), default="all")
     selected = parser.parse_args().bench
-    for bench in (("endpoint", "machine", "board") if selected == "all" else (selected,)):
+    for bench in (("endpoint", "machine", "board", "standard", "standard-expansion") if selected == "all" else (selected,)):
         run(bench)
 
 

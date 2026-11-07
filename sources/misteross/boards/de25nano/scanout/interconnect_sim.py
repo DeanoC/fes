@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import argparse
 import hashlib
+import importlib.util
 import json
 from pathlib import Path
 import re
@@ -15,9 +16,9 @@ import xml.etree.ElementTree as ET
 TOP = "fes_de25_scanout_interconnect_test"
 MASTER = "subsys_periph_fes_scanout_mem_"
 SLAVE = "subsys_hps_f2sdram_adapter_axi4_sub_"
-CASES = ["reset_disabled", "atomic_snapshot", "complete_frames_and_slot_reuse",
+CASES = ["reset_disabled", "atomic_snapshot", "complete_frames_and_slot_reuse", "linux_iova_last_8mib", "bounded_transaction_latency",
          "stop_drains_accepted_reads", "pixel_clock_stall_preserves_responses",
-         "axi_error_crosses_cdc", "clock_fault_is_sticky"]
+         "bounded_control_during_pixel_clock_loss", "axi_error_crosses_cdc", "clock_fault_is_sticky"]
 
 # This deliberately models only the hard RAM's reviewed noncollision storage
 # contract. All generated FIFO pointers, synchronizers, credits and routing stay
@@ -64,7 +65,7 @@ module altera_syncram #(
             widthad_a!=widthad_b || (1<<widthad_a)!=numwords_a || width_byteena_a!=1)
             $fatal(1,"unsupported modeled RAM parameter contract");
         if (!((numwords_a==4 && (width_a==47 || width_a==35 || width_a==184 || width_a==8)) ||
-              (numwords_a==32 && width_a==131)))
+              (numwords_a==256 && width_a==131)))
             $fatal(1,"unsupported modeled RAM shape");
     end
     // BYPASS means the clock-enable pins do not gate either used clock.
@@ -141,7 +142,7 @@ def guard_elaborated_ram(xml_path):
     modules = {m.get("name"): m for m in root.findall(".//module")}
     expected = {}
     for bridge, shapes in (("fes_ctrl_cdc", ((47, 4), (35, 4))),
-                           ("fes_mem_cdc", ((184, 4), (131, 32)))):
+                           ("fes_mem_cdc", ((184, 4), (131, 256)))):
         for role, shape in zip(("cmd", "rsp"), shapes):
             expected[f"{TOP}.periph.{bridge}.{bridge}.{role}_fifo.my_altera_avalon_dc_fifo_{role}_fifo.altera_syncram_component"] = shape
     expected[TOP + ".ram_contract_test"] = (8, 4)
@@ -261,7 +262,7 @@ def source_closure(project):
         cdc_instances[instance] = {"kind": metadata.get("kind"), "version": metadata.get("version"),
                                    "module": module, "source": str(bodies[0][0].relative_to(project))}
     endpoint = definitions.get("peripheral_subsys_fes_scanout", [])
-    if len(endpoint) != 1 or not re.search(r"\bfes_de25_scanout\s+fes_scanout\s*\(", files[endpoint[0][0]][1]):
+    if len(endpoint) != 1 or not re.search(r"\bfes_de25_scanout\s*#\s*\(\s*\.BUILD_ID\s*\(\s*BUILD_ID\s*\)\s*\)\s+fes_scanout\s*\(", files[endpoint[0][0]][1]):
         raise ValueError("unsupported generated endpoint wrapper")
     sources = {p: files[p][0] for p in selected}
     sources[sopc] = sopc_data
@@ -310,7 +311,7 @@ def wrapper(periph_source, memory_source, memory_module):
     for role, spec in axi.items():
         if mem_seen.get(SLAVE + role) != spec:
             raise ValueError(f"AXI256 port mismatch: {role}")
-    external = ["input wire clk_mem, clk_pixel, reset_n, clock_fault", "input wire [16:0] address",
+    external = ["input wire clk_mem, clk_pixel, reset_n, clock_fault, display_ready", "input wire [16:0] address",
                 "input wire read, write", "input wire [3:0] byteenable", "input wire [31:0] writedata",
                 "output wire [31:0] readdata", "output wire readdatavalid, waitrequest",
                 "output wire [23:0] video_rgb", "output wire video_de, video_hs, video_vs",
@@ -355,6 +356,11 @@ def wrapper(periph_source, memory_source, memory_module):
                 raise ValueError("domain reset port changed: " + name)
             value = "reset_n"
             handled.add("pixel_reset" if name == "fes_scanout_pixel_reset_reset_n" else "system_reset")
+        elif name == "fes_scanout_ready_export":
+            if (direction, width) != ("input", ""):
+                raise ValueError("display ready port changed")
+            value = "display_ready"
+            handled.add("display_ready")
         elif name == "fes_scanout_clock_fault_export":
             if (direction, width) != ("input", ""):
                 raise ValueError("clock fault port changed")
@@ -373,7 +379,7 @@ def wrapper(periph_source, memory_source, memory_module):
         else:
             value = ""
         pconnections.append(f" .{name}({value})")
-    if handled != {"pixel", "pixel_reset", "system_reset", "fault", "rgb", "de", "hs", "vs"}:
+    if handled != {"pixel", "pixel_reset", "system_reset", "fault", "display_ready", "rgb", "de", "hs", "vs"}:
         raise ValueError(f"missing scanout conduits: {handled}")
     if not re.search(r"\bperipheral_subsys_fes_scanout\s+fes_scanout\s*\(", uncomment(periph_source)):
         raise ValueError("unsupported generated endpoint instance identity")
@@ -438,6 +444,9 @@ def main(argv=None):
     parser.add_argument("--project", type=Path, required=True)
     parser.add_argument("--output", type=Path, required=True, help="new private output; never the producer project")
     parser.add_argument("--verilator", default="verilator")
+    mode = parser.add_mutually_exclusive_group()
+    mode.add_argument("--startup", action="store_true", help="finite startup phases using the actual parent reset controllers")
+    mode.add_argument("--board", action="store_true", help="selected board and generated transport with queued reads across clock loss")
     args = parser.parse_args(argv)
     project = args.project.resolve(strict=True)
     output = args.output.resolve()
@@ -453,6 +462,41 @@ def main(argv=None):
                "not_modeled": ["HPS hard block", "MPFE/TBU", "SMMU translation", "firewall", "DDR controller",
                                "physical memory", "physical clock monitor", "reset/boot allocation epoch"]}
     try:
+        startup_model = None
+        cases = CASES
+        if args.startup or args.board:
+            startup_path = Path(__file__).with_name("startup.py").resolve(strict=True)
+            startup_data = startup_path.read_bytes()
+            spec = importlib.util.spec_from_file_location("scanout_startup", startup_path)
+            startup = importlib.util.module_from_spec(spec)
+            spec.loader.exec_module(startup)
+            startup_model = startup.Model(project)
+            cases = startup.CASES
+            receipt["classification"] = "finite-generated-reset-startup-control-transport-with-modeled-m20k-storage"
+            receipt["coverage"] = "five actual parent reset controllers, generated peripheral/CDC/AXI transport; finite clock phases and early control requests"
+            receipt["clock_model"]["pixel_initial_phase_units"] = list(startup.PHASES)
+            receipt["not_modeled"] += ["whole reset-domain coordination", "outer HPS/JTAG requesters", "physical reset/metastability behavior"]
+            receipt["startup"] = startup_model.metadata()
+            receipt["startup"]["helper_sha256"] = sha(startup_data)
+            for name, data in startup_model.inputs.items():
+                retained = output / "parent-reset-inputs" / name
+                retained.parent.mkdir(parents=True, exist_ok=True)
+                retained.write_bytes(data)
+        if args.board:
+            board_path = Path(__file__).with_name("board_composition.py").resolve(strict=True)
+            board_data = board_path.read_bytes()
+            spec = importlib.util.spec_from_file_location("scanout_board_composition", board_path)
+            board_model = importlib.util.module_from_spec(spec)
+            spec.loader.exec_module(board_model)
+            cases = board_model.CASES
+            receipt["classification"] = "selected-board-generated-reset-transport-composition-with-modeled-m20k-storage"
+            receipt["coverage"] = "actual selected board, five parent reset controllers, generated CDC/AXI transport; queued-read clock-loss cases"
+            receipt["clock_model"].update(reference_hz=50000000, half_period_units={"system": 297, "pixel": 400, "reference": 594},
+                                          pixel_initial_phase_units=17, queued_clock_phases=[1, 17, 296])
+            receipt["startup"].pop("release_delay_system_cycles")
+            receipt["startup"]["scanout_source"] = "actual selected board first_lock_seen output"
+            receipt["board_model"] = {"helper_sha256": sha(board_data), "boundaries": "PLL clock/lock and HDMI completion only"}
+            (output / board_path.name).write_bytes(board_data)
         generation_path = project.parent / "generation.json"
         generation_data = generation_path.read_bytes()
         generation = json.loads(generation_data)
@@ -460,16 +504,38 @@ def main(argv=None):
             raise ValueError("completed verified scanout IP-generation receipt is required")
         receipt["generation_sha256"] = sha(generation_data)
         receipt["generation_scanout"] = generation["scanout"]
+        build_id = generation["scanout"]["build_identity"]["build_id"]
+        if not isinstance(build_id, str) or not re.fullmatch(r"[0-9a-f]{32}", build_id) or int(build_id, 16) == 0:
+            raise ValueError("missing verified nonzero endpoint build identity")
+        build_words = [(int(build_id, 16) >> (32 * word)) & 0xffffffff for word in range(4)]
+        identity_flags = " ".join(f"-DEXPECTED_BUILD_ID_{word}=0x{value:08x}U" for word, value in enumerate(build_words))
         qips, periph, memory, module, sources, cdc_instances = source_closure(project)
+        if startup_model:
+            for name in startup.GENERICS:
+                if sources.get((project / name).resolve()) != startup_model.inputs[name]:
+                    raise ValueError("parent reset controller source differs from the selected transport closure: " + name)
+        if args.board:
+            board_inputs_data = (project.parent / "inputs.json").read_bytes()
+            board_inputs = json.loads(board_inputs_data)
+            board_hashes = board_inputs.get("scanout", {}).get("source_sha256", {})
+            reset_hashes = board_inputs.get("source_sha256", {})
+            for name in board_model.SOURCES:
+                path = (project / name).resolve(strict=True)
+                path.relative_to(project)
+                if path in sources:
+                    raise ValueError("board source already selected by transport closure: " + name)
+                data = path.read_bytes()
+                expected = (reset_hashes if path.name == "fes_de25_top_reset.v" else board_hashes).get(path.name)
+                if sha(data) != expected:
+                    raise ValueError("selected board source differs from the verified input receipt: " + name)
+                sources[path] = data
         ram_sources, conditional_ram_sources = guard_ram_primitives(sources)
         ram_path = output / "modeled_m20k_storage.v"
         ram_path.write_text(RAM_MODEL)
         receipt["ram_storage_model"] = {"classification": "explicit noncollision storage model; not a vendor primitive model",
             "sha256": sha(ram_path.read_bytes()), "guarded_generated_sources": [str(p.relative_to(project)) for p in ram_sources],
             "conditional_primitive_sources_proven_unelaborated": [str(p.relative_to(project)) for p in conditional_ram_sources],
-            "actual_shapes": [{"width": 47, "depth": 4}, {"width": 35, "depth": 4},
-                              {"width": 184, "depth": 4}, {"width": 131, "depth": 32}],
-            "self_test": "reset_disabled case checks independent clocks, address latency, unregistered output, write enable and BYPASS clock enables",
+            "self_test": "first reported case checks independent clocks, address latency, unregistered output, write enable and BYPASS clock enables",
             "runtime_guards": ["FIFO RAM-to-output-stage valid transfer never consumes an unwritten RAM word",
                                "FIFO never overwrites its live unread RAM head; buffered output is separate"],
             "unproven": ["mixed-port same-address collision behavior (vendor default DONT_CARE)",
@@ -482,6 +548,8 @@ def main(argv=None):
         receipt["cdc_instances"] = cdc_instances
         inputs = project.parent / "inputs.json"
         inputs_data = inputs.read_bytes()
+        if args.board and inputs_data != board_inputs_data:
+            raise ValueError("board input receipt changed during source selection")
         receipt["build_inputs_sha256"] = sha(inputs_data)
         receipt["build_inputs"] = json.loads(inputs_data)
         for path, data in sources.items():
@@ -489,13 +557,24 @@ def main(argv=None):
             copy.parent.mkdir(parents=True, exist_ok=True)
             copy.write_bytes(data)
         wrapper_path = output / (TOP + ".v")
-        wrapper_path.write_text(wrapper(sources[periph].decode(), sources[memory].decode(), module))
+        wrapper_source = wrapper(sources[periph].decode(), sources[memory].decode(), module)
+        if startup_model:
+            wrapper_source = startup_model.wrapper(wrapper_source)
+        if args.board:
+            wrapper_source = board_model.wrapper(wrapper_source)
+        wrapper_path.write_text(wrapper_source)
         receipt["wrapper_sha256"] = sha(wrapper_path.read_bytes())
         bench = Path(__file__).with_name("interconnect_tb.cpp").resolve(strict=True)
+        bench_sources = {bench: bench.read_bytes()}
+        if startup_model:
+            bench = bench.with_name("board_interconnect_tb.cpp" if args.board else "startup_tb.cpp").resolve(strict=True)
+            bench_sources[bench] = bench.read_bytes()
         bench_data = bench.read_bytes()
         bench_copy = output / bench.name
-        bench_copy.write_bytes(bench_data)
+        for path, data in bench_sources.items():
+            (output / path.name).write_bytes(data)
         receipt["bench_sha256"] = sha(bench_data)
+        receipt["bench_source_sha256"] = {path.name: sha(data) for path, data in bench_sources.items()}
         receipt["helper_sha256"] = sha(Path(__file__).read_bytes())
         verilator = shutil.which(args.verilator)
         if not verilator:
@@ -504,16 +583,25 @@ def main(argv=None):
         includes = sorted({str((output / "sources" / p.relative_to(project)).parent) for p in sources})
         rtl = sorted(str(output / "sources" / p.relative_to(project)) for p in sources if p.suffix in (".v", ".sv"))
         rtl_args = [*("-I" + p for p in includes), str(wrapper_path), str(ram_path), *rtl]
+        if args.board:
+            boundary_path = output / "modeled_board_boundaries.v"
+            boundary_path.write_text(board_model.IO_MODEL)
+            receipt["board_model"]["boundary_sha256"] = sha(boundary_path.read_bytes())
+            rtl_args.append(str(boundary_path))
         xml_path = output / "elaboration.xml"
         elaborate = [verilator, "--xml-only", "--xml-output", str(xml_path), "-Wno-fatal", "--assert", "--top-module", TOP, *rtl_args]
         receipt["elaboration_command"] = elaborate
         with (output / "elaboration.log").open("w") as log:
             subprocess.run(elaborate, check=True, stdout=log, stderr=subprocess.STDOUT)
-        receipt["ram_storage_model"]["actual_elaborated_cells"] = guard_elaborated_ram(xml_path)
+        cells = guard_elaborated_ram(xml_path)
+        receipt["ram_storage_model"]["actual_elaborated_cells"] = cells
+        receipt["ram_storage_model"]["actual_shapes"] = [
+            {"width": cell["parameters"]["width_a"], "depth": cell["parameters"]["numwords_a"]}
+            for cell in cells if cell["hierarchy"] != TOP + ".ram_contract_test"]
         receipt["elaboration_sha256"] = sha(xml_path.read_bytes())
         command = [verilator, "--cc", "--exe", "--build", "-j", "2", "-O2", "-Wno-fatal", "--assert",
                    "--top-module", TOP, "--Mdir", str(output / "obj"),
-                   "-CFLAGS", "-I" + str(output / "sources/fes_mailbox"),
+                   "-CFLAGS", "-I" + str(output / "sources/fes_mailbox") + " " + identity_flags,
                    *rtl_args, str(bench_copy)]
         receipt["build_command"] = command
         with (output / "build.log").open("w") as log:
@@ -523,7 +611,7 @@ def main(argv=None):
         with (output / "simulation.log").open("w") as log:
             subprocess.run([str(executable)], check=True, stdout=log, stderr=subprocess.STDOUT)
         receipt["cases"] = [json.loads(line) for line in (output / "simulation.log").read_text().splitlines() if line.startswith("{")]
-        if [c.get("case") for c in receipt["cases"]] != CASES or not all(c.get("status") == "pass" for c in receipt["cases"]):
+        if [c.get("case") for c in receipt["cases"]] != cases or not all(c.get("status") == "pass" for c in receipt["cases"]):
             raise ValueError("simulation did not report every required case exactly once in order")
         if receipt["cases"][0].get("ram_storage_self_test_passed") is not True:
             raise ValueError("explicit RAM storage model contract self-test did not pass")
@@ -533,8 +621,14 @@ def main(argv=None):
             raise ValueError("producer inputs changed during simulation")
         if generation_path.read_bytes() != generation_data:
             raise ValueError("producer generation receipt changed during simulation")
-        if bench.read_bytes() != bench_data or sha(Path(__file__).read_bytes()) != receipt["helper_sha256"]:
+        if any(path.read_bytes() != data for path, data in bench_sources.items()) or sha(Path(__file__).read_bytes()) != receipt["helper_sha256"]:
             raise ValueError("simulation helper/bench source changed during simulation")
+        if startup_model:
+            startup_model.verify()
+            if startup_path.read_bytes() != startup_data:
+                raise ValueError("startup model helper changed during simulation")
+        if args.board and board_path.read_bytes() != board_data:
+            raise ValueError("board composition helper changed during simulation")
         receipt["status"] = "pass"
     except (OSError, ValueError, ET.ParseError, subprocess.CalledProcessError) as error:
         receipt["error"] = str(error)

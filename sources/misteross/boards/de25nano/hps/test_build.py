@@ -501,6 +501,76 @@ class HpsBuildTests(unittest.TestCase):
         recorded = json.loads((output / "inputs.json").read_text())
         self.assertEqual(recorded["vendor_hps_emif_parameters"][EMIF], inventory)
 
+    def scanout_handoff(self):
+        tree = handoff_tree()
+        root = tree.getroot()
+        for item in list(root):
+            if item.tag == "module" and item.get("path") == "subsys_periph.fes_ddr_probe":
+                root.remove(item)
+            elif item.tag == "connection" and any(
+                    name in str(item.attrib) for name in ("fes_ddr_probe", "ext_hps_f2sdram_master")):
+                root.remove(item)
+        route = ET.SubElement(root, "connection", {"kind": "avalon",
+            "start": "subsys_periph_fes_mem_cdc.m0", "end": "subsys_hps_f2sdram_adapter.axi4_sub"})
+        ET.SubElement(ET.SubElement(route, "parameter", {"name": "baseAddress"}), "value").text = "0"
+        address = root.find("connection[@start='subsys_hps_agilex_hps.lwhps2fpga']/parameter/value")
+        mapping = ET.fromstring(address.text)
+        mapping.remove(mapping.find("slave[@name='subsys_periph.fes_ddr_probe.avs']"))
+        ET.SubElement(mapping, "slave", {"name": "subsys_periph.fes_scanout_guard.avs", "start": "0x10200", "end": "0x10300"})
+        address.text = ET.tostring(mapping, encoding="unicode")
+        for kind, start, end in (("clock", "clk_100.out_clk", "subsys_hps_f2sdram_adapter.clock"),
+                                 ("reset", "rst_in.out_reset", "subsys_hps_f2sdram_adapter.reset"),
+                                 ("clock", "clk_100.out_clk", "subsys_hps_agilex_hps.f2sdram_axi_clock"),
+                                 ("reset", "rst_in.out_reset", "subsys_hps_agilex_hps.f2sdram_axi_reset")):
+            connection = ET.SubElement(root, "connection", {"kind": kind, "start": start, "end": end})
+            if kind == "clock":
+                ET.SubElement(ET.SubElement(connection, "parameter", {"name": "clockRateSysInfo"}), "value").text = "100000000"
+        return tree
+
+    def test_scanout_only_profile_requires_exclusive_actual_routes_and_removes_probe_window(self):
+        project = self.root / "isolated"
+        self.write_handoff(project, self.scanout_handoff())
+        record = BUILD.verify_scanout_memory_handoff(project)
+        self.assertEqual(record["master_count"], 1)
+        self.assertEqual(record["master"], "subsys_periph_fes_mem_cdc.m0")
+        self.assertFalse(any('fes_ddr_probe' in r['name'] for r in record['peripheral_slave_map']))
+        for fault in ("extra-master", "duplicate", "missing", "wrong-base", "direct-hps", "probe-instance", "debug-instance", "probe-map", "clock-rate", "missing-reset"):
+            tree = self.scanout_handoff(); root = tree.getroot()
+            route = root.find("connection[@start='subsys_periph_fes_mem_cdc.m0']")
+            if fault in ("extra-master", "duplicate"):
+                extra = copy.deepcopy(route)
+                if fault == "extra-master": extra.set("start", "unexpected.master")
+                root.append(extra)
+            elif fault == "missing": root.remove(route)
+            elif fault == "wrong-base": route.find("parameter/value").text = "0x1000"
+            elif fault == "direct-hps":
+                ET.SubElement(root, "connection", {"kind": "avalon", "start": "bypass.master", "end": "subsys_hps_agilex_hps.f2sdram1"})
+            elif fault == "clock-rate":
+                root.find("connection[@end='subsys_hps_agilex_hps.f2sdram_axi_clock']/parameter/value").text = "50000000"
+            elif fault == "missing-reset":
+                root.remove(root.find("connection[@end='subsys_hps_agilex_hps.f2sdram_axi_reset']"))
+            elif fault in ("probe-instance", "debug-instance"):
+                ET.SubElement(root, "module", {"path": "subsys_periph.fes_ddr_probe" if fault == "probe-instance" else "subsys_debug.hps_f2sdram"})
+            else:
+                address = root.find("connection[@start='subsys_hps_agilex_hps.lwhps2fpga']/parameter/value")
+                mapping = ET.fromstring(address.text)
+                ET.SubElement(mapping, "slave", {"name": "subsys_periph.fes_ddr_probe.avs", "start": "0x10100", "end": "0x10180"})
+                address.text = ET.tostring(mapping, encoding="unicode")
+            self.write_handoff(project, tree)
+            with self.subTest(fault=fault), self.assertRaisesRegex(ValueError, "scanout-only"):
+                BUILD.verify_scanout_memory_handoff(project)
+
+    def test_memory_profile_selection_does_not_relax_default_probe_requirements(self):
+        project = self.root / "profile"
+        self.write_handoff(project, self.scanout_handoff())
+        with self.assertRaisesRegex(ValueError, "DDR probe"):
+            BUILD.verify_memory_handoff(project, {})
+        for inputs in ({"f2sdram_master_profile": "unknown"}, {"f2sdram_master_profile": "scanout-only"},
+                       {"scanout": {"linux_dma": {"master_ownership": "scanout-only"}}}):
+            with self.assertRaises(ValueError): BUILD.verify_memory_handoff(project, inputs)
+        inputs = {"f2sdram_master_profile": "scanout-only", "scanout": {"linux_dma": {"master_ownership": "scanout-only"}}}
+        self.assertEqual(BUILD.verify_memory_handoff(project, inputs)[0], "scanout_memory")
+
     def test_probe_preparation_checks_all_peripheral_slaves_and_exports_response_master(self):
         archive, selected, files = self.archive()
         output = self.prepare(archive, selected)
@@ -553,6 +623,93 @@ class HpsBuildTests(unittest.TestCase):
             self.write_handoff(project, tree)
             with self.subTest(fault=fault), self.assertRaisesRegex(ValueError, "DDR probe"):
                 BUILD.verify_probe_handoff(project)
+
+    def test_native_f2h_disable_is_limited_to_the_exact_canonical_menu_profile(self):
+        smmu = {HPS: {"f2sdram_SMMU": {"before": "false", "after": "true"}}}
+        self.assertEqual(BUILD.reviewed_hps_parameter_changes({}), {})
+        maintenance = {"allowed_hps_parameter_changes": smmu}
+        self.assertEqual(BUILD.reviewed_hps_parameter_changes(maintenance), smmu)
+        managed = copy.deepcopy(maintenance)
+        managed["scanout"] = {"managed_fabric": "managed-scanout-initiators-v3",
+            "build_identity_scheme": "canonical-functional-record-v2", "hps_initialization": "HPS FIRST"}
+        managed["f2sdram_master_profile"] = "scanout-only"
+        managed["allowed_hps_parameter_changes"][HPS]["f2s_data_width"] = {"before": "256", "after": "0"}
+        self.assertEqual(BUILD.reviewed_hps_parameter_changes(managed), managed["allowed_hps_parameter_changes"])
+        cases = []
+        for key, value in (("managed_fabric", "managed-scanout-initiators-v2"),
+                           ("build_identity_scheme", "diagnostic-source-profile"),
+                           ("hps_initialization", "FPGA FIRST")):
+            changed = copy.deepcopy(managed); changed["scanout"][key] = value; cases.append(changed)
+        for key in ("scanout", "f2sdram_master_profile", "allowed_hps_parameter_changes"):
+            changed = copy.deepcopy(managed); changed.pop(key); cases.append(changed)
+        for parameter, value in (("f2s_data_width", {"before": "256", "after": "128"}),
+                                 ("H2F_Width", {"before": "128", "after": "64"}),
+                                 ("f2sdram_data_width", {"before": "256", "after": "0"})):
+            changed = copy.deepcopy(managed); changed["allowed_hps_parameter_changes"][HPS][parameter] = value; cases.append(changed)
+        for changed in cases:
+            with self.subTest(profile=changed), self.assertRaises(ValueError):
+                BUILD.reviewed_hps_parameter_changes(changed)
+
+    def test_standard_board_uses_the_exact_managed_hps_changes_without_package_admission(self):
+        build_id = "00112233445566778899aabbccddeeff"
+        selected = {"f2sdram_master_profile": "scanout-only", "scanout": {
+            "managed_fabric": "managed-scanout-initiators-v3", "hps_initialization": "HPS FIRST",
+            "build_identity_scheme": "standard-board-integration-source-profile", "build_id": build_id},
+            "standard_zx81": {"scope": "standard-core-board-integration", "runtime_admission": "not-qualified",
+                "computer_offset": 0x10300, "expansion_socket": False, "build_id": build_id},
+            "allowed_hps_parameter_changes": {HPS: {
+                "f2sdram_SMMU": {"before": "false", "after": "true"},
+                "f2s_data_width": {"before": "256", "after": "0"}}}}
+        self.assertEqual(BUILD.reviewed_hps_parameter_changes(selected), selected["allowed_hps_parameter_changes"])
+        pr = copy.deepcopy(selected)
+        pr["scanout"]["build_identity_scheme"] = "standard-pr-computer-v1"
+        pr["standard_zx81"]["expansion_socket"] = True
+        self.assertEqual(BUILD.reviewed_hps_parameter_changes(pr), selected["allowed_hps_parameter_changes"])
+        for value in (False, None, 1):
+            changed = copy.deepcopy(pr); changed["standard_zx81"]["expansion_socket"] = value
+            with self.subTest(pr_socket=value), self.assertRaises(ValueError):
+                BUILD.reviewed_hps_parameter_changes(changed)
+        for key, value in (("scope", "package"), ("runtime_admission", "qualified"),
+                           ("computer_offset", 0x10200), ("expansion_socket", True),
+                           ("build_id", "f" * 32), ("build_id", "0" * 32)):
+            changed = copy.deepcopy(selected); changed["standard_zx81"][key] = value
+            with self.subTest(key=key, value=value), self.assertRaises(ValueError):
+                BUILD.reviewed_hps_parameter_changes(changed)
+        for parameter in ("H2F_Width", "emif_frequency"):
+            changed = copy.deepcopy(selected)
+            changed["allowed_hps_parameter_changes"][HPS][parameter] = {"before": "128", "after": "64"}
+            with self.subTest(parameter=parameter), self.assertRaises(ValueError):
+                BUILD.reviewed_hps_parameter_changes(changed)
+
+    def bram_inputs(self):
+        return {"f2sdram_master_profile": "bram-computer",
+            "computer": {"managed_fabric": "managed-bram-computer-initiators-v1",
+                "build_identity_scheme": "canonical-functional-record-v2", "hps_initialization": "HPS FIRST",
+                "managed_verifier_sha256": BUILD.digest(HERE.parent / "zx81-hps/managed_bram.py")},
+            "allowed_hps_parameter_changes": {HPS: {
+                "f2s_data_width": {"before": "256", "after": "0"},
+                "f2sdram_data_width": {"before": "256", "after": "0"},
+                "Rst_hps_warm_en": {"before": "false", "after": "true"}}}}
+
+    def test_bram_parameter_profile_requires_exact_selection_and_three_changes(self):
+        selected = self.bram_inputs()
+        self.assertEqual(BUILD.reviewed_hps_parameter_changes(selected), selected["allowed_hps_parameter_changes"])
+        for key, value in (("hps_initialization", "AFTER INIT_DONE"),
+                           ("build_identity_scheme", "diagnostic-source-profile"),
+                           ("managed_fabric", "unreviewed")):
+            changed = copy.deepcopy(selected); changed["computer"][key] = value
+            with self.subTest(key=key), self.assertRaises(ValueError):BUILD.reviewed_hps_parameter_changes(changed)
+        changed = copy.deepcopy(selected); changed["allowed_hps_parameter_changes"][HPS]["H2F_Width"] = {"before":"128","after":"64"}
+        with self.assertRaisesRegex(ValueError, "unsupported expected"):BUILD.reviewed_hps_parameter_changes(changed)
+        changed = copy.deepcopy(selected); changed["scanout"] = {}
+        with self.assertRaisesRegex(ValueError, "BRAM computer profile"):BUILD.reviewed_hps_parameter_changes(changed)
+
+    def test_bram_verifier_substitution_is_refused_before_execution(self):
+        selected = self.bram_inputs(); selected["computer"]["managed_verifier_sha256"] = "0" * 64
+        with mock.patch.object(BUILD.importlib.util, "spec_from_file_location") as load:
+            with self.assertRaisesRegex(ValueError, "differs from captured source"):
+                BUILD.reviewed_hps_parameter_changes(selected)
+        load.assert_not_called()
 
     def test_generation_rejects_changed_original_hps_and_nested_ddr_parameters(self):
         cases = ((HPS, "H2F_Width", "64"), (EMIF, "MEM_CHANNEL_CS_WIDTH", "2"))

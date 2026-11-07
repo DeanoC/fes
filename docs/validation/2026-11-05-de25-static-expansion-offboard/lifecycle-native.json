@@ -1,0 +1,22 @@
+{
+  "source_revision": "a7ef20a9a4837d68a3e441caafc4f541c27cdf51",
+  "status": "passed",
+  "classification": "Native host production archive/daemon and programmer plus PR client unit suites",
+  "archive_audit": "passed, same production object/file-I/O boundaries",
+  "programmer_and_PR_suites": "passed",
+  "four_overlay_formats_unchanged": true,
+  "files": {
+    "de25_fpga_manager_test.log": "d9b7e925ba2912af4f4f32e4974f6b8d7c381329afbbeb993da83f87917702bb",
+    "de25_pr_control_test.log": "59e0ae2b9dd07b4dddc656105a0b6336e374b202f2f6d746290fd73317ecb389",
+    "firmware.dtbo": "70b9d187c14899aed670d54d1f168a8f3490bb662bf825bbb6e53770bf27d445",
+    "allocated.dtbo": "6f23fc46db9ecaf90a78cf6a6d07b071c21e2ad51053ad524eee65b65c05a59d",
+    "static-base.dtbo": "6a94729f8be47b6d02ac0efbad1018e37dc36dc18c8ef9fdbf0361016b8f2423",
+    "static-persona.dtbo": "8e26d409e02a0b0e592a36877ef8d5ff9fe45bccecb93ae679dd995d0b22d667",
+    "build/tests/unit/de25_fpga_manager_test": "b43219a0dc83829e51e5cdc762fd145e8227b99891d27322ba3a123b71cc7487",
+    "build/tests/unit/de25_pr_control_test": "a41a467e41807f02fc9cfe72e3cbc8730c26b6a0496d91d0aba39d25a512c5a3",
+    "build/mister-runtime": "51b07634d4663cf85e76135b2c2f7501130b4387d98b32d0689366e988249427",
+    "build/libmister-runtime.a": "0696cf81cf8a62058284dfbd98d171423b7705e675ad1bb8ff7e9398279ec149"
+  },
+  "hardware_acceptance": false,
+  "production_static_selection": false
+}

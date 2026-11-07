@@ -51,6 +51,20 @@ reaches uinput.
 
 ## Producers
 
+The standard machine, computer mailbox, tape/SAVE and video capture live in
+`sources/misteross/cores/fes-zx81/rtl/fes_zx81_core.v`. Board wrappers provide
+clocks, HPS transport, the session-plane memory adapter, expansion placement and
+HDMI/audio output. DE10's registered expansion boundary remains at its original
+top-level hierarchy. The shared core accepts an explicit guest-clock fraction,
+so it can run the same 6.5 MHz ULA timing from another board's system clock.
+
+The installed DE25 package is still the BRAM bring-up wrapper around the shared
+ZX81 machine. It has keyboard and tape loading, but lacks the standard shell's
+SAVE, audio, expansion and in-play display support. Its native bring-up results
+do not qualify the full standard core. DE25 migration uses the shared standard
+core and board adapters; that replacement still needs a matched Quartus build,
+package, runtime support and hardware acceptance.
+
 Quartus Prime Lite 17.0.2 (`make build-fes-zx81-quartus`) remains the legacy
 1.2 bring-up/oracle lane; it does not produce the standard socketed package.
 `make build-fes-zx81` is the standard Yosys/nextpnr-mistral producer for the

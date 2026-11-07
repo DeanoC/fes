@@ -1,0 +1,1782 @@
+{
+  "FPGA_producer_revision": "72716153eb7be7b62917ed685d5d7380347a2d7d",
+  "build_id": "5952e4a9936363114264247efd5584ee",
+  "classification": "Actual fitted reset/output graph and four-corner timing coverage; not RDC coordination or hardware qualification",
+  "coverage": [
+    {
+      "asynchronous_connected_but_not_reported": [
+        {
+          "classification": "existing_outer_reset_synchronizer_ingress_exception",
+          "consumer": "fes_video_inst|lock_qualifier|sync_regs[0]",
+          "type": "reg"
+        },
+        {
+          "classification": "existing_outer_reset_synchronizer_ingress_exception",
+          "consumer": "fes_video_inst|lock_qualifier|sync_regs[1]",
+          "type": "reg"
+        }
+      ],
+      "asynchronous_connected_consumers": 108,
+      "chain": 0,
+      "registers": 2,
+      "structural_consumers": 110,
+      "synchronous_connected_consumers": 2,
+      "tail": "fes_top_reset_inst|sync_regs[1]",
+      "timed_endpoints_per_corner_check": 106
+    },
+    {
+      "asynchronous_connected_but_not_reported": [
+        {
+          "classification": "existing_outer_reset_synchronizer_ingress_exception",
+          "consumer": "fes_video_inst|visible_release|sync_regs[0]",
+          "type": "reg"
+        },
+        {
+          "classification": "existing_outer_reset_synchronizer_ingress_exception",
+          "consumer": "fes_video_inst|visible_release|sync_regs[1]",
+          "type": "reg"
+        }
+      ],
+      "asynchronous_connected_consumers": 2,
+      "chain": 1,
+      "registers": 2,
+      "structural_consumers": 5,
+      "synchronous_connected_consumers": 3,
+      "tail": "fes_video_inst|lock_qualifier|sync_regs[1]",
+      "timed_endpoints_per_corner_check": 0
+    },
+    {
+      "asynchronous_connected_but_not_reported": [],
+      "asynchronous_connected_consumers": 33,
+      "chain": 2,
+      "registers": 5,
+      "structural_consumers": 33,
+      "synchronous_connected_consumers": 0,
+      "tail": "soc_inst|subsys_periph|fes_mem_cdc|fes_mem_cdc|rsp_fifo|my_altera_avalon_dc_fifo_rsp_fifo|write_reset_sync|altera_reset_synchronizer_int_chain_out",
+      "timed_endpoints_per_corner_check": 33
+    },
+    {
+      "asynchronous_connected_but_not_reported": [],
+      "asynchronous_connected_consumers": 41,
+      "chain": 3,
+      "registers": 5,
+      "structural_consumers": 41,
+      "synchronous_connected_consumers": 0,
+      "tail": "soc_inst|subsys_periph|fes_ctrl_cdc|fes_ctrl_cdc|rsp_fifo|my_altera_avalon_dc_fifo_rsp_fifo|read_reset_sync|altera_reset_synchronizer_int_chain_out",
+      "timed_endpoints_per_corner_check": 41
+    },
+    {
+      "asynchronous_connected_but_not_reported": [],
+      "asynchronous_connected_consumers": 10,
+      "chain": 4,
+      "registers": 5,
+      "structural_consumers": 10,
+      "synchronous_connected_consumers": 0,
+      "tail": "soc_inst|subsys_periph|fes_ctrl_cdc|fes_ctrl_cdc|cmd_fifo|my_altera_avalon_dc_fifo_cmd_fifo|write_reset_sync|altera_reset_synchronizer_int_chain_out",
+      "timed_endpoints_per_corner_check": 10
+    },
+    {
+      "asynchronous_connected_but_not_reported": [],
+      "asynchronous_connected_consumers": 58,
+      "chain": 5,
+      "registers": 5,
+      "structural_consumers": 58,
+      "synchronous_connected_consumers": 0,
+      "tail": "soc_inst|subsys_periph|fes_mem_cdc|fes_mem_cdc|cmd_fifo|my_altera_avalon_dc_fifo_cmd_fifo|read_reset_sync|altera_reset_synchronizer_int_chain_out",
+      "timed_endpoints_per_corner_check": 58
+    },
+    {
+      "asynchronous_connected_but_not_reported": [
+        {
+          "classification": "external_HDMI_port_no_register_recovery_removal_check",
+          "consumer": "HDMI_TX_DE",
+          "type": "port"
+        },
+        {
+          "classification": "external_HDMI_port_no_register_recovery_removal_check",
+          "consumer": "HDMI_TX_D[0]",
+          "type": "port"
+        },
+        {
+          "classification": "external_HDMI_port_no_register_recovery_removal_check",
+          "consumer": "HDMI_TX_D[10]",
+          "type": "port"
+        },
+        {
+          "classification": "external_HDMI_port_no_register_recovery_removal_check",
+          "consumer": "HDMI_TX_D[11]",
+          "type": "port"
+        },
+        {
+          "classification": "external_HDMI_port_no_register_recovery_removal_check",
+          "consumer": "HDMI_TX_D[12]",
+          "type": "port"
+        },
+        {
+          "classification": "external_HDMI_port_no_register_recovery_removal_check",
+          "consumer": "HDMI_TX_D[13]",
+          "type": "port"
+        },
+        {
+          "classification": "external_HDMI_port_no_register_recovery_removal_check",
+          "consumer": "HDMI_TX_D[14]",
+          "type": "port"
+        },
+        {
+          "classification": "external_HDMI_port_no_register_recovery_removal_check",
+          "consumer": "HDMI_TX_D[15]",
+          "type": "port"
+        },
+        {
+          "classification": "external_HDMI_port_no_register_recovery_removal_check",
+          "consumer": "HDMI_TX_D[16]",
+          "type": "port"
+        },
+        {
+          "classification": "external_HDMI_port_no_register_recovery_removal_check",
+          "consumer": "HDMI_TX_D[17]",
+          "type": "port"
+        },
+        {
+          "classification": "external_HDMI_port_no_register_recovery_removal_check",
+          "consumer": "HDMI_TX_D[18]",
+          "type": "port"
+        },
+        {
+          "classification": "external_HDMI_port_no_register_recovery_removal_check",
+          "consumer": "HDMI_TX_D[19]",
+          "type": "port"
+        },
+        {
+          "classification": "external_HDMI_port_no_register_recovery_removal_check",
+          "consumer": "HDMI_TX_D[1]",
+          "type": "port"
+        },
+        {
+          "classification": "external_HDMI_port_no_register_recovery_removal_check",
+          "consumer": "HDMI_TX_D[20]",
+          "type": "port"
+        },
+        {
+          "classification": "external_HDMI_port_no_register_recovery_removal_check",
+          "consumer": "HDMI_TX_D[21]",
+          "type": "port"
+        },
+        {
+          "classification": "external_HDMI_port_no_register_recovery_removal_check",
+          "consumer": "HDMI_TX_D[22]",
+          "type": "port"
+        },
+        {
+          "classification": "external_HDMI_port_no_register_recovery_removal_check",
+          "consumer": "HDMI_TX_D[23]",
+          "type": "port"
+        },
+        {
+          "classification": "external_HDMI_port_no_register_recovery_removal_check",
+          "consumer": "HDMI_TX_D[2]",
+          "type": "port"
+        },
+        {
+          "classification": "external_HDMI_port_no_register_recovery_removal_check",
+          "consumer": "HDMI_TX_D[3]",
+          "type": "port"
+        },
+        {
+          "classification": "external_HDMI_port_no_register_recovery_removal_check",
+          "consumer": "HDMI_TX_D[4]",
+          "type": "port"
+        },
+        {
+          "classification": "external_HDMI_port_no_register_recovery_removal_check",
+          "consumer": "HDMI_TX_D[5]",
+          "type": "port"
+        },
+        {
+          "classification": "external_HDMI_port_no_register_recovery_removal_check",
+          "consumer": "HDMI_TX_D[6]",
+          "type": "port"
+        },
+        {
+          "classification": "external_HDMI_port_no_register_recovery_removal_check",
+          "consumer": "HDMI_TX_D[7]",
+          "type": "port"
+        },
+        {
+          "classification": "external_HDMI_port_no_register_recovery_removal_check",
+          "consumer": "HDMI_TX_D[8]",
+          "type": "port"
+        },
+        {
+          "classification": "external_HDMI_port_no_register_recovery_removal_check",
+          "consumer": "HDMI_TX_D[9]",
+          "type": "port"
+        },
+        {
+          "classification": "vendor_FIFO_reset_synchronizer_ingress_not_timed_here",
+          "consumer": "soc_inst|subsys_periph|fes_ctrl_cdc|fes_ctrl_cdc|cmd_fifo|my_altera_avalon_dc_fifo_cmd_fifo|read_reset_sync|altera_reset_synchronizer_int_chain[0]",
+          "type": "reg"
+        },
+        {
+          "classification": "vendor_FIFO_reset_synchronizer_ingress_not_timed_here",
+          "consumer": "soc_inst|subsys_periph|fes_ctrl_cdc|fes_ctrl_cdc|cmd_fifo|my_altera_avalon_dc_fifo_cmd_fifo|read_reset_sync|altera_reset_synchronizer_int_chain[1]",
+          "type": "reg"
+        },
+        {
+          "classification": "vendor_FIFO_reset_synchronizer_ingress_not_timed_here",
+          "consumer": "soc_inst|subsys_periph|fes_ctrl_cdc|fes_ctrl_cdc|cmd_fifo|my_altera_avalon_dc_fifo_cmd_fifo|read_reset_sync|altera_reset_synchronizer_int_chain[2]",
+          "type": "reg"
+        },
+        {
+          "classification": "vendor_FIFO_reset_synchronizer_ingress_not_timed_here",
+          "consumer": "soc_inst|subsys_periph|fes_ctrl_cdc|fes_ctrl_cdc|cmd_fifo|my_altera_avalon_dc_fifo_cmd_fifo|read_reset_sync|altera_reset_synchronizer_int_chain[3]",
+          "type": "reg"
+        },
+        {
+          "classification": "vendor_FIFO_reset_synchronizer_ingress_not_timed_here",
+          "consumer": "soc_inst|subsys_periph|fes_ctrl_cdc|fes_ctrl_cdc|cmd_fifo|my_altera_avalon_dc_fifo_cmd_fifo|read_reset_sync|altera_reset_synchronizer_int_chain_out",
+          "type": "reg"
+        },
+        {
+          "classification": "vendor_FIFO_reset_synchronizer_ingress_not_timed_here",
+          "consumer": "soc_inst|subsys_periph|fes_ctrl_cdc|fes_ctrl_cdc|cmd_fifo|my_altera_avalon_dc_fifo_cmd_fifo|write_reset_sync|altera_reset_synchronizer_int_chain[0]",
+          "type": "reg"
+        },
+        {
+          "classification": "vendor_FIFO_reset_synchronizer_ingress_not_timed_here",
+          "consumer": "soc_inst|subsys_periph|fes_ctrl_cdc|fes_ctrl_cdc|cmd_fifo|my_altera_avalon_dc_fifo_cmd_fifo|write_reset_sync|altera_reset_synchronizer_int_chain[1]",
+          "type": "reg"
+        },
+        {
+          "classification": "vendor_FIFO_reset_synchronizer_ingress_not_timed_here",
+          "consumer": "soc_inst|subsys_periph|fes_ctrl_cdc|fes_ctrl_cdc|cmd_fifo|my_altera_avalon_dc_fifo_cmd_fifo|write_reset_sync|altera_reset_synchronizer_int_chain[2]",
+          "type": "reg"
+        },
+        {
+          "classification": "vendor_FIFO_reset_synchronizer_ingress_not_timed_here",
+          "consumer": "soc_inst|subsys_periph|fes_ctrl_cdc|fes_ctrl_cdc|cmd_fifo|my_altera_avalon_dc_fifo_cmd_fifo|write_reset_sync|altera_reset_synchronizer_int_chain[3]",
+          "type": "reg"
+        },
+        {
+          "classification": "vendor_FIFO_reset_synchronizer_ingress_not_timed_here",
+          "consumer": "soc_inst|subsys_periph|fes_ctrl_cdc|fes_ctrl_cdc|cmd_fifo|my_altera_avalon_dc_fifo_cmd_fifo|write_reset_sync|altera_reset_synchronizer_int_chain_out",
+          "type": "reg"
+        },
+        {
+          "classification": "vendor_FIFO_reset_synchronizer_ingress_not_timed_here",
+          "consumer": "soc_inst|subsys_periph|fes_ctrl_cdc|fes_ctrl_cdc|rsp_fifo|my_altera_avalon_dc_fifo_rsp_fifo|read_reset_sync|altera_reset_synchronizer_int_chain[0]",
+          "type": "reg"
+        },
+        {
+          "classification": "vendor_FIFO_reset_synchronizer_ingress_not_timed_here",
+          "consumer": "soc_inst|subsys_periph|fes_ctrl_cdc|fes_ctrl_cdc|rsp_fifo|my_altera_avalon_dc_fifo_rsp_fifo|read_reset_sync|altera_reset_synchronizer_int_chain[1]",
+          "type": "reg"
+        },
+        {
+          "classification": "vendor_FIFO_reset_synchronizer_ingress_not_timed_here",
+          "consumer": "soc_inst|subsys_periph|fes_ctrl_cdc|fes_ctrl_cdc|rsp_fifo|my_altera_avalon_dc_fifo_rsp_fifo|read_reset_sync|altera_reset_synchronizer_int_chain[2]",
+          "type": "reg"
+        },
+        {
+          "classification": "vendor_FIFO_reset_synchronizer_ingress_not_timed_here",
+          "consumer": "soc_inst|subsys_periph|fes_ctrl_cdc|fes_ctrl_cdc|rsp_fifo|my_altera_avalon_dc_fifo_rsp_fifo|read_reset_sync|altera_reset_synchronizer_int_chain[3]",
+          "type": "reg"
+        },
+        {
+          "classification": "vendor_FIFO_reset_synchronizer_ingress_not_timed_here",
+          "consumer": "soc_inst|subsys_periph|fes_ctrl_cdc|fes_ctrl_cdc|rsp_fifo|my_altera_avalon_dc_fifo_rsp_fifo|read_reset_sync|altera_reset_synchronizer_int_chain_out",
+          "type": "reg"
+        },
+        {
+          "classification": "vendor_FIFO_reset_synchronizer_ingress_not_timed_here",
+          "consumer": "soc_inst|subsys_periph|fes_ctrl_cdc|fes_ctrl_cdc|rsp_fifo|my_altera_avalon_dc_fifo_rsp_fifo|write_reset_sync|altera_reset_synchronizer_int_chain[0]",
+          "type": "reg"
+        },
+        {
+          "classification": "vendor_FIFO_reset_synchronizer_ingress_not_timed_here",
+          "consumer": "soc_inst|subsys_periph|fes_ctrl_cdc|fes_ctrl_cdc|rsp_fifo|my_altera_avalon_dc_fifo_rsp_fifo|write_reset_sync|altera_reset_synchronizer_int_chain[1]",
+          "type": "reg"
+        },
+        {
+          "classification": "vendor_FIFO_reset_synchronizer_ingress_not_timed_here",
+          "consumer": "soc_inst|subsys_periph|fes_ctrl_cdc|fes_ctrl_cdc|rsp_fifo|my_altera_avalon_dc_fifo_rsp_fifo|write_reset_sync|altera_reset_synchronizer_int_chain[2]",
+          "type": "reg"
+        },
+        {
+          "classification": "vendor_FIFO_reset_synchronizer_ingress_not_timed_here",
+          "consumer": "soc_inst|subsys_periph|fes_ctrl_cdc|fes_ctrl_cdc|rsp_fifo|my_altera_avalon_dc_fifo_rsp_fifo|write_reset_sync|altera_reset_synchronizer_int_chain[3]",
+          "type": "reg"
+        },
+        {
+          "classification": "vendor_FIFO_reset_synchronizer_ingress_not_timed_here",
+          "consumer": "soc_inst|subsys_periph|fes_ctrl_cdc|fes_ctrl_cdc|rsp_fifo|my_altera_avalon_dc_fifo_rsp_fifo|write_reset_sync|altera_reset_synchronizer_int_chain_out",
+          "type": "reg"
+        },
+        {
+          "classification": "vendor_FIFO_reset_synchronizer_ingress_not_timed_here",
+          "consumer": "soc_inst|subsys_periph|fes_mem_cdc|fes_mem_cdc|cmd_fifo|my_altera_avalon_dc_fifo_cmd_fifo|read_reset_sync|altera_reset_synchronizer_int_chain[0]",
+          "type": "reg"
+        },
+        {
+          "classification": "vendor_FIFO_reset_synchronizer_ingress_not_timed_here",
+          "consumer": "soc_inst|subsys_periph|fes_mem_cdc|fes_mem_cdc|cmd_fifo|my_altera_avalon_dc_fifo_cmd_fifo|read_reset_sync|altera_reset_synchronizer_int_chain[1]",
+          "type": "reg"
+        },
+        {
+          "classification": "vendor_FIFO_reset_synchronizer_ingress_not_timed_here",
+          "consumer": "soc_inst|subsys_periph|fes_mem_cdc|fes_mem_cdc|cmd_fifo|my_altera_avalon_dc_fifo_cmd_fifo|read_reset_sync|altera_reset_synchronizer_int_chain[2]",
+          "type": "reg"
+        },
+        {
+          "classification": "vendor_FIFO_reset_synchronizer_ingress_not_timed_here",
+          "consumer": "soc_inst|subsys_periph|fes_mem_cdc|fes_mem_cdc|cmd_fifo|my_altera_avalon_dc_fifo_cmd_fifo|read_reset_sync|altera_reset_synchronizer_int_chain[3]",
+          "type": "reg"
+        },
+        {
+          "classification": "vendor_FIFO_reset_synchronizer_ingress_not_timed_here",
+          "consumer": "soc_inst|subsys_periph|fes_mem_cdc|fes_mem_cdc|cmd_fifo|my_altera_avalon_dc_fifo_cmd_fifo|read_reset_sync|altera_reset_synchronizer_int_chain_out",
+          "type": "reg"
+        },
+        {
+          "classification": "vendor_FIFO_reset_synchronizer_ingress_not_timed_here",
+          "consumer": "soc_inst|subsys_periph|fes_mem_cdc|fes_mem_cdc|cmd_fifo|my_altera_avalon_dc_fifo_cmd_fifo|write_reset_sync|altera_reset_synchronizer_int_chain[0]",
+          "type": "reg"
+        },
+        {
+          "classification": "vendor_FIFO_reset_synchronizer_ingress_not_timed_here",
+          "consumer": "soc_inst|subsys_periph|fes_mem_cdc|fes_mem_cdc|cmd_fifo|my_altera_avalon_dc_fifo_cmd_fifo|write_reset_sync|altera_reset_synchronizer_int_chain[1]",
+          "type": "reg"
+        },
+        {
+          "classification": "vendor_FIFO_reset_synchronizer_ingress_not_timed_here",
+          "consumer": "soc_inst|subsys_periph|fes_mem_cdc|fes_mem_cdc|cmd_fifo|my_altera_avalon_dc_fifo_cmd_fifo|write_reset_sync|altera_reset_synchronizer_int_chain[2]",
+          "type": "reg"
+        },
+        {
+          "classification": "vendor_FIFO_reset_synchronizer_ingress_not_timed_here",
+          "consumer": "soc_inst|subsys_periph|fes_mem_cdc|fes_mem_cdc|cmd_fifo|my_altera_avalon_dc_fifo_cmd_fifo|write_reset_sync|altera_reset_synchronizer_int_chain[3]",
+          "type": "reg"
+        },
+        {
+          "classification": "vendor_FIFO_reset_synchronizer_ingress_not_timed_here",
+          "consumer": "soc_inst|subsys_periph|fes_mem_cdc|fes_mem_cdc|cmd_fifo|my_altera_avalon_dc_fifo_cmd_fifo|write_reset_sync|altera_reset_synchronizer_int_chain_out",
+          "type": "reg"
+        },
+        {
+          "classification": "vendor_FIFO_reset_synchronizer_ingress_not_timed_here",
+          "consumer": "soc_inst|subsys_periph|fes_mem_cdc|fes_mem_cdc|rsp_fifo|my_altera_avalon_dc_fifo_rsp_fifo|read_reset_sync|altera_reset_synchronizer_int_chain[0]",
+          "type": "reg"
+        },
+        {
+          "classification": "vendor_FIFO_reset_synchronizer_ingress_not_timed_here",
+          "consumer": "soc_inst|subsys_periph|fes_mem_cdc|fes_mem_cdc|rsp_fifo|my_altera_avalon_dc_fifo_rsp_fifo|read_reset_sync|altera_reset_synchronizer_int_chain[1]",
+          "type": "reg"
+        },
+        {
+          "classification": "vendor_FIFO_reset_synchronizer_ingress_not_timed_here",
+          "consumer": "soc_inst|subsys_periph|fes_mem_cdc|fes_mem_cdc|rsp_fifo|my_altera_avalon_dc_fifo_rsp_fifo|read_reset_sync|altera_reset_synchronizer_int_chain[2]",
+          "type": "reg"
+        },
+        {
+          "classification": "vendor_FIFO_reset_synchronizer_ingress_not_timed_here",
+          "consumer": "soc_inst|subsys_periph|fes_mem_cdc|fes_mem_cdc|rsp_fifo|my_altera_avalon_dc_fifo_rsp_fifo|read_reset_sync|altera_reset_synchronizer_int_chain[3]",
+          "type": "reg"
+        },
+        {
+          "classification": "vendor_FIFO_reset_synchronizer_ingress_not_timed_here",
+          "consumer": "soc_inst|subsys_periph|fes_mem_cdc|fes_mem_cdc|rsp_fifo|my_altera_avalon_dc_fifo_rsp_fifo|read_reset_sync|altera_reset_synchronizer_int_chain_out",
+          "type": "reg"
+        },
+        {
+          "classification": "vendor_FIFO_reset_synchronizer_ingress_not_timed_here",
+          "consumer": "soc_inst|subsys_periph|fes_mem_cdc|fes_mem_cdc|rsp_fifo|my_altera_avalon_dc_fifo_rsp_fifo|write_reset_sync|altera_reset_synchronizer_int_chain[0]",
+          "type": "reg"
+        },
+        {
+          "classification": "vendor_FIFO_reset_synchronizer_ingress_not_timed_here",
+          "consumer": "soc_inst|subsys_periph|fes_mem_cdc|fes_mem_cdc|rsp_fifo|my_altera_avalon_dc_fifo_rsp_fifo|write_reset_sync|altera_reset_synchronizer_int_chain[1]",
+          "type": "reg"
+        },
+        {
+          "classification": "vendor_FIFO_reset_synchronizer_ingress_not_timed_here",
+          "consumer": "soc_inst|subsys_periph|fes_mem_cdc|fes_mem_cdc|rsp_fifo|my_altera_avalon_dc_fifo_rsp_fifo|write_reset_sync|altera_reset_synchronizer_int_chain[2]",
+          "type": "reg"
+        },
+        {
+          "classification": "vendor_FIFO_reset_synchronizer_ingress_not_timed_here",
+          "consumer": "soc_inst|subsys_periph|fes_mem_cdc|fes_mem_cdc|rsp_fifo|my_altera_avalon_dc_fifo_rsp_fifo|write_reset_sync|altera_reset_synchronizer_int_chain[3]",
+          "type": "reg"
+        },
+        {
+          "classification": "vendor_FIFO_reset_synchronizer_ingress_not_timed_here",
+          "consumer": "soc_inst|subsys_periph|fes_mem_cdc|fes_mem_cdc|rsp_fifo|my_altera_avalon_dc_fifo_rsp_fifo|write_reset_sync|altera_reset_synchronizer_int_chain_out",
+          "type": "reg"
+        }
+      ],
+      "asynchronous_connected_consumers": 943,
+      "chain": 6,
+      "registers": 3,
+      "structural_consumers": 1672,
+      "synchronous_connected_consumers": 1283,
+      "tail": "soc_inst|rst_controller_001|alt_rst_sync_uq1|altera_reset_synchronizer_int_chain_out",
+      "timed_endpoints_per_corner_check": 878
+    },
+    {
+      "asynchronous_connected_but_not_reported": [],
+      "asynchronous_connected_consumers": 2,
+      "chain": 7,
+      "registers": 2,
+      "structural_consumers": 2,
+      "synchronous_connected_consumers": 0,
+      "tail": "fes_video_inst|visible_release|sync_regs[1]",
+      "timed_endpoints_per_corner_check": 2
+    },
+    {
+      "asynchronous_connected_but_not_reported": [],
+      "asynchronous_connected_consumers": 119,
+      "chain": 8,
+      "registers": 5,
+      "structural_consumers": 119,
+      "synchronous_connected_consumers": 0,
+      "tail": "soc_inst|subsys_periph|fes_mem_cdc|fes_mem_cdc|rsp_fifo|my_altera_avalon_dc_fifo_rsp_fifo|read_reset_sync|altera_reset_synchronizer_int_chain_out",
+      "timed_endpoints_per_corner_check": 119
+    },
+    {
+      "asynchronous_connected_but_not_reported": [],
+      "asynchronous_connected_consumers": 52,
+      "chain": 9,
+      "registers": 5,
+      "structural_consumers": 52,
+      "synchronous_connected_consumers": 0,
+      "tail": "soc_inst|subsys_periph|fes_ctrl_cdc|fes_ctrl_cdc|cmd_fifo|my_altera_avalon_dc_fifo_cmd_fifo|read_reset_sync|altera_reset_synchronizer_int_chain_out",
+      "timed_endpoints_per_corner_check": 52
+    },
+    {
+      "asynchronous_connected_but_not_reported": [],
+      "asynchronous_connected_consumers": 11,
+      "chain": 10,
+      "registers": 5,
+      "structural_consumers": 11,
+      "synchronous_connected_consumers": 0,
+      "tail": "soc_inst|subsys_periph|fes_mem_cdc|fes_mem_cdc|cmd_fifo|my_altera_avalon_dc_fifo_cmd_fifo|write_reset_sync|altera_reset_synchronizer_int_chain_out",
+      "timed_endpoints_per_corner_check": 11
+    },
+    {
+      "asynchronous_connected_but_not_reported": [],
+      "asynchronous_connected_consumers": 12,
+      "chain": 11,
+      "registers": 5,
+      "structural_consumers": 12,
+      "synchronous_connected_consumers": 0,
+      "tail": "soc_inst|subsys_periph|fes_ctrl_cdc|fes_ctrl_cdc|rsp_fifo|my_altera_avalon_dc_fifo_rsp_fifo|write_reset_sync|altera_reset_synchronizer_int_chain_out",
+      "timed_endpoints_per_corner_check": 12
+    }
+  ],
+  "epoch_graph": {
+    "allocation_generation_registers": [
+      "soc_inst|subsys_periph|fes_scanout|fes_scanout|generation[0]",
+      "soc_inst|subsys_periph|fes_scanout|fes_scanout|generation[10]",
+      "soc_inst|subsys_periph|fes_scanout|fes_scanout|generation[11]",
+      "soc_inst|subsys_periph|fes_scanout|fes_scanout|generation[12]",
+      "soc_inst|subsys_periph|fes_scanout|fes_scanout|generation[13]",
+      "soc_inst|subsys_periph|fes_scanout|fes_scanout|generation[13]~DUPLICATE",
+      "soc_inst|subsys_periph|fes_scanout|fes_scanout|generation[14]",
+      "soc_inst|subsys_periph|fes_scanout|fes_scanout|generation[15]",
+      "soc_inst|subsys_periph|fes_scanout|fes_scanout|generation[16]",
+      "soc_inst|subsys_periph|fes_scanout|fes_scanout|generation[16]~DUPLICATE",
+      "soc_inst|subsys_periph|fes_scanout|fes_scanout|generation[17]",
+      "soc_inst|subsys_periph|fes_scanout|fes_scanout|generation[18]",
+      "soc_inst|subsys_periph|fes_scanout|fes_scanout|generation[19]",
+      "soc_inst|subsys_periph|fes_scanout|fes_scanout|generation[1]",
+      "soc_inst|subsys_periph|fes_scanout|fes_scanout|generation[20]",
+      "soc_inst|subsys_periph|fes_scanout|fes_scanout|generation[21]",
+      "soc_inst|subsys_periph|fes_scanout|fes_scanout|generation[22]",
+      "soc_inst|subsys_periph|fes_scanout|fes_scanout|generation[23]",
+      "soc_inst|subsys_periph|fes_scanout|fes_scanout|generation[24]",
+      "soc_inst|subsys_periph|fes_scanout|fes_scanout|generation[25]",
+      "soc_inst|subsys_periph|fes_scanout|fes_scanout|generation[26]",
+      "soc_inst|subsys_periph|fes_scanout|fes_scanout|generation[27]",
+      "soc_inst|subsys_periph|fes_scanout|fes_scanout|generation[28]",
+      "soc_inst|subsys_periph|fes_scanout|fes_scanout|generation[29]",
+      "soc_inst|subsys_periph|fes_scanout|fes_scanout|generation[2]",
+      "soc_inst|subsys_periph|fes_scanout|fes_scanout|generation[30]",
+      "soc_inst|subsys_periph|fes_scanout|fes_scanout|generation[31]",
+      "soc_inst|subsys_periph|fes_scanout|fes_scanout|generation[32]",
+      "soc_inst|subsys_periph|fes_scanout|fes_scanout|generation[33]",
+      "soc_inst|subsys_periph|fes_scanout|fes_scanout|generation[34]",
+      "soc_inst|subsys_periph|fes_scanout|fes_scanout|generation[35]",
+      "soc_inst|subsys_periph|fes_scanout|fes_scanout|generation[36]",
+      "soc_inst|subsys_periph|fes_scanout|fes_scanout|generation[37]",
+      "soc_inst|subsys_periph|fes_scanout|fes_scanout|generation[38]",
+      "soc_inst|subsys_periph|fes_scanout|fes_scanout|generation[39]",
+      "soc_inst|subsys_periph|fes_scanout|fes_scanout|generation[3]",
+      "soc_inst|subsys_periph|fes_scanout|fes_scanout|generation[40]",
+      "soc_inst|subsys_periph|fes_scanout|fes_scanout|generation[41]",
+      "soc_inst|subsys_periph|fes_scanout|fes_scanout|generation[42]",
+      "soc_inst|subsys_periph|fes_scanout|fes_scanout|generation[43]",
+      "soc_inst|subsys_periph|fes_scanout|fes_scanout|generation[44]",
+      "soc_inst|subsys_periph|fes_scanout|fes_scanout|generation[44]~DUPLICATE",
+      "soc_inst|subsys_periph|fes_scanout|fes_scanout|generation[45]",
+      "soc_inst|subsys_periph|fes_scanout|fes_scanout|generation[46]",
+      "soc_inst|subsys_periph|fes_scanout|fes_scanout|generation[47]",
+      "soc_inst|subsys_periph|fes_scanout|fes_scanout|generation[47]~DUPLICATE",
+      "soc_inst|subsys_periph|fes_scanout|fes_scanout|generation[48]",
+      "soc_inst|subsys_periph|fes_scanout|fes_scanout|generation[49]",
+      "soc_inst|subsys_periph|fes_scanout|fes_scanout|generation[4]",
+      "soc_inst|subsys_periph|fes_scanout|fes_scanout|generation[50]",
+      "soc_inst|subsys_periph|fes_scanout|fes_scanout|generation[51]",
+      "soc_inst|subsys_periph|fes_scanout|fes_scanout|generation[52]",
+      "soc_inst|subsys_periph|fes_scanout|fes_scanout|generation[53]",
+      "soc_inst|subsys_periph|fes_scanout|fes_scanout|generation[53]~DUPLICATE",
+      "soc_inst|subsys_periph|fes_scanout|fes_scanout|generation[54]",
+      "soc_inst|subsys_periph|fes_scanout|fes_scanout|generation[55]",
+      "soc_inst|subsys_periph|fes_scanout|fes_scanout|generation[56]",
+      "soc_inst|subsys_periph|fes_scanout|fes_scanout|generation[57]",
+      "soc_inst|subsys_periph|fes_scanout|fes_scanout|generation[58]",
+      "soc_inst|subsys_periph|fes_scanout|fes_scanout|generation[59]",
+      "soc_inst|subsys_periph|fes_scanout|fes_scanout|generation[5]",
+      "soc_inst|subsys_periph|fes_scanout|fes_scanout|generation[5]~DUPLICATE",
+      "soc_inst|subsys_periph|fes_scanout|fes_scanout|generation[60]",
+      "soc_inst|subsys_periph|fes_scanout|fes_scanout|generation[61]",
+      "soc_inst|subsys_periph|fes_scanout|fes_scanout|generation[62]",
+      "soc_inst|subsys_periph|fes_scanout|fes_scanout|generation[63]",
+      "soc_inst|subsys_periph|fes_scanout|fes_scanout|generation[63]~DUPLICATE",
+      "soc_inst|subsys_periph|fes_scanout|fes_scanout|generation[6]",
+      "soc_inst|subsys_periph|fes_scanout|fes_scanout|generation[7]",
+      "soc_inst|subsys_periph|fes_scanout|fes_scanout|generation[8]",
+      "soc_inst|subsys_periph|fes_scanout|fes_scanout|generation[9]"
+    ],
+    "generation_async_source": "soc_inst|rst_controller_001|alt_rst_sync_uq1|altera_reset_synchronizer_int_chain_out",
+    "global_reset_is_not_external_DMA_drain": true,
+    "guard_epoch_async_source": "soc_inst|subsys_periph|rst_controller|alt_rst_sync_uq1|altera_reset_synchronizer_int_chain_out",
+    "guard_epoch_registers": [
+      "soc_inst|subsys_periph|fes_scanout_guard|fes_scanout_guard|epoch[0]",
+      "soc_inst|subsys_periph|fes_scanout_guard|fes_scanout_guard|epoch[10]",
+      "soc_inst|subsys_periph|fes_scanout_guard|fes_scanout_guard|epoch[11]",
+      "soc_inst|subsys_periph|fes_scanout_guard|fes_scanout_guard|epoch[12]",
+      "soc_inst|subsys_periph|fes_scanout_guard|fes_scanout_guard|epoch[13]",
+      "soc_inst|subsys_periph|fes_scanout_guard|fes_scanout_guard|epoch[14]",
+      "soc_inst|subsys_periph|fes_scanout_guard|fes_scanout_guard|epoch[15]",
+      "soc_inst|subsys_periph|fes_scanout_guard|fes_scanout_guard|epoch[16]",
+      "soc_inst|subsys_periph|fes_scanout_guard|fes_scanout_guard|epoch[17]",
+      "soc_inst|subsys_periph|fes_scanout_guard|fes_scanout_guard|epoch[18]",
+      "soc_inst|subsys_periph|fes_scanout_guard|fes_scanout_guard|epoch[19]",
+      "soc_inst|subsys_periph|fes_scanout_guard|fes_scanout_guard|epoch[1]",
+      "soc_inst|subsys_periph|fes_scanout_guard|fes_scanout_guard|epoch[20]",
+      "soc_inst|subsys_periph|fes_scanout_guard|fes_scanout_guard|epoch[21]",
+      "soc_inst|subsys_periph|fes_scanout_guard|fes_scanout_guard|epoch[22]",
+      "soc_inst|subsys_periph|fes_scanout_guard|fes_scanout_guard|epoch[23]",
+      "soc_inst|subsys_periph|fes_scanout_guard|fes_scanout_guard|epoch[24]",
+      "soc_inst|subsys_periph|fes_scanout_guard|fes_scanout_guard|epoch[25]",
+      "soc_inst|subsys_periph|fes_scanout_guard|fes_scanout_guard|epoch[26]",
+      "soc_inst|subsys_periph|fes_scanout_guard|fes_scanout_guard|epoch[27]",
+      "soc_inst|subsys_periph|fes_scanout_guard|fes_scanout_guard|epoch[28]",
+      "soc_inst|subsys_periph|fes_scanout_guard|fes_scanout_guard|epoch[29]",
+      "soc_inst|subsys_periph|fes_scanout_guard|fes_scanout_guard|epoch[2]",
+      "soc_inst|subsys_periph|fes_scanout_guard|fes_scanout_guard|epoch[30]",
+      "soc_inst|subsys_periph|fes_scanout_guard|fes_scanout_guard|epoch[31]",
+      "soc_inst|subsys_periph|fes_scanout_guard|fes_scanout_guard|epoch[3]",
+      "soc_inst|subsys_periph|fes_scanout_guard|fes_scanout_guard|epoch[4]",
+      "soc_inst|subsys_periph|fes_scanout_guard|fes_scanout_guard|epoch[5]",
+      "soc_inst|subsys_periph|fes_scanout_guard|fes_scanout_guard|epoch[5]~DUPLICATE",
+      "soc_inst|subsys_periph|fes_scanout_guard|fes_scanout_guard|epoch[6]",
+      "soc_inst|subsys_periph|fes_scanout_guard|fes_scanout_guard|epoch[7]",
+      "soc_inst|subsys_periph|fes_scanout_guard|fes_scanout_guard|epoch[8]",
+      "soc_inst|subsys_periph|fes_scanout_guard|fes_scanout_guard|epoch[9]"
+    ],
+    "guard_reset_async_source": "fes_top_reset_inst|sync_regs[1]",
+    "pixel_reset_async_source": "fes_video_inst|first_lock_seen",
+    "qualifier_first_lock_edge": "synchronous data input; sticky first_lock_seen behavior requires RTL/model evidence",
+    "role_counts": {
+      "allocation_generation": 71,
+      "guard": 136,
+      "parent_reset": 33,
+      "peripheral_reset": 12
+    }
+  },
+  "excluded_endpoint_classes": {
+    "existing_outer_reset_synchronizer_ingress_exception": 4,
+    "external_HDMI_port_no_register_recovery_removal_check": 25,
+    "vendor_FIFO_reset_synchronizer_ingress_not_timed_here": 40
+  },
+  "four_corner_check_reports": 96,
+  "hardware_access": "not-performed",
+  "input_sha256": {
+    "fitted-consumers/consumers.tsv": "50710862562e25252ab3c2c6e39b3237389a6015e3780618b02a7569f4a5833e",
+    "fitted-consumers/quartus-sta.log": "b868b27386163aae17cd4d9d6c68a9aff4bf0b9c706c717239623756d13aabac",
+    "fitted-extra-fixed/counts.tsv": "a92f885ff779c9bd9069995c750b9f87e065462278809d593f4104bd5c2b6732",
+    "fitted-extra-fixed/edges.tsv": "533c9467f9707d27327fb7709a07b55851c7ebefd6a48e54d454a761e19142d2",
+    "fitted-extra-fixed/quartus-sta.log": "89f0d65664cb955c5de1cdbdf62e630a2ab479acad90cc19c7d2678e76fe2d5e",
+    "fitted-extra-fixed/registers.tsv": "36cdc6fbc9b767d95be78cd3b477c6f0baf572698248bfbe630efeb5363bf030",
+    "fitted-reset-v2/corners.tsv": "08e17452ab7349eefdaa3ed8fae48c7655f65f45b7f7bd91e524b625ba7b5bed",
+    "fitted-reset-v2/edges.tsv": "7a4ea1e8ca30013f92bc2bc7cd1fc1082f5ef6c1d52cc9652d246e34871a1f75",
+    "fitted-reset-v2/quartus-sta.log": "475ce294377c98b28633835a74cd3b098b526812b5eb324c127df8afa5540c26",
+    "fitted-reset-v2/registers.tsv": "2864f398088d3abef08fbbdef85562e5057438169adeb88643917d499b81f7e6",
+    "fitted-reset-v2/reset-0-0-recovery.rpt": "942e613fdbf44e25e9e9d0cd40f57a19a56f7acd7a875a6c1c29b4b5e226360c",
+    "fitted-reset-v2/reset-0-0-removal.rpt": "804d6303e7a42d3948def2fef0eb6e154d13cb063d9cd94cd6156d31256a106e",
+    "fitted-reset-v2/reset-0-1-recovery.rpt": "cabd8f366c51d7b4534909948e8f712a1a82ba31c22c04d886da502e53b6fc52",
+    "fitted-reset-v2/reset-0-1-removal.rpt": "cabd8f366c51d7b4534909948e8f712a1a82ba31c22c04d886da502e53b6fc52",
+    "fitted-reset-v2/reset-0-10-recovery.rpt": "3736ecad72b2200484e6c2ead444a775e4142110bf105685897e48473cb23913",
+    "fitted-reset-v2/reset-0-10-removal.rpt": "017d5c332ffa40b197b5f057fd377022bbeac81597e931eaf1e6b7418e8034b2",
+    "fitted-reset-v2/reset-0-11-recovery.rpt": "a91f2d1a27a8341f18ef2b0303e2f36118f5217e6dccf3ac279fe1fc15a8331a",
+    "fitted-reset-v2/reset-0-11-removal.rpt": "a736e91cf9112c89744437cdb83f13a06e8acd15bf359f283f7a58f891a7c37e",
+    "fitted-reset-v2/reset-0-2-recovery.rpt": "3f0f373c15f13012da7362c03422296995684b22e6602c2bf0eb3e1f7a16043d",
+    "fitted-reset-v2/reset-0-2-removal.rpt": "1374d1f8d7ef5521b9371811cd1a513dd96b555e354646695994fbd5e774d802",
+    "fitted-reset-v2/reset-0-3-recovery.rpt": "a6130393034229ceebf34df260624a1f4913793f2cb36336211f510c9985ed0e",
+    "fitted-reset-v2/reset-0-3-removal.rpt": "49241345b11820ef89005c92d19c8b7541263eaa7088348395a09f5a0ae27415",
+    "fitted-reset-v2/reset-0-4-recovery.rpt": "dcd6b074b0031746ef028d9bbcad14df148c3fd2529dcf22a8b2b615d5d7a524",
+    "fitted-reset-v2/reset-0-4-removal.rpt": "adb68343bb3a8e970b5e88e6222560823b95f0a39516576c5ebf4f8459ff3c47",
+    "fitted-reset-v2/reset-0-5-recovery.rpt": "d62145146e1548f6b15b8ea53760eb2c3bb80c824bef09225789ee870a24a064",
+    "fitted-reset-v2/reset-0-5-removal.rpt": "56abb8adbeb9d7e88b4e2248984a75ad1b3965113b49abd0b3dbae8923c639c9",
+    "fitted-reset-v2/reset-0-6-recovery.rpt": "6b2c68ad4024d539e6be5bb019f4ac764f68e88673ef0cf86400c21939b1716b",
+    "fitted-reset-v2/reset-0-6-removal.rpt": "7cc5b18acfc63f61b9d49c28fc68d80c5598cd5a868312ce6aa465f9a43b4baf",
+    "fitted-reset-v2/reset-0-7-recovery.rpt": "c48008be211561d33434e1ef79c91ae507852ba83891f68d8ccdf38d1d703e40",
+    "fitted-reset-v2/reset-0-7-removal.rpt": "d48b41eee1d26dbbd7c4b5e6dbb960c77d1c624b40b0398200e4be5ca60ad998",
+    "fitted-reset-v2/reset-0-8-recovery.rpt": "2b41fb484fa074a73280421f9cd5cc1261319dc76e65a0619704e1d6ee3dbbce",
+    "fitted-reset-v2/reset-0-8-removal.rpt": "640a98fe7e381c7db938eabb79bfcea6c1323258f1ccddda8c3f3dca45017c4e",
+    "fitted-reset-v2/reset-0-9-recovery.rpt": "a6f579d6fe13c895fdb22e761cf30b3e22ed299962580521fe0568876c03fb66",
+    "fitted-reset-v2/reset-0-9-removal.rpt": "951cb4107b4dff2cf94edd477260134a893facc78495f3e86315561cec79b63a",
+    "fitted-reset-v2/reset-1-0-recovery.rpt": "f60da2ad6ce7a5c2822d1660b2f4fbdcc6140562fdee342a2d39747cbbf969d9",
+    "fitted-reset-v2/reset-1-0-removal.rpt": "9193f7c367c7477f54e46a9a078a49e4c5d1da1722a975c1b2af44116d9b0d8f",
+    "fitted-reset-v2/reset-1-1-recovery.rpt": "cabd8f366c51d7b4534909948e8f712a1a82ba31c22c04d886da502e53b6fc52",
+    "fitted-reset-v2/reset-1-1-removal.rpt": "cabd8f366c51d7b4534909948e8f712a1a82ba31c22c04d886da502e53b6fc52",
+    "fitted-reset-v2/reset-1-10-recovery.rpt": "f1bfdc5eba0f437e5216aaad4a9c93fe20cda6e0451a0eacf266b3d8151100b0",
+    "fitted-reset-v2/reset-1-10-removal.rpt": "2d77215c4fa68bf7cb3d85986499cde553a4c86304e9131011ef03c46e23561f",
+    "fitted-reset-v2/reset-1-11-recovery.rpt": "65303f771517c3590333365c06ad9040e0dd0ea8a5d636008abca851417166e8",
+    "fitted-reset-v2/reset-1-11-removal.rpt": "728bbc237ccaea8f4f7770697a47f068b45347c47102d38cbe7385a5a40f9eeb",
+    "fitted-reset-v2/reset-1-2-recovery.rpt": "c9f5c22ae80ccd84586dbea17d9ed9415227ea5122b03a9e940310677b20efe3",
+    "fitted-reset-v2/reset-1-2-removal.rpt": "575c35ca476d9f89254dba8166accd078f00d0cb37585a2aba6b8add865fd105",
+    "fitted-reset-v2/reset-1-3-recovery.rpt": "57009277f18f896100c8a2c5a303d85c1036ab053bf8bdb8ef9ef829826eb11e",
+    "fitted-reset-v2/reset-1-3-removal.rpt": "7acc353d2dbd422bf6e488980957eb037676758b08a7edc801fbd2fe8d035b91",
+    "fitted-reset-v2/reset-1-4-recovery.rpt": "0e91a060a5096b1e3cfb654d6deeae77d8730a85f12504da8f2fb73b092ed7dc",
+    "fitted-reset-v2/reset-1-4-removal.rpt": "f818eff571437658103ad7918d5b72fcefeb5086f315bfc62f5da205eecea7bb",
+    "fitted-reset-v2/reset-1-5-recovery.rpt": "2ea526aa89b305314b31369242b330fec5f4e0ab73e0f042301c081db50fdcbb",
+    "fitted-reset-v2/reset-1-5-removal.rpt": "b21d114e1e20751df393286c9fb3753f65115532a7bec76289c67c0f1c9fd5d0",
+    "fitted-reset-v2/reset-1-6-recovery.rpt": "299a25d4e752beb3b2fcb9a8d08a1c1b35a079ef80791d86b50e4c936714185f",
+    "fitted-reset-v2/reset-1-6-removal.rpt": "b033934b668c417b19cbc9ff91fa3264f3fc1a80929a9b1ae2970f7fdf5ebe76",
+    "fitted-reset-v2/reset-1-7-recovery.rpt": "84fb2d4e88647acdbae532292c8345019d8ccb60afe9d63c898664834603ca40",
+    "fitted-reset-v2/reset-1-7-removal.rpt": "6de17fb0f237c16ad321574f1fef25b727aa5faac4cfa72800f5caf1bb96573f",
+    "fitted-reset-v2/reset-1-8-recovery.rpt": "80a8d141bf7bf673f08ef74a7813c93e722c9583bf312e4f32b588be6849f9fb",
+    "fitted-reset-v2/reset-1-8-removal.rpt": "8c98289b4553b6bbcebcca95cd729ae8eb06bd8c1a1729ab9bcd8e68b39ea1f9",
+    "fitted-reset-v2/reset-1-9-recovery.rpt": "3f517d16e85dbc440950dd716c4959185dedcb388990cf9b7ca67567097c7d05",
+    "fitted-reset-v2/reset-1-9-removal.rpt": "3e0b961d094fc81d7c3171d0a145053795a4f07707af65cbadba3531e4667868",
+    "fitted-reset-v2/reset-2-0-recovery.rpt": "615982347681cfc65aab4789625486a53dd98f71d110ec69940655ae03891274",
+    "fitted-reset-v2/reset-2-0-removal.rpt": "ce83d668e894113ac11c2b8c2de13ca1b55cb0ce6920549f44b5a12863a69325",
+    "fitted-reset-v2/reset-2-1-recovery.rpt": "cabd8f366c51d7b4534909948e8f712a1a82ba31c22c04d886da502e53b6fc52",
+    "fitted-reset-v2/reset-2-1-removal.rpt": "cabd8f366c51d7b4534909948e8f712a1a82ba31c22c04d886da502e53b6fc52",
+    "fitted-reset-v2/reset-2-10-recovery.rpt": "75ca19c13b4353c922300dfb7960b9ee181e1acc9b7340ff920c0ce5e2dee3aa",
+    "fitted-reset-v2/reset-2-10-removal.rpt": "074c580e63b01159dce277c53e004851da35fc3a7c694308b85a296d4ea4741e",
+    "fitted-reset-v2/reset-2-11-recovery.rpt": "fa6b704ac75ea44f43ac85d94ff6098c9fa6021fc002819e69092e7d95df3931",
+    "fitted-reset-v2/reset-2-11-removal.rpt": "7ec2b08f34fc85fe4e2d02e3a0ac7c38c926e6a727e027b6f799eecec6d5ae27",
+    "fitted-reset-v2/reset-2-2-recovery.rpt": "dfb5bed01035dbbdd56c862c6a29f7a0e451b2c1f316546f8a1297dbe4293869",
+    "fitted-reset-v2/reset-2-2-removal.rpt": "0a92119b6a2877b069e684049dfabc9eced6d7b9cbd5414fabfb0a80627ceec7",
+    "fitted-reset-v2/reset-2-3-recovery.rpt": "6333a9343345813ae293fb1c935a3f2117f933d035a092c86dc8289fece56775",
+    "fitted-reset-v2/reset-2-3-removal.rpt": "e8910eb7c3a774ff3d69192b7f55a2ad4a07d411d9cab7fdb5b89652857a8c75",
+    "fitted-reset-v2/reset-2-4-recovery.rpt": "35cb3652dbc26a23a3e569c2e4780ab355bb8408c063f1a285c163bbd0a4022f",
+    "fitted-reset-v2/reset-2-4-removal.rpt": "0f1200fa03900bd99edb15fcca6a34990570cc8a86be382595ef6254bf70eec3",
+    "fitted-reset-v2/reset-2-5-recovery.rpt": "dfaebcb384cf45487d1495f3d9d85036c8803267c624754c2d19356f173e5d83",
+    "fitted-reset-v2/reset-2-5-removal.rpt": "a837fda4c38968da19ea0debea3fd4419e5b6a774fdb7c9f319e331b7a9a587e",
+    "fitted-reset-v2/reset-2-6-recovery.rpt": "0bbc57e25fdedd28242ec6400b14d4263edb97855e0c6a29729b0bee89924b7b",
+    "fitted-reset-v2/reset-2-6-removal.rpt": "bcb9bb07aac8d823dc17a9c08b16e653544f449b71f2722c4898b89f4e2c4259",
+    "fitted-reset-v2/reset-2-7-recovery.rpt": "0c815ab96ab75de583c4e71ac467212a8e07e99a664aa514b9ee02fa39d7ad27",
+    "fitted-reset-v2/reset-2-7-removal.rpt": "7bc59dff54030a4b8da53d1cc40f9773f87843c059b73eea9caac2dd56a87579",
+    "fitted-reset-v2/reset-2-8-recovery.rpt": "9a90726f72a3ce445f2eeaa2c7f60928defb84ba8891bf84c151011aff93d6e3",
+    "fitted-reset-v2/reset-2-8-removal.rpt": "8c4657fd98b9fa9e024b31454040af8201f7b87331c775bb2c1bbc5b4fddbd37",
+    "fitted-reset-v2/reset-2-9-recovery.rpt": "f989923a12161e4a7f25f2e30a4853058950b1c9b177292cf89fa528fcf96087",
+    "fitted-reset-v2/reset-2-9-removal.rpt": "236ac12a64145a897d7d803d5ca045d1a2b013660db75e4c43c8029c7cfbce2c",
+    "fitted-reset-v2/reset-3-0-recovery.rpt": "4cc87493316bd0926f44ac230ebaa53672e53e298ca9660812225ffb48202b46",
+    "fitted-reset-v2/reset-3-0-removal.rpt": "d7110a524cea273219c6efc54e1ece6a57c4a09412a8e114ccee5dd74b4fac1e",
+    "fitted-reset-v2/reset-3-1-recovery.rpt": "cabd8f366c51d7b4534909948e8f712a1a82ba31c22c04d886da502e53b6fc52",
+    "fitted-reset-v2/reset-3-1-removal.rpt": "cabd8f366c51d7b4534909948e8f712a1a82ba31c22c04d886da502e53b6fc52",
+    "fitted-reset-v2/reset-3-10-recovery.rpt": "17f6d433e111f12cefc023496ca61e4661dacb3725f02169ce588cca4693642a",
+    "fitted-reset-v2/reset-3-10-removal.rpt": "d4a955bf7e1489a900d6ffb733e7d6a0bbf6768e8d2a95f0c0a19a9308ed1098",
+    "fitted-reset-v2/reset-3-11-recovery.rpt": "43c7b78264fef6048db81c397a9b79f50950d8c8c5ed9b0f615cdcca6e33d6e4",
+    "fitted-reset-v2/reset-3-11-removal.rpt": "32d403458108e5c0426251a9814b05e5b2cf435e0d5cde6a5494ddf22354cfa8",
+    "fitted-reset-v2/reset-3-2-recovery.rpt": "7ca08074fa2e7c7039d8b5a2d4c497f6823e860ceb3a5bcb19af8545dc1ded37",
+    "fitted-reset-v2/reset-3-2-removal.rpt": "6a2dedf698ac2b08969ca670cffb461beee62794e7bba1c6a94082f95f99408e",
+    "fitted-reset-v2/reset-3-3-recovery.rpt": "8c1ecdf560492cfb1a5743da5f0dd845a650aa886d92c718b8a8f1f167097767",
+    "fitted-reset-v2/reset-3-3-removal.rpt": "53c1a66db31e44e314536c0ae7328bebe6f5c132cac98fec6eff204d9ab4fbaf",
+    "fitted-reset-v2/reset-3-4-recovery.rpt": "5fe0a8101b2bc5a3295e4fa75885b5014eade6c25e4c94e87ac5b5e6eed93c04",
+    "fitted-reset-v2/reset-3-4-removal.rpt": "45623de1bccc626737c56a67de888769655a18f0e89b69fc5f64b02aeba44553",
+    "fitted-reset-v2/reset-3-5-recovery.rpt": "353d0ae7ad096d83322665b5ed52d4f1a51f8a7a4ec10f169f4430f6bc28b5be",
+    "fitted-reset-v2/reset-3-5-removal.rpt": "62744e1bca9a3beb339a02f21b5974b1eb68c8c2cdc75c87511515b699afe7f7",
+    "fitted-reset-v2/reset-3-6-recovery.rpt": "f90894579cd1d3394d5027460a977e55ad4f7afaf00de4fe1c441ca0b300095c",
+    "fitted-reset-v2/reset-3-6-removal.rpt": "d4c7d926058a6303740bddf2ca59257105857080655f1f6af9597721bc4d320c",
+    "fitted-reset-v2/reset-3-7-recovery.rpt": "6caa11338f874a01d91f19e76b2d4174110c8d21ca9d6c21ce8d75cb68edba22",
+    "fitted-reset-v2/reset-3-7-removal.rpt": "66f11ff05ebab20ae34f7449fff4cea42e666e4ccf456fd7b676516bed6be629",
+    "fitted-reset-v2/reset-3-8-recovery.rpt": "03d0709a04d1a06c68a3cfd6745f74ac42223e31bc57d35c861866f3a4f56d16",
+    "fitted-reset-v2/reset-3-8-removal.rpt": "fbf0ff2e7e4c402c0904086a845395b2d8ac9a7704884ba6aa2d681ce0d00bdd",
+    "fitted-reset-v2/reset-3-9-recovery.rpt": "44930f0d60dcf34c9643865a0389d8d9c994c23c683b5a37a4c7ee0705c71f3e",
+    "fitted-reset-v2/reset-3-9-removal.rpt": "49898929a2fd48d30d9fdc9513791a5645153fd830cd463c013c88572bc91e33",
+    "fitted-reset-v2/tail-counts.tsv": "28ddd9b26d7f4734fa47b093e97ff9e4c1228d0ee672a5884f7e9655ad069a38"
+  },
+  "no_path_reports_not_passes": 8,
+  "nonviolating_path_reports": 88,
+  "package_timing_admission": false,
+  "rbf_sha256": "e18324235e32c86b643b24dba18deab344628cd9fe0a41bf9d6a3ea76836fde4",
+  "reported_paths_across_corners_checks": 10576,
+  "reports": [
+    {
+      "chain": 0,
+      "check": "recovery",
+      "classification": "reported_nonviolating_paths",
+      "corner": "4_slow_fix4_100c",
+      "file": "fitted-reset-v2/reset-0-0-recovery.rpt",
+      "paths": 106,
+      "query_capacity": 111,
+      "sha256": "942e613fdbf44e25e9e9d0cd40f57a19a56f7acd7a875a6c1c29b4b5e226360c",
+      "worst_slack_ns": 7.647
+    },
+    {
+      "chain": 0,
+      "check": "removal",
+      "classification": "reported_nonviolating_paths",
+      "corner": "4_slow_fix4_100c",
+      "file": "fitted-reset-v2/reset-0-0-removal.rpt",
+      "paths": 106,
+      "query_capacity": 111,
+      "sha256": "804d6303e7a42d3948def2fef0eb6e154d13cb063d9cd94cd6156d31256a106e",
+      "worst_slack_ns": 0.351
+    },
+    {
+      "chain": 0,
+      "check": "recovery",
+      "classification": "reported_nonviolating_paths",
+      "corner": "4_slow_fix4_0c",
+      "file": "fitted-reset-v2/reset-1-0-recovery.rpt",
+      "paths": 106,
+      "query_capacity": 111,
+      "sha256": "f60da2ad6ce7a5c2822d1660b2f4fbdcc6140562fdee342a2d39747cbbf969d9",
+      "worst_slack_ns": 7.353
+    },
+    {
+      "chain": 0,
+      "check": "removal",
+      "classification": "reported_nonviolating_paths",
+      "corner": "4_slow_fix4_0c",
+      "file": "fitted-reset-v2/reset-1-0-removal.rpt",
+      "paths": 106,
+      "query_capacity": 111,
+      "sha256": "9193f7c367c7477f54e46a9a078a49e4c5d1da1722a975c1b2af44116d9b0d8f",
+      "worst_slack_ns": 0.404
+    },
+    {
+      "chain": 0,
+      "check": "recovery",
+      "classification": "reported_nonviolating_paths",
+      "corner": "4_slow_fix4a_0c",
+      "file": "fitted-reset-v2/reset-2-0-recovery.rpt",
+      "paths": 106,
+      "query_capacity": 111,
+      "sha256": "615982347681cfc65aab4789625486a53dd98f71d110ec69940655ae03891274",
+      "worst_slack_ns": 7.361
+    },
+    {
+      "chain": 0,
+      "check": "removal",
+      "classification": "reported_nonviolating_paths",
+      "corner": "4_slow_fix4a_0c",
+      "file": "fitted-reset-v2/reset-2-0-removal.rpt",
+      "paths": 106,
+      "query_capacity": 111,
+      "sha256": "ce83d668e894113ac11c2b8c2de13ca1b55cb0ce6920549f44b5a12863a69325",
+      "worst_slack_ns": 0.397
+    },
+    {
+      "chain": 0,
+      "check": "recovery",
+      "classification": "reported_nonviolating_paths",
+      "corner": "MIN_fast_fix4_0c",
+      "file": "fitted-reset-v2/reset-3-0-recovery.rpt",
+      "paths": 106,
+      "query_capacity": 111,
+      "sha256": "4cc87493316bd0926f44ac230ebaa53672e53e298ca9660812225ffb48202b46",
+      "worst_slack_ns": 8.493
+    },
+    {
+      "chain": 0,
+      "check": "removal",
+      "classification": "reported_nonviolating_paths",
+      "corner": "MIN_fast_fix4_0c",
+      "file": "fitted-reset-v2/reset-3-0-removal.rpt",
+      "paths": 106,
+      "query_capacity": 111,
+      "sha256": "d7110a524cea273219c6efc54e1ece6a57c4a09412a8e114ccee5dd74b4fac1e",
+      "worst_slack_ns": 0.201
+    },
+    {
+      "chain": 1,
+      "check": "recovery",
+      "classification": "no_reported_timed_path_not_a_pass",
+      "corner": "4_slow_fix4_100c",
+      "file": "fitted-reset-v2/reset-0-1-recovery.rpt",
+      "paths": 0,
+      "query_capacity": 6,
+      "sha256": "cabd8f366c51d7b4534909948e8f712a1a82ba31c22c04d886da502e53b6fc52",
+      "worst_slack_ns": null
+    },
+    {
+      "chain": 1,
+      "check": "removal",
+      "classification": "no_reported_timed_path_not_a_pass",
+      "corner": "4_slow_fix4_100c",
+      "file": "fitted-reset-v2/reset-0-1-removal.rpt",
+      "paths": 0,
+      "query_capacity": 6,
+      "sha256": "cabd8f366c51d7b4534909948e8f712a1a82ba31c22c04d886da502e53b6fc52",
+      "worst_slack_ns": null
+    },
+    {
+      "chain": 1,
+      "check": "recovery",
+      "classification": "no_reported_timed_path_not_a_pass",
+      "corner": "4_slow_fix4_0c",
+      "file": "fitted-reset-v2/reset-1-1-recovery.rpt",
+      "paths": 0,
+      "query_capacity": 6,
+      "sha256": "cabd8f366c51d7b4534909948e8f712a1a82ba31c22c04d886da502e53b6fc52",
+      "worst_slack_ns": null
+    },
+    {
+      "chain": 1,
+      "check": "removal",
+      "classification": "no_reported_timed_path_not_a_pass",
+      "corner": "4_slow_fix4_0c",
+      "file": "fitted-reset-v2/reset-1-1-removal.rpt",
+      "paths": 0,
+      "query_capacity": 6,
+      "sha256": "cabd8f366c51d7b4534909948e8f712a1a82ba31c22c04d886da502e53b6fc52",
+      "worst_slack_ns": null
+    },
+    {
+      "chain": 1,
+      "check": "recovery",
+      "classification": "no_reported_timed_path_not_a_pass",
+      "corner": "4_slow_fix4a_0c",
+      "file": "fitted-reset-v2/reset-2-1-recovery.rpt",
+      "paths": 0,
+      "query_capacity": 6,
+      "sha256": "cabd8f366c51d7b4534909948e8f712a1a82ba31c22c04d886da502e53b6fc52",
+      "worst_slack_ns": null
+    },
+    {
+      "chain": 1,
+      "check": "removal",
+      "classification": "no_reported_timed_path_not_a_pass",
+      "corner": "4_slow_fix4a_0c",
+      "file": "fitted-reset-v2/reset-2-1-removal.rpt",
+      "paths": 0,
+      "query_capacity": 6,
+      "sha256": "cabd8f366c51d7b4534909948e8f712a1a82ba31c22c04d886da502e53b6fc52",
+      "worst_slack_ns": null
+    },
+    {
+      "chain": 1,
+      "check": "recovery",
+      "classification": "no_reported_timed_path_not_a_pass",
+      "corner": "MIN_fast_fix4_0c",
+      "file": "fitted-reset-v2/reset-3-1-recovery.rpt",
+      "paths": 0,
+      "query_capacity": 6,
+      "sha256": "cabd8f366c51d7b4534909948e8f712a1a82ba31c22c04d886da502e53b6fc52",
+      "worst_slack_ns": null
+    },
+    {
+      "chain": 1,
+      "check": "removal",
+      "classification": "no_reported_timed_path_not_a_pass",
+      "corner": "MIN_fast_fix4_0c",
+      "file": "fitted-reset-v2/reset-3-1-removal.rpt",
+      "paths": 0,
+      "query_capacity": 6,
+      "sha256": "cabd8f366c51d7b4534909948e8f712a1a82ba31c22c04d886da502e53b6fc52",
+      "worst_slack_ns": null
+    },
+    {
+      "chain": 2,
+      "check": "recovery",
+      "classification": "reported_nonviolating_paths",
+      "corner": "4_slow_fix4_100c",
+      "file": "fitted-reset-v2/reset-0-2-recovery.rpt",
+      "paths": 33,
+      "query_capacity": 34,
+      "sha256": "3f0f373c15f13012da7362c03422296995684b22e6602c2bf0eb3e1f7a16043d",
+      "worst_slack_ns": 9.022
+    },
+    {
+      "chain": 2,
+      "check": "removal",
+      "classification": "reported_nonviolating_paths",
+      "corner": "4_slow_fix4_100c",
+      "file": "fitted-reset-v2/reset-0-2-removal.rpt",
+      "paths": 33,
+      "query_capacity": 34,
+      "sha256": "1374d1f8d7ef5521b9371811cd1a513dd96b555e354646695994fbd5e774d802",
+      "worst_slack_ns": 0.44
+    },
+    {
+      "chain": 2,
+      "check": "recovery",
+      "classification": "reported_nonviolating_paths",
+      "corner": "4_slow_fix4_0c",
+      "file": "fitted-reset-v2/reset-1-2-recovery.rpt",
+      "paths": 33,
+      "query_capacity": 34,
+      "sha256": "c9f5c22ae80ccd84586dbea17d9ed9415227ea5122b03a9e940310677b20efe3",
+      "worst_slack_ns": 8.887
+    },
+    {
+      "chain": 2,
+      "check": "removal",
+      "classification": "reported_nonviolating_paths",
+      "corner": "4_slow_fix4_0c",
+      "file": "fitted-reset-v2/reset-1-2-removal.rpt",
+      "paths": 33,
+      "query_capacity": 34,
+      "sha256": "575c35ca476d9f89254dba8166accd078f00d0cb37585a2aba6b8add865fd105",
+      "worst_slack_ns": 0.51
+    },
+    {
+      "chain": 2,
+      "check": "recovery",
+      "classification": "reported_nonviolating_paths",
+      "corner": "4_slow_fix4a_0c",
+      "file": "fitted-reset-v2/reset-2-2-recovery.rpt",
+      "paths": 33,
+      "query_capacity": 34,
+      "sha256": "dfb5bed01035dbbdd56c862c6a29f7a0e451b2c1f316546f8a1297dbe4293869",
+      "worst_slack_ns": 8.893
+    },
+    {
+      "chain": 2,
+      "check": "removal",
+      "classification": "reported_nonviolating_paths",
+      "corner": "4_slow_fix4a_0c",
+      "file": "fitted-reset-v2/reset-2-2-removal.rpt",
+      "paths": 33,
+      "query_capacity": 34,
+      "sha256": "0a92119b6a2877b069e684049dfabc9eced6d7b9cbd5414fabfb0a80627ceec7",
+      "worst_slack_ns": 0.505
+    },
+    {
+      "chain": 2,
+      "check": "recovery",
+      "classification": "reported_nonviolating_paths",
+      "corner": "MIN_fast_fix4_0c",
+      "file": "fitted-reset-v2/reset-3-2-recovery.rpt",
+      "paths": 33,
+      "query_capacity": 34,
+      "sha256": "7ca08074fa2e7c7039d8b5a2d4c497f6823e860ceb3a5bcb19af8545dc1ded37",
+      "worst_slack_ns": 9.379
+    },
+    {
+      "chain": 2,
+      "check": "removal",
+      "classification": "reported_nonviolating_paths",
+      "corner": "MIN_fast_fix4_0c",
+      "file": "fitted-reset-v2/reset-3-2-removal.rpt",
+      "paths": 33,
+      "query_capacity": 34,
+      "sha256": "6a2dedf698ac2b08969ca670cffb461beee62794e7bba1c6a94082f95f99408e",
+      "worst_slack_ns": 0.26
+    },
+    {
+      "chain": 3,
+      "check": "recovery",
+      "classification": "reported_nonviolating_paths",
+      "corner": "4_slow_fix4_100c",
+      "file": "fitted-reset-v2/reset-0-3-recovery.rpt",
+      "paths": 41,
+      "query_capacity": 42,
+      "sha256": "a6130393034229ceebf34df260624a1f4913793f2cb36336211f510c9985ed0e",
+      "worst_slack_ns": 8.802
+    },
+    {
+      "chain": 3,
+      "check": "removal",
+      "classification": "reported_nonviolating_paths",
+      "corner": "4_slow_fix4_100c",
+      "file": "fitted-reset-v2/reset-0-3-removal.rpt",
+      "paths": 41,
+      "query_capacity": 42,
+      "sha256": "49241345b11820ef89005c92d19c8b7541263eaa7088348395a09f5a0ae27415",
+      "worst_slack_ns": 0.336
+    },
+    {
+      "chain": 3,
+      "check": "recovery",
+      "classification": "reported_nonviolating_paths",
+      "corner": "4_slow_fix4_0c",
+      "file": "fitted-reset-v2/reset-1-3-recovery.rpt",
+      "paths": 41,
+      "query_capacity": 42,
+      "sha256": "57009277f18f896100c8a2c5a303d85c1036ab053bf8bdb8ef9ef829826eb11e",
+      "worst_slack_ns": 8.631
+    },
+    {
+      "chain": 3,
+      "check": "removal",
+      "classification": "reported_nonviolating_paths",
+      "corner": "4_slow_fix4_0c",
+      "file": "fitted-reset-v2/reset-1-3-removal.rpt",
+      "paths": 41,
+      "query_capacity": 42,
+      "sha256": "7acc353d2dbd422bf6e488980957eb037676758b08a7edc801fbd2fe8d035b91",
+      "worst_slack_ns": 0.387
+    },
+    {
+      "chain": 3,
+      "check": "recovery",
+      "classification": "reported_nonviolating_paths",
+      "corner": "4_slow_fix4a_0c",
+      "file": "fitted-reset-v2/reset-2-3-recovery.rpt",
+      "paths": 41,
+      "query_capacity": 42,
+      "sha256": "6333a9343345813ae293fb1c935a3f2117f933d035a092c86dc8289fece56775",
+      "worst_slack_ns": 8.657
+    },
+    {
+      "chain": 3,
+      "check": "removal",
+      "classification": "reported_nonviolating_paths",
+      "corner": "4_slow_fix4a_0c",
+      "file": "fitted-reset-v2/reset-2-3-removal.rpt",
+      "paths": 41,
+      "query_capacity": 42,
+      "sha256": "e8910eb7c3a774ff3d69192b7f55a2ad4a07d411d9cab7fdb5b89652857a8c75",
+      "worst_slack_ns": 0.383
+    },
+    {
+      "chain": 3,
+      "check": "recovery",
+      "classification": "reported_nonviolating_paths",
+      "corner": "MIN_fast_fix4_0c",
+      "file": "fitted-reset-v2/reset-3-3-recovery.rpt",
+      "paths": 41,
+      "query_capacity": 42,
+      "sha256": "8c1ecdf560492cfb1a5743da5f0dd845a650aa886d92c718b8a8f1f167097767",
+      "worst_slack_ns": 9.262
+    },
+    {
+      "chain": 3,
+      "check": "removal",
+      "classification": "reported_nonviolating_paths",
+      "corner": "MIN_fast_fix4_0c",
+      "file": "fitted-reset-v2/reset-3-3-removal.rpt",
+      "paths": 41,
+      "query_capacity": 42,
+      "sha256": "53c1a66db31e44e314536c0ae7328bebe6f5c132cac98fec6eff204d9ab4fbaf",
+      "worst_slack_ns": 0.19
+    },
+    {
+      "chain": 4,
+      "check": "recovery",
+      "classification": "reported_nonviolating_paths",
+      "corner": "4_slow_fix4_100c",
+      "file": "fitted-reset-v2/reset-0-4-recovery.rpt",
+      "paths": 10,
+      "query_capacity": 11,
+      "sha256": "dcd6b074b0031746ef028d9bbcad14df148c3fd2529dcf22a8b2b615d5d7a524",
+      "worst_slack_ns": 9.062
+    },
+    {
+      "chain": 4,
+      "check": "removal",
+      "classification": "reported_nonviolating_paths",
+      "corner": "4_slow_fix4_100c",
+      "file": "fitted-reset-v2/reset-0-4-removal.rpt",
+      "paths": 10,
+      "query_capacity": 11,
+      "sha256": "adb68343bb3a8e970b5e88e6222560823b95f0a39516576c5ebf4f8459ff3c47",
+      "worst_slack_ns": 0.418
+    },
+    {
+      "chain": 4,
+      "check": "recovery",
+      "classification": "reported_nonviolating_paths",
+      "corner": "4_slow_fix4_0c",
+      "file": "fitted-reset-v2/reset-1-4-recovery.rpt",
+      "paths": 10,
+      "query_capacity": 11,
+      "sha256": "0e91a060a5096b1e3cfb654d6deeae77d8730a85f12504da8f2fb73b092ed7dc",
+      "worst_slack_ns": 8.951
+    },
+    {
+      "chain": 4,
+      "check": "removal",
+      "classification": "reported_nonviolating_paths",
+      "corner": "4_slow_fix4_0c",
+      "file": "fitted-reset-v2/reset-1-4-removal.rpt",
+      "paths": 10,
+      "query_capacity": 11,
+      "sha256": "f818eff571437658103ad7918d5b72fcefeb5086f315bfc62f5da205eecea7bb",
+      "worst_slack_ns": 0.474
+    },
+    {
+      "chain": 4,
+      "check": "recovery",
+      "classification": "reported_nonviolating_paths",
+      "corner": "4_slow_fix4a_0c",
+      "file": "fitted-reset-v2/reset-2-4-recovery.rpt",
+      "paths": 10,
+      "query_capacity": 11,
+      "sha256": "35cb3652dbc26a23a3e569c2e4780ab355bb8408c063f1a285c163bbd0a4022f",
+      "worst_slack_ns": 8.955
+    },
+    {
+      "chain": 4,
+      "check": "removal",
+      "classification": "reported_nonviolating_paths",
+      "corner": "4_slow_fix4a_0c",
+      "file": "fitted-reset-v2/reset-2-4-removal.rpt",
+      "paths": 10,
+      "query_capacity": 11,
+      "sha256": "0f1200fa03900bd99edb15fcca6a34990570cc8a86be382595ef6254bf70eec3",
+      "worst_slack_ns": 0.469
+    },
+    {
+      "chain": 4,
+      "check": "recovery",
+      "classification": "reported_nonviolating_paths",
+      "corner": "MIN_fast_fix4_0c",
+      "file": "fitted-reset-v2/reset-3-4-recovery.rpt",
+      "paths": 10,
+      "query_capacity": 11,
+      "sha256": "5fe0a8101b2bc5a3295e4fa75885b5014eade6c25e4c94e87ac5b5e6eed93c04",
+      "worst_slack_ns": 9.416
+    },
+    {
+      "chain": 4,
+      "check": "removal",
+      "classification": "reported_nonviolating_paths",
+      "corner": "MIN_fast_fix4_0c",
+      "file": "fitted-reset-v2/reset-3-4-removal.rpt",
+      "paths": 10,
+      "query_capacity": 11,
+      "sha256": "45623de1bccc626737c56a67de888769655a18f0e89b69fc5f64b02aeba44553",
+      "worst_slack_ns": 0.248
+    },
+    {
+      "chain": 5,
+      "check": "recovery",
+      "classification": "reported_nonviolating_paths",
+      "corner": "4_slow_fix4_100c",
+      "file": "fitted-reset-v2/reset-0-5-recovery.rpt",
+      "paths": 58,
+      "query_capacity": 59,
+      "sha256": "d62145146e1548f6b15b8ea53760eb2c3bb80c824bef09225789ee870a24a064",
+      "worst_slack_ns": 8.724
+    },
+    {
+      "chain": 5,
+      "check": "removal",
+      "classification": "reported_nonviolating_paths",
+      "corner": "4_slow_fix4_100c",
+      "file": "fitted-reset-v2/reset-0-5-removal.rpt",
+      "paths": 58,
+      "query_capacity": 59,
+      "sha256": "56abb8adbeb9d7e88b4e2248984a75ad1b3965113b49abd0b3dbae8923c639c9",
+      "worst_slack_ns": 0.444
+    },
+    {
+      "chain": 5,
+      "check": "recovery",
+      "classification": "reported_nonviolating_paths",
+      "corner": "4_slow_fix4_0c",
+      "file": "fitted-reset-v2/reset-1-5-recovery.rpt",
+      "paths": 58,
+      "query_capacity": 59,
+      "sha256": "2ea526aa89b305314b31369242b330fec5f4e0ab73e0f042301c081db50fdcbb",
+      "worst_slack_ns": 8.549
+    },
+    {
+      "chain": 5,
+      "check": "removal",
+      "classification": "reported_nonviolating_paths",
+      "corner": "4_slow_fix4_0c",
+      "file": "fitted-reset-v2/reset-1-5-removal.rpt",
+      "paths": 58,
+      "query_capacity": 59,
+      "sha256": "b21d114e1e20751df393286c9fb3753f65115532a7bec76289c67c0f1c9fd5d0",
+      "worst_slack_ns": 0.526
+    },
+    {
+      "chain": 5,
+      "check": "recovery",
+      "classification": "reported_nonviolating_paths",
+      "corner": "4_slow_fix4a_0c",
+      "file": "fitted-reset-v2/reset-2-5-recovery.rpt",
+      "paths": 58,
+      "query_capacity": 59,
+      "sha256": "dfaebcb384cf45487d1495f3d9d85036c8803267c624754c2d19356f173e5d83",
+      "worst_slack_ns": 8.571
+    },
+    {
+      "chain": 5,
+      "check": "removal",
+      "classification": "reported_nonviolating_paths",
+      "corner": "4_slow_fix4a_0c",
+      "file": "fitted-reset-v2/reset-2-5-removal.rpt",
+      "paths": 58,
+      "query_capacity": 59,
+      "sha256": "a837fda4c38968da19ea0debea3fd4419e5b6a774fdb7c9f319e331b7a9a587e",
+      "worst_slack_ns": 0.52
+    },
+    {
+      "chain": 5,
+      "check": "recovery",
+      "classification": "reported_nonviolating_paths",
+      "corner": "MIN_fast_fix4_0c",
+      "file": "fitted-reset-v2/reset-3-5-recovery.rpt",
+      "paths": 58,
+      "query_capacity": 59,
+      "sha256": "353d0ae7ad096d83322665b5ed52d4f1a51f8a7a4ec10f169f4430f6bc28b5be",
+      "worst_slack_ns": 9.205
+    },
+    {
+      "chain": 5,
+      "check": "removal",
+      "classification": "reported_nonviolating_paths",
+      "corner": "MIN_fast_fix4_0c",
+      "file": "fitted-reset-v2/reset-3-5-removal.rpt",
+      "paths": 58,
+      "query_capacity": 59,
+      "sha256": "62744e1bca9a3beb339a02f21b5974b1eb68c8c2cdc75c87511515b699afe7f7",
+      "worst_slack_ns": 0.255
+    },
+    {
+      "chain": 6,
+      "check": "recovery",
+      "classification": "reported_nonviolating_paths",
+      "corner": "4_slow_fix4_100c",
+      "file": "fitted-reset-v2/reset-0-6-recovery.rpt",
+      "paths": 878,
+      "query_capacity": 1673,
+      "sha256": "6b2c68ad4024d539e6be5bb019f4ac764f68e88673ef0cf86400c21939b1716b",
+      "worst_slack_ns": 11.731
+    },
+    {
+      "chain": 6,
+      "check": "removal",
+      "classification": "reported_nonviolating_paths",
+      "corner": "4_slow_fix4_100c",
+      "file": "fitted-reset-v2/reset-0-6-removal.rpt",
+      "paths": 878,
+      "query_capacity": 1673,
+      "sha256": "7cc5b18acfc63f61b9d49c28fc68d80c5598cd5a868312ce6aa465f9a43b4baf",
+      "worst_slack_ns": 0.297
+    },
+    {
+      "chain": 6,
+      "check": "recovery",
+      "classification": "reported_nonviolating_paths",
+      "corner": "4_slow_fix4_0c",
+      "file": "fitted-reset-v2/reset-1-6-recovery.rpt",
+      "paths": 878,
+      "query_capacity": 1673,
+      "sha256": "299a25d4e752beb3b2fcb9a8d08a1c1b35a079ef80791d86b50e4c936714185f",
+      "worst_slack_ns": 11.484
+    },
+    {
+      "chain": 6,
+      "check": "removal",
+      "classification": "reported_nonviolating_paths",
+      "corner": "4_slow_fix4_0c",
+      "file": "fitted-reset-v2/reset-1-6-removal.rpt",
+      "paths": 878,
+      "query_capacity": 1673,
+      "sha256": "b033934b668c417b19cbc9ff91fa3264f3fc1a80929a9b1ae2970f7fdf5ebe76",
+      "worst_slack_ns": 0.346
+    },
+    {
+      "chain": 6,
+      "check": "recovery",
+      "classification": "reported_nonviolating_paths",
+      "corner": "4_slow_fix4a_0c",
+      "file": "fitted-reset-v2/reset-2-6-recovery.rpt",
+      "paths": 878,
+      "query_capacity": 1673,
+      "sha256": "0bbc57e25fdedd28242ec6400b14d4263edb97855e0c6a29729b0bee89924b7b",
+      "worst_slack_ns": 11.489
+    },
+    {
+      "chain": 6,
+      "check": "removal",
+      "classification": "reported_nonviolating_paths",
+      "corner": "4_slow_fix4a_0c",
+      "file": "fitted-reset-v2/reset-2-6-removal.rpt",
+      "paths": 878,
+      "query_capacity": 1673,
+      "sha256": "bcb9bb07aac8d823dc17a9c08b16e653544f449b71f2722c4898b89f4e2c4259",
+      "worst_slack_ns": 0.34
+    },
+    {
+      "chain": 6,
+      "check": "recovery",
+      "classification": "reported_nonviolating_paths",
+      "corner": "MIN_fast_fix4_0c",
+      "file": "fitted-reset-v2/reset-3-6-recovery.rpt",
+      "paths": 878,
+      "query_capacity": 1673,
+      "sha256": "f90894579cd1d3394d5027460a977e55ad4f7afaf00de4fe1c441ca0b300095c",
+      "worst_slack_ns": 12.366
+    },
+    {
+      "chain": 6,
+      "check": "removal",
+      "classification": "reported_nonviolating_paths",
+      "corner": "MIN_fast_fix4_0c",
+      "file": "fitted-reset-v2/reset-3-6-removal.rpt",
+      "paths": 878,
+      "query_capacity": 1673,
+      "sha256": "d4c7d926058a6303740bddf2ca59257105857080655f1f6af9597721bc4d320c",
+      "worst_slack_ns": 0.166
+    },
+    {
+      "chain": 7,
+      "check": "recovery",
+      "classification": "reported_nonviolating_paths",
+      "corner": "4_slow_fix4_100c",
+      "file": "fitted-reset-v2/reset-0-7-recovery.rpt",
+      "paths": 2,
+      "query_capacity": 3,
+      "sha256": "c48008be211561d33434e1ef79c91ae507852ba83891f68d8ccdf38d1d703e40",
+      "worst_slack_ns": 12.828
+    },
+    {
+      "chain": 7,
+      "check": "removal",
+      "classification": "reported_nonviolating_paths",
+      "corner": "4_slow_fix4_100c",
+      "file": "fitted-reset-v2/reset-0-7-removal.rpt",
+      "paths": 2,
+      "query_capacity": 3,
+      "sha256": "d48b41eee1d26dbbd7c4b5e6dbb960c77d1c624b40b0398200e4be5ca60ad998",
+      "worst_slack_ns": 0.373
+    },
+    {
+      "chain": 7,
+      "check": "recovery",
+      "classification": "reported_nonviolating_paths",
+      "corner": "4_slow_fix4_0c",
+      "file": "fitted-reset-v2/reset-1-7-recovery.rpt",
+      "paths": 2,
+      "query_capacity": 3,
+      "sha256": "84fb2d4e88647acdbae532292c8345019d8ccb60afe9d63c898664834603ca40",
+      "worst_slack_ns": 12.742
+    },
+    {
+      "chain": 7,
+      "check": "removal",
+      "classification": "reported_nonviolating_paths",
+      "corner": "4_slow_fix4_0c",
+      "file": "fitted-reset-v2/reset-1-7-removal.rpt",
+      "paths": 2,
+      "query_capacity": 3,
+      "sha256": "6de17fb0f237c16ad321574f1fef25b727aa5faac4cfa72800f5caf1bb96573f",
+      "worst_slack_ns": 0.428
+    },
+    {
+      "chain": 7,
+      "check": "recovery",
+      "classification": "reported_nonviolating_paths",
+      "corner": "4_slow_fix4a_0c",
+      "file": "fitted-reset-v2/reset-2-7-recovery.rpt",
+      "paths": 2,
+      "query_capacity": 3,
+      "sha256": "0c815ab96ab75de583c4e71ac467212a8e07e99a664aa514b9ee02fa39d7ad27",
+      "worst_slack_ns": 12.746
+    },
+    {
+      "chain": 7,
+      "check": "removal",
+      "classification": "reported_nonviolating_paths",
+      "corner": "4_slow_fix4a_0c",
+      "file": "fitted-reset-v2/reset-2-7-removal.rpt",
+      "paths": 2,
+      "query_capacity": 3,
+      "sha256": "7bc59dff54030a4b8da53d1cc40f9773f87843c059b73eea9caac2dd56a87579",
+      "worst_slack_ns": 0.425
+    },
+    {
+      "chain": 7,
+      "check": "recovery",
+      "classification": "reported_nonviolating_paths",
+      "corner": "MIN_fast_fix4_0c",
+      "file": "fitted-reset-v2/reset-3-7-recovery.rpt",
+      "paths": 2,
+      "query_capacity": 3,
+      "sha256": "6caa11338f874a01d91f19e76b2d4174110c8d21ca9d6c21ce8d75cb68edba22",
+      "worst_slack_ns": 13.058
+    },
+    {
+      "chain": 7,
+      "check": "removal",
+      "classification": "reported_nonviolating_paths",
+      "corner": "MIN_fast_fix4_0c",
+      "file": "fitted-reset-v2/reset-3-7-removal.rpt",
+      "paths": 2,
+      "query_capacity": 3,
+      "sha256": "66f11ff05ebab20ae34f7449fff4cea42e666e4ccf456fd7b676516bed6be629",
+      "worst_slack_ns": 0.213
+    },
+    {
+      "chain": 8,
+      "check": "recovery",
+      "classification": "reported_nonviolating_paths",
+      "corner": "4_slow_fix4_100c",
+      "file": "fitted-reset-v2/reset-0-8-recovery.rpt",
+      "paths": 119,
+      "query_capacity": 120,
+      "sha256": "2b41fb484fa074a73280421f9cd5cc1261319dc76e65a0619704e1d6ee3dbbce",
+      "worst_slack_ns": 11.531
+    },
+    {
+      "chain": 8,
+      "check": "removal",
+      "classification": "reported_nonviolating_paths",
+      "corner": "4_slow_fix4_100c",
+      "file": "fitted-reset-v2/reset-0-8-removal.rpt",
+      "paths": 119,
+      "query_capacity": 120,
+      "sha256": "640a98fe7e381c7db938eabb79bfcea6c1323258f1ccddda8c3f3dca45017c4e",
+      "worst_slack_ns": 0.603
+    },
+    {
+      "chain": 8,
+      "check": "recovery",
+      "classification": "reported_nonviolating_paths",
+      "corner": "4_slow_fix4_0c",
+      "file": "fitted-reset-v2/reset-1-8-recovery.rpt",
+      "paths": 119,
+      "query_capacity": 120,
+      "sha256": "80a8d141bf7bf673f08ef74a7813c93e722c9583bf312e4f32b588be6849f9fb",
+      "worst_slack_ns": 11.309
+    },
+    {
+      "chain": 8,
+      "check": "removal",
+      "classification": "reported_nonviolating_paths",
+      "corner": "4_slow_fix4_0c",
+      "file": "fitted-reset-v2/reset-1-8-removal.rpt",
+      "paths": 119,
+      "query_capacity": 120,
+      "sha256": "8c98289b4553b6bbcebcca95cd729ae8eb06bd8c1a1729ab9bcd8e68b39ea1f9",
+      "worst_slack_ns": 0.678
+    },
+    {
+      "chain": 8,
+      "check": "recovery",
+      "classification": "reported_nonviolating_paths",
+      "corner": "4_slow_fix4a_0c",
+      "file": "fitted-reset-v2/reset-2-8-recovery.rpt",
+      "paths": 119,
+      "query_capacity": 120,
+      "sha256": "9a90726f72a3ce445f2eeaa2c7f60928defb84ba8891bf84c151011aff93d6e3",
+      "worst_slack_ns": 11.331
+    },
+    {
+      "chain": 8,
+      "check": "removal",
+      "classification": "reported_nonviolating_paths",
+      "corner": "4_slow_fix4a_0c",
+      "file": "fitted-reset-v2/reset-2-8-removal.rpt",
+      "paths": 119,
+      "query_capacity": 120,
+      "sha256": "8c4657fd98b9fa9e024b31454040af8201f7b87331c775bb2c1bbc5b4fddbd37",
+      "worst_slack_ns": 0.674
+    },
+    {
+      "chain": 8,
+      "check": "recovery",
+      "classification": "reported_nonviolating_paths",
+      "corner": "MIN_fast_fix4_0c",
+      "file": "fitted-reset-v2/reset-3-8-recovery.rpt",
+      "paths": 119,
+      "query_capacity": 120,
+      "sha256": "03d0709a04d1a06c68a3cfd6745f74ac42223e31bc57d35c861866f3a4f56d16",
+      "worst_slack_ns": 12.233
+    },
+    {
+      "chain": 8,
+      "check": "removal",
+      "classification": "reported_nonviolating_paths",
+      "corner": "MIN_fast_fix4_0c",
+      "file": "fitted-reset-v2/reset-3-8-removal.rpt",
+      "paths": 119,
+      "query_capacity": 120,
+      "sha256": "fbf0ff2e7e4c402c0904086a845395b2d8ac9a7704884ba6aa2d681ce0d00bdd",
+      "worst_slack_ns": 0.359
+    },
+    {
+      "chain": 9,
+      "check": "recovery",
+      "classification": "reported_nonviolating_paths",
+      "corner": "4_slow_fix4_100c",
+      "file": "fitted-reset-v2/reset-0-9-recovery.rpt",
+      "paths": 52,
+      "query_capacity": 53,
+      "sha256": "a6f579d6fe13c895fdb22e761cf30b3e22ed299962580521fe0568876c03fb66",
+      "worst_slack_ns": 12.351
+    },
+    {
+      "chain": 9,
+      "check": "removal",
+      "classification": "reported_nonviolating_paths",
+      "corner": "4_slow_fix4_100c",
+      "file": "fitted-reset-v2/reset-0-9-removal.rpt",
+      "paths": 52,
+      "query_capacity": 53,
+      "sha256": "951cb4107b4dff2cf94edd477260134a893facc78495f3e86315561cec79b63a",
+      "worst_slack_ns": 0.379
+    },
+    {
+      "chain": 9,
+      "check": "recovery",
+      "classification": "reported_nonviolating_paths",
+      "corner": "4_slow_fix4_0c",
+      "file": "fitted-reset-v2/reset-1-9-recovery.rpt",
+      "paths": 52,
+      "query_capacity": 53,
+      "sha256": "3f517d16e85dbc440950dd716c4959185dedcb388990cf9b7ca67567097c7d05",
+      "worst_slack_ns": 12.198
+    },
+    {
+      "chain": 9,
+      "check": "removal",
+      "classification": "reported_nonviolating_paths",
+      "corner": "4_slow_fix4_0c",
+      "file": "fitted-reset-v2/reset-1-9-removal.rpt",
+      "paths": 52,
+      "query_capacity": 53,
+      "sha256": "3e0b961d094fc81d7c3171d0a145053795a4f07707af65cbadba3531e4667868",
+      "worst_slack_ns": 0.433
+    },
+    {
+      "chain": 9,
+      "check": "recovery",
+      "classification": "reported_nonviolating_paths",
+      "corner": "4_slow_fix4a_0c",
+      "file": "fitted-reset-v2/reset-2-9-recovery.rpt",
+      "paths": 52,
+      "query_capacity": 53,
+      "sha256": "f989923a12161e4a7f25f2e30a4853058950b1c9b177292cf89fa528fcf96087",
+      "worst_slack_ns": 12.224
+    },
+    {
+      "chain": 9,
+      "check": "removal",
+      "classification": "reported_nonviolating_paths",
+      "corner": "4_slow_fix4a_0c",
+      "file": "fitted-reset-v2/reset-2-9-removal.rpt",
+      "paths": 52,
+      "query_capacity": 53,
+      "sha256": "236ac12a64145a897d7d803d5ca045d1a2b013660db75e4c43c8029c7cfbce2c",
+      "worst_slack_ns": 0.427
+    },
+    {
+      "chain": 9,
+      "check": "recovery",
+      "classification": "reported_nonviolating_paths",
+      "corner": "MIN_fast_fix4_0c",
+      "file": "fitted-reset-v2/reset-3-9-recovery.rpt",
+      "paths": 52,
+      "query_capacity": 53,
+      "sha256": "44930f0d60dcf34c9643865a0389d8d9c994c23c683b5a37a4c7ee0705c71f3e",
+      "worst_slack_ns": 12.773
+    },
+    {
+      "chain": 9,
+      "check": "removal",
+      "classification": "reported_nonviolating_paths",
+      "corner": "MIN_fast_fix4_0c",
+      "file": "fitted-reset-v2/reset-3-9-removal.rpt",
+      "paths": 52,
+      "query_capacity": 53,
+      "sha256": "49898929a2fd48d30d9fdc9513791a5645153fd830cd463c013c88572bc91e33",
+      "worst_slack_ns": 0.225
+    },
+    {
+      "chain": 10,
+      "check": "recovery",
+      "classification": "reported_nonviolating_paths",
+      "corner": "4_slow_fix4_100c",
+      "file": "fitted-reset-v2/reset-0-10-recovery.rpt",
+      "paths": 11,
+      "query_capacity": 12,
+      "sha256": "3736ecad72b2200484e6c2ead444a775e4142110bf105685897e48473cb23913",
+      "worst_slack_ns": 12.632
+    },
+    {
+      "chain": 10,
+      "check": "removal",
+      "classification": "reported_nonviolating_paths",
+      "corner": "4_slow_fix4_100c",
+      "file": "fitted-reset-v2/reset-0-10-removal.rpt",
+      "paths": 11,
+      "query_capacity": 12,
+      "sha256": "017d5c332ffa40b197b5f057fd377022bbeac81597e931eaf1e6b7418e8034b2",
+      "worst_slack_ns": 0.463
+    },
+    {
+      "chain": 10,
+      "check": "recovery",
+      "classification": "reported_nonviolating_paths",
+      "corner": "4_slow_fix4_0c",
+      "file": "fitted-reset-v2/reset-1-10-recovery.rpt",
+      "paths": 11,
+      "query_capacity": 12,
+      "sha256": "f1bfdc5eba0f437e5216aaad4a9c93fe20cda6e0451a0eacf266b3d8151100b0",
+      "worst_slack_ns": 12.516
+    },
+    {
+      "chain": 10,
+      "check": "removal",
+      "classification": "reported_nonviolating_paths",
+      "corner": "4_slow_fix4_0c",
+      "file": "fitted-reset-v2/reset-1-10-removal.rpt",
+      "paths": 11,
+      "query_capacity": 12,
+      "sha256": "2d77215c4fa68bf7cb3d85986499cde553a4c86304e9131011ef03c46e23561f",
+      "worst_slack_ns": 0.537
+    },
+    {
+      "chain": 10,
+      "check": "recovery",
+      "classification": "reported_nonviolating_paths",
+      "corner": "4_slow_fix4a_0c",
+      "file": "fitted-reset-v2/reset-2-10-recovery.rpt",
+      "paths": 11,
+      "query_capacity": 12,
+      "sha256": "75ca19c13b4353c922300dfb7960b9ee181e1acc9b7340ff920c0ce5e2dee3aa",
+      "worst_slack_ns": 12.52
+    },
+    {
+      "chain": 10,
+      "check": "removal",
+      "classification": "reported_nonviolating_paths",
+      "corner": "4_slow_fix4a_0c",
+      "file": "fitted-reset-v2/reset-2-10-removal.rpt",
+      "paths": 11,
+      "query_capacity": 12,
+      "sha256": "074c580e63b01159dce277c53e004851da35fc3a7c694308b85a296d4ea4741e",
+      "worst_slack_ns": 0.532
+    },
+    {
+      "chain": 10,
+      "check": "recovery",
+      "classification": "reported_nonviolating_paths",
+      "corner": "MIN_fast_fix4_0c",
+      "file": "fitted-reset-v2/reset-3-10-recovery.rpt",
+      "paths": 11,
+      "query_capacity": 12,
+      "sha256": "17f6d433e111f12cefc023496ca61e4661dacb3725f02169ce588cca4693642a",
+      "worst_slack_ns": 12.931
+    },
+    {
+      "chain": 10,
+      "check": "removal",
+      "classification": "reported_nonviolating_paths",
+      "corner": "MIN_fast_fix4_0c",
+      "file": "fitted-reset-v2/reset-3-10-removal.rpt",
+      "paths": 11,
+      "query_capacity": 12,
+      "sha256": "d4a955bf7e1489a900d6ffb733e7d6a0bbf6768e8d2a95f0c0a19a9308ed1098",
+      "worst_slack_ns": 0.272
+    },
+    {
+      "chain": 11,
+      "check": "recovery",
+      "classification": "reported_nonviolating_paths",
+      "corner": "4_slow_fix4_100c",
+      "file": "fitted-reset-v2/reset-0-11-recovery.rpt",
+      "paths": 12,
+      "query_capacity": 13,
+      "sha256": "a91f2d1a27a8341f18ef2b0303e2f36118f5217e6dccf3ac279fe1fc15a8331a",
+      "worst_slack_ns": 12.483
+    },
+    {
+      "chain": 11,
+      "check": "removal",
+      "classification": "reported_nonviolating_paths",
+      "corner": "4_slow_fix4_100c",
+      "file": "fitted-reset-v2/reset-0-11-removal.rpt",
+      "paths": 12,
+      "query_capacity": 13,
+      "sha256": "a736e91cf9112c89744437cdb83f13a06e8acd15bf359f283f7a58f891a7c37e",
+      "worst_slack_ns": 0.429
+    },
+    {
+      "chain": 11,
+      "check": "recovery",
+      "classification": "reported_nonviolating_paths",
+      "corner": "4_slow_fix4_0c",
+      "file": "fitted-reset-v2/reset-1-11-recovery.rpt",
+      "paths": 12,
+      "query_capacity": 13,
+      "sha256": "65303f771517c3590333365c06ad9040e0dd0ea8a5d636008abca851417166e8",
+      "worst_slack_ns": 12.362
+    },
+    {
+      "chain": 11,
+      "check": "removal",
+      "classification": "reported_nonviolating_paths",
+      "corner": "4_slow_fix4_0c",
+      "file": "fitted-reset-v2/reset-1-11-removal.rpt",
+      "paths": 12,
+      "query_capacity": 13,
+      "sha256": "728bbc237ccaea8f4f7770697a47f068b45347c47102d38cbe7385a5a40f9eeb",
+      "worst_slack_ns": 0.497
+    },
+    {
+      "chain": 11,
+      "check": "recovery",
+      "classification": "reported_nonviolating_paths",
+      "corner": "4_slow_fix4a_0c",
+      "file": "fitted-reset-v2/reset-2-11-recovery.rpt",
+      "paths": 12,
+      "query_capacity": 13,
+      "sha256": "fa6b704ac75ea44f43ac85d94ff6098c9fa6021fc002819e69092e7d95df3931",
+      "worst_slack_ns": 12.366
+    },
+    {
+      "chain": 11,
+      "check": "removal",
+      "classification": "reported_nonviolating_paths",
+      "corner": "4_slow_fix4a_0c",
+      "file": "fitted-reset-v2/reset-2-11-removal.rpt",
+      "paths": 12,
+      "query_capacity": 13,
+      "sha256": "7ec2b08f34fc85fe4e2d02e3a0ac7c38c926e6a727e027b6f799eecec6d5ae27",
+      "worst_slack_ns": 0.491
+    },
+    {
+      "chain": 11,
+      "check": "recovery",
+      "classification": "reported_nonviolating_paths",
+      "corner": "MIN_fast_fix4_0c",
+      "file": "fitted-reset-v2/reset-3-11-recovery.rpt",
+      "paths": 12,
+      "query_capacity": 13,
+      "sha256": "43c7b78264fef6048db81c397a9b79f50950d8c8c5ed9b0f615cdcca6e33d6e4",
+      "worst_slack_ns": 12.844
+    },
+    {
+      "chain": 11,
+      "check": "removal",
+      "classification": "reported_nonviolating_paths",
+      "corner": "MIN_fast_fix4_0c",
+      "file": "fitted-reset-v2/reset-3-11-removal.rpt",
+      "paths": 12,
+      "query_capacity": 13,
+      "sha256": "32d403458108e5c0426251a9814b05e5b2cf435e0d5cde6a5494ddf22354cfa8",
+      "worst_slack_ns": 0.254
+    }
+  ],
+  "reset_chain_registers": 49,
+  "reset_coordination_qualified": false,
+  "reset_graph_rows": 4812,
+  "reverse_consumer_rows": 262870,
+  "worst_recovery_ns": 7.353,
+  "worst_removal_ns": 0.166
+}

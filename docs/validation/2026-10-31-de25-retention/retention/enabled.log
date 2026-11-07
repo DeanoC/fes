@@ -1,0 +1,14 @@
+two successful programming cycles release only after completion and join
+init failure 1 retains locks and rejects a fresh caller
+init failure 2 retains locks and rejects a fresh caller
+init failure 3 retains locks and rejects a fresh caller
+data failure retains kernel state and rejects complete/retry
+completion failure 5 retains uncertainty without a clear path
+completion failure 6 retains uncertainty without a clear path
+completion failure 7 retains uncertainty without a clear path
+completion failure 8 retains uncertainty without a clear path
+completion failure 9 retains uncertainty without a clear path
+completion failure 10 retains uncertainty without a clear path
+completion failure 11 retains uncertainty without a clear path
+completion failure 12 retains uncertainty without a clear path
+validation before a request leaves an untouched manager reusable

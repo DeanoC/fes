@@ -9,6 +9,7 @@
 #include "native/pc386_machine.hpp"
 #include "native/core_package.hpp"
 #include "native/generated/de10_nano.hpp"
+#include "native/generated/fes_de25_computer.hpp"
 #include "native/generated/fes_gp.hpp"
 #include "native/generated/fes_simple_computer.hpp"
 #include "native/generated/fes_application.hpp"
@@ -241,13 +242,20 @@ std::string WordEvidence(std::size_t index, std::uint16_t value)
 
 } // namespace
 
-FesGp::FesGp(Mmio& mmio, Clock& clock) : mmio_(mmio), clock_(clock) {}
+FesGp::FesGp(Mmio& mmio, Clock& clock, FesGpTransport transport)
+	: mmio_(mmio), clock_(clock), transport_(transport),
+	  command_address_(transport == FesGpTransport::de25_computer ?
+		FesDe25ComputerGpoOffset : generated::kFpgaGpoAddress),
+	  response_address_(transport == FesGpTransport::de25_computer ?
+		FesDe25ComputerGpiOffset : generated::kSpiGpiAddress) {}
 
 void FesGp::BeginSession()
 {
 	std::lock_guard<std::mutex> lock(mutex_);
 	request_toggle_ = false;
-	poisoned_ = false;
+	// A DE25 transport fault cannot be cleared by a software session boundary.
+	// The lifecycle must discard the uncertain hardware context.
+	if (transport_ == FesGpTransport::de10_gp) poisoned_ = false;
 }
 
 bool FesGp::Poisoned()
@@ -256,14 +264,52 @@ bool FesGp::Poisoned()
 	return poisoned_;
 }
 
+Error FesGp::WaitVideoReady(std::uint64_t deadline)
+{
+ std::lock_guard<std::mutex> lock(mutex_);
+ if(transport_!=FesGpTransport::de25_computer)
+  return {ErrorCode::unsupported_interface,"FPGA readiness is a DE25 transport operation","video"};
+ if(poisoned_)return Io("FES GP exchange state is ambiguous");
+ auto last=clock_.NowMs();
+ if(last>=deadline)return Io("FES GP DE25 video deadline exceeded");
+ const auto end=MonotonicWallNs()+std::min<std::uint64_t>(deadline-last,120000)*1000000u;
+ auto timely=[&]() -> Error {
+  const auto now=clock_.NowMs();
+  if(now<last||now>=deadline||MonotonicWallNs()>=end)
+   return Io("FES GP DE25 video deadline exceeded");
+  last=now;return {};
+ };
+ auto read=[&](std::uint32_t offset,std::uint32_t* value) -> Error {
+  Error e=timely();if(e.ok())e=mmio_.Read32(offset,value);
+  return e.ok()?timely():e;
+ };
+ for(;;) {
+  std::uint32_t identity=0,version=0,status=0,fault=0,video=0;
+  Error e=read(FesDe25ComputerIdOffset,&identity);
+  if(e.ok())e=read(FesDe25ComputerVersionOffset,&version);
+  if(e.ok())e=read(FesDe25ComputerStatusOffset,&status);
+  if(e.ok())e=read(FesDe25ComputerFaultOffset,&fault);
+  if(e.ok()&&(identity!=FesDe25ComputerIdentity||version!=FesDe25ComputerVersion||
+      status!=FesDe25ComputerStatusReady||fault))
+   e=Io("FES GP DE25 video bridge identity or idle health differs");
+  if(e.ok())e=read(FesDe25ComputerVideoStatusOffset,&video);
+  if(e.ok()&&(video&~FesDe25ComputerVideoReady))e=Io("FES GP DE25 video readiness has unknown bits");
+  if(!e.ok()){poisoned_=true;return e;}
+  if(video&FesDe25ComputerVideoReady)return {};
+  SleepOneMillisecond();
+ }
+}
+
 Error FesGp::Realign(std::uint64_t deadline)
 {
 	std::lock_guard<std::mutex> lock(mutex_);
 	if (!poisoned_) return {};
+	if (transport_ == FesGpTransport::de25_computer)
+		return Io("FES GP DE25 transport uncertainty requires a new hardware context");
 	if (clock_.NowMs() >= deadline)
 		return Io("FES GP exchange deadline exceeded");
 	std::uint32_t observed = 0;
-	Error error = mmio_.Read32(generated::kSpiGpiAddress, &observed);
+	Error error = mmio_.Read32(response_address_, &observed);
 	if (!error.ok()) return error;
 	if ((observed & kResponseFixedMask) != FesGpSignature)
 		return Io("invalid FES GP response signature or reserved bits");
@@ -293,7 +339,7 @@ Error FesGp::ReadSettledResponse(bool acknowledged, std::uint64_t deadline,
 		if (clock_.NowMs() >= deadline || MonotonicWallNs() - started >= wall_bound)
 			return Io("FES GP response stability deadline exceeded");
 		std::uint32_t observed = 0;
-		Error error = mmio_.Read32(generated::kSpiGpiAddress, &observed);
+		Error error = mmio_.Read32(response_address_, &observed);
 		if (!error.ok()) return error;
 		if ((observed & kResponseFixedMask) != FesGpSignature)
 			return Io("invalid FES GP response signature or reserved bits");
@@ -365,12 +411,14 @@ Error FesGp::Exchange(std::uint8_t opcode, std::uint8_t index,
 		EncodeField(opcode, FesGpOpcodeMask) |
 		EncodeField(index, FesGpIndexMask) |
 		EncodeField(argument, FesGpArgumentMask);
+	if (transport_ == FesGpTransport::de25_computer)
+		return ExchangeDe25(fields, exchange_deadline, response);
 	const std::uint32_t settled = fields |
 		(request_toggle_ ? FesGpRequestMask : 0u);
-	Error error = mmio_.Write32(generated::kFpgaGpoAddress, settled);
+	Error error = mmio_.Write32(command_address_, settled);
 	if (!error.ok()) return error;
 	request_toggle_ = next_toggle;
-	error = mmio_.Write32(generated::kFpgaGpoAddress,
+	error = mmio_.Write32(command_address_,
 		fields | (next_toggle ? FesGpRequestMask : 0u));
 	if (!error.ok()) {
 		poisoned_ = true;
@@ -390,7 +438,7 @@ Error FesGp::Exchange(std::uint8_t opcode, std::uint8_t index,
 				(response_seen ? std::to_string(last_ack) : "unobserved"));
 		}
 		std::uint32_t observed = 0;
-		error = mmio_.Read32(generated::kSpiGpiAddress, &observed);
+		error = mmio_.Read32(response_address_, &observed);
 		if (!error.ok()) {
 			poisoned_ = true;
 			return error;
@@ -414,6 +462,90 @@ Error FesGp::Exchange(std::uint8_t opcode, std::uint8_t index,
 			return Io("FES GP command rejected with response " +
 				std::to_string(*response));
 		return {};
+	}
+}
+
+Error FesGp::ExchangeDe25(std::uint32_t fields, std::uint64_t deadline,
+	std::uint16_t* response)
+{
+	// Unlike the Cyclone V GP bus, this bridge accepts one atomic word only.
+	// Validate its retained request and fault state around every submission.
+	poisoned_ = true;
+	std::uint64_t last_time = clock_.NowMs();
+	if (last_time >= deadline) return Io("FES GP exchange deadline exceeded");
+	const auto wall_end = MonotonicWallNs() + (deadline - last_time) * 1000000u;
+	auto timely = [&]() -> Error {
+		const auto now = clock_.NowMs();
+		if (now < last_time || now >= deadline || MonotonicWallNs() >= wall_end)
+			return Io("FES GP DE25 completion deadline exceeded");
+		last_time = now;
+		return {};
+	};
+	auto read = [&](std::uint32_t address, std::uint32_t* value) -> Error {
+		Error error = timely();
+		if (error.ok()) error = mmio_.Read32(address, value);
+		return error.ok() ? timely() : error;
+	};
+	auto status = [&](bool idle) -> Error {
+		std::uint32_t value = 0, fault = 0;
+		Error error = read(FesDe25ComputerStatusOffset, &value);
+		if (error.ok()) error = read(FesDe25ComputerFaultOffset, &fault);
+		if (!error.ok()) return error;
+		const auto known = FesDe25ComputerStatusReady | FesDe25ComputerStatusBusy |
+			FesDe25ComputerStatusFault;
+		if (fault || (value & FesDe25ComputerStatusFault) || (value & ~known) ||
+			!(value & FesDe25ComputerStatusReady) ||
+			(idle && (value & FesDe25ComputerStatusBusy)))
+			return Io("FES GP DE25 bridge fault or invalid status");
+		return {};
+	};
+	std::uint32_t identity = 0, version = 0, previous = 0, held = 0;
+	Error error = read(FesDe25ComputerIdOffset, &identity);
+	if (error.ok()) error = read(FesDe25ComputerVersionOffset, &version);
+	if (!error.ok()) return error;
+	if (identity != FesDe25ComputerIdentity || version != FesDe25ComputerVersion)
+		return Io("FES GP DE25 bridge identity/version mismatch");
+	error = status(true);
+	if (error.ok()) error = read(response_address_, &previous);
+	if (error.ok()) error = read(command_address_, &held);
+	if (!error.ok()) return error;
+	if ((previous & kResponseFixedMask) != FesGpSignature)
+		return Io("invalid FES GP response signature or reserved bits");
+	const bool old_ack = (previous & FesGpAckMask) != 0;
+	if (((held & FesGpRequestMask) != 0) != old_ack)
+		return Io("FES GP DE25 idle request/acknowledgement mismatch");
+	const bool toggle = !old_ack;
+	const auto word = fields | (toggle ? FesGpRequestMask : 0u);
+	error = timely();
+	if (error.ok()) error = mmio_.Write32(command_address_, word);
+	if (!error.ok()) return error;
+	error = status(false);
+	if (error.ok()) error = read(command_address_, &held);
+	if (!error.ok()) return error;
+	if (held != word) return Io("FES GP DE25 submitted word changed");
+	for (;;) {
+		error = status(false);
+		std::uint32_t observed = 0;
+		if (error.ok()) error = read(response_address_, &observed);
+		if (!error.ok()) return error;
+		if ((observed & kResponseFixedMask) != FesGpSignature)
+			return Io("invalid FES GP response signature or reserved bits");
+		if (((observed & FesGpAckMask) != 0) != toggle) continue;
+		std::uint32_t confirmed = 0;
+		error = ReadSettledResponse(toggle, deadline, &confirmed);
+		if (error.ok()) error = status(true);
+		if (error.ok()) error = read(command_address_, &held);
+		if (error.ok()) error = status(true);
+		if (!error.ok()) return error;
+		if (held != word) return Io("FES GP DE25 completed word changed");
+		*response = static_cast<std::uint16_t>(confirmed & FesGpResponseMask);
+		if ((confirmed & FesGpErrorMask) &&
+			(*response < FesComputerErrorInvalidOpcode || *response > FesComputerErrorInvalidState))
+			return Io("FES GP DE25 returned an unknown rejection code");
+		request_toggle_ = toggle;
+		poisoned_ = false;
+		return (confirmed & FesGpErrorMask) ?
+			Io("FES GP command rejected with response " + std::to_string(*response)) : Error{};
 	}
 }
 
@@ -649,6 +781,7 @@ FesGpCoreDriver::FesGpCoreDriver(FesGp& gp) : gp_(gp) {}
 
 void FesGpCoreDriver::BeginSession()
 {
+ fpga_video_=false;
 	gp_.BeginSession();
 	persistence_verified_ = false;
 	reset_held_ = true;
@@ -718,9 +851,21 @@ CoreDriverResult FesGpCoreDriver::Quiesce(const CoreDriverContext&,
 	return result;
 }
 
+bool FesGpCoreDriver::OwnsAudio() const
+{
+ return fpga_video_&&(observed_capabilities_&FesComputerCapabilityAudioPcmS16Stereo48k);
+}
+
+Error FesGpCoreDriver::WaitVideoReady(std::uint64_t deadline)
+{
+ if(!fpga_video_)return {ErrorCode::unsupported_interface,"selected core does not own DE25 video readiness","video"};
+ return gp_.WaitVideoReady(deadline);
+}
+
 CoreDriverResult FesGpCoreDriver::Identify(const CoreDriverContext& context,
 	std::uint64_t deadline)
 {
+ fpga_video_=false;
 	if (context.descriptor == nullptr)
 		return {{ErrorCode::invalid_request, "missing FES GP descriptor",
 			"request"}, false, ""};
@@ -750,6 +895,9 @@ CoreDriverResult FesGpCoreDriver::Identify(const CoreDriverContext& context,
 		}
 	}
 	home_computer_ = error.ok() && context.descriptor->abi.id == FesComputerABIID;
+ fpga_video_=home_computer_&&context.descriptor->target.platform=="de25_nano"&&
+  (context.descriptor->target.programming_profile=="de25-linux-computer-v1" ||
+   (De25StaticEnabled() && context.descriptor->target.programming_profile=="de25-linux-static-computer-v1"));
 	wall_clock_ = false;
 	ata_disk_ = false;
 	keyboard_hid_ = false;
@@ -1601,6 +1749,30 @@ Error FesGpCoreDriver::AcknowledgeZx81Tape(std::uint64_t deadline)
 Error FesGpCoreDriver::EnsureZx81TapeSaved(std::uint64_t deadline)
 {
 	if (!TapeWriteCapable()) return {};
+	return CheckZx81SnapshotSaved(deadline);
+}
+
+Error FesGpCoreDriver::EnsureRetainedZx81TapeSaved(const CoreDescriptor& descriptor,
+	std::uint64_t deadline)
+{
+	bool cassette = false, writable = false;
+	for (const auto& interface : descriptor.interfaces) {
+		if (!interface.required || !ComputerInterfaceCurrent(interface)) continue;
+		if (interface.id == FesComputerInterfaceMediaZx81TapeID) cassette = true;
+		if (interface.id == FesComputerInterfaceMediaZx81TapeWriteID) writable = true;
+	}
+	if (descriptor.core.id != "fes.zx81" || descriptor.abi.id != FesComputerABIID ||
+		descriptor.abi.major != 1 || descriptor.abi.minor != 0 || !cassette || !writable)
+		return {ErrorCode::unsupported_interface, "retained ZX81 requires its cassette and SAVE contract", "save"};
+	// Normal Identify discovers a newly programmed empty cassette. A lost
+	// image can have media loaded: verify its live identity/capabilities only,
+	// then use the same SAVE check, without publishing active driver state.
+	const Error identity = gp_.Identify(descriptor, deadline);
+	return identity.ok() ? CheckZx81SnapshotSaved(deadline) : identity;
+}
+
+Error FesGpCoreDriver::CheckZx81SnapshotSaved(std::uint64_t deadline)
+{
 	Error error = RecoverComputerMailbox(deadline);
 	if (!error.ok()) return error;
 	std::uint16_t initial_flags = 0;

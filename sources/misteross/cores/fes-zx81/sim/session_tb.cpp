@@ -18,6 +18,7 @@ struct Bench {
     unsigned last_sequence = 0;
     uint64_t full_frame_pixels = 0;
     bool last_ui = false;
+    unsigned max_burst = 0;
     std::deque<uint32_t> history;
     Bench() {
         t.clk_sys=0; t.pixel_clk=0; t.reset_hold=1; t.gpo=0;
@@ -33,9 +34,20 @@ struct Bench {
     // The output carries the machine word captured two edges ago.
     bool machine_output() const { return history.size()==3 && t.hdmi_word==history.front(); }
     void tick() {
-        // Unrelated 52.224/74.25 MHz clocks; request timing walks across phases.
+#ifdef FES_ZX81_BOUNDED_READER
+        if (t.rootp->zx81_session_harness__DOT__memory__DOT__port0__DOT__m_read) {
+            unsigned burst=t.rootp->zx81_session_harness__DOT__memory__DOT__port0__DOT__m_burstcount;
+            check(burst>0 && burst<=16,"board memory request exceeded sixteen beats");
+            if (burst>max_burst) max_burst=burst;
+        }
+#endif
+        // Unrelated system/pixel clocks; request timing walks across phases.
+#ifdef FES_ZX81_STANDARD_CORE
+        sys_phase += 100000000;
+#else
         sys_phase += 52224000;
-        if (sys_phase >= 74250000) {
+#endif
+        while (sys_phase >= 74250000) {
             sys_phase -= 74250000;
             t.clk_sys=0; t.eval(); t.clk_sys=1; t.eval();
         }
@@ -128,7 +140,12 @@ struct Bench {
 int main(int argc,char **argv) {
     Verilated::commandArgs(argc,argv);
     Bench b;
+#ifdef FES_ZX81_STANDARD_CORE
+    check(b.command(1,7)==0x780f,"standard computer capabilities missing");
+    check(b.command(1,8)==0x1100 && b.command(1,15)==0xffee,"standard build identity byte order changed");
+#else
     check(b.command(1,7)==0x307,"session display/DDR capability bits missing");
+#endif
     check(b.command(18,0)==1280,"display geometry CDC mismatch");
     check(b.command(19,0,1)==0,"fixed display layout configuration rejected");
     check(b.command(2,0,1)==0,"execution release rejected");
@@ -136,8 +153,16 @@ int main(int argc,char **argv) {
     b.cycles(200000);
     check(b.peek(0x5000)==0x5a,"Z80 diagnostic failed to retain RAM marker");
     auto writes=b.t.cpu_writes;
+#ifdef FES_ZX81_STANDARD_CORE
+    check(b.command(3,0,0x10)==0,"standard HID press rejected");
+    b.cycles(100000);
+    check(b.t.keyboard!=0xffffffffffull,"standard HID did not reach the ZX81 matrix");
+    check(b.command(3,0,0)==0,"standard HID neutralization rejected");
+    b.cycles(100000);
+#else
     check(b.command(3,3,30)==0,"keyboard press rejected");
     check(b.command(3,3,31)==0,"keyboard neutralization rejected");
+#endif
     check(b.t.keyboard==0xffffffffffull,"keyboard remained held before opening");
     check(b.command(20,0,1)==0,"display enable rejected");
     check(!b.t.ui_active,"enable exposed an uncompleted frame");
@@ -145,6 +170,9 @@ int main(int argc,char **argv) {
     b.submit(1,0);
     check(b.command(21,0,2)==0x400004,"second frame bypassed pending completion");
     b.wait_sequence(1);
+#ifdef FES_ZX81_BOUNDED_READER
+    check(b.max_burst==16,"bounded-reader case did not exercise a full sixteen-beat request");
+#endif
     check(b.t.underflows==0 && !b.t.faulted,"initial scanout underflowed");
     check(b.t.cpu_writes>writes,"Z80 stopped while launcher was active");
     check(b.peek(0x5000)==0x5a,"opening altered retained RAM");
@@ -152,6 +180,26 @@ int main(int argc,char **argv) {
     while(b.t.raster_h!=0 || b.t.raster_v!=0) b.tick();
     b.cycles(3);
     check((b.t.hdmi_word&0xffffff)==0x22,"slot 0 pixels missing from HDMI selection");
+#ifdef FES_ZX81_STANDARD_CORE
+    const uint8_t tape[] = {0x76,0x00,0x5a,0xa5,0x10,0x20,0x30,0x40,0x50,0x60,0x70,0x80};
+    uint32_t crc=0xffffffff;
+    for(auto byte:tape) {
+        crc^=byte;
+        for(unsigned bit=0;bit<8;++bit) crc=(crc>>1)^((crc&1)?0xedb88320:0);
+    }
+    crc^=0xffffffff;
+    check(b.command(6,0,sizeof(tape))==0 && b.command(6,1,0)==0 &&
+          b.command(6,2,crc&65535)==0 && b.command(6,3,crc>>16)==0,"standard cassette begin failed");
+    check(b.command(7,0,0)==0 && b.command(7,1,0)==0 && b.command(7,2,sizeof(tape))==0,
+          "standard cassette chunk failed");
+    for(unsigned i=0;i<sizeof(tape);i+=2)
+        check(b.command(8,i/2,unsigned(tape[i])|(unsigned(tape[i+1])<<8))==0,"standard cassette data failed");
+    check(b.command(9)==0 && b.command(5,5)==3,"standard CRC cassette commit did not become Ready");
+    check(b.command(10)==0 && b.command(5,5)==1,"standard cassette eject did not become Empty");
+    check(b.peek(0x5000)==0x5a,"standard cassette insertion reset the machine");
+#else
+    // Legacy simple-computer tape opcodes. Standard CRC/tape operations
+    // have separate mailbox and BASIC/SAVE integration tests.
     b.t.force_media_busy=1;
     check(b.command(4,0,1)==0x400004,"busy LOAD accepted media replacement");
     check(b.command(4,1,0)==0x400004,"busy LOAD accepted eject");
@@ -161,6 +209,7 @@ int main(int argc,char **argv) {
     check(b.command(6)==0,"live cassette commit failed");
     check(b.command(4,1,0)==0,"live cassette eject failed");
     check(b.peek(0x5000)==0x5a,"live media reset the machine");
+#endif
     b.submit(2,1); b.wait_sequence(2);
     while(b.t.raster_h!=0 || b.t.raster_v!=0) b.tick();
     b.cycles(3);
@@ -286,5 +335,14 @@ int main(int argc,char **argv) {
           "queued hard fault close lost status or retained RAM");
     queued.watch_reset=false;
     check(queued.command(2,0,0)==0 && queued.t.exec_reset,"Stop hold failed after queued fault drain");
-    std::cout << "PASS ZX81 session display: complete-frame HDMI, shared raster, asynchronous CDC, live CPU/RAM, keyboard neutralization, cassette busy/replace/eject, drain/reopen/hidden-underrun recovery, physical held-response/queued-command fault drain\n";
+    std::cout << "PASS ZX81 session display: complete-frame HDMI, shared raster, asynchronous CDC, live CPU/RAM, keyboard neutralization, ";
+#ifdef FES_ZX81_STANDARD_CORE
+    std::cout << "standard computer at 100 MHz, full identity, CRC cassette insert/eject, ";
+#else
+    std::cout << "legacy cassette busy/replace/eject, ";
+#endif
+#ifdef FES_ZX81_BOUNDED_READER
+    std::cout << "observed sixteen-beat limit/read-ahead, ";
+#endif
+    std::cout << "drain/reopen/hidden-underrun recovery, modeled held-response/queued-command fault drain\n";
 }

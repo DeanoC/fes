@@ -99,20 +99,21 @@ func NewRuntime(control Control, bootIDFile string, pollInterval, healthTimeout 
 }
 
 type CoreActivation struct {
-	PartsComposition *expansion.PartsComposition
-	ROMLink          *corepackage.ROMLinkIdentity
-	ROMLinks         *corepackage.ROMLinksIdentity
-	Composition      *expansion.Composition
-	SlotComposition  *expansion.SlotComposition
-	MediaStream      *protocol.MediaStreamCapability
-	MediaUnits       []protocol.MediaUnitStatus
-	PersistenceMode  string
-	PackageID        string
-	Descriptor       corepackage.Descriptor
-	Generation       uint64
-	ObservedCore     string
-	ActiveInterfaces []Protocol2Interface
-	Gamepad          bool
+	StaticComposition *expansion.StaticComposition
+	PartsComposition  *expansion.PartsComposition
+	ROMLink           *corepackage.ROMLinkIdentity
+	ROMLinks          *corepackage.ROMLinksIdentity
+	Composition       *expansion.Composition
+	SlotComposition   *expansion.SlotComposition
+	MediaStream       *protocol.MediaStreamCapability
+	MediaUnits        []protocol.MediaUnitStatus
+	PersistenceMode   string
+	PackageID         string
+	Descriptor        corepackage.Descriptor
+	Generation        uint64
+	ObservedCore      string
+	ActiveInterfaces  []Protocol2Interface
+	Gamepad           bool
 }
 
 type protocol2CoreControl interface {
@@ -337,6 +338,11 @@ func (r *Runtime) loadCoreOwnedMode(admission, observation, operationOwner conte
 			staged, err = corepackage.StageROMInputSpooled(admission, r.corePackageRoot, spool)
 		}
 		composed = staged.Composition != nil || staged.SlotComposition != nil || staged.PartsComposition != nil
+	} else if composed && corepackage.IsStaticCompositionBundle(body) {
+		if _, ok := r.control.(protocol2StaticCompositionControl); !ok {
+			return CoreActivation{}, false, unsupportedOperationError()
+		}
+		staged, err = corepackage.StageStaticCompositionBytes(admission, r.corePackageRoot, body)
 	} else if composed {
 		_, single := r.control.(protocol2CompositionControl)
 		_, slots := r.control.(protocol2SlotCompositionControl)
@@ -377,6 +383,9 @@ func (r *Runtime) loadCoreOwnedMode(admission, observation, operationOwner conte
 			}
 		}
 	}()
+	if staged.Descriptor.Format == 5 && (staged.StaticComposition == nil || romInit != nil || parts || machine != nil || staged.InitialMedia != nil || staged.ROMLink != nil || staged.ROMLinks != nil) {
+		return CoreActivation{}, false, &protocol.APIError{Code: protocol.CodeInvalidArchive, Message: "static package requires its cold composition without ROM inputs", Phase: "admission"}
+	}
 	if staged.InitialMedia != nil {
 		if libraryID == "" || (staged.ROMLink == nil && !pcxtInitial) {
 			return CoreActivation{}, false, &protocol.APIError{Code: protocol.CodeInvalidArchive, Message: "initial disk requires an explicit library ROM launch", Phase: "admission"}
@@ -495,6 +504,9 @@ func (r *Runtime) loadCoreOwnedMode(admission, observation, operationOwner conte
 		}
 		before = &status
 	}
+	if staged.StaticComposition != nil && (before == nil || before.State != "idle") {
+		return CoreActivation{}, false, &protocol.APIError{Code: protocol.CodeBusy, Message: "stop the running core before selecting a static expansion", Phase: "admission"}
+	}
 	var programmedPath string
 	if romInit != nil {
 		programmedPath, err = staged.RetainProgrammedBitstream(romInit.Programmed)
@@ -526,7 +538,10 @@ func (r *Runtime) loadCoreOwnedMode(admission, observation, operationOwner conte
 
 	var response Protocol2Response
 	var callErr error
-	if staged.InitialMedia != nil {
+	if staged.StaticComposition != nil {
+		response, callErr = r.control.(protocol2StaticCompositionControl).LoadStaticComposedCore(operationOwner, staged.Directory, staged.PackageID, staged.ExpansionDirectory, *staged.StaticComposition)
+		r.noteDispatch("load_composed_core", callErr == nil)
+	} else if staged.InitialMedia != nil {
 		if pcxtInitial {
 			response, callErr = r.loadInitialCore(operationOwner, staged)
 		} else {
@@ -677,6 +692,7 @@ func (r *Runtime) loadCoreOwnedMode(admission, observation, operationOwner conte
 	if response.State != "running_development" || response.Execution != "development" ||
 		response.ActivePackage == nil || response.ActivePackage.PackageID != staged.PackageID ||
 		!reflect.DeepEqual(response.ActivePackage.Descriptor, staged.Descriptor) ||
+		!reflect.DeepEqual(response.ActivePackage.StaticComposition, staged.StaticComposition) ||
 		!reflect.DeepEqual(response.ActivePackage.Composition, staged.Composition) ||
 		!reflect.DeepEqual(response.ActivePackage.SlotComposition, staged.SlotComposition) ||
 		!reflect.DeepEqual(response.ActivePackage.PartsComposition, staged.PartsComposition) ||
@@ -711,6 +727,7 @@ func activationFromProtocol2(packageID string, descriptor corepackage.Descriptor
 		MediaUnits:       cloneMediaUnits(response.Capabilities.MediaUnits),
 		ActiveInterfaces: append([]Protocol2Interface(nil), response.Capabilities.ActiveInterfaces...)}
 	if response.ActivePackage != nil {
+		activation.StaticComposition = cloneStaticComposition(response.ActivePackage.StaticComposition)
 		activation.PartsComposition = clonePartsComposition(response.ActivePackage.PartsComposition)
 		activation.Composition = cloneComposition(response.ActivePackage.Composition)
 		activation.SlotComposition = cloneSlotComposition(response.ActivePackage.SlotComposition)
@@ -773,7 +790,7 @@ func (r *Runtime) observeLostCoreLoad(ctx context.Context, control protocol2Stat
 			return CoreActivation{}, coreLoadPreserved
 		}
 		if response.State == "running_development" && response.ActivePackage != nil &&
-			response.ActivePackage.PackageID == staged.PackageID && reflect.DeepEqual(response.ActivePackage.Descriptor, staged.Descriptor) && reflect.DeepEqual(response.ActivePackage.Composition, staged.Composition) && reflect.DeepEqual(response.ActivePackage.SlotComposition, staged.SlotComposition) && reflect.DeepEqual(response.ActivePackage.PartsComposition, staged.PartsComposition) && reflect.DeepEqual(response.ActivePackage.ROMLink, staged.ROMLink) && reflect.DeepEqual(response.ActivePackage.ROMLinks, staged.ROMLinks) && response.Generation != nil &&
+			response.ActivePackage.PackageID == staged.PackageID && reflect.DeepEqual(response.ActivePackage.Descriptor, staged.Descriptor) && reflect.DeepEqual(response.ActivePackage.StaticComposition, staged.StaticComposition) && reflect.DeepEqual(response.ActivePackage.Composition, staged.Composition) && reflect.DeepEqual(response.ActivePackage.SlotComposition, staged.SlotComposition) && reflect.DeepEqual(response.ActivePackage.PartsComposition, staged.PartsComposition) && reflect.DeepEqual(response.ActivePackage.ROMLink, staged.ROMLink) && reflect.DeepEqual(response.ActivePackage.ROMLinks, staged.ROMLinks) && response.Generation != nil &&
 			!sameGeneration(before.Generation, response.Generation) && initialMediaMatches(response, staged.InitialMedia) && initialMediaGenerationMatches(response, &before, staged.InitialMedia) {
 			return activationFromProtocol2(staged.PackageID, staged.Descriptor, response), coreLoadConfirmed
 		}
@@ -796,6 +813,7 @@ func sameProtocol2RuntimeState(left, right Protocol2Response) bool {
 		left.ActivePackage.PersistenceMode == right.ActivePackage.PersistenceMode &&
 		reflect.DeepEqual(left.ActivePackage.Descriptor, right.ActivePackage.Descriptor) &&
 		reflect.DeepEqual(left.ActivePackage.Observed, right.ActivePackage.Observed) &&
+		reflect.DeepEqual(left.ActivePackage.StaticComposition, right.ActivePackage.StaticComposition) &&
 		reflect.DeepEqual(left.ActivePackage.Composition, right.ActivePackage.Composition) &&
 		reflect.DeepEqual(left.ActivePackage.SlotComposition, right.ActivePackage.SlotComposition) && reflect.DeepEqual(left.ActivePackage.PartsComposition, right.ActivePackage.PartsComposition) &&
 		reflect.DeepEqual(left.ActivePackage.ROMLink, right.ActivePackage.ROMLink) &&
@@ -949,7 +967,7 @@ func mapOptionalProtocol2Error(remote *Protocol2Error) *protocol.APIError {
 
 func matchingAdoptedPackage(adopted []corepackage.Staged, active Protocol2ActivePackage) int {
 	for index := range adopted {
-		if adopted[index].PackageID == active.PackageID && reflect.DeepEqual(adopted[index].Descriptor, active.Descriptor) && reflect.DeepEqual(adopted[index].Composition, active.Composition) && reflect.DeepEqual(adopted[index].SlotComposition, active.SlotComposition) && reflect.DeepEqual(adopted[index].PartsComposition, active.PartsComposition) && reflect.DeepEqual(adopted[index].ROMLink, active.ROMLink) && reflect.DeepEqual(adopted[index].ROMLinks, active.ROMLinks) {
+		if adopted[index].PackageID == active.PackageID && reflect.DeepEqual(adopted[index].Descriptor, active.Descriptor) && reflect.DeepEqual(adopted[index].StaticComposition, active.StaticComposition) && reflect.DeepEqual(adopted[index].Composition, active.Composition) && reflect.DeepEqual(adopted[index].SlotComposition, active.SlotComposition) && reflect.DeepEqual(adopted[index].PartsComposition, active.PartsComposition) && reflect.DeepEqual(adopted[index].ROMLink, active.ROMLink) && reflect.DeepEqual(adopted[index].ROMLinks, active.ROMLinks) {
 			return index
 		}
 	}
@@ -976,7 +994,7 @@ func (r *Runtime) adoptActivePackage(adopted []corepackage.Staged, activeIndex i
 // kit checks the programmed image against its receipt, not the package
 // payload. A composed, slotted or parts load is not reported here.
 func ExpansionSocketReceipt(activation CoreActivation) string {
-	if activation.Composition != nil || activation.SlotComposition != nil || activation.PartsComposition != nil {
+	if activation.StaticComposition != nil || activation.Composition != nil || activation.SlotComposition != nil || activation.PartsComposition != nil {
 		return ""
 	}
 	if !corepackage.RearExpansionSocket(activation.Descriptor) {
@@ -990,7 +1008,7 @@ func corePackageStatus(activation CoreActivation) *protocol.CorePackageStatus {
 	for index, value := range activation.ActiveInterfaces {
 		interfaces[index] = protocol.RuntimeInterface{ID: value.ID, Major: value.Major, Minor: value.Minor}
 	}
-	return &protocol.CorePackageStatus{PartsComposition: clonePartsComposition(activation.PartsComposition), ROMLink: cloneROMLink(activation.ROMLink), ROMLinks: cloneROMLinks(activation.ROMLinks), Composition: cloneComposition(activation.Composition), PackageID: activation.PackageID, CoreID: activation.Descriptor.Core.ID, Generation: activation.Generation, PersistenceMode: activation.PersistenceMode,
+	return &protocol.CorePackageStatus{StaticComposition: cloneStaticComposition(activation.StaticComposition), PartsComposition: clonePartsComposition(activation.PartsComposition), ROMLink: cloneROMLink(activation.ROMLink), ROMLinks: cloneROMLinks(activation.ROMLinks), Composition: cloneComposition(activation.Composition), PackageID: activation.PackageID, CoreID: activation.Descriptor.Core.ID, Generation: activation.Generation, PersistenceMode: activation.PersistenceMode,
 		SlotComposition: cloneSlotComposition(activation.SlotComposition), ExpansionSocket: ExpansionSocketReceipt(activation), MediaUnits: cloneMediaUnits(activation.MediaUnits),
 		MediaStream: activation.MediaStream,
 		ABI:         protocol.RuntimeContract{ID: activation.Descriptor.ABI.ID, Major: uint16(activation.Descriptor.ABI.Major), Minor: uint16(activation.Descriptor.ABI.Minor)},

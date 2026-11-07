@@ -11,7 +11,7 @@ set -eu
 
 data=/run/fogcast/fesdata3
 state=$data/bluetooth
-mods=/lib/modules/5.15.1-MiSTer/kernel/drivers/bluetooth
+mods=/lib/modules/$(uname -r)/kernel/drivers/bluetooth
 log=/var/log/fes-bluetooth-storage.log
 waiter_pid_file=/run/fes-bluetooth-storage.pid
 

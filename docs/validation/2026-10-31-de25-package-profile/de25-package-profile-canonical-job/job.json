@@ -1,0 +1,22 @@
+{
+  "source_revision": "e0b2f28c37ed2558ffea646629427900e5e20ab0",
+  "command": [
+    "python3",
+    "scripts/de25_runtime.py",
+    "--image-output",
+    "/home/deano/fes/out/artifacts/de25-kernel-modules/0da63d1044cc7ecf9908efba52af17b3e55e6271/linux-image",
+    "--output",
+    "out/de25-package-profile-canonical",
+    "--jobs",
+    "2"
+  ],
+  "cwd": "/home/deano/fes/out/dev/de25-linux-platform",
+  "started_utc": "2026-10-31T21:02:31.811579+00:00",
+  "time_cap_seconds": 1200,
+  "hardware_access": "not-performed",
+  "pid": 2719248,
+  "state": "failed",
+  "elapsed_seconds": 57.0,
+  "heartbeat_utc": "2026-10-31T21:03:28.792841+00:00",
+  "returncode": 1
+}

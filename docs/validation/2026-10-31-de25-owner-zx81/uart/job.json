@@ -1,0 +1,10 @@
+{
+  "board": "TRWU8J8G",
+  "scope": "passive UART; no transmit or modem control",
+  "pid": 681389,
+  "time_cap_seconds": 1800,
+  "state": "stopped",
+  "elapsed_seconds": 636.0,
+  "bytes_captured": 26078,
+  "port_open": false
+}

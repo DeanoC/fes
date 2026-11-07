@@ -18,7 +18,13 @@ python3 scripts/sim_fes_menu.py
 
 The read-only 128-bit Avalon reader fetches exactly 921,600 XRGB8888 pixels
 from one of two 4 MiB slots. It bounds each burst to its frame, reserves FIFO
-space for every response and keeps one burst outstanding. STOP/quiesce drains
+space for every response and, by default, keeps one burst outstanding. The
+optional `READ_AHEAD` mode overlaps requests while reserving FIFO capacity for
+every accepted or held command; DE25 enables it for its short bursts.
+`FIFO_ADDR_BITS` defaults to eight (256 beats, 4 KiB). DE25 selects eleven
+(2,048 beats, 32 KiB) to buffer pixels across temporary DDR service gaps.
+Accepted and held response reservations remain independently limited to 256
+beats, including with the larger local buffer. STOP/quiesce drains
 issued reads and discards their data before the reader reports idle. By default,
 `rst` cancels pixel generation while preserving command/response accounting so
 accepted reads still drain. A consumer may opt into `RESET_ABORTS_TRAFFIC` only

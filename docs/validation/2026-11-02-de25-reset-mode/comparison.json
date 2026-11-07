@@ -1,0 +1,174 @@
+{
+  "actual_supported_generation_and_compile": "passed",
+  "all_reported_timing_pass": true,
+  "all_twelve_reset_heads_unchanged": true,
+  "baseline_FPGA_producer": "72716153eb7be7b62917ed685d5d7380347a2d7d",
+  "baseline_rbf_sha256": "e18324235e32c86b643b24dba18deab344628cd9fe0a41bf9d6a3ea76836fde4",
+  "baseline_reset_heads": {
+    "fes_video_inst|video_clock|iopll_0_outclk0": [
+      "fes_video_inst|visible_release|sync_regs[0]",
+      "soc_inst|rst_controller_001|alt_rst_sync_uq1|altera_reset_synchronizer_int_chain[1]",
+      "soc_inst|subsys_periph|fes_ctrl_cdc|fes_ctrl_cdc|cmd_fifo|my_altera_avalon_dc_fifo_cmd_fifo|read_reset_sync|altera_reset_synchronizer_int_chain[3]",
+      "soc_inst|subsys_periph|fes_ctrl_cdc|fes_ctrl_cdc|rsp_fifo|my_altera_avalon_dc_fifo_rsp_fifo|write_reset_sync|altera_reset_synchronizer_int_chain[3]",
+      "soc_inst|subsys_periph|fes_mem_cdc|fes_mem_cdc|cmd_fifo|my_altera_avalon_dc_fifo_cmd_fifo|write_reset_sync|altera_reset_synchronizer_int_chain[3]",
+      "soc_inst|subsys_periph|fes_mem_cdc|fes_mem_cdc|rsp_fifo|my_altera_avalon_dc_fifo_rsp_fifo|read_reset_sync|altera_reset_synchronizer_int_chain[3]"
+    ],
+    "pll_inst|iopll_0_outclk0": [
+      "fes_top_reset_inst|sync_regs[0]",
+      "fes_video_inst|lock_qualifier|sync_regs[0]",
+      "soc_inst|subsys_periph|fes_ctrl_cdc|fes_ctrl_cdc|cmd_fifo|my_altera_avalon_dc_fifo_cmd_fifo|write_reset_sync|altera_reset_synchronizer_int_chain[3]",
+      "soc_inst|subsys_periph|fes_ctrl_cdc|fes_ctrl_cdc|rsp_fifo|my_altera_avalon_dc_fifo_rsp_fifo|read_reset_sync|altera_reset_synchronizer_int_chain[3]",
+      "soc_inst|subsys_periph|fes_mem_cdc|fes_mem_cdc|cmd_fifo|my_altera_avalon_dc_fifo_cmd_fifo|read_reset_sync|altera_reset_synchronizer_int_chain[3]",
+      "soc_inst|subsys_periph|fes_mem_cdc|fes_mem_cdc|rsp_fifo|my_altera_avalon_dc_fifo_rsp_fifo|write_reset_sync|altera_reset_synchronizer_int_chain[3]"
+    ]
+  },
+  "canonical_candidate": false,
+  "classification": "Actual supported reset-mode comparison rules out SYNC_RESET1 as RDC closure; no product source change or hardware acceptance",
+  "compile_seconds": 340.435,
+  "completed_own_remote_job_pids_pgids": [
+    2296080,
+    2296101,
+    2296914,
+    2296935,
+    2297360,
+    2297381,
+    2297917,
+    2297938
+  ],
+  "decision": "reject this setting change; reset coordination requires an architectural repair/proof",
+  "diagnostic_reset_heads": {
+    "fes_video_inst|video_clock|iopll_0_outclk0": [
+      "fes_video_inst|visible_release|sync_regs[0]",
+      "soc_inst|rst_controller_001|alt_rst_sync_uq1|altera_reset_synchronizer_int_chain[1]",
+      "soc_inst|subsys_periph|fes_ctrl_cdc|fes_ctrl_cdc|cmd_fifo|my_altera_avalon_dc_fifo_cmd_fifo|read_reset_sync|altera_reset_synchronizer_int_chain[3]",
+      "soc_inst|subsys_periph|fes_ctrl_cdc|fes_ctrl_cdc|rsp_fifo|my_altera_avalon_dc_fifo_rsp_fifo|write_reset_sync|altera_reset_synchronizer_int_chain[3]",
+      "soc_inst|subsys_periph|fes_mem_cdc|fes_mem_cdc|cmd_fifo|my_altera_avalon_dc_fifo_cmd_fifo|write_reset_sync|altera_reset_synchronizer_int_chain[3]",
+      "soc_inst|subsys_periph|fes_mem_cdc|fes_mem_cdc|rsp_fifo|my_altera_avalon_dc_fifo_rsp_fifo|read_reset_sync|altera_reset_synchronizer_int_chain[3]"
+    ],
+    "pll_inst|iopll_0_outclk0": [
+      "fes_top_reset_inst|sync_regs[0]",
+      "fes_video_inst|lock_qualifier|sync_regs[0]",
+      "soc_inst|subsys_periph|fes_ctrl_cdc|fes_ctrl_cdc|cmd_fifo|my_altera_avalon_dc_fifo_cmd_fifo|write_reset_sync|altera_reset_synchronizer_int_chain[3]",
+      "soc_inst|subsys_periph|fes_ctrl_cdc|fes_ctrl_cdc|rsp_fifo|my_altera_avalon_dc_fifo_rsp_fifo|read_reset_sync|altera_reset_synchronizer_int_chain[3]",
+      "soc_inst|subsys_periph|fes_mem_cdc|fes_mem_cdc|cmd_fifo|my_altera_avalon_dc_fifo_cmd_fifo|read_reset_sync|altera_reset_synchronizer_int_chain[3]",
+      "soc_inst|subsys_periph|fes_mem_cdc|fes_mem_cdc|rsp_fifo|my_altera_avalon_dc_fifo_rsp_fifo|write_reset_sync|altera_reset_synchronizer_int_chain[3]"
+    ]
+  },
+  "diagnostic_signoff_report_sha256": "59c1700a7fe7bf28e3a693f9ac4b5645e3d8410dc481a613da35417af2d8f4bb",
+  "fresh_async_input_review": "not performed for this rejected diagnostic; no reviewed finding is transferred from the baseline",
+  "hardware_access": "not-performed",
+  "live_completed_processes": [],
+  "original_failures": {
+    "generated": {
+      "command": [
+        "python3",
+        "/data/de25-reset-sync-72716153e/probe-generated.py"
+      ],
+      "cwd": "/data/de25-hdmi-output-a3a9dd9d5/source-hold",
+      "elapsed_seconds": 5.5,
+      "hardware_access": "not-performed",
+      "heartbeat_utc": "2026-11-02T06:55:46.355537+00:00",
+      "pid": 2296935,
+      "returncode": 1,
+      "source_revision": "72716153eb7be7b62917ed685d5d7380347a2d7d",
+      "started_utc": "2026-11-02T06:55:40.813209+00:00",
+      "state": "failed",
+      "time_cap_seconds": 2400
+    },
+    "generated-fixed": {
+      "command": [
+        "python3",
+        "/data/de25-reset-sync-72716153e/probe-generated-fixed.py"
+      ],
+      "cwd": "/data/de25-hdmi-output-a3a9dd9d5/source-hold",
+      "elapsed_seconds": 6.5,
+      "hardware_access": "not-performed",
+      "heartbeat_utc": "2026-11-02T06:56:36.093244+00:00",
+      "pid": 2297381,
+      "returncode": 1,
+      "source_revision": "72716153eb7be7b62917ed685d5d7380347a2d7d",
+      "started_utc": "2026-11-02T06:56:29.547407+00:00",
+      "state": "failed",
+      "time_cap_seconds": 2400
+    },
+    "prepared": {
+      "command": [
+        "python3",
+        "/data/de25-reset-sync-72716153e/probe-prepared.py"
+      ],
+      "cwd": "/data/de25-hdmi-output-a3a9dd9d5/source-hold",
+      "elapsed_seconds": 439.2,
+      "hardware_access": "not-performed",
+      "heartbeat_utc": "2026-11-02T07:05:51.535684+00:00",
+      "pid": 2297938,
+      "returncode": 0,
+      "source_revision": "72716153eb7be7b62917ed685d5d7380347a2d7d",
+      "started_utc": "2026-11-02T06:58:32.361323+00:00",
+      "state": "passed",
+      "time_cap_seconds": 2400
+    },
+    "probe": {
+      "command": [
+        "python3",
+        "/data/de25-reset-sync-72716153e/probe.py"
+      ],
+      "cwd": "/data/de25-hdmi-output-a3a9dd9d5/source-hold",
+      "elapsed_seconds": 26.2,
+      "hardware_access": "not-performed",
+      "heartbeat_utc": "2026-11-02T06:53:12.333983+00:00",
+      "pid": 2296101,
+      "returncode": 1,
+      "source_revision": "72716153eb7be7b62917ed685d5d7380347a2d7d",
+      "started_utc": "2026-11-02T06:52:46.106613+00:00",
+      "state": "failed",
+      "time_cap_seconds": 1800
+    }
+  },
+  "original_fitted_inputs_unchanged": true,
+  "package_timing_admission": false,
+  "product_reset_mode": "unchanged at SYNC_RESET0",
+  "published_source_unchanged": "147995e3f6aa2ddb7db909db48cbf26b2bf8e78d",
+  "raw_failed_rules": {
+    "RDC-50003": 2,
+    "TMC-20011": 2,
+    "TMC-20012": 30
+  },
+  "reported_timing_checks": 69,
+  "signoff_rules": 85,
+  "six_actual_generated_mode_inputs_verified": {
+    "peripheral_subsys/ip/peripheral_subsys/peripheral_subsys_fes_ctrl_cdc/mm_ccb_1941/synth/peripheral_subsys_fes_ctrl_cdc_mm_ccb_st_dc_fifo_1941_6ofxo5y.v": "4b33ac056cb0524fa6d456661de4d6f8463675e3fefd23377be5208d699f8c7d",
+    "peripheral_subsys/ip/peripheral_subsys/peripheral_subsys_fes_ctrl_cdc/mm_ccb_1941/synth/peripheral_subsys_fes_ctrl_cdc_mm_ccb_st_dc_fifo_1941_tt7vy7y.v": "13d2c304741c7451e7ce27d0551cc9a1802aac3579e043932b39be8379f4c781",
+    "peripheral_subsys/ip/peripheral_subsys/peripheral_subsys_fes_ctrl_cdc/synth/peripheral_subsys_fes_ctrl_cdc.v": "5a209a5b7ded8176887b57b6a0a907bc22d736eb892d088fdb087af93e4c3bea",
+    "peripheral_subsys/ip/peripheral_subsys/peripheral_subsys_fes_mem_cdc/mm_ccb_1941/synth/peripheral_subsys_fes_mem_cdc_mm_ccb_st_dc_fifo_1941_6fg62pq.v": "a0757a866e0164949cf1c3b72478d24dac9220b8017d4b7e38fb5e4763f3e45a",
+    "peripheral_subsys/ip/peripheral_subsys/peripheral_subsys_fes_mem_cdc/mm_ccb_1941/synth/peripheral_subsys_fes_mem_cdc_mm_ccb_st_dc_fifo_1941_6oksvxa.v": "341654453169e9b2e1db5c3779d301f098773b321a350ceceab72d09b429722b",
+    "peripheral_subsys/ip/peripheral_subsys/peripheral_subsys_fes_mem_cdc/synth/peripheral_subsys_fes_mem_cdc.v": "c9cd8f1a2ff58b2a76535ca0c96c4d57c4f2eee9938c8a9cd3c0e18d382db41e"
+  },
+  "six_strengthened_reset_sdcs_identical": {
+    "hps_subsys/ip/qsys_top/emif_io96b_hps/emif_io96b_hps_emif_io96b_hps_510_z7xh4ha/synth/ip/emif_io96b_hps_emif_io96b_hps_510_z7xh4ha/emif_io96b_hps_emif_io96b_hps_510_z7xh4ha_emif_0_lpddr4/altera_reset_controller_1925/synth/altera_reset_controller.sdc": {
+      "raw_sha256": "8834ac8de6421bc2c052c2ac8d7a71127477590111c6daab3bf9c8623501d769",
+      "same_strengthened_sha256": "5ee450b6da0e63a0f1f805401370c13de7fefa7122bf066c940f30fbbbfe8166"
+    },
+    "jtag_subsys/ip/jtag_subsys/fpga_m/altera_reset_controller_1925/synth/altera_reset_controller.sdc": {
+      "raw_sha256": "8834ac8de6421bc2c052c2ac8d7a71127477590111c6daab3bf9c8623501d769",
+      "same_strengthened_sha256": "5ee450b6da0e63a0f1f805401370c13de7fefa7122bf066c940f30fbbbfe8166"
+    },
+    "jtag_subsys/ip/jtag_subsys/hps_f2sdram/altera_reset_controller_1925/synth/altera_reset_controller.sdc": {
+      "raw_sha256": "8834ac8de6421bc2c052c2ac8d7a71127477590111c6daab3bf9c8623501d769",
+      "same_strengthened_sha256": "5ee450b6da0e63a0f1f805401370c13de7fefa7122bf066c940f30fbbbfe8166"
+    },
+    "jtag_subsys/ip/jtag_subsys/hps_m/altera_reset_controller_1925/synth/altera_reset_controller.sdc": {
+      "raw_sha256": "8834ac8de6421bc2c052c2ac8d7a71127477590111c6daab3bf9c8623501d769",
+      "same_strengthened_sha256": "5ee450b6da0e63a0f1f805401370c13de7fefa7122bf066c940f30fbbbfe8166"
+    },
+    "peripheral_subsys/peripheral_subsys/altera_reset_controller_1925/synth/altera_reset_controller.sdc": {
+      "raw_sha256": "8834ac8de6421bc2c052c2ac8d7a71127477590111c6daab3bf9c8623501d769",
+      "same_strengthened_sha256": "5ee450b6da0e63a0f1f805401370c13de7fefa7122bf066c940f30fbbbfe8166"
+    },
+    "qsys_top/altera_reset_controller_1925/synth/altera_reset_controller.sdc": {
+      "raw_sha256": "8834ac8de6421bc2c052c2ac8d7a71127477590111c6daab3bf9c8623501d769",
+      "same_strengthened_sha256": "5ee450b6da0e63a0f1f805401370c13de7fefa7122bf066c940f30fbbbfe8166"
+    }
+  },
+  "total_job_seconds": 439.2,
+  "zero_waivers": true
+}

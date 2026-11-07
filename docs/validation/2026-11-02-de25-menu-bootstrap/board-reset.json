@@ -1,0 +1,73 @@
+{
+  "FPGA_producer_revision": "1c5f24e1878328edb7a4e92cb0396aaac6aa336a",
+  "RDC_50003_closed": false,
+  "actual_board_composition": {
+    "cases": 32,
+    "clock_phases": [
+      1,
+      17,
+      296,
+      297,
+      399,
+      400,
+      593,
+      799
+    ],
+    "global_reset_observations": 16,
+    "job_seconds": 144.7,
+    "negative_control": "pass: transient lock-loss bridge-reset regression rejected",
+    "pending_external_AXI_bursts_after_each_global_reset": [
+      16
+    ],
+    "positive_kinds": [
+      "healthy accepted-read drain",
+      "brief pixel-lock loss with stopped pixel clock; sticky fault and preserved live FIFO/grant state",
+      "configuration reset with accepted external reads; lost guard epoch",
+      "system-PLL loss with accepted external reads; lost guard epoch"
+    ],
+    "reset_instances": [
+      "fes_de25_scanout_interconnect_test.periph.fes_ctrl_cdc.fes_ctrl_cdc.cmd_fifo.my_altera_avalon_dc_fifo_cmd_fifo.write_reset_sync",
+      "fes_de25_scanout_interconnect_test.periph.fes_ctrl_cdc.fes_ctrl_cdc.cmd_fifo.my_altera_avalon_dc_fifo_cmd_fifo.read_reset_sync",
+      "fes_de25_scanout_interconnect_test.periph.fes_ctrl_cdc.fes_ctrl_cdc.rsp_fifo.my_altera_avalon_dc_fifo_rsp_fifo.write_reset_sync",
+      "fes_de25_scanout_interconnect_test.periph.fes_ctrl_cdc.fes_ctrl_cdc.rsp_fifo.my_altera_avalon_dc_fifo_rsp_fifo.read_reset_sync",
+      "fes_de25_scanout_interconnect_test.periph.fes_mem_cdc.fes_mem_cdc.cmd_fifo.my_altera_avalon_dc_fifo_cmd_fifo.write_reset_sync",
+      "fes_de25_scanout_interconnect_test.periph.fes_mem_cdc.fes_mem_cdc.cmd_fifo.my_altera_avalon_dc_fifo_cmd_fifo.read_reset_sync",
+      "fes_de25_scanout_interconnect_test.periph.fes_mem_cdc.fes_mem_cdc.rsp_fifo.my_altera_avalon_dc_fifo_rsp_fifo.write_reset_sync",
+      "fes_de25_scanout_interconnect_test.periph.fes_mem_cdc.fes_mem_cdc.rsp_fifo.my_altera_avalon_dc_fifo_rsp_fifo.read_reset_sync",
+      "fes_de25_scanout_interconnect_test.fes_top_reset_inst",
+      "fes_de25_scanout_interconnect_test.fes_video_inst.lock_qualifier",
+      "fes_de25_scanout_interconnect_test.rst_controller_001.genblk1.alt_rst_sync_uq1",
+      "fes_de25_scanout_interconnect_test.fes_video_inst.visible_release"
+    ],
+    "status": "pass"
+  },
+  "actual_existing_startup": {
+    "cases": 72,
+    "job_seconds": 14.2,
+    "status": "pass"
+  },
+  "boot_or_recovery_acceptance": false,
+  "classification": "Finite actual board-reset/transport RTL composition with explicit digital boundaries; no physical/reset-epoch qualification",
+  "goal_complete": false,
+  "hardware_access": "not-performed",
+  "kernel_guard_reset_epoch_refusal": "code inspection only; not newly executed against this RTL model",
+  "native_ownership_acceptance": false,
+  "new_Quartus_compile": false,
+  "original_failed_proof": "0.6s exact scope guard refusal before compilation; corrected scope includes genblk1; original retained",
+  "restoration": {
+    "job_seconds": 1.6,
+    "native_model_executables": 3,
+    "protected_inputs": 133,
+    "regular_files": 724,
+    "seconds": 1.44
+  },
+  "retention_manifest": "/home/deano/fes/out/artifacts/de25-board-reset/d6ab45033/retention.json",
+  "retention_sha256": "ede82d6b6468423748f1472d22c9b60266475facd572c349667734cea756bf39",
+  "source_preparation": "own stalled network fetch deliberately stopped before proof jobs; exact published source bundle used",
+  "source_revision": "d6ab4503308bf20b2d6aff38cf8debca8e1c6e76",
+  "unchanged_inputs": {
+    "MENU": 374,
+    "compiler": 59,
+    "runtime_test": 58
+  }
+}

@@ -134,6 +134,29 @@ class PlatformWorkspaceTests(unittest.TestCase):
         self.assertNotEqual(identity, appliance.bootstrap_identity('2' * 64, factory, 'sha256:' + '3' * 64, '4' * 40, recipe, second))
         self.assertNotEqual(identity, appliance.bootstrap_identity('2' * 64, factory, 'sha256:' + '3' * 64, '4' * 40, recipe))
 
+    def test_aarch64_bootstrap_provenance_requires_explicit_cpu_selection(self):
+        record = fes_platform.platform_build_record('a' * 64, 'b' * 64, 'c' * 40,
+                                                    'go1.26.5', 'd' * 64, architecture='aarch64')
+        self.assertEqual(record['build_env']['GOARCH'], 'arm64')
+        self.assertEqual(record['build_env']['GOARM64'], 'v8.0')
+        self.assertNotIn('GOARM', record['build_env'])
+        fes_platform.validate_platform_build(record, architecture='aarch64')
+        with self.assertRaisesRegex(ValueError, 'environment'):
+            fes_platform.validate_platform_build(record)
+        de10 = fes_platform.platform_build_record('a' * 64, 'b' * 64, 'c' * 40, 'go1.26.5', 'd' * 64)
+        with self.assertRaisesRegex(ValueError, 'environment'):
+            fes_platform.validate_platform_build(de10, architecture='aarch64')
+        with self.assertRaisesRegex(ValueError, 'architecture'):
+            fes_platform.arm_build_environment('other')
+
+    def test_go_toolchain_probe_ignores_inherited_cross_cpu_settings(self):
+        ambient = {'GOOS':'other', 'GOARCH':'other', 'GOARM':'bad-arm', 'GOARM64':'bad-arm64', 'GOTOOLCHAIN':'auto'}
+        probe = fes_platform.arm_probe_environment(ambient)
+        self.assertFalse(set(probe) & {'GOOS', 'GOARCH', 'GOARM', 'GOARM64'})
+        self.assertEqual(probe['GOTOOLCHAIN'], 'auto')
+        self.assertEqual(probe['GOWORK'], 'off')
+        self.assertEqual(ambient['GOARM64'], 'bad-arm64')
+
 
 class PlatformBuildTests(unittest.TestCase):
     def test_build_static_arm_consumes_selected_module_without_copying(self):
@@ -194,3 +217,22 @@ class SoftwareSupervisorBuildTests(unittest.TestCase):
             self.assertEqual(packages, ['./cmd/fes-kit-software', './cmd/fes-bluetooth'])
             self.assertEqual(compile_go.call_args.args[0][0], '/selected/go1.26.5/bin/go')
             self.assertEqual(compile_go.call_args.kwargs['env']['GOTOOLCHAIN'], 'local')
+
+    def test_aarch64_supervisor_and_bluetooth_use_explicit_cpu_and_validator(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            write_tree(root / 'platform', {'go.mod': 'module github.com/DeanoC/fes/platform\n\ngo 1.26.5\n'})
+            fogcast = write_tree(root / 'sources/FogCast', {'appliance/go.mod': 'module github.com/DeanoC/FogCast/appliance\n\ngo 1.26.5\n'})
+            with mock.patch.object(fes_platform.subprocess, 'check_output', return_value='/selected/go1.26.5\n'), \
+                 mock.patch.object(fes_platform.subprocess, 'run') as compile_go, \
+                 mock.patch.object(appliance, 'validate_static_arm', return_value='a' * 64) as validate:
+                self.assertEqual(fes_platform.build_kit_software(root, fogcast, {'GOARM': '5'}, 'aarch64'), 'a' * 64)
+            self.assertEqual(len(compile_go.call_args_list), 2)
+            for call in compile_go.call_args_list:
+                self.assertEqual(call.kwargs['env']['GOARCH'], 'arm64')
+                self.assertEqual(call.kwargs['env']['GOARM64'], 'v8.0')
+                self.assertNotIn('GOARM', call.kwargs['env'])
+                self.assertTrue(call.args[0][-2].endswith('-linux-aarch64'))
+            self.assertEqual([call.args[1] for call in validate.call_args_list], ['aarch64', 'aarch64'])
+            with self.assertRaises(ValueError):
+                fes_platform.build_kit_software(root, fogcast, {}, '../escape')

@@ -4,6 +4,7 @@ import json
 from pathlib import Path
 import re
 import subprocess
+import shutil
 import sys
 import tempfile
 import textwrap
@@ -12,6 +13,7 @@ from types import SimpleNamespace
 from unittest import mock
 
 from scripts.affected import plan
+from scripts.parent_tests import parent_partitions
 from scripts.ci_simulations import simulation_matrix, tier_for_event
 
 
@@ -190,16 +192,20 @@ class ParentWorkflowTests(unittest.TestCase):
                                         ' $*" >> "$COMMAND_LOG"\n')
                         stub.chmod(0o755)
                     paths = '["sources/FogCast/ui/tenfoot/library_retry_test.go"]'
+                    paths_file = root / 'fes-ci-plan/changed-paths.json'
+                    paths_file.parent.mkdir()
+                    paths_file.write_text(paths)
                     subprocess.run(['bash', '-e', '-c', script], check=True, env={**os.environ,
                         'PATH': str(root) + os.pathsep + os.environ['PATH'],
                         'COMMAND_LOG': str(root / 'commands'), 'SHARD': str(shard),
-                        'CHANGED_PATHS': paths, 'TEST_FULL_RACE': str(full).lower()})
+                        'RUNNER_TEMP': str(root), 'TEST_FULL_RACE': str(full).lower()})
                     commands = (root / 'commands').read_text().splitlines()
                     runner = next(c for c in commands if c.startswith('python3 scripts/host_tests.py '))
                     self.assertIn('--build-host-if-needed', runner)
                     self.assertIn('--ui-if-needed', runner)
                     self.assertIn(f'--shard {shard}/3', runner)
-                    self.assertIn('--paths-json ' + paths, runner)
+                    self.assertIn('--paths-json-file ' + str(paths_file), runner)
+                    self.assertEqual(json.loads(paths_file.read_text()), json.loads(paths))
                     self.assertEqual('--full' in runner, full)
                     self.assertNotIn('make host', commands)
                     self.assertFalse(any(c.startswith('make ') for c in commands))
@@ -208,7 +214,7 @@ class ParentWorkflowTests(unittest.TestCase):
         repository = Path(__file__).resolve().parents[1]
         workflow = (repository / '.github/workflows/check.yml').read_text()
         step = workflow.split('      - name: Unused Go code\n', 1)[1].split('  host:\n', 1)[0]
-        self.assertIn('CHANGED_PATHS: ${{ needs.plan.outputs.paths }}', step)
+        self.assertNotIn('CHANGED_PATHS:', step)
         command = re.search(r'        run: (.+)', step).group(1)
         for paths, expected in ((['scripts/appliance.py'], False),
                                 (['tests/test_receipt.py', 'docs/test-changed.md'], False),
@@ -216,6 +222,9 @@ class ParentWorkflowTests(unittest.TestCase):
                                 (['<new-branch>'], True)):
             with self.subTest(paths=paths), tempfile.TemporaryDirectory() as temporary:
                 root = Path(temporary)
+                paths_file = root / 'fes-ci-plan/changed-paths.json'
+                paths_file.parent.mkdir()
+                paths_file.write_text(json.dumps(paths))
                 # Exercise the actual workflow command/quoting and real selector,
                 # adding only plan-only to avoid installing analysis tools.
                 stub = root / 'python3'
@@ -223,7 +232,7 @@ class ParentWorkflowTests(unittest.TestCase):
                                 'os.execv(sys.executable, [sys.executable, *sys.argv[1:], "--plan-only"])\n')
                 stub.chmod(0o755)
                 result = subprocess.run(['bash', '-e', '-c', command], cwd=repository,
-                    env={**os.environ, 'CHANGED_PATHS': json.dumps(paths),
+                    env={**os.environ, 'RUNNER_TEMP': str(root),
                          'PATH': str(root) + os.pathsep + os.environ['PATH']},
                     capture_output=True, text=True, check=True)
                 self.assertEqual(json.loads(result.stdout), {'selected': expected, 'paths': paths})
@@ -232,15 +241,19 @@ class ParentWorkflowTests(unittest.TestCase):
         workflow = (Path(__file__).resolve().parents[1] /
                     '.github/workflows/check.yml').read_text()
         parent = workflow.split('  parent-tests:\n', 1)[1].split('  consistency:\n', 1)[0]
-        script = textwrap.dedent(re.search(r'        run: \|\n(.*)', parent, re.S).group(1))
-        for path, media in (
+        step = parent.split('      - name: Run selected parent partition\n', 1)[1]
+        script = textwrap.dedent(re.search(r'        run: \|\n(.*)', step, re.S).group(1))
+        cases = [(path, media, part) for path, media in (
             ('sources/FogCast/ui/rooms/examples/fes-cores/main.lua', False),
             ('sources/FogCast/internal/hostapi/ui_app.js', False),
             ('platform/internal/applianceboot/boot.go', True),
-            ('<new-branch>', True),
-        ):
-            with self.subTest(path=path), tempfile.TemporaryDirectory() as temporary:
+            ('<new-branch>', True)) for part in parent_partitions(media)]
+        for path, media, partition in cases:
+            with self.subTest(path=path, partition=partition), tempfile.TemporaryDirectory() as temporary:
                 root = Path(temporary)
+                paths_file = root / 'fes-ci-plan/changed-paths.json'
+                paths_file.parent.mkdir()
+                paths_file.write_text(json.dumps([path]))
                 for command in ('make', 'python3'):
                     stub = root / command
                     stub.write_text('#!/bin/sh\nprintf "%s\\n" "' + command +
@@ -248,26 +261,76 @@ class ParentWorkflowTests(unittest.TestCase):
                     stub.chmod(0o755)
                 modes = plan([path])['test_modes']
                 environment = {
-                    **os.environ, 'CHANGED_PATHS': json.dumps([path]), 'PATH': str(root) + os.pathsep + os.environ['PATH'],
+                    **os.environ, 'RUNNER_TEMP': str(root), 'PATH': str(root) + os.pathsep + os.environ['PATH'],
                     'COMMAND_LOG': str(root / 'commands'),
                     'TEST_MEDIA': str(modes['media']).lower(),
                     'TEST_VIDEO': str(modes['video']).lower(),
+                    'PARENT_PARTITION': partition,
                 }
                 subprocess.run(['bash', '-e', '-c', script], env=environment, check=True)
                 commands = (root / 'commands').read_text().splitlines()
                 runner = next(c for c in commands if c.startswith('python3 scripts/parent_tests.py '))
-                self.assertIn('--paths-json ' + json.dumps([path]), runner)
-                self.assertEqual('make platform-provision' in commands, media)
-                self.assertEqual('make media-test-provision' in commands, media)
-                self.assertEqual('make platform-test' in commands, media)
-                self.assertEqual(any(c.startswith('make -C image test ') for c in commands), media)
+                self.assertIn('--paths-json-file ' + str(paths_file), runner)
+                self.assertIn('--partition ' + partition, runner)
+                self.assertEqual(json.loads(paths_file.read_text()), [path])
+                self.assertEqual('make platform-provision' in commands, partition == 'media')
+                self.assertEqual('make media-test-provision' in commands, partition == 'media')
+                self.assertEqual('make platform-test' in commands, partition == 'media')
+                self.assertEqual(any(c.startswith('make -C image test ') for c in commands), partition == 'media')
 
     def test_parent_capture_tests_have_ffmpeg(self):
         workflow = (Path(__file__).resolve().parents[1] / '.github/workflows/check.yml').read_text()
         parent = workflow.split('  parent-tests:\n', 1)[1].split('  consistency:\n', 1)[0]
-        self.assertIn('sudo apt-get update && sudo apt-get install -y ffmpeg', parent)
-        self.assertLess(parent.index('sudo apt-get install -y ffmpeg'),
+        self.assertIn("if: matrix.partition == 'software'", parent)
+        self.assertIn('install --no-install-recommends -y ffmpeg', parent)
+        self.assertIn('sudo timeout --signal=TERM --kill-after=30s 600s bash -e -c', parent)
+        self.assertLess(parent.index('install --no-install-recommends -y ffmpeg'),
                         parent.index('python3 scripts/parent_tests.py'))
+
+    def test_capture_dependency_step_reuses_installed_tool_and_preserves_failures(self):
+        workflow = (Path(__file__).resolve().parents[1] / '.github/workflows/check.yml').read_text()
+        step = workflow.split('      - name: Install capture test dependencies\n', 1)[1].split(
+            '      - name: Run selected parent partition\n', 1)[0]
+        script = textwrap.dedent(step.split('        run: |\n', 1)[1])
+        for installed, apt_exit, timeout_exit, expected in (
+            (True, 0, 0, 0), (False, 0, 0, 0), (False, 9, 0, 9), (False, 0, 124, 124)
+        ):
+            with self.subTest(installed=installed, apt_exit=apt_exit, timeout_exit=timeout_exit), \
+                    tempfile.TemporaryDirectory() as temporary:
+                root = Path(temporary); binary = root / 'bin'; binary.mkdir()
+                fixture = root / 'ffmpeg-fixture'
+                fixture.write_text('#!/bin/sh\nprintf checked > "$VERSION_LOG"\n')
+                fixture.chmod(0o755)
+                scripts = {
+                    'sudo': 'exec "$@"\n',
+                    'timeout': 'printf "%s\\n" "$*" > "$TIMEOUT_LOG"\n'
+                               'if [ "$TIMEOUT_EXIT" != 0 ]; then exit "$TIMEOUT_EXIT"; fi\n'
+                               'shift 3\nexec "$@"\n',
+                    'apt-get': 'printf "%s\\n" "$*" >> "$COMMAND_LOG"\n'
+                               'if [ "$APT_EXIT" != 0 ]; then exit "$APT_EXIT"; fi\n'
+                               'case "$*" in *" install "*) /bin/cp "$FFMPEG_FIXTURE" "$FAKE_BIN/ffmpeg";; esac\n',
+                }
+                for name, body in scripts.items():
+                    path = binary / name; path.write_text('#!/bin/sh\n' + body); path.chmod(0o755)
+                (binary / 'bash').symlink_to(shutil.which('bash'))
+                if installed: shutil.copy2(fixture, binary / 'ffmpeg')
+                env = {**os.environ, 'PATH': str(binary), 'APT_EXIT': str(apt_exit),
+                       'TIMEOUT_EXIT': str(timeout_exit), 'FAKE_BIN': str(binary),
+                       'FFMPEG_FIXTURE': str(fixture), 'VERSION_LOG': str(root / 'version'),
+                       'TIMEOUT_LOG': str(root / 'timeout'), 'COMMAND_LOG': str(root / 'commands')}
+                result = subprocess.run([shutil.which('bash'), '-e', '-c', script], env=env,
+                                        capture_output=True, text=True)
+                self.assertEqual(result.returncode, expected, result.stderr)
+                self.assertEqual((root / 'version').exists(), expected == 0)
+                self.assertEqual((root / 'timeout').exists(), not installed)
+                if not installed:
+                    self.assertTrue((root / 'timeout').read_text().startswith(
+                        '--signal=TERM --kill-after=30s 600s bash -e -c'))
+                if not installed and expected == 0:
+                    commands = (root / 'commands').read_text().splitlines()
+                    self.assertEqual(len(commands), 2)
+                    self.assertTrue(commands[0].endswith('update'))
+                    self.assertIn('install --no-install-recommends -y ffmpeg', commands[1])
 
     def test_parent_media_container_provisioning_is_bounded(self):
         repository = Path(__file__).resolve().parents[1]

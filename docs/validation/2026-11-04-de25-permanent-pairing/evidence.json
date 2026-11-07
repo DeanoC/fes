@@ -1,0 +1,112 @@
+{
+  "format": 1,
+  "evidence_class": "managed native integration diagnostic",
+  "overall_normal_kit_acceptance": false,
+  "created_at_utc": "2026-11-04T06:15:15.988803+00:00",
+  "source_revision": "d8cb7b3be68f767a2ebc5615b3542736522b30ad",
+  "host_revision": "91625e74d9c1a6a63a7a8f026652ecef27f4c01b",
+  "bundle_id": "a14a53cd33e2c51d7639701363bf95cc7781f62b8207c0e2bab1653276504700",
+  "bundle_archive_sha256": "1ccfceb73c7bdbadbbaacfd47958e7f8b99bb238d87db5c526f3725da064793e",
+  "base_image_sha256": "6de6a39230ce4bc364f34b7c606a5ed2c218d1315906c7e7f8b1ef9bbb566076",
+  "board": "de25-nano",
+  "usb_serial": "TRWU8J8G",
+  "old_boot_id": "d66190d4-f024-4895-958a-43c5e4bb2b96",
+  "new_boot_id": "cc0862c3-ce91-4c92-9ddc-469f8f1a9d15",
+  "software_generation": 6,
+  "checks": {
+    "build": {
+      "state": "passed",
+      "elapsed_seconds": 45.453,
+      "source_revision": "d8cb7b3be68f767a2ebc5615b3542736522b30ad",
+      "scope": "Normal AArch64 immutable kit software adding lease-protected launcher pairing; existing root6de/kernel/FPGA artifacts retained",
+      "output_log_sha256": "eaa79e69cb9a3869a4cc6f1f8eb12929e6e25d6d679346a151eb73f4f0d7bba5"
+    },
+    "software_api": {
+      "state": "passed",
+      "elapsed_seconds": 38.036,
+      "source_revision": "d8cb7b3be68f767a2ebc5615b3542736522b30ad",
+      "scope": "Normal managed software API install/queue/cancel/independent activation for new launcher pairing; current root6de/bundle0b22gen5/bootd661; no base or FPGA changes",
+      "output_log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "native_pairing_reboot": {
+      "state": "passed",
+      "elapsed_seconds": 49.02,
+      "source_revision": "d8cb7b3be68f767a2ebc5615b3542736522b30ad",
+      "scope": "One supported pairing apply, native direct Ethernet host access and ordinary reboot; exact selecteda14a gen6/root6de/kernel/card; no reverse tunnel/FPGA programming",
+      "output_log_sha256": "b6e32dc439c4716e373118ae31c161ad2bcffa92d0362cb45eebfd2b7bbb6a30"
+    },
+    "catalog": {
+      "state": "passed",
+      "elapsed_seconds": 6.683,
+      "source_revision": "d8cb7b3be68f767a2ebc5615b3542736522b30ad",
+      "scope": "Normal catalog Play/Stop through permanent DE25 host after supported LAN pairing and native ordinary reboot; retained ZX81/cassette, exact bundlea14a gen6/root6de; no reverse tunnel",
+      "output_log_sha256": "a5cb5daeffd28e31684c21a8cd0819f887112b93306cc40c5c9e54c3f9b5c056"
+    },
+    "catalog_after_host_restart": {
+      "state": "passed",
+      "elapsed_seconds": 6.582,
+      "source_revision": "d8cb7b3be68f767a2ebc5615b3542736522b30ad",
+      "scope": "Retained catalog/cassette Play/Stop after controlled restart of the persistent DE25 host; unchanged board bootcc086/directLAN/bundlea14a gen6/root6de; shared host untouched",
+      "output_log_sha256": "158e7e30b1040bf375ad88a53f28cf8f0a2f415743abb47c204486170da9be9a"
+    },
+    "affected": {
+      "state": "passed",
+      "elapsed_seconds": 394.584,
+      "source_revision": "d8cb7b3be68f767a2ebc5615b3542736522b30ad",
+      "scope": "Canonical parent/host affected plan for live launcher pairing and shared config validator move; no runtime/FPGA source change",
+      "output_log_sha256": "36410bafbf373fd54ddd47a25dd0b8978babf86e21b45d6108e4891ef8e4689e"
+    }
+  },
+  "focused_tests": {
+    "go_packages": [
+      "launcherconfig",
+      "internal/httpapi",
+      "cmd/mister-agent",
+      "cmd/fogcast-tenfoot"
+    ],
+    "go_race": "pairing/config/shutdown cases passed",
+    "python_cases": 10,
+    "parent_cases": 1358,
+    "parent_skips": 6,
+    "planner_cases": 62,
+    "host_and_ui": "passed",
+    "consistency": "41 consumers, 42 fixtures, 0 copied pins"
+  },
+  "native_reboot_seconds": 47.723,
+  "capture": {
+    "file": "menu-after-pairing.png",
+    "sha256": "7e189a2c42345f0c51413ae6816eb504365bfd5f45b2699a79d970e9ef3206f2",
+    "visual_evaluation": "FES Home, Sinclair ZX81 Ready, one installed entry; a single observed MENU frame, without sustained video qualification"
+  },
+  "host_service": {
+    "unit": "fes-de25-host.service",
+    "enabled": true,
+    "user_linger": true,
+    "browser_origin": "http://127.0.0.1:18787",
+    "paired_origin": "http://192.168.10.202:18789",
+    "configuration": "/home/deano/.config/fes/de25-host/config.toml",
+    "state": "/home/deano/.local/share/fes/de25-host/state",
+    "binary_sha256": "8fcf05fc6f1b2c5c0a702d331a32eac58aae5d1bdc2d73317a234d8b9aa27730",
+    "shared_service_unchanged": true,
+    "workstation_reboot_tested": false
+  },
+  "proof_script_sha256": "b4e5910bce3f8bd2bfeed10f1d7e4cc21c988a937f25ddaf97838487b4c44b35",
+  "files": {
+    "native-pairing-reboot.json": "6ab1cb1ae4b6987aa4964b5e9119abf586d2445a7ebe277469bfcaa96328eb9a",
+    "software-api.json": "f046fffec45e0db1d21cbabc2ce286898dcefbf98b648ae3dade3b18b5fd6d15",
+    "catalog.json": "397b49758405c0f8f74f2b8ed9ad289779e3b8e5a1b01de297940bb48e438558",
+    "catalog-after-host-restart.json": "946d5e112d20391bbbc0686378326d7a7e0b8464d8b587d7fbfd527af6aacb46",
+    "host-restart.json": "772a56e91269b8c6ebf2587b6c2bf1e6cce8f973a2412201975f4b3d2c284cf0",
+    "final-native.json": "0448c7ffe2fc4504bb43a64656d0864c0391efb42a0c83a4265c4cc16dc247b8",
+    "menu-after-pairing.png": "7e189a2c42345f0c51413ae6816eb504365bfd5f45b2699a79d970e9ef3206f2"
+  },
+  "limitations": [
+    "Current BRAM ZX81 has no allocated in-play display plane; in-game FES overlay remains open.",
+    "Unexpected process death, adoption and fault recovery remain open.",
+    "This phase tests ordinary reboot from idle on bundle a14a; the prior active-session reboot belongs to bundle 0b22.",
+    "Dedicated host uses the previously validated compatible source 916; shared operator host has no DE25 support until integration.",
+    "The package-only private host has no mapped ROM folder; its existing folder-watch reconciliation warnings are retained.",
+    "Enabled user service and linger are verified, without rebooting the shared workstation.",
+    "No new timing, FPGA, DMA/security, whole-board or full normal-kit acceptance."
+  ]
+}

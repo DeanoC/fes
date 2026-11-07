@@ -50,6 +50,30 @@ class ClosureAuditPrivateCacheTest(unittest.TestCase):
 
 
 class RecipeRegistryTest(unittest.TestCase):
+    def test_menu_board_selection_is_explicit_and_has_no_cross_board_fallback(self):
+        default = recipes.recipe_for('fes.menu')
+        self.assertEqual(default.board, 'de10-nano')
+        selected = recipes.recipe_for('fes.menu', board='de25-nano')
+        self.assertEqual(selected.producer_module, 'scripts.build_de25_menu_package')
+        self.assertEqual(selected.board, 'de25-nano')
+        self.assertEqual(selected.toolchain, 'quartus')
+        self.assertEqual(selected.quartus, {'version': '26.3.0', 'seeds': [1], 'threads': 2})
+        self.assertIsNone(selected.pnr)
+        with patch.dict(os.environ, {'BOARD': 'de25-nano', 'FES_TARGET_BOARD': 'de25-nano'}):
+            self.assertIs(recipes.recipe_for('fes.menu'), default)
+        zx81 = recipes.recipe_for('fes.zx81', board='de25-nano')
+        self.assertEqual(zx81.producer_module, 'scripts.build_de25_zx81_package')
+        self.assertEqual(zx81.toolchain, 'quartus')
+        self.assertEqual(recipes.recipe_for('fes.zx81').board, 'de10-nano')
+        for core, board in (('fes.zx80', 'de25-nano'), ('fes.menu', 'unknown')):
+            with self.subTest(core=core, board=board), self.assertRaises(ValueError):
+                recipes.recipe_for(core, board=board)
+        env = recipes.producer_environment({'FES_TOOLCHAIN_GPU_ROUTER': 'HIP',
+            'FES_TOOLCHAIN_HIP_ARCHITECTURES': 'other', 'QUARTUS_ROOTDIR': '/selected-pro'}, selected)
+        self.assertNotIn('FES_TOOLCHAIN_GPU_ROUTER', env)
+        self.assertNotIn('FES_TOOLCHAIN_HIP_ARCHITECTURES', env)
+        self.assertEqual(env['QUARTUS_ROOTDIR'], '/selected-pro')
+
     def test_discovery_loads_only_this_modules_own_cases(self):
         # Importing another suite's class for helper access must not let
         # unittest discovery re-run that suite under this module's name.
@@ -294,7 +318,7 @@ class RecipeRegistryTest(unittest.TestCase):
 
 
 class RecipeDataTest(unittest.TestCase):
-    def load_document(self, document):
+    def load_document(self, document, *, board='de10-nano'):
         # Fixture serialization only: the production loader always parses TOML.
         import json
         def encode(value):
@@ -318,7 +342,24 @@ class RecipeDataTest(unittest.TestCase):
         with tempfile.TemporaryDirectory() as temporary:
             path = Path(temporary) / "recipes.toml"
             path.write_text(text)
-            return recipes.load_recipes(path)
+            return recipes.load_recipes(path, board=board)
+
+    def test_board_namespaces_keep_defaults_and_reject_invalid_foreign_entries(self):
+        document = self.document()
+        self.assertEqual(self.load_document(document), recipes.FORMAT2_RECIPES)
+        self.assertEqual(set(self.load_document(document, board='de25-nano')), {'fes.menu', 'fes.zx81'})
+        variant = next(r for r in document['recipes'] if r.get('board') == 'de25-nano')
+        # The same core/selection/environment names on different boards are
+        # intentional. Duplicates within either board remain an error.
+        document['recipes'].append(dict(variant))
+        with self.assertRaisesRegex(ValueError, 'duplicate'):
+            self.load_document(document)
+        for field, value in (('board', 'unknown'), ('board', False), ('toolchain', 'oss')):
+            document = self.document()
+            variant = next(r for r in document['recipes'] if r.get('board') == 'de25-nano')
+            variant[field] = value
+            with self.subTest(field=field, value=value), self.assertRaises(ValueError):
+                self.load_document(document)
 
     def document(self):
         import tomllib

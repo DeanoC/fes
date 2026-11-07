@@ -102,6 +102,8 @@ sys.stdout.buffer.write(producer.create_build_record(root, repository, revision,
     except (OSError, subprocess.CalledProcessError, UnicodeDecodeError,
             json.JSONDecodeError) as error:
         if recipe.toolchain == "quartus":
+            if recipe.board == "de25-nano":
+                raise ValueError(f"cannot authenticate {recipe.core_id} DE25 Quartus inputs; set QUARTUS_ROOTDIR to the pinned Pro installation") from error
             raise ValueError(f"cannot authenticate {recipe.core_id} Quartus inputs; set QUARTUS_ROOTDIR and FES_PCXT_YOSYS to the pinned installations") from error
         raise ValueError(
             f"cannot derive authenticated {recipe.core_id} build inputs in {source}; "
@@ -170,6 +172,8 @@ record = record_path.read_bytes()
 record_fields = _decode_build_record(record)
 package = read_package(package_path)
 manifest = package.fields
+if manifest.get("target", {}).get("platform") != sys.argv[4].replace("-", "_"):
+    raise ValueError("cached package target differs from independently selected board")
 if record_fields["format"] != 2:
     raise ValueError("normal FES packages require functional build record 2")
 from scripts.export_core_package import verify_record_source_at_revision
@@ -193,7 +197,7 @@ print(json.dumps(inspected, sort_keys=True))
 '''
     try:
         result = subprocess.run(
-            [sys.executable, "-c", program, str(package), str(record_path), recipe.producer_module],
+            [sys.executable, "-c", program, str(package), str(record_path), recipe.producer_module, recipe.board],
             cwd=source, text=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE, check=True)
         inspected = json.loads(result.stdout)
     except (OSError, subprocess.CalledProcessError, json.JSONDecodeError) as error:

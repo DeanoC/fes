@@ -34,6 +34,22 @@ def package(sha='a', key='k', manifest='m', rom_map=None):
 
 
 class NightlyDecisionTests(unittest.TestCase):
+    def test_native_nightly_keeps_de10_menu_with_either_board_row_order(self):
+        script = Path(__file__).resolve().parents[1] / 'scripts/core_key_nightly.py'
+        with tempfile.TemporaryDirectory() as temporary:
+            repo = Path(temporary) / 'repo'
+            (repo / 'config').mkdir(parents=True); (repo / 'profiles').mkdir()
+            (repo / 'profiles/native-integration-dev.toml').write_text('fpga_packages = [{core_id="fes.menu"}]\n')
+            de10 = '[[recipes]]\ncore_id="fes.menu"\nproducer_module="scripts.build_fes_menu_package"\n'
+            de25 = '[[recipes]]\ncore_id="fes.menu"\nboard="de25-nano"\nproducer_module="scripts.build_de25_menu_package"\n'
+            output = Path(temporary) / 'not-built'
+            for rows in ((de10, de25), (de25, de10)):
+                (repo / 'config/core-recipes.toml').write_text('version=1\n' + '\n'.join(rows))
+                result = subprocess.check_output([sys.executable, str(script), '--repo', str(repo),
+                    '--out', str(output), '--dry-run'], text=True)
+                self.assertEqual(json.loads(result)['plan'], [['fes.menu', 'build_fes_menu_package']])
+                self.assertFalse(output.exists())
+
     def test_private_artifact_cache_keeps_shared_toolchain(self):
         with tempfile.TemporaryDirectory() as temp:
             environment = dict(os.environ, FES_ARTIFACT_CACHE_ROOT=str(Path(temp)/'artifacts'))

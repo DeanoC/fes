@@ -167,6 +167,13 @@ are also required when image configuration, packaging or locked inputs
 change. One parent build runs per checkout, enforced by its existing lock.
 Coordinate shared expensive runs rather than starting one per agent.
 
+Parent CI separates ordinary software regressions from real FAT/ext4 media
+construction. DE25 managed-card container tests run in the media partition,
+after its bounded tool provisioning; their lightweight layout checks still run
+in the software partition. Changes to the managed-card constructor or its tests
+select that media coverage. Standalone DE25 headless-image edits keep their
+existing focused checks.
+
 Image builds use one pass by default, including CI. `make image
 IMAGE_ARTIFACTS=/absolute/artifacts` assembles explicit prebuilt inputs without
 rebuilding their sources. `make verify` still checks the image hashes, structure,
@@ -444,7 +451,11 @@ For cross-worktree image reuse, set
 `make dev`, `make kit-sdk` or `make kit-software`. The external directory holds
 `dl/`, `toolchains/<key>/` and `ccache/`; it does not change the shared compiler
 and package cache below. `make kit-sdk` fills `toolchains/<key>/` for the current
-image key without building an image.
+image key without building an image. For DE25, use `make kit-sdk
+BOARD=de25-nano DE25_IMAGE=/absolute/verified-image`; its cache key binds the
+authenticated SDK archive bytes, board and architecture. Every request verifies
+the original image receipt, including on a cache hit. The original archive is
+kept intact and extracted/relocated privately for a software build.
 The toolchain-only build never uses ccache. With `IMAGE_PASSES=2`, cold pass 2
 disables it so the two rootfs hashes still compare independent compiles. Stop
 builds before removing one of these cache directories; see
@@ -509,7 +520,14 @@ compiler overrides that FES normally removes for producer execution.
 ## Compatible kit software updates
 
 Use `make kit-sdk` when the toolchain cache has no SDK for the current image
-key. It builds and publishes only that Buildroot SDK. Then use
+key. On DE10 it builds and publishes only that Buildroot SDK. DE25 instead
+imports the SDK from an explicitly selected verified image:
+
+```sh
+make kit-sdk BOARD=de25-nano DE25_IMAGE=/absolute/verified-de25-image
+```
+
+Then use
 `make kit-software KIT_SOFTWARE_BASE=/absolute/linux.img
 KIT_SOFTWARE_BASE_SHA256=<reviewed-image-sha256> KIT_SOFTWARE_VERSION=<version>`
 to build the four kit executables and selected assets from committed HEAD using
@@ -518,3 +536,86 @@ it does not rebuild the OS or cores, update host software, or contact the kit.
 The existing image and previous output directories stay intact. See
 [kit software releases](kit-software-releases.md#build-an-update-without-rebuilding-the-os)
 for cache prerequisites, receipt details, installation and activation.
+For DE25, add `BOARD=de25-nano DE25_IMAGE=/absolute/verified-de25-image` to the
+software command too. The SDK source may be a verified headless, managed-base
+or managed-factory output; the reviewed software base must be a managed
+factory containing authenticated software and MENU metadata. The shared board
+and image defaults retain the explicit `KIT_SOFTWARE_BOARD`,
+`KIT_SOFTWARE_DE25_IMAGE` and `KIT_SDK_DE25_IMAGE` overrides.
+
+DE25's existing managed-factory producer now reuses its compiler/base packages
+across software revisions. The same worktree/cache selection shares one
+serialized volume; recipe, owner compiler, kernel and additional policy inputs
+still select independent base work directories. Software, helper and MENU
+changes stay in the complete generation key and receipt. Every actual factory
+build first refreshes the selected prebuilt runtime with Buildroot, then runs
+the shared post-build replacement and full image/boot checks. Factory outputs
+remain immutable. See the [executed cache proof](validation/2026-11-02-de25-factory-incremental/README.md).
+The shared registry and package resolver now select the DE25 Quartus Pro MENU
+producer explicitly and carry the board through package inspection,
+publication and artifact export. The default 21 DE10 recipes and the DE10
+nightly selection remain unchanged. See the
+[executed selection checks](validation/2026-11-02-de25-board-recipes/README.md).
+The [DE25 source workflow](#de25-source-development) connects these producers
+to the ordinary build/development commands. MENU still needs its remaining
+timing, independent-rebuild and native acceptance checks.
+
+## DE25 source development
+
+Use the same committed-source commands with explicit matching DE25 inputs:
+
+```sh
+make dev BOARD=de25-nano DE25_IMAGE=/absolute/verified-managed-base \
+  IMAGE_KERNEL=/absolute/owner-kernel IMAGE_SDK=/absolute/owner-sdk.tar.gz
+```
+
+`DE25_IMAGE` supplies an authenticated managed-base or managed-factory SDK and
+base ABI. `IMAGE_KERNEL` and the pinned owner compiler must match it. A headless
+SDK or a prebuilt `IMAGE_ARTIFACTS` selection cannot replace those source inputs.
+MENU is resolved through the explicit DE25 Quartus recipe before target source
+staging, SDK work, or software/OS compilation. A missing eligible package stops
+the command there. MENU admission requires its timing, independent rebuild and
+target-profile checks; the source command consumes that admitted package.
+
+The shared Go/C++ builders compile the selected component commits, including
+the AArch64 data helper and software supervisor required by the image packer.
+The existing managed-factory producer assembles and verifies each generation, including its
+actual kernel/rootfs virtual boot. It retains compiler/base packages and refreshes
+the changed runtime. `dev` publishes `linux.img`, `Image`, `de25-owner.dtb`, the
+closed MENU package/selection set, bound inputs/software-build data and `development.json` under
+`out/de25-nano/development/`. Complete factory generations remain in that output's
+`generations/` directory. Cache hits reauthenticate the inputs, verify the
+recorded factory, and compare the flat image/kernel/package copies. A failed build
+preserves the previous complete generation and receipt; it cannot satisfy the
+new input key. Failed attempts remain diagnostic.
+
+`make build` also builds the ordinary host pair and writes a cold image receipt
+under `out/de25-nano/`; `make rebuild` explicitly rebuilds MENU/software/factory
+and preserves previous generations. `IMAGE_OUTPUT` overrides the source-workspace
+directory for these three actions; for `image` it selects the factory directory.
+DE25 records one actual image-build pass and rejects
+`IMAGE_PASSES=2`. `make host BOARD=de25-nano` and `make doctor BOARD=de25-nano`
+use the shared host/profile checks without a target image build.
+
+These source commands require clean committed integration source. Development
+snapshot release authority is not added. Nothing deploys or grants native kit
+acceptance; use the complete factory path printed by the build with the existing
+release/bootstrap/card commands once their own gates pass.
+`make verify BOARD=de25-nano` verifies the cold source workspace at
+`out/de25-nano/`, or the default assembled factory when it is the only output.
+If both exist, choose one explicitly with `IMAGE_OUTPUT`. Verify a development
+generation with `IMAGE_OUTPUT=/absolute/source-workspace/development`; an explicit
+complete factory directory is also accepted. Verification reads the selected
+workspace without resolving/building MENU or compiling target software. It checks
+the current committed sources/profile/recipes, real factory verification and bound
+virtual boot, complete package selection, compiler records and flat copies. Cold
+source outputs also require the matching host receipt. It preserves output files
+and rejects an incomplete, stale or ambiguous selection. The flat source workspace
+now supplies the existing target-acceptance selection reader; running that reader
+alone grants no native acceptance. The
+[executed source-workflow record](validation/2026-11-02-de25-source-workflow/README.md)
+separates actual AArch64/host production, CPU checks and public-command refusal
+from orchestration fixtures and the remaining factory/native gates.
+The [source verification record](validation/2026-11-02-de25-source-verification/README.md)
+retains the current workspace/package checks, actual SDK authentication and public
+verification refusals, including the read-only factory/cache repair.

@@ -209,8 +209,8 @@ class HilPlanTest(unittest.TestCase):
 
     def test_ci_selection_scripts_are_none(self):
         plan = hil_module()
-        for name in ('affected', 'hil_plan', 'host_tests', 'test_changed', 'de25_runtime',
-                     'de25_boot_contract', 'de25_first_boot', 'de25_dma_descriptor', 'de25_kernel_test'):
+        for name in ('affected', 'hil_plan', 'host_tests', 'runtime_tests', 'changed_paths',
+                     'test_changed', 'input_diagnostic', 'de25_runtime', 'de25_dma_descriptor'):
             path = f'scripts/{name}.py'
             with self.subTest(path=path):
                 row = plan.classify_path(path)
@@ -555,7 +555,7 @@ class HilPlanTest(unittest.TestCase):
                  'sources/mister-packages/packages/fabric/fes_fabric_de25_computer.yaml',
                  'sources/mister-packages/packages/fabric/fes_fabric_de25_ramtest.yaml',
                  'sources/mister-packages/packages/fabric/fes_fabric_de25_pr_control.yaml',
-                 'image/kernel/de25-dma/de25_dma.c',
+                 'image/kernel/de25-dma/de25_dma_test.c',
                  *['sources/misteross/boards/de25nano/' + name
                    for name in ('blinky.sv', 'pins.qsf', 'clocks.sdc', 'Makefile',
                                 'test_de25nano.py', 'sim/blinky_tb.cpp',
@@ -582,6 +582,103 @@ class HilPlanTest(unittest.TestCase):
                 self.assertEqual(planner.plan([*paths, path], texts={})['decision'],
                                  'OVERLAY core:ALL')
 
+    def test_de25_deployed_sources_select_board_specific_packages(self):
+        planner = hil_module()
+        for name, component in (
+                ('zx81-hps/fes_de25_zx81_standard.v', 'core:de25-zx81'),
+                ('zx81-hps/standard-clocks.sdc', 'core:de25-zx81'),
+                ('zx81/build.py', 'core:de25-zx81'),
+                ('scanout/fes_de25_session_display.v', 'core:de25-ALL'),
+                ('scanout/generated/fes_de25_scanout.vh', 'core:de25-ALL'),
+                ('display/vendor.lock.toml', 'core:de25-ALL'),
+                ('hps/fes_de25_top_reset.v', 'core:de25-ALL'),
+                ('combined/build.py', 'core:de25-ALL'),
+                ('build.py', 'core:de25-ALL'),
+                ('new-component/new.v', 'core:de25-ALL')):
+            with self.subTest(name=name):
+                result = planner.plan(['sources/misteross/boards/de25nano/' + name], texts={})
+                self.assertEqual(result['decision'], 'OVERLAY ' + component)
+                self.assertNotIn('core:ALL', result['components'])
+        for name in ('zx81-hps/standard_expansion_harness.v',
+                     'zx81-hps/standard_expansion_tb.cpp', 'zx81-hps/standard_expansion_sim.py',
+                     'zx81-hps/sim.py', 'scanout/test_build.py'):
+            with self.subTest(name=name):
+                self.assertEqual(planner.plan([
+                    'sources/misteross/boards/de25nano/' + name], texts={})['class'], 'none')
+
+    def test_actual_de25_package_board_closures_cannot_skip_hardware(self):
+        import importlib.util
+        planner = hil_module()
+        board = ROOT / 'sources/misteross/boards/de25nano'
+        for relative, capture in (('zx81-hps/build.py', 'capture_standard_board'),
+                                  ('scanout/build.py', 'capture')):
+            spec = importlib.util.spec_from_file_location('hil_de25_closure', board / relative)
+            module = importlib.util.module_from_spec(spec)
+            spec.loader.exec_module(module)
+            paths = [path for path in getattr(module, capture)()
+                     if path.startswith('sources/misteross/boards/de25nano/')]
+            self.assertTrue(paths)
+            for path in paths:
+                with self.subTest(producer=relative, path=path):
+                    row = planner.classify_path(path)
+                    self.assertEqual(row['class'], 'overlay')
+                    self.assertTrue(row['component'].startswith('core:de25-'))
+
+    def test_de25_producer_changes_include_both_package_consumers(self):
+        planner = hil_module()
+        menu = 'sources/misteross/scripts/build_de25_menu_package.py'
+        zx81 = 'sources/misteross/scripts/build_de25_zx81_package.py'
+        result = planner.plan([menu], texts={menu: 'X = 1', zx81:
+            'from scripts import build_de25_menu_package as common\nX = common.X\n'})
+        self.assertEqual(result['components'], ['core:de25-menu', 'core:de25-zx81'])
+        self.assertEqual(result['class'], 'overlay')
+        self.assertEqual(planner.plan([zx81], texts={})['decision'], 'OVERLAY core:de25-zx81')
+        self.assertEqual(planner.plan([
+            'sources/misteross/scripts/review_de25_audio_clocks.py'], texts={})[
+                'decision'], 'OVERLAY core:de25-zx81')
+
+    def test_core_root_declarations_include_de25_package_consumers(self):
+        planner = hil_module()
+        texts = planner.script_texts()
+        for path, component in (
+                ('cores/fes-zx81/rtl/fes_zx81_core.v', 'core:de25-zx81'),
+                ('cores/fes-menu/rtl/fes_menu_reader.v', 'core:de25-menu')):
+            with self.subTest(path=path):
+                components = {row['component'] for row in planner.core_consumers(
+                    'sources/misteross/' + path, texts)}
+                self.assertIn(component, components)
+        # A producer naming the core root reads descendants, but not its
+        # similarly named neighbour. No "cores"-wide literal is inferred.
+        producer = 'sources/misteross/scripts/build_fes_alpha.py'
+        texts = {producer: 'SOURCE_ROOTS = ["cores/fes-beta"]\n'}
+        self.assertEqual(planner.plan([
+            'sources/misteross/cores/fes-beta/rtl/core.v'], texts)['components'],
+            ['core:alpha', 'core:beta'])
+        self.assertEqual(planner.plan([
+            'sources/misteross/cores/fes-beta-other/rtl/core.v'], texts)['components'],
+            ['core:beta-other'])
+
+    def test_native_de25_kernel_and_image_recipe_inputs_require_boot(self):
+        from scripts import de25_kernel_platform, de25_owner_image
+        planner = hil_module()
+        # The real production integrator copies dep.DRIVER into the vendor
+        # kernel. Do not retain its original QEMU-only HIL exemption.
+        driver = ROOT / de25_kernel_platform.dep.DRIVER
+        paths = {path.relative_to(ROOT).as_posix() for path in driver.rglob('*')
+                 if path.is_file() and path.suffix != '.md' and path.name != 'de25_dma_test.c'}
+        paths.update(de25_owner_image.RECIPE_FILES)
+        for path in sorted(paths):
+            with self.subTest(path=path):
+                self.assertEqual(planner.classify_path(path)['class'], 'full')
+        for path in ('image/kernel/de25-dma/de25_dma.c',
+                     'image/kernel/de25-dma/de25_dma_owner.c',
+                     'image/kernel/de25-dma/generated/fes_de25_scanout.h',
+                     'scripts/de25_kernel_test.py', 'scripts/de25_boot_contract.py',
+                     'scripts/de25_first_boot.py'):
+            self.assertEqual(planner.classify_path(path)['component'], 'de25-nano-linux')
+        self.assertEqual(planner.plan(['image/kernel/de25-dma/de25_dma_test.c'], texts={})[
+            'decision'], 'NO_DEPLOY_CHANGE')
+
     def test_board_validation_tools_preserve_generated_consumer_requirements(self):
         planner = hil_module()
         paths = [
@@ -593,7 +690,6 @@ class HilPlanTest(unittest.TestCase):
             'sources/mister-packages/cmd/mister-packages/main_test.go',
             'sources/mister-packages/packages/board/de25_nano.yaml',
             'sources/misteross/boards/de25nano/blinky.v',
-            'sources/misteross/boards/de25nano/build.py',
             'sources/misteross/boards/de25nano/test_build.py',
             'sources/misteross/boards/de25nano/Makefile',
         ]

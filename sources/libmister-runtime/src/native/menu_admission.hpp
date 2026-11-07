@@ -5,8 +5,9 @@
 
 #include "native/core_package.hpp"
 
-// The interfaces CheckMenu admits in the idle menu package, each at the newest
-// minor version it accepts. Kit software packing reads them from this
+// The union of the interfaces CheckMenu admits for the two explicit boards,
+// each at the newest accepted minor. They need not coexist in one package.
+// Kit software packing reads them from this
 // runtime's .fes_menu_interfaces section and lists them in the bundle manifest
 // as menu.<id> keys. An image's supervisor starts that bundle only when they
 // cover every interface its sealed menu package declares, so admit and list a
@@ -15,6 +16,7 @@
 	X("fes.video.fixed-720p60", 1, 0) \
 	X("fes.memory.hps-ddr", 1, 0) \
 	X("fes.video.menu-display", 1, 0) \
+	X("fes.fabric.de25-scanout", 1, 1) \
 	X("fes.video.menu-blitter", 1, 1)
 
 namespace mister {
@@ -28,7 +30,8 @@ constexpr std::uint16_t kMenuBlitterMinimumMinor = 1;
 extern const char kMenuInterfaceRecords[];
 
 // Admission of the described idle menu package.
-Error CheckMenu(const CoreDescriptor& descriptor);
+Error CheckMenu(const CoreDescriptor& descriptor,
+	NativePlatform platform = NativePlatform::de10_nano);
 
 } // namespace native
 } // namespace mister

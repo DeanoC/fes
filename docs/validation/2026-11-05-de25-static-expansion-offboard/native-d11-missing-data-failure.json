@@ -1,0 +1,13 @@
+{
+  "state": "failed-before-claim-or-UART-SSH-proof",
+  "utc": "2026-11-05T16:11:42.768319+00:00",
+  "assertion": "No software storage_error/service_fault/pending/unreleased",
+  "software_storage_error": "kit data prepare: exit status 3: data unavailable: absent\n",
+  "image": "d11a2284af6409c8963a5fb20ac29f60a3e39ecb2f2660732708182ea0fff1ea",
+  "boot_id": "31fab6c7-b38d-434f-a7ca-dc72b7101f7c",
+  "mutation_performed_by_failed_proof": false,
+  "automatic_retry": false,
+  "native_failure_count": 1,
+  "same_head_max": 2,
+  "claim": "status retained; no execution lease acquired by failed proof"
+}

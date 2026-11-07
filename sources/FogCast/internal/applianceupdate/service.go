@@ -29,6 +29,7 @@ type BootIdentity struct {
 type Status struct {
 	appliance.Status
 	BootIdentity
+	Board         string `json:"board"`
 	RawIdleReady  bool   `json:"raw_idle_ready"`
 	FatIdleSHA256 string `json:"fat_idle_sha256,omitempty"`
 	IdleSHA256    string `json:"idle_sha256,omitempty"`
@@ -89,13 +90,16 @@ func (s *Service) Status(ctx context.Context) (Status, error) {
 	// Read durable state after the local trial snapshot so a concurrent confirm
 	// cannot return trial=false alongside a pre-confirmation known-good image.
 	st, err := s.store.StatusContext(ctx)
-	status := Status{Status: st, BootIdentity: boot, RawIdleReady: rawIdle, SplashWarning: warning}
+	status := Status{Status: st, BootIdentity: boot, Board: s.Board(), RawIdleReady: rawIdle, SplashWarning: warning}
 	if s.splash != nil {
 		status.FatIdleSHA256 = s.splash.FATSHA256()
 		status.IdleSHA256 = s.splash.IdleSHA256()
 	}
 	return status, errors.Join(reconcileErr, err)
 }
+
+// Board is pinned by the image-selected store, independently of uploads.
+func (s *Service) Board() string { return s.store.Board() }
 
 // A confirmation write can rename successfully and then report a sync failure.
 // Reconcile only after the store proves persistence for this exact trial; merely

@@ -9,12 +9,15 @@ module fes_menu_control #(
     // picture rectangle at indices 14-17. Idle firmware keeps format 1.
     parameter [15:0] PIXEL_FORMAT = 16'(`FES_APPLICATION_MENU_PIXEL_FORMAT),
     parameter [0:0] PICTURE_INFO = 1'b0,
+    // Allocated-memory adapters publish only through the kernel-owned CSR.
+    parameter [0:0] ALLOW_SUBMIT = 1'b1,
     parameter [15:0] PICTURE_LEFT = 16'd0,
     parameter [15:0] PICTURE_TOP = 16'd0,
     parameter [15:0] PICTURE_WIDTH = 16'd0,
     parameter [15:0] PICTURE_HEIGHT = 16'd0
 ) (
     input wire clk, request, exec_reset, drained, faulted, submit_ready,
+    input wire external_pending,
     input wire [6:0] opcode,
     input wire [7:0] index,
     input wire [15:0] argument,
@@ -35,7 +38,8 @@ module fes_menu_control #(
     reg wait_drain = 1'b0, wait_submit = 1'b0;
     reg sequence_snapshot_valid = 1'b0, underflow_snapshot_valid = 1'b0;
     reg [15:0] sequence_snapshot = 16'd0, underflow_snapshot = 16'd0;
-    wire [15:0] state_word = {11'd0, faulted, drained, pending, enable, configured};
+    wire [15:0] state_word = {11'd0, faulted, drained,
+        ALLOW_SUBMIT ? pending : external_pending, enable, configured};
     localparam [7:0] LAST_INFO_INDEX = PICTURE_INFO ?
         8'(`FES_DISPLAY_PLANE_INFO_PICTURE_HEIGHT_INDEX) :
         8'(`FES_APPLICATION_MENU_INFO_UNDERFLOWS_HI_INDEX);
@@ -115,7 +119,8 @@ module fes_menu_control #(
                     else begin enable <= 1'b1; quiesce <= 1'b0; end
                 end
                 `FES_APPLICATION_OPCODE_MENU_SUBMIT: begin
-                    if (index > 8'(`FES_APPLICATION_MENU_SUBMIT_COMMIT_INDEX)) reject(16'(`FES_APPLICATION_ERROR_INVALID_INDEX));
+                    if (!ALLOW_SUBMIT) reject(16'(`FES_APPLICATION_ERROR_INVALID_OPCODE));
+                    else if (index > 8'(`FES_APPLICATION_MENU_SUBMIT_COMMIT_INDEX)) reject(16'(`FES_APPLICATION_ERROR_INVALID_INDEX));
                     else if (index == 8'(`FES_APPLICATION_MENU_SUBMIT_COMMIT_INDEX) && argument > 1) reject(16'(`FES_APPLICATION_ERROR_INVALID_ARGUMENT));
                     else if (!enable || pending || faulted || quiesce || index != {6'd0,stage_count}) reject(16'(`FES_APPLICATION_ERROR_INVALID_STATE));
                     else if (index == 8'(`FES_APPLICATION_MENU_SUBMIT_SEQUENCE_LO_INDEX)) begin stage_sequence[15:0] <= argument; stage_count <= 2'd1; end

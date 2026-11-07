@@ -3,7 +3,7 @@ add_instance fes_computer_pixel_clk altera_clock_bridge 19.2.0
 set_instance_parameter_value fes_computer_pixel_clk EXPLICIT_CLOCK_RATE 74250000
 add_interface fes_computer_pixel_clk clock sink
 set_interface_property fes_computer_pixel_clk EXPORT_OF fes_computer_pixel_clk.in_clk
-add_instance fes_computer fes_de25_computer 1.0
+add_instance fes_computer fes_de25_computer 1.1
 add_connection periph_clk.out_clk fes_computer.clk
 add_connection periph_rst_in.out_reset fes_computer.reset
 add_connection fes_computer_pixel_clk.out_clk fes_computer.pixel_clk

@@ -6,6 +6,45 @@ import (
 	"testing"
 )
 
+func TestSessionDisplayAdmitsDE25AllocatedComputerWithoutReservedDDR(t *testing.T) {
+	b := DevelopmentMediaBinding{PackageID: strings.Repeat("a", 64), Generation: 3}
+	p := CorePackageStatus{PackageID: b.PackageID, Generation: b.Generation,
+		ABI: RuntimeContract{ID: "fes.computer", Major: 1},
+		ActiveInterfaces: []RuntimeInterface{
+			{ID: "fes.media.zx81-tape", Major: 1},
+			{ID: "fes.video.session-display", Major: 1},
+			{ID: "fes.fabric.video.display-plane", Major: 1},
+			{ID: "fes.fabric.de25-scanout", Major: 1, Minor: 1},
+		},
+		MediaUnits: []MediaUnitStatus{{Unit: 0, Interface: Zx81TapeInterface(),
+			MinBytes: 1, MaxBytes: 16384, ChunkBytes: 512, State: MediaUnitReady}},
+	}
+	s := Status{State: StateActive, Development: true, CorePackage: &p}
+	if !SessionDisplayCapable(&p) || !b.MatchesSessionDisplay(s) {
+		t.Fatal("observed DE25 allocated display rejected without DE10 reserved DDR")
+	}
+	for name, mutate := range map[string]func(*CorePackageStatus){
+		"no session plane":    func(p *CorePackageStatus) { p.ActiveInterfaces[1].ID = "missing" },
+		"no display plane":    func(p *CorePackageStatus) { p.ActiveInterfaces[2].ID = "missing" },
+		"no allocation":       func(p *CorePackageStatus) { p.ActiveInterfaces[3].ID = "missing" },
+		"old scanout":         func(p *CorePackageStatus) { p.ActiveInterfaces[3].Minor = 0 },
+		"new scanout":         func(p *CorePackageStatus) { p.ActiveInterfaces[3].Minor = 2 },
+		"new display plane":   func(p *CorePackageStatus) { p.ActiveInterfaces[2].Minor = 1 },
+		"application ABI":     func(p *CorePackageStatus) { p.ABI.ID = "fes.application" },
+		"replaced generation": func(p *CorePackageStatus) { p.Generation++ },
+	} {
+		t.Run(name, func(t *testing.T) {
+			copy := p
+			copy.ActiveInterfaces = append([]RuntimeInterface(nil), p.ActiveInterfaces...)
+			mutate(&copy)
+			s.CorePackage = &copy
+			if b.MatchesSessionDisplay(s) {
+				t.Fatal("incomplete or changed allocated display admitted")
+			}
+		})
+	}
+}
+
 func TestSessionDisplayRequiresObservedCapabilityAndExactLiveBinding(t *testing.T) {
 	b := DevelopmentMediaBinding{PackageID: strings.Repeat("a", 64), Generation: 9}
 	p := &CorePackageStatus{PackageID: b.PackageID, Generation: b.Generation,

@@ -1,0 +1,65 @@
+{
+  "classification": "Private native CPU-test deadline dependency repair; no board access",
+  "go_version": "go version go1.26.5 linux/amd64",
+  "go_launcher_sha256": "8992a5c41a8fefc6bd437117566ecb3f80ac89f78c009ccbb486fa6b9ba85d01",
+  "go_executable_sha256": "8da5fd321795754b994c64e3eb8a5a14ff47bd285559a7e876f3c79abafc67f9",
+  "source_sha256": "d6773da6b450029929cb893d8da9a33193530a6f7fdd3c5fcf264811d5d4800b",
+  "executables": {
+    "amd64": {
+      "sha256": "8084a4ae03655b8915621fe8106b8e5ef372feee90f4d09be7fe8b110afcb577",
+      "bytes": 3131057,
+      "static": true
+    },
+    "arm64": {
+      "sha256": "f9646e6d744e32a9bc1ecd2bb2c69588173524589eb500e6b847f868d439a156",
+      "bytes": 3126218,
+      "static": true
+    }
+  },
+  "controls": [
+    {
+      "name": "success",
+      "returncode": 0,
+      "elapsed_seconds": 0.002,
+      "log_sha256": "de4ed23d2f0ceda315e9d6497b876cb23fb895d5b6e6d1eda6a20e623f76a3e2"
+    },
+    {
+      "name": "exit-seven",
+      "returncode": 7,
+      "elapsed_seconds": 0.001,
+      "log_sha256": "ce32ad1d6c933961390968ebed3ee1f96db2d3fbcd769dc9102fbe3448d9939e"
+    },
+    {
+      "name": "deadline-owned-group",
+      "returncode": 124,
+      "elapsed_seconds": 0.403,
+      "log_sha256": "aaa9b55680357f9193b2a9d4bb4c8bc796a3574070c5b8a3b65c8a991c9199f5"
+    },
+    {
+      "name": "affinity-two-cpus",
+      "returncode": 0,
+      "elapsed_seconds": 0.005,
+      "log_sha256": "aaa03f22bd5c8a3787bab5941c001f70cd5892249ce3330b8c9d9414056aa714"
+    },
+    {
+      "name": "limit-cannot-grow",
+      "returncode": 2,
+      "elapsed_seconds": 0.002,
+      "log_sha256": "fa035edd5ebfa2d2767139494d1d141ecedc706975364aaca516e3bb943c0313"
+    },
+    {
+      "name": "total-limit-cannot-grow",
+      "returncode": 2,
+      "elapsed_seconds": 0.002,
+      "log_sha256": "fa035edd5ebfa2d2767139494d1d141ecedc706975364aaca516e3bb943c0313"
+    },
+    {
+      "name": "signal-terminates-owned-group",
+      "returncode": 124,
+      "log_sha256": "dbbec9f0417f310ed976e2bbaaa9986e7eafea3bf4e9125c88ce51e2a40f6f33"
+    }
+  ],
+  "native_kit_run": false,
+  "FPGA_or_device_access": false,
+  "status": "passed"
+}

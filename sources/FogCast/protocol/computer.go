@@ -299,7 +299,8 @@ type MediaUnitStatus struct {
 func (u MediaUnitStatus) CanSave() bool { return u.Saveable == nil || *u.Saveable }
 
 // Valid checks the unit against the ABI and, for known media interfaces, the
-// exact unit and size the interface defines.
+// exact unit and known capacity the interface defines. The native decoder
+// additionally binds the ZX81 capacity variant to its selected target.
 func (u MediaUnitStatus) Valid() bool {
 	if u.Interface == AtaDiskInterface() && u.CanSave() {
 		return false
@@ -364,7 +365,8 @@ func (u MediaUnitStatus) Valid() bool {
 	}
 	if u.Interface.ID == Zx81TapeInterface().ID {
 		return u.Interface == Zx81TapeInterface() && u.Unit == Zx81TapeUnit &&
-			int64(u.MinBytes) == Zx81TapeMinBytes && int64(u.MaxBytes) == Zx81TapeMaxBytes
+			int64(u.MinBytes) == Zx81TapeMinBytes &&
+			(int64(u.MaxBytes) == Zx81TapeMaxBytes || u.MaxBytes == generated.FesDe25ComputerZx81TapeMaxBytes)
 	}
 	if u.Interface.ID == SpectrumDiskInterface().ID {
 		return u.Interface == SpectrumDiskInterface() && u.Unit == SpectrumDiskUnit &&
@@ -480,11 +482,21 @@ func declaredComputerMedia(descriptor corepackage.Descriptor) []CoreMediaCapabil
 				format, extensions = "zx80-o", []string{".o"}
 			}
 			result = append(result, CoreMediaCapability{Role: CassetteRole, Format: format,
-				MinBytes: Zx81TapeMinBytes, MaxBytes: Zx81TapeMaxBytes, Interface: zx81,
+				MinBytes: Zx81TapeMinBytes, MaxBytes: Zx81TapeMaxBytesFor(descriptor), Interface: zx81,
 				Transport: ComputerMediaTransport, Unit: &unit, Extensions: extensions})
 		}
 	}
 	return result
+}
+
+// Zx81TapeMaxBytesFor binds the declared limit to the known DE25 BRAM target;
+// other implementations retain the shared computer ABI's full-size window.
+func Zx81TapeMaxBytesFor(descriptor corepackage.Descriptor) int64 {
+	if descriptor.Target.Platform == "de25_nano" && descriptor.Target.Device == "A5EB013BB23BE4SCS" &&
+		descriptor.Target.ProgrammingProfile == "de25-hps-first-v1" {
+		return int64(generated.FesDe25ComputerZx81TapeMaxBytes)
+	}
+	return Zx81TapeMaxBytes
 }
 
 func declaresSpectrumSnapshots(descriptor corepackage.Descriptor) bool {

@@ -1,0 +1,16 @@
+{
+  "command": [
+    "python3",
+    "/data/fes-de25-main-integration-20261105/static-provisioned-card-603-job/run.py"
+  ],
+  "cwd": "/home/deano/fes/out/dev/de25-linux-platform/out/work/de25-linux-603e1ac17f8d849b17ca608a4fe08e9b5c140ba9",
+  "elapsed_seconds": 143.785,
+  "heartbeat_utc": "2026-11-05T15:47:43.348555+00:00",
+  "pid": 2835434,
+  "returncode": 0,
+  "scope": "Normal bootstrap plus provisioned appliance card build and independent verify with private pre-existing target/launcher companion. Actual e212 factory/release and9ac kernel unchanged, same pinned vendor boot. Only regular files; no SD/block device/boot config/board/service/FPGA/flash/activation/current pointer changes. No static PR package admission or physical acceptance.",
+  "source_revision": "603e1ac17f8d849b17ca608a4fe08e9b5c140ba9",
+  "state": "passed",
+  "supervisor_pid": 2835367,
+  "time_cap_seconds": 900
+}

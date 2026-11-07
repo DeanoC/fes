@@ -14,6 +14,12 @@ that has a `README.md` is the contract for that machine. `make help` lists
 every simulation target. Dated notes under `docs/validation/` describe the day
 they were written. They are not the schedule for this tree.
 
+The DE25 reset-release diagnostic consumes an existing passing generated
+startup simulation, without rebuilding or changing its producer project:
+`python3 tests/de25_reset_skew.py --startup-proof /absolute/startup-output --output /absolute/new-output`.
+It uses modeled M20K storage and finite one-cycle reset delays; it grants no
+Design Assistant exception or physical reset/boot acceptance.
+
 ## Current cores
 
 Boards, toolchains and support tiers for these cores are the parent

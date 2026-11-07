@@ -1,0 +1,11 @@
+{
+  "bundle_sha256": "4cd7b3d419e4d459759b5758cb9729305356770e57f92dcd74c4f41727cb94f0",
+  "bundle_size": 8732,
+  "classification": "source restoration only",
+  "hardware_access": "not-performed",
+  "prerequisite_retention": "/home/deano/fes/out/artifacts/de25-managed-base/publication-37dc8a0b8/retention.json",
+  "prerequisite_retention_sha256": "a93f79b18196f656be16011f986759e90b126de59f57f0cbc01c626b3f01727e",
+  "revision": "cad04bd65d82c98f0e375de927051d215dd63af1",
+  "source_restored": true,
+  "tree": "b68558fb8c60de04e5388a04679e69fe70d64d7d"
+}

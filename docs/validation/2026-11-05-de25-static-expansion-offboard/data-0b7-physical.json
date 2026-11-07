@@ -1,0 +1,40 @@
+{
+  "status": "passed",
+  "source_revision": "0b7d412da1151364b0b97ebca32f754874fb4f49",
+  "reader": {
+    "by_id": "/dev/disk/by-id/usb-Generic_STORAGE_DEVICE-0:0",
+    "device": 2048,
+    "diskseq": 56,
+    "resolved_path": "/dev/sda",
+    "size_bytes": 31267487744
+  },
+  "plan": {
+    "board": "de25-nano",
+    "card_bytes": 31267487744,
+    "label": "FESDATA3",
+    "layout_id": "de25-nano-appliance-2g-v1",
+    "sector_count": 56807424,
+    "start_sector": 4261888,
+    "type": 131
+  },
+  "protected_sha256": {
+    "partition_1": "c1c6ced109c195315c4b8a18b9ac42fcde1f334be55e5c177acbd2cd10696f08",
+    "partition_2": "b37ac62a79db9295b6b441dda2d833fee299ed9fb47d6bd7d0b5c241f6e8432b"
+  },
+  "filesystem": {
+    "block_count": 7100928,
+    "block_size": 4096,
+    "incompat_features": "0x22c2",
+    "label": "FESDATA3",
+    "superblock_sha256": "68557f2ba435e5646e84d8f75f53a4b1057d345fe4ed05a20d2db90f58b5a83c",
+    "type": "ext4",
+    "uuid": "5462f36bc8cc4c588490b265a7315737"
+  },
+  "original_boot_descriptors_and_FAT_bootstrap_preserved": true,
+  "filesystem_check": "full ext4; e2fsck -fn passed",
+  "independent_normal_cli_verification": true,
+  "new_image_native_acceptance": false,
+  "physical_PR_acceptance": false,
+  "original_working_card": "untouched, kept aside",
+  "bottom_board": "powered off"
+}

@@ -1,0 +1,144 @@
+"""Exercise both real DE25 record producers over their captured source bytes.
+
+Temporary Git repositories and explicit tool markers test identity boundaries;
+they provide no compiler, timing, package or hardware acceptance.
+"""
+from pathlib import Path
+import importlib.util
+import subprocess
+import tempfile
+import unittest
+
+from scripts import build_de25_menu_package as menu, build_de25_zx81_package as zx81
+from scripts.export_core_package import build_identity, verify_record_source_at_revision
+from scripts.source_closure import imports
+
+ROOT = Path(__file__).resolve().parents[1]
+
+
+class ProductionIdentityTests(unittest.TestCase):
+    def repository(self, producer, directory):
+        root = directory / 'sources/misteross'
+        captured = (menu.scanout(ROOT).capture() if producer is menu else
+                    zx81.computer(ROOT).capture_standard_board())
+        files = {Path(name).relative_to('sources/misteross').as_posix(): data
+                 for name, data in captured.items()}
+        # Keep actual producer imports and fitted qualification inputs, rather
+        # than stubbing the source-closure function under test.
+        helpers = imports(Path(producer.RECIPE).stem, ROOT)
+        helpers |= imports('review_de25_audio_clocks', ROOT)
+        helpers |= {'boards/de25nano/scanout/' + name for name in (
+            'async_inputs.py', 'async_inputs.tcl', 'vendor_reference.py',
+            'audio_reference.py', 'audio_clocks.tcl')}
+        files.update({name: (ROOT / name).read_bytes() for name in helpers})
+        for name, data in files.items():
+            path = root / name
+            path.parent.mkdir(parents=True, exist_ok=True)
+            path.write_bytes(data)
+        self.git(directory, 'init', '-q')
+        self.commit(directory)
+        return root, captured
+
+    def git(self, directory, *args):
+        return subprocess.check_output(['git', '-C', str(directory), *args], text=True).strip()
+
+    def commit(self, directory):
+        self.git(directory, 'add', '.')
+        self.git(directory, '-c', 'user.name=Test', '-c', 'user.email=test@example.invalid',
+                 'commit', '-qm', 'identity inputs')
+
+    def record(self, producer, root, captured):
+        revision = self.git(root, 'rev-parse', 'HEAD')
+        return producer.create_build_record(root, 'https://github.com/DeanoC/fes', revision,
+            {name: 'explicit identity fixture ' + name for name in ('quartus', 'qsys', 'ipgenerate', 'pfg')},
+            {'toolchain': 'quartus', 'identity_fixture': True}, captured)
+
+    def test_diagnostics_simulations_and_documentation_do_not_mint_core_identities(self):
+        for producer in (menu, zx81):
+            with self.subTest(recipe=producer.RECIPE), tempfile.TemporaryDirectory() as temp:
+                directory = Path(temp)
+                root, captured = self.repository(producer, directory)
+                original = self.record(producer, root, captured)
+                for name in ('boards/de25nano/link-proof/identity_diagnostic.py',
+                             'boards/de25nano/scanout/test_identity.py',
+                             'boards/de25nano/scanout/identity_tb.cpp',
+                             'boards/de25nano/scanout/identity_harness.v',
+                             'boards/de25nano/scanout/sim.py',
+                             'scripts/sim_identity_diagnostic.py',
+                             'cores/fes-menu/sim/identity.cpp',
+                             'cores/fes-zx81/rtl/identity.md'):
+                    path = root / name
+                    path.parent.mkdir(parents=True, exist_ok=True)
+                    path.write_text('non-deployed identity test input\n')
+                self.commit(directory)
+                changed = self.record(producer, root, captured)
+                self.assertEqual(build_identity(original), build_identity(changed))
+                fields = verify_record_source_at_revision(root, changed)
+                self.assertNotIn('boards/de25nano', fields['source_roots'])
+                self.assertNotIn('scripts', fields['source_roots'])
+
+    def test_captured_rtl_changes_identity_and_stale_capture_is_refused(self):
+        for producer in (menu, zx81):
+            with self.subTest(recipe=producer.RECIPE), tempfile.TemporaryDirectory() as temp:
+                directory = Path(temp)
+                root, captured = self.repository(producer, directory)
+                original = self.record(producer, root, captured)
+                name = 'boards/de25nano/scanout/fes_de25_scanout.v'
+                path = root / name
+                path.write_bytes(path.read_bytes() + b'\n// Changed production input.\n')
+                self.commit(directory)
+                with self.assertRaisesRegex(producer.BuildError, 'differs from canonical closure'):
+                    self.record(producer, root, captured)
+                selected = dict(captured, **{'sources/misteross/' + name: path.read_bytes()})
+                changed = self.record(producer, root, selected)
+                self.assertNotEqual(build_identity(original), build_identity(changed))
+                verify_record_source_at_revision(root, changed)
+
+    def test_transitive_imported_producer_helper_changes_identity(self):
+        for producer in (menu, zx81):
+            with self.subTest(recipe=producer.RECIPE), tempfile.TemporaryDirectory() as temp:
+                directory = Path(temp)
+                root, captured = self.repository(producer, directory)
+                original = self.record(producer, root, captured)
+                path = root / 'scripts/source_repository.py'
+                path.write_bytes(path.read_bytes() + b'\n# Changed transitive producer helper.\n')
+                self.commit(directory)
+                changed = self.record(producer, root, captured)
+                self.assertNotEqual(build_identity(original), build_identity(changed))
+                verify_record_source_at_revision(root, changed)
+
+    def test_every_fitted_qualification_input_is_bound(self):
+        for producer in (menu, zx81):
+            with self.subTest(recipe=producer.RECIPE), tempfile.TemporaryDirectory() as temp:
+                directory = Path(temp)
+                root, captured = self.repository(producer, directory)
+                original = self.record(producer, root, captured)
+                fields = verify_record_source_at_revision(root, original)
+                for name in producer.REVIEW_INPUTS:
+                    self.assertIn(name, fields['source_inputs'])
+                    path = root / name
+                    path.write_bytes(path.read_bytes() + b'\n# Changed qualification implementation.\n')
+                self.commit(directory)
+                changed = self.record(producer, root, captured)
+                self.assertNotEqual(build_identity(original), build_identity(changed))
+                verify_record_source_at_revision(root, changed)
+
+    def test_hashed_board_inputs_cannot_skip_the_de25_hardware_gate(self):
+        path = ROOT.parents[1] / 'scripts/hil_plan.py'
+        spec = importlib.util.spec_from_file_location('de25_identity_hil_plan', path)
+        planner = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(planner)
+        for producer in (menu, zx81):
+            with self.subTest(recipe=producer.RECIPE), tempfile.TemporaryDirectory() as temp:
+                root, captured = self.repository(producer, Path(temp))
+                fields = verify_record_source_at_revision(root, self.record(producer, root, captured))
+                for name in fields['source_inputs']:
+                    if name.startswith('boards/de25nano/'):
+                        with self.subTest(input=name):
+                            row = planner.classify_path('sources/misteross/' + name)
+                            self.assertEqual(row['class'], 'overlay')
+                            self.assertTrue(row['component'].startswith('core:de25-'))
+
+
+if __name__ == '__main__':
+    unittest.main()

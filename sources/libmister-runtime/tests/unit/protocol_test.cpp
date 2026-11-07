@@ -890,6 +890,65 @@ void TestFormat3InspectionSerialization()
 		RomPackageResponseFixtures());
 }
 
+void TestStaticCompositionProtocol()
+{
+    const std::string id(64,'a');
+    const std::string tuple=R"({"composition_id":")"+id+R"(","package_id":")"+id+
+        R"(","base_sha256":")"+id+R"(","base_size":12,"persona_sha256":")"+id+
+        R"(","persona_size":26,"control_build_id":")"+std::string(32,'b')+R"(","hardware_id":3221331969})";
+    const std::string prefix=R"({"protocol":2,"operation":"load_composed_core","package_path":"/base","package_id":")"+id+R"(","composition":)";
+    const std::string input=prefix+tuple+"}";
+    Request request;assert(Parse(input,&request).ok());
+    assert(request.operation==Operation::load_composed_core && request.composition_request.has_static_selection);
+    assert(request.composition_request.static_selection.composition.hardware_id==0xc001a001u);
+    assert(request.composition_request.composition.id.empty() && request.composition_request.payload_path.empty());
+    const std::string selected=prefix+tuple.substr(0,tuple.size()-1)+R"(,"expansion_id":")"+id+R"("},"expansion_path":"/partial"})";
+    assert(Parse(selected,&request).ok() && request.composition_request.static_selection.expansion_path=="/partial");
+    for (const auto& edit:std::vector<std::pair<std::string,std::string>>{
+        {R"("base_size":12)",R"("base_size":0)"},{R"("persona_size":26)",R"("persona_size":33554433)"},
+        {"3221331969","3221401602"},{"3221331969","4294967295"},{"3221331969","3221331969.0"},
+        {R"("base_size":12)",R"("base_size":true)"},{R"("base_size":12)",R"("base_size":12,"extra":0)"},
+        {std::string(32,'b'),std::string(32,'0')},{R"("package_path":"/base")",R"("package_path":"base")"}}) {
+        auto bad=input;const auto at=bad.find(edit.first);assert(at!=std::string::npos);bad.replace(at,edit.first.size(),edit.second);
+        assert(!Parse(bad,&request).ok());
+    }
+    assert(!Parse(input.substr(0,input.size()-1)+R"(,"payload_path":"/linked.rbf"})",&request).ok());
+    assert(!Parse(input.substr(0,input.size()-1)+R"(,"expansion_path":"/partial"})",&request).ok());
+    auto missing=selected;const std::string path=R"(,"expansion_path":"/partial")";missing.erase(missing.find(path),path.size());
+    assert(!Parse(missing,&request).ok());
+    Status status;status.active_package.package_id=id;
+    assert(Parse(input,&request).ok());status.active_package.static_composition=request.composition_request.static_selection.composition;
+    const auto response=mister::daemon::EncodeResponse(2,true,status,"fixture");
+    assert(response.find(R"("composition":)"+tuple)!=std::string::npos);
+}
+
+void TestStaticPackageInspectionSerialization()
+{
+	mister::CorePackageInspection inspection;
+	inspection.package_id = std::string(64, 'a');
+	inspection.descriptor = FixtureDescriptor();
+	auto& d = inspection.descriptor;
+	d.format = 5;
+	d.target = {"de25_nano", "A5EB013BB23BE4SCS", "de25-linux-static-computer-v1"};
+	auto& s = d.static_expansion;
+	s.file = "persona.rbf"; s.size = 26; s.sha256 = std::string(64, 'a');
+	s.control_build_id = std::string(32, '1'); s.hardware_id = 0xc001a001u;
+	s.root_qdb_sha256 = std::string(64, '2'); s.interface_sha256 = std::string(64, '3');
+	s.clock_reset_sha256 = std::string(64, '4'); s.pof0_hash = std::string(64, '5');
+	inspection.compatibility_error = {ErrorCode::unsupported_programming_profile, "static profile not registered", "admission"};
+	const auto response = mister::daemon::EncodeResponse(2, true, Status{}, "fixture", &inspection);
+	mister::daemon::json::Value parsed; std::string message;
+	assert(mister::daemon::json::ParseResponse(response, &parsed, &message));
+	const std::string fields = "\"static_expansion\":{\"file\":\"persona.rbf\",\"size\":26,\"sha256\":\"" +
+		s.sha256 + "\",\"control_build_id\":\"" + s.control_build_id + "\",\"hardware_id\":3221331969," +
+		"\"root_qdb_sha256\":\"" + s.root_qdb_sha256 + "\",\"interface_sha256\":\"" + s.interface_sha256 +
+		"\",\"clock_reset_sha256\":\"" + s.clock_reset_sha256 + "\",\"pof0_hash\":\"" + s.pof0_hash + "\"}";
+	assert(response.find(fields) != std::string::npos);
+	assert(response.find("unsupported_programming_profile") != std::string::npos);
+	d.format = 2;
+	assert(mister::daemon::EncodeResponse(2, true, Status{}, "fixture", &inspection).find("static_expansion") == std::string::npos);
+}
+
 void TestMouseRelativeRequests()
 {
 	Request r;
@@ -1294,9 +1353,19 @@ void TestMenuProtocolRequestsAndStatus()
  assert(blitter.find("\"menu_frame\":{\"generation\":1,\"format\":\"bgrx8888\",\"slots\":2,\"slot_bytes\":4194304,"
   "\"blitter\":{\"minor\":1,\"list_offset\":8388608,\"commands\":32768,\"command_bytes\":32,\"heap_offset\":16777216,\"heap_bytes\":67108864}}")!=std::string::npos);
 
+ status.menu_display.frame_mapping=true;granted.frame_mapping=true;granted.blitter=false;
+ const auto frame_mapping=mister::daemon::EncodeResponse(2,true,status,"test",nullptr,nullptr,&granted);
+ const auto marker=frame_mapping.find("\"frame_mapping\":true");
+ assert(marker!=std::string::npos&&frame_mapping.find("\"frame_mapping\":true",marker+1)!=std::string::npos);
+
  Request request;
  assert(Parse(R"({"protocol":2,"operation":"menu_frame_grant","expected_generation":7})",&request).ok());
  assert(request.operation==mister::daemon::Operation::menu_frame_grant&&request.expected_generation==7);
+ assert(!request.frame_mapping);
+ assert(Parse(R"({"protocol":2,"operation":"menu_frame_grant","expected_generation":7,"frame_mapping":true})",&request).ok()&&request.frame_mapping);
+ assert(!Parse(R"({"protocol":2,"operation":"menu_frame_grant","expected_generation":7,"frame_mapping":1})",&request).ok());
+ assert(!Parse(R"({"protocol":2,"operation":"menu_frame_begin","expected_generation":7,"frame_mapping":true})",&request).ok());
+
  assert(Parse(R"({"protocol":2,"operation":"menu_frame_begin","expected_generation":18446744073709551615})",&request).ok());
  assert(request.operation==mister::daemon::Operation::menu_frame_begin&&request.expected_generation==UINT64_MAX);
  assert(Parse(R"({"protocol":2,"operation":"menu_frame_commit","generation":1,"slot":1})",&request).ok());
@@ -1503,6 +1572,8 @@ int main(int argc, char** argv)
 	TestSlotCompositionProtocol();
 	TestComputerResponseFixtures();
 	TestFormat3InspectionSerialization();
+	TestStaticCompositionProtocol();
+	TestStaticPackageInspectionSerialization();
 	TestROMLoadProtocol();
 	TestPcxtInitialLoadProtocol();
 	TestTwoSourceROMLoadProtocol();
@@ -1526,5 +1597,5 @@ int main(int argc, char** argv)
 	TestSyntaxAndShapeFailures();
 	TestErrorCodeNames();
 	TestStatusErrorIsIndependentOfResponseOk();
-	std::cout << "protocol_test: 27 tests passed\n";
+	std::cout << "protocol_test: all groups passed\n";
 }

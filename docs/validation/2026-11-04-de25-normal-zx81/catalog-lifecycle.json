@@ -1,0 +1,91 @@
+{
+  "archive_bytes": 1408512,
+  "archive_path": "/home/deano/fes/out/artifacts/de25-vendor-reference/2ba9334c3/packages-7c/zx81/packages/05dfc7f7db974861f18df762fa61d6132d62fdb88d6c6cfbabafbc89a010907c.fcore",
+  "archive_sha256": "838d311055997e652904337b022c366b854b4f4e92fb21806d6affe7d94e7b60",
+  "compatibility": {
+    "compatible": true,
+    "package_id": "05dfc7f7db974861f18df762fa61d6132d62fdb88d6c6cfbabafbc89a010907c",
+    "state": "compatible"
+  },
+  "core_id": "fes.zx81",
+  "created_at_utc": "2026-11-03T22:08:45.536741+00:00",
+  "diagnostics": [],
+  "format": 1,
+  "mode": "lifecycle-only",
+  "package_id": "05dfc7f7db974861f18df762fa61d6132d62fdb88d6c6cfbabafbc89a010907c",
+  "provenance": {
+    "active_bundle": {
+      "fogcast": "91625e74d9c1a6a63a7a8f026652ecef27f4c01b",
+      "runtime": "91625e74d9c1a6a63a7a8f026652ecef27f4c01b"
+    },
+    "base_artifacts": {
+      "agent_revision": "91625e74d9c1a6a63a7a8f026652ecef27f4c01b",
+      "agent_sha256": "98461cdf77cbc1b6ccec0bef61967760ac5f702ffb062785b85a7465c896c43f",
+      "idle_sha256": "31919f1eb3871080c8676c1546f3a527853accc8d929685865d522ad5b5f5f64",
+      "image_sha256": "6de6a39230ce4bc364f34b7c606a5ed2c218d1315906c7e7f8b1ef9bbb566076",
+      "kit_sha256": "4245adf3f1b390d23ce0231d7bb39ab925597ad58c030617e85f936535b9533e",
+      "record_sha256": "5ccf9a9cf32bb7d9259c7e0d348302edc18959d683dfa8e5a68460a50d63a76d",
+      "runtime_commit": "5cd8d0007990223ab9704eee1e2e4a06d16cf72c"
+    },
+    "host_revision": "91625e74d9c1a6a63a7a8f026652ecef27f4c01b"
+  },
+  "provided_interfaces": {
+    "maintenance": "fes-kit-maintenance-v1",
+    "menu.fes.fabric.de25-scanout": "1.1",
+    "menu.fes.memory.hps-ddr": "1.0",
+    "menu.fes.video.fixed-720p60": "1.0",
+    "menu.fes.video.menu-blitter": "1.1",
+    "menu.fes.video.menu-display": "1.0",
+    "runtime-protocol": "2",
+    "software-admission": "fes-kit-software-v1"
+  },
+  "selection": {
+    "game_id": "fpga-zx81-ecf8e4ef20d1",
+    "mode": "existing",
+    "package_id": "05dfc7f7db974861f18df762fa61d6132d62fdb88d6c6cfbabafbc89a010907c"
+  },
+  "session": {
+    "flight_id": "45b0f717-62c6-49b7-b333-72798157d259",
+    "game_id": "fpga-zx81-ecf8e4ef20d1",
+    "generation": 1,
+    "id": "e5d91d27-2853-4436-9e87-0dddd48366b2",
+    "package_id": "05dfc7f7db974861f18df762fa61d6132d62fdb88d6c6cfbabafbc89a010907c",
+    "target_id": "e2a51a4f-bae2-4041-a4e4-51f6774d4e45"
+  },
+  "software_identity": {
+    "active_bundle": "76ab2678962cd032fe12db1b12c7f7cd9e7035d199033346240eab63b4e694b1",
+    "base_identity": "6de6a39230ce4bc364f34b7c606a5ed2c218d1315906c7e7f8b1ef9bbb566076",
+    "host_api": "v1",
+    "target_api": "v1"
+  },
+  "stop": {
+    "connection": {
+      "address": "http://192.168.10.168:8182",
+      "boot_id": "55d46fd8-0c0f-414d-a3e3-5ff5094c673a",
+      "state": "ready",
+      "target_id": "e2a51a4f-bae2-4041-a4e4-51f6774d4e45"
+    },
+    "flight_id": "45b0f717-62c6-49b7-b333-72798157d259",
+    "id": "e5d91d27-2853-4436-9e87-0dddd48366b2",
+    "input": {
+      "metrics": {
+        "bridge_to_uinput_measurable": false,
+        "bridge_to_uinput_p95_ms": 0,
+        "capture_to_bridge_p95_ms": 0,
+        "frames_sent": 0,
+        "releases": 1,
+        "rtt_ms": 0,
+        "sequence_gaps": 0,
+        "shutdown_reason": "target_changed",
+        "state_resyncs": 0
+      },
+      "ready": false,
+      "state": "detached"
+    },
+    "state": "idle",
+    "target": "de25-bottom",
+    "target_id": "e2a51a4f-bae2-4041-a4e4-51f6774d4e45"
+  },
+  "success": true,
+  "target_id": "e2a51a4f-bae2-4041-a4e4-51f6774d4e45"
+}

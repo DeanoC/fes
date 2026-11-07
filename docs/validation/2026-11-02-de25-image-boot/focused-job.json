@@ -1,0 +1,21 @@
+{
+  "source_revision": "54440171df2ae454a87873099857c10de7e17263",
+  "command": [
+    "/usr/bin/python3",
+    "-m",
+    "unittest",
+    "tests.test_de25_managed_boot",
+    "tests.test_de25_managed_factory",
+    "tests.test_de25_managed_base",
+    "-v"
+  ],
+  "cwd": "/home/deano/fes/out/dev/de25-managed-image/out/work/de25-image-boot-54440171d",
+  "started_utc": "2026-11-02T00:03:13.254765+00:00",
+  "time_cap_seconds": 600,
+  "hardware_access": "not-performed",
+  "pid": 813020,
+  "state": "passed",
+  "elapsed_seconds": 0.9,
+  "heartbeat_utc": "2026-11-02T00:03:14.146173+00:00",
+  "returncode": 0
+}

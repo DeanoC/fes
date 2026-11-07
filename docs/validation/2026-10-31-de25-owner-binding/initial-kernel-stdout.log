@@ -1,0 +1,46 @@
++ git worktree add --detach /home/deano/fes/out/dev/de25-linux-platform/out/work/de25-linux-f7c05a8b7e833a07974a95d7868f0da95305e15f f7c05a8b7e833a07974a95d7868f0da95305e15f
+Preparing worktree (detached HEAD f7c05a8b7)
+Updating files:  90% (7463/8208)Updating files:  91% (7470/8208)Updating files:  92% (7552/8208)Updating files:  93% (7634/8208)Updating files:  94% (7716/8208)Updating files:  95% (7798/8208)Updating files:  96% (7880/8208)Updating files:  97% (7962/8208)Updating files:  98% (8044/8208)Updating files:  99% (8126/8208)Updating files: 100% (8208/8208)Updating files: 100% (8208/8208), done.
+HEAD is now at f7c05a8b7 Protect the physical DE25 SMMU parent bus in the owner profile
++ /home/deano/fes/out/dev/de25-linux-platform/out/work/de25-linux-f7c05a8b7e833a07974a95d7868f0da95305e15f/image/scripts/target-image-container.sh run true
+{"state": "running", "container": "fes-de25-owner-kernel-b1e3120423c74a3e", "pid": 119735, "time_cap_seconds": 1200, "elapsed_seconds": 0.0, "heartbeat_utc": "2026-10-31T17:31:29.846514+00:00", "returncode": null}
++ cp -a /kernel-input /build/linux
++ patch --batch --forward --fuzz=0 -p1 --input /src/image/kernel/de25-platform/permanent-suppliers.patch
+patching file drivers/fpga/of-fpga-region.c
+patching file drivers/fpga/stratix10-soc.c
+patching file drivers/firmware/stratix10-svc.c
+patching file drivers/bus/simple-pm-bus.c
++ gcc -std=gnu11 -Wall -Wextra -I/build/linux/scripts/dtc/libfdt /src/image/kernel/de25-platform/verify_tree.c /build/linux/scripts/dtc/libfdt/fdt.c /build/linux/scripts/dtc/libfdt/fdt_addresses.c /build/linux/scripts/dtc/libfdt/fdt_empty_tree.c /build/linux/scripts/dtc/libfdt/fdt_overlay.c /build/linux/scripts/dtc/libfdt/fdt_ro.c /build/linux/scripts/dtc/libfdt/fdt_rw.c /build/linux/scripts/dtc/libfdt/fdt_strerror.c /build/linux/scripts/dtc/libfdt/fdt_sw.c /build/linux/scripts/dtc/libfdt/fdt_wip.c -o /build/verify-tree
+/build/linux/scripts/dtc/libfdt/fdt_overlay.c: In function ‘overlay_fixup_one_phandle’:
+/build/linux/scripts/dtc/libfdt/fdt_overlay.c:331:44: warning: unused parameter ‘fdt’ [-Wunused-parameter]
+  331 | static int overlay_fixup_one_phandle(void *fdt, void *fdto,
+      |                                      ~~~~~~^~~
++ tar -xzf /image/aarch64-sdk.tar.gz --strip-components=1 -C /build/sdk
++ /build/sdk/relocate-sdk.sh
+Relocating the buildroot SDK from /build/74e9849d7fe0cb2504cb8fb2db0fb6150f57a0edf72c47bff7cdbce069e2607f/host to /build/sdk ...
++ /build/linux/scripts/config --file /build/kernel-build/.config --set-str LOCALVERSION -fes-de25-owner --enable FES_DE25_DMA --enable FES_DE25_DMA_PLATFORM --enable OF_OVERLAY --enable OF_CONFIGFS --enable CONFIGFS_FS --enable FPGA --enable FPGA_MGR_STRATIX10_SOC --enable FPGA_BRIDGE --enable FPGA_REGION --enable OF_FPGA_REGION --enable INTEL_STRATIX10_SERVICE --enable ARM_SMMU_V3 --enable IOMMU_DEFAULT_DMA_STRICT --enable DMA_CMA --enable SIMPLE_PM_BUS --disable LOCALVERSION_AUTO --disable FES_DE25_DMA_KUNIT_TEST
++ make -C /build/linux O=/build/kernel-build ARCH=arm64 CROSS_COMPILE=/build/sdk/bin/aarch64-buildroot-linux-gnu- LOCALVERSION= DTC_FLAGS=-@ olddefconfig
+make: Entering directory '/build/linux'
+make[1]: Entering directory '/build/kernel-build'
+  GEN     Makefile
+  HOSTCC  scripts/basic/fixdep
+  HOSTCC  scripts/kconfig/conf.o
+  HOSTCC  scripts/kconfig/confdata.o
+  HOSTCC  scripts/kconfig/expr.o
+  LEX     scripts/kconfig/lexer.lex.c
+  YACC    scripts/kconfig/parser.tab.[ch]
+  HOSTCC  scripts/kconfig/lexer.lex.o
+  HOSTCC  scripts/kconfig/menu.o
+  HOSTCC  scripts/kconfig/parser.tab.o
+  HOSTCC  scripts/kconfig/preprocess.o
+  HOSTCC  scripts/kconfig/symbol.o
+  HOSTCC  scripts/kconfig/util.o
+  HOSTLD  scripts/kconfig/conf
+#
+# configuration written to .config
+#
+make[1]: Leaving directory '/build/kernel-build'
+make: Leaving directory '/build/linux'
+de25-kernel-platform: required built-in setting missing: SIMPLE_PM_BUS
+{"state": "failed", "container": "fes-de25-owner-kernel-b1e3120423c74a3e", "pid": 119735, "time_cap_seconds": 1200, "elapsed_seconds": 12.9, "heartbeat_utc": "2026-10-31T17:31:42.745921+00:00", "returncode": 1}
+de25-kernel-platform: candidate kernel build failed

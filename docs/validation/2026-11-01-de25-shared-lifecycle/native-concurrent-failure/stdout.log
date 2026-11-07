@@ -1,0 +1,101 @@
+make: Entering directory '/home/deano/fes/out/dev/de25-linux-platform/sources/libmister-runtime'
+g++ -D_FILE_OFFSET_BITS=64 -Iinclude -Isrc -isystem third_party/toml11/include -O2 -std=c++14 -Wall -Wextra -Werror -pthread -MMD -MP -c "src/native/de25_core_driver.cpp" -o "build/src/native/de25_core_driver.o"
+g++ -D_FILE_OFFSET_BITS=64 -Iinclude -Isrc -isystem third_party/toml11/include -Itests/support -DMISTER_RUNTIME_TESTING -O2 -std=c++14 -Wall -Wextra -Werror -pthread -MMD -MP tests/unit/de25_fpga_manager_test.cpp src/native/linux/de25_fpga_manager.cpp src/native/artifacts.cpp src/native/diagnostic.cpp src/native/sha256.cpp src/daemon/json.cpp -o "build/tests/unit/de25_fpga_manager_test"
+g++ -D_FILE_OFFSET_BITS=64 -Iinclude -Isrc -isystem third_party/toml11/include -O2 -std=c++14 -Wall -Wextra -Werror -pthread -MMD -MP -c "src/native/hardware.cpp" -o "build/src/native/hardware.o"
+g++ -D_FILE_OFFSET_BITS=64 -Iinclude -Isrc -isystem third_party/toml11/include -Itests/support -O2 -std=c++14 -Wall -Wextra -Werror -pthread -MMD -MP tests/unit/menu_frame_transport_test.cpp src/daemon/menu_frame_transport.cpp -o "build/tests/unit/menu_frame_transport_test"
+g++ -D_FILE_OFFSET_BITS=64 -Iinclude -Isrc -isystem third_party/toml11/include -Itests/support -O2 -std=c++14 -Wall -Wextra -Werror -pthread -MMD -MP tests/unit/menu_window_test.cpp src/native/linux/menu_window.cpp -o "build/tests/unit/menu_window_test"
+g++ -D_FILE_OFFSET_BITS=64 -Iinclude -Isrc -isystem third_party/toml11/include -Itests/support -O2 -std=c++14 -Wall -Wextra -Werror -pthread -MMD -MP tests/unit/menu_display_test.cpp src/native/menu_display.cpp src/native/fes_gp.cpp src/native/artifacts.cpp src/native/diagnostic.cpp -o "build/tests/unit/menu_display_test"
+g++ -D_FILE_OFFSET_BITS=64 -Iinclude -Isrc -isystem third_party/toml11/include -Itests/support -O2 -std=c++14 -Wall -Wextra -Werror -pthread -MMD -MP tests/unit/runtime_test.cpp \
+	tests/support/fake_hardware.cpp tests/support/capture_log.cpp \
+	 src/runtime.cpp src/native/diagnostic.cpp -o "build/tests/unit/runtime_test"
+g++ -D_FILE_OFFSET_BITS=64 -Iinclude -Isrc -isystem third_party/toml11/include -Itests/support -O2 -std=c++14 -Wall -Wextra -Werror -pthread -MMD -MP tests/unit/diagnostic_test.cpp \
+	src/native/diagnostic.cpp -o "build/tests/unit/diagnostic_test"
+g++ -D_FILE_OFFSET_BITS=64 -Iinclude -Isrc -isystem third_party/toml11/include -Itests/support -O2 -std=c++14 -Wall -Wextra -Werror -pthread -MMD -MP tests/unit/artifacts_test.cpp \
+	src/native/artifacts.cpp src/native/diagnostic.cpp -o "build/tests/unit/artifacts_test"
+g++ -D_FILE_OFFSET_BITS=64 -Iinclude -Isrc -isystem third_party/toml11/include -Itests/support -O2 -std=c++14 -Wall -Wextra -Werror -pthread -MMD -MP tests/unit/core_package_test.cpp \
+	src/native/core_package.cpp src/native/core_driver.cpp src/native/sha256.cpp \
+	src/native/artifacts.cpp src/native/diagnostic.cpp -o "build/tests/unit/core_package_test"
+g++ -D_FILE_OFFSET_BITS=64 -Iinclude -Isrc -isystem third_party/toml11/include -Itests/support -O2 -std=c++14 -Wall -Wextra -Werror -pthread -MMD -MP tests/unit/core_composition_test.cpp src/native/core_composition.cpp src/native/sha256.cpp src/native/artifacts.cpp src/native/diagnostic.cpp -o "build/tests/unit/core_composition_test"
+g++ -D_FILE_OFFSET_BITS=64 -Iinclude -Isrc -isystem third_party/toml11/include -Itests/support -O2 -std=c++14 -Wall -Wextra -Werror -pthread -MMD -MP tests/unit/core_data_test.cpp src/native/core_data.cpp src/native/sha256.cpp -o "build/tests/unit/core_data_test"
+g++ -D_FILE_OFFSET_BITS=64 -Iinclude -Isrc -isystem third_party/toml11/include -Itests/support -O2 -std=c++14 -Wall -Wextra -Werror -pthread -MMD -MP tests/unit/ata_disk_test.cpp src/native/ata_disk.cpp src/native/media_data.cpp src/native/sha256.cpp src/daemon/json.cpp -o "build/tests/unit/ata_disk_test"
+g++ -D_FILE_OFFSET_BITS=64 -Iinclude -Isrc -isystem third_party/toml11/include -Itests/support -O2 -std=c++14 -Wall -Wextra -Werror -pthread -MMD -MP tests/unit/media_data_test.cpp src/native/media_data.cpp src/native/sha256.cpp src/daemon/json.cpp -o "build/tests/unit/media_data_test"
+g++ -D_FILE_OFFSET_BITS=64 -Iinclude -Isrc -isystem third_party/toml11/include -Itests/support -O2 -std=c++14 -Wall -Wextra -Werror -pthread -MMD -MP tests/unit/fes_gp_test.cpp \
+	tests/support/fake_mmio.cpp src/native/fes_gp.cpp src/native/artifacts.cpp src/native/diagnostic.cpp -o "build/tests/unit/fes_gp_test"
+g++ -D_FILE_OFFSET_BITS=64 -Iinclude -Isrc -isystem third_party/toml11/include -Itests/support -O2 -std=c++14 -Wall -Wextra -Werror -pthread -MMD -MP tests/unit/de25_computer_test.cpp src/native/de25_computer.cpp src/native/de25_core_driver.cpp src/native/artifacts.cpp src/native/diagnostic.cpp -o "build/tests/unit/de25_computer_test"
+g++ -D_FILE_OFFSET_BITS=64 -Iinclude -Isrc -isystem third_party/toml11/include -Itests/support -O2 -std=c++14 -Wall -Wextra -Werror -pthread -MMD -MP tests/unit/de25_pr_control_test.cpp src/native/de25_pr_control.cpp -o "build/tests/unit/de25_pr_control_test"
+g++ -D_FILE_OFFSET_BITS=64 -Iinclude -Isrc -isystem third_party/toml11/include -Itests/support -DMISTER_RUNTIME_TESTING -O2 -std=c++14 -Wall -Wextra -Werror -pthread -MMD -MP \
+	-DMISTER_RUNTIME_IDLE_RBF=\"/definitely-missing/libmister-runtime/idle.rbf\" \
+	tests/unit/native_hardware_test.cpp \
+	tests/support/capture_log.cpp tests/support/fake_input.cpp \
+	tests/support/fake_mmio.cpp \
+	src/native/artifacts.cpp src/native/core_package.cpp src/native/core_composition.cpp src/native/core_data.cpp src/native/media_data.cpp src/native/ata_disk.cpp src/native/sha256.cpp \
+	src/native/core_driver.cpp  src/native/input.cpp \
+	src/native/fes_gp.cpp src/native/menu_display.cpp src/native/diagnostic.cpp \
+	src/native/video_recipe.cpp src/native/video.cpp \
+	src/native/hardware.cpp  src/runtime.cpp src/native/linux/menu_window.cpp \
+	src/linux/production_hardware.cpp \
+	src/native/linux/mmio.cpp src/native/linux/fpga_manager.cpp \
+	src/native/linux/i2c.cpp src/native/linux/input.cpp src/native/linux/window_driver.cpp \
+	src/daemon/json.cpp src/daemon/protocol.cpp \
+	 -o "build/tests/unit/native_hardware_test"
+g++ -D_FILE_OFFSET_BITS=64 -Iinclude -Isrc -isystem third_party/toml11/include -Itests/support -O2 -std=c++14 -Wall -Wextra -Werror -pthread -MMD -MP tests/unit/fpga_manager_test.cpp \
+	tests/support/fake_mmio.cpp src/native/artifacts.cpp \
+	src/native/diagnostic.cpp \
+	src/native/linux/fpga_manager.cpp -o "build/tests/unit/fpga_manager_test"
+g++ -D_FILE_OFFSET_BITS=64 -Iinclude -Isrc -isystem third_party/toml11/include -Itests/support -DMISTER_RUNTIME_TESTING -O2 -std=c++14 -Wall -Wextra -Werror -pthread -MMD -MP \
+	tests/unit/mmio_test.cpp src/native/linux/mmio.cpp -o "build/tests/unit/mmio_test"
+g++ -D_FILE_OFFSET_BITS=64 -Iinclude -Isrc -isystem third_party/toml11/include -Itests/support -O2 -std=c++14 -Wall -Wextra -Werror -pthread -MMD -MP \
+	tests/unit/window_driver_test.cpp src/native/linux/window_driver.cpp -o "build/tests/unit/window_driver_test"
+g++ -D_FILE_OFFSET_BITS=64 -Iinclude -Isrc -isystem third_party/toml11/include -O2 -std=c++14 -Wall -Wextra -Werror -pthread -MMD -MP tests/unit/off_t_test.cpp -o "build/tests/unit/off_t_test"
+g++ -D_FILE_OFFSET_BITS=64 -Iinclude -Isrc -isystem third_party/toml11/include -Itests/support -O2 -std=c++14 -Wall -Wextra -Werror -pthread -MMD -MP tests/unit/video_recipe_test.cpp \
+	src/native/video_recipe.cpp -o "build/tests/unit/video_recipe_test"
+g++ -D_FILE_OFFSET_BITS=64 -Iinclude -Isrc -isystem third_party/toml11/include -Itests/support -O2 -std=c++14 -Wall -Wextra -Werror -pthread -MMD -MP tests/unit/adv7513_test.cpp -o "build/tests/unit/adv7513_test"
+g++ -D_FILE_OFFSET_BITS=64 -Iinclude -Isrc -isystem third_party/toml11/include -Itests/support -DMISTER_RUNTIME_TESTING -O2 -std=c++14 -Wall -Wextra -Werror -pthread -MMD -MP \
+	tests/unit/i2c_test.cpp src/native/linux/i2c.cpp -o "build/tests/unit/i2c_test"
+g++ -D_FILE_OFFSET_BITS=64 -Iinclude -Isrc -isystem third_party/toml11/include -Itests/support -DMISTER_RUNTIME_TESTING -O2 -std=c++14 -Wall -Wextra -Werror -pthread -MMD -MP \
+	tests/unit/input_test.cpp tests/support/fake_input.cpp \
+	src/native/input.cpp src/native/linux/input.cpp -o "build/tests/unit/input_test"
+g++ -D_FILE_OFFSET_BITS=64 -Iinclude -Isrc -isystem third_party/toml11/include -Itests/support -O2 -std=c++14 -Wall -Wextra -Werror -pthread -MMD -MP tests/unit/video_test.cpp \
+	tests/support/fake_i2c.cpp tests/support/capture_log.cpp \
+	src/native/artifacts.cpp  \
+	src/native/diagnostic.cpp \
+	src/native/video_recipe.cpp \
+	src/native/video.cpp  -o "build/tests/unit/video_test"
+g++ -D_FILE_OFFSET_BITS=64 -Iinclude -Isrc -isystem third_party/toml11/include -Itests/support -O2 -std=c++14 -Wall -Wextra -Werror -pthread -MMD -MP tests/unit/protocol_test.cpp \
+	src/daemon/json.cpp src/daemon/protocol.cpp  src/runtime.cpp \
+	src/native/core_package.cpp src/native/artifacts.cpp src/native/sha256.cpp \
+	src/native/diagnostic.cpp -o "build/tests/unit/protocol_test"
+g++ -D_FILE_OFFSET_BITS=64 -Iinclude -Isrc -isystem third_party/toml11/include -O2 -std=c++14 -Wall -Wextra -Werror -pthread -MMD -MP tools/menu_pattern_client.cpp src/daemon/menu_frame_transport.cpp src/daemon/json.cpp -o "build/tools/menu-pattern-client"
+rm -f "build/libmister-runtime.a"
+ZERO_AR_DATE=1 ar rcs "build/libmister-runtime.a" build/src/runtime.o build/src/daemon/json.o build/src/native/artifacts.o build/src/native/core_package.o build/src/native/core_composition.o build/src/native/core_data.o build/src/native/media_data.o build/src/native/ata_disk.o build/src/native/core_driver.o build/src/native/fes_gp.o build/src/native/de25_computer.o build/src/native/de25_core_driver.o build/src/native/de25_pr_control.o build/src/native/menu_display.o build/src/native/linux/menu_window.o build/src/native/diagnostic.o build/src/native/sha256.o build/src/native/input.o build/src/native/video_recipe.o build/src/native/video.o build/src/native/hardware.o build/src/native/linux/de25_fpga_manager.o build/src/native/linux/fpga_manager.o build/src/native/linux/i2c.o build/src/native/linux/mmio.o build/src/native/linux/window_driver.o build/src/linux/production_hardware.o build/src/native/linux/linux_input.o
+hardware support truth passed
+g++ -D_FILE_OFFSET_BITS=64 -Iinclude -Isrc -isystem third_party/toml11/include -Itests/support -DMISTER_RUNTIME_TESTING -O2 -std=c++14 -Wall -Wextra -Werror -pthread -MMD -MP \
+	tests/unit/production_hardware_test.cpp src/linux/production_hardware.cpp build/src/runtime.o build/src/daemon/json.o build/src/native/artifacts.o build/src/native/core_package.o build/src/native/core_composition.o build/src/native/core_data.o build/src/native/media_data.o build/src/native/ata_disk.o build/src/native/core_driver.o build/src/native/fes_gp.o build/src/native/de25_computer.o build/src/native/de25_core_driver.o build/src/native/de25_pr_control.o build/src/native/menu_display.o build/src/native/linux/menu_window.o build/src/native/diagnostic.o build/src/native/sha256.o build/src/native/input.o build/src/native/video_recipe.o build/src/native/video.o build/src/native/hardware.o build/src/native/linux/de25_fpga_manager.o build/src/native/linux/fpga_manager.o build/src/native/linux/i2c.o build/src/native/linux/mmio.o build/src/native/linux/window_driver.o build/src/native/linux/linux_input.o -o "build/tests/unit/production_hardware_test"
+g++ -D_FILE_OFFSET_BITS=64 -Iinclude -Isrc -isystem third_party/toml11/include -DMISTER_RUNTIME_VERSION=\"git-16838e82c812\" -O2 -std=c++14 -Wall -Wextra -Werror -pthread -MMD -MP -c "src/daemon/main.cpp" -o "build/src/daemon/main.o"
+g++ -D_FILE_OFFSET_BITS=64 -Iinclude -Isrc -isystem third_party/toml11/include -Itests/support -O2 -std=c++14 -Wall -Wextra -Werror -pthread -MMD -MP \
+	-DMISTER_MENU_PATTERN_CLIENT=\"/home/deano/fes/out/dev/de25-linux-platform/sources/libmister-runtime/build/tools/menu-pattern-client\" \
+	tests/integration/daemon_server_test.cpp \
+	tests/support/fake_hardware.cpp \
+	src/daemon/controller.cpp src/daemon/server.cpp src/daemon/menu_frame_transport.cpp \
+	src/daemon/json.cpp src/daemon/protocol.cpp \
+	src/linux/stderr_log.cpp  src/runtime.cpp \
+	src/native/diagnostic.cpp -o "build/tests/integration/daemon_server_test"
+g++ -O2 -std=c++14 -Wall -Wextra -Werror -pthread -MMD -MP build/src/daemon/protocol.o build/src/daemon/controller.o build/src/daemon/server.o build/src/daemon/menu_frame_transport.o build/src/daemon/main.o build/src/linux/stderr_log.o \
+	-Wl,--whole-archive build/libmister-runtime.a -Wl,--no-whole-archive \
+	  -o "build/mister-runtime"
+success applies on close, reprograms in context, and preserves state at destruction
+partial/failed/late close and unapplied status retain state and refuse replay
+preflight/staging failures make no programming call and clean only new resources
+failed removal poisons without another image submission
+foreign profiles and replaced lease inode refuse before filesystem mutation
+de25_fpga_manager_test: passed
+production_hardware_test passed
+menu transport phase/FD ownership/truncation/bounds/deadline tests passed
+menu window grant/clear/clean/revoke/share tests passed
+menu driver geometry/counters/ordered submission/invalid-state/blit tests passed
+runtime_test: 56 passed
+/bin/bash: line 3: build/tests/unit/diagnostic_test: No such file or directory
+make: *** [Makefile:367: run-tests] Error 127
+make: *** Waiting for unfinished jobs....
+active_tree_test: passed
+make: Leaving directory '/home/deano/fes/out/dev/de25-linux-platform/sources/libmister-runtime'

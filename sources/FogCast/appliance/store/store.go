@@ -107,7 +107,13 @@ type envelope struct {
 }
 
 func New(root string, factory release.Manifest) (*Store, error) {
-	if e := factory.Validate(); e != nil {
+	return NewForBoard(root, factory, release.Board)
+}
+
+// NewForBoard pins the store to a separately selected board. Its factory and
+// every staged or retained manifest must match that board and kernel.
+func NewForBoard(root string, factory release.Manifest, board string) (*Store, error) {
+	if e := factory.ValidateForBoard(board); e != nil {
 		return nil, e
 	}
 	if !filepath.IsAbs(root) {
@@ -134,6 +140,10 @@ func New(root string, factory release.Manifest) (*Store, error) {
 		loopBackings:   loopBackingFiles,
 	}, nil
 }
+
+// Board is the selected board validated when this store was constructed.
+func (s *Store) Board() string { return s.factory.Board }
+
 func (s *Store) ImagePath(hash string) (string, error) {
 	if !release.ValidHash(hash) {
 		return "", errors.New("invalid image hash")
@@ -504,13 +514,13 @@ func (s *Store) verifyContext(ctx context.Context, hash string) (release.Manifes
 		if e != nil {
 			return m, e
 		}
-		m, _, e = release.DecodeManifest(f)
+		m, _, e = release.DecodeManifestForBoard(f, s.factory.Board)
 		f.Close()
 		if e != nil {
 			return m, e
 		}
 	}
-	if e = m.Compatible(s.factory.KernelSHA256); e != nil {
+	if e = m.CompatibleForBoard(s.factory.KernelSHA256, s.factory.Board); e != nil {
 		return m, e
 	}
 	if m.ImageSHA256 != hash {
@@ -598,7 +608,7 @@ func verifyImage(ctx context.Context, f *os.File, m release.Manifest) error {
 // images still leave too little room, Stage returns ErrInsufficientStorage and
 // deletes nothing.
 func (s *Store) Stage(ctx context.Context, m release.Manifest, size int64, r io.Reader) error {
-	if e := m.Compatible(s.factory.KernelSHA256); e != nil {
+	if e := m.CompatibleForBoard(s.factory.KernelSHA256, s.factory.Board); e != nil {
 		return e
 	}
 	if size != m.ImageSize {

@@ -1,0 +1,215 @@
+{
+  "FPGA_producer_revision": "1c5f24e1878328edb7a4e92cb0396aaac6aa336a",
+  "Quartus_compile": {
+    "compile_only": true,
+    "elapsed_seconds": 564.1,
+    "status": "passed",
+    "tool": "Quartus Pro 26.3 build 114"
+  },
+  "actual_public_bootstrap_verification": {
+    "actual_public_verify": "passed",
+    "all_selected_files_bytes_inodes_mtimes_unchanged": true,
+    "files": {
+      "bootstrap.json": {
+        "inode": 54027507,
+        "mtime_ns": 1793596826724069613,
+        "sha256": "d26716a6bf6145eab6cb0efbc998a8c72726338951fa08b61da4a8e60c7ad9a3",
+        "size": 1928
+      },
+      "candidate-info.log": {
+        "inode": 54027504,
+        "mtime_ns": 1793596825793066086,
+        "sha256": "cd82b77821c5c045a45350bc6e042ccb7a60440ccd6cb1c42fd3e0f2e4fc29bf",
+        "size": 6284
+      },
+      "conversion.log": {
+        "inode": 54027502,
+        "mtime_ns": 1793596825299064214,
+        "sha256": "40941d74d5d37a1d31c4cc5a0b014f1e9765280e8bb79682082d5d65cdc89443",
+        "size": 2765
+      },
+      "golden_top_hps.jic": {
+        "inode": 54027500,
+        "mtime_ns": 1793596822238052617,
+        "sha256": "e3d20c2d066761fd02897422ba361aa19faafcd0240dd2782965754cc61b38a4",
+        "size": 16777447
+      },
+      "linux-boot.core.rbf": {
+        "inode": 54027498,
+        "mtime_ns": 1793596822230052587,
+        "sha256": "4b014205b1d9669cdbce3721a1bbaecb3fa36f60e9ce38c28aa9597114744c29",
+        "size": 1421312
+      },
+      "linux-boot.hps.jic": {
+        "inode": 54027497,
+        "mtime_ns": 1793596822229052583,
+        "sha256": "0f00c7325c8dfcc20bfe7c2a7e995f86b6c9029bd82f3fd8f5db674df923c664",
+        "size": 16777449
+      },
+      "linux-complete.sof": {
+        "inode": 54027496,
+        "mtime_ns": 1793596822221052553,
+        "sha256": "f755d91763ca78a8a12b708e9b5cbd109489c8fa57c5c130f5242d0f0a44e834",
+        "size": 1396335
+      },
+      "linux-programming.json": {
+        "inode": 54027499,
+        "mtime_ns": 1793596822230052587,
+        "sha256": "ac11e9cb038504d50bffb5cca71c80b9e0fe2891cd7e1827a748b277d09bdf4b",
+        "size": 5447
+      },
+      "recovery-info.log": {
+        "inode": 54027506,
+        "mtime_ns": 1793596826654069348,
+        "sha256": "1d641036400a904cab40cc2079d0f392d136b9f3fd15e229d3fcd3b2b54c3f11",
+        "size": 5051
+      },
+      "recovery.hps.rbf": {
+        "inode": 54027503,
+        "mtime_ns": 1793596825245064009,
+        "sha256": "88237c0fdfdc36e7a7f781c905018b7c5c446d826a0a39985633f494e9e68016",
+        "size": 868352
+      },
+      "rollback-info.log": {
+        "inode": 54027505,
+        "mtime_ns": 1793596826261067859,
+        "sha256": "ed0c940b3fbede35c5e625ffb4511ee2a32ed11c8958261312cec6ed1d01bfa0",
+        "size": 6985
+      },
+      "vendor-readme.txt": {
+        "inode": 54027501,
+        "mtime_ns": 1793596822238052617,
+        "sha256": "bb81c63795a18a22f30001eed7a2bd4acea2704d1ebed20c4ad60092001eb5cc",
+        "size": 1127
+      }
+    },
+    "hardware_access": "not-performed",
+    "source_revision": "c056078a3c2e68a749811902a7e914c2ee5e2f88"
+  },
+  "classification": "Actual current compiled/fitted diagnostic MENU candidate, typed HPS boot-package preparation and software checks; no timing admission or native acceptance",
+  "focused": {
+    "conversion_fixture": "mocked; actual PFG proof is separate",
+    "job_seconds": 0.1,
+    "status": "passed",
+    "test_seconds": 0.008,
+    "tests": 7
+  },
+  "goal_complete": false,
+  "hardware_access": "not-performed",
+  "independent_artifact_restoration": {
+    "FPGA_producer_revision": "1c5f24e1878328edb7a4e92cb0396aaac6aa336a",
+    "actual_bootstrap_verifier": "passed; typed scanout identity retained",
+    "archive_sha256": "b54f85cbba77bcc0601878c06afd9eb5b3200dfeddc854d14510d59ebbec19f2",
+    "canonical_MENU_source_inputs_unchanged": 374,
+    "classification": "Independent local restoration/integrity and current bootstrap-reader verification; no new FPGA/runtime/hardware acceptance",
+    "combined_compiler_inputs_unchanged": 59,
+    "hardware_access": "not-performed",
+    "package_exported": false,
+    "restore_seconds": 2.033,
+    "restored_artifact_files": 3332,
+    "runtime_test_inputs_unchanged": 58,
+    "source_revision": "c056078a3c2e68a749811902a7e914c2ee5e2f88",
+    "unchanged_first_party_trees": {
+      "sources/FogCast": "0c5998dbc62380b4a885c268f48af2c079c91588",
+      "sources/libmister-runtime": "76fd790345deed71592c70bc373e76346c664707",
+      "sources/mister-packages": "ef006ed0adb1b60b596bf05fc8c5096252b65754",
+      "sources/misteross": "2459d52948b46c814c5e4ddb8d5d553c6febbab8"
+    }
+  },
+  "native_acceptance": false,
+  "parent": {
+    "current_plan_full_race": false,
+    "current_plan_media": false,
+    "current_plan_video": false,
+    "executed_commands": 6,
+    "generated_consumers": 40,
+    "generated_copies": 42,
+    "job_seconds": 210.5,
+    "make_check": "passed",
+    "skips": 6,
+    "status": "passed",
+    "test_seconds": 198.896,
+    "tests": 1344,
+    "whole_current_plan_executed": true
+  },
+  "source_retention": "/home/deano/fes/out/artifacts/de25-boot-qualification/c056078a3/retention.json",
+  "source_retention_job_seconds": 2.2,
+  "source_retention_sha256": "fe5ca512cb0b9fe6691999e5517e22f16194612397cc7eb59e80d8f2c0dd59fd",
+  "tested_code_revision": "c056078a3c2e68a749811902a7e914c2ee5e2f88",
+  "timing_and_bootstrap": {
+    "FPGA_or_QSPI_programmed": false,
+    "FPGA_producer_revision": "1c5f24e1878328edb7a4e92cb0396aaac6aa336a",
+    "HPS_IO_hash_matches_recorded_baseline": true,
+    "artifact_comparison_to_recorded_approved_baseline": {
+      "linux-boot.core.rbf": {
+        "candidate": {
+          "sha256": "4b014205b1d9669cdbce3721a1bbaecb3fa36f60e9ce38c28aa9597114744c29",
+          "size": 1421312
+        },
+        "identical_bytes_by_sha256": false,
+        "recorded_baseline": {
+          "sha256": "7130375986bd59633d856beb6cf69db238432a06b84fa0ba1900ffd556ca180a",
+          "size": 1990656
+        }
+      },
+      "linux-boot.hps.jic": {
+        "candidate": {
+          "sha256": "0f00c7325c8dfcc20bfe7c2a7e995f86b6c9029bd82f3fd8f5db674df923c664",
+          "size": 16777449
+        },
+        "identical_bytes_by_sha256": false,
+        "recorded_baseline": {
+          "sha256": "fefe5246045354d665fbc195dad5350a0e23d1e3bf33516b93b0411832bfde64",
+          "size": 16777449
+        }
+      },
+      "linux-complete.sof": {
+        "candidate": {
+          "sha256": "f755d91763ca78a8a12b708e9b5cbd109489c8fa57c5c130f5242d0f0a44e834",
+          "size": 1396335
+        },
+        "identical_bytes_by_sha256": false,
+        "recorded_baseline": {
+          "sha256": "0a9475308c4411664083377e7865ad7dedac287bc3b8c4b6fcb520386c7fcc5f",
+          "size": 1892580
+        }
+      },
+      "recovery.hps.rbf": {
+        "candidate": {
+          "sha256": "88237c0fdfdc36e7a7f781c905018b7c5c446d826a0a39985633f494e9e68016",
+          "size": 868352
+        },
+        "identical_bytes_by_sha256": false,
+        "recorded_baseline": {
+          "sha256": "1a0d681a00efdb34ecc3ff1866da5dc343c3fe625fb6019351647144452b18de",
+          "size": 868352
+        }
+      }
+    },
+    "boot_firmware_native_acceptance": false,
+    "bootstrap_receipt_sha256": "d26716a6bf6145eab6cb0efbc998a8c72726338951fa08b61da4a8e60c7ad9a3",
+    "build_id": "267d7051c43aa59b84e3bef9d900f89f",
+    "candidate_HPS_IO_hash": "DF9589F2122209AF6D453BEE8BA0DD18F3192FA556B0B6E245CD3CB1A8FE4B1F",
+    "classification": "Current-source off-board HPS bootstrap candidate comparison; not flash or native acceptance",
+    "embedded_vendor_SPL_matches_recorded_baseline": true,
+    "embedded_vendor_SPL_sha256": "096f53ea0bb0ba6e7449b2acf012eae734840dbcdd2943b506567bad2f72f823",
+    "fresh_rbf_sha256": "4b014205b1d9669cdbce3721a1bbaecb3fa36f60e9ce38c28aa9597114744c29",
+    "hardware_access": "not-performed",
+    "new_QSPI_decision": "Matching file digests establish identical retained artifact bytes; differing file digests alone do not prove a changed programmed payload or need for flash replacement.",
+    "normal_kit_acceptance": false,
+    "package_exported": false,
+    "recorded_baseline_HPS_IO_hash": "DF9589F2122209AF6D453BEE8BA0DD18F3192FA556B0B6E245CD3CB1A8FE4B1F",
+    "source_revision": "c056078a3c2e68a749811902a7e914c2ee5e2f88",
+    "timing": {
+      "all_reported_internal_checks_pass": true,
+      "package_timing_admission": false,
+      "raw_failed_rules": {
+        "RDC-50003": 2,
+        "TMC-20011": 2,
+        "TMC-20012": 30
+      },
+      "reported_checks": 69,
+      "unreviewed_failed_rules": 2
+    }
+  }
+}

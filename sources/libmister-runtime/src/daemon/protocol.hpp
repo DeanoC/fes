@@ -69,6 +69,7 @@ struct Request {
 	std::string expected_package_id;
 	std::uint64_t expected_generation = 0;
 	std::uint32_t media_size = 0;
+ bool frame_mapping=false;
  std::uint8_t menu_slot=0;
  // What a menu commit drew.
  MenuDraw menu_draw;
@@ -97,7 +98,7 @@ struct MenuFrameReply {
  std::uint64_t preparation=0;
  // A grant that also covers the blitter's lists and heap, and the
  // menu-blitter minor its firmware declares.
- bool blitter=false;
+ bool blitter=false,frame_mapping=false;
  std::uint16_t blitter_minor=0;
  std::uint32_t displayed_sequence=0,underflows=0;
  // Present timing, encoded as menu_frame.timing on a commit reply.

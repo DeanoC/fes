@@ -1,0 +1,35 @@
+{
+  "clock": "pll_inst|iopll_0_outclk0",
+  "files": {
+    "hps_subsys/ip/qsys_top/emif_io96b_hps/emif_io96b_hps_emif_io96b_hps_510_z7xh4ha/synth/ip/emif_io96b_hps_emif_io96b_hps_510_z7xh4ha/emif_io96b_hps_emif_io96b_hps_510_z7xh4ha_emif_0_lpddr4/altera_reset_controller_1925/synth/altera_reset_controller.sdc": {
+      "after_sha256": "5ee450b6da0e63a0f1f805401370c13de7fefa7122bf066c940f30fbbbfe8166",
+      "before_sha256": "8834ac8de6421bc2c052c2ac8d7a71127477590111c6daab3bf9c8623501d769"
+    },
+    "jtag_subsys/ip/jtag_subsys/fpga_m/altera_reset_controller_1925/synth/altera_reset_controller.sdc": {
+      "after_sha256": "5ee450b6da0e63a0f1f805401370c13de7fefa7122bf066c940f30fbbbfe8166",
+      "before_sha256": "8834ac8de6421bc2c052c2ac8d7a71127477590111c6daab3bf9c8623501d769"
+    },
+    "jtag_subsys/ip/jtag_subsys/hps_f2sdram/altera_reset_controller_1925/synth/altera_reset_controller.sdc": {
+      "after_sha256": "5ee450b6da0e63a0f1f805401370c13de7fefa7122bf066c940f30fbbbfe8166",
+      "before_sha256": "8834ac8de6421bc2c052c2ac8d7a71127477590111c6daab3bf9c8623501d769"
+    },
+    "jtag_subsys/ip/jtag_subsys/hps_m/altera_reset_controller_1925/synth/altera_reset_controller.sdc": {
+      "after_sha256": "5ee450b6da0e63a0f1f805401370c13de7fefa7122bf066c940f30fbbbfe8166",
+      "before_sha256": "8834ac8de6421bc2c052c2ac8d7a71127477590111c6daab3bf9c8623501d769"
+    },
+    "peripheral_subsys/peripheral_subsys/altera_reset_controller_1925/synth/altera_reset_controller.sdc": {
+      "after_sha256": "5ee450b6da0e63a0f1f805401370c13de7fefa7122bf066c940f30fbbbfe8166",
+      "before_sha256": "8834ac8de6421bc2c052c2ac8d7a71127477590111c6daab3bf9c8623501d769"
+    },
+    "qsys_top/altera_reset_controller_1925/synth/altera_reset_controller.sdc": {
+      "after_sha256": "5ee450b6da0e63a0f1f805401370c13de7fefa7122bf066c940f30fbbbfe8166",
+      "before_sha256": "8834ac8de6421bc2c052c2ac8d7a71127477590111c6daab3bf9c8623501d769"
+    }
+  },
+  "policy": "timed-system-reset-release-v1",
+  "timed_instances": [
+    "soc_inst|rst_controller",
+    "soc_inst|subsys_periph|rst_controller",
+    "soc_inst|rst_controller_002"
+  ]
+}

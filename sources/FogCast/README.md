@@ -10,6 +10,14 @@ and content selection; the MiSTer is a small, directly controlled target.
 
 ## What works now
 
+- Experimental DE25 format5 library packages keep the sealed base and default
+  or selected partial persona separate. Existing expansion import, saved
+  next-launch selection and composed loading bind the exact package and persona;
+  changing a running selection requires Stop. Firmware stays sealed in the base.
+  The physical programming profile remains unavailable pending its bounded
+  backend, package production and hardware qualification. These host paths have
+  software tests, not physical partial-reconfiguration acceptance.
+
 - **Settings → BIOS & media drives** remembers USB volumes and SMB shares on
   either the kit/launcher device or the FogCast host, with separate BIOS and
   media folders. Saved drives appear in BIOS, core setup and live-media

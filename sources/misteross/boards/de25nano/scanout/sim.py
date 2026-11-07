@@ -17,7 +17,7 @@ def run(case, top, rtl, bench, extra=(), shared=True):
     adapted = output / "fes_menu_reader_de25.v"; adapted.write_bytes(reader)
     subprocess.run(["verilator", "--cc", "--exe", "--build", "--public-flat-rw", "-O3", "-Wall",
         "-Wno-PINCONNECTEMPTY", "-Wno-UNUSEDSIGNAL", "-Wno-DECLFILENAME", "--top-module", top,
-        # Async assertion with clocked release is intentional in the visibility reset chain.
+        # Qualification can assert between independent domain clock edges.
         "-Wno-SYNCASYNCNET",
         "--Mdir", str(output), "-I" + str(HERE), "-CFLAGS", "-O2 -I" + str(HERE),
         *extra, *([str(adapted), str(MISTEROSS / "cores/fes-menu/rtl/fes_menu_video.v")] if shared else []),
@@ -26,13 +26,25 @@ def run(case, top, rtl, bench, extra=(), shared=True):
 
 
 parser = argparse.ArgumentParser(description=__doc__)
-parser.add_argument("--case", choices=("frame-ack", "endpoint", "board", "all"), default="all")
+parser.add_argument("--case", choices=("frame-ack", "endpoint", "board", "guard", "session", "all"), default="all")
 args = parser.parse_args()
 if args.case in ("frame-ack", "all"):
     run("frame-ack", "fes_menu_video", [MISTEROSS / "cores/fes-menu/rtl/fes_menu_pattern_memory.v"],
         "frame_ack_tb.cpp", ("-GTEST_PATTERN=1'b1", "-GCOMPLETE_FRAME_ACK=1'b1"))
 if args.case in ("endpoint", "all"):
-    run("endpoint", "fes_de25_scanout", [HERE / "fes_de25_scanout.v"], "endpoint_tb.cpp")
+    run("endpoint", "fes_de25_scanout", [HERE / "fes_de25_scanout.v"], "endpoint_tb.cpp", ("-GBUILD_ID=128'h0123456789abcdeffedcba9876543210",))
 if args.case in ("board", "all"):
     run("board", "fes_de25_scanout_board", [HERE / "fes_de25_scanout_board.v",
+        HERE / "board_sim_models.v",
         HERE.parent / "display/sim_models.v", HERE.parent / "hps/fes_de25_top_reset.v"], "board_tb.cpp", shared=False)
+
+if args.case in ("guard", "all"):
+    run("guard", "fes_de25_scanout_guard", [HERE / "fes_de25_scanout_guard.v"],
+        "guard_tb.cpp", ("-GTIMEOUT_CYCLES=16",), shared=False)
+
+if args.case in ("session", "all"):
+    common = MISTEROSS / "cores/fes-common"
+    run("session", "fes_de25_session_display", [HERE / "fes_de25_session_display.v",
+        HERE / "fes_de25_scanout.v", common / "rtl/fes_display_plane.v",
+        common / "rtl/fes_display_cdc.v", MISTEROSS / "cores/fes-menu/rtl/fes_menu_control.v"],
+        "session_tb.cpp", ("-I" + str(common / "generated"),))

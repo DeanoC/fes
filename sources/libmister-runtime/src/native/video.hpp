@@ -5,6 +5,7 @@
 
 #include "libmister-runtime/runtime.h"
 #include "native/idle_recipe.hpp"
+#include "native/platform.hpp"
 
 #include <cstdint>
 #include <string>
@@ -13,6 +14,7 @@ namespace mister {
 namespace native {
 
 class Clock;
+class CoreDriver;
 class I2c;
 struct VideoRecipe;
 
@@ -40,11 +42,23 @@ public:
 		std::uint64_t absolute_deadline_ms) = 0;
 };
 
-class FixedVideoBringup final {
+// Core video setup follows the selected board's ownership of the transmitter.
+class CoreVideoBringup {
+public:
+ virtual ~CoreVideoBringup() {}
+ virtual bool SupportsPlatform(NativePlatform) const = 0;
+ virtual VideoResult BringUpCustom(std::uint64_t, bool audio = false) = 0;
+ virtual VideoResult BringUpSelected(CoreDriver&, std::uint64_t deadline, bool audio = false)
+ { return BringUpCustom(deadline, audio); }
+ virtual VideoQuiesceResult Quiesce(std::uint64_t) = 0;
+};
+
+class FixedVideoBringup final : public CoreVideoBringup {
 public:
 	FixedVideoBringup(I2c&, Clock&, LogSink&, const VideoRecipe&);
-	VideoResult BringUpCustom(std::uint64_t absolute_deadline_ms, bool audio = false);
-	VideoQuiesceResult Quiesce(std::uint64_t absolute_deadline_ms);
+	bool SupportsPlatform(NativePlatform p) const override { return p == NativePlatform::de10_nano; }
+	VideoResult BringUpCustom(std::uint64_t absolute_deadline_ms, bool audio = false) override;
+	VideoQuiesceResult Quiesce(std::uint64_t absolute_deadline_ms) override;
 
 private:
 	VideoResult PhaseFailure(const char*, const Error&,

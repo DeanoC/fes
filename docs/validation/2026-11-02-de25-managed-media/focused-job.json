@@ -1,0 +1,21 @@
+{
+  "source_revision": "d6cf31c8ac322a46e3d4d845139b444b57e4e04d",
+  "command": [
+    "/usr/bin/python3",
+    "-m",
+    "unittest",
+    "tests.test_de25_managed_media",
+    "tests.test_appliance_media",
+    "tests.test_appliance",
+    "-v"
+  ],
+  "cwd": "/home/deano/fes/out/dev/de25-managed-image/out/work/de25-managed-media-d6cf31c8a",
+  "started_utc": "2026-11-01T23:42:22.936763+00:00",
+  "time_cap_seconds": 1200,
+  "hardware_access": "not-performed",
+  "pid": 513049,
+  "state": "failed",
+  "elapsed_seconds": 40.2,
+  "heartbeat_utc": "2026-11-01T23:43:03.156716+00:00",
+  "returncode": 1
+}

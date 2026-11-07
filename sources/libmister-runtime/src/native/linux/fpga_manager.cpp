@@ -290,6 +290,9 @@ bool LinuxFpgaManager::BootHpsDdrLayout()
 NativeResult LinuxFpgaManager::Program(const Artifact& artifact,
 	ProgrammingProfile profile, std::uint64_t deadline)
 {
+	if (profile != ProgrammingProfile::fes_gp_v1 &&
+		profile != ProgrammingProfile::development_contained_v1)
+		return Failed("programming profile is not supported by Cyclone V", false);
 	// Learn the boot layout while the boot core is still loaded.
 	BootHpsDdrLayout();
 	if (artifact.fd() < 0 || artifact.size() == 0)
