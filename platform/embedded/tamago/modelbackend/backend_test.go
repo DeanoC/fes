@@ -442,20 +442,26 @@ func TestBadPartPreservesRunningComposition(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer closeBackend(t, backend)
-	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
-	defer cancel()
+	// Each independently checked request retains the existing bound. Sharing
+	// one deadline across the initial ROM link and all three rejected links
+	// makes later rejection checks depend on earlier requests' CPU time.
+	requestContext := func() context.Context {
+		ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
+		t.Cleanup(cancel)
+		return ctx
+	}
 	client := hostclient.NewClient("http://model.invalid", &http.Client{Transport: backend})
-	result, err := client.Launch(ctx, "model-composed")
+	result, err := client.Launch(requestContext(), "model-composed")
 	if err != nil || result.ErrorCode != "" {
 		t.Fatalf("composed launch: %v %+v", err, result)
 	}
 	before := backend.View()
-	frame, err := backend.BeginFrame(ctx)
+	frame, err := backend.BeginFrame(requestContext())
 	if err != nil {
 		t.Fatal(err)
 	}
 	for _, id := range []string{"model-part-changed", "model-part-missing", "model-part-incompatible"} {
-		result, err = client.Launch(ctx, id)
+		result, err = client.Launch(requestContext(), id)
 		if err != nil || result.ErrorCode == "" {
 			t.Fatalf("invalid part was not rejected: %s %v %+v", id, err, result)
 		}
@@ -463,12 +469,12 @@ func TestBadPartPreservesRunningComposition(t *testing.T) {
 		if after.Status != before.Status || after.PartsCompositionID != before.PartsCompositionID || after.Programs != before.Programs || after.Saves != before.Saves {
 			t.Fatal("rejected part retired the running composition")
 		}
-		current, err := client.Session(ctx)
+		current, err := client.Session(requestContext())
 		if err != nil || current.State != "active" || current.CorePackage == nil || current.CorePackage.PartsComposition == nil || current.CorePackage.PartsComposition.ID != before.PartsCompositionID {
 			t.Fatal("rejection changed the published composition", err)
 		}
 	}
-	if err = backend.FinishFrame(ctx, frame); err != nil {
+	if err = backend.FinishFrame(requestContext(), frame); err != nil {
 		t.Fatal("rejection invalidated outstanding frame", err)
 	}
 }
