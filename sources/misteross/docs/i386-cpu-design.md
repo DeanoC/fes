@@ -2168,7 +2168,8 @@ A timing miss stops the slice; it never relaxes a check. Titles that need
      faulting on its second page; D set by the first write through a read's
      entry; a CR3 write mid-REP; a wrong path that must not set A or D; a
      store into a live page table; every PDE and PTE rights combination at
-     CPL 0 and 3; paging toggled around a far jump, as CWSDPMI does.
+     CPL 0 and 3; CPL 3 executing from a supervisor page the ITLB holds;
+     paging toggled around a far jump, as CWSDPMI does.
    - **Exit.** test386.asm passes POSTs 08 and 09 and stops at POST 20, or
      at POST 21 with #1535. Its #PF checks (POST 11) run only after POST
      22, so the directed cases above carry the slice's paging coverage.
@@ -2201,7 +2202,7 @@ A timing miss stops the slice; it never relaxes a check. Titles that need
      and 3, as CWSDPMI does; each #TS case; a busy TSS; a fault after the
      commit point; a switch with paging off, which must leave CR3 alone; a
      switch to a 16-bit TSS from code with live FS and GS, and one out of a
-     16-bit task; CPL 3 executing from a supervisor page the ITLB holds.
+     16-bit task.
    - **Exit.** test386.asm passes completely, POST 11's #PF table included:
      Phase 5's exit with slice 3.
    - **Unlocks.** Descent; Jump 'n Bump, Angband, NetHack and Chris's 3D
