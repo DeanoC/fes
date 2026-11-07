@@ -1,0 +1,11 @@
+{
+  "kind": "prior-internal-16K-client-RTL-control-with-added-post-LOAD-editor-check",
+  "native_client_returncode": 1,
+  "server_returncode": 1,
+  "server_sha256": "80ce5ca97d32853550d17c170cdbee0ac31a630c3db416983425eb11208c609c",
+  "client_source_sha256": "85458dd32eff1fa03a122aecd8922c18edaa0e826a3f81e1f15e077d809ee57b",
+  "client_binary_sha256": "cdf856a47079f30db95bc5f0d4419e951e437ee0260a7e825578636c9b90cba3",
+  "ROM_sha256": "93afab88ef8f12e6848700f4824f4268f193651657d23acbd30f8e9bb131131b",
+  "baseline_proof": "/home/deano/.codex/worktrees/c134/fes/out/dev/de25-zx81-frame-ownership/out/frame-client-final-02/proof.json",
+  "classification": "off-board diagnostic control; not hardware acceptance"
+}

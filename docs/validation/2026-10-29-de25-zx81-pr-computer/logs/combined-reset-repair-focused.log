@@ -1,0 +1,10 @@
+test_actual_both_clients_and_combined_persona_fault_containment (test_de25nano_zx81_computer.CombinedComputerTests.test_actual_both_clients_and_combined_persona_fault_containment) ... ok
+test_identity_binding_updates_both_endpoints_and_source_receipt (test_de25nano_zx81_computer.CombinedComputerTests.test_identity_binding_updates_both_endpoints_and_source_receipt) ... ok
+test_internal_design_assistant_failure_stops_before_personas (test_de25nano_zx81_computer.CombinedComputerTests.test_internal_design_assistant_failure_stops_before_personas) ... ok
+test_selected_source_closure_and_profile_drift (test_de25nano_zx81_computer.CombinedComputerTests.test_selected_source_closure_and_profile_drift) ... ok
+test_zero_build_identity_rejected_before_preparation (test_de25nano_zx81_computer.CombinedComputerTests.test_zero_build_identity_rejected_before_preparation) ... ok
+
+----------------------------------------------------------------------
+Ran 5 tests in 9.026s
+
+OK

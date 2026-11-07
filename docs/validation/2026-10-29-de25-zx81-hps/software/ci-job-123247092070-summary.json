@@ -1,0 +1,51 @@
+{
+  "schema": "fes.github-actions.job-log-summary.v1",
+  "job_id": 123247092070,
+  "job_name": "host (3)",
+  "job_url": "https://github.com/DeanoC/fes/actions/runs/40812839901/job/123247092070",
+  "conclusion": "success",
+  "source": "GitHub connector fetch_workflow_job_logs (decoded log; full log not copied)",
+  "source_log_characters": 1163153,
+  "source_log_line_count": 3142,
+  "go_package_pass_lines": 32,
+  "unique_go_packages": 32,
+  "excerpts": [
+    {
+      "line": 3025,
+      "text": "\"label\": \"host race suite excluding race-expensive packages (3/3)\","
+    },
+    {
+      "line": 3066,
+      "text": "\"label\": \"appliance race suite\","
+    },
+    {
+      "line": 3079,
+      "text": "\"label\": \"host UI tests\","
+    },
+    {
+      "line": 3106,
+      "text": "\"label\": \"host race suite excluding race-expensive packages (3/3)\","
+    },
+    {
+      "line": 3107,
+      "text": "\"returncode\": 0"
+    },
+    {
+      "line": 3110,
+      "text": "\"label\": \"appliance race suite\","
+    },
+    {
+      "line": 3111,
+      "text": "\"returncode\": 0"
+    },
+    {
+      "line": 3114,
+      "text": "\"label\": \"host UI tests\","
+    },
+    {
+      "line": 3115,
+      "text": "\"returncode\": 0"
+    }
+  ],
+  "note": "Unittest Ran counts include skipped cases; nested fixture test runs are shown separately and must not be summed blindly. Go package results are package pass lines, not individual test counts."
+}

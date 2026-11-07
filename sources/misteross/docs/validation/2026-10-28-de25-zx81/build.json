@@ -1,0 +1,73 @@
+{
+  "artifact": "project/output_files/de25nano_zx81.sof",
+  "boot_firmware_compatibility": "not-qualified",
+  "command": [
+    "/data/altera_pro/26.3/quartus/bin/quartus_sh",
+    "--flow",
+    "compile",
+    "de25nano_zx81"
+  ],
+  "diagnostic_only": true,
+  "fes_revision": "1b40dc29379809e0d587fa9e8fcd8c4f16b33d99",
+  "generated_clock_review": {
+    "counters": {
+      "fb_clk_fractional_div_den": 1,
+      "fb_clk_fractional_div_num": 1,
+      "fb_clk_fractional_div_value": 1,
+      "fb_clk_m_div": 297,
+      "out_clk_0_c_div": 40,
+      "ref_clk_n_div": 5
+    },
+    "generated_hdl": "sys_pll/altera_iopll_2110/synth/sys_pll_altera_iopll_2110_msdzeyq.v",
+    "generated_hdl_sha256": "f53f0cb78d931e504fba954c0b2e3fb081edb4b6e1307c0fa0653bd93555978c",
+    "generated_xml": "sys_pll/sys_pll.xml",
+    "generated_xml_sha256": "b6d32f75b505a8d46a326d7fa46bd5d03bfa4011c0771f839573aebdb8902630",
+    "metadata": {
+      ".//entity/parameter[@name='gui_actual_duty_cycle0']": "50.0",
+      ".//entity/parameter[@name='gui_actual_output_clock_frequency0']": "74.25",
+      ".//entity/parameter[@name='gui_actual_phase_shift0']": "0.0",
+      "./perimeter/interface[@name='outclk0']/property[@name='clockRate']": "74250000",
+      "./perimeter/interface[@name='refclk']/property[@name='clockRate']": "50000000"
+    },
+    "output_clock_hz": 74250000,
+    "shared_machine_video_clock": true
+  },
+  "generated_sdc_sha256": {
+    "agilex_reset_release/intel_user_rst_clkgate_101/synth/intel_user_rst_clkgate_agilex.sdc": "5996a3812dce6289c2597c26e9539aa214a71dd42ace89fbfc28ac4979f21ebf",
+    "clocks.sdc": "c2a9b4308d4ea2da81d1d2ce063da9155492530f356fad9f2e777d2239b6375e",
+    "sys_pll/altera_iopll_2110/synth/sys_pll_altera_iopll_2110_msdzeyq.sdc": "70e5595b0ccdda88b2d9c7409a2c26ee77b067e1ca7eece57b5b41465cfe510a"
+  },
+  "hardware_acceptance": "not-run",
+  "inputs_sha256": "39f8c8a8928e511777e73c48d3fcc998e59a9651d2df2ca7cb05b620d10888c2",
+  "ip_generation_command": [
+    "/data/altera_pro/26.3/quartus/bin/quartus_ipgenerate",
+    "--generate_project_ip_files",
+    "--synthesis=verilog",
+    "de25nano_zx81"
+  ],
+  "quartus_version": "Quartus Prime Shell\nVersion 26.3.0 Build 114 10/14/2026 SC Pro Edition\nCopyright (C) 2026  Altera Corporation. All rights reserved.",
+  "reports_sha256": {
+    "output_files/de25nano_zx81.asm.rpt": "46da33e1c60dd6e4971f32f067f0d15b1a1c30b1ef3ce5de7648fd7f99cfec99",
+    "output_files/de25nano_zx81.drc.partitioned.rpt": "a08ac81ae03d24518a4792c110c1e702cb73c186f51014e8b5911d6732bab6b8",
+    "output_files/de25nano_zx81.drc.synthesized.rpt": "3be06bd86659d7223c3fddbd7ed7f6770499ff893906b49c53572a69a8f0d217",
+    "output_files/de25nano_zx81.fit.finalize.rpt": "6077886bc99c3df28fa2da4026d1bf9f68a1bac9c8e8fa0b112004a6d198c2cd",
+    "output_files/de25nano_zx81.fit.place.rpt": "42679ce3146fce60fe3a24a0ec841eda0c8d4373870b10fa6a3cc9ba0331dbb9",
+    "output_files/de25nano_zx81.fit.plan.rpt": "c61ec75ff26feb5bf3c5ced839646115fcac5c4cf5aa5abb26fb0801720db1c7",
+    "output_files/de25nano_zx81.fit.retime.rpt": "78be97286b973296a579394af4a96fb33441ef6882c0ba9f9923e96842b73e8b",
+    "output_files/de25nano_zx81.fit.route.rpt": "9dc5a30b60cfa7c3051f1f11cdeb768e1fd1753efc2617e3ef32a86793a2d686",
+    "output_files/de25nano_zx81.fit.rpt": "dfe98891924efe4aa3a05f20b1f0ce3fc7ae3b23e052e1d27b5288945e182fe9",
+    "output_files/de25nano_zx81.fit.summary": "00796acf0ab6002c1644068589262d80518eadea6d3d35128d72b5467ee41921",
+    "output_files/de25nano_zx81.flow.rpt": "14d137a1f40b5f09becab81696722a7eeaa329d2f84329800a8ba9cd257c581d",
+    "output_files/de25nano_zx81.ipg.rpt": "bc038bd68168aaa6e3dd0098ab29371c7312a47e903898806bc6fb60aad65ec4",
+    "output_files/de25nano_zx81.pin": "fffb7583829507f86cb6dd1545f95290f33a8462900cda813fd04675bf290d65",
+    "output_files/de25nano_zx81.sdc_constraints.rpt": "ebbdb47c0c8219b3ece04d957922a43586df068bccdf8c4f43dc554e5c1fe155",
+    "output_files/de25nano_zx81.sta.rpt": "e451536b6f48054d1976c620ed6c9b5b5f9b400cfe583eaa7e600bfb01f91a0e",
+    "output_files/de25nano_zx81.sta.summary": "7ba8068ed26dc89f90f906c3cd5918294a48102c024ffb7eff4f260de775dcf4",
+    "output_files/de25nano_zx81.syn.ae.rpt": "70dae37c85a4f5231257dd62d5aec8e0dfcfe6f7019c00c82a3b48208e8d478a",
+    "output_files/de25nano_zx81.syn.rpt": "18018dbed6182eeaef3da58dd87ce31e56633aa0efcc7497846b03d387224fdc",
+    "output_files/de25nano_zx81.syn.summary": "01cd6b20e5702007e1f9ed54ba8df40971c8817cca5f4faa5e4096da6302a7d2",
+    "output_files/de25nano_zx81.tq.drc.signoff.rpt": "f10f1ed77207d2e45761e1ba8b79b262119bff53c65b360a066c11a1c6ee5e62"
+  },
+  "sha256": "9bd1f6dc7006af30790eb7cd7b26432b9b2a9c7325f33d5432ca8ab11e608a93",
+  "timing_acceptance": "not-qualified"
+}

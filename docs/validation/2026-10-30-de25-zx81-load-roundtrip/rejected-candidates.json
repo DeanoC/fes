@@ -1,0 +1,9 @@
+{
+  "classification": "Retained diagnostics, not passing publication proof",
+  "candidates": {
+    "0eb0981d7aed2f0f6b7e8f037e4e68fc67a52ee8": "internal-final/combined-final: typed input present but ENTER released before ROM accepted it; failed initial program storage.",
+    "328ff81917f468a973f44e7843c5e86c756caae6": "internal-final2/combined-final2: stopped owned processes to integrate advanced parent before final proof; no pass claim.",
+    "debug-setup4": "Private 1 KiB setup-only actual-RTL check: ROM newline opcode fetch and stored BASIC line pass. Not a full round-trip.",
+    "773568c215f3663f299520c2219f1d0a1462c408": "internal-final3/combined-final3: arbitrary new 40M line-storage observer stops while ROM clears expanded display. Trace control observes storage at 388179944 and editor at 433178600 within existing 160M completion phase. Replaced by editor return then line assertion, without enlarging guest bounds."
+  }
+}

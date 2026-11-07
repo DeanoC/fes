@@ -1,0 +1,391 @@
+{
+  "serial": "TRWU8J8G",
+  "linux_image_sha256": "d1952df9a36843095f6e5bef6981ea37f8012c86c8c3d1db5d78fe8c7edb6e46",
+  "linux_image_source_revision": "24fc445a2c68a8cb8945bf852bc9c61846b06b01",
+  "binary_sha256": "13d8fd22d7f16e4c93f6f4adcb7120da555d966752f80f31782808af6f1a3539",
+  "client_source_revision": "24fc445a2c68a8cb8945bf852bc9c61846b06b01",
+  "boot_id": "c291b236-7eed-4e65-86c5-fb039dde3e68",
+  "programmed_sof_sha256": "cce19b02476f67d300e317180138e0e6801a9d86a69613605ad94a280d7a3784",
+  "cpu_resource_base": "0x20010300",
+  "command_receipts": [
+    {
+      "label": "corrected-edit",
+      "command": "keys",
+      "arguments": [
+        "1f,08,28"
+      ],
+      "started_unix": 1793384078.9962342,
+      "completed_unix": 1793384080.0439956,
+      "returncode": 0,
+      "serial": "TRWU8J8G",
+      "boot_id": "c291b236-7eed-4e65-86c5-fb039dde3e68",
+      "linux_image_sha256": "d1952df9a36843095f6e5bef6981ea37f8012c86c8c3d1db5d78fe8c7edb6e46",
+      "linux_image_source_revision": "24fc445a2c68a8cb8945bf852bc9c61846b06b01",
+      "binary_sha256": "13d8fd22d7f16e4c93f6f4adcb7120da555d966752f80f31782808af6f1a3539",
+      "client_source_revision": "24fc445a2c68a8cb8945bf852bc9c61846b06b01",
+      "programmed_sof_sha256": "cce19b02476f67d300e317180138e0e6801a9d86a69613605ad94a280d7a3784",
+      "cpu_resource_base": "0x20010300",
+      "jtag_transactions_during_client": 0,
+      "client": {
+        "command": "keys",
+        "status": "passed",
+        "register_reads": 1144,
+        "register_writes": 76,
+        "physical_cpu_mmio": true,
+        "production_runtime_admission": false
+      }
+    },
+    {
+      "label": "corrected-final-hold",
+      "command": "hold",
+      "arguments": [],
+      "started_unix": 1793384159.8732402,
+      "completed_unix": 1793384160.0233977,
+      "returncode": 0,
+      "serial": "TRWU8J8G",
+      "boot_id": "c291b236-7eed-4e65-86c5-fb039dde3e68",
+      "linux_image_sha256": "d1952df9a36843095f6e5bef6981ea37f8012c86c8c3d1db5d78fe8c7edb6e46",
+      "linux_image_source_revision": "24fc445a2c68a8cb8945bf852bc9c61846b06b01",
+      "binary_sha256": "13d8fd22d7f16e4c93f6f4adcb7120da555d966752f80f31782808af6f1a3539",
+      "client_source_revision": "24fc445a2c68a8cb8945bf852bc9c61846b06b01",
+      "programmed_sof_sha256": "cce19b02476f67d300e317180138e0e6801a9d86a69613605ad94a280d7a3784",
+      "cpu_resource_base": "0x20010300",
+      "jtag_transactions_during_client": 0,
+      "client": {
+        "command": "hold",
+        "status": "passed",
+        "register_reads": 349,
+        "register_writes": 23,
+        "physical_cpu_mmio": true,
+        "production_runtime_admission": false
+      }
+    },
+    {
+      "label": "corrected-list",
+      "command": "keys",
+      "arguments": [
+        "0e,28"
+      ],
+      "started_unix": 1793384092.1399333,
+      "completed_unix": 1793384092.893898,
+      "returncode": 0,
+      "serial": "TRWU8J8G",
+      "boot_id": "c291b236-7eed-4e65-86c5-fb039dde3e68",
+      "linux_image_sha256": "d1952df9a36843095f6e5bef6981ea37f8012c86c8c3d1db5d78fe8c7edb6e46",
+      "linux_image_source_revision": "24fc445a2c68a8cb8945bf852bc9c61846b06b01",
+      "binary_sha256": "13d8fd22d7f16e4c93f6f4adcb7120da555d966752f80f31782808af6f1a3539",
+      "client_source_revision": "24fc445a2c68a8cb8945bf852bc9c61846b06b01",
+      "programmed_sof_sha256": "cce19b02476f67d300e317180138e0e6801a9d86a69613605ad94a280d7a3784",
+      "cpu_resource_base": "0x20010300",
+      "jtag_transactions_during_client": 0,
+      "client": {
+        "command": "keys",
+        "status": "passed",
+        "register_reads": 874,
+        "register_writes": 58,
+        "physical_cpu_mmio": true,
+        "production_runtime_admission": false
+      }
+    },
+    {
+      "label": "corrected-load-enter",
+      "command": "keys",
+      "arguments": [
+        "28"
+      ],
+      "started_unix": 1793384071.2746024,
+      "completed_unix": 1793384071.7405267,
+      "returncode": 0,
+      "serial": "TRWU8J8G",
+      "boot_id": "c291b236-7eed-4e65-86c5-fb039dde3e68",
+      "linux_image_sha256": "d1952df9a36843095f6e5bef6981ea37f8012c86c8c3d1db5d78fe8c7edb6e46",
+      "linux_image_source_revision": "24fc445a2c68a8cb8945bf852bc9c61846b06b01",
+      "binary_sha256": "13d8fd22d7f16e4c93f6f4adcb7120da555d966752f80f31782808af6f1a3539",
+      "client_source_revision": "24fc445a2c68a8cb8945bf852bc9c61846b06b01",
+      "programmed_sof_sha256": "cce19b02476f67d300e317180138e0e6801a9d86a69613605ad94a280d7a3784",
+      "cpu_resource_base": "0x20010300",
+      "jtag_transactions_during_client": 0,
+      "client": {
+        "command": "keys",
+        "status": "passed",
+        "register_reads": 604,
+        "register_writes": 40,
+        "physical_cpu_mmio": true,
+        "production_runtime_admission": false
+      }
+    },
+    {
+      "label": "corrected-load-typed",
+      "command": "keys",
+      "arguments": [
+        "0d,13s,13s"
+      ],
+      "started_unix": 1793384066.9171262,
+      "completed_unix": 1793384067.993409,
+      "returncode": 0,
+      "serial": "TRWU8J8G",
+      "boot_id": "c291b236-7eed-4e65-86c5-fb039dde3e68",
+      "linux_image_sha256": "d1952df9a36843095f6e5bef6981ea37f8012c86c8c3d1db5d78fe8c7edb6e46",
+      "linux_image_source_revision": "24fc445a2c68a8cb8945bf852bc9c61846b06b01",
+      "binary_sha256": "13d8fd22d7f16e4c93f6f4adcb7120da555d966752f80f31782808af6f1a3539",
+      "client_source_revision": "24fc445a2c68a8cb8945bf852bc9c61846b06b01",
+      "programmed_sof_sha256": "cce19b02476f67d300e317180138e0e6801a9d86a69613605ad94a280d7a3784",
+      "cpu_resource_base": "0x20010300",
+      "jtag_transactions_during_client": 0,
+      "client": {
+        "command": "keys",
+        "status": "passed",
+        "register_reads": 1684,
+        "register_writes": 112,
+        "physical_cpu_mmio": true,
+        "production_runtime_admission": false
+      }
+    },
+    {
+      "label": "corrected-loaded-run",
+      "command": "keys",
+      "arguments": [
+        "15,28"
+      ],
+      "started_unix": 1793384074.9848793,
+      "completed_unix": 1793384075.7316747,
+      "returncode": 0,
+      "serial": "TRWU8J8G",
+      "boot_id": "c291b236-7eed-4e65-86c5-fb039dde3e68",
+      "linux_image_sha256": "d1952df9a36843095f6e5bef6981ea37f8012c86c8c3d1db5d78fe8c7edb6e46",
+      "linux_image_source_revision": "24fc445a2c68a8cb8945bf852bc9c61846b06b01",
+      "binary_sha256": "13d8fd22d7f16e4c93f6f4adcb7120da555d966752f80f31782808af6f1a3539",
+      "client_source_revision": "24fc445a2c68a8cb8945bf852bc9c61846b06b01",
+      "programmed_sof_sha256": "cce19b02476f67d300e317180138e0e6801a9d86a69613605ad94a280d7a3784",
+      "cpu_resource_base": "0x20010300",
+      "jtag_transactions_during_client": 0,
+      "client": {
+        "command": "keys",
+        "status": "passed",
+        "register_reads": 874,
+        "register_writes": 58,
+        "physical_cpu_mmio": true,
+        "production_runtime_admission": false
+      }
+    },
+    {
+      "label": "corrected-media",
+      "command": "media",
+      "arguments": [
+        "unused"
+      ],
+      "started_unix": 1793384066.6980534,
+      "completed_unix": 1793384066.8736515,
+      "returncode": 0,
+      "serial": "TRWU8J8G",
+      "boot_id": "c291b236-7eed-4e65-86c5-fb039dde3e68",
+      "linux_image_sha256": "d1952df9a36843095f6e5bef6981ea37f8012c86c8c3d1db5d78fe8c7edb6e46",
+      "linux_image_source_revision": "24fc445a2c68a8cb8945bf852bc9c61846b06b01",
+      "binary_sha256": "13d8fd22d7f16e4c93f6f4adcb7120da555d966752f80f31782808af6f1a3539",
+      "client_source_revision": "24fc445a2c68a8cb8945bf852bc9c61846b06b01",
+      "programmed_sof_sha256": "cce19b02476f67d300e317180138e0e6801a9d86a69613605ad94a280d7a3784",
+      "cpu_resource_base": "0x20010300",
+      "jtag_transactions_during_client": 0,
+      "client": {
+        "command": "media",
+        "status": "passed",
+        "register_reads": 7519,
+        "register_writes": 501,
+        "physical_cpu_mmio": true,
+        "production_runtime_admission": false
+      }
+    },
+    {
+      "label": "corrected-probe",
+      "command": "probe",
+      "arguments": [],
+      "started_unix": 1793384063.1060143,
+      "completed_unix": 1793384063.2581716,
+      "returncode": 0,
+      "serial": "TRWU8J8G",
+      "boot_id": "c291b236-7eed-4e65-86c5-fb039dde3e68",
+      "linux_image_sha256": "d1952df9a36843095f6e5bef6981ea37f8012c86c8c3d1db5d78fe8c7edb6e46",
+      "linux_image_source_revision": "24fc445a2c68a8cb8945bf852bc9c61846b06b01",
+      "binary_sha256": "13d8fd22d7f16e4c93f6f4adcb7120da555d966752f80f31782808af6f1a3539",
+      "client_source_revision": "24fc445a2c68a8cb8945bf852bc9c61846b06b01",
+      "programmed_sof_sha256": "cce19b02476f67d300e317180138e0e6801a9d86a69613605ad94a280d7a3784",
+      "cpu_resource_base": "0x20010300",
+      "jtag_transactions_during_client": 0,
+      "client": {
+        "command": "probe",
+        "status": "passed",
+        "register_reads": 2,
+        "register_writes": 0,
+        "physical_cpu_mmio": true,
+        "production_runtime_admission": false
+      }
+    },
+    {
+      "label": "corrected-reload",
+      "command": "keys",
+      "arguments": [
+        "0d,13s,13s,28"
+      ],
+      "started_unix": 1793384083.4790735,
+      "completed_unix": 1793384084.8534813,
+      "returncode": 0,
+      "serial": "TRWU8J8G",
+      "boot_id": "c291b236-7eed-4e65-86c5-fb039dde3e68",
+      "linux_image_sha256": "d1952df9a36843095f6e5bef6981ea37f8012c86c8c3d1db5d78fe8c7edb6e46",
+      "linux_image_source_revision": "24fc445a2c68a8cb8945bf852bc9c61846b06b01",
+      "binary_sha256": "13d8fd22d7f16e4c93f6f4adcb7120da555d966752f80f31782808af6f1a3539",
+      "client_source_revision": "24fc445a2c68a8cb8945bf852bc9c61846b06b01",
+      "programmed_sof_sha256": "cce19b02476f67d300e317180138e0e6801a9d86a69613605ad94a280d7a3784",
+      "cpu_resource_base": "0x20010300",
+      "jtag_transactions_during_client": 0,
+      "client": {
+        "command": "keys",
+        "status": "passed",
+        "register_reads": 1954,
+        "register_writes": 130,
+        "physical_cpu_mmio": true,
+        "production_runtime_admission": false
+      }
+    },
+    {
+      "label": "corrected-reload-media",
+      "command": "media",
+      "arguments": [
+        "unused"
+      ],
+      "started_unix": 1793384083.2801926,
+      "completed_unix": 1793384083.4382133,
+      "returncode": 0,
+      "serial": "TRWU8J8G",
+      "boot_id": "c291b236-7eed-4e65-86c5-fb039dde3e68",
+      "linux_image_sha256": "d1952df9a36843095f6e5bef6981ea37f8012c86c8c3d1db5d78fe8c7edb6e46",
+      "linux_image_source_revision": "24fc445a2c68a8cb8945bf852bc9c61846b06b01",
+      "binary_sha256": "13d8fd22d7f16e4c93f6f4adcb7120da555d966752f80f31782808af6f1a3539",
+      "client_source_revision": "24fc445a2c68a8cb8945bf852bc9c61846b06b01",
+      "programmed_sof_sha256": "cce19b02476f67d300e317180138e0e6801a9d86a69613605ad94a280d7a3784",
+      "cpu_resource_base": "0x20010300",
+      "jtag_transactions_during_client": 0,
+      "client": {
+        "command": "media",
+        "status": "passed",
+        "register_reads": 7519,
+        "register_writes": 501,
+        "physical_cpu_mmio": true,
+        "production_runtime_admission": false
+      }
+    },
+    {
+      "label": "corrected-reloaded-run",
+      "command": "keys",
+      "arguments": [
+        "15,28"
+      ],
+      "started_unix": 1793384088.1317184,
+      "completed_unix": 1793384088.8836846,
+      "returncode": 0,
+      "serial": "TRWU8J8G",
+      "boot_id": "c291b236-7eed-4e65-86c5-fb039dde3e68",
+      "linux_image_sha256": "d1952df9a36843095f6e5bef6981ea37f8012c86c8c3d1db5d78fe8c7edb6e46",
+      "linux_image_source_revision": "24fc445a2c68a8cb8945bf852bc9c61846b06b01",
+      "binary_sha256": "13d8fd22d7f16e4c93f6f4adcb7120da555d966752f80f31782808af6f1a3539",
+      "client_source_revision": "24fc445a2c68a8cb8945bf852bc9c61846b06b01",
+      "programmed_sof_sha256": "cce19b02476f67d300e317180138e0e6801a9d86a69613605ad94a280d7a3784",
+      "cpu_resource_base": "0x20010300",
+      "jtag_transactions_during_client": 0,
+      "client": {
+        "command": "keys",
+        "status": "passed",
+        "register_reads": 874,
+        "register_writes": 58,
+        "physical_cpu_mmio": true,
+        "production_runtime_admission": false
+      }
+    },
+    {
+      "label": "corrected-reset",
+      "command": "reset",
+      "arguments": [],
+      "started_unix": 1793384063.2932796,
+      "completed_unix": 1793384063.445541,
+      "returncode": 0,
+      "serial": "TRWU8J8G",
+      "boot_id": "c291b236-7eed-4e65-86c5-fb039dde3e68",
+      "linux_image_sha256": "d1952df9a36843095f6e5bef6981ea37f8012c86c8c3d1db5d78fe8c7edb6e46",
+      "linux_image_source_revision": "24fc445a2c68a8cb8945bf852bc9c61846b06b01",
+      "binary_sha256": "13d8fd22d7f16e4c93f6f4adcb7120da555d966752f80f31782808af6f1a3539",
+      "client_source_revision": "24fc445a2c68a8cb8945bf852bc9c61846b06b01",
+      "programmed_sof_sha256": "cce19b02476f67d300e317180138e0e6801a9d86a69613605ad94a280d7a3784",
+      "cpu_resource_base": "0x20010300",
+      "jtag_transactions_during_client": 0,
+      "client": {
+        "command": "reset",
+        "status": "passed",
+        "register_reads": 364,
+        "register_writes": 24,
+        "physical_cpu_mmio": true,
+        "production_runtime_admission": false
+      }
+    }
+  ],
+  "frames": [
+    {
+      "file": "corrected-edited.png",
+      "sha256": "0ede8f24f406a6bfa41194c0b7ee0f763441b470524b4850740ad93c4d8f0520",
+      "retained_clip": "out/hdmi/corrected-edited.mkv",
+      "clip_sha256": "b40abebc51c4b4fe23e17da7ac0088dae4385c4865c8d8a898b754f1e05aa623",
+      "native_frame_extraction_seconds": 2
+    },
+    {
+      "file": "corrected-load-complete.png",
+      "sha256": "4070631504130fdc769e201851f5a945fbbd0dc059c034461556d48a2d5c05ed",
+      "retained_clip": "out/hdmi/corrected-load-complete.mkv",
+      "clip_sha256": "32d3a4e289d3b2378ffe86c063238417841356b2e928d658e9116d8e3b0e59b1",
+      "native_frame_extraction_seconds": 2
+    },
+    {
+      "file": "corrected-load-typed.png",
+      "sha256": "da520feb5bb969e908f214bdd29224ee94bdeaa1d9f1bb2138c2f70ab3ac4868",
+      "retained_clip": "out/hdmi/corrected-load-typed.mkv",
+      "clip_sha256": "b0ca1085929bb9dcf0c14970914986fc301e2af8e82da9eaf316ec2beb730700",
+      "native_frame_extraction_seconds": 2
+    },
+    {
+      "file": "corrected-loaded-seven.png",
+      "sha256": "65e0d3b26e57cc37dac66824af274c525a1c89d9fd3ed17dac55f508fc88d9b0",
+      "retained_clip": "out/hdmi/corrected-loaded-seven.mkv",
+      "clip_sha256": "9e88314c95d22ff80c717c19a8367b3024614a9a0c64a98f0f7c5836fdd2c732",
+      "native_frame_extraction_seconds": 2
+    },
+    {
+      "file": "corrected-prompt.png",
+      "sha256": "ea911fd9327a991e009f55abbc8348a913f90b5b4c0e0ec31d3b0b8b02043eeb",
+      "retained_clip": "out/hdmi/corrected-prompt.mkv",
+      "clip_sha256": "6951dc817073e2c6a75fd7421603dcab277aef4f7cd50c4d0344ba70a1ec1944",
+      "native_frame_extraction_seconds": 2
+    },
+    {
+      "file": "corrected-reload-complete.png",
+      "sha256": "4070631504130fdc769e201851f5a945fbbd0dc059c034461556d48a2d5c05ed",
+      "retained_clip": "out/hdmi/corrected-reload-complete.mkv",
+      "clip_sha256": "aafd7ebf5521cbbff3fac41f6c30fa2ae7e4eebdce394cc5f3543ad5d757f908",
+      "native_frame_extraction_seconds": 2
+    },
+    {
+      "file": "corrected-reloaded-seven.png",
+      "sha256": "65e0d3b26e57cc37dac66824af274c525a1c89d9fd3ed17dac55f508fc88d9b0",
+      "retained_clip": "out/hdmi/corrected-reloaded-seven.mkv",
+      "clip_sha256": "7600ad6992490666be1fb84e81bc045f95cb23231db0acd6158840c07a13ab9b",
+      "native_frame_extraction_seconds": 2
+    },
+    {
+      "file": "corrected-restored-list.png",
+      "sha256": "32a9a5ad707809f6d6237a4c91081961e55583ffb2cdb71d9740a0e29eeec5c8",
+      "retained_clip": "out/hdmi/corrected-restored-list.mkv",
+      "clip_sha256": "6d3f0c509a0d47f4ff0cdf1fa22ac4a70ca4273082bc8b3c056181b1dd815a7f",
+      "native_frame_extraction_seconds": 2
+    }
+  ],
+  "observed_basic_load_run_edit_reload_run_list": true,
+  "jtag_control_proxy_used": false,
+  "production_runtime_admission": false
+}

@@ -1,0 +1,33 @@
+{
+  "consistency": {
+    "consumers": 36,
+    "fixtures": 37,
+    "status": "passed"
+  },
+  "development_aggregate": {
+    "compressed_log": "development-aggregate.log.gz",
+    "fpga_skipped": 35,
+    "fpga_tests": 1487,
+    "log_sha256": "b63c9244fa29eb43eb28d70dd3df4caed6ddeaa81c544fc7369e36718e2fbbcd",
+    "parent_skipped": 1,
+    "parent_tests": 937,
+    "plan_head": "b00b1040740a19af6d1fa1de824644bcfd70f028",
+    "source_scope": "changing development worktree; not exact final-head signoff",
+    "status": "passed"
+  },
+  "doclinks": {
+    "status": "passed"
+  },
+  "evidence_class": "off-board software checks only",
+  "focused": {
+    "scope": "final idle-fence source; counter/runtime regression and profile gates",
+    "source_revision": "918145ebb4",
+    "status": "passed",
+    "tests": 23
+  },
+  "hardware_acceptance": "not-run",
+  "hil_plan": {
+    "decision": "NO_DEPLOY_CHANGE",
+    "status": "passed"
+  }
+}

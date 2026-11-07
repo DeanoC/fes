@@ -1,0 +1,236 @@
+{
+  "base": "d1bca43f02ef935d2d44e88ad745378f98407140",
+  "head": "995a51d0f8e19150144120a8dab77b1e7342412f",
+  "kind": "read-only-unchanged-source-check",
+  "no_remaining_hps_computer_process_at_observation": true,
+  "outcome": "consumed repository sources unchanged; timeout cause not established by a same-environment baseline execution",
+  "retained_outputs": {
+    "endpoint-v37fves7": {
+      "copied_sources": {
+        "fes_computer.hpp": {
+          "matches_base_derivation": true,
+          "sha256": "f8f38d88daa43c3c58e845a74e5cc3d20cd397479a2f9b49da7c9ec9335db42d"
+        },
+        "zx81_dpram.v": {
+          "matches_base_derivation": true,
+          "sha256": "c8b6b1e922633255c43e099eb6047bd3d84b57eafba7fdcb53c0836f03e11ea2"
+        },
+        "zx81_tape_store.v": {
+          "matches_base_derivation": true,
+          "sha256": "f8f9c1b7635d33853cca4f69a41b0a1f7d5afcec32ea00c1c7dfa7a5ad08361f"
+        },
+        "zx81_video_720p.v": {
+          "matches_base_derivation": true,
+          "sha256": "12f650c237598ecbc9d9cbf11241c49277a057def899e665ff4389b260c23135"
+        },
+        "zx8x.hex": {
+          "matches_base_derivation": true,
+          "sha256": "93afab88ef8f12e6848700f4824f4268f193651657d23acbd30f8e9bb131131b"
+        }
+      },
+      "dependency_evidence": {
+        "Vfes_de25_computer__ver.d": "9ea7cfc24f0b6a1c2b2f207b7a9b827bed75a691311009b0e2d96f4e59da8b46",
+        "Vfes_de25_computer__verFiles.dat": "2417f1a525249af6cbab18be4c40255e3e947a7a64ba37191d119c76b4b1b814",
+        "endpoint_tb.d": "d8f03bdab588039e762fc4691df91617bf7bd277f2e411a8ef52e62117d420c8"
+      }
+    },
+    "machine-pqgevipr": {
+      "copied_sources": {
+        "fes_computer.hpp": {
+          "matches_base_derivation": true,
+          "sha256": "f8f38d88daa43c3c58e845a74e5cc3d20cd397479a2f9b49da7c9ec9335db42d"
+        },
+        "zx81_dpram.v": {
+          "matches_base_derivation": true,
+          "sha256": "c8b6b1e922633255c43e099eb6047bd3d84b57eafba7fdcb53c0836f03e11ea2"
+        },
+        "zx81_tape_store.v": {
+          "matches_base_derivation": true,
+          "sha256": "f8f9c1b7635d33853cca4f69a41b0a1f7d5afcec32ea00c1c7dfa7a5ad08361f"
+        },
+        "zx81_video_720p.v": {
+          "matches_base_derivation": true,
+          "sha256": "12f650c237598ecbc9d9cbf11241c49277a057def899e665ff4389b260c23135"
+        },
+        "zx8x.hex": {
+          "matches_base_derivation": true,
+          "sha256": "93afab88ef8f12e6848700f4824f4268f193651657d23acbd30f8e9bb131131b"
+        }
+      },
+      "dependency_evidence": {
+        "Vfes_de25_computer__ver.d": "53cc23998903e0b6ebf63356c1d3d18f1d8685809628607d9f097f882bb344ca",
+        "Vfes_de25_computer__verFiles.dat": "7d8867675a8ee38c0756a31e651276dfedda1a89722def16940b1a152f404c3a",
+        "computer_tb.d": "6104aea0d251f7a883ea80c017f020a30dc7c522a29925cf1b81c1ec3b47b78a"
+      }
+    }
+  },
+  "source_count": 27,
+  "sources": {
+    "sources/libmister-runtime/src/native/generated/fes_computer.hpp": {
+      "base_sha256": "f8f38d88daa43c3c58e845a74e5cc3d20cd397479a2f9b49da7c9ec9335db42d",
+      "head_sha256": "f8f38d88daa43c3c58e845a74e5cc3d20cd397479a2f9b49da7c9ec9335db42d",
+      "identical": true,
+      "working_sha256": "f8f38d88daa43c3c58e845a74e5cc3d20cd397479a2f9b49da7c9ec9335db42d"
+    },
+    "sources/misteross/boards/de25nano/build.py": {
+      "base_sha256": "104fc74e5bf448396e3e078535615efd9ac30ce6d47cc1e96cf98a5622211d6c",
+      "head_sha256": "104fc74e5bf448396e3e078535615efd9ac30ce6d47cc1e96cf98a5622211d6c",
+      "identical": true,
+      "working_sha256": "104fc74e5bf448396e3e078535615efd9ac30ce6d47cc1e96cf98a5622211d6c"
+    },
+    "sources/misteross/boards/de25nano/display/build.py": {
+      "base_sha256": "a6daf1ca93d4b4dce6a8e558c1351b2992e16ef5c1c9fb4b587fa22f52ec7273",
+      "head_sha256": "a6daf1ca93d4b4dce6a8e558c1351b2992e16ef5c1c9fb4b587fa22f52ec7273",
+      "identical": true,
+      "working_sha256": "a6daf1ca93d4b4dce6a8e558c1351b2992e16ef5c1c9fb4b587fa22f52ec7273"
+    },
+    "sources/misteross/boards/de25nano/zx81-hps/build.py": {
+      "base_sha256": "ab928746e5216a48290495c833656effde191a2d8ceaf405e4e00047afbefc1f",
+      "head_sha256": "ab928746e5216a48290495c833656effde191a2d8ceaf405e4e00047afbefc1f",
+      "identical": true,
+      "working_sha256": "ab928746e5216a48290495c833656effde191a2d8ceaf405e4e00047afbefc1f"
+    },
+    "sources/misteross/boards/de25nano/zx81-hps/computer_tb.cpp": {
+      "base_sha256": "3c6c79e8812e0d52a7ec6b9bd271706614e7466ae1bffa8ac8600fe815e52284",
+      "head_sha256": "3c6c79e8812e0d52a7ec6b9bd271706614e7466ae1bffa8ac8600fe815e52284",
+      "identical": true,
+      "working_sha256": "3c6c79e8812e0d52a7ec6b9bd271706614e7466ae1bffa8ac8600fe815e52284"
+    },
+    "sources/misteross/boards/de25nano/zx81-hps/endpoint_tb.cpp": {
+      "base_sha256": "1382c64bfd65e50eb553806c30eb0875927714bf432eb34600c03b5a3169cb8a",
+      "head_sha256": "1382c64bfd65e50eb553806c30eb0875927714bf432eb34600c03b5a3169cb8a",
+      "identical": true,
+      "working_sha256": "1382c64bfd65e50eb553806c30eb0875927714bf432eb34600c03b5a3169cb8a"
+    },
+    "sources/misteross/boards/de25nano/zx81-hps/fes_de25_computer.v": {
+      "base_sha256": "26ce1e51454000f2762045cc442fbbae881404a98b94334eea8ba11e43a9ad0a",
+      "head_sha256": "26ce1e51454000f2762045cc442fbbae881404a98b94334eea8ba11e43a9ad0a",
+      "identical": true,
+      "working_sha256": "26ce1e51454000f2762045cc442fbbae881404a98b94334eea8ba11e43a9ad0a"
+    },
+    "sources/misteross/boards/de25nano/zx81-hps/generated/fes_computer.vh": {
+      "base_sha256": "fd64d373df04b1ec3220938c95cb598a4e448f9b78a6d789e0fc5cec535dfc59",
+      "head_sha256": "fd64d373df04b1ec3220938c95cb598a4e448f9b78a6d789e0fc5cec535dfc59",
+      "identical": true,
+      "working_sha256": "fd64d373df04b1ec3220938c95cb598a4e448f9b78a6d789e0fc5cec535dfc59"
+    },
+    "sources/misteross/boards/de25nano/zx81-hps/generated/fes_de25_computer.hpp": {
+      "base_sha256": "79d53d66f7a4ea108ec85f55b2a3967bdd7ee5e1ea42a4f73d541bb1defe8610",
+      "head_sha256": "79d53d66f7a4ea108ec85f55b2a3967bdd7ee5e1ea42a4f73d541bb1defe8610",
+      "identical": true,
+      "working_sha256": "79d53d66f7a4ea108ec85f55b2a3967bdd7ee5e1ea42a4f73d541bb1defe8610"
+    },
+    "sources/misteross/boards/de25nano/zx81-hps/generated/fes_de25_computer.vh": {
+      "base_sha256": "c3ea3892d2ffdf0ccb9961e7d1e195d74918d3e93f93b04e955cf82b63faac87",
+      "head_sha256": "c3ea3892d2ffdf0ccb9961e7d1e195d74918d3e93f93b04e955cf82b63faac87",
+      "identical": true,
+      "working_sha256": "c3ea3892d2ffdf0ccb9961e7d1e195d74918d3e93f93b04e955cf82b63faac87"
+    },
+    "sources/misteross/boards/de25nano/zx81-hps/sim.py": {
+      "base_sha256": "e93ce02a8ce358f1f5583b41dc4108547f358c5f815f9a3870c6685fea88a421",
+      "head_sha256": "e93ce02a8ce358f1f5583b41dc4108547f358c5f815f9a3870c6685fea88a421",
+      "identical": true,
+      "working_sha256": "e93ce02a8ce358f1f5583b41dc4108547f358c5f815f9a3870c6685fea88a421"
+    },
+    "sources/misteross/boards/de25nano/zx81-hps/tape_store.v": {
+      "base_sha256": "f8f9c1b7635d33853cca4f69a41b0a1f7d5afcec32ea00c1c7dfa7a5ad08361f",
+      "head_sha256": "f8f9c1b7635d33853cca4f69a41b0a1f7d5afcec32ea00c1c7dfa7a5ad08361f",
+      "identical": true,
+      "working_sha256": "f8f9c1b7635d33853cca4f69a41b0a1f7d5afcec32ea00c1c7dfa7a5ad08361f"
+    },
+    "sources/misteross/boards/de25nano/zx81/build.py": {
+      "base_sha256": "3bb11ae7e5343ba9772a36940734fa6529366c91eaf50bb5331560fc08acd5d3",
+      "head_sha256": "3bb11ae7e5343ba9772a36940734fa6529366c91eaf50bb5331560fc08acd5d3",
+      "identical": true,
+      "working_sha256": "3bb11ae7e5343ba9772a36940734fa6529366c91eaf50bb5331560fc08acd5d3"
+    },
+    "sources/misteross/cores/fes-common/rtl/fes_computer_mailbox.v": {
+      "base_sha256": "e89431a63c4b91bef2ac377ceeeec5cea67d3aa3ad09a3f518cfdb579aa1daa0",
+      "head_sha256": "e89431a63c4b91bef2ac377ceeeec5cea67d3aa3ad09a3f518cfdb579aa1daa0",
+      "identical": true,
+      "working_sha256": "e89431a63c4b91bef2ac377ceeeec5cea67d3aa3ad09a3f518cfdb579aa1daa0"
+    },
+    "sources/misteross/cores/fes-common/rtl/z80/fes_z80_alu.sv": {
+      "base_sha256": "c7ce86810a6537150ccc482b91135031422c10ff4de257a6d4d8e54f3a4f43d9",
+      "head_sha256": "c7ce86810a6537150ccc482b91135031422c10ff4de257a6d4d8e54f3a4f43d9",
+      "identical": true,
+      "working_sha256": "c7ce86810a6537150ccc482b91135031422c10ff4de257a6d4d8e54f3a4f43d9"
+    },
+    "sources/misteross/cores/fes-common/rtl/z80/fes_z80_bus.sv": {
+      "base_sha256": "1946158638c97ee46f993b4a53e168cd4f44f209af01b4be0f11faa69c331b2a",
+      "head_sha256": "1946158638c97ee46f993b4a53e168cd4f44f209af01b4be0f11faa69c331b2a",
+      "identical": true,
+      "working_sha256": "1946158638c97ee46f993b4a53e168cd4f44f209af01b4be0f11faa69c331b2a"
+    },
+    "sources/misteross/cores/fes-common/rtl/z80/fes_z80_engine.sv": {
+      "base_sha256": "f40dad3d2b4909c4b93fa507479a417ad9b197d708580d8cc100f8f46954113b",
+      "head_sha256": "f40dad3d2b4909c4b93fa507479a417ad9b197d708580d8cc100f8f46954113b",
+      "identical": true,
+      "working_sha256": "f40dad3d2b4909c4b93fa507479a417ad9b197d708580d8cc100f8f46954113b"
+    },
+    "sources/misteross/cores/fes-common/rtl/z80/fes_z80_nmos.sv": {
+      "base_sha256": "d09a07cb9fcadf0c7811132dfe830554f0185f964a36c52fdc3792ad7e1ef1c0",
+      "head_sha256": "d09a07cb9fcadf0c7811132dfe830554f0185f964a36c52fdc3792ad7e1ef1c0",
+      "identical": true,
+      "working_sha256": "d09a07cb9fcadf0c7811132dfe830554f0185f964a36c52fdc3792ad7e1ef1c0"
+    },
+    "sources/misteross/cores/fes-zx81/rtl/zx81_dpram.v": {
+      "base_sha256": "a72d4bb2c2311813f07575c12ea96e51d1269882eed795753c3061b30c006038",
+      "head_sha256": "a72d4bb2c2311813f07575c12ea96e51d1269882eed795753c3061b30c006038",
+      "identical": true,
+      "working_sha256": "a72d4bb2c2311813f07575c12ea96e51d1269882eed795753c3061b30c006038"
+    },
+    "sources/misteross/cores/fes-zx81/rtl/zx81_keyboard.v": {
+      "base_sha256": "684185761646e975608fd29c57366d50c12d8710d36e5c69696baf1ae453b45f",
+      "head_sha256": "684185761646e975608fd29c57366d50c12d8710d36e5c69696baf1ae453b45f",
+      "identical": true,
+      "working_sha256": "684185761646e975608fd29c57366d50c12d8710d36e5c69696baf1ae453b45f"
+    },
+    "sources/misteross/cores/fes-zx81/rtl/zx81_machine.sv": {
+      "base_sha256": "37744e9b25bb44e600d7e843bff4722d4db70cf614514dd04ef6e5368627187d",
+      "head_sha256": "37744e9b25bb44e600d7e843bff4722d4db70cf614514dd04ef6e5368627187d",
+      "identical": true,
+      "working_sha256": "37744e9b25bb44e600d7e843bff4722d4db70cf614514dd04ef6e5368627187d"
+    },
+    "sources/misteross/cores/fes-zx81/rtl/zx81_machine_clock.v": {
+      "base_sha256": "d222d14bc64a9f7dd9cf1e3bad33be7708a70e0bfc94a9a6bf713d4d5ebbd501",
+      "head_sha256": "d222d14bc64a9f7dd9cf1e3bad33be7708a70e0bfc94a9a6bf713d4d5ebbd501",
+      "identical": true,
+      "working_sha256": "d222d14bc64a9f7dd9cf1e3bad33be7708a70e0bfc94a9a6bf713d4d5ebbd501"
+    },
+    "sources/misteross/cores/fes-zx81/rtl/zx81_model.vh": {
+      "base_sha256": "c421b4ec19d294bc6e2dc98562ebf99fb9ce1100efa78fea1ed15ffabd2c3d2f",
+      "head_sha256": "c421b4ec19d294bc6e2dc98562ebf99fb9ce1100efa78fea1ed15ffabd2c3d2f",
+      "identical": true,
+      "working_sha256": "c421b4ec19d294bc6e2dc98562ebf99fb9ce1100efa78fea1ed15ffabd2c3d2f"
+    },
+    "sources/misteross/cores/fes-zx81/rtl/zx81_tape_store.v": {
+      "base_sha256": "796fdc6a9b1f044f96431ce64ab0f73a5676790770f7c814bb387c4df6a475fb",
+      "head_sha256": "796fdc6a9b1f044f96431ce64ab0f73a5676790770f7c814bb387c4df6a475fb",
+      "identical": true,
+      "working_sha256": "796fdc6a9b1f044f96431ce64ab0f73a5676790770f7c814bb387c4df6a475fb"
+    },
+    "sources/misteross/cores/fes-zx81/rtl/zx81_video_720p.v": {
+      "base_sha256": "caf509f34eed2278ae78edb3f4bc3c8b68876d27aaf0edc30edff8854147f231",
+      "head_sha256": "caf509f34eed2278ae78edb3f4bc3c8b68876d27aaf0edc30edff8854147f231",
+      "identical": true,
+      "working_sha256": "caf509f34eed2278ae78edb3f4bc3c8b68876d27aaf0edc30edff8854147f231"
+    },
+    "sources/misteross/cores/fes-zx81/rtl/zx8x.hex": {
+      "base_sha256": "93afab88ef8f12e6848700f4824f4268f193651657d23acbd30f8e9bb131131b",
+      "head_sha256": "93afab88ef8f12e6848700f4824f4268f193651657d23acbd30f8e9bb131131b",
+      "identical": true,
+      "working_sha256": "93afab88ef8f12e6848700f4824f4268f193651657d23acbd30f8e9bb131131b"
+    },
+    "sources/misteross/tests/test_de25nano_zx81_hps.py": {
+      "base_sha256": "bf05b1aafe47923d572e5e0fd164eaa397419c5c216818ca727720a358ee2eb1",
+      "head_sha256": "bf05b1aafe47923d572e5e0fd164eaa397419c5c216818ca727720a358ee2eb1",
+      "identical": true,
+      "working_sha256": "bf05b1aafe47923d572e5e0fd164eaa397419c5c216818ca727720a358ee2eb1"
+    }
+  },
+  "test_rerun": false,
+  "timeout_changed": false,
+  "wrapper_runs": "endpoint then machine in one sim.py call; compile and runtime share wrapper budget",
+  "wrapper_timeout_seconds": 600
+}

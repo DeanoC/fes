@@ -1,0 +1,15 @@
+applied
+operating
+c9344a6c-5fbf-4ea8-afc8-7cc937bcdee0
+[    3.823413] socfpga-dwmac 10810000.ethernet eth0: IEEE 1588-2008 Advanced Timestamp supported
+[    3.832423] socfpga-dwmac 10810000.ethernet eth0: registered PTP clock
+[    3.839017] socfpga-dwmac 10810000.ethernet eth0: configuring for phy/rgmii link mode
+[    6.915592] socfpga-dwmac 10810000.ethernet eth0: Link is Up - 1Gbps/Full - flow control rx/tx
+[   61.755650] fpga_manager fpga0: Stratix10 SOC FPGA Manager registered
+[   63.210785] of-fpga-region fpga-region: FPGA Region probed
+[   64.296498] fpga_manager fpga0: writing fes-c134-zx81.core.rbf to Stratix10 SOC FPGA Manager
+[   66.412658] OF: overlay: WARNING: memory leak will occur if overlay removed, property: /fpga-region/firmware-name
+[   66.422922] OF: overlay: WARNING: memory leak will occur if overlay removed, property: /fpga-region/config-complete-timeout-us
+[  472.203775] fpga_manager fpga0: writing fes-c134-zx81.core.rbf to Stratix10 SOC FPGA Manager
+[  474.321001] OF: overlay: WARNING: memory leak will occur if overlay removed, property: /fpga-region/firmware-name
+[  474.331270] OF: overlay: WARNING: memory leak will occur if overlay removed, property: /fpga-region/config-complete-timeout-us

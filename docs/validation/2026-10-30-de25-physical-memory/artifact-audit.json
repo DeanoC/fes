@@ -1,0 +1,28 @@
+{
+  "artifact": {
+    "sha256": "5b4bf7192dc58a2be0e8ba9b811fcac4aa082ede105c78231dcec8ffd06e1778",
+    "bytes": 2585054
+  },
+  "build_receipt": {
+    "sha256": "c438f4956d2deea4cea87fe64d4ee37eb4eacfab32ee375b1b82cd4be81857f2",
+    "bytes": 83817
+  },
+  "generation_receipt": {
+    "sha256": "a79de6ba2173798d8b471c8ac276ada9679e75d616560c302a49e697f39271fb",
+    "bytes": 4432
+  },
+  "inputs_receipt": {
+    "sha256": "3f3d301ba9909f0042017d0c0f397a018061c2b0f0d1f7065978ee43fb448faa",
+    "bytes": 37155
+  },
+  "compile_log": {
+    "sha256": "8cbc0f2f114bdeda0f30a01370f2bba0e8e9451bc78594801a532c7c7b5fb649",
+    "bytes": 354559
+  },
+  "ip_generation_log": {
+    "sha256": "6240992314b8205807a3a33666a256648d7f550def3d8b67a689ab09e4126973",
+    "bytes": 138867
+  },
+  "build_id": "6ee668470911276a9e553d0025c7ef0b",
+  "hps_destructive_enabled": false
+}

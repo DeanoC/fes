@@ -1,0 +1,637 @@
+{
+  "rows": [
+    {
+      "path": "docs/README.md",
+      "class": "none",
+      "component": null,
+      "rule": "docs/**"
+    },
+    {
+      "path": "docs/validation/2026-10-29-de25-zx81-hps/software/README.md",
+      "class": "none",
+      "component": null,
+      "rule": "docs/**"
+    },
+    {
+      "path": "docs/validation/2026-10-29-de25-zx81-hps/software/ci-affected-plan.json",
+      "class": "none",
+      "component": null,
+      "rule": "docs/**"
+    },
+    {
+      "path": "docs/validation/2026-10-29-de25-zx81-hps/software/ci-final.json",
+      "class": "none",
+      "component": null,
+      "rule": "docs/**"
+    },
+    {
+      "path": "docs/validation/2026-10-29-de25-zx81-hps/software/ci-initial.json",
+      "class": "none",
+      "component": null,
+      "rule": "docs/**"
+    },
+    {
+      "path": "docs/validation/2026-10-29-de25-zx81-hps/software/ci-job-123246961987-summary.json",
+      "class": "none",
+      "component": null,
+      "rule": "docs/**"
+    },
+    {
+      "path": "docs/validation/2026-10-29-de25-zx81-hps/software/ci-job-123247091941-summary.json",
+      "class": "none",
+      "component": null,
+      "rule": "docs/**"
+    },
+    {
+      "path": "docs/validation/2026-10-29-de25-zx81-hps/software/ci-job-123247091948-summary.json",
+      "class": "none",
+      "component": null,
+      "rule": "docs/**"
+    },
+    {
+      "path": "docs/validation/2026-10-29-de25-zx81-hps/software/ci-job-123247091950-summary.json",
+      "class": "none",
+      "component": null,
+      "rule": "docs/**"
+    },
+    {
+      "path": "docs/validation/2026-10-29-de25-zx81-hps/software/ci-job-123247091992-summary.json",
+      "class": "none",
+      "component": null,
+      "rule": "docs/**"
+    },
+    {
+      "path": "docs/validation/2026-10-29-de25-zx81-hps/software/ci-job-123247092015-summary.json",
+      "class": "none",
+      "component": null,
+      "rule": "docs/**"
+    },
+    {
+      "path": "docs/validation/2026-10-29-de25-zx81-hps/software/ci-job-123247092019-summary.json",
+      "class": "none",
+      "component": null,
+      "rule": "docs/**"
+    },
+    {
+      "path": "docs/validation/2026-10-29-de25-zx81-hps/software/ci-job-123247092041-summary.json",
+      "class": "none",
+      "component": null,
+      "rule": "docs/**"
+    },
+    {
+      "path": "docs/validation/2026-10-29-de25-zx81-hps/software/ci-job-123247092070-summary.json",
+      "class": "none",
+      "component": null,
+      "rule": "docs/**"
+    },
+    {
+      "path": "docs/validation/2026-10-29-de25-zx81-hps/software/ci-job-123249607940-summary.json",
+      "class": "none",
+      "component": null,
+      "rule": "docs/**"
+    },
+    {
+      "path": "docs/validation/2026-10-29-de25-zx81-hps/software/consistency.log",
+      "class": "none",
+      "component": null,
+      "rule": "docs/**"
+    },
+    {
+      "path": "docs/validation/2026-10-29-de25-zx81-hps/software/doclinks-tests.log",
+      "class": "none",
+      "component": null,
+      "rule": "docs/**"
+    },
+    {
+      "path": "docs/validation/2026-10-29-de25-zx81-hps/software/doclinks.log",
+      "class": "none",
+      "component": null,
+      "rule": "docs/**"
+    },
+    {
+      "path": "docs/validation/2026-10-29-de25-zx81-hps/software/focused-28.log",
+      "class": "none",
+      "component": null,
+      "rule": "docs/**"
+    },
+    {
+      "path": "docs/validation/2026-10-29-de25-zx81-hps/software/local-affected-partial.log",
+      "class": "none",
+      "component": null,
+      "rule": "docs/**"
+    },
+    {
+      "path": "docs/validation/2026-10-29-de25-zx81-hps/software/local-affected-plan.log",
+      "class": "none",
+      "component": null,
+      "rule": "docs/**"
+    },
+    {
+      "path": "docs/validation/2026-10-29-de25-zx81-hps/software/local-log-manifest.json",
+      "class": "none",
+      "component": null,
+      "rule": "docs/**"
+    },
+    {
+      "path": "docs/validation/2026-10-29-de25-zx81-hps/software/local-tail-stop.json",
+      "class": "none",
+      "component": null,
+      "rule": "docs/**"
+    },
+    {
+      "path": "docs/validation/2026-10-29-de25-zx81-hps/software/plan-coverage.json",
+      "class": "none",
+      "component": null,
+      "rule": "docs/**"
+    },
+    {
+      "path": "docs/validation/2026-10-29-de25-zx81-hps/software/planner-87.log",
+      "class": "none",
+      "component": null,
+      "rule": "docs/**"
+    },
+    {
+      "path": "scripts/affected.py",
+      "class": "none",
+      "component": null,
+      "rule": "scripts/affected.py"
+    },
+    {
+      "path": "scripts/consistency.py",
+      "class": "none",
+      "component": null,
+      "rule": "scripts/consistency.py"
+    },
+    {
+      "path": "scripts/hil_plan.py",
+      "class": "none",
+      "component": null,
+      "rule": "scripts/hil_plan.py"
+    },
+    {
+      "path": "scripts/test_policy.py",
+      "class": "none",
+      "component": null,
+      "rule": "scripts/test_policy.py"
+    },
+    {
+      "path": "sources/mister-packages/README.md",
+      "class": "none",
+      "component": null,
+      "rule": "**/*.md"
+    },
+    {
+      "path": "sources/mister-packages/docs/de25-computer.md",
+      "class": "none",
+      "component": null,
+      "rule": "**/docs/**"
+    },
+    {
+      "path": "sources/mister-packages/packages/fabric/fes_fabric_de25_computer.yaml",
+      "class": "none",
+      "component": null,
+      "rule": "sources/mister-packages/packages/fabric/fes_fabric_de25_computer.yaml"
+    },
+    {
+      "path": "sources/misteross/boards/de25nano/README.md",
+      "class": "none",
+      "component": null,
+      "rule": "**/*.md"
+    },
+    {
+      "path": "sources/misteross/boards/de25nano/zx81-hps/Makefile",
+      "class": "none",
+      "component": null,
+      "rule": "sources/misteross/boards/de25nano/**"
+    },
+    {
+      "path": "sources/misteross/boards/de25nano/zx81-hps/README.md",
+      "class": "none",
+      "component": null,
+      "rule": "**/*.md"
+    },
+    {
+      "path": "sources/misteross/boards/de25nano/zx81-hps/board.v",
+      "class": "none",
+      "component": null,
+      "rule": "sources/misteross/boards/de25nano/**"
+    },
+    {
+      "path": "sources/misteross/boards/de25nano/zx81-hps/build.py",
+      "class": "none",
+      "component": null,
+      "rule": "sources/misteross/boards/de25nano/**"
+    },
+    {
+      "path": "sources/misteross/boards/de25nano/zx81-hps/client.py",
+      "class": "none",
+      "component": null,
+      "rule": "sources/misteross/boards/de25nano/**"
+    },
+    {
+      "path": "sources/misteross/boards/de25nano/zx81-hps/clocks.sdc",
+      "class": "none",
+      "component": null,
+      "rule": "sources/misteross/boards/de25nano/**"
+    },
+    {
+      "path": "sources/misteross/boards/de25nano/zx81-hps/computer_tb.cpp",
+      "class": "none",
+      "component": null,
+      "rule": "sources/misteross/boards/de25nano/**"
+    },
+    {
+      "path": "sources/misteross/boards/de25nano/zx81-hps/endpoint_tb.cpp",
+      "class": "none",
+      "component": null,
+      "rule": "sources/misteross/boards/de25nano/**"
+    },
+    {
+      "path": "sources/misteross/boards/de25nano/zx81-hps/fes_de25_computer.v",
+      "class": "none",
+      "component": null,
+      "rule": "sources/misteross/boards/de25nano/**"
+    },
+    {
+      "path": "sources/misteross/boards/de25nano/zx81-hps/fes_de25_computer_hw.tcl",
+      "class": "none",
+      "component": null,
+      "rule": "sources/misteross/boards/de25nano/**"
+    },
+    {
+      "path": "sources/misteross/boards/de25nano/zx81-hps/generated/fes_computer.vh",
+      "class": "none",
+      "component": null,
+      "rule": "sources/misteross/boards/de25nano/**"
+    },
+    {
+      "path": "sources/misteross/boards/de25nano/zx81-hps/generated/fes_de25_computer.hpp",
+      "class": "none",
+      "component": null,
+      "rule": "sources/misteross/boards/de25nano/**"
+    },
+    {
+      "path": "sources/misteross/boards/de25nano/zx81-hps/generated/fes_de25_computer.vh",
+      "class": "none",
+      "component": null,
+      "rule": "sources/misteross/boards/de25nano/**"
+    },
+    {
+      "path": "sources/misteross/boards/de25nano/zx81-hps/integrate.tcl",
+      "class": "none",
+      "component": null,
+      "rule": "sources/misteross/boards/de25nano/**"
+    },
+    {
+      "path": "sources/misteross/boards/de25nano/zx81-hps/sim.py",
+      "class": "none",
+      "component": null,
+      "rule": "sources/misteross/boards/de25nano/**"
+    },
+    {
+      "path": "sources/misteross/boards/de25nano/zx81-hps/tape_store.v",
+      "class": "none",
+      "component": null,
+      "rule": "sources/misteross/boards/de25nano/**"
+    },
+    {
+      "path": "sources/misteross/boards/de25nano/zx81-hps/tape_store_tb.sv",
+      "class": "none",
+      "component": null,
+      "rule": "sources/misteross/boards/de25nano/**"
+    },
+    {
+      "path": "sources/misteross/boards/de25nano/zx81-hps/test_build.py",
+      "class": "none",
+      "component": null,
+      "rule": "sources/misteross/boards/de25nano/**"
+    },
+    {
+      "path": "sources/misteross/boards/de25nano/zx81-hps/test_client.py",
+      "class": "none",
+      "component": null,
+      "rule": "sources/misteross/boards/de25nano/**"
+    },
+    {
+      "path": "sources/misteross/boards/de25nano/zx81-hps/test_tape_store.py",
+      "class": "none",
+      "component": null,
+      "rule": "sources/misteross/boards/de25nano/**"
+    },
+    {
+      "path": "sources/misteross/docs/architecture.md",
+      "class": "none",
+      "component": null,
+      "rule": "**/docs/**"
+    },
+    {
+      "path": "sources/misteross/docs/validation/2026-10-29-de25-zx81-hps/failed-786e6383b3/README.md",
+      "class": "none",
+      "component": null,
+      "rule": "**/docs/**"
+    },
+    {
+      "path": "sources/misteross/docs/validation/2026-10-29-de25-zx81-hps/failed-786e6383b3/compile.log.gz",
+      "class": "none",
+      "component": null,
+      "rule": "**/docs/**"
+    },
+    {
+      "path": "sources/misteross/docs/validation/2026-10-29-de25-zx81-hps/failed-786e6383b3/generation.json",
+      "class": "none",
+      "component": null,
+      "rule": "**/docs/**"
+    },
+    {
+      "path": "sources/misteross/docs/validation/2026-10-29-de25-zx81-hps/failed-786e6383b3/golden_top.fit.place.rpt.gz",
+      "class": "none",
+      "component": null,
+      "rule": "**/docs/**"
+    },
+    {
+      "path": "sources/misteross/docs/validation/2026-10-29-de25-zx81-hps/failed-786e6383b3/golden_top.fit.summary",
+      "class": "none",
+      "component": null,
+      "rule": "**/docs/**"
+    },
+    {
+      "path": "sources/misteross/docs/validation/2026-10-29-de25-zx81-hps/failed-786e6383b3/golden_top.syn.rpt.gz",
+      "class": "none",
+      "component": null,
+      "rule": "**/docs/**"
+    },
+    {
+      "path": "sources/misteross/docs/validation/2026-10-29-de25-zx81-hps/failed-786e6383b3/golden_top.syn.summary",
+      "class": "none",
+      "component": null,
+      "rule": "**/docs/**"
+    },
+    {
+      "path": "sources/misteross/docs/validation/2026-10-29-de25-zx81-hps/failed-786e6383b3/inputs.json",
+      "class": "none",
+      "component": null,
+      "rule": "**/docs/**"
+    },
+    {
+      "path": "sources/misteross/docs/validation/2026-10-29-de25-zx81-hps/failed-786e6383b3/quartus-version.txt",
+      "class": "none",
+      "component": null,
+      "rule": "**/docs/**"
+    },
+    {
+      "path": "sources/misteross/docs/validation/2026-10-29-de25-zx81-hps/failed-786e6383b3/receipt.json",
+      "class": "none",
+      "component": null,
+      "rule": "**/docs/**"
+    },
+    {
+      "path": "sources/misteross/docs/validation/2026-10-29-de25-zx81-hps/generated/README.md",
+      "class": "none",
+      "component": null,
+      "rule": "**/docs/**"
+    },
+    {
+      "path": "sources/misteross/docs/validation/2026-10-29-de25-zx81-hps/generated/audit.py",
+      "class": "none",
+      "component": null,
+      "rule": "**/docs/**"
+    },
+    {
+      "path": "sources/misteross/docs/validation/2026-10-29-de25-zx81-hps/generated/receipt.json",
+      "class": "none",
+      "component": null,
+      "rule": "**/docs/**"
+    },
+    {
+      "path": "sources/misteross/docs/validation/2026-10-29-de25-zx81-hps/simulation/README.md",
+      "class": "none",
+      "component": null,
+      "rule": "**/docs/**"
+    },
+    {
+      "path": "sources/misteross/docs/validation/2026-10-29-de25-zx81-hps/simulation/SHA256SUMS",
+      "class": "none",
+      "component": null,
+      "rule": "**/docs/**"
+    },
+    {
+      "path": "sources/misteross/docs/validation/2026-10-29-de25-zx81-hps/simulation/captured-new.json",
+      "class": "none",
+      "component": null,
+      "rule": "**/docs/**"
+    },
+    {
+      "path": "sources/misteross/docs/validation/2026-10-29-de25-zx81-hps/simulation/default-elaboration-binding.json",
+      "class": "none",
+      "component": null,
+      "rule": "**/docs/**"
+    },
+    {
+      "path": "sources/misteross/docs/validation/2026-10-29-de25-zx81-hps/simulation/default-elaboration-diff.log.gz",
+      "class": "none",
+      "component": null,
+      "rule": "**/docs/**"
+    },
+    {
+      "path": "sources/misteross/docs/validation/2026-10-29-de25-zx81-hps/simulation/endpoint-native-compile.log",
+      "class": "none",
+      "component": null,
+      "rule": "**/docs/**"
+    },
+    {
+      "path": "sources/misteross/docs/validation/2026-10-29-de25-zx81-hps/simulation/endpoint-native-receipt.json",
+      "class": "none",
+      "component": null,
+      "rule": "**/docs/**"
+    },
+    {
+      "path": "sources/misteross/docs/validation/2026-10-29-de25-zx81-hps/simulation/endpoint-native.log",
+      "class": "none",
+      "component": null,
+      "rule": "**/docs/**"
+    },
+    {
+      "path": "sources/misteross/docs/validation/2026-10-29-de25-zx81-hps/simulation/endpoint-runner.log",
+      "class": "none",
+      "component": null,
+      "rule": "**/docs/**"
+    },
+    {
+      "path": "sources/misteross/docs/validation/2026-10-29-de25-zx81-hps/simulation/input-hashes.json",
+      "class": "none",
+      "component": null,
+      "rule": "**/docs/**"
+    },
+    {
+      "path": "sources/misteross/docs/validation/2026-10-29-de25-zx81-hps/simulation/leaf-build-id-binding.json",
+      "class": "none",
+      "component": null,
+      "rule": "**/docs/**"
+    },
+    {
+      "path": "sources/misteross/docs/validation/2026-10-29-de25-zx81-hps/simulation/machine-verilator-files.dat",
+      "class": "none",
+      "component": null,
+      "rule": "**/docs/**"
+    },
+    {
+      "path": "sources/misteross/docs/validation/2026-10-29-de25-zx81-hps/simulation/machine.log",
+      "class": "none",
+      "component": null,
+      "rule": "**/docs/**"
+    },
+    {
+      "path": "sources/misteross/docs/validation/2026-10-29-de25-zx81-hps/tape-store/README.md",
+      "class": "none",
+      "component": null,
+      "rule": "**/docs/**"
+    },
+    {
+      "path": "sources/misteross/docs/validation/2026-10-29-de25-zx81-hps/tape-store/SHA256SUMS",
+      "class": "none",
+      "component": null,
+      "rule": "**/docs/**"
+    },
+    {
+      "path": "sources/misteross/docs/validation/2026-10-29-de25-zx81-hps/tape-store/receipt.json",
+      "class": "none",
+      "component": null,
+      "rule": "**/docs/**"
+    },
+    {
+      "path": "sources/misteross/docs/validation/2026-10-29-de25-zx81-hps/tape-store/synthesis-02/synthesis.log",
+      "class": "none",
+      "component": null,
+      "rule": "**/docs/**"
+    },
+    {
+      "path": "sources/misteross/docs/validation/2026-10-29-de25-zx81-hps/tape-store/synthesis-02/tape_store.qpf",
+      "class": "none",
+      "component": null,
+      "rule": "**/docs/**"
+    },
+    {
+      "path": "sources/misteross/docs/validation/2026-10-29-de25-zx81-hps/tape-store/synthesis-02/tape_store.qsf",
+      "class": "none",
+      "component": null,
+      "rule": "**/docs/**"
+    },
+    {
+      "path": "sources/misteross/docs/validation/2026-10-29-de25-zx81-hps/tape-store/synthesis-02/tape_store.sdc",
+      "class": "none",
+      "component": null,
+      "rule": "**/docs/**"
+    },
+    {
+      "path": "sources/misteross/docs/validation/2026-10-29-de25-zx81-hps/tape-store/synthesis-02/tape_store.syn.rpt",
+      "class": "none",
+      "component": null,
+      "rule": "**/docs/**"
+    },
+    {
+      "path": "sources/misteross/docs/validation/2026-10-29-de25-zx81-hps/tape-store/synthesis-02/tape_store.syn.summary",
+      "class": "none",
+      "component": null,
+      "rule": "**/docs/**"
+    },
+    {
+      "path": "sources/misteross/docs/validation/2026-10-29-de25-zx81-hps/tape-store/synthesis-02/tape_store.v",
+      "class": "none",
+      "component": null,
+      "rule": "**/docs/**"
+    },
+    {
+      "path": "sources/misteross/docs/validation/2026-10-29-de25-zx81-hps/tape-store/synthesis-failed-01/synthesis.log",
+      "class": "none",
+      "component": null,
+      "rule": "**/docs/**"
+    },
+    {
+      "path": "sources/misteross/docs/validation/2026-10-29-de25-zx81-hps/tape-store/synthesis-failed-01/tape_store.qpf",
+      "class": "none",
+      "component": null,
+      "rule": "**/docs/**"
+    },
+    {
+      "path": "sources/misteross/docs/validation/2026-10-29-de25-zx81-hps/tape-store/synthesis-failed-01/tape_store.qsf",
+      "class": "none",
+      "component": null,
+      "rule": "**/docs/**"
+    },
+    {
+      "path": "sources/misteross/docs/validation/2026-10-29-de25-zx81-hps/tape-store/synthesis-failed-01/tape_store.sdc",
+      "class": "none",
+      "component": null,
+      "rule": "**/docs/**"
+    },
+    {
+      "path": "sources/misteross/docs/validation/2026-10-29-de25-zx81-hps/tape-store/synthesis-failed-01/tape_store.syn.rpt",
+      "class": "none",
+      "component": null,
+      "rule": "**/docs/**"
+    },
+    {
+      "path": "sources/misteross/docs/validation/2026-10-29-de25-zx81-hps/tape-store/synthesis-failed-01/tape_store.v",
+      "class": "none",
+      "component": null,
+      "rule": "**/docs/**"
+    },
+    {
+      "path": "sources/misteross/docs/validation/2026-10-29-de25-zx81-hps/tape-store/toolchain.json",
+      "class": "none",
+      "component": null,
+      "rule": "**/docs/**"
+    },
+    {
+      "path": "sources/misteross/docs/validation/2026-10-29-de25-zx81-hps/tape-store/vendor-model/compile.log",
+      "class": "none",
+      "component": null,
+      "rule": "**/docs/**"
+    },
+    {
+      "path": "sources/misteross/docs/validation/2026-10-29-de25-zx81-hps/tape-store/vendor-model/receipt.json",
+      "class": "none",
+      "component": null,
+      "rule": "**/docs/**"
+    },
+    {
+      "path": "sources/misteross/docs/validation/2026-10-29-de25-zx81-hps/tape-store/vendor-model/simulation.log",
+      "class": "none",
+      "component": null,
+      "rule": "**/docs/**"
+    },
+    {
+      "path": "sources/misteross/tests/test_de25nano_zx81_hps.py",
+      "class": "none",
+      "component": null,
+      "rule": "sources/*/tests/**"
+    },
+    {
+      "path": "tests/test_affected.py",
+      "class": "none",
+      "component": null,
+      "rule": "tests/**"
+    },
+    {
+      "path": "tests/test_consistency.py",
+      "class": "none",
+      "component": null,
+      "rule": "tests/**"
+    },
+    {
+      "path": "tests/test_hil_plan.py",
+      "class": "none",
+      "component": null,
+      "rule": "tests/**"
+    },
+    {
+      "path": "tests/test_test_policy.py",
+      "class": "none",
+      "component": null,
+      "rule": "tests/**"
+    }
+  ],
+  "class": "none",
+  "components": [],
+  "decision": "NO_DEPLOY_CHANGE"
+}

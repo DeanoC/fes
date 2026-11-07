@@ -1,0 +1,23 @@
+{
+  "producer": "9663da282aade3e61de1702455636c3e3ec058c5",
+  "stage": "base-synthesis",
+  "result": "passed",
+  "explicit_pr_powerup_values": false,
+  "critical_19854": false,
+  "preserved_pr_ingress_registers": [
+    "slot_inst|core|request_q",
+    "slot_inst|core|reset_q",
+    "slot_inst|core|address_q[0]",
+    "slot_inst|core|address_q[1]",
+    "slot_inst|core|address_q[2]",
+    "slot_inst|core|address_q[3]",
+    "slot_inst|core|address_q[4]",
+    "slot_inst|core|address_q[5]",
+    "slot_inst|core|address_q[6]",
+    "slot_inst|core|address_q[7]"
+  ],
+  "static_reset_preserved": true,
+  "static_reset_inverted": false,
+  "synthesis_report_sha256": "c64d795053afe274a2d3f40ff73cfd8cffbfb67939dc3a4b3a007031734efd37",
+  "physical_acceptance": "not-run"
+}

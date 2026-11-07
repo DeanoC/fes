@@ -1,0 +1,6 @@
+{
+  "mutation": "remove completion/persona hold on fault priority",
+  "returncode": -6,
+  "result": "rejected by actual RTL concurrent probe completion plus malformed read",
+  "log_sha256": "f60192b4c32bf570eeb0167a7b689cb62a0ef89cd087be88e7c308ac8950696f"
+}

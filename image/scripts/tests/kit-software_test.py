@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 import importlib.util
 import json
+import os
 from pathlib import Path
 import shutil
 import subprocess
@@ -54,7 +55,8 @@ class SoftwareABI(unittest.TestCase):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
             (root / 'etc/fes').mkdir(parents=True)
-            (root / 'etc/fes/software-base.json').write_text('{"base_contract":"old"}')
+            (root / 'etc/fes/software-base.json').write_text(
+                '{"board":"de25-nano","architecture":"aarch64","base_contract":"old"}')
             payload = root / 'payload'
             (payload / 'bin').mkdir(parents=True)
             for name in software.BINARIES:
@@ -62,11 +64,12 @@ class SoftwareABI(unittest.TestCase):
             output = root / 'update.tar'
             output.write_bytes(b'previous archive')
             with patch.object(software, 'run', return_value='{}') as run, \
-                 patch.object(software, 'base_contract', return_value={'base_contract': 'changed'}):
+                 patch.object(software, 'base_contract', return_value={'base_contract': 'changed'}) as contract:
                 with self.assertRaisesRegex(ValueError, 'differs from recorded'):
                     software.pack_update(root, payload, output, 'new', root, 'a' * 40)
                 self.assertEqual(output.read_bytes(), b'previous archive')
                 self.assertEqual(run.call_count, 1)  # verify only; no pack
+                self.assertEqual(contract.call_args.args[-1], 'de25-nano')
 
     def test_menu_requirements_come_from_the_sealed_menu_package(self):
         with tempfile.TemporaryDirectory() as directory:
@@ -178,18 +181,29 @@ class SoftwareABI(unittest.TestCase):
             root = Path(directory)
             (root / 'lib').mkdir()
             lib = root / 'lib/libc.so.6'
-            lib.write_bytes(b'base code one')
+            lib.write_bytes(b'\x7fELFbase code one')
             binary = root / 'program'
             binary.write_bytes(b'program')
+            script = root / 'lib/liblink.so'
+            script.write_bytes(b'/* GNU ld script\n link-only input */\nGROUP ( libc.so.6 )\n')
+            (root / 'lib/libexample.so.1-gdb.py').write_text('# debugger helper\n')
             table = {
                 lib: {'needed': [], 'soname': ['libc.so.6'], 'interpreter': [],
                       'defined': ['memcpy@GLIBC_2.4'], 'required': []},
                 binary: {'needed': ['libc.so.6'], 'soname': [], 'interpreter': [],
                          'defined': [], 'required': ['memcpy@GLIBC_2.4']},
             }
-            with patch.object(software, 'elf', side_effect=lambda p: table[p]):
+            with patch.object(software, 'elf', side_effect=lambda p, board: table[p]):
                 first = software.base_contract(root, [binary])
-                lib.write_bytes(b'new implementation, same ABI')
+                self.assertEqual(first['board'], 'de10-nano')
+                self.assertEqual(first['architecture'], 'armv7')
+                self.assertEqual(first['base_contract'],
+                    'fes-kit-base-v1-e15ee01fe5d01692ae1b40f283d3c90d202589e279abdfeeea23c80e302e58f4')
+                table[binary]['needed'] = ['liblink.so']
+                with self.assertRaisesRegex(ValueError, 'unresolved system library liblink.so'):
+                    software.base_contract(root, [binary])
+                table[binary]['needed'] = ['libc.so.6']
+                lib.write_bytes(b'\x7fELFnew implementation, same ABI')
                 binary.write_bytes(b'another application')
                 self.assertEqual(first, software.base_contract(root, [binary]))
                 table[lib]['defined'].append('new_symbol@ABI_2')
@@ -200,6 +214,75 @@ class SoftwareABI(unittest.TestCase):
                 table[binary]['needed'] = ['missing.so.1']
                 with self.assertRaises(ValueError):
                     software.base_contract(root, [binary])
+
+    def test_aarch64_elf_checks_architecture_and_search_paths(self):
+        outputs = {'-h': 'Class: ELF64\nMachine: AArch64\nData: little endian\nFlags: 0x0',
+                   '-d': '', '-l': '', '--dyn-syms': ''}
+        with patch.object(software, 'run', side_effect=lambda _, flag, *args: outputs[flag]):
+            self.assertEqual(software.elf(Path('binary'), 'de25-nano')['needed'], [])
+            with self.assertRaisesRegex(ValueError, 'not ARM ELF32'):
+                software.elf(Path('binary'), 'de10-nano')
+            outputs['-h'] = 'Class: ELF32\nMachine: ARM\nData: little endian\nFlags: Version5 EABI'
+            with self.assertRaisesRegex(ValueError, 'not AArch64 ELF64'):
+                software.elf(Path('binary'), 'de25-nano')
+            outputs['-h'] = 'Class: ELF64\nMachine: AArch64\nData: big endian'
+            with self.assertRaisesRegex(ValueError, 'unsupported AArch64 ABI'):
+                software.elf(Path('binary'), 'de25-nano')
+            outputs['-h'] = 'Class: ELF64\nMachine: AArch64\nData: little endian'
+            outputs['-d'] = '(RUNPATH) [/host/libs]'
+            with self.assertRaisesRegex(ValueError, 'embedded dynamic search path'):
+                software.elf(Path('binary'), 'de25-nano')
+
+    def test_de25_base_requires_exact_board_identity_before_elf_access(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            with patch.object(software, 'elf') as inspect:
+                for board in ['unknown', 'de25-nano']:
+                    with self.assertRaises(ValueError):
+                        software.base_contract(root, [], board)
+                (root / 'etc').mkdir()
+                (root / 'etc/fes-board').write_text('de10-nano\n')
+                with self.assertRaisesRegex(ValueError, 'exact FES board identity'):
+                    software.base_contract(root, [], 'de25-nano')
+                inspect.assert_not_called()
+
+    @unittest.skipUnless(shutil.which('go') and shutil.which('readelf'), 'requires Go and readelf')
+    def test_actual_aarch64_executable_and_board_specific_base_contract(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            (root / 'etc').mkdir()
+            (root / 'etc/fes-board').write_text('de25-nano\n')
+            source = root / 'main.go'
+            source.write_text('package main\nfunc main() {}\n')
+            binary = root / 'program'
+            env = dict(os.environ, GOOS='linux', GOARCH='arm64', CGO_ENABLED='0',
+                       GOWORK='off', GOFLAGS='')
+            env.pop('GOARM', None)
+            subprocess.run(['go', 'build', '-buildvcs=false', '-trimpath', '-o', str(binary), str(source)],
+                           env=env, check=True, timeout=120)
+            contract = software.base_contract(root, [binary], 'de25-nano')
+            self.assertEqual(contract['board'], 'de25-nano')
+            self.assertEqual(contract['architecture'], 'aarch64')
+            arm_root = root / 'arm'
+            arm_root.mkdir()
+            arm = software.base_contract(arm_root, [])
+            self.assertNotEqual(contract['base_contract'], arm['base_contract'])
+            with self.assertRaisesRegex(ValueError, 'not ARM ELF32'):
+                software.elf(binary, 'de10-nano')
+            with self.assertRaisesRegex(ValueError, 'exact FES board identity'):
+                software.base_contract(root, [binary], 'de10-nano')
+            # Every base library is checked, even when this executable is static.
+            (root / 'lib').mkdir()
+            lib = root / 'lib/libwrong.so.1'
+            lib.write_bytes(b'\x7fELFfixture wrong-architecture library')
+            original = software.run
+            def inspect(*args):
+                if args[1] == '-h' and args[-1] == str(lib):
+                    return 'Class: ELF32\nMachine: ARM\nData: little endian\nFlags: Version5 EABI'
+                return original(*args)
+            with patch.object(software, 'run', side_effect=inspect):
+                with self.assertRaisesRegex(ValueError, 'not AArch64 ELF64'):
+                    software.base_contract(root, [binary], 'de25-nano')
 
 
 def menu(root, interfaces):

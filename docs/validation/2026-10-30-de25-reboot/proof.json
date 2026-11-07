@@ -1,0 +1,66 @@
+{
+  "format": 1,
+  "issue": 1291,
+  "base_revision": "7634cb82dcbd88951ccbde72623dcfaecceccb51",
+  "board_identity": {
+    "quartus_cable_name": "DE25-Nano [3-11.3-iface0]",
+    "fpga_part": "A5EB013BB23BCS",
+    "usb_serial": null,
+    "board_uid": null,
+    "jtag_idcode": null,
+    "physical_board_binding": "not-established"
+  },
+  "experiments": [
+    {
+      "configuration": "factory-qspi",
+      "capture_seconds": 80,
+      "ordinary_linux_reboot_mode": "cold",
+      "watchdog_warning": true,
+      "spl_after_reboot": true,
+      "new_login_in_capture": true
+    },
+    {
+      "configuration": "unmodified-vendor-jtag",
+      "capture_seconds": 80,
+      "ordinary_linux_reboot_mode": "cold",
+      "watchdog_warning": true,
+      "spl_after_reboot": false,
+      "new_login_in_capture": false
+    },
+    {
+      "configuration": "exact-ramtest-jtag",
+      "capture_seconds": 75,
+      "ordinary_linux_reboot_mode": "cold",
+      "watchdog_warning": true,
+      "spl_after_reboot": false,
+      "new_login_in_capture": false
+    }
+  ],
+  "factory_before_boot": "b8e89f9f-9dc1-4fa5-874c-3adf3aa6da67",
+  "factory_after_boot": "42f8c2a0-04ea-479d-881d-8cb814cfd753",
+  "stock_jtag_before_boot": "3f33437b-0aea-43f9-8521-78623fc2f119",
+  "stock_jtag_reload_boot": "c9752c17-0e36-4a99-a827-a5df078eff94",
+  "ram_jtag_before_boot": "692fa087-6d2b-4218-80fc-93bd1004ae63",
+  "ram_jtag_reload_boot": "b5b1bc13-1131-4bc0-86cb-52a0730d5d4e",
+  "persistent_boot_changes": false,
+  "hps_destructive_enabled": false,
+  "reset_ack_or_constraints_changed": false,
+  "recovery": "identical full SOF redelivery over explicit-cable JTAG; new UART/pinned SSH and exact RAM endpoint IDs verified",
+  "physical_power_cycle_during_investigation": "not-recorded",
+  "operator_state": {
+    "board_claim": "not-recorded",
+    "uart_ssh_jtag_sessions": "not-recorded",
+    "top_board_state": "not-recorded",
+    "factory_baseline_restore": "not-recorded"
+  },
+  "programmed_sofs": {
+    "ram": {
+      "quartus_checksum": "0x067AE616",
+      "programmer_log": "ram-reload.log.gz"
+    },
+    "stock": {
+      "quartus_checksum": "0x062BB4EF",
+      "programmer_log": "stock-program.log.gz"
+    }
+  }
+}

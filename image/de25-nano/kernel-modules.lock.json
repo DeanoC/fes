@@ -1,0 +1,11 @@
+{
+  "format": 1,
+  "kernel": "6.12.11-gd7d192a9ddd9",
+  "kernel_image_sha256": "874f75d81f6452406f0f0ea5e0849ea269e92599fe728eb02b1bdbb56ada1aa8",
+  "modules": [
+    {"path": "kernel/drivers/fpga/stratix10-soc.ko", "size": 100328, "sha256": "623b6c154326ccfc98fd457e528b974fc2f3fedd83a69b7b307b5bb7fe68a6ec"},
+    {"path": "kernel/drivers/fpga/fpga-bridge.ko", "size": 66856, "sha256": "1d79dba109ce3ab85f64ad6b1c418a5d995ad8f4936fabdb9907d94f86aa349b"},
+    {"path": "kernel/drivers/fpga/fpga-region.ko", "size": 53912, "sha256": "a2a3c218d4a3c414466539e76e133939c8301405c96feb001229ec22a3f52b72"},
+    {"path": "kernel/drivers/fpga/of-fpga-region.ko", "size": 56544, "sha256": "047c6b111243d9db71ede2979251b5554cd2bddca50b123c37ecd05485263b8c"}
+  ]
+}

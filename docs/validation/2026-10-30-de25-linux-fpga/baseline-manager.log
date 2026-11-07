@@ -1,0 +1,51 @@
+6.12.11-gd7d192a9ddd9
+de25-nano
+altr,smmu_enable_quirk
+compatible
+fcs-hal
+fpga-mgr
+hwmon
+interrupt-parent
+interrupts
+iommus
+memory-region
+method
+name
+[    0.000000] OF: reserved mem: initialized node svcbuffer@0, compatible id shared-dma-pool
+[    0.000000] OF: reserved mem: 0x0000000080000000..0x0000000081ffffff (32768 KiB) nomap non-reusable svcbuffer@0
+[    0.000000] psci: PSCIv1.1 detected in firmware.
+[    1.565152] socfpga-dwmac 10810000.ethernet: Adding to iommu group 0
+[    1.572868] socfpga-dwmac 10810000.ethernet: IRQ eth_wake_irq not found
+[    1.579512] socfpga-dwmac 10810000.ethernet: IRQ eth_lpi not found
+[    1.585693] socfpga-dwmac 10810000.ethernet: IRQ sfty not found
+[    1.591947] socfpga-dwmac 10810000.ethernet: SMTG Hub Cross Timestamp supported
+[    1.600037] socfpga-dwmac 10810000.ethernet: User ID: 0x76, Synopsys ID: 0x31
+[    1.607192] socfpga-dwmac 10810000.ethernet: 	XGMAC2
+[    1.612175] socfpga-dwmac 10810000.ethernet: DMA HW capability register supported
+[    1.619642] socfpga-dwmac 10810000.ethernet: RX Checksum Offload Engine supported
+[    1.627106] socfpga-dwmac 10810000.ethernet: COE Type 1
+[    1.632323] socfpga-dwmac 10810000.ethernet: TX Checksum insertion supported
+[    1.639368] socfpga-dwmac 10810000.ethernet: TSO supported
+[    1.644849] socfpga-dwmac 10810000.ethernet: Enabled L3L4 Flow TC (entries=16)
+[    1.652055] socfpga-dwmac 10810000.ethernet: Enabled RFS Flow TC (entries=10)
+[    1.659177] socfpga-dwmac 10810000.ethernet: TSO feature enabled
+[    1.665170] socfpga-dwmac 10810000.ethernet: SPH feature enabled
+[    1.671166] socfpga-dwmac 10810000.ethernet: Using 40/40 bits DMA host/device width
+[    1.918241] stratix10-svc firmware:svc: Adding to iommu group 3
+[    1.925005] stratix10-svc firmware:svc: Registered IRQ 48 for sip async operations
+[    1.936183] soc64-hwmon firmware:svc:hwmon: Initialized 4 temperature and 6 voltage channels
+[    1.944764] stratix10-svc firmware:svc: Common async channel allocated with id 0
+[    3.311673] socfpga-dwmac 10810000.ethernet eth0: Register MEM_TYPE_PAGE_POOL RxQ-0
+[    3.320236] socfpga-dwmac 10810000.ethernet eth0: Register MEM_TYPE_PAGE_POOL RxQ-1
+[    3.328792] socfpga-dwmac 10810000.ethernet eth0: Register MEM_TYPE_PAGE_POOL RxQ-2
+[    3.337396] socfpga-dwmac 10810000.ethernet eth0: Register MEM_TYPE_PAGE_POOL RxQ-3
+[    3.346015] socfpga-dwmac 10810000.ethernet eth0: Register MEM_TYPE_PAGE_POOL RxQ-4
+[    3.354501] socfpga-dwmac 10810000.ethernet eth0: Register MEM_TYPE_PAGE_POOL RxQ-5
+[    3.363154] socfpga-dwmac 10810000.ethernet eth0: Register MEM_TYPE_PAGE_POOL RxQ-6
+[    3.371655] socfpga-dwmac 10810000.ethernet eth0: Register MEM_TYPE_PAGE_POOL RxQ-7
+[    3.444669] socfpga-dwmac 10810000.ethernet eth0: PHY [stmmac-0:01] driver [Micrel KSZ9031 Gigabit PHY] (irq=POLL)
+[    3.455049] socfpga-dwmac 10810000.ethernet eth0: No Safety Features support found
+[    3.462610] socfpga-dwmac 10810000.ethernet eth0: IEEE 1588-2008 Advanced Timestamp supported
+[    3.471496] socfpga-dwmac 10810000.ethernet eth0: registered PTP clock
+[    3.478047] socfpga-dwmac 10810000.ethernet eth0: configuring for phy/rgmii link mode
+[    7.587339] socfpga-dwmac 10810000.ethernet eth0: Link is Up - 1Gbps/Full - flow control rx/tx

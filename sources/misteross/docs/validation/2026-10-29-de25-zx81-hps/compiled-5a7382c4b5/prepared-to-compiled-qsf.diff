@@ -1,0 +1,18 @@
+--- prepared
++++ compiled
+@@ -6,7 +6,6 @@
+ set_global_assignment -name DEVICE A5EB013BB23BE4SCS
+ set_global_assignment -name TOP_LEVEL_ENTITY golden_top
+ set_global_assignment -name ORIGINAL_QUARTUS_VERSION "25.1.0 Pro Edition"
+-set_global_assignment -name LAST_QUARTUS_VERSION "25.1.1 Pro Edition"
+ set_global_assignment -name PROJECT_CREATION_TIME_DATE "Tue May  6 11:16:28 2025"
+ set_global_assignment -name DEVICE_FILTER_PACKAGE VPBGA
+ #============================================================
+@@ -800,3 +799,7 @@
+ set_global_assignment -name SEARCH_PATH fes_mailbox
+ set_global_assignment -name SEARCH_PATH fes_mailbox/generated
+ set_global_assignment -name SDC_FILE fes_mailbox/clocks.sdc
++set_global_assignment -name IP_FILE peripheral_subsys/ip/peripheral_subsys/peripheral_subsys_fes_mailbox.ip
++set_global_assignment -name IP_FILE peripheral_subsys/ip/peripheral_subsys/peripheral_subsys_fes_ddr_probe.ip
++set_global_assignment -name IP_FILE peripheral_subsys/ip/peripheral_subsys/peripheral_subsys_fes_computer_pixel_clk.ip
++set_global_assignment -name IP_FILE peripheral_subsys/ip/peripheral_subsys/peripheral_subsys_fes_computer.ip

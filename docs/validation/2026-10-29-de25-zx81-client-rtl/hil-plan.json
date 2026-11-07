@@ -1,0 +1,97 @@
+{
+  "rows": [
+    {
+      "path": "sources/libmister-runtime/ARCHITECTURE.md",
+      "class": "none",
+      "component": null,
+      "rule": "**/*.md"
+    },
+    {
+      "path": "sources/libmister-runtime/README.md",
+      "class": "none",
+      "component": null,
+      "rule": "**/*.md"
+    },
+    {
+      "path": "sources/libmister-runtime/docs/support-matrix.md",
+      "class": "none",
+      "component": null,
+      "rule": "**/docs/**"
+    },
+    {
+      "path": "sources/misteross/boards/de25nano/zx81-hps/Makefile",
+      "class": "none",
+      "component": null,
+      "rule": "sources/misteross/boards/de25nano/**"
+    },
+    {
+      "path": "sources/misteross/boards/de25nano/zx81-hps/README.md",
+      "class": "none",
+      "component": null,
+      "rule": "**/*.md"
+    },
+    {
+      "path": "sources/misteross/boards/de25nano/zx81-hps/client_proof.py",
+      "class": "none",
+      "component": null,
+      "rule": "sources/misteross/boards/de25nano/**"
+    },
+    {
+      "path": "sources/misteross/boards/de25nano/zx81-hps/computer_sim.hpp",
+      "class": "none",
+      "component": null,
+      "rule": "sources/misteross/boards/de25nano/**"
+    },
+    {
+      "path": "sources/misteross/boards/de25nano/zx81-hps/computer_tb.cpp",
+      "class": "none",
+      "component": null,
+      "rule": "sources/misteross/boards/de25nano/**"
+    },
+    {
+      "path": "sources/misteross/boards/de25nano/zx81-hps/cosim/client.cpp",
+      "class": "none",
+      "component": null,
+      "rule": "sources/misteross/boards/de25nano/**"
+    },
+    {
+      "path": "sources/misteross/boards/de25nano/zx81-hps/cosim/server.cpp",
+      "class": "none",
+      "component": null,
+      "rule": "sources/misteross/boards/de25nano/**"
+    },
+    {
+      "path": "sources/misteross/boards/de25nano/zx81-hps/cosim/wire.hpp",
+      "class": "none",
+      "component": null,
+      "rule": "sources/misteross/boards/de25nano/**"
+    },
+    {
+      "path": "sources/misteross/boards/de25nano/zx81-hps/sim.py",
+      "class": "none",
+      "component": null,
+      "rule": "sources/misteross/boards/de25nano/**"
+    },
+    {
+      "path": "sources/misteross/boards/de25nano/zx81-hps/test_client_proof.py",
+      "class": "none",
+      "component": null,
+      "rule": "sources/misteross/boards/de25nano/**"
+    },
+    {
+      "path": "sources/misteross/docs/architecture.md",
+      "class": "none",
+      "component": null,
+      "rule": "**/docs/**"
+    },
+    {
+      "path": "sources/misteross/tests/test_de25nano_zx81_hps.py",
+      "class": "none",
+      "component": null,
+      "rule": "sources/*/tests/**"
+    }
+  ],
+  "class": "none",
+  "components": [],
+  "decision": "NO_DEPLOY_CHANGE"
+}

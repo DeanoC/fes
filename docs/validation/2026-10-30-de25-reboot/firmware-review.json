@@ -1,0 +1,10 @@
+{
+  "repository": "https://github.com/terasic/arm-trusted-firmware",
+  "revision": "580dcb5c4e10aa7daff2bf69d493c076a6d3e665",
+  "classification": "published vendor source review, not a binary-reproducibility claim",
+  "source_sha256": {
+    "plat/altera/soc/common/socfpga_psci.c": "0bb22d1a611e2ab37eb37eb6710d6bb4d9ebeff106f024102693004cc3c1e530",
+    "plat/altera/soc/common/soc/socfpga_mailbox.c": "f9dc07f77bc28e7df4ef479af9ab97cf3786ea4ef006bac223b922f53a8237ba"
+  },
+  "primary_jtag_guidance": "https://docs.altera.com/r/docs/813773/26.1/device-configuration-user-guide-agilextm-5-fpgas-and-socs/debugging-guidelines-for-the-jtag-configuration-scheme"
+}

@@ -1,0 +1,6 @@
+test_timeout_cancels_multithreaded_child_group_without_masking_timeout (tests.test_compiler_read_audit.ReadAuditTests.test_timeout_cancels_multithreaded_child_group_without_masking_timeout) ... ok
+
+----------------------------------------------------------------------
+Ran 1 test in 0.513s
+
+OK

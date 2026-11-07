@@ -1,0 +1,26 @@
+{
+  "round1-rom.png": {
+    "sha256": "2ab23c997026312655862a34c36d054fa6992e6bfd6ea5bff6970c068bd12fc2",
+    "source": "image bytes returned by view_image, recovered from session tool output",
+    "tool_call_id": "call_f7f1dabd13a447e4a5221d588d048e0b",
+    "timestamp": "2026-10-31T07:52:28.440Z"
+  },
+  "round1-run.png": {
+    "sha256": "65e0d3b26e57cc37dac66824af274c525a1c89d9fd3ed17dac55f508fc88d9b0",
+    "source": "image bytes returned by view_image, recovered from session tool output",
+    "tool_call_id": "call_a2b8a4ced2964fc0a62f0231c4f79bb7",
+    "timestamp": "2026-10-31T07:53:01.453Z"
+  },
+  "round2-rom.png": {
+    "sha256": "2ab23c997026312655862a34c36d054fa6992e6bfd6ea5bff6970c068bd12fc2",
+    "source": "image bytes returned by view_image, recovered from session tool output",
+    "tool_call_id": "call_66a48cbfd38c40588aa5f0f33fe425f5",
+    "timestamp": "2026-10-31T07:54:13.893Z"
+  },
+  "round2-run.png": {
+    "sha256": "65e0d3b26e57cc37dac66824af274c525a1c89d9fd3ed17dac55f508fc88d9b0",
+    "source": "image bytes returned by view_image, recovered from session tool output",
+    "tool_call_id": "call_81e5d82635604558a745f4ea5375439d",
+    "timestamp": "2026-10-31T07:54:39.175Z"
+  }
+}

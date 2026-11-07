@@ -1,0 +1,56 @@
+{
+  "computer_build_id": "06ee047f143317df0fd1d98717b2b991",
+  "files": {
+    "candidate-info.log": {
+      "sha256": "ae6a3d13464fd744da0c8cd7c8d5e755ba9bd5b02a923cd7db2fc53411559d0f",
+      "size": 6312
+    },
+    "conversion.log": {
+      "sha256": "d49f8b21774cf4776c7d14c94d39e23356ed7da4e21478879c6d0da6cac6c952",
+      "size": 2821
+    },
+    "golden_top_hps.jic": {
+      "sha256": "e3d20c2d066761fd02897422ba361aa19faafcd0240dd2782965754cc61b38a4",
+      "size": 16777447
+    },
+    "linux-boot.core.rbf": {
+      "sha256": "7130375986bd59633d856beb6cf69db238432a06b84fa0ba1900ffd556ca180a",
+      "size": 1990656
+    },
+    "linux-boot.hps.jic": {
+      "sha256": "fefe5246045354d665fbc195dad5350a0e23d1e3bf33516b93b0411832bfde64",
+      "size": 16777449
+    },
+    "linux-complete.sof": {
+      "sha256": "0a9475308c4411664083377e7865ad7dedac287bc3b8c4b6fcb520386c7fcc5f",
+      "size": 1892580
+    },
+    "linux-programming.json": {
+      "sha256": "0b77307f66eb416f31806b41255dc794e8b0229cbc4c598f9ff910d6f11a7337",
+      "size": 1183
+    },
+    "recovery-info.log": {
+      "sha256": "7b888f3a7dfffd8cee4a93c02e07690e0786de74958b5908a6020e6bf507f47c",
+      "size": 5079
+    },
+    "recovery.hps.rbf": {
+      "sha256": "1a0d681a00efdb34ecc3ff1866da5dc343c3fe625fb6019351647144452b18de",
+      "size": 868352
+    },
+    "rollback-info.log": {
+      "sha256": "6686a32ddc13cdaa4b5e3ec31cda3480b7e1f4770c281d5c5f3adb1501a91f4c",
+      "size": 7013
+    },
+    "vendor-readme.txt": {
+      "sha256": "bb81c63795a18a22f30001eed7a2bd4acea2704d1ebed20c4ad60092001eb5cc",
+      "size": 1127
+    }
+  },
+  "format": 1,
+  "hardware_programming": "not-performed",
+  "kind": "de25-bootstrap-candidate",
+  "producer_revision": "79d616e85e19d65f0d645b67a85ffe7e142dcdfc",
+  "production_admission": false,
+  "qspi_boot_and_reboot": "not-qualified",
+  "rollback_scope": "locked vendor BSP JIC; not a readback of this board flash"
+}

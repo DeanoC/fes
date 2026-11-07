@@ -1,0 +1,63 @@
+Info (22747): Value AUTO_DISCOVERY for QSF Assignment PWRMGT_VOLTAGE_OUTPUT_FORMAT is not supported. Hence changing the value to LINEAR_FORMAT
+Info: *******************************************************************
+Info: Running Quartus Prime Synthesis
+    Info: Version 26.3.0 Build 114 10/14/2026 SC Pro Edition
+    Info: Copyright (C) 2026  Altera Corporation. All rights reserved.
+    Info: Your use of Altera Corporation's design tools, logic functions 
+    Info: and other software and tools, and any partner logic 
+    Info: functions, and any output files from any of the foregoing 
+    Info: (including device programming or simulation files), and any 
+    Info: associated documentation or information are expressly subject 
+    Info: to the terms and conditions of the Altera Program License 
+    Info: Subscription Agreement, the Altera Quartus Prime License Agreement,
+    Info: the Altera IP License Agreement, or other applicable license
+    Info: agreement, including, without limitation, that your use is for
+    Info: the sole purpose of programming logic devices manufactured by
+    Info: Altera and sold by Altera or its authorized distributors.  Please
+    Info: refer to the Altera Software License Subscription Agreements 
+    Info: on the Quartus Prime software download page.
+    Info: Processing started: Thu Oct 29 05:47:35 2026
+    Info: System process ID: 3445034
+Info: Command: quartus_syn tape_store --rev=tape_store
+Info: qis_default_flow_script.tcl version: #1
+Info: Initializing Synthesis...
+Info: Project = "tape_store"
+Info: Revision = "tape_store"
+Info (21958): Initialized Quartus Message Database
+Info: Analyzing source files
+Critical Warning (20759): Use the Reset Release IP in Agilex 5 designs to ensure a successful configuration. For more information about the Reset Release IP, refer to the Configuration User Guide.
+Info: Elaborating from top-level entity "zx81_tape_store"
+Error (272006): Connected clock1 port of the ALTSYNCRAM megafunction is unused with the current set of parameters File: /home/deano/.codex/worktrees/c134/fes/out/dev/de25-zx81-hps/out/de25-tape-store-project-01/tape_store.v Line: 46
+Error (20110): Auto-generation of IP "altsyncram" for instance "banks[0].image" failed. See previous errors for reason/mitigation. File: /home/deano/.codex/worktrees/c134/fes/out/dev/de25-zx81-hps/out/de25-tape-store-project-01/tape_store.v Line: 46
+Error (23049): Parameters used for IP "altsyncram" instance "banks[0].image": File: /home/deano/.codex/worktrees/c134/fes/out/dev/de25-zx81-hps/out/de25-tape-store-project-01/tape_store.v Line: 46
+    Error (23050): Parameter "address_reg_b" value "CLOCK0" type "PARAMETER_STRING"
+    Error (23050): Parameter "clock_enable_input_a" value "BYPASS" type "PARAMETER_STRING"
+    Error (23050): Parameter "clock_enable_input_b" value "BYPASS" type "PARAMETER_STRING"
+    Error (23050): Parameter "clock_enable_output_a" value "BYPASS" type "PARAMETER_STRING"
+    Error (23050): Parameter "clock_enable_output_b" value "BYPASS" type "PARAMETER_STRING"
+    Error (23050): Parameter "intended_device_family" value "Agilex 5" type "PARAMETER_STRING"
+    Error (23050): Parameter "lpm_type" value "altsyncram" type "PARAMETER_STRING"
+    Error (23050): Parameter "numwords_a" value "8192" type "PARAMETER_SIGNED_DEC"
+    Error (23050): Parameter "numwords_b" value "8192" type "PARAMETER_SIGNED_DEC"
+    Error (23050): Parameter "operation_mode" value "DUAL_PORT" type "PARAMETER_STRING"
+    Error (23050): Parameter "outdata_aclr_a" value "NONE" type "PARAMETER_STRING"
+    Error (23050): Parameter "outdata_aclr_b" value "NONE" type "PARAMETER_STRING"
+    Error (23050): Parameter "outdata_reg_a" value "UNREGISTERED" type "PARAMETER_STRING"
+    Error (23050): Parameter "outdata_reg_b" value "UNREGISTERED" type "PARAMETER_STRING"
+    Error (23050): Parameter "power_up_uninitialized" value "FALSE" type "PARAMETER_STRING"
+    Error (23050): Parameter "ram_block_type" value "M20K" type "PARAMETER_STRING"
+    Error (23050): Parameter "rdcontrol_reg_b" value "CLOCK0" type "PARAMETER_STRING"
+    Error (23050): Parameter "read_during_write_mode_mixed_ports" value "OLD_DATA" type "PARAMETER_STRING"
+    Error (23050): Parameter "width_a" value "8" type "PARAMETER_SIGNED_DEC"
+    Error (23050): Parameter "width_b" value "8" type "PARAMETER_SIGNED_DEC"
+    Error (23050): Parameter "width_byteena_a" value "1" type "PARAMETER_SIGNED_DEC"
+    Error (23050): Parameter "width_byteena_b" value "1" type "PARAMETER_SIGNED_DEC"
+    Error (23050): Parameter "widthad_a" value "13" type "PARAMETER_SIGNED_DEC"
+    Error (23050): Parameter "widthad_b" value "13" type "PARAMETER_SIGNED_DEC"
+Error: Failed to elaborate design: 
+Error: Flow failed: Errors generated during elaboration
+Error: Quartus Prime Synthesis was unsuccessful. 29 errors, 1 warning
+    Error: Peak virtual memory: 1613 megabytes
+    Error: Processing ended: Thu Oct 29 05:47:37 2026
+    Error: Elapsed time: 00:00:02
+    Error: System process ID: 3445034

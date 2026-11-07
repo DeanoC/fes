@@ -322,6 +322,10 @@ a Linux physical MMIO map or an activatable package interface.
 defines the bounded read-only DDR diagnostic. [DE25 DDR](de25-ddr.md) describes
 its descriptor, local drain status and separate translation/firewall gates.
 
+[`fabric/fes_fabric_de25_scanout.yaml`](../packages/fabric/fes_fabric_de25_scanout.yaml)
+defines the separate allocated-buffer scanout registers and frozen completion
+snapshot. [DE25 scanout](de25-scanout.md) owns its slot, clock and drain contract.
+
 [`fabric/fes_fabric_video_raster_rgb888.yaml`](../packages/fabric/fes_fabric_video_raster_rgb888.yaml)
 defines `fes.fabric.video.raster-rgb888` 1.0. See
 [timed video parts](video-parts.md) for bundled pixels/timing, CE-qualified

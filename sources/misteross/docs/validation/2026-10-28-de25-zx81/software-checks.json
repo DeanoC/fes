@@ -1,0 +1,211 @@
+{
+  "format": 1,
+  "scope_base": "53dbe27886eb3fe750e45fa71ece89415c03f99f",
+  "code_revision": "b5e8f7ca4b67c9b11685ce05f23e148b33e3e24b",
+  "evidence_class": "host-only software and simulation",
+  "local_affected_run": {
+    "argv": [
+      "/tmp/fes-de25-ddr-test-venv/bin/python",
+      "scripts/test_changed.py",
+      "--base",
+      "53dbe27886eb3fe750e45fa71ece89415c03f99f",
+      "--jobs",
+      "4"
+    ],
+    "status": "intentionally partial; duplicate tail retired after matching CI coverage",
+    "exit_code": 143,
+    "completed_command_indices": [
+      0,
+      1,
+      2,
+      3,
+      4,
+      5
+    ],
+    "stopped_command_index": 6,
+    "not_started_command_indices": [
+      7
+    ],
+    "no_local_aggregate_success_claim": true,
+    "log": "out/de25-zx81-affected.log",
+    "retirement": "out/de25-zx81-local-tail-retirement.json",
+    "planner_tests": {
+      "run": 26,
+      "passed": 26
+    },
+    "runner_tests": {
+      "run": 31,
+      "passed": 31
+    },
+    "parent_tests": {
+      "run": 973,
+      "passed": 970,
+      "skipped": 3,
+      "elapsed_seconds": 979.099
+    },
+    "consistency_returned_success": true
+  },
+  "local_make_check": {
+    "status": "passed",
+    "code_revision": "b5e8f7ca4b67c9b11685ce05f23e148b33e3e24b",
+    "generated_consumers": 28,
+    "fixture_copies": 37,
+    "copied_source_pins": 0,
+    "log": "out/de25-zx81-make-check-final.log"
+  },
+  "local_board_simulation": {
+    "status": "passed",
+    "source_revision": "b5e8f7ca4b67c9b11685ce05f23e148b33e3e24b",
+    "complete_frames": 178,
+    "ink_and_paper_frames": 4,
+    "binary_elapsed_seconds": 166.417,
+    "log": "simulation.log",
+    "boundaries": "real CPU/machine/ROM/behavioral RAM/video; digital PLL/configuration/I2C models"
+  },
+  "local_default_control": {
+    "status": "passed",
+    "binary_elapsed_seconds": 102.18,
+    "scope": "unchanged existing machine_tb; default scheduler, BASIC/keyboard/tape LOAD",
+    "receipt": "default-control.json",
+    "log": "default-control.log"
+  },
+  "matching_ci": {
+    "run_id": 40771811312,
+    "url": "https://github.com/DeanoC/fes/actions/runs/40771811312",
+    "head_sha": "b5e8f7ca4b67c9b11685ce05f23e148b33e3e24b",
+    "checkout_merge": "d040ca716fcac316c51f8d8d666ac8d3d8c0b237",
+    "merge_parents": [
+      "53dbe27886eb3fe750e45fa71ece89415c03f99f",
+      "b5e8f7ca4b67c9b11685ce05f23e148b33e3e24b"
+    ],
+    "checkout_tree": "8ec6168828605869de8b09d9a01fae8f58fb209f",
+    "checkout_tree_equals_head_tree": true,
+    "fpga_producer": {
+      "job_id": 123110829650,
+      "conclusion": "success",
+      "run": 1436,
+      "passed": 1379,
+      "skipped": 57,
+      "elapsed_seconds": 175.981,
+      "new_board_simulation": "skipped because this job lacks Verilator/C++; covered by the passing local board run",
+      "selected_log_lines": [
+        "2026-10-28T21:25:44.4741933Z [command]/usr/bin/git -c protocol.version=2 fetch --prune --no-recurse-submodules origin +refs/heads/*:refs/remotes/origin/* +refs/tags/*:refs/tags/* +d040ca716fcac316c51f8d8d666ac8d3d8c0b237:refs/remotes/pull/1229/merge",
+        "2026-10-28T21:27:29.2799379Z  * [new ref]             d040ca716fcac316c51f8d8d666ac8d3d8c0b237 -> pull/1229/merge",
+        "2026-10-28T21:27:29.9293234Z HEAD is now at d040ca716 Merge b5e8f7ca4b67c9b11685ce05f23e148b33e3e24b into 53dbe27886eb3fe750e45fa71ece89415c03f99f",
+        "2026-10-28T21:27:29.9458786Z d040ca716fcac316c51f8d8d666ac8d3d8c0b237",
+        "2026-10-28T21:28:45.9961066Z test_dirty_build_stops_before_preparation (de25_zx81_tests.ZX81BuildTests.test_dirty_build_stops_before_preparation) ... ok",
+        "2026-10-28T21:28:45.9992430Z test_generated_clock_guard_rejects_silent_rounding_in_metadata_or_atom (de25_zx81_tests.ZX81BuildTests.test_generated_clock_guard_rejects_silent_rounding_in_metadata_or_atom) ... ok",
+        "2026-10-28T21:28:46.0305887Z test_generated_ip_parameter_changes_are_retained_and_rejected (de25_zx81_tests.ZX81BuildTests.test_generated_ip_parameter_changes_are_retained_and_rejected) ... ok",
+        "2026-10-28T21:28:46.0310929Z test_pll_targets_are_guarded (de25_zx81_tests.ZX81BuildTests.test_pll_targets_are_guarded) ... ok",
+        "2026-10-28T21:28:46.0315718Z test_ram_adaptation_is_limited_to_family_and_block_type (de25_zx81_tests.ZX81BuildTests.test_ram_adaptation_is_limited_to_family_and_block_type) ... ok",
+        "2026-10-28T21:28:46.0621679Z test_real_machine_project_preserves_sources_and_records_derivations (de25_zx81_tests.ZX81BuildTests.test_real_machine_project_preserves_sources_and_records_derivations) ... ok",
+        "2026-10-28T21:28:46.0941266Z test_refuses_unlocked_archive_and_existing_output (de25_zx81_tests.ZX81BuildTests.test_refuses_unlocked_archive_and_existing_output) ... ok",
+        "2026-10-28T21:28:46.0959331Z test_rejects_changed_i2c_clock_divider (de25_zx81_tests.ZX81BuildTests.test_rejects_changed_i2c_clock_divider) ... ok",
+        "2026-10-28T21:28:46.0992791Z test_rejects_missing_key_or_disagreeing_hdmi_pin (de25_zx81_tests.ZX81BuildTests.test_rejects_missing_key_or_disagreeing_hdmi_pin) ... ok",
+        "2026-10-28T21:28:46.0994298Z test_real_machine_on_de25_board (test_de25nano_zx81.ZX81SimulationTests.test_real_machine_on_de25_board) ... skipped 'requires Verilator and C++'",
+        "2026-10-28T21:30:32.9466749Z Ran 1436 tests in 175.981s",
+        "2026-10-28T21:30:32.9467093Z OK (skipped=57)"
+      ]
+    },
+    "zx81_regression": {
+      "job_id": 123111178314,
+      "conclusion": "success",
+      "scope": "make sim-fes-zx81 including ROM, expansion, session-display, family variants, machine/SAVE/video",
+      "log_extract": "zx81-ci-log.json"
+    },
+    "observed_jobs": [
+      {
+        "id": 123110673850,
+        "name": "plan",
+        "status": "completed",
+        "conclusion": "success"
+      },
+      {
+        "id": 123110829650,
+        "name": "fpga-producer",
+        "status": "completed",
+        "conclusion": "success"
+      },
+      {
+        "id": 123110829709,
+        "name": "consistency",
+        "status": "completed",
+        "conclusion": "success"
+      },
+      {
+        "id": 123110829798,
+        "name": "parent-tests",
+        "status": "in_progress",
+        "conclusion": null
+      },
+      {
+        "id": 123110829820,
+        "name": "simulation-tools",
+        "status": "completed",
+        "conclusion": "success"
+      },
+      {
+        "id": 123110831630,
+        "name": "contracts",
+        "status": "completed",
+        "conclusion": "skipped"
+      },
+      {
+        "id": 123110831654,
+        "name": "host",
+        "status": "completed",
+        "conclusion": "skipped"
+      },
+      {
+        "id": 123110832482,
+        "name": "runtime",
+        "status": "completed",
+        "conclusion": "skipped"
+      },
+      {
+        "id": 123111178314,
+        "name": "fpga-simulation (zx81, sim-fes-zx81)",
+        "status": "completed",
+        "conclusion": "success"
+      }
+    ],
+    "aggregate_success_claim": false,
+    "aggregate_limit": "The independent CI parent-tests job was still in progress at this observation. The local parent command passed."
+  },
+  "planned_coverage": [
+    {
+      "indices": [
+        0,
+        1,
+        2,
+        3,
+        4,
+        5
+      ],
+      "source": "completed local fail-fast affected runner; independent make check also passed"
+    },
+    {
+      "indices": [
+        6
+      ],
+      "source": "matching-tree CI FPGA producer job; 1379 passed/57 skipped; new DE25 board skip covered locally"
+    },
+    {
+      "indices": [
+        7
+      ],
+      "source": "matching-tree full ZX81 CI regression job"
+    }
+  ],
+  "limits": [
+    "All eight planned commands have passing coverage through local results plus matching CI. The local runner itself was intentionally stopped and is not a complete passing run.",
+    "Other tool-dependent tests skipped by CI are not silently counted as passes.",
+    "No image, package seal, deployment or physical acceptance is claimed. Existing-consumer package/HIL and physical DE25 gates remain open."
+  ],
+  "retained_local_file_sha256": {
+    "out/de25-zx81-affected.log": "4f0c0ba34a5eec707a553542d7b2996cd4657c2f440873d2afe6925302082ac5",
+    "out/de25-zx81-local-tail-retirement.json": "82f465180915c465533c20235a7b7e8671028e93999d1e63113870709f29bad3",
+    "out/de25-zx81-affected-plan.json": "49b5beb13fc13223988006383a4694b607a778737632f6b1d6422186df687973",
+    "out/de25-zx81-make-check-final.log": "f9b42c44d03d6fde4d6e4eb4f3226dc4a02ec76672f256c3cf0a36b7d1c1960b"
+  }
+}

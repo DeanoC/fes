@@ -1,0 +1,115 @@
+{
+  "schema": "fes.github-actions.job-log-summary.v1",
+  "job_id": 123247092019,
+  "job_name": "runtime",
+  "job_url": "https://github.com/DeanoC/fes/actions/runs/40812839901/job/123247092019",
+  "conclusion": "success",
+  "source": "GitHub connector fetch_workflow_job_logs (decoded log; full log not copied)",
+  "source_log_characters": 35842,
+  "source_log_line_count": 301,
+  "go_package_pass_lines": 0,
+  "unique_go_packages": 0,
+  "excerpts": [
+    {
+      "line": 118,
+      "text": "HEAD is now at 66d0cff Merge 786e6383b32617af8baeb32e9de6cf99231a19f9 into 1db4ba71e973aa01fc521fe42ed0a901061ad8b0"
+    },
+    {
+      "line": 229,
+      "text": "production_hardware_test passed"
+    },
+    {
+      "line": 230,
+      "text": "menu transport phase/FD ownership/truncation/bounds/deadline tests passed"
+    },
+    {
+      "line": 231,
+      "text": "menu window grant/clear/clean/revoke/share tests passed"
+    },
+    {
+      "line": 232,
+      "text": "menu driver geometry/counters/ordered submission/invalid-state/blit tests passed"
+    },
+    {
+      "line": 233,
+      "text": "runtime_test: 56 passed"
+    },
+    {
+      "line": 234,
+      "text": "diagnostic_test: 9 passed"
+    },
+    {
+      "line": 235,
+      "text": "artifacts_test: 11 passed"
+    },
+    {
+      "line": 236,
+      "text": "core_package_test: 13 groups passed"
+    },
+    {
+      "line": 237,
+      "text": "core_composition_test: single-socket and multi-slot admission passed"
+    },
+    {
+      "line": 238,
+      "text": "core_data_test: codec, identity, corruption, CAS, retained storage and no-follow passed"
+    },
+    {
+      "line": 239,
+      "text": "fes_gp_test: all groups passed"
+    },
+    {
+      "line": 240,
+      "text": "native_hardware_test: 34 passed"
+    },
+    {
+      "line": 241,
+      "text": "fpga_manager_test: 28 passed"
+    },
+    {
+      "line": 242,
+      "text": "mmio_test: 3 passed"
+    },
+    {
+      "line": 243,
+      "text": "window_driver_test passed"
+    },
+    {
+      "line": 244,
+      "text": "off_t_test: 1 passed"
+    },
+    {
+      "line": 245,
+      "text": "video_recipe_test: all exact-data assertions passed"
+    },
+    {
+      "line": 248,
+      "text": "input_test: 14 passed"
+    },
+    {
+      "line": 249,
+      "text": "video_test: 213 scenarios passed"
+    },
+    {
+      "line": 250,
+      "text": "protocol_test: 27 tests passed"
+    },
+    {
+      "line": 252,
+      "text": "daemon_server_test: 36 passed"
+    },
+    {
+      "line": 269,
+      "text": "active_tree_test: passed"
+    },
+    {
+      "line": 272,
+      "text": "hardware support truth passed"
+    },
+    {
+      "line": 285,
+      "text": "\"returncode\": 0"
+    }
+  ],
+  "note": "Counts and groups retain the producing suite's wording; Go package pass lines are not individual test counts. These are host software tests, including tests of hardware guard code, not physical hardware acceptance."
+}

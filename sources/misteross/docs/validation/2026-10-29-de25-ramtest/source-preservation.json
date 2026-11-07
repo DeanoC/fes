@@ -1,0 +1,270 @@
+{
+  "compiled_handoff_and_sdc_still_match_build_receipt": true,
+  "compiled_reports_still_match_build_receipt": true,
+  "emif_b_original_physical_parameter_count": 91,
+  "emif_b_original_physical_parameters_all_equal": true,
+  "format": 1,
+  "generated_b_response_path": [
+    {
+      "file": {
+        "bytes": 163902,
+        "path": "out/de25-ramtest-calibration-contract/hps/project/qsys_top/altera_mm_interconnect_1920/synth/qsys_top_altera_mm_interconnect_1920_efc6l6y.v",
+        "sha256": "f409c790430f65f8a55e05e8734cf85e32adbbd0938786c7b40a84d0e4e243ce"
+      },
+      "read_response_enabled_instances": 2,
+      "scope": "structural settings/wiring; generated bridge behavior not simulated",
+      "write_response_enabled_instances": 2
+    }
+  ],
+  "hps_destructive_enabled": false,
+  "hps_module_parameters": {
+    "hps_subsys/ip/hps_subsys/agilex_hps.ip": {
+      "actual_file_sha256": "ab5fed80711d8a9e8af9bca1364d10119d4633ce1381339679ad8493a7f61332",
+      "all_parameters_equal": true,
+      "parameter_count": 359
+    },
+    "hps_subsys/ip/hps_subsys/f2sdram_adapter.ip": {
+      "actual_file_sha256": "060ba3b6ea5bb8f7bcebd1f076ed1a31268724c3a2ec3c5afe6eff5904a3d29a",
+      "all_parameters_equal": true,
+      "parameter_count": 1
+    },
+    "hps_subsys/ip/qsys_top/emif_io96b_hps.ip": {
+      "actual_file_sha256": "de18eefbc061aead55136749177d977838121a980b1b60b688690e2309246bd3",
+      "all_parameters_equal": true,
+      "parameter_count": 137
+    }
+  },
+  "physical_timing_hardware_and_boot_acceptance": "not-qualified",
+  "post_compile_qsf": {
+    "bytes": 48683,
+    "path": "out/de25-ramtest-calibration-contract/hps/project/golden_top.qsf",
+    "sha256": "138a0b4e09f017ddd112a086c93f5a18cd077fb234934696d7296a473c78fc00"
+  },
+  "prepared_source_bindings": {
+    "hps": {
+      "board_build.py": "104fc74e5bf448396e3e078535615efd9ac30ce6d47cc1e96cf98a5622211d6c",
+      "build.py": "9655d7d9bf226b8382ca8458063759a24932e4e337176d06cc112b4afda5c83c",
+      "fes_de25_ddr_probe.v": "884512e8259f8ac1becdeae5dd2845de450ee6ec3dc5b977f67fb11bb676d498",
+      "fes_de25_ddr_probe_hw.tcl": "a370ef58e230603c738c3c30be69527d4c78b509509415154c239aa33b547bd7",
+      "fes_de25_mailbox.v": "c7cb18157ad5476b0c2824e56a88855dd29f81f6470f8820405434acd301945e",
+      "fes_de25_mailbox_hw.tcl": "fecd51d784e9bb595f7aa0d456055a32d9587a6dd4041ecb11395cd1a4a14f2a",
+      "fes_de25_top.sdc": "bfeec4459f58d8287a55119b899bd663805942f7d51e915bc7c8e2dc7d77c2e7",
+      "fes_de25_top_reset.v": "02b156aa9c08bbe5e1e4244f6c068fcfba84ea96f4132624d14de4034e79ce8a",
+      "generated/fes_de25_ddr_probe.hpp": "ab191c5b6bfbb455abf21a3b80f2925fbfa97f69e2ab2290781e748bdf205105",
+      "generated/fes_de25_ddr_probe.vh": "5e79081cdf4daca60057540a3c3ce4eb12ad6f88eceb475a828779588ac717c3",
+      "generated/fes_de25_mailbox.hpp": "8b1f04a79981b7f77cc0d0035a7ca112ef3c75f35dea9b4596133f4e07719c6b",
+      "generated/fes_de25_mailbox.vh": "f0404bd1898a0f825a6fbdab20018d7efe95e48e06e57640477266d4a2f5cd9a",
+      "integrate.tcl": "101c2c6600c2e5912e0d051bdaf3db72eedc07779f1cfada661d3f6f2f203bc0",
+      "vendor.lock.toml": "cd72e8f75190725071d14830348b574542894aa97027650a546badac55c2c2fb"
+    },
+    "ramtest": {
+      "build.py": "9655d7d9bf226b8382ca8458063759a24932e4e337176d06cc112b4afda5c83c",
+      "clocks.sdc": "991020cab652a6b1343c17680281e00246be24a5248b397ae35125d70d45d075",
+      "endpoint.v": "a7b3f08f01fc0f886689305041f174b72818035af226d987737e02950df89c91",
+      "fes_de25_ramtest_hw.tcl": "e3b0f30b8b00f32186de03097d96752bdc203ae33a0311753cf4777cd46f8c23",
+      "fes_de25_sdram_ramtest_hw.tcl": "9c62714779c5662d2630cc4dddc5492356f48bc0bc89e41da032898a4cf91c9a",
+      "generated/fes_de25_ramtest.hpp": "f5a48dd74ed445ad0f014731e4b800a1c72a8cd6683b4ddce50df7413901ee5b",
+      "generated/fes_de25_ramtest.vh": "c3c5a4a89af13c031a3003fcc6d3a50bbf1776b55fde510e6477aba4e8788ad8",
+      "integrate.tcl": "101c2c6600c2e5912e0d051bdaf3db72eedc07779f1cfada661d3f6f2f203bc0",
+      "scan.v": "0474f84d1ad69e1fa181b59b9bbd6920251bd835303ea2516138f8e3dcc863ce",
+      "sdram.v": "f4bdc295625c13e74b306b06fd8dd0d4b04157072f71fac15c821878a385dcfc",
+      "sdram_endpoint.v": "2d4358debc6e412d6dc1fe36b9ff20b76a8b5e4c0edefd022ce286a17c8eddb5"
+    }
+  },
+  "prepared_top": {
+    "bytes": 15871,
+    "path": "out/de25-ramtest-calibration-contract/hps/project/golden_top.v",
+    "sha256": "31f1458d2199234ecd53dc74468bdab31a6ab9fa0219f4de14666cdd11195bac"
+  },
+  "qsf_post_generation_review": {
+    "control": "selected retained recipe project-only preparation; no Quartus/compiler run",
+    "exact_added_lines": [
+      "set_global_assignment -name IP_FILE ramtest_b/ip/ramtest_b/ramtest_b_fabric100.ip",
+      "set_global_assignment -name IP_FILE ramtest_b/ip/ramtest_b/ramtest_b_control50.ip",
+      "set_global_assignment -name IP_FILE peripheral_subsys/ip/peripheral_subsys/peripheral_subsys_fes_mailbox.ip",
+      "set_global_assignment -name IP_FILE peripheral_subsys/ip/peripheral_subsys/peripheral_subsys_fes_ddr_probe.ip",
+      "set_global_assignment -name IP_FILE peripheral_subsys/ip/peripheral_subsys/peripheral_subsys_fes_ramtest_hps.ip",
+      "set_global_assignment -name IP_FILE peripheral_subsys/ip/peripheral_subsys/peripheral_subsys_fes_ramtest_fpga.ip",
+      "set_global_assignment -name IP_FILE peripheral_subsys/ip/peripheral_subsys/peripheral_subsys_fes_ramtest_sdram.ip",
+      "set_global_assignment -name IP_FILE peripheral_subsys/ip/peripheral_subsys/peripheral_subsys_fes_ramtest_clk50.ip",
+      "set_global_assignment -name IP_FILE ip/qsys_top/qsys_top_fes_ramtest_control50.ip"
+    ],
+    "exact_removed_lines": [
+      "set_global_assignment -name LAST_QUARTUS_VERSION \"25.1.1 Pro Edition\""
+    ],
+    "pins_clocks_and_sdc_assignments_unchanged": true,
+    "post_compile_sha256": "138a0b4e09f017ddd112a086c93f5a18cd077fb234934696d7296a473c78fc00",
+    "prepared_sha256": "e480b2e8a37a57ff11c918a6cb66f54392664c045868733b4f2bcb376de6bdbf"
+  },
+  "ram_build_id": "6ee668470911276a9e553d0025c7ef0b",
+  "retained_vendor_software": {
+    "software/hps_debug/README.md": "3712c47713d6ec9358834844beb6564e2933c2764444efc367021ae83f7368ef",
+    "software/hps_debug/build.sh": "f49ce3b45cb06d86d0e9cad7311484708a5c954e694f0ee9b0bccc37cfb23591",
+    "software/hps_debug/hps_wipe.s": "7ea170d8eebda9c8488caf9bd3533bd3c9e2a78a54d67922f42cba38717dcbc4",
+    "software/u-boot/spl/u-boot-spl-dtb.hex": "096f53ea0bb0ba6e7449b2acf012eae734840dbcdd2943b506567bad2f72f823"
+  },
+  "selected_functional_sources": {
+    "sources/misteross/boards/de25nano/build.py": {
+      "current_worktree": "104fc74e5bf448396e3e078535615efd9ac30ce6d47cc1e96cf98a5622211d6c",
+      "producer_git_blob": "104fc74e5bf448396e3e078535615efd9ac30ce6d47cc1e96cf98a5622211d6c",
+      "retained_snapshot": "104fc74e5bf448396e3e078535615efd9ac30ce6d47cc1e96cf98a5622211d6c",
+      "selected": "104fc74e5bf448396e3e078535615efd9ac30ce6d47cc1e96cf98a5622211d6c"
+    },
+    "sources/misteross/boards/de25nano/hps/build.py": {
+      "current_worktree": "9655d7d9bf226b8382ca8458063759a24932e4e337176d06cc112b4afda5c83c",
+      "producer_git_blob": "9655d7d9bf226b8382ca8458063759a24932e4e337176d06cc112b4afda5c83c",
+      "retained_snapshot": "9655d7d9bf226b8382ca8458063759a24932e4e337176d06cc112b4afda5c83c",
+      "selected": "9655d7d9bf226b8382ca8458063759a24932e4e337176d06cc112b4afda5c83c"
+    },
+    "sources/misteross/boards/de25nano/hps/fes_de25_ddr_probe.v": {
+      "current_worktree": "884512e8259f8ac1becdeae5dd2845de450ee6ec3dc5b977f67fb11bb676d498",
+      "producer_git_blob": "884512e8259f8ac1becdeae5dd2845de450ee6ec3dc5b977f67fb11bb676d498",
+      "retained_snapshot": "884512e8259f8ac1becdeae5dd2845de450ee6ec3dc5b977f67fb11bb676d498",
+      "selected": "884512e8259f8ac1becdeae5dd2845de450ee6ec3dc5b977f67fb11bb676d498"
+    },
+    "sources/misteross/boards/de25nano/hps/fes_de25_ddr_probe_hw.tcl": {
+      "current_worktree": "a370ef58e230603c738c3c30be69527d4c78b509509415154c239aa33b547bd7",
+      "producer_git_blob": "a370ef58e230603c738c3c30be69527d4c78b509509415154c239aa33b547bd7",
+      "retained_snapshot": "a370ef58e230603c738c3c30be69527d4c78b509509415154c239aa33b547bd7",
+      "selected": "a370ef58e230603c738c3c30be69527d4c78b509509415154c239aa33b547bd7"
+    },
+    "sources/misteross/boards/de25nano/hps/fes_de25_mailbox.v": {
+      "current_worktree": "c7cb18157ad5476b0c2824e56a88855dd29f81f6470f8820405434acd301945e",
+      "producer_git_blob": "c7cb18157ad5476b0c2824e56a88855dd29f81f6470f8820405434acd301945e",
+      "retained_snapshot": "c7cb18157ad5476b0c2824e56a88855dd29f81f6470f8820405434acd301945e",
+      "selected": "c7cb18157ad5476b0c2824e56a88855dd29f81f6470f8820405434acd301945e"
+    },
+    "sources/misteross/boards/de25nano/hps/fes_de25_mailbox_hw.tcl": {
+      "current_worktree": "fecd51d784e9bb595f7aa0d456055a32d9587a6dd4041ecb11395cd1a4a14f2a",
+      "producer_git_blob": "fecd51d784e9bb595f7aa0d456055a32d9587a6dd4041ecb11395cd1a4a14f2a",
+      "retained_snapshot": "fecd51d784e9bb595f7aa0d456055a32d9587a6dd4041ecb11395cd1a4a14f2a",
+      "selected": "fecd51d784e9bb595f7aa0d456055a32d9587a6dd4041ecb11395cd1a4a14f2a"
+    },
+    "sources/misteross/boards/de25nano/hps/fes_de25_top.sdc": {
+      "current_worktree": "bfeec4459f58d8287a55119b899bd663805942f7d51e915bc7c8e2dc7d77c2e7",
+      "producer_git_blob": "bfeec4459f58d8287a55119b899bd663805942f7d51e915bc7c8e2dc7d77c2e7",
+      "retained_snapshot": "bfeec4459f58d8287a55119b899bd663805942f7d51e915bc7c8e2dc7d77c2e7",
+      "selected": "bfeec4459f58d8287a55119b899bd663805942f7d51e915bc7c8e2dc7d77c2e7"
+    },
+    "sources/misteross/boards/de25nano/hps/fes_de25_top_reset.v": {
+      "current_worktree": "02b156aa9c08bbe5e1e4244f6c068fcfba84ea96f4132624d14de4034e79ce8a",
+      "producer_git_blob": "02b156aa9c08bbe5e1e4244f6c068fcfba84ea96f4132624d14de4034e79ce8a",
+      "retained_snapshot": "02b156aa9c08bbe5e1e4244f6c068fcfba84ea96f4132624d14de4034e79ce8a",
+      "selected": "02b156aa9c08bbe5e1e4244f6c068fcfba84ea96f4132624d14de4034e79ce8a"
+    },
+    "sources/misteross/boards/de25nano/hps/generated/fes_de25_ddr_probe.hpp": {
+      "current_worktree": "ab191c5b6bfbb455abf21a3b80f2925fbfa97f69e2ab2290781e748bdf205105",
+      "producer_git_blob": "ab191c5b6bfbb455abf21a3b80f2925fbfa97f69e2ab2290781e748bdf205105",
+      "retained_snapshot": "ab191c5b6bfbb455abf21a3b80f2925fbfa97f69e2ab2290781e748bdf205105",
+      "selected": "ab191c5b6bfbb455abf21a3b80f2925fbfa97f69e2ab2290781e748bdf205105"
+    },
+    "sources/misteross/boards/de25nano/hps/generated/fes_de25_ddr_probe.vh": {
+      "current_worktree": "5e79081cdf4daca60057540a3c3ce4eb12ad6f88eceb475a828779588ac717c3",
+      "producer_git_blob": "5e79081cdf4daca60057540a3c3ce4eb12ad6f88eceb475a828779588ac717c3",
+      "retained_snapshot": "5e79081cdf4daca60057540a3c3ce4eb12ad6f88eceb475a828779588ac717c3",
+      "selected": "5e79081cdf4daca60057540a3c3ce4eb12ad6f88eceb475a828779588ac717c3"
+    },
+    "sources/misteross/boards/de25nano/hps/generated/fes_de25_mailbox.hpp": {
+      "current_worktree": "8b1f04a79981b7f77cc0d0035a7ca112ef3c75f35dea9b4596133f4e07719c6b",
+      "producer_git_blob": "8b1f04a79981b7f77cc0d0035a7ca112ef3c75f35dea9b4596133f4e07719c6b",
+      "retained_snapshot": "8b1f04a79981b7f77cc0d0035a7ca112ef3c75f35dea9b4596133f4e07719c6b",
+      "selected": "8b1f04a79981b7f77cc0d0035a7ca112ef3c75f35dea9b4596133f4e07719c6b"
+    },
+    "sources/misteross/boards/de25nano/hps/generated/fes_de25_mailbox.vh": {
+      "current_worktree": "f0404bd1898a0f825a6fbdab20018d7efe95e48e06e57640477266d4a2f5cd9a",
+      "producer_git_blob": "f0404bd1898a0f825a6fbdab20018d7efe95e48e06e57640477266d4a2f5cd9a",
+      "retained_snapshot": "f0404bd1898a0f825a6fbdab20018d7efe95e48e06e57640477266d4a2f5cd9a",
+      "selected": "f0404bd1898a0f825a6fbdab20018d7efe95e48e06e57640477266d4a2f5cd9a"
+    },
+    "sources/misteross/boards/de25nano/hps/integrate.tcl": {
+      "current_worktree": "101c2c6600c2e5912e0d051bdaf3db72eedc07779f1cfada661d3f6f2f203bc0",
+      "producer_git_blob": "101c2c6600c2e5912e0d051bdaf3db72eedc07779f1cfada661d3f6f2f203bc0",
+      "retained_snapshot": "101c2c6600c2e5912e0d051bdaf3db72eedc07779f1cfada661d3f6f2f203bc0",
+      "selected": "101c2c6600c2e5912e0d051bdaf3db72eedc07779f1cfada661d3f6f2f203bc0"
+    },
+    "sources/misteross/boards/de25nano/hps/vendor.lock.toml": {
+      "current_worktree": "cd72e8f75190725071d14830348b574542894aa97027650a546badac55c2c2fb",
+      "producer_git_blob": "cd72e8f75190725071d14830348b574542894aa97027650a546badac55c2c2fb",
+      "retained_snapshot": "cd72e8f75190725071d14830348b574542894aa97027650a546badac55c2c2fb",
+      "selected": "cd72e8f75190725071d14830348b574542894aa97027650a546badac55c2c2fb"
+    },
+    "sources/misteross/boards/de25nano/ramtest/build.py": {
+      "current_worktree": "43359a63c02508546eb0ac3c0dd076a8884710032df9c8b74d2e943f0e71e7a3",
+      "producer_git_blob": "43359a63c02508546eb0ac3c0dd076a8884710032df9c8b74d2e943f0e71e7a3",
+      "retained_snapshot": "43359a63c02508546eb0ac3c0dd076a8884710032df9c8b74d2e943f0e71e7a3",
+      "selected": "43359a63c02508546eb0ac3c0dd076a8884710032df9c8b74d2e943f0e71e7a3"
+    },
+    "sources/misteross/boards/de25nano/ramtest/clocks.sdc": {
+      "current_worktree": "991020cab652a6b1343c17680281e00246be24a5248b397ae35125d70d45d075",
+      "producer_git_blob": "991020cab652a6b1343c17680281e00246be24a5248b397ae35125d70d45d075",
+      "retained_snapshot": "991020cab652a6b1343c17680281e00246be24a5248b397ae35125d70d45d075",
+      "selected": "991020cab652a6b1343c17680281e00246be24a5248b397ae35125d70d45d075"
+    },
+    "sources/misteross/boards/de25nano/ramtest/emif-b.tcl": {
+      "current_worktree": "e11e5ac996665b01f20315f9274dd1fb35dd84a19c7c3148eebc366f741afde9",
+      "producer_git_blob": "e11e5ac996665b01f20315f9274dd1fb35dd84a19c7c3148eebc366f741afde9",
+      "retained_snapshot": "e11e5ac996665b01f20315f9274dd1fb35dd84a19c7c3148eebc366f741afde9",
+      "selected": "e11e5ac996665b01f20315f9274dd1fb35dd84a19c7c3148eebc366f741afde9"
+    },
+    "sources/misteross/boards/de25nano/ramtest/endpoint.v": {
+      "current_worktree": "a7b3f08f01fc0f886689305041f174b72818035af226d987737e02950df89c91",
+      "producer_git_blob": "a7b3f08f01fc0f886689305041f174b72818035af226d987737e02950df89c91",
+      "retained_snapshot": "a7b3f08f01fc0f886689305041f174b72818035af226d987737e02950df89c91",
+      "selected": "a7b3f08f01fc0f886689305041f174b72818035af226d987737e02950df89c91"
+    },
+    "sources/misteross/boards/de25nano/ramtest/fes_de25_ramtest_hw.tcl": {
+      "current_worktree": "e3b0f30b8b00f32186de03097d96752bdc203ae33a0311753cf4777cd46f8c23",
+      "producer_git_blob": "e3b0f30b8b00f32186de03097d96752bdc203ae33a0311753cf4777cd46f8c23",
+      "retained_snapshot": "e3b0f30b8b00f32186de03097d96752bdc203ae33a0311753cf4777cd46f8c23",
+      "selected": "e3b0f30b8b00f32186de03097d96752bdc203ae33a0311753cf4777cd46f8c23"
+    },
+    "sources/misteross/boards/de25nano/ramtest/fes_de25_sdram_ramtest_hw.tcl": {
+      "current_worktree": "9c62714779c5662d2630cc4dddc5492356f48bc0bc89e41da032898a4cf91c9a",
+      "producer_git_blob": "9c62714779c5662d2630cc4dddc5492356f48bc0bc89e41da032898a4cf91c9a",
+      "retained_snapshot": "9c62714779c5662d2630cc4dddc5492356f48bc0bc89e41da032898a4cf91c9a",
+      "selected": "9c62714779c5662d2630cc4dddc5492356f48bc0bc89e41da032898a4cf91c9a"
+    },
+    "sources/misteross/boards/de25nano/ramtest/generated/fes_de25_ramtest.hpp": {
+      "current_worktree": "f5a48dd74ed445ad0f014731e4b800a1c72a8cd6683b4ddce50df7413901ee5b",
+      "producer_git_blob": "f5a48dd74ed445ad0f014731e4b800a1c72a8cd6683b4ddce50df7413901ee5b",
+      "retained_snapshot": "f5a48dd74ed445ad0f014731e4b800a1c72a8cd6683b4ddce50df7413901ee5b",
+      "selected": "f5a48dd74ed445ad0f014731e4b800a1c72a8cd6683b4ddce50df7413901ee5b"
+    },
+    "sources/misteross/boards/de25nano/ramtest/generated/fes_de25_ramtest.vh": {
+      "current_worktree": "c3c5a4a89af13c031a3003fcc6d3a50bbf1776b55fde510e6477aba4e8788ad8",
+      "producer_git_blob": "c3c5a4a89af13c031a3003fcc6d3a50bbf1776b55fde510e6477aba4e8788ad8",
+      "retained_snapshot": "c3c5a4a89af13c031a3003fcc6d3a50bbf1776b55fde510e6477aba4e8788ad8",
+      "selected": "c3c5a4a89af13c031a3003fcc6d3a50bbf1776b55fde510e6477aba4e8788ad8"
+    },
+    "sources/misteross/boards/de25nano/ramtest/integrate.tcl": {
+      "current_worktree": "82904768e22ab22b43bd968bfd3c2f712067dcc17efc67dede653b1324490100",
+      "producer_git_blob": "82904768e22ab22b43bd968bfd3c2f712067dcc17efc67dede653b1324490100",
+      "retained_snapshot": "82904768e22ab22b43bd968bfd3c2f712067dcc17efc67dede653b1324490100",
+      "selected": "82904768e22ab22b43bd968bfd3c2f712067dcc17efc67dede653b1324490100"
+    },
+    "sources/misteross/boards/de25nano/ramtest/scan.v": {
+      "current_worktree": "0474f84d1ad69e1fa181b59b9bbd6920251bd835303ea2516138f8e3dcc863ce",
+      "producer_git_blob": "0474f84d1ad69e1fa181b59b9bbd6920251bd835303ea2516138f8e3dcc863ce",
+      "retained_snapshot": "0474f84d1ad69e1fa181b59b9bbd6920251bd835303ea2516138f8e3dcc863ce",
+      "selected": "0474f84d1ad69e1fa181b59b9bbd6920251bd835303ea2516138f8e3dcc863ce"
+    },
+    "sources/misteross/boards/de25nano/ramtest/sdram.v": {
+      "current_worktree": "f4bdc295625c13e74b306b06fd8dd0d4b04157072f71fac15c821878a385dcfc",
+      "producer_git_blob": "f4bdc295625c13e74b306b06fd8dd0d4b04157072f71fac15c821878a385dcfc",
+      "retained_snapshot": "f4bdc295625c13e74b306b06fd8dd0d4b04157072f71fac15c821878a385dcfc",
+      "selected": "f4bdc295625c13e74b306b06fd8dd0d4b04157072f71fac15c821878a385dcfc"
+    },
+    "sources/misteross/boards/de25nano/ramtest/sdram_endpoint.v": {
+      "current_worktree": "2d4358debc6e412d6dc1fe36b9ff20b76a8b5e4c0edefd022ce286a17c8eddb5",
+      "producer_git_blob": "2d4358debc6e412d6dc1fe36b9ff20b76a8b5e4c0edefd022ce286a17c8eddb5",
+      "retained_snapshot": "2d4358debc6e412d6dc1fe36b9ff20b76a8b5e4c0edefd022ce286a17c8eddb5",
+      "selected": "2d4358debc6e412d6dc1fe36b9ff20b76a8b5e4c0edefd022ce286a17c8eddb5"
+    }
+  },
+  "source_producer": "43c248d2dfbad7fa2d0ef4c72fa006fe21214dc9",
+  "vendor_archive": {
+    "bytes": 184572628,
+    "path": "out/de25-ramtest-calibration-contract/vendor.zip",
+    "sha256": "f79f0eff3b0f9d042fdb61ddcf43efec77b0ebc13248eea100b94e47a1189b66"
+  }
+}

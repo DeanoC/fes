@@ -1,0 +1,35 @@
+{
+  "schema": "fes.github-actions.job-log-summary.v1",
+  "job_id": 123254584055,
+  "job_name": "integration",
+  "job_url": "https://github.com/DeanoC/fes/actions/runs/40814412866/job/123254584055",
+  "conclusion": "success",
+  "source": "GitHub connector fetch_workflow_job_logs (decoded log; full log not copied)",
+  "source_log_characters": 24075,
+  "source_log_line_count": 224,
+  "go_package_pass_lines": 0,
+  "unique_go_packages": 0,
+  "excerpts": [
+    {
+      "line": 119,
+      "text": "HEAD is now at 28054f4 Merge 5a7382c4b5c17173f48bd074847acc0acc22de93 into 1db4ba71e973aa01fc521fe42ed0a901061ad8b0"
+    },
+    {
+      "line": 181,
+      "text": "TESTED_REVISION: 28054f4d7dd76469d92199c5f4c2e03ad7664912"
+    },
+    {
+      "line": 182,
+      "text": "INTEGRATION_BASE: 1db4ba71e973aa01fc521fe42ed0a901061ad8b0"
+    },
+    {
+      "line": 184,
+      "text": "RUN_URL: https://github.com/DeanoC/fes/actions/runs/40814412866"
+    },
+    {
+      "line": 186,
+      "text": "All planned software checks passed; omitted lanes are reported in the validated plan."
+    }
+  ],
+  "note": "Unittest counts include skipped cases. Nested fixture runs are separate excerpts and must not be summed blindly. Go package results are package pass lines, not individual test counts. Hardware-related test names do not indicate physical hardware acceptance."
+}

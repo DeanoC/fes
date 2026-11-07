@@ -1,0 +1,33 @@
+{
+  "bench_sha256": "e54286a07bf5e055d4c198b75addd577a2ff54a5bb14c5955c73b5ae58f116e0",
+  "board_source_sha256": "f8f9c1b7635d33853cca4f69a41b0a1f7d5afcec32ea00c1c7dfa7a5ad08361f",
+  "compile_command": [
+    "/home/deano/.codex/worktrees/c134/fes/out/dev/de25-zx81-hps/out/de25-tape-tools/extracted/usr/bin/iverilog",
+    "-B/home/deano/.codex/worktrees/c134/fes/out/dev/de25-zx81-hps/out/de25-tape-tools/extracted/usr/lib/x86_64-linux-gnu/ivl",
+    "-g2012",
+    "-s",
+    "tape_store_tb",
+    "-o",
+    "/home/deano/.codex/worktrees/c134/fes/out/dev/de25-zx81-hps/out/de25-tape-store-vendor-03/tape_store.vvp",
+    "/data/altera_pro/26.3/ip/altera/subsystems/hssi_ss/example_project/common_f/altera_mf.v",
+    "/home/deano/.codex/worktrees/c134/fes/out/dev/de25-zx81-hps/out/de25-tape-store-vendor-03/primitive.v",
+    "/home/deano/.codex/worktrees/c134/fes/out/dev/de25-zx81-hps/out/de25-tape-store-vendor-03/behavior.v",
+    "/home/deano/.codex/worktrees/c134/fes/out/dev/de25-zx81-hps/out/de25-tape-store-vendor-03/reference.v",
+    "/home/deano/.codex/worktrees/c134/fes/out/dev/de25-zx81-hps/out/de25-tape-store-vendor-03/tape_store_tb.sv"
+  ],
+  "evidence_class": "host vendor-model functional differential; no physical mapping claim",
+  "portable_source_sha256": "796fdc6a9b1f044f96431ce64ab0f73a5676790770f7c814bb387c4df6a475fb",
+  "power_up_boundary": "unwritten portable array bytes are undefined and excluded from equality checks",
+  "simulation_command": [
+    "/home/deano/.codex/worktrees/c134/fes/out/dev/de25-zx81-hps/out/de25-tape-tools/extracted/usr/bin/vvp",
+    "-n",
+    "/home/deano/.codex/worktrees/c134/fes/out/dev/de25-zx81-hps/out/de25-tape-store-vendor-03/tape_store.vvp"
+  ],
+  "simulation_log_sha256": "2a5343e71e563503e7a7dca53e5e1f80e73965a65136b3d122f9d33dd30a2615",
+  "vendor_model": "/data/altera_pro/26.3/ip/altera/subsystems/hssi_ss/example_project/common_f/altera_mf.v",
+  "vendor_model_notices": [
+    "Warning: RAM block type is assumed as     AUTO",
+    "Warning: RAM block type is assumed as     AUTO"
+  ],
+  "vendor_model_sha256": "86b22efdf30ab008cd576083699b87850545d534a76173fdf4edbe4e2780f3b5"
+}

@@ -18,9 +18,12 @@ python3 scripts/sim_fes_menu.py
 
 The read-only 128-bit Avalon reader fetches exactly 921,600 XRGB8888 pixels
 from one of two 4 MiB slots. It bounds each burst to its frame, reserves FIFO
-space for every response and keeps one burst outstanding. Cancellation drains
-issued reads and discards their data before the reader reports idle. `rst`
-here requests that drain; it must not destroy the outstanding-transfer count.
+space for every response and keeps one burst outstanding. STOP/quiesce drains
+issued reads and discards their data before the reader reports idle. By default,
+`rst` cancels pixel generation while preserving command/response accounting so
+accepted reads still drain. A consumer may opt into `RESET_ABORTS_TRAFFIC` only
+when its memory bridge resets with the reader and drops old responses; DE25
+scanout enables this mode to start a clean bridge/reader epoch after cold reset.
 
 `WINDOW_BASE` is supplied from the generated shared HPS DDR contract by
 the DDR diagnostic wrapper. Its default zero disables starts. Simulation supplies the proposed

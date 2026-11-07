@@ -1,0 +1,12 @@
+{
+  "source_revision": "8ece36c4aa634cd7e3da47a0e55728ce20c8bcee",
+  "digital_cases_passed": 14,
+  "compiler_qualification": "rejected",
+  "internal_high_findings": [
+    "CDC-50001",
+    "RES-50001"
+  ],
+  "waivers": 0,
+  "scope": "raw system-domain reset on the pixel readiness synchronizer and combinational readiness crossing; no artifact descriptor emitted",
+  "next_candidate": "registered source and local pixel reset release, with a base-stage fail-closed DRC gate"
+}

@@ -1,0 +1,96 @@
+{
+  "schema": "fes.github-actions.affected-plan-log-extract.v1",
+  "run_id": 40812839901,
+  "job_id": 123246961987,
+  "source_log_lines": [
+    714,
+    800
+  ],
+  "plan": {
+    "lanes": {
+      "parent": true,
+      "host": true,
+      "runtime": true,
+      "contracts": true,
+      "fpga": true
+    },
+    "skipped": [],
+    "cores": [],
+    "test_modes": {
+      "video": false,
+      "media": false,
+      "full_race": false
+    },
+    "paths": [
+      "docs/README.md",
+      "scripts/affected.py",
+      "scripts/consistency.py",
+      "scripts/hil_plan.py",
+      "scripts/test_policy.py",
+      "sources/mister-packages/README.md",
+      "sources/mister-packages/docs/de25-computer.md",
+      "sources/mister-packages/packages/fabric/fes_fabric_de25_computer.yaml",
+      "sources/misteross/boards/de25nano/README.md",
+      "sources/misteross/boards/de25nano/zx81-hps/Makefile",
+      "sources/misteross/boards/de25nano/zx81-hps/README.md",
+      "sources/misteross/boards/de25nano/zx81-hps/board.v",
+      "sources/misteross/boards/de25nano/zx81-hps/build.py",
+      "sources/misteross/boards/de25nano/zx81-hps/client.py",
+      "sources/misteross/boards/de25nano/zx81-hps/clocks.sdc",
+      "sources/misteross/boards/de25nano/zx81-hps/computer_tb.cpp",
+      "sources/misteross/boards/de25nano/zx81-hps/endpoint_tb.cpp",
+      "sources/misteross/boards/de25nano/zx81-hps/fes_de25_computer.v",
+      "sources/misteross/boards/de25nano/zx81-hps/fes_de25_computer_hw.tcl",
+      "sources/misteross/boards/de25nano/zx81-hps/generated/fes_computer.vh",
+      "sources/misteross/boards/de25nano/zx81-hps/generated/fes_de25_computer.hpp",
+      "sources/misteross/boards/de25nano/zx81-hps/generated/fes_de25_computer.vh",
+      "sources/misteross/boards/de25nano/zx81-hps/integrate.tcl",
+      "sources/misteross/boards/de25nano/zx81-hps/sim.py",
+      "sources/misteross/boards/de25nano/zx81-hps/test_build.py",
+      "sources/misteross/boards/de25nano/zx81-hps/test_client.py",
+      "sources/misteross/docs/architecture.md",
+      "sources/misteross/tests/test_de25nano_zx81_hps.py",
+      "tests/test_affected.py",
+      "tests/test_consistency.py",
+      "tests/test_hil_plan.py",
+      "tests/test_test_policy.py"
+    ],
+    "reasons": [
+      "scripts/affected.py: parent orchestration/tests/assembly; component sources unchanged",
+      "scripts/consistency.py: parent orchestration/tests/assembly; component sources unchanged",
+      "scripts/hil_plan.py: parent orchestration/tests/assembly; component sources unchanged",
+      "scripts/test_policy.py: software CI infrastructure; RTL unchanged",
+      "sources/mister-packages/packages/fabric/fes_fabric_de25_computer.yaml: standalone DE25 diagnostic consumers; no existing core consumer",
+      "sources/misteross/boards/de25nano/zx81-hps/Makefile: standalone DE25-Nano diagnostic; FPGA software tests; no existing core consumer",
+      "sources/misteross/boards/de25nano/zx81-hps/board.v: standalone DE25-Nano diagnostic; FPGA software tests; no existing core consumer",
+      "sources/misteross/boards/de25nano/zx81-hps/build.py: standalone DE25-Nano diagnostic; FPGA software tests; no existing core consumer",
+      "sources/misteross/boards/de25nano/zx81-hps/client.py: standalone DE25-Nano diagnostic; FPGA software tests; no existing core consumer",
+      "sources/misteross/boards/de25nano/zx81-hps/clocks.sdc: standalone DE25-Nano diagnostic; FPGA software tests; no existing core consumer",
+      "sources/misteross/boards/de25nano/zx81-hps/computer_tb.cpp: standalone DE25-Nano diagnostic; FPGA software tests; no existing core consumer",
+      "sources/misteross/boards/de25nano/zx81-hps/endpoint_tb.cpp: standalone DE25-Nano diagnostic; FPGA software tests; no existing core consumer",
+      "sources/misteross/boards/de25nano/zx81-hps/fes_de25_computer.v: standalone DE25-Nano diagnostic; FPGA software tests; no existing core consumer",
+      "sources/misteross/boards/de25nano/zx81-hps/fes_de25_computer_hw.tcl: standalone DE25-Nano diagnostic; FPGA software tests; no existing core consumer",
+      "sources/misteross/boards/de25nano/zx81-hps/generated/fes_computer.vh: standalone DE25-Nano diagnostic; FPGA software tests; no existing core consumer",
+      "sources/misteross/boards/de25nano/zx81-hps/generated/fes_de25_computer.hpp: standalone DE25-Nano diagnostic; FPGA software tests; no existing core consumer",
+      "sources/misteross/boards/de25nano/zx81-hps/generated/fes_de25_computer.vh: standalone DE25-Nano diagnostic; FPGA software tests; no existing core consumer",
+      "sources/misteross/boards/de25nano/zx81-hps/integrate.tcl: standalone DE25-Nano diagnostic; FPGA software tests; no existing core consumer",
+      "sources/misteross/boards/de25nano/zx81-hps/sim.py: standalone DE25-Nano diagnostic; FPGA software tests; no existing core consumer",
+      "sources/misteross/boards/de25nano/zx81-hps/test_build.py: standalone DE25-Nano diagnostic; FPGA software tests; no existing core consumer",
+      "sources/misteross/boards/de25nano/zx81-hps/test_client.py: standalone DE25-Nano diagnostic; FPGA software tests; no existing core consumer",
+      "sources/misteross/tests/test_de25nano_zx81_hps.py: FPGA producer/package software tests; RTL unchanged",
+      "tests/test_affected.py: parent orchestration/tests/assembly; component sources unchanged",
+      "tests/test_consistency.py: parent orchestration/tests/assembly; component sources unchanged",
+      "tests/test_hil_plan.py: parent orchestration/tests/assembly; component sources unchanged",
+      "tests/test_test_policy.py: parent orchestration/tests/assembly; component sources unchanged"
+    ],
+    "always": [
+      "planner tests",
+      "diff whitespace checks"
+    ],
+    "not_run": [
+      "FPGA synthesis/place-and-route",
+      "cold image builds",
+      "hardware acceptance"
+    ]
+  }
+}
