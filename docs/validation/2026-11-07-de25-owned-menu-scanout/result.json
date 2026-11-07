@@ -1,0 +1,103 @@
+{
+  "status": "passed",
+  "source_revision": "2b361b998098b825e9ae0b6d2a294e8beaa589c9",
+  "scope": "host-only owned menu scanout and software regression",
+  "actual_Tenfoot_pixels_checked": 2764800,
+  "rendered_frames": 2,
+  "frame_geometry": [
+    1280,
+    720
+  ],
+  "memory_bus_bits": 256,
+  "reader_bus_bits": 128,
+  "arena_bytes": 8388608,
+  "slot_bytes": 4194304,
+  "early_ack_negative_rejected": true,
+  "invalid_arena_rejected": true,
+  "clock_domain": "single pixel clock; board crossings not supplied",
+  "model_directory": "out/embedded-menu-586334f2884341f29d5a11e2456ddc87",
+  "model_result_sha256": "25a5408e22e30c9f45415b444c81d1020f61430b50a8c7f50dadde64d95031c0",
+  "source_inputs_sha256": "650bb7200e04e3e41630ebe9d240a34546a4c518e6f50b91457078da2ac31f3d",
+  "selected_source_files": 478,
+  "checks": [
+    {
+      "label": "test_affected.py",
+      "elapsed_seconds": 0.4011308450717479,
+      "result_sha256": "f34ab065728e70d4a1e310fcf12d86d524b37091ebcff8dfafad58c24596a802",
+      "log_sha256": "f1a3f389c35ba8d4f61dea44800a2809ad633f36bc8bc5ef9d8534f1f3088dbc"
+    },
+    {
+      "label": "test_test_changed.py",
+      "elapsed_seconds": 1.2019644968677312,
+      "result_sha256": "b0f8b1bbae04d027132af680b7c1cf34b690688fc6eafbf24124267694085892",
+      "log_sha256": "cf6404acda4fd90e46bd40890aee8dc306cd28ae6f6b0ad9412c82d5c92844cd"
+    },
+    {
+      "label": "committed whitespace",
+      "elapsed_seconds": 0.2009566151537001,
+      "result_sha256": "7ac96a477458a46f29d66a4cb9ede581d6b4c4a07103bf87c2eace69efd12158",
+      "log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "label": "working whitespace",
+      "elapsed_seconds": 0.20082960301078856,
+      "result_sha256": "811d41f38112661bedfe8a29688cefbb996d18eb856289d699cdd09107370297",
+      "log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "label": "owned menu scanout and actual Tenfoot pixels",
+      "elapsed_seconds": 8.807927516056225,
+      "result_sha256": "0bde25657f01fa7beaae83dd3df0ec29916bc95325ea158bbfe0915ebdfeffdb",
+      "log_sha256": "84735ae4856fea60a89b890408bd72eb04f8f72519eae8401eb291555c6e9d19"
+    },
+    {
+      "label": "parent Python regressions",
+      "elapsed_seconds": 279.7838716970291,
+      "result_sha256": "00820045980703cc63575c7d9e4518eac55ed67d2e70a52596cc52a85c837b7d",
+      "log_sha256": "3e89778183b005b08084002780c7c94bdf6ec0b699a3bc7976fc7ee1773d5f8a"
+    },
+    {
+      "label": "working-tree generated consumer consistency",
+      "elapsed_seconds": 5.003612898057327,
+      "result_sha256": "c7fe133d16431191402e9b63c0774d1a978ef02156076e99a288a0b9b692c254",
+      "log_sha256": "32fa862c66e279643aaedec99c30c9fcbe50fca9e6ffb849cd844c6a8d59a5a1"
+    },
+    {
+      "label": "embedded producer identity and native control integration",
+      "elapsed_seconds": 25.21914813690819,
+      "result_sha256": "862c39165872ac64000e7f843bf3a0f5d04a3550c3b9ddd55abe016891def8c8",
+      "log_sha256": "aa1fe8d05afc3e401b3e80a66a5354439d2f401c67e4b09ed570150458df08ba"
+    },
+    {
+      "label": "host Go and UI tests",
+      "elapsed_seconds": 30.621156757930294,
+      "result_sha256": "52f3801aba082a6517c42824fe578eaefed0f34006cb1a580766ed1c141c635f",
+      "log_sha256": "b412a87fe08740a7148d2c984caa4e6e71b2f205a856925ceb82396a2caeb3da"
+    },
+    {
+      "label": "runtime software tests",
+      "elapsed_seconds": 201.13497854187153,
+      "result_sha256": "8803aff2f0d512f796a6ab07b844b6e8dc7b0fc883ed45d7e8498f047028433b",
+      "log_sha256": "077c682f744100d6e61543145230f5d22efd5da16348f168affec3dae5468956"
+    },
+    {
+      "label": "contract schemas and generated fixtures",
+      "elapsed_seconds": 3.40302194096148,
+      "result_sha256": "3136271204857236edd88bedceb5cbd0722c40d57ff847393977915e42f7e02b",
+      "log_sha256": "664559f4d4a175063f8e31c3f453249f861451b006d4332145d159ea6cc3a377"
+    },
+    {
+      "label": "test_*.py",
+      "elapsed_seconds": 312.6144467620179,
+      "result_sha256": "248a31fb99b254492797e7945a653c5c2c2887f092f99b1558ac162c787df8f6",
+      "log_sha256": "f826b87dddf2dc25312eabadcf81d585fad59526a411f17053726b1620769fd4"
+    }
+  ],
+  "total_check_seconds": 868.593045810936,
+  "hardware_actions": false,
+  "physical_HDMI": false,
+  "ordinary_package_admission": false,
+  "native_display_binding": false,
+  "goal_complete": false,
+  "next": "Bind a matched menu control map, native presenter and secure 8 MiB reservation, then prepare board clock/HDMI integration"
+}
