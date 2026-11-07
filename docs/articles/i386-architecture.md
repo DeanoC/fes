@@ -548,9 +548,14 @@ flowchart LR
     P2 --> PRE[presenter<br/>960 × 720] --> HDMI[720p60 HDMI]
     AT --> SND[speaker, OPL2,<br/>SB 2.0 DSP] --> MIX[mixer, 48 kHz]
     AT -- ATA PIO --> P2
-    HPS[HPS: FES runtime] -- disk image --> P2
-    HPS -- mailbox: keyboard,<br/>mouse, disk control --> AT
+    HPS[HPS: planned FES runtime integration] -- planned: disk image --> P2
+    HPS -- planned mailbox: keyboard,<br/>mouse, disk control --> AT
 ```
+
+The HPS arrows show the planned runtime path, not completed kit integration.
+The M5 Kit B boot used a development host link to stage the FreeDOS fixture
+through `/dev/mem`; the keyboard/mouse integration, `fes.computer` 1.1 mailbox
+and runtime disk round trip remain open.
 
 - **AT core.** Two 8259 PICs and an 8254 PIT (the MIT-licensed KF8259 and
   KF8253, with the 8254 read-back added), two 8237 DMA controllers reused
@@ -583,18 +588,24 @@ flowchart LR
   ([machine design, "Audio"](../../sources/misteross/docs/pc386-machine-design.md#audio),
   [audio record](../validation/2026-10-26-pc386-m3-audio/summary.md),
   [ADPCM record](../validation/2026-11-04-pc386-sb-adpcm/summary.md)).
-- **Disk.** One ATA master, 16-bit PIO, up to 128 MiB. The FES runtime on the
-  HPS writes the image into DDR before the machine starts; only control,
-  geometry, a CRC-32 and a dirty map of 64 KiB chunks pass through the
-  mailbox, and saves are written back per game as chunk deltas
-  ([machine design, "Disk"](../../sources/misteross/docs/pc386-machine-design.md#disk)).
+- **Disk.** One ATA master, 16-bit PIO, up to 128 MiB. The planned runtime
+  integration writes the image into DDR before the machine starts; only
+  control, geometry, a CRC-32 and a dirty map of 64 KiB chunks pass through
+  the mailbox, and saves are written back per game as chunk deltas. This
+  runtime disk round trip remains open. Kit B's M5 boot staged the FreeDOS
+  fixture through `/dev/mem`; the 6 November game acceptance checks cover
+  game save/load behavior across relaunch, not the runtime disk round trip
+  ([M5 system record](../validation/2026-10-29-pc386-m5-system/summary.md),
+  [game acceptance record](../validation/2026-11-06-pc386-game-acceptance/summary.md),
+  [machine design, "Disk"](../../sources/misteross/docs/pc386-machine-design.md#disk)).
 - **Firmware.** The open Bochs ROM BIOS (`rombios.c`, legacy build) and the
   LGPL VGABios, both held in M10K in the FPGA image
   ([machine design, "Firmware"](../../sources/misteross/docs/pc386-machine-design.md#firmware)).
   FreeDOS is the open test OS.
-- **Input.** USB keyboard rows arrive from the HPS and pass through a HID to
-  set 2 model and the 8042's translation to set 1; mouse movement becomes PS/2
-  aux packets, which CuteMouse reads through the BIOS
+- **Input.** In the planned runtime path, USB keyboard rows from the HPS pass
+  through a HID-to-set-2 model and the 8042's translation to set 1; mouse
+  movement becomes PS/2 aux packets, which CuteMouse reads through the BIOS.
+  Keyboard/mouse runtime integration on the kit remains open
   ([machine design, "8042 keyboard controller"](../../sources/misteross/docs/pc386-machine-design.md#8042-keyboard-controller)).
 
 The three DDR ports are split by traffic. Port 0 is the CPU's alone, for

@@ -14,6 +14,11 @@ AGENTS = Path(__file__).resolve().parents[1] / "AGENTS.md"
 BASELINE_SECTION = AGENTS.read_text().split("### Kit HIL baseline tracking\n", 1)[1].split(
     "\n### ", 1
 )[0]
+I386_ARTICLE = " ".join(
+    (Path(__file__).resolve().parents[1] / "docs/articles/i386-architecture.md")
+    .read_text()
+    .split()
+)
 
 
 class CheckDocLinksTests(unittest.TestCase):
@@ -120,6 +125,29 @@ class HilBaselineDocsTests(unittest.TestCase):
         ):
             with self.subTest(fact=fact):
                 self.assertIn(fact, section)
+
+
+class I386ArchitectureRuntimeDocsTests(unittest.TestCase):
+    def test_runtime_integration_is_planned_and_kit_evidence_is_scoped(self):
+        self.assertIn("HPS: planned FES runtime integration", I386_ARTICLE)
+        self.assertIn("planned mailbox: keyboard,", I386_ARTICLE)
+        self.assertIn(
+            "The HPS arrows show the planned runtime path, not completed kit integration.",
+            I386_ARTICLE,
+        )
+        self.assertIn(
+            "M5 Kit B boot used a development host link to stage the FreeDOS fixture through `/dev/mem`",
+            I386_ARTICLE,
+        )
+        self.assertIn("runtime disk round trip remains open", I386_ARTICLE)
+        self.assertIn(
+            "game save/load behavior across relaunch, not the runtime disk round trip",
+            I386_ARTICLE,
+        )
+        self.assertIn(
+            "Keyboard/mouse runtime integration on the kit remains open",
+            I386_ARTICLE,
+        )
 
 
 if __name__ == '__main__':
