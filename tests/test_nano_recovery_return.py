@@ -2,11 +2,14 @@
 import copy
 import hashlib
 import importlib.util
+import json
 from pathlib import Path
+import re
 import shutil
 import subprocess
 import tempfile
 import unittest
+from unittest.mock import patch
 
 ROOT = Path(__file__).resolve().parents[1]
 def module(name):
@@ -23,6 +26,33 @@ def fixture(path):
 
 
 class RecoveryReturnTests(unittest.TestCase):
+    def test_console_alias_resolves_to_UART1_and_matches_independent_firmware_contract(self):
+        fixture=json.loads((ROOT/'tests/fixtures/nano-recovery-return/console.json').read_text())
+        for fault in ('pass','UART0','disabled','byte-width','shift','baud','foreign-node','helper-address'):
+            data=copy.deepcopy(fixture)
+            if fault=='UART0':data['reg']='10c02000 100'
+            if fault=='disabled':data['status']='disabled'
+            if fault=='byte-width':data['reg-io-width']='1'
+            if fault=='shift':data['reg-shift']='0'
+            if fault=='baud':data['stdout']='serial0:9600n8'
+            if fault=='foreign-node':data['node']='../../outside'
+            def query(argv,**_):
+                node,name=argv[-2:]
+                if node=='/chosen':return data['stdout']+'\n'
+                if node=='/aliases':return data['node']+'\n'
+                self.assertEqual(node,data['node']);return data[name]+'\n'
+            with self.subTest(fault=fault),patch('subprocess.check_output',query),patch.object(trace,'UART_DATA',0x10c02000 if fault=='helper-address' else 0x10c02100):
+                if fault=='pass':
+                    actual=trace.check_console('fdtget','board.dtb');self.assertEqual(actual['data_address'],0x10c02100)
+                    self.assertEqual(actual['resolved_node'],'/soc/serial1@10c02100')
+                else:
+                    with self.assertRaises(ValueError):trace.check_console('fdtget','board.dtb')
+        header=(ROOT/'platform/embedded/firmware/nano_firmware_ram.h').read_text()
+        for key,value in [('DATA',trace.UART_DATA),('STATUS',trace.UART_STATUS)]:
+            match=re.search(r'#define FES_NANO_FW_RAM_UART_'+key+r' (0x[0-9a-f]+)ULL',header)
+            self.assertIsNotNone(match);self.assertEqual(int(match[1],16),value)
+            self.assertIn(hex(value)+'UL',trace.HELPER)
+
     def test_inverse_preserves_exact_original_phy_and_network_operations(self):
         with tempfile.TemporaryDirectory() as d:
             source = Path(d)/'source'; phy = fixture(source)

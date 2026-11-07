@@ -7,6 +7,8 @@ Markers mean a call boundary returned, never that DMA or a PHY is drained.
 import hashlib
 from pathlib import Path
 
+UART_DATA = 0x10c02100
+UART_STATUS = UART_DATA + 0x14
 PINNED = {
     'net/net.c': 'f8056812c01bb023db647ce64abbd26777bac7764d4549c86d0f0de0e24b1c32',
     'cmd/net.c': '692965784e07e1e6bb778a69bdbeba7501a4f6a5c0a2e223bb3af680ba14d8ea',
@@ -35,7 +37,7 @@ static void fes_return_wait(unsigned int mask)
 {
 	unsigned int poll;
 	for (poll = 0; poll < 100000; ++poll)
-		if (readl((void *)0x10c02014UL) & mask)
+		if (readl((void *)@UART_STATUS@UL) & mask)
 			return;
 	FES_RETURN_PARK();
 }
@@ -47,7 +49,7 @@ static void fes_return_text(const char *text)
 		if (!text[i])
 			return;
 		fes_return_wait(1U << 5);
-		writel((unsigned char)text[i], (void *)0x10c02000UL);
+		writel((unsigned char)text[i], (void *)@UART_DATA@UL);
 	}
 	FES_RETURN_PARK();
 }
@@ -75,7 +77,7 @@ void fes_recovery_return_end(void)
 	fes_recovery_return_mark("command-return");
 	fes_return_active = 0;
 }
-'''
+'''.replace('@UART_STATUS@', hex(UART_STATUS)).replace('@UART_DATA@', hex(UART_DATA))
 PHASES = (
     'begin', 'count-before', 'count-after', 'filesize-before', 'filesize-after',
     'fileaddr-before', 'fileaddr-after', 'eth-halt-before', 'stop-enter',
@@ -228,6 +230,31 @@ def check_linked(symbols):
         if (len(rows) != 1 or len(rows[0]) != 8 or rows[0][3:5] != ['FUNC', 'GLOBAL'] or
                 rows[0][6] == 'UND' or not rows[0][2].isdigit() or int(rows[0][2]) == 0):
             raise ValueError('recovery return helper not linked: ' + name)
+
+
+def check_console(fdtget, dtb, *, env=None):
+    """Resolve the compiled stdout alias; serial0 is UART1 on this board."""
+    import re
+    import subprocess
+    def prop(node, name, kind='s'):
+        return subprocess.check_output([str(fdtget), '-t', kind, str(dtb), node, name],
+                                       env=env, text=True, timeout=30).strip()
+    stdout = prop('/chosen', 'stdout-path')
+    match = re.fullmatch(r'([A-Za-z0-9_/@,.-]+):115200n8', stdout)
+    if match is None or '..' in match[1]:
+        raise ValueError('trace console selection or baud differs')
+    selected = match[1]
+    node = selected if selected.startswith('/') else prop('/aliases', selected)
+    if not re.fullmatch(r'/[A-Za-z0-9_/@,.-]+', node) or '..' in node:
+        raise ValueError('trace console alias is not a device path')
+    reg = prop(node, 'reg', 'x').split()
+    shift, width = prop(node, 'reg-shift', 'x'), prop(node, 'reg-io-width', 'x')
+    if (len(reg) != 2 or [int(v, 16) for v in reg] != [UART_DATA, 0x100] or
+            shift != '2' or width != '4' or prop(node, 'status') != 'okay' or
+            prop(node, 'compatible') != 'snps,dw-apb-uart'):
+        raise ValueError('trace helper does not match the enabled board console')
+    return dict(stdout_path=stdout, resolved_node=node, data_address=UART_DATA,
+                status_address=UART_STATUS, bytes=0x100, reg_shift=2, reg_io_width=4)
 
 
 def decode(text):

@@ -19,6 +19,16 @@ from test_nano_recovery_return import fixture
 SYMBOLS=recovery_tests.NanoRecoveryTests.symbols+''.join(
     f' {i}: 0000000080280000 40 FUNC GLOBAL DEFAULT 1 {name}\n'
     for i,name in enumerate(('fes_recovery_return_begin','fes_recovery_return_mark','fes_recovery_return_end'),10))
+CONSOLE=json.loads((ROOT/'tests/fixtures/nano-recovery-return/console.json').read_text())
+ROUTE=dict(stdout_path=CONSOLE['stdout'],resolved_node=CONSOLE['node'],data_address=0x10c02100,
+           status_address=0x10c02114,bytes=0x100,reg_shift=2,reg_io_width=4)
+
+def console_query(argv,**_):
+    if str(argv[0])=='readelf':return SYMBOLS
+    node,name=argv[-2:]
+    if node=='/chosen':return CONSOLE['stdout']+'\n'
+    if node=='/aliases':return CONSOLE['node']+'\n'
+    assert node==CONSOLE['node'];return CONSOLE[name]+'\n'
 
 
 def build_fixture(directory):
@@ -27,7 +37,9 @@ def build_fixture(directory):
         'CONFIG_SYS_MMCSD_RAW_MODE_U_BOOT_SECTOR=0x200','CONFIG_SPL_FS_FAT=y','CONFIG_SYS_MMCSD_FS_BOOT=y',
         'CONFIG_SYS_MMCSD_FS_BOOT_PARTITION=1','CONFIG_SPL_FS_LOAD_PAYLOAD_NAME="u-boot.itb"'))
     blobs={'build/u-boot.itb':b'new trace FIT fixture','build/spl/u-boot-spl-dtb.hex':b'known SPL fixture',
-        'build/.config':config.encode(),'build/u-boot':('U-Boot 2025.01'+recovery.LOCALVERSION+' (fixture; readelf mocked)').encode()}
+        'build/.config':config.encode(),'build/u-boot':('U-Boot 2025.01'+recovery.LOCALVERSION+' (fixture; readelf mocked)').encode(),
+        'build/u-boot.dtb':b'board FDT fixture; fdtget explicitly mocked','extracted-fdt-0.bin':b'board FDT fixture; fdtget explicitly mocked',
+        'host-fdtget':b'fixture tool; execution explicitly mocked'}
     for name,data in blobs.items():
         p=directory/name;p.parent.mkdir(parents=True,exist_ok=True);p.write_bytes(data)
     mode=dict(profile_sha256=package.sha(package.HERE/'recovery.py'),manual_prompt=True,automatic_writes=False,
@@ -36,15 +48,27 @@ def build_fixture(directory):
         producer_sha256=package.sha(package.HERE.parent/'firmware/build_terasic_uboot.py'),
         fit_sha256=package.sha(directory/'build/u-boot.itb'),spl_sha256=package.sha(directory/'build/spl/u-boot-spl-dtb.hex'),
         config_sha256=package.sha(directory/'build/.config'),uboot_elf_sha256=package.sha(directory/'build/u-boot'),
-        bl31_sha256=package.BASE_BL31,fit_atf_verified=True,network_return_trace=dict(
+        bl31_sha256=package.BASE_BL31,fit_atf_verified=True,environment={},cross_tools=dict(host_fdtget=dict(path=str(directory/'host-fdtget'),sha256=package.sha(directory/'host-fdtget'))),network_return_trace=dict(
             profile_sha256=package.sha(package.HERE/'recovery_return_trace.py'),sources=observed,
             source_inverse_verified=True,phases=34,UART_poll_limit=100000,string_byte_limit=96,
-            hardware_qualified=False,default_recovery_profile_compatible=False))
+            hardware_qualified=False,default_recovery_profile_compatible=False,console_route=dict(ROUTE),
+            compiled_fdt_sha256=package.sha(directory/'build/u-boot.dtb'),fit_fdt_sha256=package.sha(directory/'extracted-fdt-0.bin')))
     (directory/'result.json').write_text(json.dumps(r));return r
 
 
 class ReturnPackageTests(unittest.TestCase):
-    @patch('subprocess.check_output',return_value=SYMBOLS)
+    def test_compiled_and_extracted_FIT_console_are_independently_checked(self):
+        with tempfile.TemporaryDirectory() as d:
+            directory=Path(d)/'build';build_fixture(directory)
+            for name in ('build/u-boot.dtb','extracted-fdt-0.bin'):
+                def query(argv,**kwargs):
+                    if str(argv[0])!='readelf' and str(argv[3])==str(directory/name) and argv[-1]=='reg':
+                        return '10c02000 100\n'
+                    return console_query(argv,**kwargs)
+                with self.subTest(FDT=name),patch('subprocess.check_output',side_effect=query):
+                    with self.assertRaises(ValueError):package.checked_build(directory)
+
+    @patch('subprocess.check_output',side_effect=console_query)
     def test_actual_base_and_trace_validators_execute_on_reconstructed_source(self,readelf):
         with tempfile.TemporaryDirectory() as d:
             directory=Path(d)/'build';build_fixture(directory)
@@ -52,9 +76,9 @@ class ReturnPackageTests(unittest.TestCase):
             self.assertGreaterEqual(readelf.call_count,2)
             with self.assertRaises(ValueError):package.base.checked_build(directory)
 
-    @patch('subprocess.check_output',return_value=SYMBOLS)
+    @patch('subprocess.check_output',side_effect=console_query)
     def test_changed_trace_source_identity_flags_and_artifacts_reject(self,_readelf):
-        cases=['missing-mode','profile','bound','phases','physical','default-compatible','producer','elf-hash','config-hash','fit-hash','SPL-hash','unsealed-FIT','source','self-consistent-source']
+        cases=['missing-mode','profile','bound','phases','physical','default-compatible','producer','elf-hash','config-hash','fit-hash','SPL-hash','unsealed-FIT','source','self-consistent-source','console-route','compiled-dtb','FIT-dtb','console-tool']
         for case in cases:
             with self.subTest(case=case),tempfile.TemporaryDirectory() as d:
                 directory=Path(d)/'build';r=build_fixture(directory)
@@ -67,6 +91,10 @@ class ReturnPackageTests(unittest.TestCase):
                 for key,name in [('producer','producer_sha256'),('elf-hash','uboot_elf_sha256'),('config-hash','config_sha256'),('fit-hash','fit_sha256'),('SPL-hash','spl_sha256')]:
                     if case==key:r[name]='0'*64
                 if case=='unsealed-FIT':r['fit_atf_verified']=False
+                if case=='console-route':r['network_return_trace']['console_route']['data_address']=0x10c02000
+                if case=='compiled-dtb':r['network_return_trace']['compiled_fdt_sha256']='0'*64
+                if case=='FIT-dtb':r['network_return_trace']['fit_fdt_sha256']='0'*64
+                if case=='console-tool':r['cross_tools']['host_fdtget']['sha256']='0'*64
                 if case in ('source','self-consistent-source'):
                     p=directory/'source/net/net.c';p.write_text(p.read_text()+'/* foreign call */\n')
                     if case=='self-consistent-source':r['network_return_trace']['sources']['prepared']['net/net.c']=package.sha(p)
@@ -74,7 +102,7 @@ class ReturnPackageTests(unittest.TestCase):
                 with self.assertRaises(ValueError):package.checked_build(directory)
 
     @unittest.skipUnless(all(shutil.which(n) for n in ('mformat','mmd','mcopy')),'mtools required for file-only image checks')
-    @patch('subprocess.check_output',return_value=SYMBOLS)
+    @patch('subprocess.check_output',side_effect=console_query)
     def test_real_regular_file_images_tool_dispatch_and_explicit_trace_loader(self,_readelf):
         with tempfile.TemporaryDirectory(dir=ROOT/'out',prefix='return-package-fixture-') as d:
             root=Path(d);build=root/'build';r=build_fixture(build);baseline=root/'baseline';baseline.mkdir()

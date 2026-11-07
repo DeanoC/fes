@@ -1,0 +1,11 @@
+{
+  "source": "compiled Terasic DE25 U-Boot/FIT FDT, stdout serial0 alias resolves to UART1",
+  "stdout": "serial0:115200n8",
+  "alias": "serial0",
+  "node": "/soc/serial1@10c02100",
+  "reg": "10c02100 100",
+  "status": "okay",
+  "reg-shift": "2",
+  "reg-io-width": "4",
+  "compatible": "snps,dw-apb-uart"
+}

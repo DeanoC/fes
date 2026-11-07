@@ -1,5 +1,14 @@
 # Nano recovery uploads and cold serial boot
 
+The return-trace UART is UART1 (`0x10c02100`, status `0x10c02114`). The build and
+trace package checker independently resolve `/chosen/stdout-path` through its
+alias in both compiled U-Boot and FIT device trees, requiring that enabled port,
+four-byte access and register shift two. `serial0` is an alias to UART1 on this
+board. The initial v1 diagnostic incorrectly targeted UART0; its physical trace
+is invalid and its installed spare-card state needs an explicitly bound repair.
+The UART update/readbacks passed, but no network/core-load result is admitted
+from that diagnostic. The old attempt must not be replayed.
+
 The explicit `build_terasic_uboot.py --network-recovery --network-return-trace`
 selection adds 34 ordered UART observations around successful TFTP return:
 the transfer-count print, environment updates, Ethernet/XGMAC/PHY stop, net-loop

@@ -3,6 +3,7 @@
 import argparse
 import hashlib
 import json
+import os
 from pathlib import Path
 import shutil
 import subprocess
@@ -43,13 +44,24 @@ def checked_build(directory):
     if not isinstance(mode, dict) or mode != dict(
             profile_sha256=sha(HERE/'recovery_return_trace.py'), sources=mode.get('sources'),
             source_inverse_verified=True, phases=len(trace.PHASES), UART_poll_limit=100000,
-            string_byte_limit=96, hardware_qualified=False, default_recovery_profile_compatible=False):
+            string_byte_limit=96, hardware_qualified=False, default_recovery_profile_compatible=False,
+            console_route=mode.get('console_route'),
+            compiled_fdt_sha256=sha(regular(directory/'build/u-boot.dtb',1<<20)),
+            fit_fdt_sha256=sha(regular(directory/'extracted-fdt-0.bin',1<<20))):
         raise ValueError('explicit current return-observation build required')
+    tool=receipt['cross_tools']['host_fdtget']
+    if sha(regular(tool['path'],32<<20))!=tool['sha256']:
+        raise ValueError('trace console inspection tool changed')
+    env=dict(os.environ,**receipt['environment'])
+    route=trace.check_console(tool['path'],directory/'build/u-boot.dtb',env=env)
+    if route!=mode['console_route'] or trace.check_console(tool['path'],directory/'extracted-fdt-0.bin',env=env)!=route:
+        raise ValueError('trace package console binding differs')
     original = trace.reconstruct(directory/'source', mode['sources'])
     trace.check_phy_sources(directory/'source', mode['sources'],
                             receipt['network_recovery']['phy_sources'], recovery)
     names = {'build/u-boot.itb': 2 << 20, 'build/spl/u-boot-spl-dtb.hex': 2 << 20,
-             'build/.config': 1 << 20, 'build/u-boot': 32 << 20}
+             'build/.config': 1 << 20, 'build/u-boot': 32 << 20,
+             'build/u-boot.dtb':1<<20,'extracted-fdt-0.bin':1<<20}
     for name, maximum in names.items():
         regular(directory/name, maximum)
     # This private source view removes only the independently inverted trace
@@ -92,7 +104,9 @@ def prepare(directory, baseline, output):
               baseline/'result.json', baseline/'RECOVERY.JSON', baseline/'network-recovery.sof',
               baseline/'nano-recovery-sd.img', HERE/'recovery_return_trace.py', HERE/'recovery.py',
               HERE/'recovery_package.py', HERE/'upload.py', Path(__file__),
-              HERE.parent/'firmware/build_terasic_uboot.py', *(p.resolve() for p in tools.values())]
+              HERE.parent/'firmware/build_terasic_uboot.py', *(p.resolve() for p in tools.values()),
+              directory/'build/u-boot.dtb',directory/'extracted-fdt-0.bin',
+              Path(receipt['cross_tools']['host_fdtget']['path'])]
     inputs += [directory/'source'/n for n in receipt['network_return_trace']['sources']['prepared']]
     inputs += [directory/'source'/n for n in receipt['network_recovery']['phy_sources']['prepared']]
     hashes = {str(p): sha(p) for p in inputs}

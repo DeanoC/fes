@@ -319,6 +319,10 @@ def main():
         native['spl_record_size']=int(record_symbol[0][1],16)
     if board_model != "SoCFPGA Agilex5 Terasic DE25-Nano":
         raise ValueError("FIT device tree is not the expected Nano model")
+    if return_trace is not None:
+        console_route=return_trace.check_console(fdtget,build/'u-boot.dtb',env=env)
+        if return_trace.check_console(fdtget,output/'extracted-fdt-0.bin',env=env)!=console_route:
+            raise ValueError('compiled and FIT trace console routes differ')
     if (component.read_bytes() != blob or elf.read_bytes() != image_elf or receipt_path.read_bytes() != receipt_bytes or
             sha(Path(__file__).resolve()) != producer_hash or
             git(repo, "rev-parse", "HEAD^{commit}").decode().strip() != revision or
@@ -364,7 +368,8 @@ def main():
             report['network_return_trace'] = dict(profile_sha256=return_trace_hash,
                 sources=return_sources, source_inverse_verified=True, phases=len(return_trace.PHASES),
                 UART_poll_limit=100000, string_byte_limit=96, hardware_qualified=False,
-                default_recovery_profile_compatible=False)
+                default_recovery_profile_compatible=False,console_route=console_route,
+                compiled_fdt_sha256=sha(build/'u-boot.dtb'),fit_fdt_sha256=sha(output/'extracted-fdt-0.bin'))
         report['uboot_elf_sha256']=sha(build/'u-boot')
         report["classification"] = "off-board Nano Ethernet/SD-writing recovery U-Boot; no native handoff or board acceptance"
         report["network_recovery"] = {"profile_sha256": recovery_hash, "manual_prompt": True,

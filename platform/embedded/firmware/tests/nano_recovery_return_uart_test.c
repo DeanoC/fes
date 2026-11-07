@@ -15,12 +15,12 @@ static void test_park(void) { longjmp(parked, 1); }
 #define FES_RETURN_PARK() test_park()
 uint32_t readl(const void *address)
 {
-    assert((uintptr_t)address == 0x10c02014); polls++;
+    assert((uintptr_t)address == 0x10c02114); polls++;
     return mode == 1 ? 0 : mode == 2 ? 0x20 : 0x60;
 }
 void writel(uint32_t value, void *address)
 {
-    assert((uintptr_t)address == 0x10c02000 && value < 128);
+    assert((uintptr_t)address == 0x10c02100 && value < 128);
     assert(writes < (int)sizeof(output)-1); output[writes++] = value;
 }
 #include "helper.inc"
