@@ -313,10 +313,10 @@ void pit(Bench &b) {
     // speaker with port 61h's gate and data bits set. A wrap is 65536 PIT
     // clocks, 5,492,541 system clocks; WRAP covers one and a bit.
     const uint64_t WRAP = 5600000;
-    struct Pulses { unsigned falls = 0, rises = 0; bool last = false; };
+    struct Pulses { unsigned falls = 0, rises = 0; bool first = false, last = false; };
     auto watch = [&](uint64_t clocks) {
         Pulses seen;
-        seen.last = b.top.speaker;
+        seen.first = seen.last = b.top.speaker;
         for (uint64_t n = 0; n < clocks; ++n) {
             b.clock();
             bool now = b.top.speaker;
@@ -356,10 +356,12 @@ void pit(Bench &b) {
     b.out(0x61, 0x02);
     b.out(0x43, 0xb2); b.out(0x42, 0x10); b.out(0x42, 0x00);
     b.run(3000);
+    // The trigger can take OUT low within the port 61h write itself.
     b.out(0x61, 0x03);
     seen = watch(WRAP);
     check("PIT mode 1 OUT goes low once per trigger and stays high through the wrap",
-          seen.falls == 1 && seen.rises == 1 && seen.last, std::to_string(seen.falls) + " falls");
+          seen.falls + !seen.first == 1 && seen.rises == 1 && seen.last,
+          std::to_string(seen.falls) + " falls, " + std::to_string(seen.rises) + " rises");
     b.out(0x61, 0x00);
     // Port 61h bit 4 toggles with channel 1 (BIOS programs 15 us).
     b.out(0x43, 0x54); b.out(0x41, 18);
