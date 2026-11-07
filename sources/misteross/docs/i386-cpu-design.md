@@ -2080,11 +2080,16 @@ eight replicated hit sets.
 - **The switch** saves EIP, EFLAGS, the GPRs and the six selectors into the
   old TSS. It clears the old busy bit (JMP, IRET) and sets the new one (JMP,
   CALL, gates), writes the back link and sets NT for CALL and gates, then
-  loads LDTR, EFLAGS, EIP, the GPRs and the six selectors from the new TSS,
-  loads their descriptors and sets CR0.TS. It loads CR3 from a 32-bit TSS
-  only while paging is on, as Bochs does (`tasking.cc`); a 16-bit TSS has
-  no CR3 field, and with PG clear CR3 keeps its value. A CR3 load flushes
-  the TLBs. A TSS with VM set enters V86.
+  loads LDTR, EFLAGS, EIP, the GPRs and the selectors from the new TSS,
+  loads their descriptors, sets CR0.TS and clears DR7's local enables
+  (L0–L3 and LE), keeping the global ones. As in Bochs (`tasking.cc`):
+  - a 32-bit TSS gives all six selectors; a 16-bit one gives ES, CS, SS and
+    DS, and FS and GS become null;
+  - CR3 loads from a 32-bit TSS only while paging is on; a 16-bit TSS has no
+    CR3 field, and with PG clear CR3 keeps its value. A CR3 load flushes the
+    TLBs.
+
+  A TSS with VM set enters V86.
 - **Checks.** #TS, #NP, #GP and #SS with the 386's selectors and order. A
   fault after the commit point is raised in the new task.
 - **Microcode.** About 80–100 uops, with the 16-bit TSS as a size variant.
@@ -2188,7 +2193,8 @@ A timing miss stops the slice; it never relaxes a check. Titles that need
    - **Lockstep.** test386.asm's task cases; #PF through a task gate and
      back by IRET with NT, as Descent does; far JMP to a TSS between CPL 0
      and 3, as CWSDPMI does; each #TS case; a busy TSS; a fault after the
-     commit point; a switch with paging off, which must leave CR3 alone.
+     commit point; a switch with paging off, which must leave CR3 alone; a
+     switch to a 16-bit TSS from code with live FS and GS.
    - **Exit.** test386.asm passes completely, POST 11's #PF table included:
      Phase 5's exit with slice 3.
    - **Unlocks.** Descent; Jump 'n Bump, Angband, NetHack and Chris's 3D
@@ -2196,7 +2202,8 @@ A timing miss stops the slice; it never relaxes a check. Titles that need
 5. **Breakpoints.** DR7's instruction and data breakpoints, RF, DR6's B
    bits and the T bit's trap, for the compatibility contract.
    - **Lockstep.** Each breakpoint kind and length, RF after IRETD, a data
-     breakpoint inside REP, and a breakpoint in V86.
+     breakpoint inside REP, a breakpoint in V86, and local and global
+     enables across a task switch.
    - **Unlocks.** No title in the census; DOS debuggers.
 
 After slice 4, by the census, eight titles that stop on Phase 5 today run:
