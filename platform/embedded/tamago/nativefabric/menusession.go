@@ -9,7 +9,6 @@ import (
 	"math"
 	"sync"
 	"sync/atomic"
-	"time"
 
 	"github.com/DeanoC/fes/platform/embedded/tamago/embeddedcontrol"
 	g "github.com/DeanoC/fes/platform/embedded/tamago/embeddedcontrol/generated"
@@ -32,7 +31,6 @@ type MenuSession struct {
 	memory                    *menuFrameMemory
 	presenter                 *scanout.MenuPresenter
 	context, operationContext context.Context
-	limits                    scanout.ReaderLimits
 	active                    atomic.Bool
 	known, closed             bool
 	fault, closeErr           error
@@ -54,8 +52,8 @@ type MenuSessionReturn struct {
 	ControlMapSHA256, AccessMapSHA256 [32]byte
 }
 
-func (v *HPSContextVerifier) OpenMenuSession(ctx context.Context, control, access []byte, transfer *ConfigurationTransfer, limits scanout.ReaderLimits) (session *MenuSession, err error) {
-	if v == nil || ctx == nil || limits.Now == nil || limits.Yield == nil || limits.Timeout <= 0 || limits.Timeout > time.Second || limits.MaxPolls == 0 || limits.MaxPolls > 64 {
+func (v *HPSContextVerifier) OpenMenuSession(ctx context.Context, control, access []byte, transfer *ConfigurationTransfer, limits scanout.MenuLimits) (session *MenuSession, err error) {
+	if v == nil || ctx == nil || limits.Validate() != nil {
 		return nil, scanout.ErrReaderArgument
 	}
 	if err = ctx.Err(); err != nil {
@@ -101,7 +99,7 @@ func (v *HPSContextVerifier) OpenMenuSession(ctx context.Context, control, acces
 		return nil, errors.New("native menu: opening lost closed publication/transfer ownership")
 	}
 	s := &MenuSession{verifier: v, region: v.readerMemoryRegion, bytes: v.readerMemoryRegion.Bytes, source: source, opened: source.Bridges,
-		bridges: &FirmwareBridges{cpu: cpu}, context: ctx, operationContext: ctx, limits: limits, controlSHA: sha256.Sum256(control), accessSHA: sha256.Sum256(access)}
+		bridges: &FirmwareBridges{cpu: cpu}, context: ctx, operationContext: ctx, controlSHA: sha256.Sum256(control), accessSHA: sha256.Sum256(access)}
 	s.self = s
 	session = s
 	v.menuSession = s

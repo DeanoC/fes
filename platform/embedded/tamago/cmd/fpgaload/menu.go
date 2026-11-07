@@ -20,7 +20,8 @@ import (
 // It does not resume SD or claim a complete menu/core/menu application cycle.
 func presentMenuFrames(v *nativefabric.HPSContextVerifier, control, access []byte) (err error) {
 	ctx := context.Background()
-	limits := scanout.ReaderLimits{Timeout: time.Second, MaxPolls: 64, Now: time.Now, Yield: func() { time.Sleep(time.Millisecond) }}
+	limits := scanout.MenuLimits{PublicationTimeout: 4 * time.Second,
+		ReaderLimits: scanout.ReaderLimits{Timeout: time.Second, MaxPolls: 64, Now: time.Now, Yield: func() { time.Sleep(time.Millisecond) }}}
 	started := time.Now()
 	step := func(index int, phase string) {
 		fmt.Printf("FES_NATIVE_FPGA_MENU_PRESENT STEP index=%d phase=%s elapsed_us=%d\n", index+1, phase, time.Since(started)/time.Microsecond)

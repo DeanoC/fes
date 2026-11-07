@@ -90,8 +90,13 @@ supplies **only** that local `ReaderDrain`: the native platform must still run
 its independent all-master stop and bridge closure. A partial copy, ownership
 loss, cancellation after work starts, uncertain command or failed drain retires
 the presenter without replay and retains both slots. Copied handles cannot fork
-ownership; concurrent calls reject before I/O. Limits include a monotonic
-one-second deadline and at most 64 polls across all phases. Platform callbacks
+ownership; concurrent calls reject before I/O. Opening and stopping keep their
+monotonic one-second deadlines. Frame presentation has a separate explicit CPU
+publication budget (at most four seconds for all writes and the full integrity
+check), then a fresh one-second endpoint I/O/wait budget. The old phase must
+finish within its deadline before the next can start; cancellation, ownership
+and clock monotonicity remain checked across the boundary. At most 64 polls
+are shared across submission readiness and frame completion. Platform callbacks
 must themselves be bounded; a cooperative Yield must let the pixel clock advance.
 
 `verify_menu.py` additionally runs this Go presenter, with race detection,

@@ -13,6 +13,7 @@ import (
 	"reflect"
 	"strings"
 	"testing"
+	"time"
 
 	g "github.com/DeanoC/fes/platform/embedded/tamago/embeddedcontrol/generated"
 	"github.com/DeanoC/fes/platform/embedded/tamago/scanout"
@@ -185,7 +186,7 @@ func newMenuFixture(t *testing.T) *menuFixture {
 }
 func (f *menuFixture) open(t *testing.T, ctx context.Context) *MenuSession {
 	t.Helper()
-	s, err := f.v.OpenMenuSession(ctx, f.control, f.access, f.transfer, windowReadLimits())
+	s, err := f.v.OpenMenuSession(ctx, f.control, f.access, f.transfer, scanout.MenuLimits{ReaderLimits: windowReadLimits(), PublicationTimeout: 4 * time.Second})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -198,6 +199,52 @@ func menuFrame(red byte) *stdimage.RGBA {
 	}
 	return frame
 }
+
+func TestMenuSessionPublicationBudgetsAndIndependentFailureClosure(t *testing.T) {
+	for _, duration := range []time.Duration{2500 * time.Millisecond, 4 * time.Second} {
+		t.Run(duration.String(), func(t *testing.T) {
+			f := newMenuFixture(t)
+			now := time.Unix(1, 0)
+			reader := windowReadLimits()
+			reader.Now = func() time.Time { return now }
+			s, err := f.v.OpenMenuSession(context.Background(), f.control, f.access, f.transfer,
+				scanout.MenuLimits{ReaderLimits: reader, PublicationTimeout: 4 * time.Second})
+			if err != nil {
+				t.Fatal(err)
+			}
+			f.barrier = func() error { now = now.Add(duration); return nil }
+			got, presentErr := s.PresentFrame(context.Background(), menuFrame(1))
+			returned, closeErr := s.Close()
+			if duration < 4*time.Second {
+				if presentErr != nil || closeErr != nil || got.Sequence != 1 || returned.Frames != 1 {
+					t.Fatal("slow publication prevented frame/return", got, returned, presentErr, closeErr)
+				}
+			} else {
+				var failure *scanout.MenuFailure
+				if !errors.Is(presentErr, scanout.ErrReaderLimit) || !errors.As(presentErr, &failure) || failure.CommandAttempted ||
+					failure.Stage != "publish" || got != (scanout.MenuFrame{}) || closeErr == nil || returned != (MenuSessionReturn{}) || f.cpu.accepted != 0 {
+					t.Fatal("publication overrun fabricated a frame/normal return", got, returned, presentErr, closeErr)
+				}
+			}
+			if f.cpu.independentStops != 1 || f.cpu.state.ResetMask != 15 || f.cpu.releases != 0 {
+				t.Fatal("independent closure/retention lost", f.cpu.independentStops, f.cpu.state, f.cpu.releases)
+			}
+		})
+	}
+}
+
+func TestMenuSessionInvalidBudgetsRejectBeforeDeviceIO(t *testing.T) {
+	for _, duration := range []time.Duration{-1, 0, 4*time.Second + 1} {
+		f := newMenuFixture(t)
+		before := f.cpu.calls + f.cpu.reads + f.cpu.writes
+		s, err := f.v.OpenMenuSession(context.Background(), f.control, f.access, f.transfer,
+			scanout.MenuLimits{ReaderLimits: windowReadLimits(), PublicationTimeout: duration})
+		if !errors.Is(err, scanout.ErrReaderArgument) || s != nil || before != f.cpu.calls+f.cpu.reads+f.cpu.writes {
+			t.Fatal("invalid limit reached hardware", duration, s, err)
+		}
+	}
+}
+
 func TestMenuSessionFramesAndIndependentReturn(t *testing.T) {
 	f := newMenuFixture(t)
 	s := f.open(t, context.Background())
@@ -230,7 +277,7 @@ func TestMenuSessionFramesAndIndependentReturn(t *testing.T) {
 	if _, err = s.PresentFrame(context.Background(), menuFrame(4)); !errors.Is(err, scanout.ErrReaderRetired) {
 		t.Fatal(err)
 	}
-	if _, err = f.v.OpenMenuSession(context.Background(), f.control, f.access, f.transfer, windowReadLimits()); err == nil || calls != f.cpu.calls+f.cpu.reads+f.cpu.writes {
+	if _, err = f.v.OpenMenuSession(context.Background(), f.control, f.access, f.transfer, scanout.MenuLimits{ReaderLimits: windowReadLimits(), PublicationTimeout: 4 * time.Second}); err == nil || calls != f.cpu.calls+f.cpu.reads+f.cpu.writes {
 		t.Fatal("completion replay", err)
 	}
 	if !bytes.Equal(f.v.readerMemoryRegion.Bytes, f.v.menuExpected) {
@@ -246,7 +293,7 @@ func TestMenuSessionFailuresRemainPinnedAndDoNotResume(t *testing.T) {
 			if fault == "data-open" || fault == "identity" {
 				f.cpu.fault = fault
 			}
-			s, openErr := f.v.OpenMenuSession(ctx, f.control, f.access, f.transfer, windowReadLimits())
+			s, openErr := f.v.OpenMenuSession(ctx, f.control, f.access, f.transfer, scanout.MenuLimits{ReaderLimits: windowReadLimits(), PublicationTimeout: 4 * time.Second})
 			if openErr == nil {
 				f.cpu.fault = fault
 				f.barrier = func() error {
@@ -314,7 +361,7 @@ func TestMenuSessionRejectsForeignCompletionAndProtectsOneOwner(t *testing.T) {
 				f.transfer.binding.menuOpened = true
 			}
 			before := f.cpu.calls + f.cpu.reads + f.cpu.writes
-			if s, err := f.v.OpenMenuSession(context.Background(), f.control, f.access, f.transfer, windowReadLimits()); err == nil || s != nil || before != f.cpu.calls+f.cpu.reads+f.cpu.writes {
+			if s, err := f.v.OpenMenuSession(context.Background(), f.control, f.access, f.transfer, scanout.MenuLimits{ReaderLimits: windowReadLimits(), PublicationTimeout: 4 * time.Second}); err == nil || s != nil || before != f.cpu.calls+f.cpu.reads+f.cpu.writes {
 				t.Fatal("foreign transfer reached I/O", err)
 			}
 		})
@@ -326,7 +373,7 @@ func TestMenuSessionRejectsForeignCompletionAndProtectsOneOwner(t *testing.T) {
 	if _, err := copy.Close(); !errors.Is(err, scanout.ErrReaderArgument) {
 		t.Fatal(err)
 	}
-	if _, err := f.v.OpenMenuSession(context.Background(), f.control, f.access, f.transfer, windowReadLimits()); !errors.Is(err, scanout.ErrReaderBusy) {
+	if _, err := f.v.OpenMenuSession(context.Background(), f.control, f.access, f.transfer, scanout.MenuLimits{ReaderLimits: windowReadLimits(), PublicationTimeout: 4 * time.Second}); !errors.Is(err, scanout.ErrReaderBusy) {
 		t.Fatal(err)
 	}
 	if before != f.cpu.calls+f.cpu.reads+f.cpu.writes {

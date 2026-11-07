@@ -52,6 +52,22 @@ type MenuFrame struct {
 	Sequence, Submitted, Slot, Underflows uint32
 }
 
+// MenuLimits bounds CPU copy/publication separately from endpoint I/O. The
+// complete spare-slot copy and platform integrity check share one publication
+// budget; neither that work nor the subsequent wait may reset its own deadline.
+type MenuLimits struct {
+	ReaderLimits
+	PublicationTimeout time.Duration
+}
+
+func (l MenuLimits) Validate() error {
+	if l.Now == nil || l.Yield == nil || l.Timeout <= 0 || l.Timeout > time.Second || l.MaxPolls == 0 || l.MaxPolls > 64 ||
+		l.PublicationTimeout <= 0 || l.PublicationTimeout > 4*time.Second {
+		return ErrReaderArgument
+	}
+	return nil
+}
+
 type MenuFailure struct {
 	Cause            error
 	Operation, Stage string
@@ -74,7 +90,7 @@ type MenuPresenter struct {
 	hooks                      MenuHooks
 	want                       embeddedcontrol.Identity
 	generation                 uint64
-	limits                     ReaderLimits
+	limits                     MenuLimits
 	context                    context.Context
 	surfaces                   [2]*Surface
 	operation                  *menuOperation
@@ -87,6 +103,7 @@ type menuOperation struct {
 	m           *MenuPresenter
 	ctx         context.Context
 	start, last time.Time
+	timeout     time.Duration
 	failure     MenuFailure
 }
 type menuMemory struct {
@@ -117,6 +134,7 @@ func (v menuMemory) Publish() error {
 	if err := o.check(); err != nil {
 		return err
 	}
+	o.failure.Stage = "publish"
 	if err := v.m.hooks.Memory.Publish(); err != nil {
 		return err
 	}
@@ -126,11 +144,11 @@ func (v menuMemory) Publish() error {
 // NewMenuPresenter validates the compiled bus base, geometry and live reader.
 // The platform has already enabled this generation and pinned both slots.
 // Its reservation remains owned even when construction fails.
-func NewMenuPresenter(ctx context.Context, hooks MenuHooks, want embeddedcontrol.Identity, generation uint64, base uint32, limits ReaderLimits) (*MenuPresenter, error) {
+func NewMenuPresenter(ctx context.Context, hooks MenuHooks, want embeddedcontrol.Identity, generation uint64, base uint32, limits MenuLimits) (*MenuPresenter, error) {
 	if ctx == nil || hooks.IO == nil || hooks.Memory == nil || hooks.Owns == nil ||
 		hooks.Memory.Size() != MenuArenaBytes || want.ABI != MenuControlABI || want.Build == ([4]uint32{}) || generation == 0 ||
 		base == 0 || base&((2<<20)-1) != 0 || uint64(base)+MenuArenaBytes > 1<<32 ||
-		limits.Now == nil || limits.Yield == nil || limits.Timeout <= 0 || limits.Timeout > time.Second || limits.MaxPolls == 0 || limits.MaxPolls > 64 {
+		limits.Validate() != nil {
 		return nil, ErrReaderArgument
 	}
 	m := &MenuPresenter{hooks: hooks, want: want, generation: generation, limits: limits, context: ctx}
@@ -189,7 +207,7 @@ func (m *MenuPresenter) begin(ctx context.Context, name string) (*menuOperation,
 		return nil, ErrReaderRetired
 	}
 	now := m.limits.Now()
-	o := &menuOperation{m: m, ctx: ctx, start: now, last: now, failure: MenuFailure{Operation: name}}
+	o := &menuOperation{m: m, ctx: ctx, start: now, last: now, timeout: m.limits.Timeout, failure: MenuFailure{Operation: name}}
 	m.operation = o
 	return o, nil
 }
@@ -207,7 +225,7 @@ func (o *menuOperation) check() error {
 		return err
 	}
 	now := o.m.limits.Now()
-	if now.Before(o.last) || now.Sub(o.start) >= o.m.limits.Timeout {
+	if now.Before(o.last) || now.Sub(o.start) >= o.timeout {
 		return ErrReaderLimit
 	}
 	o.last = now
@@ -225,10 +243,20 @@ func (o *menuOperation) check() error {
 		return err
 	}
 	now = o.m.limits.Now()
-	if now.Before(o.last) || now.Sub(o.start) >= o.m.limits.Timeout {
+	if now.Before(o.last) || now.Sub(o.start) >= o.timeout {
 		return ErrReaderLimit
 	}
 	o.last = now
+	return nil
+}
+
+// Change phase only after the old deadline, ownership and cancellation checks
+// pass. Keep the last clock sample so a phase boundary cannot hide regression.
+func (o *menuOperation) phase(timeout time.Duration) error {
+	if err := o.check(); err != nil {
+		return err
+	}
+	o.start, o.timeout = o.last, timeout
 	return nil
 }
 func (o *menuOperation) Read32(offset uint32) (uint32, error) {
@@ -383,8 +411,14 @@ func (m *MenuPresenter) PresentFrame(ctx context.Context, frame *image.RGBA) (re
 	if err = o.owner(); err != nil {
 		return result, err
 	}
+	if err = o.phase(m.limits.PublicationTimeout); err != nil {
+		return result, err
+	}
 	o.failure.Stage = "copy"
 	if err = m.surfaces[m.slot].Present(frame); err != nil {
+		return result, err
+	}
+	if err = o.phase(m.limits.Timeout); err != nil {
 		return result, err
 	}
 	if err = o.owner(); err != nil {

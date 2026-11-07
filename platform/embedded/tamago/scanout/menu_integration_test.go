@@ -189,13 +189,13 @@ func (p *menuProbe) hooks() MenuHooks {
 		return nil
 	}}
 }
-func (p *menuProbe) limits() ReaderLimits {
-	return ReaderLimits{Timeout: time.Second, MaxPolls: 64, Now: func() time.Time { return p.now }, Yield: func() {
+func (p *menuProbe) limits() MenuLimits {
+	return MenuLimits{PublicationTimeout: 4 * time.Second, ReaderLimits: ReaderLimits{Timeout: time.Second, MaxPolls: 64, Now: func() time.Time { return p.now }, Yield: func() {
 		if _, err := p.call("tick 10000"); err != nil {
 			panic(err)
 		}
 		p.now = p.now.Add(time.Millisecond)
-	}}
+	}}}
 }
 func (p *menuProbe) open(t *testing.T) *MenuPresenter {
 	t.Helper()
@@ -223,6 +223,81 @@ func (p *menuProbe) retired(t *testing.T, m *MenuPresenter) {
 	}
 }
 func TestMenuActualRTL(t *testing.T) {
+	t.Run("slow_publication_preserves_full_hardware_budget", func(t *testing.T) {
+		p := newMenuProbe(t)
+		m := p.open(t)
+		// 180 bounded writes (0.9s) plus publication/integrity (1.6s)
+		// reproduce the physical CPU cost without waiting on the host clock.
+		p.onCopy = func() error { p.now = p.now.Add(5 * time.Millisecond); return nil }
+		p.onPublish = func() error { p.now = p.now.Add(1600 * time.Millisecond); return nil }
+		p.onWrite = func(offset, value uint32) error {
+			if offset == menuCommand && (value == 1 || value == 2) {
+				p.now = p.now.Add(900 * time.Millisecond)
+			}
+			return nil
+		}
+		for i := 0; i < 2; i++ {
+			got, err := m.PresentFrame(context.Background(), p.frames[i])
+			if err != nil || got.Sequence != uint32(i+1) || got.Slot != uint32(i) {
+				t.Fatal("slow CPU work consumed hardware budget", got, err)
+			}
+		}
+		if _, err := m.Stop(context.Background(), 21); err != nil {
+			t.Fatal(err)
+		}
+	})
+	for _, stage := range []string{"copy", "publish", "command"} {
+		t.Run(stage+"_deadline_cannot_be_extended", func(t *testing.T) {
+			p := newMenuProbe(t)
+			m := p.open(t)
+			p.onCopy = func() error { p.now = p.now.Add(20 * time.Millisecond); return nil }
+			p.onPublish = func() error { p.now = p.now.Add(500 * time.Millisecond); return nil }
+			if stage == "copy" {
+				p.onCopy = func() error { p.now = p.now.Add(25 * time.Millisecond); return nil }
+			}
+			if stage == "command" {
+				p.onPublish = func() error { return nil }
+				p.onWrite = func(offset, value uint32) error {
+					if offset == menuCommand {
+						p.now = p.now.Add(time.Second)
+					}
+					return nil
+				}
+			}
+			got, err := m.PresentFrame(context.Background(), p.frames[0])
+			var failure *MenuFailure
+			if !errors.Is(err, ErrReaderLimit) || !errors.As(err, &failure) || got != (MenuFrame{}) || failure.Stage != stage {
+				t.Fatal("phase overrun accepted or misreported", got, err)
+			}
+			wantCommands := 0
+			if stage == "command" {
+				wantCommands = 1
+			}
+			if p.commands[1] != wantCommands || failure.CommandAttempted != (wantCommands == 1) {
+				t.Fatal("overrun submitted or replayed START", p.commands, failure)
+			}
+			p.retired(t, m)
+		})
+	}
+	for _, fault := range []string{"clock", "owner"} {
+		t.Run("publication_"+fault+"_cannot_cross_phase_boundary", func(t *testing.T) {
+			p := newMenuProbe(t)
+			m := p.open(t)
+			p.onPublish = func() error {
+				if fault == "clock" {
+					p.now = p.now.Add(-time.Millisecond)
+				} else {
+					p.owned = false
+				}
+				return nil
+			}
+			got, err := m.PresentFrame(context.Background(), p.frames[0])
+			if err == nil || got != (MenuFrame{}) || p.commands[1] != 0 {
+				t.Fatal("publication uncertainty crossed phase boundary", got, err)
+			}
+			p.retired(t, m)
+		})
+	}
 	t.Run("copied_handle_cannot_fork_ownership", func(t *testing.T) {
 		p := newMenuProbe(t)
 		m := p.open(t)
@@ -552,4 +627,17 @@ func TestMenuActualRTL(t *testing.T) {
 			})
 		}
 	})
+}
+
+func TestMenuLimitsRejectUnboundedPublication(t *testing.T) {
+	limits := MenuLimits{ReaderLimits: ReaderLimits{Timeout: time.Second, MaxPolls: 64, Now: time.Now, Yield: func() {}}, PublicationTimeout: 4 * time.Second}
+	if err := limits.Validate(); err != nil {
+		t.Fatal(err)
+	}
+	for _, duration := range []time.Duration{-1, 0, 4*time.Second + 1} {
+		limits.PublicationTimeout = duration
+		if err := limits.Validate(); !errors.Is(err, ErrReaderArgument) {
+			t.Fatal(duration, err)
+		}
+	}
 }
