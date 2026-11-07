@@ -120,6 +120,8 @@ func (v *Volume) chain(first uint32, limit int) ([]uint32, error) {
 	seen := make(map[uint32]bool)
 	result := make([]uint32, 0)
 	sector := make([]byte, block.SectorSize)
+	var sectorLBA uint64
+	sectorLoaded := false
 	for current := first; ; {
 		if current < 2 || uint64(current) >= v.clusterCount+2 || seen[current] || len(result) >= maxClusters {
 			return nil, fmt.Errorf("%w: invalid, cyclic or oversized chain", ErrCorrupt)
@@ -127,8 +129,14 @@ func (v *Volume) chain(first uint32, limit int) ([]uint32, error) {
 		seen[current] = true
 		result = append(result, current)
 		fatOffset := uint64(current) * 4
-		if err := v.device.ReadSectors(v.fatStart+fatOffset/512, sector); err != nil {
-			return nil, err
+		lba := v.fatStart + fatOffset/512
+		// A FAT sector holds 128 entries. Reuse it only within this locked
+		// chain walk; later opens and storage generations must read it anew.
+		if !sectorLoaded || lba != sectorLBA {
+			if err := v.device.ReadSectors(lba, sector); err != nil {
+				return nil, err
+			}
+			sectorLBA, sectorLoaded = lba, true
 		}
 		next := binary.LittleEndian.Uint32(sector[fatOffset%512:]) & 0x0fffffff
 		if next >= 0x0ffffff8 {

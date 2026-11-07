@@ -10,8 +10,11 @@ The [standard-package native boot path](../../docs/validation/2026-11-06-de25-co
 now connects the shared Nano `fes.computer` contract to the retained-ROM loader,
 Tenfoot backend and existing owned firmware controls. Off-board tests cover
 launch, return and failures, and a matched SDK/entry/BL31/SPL/FIT/SOF candidate is
-prepared. Its FPGA timing findings remain open; this candidate has not booted or
-loaded a core on hardware and does not establish DE10 feature parity.
+prepared. The refreshed [physical serial launch/return test](../../docs/validation/2026-11-07-de25-timer-launch-trial/README.md)
+passes eight verified uploads and three native ZX81/alternate-ROM/ZX81 cycles,
+including master stop, shared USB pause/resume and owned Quit. This is serial
+runtime evidence; general package admission, full core/video conformance,
+physical display/input/media/native networking and FPGA timing remain open.
 
 The [follow-on timing repair](../../docs/validation/2026-11-06-de25-timing-repair/README.md)
 now clears the inferred capture reset-polarity conflict and two obsolete JTAG

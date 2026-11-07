@@ -35,6 +35,12 @@ Unexpected ownership or device failures retire the store and retain the lease
 for recovery. There is no automatic stop, retry or adoption of a changed owner.
 Content rejection leaves a healthy active lease unchanged.
 
+FAT chain walks reuse their single 512-byte table-sector buffer while entries
+remain in that sector. This avoids a fresh device read for each of the sector's
+128 entries. The buffer is local to the locked walk and is discarded before another
+open or storage generation; cycle, size, bounds and device-error checks remain
+unchanged. Package retention still reads and validates the complete archive.
+
 The handoff receipt is cached SD evidence, not a live hardware observation or
 FPGA permission. Actual runtime transitions must separately check live secure
 firmware ownership, compatibility, identity and containment. The current physical
