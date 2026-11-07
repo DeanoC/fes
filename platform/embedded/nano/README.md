@@ -1607,6 +1607,12 @@ Polling does not consume stateful menu evidence. The `owns` and monotonic `now`
 hooks must remain valid throughout. Any missing, duplicate, reordered, malformed,
 failed or uncertain transition permanently retires the controller; it sends no
 recovery or retry command. All firmware and native rows must be accounted for.
+Native presentation emits the App state before presenting its corresponding
+frame. Startup, focus and return therefore require a menu frame after the Ready
+state. A cached earlier frame cannot satisfy this gate. `ready_frame` is the
+repeatable framing predicate for the startup capture; the constructor then
+commits and verifies the complete startup evidence. During key exchanges the
+controller continues reading through the corresponding completed frame.
 
 `exercise` selects two freshly checked computers in order 0 → 1 → 0, verifies
 menu drain before each launch, core close before each menu reload, then drains

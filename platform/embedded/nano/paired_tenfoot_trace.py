@@ -97,8 +97,29 @@ def observations(data, input_mode, *, startup=False):
                 'foreign or malformed paired App observation')
             kind, value = 'firmware', line
         rows.append(dict(kind=kind, value=value, line=index))
-    require(rows[-1]['kind'] in ('app', 'exit'), 'unterminated paired App evidence')
+    require(rows[-1]['kind'] in ('app', 'menu', 'exit'), 'unterminated paired App evidence')
     return rows
+
+
+def ready_frame(rows, *, generation=None, title=None):
+    """Frame after Ready: ProgramMenuPlatform presents inner state first.
+
+    This is a repeatable framing predicate, not a committed MenuTrace receipt.
+    The caller must subsequently validate the complete ordered observations.
+    """
+    if not rows or rows[-1]['kind'] != 'menu':
+        return False
+    states = [row for row in rows if row['kind'] == 'app']
+    if not states:
+        return False
+    state = states[-1]
+    view = state['value']
+    value = json.loads(rows[-1]['value'][len(MENU):])
+    return (type(value) is dict and value.get('event') == 'frame' and
+            rows[-1]['line'] > state['line'] and view['native']['State'] == 'ready' and
+            view['session'] == 'idle' and not view['loading'] and len(view['titles']) == 2 and
+            (generation is None or view['native']['Generation'] == generation) and
+            (title is None or view['titles'][view['focus']] == title))
 
 
 def split_arm(data):
@@ -204,6 +225,8 @@ class PairedTenfootClient(app.TenfootClient):
         first_mutation = None
         resume_boundary = None
         final_menu_return = None
+        ready_line = None
+        ready_presented = False
         for row in rows:
             kind, value, line = row['kind'], row['value'], row['line']
             require(exited is None, 'evidence followed final paired exit')
@@ -251,6 +274,8 @@ class PairedTenfootClient(app.TenfootClient):
                     else:
                         require(app.quiet(firmware) and observed['source_generation'] == self.menu_source,
                                 'menu frame performed unowned firmware work')
+                    if op in ('startup', 'focus', 'stop') and ready_line is not None and line > ready_line:
+                        ready_presented = True
                 else:
                     require(op == 'launch' or op == 'quit' and returned_core and opened_menu == 1,
                             'menu returned outside launch or final park')
@@ -307,6 +332,10 @@ class PairedTenfootClient(app.TenfootClient):
                             app.quiet(firmware), 'App published Ready before verified core close/menu restore')
                 terminal = (op == 'launch' and n['State'] == 'running' and value['session'] == 'active' or
                             op in ('startup', 'focus', 'stop') and self._ready(value))
+                if op in ('startup', 'focus', 'stop') and self._ready(value):
+                    if op != 'focus' or value['titles'][value['focus']] == selected['title']:
+                        ready_line = line
+                        ready_presented = False
                 states.append(value)
             elif kind == 'exit':
                 require(op == 'quit' and value == generation+2 and returned_core and
@@ -316,15 +345,17 @@ class PairedTenfootClient(app.TenfootClient):
         require(app.quiet(firmware), 'unconsumed paired firmware evidence')
         require(begins == int(op == 'startup'), 'paired startup count differs')
         if op == 'startup':
-            require(opened_menu == 1 and states and self._ready(states[-1]), 'incomplete initial paired menu')
+            require(opened_menu == 1 and states and self._ready(states[-1]) and ready_presented,
+                    'initial App Ready has no subsequent presented launcher frame')
         elif op == 'focus':
-            require(menus and not fetches and not usb_rows and not returned_menu and not opened_menu,
+            require(ready_presented and not fetches and not usb_rows and not returned_menu and not opened_menu,
                     'focus omitted presentation or changed device ownership')
         elif op == 'launch':
             require(len(fetches) == returned_menu == 1 and states and terminal, 'incomplete paired launch')
         else:
             require(returned_core and opened_menu == 1 and not fetches and
-                    (exited is not None if op == 'quit' else states and terminal), 'incomplete paired return')
+                    (exited is not None if op == 'quit' else states and terminal and ready_presented),
+                    'paired return omitted core close or the presented Ready frame')
         result = dict(states=states, menu_observations=menus, fetch_observations=fetches, exit_generation=exited)
         if self.usb is not None and op != 'startup':
             result['shared_usb'] = self.usb.action(op, generation, usb_rows, self.owner,
@@ -395,17 +426,18 @@ class PairedTenfootClient(app.TenfootClient):
                 if not raw.endswith(b'\n'):
                     return False
                 last = raw.splitlines()[-1].rstrip(b'\r')
-                if not last.startswith(app.PREFIX) and not EXIT.fullmatch(last):
+                if not last.startswith((app.PREFIX, MENU)) and not EXIT.fullmatch(last):
                     return False
                 framed = observations(raw, self.input_mode)
                 if op == 'quit':
                     return framed[-1]['kind'] == 'exit'
+                if op in ('focus', 'stop'):
+                    return ready_frame(framed, generation=generation if op == 'focus' else generation+1,
+                                       title=selected['title'] if op == 'focus' else None)
                 if framed[-1]['kind'] != 'app':
                     return False
                 value = framed[-1]['value']
-                return (value['native']['State'] == 'running' and value['session'] == 'active'
-                        if op == 'launch' else self._ready(value) and
-                        (op != 'focus' or value['focus'] == target))
+                return value['native']['State'] == 'running' and value['session'] == 'active'
             self._raw = self.exchange(payload, bound, done)
             after = self.now()
             require(before <= after < before+bound and self.owns(), 'paired deadline/clock/claim failed')

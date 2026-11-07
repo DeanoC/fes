@@ -129,7 +129,9 @@ class Model(AppModel):
         prefix = b''.join(cpu[:10])+boot+ready+b''.join(cpu[10:])
         mode = self.policy['input'].encode() if self.shared else b''
         begin = paired.BEGIN+(b'uart+shared-usb-'+mode if self.shared else b'uart')+b' preferences=ram\n'
-        return prefix+self.configure(4)+self.source_lines(MENU_OPEN, 4)+self.menu_wire()+begin+self.raw(self.state())
+        initial = prefix+self.configure(4)+self.source_lines(MENU_OPEN, 4)+self.menu_wire()+begin+self.raw(self.state())
+        self.frames += 1
+        return initial+self.menu_wire()
 
     def client(self, initial=None, profile=None, programs=None):
         return paired.PairedTenfootClient(self.initial if initial is None else initial,
@@ -147,7 +149,7 @@ class Model(AppModel):
         if key in (b'\x1b[C', b'\x1b[D'):
             self.focus += 1 if key == b'\x1b[C' else -1
             self.frames += 1
-            raw = self.menu_wire()+self.raw(self.state())
+            raw = self.raw(self.state())+self.menu_wire()
         elif key == b'\r':
             self.selected = self.focus
             raw = self.raw(self.state('loading', before))
@@ -170,6 +172,8 @@ class Model(AppModel):
                 raw += f'FES_NATIVE_TENFOOT_EXIT state=parked generation={self.service.generation}\n'.encode()
             else:
                 raw += self.raw(self.state())
+                self.frames += 1
+                raw += self.menu_wire()
         if self.shared and key not in (b'\x1b[C', b'\x1b[D'):
             self.reports += 8
             raw = self.usb('pause', 'ready' if key == b'\r' else 'running', before)+raw
@@ -218,11 +222,8 @@ class Model(AppModel):
         if fault == 'bad-core-stop': raw = raw.replace(b'complete=1 data=held', b'complete=0 data=held')
         if fault == 'missing-core-stop': raw = re.sub(rb'[^\n]*FES_NANO_MASTER_STOP[^\n]*data=held\n', b'', raw)
         if fault == 'early-ready' and key == b's':
-            raw = raw.splitlines(keepends=True)[-1]+raw
-        if fault == 'frame-after-usb-resume' and key == b's':
-            self.frames += 1
-            marker = raw.rindex(paired.app.PREFIX)
-            raw = raw[:marker]+self.menu_wire()+raw[marker:]
+            raw = next(line for line in reversed(raw.splitlines(keepends=True))
+                       if line.startswith(paired.app.PREFIX))+raw
         if fault == 'early-running' and key == b'\r':
             last = raw.splitlines(keepends=True)[-1]
             raw = last+raw
@@ -322,10 +323,8 @@ class PairedTenfootTraceTests(unittest.TestCase):
 
     def test_usb_resume_allows_later_completed_ui_frames(self):
         model = Model(True); client = model.client(); client.key('launch', 0)
-        model.fault = 'frame-after-usb-resume'
         result = client.key('stop')
         self.assertEqual([r['frames'] for r in result['menu_observations']], [1, 2])
-        model.fault = ''
         client.key('launch', 0)
         client.key('quit')
         self.assertTrue(client.retired)
@@ -367,6 +366,46 @@ class PairedTenfootTraceTests(unittest.TestCase):
         programs[0]['identity']['BuildID'] = 'f'*32
         self.assertEqual(client.key('launch', 0)['status'], 'verified')
         self.assertFalse(client.retired)
+
+    def test_initial_ready_without_post_state_ui_frame_rejects(self):
+        model = Model()
+        initial = b''.join(model.initial.splitlines(keepends=True)[:-1])
+        with self.assertRaisesRegex(ValueError, 'subsequent presented'):
+            model.client(initial=initial)
+        self.assertEqual(model.keys, [])
+
+    def test_focus_and_return_do_not_finish_at_the_ready_message(self):
+        for op in ('focus', 'stop'):
+            with self.subTest(op=op):
+                model = Model(); client = model.client()
+                if op == 'stop': client.key('launch', 0)
+                original = model.exchange
+                decisions = []
+                def exchange(key, bound, done):
+                    raw = original(key, bound, lambda _: False)
+                    lines = raw.splitlines(keepends=True)
+                    before_frame = b''.join(lines[:-1])
+                    self.assertTrue(lines[-1].startswith(paired.MENU))
+                    self.assertTrue(lines[-2].startswith(paired.app.PREFIX))
+                    decisions.append(done(before_frame))
+                    self.assertTrue(done(raw))
+                    return raw
+                client.exchange = exchange
+                client.key(op, 1 if op == 'focus' else None)
+                self.assertEqual(decisions, [False])
+
+    def test_cached_frame_before_ready_cannot_replace_new_presentation(self):
+        model = Model(); client = model.client(); original = model.exchange
+        def exchange(key, bound, done):
+            raw = original(key, bound, lambda _: False)
+            lines = raw.splitlines(keepends=True)
+            raw = lines[-1]+b''.join(lines[:-1])
+            self.assertFalse(done(raw))
+            return raw
+        client.exchange = exchange
+        with self.assertRaisesRegex(ValueError, 'terminal observation'):
+            client.key('focus', 1)
+        self.assertTrue(client.retired)
 
 
 if __name__ == '__main__': unittest.main()
