@@ -60,6 +60,8 @@ def main():
     parser.add_argument("--compiler", required=True, type=Path)
     parser.add_argument("--qemu", type=Path)
     parser.add_argument("--board", choices=("qemu", "de25-nano"), default="qemu")
+    parser.add_argument("--arm64-features", action="store_true",
+                        help="opt-in EL1 system-register CPU feature discovery for the pinned Nano compiler; no ISA flags are forced")
     parser.add_argument("--profile", type=Path, help="required firmware handoff JSON for Nano cross-build")
     parser.add_argument("--package-id", help="independently expected package ID for the Nano sdpackages diagnostic")
     parser.add_argument("--hps-first-project", type=Path, help="sealed HPS-first project for the Nano context diagnostics")
@@ -103,6 +105,8 @@ def main():
         except (ValueError, OSError, subprocess.CalledProcessError) as error:
             parser.error(str(error))
         return
+    if args.arm64_features:
+        parser.error('--arm64-features requires --board de25-nano')
     if args.firmware_rom is not None or args.rom_host_go is not None or args.shared_usb_input is not None or args.usb_input is not None or args.profile is not None or args.package_id is not None or args.hps_first_project is not None or args.ddr_read or args.window_memory or args.window_read or args.window_present or args.menu_present or args.window_storage_return or args.window_reload or args.window_service or args.computer_control or args.computer_reload or args.computer_storage_return or args.selected_programs or args.tenfoot_serial:
         parser.error("--profile, --package-id and --hps-first-project require --board de25-nano")
     if args.program in ("fpga", "sdpackages", "bootcontext", "hpsio", "usbcheck", "fpgacontext", "fpgastatus", "fpgaload"):

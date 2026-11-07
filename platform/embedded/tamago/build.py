@@ -242,6 +242,9 @@ def build(args):
     usb_input = usb_input_option(args.program, getattr(args, 'usb_input', None))
     raw = args.profile.resolve().read_bytes()
     profile = json.loads(raw)
+    arm64_features = getattr(args, 'arm64_features', False)
+    if type(arm64_features) is not bool:
+        raise ValueError('ARM64 feature discovery selection must be boolean')
     if raw==(APP.parent/'nano/smmu-profile.json').read_bytes() and args.program!='probe':
         raise ValueError('the source-bound SMMU profile permits only the serial probe')
     start, size, entry, frequency, usb_frequency, net, display, fpga, uart_index = profile_constants(profile)
@@ -419,11 +422,18 @@ def build(args):
     }
     if package_archive is not None:
         (output/'package.fcore').write_bytes(package_archive)
-    overlay.write_text(json.dumps({'Replace':replacements}))
     env = dict(os.environ, GOOS="tamago", GOARCH="arm64", CGO_ENABLED="0", GOOSPKG="github.com/usbarmory/tamago",
                GOTOOLCHAIN="local", GOENV="off", GOWORK="off", GOPROXY="off", GOSUMDB="off",
                GOMODCACHE=str(args.module_cache.resolve()), GOCACHE=str(ROOT / "out/embedded-base-tools/tamago/cache"))
     compiler = args.compiler.resolve()
+    cpu_feature_overlay = None
+    feature_sources = {}
+    if arm64_features:
+        from cpu_features import prepare
+        patches, cpu_feature_overlay, feature_inputs = prepare(compiler, output, env)
+        replacements.update(patches)
+        feature_sources = {p: hashlib.sha256(p.read_bytes()).hexdigest() for p in feature_inputs}
+    overlay.write_text(json.dumps({'Replace':replacements}))
     options = ["-mod=readonly", "-tags=" + ("de25nano,de25tenfootserial" if tenfoot_serial else "de25nano"), "-overlay=" + str(overlay)]
     command = [str(compiler), "list", "-deps", "-json", *options, "./cmd/" + args.program]
     deps = subprocess.check_output(command, cwd=APP, env=env, text=True)
@@ -436,6 +446,9 @@ def build(args):
     if any(forbidden_files.intersection(p.get("GoFiles", []) + p.get("SFiles", [])) for p in packages):
         raise ValueError("Nano selected a QEMU controller implementation")
     files = {APP / "go.mod", APP / "go.sum", APP / "build.py", APP / "run.py", APP / "toolchain.lock.toml", APP.parent/'nano/smmu-profile.json'}
+    if arm64_features:
+        files.update({APP/'cpu_features.py', overlay})
+        files.update(p for p in feature_sources if p.is_relative_to(ROOT))
     if context is not None:files.update(hps.inputs())
     if rom_map is not None:files.add(APP/'cmd/nano-rom-selection/main.go')
     for p in packages:
@@ -510,7 +523,10 @@ def build(args):
         raise ValueError('compiled program platform or example selected metadata changed')
     if sources != {str(p.relative_to(ROOT)): sha(p) for p in sorted(files)}:
         raise ValueError("sources changed while building")
+    if feature_sources != {p: sha(p) for p in feature_sources}:
+        raise ValueError('ARM64 feature discovery inputs changed while building')
     report = {"status": "cross-built", "board": "de25-nano", "program": args.program,
+              "arm64_features":arm64_features,"cpu_feature_overlay":cpu_feature_overlay,
               "expected_package_id":expected_package_id,"usb_control":usb_control,"usb_shared":usb_shared,"usb_input":usb_input,
               "hps_context":context,"hps_context_sha256":hps.digest(context) if context else None,
               "hps_io":io_map,"hps_io_sha256":hps.digest(io_map) if io_map else None,

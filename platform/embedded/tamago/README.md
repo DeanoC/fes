@@ -24,6 +24,30 @@ hardware translations for its heap, UART and uncached DMA, then checks an
 unaligned DMA copy. It uses the same [mapping implementation](board/arm64map/README.md)
 as the Nano transport; its success is emulator evidence.
 
+Nano cross-builds also accept the explicit `--arm64-features` experiment. It
+uses a source-checked overlay of the pinned Go compiler's empty ARM64 feature
+initializer, reads the architectural feature registers at EL1 and calls Go's
+existing parser before crypto packages select their implementations. It forces
+no ISA flags and changes no installed compiler files. Unsupported features keep
+the standard generic path. The generated overlay and selected sources are
+included in the native source proof; the option is rejected by the normal QEMU
+runner. This option is exploratory until its rebuilt board chain is qualified.
+
+The standalone check uses the same overlay at QEMU EL1, verifies known SHA-1,
+SHA-256/SHA-384, AES/GCM and CRC32 results, and reads the actual SHA2 dispatch
+flags for baseline, discovered and SHA2-masked cases. The masked case tests
+advertised-feature handling on an emulated CPU that still implements SHA2;
+this is not physical CPU or performance qualification:
+
+```sh
+python3 platform/embedded/tamago/verify_cpu_features.py \
+  --compiler out/embedded-base-tools/tamago/usr/local/tamago-go/bin/go \
+  --qemu out/bootchain-tools/root/usr/bin/qemu-system-aarch64 \
+  --output out/native-cpu-feature-check
+```
+
+An extracted QEMU may also require its library directory in `LD_LIBRARY_PATH`.
+
 Board selection is now explicit: `--board qemu` (default) runs the emulated
 hardware drivers; `--board de25-nano --profile FILE` cross-builds the separate
 Nano UART/timer, cold read-only SDHCI and direct DWC2 keyboard paths. Nano also has an XGMAC static-IPv4 prototype with explicit DMA/PHY firmware
