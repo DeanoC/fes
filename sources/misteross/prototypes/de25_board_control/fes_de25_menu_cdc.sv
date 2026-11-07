@@ -55,7 +55,10 @@ module fes_de25_menu_cdc #(
     localparam integer TIMER_BITS = TIMEOUT_CYCLES > 1 ? $clog2(TIMEOUT_CYCLES) : 1;
     reg [TIMER_BITS-1:0] timer;
     assign waitrequest = !reset_n || cpu_state!=CPU_IDLE;
-    assign readdata = reply_packet[31:0];
+    // Some generated masters discard Avalon response codes. An error must
+    // still be observable in the native identity/status reads; do not let its
+    // only physical use disappear when that optional response port is pruned.
+    assign readdata = reply_packet[32] ? 32'hffffffff : reply_packet[31:0];
     assign response = reply_packet[32] ? 2'b10 : 2'b00;
     always @(posedge clk or negedge reset_n) begin
         if (!reset_n) begin

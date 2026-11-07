@@ -68,11 +68,11 @@ struct Bench {
         uint64_t prior=replies;size_t count=commands.size();begin(p);finish(prior);
         check(commands.size()==count+1,"command replay or loss");
         auto q=commands.back();check(q.data==p.data && q.address==p.address && q.strobe==p.strobe && q.write==p.write,"torn command packet");
-        check(last_error==(p.address==0xff) && last_data==expected,"torn reply packet");
+        check(last_error==(p.address==0xff) && last_data==(last_error?0xffffffffU:expected),"torn reply packet");
     }
     void refused() {
         size_t count=commands.size();uint64_t prior=replies;begin({0x12345678,8,15,true});finish(prior);
-        advance(8000);check(last_error && d.failed && commands.size()==count,"retired bridge executed a new command");
+        advance(8000);check(last_error && last_data==0xffffffffU && d.failed && commands.size()==count,"retired bridge executed a new command");
     }
 };
 int main() {

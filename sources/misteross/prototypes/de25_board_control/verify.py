@@ -339,7 +339,7 @@ def main():
         if not project:
             run('rom-model',[sys.executable,HERE/'verify_rom.py','--output',output/'rom'],ROOT,env,output,
                 marker='PASS ROM stream RTL:')
-            run('menu-model',[sys.executable,HERE/'verify_menu.py','--allow-dirty','--output',output/'menu'],ROOT,env,output,
+            run('menu-model',[sys.executable,HERE/'verify_menu.py','--allow-dirty','--output',output/'menu'],ROOT,dict(os.environ,GOWORK='off'),output,
                 marker='PASS two-clock Nano menu:')
         report = {"status": "passed", "classification": "generated DE25 diagnostic Avalon RTL and native adapter in host simulation" if project else "standalone Avalon RTL and native adapter in host simulation",
                   "board_revision": inputs["embedded_control"]["board_fes_revision"] if project else None,

@@ -42,7 +42,9 @@ pixel owner; their parameters and connections are rechecked after generation.
 The CPU/pixel crossing uses one four-phase request and coherent reply. Reset
 after use or a 1,048,576-cycle CPU timeout retires it without replay. An uncertain
 request may have executed once; neither error nor local stop releases either
-slot. Its separate `menu_clocks.sdc` bounds both stable packet buses and cuts
+slot. Error data is `0xffffffff` as well as an Avalon error response, so failure
+remains visible even through an upstream master that discards response codes.
+Its separate `menu_clocks.sdc` bounds both stable packet buses and cuts
 only asynchronous first-stage/reset ingress. Existing personalities retain
 their own constraints. Physical timing, native boot selection and complete
 menu/core/menu storage transitions are not established by this producer code.

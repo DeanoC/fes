@@ -102,6 +102,7 @@ struct Bench {
         for(unsigned i=0;i<3000&&replies==before;i++)step();
         check(replies==before+1 && cpu_edges-start<=260,"bounded Avalon response missing");
         if(error==success)throw std::runtime_error("unexpected Avalon response at register "+std::to_string(address));
+        if(!success)check(last_data==0xffffffffU,"error vanished from CPU register data");
         for(unsigned i=0;i<100&&d.waitrequest;i++)step();check(!d.waitrequest,"return handshake blocked");return last_data;
     }
     void write(uint8_t a,uint32_t v){access(a,true,v);}

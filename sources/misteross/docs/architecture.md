@@ -177,6 +177,9 @@ After first use, pixel reset or timeout permanently retires that bridge; later
 calls return an error. A timed-out request is uncertain and may have executed
 once; timeout is neither cancellation nor drain. Backend reset waits for the
 old request to withdraw before accepting another, so reset cannot replay it.
+Error replies also return `0xffffffff`, which the existing native identity and
+status checks reject, because generated upstream masters may discard Avalon
+response codes. The error bit therefore remains physically observable in data.
 The 45/33-bit packets have explicit 10 ns flight/skew bounds; only the three
 first-stage control inputs and four raw reset-release ingress pins are cut.
 Second stages, reset recovery/removal and HDMI output paths remain timed.
