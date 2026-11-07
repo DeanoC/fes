@@ -44,3 +44,41 @@ fixture receipts. Raw inputs/operator evidence are under
 for this operator. The last recorded board prompt remains unconfirmed; fresh
 recovery/card qualification is required before the update. Physical core-load,
 HDMI/menu, input/media/native networking and timing acceptance remain open.
+
+## Physical result: UART update passed; trace invalid
+
+The single attempt used operator publication
+`18668a2aa3d871054cd2b961d40f12d9d8cfe81a`. Fresh old recovery boot, all three
+UART transfers and all five update/readback checks passed. The new FIT,
+manifest and prefix were independently verified; both new rollback copies and
+the protected package/experimental FIT remained correct. The traced loader then
+reached its expected prompt after volatile programming of the unchanged SOF.
+
+The first network transfer reported completion but returned neither a command
+result nor a prompt before its unchanged deadline. No network-delivered SD
+write occurred. Cleanup independently passed 15 MHz clock readback, exact USB
+permissions, private-server shutdown and free UART. The prompt is unconfirmed;
+the attempt is consumed and was not retried.
+
+The diagnostic has a confirmed source defect: its helper reads/writes UART0
+at `0x10c02014`/`0x10c02000`. The actual compiled device tree selects
+`serial0:115200n8`, whose `serial0` alias resolves to UART1,
+`/soc/serial1@10c02100`, enabled with four-byte accesses and register shift two.
+The console addresses are therefore `0x10c02114`/`0x10c02100`.
+The host models and instruction audit checked the same incorrect helper
+constants; they did not independently check this board's selected console.
+That validation gap invalidates this trace. It does not prove an exact stopped
+PC or explain the earlier uninstrumented network stall.
+
+The spare now contains the verified v1 trace FIT
+`0f15b11576e91a6cb705de1f1b97e0960a03437b1821628abbd74bd4367f9855`,
+its manifest, prefix `371cd116055bc7f458dc8254071f62768dcf7bd3c2498e70e8c3e6e04f62a956`
+and `R1107A` rollback copies. A future repair must explicitly bind this current
+state; the original-baseline upgrade cannot simply be replayed. The original
+factory card and bottom kit remain untouched, and the claim is held.
+
+Next: correct the helper's port, check both compiled U-Boot and FIT device trees
+against the selected board console before publishing a trace build, and prepare
+one explicit v1-to-corrected UART repair with fresh rollback destinations.
+No native boot or core load occurred. See [result.json](result.json) and
+`out/nano-recovery-return-board-20261107/physical-result.json` for exact evidence.
