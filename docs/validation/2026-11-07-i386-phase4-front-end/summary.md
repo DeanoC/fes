@@ -29,7 +29,7 @@ branch's profiler changes. The runs used that tree.
   decode of those bytes needs the next block's pass through L1. That wait
   is 350k of DOOM's 654k `fe_empty` clocks, plus 70k more for loops inside
   one block.
-- **L1I misses** account for the rest: 1.34M bench clocks in DOOM (0.45M
+- **L1I misses** account for the rest: 1.29M bench clocks in DOOM (0.40M
   kit-equivalent).
 
 Top three slices, by kit-equivalent clocks saved in DOOM's window
@@ -73,7 +73,8 @@ Each wait is split by how Q entered the half it is in:
 - `tkself`: a predicted jump whose target is in the branch's own block;
 - `rd`: a redirect.
 
-A wait is also marked `l1i` if F2 waited on the L1I since Q last issued.
+A wait is also marked `l1i` if F2 waited on the L1I since Q last issued or
+the last redirect.
 The `latent` column counts every clock Q did not issue, whatever D was
 doing. These are the bubbles D's own waits hide today.
 
@@ -90,6 +91,9 @@ Everything else is read through `cpu_profile.vlt`.
   run found 61,632, one per redirect: the clock after a redirect, when Q's
   output from before the redirect is gone. That clock is now charged to the
   redirect, and the suite then had 2 of 338,904 unattributed.
+- **L1I mark.** A redirect clears the mark too (Codex review). Before
+  that, a miss on the wrong path marked the redirect's refill: 46k of DOOM's
+  `half_rd` clocks and 289k of 3DBench's. No bucket moved.
 - **Tests.** `tests/test_pc386_cpu_profile.py` drives each reason, the
   two-clock offset, the redirect case and the L1I mark through the header.
   The Python side must find each bucket's split equal to the bucket.
@@ -103,11 +107,11 @@ predicted jumps taken at Q (195,945 inside one block).
 
 | Reason | Clocks | refill | refill_l1i | fe_l1i | fe_empty | of which l1i | latent |
 | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
-| half_rd | 1,088,137 | 719,424 | 368,713 | 0 | 0 | 341,178 | 1,088,479 |
+| half_rd | 1,088,137 | 719,424 | 368,713 | 0 | 0 | 295,121 | 1,088,479 |
 | redirect | 552,624 | 532,074 | 20,550 | 0 | 0 | 0 | 276,312 |
 | half_seq1 | 493,538 | 0 | 0 | 371,366 | 122,172 | 493,534 | 499,684 |
 | tail_tk | 454,316 | 0 | 0 | 104,381 | 349,935 | 132,661 | 502,315 |
-| tail_rd | 121,132 | 44,900 | 28,030 | 39,391 | 8,811 | 74,882 | 149,479 |
+| tail_rd | 121,132 | 44,900 | 28,030 | 39,391 | 8,811 | 72,851 | 149,479 |
 | tail_seq | 111,959 | 0 | 0 | 82,750 | 29,209 | 111,797 | 133,307 |
 | cross_seq | 89,924 | 0 | 0 | 65,911 | 24,013 | 89,915 | 361,211 |
 | tail_tkself | 72,045 | 0 | 0 | 2,158 | 69,887 | 2,577 | 75,056 |
@@ -119,7 +123,7 @@ predicted jumps taken at Q (195,945 inside one block).
 | cross_seq1 | 1,299 | 0 | 0 | 1,027 | 272 | 1,299 | 2,265 |
 | cross_tk | 1,088 | 0 | 0 | 830 | 258 | 1,088 | 2,232 |
 | prefix | 948 | 30 | 7 | 186 | 725 | 0 | 1,520 |
-| Total | 3,114,009 | 1,296,428 | 420,754 | 742,828 | 653,999 | 1,338,378 | |
+| Total | 3,114,009 | 1,296,428 | 420,754 | 742,828 | 653,999 | 1,290,290 | |
 
 How to read the table:
 - **Refill.** A WB redirect costs about 6.2 empty clocks:
@@ -156,10 +160,10 @@ fewer redirects (164,275), more predicted jumps (9.0M), and `tail_tk` at
 
 | Reason | Clocks | refill + refill_l1i | fe_l1i + fe_empty | of which l1i | latent |
 | --- | ---: | ---: | ---: | ---: | ---: |
-| half_rd | 16,651,318 | 16,651,313 | 5 | 1,367,011 | 16,662,215 |
+| half_rd | 16,651,318 | 16,651,313 | 5 | 1,078,057 | 16,662,215 |
 | redirect | 10,494,390 | 10,494,390 | 0 | 0 | 5,247,292 |
 | tail_tk | 2,273,981 | 0 | 2,273,981 | 247,531 | 2,757,644 |
-| tail_rd | 1,808,206 | 1,327,546 | 480,660 | 391,533 | 1,825,870 |
+| tail_rd | 1,808,206 | 1,327,546 | 480,660 | 372,351 | 1,825,870 |
 | tail_tkself | 1,175,943 | 0 | 1,175,943 | 45,938 | 1,286,716 |
 | half_tk | 881,807 | 0 | 881,807 | 304,177 | 1,148,845 |
 | half_tkself | 618,010 | 0 | 618,010 | 1,456 | 625,438 |
@@ -297,10 +301,10 @@ How the savings are worked out:
    - **Risk: medium–high.** It adds a new EX-to-F1 path into the L1I's
      address registers, and an ordering rule against older faults.
 5. **L1I next-line prefetch on a miss.**
-   - **Measured.** The L1I-marked waits are 1.34M bench clocks in DOOM, and
-     0.45M kit-equivalent after the 7-clock correction per miss.
-   - **Saving.** 30–60% of that: 0.13–0.27M (0.28–0.56%). 3DBench: 0.2–0.4M
-     (0.06–0.12%).
+   - **Measured.** The L1I-marked waits are 1.29M bench clocks in DOOM, and
+     0.40M kit-equivalent after the 7-clock correction per miss.
+   - **Saving.** 30–60% of that: 0.12–0.24M (0.25–0.50%). 3DBench: 0.10–0.21M
+     (0.03–0.06%).
    - **Risk: medium.** The bus interface's port 0 is shared with the L1D,
      and the L1I fills a second line.
 6. **Run a loop inside one block from the buffer.**
