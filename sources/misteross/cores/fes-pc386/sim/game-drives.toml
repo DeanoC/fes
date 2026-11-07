@@ -487,6 +487,10 @@ sha256 = "8be1192de3cd931d4b69bf51402019f92feda078ec032f5ca42d5ed1fdd55be2"
 launch = "cd \\rott|rott|"
 keys = [[6.0, "|"], [9.0, " "], [12.0, "|"]]
 limit = 20.0
+notes = "SOUND.ROT is eXoDOS's SB16 setup changed to a Sound Blaster 2.0 (SBType 3, mono, 8-bit): a sidecar"
+config = [
+  { path = "ROTT\\SOUND.ROT", sha256 = "72d797d08f4a882871291e1e1c1d3dcaa00203a583cebe4e45cf22cb120fcc1c" },
+]
 copy = [
   { from = "RotTDLX/ROTT", to = "ROTT", skip = ["SB16", "MT32", "SC55", "GUS", "TANDY", "CMS", "HERC"] },
   { from = "RotTDLX/ROTT/SB16", to = "ROTT" },
@@ -638,7 +642,7 @@ copy = [
 
 [drives.fpu]
 cylinders = 260
-description = "FPU-required simulations"
+description = "FPU-required simulations, and Serpent Isle (an acceptance game) where there is room"
 
 [[drives.fpu.titles]]
 id = "gp2"
@@ -665,6 +669,24 @@ limit = 20.0
 copy = [
   { from = "USNavFiG/USNFGOLD", to = "USNFGOLD", skip = ["SB16", "MT32", "SC55", "GUS", "TANDY", "CMS", "HERC", "UNIVBE"] },
   { from = "USNavFiG/USNFGOLD/SB16", to = "USNFGOLD" },
+]
+
+[[drives.fpu.titles]]
+id = "u7si"
+title = "Ultima VII Part 2 - Serpent Isle + The Silver Seed (1993)"
+bucket = "xms"
+path = "Ultima VII Part 2 - Serpent Isle + The Silver Seed (1993).zip"
+sha256 = "5601ca4e2e2d23865046fbfe9c775fa5df896aa0ba4f8a66bb95521ffd1c2c1c"
+launch = "cd \\serpent|serpent|"
+keys = [[6.0, "|"], [9.0, " "], [12.0, "|"]]
+limit = 20.0
+notes = "SERPENT.CFG and TEST.CFG are the plain Sound Blaster setup the game's own INSTALL wrote (#1426): sidecars"
+config = [
+  { path = "SERPENT\\SERPENT.CFG", sha256 = "13ad7bdb6b057ea635899f7856b3d56cba5d44dd25d1664a98b968f2b5212c81" },
+  { path = "SERPENT\\TEST.CFG", sha256 = "13ad7bdb6b057ea635899f7856b3d56cba5d44dd25d1664a98b968f2b5212c81" },
+]
+copy = [
+  { from = "ultima72", to = "SERPENT" },
 ]
 
 [drives.bench]

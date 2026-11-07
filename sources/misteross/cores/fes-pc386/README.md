@@ -476,21 +476,32 @@ FreeDOS 1.4 package archives in `C:\FDOS\BIN`, pinned in
   if it is not 0:0. After CuteMouse's 0:0 it left its own handler installed,
   and the next program was called at a stale address on every mouse event
   (#1485).
-- The games profile sets `BUFFERS=16`. MEM shows 575K (588,544 bytes) of
-  conventional memory free and 154K of upper memory free, largest block 81K.
-  This is 1,792 bytes above Serpent Isle's published 573K (586,752-byte)
-  requirement. The games-image MEM simulation requires at least 1,024 bytes
-  above that requirement.
+- `FDCONFIG.SYS` has a boot menu. It takes entry 1 after 3 seconds, so kit
+  and simulation runs that press nothing get it (#1526):
+  - **Entry 1, the default.** The kernel stays in conventional memory (below).
+    `DOSDATA=UMB` moves its data, stacks and LASTDRIVE to upper memory, and
+    `FILESHIGH=30`, `BUFFERSHIGH=16` and `SHELLHIGH` move the file handles,
+    buffers and FreeCOM there too. MEM shows 580K (594,256 bytes) free. That
+    is enough for Frontier: Elite 2 (about 594,000) and Serpent Isle's
+    published 573K (586,752 bytes). `FILES=30` covers Strike Commander's 25
+    (#1525). The games-image MEM simulation requires Serpent Isle's figure
+    plus 1,024 bytes, and Frontier's.
+  - **Entry 2, more memory.** `DOS=HIGH,UMB`, `FILES=30`, `BUFFERS=16`, for
+    programs that need more conventional memory, such as Falcon 3.0
+    (614,400 bytes). MEM shows 622K (637,104 bytes). It is not for Ultima
+    VII; the next item says why.
 - HIMEMX picks its A20 method by itself. POST hands DOS a machine with A20
   off ([A20 and CPU reset](../../docs/pc386-machine-design.md#a20-and-cpu-reset)),
   so HIMEMX takes port 92h ("Fast A20 method used"), and XMS function 04h
   (global disable A20) turns A20 off again. A HIMEMX that finds A20 already
   on takes its "Always on" method, under which 04h always fails.
-- No `DOS=HIGH`: with the kernel in the HMA, its entry code enables A20 with
+- No `DOS=HIGH` by default: with the kernel in the HMA, its entry code enables A20 with
   XMS function 05h whenever a program has left it off and never releases it,
   so HIMEMX's lock count stays above zero and function 04h fails. Ultima
   VII's Voodoo memory manager calls 04h as it exits and stops
-  (`freexmm.c` / `Program terminated by code.`) when it fails.
+  (`freexmm.c` / `Program terminated by code.`) when it fails (#1409). Both
+  calls are fixed in the pinned binaries: the kernel's `_ENABLEA20` uses 05h,
+  and HIMEMX's 04h refuses while `a20_locks` is not zero.
 - The upper memory blocks also keep Ultima VII's memory check working from
   the prompt. Its MAINMENU.EXE measures DOS memory as the last two blocks of
   the memory chain. FreeCOM 0.86 keeps its master environment (and, while a

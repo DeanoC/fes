@@ -262,6 +262,9 @@ VGA_RTL = (
 )
 SERPENT_ISLE_MIN_CONVENTIONAL_BYTES = 573 * 1024
 GAMES_CONVENTIONAL_HEADROOM_BYTES = 1024
+# Frontier: Elite 2's own check ("approx. 594,000 bytes"), the most a game drive's
+# title needs from the games image's default boot entry (#1526).
+FRONTIER_MIN_CONVENTIONAL_BYTES = 594_000
 PRESENTER_RTL = (CORE / 'rtl/pc386_ram.sv', CORE / 'rtl/pc386_presenter.sv')
 CAPTURE_RTL = (
     CORE / 'rtl/pc386_rate.sv', CORE / 'rtl/pc386_ram.sv', CORE / 'rtl/pc386_vga_scanout.sv',
@@ -658,18 +661,22 @@ def run_boot(args, linked: list[Path]) -> dict:
 
 
 def games_memory_failures(screen: list[str]) -> list[str]:
-    """Check MEM's exact conventional-memory count against the Serpent Isle requirement."""
+    """Check MEM's exact conventional-memory count against Serpent Isle's and Frontier's requirements."""
     text = '\n'.join(screen)
     match = re.search(r'Largest executable program size\s+\d+K\s+\(\s*([\d,]+) bytes\)', text)
     if not match:
         return ['games image MEM output is missing the largest executable program size']
     available = int(match.group(1).replace(',', ''))
+    failures = []
     required = SERPENT_ISLE_MIN_CONVENTIONAL_BYTES + GAMES_CONVENTIONAL_HEADROOM_BYTES
     if available < required:
-        return [f'games image has {available:,} conventional bytes free; '
-                f'Serpent Isle needs {SERPENT_ISLE_MIN_CONVENTIONAL_BYTES:,} bytes '
-                f'with {GAMES_CONVENTIONAL_HEADROOM_BYTES:,} bytes of headroom ({required:,} total)']
-    return []
+        failures.append(f'games image has {available:,} conventional bytes free; '
+                        f'Serpent Isle needs {SERPENT_ISLE_MIN_CONVENTIONAL_BYTES:,} bytes '
+                        f'with {GAMES_CONVENTIONAL_HEADROOM_BYTES:,} bytes of headroom ({required:,} total)')
+    if available < FRONTIER_MIN_CONVENTIONAL_BYTES:
+        failures.append(f'games image has {available:,} conventional bytes free; '
+                        f'Frontier: Elite 2 needs {FRONTIER_MIN_CONVENTIONAL_BYTES:,}')
+    return failures
 
 
 def vga_test_disk(args) -> Path:

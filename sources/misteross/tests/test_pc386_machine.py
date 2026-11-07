@@ -60,12 +60,40 @@ class FirmwareTest(unittest.TestCase):
 
 
 class FreedosImageTest(unittest.TestCase):
-    def test_games_profile_reduces_buffers_for_serpent_isle_memory(self):
-        config = freedos.PROFILES['games']['fdconfig']
-        match = re.search(r'(?m)^BUFFERS=(\d+)\r?$', config)
-        self.assertIsNotNone(match)
-        self.assertLess(int(match.group(1)), 20)
-        self.assertIn('DOS=UMB\r\n', config)
+    @staticmethod
+    def games_entry(entry: int) -> list[str]:
+        """The FDCONFIG.SYS lines the kernel runs for one boot-menu entry."""
+        lines = []
+        for line in freedos.PROFILES['games']['fdconfig'].split('\r\n'):
+            match = re.match(r'(\d+)\?(.*)', line)
+            if match and str(entry) not in match.group(1):
+                continue
+            lines.append(match.group(2) if match else line)
+        return [line for line in lines if line and not line.startswith(('MENU ', 'MENUDEFAULT'))]
+
+    def test_games_menu_takes_the_ultima_vii_setup_without_a_key(self):
+        # Kit and simulation runs press nothing at boot: entry 1 after 3 seconds.
+        self.assertIn('MENUDEFAULT=1,3\r\n', freedos.PROFILES['games']['fdconfig'])
+
+    def test_games_default_keeps_the_kernel_out_of_the_hma(self):
+        # The kernel in the HMA holds an XMS A20 lock (05h), so Ultima VII's
+        # Voodoo global disable (04h) fails (#1409, #1526): entry 1 keeps it low
+        # and moves its data, files, buffers and the shell to upper memory.
+        default = self.games_entry(1)
+        self.assertIn('DOS=UMB', default)
+        self.assertNotIn('DOS=HIGH,UMB', default)
+        self.assertIn('DOSDATA=UMB', default)
+        self.assertTrue(any(line.startswith('SHELLHIGH=') for line in default))
+        self.assertIn('BUFFERSHIGH=16', default)
+        self.assertEqual(self.games_entry(2).count('DOS=HIGH,UMB'), 1)
+
+    def test_games_files_meet_strike_commander(self):
+        # Strike Commander asks for FILES=25 (#1525).
+        for entry in (1, 2):
+            files = [int(line.split('=')[1]) for line in self.games_entry(entry)
+                     if line.startswith(('FILES=', 'FILESHIGH='))]
+            self.assertEqual(len(files), 1, entry)
+            self.assertGreaterEqual(files[0], 25, entry)
 
     def test_lock_pins_each_package_at_the_release_tag(self):
         lock = freedos.lock()
@@ -434,11 +462,13 @@ class SpeakerTestTest(unittest.TestCase):
 
 
 class BootReportTest(unittest.TestCase):
-    def test_games_mem_requires_exact_serpent_isle_memory_with_headroom(self):
+    def test_games_mem_requires_serpent_isle_and_frontier_memory(self):
         old_mem = ['Largest executable program size       573K (586,416 bytes)']
-        enough_mem = ['Largest executable program size       574K (587,776 bytes)']
+        low_kernel_before = ['Largest executable program size       575K (588,544 bytes)']
+        enough_mem = ['Largest executable program size       580K (594,256 bytes)']
         self.assertEqual(len(sim.games_memory_failures([])), 1)
-        self.assertEqual(len(sim.games_memory_failures(old_mem)), 1)
+        self.assertEqual(len(sim.games_memory_failures(old_mem)), 2)
+        self.assertEqual(len(sim.games_memory_failures(low_kernel_before)), 1)
         self.assertEqual(sim.games_memory_failures(enough_mem), [])
 
     def test_boot_suite_output_names_cover_image_cpu_and_preset(self):
