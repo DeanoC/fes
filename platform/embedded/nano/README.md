@@ -39,6 +39,16 @@ upload session's SD write, and a retired console sends no cleanup commands.
 A complete frozen physical operator and new bounded hardware test remain
 necessary. No marker grants SD/native programming permission or widens deadlines.
 
+The separate `recovery_trace_upgrade.Repair` transition admits only the exact
+consumed UART0 diagnostic FIT, manifest and prefix. It requires the original
+R1107A rollback pair and reads/hashes it before and after its five fixed writes.
+Fresh R1107B files preserve the consumed image. The ordinary `Upgrade` keeps its
+original baseline restriction; neither transition activates its result. The
+repair shares the existing ownership, memory, UART, write/readback and permanent
+retirement checks. A new frozen operator and fresh bounded boot/card proofs are
+required after the reported power loss. Model success grants no physical write
+or core-load acceptance.
+
 The current guarded-RAM contract keeps the per-CPU array in sealed initialized
 BL31 DDR instead of OCRAM BSS. Its original cache flush remains in place. The
 matched device tree reserves the complete two-MiB BL31 DDR interval, and the

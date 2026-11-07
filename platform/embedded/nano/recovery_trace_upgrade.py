@@ -1,4 +1,4 @@
-"""One explicit trace-recovery upgrade from qualified PHY-prepare recovery.
+"""Explicit one-shot recovery upgrade and repair transitions.
 
 This private prototype preserves rollback files and independently verifies the new
 FAT boot FIT, raw mirror, manifest and protected native/package files. It never
@@ -17,6 +17,13 @@ BACKUPS={BOOT:'FES/R1107A.ITB',META:'FES/R1107A.JSN'}
 def sha(raw):return hashlib.sha256(raw).hexdigest()
 
 class Upgrade:
+    backups=BACKUPS
+    transition='qualified-PHY-prepare-to-current-trace'
+    def before_valid(self,before):
+        return (sha(self.old['fit'])==BASE_FIT and before.get('fit_sha256')==BASE_FIT and
+                before.get('return_observations') is None)
+    def preserve_rollback(self,stage):
+        pass
     def __init__(self,console,old,new,prime,package,transfer,owns,save):
         self.console=console
         self.old={k:bytes(old[k]) if k in ('fit','manifest') else str(old[k]) for k in ('fit','manifest','prefix_sha256')}
@@ -26,7 +33,7 @@ class Upgrade:
         self.active=False
         self.memory=ScratchMemory();self.attempted=False;self.token=secrets.token_hex(16)
         self.r={'scope':'one explicit UART spare-card recovery upgrade; no Ethernet or native activation',
-                'pass':False,'sd_write_attempted':False,'writes':[],'commands':[],'memory':[],'transfers':[]}
+                'transition':self.transition,'pass':False,'sd_write_attempted':False,'writes':[],'commands':[],'memory':[],'transfers':[]}
     def persist(self):self.save(self.r)
     def require(self):
         if not self.active:raise ValueError('upgrade session is retired or not started')
@@ -59,7 +66,7 @@ class Upgrade:
         text=self.command('hash sha256 83000000 1000000')
         if not re.search(r'(?i)(?<![0-9a-f])'+expected+r'(?![0-9a-f])',text):raise ValueError('upgrade protected prefix differs')
     def write_fat(self,name,address,data):
-        if name not in (BOOT,META,*BACKUPS.values()):raise ValueError('upgrade target is outside fixed files')
+        if name not in (BOOT,META,*self.backups.values()):raise ValueError('upgrade target is outside fixed files')
         self.scope('before-write-'+name);self.digest(address,data)
         row={'target':name,'sha256':sha(data),'bytes':len(data),'attempted':True,'acknowledged':False}
         self.r['sd_write_attempted']=True;self.r['writes'].append(row);self.persist()
@@ -93,15 +100,15 @@ class Upgrade:
                 raise ValueError('upgrade prefix identity differs')
             before,after=json.loads(self.old['manifest']),json.loads(self.new['manifest'])
             if (not isinstance(before,dict) or not isinstance(after,dict) or
-                    sha(self.old['fit'])!=BASE_FIT or before.get('fit_sha256')!=BASE_FIT or
+                    not self.before_valid(before) or
                     before.get('native_handoff') is not False or before.get('automatic_writes') is not False or
-                    before.get('return_observations') is not None or sha(self.new['fit'])==BASE_FIT or
+                    sha(self.new['fit']) in (BASE_FIT,sha(self.old['fit'])) or
                     after.get('fit_sha256')!=sha(self.new['fit']) or
                     after.get('spl_sha256')!=BASE_SPL or after.get('bl31_sha256')!=BASE_BL31 or
                     after.get('return_observations')!=dict(scope=MODE,phases=len(recovery_return_trace.PHASES),
                         profile_sha256=sha(Path(recovery_return_trace.__file__).read_bytes())) or
                     after.get('native_handoff') is not False or after.get('automatic_writes') is not False):
-                raise ValueError('upgrade is not the exact baseline-to-trace transition')
+                raise ValueError('upgrade is not the exact declared recovery transition')
             versions=re.findall(r'(?m)^U-Boot [^\r\n]*\r?$',self.command('version'))
             if (len(versions)!=1 or re.fullmatch(re.escape(OLD_VERSION)+
                     r' \([^()\r\n]{1,100}\)socfpga_agilex5\r?',versions[0]) is None):
@@ -116,15 +123,16 @@ class Upgrade:
             if 'SD version' not in info or '3.7 GiB' not in info:raise ValueError('upgrade spare card type/capacity differs')
             if not re.search(r'(?m)^\s*1\s+32768\s+262144\s',self.command('mmc part')):raise ValueError('upgrade partition differs')
             files=self.command('fatls mmc 0:1 FES').lower()
-            if any(name.rsplit('/',1)[1].lower() in files for name in BACKUPS.values()):raise ValueError('upgrade rollback destination already exists')
+            if any(name.rsplit('/',1)[1].lower() in files for name in self.backups.values()):raise ValueError('upgrade rollback destination already exists')
             self.prefix(self.old['prefix_sha256'])
             self.read(PACKAGE,0x82000000,self.package)
+            self.preserve_rollback('before-write')
             self.read(BOOT,0x83000000,self.old['fit']);self.read(META,0x82800000,self.old['manifest'])
             # A real FAT load reserves the entire UART window in live LMB.
             self.read(PRIME,0x82000000,self.prime);self.scope('reserved-uart-window')
             self.receive('probe',bytes(range(256))*4)
-            self.write_fat(BACKUPS[BOOT],0x83000000,self.old['fit'])
-            self.write_fat(BACKUPS[META],0x82800000,self.old['manifest'])
+            self.write_fat(self.backups[BOOT],0x83000000,self.old['fit'])
+            self.write_fat(self.backups[META],0x82800000,self.old['manifest'])
             padded=(max(len(self.old['fit']),len(self.new['fit']))+511)&~511
             image=self.new['fit']+bytes(padded-len(self.new['fit']))
             self.receive('fit',image)
@@ -140,7 +148,8 @@ class Upgrade:
             self.write_fat(META,0x82000000,self.new['manifest'])
             self.read(BOOT,0x83000000,self.new['fit']);self.read(META,0x82800000,self.new['manifest'])
             self.read(PRIME,0x83000000,self.prime);self.read(PACKAGE,0x83000000,self.package)
-            self.read(BACKUPS[BOOT],0x83000000,self.old['fit']);self.read(BACKUPS[META],0x83000000,self.old['manifest'])
+            self.read(self.backups[BOOT],0x83000000,self.old['fit']);self.read(self.backups[META],0x83000000,self.old['manifest'])
+            self.preserve_rollback('after-write')
             self.prefix(self.new['prefix_sha256']);self.scope('complete')
             if not self.console.parked:raise ValueError('upgrade did not end at the same loader prompt')
             self.r.update(pass_=True,new_card_verified=True,native_activation=False,network_used=False,
@@ -150,3 +159,32 @@ class Upgrade:
             self.r['error']=str(error);self.persist();raise
         finally:
             self.active=False;self.r['session_retired']=True;self.persist()
+
+
+# This repair admits only the exact consumed UART0 diagnostic on the spare.
+# It is not an arbitrary trace-to-trace updater. Keep the original rollback.
+REPAIR_FIT='0f15b11576e91a6cb705de1f1b97e0960a03437b1821628abbd74bd4367f9855'
+REPAIR_MANIFEST='722ed9592c04f19dc19b7e6bd21c50c87aada7712fbd056f86b4e45551d7f0de'
+REPAIR_PREFIX='371cd116055bc7f458dc8254071f62768dcf7bd3c2498e70e8c3e6e04f62a956'
+ROLLBACK_MANIFEST='4fa13be7cfecd0d756a492e945c6184c011814bafb903aeb626ee2155a00b8fb'
+
+class Repair(Upgrade):
+    backups={BOOT:'FES/R1107B.ITB',META:'FES/R1107B.JSN'}
+    transition='exact-consumed-UART0-trace-to-current-UART1-trace'
+    def __init__(self,console,old,new,prime,package,transfer,owns,save,rollback):
+        if set(rollback)!={'fit','manifest'}:
+            raise ValueError('repair requires the exact original rollback pair')
+        self.rollback={k:bytes(rollback[k]) for k in ('fit','manifest')}
+        super().__init__(console,old,new,prime,package,transfer,owns,save)
+    def before_valid(self,before):
+        return (sha(self.old['fit'])==before.get('fit_sha256')==REPAIR_FIT and
+                sha(self.old['manifest'])==REPAIR_MANIFEST and
+                self.old['prefix_sha256']==REPAIR_PREFIX and
+                sha(self.rollback['fit'])==BASE_FIT and
+                sha(self.rollback['manifest'])==ROLLBACK_MANIFEST)
+    def preserve_rollback(self,stage):
+        self.scope('preserve-original-rollback-'+stage)
+        self.read(BACKUPS[BOOT],0x83000000,self.rollback['fit'])
+        self.read(BACKUPS[META],0x82800000,self.rollback['manifest'])
+        self.r.setdefault('preserved_original_rollback',[]).append(stage)
+        self.persist()
