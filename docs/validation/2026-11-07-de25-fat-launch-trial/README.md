@@ -40,3 +40,41 @@ HDMI/menu/input/media/native-network and four FPGA signoff gates remain open.
 This comparison cannot establish full DE10-style readiness on its own.
 
 Raw operator/evidence: `out/nano-fat-launch-board-20261107`.
+
+## Physical comparison result
+
+The single bounded attempt passed in 358.3 seconds. All eight
+recovery uploads completed their 34-marker return traces, RAM digests and SD
+write/readbacks; all eight independent fresh reads passed before native
+programming. The console has exactly 272 return markers. This run did not
+repeat the predecessor's fourth-upload stall. It does not prove idle DMA or
+general native networking.
+
+The refreshed native image booted with the cold CPU/secure handoff and full
+firmware/loader traces accepted. The ordinary computer constructor completed
+three physical serial Tenfoot launch/return cycles: ZX81, alternate retained
+ROM, ZX81. The accepted records bind the exact package, build, activation
+receipt, selected ROM, owner and generations 1/2, 3/4, 5/6. Fetch activity was
+observed. All three master-stop records completed, shared USB delivered
+42 reports with pause/resume, and owned Quit ended
+at ready generation 6 with the USB service stopped. No new physical control
+press or HDMI/video behavior is established by this run.
+
+Launches took 55.236, 55.179
+and 55.222 seconds, within the unchanged 100-second
+launch limit. The retained baseline mean was 72.525 seconds;
+the new mean is 55.212 seconds, a
+23.9% reduction for this three-cycle
+comparison. The remaining launch time is a prototype limitation; this does
+not establish broad DE10-style loading performance.
+
+Independent cleanup confirms recorded 15 MHz readback, exact USB ownership/
+permissions, the owned private JTAG server gone and UART free. TRWU8CBL remains
+claimed after the native service's verified exit, rather than at a recovery
+prompt. Factory restoration remains waived; the factory card and bottom kit
+were untouched. The operator is consumed and cannot be replayed.
+
+This is exact-artifact physical serial launch/return evidence. The retained
+diagnostic admission, physical DDR-drain qualification, full core conformance,
+general package acceptance, HDMI/menu/input/media/native-network behavior and
+four FPGA signoff gates remain open. Full DE10-style readiness is not complete.

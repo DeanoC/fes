@@ -1,0 +1,146 @@
+{
+  "status": "physical-FAT-reuse-eight-uploads-native-three-launch-return-cycles-passed",
+  "operator_source": "3cb6cfde45246765bb160e3d8a94dcafbf4c0f23",
+  "native_SDK_entry_source": "e2bd5808abae8990b737c25a520a72cdf98ee09a",
+  "firmware_source": "e2bd5808abae8990b737c25a520a72cdf98ee09a",
+  "attempts": 1,
+  "attempt_consumed": true,
+  "replay_allowed": false,
+  "total_host_seconds": 358.30154692102224,
+  "complete_return_traces": 8,
+  "return_marker_count": 272,
+  "verified_upload_write_readbacks": 8,
+  "fresh_SD_readbacks": 8,
+  "recovery_fit_sha256": "3722e24c551a794dd970e665cc4932b96cb62aefa353f39079285458d67d48e5",
+  "native_fit_sha256": "fb2ad0ed261cd0502cf8395dab113bb4d766bcbbb7737a7a3eb74fa2b2bdae4e",
+  "native_package_id": "03c8fa017f5fcfb40d23d54a449e8464d89fa9919dc6bae301fd8c833955290a",
+  "native_cold_boot_verified": true,
+  "ordinary_computer_constructor_exercised": true,
+  "native_launch_return_cycles": 3,
+  "cycles": [
+    {
+      "selection": 0,
+      "launch_generation": 1,
+      "return_generation": 2
+    },
+    {
+      "selection": 1,
+      "launch_generation": 3,
+      "return_generation": 4
+    },
+    {
+      "selection": 0,
+      "launch_generation": 5,
+      "return_generation": 6
+    }
+  ],
+  "launches": [
+    {
+      "selection": 0,
+      "elapsed_seconds": 55.235690688947216,
+      "generation": 1,
+      "identity": {
+        "PackageID": "03c8fa017f5fcfb40d23d54a449e8464d89fa9919dc6bae301fd8c833955290a",
+        "CoreID": "fes.zx81",
+        "ABI": "fes.computer",
+        "BuildID": "0792e51a2e51512bfb8fe44e93a69ddd",
+        "Platform": "de25_nano",
+        "Device": "A5EB013BB23BE4SCS",
+        "ProgrammingProfile": "de25-native-computer-v1",
+        "ActivationReceiptSHA256": "5c40790f10fc8e0a69a4048b7f9e1c735c86d9f014ad0d3142c139bc3bbb7e2c",
+        "ProgrammedSHA256": "1da457bc4afbfce297222fa8d85754fbd4533198be7dc9f706926ce21103b949",
+        "Major": 1,
+        "Minor": 0
+      }
+    },
+    {
+      "selection": 1,
+      "elapsed_seconds": 55.179403027985245,
+      "generation": 3,
+      "identity": {
+        "PackageID": "03c8fa017f5fcfb40d23d54a449e8464d89fa9919dc6bae301fd8c833955290a",
+        "CoreID": "fes.zx81",
+        "ABI": "fes.computer",
+        "BuildID": "0792e51a2e51512bfb8fe44e93a69ddd",
+        "Platform": "de25_nano",
+        "Device": "A5EB013BB23BE4SCS",
+        "ProgrammingProfile": "de25-native-computer-v1",
+        "ActivationReceiptSHA256": "0501cc85667824551d459ec6879ebfbfa90cef0654563b05543e0cfe72d30edd",
+        "ProgrammedSHA256": "1da457bc4afbfce297222fa8d85754fbd4533198be7dc9f706926ce21103b949",
+        "Major": 1,
+        "Minor": 0
+      }
+    },
+    {
+      "selection": 0,
+      "elapsed_seconds": 55.22238304815255,
+      "generation": 5,
+      "identity": {
+        "PackageID": "03c8fa017f5fcfb40d23d54a449e8464d89fa9919dc6bae301fd8c833955290a",
+        "CoreID": "fes.zx81",
+        "ABI": "fes.computer",
+        "BuildID": "0792e51a2e51512bfb8fe44e93a69ddd",
+        "Platform": "de25_nano",
+        "Device": "A5EB013BB23BE4SCS",
+        "ProgrammingProfile": "de25-native-computer-v1",
+        "ActivationReceiptSHA256": "5c40790f10fc8e0a69a4048b7f9e1c735c86d9f014ad0d3142c139bc3bbb7e2c",
+        "ProgrammedSHA256": "1da457bc4afbfce297222fa8d85754fbd4533198be7dc9f706926ce21103b949",
+        "Major": 1,
+        "Minor": 0
+      }
+    }
+  ],
+  "retained_ROM_selection_sequence": [
+    0,
+    1,
+    0
+  ],
+  "fetch_activity_observed": true,
+  "master_stop_complete_records": 3,
+  "owned_Quit_verified": true,
+  "exit_generation": 6,
+  "shared_USB_reports": 42,
+  "physical_input_controls_exercised": false,
+  "display": "serial-state-only",
+  "general_ordinary_admission": false,
+  "core_load_acceptance": false,
+  "general_native_network_acceptance": false,
+  "XGMAC_idle_DMA_proven": false,
+  "physical_DDR_drain_qualified": false,
+  "timing_signoff": false,
+  "cleanup": {
+    "status": "passed",
+    "usb_node_unchanged": true,
+    "usb_permissions_exact": true,
+    "clock_readback": "15M",
+    "owned_private_server_gone": true,
+    "uart_owners": [],
+    "board_operations": false,
+    "native_rom_acceptance": false
+  },
+  "board_state": "native Tenfoot exit ready generation6, USB stopped; no recovery prompt or factory restoration requested",
+  "claim_retained": true,
+  "original_factory_card_touched": false,
+  "bottom_kit_touched": false,
+  "hardware_actions": true,
+  "next": "localize remaining launch time and qualify a faster read-only SD transfer mode; retain verification and general package/display/input/media/failure/FPGA signoff gates",
+  "baseline_launch_seconds": [
+    72.5657108859159,
+    72.49606739589944,
+    72.5136202799622
+  ],
+  "current_launch_seconds": [
+    55.235690688947216,
+    55.179403027985245,
+    55.22238304815255
+  ],
+  "mean_baseline_launch_seconds": 72.52513285392585,
+  "mean_current_launch_seconds": 55.21249225502834,
+  "mean_launch_time_reduction_fraction": 0.2387122907277841,
+  "baseline_physical_result_sha256": "ac215b08cc0cd0b1511b17a466e44ad61ec34b3b7bc1f50e7c95029f0fa701a1",
+  "physical_speedup_verified": true,
+  "physical_speedup_scope": "three same-board cycles; not broad loading-performance qualification",
+  "raw_evidence": "out/nano-fat-launch-board-20261107",
+  "physical_result_sha256": "823edde32cba1ad0df8d8ba9961991644e1b14526370878e876b657c29b1e78f",
+  "retention_target": "/home/deano/fes-retained/de25-fat-launch-trial-20261107-r1"
+}
