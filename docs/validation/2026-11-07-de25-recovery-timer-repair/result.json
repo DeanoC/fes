@@ -1,0 +1,118 @@
+{
+  "status": "exact-UART1-timer-repair-modeled-physical-operator-pending",
+  "implementation_source": "0f870243530414e9f0ca246d929a61167924f83d",
+  "software_aggregate_green": true,
+  "focused_tests": 13,
+  "parent_tests": {
+    "total": 1613,
+    "skipped": 3
+  },
+  "real_byte_model_cases": [
+    {
+      "case": "pass",
+      "accepted": true,
+      "modeled_writes": 5
+    },
+    {
+      "case": "prefix",
+      "accepted": false,
+      "modeled_writes": 0
+    },
+    {
+      "case": "prime",
+      "accepted": false,
+      "modeled_writes": 0
+    },
+    {
+      "case": "package",
+      "accepted": false,
+      "modeled_writes": 0
+    },
+    {
+      "case": "original-fit-corrupt",
+      "accepted": false,
+      "modeled_writes": 0
+    },
+    {
+      "case": "prior-fit-corrupt",
+      "accepted": false,
+      "modeled_writes": 0
+    },
+    {
+      "case": "backup-fit-exists",
+      "accepted": false,
+      "modeled_writes": 0
+    },
+    {
+      "case": "uart",
+      "accepted": false,
+      "modeled_writes": 0
+    },
+    {
+      "case": "fit-timeout",
+      "accepted": false,
+      "modeled_writes": 3
+    },
+    {
+      "case": "claim",
+      "accepted": false,
+      "modeled_writes": 0
+    }
+  ],
+  "real_production_pins_used": true,
+  "exact_transition": "exact-consumed-UART1-trace-to-current-100ms-trace",
+  "old_fit_sha256": "ccb6a597052c69f982713c327eeaab02adda4bd8ef21905deed2db7e7d47f353",
+  "new_fit_sha256": "3722e24c551a794dd970e665cc4932b96cb62aefa353f39079285458d67d48e5",
+  "new_manifest_sha256": "95aca2b3116755247a122a9a4357c1efbcfb106adb4dfa5fe94e489cc1889664",
+  "new_prefix_sha256": "80e36789a8de046c8e47899bbb6567d5afa58e3325c10d3944c7151a210d595c",
+  "uart_payloads": 3,
+  "fixed_writes": 5,
+  "preserved_rollback_pairs": 2,
+  "fresh_backup_pair": [
+    "FES/R1107C.ITB",
+    "FES/R1107C.JSN"
+  ],
+  "all_wire_entrypoints_retired_on_success_or_failure": true,
+  "inputs_snapshotted": true,
+  "original_transitions_still_restricted": true,
+  "unique_native_inputs_unchanged": 2205,
+  "prior_normal_native_gate_reused": true,
+  "native_rebuild_required": false,
+  "hardware_actions": false,
+  "SD_writes": false,
+  "physical_operator_prepared": false,
+  "new_physical_test_attempted": false,
+  "physical_card_integrity_verified": false,
+  "native_boot_attempted": false,
+  "core_load_acceptance": false,
+  "timing_signoff": false,
+  "latest_board_observation": "fresh matched version/nonce/prompt after user power report; no card or fresh-boot proof",
+  "raw_evidence": "out/nano-recovery-timer-repair-20261107",
+  "prior_candidate_archive": "/home/deano/fes-retained/de25-recovery-timer-unit-fix-20261107-r1",
+  "retention_target": "/home/deano/fes-retained/de25-recovery-timer-repair-20261107-r1",
+  "next": "freeze fresh exact-source UART-only old-image boot, repair and new-image boot; prove live spare/protected/rollback state before writes; then fresh full-upload/native operator",
+  "evidence_sha256": {
+    "out/nano-recovery-timer-repair-20261107/affected-result.json": "3980618944738fed4abee2dfb089406cc88ae00cd9df6a306ebefff83fbfeb6a",
+    "out/nano-recovery-timer-repair-20261107/affected.log": "41c29a2842015a36b13e0d031f407fb5c9dcf949136844c9fd3f42b0806917b6",
+    "out/nano-recovery-timer-repair-20261107/audit-result.json": "f7c790e473f667d04e7b2aa4f77d7bdc9c492102c5fe407411dc5018cd4ee8c4",
+    "out/nano-recovery-timer-repair-20261107/audit.json": "fc8915ee94c6f8453c61089ec37e2e6c0e87a93c008258a9e4f687f0ff474a19",
+    "out/nano-recovery-timer-repair-20261107/audit.log": "e66dc22b7c37093407b5792a3da5ca5b2420c87bbfe10c178c648baa05088a1e",
+    "out/nano-recovery-timer-repair-20261107/audit_plan.py": "7e104891a5484c4086148dc1e1c965d52e00a42a0f883b0466cf9379553f26a4",
+    "out/nano-recovery-timer-repair-20261107/focused-result.json": "13352425ad859c01def30feda5aa0f1506fa18a0c7866c04850c7f15c9fc9ebb",
+    "out/nano-recovery-timer-repair-20261107/focused-v2-result.json": "e88465b40dc48386061d7f11fd354fb0f1cce59457d85a19dc3eaa602f386299",
+    "out/nano-recovery-timer-repair-20261107/focused-v2.log": "8ce6cbe46c71b8545f6f53d0628ba73909b61cadcb77e92183746cb3d26a0051",
+    "out/nano-recovery-timer-repair-20261107/focused.log": "dff6e90024f351c5c913719f1d3770a18fe317b2d72811f49a52120786715397",
+    "out/nano-recovery-timer-repair-20261107/model-positive.json": "39a2a1664177c4979bb38f9c19b880e0ff5e9f4eb58c803f5ae4e14d13fb07fa",
+    "out/nano-recovery-timer-repair-20261107/retain.py": "95000763085b8d8d5976ee38aeada273f348f1d7a2d27abdbf75e55761f4b3b8",
+    "out/nano-recovery-timer-repair-20261107/retention-result.json": "afb08cbe374bd0cc0323dd121f6d01e82211ab66ce7bef38d0707985d3a3515a",
+    "out/nano-recovery-timer-repair-20261107/retention.log": "0238a46a6226b3f723f2979fc25fd81dce48e2bd4e957f506392c26e6ea5510c",
+    "out/nano-recovery-timer-repair-20261107/run.py": "8dea93a99adab57fd4721de0379fa6fbbcd75877d64f4d7e8ed80a041df6ed3c",
+    "out/nano-recovery-timer-repair-20261107/summarize.py": "30d11f7f04d20881c2f0e199f29596a0bf831b8007cf0ae9b66e2a9ca6a23e75",
+    "out/nano-recovery-timer-repair-20261107/uart-plan.json": "80c2995dea9e05203727e63be531cde4ac41d24ecc679c0382e3919471fc29b3",
+    "platform/embedded/nano/README.md": "b9561aaacd06939dab2ce5221f26f280e254044b05d151fc64f1807ea141a894",
+    "platform/embedded/nano/recovery_trace_upgrade.py": "54bda48ee4e22ebb60fa9fbb3b1d342c2086ba6fbc375a71bd2bc9179a1a2cdb",
+    "tests/test_nano_recovery_timer_repair.py": "fc3157899b1d6422ef8d866f45a37dc504095449d4b4ace8761faa19a5904f86",
+    "tests/test_nano_recovery_trace_repair.py": "cd7ae052bdc54d436465c21f562d27ad5612e03530ddd9dbb93f5516436dfd73",
+    "tests/test_nano_recovery_trace_upgrade.py": "6cf92ceee6130d765716865697add413b04971f0d354a21323a35e5b3b4e17a7"
+  }
+}
