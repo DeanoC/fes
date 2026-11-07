@@ -40,8 +40,10 @@ spot-checked on a kit. It was done the other way round: every title ran on
 the kit, and simulation explained the stops. Two facts drove that.
 
 - **The kit is the RTL.** The kit runs the sealed package, the RTL at speed.
-  All 112 of the seal's input hashes match this tree (main `607922c63` plus
-  this PR, which touches no sealed input).
+  All 112 of the seal's input hashes match main `607922c63`, the base the
+  census ran on. This PR touches no sealed input. Main has since merged #1524,
+  which changes `fes_i386_qalign.sv`, so the census describes `607922c63`'s
+  CPU.
 - **RTL simulation is too slow for 52 titles.** On Powerboat under the day's
   load, the RTL simulation took about 10 wall minutes per simulated second
   (Wolfenstein 3D's 24 s took about 3 hours earlier). That is weeks of
