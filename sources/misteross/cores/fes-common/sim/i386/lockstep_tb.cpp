@@ -1925,19 +1925,21 @@ Outcome lockstep(fes_i386::Oracle &oracle, OracleBus &bus, Rtl &rtl, const std::
         const bool nested = result.events.size() >= 2 && last->kind == fes_i386::EventKind::Exception;
         // Something this build does not build in protected mode stops the
         // RTL as not built, with its reason, and ends the run: a delivery
-        // through a task gate, a return to an outer privilege, a far
-        // transfer through a call gate, a TSS or a task gate, an IRET to V86
-        // mode, a 16-bit stack slot past 64 KiB, an IRET with NT set (a
-        // return from a nested task). The oracle's step must show the like:
-        // a fault first, or the transfer.
+        // through a task gate, a RETF to an outer privilege, a far transfer
+        // through a call gate, a TSS or a task gate, an IRET to V86 mode, a
+        // 16-bit stack slot past 64 KiB, an IRET with NT set (a return from
+        // a nested task). The oracle's step must show the like: a fault
+        // first, or the transfer. INS and OUTS at a CPL above IOPL (the I/O
+        // permission bitmap's, not built for them), like paging and the
+        // 16-bit stack slot, are not compared with the oracle's step.
         if (event == Rtl::Event::Unimplemented && rtl.top.trace_unbuilt != 0) {
             const unsigned why = rtl.top.trace_unbuilt;
             const State now = oracle.get_state();
             const bool faulted = vector >= 0;
             const bool like = faulted || (why == 1 || why == 8) && now.tr.selector != before.tr.selector
-                           || why == 3 && now.cpl != 0 || why == 4 && (now.tr.selector != before.tr.selector
+                           || why == 3 && now.cpl > before.cpl || why == 4 && (now.tr.selector != before.tr.selector
                                                                         || now.seg[fes_i386::SEG_CS].selector != before.seg[fes_i386::SEG_CS].selector)
-                           || why == 5 && (now.eflags & 0x20000) || why == 6 || why == 7;
+                           || why == 5 && (now.eflags & 0x20000) || why == 6 || why == 7 || why == 9;
             if (!like) out.add(at + "unbuilt." + std::to_string(why), 0, 1);
             ++summary.unbuilt[int(why)];
             outcome.unbuilt = int(why);
