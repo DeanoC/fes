@@ -53,6 +53,7 @@ Quartus 17.0.2.
 | [`sim/devices_tb.cpp`](sim/devices_tb.cpp) | Directed checks of the AT core through its I/O port |
 | [`sim/ems_tb.cpp`](sim/ems_tb.cpp) | The EMS board alone on the port 2 model: directed cases and a random run against a reference board (`benches` suite) |
 | [`sim/fesems.asm`](sim/fesems.asm) | FESEMS.SYS, the EMS board's LIM 4.0 driver ([EMS driver](#ems-driver)) |
+| [`sim/ems_test.asm`](sim/ems_test.asm) | EMSTEST.COM, the `ems` suite's check of the board and driver through INT 67h on boot menu entry 3 |
 | [`sim/keyboard_tb.cpp`](sim/keyboard_tb.cpp) | The host keyboard model alone: every usage, the order of a change, the 1 ms rule, typematic timing |
 | [`sim/hid_set2_reference.py`](sim/hid_set2_reference.py), [`sim/hid_set2_reference.h`](sim/hid_set2_reference.h) | The keyboard bench's expected bytes, derived from a Linux tree's HID and AT keyboard tables |
 | [`sim/input_test.asm`](sim/input_test.asm) | INPUT.COM, the system suite's keyboard and mouse exercise through INT 15h C2xx and INT 16h |
@@ -88,7 +89,7 @@ python3 scripts/sim_fes_pc386.py --suite devices        # directed device checks
 python3 scripts/sim_fes_pc386.py --suite storage        # the fes.computer 1.1 golden exchanges, about 2 min
 python3 scripts/sim_fes_pc386.py --suite audio          # DSP, OPL2 timers, mixer, about 1 min
 python3 scripts/sim_fes_pc386.py --suite opl2           # OPL2 against Nuked-OPL3, about 30 s
-python3 scripts/sim_fes_pc386.py --suite benches        # presenter, capture overflow recovery and display plane on port 2
+python3 scripts/sim_fes_pc386.py --suite benches        # presenter, capture overflow recovery, display plane and EMS board on port 2
 python3 scripts/sim_fes_pc386.py --suite boot --download  # BIOS POST to the FreeDOS prompt and its VGA replay
 python3 scripts/sim_fes_pc386.py --suite boot --cpu rtl   # the RTL must reach the prompt without stops, stalls or oracle steps
 python3 scripts/sim_fes_pc386.py --suite boot --image games --cpu rtl --type 'mem|' --expect 'high memory area'  # the games image
@@ -96,6 +97,7 @@ python3 scripts/sim_fes_pc386.py --suite boot --image games --type 'set|' --expe
 python3 scripts/sim_fes_pc386.py --suite rtl-stops        # the RTL's stop path on the stop test disk, against the oracle
 python3 scripts/sim_fes_pc386.py --suite a20 --download   # A20TEST.COM: A20 off at boot, INT 15h 24xx/87h, a shutdown resume, HIMEMX's method and XMS 03h-06h
 python3 scripts/sim_fes_pc386.py --suite c2xx --download  # C2TEST.COM: INT 15h C205h with key and aux bytes at the 8042, and while keys are typed
+python3 scripts/sim_fes_pc386.py --suite ems --download   # EMSTEST.COM on boot menu entry 3: the EMS board through FESEMS.SYS's INT 67h
 python3 scripts/sim_fes_pc386.py --suite wait --download  # WAITTEST.COM: INT 15h AH=86h waits from 0 us to 300 ms return in their time
 python3 scripts/sim_fes_pc386.py --suite speaker --download  # SPKTEST.COM: PIT counter 2 in mode 3 from POST; a count-only write gives the speaker carrier
 python3 scripts/sim_fes_pc386.py --suite cpu-profile --download  # CPUPROF.COM on the oracle, then a 20 ms machine_tb --cpu-profile window on the RTL
@@ -470,7 +472,8 @@ FreeDOS 1.4 package archives in `C:\FDOS\BIN`, pinned in
   [EMS driver](#ems-driver) high. UMBM hands the machine's upper RAM to DOS
   as upper memory blocks without V86 and then unloads; it finds only UMBPCI's
   tables by itself, so the range is named. All 96K of C8000-DFFFF becomes
-  upper memory; E0000-EFFFF is the EMS board's frame.
+  upper memory; E0000-EFFFF is the EMS board's frame. Entry 3 of the boot
+  menu (below) also loads the driver.
 - `AUTOEXEC.BAT` runs [`FESENV.COM`](sim/fesenv.asm) into
   `C:\FDOS\FESENV.BAT` and calls it, so `BLASTER` follows the Sound Blaster
   setting in CMOS 60h-62h at every boot, then loads CuteMouse high and runs
@@ -480,7 +483,7 @@ FreeDOS 1.4 package archives in `C:\FDOS\BIN`, pinned in
   if it is not 0:0. After CuteMouse's 0:0 it left its own handler installed,
   and the next program was called at a stale address on every mouse event
   (#1485).
-- `FDCONFIG.SYS` has a boot menu. It takes entry 1 after 3 seconds, so kit
+- `FDCONFIG.SYS` has a boot menu of three entries. It takes entry 1 after 3 seconds, so kit
   and simulation runs that press nothing get it (#1526):
   - **Entry 1, the default.** The kernel stays in conventional memory (below).
     `DOSDATA=UMB` moves its data, stacks and LASTDRIVE to upper memory, and
@@ -494,6 +497,11 @@ FreeDOS 1.4 package archives in `C:\FDOS\BIN`, pinned in
     programs that need more conventional memory, such as Falcon 3.0
     (614,400 bytes). MEM shows 622K (637,104 bytes). It is not for Ultima
     VII; the next item says why.
+  - **Entry 3, EMS.** Entry 1 with the [EMS driver](#ems-driver) high, for
+    the titles that need expanded memory (Ultima Underworld, Master of Orion,
+    Darklands, Frontier: Elite 2). MEM shows 580K (594,256 bytes), 2,048K
+    of EMS and 16K of upper memory used. It is not for Ultima VII, whose menu
+    refuses to run while an expanded memory manager is resident.
 - HIMEMX picks its A20 method by itself. POST hands DOS a machine with A20
   off ([A20 and CPU reset](../../docs/pc386-machine-design.md#a20-and-cpu-reset)),
   so HIMEMX takes port 92h ("Fast A20 method used"), and XMS function 04h
@@ -526,9 +534,10 @@ has the kit runs.
 [EMS board](../../docs/pc386-machine-design.md#ems-board), MIT-licensed and
 assembled from source by the games-image builder. No open-licensed driver
 for the board's interface exists: Lo-tech's LTEMM is under the Standard
-Lo-tech Licence. The games image loads it with
+Lo-tech Licence. The games image's boot menu entry 3 loads it with
 `DEVICEHIGH=C:\FDOS\BIN\FESEMS.SYS` after HIMEMX; its resident part is about
-4.1 KiB.
+4.1 KiB. Entry 1 does not, because Ultima VII refuses to start while an
+expanded memory manager is resident.
 
 - It reads the board from CMOS 63h-65h and does not install when 63h is 0.
 - At load it writes zeros through every board page and checks a marker at

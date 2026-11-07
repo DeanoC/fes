@@ -316,7 +316,7 @@ def parse_boot(text: str) -> dict:
     report = {'post': [], 'debug': [], 'panic': [], 'io': {}, 'io_wait': {}, 'inta': {}, 'screen': [], 'end': None,
               'prompt_cycle': None, 'cpu_resets': 0, 'snaps': {}, 'present': {}, 'vga': {}, 'marks': {},
               'opl2': None, 'opl2_mismatch': None, 'audio_samples': None, 'sb': None, 'mouse': None,
-              'rtl_begin': None}
+              'ems': None, 'rtl_begin': None}
     rtl = {'stops': [], 'pmode': [], 'gaps': [], 'smc': [], 'notes': [], 'counters': None}
     for line in text.splitlines():
         kind, _, rest = line.partition(' ')
@@ -388,6 +388,8 @@ def parse_boot(text: str) -> dict:
             report['sb'] = {key: int(value) for key, value in (field.split('=') for field in rest.split())}
         elif kind == 'MOUSE':
             report['mouse'] = {key: int(value) for key, value in (field.split('=') for field in rest.split())}
+        elif kind == 'EMS':
+            report['ems'] = {key: int(value) for key, value in (field.split('=') for field in rest.split())}
         elif kind == 'END':
             fields = rest.split()
             report['end'] = {'reason': fields[0], **{k: float(v) if '.' in v else int(v)
@@ -796,6 +798,44 @@ def run_a20(args, linked: list[Path]) -> dict:
 # holds them.
 C2XX_CHECKS = ('typing', 'stale-key', 'stale-aux', 'masked-key', 'DONE')
 C2XX_KEYS = 'abcdefghijklmnopq'
+
+
+# When a key at the games image's boot menu picks an entry: the menu shows by
+# then on either CPU (docs/pc386-game-drives.md).
+BOOT_MENU_KEY_SECONDS = 1.2
+# EMSTEST.COM's checks in the order it runs them (sim/ems_test.asm).
+EMS_CHECKS = ('detect', 'frame', 'counts', 'allocate', 'pattern', 'alias', 'unmap', 'save', 'multiple', 'realloc',
+              'names', 'move', 'errors', 'free', 'DONE')
+
+
+def run_ems(args, linked: list[Path]) -> dict:
+    """EMSTEST.COM at the prompt of the games image's entry 3: the EMS board through FESEMS.SYS."""
+    images = firmware.images(args.download, args.jobs)
+    testbench = machine_testbench(args, linked)
+    rtl = '-rtl' if args.cpu == 'rtl' else ''
+    disk = fixture_with(args, f'ems{rtl}', 'ems_test.asm', 'EMSTEST.COM',
+                        freedos.image(args.download, args.jobs, 'games'))
+    print(f'Running EMSTEST.COM on the games image on the {args.cpu} CPU', flush=True)
+    run = run_machine(testbench, f'ems{rtl}', ['--disk', str(disk), '--limit-seconds', str(args.limit_seconds),
+                                               '--type', 'emstest|', '--expect', 'EMS DONE ok', '--cpu', args.cpu,
+                                               '--boot-key', f'{BOOT_MENU_KEY_SECONDS}:3'], images)
+    lines = [entry['text'] for entry in run['debug'] if entry['port'] == '0e9']
+    failures = list(run['failures'])
+    checks = [line for line in lines if line.startswith('EMS ')]
+    failures += [line for line in checks if not line.endswith(' ok')]
+    names = [line.split()[1] for line in checks]
+    if names != list(EMS_CHECKS):
+        failures.append(f'EMSTEST.COM ran {names}, expected {list(EMS_CHECKS)}')
+    # The driver names the one unsupported function the errors check calls, and nothing else.
+    unsupported = [line for line in lines if line.startswith('FESEMS: function')]
+    if unsupported != ['FESEMS: function 5500']:
+        failures.append(f'unexpected FESEMS lines: {unsupported}')
+    ems = run.get('ems') or {}
+    if not ems.get('reads') or not ems.get('writes') or ems.get('dma'):
+        failures.append(f'the board saw no frame traffic, or DMA into the frame: {ems}')
+    if rtl:
+        failures += rtl_failures(run, 'EMS run')
+    return {'run': run, 'checks': checks + [f'EMS board: {ems}'], 'failures': failures}
 
 
 def run_c2xx(args, linked: list[Path]) -> dict:
@@ -1581,6 +1621,8 @@ def run_game(args, linked: list[Path]) -> dict:
         extra += ['--census', str(work / 'census.txt')]
     if args.oracle_profile:
         extra += ['--profile', str(work / 'profile.txt')]
+    if args.boot_entry != 1:
+        extra += ['--boot-key', f'{BOOT_MENU_KEY_SECONDS}:{args.boot_entry}']
     report = run_machine(testbench, suite, ['--disk', str(disk), '--limit-seconds', str(args.limit_seconds),
                                             '--type', args.type, '--keys-after-type', '1', '--wav', str(wav),
                                             '--opl2-log', str(opl2_log), '--frames', str(frames), *keys, *extra,
@@ -1604,7 +1646,7 @@ def game_suite(args) -> str:
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument('--suite', choices=('devices', 'storage', 'audio', 'opl2', 'benches', 'boot', 'rtl-stops',
-                                            'a20', 'c2xx', 'wait', 'speaker', 'scroll', 'cpu-profile',
+                                            'a20', 'c2xx', 'ems', 'wait', 'speaker', 'scroll', 'cpu-profile',
                                             'sound', 'game', 'vga', 'system', 'governor', 'all'),
                         default='all',
                         help='simulation suite to run')
@@ -1623,6 +1665,8 @@ def main() -> int:
                         help='game --cpu rtl: boot on the oracle and hand over to the RTL at the prompt')
     parser.add_argument('--instruction-census', action='store_true',
                         help="game: write the oracle's instruction census (machine_tb --census) to census.txt")
+    parser.add_argument('--boot-entry', type=int, default=1, choices=(1, 2, 3),
+                        help="game: the games image's boot menu entry (3: with the EMS board's driver)")
     parser.add_argument('--oracle-profile', action='store_true',
                         help="game --cpu oracle: write machine_tb's profile (each real-mode INT by AH, such as "
                              'int67.4f for EMS) to profile.txt')
@@ -1641,8 +1685,8 @@ def main() -> int:
     parser.add_argument('--verilator', default=os.environ.get('VERILATOR', 'verilator'))
     parser.add_argument('--jobs', type=int, default=min(os.cpu_count() or 2, 16))
     args = parser.parse_args()
-    if args.cpu == 'rtl' and args.suite not in ('boot', 'game', 'a20', 'c2xx', 'wait', 'speaker', 'scroll'):
-        parser.error('--cpu rtl runs the boot, game, a20, c2xx, wait, speaker and scroll suites only')
+    if args.cpu == 'rtl' and args.suite not in ('boot', 'game', 'a20', 'c2xx', 'ems', 'wait', 'speaker', 'scroll'):
+        parser.error('--cpu rtl runs the boot, game, a20, c2xx, ems, wait, speaker and scroll suites only')
     if args.oracle_profile and not (args.suite == 'game' and args.cpu == 'oracle'):
         parser.error('--oracle-profile is for the game suite with --cpu oracle')
     if args.rtl_at_prompt and not (args.suite == 'game' and args.cpu == 'rtl'):
@@ -1693,6 +1737,8 @@ def main() -> int:
                 report = run_a20(args, oracle.link_inputs(args.jobs, args.download))
             elif suite == 'c2xx':
                 report = run_c2xx(args, oracle.link_inputs(args.jobs, args.download))
+            elif suite == 'ems':
+                report = run_ems(args, oracle.link_inputs(args.jobs, args.download))
             elif suite == 'wait':
                 report = run_wait(args, oracle.link_inputs(args.jobs, args.download))
             elif suite == 'speaker':

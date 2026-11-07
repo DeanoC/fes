@@ -1306,9 +1306,11 @@ cycles it charges VGA memory under a preset
 
 **Budget.** With the frame there, the games image's UMBM takes
 `/I=C800-DFFF`. The kernel's data, `FILES=30`, `BUFFERS=16`, FreeCOM,
-HIMEMX, CuteMouse and the EMS driver must all fit in the 96 KiB, or the
-default menu entry loses conventional memory; the games-image MEM simulation
-keeps enforcing Frontier's 594,000 bytes
+HIMEMX, CuteMouse and the EMS driver must all fit in the 96 KiB, or a menu
+entry loses conventional memory. They do: on the oracle bench, entry 1 keeps
+594,256 bytes free with 12K of upper memory used, and entry 3, the same with
+the driver, keeps 594,256 with 16K used. The games-image MEM simulation keeps
+enforcing Frontier's 594,000 bytes
 ([games image](../cores/fes-pc386/README.md)).
 
 ### Backing store
@@ -1363,8 +1365,10 @@ licence; karcherm's TOPEMM inherits the same terms. FES therefore
 distributes neither. A player who owns LTEMM can use it: the board answers to
 its defaults (E000h, 260h, pages from 0).
 
-- Loaded with `DEVICEHIGH`, so its resident part (the INT 67h handler and its
-  tables) sits in upper memory.
+- Loaded with `DEVICEHIGH` on the games image's boot menu entry 3, so its
+  resident part (the INT 67h handler and its tables, about 4.1 KiB) sits in
+  upper memory. Entry 1, the default, does not load it: Ultima VII refuses to
+  start while any expanded memory manager is resident (below).
 - Reads the board from CMOS 63h–65h and does not stay resident when 63h is 0.
 - Sets the four registers to FFh, writes zeros through every board page and
   reads them back, so EMS never starts with an earlier run's bytes, then
@@ -1382,12 +1386,22 @@ its defaults (E000h, 260h, pages from 0).
   which reads FFh and drops writes outside RAM, so DMA into or out of the
   frame does not work. The oracle bench counts DMA cycles into the frame and
   prints them; none of the four titles makes one
-  ([record](../../../docs/validation/2026-11-07-pc386-ems-board/summary.md)).
+  ([record](../../../docs/validation/2026-11-08-pc386-ems-board/summary.md)).
   A title that needs it would move the board's frame decode into the CPU's
   DMA path.
 - **Timing.** The board's DDR round trip, not an 8-bit ISA memory cycle, sets
   a frame access's device time. The governor's ISA charge under a preset is
   the period behaviour software can time.
+
+**Ultima VII and EMS.** Ultima VII's MAINMENU.EXE looks for the `EMMXXXX0`
+device and stops with "Please remove your expanded memory manager before
+running Ultima VII" when it finds one, whether a 386 manager or a board's
+driver; its manual asks the player to boot without one. So the games image
+keeps the driver off its default entry and offers it as entry 3. Once the
+`fes.pc386.machine` word 7 setting is accepted ([size and
+setting](#size-and-setting)), a library game can say whether its machine has
+the board, and the driver, which installs only when CMOS 63h is not 0, can go
+on the default entry.
 
 ## Firmware
 

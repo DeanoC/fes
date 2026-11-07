@@ -189,13 +189,13 @@ board_page:
         stc
         ret
 
-; AL a frame page 0-3, AH the register value: the register written.
+; AL a frame page 0-3, AH the register value: the register written. Any DS.
 set_register:
         push dx
         push bx
         movzx bx, al
-        mov [cur_map + bx], ah
-        mov dx, [port_base]
+        mov [cs:cur_map + bx], ah
+        mov dx, [cs:port_base]
         add dx, bx
         mov al, ah
         out dx, al
@@ -208,16 +208,15 @@ set_register:
 map_one:
         cmp al, 4
         jae .frame
+        mov dl, al
         mov ah, NONE
         cmp bx, 0xffff
         je .set
-        push ax
         call board_page
-        mov dl, al
-        pop ax
         jc .done
-        mov ah, dl
-.set:   call set_register
+        mov ah, al
+.set:   mov al, dl
+        call set_register
         clc
 .done:  ret
 .frame: mov ah, 0x8b
@@ -959,15 +958,13 @@ f57:    cmp al, 1
         call overlap                    ; CF overlapping; EAX destination - source
         mov dl, 0
         jnc .go
-        mov ah, 0x97
         cmp byte [mv_status], 1
-        je .done
-        mov dl, 0x92
+        jne .move
+        mov ah, 0x97                    ; an overlapping exchange
+        ret
+.move:  mov dl, 0x92
         test eax, eax
-        js .go
-        jz .go
-        cmp byte [mv_status], 0
-        jne .go
+        jle .go
         mov byte [mv_status], 2         ; overlapping move to a higher address: backward
 .go:    push dx
         call copy

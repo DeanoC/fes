@@ -35,7 +35,7 @@
 //        [--mouse S:DX,DY,BUTTONS]...
 //        [--census F] [--profile F] [--profile-from S] [--profile-to S]
 //        [--cpu-profile F] [--cpu-profile-every S] [--rtl-from S] [--rtl-at-flip N] [--rtl-for S]
-//        [--ems-pages N]
+//        [--ems-pages N] [--boot-key S:TEXT]
 //        [--rtl-at-prompt 1] [--keys-after-type 1] [--frame-every S]
 // A program on the disk marks a picture by writing "SNAP <name>" and a newline
 // to port E9h, then holding it; the bench takes the second capture after the
@@ -109,6 +109,8 @@
 // --rtl-at-prompt 1 adds a third condition: the FreeDOS prompt has been seen,
 // so a game drive's proven boot runs on the oracle and the RTL takes the
 // typed command and the program it starts.
+// --boot-key S:TEXT types TEXT as --keys does at S seconds from reset
+// whatever --keys-after-type says: a FreeDOS boot menu entry.
 // --keys-after-type 1 counts --keys times from when the --type text is
 // queued at the prompt instead of from reset, so a program's keys keep their
 // place whichever CPU booted DOS. --frame-every S (with --frames) writes the
@@ -1240,6 +1242,7 @@ struct Options {
     double limit_seconds = 120, pixel_from = -1, type_at = -1, key_gap = 0.03, profile_from = 0, profile_to = -1;
     unsigned preset = 0, frequency = 0, turbo = 0;  // --cpu rtl's governor settings
     unsigned ems_pages = 128;
+    std::vector<std::pair<double, std::string>> boot_keys;
     std::vector<std::pair<double, std::string>> keys;
     struct Mouse { double at; int dx, dy, buttons; };
     std::vector<Mouse> mouse;
@@ -1352,6 +1355,11 @@ Options parse(int argc, char **argv) {
         else if (flag == "--frequency") options.frequency = unsigned(std::stoul(value));
         else if (flag == "--turbo") options.turbo = unsigned(std::stoul(value));
         else if (flag == "--ems-pages") options.ems_pages = unsigned(std::stoul(value));
+        else if (flag == "--boot-key") {
+            size_t colon = value.find(':');
+            if (colon == std::string::npos) throw std::runtime_error("--boot-key takes SECONDS:TEXT");
+            options.boot_keys.push_back({std::stod(value.substr(0, colon)), value.substr(colon + 1)});
+        }
         else if (flag == "--keys") {
             size_t colon = value.find(':');
             if (colon == std::string::npos) throw std::runtime_error("--keys takes SECONDS:TEXT");
@@ -1527,7 +1535,7 @@ int main(int argc, char **argv) {
             return mouse_sent < options.mouse.size() &&
                    machine.cycles >= uint64_t(options.mouse[mouse_sent].at * CLOCK_HZ);
         };
-        size_t scheduled = 0;
+        size_t scheduled = 0, boot_scheduled = 0;
         std::string last_screen;
         uint64_t screen_checked = 0;
         // Snapshots: a marker, then the second capture and the second raster.
@@ -1742,6 +1750,15 @@ int main(int argc, char **argv) {
                 next_frame += frame_step;
             }
 
+            if (boot_scheduled < options.boot_keys.size() && keys.empty() &&
+                machine.cycles >= uint64_t(options.boot_keys[boot_scheduled].first * CLOCK_HZ)) {
+                for (auto [usage, shift] : taps(options.boot_keys[boot_scheduled].second)) {
+                    keys.push_back({usage, shift, true, uint64_t(0.2 * CLOCK_HZ)});
+                    keys.push_back({usage, shift, false, uint64_t(0.1 * CLOCK_HZ)});
+                }
+                next_key = machine.cycles;
+                ++boot_scheduled;
+            }
             if (scheduled < options.keys.size() && keys.empty() &&
                 keys_base != UINT64_MAX && machine.cycles >= keys_base + uint64_t(options.keys[scheduled].first * CLOCK_HZ)) {
                 for (auto [usage, shift] : taps(options.keys[scheduled].second)) {
