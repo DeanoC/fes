@@ -40,3 +40,8 @@ master-stop/ROM policy, then join the existing menu SD-return and ProgramService
 with the real Tenfoot launch/return path. Native menu/core/menu, physical display,
 input/media/networking, broader admission and timing remain open. No board was
 programmed or card written during this step.
+
+The parent runner reports 1,638 tests with three skips; the separate unfiltered
+Python command reports 1,595 tests with 79 conditional skips. They are separate
+runner scopes, not additive totals. The new role cases and native/C decoder
+pairing ran and passed; skipped cases grant no additional acceptance.
