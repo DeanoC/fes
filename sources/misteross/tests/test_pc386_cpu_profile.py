@@ -229,6 +229,13 @@ int main(int, char **argv) {
         p.sample(cpu, false, false);
         p.sample(cpu, false, false);                       // Q's t8 issue and t9 hold leave D empty: unattributed
         assert(fe(CpuProfile::F_UNATTR) == 2);
+        // A redirect: its next two empty clocks are its own.
+        R(redirect) = true; R(dc_valid) = true; R(issue) = true;
+        p.sample(cpu, false, false);
+        R(redirect) = false; R(dc_valid) = false; R(issue) = false;
+        p.sample(cpu, false, false);
+        p.sample(cpu, false, false);
+        assert(p.fe[0][CpuProfile::F_REDIRECT] == 2 && fe(CpuProfile::F_UNATTR) == 2);
         uint64_t sum = 0;
         for (uint64_t n : p.fe[3]) sum += n;
         assert(sum == p.bucket[CpuProfile::FE_EMPTY]);

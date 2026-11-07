@@ -41,7 +41,8 @@
 // fe_l1i and fe_empty buckets) is charged to why Q did not issue two clocks
 // before: Q's issue loads its output register on the edge, and DC takes that
 // on the next (fes_i386_cpu, DC), so D is empty at t only if Q, with room in
-// its output register, issued nothing at t - 2. Q's reasons, read from
+// its output register, issued nothing at t - 2, or a redirect at t - 1 or
+// t - 2 emptied Q and DC. Q's reasons, read from
 // fes_i386_qalign and fes_i386_fetchbuf (bench only, as above), in priority
 // order: a redirect; a prefix consumed (each prefix but the last costs a
 // cycle); avail cleared by a taken jump that started in the half before its
@@ -240,7 +241,9 @@ struct CpuProfile {
             }
         }
         const unsigned q_then = q_hist[1];
-        q_hist[1] = q_hist[0];
+        // A redirect empties DC on its edge, so the clock after it is the
+        // redirect's too, whatever Q did the clock before it.
+        q_hist[1] = redirect ? unsigned(F_REDIRECT) : q_hist[0];
         q_hist[0] = qr;
         if (S(wb_commit)) ++commits;
         if (S(prof_br)) {
