@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/DeanoC/FogCast/appliance/software"
+	"github.com/DeanoC/FogCast/appliance/softwarecontrol"
 )
 
 const testFactoryID = "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff"
@@ -676,11 +677,80 @@ func TestRecoveryRunsFactoryWhenSelectionIsHeldBack(t *testing.T) {
 		t.Fatal(err)
 	}
 	s, _ := r.Read()
-	if c.active != testFactoryID || s.Selected != testSelectedID || s.Receipts[queued.ID].Result != "recovered" || a.releases != 2 {
+	if c.active != testFactoryID || s.Selected != testSelectedID || s.Previous != testFactoryID || s.Generation != queued.Generation || s.Receipts[queued.ID].Result != "recovered" || a.releases != 2 {
 		t.Fatal("failed candidate did not recover to the factory software", c, s, a)
 	}
-	if e.HeldBack != testSelectedID {
-		t.Fatal("held-back selection not reported after recovery", e.HeldBack)
+	if e.HeldBack != testSelectedID || !strings.Contains(e.HeldBackReason, "menu.fes.video.menu-blitter") {
+		t.Fatal("held-back selection not reported after recovery", e.HeldBack, e.HeldBackReason)
+	}
+}
+
+func TestInterruptedActivationBootPreservesHeldBackSelection(t *testing.T) {
+	r, e, c, a := setup(t)
+	e.Factory = testFactoryID
+	selectRelease(t, r, testSelectedID)
+	c.incompatible = map[string]bool{testSelectedID: true}
+	if err := e.Boot(context.Background(), req()); err != nil {
+		t.Fatal(err)
+	}
+	state, _ := r.Read()
+	queued := req()
+	queued.Generation = state.Generation
+	if err := Queue(r, queued); err != nil {
+		t.Fatal(err)
+	}
+	if err := transition(r, *mustStatePending(t, r), "queued", "applying", ""); err != nil {
+		t.Fatal(err)
+	}
+	if err := e.Boot(context.Background(), req()); err != nil {
+		t.Fatal(err)
+	}
+	state, _ = r.Read()
+	if state.Selected != testSelectedID || state.Previous != testFactoryID || state.Generation != queued.Generation || state.Pending != nil || state.Receipts[queued.ID].Result != "recovered" || a.releases != 2 || c.active != testFactoryID {
+		t.Fatal("interrupted activation did not preserve the held-back selection", state, c, a)
+	}
+	if e.HeldBack != testSelectedID || !strings.Contains(e.HeldBackReason, "menu.fes.video.menu-blitter") {
+		t.Fatal("interrupted activation lost held-back status", e.HeldBack, e.HeldBackReason)
+	}
+}
+
+func mustStatePending(t *testing.T, r Repository) *Operation {
+	t.Helper()
+	s, err := r.Read()
+	if err != nil || s.Pending == nil {
+		t.Fatalf("pending operation unavailable: %+v, %v", s, err)
+	}
+	return s.Pending
+}
+
+func TestBlockedCancelKeepsExactMaintenanceForSupervisorRelease(t *testing.T) {
+	r, e, _, a := setup(t)
+	selectRelease(t, r, testSelectedID)
+	state, _ := r.Read()
+	queued := req()
+	queued.Generation = state.Generation
+	if err := Queue(r, queued); err != nil {
+		t.Fatal(err)
+	}
+	if err := transition(r, *mustStatePending(t, r), "queued", "blocked", "candidate and recovery failed"); err != nil {
+		t.Fatal(err)
+	}
+	if err := cancelBlocked(r, queued.ID, queued.Generation, softwarecontrol.ReasonBlockedCancel); err != nil {
+		t.Fatal(err)
+	}
+	state, _ = r.Read()
+	if state.Selected != testSelectedID || state.Previous != testFactoryID || state.Generation != queued.Generation || state.Pending != nil || state.Unreleased == nil || *state.Unreleased != queued || state.Receipts[queued.ID].Result != "recovered" || state.Receipts[queued.ID].Reason != softwarecontrol.ReasonBlockedCancel {
+		t.Fatal("blocked cancellation did not preserve the selection and exact maintenance release", state)
+	}
+	if err := validateState(state); err != nil {
+		t.Fatal("cancelled unreleased completion is invalid", err)
+	}
+	if err := e.Run(context.Background()); err != nil {
+		t.Fatal("supervisor could not release blocked cancellation", err)
+	}
+	state, _ = r.Read()
+	if state.Unreleased != nil || state.Selected != testSelectedID || state.Generation != queued.Generation || a.releases != 1 {
+		t.Fatal("supervisor did not finish the exact reservation", state, a)
 	}
 }
 

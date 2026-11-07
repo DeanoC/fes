@@ -14,6 +14,7 @@ import (
 
 	"github.com/DeanoC/FogCast/internal/kitlease"
 	contract "github.com/DeanoC/FogCast/kitlease"
+	"github.com/DeanoC/FogCast/protocol"
 )
 
 const Socket = "/run/fogcast/software-admission.sock"
@@ -92,9 +93,26 @@ func (f *Fence) Guard(next http.Handler) http.Handler {
 			next.ServeHTTP(w, r)
 			return
 		}
+		// Appliance rollback has its own maintenance coordinator. It must remain
+		// reachable when a software activation has left this fence closed so the
+		// operator can return to an image that accepts the recorded selection.
+		if r.Method == http.MethodPost && r.URL.Path == "/v1/update/rollback" {
+			ctx, done, err := f.Begin(r.Context())
+			if err == nil {
+				defer done()
+				next.ServeHTTP(w, r.WithContext(ctx))
+			} else {
+				// When software maintenance already owns the fence, the appliance
+				// updater's own drain/idle transition coordinates this rollback.
+				next.ServeHTTP(w, r)
+			}
+			return
+		}
 		ctx, done, err := f.Begin(r.Context())
 		if err != nil {
-			http.Error(w, err.Error(), http.StatusServiceUnavailable)
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusServiceUnavailable)
+			_ = json.NewEncoder(w).Encode(protocol.ErrorEnvelope{Error: protocol.APIError{Code: protocol.CodeBusy, Message: err.Error()}})
 			return
 		}
 		defer done()

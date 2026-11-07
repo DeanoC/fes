@@ -101,17 +101,18 @@ func AcknowledgeRunningPrior(ctx context.Context, req AcknowledgeRequest) (Ackno
 		return result, err
 	}
 	controller := &ProcessController{RunDir: acknowledgmentRunDir, Admission: admission, BaseIdentity: req.Base, Resolve: repair.resolve}
-	if err := controller.Verify(ctx, req.Selected); err != nil {
+	runningBundle, err := compatibleRunningBundle(ctx, controller, req.Selected, repair.factory.ID)
+	if err != nil {
 		return result, err
 	}
-	proof, err := captureRunningPrior(ctx, req, controller)
+	proof, err := captureRunningPriorForBundle(ctx, req, controller, runningBundle)
 	if err != nil {
 		return result, err
 	}
 	// The worker lock is acquired before any reservation read or journal write.
 	// The running group may not be replaced between samples or during acknowledgment.
 	reservation := acknowledgmentAdmission{admission: admission, boot: req.Boot, lockPath: maintenanceLockPath, markerPath: maintenanceMarkerPath}
-	return acknowledgePrior(ctx, repair.repo, reservation, req, func(ctx context.Context) error {
+	return acknowledgePriorAs(ctx, repair.repo, reservation, req, runningBundle, func(ctx context.Context) error {
 		return stableAcknowledgment(ctx, func(ctx context.Context) error {
 			if err := acknowledgmentMachine(ctx, req); err != nil {
 				return err
@@ -119,6 +120,23 @@ func AcknowledgeRunningPrior(ctx context.Context, req AcknowledgeRequest) (Ackno
 			return proof.healthy(ctx, req, controller)
 		})
 	})
+}
+
+// compatibleRunningBundle accepts the recorded selection when it is runnable.
+// Only an explicit base-contract incompatibility permits checking this image's
+// factory bundle as the alternate group; all other verification errors fail.
+func compatibleRunningBundle(ctx context.Context, controller Controller, selected, factory string) (string, error) {
+	err := controller.Verify(ctx, selected)
+	if err == nil {
+		return selected, nil
+	}
+	if !errors.Is(err, software.ErrIncompatible) || factory == "" || factory == selected {
+		return "", err
+	}
+	if err := controller.Verify(ctx, factory); err != nil {
+		return "", fmt.Errorf("factory software is not compatible with this base: %w", err)
+	}
+	return factory, nil
 }
 func acknowledgmentMachine(ctx context.Context, req AcknowledgeRequest) error {
 	boot, err := os.ReadFile("/proc/sys/kernel/random/boot_id")
@@ -152,6 +170,7 @@ func acknowledgmentMachine(ctx context.Context, req AcknowledgeRequest) error {
 type runningPriorProof struct {
 	supervisorExecutable string
 	runDir               string
+	bundleID             string
 	supervisor           int
 	identities           map[int]string
 	paths                map[int]string
@@ -208,11 +227,19 @@ func sameExecutable(pid int, path string) error {
 	return nil
 }
 func captureRunningPrior(ctx context.Context, req AcknowledgeRequest, c *ProcessController) (runningPriorProof, error) {
-	return captureRunningPriorAt(ctx, req, c, acknowledgmentRunDir, "/usr/sbin/fes-kit-software")
+	return captureRunningPriorForBundle(ctx, req, c, req.Selected)
+}
+
+func captureRunningPriorForBundle(ctx context.Context, req AcknowledgeRequest, c *ProcessController, bundleID string) (runningPriorProof, error) {
+	return captureRunningPriorAtBundle(ctx, req, c, acknowledgmentRunDir, "/usr/sbin/fes-kit-software", bundleID)
 }
 
 func captureRunningPriorAt(ctx context.Context, req AcknowledgeRequest, c *ProcessController, runDir, supervisorExecutable string) (runningPriorProof, error) {
-	proof := runningPriorProof{runDir: runDir, supervisorExecutable: supervisorExecutable, identities: map[int]string{}, paths: map[int]string{}}
+	return captureRunningPriorAtBundle(ctx, req, c, runDir, supervisorExecutable, req.Selected)
+}
+
+func captureRunningPriorAtBundle(ctx context.Context, req AcknowledgeRequest, c *ProcessController, runDir, supervisorExecutable, bundleID string) (runningPriorProof, error) {
+	proof := runningPriorProof{runDir: runDir, supervisorExecutable: supervisorExecutable, bundleID: bundleID, identities: map[int]string{}, paths: map[int]string{}}
 	raw, err := os.ReadFile(filepath.Join(runDir, "supervisor.pid"))
 	if err != nil {
 		return proof, err
@@ -224,7 +251,7 @@ func captureRunningPriorAt(ctx context.Context, req AcknowledgeRequest, c *Proce
 	if err := sameExecutable(proof.supervisor, supervisorExecutable); err != nil {
 		return proof, err
 	}
-	root, err := c.preparedPath(ctx, req.Selected)
+	root, err := c.preparedPath(ctx, bundleID)
 	if err != nil {
 		return proof, err
 	}
@@ -267,7 +294,7 @@ func captureRunningPriorAt(ctx context.Context, req AcknowledgeRequest, c *Proce
 		}
 		proof.identities[pid] = identity
 	}
-	c.active = req.Selected
+	c.active = bundleID
 	for _, pid := range []int{matched["mister-runtime"], matched["mister-agent"], launcher} {
 		// These are observations, never owned child handles: no Wait or Stop is
 		// called on this controller. Healthy reads /proc and the readiness marker.
@@ -298,7 +325,7 @@ func (p runningPriorProof) healthy(ctx context.Context, req AcknowledgeRequest, 
 	if err := sameExecutable(p.supervisor, p.supervisorExecutable); err != nil {
 		return err
 	}
-	root, err := c.preparedPath(ctx, req.Selected)
+	root, err := c.preparedPath(ctx, p.bundleID)
 	if err != nil {
 		return err
 	}
@@ -324,7 +351,7 @@ func (p runningPriorProof) healthy(ctx context.Context, req AcknowledgeRequest, 
 	if filepath.Clean(current) != root {
 		return errors.New("supervisor current release differs from selected prior")
 	}
-	return c.Healthy(ctx, req.Selected)
+	return c.Healthy(ctx, p.bundleID)
 }
 
 // Do not turn a missing or unrelated maintenance reservation into new operator

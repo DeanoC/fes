@@ -2605,8 +2605,13 @@ still in `starting`, and an idle sample whose fence was not confirmed, stay on
 the readiness budget. The supervisor verifies process exit before replacement, pins every service to
 one bundle, checks startup and finishes the exact maintenance generation.
 Accepted bundles remain selected. Failed startup permits one durably recorded
-prior-bundle recovery attempt; failed recovery remains blocked. Appliance trials
-run factory software, then reconcile persistent storage and queued work after
+prior-bundle recovery attempt. If that prior is incompatible with this image,
+successful recovery to the verified factory group commits that compatible group
+as the selection and leaves the incompatible prior only as history. A blocked
+recovery can be cancelled only after the exact maintenance reservation and an
+idle, healthy factory group are proved; the supervisor keeps the reservation in
+its durable release journal until it ends it with the original grant. Failed
+recovery remains blocked. Appliance trials run factory software, then reconcile persistent storage and queued work after
 confirmation. Confirmation records the durable release, then rewrites that
 boot's ticket to `trial:false` without changing its boot id or image, so
 bundle operations are not refused until another reboot. When the rewrite
@@ -2614,8 +2619,14 @@ fails, the durable record still confirms the release and admission opens.
 The storage gate accepts the leftover `trial:true` ticket for that boot and
 image. The agent logs the failure and retries the rewrite once on a later
 idle status read. Further status reads leave the ticket in place. The next
-agent start tries the rewrite again. A base-image update blocks activation
-and software installation.
+agent start tries the rewrite again. A base-image update blocks activation and
+software installation. When software maintenance is `blocked`, `fes-update`
+checks that exact status and does not claim a new execution lease. The agent
+admits rollback through both fences only when the lease is `recovery-required`
+and its maintenance record is `blocked`; the updater then stops the runtime,
+confirms idle and coordinates reboot. Ordinary rollback still requires a kit
+lease. Other fenced mutations return a JSON `BUSY` API error that clients can
+distinguish from a lost response.
 
 `WithKitSoftware` proxies the five bearer-authenticated `/v1/kit/software`
 routes to the fixed root-only supervisor socket. Upload is bounded by the bundle

@@ -83,6 +83,38 @@ func TestAcknowledgmentPreservesFailureAndReplaysLostRelease(t *testing.T) {
 		t.Fatal(info.Mode())
 	}
 }
+
+func TestAcknowledgmentPreservesHeldBackSelectionWithCompatibleRunningFactory(t *testing.T) {
+	r, _, _, _ := setup(t)
+	selectRelease(t, r, testSelectedID)
+	state, _ := r.Read()
+	request := req()
+	request.Generation = state.Generation
+	if err := Queue(r, request); err != nil {
+		t.Fatal(err)
+	}
+	if err := transition(r, *mustStatePending(t, r), "queued", "blocked", "candidate failed; recovery exhausted"); err != nil {
+		t.Fatal(err)
+	}
+	operator := AcknowledgeRequest{Operation: request.ID, Generation: request.Generation, Selected: testSelectedID, Base: strings.Repeat("b", 64), Boot: "11111111-2222-3333-4444-555555555555", Action: strings.Repeat("d", 64)}
+	reservation := &fakeReservation{}
+	result, err := acknowledgePriorAs(context.Background(), r, reservation, operator, testFactoryID, func(context.Context) error { return nil })
+	if err != nil || !result.Completed || result.Selected != testSelectedID || result.Running != testFactoryID || result.Generation != request.Generation {
+		t.Fatalf("factory acknowledgment result %+v, %v", result, err)
+	}
+	state, _ = r.Read()
+	if state.Selected != testSelectedID || state.Previous != testFactoryID || state.Generation != request.Generation || state.Pending != nil || state.Unreleased != nil || state.Receipts[request.ID].Result != "recovered" {
+		t.Fatalf("acknowledgment did not preserve the held-back selection: %+v", state)
+	}
+	audit, exists, err := r.readAcknowledgment(operator.Action)
+	if err != nil || !exists || audit.Running != testFactoryID || !strings.Contains(state.Receipts[request.ID].Reason, "held-back selection "+testSelectedID+" remains recorded") {
+		t.Fatalf("running factory missing from acknowledgment audit: %+v %v %v", audit, exists, err)
+	}
+	if result, err := acknowledgePriorAs(context.Background(), r, reservation, operator, testFactoryID, func(context.Context) error { t.Fatal("replayed proof"); return nil }); err != nil || !result.Completed || result.Selected != testSelectedID || result.Running != testFactoryID || result.Generation != request.Generation {
+		t.Fatalf("factory acknowledgment replay failed: %+v %v", result, err)
+	}
+}
+
 func TestAcknowledgmentFailureBeforeCompletionKeepsBlocked(t *testing.T) {
 	for _, fault := range []string{"health", "audit", "journal"} {
 		t.Run(fault, func(t *testing.T) {

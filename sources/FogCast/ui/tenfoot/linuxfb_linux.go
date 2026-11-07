@@ -55,6 +55,7 @@ func runDirectDisplay(ctx context.Context, opts Options, dev directDisplay, labe
 	}
 	if display, ok := dev.(*gfx.MenuDisplay); ok {
 		app.SetMenuDisplay(display)
+		app.logKitMenuReadiness()
 	}
 	inputSpec := opts.Input
 	if opts.Smoke {

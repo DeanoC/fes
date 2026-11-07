@@ -134,8 +134,15 @@ go run ./cmd/fes-software --config /absolute/path/config.toml --action cancel \
   --request-id PENDING_OPERATION_ID --expected-generation N
 ```
 
-Only a pending queued operation can be cancelled. A service replacement already
-underway retains its maintenance ownership through completion or recovery.
+Queued operations can be cancelled as above. A blocked activation can also be
+cancelled when the recorded selection is incompatible with this image and the
+image's factory group is active, healthy and idle under the exact failed
+maintenance reservation. The supervisor then records the factory as selected
+and releases that same reservation; it does not bypass bundle compatibility or
+clear the lease directly. Status records this outcome as `recovered` because the
+factory group was proved healthy; its reason identifies the operator
+cancellation. If the compatible group cannot be proved, use the local recovery
+actions below.
 Mutations are sent once. If a response is lost, inspect status and the release
 inventory before repeating it. A matching completed receipt identifies the
 outcome; a newer generation rejects stale changes. The supervisor keeps the
@@ -244,13 +251,16 @@ cannot pass readiness or reopen execution admission. A dependent service failure
 therefore cannot terminate normal native initialization midway.
 
 A failed startup permits one automatic attempt to restore the recorded prior
-bundle. That attempt is recorded durably before the prior bundle starts. If the
-image cannot run that bundle, the attempt starts the image's factory software
-instead and holds the prior bundle back. A
+bundle. That attempt is recorded durably before recovery starts. If the image
+cannot run that bundle, the attempt starts the image's factory software instead;
+once that recovery succeeds, the failed request is completed and the incompatible
+selection remains recorded and held back while the factory runs. Normal boot
+uses the same held-back behavior without changing the selection. A
 reboot cannot reset the attempt budget. Failed recovery or an unkillable old
 runtime leaves explicit recovery-required status and keeps execution blocked.
-Recovery changes only the matching software selection; it preserves the host,
-base image, core library and unrelated deployments. Bundle updates must preserve
+Successful activation changes only the matching software selection; failed
+candidate recovery preserves that selection, the host, base image, core library
+and unrelated deployments. Bundle updates must preserve
 compatible configuration and persistent data formats for prior recovery.
 
 During an appliance trial boot, the supervisor uses the factory software group
@@ -265,10 +275,11 @@ execution is deferred.
 ### Acknowledge a failed recovery
 
 A failed automatic recovery stays fenced. Rebooting or restarting the supervisor
-does not replenish its attempt budget. If the previous bundle's complete service
-group is already running, an operator can explicitly acknowledge that group
-without restarting it. Inspect the failed operation, selection generation, active
-bundle, base identity and boot ID first. On the kit, as root, use a fresh action
+does not replenish its attempt budget. If the compatible prior group or the
+image's factory group is already running, an operator can explicitly acknowledge
+that group without restarting it. Inspect the failed operation, selection
+generation, recorded selection, active bundle, base identity and boot ID first.
+On the kit, as root, use a fresh action
 identifier and those exact observed values. An action identifier names one
 operator act: each repair below refuses one that another repair already
 recorded.
@@ -276,21 +287,27 @@ recorded.
 ```sh
 fes-kit-software acknowledge \
   --operation FAILED_OPERATION_ID --generation OBSERVED_GENERATION \
-  --selected ALREADY_RUNNING_PREVIOUS_BUNDLE_ID \
+  --selected RECORDED_SELECTED_BUNDLE_ID \
   --base RUNNING_BASE_IMAGE_SHA256 --boot CURRENT_BOOT_ID \
   --action FRESH_64_CHARACTER_LOWERCASE_HEX_ID
 ```
 
-This command verifies the bundle, running supervisor and its complete service
-group. It checks that the failed operation still holds this boot's maintenance
-reservation and that the stored grant authenticates against the agent's
-persisted copy. It then requires ten seconds of native idle and launcher
-readiness before it changes anything. Only then does it record the
+This command verifies the compatible running bundle, supervisor and its complete
+service group. When the recorded selection is incompatible with this image, the
+factory bundle must be active and healthy; successful acknowledgment completes
+the failed operation while preserving the held-back selection and generation.
+Its result distinguishes the durable selection from the running bundle. It
+checks that the failed operation still holds this boot's maintenance reservation
+and that the stored grant authenticates against the agent's persisted copy. It
+then requires ten seconds of native idle and launcher readiness before it
+changes anything. Only then does it record the
 acknowledgment and end that reservation with the operation's stored grant; it
 never resumes the reservation. A separate durable acknowledgment retains the
-original failure and operator action identity; selection and generation remain
-unchanged. It neither starts a service nor retries the candidate. Missing
-services, changed identities, another operation or failed readiness leave the
+original failure and operator action identity. Selection and generation stay
+unchanged; if the factory was running in place of an incompatible selection, it
+remains the runtime fallback and the held-back bundle stays recorded. The
+command neither starts a service nor retries the candidate. Missing services,
+changed identities, another operation or failed readiness leave the
 journal and the reservation as they were, so execution stays blocked and
 `prepare-power-cycle` still applies. Inspect status after an uncertain reply;
 repeat only the same action and exact identities to reconcile it.
@@ -309,13 +326,15 @@ operation **before** the documented hard power-supply cycle:
 ```sh
 fes-kit-software prepare-power-cycle \
   --operation FAILED_OPERATION_ID --generation OBSERVED_GENERATION \
-  --selected COMMITTED_PREVIOUS_BUNDLE_ID \
+  --selected RECORDED_SELECTED_BUNDLE_ID \
   --base RUNNING_BASE_IMAGE_SHA256 --boot CURRENT_BOOT_ID \
   --action FRESH_64_CHARACTER_LOWERCASE_HEX_ID
 ```
 
 This root-only action verifies the native runtime and existing reservation
-without retrying cleanup. The reservation must still be blocked; one in any
+without retrying cleanup. It also accepts a healthy supervised group running
+the image's compatible factory when the recorded selection is incompatible. The
+reservation must still be blocked; one in any
 other state is reported as that state, not as a grant that does not match. It
 preserves the original failure in a durable audit, cancels that failed software
 request, and leaves the current boot fenced in its existing maintenance

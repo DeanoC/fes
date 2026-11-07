@@ -4,8 +4,11 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
+	"io"
 	"net/http"
 	"net/http/httptest"
+	"os"
 	"path/filepath"
 	"strings"
 	"sync/atomic"
@@ -95,6 +98,195 @@ func TestKitHostStartupAndActiveSessionHoldDisplay(t *testing.T) {
 	app.mu.Unlock()
 	if app.Snapshot().LocalCorePresentsPaused {
 		t.Fatal("visible session plane did not allow presentation")
+	}
+}
+
+func TestKitHostMenuBecomesReadyWhenHostSessionIsIdleWithoutTargetID(t *testing.T) {
+	var available atomic.Bool
+	httpClient := &http.Client{Transport: kitHostSessionTransport(func(r *http.Request) (*http.Response, error) {
+		switch r.URL.Path {
+		case "/api/v1/session":
+			if !available.Load() {
+				return kitHostResponse(r, http.StatusServiceUnavailable, `{"error":{"code":"TARGET_UNAVAILABLE","message":"host session starting"}}`), nil
+			}
+			return kitHostResponse(r, http.StatusOK, `{"state":"idle"}`), nil
+		case "/api/v1/health":
+			if !available.Load() {
+				return kitHostResponse(r, http.StatusServiceUnavailable, `{"error":{"code":"TARGET_UNAVAILABLE","message":"target health starting"}}`), nil
+			}
+			return kitHostResponse(r, http.StatusOK, `{"ready":true,"target":{"reachable":true,"ready":true,"connection":{"state":"connected"}}}`), nil
+		case "/api/v1/status":
+			return kitHostResponse(r, http.StatusOK, `{"state":"idle"}`), nil
+		default:
+			return kitHostResponse(r, http.StatusNotFound, "not found"), nil
+		}
+	})}
+
+	readyFile := filepath.Join(t.TempDir(), "launcher-ready.json")
+	t.Setenv("FES_SOFTWARE_READY_FILE", readyFile)
+	t.Setenv("FES_SOFTWARE_BUNDLE_ID", "test-bundle")
+	app := NewApp(NewClient("http://kit-host.invalid", httpClient), 1280, 720, 50)
+	app.kitHost, app.hostPresentsPaused, app.hostAwaitStatus = true, true, true
+	logs := make(chan string, 16)
+	app.kitMenuReadyLogf = func(format string, args ...any) { logs <- fmt.Sprintf(format, args...) }
+	defer app.Stop()
+	rec := &recordingMenu{}
+	dev, err := gfx.NewMenuDisplayWithPresenter(rec)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer dev.Close()
+	dev.SetChangeDriven(true)
+	app.SetMenuDisplay(dev)
+	diagCtx, stopDiagnostics := context.WithCancel(t.Context())
+	defer stopDiagnostics()
+	go app.pollKitMenuReadiness(diagCtx)
+	if line := awaitKitMenuReadinessLog(t, logs, "host_session_seen=false", "host_health_seen=false", "host_await_status=true", "host_presents_paused=true", "runtime_status_known=false"); !strings.Contains(line, "elapsed=") {
+		t.Fatalf("startup diagnostic omitted elapsed time: %s", line)
+	}
+	var hold presentHold
+
+	// The host cannot prove that HDMI is idle while its session endpoint is
+	// unavailable, so the initial display frame is suppressed and readiness stays off.
+	app.fetchSession(t.Context())
+	awaitKitMenuReadinessLog(t, logs, "host_session_error=", "503 TARGET_UNAVAILABLE")
+	app.fetchHealth(t.Context())
+	awaitKitMenuReadinessLog(t, logs, "host_health_error=", "503 TARGET_UNAVAILABLE")
+	if skip, err := hold.skip(t.Context(), dev, app.Snapshot()); !skip || err != nil {
+		t.Fatalf("unavailable host session: skip=%v err=%v", skip, err)
+	}
+	dev.Present()
+	if readiness := dev.ReadinessDiagnostic(); readiness.Ready || readiness.HasPresented {
+		t.Fatalf("unavailable host session produced menu readiness: %+v", readiness)
+	}
+	if _, err := os.Stat(readyFile); !errors.Is(err, os.ErrNotExist) {
+		t.Fatalf("unavailable agent wrote launcher readiness: %v", err)
+	}
+
+	// A late session observation establishes idle. The kit host needs no
+	// target ID to resume menu presentation; target ID is outside this predicate.
+	available.Store(true)
+	app.fetchSession(t.Context())
+	app.fetchHealth(t.Context())
+	app.mu.Lock()
+	targetID := app.health.Connection.TargetID
+	app.mu.Unlock()
+	if targetID != "" {
+		t.Fatalf("offline fixture unexpectedly supplied a target ID: %q", targetID)
+	}
+	if snap := app.Snapshot(); snap.LocalCorePresentsPaused || snap.LocalCoreLateAdopt {
+		t.Fatalf("confirmed idle session left the menu held: %+v", snap)
+	}
+	if skip, err := hold.skip(t.Context(), dev, app.Snapshot()); skip || err != nil {
+		t.Fatalf("confirmed idle session: skip=%v err=%v", skip, err)
+	}
+	dev.Present()
+	ctx, cancel := context.WithTimeout(t.Context(), testwait.Timeout)
+	defer cancel()
+	if err := dev.WaitIdle(ctx); err != nil {
+		t.Fatal(err)
+	}
+	readiness := dev.ReadinessDiagnostic()
+	if !readiness.Ready || !readiness.HasPresented || !readiness.StatusKnown || !readiness.Available || readiness.Generation != readiness.PresentedGen || readiness.LastErr != "" {
+		t.Fatalf("idle menu did not satisfy readiness: %+v", readiness)
+	}
+	data, err := os.ReadFile(readyFile)
+	if err != nil || !strings.Contains(string(data), `"bundle_id":"test-bundle"`) {
+		t.Fatalf("launcher readiness file %q, err=%v", data, err)
+	}
+}
+
+func TestKitHostNeverReportsMenuReadyWhenSessionEndpointStaysUnavailable(t *testing.T) {
+	httpClient := &http.Client{Transport: kitHostSessionTransport(func(r *http.Request) (*http.Response, error) {
+		switch r.URL.Path {
+		case "/api/v1/session":
+			return kitHostResponse(r, http.StatusServiceUnavailable, `{"error":{"code":"TARGET_UNAVAILABLE","message":"agent unavailable"}}`), nil
+		case "/api/v1/health":
+			return kitHostResponse(r, http.StatusServiceUnavailable, `{"error":{"code":"TARGET_UNAVAILABLE","message":"target unavailable"}}`), nil
+		case "/api/v1/status":
+			return kitHostResponse(r, http.StatusOK, `{"state":"idle"}`), nil
+		default:
+			return kitHostResponse(r, http.StatusNotFound, "not found"), nil
+		}
+	})}
+
+	readyFile := filepath.Join(t.TempDir(), "launcher-ready.json")
+	t.Setenv("FES_SOFTWARE_READY_FILE", readyFile)
+	t.Setenv("FES_SOFTWARE_BUNDLE_ID", "test-bundle")
+	app := NewApp(NewClient("http://kit-host.invalid", httpClient), 1280, 720, 50)
+	app.kitHost, app.hostPresentsPaused, app.hostAwaitStatus = true, true, true
+	logs := make(chan string, 16)
+	app.kitMenuReadyLogf = func(format string, args ...any) { logs <- fmt.Sprintf(format, args...) }
+	defer app.Stop()
+	rec := &recordingMenu{}
+	dev, err := gfx.NewMenuDisplayWithPresenter(rec)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer dev.Close()
+	dev.SetChangeDriven(true)
+	app.SetMenuDisplay(dev)
+	diagCtx, stopDiagnostics := context.WithCancel(t.Context())
+	defer stopDiagnostics()
+	go app.pollKitMenuReadiness(diagCtx)
+	if line := awaitKitMenuReadinessLog(t, logs, "host_session_seen=false", "host_health_seen=false", "host_await_status=true", "host_presents_paused=true", "runtime_status_known=false"); !strings.Contains(line, "elapsed=") {
+		t.Fatalf("startup diagnostic omitted elapsed time: %s", line)
+	}
+	var hold presentHold
+
+	app.fetchSession(t.Context())
+	awaitKitMenuReadinessLog(t, logs, "host_session_error=", "503 TARGET_UNAVAILABLE")
+	app.fetchHealth(t.Context())
+	awaitKitMenuReadinessLog(t, logs, "host_health_error=", "503 TARGET_UNAVAILABLE")
+	if skip, err := hold.skip(t.Context(), dev, app.Snapshot()); !skip || err != nil {
+		t.Fatalf("unavailable host session: skip=%v err=%v", skip, err)
+	}
+	dev.Present()
+	readiness := dev.ReadinessDiagnostic()
+	if readiness.Ready || readiness.HasPresented || readiness.LastErr != "" {
+		t.Fatalf("stuck startup reported readiness or presented a frame: %+v", readiness)
+	}
+	if calls, _, _ := rec.snapshot(); calls != 0 {
+		t.Fatalf("stuck startup presented %d frames", calls)
+	}
+	if _, err := os.Stat(readyFile); !errors.Is(err, os.ErrNotExist) {
+		t.Fatalf("stuck startup wrote launcher readiness: %v", err)
+	}
+}
+
+type kitHostSessionTransport func(*http.Request) (*http.Response, error)
+
+func (f kitHostSessionTransport) RoundTrip(r *http.Request) (*http.Response, error) { return f(r) }
+
+func kitHostResponse(request *http.Request, status int, body string) *http.Response {
+	return &http.Response{
+		StatusCode: status, Header: http.Header{"Content-Type": []string{"application/json"}},
+		Body: io.NopCloser(strings.NewReader(body)), Request: request,
+	}
+}
+
+func awaitKitMenuReadinessLog(t *testing.T, logs <-chan string, fragments ...string) string {
+	t.Helper()
+	deadline := time.NewTimer(2 * time.Second)
+	defer deadline.Stop()
+	var observed []string
+	for {
+		select {
+		case line := <-logs:
+			observed = append(observed, line)
+			matched := true
+			for _, fragment := range fragments {
+				if !strings.Contains(line, fragment) {
+					matched = false
+					break
+				}
+			}
+			if matched {
+				return line
+			}
+		case <-deadline.C:
+			t.Fatalf("no readiness diagnostic contained %q; observed %q", fragments, observed)
+		}
 	}
 }
 

@@ -9,6 +9,7 @@ import (
 	"image"
 	"io/fs"
 	"net"
+	"os"
 	"strings"
 	"sync"
 	"time"
@@ -34,6 +35,7 @@ const (
 	presentationRetryMin      = 400 * time.Millisecond
 	presentationRetryMax      = 8 * time.Second
 	sessionPollInterval       = time.Second
+	kitMenuReadinessLogPeriod = 10 * time.Second
 	shellLeaseReleaseAttempts = 3
 )
 
@@ -627,6 +629,16 @@ type App struct {
 	hostLaunchPending          func()
 	hostPresentsPaused         bool
 	hostAwaitStatus            bool
+	kitMenuStartedAt           time.Time
+	kitMenuSessionSeen         bool
+	kitMenuSessionState        string
+	kitMenuSessionHTTPStatus   int
+	kitMenuSessionError        string
+	kitMenuHealthSeen          bool
+	kitMenuHealthError         string
+	kitMenuReadyLogf           func(string, ...any)
+	kitMenuReadyLogKey         string
+	kitMenuReadyLogAt          time.Time
 	localFeed                  localPadSender
 	localInstallKnown          bool
 	localInstalled             map[string]struct{}
@@ -757,6 +769,9 @@ func (a *App) Start(parent context.Context) {
 	a.cancel = cancel
 	a.loading = true
 	a.lastInput = time.Now()
+	if a.kitHost && a.kitMenuStartedAt.IsZero() {
+		a.kitMenuStartedAt = time.Now()
+	}
 	a.loadGen++
 	gen := a.loadGen
 	loadCtx := a.replaceLoadContextLocked()
@@ -770,6 +785,7 @@ func (a *App) Start(parent context.Context) {
 	go a.loadCollections(ctx)
 	go a.loadEditionPreferences(ctx)
 	go a.pollSession(ctx)
+	go a.pollKitMenuReadiness(ctx)
 	go a.loadLibrary(loadCtx, gen)
 	go a.hydrateAttractIdle(ctx)
 }
@@ -3158,15 +3174,22 @@ func (a *App) fetchSession(ctx context.Context) {
 	gen := a.sessionGen
 	a.mu.Unlock()
 	result, err := a.client.Session(ctx)
-	if err != nil || ctx.Err() != nil {
+	if ctx.Err() != nil {
+		return
+	}
+	if err != nil {
+		a.noteKitMenuSessionObservation(result, err)
 		return
 	}
 	a.mu.Lock()
-	defer a.mu.Unlock()
 	if gen != a.sessionGen {
+		a.mu.Unlock()
+		a.noteKitMenuSessionObservation(result, nil)
 		return
 	}
 	if a.launch.Phase == "launching" || a.stopPhase == "stopping" || a.inputBusy || a.sessionDisplayBusy || a.developmentLoadingLocked() {
+		a.mu.Unlock()
+		a.noteKitMenuSessionObservation(result, nil)
 		return
 	}
 	if a.hostAwaitStatus && result.ErrorCode == "" && (result.State == "idle" || result.State == "active" || result.State == "failed" || hostclient.SessionKitLocal(result.State)) {
@@ -3174,6 +3197,111 @@ func (a *App) fetchSession(ctx context.Context) {
 		a.hostPresentsPaused = false
 	}
 	a.applySessionLocked(result)
+	a.mu.Unlock()
+	a.noteKitMenuSessionObservation(result, nil)
+}
+
+func (a *App) noteKitMenuSessionObservation(session hostclient.SessionResult, sessionErr error) {
+	if a == nil {
+		return
+	}
+	a.mu.Lock()
+	if a.kitHost {
+		a.kitMenuSessionSeen = true
+		a.kitMenuSessionState = session.State
+		a.kitMenuSessionHTTPStatus = session.HTTPStatus
+		a.kitMenuSessionError = ""
+		if sessionErr != nil {
+			a.kitMenuSessionError = sessionErr.Error()
+		} else if session.ErrorCode != "" {
+			a.kitMenuSessionError = session.ErrorCode + ": " + session.ErrorMessage
+		}
+	}
+	a.mu.Unlock()
+	a.logKitMenuReadiness()
+}
+
+// pollKitMenuReadiness reports startup readiness independently of Session and
+// Health requests. Those requests can be slow or fail while the menu is held.
+func (a *App) pollKitMenuReadiness(ctx context.Context) {
+	if a == nil {
+		return
+	}
+	a.mu.Lock()
+	enabled := a.kitHost && a.menuDisplay != nil
+	a.mu.Unlock()
+	if !enabled {
+		return
+	}
+	a.logKitMenuReadiness()
+	ticker := time.NewTicker(kitMenuReadinessLogPeriod)
+	defer ticker.Stop()
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-ticker.C:
+			a.logKitMenuReadiness()
+		}
+	}
+}
+
+func (a *App) logKitMenuReadiness() {
+	if a == nil {
+		return
+	}
+	a.mu.Lock()
+	if !a.kitHost {
+		a.mu.Unlock()
+		return
+	}
+	display := a.menuDisplay
+	startedAt := a.kitMenuStartedAt
+	if startedAt.IsZero() {
+		startedAt = time.Now()
+		a.kitMenuStartedAt = startedAt
+	}
+	sessionSeen, sessionState, sessionHTTPStatus, sessionError := a.kitMenuSessionSeen, a.kitMenuSessionState, a.kitMenuSessionHTTPStatus, a.kitMenuSessionError
+	healthSeen, healthError := a.kitMenuHealthSeen, a.kitMenuHealthError
+	health, hostUnreachable := a.health, a.hostUnreachable
+	hostAwaitStatus, hostPresentsPaused, kitHostPreparing := a.hostAwaitStatus, a.hostPresentsPaused, a.kitHostPreparing
+	baseURL := ""
+	if a.client != nil && a.client.Client != nil {
+		baseURL = a.client.BaseURL()
+	}
+	logf := a.kitMenuReadyLogf
+	a.mu.Unlock()
+	if display == nil {
+		return
+	}
+	readiness := display.ReadinessDiagnostic()
+	healthReady := healthSeen && healthError == "" && health.Ready && health.TargetReachable && health.TargetReady
+	pending := !readiness.Ready || !healthReady || !sessionSeen || sessionError != "" || hostAwaitStatus || hostPresentsPaused || kitHostPreparing
+	if !pending {
+		a.mu.Lock()
+		a.kitMenuReadyLogKey = ""
+		a.mu.Unlock()
+		return
+	}
+	now := time.Now()
+	elapsed := now.Sub(startedAt).Round(time.Millisecond)
+	key := fmt.Sprintf("host_api=%q session_endpoint=%q host_session_seen=%t host_session_http_status=%d host_session_state=%q host_session_error=%q host_await_status=%t host_presents_paused=%t kit_host_preparing=%t host_unreachable=%t health_endpoint=%q host_health_seen=%t host_health_error=%q host_health_ready=%t target_reachable=%t target_ready=%t target_id=%q target_state=%q runtime_status_known=%t runtime_ready=%t runtime_available=%t runtime_generation=%d presented_generation=%d has_presented=%t display_paused=%t display_closed=%t underflows=%d last_err=%q",
+		baseURL, strings.TrimRight(baseURL, "/")+"/api/v1/session", sessionSeen, sessionHTTPStatus, sessionState, sessionError, hostAwaitStatus, hostPresentsPaused, kitHostPreparing, hostUnreachable,
+		strings.TrimRight(baseURL, "/")+"/api/v1/health", healthSeen, healthError, health.Ready, health.TargetReachable, health.TargetReady, health.Connection.TargetID, health.Connection.State,
+		readiness.StatusKnown, readiness.Ready, readiness.Available, readiness.Generation, readiness.PresentedGen, readiness.HasPresented,
+		readiness.Paused, readiness.Closed, readiness.Underflows, readiness.LastErr)
+	a.mu.Lock()
+	if key == a.kitMenuReadyLogKey && now.Sub(a.kitMenuReadyLogAt) < kitMenuReadinessLogPeriod {
+		a.mu.Unlock()
+		return
+	}
+	a.kitMenuReadyLogKey = key
+	a.kitMenuReadyLogAt = now
+	a.mu.Unlock()
+	if logf == nil {
+		logf = func(format string, args ...any) { _, _ = fmt.Fprintf(os.Stderr, format, args...) }
+	}
+	logf("%s", fmt.Sprintf("tenfoot: kit menu readiness pending elapsed=%s %s\n", elapsed, key))
 }
 
 func (a *App) bumpSessionGenLocked() {
@@ -3227,6 +3355,7 @@ func (a *App) fetchHealth(ctx context.Context) {
 		a.kitLease = lease
 		a.clearLeaseRefusalAfterTransitionLocked(wasForeign)
 		a.mu.Unlock()
+		a.noteKitMenuHealthObservation(nil)
 		return
 	}
 	if pairedHave && pairedErr == nil {
@@ -3236,11 +3365,13 @@ func (a *App) fetchHealth(ctx context.Context) {
 		wasForeign := a.foreignKitLeaseLocked()
 		a.hostUnreachable = false
 		a.healthHave = true
-		a.health = hostclient.HealthResult{Ready: true, TargetReachable: paired.TargetReachable, TargetReady: paired.TargetReady}
+		health := hostclient.HealthResult{Ready: true, TargetReachable: paired.TargetReachable, TargetReady: paired.TargetReady}
+		a.health = health
 		a.kitLeaseHave = true
 		a.kitLease = paired
 		a.clearLeaseRefusalAfterTransitionLocked(wasForeign)
 		a.mu.Unlock()
+		a.noteKitMenuHealthObservation(err)
 		return
 	}
 	if pairedHave && pairedErr != nil {
@@ -3255,6 +3386,7 @@ func (a *App) fetchHealth(ctx context.Context) {
 		a.mu.Lock()
 		a.hostUnreachable = true
 		a.mu.Unlock()
+		a.noteKitMenuHealthObservation(err)
 		return
 	}
 	status, statusErr := a.client.Status(ctx)
@@ -3262,12 +3394,32 @@ func (a *App) fetchHealth(ctx context.Context) {
 		return
 	}
 	a.mu.Lock()
-	defer a.mu.Unlock()
 	if statusErr == nil && status.Unavailable {
 		a.hostUnreachable = false
 		a.healthHave = true
 		a.health = hostclient.HealthResult{Ready: true, TargetReachable: false, TargetReady: false}
 	}
+	a.mu.Unlock()
+	if statusErr != nil {
+		err = fmt.Errorf("host health: %v; host status: %w", err, statusErr)
+	}
+	a.noteKitMenuHealthObservation(err)
+}
+
+func (a *App) noteKitMenuHealthObservation(healthErr error) {
+	if a == nil {
+		return
+	}
+	a.mu.Lock()
+	if a.kitHost {
+		a.kitMenuHealthSeen = true
+		a.kitMenuHealthError = ""
+		if healthErr != nil {
+			a.kitMenuHealthError = healthErr.Error()
+		}
+	}
+	a.mu.Unlock()
+	a.logKitMenuReadiness()
 }
 
 func (a *App) clearLeaseRefusalAfterTransitionLocked(wasForeign bool) {

@@ -186,7 +186,13 @@ func (c *Client) RollbackAppliance(ctx context.Context, targetID string, resolve
 	if err == nil {
 		c.reportProgress("activation accepted", before.Previous)
 	} else {
-		c.reportProgress("activation response lost", err.Error())
+		if definiteActivationRejection(err) {
+			c.reportProgress("activation rejected", err.Error())
+		} else if isUnavailableAPIError(err) {
+			c.reportProgress("activation outcome uncertain", err.Error())
+		} else {
+			c.reportProgress("activation response lost", err.Error())
+		}
 	}
 	return c.finishAppliance(ctx, targetID, before, before.Previous, err, resolve)
 }
@@ -204,15 +210,29 @@ func (c *Client) applianceBefore(ctx context.Context, targetID string, resolve R
 }
 
 func (c *Client) finishAppliance(ctx context.Context, targetID string, before ApplianceStatus, expected string, activationErr error, resolve ResolveAppliance) (ApplianceStatus, error) {
-	var apiErr *protocol.APIError
-	// An explicit rejection must not turn into a reboot wait or a second request.
-	if errors.As(activationErr, &apiErr) {
+	// BUSY is a typed admission rejection; other structured 503 responses may
+	// follow an accepted rollback, so reconcile their outcome with read-only
+	// boot observations instead of treating the status code as proof of refusal.
+	if definiteActivationRejection(activationErr) {
 		return before, activationErr
 	}
 	// The activation may have committed even if its response was lost. Stop the
 	// pre-reboot renewal loop immediately; observation below makes no mutations.
 	c.InvalidateKitSession()
 	return c.waitApplianceConfirmation(ctx, targetID, expected, before.BootID, false, activationErr, resolve)
+}
+
+func isUnavailableAPIError(err error) bool {
+	var apiErr *protocol.APIError
+	return errors.As(err, &apiErr) && apiErr.StatusCode == http.StatusServiceUnavailable
+}
+
+func definiteActivationRejection(err error) bool {
+	var apiErr *protocol.APIError
+	if !errors.As(err, &apiErr) {
+		return false
+	}
+	return apiErr.StatusCode != http.StatusServiceUnavailable || apiErr.Code == protocol.CodeBusy
 }
 
 // ConfirmApplianceTrial resumes confirmation of an expected release without staging or activation.

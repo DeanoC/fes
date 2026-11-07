@@ -301,6 +301,7 @@ func configuredApp(opts Options) (*App, error) {
 	app := NewApp(NewClient(opts.APIBase, auth).withAPIHost(opts.APIHost), opts.Width, opts.Height, opts.MaxGames)
 	app.kitHost = opts.KitHost
 	if opts.KitHost {
+		app.kitMenuStartedAt = time.Now()
 		// A prior UI process may have exited while a host session kept the
 		// display. Wait for the host's first session read before presenting.
 		app.hostPresentsPaused = true
