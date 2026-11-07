@@ -90,6 +90,21 @@ def embedded_board_control_check_input(path):
                      'platform/embedded/tamago/embeddedcontrol/generated/fes_embedded_control.go'))
 
 
+def embedded_menu_input(path):
+    return path in EMBEDDED_CONTROL_INPUTS or path in (
+        'sources/misteross/prototypes/embedded_control/fes_embedded_menu_scanout.sv',
+        'sources/misteross/prototypes/embedded_control/embedded_menu_top.sv',
+        'sources/misteross/prototypes/embedded_control/menu_probe.cpp',
+        'sources/misteross/prototypes/embedded_control/verify_menu.py',
+        'sources/misteross/prototypes/embedded_control/verify_window.py',
+        'sources/misteross/prototypes/embedded_control/producer.py',
+        'sources/misteross/prototypes/de25_board_control/fes_de25_read_width.sv',
+        'sources/misteross/cores/fes-menu/rtl/fes_menu_video.v',
+        'sources/misteross/cores/fes-menu/rtl/fes_menu_reader.v',
+        'platform/embedded/tamago/scanout/surface.go',
+        'platform/embedded/tamago/scanout/testdata/frame/main.go')
+
+
 def embedded_producer_check_input(path):
     return (embedded_control_input(path) or embedded_producer_input(path) or
             path in ('platform/embedded/tamago/nativefabric/binding.go',

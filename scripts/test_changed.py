@@ -56,6 +56,13 @@ def plan(root, base, head="HEAD", jobs=2, full=False):
     add("always", "committed whitespace", ".", check)
     if selected == current:
         add("always", "working whitespace", ".", ["git", "diff", "--check", "HEAD", "--"])
+    if any(affected.embedded_menu_input(path) for path in impact["paths"]):
+        add("fpga", "owned menu scanout and actual Tenfoot pixels", ".",
+            [sys.executable, "sources/misteross/prototypes/embedded_control/verify_menu.py",
+             *(["--allow-dirty"] if local else [])],
+            tools=["go", "g++", "make", "verilator", "verilator_bin", "git"],
+            files=["sources/misteross/prototypes/embedded_control/verify_menu.py",
+                   "sources/misteross/prototypes/embedded_control/fes_embedded_menu_scanout.sv"])
     if impact["lanes"]["parent"]:
         modes = impact["test_modes"]
         add("parent", "parent Python regressions", ".",

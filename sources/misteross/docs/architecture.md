@@ -94,6 +94,39 @@ response halves in the endpoint's drain ledger. Pixel-clock crossing, HDMI,
 buffer reuse and registered Nano admission remain unfinished. Physical evidence
 applies to the exact producer and native sources named in that record.
 
+The opt-in `prototypes/embedded_control/fes_embedded_menu_scanout.sv` now
+connects the existing menu video/FIFO to that owned read endpoint. Unlike the
+window CRC sink, this path produces the actual 1280×720 RGB/sync stream. Two
+4 MiB slots in one fixed 8 MiB arena supply packed XRGB frames. An explicit
+Start requires an observed endpoint retirement and a newer live generation;
+submissions alternate slots and use strictly increasing nonzero sequences.
+The existing `COMPLETE_FRAME_ACK` mode acknowledges only a fully scanned frame,
+including its final pixel. Underflow blanks missed pixels without shifting the
+remaining stream and cannot acknowledge an incomplete submission.
+
+All ports share one qualified pixel clock. Board interconnect clock crossings,
+physical HDMI setup, secure framebuffer reservation and native register/control
+binding are not supplied. In particular the existing 4 MiB window firmware
+cannot authorize this 8 MiB source. The integrating runtime must keep both slots
+pinned, publish immutable pixels before submission, and wait for the new slot's
+complete-frame acknowledgement before updating its predecessor. Local Quiesce
+stops new frames, preserves a stalled command and drains the menu reader before
+reporting Stopped. It neither disables the owned AXI endpoint nor grants memory
+reclamation; firmware's endpoint/all-master stop and bridge closure still follow.
+Ownership loss, invalid submissions and an uncertain source reset cannot create
+a new session. Faults blank RGB and require containment rather than replay.
+
+`verify_menu.py` runs actual Tenfoot-rendered/native-copy frames through that
+source, the real menu video/reader, embedded endpoint and Nano 128/256-bit DDR
+adapter. Its independent memory/raster model checks every active pixel, page and
+slot bounds, complete-frame acknowledgement, normal backpressure, stalled stop,
+underflow, bus errors, stale submissions and video-only reset. A prefetch-time
+acknowledgement mutation must fail, and a one-slot reservation must offer no DDR
+read. The only menu-reader derivation is the existing guarded M10K-to-M20K RAM
+hint replacement. Verilator suppresses inherited empty-pin and unused-signal
+style warnings; functional warnings remain fatal. This is a host simulation,
+not a compiled Nano package, physical HDMI result or runtime admission grant.
+
 The separate `prototypes/de25_board_control` overlay builds a private copy of
 an explicitly selected DE25 ZX81 diagnostic producer and adds an Avalon
 aperture for this endpoint. It includes its adapter and endpoint sources in

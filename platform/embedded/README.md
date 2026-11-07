@@ -16,6 +16,15 @@ including master stop, shared USB pause/resume and owned Quit. This is serial
 runtime evidence; general package admission, full core/video conformance,
 physical display/input/media/native networking and FPGA timing remain open.
 
+The [distinct-package physical test](../../docs/validation/2026-11-07-de25-distinct-observer-trial/README.md)
+now passes ZX81 → ZX80 → ZX81 with three complete native launch/return cycles,
+exact selected package/build/ROM identities, nine verified uploads/fresh reads
+and owned Quit. Launches take about 55 seconds. This remains serial evidence;
+visible menu/core transitions and broader admission remain open.
+The [owned menu video prototype](tamago/scanout/README.md#owned-menu-video-prototype)
+now connects real Tenfoot pixels to the existing 720p scanout RTL in a host model.
+It needs a new 8 MiB framebuffer contract and board/native binding before use.
+
 The [follow-on timing repair](../../docs/validation/2026-11-06-de25-timing-repair/README.md)
 now clears the inferred capture reset-polarity conflict and two obsolete JTAG
 filter queries in a freshly routed package. Four signoff rules remain open.

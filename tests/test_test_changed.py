@@ -60,6 +60,30 @@ class TestChangedTest(unittest.TestCase):
         command = next(c for c in self.plan()["commands"] if c["label"] == "embedded producer identity and native control integration")
         self.assertNotIn("--allow-dirty", command["argv"])
 
+    def test_menu_scanout_consumers_run_actual_pixel_integration(self):
+        paths = ('sources/misteross/prototypes/embedded_control/fes_embedded_menu_scanout.sv',
+                 'sources/misteross/cores/fes-menu/rtl/fes_menu_reader.v',
+                 'sources/misteross/prototypes/de25_board_control/fes_de25_read_width.sv',
+                 'sources/misteross/cores/fes-common/rtl/fes_embedded_control.sv',
+                 'platform/embedded/tamago/scanout/testdata/frame/main.go')
+        for path in paths:
+            with self.subTest(path=path):
+                self.change(path)
+                command = next(c for c in self.plan()['commands']
+                               if c['label'] == 'owned menu scanout and actual Tenfoot pixels')
+                self.assertEqual(command['cwd'], '.')
+                self.assertEqual(command['argv'][1:],
+                                 ['sources/misteross/prototypes/embedded_control/verify_menu.py', '--allow-dirty'])
+                self.assertIn('go', command['tools'])
+                self.assertIn('verilator', command['tools'])
+                (self.root / path).unlink()
+        self.change(paths[0])
+        git(self.root, 'add', '.')
+        git(self.root, 'commit', '-qm', 'menu scanout')
+        command = next(c for c in self.plan()['commands']
+                       if c['label'] == 'owned menu scanout and actual Tenfoot pixels')
+        self.assertNotIn('--allow-dirty', command['argv'])
+
     def test_window_stream_inputs_schedule_existing_producer_integration(self):
         paths = ('sources/misteross/prototypes/embedded_control/fes_embedded_window_reader.sv',
                  'sources/misteross/cores/fes-common/rtl/fes_embedded_control.sv',

@@ -53,6 +53,21 @@ provider describes what matching boot firmware must hand over before the first
 Nano UI can be exercised. Physical configuration/identity/containment and safe
 core/session display transitions remain separate, unfinished work.
 
+## Owned menu video prototype
+
+The separate FPGA [`fes_embedded_menu_scanout`](../../../../sources/misteross/prototypes/embedded_control/fes_embedded_menu_scanout.sv)
+now reuses the real FES menu video/reader to produce a 720p RGB/sync stream from
+two XRGB slots. `python3 sources/misteross/prototypes/embedded_control/verify_menu.py`
+checks actual Tenfoot frames through the owned endpoint and Nano 256-bit DDR
+boundary, with full-frame acknowledgement, local quiescence and failure paths.
+It requires committed inputs; `--allow-dirty` labels working-tree simulations.
+
+This source needs a separately admitted **8 MiB** double-buffer arena, a native
+control binding and board pixel-clock/HDMI integration. The existing boot copier
+and 4 MiB CRC-window firmware do not provide those contracts. Local Stopped is
+not firmware master drain or permission to release the arena. No current Nano
+boot or core package selects this prototype; physical display remains open.
+
 ## Probes and evidence
 
 `NewWindowReader` controls the separate CPU-started window diagnostic through
