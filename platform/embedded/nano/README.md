@@ -14,6 +14,16 @@ An OCRAM-selected menu uses the same final SPL allocation snapshot and exclusion
 guard as the shared-ROM chain, after the final trace and before entering BL31.
 Selecting the reserved layout never omits that one-shot guard.
 
+`native_trace.decode_native_configuration(..., menu_read=...)` observes that
+specific cold menu using the checked identity, configuration, CPU mapping,
+two-slot memory and menu access descriptors. It requires the complete boot and
+configuration prefix, zeroed 8 MiB publication, both secure use-point gates,
+three ordered frame acknowledgements in slots 0/1/0, and the independent
+master-stop and owned closure. Partial, replayed, failed or foreign observations
+cannot finish it. The decoder performs no device operations. Its result remains
+serial evidence, with physical HDMI, memory release, runtime admission and the
+complete menu/core/menu lifecycle unqualified.
+
 Native selected-program platform version two compares the complete boot
 configuration through byte `0x657`, using `hps_configuration_sha256`. The pinned
 TF-A handoff struct occupies `0x648` bytes; the pinned SPL additionally reads
