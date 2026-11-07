@@ -6,7 +6,7 @@ range of DOS games and programs while CPU work continues. This census ran
 open phases touch, plus nine non-game programs. Each stop is traced to its
 cause, so the next CPU priority rests on counts.
 
-**Headline: 27 of 52 titles are usable today, and 3 more start but go
+**Headline: 28 of 52 titles are usable today, and 2 more start but go
 wrong.** The 22 failures have these causes:
 
 | Cause | Titles | What fixes it |
@@ -45,7 +45,7 @@ the kit, and simulation explained the stops. Two facts drove that.
   which changes `fes_i386_qalign.sv`, so the census describes `607922c63`'s
   CPU.
 - **RTL simulation is too slow for 52 titles.** On Powerboat under the day's
-  load, the RTL simulation took about 10 wall minutes per simulated second
+  load, the RTL simulation took 6 to 12 wall minutes per simulated second
   (Wolfenstein 3D's 24 s took about 3 hours earlier). That is weeks of
   machine time for the full set.
 
@@ -59,8 +59,9 @@ So the evidence has three layers:
    - Titles whose result was not plain were launched again, each after a
      SCRUBX memory scrub (the kit's software predates #1499). Those were Duke
      Nukem 3D, Descent, One Must Fall 2097, Screamer, U.S. Navy Fighters and
-     SpeedSys. All six gave the same result at the same CS:EIP.
-2. **The oracle (Bochs) machine simulation, 28 titles:**
+     SpeedSys. Five gave the same result at the same CS:EIP. One Must Fall
+     did not: it ran (see the findings below).
+2. **The oracle (Bochs) machine simulation, 29 titles:**
    - `sim_fes_pc386.py --suite game --instruction-census`, 20 simulated
      seconds each;
    - with a frame every second;
@@ -76,9 +77,11 @@ So the evidence has three layers:
    - Jump 'n Bump: `0F23`, MOV DRn, then `0F22`;
    - Time Circle: `0F22`, MOV CRn.
 
-   Each stop is at the kit's stop site. Duke Nukem 3D and One Must Fall 2097
-   were still running at 14 seconds when this was written; see the partials
-   below.
+   Each stop is at the kit's stop site.
+   - Duke Nukem 3D's and One Must Fall 2097's 14-second runs were stopped
+     early, once the oracle and the scrubbed kit run had settled them.
+   - One Must Fall's RTL run showed the same launcher menu as the oracle
+     and the kit.
 
 Results:
 
@@ -122,7 +125,7 @@ No game bytes, frames, audio or instruction bytes are committed.
 | --- | --- | --- | --- |
 | real mode in conventional memory | 8 | 0 | 1 |
 | XMS through HIMEM, unreal mode or an own 386 memory manager | 1 | 0 | 5 |
-| DOS/4GW at CPL 0 | 3 | 2 | 2 |
+| DOS/4GW at CPL 0 | 4 | 1 | 2 |
 | other CPL-0 DOS extenders (DOS/32A, PMODE/W, Phar Lap) | 3 | 0 | 0 |
 | ring-3 DPMI hosts (CWSDPMI, Borland RTM and 32RTM) | 0 | 0 | 6 |
 | uses or needs EMS (EMM386 or another expanded-memory manager) | 2 | 0 | 1 |
@@ -130,7 +133,7 @@ No game bytes, frames, audio or instruction bytes are committed.
 | needs an x87 | 1 | 0 | 3 |
 | Sound Blaster Pro or other sound setups | 2 | 0 | 0 |
 | non-game programs | 6 | 1 | 2 |
-| **All** | **27** | **3** | **22** |
+| **All** | **28** | **2** | **22** |
 
 The bucket is the reason a title was picked. The cause is what stopped it.
 Ultima Underworld, Master of Orion and Darklands were picked as XMS users and
@@ -170,7 +173,7 @@ conventional memory first.
 | Duke Nukem 3D (1996) | `dos4gw` | `pmode` | fail | `k2`, stopped at `0180:00222be2`; sim oracle | 486 instruction: invalid opcode at 0180:00222BE2 on the 386-level oracle (DOS/4GW exception 06h dump), the kit's stop site; Duke Nukem 3D 1.3D needs a 486 |
 | Descent (1995) | `dos4gw` | `pmode` | fail | `k2`, stopped at `3e58:00004864`; sim oracle | CPU: Phase 5: DOS/4GW Professional turns paging on (MOV CR0, PG) at 3E58:00004864, the kit's stop site |
 | Raptor - Call of the Shadows (1994) | `dos4gw` | `pmode` | pass | `k8` | Apogee logo, then the main menu |
-| One Must Fall 2097 (1994) | `dos4gw` | `pmode` | partial | `k2`; sim oracle | not found yet: black on the kit for 36 s while running in protected mode, also after a scrub; the oracle reaches its menus and pilot select |
+| One Must Fall 2097 (1994) | `dos4gw` | `pmode` | pass | `k13`; sim oracle | after a SCRUBX scrub: launcher menu, then pilot select; in k2, launched without a scrub after other titles, black (leftover guest RAM: the kit's software predates #1499) |
 | Rise of the Triad - The Hunt Begins (Deluxe Edition) (1995) | `dos4gw` | `pmode` | partial | `k8`; sim oracle | sound setup: eXoDOS's SoundBlaster setup is an SB16 one (16-bit DMA); the Sound Blaster 2.0 has no 16-bit DMA, so sound init fails and ROTT opens its sound setup |
 | Machines, The (1995) | `cpl0` | `pmode` | pass | `k2` | intro, then the initials screen |
 | Hot Speed (1996) | `cpl0` | `pmode` | pass | `k2` | title, then level 1 |
@@ -187,7 +190,7 @@ conventional memory first.
 | 3DBench 1.0 | `program` | `bench` | pass | `k6` | benchmark runs to its score: 76.9 |
 | PC Player Benchmark | `program` | `bench` | pass | `k11` | benchmark runs to its score: 13.3 (VGA 320x200) |
 | TOPBENCH | `program` | `bench` | pass | `k6` | score 307 to 310 |
-| SpeedSys 4.78 | `program` | `bench` | partial | `k11` | machine device or BIOS: stays at its ISA PnP read-port probe on the kit and on the oracle (#1532) |
+| SpeedSys 4.78 | `program` | `bench` | partial | `k11`; sim oracle | machine device or BIOS: stays at its ISA PnP read-port probe on the kit and on the oracle (#1532) |
 | CHKCPU | `program` | `bench` | pass | `k6` | identifies a 'classic' 386 at 64.2 MHz, real mode |
 | CACHECHK | `program` | `bench` | pass | `k11` | memory timing table printed |
 | Norton System Information 8 | `program` | `bench` | pass | `k6` | system summary and interrupt list |
@@ -243,14 +246,16 @@ Measured on the kit at `max`:
     SB settings.
 - **CD-ROM.** Grand Prix 2 needs its CD (MSCDEX). So does U.S. Navy Fighters,
   past its paging stop. The machine has no CD-ROM.
-- **Partials still open:**
-  - One Must Fall 2097 stays black on the kit while it runs in protected
-    mode, also after a scrub. The oracle reaches its menus and pilot select.
-    The kit and the oracle disagree, so it may be an RTL fault. Its RTL
-    simulation was still running when this was written; the PR follows it up.
+- **Leftover guest RAM and partials:**
+  - One Must Fall 2097 was black in run `k2`, where it launched after other
+    titles without a scrub. After a SCRUBX scrub it reaches its launcher
+    and pilot select, as on the oracle and the RTL simulation. So it passes;
+    the black screen was leftover guest RAM, which #1499 clears on newer kit
+    software.
   - SpeedSys stays at its ISA PnP read-port probe on the kit and on the
     oracle, so it is the machine, not the CPU:
     [#1532](https://github.com/DeanoC/fes/issues/1532).
+  - Rise of the Triad is the other partial: see sound setups above.
 
 ## Follow-ups
 
@@ -259,6 +264,5 @@ Measured on the kit at `max`:
   `FILES` and conventional memory.
 - [#1532](https://github.com/DeanoC/fes/issues/1532): SpeedSys's ISA PnP
   probe.
-- One Must Fall 2097's black screen on the kit: open until its RTL run ends.
 - Phase 2's third slice, Phase 5 and x87 stay planned work. This record gives
   their title counts and does not file them again.

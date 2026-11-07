@@ -7,26 +7,35 @@ Each drive in the manifest (cores/fes-pc386/sim/game-drives.toml) is the
 games profile of build_pc386_freedos_image.py (HIMEMX, UMBM, CuteMouse,
 MOUSEDEF, FESENV and MEM; FDCONFIG.SYS and AUTOEXEC.BAT unchanged) on a disk
 of the drive's cylinders (16 heads, 63 sectors; at most 260 cylinders, the
-128 MiB the ATA disk holds), with each title's files copied from the user's
-eXoDOS zips. The zips are read in place and checked against the manifest's
-SHA-256; their files pass through a private 0700 work directory in the store
-that is deleted at the end. Commercial programs never enter the repository:
-the manifest and the drive's record carry titles, paths, hashes and counts.
+128 MiB the ATA disk holds), with each title's files copied from a source
+the user supplies. A title names its source ([sources] in the manifest) and
+its path there:
 
-A title's `copy` entries name a folder in its zip and the C: directory it
+  zip   an eXoDOS zip, pinned by the zip's SHA-256 (FES_PC386_GAMES)
+  tree  a folder, such as the DOS Benchmark Pack (FES_PC386_DOSBENCH), pinned
+        by each file's relative path and SHA-256, sorted (tree_sha256)
+
+Sources are read in place and checked against the manifest's SHA-256. Their
+files pass through a private 0700 work directory in the store, which is
+deleted at the end. Commercial programs never enter the repository: the
+manifest and the drive's record carry titles, paths, hashes and counts.
+
+A title's `copy` entries name a folder in its source and the C: directory it
 goes to, in order, so a later entry (a sound setup's config folder) replaces
-files of an earlier one. `skip` drops a folder's subdirectories by name. A
+files of an earlier one. `skip` drops a folder's subdirectories by name, and
+`flat` drops them all. A name that is not 8.3 is skipped and counted. A
 title's `config` entries put a file from the store's sidecars/ (named by its
 SHA-256: a config a game's own setup wrote) at a path on C:.
 
 The drive is reproducible: file names are upper-cased short names (mtools
-writes no long names), each file keeps its zip time, and directories and
-files are written in sorted order, so the same manifest, zips and FreeDOS
-lock give the same bytes. The store holds, for each built drive:
+writes no long names), a zip's files keep their zip times and a folder's take
+the image's fixed time, directories get that fixed time too, and directories
+and files are written in sorted order. So the same manifest, sources and
+FreeDOS lock give the same bytes. The store holds, for each built drive:
 
   <sha256>.img            the drive
   <sha256>.json           its record: geometry, base, titles (launch, keys,
-                          zip hashes, file counts), free bytes
+                          source hashes, file counts), free bytes
   by-name/<drive>.img     symlinks to the latest build of each drive
   by-name/<drive>.json
 
@@ -108,7 +117,7 @@ def manifest(path: Path = MANIFEST) -> dict:
 
 
 def drive_inputs(data: dict, name: str) -> str:
-    """Identity of a drive's build inputs other than the zips, which the
+    """Identity of a drive's build inputs other than the sources, which the
     record pins by hash: the drive's manifest entry, this builder, the FreeDOS
     builder's profile inputs and the sidecar hashes."""
     digest = hashlib.sha256(json.dumps(data['drives'][name], sort_keys=True).encode())
