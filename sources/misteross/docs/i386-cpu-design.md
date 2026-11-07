@@ -988,6 +988,20 @@ descriptor-cache write retires.
     MOVSX, and the 16-bit ADD r, r2 and MOV. In DOOM's and 3DBench's
     profiles they wait on loads or are rare. Jcc and LOOP still resolve at
     EX.
+- **Load forwarding (as built, Phase 4 slice 6b):** a load whose result is
+  its load data, whole, forwards that data to a younger address as soon as
+  M2 has it (`fes_i386_dfwd`'s load kind, `pipe_t ldfwd`).
+  - **Forms.** MOV r32 and POP r32 from memory, and MOVZX r32, whose load
+    data is zero above its size. A 16-bit load keeps its register's high
+    half, and MOVSX and a load-op change the value in EX, so they stay late.
+  - **When.** D issues the younger uop while the load is in M2, and AG takes
+    the value late from the EX register's load data (`pipe_t ld`), not its
+    result. While the load is in EX, D takes the value from that load data
+    too: the table keeps, per GPR, whether its EX value is load data or EX's
+    result, as a POP's register and its ESP are in EX together. A late scaled
+    index still waits one cycle in D.
+  - **Data operands.** Unchanged (`fes_i386_dops`): a load is not early
+    there, and EX takes its value through its own bypass.
 - **Early branches:** a Jcc whose flags are ready at AG, and a LOOP or JCXZ whose
   ECX is ready there, resolve at AG.
 
@@ -1799,7 +1813,7 @@ it runs uncapped.
      class and stage. In DOOM's window AGI is 9.1% of the clocks. Producers
      an early ALU would run cause 2.0–2.3%, nearly all 32-bit ADD, INC, DEC,
      SUB with an immediate, and MOV. Loads cause 4.0%, and half of that is
-     the clock `fes_i386_dfwd`'s unused load kind would save. In 3DBench
+     the clock `fes_i386_dfwd`'s load kind, then unused, would save. In 3DBench
      the early ALU's 3.1% is almost all 16-bit ADD, INC and DEC.
    - **Build.** If the ALU share warrants it, the register and immediate
      ALU forms execute at AG, and Jcc and LOOP resolve there when their
@@ -1816,6 +1830,15 @@ it runs uncapped.
    - **Gain.** DOOM up to 2–5%, less what loads cause.
    - **Risk.** Moderate: AG has +4.7 ns, and the result and flag paths join
      the forwarding tables.
+   - **Load forwarding (6b).** The profile's split found that
+     `fes_i386_dfwd`'s load kind was never driven. MOV r32, POP r32 and
+     MOVZX r32 loads now forward their load data into a younger address
+     ([Load forwarding](#registers-address-generation-and-the-early-alu)).
+     In DOOM's bench window a load's AGI falls by 1.1% of the clocks.
+     Kit A's `demo3` goes from 39.5 to 39.8 fps (+0.8%), and the Pack's
+     DOOM by 0.7–0.9%
+     ([record](../../../docs/validation/2026-11-06-i386-phase4-load-fwd/summary.md)).
+     MOVSX and 16-bit loads still wait.
 7. **Real-mode far prediction.**
    - **Structure.** Far CALL, JMP and RETF in real and V86 mode enter the
      BTB and return stack with their selector. The CS base travels with the

@@ -2986,6 +2986,138 @@ void run_ealu_cases(fes_i386::Oracle &oracle, OracleBus &bus, Rtl &rtl, const st
     });
 }
 
+// The load-forwarding cases (fes_i386_dfwd's LOAD kind: a 32-bit MOV,
+// MOVZX or POP load's data reaches a younger address late into AG from the
+// EX register's load data, then from that load data while the load is in
+// EX), from CS:0 at linear 1000h, in lockstep with the oracle. Each runs
+// MOV CX, 2; L: body; LOOP L; HLT, so the second pass runs from the L1I,
+// and each body first stores the value the load reads, so the load also
+// takes it from the store. EBX is 1800h, ESP 8000h. Each group counts as
+// one case:
+//   ldfwd-32     MOV ESI, [BX], MOVZX ESI, byte or word [BX], POP ESI, then
+//                0-3 NOPs, then [ESI], [ESI + EBX], [EBX + ESI * 4] (a
+//                scaled index, which waits a cycle at D), [SI] or
+//                [ESP + ESI]
+//   ldfwd-ealu   the same loads of 00AB2100h, then 0-3 NOPs, then ADD SI, 2
+//                or ADD ESI, 2 (the early ALU, which takes the loaded high
+//                half) and MOV EAX, ESI
+//   ldfwd-esp    POP ESP, then [ESP]; POP ESI, then [ESI] and [ESP]; two
+//                loads, then [ESI + EDI]
+//   ldfwd-other  loads that still wait for EX: MOV SI, [BX] (a 16-bit load
+//                keeps ESI's high half), MOVSX ESI, MOV ESI with an ADD
+//                from memory, LODSD; then [SI] or [ESI] and MOV EAX, ESI
+void run_ldfwd_cases(fes_i386::Oracle &oracle, OracleBus &bus, Rtl &rtl, const std::vector<Entry> &entries,
+                     Summary &summary) {
+    State base;
+    for (int k = 0; k < 6; ++k) base.seg[k] = fes_i386::real_mode_segment(0);
+    base.seg[fes_i386::SEG_CS] = fes_i386::real_mode_segment(0x100);
+    base.eip = 0;
+    base.gpr[fes_i386::REG_ESP] = 0x8000;
+    base.gpr[fes_i386::REG_EBX] = 0x1800;
+    base.gpr[fes_i386::REG_ESI] = 0x00cd0000;
+    using Bytes = std::vector<uint8_t>;
+    auto loop = [](const Bytes &body) {
+        Bytes code = {0xb9, 0x02, 0x00};  // MOV CX, 2; L:
+        code.insert(code.end(), body.begin(), body.end());
+        code.push_back(0xe2);  // LOOP L
+        code.push_back(uint8_t(3 - int(code.size() + 1)));
+        return code;
+    };
+    auto group = [&](const std::function<void()> &runs) {
+        const uint64_t before = summary.runs, passed = summary.passed, failed = summary.failed;
+        runs();
+        const bool ok = summary.failed == failed;
+        summary.runs = before + 1;
+        summary.passed = passed + (ok ? 1 : 0);
+        summary.failed = failed + (ok ? 0 : 1);
+    };
+    auto run = [&](const std::string &label, const Bytes &body, const State &state) {
+        run_nop_case(oracle, bus, rtl, entries, summary, label, loop(body), state, 64);
+    };
+    auto le32 = [](uint32_t v) {
+        return Bytes{uint8_t(v), uint8_t(v >> 8), uint8_t(v >> 16), uint8_t(v >> 24)};
+    };
+    auto cat = [](std::initializer_list<Bytes> parts) {
+        Bytes out;
+        for (const Bytes &part : parts) out.insert(out.end(), part.begin(), part.end());
+        return out;
+    };
+    // The loads of v: the store it reads, then the load.
+    auto loads = [&](uint32_t v) {
+        const Bytes store = cat({{0x66, 0xc7, 0x07}, le32(v)});  // MOV DWORD [BX], v
+        return std::vector<Bytes>{
+            cat({store, {0x66, 0x8b, 0x37}}),                  // MOV ESI, [BX]
+            cat({store, {0x66, 0x0f, 0xb6, 0x37}}),            // MOVZX ESI, byte [BX]
+            cat({store, {0x66, 0x0f, 0xb7, 0x37}}),            // MOVZX ESI, word [BX]
+            cat({{0x66, 0x68}, le32(v), {0x66, 0x5e}}),        // PUSH DWORD v; POP ESI
+        };
+    };
+    // Producer, 0-3 NOPs, consumer.
+    auto distances = [&](const char *name, const std::vector<Bytes> &producers, const std::vector<Bytes> &consumers,
+                         const State &state) {
+        for (size_t p = 0; p < producers.size(); ++p)
+            for (size_t c = 0; c < consumers.size(); ++c)
+                for (int k = 0; k < 4; ++k) {
+                    Bytes body = producers[p];
+                    body.insert(body.end(), size_t(k), 0x90);
+                    body.insert(body.end(), consumers[c].begin(), consumers[c].end());
+                    run(std::string(name) + ":p" + std::to_string(p) + ":c" + std::to_string(c) + ":n" +
+                            std::to_string(k),
+                        body, state);
+                }
+    };
+    group([&] {
+        const std::vector<Bytes> consumers = {
+            {0x67, 0x8a, 0x06},        // MOV AL, [ESI]
+            {0x67, 0x8a, 0x04, 0x1e},  // MOV AL, [ESI + EBX]
+            {0x67, 0x8a, 0x04, 0xb3},  // MOV AL, [EBX + ESI * 4]
+            {0x8a, 0x04},              // MOV AL, [SI]
+            {0x67, 0x8a, 0x04, 0x34},  // MOV AL, [ESP + ESI]
+        };
+        distances("ldfwd-32", loads(0x2155), consumers, base);
+    });
+    group([&] {
+        const std::vector<Bytes> consumers = {
+            {0x83, 0xc6, 0x02, 0x66, 0x89, 0xf0},        // ADD SI, 2; MOV EAX, ESI
+            {0x66, 0x83, 0xc6, 0x02, 0x66, 0x89, 0xf0},  // ADD ESI, 2; MOV EAX, ESI
+        };
+        distances("ldfwd-ealu", loads(0x00ab21fe), consumers, base);
+    });
+    group([&] {
+        // PUSH DWORD 7000h; POP ESP; MOV AX, [ESP]
+        run("ldfwd-esp:pop-esp", cat({{0x66, 0x68}, le32(0x7000), {0x66, 0x5c, 0x67, 0x8b, 0x04, 0x24}}), base);
+        // PUSH DWORD 2100h; POP ESI; MOV AL, [ESI]; MOV AX, [ESP]
+        run("ldfwd-esp:pop-both",
+            cat({{0x66, 0x68}, le32(0x2100), {0x66, 0x5e, 0x67, 0x8a, 0x06, 0x67, 0x8b, 0x04, 0x24}}), base);
+        // PUSH DWORD 1000h; PUSH DWORD 2100h; POP ESI; POP EDI; MOV AL, [ESI + EDI]
+        run("ldfwd-esp:two",
+            cat({{0x66, 0x68}, le32(0x1000), {0x66, 0x68}, le32(0x2100), {0x66, 0x5e, 0x66, 0x5f, 0x67, 0x8a, 0x04, 0x3e}}),
+            base);
+        // MOV DWORD [BX], 2100h; MOV ESI, [BX]; MOV EDI, [ESI]; MOV AL, [EDI]: a chain of loads
+        run("ldfwd-esp:chain",
+            cat({{0x66, 0xc7, 0x07}, le32(0x2100), {0x66, 0xc7, 0x06, 0x00, 0x21}, le32(0x1800),
+                 {0x66, 0x8b, 0x37, 0x67, 0x66, 0x8b, 0x3e, 0x67, 0x8a, 0x07}}),
+            base);
+    });
+    group([&] {
+        const Bytes store = cat({{0x66, 0xc7, 0x07}, le32(0xfedc2100)});  // MOV DWORD [BX], FEDC2100h
+        // MOV SI, [BX]; MOV AL, [SI]; MOV EAX, ESI
+        run("ldfwd-other:mov16", cat({store, {0x8b, 0x37, 0x8a, 0x04, 0x66, 0x89, 0xf0}}), base);
+        // MOV SI, [BX]; ADD SI, 2; MOV EAX, ESI
+        run("ldfwd-other:mov16-ealu", cat({store, {0x8b, 0x37, 0x83, 0xc6, 0x02, 0x66, 0x89, 0xf0}}), base);
+        const Bytes small = cat({{0x66, 0xc7, 0x07}, le32(0x2180)});  // MOV DWORD [BX], 2180h
+        // MOVSX ESI, byte [BX]; MOV EAX, ESI; MOVSX ESI, word [BX]; MOV AL, [ESI]
+        run("ldfwd-other:movsx",
+            cat({small, {0x66, 0x0f, 0xbe, 0x37, 0x66, 0x89, 0xf0, 0x66, 0x0f, 0xbf, 0x37, 0x67, 0x8a, 0x06}}), base);
+        State zero = base;
+        zero.gpr[fes_i386::REG_ESI] = 0;
+        // ADD ESI, [BX]; MOV AL, [ESI]
+        run("ldfwd-other:add", cat({small, {0x66, 0x03, 0x37, 0x67, 0x8a, 0x06}}), zero);
+        // MOV SI, BX; LODSD; MOV AL, [EAX]
+        run("ldfwd-other:lodsd", cat({small, {0x89, 0xde, 0x66, 0xad, 0x67, 0x8a, 0x00}}), base);
+    });
+}
+
 // The branch target buffer's cases, from CS:0 at linear 1000h, in lockstep
 // with the oracle. The BTB keeps its entries across runs, as across resets,
 // so every case also runs over whatever the runs before left at 1000h.
@@ -6984,6 +7116,7 @@ int main(int argc, char **argv) {
         run_ras_cases(*oracle, bus, rtl, entries, summary);
         run_stld_cases(*oracle, bus, rtl, entries, summary);
         run_ealu_cases(*oracle, bus, rtl, entries, summary);
+        run_ldfwd_cases(*oracle, bus, rtl, entries, summary);
     } else if (mode == "unreal") {
         run_unreal_cases(*oracle, bus, rtl, entries, summary);
     } else if (mode == "pmode") {

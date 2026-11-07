@@ -262,7 +262,7 @@ module fes_i386_cpu #(
     typedef fes_i386_pkg::decoded_t decoded_t;
     typedef fes_i386_pkg::btb_write_t btb_write_t;
 
-    localparam logic [1:0] EARLY = 2'd0, LATE = 2'd2;
+    localparam logic [1:0] EARLY = 2'd0, LOAD = 2'd1, LATE = 2'd2;
     localparam int SEG_CS = 1, SEG_SS = 2;
     localparam int PA = fes_i386_pkg::PA;
 
@@ -965,8 +965,8 @@ module fes_i386_cpu #(
         prod_dst = {prod_ex.uop.dst.index[2:0], prod_m2.uop.dst.index[2:0], prod_m1.uop.dst.index[2:0],
                     prod_ag.uop.dst.index[2:0]};
         prod_early = {prod_ex.early, prod_m2.early, prod_m1.early, prod_ag.early};
-        prod_kind = {prod_ex.early ? EARLY : LATE, prod_m2.early ? EARLY : LATE,
-                     prod_m1.early ? EARLY : LATE, prod_ag.early ? EARLY : LATE};
+        prod_kind = {prod_ex.early ? EARLY : prod_ex.ldfwd ? LOAD : LATE, prod_m2.early ? EARLY : prod_m2.ldfwd ? LOAD : LATE,
+                     prod_m1.early ? EARLY : prod_m1.ldfwd ? LOAD : LATE, prod_ag.early ? EARLY : prod_ag.ldfwd ? LOAD : LATE};
         stage_value = {wb_s.result, ex_s.result, m2_s.result, m1_s.result};
     end
     // ESP from a stack operation, unless its destination is ESP too (POP ESP).
@@ -1003,7 +1003,7 @@ module fes_i386_cpu #(
         .has_index((a_addr || dc.ealu) && dc.has_index), .index(dc.index), .index8(dc.index8), .scale(dc.scale),
         .addr32(dc.ealu ? opsize32 : a_addr32), .d_writes, .d_dst(u.dst.index[2:0]), .d_kind(d_early ? EARLY : LATE), .d_sp,
         .advance(issue), .hold(freeze), .prod_valid, .prod_dst, .prod_kind, .prod_sp, .gpr, .stage_value,
-        .wb_sp(wb_s.sp_new), .row, .last, .late, .late_hi, .stall(lea_stall), .sp_hi, .base_hi, .sp_wait
+        .wb_sp(wb_s.sp_new), .ex_ld(ex_s.ld), .row, .last, .late, .late_hi, .stall(lea_stall), .sp_hi, .base_hi, .sp_wait
     );
     assign d_early = lea && lea_early || dc.ealu && !lea_stall;
 
@@ -1339,6 +1339,15 @@ module fes_i386_cpu #(
         d_out.dist_b = b_dist;
         d_out.dist_c = c_dist;
         d_out.early = d_early;
+        // A load whose result is its load data, whole, so D's address
+        // forwarding takes it from the loaded value (pipe_t ld) from the
+        // cycle the load is in EX, or late into AG while it is in M2
+        // (fes_i386_dfwd's LOAD kind): MOV r32 and POP r32 from memory, and
+        // MOVZX r32, whose load data is zero above its size. A 16-bit load
+        // keeps its register's high half, and MOVSX and a load-op change the
+        // value in EX.
+        d_out.ldfwd = u.cls == fes_i386_pkg::UOP_ALU && (u.op == 5'(fes_i386_pkg::ALU_MOV) || u.op == 5'(fes_i386_pkg::ALU_MOVZX))
+                   && mkind == fes_i386_pkg::MEM_LOAD && !u.mem.in_a && u.size == fes_i386_pkg::SIZE_32 && !u.dst.hi8;
         // A system access (mem.system) is checked against its table's limit,
         // at its first read: a real-mode vector's offset against IDTR's
         // limit less 3, a gate's against IDTR's less 7, a descriptor's low
@@ -1492,7 +1501,7 @@ module fes_i386_cpu #(
     fes_i386_agu agu (
         .addr32(ag_addr32), .seg_term(ag_seg_term), .seg_hi(ag_seg_hi), .seg_hi_plus1(ag_seg_hi_plus1),
         .row(ag_row), .last(ag_last), .disp(ag_disp), .late(ag_late), .late_hi(ag_late_hi),
-        .late_m1(m1_s.result), .late_ex(ex_s.result), .late_wb(wb_s.result), .linear, .offset, .base_op
+        .late_m1(m1_s.result), .late_ex(ex_s.ld), .late_wb(wb_s.result), .linear, .offset, .base_op
     );
 
     // A stack operation's new ESP: a third chain beside the AGU's two, on the
@@ -1505,7 +1514,7 @@ module fes_i386_cpu #(
     always_comb begin
         case (ag_late)
             2'd1: sp_hi_ag = m1_s.result[31:16];
-            2'd2: sp_hi_ag = ex_s.result[31:16];
+            2'd2: sp_hi_ag = ex_s.ld[31:16];
             2'd3: sp_hi_ag = wb_s.result[31:16];
             default: sp_hi_ag = ag_sp_hi;
         endcase
