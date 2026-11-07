@@ -62,8 +62,54 @@ after this publication; the preflight records its exact USB node and all input
 hashes without opening a device. Any changed checkout/helper/input requires a
 fresh review and preflight, not a relaxed gate.
 
-At publication, no UART, JTAG, programming or SD operation has occurred for
-this candidate. The kit's CPU/FPGA/card state still requires live qualification.
-The original factory card remains outside this work; restoration is waived and
-the continuing claim is retained. Remaining full-system work includes physical
-menu/core display, media, native networking and external timing/IO contracts.
+At operator publication, no UART, JTAG, programming or SD operation had occurred
+for this candidate. The physical result below consumes that operator's single
+attempt. The original factory card remains outside this work; restoration is
+waived and the continuing claim is retained. Remaining full-system work includes
+physical menu/core display, media, native networking and external timing/IO
+contracts.
+
+## Physical result: stopped before native programming
+
+Operator publication: `455554cebbf9eb63cd411a76c033c2f7bd52c51f`.
+The actual read-only preflight passed in 76.859 s. Exact USB identity, the
+one-device `4362C0DD` JTAG gate and the qualified recovery boot passed after the
+power interruption. The one physical command stopped in 140.134 s, within its
+unchanged 850 s bound. It was not replayed.
+
+Four fixed files were individually written and read back successfully:
+`FES/PKGTEST.BIN`, `FES/FIRMWARE.BIN`, `FES/PROGRAM.JSN` and `FES/FIRMALT.BIN`.
+Each checked the protected prefix, recovery FIT and manifest. The fifth file,
+alternate metadata for `FES/PROGALT.JSN`, reported all 3,263 bytes received into
+RAM, then produced neither its fresh command-result marker nor another prompt.
+The original 90 s transfer-command deadline expired. That file reached no SD
+write, and selection, UI and boot uploads never started. The complete eight-file
+group was not accepted and the final fresh-readback phase did not run. The spare
+therefore contains a partial experimental catalog; it must not qualify native
+boot from this attempt.
+
+Native SOF programming, `fesboot`, application startup and launch/return were
+never attempted. The new ordinary package remains hardware-unqualified. This
+failure cannot be attributed to its FPGA endpoint, native constructor or CPU
+handoff because those paths were not reached.
+
+Cleanup independently passed: original 15 MHz JTAG clock read back, exact USB
+permissions restored, owned private JTAG server gone and UART free. The bounded
+console-park attempt also timed out. The recovery prompt is **not confirmed**;
+CPU state remains unqualified. No automatic reset, retry or factory restore
+followed. The continuing claim and spare card stay with this work, and the
+bottom kit is untouched.
+
+The retained source places the last message in `net_loop`'s success branch.
+Environment updates, Ethernet/XGMAC/PHY shutdown, later net-loop bookkeeping,
+netboot environment/autostart handling and interpreter return remain possible
+stopping points. Existing XGMAC drain loops are already time-bounded in source;
+the trace does not prove which call stalled or establish a fault PC. Linked
+symbol addresses are recorded for follow-up, not treated as runtime PCs.
+
+Next: add bounded before/after observations to that recovery return path,
+validate the original calls and limits off-board, then build matched new recovery
+inputs and a safe delivery plan. The consumed operator cannot authorize another
+attempt. No transfer timeout, card/ownership gate or native admission policy was
+relaxed. See [result.json](result.json) and the retained raw evidence under
+`out/nano-hdmi-native-board-20261107/`.
