@@ -3,30 +3,39 @@
 Issue [#1528](https://github.com/DeanoC/fes/issues/1528). This record covers the
 520ST only: 8 MHz 68000, 512 KiB, DE10-Nano. STE is out of scope. The game
 matrix was [published on the issue](https://github.com/DeanoC/fes/issues/1528#issuecomment-6707411136)
-before any kit run. Kit B ran five claims (`x1` to `x4`, with `x3` launching
-nothing). All of them used the same sealed package, user-supplied TOS 1.04 and
-private disks. Hashes are in [`kit-runs.json`](kit-runs.json).
+before any kit run. A mouse case, 2b, was [added on the issue](https://github.com/DeanoC/fes/issues/1528#issuecomment-6711833775)
+before its own runs.
 
-**Result.** Two of the three cases have two passing runs. The mouse case is not
-met, so this PR refers to #1528 and doesn't close it.
+- **Kit B** ran five claims, `x1` to `x4` (`x3` launched nothing).
+- **Kit A** ran two claims, `g1` and `g2`, for case 2b.
+
+All of them used the same sealed package, user-supplied TOS 1.04 and private
+disks. Hashes are in [`kit-runs.json`](kit-runs.json).
+
+**Result.** Each input type now has a case with two passing runs: joystick
+(Xenon), mouse (Gomoku) and keyboard. The keyboard save case passes on one run,
+so this PR refers to #1528 and doesn't close it.
 
 | Case | Run 1 | Run 2 | Case |
 | --- | --- | --- | --- |
 | 1. Xenon (joystick) | **PASS** (`x2`); `x1` stopped early by a physical kit fault, kept as INCONCLUSIVE | **PASS** (`x4`) | **PASS** |
-| 2. Logical (mouse) | **INCONCLUSIVE** (`x2`): launched by mouse from the desktop, but play was never started | **INCONCLUSIVE** (`x4`): same | **INCONCLUSIVE** |
+| 2. Logical (mouse) | **INCONCLUSIVE** (`x2`): launched by mouse from the desktop, but play was never started | **INCONCLUSIVE** (`x4`): same | **INCONCLUSIVE**, replaced by 2b |
+| 2b. Gomoku and Renju (mouse) | **PASS** (`g1`): three games won to "Game won by White" | **PASS** (`g2`): three games won | **PASS** |
 | 3. The Lurking Horror (keyboard, save) | **PASS** (`x2`): the saved disk matches Hatari except one directory time byte | **INCONCLUSIVE** (`x4`): save, relaunch and restore pass, but 4 bytes inside the save file differ and play was about 8 minutes | **PASS** on run 1 only |
 
 Still owed on #1528:
 
-- A mouse-driven game that reaches play, two runs.
 - A second Lurking Horror run of at least 10 minutes with a whole-disk match,
   or an explanation of the 4-byte difference.
-- Disk replacement during play. None of the three titles needs it, and the
+- Disk replacement during play. None of the titles needs it, and the
   multi-disk candidates were rejected (see below).
 - Runs on a package sealed from main. The only sealed ST package is from
   `f53eba76` (see Package).
-- A gameplay reference for Xenon. Hatari's command interface has no joystick
-  or mouse-move events, so only the no-input boot was compared.
+- A gameplay reference for Xenon and Gomoku. Hatari's command interface has
+  no joystick or mouse-move events, so only the no-input boot was compared.
+- Protected originals. Most of the IPF library can't be flattened to `.st`;
+  [#1541](https://github.com/DeanoC/fes/issues/1541) tracks running IPF
+  images directly.
 
 ## Package, firmware and software
 
@@ -44,9 +53,11 @@ Still owed on #1528:
 - **Firmware.** TOS 1.04 UK, 192 KiB, SHA-256 `c005b0ae…`, the ROM late
   520STFMs shipped with. It is selected per title through the library ROM
   slot. 512 KiB RAM; the core has no other RAM size.
-- **Kit.** Kit B, core-only on baseline software `a8cd30c4` with image
-  `f904961e`. Nothing was installed, the image wasn't changed and the kit
-  wasn't rebooted by a run.
+- **Kits.** Both ran core-only: nothing was installed, the image wasn't changed
+  and no run rebooted a kit.
+  - Kit B was on baseline software `a8cd30c4` with image `f904961e`.
+  - Kit A was on the recovery baseline Lander recorded at 20:53: software
+    `4efd34bf` with factory image `31b39063` (from main `4b33ec55`).
 - **Host.** A private Powerboat FogCast host, the promoted `bb51f445`
   `fogcast-api`, with a private HOME and a single Kit B target. It used the
   normal library path: package, ROM and disk media installed, a library title
@@ -69,6 +80,7 @@ pass that check. Nothing from a disk, ROM or frame is committed.
 | Xenon (16 Blitz budget) | `dbdcaad1…` | `7462077f…` | `660e544f…` | 80×1×10, 409,600 B |
 | Logical | `dddc9f4a…` | `f340bf07…` | `da73eb0e…` | 80×1×10, 409,600 B |
 | The Lurking Horror r203 | `70ad9232…` | `06b3820a…` | `287ff5d0…` | 80×1×9, 368,640 B |
+| Gomoku and Renju | `3c9d80bf…` | `0dc360f7…` | `0805b45c…` | 80×1×9, 368,640 B |
 
 ### Selection
 
@@ -141,6 +153,43 @@ The same inputs did nothing in Hatari either, so this is an operator gap (the
 start control is unknown), not a core finding. Mouse input itself works: it
 drove the GEM desktop in every Logical and Lurking Horror launch.
 
+## Case 2b: Gomoku and Renju
+
+The GEM program is opened from the desktop with the mouse: select
+`GOMOKU.PRG`, then File > Open. The computer, Black, opens at the centre point.
+The panel then reads "Next to play White (that's you.)", as in Hatari.
+
+- **How it was played.** A player script (`gomoku.py`) read the 15×15 board
+  from the live HDMI capture. It chose White's move with a simple line-scoring
+  rule, moved the pointer there with relative mouse packets and clicked. Then
+  it waited for Black's reply stone. One mouse count moves the pointer one
+  low-resolution pixel.
+- **`g1` (Kit A, 21:16–21:33 EET).**
+  1. Game 1 ended in "Game won by White" after 14 White moves.
+  2. Stop, library relaunch and the desktop launch again led to game 2, won
+     after 12 White moves.
+  3. Game 3 was started from the program's own Restart (see below) and won
+     after 7 moves.
+  4. About 14 minutes of play in all.
+- **`g2` (Kit A, 21:35–21:45 EET).** Three games, each from a Stop and library
+  relaunch. All three ended in "Game won by White", after 7, 18 and 20 White
+  moves. About 10 minutes of play.
+- **What matches across runs.** The first board frame after each library
+  launch is byte-identical in the four launches captured the same way: `g1`
+  game 2 and all three `g2` games (`4db2dd70…`). Each run's disk record still holds the unchanged base image:
+  the program writes nothing.
+
+Mouse buttons in GEM dialogs and menus:
+
+- Button packets with no motion worked on the desktop and on the board.
+- In `g1`, the same zero-motion presses did not select "Restart" from the Game
+  menu or "YES" in its "Start a new game?" alert, although the pointer was
+  over them.
+- The alert accepted the press when the press packet also carried a
+  one-count move.
+- This isn't reproduced in a reference, so it is recorded as an observation,
+  not a defect.
+
 ## Case 3: The Lurking Horror
 
 The flow, the same in both runs:
@@ -205,7 +254,11 @@ The runs differ in what the saved disk shows:
   created before its file listing.
 - **`x3`.** Its library-entry step failed before any launch, so it launched
   nothing and left nothing.
+- **Kit A, `g1` and `g2`.** Each removed the two trees it created (an empty
+  `core-data` namespace directory and its disk record) before its file
+  listing.
 - **Final state.** Kit B was left FREE at 20:51 on software `a8cd30c4` and
-  image `f904961e`, with the `usb-storage.quirks` line intact.
+  image `f904961e`, with the `usb-storage.quirks` line intact. Kit A was left
+  FREE at 21:45 on its recovery baseline.
 - **What stays on Powerboat.** Captures (`.mkv`, `.wav`, frames), disk records,
   the Hatari runs and the tools are in `~/fes-scratch/st1528`.

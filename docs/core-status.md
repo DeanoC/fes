@@ -294,12 +294,14 @@ host. Results:
   library relaunch and RESTORE. The saved disk matches a Hatari 2.4.1 run of
   the same script except one directory time byte. Its second run was short,
   and 4 bytes of its save differ, so it is INCONCLUSIVE.
+- **Gomoku and Renju (mouse).** Passes two Kit A runs: launched from the GEM
+  desktop with the mouse, then three games won to "Game won by White" in each.
 - **Logical (mouse).** Launches from the GEM desktop with the mouse, but play
   was never started, so the case is INCONCLUSIVE.
 
 Still owed:
 
-- A mouse game that reaches play.
+- A second full-length Lurking Horror run with a whole-disk match.
 - Disk replacement during play.
 - Runs on a seal of main's ST tree. The ST producer stopped at its source read
   audit on 7 November.

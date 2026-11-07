@@ -31,6 +31,17 @@
    "emulator": "Hatari 2.4.1 (Debian 2.4.1+dfsg-2)",
    "binary_sha256": "dab1d8a0aae8cfc13584e916c4a3e66955621f6a36a0f9a12de177ed7575900d",
    "options": "--machine st --memsize 0 --cpuclock 8 --cpulevel 0 --compatible on --patch-tos off --fast-boot off --fastfdc off --monitor rgb --tos-res low, TOS 1.04"
+  },
+  "matrix_amendment": "https://github.com/DeanoC/fes/issues/1528#issuecomment-6711833775",
+  "kit_a_baseline": {
+   "software": "4efd34bfcb9054c9bec267a1a1e3c97079f1cb9a8947a47ee503057c95cda30d",
+   "image": "31b3906330b7b404b21f4ca888d99b860dca1d2742a7ebc3bb204e57053b73ff",
+   "source": "Lander recovery baseline 20:53 EET (main 4b33ec5598c1a6f86ddd883224e2e95d9282e6a7)",
+   "mode": "core-only"
+  },
+  "gomoku_player": {
+   "script": "gomoku.py",
+   "sha256": "c14ba56e128c56f69d2f2b470243a5b88470d31b74c66aceec2f060d6a02e4cd"
   }
  },
  "disks": {
@@ -65,6 +76,19 @@
    "zip_sha256": "70ad92322f673ac35c73ed8822f7ba2b6d42356f6054a8cb080b8f32dc609613",
    "ipf_sha256": "06b3820a2d2a1a6fa1e2b3a5e1649d76565d351002bcb4c36dbaeb531f0169c7",
    "st_sha256": "287ff5d0a1069cb1ece93929004bf25a776b9291211c3cabe27b5a609efbebb4",
+   "st_bytes": 368640,
+   "bpb": {
+    "bps": 512,
+    "spt": 9,
+    "sides": 1,
+    "sectors": 720
+   }
+  },
+  "gomoku": {
+   "title": "Go-Moku + Renju (Europe)",
+   "zip_sha256": "3c9d80bffa85e2a0c4495d33ce179432de65170ca1725d1a672120c070f32fdd",
+   "ipf_sha256": "0dc360f71b6365ebd84a433049ab3ed4b42e7c95e321a0d88c78bb73527a0f8c",
+   "st_sha256": "0805b45c30766924df4195c73e9b66169160d2d9dd657b81684347a4deb974fa",
    "st_bytes": 368640,
    "bpb": {
     "bps": 512,
@@ -225,6 +249,83 @@
      "h2-played": "efff94434ab1c7705e24206f41ac0777731896a4ba2faf54666b67e599dc89cb",
      "h2-warmreset": "bd09294b11a2294dccb8140a13c54e904f5cdfc6351aba66aaa40044e2e1b381"
     }
+   }
+  },
+  "g1": {
+   "kit": "A",
+   "claimed": "21:15 EET",
+   "released": "21:33 EET",
+   "removed_trees": 2,
+   "gomoku": {
+    "case": "gomoku run 1",
+    "result": "PASS",
+    "game_id": "fpga-gomoku-1528-r1-3ffffb498ed0",
+    "session": "launch 21:16:24; game 1 ends 21:22:00; stop 21:28:13, relaunch 21:28:52, game 2 ends 21:31:15; game 3 (program Restart) ends 21:33:01; stop 21:33:21",
+    "games": [
+     {
+      "white_moves": 14,
+      "result": "Game won by White"
+     },
+     {
+      "white_moves": 12,
+      "result": "Game won by White"
+     },
+     {
+      "white_moves": 7,
+      "result": "Game won by White"
+     }
+    ],
+    "disk_record_payload_sha256": "0805b45c30766924df4195c73e9b66169160d2d9dd657b81684347a4deb974fa (unchanged base)",
+    "mouse_observation": "zero-motion button packets did not select the Game menu Restart item or the YES button of its alert; a press packet carrying a one-count move was accepted by the alert",
+    "frames": {
+     "g1-desktop": "deeddd2b74bec30b14a96ba3ffc71f5cd69087ce5d295610991c37f484e55780",
+     "g1-game": "954758e93e81f63e43d13f43cabef0ede01c5be6084dbc7a88885e60de76a867",
+     "g1-game1-end": "cfe8a07bc9aa3bdef460aec560fa28bfb10891eff906fe550a5662645a54e8de",
+     "g1-game2-start": "4db2dd70a7de7d88714f63a6b81effe449e881003553d92ca4435aacbe27c29c",
+     "g1-game2-end": "33037a132d14118fa5cda5b111a932acb2dbc508197070492b0f983282e64823",
+     "g1-game3-start": "8928efe144e5932c73afb77b7698528a521dd1d45f135d0990586e94128f933e",
+     "g1-game3-end": "9973934ad94877cd5ca4ed0dbf749096cdce9f28f3d28e86434872e555ec2308"
+    },
+    "play_video_sha256": "144c20c7b26e2d2c7e3f96d521e971e70ceb4d5a08a5ac76f23d23a8a9d72220",
+    "audio_sha256": "c60d535f21b4a9a9c6573011e12dec122d4e6e34ca70c918143a660f9bf2d430"
+   }
+  },
+  "g2": {
+   "kit": "A",
+   "claimed": "21:34 EET",
+   "released": "21:45 EET",
+   "removed_trees": 2,
+   "gomoku": {
+    "case": "gomoku run 2",
+    "result": "PASS",
+    "game_id": "fpga-gomoku-1528-r2-ac2a978d5673",
+    "session": "launches 21:35:22, 21:38:11, 21:41:57; games end 21:37:18, 21:41:08, 21:45:10; stop 21:45:29",
+    "games": [
+     {
+      "white_moves": 7,
+      "result": "Game won by White"
+     },
+     {
+      "white_moves": 18,
+      "result": "Game won by White"
+     },
+     {
+      "white_moves": 20,
+      "result": "Game won by White"
+     }
+    ],
+    "disk_record_payload_sha256": "0805b45c30766924df4195c73e9b66169160d2d9dd657b81684347a4deb974fa (unchanged base)",
+    "first_board_frame_after_each_launch": "4db2dd70a7de7d88714f63a6b81effe449e881003553d92ca4435aacbe27c29c (same in g1 game 2 and all three g2 launches)",
+    "frames": {
+     "g2-game1-start": "4db2dd70a7de7d88714f63a6b81effe449e881003553d92ca4435aacbe27c29c",
+     "g2-game1-end": "4e1838dfd0912a05af49777dd5ec6d4c7aec941f338ddc1145c0ddb2a94f4ae7",
+     "g2-game2-start": "4db2dd70a7de7d88714f63a6b81effe449e881003553d92ca4435aacbe27c29c",
+     "g2-game2-end": "b2b1cf68c9a14bd405673ac7ef195c2ffbb69d99e801ecd81d463da9def0a9f7",
+     "g2-game3-start": "4db2dd70a7de7d88714f63a6b81effe449e881003553d92ca4435aacbe27c29c",
+     "g2-game3-end": "1bec116c3e3221e05512a779ff86115f30a53c6346955ac593e42b615ea51d3b"
+    },
+    "play_video_sha256": "7daf3af0352fe2a905661cda08b7b63e8bab319c3a0f3dd59988ad3e1aafc77e",
+    "audio_sha256": "92f40feb9dfbe412774ec4dd57122ba48fed5423173e13d27decffa09c9a7b94"
    }
   }
  }
