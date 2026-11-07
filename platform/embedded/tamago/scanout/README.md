@@ -66,8 +66,9 @@ This source requires its own **8 MiB** double-buffer arena and board
 pixel-clock/HDMI integration. `nativefabric.MenuSession` supplies the native
 reservation/control/return binding described below; the existing boot copier
 and 4 MiB CRC-window profile cannot grant that scope. Local Stopped is
-not firmware master drain or permission to release the arena. No current Nano
-boot or core package selects this prototype; physical display remains open.
+not firmware master drain or permission to release the arena. The explicit
+`fpgaload --menu-present` diagnostic selects this source with its own sealed Nano
+package; physical display remains open.
 
 `NewMenuPresenter` now supplies the native `Present(*image.RGBA)` binding through
 injected relative CSR I/O, an exclusive pinned `Memory` and a platform `Owns`
@@ -119,8 +120,13 @@ closure and failure ownership; they do not execute physical SMCs or DDR.
 The board producer now has an explicit `hps-ddr-menu` choice with bounded
 100 MHz CPU / 74.25 MHz pixel control crossing and HDMI/reset routing. Its
 two-clock source model checks three actual Tenfoot frames and endpoint drain.
-The matched native board command, storage resume/reconfiguration and physical
-clock/HDMI qualification remain open. No current board image selects this presenter.
+The explicit matched native board command now passes a
+[bounded physical serial test](../../../../docs/validation/2026-11-07-de25-native-menu-publication-trial/README.md):
+three real Tenfoot frames are acknowledged in slots 0/1/0 with zero reported
+underflows, then local drain and independent firmware closure complete. Frame
+presentation takes about 3.8 seconds; interactive throughput, storage
+resume/reconfiguration, full menu/core/menu and physical clock/HDMI qualification
+remain open. The arena stays pinned until reboot.
 
 ## Probes and evidence
 

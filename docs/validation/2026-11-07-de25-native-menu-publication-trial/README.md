@@ -48,3 +48,14 @@ Independent host cleanup passed after the terminal result: exact USB permissions
 with the returned diagnostic and retained arena under the continuing claim.
 No factory restore was requested; the factory card and bottom kit remain
 untouched. The successful attempt is consumed and cannot be replayed.
+
+The follow-on off-board inspection queried the exact native compiler's selected
+standard-library files. `internal/cpu` selects `cpu_arm64_other.go`, whose
+`osInit` performs no optional ARM64 feature discovery; SHA-256 dispatch uses
+the corresponding SHA2 feature flag and otherwise the generic implementation.
+This identifies an acceleration opportunity, not a measured cause or speedup.
+The hardware's optional feature registers have not been measured by this study.
+The next prototype should use EL1 feature-register discovery with the existing
+Go parser, preserve the unsupported-feature path and verify known hash vectors
+before native performance qualification. No compiler, ISA flag or deployed
+artifact was changed by the inspection.

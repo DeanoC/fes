@@ -22,8 +22,13 @@ exact selected package/build/ROM identities, nine verified uploads/fresh reads
 and owned Quit. Launches take about 55 seconds. This remains serial evidence;
 visible menu/core transitions and broader admission remain open.
 The [owned menu video prototype](tamago/scanout/README.md#owned-menu-video-prototype)
-now connects real Tenfoot pixels to the existing 720p scanout RTL in a host model.
-It needs a new 8 MiB framebuffer contract and board/native binding before use.
+now has an explicit 8 MiB two-slot native binding. Its
+[bounded physical test](../../docs/validation/2026-11-07-de25-native-menu-publication-trial/README.md)
+passes three Tenfoot frame acknowledgements in slots 0/1/0 with zero reported
+underflows, local drain and independent firmware master-stop/bridge closure on
+TRWU8CBL. Presentation takes about 3.8 seconds per frame, so interactive throughput
+still needs work. This is serial reader evidence; physical HDMI, full menu/core/menu
+transitions and ordinary package admission remain open.
 
 The [follow-on timing repair](../../docs/validation/2026-11-06-de25-timing-repair/README.md)
 now clears the inferred capture reset-polarity conflict and two obsolete JTAG
