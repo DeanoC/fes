@@ -11,9 +11,24 @@ then parks on uncertainty. Host execution compares actual vendor return/stop
 blocks before and after instrumentation and checks stalled UART/partial traces.
 The flag is off by default and requires the separate recovery profile. Its
 artifact has a distinct receipt/FIT identity and remains ineligible for the
-default recovery package validator. Trace-aware package/delivery validation and
-a fresh bounded hardware test are required. No marker grants SD or native
-programming permission, and the original transfer deadlines remain unchanged.
+default recovery package validator. `recovery_return_package.py` separately
+checks the traced build, delegates base checks on reconstructed private sources,
+and prepares regular-file card/manifest images using only the exact qualified
+SOF/SPL/BL31. Its distinct `prepared-return-trace` status requires its explicit
+loader; the ordinary uploader rejects it. Packaging invokes no FPGA or device
+operation and verifies that only the fixed FIT mirror changes in the prefix.
+
+`recovery_trace_upgrade.py` supplies a one-shot UART controller for the explicit
+qualified PHY-prepare-to-trace transition. It verifies the known spare, existing
+package/experimental FIT and memory ownership, saves fresh rollback files, then
+writes/readbacks the FAT FIT, raw mirror and manifest. It never activates its
+result. Claim, journal, UART or write failures retire every wire entry point;
+caller-owned inputs are snapshotted. `recovery_trace_console.TraceConsole`
+additionally requires the full ordered TFTP trace after the base console's fresh
+nonce/prompt checks, before a download can succeed. Trace loss prevents the
+upload session's SD write, and a retired console sends no cleanup commands.
+A complete frozen physical operator and new bounded hardware test remain
+necessary. No marker grants SD/native programming permission or widens deadlines.
 
 The current guarded-RAM contract keeps the per-CPU array in sealed initialized
 BL31 DDR instead of OCRAM BSS. Its original cache flush remains in place. The
