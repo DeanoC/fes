@@ -653,12 +653,12 @@ def _program_platform(project, context=None):
     if context['programming_profile'] not in ('de25-embedded-hps-first-ddr-diagnostic-v1', *ROM_PROFILES):
         raise ValueError('selected programs require the complete contained DDR-shell inventory')
     parameters = _program_parameters(project)
-    pinmux = _hps_io(project)
+    configuration_sha256 = _pinmux_module().configuration_sha256(project, context)
     inventory = _fabric_stop_inventory(Path(project))
     platform = {key: context[key] for key in ('platform', 'device', 'programming_profile',
                 'abi', 'abi_major', 'abi_minor', 'control_abi', 'hps_io_hash', 'pfg_identity')}
-    platform.update(format=1, scope='nano-contained-program-platform-v1',
-                    hps_parameters_sha256=digest(parameters), hps_handoff_sha256=pinmux['handoff_sha256'],
+    platform.update(format=2, scope='nano-contained-program-platform-v2',
+                    hps_parameters_sha256=digest(parameters), hps_configuration_sha256=configuration_sha256,
                     master_inventory_sha256=digest(inventory))
     return {'format': 1, 'scope': 'nano-program-platform-source-v1',
             'boot_context_sha256': digest(context), 'platform': platform}

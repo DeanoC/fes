@@ -117,6 +117,29 @@ class HPSIOTests(unittest.TestCase):
         for changed in candidates:
             with self.subTest(size=len(changed)),self.assertRaises(ValueError):pinmux.parse_handoff(changed)
 
+    def test_configuration_covers_all_boot_reads_but_not_the_unconsumed_suffix(self):
+        expected=pinmux.configuration_bytes(self.raw)
+        self.assertEqual(len(expected),0x658)
+        self.assertEqual(expected,self.raw[:0x658])
+        # Every consumed byte must either change compatibility or reject.
+        for offset in range(0x658):
+            changed=bytearray(self.raw);changed[offset]^=1
+            try:actual=pinmux.configuration_bytes(bytes(changed))
+            except ValueError:continue
+            with self.subTest(offset=hex(offset)):self.assertNotEqual(actual,expected)
+        for offset in range(0x658,len(self.raw)):
+            changed=bytearray(self.raw);changed[offset]^=1
+            self.assertEqual(pinmux.configuration_bytes(bytes(changed)),expected)
+            self.assertNotEqual(hashlib.sha256(changed).digest(),hashlib.sha256(self.raw).digest())
+        self.assertEqual(expected[0x644:0x658],self.raw[0x644:0x658])
+        for position in (0x580,0x620,0x634):
+            for relative in range(16):
+                changed=bytearray(self.raw);changed[position+relative]^=1
+                with self.subTest(position=hex(position+relative)),self.assertRaises(ValueError):
+                    pinmux.configuration_bytes(bytes(changed))
+        for raw in (self.raw[:0x580],self.raw[:0x647],self.raw[:0x657]):
+            with self.assertRaises(ValueError):pinmux.configuration_bytes(raw)
+
     def test_compiled_receipt_digest_and_no_symlink_gate_precede_map(self):
         with tempfile.TemporaryDirectory() as temp:
             project=Path(temp);hps=project/'board/hps';handoff=hps/'project/output_files/hps_bootloader_handoff.bin'
@@ -124,10 +147,18 @@ class HPSIOTests(unittest.TestCase):
             receipt=hps/'build.json';receipt.write_text(json.dumps({'generated_handoff_and_sdc_sha256':{'output_files/hps_bootloader_handoff.bin':hashlib.sha256(self.raw).hexdigest()}}))
             with patch.object(context,'_derive',return_value=self.context) as check:
                 self.assertEqual(context._hps_io(project),self.mapping);check.assert_called_once_with(project)
+            configuration=pinmux.configuration_sha256(project,self.context)
+            changed=bytearray(self.raw);changed[-2]^=1;handoff.write_bytes(changed)
+            with self.assertRaisesRegex(ValueError,'actual compiled'):pinmux.configuration_sha256(project,self.context)
+            receipt.write_text(json.dumps({'generated_handoff_and_sdc_sha256':{'output_files/hps_bootloader_handoff.bin':hashlib.sha256(changed).hexdigest()}}))
+            self.assertEqual(pinmux.configuration_sha256(project,self.context),configuration)
+            self.assertNotEqual(pinmux.derive(project,self.context)['handoff_sha256'],self.mapping['handoff_sha256'])
             changed=bytearray(self.raw);changed[0x10+20]^=1;handoff.write_bytes(changed)
             with self.assertRaisesRegex(ValueError,'actual compiled'):pinmux.derive(project,self.context)
+            with self.assertRaisesRegex(ValueError,'actual compiled'):pinmux.configuration_sha256(project,self.context)
             handoff.unlink();handoff.symlink_to(FIXTURE)
             with self.assertRaisesRegex(ValueError,'symlink'):pinmux.derive(project,self.context)
+            with self.assertRaisesRegex(ValueError,'symlink'):pinmux.configuration_sha256(project,self.context)
 
     def test_map_and_native_receipt_cannot_omit_mask_redirect_or_grant_another_profile(self):
         record={'program':'hpsio','hps_project':'sealed','hps_context':self.context,

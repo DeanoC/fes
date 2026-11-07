@@ -19,6 +19,7 @@ type transferWire struct {
 	pollBusy   bool
 	statusBusy bool
 	fault      string
+	chunkBytes int // Zero preserves the small transport fixture's 64-byte limit.
 }
 
 func transferFixture(t *testing.T) (*transferWire, *ConfigurationTransfer) {
@@ -54,7 +55,11 @@ func (w *transferWire) Invoke(r [7]uint64) ([4]uint64, error) {
 		}
 		return [4]uint64{}, nil
 	case write:
-		if w.pending != 0 || r[1] != w.region.Address+uint64(len(w.received)) || r[2] == 0 || r[2] > 64 || !plain([4]uint64{0, r[3], r[4], r[5]}) || r[6] != 0 {
+		limit := w.chunkBytes
+		if limit == 0 {
+			limit = 64
+		}
+		if w.pending != 0 || r[1] != w.region.Address+uint64(len(w.received)) || r[2] == 0 || r[2] > uint64(limit) || !plain([4]uint64{0, r[3], r[4], r[5]}) || r[6] != 0 {
 			w.t.Fatal("overlap or replay of a submitted buffer", r)
 		}
 		w.pending = r[1] - 0x80000000

@@ -19,6 +19,27 @@ DELAY = tuple(range(0, 0xc0, 4))
 GROUPS = ((0x10, b'PMUX', 0x1000, MUX), (0x1a0, b'IOCT', 0x1130, CTRL),
           (0x330, b'FPGA', 0x1300, FPGA + (0x1c0, 0x1c4)), (0x3f0, b'DLAY', 0x1400, DELAY))
 
+# The pinned Terasic Agilex 5 SPL reads five SDRAM words at 0x634+0x10;
+# TF-A's handoff struct ends at 0x648. Preserve the union of those reads,
+# including all clock/peripheral bytes and the extra four SDRAM words.
+# Quartus also emits an unconsumed text suffix after this boundary. Its exact
+# bytes remain covered by the compiler receipt and the HPS I/O provenance map.
+CONFIGURATION_BYTES = 0x634 + 0x10 + 5 * 4
+
+
+def configuration_bytes(raw):
+    """Complete pinned boot-consumer bytes, distinct from file provenance."""
+    parse_handoff(raw)
+    if len(raw) < CONFIGURATION_BYTES:
+        raise ValueError('incomplete Agilex 5 boot configuration')
+    for position, magic, length in ((0x580, b'CLKS', 0xa0),
+                                     (0x620, b'PERI', 0x14), (0x634, b'SDRM', 0x14)):
+        if (raw[position:position+4] != magic or
+                struct.unpack_from('>I', raw, position+4)[0] != length or
+                raw[position+8:position+16] != bytes(8)):
+            raise ValueError('unsupported Agilex 5 boot configuration section')
+    return raw[:CONFIGURATION_BYTES]
+
 
 def validate(mapping, context):
     offsets=[base+offset for _,magic,base,items in GROUPS
@@ -64,7 +85,7 @@ def parse_handoff(raw):
     return registers
 
 
-def derive(project, context):
+def compiled_handoff(project):
     project = Path(project)
     receipt = project/'board/hps/build.json'
     handoff = project/'board/hps/project/output_files/hps_bootloader_handoff.bin'
@@ -78,5 +99,17 @@ def derive(project, context):
     digest = hashlib.sha256(raw).hexdigest()
     if compiled['generated_handoff_and_sdc_sha256'].get('output_files/hps_bootloader_handoff.bin') != digest:
         raise ValueError('pinmux handoff differs from the actual compiled handoff')
+    return raw, digest
+
+
+def configuration_sha256(project, context):
+    raw, digest = compiled_handoff(project)
+    validate({'format': 1, 'scope': SCOPE, 'hps_io_hash': context['hps_io_hash'],
+              'handoff_sha256': digest, 'base': BASE, 'registers': parse_handoff(raw)}, context)
+    return hashlib.sha256(configuration_bytes(raw)).hexdigest()
+
+
+def derive(project, context):
+    raw, digest = compiled_handoff(project)
     return validate({'format': 1, 'scope': SCOPE, 'hps_io_hash': context['hps_io_hash'],
             'handoff_sha256': digest, 'base': BASE, 'registers': parse_handoff(raw)},context)

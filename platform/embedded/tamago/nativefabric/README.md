@@ -64,6 +64,22 @@ For the standard package, use `FES_NANO_COMPUTER_BUILD` instead of
 and normal ABI/driver admission. Set only one artifact variable. This check
 never opens firmware or contains the modeled SD lease.
 
+To exercise two different standard packages, set
+`FES_NANO_DISTINCT_COMPUTER_BUILD` to a native computer SDK directory and
+`FES_NANO_DISTINCT_ROM_CATALOG` to a private catalog containing `FES/` files,
+then run `go test -race -count=1 -run TestBuiltDistinctROMPrograms ./nativefabric`.
+These opt-in artifact tests require genuinely different ZX81/ZX80 package,
+build, core and FPGA payload identities, with their actual 8/4 KiB ROM sources.
+Both must pass the same SDK's compiled platform and ordinary ABI/driver checks.
+The real store, loader, backend, staging arena and transfer implementation run
+ZX81 → ZX80 → ZX81, including stale-session rejection and owned storage return.
+Each published descriptor passes the actual C decoder. Additional cases reject
+crossed metadata/receipts and damaged archive/ROM bytes before containment;
+modeled transfer, identity and return failures retire without replay or storage
+resumption. Secure calls, register responses and SD ownership are simulated;
+this is artifact/lifecycle integration evidence, not physical programming,
+video, drain or timing qualification.
+
 The shared-gamepad input loop now emits `FES_NATIVE_CORE_GAMEPAD` on the serial
 platform after a changed key matrix has completed its owned write. Receipts
 bind the boot owner, play generation, package/build, descriptor hash, raw report,
@@ -88,6 +104,14 @@ the archive's package/build/target/ABI. Control addresses, stop policy and
 computer capabilities remain fixed by compiled maps. Required unsupported
 interfaces and HPS masters reject before SD containment. Metadata is an unsigned
 compatibility assertion; it does not establish live boot facts or authentication.
+The version-two platform record uses `hps_configuration_sha256` for every byte
+read by the pinned Agilex 5 boot consumers through offset `0x658`: pinmux,
+clocks, peripheral power and the SPL's five SDRAM words. This replaces the
+version-one whole-file compatibility field; version-one records reject.
+Quartus can emit different text after that boundary for otherwise identical
+boot configurations. Complete compiler-receipt and HPS I/O file hashes remain
+exact and separate from compatibility. No consumed word is normalized or
+omitted, and unknown section headers or truncated configurations reject.
 The interface check now uses `runtimeadmission.DriverSupport` with an immutable
 inventory constructed by the loader from its compiled personality. Control-only
 loads cannot require ROM, video or input interfaces absent from that inventory.

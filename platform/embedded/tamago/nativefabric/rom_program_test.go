@@ -126,9 +126,9 @@ func romProgramTestFor(t *testing.T, profile string) *romProgramFixture {
 	if err != nil {
 		t.Fatal(err)
 	}
-	p := programPlatform{Format: 1, Scope: "nano-contained-program-platform-v1", Platform: context.Platform, Device: context.Device,
+	p := programPlatform{Format: 2, Scope: "nano-contained-program-platform-v2", Platform: context.Platform, Device: context.Device,
 		ProgrammingProfile: context.ProgrammingProfile, ABI: context.ABI, Major: context.Major, Minor: context.Minor, ControlABI: context.ControlABI,
-		HPSIOHash: context.HPSIOHash, PFGIdentity: context.PFGIdentity, HPSParametersSHA256: strings.Repeat("1", 64), HPSHandoffSHA256: strings.Repeat("2", 64), MasterInventorySHA256: strings.Repeat("3", 64)}
+		HPSIOHash: context.HPSIOHash, PFGIdentity: context.PFGIdentity, HPSParametersSHA256: strings.Repeat("1", 64), HPSConfigurationSHA256: strings.Repeat("2", 64), MasterInventorySHA256: strings.Repeat("3", 64)}
 	compiled := programJSON(t, programPlatformSource{1, "nano-program-platform-source-v1", hex.EncodeToString(v.digest[:]), p})
 	l, err := NewProgramLoader(v, compiled, control, configuration, computer)
 	if err != nil {

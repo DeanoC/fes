@@ -92,10 +92,10 @@ func programLoaderFixture(t *testing.T) (*ProgramLoader, *reloadCPU, *computerSt
 	t.Helper()
 	v, cpu, lease, _, _, control, config, comp, _ := storedComputer(t)
 	c := v.context
-	p := programPlatform{Format: 1, Scope: "nano-contained-program-platform-v1", Platform: c.Platform, Device: c.Device,
+	p := programPlatform{Format: 2, Scope: "nano-contained-program-platform-v2", Platform: c.Platform, Device: c.Device,
 		ProgrammingProfile: c.ProgrammingProfile, ABI: c.ABI, Major: c.Major, Minor: c.Minor, ControlABI: c.ControlABI,
 		HPSIOHash: c.HPSIOHash, PFGIdentity: c.PFGIdentity, HPSParametersSHA256: strings.Repeat("1", 64),
-		HPSHandoffSHA256: strings.Repeat("2", 64), MasterInventorySHA256: strings.Repeat("3", 64)}
+		HPSConfigurationSHA256: strings.Repeat("2", 64), MasterInventorySHA256: strings.Repeat("3", 64)}
 	compiled := programJSON(t, programPlatformSource{1, "nano-program-platform-source-v1", hex.EncodeToString(v.digest[:]), p})
 	l, err := NewProgramLoader(v, compiled, control, config, comp)
 	if err != nil {
@@ -413,7 +413,7 @@ func TestSelectedProgramIncompatibilityLeavesStorageActiveBeforeFirmwareOrReserv
 			case "memory":
 				r.Platform.HPSParametersSHA256 = strings.Repeat("a", 64)
 			case "handoff":
-				r.Platform.HPSHandoffSHA256 = strings.Repeat("a", 64)
+				r.Platform.HPSConfigurationSHA256 = strings.Repeat("a", 64)
 			case "inventory":
 				r.Platform.MasterInventorySHA256 = strings.Repeat("a", 64)
 			case "abi":
@@ -480,7 +480,7 @@ func TestCompiledProgramPlatformCannotComeFromDifferentBoot(t *testing.T) {
 	control := programJSON(t, l.control)
 	config := programJSON(t, l.configuration)
 	comp := programJSON(t, l.computer)
-	for _, fault := range []string{"boot", "parameters", "io", "abi", "unknown", "missing"} {
+	for _, fault := range []string{"boot", "parameters", "io", "abi", "legacy-handoff", "configuration", "unknown", "missing"} {
 		t.Run(fault, func(t *testing.T) {
 			r := source
 			switch fault {
@@ -492,6 +492,10 @@ func TestCompiledProgramPlatformCannotComeFromDifferentBoot(t *testing.T) {
 				r.Platform.HPSIOHash = strings.Repeat("b", 64)
 			case "abi":
 				r.Platform.ControlABI++
+			case "legacy-handoff":
+				r.Platform.Format, r.Platform.Scope = 1, "nano-contained-program-platform-v1"
+			case "configuration":
+				r.Platform.HPSConfigurationSHA256 = ""
 			}
 			raw := programJSON(t, r)
 			if fault == "unknown" {

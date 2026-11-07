@@ -1,5 +1,15 @@
 # Nano recovery uploads and cold serial boot
 
+Native selected-program platform version two compares the complete boot
+configuration through byte `0x657`, using `hps_configuration_sha256`. The pinned
+TF-A handoff struct occupies `0x648` bytes; the pinned SPL additionally reads
+five words from SDRAM data offset `0x644`, ending at `0x658`. The digest covers
+their complete union, with checked section headers and unchanged HPS/EMIF
+parameter and master inventories. Quartus's following text bytes can differ
+between core builds. Full raw-file SHA-256 checks in the compiler receipt and
+HPS I/O map remain mandatory. Version-one platform records reject, so this
+change requires a freshly built native SDK and matching selected metadata.
+
 The return-trace UART is UART1 (`0x10c02100`, status `0x10c02114`). The build and
 trace package checker independently resolve `/chosen/stdout-path` through its
 alias in both compiled U-Boot and FIT device trees, requiring that enabled port,

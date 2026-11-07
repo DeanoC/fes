@@ -21,20 +21,20 @@ import (
 // or observations of running hardware. The platform record is compiled by the
 // board builder; a selected package may only request an exact match to it.
 type programPlatform struct {
-	Format                int    `json:"format"`
-	Scope                 string `json:"scope"`
-	Platform              string `json:"platform"`
-	Device                string `json:"device"`
-	ProgrammingProfile    string `json:"programming_profile"`
-	ABI                   string `json:"abi"`
-	Major                 uint16 `json:"abi_major"`
-	Minor                 uint16 `json:"abi_minor"`
-	ControlABI            uint32 `json:"control_abi"`
-	HPSIOHash             string `json:"hps_io_hash"`
-	PFGIdentity           string `json:"pfg_identity"`
-	HPSParametersSHA256   string `json:"hps_parameters_sha256"`
-	HPSHandoffSHA256      string `json:"hps_handoff_sha256"`
-	MasterInventorySHA256 string `json:"master_inventory_sha256"`
+	Format                 int    `json:"format"`
+	Scope                  string `json:"scope"`
+	Platform               string `json:"platform"`
+	Device                 string `json:"device"`
+	ProgrammingProfile     string `json:"programming_profile"`
+	ABI                    string `json:"abi"`
+	Major                  uint16 `json:"abi_major"`
+	Minor                  uint16 `json:"abi_minor"`
+	ControlABI             uint32 `json:"control_abi"`
+	HPSIOHash              string `json:"hps_io_hash"`
+	PFGIdentity            string `json:"pfg_identity"`
+	HPSParametersSHA256    string `json:"hps_parameters_sha256"`
+	HPSConfigurationSHA256 string `json:"hps_configuration_sha256"`
+	MasterInventorySHA256  string `json:"master_inventory_sha256"`
 }
 
 type programPlatformSource struct {
@@ -122,11 +122,11 @@ func NewProgramLoader(boot *HPSContextVerifier, compiledSource, control, configu
 	}
 	p, c := source.Platform, boot.context
 	if source.Format != 1 || source.Scope != "nano-program-platform-source-v1" || source.BootContextSHA256 != hex.EncodeToString(boot.digest[:]) ||
-		p.Format != 1 || p.Scope != "nano-contained-program-platform-v1" ||
+		p.Format != 2 || p.Scope != "nano-contained-program-platform-v2" ||
 		p.Platform != c.Platform || p.Device != c.Device || p.ProgrammingProfile != c.ProgrammingProfile ||
 		p.ABI != c.ABI || p.Major != c.Major || p.Minor != c.Minor || p.ControlABI != c.ControlABI ||
 		p.HPSIOHash != c.HPSIOHash || p.PFGIdentity != c.PFGIdentity ||
-		!nonzeroDigest(p.HPSParametersSHA256) || !nonzeroDigest(p.HPSHandoffSHA256) || !nonzeroDigest(p.MasterInventorySHA256) {
+		!nonzeroDigest(p.HPSParametersSHA256) || !nonzeroDigest(p.HPSConfigurationSHA256) || !nonzeroDigest(p.MasterInventorySHA256) {
 		return nil, errors.New("native fabric: program platform differs from compiled boot source")
 	}
 	ctrl, err := boot.checkedControlMap(control)

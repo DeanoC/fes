@@ -6,6 +6,7 @@ from pathlib import Path
 import tempfile
 import unittest
 from unittest.mock import patch
+from types import SimpleNamespace
 import xml.etree.ElementTree as ET
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -87,11 +88,14 @@ class SelectedProgramTests(unittest.TestCase):
                      core_size=128, core_id='fes.other-core', overlay_revision='d'*40,
                      raw_sof_sha256='e'*64, original_pair_sha256='f'*64)
         with patch.object(hps, '_program_parameters', return_value={'full-hps-and-ddr': 'same'}), \
-             patch.object(hps, '_hps_io', return_value={'handoff_sha256': '1'*64}), \
+             patch.object(hps, '_pinmux_module', return_value=SimpleNamespace(configuration_sha256=lambda project, source: '1'*64)), \
              patch.object(hps, '_fabric_stop_inventory', return_value={'complete-master-inventory': 'same'}):
             first = hps._program_platform(Path('fixture'), source)
             second = hps._program_platform(Path('fixture'), other)
             self.assertEqual(first['platform'], second['platform'])
+            self.assertEqual(first['platform']['format'],2)
+            self.assertEqual(first['platform']['scope'],'nano-contained-program-platform-v2')
+            self.assertEqual(first['platform']['hps_configuration_sha256'],'1'*64)
             self.assertNotEqual(first['boot_context_sha256'], second['boot_context_sha256'])
             for field in ('device', 'hps_io_hash', 'pfg_identity', 'control_abi', 'abi'):
                 changed = dict(source, **{field: source[field]+1 if isinstance(source[field], int) else source[field]+'changed'})
