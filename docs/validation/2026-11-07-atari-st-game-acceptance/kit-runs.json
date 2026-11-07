@@ -327,6 +327,34 @@
     "play_video_sha256": "7daf3af0352fe2a905661cda08b7b63e8bab319c3a0f3dd59988ad3e1aafc77e",
     "audio_sha256": "92f40feb9dfbe412774ec4dd57122ba48fed5423173e13d27decffa09c9a7b94"
    }
+  },
+  "h3": {
+   "kit": "A",
+   "claimed": "22:07 EET",
+   "released": "22:25 EET",
+   "removed_trees": 2,
+   "lurking_horror": {
+    "case": "lurking horror run 2 (replaces x4)",
+    "result": "PASS",
+    "game_id": "fpga-lurking-horror-1528-r3-82f39247e725",
+    "session": "launch 22:09:01; SAVE 5/19; stop 22:13:47; relaunch 22:14:43; RESTORE 5/20; play to 5/37; Ctrl+Alt+Del to desktop; stop 22:19:39; relaunch 22:20:32; RESTORE; play to 5/32; stop 22:24:47",
+    "saved_disk_sha256": "a34565fdbf0e36002970465c83d839e748aa274f4aa952991f3d19167682bbe9",
+    "saved_disk_after_restore_sessions_sha256": "a34565fdbf0e36002970465c83d839e748aa274f4aa952991f3d19167682bbe9",
+    "save_file_sha256": "56ffdcd353006f515a3023f08c45fd66c8dbf492f4845226df9c487c527a2cf6",
+    "vs_hatari_disk": "1 byte differs: offset 5686 (FES1528.SAV directory time 0:04 vs 0:03)",
+    "vs_hatari_save": "identical",
+    "frames": {
+     "h3-desktop": "49820cd39007ed976c30cc0ed129393d2e0d46ae99ad02998b02d993270126ab",
+     "h3-game": "951127f0bc8232d4db0dadb8efa4619557977bfdbb65ec596466d88d4a7d8784",
+     "h3-saved": "dbaa74ea2f7fe9ef66e20efe1e3e7c2e306de25db13a94f52131f22d0aae8622",
+     "h3-relaunch-window": "39a5572a10a59c6fb7e473a6a13ac736272d6b253c1eabc46033d72e1e39f19d",
+     "h3-restored": "ea79b99888dc296d5d1f8f1c6eea10230f061b07497a93d3a2fe84e4ce6aa44e",
+     "h3-played": "9b8e523b6238cf19f11f4094257949e63388016f6f96c983da9122db58ef5d67",
+     "h3-warmreset": "49820cd39007ed976c30cc0ed129393d2e0d46ae99ad02998b02d993270126ab",
+     "h3-played2": "1b5db20717339b1d5c795227f7ff735a86813067f267378a721a1c638fcd1fa0"
+    },
+    "audio_sha256": "78c51cc751ee62aa43e56d612f7c0549119d7e5270ef55f5815236ad9b1b41b6"
+   }
   }
  }
 }

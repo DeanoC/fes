@@ -7,26 +7,30 @@ before any kit run. A mouse case, 2b, was [added on the issue](https://github.co
 before its own runs.
 
 - **Kit B** ran five claims, `x1` to `x4` (`x3` launched nothing).
-- **Kit A** ran two claims, `g1` and `g2`, for case 2b.
+- **Kit A** ran three claims: `g1` and `g2` for case 2b, and `h3` for a second
+  full Lurking Horror run.
 
 All of them used the same sealed package, user-supplied TOS 1.04 and private
 disks. Hashes are in [`kit-runs.json`](kit-runs.json).
 
-**Result.** Each input type now has a case with two passing runs: joystick
-(Xenon), mouse (Gomoku) and keyboard. The keyboard save case passes on one run,
-so this PR refers to #1528 and doesn't close it.
+**Result.** The proposed minimum is met. Three games pass two independent runs
+each, with at least 10 minutes of play per run and a declared objective:
+joystick (Xenon), mouse (Gomoku) and keyboard with a disk save (The Lurking
+Horror). Both Lurking Horror passes match Hatari's saved disk except one
+directory time byte. Items below are still open, so this PR refers to #1528
+and leaves closing it to review.
 
 | Case | Run 1 | Run 2 | Case |
 | --- | --- | --- | --- |
 | 1. Xenon (joystick) | **PASS** (`x2`); `x1` stopped early by a physical kit fault, kept as INCONCLUSIVE | **PASS** (`x4`) | **PASS** |
 | 2. Logical (mouse) | **INCONCLUSIVE** (`x2`): launched by mouse from the desktop, but play was never started | **INCONCLUSIVE** (`x4`): same | **INCONCLUSIVE**, replaced by 2b |
 | 2b. Gomoku and Renju (mouse) | **PASS** (`g1`): three games won to "Game won by White" | **PASS** (`g2`): three games won | **PASS** |
-| 3. The Lurking Horror (keyboard, save) | **PASS** (`x2`): the saved disk matches Hatari except one directory time byte | **INCONCLUSIVE** (`x4`): save, relaunch and restore pass, but 4 bytes inside the save file differ and play was about 8 minutes | **PASS** on run 1 only |
+| 3. The Lurking Horror (keyboard, save) | **PASS** (`x2`): the saved disk matches Hatari except one directory time byte | **PASS** (`h3`, Kit A): same match; `x4` (Kit B) kept as INCONCLUSIVE, with 4 differing save bytes and about 8 minutes of play | **PASS** |
 
 Still owed on #1528:
 
-- A second Lurking Horror run of at least 10 minutes with a whole-disk match,
-  or an explanation of the 4-byte difference.
+- An explanation of the 4 save bytes that differed in `x4`. `x2` and `h3`
+  match Hatari.
 - Disk replacement during play. None of the titles needs it, and the
   multi-disk candidates were rejected (see below).
 - Runs on a package sealed from main. The only sealed ST package is from
@@ -217,6 +221,15 @@ The runs differ in what the saved disk shows:
   - `FES1528.SAV` itself is byte-identical to Hatari's (`56ffdcd3…`).
   - The record didn't change across the restore session.
   - About 11 minutes of play.
+- **`h3` (Kit A, 22:09–22:25 EET).**
+  - The same flow, and a second relaunch and RESTORE (ending at 5/32): about
+    16 minutes in the session, about 13 of them playing.
+  - The saved disk is `a34565fd…`.
+  - Like `x2`, it differs from Hatari's only in the directory time byte, and
+    `FES1528.SAV` is byte-identical (`56ffdcd3…`). The record didn't change
+    across either restore session.
+  - The warm reset returned the same desktop frame as the launch
+    (`49820cd3…`).
 - **`x4`.**
   - The saved disk is `37355bc1…`. It shows the same directory time byte,
     plus 4 bytes inside `FES1528.SAV` (file offsets 1579, 2162, 2163 and 3226).
@@ -254,11 +267,11 @@ The runs differ in what the saved disk shows:
   created before its file listing.
 - **`x3`.** Its library-entry step failed before any launch, so it launched
   nothing and left nothing.
-- **Kit A, `g1` and `g2`.** Each removed the two trees it created (an empty
+- **Kit A, `g1`, `g2` and `h3`.** Each removed the two trees it created (an empty
   `core-data` namespace directory and its disk record) before its file
   listing.
 - **Final state.** Kit B was left FREE at 20:51 on software `a8cd30c4` and
   image `f904961e`, with the `usb-storage.quirks` line intact. Kit A was left
-  FREE at 21:45 on its recovery baseline.
+  FREE at 22:25 on its recovery baseline.
 - **What stays on Powerboat.** Captures (`.mkv`, `.wav`, frames), disk records,
   the Hatari runs and the tools are in `~/fes-scratch/st1528`.
