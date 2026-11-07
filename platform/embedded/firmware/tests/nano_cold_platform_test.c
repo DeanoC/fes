@@ -24,6 +24,16 @@ static void mixed_publish(uint8_t *);
 static void mixed_configuration_start(void);
 static int mixed_runtime(uint64_t,unsigned);
 #endif
+#ifdef FES_TEST_SHARED_USB
+static struct fes_nano_boot *shared_boot;
+static uint32_t shared_usb_read(uintptr_t);
+static void shared_usb_write(uintptr_t,uint32_t);
+static void shared_usb_start(uint64_t);
+static void shared_usb_observe(uint64_t);
+static void shared_usb_finish(uint64_t);
+static int shared_usb_fault(uint64_t,unsigned);
+static unsigned shared_usb_reads,shared_usb_writes;
+#endif
 
 void fes_nano_cold_capture(uintptr_t,uint64_t);
 static uint32_t per0=FES_NANO_MASTER_RESET,bridge=15;
@@ -248,6 +258,9 @@ static void fixture_owned_call(uint32_t fid,uint64_t x1,uint64_t x2,uint64_t x3,
 #endif
 uint32_t mmio_read_32(uintptr_t a)
 {
+#ifdef FES_TEST_SHARED_USB
+    if(a>=FES_NANO_USB_BASE && a<FES_NANO_USB_BASE+0x1000)return shared_usb_read(a);
+#endif
 #ifdef FES_TEST_PROGRAM_ROLES
     if((a>=FES_NANO_CONTROL_BASE && a<FES_NANO_CONTROL_BASE+0x100) ||
        (a>=FES_NANO_ROM_CPU_BASE && a<FES_NANO_ROM_CPU_BASE+128) ||
@@ -255,8 +268,15 @@ uint32_t mmio_read_32(uintptr_t a)
 #endif
 #if defined(FES_NANO_HPS_IO_OBSERVE) && FES_NANO_HPS_IO_OBSERVE
     if(a>=FES_NANO_HPS_IO_BASE+0x1000 && a<=FES_NANO_HPS_IO_BASE+0x14bc) {
+#ifdef FES_TEST_SHARED_USB
+        unsigned i=0;hps_io_reads++;
+        while(i<FES_NANO_HPS_IO_COUNT && a!=FES_NANO_HPS_IO_BASE+hps_io_rows[i].offset)i++;
+        assert(i<FES_NANO_HPS_IO_COUNT);
+#else
         unsigned i=hps_io_reads++%FES_NANO_HPS_IO_COUNT;
-        assert(a==FES_NANO_HPS_IO_BASE+hps_io_rows[i].offset && bridge==15 && !engine_calls);
+        assert(a==FES_NANO_HPS_IO_BASE+hps_io_rows[i].offset);
+        assert(bridge==15 && !engine_calls);
+#endif
         if(hps_io_reads==1) {
             if(hps_io_fault==3)fes_nano_owned_bridges.state.owner++;
             if(hps_io_fault==5)per0&=~0x80U;
@@ -447,9 +467,19 @@ uint32_t mmio_read_32(uintptr_t a)
         clock_reads++;
         switch(a-FES_NANO_SD_CLKMGR) {
         case 0:return 0;case 4:return 0x02030300;case 0x30:case 0x88:return 0;
-        case 0x40:return 0;case 0x44:return 0;
+        case 0x40:return 0;case 0x44:
+#ifdef FES_TEST_SHARED_USB
+            return 16;
+#else
+            return 0;
+#endif
         case 0x48:case 0x9c:return 0x100;
-        case 0x6c:case 0xc0:return invalid_sd_clock?31:32;
+        case 0x6c:case 0xc0:return invalid_sd_clock?31:
+#ifdef FES_TEST_SHARED_USB
+            64;
+#else
+            32;
+#endif
         case 0x68:case 0xb4:return 0x08000004;
         case 0x7c:return 32;case 0x18:return 0;default:assert(0);return 0;
         }
@@ -476,6 +506,9 @@ uint32_t mmio_read_32(uintptr_t a)
 }
 uint16_t mmio_read_16(uintptr_t a) { (void)a;assert(0);return 0; }
 void mmio_write_32(uintptr_t a,uint32_t v) {
+#ifdef FES_TEST_SHARED_USB
+    if(a>=FES_NANO_USB_BASE && a<FES_NANO_USB_BASE+0x1000) {shared_usb_write(a,v);return;}
+#endif
 #ifdef FES_TEST_PROGRAM_ROLES
     if((a>=FES_NANO_CONTROL_BASE && a<FES_NANO_CONTROL_BASE+0x100) ||
        (a>=FES_NANO_ROM_CPU_BASE && a<FES_NANO_ROM_CPU_BASE+128) ||
@@ -543,7 +576,14 @@ void mmio_write_32(uintptr_t a,uint32_t v) {
     if(a==FES_NANO_COLD_RSTMGR+0x2c) {assert((v&13U)==(bridge&13U));bridge=v;return;}
 #endif
     if(a==FES_NANO_COLD_RSTMGR+0x24) {
-        assert((v&~0xc0U)==(per0&~0xc0U) && (v&FES_NANO_COLD_UNUSED)==FES_NANO_COLD_UNUSED);per0=v;return;
+        uint32_t unused=FES_NANO_COLD_UNUSED,allowed=0xc0U;
+#ifdef FES_TEST_SHARED_USB
+        unused&=~FES_NANO_USB_RESET;
+        allowed|=FES_NANO_USB_RESET; /* Retain the SD controller/PHY reset pair. */
+#endif
+        if((v&~allowed)!=(per0&~allowed) || (v&unused)!=unused)
+            fprintf(stderr,"unexpected reset write old=%x new=%x allowed=%x unused=%x\n",per0,v,allowed,unused);
+        assert((v&~allowed)==(per0&~allowed) && (v&unused)==unused);per0=v;return;
     }
     assert(a>=FES_NANO_SD_BASE && a<FES_NANO_SD_BASE+0x400 && !(per0&FES_NANO_COLD_SD_RESET));
     sd_mmio++;unsigned off=(unsigned)(a-FES_NANO_SD_BASE);
@@ -632,6 +672,9 @@ static void barrier(void *p) { (void)p; }
 #ifdef FES_TEST_PROGRAM_ROLES
 #include "nano_mixed_cold_test.inc"
 #endif
+#ifdef FES_TEST_SHARED_USB
+#include "nano_mixed_usb_test.inc"
+#endif
 int main(int argc,char **argv)
 {
     assert(argc==2);unsigned mutation=atoi(argv[1]);
@@ -702,6 +745,9 @@ int main(int argc,char **argv)
     assert(reply[0]==0 && (uint32_t)reply[1]==0xdf && reply[2]==record.owner && reply[3]==1);
     assert(masters.owns(masters.context,record.owner,record.epoch)==1);
     fes_nano_owned_bridges=b;
+#ifdef FES_TEST_SHARED_USB
+    shared_boot=&boot;
+#endif
 #ifdef FES_TEST_PROGRAM_ROLES
     return mixed_runtime(record.owner,mixed_case);
 #endif

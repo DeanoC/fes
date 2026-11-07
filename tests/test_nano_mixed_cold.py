@@ -6,16 +6,25 @@ import re
 import json
 import shutil
 import subprocess
+import sys
 import tempfile
 import unittest
 import zlib
 
 ROOT = Path(__file__).resolve().parents[1]
 FW = ROOT / 'platform/embedded/firmware'
+sys.path.insert(0, str(ROOT / 'platform/embedded/nano'))
+import usb_readiness
 
 
 class NanoMixedColdTests(unittest.TestCase):
     def test_actual_provider_rom_stop_and_sd_return_cycles_and_failures(self):
+        self.exercise(False)
+
+    def test_actual_shared_usb_provider_menu_core_and_return_cycles_and_failures(self):
+        self.exercise(True)
+
+    def exercise(self, shared_usb):
         reference = Path(os.environ.get('FES_NANO_SHA_REFERENCE', str(
             ROOT / 'out/terasic-git-restore-tfa/plat/intel/soc/common/lib/sha/sha.c')))
         if not reference.is_file():
@@ -25,7 +34,7 @@ class NanoMixedColdTests(unittest.TestCase):
         self.assertEqual(hashlib.sha256(reference.with_name('sha.h').read_bytes()).hexdigest(),
                          '76a51a6aba59f84f754d9b8102394ff12ce0cdad1fb89cec61130543b73f66fb')
         evidence = os.environ.get('FES_NANO_MIXED_COLD_EVIDENCE')
-        target = Path(evidence).absolute() if evidence else None
+        target = Path(evidence + ('-shared-usb' if shared_usb else '')).absolute() if evidence else None
         if target is not None:
             self.assertTrue(target.is_relative_to(ROOT / 'out') and not target.exists())
             target.mkdir(parents=True)
@@ -83,20 +92,40 @@ class NanoMixedColdTests(unittest.TestCase):
                 FES_TEST_ROM_SHA256=array(hashlib.sha256(rom).digest()),
                 FES_TEST_ROM_SHA384=array(hashlib.sha384(rom).digest()))
             profile = '\n'.join('#define ' + name + ' ' + str(value) for name,value in defines.items()) + '\n'
+            if shared_usb:
+                project = base / 'project'
+                handoff = project / 'board/hps/project/output_files/hps_bootloader_handoff.bin'
+                handoff.parent.mkdir(parents=True)
+                data = (ROOT / 'tests/fixtures/nano-usb-board/hps_bootloader_handoff.bin').read_bytes()
+                handoff.write_bytes(data)
+                (project / 'board/hps/build.json').write_text(json.dumps({'generated_handoff_and_sdc_sha256': {
+                    'output_files/hps_bootloader_handoff.bin': hashlib.sha256(data).hexdigest()}}))
+                (base / 'usb_board_policy.h').write_text(usb_readiness.header(project, {'hps_io_hash': 'd'*64}))
+                profile += ('#include "usb_board_policy.h"\n#define FES_NANO_CONTROLLED_USB 1\n'
+                    '#define FES_NANO_SHARED_USB 1\n#define FES_NANO_HPS_IO_OBSERVE 1\n'
+                    '#define FES_NANO_HPS_IO_REGISTERS FES_NANO_USB_BOARD_PINS\n'
+                    '#define FES_NANO_HPS_IO_SHA FES_NANO_USB_BOARD_DIGEST\n')
             (base / 'fes_nano_cold_profile.h').write_text(profile)
             sources = ('nano_cold_platform.c', 'nano_cold.c', 'nano_boot.c', 'nano_bridges.c',
                 'nano_bridge_sip.c', 'nano_sd.c', 'nano_usb_service.c', 'nano_sd_platform.c',
                 'nano_identity.c', 'nano_configuration.c', 'nano_program.c', 'nano_rom.c', 'nano_smmu.c',
                 'nano_ddr_firewall.c', 'nano_fabric_stop.c', 'nano_probe_stop.c', 'tests/nano_cold_platform_test.c')
+            if shared_usb:
+                sources += ('nano_usb_platform.c', 'nano_usb_board.c', 'nano_usb_composition.c', 'nano_hps_io.c')
             command = ['cc', '-std=c11', '-Wall', '-Wextra', '-Werror', '-Wno-unused-const-variable',
                 '-DFES_TEST_PROGRAM_ROLES', '-DFES_TEST_HPS_CONTEXT', '-DFES_TEST_CONFIGURATION_EPOCHS',
                 '-fsanitize=undefined', '-fno-sanitize-recover=all', '-I' + str(base), '-I' + str(FW),
                 *(str(FW / name) for name in sources), str(base / 'vendor_sha.o'), '-o', str(base / 'mixed')]
+            if shared_usb:
+                command.insert(1, '-DFES_TEST_SHARED_USB')
             result = subprocess.run(command, capture_output=True, text=True, timeout=30)
             if target is not None:
                 (target / 'compile.log').write_text(result.stdout + result.stderr)
             self.assertEqual(result.returncode, 0, result.stderr)
-            for mode in (0, 1, 2, 3, 11, 12, 13, 14, 15, 16, 17, 19, 20):
+            modes = (0, 1, 2, 3, 11, 12, 13, 14, 15, 16, 17, 19, 20)
+            if shared_usb:
+                modes += (21, 22, 23, 24, 25, 26)
+            for mode in modes:
                 with self.subTest(mode=mode):
                     result = subprocess.run([base / 'mixed', str(mode)], capture_output=True, text=True, timeout=30)
                     if target is not None:
@@ -117,10 +146,17 @@ class NanoMixedColdTests(unittest.TestCase):
                 source_files = [FW / name for name in sources] + [
                     FW / name for name in ('nano_program_control.inc', 'nano_computer_control.inc',
                         'nano_window_control.inc', 'nano_rom_platform.inc', 'tests/nano_mixed_cold_test.inc')]
+                if shared_usb:
+                    source_files += [FW / name for name in ('nano_usb_boot.inc', 'tests/nano_mixed_usb_test.inc')]
+                    source_files += [ROOT / name for name in ('platform/embedded/nano/usb_readiness.py',
+                        'platform/embedded/nano/hps_io.py', 'tests/fixtures/nano-usb-board/hps_bootloader_handoff.bin')]
+                source_files.append(Path(__file__))
                 (target / 'contract.json').write_text(json.dumps(dict(command=command,
                     profile=profile, source_sha256={str(p.relative_to(ROOT)):
                         hashlib.sha256(p.read_bytes()).hexdigest() for p in source_files},
-                    scope='actual strong cold/SD/ROM/stop engines, pinned SHA; injected MMIO/transport; no matched board boot'), indent=2) + '\n')
+                    shared_usb=shared_usb, modes=list(modes),
+                    vendor_sha256=hashlib.sha256(reference.read_bytes()).hexdigest(),
+                    scope='actual strong cold/SD/ROM/stop engines and optional confirmed shared USB board/master composition; pinned SHA; injected MMIO/transport; no matched board boot or USB enumeration'), indent=2) + '\n')
 
 
 if __name__ == '__main__':

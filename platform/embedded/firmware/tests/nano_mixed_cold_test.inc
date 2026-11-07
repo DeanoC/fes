@@ -124,8 +124,14 @@ static void mixed_sd_cycle(uint64_t owner,uint64_t returned)
     uint64_t reply[4];
     mixed_call(FES_EMBEDDED_SD_CALL,FES_EMBEDDED_SD_RESUME,owner,returned,reply);
     assert(!reply[0] && reply[3]==returned+1);
+#ifdef FES_TEST_SHARED_USB
+    shared_usb_observe(owner);
+#endif
     sd_registers[0x22c/4]=FES_NANO_SD_IDENT_CLOCK;
     mixed_call(FES_EMBEDDED_SD_CALL,FES_EMBEDDED_SD_PREPARE,owner,returned+1,reply);assert(!reply[0]);
+#ifdef FES_TEST_SHARED_USB
+    shared_usb_observe(owner);
+#endif
     mixed_call(FES_EMBEDDED_SD_CALL,FES_EMBEDDED_SD_STOP,owner,returned+2,reply);
     assert(!reply[0] && reply[3]==returned+3 && !fes_nano_owned_sd.active && bridge==15);
 }
@@ -137,12 +143,18 @@ static int mixed_runtime(uint64_t owner,unsigned mode)
         PROT_READ|PROT_WRITE,MAP_ANONYMOUS|MAP_PRIVATE|MAP_FIXED_NOREPLACE,-1,0);
     assert(configuration_memory==(void *)(uintptr_t)FES_NANO_CONFIG_BASE);
     assert(fes_nano_platform_identity_setup()==1 && fes_nano_platform_configuration_setup()==1 && fes_nano_platform_sd_setup()==1);
+#ifdef FES_TEST_SHARED_USB
+    shared_usb_start(owner);
+#endif
     uint64_t returned=1;
     for(mixed_cycle=0;mixed_cycle<5;mixed_cycle++) {
         mixed_target_role=mode==2 ? 1U:mode==3 ? 2U:((mixed_cycle+(mode==1))%2 ? 2U:1U);
         struct fes_nano_identity_probe *p=fes_nano_platform_identity_probe();
         uint32_t old_abi=p->abi,old_reader=p->reader,old_build[4];memcpy(old_build,p->build,sizeof(old_build));
         mixed_sd_cycle(owner,returned);
+#ifdef FES_TEST_SHARED_USB
+        shared_usb_observe(owner);
+#endif
         for(unsigned i=0;i<FES_NANO_CONFIG_BYTES;i++)configuration_memory[i]=(uint8_t)i;
         for(unsigned i=0;i<4096;i++)configuration_memory[FES_NANO_CONFIG_BYTES+i]=(uint8_t)(i^0xa5U);
         uint64_t generation=returned+3;configuration_generation=generation;
@@ -194,11 +206,18 @@ static int mixed_runtime(uint64_t owner,unsigned mode)
             mixed_control[FES_EMBEDDED_REG_GENERATION_LO/4]=1;
             mixed_control[FES_EMBEDDED_REG_REQUEST_GENERATION_LO/4]=1;
         }
+#ifdef FES_TEST_SHARED_USB
+        shared_usb_observe(owner); /* Includes menu bridge=5 and an active DDR request. */
+        if(mixed_target_role==1 && shared_usb_fault(owner,mode))return 0;
+#endif
         mixed_call(FES_EMBEDDED_BRIDGE_CALL,FES_EMBEDDED_BRIDGE_CLOSE|(mixed_target_role==2?FES_EMBEDDED_BRIDGE_REQUEST_HELD:0),
                    owner,generation+(mixed_target_role==1?2U:1U),reply);
         if(mode==19) {assert(reply[0] && p->failed);mixed_retired(owner);puts("PASS strong mixed missing drain acknowledgement retires");return 0;}
         assert(!reply[0] && bridge==15 && !p->active && p->stage==FES_ID_COMPLETE);
         returned=reply[3];
+#ifdef FES_TEST_SHARED_USB
+        shared_usb_observe(owner);
+#endif
         if(mode==16 || mode==17) {
             if(mode==16)invalid_sd_route=1;else p->closure.hardware_drained=0;
             unsigned calls=engine_calls;
@@ -208,5 +227,8 @@ static int mixed_runtime(uint64_t owner,unsigned mode)
             puts("PASS strong mixed SD return rejects changed proof or live route");return 0;
         }
     }
+#ifdef FES_TEST_SHARED_USB
+    shared_usb_finish(owner);
+#endif
     puts("PASS five actual strong mixed configuration/control/ROM/drain/SD cycles; injected MMIO");return 0;
 }

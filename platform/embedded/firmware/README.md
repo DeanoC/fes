@@ -64,16 +64,29 @@ invalid role resources/ABI, CPU drift before START, ROM digest mismatch before
 FIFO writes, held acknowledgement mismatch, corrupted configuration, bad SD
 route/closure and a missing drain acknowledgement. Each refuses further launch
 and SD I/O. A smaller CPU arena fails compilation. This is host execution of the
-strong callbacks; it is not a matched boot-chain build, physical FPGA execution,
-shared USB qualification or Tenfoot App/menu/core/menu acceptance.
+strong callbacks; it is not a matched boot-chain build or physical FPGA execution.
+
+The same strong-provider fixture now also runs with controlled, confirmed shared
+USB enabled, through the actual board/PHY, cold-device composition, retained
+USB master and owned SiP code. The physical register model supplies the complete
+164-pin fixture and a common 200 MHz USB/SD clock vector. USB queries remain
+confirmed across active SD, menu DDR, computer control and independent returns;
+five changing-role loads end in an owned USB stop. The nineteen shared cases
+include the original thirteen plus DMA/IRQ ownership, lost AHB idle, clock drift,
+partial USB reset and lost PHY readiness while the menu is active. These faults
+retain the USB reservation and refuse further FPGA/SD I/O or replay. The ordinary
+thirteen cases and smaller-arena rejection still run separately. This proves
+the injected-register composition, not USB enumeration, controller input,
+electrical behavior or physical acceptance.
 
 Tests run five changing-role loads through the actual C configuration and
 held-bridge engines, plus twenty rejection/retirement cases. Native Go encoding
 and private arena publication are paired with the same C decoder, including all
 nine chunks and stale publication callbacks. Mixed roles remain default-off.
 The native builder/loader and entry/SPL select both matched inventories and the
-union memory exclusion only with the explicit companion. Tenfoot menu
-presentation ownership and physical App/core/menu acceptance remain open.
+union memory exclusion only with the explicit companion. The native service now
+owns Tenfoot menu presentation and the core/return cycle, with actual App pixel
+comparison in host tests. Physical App/core/menu acceptance remains open.
 
 The explicit `--nano-firmware-ocram` option on both Terasic builders selects a
 matched shared-ROM, explicitly selected two-slot menu or paired-role cold chain with private
