@@ -113,9 +113,10 @@ lost ownership without replay. Its independent maintenance-hold read uses `0xcc`
 `nativefabric.NewMenuHPSContextVerifier`, `ReserveMenuMemory` and `OpenMenuSession`
 now bind this presenter to the exact private menu profile, a complete boot-pinned
 8 MiB publication and its single completed transfer. The session checks both
-slots and padding by exact byte comparison with a private expected image. This
-checks the full arena on success without hashing both images; package, source
-and map hashes remain unchanged. It brackets memory/CSR work with
+slots and padding by exact byte comparison with a private expected image. Fresh
+uncached bytes are copied in bounded 32 KiB chunks into private CPU scratch
+before comparing. This checks the full arena on success without hashing both
+images; package, source and map hashes remain unchanged. It brackets memory/CSR work with
 secure ownership, and performs independent firmware master-stop/bridge closure
 on return. Tests inject the secure service to cover opening, presentation,
 closure and failure ownership; they do not execute physical SMCs or DDR.

@@ -2,7 +2,6 @@
 package nativefabric
 
 import (
-	"bytes"
 	"context"
 	"crypto/sha256"
 	"errors"
@@ -20,6 +19,7 @@ import (
 // boot-pinned arena to the existing owned firmware bridge service. It does not
 // implement general package admission or infer boot authority from metadata.
 type MenuSession struct {
+	comparison                *arenaComparison
 	self                      *MenuSession
 	verifier                  *HPSContextVerifier
 	region                    *Region
@@ -76,9 +76,10 @@ func (v *HPSContextVerifier) OpenMenuSession(ctx context.Context, control, acces
 			v.readerMemoryMu.Unlock()
 		}
 	}()
+	comparison := new(arenaComparison)
 	if !v.readerMemoryReady || v.readerMemoryRegion == nil ||
 		v.readerMemoryRegion.Address != v.menuMemory.CPUBase || uint64(len(v.readerMemoryRegion.Bytes)) != v.menuMemory.ArenaBytes ||
-		v.readerMemoryRegion.OrderFrameStores == nil || !bytes.Equal(v.readerMemoryRegion.Bytes, v.menuExpected) {
+		v.readerMemoryRegion.OrderFrameStores == nil || !comparison.equal(v.readerMemoryRegion.Bytes, v.menuExpected) {
 		return nil, errors.New("native menu: fresh full pinned arena required")
 	}
 	if transfer == nil || transfer.binding == nil || v.ddrReaderAttempted {
@@ -98,7 +99,7 @@ func (v *HPSContextVerifier) OpenMenuSession(ctx context.Context, control, acces
 	if !v.coldSource(source) || source != v.menuPublication.Source || source != b.source || source.Bridges.Generation > math.MaxUint64-3 {
 		return nil, errors.New("native menu: opening lost closed publication/transfer ownership")
 	}
-	s := &MenuSession{verifier: v, region: v.readerMemoryRegion, bytes: v.readerMemoryRegion.Bytes, source: source, opened: source.Bridges,
+	s := &MenuSession{comparison: comparison, verifier: v, region: v.readerMemoryRegion, bytes: v.readerMemoryRegion.Bytes, source: source, opened: source.Bridges,
 		bridges: &FirmwareBridges{cpu: cpu}, context: ctx, operationContext: ctx, controlSHA: sha256.Sum256(control), accessSHA: sha256.Sum256(access)}
 	s.self = s
 	session = s
@@ -196,10 +197,9 @@ func (s *MenuSession) checkArena() error {
 	if err := s.checkRegion(); err != nil {
 		return err
 	}
-	// Both complete images are already available. Exact equality checks every
-	// byte on success, including both slots and their padding, without hashing
-	// the uncached arena and private expected image separately.
-	if !bytes.Equal(s.bytes, s.verifier.menuExpected) {
+	// Read every arena byte afresh through private scratch, including both
+	// slots and their padding. No hash or earlier comparison substitutes for it.
+	if !s.comparison.equal(s.bytes, s.verifier.menuExpected) {
 		return errors.New("native menu: arena bytes differ from private publication")
 	}
 	return nil
