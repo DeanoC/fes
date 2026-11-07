@@ -62,6 +62,16 @@ retirement checks. A new frozen operator and fresh bounded boot/card proofs are
 required after the reported power loss. Model success grants no physical write
 or core-load acceptance.
 
+`recovery_trace_upgrade.TimerRepair` separately admits the exact installed
+UART1 FIT, manifest and prefix for the 100-ms correction. It authenticates
+both the original R1107A pair and consumed UART0 R1107B pair, reads/hashes both
+before and after the five fixed writes, and preserves the current UART1 pair
+under fresh R1107C names. Existing R1107C destinations reject before any write.
+It shares the one-shot controller and never activates its result. Neither
+earlier transition accepts this installed UART1 source. A fresh frozen
+operator and live card/boot checks are still required after the power report;
+the later serial version/prompt observation does not prove card integrity.
+
 The current guarded-RAM contract keeps the per-CPU array in sealed initialized
 BL31 DDR instead of OCRAM BSS. Its original cache flush remains in place. The
 matched device tree reserves the complete two-MiB BL31 DDR interval, and the

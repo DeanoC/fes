@@ -188,3 +188,38 @@ class Repair(Upgrade):
         self.read(BACKUPS[META],0x82800000,self.rollback['manifest'])
         self.r.setdefault('preserved_original_rollback',[]).append(stage)
         self.persist()
+
+
+# This is the exact UART1 image left by the completed R1107B repair, before
+# the timeout-unit correction. Historical images remain bootstrap inputs;
+# neither this transition nor Repair broadens current package admission.
+TIMER_REPAIR_FIT='ccb6a597052c69f982713c327eeaab02adda4bd8ef21905deed2db7e7d47f353'
+TIMER_REPAIR_MANIFEST='b63eb77506898bc53f6082e8575fe6387ea2525425754aced31ca7ccbff62fcf'
+TIMER_REPAIR_PREFIX='b8ea5c763ffc9d6ccca750aa476cc0739cf896af995959437fa41f65183a039f'
+
+class TimerRepair(Repair):
+    backups={BOOT:'FES/R1107C.ITB',META:'FES/R1107C.JSN'}
+    transition='exact-consumed-UART1-trace-to-current-100ms-trace'
+    def __init__(self,console,old,new,prime,package,transfer,owns,save,rollback,prior_rollback):
+        if set(prior_rollback)!={'fit','manifest'}:
+            raise ValueError('timer repair requires the exact prior UART0 rollback pair')
+        self.prior_rollback={k:bytes(prior_rollback[k]) for k in ('fit','manifest')}
+        super().__init__(console,old,new,prime,package,transfer,owns,save,rollback)
+    def before_valid(self,before):
+        return (sha(self.old['fit'])==before.get('fit_sha256')==TIMER_REPAIR_FIT and
+                sha(self.old['manifest'])==TIMER_REPAIR_MANIFEST and
+                self.old['prefix_sha256']==TIMER_REPAIR_PREFIX and
+                sha(self.rollback['fit'])==BASE_FIT and
+                sha(self.rollback['manifest'])==ROLLBACK_MANIFEST and
+                sha(self.prior_rollback['fit'])==REPAIR_FIT and
+                sha(self.prior_rollback['manifest'])==REPAIR_MANIFEST)
+    def preserve_rollback(self,stage):
+        super().preserve_rollback(stage)
+        self.scope('preserve-prior-UART0-rollback-'+stage)
+        # Use the prior transition's fixed names, not this transition's new
+        # destinations. These reads precede loading the old FIT/manifest into
+        # their write buffers, so they cannot replace either backup's source.
+        self.read(Repair.backups[BOOT],0x83000000,self.prior_rollback['fit'])
+        self.read(Repair.backups[META],0x82800000,self.prior_rollback['manifest'])
+        self.r.setdefault('preserved_prior_rollback',[]).append(stage)
+        self.persist()
