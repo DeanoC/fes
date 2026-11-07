@@ -7,7 +7,9 @@ components; the Nano tools assemble the matched experimental boot images.
 Software tests and cross-builds remain distinct from hardware acceptance.
 
 The explicit `--nano-firmware-ocram` option on both Terasic builders selects a
-matched shared-ROM cold chain with private stack/BSS in `[0x50000,0x60000)`.
+matched shared-ROM or explicitly selected two-slot menu cold chain with private
+stack/BSS in `[0x50000,0x60000)`. The menu selection validates its complete
+8 MiB memory, read/control digests and CPU exclusion; it grants no USB or ROM path.
 It requires the version-2 native CPU exclusion, the final one-shot SPL live
 allocation check and a fifth private entry argument. Before vendor startup,
 the allocation-free EL3 guard checks the sealed record/CRC/chain, SP and linker

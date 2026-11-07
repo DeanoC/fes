@@ -71,12 +71,32 @@ def selected(profile, enabled):
         return None
     mapping = profile.get('cpu_mapping')
     rom = profile.get('hps_rom')
-    if (profile.get('usb_pio') is not True or profile.get('usb_shared') is not True or
-            profile.get('sd_pio') is not True or not isinstance(rom, dict) or
-            rom.get('bytes') not in (4096, 8192) or not isinstance(mapping, dict) or
+    shared_rom = (profile.get('usb_pio') is True and profile.get('usb_shared') is True and
+                  isinstance(rom, dict) and rom.get('bytes') in (4096, 8192))
+    menu = False
+    if profile.get('menu_present') is True:
+        # Reuse the complete pure descriptor validators; no filesystem/board
+        # observation or inferred boot permission belongs in this layout gate.
+        spec=importlib.util.spec_from_file_location('fes_ram_menu_context',HERE.parent/'nano/hps_context.py')
+        hps=importlib.util.module_from_spec(spec);spec.loader.exec_module(hps)
+        hps.menu_selection(dict(profile,program='fpgaload',usb_control=profile.get('usb_pio',False)))
+        source=profile.get('hps_context') or {};memory=profile.get('hps_reader_memory')
+        if source.get('programming_profile')!=hps.MENU_PROFILE:
+            raise ValueError('menu OCRAM requires its complete compiled source')
+        hps.validate_reader_memory(source,memory)
+        control=profile.get('hps_control') or {}
+        hps.validate_menu_read(source,memory,hps.digest(control),profile.get('hps_menu_read'))
+        expected=hps.cpu_mapping(control,profile.get('hps_configuration'),memory)
+        if (mapping!=expected or profile.get('cpu_mapping_sha256')!=hps.digest(expected) or
+                profile.get('hps_reader_memory_sha256')!=hps.digest(memory) or
+                profile.get('hps_control_sha256')!=hps.digest(control) or
+                profile.get('hps_menu_read_sha256')!=hps.digest(profile['hps_menu_read'])):
+            raise ValueError('menu OCRAM requires its unchanged complete resource digests')
+        menu = True
+    if (not (shared_rom or menu) or profile.get('sd_pio') is not True or not isinstance(mapping, dict) or
             mapping.get('format') != 2 or mapping.get('scope') != 'pinned-tamago-el1-resources-excluded-v2' or
             mapping.get('firmware_base') != BASE or mapping.get('firmware_bytes') != LIMIT-BASE):
-        raise ValueError('OCRAM firmware requires the matched shared-ROM and native exclusion profile')
+        raise ValueError('OCRAM firmware requires a matched shared-ROM or menu and native exclusion profile')
     return dict(CONTRACT)
 
 

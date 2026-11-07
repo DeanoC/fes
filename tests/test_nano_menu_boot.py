@@ -115,5 +115,22 @@ class MenuBootTests(unittest.TestCase):
             self.assertNotEqual(run.returncode,0,run.stdout+run.stderr)
             self.assertFalse(output.exists())
 
+    def test_menu_ocram_requires_complete_descriptors_and_unchanged_exclusion(self):
+        ram=cold.firmware_memory
+        p=self.profile()
+        contract=ram.selected(p,True)
+        self.assertEqual(contract,ram.CONTRACT)
+        self.assertEqual((contract['base'],contract['limit']),(0x50000,0x60000))
+        self.assertEqual(ram.checked(dict(p,firmware_ram=contract)),contract)
+        for change in ({'menu_present':False},{'usb_pio':True},{'usb_shared':True},{'sd_pio':False},
+                {'hps_reader_memory_sha256':'0'*64},{'hps_menu_read_sha256':'0'*64},
+                {'hps_control_sha256':'0'*64},{'cpu_mapping_sha256':'0'*64},
+                {'hps_reader_memory':dict(self.memory,arena_bytes=4<<20)},
+                {'cpu_mapping':dict(p['cpu_mapping'],firmware_base=0x60000)},
+                {'cpu_mapping':dict(p['cpu_mapping'],reader_bytes=4<<20)},
+                {'hps_context':dict(self.source,control_abi=0x10203042)}):
+            with self.subTest(change=change),self.assertRaises(ValueError):ram.selected(dict(p,**change),True)
+        with self.assertRaises(ValueError):ram.checked(dict(p,firmware_ram=dict(contract,limit=0x61000)))
+
 
 if __name__=='__main__':unittest.main()
