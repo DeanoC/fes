@@ -539,7 +539,7 @@ another physical attempt; increasing timeouts or disabling the IRQ poll is not
 justified by these results. Physical empty/16K, USB/audio and reboot acceptance,
 normal-profile enablement and current-head owner review remain open.
 
-## Corrected-firmware boot package preparation
+## Completion-only firmware preparation and native result
 
 The source-bound [SDM correction](../../../image/de25-nano/sdm-diagnostic/completion-errors.patch)
 returns hard mailbox errors even when response length is zero or a buffer was
@@ -549,10 +549,11 @@ stay retained; this is not an abort or DMA fence. Two clean vendor-source builds
 produce identical BL31 binary `6cd789a0` and ELF `d68b6479`.
 Eight [actual compiled-handler cases](sdm-error-correction-emulation.json) pass
 with injected mailbox and logger behavior, preserving positive buffer returns,
-ordinary BUSY and timeout handling. Native execution remains unproven.
+ordinary BUSY and timeout handling. These describe the earlier completion-only
+candidate, not the current remapper-guard candidate below.
 
-The [diagnostic recipe](../../../image/de25-nano/sdm-diagnostic/README.md)
-packages that exact binary in the stock Terasic FIT, producing `55823732`.
+The original diagnostic recipe packaged that binary in the stock Terasic FIT,
+producing `55823732`.
 Only the external ATF slot, its length and CRC32 change. U-Boot `a9735c5a`,
 board DTB `ff637eda`, all configurations, load/entry addresses and total FIT
 length are preserved. The stock rollback FIT is included. Independent U-Boot
@@ -581,5 +582,39 @@ The actual unchanged kernel `8ae9c46a` also passes a QEMU enable/disable and
 console-restoration check for the proposed sparse tracing: 10 manager, owner
 and secure-call entry/return sites are enabled, with the other 48 selected-file
 sites disabled. This reduces verbosity from the prior trial. Terasic's Agilex5
-platform source includes the runtime console scope; actual secure-firmware
-UART logging, the new boot notice and programming still need native proof.
+platform source includes the runtime console scope.
+
+The subsequently approved [native trial](sdm-completion-native-trial.json)
+authenticated the exact new firmware notice and fresh Linux/kernel/card/four
+executable identities. The ten-site query and actual DEBUG-priority UART marker
+passed, as did ordinary catalog import and native compatibility. The single
+default-empty launch failed during full-base upload with buffer-claim BUSY/EFAULT,
+before persona programming. No hard-mailbox ERROR line was captured; this does
+not prove SDM or DMA retirement or establish the cause. No active static core,
+RAMTOP, BASIC or Stop acceptance was obtained, and no replay was attempted.
+
+The original working card and exact host were restored and authenticated in a
+fresh boot: original image `6de6a392`, bundle `a14a53cd` generation 48, original
+kernel/module/card identity and all four executable hashes. MENU was ready,
+idle and lease-free; the owned private host and UART were stopped and the claim
+released. All three failed functional candidates remain retained. QSPI was not
+changed.
+
+## Null-safe remapper diagnostic
+
+Configuration start calls `intel_smmu_hps_remapper_init(0U)`. The previous
+candidate's actual instructions read and write through that null pointer. The
+current [source-bound guard](sdm-remapper-guard.json) preserves required MMIO
+initialization and translates an address only when one is provided. Two clean
+locked-source builds produce identical binary and ELF. Fourteen actual remapper
+instruction cases reproduce both old-binary failures and verify unchanged MMIO
+and IOVA translation in all scratch-bit/bypass combinations. Eight compiled
+completion-handler cases still pass.
+
+Native START returned OK in the retained trial. The emulated null-page fault
+does not prove a board fault or explain the upload stall. The current candidate
+has no native boot or programming acceptance; normal admission remains closed.
+It does not add an abort, DMA fence, timeout change or programming retry. The
+[diagnostic recipe](../../../image/de25-nano/sdm-diagnostic/README.md) now binds
+this candidate and its distinct boot marker. Any new physical trial needs its
+own concrete approval and exact-artifact validation.

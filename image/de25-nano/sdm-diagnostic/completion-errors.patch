@@ -11,3 +11,10 @@
 +				*count = 0;
 +				return INTEL_SIP_SMC_STATUS_ERROR;
 +			}
+@@ -784,2 +794,4 @@
+-		*mem = *mem - DRAM_BASE;
+-	} else {
++	}
++
++	/* Configuration start initializes the remapper without an address. */
++	if (mem != NULL) {

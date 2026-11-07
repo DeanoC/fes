@@ -10,13 +10,30 @@ The [locked source](firmware.lock.json) binds Terasic TF-A revision
 source, [correction](completion-errors.patch), compiler inputs and compiled
 binary/ELF. Two clean builds produce identical binary and ELF. The actual
 compiled SiP handler passes eight instruction-level cases with injected mailbox
-replies. These checks do not exercise EL3 entry, SDM, DMA or a native boot.
+replies. Fourteen additional instruction-level cases verify the remapper guard,
+including failing controls for the previous binary. These checks do not exercise
+EL3 mappings, SDM, DMA or a native boot.
 
 The correction reports hard mailbox errors even with an empty response or a
 previous buffer completion in the same call. It logs the original error,
 reports no reusable buffers and sends no further data after the error. It does
 not abort SDM, fence DMA or clear the kernel's retained-failure state. No board
 trace has yet established that this ambiguity caused either static-load failure.
+
+Configuration start also calls the vendor remapper initializer without an
+address. The previous compiled helper read and wrote through that null pointer.
+The guard preserves the initializer's remapper-register writes while translating
+an address only when one is supplied. The instruction proof verifies both null
+initialization and unchanged valid-address translation for all four scratch-bit
+and bypass combinations. The earlier native START returned successfully; an
+emulated unmapped-page fault does not establish a physical fault or explain the
+upload stall. See the [source-bound proof](../../../docs/validation/2026-11-05-de25-static-expansion-offboard/sdm-remapper-guard.json).
+
+The previous completion-only diagnostic booted on the board, but its single
+static-core launch still failed during full-base upload, before persona or BASIC
+testing. The original working card and host were subsequently authenticated and
+the board released. That failed candidate remains retained. The current
+remapper-guard candidate has no native boot or programming acceptance.
 
 Prepare from the exact stock FIT and the retained, independently rebuilt
 candidate artifacts:
@@ -42,7 +59,7 @@ refuses changed, extra or symlinked files and any admission claim.
 does not contain an SD writer or grant permission to replace a boot file.
 Before a physical trial, verify the selected card, preserve the designated
 working baseline, obtain explicit approval for this corrected-firmware trial,
-and authenticate the new `fes-de25-sdm-errors-580dcb5c4e10` boot marker before
+and authenticate the new `fes-de25-sdm-remapper-580dcb5c4e10` boot marker before
 submitting a core load. Keep all failed-transfer retention and restoration gates.
 
 The [dated validation](../../../docs/validation/2026-11-05-de25-static-expansion-offboard/README.md)

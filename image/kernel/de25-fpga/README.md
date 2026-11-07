@@ -108,3 +108,25 @@ error with zero response length as BUSY. A returned buffer can also hide a later
 error in that call. Thus native repeated BUSY does not establish that SDM merely
 needs more time. These tests do not prove that either injected error occurred
 on the board, and do not justify increasing timeouts or changing recovery.
+
+## Remapper initialization diagnostic
+
+`verify_remapper.py` compares the previous completion-only diagnostic with the
+current locked remapper-guard binary. Configuration start passes no address to
+the remapper initializer; the previous compiled helper nevertheless dereferences
+that pointer. Fourteen actual-instruction cases verify the guard avoids a null
+access while preserving remapper-register writes and valid IOVA translation.
+
+```sh
+python image/kernel/de25-fpga/verify_remapper.py \
+  --before /absolute/previous-completion-diagnostic/bl31.bin \
+  --after /absolute/current-remapper-diagnostic/bl31.bin \
+  --output /absolute/new/remapper-proof
+```
+
+Both complete binaries are authenticated before creating output. The old-binary
+controls reproduce an unmapped null-page fault and a write when that emulated
+page is mapped. The current binary performs neither access. These are emulated
+memory/MMIO pages, not the board's EL3 mappings; native START previously returned
+successfully. This proves a firmware null-pointer repair, not the upload-stall
+cause, SDM execution or safe retirement of a failed transfer.
