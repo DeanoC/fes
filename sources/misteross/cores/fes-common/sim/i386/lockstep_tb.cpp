@@ -1099,7 +1099,16 @@ void adopt(State &oracle_state, const State &rtl, const Fields &fields) {
         for (int n = 0; n < 8; ++n) oracle_state.gpr[n] = rtl.gpr[n];
         oracle_state.eflags = (oracle_state.eflags & ~EFLAGS_MASK) | (rtl.eflags & EFLAGS_MASK);
         oracle_state.eip = rtl.eip;
-        for (int n = 0; n < 6; ++n) oracle_state.seg[n] = rtl.seg[n];
+        // A segment whose cache agrees keeps the oracle's valid bit: the
+        // RTL's state gives valid from P, which a data segment an outer
+        // return nulled keeps set (selector 0, the cache kept).
+        for (int n = 0; n < 6; ++n) {
+            const fes_i386::Segment &o = oracle_state.seg[n], &r = rtl.seg[n];
+            const bool same = o.selector == r.selector && o.base == r.base && o.limit == r.limit && o.ar == r.ar;
+            const bool valid = same ? o.valid : r.valid;
+            oracle_state.seg[n] = r;
+            oracle_state.seg[n].valid = valid;
+        }
         return;
     }
     oracle_state.eflags = (oracle_state.eflags & ~fields.eflags) | (rtl.eflags & fields.eflags);

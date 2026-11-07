@@ -732,7 +732,10 @@ public:
             s.seg[n].base = cpu.arch_base[n];
             s.seg[n].limit = cpu.arch_limit[n];
             s.seg[n].ar = get16(cpu.arch_ar, n);
-            s.seg[n].valid = (s.seg[n].ar & 0x80) != 0;  // only a null selector's load clears P
+            // A null selector's load clears P; an outer return's nulling
+            // leaves a protected-mode data segment's selector null, P set.
+            s.seg[n].valid = (s.seg[n].ar & 0x80) != 0
+                          && !((s.cr0 & 1) && n != fes_i386::SEG_CS && n != fes_i386::SEG_SS && (s.seg[n].selector & 0xfffc) == 0);
         }
         return s;
     }
