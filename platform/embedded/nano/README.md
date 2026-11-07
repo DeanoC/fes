@@ -1584,3 +1584,46 @@ zero pin/PHY accesses or writes, unchanged generation, and no further I/O after
 failure. Every clock and internal-master fault still rejects. Every changed pin
 can leave internal containment valid, but must fail the subsequent full device
 observation and retire the source before it can regain any permission.
+
+### Paired Tenfoot board-test controller
+
+`paired_tenfoot_trace.PairedTenfootClient` joins the selected native App's actual
+`display=fpga-menu` startup, CPU startup checkpoints, source-bound menu frames and
+returns, configuration queue/activation records, core fetch activity and final
+`state=parked` exit. The inner App state remains its existing serial telemetry
+schema. It is not rewritten to claim HDMI observation. The existing core-only
+`tenfoot_trace.TenfootClient` continues to require its separate serial-only recipe.
+
+The caller must independently verify current computer and menu source seals,
+selected packages, matched boot artifacts and the board claim before constructing
+the client. `menu_policy` is only a pure check of the complete compiled companion,
+original computer anchor and explicit 8 MiB union mapping. It cannot grant a
+larger mapping to an ordinary computer-only build or authenticate stale sources.
+Both role inventories, configuration descriptors and map digests stay distinct.
+
+The injectable `exchange(payload, seconds, done)` sends each key once, preserves
+the complete ordered UART capture and repeatedly calls `done` as bytes arrive.
+Polling does not consume stateful menu evidence. The `owns` and monotonic `now`
+hooks must remain valid throughout. Any missing, duplicate, reordered, malformed,
+failed or uncertain transition permanently retires the controller; it sends no
+recovery or retry command. All firmware and native rows must be accounted for.
+
+`exercise` selects two freshly checked computers in order 0 → 1 → 0, verifies
+menu drain before each launch, core close before each menu reload, then drains
+the final menu and requires logical Parked generation 7. Configuration generations
+come from verified preceding returns, including the menu transfers, rather than
+the core-only generation formula. Shared keyboard/gamepad input additionally
+requires its original boot/pin proof and input lease, pause before mutation,
+resume after core fetch/menu restoration and STOP after final menu drain.
+
+Launch retains the original 100-second request budget and every configuration
+retains its 20-second firmware counter bound. Return allows 5 seconds for core
+close plus 100 seconds for the independent menu restore; final quit adds 5 seconds
+for menu park. The predicate enforces the separate phase deadlines, including
+when the transport has only partial lines. A transport must poll promptly; late
+delivery of earlier evidence conservatively fails. Existing native driver
+timeouts, memory reservations and core-only bounds are unchanged.
+
+The returned summary remains controller evidence: physical display, real input
+controls, ordinary admission and hardware acceptance are false. A newly matched
+paired boot and a bounded TRWU8CBL trial remain separate required evidence.
