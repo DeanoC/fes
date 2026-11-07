@@ -21,7 +21,7 @@ struct fes_nano_ddr_firewall_observation {
 };
 struct fes_nano_ddr_firewall_probe {
     struct fes_nano_ddr_firewall_io io;
-    uint32_t window_bytes; /* explicitly selected sealed 8192-byte or 4 MiB window */
+    uint32_t window_bytes; /* selected sealed 8192-byte, 4 MiB or two-slot 8 MiB window */
     unsigned attempted,failed,reads;
     int first_error;
 };

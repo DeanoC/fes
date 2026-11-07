@@ -57,8 +57,6 @@ def decode(data, *, identity, memory, contract, base_decode, rules):
     report['complete'] = False
     if split is None:
         return report
-    if not prefix_complete:
-        report['errors'].append('menu presentation preceded a complete owned boot/configuration prefix')
     rows = b''.join(lines[split:]).decode(errors='replace').split('\n')[:-1]
     cursor = 0
     elapsed = -1
@@ -100,6 +98,20 @@ def decode(data, *, identity, memory, contract, base_decode, rules):
 
     try:
         step(1,'open_begin')
+        # Readiness runs inside the firmware's first control-opening request.
+        # Validate these real records before expecting an opened control scope.
+        take('fpga_query'); take('fpga_status')
+        check_route(take,require,owner=owner,generation=4,reset=15,memory=memory,with_gate=False)
+        # Keep the original line numbers by replacing only the already checked
+        # native progress line with a blank. All actual secure records retain
+        # their order in the shared boot/configuration decoder.
+        boot = base_decode(prefix+b'\n'+b''.join(lines[split+1:split+cursor]))
+        report.update(boot)
+        prefix_complete = bool(boot['complete'] and boot['last_checkpoint']=='ddr_firewall_end' and
+                               boot.get('configuration_transfer',{}).get('complete') and source and publication)
+        report['complete'] = False
+        report['last_checkpoint'] = 'menu_open_begin_1'
+        require(prefix_complete, 'menu presentation preceded a complete owned boot/configuration prefix')
         scope('control',5,13)
         for _ in range(2):
             check_route(take,require,owner=owner,generation=5,reset=13,memory=memory,with_gate=True)

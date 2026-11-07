@@ -477,7 +477,9 @@ separate requirements. No observer result grants a bridge or DMA capability.
 The cold DDR profile also observes all eight F2SDRAM firewall regions twice
 through `nano_ddr_firewall.c`. It checks the RC28 register layout and whether
 an enabled region covers the explicitly selected 8192-byte, 4 MiB or private
-8 MiB menu bus window. Missing, unsupported or changed window requests reject without a usable
+8 MiB menu bus window. The joined menu-dispatcher regression uses this actual
+observer and rejects a region covering only the first 4 MiB slot. Missing,
+unsupported or changed window requests reject without a usable
 observation. The provider requires
 closed cold ownership, EL3 with MMU/cache off, and MPFE out of reset around
 every read. Unstable samples, access failures and lost scope retire the
@@ -826,7 +828,9 @@ the actual C stop helper against the menu CSR/video/DDR RTL, including active
 and already locally drained readers, inherited-size rejection and ownership
 loss. Its maintenance probe is injected idle/held there; the separate complete
 fabric verifier covers the inherited probe RTL. These are host checks, with
-no matched menu boot image, physical DDR or HDMI acceptance yet.
+Matched menu boot files and the first serial firewall stop are retained in the
+[bounded menu trial](../../../docs/validation/2026-11-07-de25-native-menu-trial/README.md).
+That attempt accepted no menu frame; physical DDR and HDMI remain unqualified.
 
 The configured stop cookie is a nonzero minimum. If frame updates have advanced
 the endpoint's request cookie, the callback selects the next full 64-bit token

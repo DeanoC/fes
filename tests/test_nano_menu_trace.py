@@ -33,7 +33,11 @@ class MenuTraceTests(unittest.TestCase):
         self.prefix = self.prefix.replace('bytes='+str((256+8+4)*(1<<20)+256+0x10000),
                                          'bytes='+str((256+8+8)*(1<<20)+256+0x10000))
         self.elapsed = 0
-        self.suffix = self.step(1,'open_begin') + self.scope('control',5,13)
+        # The real firmware queries readiness and the initial route inside
+        # OpenMenuSession, after its native progress marker and before control.
+        split = self.prefix.index('FES_NANO_CONFIG_QUERY')
+        readiness,self.prefix = self.prefix[split:],self.prefix[:split]
+        self.suffix = self.step(1,'open_begin') + readiness + self.scope('control',5,13)
         self.suffix += self.gate(5,13)*2 + self.scope('data',6,5) + self.step(1,'open_end')
         for index in range(1,4):
             self.suffix += self.step(index,'render_begin')+self.step(index,'render_end')+self.step(index,'present_begin')
@@ -123,6 +127,21 @@ class MenuTraceTests(unittest.TestCase):
         for raw in (self.raw.encode(),bytearray(self.raw.encode()),memoryview(self.raw.encode())):
             self.assertTrue(self.decode(raw)['complete'])
         self.assertFalse(self.decode('x'*(1+(1<<20)))['complete'])
+
+    def test_readiness_is_inside_open_and_pre_io_firewall_failure_stays_rejected(self):
+        start = self.suffix.index('FES_NANO_CONFIG_QUERY')
+        end = self.suffix.index('NOTICE:  FES_NANO_WINDOW_SCOPE phase=control')
+        readiness = self.suffix[start:end]
+        # Do not accept the earlier synthetic fixture's misplaced ready prefix.
+        misplaced = self.prefix+readiness+self.suffix[:start]+self.suffix[end:]
+        self.assertFalse(self.decode(misplaced)['complete'])
+        failed = self.raw.replace('FES_NANO_DDR_FIREWALL status=0','FES_NANO_DDR_FIREWALL status=-22',1)
+        failed = failed.replace('reads=66 enable=1','reads=0 enable=0',1)
+        result = self.decode(failed)
+        self.assertFalse(result['complete'])
+        self.assertIn('window use-point firewall observation differs',result['errors'])
+        values = next(r['values'] for r in result['menu_present']['records'] if r['stage']=='ddr_firewall')
+        self.assertEqual((values['status'],values['reads'],values['bytes']),(-22,0,8<<20))
 
     def test_complete_maps_and_separate_explicit_selection_are_required(self):
         for key,value in self.contract.items():

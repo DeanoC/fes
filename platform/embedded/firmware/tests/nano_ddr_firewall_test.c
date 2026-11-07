@@ -45,11 +45,11 @@ int main(void)
 {
     struct fixture f;struct fes_nano_ddr_firewall_probe s;struct fes_nano_ddr_firewall_observation out;
     unsigned cases=0;
-    for(unsigned window=0;window<2;window++) {
-    requested_bytes=window ? 4U<<20 : 8192U;
+    for(unsigned window=0;window<3;window++) {
+    requested_bytes=window ? window==1 ? 4U<<20 : 8U<<20 : 8192U;
     for (unsigned region=0;region<8;region++) {
         s=setup(&f);f.words[0]=1U<<region;
-        f.words[1+4*region]=0x95000000;f.words[3+4*region]=window?0x953fffff:0x9500ffff;
+        f.words[1+4*region]=0x95000000;f.words[3+4*region]=window?0x95000000+requested_bytes-1:0x9500ffff;
         assert(!fes_nano_ddr_firewall_observe(&s,&out) && out.layout_known && out.window_covered && f.reads==66);
         unsigned reads=f.reads,owners=f.owners;
         assert(fes_nano_ddr_firewall_observe(&s,&out)<0 && reads==f.reads && owners==f.owners);cases++;
@@ -85,14 +85,20 @@ int main(void)
     s=setup(&f);s.io.owns=0;rejected(&s,&f);assert(!f.reads);cases++;
     s=setup(&f);s.io.read32=0;rejected(&s,&f);assert(!f.reads);cases++;
     if(window) {
-        s=setup(&f);f.words[1]=0x95000000;f.words[3]=0x953effff;
+        s=setup(&f);f.words[1]=0x95000000;f.words[3]=0x95000000+requested_bytes-65537;
         assert(!fes_nano_ddr_firewall_observe(&s,&out) && out.layout_known && !out.window_covered);cases++;
+        if(window==2) {
+            /* The old one-slot extent cannot grant access to both menu slots. */
+            s=setup(&f);f.words[1]=0x95000000;f.words[3]=0x953fffff;
+            assert(!fes_nano_ddr_firewall_observe(&s,&out) && out.layout_known && !out.window_covered && f.reads==66);cases++;
+        }
         s=setup(&f);f.request=&s.window_bytes;f.change_request=1;
         rejected(&s,&f);assert(s.first_error==-1);cases++;
     }
     }
-    for(unsigned bad=0;bad<3;bad++) {
-        s=setup(&f);s.window_bytes=bad==0?0:bad==1?2U<<20:(4U<<20)+1;
+    const uint32_t bad_bytes[]={0,2U<<20,(4U<<20)+1,(8U<<20)-1,(8U<<20)+1,16U<<20};
+    for(unsigned bad=0;bad<sizeof(bad_bytes)/sizeof(bad_bytes[0]);bad++) {
+        s=setup(&f);s.window_bytes=bad_bytes[bad];
         rejected(&s,&f);assert(!f.reads && !f.owners);cases++;
     }
     for (unsigned offset=0;offset<256;offset++)

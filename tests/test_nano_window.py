@@ -180,9 +180,9 @@ class WindowFirmwareTests(unittest.TestCase):
             binary=Path(temporary)/'menu'
             run=subprocess.run(['cc','-std=c11','-Wall','-Wextra','-Werror','-fsanitize=undefined',
                 '-fno-sanitize-recover=all','-DFES_TEST_MENU_SCOPE=1','-I'+str(FW),str(FW/'nano_bridges.c'),str(FW/'nano_bridge_sip.c'),
-                str(FW/'tests/nano_window_control_test.c'),'-o',str(binary)],capture_output=True,text=True,timeout=30)
+                str(FW/'nano_ddr_firewall.c'),str(FW/'tests/nano_window_control_test.c'),'-o',str(binary)],capture_output=True,text=True,timeout=30)
             self.assertEqual(run.returncode,0,run.stderr)
-            for mutation in range(22):
+            for mutation in range(23):
                 with self.subTest(mutation=mutation):
                     result=subprocess.run([str(binary),str(mutation)],capture_output=True,text=True,timeout=5)
                     self.assertEqual(result.returncode,0,result.stderr+result.stdout)

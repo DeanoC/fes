@@ -37,7 +37,7 @@ int fes_nano_ddr_firewall_observe(struct fes_nano_ddr_firewall_probe *s,struct f
     if (s->attempted) return -1;
     s->attempted=1;
     const uint32_t bytes=s->window_bytes;
-    if (!s->io.owns || !s->io.read32 || (bytes!=8192U && bytes!=(4U<<20))) return fail(s,-22);
+    if (!s->io.owns || !s->io.read32 || (bytes!=8192U && bytes!=(4U<<20) && bytes!=(8U<<20))) return fail(s,-22);
     struct fes_nano_ddr_firewall_snapshot a,b;
     if (sample(s,&a) || sample(s,&b)) return s->first_error;
     if (memcmp(&a,&b,sizeof(a))) return fail(s,-11);

@@ -5,6 +5,7 @@
 #include "nano_configuration.h"
 #include "nano_identity.h"
 #include "nano_sd.h"
+#include "nano_ddr_firewall.h"
 #define FES_NANO_WINDOW_READ_DIAGNOSTIC 1
 #ifdef FES_TEST_MENU_SCOPE
 #define FES_NANO_MENU_MEMORY 1
@@ -49,8 +50,33 @@ static int contain(void *p)
     if((reset&13U)==13U)reset|=2U;
     return reset==15?0:-1;
 }
+#ifdef FES_TEST_MENU_SCOPE
+static unsigned firewall_reads;
+static int firewall_owns(void *p) { (void)p;return reset==15 && !ctrl && contained ? 1:0; }
+static int firewall_read(void *p,uint32_t offset,uint32_t *value)
+{
+    (void)p;unsigned word=firewall_reads++%33;
+    assert(offset==(word?0x10+4*(word-1):0));
+    *value=offset==0?1:offset==0x10?0x95000000:
+        offset==0x18?(mutation==22?0x953fffff:0x957fffff):
+        (offset&15U)==8?0xffff:0;
+    return 0;
+}
+#endif
 static int configured(void *p)
-{ (void)p;assert(reset==15 && !probe.active);return mutation==12?0:1; }
+{
+    (void)p;assert(reset==15 && !probe.active);
+    if(mutation==12)return 0;
+#ifdef FES_TEST_MENU_SCOPE
+    struct fes_nano_ddr_firewall_probe s={.io={0,firewall_owns,firewall_read},.window_bytes=8U<<20};
+    struct fes_nano_ddr_firewall_observation out={0};
+    int error=fes_nano_ddr_firewall_observe(&s,&out);
+    assert(!error && firewall_reads==66 && out.layout_known);
+    return out.window_covered ? 1:0;
+#else
+    return 1;
+#endif
+}
 int fes_nano_platform_window_prepare(void)
 {
     assert(probe.active && probe.reader==FES_NANO_READER_WINDOW && probe.stage==FES_ID_DDR_PREPARE && reset==13);
@@ -66,7 +92,12 @@ static int call(struct fes_nano_configuration *c,uint64_t op,uint64_t owner,uint
 }
 int main(int argc,char **argv)
 {
-    assert(argc==2);mutation=(unsigned)atoi(argv[1]);assert(mutation<=21);
+    assert(argc==2);mutation=(unsigned)atoi(argv[1]);
+#ifdef FES_TEST_MENU_SCOPE
+    assert(mutation<=22);
+#else
+    assert(mutation<=21);
+#endif
     struct fes_nano_bridge_ops ops={0};ops.owns=owns;ops.read_reset=read_reset;ops.masters_contained=masters;
     ops.stop_producers=stop;ops.enable=enable;ops.disable=disable;
     assert(!fes_nano_bridges_init(&bridges,ops,17,7,1,1));
@@ -82,8 +113,11 @@ int main(int argc,char **argv)
     uint64_t r[4],release=FES_EMBEDDED_BRIDGE_RELEASE | (8ULL<<FES_EMBEDDED_BRIDGE_RELEASE_SHIFT);
     assert(call(&c,release,17,1,0,r) && r[0] && !ctrl && !data);
     assert(call(&c,FES_EMBEDDED_BRIDGE_CONTROL,17,mutation==7?2:1,mutation==4,r));
-    if(mutation>=1 && mutation<=12) {
+    if((mutation>=1 && mutation<=12) || mutation==22) {
         assert(r[0] && !ctrl && !data && !disables && reset==15);
+#ifdef FES_TEST_MENU_SCOPE
+        if(mutation==22)assert(firewall_reads==66);
+#endif
         puts("PASS window preconditions reject before hardware");return 0;
     }
     if(mutation==13) {
