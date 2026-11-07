@@ -67,7 +67,8 @@ Reference Manual and keeps the answers that CPU-detection code relies on
 
 There is no FPU yet. The CPU behaves as a 386 on an AT board with an empty
 387 socket. FNSTSW and FNSTCW write FFFFh, as a tested 386DX-33 with an empty
-socket does, and EM, MP and TS raise #NM as architected
+socket does. ESC raises #NM when CR0.EM or CR0.TS is set; WAIT raises #NM only
+when both CR0.MP and CR0.TS are set. MP alone does not raise #NM
 ([design, "FPU"](../../sources/misteross/docs/i386-cpu-design.md#fpu)). DOOM
 probes for an FPU and runs without one, so no acceptance game needs it.
 
@@ -395,8 +396,11 @@ Line fills measured through the CPU path on the kit are still to do.
 
 **Self-modifying code.** Every committed store, and every DMA write, compares
 its line with the lines of the instructions in flight and the blocks the
-front end holds. A hit restarts the next instruction through the same replay
-path an uncached load uses
+front end holds. Under `coherent`, a store hit restarts the next instruction
+through the same replay path an uncached load uses. Under `queue16`, in-flight
+bytes within 16 bytes after the storing instruction keep their old values; the
+store-triggered restart waits until execution passes that 16-byte window. DMA
+writes into bytes in flight restart the next instruction under either profile
 ([design, "Prediction"](../../sources/misteross/docs/i386-cpu-design.md#prediction),
 [SMC record](../../sources/misteross/docs/validation/2026-10-29-i386-smc.md)).
 

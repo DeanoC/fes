@@ -150,5 +150,39 @@ class I386ArchitectureRuntimeDocsTests(unittest.TestCase):
         )
 
 
+class I386ArchitectureSemanticsDocsTests(unittest.TestCase):
+    def test_fpu_nm_rules_distinguish_esc_from_wait(self):
+        self.assertIn(
+            "ESC raises #NM when CR0.EM or CR0.TS is set; WAIT raises #NM only "
+            "when both CR0.MP and CR0.TS are set",
+            I386_ARTICLE,
+        )
+        self.assertIn("MP alone does not raise #NM", I386_ARTICLE)
+        self.assertNotIn("EM, MP and TS raise #NM as architected", I386_ARTICLE)
+
+    def test_self_modifying_code_rules_distinguish_profiles_and_dma(self):
+        section = I386_ARTICLE.split("**Self-modifying code.**", 1)[1].split(
+            "## Phase 4:", 1
+        )[0]
+        self.assertIn(
+            "Under `coherent`, a store hit restarts the next instruction", section
+        )
+        self.assertIn(
+            "Under `queue16`, in-flight bytes within 16 bytes after the storing "
+            "instruction keep their old values",
+            section,
+        )
+        self.assertIn(
+            "the store-triggered restart waits until execution passes that "
+            "16-byte window",
+            section,
+        )
+        self.assertIn(
+            "DMA writes into bytes in flight restart the next instruction under "
+            "either profile",
+            section,
+        )
+
+
 if __name__ == '__main__':
     unittest.main()
