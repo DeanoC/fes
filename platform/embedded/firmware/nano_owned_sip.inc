@@ -16,6 +16,7 @@ static unsigned fes_nano_mailbox_polls;
 
 #include "nano_computer_control.inc"
 #include "nano_window_control.inc"
+#include "nano_program_control.inc"
 
 static void fes_nano_owned_call(uint32_t fid, uint64_t x1, uint64_t x2,
                                 uint64_t x3, uint64_t x4, uint64_t r[4])
@@ -53,6 +54,10 @@ static void fes_nano_owned_call(uint32_t fid, uint64_t x1, uint64_t x2,
         if (fid==FES_EMBEDDED_BRIDGE_CALL) r[1]=(uint64_t)FES_EMBEDDED_BRIDGE_TAG<<32;
         goto out;
     }
+#if defined(FES_NANO_PROGRAM_ROLES) && FES_NANO_PROGRAM_ROLES
+    if (fes_nano_program_control(fid,x1,x2,x3,x4,configuration,
+            request_type != NO_REQUEST || fes_nano_configuration_busy(configuration),r)) goto out;
+#else
 #if defined(FES_NANO_WINDOW_READ_DIAGNOSTIC) && FES_NANO_WINDOW_READ_DIAGNOSTIC
     if (fes_nano_window_control(fid,x1,x2,x3,x4,configuration,
             request_type != NO_REQUEST || fes_nano_configuration_busy(configuration),r)) goto out;
@@ -60,6 +65,7 @@ static void fes_nano_owned_call(uint32_t fid, uint64_t x1, uint64_t x2,
 #if defined(FES_NANO_COLD_COMPUTER) && FES_NANO_COLD_COMPUTER
     if (fes_nano_computer_control(fid,x1,x2,x3,x4,configuration,
             request_type != NO_REQUEST || fes_nano_configuration_busy(configuration),r)) goto out;
+#endif
 #endif
     if (fid == FES_EMBEDDED_SD_CALL && x3 == FES_EMBEDDED_SD_COOKIE) {
         fes_nano_sd_sip(&fes_nano_owned_sd, x1, x2, x4,

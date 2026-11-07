@@ -18,6 +18,28 @@ Each capture clears prior role/ROM state; an uncertain capture retires it.
 The captured role is metadata for the platform's control policy, not a live
 configuration-completion or master-access proof.
 
+The owned SiP dispatcher now has a separate, default-off
+`FES_NANO_PROGRAM_ROLES` composition of the real menu and computer session
+engines. `fes_nano_program_control_activate` is a secure completion callback,
+not a request: it checks the captured role, bytes, owner/generation, complete
+configuration state, inactive healthy identity probe and live closed bridges.
+It runs before the configuration engine publishes `finished`. Only then does
+it change the active role and identity or prepare the appropriate session
+engine for a warm opening. Until that callback, a captured target leaves the
+previous role and return policy intact. An invalid activation permanently
+retires the dispatcher. Raw diagnostic probes cannot bypass selected sessions.
+
+The joined dispatcher test executes the actual owned SiP entry, C descriptor
+decoder, configuration engine, both session engines and bridge closure code.
+It covers alternating roles in both starting orders, repeated loads of each
+role, role-specific closures, completion/open/ROM/stop failures, activation
+replay, sixteen invalid activation states and six incomplete compile selections.
+Platform ownership/digest, SD-return, ROM and reader I/O are injected. This is
+not execution of the mixed-role strong cold provider or a matched board chain.
+The cold provider does not yet call the activation hook: it must first install
+the selected stop/ROM resources and prove the preceding role's complete return.
+The firmware exporter includes and hashes the new dispatcher composition.
+
 Tests run five changing-role loads through the actual C configuration and
 held-bridge engines, plus twenty rejection/retirement cases. Native Go encoding
 and private arena publication are paired with the same C decoder, including all

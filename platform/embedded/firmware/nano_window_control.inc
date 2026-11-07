@@ -7,7 +7,9 @@
 #error "window reads require sealed configuration"
 #endif
 #if defined(FES_NANO_COLD_COMPUTER) && FES_NANO_COLD_COMPUTER
+#if !defined(FES_NANO_PROGRAM_ROLES) || !FES_NANO_PROGRAM_ROLES
 #error "window and computer sessions cannot share a boot grant"
+#endif
 #endif
 /* The menu uses this same owned read-only window lifecycle, with a separate
  * compiled ABI. The opt-in cannot make a checksum source into a menu source. */

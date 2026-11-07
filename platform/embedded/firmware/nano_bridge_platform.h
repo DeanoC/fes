@@ -28,6 +28,11 @@ int fes_nano_platform_usb_setup(void);
 int fes_nano_platform_computer_rom(struct fes_nano_configuration *,uint64_t owner,uint64_t generation);
 /* Emit a saved ROM failure once, after containment; no fresh hardware reads. */
 void fes_nano_platform_computer_rom_report(void);
+/* Mixed-role firmware only. Trusted platform completion callback, under the
+ * shared lock, after installing the new stop/ROM inventory and before success.
+ * This is never an NS command or authority supplied by descriptor capture. */
+struct fes_nano_program;
+int fes_nano_program_control_activate(struct fes_nano_configuration *,const struct fes_nano_program *);
 /* Report saved first-failure observations only; never sample failed hardware. */
 void fes_nano_platform_sd_report(void);
 /* Read-only sealed pinmux observation. The weak unbound platform is not ready. */

@@ -90,7 +90,7 @@ def sources():
                             'nano_program.c','nano_program.h',
                             'nano_rom.c','nano_rom.h','nano_rom_platform.inc','generated/fes_embedded_rom.h',
                             'nano_boot.c','nano_bridges.h','nano_bridges.c','nano_bridge_platform.inc','nano_bridge_platform.h',
-                            'nano_owned_sip.inc','nano_computer_control.inc','nano_window_control.inc','prepare_nano_owned.py','prepare_tfa.py','nano_digest.py',
+                            'nano_owned_sip.inc','nano_computer_control.inc','nano_window_control.inc','nano_program_control.inc','prepare_nano_owned.py','prepare_tfa.py','nano_digest.py',
                             'nano_mailbox.py','nano_mailbox_observe.inc','nano_mailbox_observe.h','nano_mailbox_status.inc',
                             'nano_bridge_sip.c','nano_bridge_sip.h','generated/fes_embedded_bridges.h',
                             'nano_identity.c','nano_identity.h','nano_configuration.c','nano_configuration.h','nano_smmu.c','nano_smmu.h',
