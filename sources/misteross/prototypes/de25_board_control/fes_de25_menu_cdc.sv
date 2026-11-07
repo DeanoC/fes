@@ -58,8 +58,11 @@ module fes_de25_menu_cdc #(
     // Some generated masters discard Avalon response codes. An error must
     // still be observable in the native identity/status reads; do not let its
     // only physical use disappear when that optional response port is pruned.
-    assign readdata = reply_packet[32] ? 32'hffffffff : reply_packet[31:0];
-    assign response = reply_packet[32] ? 2'b10 : 2'b00;
+    // Local retirement must not write zeros/errors into the captured packet:
+    // doing so inserts a data mux on the physical crossing. Keep its bank a
+    // direct capture of the peer and select local failure only at the output.
+    assign readdata = (failed || reply_packet[32]) ? 32'hffffffff : reply_packet[31:0];
+    assign response = (failed || reply_packet[32]) ? 2'b10 : 2'b00;
     always @(posedge clk or negedge reset_n) begin
         if (!reset_n) begin
             cpu_state<=CPU_IDLE; used<=0; failed<=0; request_valid<=0;
@@ -73,7 +76,7 @@ module fes_de25_menu_cdc #(
                     used<=1;
                     if (failed || pixel_reset_seen[1] || !online_sync[1] || acknowledge_sync[1] ||
                         (read && write) || TIMEOUT_CYCLES<2) begin
-                        failed<=1; reply_packet<={1'b1,32'd0};
+                        failed<=1;
                         readdatavalid<=read; writeresponsevalid<=write;
                         cpu_state<=CPU_RETURN;
                     end else begin
@@ -84,7 +87,7 @@ module fes_de25_menu_cdc #(
                 end
                 CPU_WAIT: begin
                     if (pixel_reset_seen[1] || !online_sync[1] || timer==TIMER_BITS'(TIMEOUT_CYCLES-1)) begin
-                        failed<=1; request_valid<=0; reply_packet<={1'b1,32'd0};
+                        failed<=1; request_valid<=0;
                         readdatavalid<=pending_read; writeresponsevalid<=pending_write;
                         cpu_state<=CPU_RETURN;
                     end else if (acknowledge_sync[1]) begin

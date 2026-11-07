@@ -47,6 +47,8 @@ after use or a 1,048,576-cycle CPU timeout retires it without replay. An uncerta
 request may have executed once; neither error nor local stop releases either
 slot. Error data is `0xffffffff` as well as an Avalon error response, so failure
 remains visible even through an upstream master that discards response codes.
+Local retirement selects that error outside the captured reply bank, so local
+failure handling does not insert a data mux into the constrained crossing.
 Its separate `menu_clocks.sdc` bounds both stable packet buses and cuts
 only asynchronous first-stage/reset ingress. Existing personalities retain
 their own constraints. Physical timing, native boot selection and complete
