@@ -78,5 +78,12 @@
   "physical_HDMI_qualified": false,
   "timing_signoff": false,
   "goal_complete": false,
-  "next": "Compile both source-checked role resource sets into the existing loader/cold platform, bind active identity and master-stop/ROM policy to captured role, and join menu SD return to the real ProgramService/Tenfoot launch/return path. Then prepare a combined bounded board test."
+  "next": "Compile both source-checked role resource sets into the existing loader/cold platform, bind active identity and master-stop/ROM policy to captured role, and join menu SD return to the real ProgramService/Tenfoot launch/return path. Then prepare a combined bounded board test.",
+  "validation_complete": false,
+  "additional_planned_checks_pending": [
+    7,
+    8,
+    9,
+    10
+  ]
 }

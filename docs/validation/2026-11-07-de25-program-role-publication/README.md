@@ -38,3 +38,7 @@ master-stop/ROM policy, then join the existing menu SD-return and ProgramService
 with the real Tenfoot launch/return path. Native menu/core/menu, physical display,
 input/media/networking, broader admission and timing remain open. No board was
 programmed or card written during this step.
+
+The main native integration and cross-build evidence above is complete. Additional
+planned producer identity, board-control RTL, firmware/RTL and unfiltered Python
+checks are still running; the complete affected plan is not yet finished.
