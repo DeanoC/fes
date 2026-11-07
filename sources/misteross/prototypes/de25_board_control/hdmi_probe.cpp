@@ -82,7 +82,7 @@ struct Bus {
     }
     void assert_reset() {
         d.reset=1; d.ack_low=0; d.eval();
-        check(d.scl && d.sda && d.irq_seen,"stopped-clock reset did not release I2C and idle IRQ");
+        check(d.scl && d.sda && d.irq_seen && !d.pixel_reset_n,"stopped-clock reset did not release I2C, idle IRQ and hold pixel reset");
         active=false; bit=0; byte=0; bytes.clear(); index=0;
     }
 };
@@ -91,7 +91,11 @@ int main(int argc,char **argv) {
     Verilated::commandArgs(argc,argv);
     try {
         Bus b;
-        b.clocks(4); b.d.reset=0; b.clocks(4);
+        b.clocks(4); b.d.reset=0; b.d.eval();
+        check(!b.d.pixel_reset_n,"pixel reset deasserted without a clock");
+        b.rising(); check(!b.d.pixel_reset_n,"pixel reset bypassed its second stage");
+        b.rising(); check(b.d.pixel_reset_n,"pixel reset did not qualify after two edges");
+        b.clocks(4);
         b.qualify_irq();
         b.until([&]{return b.accepted==33 && b.d.ready;});
         check(b.rejected==1 && b.stops==34,"NACK was not retried exactly once");

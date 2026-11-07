@@ -38,6 +38,9 @@ Project preparation works without Quartus. Generation/build also recheck the
 actual exported clocks, reset/video routes and complete DDR master inventory.
 Explicit parent clock/reset bridges let generated interconnect consume the
 pixel owner; their parameters and connections are rechecked after generation.
+The HDMI control model selects the wrapper from the prepared project's inputs,
+including the menu reset export, and checks asynchronous assertion and two-edge
+pixel reset release alongside its interrupt and I2C failure controls.
 
 The CPU/pixel crossing uses one four-phase request and coherent reply. Reset
 after use or a 1,048,576-cycle CPU timeout retires it without replay. An uncertain

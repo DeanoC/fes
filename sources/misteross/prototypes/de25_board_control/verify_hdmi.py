@@ -9,11 +9,13 @@ import shutil
 import subprocess
 
 import hdmi_control
+import menu_transport
 
 HERE=Path(__file__).resolve().parent
 ROOT=HERE.parents[3]
 WRAPPER='''module hdmi_control_model(input wire clk, reset, raw_irq, ack_low,
     output wire scl, sda, ready, irq_seen, master_sda_release, controller_clk,
+    output wire pixel_reset_n,
     output wire [5:0] phase);
     tri1 bus;
     assign bus = ack_low ? 1'b0 : 1'bz;
@@ -28,6 +30,7 @@ WRAPPER='''module hdmi_control_model(input wire clk, reset, raw_irq, ack_low,
     assign master_sda_release = dut.hdmi_config.u0.SDO;
     assign controller_clk = dut.hdmi_config.mI2C_CTRL_CLK;
     assign phase = dut.hdmi_config.u0.SD_COUNTER;
+    assign pixel_reset_n = dut.pixel_reset_n;
 endmodule
 module sys_pll(input wire refclk,rst,output wire outclk_0,locked);
     assign outclk_0=refclk;
@@ -50,12 +53,15 @@ def main():
     if shutil.disk_usage(ROOT).free<30*(1<<30):parser.error('30 GiB free required')
     if args.yosys is None:parser.error('Yosys required for vendor process synthesis')
     original=subprocess.check_output(['git','show','79d616e85e19d65f0d645b67a85ffe7e142dcdfc:'+hdmi_control.BOARD_SOURCE],cwd=ROOT)
-    local=project/'fes_mailbox';expected=hdmi_control.board(original)
+    inputs=json.loads((project.parent/'inputs.json').read_text())
+    menu=menu_transport.enabled(inputs)
+    menu_transport.parameters(inputs)
+    local=project/'fes_mailbox';expected=hdmi_control.board(original,menu)
     if (local/'board.v').read_bytes()!=expected:parser.error('project IRQ board does not match reviewed derivation')
     original_config=local/'I2C_HDMI_Config.v.original'
     if (local/'I2C_HDMI_Config.v').read_bytes()!=hdmi_control.configuration(original_config.read_bytes()):
         parser.error('project initializer does not match reviewed busy handshake')
-    files=[HERE/'hdmi_control.py',Path(__file__),HERE/'hdmi_probe.cpp',local/'board.v',local/'I2C_HDMI_Config.v',original_config,local/'I2C_Controller.v',local/'fes_de25_top_reset.v']
+    files=[HERE/'hdmi_control.py',HERE/'menu_transport.py',Path(__file__),project.parent/'inputs.json',HERE/'hdmi_probe.cpp',local/'board.v',local/'I2C_HDMI_Config.v',original_config,local/'I2C_Controller.v',local/'fes_de25_top_reset.v']
     source_hashes={str(p):sha(p) for p in files}
     out.mkdir(parents=True);commands=[]
     # Vendor clocked blocks use blocking assignments across processes. Direct
@@ -73,7 +79,8 @@ def main():
     for label in ('positive','raw-irq','stale-completion'):
         negative=label!='positive';case=out/label;case.mkdir()
         netlist=Path(synthesized['stale-completion' if label=='stale-completion' else 'qualified']['netlist'])
-        (case/'model.v').write_text(WRAPPER)
+        wrapper=WRAPPER.replace('.pixel_clk(),','.pixel_clk(),.pixel_reset_n(),') if menu else WRAPPER
+        (case/'model.v').write_text(wrapper)
         (case/'board.v').write_bytes(expected.replace(b'.HDMI_TX_INT(hdmi_irq_sync[1])',b'.HDMI_TX_INT(HDMI_TX_INT)') if label=='raw-irq' else expected)
         argv=['verilator','--cc','--exe','--build','-j','2','-Wall',
               '-Wno-DECLFILENAME','-Wno-PINCONNECTEMPTY','-Wno-PINMISSING','-Wno-UNUSEDSIGNAL',
@@ -96,7 +103,7 @@ def main():
         elif result.returncode or b'accepted=99 nacks=1' not in result.stdout:
             raise ValueError('HDMI model failed: '+str(case/'execute.log'))
     if any(sha(p)!=digest for p,digest in source_hashes.items()):raise ValueError('HDMI model sources changed')
-    record=dict(status='passed',scope='Actual board/reset RTL and Yosys process-synthesized captured I2C circuit; resolved open-drain slave model, digital PLL stub; no Quartus circuit equivalence, physical electrical/timing or metastability proof',source_sha256=source_hashes,commands=commands,yosys_sha256=sha(args.yosys),synthesized=synthesized,initializer_busy_handshake_modified=True,vendor_byte_controller_modified=False,register_table_unchanged=True,IRQ_consumer_bypass_negative_failed=True,stale_completion_negative_failed=True,hardware_actions=False)
+    record=dict(status='passed',scope='Actual board/reset RTL and Yosys process-synthesized captured I2C circuit; resolved open-drain slave model, digital PLL stub; no Quartus circuit equivalence, physical electrical/timing or metastability proof',menu_pixel_reset_export=menu,source_sha256=source_hashes,commands=commands,yosys_sha256=sha(args.yosys),synthesized=synthesized,initializer_busy_handshake_modified=True,vendor_byte_controller_modified=False,register_table_unchanged=True,IRQ_consumer_bypass_negative_failed=True,stale_completion_negative_failed=True,hardware_actions=False)
     (out/'result.json').write_text(json.dumps(record,indent=2)+'\n')
     print('PASS HDMI startup, NACK retry, IRQ reinit and stopped-clock reset; raw IRQ and stale completion negatives rejected:',out)
 
