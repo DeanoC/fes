@@ -31,3 +31,20 @@ The continuing claim and spare may remain under the factory-restoration waiver.
 Original card and bottom kit stay untouched. No physical input is required.
 This serial diagnostic grants no physical HDMI, actual App/core/menu cycle,
 ordinary package admission or full platform/timing qualification.
+
+The one physical attempt passed on TRWU8CBL: two verified uploads and two fresh
+SD readbacks, native boot/configuration and complete memory-route admission,
+three real Tenfoot frames in slots 0/1/0 with zero reported underflows, local
+drain and independent firmware master-stop/closure at generation 7/reset `f`.
+Independent host cleanup passed: exact USB permissions, 15 MHz readback, owned
+server gone and UART free. The arena remains pinned; top kit is parked under
+the continuing claim. Original factory card and bottom kit were untouched.
+
+Presentations took 1,116,790 / 1,195,141 / 1,199,283 microseconds,
+versus 1,250,953 / 1,325,775 / 1,325,714 for the hashing control. The mean speed
+ratio is 1.111; the menu interval was 5.093 seconds. Buffered exact
+comparison is retained for this bounded scope. This modest improvement does not
+establish interactive throughput, physical HDMI or full App/core/menu acceptance.
+[result.json](result.json) records the consumed attempt. Next integrate owned SD
+return and rearming; do not continue small performance trials at the expense of
+the real application lifecycle.
