@@ -28,3 +28,23 @@ and bottom kit stay untouched. No physical controller action is required.
 
 This remains a serial diagnostic, with no physical HDMI, ordinary package
 admission, timing signoff or complete menu/core/menu acceptance.
+
+The single physical attempt passed on TRWU8CBL. Both writes and fresh SD
+readbacks were verified. Native boot/configuration and full 8 MiB route gates
+passed; all three Tenfoot frames were acknowledged in slots 0/1/0 with sequences
+1/2/3 and zero reported underflows. Local stop/drain completed, followed by
+independent firmware master-stop and bridge closure at generation 7/reset `f`.
+The arena remains pinned. Configuration took 12.363 seconds; the menu open to
+secure closure interval was 14.811 seconds.
+
+Frame presentations took 3.760, 3.843 and 3.838 seconds, including the native
+full-arena checks. This is too slow for an interactive launcher and is the next
+performance investigation. The serial acknowledgements establish the bounded
+reader path; they do not establish physical HDMI output or a full application
+menu/core/menu cycle. See [result.json](result.json).
+
+Independent host cleanup passed after the terminal result: exact USB permissions,
+15 MHz readback, owned private server gone and UART free. The top board is left
+with the returned diagnostic and retained arena under the continuing claim.
+No factory restore was requested; the factory card and bottom kit remain
+untouched. The successful attempt is consumed and cannot be replayed.
