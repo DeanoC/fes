@@ -62,6 +62,53 @@ class RecoveryReturnTests(unittest.TestCase):
             trace.check_phy_sources(source, record, phy, recovery)
             with self.assertRaises(ValueError): trace.prepare(source)
 
+    @unittest.skipUnless(shutil.which('cc'), 'host C compiler required')
+    def test_actual_header_drives_millisecond_busy_drain_regression(self):
+        # The existing operation-equivalence fixture deliberately models the
+        # intended 100-ms limit. This regression also injects the actual header
+        # value, which exposed the vendor's 100000-ms mismatch on hardware.
+        with tempfile.TemporaryDirectory() as d:
+            directory=Path(d); source=directory/'source'; fixture(source)
+            before={n:(source/n).read_text() for n in trace.PINNED}
+            trace.prepare(source)
+            after={n:(source/n).read_text() for n in trace.PINNED}
+            self.assertEqual(before['drivers/net/dwc_eth_xgmac.c'].count('XGMAC_TIMEOUT_100MS'),4)
+            self.assertEqual(before['drivers/net/dwc_eth_xgmac.c'].count('get_timer(start_time) < XGMAC_TIMEOUT_100MS'),3)
+            self.assertIn('XGMAC_TIMEOUT_100MS, true',before['drivers/net/dwc_eth_xgmac.c'])
+            results=[]
+            for index,files in enumerate((before,after)):
+                driver=files['drivers/net/dwc_eth_xgmac.c']; start=driver.index('static void xgmac_stop(')
+                (directory/'stop.inc').write_text(driver[start:driver.index('\nstatic int xgmac_send(',start)])
+                net=files['net/net.c']; start=net.index('\t\tcase NETLOOP_SUCCESS:'); end=net.index('\t\tcase NETLOOP_FAIL:',start)
+                done=net.index('done:\n',end); tail=net[done:net.index('\n}',done)+2]
+                (directory/'success.inc').write_text('static int net_loop(enum proto_t protocol)\n{\nint ret=0;\nswitch (NETLOOP_SUCCESS) {\n'+net[start:end]+'}\n'+tail+'\n')
+                command=files['cmd/net.c']; start=command.index('\tsize = net_loop(proto);'); end=command.index('\n}',start)+2
+                (directory/'command.inc').write_text('static int command_under_test(enum proto_t proto)\n{\nint size, rcode=0; struct cmd_tbl table={0}; struct cmd_tbl *cmdtp=&table; char *argv[]={"tftpboot"};\n'+command[start:end]+'\n')
+                definition=re.search(r'^#define XGMAC_TIMEOUT_100MS\s+(\d+)$',files[trace.TIMEOUT_HEADER],re.M)
+                self.assertIsNotNone(definition)
+                harness=(ROOT/'platform/embedded/firmware/tests/nano_recovery_return_test.c').read_text()
+                literal='#define XGMAC_TIMEOUT_100MS 100\n'
+                self.assertEqual(harness.count(literal),1)
+                harness=harness.replace(literal,'#define XGMAC_TIMEOUT_100MS '+definition[1]+'\n')
+                c=directory/'actual-header.c'; c.write_text(harness); executable=directory/('actual-header-'+str(index))
+                subprocess.run(['cc','-std=c11','-Wall','-Wextra','-Werror','-fsanitize=undefined','-fno-sanitize-recover=all',
+                    '-I',str(directory),str(c),'-o',str(executable)],check=True,capture_output=True,timeout=30)
+                runs={}
+                for mode in (0,1):
+                    runs[mode]=subprocess.run([str(executable),str(mode),'0'],check=True,capture_output=True,text=True,timeout=5).stdout
+                results.append(runs)
+            # get_timer advances one modeled millisecond per call. Permanently
+            # busy TX and RX queues must stop waiting within two 100-ms budgets.
+            elapsed=lambda text:int(re.search(r'ticks=(\d+)',text)[1])
+            self.assertGreater(elapsed(results[0][1]),90000)
+            self.assertLessEqual(elapsed(results[1][1]),202)
+            self.assertEqual(elapsed(results[0][0]),elapsed(results[1][0]))
+            for runs in results:
+                for output in runs.values():self.assertIn('dma=0/0 mac=0/0',output)
+            # Expiry still follows the original disable sequence; it is not
+            # evidence that the modeled nonempty queues became idle.
+            self.assertTrue(trace.decode(results[1][1])['complete'])
+
     def test_foreign_originals_reject_before_any_write(self):
         for name in trace.PINNED:
             with self.subTest(name=name), tempfile.TemporaryDirectory() as d:

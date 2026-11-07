@@ -5,16 +5,29 @@ trace package checker independently resolve `/chosen/stdout-path` through its
 alias in both compiled U-Boot and FIT device trees, requiring that enabled port,
 four-byte access and register shift two. `serial0` is an alias to UART1 on this
 board. The initial v1 diagnostic incorrectly targeted UART0; its physical trace
-is invalid and its installed spare-card state needs an explicitly bound repair.
+is invalid and required an explicitly bound repair. The UART1 repair passed;
+the later complete-launch test then stopped between receive-drain observations.
+The corrected 100-ms profile below still needs a new bound repair and hardware
+test against the currently installed recovery image.
 The UART update/readbacks passed, but no network/core-load result is admitted
 from that diagnostic. The old attempt must not be replayed.
 
 The explicit `build_terasic_uboot.py --network-recovery --network-return-trace`
-selection adds 34 ordered UART observations around successful TFTP return:
+selection corrects `XGMAC_TIMEOUT_100MS` from 100000 to 100 for its four
+millisecond-based API callers and adds 34 ordered UART observations around
+successful TFTP return. This functional correction is explicit in the v2
+profile identity; source inversion restores both the original constant and
+observation-free inputs. Register operations and the 90-second host transfer
+deadline remain unchanged. Earlier trace packages are historical bootstrap/
+repair inputs and fail current profile admission. Hardware qualification of
+this correction remains open.
+
+The observations cover
 the transfer-count print, environment updates, Ethernet/XGMAC/PHY stop, net-loop
 return and command completion. The source transform reconstructs the pinned
 network inputs and existing PHY preparation exactly. It retains the vendor
-operations and drain-loop bounds; a returned drain loop does not prove idle DMA.
+operations and intended 100-ms drain budget; a returned drain loop does not
+prove idle DMA.
 The UART helper uses at most 100,000 polls per wait and 96 bytes per string,
 then parks on uncertainty. Host execution compares actual vendor return/stop
 blocks before and after instrumentation and checks stalled UART/partial traces.

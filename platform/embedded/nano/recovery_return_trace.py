@@ -1,7 +1,8 @@
 """Explicit, source-pinned recovery return observations; no device operations.
 
-This layer applies after the existing PHY preparation. Removing its insertions
-must reproduce those exact inputs, including every original stop and deadline.
+This layer applies after the existing PHY preparation. Its explicit profile
+corrects the vendor 100-ms constant used by four millisecond APIs, then adds
+observations. Inverting both changes must reproduce those exact pinned inputs.
 Markers mean a call boundary returned, never that DMA or a PHY is drained.
 """
 import hashlib
@@ -13,8 +14,16 @@ PINNED = {
     'net/net.c': 'f8056812c01bb023db647ce64abbd26777bac7764d4549c86d0f0de0e24b1c32',
     'cmd/net.c': '692965784e07e1e6bb778a69bdbeba7501a4f6a5c0a2e223bb3af680ba14d8ea',
     'drivers/net/dwc_eth_xgmac.c': 'b218457648a285165c88873eba16cc770ba1f16055b9aed1355224c7a1ecbe47',
+    'drivers/net/dwc_eth_xgmac.h': '6a078052945d3106cabc4c141c274307844442b0aea75101bda411d30306386b',
     'net/Makefile': '194e96537ba13c38c4485c640202ddd3ca50c4ecf2e663107120c75441e935bc',
 }
+SCOPE = 'recovery-return-observations-100ms-v2'
+TIMEOUT_HEADER = 'drivers/net/dwc_eth_xgmac.h'
+TIMEOUT_PATCH = (
+    '#define XGMAC_TIMEOUT_100MS\t\t\t100000\n',
+    '/* get_timer() and wait_for_bit_le32() consume milliseconds. */\n'
+    '#define XGMAC_TIMEOUT_100MS\t\t\t100\n',
+)
 HEADER_PATH = 'include/fes_recovery_return_trace.h'
 HELPER_PATH = 'net/fes_recovery_return_trace.c'
 HEADER = '''/* SPDX-License-Identifier: GPL-2.0+ */
@@ -180,19 +189,20 @@ def prepare(source):
     changed = {'net/net.c': _apply(original['net/net.c'], NET_PATCHES),
                'cmd/net.c': _apply(original['cmd/net.c'], CMD_PATCHES),
                'drivers/net/dwc_eth_xgmac.c': _driver(original['drivers/net/dwc_eth_xgmac.c']),
+               TIMEOUT_HEADER: _apply(original[TIMEOUT_HEADER], [TIMEOUT_PATCH]),
                'net/Makefile': original['net/Makefile'] + SUFFIX,
                HEADER_PATH: HEADER, HELPER_PATH: HELPER}
     for name, text in changed.items():
         (source / name).parent.mkdir(parents=True, exist_ok=True)
         (source / name).write_text(text)
-    return dict(scope='recovery-return-observations-v1', originals=dict(PINNED),
+    return dict(scope=SCOPE, originals=dict(PINNED),
                 prepared={n: hashlib.sha256(t.encode()).hexdigest() for n, t in changed.items()})
 
 
 def reconstruct(source, record):
     names = set(PINNED) | {HEADER_PATH, HELPER_PATH}
     if (not isinstance(record, dict) or set(record) != {'scope', 'originals', 'prepared'} or
-            record['scope'] != 'recovery-return-observations-v1' or record['originals'] != PINNED or
+            record['scope'] != SCOPE or record['originals'] != PINNED or
             not isinstance(record['prepared'], dict) or set(record['prepared']) != names):
         raise ValueError('recovery return receipt differs')
     actual = _read(source, names)
@@ -203,6 +213,7 @@ def reconstruct(source, record):
     original = {'net/net.c': _apply(actual['net/net.c'], NET_PATCHES, True),
                 'cmd/net.c': _apply(actual['cmd/net.c'], CMD_PATCHES, True),
                 'drivers/net/dwc_eth_xgmac.c': _driver(actual['drivers/net/dwc_eth_xgmac.c'], True),
+                TIMEOUT_HEADER: _apply(actual[TIMEOUT_HEADER], [TIMEOUT_PATCH], True),
                 'net/Makefile': actual['net/Makefile'][:-len(SUFFIX)]}
     if any(hashlib.sha256(t.encode()).hexdigest() != PINNED[n] for n, t in original.items()):
         raise ValueError('recovery return source does not reconstruct pinned input')
@@ -215,7 +226,8 @@ def check_phy_sources(source, record, phy_record, recovery):
     original = reconstruct(source, record)
     names = set(recovery.PINNED_PHY_SOURCES) | {'cmd/fes_nano_phy.c'}
     actual = _read(source, names)
-    actual['drivers/net/dwc_eth_xgmac.c'] = original['drivers/net/dwc_eth_xgmac.c']
+    for name in names & original.keys():
+        actual[name] = original[name]
     with tempfile.TemporaryDirectory(prefix='fes-recovery-return-inverse-') as directory:
         for name, text in actual.items():
             p = Path(directory) / name
