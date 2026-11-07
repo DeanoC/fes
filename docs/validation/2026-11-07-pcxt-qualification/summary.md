@@ -5,7 +5,7 @@ objectives and reference were published in [selection.md](selection.md),
 commit `cf7f07a0e`, before the first kit run. Hashes and measurements are in
 [kit-runs.json](kit-runs.json). Nothing from the games is committed.
 
-All runs used Kit B. Kit A was held by Lander's #1490 restore all day.
+All runs used Kit B: `s1` 14:32–15:03, `s2` 15:22–15:54 and `s3` 18:23–18:58 EET. Kit A was held by Lander's #1490 restore all day. Between `s2` and `s3`, Deano power-cycled Kit B for the Atari ST session. That was not part of this qualification.
 
 ## Result
 
@@ -15,9 +15,10 @@ All runs used Kit B. Kit A was held by Lander's #1490 restore all day.
 | Library Save, Stop, relaunch, readback | **PASS**: marker read back; saved image differs from its base only in the expected sectors | `s1` |
 | Unsaved write, then Stop and relaunch | **PASS** against the documented policy: Stop saves a bound disk, so the file survives | `s1` |
 | Raw (unbound) insert: write, then Save | **PASS**: Save is refused (409) and the write is gone after relaunch | `s1` |
-| Paratrooper (`.COM`), 2 × 10 min | ROW_PARA | `s1`, RUN2_PARA |
-| Alley Cat (`.EXE`), 2 × 10 min | ROW_CAT | `s2`, RUN2_CAT |
-| Rogue (large `.EXE`, game save), 2 runs | ROW_ROGUE | ROGUE_RUNS |
+| Paratrooper (`.COM`), 2 × 10 min | **PASS**: both runs play through repeated game overs and restarts, scores up to 52 and 57 | `s1`, `s3` |
+| Alley Cat (`.EXE`), 2 × 10 min | **PASS** for movement, jumps, lives lost and restarts; **INCONCLUSIVE** for the window objective, which the scripted input never reached (nor in MAME) | `s2`, `s3` |
+| Rogue, play | **FAIL**: the dungeon map never draws, so the stairs objective can't be reached ([#1537](https://github.com/DeanoC/fes/issues/1537)); MAME draws it | `s3` |
+| Rogue, game save and restore across a relaunch | **PASS** | `s3` |
 | Game speed against MAME `ibm5150` | **PASS**: Paratrooper helicopters 72.8–72.9 vs 72.8 CGA px/s; Alley Cat's title tune has the same note timing | `s1`, `s2` |
 | Speaker pitch against MAME | **PASS**: Paratrooper's main tones agree within 0.2 cents; Alley Cat has the same tone set | `s1`, `s2` |
 | Guest reset (Ctrl+Alt+Del) | **FAIL**: the machine hangs; the next library launches warm-boot and can't boot the floppy ([#1534](https://github.com/DeanoC/fes/issues/1534)) | `s2` |
@@ -129,7 +130,28 @@ On the Paratrooper disk, bound as library game `xt1529-para`:
    - Every other sector is byte-identical. File dates read 1980-01-01,
      because the XT has no clock.
 
-ROGUE_SAVE_PLACEHOLDER
+## Game save across a relaunch: Rogue (`s3`)
+
+On the Rogue disk, bound as `xt1529-rogue`:
+
+1. **Save.** `ROGUE`, the name `fes` and three moves. A snake `S` and an item
+   were then in view next to the player.
+2. `Shift+S` gave "Save file (press enter to default to "rogue.sav")". Enter
+   saved and quit to DOS. `DIR` showed `ROGUE.SAV`, 40 448 bytes.
+3. **Library Save, Stop and relaunch.** The library Save took 4.02 s.
+4. **Restore.** `ROGUE ROGUE.SAV` printed "Hello fes, Welcome back to the
+   Dungeons of Doom!". The snake, the item and the player were in the same
+   places, and the status line was identical.
+5. **Whole saved image after the restore.** Rogue deletes its save file when
+   it restores it.
+   - The pulled record (`e1542dd1…`, envelope and checksum valid) holds a
+     deleted root entry `?OGUE.SAV` (`E5`), cluster 233, size 40 448.
+   - Both FATs are back to the base bytes, and the save's data clusters are
+     still on the disk.
+   - Only the root-directory sector and the save's data sectors differ from
+     the base.
+
+**PASS.**
 
 ## Games
 
@@ -161,7 +183,44 @@ ROGUE_SAVE_PLACEHOLDER
   window part of the objective is **INCONCLUSIVE**: the scripted input
   couldn't steer it. The life-lost-and-resume part is met.
 
-RUN2_AND_ROGUE_PLACEHOLDER
+**Paratrooper, run 2 (`s3`).**
+- A fresh library binding (`xt1529-para2`) and the restart-aware script with
+  another seed: 10 minutes.
+- Grabs show scores of 13, 57, 30, 2 and 16, with a high score of 57, and
+  several game overs and restarts.
+- Its clip gives helicopter speeds of 72.78 and 72.97 CGA px/s, from 22
+  tracks over 3600 frames.
+- Its main speaker tones are 1380.97, 920.72, 329.61 and 439.98 Hz, sounding
+  in 39.3% of windows.
+- **PASS.**
+
+**Alley Cat, run 2 (`s3`).**
+- A fresh binding (`xt1529-cat2`): 10 minutes of the same kind of play with
+  another seed.
+- Lives were lost and restored, and new games started. No window was
+  entered.
+- Movement, deaths and restarts **PASS**. The window objective stays
+  **INCONCLUSIVE**.
+
+**Rogue (`s3`).**
+- **What draws.** `ROGUE`, then the name: the welcome line, the status line
+  and the clock box. The inventory, the save prompt, the player, a snake
+  and an item draw too.
+- **What doesn't draw.** Room walls, floor and corridors never appear. That
+  holds after Ctrl+R and after runs in every direction. Apart from those
+  glyphs, every pixel of the captured map area is 0.
+- **MAME.** Given the same keystrokes, MAME draws the lit start room at once.
+- **Result.** The game can't be steered to its stairs, so the play
+  objective is a **FAIL**. Only one play run was made. It is filed as
+  [#1537](https://github.com/DeanoC/fes/issues/1537).
+- **CGA status-port probe.** A 130-byte probe (`CGASTAT.COM`, built with
+  NASM; hash in `kit-runs.json`) polls port 3DAh 65 535 times.
+  - Vertical sync runs at about 60 Hz on both.
+  - The IN-heavy loop takes 39.7 µs per iteration on the kit against
+    23.5 µs in MAME.
+  - Bit 0 is set in 43% of the kit's reads against 6.8% of MAME's. MAME's
+    bit 0 is coarse.
+  - These figures are recorded in #1537 as data, not as a diagnosis.
 
 ## Speed and sound against MAME
 
@@ -264,3 +323,23 @@ This is recorded apart from play and filed as
   with #835, and nextpnr timing stays advisory under #840. Physical ISA is
   separate.
 - **Sopwith.** It was listed as optional and was not run.
+- **A second Rogue play run.** It was not made, because the map defect blocks
+  the play objective.
+
+## Kit use and cleanup
+
+Each run was claimed in `~/kit-status/kitB-STATUS.md` under the Kit B queue
+lock, and only after the status file read FREE, the kit was on its baseline
+and the agent was idle with a free lease.
+
+- Each release checked that the software was `a8cd30c4` active with nothing
+  pending, the image was good `f904961e` and nothing was pending, the
+  `usb-storage` quirk line was present, the boot ID and snapshot keys were
+  unchanged, and the agent was idle with a free lease.
+- At the end of `s3`, still inside its claim, the machine was stopped and the
+  7 record directories made by these runs were removed (game IDs
+  `xt1529-*`, found by their record headers). `s3`'s new-path list is empty.
+- No software was installed, the image was not changed, and no reboot was
+  made.
+- The last PC/XT launch was a normal cold boot, so the next PC/XT user does
+  not start from the #1534 warm-boot state.

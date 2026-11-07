@@ -327,8 +327,26 @@ was visible, but its active-game observation failed. A later
 same selected package: DOS, COM and floppy readback passed, Digger's player
 changed facing after one guarded left input, and the captured speaker signal
 changed across three F9 windows. Deano found a listening excerpt identifiable
-and acceptable, without an original-audio reference. Sustained gameplay,
-power-cycle persistence and external interface timing remain unassessed.
+and acceptable, without an original-audio reference.
+The [7 November qualification](validation/2026-11-07-pcxt-qualification/summary.md)
+(#1529, Kit B) reused the same package, selected for main `607922c63`. It
+compared the kit against MAME `ibm5150`, and its results are partial:
+- **Passes.**
+  - Paratrooper and Alley Cat ran in sustained 10-minute sessions.
+  - Paratrooper's helicopter speed matched MAME within 0.1%, its speaker
+    tones within 0.2 cents, and Alley Cat's title-tune timing within 5 ms.
+  - Library Save and relaunch readback passed, with the whole saved image
+    differing from its base only in the expected FAT, directory and data
+    sectors. Rogue's own save and restore across a relaunch also passed.
+  - Stop saves a bound disk; a raw insert stays volatile.
+- **Fails.**
+  - Ctrl+Alt+Del hangs the machine, and later library launches warm-boot
+    into "Disk Boot Fail" until a launch with no floppy
+    ([#1534](https://github.com/DeanoC/fes/issues/1534)).
+  - Rogue's dungeon map never draws
+    ([#1537](https://github.com/DeanoC/fes/issues/1537)).
+- **Not run.** Menu selection through tenfoot, a cold power cycle and
+  external interface timing remain unassessed.
 The [reviewed 29 October Quartus diagnostic](validation/2026-10-29-pcxt-quartus-package/review-followup.json)
 passes three seeds and a byte-identical independent rebuild at producer `38ef151bfa`.
 Independent review found four package/acceptance defects, now fixed and re-reviewed.

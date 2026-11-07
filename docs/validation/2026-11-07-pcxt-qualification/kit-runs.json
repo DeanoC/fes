@@ -287,5 +287,79 @@
   "menu_selection_tenfoot": "shared host paired with Kit A (held all day) and has no fes.pcxt-dos entry; adding one is permanent",
   "cold_power_cycle": "needs Deano OK",
   "sopwith": "optional, not run"
+ },
+ "s3": {
+  "claimed": "2026-11-07 18:23 EET",
+  "released": "2026-11-07 18:58 EET",
+  "kit_new_paths_after_cleanup": 0,
+  "note": "Kit B agent generations restarted (9, 10, ...) after Deano power-cycled Kit B at ~17:00 for the ST session; not part of this qualification",
+  "rogue": {
+   "game_id": "xt1529-rogue",
+   "play": "fail: dungeon map never drawn (walls, floor, corridors); text, status line, player, monsters draw; MAME draws the room (#1537)",
+   "save_restore": "pass: ROGUE.SAV 40448 B written, library Save 4.02 s, Stop, relaunch, ROGUE ROGUE.SAV -> \"Welcome back\", same positions and status line",
+   "record_after_restore_sha256": "e1542dd19bdeb5e49b3c5a1b8049a6baff9f73e2cc3610211803e96d88c6801e",
+   "record_after_restore": "root entry E5 OGUE.SAV cluster 233 size 40448 (deleted by Rogue on restore); FATs equal to base; only root sector and save data sectors differ",
+   "frames_sha256": {
+    "g-l1.png": "3b4ec82fbd58eb66894ccd3707ae489d619426969c029ea75670a06e19fcfb13",
+    "m1.png": "5fe1079057fe52685b99aaa7999150f30ed56c075ffdfa3fc5b8d17088c9042c",
+    "m2.png": "cbb3e88a3f606120f5d6a4a638f27475370c4a1436cb075a0074782c68c04e19",
+    "m4.png": "6ed1d47caa02d3fc26d2b0b1b259866886f44297c40c7aae562a319a0a4bbf50",
+    "m3-redraw.png": "7ac125759bbb969ee41cbc0ec5ef06442be9cc1b94c8ae100b11f445ba0972e7",
+    "cs.png": "f3ad3c880dc5040bebafe88d1fffb8d05d6cb05b4eb76fefacd8f6b0690d4c96",
+    "cs2.png": "4c4d460418c501c54ebc873ea4592bf06f8a01bb26e9be79a12f47d4820f0e99",
+    "0002.png": "1d4556f334203de3561774f33f51a02cb596cfa1919c014323d9f893a6f2c72e",
+    "CGASTAT.COM": "a660ad994694d76f864973f5122a5730fc379cc85e04cfd23cc809c2cc2287a9",
+    "cgastat.asm": "ff79db963bcf1b1361a5812734d7bbdb21cdf91fd1577642a1a3933c6ef652e0",
+    "rogueprobe.img": "397bcd4d7a27797d4a67df800f0be0ca35207e967e6cfa8c480e63a655f87edd"
+   }
+  },
+  "cgastat_probe": {
+   "com_sha256": "a660ad994694d76f864973f5122a5730fc379cc85e04cfd23cc809c2cc2287a9",
+   "source": "nasm 2.16.03, cgastat.asm",
+   "kit": [
+    "6D16 013A 71F0 0DCE 0030",
+    "6964 013A 7003 0DB7 002F"
+   ],
+   "mame": "03A6 00BC 1153 0FDC 001C",
+   "reading": "vsync ~60 Hz on both; IN-heavy loop 39.7 us/iter kit vs 23.5 us MAME; bit0 set 43% kit vs 6.8% MAME (MAME bit0 coarse)"
+  },
+  "paratrooper_run2": {
+   "game_id": "xt1529-para2",
+   "script": "para_play2.py 620 22",
+   "scores_seen": [
+    13,
+    57,
+    30,
+    2,
+    16
+   ],
+   "hi_score": 57,
+   "result": "pass",
+   "clip_sha256": "b73590218b1f73c9c2a171059dc808079e5ebc2cab153f0d725b756e92351b7d",
+   "audio_sha256": "d872875d19dca4b4e47d72e65e70ee2a761493c926c230e5fcdf4c1051cec959",
+   "helicopter_speed_cga_px_s": [
+    72.78,
+    72.97
+   ],
+   "tones_hz": {
+    "1377": 1380.97,
+    "919": 920.72,
+    "330": 329.61,
+    "440": 439.98
+   },
+   "sounding_fraction": 0.393
+  },
+  "alley_cat_run2": {
+   "game_id": "xt1529-cat2",
+   "script": "cat_play.py 620 23",
+   "result": "movement, jumps, lives lost and restarts; no window entered",
+   "clip_sha256": "605142a25608cb5cb97b70c687601850907715e38cff06ba0c5f8c1670a7c620",
+   "audio_sha256": "96e7ed5cdedda13a216a65cd2d058a917494a3bf856c80f99aa4f6d64757e8fe"
+  },
+  "cleanup": "7 record trees of game ids xt1529-* removed inside the claim after Stop; listed in removed-records.txt"
+ },
+ "issues_filed": {
+  "1534": "Ctrl+Alt+Del hang, then warm-boot Disk Boot Fail on library relaunch",
+  "1537": "Rogue dungeon map never draws"
  }
 }
