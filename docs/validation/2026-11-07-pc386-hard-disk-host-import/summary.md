@@ -27,9 +27,9 @@ override, and a Kit A boot of each imported disk.
 - **The override reaches the kit.** Relaunched with a 40/16/63 override, the
   CLI entry booted the kernel. FreeCOM then failed with "Error reading from
   drive C:" ([frame](override-40-dos-error.png)), because the CHS geometry
-  now ends halfway through the partition. The BIOS still listed the drive as
-  39 MBytes ([frame](override-40-bios.png)), since it sizes the disk from the
-  LBA sector count rather than CHS.
+  now ends halfway through the partition. The BIOS line still read
+  39 MBytes ([frame](override-40-bios.png)), so its size line does not follow
+  the CHS override.
 
 ## Inputs
 
