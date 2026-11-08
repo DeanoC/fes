@@ -805,7 +805,7 @@ C2XX_KEYS = 'abcdefghijklmnopq'
 BOOT_MENU_KEY_SECONDS = 1.2
 # EMSTEST.COM's checks in the order it runs them (sim/ems_test.asm).
 EMS_CHECKS = ('detect', 'frame', 'counts', 'allocate', 'pattern', 'alias', 'unmap', 'save', 'multiple', 'realloc',
-              'names', 'move', 'errors', 'free', 'DONE')
+              'names', 'move', 'errors', 'os', 'free', 'DONE')
 
 
 def run_ems(args, linked: list[Path]) -> dict:

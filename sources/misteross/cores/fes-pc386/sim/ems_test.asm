@@ -23,6 +23,10 @@
 ;             overlapping expanded move (92h, data correct) and an exchange
 ;   errors    83h for a bad handle, 8Ah for a page past the end, 87h for more
 ;             pages than the board, 84h for function 55h
+;   os        5Dh hands out a key on its first call and 01h then refuses 59h
+;             and 5Bh (A4h) until 00h with the key; 5B01h's save area comes
+;             back from 5B00h with the current map in it; 02h takes the key
+;             back
 ;   free      45h returns every page
 ;
 ; Assemble: nasm -f bin -o EMSTEST.COM ems_test.asm. 386 code.
@@ -504,10 +508,94 @@ errors: mov si, n_errors
         cmp ah, 0x84
         jne .bad
         call ok
+        jmp os
+.bad:   call fail
+
+; ---- os
+os:     mov si, n_os
+        call begin
+        mov byte [step], 1
+        mov ax, 0x5d01                  ; first call: the key, and disabled
+        int 0x67
+        test ah, ah
+        jnz .bad
+        mov [key], bx
+        mov [key + 2], cx
+        mov byte [step], 2
+        push ds
+        pop es
+        mov di, buffer
+        mov ax, 0x5900
+        int 0x67
+        cmp ah, 0xa4
+        jne .bad
+        mov byte [step], 3
+        mov ax, 0x5d00                  ; a wrong key is refused
+        mov bx, [key]
+        mov cx, [key + 2]
+        inc cx
+        int 0x67
+        cmp ah, 0xa4
+        jne .bad
+        mov byte [step], 4
+        mov ax, 0x5d00
+        mov bx, [key]
+        mov cx, [key + 2]
+        int 0x67
+        test ah, ah
+        jnz .bad
+        mov byte [step], 5
+        push ds                         ; 5B01h: set 0 with a save area
+        pop es
+        mov di, save_area
+        mov ax, 0x5b01
+        xor bl, bl
+        mov dword [save_area], 0xffffffff  ; every page unmapped
+        int 0x67
+        test ah, ah
+        jnz .bad
+        mov byte [step], 6
+        mov dx, [handle]                ; frame page 0 on logical 2, then 5B00h saves it
+        mov ax, 0x4400
+        mov bx, 2
+        int 0x67
+        xor di, di
+        mov es, di
+        mov ax, 0x5b00
+        int 0x67
+        test ah, ah
+        jnz .bad
+        mov byte [step], 7
+        mov ax, es
+        mov cx, ds
+        cmp ax, cx
+        jne .bad
+        cmp di, save_area
+        jne .bad
+        cmp byte [save_area], 0xff      ; frame page 0 is mapped now
+        je .bad
+        mov byte [step], 8
+        push ds                         ; back to no save area
+        pop es
+        xor di, di
+        mov es, di
+        mov ax, 0x5b01
+        xor bl, bl
+        int 0x67
+        test ah, ah
+        jnz .bad
+        mov byte [step], 9
+        mov ax, 0x5d02
+        mov bx, [key]
+        mov cx, [key + 2]
+        int 0x67
+        test ah, ah
+        jnz .bad
+        call ok
         jmp free
 .bad:   call fail
 
-; ---- free
+; ---- os
 free:   mov si, n_free
         call begin
         mov ah, 0x45
@@ -622,6 +710,7 @@ n_realloc:  db 'realloc', 0
 n_names:    db 'names', 0
 n_move:     db 'move', 0
 n_errors:   db 'errors', 0
+n_os:       db 'os', 0
 n_free:     db 'free', 0
 n_done:     db 'DONE', 0
 
@@ -629,6 +718,8 @@ failed:     db 0
 step:       db 0
 current:    dw 0
 handle:     dw 0
+key:        dd 0
+save_area:  dd 0
 frame_seg:  dw 0
 region:     times 18 db 0
 buffer:     times 64 db 0

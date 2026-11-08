@@ -17,8 +17,8 @@
 ; Functions: 40h-48h and 4Bh-4Fh (LIM 3.2 and the 4.0 page map calls), 50h
 ; map multiple, 51h reallocate, 52h attributes (volatile only), 53h and 54h
 ; handle names, 57h move and exchange, 58h mappable addresses, 59h hardware
-; information, 5Ah raw allocation, 5Bh with no alternate register sets, 5Ch
-; and 5Dh. Anything else answers 84h and writes "FESEMS: function <AX>" to
+; information, 5Ah raw allocation, 5Bh with register set 0 only (the OS/E's
+; save area), 5Ch, and 5Dh, which disables and enables 59h and 5Bh. Anything else answers 84h and writes "FESEMS: function <AX>" to
 ; port E9h, the machine's debug port, so a bench run names it. Raw and
 ; standard pages are both 16 KiB.
 ;
@@ -76,7 +76,9 @@ free        db 0                ; unallocated pages
 frame_seg   dw 0xe000
 port_base   dw 0x260
 os_key      dd 0
-os_given    db 0
+os_given    db 0                ; the access key has been handed out
+os_enabled  db 1                ; 59h and 5Bh allowed (5Dh)
+alt_ptr     dd 0                ; 5B01h's context save area for set 0, or 0
 cur_map     times 4 db NONE     ; the four registers' values
 page_owner  times 256 db NONE   ; handle owning each board page
 page_next   times 256 db NONE   ; next page of the owner's chain
@@ -816,7 +818,10 @@ f58:    cmp al, 1                       ; mappable physical address array
 .sub:   mov ah, 0x8f
         ret
 
-f59:    cmp al, 1                       ; hardware information
+f59:    cmp byte [os_enabled], 0        ; hardware information
+        mov ah, 0xa4
+        je .denied
+        cmp al, 1
         ja .sub
         je .raw
         mov es, [bp + F_ES]
@@ -832,6 +837,8 @@ f59:    cmp al, 1                       ; hardware information
         stosw
         xor ah, ah
         ret
+.denied:
+        ret
 .raw:   jmp f42
 .sub:   mov ah, 0x8f
         ret
@@ -843,22 +850,35 @@ f5a:    cmp al, 1                       ; allocate standard or raw pages (zero a
 .sub:   mov ah, 0x8f
         ret
 
-f5b:    cmp al, 8                       ; alternate map register sets: none
+; Set 0 only: 5B01h records the OS/E's context save area (or none, 0:0) and
+; maps from it; 5B00h saves the current map into it and returns it.
+f5b:    mov ah, 0xa4                    ; alternate map register sets
+        cmp byte [os_enabled], 0
+        je .done
+        cmp al, 8
         ja .sub
         cmp al, 2
         ja .others
         je .size
         cmp al, 1
         je .set
-        mov byte [bp + F_BX], 0         ; 00h: set 0, no save area
-        mov word [bp + F_DI], 0
-        mov word [bp + F_ES], 0
-        xor ah, ah
-        ret
+        mov byte [bp + F_BX], 0         ; 00h: set 0 and its save area
+        les di, [alt_ptr]
+        mov [bp + F_DI], di
+        mov [bp + F_ES], es
+        mov ax, es
+        or ax, di
+        jz .ok
+        mov eax, [cur_map]
+        mov [es:di], eax
+        jmp .ok
 .set:   mov ah, 0x9c                    ; 01h: only set 0, from the caller's save area
         cmp byte [bp + F_BX], 0
         jne .done
+        mov ax, [bp + F_DI]
+        mov [alt_ptr], ax
         mov ax, [bp + F_ES]
+        mov [alt_ptr + 2], ax
         or ax, [bp + F_DI]
         jz .ok
         push ds
@@ -900,16 +920,20 @@ f5b:    cmp al, 8                       ; alternate map register sets: none
 f5c:    xor ah, ah                      ; prepare for warm boot
         ret
 
+; The first call hands out the access key in BX:CX and does its operation;
+; later calls need the key. 00h enables 59h and 5Bh, 01h disables them, 02h
+; enables them and takes the key back, so the next call hands out a new one.
 f5d:    cmp al, 2                       ; operating system functions
         ja .sub
         cmp byte [os_given], 0
         jne .check
         mov byte [os_given], 1
-        mov dword [os_key], 0x46455345  ; first call: hand out the key
-        mov word [bp + F_BX], 0x4645
-        mov word [bp + F_CX], 0x5345
-        xor ah, ah
-        ret
+        add dword [os_key], 0x46455345  ; a different key each time it is handed out
+        mov cx, [os_key + 2]
+        mov [bp + F_BX], cx
+        mov cx, [os_key]
+        mov [bp + F_CX], cx
+        jmp .do
 .check: mov ah, 0xa4
         mov cx, [bp + F_BX]
         cmp cx, [os_key + 2]
@@ -917,10 +941,14 @@ f5d:    cmp al, 2                       ; operating system functions
         mov cx, [bp + F_CX]
         cmp cx, [os_key]
         jne .done
-        xor ah, ah
+.do:    cmp al, 1
+        sete cl
+        xor cl, 1
+        mov [os_enabled], cl            ; 01h disables, 00h and 02h enable
         cmp al, 2
-        jne .done
+        jne .ok
         mov byte [os_given], 0          ; 02h returns the key
+.ok:    xor ah, ah
 .done:  ret
 .sub:   mov ah, 0x8f
         ret
