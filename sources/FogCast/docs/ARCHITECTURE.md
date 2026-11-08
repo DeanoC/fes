@@ -621,6 +621,19 @@ the content record. Both game and development launch admission use coordinator
 readiness, so callers cannot bypass that block. Explicit Stop can retry cleanup
 and restore readiness. Legacy runtimes do not opt into native idle observation.
 
+When the existing development recovery gate requests an OS reboot after idle
+recovery fails, the target composition starts the configured command with the
+same watchdog and shutdown fallback used for managed updates. The native adapter
+receives that guarded starter; it has no separate unguarded command path.
+Missing or nonexecutable commands and requests canceled before admission do not
+arm a backstop. Once armed, the command is independent of caller cancellation,
+and one owned waiter reaps it. Start failure or a normal nonzero command exit
+cancels that request's backstop. A successful or signaled command retains it:
+init can signal a child during committed shutdown. This
+changes neither the development-only admission gate nor ordinary Stop or
+failed-library-load policy, and does not establish physical stalled-upload
+recovery on DE25.
+
 ## FPGA product admission
 
 Only installed described FES packages are FPGA products. Historical bare Pong,

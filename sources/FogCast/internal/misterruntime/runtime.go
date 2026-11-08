@@ -10,7 +10,6 @@ import (
 	"io"
 
 	"os"
-	"os/exec"
 	"path/filepath"
 	"reflect"
 	"strings"
@@ -40,7 +39,7 @@ type Runtime struct {
 	developmentRBFPath string
 	corePackageRoot    string
 	diskImageRoot      string
-	rebootCommand      string
+	recoveryReboot     func(context.Context) error
 	packageMu          sync.Mutex
 	activePackage      *corepackage.Staged
 	retiredPackages    []corepackage.Staged
@@ -66,9 +65,11 @@ func WithCorePackageRoot(path string) RuntimeOption {
 	}
 }
 
-func WithRebootCommand(path string) RuntimeOption {
+// WithRecoveryReboot supplies the agent's guarded command starter. The starter
+// returns after dispatch and owns command retirement and cancellation afterward.
+func WithRecoveryReboot(start func(context.Context) error) RuntimeOption {
 	return func(runtime *Runtime) {
-		runtime.rebootCommand = path
+		runtime.recoveryReboot = start
 	}
 }
 
@@ -1242,18 +1243,12 @@ func (r *Runtime) RuntimeSocketOpen(ctx context.Context) bool {
 }
 
 func (r *Runtime) RecoverDevelopment(ctx context.Context) (string, *protocol.APIError) {
-	if err := ctx.Err(); err != nil {
+	if ctx.Err() != nil || r.recoveryReboot == nil {
 		return "", unavailableError()
 	}
-	info, err := os.Stat(r.rebootCommand)
-	if err != nil || !info.Mode().IsRegular() || info.Mode().Perm()&0o111 == 0 {
+	if err := r.recoveryReboot(ctx); err != nil {
 		return "", unavailableError()
 	}
-	command := exec.Command(r.rebootCommand)
-	if err := command.Start(); err != nil {
-		return "", unavailableError()
-	}
-	go func() { _ = command.Wait() }()
 	return "", nil
 }
 

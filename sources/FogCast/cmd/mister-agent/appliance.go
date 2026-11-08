@@ -29,18 +29,63 @@ func guardedReboot(parent context.Context) error {
 	// client disconnect during the bounded watchdog handover must not drop the
 	// reboot request (which would abort the activation), so detach cancellation.
 	ctx := context.WithoutCancel(parent)
-	result, armErr := armReboot(ctx, rebootguard.Config{})
-	slog.Info("appliance reboot backstop", "reason", result.Reason, "fallback", result.Fallback, "watchdog", result.Watchdog, "timeout", result.ActualTimeout)
-	if armErr != nil {
-		slog.Warn("appliance reboot backstop incomplete", "error", armErr)
-	}
+	cancel := armRebootBackstop(ctx, "appliance")
 	err := runReboot(ctx)
-	if err != nil && result.Armed != nil {
-		if cancelErr := cancelReboot(result.Armed); cancelErr != nil {
-			slog.Warn("appliance reboot backstop cancel failed", "error", cancelErr)
-		}
+	if err != nil {
+		cancel()
 	}
 	return err
+}
+
+// startRecoveryReboot keeps the existing asynchronous recovery command, with
+// the same backstop as an appliance update. Invalid/canceled requests never arm
+// it. Once armed, command lifetime is independent of the HTTP caller.
+func startRecoveryReboot(parent context.Context, path string) error {
+	if err := parent.Err(); err != nil {
+		return err
+	}
+	info, err := os.Stat(path)
+	if err != nil || !info.Mode().IsRegular() || info.Mode().Perm()&0o111 == 0 {
+		return errors.New("recovery reboot command is unavailable")
+	}
+	if err := parent.Err(); err != nil {
+		return err
+	}
+	cancel := armRebootBackstop(context.WithoutCancel(parent), "development")
+	command := exec.Command(path)
+	if err := command.Start(); err != nil {
+		cancel()
+		return err
+	}
+	go func() {
+		if err := command.Wait(); err != nil {
+			// Init may signal this child during an already-committed shutdown.
+			// Only a normal failed exit proves that the request failed; an
+			// interrupted command must retain the shutdown backstop.
+			if command.ProcessState != nil && command.ProcessState.Exited() {
+				cancel()
+			}
+			slog.Warn("development reboot command failed", "error", err)
+		}
+	}()
+	return nil
+}
+
+func armRebootBackstop(ctx context.Context, purpose string) func() {
+	result, armErr := armReboot(ctx, rebootguard.Config{})
+	slog.Info(purpose+" reboot backstop", "reason", result.Reason, "fallback", result.Fallback, "watchdog", result.Watchdog, "timeout", result.ActualTimeout)
+	if armErr != nil {
+		slog.Warn(purpose+" reboot backstop incomplete", "error", armErr)
+	}
+	// Capture the owner of this handle before asynchronous command retirement.
+	cancel := cancelReboot
+	return func() {
+		if result.Armed != nil {
+			if err := cancel(result.Armed); err != nil {
+				slog.Warn(purpose+" reboot backstop cancel failed", "error", err)
+			}
+		}
+	}
 }
 
 func loadApplianceUpdate(coordinator *agent.Coordinator, cleanup func(context.Context) error) (*applianceupdate.Service, error) {

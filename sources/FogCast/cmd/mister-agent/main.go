@@ -321,7 +321,9 @@ func newNativeRuntime(control misterruntime.Control, rebootPath string) *misterr
 	return misterruntime.NewRuntime(control, bootIDFile, 25*time.Millisecond, 250*time.Millisecond,
 		misterruntime.WithDevelopmentRBFPath(developmentRBFPath),
 		misterruntime.WithCorePackageRoot(developmentCoreRoot),
-		misterruntime.WithRebootCommand(rebootPath))
+		misterruntime.WithRecoveryReboot(func(ctx context.Context) error {
+			return startRecoveryReboot(ctx, rebootPath)
+		}))
 }
 
 func validateCoreLoadTimeout(timeout time.Duration) error {
