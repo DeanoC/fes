@@ -136,12 +136,12 @@ supplied host binary must match its receipt, and the software receipt must name
 the selected bundle and base image. The operator must ensure that binary is the
 one actually serving the isolated host API; the API does not attest its
 executable. The diagnostic also records hashes of its scripts, parser, BIOS
-locks, ROM and extracted font. These identify the diagnostic inputs separately
+locks, ROM and CGA font. These identify the diagnostic inputs separately
 from the package source commit. The local floppy digest and library selection
 are checked, but media ready does not independently hash target SDRAM.
 
 The COM check requires a fresh `FES COM READY (PRESS K)`, sends `k`, and
-requires `FES COM PASS` followed by a later `A:\>` prompt using the locked BIOS
+requires `FES COM PASS` followed by a later `A:\>` prompt using the locked CGA
 font. The game check records a continuous lossless video and host-side input
 and capture timings. A completed video is **review pending**: an independent
 reviewer must identify the title, playfield and response of the player to input,

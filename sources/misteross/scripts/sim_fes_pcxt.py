@@ -109,6 +109,24 @@ def board_inputs(output):
     boot_roms(output, (output / 'diagnostic.bin').read_bytes())
 
 
+def cga_font(root=ROOT):
+    """Return the CGA character ROM image: 256 characters x 16 rows.
+
+    The locked 8x8 source covers all 256 CP437 characters; rows 8..15 of each
+    character are blank because a CGA character cell is eight rows tall.
+    """
+    descriptor = json.loads((Path(root) / 'cores/fes-pcxt/firmware/hardware-dos.json').read_text())['font']
+    data = (Path(root) / 'cores/fes-pcxt' / descriptor['file']).read_bytes()
+    if len(data) != descriptor['size'] or hashlib.sha256(data).hexdigest() != descriptor['sha256']:
+        raise ValueError('PC/XT CGA font differs from its provenance lock')
+    if len(data) != 256 * 8:
+        raise ValueError('PC/XT CGA font must hold 256 characters of 8 rows')
+    font = bytearray(4096)
+    for char in range(256):
+        font[char * 16:char * 16 + 8] = data[char * 8:char * 8 + 8]
+    return bytes(font)
+
+
 # The PIC and PIT imports are shared with pc386 in fes-common; the rest are
 # the PC/XT's own.
 CHIP_VENDORS = ('kf8259', 'kf8253', 'kf8255')
