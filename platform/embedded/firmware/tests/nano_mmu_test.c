@@ -1,5 +1,6 @@
 /* SPDX-License-Identifier: BSD-3-Clause */
 #include "nano_mmu.h"
+#include "nano_mmu_memory.h"
 #include <assert.h>
 #include <stdio.h>
 #include <string.h>
@@ -10,6 +11,8 @@ struct fixture {
     struct fes_nano_mmu_registers registers;
     unsigned events, fail_event, writes, barriers, admits, drop_write, reenter;
     unsigned order[4];
+    volatile uint64_t line[8] __attribute__((aligned(64)));
+    unsigned flushes, corrupt_flush;
 };
 static struct fes_nano_mmu_ops ops(struct fixture *);
 static struct fixture canonical(void)
@@ -52,8 +55,19 @@ static int barrier(void *p,unsigned phase)
     assert(!(f->registers.sctlr&5U));
     return event(f) ? -1 : 0;
 }
+static int flush_line(void *p)
+{
+    struct fixture *f=p;
+    if(++f->flushes==f->corrupt_flush)f->line[0]^=1;
+    return 0;
+}
+static int memory(void *p)
+{
+    struct fixture *f=p;if(event(f))return -1;
+    return fes_nano_mmu_memory_probe(f->line,f,flush_line);
+}
 static struct fes_nano_mmu_ops ops(struct fixture *f)
-{ return (struct fes_nano_mmu_ops){f,observe,admit,write_reg,barrier}; }
+{ return (struct fes_nano_mmu_ops){f,observe,admit,write_reg,barrier,memory}; }
 static void failed_stays_failed(struct fixture *f)
 {
     assert(f->state.stage==FES_MMU_FAILED && f->state.first_error);
@@ -70,6 +84,7 @@ int main(void)
     f=canonical();
     assert(!fes_nano_mmu_enable(&f.state,&f.policy,ops(&f)));
     assert(f.state.stage==FES_MMU_ACTIVE && f.state.attempted && f.state.writes==4);
+    assert(f.state.memory_verified && f.flushes==2);
     for(unsigned i=0;i<4;i++)assert(f.order[i]==i);
     assert(f.registers.sctlr==(0x30c5183aULL|FES_NANO_MMU_SET));
     unsigned events=f.events;
@@ -111,7 +126,7 @@ int main(void)
         assert(fes_nano_mmu_enable(&f.state,&f.policy,ops(&f))<0 && !f.writes);
         failed_stays_failed(&f);
     }
-    for(unsigned mode=0;mode<12;mode++) {
+    for(unsigned mode=0;mode<13;mode++) {
         f=canonical();assert(!fes_nano_mmu_enable(&f.state,&f.policy,ops(&f)));
         struct fes_nano_mmu_registers saved=f.registers;
         switch(mode) {
@@ -127,6 +142,7 @@ int main(void)
         case 9:f.registers.sole_cpu=0;break;
         case 10:f.registers.daif=0;break;
         case 11:f.policy.root+=4096;break;
+        case 12:f.state.memory_verified=0;break;
         }
         assert(!fes_nano_mmu_scope(&f.state,&f.policy,ops(&f)));
         f.registers=saved;failed_stays_failed(&f);
@@ -137,10 +153,10 @@ int main(void)
         assert(fes_nano_mmu_enable(&f.state,&f.policy,ops(&f))<0 && !f.events);
         failed_stays_failed(&f);
     }
-    for(unsigned mode=0;mode<4;mode++) {
+    for(unsigned mode=0;mode<5;mode++) {
         f=canonical();struct fes_nano_mmu_ops io=ops(&f);
         switch(mode) {case 0:io.observe=0;break;case 1:io.admit=0;break;
-                      case 2:io.write=0;break;case 3:io.barrier=0;break;}
+                      case 2:io.write=0;break;case 3:io.barrier=0;break;case 4:io.memory=0;break;}
         assert(fes_nano_mmu_enable(&f.state,&f.policy,io)<0 && !f.events);
         failed_stays_failed(&f);
     }
@@ -150,5 +166,10 @@ int main(void)
     f=canonical();f.registers.scr|=1;
     assert(!fes_nano_mmu_scope(&f.state,&f.policy,ops(&f)) && !f.writes);
     f.registers.scr&=~1ULL;failed_stays_failed(&f);
+    for(unsigned n=1;n<=2;n++) {
+        f=canonical();f.corrupt_flush=n;
+        assert(fes_nano_mmu_enable(&f.state,&f.policy,ops(&f))<0 && f.writes==4 && !f.state.memory_verified);
+        failed_stays_failed(&f);
+    }
     printf("PASS one-attempt MMU enable: %u callback failures, dropped writes, CPU/attribute faults, NS-before-enable and replay\n",events);
 }

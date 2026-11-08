@@ -9,6 +9,7 @@ import fault_status
 import runtime_startup
 import loader_progress
 import call_trace
+import mmu_trace
 from configuration_trace import extract as extract_configuration
 from hps_context import reader_pattern, digest as context_digest
 from hps_io import validate as validate_hps_io
@@ -124,7 +125,7 @@ class _ComputerContinuation:
 
 def decode_native_boot(data, build_id, owner_seed, *, storage=None, package=None, hps_context=None, hps_io=None, fpga_identity=None,
                        fpga_configuration=False, fpga_unready=False, fpga_status_only=False, configuration_storage=False,
-                       smmu_observe=False, reader_memory=None, computer=None, computer_activity=False, cpu_mapping=None, capture_trace=True, atf=None, usb_control=False, usb_shared=False, firmware_ram_trace=False, _continuation=None, _window_prefix=False, _menu_prefix=False):
+                       smmu_observe=False, reader_memory=None, computer=None, computer_activity=False, cpu_mapping=None, capture_trace=True, atf=None, usb_control=False, usb_shared=False, firmware_ram_trace=False, firmware_mmu=None, _continuation=None, _window_prefix=False, _menu_prefix=False):
     """Retain partial progress, but qualify only one ordered, coherent boot.
 
     A bare prompt need not end in a newline. Other incomplete lines are held
@@ -137,6 +138,9 @@ def decode_native_boot(data, build_id, owner_seed, *, storage=None, package=None
         raise ValueError('checked build ID and nonzero odd uint64 owner seed required')
     if not isinstance(data, (str, bytes, bytearray, memoryview)):
         raise TypeError('serial bytes or text required')
+    mmu_expected=mmu_trace.parameters(firmware_mmu)
+    if mmu_expected is not None and (not firmware_ram_trace or _continuation is not None):
+        raise ValueError('MMU trace requires the complete first cold RAM boot')
     if type(firmware_ram_trace) is not bool or firmware_ram_trace and (atf is None or not capture_trace or _continuation is not None):
         raise ValueError('firmware RAM trace requires an explicit cold ATF descriptor')
     if type(capture_trace) is not bool:
@@ -308,7 +312,7 @@ def decode_native_boot(data, build_id, owner_seed, *, storage=None, package=None
     report = {'records': [], 'errors': [], 'loader_ready': False, 'complete': False,
               'last_checkpoint': None, 'core_load_acceptance': False,
               'loader_progress': loader_progress.state(),
-              'affinity_calls': call_trace.state(),
+              'affinity_calls': call_trace.state(), 'firmware_mmu_trace': mmu_trace.state(),
               'firmware_ram_trace': {'records': [], 'complete': False, 'valid': True,
                                      'vendor_records': [], 'vendor_complete': False, 'exceptions': [],
                                      'status_probe': fault_status.state(), 'ras_probe': fault_status.ras_state(), 'decode_log': fault_status.decode_state(), 'cache_maintenance': fault_status.cache_state(), 'runtime_startup': runtime_startup.state(), 'exit_cache': runtime_startup.exit_state()}}
@@ -326,6 +330,14 @@ def decode_native_boot(data, build_id, owner_seed, *, storage=None, package=None
     observed = {}
     for number, line in enumerate(lines, 1):
         line = line.rstrip('\r')
+        mmu_line=re.sub(r'^NOTICE:\s*','',line)
+        if mmu_line.startswith('FES_NANO_EL3_MMU'):
+            ram=report['firmware_ram_trace']
+            error=mmu_trace.observe(report['firmware_mmu_trace'],mmu_line,number,mmu_expected,
+                startup_complete=ram['runtime_startup']['complete'],exit_cache_complete=ram['exit_cache']['complete'],
+                uboot_seen='uboot' in observed,prior_valid=not report['errors'])
+            if error:report['errors'].append(error)
+            continue
         if ('FES_' in line and re.search(r'\b(?:REJECT|FAIL|EXCEPTION)\b', line)) or line.startswith(('panic:', 'fatal error:')):
             report['errors'].append(f'failure marker at line {number}')
         if line.startswith('FES_NANO_CALL'):
@@ -453,6 +465,8 @@ def decode_native_boot(data, build_id, owner_seed, *, storage=None, package=None
                 report['errors'].append(f'incomplete firmware RAM guard trace before vendor capture at line {number}')
         if line.startswith('U-Boot ') and not line.startswith('U-Boot SPL'):
             ram=report['firmware_ram_trace']
+            if mmu_expected is not None and not report['firmware_mmu_trace']['complete']:
+                report['errors'].append('incomplete selected EL3 MMU transition before U-Boot')
             if (firmware_ram_trace or ram['records'] or ram['vendor_records']) and not ram['vendor_complete']:
                 report['errors'].append(f'incomplete vendor startup trace before U-Boot at line {number}')
             if (firmware_ram_trace or ram['records'] or ram['runtime_startup']['records']) and not ram['runtime_startup']['complete']:

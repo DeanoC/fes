@@ -55,11 +55,11 @@ int fes_nano_mmu_enable(struct fes_nano_mmu *s, const struct fes_nano_mmu_policy
                         struct fes_nano_mmu_ops io)
 {
     if (!s) return -1;
-    if (s->attempted || s->stage!=FES_MMU_COLD || s->first_error || s->writes)
+    if (s->attempted || s->stage!=FES_MMU_COLD || s->first_error || s->writes || s->memory_verified)
         return fail(s,-1);
     s->attempted=1; /* Consume before any supplied callback. */
     s->stage=FES_MMU_ARMING;
-    if (!policy_ok(p) || !io.observe || !io.admit || !io.write || !io.barrier)
+    if (!policy_ok(p) || !io.observe || !io.admit || !io.write || !io.barrier || !io.memory)
         return fail(s,-2);
     s->root=p->root;
     if (io.observe(io.context,&s->before) || s->stage!=FES_MMU_ARMING ||
@@ -74,7 +74,10 @@ int fes_nano_mmu_enable(struct fes_nano_mmu *s, const struct fes_nano_mmu_policy
         io.admit(io.context)!=1 || expected(s,io,1,1,1,0)) return fail(s,-6);
     if (write_checked(s,io,FES_MMU_SCTLR,s->before.sctlr|FES_NANO_MMU_SET) ||
         expected(s,io,1,1,1,1) || io.admit(io.context)!=1 ||
+        expected(s,io,1,1,1,1) || io.memory(io.context) ||
+        expected(s,io,1,1,1,1) || io.admit(io.context)!=1 ||
         expected(s,io,1,1,1,1)) return fail(s,-7);
+    s->memory_verified=1;
     s->stage=FES_MMU_ACTIVE;
     return 0;
 }
@@ -88,10 +91,10 @@ int fes_nano_mmu_scope(struct fes_nano_mmu *s, const struct fes_nano_mmu_policy 
     unsigned stage=s->stage;
     if (io.observe(io.context,&r) || s->stage!=stage) {fail(s,-8);return 0;}
     if (stage==FES_MMU_COLD) {
-        if (s->attempted || s->writes || !boot_ok(&r)) {fail(s,-8);return 0;}
+        if (s->attempted || s->writes || s->memory_verified || !boot_ok(&r)) {fail(s,-8);return 0;}
         return 1;
     }
-    if (!s->attempted || s->writes!=4 || s->root!=p->root ||
+    if (!s->attempted || s->writes!=4 || s->memory_verified!=1 || s->root!=p->root ||
         !same_cpu(&r,&s->before) || r.sctlr!=(s->before.sctlr|FES_NANO_MMU_SET) ||
         r.mair!=FES_NANO_MMU_MAIR || r.tcr!=FES_NANO_MMU_TCR || r.root!=s->root) {
         fail(s,-8);return 0;

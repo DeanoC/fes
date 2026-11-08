@@ -6,6 +6,8 @@ static uint64_t mmu_scr=0x530,mmu_mair,mmu_tcr,mmu_root;
 static unsigned mmu_writes,mmu_invalidations,mmu_isbs;
 static unsigned mmu_device_reads,mmu_device_writes;
 static unsigned mmu_drop_mair;
+static unsigned mmu_clean;
+extern volatile uint64_t fes_nano_mmu_witness[8];
 uint64_t read_midr(void) {return 0x412fd050;}
 uint64_t read_id_aa64mmfr0_el1(void) {return 2;}
 uint64_t read_daif(void) {return 0x3c0;}
@@ -19,10 +21,12 @@ void write_ttbr0_el3(uint64_t value) {assert(mmu_writes++==2);mmu_root=value;}
 void write_sctlr_el3(uint64_t value) {assert(mmu_writes++==3);sctlr=value;}
 void tlbialle3(void) {assert(!mmu_writes && !mmu_invalidations++ && !(sctlr&5U));}
 void isb(void) {mmu_isbs++;}
+void dcsw_op_all(uint64_t op) {assert(op==1 && (sctlr&5U)==5U);mmu_clean++;}
 static void fes_test_mmu_start(void)
 {
     assert(!fes_nano_mmu_platform_enable());
-    assert(mmu_writes==4 && mmu_invalidations==1 && mmu_isbs==3);
+    assert(mmu_writes==4 && mmu_invalidations==1 && mmu_isbs==5 && mmu_clean==2);
+    for(unsigned i=0;i<8;i++)assert(!fes_nano_mmu_witness[i]);
     assert(sctlr==(0x30c5183aULL|FES_NANO_MMU_SET));
     assert(mmu_mair==FES_NANO_MMU_MAIR && mmu_tcr==FES_NANO_MMU_TCR && mmu_root==0x8003c000);
     assert(fes_nano_mmu_platform_scope()==1);

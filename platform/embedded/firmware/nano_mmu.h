@@ -24,9 +24,10 @@ struct fes_nano_mmu_ops {
     /* SCTLR write must include an ISB before returning or using the stack. */
     int (*write)(void *, unsigned, uint64_t);
     int (*barrier)(void *, unsigned);
+    int (*memory)(void *); /* private clean/invalidate/readback, zero on success */
 };
 struct fes_nano_mmu {
-    unsigned stage, attempted, writes;
+    unsigned stage, attempted, writes, memory_verified;
     int first_error;
     struct fes_nano_mmu_registers before;
     uint64_t root;

@@ -99,7 +99,10 @@ def main():
     parser.add_argument("--nano-owned-bridges", action="store_true", help="controlled SiP variant; boot remains NOT_READY without trusted proof")
     parser.add_argument("--nano-cold-serial-entry", type=Path, help="opt-in actual SPL/BL31 cold serial producer, bound to this native entry build")
     parser.add_argument("--nano-firmware-ocram", action="store_true", help="experimental matched shared-ROM SPL/EL3/native OCRAM reservation")
+    parser.add_argument("--nano-firmware-mmu", action="store_true", help="selected late EL3 private-cache profile and writeback diagnostic")
     args = parser.parse_args()
+    if args.nano_firmware_mmu and not args.nano_firmware_ocram:
+        parser.error("firmware MMU requires --nano-firmware-ocram")
     if args.nano_cold_serial_entry is not None and not args.nano_owned_bridges:
         parser.error("cold serial boot requires --nano-owned-bridges")
     if args.nano_firmware_ocram and args.nano_cold_serial_entry is None:
@@ -111,7 +114,7 @@ def main():
             parser.error('cold entry must be private under out/')
         spec=importlib.util.spec_from_file_location('fes_nano_cold_profile',HERE.parent/'nano/cold_profile.py')
         cold=importlib.util.module_from_spec(spec);spec.loader.exec_module(cold)
-        cold_profile=cold.make(entry_path,firmware_ram=args.nano_firmware_ocram)
+        cold_profile=cold.make(entry_path,firmware_ram=args.nano_firmware_ocram,firmware_mmu=args.nano_firmware_mmu)
     repo = args.reference_repo.resolve()
     output = args.output.absolute()
     if (".." in output.parts or any(p.is_symlink() for p in (output, *output.parents)) or
@@ -193,6 +196,13 @@ def main():
         firmware_ram=nano_firmware_ram.checked(cold_profile),
         cold_chain=cold_profile['chain_sha256'] if args.nano_firmware_ocram else None)
     nano_firmware_ram.verify_installed(source,owned.get('firmware_ram') if owned else None)
+    import nano_firmware_mmu
+    mmu_proof=None
+    if nano_firmware_mmu.checked(cold_profile) is not None:
+        binding=owned.get('firmware_mmu') if owned else None
+        if binding is None:raise ValueError('selected MMU install binding missing')
+        nano_firmware_mmu.verify_installed(source,binding)
+        mmu_proof=nano_firmware_mmu.verify_live_image(image_elf,cold_profile['chain_sha256'])
     if owned and owned.get("configuration_mailbox_observer") is not None:
         import nano_mailbox
         binding = owned["configuration_mailbox_observer"]
@@ -220,11 +230,12 @@ def main():
                               "vendor SPL, U-Boot, CPU entry, memory ownership and physical containment remain unqualified",
                               "firmware source transformation is not a signature or production attestation"]}
     report["bridge_mode"] = "owned-unready" if owned else "strict"
+    report['firmware_mmu_proof']=mmu_proof
     if owned:
         report["owned_bridge_binding"] = owned
         report["classification"] = "controlled owned Nano BL31 component; boot proof unavailable, service remains NOT_READY; no board acceptance"
     if cold is not None:
-        if cold.make(entry_path,firmware_ram=args.nano_firmware_ocram)!=cold_profile: raise ValueError('cold chain changed during build')
+        if cold.make(entry_path,firmware_ram=args.nano_firmware_ocram,firmware_mmu=args.nano_firmware_mmu)!=cold_profile: raise ValueError('cold chain changed during build')
         report['bridge_mode']='owned-cold-serial'
         report['native_boot_profile']=cold_profile
         report['classification']='source-bound cold serial SPL record consumer and master-stop provider; no physical qualification'

@@ -82,13 +82,13 @@ def atf_source(text, *, firmware_ram=False, firmware_ocram=False):
     return '#include <nano_cold.h>\n'+('#include <nano_firmware_ram.h>\n' if firmware_ocram else '')+text
 
 
-def prepare(source, entry_build, bl31_sha256, bl31_size, *, firmware_ram=False):
+def prepare(source, entry_build, bl31_sha256, bl31_size, *, firmware_ram=False, firmware_mmu=False):
     atf_handoff=atf_descriptor(bl31_sha256,bl31_size)
     spec=importlib.util.spec_from_file_location('fes_nano_cold_profile', HERE/'cold_profile.py')
     cold=importlib.util.module_from_spec(spec);spec.loader.exec_module(cold)
     image, receipt_path=cold.entry(entry_build)
     profile=cold.selected_profile(json.loads(receipt_path.read_text()))
-    chain=cold.make(entry_build,firmware_ram=firmware_ram)
+    chain=cold.make(entry_build,firmware_ram=firmware_ram,firmware_mmu=firmware_mmu)
     if chain.get('firmware_ram') is not None:
         spec=importlib.util.spec_from_file_location('fes_affinity_call',HERE.parent/'firmware/nano_firmware_call.py')
         call=importlib.util.module_from_spec(spec);spec.loader.exec_module(call)

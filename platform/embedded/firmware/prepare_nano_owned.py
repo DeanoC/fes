@@ -83,7 +83,7 @@ def reset_source(data):
 
 
 def inputs():
-    return [HERE / name for name in ("prepare_nano_owned.py", "nano_digest.py", "nano_mailbox.py", "nano_mailbox_observe.inc", "nano_mailbox_observe.h", "nano_mailbox_status.inc", "verify.py", "nano_bridges.c", "nano_bridges.h", "nano_boot.c", "nano_boot.h", "nano_bridge_sip.c", "nano_bridge_sip.h", "nano_bridge_platform.h", "nano_bridge_platform.inc", "nano_owned_sip.inc", "nano_computer_control.inc", "nano_window_control.inc", "nano_program_control.inc", "generated/fes_embedded_bridges.h", "nano_sd.h", "nano_sd.c", "generated/fes_embedded_sd.h", "nano_usb_service.c", "nano_usb_service.h", "nano_usb_platform.h", "nano_usb_platform.c", "nano_usb_board.c", "nano_usb_board.h", "nano_usb_boot.inc", "nano_usb_composition.c", "nano_usb_composition.h", "nano_cold.h", "generated/fes_embedded_usb.h", "nano_identity.h", "nano_identity.c", "nano_configuration.h", "nano_configuration.c", "nano_program.h", "nano_program.c", "nano_rom.h", "nano_rom.c", "nano_rom_platform.inc", "generated/fes_embedded_rom.h", "nano_smmu.h", "nano_smmu.c", "nano_fabric_stop.c", "nano_fabric_stop.h", "nano_probe_stop.c", "nano_probe_stop.h", "nano_ddr_firewall.c", "nano_ddr_firewall.h", "nano_ddr_read.c", "nano_ddr_read.h", "nano_hps_io.c", "nano_hps_io.h", "generated/fes_de25_ddr_probe.h", "generated/fes_embedded_control.h", "nano_tape.h", "nano_tape.c", "nano_tape_service.h", "nano_tape_service.c", "nano_tape_platform.inc", "generated/fes_embedded_tape.h", "generated/fes_computer.h", "generated/fes_de25_computer.h")] + [HERE/name for name in ('nano_cpu_mode.h','nano_mmu.h','nano_mmu.c','nano_mmu_platform.h','nano_mmu_platform.c')]
+    return [HERE / name for name in ("prepare_nano_owned.py", "nano_digest.py", "nano_mailbox.py", "nano_mailbox_observe.inc", "nano_mailbox_observe.h", "nano_mailbox_status.inc", "verify.py", "nano_bridges.c", "nano_bridges.h", "nano_boot.c", "nano_boot.h", "nano_bridge_sip.c", "nano_bridge_sip.h", "nano_bridge_platform.h", "nano_bridge_platform.inc", "nano_owned_sip.inc", "nano_computer_control.inc", "nano_window_control.inc", "nano_program_control.inc", "generated/fes_embedded_bridges.h", "nano_sd.h", "nano_sd.c", "generated/fes_embedded_sd.h", "nano_usb_service.c", "nano_usb_service.h", "nano_usb_platform.h", "nano_usb_platform.c", "nano_usb_board.c", "nano_usb_board.h", "nano_usb_boot.inc", "nano_usb_composition.c", "nano_usb_composition.h", "nano_cold.h", "generated/fes_embedded_usb.h", "nano_identity.h", "nano_identity.c", "nano_configuration.h", "nano_configuration.c", "nano_program.h", "nano_program.c", "nano_rom.h", "nano_rom.c", "nano_rom_platform.inc", "generated/fes_embedded_rom.h", "nano_smmu.h", "nano_smmu.c", "nano_fabric_stop.c", "nano_fabric_stop.h", "nano_probe_stop.c", "nano_probe_stop.h", "nano_ddr_firewall.c", "nano_ddr_firewall.h", "nano_ddr_read.c", "nano_ddr_read.h", "nano_hps_io.c", "nano_hps_io.h", "generated/fes_de25_ddr_probe.h", "generated/fes_embedded_control.h", "nano_tape.h", "nano_tape.c", "nano_tape_service.h", "nano_tape_service.c", "nano_tape_platform.inc", "generated/fes_embedded_tape.h", "generated/fes_computer.h", "generated/fes_de25_computer.h")] + [HERE/name for name in ('nano_cpu_mode.h','nano_mmu.h','nano_mmu.c','nano_mmu_platform.h','nano_mmu_platform.c','nano_mmu_memory.c','nano_mmu_memory.h','nano_firmware_mmu.py')]
 
 
 def psci_source(text, cold_serial=False):
@@ -207,6 +207,8 @@ def install(source, cold_profile=None, cold_header=None):
     if cold_profile is not None:
         frontend.write_text(psci_frontend_source(frontend.read_text()))
     ram_binding = nano_firmware_ram.install(source, cold_profile) if cold_profile is not None else None
+    import nano_firmware_mmu
+    mmu_binding=nano_firmware_mmu.install(source,cold_profile,ram_binding) if cold_profile is not None else None
     return {"service_sha256": hashlib.sha256(service.read_bytes()).hexdigest(), "reset_sha256": hashlib.sha256(reset.read_bytes()).hexdigest(),
             "setup_sha256": hashlib.sha256(setup.read_bytes()).hexdigest(), "makefile_sha256": hashlib.sha256(mk.read_bytes()).hexdigest(),
             "psci_sha256": hashlib.sha256(psci.read_bytes()).hexdigest(),
@@ -215,6 +217,7 @@ def install(source, cold_profile=None, cold_header=None):
             "configuration_digest": digest,
             "rom_compilation": rom_policy,
             "firmware_ram": ram_binding,
+            "firmware_mmu": mmu_binding,
             "configuration_mailbox_observer": mailbox,
             "secondary_release_locked": cold_profile is not None,
             "expected_boot_state": "validated cold serial record or rejection; hardware unqualified" if cold_profile else "recognized owned service, NOT_READY"}

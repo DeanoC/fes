@@ -71,6 +71,13 @@ def checked_bl31(bl31_build, cold_profile=None):
         if not isinstance(binding,dict) or binding.get('contract')!=ram or binding.get('chain_sha256')!=cold_profile['chain_sha256']:
             raise ValueError('matched early EL3 memory reservation binding required')
         build_terasic.nano_firmware_ram.verify_installed(bl31_build/'source',binding)
+    import nano_firmware_mmu
+    if nano_firmware_mmu.checked(cold_profile) is not None:
+        binding=receipt.get('owned_bridge_binding',{}).get('firmware_mmu')
+        if binding is None:raise ValueError('selected MMU install binding missing')
+        nano_firmware_mmu.verify_installed(bl31_build/'source',binding)
+        proof=nano_firmware_mmu.verify_live_image(image_elf,cold_profile['chain_sha256'])
+        if receipt.get('firmware_mmu_proof')!=proof:raise ValueError('selected MMU ELF proof differs')
     if receipt.get("bl31_entry") != entry or receipt.get("bl31_load_segments") != [list(s) for s in segments]:
         raise ValueError("BL31 ELF memory ranges differ from its receipt")
     sources = (HERE / "build_terasic.py", HERE / "prepare_tfa.py", HERE / "generated/fes_embedded_control.hpp",
@@ -110,7 +117,10 @@ def main():
                         help="separate vendor Ethernet/TFTP and SD-writing recovery loader; manual prompt only")
     parser.add_argument("--network-return-trace", action="store_true",
                         help="explicit recovery-only bounded return observations; separate diagnostic artifact")
+    parser.add_argument("--nano-firmware-mmu", action="store_true", help="selected late EL3 private-cache profile and writeback diagnostic")
     args = parser.parse_args()
+    if args.nano_firmware_mmu and not args.nano_firmware_ocram:
+        parser.error("firmware MMU requires --nano-firmware-ocram")
     if args.network_return_trace and not args.network_recovery:
         parser.error("network return observations require the separate network recovery profile")
     if args.network_recovery and args.native_entry_build is not None:
@@ -128,7 +138,7 @@ def main():
     if args.native_entry_build is not None:
         spec=importlib.util.spec_from_file_location('fes_nano_cold_profile',HERE.parent/'nano/cold_profile.py')
         cold=importlib.util.module_from_spec(spec);spec.loader.exec_module(cold)
-        cold_profile=cold.make(args.native_entry_build.absolute(),firmware_ram=args.nano_firmware_ocram)
+        cold_profile=cold.make(args.native_entry_build.absolute(),firmware_ram=args.nano_firmware_ocram,firmware_mmu=args.nano_firmware_mmu)
     receipt_path, receipt_bytes, receipt, component, blob, sources, elf, image_elf, segments = checked_bl31(bl31_build,cold_profile)
     revision = git(repo, "rev-parse", "--verify", "HEAD^{commit}").decode().strip()
     if revision != UBOOT_REVISION or git(repo, "status", "--porcelain", "--untracked-files=all"):
@@ -204,7 +214,7 @@ def main():
         spec = importlib.util.spec_from_file_location("fes_nano_prepare", HERE.parent / "nano/prepare_uboot.py")
         nano_prepare = importlib.util.module_from_spec(spec)
         spec.loader.exec_module(nano_prepare)
-        native = nano_prepare.prepare(build_repo, entry_build, hashlib.sha256(blob).hexdigest(), len(blob),firmware_ram=args.nano_firmware_ocram)
+        native = nano_prepare.prepare(build_repo, entry_build, hashlib.sha256(blob).hexdigest(), len(blob),firmware_ram=args.nano_firmware_ocram,firmware_mmu=args.nano_firmware_mmu)
         if native['cold_boot_profile']!=cold_profile: raise ValueError('SPL and BL31 cold chain differ')
         (build/'fes-entry.img').write_bytes((entry_build/'entry.img').read_bytes())
     commands = []
@@ -348,6 +358,7 @@ def main():
             raise ValueError("Nano handoff producer source changed during build")
         report["classification"] = "off-board serial-only Nano U-Boot/SPL with executable handoff gate; hardware not run"
         report["native_handoff"] = native
+        report['firmware_mmu_proof']=receipt.get('firmware_mmu_proof')
         report["config_sha256"] = sha(build / ".config")
         report["limitations"] = ["live memory/CPU/peripheral gate has not been executed on a Nano",
                                  "requires this exact SPL paired to FPGA SOF and this exact FIT on test media",

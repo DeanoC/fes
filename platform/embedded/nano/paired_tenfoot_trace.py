@@ -138,7 +138,7 @@ class PairedTenfootClient(app.TenfootClient):
     """Explicit paired lifecycle; core-only TenfootClient remains unchanged."""
     def __init__(self, initial, *, build_record, build_id, owner_seed, atf, package,
                  programs, exchange, owns, now=time.monotonic, record=lambda _: None,
-                 shared_usb=None, firmware_ram_trace=False):
+                 shared_usb=None, firmware_ram_trace=False, firmware_mmu=None):
         require(all(callable(f) for f in (exchange, owns, now, record)), 'owned exchange hooks required')
         require(type(programs) is list and len(programs) == 2 and
                 len({p['title'] for p in programs}) == 2 and
@@ -161,6 +161,7 @@ class PairedTenfootClient(app.TenfootClient):
         require(all(r['kind'] in ('firmware', 'usb') for r in prefix), 'App/menu preceded native boot')
         boot_data = b''.join(r['value'] for r in prefix if r['kind'] == 'firmware')
         options = dict(firmware_ram_trace=firmware_ram_trace)
+        if firmware_mmu is not None:options['firmware_mmu']=firmware_mmu
         if self.usb is not None:
             options.update(usb_control=True, usb_shared=True,
                            hps_context=self.usb.policy['hps_context'], hps_io=self.usb.policy['hps_io'])

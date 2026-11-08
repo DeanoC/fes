@@ -86,7 +86,7 @@ def entry(entry_build):
 
 def sources():
     return [HERE.parent/'entry/payload.py']+[HERE/name for name in ('cold_profile.py','native_admission.py','fault_status.py','runtime_startup.py','loader_progress.py','call_trace.py','hps_context.py','hps_io.py','usb_selection.py','initial_tape.py','spl_cold.c','spl_console.inc','prepare_uboot.py','uboot.c','handoff.c','handoff.h','probe-profile.json','sd-profile.json','smmu-profile.json')]+[
-        FW/name for name in ('nano_cold.h','nano_cpu_mode.h','nano_mmu.h','nano_mmu.c','nano_mmu_platform.h','nano_mmu_platform.c','nano_firmware_ram.h','nano_firmware_ram.py','nano_firmware_runtime.py','nano_firmware_call.py','nano_firmware_percpu.py','nano_firmware_runtime.inc','nano_firmware_entry.inc','nano_firmware_fault.inc','nano_firmware_decode.inc','nano_firmware_cache.inc','nano_firmware_exit_cache.inc','nano_cold.c','nano_cold_mmio.inc','nano_cold_platform.c','nano_boot.h',
+        FW/name for name in ('nano_cold.h','nano_cpu_mode.h','nano_mmu.h','nano_mmu.c','nano_mmu_platform.h','nano_mmu_platform.c','nano_mmu_memory.h','nano_mmu_memory.c','nano_firmware_mmu.py','nano_firmware_ram.h','nano_firmware_ram.py','nano_firmware_runtime.py','nano_firmware_call.py','nano_firmware_percpu.py','nano_firmware_runtime.inc','nano_firmware_entry.inc','nano_firmware_fault.inc','nano_firmware_decode.inc','nano_firmware_cache.inc','nano_firmware_exit_cache.inc','nano_cold.c','nano_cold_mmio.inc','nano_cold_platform.c','nano_boot.h',
                             'nano_sd.h','nano_sd.c','nano_sd_platform.h','nano_sd_platform.c','generated/fes_embedded_sd.h',
                             'nano_usb_service.c','nano_usb_service.h','nano_usb_platform.h','generated/fes_embedded_usb.h',
                             'nano_usb_platform.c','nano_usb_board.c','nano_usb_board.h','nano_usb_boot.inc',
@@ -106,11 +106,14 @@ def sources():
                             'build_terasic.py','build_terasic_uboot.py','verify.py')]
 
 
-def make(entry_build, *, firmware_ram=False):
+def make(entry_build, *, firmware_ram=False, firmware_mmu=False):
     if type(firmware_ram) is not bool:raise ValueError('explicit firmware RAM selection required')
+    if type(firmware_mmu) is not bool or firmware_mmu and not firmware_ram:
+        raise ValueError('explicit firmware MMU selection requires the OCRAM profile')
+    mmu_args={'firmware_mmu':True} if firmware_mmu else {}
     record=json.loads((entry_build/'result.json').read_text())
     if record.get('hps_project') is None:
-        return _make(entry_build,firmware_ram=firmware_ram)
+        return _make(entry_build,firmware_ram=firmware_ram,**mmu_args)
     # Only immutable derivation results are reused. Each call brackets all
     # original validators with a complete current file/tree snapshot, and the
     # compiler's independent pre/post calls each get a new empty scope.
@@ -138,10 +141,10 @@ def make(entry_build, *, firmware_ram=False):
             raise ValueError('cold entry receipt changed during derivation')
         return value
     with hps_context.worker_scope(projects,snapshot):
-        return _make(entry_build,firmware_ram=firmware_ram)
+        return _make(entry_build,firmware_ram=firmware_ram,**mmu_args)
 
 
-def _make(entry_build, *, firmware_ram=False):
+def _make(entry_build, *, firmware_ram=False, firmware_mmu=False):
     if type(firmware_ram) is not bool:raise ValueError('explicit firmware RAM selection required')
     image,receipt=entry(entry_build)
     build=json.loads(receipt.read_text());profile=selected_profile(build)
@@ -201,6 +204,8 @@ def _make(entry_build, *, firmware_ram=False):
     identity['firmware_ram']=firmware_memory.selected(identity,firmware_ram)
     if identity['initial_tape'] and not firmware_ram:
         raise ValueError('initial tape requires the matched firmware OCRAM exclusion')
+    import nano_firmware_mmu as mmu
+    if firmware_mmu:identity['firmware_mmu']=mmu.selected(identity,firmware_mmu)
     identity['chain_sha256']=hashlib.sha256(json.dumps(identity,sort_keys=True).encode()).hexdigest()
     identity['owner_seed']=int(identity['chain_sha256'][:16],16)|1
     identity['entry_receipt_sha256']=sha(receipt)
@@ -215,6 +220,8 @@ def initial_tape_header(profile):
 
 
 def header(profile):
+    import nano_firmware_mmu as mmu
+    mmu.checked(profile)
     ram=firmware_memory.checked(profile)
     menu_present=hps_context.menu_selection(dict(profile,program='fpgaload',usb_control=profile.get('usb_pio',False)))
     companion=hps_context.compiled_menu_program(dict(profile,program='fpgaload'))
@@ -430,6 +437,7 @@ def header(profile):
     extra+=initial_tape_header(profile)
     return ('/* Generated, same source-bound diagnostic chain in SPL and BL31. */\n'
             +extra+
+            ('#define FES_NANO_FIRMWARE_MMU 1\n' if profile.get('firmware_mmu') is not None else '')+
             '#define FES_NANO_SMMU_BOOT_OBSERVE '+str(int(smmu))+'\n'
             '#define FES_NANO_CONTROLLED_SD '+str(int(profile['sd_pio']))+'\n'
             '#define FES_NANO_COLD_CHAIN '+array(profile['chain_sha256'])+'\n'

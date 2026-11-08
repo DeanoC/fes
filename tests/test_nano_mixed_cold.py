@@ -59,6 +59,7 @@ class NanoMixedColdTests(unittest.TestCase):
                         'uint64_t read_mair_el3(void),read_tcr_el3(void),read_ttbr0_el3(void);\n'
                         'void write_mair_el3(uint64_t),write_tcr_el3(uint64_t),write_ttbr0_el3(uint64_t),write_sctlr_el3(uint64_t);\n'
                         'void tlbialle3(void),isb(void);\n')
+                    stream.write('#define DCCISW 1\nvoid dcsw_op_all(uint64_t);\n')
             (base / 'drivers/delay_timer.h').write_text('void udelay(unsigned);\n')
             (base / 'lib/mmio.h').write_text('#include <stdint.h>\nuint32_t mmio_read_32(uintptr_t);\n'
                 'uint16_t mmio_read_16(uintptr_t);\nvoid mmio_write_32(uintptr_t,uint32_t);\nvoid mmio_write_16(uintptr_t,uint16_t);\n')
@@ -132,7 +133,7 @@ class NanoMixedColdTests(unittest.TestCase):
             if initial_tape:
                 sources += ('nano_tape.c', 'nano_tape_service.c', 'tests/nano_tape_endpoint_test.c')
             if firmware_mmu:
-                sources += ('nano_mmu.c','nano_mmu_platform.c')
+                sources += ('nano_mmu.c','nano_mmu_memory.c','nano_mmu_platform.c')
             command = ['cc', '-std=c11', '-Wall', '-Wextra', '-Werror', '-Wno-unused-const-variable',
                 '-DFES_TEST_PROGRAM_ROLES', '-DFES_TEST_HPS_CONTEXT', '-DFES_TEST_CONFIGURATION_EPOCHS',
                 '-fsanitize=undefined', '-fno-sanitize-recover=all', '-I' + str(base), '-I' + str(FW),
@@ -143,7 +144,8 @@ class NanoMixedColdTests(unittest.TestCase):
                 command.insert(1, '-DFES_TEST_INITIAL_TAPE')
             if firmware_mmu:
                 command[1:1]=['-DFES_TEST_FIRMWARE_MMU','-fno-pie','-no-pie',
-                              '-Wl,--defsym,fes_nano_mmu_root=0x8003c000']
+                              '-Wl,--defsym,fes_nano_mmu_root=0x8003c000',
+                              '-Wl,--section-start=.fes_mmu_witness=0x5f000']
             result = subprocess.run(command, capture_output=True, text=True, timeout=30)
             if target is not None:
                 (target / 'compile.log').write_text(result.stdout + result.stderr)

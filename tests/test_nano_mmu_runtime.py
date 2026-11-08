@@ -22,7 +22,7 @@ class NanoMMURuntimeTests(unittest.TestCase):
                                    ('FES_NANO_MMU_TABLE_BYTES',mmu.TABLE_BYTES))))
             built=subprocess.run(['cc','-std=c11','-O2','-Wall','-Wextra','-Werror',
                 '-fsanitize=undefined','-fno-sanitize-recover=all','-I'+str(FW),
-                str(FW/'nano_mmu.c'),str(FW/'tests/nano_mmu_test.c'),str(source),'-o',str(binary)],
+                str(FW/'nano_mmu.c'),str(FW/'nano_mmu_memory.c'),str(FW/'tests/nano_mmu_test.c'),str(source),'-o',str(binary)],
                 capture_output=True,text=True,timeout=30)
             self.assertEqual(built.returncode,0,built.stderr)
             result=subprocess.run([binary],capture_output=True,text=True,timeout=10)

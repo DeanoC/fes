@@ -30,6 +30,102 @@ CONTRACT = dict(format=1, scope='experimental-el3-static-private-cache-v1',
                 table_bytes=TABLE_BYTES, ddr_limit=DDR_LIMIT,
                 firmware_limit=BL31_LIMIT, runtime_enabled=False,
                 hardware_authority=False)
+RUNTIME_CONTRACT = dict(format=1, scope='matched-cold-el3-private-cache-v1',
+    mair=MAIR, tcr=TCR, table_bytes=TABLE_BYTES, granule=PAGE, va_bits=32, pa_bits=32,
+    memory_probe='private-line-clean-invalidate-reread-v1',
+    enable_phase='after-startup-cache-maintenance-before-el3-exit',
+    single_cpu='a55-cpu0-release-locked', hardware_authority=False)
+HERE = Path(__file__).resolve().parent
+LD = 'bl31/bl31.ld.S'
+LD_SHA = 'f6da064e38aa9b19dbab1d82dd427628ee38f83f6d12c0a9a68fd98a2e22177c'
+COMMON_LD = 'include/common/bl_common.ld.h'
+COMMON_LD_SHA = '713da3b695e23dabb3aa3bc4b453873b41dab466f137a4c6df368164784cc127'
+
+
+def selected(profile, enabled):
+    if type(enabled) is not bool:
+        raise ValueError('explicit boolean firmware MMU selection required')
+    if not enabled:
+        return None
+    if (ram.checked(profile) is None or profile.get('usb_shared') is not True or
+            profile.get('initial_tape') is not True or profile.get('computer_reload') is not True or
+            not isinstance(profile.get('hps_menu_program'), dict)):
+        raise ValueError('firmware MMU requires the complete mixed ROM/USB/tape OCRAM profile')
+    return dict(RUNTIME_CONTRACT)
+
+
+def checked(profile):
+    value = profile.get('firmware_mmu') if profile else None
+    if value is None:
+        return None
+    expected = selected(profile, True)
+    if json.dumps(value, sort_keys=True) != json.dumps(expected, sort_keys=True):
+        raise ValueError('firmware MMU policy differs from its fixed producer')
+    return expected
+
+
+def install(source, profile, ram_binding=None):
+    contract = checked(profile)
+    if contract is None:
+        return None
+    if ram_binding is None:
+        raise ValueError('MMU install requires the completed cold RAM binding')
+    ram.verify_installed(source, ram_binding)
+    for name, expected in ((LD, LD_SHA), (COMMON_LD, COMMON_LD_SHA)):
+        if hashlib.sha256((source/name).read_bytes()).hexdigest() != expected:
+            raise ValueError('unreviewed MMU linker source: '+name)
+    ld = (source/LD).read_text()
+    anchor = '    __RW_START__ = . ;'
+    if ld.count(anchor) != 2:
+        raise ValueError('MMU linker branch context changed')
+    ld = ld.replace(anchor, '#include "nano_mmu_tables.ld.inc"\n'+anchor)
+    common = (source/COMMON_LD).read_text()
+    anchor = '*(SORT_BY_ALIGNMENT(.bss*))'
+    if common.count(anchor) != 1:
+        raise ValueError('MMU witness BSS context changed')
+    common = common.replace(anchor, anchor+' *(.fes_mmu_witness)')
+    entry_name = 'bl31/aarch64/bl31_entrypoint.S'
+    entry = (source/entry_name).read_text()
+    anchor = '\tfes_ram_uart_text fes_nano_ram_runtime_exit_before\n\tb\tel3_exit\n'
+    if entry.count(anchor) != 1 or entry.index('fes_ram_bss_clean') > entry.index(anchor):
+        raise ValueError('MMU enable requires the completed original cold exit maintenance')
+    original_entry=entry
+    entry = entry.replace(anchor, '\tfes_ram_uart_text fes_nano_ram_runtime_exit_before\n'
+        '\tbl\tfes_nano_mmu_platform_boot\n\tcbnz\tx0, .Lfes_ram_park\n\tb\tel3_exit\n')
+    include = source/'plat/intel/soc/common/include'
+    files = [LD, COMMON_LD, entry_name]
+    (source/LD).write_text(ld);(source/COMMON_LD).write_text(common)
+    (source/entry_name).write_text(entry)
+    (include/'nano_mmu_tables.ld.inc').write_text(linker_fragment())
+    files.append(str((include/'nano_mmu_tables.ld.inc').relative_to(source)))
+    for name in ('nano_mmu.h','nano_mmu_platform.h','nano_mmu_memory.h'):
+        (include/name).write_bytes((HERE/name).read_bytes());files.append(str((include/name).relative_to(source)))
+    for name in ('nano_mmu.c','nano_mmu_platform.c','nano_mmu_memory.c'):
+        path=source/'plat/intel/soc/common'/name;path.write_bytes((HERE/name).read_bytes())
+        files.append(str(path.relative_to(source)))
+    make=source/'plat/intel/soc/agilex5/platform.mk'
+    make.write_text(make.read_text()+'\nBL31_SOURCES += plat/intel/soc/common/nano_mmu.c plat/intel/soc/common/nano_mmu_platform.c plat/intel/soc/common/nano_mmu_memory.c\n')
+    files.append(str(make.relative_to(source)))
+    ram_binding['sources'][entry_name]=hashlib.sha256(entry.encode()).hexdigest()
+    return dict(contract=contract, prior_ram_entry_sha256=hashlib.sha256(original_entry.encode()).hexdigest(),
+                sources={name:hashlib.sha256((source/name).read_bytes()).hexdigest() for name in files})
+
+
+def verify_installed(source, binding):
+    if binding is not None and (binding.get('contract') != RUNTIME_CONTRACT or
+            any(hashlib.sha256((source/name).read_bytes()).hexdigest()!=value for name,value in binding['sources'].items())):
+        raise ValueError('installed MMU sources differ from the selected binding')
+
+
+def verify_live_image(image, chain):
+    proof=verify_image(image, chain)
+    symbols=ram.symbols(image)
+    address,size=symbols.get('fes_nano_mmu_witness',(0,0))
+    if (size!=64 or address&63 or not ram.STACK_END<=address<=ram.LIMIT-size or
+            not symbols['__BSS_START__'][0]<=address<address+size<=symbols['__BSS_END__'][0] or
+            'fes_nano_mmu_platform_boot' not in symbols):
+        raise ValueError('MMU private witness or late boot hook is missing/outside its reservation')
+    return dict(proof, selected_policy=dict(RUNTIME_CONTRACT), witness=address, witness_bytes=size)
 
 
 def _leaf(address, attrs, level):

@@ -23,12 +23,19 @@ The `nano_mmu` prototype adds a one-attempt enable transition and fresh CPU/MMU
 scope checks through `nano_mmu_platform`. It retains the vendor's SCTLR settings,
 sets only M/C/WXN, verifies each selected register write, and retires partial or
 changed profiles without a cache-off fallback. The explicit
-`FES_NANO_FIRMWARE_MMU` test selection connects these checks to the existing cold
+`FES_NANO_FIRMWARE_MMU` selection connects these checks to the existing cold
 callbacks and every owned SiP channel. Injected-register tests execute the real
 adapter, boot/master ownership checks, shared USB, tape, configuration and return
-engines. This selection is not yet exposed by the matched boot producers: late
-startup installation, source-bound profile receipts and boot trace admission are
-the next integration step. Current board images still use the existing mode.
+engines. The matched BL31 and SPL/U-Boot producers now expose
+`--nano-firmware-mmu`, requiring the complete selected OCRAM/shared-USB/tape
+profile. The source-bound policy installs enablement after the original final
+cold cache cleanup. It requires a private 64-byte write/clean/invalidate/read
+diagnostic before publishing active state. The boot observer requires both
+matching register records before accepting the loader. This bounded diagnostic
+does not establish full RAM/cache coherency or hardware transfer performance.
+The [matched boot build](../../../docs/validation/2026-11-09-de25-mmu-boot/README.md)
+passes BL31, SPL/U-Boot and image composition; its hardware test remains open.
+Previously tested board images still use the existing mode.
 See the [runtime scope checks](../../../docs/validation/2026-11-09-de25-mmu-runtime/README.md).
 
 `nano_tape` is a secure-side initial-tape engine for the existing
