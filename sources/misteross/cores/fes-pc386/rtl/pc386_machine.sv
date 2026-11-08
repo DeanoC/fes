@@ -1,13 +1,13 @@
 // SPDX-License-Identifier: MIT
 // pc386 machine without the CPU (docs/pc386-machine-design.md, phase M2): the
-// AT core, the VGA with its capture writer, the 720p presenter and the
-// display plane. The CPU's I/O, INTA, DMA and MMIO ports and DDR ports 1 and
+// AT core, the VGA with its capture writer, the EMS board, the 720p presenter
+// and the display plane. The CPU's I/O, INTA, DMA and MMIO ports and DDR ports 1 and
 // 2 are the boundary; the shell adds the CPU, fes_hps_ddr (port 0 for guest
 // RAM, all three ports in clk) and the mailbox.
 //
 //   port 1  VRAM: VGA planar writes and reads, scanout line prefetch
 //   port 2  plane reads (pc386_plane_bridge), presenter reads, capture writes,
-//           the shell's reads and single beats (aux)
+//           EMS board memory, the shell's reads and single beats (aux)
 //
 // port2_reset resets the port 2 arbiter alone, so the shell's aux master can
 // use the port while the shell holds the rest of the machine in reset: the
@@ -40,9 +40,10 @@ module pc386_machine #(
     output wire flush_request,
     input wire flush_done,
     output wire cpu_reset,
-    // CPU MMIO for A0000h-BFFFFh
+    // CPU MMIO, by dword address below 1 MiB: A0000h-BFFFFh the VGA,
+    // E0000h-EFFFFh the EMS board's frame when it is fitted
     input wire mem_valid, mem_write,
-    input wire [16:2] mem_address,
+    input wire [19:2] mem_address,
     input wire [3:0] mem_byteenable,
     input wire [31:0] mem_wdata,
     output wire mem_ready, mem_rvalid,
@@ -78,6 +79,7 @@ module pc386_machine #(
     output wire mouse_ready,
     input wire [15:0] base_kib, extended_kib, above16m_64k,
     input wire [7:0] sb_base_high, sb_irq, sb_dma,
+    input wire [7:0] ems_pages,             // EMS board size in 16 KiB pages, 0 when not fitted
     output wire cmos_busy,
     input wire wall_valid,
     input wire [15:0] wall_year,
@@ -154,6 +156,21 @@ module pc386_machine #(
     wire vga_valid, vga_write, vga_done;
     wire [15:0] vga_port;
     wire [7:0] vga_wdata, vga_rdata;
+    wire ems_reg_write;
+    wire [1:0] ems_reg_index;
+    wire [7:0] ems_reg_wdata;
+    // The 8237's memory cycles: into the EMS board's frame when it is fitted,
+    // else to the CPU's DMA port.
+    wire at_dma_valid, at_dma_write, at_dma_done, ems_dma_done;
+    wire [23:0] at_dma_address;
+    wire [7:0] at_dma_wdata, at_dma_rdata, ems_dma_rdata;
+    wire dma_in_frame = ems_pages != 8'd0 && at_dma_address[23:16] == 8'h0e;
+    assign dma_valid = at_dma_valid && !dma_in_frame;
+    assign dma_write = at_dma_write;
+    assign dma_address = at_dma_address;
+    assign dma_wdata = at_dma_wdata;
+    assign at_dma_done = dma_in_frame ? ems_dma_done : dma_done;
+    assign at_dma_rdata = dma_in_frame ? ems_dma_rdata : dma_rdata;
     pc386_at_core #(
         .ISA_N(ISA_N), .ISA_D(ISA_D), .PIT_N(PIT_N), .PIT_D(PIT_D), .RTC_N(RTC_N), .RTC_D(RTC_D),
         .US_N(US_N), .US_D(US_D), .DMA_N(DMA_N), .DMA_D(DMA_D), .ATA_RESET_CLOCKS(ATA_RESET_CLOCKS)
@@ -163,8 +180,8 @@ module pc386_machine #(
         .inta_valid(inta_valid), .io_busy(io_busy), .io_done(io_done), .inta_done(inta_done),
         .io_rdata(io_rdata), .inta_vector(inta_vector), .intr(intr), .a20m(a20m),
         .cpu_shutdown(cpu_shutdown), .flush_request(flush_request), .flush_done(flush_done), .cpu_reset(cpu_reset),
-        .dma_valid(dma_valid), .dma_write(dma_write), .dma_address(dma_address), .dma_wdata(dma_wdata),
-        .dma_done(dma_done), .dma_rdata(dma_rdata), .dma_drq(dma_drq),
+        .dma_valid(at_dma_valid), .dma_write(at_dma_write), .dma_address(at_dma_address),
+        .dma_wdata(at_dma_wdata), .dma_done(at_dma_done), .dma_rdata(at_dma_rdata), .dma_drq(dma_drq),
         .dma_ack_valid(dma_ack_valid), .dma_ack_write(dma_ack_write), .dma_ack_tc(dma_ack_tc),
         .dma_ack_channel(dma_ack_channel), .dma_ack_wdata(dma_ack_wdata), .dma_ack_done(dma_ack_done),
         .dma_ack_rdata(dma_ack_rdata),
@@ -179,7 +196,9 @@ module pc386_machine #(
         .mouse_valid(mouse_valid), .mouse_dx(mouse_dx), .mouse_dy(mouse_dy), .mouse_buttons(mouse_buttons),
         .mouse_ready(mouse_ready),
         .base_kib(base_kib), .extended_kib(extended_kib), .above16m_64k(above16m_64k),
-        .sb_base_high(sb_base_high), .sb_irq(sb_irq), .sb_dma(sb_dma), .cmos_busy(cmos_busy),
+        .sb_base_high(sb_base_high), .sb_irq(sb_irq), .sb_dma(sb_dma), .ems_pages(ems_pages),
+        .ems_reg_write(ems_reg_write), .ems_reg_index(ems_reg_index), .ems_reg_wdata(ems_reg_wdata),
+        .cmos_busy(cmos_busy),
         .wall_valid(wall_valid), .wall_year(wall_year), .wall_month(wall_month), .wall_day(wall_day),
         .wall_hour(wall_hour), .wall_minute(wall_minute), .wall_second(wall_second), .wall_weekday(wall_weekday),
         .disk_present(disk_present), .disk_sectors(disk_sectors), .disk_cylinders(disk_cylinders),
@@ -194,6 +213,32 @@ module pc386_machine #(
         .record_clock_index(record_clock_index), .record_clock_pair(record_clock_pair)
     );
 
+    // MMIO: the frame goes to the board, everything else to the VGA. The CPU
+    // waits for a read's answer before it sends another access, so at most
+    // one of them answers in a clock.
+    wire ems_select = mem_address[19:16] == 4'he;
+    wire vga_ready, vga_rvalid, ems_ready, ems_rvalid;
+    wire [31:0] vga_rdata32, ems_rdata;
+    assign mem_ready = ems_select ? ems_ready : vga_ready;
+    assign mem_rvalid = vga_rvalid || ems_rvalid;
+    assign mem_rdata = ems_rvalid ? ems_rdata : vga_rdata32;
+    wire [28:0] ems_address;
+    wire ems_read, ems_write, ems_waitrequest, ems_readdatavalid;
+    wire [63:0] ems_writedata;
+    wire [7:0] ems_byteenable;
+    pc386_ems ems (
+        .clk(clk), .reset(reset), .pages(ems_pages),
+        .reg_write(ems_reg_write), .reg_index(ems_reg_index), .reg_wdata(ems_reg_wdata),
+        .mem_valid(mem_valid && ems_select), .mem_write(mem_write), .mem_address(mem_address[15:2]),
+        .mem_byteenable(mem_byteenable), .mem_wdata(mem_wdata), .mem_ready(ems_ready),
+        .mem_rvalid(ems_rvalid), .mem_rdata(ems_rdata),
+        .dma_valid(at_dma_valid && dma_in_frame), .dma_write(at_dma_write), .dma_address(at_dma_address[15:0]),
+        .dma_wdata(at_dma_wdata), .dma_done(ems_dma_done), .dma_rdata(ems_dma_rdata),
+        .p2_address(ems_address), .p2_read(ems_read), .p2_write(ems_write), .p2_writedata(ems_writedata),
+        .p2_byteenable(ems_byteenable), .p2_waitrequest(ems_waitrequest), .p2_readdata(p2_readdata),
+        .p2_readdatavalid(ems_readdatavalid)
+    );
+
     wire [28:0] capture_address;
     wire [7:0] capture_burstcount;
     wire capture_write, capture_waitrequest;
@@ -204,9 +249,9 @@ module pc386_machine #(
         .clk(clk), .reset(reset),
         .io_valid(vga_valid), .io_write(vga_write), .io_port(vga_port), .io_wdata(vga_wdata),
         .io_done(vga_done), .io_rdata(vga_rdata),
-        .mem_valid(mem_valid), .mem_write(mem_write), .mem_address(mem_address),
-        .mem_byteenable(mem_byteenable), .mem_wdata(mem_wdata), .mem_ready(mem_ready),
-        .mem_rvalid(mem_rvalid), .mem_rdata(mem_rdata),
+        .mem_valid(mem_valid && !ems_select), .mem_write(mem_write), .mem_address(mem_address[16:2]),
+        .mem_byteenable(mem_byteenable), .mem_wdata(mem_wdata), .mem_ready(vga_ready),
+        .mem_rvalid(vga_rvalid), .mem_rdata(vga_rdata32),
         .p1_address(p1_address), .p1_burstcount(p1_burstcount), .p1_read(p1_read), .p1_write(p1_write),
         .p1_writedata(p1_writedata), .p1_byteenable(p1_byteenable), .p1_waitrequest(p1_waitrequest),
         .p1_readdata(p1_readdata), .p1_readdatavalid(p1_readdatavalid),
@@ -282,6 +327,8 @@ module pc386_machine #(
         .present_waitrequest(present_waitrequest), .present_readdatavalid(present_readdatavalid),
         .capture_address(capture_address), .capture_burstcount(capture_burstcount), .capture_write(capture_write),
         .capture_writedata(capture_writedata), .capture_waitrequest(capture_waitrequest),
+        .ems_address(ems_address), .ems_read(ems_read), .ems_write(ems_write), .ems_writedata(ems_writedata),
+        .ems_byteenable(ems_byteenable), .ems_waitrequest(ems_waitrequest), .ems_readdatavalid(ems_readdatavalid),
         .aux_address(aux_address), .aux_burstcount(aux_burstcount), .aux_read(aux_read), .aux_write(aux_write),
         .aux_writedata(aux_writedata),
         .aux_byteenable(aux_byteenable), .aux_waitrequest(aux_waitrequest), .aux_readdatavalid(aux_readdatavalid),
