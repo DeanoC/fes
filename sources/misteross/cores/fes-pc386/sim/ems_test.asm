@@ -25,7 +25,8 @@
 ;             and 94h for a conventional side inside the page frame
 ;   errors    83h for a bad handle, 8Ah for a page past the end, 87h for more
 ;             pages than the board, 84h for function 55h, A3h for 4F00h with
-;             more segments than the frame
+;             more segments than the frame, 8Bh for 50h with more entries
+;             than frame pages, 8Ah for 57h from a page past the handle
 ;   os        5Dh hands out a key on its first call and 01h then refuses 59h
 ;             and 5Bh (A4h) until 00h with the key; 5B01h's save area comes
 ;             back from 5B00h with the current map in it, and one with a bad
@@ -536,6 +537,27 @@ errors: mov si, n_errors
         mov ax, 0x4f00
         int 0x67
         cmp ah, 0xa3
+        jne .bad
+        mov si, buffer                  ; 50h with five entries: 8Bh
+        mov cx, 5
+        mov dx, [handle]
+        mov ax, 0x5000
+        int 0x67
+        cmp ah, 0x8b
+        jne .bad
+        mov dword [region], 16          ; 57h from page 60 of a 60-page handle: 8Ah
+        mov byte [region + 4], 1
+        mov ax, [handle]
+        mov [region + 5], ax
+        mov word [region + 7], 0
+        mov word [region + 9], 60
+        mov byte [region + 11], 0
+        mov word [region + 14], target
+        mov [region + 16], ds
+        mov si, region
+        mov ax, 0x5700
+        int 0x67
+        cmp ah, 0x8a
         jne .bad
         call ok
         jmp os

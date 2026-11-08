@@ -614,6 +614,9 @@ f50:    cmp al, 1                       ; map or unmap multiple pages
         call check_handle
         jc .done
         mov cx, [bp + F_CX]
+        mov ah, 0x8b                    ; more entries than the frame has pages
+        cmp cx, 4
+        ja .done
         mov ax, [bp + F_SI]
         mov [list_ptr], ax
 .next:  jcxz .ok
@@ -1078,6 +1081,10 @@ check_side:
         mov ah, 0x95
         cmp word [bx + 3], 0x3fff
         ja .bad
+        movzx ecx, byte [h_count + si]  ; the first page is the handle's
+        movzx eax, word [bx + 5]
+        cmp eax, ecx
+        jae .page
         mov ecx, [mv_length]            ; last page: page + (offset + length - 1) / 16K
         jecxz .fine
         movzx eax, word [bx + 3]
@@ -1098,6 +1105,9 @@ check_side:
         stc
         ret
 .long:  mov ah, 0x93
+        stc
+        ret
+.page:  mov ah, 0x8a
         stc
         ret
 
