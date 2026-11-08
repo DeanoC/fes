@@ -45,6 +45,7 @@
   "first_overall_build_timeout_retained": true,
   "only_uboot_rebuilt_jobs": 8,
   "shared_quartus_lock_used_for_packaging": true,
-  "retention_target": "/home/deano/fes-retained/de25-tape-cost-source-and-build-20261108-r1",
-  "next_step": "fresh operator/source/file admission and bounded top-only diagnostic; stop at first failure; no replay"
+  "retention_target": "/home/deano/fes-retained/de25-tape-cost-source-and-build-20261108-r2",
+  "next_step": "fresh operator/source/file admission and bounded top-only diagnostic; stop at first failure; no replay",
+  "prior_archive_policy_failure_retained": "/home/deano/fes-retained/de25-tape-cost-source-and-build-20261108-r1"
 }

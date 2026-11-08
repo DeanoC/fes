@@ -46,3 +46,9 @@ remain reserved, factory restoration is waived unless needed, and the bottom
 kit is untouched. Fresh operator/source/file admission is still needed before
 the next single bounded diagnostic. Its measurements will guide the tape
 performance repair without widening the1s deadline.
+
+The archive retains original vendor build-tree symlink targets and verifies them
+without extraction. Absolute build links point inside this worktree; restoring
+under a different root requires adjusting those links or rebuilding from the
+retained source bundle and recipes. The first archive policy refusal is retained
+separately; it caused no device operation.
