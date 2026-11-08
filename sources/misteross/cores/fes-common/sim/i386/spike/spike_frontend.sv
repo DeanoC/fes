@@ -95,8 +95,8 @@ module spike_frontend (
     // Every access hits; a miss has no refill here, so the data is always valid.
     fes_i386_frontend dut (
         .clk, .reset, .redirect, .redirect_linear, .code32, .mem_block, .mem_load,
-        .mem_data, .mem_valid(1'b1), .q_valid, .q, .d_ready, .pred_en(1'b1), .btb_wr, .ras_set_ptr,
-        .ras_set_wr, .ras_set_lin, .held_block, .held_valid
+        .mem_data, .mem_valid(1'b1), .mem_tag('0), .q_valid, .q, .d_ready, .pred_en(1'b1), .btb_wr, .ras_set_ptr,
+        .ras_set_wr, .ras_set_lin, .held_block, .held_valid, .held_pp(), .held_pk()
     );
 
     logic [31:0]  signature;

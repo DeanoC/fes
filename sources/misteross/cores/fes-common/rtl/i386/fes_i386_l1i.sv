@@ -1,9 +1,17 @@
 // SPDX-License-Identifier: MIT
 // L1I (docs/i386-cpu-design.md, "Fetch and L1I"): 16 KiB, 4-way, 32-byte
 // lines, indexed by linear bits 11:5 and tagged with the physical page, behind
-// the front end's fetch port (fes_i386_fetchbuf). Paging is not built, so
-// the physical address is the linear one with A20M and the reset alias
-// applied (fes_i386_pkg::phys); the ITLB will replace that.
+// the front end's fetch port (fes_i386_fetchbuf). With paging off the
+// physical address is the linear one with A20M and the reset alias applied
+// (fes_i386_pkg::phys). With paging on (pg), F1 looks the block's linear page
+// up in the ITLB, 8 entries in flip-flops (fes_i386_tlb), beside the arrays'
+// read, and the matching entry's physical page and attribute take phys's
+// place in the page registers. A block whose page the ITLB does not hold is
+// read as a hole (FFh bytes, nothing filled) and marked (mem_tag tm); D turns
+// the instruction that uses it into a walk (fes_i386_cpu, "Paging"), which
+// fills the ITLB (itlb_fill) and restarts it. Each block also carries its
+// entry's U/S bit (ts set for a supervisor page, which D checks at CPL 3) and
+// its physical page's bits 19:12 for the self-modifying-code check.
 //
 // F1 loads mem_block into the M10K address registers; every array also
 // re-reads the block F2 holds on every other edge, so a fill shows up there
@@ -42,6 +50,13 @@ module fes_i386_l1i import fes_i386_pkg::*; (
     input  logic             mem_load,
     output logic [15:0][7:0] mem_data,
     output logic             mem_valid,
+    output ftag_t            mem_tag,     // the block's paging tag, with mem_data
+    // Paging: CR0.PG, and the ITLB's fill and flush.
+    input  logic             pg,
+    input  logic             itlb_fill,
+    input  tlb_entry_t       itlb_e,
+    input  logic             itlb_flush,
+    input  logic             itlb_off,    // the ITLB is flushed on this edge: nothing it holds is used
     // Stores: the one entering WB on edges D to WB advance (st_ex_addr, its
     // linear address), and the one WB commits now, its physical line and
     // whether its lanes run into the next line (st_line1).
@@ -53,6 +68,10 @@ module fes_i386_l1i import fes_i386_pkg::*; (
     input  logic [PA-6:0]    st_line0,
     input  logic [PA-6:0]    st_line1,
     input  logic             st_cross,
+    // The walker's A/D store into a line (fes_i386_l1d pw), which clears its
+    // set.
+    input  logic             pw_clr,
+    input  logic [PA-6:0]    pw_line,
     // Invalidation by the bus interface.
     input  logic             inv_valid,
     input  logic [PA-6:0]    inv_line,
@@ -109,17 +128,29 @@ module fes_i386_l1i import fes_i386_pkg::*; (
     // The block's physical page, registered with the arrays' read: the next
     // block's when F1 loads one, else F2's kept. Eight copies, one per hit set
     // (kept apart: DeanoC/yosys#51).
+    // With paging on, the ITLB's entry for the block's page, or a hole and
+    // the mark when it has none.
     logic [PA:0]   p_new;
     logic [TW-1:0] page_new;
     attr_e         at_new, at;
+    logic          itlb_hit, itlb_use;
+    tlb_entry_t    itlb_q;
+    logic [7:0]    itlb_match;
+    logic [7:0][PA-12:0] itlb_pages;
+    fes_i386_tlb #(.N(8), .P(1)) itlb (
+        .clk, .flush(itlb_flush), .lk_lp(mem_block[27:8]), .hit(itlb_hit), .match(itlb_match), .q(itlb_q),
+        .pages(itlb_pages), .fill(itlb_fill), .fill_e(itlb_e)
+    );
     assign p_new = phys({mem_block, 4'd0}, a20m);
-    assign page_new = p_new[PA-1:12];
-    assign at_new = attr(p_new, attr_upper, ram_top);
+    assign itlb_use = itlb_hit && !itlb_off;
+    assign page_new = pg ? itlb_q.pp[TW-1:0] : p_new[PA-1:12];
+    assign at_new = !pg ? attr(p_new, attr_upper, ram_top) : itlb_use ? itlb_q.at : ATTR_HOLE;
     (* keep *) logic [7:0][TW-1:0] page;
     always_ff @(posedge clk) begin
         if (mem_load) begin
             page <= {8{page_new}};
             at <= at_new;
+            mem_tag <= '{tm: pg && !itlb_use, ts: pg && itlb_use && !itlb_q.u, pp: page_new[7:0]};
         end
     end
 
@@ -204,7 +235,7 @@ module fes_i386_l1i import fes_i386_pkg::*; (
 
     // A fill's own line written while it fills spoils it.
     logic spoil, start, set_valid;
-    assign spoil = inv_valid && inv_line == f_line || inv_all
+    assign spoil = inv_valid && inv_line == f_line || inv_all || pw_clr && pw_line == f_line
                 || st_commit && (st_line0 == f_line || st_cross && st_line1 == f_line);
     assign start = fill == F_IDLE && miss;
     assign set_valid = fill == F_VALID && !spoilt && !spoil;
@@ -226,7 +257,7 @@ module fes_i386_l1i import fes_i386_pkg::*; (
     for (genvar k = 0; k < 128; k++) begin : g_valid
         for (genvar w = 0; w < 4; w++) begin : g_way
             logic clear;
-            assign clear = inv_all || inv_valid && inv_line[6:0] == 7'(k)
+            assign clear = inv_all || inv_valid && inv_line[6:0] == 7'(k) || pw_clr && pw_line[6:0] == 7'(k)
                         || si_valid && si_set0 == 7'(k) && si_hit[w]
                         || si_valid && si_cross && si_set1 == 7'(k)
                         || start && blk[7:1] == 7'(k) && free == 2'(w);

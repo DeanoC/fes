@@ -71,6 +71,7 @@ module fes_i386_fetchbuf import fes_i386_pkg::*; (
     output logic              mem_load,
     input  logic [15:0][7:0]  mem_data,
     input  logic              mem_valid,
+    input  ftag_t             mem_tag,        // the block's paging tag (fes_i386_l1i)
     input  logic [1:0]        release_half,   // Q left this half on this edge
     input  logic              q_half,         // the half Q's start is in
     output logic [1:0]        half_valid,
@@ -104,7 +105,14 @@ module fes_i386_fetchbuf import fes_i386_pkg::*; (
     // code check (fes_i386_cpu): F1's next (fetch_block or a predicted
     // target), F2's, L1's, L2's and the two halves', each with a valid bit.
     output logic [6:0][27:0]  held_block,
-    output logic [6:0]        held_valid
+    output logic [6:0]        held_valid,
+    // Each block's paging tag, kept per half and in L2 (Q's tm and pp), and
+    // the held blocks' physical page bits 19:12 where the block has been
+    // looked up (held_pk; F1's next blocks have not).
+    output ftag_t [1:0]       half_tag,
+    output ftag_t             l2_tag,
+    output logic [6:0][7:0]   held_pp,
+    output logic [6:0]        held_pk
 );
     logic [1:0]       tail_ok;  // the half's bytes 12-15 are decoded
     logic [1:0]       filling;  // L2 writes this half on this edge
@@ -113,6 +121,7 @@ module fes_i386_fetchbuf import fes_i386_pkg::*; (
     logic [27:0]      fetch_block;  // the block after f2_block
     logic             l1_valid;     // the F2/L1 register
     logic [27:0]      l1_block;
+    ftag_t            l1_tag;
     logic [15:0][7:0] l1_bytes;
     logic             l2_valid;     // the L1/L2 register: the block and its length classes
     logic [27:0]      l2_block;
@@ -151,6 +160,8 @@ module fes_i386_fetchbuf import fes_i386_pkg::*; (
     assign ras_push_lin = push_last + 32'd1;
     assign held_block = {pred_block, fetch_block, f2_block, l1_block, l2_block, half_block[1], half_block[0]};
     assign held_valid = {pred_go, active, active, l1_valid, l2_valid, half_valid[1], half_valid[0]};
+    assign held_pp = {8'd0, 8'd0, mem_tag.pp, l1_tag.pp, l2_tag.pp, half_tag[1].pp, half_tag[0].pp};
+    assign held_pk = 7'b0011111;
 
     // L1: the decoders on F2's block behind the previous block's bytes 12-15.
     lclass_t [15:0] new_cls;
@@ -297,6 +308,7 @@ module fes_i386_fetchbuf import fes_i386_pkg::*; (
         if (f2_advance) begin
             l1_block <= f2_block;
             l1_bytes <= mem_data;
+            l1_tag <= mem_tag;
             l1_info <= f2_info;
             l1_seq <= f2_seq;
         end
@@ -304,6 +316,7 @@ module fes_i386_fetchbuf import fes_i386_pkg::*; (
         if (l1_advance) begin
             l2_block <= l1_block;
             l2_bytes <= l1_bytes;
+            l2_tag <= l1_tag;
             l2_cls <= new_cls;
             l2_info <= l1_info;
             l2_seq <= l1_seq;
@@ -311,6 +324,7 @@ module fes_i386_fetchbuf import fes_i386_pkg::*; (
 
         if (l2_fire) begin
             half_block[half] <= l2_block;
+            half_tag[half] <= l2_tag;
             half_info[half] <= l2_info;
             half_seq[half] <= l2_seq;
             // Slots 4-15 cover this block's bytes 0-11; slots 0-3 the other
