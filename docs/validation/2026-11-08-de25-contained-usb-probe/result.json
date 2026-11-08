@@ -1,0 +1,274 @@
+{
+  "base": "56d789479d04e1e98d35a7825cfae63fdf8c2d85",
+  "board_touched_by_this_milestone": false,
+  "boot_chain": {
+    "artifacts": {
+      "bl31": {
+        "bytes": 65597,
+        "path": "out/nano-usb-readiness-20261108/native-bl31-contained/source/build/agilex5/release/bl31.bin",
+        "sha256": "688dde54419261858494c6c274e5c290fabacacddb923ba3d584eafdeea112b3"
+      },
+      "core": {
+        "bytes": 1654784,
+        "path": "out/nano-usb-readiness-20261108/native-composition/native-hps-first.core.rbf",
+        "sha256": "1da457bc4afbfce297222fa8d85754fbd4533198be7dc9f706926ce21103b949"
+      },
+      "entry": {
+        "bytes": 2203648,
+        "path": "out/nano-usb-readiness-20261108/native-entry/entry.img",
+        "sha256": "58021591360939f56d74d26594f963580c0d03fe81138374a385c8f9a5017657"
+      },
+      "fit": {
+        "bytes": 2725688,
+        "path": "out/nano-usb-readiness-20261108/native-uboot/build/u-boot.itb",
+        "sha256": "2efa7fc3de47b2b6c48de222c99b6a3884fae593f72883a42f6a9bb321f3b4e3"
+      },
+      "phase1": {
+        "bytes": 831488,
+        "path": "out/nano-usb-readiness-20261108/native-composition/native-hps-first.hps.rbf",
+        "sha256": "45740d11eece2a03e701019d25d77d1825cdb3963c5c93216e17772389d8185a"
+      },
+      "sdk": {
+        "bytes": 5370031,
+        "path": "out/nano-usb-readiness-20261108/native-sdk-contained/usbcheck.elf",
+        "sha256": "25ad284eb7f8b34cecb0ead56aa0b5f5bf44a61b693529c8f6949f63479072bf"
+      },
+      "sof": {
+        "bytes": 1578274,
+        "path": "out/nano-usb-readiness-20261108/native-composition/native-hps-first.sof",
+        "sha256": "28693f9f626d194ea24b92a352675120bc440e3200940d60e9ea92efc914e6ea"
+      },
+      "spl": {
+        "bytes": 458219,
+        "path": "out/nano-usb-readiness-20261108/native-uboot/build/spl/u-boot-spl-dtb.hex",
+        "sha256": "06c355f4def1e891b4ac6fd711d09623eac23bd84f2304666274e1b9bcedfaa7"
+      }
+    },
+    "bl31_load_segments": [
+      [
+        2147483648,
+        2147595584
+      ]
+    ],
+    "chain_sha256": "f5f75eb2fbb0f8aae4f8c4e0632c042c5bcc74d74877b0efc562765828cafe55",
+    "core_payload_unchanged": true,
+    "embedded_spl_identity": {
+      "chunks": [
+        {
+          "address": 0,
+          "size": 65536
+        },
+        {
+          "address": 65536,
+          "size": 65536
+        },
+        {
+          "address": 131072,
+          "size": 31831
+        }
+      ],
+      "format": "nano-sof-gzip-hps-literals",
+      "hardware_programming_or_boot_acceptance": false,
+      "preserved_sections": 11,
+      "security_hash_and_configuration_crc_verified": false,
+      "spl_binary_sha256": "7f523381491004eaaa3e5ab623e34d0cd9f420cecaa56ce3c8ced7e0ee0f4a43",
+      "spl_bytes": 162903,
+      "spl_hex_sha256": "06c355f4def1e891b4ac6fd711d09623eac23bd84f2304666274e1b9bcedfaa7"
+    },
+    "firmware_layout": "existing DDR layout; no OCRAM exclusion selection or combined core-load acceptance",
+    "fpga_control": false,
+    "integrity_sha256": "f4bbd24cd5cb30c3c408ce501439288626dca27226c1e07e0446fdb3ab628397",
+    "native_boot_id": "5cbd398052060507",
+    "physical_programming_admission": false,
+    "rom_loading": false,
+    "sd_pio": false,
+    "usb_probe": true,
+    "usb_shared": false,
+    "verified_digests": 2248
+  },
+  "build_provenance": {
+    "buildinfo_sha256": "95c61950fb71fcb1d6310828f8a22f338ec64022ff439dee590bc32ba150adb7",
+    "embedded_go_vcs": {
+      "modified": "true",
+      "revision": "e3507371fd5cfa78ea9789e608f0df2da11c929b"
+    },
+    "note": "SDK/entry/firmware files were produced before their source commit; per-file source closures match recorded committed bytes. Embedded Go VCS metadata is retained separately; no clean-HEAD build claim.",
+    "source_digest_closures_match_recorded_commit": true
+  },
+  "changes": [
+    "Explicit usbcheck can inspect the current held-ROM shell without selecting ROM/computer/programming resources.",
+    "Shared selector rejects every FPGA resource/digest, mixed mode and non-boolean capability flag; ordinary core loaders still require complete ROM selection.",
+    "Cold identity derives usb_probe from the checked native program. Header and composer require agreement with the USB-only entry and preserve closed-only ownership.",
+    "Composer retains complete source/package/tool/SPL checks and declares USB-only scope in its receipt."
+  ],
+  "checks": {
+    "composition_six_command_plan": "passed on recorded source",
+    "first_seven_command_plan": "passed on2cf822864",
+    "focused_selection_and_composition_tests": 43,
+    "generated_consistency": "passed;52 generated consumers/37 fixture copies",
+    "jobs": {
+      "affected": {
+        "argv": [
+          "python3",
+          "out/nano-usb-readiness-20261108/checks.py"
+        ],
+        "cwd": "/home/deano/fes/out/dev/de25-embedded-os",
+        "elapsed": 294.391554890899,
+        "log_sha256": "b064f048b317d10b6354afba05244f7c43bf818c0cfd87e1d56006e843b21d87",
+        "returncode": 0,
+        "timed_out": false
+      },
+      "affected-composition-2": {
+        "argv": [
+          "python3",
+          "out/nano-usb-readiness-20261108/checks-composition-2.py"
+        ],
+        "cwd": "/home/deano/fes/out/dev/de25-embedded-os",
+        "elapsed": 303.3897430759389,
+        "log_sha256": "ed27d7448173cf26c99aa2aead7770ea7bfbc5827db82e362fc022a18eca4f5f",
+        "returncode": 0,
+        "timed_out": false
+      },
+      "bl31-usb-probe": {
+        "argv": [
+          "python3",
+          "out/nano-usb-readiness-20261108/bl31-contained.py"
+        ],
+        "cwd": "/home/deano/fes/out/dev/de25-embedded-os",
+        "elapsed": 15.409921836806461,
+        "log_sha256": "b9a3718e298db929c2b1c85d6fd8b1fb6f4936b515dc9c724c1f485d8d33dd01",
+        "returncode": 0,
+        "timed_out": false
+      },
+      "composition-usb-probe-3": {
+        "argv": [
+          "python3",
+          "out/nano-usb-readiness-20261108/compose.py"
+        ],
+        "cwd": "/home/deano/fes/out/dev/de25-embedded-os",
+        "elapsed": 13.407509471056983,
+        "log_sha256": "04434bd5fab54c6345fc561ee1ab4c4cb1ed75088457bb29119f8590f9c07411",
+        "returncode": 0,
+        "timed_out": false
+      },
+      "consistency-committed": {
+        "argv": [
+          "make",
+          "check"
+        ],
+        "cwd": "/home/deano/fes/out/dev/de25-embedded-os",
+        "elapsed": 6.803790969075635,
+        "log_sha256": "bf5f7269d6cdf27a6a66726a196436ec78b1a1b4de03ef8fb0467264b2578ff9",
+        "returncode": 0,
+        "timed_out": false
+      },
+      "file-integrity": {
+        "argv": [
+          "python3",
+          "out/nano-usb-readiness-20261108/file_integrity.py"
+        ],
+        "cwd": "/home/deano/fes/out/dev/de25-embedded-os",
+        "elapsed": 0.801157888956368,
+        "log_sha256": "a59e142241b310163863b3c15c8ccb317799ab0143c4af222d57e4b6737ce389",
+        "returncode": 0,
+        "timed_out": false
+      },
+      "native-entry-usb-probe": {
+        "argv": [
+          "python3",
+          "out/nano-usb-readiness-20261108/entry.py"
+        ],
+        "cwd": "/home/deano/fes/out/dev/de25-embedded-os",
+        "elapsed": 4.203175505856052,
+        "log_sha256": "98a20f498237f04767096e3ed6229aa5ec13dd82120fdd20ea2659d34b534ff5",
+        "returncode": 0,
+        "timed_out": false
+      },
+      "probe-composition-final": {
+        "argv": [
+          "python3",
+          "-m",
+          "unittest",
+          "-v",
+          "test_nano_hps_boot",
+          "test_nano_usb_probe",
+          "test_nano_rom_context",
+          "test_nano_usb_selection",
+          "test_nano_shared_usb_selection",
+          "test_nano_initial_tape"
+        ],
+        "cwd": "/home/deano/fes/out/dev/de25-embedded-os",
+        "elapsed": 10.407309133093804,
+        "log_sha256": "d5f6f609af2685ce9514f3c0ce7bf947601354c1d6d0a3b1961f6fe523db3059",
+        "returncode": 0,
+        "timed_out": false
+      },
+      "probe-selection-final": {
+        "argv": [
+          "python3",
+          "-m",
+          "unittest",
+          "-v",
+          "test_nano_usb_probe",
+          "test_nano_rom_context",
+          "test_nano_usb_selection",
+          "test_nano_shared_usb_selection",
+          "test_nano_initial_tape"
+        ],
+        "cwd": "/home/deano/fes/out/dev/de25-embedded-os",
+        "elapsed": 0.20072615798562765,
+        "log_sha256": "fb532e89f3cbb9b1833cc4d6144643e98bc3f4813d3a23c59b2a7498fa8f43ed",
+        "returncode": 0,
+        "timed_out": false
+      },
+      "selection-contained-usb": {
+        "argv": [
+          "python3",
+          "out/nano-usb-readiness-20261108/sdk-contained.py"
+        ],
+        "cwd": "/home/deano/fes/out/dev/de25-embedded-os",
+        "elapsed": 5.0034612531308085,
+        "log_sha256": "064c8897dc520603d64c57328281d34ff1cc3ee2337d36cda045cdc5fb53c6b1",
+        "returncode": 0,
+        "timed_out": false
+      },
+      "uboot-usb-probe": {
+        "argv": [
+          "python3",
+          "out/nano-usb-readiness-20261108/uboot.py"
+        ],
+        "cwd": "/home/deano/fes/out/dev/de25-embedded-os",
+        "elapsed": 43.02555572288111,
+        "log_sha256": "014d04474eb34968726faae13a980b5e142cef9317974feaf4492b79bbd0161d",
+        "returncode": 0,
+        "timed_out": false
+      }
+    },
+    "native_runtime_firmware_FPGA_integration": "passed on selection source; composer-only follow-up adds no native implementation change",
+    "parent_existing_skips": 3,
+    "parent_tests": 1713
+  },
+  "classification": "contained USB-only producer selection and matched boot-chain software evidence",
+  "evidence_directory": "out/nano-usb-readiness-20261108",
+  "first_selection_commit": "2cf822864e8dfe0c00889c93d35e5ad5273e28ad",
+  "goal_complete": false,
+  "hardware_acceptance": "not-run",
+  "prior_hardware_failure": "docs/validation/2026-11-08-de25-secure-tape-board-trial/hardware-result.json",
+  "remaining": [
+    "Prepare USB-only file-admission/operator support; current cached native admission intentionally accepts only paired fpgaload builds.",
+    "Freeze a separate one-attempt enumeration/Ready/Stop diagnostic and qualify it on TRWU8CBL; no additional hardware action occurred after passive observation.",
+    "The consumed secure-tape image is not replayable. Bulk-tape hardware timing and ROM consumption remain unproven.",
+    "Continue full core/package/media loading, menu/core transitions, physical display/input and native networking to DE10-equivalent acceptance."
+  ],
+  "retained_unsuccessful_work": [
+    "Initial USB build rejected the held-ROM shell before this selection change.",
+    "Older diagnostic shell failed the required JTAG constraint repair receipt; no waiver/fallback was applied.",
+    "OCRAM selection correctly rejected missing full native exclusion resources; this standalone no-programming probe uses the existing DDR firmware layout.",
+    "Overbroad unittest discovery was deliberately terminated; repository-selected routine plans completed instead.",
+    "Composition exposed its remaining unconditional ROM requirement; the same contained entry/cold rule is now enforced there.",
+    "Synthetic new composition fixture initially lacked the fes.computer ABI; corrected fixture passes the unchanged ABI gate.",
+    "Local runner/command-file naming and command-count setup failures remain in closed logs."
+  ],
+  "source_commit": "4f6694732defd1fee6df699a5a0878a40011135e",
+  "status": "passed"
+}
