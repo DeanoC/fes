@@ -591,6 +591,11 @@ only when its complete functional inputs, including execution identity, match.
 
 The shared Go/C++ builders compile the selected component commits, including
 the AArch64 data helper and software supervisor required by the image packer.
+The C++ build runs without networking in the SDK receipt's exact immutable
+builder image, matching the managed-factory path. That image must already be
+available locally; the build refuses a missing or substituted identity rather
+than choosing the current userspace Dockerfile. Its private volume is removed
+after the build. The DE10 software path keeps its normal container wrapper.
 The existing managed-factory producer assembles and verifies each generation, including its
 actual kernel/rootfs virtual boot. It retains compiler/base packages and refreshes
 the changed runtime. `dev` publishes `linux.img`, `Image`, `de25-owner.dtb`, the

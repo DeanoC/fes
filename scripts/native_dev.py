@@ -279,7 +279,7 @@ def build_de25_development(root, args):
                         'de25-nano', fogcast_source=staged['FogCast'])
                     runtime_record = software.build_runtime(snapshot, Path(args.de25_image),
                         revisions['libmister-runtime'], env, None, 'de25-nano',
-                        runtime_source=staged['libmister-runtime'], base_factory=False, provision=True)
+                        runtime_source=staged['libmister-runtime'], base_factory=False)
                     # Match Buildroot's final strip policy before sealing the
                     # selected runtime. Image assembly must retain these bytes.
                     run([container, 'run', '--rm', '--platform', 'linux/amd64', '--network', 'none',

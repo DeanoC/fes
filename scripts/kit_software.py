@@ -313,7 +313,7 @@ debugfs -R 'rdump /etc/fes /work/build/software/base/etc' /work/build/software/b
 
 
 def build_runtime(snapshot, cache, revision, env, driver, board='de10-nano', *,
-                  runtime_source=None, base_factory=True, provision=False,
+                  runtime_source=None, base_factory=True,
                   de25_static_expansion=False):
     variables = runtime_make_variables(board, de25_static_expansion)
     image = snapshot / 'image'
@@ -344,7 +344,9 @@ def build_runtime(snapshot, cache, revision, env, driver, board='de10-nano', *,
         shutil.copyfile(cache / 'receipt.json', local / 'receipt.json')
         if sdk.validated_sha(local, sdk_key) != sdk_sha:
             raise ValueError('cached SDK changed while copying')
-    # Wrapper validates the pinned builder labels and runs without networking.
+    # DE25 consumes the SDK producer's immutable environment, as its managed
+    # factory does. A newer userspace Dockerfile must not select a different
+    # builder and then reject the otherwise authenticated SDK.
     container_env = dict(env)
     container_env.pop('FES_TARGET_IMAGE_SHARED_CACHE', None)
     container_env.pop('ENABLE_DE25_STATIC', None)
@@ -355,40 +357,47 @@ def build_runtime(snapshot, cache, revision, env, driver, board='de10-nano', *,
         'containers/target-image/Dockerfile', 'containers/target-image/create-builder-user.sh',
         'build/target-image-container-packages.sha256', 'build/target-image.sources.lock.toml')).encode()).hexdigest()
     tag = 'fogcast-target-image-build:' + lock['container']['digest'][7:19] + '-' + context[:12] + '-' + str(os.getuid()) + '-' + str(os.getgid())
-    def authenticate_builder():
-        identity = run([container_env['TARGET_IMAGE_CONTAINER_RUNTIME'], 'image', 'inspect', tag,
-                        '--format', '{{.Id}}'], env=container_env)
-        if not re.fullmatch('sha256:[0-9a-f]{64}', identity):
-            raise ValueError('invalid pinned builder identity')
-        if selected and identity != selected['builder_image']:
-            raise ValueError('DE25 SDK and runtime builder identities differ')
-        return identity
-
-    if not provision:
-        builder_id = authenticate_builder()
+    builder_ref = selected['builder_image'] if selected else tag
+    builder_id = run([container_env['TARGET_IMAGE_CONTAINER_RUNTIME'], 'image', 'inspect', builder_ref,
+                      '--format', '{{.Id}}'], env=container_env)
+    if not re.fullmatch('sha256:[0-9a-f]{64}', builder_id):
+        raise ValueError('invalid pinned builder identity')
+    if selected and builder_id != selected['builder_image']:
+        raise ValueError('DE25 SDK and runtime builder identities differ')
     existing = subprocess.run([container_env['TARGET_IMAGE_CONTAINER_RUNTIME'], 'volume', 'inspect',
                                container_env['TARGET_IMAGE_OUTPUT_VOLUME']],
                               stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, check=False)
     if existing.returncode == 0:
         raise ValueError('private build volume already exists; refusing to claim it')
     try:
-        if provision:
-            run([image / 'scripts/target-image-container.sh', 'run', 'true'], env=container_env)
-            builder_id = authenticate_builder()
-        run([image / 'scripts/target-image-container.sh', 'run', 'sh', '-c',
-             runtime_script(revision, driver, board, sdk_sha, base_factory=base_factory,
-                            de25_static_expansion=de25_static_expansion)],
-            env=container_env)
+        script = runtime_script(revision, driver, board, sdk_sha, base_factory=base_factory,
+                                de25_static_expansion=de25_static_expansion)
+        if selected:
+            # /target-image-output exists in the locked image with the build
+            # user's ownership; an absent destination would create a root-owned
+            # volume. Mount only this invocation's private workspace and volume.
+            run([container_env['TARGET_IMAGE_CONTAINER_RUNTIME'], 'run', '--rm',
+                 '--platform', 'linux/amd64', '--network', 'none',
+                 '--user', f'{os.getuid()}:{os.getgid()}', '--ulimit', 'core=0:0',
+                 '--ulimit', 'nofile=65536:65536',
+                 '--volume', str(image) + ':/work',
+                 '--volume', container_env['TARGET_IMAGE_OUTPUT_VOLUME'] + ':/target-image-output',
+                 '--workdir', '/work', '--env', 'LC_ALL=C', '--env', 'TZ=UTC',
+                 builder_id, 'sh', '-c', script], env=container_env)
+        else:
+            # DE10 retains the wrapper's base/package/UID provenance checks.
+            run([image / 'scripts/target-image-container.sh', 'run', 'sh', '-c', script],
+                env=container_env)
     finally:
         subprocess.run([container_env['TARGET_IMAGE_CONTAINER_RUNTIME'], 'volume', 'rm',
                         container_env['TARGET_IMAGE_OUTPUT_VOLUME']],
                        stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, check=False)
     return {'key': sdk_key, 'archive_sha256': sdk_sha, 'container_id': builder_id,
             'runtime_make_variables': variables,
-            'container_base': lock['container'], 'container_context_sha256': context,
             **({'de25_image_sdk': selected,
                 'sdk_archive_cache': {'key': cached['key'], 'archive_sha256': sdk_sha}}
-               if selected else {})}
+               if selected else {'container_base': lock['container'],
+                                  'container_context_sha256': context})}
 
 
 def package(image, payload, output, version, fogcast, revision, env):

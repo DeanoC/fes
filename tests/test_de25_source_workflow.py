@@ -158,8 +158,8 @@ class DE25SourceWorkflowTests(unittest.TestCase):
         (command[2] / 'bin/fes-kit-data-linux-aarch64').write_bytes(b'fixture data helper')
 
     def build_runtime(self, snapshot, cache, revision, env, driver, board, **kwargs):
-        self.assertEqual((driver, board, kwargs['base_factory'], kwargs['provision']),
-                         (None, 'de25-nano', False, True))
+        self.assertEqual((driver, board, kwargs['base_factory']),
+                         (None, 'de25-nano', False))
         self.assertNotIn('CXXFLAGS', env)
         self.assertNotIn('GOARM', env)
         destination = snapshot / 'image/build/software/runtime/build'

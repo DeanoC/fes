@@ -591,6 +591,15 @@ class SoftwareWorkflowTests(unittest.TestCase):
         self.assertIn('ENABLE_DE25_STATIC=1', calls[1][0][-1])
         self.assertNotIn('ENABLE_DE25_STATIC', calls[1][1]['env'])
         self.assertEqual(result['runtime_make_variables'], {'ENABLE_DE25_STATIC': 1})
+        self.assertEqual(calls[0][0][3], selected['builder_image'])
+        self.assertEqual(calls[1][0][0:3], ['docker', 'run', '--rm'])
+        self.assertIn(selected['builder_image'], calls[1][0])
+        self.assertEqual(calls[1][0][calls[1][0].index('--network') + 1], 'none')
+        self.assertEqual(calls[1][0][calls[1][0].index('--user') + 1],
+                         f'{os.getuid()}:{os.getgid()}')
+        self.assertIn(str(self.root / 'image') + ':/work', calls[1][0])
+        self.assertNotIn('container_context_sha256', result)
+        self.assertNotIn('container_base', result)
 
     def test_de25_runtime_rejects_cache_receipt_poison_before_container(self):
         import kit_sdk
@@ -604,7 +613,7 @@ class SoftwareWorkflowTests(unittest.TestCase):
                 kit.build_runtime(self.root, self.root / 'recorded-image', 'b'*40, {}, None, 'de25-nano')
             command.assert_not_called()
 
-    def test_provisioned_de25_runtime_authenticates_builder_before_compiling(self):
+    def test_de25_runtime_rejects_substituted_builder_before_volume_or_compile(self):
         import kit_sdk
         cache, _ = self.runtime_fixture()
         sdk = kit.load(ROOT / 'image/scripts/toolchain_cache.py', 'runtime_provision_fixture')
@@ -622,10 +631,40 @@ class SoftwareWorkflowTests(unittest.TestCase):
                 patch.object(kit.subprocess, 'run', return_value=Mock(returncode=1)) as volume:
             with self.assertRaisesRegex(ValueError, 'SDK and runtime builder identities differ'):
                 kit.build_runtime(self.root, self.root / 'recorded-image', 'b' * 40, {},
-                                  None, 'de25-nano', provision=True, base_factory=False)
-        self.assertEqual(calls[0][-2:], ['run', 'true'])
-        self.assertEqual(len(calls), 2)
-        self.assertEqual(volume.call_args.args[0][-2:], ['rm', 'fes-kit-software-' + self.root.parent.name])
+                                  None, 'de25-nano', base_factory=False)
+        self.assertEqual(calls[0][3], selected['builder_image'])
+        self.assertEqual(len(calls), 1)
+        volume.assert_not_called()
+
+    def test_de25_runtime_keeps_existing_volume_and_cleans_only_its_failed_build(self):
+        import kit_sdk
+        for existing in (True, False):
+            with self.subTest(existing=existing):
+                root = self.root / str(existing); root.mkdir()
+                # Each attempt has a separate private snapshot and volume.
+                with patch.object(self, 'root', root):
+                    cache, _ = self.runtime_fixture()
+                sdk = kit.load(ROOT / 'image/scripts/toolchain_cache.py', 'runtime_volume_fixture')
+                key = 'd' * 64; digest = kit.sha(cache / 'host.tar')
+                (cache / 'receipt.json').write_text(json.dumps({'key': key, 'sha256': digest}))
+                selected = {'key': 'managed-' + 'e' * 64, 'archive_sha256': digest,
+                            'builder_image': 'sha256:' + 'c' * 64}
+                def command(args, **kwargs):
+                    if 'inspect' in args:
+                        return selected['builder_image']
+                    raise subprocess.CalledProcessError(17, args)
+                with patch.object(kit_sdk, 'ensure_de25', return_value={
+                        'source': selected, 'key': key, 'directory': str(cache)}), \
+                        patch.object(kit, 'load', return_value=sdk), \
+                        patch.object(kit, 'run', side_effect=command) as run, \
+                        patch.object(kit.subprocess, 'run', return_value=Mock(returncode=0 if existing else 1)) as volume:
+                    with self.assertRaises(ValueError if existing else subprocess.CalledProcessError):
+                        kit.build_runtime(root, root / 'recorded-image', 'b' * 40, {}, None, 'de25-nano')
+                self.assertEqual(run.call_count, 1 if existing else 2)
+                self.assertEqual(volume.call_count, 1 if existing else 2)
+                if not existing:
+                    self.assertEqual(volume.call_args.args[0][-2:],
+                                     ['rm', 'fes-kit-software-' + root.parent.name])
 
     def test_runtime_does_not_claim_or_remove_existing_volume(self):
         cache, sdk = self.runtime_fixture()
