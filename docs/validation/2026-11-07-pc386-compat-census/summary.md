@@ -7,8 +7,9 @@ open phases touch, plus nine non-game programs. Each stop is traced to its
 cause, so the next CPU priority rests on counts.
 
 **Headline: 28 of 52 titles were usable on the kit, and 2 more started but
-went wrong.** With this PR's games-image fix (#1525, #1526; oracle-checked,
-[below](#the-games-image-fix-in-this-pr-1525-1526)) the count is 31 usable.
+went wrong.** With this PR's games-image fix (#1525, #1526; rechecked on
+Kit B, [below](#the-games-image-fix-in-this-pr-1525-1526)) the count is 30
+usable.
 Before the fix, the 22 failures had these causes:
 
 | Cause | Titles | What fixes it |
@@ -16,7 +17,7 @@ Before the fix, the 22 failures had these causes:
 | Paging, task switches, debug registers or V86: CWSDPMI (5 titles), DOS/4GW Professional, 32RTM, and two other extenders | 9 | i386 Phase 5, with Phase 2's third slice for CWSDPMI's ring 3 |
 | A Borland DPMI16BI host IRETs to CPL 3 | 3 | i386 Phase 2's third slice: privilege transitions and IOPL |
 | EMS: no expanded memory | 3 | Phase 5 (EMM386 needs V86 and paging), or an expanded-memory board in the machine |
-| The games image's DOS setup: 575K conventional memory, `FILES=20` | 4 | fixed in this PR ([#1526](https://github.com/DeanoC/fes/issues/1526), [#1525](https://github.com/DeanoC/fes/issues/1525)), except Star Control II ([#1539](https://github.com/DeanoC/fes/issues/1539)); Frontier then needs EMS |
+| The games image's DOS setup: 575K conventional memory, `FILES=20` | 4 | fixed in this PR ([#1526](https://github.com/DeanoC/fes/issues/1526), [#1525](https://github.com/DeanoC/fes/issues/1525)) for Falcon 3.0; Frontier then needs EMS, Strike Commander then needs paging, and Star Control II's own check stays ([#1539](https://github.com/DeanoC/fes/issues/1539)) |
 | An x87 is required | 1 | x87 |
 | A 486 instruction: invalid opcode on a 386 | 1 | none in scope; the title needs a 486 |
 | No CD-ROM drive | 1 | a CD-ROM device |
@@ -280,29 +281,39 @@ releases it. HIMEMX then refuses global disable (04h) while the lock count is
 not zero, and Ultima VII's Voodoo manager stops when its 04h fails (#1409).
 Both behaviours are fixed in the pinned FreeDOS kernel and HIMEMX.
 
-Rechecked in the oracle simulation on the rebuilt drives:
+Rechecked on Kit B with the rebuilt drives (runs `m1` to `m5`, the census
+package c89d6b0c, kit software a8cd30c4). Every run booted entry 1 with no
+key; the entry 2 runs typed `2` during boot. The oracle simulation was run
+first on the same drives.
 
-- **Strike Commander:** entry 1 now passes (`FILES=30`); the Origin intro
-  plays.
-- **Falcon 3.0:** on entry 2 (`2` pressed at 1.2 s) it passes its 600K check
-  and plays its intro.
-- **Frontier: Elite 2:** passes its memory check on entry 1. It then needs
-  768K of EMS, so it moves to the EMS cause.
+- **The five acceptance games all start on entry 1.** Wolfenstein 3D reaches
+  its options menu, Ultima VI and both Ultima VII games play their intros,
+  and DOOM reaches its main menu over the demo. Serpent Isle is now on the
+  `fpu` drive, with its #1426 config as sidecars.
+- **Falcon 3.0:** on entry 2 it passes its 600K check. The Sphere logo and
+  the in-flight intro play (`m5`, no keys). In `m1`, Enter, Space and Enter
+  pressed during the intro left it at the DOS prompt with no message. That
+  exit was not looked into; the intro itself runs.
 - **Rise of the Triad:** with eXoDOS's SB16 setup changed to a Sound Blaster
-  2.0 (a sidecar config), its sound starts and the main menu shows.
-- **Star Control II:** still refuses, now with `65505 more needed`. More free
-  memory makes its figure smaller, so it is the game's own check:
+  2.0 (a sidecar config), it no longer opens its sound setup and reaches
+  Choose Player. On the oracle its sound starts (DSP DMA) and the main menu
+  shows. It moves from partial to pass.
+- **Frontier: Elite 2:** passes its memory check on entry 1, then asks for
+  768K of EMS, on the kit and the oracle. It moves to the EMS cause.
+- **Strike Commander:** passes its `FILES` check on entry 1 (`FILES=30`).
+  On the oracle the Origin intro then plays. On the kit the screen stays
+  black and the CPU stops at `0018:00004664`. That is the site where the
+  oracle's feature census logs CR0.PG set, after which the oracle runs it at
+  CPL 3 with paging on. So it still fails, now for Phase 5 paging.
+- **Star Control II:** not rerun on the kit. On the oracle it still refuses,
+  now with `65505 more needed`. More free memory makes its figure smaller,
+  so it is the game's own check:
   [#1539](https://github.com/DeanoC/fes/issues/1539).
-- **The five acceptance games all start on entry 1:** Wolfenstein 3D (E1L1),
-  Ultima VI and both Ultima VII games (intros), and DOOM (startup through
-  `I_StartupTimer` at the 20 s limit). Serpent Isle is now on the `fpu`
-  drive, with its #1426 config as sidecars.
 
-With these, 31 of 52 census titles are usable, 1 is partial (SpeedSys), and 20
-fail. The causes become 4 EMS (Frontier joins) and 1 DOS-side (#1539); the
-other causes are unchanged. The kits were not free to recheck these titles
-(Kit A held, Kit B in use by other sessions), so this section is
-oracle-checked only.
+With these, 30 of 52 census titles are usable on the kit, 1 is partial
+(SpeedSys), and 21 fail. Against the table at the top: Phase 5 rises to 10
+(Strike Commander joins), EMS to 4 (Frontier joins), and DOS setup falls to 1
+(#1539). The other causes are unchanged.
 
 ## Follow-ups
 
@@ -311,8 +322,6 @@ oracle-checked only.
   (above).
 - [#1539](https://github.com/DeanoC/fes/issues/1539): Star Control II's
   memory check.
-- A kit recheck of Strike Commander, Falcon 3.0 (entry 2), Rise of the Triad
-  and the five acceptance games on the rebuilt drives.
 - [#1532](https://github.com/DeanoC/fes/issues/1532): SpeedSys's ISA PnP
   probe.
 - Phase 2's third slice, Phase 5 and x87 stay planned work. This record gives

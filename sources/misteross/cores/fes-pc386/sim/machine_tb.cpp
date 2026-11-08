@@ -111,8 +111,8 @@
 // typed command and the program it starts.
 // --boot-key S:TEXT types TEXT as --keys does at S seconds from reset
 // whatever --keys-after-type says: a FreeDOS boot menu entry.
-// --keys-after-type 1 counts --keys times from when the --type text is
-// queued at the prompt instead of from reset, so a program's keys keep their
+// --keys-after-type 1 counts --keys times from when the last --type key is
+// released at the prompt instead of from reset, so a program's keys keep their
 // place whichever CPU booted DOS. --frame-every S (with --frames) writes the
 // captured frame every S simulated seconds as t<seconds>.ppm.
 // --rtl-for S ends the run S simulated seconds after the RTL begins (at
@@ -1522,8 +1522,9 @@ int main(int argc, char **argv) {
         const char *reason = "limit";
         // After the prompt appears, wait for the screen to settle, then type.
         uint64_t prompt_at = 0, settled_at = 0;
-        // --keys times count from 0, or with --keys-after-type from when --type was queued.
+        // --keys times count from 0, or with --keys-after-type from when the last --type key is released.
         uint64_t keys_base = options.keys_after_type ? UINT64_MAX : 0;
+        bool typing = false;
         const uint64_t frame_step = uint64_t(options.frame_every * CLOCK_HZ);
         uint64_t next_frame = frame_step;
         size_t typed = 0;
@@ -1776,6 +1777,7 @@ int main(int argc, char **argv) {
                 if (change.shift) set_key(machine.top.keyboard_rows, 0xe1, change.down);
                 next_key = machine.cycles + change.hold;
                 keys.pop_front();
+                if (typing && keys.empty()) { keys_base = machine.cycles; typing = false; }
             }
             // Keep each scheduled packet pending until one ready handshake edge.
             if (mouse_pending || mouse_due()) {
@@ -1804,7 +1806,7 @@ int main(int argc, char **argv) {
                     }
                     typed = options.type.size();
                     next_key = machine.cycles;
-                    if (options.keys_after_type) keys_base = machine.cycles;
+                    typing = options.keys_after_type;
                     settled_at = machine.cycles;
                 }
                 // Done when everything is typed and the prompt is back on the
