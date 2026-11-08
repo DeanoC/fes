@@ -1839,6 +1839,13 @@ it runs uncapped.
      DOOM by 0.7–0.9%
      ([record](../../../docs/validation/2026-11-06-i386-phase4-load-fwd/summary.md)).
      MOVSX and 16-bit loads still wait.
+   - **Front-end split.** After 6b, D's empty clocks were split by Q's
+     reason. Sequential fetch keeps up. Redirect refill is the largest
+     share, and the front end's own limit is a predicted target's bytes
+     12–15, whose decode waits for the next block. The record ranks the
+     next slices: indirect prediction, a direction predictor, and a
+     one-pass decode of a target's tail
+     ([record](../../../docs/validation/2026-11-07-i386-phase4-front-end/summary.md)).
 7. **Real-mode far prediction.**
    - **Structure.** Far CALL, JMP and RETF in real and V86 mode enter the
      BTB and return stack with their selector. The CS base travels with the
