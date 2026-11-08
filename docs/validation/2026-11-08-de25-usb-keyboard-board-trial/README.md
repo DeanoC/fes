@@ -31,3 +31,23 @@ live scans, current continuing claim, exact USB/UART admission, temporary 6M
 and restored 15M, exact permissions and owned-server exit remain required.
 The spare stays, factory restore is waived unless needed, and bottom TRWU8J8G
 is untouched. This diagnostic cannot establish ordinary core-load acceptance.
+
+## Hardware result
+
+The single programming attempt is consumed. Qualified recovery and the boot FIT
+upload/write/readback plus fresh read pass. The separate fresh live native scan
+passes and is consumed before programming. Quartus then reports Error 18939:
+JTAG chain broken during configuration, followed by Error 209012 operation failed.
+The native image is not reported programmed; no `fesboot` command was sent and
+the native UART capture is empty. This does not test keyboard startup or the
+new runtime diagnostics. No native boot, USB Ready/Stop or core-load acceptance
+is established. The image/procedure are not replayed.
+
+Independent cleanup passes unchanged adapter node/exact permissions, recorded
+15M readback, owned private-server exit and a free UART. Passive kernel USB logs
+show no contemporaneous host reconnect, but the cause of the JTAG-chain break
+is unproven. Partial FPGA/HPS state and native halt/Park remain unproven. The
+claim stays held, spare remains and bottom is untouched. The raw programmer,
+strace, live-scan and consumed-grant evidence are hashed in hardware-result.json.
+Next is a bounded transport/chain diagnostic before further native programming;
+input device-model clarification and keyboard/core qualification remain open.
