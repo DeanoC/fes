@@ -1,11 +1,20 @@
 ; SPDX-License-Identifier: MIT
-; SCROLLT.COM: INT 10h AH=07h (scroll down) of a window whose top row is 0,
-; in the three graphics memory models of the VGA BIOS (#1493;
-; docs/pc386-machine-design.md, "Firmware"). scripts/sim_fes_pc386.py --suite
+; SCROLLT.COM: the VGA BIOS's mode set keeps the caller's registers (#1553),
+; and INT 10h AH=07h (scroll down) of a window whose top row is 0 returns in
+; the three graphics memory models (#1493; docs/pc386-machine-design.md,
+; "Firmware"). scripts/sim_fes_pc386.py --suite
 ; scroll runs it at the FreeDOS prompt. Each check prints
 ;   SCR <name> <matches>/2 ok
 ; (or FAIL) to the screen and port E9h, and the run ends with "SCR DONE ok"
 ; or "SCR DONE FAIL".
+;
+; modeset: an IBM VGA BIOS's INT 10h AH=00h changes only AL. MicroProse's
+; MGRAPHIC.EXE (Darklands) keeps the mode it asked for in DL across the call
+; and compares it with INT 10h AH=0Fh's AL; the Bochs VGA BIOS returned with DX
+; changed, so Darklands reported MCGA unsupported. For modes 13h, 93h (no
+; clear) and 03h the check loads BX, CX, DX, SI, DI, BP and ES with known
+; values, sets the mode, and counts each of those and DS kept, and AH=0Fh's AL
+; equal to the mode asked for: nine matches a mode, 27 in all.
 ;
 ; Ultima VII: The Black Gate scrolls its whole mode 13h screen down one row
 ; through INT 10h AH=07h with CH = 0 after Iolo joins. An IBM BIOS moves the
@@ -33,7 +42,52 @@
 DEBUG_PORT equ 0xe9
 MARKER equ 0x5a
 
-start:  mov ax, 0x0013
+%macro kept 2
+        cmp %1, %2
+        jne %%lost
+        inc byte [cs:result_modeset]
+%%lost:
+%endmacro
+
+start:  mov [our_ds], ds
+        mov si, modes
+.mode:  mov al, [si]
+        push si
+        push ds
+        push es
+        push bp
+        xor ah, ah
+        mov bx, 0x1234
+        mov cx, 0x2345
+        mov dx, 0x3456
+        mov si, 0x4567
+        mov di, 0x5678
+        mov bp, 0x6789
+        push word 0x789a
+        pop es
+        int 0x10
+        kept bx, 0x1234
+        kept cx, 0x2345
+        kept dx, 0x3456
+        kept si, 0x4567
+        kept di, 0x5678
+        kept bp, 0x6789
+        mov ax, es
+        kept ax, 0x789a
+        mov ax, ds
+        kept ax, [cs:our_ds]
+        pop bp
+        pop es
+        pop ds
+        pop si
+        mov ah, 0x0f
+        int 0x10
+        kept al, [si]
+        inc si
+        cmp si, modes_end
+        jb .mode
+
+        mov ax, 0x0013
         int 0x10
         push word 0xa000
         pop es
@@ -84,6 +138,12 @@ start:  mov ax, 0x0013
 
         mov ax, 0x0003
         int 0x10
+        mov si, name_modeset
+        movzx eax, byte [result_modeset]
+        mov ecx, 27
+        mov edx, 27
+        mov di, unit_of_27
+        call check_range
         mov si, name_13
         movzx eax, byte [result13]
         call check
@@ -193,6 +253,10 @@ say:    push ax
 ; ---- Data -----------------------------------------------------------------
 
 failed:        db 0
+modes:         db 0x13, 0x93, 0x03
+modes_end:
+our_ds:        dw 0
+result_modeset: db 0
 result13:      db 0
 result12:      db 0
 result04:      db 0
@@ -207,7 +271,9 @@ msg_ok:        db ' ok$'
 msg_fail:      db ' FAIL$'
 msg_newline:   db 13, 10, '$'
 unit_of_two:   db '/2$'
+unit_of_27:    db '/27$'
 unit_none:     db '$'
+name_modeset:  db 'modeset$'
 name_13:       db 'mode13$'
 name_12:       db 'mode12$'
 name_04:       db 'mode04$'

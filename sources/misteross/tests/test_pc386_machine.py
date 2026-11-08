@@ -497,16 +497,18 @@ class ScrollTestTest(unittest.TestCase):
                 mock.patch.object(sim, 'run_machine', run_machine), mock.patch('builtins.print'):
             return sim.run_scroll(args, [])['failures']
 
-    PASSING = ['SCR mode13 2/2 ok', 'SCR mode12 2/2 ok', 'SCR mode04 2/2 ok', 'SCR DONE ok']
+    PASSING = ['SCR modeset 27/27 ok', 'SCR mode13 2/2 ok', 'SCR mode12 2/2 ok', 'SCR mode04 2/2 ok', 'SCR DONE ok']
 
     def test_every_check_must_print_ok(self):
         self.assertEqual(self.suite(self.PASSING), [])
-        self.assertEqual(self.suite(['SCR mode13 1/2 FAIL'] + self.PASSING[1:3] + ['SCR DONE FAIL']),
+        self.assertEqual(self.suite(['SCR modeset 24/27 FAIL'] + self.PASSING[1:4] + ['SCR DONE FAIL']),
+                         ['SCR modeset 24/27 FAIL', 'SCR DONE FAIL'])
+        self.assertEqual(self.suite(self.PASSING[:1] + ['SCR mode13 1/2 FAIL'] + self.PASSING[2:4] + ['SCR DONE FAIL']),
                          ['SCR mode13 1/2 FAIL', 'SCR DONE FAIL'])
 
     def test_a_scroll_that_never_returns_fails(self):
         failures = self.suite([])
-        self.assertEqual(failures, ["SCROLLT.COM ran [], expected ['mode13', 'mode12', 'mode04', 'DONE']"])
+        self.assertEqual(failures, ["SCROLLT.COM ran [], expected ['modeset', 'mode13', 'mode12', 'mode04', 'DONE']"])
 
     def test_rtl_runs_fail_on_oracle_steps(self):
         self.assertEqual(self.suite(self.PASSING, 'rtl'), [])
