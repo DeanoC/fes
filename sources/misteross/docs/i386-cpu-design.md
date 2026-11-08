@@ -1052,9 +1052,10 @@ select ahead of it the first slice routed at 36 MHz against the base's 61
 
 ### A20
 
-A20M masks physical bit 20 after translation, before the page is registered
-for M2's tag compare and memory-type decode. Caches are physically tagged and
-the TLB holds unmasked pages, so toggling A20 needs no flush. The I/O write that toggles it (port 92h or the keyboard controller)
+A20M masks physical bit 20 after translation, before M1's tag compare and
+the memory-type decode; under paging it masks each DTLB and ITLB entry's
+page as it is compared ([Phase 5](#dtlb)). Caches are physically tagged and
+the TLBs hold unmasked pages, so toggling A20 needs no flush. The I/O write that toggles it (port 92h or the keyboard controller)
 already completes at commit.
 
 ### Stores and forwarding
@@ -1931,7 +1932,8 @@ The 386's rules:
   TLB entry a read made keeps D clear, so the first write through it walks
   again to set D.
 - #PF carries CR2 and an error code: P (a protection fault, not a
-  not-present one), W/R and U/S (the access was at CPL 3).
+  not-present one), W/R and U/S (a user access: at CPL 3 or in V86, and
+  not a system access, which is a supervisor access at any CPL).
 - An access that crosses a page translates both pages before either part
   commits; a fault in either part is that part's #PF.
 - The TLBs are not coherent with page-table stores; software flushes by
@@ -1952,13 +1954,14 @@ and the L1D's wait (+3.74 ns). The DTLB instead compares in parallel:
   on 0.033% of Wolfenstein 3D's under JEMM386.
 - **The lookup.** M1 compares each entry's linear page with its address
   register. In parallel, it compares each of the four L1D tags, the M10K
-  output, with each entry's physical page: 64 compares of 14 bits, each as
+  output, with each entry's physical page, bit 20 masked by A20M (a gate on
+  one input of each compare): 64 compares of 14 bits, each as
   deep as the one compare per way M1 makes now. A way hits when an entry
   matches the linear page and its physical page matches the way's tag: an
   AND-OR over 16 terms, two LUT levels after the compares. Those two levels
   are what paging adds to the hit's path.
-- **The rest of M1.** The matching entry's physical page, with A20M applied,
-  goes to the memory-type decode and M2's register as the page does now.
+- **The rest of M1.** The matching entry's masked physical page goes to the
+  memory-type decode and M2's register as the page does now.
 - **Paging off.** A seventeenth term compares the tags with `phys()` of the
   address, as M1 does now, and joins the same AND-OR. So there is one path,
   and unpaged code, real mode included, takes the same two levels.
@@ -2009,8 +2012,8 @@ eight replicated hit sets.
 
 - **Eight entries, fully associative, in flip-flops, looked up in F1** on
   the block address F1 chooses, in parallel with the L1I's M10K read. The
-  matching entry's physical page goes into the replicated page registers in
-  place of today's `phys()` of the address. A current-page register alone
+  matching entry's physical page, bit 20 masked by A20M, goes into the
+  replicated page registers in place of today's `phys()` of the address. A current-page register alone
   would miss on up to 12% of instructions (CWSDPMI's hot loop spans three
   pages). Eight entries miss on at most 1.1% (Master of Orion's idle DOS
   prompt), 0.65% in U.S. Navy Fighters, and 0.21% or less in every other
@@ -2046,7 +2049,9 @@ eight replicated hit sets.
   width and depth, and an alias 1 MiB apart still restarts for nothing.
 - **The store-to-load check** compares bits 11:0 and needs nothing.
 - **M2's merge** and the **memory type** use the physical page already.
-- **A20M** masks bit 20 of the physical page after translation.
+- **A20M** masks bit 20 of each TLB entry's physical page as it is compared
+  and selected, so the L1s' tags, the memory type and the self-modifying-code
+  lines all see the masked page.
 
 ### V86 mode
 
@@ -2096,8 +2101,10 @@ eight replicated hit sets.
   16-bit one 16-bit fields and only ES, CS, SS and DS. It clears the old
   busy bit for JMP and IRET and sets the new one for every form but IRET.
   A nesting switch, CALL or an interrupt or exception through a task gate,
-  writes the back link and sets NT; JMP, through a task gate too, does
-  neither. Then it
+  writes the back link and sets NT in the new task. JMP, through a task gate
+  too, writes no back link and loads NT from the new TSS unchanged. IRET
+  clears NT in the EFLAGS image it saves into the old TSS. These are the 386
+  manual's task-linking rules and Bochs's (`tasking.cc`). Then it
   loads LDTR, EFLAGS, EIP, the GPRs and the selectors from the new TSS,
   loads their descriptors, sets CR0.TS and clears DR7's local enables
   (L0–L3 and LE), keeping the global ones. As in Bochs (`tasking.cc`):
@@ -2135,7 +2142,7 @@ eight replicated hit sets.
   - A hit marks the uop, as a fault does, off the freeze. It raises #DB with
     DR6's B bits: an instruction breakpoint as a fault, which RF suppresses
     after IRETD, a data breakpoint as a trap after the instruction. A task
-    switch to a TSS with its T bit set traps too.
+    switch to a TSS with its T bit set traps too, with DR6.BT.
 - **Single step.** TF is not built yet. With TF set, #DB with DR6.BS traps
   after each instruction, after any data breakpoint's B bits; the
   instruction that sets TF, and the one after MOV SS or POP SS, take no
@@ -2185,8 +2192,10 @@ A timing miss stops the slice; it never relaxes a check. Titles that need
      faulting on its second page; D set by the first write through a read's
      entry; a CR3 write mid-REP; a wrong path that must not set A or D; a
      store into a live page table; every PDE and PTE rights combination at
-     CPL 0 and 3; CPL 3 executing from a supervisor page the ITLB holds;
-     paging toggled around a far jump, as CWSDPMI does.
+     CPL 0 and 3; CPL 3 executing from a supervisor page the ITLB holds; a
+     #PF on a descriptor or IDT read at CPL 3, whose U/S is 0; A20M toggled
+     with a paged alias at bit 20; paging toggled around a far jump, as
+     CWSDPMI does.
    - **Exit.** test386.asm passes POSTs 08 and 09 and stops at POST 20, or
      at POST 21 with #1535. Its #PF checks (POST 11) run only after POST
      22, so the directed cases above carry the slice's paging coverage.
@@ -2215,7 +2224,8 @@ A timing miss stops the slice; it never relaxes a check. Titles that need
 4. **Task switches.** Every form above, both TSS sizes, busy bits, the back
    link, NT, CR0.TS, and a switch into V86.
    - **Lockstep.** test386.asm's task cases; #PF through a task gate and
-     back by IRET with NT, as Descent does; far JMP to a TSS between CPL 0
+     back by IRET with NT, as Descent does, and the old task's saved NT
+     cleared; a JMP to a TSS whose EFLAGS image has NT set; far JMP to a TSS between CPL 0
      and 3, as CWSDPMI does; each #TS case; a busy TSS; a fault after the
      commit point; a switch with paging off, which must leave CR3 alone; a
      switch to a 16-bit TSS from code with live FS and GS, and one out of a
@@ -2225,12 +2235,12 @@ A timing miss stops the slice; it never relaxes a check. Titles that need
    - **Unlocks.** Descent; Jump 'n Bump, Angband, NetHack and Chris's 3D
      Benchmark, with #1535; Quake to its x87 stop; Strike Commander.
 5. **Breakpoints and single step.** DR7's instruction and data
-   breakpoints, RF, DR6's B and BS bits, the T bit's trap and TF's single
-   step, for the compatibility contract.
+   breakpoints, RF, DR6's B, BS and BT bits, the T bit's trap and TF's
+   single step, for the compatibility contract.
    - **Lockstep.** Each breakpoint kind and length, RF after IRETD, a data
      breakpoint inside REP, a breakpoint in V86, and local and global
-     enables across a task switch; TF over each instruction class, REP
-     strings, MOV SS, INT n and a fault.
+     enables across a task switch; a switch to a TSS with T set; TF over
+     each instruction class, REP strings, MOV SS, INT n and a fault.
    - **Unlocks.** No title in the census; DOS debuggers.
 
 After slice 4, by the census, eight titles that stop on Phase 5 today run:
