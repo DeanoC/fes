@@ -1,24 +1,29 @@
 # Spectrum game acceptance on Kit B, 7–8 November 2026
 
-Issue [#1530](https://github.com/DeanoC/fes/issues/1530). Five real games ran
+Issue [#1530](https://github.com/DeanoC/fes/issues/1530). Six real games ran
 on the four Spectrum profiles, on fresh seals of main, on Kit B, and were
 compared against Fuse. The matrix was published on the issue
 ([comment](https://github.com/DeanoC/fes/issues/1530#issuecomment-6707017631))
-before any kit run, and isn't changed here.
+before any kit run. One change was made after review, and it was posted before
+its runs ([amendment](https://github.com/DeanoC/fes/issues/1530#issuecomment-6721883046)).
+C4's published objective asks for a fight, and Batman: The Caped Crusader
+never met an enemy. With Deano's approval, C4 became Renegade, also a +3 disk.
+The Batman runs stay as +3 disk-load evidence.
 
 **Result.** The matrix is met, so this closes #1530:
 
 - Every case has two passing runs, and each of those runs reached its
   declared objective.
 - Each case's passing runs cover the controls the matrix names.
-- Each passing run played for 10 minutes or more after the load.
+- Each passing run had 10 minutes or more of active play after the load. Time
+  the game spends on its own name entry doesn't count as play.
 
 | Case | Profile | Game, media | Controls | Verdict | Passing runs |
 | --- | --- | --- | --- | --- | --- |
 | C1 | 48K, `fes.spectrum` | Manic Miner, `.tzx` | keyboard | **pass** | `c1r1`, `c1r2` |
 | C2 | 48K, `fes.spectrum` | Bubble Bobble, `.tzx` (Firebird turbo) | Kempston, Sinclair | **pass** | `c2r6` (Kempston), `c2r4` (Sinclair) |
-| C3 | 128K/+2, `fes.spectrum128` | Bubble Dizzy 128K, `.z80` | Sinclair, Kempston | **pass** | `c3r3` (Sinclair), `c3r4` (Kempston); also `c3r1` |
-| C4 | +2A/+3, `fes.spectrum-plus3` | Batman: The Caped Crusader, `.dsk` | Kempston, Sinclair | **pass** | `c4r3` (Kempston), `c4r4` (Sinclair) |
+| C3 | 128K/+2, `fes.spectrum128` | Bubble Dizzy 128K, `.z80` | Sinclair, Kempston | **pass** | `c3r7` (Sinclair), `c3r8` (Kempston) |
+| C4 | +2A/+3, `fes.spectrum-plus3` | Renegade, `.dsk` (amended; Batman `.dsk` superseded) | Kempston, keyboard | **pass** | `c4r5` (Kempston), `c4r6` (keyboard) |
 | C5 | Pentagon, `fes.pentagon` | Bomb Jack 2 (TR-DOS), `.scl` | keyboard, Kempston | **pass** | `c5r1`, `c5r3` (keyboard), `c5r4` (Kempston) |
 
 **No core defects were found, and no issues were filed.** Every miss traced
@@ -35,6 +40,13 @@ to the test driver, to the title's own behaviour, or to Powerboat:
 - **Bomb Jack 2's Kempston key is J, not D.** Fuse confirms it.
 - **One run started without its media.** Powerboat's media disk failed to read
   the file once.
+- **One run started without its package.** The driver's package lookup still
+  pointed at the deleted seal worktree (`c3r5`).
+- **The first C3 passes fell short of 10 minutes of play.** The game's own
+  name entry took part of each window. C3 was rerun with 14-minute windows.
+- **Batman met no enemy.** C4 was amended to Renegade.
+- **Renegade's default keys aren't usable.** The keyboard run sets them through
+  the game's own Define Keys first.
 
 Failed attempts are kept below and in [`kit-runs.json`](kit-runs.json).
 
@@ -77,6 +89,7 @@ frame. The record keeps hashes and measurements.
 | Bubble Bobble (Firebird 1987) `.tzx` | `bbc71c2c…` |
 | Bubble Dizzy (Codemasters 1991, 128K) `.z80` | `46753d76…` |
 | Batman: The Caped Crusader (Ocean 1988) `.dsk` | `b40f6137…` |
+| Renegade (Imagine 1987) `.dsk` | `4648cae0…` |
 | Bomb Jack 2 (Elite 1987, Boys Soft TR-DOS release) `.scl` | `f327b317…` |
 
 ## Method
@@ -136,6 +149,12 @@ A few early runs were laid out differently:
 
 - `c1r1` played in three legs.
 - The loop was 560 s in `c1r2` and 570 s in `c2r1`.
+
+Some later runs had longer loops:
+
+- The C3 reruns `c3r7` and `c3r8` looped for 840 s, so that gameplay without
+  the name entry passes 10 minutes.
+- The Renegade runs `c4r5` and `c4r6` looped for 690 s.
 
 Each run's play window (first game input to the end of play) is in
 [`kit-runs.json`](kit-runs.json).
@@ -227,26 +246,32 @@ frames.
 | Maximum | 2542 | 2507 |
 | Active seconds | 62% | 64% |
 
-## C3 Bubble Dizzy, 128K: pass (`c3r3`, `c3r4`)
+## C3 Bubble Dizzy, 128K: pass (`c3r7`, `c3r8`)
 
 **Load and menu.** The `.z80` snapshot launches to the menu. The AY title music
-measured 2678–2958 RMS against Fuse's 2454–2940. The menu option chooses the
-stick: 2 for Sinclair, 3 for Kempston. "0" starts the game.
+measured 2678–2958 RMS against Fuse's 2454–2940 (up to 2969 and 3024 in the
+reruns). The menu option chooses the stick: 2 for Sinclair, 3 for Kempston.
+"0" starts the game.
 
 **Declared objective.** Rise on the bubbles, lose a life, and continue.
 
-The 10-minute play windows include the game's own game-over name entry, which
-the input loop drove. Gameplay alone was 8–9 minutes in the passing runs.
+**Play time.** Each game over leads to the game's own name entry, which the
+input loop drives. Name entry isn't play, so it doesn't count toward the 10
+minutes. The first runs had 10-minute windows, and their gameplay fell short.
+The reruns `c3r7` and `c3r8` had 14-minute windows.
 
-The table splits each run's play time into gameplay and name entry, counted
-from the 15 s grabs:
+The table splits each run's window into gameplay and name entry, counted from
+the 15 s grabs:
 
 | Run | Controls | Gameplay | Name entry | Verdict |
 | --- | --- | --- | --- | --- |
-| `c3r1` | Sinclair | 6¾ min: two games, scores to 77,300 | 3 min: "HMRRRR…" entered, back to the menu | pass (objective) |
+| `c3r1` | Sinclair | 6¾ min: two games, scores to 77,300 | 3 min: "HMRRRR…" entered, back to the menu | fail (gameplay under 10 min) |
 | `c3r2` | Kempston | 3¼ min: score to 79,400 | 6½ min, stuck: no letter could be entered | inconclusive (driver) |
-| `c3r3` | Sinclair | about 8 min 40 s: two games, scores to 42,400 and 151,200 | 1¾ min: the name was entered and is listed in the high-score table | **pass** |
-| `c3r4` | Kempston | about 8 min 15 s: two games, scores to 54,800 and 92,900, GAME OVER | 2¼ min: the name was entered with Kempston fire and is listed | **pass** |
+| `c3r3` | Sinclair | about 8 min 40 s: two games, scores to 42,400 and 151,200 | 1¾ min: the name was entered and is listed in the high-score table | fail (gameplay under 10 min) |
+| `c3r4` | Kempston | about 8 min 15 s: two games, scores to 54,800 and 92,900, GAME OVER | 2¼ min: the name was entered with Kempston fire and is listed | fail (gameplay under 10 min) |
+| `c3r5` | Sinclair | none: the driver's package lookup pointed at the deleted seal worktree, so nothing launched | none | invalid, not counted |
+| `c3r7` | Sinclair | about 12 min (48 of 56 grabs): lives lost, two games end, each followed by the ship cut-scene and "GET READY, DIZZY! ABYSS 1"; a third game under way at the end | 2 min (8 grabs), names entered with Sinclair fire | **pass** |
+| `c3r8` | Kempston | about 11¼ min (45 of 56 grabs): lives lost, games end and restart through the cut-scene | 2¾ min (11 grabs), names entered with Kempston fire | **pass** |
 
 **Why `c3r2` stuck.** The play pattern had no fire step:
 
@@ -256,22 +281,74 @@ from the 15 s grabs:
 
 A fire step was added for the reruns.
 
-## C4 Batman: The Caped Crusader, +3: pass (`c4r3`, `c4r4`)
+**Cadence.** No black frames in `c3r7` or `c3r8`, at 13.7 and 13.6 updates/s.
+
+## C4 Renegade, +3: pass (`c4r5`, `c4r6`)
+
+**Why this title.** C4 was published as Batman: The Caped Crusader, with the
+objective "walk Batman through at least one room exit, and fight". Batman met
+no enemy: in Fuse, three 10-minute input patterns stayed in the Batcave rooms.
+Reaching a fight needs puzzle routing, which blind input won't do. With
+Deano's approval, the [amendment](https://github.com/DeanoC/fes/issues/1530#issuecomment-6721883046),
+posted before any Renegade run, swapped C4 to Renegade. It is a single-sided
++3 disk whose first screen is a fight.
+
+**Load and menus.** The disk boots through the +3 menu's Loader to the title,
+the high scores and the control menu. On the kit, both runs' control menus
+and relaunch menus match Fuse frame 1450 in 768/768 cells.
+
+**Declared objective.** Fight the gang on the first stage, with each knock-down
+scoring 50. Lose lives, reach game over and restart.
+
+**Controls.**
+
+- `c4r5` chose Kempston (menu 4) and started with fire.
+- Renegade's default keyboard keys aren't usable: in Fuse no letter or digit
+  moves the player, and S pauses. So `c4r6` used the game's Define Keys (menu
+  5) to set left O, right P, down A, up Q, hit M and pause H, then started
+  with 1.
+- On the kit, the Define Keys screens before and after match Fuse frames 2050
+  and 2650 in 768/768 cells, and the first stage matches Fuse frame 2060 in
+  768/768.
+
+| Run | Controls | Result | Verdict |
+| --- | --- | --- | --- |
+| `c4r5` | Kempston | 11½ min of fighting: knock-downs, scores up to 500 per game, the energy bar drains, lives lost, three GAME OVERs with the high-score screen and restarts | **pass** |
+| `c4r6` | keyboard | 11½ min of fighting: knock-downs, scores up to 650 per game, lives lost, GAME OVER and restarts | **pass** |
+
+**Fuse with the same inputs.** Ten-minute runs scored up to 550 per game on
+Kempston and up to 1650 on keyboard. Each looped through game over and
+restart in the same way.
+
+**The game-over wipe.** One `c4r5` grab shows white bands across the
+background under "GAME OVER". That is Renegade's own screen wipe. Fuse draws
+the same bands at frame 6456 of a game over.
+
+**Audio.** Sound was on in 63% and 64% of seconds, against Fuse's 62% and 63%
+with the same patterns. The level is about 0.8× Fuse's: median 782 and 717
+against 959 and 918, p90 about 1800 against 2120.
+
+**Cadence.** No black frames, at 15.0 and 23.8 updates/s.
+
+## C4, superseded: Batman: The Caped Crusader, +3 disk loads
+
+These runs no longer count toward C4's objective. They still stand as +3 disk
+evidence, for a second disk title through the Loader.
 
 **Load and menus.** The disk boots through the +3 menu's Loader to the part
 menu. The control menu matches Fuse frame 2550 in 768/768 cells, and the
 Batcave start matches Fuse frame 2700 in 742/768 (Batman's sprite position
 differs).
 
-**Declared objective.** Walk Batman through at least one room exit (a scene
+**Published objective.** Walk Batman through at least one room exit (a scene
 change), and fight.
 
 | Run | Controls | Result | Verdict |
 | --- | --- | --- | --- |
 | `c4r1` | Kempston | sat at the control menu for all 600 s | inconclusive (driver) |
 | `c4r2` | Sinclair | same | inconclusive (driver) |
-| `c4r3` | Kempston | The Batcave → "WAY OUT…" in the first minute, then moving in that room for 10 min | **pass** |
-| `c4r4` | Sinclair | The Batcave → the next room the other way, then moving in it for 10 min | **pass** |
+| `c4r3` | Kempston | The Batcave → "WAY OUT…" in the first minute, then moving in that room for 10 min; no enemy, so no fight | superseded (no fight) |
+| `c4r4` | Sinclair | The Batcave → the next room the other way, then moving in it for 10 min; no enemy, so no fight | superseded (no fight) |
 
 **Why `c4r1` and `c4r2` stuck.** They sent the control key 3 s after choosing
 part 1, while the loading picture and its music still showed. In Fuse the
@@ -297,6 +374,13 @@ dropout.)
 | `c5r3` | keyboard (K) | Jack moves to the upper and right platforms, scores 500, loses lives; game over, restarts | **pass** |
 | `c5r4` | Kempston, chosen with J | Jack moves round the platforms on Kempston, scores 1200; game overs ("ИГРА ОКОНЧЕНА"), restarts | **pass** |
 
+**Fight.** Both the keyboard and Kempston patterns include fire presses. In
+Fuse, ten minutes of the keyboard pattern scored up to 700 per game. With its
+M, Z and X presses replaced by pauses, the same pattern scored at most 400.
+The kit's passing runs reached 500, 500 and 1200. The 15 s grabs don't catch a
+single punch frame, so this is the fight evidence: score above what movement
+alone earns in Fuse.
+
 **Why `c5r2` failed.** The menu letters are KOI-7 Cyrillic. In Fuse with
 working Kempston, only J of the 27 keys tried moves Jack: this release's
 Kempston key is J. With D, Jack barely moves in Fuse as well. The rerun selects
@@ -317,6 +401,7 @@ same keyboard pattern, at about 0.45× Fuse's level.
   | Bubble Dizzy AY title | about 1.0× |
   | Manic Miner in-game tune | about 0.45× |
   | Bomb Jack 2 effects | about 0.45× |
+  | Renegade play | about 0.8× |
 
   A plain scale factor would be constant, so this isn't one. The cause isn't
   known, and it wasn't investigated.
@@ -335,7 +420,8 @@ same keyboard pattern, at about 0.45× Fuse's level.
     FAT idle hash and `usb-storage.quirks=152d:0583:i`.
   - The agent was idle with a free lease.
 - **Cleanup.** Every run's new FogCast data paths were removed and checked: 0
-  left after each run. Kit B was left FREE at 09:29 EET on 8 November.
+  left after each run. Kit B was left FREE at 09:29 EET on 8 November, and again
+  at 16:06 EET after the review reruns (`c3r5`–`c4r6`).
 - **Run windows.** In [`kit-runs.json`](kit-runs.json).
 - **Kept on Powerboat.** Frames, captures, logs, the Fuse harness and the seal
   artifacts are in `~/fes-scratch/spec1530`. The private host's ROM and media

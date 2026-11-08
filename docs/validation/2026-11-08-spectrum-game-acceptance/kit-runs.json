@@ -461,8 +461,8 @@
     "above_floor_s": 15
    }
   },
-  "result": "pass",
-  "notes": "about 6 min 45 s of gameplay (two games, score to 77,300) and 3 min of name entry; AY title music 2678-2958 RMS (Fuse 2454-2940)"
+  "result": "fail (gameplay under 10 min)",
+  "notes": "about 6 min 45 s of gameplay (two games, score to 77,300) and 3 min of name entry; AY title music 2678-2958 RMS (Fuse 2454-2940); the 10-minute window included the game-over name entry, so gameplay alone was 6 3/4 min: under the 10 minutes of active play the matrix requires (PR #1563 review)"
  },
  "c3r2": {
   "case": "C3 Bubble Dizzy, fes.spectrum128",
@@ -537,8 +537,8 @@
     "above_floor_s": 16
    }
   },
-  "result": "pass",
-  "notes": "fire step added; about 8 min 40 s of gameplay over two games (scores to 42,400 and 151,200), 1 min 45 s of name entry; the entered name is listed in the high-score table"
+  "result": "fail (gameplay under 10 min)",
+  "notes": "fire step added; about 8 min 40 s of gameplay over two games (scores to 42,400 and 151,200), 1 min 45 s of name entry; the entered name is listed in the high-score table; the 10-minute window included the game-over name entry, so gameplay alone was about 8 min 40 s: under the 10 minutes of active play the matrix requires (PR #1563 review)"
  },
  "c3r4": {
   "case": "C3 Bubble Dizzy, fes.spectrum128",
@@ -575,8 +575,122 @@
     "above_floor_s": 16
    }
   },
+  "result": "fail (gameplay under 10 min)",
+  "notes": "fire step added; about 8 min 15 s of gameplay over two games (to 54,800 and 92,900, GAME OVER), 2 min 15 s of name entry with Kempston fire; the name is listed in the high-score table; the 10-minute window included the game-over name entry, so gameplay alone was about 8 min 15 s: under the 10 minutes of active play the matrix requires (PR #1563 review)"
+ },
+ "c3r5": {
+  "case": "C3 Bubble Dizzy, fes.spectrum128",
+  "controls": "Sinclair joystick 1",
+  "claimed": "2026-11-08 15:01:45 EET",
+  "released": "2026-11-08 15:02:48 EET",
+  "package": null,
+  "package_id": null,
+  "firmware_sha256": null,
+  "media_sha256": null,
+  "kit_new_paths_left": 0,
+  "play_window": null,
+  "cadence_capture": {
+   "sha256": "06d2dc720bea1c350c515426596e59df0eefc27f714ceb1585ba9bc0863d59a5",
+   "frames": 1201,
+   "fps": 60.05,
+   "updates_per_s": 0.0,
+   "longest_static_run_frames": 1200,
+   "black_frames": 0
+  },
+  "audio_rms_per_s": {
+   "play1": {
+    "s": 30,
+    "median": 98,
+    "p90": 98,
+    "max": 98,
+    "above_floor_s": 0
+   },
+   "title": {
+    "s": 15,
+    "median": 98,
+    "p90": 98,
+    "max": 98,
+    "above_floor_s": 0
+   }
+  },
+  "result": "invalid (no package)",
+  "notes": "the driver's package lookup still pointed at the deleted seal worktree, so setup, media and launch failed and the play loop had no live input stream; the host released the kit clean; not counted. The lookup now reads the kept seals"
+ },
+ "c3r7": {
+  "case": "C3 Bubble Dizzy, fes.spectrum128",
+  "controls": "Sinclair joystick 1",
+  "claimed": "2026-11-08 15:02:55 EET",
+  "released": "2026-11-08 15:19:08 EET",
+  "package": "fes-spectrum128-oss",
+  "package_id": "85665cca9d0bc1d4d5317eac3813d64357a446961ddc1eae6c4ea41850c82c18",
+  "firmware_sha256": "c1ff621d7910105d4ee45c31e9fd8fd0d79a545c78b66c69a562ee1ffbae8d72",
+  "media_sha256": "46753d7663acbfeab151d60e026b39e8b19cb0d4faf93a771e1c3d67d89867af",
+  "kit_new_paths_left": 0,
+  "play_window": "15:04:25-15:18:25 EET 8 Nov (840 s)",
+  "cadence_capture": {
+   "sha256": "9b729a043c8c8619c13926399c3b94c12af1d64630ed74f7207299be99f77bd0",
+   "frames": 1200,
+   "fps": 60.0,
+   "updates_per_s": 13.7,
+   "longest_static_run_frames": 178,
+   "black_frames": 0
+  },
+  "audio_rms_per_s": {
+   "play1": {
+    "s": 881,
+    "median": 98,
+    "p90": 3059,
+    "max": 6210,
+    "above_floor_s": 348
+   },
+   "title": {
+    "s": 34,
+    "median": 98,
+    "p90": 2795,
+    "max": 2969,
+    "above_floor_s": 16
+   }
+  },
   "result": "pass",
-  "notes": "fire step added; about 8 min 15 s of gameplay over two games (to 54,800 and 92,900, GAME OVER), 2 min 15 s of name entry with Kempston fire; the name is listed in the high-score table"
+  "notes": "840 s window so that gameplay alone passes 10 minutes; 48 of the 56 grabs (every 15 s) are gameplay (about 12 min) and 8 are name entry; Dizzy rises on the bubbles and loses lives; two games end in name entry, each followed by the ship cut-scene and \"GET READY, DIZZY! ABYSS 1\", and a third game is under way at the end; names entered with Sinclair fire"
+ },
+ "c3r8": {
+  "case": "C3 Bubble Dizzy, fes.spectrum128",
+  "controls": "Kempston",
+  "claimed": "2026-11-08 15:19:12 EET",
+  "released": "2026-11-08 15:35:24 EET",
+  "package": "fes-spectrum128-oss",
+  "package_id": "85665cca9d0bc1d4d5317eac3813d64357a446961ddc1eae6c4ea41850c82c18",
+  "firmware_sha256": "c1ff621d7910105d4ee45c31e9fd8fd0d79a545c78b66c69a562ee1ffbae8d72",
+  "media_sha256": "46753d7663acbfeab151d60e026b39e8b19cb0d4faf93a771e1c3d67d89867af",
+  "kit_new_paths_left": 0,
+  "play_window": "15:20:41-15:34:41 EET 8 Nov (840 s)",
+  "cadence_capture": {
+   "sha256": "085444d131be7c1388dea5850bec5e85a60318d1ff13a8e1ee326c1b0a4cac10",
+   "frames": 1200,
+   "fps": 60.0,
+   "updates_per_s": 13.6,
+   "longest_static_run_frames": 178,
+   "black_frames": 0
+  },
+  "audio_rms_per_s": {
+   "play1": {
+    "s": 881,
+    "median": 98,
+    "p90": 3757,
+    "max": 6152,
+    "above_floor_s": 393
+   },
+   "title": {
+    "s": 33,
+    "median": 98,
+    "p90": 2741,
+    "max": 3024,
+    "above_floor_s": 15
+   }
+  },
+  "result": "pass",
+  "notes": "840 s window; 45 of the 56 grabs are gameplay (about 11 1/4 min) and 11 are name entry; Dizzy rises on the bubbles and loses lives; games end in name entry, the ship cut-scene and \"GET READY, DIZZY! ABYSS 1\" restart play, and the window ends in a name entry; names entered with Kempston fire"
  },
  "c4r1": {
   "case": "C4 Batman: The Caped Crusader, fes.spectrum-plus3",
@@ -689,8 +803,8 @@
     "above_floor_s": 4
    }
   },
-  "result": "pass",
-  "notes": "15 s wait for the control menu; The Batcave to the WAY OUT room in the first minute, then moving in it; play silent as in Fuse",
+  "result": "superseded (no fight)",
+  "notes": "15 s wait for the control menu; The Batcave to the WAY OUT room in the first minute, then moving in it; play silent as in Fuse; the published C4 objective also asks for a fight, and Batman met no enemy (in Fuse three 10-minute input patterns stay in the Batcave rooms); C4 was amended to Renegade (#1530 comment 6721883046); this run stays as +3 disk-load and room-exit evidence",
   "frame_comparisons": {
    "control_menu_vs_fuse_2550": "768/768",
    "batcave_vs_fuse_2700": "742/768"
@@ -731,8 +845,95 @@
     "above_floor_s": 5
    }
   },
+  "result": "superseded (no fight)",
+  "notes": "The Batcave to the next room the other way, then moving in it; play silent as in Fuse; the published C4 objective also asks for a fight, and Batman met no enemy (in Fuse three 10-minute input patterns stay in the Batcave rooms); C4 was amended to Renegade (#1530 comment 6721883046); this run stays as +3 disk-load and room-exit evidence"
+ },
+ "c4r5": {
+  "case": "C4 Renegade (amended), fes.spectrum-plus3",
+  "controls": "Kempston",
+  "claimed": "2026-11-08 15:35:36 EET",
+  "released": "2026-11-08 15:51:03 EET",
+  "package": "fes-spectrum-plus3-oss",
+  "package_id": "f362eb967ccb221d7aaabb1b756bd328a8f249c0c2c1e1a4a95f0c7c7ca22273",
+  "firmware_sha256": "ee8218fa43ecb672ed45370114294228213a82318c6d1b007ec86bee3293d1f2",
+  "media_sha256": "4648cae040381883988711b56afca04f6bb29f9ffae3a7f29d6d23117986b168",
+  "kit_new_paths_left": 0,
+  "play_window": "15:37:51-15:49:21 EET 8 Nov (690 s)",
+  "cadence_capture": {
+   "sha256": "8f55818a3d6a6d1387c4313a9379bc23b135c1f7507219c34b31138f9882d9b2",
+   "frames": 1200,
+   "fps": 60.0,
+   "updates_per_s": 15.0,
+   "longest_static_run_frames": 73,
+   "black_frames": 0
+  },
+  "audio_rms_per_s": {
+   "load": {
+    "s": 82,
+    "median": 98,
+    "p90": 1804,
+    "max": 1860,
+    "above_floor_s": 22
+   },
+   "play1": {
+    "s": 720,
+    "median": 782,
+    "p90": 1796,
+    "max": 1879,
+    "above_floor_s": 453
+   }
+  },
   "result": "pass",
-  "notes": "The Batcave to the next room the other way, then moving in it; play silent as in Fuse"
+  "notes": "+3 menu Loader boots the disk; menu 4 then fire; fights the gang on the first stage for 11.5 min: knock-downs score 50 each (scores to 500 per game), the energy bar drains, lives are lost, three GAME OVERs with the high-score screen and restarts; one grab caught the game-over screen wipe, which Fuse also draws (frame 6456 of a Fuse game over)",
+  "frame_comparisons": {
+   "control_menu_vs_fuse_1450": "768/768",
+   "relaunch_menu_vs_fuse_1450": "768/768"
+  }
+ },
+ "c4r6": {
+  "case": "C4 Renegade (amended), fes.spectrum-plus3",
+  "controls": "keyboard (Define Keys O/P/A/Q, hit M, pause H)",
+  "claimed": "2026-11-08 15:51:06 EET",
+  "released": "2026-11-08 16:06:45 EET",
+  "package": "fes-spectrum-plus3-oss",
+  "package_id": "f362eb967ccb221d7aaabb1b756bd328a8f249c0c2c1e1a4a95f0c7c7ca22273",
+  "firmware_sha256": "ee8218fa43ecb672ed45370114294228213a82318c6d1b007ec86bee3293d1f2",
+  "media_sha256": "4648cae040381883988711b56afca04f6bb29f9ffae3a7f29d6d23117986b168",
+  "kit_new_paths_left": 0,
+  "play_window": "15:53:34-16:05:04 EET 8 Nov (690 s)",
+  "cadence_capture": {
+   "sha256": "d4a322f0b5932ff2e1d66d61e0f1530d00c1454fd904389cb120a88611cff036",
+   "frames": 1200,
+   "fps": 60.0,
+   "updates_per_s": 23.8,
+   "longest_static_run_frames": 100,
+   "black_frames": 0
+  },
+  "audio_rms_per_s": {
+   "load": {
+    "s": 82,
+    "median": 98,
+    "p90": 1815,
+    "max": 1867,
+    "above_floor_s": 23
+   },
+   "play1": {
+    "s": 719,
+    "median": 717,
+    "p90": 1706,
+    "max": 1888,
+    "above_floor_s": 462
+   }
+  },
+  "result": "pass",
+  "notes": "+3 menu Loader boots the disk; the game's Define Keys sets O/P/A/Q, hit M, pause H, then 1 starts; fights for 11.5 min: knock-downs score 50 each (scores to 650 per game), the energy bar drains, lives are lost, GAME OVER and restarts",
+  "frame_comparisons": {
+   "control_menu_vs_fuse_1450": "768/768",
+   "define_keys_vs_fuse_2050": "768/768",
+   "keys_defined_vs_fuse_2650": "768/768",
+   "first_stage_vs_fuse_2060": "768/768",
+   "relaunch_menu_vs_fuse_1450": "768/768"
+  }
  },
  "c5r1": {
   "case": "C5 Bomb Jack 2, fes.pentagon",
