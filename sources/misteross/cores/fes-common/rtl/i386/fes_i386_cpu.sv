@@ -1029,7 +1029,8 @@ module fes_i386_cpu #(
     assign tss_ss = dc.tss == 3'(fes_i386_pkg::TSS_SS);
     assign tss_disp = dc.tss == 3'(fes_i386_pkg::TSS_IOMAP) ? 32'h0000_0066
                     : dc.tss == 3'(fes_i386_pkg::TSS_BITMAP) ? t4 + {19'd0, t5[15:3]}
-                    : tr_ar[3] ? {26'd0, hs_ar[6:5], tss_ss, !tss_ss, 2'b00} : {27'd0, hs_ar[6:5], tss_ss, !tss_ss, 1'b0};
+                    : tr_ar[3] ? {27'd0, hs_ar[6:5], 3'b000} + {28'd0, tss_ss, !tss_ss, 2'b00}
+                    : {28'd0, hs_ar[6:5], 2'b00} + {29'd0, tss_ss, !tss_ss, 1'b0};
     assign lea_disp = dc.uop.desc != 3'd0 ? desc_disp
                     : dc.uop.mem.system ? {16'b0, dc.far_sel[15:2], dc.sel_part, 1'b0}
                     : !dc.sel_part && dc.moff == 7'd0 && dc.esp_adj == 6'd0 ? dc.lea_disp

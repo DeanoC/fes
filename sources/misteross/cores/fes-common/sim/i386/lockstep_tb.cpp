@@ -5925,6 +5925,7 @@ int run_pmode_cases(fes_i386::Oracle &oracle, OracleBus &bus, Rtl &rtl, const st
                              descs});
     };
     const auto int2b = [](Asm &a) { a.op({0xcd, 0x2b}); };
+    const auto int2e = [](Asm &a) { a.op({0xcd, 0x2e}); };
     r3("r3-hlt-gp", [](Asm &) {}, 13, 0);                                                     // HLT at CPL 3
     r3("r3-int-iretd", [](Asm &a) { a.op({0xcd, 0x2a, 0x43, 0xcd, 0x2b}); }, -1, -1, 0x2b);  // INT 2Ah; INC BX; INT 2Bh
     r3("r3-int-iret16", [](Asm &a) { a.op({0xcd, 0x2c, 0x43, 0xcd, 0x2d}); }, -1, -1, 0x2d); // INT 2Ch; INC BX; INT 2Dh
@@ -6000,6 +6001,25 @@ int run_pmode_cases(fes_i386::Oracle &oracle, OracleBus &bus, Rtl &rtl, const st
     r3("r3-ss0-wrap", int2b, -1, -1, 0x2b, {{0x2504, {0x04, 0x00, 0x00, 0x00}}});
     r3("r3-ss0-limit", int2b, -2, -1, -1, {{0x2504, {0x04, 0x00, 0x00, 0x00}}}, {{2, desc(0, 0x0fff, 0x93, false, false)}});
     r3("r3-ss0-big", int2b, -1, -1, 0x2b, {{0x2508, {0x20, 0x00}}});                        // a 32-bit SS0 (20h)
+    // Deliveries from CPL 3 to DPL 1 and 2 (gate 2Eh, a 386 gate at DPL 3 to
+    // 78h:1800h, code at that DPL), on the TSS's stack for that DPL (80h,
+    // data at that DPL): a 386 TSS's ESPn and SSn at 8n + 4 and 8n + 8, a
+    // 286 TSS's SPn and SSn at 4n + 2 and 4n + 4. The HLT there is #GP(0),
+    // delivered to CPL 0 on SS0.
+    for (unsigned dpl : {1u, 2u})
+        for (uint16_t tr : {uint16_t(0x38), uint16_t(0x50)}) {
+            static const char *labels[2][2] = {{"r3-int-dpl1-386-tss", "r3-int-dpl1-286-tss"},
+                                               {"r3-int-dpl2-386-tss", "r3-int-dpl2-286-tss"}};
+            const uint8_t ss = uint8_t(0x80 | dpl);
+            const bool t386 = tr == 0x38;
+            const uint32_t at = t386 ? 0x2500 + 8 * dpl + 4 : 0x2580 + 4 * dpl + 2;
+            std::vector<uint8_t> tail = t386 ? std::vector<uint8_t>{0x00, 0x0c, 0x00, 0x00, ss, 0x00}
+                                             : std::vector<uint8_t>{0x00, 0x0c, ss, 0x00};
+            cases.push_back(Case{labels[dpl - 1][t386 ? 0 : 1], [=](Asm &a) { to_r3(a, tr); int2e(a); }, 13, 0,
+                                 {{0x2e, gate(0x78, 0x1800, 0xee)}}, false, -1, at, tail,
+                                 {{15, desc(0, 0xffff, uint8_t(0x9b | dpl << 5), false, false)},
+                                  {16, desc(0, 0xffff, uint8_t(0x93 | dpl << 5), false, false)}}});
+        }
     // A ring-3 far CALL and RETF at CPL 3; a far JMP to conforming code at
     // DPL 0, where CPL stays 3; a JMP to DPL 0 nonconforming code, #GP.
     r3("r3-callf", [=](Asm &a) { a.op({0x31, 0xc0, 0x9a}); a.w(0x1900); a.w(0x73); int2b(a); }, -1, -1, 0x2b);
