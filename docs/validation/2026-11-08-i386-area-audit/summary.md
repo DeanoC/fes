@@ -330,24 +330,38 @@ only if #1581's primitives leave a measurable gap.
   has its `top.fit.summary`, its `top.sta.summary` (every setup and hold
   slack) and its fit report's "Resource Utilization by Entity" table
   (`entities.rpt`).
-- **`seal/map-messages.txt` and `exp/map-messages.txt`** hold the Quartus
-  map messages this record cites: the 10335 counts by attribute, 10890,
-  10999, and the RAM inference messages 276004, 276007, 276014 and 276020.
+- **`seal/map-messages.txt` and `exp/map-messages.txt`** hold the raw
+  Quartus map diagnostics this record cites, with only the `File:` paths
+  cut:
+  - the 10335 counts by attribute, and every 10335 on `parallel_case`
+    (1,289 in the seal, 676 with the directive added);
+  - every 10890 and 10999;
+  - the RAM inference messages 276004, 276007, 276014 and 276020.
+- **`seal/10890-netlist-context.txt`** shows the seal netlist at each of
+  its 30 10890 lines. Yosys writes `(* parallel_case = 32'd1 *)` and
+  `(* parallel_case *)` on the same case.
 - **`seal/yosys-memory-map.txt`** lists the 30 memories Yosys maps to
   flip-flops.
 - **`pg/yosys-stat.txt`** is Yosys's per-module cell count.
 - **`tlb-write-enable.diff`** is the scratch TLB change, on top of
   `93928cea2`.
 - **`scripts/`**:
-  - `hier_build_area1548.py` and `run_hier_area1548.sh TAG` run the
-    producer without `flatten` in a detached worktree `wt-TAG`, with the
-    pc386 firmware copied into its `build/firmware/pc386`;
-  - `run_exp_area1548.sh` runs Quartus on the seal's netlist with the
-    `casez` directive added;
+  - `run_hier_area1548.sh REPO COMMIT TAG FIRMWARE_DIR [PATCH]` makes a
+    detached worktree at COMMIT, applies PATCH, copies the pc386 firmware
+    in, and runs `hier_build_area1548.py`: the producer without `flatten`;
+  - `run_exp_area1548.sh REPO COMMIT SEAL_PROJECT` copies a seal's
+    project, marks each Yosys `casez` with the directive, and compiles it;
   - `atoms.tcl` dumps every post-fit atom (type, location, name) through
     `quartus_cdb`;
   - `ent.py`, `cmp.py` and `grp.py` make the entity table and group atoms by
     name.
 
-Each fit takes 20–40 minutes on Powerboat. The full reports are also on
-Powerboat in `~/fes-scratch/area1548/reports/`.
+The fits were:
+- `run_hier_area1548.sh <repo> 93928cea2 pg <firmware>`;
+- `… 97a58487f base <firmware>`;
+- `… 93928cea2 tlb <firmware> evidence/tlb-write-enable.diff`;
+- `run_exp_area1548.sh <repo> 93928cea2 <seal 416e332f's project>`.
+
+`<firmware>` is a built `sources/misteross/build/firmware/pc386`. Each fit
+takes 20–40 minutes on Powerboat. The full reports are also on Powerboat in
+`~/fes-scratch/area1548/reports/`.
