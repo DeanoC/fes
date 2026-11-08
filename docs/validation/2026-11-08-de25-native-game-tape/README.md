@@ -36,3 +36,10 @@ consumption, visible output or normal appliance acceptance. The changed Go code
 requires a newly matched SDK/entry/firmware/boot chain before any new board test.
 The preceding [paired-cycle hardware pass](../2026-11-08-de25-verified-files-board-trial/hardware.md)
 belongs to its older compiled source and remains independently retained.
+
+All eight affected software checks pass: 1,691 parent Python tests (three
+existing prerequisite skips), generated-consumer consistency, SD/FAT/store
+regressions and the native firmware/RTL/launcher integration. The integration
+contains 399 top-level passing/skipped Go test results across its phase
+partitions; physical services remain injected. Exact source and log hashes are
+in [result.json](result.json). This change has issued no new board commands.
