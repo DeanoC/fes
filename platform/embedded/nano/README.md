@@ -1620,7 +1620,12 @@ the final menu and requires logical Parked generation 7. Configuration generatio
 come from verified preceding returns, including the menu transfers, rather than
 the core-only generation formula. Shared keyboard/gamepad input additionally
 requires its original boot/pin proof and input lease, pause before mutation,
-resume after core fetch/menu restoration and STOP after final menu drain.
+resume after the complete verified core firmware opening/menu restoration and
+STOP after final menu drain. The read-only fetch diagnostic can be printed
+before or after Resume; it does not extend firmware's paused interval. Resume
+before any remaining opening firmware or after completed App publication still
+rejects. The unchanged captured launch regression preserves the original byte
+stream and partial receive/deadline offers, alongside ownership/order mutations.
 
 Launch retains the original 100-second request budget and every configuration
 retains its 20-second firmware counter bound. Return allows 5 seconds for core

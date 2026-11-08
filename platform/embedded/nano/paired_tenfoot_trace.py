@@ -223,6 +223,7 @@ class PairedTenfootClient(app.TenfootClient):
         opened_menu = 0
         returned_menu = 0
         first_mutation = None
+        last_firmware = None
         resume_boundary = None
         final_menu_return = None
         ready_line = None
@@ -233,8 +234,10 @@ class PairedTenfootClient(app.TenfootClient):
             if kind == 'firmware':
                 require(not terminal or app.quiet(value), 'firmware followed published terminal App ownership')
                 firmware += value
-                if not app.quiet(value) and first_mutation is None:
-                    first_mutation = line
+                if not app.quiet(value):
+                    if first_mutation is None:
+                        first_mutation = line
+                    last_firmware = line
             elif kind == 'begin':
                 require(op == 'startup' and begins == 0 and self.menu_source is not None and
                         not states and app.quiet(firmware), 'paired App began before initial menu')
@@ -309,7 +312,10 @@ class PairedTenfootClient(app.TenfootClient):
                 self.loads += 1
                 firmware = b''
                 fetches.append(value)
-                resume_boundary = line
+                # Launch drains USB through the verified firmware opening.
+                # The frontend may print its read-only fetch diagnostic after
+                # Resume; that observation does not extend the paused interval.
+                resume_boundary = last_firmware
             elif kind == 'app':
                 n = value['native']
                 phases = ({'ready': 0} if op in ('startup', 'focus') else

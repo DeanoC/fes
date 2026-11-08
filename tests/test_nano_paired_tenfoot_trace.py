@@ -178,7 +178,7 @@ class Model(AppModel):
             self.reports += 8
             raw = self.usb('pause', 'ready' if key == b'\r' else 'running', before)+raw
             if key == b'\r':
-                marker = raw.rindex(paired.app.PREFIX)
+                marker = raw.index(paired.app.FETCH)
             elif key == b'q':
                 marker = raw.index(b'FES_NANO_WINDOW_SCOPE phase=close ')
             else:
