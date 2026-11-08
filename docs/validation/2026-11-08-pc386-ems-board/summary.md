@@ -150,7 +150,13 @@ entry 3 and `fes_i386_cpu` takes the prompt (`--rtl-at-prompt`), so
 EMSTEST.COM and the driver's INT 67h handler run on the RTL CPU against the
 RTL board. **All 16 checks pass**; the RTL retired 51,530,712 instructions
 with no oracle steps, no protected-mode steps and no stops, and the board saw
-the same 265,430 reads and 788,962 writes as on the oracle. A first attempt
+the same 265,430 reads and 788,962 writes as on the oracle.
+
+`--suite game --game uw1 --cpu rtl --rtl-at-prompt --boot-entry 3`: Ultima
+Underworld, a title that uses EMS heavily, from the prompt on the RTL CPU to
+18 simulated seconds: its EMS checks, then its intro text and pictures, as on
+the oracle and the kit. The RTL retired 656,322,895 instructions with no
+oracle steps, no protected-mode steps and no stops; the suite passes. A first attempt
 with the RTL booting FreeDOS itself was still booting after 90 minutes at
 this host's load and was stopped.
 
