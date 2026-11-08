@@ -1354,3 +1354,45 @@ class CoreBuildTest(unittest.TestCase):
             with self.assertRaisesRegex(ValueError, 'non-symlink'):
                 build.publish_package_outputs(package, selection, output)
             self.assertEqual(marker.read_bytes(), b'unchanged')
+
+
+class C64AcceptanceDocsTests(unittest.TestCase):
+    def test_core_status_describes_the_current_accepted_package(self):
+        root = Path(__file__).resolve().parents[1]
+        status = (root / 'docs/core-status.md').read_text()
+        preamble = status.split('## Matrix', 1)[0]
+
+        self.assertIn('current 0.5.0 native-drive core', preamble)
+        self.assertIn('exact-artifact game acceptance on Kit B', preamble)
+        self.assertIn('does not qualify the 0.5.0 package', preamble)
+        self.assertNotIn('current 0.4.0', preamble)
+        self.assertNotIn('needs hardware acceptance', preamble)
+
+        c64_row = next(
+            line for line in status.splitlines()
+            if line.startswith('| `fes.c64` |')
+        )
+        self.assertIn('two-launch level-advance objective was not met', c64_row)
+        self.assertIn('specific to the named 0.5.0 package', c64_row)
+
+    def test_lode_runner_result_is_qualified_when_level_advance_only_passed_once(self):
+        root = Path(__file__).resolve().parents[1]
+        record = root / 'docs/validation/2026-11-07-c64-game-acceptance'
+        summary = (record / 'summary.md').read_text()
+        runs = json.loads((record / 'kit-runs.json').read_text())
+        self.assertIn('Ctrl+U LEVEL 002 in r1 only', runs['runs']['lode1']['result'])
+
+        matrix_row = next(
+            line for line in summary.splitlines()
+            if line.startswith('| 2 Lode Runner:')
+        )
+        self.assertIn('**QUALIFIED**', matrix_row)
+        self.assertIn('r1', matrix_row)
+        self.assertIn('r2', matrix_row)
+        self.assertIn('stayed at LEVEL 001', matrix_row)
+
+        case = summary.split('## Case 2:', 1)[1].split('## Case 3:', 1)[0]
+        self.assertIn('**QUALIFIED:**', case)
+        self.assertIn(
+            'predeclared two-launch level-advance objective was not met', case
+        )
