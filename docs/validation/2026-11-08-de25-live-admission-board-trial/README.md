@@ -1,5 +1,10 @@
 # Bounded native cycle with one-use live JTAG admission
 
+The [physical trial](hardware.md) passed three launches and two menu returns,
+then stopped at the native worker limit during final Quit. Its original result
+remains failed; final Park and the full cycle are unproven. The procedure is
+consumed and must not replay.
+
 This procedure tests the changed host transport contract on TRWU8CBL. Each
 recovery/native image operation reserves a distinct attempt before its live
 vendor-client scan, consumes the verified proof before programming and records
