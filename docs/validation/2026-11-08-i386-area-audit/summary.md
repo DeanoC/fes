@@ -22,7 +22,7 @@ Toolchain follow-up: [#1581](https://github.com/DeanoC/fes/issues/1581).
   packed vector. Yosys turns that into shift logic over all 640 bits, and
   Quartus keeps it. With an enable per entry instead, an analysis fit saves
   **744 ALMs in the CPU** (DTLB −495, ITLB −342, the other CPU modules +93 of noise). That
-  fit also met setup with +0.832 ns. This is the clear quick win. It needs
+  fit also met every analysis, worst setup +0.639 ns. This is the clear quick win. It needs
   #1579 merged first, since the TLB is only on that branch.
 - **The Yosys front end's other losses are small.** Yosys writes its 613
   one-hot muxes as `casez` with a `parallel_case` attribute. A fit that adds
@@ -54,13 +54,13 @@ before Quartus reads it. So the seal's fit report has a single
 atom names are anonymous (`_06042_`, `Add616`, `Equal6015`). Per-module
 figures need a fit without the flatten.
 
-| Fit | Commit | What | ALMs | Registers | Setup, system clock |
+| Fit | Commit | What | ALMs | Registers | Worst setup, any clock and corner |
 | --- | --- | --- | ---: | ---: | ---: |
 | Seal `416e332f` | `93928cea2` | #1579's sealed head (paging) | 36,751 | 32,350 | +0.620 ns |
-| Paging, per module | `93928cea2` | the producer with `flatten` removed | 36,794 | 32,507 | met |
-| Base, per module | `97a58487f` | main where #1579 branched: #1571 and #1552 in, the EMS board (#1556) not | 33,315 | 30,336 | met |
-| parallel_case | `93928cea2` | the seal's netlist, the 613 Yosys `$pmux` `casez` functions marked `// synthesis parallel_case` | 36,751 | 32,350 | +0.843 ns |
-| TLB write enable | `93928cea2` + scratch commit | per-module, `fes_i386_tlb` writing each entry under its own enable | 36,294 | 32,520 | +0.832 ns |
+| Paging, per module | `93928cea2` | the producer with `flatten` removed | 36,794 | 32,507 | +0.804 ns |
+| Base, per module | `97a58487f` | main where #1579 branched: #1571 and #1552 in, the EMS board (#1556) not | 33,315 | 30,336 | +0.369 ns |
+| parallel_case | `93928cea2` | the seal's netlist, the 613 Yosys `$pmux` `casez` functions marked `// synthesis parallel_case` | 36,751 | 32,350 | +0.620 ns (a byte-identical timing summary to the seal's) |
+| TLB write enable | `93928cea2` + scratch commit | per-module, `fes_i386_tlb` writing each entry under its own enable | 36,294 | 32,520 | +0.639 ns |
 
 - Every fit is Quartus 17.0.2, seed 1, the producer's settings. All five had
   positive slack on every setup and hold analysis in `top.sta.summary`; the
@@ -183,7 +183,7 @@ The misses have three causes:
 
 | Item | ALMs | Evidence |
 | --- | ---: | --- |
-| `$pmux` as `casez` with a `parallel_case` attribute | 0 | The fit with Quartus's own directive added gives identical synthesis (56,331 ALUTs, 32,350 registers, 36,751 ALMs). The seal's map report flags those 613 attributes unrecognised (10335), and the directive removes exactly those 613 warnings. Both reports also carry the same 30 10890 warnings, where Yosys writes `parallel_case` twice on one case. |
+| `$pmux` as `casez` with a `parallel_case` attribute | 0 | The fit with Quartus's own directive added gives identical synthesis (56,331 ALUTs, 32,350 registers, 36,751 ALMs) and a byte-identical timing summary. The seal's map report flags those 613 attributes unrecognised (10335), and the directive removes exactly those 613 warnings. Both reports also carry the same 30 10890 warnings, where Yosys writes `parallel_case` twice on one case. |
 | `flatten` before Quartus | about 0 (−43) | The per-module fit totals 36,794 against the seal's 36,751. |
 | Variable-index write into a packed array (`e[slot] <= x`) | 744 in the TLBs | the scratch fit; the same idiom elsewhere is [below](#other-findings) |
 | Multi-write-port memories as flip-flops | about 250–400 | The return stack is 289 ALMs and would be about 20 in two MLABs; the KBC RAM and VGA CRTC are a few tens each. The rest are register files that stay registers either way. |
@@ -351,6 +351,7 @@ only if #1581's primitives leave a measurable gap.
     in, and runs `hier_build_area1548.py`: the producer without `flatten`;
   - `run_exp_area1548.sh REPO COMMIT SEAL_PROJECT` copies a seal's
     project, marks each Yosys `casez` with the directive, and compiles it;
+  - `guard_area1548.sh` is the jobs' guard (AGENTS.md, "Ops"): it refuses under 30G free, writes a heartbeat, caps the job (`CAP`, default 3h), runs `NOTIFY_CMD` on finish or fail, and returns the job's status, which both wrappers exit with;
   - `atoms.tcl` dumps every post-fit atom (type, location, name) through
     `quartus_cdb`;
   - `ent.py`, `cmp.py` and `grp.py` make the entity table and group atoms by

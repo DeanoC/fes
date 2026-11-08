@@ -19,7 +19,9 @@ print("casez functions marked:", len(re.findall(pat, t)))   # 613 for seal 416e3
 open(sys.argv[2], "w").write(re.sub(pat, r'casez (s) // synthesis parallel_case\n', t))
 PY
 export QUARTUS_ROOTDIR=${QUARTUS_ROOTDIR:-/home/deano/intelFPGA_lite/17.0/quartus}
+. "$(cd "$(dirname "$0")" && pwd)/guard_area1548.sh"
 cd "$d/project"
+: > ../quartus.log
 set +e
-nice -n 5 "$QUARTUS_ROOTDIR/bin/quartus_sh" --flow compile top > ../quartus.log 2>&1
-echo "exit $? $(date -Is)" >> ../quartus.log
+guarded_run ../quartus.log nice -n 5 "$QUARTUS_ROOTDIR/bin/quartus_sh" --flow compile top
+exit $?
