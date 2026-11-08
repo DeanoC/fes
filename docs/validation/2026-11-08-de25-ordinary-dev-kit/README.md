@@ -31,7 +31,8 @@ cases are rerun on that committed source and produce identical semantic results;
 all22 related recipe tests pass. The strict source-equality test is unchanged,
 dated old receipts stay intact, and no production runtime/kernel/RBF bytes change.
 The old aggregate integration failure follows that producer failure; it is not
-independent hardware evidence. New-head CI remains required.
+independent hardware evidence. The corrected head `cdf0fa609` passes the exact
+required CI query (37 pass, one skipping). Later heads require their own checks.
 
 A separate [native stock-watchdog preflight](stock-watchdog-preflight.json) on
 the same installed kernel/stock FIT identifies the real `dw_wdt` watchdog0,
@@ -42,6 +43,24 @@ are verified before/after, and the board is released at idle/free MENU. This
 is preparation for recovery testing, without reset/expiry or failed-load
 acceptance. Catalog contents are not independently resampled by this metadata
 test; their preceding ordinary-control evidence remains separate.
+
+The subsequent [stock-watchdog reset diagnostic](stock-watchdog-reset.json),
+coordinated at `cdf0fa609`, passes a real countdown21→19s, one magic-close and
+75 seconds of same-boot survival before one deliberate expiry. FES is stopped
+normally and all nine SD-backed mounts are read-only before opening the timer.
+Captured stock firmware reports a Cold reset; Linux returns with fresh boot
+`27d28fac-437b-47db-a8c7-44f38804df8e`, the same normal61a4 generation7, kernel,
+root, FIT, card, pairing and saved program. Exact selected files/three running
+executables,10s stable MENU idle/free and the unchanged own host pass. A transient
+maintenance lease restarts that stability window; no boot-latency claim is made.
+One fresh prompt-gated ordinary ZX81 launch then passes inspected black-on-white
+[7](stock-watchdog-basic7.png) → [9](stock-watchdog-basic9.png) →
+[7](stock-watchdog-reload7.png) and Stop/MENU. Normal writable mounts return,
+the temporary RAM helper is gone, UART recording terminates and the claim is
+released. No software reboot, power pull, card swap, USB power or boot/image/QSPI
+change is used. The [exact helper and guard tests](stock-watchdog-reset/README.md)
+are published. This is healthy-system reset evidence; failed-upload/secure-call
+containment and any new automatic recovery policy remain unqualified.
 
 ## Supported control and retained failure
 

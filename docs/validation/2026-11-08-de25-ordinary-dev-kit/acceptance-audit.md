@@ -47,6 +47,16 @@ and owner-authorized landing/main baseline work. Untested peripherals retain
 their status; no all-core or all-peripheral support is inferred from ZX81. The
 full objective remains open rather than being reduced to the passing control.
 
+The later [stock-watchdog diagnostic](stock-watchdog-reset.json) adds one actual
+countdown/disarm/survival control and one deliberate expiry with all SD-backed
+mounts read-only. It returns through stock firmware to fresh authenticated boot
+`27d28fac`, the same normal61a4 generation7, writable data and stable MENU. A
+fresh ordinary BASIC7/9/7/Stop control and catalog/SAVE retention pass before
+release. This strengthens requirements1 and8 for the tested healthy-system
+reset. It does not complete requirement2's failed-upload/secure-call recovery
+gate, qualify dirty-data safety or add automatic reset policy. The exact code
+head `cdf0fa609` has green CI; any subsequent head still needs its own check.
+
 The [submission-deadline repair](submission-deadline.md) reproduces a separate
 off-board caller-blocking defect and tests an owned worker with retained lease
 and uncertainty. Its changed runtime `a495366c`, producer `644ed8017`, additionally

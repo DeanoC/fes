@@ -42,7 +42,8 @@ full development-kit acceptance remains open as described below.
 
 The retained development setup now uses kernel `9cec7e77`, managed root
 `0858eef0`, pinned stock Terasic FIT `bb6a48c7` and default-off bundle `61a4b0aa`,
-generation 5 after the corrected rollback/restore trial below. The original ordinary, SAVE,
+generation 7 after the bounded-submission candidate trial and normal restore.
+The original ordinary, SAVE,
 reboot and runtime-loss controls ran at generation1 of these same bundle bytes;
 the corrected factory generation4 and normal generation5 controls add observed
 ROM-prompt LOAD/RUN7 and Stop/MENU evidence. Normal software install/activation and native executable
@@ -50,7 +51,9 @@ authentication pass. Standard ZX81 `3da0f1df` passes Play, RAMTOP128, BASIC
 7/9/7, fresh HDMI, Stop/MENU and relaunch. One idle and one active-session OS
 reboot pass without physical intervention, preserving pairing, software,
 catalog and a saved-data probe. The current boot is
-`655b3ec6-d7b6-44c5-8ccc-225eb7415ccf`. The approved firmware-only SD update
+`27d28fac-437b-47db-a8c7-44f38804df8e` after the later stock-watchdog diagnostic.
+The original stock qualification retains boot `655b3ec6`.
+The approved firmware-only SD update
 passes fresh compressed two-read backup qualification, source-bound virtual
 write/restore, actual compare/write/sync/full direct readback and native stock
 firmware boot. No kernel/root/software/QSPI change, card swap or power cycle
@@ -77,6 +80,14 @@ reconciliation are verified. See the
 [bounded recovery record](../validation/2026-11-08-de25-ordinary-dev-kit/README.md#stock-firmware-runtime-loss-recovery).
 This covers the tested process exits; failed FPGA uploads, dirty SAVE, guest
 session resumption, broader stress and untested peripherals remain open.
+
+The [stock-watchdog diagnostic](../validation/2026-11-08-de25-ordinary-dev-kit/stock-watchdog-reset.json)
+also verifies countdown, magic-close and75s survival, then one real expiry on
+the healthy system with FES stopped and all SD-backed mounts read-only. Stock
+firmware returns to a fresh authenticated Linux/MENU boot, and one ordinary
+ZX81 BASIC7/9/7/Stop control passes. No power pull, card swap, software reboot or
+boot/image change occurs. This qualifies that reset path; it does not establish
+that it clears an SDM/secure-call stall or introduce automatic fault recovery.
 
 The current stock setup also passes ROM SAVE through ordinary Stop: generation-
 bound capture/catalog commit/acknowledgement produces a new 923-byte program,
