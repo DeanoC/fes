@@ -200,11 +200,12 @@ class I386Phase5PlanDocsTests(unittest.TestCase):
         )
         self.assertNotIn("debug registers", phase2_scope)
         self.assertIn(
-            "Privilege transitions through interrupt and trap gates, IOPL and the "
-            "I/O bitmap for IN and OUT remain (a third slice)",
+            "deliveries to an inner privilege through 286 and 386 gates on 286 "
+            "and 386 TSSs with #TS",
             phase2,
         )
-        self.assertIn("MOV DRn there gets only its CPL check", phase2)
+        self.assertIn("the I/O permission bitmap for IN and OUT", phase2)
+        self.assertIn("MOV DRn gets only its CPL check", phase2)
         self.assertIn(
             "debug-register behavior, inner call gates, INS/OUTS bitmap checks, "
             "and task gates and task switches are Phase 5",

@@ -471,7 +471,11 @@ devices:
 								app.NoteInput(InputGamepad, in.fd)
 								// Guide is a launcher button, never sent to a core:
 								// on a kit-local core it is the one-press Stop.
-								app.RequestLocalStop()
+								// A host session with no playing room takes the
+								// same Stop (#1561).
+								if !app.RequestLocalStop() {
+									app.RequestRoomlessStop(now)
+								}
 							} else {
 								app.NoteInput(InputGamepad, in.fd)
 								in.setButton(code, CmdSettings, true)
@@ -772,7 +776,9 @@ func (ins *nativeInputs) key(app *App, in *nativeInput, code uint16, value int32
 
 // nativeKeyF12 is MiSTer's menu key. A kit-local core treats a press as Stop.
 // A host session that can change removable media opens that selector instead,
-// including when the library has no .p files yet. The key is never forwarded.
+// including when the library has no .p files yet; otherwise it opens the
+// playing room, and with no room it stops the session. The key is never
+// forwarded.
 const nativeKeyF12 = 88
 
 func (in *nativeInput) key(app *App, code uint16, value int32, now time.Time) bool {

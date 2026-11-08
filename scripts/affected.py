@@ -210,7 +210,8 @@ def fpga_cores(path):
             return ('spectrum',), 'Spectrum socket recipe'
         if parts[1] in ATARI_ST_SCRIPTS:
             return ('atari-st',), 'Atari ST socket/card/ROM test recipe'
-        if parts[1] in ('build_pc386_firmware.py', 'build_pc386_freedos_image.py', 'build_fes_pc386_quartus.py'):
+        if parts[1] in ('build_pc386_firmware.py', 'build_pc386_freedos_image.py', 'build_pc386_game_drive.py',
+                        'build_fes_pc386_quartus.py'):
             return ('pc386',), 'pc386 firmware, simulation disk and producer (the system simulation takes its rates)'
         if parts[1] == 'synth_fes_pc386.py':
             return (), 'pc386 machine synthesis recipe; no simulation reads it'

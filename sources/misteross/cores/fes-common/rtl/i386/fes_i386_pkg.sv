@@ -299,7 +299,8 @@ package fes_i386_pkg;
     // with the selector in T0 as their error code (a protected-mode segment
     // load's checks, M1). GP_IDT and NP_IDT are #GP and #NP with the
     // vector's IDT entry as their error code, vector * 8 + 2 (a delivery's
-    // gate checks).
+    // gate checks). TS_SEL and TS_TR are #TS with T0's selector (a delivery's
+    // new SS) or TR's (its stack's slots past the TSS's limit).
     typedef enum logic [3:0] {
         FAULT_NONE          = 4'd0,
         FAULT_UD            = 4'd1,
@@ -314,7 +315,9 @@ package fes_i386_pkg;
         FAULT_NP_SEL        = 4'd10,
         FAULT_SS_SEL        = 4'd11,
         FAULT_GP_IDT        = 4'd12,
-        FAULT_NP_IDT        = 4'd13
+        FAULT_NP_IDT        = 4'd13,
+        FAULT_TS_SEL        = 4'd14,
+        FAULT_TS_TR         = 4'd15
     } fault_e;
 
     // Why an instruction stops as not built (FAULT_UNIMPLEMENTED), kept
@@ -324,10 +327,11 @@ package fes_i386_pkg;
     // transfer through a call gate, a TSS or a task gate; an IRET to V86
     // mode; paging; a protected-mode 16-bit stack access past 64 KiB under
     // a limit that reaches there; a protected-mode IRET with NT set, a
-    // return from a nested task.
+    // return from a nested task; an I/O instruction at a CPL above IOPL,
+    // which the TSS's I/O permission bitmap decides.
     typedef enum logic [3:0] {
         WHY_ENCODING, WHY_TASK_GATE, WHY_INNER, WHY_OUTER, WHY_GATE, WHY_V86, WHY_PAGING, WHY_STACK64K,
-        WHY_TASK_RETURN
+        WHY_TASK_RETURN, WHY_IOPERM
     } why_e;
 
     typedef struct packed {
@@ -382,7 +386,18 @@ package fes_i386_pkg;
     // same uop, which EFLAGS.NT set stops as not built, a return from a
     // nested task (EX). x87p: the uop is an ESC instruction's last, which
     // writes the x87 pointers as it retires (x87p_e).
+    // A privilege transition (fes_i386_cpu, "Privilege transitions"): hold,
+    // WB keeps the staged CS descriptor and whether the transfer changes
+    // privilege (xp); xfer, the far jump writes CS from that hold, and with
+    // xp SS from the staged descriptor and ESP from T5; nstk, the access is
+    // to the new stack (the staged SS's base and checks, at T5 plus its
+    // slot), whose fault is #SS(selector); sflt, the fault a system read's
+    // check raises (sflt_e).
     typedef struct packed {
+        logic        hold;
+        logic        xfer;
+        logic        nstk;
+        logic [1:0]  sflt;
         logic [1:0]  x87p;
         logic [2:0]  desc;
         logic [3:0]  segchk;
@@ -613,6 +628,12 @@ package fes_i386_pkg;
         logic        gsz;
         logic        errp;
         logic [1:0]  dmode;
+        // A privilege transition's uops: xc, when it issues (xc_e); xs, a
+        // delivery's push or probe, which with xp moves two slots down onto
+        // the new stack (nstk); tss, a read of the new stack from the TSS.
+        logic [1:0]  xc;
+        logic        xs;
+        logic [2:0]  tss;
         // Which of ESI, EDI and ECX (bits 0-2) the uop reads, as a source,
         // a CL count or an address register (str_reads): D holds it while
         // a string element that steps one is in flight.
@@ -676,20 +697,39 @@ package fes_i386_pkg;
     // store) or high dword again as a store (LTR's busy bit); a delivery's
     // IDT gate, its low and high dword, at IDTR's base plus the vector times
     // 8.
-    typedef enum logic [2:0] { DESC_NONE, DESC_LO, DESC_HI, DESC_ACC, DESC_IDT_LO, DESC_IDT_HI, DESC_BUSY } desc_e;
+    // DESC_HACC is the held CS descriptor's access byte (a privilege
+    // transition's accessed bit, after its pushes).
+    typedef enum logic [2:0] { DESC_NONE, DESC_LO, DESC_HI, DESC_ACC, DESC_IDT_LO, DESC_IDT_HI, DESC_BUSY, DESC_HACC } desc_e;
+    // The fault a system read past its limit raises (uop_t sflt): #GP with
+    // the selector (a descriptor's), #TS with it (a delivery's new SS), #TS
+    // with TR's (the TSS's stack slots).
+    typedef enum logic [1:0] { SFLT_GP, SFLT_TS, SFLT_TR, SFLT_GP0 } sflt_e;
+    // A privilege transition's conditional uops (decoded_t xc): always;
+    // only when the transfer changes privilege (xp); only when it does not.
+    typedef enum logic [1:0] { XC_ALL, XC_XP, XC_SAME } xc_e;
+    // A read from the TSS (decoded_t tss): a delivery's new stack, ESP
+    // (checked against TR's limit) and SS; an I/O access's permission
+    // bitmap base, at 66h, and its bitmap's word for the port (T5) at that
+    // base (T4) plus the port's byte, checked against TR's limit.
+    typedef enum logic [2:0] { TSS_NONE, TSS_ESP, TSS_SS, TSS_IOMAP, TSS_BITMAP } tss_e;
     // The staged descriptor's checks M1 raises (uop_t segchk;
     // fes_i386_cpu "Protected mode: a segment load's descriptor"): a data
     // segment's load, SS's, a far JMP's CS, a delivery's gate, a delivery's
-    // CS with the gate's offset, a far CALL's CS, its offset, a RETF's or
-    // IRET's CS with its offset, LLDT's descriptor, LTR's.
+    // CS, a far CALL's CS, its offset, IRET's CS, LLDT's descriptor, LTR's;
+    // IRET's new SS at an outer privilege, a delivery's new SS at an inner
+    // one, the gate's or IRET's offset against the held CS's limit, RETF's
+    // CS with its offset (RETF to an outer privilege is not built); an I/O
+    // access's bits in the permission bitmap's word (T2) for the port (T5).
     typedef enum logic [3:0] {
-        CHK_NONE, CHK_DATA, CHK_SS, CHK_JMP, CHK_GATE, CHK_INTCS, CHK_CALL, CHK_OFF, CHK_RET, CHK_LDT, CHK_TSS
+        CHK_NONE, CHK_DATA, CHK_SS, CHK_JMP, CHK_GATE, CHK_INTCS, CHK_CALL, CHK_OFF, CHK_RET, CHK_LDT, CHK_TSS,
+        CHK_SSRET, CHK_SSINT, CHK_HOFF, CHK_RETS, CHK_IOBM
     } segchk_e;
     // How a descriptor read treats its selector (decoded_t dmode): load and
     // check it; LAR, LSL, VERR and VERW, which read nothing for a selector
     // past its table and raise nothing; LLDT and LTR, which read nothing for
     // TI=1 (their check raises #GP).
-    typedef enum logic [1:0] { DM_LOAD, DM_PROBE, DM_GDT } dmode_e;
+    // DM_TS: a delivery's new SS, whose read past its table raises #TS.
+    typedef enum logic [1:0] { DM_LOAD, DM_PROBE, DM_GDT, DM_TS } dmode_e;
 
     // A microcode ROM word (fes_i386_ucode_rom, built by
     // scripts/fes_i386_ucode.py from ucode.toml): the fields of one uop that
@@ -750,6 +790,13 @@ package fes_i386_pkg;
         logic        nwrap;      // uop_t nwrap
         logic        vmchk;      // uop_t vmchk
         logic        iimm;       // imm is the instruction's (RETF imm16's), not the word's
+        logic        hold;       // uop_t hold
+        logic        xfer;       // uop_t xfer
+        logic        nstk;       // uop_t nstk
+        logic [1:0]  xc;         // decoded_t xc
+        logic        xs;         // decoded_t xs
+        logic [2:0]  tss;        // decoded_t tss
+        logic        iof;        // the instruction's I/O access, which its first uop keeps (fes_i386_seq)
     } ucode_t;
 
     // The shifter's controls (fes_i386_shift), decoded in M2. sel gates
