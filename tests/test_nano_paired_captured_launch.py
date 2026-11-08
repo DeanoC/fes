@@ -1,8 +1,9 @@
-"""Unchanged physical UART bytes; replay only, never a hardware pass."""
+"""Unchanged historical UART bytes; current-format positive traces are synthetic."""
 import copy
 import hashlib
 import json
 from pathlib import Path
+from test_nano_paired_tenfoot_trace import Model
 import re
 import sys
 import unittest
@@ -48,15 +49,37 @@ class CapturedLaunchTests(unittest.TestCase):
             exchange=exchange, owns=lambda: True, now=lambda: clock[0])
         return client, sent, data['launch.uart']
 
-    def test_captured_launch_resumes_after_firmware_before_fetch(self):
+    def current(self, mutate=None):
+        """New synthetic wire, never an amended physical capture."""
+        model = Model(True); client = model.client(); exchange = model.exchange
+        def current_exchange(payload, bound, done):
+            response = exchange(payload, bound, lambda _: False)
+            if mutate is not None:response = mutate(response)
+            done(response)
+            return response
+        client.exchange = current_exchange
+        return client, model.keys
+
+    def test_captured_order_is_preserved_but_missing_poll_evidence_retires(self):
         client, sent, response = self.replay()
-        rows = paired.observations(response, client.input_mode)
+        original = response.splitlines(keepends=True)
+        # Inspect the old ordering without adding or inventing poll evidence.
+        # The firmware/App-only projection is not a full acceptance replay.
+        kept = [(i, line) for i, line in enumerate(original) if not line.startswith(paired.USB)]
+        rows = paired.observations(b''.join(line for _, line in kept), client.input_mode)
         firmware = [r for r in rows if r['kind'] == 'firmware' and not paired.app.quiet(r['value'])]
-        usb = [r for r in rows if r['kind'] == 'usb']
-        fetch = next(r for r in rows if r['kind'] == 'fetch')
-        self.assertLess(usb[0]['line'], firmware[0]['line'])
-        self.assertLess(firmware[-1]['line'], usb[1]['line'])
-        self.assertLess(usb[1]['line'], fetch['line'])
+        usb = [i for i, line in enumerate(original) if line.startswith(paired.USB)]
+        fetch = next(i for i, line in enumerate(original) if line.startswith(paired.app.FETCH))
+        self.assertLess(usb[0], kept[firmware[0]['line']-1][0])
+        self.assertLess(kept[firmware[-1]['line']-1][0], usb[1])
+        self.assertLess(usb[1], fetch)
+        with self.assertRaises(ValueError):client.key('launch', 0)
+        self.assertTrue(client.retired)
+        with self.assertRaises(ValueError):client.key('launch', 0)
+        self.assertEqual(sent, [b'\r'])
+
+    def test_current_launch_resumes_after_firmware_before_fetch(self):
+        client, sent = self.current()
         result = client.key('launch', 0)
         self.assertEqual(sent, [b'\r'])
         self.assertFalse(client.retired)
@@ -107,18 +130,18 @@ class CapturedLaunchTests(unittest.TestCase):
         return b''.join(lines)
 
     def test_fetch_diagnostic_does_not_define_the_resume_boundary(self):
-        client, sent, _ = self.replay(lambda raw: self.alter(raw, 'resume-after-fetch'))
+        client, sent = self.current(lambda raw: self.alter(raw, 'resume-after-fetch'))
         client.key('launch', 0)
         self.assertEqual(sent, [b'\r'])
         self.assertEqual(client.view['session'], 'active')
 
-    def test_captured_ownership_faults_retire_without_another_send(self):
+    def test_current_ownership_faults_retire_without_another_send(self):
         for fault in ('resume-before-last-firmware', 'resume-before-configuration',
                       'resume-after-completion', 'pause-after-mutation',
                       'missing-resume', 'duplicate-resume', 'wrong-owner',
                       'wrong-lease', 'wrong-native-generation', 'reports-during-pause'):
             with self.subTest(fault=fault):
-                client, sent, _ = self.replay(lambda raw: self.alter(raw, fault))
+                client, sent = self.current(lambda raw: self.alter(raw, fault))
                 with self.assertRaises(ValueError):
                     client.key('launch', 0)
                 self.assertTrue(client.retired)
