@@ -35,3 +35,26 @@ The spare card remains in the top board, factory restoration is waived unless
 needed, and bottom TRWU8J8G remains untouched. The controller replug may have
 flickered power; the application state is unproven. See operator-source.json
 for all exact sources, inputs, tools, bounds and attempt accounting.
+
+## Hardware result
+
+The single attempt is consumed. Qualified recovery, boot FIT upload/readback and
+fresh read, both one-use live programming scans, matched native cold boot and
+all nine startup checkpoints pass. The restricted verifier now observes the
+canonical source and the complete 164-row pin map (328 reads per part), with
+identity/owner/generation and data held verified.
+
+USB reached an addressed root hub and its configuration-header control read
+(address 1, GET_DESCRIPTOR 0x0200, nine bytes, EP0 eight bytes). The first data
+packet stopped on the existing contradictory-completion guard: received data,
+transfer-complete and NAK were all accumulated. No USB Ready, Stop, report,
+button action or core load is established. A power-flicker cause is unproven.
+No later native command or reprogramming was sent; this image is not replayable.
+
+Independent cleanup verifies the unchanged adapter node/exact permissions,
+recorded 15M readback, owned private-server exit and free UART. Native halt/Park
+is unproven. The continuing claim stays held; spare remains; bottom untouched.
+The raw console and joined receipts are hashed in hardware-result.json.
+The next step is to examine whether PIO continuation can queue an extra token
+before a prior receive/completion becomes visible, preserving the completion,
+retirement and ownership checks while reproducing the event ordering off-board.
