@@ -69,6 +69,7 @@ Quartus 17.0.2.
 | [`sim/freedos.lock`](sim/freedos.lock) | The FreeDOS 1.4 package commits and file hashes of the simulation and games disks |
 | [`sim/fesenv.asm`](sim/fesenv.asm) | FESENV.COM: the games disk's `BLASTER` line from CMOS 60h-62h |
 | [`sim/mousedef.asm`](sim/mousedef.asm) | MOUSEDEF.COM: the games disk's default CuteMouse event handler, run after `LH CTMOUSE` |
+| [`sim/game-drives.toml`](sim/game-drives.toml) | The game drives' titles: source zips and their SHA-256, folders, launch commands and keys |
 
 The 8254 is the shared KF8253 with `READ_BACK = 1`; the DMA controllers are the
 shared [`fes_dma8237.sv`](../fes-common/rtl/fes_dma8237.sv) with AT parameters.
@@ -79,6 +80,7 @@ shared [`fes_dma8237.sv`](../fes-common/rtl/fes_dma8237.sv) with AT parameters.
 python3 scripts/build_pc386_firmware.py --download     # dev86, then both ROMs, checked against the lock
 python3 scripts/build_pc386_freedos_image.py --download  # the FreeDOS fixture in build/
 python3 scripts/build_pc386_freedos_image.py --profile games --download  # the games image (HIMEMX, UMBM, CuteMouse, MOUSEDEF, MEM, BLASTER)
+python3 scripts/build_pc386_game_drive.py --download real  # a game drive: the games image plus user-supplied titles, in ~/fes-drives/pc386
 python3 scripts/sim_fes_pc386.py --suite devices        # directed device checks, about 10 s
 python3 scripts/sim_fes_pc386.py --suite storage        # the fes.computer 1.1 golden exchanges, about 2 min
 python3 scripts/sim_fes_pc386.py --suite audio          # DSP, OPL2 timers, mixer, about 1 min
@@ -172,9 +174,10 @@ presenter, capture and display-plane benches. The sound suite boots the same
 FreeDOS fixture, runs SOUND.COM, checks the OPL2 samples against Nuked-OPL3,
 and checks the speaker and DSP tones in the 48 kHz output. It writes
 `build/sim/fes-pc386/sound/sound.wav`, section measurements and the captured
-OPL2 port log. The game suite starts Wolfenstein 3D or Ultima VI from
-`$FES_PC386_GAMES` and reports its audio activity; the supplied game files and
-captures stay outside the repository.
+OPL2 port log. The game suite boots a prebuilt game drive
+([game drives](../../docs/pc386-game-drives.md)), starts a title and reports
+its audio activity and the RTL's stops; the user-supplied game files stay
+outside the repository.
 
 ## Simulation model
 
@@ -473,21 +476,32 @@ FreeDOS 1.4 package archives in `C:\FDOS\BIN`, pinned in
   if it is not 0:0. After CuteMouse's 0:0 it left its own handler installed,
   and the next program was called at a stale address on every mouse event
   (#1485).
-- The games profile sets `BUFFERS=16`. MEM shows 575K (588,544 bytes) of
-  conventional memory free and 154K of upper memory free, largest block 81K.
-  This is 1,792 bytes above Serpent Isle's published 573K (586,752-byte)
-  requirement. The games-image MEM simulation requires at least 1,024 bytes
-  above that requirement.
+- `FDCONFIG.SYS` has a boot menu. It takes entry 1 after 3 seconds, so kit
+  and simulation runs that press nothing get it (#1526):
+  - **Entry 1, the default.** The kernel stays in conventional memory (below).
+    `DOSDATA=UMB` moves its data, stacks and LASTDRIVE to upper memory, and
+    `FILESHIGH=30`, `BUFFERSHIGH=16` and `SHELLHIGH` move the file handles,
+    buffers and FreeCOM there too. MEM shows 580K (594,256 bytes) free. That
+    is enough for Frontier: Elite 2 (about 594,000) and Serpent Isle's
+    published 573K (586,752 bytes). `FILES=30` covers Strike Commander's 25
+    (#1525). The games-image MEM simulation requires Serpent Isle's figure
+    plus 1,024 bytes, and Frontier's.
+  - **Entry 2, more memory.** `DOS=HIGH,UMB`, `FILES=30`, `BUFFERS=16`, for
+    programs that need more conventional memory, such as Falcon 3.0
+    (614,400 bytes). MEM shows 622K (637,104 bytes). It is not for Ultima
+    VII; the next item says why.
 - HIMEMX picks its A20 method by itself. POST hands DOS a machine with A20
   off ([A20 and CPU reset](../../docs/pc386-machine-design.md#a20-and-cpu-reset)),
   so HIMEMX takes port 92h ("Fast A20 method used"), and XMS function 04h
   (global disable A20) turns A20 off again. A HIMEMX that finds A20 already
   on takes its "Always on" method, under which 04h always fails.
-- No `DOS=HIGH`: with the kernel in the HMA, its entry code enables A20 with
+- No `DOS=HIGH` by default: with the kernel in the HMA, its entry code enables A20 with
   XMS function 05h whenever a program has left it off and never releases it,
   so HIMEMX's lock count stays above zero and function 04h fails. Ultima
   VII's Voodoo memory manager calls 04h as it exits and stops
-  (`freexmm.c` / `Program terminated by code.`) when it fails.
+  (`freexmm.c` / `Program terminated by code.`) when it fails (#1409). Both
+  calls are fixed in the pinned binaries: the kernel's `_ENABLEA20` uses 05h,
+  and HIMEMX's 04h refuses while `a20_locks` is not zero.
 - The upper memory blocks also keep Ultima VII's memory check working from
   the prompt. Its MAINMENU.EXE measures DOS memory as the last two blocks of
   the memory chain. FreeCOM 0.86 keeps its master environment (and, while a
@@ -498,8 +512,8 @@ FreeDOS 1.4 package archives in `C:\FDOS\BIN`, pinned in
   leaves it for programs, conventional memory ends in free memory.
 
 The images are test fixtures and are never distributed. The games
-themselves are user-supplied and go onto a copy of the image only for a kit
-run. The [games record](../../../../docs/validation/2026-11-01-pc386-m5-games/summary.md)
+themselves are user-supplied and go onto the reusable game drives, which stay
+outside the repository ([game drives](../../docs/pc386-game-drives.md)). The [games record](../../../../docs/validation/2026-11-01-pc386-m5-games/summary.md)
 has the kit runs.
 
 ## Not built yet
