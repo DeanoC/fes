@@ -41,6 +41,14 @@ descriptor and normalized state without guessing this device's menu buttons.
 An unsupported schema retains its descriptor but cannot produce Ready/Pass.
 Physical gamepad input and mixed storage/core permission remain open.
 
+The standalone `usbcheck` selector can inspect USB while a current held-ROM
+FPGA shell remains contained. It selects no FPGA control/configuration, ROM,
+computer, SD, menu or reader resources. The entry receipt binds the actual USB
+program/link assignments, and the cold profile derives an explicit `usb_probe`
+selection. Missing or mixed resource selections reject; ordinary core loading
+continues to require the complete ROM/computer contract. This prepares USB-only
+diagnostics with current sealed shells; it supplies no physical acceptance.
+
 The shared-mode RPC fixture runs the actual owned dispatcher, USB/SD services,
 boot/master and bridge code against one register model. It covers retained USB
 reports through SD activity and control/DDR transitions, dynamic DataHeld,

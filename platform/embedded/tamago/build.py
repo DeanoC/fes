@@ -320,7 +320,7 @@ def build(args):
         if (context['programming_profile']==hps.MENU_PROFILE)!=(menu_present) and args.program=='fpgaload':
             raise ValueError('menu source requires explicit --menu-present and cannot inherit another reader mode')
         rom_profile=hps.uses_held_rom(context)
-        if rom_profile:
+        if rom_profile and args.program!='usbcheck':
             if not selected_programs or not computer_control or firmware_rom is None or rom_host_go is None:
                 raise ValueError('ROM source requires selected computer programs, --firmware-rom and --rom-host-go')
             rom_map=hps.rom(hps_project)

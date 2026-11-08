@@ -20,3 +20,21 @@ def mode(record, program_key='program'):
     if selected and protocol not in ('boot-keyboard','gamepad') or not selected and protocol is not None:
         raise ValueError('USB input protocol differs from explicit selection')
     return selected,shared
+
+
+def contained_probe(record, program_key='program'):
+    """USB inspection may observe a held-ROM shell without selecting its controls."""
+    if record.get(program_key)!='usbcheck':
+        return False
+    selected,shared=mode(record,program_key)
+    if not selected or shared or any(record.get(key,False) is not False for key in
+            ('sd_pio','selected_programs','computer_reload','computer_storage_return',
+             'tenfoot_serial','initial_tape','window_memory','window_read','window_present',
+             'window_storage_return','window_reload','window_service','menu_present','smmu_observe')):
+        raise ValueError('USB probe requires a separate contained selection')
+    resources=('hps_control','hps_configuration','hps_reader_memory','hps_ddr_read',
+               'hps_window_read','hps_menu_read','hps_computer','hps_rom',
+               'hps_program_platform','hps_menu_program','cpu_mapping')
+    if any(record.get(key) is not None for name in resources for key in (name,name+'_sha256')) or record.get('rom_selection') is not None:
+        raise ValueError('USB probe cannot select FPGA, ROM or program resources')
+    return True

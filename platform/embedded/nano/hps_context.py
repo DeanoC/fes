@@ -1057,6 +1057,8 @@ def checked_rom(record, program_key='program'):
     if context is not None and not isinstance(context,dict):
         raise ValueError('ROM selection requires a complete HPS context')
     selected=context is not None and uses_held_rom(context)
+    if selected and usb_selection.contained_probe(record,program_key):
+        return None
     if not selected:
         if any(record.get(k) is not None for k in keys):
             raise ValueError('ROM resources require the explicit sealed ROM producer profile')

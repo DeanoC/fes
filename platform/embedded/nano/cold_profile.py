@@ -128,6 +128,7 @@ def make(entry_build, *, firmware_ram=False):
     identity={'format':1,'profile':'cold-smmu-preloaded' if profile.name=='smmu-profile.json' else 'cold-sd-pio-preloaded' if profile.name=='sd-profile.json' else 'cold-serial-preloaded',
               'sd_pio':profile.name=='sd-profile.json','usb_pio':build.get('usb_control',False),'firmware_profile_sha256':sha(profile),
               'usb_input':build.get('usb_input'),'usb_shared':build.get('usb_shared',False),
+              'usb_probe':hps_context.usb_selection.contained_probe(build,program_key='native_program'),
               'smmu_observe':profile.name=='smmu-profile.json',
               'secure_capture_trace':True,
               'spl_atf_trace':True,
@@ -188,6 +189,10 @@ def header(profile):
             any(profile.get(key) is not None for key in ('hps_context','hps_io','hps_control','hps_configuration','hps_reader_memory','hps_ddr_read','hps_window_read','hps_computer'))):
         raise ValueError('boot SMMU observation requires its separate serial-only profile')
     usb=profile.get('usb_pio',False)
+    usb_probe=profile.get('usb_probe',False)
+    if type(usb_probe) is not bool or usb_probe and not hps_context.usb_selection.contained_probe(
+            dict(profile,program='usbcheck',usb_control=usb)):
+        raise ValueError('USB probe requires its explicit contained boot selection')
     if (usb and profile.get('usb_input') not in ('boot-keyboard','gamepad') or
             not usb and profile.get('usb_input') is not None):
         raise ValueError('USB boot input must be explicitly selected')
@@ -376,7 +381,7 @@ def header(profile):
         extra+=('#define FES_NANO_ROM_CPU_BASE '+hex(rom['cpu_base'])+'UL\n'
                 '#define FES_NANO_ROM_BYTES '+str(rom['bytes'])+'U\n'
                 '#define FES_NANO_ROM_MAP_SHA '+array(profile['hps_rom_sha256'])+'\n')
-    elif rom_profile or profile.get('hps_rom_sha256') is not None:
+    elif rom_profile and not usb_probe or profile.get('hps_rom_sha256') is not None:
         raise ValueError('cold ROM producer requires its complete ROM resource contract')
     extra+='#define FES_NANO_COLD_ROM '+str(int(rom is not None))+'\n'
     reload=profile.get('computer_reload',False)
