@@ -21,7 +21,7 @@ an L1D and a bus interface on HPS DDR port 0, with an uncached path to MMIO
 | `fes_i386_pkg.sv` | — | The uop (the Decode table's fields), the prefix record, and `fetched_t`, the instruction Q hands D |
 | `fes_i386_fetchbuf.sv` | F1, F2, L1, L2 | Block address and memory port; F2's register; L1's register; L2 writing the 32-byte buffer; each byte's availability for Q |
 | `fes_i386_btb.sv` | F1, F2 | The branch target buffer: 512 entries in M10K, read with the fetch block |
-| `fes_i386_ras.sv` | F2 | The return stack: 16 linear return addresses, pushed and popped as F2 predicts CALL rel and RET, set back from WB on a redirect |
+| `fes_i386_ras.sv` | F2 | The return stack: 16 linear return addresses, pushed and popped as F2 predicts a near CALL and RET, set back from WB on a redirect |
 | `fes_i386_lendec.sv`, `fes_i386_oplen.sv` | L1 | The 16 per-byte decoders: one prefix, the 0Fh escape, the prefix-run flag, and the length classes (opcode and fixed-immediate bytes, ModRM bytes per address size, size-dependent immediates) |
 | `fes_i386_lstage.sv` | L2 | Each byte's length, end and next-half bit for every prefix-accumulator variant |
 | `fes_i386_qalign.sv` | Q | Next-start select, prefix accumulator and aligner |
@@ -49,8 +49,9 @@ Fetch is sequential from the last redirect except where the branch target
 buffer (`fes_i386_btb`) predicts a branch taken: F2 then sends F1 to the
 entry's target on the next edge, one bubble, and the fetch buffer fills its
 halves alternately so the target's block follows its branch's. A RET's entry
-goes to the return stack's top instead (`fes_i386_ras`), which a CALL rel's
-entry pushes. Q goes on at
+goes to the return stack's top instead (`fes_i386_ras`), which a near CALL's
+entry pushes. An indirect JMP's or CALL's entry holds the target it last
+went to. Q goes on at
 the target after the instruction that ends where the entry says
 (`fes_i386_fetchbuf`'s `jm`, `jt` and `jx`, registered from next-cycle state
 as availability is). [The design's Prediction section](../../../../docs/i386-cpu-design.md#prediction)
