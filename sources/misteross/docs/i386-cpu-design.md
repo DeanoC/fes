@@ -2071,7 +2071,10 @@ eight replicated hit sets.
 - **Exit.** An interrupt or exception through an interrupt or trap gate to
   a non-conforming CPL-0 code segment. It pushes GS, FS, DS and ES, then
   SS, ESP, EFLAGS, CS and EIP, on the CPL-0 stack from the TSS, and loads
-  null into DS, ES, FS and GS. Any other gate target is #GP(selector).
+  null into DS, ES, FS and GS. An interrupt or trap gate to any other code
+  segment is #GP(selector). A task gate is a task switch (slice 4): it saves
+  the V86 task with VM set in its EFLAGS image, and the handler's IRET
+  returns to it.
 - **IOPL-sensitive instructions.** Below IOPL 3, CLI, STI, PUSHF, POPF,
   INT n and IRET raise #GP(0). INT n at IOPL 3 through a gate whose DPL is
   below 3 raises #GP(vector × 8 + 2), which eXceed and Strike Commander rely
@@ -2246,7 +2249,8 @@ A timing miss stops the slice; it never relaxes a check. Titles that need
      back by IRET with NT, as Descent does, and the old task's saved NT
      cleared; a JMP to a TSS whose EFLAGS image has NT set; a switch whose
      new CR3 maps the GDT or LDT differently; a switch into
-     a V86 task with selectors that are not valid descriptors; far JMP to a TSS between CPL 0
+     a V86 task with selectors that are not valid descriptors; an interrupt
+     from V86 through a task gate and the IRET back; far JMP to a TSS between CPL 0
      and 3, as CWSDPMI does; each #TS case; a busy TSS; a fault after the
      commit point; a switch with paging off, which must leave CR3 alone; a
      switch to a 16-bit TSS from code with live FS and GS, and one out of a
