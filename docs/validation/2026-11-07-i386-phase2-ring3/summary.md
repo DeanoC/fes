@@ -28,9 +28,9 @@ what those DPMI hosts use on the Bochs CPU.
   corpus states, 32,000 random programs, 8,000 protected-mode programs that
   now run at CPL 3 (27,841 retirements at CPL 3, 5,785 returns to an outer
   privilege, 3,768 deliveries to an inner one, 453 bitmap-checked IN and
-  OUT), and 143 directed protected-mode cases, 51 of them new.
+  OUT), and 147 directed protected-mode cases, 55 of them new.
 - **Seal** ([below](#quartus-seal)): Quartus 17.0.2 meets every analysis:
-  worst setup +0.914 ns (main +0.853), hold +0.082 ns (main +0.117), 33,313
+  worst setup +1.012 ns (main +0.853), hold +0.064 ns (main +0.117), 33,436
   ALMs (main 33,118).
 - **Kit B** ([below](#kit)): Jazz Jackrabbit, Tyrian and Cyberdogs
   play: each reaches its title and menus and runs a level for several
@@ -194,7 +194,7 @@ are identical but for the netlist's `yosys` field.
 | Protected-mode programs (16 seeds × 500) | 8,000 pass, 0 fail; 426,587 retirements; 17,545 deliveries through the IDT; at CPL 3: 27,841 retirements, 5,785 returns to an outer privilege, 3,768 deliveries to an inner one, 453 IN and OUT through the bitmap |
 | Directed cases | 68 pass |
 | Unreal-mode cases | 7 pass |
-| Protected-mode cases | 143 pass (51 new) |
+| Protected-mode cases | 147 pass (55 new) |
 | No-387 cases | 1,933 pass |
 | Memory cases | 27 pass |
 
@@ -245,19 +245,30 @@ protected-mode part, rings included, waits for Phase 5's paging.
 ## Quartus seal
 
 `make build-fes-pc386-quartus SEED=1` from a clean checkout of
-`445ed9629` ([seal-summary.json](seal-summary.json)), Quartus 17.0.2.
-`445ed9629`'s RTL is the branch's; later commits change only the lockstep
-bench, the scripts' case count and documents. Package `657245c2…`.
+`e9cffada2` ([seal-summary.json](seal-summary.json)), Quartus 17.0.2.
+Package `dc42f624…`.
 
 | | This slice | Main (#1522, `c89d6b0c`) |
 | --- | ---: | ---: |
-| Setup, worst | +0.914 ns | +0.853 ns |
-| Hold, worst | +0.082 ns | +0.117 ns |
-| ALMs | 33,313 | 33,118 |
-| Registers | 30,319 | 29,939 |
+| Setup, worst | +1.012 ns | +0.853 ns |
+| Hold, worst | +0.064 ns | +0.117 ns |
+| ALMs | 33,436 | 33,118 |
+| Registers | 30,432 | 29,939 |
 | RAM blocks | 265 | 265 |
 
-[stage-slack.json](stage-slack.json) has the worst setup slack into each
+`e9cffada2` fixes the review's finding on `445ed9629`, the seal the kit
+ran (package `657245c2…`: setup +0.914 ns, hold +0.082 ns, 33,313 ALMs,
+30,319 registers). `445ed9629` read a delivery's new stack from the TSS
+at the offsets for DPL 0 shifted one bit too far, so a delivery from CPL 3
+to DPL 1 or 2 read other TSS fields; DPL 0 was right. Four directed cases
+(`r3-int-dpl1-386-tss`, `-dpl1-286-tss`, `-dpl2-386-tss`, `-dpl2-286-tss`)
+fail on `445ed9629` with #TS and pass on `e9cffada2`; the lockstep reports
+above are `e9cffada2`'s, and the random and corpus runs are unchanged. No
+census title delivers to DPL 1 or 2 (every inner delivery goes to CPL 0 on
+SS0), so the kit runs below on `657245c2…` stand for these titles; the
+kit has not run `dc42f624…`.
+
+[stage-slack.json](stage-slack.json) has `445ed9629`'s worst setup slack into each
 register group at the −40 °C corner. D's EIP has +1.38 ns (main +1.95), the
 data operands +1.89 (+2.45), AG +2.14 (+2.80), the forwarding tables +1.71
 (+2.19); the worst system-clock path is the governor's two-multiplier
