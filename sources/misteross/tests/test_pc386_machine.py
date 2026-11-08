@@ -24,7 +24,45 @@ from scripts import synth_fes_pc386 as synthesis
 VERILATOR = shutil.which(os.environ.get('VERILATOR', 'verilator'))
 
 
+def speedsys_bios_vendor(rom: bytes):
+    """SpeedSys 4.78's BIOS-vendor scan (#1557), from its code at 1348h-13A0h.
+
+    With DS = F000h it reads a dword at SI and steps SI on by one, up to FFFAh
+    times, looking for '198' or '199'. The byte four on from the match must be
+    ',', '-' or a space; then an A-Z within the next 12 bytes starts the vendor
+    name, up to 30 bytes and ending at a full stop. Returns the name, '' when a
+    year matched but no name followed (DS is restored), or None when no year
+    matched: that path leaves DS at F000h and SpeedSys's speed test never
+    finishes."""
+    si = 0
+    for _ in range(0xfffa):
+        found = rom[si:si + 3]
+        si += 4
+        if found in (b'198', b'199') and rom[si:si + 1] in (b',', b'-', b' '):
+            for _ in range(12):
+                if 0x41 <= rom[si] <= 0x5a:
+                    name = rom[si:si + 30]
+                    end = name.find(b'.')
+                    return name[:end if end >= 0 else 30].decode('ascii')
+                si += 1
+            return ''
+        si -= 3
+    return None
+
+
 class FirmwareTest(unittest.TestCase):
+    def test_bios_identification_line_names_the_vendor_for_speedsys(self):
+        source = (firmware.FIRMWARE / 'rombios/rombios.c').read_text()
+        line = re.search(r'#define BIOS_AT_IDENTITY_STRING "([^"]*)"', source).group(1)
+        self.assertIn('.ascii BIOS_AT_IDENTITY_STRING', source)
+        self.assertEqual(speedsys_bios_vendor(bytes(16) + line.encode('ascii') + bytes(64)), 'FES pc386 BIOS')
+        # The upstream copyright line alone has no 198x/199x year.
+        self.assertIsNone(speedsys_bios_vendor(b'(c) 2001-2026  The Bochs Project' + bytes(64)))
+        image = firmware.BUILD / 'pc386-bios.bin'
+        if image.exists() and hashlib.sha256(image.read_bytes()).hexdigest() == \
+                firmware.read_lock()['images']['bios']['sha256']:
+            self.assertEqual(speedsys_bios_vendor(image.read_bytes() + bytes(64)), 'FES pc386 BIOS')
+
     def test_vendored_sources_match_their_manifests(self):
         for name in ('rombios', 'vgabios'):
             firmware.verify_sources(name)
@@ -60,12 +98,40 @@ class FirmwareTest(unittest.TestCase):
 
 
 class FreedosImageTest(unittest.TestCase):
-    def test_games_profile_reduces_buffers_for_serpent_isle_memory(self):
-        config = freedos.PROFILES['games']['fdconfig']
-        match = re.search(r'(?m)^BUFFERS=(\d+)\r?$', config)
-        self.assertIsNotNone(match)
-        self.assertLess(int(match.group(1)), 20)
-        self.assertIn('DOS=UMB\r\n', config)
+    @staticmethod
+    def games_entry(entry: int) -> list[str]:
+        """The FDCONFIG.SYS lines the kernel runs for one boot-menu entry."""
+        lines = []
+        for line in freedos.PROFILES['games']['fdconfig'].split('\r\n'):
+            match = re.match(r'(\d+)\?(.*)', line)
+            if match and str(entry) not in match.group(1):
+                continue
+            lines.append(match.group(2) if match else line)
+        return [line for line in lines if line and not line.startswith(('MENU ', 'MENUDEFAULT'))]
+
+    def test_games_menu_takes_the_ultima_vii_setup_without_a_key(self):
+        # Kit and simulation runs press nothing at boot: entry 1 after 3 seconds.
+        self.assertIn('MENUDEFAULT=1,3\r\n', freedos.PROFILES['games']['fdconfig'])
+
+    def test_games_default_keeps_the_kernel_out_of_the_hma(self):
+        # The kernel in the HMA holds an XMS A20 lock (05h), so Ultima VII's
+        # Voodoo global disable (04h) fails (#1409, #1526): entry 1 keeps it low
+        # and moves its data, files, buffers and the shell to upper memory.
+        default = self.games_entry(1)
+        self.assertIn('DOS=UMB', default)
+        self.assertNotIn('DOS=HIGH,UMB', default)
+        self.assertIn('DOSDATA=UMB', default)
+        self.assertTrue(any(line.startswith('SHELLHIGH=') for line in default))
+        self.assertIn('BUFFERSHIGH=16', default)
+        self.assertEqual(self.games_entry(2).count('DOS=HIGH,UMB'), 1)
+
+    def test_games_files_meet_strike_commander(self):
+        # Strike Commander asks for FILES=25 (#1525).
+        for entry in (1, 2):
+            files = [int(line.split('=')[1]) for line in self.games_entry(entry)
+                     if line.startswith(('FILES=', 'FILESHIGH='))]
+            self.assertEqual(len(files), 1, entry)
+            self.assertGreaterEqual(files[0], 25, entry)
 
     def test_lock_pins_each_package_at_the_release_tag(self):
         lock = freedos.lock()
@@ -434,11 +500,13 @@ class SpeakerTestTest(unittest.TestCase):
 
 
 class BootReportTest(unittest.TestCase):
-    def test_games_mem_requires_exact_serpent_isle_memory_with_headroom(self):
+    def test_games_mem_requires_serpent_isle_and_frontier_memory(self):
         old_mem = ['Largest executable program size       573K (586,416 bytes)']
-        enough_mem = ['Largest executable program size       574K (587,776 bytes)']
+        low_kernel_before = ['Largest executable program size       575K (588,544 bytes)']
+        enough_mem = ['Largest executable program size       580K (594,256 bytes)']
         self.assertEqual(len(sim.games_memory_failures([])), 1)
-        self.assertEqual(len(sim.games_memory_failures(old_mem)), 1)
+        self.assertEqual(len(sim.games_memory_failures(old_mem)), 2)
+        self.assertEqual(len(sim.games_memory_failures(low_kernel_before)), 1)
         self.assertEqual(sim.games_memory_failures(enough_mem), [])
 
     def test_boot_suite_output_names_cover_image_cpu_and_preset(self):
@@ -539,6 +607,20 @@ class BootReportTest(unittest.TestCase):
                 self.assertTrue(any(expected in failure for failure in failures), failures)
                 if wrong_classification:
                     self.assertFalse(any(wrong_classification in failure for failure in failures), failures)
+
+
+@unittest.skipUnless(shutil.which(os.environ.get('CXX', 'c++')), 'requires a C++ compiler')
+class DosPromptTest(unittest.TestCase):
+    def test_game_prompt_recognition(self):
+        with tempfile.TemporaryDirectory(prefix='pc386-dos-prompt-') as directory:
+            binary = Path(directory) / 'dos-prompt-test'
+            source = sim.CORE / 'sim/dos_prompt_tb.cpp'
+            compiler = shutil.which(os.environ.get('CXX', 'c++'))
+            result = subprocess.run([compiler, '-std=c++17', '-Wall', '-Wextra', '-Werror', str(source), '-o', str(binary)],
+                                    capture_output=True, text=True)
+            self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+            result = subprocess.run([str(binary)], capture_output=True, text=True)
+            self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
 
 
 @unittest.skipUnless(shutil.which(os.environ.get('CXX', 'c++')), 'requires a C++ compiler')

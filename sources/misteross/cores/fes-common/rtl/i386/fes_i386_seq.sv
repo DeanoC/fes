@@ -406,7 +406,7 @@ module fes_i386_seq (
                 n.uop.mem.bytes = w.mbytes == 2'd0 ? (n.opsize32 ? 4'd4 : 4'd2)
                                 : w.mbytes == 2'd1 ? 4'd2 : w.mbytes == 2'd2 ? 4'd4 : 4'd1;
                 n.uop.mem.in_a = w.in_a;
-                n.uop.mem.system = w.ivt || w.desc != 3'd0;
+                n.uop.mem.system = w.ivt || w.desc != 3'd0 || w.tss != 3'd0;
                 n.uop.desc = w.desc;
                 n.uop.segchk = w.segchk == 4'(fes_i386_pkg::CHK_DATA) && d0.uop.seg2_idx == 3'(fes_i386_pkg::SEG_SS)
                              ? 4'(fes_i386_pkg::CHK_SS) : w.segchk;
@@ -420,6 +420,17 @@ module fes_i386_seq (
                 n.nochk = w.nochk;
                 n.errp = w.errp;
                 n.dmode = w.dmode;
+                n.xc = w.xc;
+                n.xs = w.xs;
+                n.tss = w.tss;
+                n.uop.hold = w.hold;
+                n.uop.xfer = w.xfer;
+                n.uop.nstk = w.nstk;
+                // A system read's fault: a delivery's new SS past its table
+                // (dmode ts), its stack's slots past the TSS's limit.
+                n.uop.sflt = w.dmode == 2'(fes_i386_pkg::DM_TS) ? 2'(fes_i386_pkg::SFLT_TS)
+                           : w.tss == 3'(fes_i386_pkg::TSS_ESP) ? 2'(fes_i386_pkg::SFLT_TR)
+                           : w.tss == 3'(fes_i386_pkg::TSS_BITMAP) ? 2'(fes_i386_pkg::SFLT_GP0) : 2'(fes_i386_pkg::SFLT_GP);
                 // A stack access is SS's; the vector table's reads come
                 // before any, so they have the first uop's segment.
                 if (w.stk != 3'd0) n.uop.mem.seg = fes_i386_pkg::SEG_SS;
@@ -443,7 +454,7 @@ module fes_i386_seq (
                 // A stack operation's address is ESP; the vector's entry
                 // has neither base nor index; the ModRM operand (rm) has
                 // the first uop's.
-                n.has_base = w.stk != 3'd0 || w.rm && d0.has_base;
+                n.has_base = (w.stk != 3'd0 || w.rm && d0.has_base) && !w.nstk;  // a new-stack access: T5 plus its slot
                 n.base = w.rm ? d0.base : 3'd4;
                 n.has_index = w.rm && d0.has_index;
                 n.scale = w.rm ? d0.scale : 2'd0;
@@ -461,6 +472,20 @@ module fes_i386_seq (
                 n.far_chk = w.far_chk;
                 n.far_t = w.far_t;
                 n.wseg = w.far_jmp ? 6'b000010 : w.segw ? 6'(1) << d0.uop.seg2_idx : 6'd0;
+                // IN or OUT after its I/O permission check (iof): the access
+                // the instruction's first uop keeps, its direction in
+                // ctl.cond, its size in src_size, DX in src2 or the port in
+                // imm (fes_i386_decode); IN merges into eAX, OUT sends it.
+                if (w.segchk == 4'(fes_i386_pkg::CHK_IOBM)) n.uop.size = d0.uop.src_size;
+                if (w.iof) begin
+                    n.uop.io = d0.uop.ctl.cond[1:0];
+                    n.uop.size = d0.uop.src_size;
+                    n.uop.src1 = '{valid: 1'b1, space: fes_i386_pkg::RS_GPR, index: 4'd0, hi8: 1'b0};
+                    n.uop.dst = '{valid: d0.uop.ctl.cond[1:0] == 2'(fes_i386_pkg::IO_IN), space: fes_i386_pkg::RS_GPR,
+                                  index: 4'd0, hi8: 1'b0};
+                    n.uop.src2 = d0.uop.src2;
+                    n.uop.imm = d0.uop.imm;
+                end
             end
             fes_i386_pkg::SEQ_XCHG: begin
                 // Odd steps swap the first uop's registers.
@@ -738,7 +763,11 @@ module fes_i386_seq (
         // from T0-T3 (in M1), and ARPL's and LAR's kin's results T1 and T2
         // or the staged descriptor; IRET's flags T4; FNSTENV's and FNSAVE's
         // pointer words the x87 pointers, which WB writes too.
+        // A privilege transition's conditional uops read the hold's xp, and
+        // the TSS's reads its CPL; a new-stack access reads T5 and the
+        // staged SS; the far jump the hold.
         n.t_rd = n.far_t || n.a_t1 || n.b_t1 || n.b_t4 || n.uop.desc != 3'd0 || n.uop.segchk != 4'd0
+              || n.xc != 2'd0 || n.xs || n.tss != 3'd0 || n.uop.nstk || n.uop.xfer
               || n.b_sys && n.sys_idx >= 5'(fes_i386_pkg::SYS_RD_FIP);
     end
 endmodule

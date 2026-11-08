@@ -3682,6 +3682,12 @@ admits 1.0 and 1.1, and the agent accepts the runtime advertising one ABI at
 several minors (unique by id and version). A pc386 library entry binds a raw
 hard-disk image (`hard-disk` role, 1..128 MiB, its own import route) and an
 optional CHS override; otherwise the host infers geometry from the image's MBR.
+Operators import the image with `fogcast core-hard-disk-install` or the web
+library panel, both posting to `POST /api/v1/core-media/hard-disk`, which
+returns the inferred geometry. They set or clear the override with
+`fogcast core-disk-geometry` or the panel's geometry controls, both through
+`PUT /api/v1/library/core-entries/{game_id}/disk-geometry` with the expected
+package and media IDs.
 Launch stages the image on the kit by digest (probe, then upload only when
 missing), then sends the library load with the game, image digest and geometry.
 The agent resolves the staged file and sends `load_library_core` with `game_id`
