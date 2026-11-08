@@ -7,7 +7,8 @@ requirements come from [the development-kit design](../../design/de25-linux-plat
 
 Current hardware: bottom TRWU8J8G, kernel `9cec7e77` / notes `b0c2f6b1`, root
 `0858eef0`, stock Terasic FIT `bb6a48c7`, normal default-off software `61a4b0aa`
-generation1, ordinary package `3da0f1df` / build `490c1ae5`. Kernel/software
+generation3 after the failed factory rollback control and verified normal
+restoration; earlier passing controls retain generation1. Ordinary package `3da0f1df` / build `490c1ae5`. Kernel/software
 producer is `ecaefd4af`; core producer is `8af614f4`. Source identities remain
 separate from subsequent documentation commits.
 
@@ -17,7 +18,7 @@ separate from subsequent documentation commits.
 | 2. Linux FPGA programming | Normal full-image Play/Stop/relaunch and same-boot runtime-loss recovery pass the shared runtime/programmer. [Ordinary control](stock-ordinary-control.json), [runtime-loss proof](stock-runtime-recovery.json). Recovery after an actual failed full-image upload/secure call remains unverified; process loss is a different fault. Physical persona failure remains unsupported/default-off under #1568 and its scoped waiver. |
 | 3. Board/package identity | The sealed ordinary package retains source/independent-fit qualification and exact package/build validation during the native session. [Standard package record](../2026-11-05-de25-static-expansion-offboard/README.md), [ordinary result](stock-ordinary-control.json). Host/model rejection checks do not establish physical support for other packages. |
 | 4. Production runtime | The authenticated AArch64 runtime uses normal catalog launch, media/HID and serialized Stop; same-boot idle/active process-loss replacement verifies inherited-owner retirement and fresh MENU. [Recovery record](stock-runtime-recovery.json). Dirty SAVE, uncertain failed uploads and guest resumption are not qualified. |
-| 5. Managed software | Supported install/activation of the source-built default-off bundle and native executable identity pass. [Normal update record](README.md#development-policy). The retained setup is user-approved. Earlier install/restore records belong to older tuples; a rollback/restore cycle of the current stock/kernel/root selection is not proved by merely leaving the working selection installed. |
+| 5. Managed software | Supported install/activation of the source-built default-off bundle and native executable identity pass. [Normal update record](README.md#development-policy). The retained normal setup is user-approved. A later [current-tuple rollback trial](stock-software-rollback.json) accepts one generation-CAS factory selection and one normal restore, ending at61a4 generation3 with stable MENU, exact process/file identities and retained data. Its factory BASIC control fails with0/0 and no7; full functional rollback is still unqualified under [#1572](https://github.com/DeanoC/fes/issues/1572). No further core trial follows that gate. |
 | 6. MENU display | Native MENU/ZX81 presentation, exact allocation/configuration replacement, zero owner errors/underflows and ten seconds of stable post-recovery readiness pass. [Recovery proof](stock-runtime-recovery.json). Physical F12/Escape proof belongs to the earlier e649 tuple; broader current-tuple chooser stress and arbitrary-fault display containment remain unverified. |
 | 7. ZX81 normal launch and persistence | Current tuple passes Play, RAMTOP128, LOAD/RUN/reload7/9/7 and Stop/relaunch. New ROM SAVE emits923 bytes, persists/acks through Stop, survives one owned host restart, then fresh LOAD9/edit7/reload9 passes; original media is restored. [SAVE proof](stock-save-persistence.json). Wired physical P/F12/Escape is separately retained on the earlier firmware tuple; no new physical-keyboard/chooser test is claimed here. |
 | 8. Shared kit operations | Status-file claims, authenticated own-host/session identity, normal execution leases, no foreign takeover, idle/free release and same-card operation are recorded for the named trials. Current private host is PID1823444, binary `0de3179f`, same configuration/catalog. No main HIL baseline has been promoted; the retained development setup is distinct from main's shared-kit baseline. |
@@ -39,8 +40,9 @@ current stack. A clean current-head owner review and current-head CI remain
 required. Two full automated review rounds are already used; this audit requests
 no third round, handoff or merge.
 
-Remaining integration work includes the current-tuple managed rollback/restore
-proof, ordinary failed-upload containment, the applicable current-head review/CI
+Remaining integration work includes the failed functional rollback control
+(with an off-board-tested first-input prompt gate prepared, not live-accepted),
+ordinary failed-upload containment, the applicable current-head review/CI
 and owner-authorized landing/main baseline work. Untested peripherals retain
 their status; no all-core or all-peripheral support is inferred from ZX81. The
 full objective remains open rather than being reduced to the passing control.

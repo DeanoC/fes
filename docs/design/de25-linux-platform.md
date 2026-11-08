@@ -42,7 +42,10 @@ full development-kit acceptance remains open as described below.
 
 The retained development setup now uses kernel `9cec7e77`, managed root
 `0858eef0`, pinned stock Terasic FIT `bb6a48c7` and default-off bundle `61a4b0aa`,
-generation 1. Normal software install/activation and native executable
+generation 3 after the rollback trial below. The successful ordinary, SAVE,
+reboot and runtime-loss controls ran at generation1 of these same bundle bytes;
+restoration at generation3 authenticates MENU and selected processes, without
+a further BASIC trial. Normal software install/activation and native executable
 authentication pass. Standard ZX81 `3da0f1df` passes Play, RAMTOP128, BASIC
 7/9/7, fresh HDMI, Stop/MENU and relaunch. One idle and one active-session OS
 reboot pass without physical intervention, preserving pairing, software,
@@ -82,6 +85,16 @@ retains that program, pairing and catalog. Normal media CAS plus a fresh launch
 loads/runs9, edits/runs7 and reloads/runs9; Stop/MENU and original-media restoration
 pass in the same board boot. See the
 [SAVE persistence record](../validation/2026-11-08-de25-ordinary-dev-kit/README.md#stock-firmware-rom-save-and-persistence).
+
+The later [software rollback trial](../validation/2026-11-08-de25-ordinary-dev-kit/README.md#stock-software-rollback-trial-and-retained-failure)
+accepts one normal API selection of the installed factory bundle and one restore
+to normal61a4 at generation3, with exact receipts, ten seconds of stable MENU,
+selected executable identities and retained catalog/data. Its factory BASIC
+control fails with0/0 and no7; cleanup Stop and normal restore pass. The failure
+is retained, no repeated core control occurs, and full functional rollback
+remains unqualified. An observed-empty-ROM-prompt guard passes six retained
+capture checks off-board; its live use and the original failure's cause remain
+unverified.
 
 The [acceptance audit](../validation/2026-11-08-de25-ordinary-dev-kit/acceptance-audit.md)
 keeps the eight workflow requirements separate from remaining failure,

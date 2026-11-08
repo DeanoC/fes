@@ -16,7 +16,11 @@ arbitrary failed uploads, dirty SAVE, guest resumption or display stress, and
 no diagnostic firmware is relabelled as normal. The stock tuple also passes
 normal ROM SAVE capture/persist/ack through Stop, exact 923-byte catalog hash,
 one owned host restart and fresh saved-program LOAD9/edit7/reload9; normal
-media CAS restores the original entry and Stop returns idle/free. Partial-persona loading remains unsupported under #1568, explicitly
+media CAS restores the original entry and Stop returns idle/free. A later
+software rollback/restore trial accepts both API transitions and restores the
+same normal bundle at generation3, but its factory-bundle BASIC control fails
+with0/0 and no7. That failure remains open; no postrestore BASIC rerun or full
+functional rollback acceptance is claimed. Partial-persona loading remains unsupported under #1568, explicitly
 waived only as an ordinary development-milestone blocker.
 
 | Capability | Software coverage | Hardware acceptance |

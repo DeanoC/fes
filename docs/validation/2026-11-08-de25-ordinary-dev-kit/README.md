@@ -343,3 +343,69 @@ containment, and promotes no main HIL baseline.
 Private scripts, original observations, native authentication, raw ROM output
 and full capture records are retained under
 `/data/fes-de25-main-integration-20261105/partial-start-investigation-20261108/stock-save-persistence/`.
+
+
+## Stock software rollback trial and retained failure
+
+The failed functional proof is tracked in [#1572](https://github.com/DeanoC/fes/issues/1572).
+
+At integration head `2eb2873c1efdb06586820e21d746b40f238a3c5b`, the installed
+previous factory release `77e80dff` and normal release `61a4b0aa` match board,
+AArch64 architecture, base contract and MENU interfaces. Both installed file
+sets are hash-verified before activation. The normal manifest matches its build
+receipt; the factory binaries match the retained factory artifact. Factory
+manifest provenance remains its recorded `caef8fea` / `7f9b2a0d`, rather than
+being relabelled as the new normal ECA bundle. The catalog offers only ordinary
+ZX81; no persona is attempted or qualified by selecting the factory software.
+
+One normal activation request, expected generation1, selects factory `77e80dff`
+at generation2 and returns its exact durable `accepted` receipt. Ten seconds
+of stable native MENU/idle/free readiness pass. The first subsequent SSH
+postflight refuses because the private helper assumes every release runs from
+the data volume. The existing supervisor's `ResolveRelease` selects its built-in
+factory copy at `/usr/share/fes/software`, with different inodes from the
+retained data-volume copy. Read-only postflight of the same operation verifies
+that exact factory root, all manifest file hashes, all three actual executable
+hashes/new process identities, host reconnection, original media entry and
+saved923-byte program. The failed observation is retained; no second rollback
+request is made and full postflight latency is not measured across that gap.
+
+The one ordinary ZX81 BASIC control then **fails**. Its fresh HDMI capture shows
+`0/0` and an empty output area, with no expected7. Normal owned cleanup Stop
+returns to MENU. No repeated control or additional factory launch occurs.
+This is a failed BASIC proof, not an established runtime, input, media or HDMI
+root cause.
+
+One required restore request, expected generation2, returns normal default-off
+`61a4b0aa` at generation3 with an exact durable `accepted` receipt. Ten seconds
+of stable MENU, full selected-file/actual-process hashes, replacement of all
+three children, host/pairing/catalog, original `e506e8a7` media and the unchanged
+923-byte saved program are verified. No further BASIC trial follows the failed
+gate. The kit is released ready/idle/lease-free at the approved normal release,
+with the same boot `655b3ec6`, kernel `9cec7e77`, root `0858eef0`, stock FIT
+`bb6a48c7`, card and host PID1823444. No host restart, board reboot, power pull,
+card swap, image/kernel/FIT/QSPI change or persona attempt occurs.
+
+The software API rollback and restore operations pass their named identity,
+CAS, durable-receipt and stable-readiness checks. **Full functional rollback
+acceptance remains open because the factory BASIC control failed.** Successful
+ordinary/SAVE/reboot/runtime-loss evidence above remains bound to generation1
+of the same normal bundle bytes; it is not rewritten as a generation3 run.
+
+Off-board inspection finds that this failed fixture waits for input attachment
+but sends LOAD immediately, whereas earlier retained passing factory/stock
+recipes allow startup or issue RAMTOP first. A new private first-input gate
+recognizes the actual inverse OpenROM K cursor and empty body before typing.
+It passes one retained real K-prompt capture and refuses five retained PRINT,
+chooser, BASIC7/9 and failed0/0 captures. This six-vector check is
+[off-board only](stock-prompt-gate-offboard.json); it neither proves the original
+failure's cause nor accepts a live corrected trial. No assertion, timing,
+producer, programming or DMA gate is relaxed.
+
+[Complete transition, failure and restoration evidence](stock-software-rollback.json).
+
+![Retained failed factory rollback control:0/0 without expected7](stock-rollback-failed.png)
+
+Original scripts, both path-check versions, exact receipts and observations,
+failed input/capture/cleanup records and off-board prompt-gate source remain in
+`/data/fes-de25-main-integration-20261105/partial-start-investigation-20261108/stock-software-rollback/`.
