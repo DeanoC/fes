@@ -153,10 +153,11 @@ func newHPSContextVerifier(cpu FirmwareCaller, source []byte, extraProfile strin
 		extraProfile == HPSFirstWindowDiagnosticProfile && c.ProgrammingProfile == HPSFirstWindowDiagnosticProfile && c.ControlABI == 0x10203042 ||
 		extraProfile == HPSFirstMenuProfile && c.ProgrammingProfile == HPSFirstMenuProfile && c.ControlABI == 0x10203043 ||
 		extraProfile == HPSFirstROMDiagnosticProfile && c.ProgrammingProfile == HPSFirstROMDiagnosticProfile && c.ControlABI == 0x10203041 ||
-		extraProfile == NativeComputerProfile && nativeComputerSource(c)
+		extraProfile == NativeComputerProfile && nativeComputerSource(c) ||
+		extraProfile == usbInspectionProfile && (nativeComputerSource(c) || c.ProgrammingProfile == HPSFirstROMDiagnosticProfile && c.ControlABI == 0x10203041)
 	coreMatchesABI := c.CoreID == "fes.de25-embedded-diagnostic" && c.ABI == c.CoreID
 	if c.ProgrammingProfile == NativeComputerProfile {
-		coreMatchesABI = extraProfile == NativeComputerProfile && nativeComputerSource(c)
+		coreMatchesABI = (extraProfile == NativeComputerProfile || extraProfile == usbInspectionProfile) && nativeComputerSource(c)
 	}
 	if c.Format != 1 || c.Scope != hpsContextScope || c.Platform != "de25_nano" || c.Device != "A5EB013BB23BE4SCS" ||
 		!profileMatchesABI || !coreMatchesABI ||

@@ -1,5 +1,15 @@
 # Native contained-fabric endpoint
 
+The USB-only diagnostic uses `NewUSBHPSContextVerifier` to inspect supported
+held-ROM/native source contexts. Its distinct return type exposes only
+`Identity`, `Verify` and `ProbeHPSIO`; the underlying verifier and its control,
+ROM and programming methods stay private. Construction performs no firmware I/O.
+Fresh identity/pin observations still require the original read-only protocol,
+and source metadata supplies no live boot or bridge-opening authority. The
+generic verifier keeps its existing profile restrictions. Host tests cover
+both native computer identities, malformed profiles, lost replies and the
+restricted public method set. A cross-build does not establish USB readiness.
+
 An optional trusted `InitialTapePlatform` now connects the secure-side initial
 media engine to `OpenComputer` and the existing native launch owner. Each call
 is serialized against closure and framed by matching live bridge observations;

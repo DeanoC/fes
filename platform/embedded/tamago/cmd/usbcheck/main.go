@@ -45,7 +45,8 @@ func run() error {
 	if err != nil {
 		return err
 	}
-	verifier, err := nativefabric.NewHPSContextVerifier(de25nano.FabricCPUTransport{}, raw)
+	var verifier *nativefabric.USBHPSContextVerifier
+	verifier, err = nativefabric.NewUSBHPSContextVerifier(de25nano.FabricCPUTransport{}, raw)
 	if err != nil {
 		return err
 	}
