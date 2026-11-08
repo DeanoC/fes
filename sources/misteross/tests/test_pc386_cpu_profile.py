@@ -312,6 +312,16 @@ int main(int, char **argv) {
         p.retire(5004, 0x300, 0x301, add, 1, false, false);
         assert(p.cls[CpuProfile::C_DELIVERY].next == 0 && p.cls[CpuProfile::C_OTHER].own == 19);
     }
+    // The RTL's indirect counts: predicted, and redirected.
+    {
+        CpuProfile p;
+        Cpu cpu;
+        R(prof_ind) = true; R(prof_pt) = true; R(prof_redir) = true;
+        p.sample(cpu, false, false);
+        R(prof_pt) = false;
+        p.sample(cpu, false, false);
+        assert(p.ind_pt == 1 && p.ind_mis == 2 && p.ret == 0);
+    }
     // A profile file for the Python side: two snapshots.
     {
         CpuProfile p;
@@ -340,6 +350,13 @@ int main(int, char **argv) {
         p.sample(cpu, false, false);
         p.retire(105, 0x10, 0x0e, jnz, 2, false, false);
         p.retire(110, 0x0e, 0x10, jnz, 2, false, false);
+        // Indirect sites: CALL BX to 0x40, 0x40 again, then 0x50; JMP AX once.
+        const uint8_t callbx[] = {0xff, 0xd3}, jmpax[] = {0xff, 0xe0};
+        p.retire(110, 0x20, 0x40, callbx, 2, false, false);
+        p.retire(110, 0x20, 0x40, callbx, 2, false, false);
+        p.retire(110, 0x20, 0x50, callbx, 2, false, false);
+        p.retire(110, 0x30, 0x60, jmpax, 2, false, false);
+        assert(p.ind_call == 3 && p.ind_call_rep == 1 && p.ind_jmp == 1 && p.ind_jmp_rep == 0);
         cpu.root.fes_i386_cpu__DOT__ag_s[907 / 32] = 0;
         cpu.root.fes_i386_cpu__DOT__m2_s[907 / 32] = 0;
         cpu.root.fes_i386_cpu__DOT__ex_s[907 / 32] = 1u << (907 % 32);
@@ -371,6 +388,11 @@ class HeaderTest(unittest.TestCase):
             w = profile.window(profile.load(output.read_text().splitlines()))
         self.assertEqual(w['from_cycle'], 100)
         self.assertEqual(w['cycles'], 10)
+        self.assertEqual(w['indirect_sites'], [['00000020', 3, 1, 2, 'call_ind'], ['00000030', 1, 0, 1, 'jmp_ind']])
+        p = w['prediction']
+        self.assertEqual((p['ind_call'], p['ind_call_last_target'], p['ind_jmp'], p['ind_jmp_last_target']),
+                         (3, 1, 1, 0))
+        self.assertIn('indirect CALLs 3 (1 to their last target)', profile.report(w))
         self.assertEqual(w['rtl_clocks'], 10)
         self.assertEqual(w['causes']['issued uops'], 7)
         self.assertEqual(w['commits'], 6)
@@ -379,8 +401,11 @@ class HeaderTest(unittest.TestCase):
         self.assertEqual(w['causes']['redirect: refill'], 2)
         self.assertEqual(w['causes']['fetch and L1I'], 1)
         self.assertEqual(sum(w['causes'].values()), w['rtl_clocks'])
-        self.assertEqual(w['redirects_by_class'], {'jcc': {'taken': 1, 'clocks': 5, 'per_taken': 5.0}})
-        self.assertEqual(sorted(site[:3] for site in w['sites']), [['0000000e', 1, 5], ['00000010', 1, 5]])
+        self.assertEqual(w['redirects_by_class'], {'jcc': {'taken': 1, 'clocks': 5, 'per_taken': 5.0},
+                                                   'call_ind': {'taken': 3, 'clocks': 0, 'per_taken': 0.0},
+                                                   'jmp_ind': {'taken': 1, 'clocks': 0, 'per_taken': 0.0}})
+        self.assertEqual(sorted(site[:3] for site in w['sites']),
+                         [['0000000e', 1, 5], ['00000010', 1, 5], ['00000020', 3, 0], ['00000030', 1, 0]])
 
 
 def snapshot(at: float, cycles: int, sampled: int, buckets: dict, commits: int = 0, in_flight: int = 0,
@@ -389,7 +414,7 @@ def snapshot(at: float, cycles: int, sampled: int, buckets: dict, commits: int =
     names.update(dict.fromkeys(profile.ISSUE, 0))
     names.update(buckets)
     return textwrap.dedent(f'''\
-        T {at} cycles={cycles} sampled={sampled} retired={commits} pm_retired=0 commits={commits} flush_cycles={flush_cycles} redirects=0 l1d_waits=0 l1i_waits=0 frames=0 polls_3da=0 io=0 prefixes=0 in_flight={in_flight} br=0 br_taken=0 br_pt=0 br_pt_taken=0 fetch_replays=0 ret=0 ret_pt=0 ret_mis=0
+        T {at} cycles={cycles} sampled={sampled} retired={commits} pm_retired=0 commits={commits} flush_cycles={flush_cycles} redirects=0 l1d_waits=0 l1i_waits=0 frames=0 polls_3da=0 io=0 prefixes=0 in_flight={in_flight} br=0 br_taken=0 br_pt=0 br_pt_taken=0 fetch_replays=0 ret=0 ret_pt=0 ret_mis=0 ind_call=0 ind_call_rep=0 ind_jmp=0 ind_jmp_rep=0 ind_pt=0 ind_mis=0
         B {at} ''') + ' '.join(f'{k}={v}' for k, v in names.items()) + '\n'
 
 

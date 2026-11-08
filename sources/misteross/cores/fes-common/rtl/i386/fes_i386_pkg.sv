@@ -940,6 +940,7 @@ package fes_i386_pkg;
         // The return stack (fes_i386_cpu, "Branch prediction").
         logic        ncall;       // D: a near CALL's jump (CALL rel, CALL r/m)
         logic        nret;        // D: a near RET (C3h, C2h)
+        logic        nind;        // D: an indirect near JMP's or CALL's jump (JMP r/m, CALL r/m)
         logic [31:0] peip;        // D: ... the EIP the return stack predicted, when pt
     } pipe_t;
 

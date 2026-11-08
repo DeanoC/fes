@@ -765,13 +765,17 @@ module fes_i386_cpu #(
     // CS.base, not wrapped by operand size, so a prediction with the wrong
     // upper bits fails EX's compare. A near CALL's jump (ncall): CALL rel's
     // (SEQ_CALL) or CALL r/m's (SEQ_CALLI, op 11, BR_JMP_IND).
-    logic        d_nret, d_rpt, d_ncall;
+    logic        d_nret, d_rpt, d_ncall, d_nind;
     logic [31:0] d_reip;
     assign d_nret = dc.uop.cls == fes_i386_pkg::UOP_BRANCH && dc.uop.op == 5'd10 && dc.seq == fes_i386_pkg::SEQ_NONE;
     assign d_rpt = dc.tk && d_nret;
     assign d_reip = dc.ptgt - seg_base[SEG_CS];
     assign d_ncall = dc.uop.cls == fes_i386_pkg::UOP_BRANCH
                   && (dc.seq == fes_i386_pkg::SEQ_CALL || dc.seq == fes_i386_pkg::SEQ_CALLI && dc.uop.op == 5'd11);
+    // An indirect near JMP's or CALL's jump (nind): JMP r/m (op 11) or CALL
+    // r/m's last uop.
+    assign d_nind = dc.uop.cls == fes_i386_pkg::UOP_BRANCH && dc.uop.op == 5'd11
+                 && (dc.seq == fes_i386_pkg::SEQ_NONE || dc.seq == fes_i386_pkg::SEQ_CALLI);
 
     uop_t        u;
     logic        opsize32, lea, lea_early, consumes, reads_seg, stop;
@@ -1524,6 +1528,7 @@ module fes_i386_cpu #(
         d_out.pt = d_pt || d_rpt;
         d_out.ncall = d_ncall;
         d_out.nret = d_nret;
+        d_out.nind = d_nind;
         d_out.peip = d_reip;
         d_out.bm = dc.bm;
         d_out.bway = dc.bway;
@@ -3088,12 +3093,14 @@ module fes_i386_cpu #(
     // The prediction's counts for machine_tb --cpu-profile (cpu_profile.vlt
     // reads them; nothing in the CPU does): a direct branch retiring, whether
     // it was predicted taken and was taken, and a fetch check's replay.
-    logic prof_br, prof_pt, prof_taken, prof_frp, prof_ret, prof_ret_mis;
+    logic prof_br, prof_pt, prof_taken, prof_frp, prof_ret, prof_ind, prof_redir;
     assign prof_br = wb_commit && wb_s.dbr;
-    // A near RET retiring, and whether it redirects: not predicted, or to
-    // another target than the return stack's.
+    // A near RET or an indirect near CALL or JMP retiring (prof_ind), and
+    // whether it redirects (prof_redir): not predicted, or to another target
+    // than the one predicted.
     assign prof_ret = wb_commit && wb_s.nret;
-    assign prof_ret_mis = wb_redir;
+    assign prof_ind = wb_commit && wb_s.nind;
+    assign prof_redir = wb_redir;
     assign prof_pt = wb_s.pt;
     assign prof_taken = wb_s.taken;
     assign prof_frp = rp_go && wb_frp;
