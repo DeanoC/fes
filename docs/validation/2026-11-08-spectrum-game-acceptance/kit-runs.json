@@ -129,7 +129,10 @@
     "above_floor_s": 517
    }
   },
-  "result": "pass",
+  "result": "inconclusive (objective evidence)",
+  "objective_evidence": {
+   "key_collection": "not documented in retained run evidence"
+  },
   "notes": "LOAD \"\" to title within 60 s; walk, jump, walk right into the guardian loses a life (2 to 1) and respawns, as in Fuse; AIR drains 2 px in about 1.4 s, as in Fuse; deaths, game over, title, restarts; in-game tune off because the loop pressed ENTER (the game's tune toggle, confirmed in Fuse); Stop then relaunch cold-booted to the (c) 1982 screen, reloaded and restarted",
   "frame_comparisons": {
    "title_vs_fuse_11500": "733/768 (top 16 rows 512/512)"
@@ -177,7 +180,10 @@
     "above_floor_s": 516
    }
   },
-  "result": "pass",
+  "result": "inconclusive (objective evidence)",
+  "objective_evidence": {
+   "key_collection": "not documented in retained run evidence"
+  },
   "notes": "title by 100 s; ENTER tap then 15 s with no input: in-game tune steady at 753-854 RMS; deaths, game over, title, restart; Stop then relaunch cold-booted, reloaded and restarted with two spare lives",
   "frame_comparisons": {
    "title_vs_fuse_11500": "739/768 (top 16 rows 512/512)",

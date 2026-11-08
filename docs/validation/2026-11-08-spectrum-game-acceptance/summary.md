@@ -10,17 +10,21 @@ C4's published objective asks for a fight, and Batman: The Caped Crusader
 never met an enemy. With Deano's approval, C4 became Renegade, also a +3 disk.
 The Batman runs stay as +3 disk-load evidence.
 
-**Result.** The matrix is met, so this closes #1530:
+**Result.** C2–C5 meet their declared objectives. C1 remains inconclusive:
+the published objective includes collecting keys, but neither retained C1 run
+documents a key pickup. The evidence in this record therefore does not complete
+the matrix or close #1530. C1 needs key-collection evidence for two independent
+runs, or a Deano-authorized amendment to its objective, before it can be called
+a pass.
 
-- Every case has two passing runs, and each of those runs reached its
-  declared objective.
-- Each case's passing runs cover the controls the matrix names.
+- Every passing C2–C5 run reached its declared objective and covers the controls
+  the matrix names.
 - Each passing run had 10 minutes or more of active play after the load. Time
   the game spends on its own name entry doesn't count as play.
 
-| Case | Profile | Game, media | Controls | Verdict | Passing runs |
+| Case | Profile | Game, media | Controls | Verdict | Runs |
 | --- | --- | --- | --- | --- | --- |
-| C1 | 48K, `fes.spectrum` | Manic Miner, `.tzx` | keyboard | **pass** | `c1r1`, `c1r2` |
+| C1 | 48K, `fes.spectrum` | Manic Miner, `.tzx` | keyboard | **inconclusive** (key collection not evidenced) | `c1r1`, `c1r2` (not counted as passes) |
 | C2 | 48K, `fes.spectrum` | Bubble Bobble, `.tzx` (Firebird turbo) | Kempston, Sinclair | **pass** | `c2r6` (Kempston), `c2r4` (Sinclair) |
 | C3 | 128K/+2, `fes.spectrum128` | Bubble Dizzy 128K, `.z80` | Sinclair, Kempston | **pass** | `c3r7` (Sinclair), `c3r8` (Kempston) |
 | C4 | +2A/+3, `fes.spectrum-plus3` | Renegade, `.dsk` (amended; Batman `.dsk` superseded) | Kempston, keyboard | **pass** | `c4r5` (Kempston), `c4r6` (keyboard) |
@@ -48,7 +52,7 @@ to the test driver, to the title's own behaviour, or to Powerboat:
 - **Renegade's default keys aren't usable.** The keyboard run sets them through
   the game's own Define Keys first.
 
-Failed attempts are kept below and in [`kit-runs.json`](kit-runs.json).
+Failed and inconclusive attempts are kept below and in [`kit-runs.json`](kit-runs.json).
 
 ## Packages
 
@@ -159,7 +163,13 @@ Some later runs had longer loops:
 Each run's play window (first game input to the end of play) is in
 [`kit-runs.json`](kit-runs.json).
 
-## C1 Manic Miner, 48K: pass (`c1r1`, `c1r2`)
+## C1 Manic Miner, 48K: inconclusive (`c1r1`, `c1r2`)
+
+The published objective requires collecting keys. Neither C1 run's retained
+notes or frame comparisons records a key pickup, so the evidence cannot establish
+that part of the objective. This is an evidence gap, not evidence that the game
+failed to collect keys. No authorized amendment to C1's objective is published;
+both runs remain inconclusive and are not counted as passes.
 
 1. **Load.** `LOAD ""` from the library tape, with the turbo load muted. The
    title showed within 60 s in `c1r1` and by 100 s in `c1r2` (still on
@@ -171,16 +181,19 @@ Each run's play window (first game input to the end of play) is in
    - Walk, jump, then walk right into the guardian loses a life (2 → 1).
    - Willy respawns in Central Cavern.
    - AIR drains at the same rate (2 px in about 1.4 s).
-4. **Play.** Ten minutes of play reached deaths, game over, the title and
+4. **Objective evidence.** Key collection is not documented for either run.
+   The retained observations cover movement, death and restart behavior but do
+   not establish this required objective step.
+5. **Play.** Ten minutes of play reached deaths, game over, the title and
    restarts.
    - The cavern matches Fuse frame 11699 in 483/512 and 479/512 cells of the
      play field. The difference is the moving sprites and AIR.
-5. **Stop and relaunch.** Both ended back at the start:
+6. **Stop and relaunch.** Both ended back at the start:
    - Stop left the session and agent idle.
    - The relaunch cold-booted to "© 1982 Sinclair Research Ltd".
    - It then reloaded to the title, and ENTER restarted the cavern with two
      spare lives.
-6. **Cadence.** Both runs had no black frames, and the longest still run was
+7. **Cadence.** Both runs had no black frames, and the longest still run was
    5 frames:
 
    | Run | Updates | Capture SHA-256 |
@@ -188,7 +201,7 @@ Each run's play window (first game input to the end of play) is in
    | `c1r1` | 25.1/s | `ee88126c…` |
    | `c1r2` | 23.0/s | `0f461953…` |
 
-7. **Audio.** The title tune measured 4500–6500 RMS, against Fuse's 4800–5100.
+8. **Audio.** The title tune measured 4500–6500 RMS, against Fuse's 4800–5100.
    - In `c1r1` the in-game tune seemed silent. Fuse shows why: ENTER toggles the
      tune off and on in play, and the play loop pressed ENTER.
    - So `c1r2` started with a 0.3 s ENTER tap and then listened for 15 s with
