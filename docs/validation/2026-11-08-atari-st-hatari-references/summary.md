@@ -27,8 +27,13 @@ timing, rules and outcomes, never on brightness.
   - White wins 84% of kit games and 88% of Hatari games.
   - Three kit games end on final boards identical to two of Hatari's.
 
-With the tenfoot swap moved to #946 (see below), nothing else is owed on
-#1528.
+Nothing else is owed on #1528. Work that continues elsewhere:
+
+- **The tenfoot swap** moved to #946 (see below).
+- **Protected originals** are tracked separately in
+  [#1541](https://github.com/DeanoC/fes/issues/1541).
+- **The host input-path key repeat** is filed as
+  [#1582](https://github.com/DeanoC/fes/issues/1582).
 
 ## Setup
 
@@ -60,7 +65,7 @@ With the tenfoot swap moved to #946 (see below), nothing else is owed on
 
 **Tolerances.**
 - **Timing.** The game's fixed-length events must agree within 1 s. Samples
-  are every 0.25 s on the kit recording and every 0.5 s in Hatari.
+  are every 0.25–0.5 s on the kit recording and every 0.5 s in Hatari.
 - **Play.**
   - Score values are multiples of 50, and a hit costs a life.
   - The third loss shows "GAME OVER PRESS FIRE TO START", and fire starts a
@@ -88,8 +93,12 @@ it is not plain blue plating. That marks:
 The largest difference is 0.5 s over 115 s, which is the sampling interval.
 
 **Play outcomes.** Hatari ran [`xplay_h.py`](xplay_h.py), which sends the kit
-`xplay.py`'s input pattern (same seed) as host keys, for two 11-minute runs
-([`xref.py`](xref.py)). Both sides show the same rules:
+`xplay.py`'s input pattern (same seed) as host keys, for two 11-minute runs:
+
+- **`r1`** continued a game started by hand, during the setup checks.
+- **`r2`** was a clean run from fire with [`xref.py`](xref.py).
+
+Both sides show the same rules:
 
 - Score moves in multiples of 50.
 - Lives fall on hits, and there are 1–2 game overs per run.
@@ -100,7 +109,7 @@ Maximum scores:
 
 | | Maximum scores |
 | --- | --- |
-| Kit (`x2`, `x4`, `m1`, `m2`) | 850, 600, 250, 750 |
+| Kit: `x2` and `x4` (factory package `2dd2271c`), `m1` and `m2` (main's `2b54eb67`) | 850, 600, 250, 750 |
 | Hatari | 3050, 950 |
 
 The range is wide on both. Hatari's higher top score comes from reaching
@@ -143,9 +152,9 @@ Hatari's mouse.
 
 **Observation.** At boot the kit opens the `A:\` window that the disk's
 `DESKTOP.INF` saves (`#W … A:\*.*`). Hatari 2.4.1 didn't, in three boots with
-and without fast floppy timing, so its runner opens drive A itself. TOS 1.04
-reopens windows that `DESKTOP.INF` saves, so the kit's behaviour is the
-expected one. It isn't a core defect.
+and without fast floppy timing, so its runner opens drive A itself. The
+kit's behaviour matches the `DESKTOP.INF` entry. The cause of Hatari's
+difference wasn't isolated, and it isn't treated as a core defect.
 
 ## Counts corrected in the 7 November record
 

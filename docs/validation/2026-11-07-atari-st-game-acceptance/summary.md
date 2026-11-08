@@ -33,19 +33,24 @@ refers to #1528 and leaves closing it to review.
 | 3. The Lurking Horror (keyboard, save) | **PASS** (`x2`): the saved disk matches Hatari except one directory time byte | **PASS** (`h3`, Kit A): same match. `x4` (Kit B): its 4 differing save bytes are an expected random outcome that Hatari reproduces byte for byte; INCONCLUSIVE only for its 8 minutes of play | **PASS** |
 | 4. Terramex (disk swap, joystick) | **PASS** (`n1`, launch 1): disk 2 inserted into the running session at the game's prompt; about 14 minutes of play | **PASS** (`n1`, launch 2, after Stop and relaunch): disk 1 back in the drive, swapped again; about 11 minutes of play | **PASS** |
 
-Still owed on #1528:
+Items this record left open on #1528, and where each went:
 
-- A swap from tenfoot. Case 4 swaps through the host API, because the ST
-  package has no session display and tenfoot has no ST swap control.
-- Runs on a package sealed from main. Its prerequisite,
+- **A swap from tenfoot.** Case 4 swaps through the host API, because the ST
+  package has no session display and tenfoot has no ST swap control. *Moved
+  to [#946](https://github.com/DeanoC/fes/issues/946)'s ST slice.*
+- **Runs on a package sealed from main.** Its prerequisite,
   [#1544](https://github.com/DeanoC/fes/pull/1544), merged on 8 November as
   `2a22b5b6`: it fixes the producer's read audit and sealed main's ST tree as
-  `1f3b21b7…`. Only the rerun remains, and it goes in a later PR.
-- A gameplay reference for Xenon and Gomoku. Hatari's command interface has
-  no joystick or mouse-move events, so only the no-input boot was compared.
-- Protected originals. Most of the IPF library can't be flattened to `.st`;
-  [#1541](https://github.com/DeanoC/fes/issues/1541) tracks running IPF
-  images directly.
+  `1f3b21b7…`. *Done in the
+  [main-package record](../2026-11-08-atari-st-main-package/summary.md).*
+- **A gameplay reference for Xenon and Gomoku.** Hatari's command interface
+  has no joystick or mouse-move events, so only the no-input boot was
+  compared. *Done in the
+  [reference record](../2026-11-08-atari-st-hatari-references/summary.md).*
+- **Protected originals.** Most of the IPF library can't be flattened to
+  `.st`. *Tracked separately in
+  [#1541](https://github.com/DeanoC/fes/issues/1541), which tracks running IPF
+  images directly.*
 
 ## Package, firmware and software
 

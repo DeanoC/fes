@@ -30,14 +30,17 @@ host's input path, is filed as
 | 3. The Lurking Horror (keyboard, save) | **PASS** (entry `m1b`): SAVE, two Stop/relaunch/RESTOREs, about 11 min of play; the saved disk equals Hatari's except one directory time byte | **PASS** (entry `m2b`, checked launch and typing): SAVE, two Stop/relaunch/RESTOREs, about 13.5 min of play; saved at 5/22, so not byte-compared with Hatari | **PASS** |
 | 4. Terramex (disk swap, joystick) | **PASS**: two launches, each swapped to disk 2 at the game's prompt, about 11 min of play each | **PASS**: the same | **PASS** |
 
-This PR refers to #1528 and doesn't close it. Still owed:
+Items this record left open on #1528, and where each went:
 
-- A swap from tenfoot. The ST package has no session display, and tenfoot has no ST
-  swap control, so case 4 swaps through the host API.
-- A gameplay reference for Xenon and Gomoku. Hatari's command interface has
-  no joystick or mouse-move events.
-- Protected originals. [#1541](https://github.com/DeanoC/fes/issues/1541)
-  tracks running IPF images directly.
+- **A swap from tenfoot.** The ST package has no session display, and
+  tenfoot has no ST swap control, so case 4 swaps through the host API.
+  *Moved to [#946](https://github.com/DeanoC/fes/issues/946)'s ST slice.*
+- **A gameplay reference for Xenon and Gomoku.** Hatari's command interface
+  has no joystick or mouse-move events. *Done in the
+  [reference record](../2026-11-08-atari-st-hatari-references/summary.md).*
+- **Protected originals.** *Tracked separately in
+  [#1541](https://github.com/DeanoC/fes/issues/1541), which tracks running IPF
+  images directly.*
 
 ## Package
 
