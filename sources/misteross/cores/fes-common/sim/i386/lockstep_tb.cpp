@@ -518,6 +518,10 @@ public:
         if (top.trace_fe_wait) last_fe_wait = cycles;
         replays += top.trace_replay;
         smc_restarts += top.trace_smc;
+        if ((top.trace_replay || top.trace_smc || top.trace_pw) && std::getenv("FES_I386_VERBOSE"))
+            std::fprintf(stderr, "  cycle %llu %s eip %x cs.base %x%s\n", (unsigned long long)cycles,
+                         top.trace_pw ? "a/d store" : top.trace_smc ? "smc restart" : "replay", unsigned(top.arch_eip),
+                         unsigned(top.arch_base[fes_i386::SEG_CS]), top.trace_pw ? (" at " + hex(top.trace_pw_addr)).c_str() : "");
         // Port 0, then MMIO: this edge's responses, and the command taken.
         port0.drive(top, ticks++);
         top.mmio_rvalid = 0;
@@ -4706,11 +4710,13 @@ private:
                 op.insert(op.end(), {0x64, 0x67, uint8_t((pick(2) ? 0x8a : 0x88) | (pick(3) ? 1 : 0)), uint8_t(reg << 3 | 5)});
                 put32(op, a);
                 break;
-            case 2:  // INC or NOT FS:[a]
+            case 2: {  // INC (FF /0) or NOT (F7 /2) FS:[a]
                 if (pick(2)) op.push_back(0x66);
-                op.insert(op.end(), {0x64, 0x67, uint8_t(pick(2) ? 0xff : 0xf7), uint8_t(pick(2) ? 0x05 : 0x15)});
+                const bool inc = pick(2);
+                op.insert(op.end(), {0x64, 0x67, uint8_t(inc ? 0xff : 0xf7), uint8_t(inc ? 0x05 : 0x15)});
                 put32(op, a);
                 break;
+            }
             case 3: case 4: {  // REP STOS or MOVS of a few elements, ES and the source FS's
                 load_seg(0, 0x10);
                 std::vector<uint8_t> setup{0x66, 0xbf};

@@ -1017,6 +1017,9 @@ package fes_i386_pkg;
         // it as not the oldest, so the serial issue after it ends with its
         // REP element, not its instruction.
         logic           txr;
+        // dfl: M1, the uop's fault is its st2 store's segment check
+        // (dfault), which a #PF on its load's pages comes before.
+        logic           dfl;
     } pipe_t;
 
 endpackage

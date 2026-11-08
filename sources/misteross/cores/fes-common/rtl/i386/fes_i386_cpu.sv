@@ -1601,12 +1601,14 @@ module fes_i386_cpu #(
         // Paging: the physical page bits 19:12 of the instruction's lines
         // (self-modifying code); a fetch walk, of the page at pf_lin, and
         // nothing else; whether a load whose data nothing uses translates
-        // (nx: all but ENTER's last check, Bochs's tickle_write_virtual, a
-        // write's: wx).
+        // (nx: all but a probe of a slot to be pushed and ENTER's last check,
+        // Bochs's tickle_write_virtual, each a write's: wx). A probe so
+        // faults as the push it stands for, in the pushes' order, as Bochs
+        // pushes and faults.
         d_out.ipp0 = dc.pp0;
         d_out.ipp1 = dc.pp1;
-        d_out.nx = d_out.nodata && !dc.str_fin;
-        d_out.wx = dc.str_fin;
+        d_out.nx = d_out.nodata && !dc.str_fin && dc.stk != fes_i386_pkg::STK_PROBE;
+        d_out.wx = dc.str_fin || dc.stk == fes_i386_pkg::STK_PROBE;
         if (d_ifw) begin
             d_out.ifw = 1'b1;
             d_out.pf_lin = d_ifw_lin;
@@ -1897,6 +1899,8 @@ module fes_i386_cpu #(
         end else if (m1_s.uop.ctl.fault == fes_i386_pkg::FAULT_NONE) begin
             m1_out.uop.ctl.fault = m1_s.cs_late || m1_tpast && m1_s.uop.cls != fes_i386_pkg::UOP_BRANCH
                                  ? fes_i386_pkg::FAULT_GP0 : m1_s.dfault;
+            m1_out.dfl = !(m1_s.cs_late || m1_tpast && m1_s.uop.cls != fes_i386_pkg::UOP_BRANCH)
+                      && m1_s.dfault != fes_i386_pkg::FAULT_NONE;
         end
         m1_out.tchk = m1_tpast;
         case (m1_zk)
@@ -1968,9 +1972,13 @@ module fes_i386_cpu #(
     assign dt_lp[1] = m1_st2 ? m1_s.target[31:12] : m1_s.maddr[31:12] + 20'd1;
     assign m1_okA = dt_hit[0] && rights(dt_q[0], m1_wr, m1_user);
     assign m1_okB = dt_hit[1] && rights(dt_q[1], m1_st2 || m1_wr, m1_user);
-    assign m1_tx = pg && m1_s.valid && m1_out.uop.ctl.fault == fes_i386_pkg::FAULT_NONE && !m1_probe_bad
-                && (m1_s.ifw || m1_acc && (!m1_okA || (m1_xa || m1_st2) && !m1_okB || m1_st2 && (m1_xa || m1_xt)
-                                           || m1_alias && reads_mem(m1_s)));
+    // A st2 uop whose store's segment check fails (dfl) still translates
+    // its load's pages, whose #PF comes first, as Bochs reads first.
+    assign m1_tx = pg && m1_s.valid && !m1_probe_bad
+                && (m1_out.uop.ctl.fault == fes_i386_pkg::FAULT_NONE
+                    && (m1_s.ifw || m1_acc && (!m1_okA || (m1_xa || m1_st2) && !m1_okB || m1_st2 && (m1_xa || m1_xt)
+                                               || m1_alias && reads_mem(m1_s)))
+                    || m1_out.dfl && m1_acc && (!m1_okA || m1_xa));
     always_comb begin
         if (pg) begin
             m1_pg = {ppage(m1_s.target[31:12] + 20'd1, a20m), dt_q[1].pp, dt_q[1].pp, dt_q[0].pp};
@@ -2149,7 +2157,7 @@ module fes_i386_cpu #(
             m2_cap.uop.ctl.fault = fes_i386_pkg::FAULT_REPLAY;
             m2_cap.txr = l1d_walked;
         end
-        if (l1d_pf && m2_cap.uop.ctl.fault == fes_i386_pkg::FAULT_NONE) begin
+        if (l1d_pf && (m2_cap.uop.ctl.fault == fes_i386_pkg::FAULT_NONE || m2_cap.dfl)) begin
             m2_cap.uop.ctl.fault = fes_i386_pkg::FAULT_PF;
             m2_cap.pf_lin = l1d_pf_lin;
             m2_cap.pf_err = l1d_pf_err;
@@ -3254,7 +3262,7 @@ module fes_i386_cpu #(
         .inv_valid, .inv_line, .inv_all, .d_req, .d_mmio, .d_addr, .d_be, .d_beat, .bdata(bus_rdata),
         .pg, .cr3_pd(cr3[31:12]), .m1_pg, .m1_at0, .m1_at1, .tlb_pages(dt_pages), .tlb_ma(dt_match[0]),
         .tx(m1_tx && !halted && !wb_stop), .tx_a(m1_s.ifw ? m1_s.pf_lin : m1_s.maddr), .tx_t(m1_s.target),
-        .tx_need(m1_s.ifw ? 4'b0001 : {m1_xt, m1_st2, m1_xa, 1'b1}),
+        .tx_need(m1_s.ifw ? 4'b0001 : m1_out.dfl ? {2'b00, m1_xa, 1'b1} : {m1_xt, m1_st2, m1_xa, 1'b1}),
         .tx_wr(m1_st2 ? {2'b11, 2'b00} : {4{m1_wr}}), .tx_user(m1_s.ifw ? cpl == 2'd3 : m1_user), .tx_ifw(m1_s.ifw),
         .wb_empty, .pg_out(l1d_pg), .pf(l1d_pf), .pf_lin(l1d_pf_lin), .pf_err(l1d_pf_err), .walked(l1d_walked),
         .tf_valid, .tf_itlb, .tf_e, .pw_valid, .pw_addr, .pw_data, .pw_at
