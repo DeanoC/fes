@@ -807,6 +807,22 @@ curl -sS -X POST -H 'Content-Type: application/octet-stream' \
   --data-binary @freedos.img http://127.0.0.1:8787/api/v1/core-media/hard-disk
 ```
 
+or with the CLI, which snapshots the file, checks it is a whole number of
+sectors within the limit before uploading, and waits the host's hard-disk
+import budget:
+
+```sh
+fogcast --api http://127.0.0.1:8787 --json core-hard-disk-install /absolute/path/freedos.img
+fogcast --api http://127.0.0.1:8787 --json core-entry 'FreeDOS' PACKAGE_ID hard-disk MEDIA_ID
+fogcast --api http://127.0.0.1:8787 --json core-media-select GAME_ID PACKAGE_ID OLD_MEDIA_ID MEDIA_ID hard-disk
+fogcast --api http://127.0.0.1:8787 --json core-disk-geometry GAME_ID PACKAGE_ID MEDIA_ID 512/8/32
+fogcast --api http://127.0.0.1:8787 --json core-disk-geometry GAME_ID PACKAGE_ID MEDIA_ID infer
+```
+
+`core-disk-geometry` takes cylinders/heads/sectors per track, or `infer` to
+restore the partition table's geometry, and fails unless the host answers
+with exactly that entry, image and geometry.
+
 The response is the stored media (`media_id`, `size`) plus the `geometry` the
 host infers from its master boot record, which the library panel also shows.
 Every filled start or end CHS of a filled partition entry must decode to that
@@ -832,7 +848,18 @@ PUT /api/v1/library/core-entries/{game_id}/disk-geometry
 
 `geometry: null` restores inference. Selecting other media clears the override,
 and selecting the same image again keeps it. Cylinders × heads × sectors must
-fit the image. The panel shows an entry's override but cannot set one yet.
+fit the image.
+
+In the web library panel, choosing an image for a package with the hard disk
+imports it through this route, and the media label shows the route's limit.
+Once a hard-disk image is selected for the entry, the Hard-disk geometry
+fields show the entry's override or, for an image imported in this panel
+visit, the geometry its partition table implies (the host keeps no inferred
+geometry on the entry). For an entry without an override whose image was not
+imported in this visit, the panel says the geometry is unchecked: launch
+infers it and refuses an image whose partition table implies none. Override
+disk geometry saves the fields; Use partition table geometry sends
+`geometry: null`.
 
 At launch the host stages the image on the kit by SHA-256 (`POST
 /v1/library/disk-images/probe` and, only when the kit lacks it,
