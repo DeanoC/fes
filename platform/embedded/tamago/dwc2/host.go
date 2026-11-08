@@ -74,6 +74,7 @@ type packet struct {
 	stepGapNS, maxStepGapNS                  int64
 	toggleRX, toggleIRQs                     uint32
 	ackIRQs                                  uint32
+	nakIRQs                                  uint32
 	continuations                            uint32
 	requestAfter                             time.Time
 	lastContinue                             continuationState
@@ -374,8 +375,8 @@ func (h *Host) step() (done bool, data []byte, nak bool, err error) {
 	defer func() {
 		if err != nil {
 			p := &h.pending
-			err = fmt.Errorf("dwc2: packet address=%d endpoint=%d in=%t pid=%d split=%t complete_split=%t received=%t done=%t nak=%t halting=%t polls=%d toggle_rx=%d toggle_irqs=%d ack_irqs=%d continuations=%d interval=%s last_continue={%s} service={last_gap_ns=%d max_gap_ns=%d}: %w",
-				h.address, (p.char>>11)&15, p.in, p.pid, p.split, p.completeSplit, p.received, p.done, p.nak, p.halting, p.polls, p.toggleRX, p.toggleIRQs, p.ackIRQs, p.continuations, h.interval, p.lastContinue, p.stepGapNS, p.maxStepGapNS, err)
+			err = fmt.Errorf("dwc2: packet address=%d endpoint=%d in=%t pid=%d split=%t complete_split=%t received=%t done=%t nak=%t halting=%t polls=%d toggle_rx=%d toggle_irqs=%d ack_irqs=%d nak_irqs=%d continuations=%d interval=%s last_continue={%s} service={last_gap_ns=%d max_gap_ns=%d}: %w",
+				h.address, (p.char>>11)&15, p.in, p.pid, p.split, p.completeSplit, p.received, p.done, p.nak, p.halting, p.polls, p.toggleRX, p.toggleIRQs, p.ackIRQs, p.nakIRQs, p.continuations, h.interval, p.lastContinue, p.stepGapNS, p.maxStepGapNS, err)
 			if p.firstToggle != nil {
 				err = fmt.Errorf("%w; first toggle observation: %v", err, p.firstToggle)
 			}
@@ -511,6 +512,17 @@ func (h *Host) step() (done bool, data []byte, nak bool, err error) {
 		p.ackIRQs++
 		h.io.Write32(hcint, 1<<5)
 		ints &^= 1 << 5
+	}
+	// Slave-mode direct control IN queues tokens within the same transfer.
+	// A NAK is a notification from one token, not that transfer's outcome:
+	// another queued token can supply data/completion before we poll again.
+	// Linux's slave control-IN mask likewise excludes NAK. Acknowledge only
+	// this bit; real RX, completion and channel retirement remain mandatory.
+	// Periodic, split and OUT NAKs keep their existing retirement semantics.
+	if p.in && !p.split && (p.char>>18)&3 == 0 && ints&(1<<4) != 0 {
+		p.nakIRQs++
+		h.io.Write32(hcint, 1<<4)
+		ints &^= 1 << 4
 	}
 	if ints&1 != 0 {
 		p.done = true

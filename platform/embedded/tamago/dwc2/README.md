@@ -259,3 +259,22 @@ TinyUSB requests retirement before periodic retry; its unbounded queue waits
 are not adopted. No TinyUSB code is linked into this implementation. Protocol,
 model/race and ownership checks do not establish that the Nano will acknowledge
 the earlier halt; a fresh matched bounded hardware test remains necessary.
+
+Direct control IN now acknowledges raw NAK as a token notification and continues
+the same PIO packet. The pinned Linux v6.12
+[slave control-IN interrupt mask](https://github.com/torvalds/linux/blob/v6.12/drivers/usb/dwc2/hcd.c#L490)
+excludes NAK; its continuation path queues further IN tokens and flushes excess
+requests on completion. The bounded physical USB probe reached its root hub but
+stopped when our former terminal-NAK path raced valid data/completion during
+retirement. That trace motivates this mode-specific correction; it does not
+establish acceptance of the changed driver.
+
+Only direct control IN uses the notification path. It clears that W1C bit and
+counts it for a later failure trace. It does not rewrite HCTSIZ, PID, packet
+buffer or deadline, issue SETUP, treat NAK as completion, or release the channel.
+Valid expected-PID RX, transfer-complete and observed channel retirement remain
+required. Fatal status and ownership/link changes still stop the driver.
+Periodic, split and OUT NAK retirement and contradictory-result checks remain.
+Tests supply NAK before/with data and during retirement, withhold data/completion
+or halt, and exercise malformed PID, lost ownership, disconnect and the original
+deadline. Fresh matched image hardware acceptance remains pending.
