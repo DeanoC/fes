@@ -6604,6 +6604,20 @@ int run_paging_cases(fes_i386::Oracle &oracle, OracleBus &bus, Rtl &rtl, const s
              a.mov(EAX, 0x11223344); a.st32(0x15100); a.ldr(EBX, 0x16100);
              a.mov(EAX, 0x99); a.st8(0x16102); a.ldr(ECX, 0x15100); a.op({0x8a, 0x15}); a.d(0x16102);  // MOV DL, [16102h]
          }, -1, -1, -1, {{0x15, 0x30000 | P | W | U}, {0x16, 0x30000 | P | W | U}}, {}, {{0x30100, {1, 2, 3, 4}}}},
+        // The same through a store into the instruction right after the
+        // storing one, whose block the fetch buffer has dropped behind six
+        // 10-byte instructions: only the instruction's own physical page
+        // (ipp0) sees the store.
+        {"pg-smc-alias-deep", [=](Asm &a, uint32_t base) { a.mov(EAX, 0); a.jmp(base, 0x15000); }, -1, -1, -1,
+         {{0x15, 0x30000 | P | W | U}, {0x16, 0x30000 | P | W | U}}, {},
+         {{0x30000, [] {
+              std::vector<uint8_t> c = {0xc6, 0x05, 0x08, 0x60, 0x01, 0x00, 0x55,   // MOV byte [16008h], 55h
+                                        0xb8, 0x11, 0x22, 0x33, 0x44};              // MOV EAX, 44332211h
+              for (uint32_t i = 0; i < 6; ++i)                                      // MOV dword [5000h + 4i], i
+                  c.insert(c.end(), {0xc7, 0x05, uint8_t(4 * i), 0x50, 0x00, 0x00, uint8_t(i), 0, 0, 0});
+              c.push_back(0xf4);
+              return c;
+          }()}}},
         // A wrong path's load sets no A: the JMP is not predicted.
         {"pg-wrong-path-a", [=](Asm &a, uint32_t) { a.op({0xeb, 0x05}); a.ld8(0x17000); a.ldr(EBX, pte(0x17)); },
          -1, -1, -1, {{0x17, 0x31000 | P | W | U}}},
