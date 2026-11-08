@@ -17,6 +17,7 @@ from native_trace import decode_native_boot
 from paired_firmware_trace import configuration, menu_closed, menu_opening
 from service_trace import closed, opening, number, require
 from shared_input_trace import SharedInput, PREFIX as USB, record as usb_record
+from input_action_trace import PREFIX as INPUT_ACTION, record as input_action, validate as validate_actions
 
 BEGIN = b'FES_NATIVE_TENFOOT_BEGIN display=fpga-menu input='
 EXIT = re.compile(rb'FES_NATIVE_TENFOOT_EXIT state=parked generation=([0-9]{1,20})')
@@ -79,6 +80,9 @@ def observations(data, input_mode, *, startup=False):
         elif raw.startswith(USB):
             require(input_mode != 'uart', 'shared USB evidence in UART-only paired App')
             kind, value = 'usb', usb_record(raw, index)
+        elif raw.startswith(INPUT_ACTION):
+            require(not startup, 'uncommanded lifecycle input during paired startup')
+            kind, value = 'input_action', input_action(raw, index, input_mode)
         elif raw == begin:
             require(startup, 'paired App restarted during a key exchange')
             kind, value = 'begin', None
@@ -93,7 +97,7 @@ def observations(data, input_mode, *, startup=False):
                     'native failure in paired App capture')
             require(not any(marker in raw for marker in
                 (b'FES_NATIVE_TENFOOT', b'FES_NATIVE_MENU', b'FES_NATIVE_CORE_',
-                 b'FES_NATIVE_SHARED_USB', b'FES_NATIVE_PROGRAM_REPLY', b'FES_NATIVE_WINDOW_REPLY')),
+                 b'FES_NATIVE_SHARED_USB', INPUT_ACTION, b'FES_NATIVE_PROGRAM_REPLY', b'FES_NATIVE_WINDOW_REPLY')),
                 'foreign or malformed paired App observation')
             kind, value = 'firmware', line
         rows.append(dict(kind=kind, value=value, line=index))
@@ -217,6 +221,7 @@ class PairedTenfootClient(app.TenfootClient):
     def _consume(self, rows, op, generation, selected):
         firmware = b''
         states, menus, usb_rows, fetches = [], [], [], []
+        input_actions = []
         begins = 0
         exited = None
         rank = -1
@@ -247,6 +252,15 @@ class PairedTenfootClient(app.TenfootClient):
             elif kind == 'usb':
                 require(op != 'startup', 'shared USB restarted after initial boot')
                 usb_rows.append(value)
+            elif kind == 'input_action':
+                if value['action'] in ('select', 'stop'):
+                    require(first_mutation is None and not usb_rows,
+                            'input action followed firmware mutation or USB pause')
+                else:
+                    require(op == 'quit' and returned_core and opened_menu == 1 and
+                            self.menu_source is not None and returned_menu == 0,
+                            'Quit input preceded verified menu restoration or followed its close')
+                input_actions.append(value)
             elif kind == 'menu':
                 require(op != 'startup' or begins == 0 or self.menu_source is not None,
                         'initial menu opened after App began')
@@ -351,6 +365,7 @@ class PairedTenfootClient(app.TenfootClient):
                         app.quiet(firmware), 'final Parked exit omitted core return/menu drain')
                 exited = value
         require(app.quiet(firmware), 'unconsumed paired firmware evidence')
+        validate_actions(input_actions, op, self.owner, generation)
         require(begins == int(op == 'startup'), 'paired startup count differs')
         if op == 'startup':
             require(opened_menu == 1 and states and self._ready(states[-1]) and ready_presented,
@@ -364,7 +379,8 @@ class PairedTenfootClient(app.TenfootClient):
             require(returned_core and opened_menu == 1 and not fetches and
                     (exited is not None if op == 'quit' else states and terminal and ready_presented),
                     'paired return omitted core close or the presented Ready frame')
-        result = dict(states=states, menu_observations=menus, fetch_observations=fetches, exit_generation=exited)
+        result = dict(states=states, menu_observations=menus, fetch_observations=fetches,
+                      input_actions=input_actions, exit_generation=exited)
         if self.usb is not None and op != 'startup':
             result['shared_usb'] = self.usb.action(op, generation, usb_rows, self.owner,
                 self._raw, app.PREFIX)

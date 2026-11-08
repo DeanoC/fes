@@ -38,7 +38,10 @@ class SharedModel(Model):
         launch=key==b'\r'
         a=f'FES_NATIVE_SHARED_USB INPUT phase=pause state={"ready" if launch else "running"} native_generation={before} owner={OWNER} generation=2 reports={self.reports} polls={self.polls}\n'.encode()
         b=f'FES_NATIVE_SHARED_USB INPUT phase=resume state={"running" if launch else "ready"} native_generation={before+1} owner={OWNER} generation=2 reports={self.reports} polls={self.polls}\n'.encode()
-        lines=raw.splitlines(keepends=True);raw=a+b''.join(lines[:-1])+b+lines[-1]
+        lines=raw.splitlines(keepends=True)
+        action=lines.pop(0)
+        assert action.startswith(b'FES_NATIVE_INPUT_ACTION ')
+        raw=action+a+b''.join(lines[:-1])+b+lines[-1]
         if key==b'q':raw=raw.replace(lines[-1],f'FES_NATIVE_SHARED_USB STOP owner={OWNER} generation=3 reports={self.reports+1} polls={self.polls+1}\n'.encode()+lines[-1])
         f=self.usb_fault
         if f=='missing-pause':raw=raw.replace(a,b'')
@@ -55,7 +58,9 @@ class SharedModel(Model):
         if f=='native-generation':raw=raw.replace(f'native_generation={before+1}'.encode(),b'native_generation=99')
         if f=='early-completion':raw=raw.replace(b,b'')+b
         if f=='late-resume':raw=raw.replace(b,b'')+b+lines[-1]
-        if f=='late-pause':raw=raw.replace(a,b'');position=raw.index(b'\n')+1;raw=raw[:position]+a+raw[position:]
+        if f=='late-pause':
+            raw=raw.replace(a,b'');position=raw.index(b'\n',raw.index(trace.PREFIX))+1
+            raw=raw[:position]+a+raw[position:]
         if f=='reinitialize':raw=READY+raw
         if f=='stop-lease':raw=raw.replace(b'STOP owner='+OWNER.encode()+b' generation=3',b'STOP owner='+OWNER.encode()+b' generation=2')
         if f=='truncated':raw=raw[:-1]

@@ -59,6 +59,12 @@ class Model:
             row['native']['rom_receipt_sha256']=row['native']['Identity']['ActivationReceiptSHA256']
         return row
     def raw(self,state):return trace.PREFIX+json.dumps(state,separators=(',',':')).encode()+b'\n'
+    def input_action(self,action,generation):
+        # The Go formatter's captured record, with this synthetic model's
+        # generation. Neither these model rows nor the capture are board data.
+        rows=(ROOT/'tests/fixtures/nano-input-actions/producer.txt').read_bytes().splitlines(keepends=True)
+        template=next(row for row in rows if b'action='+action.encode()+b' ' in row)
+        return re.sub(rb'native_generation=[0-9]+',b'native_generation='+str(generation).encode(),template)
     def client(self,programs=None):
         return trace.TenfootClient(BOOT+trace.BEGIN+b'\n'+self.raw(self.state()),build_id=SPEC['build_id'],owner_seed=SPEC['owner_seed'],atf=SPEC['atf'],package=SPEC['package'],programs=PROGRAMS if programs is None else programs,exchange=self.exchange,owns=lambda:self.service.owned,now=lambda:self.service.clock)
     def fetch(self):
@@ -90,6 +96,9 @@ class Model:
             if self.fault=='early-state':raw=self.raw(state)+evidence+self.raw(state)
             if self.fault=='fetch-early' and op=='launch':raw=self.fetch()+self.raw(intermediate)+evidence+self.raw(state)
             if self.fault=='regress':raw+=self.raw(intermediate)+self.raw(state)
+        if key not in (b'\x1b[C',b'\x1b[D'):
+            raw=self.input_action('select' if key==b'\r' else 'stop',before)+raw
+            if key==b'q':raw=raw.replace(b'FES_NATIVE_TENFOOT_EXIT ',self.input_action('quit',before+1)+b'FES_NATIVE_TENFOOT_EXIT ',1)
         if self.fault=='owner':raw=raw.replace(str(int(OWNER,16)).encode(),b'1')
         if self.fault=='identity':raw=raw.replace(IDENTITY['BuildID'].encode(),b'd'*32)
         if self.fault=='bool-generation':raw=re.sub(rb'"Generation":\d+',b'"Generation":true',raw)

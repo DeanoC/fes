@@ -10,6 +10,7 @@ import time
 from native_trace import decode_native_boot
 from shared_input_trace import SharedInput, PREFIX as USB_PREFIX, record as usb_record
 from service_trace import _unique, closed, number, opening, require
+from input_action_trace import PREFIX as INPUT_ACTION, record as input_action, validate as validate_actions
 
 PREFIX=b'FES_NATIVE_TENFOOT_STATE '
 FETCH=b'FES_NATIVE_CORE_FETCH '
@@ -36,7 +37,7 @@ def fetch_observation(raw):
     return r
 
 
-def packet(data,*,startup=False,input_mode='uart',usb_records=None,fetch_records=None):
+def packet(data,*,startup=False,input_mode='uart',usb_records=None,fetch_records=None,input_records=None):
     """Separate complete App observations from unchanged firmware evidence."""
     require(isinstance(data,(bytes,bytearray)) and 0<len(data)<=MAX_BYTES and data.endswith(b'\n'),'bounded complete App capture required')
     require(input_mode in ('uart','uart+shared-usb-gamepad','uart+shared-usb-boot-keyboard'),'explicit App input scope required')
@@ -46,6 +47,11 @@ def packet(data,*,startup=False,input_mode='uart',usb_records=None,fetch_records
     lines=bytes(data).splitlines(keepends=True)
     for index,line in enumerate(lines):
         raw=line.rstrip(b'\r\n')
+        if raw.startswith(INPUT_ACTION):
+            require(not startup and exited is None and input_records is not None,
+                    'input-action observation outside an owned exchange')
+            input_records.append(input_action(raw,index+1,input_mode))
+            continue
         if raw.startswith(FETCH):
             require(not startup and exited is None and fetch_records is not None,'fetch observation outside a live launch')
             r=fetch_observation(raw[len(FETCH):])
@@ -100,7 +106,7 @@ def packet(data,*,startup=False,input_mode='uart',usb_records=None,fetch_records
             exited=int(match[1]);require(exited<1<<64,'App exit generation overflow');continue
         text=raw.decode('utf-8')
         require(not text.startswith(('panic:','fatal error:')) and not re.search(r'\b(?:FAIL|FAILURE|REJECT|EXCEPTION)\b',text),'native failure before App observation')
-        require('FES_NATIVE_CORE_GAMEPAD' not in text and 'FES_NATIVE_CORE_FETCH' not in text and 'FES_NATIVE_SHARED_USB' not in text and 'FES_NATIVE_TENFOOT' not in text and 'FES_NATIVE_PROGRAM_REPLY' not in text and 'FES_NATIVE_WINDOW_REPLY' not in text,'foreign or malformed App observation')
+        require('FES_NATIVE_CORE_GAMEPAD' not in text and 'FES_NATIVE_CORE_FETCH' not in text and 'FES_NATIVE_SHARED_USB' not in text and 'FES_NATIVE_TENFOOT' not in text and INPUT_ACTION not in raw and 'FES_NATIVE_PROGRAM_REPLY' not in text and 'FES_NATIVE_WINDOW_REPLY' not in text,'foreign or malformed App observation')
         evidence.append(line)
     require(states or exited is not None,'App observation absent')
     require(begins==int(startup),'App startup marker differs')
@@ -162,8 +168,10 @@ class TenfootClient:
         for state in states:self._state(state,0,('ready',))
         require(self._ready(self.view),'initial App is not ready')
 
-    def _packet(self,data,*,startup=False,usb_records=None,fetch_records=None):
-        return packet(data,startup=startup,input_mode='uart' if self.usb is None else self.usb.input_mode,usb_records=usb_records,fetch_records=fetch_records)
+    def _packet(self,data,*,startup=False,usb_records=None,fetch_records=None,input_records=None):
+        # Polling predicates parse into a temporary list; only the completed
+        # exchange validates and records actions against its issued command.
+        return packet(data,startup=startup,input_mode='uart' if self.usb is None else self.usb.input_mode,usb_records=usb_records,fetch_records=fetch_records,input_records=[] if input_records is None else input_records)
 
     def _ready(self,r):return r['native']['State']=='ready' and r['session']=='idle' and not r['loading'] and len(r['titles'])==2
     def _state(self,r,generation,allowed,identity=None):
@@ -214,7 +222,9 @@ class TenfootClient:
             require(before<=after<before+bound and self.owns(),'App deadline/clock/claim failed')
             usb_rows=[]
             fetch_rows=[]
-            states,evidence,exited=self._packet(raw,usb_records=usb_rows,fetch_records=fetch_rows)
+            input_rows=[]
+            states,evidence,exited=self._packet(raw,usb_records=usb_rows,fetch_records=fetch_rows,input_records=input_rows)
+            validate_actions(input_rows,op,self.owner,generation)
             require(terminal(states[-1] if states else None,exited),'App action did not reach its terminal observation')
             rank=-1
             for state in states:
@@ -236,7 +246,7 @@ class TenfootClient:
                     if line.startswith(PREFIX):
                         n=json.loads(line[len(PREFIX):])['native']
                         reached=reached or (n['Generation']==generation+1 and n['State']==terminal_native)
-                    elif reached:require(quiet(line) or EXIT.fullmatch(line) or self.usb is not None and line.startswith(USB_PREFIX),'firmware evidence followed published terminal ownership')
+                    elif reached:require(quiet(line) or EXIT.fullmatch(line) or line.startswith(INPUT_ACTION) or self.usb is not None and line.startswith(USB_PREFIX),'firmware evidence followed published terminal ownership')
             if op=='launch':
                 require(len(fetch_rows)==1,'launch requires one held/run fetch observation')
                 fetch=fetch_rows[0]
@@ -262,6 +272,14 @@ class TenfootClient:
                 row['master_stop']=closed(evidence,self.owner,self.previous_configuration)
                 require((exited==generation+1) if op=='quit' else exited is None and states[-1]['native']['Generation']==generation+1,'owned return/exit generation differs')
             if self.usb is not None:row['shared_usb']=self.usb.action(op,generation,usb_rows,self.owner,raw,PREFIX)
+            if input_rows:
+                firmware_lines=[i for i,line in enumerate(raw.splitlines(),1)
+                    if not line.startswith((PREFIX,FETCH,USB_PREFIX,INPUT_ACTION,b'FES_NATIVE_TENFOOT_EXIT ')) and not quiet(line)]
+                require(firmware_lines and input_rows[0]['line']<firmware_lines[0],
+                        'input action followed firmware mutation')
+                if op=='quit':require(input_rows[1]['line']>firmware_lines[-1],
+                                      'Quit input preceded verified core return')
+            row['input_actions']=input_rows
             row.update(status='verified',states=states,exit_generation=exited,raw_bytes=len(raw));self.record(copy.deepcopy(row))
             if op=='quit':self.retired=True
             else:self.view=copy.deepcopy(states[-1])

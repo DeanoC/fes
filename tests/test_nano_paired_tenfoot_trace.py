@@ -190,6 +190,12 @@ class Model(AppModel):
             if key == b'q':
                 marker = raw.index(b'FES_NATIVE_TENFOOT_EXIT ')
                 raw = raw[:marker]+self.usb('stop')+raw[marker:]
+        if key not in (b'\x1b[C', b'\x1b[D'):
+            raw = self.input_action('select' if key == b'\r' else 'stop', before)+raw
+            if key == b'q':
+                at = raw.rindex(b'FES_NANO_WINDOW_SCOPE phase=close ')
+                at = raw.rfind(b'\n', 0, at)+1
+                raw = raw[:at]+self.input_action('quit', before+1)+raw[at:]
         raw = self.corrupt(raw, key)
         # Real serial reads repeatedly offer the same growing buffer. A pure
         # framing predicate must not consume a menu frame twice.

@@ -1602,6 +1602,23 @@ returns, configuration queue/activation records, core fetch activity and final
 schema. It is not rewritten to claim HDMI observation. The existing core-only
 `tenfoot_trace.TenfootClient` continues to require its separate serial-only recipe.
 
+Both collectors parse `FES_NATIVE_INPUT_ACTION` as typed input diagnostics,
+separate from firmware mutation evidence. Each issued launch/stop requires its
+single UART Select/Stop record; Quit requires Stop followed by Quit under the
+returned generation. Source, state, owner, generation, order and counts must
+match the issued operation. Startup or unsolicited USB actions reject, and a
+paired Quit cannot precede verified menu restoration. Every existing boot,
+configuration, fetch, USB pause/resume, reader/master drain and return receipt
+remains mandatory. The diagnostic records supply none of those permissions or
+receipts. Historical captures are preserved without adding missing records.
+
+The producer/collector regression exports the actual Go observer through a
+test-only overlay with injected service status and zero firmware calls. Its
+checked-in bytes are explicitly host data. Current synthetic App models use
+that formatter with their own generation, and tests run both real collectors
+through the full launch/return cycle and missing/malformed/reordered input and
+firmware failures. This does not establish board input or core acceptance.
+
 The caller must independently verify current computer and menu source seals,
 selected packages, matched boot artifacts and the board claim before constructing
 the client. `menu_policy` is only a pure check of the complete compiled companion,
