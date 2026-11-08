@@ -94,6 +94,16 @@ class GamePassTest(unittest.TestCase):
         self.assertEqual(sim.game_failures(report, 'oracle', opl2_expected=False), [])
 
 
+class StorePathTest(unittest.TestCase):
+    def test_fes_pc386_drives_override_cannot_resolve_inside_repository(self):
+        override = drives.REPOSITORY_ROOT / 'out' / 'test-pc386-game-drive-store'
+        with mock.patch.dict(os.environ, {'FES_PC386_DRIVES': str(override)}), \
+                mock.patch('sys.stderr', new_callable=io.StringIO) as stderr:
+            self.assertEqual(drives.main(['--list']), 1)
+        self.assertIn('inside the repository', stderr.getvalue())
+        self.assertFalse(override.exists())
+
+
 class NameTest(unittest.TestCase):
     def test_dos_names(self):
         self.assertEqual(drives.dos_name('wolf3d.exe'), 'WOLF3D.EXE')

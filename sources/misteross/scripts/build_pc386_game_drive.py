@@ -71,6 +71,7 @@ from scripts import build_pc386_freedos_image as freedos
 from scripts import test_fes_i386_test386 as test386
 
 ROOT = freedos.ROOT
+REPOSITORY_ROOT = Path(__file__).resolve().parents[3]
 MANIFEST = ROOT / 'cores/fes-pc386/sim/game-drives.toml'
 STORE = Path(os.environ.get('FES_PC386_DRIVES', Path.home() / 'fes-drives/pc386'))
 PROFILE = 'games'
@@ -80,6 +81,23 @@ HEX = re.compile(r'^[0-9a-f]{8,64}$')
 
 class DriveError(RuntimeError):
     pass
+
+
+def checked_store(path: Path) -> Path:
+    """Resolve the private store and refuse to place game images in FES."""
+    store = path.expanduser().resolve()
+    repository = REPOSITORY_ROOT.resolve()
+    try:
+        store.relative_to(repository)
+    except ValueError:
+        return store
+    raise DriveError(f'FES_PC386_DRIVES resolves inside the repository: {store}')
+
+
+def configured_store() -> Path:
+    """The configured drive store, checked after resolving symlinks and '..'."""
+    default = Path.home() / 'fes-drives/pc386'
+    return checked_store(Path(os.environ.get('FES_PC386_DRIVES', default)))
 
 
 def sha256(path: Path) -> str:
@@ -289,10 +307,11 @@ def free_bytes(volume: str, env: dict) -> int:
 
 def build(name: str, data: dict, download: bool = False, jobs: int = 4) -> Path:
     drive = data['drives'][name]
+    store = checked_store(STORE)
     # The store holds user-supplied commercial programs: private to the account.
-    STORE.mkdir(mode=0o700, parents=True, exist_ok=True)
-    os.chmod(STORE, 0o700)
-    work = STORE / '.work' / name
+    store.mkdir(mode=0o700, parents=True, exist_ok=True)
+    os.chmod(store, 0o700)
+    work = store / '.work' / name
     work.parent.mkdir(mode=0o700, exist_ok=True)
     os.chmod(work.parent, 0o700)
     try:
@@ -318,7 +337,7 @@ def build(name: str, data: dict, download: bool = False, jobs: int = 4) -> Path:
         shutil.rmtree(files, ignore_errors=True)
         free = free_bytes(volume, env)
         digest = sha256(disk)
-        image = STORE / f'{digest}.img'
+        image = store / f'{digest}.img'
         shutil.copyfile(disk, image.with_suffix('.partial'))
         image.with_suffix('.partial').rename(image)
         record = {
@@ -335,7 +354,7 @@ def build(name: str, data: dict, download: bool = False, jobs: int = 4) -> Path:
             'distribution': 'user-supplied programs: never commit, upload or distribute',
         }
         image.with_suffix('.json').write_text(json.dumps(record, indent=1) + '\n')
-        links = STORE / 'by-name'
+        links = store / 'by-name'
         links.mkdir(exist_ok=True)
         for suffix in ('.img', '.json'):
             link = links / f'{name}{suffix}'
@@ -349,7 +368,7 @@ def build(name: str, data: dict, download: bool = False, jobs: int = 4) -> Path:
 def resolve(reference: str, store: Path | None = None, verify: bool = True) -> tuple[Path, dict]:
     """A drive by path, by SHA-256 (or a unique prefix of 8+ digits) or by
     name in the store; returns the image and its record, the bytes checked."""
-    store = store or STORE
+    store = checked_store(store if store is not None else STORE)
     path = Path(reference).expanduser()
     if path.suffix == '.img' and path.is_file():
         image = path.resolve()
@@ -396,14 +415,15 @@ def main(argv=None) -> int:
     parser.add_argument('--resolve', metavar='DRIVE', help='print the image path and record of a drive')
     args = parser.parse_args(argv)
     try:
+        store = configured_store()
         if args.resolve:
-            image, record = resolve(args.resolve)
+            image, record = resolve(args.resolve, store=store)
             print(json.dumps({'image': str(image), **record}, indent=1))
             return 0
         data = manifest(args.manifest)
         if args.list:
             for name, drive in data['drives'].items():
-                built = (STORE / 'by-name' / f'{name}.img')
+                built = (store / 'by-name' / f'{name}.img')
                 print(f'{name}: {len(drive.get("titles", []))} titles, {drive["cylinders"]} cylinders, '
                       f'built {built.resolve().stem if built.exists() else "never"}')
             return 0

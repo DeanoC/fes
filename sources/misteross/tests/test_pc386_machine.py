@@ -572,6 +572,20 @@ class BootReportTest(unittest.TestCase):
 
 
 @unittest.skipUnless(shutil.which(os.environ.get('CXX', 'c++')), 'requires a C++ compiler')
+class DosPromptTest(unittest.TestCase):
+    def test_game_prompt_recognition(self):
+        with tempfile.TemporaryDirectory(prefix='pc386-dos-prompt-') as directory:
+            binary = Path(directory) / 'dos-prompt-test'
+            source = sim.CORE / 'sim/dos_prompt_tb.cpp'
+            compiler = shutil.which(os.environ.get('CXX', 'c++'))
+            result = subprocess.run([compiler, '-std=c++17', '-Wall', '-Wextra', '-Werror', str(source), '-o', str(binary)],
+                                    capture_output=True, text=True)
+            self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+            result = subprocess.run([str(binary)], capture_output=True, text=True)
+            self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+
+
+@unittest.skipUnless(shutil.which(os.environ.get('CXX', 'c++')), 'requires a C++ compiler')
 class SmcStaleTrackerTest(unittest.TestCase):
     def test_fetch_timing_and_multiple_writer_attribution(self):
         with tempfile.TemporaryDirectory(prefix='pc386-smc-stale-') as directory:
