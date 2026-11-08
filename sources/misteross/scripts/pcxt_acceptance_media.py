@@ -51,12 +51,7 @@ def validate(data, scenario, base=None):
     if sha(program) != spec['program_sha256']:
         raise ValueError('acceptance executable digest mismatch')
     files[spec['name']] = program
-    original = freedos.FILES
-    try:
-        freedos.FILES = (*original, spec['name'])
-        detail = freedos.validate_image(data, base[:512], files)
-    finally:
-        freedos.FILES = original
+    detail = freedos.validate_image(data, base[:512], files, (*freedos.FILES, spec['name']))
     return {'image_sha256': sha(data), 'base_sha256': sha(base),
             'program_sha256': sha(program), 'files': detail['files']}
 
