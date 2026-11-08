@@ -22,7 +22,8 @@ from scripts.build_fes_pong import (
     create_build_record,
     validate_build_evidence,
 )
-from scripts.export_core_package import build_identity
+from scripts.core_package import package_identity, read_package
+from scripts.export_core_package import _archive_bytes, build_identity
 from scripts.lockfile import load_lock
 
 
@@ -964,7 +965,14 @@ class BuildFesPongTests(unittest.TestCase):
                 ])
                 self.assertEqual(payload.resolve(), (output / "core.rbf").resolve())
                 self.assertEqual(destination.resolve(), package_store.resolve())
-                return package_store / ("f" * 64)
+                payload_bytes = payload.read_bytes()
+                package_id = package_identity(manifest, payload_bytes, format_version=2)
+                package_dir = package_store / package_id
+                package_dir.mkdir(parents=True)
+                (package_dir / "manifest.toml").write_bytes(manifest)
+                (package_dir / "core.rbf").write_bytes(payload_bytes)
+                package_dir.with_suffix(".fcore").write_bytes(_archive_bytes(manifest, payload_bytes))
+                return package_dir
 
             init_source(root)
             def route(**kwargs):
@@ -985,8 +993,32 @@ class BuildFesPongTests(unittest.TestCase):
             ):
                 result = build(root, package_store)
 
-            self.assertEqual(result, package_store / ("f" * 64))
+            self.assertEqual(result, package_store / result.name)
+            self.assertEqual(read_package(result), read_package(result.with_suffix(".fcore")))
             export_mock.assert_called_once()
+
+    def test_pong_package_fixture_requires_matching_directory_and_canonical_archive(self) -> None:
+        manifest = (ROOT / "tests/fixtures/core-bundle-v2/manifests/valid-basic.toml").read_bytes()
+        payload = (ROOT / "tests/fixtures/core-bundle-v2/payloads/fes-fixture.rbf").read_bytes()
+        with tempfile.TemporaryDirectory() as directory:
+            store = Path(directory)
+            package_id = package_identity(manifest, payload, format_version=2)
+            package_dir = store / package_id
+            package_dir.mkdir()
+            (package_dir / "manifest.toml").write_bytes(manifest)
+            (package_dir / "core.rbf").write_bytes(payload)
+            archive_path = package_dir.with_suffix(".fcore")
+            archive_path.write_bytes(_archive_bytes(manifest, payload))
+            fixture = read_package(package_dir)
+            self.assertEqual(fixture.fields["core"]["id"], "fes.pong")
+
+            self.assertEqual(
+                build_fes_pong.validate_exported_package(package_dir, manifest, payload),
+                package_dir,
+            )
+            archive_path.write_bytes(b"invalid archive")
+            with self.assertRaisesRegex(BuildError, "canonical package"):
+                build_fes_pong.validate_exported_package(package_dir, manifest, payload)
 
     def test_failed_timing_never_exports(self) -> None:
         with tempfile.TemporaryDirectory() as directory:

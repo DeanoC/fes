@@ -72,7 +72,8 @@ type child struct {
 	role    string
 	started time.Time
 	// exited is when Wait returned. It is written before done closes.
-	exited time.Time
+	exited          time.Time
+	failedReadiness bool
 }
 
 // ProcessController directly parents the kit processes. It never relies on
@@ -128,6 +129,16 @@ type ProcessController struct {
 	// The replacement agent closes execution claims before it serves, and Start
 	// confirms that fence before the launcher probe.
 	holdRecoveryClaims bool
+	// Named-service restart probes and budgets are injectable for offline
+	// lifecycle tests. Production leaves them nil and uses the local runtime,
+	// host health API and launcher readiness marker.
+	serviceRestartStable        time.Duration
+	serviceRestartBudget        time.Duration
+	serviceRestartPoll          time.Duration
+	serviceRestartTargetIDPath  string
+	serviceRestartRuntimeProbe  func(context.Context, *child) (nativeStatus, error)
+	serviceRestartHostProbe     func(context.Context, string) error
+	serviceRestartLauncherProbe func(context.Context, *child, string) error
 }
 
 type groupReap struct {
@@ -847,7 +858,7 @@ func (c *ProcessController) restartExitedLauncherLocked() error {
 	}
 	c.clearLauncherReap()
 	c.launcherRestart = time.Now()
-	if lived < launcherStableLife {
+	if launcher.failedReadiness || lived < launcherStableLife {
 		if c.launcherDelay < launcherRestartMin {
 			c.launcherDelay = launcherRestartMin
 		} else if c.launcherDelay < launcherRestartMax {

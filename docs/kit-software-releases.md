@@ -235,6 +235,57 @@ apart from the service group above:
 - **Proofs.** The operator acknowledgement and power-cycle proofs check the
   same three services whether a host is running, restarting or absent.
 
+### Root-only named-service restart
+
+The base supervisor also exposes a local operator command for one-service
+diagnostics:
+
+```sh
+fes-kit-software restart-service fogcast-kit --request-id <64-lowercase-hex>
+fes-kit-software restart-service fogcast-tenfoot --request-id <64-lowercase-hex>
+fes-kit-software restart-service fogcast-tenfoot --request-id <64-lowercase-hex> \
+  --target-id 73dc9f5f-1a12-4a95-a820-a9b4e600769a \
+  --package-id 9be4b59993cfd0ac6b347da42decb340235c570d310901468778d6dad15d0120 \
+  --runtime-generation <current-generation>
+```
+
+The command requires root and talks to `/run/fogcast/software-restart.sock`, a
+mode-0600 Unix socket whose peer UID is checked by the supervisor. It is not
+forwarded through the replaceable agent or network API. The only accepted
+service names are `fogcast-kit` and `fogcast-tenfoot`; the caller cannot pass a
+PID, executable, arguments or environment. The supervisor restarts its own
+child from the verified active bundle and serializes the request with software
+operations and recovery ticks. It refuses a queued activation, unreleased
+operation, blocked appliance gate, maintenance reservation, uncertain execution
+fence, missing service, stale child identity or active group recovery. It does
+not acquire/release a lease, change selection/generation, or touch runtime and
+agent processes.
+
+The default session policy requires native idle and a free execution lease. For
+the #1490 continuity diagnostic, a live session is allowed only when the
+request supplies the exact Pong target
+`73dc9f5f-1a12-4a95-a820-a9b4e600769a`, package
+`9be4b59993cfd0ac6b347da42decb340235c570d310901468778d6dad15d0120`, and current
+runtime generation. The supervisor rechecks runtime and lease state through
+the operation and readiness window; a change aborts the request and lets the
+existing recovery path take ownership.
+
+Success requires the old process group to be empty, a different PID/start-time
+identity, unchanged sibling identities, and ten uninterrupted seconds of
+functional readiness. Tenfoot must publish its frame-ack readiness marker for
+the replacement PID and active bundle. `fogcast-kit` must answer its local
+health API with the expected target reachable and ready. A failed readiness
+attempt is stopped and left to the existing one-to-thirty-second backoff.
+Results, including refusals and interrupted requests, are kept on FESDATA3 for
+30 days, up to 256 records. Reusing an ID with the same request returns the
+stored result; changing the body under that ID is a conflict. If the supervisor
+restarts mid-operation, the result becomes `interrupted` and that request is
+never replayed.
+
+After the software-state gate passes, a named restart has a 202-second request
+deadline: the existing 22-second process-group stop bound plus the normal
+180-second functional-readiness budget.
+
 Bundle verification completes before the service startup clock begins, while
 the current group is still running. Each start checks that the verified tree
 has not changed. Stopping services, starting replacements and observing ten

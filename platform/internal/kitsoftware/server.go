@@ -18,15 +18,16 @@ import (
 // authenticates remote callers before proxying these routes. The same mutex
 // serializes queue/cancel with a worker tick so cancellation cannot race acquire.
 type Server struct {
-	snapshot     atomic.Pointer[Server]
-	Mu           sync.Mutex
-	Repository   Repository
-	Store        *software.Store
-	Factory      *software.Release
-	Admission    *UnixAdmission
-	Controller   serverController
-	BaseIdentity string
-	StorageError string
+	snapshot      atomic.Pointer[Server]
+	Mu            sync.Mutex
+	Repository    Repository
+	Store         *software.Store
+	Factory       *software.Release
+	Admission     *UnixAdmission
+	RestartLedger *ServiceRestartLedger
+	Controller    serverController
+	BaseIdentity  string
+	StorageError  string
 	// ExecutionFenced is set when the agent's execution fence may be closed and
 	// the durable queue is not yet known to match. That includes a lost /fence
 	// reply and a restore that failed after cancellation. Claims stay closed

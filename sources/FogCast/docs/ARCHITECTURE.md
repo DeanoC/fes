@@ -438,6 +438,12 @@ being inferred from a Git revision or silently retried through another path.
 Breaking API semantics require a new supported contract, not an arbitrary
 source revision comparison. Configuration is not rewritten to hide failures.
 
+The agent's local `/status` admission response also carries a read-only
+`execution_lease` snapshot (`state`, `generation`, and optional owner/purpose)
+for the root `fes-kit-software` supervisor. The supervisor uses it only to
+gate its allowlisted named-service restart; the snapshot does not carry a
+lease token and is not part of the bearer-authenticated software proxy.
+
 ## Agent runtime
 
 The agent uses only local runtime protocol 2 through `/run/mister-runtime.sock`.

@@ -13,7 +13,7 @@ if __package__ in (None, ""):
     sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from scripts.compiler_read_audit import guard_functional_source
-from scripts.core_package import MAX_PAYLOAD_SIZE, encode_manifest
+from scripts.core_package import MAX_PAYLOAD_SIZE, PackageError, encode_manifest, package_identity, read_package
 from scripts.functional_execution import FunctionalInvocation, source_roots_for_producer
 from scripts.export_core_package import build_identity, encode_build_record, export_package, functional_record_fields
 
@@ -321,7 +321,30 @@ def _build_after_record(
     if create_build_record(root, repository, revision, identities,
         identity_version=identity_version, execution=invocation.inputs) != record:
         raise BuildError("functional source inputs changed during build")
-    return export_package(manifest, output / "core.rbf", package_store)
+    package = export_package(manifest, output / "core.rbf", package_store)
+    return validate_exported_package(package, manifest, (output / "core.rbf").read_bytes())
+
+
+def validate_exported_package(directory: Path, expected_manifest: bytes, expected_payload: bytes) -> Path:
+    """Require the fresh Pong directory and canonical archive to match the build."""
+    directory = Path(directory)
+    try:
+        package = read_package(directory)
+        archive = read_package(directory.with_suffix(".fcore"))
+    except (OSError, PackageError) as exc:
+        raise BuildError(f"fresh Pong export is not a valid canonical package: {exc}") from exc
+    expected_id = package_identity(expected_manifest, expected_payload, format_version=2)
+    if (
+        directory.name != expected_id
+        or package.package_id != expected_id
+        or package.fields.get("format") != 2
+        or package.fields.get("core", {}).get("id") != "fes.pong"
+        or package.manifest_bytes != expected_manifest
+        or package.payload_bytes != expected_payload
+        or archive != package
+    ):
+        raise BuildError("fresh Pong export directory and canonical .fcore do not match the build")
+    return directory
 
 
 @guard_functional_source

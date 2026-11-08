@@ -180,11 +180,12 @@ func (a *Admission) Handler() http.Handler {
 			return
 		}
 		write(w, struct {
-			Maintenance   contract.MaintenanceStatus `json:"maintenance"`
-			RawIdleReady  bool                       `json:"raw_idle_ready"`
-			UpdateBlocked bool                       `json:"update_blocked"`
-			BundleID      string                     `json:"bundle_id"`
-		}{maintenance, a.Ready(r.Context()), a.UpdateBlocked(r.Context()), a.BundleID})
+			Maintenance    contract.MaintenanceStatus `json:"maintenance"`
+			ExecutionLease contract.Status            `json:"execution_lease"`
+			RawIdleReady   bool                       `json:"raw_idle_ready"`
+			UpdateBlocked  bool                       `json:"update_blocked"`
+			BundleID       string                     `json:"bundle_id"`
+		}{maintenance, a.Leases.Status(), a.Ready(r.Context()), a.UpdateBlocked(r.Context()), a.BundleID})
 	})
 	for _, action := range []string{"queue", "acquire", "cancel", "resume", "end", "fence", "clear-fence"} {
 		mux.HandleFunc("POST /"+action, func(w http.ResponseWriter, r *http.Request) {

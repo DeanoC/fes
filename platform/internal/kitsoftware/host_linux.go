@@ -76,7 +76,7 @@ func (c *ProcessController) superviseHostLocked() error {
 	if previous != nil {
 		// Grow the backoff on the life the host had; the wait before this
 		// restart is not stable life.
-		if previous.exited.Sub(previous.started) < launcherStableLife {
+		if previous.failedReadiness || previous.exited.Sub(previous.started) < launcherStableLife {
 			c.growHostDelay()
 		} else {
 			c.hostDelay = launcherRestartMin
