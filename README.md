@@ -14,7 +14,7 @@ control with captured HDMI. The
 exercises catalog Play/Stop, BASIC load/run/reload and software reboot.
 [Permanent Ethernet pairing](docs/validation/2026-11-04-de25-permanent-pairing/README.md)
 survives a kit reboot and host-service restart. Full normal-kit acceptance,
-including allocated in-play display and fault recovery, remains open.
+including display stress and broader fault recovery, remains open.
 The [ordinary ZX81 development-kit milestone](docs/validation/2026-11-08-de25-ordinary-dev-kit/README.md)
 records Deano's scoped expansion waiver; partial-persona loading remains
 unsupported and default-off pending [#1568](https://github.com/DeanoC/fes/issues/1568).

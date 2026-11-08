@@ -2,6 +2,14 @@
 
 Hardware-supported package paths: 0.
 
+The [2026-11-08 ordinary DE25 development record](../../../docs/validation/2026-11-08-de25-ordinary-dev-kit/README.md)
+adds exact-artifact native evidence for standard ZX81 on default-off bundle
+`61a4b0aa`: BASIC load/run/reload, Stop/relaunch, idle and active OS reboot,
+physical USB P input and one physical F12/Escape allocated-chooser cycle. It
+does not qualify diagnostic firmware for normal admission or arbitrary failure
+recovery. Partial-persona loading remains unsupported under #1568, explicitly
+waived only as an ordinary development-milestone blocker.
+
 | Capability | Software coverage | Hardware acceptance |
 | --- | --- | --- |
 | Format5 DE25 full-base/default-persona package parsing and optional format2 selected-persona admission, retained-file recheck and cross-reader identity | shared structural corpus, default/16K Python/Go receipt vectors, composed-load protocol and serialized Stop/fresh-load lifecycle tests; static dispatch stays default-off; explicit qualification builds additionally require the cold-start programmer contract | none; qualified static producer and physical qualification remain required |

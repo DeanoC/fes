@@ -14,6 +14,13 @@ that lifecycle. The [startup preparation record](../validation/2026-11-05-de25-s
 separates tested CPU/model behavior from normal package admission and physical
 configuration, which remain required.
 
+On 2026-11-08 Deano explicitly deferred physical partial-persona acceptance
+from the ordinary development-kit milestone. The hang remains tracked in
+[#1568](https://github.com/DeanoC/fes/issues/1568); normal development software
+keeps expansions disabled and its catalog offers ordinary ZX81 only. The
+[scoped waiver](../validation/2026-11-08-de25-ordinary-dev-kit/README.md)
+does not waive other qualification or transfer-safety requirements.
+
 The [3 November Terasic-based factory proof](../validation/2026-11-03-de25-terasic-managed-factory/README.md)
 now completes ordinary source compilation, sealed MENU admission, actual
 kernel/rootfs virtual boot, release, bootstrap and two-pass card construction.
@@ -32,6 +39,27 @@ full development-kit acceptance remains open as described below.
 | Shared kit operations | FES | Claim, idle/lease boundary, artifact identity and recovery logs usable without physical intervention for ordinary operations |
 
 ## Current native evidence
+
+The retained development setup now uses kernel `9cec7e77`, managed root
+`0858eef0`, diagnostic FIT `e649e2c6` and default-off bundle `61a4b0aa`,
+generation 1. Normal software install/activation and native executable
+authentication pass. Standard ZX81 `3da0f1df` passes Play, RAMTOP128, BASIC
+7/9/7, fresh HDMI, Stop/MENU and relaunch. One idle and one active-session OS
+reboot pass without physical intervention, preserving pairing, software,
+catalog and a saved-data probe. The current boot is
+`bd1544c0-9143-48a3-b43d-fc47860824a6`.
+
+Physical Kinesis USB input produces PRINT; physical F12/Escape opens and closes
+the allocated Change media chooser in the same session and package generation,
+restoring the PRINT line. This is one observed open/close cycle rather than
+display stress or arbitrary-failure qualification. The
+[current dated record](../validation/2026-11-08-de25-ordinary-dev-kit/README.md#software-reboot-physical-usb-and-in-play-menu)
+retains exact identities, captures and the remaining boundaries. The board is
+released at healthy MENU with this user-requested development setup retained;
+no main HIL baseline is promoted. Diagnostic firmware admission, broader
+failure recovery and untested peripheral capabilities remain open.
+
+## Earlier native evidence
 
 The bottom board TRWU8J8G runs managed FES Linux image `6de6a392` with the matched
 ABI3 kernel. Its recorded shared-kit software baseline is `a14a`. Normal software

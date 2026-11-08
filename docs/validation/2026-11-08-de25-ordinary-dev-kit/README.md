@@ -77,8 +77,64 @@ bypassed. Source and SDK producer identities remain separate in the receipt.
 Keep #1568 open until the repaired exact tuple passes empty/16K RAMTOP,
 BASIC load/run/reload, fresh HDMI, Stop/MENU and ordinary/reboot controls.
 The current diagnostic FIT still fails normal firmware admission. This record
-does not promote the board to a main HIL baseline or claim complete USB,
-audio, Bluetooth, allocated display or fault-recovery acceptance.
+does not promote the board to a main HIL baseline or claim complete peripheral,
+allocated-display stress or arbitrary-failure recovery acceptance. The bounded
+reboot, physical-keyboard and allocated-chooser checks below have since passed.
+
+## Software reboot, physical USB and in-play menu
+
+On the exact retained default-off bundle, one normal OS reboot from idle MENU
+passed in 58.01 seconds. A subsequent normal OS reboot from an active ordinary
+ZX81 session passed in 70.2 seconds, including native authentication. BASIC 7
+was captured before the active reboot and after a fresh launch in the new boot.
+The active case sent no explicit Stop before reboot and took over no execution
+lease. Both epochs returned to ten seconds of stable MENU readiness, with no
+power cycle, JTAG, card swap, host restart or kernel/root/FIT/QSPI change.
+
+| Reboot boundary | Boot ID |
+| --- | --- |
+| Initial retained development boot | `14916c6e-cca2-44aa-b4eb-0c756f54dd1f` |
+| After idle reboot | `b6c84cb2-f747-41ee-9839-774344cbd8b5` |
+| After active ZX81 reboot | `bd1544c0-9143-48a3-b43d-fc47860824a6` |
+
+Both new boots authenticated the pinned SSH key, stable Ethernet identity,
+kernel and FIT, four selected executables and actual runtime process, original
+data-volume UUID/geometry and a synced persistence probe. The selection stayed
+at bundle `61a4b0aa`, generation 1. The unchanged host reconnected and retained
+its catalog. The final ordinary launch/Stop returned to idle, lease-free MENU.
+The owned data probe was then removed. The passive UART recorder captured two
+firmware banners with no captured panic, RCU stall or partial-call trace and
+was retired with its port closed. See the [idle result](idle-reboot-result.json),
+[active result](active-reboot-result.json), [combined proof](complete.json)
+and [recorder retirement](retired-UART.json).
+
+Two private harness checks stopped before the active reboot: the first wrongly
+required idle readiness while the game was active; the second tried to serialize
+the session dataclass directly. Their failures remain retained. The continuation
+used the same already-running owned session, corrected the state check and
+locally verified serialization. No additional launch, firmware change or reboot
+request was made for those corrections. Exactly one active reboot was issued.
+
+The user then connected a Kinesis Freestyle KB800 keyboard, USB `058f:9410`,
+enumerated on the bottom board as `/dev/input/event1`. On a fresh ordinary
+launch, their physical **P** key produced the ZX81 **PRINT** keyword. Their
+physical **F12** opened FES's Change media chooser; **Escape** restored the
+same PRINT line and L cursor. No synthetic key events were sent in this case.
+Session, flight, package and package generation stayed unchanged; no media was
+selected or ejected. All before/after captures were visually inspected. This
+accepts one physical-input and chooser open/close cycle, without claiming the
+full keyboard matrix, display stress or crash recovery. Normal Stop afterward
+returned to MENU and the claim was released. See the [physical key result](physical-keyboard-result.json),
+[chooser result](physical-menu-result.json) and [final state](all-native-complete.json).
+
+![Physical P produces PRINT](after-P.png)
+
+![F12 opens Change media in the same session](after-F12.png)
+
+![Escape restores PRINT and the L cursor](after-Esc.png)
+
+Full private evidence, including the two pre-reboot harness refusals, is in
+`/data/fes-de25-main-integration-20261105/partial-start-investigation-20261108/ordinary-dev-reboot-acceptance/`.
 
 Powerboat evidence is retained beneath
 `/data/fes-de25-main-integration-20261105/partial-start-investigation-20261108/partial-secure-trace/native-trial/`:
