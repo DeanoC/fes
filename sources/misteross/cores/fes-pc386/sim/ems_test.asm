@@ -20,7 +20,8 @@
 ;   realloc   51h to 70 then 60 pages, with 42h following
 ;   names     53h names the handle, 54h01h finds it
 ;   move      57h conventional to expanded across a page boundary, back, an
-;             overlapping expanded move (92h, data correct) and an exchange
+;             overlapping expanded move (92h, data correct), an exchange,
+;             and 94h for a conventional side inside the page frame
 ;   errors    83h for a bad handle, 8Ah for a page past the end, 87h for more
 ;             pages than the board, 84h for function 55h
 ;   os        5Dh hands out a key on its first call and 01h then refuses 59h
@@ -479,6 +480,15 @@ move:   mov si, n_move
         mov es, [frame_seg]
         cmp dword [es:0x3e05], 0xa5a5a5a5
         mov byte [step], 12
+        jne .bad
+        ; a "conventional" side inside the page frame: 94h, nothing copied
+        mov word [region + 7], 0xfff0   ; E000:FFF0, the frame's top
+        mov word [region + 9], 0xe000
+        mov si, region
+        mov ax, 0x5700
+        int 0x67
+        mov byte [step], 13
+        cmp ah, 0x94
         jne .bad
         call ok
         jmp errors

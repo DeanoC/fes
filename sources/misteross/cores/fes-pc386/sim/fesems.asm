@@ -1056,10 +1056,21 @@ check_side:
         shl eax, 4
         movzx ecx, word [bx + 3]
         add eax, ecx
+        mov edx, eax                    ; EDX the start, EAX the end
         add eax, [mv_length]
         cmp eax, 0x100000
         ja .wrap
-        clc
+        cmp eax, edx                    ; an empty region touches nothing
+        je .fine
+        movzx ecx, word [frame_seg]     ; and not in the page frame, which is expanded memory
+        shl ecx, 4
+        cmp eax, ecx
+        jbe .fine
+        add ecx, 0x10000
+        cmp edx, ecx
+        jae .fine
+        mov ah, 0x94
+        stc
         ret
 .ems:   mov dx, [bx + 1]
         call check_handle
