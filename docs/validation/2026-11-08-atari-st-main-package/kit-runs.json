@@ -76,50 +76,50 @@
      {
       "first_board": "18:14:46",
       "last_move": "18:29:48",
-      "white_moves": 82,
-      "result": "no result: player script cap at 82 White moves, no five in a row on the board"
+      "result": "no result: player script cap reached (84 White stones on the board, no five in a row for either side)",
+      "white_stones_final_board": 84
      },
      {
       "first_board": "18:31:35",
       "last_move": "18:33:39",
-      "white_moves": 11,
-      "result": "Game won by White"
+      "result": "Game won by White",
+      "white_stones_final_board": 12
      },
      {
       "first_board": "18:35:48",
       "last_move": "18:40:31",
-      "white_moves": 28,
-      "result": "Game won by White"
+      "result": "Game won by White",
+      "white_stones_final_board": 29
      },
      {
       "first_board": "18:42:38",
       "last_move": "18:44:25",
-      "white_moves": 9,
-      "result": "Game won by White"
+      "result": "Game won by White",
+      "white_stones_final_board": 10
      },
      {
       "first_board": "18:46:36",
       "last_move": "18:47:51",
-      "white_moves": 6,
-      "result": "Game won by White"
+      "result": "Game won by White",
+      "white_stones_final_board": 7
      },
      {
       "first_board": "18:50:01",
       "last_move": "18:56:16",
-      "white_moves": 34,
-      "result": "Game won by White"
+      "result": "Game won by White",
+      "white_stones_final_board": 35
      },
      {
       "first_board": "18:58:24",
       "last_move": "19:03:04",
-      "white_moves": 23,
-      "result": "Game won by White"
+      "result": "Game won by White",
+      "white_stones_final_board": 24
      },
      {
       "first_board": "19:05:16",
       "last_move": "19:09:14",
-      "white_moves": 18,
-      "result": "Game won by White"
+      "result": "Game won by White",
+      "white_stones_final_board": 19
      }
     ],
     "board_play_seconds": 2384,
@@ -131,7 +131,8 @@
      "record_sha256": "0c39c15603843154cb193da7e796e582cfe237993c67e802b843e6daaddc91ca",
      "payload_sha256": "0805b45c30766924df4195c73e9b66169160d2d9dd657b81684347a4deb974fa",
      "disk": "unchanged gomoku base"
-    }
+    },
+    "count_method": "White stones counted on each game's final board (the winner's five in a row checked there); last_move is the time of the player's last logged move"
    },
    "lurking_horror": {
     "result": "PASS (entry m1b)",
@@ -235,38 +236,38 @@
      {
       "first_board": "20:35:55",
       "last_move": "20:37:30",
-      "white_moves": 13,
-      "result": "Game won by White"
+      "result": "Game won by White",
+      "white_stones_final_board": 14
      },
      {
       "first_board": "20:39:36",
       "last_move": "20:41:41",
-      "white_moves": 16,
-      "result": "Game won by White"
+      "result": "Game won by White",
+      "white_stones_final_board": 17
      },
      {
       "first_board": "20:43:48",
       "last_move": "20:44:47",
-      "white_moves": 8,
-      "result": "Game won by White"
+      "result": "Game won by White",
+      "white_stones_final_board": 9
      },
      {
       "first_board": "20:46:55",
       "last_move": "20:49:43",
-      "white_moves": 24,
-      "result": "Game won by White"
+      "result": "Game won by White",
+      "white_stones_final_board": 25
      },
      {
       "first_board": "20:51:51",
       "last_move": "20:55:18",
-      "white_moves": 26,
-      "result": "Game won by White"
+      "result": "Game won by White",
+      "white_stones_final_board": 27
      },
      {
       "first_board": "20:57:26",
       "last_move": "21:00:53",
-      "white_moves": 25,
-      "result": "Game won by White"
+      "result": "Game won by White",
+      "white_stones_final_board": 26
      }
     ],
     "board_play_seconds": 861,
@@ -277,7 +278,8 @@
      "record_sha256": "b523da6fd9fbe8f3a97c3c92b5bffe6d7a3cd0f61bf6307cbb04d9864734b443",
      "payload_sha256": "0805b45c30766924df4195c73e9b66169160d2d9dd657b81684347a4deb974fa",
      "disk": "unchanged gomoku base"
-    }
+    },
+    "count_method": "White stones counted on each game's final board (the winner's five in a row checked there); last_move is the time of the player's last logged move"
    },
    "lurking_horror": {
     "result": "PASS (entry m2b, checked launch and typing)",

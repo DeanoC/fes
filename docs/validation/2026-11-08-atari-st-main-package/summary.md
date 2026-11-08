@@ -95,12 +95,15 @@ with mouse packets.
 
 - **`m1` (18:13–19:10).** Eight launches.
   - Seven ended in "Game won by White".
-  - Game 1 reached 82 White moves and was stopped by the player script's
+  - Game 1 reached 84 White stones and was stopped by the player script's
     15-minute cap. Its final board (84 White, 85 Black) has no five in a
     row for either side, so it was a long game, not a missed result.
   - Board play totals 39:44.
-- **`m2` (20:34–21:01).** Six launches, all "Game won by White", after 13,
-  16, 8, 24, 26 and 25 White moves. Board play 14:21.
+- **`m2` (20:34–21:01).** Six launches, all "Game won by White", with 14,
+  17, 9, 25, 27 and 26 White stones on the final board. Board play 14:21.
+- **Counts.** Stone counts are read from each game's final board, where the
+  winner's five in a row is also checked. `m1`'s seven wins have 12, 29, 10,
+  7, 35, 24 and 19 White stones.
 - **First board frame.** It is byte-identical after all 14 launches
   (`4db2dd70…`), the same frame as on the factory package.
 - **Speed.** In `m1` the player script took 10–15 s per move, against about
