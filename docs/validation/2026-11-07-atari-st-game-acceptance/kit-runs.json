@@ -33,6 +33,7 @@
      "g1",
      "g2",
      "g3",
+     "g4",
      "h3"
     ]
    }
@@ -357,7 +358,7 @@
    "removed_trees": 2,
    "gomoku": {
     "case": "gomoku run 1",
-    "result": "PASS",
+    "result": "INCONCLUSIVE (about 8.5 min of stone play, short of the 10-minute minimum; replaced by g4)",
     "game_id": "fpga-gomoku-1528-r1-3ffffb498ed0",
     "session": "launch 21:16:24; game 1 ends 21:22:00; stop 21:28:13, relaunch 21:28:52, game 2 ends 21:31:15; game 3 (program Restart) ends 21:33:01; stop 21:33:21",
     "games": [
@@ -527,6 +528,108 @@
      "g3-audio": "1a4b8fd9596fac3f0ad83b945993e6b324b5c5ea6a1220274a5f8e34c233c9e2",
      "g3-audio2": "5d9f05d265585bb0277a1791f5ac6f3c234531a2189b80dded8bcecef9b9bdec"
     }
+   }
+  },
+  "g4": {
+   "kit": "A",
+   "date": "2026-11-08",
+   "claimed": "15:54 EET",
+   "released": "16:33 EET",
+   "removed_trees": 2,
+   "gomoku": {
+    "case": "gomoku run 1 (replaces g1)",
+    "result": "PASS",
+    "game_id": "fpga-gomoku-1528-r4-35687309c9ce",
+    "session": "audio and video from 15:55:07; ten Stop + library launch + desktop launch cycles; stop 16:33:02",
+    "games": [
+     {
+      "first_board": "15:56:37",
+      "last_move": "15:58:15",
+      "white_moves": 15,
+      "result": "Game won by Black"
+     },
+     {
+      "first_board": "16:00:16",
+      "last_move": "16:01:02",
+      "white_moves": 6,
+      "result": "Game won by White"
+     },
+     {
+      "first_board": "16:03:04",
+      "last_move": "16:03:44",
+      "white_moves": 5,
+      "result": "Game won by White"
+     },
+     {
+      "first_board": "16:05:46",
+      "last_move": "16:09:34",
+      "white_moves": 34,
+      "result": "Game won by Black"
+     },
+     {
+      "first_board": "16:11:36",
+      "last_move": "16:12:30",
+      "white_moves": 7,
+      "result": "Game won by White"
+     },
+     {
+      "first_board": "16:14:33",
+      "last_move": "16:15:29",
+      "white_moves": 8,
+      "result": "Game won by White"
+     },
+     {
+      "first_board": "16:17:32",
+      "last_move": "16:18:31",
+      "white_moves": 8,
+      "result": "Game won by White"
+     },
+     {
+      "first_board": "16:20:33",
+      "last_move": "16:23:29",
+      "white_moves": 28,
+      "result": "Game won by White"
+     },
+     {
+      "first_board": "16:25:32",
+      "last_move": "16:26:51",
+      "white_moves": 11,
+      "result": "Game won by Black"
+     },
+     {
+      "first_board": "16:28:54",
+      "last_move": "16:32:23",
+      "white_moves": 33,
+      "result": "Game won by Black"
+     }
+    ],
+    "board_play": "17 min 25 s (first board frame to last move, summed)",
+    "disk_record_payload_sha256": "0805b45c30766924df4195c73e9b66169160d2d9dd657b81684347a4deb974fa (unchanged base)",
+    "first_board_frame_after_each_launch": "4db2dd70a7de7d88714f63a6b81effe449e881003553d92ca4435aacbe27c29c (all ten)",
+    "frames": {
+     "g4-game1-end": "a1ff4d175c0ef2ee37bd3cfb957e323b9954b8d6330c37cd8c1403b545df9cae",
+     "g4-game1-start": "4db2dd70a7de7d88714f63a6b81effe449e881003553d92ca4435aacbe27c29c",
+     "g4-game10-end": "40a6803081872178828ca45e24f1206df677fe5b23bcf36fc7bf9d37afeb93db",
+     "g4-game10-start": "4db2dd70a7de7d88714f63a6b81effe449e881003553d92ca4435aacbe27c29c",
+     "g4-game2-end": "ae00306214f4fe75437bcf688761c2d3338f431cca2824ae3967941eae2098bd",
+     "g4-game2-start": "4db2dd70a7de7d88714f63a6b81effe449e881003553d92ca4435aacbe27c29c",
+     "g4-game3-end": "e1c63793ea58619da0d60dc37a5a2662363febeaea41ce48cfbc8abe5c38232a",
+     "g4-game3-start": "4db2dd70a7de7d88714f63a6b81effe449e881003553d92ca4435aacbe27c29c",
+     "g4-game4-end": "65edf20c12f80ded96f2bd8e6506801a0ed4643b2ffe10c97b2cc396a2d146b4",
+     "g4-game4-start": "4db2dd70a7de7d88714f63a6b81effe449e881003553d92ca4435aacbe27c29c",
+     "g4-game5-end": "ab1d542cbcffca406c2f86e511611ee8db437a744b4261b1f2cf83d2dd790cdb",
+     "g4-game5-start": "4db2dd70a7de7d88714f63a6b81effe449e881003553d92ca4435aacbe27c29c",
+     "g4-game6-end": "6d769f24561af92b629974b48fdc8ec90906c11008a6915cff20830ae64c9c2d",
+     "g4-game6-start": "4db2dd70a7de7d88714f63a6b81effe449e881003553d92ca4435aacbe27c29c",
+     "g4-game7-end": "f035ea7ff08c755f860b51cd1ac084641c99b7d7977c3286d95e313162340d13",
+     "g4-game7-start": "4db2dd70a7de7d88714f63a6b81effe449e881003553d92ca4435aacbe27c29c",
+     "g4-game8-end": "ccc66e4d52abe265a17646d4f59f8f6ceb946123e83d4b3ba158b13d17821acd",
+     "g4-game8-start": "4db2dd70a7de7d88714f63a6b81effe449e881003553d92ca4435aacbe27c29c",
+     "g4-game9-end": "841fa9c120c9c17cba0dca1721f9a4ad00b5c5bf6d0950eec594d478094e5502",
+     "g4-game9-start": "4db2dd70a7de7d88714f63a6b81effe449e881003553d92ca4435aacbe27c29c"
+    },
+    "play_video_sha256": "2dc1ee9d1a8ea53a165a7d404410d7e3ca5125f30b3c6453cedc2bbad6eedab4",
+    "audio_sha256": "d5906d6959f2abed04c32a1a2bf3bc62ccf84a62b734b6d4e31373fdf668641e"
    }
   },
   "h3": {

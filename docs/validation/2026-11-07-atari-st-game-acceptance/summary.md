@@ -9,8 +9,8 @@ before its own runs.
 - **Kit B** ran five claims, `x1` to `x4` (`x3` launched nothing), and on
   8 November a sixth, `n1`, for case 4.
 - **Kit A** ran three claims: `g1` and `g2` for case 2b, and `h3` for a second
-  full Lurking Horror run. On 8 November a fourth, `g3`, replaced `g2`, which
-  had too little play.
+  full Lurking Horror run. On 8 November two more Gomoku claims, `g4` and
+  `g3`, replaced `g1` and `g2`, which had too little stone play.
 
 All of them used the same sealed package, user-supplied TOS 1.04 and private
 disks. Hashes are in [`kit-runs.json`](kit-runs.json).
@@ -19,8 +19,8 @@ disks. Hashes are in [`kit-runs.json`](kit-runs.json).
 each, with at least 10 minutes of play per run and a declared objective:
 joystick (Xenon), mouse (Gomoku) and keyboard with a disk save (The Lurking
 Horror). Both Lurking Horror passes match Hatari's saved disk except one
-directory time byte. On 8 November, `g3` replaced a Gomoku run that had too
-little play, case 4 added a disk swap inside a running
+directory time byte. On 8 November, `g4` and `g3` replaced two Gomoku runs
+that had too little play, case 4 added a disk swap inside a running
 session (Terramex, two launches), and the 4 differing `x4` save bytes were
 traced to the game's own randomness. Items below are still open, so this PR
 refers to #1528 and leaves closing it to review.
@@ -29,7 +29,7 @@ refers to #1528 and leaves closing it to review.
 | --- | --- | --- | --- |
 | 1. Xenon (joystick) | **PASS** (`x2`); `x1` stopped early by a physical kit fault, kept as INCONCLUSIVE | **PASS** (`x4`) | **PASS** |
 | 2. Logical (mouse) | **INCONCLUSIVE** (`x2`): launched by mouse from the desktop, but play was never started | **INCONCLUSIVE** (`x4`): same | **INCONCLUSIVE**, replaced by 2b |
-| 2b. Gomoku and Renju (mouse) | **PASS** (`g1`): three games won to "Game won by White" | **PASS** (`g3`, 8 November): nine complete games, 11 min 50 s of board play. `g2`: three games won, but only about 6 minutes of play, so INCONCLUSIVE | **PASS** |
+| 2b. Gomoku and Renju (mouse) | **PASS** (`g4`, 8 November): ten complete games, 17 min 25 s of board play. `g1`: three games won, but only about 8.5 minutes of stone play, so INCONCLUSIVE | **PASS** (`g3`, 8 November): nine complete games, 11 min 50 s of board play. `g2`: three games won, but only about 6 minutes of play, so INCONCLUSIVE | **PASS** |
 | 3. The Lurking Horror (keyboard, save) | **PASS** (`x2`): the saved disk matches Hatari except one directory time byte | **PASS** (`h3`, Kit A): same match. `x4` (Kit B): its 4 differing save bytes are an expected random outcome that Hatari reproduces byte for byte; INCONCLUSIVE only for its 8 minutes of play | **PASS** |
 | 4. Terramex (disk swap, joystick) | **PASS** (`n1`, launch 1): disk 2 inserted into the running session at the game's prompt; about 14 minutes of play | **PASS** (`n1`, launch 2, after Stop and relaunch): disk 1 back in the drive, swapped again; about 11 minutes of play | **PASS** |
 
@@ -203,6 +203,9 @@ The panel then reads "Next to play White (that's you.)", as in Hatari.
      (21:17:44) to game 3's last move (21:32:38), less the Stop and relaunch.
      About 8.5 minutes of that was stone play. The rest was mouse work in the
      Game menu and its alert, which found the button behaviour below.
+  5. Counted by stone play, the measure used for `g3` and `g4`, `g1` is short
+     of the 10-minute minimum, so it is INCONCLUSIVE. `g4` replaces it as
+     run 1.
 - **`g2` (Kit A, 21:35–21:45 EET).** Three games, each from a Stop and library
   relaunch. All three ended in "Game won by White", after 7, 18 and 20 White
   moves. The record first called this about 10 minutes of play, but that was
@@ -223,9 +226,17 @@ The panel then reads "Next to play White (that's you.)", as in Hatari.
      wait-loop slip in the runner. That time is not counted.
   5. The capture is in two segments, `g3-play`/`g3-audio` and
      `g3-play2`/`g3-audio2`.
+- **`g4` (Kit A, 8 November, 15:54–16:33 EET).** It replaces `g1` as run 1,
+  played the same way as `g3`.
+  1. Ten games, each from a Stop and library relaunch and the desktop launch.
+  2. Six ended in "Game won by White", after 6, 5, 7, 8, 8 and 28 White
+     moves. Four ended in "Game won by Black", after 15, 34, 11 and 33 White
+     moves.
+  3. Board play is 17 min 25 s, measured as for `g3`.
 - **What matches across runs.** The first board frame after each library
-  launch is byte-identical in the 13 launches captured the same way: `g1`
-  game 2, all three `g2` games and all nine `g3` games (`4db2dd70…`). Each
+  launch is byte-identical in the 23 launches captured the same way: `g1`
+  game 2, all three `g2` games, all nine `g3` games and all ten `g4` games
+  (`4db2dd70…`). Each
   run's disk record still holds the unchanged base image: the program writes
   nothing.
 
@@ -393,7 +404,7 @@ happens mid-level.
   created before its file listing.
 - **`x3`.** Its library-entry step failed before any launch, so it launched
   nothing and left nothing.
-- **Kit A, `g1`, `g2`, `h3` and `g3`.** Each removed the two trees it created (an
+- **Kit A, `g1`, `g2`, `h3`, `g3` and `g4`.** Each removed the two trees it created (an
   empty `core-data` namespace directory and its disk record) before its file
   listing.
 - **`n1` (8 November).** Night Shift and Terramex ran in one claim, with a
@@ -403,8 +414,8 @@ happens mid-level.
 - **Final state.** Kit B was left FREE at 20:51 on software `a8cd30c4` and
   image `f904961e`, with the `usb-storage.quirks` line intact. Kit A was left
   FREE at 22:25 on its recovery baseline. After `n1`, Kit B was left FREE at
-  10:40 on 8 November, on the same baseline with no reboot. After `g3`, Kit A
-  was left FREE at 15:46 on 8 November, on software `4efd34bf` and image
-  `31b39063` with no reboot.
+  10:40 on 8 November, on the same baseline with no reboot. After `g3` and `g4`,
+  Kit A was left FREE at 15:46 and 16:33 on 8 November, on software
+  `4efd34bf` and image `31b39063` with no reboot.
 - **What stays on Powerboat.** Captures (`.mkv`, `.wav`, frames), disk records,
   the Hatari runs and the tools are in `~/fes-scratch/st1528`.

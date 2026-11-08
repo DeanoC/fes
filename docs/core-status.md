@@ -297,10 +297,9 @@ host. Results:
   when it starts, so a wandering character ended in another room. Hatari
   reproduces that save byte for byte, so the bytes are not a core defect.
 - **Gomoku and Renju (mouse).** Passes two Kit A runs: launched from the GEM
-  desktop with the mouse, then complete games played to their result (three
-  in the first run, nine in the second). An earlier second run won its games
-  but had only about 6 minutes of play, so it is INCONCLUSIVE and was
-  replaced.
+  desktop with the mouse, then complete games played to their result (ten in
+  one run, nine in the other). Two earlier runs won their games but had under
+  10 minutes of stone play, so they are INCONCLUSIVE and were replaced.
 - **Logical (mouse).** Launches from the GEM desktop with the mouse, but play
   was never started, so the case is INCONCLUSIVE.
 - **Terramex (disk swap, joystick).** Passes two launches on Kit B. At the
