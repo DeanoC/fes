@@ -423,6 +423,8 @@ and the agent was idle with a free lease.
   7 record directories made by these runs were removed (game IDs
   `xt1529-*`, found by their record headers). `s3`'s new-path list is empty.
 - No software was installed and no image was changed on either kit. The
-  only reboot was Deano's cold power cycle of Kit A in `pc1`.
+  only reboot this qualification made was Deano's cold power cycle of Kit A
+  in `pc1`. Deano's power cycle of Kit B between `s2` and `s3` was for the
+  Atari ST session, outside this qualification.
 - The last PC/XT launch was a normal cold boot, so the next PC/XT user does
   not start from the #1534 warm-boot state.
