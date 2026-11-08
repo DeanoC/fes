@@ -83,6 +83,26 @@ userspace clear operation. Built-in protected suppliers keep the failed
 manager and its buffers alive for that kernel epoch. This is not an SDM abort,
 DMA drain or proof that reboot fences a failed transfer. Synchronous secure
 calls and shared-service mutex waits still need qualification.
+
+The same DE25 profile now allocates service buffers through
+`dma_alloc_coherent` on the service device with a 29-bit mask. It shares the
+DMA API's IOVA allocator instead of attaching a second allocator to the DMA
+domain. The entire returned range must fit the SDM's 512 MiB address window;
+allocation or range failure returns an error without publishing a buffer.
+The manager orders coherent writes before submission and does not apply a
+second streaming mapping. Buffer return still requires the existing firmware
+completion path; uncertain transfers retain their storage. Unknown frees warn
+without corrupting the global buffer list, and teardown leaves the DMA API's
+domain under framework ownership.
+
+This adapts [Altera's upstream coherent-buffer support](https://github.com/torvalds/linux/commit/e71c3dea1f60fc9039120f62965bfa6b0bb5a2d1)
+to the locked Terasic driver's existing raw-IOVA completion lookup and SMC
+offset convention. The source hashes bind both suppliers together. The
+allocation fault/boundary test and AArch64 compilation are off-board checks;
+they do not establish native partial programming or identify the retained
+board stall's cause. A new kernel changes its notes and requires matching
+image metadata and fresh physical acceptance.
+
 The [actual-function proofs](../de25-fpga/README.md) exercise the selected source
 and retain hanging original controls and a retry regression. Normal runtime
 admission remains closed.

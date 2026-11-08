@@ -10,40 +10,54 @@
 +	bool config_uncertain;
 +	bool config_active;
 +	unsigned long write_deadline;
-@@ -221,0 +226,6 @@
+@@ -139 +143,2 @@
+-			if (priv->is_smmu_enabled == true)
++			if (priv->is_smmu_enabled &&
++			    !IS_ENABLED(CONFIG_FES_DE25_DMA_PLATFORM))
+@@ -221,0 +227,6 @@
 +	/* A stopped worker is not a fence for an uncertain SDM transfer.
 +	 * Keep its buffers and reject even a fresh userspace loader instance.
 +	 */
 +	if (IS_ENABLED(CONFIG_FES_DE25_DMA_PLATFORM) && priv->config_uncertain)
 +		return -EIO;
 +
-@@ -237,0 +248,5 @@
+@@ -237,0 +249,5 @@
 +	if (IS_ENABLED(CONFIG_FES_DE25_DMA_PLATFORM)) {
 +		priv->config_uncertain = true;
 +		priv->config_active = true;
 +		priv->status = 0;
 +	}
-@@ -253,0 +269,5 @@
+@@ -253,0 +270,5 @@
 +	if (IS_ENABLED(CONFIG_FES_DE25_DMA_PLATFORM) &&
 +	    test_and_clear_bit(SVC_STATUS_ERROR, &priv->status)) {
 +		ret = -EFAULT;
 +		goto init_error;
 +	}
-@@ -258,0 +279,3 @@
+@@ -258,0 +280,3 @@
 +	if (IS_ENABLED(CONFIG_FES_DE25_DMA_PLATFORM))
 +		priv->write_deadline = jiffies + msecs_to_jiffies(30000);
 +
-@@ -266,0 +290,2 @@
+@@ -266,0 +291,2 @@
 +	if (IS_ENABLED(CONFIG_FES_DE25_DMA_PLATFORM))
 +		priv->config_active = false;
-@@ -328,0 +354,6 @@
+@@ -302,2 +328,7 @@
+-	if (priv->is_smmu_enabled == true)
+-		priv->svc_bufs[i].dma_addr = dma_map_single(dev, svc_buf, SVC_BUF_SIZE, DMA_TO_DEVICE);
++	if (priv->is_smmu_enabled) {
++		if (IS_ENABLED(CONFIG_FES_DE25_DMA_PLATFORM))
++			dma_wmb();
++		else
++			priv->svc_bufs[i].dma_addr = dma_map_single(dev, svc_buf,
++							 SVC_BUF_SIZE, DMA_TO_DEVICE);
++	}
+@@ -328,0 +360,6 @@
 +	unsigned long deadline = priv->write_deadline;
 +	unsigned long remaining, now;
 +	bool bounded = IS_ENABLED(CONFIG_FES_DE25_DMA_PLATFORM);
 +
 +	if (bounded && !priv->config_active)
 +		return -EIO;
-@@ -334,0 +366,7 @@
+@@ -334,0 +372,7 @@
 +		/* Bound total transfer time, including full queues and callbacks.
 +		 * This is not an SDM abort or proof that its DMA has drained.
 +		 */
@@ -51,7 +65,7 @@
 +			ret = -ETIMEDOUT;
 +			break;
 +		}
-@@ -339,5 +377,12 @@
+@@ -339,5 +383,12 @@
 -			if (sent < 0)
 -				continue;
 -
@@ -69,7 +83,7 @@
 +				count -= sent;
 +				buf += sent;
 +			}
-@@ -354,0 +400,9 @@
+@@ -354,0 +406,9 @@
 +		remaining = S10_BUFFER_TIMEOUT;
 +		if (bounded) {
 +			now = jiffies;
@@ -79,7 +93,7 @@
 +			}
 +			remaining = min(remaining, deadline - now);
 +		}
-@@ -356,2 +410,7 @@
+@@ -356,2 +416,7 @@
 -				&priv->status_return_completion,
 -				S10_BUFFER_TIMEOUT);
 +				&priv->status_return_completion, remaining);
@@ -89,25 +103,25 @@
 +			ret = -EFAULT;
 +			break;
 +		}
-@@ -379 +438,3 @@
+@@ -379 +444,3 @@
 -	if (ret < 0)
 +	if (ret < 0) {
 +		if (bounded)
 +			priv->config_active = false;
-@@ -380,0 +442 @@
+@@ -380,0 +448 @@
 +	}
-@@ -390 +452,3 @@
+@@ -390 +458,3 @@
 -	unsigned long timeout;
 +	unsigned long timeout, deadline, now;
 +	bool bounded = IS_ENABLED(CONFIG_FES_DE25_DMA_PLATFORM);
 +	bool completed = false;
-@@ -391,0 +456,3 @@
+@@ -391,0 +462,3 @@
 +
 +	if (bounded && !priv->config_active)
 +		return -EIO;
-@@ -396,0 +464 @@
+@@ -396,0 +470 @@
 +	deadline = jiffies + timeout;
-@@ -398,0 +467,8 @@
+@@ -398,0 +473,8 @@
 +		if (bounded) {
 +			now = jiffies;
 +			if (time_after_eq(now, deadline)) {
@@ -116,7 +130,7 @@
 +			}
 +			timeout = deadline - now;
 +		}
-@@ -405,0 +482,8 @@
+@@ -405,0 +488,8 @@
 +		if (bounded) {
 +			now = jiffies;
 +			if (time_after_eq(now, deadline)) {
@@ -125,11 +139,11 @@
 +			}
 +			timeout = deadline - now;
 +		}
-@@ -415 +499,2 @@
+@@ -415 +505,2 @@
 -		timeout = ret;
 +		if (!bounded)
 +			timeout = ret;
-@@ -418,2 +503,11 @@
+@@ -418,2 +509,11 @@
 -		if (test_and_clear_bit(SVC_STATUS_COMPLETED, &priv->status))
 -			break;
 +		if (bounded && test_and_clear_bit(SVC_STATUS_ERROR, &priv->status)) {
@@ -143,7 +157,7 @@
 +				completed = true;
 +			break;
 +		}
-@@ -428,0 +523,12 @@
+@@ -428,0 +529,12 @@
 +	if (bounded) {
 +		priv->config_active = false;
 +		/* The joined worker may have delivered a final error callback. */
@@ -156,11 +170,17 @@
 +				priv->config_uncertain = false;
 +		}
 +	}
-@@ -552,0 +659 @@
+@@ -552,0 +665 @@
 +		.suppress_bind_attrs = IS_ENABLED(CONFIG_FES_DE25_DMA_PLATFORM),
 --- a/drivers/firmware/stratix10-svc.c
 +++ b/drivers/firmware/stratix10-svc.c
-@@ -544,0 +545,63 @@
+@@ -8,0 +9 @@
++#include <linux/dma-mapping.h>
+@@ -148,0 +150 @@
++	dma_addr_t dma_addr;
+@@ -275,0 +278 @@
++	bool use_dma_mem;
+@@ -544,0 +548,63 @@
 +static void svc_thread_cmd_data_claim_bounded(struct stratix10_svc_controller *ctrl,
 +				      struct stratix10_svc_data *p_data,
 +				      struct stratix10_svc_cb_data *cb_data)
@@ -224,13 +244,92 @@
 +}
 +
 +
-@@ -552,0 +616,5 @@
+@@ -552,0 +619,5 @@
 +
 +	if (IS_ENABLED(CONFIG_FES_DE25_DMA_PLATFORM)) {
 +		svc_thread_cmd_data_claim_bounded(ctrl, p_data, cb_data);
 +		return;
 +	}
-@@ -3695,0 +3764 @@
+@@ -3320,0 +3392,28 @@
++/* The DE25 profile uses the DMA API's IOVA allocator and coherent CPU mapping.
++ * Keep paddr as the vendor driver's raw IOVA lookup key: submit adds the
++ * existing ATF offset and completion returns the raw IOVA.
++ */
++static int svc_alloc_coherent_memory(struct stratix10_svc_controller *ctrl,
++		struct stratix10_svc_data_mem *pmem, size_t size)
++{
++	const dma_addr_t limit = DMA_BIT_MASK(29);
++	dma_addr_t addr;
++	void *va;
++
++	if (!size || size > limit + 1)
++		return -EINVAL;
++	size = PAGE_ALIGN(size);
++	va = dma_alloc_coherent(ctrl->dev, size, &addr, GFP_KERNEL);
++	if (!va)
++		return -ENOMEM;
++	if (addr > limit || size - 1 > limit - addr) {
++		dma_free_coherent(ctrl->dev, size, va, addr);
++		return -ERANGE;
++	}
++	pmem->vaddr = va;
++	pmem->paddr = addr;
++	pmem->dma_addr = addr;
++	pmem->size = size;
++	return 0;
++}
++
+@@ -3350 +3449,10 @@
+-	if (chan->ctrl->is_smmu_enabled == true) {
++	if (chan->ctrl->use_dma_mem) {
++		ret = svc_alloc_coherent_memory(chan->ctrl, pmem, size);
++		if (ret) {
++			devm_kfree(chan->ctrl->dev, pmem);
++			mutex_unlock(&svc_mem_lock);
++			return ERR_PTR(ret);
++		}
++		va = pmem->vaddr;
++		s = pmem->size;
++	} else if (chan->ctrl->is_smmu_enabled == true) {
+@@ -3420 +3528,4 @@
+-			if (chan->ctrl->is_smmu_enabled) {
++			if (chan->ctrl->use_dma_mem) {
++				dma_free_coherent(chan->ctrl->dev, pmem->size,
++						  pmem->vaddr, pmem->dma_addr);
++			} else if (chan->ctrl->is_smmu_enabled) {
+@@ -3431,0 +3543,2 @@
++			if (chan->ctrl->use_dma_mem)
++				devm_kfree(chan->ctrl->dev, pmem);
+@@ -3436 +3549 @@
+-	list_del(&svc_data_mem);
++	dev_warn(chan->ctrl->dev, "free of unknown service buffer %p\n", kaddr);
+@@ -3503,0 +3617 @@
++	controller->use_dma_mem = false;
+@@ -3518,0 +3633,5 @@
++			} else if (IS_ENABLED(CONFIG_FES_DE25_DMA_PLATFORM)) {
++				ret = dma_set_mask_and_coherent(dev, DMA_BIT_MASK(29));
++				if (ret)
++					goto err_destroy_pool;
++				controller->use_dma_mem = true;
+@@ -3537,6 +3656,8 @@
+-			order = __ffs(controller->domain->pgsize_bitmap);
+-			init_iova_domain(&controller->carveout.domain, 1UL << order,
+-				 IOMMU_STARTING_ADDR);
+-
+-			controller->carveout.shift = iova_shift(&controller->carveout.domain);
+-			controller->carveout.limit = IOMMU_LIMIT_ADDR - PAGE_SIZE;
++			if (!controller->use_dma_mem) {
++				order = __ffs(controller->domain->pgsize_bitmap);
++				init_iova_domain(&controller->carveout.domain, 1UL << order,
++					 IOMMU_STARTING_ADDR);
++
++				controller->carveout.shift = iova_shift(&controller->carveout.domain);
++				controller->carveout.limit = IOMMU_LIMIT_ADDR - PAGE_SIZE;
++			}
+@@ -3666 +3787 @@
+-	if (ctrl->domain) {
++	if (ctrl->domain && !ctrl->use_dma_mem) {
+@@ -3695,0 +3817 @@
 +		.suppress_bind_attrs = IS_ENABLED(CONFIG_FES_DE25_DMA_PLATFORM),
 --- a/drivers/bus/simple-pm-bus.c
 +++ b/drivers/bus/simple-pm-bus.c
