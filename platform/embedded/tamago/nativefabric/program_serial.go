@@ -111,7 +111,7 @@ func (p *ProgramSerialPlatform) Next(ctx context.Context) (tenfoot.PlatformInput
 				p.stopQueued = true
 			}
 		}
-		return frame, nil
+		return p.observedFrame(ctx, frame)
 	}
 	event := func(e input.Event) {
 		command := tenfoot.CommandFromKey(e.Key)
@@ -144,8 +144,44 @@ func (p *ProgramSerialPlatform) Next(ctx context.Context) (tenfoot.PlatformInput
 			event(e)
 		}
 	}
+	return p.observedFrame(ctx, frame)
+}
+
+func (p *ProgramSerialPlatform) observedFrame(ctx context.Context, frame tenfoot.PlatformInput) (tenfoot.PlatformInput, error) {
+	if err := p.observeProgramCommands(ctx, "uart", frame.Commands); err != nil {
+		return tenfoot.PlatformInput{}, err
+	}
 	return frame, nil
 }
+
+// Record only the origin of decoded lifecycle commands, before handing them to
+// the App. This is not proof that the App accepted a command or completed a
+// transition. No raw report, serial byte, printable text or extra device read is
+// included. The existing per-frame input bounds also bound these records.
+func (p *ProgramSerialPlatform) observeProgramCommands(ctx context.Context, source string, commands []tenfoot.Command) error {
+	if err := ctx.Err(); err != nil {
+		return err
+	}
+	for _, command := range commands {
+		var action string
+		switch command {
+		case tenfoot.CmdSelect:
+			action = "select"
+		case tenfoot.CmdStop:
+			action = "stop"
+		case tenfoot.CmdQuit:
+			action = "quit"
+		default:
+			continue
+		}
+		v := p.service.Status()
+		if err := p.emit(ctx, []byte(fmt.Sprintf("FES_NATIVE_INPUT_ACTION source=%s action=%s state=%s owner=%x native_generation=%d\n", source, action, v.State, v.Owner, v.Generation))); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
 func (p *ProgramSerialPlatform) Present(ctx context.Context, snapshot tenfoot.Snapshot) error {
 	if ctx == nil {
 		return errors.New("native serial UI: context required")

@@ -124,14 +124,28 @@ func (p *ProgramInputPlatform) Next(ctx context.Context) (tenfoot.PlatformInput,
 		}
 		return tenfoot.PlatformInput{}, p.fault
 	}
+	var commands []tenfoot.Command
 	for _, event := range events {
 		if command := tenfoot.CommandFromKey(event.Key); command != tenfoot.CmdNone {
 			// Menu shortcuts are delivered only in Ready. Running-core key
 			// snapshots never become launcher stop/quit shortcuts.
-			frame.Commands = append(frame.Commands, command)
+			commands = append(commands, command)
 		}
 		frame.Text += event.Text
 	}
+	if observer, ok := p.base.(interface {
+		observeProgramCommands(context.Context, string, []tenfoot.Command) error
+	}); ok {
+		source := "usb-boot-keyboard"
+		if p.gamepadSource != nil {
+			source = "usb-gamepad"
+		}
+		if err := observer.observeProgramCommands(ctx, source, commands); err != nil {
+			p.fault = err
+			return tenfoot.PlatformInput{}, err
+		}
+	}
+	frame.Commands = append(frame.Commands, commands...)
 	return frame, nil
 }
 

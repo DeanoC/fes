@@ -6,6 +6,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"net/http"
 	"strings"
 	"testing"
@@ -119,7 +120,18 @@ func TestFullTenfootSerialNativeLaunchReturnAndFailures(t *testing.T) {
 			stage := 0
 			states := 0
 			fetches := map[uint64]bool{}
+			var actions []string
 			emit := func(_ context.Context, raw []byte) error {
+				const actionPrefix = "FES_NATIVE_INPUT_ACTION source=uart action="
+				if bytes.HasPrefix(raw, []byte(actionPrefix)) {
+					action, _, _ := strings.Cut(strings.TrimPrefix(string(raw), actionPrefix), " ")
+					v := f.s.Status()
+					if (action != "select" && action != "stop" && action != "quit") || string(raw) != fmt.Sprintf(actionPrefix+"%s state=%s owner=%x native_generation=%d\n", action, v.State, v.Owner, v.Generation) {
+						return errors.New("unbound serial action observation")
+					}
+					actions = append(actions, action)
+					return nil
+				}
 				if bytes.HasPrefix(raw, []byte("FES_NATIVE_CORE_FETCH ")) {
 					var observation ProgramFetchObservation
 					if err := json.Unmarshal(bytes.TrimPrefix(raw, []byte("FES_NATIVE_CORE_FETCH ")), &observation); err != nil {
@@ -220,6 +232,15 @@ func TestFullTenfootSerialNativeLaunchReturnAndFailures(t *testing.T) {
 			}
 			if states < 2 {
 				t.Fatal("App state was not emitted")
+			}
+			expectedActions := "select,stop,select,stop,quit"
+			if fault == "launch" {
+				expectedActions = "select,quit"
+			} else if fault == "return" {
+				expectedActions = "select,stop,quit"
+			}
+			if strings.Join(actions, ",") != expectedActions {
+				t.Fatal("lifecycle action origins missing or repeated", actions)
 			}
 		})
 	}

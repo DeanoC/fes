@@ -1,5 +1,15 @@
 # Native contained-fabric endpoint
 
+The serial Tenfoot platform emits `FES_NATIVE_INPUT_ACTION` for decoded Select,
+Stop and Quit commands. Each record identifies UART, USB boot-keyboard or USB
+gamepad origin and the current service state, owner and generation before the
+command is handed to the App. Buffered menu input is reported when delivered;
+queued UART Quit reports the actual Stop and later Quit separately. Neutral
+reports, printable text and other navigation commands emit no action record.
+The existing bounded input loop limits these records, and a failed write returns
+an error before the frame reaches the App. These are diagnostic observations:
+they neither prove App acceptance nor supply a lifecycle or hardware receipt.
+
 The USB-only diagnostic uses `NewUSBHPSContextVerifier` to inspect supported
 held-ROM/native source contexts. Its distinct return type exposes only
 `Identity`, `Verify` and `ProbeHPSIO`; the underlying verifier and its control,
