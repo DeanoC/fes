@@ -47,3 +47,7 @@ or later board observation is inferred from successful host cleanup.
 This is pre-device evidence. Full return/shutdown, physical HDMI/button
 acceptance, ordinary admission and DE10-equivalent readiness remain unproven.
 Stage: `out/nano-resume-board-20261108`.
+
+The subsequent [attempt](hardware.md) completed recovery and upload checks, then
+stopped on a native-programming JTAG scan error before boot. This procedure and
+its two-attempt image allowance are consumed; transport diagnosis comes next.
