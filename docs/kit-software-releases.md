@@ -555,6 +555,13 @@ The runtime also requires the matching `de25-cold-persona-retained-v1` kernel
 contract, qualified packages and separate physical acceptance. Selection is
 static: Stop, then launch a fresh full base with the chosen persona.
 
+DE25 partial-persona hardware loading is currently unsupported because it can
+leave Linux unresponsive ([#1568](https://github.com/DeanoC/fes/issues/1568)).
+Use the default-off software and an ordinary ZX81 catalog for development.
+Deano waived expansion acceptance as a blocker for the ordinary development-kit
+milestone; the [scoped waiver and physical control](validation/2026-11-08-de25-ordinary-dev-kit/README.md)
+do not qualify partial loading or diagnostic firmware.
+
 The default output is the new directory `out/kit-software/<version>/`, containing
 `bundle.tar` and `receipt.json`. Override the directory with
 `KIT_SOFTWARE_OUTPUT=/absolute/new-release-directory`. Existing output directories
