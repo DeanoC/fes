@@ -69,6 +69,13 @@ func (l *KitLease) resumeLocal(ctx context.Context) error {
 		if code == http.StatusForbidden {
 			return nil
 		}
+		var apiErr *protocol.APIError
+		if code == http.StatusServiceUnavailable && errors.As(err, &apiErr) && apiErr.Code == protocol.CodeBusy {
+			// The software activation fence rejects lease resumes while the
+			// supervisor owns maintenance. This request did not reach the lease
+			// manager; continue with read-only ownership and status observation.
+			return nil
+		}
 		return err
 	}
 	if !validKitGrant(grant, start) {
