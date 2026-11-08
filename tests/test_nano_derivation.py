@@ -128,5 +128,17 @@ class DerivationTests(unittest.TestCase):
     def test_invalid_firmware_selection_rejects_before_files(self):
         with self.assertRaisesRegex(ValueError,'explicit firmware RAM'):cold.make(Path('/no/such/entry'),firmware_ram=1)
 
+    def test_non_hps_diagnostic_keeps_its_original_entry_path(self):
+        with tempfile.TemporaryDirectory() as temp:
+            entry=Path(temp)/'entry';entry.mkdir()
+            (entry/'result.json').write_text('{}')
+            def original(path,**kwargs):
+                self.assertEqual(path,entry)
+                self.assertEqual(kwargs,{'firmware_ram':False})
+                self.assertIsNone(hps._derivation.get())
+                return {'original_diagnostic':True}
+            with patch.object(cold,'_make',original):
+                self.assertEqual(cold.make(entry),{'original_diagnostic':True})
+
 
 if __name__=='__main__':unittest.main()

@@ -108,6 +108,9 @@ def sources():
 
 def make(entry_build, *, firmware_ram=False):
     if type(firmware_ram) is not bool:raise ValueError('explicit firmware RAM selection required')
+    record=json.loads((entry_build/'result.json').read_text())
+    if record.get('hps_project') is None:
+        return _make(entry_build,firmware_ram=firmware_ram)
     # Only immutable derivation results are reused. Each call brackets all
     # original validators with a complete current file/tree snapshot, and the
     # compiler's independent pre/post calls each get a new empty scope.
@@ -117,8 +120,6 @@ def make(entry_build, *, firmware_ram=False):
     if not entry_build.is_relative_to(ROOT/'out'):
         raise ValueError('private cold entry required')
     receipt_path=entry_build/'result.json';record=admission._json(receipt_path)
-    if record.get('hps_project') is None:
-        return _make(entry_build,firmware_ram=firmware_ram)
     projects=[record['hps_project']]
     if record.get('hps_menu_project') is not None:
         projects.append(record['hps_menu_project'])
