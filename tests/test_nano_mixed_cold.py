@@ -135,7 +135,7 @@ class NanoMixedColdTests(unittest.TestCase):
             if shared_usb:
                 modes += (21, 22, 23, 24, 25, 26)
             if initial_tape:
-                modes += (30,31,33,34,35,36,37,38,39,40,41,42,43,44,45,46,47,48,49)
+                modes += (30,31,33,34,35,36,37,38,39,40,41,42,43,44,45,46,47,48,49,50,51)
             for mode in modes:
                 with self.subTest(mode=mode):
                     result = subprocess.run([base / 'mixed', str(mode)], capture_output=True, text=True, timeout=30)
@@ -143,8 +143,39 @@ class NanoMixedColdTests(unittest.TestCase):
                         (target / ('case-' + str(mode) + '.log')).write_text(result.stdout + result.stderr)
                     self.assertEqual(result.returncode, 0, result.stderr + result.stdout[-5000:])
                     self.assertIn('PASS', result.stdout)
-                    if initial_tape and mode in (33,34,35,38,40,41,42,43,44,45,46,47,48,49):
+                    if initial_tape and mode in (31,33,34,35,38,40,41,42,43,44,45,46,47,48,49,50,51):
                         self.assertEqual(result.stdout.count('FES_NANO_TAPE_FAILURE '), 1)
+                    if initial_tape:
+                        costs = re.findall(r'FES_NANO_TAPE_COST owner=([0-9a-f]+) generation=(\d+) '
+                            r'kind=(\w+) calls=(\d+) samples=(\d+) period=(\d+) ticks=([0-9a-f]+) '
+                            r'max=([0-9a-f]+) clock_invalid=(\d+) complete=(\d+) hz=(\d+)', result.stdout)
+                        self.assertEqual(len(costs) % 7, 0)
+                        for start in range(0, len(costs), 7):
+                            group = costs[start:start+7]
+                            self.assertEqual([row[2] for row in group], ['guard', 'owns', 'read', 'write', 'barrier', 'image', 'hash'])
+                            self.assertEqual(len({row[:2] for row in group}), 1)
+                            for owner, generation, kind, calls, samples, period, ticks, maximum, invalid, complete, hz in group:
+                                self.assertTrue(int(owner, 16) and int(generation))
+                                period = int(period)
+                                self.assertEqual(period, 64 if kind in ('owns', 'read', 'write', 'barrier') else 1)
+                                self.assertEqual(int(samples), (int(calls)+period-1)//period)
+                                self.assertGreaterEqual(int(ticks, 16), int(maximum, 16))
+                                self.assertEqual((invalid, hz), ('0', '400000000'))
+                                self.assertIn(complete, ('0', '1'))
+                        if mode in (44, 50, 51):
+                            self.assertTrue(costs)
+                        contained = re.findall(r'FES_NANO_TAPE_CONTAINMENT owner=([0-9a-f]+) '
+                            r'generation=(\d+) attempted=(\d+) status=(-?\d+)', result.stdout)
+                        if mode in (31,33,34,35,38,40,41,42,43,44,45,46,47,48,49,50,51):
+                            self.assertEqual(len(contained), 1)
+                            self.assertEqual(contained[0][:2], costs[0][:2])
+                            self.assertEqual(contained[0][2], '1')
+                            self.assertEqual(int(contained[0][3]), -1 if mode in (50, 51) else 0)
+                            self.assertTrue(all(row[9] == '0' for row in costs))
+                            self.assertLess(result.stdout.rindex('FES_NANO_TAPE_COST '), result.stdout.index('FES_NANO_TAPE_FAILURE '))
+                            self.assertLess(result.stdout.index('FES_NANO_TAPE_CONTAINMENT '), result.stdout.index('FES_NANO_TAPE_FAILURE '))
+                        else:
+                            self.assertFalse(contained)
             # The combined provider requires the full CPU reservation even
             # though the original computer reader remains only8KiB.
             (base / 'fes_nano_cold_profile.h').write_text(profile.replace(

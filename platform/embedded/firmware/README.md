@@ -71,6 +71,25 @@ firmware access. A selected failure emits one `FES_NANO_TAPE_FAILURE` record
 after containment, using only saved engine/frame counters and timer samples;
 reporting adds no hardware reads or payload logging to the timed transfer.
 
+For the next tape diagnostic the strong supplier also counts callback invocations
+and samples ownership, CSR read/write and barrier costs once per64 calls; frame
+ownership, source copies and SHA callbacks sample every call. The qualified timer
+supplies those samples inside the unchanged one-second budget. The samples add
+overhead and are diagnostic observations, not a timing qualification or a complete
+partition of elapsed time. CSR read/write samples cover the callback; the explicit
+completion barrier is sampled separately. None of these counters grants access or
+changes protocol behavior. After a failed load and its containment attempt, seven
+`FES_NANO_TAPE_COST` records and a separate `FES_NANO_TAPE_CONTAINMENT` result precede
+the terminal failure marker. Successful loads do not print these records. Reporting
+uses cached values and emits only once; an invalid clock sample remains labelled.
+
+A containment status of zero records the existing direct control-reset callback's
+successful readback: data reset bits were already set and all bridge reset bits
+were set afterward. It does not prove fabric acknowledgement, producer drain or a
+normal core return. The provider is retired regardless, so a later normal bridge
+close can reject even after this reset readback succeeded. The previous hardware
+trace lacks the new result and cannot establish that readback retrospectively.
+
 The per-load descriptor now has a version-three mixed-role prototype. A trusted
 `fes_nano_program_enable_roles` call, after installing the fixed ROM-extension
 reader and before the first capture, selects it instead of fixed version one or

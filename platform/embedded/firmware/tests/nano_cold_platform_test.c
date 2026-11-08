@@ -24,7 +24,7 @@ void fes_test_tape_endpoint_write(uint32_t,uint32_t);
 unsigned fes_test_tape_endpoint_accesses(void);
 unsigned fes_test_tape_endpoint_writes(void);
 unsigned fes_test_tape_endpoint_complete(void);
-static unsigned tape_clock_expired;
+static unsigned tape_clock_expired,tape_containment_stuck,tape_timer_reads;
 static int mixed_tape(uint64_t,uint64_t);
 #endif
 #ifdef FES_TEST_PROGRAM_ROLES
@@ -162,6 +162,7 @@ static struct { unsigned write_requested; } fpga_config_buffers[1];
 uint64_t read_cntpct_el0(void) {
     static uint64_t ticks;
 #ifdef FES_TEST_INITIAL_TAPE
+    tape_timer_reads++;
     if(tape_clock_expired)return ticks+=400000000U;
 #endif
     return ticks+=100;
@@ -597,7 +598,13 @@ void mmio_write_32(uintptr_t a,uint32_t v) {
     }
 #endif
 #if defined(FES_NANO_CONTROL_PROBE) && FES_NANO_CONTROL_PROBE
-    if(a==FES_NANO_COLD_RSTMGR+0x2c) {assert((v&13U)==(bridge&13U));bridge=v;return;}
+    if(a==FES_NANO_COLD_RSTMGR+0x2c) {
+        assert((v&13U)==(bridge&13U));
+#ifdef FES_TEST_INITIAL_TAPE
+        if(tape_containment_stuck)return;
+#endif
+        bridge=v;return;
+    }
 #endif
     if(a==FES_NANO_COLD_RSTMGR+0x24) {
         uint32_t unused=FES_NANO_COLD_UNUSED,allowed=0xc0U;

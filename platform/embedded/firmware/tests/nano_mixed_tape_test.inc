@@ -48,12 +48,17 @@ static int mixed_tape(uint64_t owner,uint64_t generation)
     fes_nano_owned_call(FES_EMBEDDED_TAPE_CALL,0,owner,FES_EMBEDDED_TAPE_COOKIE,generation,r);
     unsigned failure=mixed_mode==31 ||mixed_mode==33 ||mixed_mode==34 ||mixed_mode==35 ||
         mixed_mode==38 ||mixed_mode==40 ||mixed_mode==41 ||mixed_mode==42 ||mixed_mode==43 ||mixed_mode==44 ||
-        mixed_mode==45 ||mixed_mode==46 ||mixed_mode==47 ||mixed_mode==48 ||mixed_mode==49;
+        mixed_mode==45 ||mixed_mode==46 ||mixed_mode==47 ||mixed_mode==48 ||mixed_mode==49 ||mixed_mode==50 ||mixed_mode==51;
     if(failure) {
         assert(r[0] &&r[1]==(uint64_t)FES_EMBEDDED_TAPE_TAG<<32 && !r[2] && !r[3]);
-        if(mixed_mode==31 ||mixed_mode==33 ||mixed_mode==34 ||mixed_mode==43 ||mixed_mode>=47)assert(!fes_test_tape_endpoint_accesses());
+        if(mixed_mode==31 ||mixed_mode==33 ||mixed_mode==34 ||mixed_mode==43 ||(mixed_mode>=47 && mixed_mode<=49))assert(!fes_test_tape_endpoint_accesses());
         if(mixed_mode!=31)assert(fes_nano_platform_identity_probe()->failed && !fes_nano_platform_identity_probe()->active);
+        if(mixed_mode==50 || mixed_mode==51)assert(fes_nano_platform_identity_probe()->cleanup_error<0);
+        else if(mixed_mode!=31)assert(!fes_nano_platform_identity_probe()->cleanup_error && bridge==15);
         unsigned accesses=fes_test_tape_endpoint_accesses();
+        unsigned timers=tape_timer_reads;
+        fes_nano_platform_computer_tape_report(1,0); /* Re-report cannot forge success or query hardware. */
+        assert(tape_timer_reads==timers && accesses==fes_test_tape_endpoint_accesses());
         fes_nano_owned_call(FES_EMBEDDED_TAPE_CALL,0,owner,FES_EMBEDDED_TAPE_COOKIE,generation,r);
         assert(r[0] && !r[2] && !r[3] &&accesses==fes_test_tape_endpoint_accesses());
         mixed_retired(owner);
@@ -63,6 +68,9 @@ static int mixed_tape(uint64_t owner,uint64_t generation)
     assert(!r[0] &&r[1]==((uint64_t)FES_EMBEDDED_TAPE_TAG<<32|bytes) &&r[2]==generation &&
         (uint32_t)(r[3]>>32)==mixed_tape_crc(configuration_memory,bytes) &&fes_test_tape_endpoint_complete());
     unsigned accesses=fes_test_tape_endpoint_accesses();
+    unsigned timers=tape_timer_reads;
+    fes_nano_platform_computer_tape_report(1,-1); /* Successful evidence also emits only once. */
+    assert(tape_timer_reads==timers && accesses==fes_test_tape_endpoint_accesses());
     fes_nano_owned_call(FES_EMBEDDED_TAPE_CALL,0,owner,FES_EMBEDDED_TAPE_COOKIE,generation,r);
     assert(r[0] && !r[2] && !r[3] &&accesses==fes_test_tape_endpoint_accesses());
     printf("PASS strong initial tape bytes=%u generation=%llu accesses=%u replay-rejected=1\n",bytes,

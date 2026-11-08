@@ -32,7 +32,7 @@ void fes_nano_platform_computer_rom_report(void);
  * negative only after a selected uncertain attempt, requiring containment. */
 int fes_nano_platform_computer_tape(uint64_t operation,uint64_t owner,uint64_t generation,uint64_t result[4]);
 /* Cached first failure only, after containment; no new hardware/timer access. */
-void fes_nano_platform_computer_tape_report(void);
+void fes_nano_platform_computer_tape_report(unsigned containment_attempted,int containment_status);
 /* Mixed-role firmware only. Trusted platform completion callback, under the
  * shared lock, after installing the new stop/ROM inventory and before success.
  * This is never an NS command or authority supplied by descriptor capture. */

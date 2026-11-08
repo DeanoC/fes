@@ -52,7 +52,7 @@ static int fes_nano_computer_control(uint32_t fid, uint64_t operation,
                 p->failed=1;p->bridges->failed=1;
                 if(p->io.contain)p->cleanup_error=p->io.contain(p->io.context);
                 p->active=0;
-                fes_nano_platform_computer_tape_report();
+                fes_nano_platform_computer_tape_report(p->io.contain!=0,p->io.contain ? p->cleanup_error : -1);
             }
             return 1;
         }

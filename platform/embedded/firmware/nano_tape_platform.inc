@@ -18,6 +18,30 @@ _Static_assert(FES_NANO_CONFIG_BASE==0x94800000ULL && FES_NANO_CONFIG_ARENA_SIZE
 #define FES_NANO_TAPE_CAPABILITIES 0x803U
 static struct fes_nano_tape_service computer_tape;
 static unsigned computer_tape_reported;
+/* Diagnostic samples only: never read by admission, ownership or deadlines.
+ * Hot callbacks sample once per64 invocations; frame/hash callbacks sample all.
+ * Record after the operation, print only after load and its failure containment.
+ * These extra timer reads consume the original deadline, never extend it. */
+enum tape_cost_kind { TAPE_COST_GUARD,TAPE_COST_OWNS,TAPE_COST_READ,TAPE_COST_WRITE,
+    TAPE_COST_BARRIER,TAPE_COST_IMAGE,TAPE_COST_HASH,TAPE_COST_COUNT };
+static struct { uint64_t ticks,max;unsigned calls,samples,clock_invalid; } tape_cost[TAPE_COST_COUNT];
+static unsigned tape_cost_mask(unsigned kind)
+{return kind>=TAPE_COST_OWNS && kind<=TAPE_COST_BARRIER ? 63U : 0U;}
+static uint64_t tape_cost_begin(unsigned kind)
+{
+    unsigned call=++tape_cost[kind].calls;
+    return ((call-1)&tape_cost_mask(kind)) ? 0 : read_cntpct_el0();
+}
+static void tape_cost_end(unsigned kind,uint64_t began)
+{
+    if((tape_cost[kind].calls-1)&tape_cost_mask(kind))return;
+    uint64_t now=read_cntpct_el0();
+    tape_cost[kind].samples++;
+    if(now<began) {tape_cost[kind].clock_invalid=1;return;}
+    uint64_t ticks=now-began;
+    tape_cost[kind].ticks+=ticks;
+    if(ticks>tape_cost[kind].max)tape_cost[kind].max=ticks;
+}
 static struct {
     uint64_t owner,generation,usb_generation;
     uint32_t phase,offset,next;
@@ -52,7 +76,7 @@ static int computer_tape_state(void *context,uint64_t owner,uint64_t generation)
         usb_platform.active==1 && usb_platform.confirmed==1 && !usb_platform.failed &&
         !sd_platform.active && !sd_platform.failed && !fes_nano_owned_sd.active && !fes_nano_owned_sd.failed;
 }
-static int computer_tape_guard(void *context,uint64_t owner,uint64_t generation)
+static int computer_tape_frame_guard(void *context,uint64_t owner,uint64_t generation)
 {
     struct fes_nano_bridge_snapshot s;
     if(computer_tape_frame.active || computer_tape_frame.failed ||
@@ -62,7 +86,13 @@ static int computer_tape_guard(void *context,uint64_t owner,uint64_t generation)
     return computer_tape_state(context,owner,generation) && s.owner==owner && s.generation==generation &&
         s.reset==FES_NANO_BRIDGES_DATA && s.masters_contained ? 0 : -1;
 }
-static int computer_tape_owns(void *context,uint64_t owner,uint64_t generation)
+static int computer_tape_guard(void *context,uint64_t owner,uint64_t generation)
+{
+    uint64_t began=tape_cost_begin(TAPE_COST_GUARD);
+    int status=computer_tape_frame_guard(context,owner,generation);
+    tape_cost_end(TAPE_COST_GUARD,began);return status;
+}
+static int computer_tape_owned(void *context,uint64_t owner,uint64_t generation)
 {
     struct fes_nano_tape *e=&computer_tape.engine;
     if(!computer_tape_frame.active || computer_tape_frame.failed || !computer_tape.used || computer_tape.failed ||
@@ -79,6 +109,12 @@ static int computer_tape_owns(void *context,uint64_t owner,uint64_t generation)
     return (reset&FES_NANO_BRIDGES_ALL)==FES_NANO_BRIDGES_DATA &&
         (per0&FES_NANO_MASTER_RESET)==(FES_NANO_MASTER_RESET&~FES_NANO_COLD_USB_RESET) &&
         computer_tape_state(context,owner,generation);
+}
+static int computer_tape_owns(void *context,uint64_t owner,uint64_t generation)
+{
+    uint64_t began=tape_cost_begin(TAPE_COST_OWNS);
+    int status=computer_tape_owned(context,owner,generation);
+    tape_cost_end(TAPE_COST_OWNS,began);return status;
 }
 static int computer_tape_begin(void *context,uint64_t owner,uint64_t generation,unsigned phase,uint32_t offset)
 {
@@ -119,37 +155,66 @@ static int computer_tape_end(void *context,uint64_t owner,uint64_t generation,un
     } else computer_tape_frame.finished=1;
     return 0;
 }
-static int computer_tape_read(void *context,uint32_t offset,uint32_t *value)
+static int computer_tape_read_register(void *context,uint32_t offset,uint32_t *value)
 {
     if(context!=&provider || !value || (offset&3U) || offset>=FES_DE25_COMPUTER_SPAN)return -1;
     *value=mmio_read_32(FES_NANO_TAPE_CPU_BASE+offset);return 0;
 }
-static int computer_tape_write(void *context,uint32_t offset,uint32_t value)
+static int computer_tape_read(void *context,uint32_t offset,uint32_t *value)
+{
+    uint64_t began=tape_cost_begin(TAPE_COST_READ);
+    int status=computer_tape_read_register(context,offset,value);
+    tape_cost_end(TAPE_COST_READ,began);return status;
+}
+static int computer_tape_write_register(void *context,uint32_t offset,uint32_t value)
 {
     if(context!=&provider || offset!=FES_DE25_COMPUTER_GPO_OFFSET)return -1;
     mmio_write_32(FES_NANO_TAPE_CPU_BASE+offset,value);return 0;
 }
-static int computer_tape_image(void *context,uint32_t offset,uint8_t *out,uint32_t bytes)
+static int computer_tape_write(void *context,uint32_t offset,uint32_t value)
+{
+    uint64_t began=tape_cost_begin(TAPE_COST_WRITE);
+    int status=computer_tape_write_register(context,offset,value);
+    tape_cost_end(TAPE_COST_WRITE,began);return status;
+}
+static int computer_tape_copy_image(void *context,uint32_t offset,uint8_t *out,uint32_t bytes)
 {
     if(context!=&provider || !out || !bytes || bytes>FES_COMPUTER_MEDIA_CHUNK_MAX_BYTES ||
        offset>computer_tape.engine.bytes || bytes>computer_tape.engine.bytes-offset ||
        computer_tape.engine.bytes>FES_DE25_COMPUTER_ZX81_TAPE_MAX_BYTES)return -1;
     dsbsy();memcpy(out,(const void *)(uintptr_t)(FES_NANO_CONFIG_BASE+offset),bytes);dsbsy();return 0;
 }
+static int computer_tape_image(void *context,uint32_t offset,uint8_t *out,uint32_t bytes)
+{
+    uint64_t began=tape_cost_begin(TAPE_COST_IMAGE);
+    int status=computer_tape_copy_image(context,offset,out,bytes);
+    tape_cost_end(TAPE_COST_IMAGE,began);return status;
+}
 static uint64_t computer_tape_now(void *context) {(void)context;return read_cntpct_el0();}
-static void computer_tape_barrier(void *context) {(void)context;dsbsy();}
+static void computer_tape_barrier(void *context)
+{
+    (void)context;
+    uint64_t began=tape_cost_begin(TAPE_COST_BARRIER);
+    dsbsy();tape_cost_end(TAPE_COST_BARRIER,began);
+}
 static int computer_tape_header(void *context,uint8_t header[128])
 {
     if(context!=&provider)return -1;
     dsbsy();memcpy(header,(const void *)(uintptr_t)(FES_NANO_CONFIG_BASE+FES_NANO_CONFIG_ARENA_SIZE-
         FES_NANO_PROGRAM_METADATA_BYTES),128);dsbsy();return 0;
 }
-static int computer_tape_verify(void *context,uint32_t bytes,const uint8_t digest[48])
+static int computer_tape_verify_image(void *context,uint32_t bytes,const uint8_t digest[48])
 {
     uint8_t observed[48];sha512_context hash;
     if(context!=&provider || !bytes || bytes>FES_DE25_COMPUTER_ZX81_TAPE_MAX_BYTES)return -1;
     dsbsy();sha384_init(&hash);sha384_update(&hash,(const void *)(uintptr_t)FES_NANO_CONFIG_BASE,bytes);
     sha384_finish(&hash,observed);dsbsy();return memcmp(observed,digest,48) ? -1 : 0;
+}
+static int computer_tape_verify(void *context,uint32_t bytes,const uint8_t digest[48])
+{
+    uint64_t began=tape_cost_begin(TAPE_COST_HASH);
+    int status=computer_tape_verify_image(context,bytes,digest);
+    tape_cost_end(TAPE_COST_HASH,began);return status;
 }
 static int computer_tape_prepare(uint64_t owner,uint64_t generation,unsigned computer)
 {
@@ -158,7 +223,7 @@ static int computer_tape_prepare(uint64_t owner,uint64_t generation,unsigned com
         (computer_tape.used && !computer_tape.complete) || computer_tape.engine.owner!=owner ||
         computer_tape.engine.generation>=generation+1)))return -1;
     memset(&computer_tape,0,sizeof(computer_tape));memset(&computer_tape_frame,0,sizeof(computer_tape_frame));
-    computer_tape_reported=0;
+    computer_tape_reported=0;memset(tape_cost,0,sizeof(tape_cost));
     if(!computer)return 0; /* A no-tape or menu activation still returns normally. */
     if(!configuration_program.bound || configuration_program.failed || configuration_program.owner!=owner ||
        configuration_program.generation!=generation || !configuration_program.rom_bytes)return -1;
@@ -181,11 +246,21 @@ int fes_nano_platform_computer_tape(uint64_t operation,uint64_t owner,uint64_t g
     fes_nano_tape_service_call(&computer_tape,operation,owner,generation,result);
     return !used && computer_tape.used && computer_tape.failed ? -1 : 0;
 }
-void fes_nano_platform_computer_tape_report(void)
+void fes_nano_platform_computer_tape_report(unsigned containment_attempted,int containment_status)
 {
     if(!computer_tape.failed || computer_tape_reported)return;
     computer_tape_reported=1;
     const struct fes_nano_tape *e=&computer_tape.engine;
+    if(computer_tape.failed)
+        NOTICE("FES_NANO_TAPE_CONTAINMENT owner=%llx generation=%llu attempted=%u status=%d\n",
+            (unsigned long long)e->owner,(unsigned long long)e->generation,containment_attempted,containment_status);
+    static const char *const names[]={"guard","owns","read","write","barrier","image","hash"};
+    for(unsigned i=0;i<TAPE_COST_COUNT;i++)
+        NOTICE("FES_NANO_TAPE_COST owner=%llx generation=%llu kind=%s calls=%u samples=%u period=%u ticks=%llx max=%llx clock_invalid=%u complete=%u hz=%u\n",
+            (unsigned long long)e->owner,(unsigned long long)e->generation,names[i],tape_cost[i].calls,
+            tape_cost[i].samples,tape_cost_mask(i)+1,(unsigned long long)tape_cost[i].ticks,
+            (unsigned long long)tape_cost[i].max,tape_cost[i].clock_invalid,computer_tape.complete,e->hz);
+    /* Emit the terminal failure marker last: collectors stop at that marker. */
     NOTICE("FES_NANO_TAPE_FAILURE error=%d owner=%llx generation=%llu bytes=%u opcode=%u index=%u offset=%x reads=%u writes=%u frame_phase=%u next=%u frame_failed=%u complete=%u began=%llx tick=%llx hz=%u\n",
         computer_tape.first_error,(unsigned long long)e->owner,(unsigned long long)e->generation,e->bytes,
         e->opcode,e->index,e->offset,e->reads,e->writes,computer_tape_frame.phase,computer_tape_frame.next,

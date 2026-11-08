@@ -82,7 +82,9 @@ static void mixed_write(uintptr_t a,uint32_t value)
             if(mixed_mode==40)sctlr=4;
             if(mixed_mode==41)per0&=~0x80U;
             if(mixed_mode==42)fes_nano_owned_usb.platform->generation++;
-            if(mixed_mode==44)tape_clock_expired=1;
+            if(mixed_mode==44 || mixed_mode==50)tape_clock_expired=1;
+            if(mixed_mode==50)tape_containment_stuck=1;
+            if(mixed_mode==51)bridge&=~8U;
         }
         unsigned commands=49+3*((917+511)/512)+(917+1)/2;
         if(mixed_mode==46 && writes==commands)configuration_memory[0]^=1;
