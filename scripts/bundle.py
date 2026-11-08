@@ -34,6 +34,20 @@ def digest(path):
         return hashlib.file_digest(stream, "sha256").hexdigest()
 
 
+def _de25_license_arguments(env, recipe):
+    if recipe.board != 'de25-nano' or recipe.toolchain != 'quartus':
+        return []
+    selected = (os.environ if env is None else env).get('FES_DE25_QUARTUS_LICENSE_FILE')
+    if not selected:
+        return []
+    path = Path(selected)
+    if not path.is_absolute():
+        raise ValueError('FES_DE25_QUARTUS_LICENSE_FILE must be absolute')
+    # The producer snapshots and validates this local file. Use the same
+    # selection for canonical execution capture and the actual compiler run.
+    return ['--license-file', str(path)]
+
+
 def authenticate_misteross_origin(source):
     """Validate snapshot provenance without modifying its repository config."""
     source = Path(source).resolve()
@@ -64,6 +78,7 @@ def authenticate_misteross_origin(source):
 def canonical_package_record(source, env=None, recipe=None):
     """Derive the selected producer's canonical pre-synthesis record in isolation."""
     recipe = recipe_for("fes.pong") if recipe is None else recipe
+    license_arguments = _de25_license_arguments(env, recipe)
     source = Path(source).resolve()
     authenticate_misteross_origin(source)
     program = r'''
@@ -85,7 +100,11 @@ import tempfile
 from scripts.functional_execution import execution_environment, execution_inputs
 with tempfile.TemporaryDirectory(prefix="fes-canonical-home-") as home:
     paths = {name: tool.path for name, tool in tools.items()}
-    environment = execution_environment(Path(home), paths)
+    if "--license-file" in sys.argv:
+        license_file = Path(sys.argv[sys.argv.index("--license-file") + 1])
+        environment = producer.execution_environment(Path(home), paths, license_file=license_file)
+    else:
+        environment = execution_environment(Path(home), paths)
     options["execution"] = (producer.execution_inputs(paths, environment, 0)
                             if hasattr(producer, "execution_inputs")
                             else execution_inputs(paths, environment, 0))
@@ -94,7 +113,8 @@ sys.stdout.buffer.write(producer.create_build_record(root, repository, revision,
     cache_root = str(recipe.cache_root)
     command = [sys.executable, "-c", program, recipe.producer_module, recipe.authenticate,
                json.dumps(dict(recipe.producer_options), sort_keys=True),
-               "--cache-root", cache_root, "--identity-version", str(recipe.identity_version)]
+               "--cache-root", cache_root, "--identity-version", str(recipe.identity_version),
+               *license_arguments]
     try:
         record = subprocess.check_output(
             command, cwd=source, env=package_build_environment(env, recipe=recipe))
@@ -231,7 +251,8 @@ def _build_package(source, recipe=None, env=None):
             [sys.executable, recipe.producer_script, "--root", str(source),
              "--package-output", str(Path(source) / "build/packages"),
              "--cache-root", str(recipe.cache_root),
-             "--identity-version", "2", *recipe.producer_arguments],
+             "--identity-version", "2", *recipe.producer_arguments,
+             *_de25_license_arguments(env, recipe)],
             cwd=source, check=True, env=package_build_environment(env, recipe=recipe))
     except (OSError, subprocess.CalledProcessError) as error:
         report = optional_cores.read_producer_report(report_path)

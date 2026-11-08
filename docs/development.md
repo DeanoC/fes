@@ -565,6 +565,10 @@ timing, independent-rebuild and native acceptance checks.
 Use the same committed-source commands with explicit matching DE25 inputs:
 
 ```sh
+export QUARTUS_ROOTDIR=/absolute/path/to/quartus-pro-26.3
+export FES_DE25_VENDOR_ARCHIVE=/absolute/DE25-Nano_revB_v.1.0.0_ResourcePackage.zip
+# When the installation needs an explicit local Quartus license:
+export FES_DE25_QUARTUS_LICENSE_FILE=/absolute/private/quartus-license.dat
 make dev BOARD=de25-nano DE25_IMAGE=/absolute/verified-managed-base \
   IMAGE_KERNEL=/absolute/owner-kernel IMAGE_SDK=/absolute/owner-sdk.tar.gz
 ```
@@ -576,6 +580,14 @@ MENU is resolved through the explicit DE25 Quartus recipe before target source
 staging, SDK work, or software/OS compilation. A missing eligible package stops
 the command there. MENU admission requires its timing, independent rebuild and
 target-profile checks; the source command consumes that admitted package.
+
+The optional license path must be absolute. The parent supplies that same file
+to the producer's canonical execution capture and actual build. The producer
+copies it into its private build home and binds its digest to the functional
+cache key; its contents are never copied into a package or receipt. Changing
+the selected license bytes invalidates that key. Ambient license servers do
+not replace this explicit local-file selection. A qualified package is reused
+only when its complete functional inputs, including execution identity, match.
 
 The shared Go/C++ builders compile the selected component commits, including
 the AArch64 data helper and software supervisor required by the image packer.
