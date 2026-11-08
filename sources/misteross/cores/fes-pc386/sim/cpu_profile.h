@@ -27,7 +27,38 @@
 //
 // This header needs no Verilator header: sample() and in_flight() take any
 // CPU model whose rootp has the fes_i386_cpu__DOT__<name> fields
-// cpu_profile.vlt lists. A stage register is a packed pipe_t with valid in
+// cpu_profile.vlt lists.
+//
+// AGI split: each AGI clock is charged to the producer that holds D's
+// address operand (fes_i386_cpu prof_agi: the stage, AG to EX, of the
+// youngest late producer of the base or index). A shadow of AG to EX, which
+// advances with the pipeline (D to WB only ever hold together), keeps each
+// uop's producer class (prof_dcls, AgiClass) from when it was in D, and
+// whether its register sources would be in a register by the time it is in
+// AG, so that an early ALU there could have executed it (ready).
+//
+// Front-end split: each clock D finds DC empty (the refill, refill_l1i,
+// fe_l1i and fe_empty buckets) is charged to why Q did not issue two clocks
+// before: Q's issue loads its output register on the edge, and DC takes that
+// on the next (fes_i386_cpu, DC), so D is empty at t only if Q, with room in
+// its output register, issued nothing at t - 2, or a redirect at t - 1 or
+// t - 2 emptied Q and DC. Q's reasons, read from
+// fes_i386_qalign and fes_i386_fetchbuf (bench only, as above), in priority
+// order: a redirect; a prefix consumed (each prefix but the last costs a
+// cycle); avail cleared by a taken jump that started in the half before its
+// last byte's (jump_clear), when the bytes at Q's start are otherwise there;
+// else Q's bytes are not in the buffer (avail clear), because its half has
+// not been filled (half), it is at bytes 12-15 whose decode waits for the
+// next block's L1 pass (tail), or the instruction runs past its half and the
+// next half has not arrived (cross). Each wait is split by how Q entered the
+// half it waits in (FeCtx: sequentially, the first sequential half after a
+// jump, a predicted taken jump, one whose target is the branch's own block,
+// a redirect) and by whether F2 has waited on the L1I since Q last issued
+// or the last redirect (l1i). A clock Q issued or held two clocks before is unattributed. Every
+// clock Q did not issue is also counted by its reason as it happens (q),
+// whatever D did then: the bubbles D's waits hide today.
+//
+// A stage register is a packed pipe_t with valid in
 // its top bit, CPU_PROFILE_PIPE_MSB, which the bench build reads from the
 // Verilated model into cpu_profile_layout.h.
 #pragma once
@@ -35,6 +66,7 @@
 #include <algorithm>
 #include <cstdint>
 #include <cstdio>
+#include <string>
 #include <unordered_map>
 #include <utility>
 #include <vector>
@@ -85,6 +117,46 @@ struct CpuProfile {
         "jcc", "jmp", "jmp_ind", "call", "call_ind", "ret", "far_call", "far_jmp", "retf", "int", "iret",
         "loop", "jcxz", "rep_str", "str", "io", "mul", "div", "shift", "pushpop", "segload", "mem_op", "other",
         "delivery"};
+    // The producer classes of fes_i386_cpu prof_dcls: register and immediate
+    // forms (no memory operand) of MOV, ADD/INC/DEC, AND/OR/XOR/NOT, LEA at a
+    // 16-bit operand size, MOVZX/MOVSX; a load (MOV, MOVZX or MOVSX from
+    // memory), an ALU op with a memory source, POP; shifts, multiply and
+    // divide, the other ALU ops, branches (LOOP's ECX), everything else, a
+    // 32-bit LEA (already early); SUB, ADC/SBB/NEG, and XOR or SUB of a
+    // register with itself (zero).
+    enum AgiClass {
+        A_NONE, A_MOV, A_ADD, A_LOGIC, A_LEA16, A_EXT, A_LOAD, A_LOAD_OP, A_POP, A_SHIFT, A_MULDIV,
+        A_ALU_OTHER, A_BRANCH, A_OTHER, A_LEA32, A_SUB, A_ADC, A_ZERO, NAGI
+    };
+    static constexpr const char *agi_name[NAGI] = {
+        "none", "mov", "add", "logic", "lea16", "ext", "load", "load_op", "pop", "shift", "muldiv",
+        "alu_other", "branch", "other", "lea32", "sub", "adc", "zero"};
+    // Front-end split: Q's reasons (F_PREFIX to F_UNATTR, then a wait per
+    // FeWait, FeCtx and L1I flag), and for the q counts, Q issued or held.
+    enum FeWait { W_HALF, W_TAIL, W_CROSS, NWAIT };
+    enum FeCtx { X_SEQ, X_SEQ1, X_TK, X_TKSELF, X_RD, NCTX };
+    enum FeSpecial { F_PREFIX, F_JCLR, F_REDIRECT, F_UNATTR, F_WAIT };
+    static constexpr unsigned NFE = F_WAIT + NWAIT * NCTX * 2;
+    static constexpr unsigned Q_ISSUE = NFE, Q_HELD = NFE + 1, NQ = NFE + 2;
+    static constexpr const char *fe_special[F_WAIT] = {"prefix", "jclr", "redirect", "unattr"};
+    static constexpr const char *fe_wait_name[NWAIT] = {"half", "tail", "cross"};
+    static constexpr const char *fe_ctx_name[NCTX] = {"seq", "seq1", "tk", "tkself", "rd"};
+    static constexpr unsigned fe_wait(unsigned w, unsigned x, bool l1i) { return F_WAIT + (w * NCTX + x) * 2 + l1i; }
+    static std::string fe_name(unsigned i) {
+        if (i == Q_ISSUE) return "issue";
+        if (i == Q_HELD) return "held";
+        if (i < F_WAIT) return fe_special[i];
+        const unsigned k = i - F_WAIT;
+        return std::string(fe_wait_name[k / 2 / NCTX]) + "_" + fe_ctx_name[k / 2 % NCTX] + (k % 2 ? "_l1i" : "");
+    }
+    // The buckets the front-end split covers, in its F lines' order.
+    static constexpr Bucket fe_bucket[4] = {REFILL, REFILL_L1I, FE_L1I, FE_EMPTY};
+    // Per class: AGI clocks by the producer's stage (AG, M1, M2, EX, none),
+    // those whose producer was ready for an early ALU, those whose producer
+    // had no second register source (imm, or a one-operand op), and those
+    // whose producer was ready and wrote 32 bits (w32).
+    struct Agi { uint64_t stage[5] = {}, ready = 0, imm = 0, w32 = 0; };
+    struct Shadow { uint8_t cls = A_NONE; bool ready = false, imm = false, w32 = false; };
     struct Counts { uint64_t n = 0, taken = 0, own = 0, next = 0; };
     struct Site { uint64_t n = 0, cycles = 0; uint8_t c = 0; };
 
@@ -92,8 +164,23 @@ struct CpuProfile {
     uint64_t commits = 0, flush_cycles = 0, redirects = 0, l1d_waits = 0, l1i_waits = 0, retired = 0, pm_retired = 0;
     uint64_t frames = 0, polls_3da = 0, io_accesses = 0;
     uint64_t prefixes = 0;  // prefix bytes before an instruction's last one
+    // Direct branches retired (Jcc, LOOP and its kin, JCXZ, JMP and CALL rel):
+    // taken; predicted taken; predicted taken and taken; and fetch-check
+    // replays (fes_i386_cpu, "Branch prediction"). Near RETs retired: those
+    // the return stack predicted, and those that redirected (not predicted,
+    // or predicted to another target).
+    uint64_t br = 0, br_taken = 0, br_pt = 0, br_pt_taken = 0, fetch_replays = 0;
+    uint64_t ret = 0, ret_pt = 0, ret_mis = 0;
     uint64_t sampled = 0;   // clocks classified
     Counts cls[NCLASS];
+    Agi agi[NAGI];
+    Shadow shadow[4];  // AG, M1, M2, EX
+    uint64_t fe[4][NFE] = {};  // fe_bucket's clocks by Q's reason two clocks before
+    uint64_t q[NQ] = {};       // every clock by Q's reason
+    uint64_t q_taken = 0, q_tself = 0;  // Q's predicted taken jumps, and those within one block
+    unsigned q_hist[2] = {F_UNATTR, F_UNATTR};  // Q's reason one and two clocks ago
+    uint8_t q_ctx = X_RD;
+    bool q_jclr = false, q_l1i = false;
     std::unordered_map<uint32_t, Site> sites;  // this dump interval's, by linear start
     CrtcFrameTracker crtc_frame;
     uint64_t last_retire = 0;
@@ -106,16 +193,73 @@ struct CpuProfile {
         last_retire = now;
         pending = -1;
         since_redirect = was_l1d = was_l1i = refill_l1i = false;
+        q_hist[0] = q_hist[1] = F_UNATTR;
     }
 
     // One system clock, after the CPU model's eval at the clock's low phase.
     template <typename Cpu> void sample(Cpu &cpu, bool mmio_busy, bool resetting) {
         ++sampled;
-        if (resetting) { ++bucket[RESET]; return; }
+        if (resetting) {
+            ++bucket[RESET];
+            q_hist[0] = q_hist[1] = F_REDIRECT;
+            q_ctx = X_RD;
+            q_jclr = q_l1i = false;
+            return;
+        }
         auto *r = cpu.rootp;
 #define S(name) (r->fes_i386_cpu__DOT__##name)
+#define QA(name) S(frontend__DOT__align__DOT__##name)
+#define FB(name) S(frontend__DOT__fetch__DOT__##name)
         const bool redirect = S(redirect);
+        // Q's reason this clock (see Front-end split).
+        if (FB(active) && !S(mem_valid)) q_l1i = true;
+        unsigned qr;
+        const unsigned start = QA(start) & 31u, h = start >> 4, half_valid = FB(half_valid), tail_ok = FB(tail_ok);
+        const bool here = (half_valid >> h & 1u) && ((start & 15u) < 12 || (tail_ok >> h & 1u));
+        if (redirect) qr = F_REDIRECT;
+        else if (QA(issue)) qr = Q_ISSUE;
+        else if (!QA(out_free)) qr = Q_HELD;
+        else if (QA(consume)) qr = F_PREFIX;
+        else if (q_jclr && here) qr = F_JCLR;
+        else {
+            const unsigned w = !(half_valid >> h & 1u) ? W_HALF : !here ? W_TAIL : W_CROSS;
+            qr = fe_wait(w, q_ctx, q_l1i);
+        }
+        ++q[qr];
+        // A redirect replaces F2's request, so an old path's L1I wait does
+        // not mark the new stream's.
+        if (QA(issue) || redirect) q_l1i = false;
+        q_jclr = QA(jump_clear);
+        if (redirect) q_ctx = X_RD;
+        else if (QA(advance)) {
+            if (QA(taken)) {
+                const bool self = QA(prof_tself);
+                q_ctx = self ? X_TKSELF : X_TK;
+                ++q_taken;
+                q_tself += self;
+            } else if ((start ^ QA(start_next)) & 16u) {
+                // The first half after a jump or redirect, then the rest.
+                q_ctx = q_ctx == X_SEQ || q_ctx == X_SEQ1 ? X_SEQ : X_SEQ1;
+            }
+        }
+        const unsigned q_then = q_hist[1];
+        // A redirect empties DC on its edge, so the clock after it is the
+        // redirect's too, whatever Q did the clock before it.
+        q_hist[1] = redirect ? unsigned(F_REDIRECT) : q_hist[0];
+        q_hist[0] = qr;
         if (S(wb_commit)) ++commits;
+        if (S(prof_br)) {
+            ++br;
+            br_taken += S(prof_taken);
+            br_pt += S(prof_pt);
+            br_pt_taken += S(prof_pt) && S(prof_taken);
+        }
+        if (S(prof_ret)) {
+            ++ret;
+            ret_pt += S(prof_pt);
+            ret_mis += S(prof_ret_mis);
+        }
+        if (S(prof_frp)) ++fetch_replays;
         if (S(wb_flush)) ++flush_cycles;
         const bool l1d = S(freeze) && S(m2_load) && !S(dmem_valid) && !mmio_busy;
         if (l1d && !was_l1d) ++l1d_waits;
@@ -140,7 +284,16 @@ struct CpuProfile {
             if (since_redirect && l1i) refill_l1i = true;
         } else if (S(d_stop)) b = D_STOP;
         else if (S(gov_block)) b = GOV;
-        else if (S(addr_use) && S(lea_stall)) b = AGI;
+        else if (S(addr_use) && S(lea_stall)) {
+            b = AGI;
+            const unsigned at = S(prof_agi) < 4 ? S(prof_agi) : 4;
+            const Shadow sh = at < 4 ? shadow[at] : Shadow{};
+            Agi &a = agi[sh.cls < NAGI ? unsigned(sh.cls) : unsigned(A_OTHER)];
+            ++a.stage[at];
+            a.ready += sh.ready;
+            a.imm += sh.imm;
+            a.w32 += sh.ready && sh.w32;
+        }
         else if ((S(reads_seg) && S(seg_hazard)) || (S(mem) && S(mseg_hazard))) b = SEG;
         else if (S(store_hazard)) b = STLD;
         else if (S(flag_hazard)) b = FLAG;
@@ -151,9 +304,25 @@ struct CpuProfile {
         else if (S(io_hazard)) b = IO_SERIAL;
         else if (S(ser_wait)) b = REPLAY_SERIAL;
         else b = OTHER_WAIT;
-#undef S
         ++bucket[b];
+        for (unsigned i = 0; i < 4; ++i)
+            if (b == fe_bucket[i]) ++fe[i][q_then < NFE ? q_then : unsigned(F_UNATTR)];
         if (redirect) { ++redirects; since_redirect = true; refill_l1i = false; }
+        if (!S(freeze)) {
+            for (int i = 3; i > 0; --i) shadow[i] = shadow[i - 1];
+            Shadow d;
+            if (S(issue)) {
+                d.cls = uint8_t(S(prof_dcls));
+                d.imm = S(prof_dimm);
+                d.w32 = S(prof_d32);
+                // A 32-bit MOV does not read its destination (src1).
+                d.ready = !S(prof_ds2) && (!S(prof_ds1) || (d.cls == A_MOV && S(prof_d32)));
+            }
+            shadow[0] = d;
+        }
+#undef FB
+#undef QA
+#undef S
     }
 #ifdef CPU_PROFILE_PIPE_MSB
     // The uops in AG, M1, M2, EX and WB, after the clock's edge.
@@ -268,20 +437,39 @@ struct CpuProfile {
         s.c = uint8_t(c);
     }
 
-    // One snapshot: T (counters, and the uops in flight), B (buckets), C (one
-    // per class) and S (every site retired since the last dump) lines, each
-    // starting with the simulated time.
+    // One snapshot: T (counters, and the uops in flight), B (buckets), A (the
+    // AGI split), F (the front-end split, one per fe_bucket), Q (Q's
+    // reasons), C (one per class) and S (every site retired since the last
+    // dump) lines, each starting with the simulated time.
     void dump(FILE *out, uint64_t cycles, double seconds, unsigned in_flight) {
         std::fprintf(out, "T %.6f cycles=%llu sampled=%llu retired=%llu pm_retired=%llu commits=%llu flush_cycles=%llu "
                      "redirects=%llu l1d_waits=%llu l1i_waits=%llu frames=%llu polls_3da=%llu io=%llu prefixes=%llu "
-                     "in_flight=%u\n",
+                     "in_flight=%u br=%llu br_taken=%llu br_pt=%llu br_pt_taken=%llu fetch_replays=%llu "
+                     "ret=%llu ret_pt=%llu ret_mis=%llu q_taken=%llu q_tself=%llu\n",
                      seconds, (unsigned long long)cycles, (unsigned long long)sampled, (unsigned long long)retired,
                      (unsigned long long)pm_retired, (unsigned long long)commits, (unsigned long long)flush_cycles,
                      (unsigned long long)redirects, (unsigned long long)l1d_waits, (unsigned long long)l1i_waits,
                      (unsigned long long)frames, (unsigned long long)polls_3da, (unsigned long long)io_accesses,
-                     (unsigned long long)prefixes, in_flight);
+                     (unsigned long long)prefixes, in_flight, (unsigned long long)br, (unsigned long long)br_taken,
+                     (unsigned long long)br_pt, (unsigned long long)br_pt_taken, (unsigned long long)fetch_replays,
+                     (unsigned long long)ret, (unsigned long long)ret_pt, (unsigned long long)ret_mis,
+                     (unsigned long long)q_taken, (unsigned long long)q_tself);
         std::fprintf(out, "B %.6f", seconds);
         for (int b = 0; b < NBUCKET; ++b) std::fprintf(out, " %s=%llu", bucket_name[b], (unsigned long long)bucket[b]);
+        std::fprintf(out, "\n");
+        for (int c = 0; c < NAGI; ++c)
+            std::fprintf(out, "A %.6f %s ag=%llu m1=%llu m2=%llu ex=%llu none=%llu ready=%llu imm=%llu w32=%llu\n", seconds,
+                         agi_name[c], (unsigned long long)agi[c].stage[0], (unsigned long long)agi[c].stage[1],
+                         (unsigned long long)agi[c].stage[2], (unsigned long long)agi[c].stage[3],
+                         (unsigned long long)agi[c].stage[4], (unsigned long long)agi[c].ready,
+                         (unsigned long long)agi[c].imm, (unsigned long long)agi[c].w32);
+        for (unsigned i = 0; i < 4; ++i) {
+            std::fprintf(out, "F %.6f %s", seconds, bucket_name[fe_bucket[i]]);
+            for (unsigned c = 0; c < NFE; ++c) std::fprintf(out, " %s=%llu", fe_name(c).c_str(), (unsigned long long)fe[i][c]);
+            std::fprintf(out, "\n");
+        }
+        std::fprintf(out, "Q %.6f", seconds);
+        for (unsigned c = 0; c < NQ; ++c) std::fprintf(out, " %s=%llu", fe_name(c).c_str(), (unsigned long long)q[c]);
         std::fprintf(out, "\n");
         for (int c = 0; c < NCLASS; ++c)
             std::fprintf(out, "C %.6f %s n=%llu taken=%llu own=%llu next=%llu\n", seconds, class_name[c],

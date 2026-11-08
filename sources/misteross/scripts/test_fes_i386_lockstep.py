@@ -78,7 +78,7 @@ SIM = ROOT / 'cores/fes-common/sim/i386'
 DDR_MODEL = ROOT / 'cores/fes-pc386/sim'  # pc386_ddr_model.h: HPS DDR port 0
 OUTPUT = ROOT / 'build/sim/fes-i386-lockstep'
 CPU_RTL = ('fes_i386_pkg.sv', 'fes_i386_gov_pkg.sv', 'fes_i386_oplen.sv', 'fes_i386_lendec.sv', 'fes_i386_lstage.sv',
-           'fes_i386_fetchbuf.sv', 'fes_i386_qalign.sv', 'fes_i386_frontend.sv', 'fes_i386_amode.sv',
+           'fes_i386_btb.sv', 'fes_i386_ras.sv', 'fes_i386_fetchbuf.sv', 'fes_i386_qalign.sv', 'fes_i386_frontend.sv', 'fes_i386_amode.sv',
            'fes_i386_dfwd.sv', 'fes_i386_agu.sv', 'fes_i386_ucode_pkg.sv', 'fes_i386_ucode_rom.sv', 'fes_i386_decode.sv', 'fes_i386_seq.sv', 'fes_i386_dops.sv',
            'fes_i386_shift.sv', 'fes_i386_shflags.sv', 'fes_i386_exctl.sv', 'fes_i386_muldiv.sv', 'fes_i386_ex.sv',
            'fes_i386_l1i.sv', 'fes_i386_l1d.sv', 'fes_i386_biu.sv', 'fes_i386_gov_rom.sv', 'fes_i386_governor.sv',
@@ -205,15 +205,15 @@ def run_reset_store(testbench: str, env: dict) -> dict:
 
 def run_memory(testbench: str, env: dict) -> dict:
     """DMA and FLUSH against the caches and the write buffer (lockstep_tb.cpp's
-    run_memory_cases): four cases, eight store-to-load forwarding cases, and six DMA sweeps under
+    run_memory_cases): four cases, nine store-to-load forwarding cases, and six DMA sweeps under
     each profile."""
     env = dict(env, FES_I386_MODE='memory', FES_I386_LATENCY='1')
     result = subprocess.run([testbench], env=env, capture_output=True, text=True)
     if result.returncode not in (0, 1):
         raise LockstepError(f'memory cases: testbench exited with {result.returncode}\n{result.stderr[-4000:]}')
     summary, failures = parse_output(result.stdout)
-    if summary['runs'] != 26:
-        raise LockstepError(f'memory cases: testbench ran {summary["runs"]} of 26 cases')
+    if summary["runs"] != 27:
+        raise LockstepError(f'memory cases: testbench ran {summary["runs"]} of 27 cases')
     return {'summary': summary, 'failures': failures}
 
 
@@ -223,8 +223,8 @@ def run_directed(testbench: str, env: dict) -> dict:
     if result.returncode not in (0, 1):
         raise LockstepError(f'directed cases: testbench exited with {result.returncode}\n{result.stderr[-4000:]}')
     summary, failures = parse_output(result.stdout)
-    if summary['runs'] != 40:
-        raise LockstepError(f'directed cases: testbench ran {summary["runs"]} of 40 cases')
+    if summary["runs"] != 68:
+        raise LockstepError(f'directed cases: testbench ran {summary["runs"]} of 68 cases')
     return {'summary': summary, 'failures': failures}
 
 
@@ -263,7 +263,7 @@ def run_pmode(testbench: str, env: dict) -> dict:
     return {'summary': summary, 'failures': failures}
 
 
-PMODE_CASES = 92
+PMODE_CASES = 147
 
 
 def run_no387(testbench: str, env: dict) -> dict:
@@ -403,8 +403,10 @@ def hold_failures(gaps: dict) -> list[str]:
     """D's flag and store holds, cycle-exactly where nothing else can hold:
     without latency a flag consumer right after a shift or rotate retires two
     cycles after it, and anything else one; a memory read right after a store
-    at least two, any other instruction after a store one, and a push or pop
-    right after another one (lockstep_tb.cpp's Summary says which)."""
+    whose bytes agree with it in address bits 11:0 at least two, any other
+    instruction after a store one, and a push or pop right after another one
+    (lockstep_tb.cpp's Summary says which). Other memory reads after a store
+    (store_other) are counted, not checked."""
     failures = [f'FAIL flag hold: {count} {key} retirements {gap} cycles apart'
                 for key, expected in (('shift_consumer', 2), ('after_shift', 1))
                 for gap, count in gaps[key].items() if gap != expected]
@@ -604,8 +606,8 @@ def main() -> int:
     gaps = {key: dict(sorted(sum((Counter({int(gap): count for gap, count in result['summary']['gaps'][key].items()})
                                   for result in steady_results), Counter()).items()))
             for key in ('sequential', 'prefixed', 'lea', 'selector', 'after_taken', 'after_not_taken',
-                        'shift_consumer', 'after_shift', 'store_load', 'after_store', 'address', 'after_segment',
-                        'after_stack', 'stack_stack', 'several', 'after_string', 'after_io', 'memory', 'smc')}
+                        'shift_consumer', 'after_shift', 'store_load', 'store_other', 'after_store', 'address', 'after_segment',
+                        'after_stack', 'stack_stack', 'several', 'after_string', 'after_io', 'memory', 'smc', 'fetch')}
     # Governed, D waits for the governor between instructions: the holds'
     # cycle counts are max's alone.
     held = hold_failures(gaps) if args.preset == 0 else []
@@ -699,8 +701,10 @@ def main() -> int:
               f"{sum(gaps['after_shift'].values())} after a shift, {share(gaps['after_shift'], 1)} one cycle apart; "
               f"{sum(gaps['shift_consumer'].values())} flag consumers after a shift, "
               f"{share(gaps['shift_consumer'], 2)} two cycles apart; "
-              f"{sum(gaps['store_load'].values())} memory reads after a store, "
-              f"{share(gaps['store_load'], 2)} two cycles apart; "
+              f"{sum(gaps['store_load'].values())} memory reads after a store with bytes in common in "
+              f"address bits 11:0, {share(gaps['store_load'], 2)} two cycles apart; "
+              f"{sum(gaps['store_other'].values())} other memory reads after a store, "
+              f"{share(gaps['store_other'], 1)} one cycle apart; "
               f"{sum(gaps['after_store'].values())} others after a store, {share(gaps['after_store'], 1)} one cycle apart")
     print(f"unbuilt encodings: {unbuilt_runs} outside SCOPE, {len(unbuilt_failures)} not stopped as unimplemented")
     print(f"BIU DMA/store: {biu_dma['output'] or 'FAIL'}")

@@ -271,8 +271,9 @@ void fes_bx_interrupt(unsigned vector) {
 }
 
 void fes_bx_lin_access(bx_address lin, bx_address phy, unsigned len, unsigned rw) {
-    if (!context.result || (rw != BX_WRITE && rw != BX_RW)) return;
-    context.result->writes.push_back({Bit32u(lin), Bit32u(phy), uint8_t(len)});
+    if (!context.result) return;
+    if (rw == BX_WRITE || rw == BX_RW) context.result->writes.push_back({Bit32u(lin), Bit32u(phy), uint8_t(len)});
+    if (rw == BX_READ || rw == BX_RW) context.result->reads.push_back({Bit32u(lin), Bit32u(phy), uint8_t(len)});
 }
 
 // ---- Oracle -----------------------------------------------------------------

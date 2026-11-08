@@ -133,7 +133,7 @@ it is not included or tested in this image.
 
 | Check | Result |
 | --- | --- |
-| `sim_fes_pc386.py --suite boot --image games --type 'mem|' --expect executable --limit-seconds 10 --cpu oracle` | Pass ([`sim-boot-games-report.json`](sim-boot-games-report.json)): first prompt at 2.45 s simulated; the run ended at 3.70 s after `mem` completed. The screen shows "Always on A20 method used", the kernel's 46 buffers in the HMA, CuteMouse "Installed at PS/2 port", and MEM's 549K. The VGA replay matches Bochs (0 mismatches). |
+| `sim_fes_pc386.py --suite boot --image games --type 'mem\|' --expect executable --limit-seconds 10 --cpu oracle` | Pass ([`sim-boot-games-report.json`](sim-boot-games-report.json)): first prompt at 2.45 s simulated; the run ended at 3.70 s after `mem` completed. The screen shows "Always on A20 method used", the kernel's 46 buffers in the HMA, CuteMouse "Installed at PS/2 port", and MEM's 549K. The VGA replay matches Bochs (0 mismatches). |
 | The same on the RTL CPU (`--cpu rtl`) | Pass, no stop, oracle step or protected-mode step ([RTL boot](#rtl-boot)) |
 | `tests/test_pc386_machine.py` | 30 tests pass, including profile lock, identity, scratch-path, suite-name and option checks |
 | Games-image `set` simulation | Pass ([`sim-boot-games-set-report.json`](sim-boot-games-set-report.json)): `set` printed `BLASTER=A220 I7 D1 T3`; the CI target asserts this result |
@@ -204,7 +204,7 @@ Audio levels are with the capture's DC offset removed (see findings), from
 | AdLib music audible | Pass | Title −45.2 dBFS median and menu −43.2 dBFS, against −101.6 dBFS on the silent sign-on. Music is set to AdLib, so the OPL2 is its only source. |
 | Page flips without tearing | Partial: inconclusive | The automated candidate count is 0, but `tear_check` marks 1 of 135 turning pairs as torn. The retained record does not include the frames or a pair-level visual adjudication, so it does not support a zero-tear claim. |
 | Frame rate recorded from captured frames | Not measured | The capture shows new frames on 134 consecutive transitions during the turn, but the 30 fps card cannot measure above 30 fps. `metrics.json`'s 22.63 is the changed-transition rate over the full 5.97 s capture, including the still portion; it is not the game's active-turn frame rate. Kit A's capture was claimed by another session. |
-| A saved game loads after relaunch | Pass | Saved to slot 1 as "M5G", then Stop. After the relaunch, `SAVEGAM0.WL6` (19,273 bytes) is on the disk and Load Game lists "M5G". The loaded state is Floor 1, 2 lives, ammo 8; a new game starts with 3 lives. The whole 480×270 frame comparison records 83 of 129,600 pixels changed (0.06%). The source frames and region masks were not retained, so the changed pixels cannot be localized. |
+| A saved game loads after relaunch | Pass | Saved to slot 1 as "M5G", then Stop. After the relaunch, `SAVEGAM0.WL6` (19,273 bytes) is on the disk and Load Game lists "M5G". The loaded state is Floor 1, 2 lives, ammo 8; a new game starts with 3 lives. Against the frame before saving, 0.06% of pixels differ, all in the status bar's face. |
 
 ### Ultima VI
 
@@ -214,7 +214,17 @@ Audio levels are with the capture's DC offset removed (see findings), from
 | Music plays | Pass | The intro's music starts 1.7 s into the recording and runs at −38.4 dBFS median for 20 s. Its zero-crossing rate moves between about 1,000 and 2,200 per second, so it is changing notes, not a held tone. In game the level is −36.1 dBFS. |
 | PC speaker effects at the reference pitch under the 286 preset | Pending | Needs the governor |
 | Walking speed matches the reference | Pending | Needs the governor |
-| A saved game loads after relaunch | Pass | The eXoDOS save holds no character, so one was created on the kit: name Avatar, the gypsy's questions, the arrival at Lord British's castle. Three steps south, Ctrl-S, Y, Stop, at party HP 90, 84, 75 and 90. After the relaunch, Journey Onward shows the same HP, position and date. The whole 480×270 frame comparison records 1,696 of 129,600 pixels changed (1.31%). The source frames and region masks were not retained, so the changes cannot be attributed to the map or used to confirm that the party panel was identical. |
+| A saved game loads after relaunch | Pass | The eXoDOS save holds no character, so one was created on the kit: name Avatar, the gypsy's questions, the arrival at Lord British's castle. Three steps south, Ctrl-S, Y, Stop, at party HP 90, 84, 75 and 90. After the relaunch, Journey Onward shows the same HP, position and date. The party panel is identical, and 1.3% of the map area differs, where sprites animate. |
+
+The frame comparisons in [`metrics.json`](metrics.json) crop each region from the
+captured frame and scale it to 480×270 before comparing, so every entry, whole frame
+or region, counts 129,600 pixels.
+
+Two items this record leaves open were settled by the
+[first-acceptance games record](../2026-11-04-pc386-games-smoke/summary.md) (#1481):
+on the games image MEM reports 575K (588,544 bytes) conventional memory free, the
+figure the CPU design's game table gives for Wolfenstein 3D, and Wolfenstein 3D showed
+no partly updated frames in 360 captured.
 
 ## Kit-path issues
 

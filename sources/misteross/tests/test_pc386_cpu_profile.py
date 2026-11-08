@@ -19,23 +19,38 @@ from scripts import test_fes_i386_latency as latency
 HEADER = sim.CORE / 'sim/cpu_profile.h'
 VLT = sim.CORE / 'sim/cpu_profile.vlt'
 COMPILER = shutil.which(os.environ.get('CXX', 'c++'))
+# The modules cpu_profile.vlt reads, by their instance's path in
+# fes_i386_cpu's Verilated names.
+MODULES = {'fes_i386_cpu': '', 'fes_i386_qalign': 'frontend__DOT__align__DOT__',
+           'fes_i386_fetchbuf': 'frontend__DOT__fetch__DOT__'}
+NUMERIC = ('prof_agi', 'prof_dcls', 'frontend__DOT__align__DOT__start', 'frontend__DOT__align__DOT__start_next',
+           'frontend__DOT__fetch__DOT__half_valid', 'frontend__DOT__fetch__DOT__tail_ok')  # wider than a bit
+
+
+def vlt_entries() -> list[tuple[str, str]]:
+    return re.findall(r'public_flat_rd -module "(\w+)" -var "(\w+)"', VLT.read_text())
 
 
 def vlt_signals() -> list[str]:
-    return re.findall(r'public_flat_rd -module "fes_i386_cpu" -var "(\w+)"', VLT.read_text())
+    """Each signal's name below fes_i386_cpu__DOT__."""
+    return [MODULES[module] + name for module, name in vlt_entries()]
 
 
 class SignalTest(unittest.TestCase):
     def test_the_config_exposes_exactly_what_the_header_reads(self):
         text = HEADER.read_text()
-        read = set(re.findall(r'\bS\((\w+)\)', text)) - {'name'} | set(re.findall(r'r->fes_i386_cpu__DOT__(\w+)', text))
+        read = (set(re.findall(r'\bS\((\w+)\)', text)) | set(re.findall(r'r->fes_i386_cpu__DOT__(\w+)', text))
+                | {MODULES['fes_i386_qalign'] + n for n in re.findall(r'\bQA\((\w+)\)', text)}
+                | {MODULES['fes_i386_fetchbuf'] + n for n in re.findall(r'\bFB\((\w+)\)', text)})
+        read -= {prefix + 'name' for prefix in MODULES.values()}  # the macros' own parameter
         self.assertEqual(read, set(vlt_signals()))
 
-    def test_every_signal_is_declared_in_the_cpu(self):
-        rtl = (sim.COMMON / 'rtl/i386/fes_i386_cpu.sv').read_text()
-        for name in vlt_signals():
-            with self.subTest(name=name):
-                self.assertRegex(rtl, rf'(?m)^\s*(logic|wire|pipe_t)\b[^;]*\b{name}\b')
+    def test_every_signal_is_declared_in_its_module(self):
+        for module, name in vlt_entries():
+            with self.subTest(module=module, name=name):
+                self.assertIn(module, MODULES)
+                rtl = (sim.COMMON / f'rtl/i386/{module}.sv').read_text()
+                self.assertRegex(rtl, rf'(?m)^\s*(output\s+)?(logic|wire|pipe_t)\b[^;]*\b{name}\b')
 
     def test_the_machine_bench_builds_the_cpu_with_the_config(self):
         self.assertIn("CPU_RTL + (CORE / 'sim/cpu_profile.vlt',)", Path(sim.__file__).read_text())
@@ -51,7 +66,9 @@ DRIVER = r'''
 #include "cpu_profile.h"
 struct Root {
 #define F(n) bool fes_i386_cpu__DOT__##n = false;
+#define N(n) uint8_t fes_i386_cpu__DOT__##n = 0;
 SIGNALS
+#undef N
 #undef F
     uint32_t fes_i386_cpu__DOT__ag_s[29] = {}, fes_i386_cpu__DOT__m1_s[29] = {}, fes_i386_cpu__DOT__m2_s[29] = {},
              fes_i386_cpu__DOT__ex_s[29] = {}, fes_i386_cpu__DOT__wb_s[29] = {};
@@ -135,6 +152,106 @@ int main(int, char **argv) {
         assert(sum == p.sampled);
         assert(p.bucket[CpuProfile::RESET] == 1 && p.bucket[CpuProfile::PARKED_HALT] == 1
                && p.bucket[CpuProfile::PARKED_IO] == 1);
+    }
+    // The AGI split: the shadow of AG to EX keeps each issued uop's class.
+    {
+        CpuProfile p;
+        Cpu cpu;
+        R(mem_valid) = true; R(dc_valid) = true;
+        R(issue) = true; R(prof_dcls) = CpuProfile::A_ADD; R(prof_dimm) = true;
+        assert(bucket_of(p, cpu) == CpuProfile::ISSUE_MORE);
+        R(issue) = false; R(prof_dcls) = 0; R(prof_dimm) = false;
+        R(addr_use) = true; R(lea_stall) = true; R(prof_agi) = 0;
+        assert(bucket_of(p, cpu) == CpuProfile::AGI);  // the ADD in AG
+        R(prof_agi) = 1;
+        assert(bucket_of(p, cpu) == CpuProfile::AGI);  // in M1
+        R(freeze) = true;
+        assert(bucket_of(p, cpu) == CpuProfile::FRZ_STORE);  // the shadow holds
+        R(freeze) = false; R(prof_agi) = 2;
+        assert(bucket_of(p, cpu) == CpuProfile::AGI);  // in M2
+        R(prof_agi) = 4;
+        assert(bucket_of(p, cpu) == CpuProfile::AGI);  // no producer
+        const auto &a = p.agi[CpuProfile::A_ADD];
+        assert(a.stage[0] == 1 && a.stage[1] == 1 && a.stage[2] == 1 && a.ready == 3 && a.imm == 3 && a.w32 == 0);
+        assert(p.agi[CpuProfile::A_NONE].stage[4] == 1);
+        // A 32-bit MOV does not wait for its destination's old value; a
+        // 16-bit one, or a source that is late, is not ready.
+        R(addr_use) = false; R(lea_stall) = false; R(issue) = true;
+        R(prof_dcls) = CpuProfile::A_MOV; R(prof_ds1) = true; R(prof_d32) = true;
+        p.sample(cpu, false, false);
+        assert(p.shadow[0].cls == CpuProfile::A_MOV && p.shadow[0].ready);
+        R(prof_d32) = false;
+        p.sample(cpu, false, false);
+        assert(!p.shadow[0].ready && p.shadow[1].ready);
+        R(prof_ds1) = false; R(prof_ds2) = true; R(prof_d32) = true;
+        p.sample(cpu, false, false);
+        assert(!p.shadow[0].ready);
+    }
+    // The front-end split: D's empty clock is charged to Q's reason two
+    // clocks before; the q counts take every clock as it happens.
+    {
+        CpuProfile p;
+        Cpu cpu;
+#define QA(n) R(frontend__DOT__align__DOT__##n)
+#define FB(n) R(frontend__DOT__fetch__DOT__##n)
+        R(mem_valid) = true; FB(active) = true; FB(half_valid) = 1; R(dc_valid) = true; R(issue) = true;
+        QA(out_free) = true;
+        auto fe = [&](unsigned r) { return p.fe[3][r]; };  // fe_empty
+        QA(issue) = true;
+        p.sample(cpu, false, false);                       // t0: Q issues
+        QA(issue) = false; QA(consume) = true;
+        p.sample(cpu, false, false);                       // t1: a prefix
+        QA(consume) = false; QA(start) = 20;
+        p.sample(cpu, false, false);                       // t2: half 1 not filled, since the reset's redirect
+        R(dc_valid) = false; R(issue) = false;
+        QA(start) = 13;
+        assert(bucket_of(p, cpu) == CpuProfile::FE_EMPTY);  // t3: Q's t1
+        assert(fe(CpuProfile::F_PREFIX) == 1);
+        assert(bucket_of(p, cpu) == CpuProfile::FE_EMPTY);  // t4: Q's t2
+        assert(fe(CpuProfile::fe_wait(CpuProfile::W_HALF, CpuProfile::X_RD, false)) == 1);
+        assert(p.q[CpuProfile::fe_wait(CpuProfile::W_TAIL, CpuProfile::X_RD, false)] == 2);  // t3, t4 at byte 13
+        // A predicted jump within its block, then a jump_clear; an L1I wait
+        // marks every wait until Q issues.
+        QA(start) = 2; QA(advance) = true; QA(taken) = true; QA(prof_tself) = true; QA(jump_clear) = true;
+        p.sample(cpu, false, false);                       // t5: half 0 is there, tail not needed: cross
+        QA(advance) = false; QA(taken) = false; QA(jump_clear) = false; R(mem_valid) = false;
+        p.sample(cpu, false, false);                       // t6: avail cleared by the jump
+        R(mem_valid) = true; QA(start) = 18;
+        p.sample(cpu, false, false);                       // t7: half 1, after the jump, the L1I waited
+        QA(issue) = true;
+        p.sample(cpu, false, false);                       // t8: Q issues, which clears the L1I mark
+        QA(issue) = false; QA(out_free) = false;
+        p.sample(cpu, false, false);                       // t9: Q held
+        assert(fe(CpuProfile::fe_wait(CpuProfile::W_CROSS, CpuProfile::X_RD, false)) == 1);   // t5 at t7
+        assert(fe(CpuProfile::F_JCLR) == 1);                                                  // t6 at t8
+        assert(fe(CpuProfile::fe_wait(CpuProfile::W_HALF, CpuProfile::X_TKSELF, true)) == 1); // t7 at t9
+        assert(p.q_taken == 1 && p.q_tself == 1 && p.q[CpuProfile::Q_HELD] == 1 && p.q[CpuProfile::Q_ISSUE] == 2);
+        p.sample(cpu, false, false);
+        p.sample(cpu, false, false);                       // Q's t8 issue and t9 hold leave D empty: unattributed
+        assert(fe(CpuProfile::F_UNATTR) == 2);
+        // A redirect: its next two empty clocks are its own.
+        R(redirect) = true; R(dc_valid) = true; R(issue) = true;
+        p.sample(cpu, false, false);
+        R(redirect) = false; R(dc_valid) = false; R(issue) = false;
+        p.sample(cpu, false, false);
+        p.sample(cpu, false, false);
+        assert(p.fe[0][CpuProfile::F_REDIRECT] == 2 && fe(CpuProfile::F_UNATTR) == 2);
+        // An L1I wait before a redirect does not mark the new stream's waits.
+        const unsigned half_rd = CpuProfile::fe_wait(CpuProfile::W_HALF, CpuProfile::X_RD, false);
+        const uint64_t before = p.q[half_rd];
+        QA(start) = 20; QA(out_free) = true; R(mem_valid) = false;
+        p.sample(cpu, false, false);
+        R(redirect) = true; R(dc_valid) = true; R(issue) = true;
+        p.sample(cpu, false, false);
+        R(redirect) = false; R(mem_valid) = true;
+        p.sample(cpu, false, false);  // waits for half 1 after the redirect, F2 hit
+        assert(p.q[half_rd] == before + 1);
+        uint64_t sum = 0;
+        for (uint64_t n : p.fe[3]) sum += n;
+        assert(sum == p.bucket[CpuProfile::FE_EMPTY]);
+        assert(CpuProfile::fe_name(CpuProfile::fe_wait(CpuProfile::W_TAIL, CpuProfile::X_SEQ1, true)) == "tail_seq1_l1i");
+#undef FB
+#undef QA
     }
     // Classes.
     {
@@ -237,7 +354,8 @@ int main(int, char **argv) {
 @unittest.skipUnless(COMPILER, 'requires a C++ compiler')
 class HeaderTest(unittest.TestCase):
     def test_buckets_classes_flips_and_snapshots(self):
-        signals = ' '.join(f'F({name})' for name in vlt_signals() if name not in sim.PIPE_STAGES)
+        signals = ' '.join(f'{"N" if name in NUMERIC else "F"}({name})' for name in vlt_signals()
+                           if name not in sim.PIPE_STAGES)
         with tempfile.TemporaryDirectory() as directory:
             work = Path(directory)
             source = work / 'driver.cpp'
@@ -271,7 +389,7 @@ def snapshot(at: float, cycles: int, sampled: int, buckets: dict, commits: int =
     names.update(dict.fromkeys(profile.ISSUE, 0))
     names.update(buckets)
     return textwrap.dedent(f'''\
-        T {at} cycles={cycles} sampled={sampled} retired={commits} pm_retired=0 commits={commits} flush_cycles={flush_cycles} redirects=0 l1d_waits=0 l1i_waits=0 frames=0 polls_3da=0 io=0 prefixes=0 in_flight={in_flight}
+        T {at} cycles={cycles} sampled={sampled} retired={commits} pm_retired=0 commits={commits} flush_cycles={flush_cycles} redirects=0 l1d_waits=0 l1i_waits=0 frames=0 polls_3da=0 io=0 prefixes=0 in_flight={in_flight} br=0 br_taken=0 br_pt=0 br_pt_taken=0 fetch_replays=0 ret=0 ret_pt=0 ret_mis=0
         B {at} ''') + ' '.join(f'{k}={v}' for k, v in names.items()) + '\n'
 
 
@@ -288,6 +406,33 @@ class WindowTest(unittest.TestCase):
         self.assertEqual(w['causes']['halt'], 40)
         self.assertEqual(w['causes']['issued uops'], 150)
         self.assertIn('interlock: AGI', profile.report(w))
+
+    def test_the_agi_split_sums_to_agi_and_counts_early_alu_producers(self):
+        a1 = 'A 1.0 add ag=0 m1=0 m2=0 ex=0 none=0 ready=0 imm=0\nA 1.0 load ag=0 m1=0 m2=0 ex=0 none=0 ready=0 imm=0\n'
+        a2 = 'A 2.0 add ag=30 m1=5 m2=0 ex=0 none=0 ready=32 imm=20\nA 2.0 load ag=10 m1=5 m2=0 ex=0 none=0 ready=15 imm=0\n'
+        text = snapshot(1.0, 0, 0, {}) + a1 + snapshot(2.0, 50, 50, {'agi': 50}) + a2
+        w = profile.window(profile.load(text.splitlines()))
+        self.assertEqual(w['agi']['clocks'], 50)
+        self.assertEqual(w['agi']['early'], 32)  # a load's ready does not count
+        self.assertEqual(w['agi']['by_class']['add']['clocks'], 35)
+        self.assertIn('early ALU would run', profile.report(w))
+        bad = text.replace('m1=5 m2=0 ex=0 none=0 ready=15', 'm1=6 m2=0 ex=0 none=0 ready=15')
+        with self.assertRaises(profile.ProfileError):
+            profile.window(profile.load(bad.splitlines()))
+
+    def test_the_front_end_split_sums_to_each_bucket(self):
+        def f(at, empty, l1i):
+            lines = ''.join(f'F {at} {k} prefix=0 half_tk=0 half_tk_l1i=0\n' for k in ('refill', 'refill_l1i', 'fe_l1i'))
+            return lines + f'F {at} fe_empty prefix={empty} half_tk={l1i} half_tk_l1i={l1i}\nQ {at} issue=0 held=0 prefix={empty}\n'
+        text = snapshot(1.0, 0, 0, {}) + f(1.0, 0, 0) + snapshot(2.0, 10, 10, {'fe_empty': 7, 'halt': 3}) + f(2.0, 3, 2)
+        w = profile.window(profile.load(text.splitlines()))
+        rows = w['front_end']['by_reason']
+        self.assertEqual((rows['prefix']['fe_empty'], rows['half_tk']['fe_empty'], rows['half_tk']['l1i']), (3, 4, 2))
+        self.assertEqual(rows['prefix']['latent'], 3)
+        self.assertIn('front end empty 7 clocks', profile.report(w))
+        bad = text.replace('fe_empty prefix=3', 'fe_empty prefix=4')
+        with self.assertRaises(profile.ProfileError):
+            profile.window(profile.load(bad.splitlines()))
 
     def test_flush_of_pre_window_uop_is_reported_separately(self):
         # This uop was issued before the window. Its flush must not be counted

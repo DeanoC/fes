@@ -22,6 +22,7 @@
 //                                           less the clocks a VGA port write waited for FIFO space
 //   IOWAIT <class> <size> <clocks> <count>  those waits, for the accesses that had one
 //   INTA <cycles> <count>
+//   GAME-LAUNCH seconds=<simulated> evidence=<screen|frame>  typed game command made visible progress
 //   SNAP <name> <width> <height> <file>     a captured frame written at a marker
 //   PRESENT <name> <file> <mismatches>      the 720p frame at a marker against the presenter model
 //   VGA <counter> <value>                   scanout and capture counters at the end
@@ -35,6 +36,7 @@
 //        [--mouse S:DX,DY,BUTTONS]...
 //        [--census F] [--profile F] [--profile-from S] [--profile-to S]
 //        [--cpu-profile F] [--cpu-profile-every S] [--rtl-from S] [--rtl-at-flip N] [--rtl-for S]
+//        [--rtl-at-prompt 1] [--keys-after-type 1] [--frame-every S] [--game-launch 1]
 // A program on the disk marks a picture by writing "SNAP <name>" and a newline
 // to port E9h, then holding it; the bench takes the second capture after the
 // marker, runs the pixel clock for two 720p frames and compares the second
@@ -98,6 +100,13 @@
 // N page flips (byte writes to CRTC register 0Ch, cpu_profile.h's
 // CrtcFrameTracker) where the RTL can run, with cold caches. It prints
 //   RTL-BEGIN <cycle> flips=<n>
+// --rtl-at-prompt 1 adds a third condition: the FreeDOS prompt has been seen,
+// so a game drive's proven boot runs on the oracle and the RTL takes the
+// typed command and the program it starts.
+// --keys-after-type 1 counts --keys times from when the last --type key is
+// released at the prompt instead of from reset, so a program's keys keep their
+// place whichever CPU booted DOS. --frame-every S (with --frames) writes the
+// captured frame every S simulated seconds as t<seconds>.ppm.
 // --rtl-for S ends the run S simulated seconds after the RTL begins (at
 // RTL-BEGIN, or at its first clock without a handover), as END rtl-window,
 // a pass.
@@ -112,6 +121,7 @@
 #include "Vfes_i386_cpu___024root.h"
 #include "Vpc386_audio___024root.h"
 #include "audio_link.h"
+#include "dos_prompt.h"
 #include "i386_oracle.h"
 #include "opl2_reference.h"
 #include "pc386_ddr_model.h"
@@ -122,6 +132,7 @@
 #include "cpu_profile.h"
 
 #include <algorithm>
+#include <cctype>
 #include <cstdint>
 #include <cstdio>
 #include <cstdlib>
@@ -725,14 +736,17 @@ public:
         s.ldtr = {uint16_t(cpu.arch_ldtr_sel), cpu.arch_ldtr_base, cpu.arch_ldtr_limit, uint16_t(cpu.arch_ldtr_ar),
                   bool(cpu.arch_ldtr_valid)};
         s.tr = {uint16_t(cpu.arch_tr_sel), cpu.arch_tr_base, cpu.arch_tr_limit, uint16_t(cpu.arch_tr_ar), s.tr.valid};
-        s.cpl = 0;  // no privilege transition is built
+        s.cpl = cpu.arch_cpl;
         s.eip = cpu.arch_eip;
         for (int n = 0; n < 6; ++n) {
             s.seg[n].selector = get16(cpu.arch_sel, n);
             s.seg[n].base = cpu.arch_base[n];
             s.seg[n].limit = cpu.arch_limit[n];
             s.seg[n].ar = get16(cpu.arch_ar, n);
-            s.seg[n].valid = (s.seg[n].ar & 0x80) != 0;  // only a null selector's load clears P
+            // A null selector's load clears P; an outer return's nulling
+            // leaves a protected-mode data segment's selector null, P set.
+            s.seg[n].valid = (s.seg[n].ar & 0x80) != 0
+                          && !((s.cr0 & 1) && n != fes_i386::SEG_CS && n != fes_i386::SEG_SS && (s.seg[n].selector & 0xfffc) == 0);
         }
         return s;
     }
@@ -1201,6 +1215,8 @@ struct Options {
     std::string wav, opl2_log, cpu = "oracle", census, profile, cpu_profile;
     double cpu_profile_every = 1.0, rtl_from = 0, rtl_for = -1;
     unsigned rtl_at_flip = 0;
+    bool rtl_at_prompt = false, keys_after_type = false, game_launch = false;
+    double frame_every = 0;
     double limit_seconds = 120, pixel_from = -1, type_at = -1, key_gap = 0.03, profile_from = 0, profile_to = -1;
     unsigned preset = 0, frequency = 0, turbo = 0;  // --cpu rtl's governor settings
     std::vector<std::pair<double, std::string>> keys;
@@ -1306,6 +1322,10 @@ Options parse(int argc, char **argv) {
         else if (flag == "--rtl-from") options.rtl_from = std::stod(value);
         else if (flag == "--rtl-for") options.rtl_for = std::stod(value);
         else if (flag == "--rtl-at-flip") options.rtl_at_flip = unsigned(std::stoul(value));
+        else if (flag == "--rtl-at-prompt") options.rtl_at_prompt = std::stoul(value) != 0;
+        else if (flag == "--keys-after-type") options.keys_after_type = std::stoul(value) != 0;
+        else if (flag == "--frame-every") options.frame_every = std::stod(value);
+        else if (flag == "--game-launch") options.game_launch = std::stoul(value) != 0;
         else if (flag == "--profile-from") options.profile_from = std::stod(value);
         else if (flag == "--profile-to") options.profile_to = std::stod(value);
         else if (flag == "--preset") options.preset = unsigned(std::stoul(value));
@@ -1332,8 +1352,10 @@ Options parse(int argc, char **argv) {
     // With the RTL running, the oracle's steps are only its stops and stretches.
     if (!options.profile.empty() && options.cpu != "oracle") throw std::runtime_error("--profile needs --cpu oracle");
     if (options.cpu != "rtl" && (!options.cpu_profile.empty() || options.rtl_from > 0 || options.rtl_at_flip
-                                 || options.rtl_for >= 0))
-        throw std::runtime_error("--cpu-profile, --rtl-from, --rtl-at-flip and --rtl-for need --cpu rtl");
+                                 || options.rtl_at_prompt || options.rtl_for >= 0))
+        throw std::runtime_error("--cpu-profile, --rtl-from, --rtl-at-flip, --rtl-at-prompt and --rtl-for need --cpu rtl");
+    if (options.frame_every < 0) throw std::runtime_error("--frame-every takes a time of 0 (off) or above");
+    if (options.frame_every > 0 && options.frames.empty()) throw std::runtime_error("--frame-every needs --frames");
     if (options.cpu_profile_every <= 0) throw std::runtime_error("--cpu-profile-every takes a time above 0");
     for (char &c : options.type) if (c == '|') c = '\n';
     for (auto &key : options.keys) for (char &c : key.second) if (c == '|') c = '\n';
@@ -1387,7 +1409,7 @@ int main(int argc, char **argv) {
         FILE *cpu_prof_out = nullptr;
         uint64_t cpu_prof_next = 0;
         const uint64_t rtl_from = uint64_t(options.rtl_from * CLOCK_HZ);
-        const bool handover = rtl_from || options.rtl_at_flip;
+        const bool handover = rtl_from || options.rtl_at_flip || options.rtl_at_prompt;
         if (!options.cpu_profile.empty()) {
             cpu_prof_out = std::fopen(options.cpu_profile.c_str(), "w");
             if (!cpu_prof_out) throw std::runtime_error("cannot write " + options.cpu_profile);
@@ -1471,6 +1493,11 @@ int main(int argc, char **argv) {
         const char *reason = "limit";
         // After the prompt appears, wait for the screen to settle, then type.
         uint64_t prompt_at = 0, settled_at = 0;
+        // --keys times count from 0, or with --keys-after-type from when the last --type key is released.
+        uint64_t keys_base = options.keys_after_type ? UINT64_MAX : 0;
+        bool typing = false;
+        const uint64_t frame_step = uint64_t(options.frame_every * CLOCK_HZ);
+        uint64_t next_frame = frame_step;
         size_t typed = 0;
         std::deque<KeyChange> keys;
         uint64_t next_key = 0;
@@ -1483,6 +1510,22 @@ int main(int argc, char **argv) {
         size_t scheduled = 0;
         std::string last_screen;
         uint64_t screen_checked = 0;
+        std::string game_prompt_screen, game_echo_screen, game_final_command;
+        pc386::Frame game_prompt_frame, game_input_frame;
+        bool game_prompt_captured = false, game_input_finished = false, game_echo_captured = false;
+        bool game_launch_reported = false;
+        uint64_t game_input_finished_at = 0, game_frame_checked_at = 0;
+        if (options.game_launch) {
+            size_t end = options.type.find_last_not_of('\n');
+            if (end != std::string::npos) {
+                size_t start = options.type.find_last_of('\n', end);
+                game_final_command = options.type.substr(start == std::string::npos ? 0 : start + 1,
+                    end - (start == std::string::npos ? 0 : start + 1) + 1);
+            }
+        }
+        auto is_prompt_row = [&options](const std::string &row) {
+            return pc386::prompt_matches(row, options.prompt, options.game_launch);
+        };
         // Snapshots: a marker, then the second capture and the second raster.
         std::string snap_name;
         unsigned snap_frames = 0, snap_rasters = 0;
@@ -1590,7 +1633,8 @@ int main(int argc, char **argv) {
                         stretch_from = machine.cycles;
                         stretch_entry = site(state);
                     }
-                    if (machine.cycles >= rtl_from && machine.flips >= options.rtl_at_flip && !(state.eflags & 0x20000)
+                    if (machine.cycles >= rtl_from && machine.flips >= options.rtl_at_flip &&
+                        (!options.rtl_at_prompt || prompt_at) && !(state.eflags & 0x20000)
                         && !(state.cr0 & 0x80000000u) && (!(state.cr0 & 1) || state.cpl == 0)) {
                         // The oracle's run before the handover is not the RTL's.
                         if (!rtl_begun) oracle_steps = protected_steps = stretch_steps = 0;
@@ -1685,9 +1729,17 @@ int main(int argc, char **argv) {
                 if (machine.cycles < pixel_from) machine.stop_pixel_clock();
             }
             if (finished && snap_name.empty()) { reason = "debug-marker"; break; }
+            if (frame_step && machine.cycles >= next_frame) {
+                if (machine.frames_done) {
+                    char name[32];
+                    std::snprintf(name, sizeof name, "/t%07.2f.ppm", double(next_frame) / CLOCK_HZ);
+                    pc386::write_ppm(options.frames + name, machine.captured());
+                }
+                next_frame += frame_step;
+            }
 
             if (scheduled < options.keys.size() && keys.empty() &&
-                machine.cycles >= uint64_t(options.keys[scheduled].first * CLOCK_HZ)) {
+                keys_base != UINT64_MAX && machine.cycles >= keys_base + uint64_t(options.keys[scheduled].first * CLOCK_HZ)) {
                 for (auto [usage, shift] : taps(options.keys[scheduled].second)) {
                     keys.push_back({usage, shift, true, uint64_t(0.2 * CLOCK_HZ)});
                     keys.push_back({usage, shift, false, uint64_t(0.1 * CLOCK_HZ)});
@@ -1703,6 +1755,12 @@ int main(int argc, char **argv) {
                 if (change.shift) set_key(machine.top.keyboard_rows, 0xe1, change.down);
                 next_key = machine.cycles + change.hold;
                 keys.pop_front();
+                if (typing && keys.empty()) { keys_base = machine.cycles; typing = false; }
+            }
+            if (options.game_launch && !game_input_finished && typed == options.type.size() && keys.empty()) {
+                game_input_finished = true;
+                game_input_finished_at = machine.cycles;
+                game_input_frame = machine.captured();
             }
             // Keep each scheduled packet pending until one ready handshake edge.
             if (mouse_pending || mouse_due()) {
@@ -1716,10 +1774,68 @@ int main(int argc, char **argv) {
                 std::string now = machine.screen();
                 if (!prompt_at && now.find(options.prompt) != std::string::npos) {
                     prompt_at = machine.cycles;
+                    if (options.game_launch && !game_prompt_captured) {
+                        game_prompt_screen = now;
+                        game_prompt_frame = machine.captured();
+                        game_prompt_captured = true;
+                    }
                     std::printf("PROMPT %llu\n", (unsigned long long)machine.cycles);
                 }
                 if (now != last_screen) { last_screen = now; settled_at = machine.cycles; }
                 bool settled = machine.cycles - settled_at >= uint64_t(0.5 * CLOCK_HZ);
+                if (options.game_launch && game_prompt_captured && game_input_finished && !game_launch_reported &&
+                    machine.cycles - game_input_finished_at >= uint64_t(0.2 * CLOCK_HZ)) {
+                    const std::string last = machine.last_row();
+                    const bool at_prompt = is_prompt_row(last);
+                    std::string upper_last = last, upper_command = game_final_command;
+                    std::transform(upper_last.begin(), upper_last.end(), upper_last.begin(),
+                                   [](unsigned char c) { return char(std::toupper(c)); });
+                    std::transform(upper_command.begin(), upper_command.end(), upper_command.begin(),
+                                   [](unsigned char c) { return char(std::toupper(c)); });
+                    const std::string echo_suffix = ">" + upper_command;
+                    const bool command_echo = upper_last.size() >= echo_suffix.size() &&
+                        upper_last.compare(upper_last.size() - echo_suffix.size(), echo_suffix.size(), echo_suffix) == 0;
+                    std::string upper = now;
+                    std::transform(upper.begin(), upper.end(), upper.begin(),
+                                   [](unsigned char c) { return char(std::toupper(c)); });
+                    const bool command_error = upper.find("BAD COMMAND OR FILENAME") != std::string::npos ||
+                                               upper.find("ILLEGAL COMMAND") != std::string::npos;
+                    if (!game_echo_captured) {
+                        game_echo_screen = now;
+                        game_echo_captured = true;
+                    }
+                    size_t prompt_text_changes = 0, echo_text_changes = 0;
+                    for (size_t n = 0; n < std::min(now.size(), game_prompt_screen.size()); ++n)
+                        prompt_text_changes += now[n] != game_prompt_screen[n];
+                    for (size_t n = 0; n < std::min(now.size(), game_echo_screen.size()); ++n)
+                        echo_text_changes += now[n] != game_echo_screen[n];
+                    const char *evidence = nullptr;
+                    if (!at_prompt && !command_error &&
+                        (echo_text_changes >= 8 || (!command_echo && prompt_text_changes >= 8)))
+                        evidence = "screen";
+                    if (!evidence && !at_prompt && !command_error &&
+                        machine.cycles - game_frame_checked_at >= uint64_t(0.5 * CLOCK_HZ)) {
+                        game_frame_checked_at = machine.cycles;
+                        const pc386::Frame frame = machine.captured();
+                        if (frame.width == game_prompt_frame.width && frame.height == game_prompt_frame.height &&
+                            frame.pixels.size() == game_prompt_frame.pixels.size() &&
+                            frame.pixels.size() == game_input_frame.pixels.size()) {
+                            size_t prompt_changes = 0, input_changes = 0;
+                            for (size_t n = 0; n < frame.pixels.size(); ++n) {
+                                prompt_changes += frame.pixels[n] != game_prompt_frame.pixels[n];
+                                input_changes += frame.pixels[n] != game_input_frame.pixels[n];
+                            }
+                            if (prompt_changes > std::max<size_t>(1024, frame.pixels.size() / 10) ||
+                                input_changes > std::max<size_t>(1024, frame.pixels.size() / 100))
+                                evidence = "frame";
+                        }
+                    }
+                    if (evidence) {
+                        game_launch_reported = true;
+                        std::printf("GAME-LAUNCH seconds=%.3f evidence=%s\n",
+                                    double(machine.cycles) / CLOCK_HZ, evidence);
+                    }
+                }
                 bool type_now = options.type_at >= 0 ? machine.cycles >= uint64_t(options.type_at * CLOCK_HZ)
                                                      : prompt_at && settled;
                 if (type_now && typed < options.type.size() && keys.empty()) {
@@ -1731,12 +1847,13 @@ int main(int argc, char **argv) {
                     }
                     typed = options.type.size();
                     next_key = machine.cycles;
+                    typing = options.keys_after_type;
                     settled_at = machine.cycles;
                 }
                 // Done when everything is typed and the prompt is back on the
                 // last line, waiting for input.
                 if (prompt_at && settled && typed == options.type.size() && keys.empty() &&
-                    machine.last_row() == options.prompt) {
+                    is_prompt_row(machine.last_row())) {
                     reason = "prompt";
                     break;
                 }

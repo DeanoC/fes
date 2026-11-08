@@ -1,0 +1,91 @@
+{
+ "corner": "7_slow_1100mv_-40c, 16.276 ns",
+ "script": "stages.tcl (quartus_sta: worst setup slack into each register group)",
+ "stages": {
+  "d_eip": {
+   "slice3_0a16a224_4ee70a831": 5.574,
+   "this_a587e709_a421fb060": 1.459,
+   "this_merged_254b2bf5_317310c81": 1.126
+  },
+  "r_dst": {
+   "slice3_0a16a224_4ee70a831": 5.283,
+   "this_a587e709_a421fb060": 1.617,
+   "this_merged_254b2bf5_317310c81": 1.26
+  },
+  "r_src": {
+   "slice3_0a16a224_4ee70a831": 5.418,
+   "this_a587e709_a421fb060": 1.619,
+   "this_merged_254b2bf5_317310c81": 1.226
+  },
+  "r_cnt": {
+   "slice3_0a16a224_4ee70a831": 6.604,
+   "this_a587e709_a421fb060": 1.952,
+   "this_merged_254b2bf5_317310c81": 1.145
+  },
+  "dc0": {
+   "slice3_0a16a224_4ee70a831": 4.309,
+   "this_a587e709_a421fb060": 1.67,
+   "this_merged_254b2bf5_317310c81": 1.537
+  },
+  "dfwd_": {
+   "slice3_0a16a224_4ee70a831": 5.863,
+   "this_a587e709_a421fb060": 1.91,
+   "this_merged_254b2bf5_317310c81": 1.844
+  },
+  "decode_": {
+   "slice3_0a16a224_4ee70a831": 2.088,
+   "this_a587e709_a421fb060": 2.017,
+   "this_merged_254b2bf5_317310c81": 1.623
+  },
+  "frontend_": {
+   "slice3_0a16a224_4ee70a831": 1.284,
+   "this_a587e709_a421fb060": 1.831,
+   "this_merged_254b2bf5_317310c81": 0.911
+  },
+  "ag_": {
+   "slice3_0a16a224_4ee70a831": 3.618,
+   "this_a587e709_a421fb060": 2.3,
+   "this_merged_254b2bf5_317310c81": 2.61
+  },
+  "dc_": {
+   "slice3_0a16a224_4ee70a831": 3.052,
+   "this_a587e709_a421fb060": 2.339,
+   "this_merged_254b2bf5_317310c81": 2.449
+  },
+  "d_first": {
+   "slice3_0a16a224_4ee70a831": 8.266,
+   "this_a587e709_a421fb060": 2.587,
+   "this_merged_254b2bf5_317310c81": 2.674
+  },
+  "dops_": {
+   "slice3_0a16a224_4ee70a831": 6.908,
+   "this_a587e709_a421fb060": 2.743,
+   "this_merged_254b2bf5_317310c81": 2.714
+  },
+  "governor_": {
+   "slice3_0a16a224_4ee70a831": 1.02,
+   "this_a587e709_a421fb060": 1.491,
+   "this_merged_254b2bf5_317310c81": 1.264
+  },
+  "l1d_": {
+   "slice3_0a16a224_4ee70a831": 3.644,
+   "this_a587e709_a421fb060": 3.27,
+   "this_merged_254b2bf5_317310c81": 3.346
+  },
+  "m2_": {
+   "slice3_0a16a224_4ee70a831": 4.042,
+   "this_a587e709_a421fb060": 4.065,
+   "this_merged_254b2bf5_317310c81": 3.629
+  },
+  "ex_": {
+   "slice3_0a16a224_4ee70a831": 6.52,
+   "this_a587e709_a421fb060": 6.232,
+   "this_merged_254b2bf5_317310c81": 6.802
+  },
+  "m1_": {
+   "slice3_0a16a224_4ee70a831": 7.656,
+   "this_a587e709_a421fb060": 6.748,
+   "this_merged_254b2bf5_317310c81": 7.517
+  }
+ }
+}

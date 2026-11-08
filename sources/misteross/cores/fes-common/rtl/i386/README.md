@@ -7,10 +7,11 @@ and `fes_i386_cpu`, which runs the real-mode instructions `fes_i386_decode`
 lists from D to WB, with their memory forms, fixed uop sequences, the string
 instructions and ENTER, I/O on an I/O port, the microcode ROM, exception
 delivery, INTR and NMI, the multiply and divide unit, and the speed
-governor ([Speed governor](#speed-governor)); Phase 2's first two
-slices, protected mode at CPL 0: unreal mode, delivery through the IDT,
-far calls and returns, the LDT, TR and the system-segment instructions
-(see [Protected mode](#protected-mode)); and the ESC instructions of a 386
+governor ([Speed governor](#speed-governor)); Phase 2's three slices,
+protected mode: unreal mode, delivery through the IDT, far calls and
+returns, the LDT, TR and the system-segment instructions, privilege levels
+with IRET to an outer one and deliveries to an inner one, IOPL and the I/O
+permission bitmap (see [Protected mode](#protected-mode)); and the ESC instructions of a 386
 with an empty 387 socket (see [ESC with no 387](#esc-with-no-387)). It reaches guest memory through an L1I,
 an L1D and a bus interface on HPS DDR port 0, with an uncached path to MMIO
 (see [Memory](#memory)). There is no L2 or paging yet.
@@ -19,6 +20,8 @@ an L1D and a bus interface on HPS DDR port 0, with an uncached path to MMIO
 | --- | --- | --- |
 | `fes_i386_pkg.sv` | — | The uop (the Decode table's fields), the prefix record, and `fetched_t`, the instruction Q hands D |
 | `fes_i386_fetchbuf.sv` | F1, F2, L1, L2 | Block address and memory port; F2's register; L1's register; L2 writing the 32-byte buffer; each byte's availability for Q |
+| `fes_i386_btb.sv` | F1, F2 | The branch target buffer: 512 entries in M10K, read with the fetch block |
+| `fes_i386_ras.sv` | F2 | The return stack: 16 linear return addresses, pushed and popped as F2 predicts CALL rel and RET, set back from WB on a redirect |
 | `fes_i386_lendec.sv`, `fes_i386_oplen.sv` | L1 | The 16 per-byte decoders: one prefix, the 0Fh escape, the prefix-run flag, and the length classes (opcode and fixed-immediate bytes, ModRM bytes per address size, size-dependent immediates) |
 | `fes_i386_lstage.sv` | L2 | Each byte's length, end and next-half bit for every prefix-accumulator variant |
 | `fes_i386_qalign.sv` | Q | Next-start select, prefix accumulator and aligner |
@@ -42,7 +45,17 @@ an L1D and a bus interface on HPS DDR port 0, with an uncached path to MMIO
 
 ## Front end
 
-Fetch is sequential from the last redirect; there is no prediction yet.
+Fetch is sequential from the last redirect except where the branch target
+buffer (`fes_i386_btb`) predicts a branch taken: F2 then sends F1 to the
+entry's target on the next edge, one bubble, and the fetch buffer fills its
+halves alternately so the target's block follows its branch's. A RET's entry
+goes to the return stack's top instead (`fes_i386_ras`), which a CALL rel's
+entry pushes. Q goes on at
+the target after the instruction that ends where the entry says
+(`fes_i386_fetchbuf`'s `jm`, `jt` and `jx`, registered from next-cycle state
+as availability is). [The design's Prediction section](../../../../docs/i386-cpu-design.md#prediction)
+gives the entry, its update and the checks that make every prediction safe.
+The front-end bench writes no entries, so its fetch stays sequential.
 The fetch port is the L1I's way-selected output (`fes_i386_l1i`), an M10K
 read with address stall: `mem_data` is the block at the address registered
 on the last edge with `mem_load`, and `mem_valid` says that response is
@@ -775,9 +788,8 @@ show each retirement.
 
 ## Protected mode
 
-Phase 2's first two slices: protected mode at CPL 0, without privilege
-transitions, call or task gates, task switches, debug registers, V86 or
-paging (the design's
+Phase 2's three slices: protected mode with privilege levels, without call
+or task gates, task switches, debug registers, V86 or paging (the design's
 [segment-cache contract](../../../../docs/i386-cpu-design.md#architecture)).
 CR0.PE is a register that only a CR0 write changes, which jumps to the next
 instruction, so DC decodes with it (`pe`) and every stage sees one mode.
@@ -798,19 +810,21 @@ instruction, so DC decodes with it (`pe`) and every stage sees one mode.
   had for the read, as Bochs pops before it loads. A TI=1 selector reads the
   LDT at LDTR's base, checked against its limit less 7 (`ldt_lim7`); with
   LDTR not valid (after a null LLDT) it fails that check, #GP(selector).
-- **The checks,** at CPL 0, from Bochs's `load_seg_reg`: for DS, ES, FS and
-  GS a system descriptor or execute-only code, or data or non-conforming
-  code with DPL below RPL, is #GP(selector), and not present #NP(selector);
-  for SS a null selector is #GP(0), RPL or DPL not 0, a system descriptor,
-  code or read-only data #GP(selector), and not present #SS(selector).
+- **The checks,** from Bochs's `load_seg_reg`: for DS, ES, FS and GS a
+  system descriptor or execute-only code, or data or non-conforming code
+  with DPL below CPL or RPL, is #GP(selector), and not present
+  #NP(selector); for SS a null selector is #GP(0), RPL or DPL not CPL, a
+  system descriptor, code or read-only data #GP(selector), and not present
+  #SS(selector).
 - **Far JMP** (`pjmp`, `pjmpm`) puts the selector in T0 and the offset in T1,
   reads the descriptor and raises `jump_protected`'s checks: null is #GP(0);
-  a TSS, task gate or call gate is not built; any other system descriptor or
-  data is #GP(selector), as is non-conforming code with DPL or RPL not 0 or
-  conforming code with DPL not 0; not present is #NP(selector); an offset
-  past the new limit #GP(0). The accessed bit's store comes after them all,
-  then the jump writes CS (RPL 0) and jumps to the descriptor's base plus
-  the offset, which AG adds from T2 and T3.
+  a TSS, task gate or call gate with DPL at least CPL and RPL is not built;
+  any other system descriptor or data is #GP(selector), as is
+  non-conforming code with DPL not CPL or RPL above CPL, or conforming code
+  with DPL above CPL; not present is #NP(selector); an offset past the new
+  limit #GP(0). The accessed bit's store comes after them all, then the
+  jump writes CS (RPL the CPL) and jumps to the descriptor's base plus the
+  offset, which AG adds from T2 and T3.
 - **Far CALL** (`pcall`, `pcallm`) makes the jump's checks but the offset's
   (`segchk` call), then probes each of its two slots (`STK_PROBE` with a
   slot), then checks the offset with the accessed bit's store (`off`), then
@@ -828,10 +842,11 @@ instruction, so DC decodes with it (`pe`) and every stage sees one mode.
   into T0 (IRET) and the offset's into T1, each at SP plus its slot without
   the wrap on a 16-bit stack (`nwrap`), then the descriptor and
   `return_protected`'s and `iret_protected`'s checks with the offset's: null
-  is #GP(0); system or data, non-conforming code with DPL not RPL or
-  conforming with DPL above it, #GP(selector); not present #NP(selector);
-  RPL not 0, a return to an outer privilege, is not built; an offset past
-  the limit #GP(0). The jump steps ESP past the slots and RETF's imm16
+  is #GP(0); RPL below CPL, system or data, non-conforming code with DPL not
+  RPL or conforming with DPL above it, #GP(selector); not present
+  #NP(selector); for RETF, RPL above CPL, a return to an outer privilege, is
+  not built (IRET's is, [Privilege transitions](#protected-mode) below); an
+  offset past the limit #GP(0). The jump steps ESP past the slots and RETF's imm16
   (`iimm`, the instruction's immediate). IRET loads the flags from T4 first:
   IRETD's RF too (FLAG_LOAD_RF, as real-mode IRETD does); an IRETD image with
   VM set returns to V86 mode, not built (`vmchk`, raised in EX from DC's
@@ -846,16 +861,18 @@ instruction, so DC decodes with it (`pe`) and every stage sees one mode.
   `protected_mode_int`'s: an interrupt or trap gate, else #GP, not present
   #NP, each with the IDT entry; a task gate is not built. At WB it puts the
   gate's selector in T0 and its offset in T1 (a 286 gate's 16 bits), with
-  the gate's size (`gate32`) and kind (`gate_trap`). The CS descriptor's
-  dwords and their checks (`intcs`): null #GP(0); system, data or DPL not 0
-  #GP(selector); not present #NP(selector); the offset past the limit
-  #GP(0). Then a probe of each slot the delivery pushes, at the gate's size
-  (`gsz` words take `gate32` for their operand size), the accessed bit,
-  and the stores: EFLAGS (FLAG_READ_PM: RF from the delivery, TF and NT
-  cleared, IF too through an interrupt gate), CS, EIP and the error code
-  (`SYS_RD_ERR`), whose probe and store D drops for a delivery without one
-  (`errp`); then the far jump, stepping ESP past the pushes. At CPL 0 no
-  delivery changes privilege, and the gate's DPL is never below CPL.
+  the gate's size (`gate32`) and kind (`gate_trap`); a software
+  interrupt's gate with DPL below CPL is #GP with the IDT entry. The CS
+  descriptor's dwords and their checks (`intcs`): null #GP(0); system, data
+  or DPL above CPL #GP(selector); not present #NP(selector); then the
+  offset past the held limit #GP(0) (`hoff`). Then a probe of each slot
+  the delivery pushes, at the gate's size (`gsz` words take `gate32` for
+  their operand size), and the stores: EFLAGS (FLAG_READ_PM: RF from the
+  delivery, TF and NT cleared, IF too through an interrupt gate), CS, EIP
+  and the error code (`SYS_RD_ERR`), whose probe and store D drops for a
+  delivery without one (`errp`); the accessed bit; then the far jump,
+  stepping ESP past the pushes. A nonconforming CS below CPL is a delivery
+  to an inner privilege ([Privilege transitions](#protected-mode) below).
 - **Error codes and EXT.** A fault's error code is worked out at WB
   (`wb_err`): the selector in T0 for `GP_SEL`, `NP_SEL` and `SS_SEL`, the
   IDT entry for `GP_IDT` and `NP_IDT` (from the gate's read, `idt_vec`), else
@@ -909,17 +926,88 @@ instruction, so DC decodes with it (`pe`) and every stage sees one mode.
 - **Leaving protected mode.** Clearing PE makes CS a writable data segment,
   its limit, DPL, G and D/B kept, as Bochs's `handleCpuModeChange` does; the
   real-mode far jump that follows takes the 386 values.
+- **CPL** (`cpl`) is CS's RPL once a protected-mode load has written CS,
+  and 0 in real mode and on protected-mode entry, as Bochs keeps it; the
+  lockstep reads it (`arch_cpl`). Only a protected-mode CS load changes it,
+  a far transfer that flushes everything younger, so DC's decode and the
+  staged descriptor's checks read it as it stands. The checks take it as
+  Bochs's do: a data segment's DPL at least CPL and RPL (unless conforming
+  code); SS's RPL and DPL equal to CPL; a far JMP's or CALL's code segment
+  by `check_cs` (nonconforming: DPL CPL and RPL at most CPL; conforming: DPL
+  at most CPL), with CS's RPL set to CPL; a gate's DPL at least CPL and RPL;
+  LAR's kin's DPL at least CPL and RPL; a software interrupt's gate DPL at
+  least CPL (`ds_fault_sgate`, which M1 picks when no delivery is under way,
+  #GP with the IDT entry); a delivery's CS DPL at most CPL; IRET's CS RPL at
+  least CPL.
+- **IOPL and privilege.** In protected mode, DC raises #GP(0) at a CPL
+  other than 0 for HLT, CLTS, MOV to or from a CR or DR, LGDT, LIDT, LMSW,
+  LLDT and LTR, and at a CPL above IOPL for CLI and STI, each after LOCK's and
+  the form's #UD, before any operand, as Bochs checks them. IOPL changes only
+  at CPL 0, where it gates nothing, and reaching another CPL flushes, so DC
+  reads EFLAGS' IOPL as it stands. POPF and IRET load IF only at a CPL up to
+  IOPL and IOPL only at CPL 0 (EX, `fes_i386_ex`). IRETD's VM bit counts
+  only at CPL 0.
+- **The I/O permission bitmap** (`iochk`): IN and OUT at a CPL above IOPL
+  put the port in T5 (DX or the imm8), then read the TSS's bitmap base at
+  66h into T4 (`tss` iomap; #GP(0) unless TR is a 386 TSS of 104 bytes or
+  more), the bitmap's word for the port at that base plus the port's byte
+  into T2 (`tss` bitmap; #GP(0) at or past TR's limit), and check the
+  port's bits for the access's size (`CHK_IOBM`, #GP(0) for any set), as
+  Bochs's `allow_io`; the last uop is the access the first kept (`iof`:
+  its direction in `ctl.cond`, its size in `src_size`). INS and OUTS there
+  stop as not built (`WHY_IOPERM`).
+- **Privilege transitions.** A far jump writes two segments and ESP, after
+  every check, so it holds CS's descriptor while T0-T3 take the new SS's.
+  The uop that checks CS (`hold`) makes WB keep the staged descriptor
+  (`hs_*`: selector, base, limit, access rights, checks, the access byte as
+  read) and whether the transfer changes privilege (`xp`), with the new CPL
+  (`hs_cpl`). Routine uops marked `xc` issue only with xp, D turning them
+  into NOPs otherwise, so one routine serves both. The accessed bit of the
+  held CS is stored from the hold (`DESC_HACC`), after the pushes, as
+  Bochs's `load_cs` touches it; the new SS's after it, as `load_ss` does.
+  The jump (`xfer`) writes CS from the hold with RPL the new CPL, and with
+  xp SS from the staged descriptor and ESP from T5 plus imm (by the new SS's
+  width: a 16-bit one keeps ESP's high half, as Bochs's `SP =` does).
+  - **IRET to an outer privilege** (`piret`, `iret_protected`): CS's checks
+    (`CHK_RET`: null #GP(0); RPL below CPL or `check_cs(0, RPL)` #GP(sel); not
+    present #NP(sel)) hold it, with xp for RPL above CPL. Then SS's word
+    slot into T0, its descriptor and `fetch_ss_descriptor`'s checks
+    against the new CPL (`CHK_SSRET`: null #GP(0); RPL or DPL not the new
+    CPL, a system, code or read-only descriptor #GP(sel); not present
+    #SS(sel)), and ESP's slot into T5, then the offset against the held
+    limit (`CHK_HOFF`, #GP(0)). The flags load by the CPL the IRET runs at.
+    The jump nulls ES, DS, FS and GS whose DPL is below the new CPL unless
+    they hold conforming code (`validate_seg_regs`): the selector 0 and
+    every access refused (`seg_rbad`, `seg_wbad`), the rest of the cache
+    kept, as Bochs keeps it.
+  - **A delivery to an inner privilege** (`pvec`, `pint`,
+    `protected_mode_int`): a nonconforming CS below CPL holds with xp and
+    the CS's DPL as the new CPL. The TSS's stack for that DPL: ESP into T5
+    (`tss` esp, checked against TR's limit less 7 in a 386 TSS or 3 in a
+    286 one, #TS(TR)), SS into T0 (`tss` ss); SS's descriptor (`dmode` ts:
+    past its table #TS(sel)) and its checks (`CHK_SSINT`: null, RPL or DPL
+    not CS's DPL, a system, code or read-only descriptor #TS(sel); not
+    present #SS(sel)); the gate's offset against the held limit
+    (`CHK_HOFF`). Its probes and pushes go to the new stack (`nstk`: the
+    staged SS's base at T5 plus the slot, wrapped by its width, checked
+    against its limits, #SS(sel)), the old SS and ESP first, then EFLAGS,
+    CS, EIP and the error code two slots further down (`xs`), at the gate's
+    size. A fault on the way leaves SS and ESP as they were, as Bochs's
+    `write_new_stack_*` does.
+  - **#TS** takes the last two fault codes: `FAULT_TS_SEL` with T0's
+    selector (a delivery's new SS) and `FAULT_TS_TR` with TR's; it is
+    contributory and pushes its error code.
 - **Not built:** each stops the CPU with `trace_unimplemented`, its reason in
   `trace_unbuilt` (`why_e`, carried by the uop as `ctl.why`) and, for a
   delivery's, its vector in `trace_vector`: a delivery through a task gate;
-  a return to an outer privilege (RETF or IRET to RPL above 0); a far JMP or
+  RETF to an outer privilege (RPL above CPL, `CHK_RETS`); a far JMP or
   CALL through a call gate, a TSS or a task gate; an IRET to V86 mode; an
   IRET with NT set, a return from a nested task (`ntchk`: EX checks NT as
   it runs IRET's first uop, over that uop's stack fault, since Bochs
-  returns from the task before it reads the stack); paging (CR0 with PG
-  set); a protected-mode 16-bit stack slot past 64 KiB
-  under a limit that reaches there. CPL is always 0: nothing changes
-  privilege.
+  returns from the task before it reads the stack); INS and OUTS at a CPL
+  above IOPL; paging (CR0 with PG set); a protected-mode 16-bit stack slot
+  past 64 KiB under a limit that reaches there. Debug registers are not
+  built either: MOV to or from a DR stops at CPL 0.
 
 ## Memory
 
@@ -1018,12 +1106,14 @@ FLUSH empties the buffer and clears both L1s. A CPU reset clears both L1s'
 valid bits and leaves the buffer to drain and any read in flight to finish
 unseen; `cold_reset` also empties the buffer.
 
-**Self-modifying code** (`fes_i386_cpu`). Fetch is sequential from the last
-redirect, and every redirect comes from WB, so the instructions after the
-one in WB are one run of lines: from CS.base + EIP (`smc_lo`, a cycle old,
-except that on the cycle after a redirect it is the redirect's line, where F1
-has just loaded) to the block F1 loads next (`fetch_next`), which holds every block F2
-may still read from the L1I before a clear of a line there lands. A store WB
+**Self-modifying code** (`fes_i386_cpu`). The instructions after the one in
+WB came from the lines of the instructions in Q's record, DC's two and D to
+EX (each one's first line and the next, which it may run into), and of the
+blocks the front end holds or loads next (`fes_i386_fetchbuf`'s
+`held_block`: F1's next, a predicted target F1 loads next, F2's, L1's, L2's
+and the two halves'), among them every block F2 may still read from the L1I
+before a clear of a line there lands. With prediction they are not one run
+of lines, so each is compared on its own. A store WB
 commits into one of those lines, or a DMA write (the bus interface's
 `inv_valid`), may have changed bytes the front end holds. The CPU then
 restarts an instruction after it, under the coherent profile and for DMA the
@@ -1035,8 +1125,7 @@ flushes it and everything younger and the front end restarts at it through
 uop has passed EX. By then the L1I has cleared the line, and the fill waits
 for the store's write-buffer entry, so the instruction runs the new bytes
 (the coherent profile). The instruction that stored completes as it was
-decoded. Lines compare by bits 19:5 as two carry
-chains (a subtraction and its borrow), modulo 1 MiB, where linear and
+decoded. Lines compare by bits 19:5 for equality, modulo 1 MiB, where linear and
 physical agree under A20M and for the shadow at FFFF0000h: an alias 1 MiB
 away, or a line of data next to code, restarts for nothing. Every input of
 the check but the L1D's `unc_start` is a register, and its decision reaches

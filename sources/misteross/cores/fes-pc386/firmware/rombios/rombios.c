@@ -960,6 +960,12 @@ Bit16u cdrom_boot();
 // static char bios_svn_version_string[] = "$Revision$ $Date$";
 
 #define BIOS_COPYRIGHT_STRING "(c) 2001-2026  The Bochs Project"
+// FES 2026-11-08: a BIOS identification line in the shape of a period AT
+// BIOS's copyright line: a 198x year, a separator, then a capitalised name
+// ending in a full stop. Programs find the BIOS vendor by such a year;
+// SpeedSys 4.78 leaves DS at F000h when the ROM has none, then runs its speed
+// test on the VGA ROM and never finishes (#1557). 1984 is the PC/AT's year.
+#define BIOS_AT_IDENTITY_STRING "Compatible: IBM PC/AT 1984, FES pc386 BIOS."
 
 #if DEBUG_ATA
 #  define BX_DEBUG_ATA(a...) BX_DEBUG(a)
@@ -12376,5 +12382,8 @@ ASM_START
 .org 0xcc00
 bios_table_area_end:
 .ascii BIOS_COPYRIGHT_STRING
+.byte 0
+.ascii BIOS_AT_IDENTITY_STRING
+.byte 0
 // bcc-generated data will be placed here
 ASM_END

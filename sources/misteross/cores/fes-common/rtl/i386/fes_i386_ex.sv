@@ -84,6 +84,7 @@ module fes_i386_ex (
     input  logic [17:0]          flags_in,
     input  logic [17:0]          flags_keep,
     input  logic [11:0]          md_flags,
+    input  logic [1:0]           cpl,         // the CPL, for POPF's and IRET's IF and IOPL
     output logic [31:0]          result,
     output logic [17:0]          flags_out,
     output logic                 taken,
@@ -342,7 +343,9 @@ module fes_i386_ex (
             if (exc.f_if) rest[IF] = exc.fl_set;
             if (exc.f_df) rest[DF] = exc.fl_set;
             // POPF and IRET: every flag a real-mode load writes, bits 14:0
-            // but the reserved 1, 3 and 5; RF and VM stay.
+            // but the reserved 1, 3 and 5; RF and VM stay. IF only at a
+            // CPL up to IOPL and IOPL only at CPL 0, as Bochs's
+            // write_flags and writeEFlags take them (CPL 0 in real mode).
             if (exc.f_load) begin
                 rest[CF] = y[0];
                 rest[PF] = y[2];
@@ -353,7 +356,9 @@ module fes_i386_ex (
                 rest[IF] = y[9];
                 rest[DF] = y[10];
                 rest[OF] = y[11];
-                rest[14:12] = y[14:12];
+                rest[14] = y[14];
+                if (cpl > flags_keep[13:12]) rest[IF] = flags_keep[IF];
+                if (cpl == 2'd0) rest[13:12] = y[13:12];
             end
             if (exc.f_clrit) begin
                 rest[IF] = 1'b0;

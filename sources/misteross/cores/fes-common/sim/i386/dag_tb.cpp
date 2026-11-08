@@ -161,8 +161,11 @@ public:
             top.prod_kind |= unsigned(stage[k].kind) << (2 * k);
         }
         // Result registers hold a final value only where the model says so.
+        // A load's value in EX is the EX register's load data, not its result.
         for (int k = 1; k < 5; ++k)
-            top.stage_value[k - 1] = stage[k].valid && status(k, stage[k].kind) == NOW ? stage[k].value : value();
+            top.stage_value[k - 1] = stage[k].valid && status(k, stage[k].kind) == NOW
+                                  && !(k == 3 && stage[k].kind == LOAD) ? stage[k].value : value();
+        top.ex_ld = stage[3].valid && stage[3].kind == LOAD ? stage[3].value : value();
         auto late_value = [&](int k) {
             return stage[k].valid && status(k, stage[k].kind) == LATE_VALUE ? stage[k].value : value();
         };

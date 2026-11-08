@@ -65,14 +65,14 @@ module spike_dag (
     logic [3:0][1:0] prod_kind;
 
     // Stack operations are not part of this spike.
-    logic [15:0] unused_sp_hi;
+    logic [15:0] unused_sp_hi, unused_base_hi;
     logic        unused_sp_wait;
     logic [31:0] unused_base_op;
     fes_i386_dfwd dfwd (
         .clk, .reset, .has_base, .base, .has_index, .index, .index8(1'b0), .scale, .addr32, .d_writes, .d_dst, .d_kind,
         .d_sp(1'b0), .advance(!stall), .hold(1'b0), .prod_valid, .prod_dst, .prod_kind, .prod_sp(4'b0), .gpr,
-        .stage_value({wb_result, ex_result, m2_result, m1_result}), .wb_sp(32'd0), .row, .last, .late, .late_hi,
-        .stall, .sp_hi(unused_sp_hi), .sp_wait(unused_sp_wait)
+        .stage_value({wb_result, ex_result, m2_result, m1_result}), .wb_sp(32'd0), .ex_ld(ex_result), .row, .last, .late, .late_hi,
+        .stall, .sp_hi(unused_sp_hi), .base_hi(unused_base_hi), .sp_wait(unused_sp_wait)
     );
 
     always_ff @(posedge clk) begin

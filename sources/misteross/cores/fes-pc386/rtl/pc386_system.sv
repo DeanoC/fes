@@ -470,14 +470,14 @@ module pc386_system #(
         .trace_retire(cpu_retire), .trace_exception(), .trace_vector(cpu_vector), .trace_halt(cpu_halt),
         .trace_unimplemented(cpu_stopped), .trace_unbuilt(), .shutdown(cpu_shutdown), .trace_error(), .trace_issue(),
         .trace_md_wait(), .trace_fetch(),
-        .trace_fetch_block(), .trace_dread(), .trace_dread_addr(), .trace_mem_wait(),
+        .trace_fetch_block(), .trace_dread(), .trace_dread_addr(), .trace_mem_wait(), .trace_fe_wait(),
         .trace_mem_idle(cpu_mem_idle), .trace_replay(), .trace_smc(), .trace_smc_open(), .trace_ex_store(),
         .trace_gov_hold(gov_hold), .trace_gov_debt(), .trace_gov_charge(),
         .trace_store(), .trace_store_addr(), .trace_store_data(), .trace_store_mask(), .arch_gpr(),
         .arch_eflags(), .arch_cr0(), .arch_cr2(), .arch_cr3(), .arch_gdtr_base(), .arch_gdtr_limit(),
         .arch_idtr_base(), .arch_idtr_limit(), .arch_eip(cpu_eip), .arch_sel(cpu_sel),
         .arch_base(), .arch_limit(), .arch_ar(), .arch_ldtr_sel(), .arch_ldtr_base(), .arch_ldtr_limit(),
-        .arch_ldtr_ar(), .arch_ldtr_valid(), .arch_tr_sel(), .arch_tr_base(), .arch_tr_limit(), .arch_tr_ar()
+        .arch_ldtr_ar(), .arch_ldtr_valid(), .arch_tr_sel(), .arch_tr_base(), .arch_tr_limit(), .arch_tr_ar(), .arch_cpl()
     );
     /* verilator lint_on PINCONNECTEMPTY */
 
