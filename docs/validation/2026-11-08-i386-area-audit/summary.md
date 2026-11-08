@@ -24,10 +24,15 @@ Toolchain follow-up: [#1581](https://github.com/DeanoC/fes/issues/1581).
   **744 ALMs in the CPU** (DTLB −495, ITLB −342, the other CPU modules +93 of noise). That
   fit also met setup with +0.832 ns. This is the clear quick win. It needs
   #1579 merged first, since the TLB is only on that branch.
-- **The Yosys front end's other losses are small.** Quartus ignores Yosys's
-  `parallel_case` attribute on 613 one-hot muxes, but a fit with Quartus's
-  own `// synthesis parallel_case` directive gives identical synthesis:
-  56,331 ALUTs, 32,350 registers and 36,751 ALMs both times. Keeping the hierarchy instead of
+- **The Yosys front end's other losses are small.** Yosys writes its 613
+  one-hot muxes as `casez` with a `parallel_case` attribute. A fit that adds
+  Quartus's own `// synthesis parallel_case` directive gives identical
+  synthesis: 56,331 ALUTs, 32,350 registers and 36,751 ALMs both times. So
+  the attribute form costs nothing.
+  Quartus's messages on whether it honours the attribute disagree:
+  - the seal's map report calls those 613 attributes unrecognised (10335);
+  - the experiment's report says the directive overrides an existing value
+    (10890). Keeping the hierarchy instead of
   flattening it moves the total by 43 ALMs. The M4 record's two memories that
   Quartus "could not infer" (warning 10999) are now M10K, split per byte.
   What Yosys still turns into flip-flops is 30 small memories of about
@@ -179,7 +184,7 @@ The misses have three causes:
 
 | Item | ALMs | Evidence |
 | --- | ---: | --- |
-| `$pmux` as `casez`, its `parallel_case` attribute reported unrecognised | 0 | The fit with Quartus's own directive gives identical synthesis (56,331 ALUTs, 32,350 registers, 36,751 ALMs). |
+| `$pmux` as `casez` with a `parallel_case` attribute | 0 | The fit with Quartus's own directive added gives identical synthesis (56,331 ALUTs, 32,350 registers, 36,751 ALMs). The seal's map report flags those 613 attributes unrecognised (10335); the experiment's says the directive overrides an existing value (10890). Either way, they cost nothing. |
 | `flatten` before Quartus | about 0 (−43) | The per-module fit totals 36,794 against the seal's 36,751. |
 | Variable-index write into a packed array (`e[slot] <= x`) | 744 in the TLBs | the scratch fit; the same idiom elsewhere is [below](#other-findings) |
 | Multi-write-port memories as flip-flops | about 250–400 | The return stack is 289 ALMs and would be about 20 in two MLABs; the KBC RAM and VGA CRTC are a few tens each. The rest are register files that stay registers either way. |
