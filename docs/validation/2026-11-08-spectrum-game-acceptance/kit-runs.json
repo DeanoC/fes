@@ -884,7 +884,7 @@
    }
   },
   "result": "pass",
-  "notes": "+3 menu Loader boots the disk; menu 4 then fire; fights the gang on the first stage for 11.5 min: knock-downs score 50 each (scores to 500 per game), the energy bar drains, lives are lost, three GAME OVERs with the high-score screen and restarts; one grab caught the game-over screen wipe, which Fuse also draws (frame 6456 of a Fuse game over)",
+  "notes": "+3 menu Loader boots the disk; menu 4 then fire; fights the gang on the first stage for about 11 min (44 of the 46 grabs every 15 s are play; 2 show the high-score screen between games): knock-downs score 50 each (scores to 500 per game), the energy bar drains, lives are lost, three GAME OVERs with the high-score screen and restarts; one grab caught the game-over screen wipe, which Fuse also draws (frame 6456 of a Fuse game over)",
   "frame_comparisons": {
    "control_menu_vs_fuse_1450": "768/768",
    "relaunch_menu_vs_fuse_1450": "768/768"
@@ -926,7 +926,7 @@
    }
   },
   "result": "pass",
-  "notes": "+3 menu Loader boots the disk; the game's Define Keys sets O/P/A/Q, hit M, pause H, then 1 starts; fights for 11.5 min: knock-downs score 50 each (scores to 650 per game), the energy bar drains, lives are lost, GAME OVER and restarts",
+  "notes": "+3 menu Loader boots the disk; the game's Define Keys sets O/P/A/Q, hit M, pause H, then 1 starts; fights for about 11 1/2 min (46 of 46 grabs are play): knock-downs score 50 each (scores to 650 per game), the energy bar drains, lives are lost, GAME OVER and restarts",
   "frame_comparisons": {
    "control_menu_vs_fuse_1450": "768/768",
    "define_keys_vs_fuse_2050": "768/768",

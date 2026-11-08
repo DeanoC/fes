@@ -313,8 +313,8 @@ scoring 50. Lose lives, reach game over and restart.
 
 | Run | Controls | Result | Verdict |
 | --- | --- | --- | --- |
-| `c4r5` | Kempston | 11½ min of fighting: knock-downs, scores up to 500 per game, the energy bar drains, lives lost, three GAME OVERs with the high-score screen and restarts | **pass** |
-| `c4r6` | keyboard | 11½ min of fighting: knock-downs, scores up to 650 per game, lives lost, GAME OVER and restarts | **pass** |
+| `c4r5` | Kempston | about 11 min of fighting (44 of 46 grabs; the other 2 are the high-score screen between games): knock-downs, scores up to 500 per game, the energy bar drains, lives lost, three GAME OVERs with the high-score screen and restarts | **pass** |
+| `c4r6` | keyboard | about 11½ min of fighting (46 of 46 grabs): knock-downs, scores up to 650 per game, lives lost, GAME OVER and restarts | **pass** |
 
 **Fuse with the same inputs.** Ten-minute runs scored up to 550 per game on
 Kempston and up to 1650 on keyboard. Each looped through game over and
