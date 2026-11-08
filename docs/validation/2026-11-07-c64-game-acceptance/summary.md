@@ -20,7 +20,7 @@ and progress under input. No brightness or non-black checks are used.
 | Case | Result | Notes |
 | --- | --- | --- |
 | 1 Kikstart: KERNAL load, both ports, split-screen, collisions, SID | **PASS** | Run `kik4` (8 Nov), both launches. KERNAL load, trainer, high-score file read, two players with two joysticks: each port drives only its own rider, and course 1 times are P1 72.54 and P2 59.64 on both launches and in VICE. 850 s or more in a race per launch, and the race completes back to the title. The 7 Nov `kik2` two-joystick failure was a harness timing error ([#1542](https://github.com/DeanoC/fes/issues/1542), closed as not an FES defect). |
-| 2 Lode Runner: Brøderbund multi-file load, raw-sector level reads, joystick and keyboard | **PASS** | Both launches: the 1.5-minute original loader, the attract demo matching VICE (SCORE 2125), fire starting level 1, Ctrl+A costing a man (MEN 5→4), play scoring through input, game over and restart. Ctrl+U advanced to LEVEL 002 in r1 and in VICE; in r2 it landed in the death wipe (script timing). |
+| 2 Lode Runner: Brøderbund multi-file load, raw-sector level reads, joystick and keyboard | **QUALIFIED** | Both launches: the 1.5-minute original loader, the attract demo matching VICE (SCORE 2125), fire starting level 1, Ctrl+A costing a man (MEN 5→4), play scoring through input, game over and restart. Ctrl+U advanced to LEVEL 002 only in r1; in r2 it landed in the death wipe and stayed at LEVEL 001. The predeclared two-launch level-advance objective was not met. |
 | 3 Metal Warrior 4: custom IRQ fastloader with its own 1541 drive code, live side-2 replacement | **PASS** | Run `mw2`, both launches. Fastloader on, the multicolour loading picture, then the side-2 prompt answered by a live replacement in the running session (same session and generation, unit ready). Side 2 loads through the game's own drive code into the game, followed by 600 s of play and a live eject (unit empty, same generation). Every scripted screen matches VICE. `mw1` r1 also reached the game; `mw1` r2 is a harness INCONCLUSIVE (see below). |
 
 This record refers to #1531 and doesn't close it. What's still owed is
@@ -213,8 +213,10 @@ play exercises the drive throughout.
   124 of 756 in VICE.
 - Neither launch reached a qualifying high score, so the read-only disk
   never received a write attempt.
-- **PASS:** load, joystick and keyboard, death and respawn, a level change
-  (in r1), sustained play and relaunch.
+- **QUALIFIED:** the loader, joystick and keyboard, death and respawn,
+  sustained play and relaunch passed in both launches. Ctrl+U reached LEVEL
+  002 only in r1; in r2 it landed during the death wipe and stayed at LEVEL
+  001, so the predeclared two-launch level-advance objective was not met.
 
 ## Case 3: Metal Warrior 4 (runs `mw1`, `mw2`)
 
