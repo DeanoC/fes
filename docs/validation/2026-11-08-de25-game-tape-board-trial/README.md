@@ -62,3 +62,10 @@ archive/readback must pass before programming. These preparation results prove
 neither physical tape loading nor normal catalog/appliance readiness. Visible
 output, combined physical controls, native networking, FPGA timing and broader
 admission remain open.
+
+The [first bounded board attempt](hardware.md) stopped at the one-second tape
+operation limit before a verified computer launch. Recovery, all thirteen
+uploads/fresh reads, native programming, matched secure boot and initial menu
+passed. The original failed result is preserved; this procedure is consumed.
+Independent host cleanup passed. Tape delivery, final Park and full appliance
+readiness remain unverified.

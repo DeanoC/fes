@@ -1,0 +1,100 @@
+{
+  "format": 1,
+  "status": "stopped-native-tape-operation-deadline",
+  "classification": "original failed bounded hardware attempt; programming/boot/menu/upload success, tape launch failed",
+  "operator_source": "cd342603adf7ad3e12af12b4e8c96a052e6fd88d",
+  "compiled_source": "ba2f1ef5e08cbfb42d94f5fcf42c3e807b3534bc",
+  "native_boot_id": "71ae1d6bc14ee11d",
+  "procedure_consumed": true,
+  "attempts_on_procedure": 1,
+  "total_compiled_image_attempts": 1,
+  "max_compiled_image_attempts": 1,
+  "preceding_image_consumed_attempts": 4,
+  "original_attempt_passed": false,
+  "hardware_elapsed_seconds": 264.62222111504525,
+  "outer_wrapper_timed_out": false,
+  "thirteen_uploads_and_fresh_reads_verified": true,
+  "native_programming_completed": true,
+  "matched_native_boot_verified": true,
+  "initial_menu_verified": true,
+  "verified_computer_launches": 0,
+  "verified_menu_returns": 0,
+  "final_park_verified": false,
+  "tape_hardware_delivery_verified": false,
+  "tape_consumption_by_ROM_verified": false,
+  "ordinary_admission": false,
+  "core_load_acceptance": false,
+  "goal_complete": false,
+  "last_reported_native_state": {
+    "State": "reboot_required",
+    "Owner": 7152140822525423533,
+    "Generation": 1,
+    "Identity": {
+      "PackageID": "03c8fa017f5fcfb40d23d54a449e8464d89fa9919dc6bae301fd8c833955290a",
+      "CoreID": "fes.zx81",
+      "ABI": "fes.computer",
+      "BuildID": "0792e51a2e51512bfb8fe44e93a69ddd",
+      "Platform": "de25_nano",
+      "Device": "A5EB013BB23BE4SCS",
+      "ProgrammingProfile": "de25-native-computer-v1",
+      "ActivationReceiptSHA256": "5c40790f10fc8e0a69a4048b7f9e1c735c86d9f014ad0d3142c139bc3bbb7e2c",
+      "ProgrammedSHA256": "1da457bc4afbfce297222fa8d85754fbd4533198be7dc9f706926ce21103b949",
+      "Major": 1,
+      "Minor": 0
+    },
+    "rom_receipt_sha256": "5c40790f10fc8e0a69a4048b7f9e1c735c86d9f014ad0d3142c139bc3bbb7e2c",
+    "Held": true,
+    "Error": "native program service: instruction-fetch observation failed\ncomputer operation exceeded its time or poll limit: reason=deadline operation=load-tape phase=after-read elapsed=1.000934915s step=1.268085ms limit=1s offset=0xc opcode=8 index=35 polls=0/64 reads=770 writes=48 access_offset=0xc access_write=false ownership_before=486.585\u00b5s register_io=284.618\u00b5s ownership_after=495.382\u00b5s access_complete=true\ncomputer transport retired; platform containment required"
+  },
+  "observed_tape_deadline": {
+    "limit_seconds": 1,
+    "opcode": 8,
+    "index": 35,
+    "reads": 770,
+    "writes": 48,
+    "last_access_before_us": 486.585,
+    "last_access_register_us": 284.618,
+    "last_access_after_us": 495.382
+  },
+  "no_Run_on_tape_failure": "source-bound inference: error before Run in the exact compiled startExecution; no fetch-success receipt",
+  "post_failure_native_commands": false,
+  "post_failure_reprogramming": false,
+  "continuing_claim_retained": true,
+  "factory_restored": false,
+  "bottom_kit_touched": false,
+  "one_use_live_admission": {
+    "recovery": {
+      "grant_sha256": "3bdd469f847da1a23dcb075208470bcd640539f5b8a5b9c98905a89e293dffc4",
+      "scan_sha256": "26f2b5b363d1215c672376c1271ab8f8f20bc338afe19314d0582b59f9c8eebc",
+      "trace_sha256": "c57216ad7aa9d6629c4f3962203552d889992ee9887be4eb671d2d8c9d586f02",
+      "trace_bytes": 471114
+    },
+    "native": {
+      "grant_sha256": "67f3b44d380f33df6f7a143940f229653514d2d77fa41c44c03bd974d4684400",
+      "scan_sha256": "26f2b5b363d1215c672376c1271ab8f8f20bc338afe19314d0582b59f9c8eebc",
+      "trace_sha256": "20c665950c35ac5f604d6108cb154f2826584fd631bc442753174be59c4eb991",
+      "trace_bytes": 491477
+    }
+  },
+  "independent_host_cleanup": {
+    "status": "passed",
+    "usb_node_unchanged": true,
+    "usb_permissions_exact": true,
+    "clock_readback": "15M",
+    "owned_private_server_gone": true,
+    "uart_owners": [],
+    "board_operations": false,
+    "native_rom_acceptance": false
+  },
+  "evidence_sha256": {
+    "out/nano-game-tape-trial-20261108/hardware-result.json": "80eed3ffd1c23b1ad7205b0483ae7b35b4e84ee19f66b7d6ff49bd2126a346e2",
+    "out/nano-game-tape-trial-20261108/hardware.log": "85acc2f7e525b8bfbf96ac9305c6a775eccc72aea09d2fa806e651cd30b76f11",
+    "out/nano-game-tape-trial-20261108/cleanup-evidence.json": "7fecd92dbf5fcf639e54b7c9e3b602b1171d67c1e9529f2bf67e1ce82aedfe8c",
+    "out/nano-game-tape-trial-20261108/trial/native-result.json": "30b54cb65aeaf839d3c69791cc588b8d407b040d7df9f322bc291f51435f2fb7",
+    "out/nano-game-tape-trial-20261108/trial/native-console.log": "cac715fbdc8e4942285f6da4ed6a7bf5bbe41c66cb070643704b3b9c5bf5dd95",
+    "out/nano-game-tape-trial-20261108/trial/experiment-result.json": "19e21a7ea362ba4ab690ee1fb77097b85ff67f49cd75f42a52deb0e496437ba0",
+    "out/nano-game-tape-trial-20261108/trial/uploads/result.json": "a50ad7ef53c4af5fe3948743e42ede27d302eab8321b5ce9e204c4b4492a98c8",
+    "out/nano-game-tape-trial-20261108/trial/preflight.json": "9967c2169d7d4ef869ea5226c3e8f14526c0a80e4892c082079fc809937f20d0",
+    "out/nano-game-tape-trial-20261108/analyse_stop.py": "e7535144453899dde16a59f57d5340cea21411f07ae5dbba470686d5323b663b"
+  }
+}
