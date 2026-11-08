@@ -1,0 +1,122 @@
+{
+  "aarch64_objects": {
+    "engine_max_individual_stack_frame_bytes": 144,
+    "engine_text_bytes": 4720,
+    "service_max_individual_stack_frame_bytes": 272,
+    "service_text_bytes": 1564,
+    "whole_secure_stack_or_bl31_link_proven": false
+  },
+  "affected_checks": {
+    "commands": 14,
+    "fpga_existing_skips": 79,
+    "fpga_software_tests": 1595,
+    "parent_existing_skips": 3,
+    "parent_tests": 1700,
+    "prior_failures": {
+      "fpga": "One unchanged GPU lease test observed held status before owner metadata. Isolated 17-test control passed; full 1595-test suite rerun passed. No GPU runner or test modification.",
+      "parent": "Coverage list missed the new definition; parent extended run stopped after that known failure and wrong extended-mode selection. Fixed and complete routine parent suite rerun."
+    },
+    "result_sha256": "7fafd69773235c4f192e1b2cf3af2e8da922fb61eff6fbae15b1a766df0b3871",
+    "status": "passed"
+  },
+  "base": "252c0ff5eff747d38daace8b18571c51d2a9bd91",
+  "board_touched": false,
+  "c_service": {
+    "constructor_identity": "trusted private accepted GP words, never header authority",
+    "cross_boundary_backwards_timer": "rejected using preserved last prologue sample",
+    "deadline": "original one second includes descriptor/hash prologue, engine and final guard",
+    "endpoint": "injected GP model; real C engine",
+    "engine_failure_modes_joined": 24,
+    "header_byte_mutations_rejected": 128,
+    "service_failure_modes": 13,
+    "sha384_supplier": "injected in portable service fixture; strong Nano implementation absent",
+    "success_sizes": [
+      1,
+      2,
+      511,
+      512,
+      513,
+      917,
+      1025,
+      16375
+    ]
+  },
+  "captured_rtl": {
+    "build_id": "0792e51a2e51512bfb8fe44e93a69ddd",
+    "classification": "captured-rtl-host-simulation",
+    "package_id": "03c8fa017f5fcfb40d23d54a449e8464d89fa9919dc6bae301fd8c833955290a",
+    "result_sha256": "d19e88842bb0851c0630b7ebc5457507111c3d20acf08312c237ff9bf75e1116",
+    "service_join_endpoint": "portable model; captured RTL separately exercises real engine through computer/native hook and launch/return/failures",
+    "top_level_passed_or_skipped": 273
+  },
+  "classification": "unbound-service-and-native-publication-software-integration",
+  "evidence_directory": "out/nano-tape-publication-20261108",
+  "fixed_publication": {
+    "arena_base": "0x94800000",
+    "arena_bytes": 8388608,
+    "failure_modes": 18,
+    "go_to_actual_c_service_sizes": [
+      1,
+      512,
+      917,
+      16375
+    ],
+    "header_base": "0x94fff000",
+    "header_bytes": 128,
+    "invalid_request_modes": 14,
+    "mapping_guards": "before publication, after copy and after successful firmware response",
+    "reuse_requires": "same boot owner, newer generation and a newly completed program lease",
+    "uncertain_outcome": "retire arena, retain mapping, no replay"
+  },
+  "generated_consistency": {
+    "copied_source_pins": 0,
+    "fixture_copies": 37,
+    "generated_consumers": 52,
+    "make_check_committed": "passed",
+    "make_generate": "passed"
+  },
+  "goal_complete": false,
+  "hardware_gate": {
+    "new_tape_hardware_evidence": false,
+    "prior_checkpoint": "out/nano-game-tape-trial-20261108/checkpoint.json",
+    "replay_permitted": false,
+    "trial_consumed": true
+  },
+  "remaining": [
+    "Install strong cold/USB/CPU fixed-source supplier with fresh whole-frame and per-CSR proofs.",
+    "Decode the new FID/cookie under the existing SiP lock and actual computer phase; retain role/return/failure policy.",
+    "Connect only eligible matched Nano CPU transport to InitialTapePlatform, with fixed arena mapping guards.",
+    "Test actual strong provider/dispatcher/native/App launch, return and failures.",
+    "Rebuild and qualify matched SDK/entry/BL31/SPL/FIT/SOF, including link, secure RAM/stack and original deadlines, before a fresh bounded TRWU8CBL trial.",
+    "Normal appliance readiness and physical media/display/input acceptance remain incomplete."
+  ],
+  "source_commit": "2c5daf36a14005a989f1e2f6d9ce1e4ff2668934",
+  "source_sha256": {
+    "platform/embedded/firmware/README.md": "72e601ca8b542e0f0e8b22a66ccb13e62721173bb6d848d9928fbc88cbf2ad71",
+    "platform/embedded/firmware/generated/fes_embedded_tape.h": "620f725d4ac1e462f84f4f041497103dac5e2a06d0b78db58db2ca83fa505202",
+    "platform/embedded/firmware/nano_tape.c": "d61aa0e655a9ea4692721e376df002941f2fc6aa246d798fcd174ca308b9b1c5",
+    "platform/embedded/firmware/nano_tape.h": "241aecfac0d09b81d9312ba0b70a6c6e7b923954c46b88f00aca0c9f9bc7db31",
+    "platform/embedded/firmware/nano_tape_service.c": "ec2553132403a2470c7fc1910223aab817e6152d5e36011eb2d9c7933e8134fa",
+    "platform/embedded/firmware/nano_tape_service.h": "a845014ba7e5a67f7da1a02b0c028ef489773b9cf4d49e2308555816b58431db",
+    "platform/embedded/firmware/tests/nano_tape_service_test.c": "63011d6b65027f6384fcd27807b553f789485d5ae53543e001d0cd3d117b3e5b",
+    "platform/embedded/firmware/tests/nano_tape_test.c": "fbb97e799d2a8bed3fde35e4037d2a6d19636faa42df7147519264f06a771cd0",
+    "platform/embedded/tamago/computer/tape.go": "cbbc8c5435467512108f12a15983270187d3ee019bc67c52e3b266dbf6a0fc88",
+    "platform/embedded/tamago/computer/verify.py": "49614efda9c2ee4faf480271418fab6d5e67819b808921de1c81021006e2152c",
+    "platform/embedded/tamago/embeddedcontrol/generated/fes_embedded_tape.go": "058f99b5c6b5b7ea615b80f15e30ffa0754155397b38583e5c76136d9684f8ba",
+    "platform/embedded/tamago/nativefabric/README.md": "ce5243781b04eb832461638a3dfc269d70cccc8e8d774f0e281d8476e03a47a7",
+    "platform/embedded/tamago/nativefabric/configuration_arena.go": "edee19939dd64e285a8c3bef8812e7c288c07b7e616d3c564cd7b5bc5d9a22d2",
+    "platform/embedded/tamago/nativefabric/initial_tape_publication.go": "d70508449735002f51c77c1740c960db3d005e54fb61be327e2d1ef3983679a9",
+    "platform/embedded/tamago/nativefabric/initial_tape_publication_test.go": "92c0a072bad038ed627e84c13a1738c9e7d0b3f4d88300da854d52e54b71b574",
+    "scripts/affected.py": "d7db45f2f8bcf7237740f302d77612b3fe19c65deed68a3ebfdefbc5b0fc2b59",
+    "scripts/consistency.py": "c7948f3ee17ad6a9cea0504159fb05c2ecd0a2a4016e90ba528a75625723c256",
+    "scripts/test_policy.py": "6c672d0efa1a643c17987061cb303d151052ca3d7532bfe9aa30550e1f7efa17",
+    "sources/mister-packages/README.md": "e5f711e2485de704c9f2e646e682b12d6f7a7c2808c33fe5967917f149f45c1f",
+    "sources/mister-packages/docs/embedded-tape.md": "17e0b926897ee3f0780cf41979e8eda3ff2c07b0d8833e4bbbe61816f895c74b",
+    "sources/mister-packages/packages/fabric/fes_fabric_embedded_tape.yaml": "16e865ef1082e1e5d9a8333cf41697d321f5f8555ee6ab3f1a749fceefceca01",
+    "tests/test_affected.py": "5dcd00492dda1ebaa59e0507e89c8005da4d066a26f6537056860a4b630859c5",
+    "tests/test_consistency.py": "916ad90bda4b66e2ca134996e15e47acd0ab9befd8e3e53128dd8caae798f88e",
+    "tests/test_nano_tape_service.py": "316e36ed8482b7f801550a3365d8529be049326ffc04be881fd68cf8c3ac97fd",
+    "tests/test_test_policy.py": "06865d18efef9668f40fa1c4e50a74398ccb4a7b8b248539e3d4f9c3f0730a8c"
+  },
+  "status": "passed"
+}
