@@ -345,8 +345,11 @@ compared the kit against MAME `ibm5150`, and its results are partial:
     ([#1534](https://github.com/DeanoC/fes/issues/1534)).
   - Rogue's dungeon map never draws
     ([#1537](https://github.com/DeanoC/fes/issues/1537)).
-- **Not run.** Menu selection through tenfoot, a cold power cycle and
-  external interface timing remain unassessed.
+- **Cold power cycle.** On 8 November (Kit A), a saved disk record was
+  byte-identical after Deano's power cycle, and the relaunch read the file
+  back.
+- **Not run.** Menu selection through tenfoot, losing unsaved writes to a
+  power loss, and external interface timing remain unassessed.
 The [reviewed 29 October Quartus diagnostic](validation/2026-10-29-pcxt-quartus-package/review-followup.json)
 passes three seeds and a byte-identical independent rebuild at producer `38ef151bfa`.
 Independent review found four package/acceptance defects, now fixed and re-reviewed.

@@ -5,7 +5,7 @@ objectives and reference were published in [selection.md](selection.md),
 commit `cf7f07a0e`, before the first kit run. Hashes and measurements are in
 [kit-runs.json](kit-runs.json). Nothing from the games is committed.
 
-All runs used Kit B: `s1` 14:32–15:03, `s2` 15:22–15:54 and `s3` 18:23–18:58 EET. Kit A was held by Lander's #1490 restore all day. Between `s2` and `s3`, Deano power-cycled Kit B for the Atari ST session. That was not part of this qualification.
+All runs used Kit B: `s1` 14:32–15:03, `s2` 15:22–15:54 and `s3` 18:23–18:58 EET. Kit A was held by Lander's #1490 restore all day. Between `s2` and `s3`, Deano power-cycled Kit B for the Atari ST session. That was not part of this qualification. The cold power-cycle case ran on 8 November as `pc1` on Kit A, 09:07–09:12 EET.
 
 ## Result
 
@@ -24,7 +24,7 @@ All runs used Kit B: `s1` 14:32–15:03, `s2` 15:22–15:54 and `s3` 18:23–18:
 | Guest reset (Ctrl+Alt+Del) | **FAIL**: the machine hangs; the next library launches warm-boot and can't boot the floppy ([#1534](https://github.com/DeanoC/fes/issues/1534)) | `s2` |
 | Recovery after that hang | **PASS** with a workaround: a launch with no floppy runs a cold POST, and the next library launch boots | `s2` |
 | Library or menu selection through tenfoot and a host | **Not run** (see below) | none |
-| Cold power cycle | **Not run**: needs Deano's OK | none |
+| Cold power cycle after a Save | **PASS**: the saved record is byte-identical after the cycle, and the relaunch cold-boots and reads the file back | `pc1` |
 
 #1529 stays open. This record refers to it and doesn't close it.
 
@@ -107,7 +107,8 @@ On the Paratrooper disk, bound as library game `xt1529-para`:
    - This is the documented policy: Stop, eject and replacement save a bound
      disk (FogCast `ARCHITECTURE.md`).
    - A write is lost only if the machine never reaches a Stop, for example on
-     a power loss. That needs the power-cycle test below.
+     a power loss. `pc1` (below) saved before the power cycle, so losing an
+     unsaved write to a power loss is still untested.
 3. **Raw insert.** The same image was inserted through
    `/v1/development/insert-media` (no binding) and `RAW.TXT` was written.
    - The library Save was refused with 409 `BUSY`: "media unit delivery
@@ -306,6 +307,30 @@ This is recorded apart from play and filed as
 - **Reference.** MAME's IBM BIOS is not GLaBIOS, so no reference comparison
   was made for the reset.
 
+## Cold power cycle (`pc1`, 8 November)
+
+Deano gave his OK on 7 November and power-cycled the kit by hand on
+8 November. The whole check ran under one Kit A claim, 09:07–09:12 EET. Kit A
+was on its recovery baseline: software `4efd34bf`, image `31b39063`, main
+`4b33ec55`. Nothing was installed.
+
+1. **Save.** `fes.pcxt-dos` `87fd8149` was launched as library game
+   `xt1529-pcycle`, with `para.img` (`c3440903…`) bound to unit 0.
+   - The test wrote `PCYCLE.TXT` (34 bytes) and listed it with `DIR`, then
+     Saved (3.86 s) and Stopped.
+   - The kit's record file `record.bin` had sha256 `60ecb83a…`, the same as
+     the Save's revision. A copy was taken to Powerboat.
+2. **Power cycle.** Deano removed and restored power. Boot ID `5ac27b35`
+   became `33bbb40c`.
+3. **Record.** After the agent was idle with a free lease, the record's
+   sha256 was the same `60ecb83a…`.
+4. **Readback.** A relaunch with the same binding loaded revision
+   `60ecb83a…` and booted COLD. `TYPE PCYCLE.TXT` printed
+   `FES1529 COLD POWER CYCLE MARKER`.
+5. **Cleanup.** The two FogCast trees the run created were removed, and the
+   data directories matched the pre-run listing. Apart from the boot ID,
+   the kit was on the same baseline when it was released.
+
 ## Not done, and why
 
 - **Menu selection through tenfoot and a host.**
@@ -317,9 +342,9 @@ This is recorded apart from play and filed as
   - The host-path evidence for these package and software bytes is still the
     5 November smoke, which used a private host: import, launch, session
     disk Save, Stop and relaunch.
-- **Cold power cycle.** It needs Deano's separate OK. Persistence across
-  power loss, and the loss of writes made after the last Save or Stop, are
-  untested.
+- **Unsaved writes on power loss.** `pc1` saved before the cycle. Cutting
+  power during a session, with writes made after the last Save or Stop, was
+  not tested.
 - **External timing.** External SDRAM, HDMI, HPS, reset and PLL limits stay
   with #835, and nextpnr timing stays advisory under #840. Physical ISA is
   separate.
@@ -330,7 +355,7 @@ This is recorded apart from play and filed as
 ## Kit use and cleanup
 
 The private evidence is on Powerboat under `~/fes-scratch/xt1529/`:
-- `runs/s1`–`s3`: commands, acks, frames, clips and WAVs;
+- `runs/s1`–`s3` and `runs/pc1`: commands, acks, frames, clips and WAVs;
 - `records/`: the pulled floppy records;
 - `mame/`: the reference sessions;
 - `nasm/`: the probe.
