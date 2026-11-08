@@ -32,6 +32,7 @@ from scripts.core_package import encode_manifest
 from scripts.fes_build_common import BuildError, _require_clean_source as require_clean_source
 from scripts.functional_execution import execution_digest, execution_environment
 from scripts.quartus_tools import locate_quartus, quartus_version_line
+from scripts.sim_fes_pcxt import cga_font
 
 ROOT = Path(__file__).resolve().parents[1]
 RECIPE = 'scripts/build_fes_pcxt_quartus.py'
@@ -198,12 +199,7 @@ def dos_assets(root):
             or floppy_lock['license'] != floppy['license']
             or floppy['sources'] != locked_sources):
         raise BuildError('PC/XT DOS floppy differs from the FreeDOS lock')
-    font = bytearray(4096)
-    rom = (core / bios['file']).read_bytes()
-    offset = json.loads((core / 'sim/bios.lock').read_text())['ascii_font']['rom_offset']
-    for char in range(128):
-        font[char * 16:char * 16 + 8] = rom[offset + char * 8:offset + char * 8 + 8]
-    return metadata, bytes(font)
+    return metadata, cga_font(root)
 
 
 def create_build_record(root, repository, revision, tool_identities, *, identity_version=2,
@@ -236,7 +232,7 @@ def create_build_record(root, repository, revision, tool_identities, *, identity
     if dos_profile:
         metadata, font = dos_assets(root)
         parameters.update(glabios_rom_sha256=metadata['bios']['sha256'],
-                          glabios_font_sha256=hashlib.sha256(font).hexdigest())
+                          cga_font_sha256=hashlib.sha256(font).hexdigest())
     fields = {'format': 2, 'toolchain': 'quartus', 'repository': repository, 'revision': revision,
               'source_path': root.relative_to(top).as_posix(), 'source_roots': roots,
               'source_inputs': source_input_closure(root, roots),

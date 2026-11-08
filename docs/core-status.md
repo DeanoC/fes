@@ -285,6 +285,39 @@ populated free menu are restored, and the private host/credential copy removed.
 Full current-image acceptance remains separate; opened-region RGB still crops
 to ordinary 320×200, and later demo sections/audio fidelity remain unqualified.
 
+The [game acceptance record](validation/2026-11-07-atari-st-game-acceptance/summary.md)
+(#1528) ran real 520ST games on Kits A and B. They used factory package
+`2dd2271c` (fes `f53eba76`), TOS 1.04 and normal library Play through a private
+host. Results:
+
+- **Xenon (joystick).** Passes two runs of about 11 minutes each: play, deaths,
+  restarts, Stop and relaunch.
+- **The Lurking Horror (keyboard).** Passes two runs: an explicit SAVE, Stop,
+  library relaunch and RESTORE. Each saved disk matches a Hatari 2.4.1 run of
+  the same script except one directory time byte. One earlier Kit B attempt
+  saved 4 different bytes: the game seeds its random numbers from the timer
+  when it starts, so a wandering character ended in another room. Hatari
+  reproduces that save byte for byte, so the bytes are not a core defect.
+- **Gomoku and Renju (mouse).** Passes two Kit A runs: launched from the GEM
+  desktop with the mouse, then complete games played to their result (ten in
+  one run, nine in the other). Two earlier runs won their games but had under
+  10 minutes of stone play, so they are INCONCLUSIVE and were replaced.
+- **Logical (mouse).** Launches from the GEM desktop with the mouse, but play
+  was never started, so the case is INCONCLUSIVE.
+- **Terramex (disk swap, joystick).** Passes two launches on Kit B. At the
+  game's "Please Insert Disk 2" prompt, the host's library disk insert put the
+  second disk's library entry into the running session, and the game went on
+  to play. Stop and relaunch boots disk 1 again. Neither disk record changed.
+  Night Shift's swap also ran, but its fruit-code manual check stops play.
+
+Still owed:
+
+- A disk swap from tenfoot. The ST package has no session display, so today
+  an ST disk is swapped only through the host API.
+- Runs on a seal of main's ST tree. The ST producer stopped at its source read
+  audit on 7 November; #1544 (merged 8 November) fixed it and sealed main's
+  tree as `1f3b21b7…`, so only the rerun remains.
+
 ## PC/XT development packages
 
 PC/XT is outside the factory image package set. Its assembled 8088, motherboard,
@@ -329,8 +362,34 @@ was visible, but its active-game observation failed. A later
 same selected package: DOS, COM and floppy readback passed, Digger's player
 changed facing after one guarded left input, and the captured speaker signal
 changed across three F9 windows. Deano found a listening excerpt identifiable
-and acceptable, without an original-audio reference. Sustained gameplay,
-power-cycle persistence and external interface timing remain unassessed.
+and acceptable, without an original-audio reference.
+The [7 November qualification](validation/2026-11-07-pcxt-qualification/summary.md)
+(#1529, Kit B) reused the same package, selected for main `607922c63`. It
+compared the kit against MAME `ibm5150`, and its results are partial:
+- **Passes.**
+  - Paratrooper and Alley Cat ran in sustained 10-minute sessions.
+  - Paratrooper's helicopter speed matched MAME within 0.2%, its speaker
+    tones within 0.2 cents, and Alley Cat's title-tune timing within 5 ms.
+  - Library Save and relaunch readback passed, with the whole saved image
+    differing from its base only in the expected FAT, directory and data
+    sectors. Rogue's own save and restore across a relaunch also passed.
+  - Stop saves a bound disk; a raw insert stays volatile.
+- **Fails.**
+  - Ctrl+Alt+Del hangs the machine, and later library launches warm-boot
+    into "Disk Boot Fail" until a launch with no floppy
+    ([#1534](https://github.com/DeanoC/fes/issues/1534)).
+  - Rogue's dungeon map never draws
+    ([#1537](https://github.com/DeanoC/fes/issues/1537)).
+- **Cold power cycle.** On 8 November (Kit A), a saved disk record was
+  byte-identical after Deano's power cycle, and the relaunch read the file
+  back.
+- **Menu selection.** On 8 November (Kit A), the title was found in
+  tenfoot's Library through the shared host and launched, then played from
+  the kit keyboard and stopped with a gamepad's Select+Start. A keyboard
+  can't stop it: F12 and Home do nothing, because the package has no
+  session display ([#1561](https://github.com/DeanoC/fes/issues/1561)).
+- **Not run.** Losing unsaved writes to a power loss, and external
+  interface timing, remain unassessed.
 The [reviewed 29 October Quartus diagnostic](validation/2026-10-29-pcxt-quartus-package/review-followup.json)
 passes three seeds and a byte-identical independent rebuild at producer `38ef151bfa`.
 Independent review found four package/acceptance defects, now fixed and re-reviewed.

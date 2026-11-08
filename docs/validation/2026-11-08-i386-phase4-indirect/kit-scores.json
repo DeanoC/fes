@@ -1,0 +1,80 @@
+{
+ "kit": "A",
+ "run": "r1",
+ "date": "2026-11-08",
+ "time": "14:19-14:31 EET",
+ "preset": "max (0)",
+ "package": "54c89405a41e3c4e0b7bef835162ccc4b038d0230ab9b6554186f938395d1527",
+ "package_seal": "Quartus 17.0.2, seed 1, clean checkout 3321e416e (seal-summary.json); core.rbf 22d7461e... matches the seal summary",
+ "kit_software": "baseline 4efd34bf on image 31b39063, core-only (no install, no image change, no reboot)",
+ "disk": {
+  "sha256": "fe81c9c4f93cc34d8b4b10aa2be97c660a30c6b47e48bf205ed6d68fd2fee732",
+  "note": "the Phase 4 baseline record's bench disk, the same image"
+ },
+ "commands": {
+  "3dbench": "C:\\MARKS\\3DBENCH> 3dbench",
+  "pcpbench": "C:\\MARKS\\PCPBENCH> pcpbench /vgamode",
+  "topbench": "C:\\MARKS\\TOPBENCH> topbench, Benchmarking menu",
+  "doom_pack": "C:\\MARKS\\DOOMS> doom -config max.cfg|min.cfg -timedemo demo3",
+  "doom_demo3": "C:\\DOOM> doom -timedemo demo3"
+ },
+ "settings": "fes.pc386.machine words: 0, 0, 0, 0, 0x220, IRQ 7, DMA 1; a SCRUBX memory scrub launch first, as the baseline",
+ "grabs": {
+  "3dbench": "p0-3d-0",
+  "pcpbench": "p0-pcp-1",
+  "topbench": "p0-tb-final",
+  "doom_pack_max": "p0-dmax-1",
+  "doom_pack_min": "p0-dmin-0",
+  "doom_v19_demo3": "p0-demo3-2"
+ },
+ "before": {
+  "run": "r9 (Kit A, package 657245c2..., main's ring-3 slice, PR #1552's record)",
+  "3dbench_fps": 76.9,
+  "pcpbench": 13.2,
+  "topbench": 309,
+  "doom_pack_max": {
+   "gametics": 2134,
+   "realtics": 2079,
+   "fps": 35.93
+  },
+  "doom_pack_min": {
+   "gametics": 2134,
+   "realtics": 756,
+   "fps": 98.8
+  },
+  "doom_v19_demo3": {
+   "gametics": 3863,
+   "realtics": 3402,
+   "fps": 39.74
+  }
+ },
+ "after": {
+  "3dbench_fps": 76.9,
+  "pcpbench": 13.3,
+  "topbench": 309,
+  "topbench_usec": {
+   "MemTest": 22,
+   "MemEA": 19,
+   "Opcodes": 18,
+   "VidMem": 101,
+   "3DGames": 20,
+   "Total": 180
+  },
+  "doom_pack_max": {
+   "gametics": 2134,
+   "realtics": 2062,
+   "fps": 36.22
+  },
+  "doom_pack_min": {
+   "gametics": 2134,
+   "realtics": 748,
+   "fps": 99.85
+  },
+  "doom_v19_demo3": {
+   "gametics": 3863,
+   "realtics": 3376,
+   "fps": 40.05
+  }
+ },
+ "restore": "Kit A logged FREE at 14:31 on its baseline (same snapshot keys, agent idle, lease free); r1-clean removed the run's five FogCast data trees at 14:32 and logged FREE again"
+}
