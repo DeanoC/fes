@@ -1,0 +1,46 @@
+{
+ "issue": 1529,
+ "plan_commit": "bea000941",
+ "runs": {
+  "pl1": {
+   "kit": "B",
+   "window_eet": "18:23-18:31",
+   "case": "power loss with an unsaved write",
+   "package_id": "4dd6d431b1abb44274bcabdb7734fe7c1686394af440eeb146d4dd6987655db6",
+   "archive_sha256": "4ef787f74e2a247572d980815503d07746448ce11f168be2132dcd99175deccf",
+   "runtime": {
+    "software": "a8cd30c49afd79eb7668af7ab7ae8a8e2ed2a90a31b25f164e28128b446274ee",
+    "main": "bb51f4454eb72048cefeea16aa16b28eb2aadaad",
+    "image": "f904961e008a972db8f06f1bb47aff9631123d67215b9f4157ea1fbee83b98d4"
+   },
+   "disk": {
+    "name": "para.img",
+    "sha256": "c34409032ce29ee25debdcae63b8446527c9473a2b2657cf586ff917b48e4fb0"
+   },
+   "game": "xt1529-ploss",
+   "boot_id_before": "26092622-b403-4620-9581-0182fcade27a",
+   "boot_id_after": "c3067edf-1531-45ec-9172-1ab63bb5137e",
+   "record": {
+    "path": "core-data/media/bcbdb947de418539ee3d9cec2c6f3fa1fdde2ad01c85467fccfd379956273578/record.bin",
+    "after_save": "e9fc204e949bf5fa466a99c6c8cb5c315aba22d5960c5e9aeadabb927caee2a5",
+    "after_unsaved_write": "e9fc204e949bf5fa466a99c6c8cb5c315aba22d5960c5e9aeadabb927caee2a5",
+    "after_power_loss": "e9fc204e949bf5fa466a99c6c8cb5c315aba22d5960c5e9aeadabb927caee2a5"
+   },
+   "frames": {
+    "a-prompt.png": "0b25c77a16f30db2736ec5e82204b9c47b7ebb5a819ae01d6a8ee633acef63f8",
+    "a-unsaved.png": "e6d07e8c4ce2f50cf1193109c6b390c37a19634f83ac7ad5d094d20b0f7e9c40",
+    "b-boot.png": "0b25c77a16f30db2736ec5e82204b9c47b7ebb5a819ae01d6a8ee633acef63f8",
+    "b-readback.png": "606d51f6ccbae0bf91dfda72b53aeb6c6123ee2f2a61378472338058230613f9",
+    "b-unsaved.png": "239b50bdb1aaec91acbd13539159ce93e0be2805a6e9f4afb0cdae9a3c4505ab"
+   },
+   "result": "PASS",
+   "saved_txt": "read back",
+   "unsaved_txt": "absent (File not found)",
+   "cleanup": {
+    "trees_removed": 1,
+    "data_dirs_match_pre_run": true,
+    "baseline_keys_match_except_boot_id": true
+   }
+  }
+ }
+}
