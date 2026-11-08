@@ -52,3 +52,33 @@ A successful programming operation or timing diagnostic is not normal return,
 fabric drain, visible HDMI or ordinary DE10-equivalent core-load acceptance.
 The comparison must establish the candidate's actual behavior before it is
 retained as a performance improvement.
+
+The physical candidate passed recovery,13 uploads/fresh readbacks, both fresh
+scan/program operations, matched a29d native boot and initial menu Ready. One
+controlled UART Select then hit the unchanged1s tape limit: error-6 at
+opcode8/index200/offset0x8,reads7825/writes488/next512/complete0. The baseline
+stopped at index177 with reads7466/writes466. Completed writes increased4.72%
+in this bounded comparison, but the tape and full cycle still failed.
+
+Sampled means were12.924us before-state,18.627us USB,0.711us reset-registers
+and12.773us after-state; outer owns53.939us over260 samples/16639 calls.
+Those intervals include instrumentation and may be affected by compiler motion
+when inlining. They are not calibrated timing qualification. The unchanged
+engine deadline and completed I/O/frame progress provide the operational result.
+The candidate is not accepted as a deadline fix.
+
+The direct reset callback returned0; normal fabric drain/return remain
+unproven and the native service retained resources in RebootRequired/Held.
+The first failure stopped commands, with only the bounded passive tail. Host
+cleanup independently passed: exact USB permissions, original15MHz readback,
+private service gone and UART free. This candidate/procedure is consumed1/max1,
+with no replay. Both programmers completed, so transport programming failures
+remain1/max2. Factory restore stays waived and the other kit was untouched.
+
+Read-only follow-up found the pinned vendor's bl31_plat_enable_mmu is an empty
+TODO hook; the built ELF has zero-length base/translation-table ranges. Current
+cold CPU guards explicitly require SCTLR_EL3.M/C clear. This is the next base
+system issue to investigate. Enabling data caching requires an explicit verified
+identity-map/private-memory policy while keeping hardware MMIO and shared
+buffers correctly attributed, with matching live CPU checks, ownership/failure
+tests and a fresh bounded image. No cache/MMU flag was changed in this trial.
