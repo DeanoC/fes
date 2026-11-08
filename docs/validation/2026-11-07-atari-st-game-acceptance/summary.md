@@ -35,8 +35,10 @@ Still owed on #1528:
 
 - A swap from tenfoot. Case 4 swaps through the host API, because the ST
   package has no session display and tenfoot has no ST swap control.
-- Runs on a package sealed from main. The only sealed ST package is from
-  `f53eba76` (see Package).
+- Runs on a package sealed from main. The open PR
+  [#1544](https://github.com/DeanoC/fes/pull/1544) fixes the producer's read
+  audit and seals main's ST tree as `1f3b21b7…`. The rerun waits for it to
+  merge.
 - A gameplay reference for Xenon and Gomoku. Hatari's command interface has
   no joystick or mouse-move events, so only the no-input boot was compared.
 - Protected originals. Most of the IPF library can't be flattened to `.st`;
@@ -54,8 +56,10 @@ Still owed on #1528:
   #952). A HIP seal of main `607922c63` was attempted. The producer stopped
   after synthesis with `source list outside audited closure: .`. The same
   message stopped a Spectrum seal that day. The read audit was left as it is.
-  No other sealed ST package exists, so this record doesn't accept main's ST
-  bytes.
+  When these runs were made, no other sealed ST package existed, so this
+  record doesn't accept main's ST bytes. The open PR
+  [#1544](https://github.com/DeanoC/fes/pull/1544) fixes the audit and seals
+  main's tree as `1f3b21b7…`.
 - **Firmware.** TOS 1.04 UK, 192 KiB, SHA-256 `c005b0ae…`, the ROM late
   520STFMs shipped with. It is selected per title through the library ROM
   slot. 512 KiB RAM; the core has no other RAM size.
@@ -92,7 +96,7 @@ pass that check. Nothing from a disk, ROM or frame is committed.
 | Terramex, disk 1 | none | `34d43f0a…` | `793a9da2…` | 80×1×10, 409,600 B |
 | Terramex, disk 2 | none | `ad8f3648…` | `5fe2bb14…` | 80×1×10, 409,600 B |
 
-The four case 4 disks were held as bare IPFs, without zips.
+No zip hash was recorded for the four case 4 disks.
 
 ### Selection
 
@@ -305,8 +309,14 @@ an ST disk today.
 
 **Reference.** In Hatari, disk 1 shows "Please Insert Disk 2". After disk 2
 goes in and a key is pressed, it shows the character title screen (Help,
-Fortisque-Smithe, Herr Krusche, Big John Caine, Wu Pong, Henri Beaucoup), and
-choosing a character starts play.
+Fortisque-Smithe, Herr Krusche, Big John Caine, Wu Pong, Henri Beaucoup).
+Hatari's command interface has no joystick, so choosing a character and
+playing were judged on the kit by outcomes, as for Xenon.
+
+**What kind of swap.** It is the game's own request for disk 2 after booting
+from disk 1, the only swap either title makes. Play then runs from disk 2, and
+game over returns to the title without asking for disk 1 again, so no swap
+happens mid-level.
 
 | Launch | Swap | Play | Result |
 | --- | --- | --- | --- |

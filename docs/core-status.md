@@ -311,7 +311,8 @@ Still owed:
 - A disk swap from tenfoot. The ST package has no session display, so today
   an ST disk is swapped only through the host API.
 - Runs on a seal of main's ST tree. The ST producer stopped at its source read
-  audit on 7 November.
+  audit on 7 November; the open PR #1544 fixes it and seals main's tree as
+  `1f3b21b7…`.
 
 ## PC/XT development packages
 
