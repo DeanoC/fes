@@ -41,8 +41,10 @@ what those DPMI hosts use on the Bochs CPU.
   SingleStepTests/80386 `459d49fbe628`, test386.asm `cfd052d1e64d`.
 - Verilator 5.032; the i386 lock's Yosys `238eac9a4`; Quartus Prime Lite
   17.0.2 on the pc386 lock's Yosys netlist.
-- The census drives from #1533's game-drive store (`~/fes-drives/pc386`):
-  `dpmi` (SHA-256 `bb659032…`), `real` (`b460ca55…`), `bench` (`4fbeb7d9…`).
+- The census drives from #1533's game-drive store (`~/fes-drives/pc386`),
+  by their records' SHA-256: `dpmi` (`48ab2972…`), `real` (`719dfedb…`),
+  `xms` (`e83b8185…`), `pmode` (`75d909ca…`), `bench` (`90f9b175…`); and
+  #1368's Serpent Isle disk and Phase 4's benchmark disk for the kit.
   The titles are user-supplied (eXoDOS zips and PhilsComputerLab's DOS
   Benchmark Pack). No game bytes are in the repository.
 
@@ -57,7 +59,48 @@ inner delivery's TSS and SS0, the IOPL-sensitive instructions at CPL 3 with
 the bitmap's bit, and MOV to and from CRs and DRs. The extra keys are
 scratch; [census-ring3.json](census-ring3.json) has each title's totals.
 
-CENSUS-TABLE
+| Title | Host | Returns to CPL 3 | Deliveries to CPL 0 | TSS, SS0 | CR0 writes with PG | Task switches | Call gates | MOV DRn | Needs |
+| --- | --- | ---: | ---: | --- | ---: | ---: | ---: | ---: | --- |
+| Jazz Jackrabbit | DPMI16BI | 7,855 | 7,854 | 03, SS0 16-bit | 0 | 0 | 0 | 0 | this slice |
+| Tyrian | RTM, DPMI16BI | 246,673 | 246,672 | 03, SS0 16-bit | 0 | 0 | 0 | 0 | this slice |
+| Cyberdogs | RTM, DPMI16BI | 12,344 | 12,343 | 03, SS0 16-bit | 0 | 0 | 0 | 0 | this slice |
+| Time Circle | 32RTM | 8,520 | 8,519 | 0b, SS0 16-bit | 1,339 | 1 | 0 | 0 | Phase 5 |
+| Jump 'n Bump | CWSDPMI | 3,036 | 1,000 | 0b, SS0 32-bit | 4,143 | 6,208 | 482 | 14,503 | Phase 5 |
+| Angband | CWSDPMI | 1,652 | 712 | 0b, SS0 32-bit | 3,226 | 4,832 | 19 | 11,291 | Phase 5 |
+| NetHack | CWSDPMI | 1,149 | 555 | 0b, SS0 32-bit | 2,298 | 3,440 | 0 | 8,043 | Phase 5 |
+| Chris's 3D Benchmark | CWSDPMI | 741 | 635 | 0b, SS0 32-bit | 1,075 | 1,611 | 0 | 3,227 | Phase 5 |
+| Quake (timedemo) | CWSDPMI | 1,741 | 1,031 | 0b, SS0 32-bit | 2,451 | 3,672 | 0 | 7,355 | Phase 5 |
+
+TSS types: 03 a busy 286 TSS, 0b a busy 386 one. Under paging the census
+cannot read the IDT (the gate column of [census-ring3.json](census-ring3.json)
+shows `?`), and its instruction stems read the linear address as physical,
+so a paging title's stems there are not meaningful; its CR0, TR and DR
+counts are.
+
+- **Borland DPMI16BI and RTM** (Jazz Jackrabbit, Tyrian, Cyberdogs): the
+  CPL-3 switch is an IRET from CPL 0 (the census's stop sites 0020:13FB and
+  0020:15EC). Back to CPL 0 come exceptions, INTR (IRQ 0, 1, 7) and INT n
+  (21h, 31h, 10h, 2Fh) through 286 interrupt gates at DPL 3 to CS 20h, on
+  a busy 286 TSS's 16-bit SS0:SP0. The exceptions are #GP(0) from HLT at
+  CPL 3 (DPMI16BI's way into the host: 4,830, 128,208 and 7,097 times) and
+  #NP from loads of not-present segments by MOV, POP, LES and its kin, far
+  CALL and RETF (110, 195 and 50). The IRETs null DS (1,422, 1,042 and 2,920 times)
+  at DPL 0. IOPL is 3 throughout, so CLI, STI, IN, OUT, POPF and IRET run
+  at CPL 3 without the bitmap, and POPF and IRET change IF there. No call
+  gate, task switch, paging, V86 or debug register. Every one of these is
+  built.
+- **CWSDPMI** (Jump 'n Bump, Angband, NetHack, Chris's 3D Benchmark,
+  Quake): paging on (MOV CR0 with PG, page faults at CPL 3), task switches
+  by far JMP to TSSs (its switches to and from CPL 3; the census's stop
+  site 0018:2B93 is its MOV to DR before them), MOV to DR0-DR3 and DR7, and
+  in Angband and Jump 'n Bump far CALLs from CPL 3 through a 386 call gate.
+  Phase 5's paging and task switches come first.
+- **32RTM** (Time Circle): paging on from its real-mode loader (MOV CR0
+  with PE and PG at 19CB:0A1B, the census's stop site), page faults at
+  CPL 0, a task switch. Phase 5.
+
+So three of the nine (Jazz Jackrabbit, Tyrian, Cyberdogs) need only this
+slice; six need Phase 5.
 
 ## What the slice builds
 

@@ -85,6 +85,21 @@
   "segment nulled on an outer return": 949,
   "task switch (TR by a far transfer)": 3440
  },
+ "quakes": {
+  "IOPL-sensitive at CPL 3, IOPL 3": 1737,
+  "LTR": 1,
+  "MOV DRn": 7355,
+  "far transfer to a TSS or task gate": 3672,
+  "inner delivery TSS type 0b, SS0 32-bit": 1740,
+  "inner delivery: exception, gate type ?": 745,
+  "inner delivery: intr, gate type ?": 286,
+  "outer return by 66CF (0>3)": 519,
+  "outer return by EA (0>3)": 1222,
+  "paging (MOV CR0 with PG)": 2451,
+  "segment load at CPL 3": 5527,
+  "segment nulled on an outer return": 383,
+  "task switch (TR by a far transfer)": 3672
+ },
  "tcircle": {
   "IOPL-sensitive at CPL 3, IOPL 3": 439,
   "inner delivery TSS type 0b, SS0 16-bit": 8519,
