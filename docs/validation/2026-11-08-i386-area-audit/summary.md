@@ -243,14 +243,17 @@ Measured control slices are the better guide for that kind of work:
 | Slice | Plan | Estimate | High | What drives it |
 | --- | ---: | ---: | ---: | --- |
 | 2: DR0–3, DR6, DR7, MOV DRn, GD; inner call gates, parameter copy, RETF outward | 350 | 400 | 550 | about 170 debug-register bits with load enables, joined to the MOV CRn read mux; call gates reuse #1552's stack switch, adding a parameter-copy count and loop |
-| 3: V86 | 400 | 550 | 700 | VM checks beside #1552's CPL and IOPL checks in D, the #GP(vector × 8 + 2) code, V86 segment loads on the real-mode path, INS and OUTS through the bitmap, the 30–40 uop delivery and IRETD sequences |
-| 4: task switches | 300 + 3 M10K | 550 + 3 M10K | 800 | new uop forms (TSS field access through TR, CR3 load in a routine, busy-bit store), a register index from a sequencer count to save and load the GPRs, DR7's local-enable clear |
+| 3: V86 | 400 | 550 + 3 M10K | 700 | VM checks beside #1552's CPL and IOPL checks in D, the #GP(vector × 8 + 2) code, V86 segment loads on the real-mode path, INS and OUTS through the bitmap, the 30–40 uop delivery and IRETD sequences |
+| 4: task switches | 300 + 3 M10K | 550 | 800 | new uop forms (TSS field access through TR, CR3 load in a routine, busy-bit store), a register index from a sequencer count to save and load the GPRs, DR7's local-enable clear |
 | 5: breakpoints and single step | 300 | 500 | 600 | four 32-bit compares at AG and, with length masks, at M1's two ports; B bits and BS carried AG to WB (the paging lesson); DR6 update, RF, TF's trap and the MOV SS shadow |
 | **Slices 2–5** | **1,350** | **2,000** | **2,650** | |
 
 - **Microcode ROM.** It holds 227 of 256 words now. Slice 3's 30–40 uops
   outgrow it, so it goes to 512 words (6 M10K, +3) in slice 3, not slice 4.
-  That costs 3 of the 288 free M10K blocks and one address bit.
+  That costs 3 of the 288 free M10K blocks and one address bit. The
+  estimate column charges the M10K to slice 3; the plan column keeps the
+  plan's own figures. If slice 2's call-gate sequences use the last 29
+  words, the growth moves to slice 2.
 - **Pessimistic case.** Paging's own ratio, 2.7× the plan, applied to the
   plan's 1,350 gives about 3,600. These slices are mostly control, as #1552
   was, so this record doesn't expect that. It's the bound to plan the
