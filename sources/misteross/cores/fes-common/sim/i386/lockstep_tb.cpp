@@ -6502,7 +6502,7 @@ int run_paging_cases(fes_i386::Oracle &oracle, OracleBus &bus, Rtl &rtl, const s
     struct Case { const char *label; std::function<void(Asm &, uint32_t)> body; int ending; int error; int64_t cr2;
                   std::vector<std::pair<uint32_t, uint32_t>> ptes; std::vector<std::pair<uint32_t, uint32_t>> pdes = {};
                   std::vector<std::pair<uint32_t, std::vector<uint8_t>>> mem = {}; bool r3 = false; int soft = -1;
-                  bool together = false; std::vector<std::pair<unsigned, uint64_t>> gates = {}; };
+                  bool together = false; std::vector<std::pair<unsigned, uint64_t>> gates = {}; bool a20m = false; };
     const uint32_t P = 0x01, W = 0x02, U = 0x04, A = 0x20, D = 0x40;
     auto pte = [](uint32_t page) { return PT0 + 4 * page; };
     std::vector<Case> cases = {
@@ -6584,6 +6584,21 @@ int run_paging_cases(fes_i386::Oracle &oracle, OracleBus &bus, Rtl &rtl, const s
         {"pg-r3-cross-insn-sup", [=](Asm &a, uint32_t base) { a.jmp(base, 0x13ffc); }, 14, 5, 0x14000,
          {{0x13, 0x30000 | P | W | U}, {0x14, 0x50000 | P | W}}, {}, {{0x30ffc, {0x90, 0x90, 0xb8, 0x44}}}, true},
         {"pg-fetch-np", [=](Asm &a, uint32_t base) { a.jmp(base, 0x18010); }, 14, 0, 0x18010, {}},
+        {"pg-r3-cross-insn-np", [=](Asm &a, uint32_t base) { a.jmp(base, 0x13ffc); }, 14, 4, 0x14000,
+         {{0x13, 0x30000 | P | W | U}}, {}, {{0x30ffc, {0x90, 0x90, 0xb8, 0x44}}}, true},
+        // A store into the second page of an instruction that crosses into a
+        // non-adjacent frame, the instruction fetched already (its second
+        // pass, both pages in the ITLB): it runs the new byte.
+        {"pg-smc-cross-insn", [=](Asm &a, uint32_t base) { a.mov(EAX, 0); a.mov(ECX, 2); a.jmp(base, 0x13ff0); }, -1, -1,
+         -1, {{0x13, 0x30000 | P | W | U}, {0x14, 0x50000 | P | W | U}}, {},
+         {{0x30ff0, {0x88, 0x05, 0x01, 0x40, 0x01, 0x00,             // MOV [14001h], AL
+                     0x90, 0x90, 0x90, 0x90, 0x90, 0x90, 0x90, 0x90, 0xb8, 0x44}},  // ... MOV EAX at 13FFEh
+          {0x50000, {0x33, 0x22, 0x11, 0x49, 0x75, 0xea, 0xf4}}}},  // DEC ECX; JNZ 13FF0h; HLT
+        // Under A20M a PTE frame at 1 MiB is frame 0's, and the walk's reads
+        // are masked too.
+        {"pg-a20m-frame", [=](Asm &a, uint32_t) { a.ld32(0x10010); a.ldr(EBX, pte(0x10)); }, -1, -1, -1,
+         {{0x10, 0x100000 | P | W | U}}, {}, {{0x10, {0xa1, 0xb2, 0xc3, 0xd4}}, {0x100010, {0x11, 0x22, 0x33, 0x44}}}, false,
+         -1, false, {}, true},
         // A CR3 write flushes the TLBs: a PTE stored meanwhile is not seen
         // until it (Bochs's TLB, and these 16 entries, keep the old frame).
         {"pg-cr3-flush", [=](Asm &a, uint32_t) {
@@ -6744,6 +6759,8 @@ int run_paging_cases(fes_i386::Oracle &oracle, OracleBus &bus, Rtl &rtl, const s
         state.cr0 = 0x7ffffff0;
         oracle.reset();
         oracle.set_state(state);
+        oracle.set_a20(!c.a20m);
+        rtl.top.a20m = c.a20m;
         rtl.start(state);
         Mismatches out;
         Outcome outcome;
@@ -6773,6 +6790,8 @@ int run_paging_cases(fes_i386::Oracle &oracle, OracleBus &bus, Rtl &rtl, const s
         }
         if (c.cr2 >= 0 && s.cr2 != uint32_t(c.cr2)) out.add(label + ".cr2", uint32_t(c.cr2), s.cr2);
         end_run(bus, rtl, outcome.halted, out);
+        oracle.set_a20(true);
+        rtl.top.a20m = 0;
         summary.cycles += rtl.cycles;
         rtl.cycles = 0;
         for (auto [address, value] : image) {
