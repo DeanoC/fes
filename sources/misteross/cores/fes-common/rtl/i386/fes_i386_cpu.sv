@@ -1604,11 +1604,15 @@ module fes_i386_cpu #(
         // (nx: all but a probe of a slot to be pushed and ENTER's last check,
         // Bochs's tickle_write_virtual, each a write's: wx). A probe so
         // faults as the push it stands for, in the pushes' order, as Bochs
-        // pushes and faults.
+        // pushes and faults. XCHG's and ARPL's load of their memory
+        // operand translates as a write too (wx), as Bochs reads it for a
+        // read-modify-write (W/R set in a #PF's error code, D set).
         d_out.ipp0 = dc.pp0;
         d_out.ipp1 = dc.pp1;
         d_out.nx = d_out.nodata && !dc.str_fin && dc.stk != fes_i386_pkg::STK_PROBE;
-        d_out.wx = dc.str_fin || dc.stk == fes_i386_pkg::STK_PROBE;
+        d_out.wx = dc.str_fin || dc.stk == fes_i386_pkg::STK_PROBE
+                || mkind == fes_i386_pkg::MEM_LOAD && !dc.gov.two
+                   && (dc.gov.op == 8'h86 || dc.gov.op == 8'h87 || dc.gov.op == 8'h63);
         if (d_ifw) begin
             d_out.ifw = 1'b1;
             d_out.pf_lin = d_ifw_lin;

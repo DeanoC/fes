@@ -2170,17 +2170,16 @@ Outcome lockstep(fes_i386::Oracle &oracle, OracleBus &bus, Rtl &rtl, const std::
                     oracle.invalidate(address, 1);
                 }
             } else {
-                // A delivery's pushed FLAGS image, at SS:SP - 2 before the
-                // instruction (- 4 through a protected-mode 386 gate), may
-                // differ in the flags an entry leaves to the corpus
-                // (stack.flags): the oracle takes the RTL's.
-                if (delivered && skip.stack_flags) {
-                    const auto &ss = before.seg[fes_i386::SEG_SS];
-                    const uint32_t esp = before.gpr[fes_i386::REG_ESP];
-                    const uint32_t gate = before.idtr.base + rtl.top.trace_vector * 8u + 5;
-                    const uint32_t image = (before.cr0 & 1) && gate < RAM_BYTES && (bus.ram[gate] & 8) ? 4 : 2;
-                    for (uint32_t k = 0; k < 2; ++k) {
-                        const uint32_t at = ss.base + ((ss.ar & 0x4000) ? esp - image + k : (esp - image + k) & 0xffff);
+                // A delivery's pushed FLAGS image may differ in the flags an
+                // entry leaves to the corpus (stack.flags): the oracle takes
+                // the RTL's. It is the delivery's first push, or its third
+                // to an inner privilege (after SS and ESP), at the physical
+                // address the oracle wrote it (paging included).
+                if (delivered && skip.stack_flags && last) {
+                    const bool inner = (before.cr0 & 1) && oracle.get_state().cpl < before.cpl;
+                    const size_t slot = last->writes_before + (inner ? 2 : 0);
+                    for (uint32_t k = 0; k < 2 && slot < result.writes.size(); ++k) {
+                        const uint32_t at = write_key(result.writes[slot].physical + k);
                         const uint8_t mask = uint8_t(skip.stack_flags >> (8 * k));
                         if (at < RAM_BYTES && oracle_writes.count(at) && !((bus.ram[at] ^ rtl.ram[at]) & ~mask)) {
                             bus.ram[at] = rtl.ram[at];
@@ -5431,7 +5430,9 @@ private:
             }
             case 7: {
                 uint16_t sel = pick(3) ? 0x30 : pick(2) ? 0x70 : pick(2) ? 0x40 : selector();
-                if (gate(sel)) sel = 0x30;
+                // Not a gate, nor 32-bit code (descriptors 16 and 23), which
+                // the 16-bit code after the jump would run as.
+                if (gate(sel) || !(sel & 4) && ((sel >> 3) == 16 || (sel >> 3) == 23)) sel = 0x30;
                 if (pick(2)) {
                     pm_far_jump(sel);
                     pm_cs = pm_cs || sel == 0x30 || sel == 0x70;
