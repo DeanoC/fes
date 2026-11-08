@@ -82,9 +82,11 @@ Orion. It changes no CPU behaviour, and no RTL ran. Tracker:
 
 ## What each title uses
 
-Counts are per run. "Ring 3" is Phase 2's third slice (#1535): IRET to CPL 3,
-deliveries to CPL 0 through the TSS's stack, call gates, and the
-IOPL-sensitive instructions and I/O bitmap outside V86.
+Counts are per run. "Ring 3" is what the titles need at CPL 3: IRET to CPL
+3, deliveries to CPL 0 through the TSS's stack, call gates, and the
+IOPL-sensitive instructions and I/O bitmap outside V86. Phase 2's third
+slice (#1535, PR #1552) builds all of it except call gates to an inner
+privilege and the bitmap for INS and OUTS, which Phase 5 builds.
 
 | Title (host) | Paging | Task switches | V86 | Debug registers | Ring 3 (#1535) |
 | --- | --- | --- | --- | --- | --- |

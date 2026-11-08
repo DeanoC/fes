@@ -1880,11 +1880,14 @@ the titles it blocks
 ([record](../../../docs/validation/2026-11-08-i386-phase5-plan/summary.md)).
 
 Tracker [#1548](https://github.com/DeanoC/fes/issues/1548). Phase 2's third slice ([#1535](https://github.com/DeanoC/fes/issues/1535))
-comes first and builds ring 3: IRET to CPL 3, deliveries to an inner
-privilege through the TSS's stack, call gates, #TS, the IOPL-sensitive
-instructions and the I/O permission bitmap. It leaves task gates and task
-switches to Phase 5 and does not build the debug registers, so Phase 5
-builds both.
+comes first ([#1552](https://github.com/DeanoC/fes/pull/1552)) and builds
+ring 3: IRET to CPL 3, deliveries to CPL 0 through interrupt and trap gates
+and the TSS's stack (286 and 386 gates and TSSs), #TS, CLI and STI under
+IOPL, and the I/O permission bitmap for IN and OUT. A MOV DRn there gets
+only its CPL check. Phase 5 therefore also builds what that slice leaves
+unbuilt: the debug registers, far CALL through a call gate to an inner
+privilege (and the RETF back), the bitmap for INS and OUTS, and task gates
+and task switches.
 
 ### What the titles use
 
@@ -1893,10 +1896,10 @@ From the [record](../../../docs/validation/2026-11-08-i386-phase5-plan/summary.m
 
 | Title (host) | Paging | Task switches | V86 | Debug registers | Also needs |
 | --- | --- | --- | --- | --- | --- |
-| Jump 'n Bump, Angband, NetHack, Chris's 3D Benchmark, Quake (CWSDPMI) | yes; PG toggled around each DOS call; #PF at CPL 3 for demand paging | far JMP to a 32-bit TSS, CPL 0 to 3 and back: 1,500–5,800 | no | MOV writes and reads; DR7 never armed | #1535; Quake then an x87 |
+| Jump 'n Bump, Angband, NetHack, Chris's 3D Benchmark, Quake (CWSDPMI) | yes; PG toggled around each DOS call; #PF at CPL 3 for demand paging | far JMP to a 32-bit TSS, CPL 0 to 3 and back: 1,500–5,800 | no | MOV writes and reads; DR7 never armed | #1535; a call gate to CPL 0 (Jump 'n Bump, Angband); Quake then an x87 |
 | Descent (DOS/4GW Professional) | yes, CPL 0; 829 #PF | each #PF through a task gate, and back by IRET with NT | no | no | none |
 | Time Circle (Borland 32RTM) | yes; 126 #PF | no | no | no | #1535 |
-| U.S. Navy Fighters (own extender) | yes | no | no | MOV only | #1535; then a CD-ROM |
+| U.S. Navy Fighters (own extender) | yes | no | no | MOV only | #1535; a call gate to CPL 0; then a CD-ROM |
 | Pinball Fantasies (eXceed) | no | no | IOPL 3; INT n reflected from #GP(vector × 8 + 2) | no | #1535's I/O bitmap |
 | Strike Commander (own manager) | yes; 18,960 CR3 writes | one: IRETD with NT into a V86 task | IOPL 3; INT n reflected from #GP | MOV only | none |
 | Wolfenstein 3D, DOOM and Master of Orion under JEMM386 | yes | no (VCPI reloads TR) | IOPL 3; every INT n through DPL-3 gates to the monitor; every IN and OUT through the bitmap | no | none |
@@ -2091,7 +2094,8 @@ eight replicated hit sets.
   lockstep then gives the oracle the CPU's result there, as for its other
   known limits.
 - **I/O.** IN, OUT, INS and OUTS in V86 always read the TSS I/O bitmap
-  (#1535's check), whatever IOPL is. The bitmap's read is one load uop with
+  (#1552 builds it for IN and OUT; slice 3 adds INS and OUTS), whatever
+  IOPL is. The bitmap's read is one load uop with
   the access, never a routine: under JEMM386 it runs about a million times a
   simulated second.
 - **No VME, no VIF.** They are Pentium features; a 386 has neither.
@@ -2179,11 +2183,12 @@ eight replicated hit sets.
 | V86 | 400 | 0 | Low: CPL and VM checks beside today's |
 | Task switches | 300 | 3 | Low: cold microcode |
 | Debug registers and MOV | 150 | 0 | None |
+| Inner call gates and RETF across privileges | 200 | 0 | Low: microcode beside #1552's inner deliveries |
 | Breakpoints and single step | 300 | 0 | Low-moderate: AG (+4.73 ns) and M1, off the freeze |
-| Phase 5 | about 2,450 | 3 | |
+| Phase 5 | about 2,650 | 3 | |
 
 The pc386 seal of Phase 4's slice 6b used 33,118 of 41,910 ALMs; Phase 5
-takes it to about 35,500 (85%).
+takes it to about 35,800 (85%).
 
 ### Slices
 
@@ -2222,13 +2227,23 @@ A timing miss stops the slice; it never relaxes a check. Titles that need
      at POST 21 with #1535. Its #PF checks (POST 11) run only after POST
      22, so the directed cases above carry the slice's paging coverage.
      Paging off keeps DOOM's demo3 rate.
-   - **Unlocks.** Time Circle (32RTM), with #1535.
-2. **Debug register file.** MOV DRn, DR6 and DR7's fixed bits, GD.
-   - **Lockstep.** Every DRn at CPL 0 and 3, and GD with its clear on #DB.
+   - **Unlocks.** Time Circle (32RTM), with #1535. Its loader's first stop
+     on the RTL is a MOV CR0 that sets PE and PG together (19CB:0A1B), so
+     slice 1 builds that write as well as PG set from protected mode.
+2. **Debug register file and inner call gates.** MOV DRn, DR6 and DR7's
+   fixed bits, GD; far CALL through a call gate to an inner privilege, with
+   the stack switch from the TSS, the parameter copy, and RETF to the outer
+   privilege. CWSDPMI's first stop on the RTL is its MOV DRn
+   (0018:2B93), before its task switches; Jump 'n Bump, Angband and U.S.
+   Navy Fighters return to CPL 0 through a call gate.
+   - **Lockstep.** Every DRn at CPL 0 and 3, and GD with its clear on #DB;
+     call gates of each size with parameter counts 0 and above, #TS and
+     #SS on the stack switch, and RETF across privileges.
    - **Unlocks.** U.S. Navy Fighters to its CD-ROM check, with slice 1 and
      #1535.
 3. **V86.** Entry by IRETD, the V86 delivery to CPL 0, IOPL-sensitive
-   faults, #GP(vector × 8 + 2), I/O through the bitmap in V86, V86 segment
+   faults, #GP(vector × 8 + 2), I/O through the bitmap in V86 and INS and
+   OUTS through it at CPL > IOPL too, V86 segment
    loads.
    - **Lockstep.** test386.asm's V86 cases; INT n at IOPL 0 and 3 through
      gates of DPL 0 and 3; IRETD to V86 from CPL 0 and its refusal from
