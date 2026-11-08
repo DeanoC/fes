@@ -187,7 +187,8 @@ def container(source, runtime, image, volume, cache, output, action, jobs, input
                 # Buildroot's fakeroot closes every possible descriptor at
                 # startup; container hosts may otherwise expose a billion.
                 "--ulimit", "nofile=65536:65536",
-                "--volume", f"{source}:/src:ro", "--volume", f"{volume}:/build",
+                "--volume", f"{source}:/src:ro", "--mount",
+                f"type=volume,src={volume},dst=/build,volume-nocopy",
                 "--volume", f"{cache}:/cache", "--volume", exported,
                 *mounts,
                 "--env", "LC_ALL=C", "--env", "TZ=UTC", image,

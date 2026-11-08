@@ -539,6 +539,13 @@ class SoftwareWorkflowTests(unittest.TestCase):
             p = image / name; p.parent.mkdir(parents=True, exist_ok=True); p.write_text('fixture')
         (image / 'build/target-image.sources.lock.toml').write_text(
             '[container]\nimage="debian"\nplatform="linux/amd64"\ndigest="sha256:' + 'a' * 64 + '"\n')
+        driver = image / 'kernel/de25-dma'
+        driver.mkdir(parents=True)
+        shutil.copyfile(ROOT / 'image/kernel/de25-dma/linux.lock.toml', driver / 'linux.lock.toml')
+        execution = image / 'de25-nano/sdk-builder'
+        execution.mkdir(parents=True)
+        for name in ('identity.lock.toml', 'manifest.json'):
+            shutil.copyfile(ROOT / 'image/de25-nano/sdk-builder' / name, execution / name)
         cache = self.root / 'cache'; cache.mkdir()
         (cache / 'host.tar').write_bytes(b'SDK')
         (cache / 'receipt.json').write_text('{}')
@@ -579,6 +586,7 @@ class SoftwareWorkflowTests(unittest.TestCase):
             calls.append((args, kwargs)); return 'sha256:' + 'c'*64 if 'inspect' in args else ''
         with patch.object(kit_sdk, 'ensure_de25', return_value=cached) as ensure, \
                 patch.object(kit, 'load', return_value=sdk), patch.object(kit, 'run', side_effect=command), \
+                patch.object(kit.de25_builder, 'resolve', return_value=selected['builder_image']) as resolve, \
                 patch.object(kit.subprocess, 'run', return_value=Mock(returncode=1)):
             result = kit.build_runtime(self.root, self.root / 'recorded-image', 'b'*40,
                                        {'ENABLE_DE25_STATIC': 'hostile'}, None, 'de25-nano',
@@ -591,8 +599,10 @@ class SoftwareWorkflowTests(unittest.TestCase):
         self.assertIn('ENABLE_DE25_STATIC=1', calls[1][0][-1])
         self.assertNotIn('ENABLE_DE25_STATIC', calls[1][1]['env'])
         self.assertEqual(result['runtime_make_variables'], {'ENABLE_DE25_STATIC': 1})
-        self.assertEqual(calls[0][0][3], selected['builder_image'])
+        resolve.assert_called_once_with('docker', selected['builder_image'], root=self.root,
+                                        env=calls[1][1]['env'])
         self.assertEqual(calls[1][0][0:3], ['docker', 'run', '--rm'])
+        self.assertEqual(calls[0][0][calls[0][0].index('--user') + 1], '0:0')
         self.assertIn(selected['builder_image'], calls[1][0])
         self.assertEqual(calls[1][0][calls[1][0].index('--network') + 1], 'none')
         self.assertEqual(calls[1][0][calls[1][0].index('--user') + 1],
@@ -613,6 +623,40 @@ class SoftwareWorkflowTests(unittest.TestCase):
                 kit.build_runtime(self.root, self.root / 'recorded-image', 'b'*40, {}, None, 'de25-nano')
             command.assert_not_called()
 
+    def test_de25_runtime_keeps_config_provenance_when_executing_oci_manifest(self):
+        import kit_sdk
+        cache, _ = self.runtime_fixture()
+        sdk = kit.load(ROOT / 'image/scripts/toolchain_cache.py', 'runtime_oci_cache_fixture')
+        key = 'd'*64; digest = kit.sha(cache / 'host.tar')
+        (cache / 'receipt.json').write_text(json.dumps({'key': key, 'sha256': digest}))
+        lock, manifest, size = kit.de25_builder.locked_manifest(self.root)
+        selected = {'key': 'managed-' + 'e'*64, 'archive_sha256': digest,
+                    'builder_image': lock['builder_image']}
+        inspect = {'Id': lock['builder_manifest'], 'Os': 'linux', 'Architecture': 'amd64',
+                   'Descriptor': {'digest': lock['builder_manifest'],
+                                  'mediaType': kit.de25_builder.MANIFEST_TYPE, 'size': size},
+                   'RootFS': {'Type': 'layers', 'Layers': [x['digest'] for x in manifest['layers']]}}
+        calls = []
+        def engine(args, **kwargs):
+            calls.append(args)
+            if args[:3] == ['docker', 'image', 'inspect']:
+                return Mock(returncode=int(args[3] == lock['builder_image']), stdout=json.dumps([inspect]))
+            self.assertEqual(args[:2], ['docker', 'volume'])
+            return Mock(returncode=1 if 'inspect' in args else 0)
+        with patch.object(kit_sdk, 'ensure_de25', return_value={'source': selected, 'key': key, 'directory': str(cache)}), \
+                patch.object(kit, 'load', return_value=sdk), \
+                patch.object(kit.subprocess, 'run', side_effect=engine), patch.object(kit, 'run', return_value='') as compile:
+            result = kit.build_runtime(self.root, self.root / 'recorded-image', 'b'*40,
+                                       {}, None, 'de25-nano')
+        self.assertEqual(result['container_id'], lock['builder_image'])
+        self.assertEqual(result['container_execution_reference'], lock['builder_manifest'])
+        self.assertEqual(len(compile.call_args_list), 2)
+        self.assertIn(lock['builder_manifest'], compile.call_args.args[0])
+        self.assertNotIn(lock['builder_image'], compile.call_args.args[0])
+        self.assertEqual([c[:3] for c in calls], [['docker', 'image', 'inspect'],
+                         ['docker', 'image', 'inspect'], ['docker', 'volume', 'inspect'],
+                         ['docker', 'volume', 'rm']])
+
     def test_de25_runtime_rejects_substituted_builder_before_volume_or_compile(self):
         import kit_sdk
         cache, _ = self.runtime_fixture()
@@ -625,16 +669,18 @@ class SoftwareWorkflowTests(unittest.TestCase):
         calls = []
         def command(args, **kwargs):
             calls.append(args)
-            return 'sha256:' + 'f' * 64 if 'inspect' in args else ''
+            self.assertEqual(args[:3], ['docker', 'image', 'inspect'])
+            return Mock(returncode=0, stdout=json.dumps([{'Id': 'sha256:' + 'f'*64}]))
         with patch.object(kit_sdk, 'ensure_de25', return_value={'source': selected, 'key': key, 'directory': str(cache)}), \
-                patch.object(kit, 'load', return_value=sdk), patch.object(kit, 'run', side_effect=command), \
-                patch.object(kit.subprocess, 'run', return_value=Mock(returncode=1)) as volume:
+                patch.object(kit, 'load', return_value=sdk), patch.object(kit, 'run') as compile, \
+                patch.object(kit.subprocess, 'run', side_effect=command) as inspect:
             with self.assertRaisesRegex(ValueError, 'SDK and runtime builder identities differ'):
                 kit.build_runtime(self.root, self.root / 'recorded-image', 'b' * 40, {},
                                   None, 'de25-nano', base_factory=False)
         self.assertEqual(calls[0][3], selected['builder_image'])
         self.assertEqual(len(calls), 1)
-        volume.assert_not_called()
+        compile.assert_not_called()
+        self.assertEqual(inspect.call_count, 1)
 
     def test_de25_runtime_keeps_existing_volume_and_cleans_only_its_failed_build(self):
         import kit_sdk
@@ -650,17 +696,18 @@ class SoftwareWorkflowTests(unittest.TestCase):
                 selected = {'key': 'managed-' + 'e' * 64, 'archive_sha256': digest,
                             'builder_image': 'sha256:' + 'c' * 64}
                 def command(args, **kwargs):
-                    if 'inspect' in args:
-                        return selected['builder_image']
+                    if 'fes-sdk-workspace' in args:
+                        return ''
                     raise subprocess.CalledProcessError(17, args)
                 with patch.object(kit_sdk, 'ensure_de25', return_value={
                         'source': selected, 'key': key, 'directory': str(cache)}), \
                         patch.object(kit, 'load', return_value=sdk), \
+                        patch.object(kit.de25_builder, 'resolve', return_value=selected['builder_image']), \
                         patch.object(kit, 'run', side_effect=command) as run, \
                         patch.object(kit.subprocess, 'run', return_value=Mock(returncode=0 if existing else 1)) as volume:
                     with self.assertRaises(ValueError if existing else subprocess.CalledProcessError):
                         kit.build_runtime(root, root / 'recorded-image', 'b' * 40, {}, None, 'de25-nano')
-                self.assertEqual(run.call_count, 1 if existing else 2)
+                self.assertEqual(run.call_count, 0 if existing else 2)
                 self.assertEqual(volume.call_count, 1 if existing else 2)
                 if not existing:
                     self.assertEqual(volume.call_args.args[0][-2:],

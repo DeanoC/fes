@@ -65,6 +65,10 @@ def recipe_key(root=ROOT):
         'image/scripts/scan-target-image-secrets.sh', 'image/kernel/de25-dma/linux.lock.toml',
         'scripts/de25_owner_image.py', 'scripts/de25_kernel_platform.py',
         'scripts/de25_kernel_test.py', 'scripts/kit_software.py', 'scripts/platform.py'))
+    # A recorded Git producer may predate these execution-address inputs.
+    # Hash the files present in that authenticated archive without executing it.
+    paths.update(root / p for p in ('scripts/de25_builder.py',)
+                 if (root / p).is_file())
     value = hashlib.sha256(b'FES-DE25-MANAGED-BASE-1\n')
     for path in sorted(paths):
         value.update(path.relative_to(root).as_posix().encode() + b'\0' + path.read_bytes())
@@ -393,7 +397,8 @@ def publish(args):
         record = {'format': 1, 'board': 'de25-nano', 'architecture': 'aarch64',
                   'classification': 'managed-base-intermediate', 'fes_revision': revision,
                   'recipe_sha256': recipe_key(), 'sdk_sha256': sdk_lock()['sdk_sha256'],
-                  'builder_image': builder, 'normal_runtime_admission': 'closed',
+                  'builder_image': sdk_lock()['builder_image'],
+                  'builder_execution_reference': builder, 'normal_runtime_admission': 'closed',
                   'files': {name: image.digest(output / name) for name in artifact_names()},
                   'hardware_acceptance': 'not-run'}
         (output / 'base.json').write_text(json.dumps(record, indent=2, sort_keys=True) + '\n')

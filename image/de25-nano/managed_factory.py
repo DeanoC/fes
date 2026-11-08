@@ -344,7 +344,8 @@ def publish(args):
         if not verify:
             save(output / 'factory.json', {'format': 1, 'board': 'de25-nano', 'architecture': 'aarch64',
                  'classification': 'managed-factory-candidate', 'fes_revision': revision,
-                 'recipe_sha256': recipe_key(), 'builder_image': builder,
+                 'recipe_sha256': recipe_key(), 'builder_image': base.sdk_lock()['builder_image'],
+                 'builder_execution_reference': builder,
                  'normal_runtime_admission': 'closed', 'hardware_acceptance': 'not-run', 'image_passes': 1,
                  'files': {name: image.digest(output / name) for name in artifact_names(output)}})
         verify_receipt(output)

@@ -15,6 +15,8 @@ import sys
 import tomllib
 
 ROOT = Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(ROOT / 'scripts'))
+import de25_builder
 DRIVER = "image/kernel/de25-dma"
 KERNEL_DRIVER = "drivers/misc/fes-de25-dma"
 STATIC_CASES = frozenset((
@@ -96,17 +98,13 @@ def locked_builder(container_runtime, lock, volume):
     # Kernel tests and the platform kernel consume a separately locked SDK.
     # Selecting a newer userspace Dockerfile must not silently change that
     # compiler's immutable execution environment.
-    expected = lock["builder_image"]
-    result = subprocess.run([container_runtime, "image", "inspect", expected,
-                             "--format", "{{.Id}}"], capture_output=True, text=True)
-    if result.returncode or result.stdout.strip() != expected:
-        raise ValueError("locked kernel/SDK builder is unavailable or differs")
-    # Docker initializes an empty volume from the mount destination's metadata.
-    # The locked image owns /target-image-output as its build user; /build is
-    # absent and would instead create a root-owned volume. Preserve the normal
-    # builder's initialization without rebuilding its immutable environment.
+    expected = de25_builder.resolve(container_runtime, lock["builder_image"])
+    # The immutable image may have a different build UID from this host. Only
+    # an empty workspace may change owner; populated foreign caches refuse.
+    checked(de25_builder.workspace_command(container_runtime, expected, volume))
     checked([container_runtime, "run", "--rm", "--network", "none", "--platform", "linux/amd64",
-             "--user", f"{os.getuid()}:{os.getgid()}", "--volume", f"{volume}:/target-image-output",
+             "--user", f"{os.getuid()}:{os.getgid()}", "--mount",
+             f"type=volume,src={volume},dst=/target-image-output,volume-nocopy",
              expected, "test", "-w", "/target-image-output"])
     return expected
 
@@ -296,6 +294,7 @@ def main(argv=None):
         volume = "fes-de25-kunit-" + hashlib.sha256(str(output).encode()).hexdigest()[:16]
         builder = locked_builder(args.container_runtime, lock, volume)
         inputs = {"format": 1, "fes_revision": revision, "kernel": lock,
+                  "builder_execution_reference": builder,
                   "static_expansion_enabled": args.static_expansion,
                   "source_sha256": {str(p.relative_to(source)): digest(p) for p in (source / DRIVER).rglob("*") if p.is_file()},
                   "runner_sha256": digest(source / "scripts/de25_kernel_test.py")}
@@ -303,7 +302,8 @@ def main(argv=None):
         checked([args.container_runtime, "run", "--rm", "--network", "none", "--platform", "linux/amd64",
                  "--user", f"{os.getuid()}:{os.getgid()}", "--ulimit", "core=0:0",
                  "--volume", f"{source}:/src:ro", "--volume", f"{image}:/image:ro",
-                 "--volume", f"{kernel}:/kernel-input:ro", "--volume", f"{volume}:/build",
+                 "--volume", f"{kernel}:/kernel-input:ro", "--mount",
+                 f"type=volume,src={volume},dst=/build,volume-nocopy",
                  "--volume", f"{output}:/export", "--env", "LC_ALL=C", "--env", "TZ=UTC", builder,
                  "python3", "/src/scripts/de25_kernel_test.py", "run", "--inside", revision, "--jobs", args.jobs,
                  *(["--static-expansion"] if args.static_expansion else [])])

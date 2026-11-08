@@ -258,6 +258,7 @@ def main(argv=None):
         volume = "fes-de25-owner-kernel-" + hashlib.sha256(str(output).encode()).hexdigest()[:16]
         builder = dep.locked_builder(args.container_runtime, lock, volume)
         write_json(output / "inputs.json", {"fes_revision": revision, "kernel": lock,
+            "builder_execution_reference": builder,
             "static_expansion_enabled": args.static_expansion,
             "source_sha256": {str(p.relative_to(source)): dep.digest(p) for directory in (PROFILE, dep.DRIVER)
                               for p in (source / directory).rglob("*") if p.is_file()},
@@ -266,7 +267,8 @@ def main(argv=None):
         command = [args.container_runtime, "run", "--rm", "--name", name, "--network", "none",
                    "--platform", "linux/amd64", "--user", f"{os.getuid()}:{os.getgid()}", "--ulimit", "core=0:0",
                    "--volume", f"{source}:/src:ro", "--volume", f"{image}:/image:ro",
-                   "--volume", f"{kernel}:/kernel-input:ro", "--volume", f"{volume}:/build",
+                   "--volume", f"{kernel}:/kernel-input:ro", "--mount",
+                   f"type=volume,src={volume},dst=/build,volume-nocopy",
                    "--volume", f"{output}:/export", builder, "python3", "/src/scripts/de25_kernel_platform.py",
                    "--inside", revision, "--jobs", args.jobs,
                    *(["--static-expansion"] if args.static_expansion else [])]

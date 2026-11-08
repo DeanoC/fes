@@ -18,6 +18,7 @@ import tempfile
 import tomllib
 
 import bundled_firmware
+import de25_builder
 from environment import build_environment
 from recipes import shared_cache_root
 
@@ -357,31 +358,34 @@ def build_runtime(snapshot, cache, revision, env, driver, board='de10-nano', *,
         'containers/target-image/Dockerfile', 'containers/target-image/create-builder-user.sh',
         'build/target-image-container-packages.sha256', 'build/target-image.sources.lock.toml')).encode()).hexdigest()
     tag = 'fogcast-target-image-build:' + lock['container']['digest'][7:19] + '-' + context[:12] + '-' + str(os.getuid()) + '-' + str(os.getgid())
-    builder_ref = selected['builder_image'] if selected else tag
-    builder_id = run([container_env['TARGET_IMAGE_CONTAINER_RUNTIME'], 'image', 'inspect', builder_ref,
-                      '--format', '{{.Id}}'], env=container_env)
+    builder_id = (de25_builder.resolve(container_env['TARGET_IMAGE_CONTAINER_RUNTIME'],
+                                      selected['builder_image'], root=snapshot, env=container_env)
+                  if selected else run([container_env['TARGET_IMAGE_CONTAINER_RUNTIME'],
+                                        'image', 'inspect', tag, '--format', '{{.Id}}'],
+                                       env=container_env))
     if not re.fullmatch('sha256:[0-9a-f]{64}', builder_id):
         raise ValueError('invalid pinned builder identity')
-    if selected and builder_id != selected['builder_image']:
-        raise ValueError('DE25 SDK and runtime builder identities differ')
     existing = subprocess.run([container_env['TARGET_IMAGE_CONTAINER_RUNTIME'], 'volume', 'inspect',
                                container_env['TARGET_IMAGE_OUTPUT_VOLUME']],
                               stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, check=False)
     if existing.returncode == 0:
         raise ValueError('private build volume already exists; refusing to claim it')
     try:
+        if selected:
+            run(de25_builder.workspace_command(container_env['TARGET_IMAGE_CONTAINER_RUNTIME'],
+                                               builder_id, container_env['TARGET_IMAGE_OUTPUT_VOLUME']),
+                env=container_env)
         script = runtime_script(revision, driver, board, sdk_sha, base_factory=base_factory,
                                 de25_static_expansion=de25_static_expansion)
         if selected:
-            # /target-image-output exists in the locked image with the build
-            # user's ownership; an absent destination would create a root-owned
-            # volume. Mount only this invocation's private workspace and volume.
+            # Mount only this invocation's initialized private workspace.
             run([container_env['TARGET_IMAGE_CONTAINER_RUNTIME'], 'run', '--rm',
                  '--platform', 'linux/amd64', '--network', 'none',
                  '--user', f'{os.getuid()}:{os.getgid()}', '--ulimit', 'core=0:0',
                  '--ulimit', 'nofile=65536:65536',
                  '--volume', str(image) + ':/work',
-                 '--volume', container_env['TARGET_IMAGE_OUTPUT_VOLUME'] + ':/target-image-output',
+                 '--mount', 'type=volume,src=' + container_env['TARGET_IMAGE_OUTPUT_VOLUME'] +
+                 ',dst=/target-image-output,volume-nocopy',
                  '--workdir', '/work', '--env', 'LC_ALL=C', '--env', 'TZ=UTC',
                  builder_id, 'sh', '-c', script], env=container_env)
         else:
@@ -392,9 +396,10 @@ def build_runtime(snapshot, cache, revision, env, driver, board='de10-nano', *,
         subprocess.run([container_env['TARGET_IMAGE_CONTAINER_RUNTIME'], 'volume', 'rm',
                         container_env['TARGET_IMAGE_OUTPUT_VOLUME']],
                        stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, check=False)
-    return {'key': sdk_key, 'archive_sha256': sdk_sha, 'container_id': builder_id,
+    return {'key': sdk_key, 'archive_sha256': sdk_sha,
+            'container_id': selected['builder_image'] if selected else builder_id,
             'runtime_make_variables': variables,
-            **({'de25_image_sdk': selected,
+            **({'de25_image_sdk': selected, 'container_execution_reference': builder_id,
                 'sdk_archive_cache': {'key': cached['key'], 'archive_sha256': sdk_sha}}
                if selected else {'container_base': lock['container'],
                                   'container_context_sha256': context})}

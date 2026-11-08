@@ -75,6 +75,24 @@ Managed base/factory assembly and virtual boot select the immutable builder
 from the owner-kernel SDK lock; a missing or different image is refused before
 compilation or guest execution. The separately updated headless-image builder
 does not replace that locked environment.
+The compiler-content pin remains the OCI config digest. Docker's classic image
+store addresses it directly; the containerd image store addresses the
+[locked OCI manifest](../image/de25-nano/sdk-builder/manifest.json) containing
+that same config. The SDK resolver authenticates the raw manifest against the
+lock, checks its config relationship and uncompressed layer digests, then
+requires Linux/amd64 and the exact ordered rootfs layers from image inspection.
+Only those two immutable addresses are considered; a changed image, mutable tag,
+index, platform or layer list is refused before a build volume is created.
+Receipts keep `builder_image` as the config digest and record
+`builder_execution_reference` separately. Runtime software receipts use
+`container_id` and `container_execution_reference` for the same distinction.
+This changes image-store addressing, not the compiler environment or SDK pin.
+The image's original build UID may differ from the current build account.
+Workspace initialization changes only an empty named volume's top-level owner
+to that account before compiling as the account. A populated volume with a
+different owner is refused; existing cache data is never recursively changed.
+Workspace mounts use Docker's `volume-nocopy` option so mounting an initialized
+but still empty volume cannot copy the image's original ownership back over it.
 Factory assembly preserves the selected prebuilt runtime bytes by excluding
 `mister-runtime` from Buildroot stripping. The final image still verifies the
 executable against its selected artifact hash.
