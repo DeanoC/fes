@@ -10,6 +10,9 @@ import (
 	"time"
 
 	"github.com/DeanoC/FogCast/hostclient"
+	"github.com/DeanoC/FogCast/internal/hidkeys"
+	"github.com/DeanoC/FogCast/internal/testwait"
+	"github.com/DeanoC/FogCast/remoteinput"
 )
 
 // fixedVideoKitSession is a host session whose package has no session-display
@@ -61,14 +64,30 @@ func (r *stopRecorder) stops() []map[string]any {
 	return append([]map[string]any(nil), r.bodies...)
 }
 
-// A keyboard alone must stop a session no playing room can open: F12 and Home
-// take the Select+Start exit, releasing the kit lease.
+// A keyboard alone must stop a session no playing room can open: F12 and
+// Ctrl+Home take the Select+Start exit, releasing the kit lease.
 func TestKitNoSessionDisplayKeyboardStops(t *testing.T) {
-	for _, key := range []struct {
-		name  string
-		usage uint8
-	}{{"F12", hidKeyboardF12}, {"home", 0x4a}} {
-		t.Run(key.name, func(t *testing.T) {
+	for _, tc := range []struct {
+		name string
+		keys []struct {
+			name  string
+			usage uint8
+		}
+	}{
+		{"F12", []struct {
+			name  string
+			usage uint8
+		}{{"F12", hidKeyboardF12}}},
+		{"ctrl-home", []struct {
+			name  string
+			usage uint8
+		}{{"ctrl", 0xe0}, {"home", 0x4a}}},
+		{"right-ctrl-home", []struct {
+			name  string
+			usage uint8
+		}{{"ctrl", 0xe4}, {"home", 0x4a}}},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
 			var rec stopRecorder
 			app, _ := kitDisplayApp(t, rec.server(t))
 			app.mu.Lock()
@@ -78,26 +97,59 @@ func TestKitNoSessionDisplayKeyboardStops(t *testing.T) {
 			if snap := app.Snapshot(); snap.Session.HardwareRoom {
 				t.Fatalf("fixed-video package offered a playing room: %+v", snap.Session)
 			}
-			if !app.HandlePlayHIDScancode(key.name, key.usage, true, time.Now()) {
-				t.Fatalf("%s was not consumed", key.name)
+			last := tc.keys[len(tc.keys)-1]
+			for _, key := range tc.keys[:len(tc.keys)-1] {
+				app.HandlePlayHIDScancode(key.name, key.usage, true, time.Now())
 			}
-			waitFor(t, app, key.name+" stop", func(s Snapshot) bool { return len(rec.stops()) == 1 && s.Session.State != "active" })
-			if !app.HandlePlayHIDScancode(key.name, key.usage, false, time.Now()) {
-				t.Fatalf("%s release was not consumed", key.name)
+			if !app.HandlePlayHIDScancode(last.name, last.usage, true, time.Now()) {
+				t.Fatalf("%s was not consumed", tc.name)
+			}
+			waitFor(t, app, tc.name+" stop", func(s Snapshot) bool { return len(rec.stops()) == 1 && s.Session.State != "active" })
+			if !app.HandlePlayHIDScancode(last.name, last.usage, false, time.Now()) {
+				t.Fatalf("%s release was not consumed", tc.name)
 			}
 			snap := app.Snapshot()
 			if snap.Room.DuringPlay || snap.Session.ControlsOpen {
-				t.Fatalf("%s opened controls instead of stopping: %+v", key.name, snap.Session)
+				t.Fatalf("%s opened controls instead of stopping: %+v", tc.name, snap.Session)
 			}
 			body := rec.stops()[0]
 			expected, _ := body["expected_session"].(map[string]any)
 			if retain, ok := body["retain_lease"].(bool); !ok || retain || expected["id"] != "same-host" {
-				t.Fatalf("%s stop body = %+v, want the bound Select+Start release", key.name, body)
+				t.Fatalf("%s stop body = %+v, want the bound Select+Start release", tc.name, body)
 			}
 			if got := len(rec.stops()); got != 1 {
-				t.Fatalf("%s posted %d stops", key.name, got)
+				t.Fatalf("%s posted %d stops", tc.name, got)
 			}
 		})
+	}
+}
+
+// Plain Home on a roomless session belongs to the core: it is forwarded as
+// its HID usage and does not stop the session (#1561).
+func TestKitNoSessionDisplayPlainHomeReachesCore(t *testing.T) {
+	var rec stopRecorder
+	app, feed := kitDisplayApp(t, rec.server(t))
+	app.mu.Lock()
+	app.session = fixedVideoKitSession()
+	app.syncGPUParkLocked()
+	app.mu.Unlock()
+	if !app.HandlePlayHIDScancode("home", 0x4a, true, time.Now()) {
+		t.Fatal("plain Home was not consumed by the play keyboard")
+	}
+	code, ok := hidkeys.Code(0x4a)
+	if !ok {
+		t.Fatal("Home has no HID event code")
+	}
+	deadline := time.Now().Add(testwait.Timeout)
+	for !feed.saw(code, remoteinput.ActionPress) {
+		if time.Now().After(deadline) {
+			t.Fatal("plain Home was not forwarded to the core")
+		}
+		time.Sleep(5 * time.Millisecond)
+	}
+	time.Sleep(50 * time.Millisecond)
+	if snap := app.Snapshot(); snap.Session.Stopping || snap.Session.State != "active" || len(rec.stops()) != 0 {
+		t.Fatalf("plain Home stopped the session: stops=%d", len(rec.stops()))
 	}
 }
 
@@ -125,7 +177,7 @@ func TestKitSessionDisplayKeyboardOpensRoomNotStop(t *testing.T) {
 	}
 }
 
-// Transient states never turn Home into Stop: a stop already in flight, and a
+// Transient states never turn Ctrl+Home into Stop: a stop already in flight, and a
 // busy session-display transition.
 func TestKitNoSessionDisplayHomeIgnoresTransientStates(t *testing.T) {
 	var rec stopRecorder
@@ -135,10 +187,13 @@ func TestKitNoSessionDisplayHomeIgnoresTransientStates(t *testing.T) {
 	app.sessionDisplayBusy = true
 	app.syncGPUParkLocked()
 	app.mu.Unlock()
+	app.mu.Lock()
+	app.playKeyHeld = map[string]bool{playHeldKey("", 0xe0): true}
+	app.mu.Unlock()
 	app.HandlePlayHIDScancode("home", 0x4a, true, time.Now())
 	time.Sleep(50 * time.Millisecond)
 	if got := len(rec.stops()); got != 0 || app.Snapshot().Session.Stopping {
-		t.Fatalf("Home stopped during a display transition: stops=%d", got)
+		t.Fatalf("Ctrl+Home stopped during a display transition: stops=%d", got)
 	}
 }
 

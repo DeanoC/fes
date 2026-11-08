@@ -2937,7 +2937,7 @@ func (a *App) HandlePlayHIDScancode(name string, usage uint8, down bool, now tim
 		// a folder that has no .p files, so it is never forwarded. With no
 		// media selector to open, F12 opens the running room as Home does,
 		// which the surround hint advertises (#1132). With no room either,
-		// F12 stops the session as Home does (#1561).
+		// F12 stops the session (#1561).
 		if a.localCoreOwnsInput() {
 			if down {
 				a.RequestLocalStop()
@@ -2945,7 +2945,7 @@ func (a *App) HandlePlayHIDScancode(name string, usage uint8, down bool, now tim
 			return true
 		}
 		if !a.openRunningMediaSelector(down, now) {
-			a.handlePlayingRoomKey("home", down, now)
+			a.handlePlayingMenuKey(down, now)
 		}
 		return true
 	}

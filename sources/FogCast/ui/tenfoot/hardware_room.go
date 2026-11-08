@@ -317,15 +317,31 @@ func (a *App) roomSessionMatchesLocked(action rooms.Action) bool {
 // Physical Home remains a single-key chrome route even when a described
 // keyboard is attached. The letter h keeps its ordinary core meaning. When no
 // playing room can open (for example a menu-display kit running a package
-// without the session-display plane), Home and F12 stop the session as the
-// Select+Start hold does, so a keyboard alone can always stop play (#1561).
-// A Coleco session keeps its selector status instead.
+// without the session-display plane), plain Home goes to the core and
+// Ctrl+Home stops the session as the Select+Start hold does, so a keyboard
+// alone can always stop play (#1561). A Coleco session keeps its selector
+// status instead.
 func (a *App) handlePlayingRoomKey(name string, down bool, now time.Time) bool {
 	if a == nil || !strings.EqualFold(strings.TrimSpace(name), "home") {
 		return false
 	}
 	a.mu.Lock()
 	defer a.mu.Unlock()
+	return a.playingRoomKeyLocked(down, now, a.playCtrlHeldLocked())
+}
+
+// handlePlayingMenuKey is F12 with no media selector to open: the playing
+// room, or Stop when no room can open (#1561).
+func (a *App) handlePlayingMenuKey(down bool, now time.Time) bool {
+	if a == nil {
+		return false
+	}
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	return a.playingRoomKeyLocked(down, now, true)
+}
+
+func (a *App) playingRoomKeyLocked(down bool, now time.Time, stopWithoutRoom bool) bool {
 	if a.session.State != "active" || a.sessionDisplayBusy || a.stopPhase == "stopping" || a.retryStopLock || a.tapePickerOpen || (a.roomDuringPlay && down) {
 		return false
 	}
@@ -337,6 +353,9 @@ func (a *App) handlePlayingRoomKey(name string, down bool, now time.Time) bool {
 			}
 			return true
 		}
+		if !stopWithoutRoom {
+			return false
+		}
 		return a.stopWithoutRoomLocked(down, now)
 	}
 	if down {
@@ -346,8 +365,19 @@ func (a *App) handlePlayingRoomKey(name string, down bool, now time.Time) bool {
 	return true
 }
 
+// playCtrlHeldLocked reports a physical Ctrl key held on the play keyboard,
+// by HID usage (left 0xE0, right 0xE4) or by its play-keyboard name.
+func (a *App) playCtrlHeldLocked() bool {
+	for _, key := range []string{playHeldKey("", 0xe0), playHeldKey("", 0xe4), playHeldKey("ctrl", 0)} {
+		if a.playKeyHeld[key] {
+			return true
+		}
+	}
+	return false
+}
+
 // RequestRoomlessStop is a pad Guide press on a host session no playing room
-// can open. It takes the Select+Start exit, as Home and F12 do there (#1561).
+// can open. It takes the Select+Start exit, as F12 and Ctrl+Home do there (#1561).
 // It reports whether the press was used.
 func (a *App) RequestRoomlessStop(now time.Time) bool {
 	if a == nil {
