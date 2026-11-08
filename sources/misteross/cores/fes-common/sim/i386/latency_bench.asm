@@ -4,8 +4,8 @@
 ; "Phase 4: speed"). lockstep_tb's governor mode runs it on the RTL alone at
 ; 0000:1000h under max, in the governor bench's form: each loop runs between
 ; two marks on port 80h, 2n before and 2n + 1 after, and counts BP down. Apart
-; from the first, which is the bare DEC BP and JNZ loop, each iteration runs
-; its case eight times. Port 8Fh ends the program.
+; from the first, which is the bare DEC BP and JNZ loop, and the last three,
+; which run their case once, each iteration runs its case eight times. Port 8Fh ends the program.
 
 bits 16
 cpu 386
@@ -219,5 +219,52 @@ more:
     jnz .store_load_alias
     mark 27
 
+    ; 14: one indirect CALL through a register and RET an iteration, the
+    ; CALL alone in its 16-byte block but for the loop's DEC and JNZ.
+    mov bx, near_return
+    mark 28
+    mov bp, 8000
+    align 16, nop
+.call_ind1:
+    call bx
+    dec bp
+    jnz .call_ind1
+    mark 29
+
+    ; 15: one indirect JMP through a register an iteration, to a block that
+    ; counts down and jumps back.
+    mov bx, jmp_target
+    mark 30
+    mov bp, 8000
+    align 16, nop
+.jmp_ind1:
+    jmp bx
+.jmp_done:
+    mark 31
+
+    ; 16: as 14, but the CALL's target changes every iteration, between two
+    ; RETs (XOR BX, SI swaps them).
+    mov bx, near_return
+    mov si, (near_return - $$ + 0x1000) ^ (near_return2 - $$ + 0x1000)
+    mark 32
+    mov bp, 8000
+    align 16, nop
+.call_alt:
+    call bx
+    xor bx, si
+    dec bp
+    jnz .call_alt
+    mark 33
+
     out DONE, al
     hlt
+
+    align 16, nop
+jmp_target:
+    dec bp
+    jnz more.jmp_ind1
+    jmp more.jmp_done
+
+    align 16, nop
+near_return2:
+    ret

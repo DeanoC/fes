@@ -85,7 +85,7 @@ class ProfileError(ValueError):
 
 def load(lines) -> dict[float, dict]:
     """The snapshots by time: counters, buckets, classes and that interval's sites."""
-    snaps: dict[float, dict] = defaultdict(lambda: {'t': None, 'b': None, 'c': {}, 'a': {}, 'f': {}, 'q': {}, 's': {}})
+    snaps: dict[float, dict] = defaultdict(lambda: {'t': None, 'b': None, 'c': {}, 'a': {}, 'f': {}, 'q': {}, 's': {}, 'i': {}})
     for line in lines:
         if not line.strip():
             continue
@@ -107,6 +107,9 @@ def load(lines) -> dict[float, dict]:
         elif kind == 'S':
             kv = dict(x.split('=') for x in f[3:])
             snap['s'][f[1]] = [int(kv['n']), int(kv['cycles']), f[2]]
+        elif kind == 'I':
+            kv = dict(x.split('=') for x in f[3:])
+            snap['i'][f[1]] = [int(kv['n']), int(kv['rep']), int(kv['targets']), f[2]]
         else:
             raise ProfileError(f'unknown line kind {kind!r}')
     for at, snap in snaps.items():
@@ -137,6 +140,16 @@ def window(snaps: dict[float, dict], lo: float | None = None, hi: float | None =
                 sites[addr][0] += n
                 sites[addr][1] += cycles
                 sites[addr][2] = cls
+    # Indirect sites: retirements and repeats summed, distinct targets as of
+    # the window's last interval that retired the site.
+    ind_sites: dict[str, list] = defaultdict(lambda: [0, 0, 0, ''])
+    for at in times:
+        if a < at <= z:
+            for addr, (n, rep, targets, cls) in snaps[at]['i'].items():
+                ind_sites[addr][0] += n
+                ind_sites[addr][1] += rep
+                ind_sites[addr][2] = targets
+                ind_sites[addr][3] = cls
     clocks = sum(b.values())
     if clocks != t['sampled']:
         raise ProfileError(f'buckets hold {clocks} clocks, {t["sampled"]} sampled')
@@ -156,21 +169,29 @@ def window(snaps: dict[float, dict], lo: float | None = None, hi: float | None =
             'front_end': front_end(fe, latent, b, t),
             'redirects_by_class': {k: {'taken': v['taken'], 'clocks': v['next'],
                                        'per_taken': round(v['next'] / v['taken'], 2)} for k, v in taken.items()},
-            'sites': sorted(([k, *v] for k, v in sites.items()), key=lambda s: -s[2])[:25]}
+            'sites': sorted(([k, *v] for k, v in sites.items()), key=lambda s: -s[2])[:25],
+            'indirect_sites': sorted(([k, *v] for k, v in ind_sites.items()), key=lambda s: (-s[1], s[0]))[:25]}
 
 
 def prediction(t: dict) -> dict:
     """The BTB's direct branches (Jcc, LOOP and its kin, JCXZ, JMP and CALL
     rel): a branch is predicted right when it was predicted taken and taken,
     or not predicted taken and not taken. Near RETs: a RET is predicted right
-    when it does not redirect, so the return stack gave its target."""
+    when it does not redirect, so the return stack gave its target. Indirect
+    near CALLs and JMPs: those to their site's last target (last_target, what
+    a predictor keeping every site's last target would get right), and those
+    the BTB predicted and that redirected."""
     br, taken, pt, pt_taken = t['br'], t['br_taken'], t['br_pt'], t['br_pt_taken']
     right = pt_taken + (br - taken - (pt - pt_taken))
     return {'direct': br, 'taken': taken, 'predicted_taken': pt, 'predicted_taken_and_taken': pt_taken,
             'mispredicted': br - right, 'accuracy': round(right / br, 4) if br else None,
             'fetch_replays': t['fetch_replays'],
             'ret': t['ret'], 'ret_predicted': t['ret_pt'], 'ret_mispredicted': t['ret_mis'],
-            'ret_accuracy': round(1 - t['ret_mis'] / t['ret'], 4) if t['ret'] else None}
+            'ret_accuracy': round(1 - t['ret_mis'] / t['ret'], 4) if t['ret'] else None,
+            'ind_call': t['ind_call'], 'ind_call_last_target': t['ind_call_rep'],
+            'ind_jmp': t['ind_jmp'], 'ind_jmp_last_target': t['ind_jmp_rep'],
+            'ind_predicted': t['ind_pt'], 'ind_mispredicted': t['ind_mis'],
+            'ind_accuracy': round(1 - t['ind_mis'] / ind, 4) if (ind := t['ind_call'] + t['ind_jmp']) else None}
 
 
 # The producer classes an early ALU at AG would execute: the register and
@@ -248,6 +269,13 @@ def report(w: dict) -> str:
     if p['ret']:
         out.append(f'near RETs {p["ret"]:,}: {p["ret_predicted"]:,} predicted, {p["ret_mispredicted"]:,} redirected '
                    f'(accuracy {100 * p["ret_accuracy"]:.2f}%)')
+    ind = p['ind_call'] + p['ind_jmp']
+    if ind:
+        out.append(f'indirect CALLs {p["ind_call"]:,} ({p["ind_call_last_target"]:,} to their last target), '
+                   f'JMPs {p["ind_jmp"]:,} ({p["ind_jmp_last_target"]:,}): {p["ind_predicted"]:,} predicted, '
+                   f'{p["ind_mispredicted"]:,} redirected (accuracy {100 * p["ind_accuracy"]:.2f}%)')
+        for addr, n, rep, targets, cls in w['indirect_sites'][:8]:
+            out.append(f'  {addr} {cls:9s} n={n:,} last target {100 * rep / max(n, 1):.1f}% targets={targets}')
     a = w['agi']
     if a['by_class']:
         out.append(f'\nAGI {a["clocks"]:,} clocks, {a["early"]:,} from producers an early ALU would run '

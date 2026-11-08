@@ -30,7 +30,7 @@
 // (btb_info_t) and whether it is the sequential successor of the block
 // filled before it (seq); both are kept per half.
 //
-// The return stack (fes_i386_ras). A taken entry for a CALL rel pushes the
+// The return stack (fes_i386_ras). A taken entry for a near CALL pushes the
 // linear address after the call's last byte, on the edge after F2 passes on
 // its block (when pred_go loads its target); one for a RET pops the stack,
 // and its target is the top it pops, not the entry's. Only a block F2
@@ -129,7 +129,7 @@ module fes_i386_fetchbuf import fes_i386_pkg::*; (
     btb_info_t        f2_info, l1_info, l2_info;
     logic             btb_taken;
     logic [31:0]      btb_target;  // the entry's target, or for a RET's the return stack's top
-    logic             push_call;   // pred_go is for a CALL rel's entry ...
+    logic             push_call;   // pred_go is for a near CALL's entry ...
     logic [31:0]      push_last;   // ... whose last byte is here
 
     // half: the half L2's block goes to, alternately from the redirect's.
