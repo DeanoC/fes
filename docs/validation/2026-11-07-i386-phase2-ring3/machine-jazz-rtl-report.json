@@ -1,0 +1,241 @@
+{
+  "post": [
+    {
+      "code": "00",
+      "cycle": 11741
+    },
+    {
+      "code": "21",
+      "cycle": 2471323
+    },
+    {
+      "code": "31",
+      "cycle": 2571519
+    },
+    {
+      "code": "41",
+      "cycle": 2971719
+    },
+    {
+      "code": "71",
+      "cycle": 3074323
+    },
+    {
+      "code": "77",
+      "cycle": 3174349
+    }
+  ],
+  "debug": [
+    {
+      "port": "402",
+      "text": "BIOS BUILD DATE: 11/03/26"
+    },
+    {
+      "port": "500",
+      "text": "VGABios ID: vgabios.c 2026-08-07"
+    },
+    {
+      "port": "402",
+      "text": "ata0-0: PCHS=260/16/63 translation=none LCHS=260/16/63"
+    },
+    {
+      "port": "402",
+      "text": "IDE time out"
+    },
+    {
+      "port": "402",
+      "text": "Booting from 0000:7c00"
+    },
+    {
+      "port": "402",
+      "text": "*** int 15h function AX=c300, BX=100f not yet supported!"
+    }
+  ],
+  "panic": [],
+  "io": {
+    "isa16 2": {
+      "38": 513280
+    },
+    "isa8 1": {
+      "74": 97235
+    },
+    "vga-in 1": {
+      "6": 9
+    },
+    "vga-out 1": {
+      "4": 3991
+    },
+    "vga-out 2": {
+      "7": 3134
+    }
+  },
+  "io_wait": {},
+  "inta": {
+    "146": 797
+  },
+  "screen": [
+    "                                                                                ",
+    "                                                                                ",
+    "                                                                                ",
+    "                                                                                ",
+    "                                                                                ",
+    "                                                                                ",
+    "                                                                                ",
+    "                                                                                ",
+    "                                                                                ",
+    "                                                                                ",
+    "                                                                                ",
+    "                                                                                ",
+    "                                                                                ",
+    "                                                                                ",
+    "                                                                                ",
+    "                                                                                ",
+    "                                                                                ",
+    "                                                                                ",
+    "                                                                                ",
+    "                                                                                ",
+    "                                                                                ",
+    "                                                                                ",
+    "                                                                                ",
+    "                                                                                ",
+    "                                                                                "
+  ],
+  "end": {
+    "reason": "limit",
+    "steps": 661192544,
+    "cycles": 1200000052,
+    "seconds": 12.0
+  },
+  "prompt_cycle": 300014509,
+  "cpu_resets": 0,
+  "snaps": {
+    "final": {
+      "width": 320,
+      "height": 400,
+      "file": "/home/deano/fes-scratch/ring3/game/sources/misteross/build/sim/fes-pc386/game-jazz-rtl/frames/final.ppm"
+    }
+  },
+  "present": {},
+  "vga": {
+    "frames": 10857,
+    "scanout_underflows": 0,
+    "capture_drops": 0,
+    "present_underflows": 0,
+    "plane_underflows": 0,
+    "frames_shown": 0,
+    "port1_commands": 38109288,
+    "port2_commands": 5019557
+  },
+  "marks": {},
+  "opl2": {
+    "samples": 596590,
+    "exact": 596590,
+    "nonzero": 0,
+    "writes": 0
+  },
+  "opl2_mismatch": null,
+  "audio_samples": 576000,
+  "sb": {
+    "resets": 2,
+    "commands": 9,
+    "dma": 328859,
+    "irqs": 160
+  },
+  "mouse": {
+    "sent": 0,
+    "scheduled": 0
+  },
+  "rtl_begin": {
+    "cycle": 300014516,
+    "flips": 2
+  },
+  "rtl": {
+    "stops": [],
+    "pmode": [],
+    "gaps": [],
+    "smc": [
+      {
+        "event": "store",
+        "cycle": 356122241,
+        "site": "1013:00002bae",
+        "instruction": "00012cde",
+        "address": "00012d00"
+      },
+      {
+        "event": "store",
+        "cycle": 453669445,
+        "site": "0237:00003a87",
+        "instruction": "001812a7",
+        "address": "001812d3"
+      }
+    ],
+    "notes": [],
+    "counters": {
+      "retired": 589976493,
+      "oracle_steps": 0,
+      "protected_steps": 0,
+      "parked_clocks": 7102571,
+      "tf_retired": 0,
+      "pe_retired": 543149250,
+      "pe_entries": 1210,
+      "vga_loads": 23043,
+      "replays": 288,
+      "port0_reads": 2118039,
+      "port0_writes": 21771550,
+      "smc_stores": 37,
+      "smc_addresses": 2,
+      "smc_executed": 0,
+      "smc_restarts": 319350
+    }
+  },
+  "command": [
+    "build/sim/fes-pc386/machine/obj/Vpc386_machine",
+    "--bios",
+    "build/firmware/pc386/pc386-bios.bin",
+    "--vgabios",
+    "build/firmware/pc386/pc386-vgabios.bin",
+    "--disk",
+    "/home/deano/fes-drives/pc386/b460ca550cc7a8b8df525e7fbb258b03c18acb1f82e22289dcdb0c54b335dff2.img",
+    "--limit-seconds",
+    "12.0",
+    "--type",
+    "cd \\jazz|jazz|",
+    "--keys-after-type",
+    "1",
+    "--wav",
+    "build/sim/fes-pc386/game-jazz-rtl/jazz.wav",
+    "--opl2-log",
+    "build/sim/fes-pc386/game-jazz-rtl/jazz-opl2.log",
+    "--frames",
+    "build/sim/fes-pc386/game-jazz-rtl/frames",
+    "--keys",
+    "6.0:|",
+    "--keys",
+    "9.0: ",
+    "--keys",
+    "12.0:|",
+    "--frame-every",
+    "1.0",
+    "--rtl-at-prompt",
+    "1",
+    "--cpu",
+    "rtl"
+  ],
+  "exit": 1,
+  "failures": [],
+  "game": {
+    "name": "jazz",
+    "drive": "real",
+    "drive_sha256": "b460ca550cc7a8b8df525e7fbb258b03c18acb1f82e22289dcdb0c54b335dff2",
+    "title": "Jazz Jackrabbit (1994)",
+    "bucket": "386",
+    "zip_sha256": "09f20415735a60aa5e7c0e4e453548f0bad2fbd2313a4e118abc5b7476784f40"
+  },
+  "work": "/home/deano/fes-scratch/ring3/game/sources/misteross/build/sim/fes-pc386/game-jazz-rtl",
+  "audio": {
+    "hz": 874.35,
+    "rms": 1865.0,
+    "peak": 12874,
+    "samples": 576000
+  }
+}

@@ -52,6 +52,38 @@
 # instruction's immediate (RETF imm16's) rather than the word's. d and b
 # also name T4 (IRET's EFLAGS image).
 #
+# Privilege transitions (fes_i386_cpu, "Privilege transitions"). hold =
+# true on a CS check's uop makes WB keep the staged CS descriptor and
+# whether the transfer changes privilege (xp): an IRET to an outer
+# privilege, a delivery to an inner one. xc = "xp" issues the uop only with
+# xp, xc = "same" only without; D turns the other into a NOP. xs = true on a
+# delivery's jump steps ESP two slots further with xp (the old SS and ESP).
+# nstk = true addresses the new stack: the staged SS's base at
+# T5 plus the slot, checked against the staged SS (#SS with its selector).
+# tss = "esp" and "ss" read the new stack's ESP and SS from the TSS for
+# the held CS's DPL, the first checked against TR's limit (#TS with TR's
+# selector); dmode = "ts" makes a descriptor read past its table #TS.
+# desc = "hacc" stores the held CS's accessed bit; xfer = true on the far
+# jump writes CS from the hold, and with xp SS from the staged descriptor
+# and ESP from T5 plus imm (an outer return also nulls ES, DS, FS and GS
+# below the new CPL). d and b also name T5.
+
+# IN and OUT at a CPL above IOPL (allow_io): DC puts the port in T5 (DX, or
+# the imm8). The ROM reads the TSS's I/O permission bitmap's base, the word
+# at 66h, into T4 (#GP(0) for a TSS that is not a 386 one of 104 bytes or
+# more: tss = "iomap"); the bitmap's word for the port into T2, at that base
+# plus the port's byte, #GP(0) past TR's limit (tss = "bitmap"); then the
+# port's bits for the access's size (segchk = "iobm": any set, #GP(0)); then
+# the access the first uop kept (iof).
+[[routine]]
+name = "iochk"
+uops = [
+    { cls = "alu", op = "mov", d = "t4", size = "32", mkind = "load", mbytes = "2", tss = "iomap" },
+    { cls = "alu", op = "mov", d = "t2", size = "32", mkind = "load", mbytes = "2", tss = "bitmap" },
+    { cls = "alu", op = "mov", segchk = "iobm" },
+    { cls = "alu", op = "mov", iof = true },
+]
+
 # The ESC instructions with no 387 (fes_i386_cpu, "ESC with no 387"). rm =
 # true addresses the ModRM operand plus fpn operand-sized fields plus fpj
 # dwords, wrapped by address size: an x87 environment's fields (fpn 0-6),
@@ -283,18 +315,25 @@ uops = [
     { cls = "branch", op = "jmp", far_jmp = true, far_t = true, segw = true },
 ]
 
-# A protected-mode exception's, INTR's or NMI's delivery at CPL 0, through an
-# interrupt or trap gate to a code segment at the same privilege
-# (fes_i386_cpu, "Protected-mode delivery"). The entry is the NOP the
-# real-mode one is, here; INT n and INT3 start at pint, DC decoding the
-# gate's low dword into T1; INTO's JNO falls into pvec with vector 4. The
-# gate's high dword into T3; GATE raises the gate's checks (M1) and at WB
-# puts its selector in T0 and offset in T1, with its size and kind; the code
-# descriptor's dwords; its checks and the offset's; a probe of each slot
-# the delivery pushes, at the gate's size, as Bochs pushes each; the
-# accessed bit; EFLAGS (RF set for a fault, TF and NT cleared, IF for an
-# interrupt gate), CS, EIP and the error code, if the exception has one;
-# then the far jump, which steps ESP past the pushes.
+# A protected-mode exception's, INTR's or NMI's delivery, and INT n's
+# (protected_mode_int), through an interrupt or trap gate (fes_i386_cpu,
+# "Protected-mode delivery"). The entry is the NOP the real-mode one is,
+# here; INT n and INT3 start at pint, DC decoding the gate's low dword into
+# T1; INTO's JNO falls into pvec with vector 4. The gate's high dword into
+# T3; GATE raises the gate's checks (M1; a software interrupt's against
+# CPL) and at WB puts its selector in T0 and offset in T1, with its size
+# and kind; the code descriptor's dwords and their checks, which WB holds
+# with xp for a nonconforming CS below CPL, an inner privilege. That reads
+# the new stack's ESP into T5 and SS into T0 from the TSS for CS's DPL,
+# SS's descriptor (#TS past its table) and its checks. Then the offset's
+# check against the held CS's limit; a probe of each slot the delivery
+# pushes, at the gate's size, as Bochs pushes each (with xp on the new
+# stack, two more, for the old SS and ESP, which it pushes first); the
+# stores (with xp on the new stack): with xp the old SS and ESP, then EFLAGS (RF set for a fault, TF
+# and NT cleared, IF for an interrupt gate), CS, EIP and the error code,
+# if the exception has one; CS's accessed bit, with xp SS's; then the far
+# jump, which steps ESP past the pushes, or with xp loads SS and ESP and
+# takes CS's DPL as the CPL.
 [[routine]]
 name = "pvec"
 falls_through = true
@@ -309,27 +348,51 @@ uops = [
     { cls = "system", op = "gate", d = "t0", segchk = "gate" },
     { cls = "alu", op = "mov", d = "t2", size = "32", mkind = "load", mbytes = "4", desc = "lo" },
     { cls = "alu", op = "mov", d = "t3", size = "32", mkind = "load", mbytes = "4", desc = "hi" },
-    { cls = "alu", op = "mov", segchk = "intcs" },
-    { cls = "alu", op = "mov", mkind = "load", stk = "probe", slot = -1, gsz = true },
-    { cls = "alu", op = "mov", mkind = "load", stk = "probe", slot = -2, gsz = true },
-    { cls = "alu", op = "mov", mkind = "load", stk = "probe", slot = -3, gsz = true },
-    { cls = "alu", op = "mov", mkind = "load", stk = "probe", slot = -4, gsz = true, errp = true },
-    { cls = "alu", op = "mov", size = "8", mkind = "store", mbytes = "1", in_a = true, desc = "acc" },
-    { cls = "alu", op = "flags", imm = 13, mkind = "store", in_a = true, stk = "peek", slot = -1, gsz = true, rd_cf = true, rd_oszap = true },
-    { cls = "alu", op = "movzx", src_size = "16", b = "sel", seg = "cs", mkind = "store", in_a = true, stk = "peek", slot = -2, gsz = true },
-    { cls = "alu", op = "mov", b = "eip", mkind = "store", in_a = true, stk = "peek", slot = -3, gsz = true },
-    { cls = "alu", op = "mov", b = "sys", sys = "err", mkind = "store", in_a = true, stk = "peek", slot = -4, gsz = true, errp = true },
-    { cls = "branch", op = "jmp", far_jmp = true, far_t = true, segw = true, sp_add = true, stk = "retf", slot = -4, gsz = true, errp = true },
+    { cls = "alu", op = "mov", segchk = "intcs", hold = true },
+    { cls = "alu", op = "mov", d = "t5", size = "32", mkind = "load", tss = "esp", xc = "xp" },
+    { cls = "alu", op = "mov", d = "t0", size = "32", mkind = "load", mbytes = "2", tss = "ss", xc = "xp" },
+    { cls = "alu", op = "mov", d = "t2", size = "32", mkind = "load", mbytes = "4", desc = "lo", dmode = "ts", xc = "xp" },
+    { cls = "alu", op = "mov", d = "t3", size = "32", mkind = "load", mbytes = "4", desc = "hi", dmode = "ts", xc = "xp" },
+    { cls = "alu", op = "mov", segchk = "ssint", xc = "xp" },
+    { cls = "alu", op = "mov", segchk = "hoff" },
+    { cls = "alu", op = "mov", mkind = "load", stk = "probe", slot = -1, gsz = true, nstk = true, xc = "xp" },
+    { cls = "alu", op = "mov", mkind = "load", stk = "probe", slot = -2, gsz = true, nstk = true, xc = "xp" },
+    { cls = "alu", op = "mov", mkind = "load", stk = "probe", slot = -3, gsz = true, nstk = true, xc = "xp" },
+    { cls = "alu", op = "mov", mkind = "load", stk = "probe", slot = -4, gsz = true, nstk = true, xc = "xp" },
+    { cls = "alu", op = "mov", mkind = "load", stk = "probe", slot = -5, gsz = true, nstk = true, xc = "xp" },
+    { cls = "alu", op = "mov", mkind = "load", stk = "probe", slot = -6, gsz = true, errp = true, nstk = true, xc = "xp" },
+    { cls = "alu", op = "mov", mkind = "load", stk = "probe", slot = -1, gsz = true, xc = "same" },
+    { cls = "alu", op = "mov", mkind = "load", stk = "probe", slot = -2, gsz = true, xc = "same" },
+    { cls = "alu", op = "mov", mkind = "load", stk = "probe", slot = -3, gsz = true, xc = "same" },
+    { cls = "alu", op = "mov", mkind = "load", stk = "probe", slot = -4, gsz = true, errp = true, xc = "same" },
+    { cls = "alu", op = "movzx", src_size = "16", b = "sel", seg = "ss", mkind = "store", in_a = true, stk = "peek", slot = -1, gsz = true, nstk = true, xc = "xp" },
+    { cls = "alu", op = "mov", s2 = "esp", mkind = "store", in_a = true, stk = "peek", slot = -2, gsz = true, nstk = true, xc = "xp" },
+    { cls = "alu", op = "flags", imm = 13, mkind = "store", in_a = true, stk = "peek", slot = -3, gsz = true, rd_cf = true, rd_oszap = true, nstk = true, xc = "xp" },
+    { cls = "alu", op = "movzx", src_size = "16", b = "sel", seg = "cs", mkind = "store", in_a = true, stk = "peek", slot = -4, gsz = true, nstk = true, xc = "xp" },
+    { cls = "alu", op = "mov", b = "eip", mkind = "store", in_a = true, stk = "peek", slot = -5, gsz = true, nstk = true, xc = "xp" },
+    { cls = "alu", op = "mov", b = "sys", sys = "err", mkind = "store", in_a = true, stk = "peek", slot = -6, gsz = true, errp = true, nstk = true, xc = "xp" },
+    { cls = "alu", op = "flags", imm = 13, mkind = "store", in_a = true, stk = "peek", slot = -1, gsz = true, rd_cf = true, rd_oszap = true, xc = "same" },
+    { cls = "alu", op = "movzx", src_size = "16", b = "sel", seg = "cs", mkind = "store", in_a = true, stk = "peek", slot = -2, gsz = true, xc = "same" },
+    { cls = "alu", op = "mov", b = "eip", mkind = "store", in_a = true, stk = "peek", slot = -3, gsz = true, xc = "same" },
+    { cls = "alu", op = "mov", b = "sys", sys = "err", mkind = "store", in_a = true, stk = "peek", slot = -4, gsz = true, errp = true, xc = "same" },
+    { cls = "alu", op = "mov", size = "8", mkind = "store", mbytes = "1", in_a = true, desc = "hacc" },
+    { cls = "alu", op = "mov", size = "8", mkind = "store", mbytes = "1", in_a = true, desc = "acc", xc = "xp" },
+    { cls = "branch", op = "jmp", far_jmp = true, far_t = true, segw = true, sp_add = true, stk = "retf", slot = -4, gsz = true, errp = true, xs = true, xfer = true },
 ]
 
-# IRET and IRETD in protected mode, to the same privilege: DC reads the
-# EFLAGS slot into T4 (IRETD with VM set in it stops as not built: V86);
+# IRET and IRETD in protected mode (iret_protected): DC reads the EFLAGS
+# slot into T4 (IRETD at CPL 0 with VM set in it stops as not built: V86);
 # the ROM reads CS's slot into T0 and the offset's into T1, in Bochs's order,
 # so a frame past the stack's limit faults before any read; each at SP plus
 # its slot without the 64 KiB wrap on a 16-bit stack, as Bochs reads them;
-# then CS's descriptor, its checks and the offset's with the accessed bit,
-# the flags from T4 (and RF, for IRETD), and the jump, which steps ESP past
-# the three slots.
+# then CS's descriptor and its checks, which WB holds with xp for a return
+# to an outer privilege (RPL above CPL). That reads SS's word slot into T0,
+# its descriptor and checks against the new CPL, and ESP's slot into T5.
+# Then the offset's check against the held CS's limit with its accessed
+# bit, SS's accessed bit, the flags from T4 (and RF, for IRETD; IF and IOPL
+# by the CPL the IRET runs at), and the jump, which steps ESP past the
+# three slots, or with xp loads SS and ESP and nulls the data segments the
+# new CPL may not use.
 [[routine]]
 name = "piret"
 uops = [
@@ -337,12 +400,20 @@ uops = [
     { cls = "alu", op = "mov", d = "t1", size = "32", mkind = "load", stk = "peek", slot = 0, nwrap = true },
     { cls = "alu", op = "mov", d = "t2", size = "32", mkind = "load", mbytes = "4", desc = "lo" },
     { cls = "alu", op = "mov", d = "t3", size = "32", mkind = "load", mbytes = "4", desc = "hi" },
-    { cls = "alu", op = "mov", size = "8", mkind = "store", mbytes = "1", in_a = true, desc = "acc", segchk = "ret" },
+    { cls = "alu", op = "mov", segchk = "ret", hold = true },
+    { cls = "alu", op = "mov", d = "t0", size = "32", mkind = "load", mbytes = "2", stk = "peek", slot = 4, nwrap = true, xc = "xp" },
+    { cls = "alu", op = "mov", d = "t2", size = "32", mkind = "load", mbytes = "4", desc = "lo", xc = "xp" },
+    { cls = "alu", op = "mov", d = "t3", size = "32", mkind = "load", mbytes = "4", desc = "hi", xc = "xp" },
+    { cls = "alu", op = "mov", segchk = "ssret", xc = "xp" },
+    { cls = "alu", op = "mov", d = "t5", size = "32", mkind = "load", stk = "peek", slot = 3, nwrap = true, xc = "xp" },
+    { cls = "alu", op = "mov", size = "8", mkind = "store", mbytes = "1", in_a = true, desc = "hacc", segchk = "hoff" },
+    { cls = "alu", op = "mov", size = "8", mkind = "store", mbytes = "1", in_a = true, desc = "acc", xc = "xp" },
     { cls = "alu", op = "flags", imm = 12, b = "t4", wr_cf = true, wr_oszap = true },
-    { cls = "branch", op = "jmp", far_jmp = true, far_t = true, segw = true, sp_add = true, stk = "retf", slot = 3, iret = true },
+    { cls = "branch", op = "jmp", far_jmp = true, far_t = true, segw = true, sp_add = true, stk = "retf", slot = 3, iret = true, xfer = true },
 ]
 
-# RETF and RETF imm16 in protected mode, to the same privilege: DC reads
+# RETF and RETF imm16 in protected mode, to the same privilege (to an outer
+# one is not built): DC reads
 # CS's slot into T0; the ROM reads the offset's into T1, in Bochs's order, as
 # IRET does, then CS's descriptor, its checks and the offset's with the
 # accessed bit, and the jump, which steps ESP past the two slots and imm16.
@@ -352,7 +423,7 @@ uops = [
     { cls = "alu", op = "mov", d = "t1", size = "32", mkind = "load", stk = "peek", slot = 0, nwrap = true },
     { cls = "alu", op = "mov", d = "t2", size = "32", mkind = "load", mbytes = "4", desc = "lo" },
     { cls = "alu", op = "mov", d = "t3", size = "32", mkind = "load", mbytes = "4", desc = "hi" },
-    { cls = "alu", op = "mov", size = "8", mkind = "store", mbytes = "1", in_a = true, desc = "acc", segchk = "ret" },
+    { cls = "alu", op = "mov", size = "8", mkind = "store", mbytes = "1", in_a = true, desc = "acc", segchk = "rets" },
     { cls = "branch", op = "jmp", far_jmp = true, far_t = true, segw = true, sp_add = true, stk = "retf", slot = 2, iimm = true },
 ]
 
