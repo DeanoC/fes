@@ -1,0 +1,19 @@
+FES_JTAG_SCAN LIBRARY /data/altera_pro/26.3/quartus/linux64/libjtag_client.so
+FES_JTAG_SCAN LIBRARY /data/altera_pro/26.3/quartus/linux64/libjtag_client.so
+FES_JTAG_SCAN LIBRARY /data/altera_pro/26.3/quartus/linux64/libjtag_client.so
+FES_JTAG_SCAN LIBRARY /data/altera_pro/26.3/quartus/linux64/libjtag_client.so
+FES_JTAG_SCAN LIBRARY /data/altera_pro/26.3/quartus/linux64/libjtag_client_dcrt.so
+FES_JTAG_SCAN LIBRARY /data/altera_pro/26.3/quartus/linux64/libjtag_client_dcrt.so
+FES_JTAG_SCAN LIBRARY /data/altera_pro/26.3/quartus/linux64/libjtag_client_dcrt.so
+FES_JTAG_SCAN BINDING forced-scan /data/altera_pro/26.3/quartus/linux64/libjtag_client_dcrt.so
+FES_JTAG_SCAN CALL phase=find rc=0
+FES_JTAG_SCAN CALL phase=name rc=0
+FES_JTAG_SCAN CABLE DE25-Nano on localhost:45043 [3-11.1-iface0]
+FES_JTAG_SCAN CALL phase=lock rc=0
+FES_JTAG_SCAN CALL phase=clock rc=0
+FES_JTAG_SCAN CLOCK 6000000
+FES_JTAG_SCAN CALL phase=forced-scan rc=0
+FES_JTAG_SCAN CALL phase=cached-after rc=0
+FES_JTAG_SCAN DEVICE phase=cached-after count=1 id=4362C0DD mask=00000000 ir=10
+FES_JTAG_SCAN CALL phase=unlock rc=0
+FES_JTAG_SCAN RESULT pass=1 programming=0 cpu_reset=0
