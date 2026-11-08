@@ -1,0 +1,46 @@
+# DE25 development-workflow acceptance audit
+
+Audit date: 2026-11-08. The objective remains the normal DE10-style development
+workflow, with Deano's explicit exception for physical partial-persona loading
+only. This is a requirements audit, not a new qualification policy. The eight
+requirements come from [the development-kit design](../../design/de25-linux-platform.md).
+
+Current hardware: bottom TRWU8J8G, kernel `9cec7e77` / notes `b0c2f6b1`, root
+`0858eef0`, stock Terasic FIT `bb6a48c7`, normal default-off software `61a4b0aa`
+generation1, ordinary package `3da0f1df` / build `490c1ae5`. Kernel/software
+producer is `ecaefd4af`; core producer is `8af614f4`. Source identities remain
+separate from subsequent documentation commits.
+
+| Requirement | Current evidence and boundary |
+| --- | --- |
+| 1. FES Linux baseline | Native stock boot and one idle/active OS reboot each pass exact boot files, Ethernet/pinned SSH, selected software, data identity and ordinary relaunch. [Stock result](stock-firmware-native.json), [reboots](stock-reboot-complete.json). These do not qualify another rebuilt image. |
+| 2. Linux FPGA programming | Normal full-image Play/Stop/relaunch and same-boot runtime-loss recovery pass the shared runtime/programmer. [Ordinary control](stock-ordinary-control.json), [runtime-loss proof](stock-runtime-recovery.json). Recovery after an actual failed full-image upload/secure call remains unverified; process loss is a different fault. Physical persona failure remains unsupported/default-off under #1568 and its scoped waiver. |
+| 3. Board/package identity | The sealed ordinary package retains source/independent-fit qualification and exact package/build validation during the native session. [Standard package record](../2026-11-05-de25-static-expansion-offboard/README.md), [ordinary result](stock-ordinary-control.json). Host/model rejection checks do not establish physical support for other packages. |
+| 4. Production runtime | The authenticated AArch64 runtime uses normal catalog launch, media/HID and serialized Stop; same-boot idle/active process-loss replacement verifies inherited-owner retirement and fresh MENU. [Recovery record](stock-runtime-recovery.json). Dirty SAVE, uncertain failed uploads and guest resumption are not qualified. |
+| 5. Managed software | Supported install/activation of the source-built default-off bundle and native executable identity pass. [Normal update record](README.md#development-policy). The retained setup is user-approved. Earlier install/restore records belong to older tuples; a rollback/restore cycle of the current stock/kernel/root selection is not proved by merely leaving the working selection installed. |
+| 6. MENU display | Native MENU/ZX81 presentation, exact allocation/configuration replacement, zero owner errors/underflows and ten seconds of stable post-recovery readiness pass. [Recovery proof](stock-runtime-recovery.json). Physical F12/Escape proof belongs to the earlier e649 tuple; broader current-tuple chooser stress and arbitrary-fault display containment remain unverified. |
+| 7. ZX81 normal launch and persistence | Current tuple passes Play, RAMTOP128, LOAD/RUN/reload7/9/7 and Stop/relaunch. New ROM SAVE emits923 bytes, persists/acks through Stop, survives one owned host restart, then fresh LOAD9/edit7/reload9 passes; original media is restored. [SAVE proof](stock-save-persistence.json). Wired physical P/F12/Escape is separately retained on the earlier firmware tuple; no new physical-keyboard/chooser test is claimed here. |
+| 8. Shared kit operations | Status-file claims, authenticated own-host/session identity, normal execution leases, no foreign takeover, idle/free release and same-card operation are recorded for the named trials. Current private host is PID1823444, binary `0de3179f`, same configuration/catalog. No main HIL baseline has been promoted; the retained development setup is distinct from main's shared-kit baseline. |
+
+The SAVE trial's first immediate process-identity read failed during the one
+host restart. The same new process was subsequently authenticated and its
+retained catalog/bytes checked before relaunch. The original failure is retained;
+there was no second restart. This is not a measured restart-latency result.
+
+The source and admission gates stay intact. The known failed persona upload is
+not converted to a pass. Current UART evidence also retains overlay-property
+warnings and Bluetooth HCI errors; it is not Bluetooth or warning-free acceptance.
+
+The current PR stack is still open: #1297 is the parent, #1312 its sole child.
+Both are ready and Deano-owned. The two #1297 inline findings were resolved
+against its already-committed headless native boot/autoload and corrected
+bootstrap evidence. Resolving those findings is not a clean review of the entire
+current stack. A clean current-head owner review and current-head CI remain
+required. Two full automated review rounds are already used; this audit requests
+no third round, handoff or merge.
+
+Remaining integration work includes the current-tuple managed rollback/restore
+proof, ordinary failed-upload containment, the applicable current-head review/CI
+and owner-authorized landing/main baseline work. Untested peripherals retain
+their status; no all-core or all-peripheral support is inferred from ZX81. The
+full objective remains open rather than being reduced to the passing control.

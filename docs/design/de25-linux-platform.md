@@ -75,6 +75,20 @@ reconciliation are verified. See the
 This covers the tested process exits; failed FPGA uploads, dirty SAVE, guest
 session resumption, broader stress and untested peripherals remain open.
 
+The current stock setup also passes ROM SAVE through ordinary Stop: generation-
+bound capture/catalog commit/acknowledgement produces a new 923-byte program,
+whose stored bytes match the public media hash. One owned private-host restart
+retains that program, pairing and catalog. Normal media CAS plus a fresh launch
+loads/runs9, edits/runs7 and reloads/runs9; Stop/MENU and original-media restoration
+pass in the same board boot. See the
+[SAVE persistence record](../validation/2026-11-08-de25-ordinary-dev-kit/README.md#stock-firmware-rom-save-and-persistence).
+
+The [acceptance audit](../validation/2026-11-08-de25-ordinary-dev-kit/acceptance-audit.md)
+keeps the eight workflow requirements separate from remaining failure,
+review/CI and main-integration gates. Passing the named native cases does not
+complete those remaining gates.
+
+
 ## Earlier native evidence
 
 The bottom board TRWU8J8G runs managed FES Linux image `6de6a392` with the matched

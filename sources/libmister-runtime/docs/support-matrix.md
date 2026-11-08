@@ -13,7 +13,10 @@ kernel/root/software. One idle and one active ordinary runtime SIGKILL also
 recover the full selected group and fresh MENU in the same stock-firmware boot;
 fresh BASIC7/9 and Stop pass after each. These bounded cases do not qualify
 arbitrary failed uploads, dirty SAVE, guest resumption or display stress, and
-no diagnostic firmware is relabelled as normal. Partial-persona loading remains unsupported under #1568, explicitly
+no diagnostic firmware is relabelled as normal. The stock tuple also passes
+normal ROM SAVE capture/persist/ack through Stop, exact 923-byte catalog hash,
+one owned host restart and fresh saved-program LOAD9/edit7/reload9; normal
+media CAS restores the original entry and Stop returns idle/free. Partial-persona loading remains unsupported under #1568, explicitly
 waived only as an ordinary development-milestone blocker.
 
 | Capability | Software coverage | Hardware acceptance |

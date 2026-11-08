@@ -288,3 +288,58 @@ main HIL baseline promotion.
 Private source, helper refusal tests, original observations, native logs and
 frozen UART are retained under
 `/data/fes-de25-main-integration-20261105/partial-start-investigation-20261108/stock-runtime-recovery/`.
+
+
+## Stock firmware ROM SAVE and persistence
+
+The current stock tuple passes a normal ZX81 SAVE roundtrip at integration
+head `6c63f4335f1898cb90e57b9b0abf795cb1460608`, with unchanged kernel/software
+producer `ecaefd4af` and ordinary package producer `8af614f4`. The normal
+catalog launch loads BASIC7, edits it to run9, then types ROM `SAVE "C"` once.
+Ordinary Stop captures the pending tape, durably inserts its catalog row and
+acknowledges that exact package generation before returning to MENU. The host
+logs `ZX81 SAVE persisted`, reason `saved`, generation2, captured bytes923.
+
+The new saved media is
+`0874cf797e6a5336d25c5a4ebb2206dc36249bfd7625e1428de2bb4bbad847c9`.
+A separate read-only SQLite transaction reconstructs all stored chunks and
+verifies their 923-byte length and SHA-256 against the public media metadata.
+This reads the private host's own catalog; it neither creates nor patches the
+saved bytes.
+
+One restart of the owned private host, preserving its binary/configuration,
+retains pairing, catalog entry and the exact saved program. The first immediate
+`/proc/PID/exe` read fails with a transient permission error during process
+startup. The same new PID1823444 is subsequently authenticated as the expected
+binary `0de3179f`; the original failure is retained and no second restart is
+issued. Read-only observation completes that existing restart. Reconnection
+latency is not measured across the observation gap.
+
+Normal media compare-and-swap selects the saved cassette. A fresh ordinary
+launch LOADs/RUNs9, an edit RUNs7, then another LOAD/RUN restores9 from the saved
+cassette. All five before/after HDMI images are viewed: black text on white
+within the FES machine frame. Stop returns to idle/lease-free MENU and a second
+normal media CAS restores the original `e506e8a7` launch medium. The saved
+program remains available in the private catalog, with its bytes reverified.
+This tests the public media-selection API; no new physical-keyboard or chooser
+acceptance is inferred.
+
+The kit remains in boot `655b3ec6`, stock FIT `bb6a48c7`, kernel `9cec7e77`, root
+`0858eef0` and bundle `61a4b0aa` generation1 throughout. No board reboot, power
+pull, card swap, image, firmware, kernel, software or QSPI update occurs. No
+helper or UART process is started. The owned private host now runs as PID1823444;
+the board claim is released at verified healthy MENU/idle/free. This adds normal
+SAVE persistence evidence, not dirty-SAVE crash recovery or failed-upload
+containment, and promotes no main HIL baseline.
+
+[Exact SAVE, restart, reload, image hashes and retained observation failure](stock-save-persistence.json).
+
+![Saved program runs9 after host restart](stock-save-loaded9.png)
+
+![Editing changes the running program to7](stock-save-edited7.png)
+
+![Reloading the retained cassette restores9](stock-save-reloaded9.png)
+
+Private scripts, original observations, native authentication, raw ROM output
+and full capture records are retained under
+`/data/fes-de25-main-integration-20261105/partial-start-investigation-20261108/stock-save-persistence/`.
