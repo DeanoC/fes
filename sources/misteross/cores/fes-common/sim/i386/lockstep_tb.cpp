@@ -72,7 +72,9 @@
 //           a vector entry it rewrote, or at a store into its code other
 //           than those rewrites, after which it may run anything.
 //           FES_I386_PM protected-mode blocks per hundred items (pm_block,
-//           default 2): LGDT and LIDT, PE set, far jumps, far CALLs and
+//           default 2): LGDT and LIDT, PE set, paging on (half of them, over
+//           identity tables with pages now and then not present, read-only
+//           or supervisor, and an arena of aliased pages), far jumps, far CALLs and
 //           RETFs between code descriptors, INT n and IRET through an IDT of
 //           interrupt and trap gates, LLDT, LTR, LAR's kin and ARPL, segment
 //           loads from the GDT and the LDT, accesses, CR and table moves,
@@ -100,6 +102,13 @@
 //             frames past a 16-bit stack's limit in the MMIO window, which
 //             fault before any read), LLDT, LTR, LAR, LSL, VERR, VERW, ARPL,
 //             and what stops as not built.
+//   paging    the directed paging cases (run_paging_cases): walks, A and D,
+//             each #PF cause with its error code and CR2 at CPL 0 and 3,
+//             page-crossing data and instructions, a CR3 write's flush,
+//             self-modifying code and forwarding through aliases, REP
+//             strings that fault or cross pages, frames past RAM, in the
+//             reset shadow and under A20M, double faults, PE and PG set
+//             together, and paging toggled around a far jump.
 //   no387     the directed cases of the ESC instructions with no 387
 //             (run_no387_cases): every form in real and protected mode,
 //             their faults, #NM, FNSTENV's and FNSAVE's layouts and FPU
