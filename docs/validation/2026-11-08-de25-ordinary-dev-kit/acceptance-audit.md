@@ -45,3 +45,8 @@ Remaining integration work includes ordinary failed-upload containment, the appl
 and owner-authorized landing/main baseline work. Untested peripherals retain
 their status; no all-core or all-peripheral support is inferred from ZX81. The
 full objective remains open rather than being reduced to the passing control.
+
+The [submission-deadline repair](submission-deadline.md) reproduces a separate
+off-board caller-blocking defect and tests an owned worker with retained lease
+and uncertainty. Its source-bound CPU/model results do not replace the physical
+failed-upload containment gate or the deployed runtime's artifact identity.

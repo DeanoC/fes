@@ -125,8 +125,17 @@ clock or topology override. Firmware is copied from the retained descriptor
 using bounded-memory reads, synced, made read-only and closed before the kernel
 opens it. A private overlay name and exclusive staging file refuse other
 loaders and symlink/pre-existing staging collisions. The pinned configfs binary
-attribute buffers writes and invokes programming on release: the adapter closes
-it once, then checks deadline, `applied` and `operating`.
+attribute buffers writes and invokes programming on release. An owned worker
+writes and closes it once; only completed submission permits the caller's
+deadline, `applied` and `operating` checks. The worker owns copied overlay bytes,
+the descriptor and a duplicate of the existing physical flock. It captures no
+manager state. A timed-out caller poisons its context, retains staging/search
+state and returns without waiting for a blocked write or close. Destruction of
+that manager cannot release the worker's lease or invalidate its input. The
+worker retains the lease until the syscall actually retires; it performs no
+retry, reset, cleanup or core publication. Completion waits use short steady
+clock intervals bounded by the original deadline, avoiding an overflowing
+steady-to-realtime conversion in the target C++ library for distant deadlines.
 
 The staging directory is `/run/fes-de25-firmware`, owned by root with mode0700;
 no factory-root write is required. After closing the retained firmware copy,
@@ -150,9 +159,11 @@ rollback program, destructor unload or close-as-drain operation exists. Diagnost
 contexts refuse old overlays. Production restart recovery is described below. An explicit idle shutdown is separate from
 destruction: it verifies the retained overlay, applied/operating state and the
 staged firmware's size, permissions and SHA256 before removing either. Removal
-failure poisons the context without a retry. Software deadlines cannot interrupt a stalled
-configfs close, secure call or shared-service mutex. Physical failure fencing
-and allocated-DMA qualification remain separate open gates.
+failure poisons the context without a retry. The submission deadline bounds the
+caller; it cannot cancel a stalled kernel callback, secure call, shared-service
+mutex or SoC-wide failure. Lease retention is within the living process, not a
+claim of protection after process death. Physical failed-upload containment and
+allocated-DMA qualification remain separate open gates.
 
 Production construction supplies the existing allocation adapter and the same
 trusted package roots to the programmer. A fresh programming context may abandon

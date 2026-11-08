@@ -1,0 +1,119 @@
+{
+  "classification": "off-board software fault injection; not hardware acceptance",
+  "base": "086fa0bcd429dc789849cddd76898e2373f20dc7",
+  "baseline": {
+    "source_head": "086fa0bcd429dc789849cddd76898e2373f20dc7",
+    "fixture_sha256": "406b8ca0a8d2f327cd6da4f9116659e150a688b0a0d7f65b36f7b9c99174e9af",
+    "reproducer_sha256": "5418d5570b49da12754b157c6c17b3aa1bb2ab521b0fe33a6aba07297c460234",
+    "programmer_sha256": "f46f0acbd9169a792a4fe9db2dd9e2d1215641d44f407d298eb088f31d54d15b",
+    "purpose": "Actual programmer plus retained fake configfs fixture, deliberately blocked close and real monotonic deadline; caller observed pending beyond deadline, then released for safe cleanup; no board access"
+  },
+  "reproduction": {
+    "expected_failure_observed": true,
+    "returncode": 1,
+    "result": {
+      "expected_contract_failure": true,
+      "deadline_ms": 200,
+      "observed_ms": 400,
+      "still_pending_after_deadline": true,
+      "eventually_returns_deadline_error": true,
+      "uncertainty_preserved": true,
+      "resubmit_refused": true,
+      "hardware_access": false
+    },
+    "no_hardware_access": true
+  },
+  "source_sha256": {
+    "sources/libmister-runtime/src/native/linux/de25_fpga_manager.cpp": "2b79b383966625b0e9a86e3b14f6aede981127bbe5fb282023fff7c527fea7c4",
+    "sources/libmister-runtime/src/native/linux/de25_fpga_manager.hpp": "1721f1bb973cf7c1348009129146482f28cff56c456f5c902bbb83ffc1753c43",
+    "sources/libmister-runtime/tests/unit/de25_fpga_manager_test.cpp": "42525deb6ecbae6edbbe585291d030e74f5be5dfd814c5ac499be428d11d6491"
+  },
+  "checks": {
+    "native-cwd": {
+      "returncode": 0,
+      "cwd": "/home/deano/fes/out/dev/de25-linux-platform/sources/libmister-runtime",
+      "build_argv": [
+        "make",
+        "BUILD_DIR=/data/fes-de25-main-integration-20261105/partial-start-investigation-20261108/ordinary-upload-deadline-audit/native",
+        "ENABLE_DE25_STATIC=0",
+        "/data/fes-de25-main-integration-20261105/partial-start-investigation-20261108/ordinary-upload-deadline-audit/native/tests/unit/de25_fpga_manager_test"
+      ],
+      "run_argv": [
+        "/data/fes-de25-main-integration-20261105/partial-start-investigation-20261108/ordinary-upload-deadline-audit/native/tests/unit/de25_fpga_manager_test"
+      ],
+      "no_board_access": true,
+      "binary_sha256": "1ee97c6c29c479c8ab5eef03af688f173307a888c048bf4e830fa62c33eb63ee"
+    },
+    "sanitize-cwd": {
+      "returncode": 0,
+      "cwd": "/home/deano/fes/out/dev/de25-linux-platform/sources/libmister-runtime",
+      "build_argv": [
+        "make",
+        "BUILD_DIR=/data/fes-de25-main-integration-20261105/partial-start-investigation-20261108/ordinary-upload-deadline-audit/sanitize",
+        "ENABLE_DE25_STATIC=0",
+        "/data/fes-de25-main-integration-20261105/partial-start-investigation-20261108/ordinary-upload-deadline-audit/sanitize/tests/unit/de25_fpga_manager_test",
+        "CXXFLAGS=-O1 -g -std=c++14 -Wall -Wextra -Werror -pthread -MMD -MP -fsanitize=address,undefined -fno-omit-frame-pointer"
+      ],
+      "run_argv": [
+        "/data/fes-de25-main-integration-20261105/partial-start-investigation-20261108/ordinary-upload-deadline-audit/sanitize/tests/unit/de25_fpga_manager_test"
+      ],
+      "no_board_access": true,
+      "binary_sha256": "f86c4d3de701a067c8ee22c37f95135ff60dbc4b3d2f71cff069f4bd10c7b4f5"
+    },
+    "arm64-portable": {
+      "returncode": 0,
+      "binary_sha256": "35f33ddcf57e77ed8658f85cc44134f0ee9fdf5f0339b4aac44d583d6ad6639c",
+      "no_board_access": true
+    },
+    "static-cwd": {
+      "returncode": 0,
+      "cwd": "/home/deano/fes/out/dev/de25-linux-platform/sources/libmister-runtime",
+      "build_argv": [
+        "make",
+        "BUILD_DIR=/data/fes-de25-main-integration-20261105/partial-start-investigation-20261108/ordinary-upload-deadline-audit/native-static",
+        "ENABLE_DE25_STATIC=1",
+        "/data/fes-de25-main-integration-20261105/partial-start-investigation-20261108/ordinary-upload-deadline-audit/native-static/tests/unit/de25_fpga_manager_test"
+      ],
+      "run_argv": [
+        "/data/fes-de25-main-integration-20261105/partial-start-investigation-20261108/ordinary-upload-deadline-audit/native-static/tests/unit/de25_fpga_manager_test"
+      ],
+      "no_board_access": true,
+      "binary_sha256": "8fb3437b8a0ee5364570713d3f39cfce39d6018dcaa0366463d5e3e9860409b7"
+    }
+  },
+  "arm64_failed_predecessor": {
+    "returncode": 124,
+    "SDK": {
+      "volume": "fes-de25-bounded-io-sdk-20261108",
+      "builder_image": "sha256:a58c3939121c5871f55addcea2f6701163a71d0aa2e9df4a288abab397bcf5ec",
+      "SDK_archive_sha256": "2574bae19a900384e173274a0a85567385df06ada698b60fe27a26a6cf444d89",
+      "compiler": "/build/host/bin/aarch64-buildroot-linux-gnu-g++",
+      "scope": "Private SDK for offboard ARM64 tests; mount read-only for consumers; no candidate bundle or hardware acceptance"
+    },
+    "qemu_sha256": "4f55e2e88dc05dc0f619562d5795b8eb25ed2ad2547504fb4835207a6911c350",
+    "no_board_access": true
+  },
+  "arm64_trace": {
+    "returncode": 124,
+    "clock_gettime_calls": 4241919,
+    "fixture_count": 4,
+    "interpretation": "Far-future deadline conversion spins in target condition-variable wait; short bounded waits fix this without changing operation deadline."
+  },
+  "native_wrong_working_directory_failure": {
+    "returncode": -6,
+    "no_board_access": true,
+    "binary_sha256": "1ee97c6c29c479c8ab5eef03af688f173307a888c048bf4e830fa62c33eb63ee"
+  },
+  "corrected_native_working_directory": "/home/deano/fes/out/dev/de25-linux-platform/sources/libmister-runtime",
+  "evidence_root": "/data/fes-de25-main-integration-20261105/partial-start-investigation-20261108/ordinary-upload-deadline-audit",
+  "sdk_sha256": "2574bae19a900384e173274a0a85567385df06ada698b60fe27a26a6cf444d89",
+  "builder": "sha256:a58c3939121c5871f55addcea2f6701163a71d0aa2e9df4a288abab397bcf5ec",
+  "qemu_sha256": "4f55e2e88dc05dc0f619562d5795b8eb25ed2ad2547504fb4835207a6911c350",
+  "no_board_access": true,
+  "no_deployment": true,
+  "kernel_call_cancelled": false,
+  "physical_failed_upload_recovery_qualified": false,
+  "personas_still_default_off": true,
+  "compiler_version": "aarch64-buildroot-linux-gnu-g++.br_real (Buildroot 2021.02.4) 9.4.0",
+  "test_failures_retained": true
+}

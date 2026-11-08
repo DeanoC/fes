@@ -42,6 +42,10 @@ public:
     virtual int Close(int dtbo_fd) = 0;
     virtual ssize_t WriteSearch(int fd, const char*, std::size_t) = 0;
     virtual LinuxMmioTestOperations* StartupRegisters() { return nullptr; }
+    // Logical-clock filesystem fixtures complete synchronously. Real-clock
+    // blocked-I/O tests opt into the production worker; their operations must
+    // outlive outstanding callbacks, including after manager destruction.
+    virtual bool ThreadedSubmission() const { return false; }
 };
 #endif
 

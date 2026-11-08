@@ -39,6 +39,14 @@ serve both boards; DE25 constructs no Cyclone V manager, DDR window or Linux I2C
 recipe. The daemon keeps its unavailable adapter on preparation failure.
 AArch64 compilation does not establish physical support.
 
+DE25 configfs submission runs in an owned worker so a blocked write or close
+does not hold the caller past its deadline. Timeout retains the immutable
+firmware, search override and uncertainty; the worker retains copied overlay
+bytes, its descriptor and a duplicate physical lease until actual retirement,
+even after manager destruction. No retry or reset follows timeout. This bounds
+the caller while the process and scheduler remain responsive; it cannot cancel
+a kernel/secure-firmware stall or qualify physical failed-upload recovery.
+
 The DE25 production computer client uses resource-relative registers. Its shared
 MMIO adapter adds the audited CPU resource base `0x20010300`, permits only the
 seven computer-register reads and one full-word GPO write, and orders accesses.

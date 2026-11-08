@@ -11,6 +11,8 @@
 #include "daemon/json.hpp"
 #include <algorithm>
 #include <cerrno>
+#include <chrono>
+#include <condition_variable>
 #include <cstring>
 #include <dirent.h>
 #include <fcntl.h>
@@ -22,6 +24,8 @@
 #include <sys/statfs.h>
 #endif
 #include <sys/utsname.h>
+#include <system_error>
+#include <thread>
 #include <unistd.h>
 
 namespace mister { namespace native {
@@ -41,6 +45,27 @@ struct Fd {
 };
 Error Failure(const std::string& what) { return {ErrorCode::program_failed, what, "program"}; }
 Error SystemError(const char* what) { return Failure(std::string(what) + ": " + std::strerror(errno)); }
+// A kernel release callback can outlive the caller's deadline. Its descriptor,
+// bytes and duplicate physical lease belong to this work item, not Impl: the
+// expired caller may destroy Impl while close remains blocked. The worker
+// never resets hardware, removes files or publishes a core.
+struct ConfigurationSubmission {
+    Fd lease;
+    int lease_errno;
+    const std::vector<unsigned char> bytes;
+    int descriptor;
+    std::function<ssize_t(int,const unsigned char*,std::size_t)> write;
+    std::function<int(int)> close;
+    std::mutex mutex;
+    std::condition_variable changed;
+    bool released = false, cancelled = false, done = false, expired = false;
+    ssize_t written = -1;
+    int closed = -1;
+    ConfigurationSubmission(int physical_lease, int fd,
+                            const std::vector<unsigned char>& blob)
+        : lease(fcntl(physical_lease, F_DUPFD_CLOEXEC, 0)),
+          lease_errno(lease.n < 0 ? errno : 0), bytes(blob), descriptor(fd) {}
+};
 class StartupMmio final : public Mmio {
 public:
     StartupMmio(Mmio& registers, std::function<Error()> check)
@@ -329,6 +354,109 @@ public:
 #endif
         return close(fd);
     }
+    NativeResult Submit(Fd& descriptor, const std::vector<unsigned char>& blob,
+                        std::uint64_t deadline) {
+#if defined(MISTER_RUNTIME_TESTING)
+        if (test && !test->ThreadedSubmission()) {
+            const ssize_t written = Write(descriptor.n, blob);
+            const int fd = descriptor.n; descriptor.n = -1;
+            const int closed = Close(fd);
+            if (written != ssize_t(blob.size()) || closed)
+                return {Failure("configuration write/close was unsuccessful or partial"), true};
+            return {Check(deadline), true};
+        }
+#endif
+        auto error = Check(deadline);
+        if (!error.ok()) return {error, false};
+        const auto now = clock.NowMs();
+        if (now >= deadline) return {Failure("DE25 programming deadline exceeded"), false};
+        const auto wall_now = std::chrono::steady_clock::now();
+        const auto available = std::chrono::duration_cast<std::chrono::milliseconds>(
+            std::chrono::steady_clock::time_point::max() - wall_now).count();
+        // A valid far-future uint64 deadline must not wrap a signed chrono
+        // duration into an already-expired wait.
+        const auto remaining = std::min<std::uint64_t>(deadline - now,
+            available > 0 ? std::uint64_t(available) : 0);
+        const auto wall_deadline = wall_now + std::chrono::milliseconds(remaining);
+        auto work = std::make_shared<ConfigurationSubmission>(lease.n, descriptor.n, blob);
+        if (work->lease.n < 0)
+            return {Failure(std::string("retain programming lease: ") +
+                            std::strerror(work->lease_errno)), false};
+        work->write = [](int fd, const unsigned char* data, std::size_t size) {
+            return ::write(fd, data, size);
+        };
+        work->close = [](int fd) { return ::close(fd); };
+#if defined(MISTER_RUNTIME_TESTING)
+        if (test) {
+            auto* operations = test;
+            work->write = [operations](int fd, const unsigned char* data, std::size_t size) {
+                return operations->Write(fd, data, size);
+            };
+            work->close = [operations](int fd) { return operations->Close(fd); };
+        }
+#endif
+        std::thread worker;
+        try {
+            worker = std::thread([work, wall_deadline] {
+                {
+                    std::unique_lock<std::mutex> lock(work->mutex);
+                    work->changed.wait(lock, [&work] { return work->released; });
+                    if (work->cancelled) return;
+                }
+                const bool expired = std::chrono::steady_clock::now() >= wall_deadline;
+                const auto written = expired ? ssize_t(-1) : work->write(work->descriptor,
+                                                work->bytes.data(), work->bytes.size());
+                // Close once, including after a partial/error write: SDM may
+                // already have seen it. A timeout never retries this operation.
+                // A worker not scheduled before its deadline drops the still
+                // empty attribute without writing a configuration. Empty close
+                // is the same non-submission cleanup as the caller's Fd guard.
+                const int closed = expired ? ::close(work->descriptor) : work->close(work->descriptor);
+                {
+                    std::lock_guard<std::mutex> lock(work->mutex);
+                    work->written = written; work->closed = closed;
+                    work->expired = expired; work->done = true;
+                }
+                work->changed.notify_one();
+            });
+            worker.detach();
+        } catch (const std::system_error& failure) {
+            if (worker.joinable()) {
+                {
+                    std::lock_guard<std::mutex> lock(work->mutex);
+                    work->cancelled = true; work->released = true;
+                }
+                work->changed.notify_one(); worker.join();
+            }
+            return {Failure(std::string("start configuration worker: ") + failure.what()), false};
+        }
+        error = Check(deadline);
+        {
+            std::lock_guard<std::mutex> lock(work->mutex);
+            work->cancelled = !error.ok();
+            if (error.ok()) descriptor.n = -1; // Transfer before any worker I/O.
+            work->released = true;
+        }
+        work->changed.notify_one();
+        if (!error.ok()) return {error, false};
+        std::unique_lock<std::mutex> lock(work->mutex);
+        while (!work->done) {
+            const auto wait_now = std::chrono::steady_clock::now();
+            if (wait_now >= wall_deadline)
+                return {Failure("configuration worker exceeded deadline; programming is not retired"), true};
+            // Some target libstdc++ versions convert steady waits through
+            // CLOCK_REALTIME. A far-future deadline can overflow that conversion
+            // and spin while holding this mutex, starving the worker. Short
+            // waits preserve the original bound without overflowing either clock.
+            work->changed.wait_until(lock, std::min(wall_deadline,
+                wait_now + std::chrono::seconds(1)));
+        }
+        if (work->expired)
+            return {Failure("configuration worker deadline expired before submission"), true};
+        if (work->written != ssize_t(blob.size()) || work->closed)
+            return {Failure("configuration write/close was unsuccessful or partial"), true};
+        return {Check(deadline), true};
+    }
     NativeResult Recover(int overlays, std::uint64_t deadline) {
         if (!recovery_memory || recovery_attempted)
             return {Failure("configuration belongs to an earlier context; external recovery required"), false};
@@ -545,12 +673,8 @@ public:
         if (dtbo.n < 0) return SystemError("open initial persona configuration attribute");
         error = Check(deadline); if (!error.ok()) return error;
         const auto blob = De25ProgrammingOverlay(De25OverlayProfile::static_expansion_persona);
-        const ssize_t written = Write(dtbo.n, blob);
-        const int closing = dtbo.n; dtbo.n = -1;
-        const int closed = Close(closing); // No retry, including EINTR.
-        if (written != ssize_t(blob.size()) || closed)
-            return Failure("initial persona write/close was unsuccessful or partial");
-        error = Check(deadline); if (!error.ok()) return error;
+        const auto submitted = Submit(dtbo, blob, deadline);
+        if (!submitted.error.ok()) return submitted.error;
         if (!Exact(config + "/device-tree/overlays/" + kPersonaOverlay + "/status", "applied") ||
             !Exact(state, "operating")) return Failure("initial persona completion/status is uncertain");
         persona_known = true;
@@ -747,15 +871,9 @@ public:
         error = Check(deadline); if (!error.ok()) return fail(error);
         // A short/error/late configfs write may already have reached SDM. Never
         // retry, remove the object, unlink firmware or treat close as a drain.
-        attempted = true;
-        const ssize_t written = Write(dtbo.n, blob);
-        // The pinned configfs binary attribute buffers writes and runs its
-        // programming callback from release. Check status only AFTER close.
-        const int closing = dtbo.n; dtbo.n = -1;
-        const int closed = Close(closing); // Never retry close, including EINTR.
-        if (written != ssize_t(blob.size()) || closed)
-            return fail(Failure("configuration write/close was unsuccessful or partial"));
-        error = Check(deadline); if (!error.ok()) return fail(error);
+        const auto submitted = Submit(dtbo, blob, deadline);
+        attempted = attempted || submitted.mutation_attempted;
+        if (!submitted.error.ok()) return fail(submitted.error);
         if (!Exact(config + "/device-tree/overlays/" + kOverlay + "/status", "applied") || !Exact(state, "operating"))
             return fail(Failure("configuration completion/status is uncertain"));
         error = RestoreSearch(); if (!error.ok()) return fail(error);

@@ -17,6 +17,10 @@
 #include <unistd.h>
 #include <iostream>
 #include <map>
+#include <chrono>
+#include <future>
+#include <thread>
+#include <limits>
 using namespace mister;
 using namespace mister::native;
 namespace {
@@ -24,7 +28,7 @@ void Put(const std::string& p, const std::string& s) { std::ofstream f(p, std::i
 std::string Get(const std::string& p) { std::ifstream f(p,std::ios::binary); return {(std::istreambuf_iterator<char>(f)),{}}; }
 bool Exists(const std::string& p) { struct stat s{}; return !lstat(p.c_str(),&s); }
 struct Time final : Clock { std::uint64_t now = 0; std::uint64_t NowMs() const override { return now; } };
-struct Ops final : De25FpgaTestOperations {
+struct Ops : De25FpgaTestOperations {
     De25FpgaTestPaths& paths; Time& time;
     int created=0, written=0, removed=0, closed=0;
     int search_writes=0;
@@ -822,8 +826,105 @@ void ProfilesAndLease() {
     auto r=f.Program(*m);assert(!r.error.ok() && !r.mutation_attempted && !f.ops.created);
     std::cout<<"foreign profiles and replaced lease inode refuse before filesystem mutation\n";
 }
+struct WallClock final : Clock {
+    std::uint64_t NowMs() const override {
+        return std::chrono::duration_cast<std::chrono::milliseconds>(
+            std::chrono::steady_clock::now().time_since_epoch()).count();
+    }
+};
+struct ThreadedOps : Ops {
+    using Ops::Ops;
+    bool ThreadedSubmission() const override { return true; }
+};
+struct BlockedOps final : ThreadedOps {
+    bool block_write;
+    std::promise<void> entered, release, close_returned;
+    std::shared_future<void> gate;
+    BlockedOps(De25FpgaTestPaths& paths,Time& time,bool writing)
+        : ThreadedOps(paths,time),block_write(writing),gate(release.get_future().share()) {}
+    ssize_t Write(int fd,const unsigned char* bytes,std::size_t size) override {
+        if (block_write) { entered.set_value(); gate.wait(); }
+        return Ops::Write(fd,bytes,size);
+    }
+    int Close(int fd) override {
+        if (!block_write) { entered.set_value(); gate.wait(); }
+        const int result=Ops::Close(fd);close_returned.set_value();return result;
+    }
+};
+void ThreadedSubmissionCompletion() {
+    for (unsigned fault=0;fault<4;++fault) {
+        Fixture f;WallClock clock;ThreadedOps ops(f.paths,f.clock);
+        ops.short_write=fault==1;ops.error_close=fault==2;
+        LinuxDe25FpgaManager manager(clock,f.lease,f.paths,ops);
+        const auto deadline=fault==3?std::numeric_limits<std::uint64_t>::max():clock.NowMs()+2000;
+        const auto result=manager.Program(f.artifact,ProgrammingProfile::de25_hps_first_v1,deadline);
+        assert(result.mutation_attempted && ops.written==1 && ops.closed==1);
+        const bool failing=fault==1 || fault==2;
+        assert(result.error.ok()==!failing);
+        assert(manager.Poisoned()==failing);
+        if (failing) {
+            f.Preserved();
+            const auto again=manager.Program(f.artifact,ProgrammingProfile::de25_hps_first_v1,
+                                              clock.NowMs()+2000);
+            assert(!again.error.ok() && !again.mutation_attempted);
+            assert(ops.written==1 && ops.closed==1);
+        } else {
+            assert(Get(f.paths.search)=="\n");
+            assert(Get(f.paths.state)=="operating\n");
+        }
+    }
+    std::cout<<"owned submission worker completes before status checks and preserves short-write/close uncertainty\n";
+}
+void BlockedSubmissionRetainsLeaseBeyondManagerLifetime() {
+    for (bool writing:{false,true}) {
+        Fixture f;WallClock clock;BlockedOps ops(f.paths,f.clock,writing);
+        auto manager=std::unique_ptr<LinuxDe25FpgaManager>(
+            new LinuxDe25FpgaManager(clock,f.lease,f.paths,ops));
+        auto entered=ops.entered.get_future();auto closed=ops.close_returned.get_future();
+        std::promise<NativeResult> completion;auto result=completion.get_future();
+        const auto deadline=clock.NowMs()+200;
+        std::thread caller([&] {
+            completion.set_value(manager->Program(f.artifact,
+                ProgrammingProfile::de25_hps_first_v1,deadline));
+        });
+        assert(entered.wait_for(std::chrono::seconds(2))==std::future_status::ready);
+        const bool bounded=result.wait_for(std::chrono::milliseconds(400))==std::future_status::ready;
+        if (!bounded) ops.release.set_value(); // Unblock a regressed caller before failing.
+        const auto failed=result.get();caller.join();assert(bounded);
+        assert(!failed.error.ok() && failed.mutation_attempted && manager->Poisoned());
+        assert(failed.error.message.find("not retired")!=std::string::npos);
+        assert(closed.wait_for(std::chrono::milliseconds(0))!=std::future_status::ready);
+        f.Preserved();assert(Get(f.paths.search)==f.paths.firmware+"\n");
+        const auto again=manager->Program(f.artifact,ProgrammingProfile::de25_hps_first_v1,
+                                          clock.NowMs()+1000);
+        assert(!again.error.ok() && !again.mutation_attempted);
+        assert(ops.written==(writing?0:1) && ops.closed==0);
+        // Drop every original lease reference while the callback remains blocked.
+        manager.reset();assert(!close(f.lease));f.lease=-1;
+        const int contender=open(f.paths.lease.c_str(),O_RDWR|O_CLOEXEC);
+        assert(contender>=0 && flock(contender,LOCK_EX|LOCK_NB)<0);
+        assert(errno==EWOULDBLOCK || errno==EAGAIN);
+        ops.release.set_value();
+        assert(closed.wait_for(std::chrono::seconds(2))==std::future_status::ready);
+        // The work item's lease is its last member destroyed, after callback
+        // retirement. A successful contender independently proves its release.
+        const auto retired_by=std::chrono::steady_clock::now()+std::chrono::seconds(2);
+        while (flock(contender,LOCK_EX|LOCK_NB)) {
+            assert(std::chrono::steady_clock::now()<retired_by);
+            std::this_thread::sleep_for(std::chrono::milliseconds(1));
+        }
+        assert(ops.written==1 && ops.closed==1);
+        f.Preserved();assert(Get(f.paths.search)==f.paths.firmware+"\n");
+        assert(!close(contender));
+    }
+    std::cout<<"blocked write/close returns by deadline, refuses replay, and retains the physical lease after manager destruction until actual retirement\n";
+}
 }
 int main(int argc,char** argv) {
+    if (argc==1) {
+        ThreadedSubmissionCompletion();
+        BlockedSubmissionRetainsLeaseBeyondManagerLifetime();
+    }
     if(argc==2 || argc==3) {
         auto profile=De25OverlayProfile::firmware_only;
         if(argc==3) {
