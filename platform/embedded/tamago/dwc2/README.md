@@ -278,3 +278,12 @@ Periodic, split and OUT NAK retirement and contradictory-result checks remain.
 Tests supply NAK before/with data and during retirement, withhold data/completion
 or halt, and exercise malformed PID, lost ownership, disconnect and the original
 deadline. Fresh matched image hardware acceptance remains pending.
+
+Discovery failures now include the already captured device address/VID/PID,
+class/speed list and the selected candidate interface/endpoint/report length.
+The candidate remains unadmitted when its descriptor is rejected. Formatting
+performs no extra I/O, retries, target replacement or input-protocol fallback;
+the original error remains wrapped for error matching. The retained 53-byte
+System/Consumer Control capture stays rejected by the gamepad parser and the
+secure source remains unconfirmed. The board test did not print its actual
+device IDs, so model IDs in the regression do not identify that physical device.

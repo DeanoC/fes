@@ -219,7 +219,19 @@ func (h *Host) resetHubPort(port uint16) (uint32, error) {
 	}
 	return speed, nil
 }
-func (h *Host) discover() error {
+func (h *Host) discover() (err error) {
+	defer func() {
+		if err == nil {
+			return
+		}
+		// Use only already captured state. An error must not issue another
+		// transfer, select a replacement input or obscure the original fault.
+		candidate := "none"
+		if h.keyboardFound {
+			candidate = fmt.Sprintf("address=%d interface=%d endpoint=%#x report_bytes=%d", h.keyboard.address, h.config.Interface, h.config.Endpoint, h.reportDescriptorBytes)
+		}
+		err = fmt.Errorf("%w; discovery={devices=[%s] candidate={%s}}", err, strings.Join(h.devices, ", "), candidate)
+	}()
 	h.nextAddress = 1
 	h.portBudget = 31
 	if err := h.scan(nil, 0); err != nil {
@@ -227,9 +239,9 @@ func (h *Host) discover() error {
 	}
 	if !h.keyboardFound {
 		if h.gamepadMode {
-			return fmt.Errorf("dwc2: %w; discovered %s", usb.ErrNoGamepadInterface, strings.Join(h.devices, ", "))
+			return fmt.Errorf("dwc2: %w", usb.ErrNoGamepadInterface)
 		}
-		return fmt.Errorf("dwc2: %w; discovered %s", usb.ErrNoBootKeyboard, strings.Join(h.devices, ", "))
+		return fmt.Errorf("dwc2: %w", usb.ErrNoBootKeyboard)
 	}
 	h.selectTarget(h.keyboard)
 	if _, err := h.request(0, 9, uint16(h.config.Value), 0, 0); err != nil {

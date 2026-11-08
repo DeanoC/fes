@@ -2,10 +2,26 @@
 package usb
 
 import (
+	"crypto/sha256"
 	"encoding/hex"
 	"os"
+	"strings"
 	"testing"
 )
+
+func TestCapturedSystemControlDescriptorCannotBecomeGamepad(t *testing.T) {
+	d, err := os.ReadFile("../../../../tests/fixtures/nano-usb-gamepad/system-control-report.bin")
+	if err != nil {
+		t.Fatal(err)
+	}
+	digest := sha256.Sum256(d)
+	if len(d) != 53 || hex.EncodeToString(digest[:]) != "3d277392ac48c3c8d0afa6545e6b7c21d6e80286fcc78a89657e639f1b537e53" {
+		t.Fatal("system-control capture changed")
+	}
+	if g, err := ParseGamepad(d); err == nil || g != nil || !strings.Contains(err.Error(), "gamepad application required") {
+		t.Fatal("non-gamepad descriptor admitted", g, err)
+	}
+}
 
 func TestCapturedJoystickDescriptorIgnoresVendorFieldsAndOutputStream(t *testing.T) {
 	d, err := os.ReadFile("../../../../tests/fixtures/nano-usb-gamepad/joystick-report.bin")

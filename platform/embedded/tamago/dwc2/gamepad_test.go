@@ -5,12 +5,65 @@ import (
 	"bytes"
 	"context"
 	"encoding/hex"
+	"errors"
 	"os"
+	"strings"
 	"testing"
 
 	"github.com/DeanoC/fes/platform/embedded/tamago/input"
+	"github.com/DeanoC/fes/platform/embedded/tamago/usb"
 	"github.com/DeanoC/fes/platform/embedded/tamago/usbcontrol"
 )
+
+func TestDiscoveryContextPreservesNoCandidateError(t *testing.T) {
+	hw := newController() // Only a modeled boot keyboard; no non-boot HID.
+	host, err := OpenGamepad(hw, Config{PHYClockHz: 60000000})
+	if !errors.Is(err, usb.ErrNoGamepadInterface) || host == nil || hw.configured || hw.reportFetched ||
+		!strings.Contains(err.Error(), "candidate={none}") || !strings.Contains(err.Error(), "addr=1 id=") {
+		t.Fatal("no-candidate error lost type or discovery state", err)
+	}
+	accesses := hw.accesses
+	if _, err := host.PollGamepad(); err == nil || hw.accesses != accesses {
+		t.Fatal("missing-input host reused")
+	}
+}
+
+func TestCapturedSystemControlRejectionRetainsCandidateAndNeverPolls(t *testing.T) {
+	hw := gamepadController(t)
+	d, err := os.ReadFile("../../../../tests/fixtures/nano-usb-gamepad/system-control-report.bin")
+	if err != nil {
+		t.Fatal(err)
+	}
+	hw.reportDescriptor = d
+	hw.configuration[25], hw.configuration[26] = byte(len(d)), byte(len(d)>>8)
+	fw := &ownedFirmware{t: t, controller: hw, gamepad: true}
+	client, err := usbcontrol.New(context.Background(), fw, 17)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var host *GamepadHost
+	source, err := usbcontrol.OpenGamepad(context.Background(), client, func() (input.USBGamepadReports, error) {
+		var err error
+		host, err = OpenGamepad(hw, Config{PHYClockHz: 60000000})
+		return host, err
+	})
+	if err == nil || source == nil || host == nil || fw.confirms != 0 || fw.stops != 1 || !bytes.Equal(host.ReportDescriptor(), d) {
+		t.Fatal("rejected descriptor lost containment or capture", err, fw)
+	}
+	// This VID/PID is a model identity, not an observation of the board's device.
+	for _, want := range []string{"gamepad application required", "addr=1 id=081f:e401", "candidate={address=1 interface=0 endpoint=0x81 report_bytes=53}"} {
+		if !strings.Contains(err.Error(), want) {
+			t.Fatal("missing captured discovery context", want, err)
+		}
+	}
+	accesses := hw.accesses
+	if _, err := source.PollGamepad(); err == nil || hw.accesses != accesses {
+		t.Fatal("rejected source touched controller")
+	}
+	if _, err := host.PollGamepad(); err == nil || hw.accesses != accesses {
+		t.Fatal("retired host touched controller")
+	}
+}
 
 func TestOwnedGamepadCapturedSchemaUsesEightByteInput(t *testing.T) {
 	hw := gamepadController(t)
