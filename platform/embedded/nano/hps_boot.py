@@ -100,6 +100,13 @@ def prepare(project, uboot, entry, pfg, output):
     if reader_memory is not None and reader_memory!=hps_context.reader_memory(project):
         raise ValueError('native reader memory differs from the sealed FPGA project')
     window_profile=native.get('native_handoff',{}).get('cold_boot_profile',{})
+    usb_probe=window_profile.get('usb_probe',False)
+    entry_usb_probe=hps_context.usb_selection.contained_probe(loaded_entry,program_key='native_program')
+    if type(usb_probe) is not bool or usb_probe!=entry_usb_probe:
+        raise ValueError('USB probe differs between native entry and cold firmware')
+    if usb_probe and not hps_context.usb_selection.contained_probe(
+            dict(window_profile,program='usbcheck',usb_control=window_profile.get('usb_pio',False))):
+        raise ValueError('USB probe requires its separate contained cold resources')
     companion=hps_context.compiled_menu_program(dict(window_profile,program='fpgaload'))
     cpu_map=window_profile.get('cpu_mapping')
     if cpu_map is not None and cpu_map!=hps_context.cpu_mapping(control_map,hps_context.configuration(project),reader_memory,menu_program=companion):
@@ -109,7 +116,7 @@ def prepare(project, uboot, entry, pfg, output):
         raise ValueError('native DDR read contract differs from the sealed generated adapter')
     rom=window_profile.get('hps_rom')
     rom_profile=source_context is not None and hps_context.uses_held_rom(source_context)
-    if rom_profile:
+    if rom_profile and not usb_probe:
         if rom is None or rom!=hps_context.rom(project) or window_profile.get('hps_rom_sha256')!=hps_context.digest(rom):
             raise ValueError('native ROM resources differ from the sealed FPGA project')
     elif rom is not None or window_profile.get('hps_rom_sha256') is not None:
@@ -219,6 +226,7 @@ def prepare(project, uboot, entry, pfg, output):
         'hps_control_sha256':hps_context.digest(control_map) if control_map is not None else None,
         'bounded_ddr_read':ddr_read is not None,
         'held_rom':rom is not None,
+        'usb_probe':usb_probe,
         'hps_rom_sha256':hps_context.digest(rom) if rom is not None else None,
         'hps_ddr_read_sha256':hps_context.digest(ddr_read) if ddr_read is not None else None,
         'bounded_window_read':window_read is not None,

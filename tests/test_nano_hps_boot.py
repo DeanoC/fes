@@ -19,7 +19,7 @@ spec.loader.exec_module(boot)
 
 
 class HpsBootTests(unittest.TestCase):
-    def run_candidate(self, base, mode='pass', order='HPS FIRST', sealed=True, context=None, control=None, rom=None, chain=None):
+    def run_candidate(self, base, mode='pass', order='HPS FIRST', sealed=True, context=None, control=None, rom=None, chain=None, entry_mode=None):
         project = base/'project'
         hps = project/'board/hps'
         (hps/'project/output_files').mkdir(parents=True)
@@ -93,6 +93,7 @@ else:raise SystemExit(9)
         loaded_entry={'native_build_sources':{str(source_files['driver']):boot.sha(source_files['driver'])},
                       'sources':{str(source_files['entry-producer']):boot.sha(source_files['entry-producer'])},
                       'payload_sha256':boot.sha(payload_elf),'entry_image_sha256':boot.sha(image),'firmware_profile_sha256':boot.sha(profile)}
+        if entry_mode is not None:loaded_entry.update(entry_mode)
         def checked(*args):
             if mode=='pre-source':source_files['driver'].write_text('changed before snapshot\n')
             if mode=='conflicting-source':loaded_entry['sources'][str(source_files['driver'])]='f'*64
@@ -211,6 +212,32 @@ else:raise SystemExit(9)
 
     def test_rom_resource_requires_the_same_sealed_profile_before_conversion(self):
         self.check_rom_resource_profile({'programming_profile':boot.hps_context.ROM_PROFILE})
+
+    def test_contained_usb_probe_agrees_with_entry_and_never_inherits_rom_controls(self):
+        context={'programming_profile':boot.hps_context.COMPUTER_PROFILE,
+                 'abi':'fes.computer','abi_major':1,'abi_minor':0,
+                 'control_abi':0x10203041,'core_id':'fes.zx81'}
+        entry={'native_program':'usbcheck','usb_control':True,'usb_input':'gamepad'}
+        chain={'usb_probe':True,'usb_pio':True,'usb_input':'gamepad','sd_pio':False}
+        cases=[({},{}),({'usb_probe':False},{}),({'usb_probe':1},{}),
+               ({'selected_programs':True},{}),({'hps_rom_sha256':'a'*64},{}),
+               ({},{'native_program':'fpgaload'}),({},{'hps_rom':{'claimed':'access'}})]
+        for index,(cold_change,entry_change) in enumerate(cases):
+            with self.subTest(index=index),tempfile.TemporaryDirectory() as folder, \
+                 patch.object(boot.hps_context,'derive',return_value=context), \
+                 patch.object(boot.hps_context,'rom',side_effect=AssertionError('ROM control derived')):
+                base=Path(folder)
+                if index==0:
+                    result=self.run_candidate(base,context=context,chain=dict(chain,**cold_change),entry_mode=dict(entry,**entry_change))
+                    self.assertTrue(result['usb_probe'])
+                    self.assertFalse(result['held_rom'])
+                    self.assertFalse(result['control_probe'])
+                    self.assertFalse(result['physical_programming_admission'])
+                else:
+                    with self.assertRaises(ValueError):
+                        self.run_candidate(base,context=context,chain=dict(chain,**cold_change),entry_mode=dict(entry,**entry_change))
+                    self.assertFalse((base/'calls.jsonl').exists())
+                    self.assertFalse((base/'output').exists())
 
     def test_native_computer_resources_require_the_same_sealed_profile_before_conversion(self):
         self.check_rom_resource_profile({'programming_profile':boot.hps_context.COMPUTER_PROFILE,
