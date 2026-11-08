@@ -4011,6 +4011,12 @@ room on the host window and uses the host live-media route without a kit
 session-display transition. When a kit-local core owns input, F12 requests
 local Stop instead. F12 on the idle menu does nothing.
 
+For an active non-Coleco host session with no available playing room, F12
+stops the session and releases the kit lease. Ctrl+Home takes the same Stop
+route; plain Home is forwarded to the core. A pad's Guide button also requests
+this roomless Stop. Coleco keeps its selector-unavailable behavior when no
+playing room can open.
+
 Media delivery can briefly reject a concurrent launcher frame as busy. A healthy
 probe clears that presentation error and its retry delay; the room removes the
 temporary HDMI notice while retaining the cassette operation's status.
