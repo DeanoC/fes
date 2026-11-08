@@ -10,7 +10,9 @@ static int retire(struct fes_nano_usb_composition *s)
     /* Never clear active/prepared state: a failed lease is still reserved. */
     return 0;
 }
-static int snapshot(void *context,uint32_t *released)
+/* Preserve the full private predicate at each use, without an extra stack
+ * frame when the hot tape ownership path calls it directly. */
+static inline __attribute__((always_inline)) int snapshot(void *context,uint32_t *released)
 {
     struct fes_nano_usb_composition *s=context;
     struct fes_nano_usb_platform *u=s->usb;
@@ -168,7 +170,7 @@ int fes_nano_usb_master_binding_matches(struct fes_nano_usb_master *m,const stru
 {
     return fes_nano_boot_usb_pio_matches(b,m,master_observe,master_stop,master_quiet,master_snapshot);
 }
-static int shared_valid(void *context,const struct fes_nano_bridges *b,const struct fes_nano_usb_platform *p)
+static inline __attribute__((always_inline)) int shared_valid(void *context,const struct fes_nano_bridges *b,const struct fes_nano_usb_platform *p)
 {
     struct fes_nano_usb_master *m=context;
     if (!m || !m->initialized || m->failed || !m->composition || !b || !p || !producer_policy(m)) return 0;

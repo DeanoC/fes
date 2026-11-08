@@ -61,7 +61,9 @@ static struct {
     unsigned active,failed,prepared,finished;
 } computer_tape_frame;
 
-static int computer_tape_state(void *context,uint64_t owner,uint64_t generation)
+/* These hot private checks stay live on every access. Inline them so their
+ * nested calls do not repeatedly spill the same owner/context to uncached RAM. */
+static inline __attribute__((always_inline)) int computer_tape_state(void *context,uint64_t owner,uint64_t generation)
 {
     struct fes_nano_bridges *b=&fes_nano_owned_bridges;
     struct fes_nano_configuration *c=&configuration;
@@ -105,7 +107,7 @@ static int computer_tape_guard(void *context,uint64_t owner,uint64_t generation)
     int status=computer_tape_frame_guard(context,owner,generation);
     tape_cost_end(TAPE_COST_GUARD,began);return status;
 }
-static int computer_tape_sample_state(void *context,uint64_t owner,uint64_t generation,unsigned part,unsigned sampled)
+static inline __attribute__((always_inline)) int computer_tape_sample_state(void *context,uint64_t owner,uint64_t generation,unsigned part,unsigned sampled)
 {
     if(!sampled)return computer_tape_state(context,owner,generation);
     uint64_t began=read_cntpct_el0();
