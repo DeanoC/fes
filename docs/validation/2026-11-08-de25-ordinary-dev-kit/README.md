@@ -24,6 +24,25 @@ needs no card swap, power cycle or boot change. Original `61a4b0aa` is restored
 at generation7 and passes a fresh BASIC7/9/7/Stop control; the board is released.
 Physical failed-upload recovery remains unqualified.
 
+The [client-proof refresh](combined-client-proof-refresh.json) fixes the sole
+producer failure on `53f7f2ef6`: the new programmer test header invalidates the
+branch-local captured-source receipt. All14 actual native/AArch64 client/RTL
+cases are rerun on that committed source and produce identical semantic results;
+all22 related recipe tests pass. The strict source-equality test is unchanged,
+dated old receipts stay intact, and no production runtime/kernel/RBF bytes change.
+The old aggregate integration failure follows that producer failure; it is not
+independent hardware evidence. New-head CI remains required.
+
+A separate [native stock-watchdog preflight](stock-watchdog-preflight.json) on
+the same installed kernel/stock FIT identifies the real `dw_wdt` watchdog0,
+its resource, driver and character-device identity. This current-source opt-in
+test reads metadata without opening or arming the watchdog. The temporary RAM
+binary is removed, the normal61a4 generation7/boot/files/processes and own host
+are verified before/after, and the board is released at idle/free MENU. This
+is preparation for recovery testing, without reset/expiry or failed-load
+acceptance. Catalog contents are not independently resampled by this metadata
+test; their preceding ordinary-control evidence remains separate.
+
 ## Supported control and retained failure
 
 Source `ecaefd4af2bf202b94b558e4f3545249c309712f` produced the retained coherent-DMA
