@@ -80,9 +80,10 @@ package fes_i386_pkg;
     // from WB. An entry describes the first predicted branch of the 16-byte
     // block that holds the branch's last byte: last is that byte's offset,
     // target its target's linear address, ctr a 2-bit counter (taken at 2
-    // or more), uncond a JMP or CALL rel or a RET, always taken. A CALL rel's
-    // entry (call) pushes the return stack (fes_i386_ras) as F2 predicts it;
-    // a RET's (ret) pops it and goes to its top, not to target.
+    // or more), uncond a JMP or CALL rel or r/m or a RET, always taken. A
+    // JMP or CALL r/m's target is the one it last went to. A CALL's entry
+    // (call) pushes the return stack (fes_i386_ras) as F2 predicts it; a
+    // RET's (ret) pops it and goes to its top, not to target.
     typedef struct packed {
         logic        valid;
         logic        uncond;
@@ -941,7 +942,7 @@ package fes_i386_pkg;
         logic        ncall;       // D: a near CALL's jump (CALL rel, CALL r/m)
         logic        nret;        // D: a near RET (C3h, C2h)
         logic        nind;        // D: an indirect near JMP's or CALL's jump (JMP r/m, CALL r/m)
-        logic [31:0] peip;        // D: ... the EIP the return stack predicted, when pt
+        logic [31:0] peip;        // D: ... or nind's, the EIP the return stack or BTB predicted, when pt
     } pipe_t;
 
 endpackage

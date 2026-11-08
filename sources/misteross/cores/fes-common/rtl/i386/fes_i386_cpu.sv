@@ -16,7 +16,8 @@
 //   WB  in-order commit, stores and I/O accesses included
 //
 // Branch prediction. The front end's BTB (fes_i386_btb) predicts Jcc, LOOP,
-// LOOPE, LOOPNE, JCXZ and JMP and CALL rel: F2 sends F1 to a taken entry's
+// LOOPE, LOOPNE, JCXZ and JMP and CALL rel, and JMP and CALL r/m to the
+// target they last went to: F2 sends F1 to a taken entry's
 // target, and Q goes on there after the branch (fes_i386_fetchbuf,
 // fes_i386_qalign). D gives the instruction after such a branch (pt) the
 // branch's target EIP, which it works out from the branch's own
@@ -25,6 +26,13 @@
 // so, or not taken when it was, redirects F1 from WB and flushes every
 // younger uop, which costs 10 cycles. WB writes each direct branch's
 // outcome to the BTB.
+//
+// An indirect near JMP or CALL (JMP r/m, CALL r/m) gets an always-taken
+// entry whose target is where it last went, and a CALL's pushes the return
+// stack as a CALL rel's does. D gives the instruction after a predicted one
+// the EIP of the target's linear address less CS.base, as after a RET
+// (below), and EX compares it with the EIP the JMP or CALL computes: a
+// target that differs redirects, and WB writes the new target.
 //
 // The return stack (fes_i386_ras) predicts near RET (C3h, C2h): the BTB
 // keeps an entry for each RET and CALL rel, F2 pushes a predicted CALL rel's
@@ -45,7 +53,8 @@
 // changed, a branch found where the entry says none ends, or an entry
 // from the other code size costs a replay, never a result. The instruction
 // after a predicted RET passes this check by construction, as its EIP comes
-// from its linear address: for a RET's target, EX's compare is the check.
+// from its linear address: for a RET's or an indirect JMP's or CALL's
+// target, EX's compare is the check.
 // Under queue16 nothing is predicted.
 //
 // A load whose bytes have not arrived when it is in M2 freezes D to WB: every
@@ -760,20 +769,22 @@ module fes_i386_cpu #(
     assign d_pt = dc.tk && d_dbr;
     assign d_tgt_sum = (dc.opsize32 ? d_eip : {16'd0, d_eip[15:0]}) + {28'd0, dc.length} + dc.uop.imm;
     assign d_tgt = dc.opsize32 ? d_tgt_sum : {16'd0, d_tgt_sum[15:0]};
-    // A near RET (op 10, BR_RET) the return stack predicted (rpt): the next
-    // instruction's EIP is the predicted target's linear address less
-    // CS.base, not wrapped by operand size, so a prediction with the wrong
-    // upper bits fails EX's compare. A near CALL's jump (ncall): CALL rel's
-    // (SEQ_CALL) or CALL r/m's (SEQ_CALLI, op 11, BR_JMP_IND).
-    logic        d_nret, d_rpt, d_ncall, d_nind;
-    logic [31:0] d_reip;
+    // A near RET (op 10, BR_RET) the return stack predicted, or an indirect
+    // near JMP or CALL (nind, below) the BTB predicted to its last target
+    // (ipt): the next instruction's EIP is the predicted target's linear
+    // address less CS.base, not wrapped by operand size, so a prediction with
+    // the wrong upper bits fails EX's compare. A near CALL's jump (ncall):
+    // CALL rel's (SEQ_CALL) or CALL r/m's (SEQ_CALLI, op 11, BR_JMP_IND).
+    logic        d_nret, d_ipt, d_ncall, d_nind;
+    logic [31:0] d_ieip;
     assign d_nret = dc.uop.cls == fes_i386_pkg::UOP_BRANCH && dc.uop.op == 5'd10 && dc.seq == fes_i386_pkg::SEQ_NONE;
-    assign d_rpt = dc.tk && d_nret;
-    assign d_reip = dc.ptgt - seg_base[SEG_CS];
+    assign d_ipt = dc.tk && (d_nret || d_nind);
+    assign d_ieip = dc.ptgt - seg_base[SEG_CS];
     assign d_ncall = dc.uop.cls == fes_i386_pkg::UOP_BRANCH
                   && (dc.seq == fes_i386_pkg::SEQ_CALL || dc.seq == fes_i386_pkg::SEQ_CALLI && dc.uop.op == 5'd11);
     // An indirect near JMP's or CALL's jump (nind): JMP r/m (op 11) or CALL
-    // r/m's last uop.
+    // r/m's last uop. Only that uop is ipt: the instruction's EIP moves at
+    // its last uop.
     assign d_nind = dc.uop.cls == fes_i386_pkg::UOP_BRANCH && dc.uop.op == 5'd11
                  && (dc.seq == fes_i386_pkg::SEQ_NONE || dc.seq == fes_i386_pkg::SEQ_CALLI);
 
@@ -1338,7 +1349,7 @@ module fes_i386_cpu #(
             d_stop <= 1'b1;  // until the restart's redirect
         end else if (issue) begin
             d_stop <= stop;
-            if (!dc_more) d_eip <= d_pt ? d_tgt : d_rpt ? d_reip : d_eip_next;
+            if (!dc_more) d_eip <= d_pt ? d_tgt : d_ipt ? d_ieip : d_eip_next;
         end
     end
 
@@ -1525,11 +1536,11 @@ module fes_i386_cpu #(
         d_out.ilen = dc.length;
         d_out.fchk = d_first && dc.fetched;
         d_out.dbr = d_dbr;
-        d_out.pt = d_pt || d_rpt;
+        d_out.pt = d_pt || d_ipt;
         d_out.ncall = d_ncall;
         d_out.nret = d_nret;
         d_out.nind = d_nind;
-        d_out.peip = d_reip;
+        d_out.peip = d_ieip;
         d_out.bm = dc.bm;
         d_out.bway = dc.bway;
         d_out.bctr = dc.bctr;
@@ -2111,13 +2122,13 @@ module fes_i386_cpu #(
     // A branch predicted taken (pt) that EX finds not taken redirects to the
     // next instruction, CS.base + the next EIP; one predicted taken that is
     // taken does not redirect.
-    // A RET the return stack predicted is always taken: it redirects to its
-    // target when the EIP it popped is not the one D gave the next
-    // instruction (peip).
+    // A RET the return stack predicted, or an indirect near JMP or CALL the
+    // BTB predicted, is always taken: it redirects to its target when the EIP
+    // it popped or computed is not the one D gave the next instruction (peip).
     logic        ex_pt, ex_mis;
     logic [31:0] ex_fall;
     assign ex_pt = ex_s.pt && ex_out.uop.ctl.fault == fes_i386_pkg::FAULT_NONE;
-    assign ex_mis = ex_out.taken ^ ex_pt || ex_pt && ex_s.nret && ex_ind_eip != ex_s.peip;
+    assign ex_mis = ex_out.taken ^ ex_pt || ex_pt && (ex_s.nret || ex_s.nind) && ex_ind_eip != ex_s.peip;
     assign ex_fall = seg_base[SEG_CS] + ex_s.eip_next;
     always_ff @(posedge clk) begin
         if (reset) begin
@@ -3027,7 +3038,9 @@ module fes_i386_cpu #(
     // ---- BTB writes ----------------------------------------------------------------
     // A direct branch's retirement writes its entry: a taken one counts up
     // (from 2 when it was not matched, in a way taken in turn), a matched one
-    // not taken counts down. The entry is keyed by the block that holds the
+    // not taken counts down. A near RET's, and an indirect near JMP's or
+    // CALL's, writes an always-taken entry; the indirect one's target is the
+    // one it went to (EX's), so the entry predicts its last target. The entry is keyed by the block that holds the
     // branch's last byte (wb_blast, worked out as the uop enters WB). A
     // fetch check's replay clears both ways of the sets of the block before
     // the replayed instruction's start and of the block holding it: one of
@@ -3050,12 +3063,12 @@ module fes_i386_cpu #(
             btb_wr.valid <= 1'b1;
             btb_wr.ways <= 2'b11;
             btb_wr.index <= frp_n[1] ? frp_prev[11:4] : frp_lin[11:4];
-        end else if (wb_commit && (wb_s.dbr && (wb_s.taken || wb_s.bm) || wb_s.nret) && pred_on && !reset) begin
+        end else if (wb_commit && (wb_s.dbr && (wb_s.taken || wb_s.bm) || wb_s.nret || wb_s.nind) && pred_on && !reset) begin
             btb_wr.valid <= 1'b1;
             btb_wr.ways <= (wb_s.bm ? wb_s.bway : btb_rr) ? 2'b10 : 2'b01;
             btb_wr.index <= wb_blast[11:4];
             btb_wr.entry.valid <= 1'b1;
-            btb_wr.entry.uncond <= wb_s.uop.op == 5'(fes_i386_pkg::BR_JMP) || wb_s.nret;
+            btb_wr.entry.uncond <= wb_s.uop.op == 5'(fes_i386_pkg::BR_JMP) || wb_s.nret || wb_s.nind;
             btb_wr.entry.call <= wb_s.ncall;
             btb_wr.entry.ret <= wb_s.nret;
             btb_wr.entry.ctr <= !wb_s.taken ? (wb_s.bctr == 2'd0 ? 2'd0 : wb_s.bctr - 2'd1)
@@ -3065,7 +3078,7 @@ module fes_i386_cpu #(
             btb_wr.entry.target <= wb_s.target;
         end
         if (reset) btb_rr <= 1'b0;
-        else if (wb_commit && (wb_s.dbr && wb_s.taken || wb_s.nret) && !wb_s.bm) btb_rr <= !btb_rr;
+        else if (wb_commit && (wb_s.dbr && wb_s.taken || wb_s.nret || wb_s.nind) && !wb_s.bm) btb_rr <= !btb_rr;
     end
 
     // ---- The return stack ------------------------------------------------------------
@@ -3076,8 +3089,9 @@ module fes_i386_cpu #(
     // edge, so the pointer counts it; a fault's or an interrupt's redirect
     // commits nothing (the selects key on the registers redirect_linear's
     // do). A near CALL that redirects was not predicted, so the front end
-    // never pushed its return address: it is written here, CS.base + the
-    // next EIP. The entries are not restored otherwise: a wrong path's push
+    // never pushed its return address, or was an indirect CALL predicted to
+    // another target, whose push this repeats: it is written here, CS.base +
+    // the next EIP. The entries are not restored otherwise: a wrong path's push
     // over a live entry, a CALL whose return address a program drops (POP
     // then JMP, ADD SP), or more than 16 CALLs deep cost a later
     // misprediction, which EX's compare catches.
