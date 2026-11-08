@@ -1,5 +1,36 @@
 # Bounded ownership-subprofile board diagnostic
 
+The trial is terminal at the native fresh-scan gate. Recovery programming/boot
+and all thirteen fixed uploads/write-readbacks/fresh SD reads passed. The next
+vendor scan found and locked the expected private top cable and read 6 MHz,
+but forced scanning returned 87; unlock succeeded. The pinned Intel header
+maps this to `AJI_BAD_JTAG_CHAIN`. That name does not identify the underlying
+physical, link or server cause. Recovery's earlier forced scan returned zero
+and the expected single device. No stale/cached scan was used as a substitute.
+
+The native reservation persisted as `reserved-before-scan`. No scan grant,
+native programmer log or native programming trace was created; the native
+receipt records `programming_attempted=false` and `fesboot_sent=false`. There
+is no native boot, Ready, tape-transfer or ownership-subprofile result from
+this operation. The procedure and reservation are consumed one/max one even
+though actual native programming calls are zero. There is no replay. Transport
+programming failures remain one/max two; this scan failure requires investigation
+and repair before further programming regardless of that separate counter.
+
+Independent cleanup passes for unchanged top USB identity, exact permissions,
+original 15 MHz readback, terminated private server and free UART. The last
+verified board state is the recovery prompt after uploads/fresh reads; no new
+native program or boot command was sent. The claim stays held, spare installed,
+factory restore waived unless needed and bottom untouched. The controls below
+remain pre-operation evidence; `hardware-result.json` records the terminal
+scope. The finer firmware is software/build-checked but physically unmeasured.
+
+The source for the status name is the pinned Intel
+[AJI error enumeration](https://github.com/intel/libaji_client/blob/5d9c7824204d1de343071ec28a4363d65156e61e/src/h/aji.h#L172).
+Its locally retained header hash matches the recorded primary-source hash.
+No additional device operations or reset attempts were used to interpret it.
+
+
 This one-use top TRWU8CBL operator selects matched boot ID `7abe602398c4db44`,
 firmware/cold source 5131d8bc6 and exact unchanged e8fe4c9a6 SDK/entry artifacts.
 The [source/build record](../2026-11-08-de25-ownership-subprofile/README.md) retains
