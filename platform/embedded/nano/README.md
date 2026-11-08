@@ -215,6 +215,14 @@ The decoder performs no device operations or admission. An idle success proves
 reported startup and stop only. Valid key presses are separate input evidence,
 and neither result qualifies combined USB/storage/core operation.
 
+`native_admission.py` keeps its default paired `fpgaload` file-reuse scope.
+The explicit `USB_SCOPE` selects a separate USB-only record, its checked
+`probe-profile.json` and one complete sealed project. Entry and cold firmware
+must agree on contained USB with the same context/pins and no ROM, computer,
+program, menu or SD selection. Both scopes run full validation before recording
+and fresh source/artifact/tree-membership and claim checks when loading. Their
+tags cannot be exchanged. A cached record grants no live board authority.
+
 The configuration code uses an owned per-load descriptor in the last page of
 the existing DMA reservation. Firmware captures and checks that binding instead
 of using a compiled payload digest table. Its matched

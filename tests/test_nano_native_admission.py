@@ -13,7 +13,8 @@ sha=lambda p:hashlib.sha256(Path(p).read_bytes()).hexdigest()
 
 
 class Model:
-    def __init__(self,root):
+    def __init__(self,root,scope=admission.SCOPE):
+        self.scope=scope
         self.root=root;self.uboot=root/'out/uboot';self.entry=root/'out/entry';self.record=root/'out/admission.json';self.calls=0
         def write(path,raw):path.parent.mkdir(parents=True,exist_ok=True);path.write_bytes(raw)
         for name in admission.CODE_TREES:write(root/name/'checker.py',b'fixture code')
@@ -29,11 +30,17 @@ class Model:
         e=dict(target='de25-nano',native_program='fpgaload',hps_project=str(self.projects[0]),hps_menu_project=str(self.projects[1]),
                sources={'producer.py':sha(root/'producer.py')},native_build_sources={'runtime.go':sha(root/'runtime.go')},
                ram_start=0x84000000,ram_end=0x94000000)
+        if scope==admission.USB_SCOPE:
+            context={'package_id':'a'*64};pins={'handoff_sha256':'b'*64}
+            e.update(native_program='usbcheck',usb_control=True,usb_shared=False,usb_input='gamepad',
+                     hps_menu_project=None,hps_context=context,hps_io=pins)
+            u['native_handoff']['cold_boot_profile']=dict(usb_probe=True,usb_pio=True,usb_shared=False,
+                usb_input='gamepad',sd_pio=False,hps_context=context,hps_io=pins)
         write(self.uboot/'result.json',json.dumps(u).encode());write(self.entry/'result.json',json.dumps(e).encode())
-        for p in (*admission._paths(root,self.uboot,self.entry),self.uboot/'build/.config',self.entry/'payload.elf'):write(p,b'fixture '+p.name.encode())
+        for p in (*admission._paths(root,self.uboot,self.entry,self.scope),self.uboot/'build/.config',self.entry/'payload.elf'):write(p,b'fixture '+p.name.encode())
         self.extra=root/'out/operator.py';write(self.extra,b'fixture frozen caller')
     def value(self):
-        fit,spl,image,profile=admission._paths(self.root,self.uboot,self.entry)
+        fit,spl,image,profile=admission._paths(self.root,self.uboot,self.entry,self.scope)
         return fit,spl,image,json.loads((self.uboot/'result.json').read_text()),json.loads((self.entry/'result.json').read_text()),profile
     def validate(self,u,e):
         self.calls+=1
@@ -42,10 +49,10 @@ class Model:
         if (value[4]['ram_start'],value[4]['ram_end'])!=(0x84000000,0x94000000):raise ValueError('full validator rejected memory geometry')
         return value
     def prepare(self,validate=None,output=None):
-        self.digest=admission.prepare(self.root,self.uboot,self.entry,output or self.record,validate=validate or self.validate,extra_inputs=[self.extra])
+        self.digest=admission.prepare(self.root,self.uboot,self.entry,output or self.record,validate=validate or self.validate,extra_inputs=[self.extra],scope=self.scope)
         return self.digest
     def load(self,**kw):
-        return admission.load(self.root,self.uboot,self.entry,self.record,expected_sha256=kw.pop('expected_sha256',self.digest),owns=kw.pop('owns',lambda:True),extra_inputs=kw.pop('extra_inputs',[self.extra]),**kw)
+        return admission.load(self.root,self.uboot,self.entry,self.record,expected_sha256=kw.pop('expected_sha256',self.digest),owns=kw.pop('owns',lambda:True),extra_inputs=kw.pop('extra_inputs',[self.extra]),scope=kw.pop('scope',self.scope),**kw)
 
 
 class NativeAdmissionTests(unittest.TestCase):
@@ -146,3 +153,72 @@ class NativeAdmissionTests(unittest.TestCase):
             self.assertEqual(admission.load(m.root,m.uboot,m.entry,m.record,expected_sha256=digest,owns=lambda:True,extra_inputs=extra),m.value())
             tool.write_bytes(b'changed tool')
             with self.assertRaises(ValueError):admission.load(m.root,m.uboot,m.entry,m.record,expected_sha256=digest,owns=lambda:True,extra_inputs=extra)
+
+
+class USBProbeAdmissionTests(unittest.TestCase):
+    def test_usb_scope_is_explicit_and_preserves_the_checked_tuple_and_single_project(self):
+        with tempfile.TemporaryDirectory() as temp:
+            m=Model(Path(temp),admission.USB_SCOPE)
+            with self.assertRaises(ValueError):
+                admission.prepare(m.root,m.uboot,m.entry,m.record,validate=m.validate,extra_inputs=[m.extra])
+            self.assertEqual(m.calls,0)
+            m.prepare();self.assertEqual(m.load(),m.value());self.assertEqual(m.calls,1)
+            r=json.loads(m.record.read_text());self.assertEqual(r['scope'],admission.USB_SCOPE)
+            self.assertFalse(r['live_authority'])
+            self.assertIn(str(m.projects[0]),r['inputs']['trees'])
+            self.assertNotIn(str(m.projects[1]),r['inputs']['trees'])
+            self.assertEqual(Path(r['checked']['paths'][-1]).name,'probe-profile.json')
+            with self.assertRaises(ValueError):m.load(scope=admission.SCOPE)
+
+    def test_scope_tag_cannot_convert_usb_and_core_records_even_with_recomputed_digest(self):
+        for before,after in ((admission.USB_SCOPE,admission.SCOPE),(admission.SCOPE,admission.USB_SCOPE)):
+            with self.subTest(before=before),tempfile.TemporaryDirectory() as temp:
+                m=Model(Path(temp),before);m.prepare();r=json.loads(m.record.read_text());r['scope']=after
+                m.record.write_text(json.dumps(r));m.digest=sha(m.record)
+                with self.assertRaises(ValueError):m.load(scope=after)
+
+    def test_mixed_entry_and_cold_capabilities_reject_before_full_validation(self):
+        cases=[('entry','usb_shared',True),('entry','usb_control',False),('entry','usb_input',None),
+               ('entry','native_program','fpgaload'),('entry','selected_programs',True),
+               ('entry','hps_rom',{}),('entry','hps_rom_sha256','a'*64),
+               ('entry','hps_menu_project','out/menu'),('entry','hps_context',{}),
+               ('cold','usb_probe',False),('cold','usb_probe',1),('cold','usb_pio',False),
+               ('cold','sd_pio',True),('cold','usb_shared',True),('cold','hps_computer',{}),
+               ('cold','hps_io',{'different':'pins'})]
+        for side,key,value in cases:
+            with self.subTest(side=side,key=key),tempfile.TemporaryDirectory() as temp:
+                m=Model(Path(temp),admission.USB_SCOPE)
+                p=(m.entry if side=='entry' else m.uboot)/'result.json';r=json.loads(p.read_text())
+                target=r if side=='entry' else r['native_handoff']['cold_boot_profile'];target[key]=value
+                p.write_text(json.dumps(r))
+                with self.assertRaises(ValueError):m.prepare()
+                self.assertEqual(m.calls,0);self.assertFalse(m.record.exists())
+
+    def test_usb_source_artifact_profile_membership_and_operator_changes_invalidate(self):
+        for name in ('out/entry/payload.elf','platform/embedded/nano/probe-profile.json',
+                     'out/computer/board/vendor.zip','sources/misteross/core/core.sv','out/operator.py','new-source'):
+            with self.subTest(name=name),tempfile.TemporaryDirectory() as temp:
+                m=Model(Path(temp),admission.USB_SCOPE);m.prepare()
+                p=m.root/name if name!='new-source' else m.projects[0]/'board/new.sv';p.write_bytes(b'changed')
+                with self.assertRaises(ValueError):m.load()
+
+    def test_full_usb_validation_failure_wrong_profile_and_during_check_mutation_leave_no_record(self):
+        for mode in ('reject','profile','mutate'):
+            with self.subTest(mode=mode),tempfile.TemporaryDirectory() as temp:
+                m=Model(Path(temp),admission.USB_SCOPE)
+                def validate(u,e):
+                    value=list(m.validate(u,e))
+                    if mode=='reject':raise ValueError('full USB validator rejected')
+                    if mode=='profile':value[-1]=m.root/'platform/embedded/nano/sd-profile.json'
+                    if mode=='mutate':(m.projects[0]/'board/output.sof').write_bytes(b'changed')
+                    return value
+                with self.assertRaises(ValueError):m.prepare(validate)
+                self.assertFalse(m.record.exists())
+
+    def test_usb_claim_must_survive_fresh_hash_checks(self):
+        with tempfile.TemporaryDirectory() as temp:
+            m=Model(Path(temp),admission.USB_SCOPE);m.prepare()
+            with self.assertRaises(ValueError):m.load(owns=lambda:False)
+            calls=[]
+            def owns():calls.append(True);return len(calls)==1
+            with self.assertRaisesRegex(ValueError,'after input checks'):m.load(owns=owns)
