@@ -41,23 +41,31 @@ full development-kit acceptance remains open as described below.
 ## Current native evidence
 
 The retained development setup now uses kernel `9cec7e77`, managed root
-`0858eef0`, diagnostic FIT `e649e2c6` and default-off bundle `61a4b0aa`,
+`0858eef0`, pinned stock Terasic FIT `bb6a48c7` and default-off bundle `61a4b0aa`,
 generation 1. Normal software install/activation and native executable
 authentication pass. Standard ZX81 `3da0f1df` passes Play, RAMTOP128, BASIC
 7/9/7, fresh HDMI, Stop/MENU and relaunch. One idle and one active-session OS
 reboot pass without physical intervention, preserving pairing, software,
 catalog and a saved-data probe. The current boot is
-`bd1544c0-9143-48a3-b43d-fc47860824a6`.
+`655b3ec6-d7b6-44c5-8ccc-225eb7415ccf`. The approved firmware-only SD update
+passes fresh compressed two-read backup qualification, source-bound virtual
+write/restore, actual compare/write/sync/full direct readback and native stock
+firmware boot. No kernel/root/software/QSPI change, card swap or power cycle
+was needed. Ordinary BASIC 7/9/7, idle and active OS reboot, and a fresh
+post-reboot BASIC7/Stop pass on the stock tuple. See the
+[stock-firmware record](../validation/2026-11-08-de25-ordinary-dev-kit/README.md#stock-terasic-firmware).
 
-Physical Kinesis USB input produces PRINT; physical F12/Escape opens and closes
+On the earlier e649 firmware tuple, physical Kinesis USB input produces PRINT;
+physical F12/Escape opens and closes
 the allocated Change media chooser in the same session and package generation,
 restoring the PRINT line. This is one observed open/close cycle rather than
 display stress or arbitrary-failure qualification. The
 [current dated record](../validation/2026-11-08-de25-ordinary-dev-kit/README.md#software-reboot-physical-usb-and-in-play-menu)
 retains exact identities, captures and the remaining boundaries. The board is
 released at healthy MENU with this user-requested development setup retained;
-no main HIL baseline is promoted. Diagnostic firmware admission, broader
-failure recovery and untested peripheral capabilities remain open.
+no main HIL baseline is promoted. The current stock FIT passes the existing
+vendor admission checks; the earlier diagnostic FIT remains unqualified.
+Broader failure recovery and untested peripheral capabilities remain open.
 
 ## Earlier native evidence
 

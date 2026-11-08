@@ -1,0 +1,174 @@
+{
+  "passed": true,
+  "classification": "stock Terasic boot-file contract; no new kernel or hardware acceptance",
+  "normal_vendor_contract": {
+    "linux_device_tree": {
+      "model": "SoCFPGA Agilex5 Terasic DE25-Nano",
+      "compatible": [
+        "intel,socfpga-agilex5-socdk",
+        "intel,socfpga-agilex5"
+      ],
+      "serial0": {
+        "path": "/soc@0/serial@10c02100",
+        "status": "okay",
+        "reg_cells": [
+          281026816,
+          256
+        ]
+      },
+      "ethernet0": {
+        "path": "/soc@0/ethernet@10810000",
+        "status": "okay",
+        "reg_cells": [
+          276889600,
+          13568
+        ]
+      },
+      "chosen": {
+        "stdout-path": [
+          "serial0:115200n8"
+        ],
+        "bootargs": [
+          "console=uart8250,mmio32,0x10c02000,115200n8 \t\t\troot=/dev/ram0 rw initrd=0x10000000 init=/sbin/init \t\t\tramdisk_size=10000000 earlycon=uart8250,mmio32,0x10c02000,115200n8 \t\t\tpanic=-1 rootfstype=ext3"
+        ]
+      },
+      "memory": [
+        {
+          "path": "/memory",
+          "reg_cells": [
+            0,
+            2147483648,
+            0,
+            2147483648
+          ]
+        }
+      ],
+      "fpga_regions": [
+        {
+          "path": "/fpga-region",
+          "ranges": null,
+          "children": []
+        }
+      ],
+      "fpga_bridge_nodes": [],
+      "firmware_interfaces": [
+        {
+          "path": "/firmware/svc",
+          "compatible": [
+            "intel,agilex5-svc"
+          ],
+          "method": "smc"
+        },
+        {
+          "path": "/firmware/svc/fpga-mgr",
+          "compatible": [
+            "intel,agilex5-soc-fpga-mgr"
+          ],
+          "method": null
+        }
+      ]
+    },
+    "uboot_device_tree": {
+      "model": "SoCFPGA Agilex5 Terasic DE25-Nano",
+      "compatible": [
+        "intel,socfpga-agilex"
+      ],
+      "serial0": {
+        "path": "/soc/serial1@10c02100",
+        "status": "okay",
+        "reg_cells": [
+          281026816,
+          256
+        ]
+      },
+      "ethernet0": {
+        "path": "/soc/ethernet@10810000",
+        "status": "okay",
+        "reg_cells": [
+          276889600,
+          13568
+        ]
+      },
+      "chosen": {
+        "stdout-path": [
+          "serial0:115200n8"
+        ]
+      },
+      "memory": [
+        {
+          "path": "/memory",
+          "reg_cells": [
+            0,
+            2147483648,
+            0,
+            1073741824
+          ]
+        }
+      ],
+      "fpga_regions": [
+        {
+          "path": "/soc/base_fpga_region",
+          "ranges": null,
+          "children": []
+        }
+      ],
+      "fpga_bridge_nodes": [],
+      "firmware_interfaces": []
+    },
+    "fit_configuration": {
+      "name": "board-0",
+      "firmware": [
+        "atf"
+      ],
+      "loadables": [
+        "uboot"
+      ],
+      "fdt": [
+        "fdt-0"
+      ]
+    },
+    "fit_images": {
+      "uboot": {
+        "size": 928344,
+        "sha256": "a9735c5a3c1ba7c790fe7c0aa1f5ef2a2cfffec7eb43c386512f92a49da9116e",
+        "file_offset": 1216,
+        "type": "standalone",
+        "load": [
+          2149580800
+        ],
+        "entry": []
+      },
+      "atf": {
+        "size": 61501,
+        "sha256": "0d29d7f1ff43afa267f63c1599657eea6d7fcdc8fd53addf8beb2d4f7089fb3c",
+        "file_offset": 929560,
+        "type": "firmware",
+        "load": [
+          2147483648
+        ],
+        "entry": [
+          2147483648
+        ]
+      },
+      "fdt-0": {
+        "size": 22768,
+        "sha256": "ff637eda305e47fb53feb24d1461728dcf55cc026e690da343a056cb7d2f75bb",
+        "file_offset": 991064,
+        "type": "flat_dt",
+        "load": [],
+        "entry": []
+      }
+    },
+    "boot_script": {
+      "sha256": "ccaaffc87484f055ca61b249fca7f65c9e8b845ca60e26039a06c4fffdeeb54b",
+      "text": "echo \"Trying to boot Linux from device ${target}\";\nif test ${target} = \"mmc0\"; then\n        bridge enable;\n        echo \"Found kernel in mmc0\";        \n        mmc rescan;\n        fatload mmc 0:1 ${kernel_addr_r} Image;\n        fatload mmc 0:1 ${fdt_addr_r} socfpga_agilex5_de25_nano.dtb;\n        setenv bootargs \"console=ttyS0,115200 root=${mmcroot} rw rootwait\";\n        booti ${kernel_addr_r} - ${fdt_addr_r};\n        exit;\nfi\n",
+      "enables_fpga_bridges": true,
+      "overrides_chosen_bootargs": true
+    },
+    "root_device": "/dev/mmcblk0p2",
+    "cpu_mailbox_address": "not-established",
+    "memory_size": "raw DT declarations; runtime memory banks require board observation"
+  },
+  "stock_FIT": "bb6a48c77d2559a2f9710153cc616a242bfe701ff891cb5a14bddba33eaf2cf7",
+  "physical_devices_written": 0
+}

@@ -5,6 +5,12 @@ and explicitly waived partial-persona loading as a blocker for the milestone
 of using DE25 like the normal DE10 development kit. The unresolved Linux hang
 is tracked in [#1568](https://github.com/DeanoC/fes/issues/1568).
 
+The retained board now uses the pinned stock Terasic boot FIT, rather than
+the earlier diagnostic firmware. The [stock-firmware trial](#stock-terasic-firmware)
+passes native boot, ordinary ZX81 and idle/active OS reboots on the unchanged
+kernel/root/default-off software. Earlier diagnostic and physical-keyboard
+results below retain their original artifact identities.
+
 This waiver defers expansion hardware acceptance. It does not report a passing
 persona test, enable expansions, qualify diagnostic firmware for normal
 admission, or waive timing, DMA ownership, transfer retirement or failure
@@ -76,7 +82,7 @@ bypassed. Source and SDK producer identities remain separate in the receipt.
 
 Keep #1568 open until the repaired exact tuple passes empty/16K RAMTOP,
 BASIC load/run/reload, fresh HDMI, Stop/MENU and ordinary/reboot controls.
-The current diagnostic FIT still fails normal firmware admission. This record
+The earlier diagnostic FIT still fails normal firmware admission. This record
 does not promote the board to a main HIL baseline or claim complete peripheral,
 allocated-display stress or arbitrary-failure recovery acceptance. The bounded
 reboot, physical-keyboard and allocated-chooser checks below have since passed.
@@ -148,3 +154,89 @@ The normal update's build receipt is at
 `/data/fes-de25-main-integration-20261105/partial-start-investigation-20261108/ordinary-dev-software-sdk-v3/release/receipt.json`;
 its API lifecycle, executable authentication and physical ordinary control are
 retained in the adjacent `ordinary-dev-profile-trial/` directory.
+
+## Stock Terasic firmware
+
+Deano approved one same-card stock-firmware trial. Only the SD `u-boot.itb`
+content changed, from diagnostic `e649e2c6` to the exact pinned Terasic FIT
+`bb6a48c77d2559a2f9710153cc616a242bfe701ff891cb5a14bddba33eaf2cf7`.
+Both files are 1,013,832 bytes. Their embedded U-Boot/FDT payloads, selected
+roles and load/entry addresses match; only ATF differs. Stock ATF hashes to
+`0d29d7f1ff43afa267f63c1599657eea6d7fcdc8fd53addf8beb2d4f7089fb3c` and
+identifies itself as `v2.12.0(release):de25_nano_revA_v1.0`. The existing normal
+vendor lock and boot-contract checks pass without a gate change. The vendor
+contract describes its pinned source files; the separate native checks below
+bind the actual coherent kernel and owner DTB. See the
+[FIT comparison](stock-firmware-comparison.json) and
+[vendor contract](stock-vendor-boot-contract.json).
+
+The actual same-kernel RAM handover passed normal unmount, old-loop detachment,
+network retention and read-only SD checks. A fresh two-pass O_DIRECT backup
+has raw SHA-256 `ec44239caa09fc8ef0e09803ba4939cff49e1ec2ab2ae12a488098225074c815`
+and compresses to 69,408,488 bytes. Independent decoding, all seven critical
+boot/pairing/root payloads and strict filesystem checks pass. The known FAT
+mount-state byte is preserved in the original; only its private checking view
+changes that byte. The streaming SSH connection exited 255 after the archive
+arrived. The original worker continued, completed both direct reads and retired;
+its authenticated source/epoch/completion records establish success. It was
+never restarted, and the transport exit is not reported as zero.
+
+Two candidates were derived independently from that fresh backup, substituting
+only the existing FIT extents. All other prefix bytes match. The immutable
+writer and launcher passed their host guards and an actual AArch64 virtual
+write/restore with whole virtual disks restored exactly. Both complete archives
+were staged and validated on the physical board before write admission.
+One native update wrote 2,097,152 bytes of differing blocks, compared and
+independently read back all 2,182,086,656 prefix bytes, synced, restored read-only
+protection and retired its worker. Readback matches
+`ab7734ee30c8d9b65aa1777f6cc0fa4bde1d3c281979c7f8ba8a6cd7d513892c`.
+p3 is excluded: its UUID, geometry and writable mount are verified afterward,
+without claiming a complete comparison of p3. The fresh e649 rollback archive
+remains retained.
+
+| Native stock-firmware gate | Result |
+| --- | --- |
+| First stock firmware boot | PASS captured stock banner, pinned SSH, exact boot/kernel/selected files and actual runtime, original data volume, stable MENU |
+| Ordinary standard ZX81 | PASS catalog Play, RAMTOP128, BASIC 7 → 9 → 7, inspected black-on-white HDMI and Stop/MENU |
+| Idle OS reboot | PASS same bundle/generation, kernel/root/FIT, pinned SSH, data probe, catalog and host reconnection; first host query returned 503 and its later read-only postflight completed without repeating the reboot |
+| Active-session OS reboot | PASS fresh BASIC7 before reboot, normal OS shutdown without pre-Stop, new authenticated boot and host readiness, fresh BASIC7/Stop afterward |
+| Retained development setup | PASS final MENU idle/lease-free; recorder retired with its port closed, owned persistence probe removed |
+
+The first stock boot is `edf31a81-ffd7-4abd-80d2-3d3f89af59c4`, the idle-reboot
+boot is `1700e7b5-734e-49f8-8fe0-2b132b9ec8f4`, and the final active-reboot boot
+is `655b3ec6-d7b6-44c5-8ccc-225eb7415ccf`. Three physical stock firmware banners
+were captured. The kernel remains `9cec7e77` / notes `b0c2f6b1`, root `0858eef0`,
+default-off bundle `61a4b0aa` generation 1 and actual runtime `c681f166`.
+Kernel/software producer remains `ecaefd4af`; the integration head is
+`deb20fb19`, and ordinary core/package producer remains `8af614f4`.
+
+An early read-only lease request was refused before any core attempt. A fresh
+idle/free observation followed by the same normal claim and full authentication
+passed; no root cause is established for that refusal. The first idle-reboot
+host query returned HTTP 503 after native authentication passed. Later read-only
+observation confirmed the same host connected to the same new boot. That
+reboot was not repeated; host reconnection latency is not measured across the
+observation gap. The active-case recipe separately waits for host readiness
+before its postboot launch. All refusals and observations remain retained.
+
+The approved trial changed no kernel, root, software, card or QSPI and required
+no physical power cycle. It made no persona request. Stock firmware is retained
+as approved; the kit is released without promoting a main HIL baseline. The
+earlier physical P/F12/Escape proof remains evidence for its e649 tuple and is
+not relabelled as a stock-firmware test. Arbitrary failed-FPGA-load recovery,
+broader display stress and untested peripheral capabilities remain open.
+
+[Complete native stock result](stock-firmware-native.json),
+[ordinary control](stock-ordinary-control.json),
+[idle reboot](stock-idle-reboot.json), [active reboot](stock-active-reboot.json),
+[combined reboot proof](stock-reboot-complete.json).
+
+![BASIC7 with stock firmware](stock-basic7.png)
+
+![BASIC9 with stock firmware](stock-basic9.png)
+
+![Fresh BASIC7 after active reboot](stock-post-reboot7.png)
+
+Private approval, fresh backup, writer/model/source records, original refusals
+and frozen UART are retained under
+`/data/fes-de25-main-integration-20261105/partial-start-investigation-20261108/stock-firmware-qualification/`.

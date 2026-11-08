@@ -5,9 +5,12 @@ Hardware-supported package paths: 0.
 The [2026-11-08 ordinary DE25 development record](../../../docs/validation/2026-11-08-de25-ordinary-dev-kit/README.md)
 adds exact-artifact native evidence for standard ZX81 on default-off bundle
 `61a4b0aa`: BASIC load/run/reload, Stop/relaunch, idle and active OS reboot,
-physical USB P input and one physical F12/Escape allocated-chooser cycle. It
-does not qualify diagnostic firmware for normal admission or arbitrary failure
-recovery. Partial-persona loading remains unsupported under #1568, explicitly
+physical USB P input and one physical F12/Escape allocated-chooser cycle on the
+earlier e649 firmware tuple. A subsequent firmware-only update to pinned stock
+Terasic FIT `bb6a48c7` passes native boot, ordinary BASIC7/9/7, idle/active OS
+reboot and fresh launch/Stop without physical intervention. It changes no
+kernel/root/software. Neither record qualifies arbitrary failure recovery or
+relabels diagnostic firmware as normal. Partial-persona loading remains unsupported under #1568, explicitly
 waived only as an ordinary development-milestone blocker.
 
 | Capability | Software coverage | Hardware acceptance |
