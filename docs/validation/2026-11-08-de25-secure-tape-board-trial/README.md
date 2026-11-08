@@ -43,3 +43,7 @@ programming, SD write or native attempt occurred. The abort remains preserved in
 [preflight-abort.json](preflight-abort.json); fresh device admission is required
 after the user-authorized stable-connection check. The native attempt budget
 remains zero used, one allowed.
+
+The physical attempt subsequently stopped during USB initialization, before
+Tenfoot Ready or any tape request. See [hardware.md](hardware.md) and the exact
+[hardware result](hardware-result.json). The native attempt is consumed.
