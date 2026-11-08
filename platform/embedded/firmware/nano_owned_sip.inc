@@ -1,6 +1,7 @@
 /* SPDX-License-Identifier: BSD-3-Clause */
 /* Inserted after the pinned configuration engine; reuse its state/buffers. */
 #include "nano_bridge_platform.h"
+#include "generated/fes_embedded_tape.h"
 #ifdef FES_NANO_COLD_SERIAL
 #include "fes_nano_cold_profile.h"
 static const uint8_t fes_nano_hps_context[32] = FES_NANO_HPS_CONTEXT_SHA;
@@ -30,6 +31,12 @@ static void fes_nano_owned_call(uint32_t fid, uint64_t x1, uint64_t x2,
     r[0] = INTEL_SIP_SMC_STATUS_REJECTED;
     r[1] = r[2] = r[3] = 0;
     fes_nano_bridge_platform_lock();
+    if(fid==FES_EMBEDDED_TAPE_CALL && x3==FES_EMBEDDED_TAPE_COOKIE) {
+        r[0]=FES_EMBEDDED_TAPE_NOT_READY;r[1]=(uint64_t)FES_EMBEDDED_TAPE_TAG<<32;
+#if !defined(FES_NANO_INITIAL_TAPE) || !FES_NANO_INITIAL_TAPE
+        goto out;
+#endif
+    }
     if (fid == FES_EMBEDDED_USB_CALL && x3 == FES_EMBEDDED_USB_COOKIE) {
         fes_nano_usb_service_sip(&fes_nano_owned_usb,x1,x2,x4,
             request_type != NO_REQUEST || fes_nano_configuration_busy(configuration),r);
@@ -50,6 +57,7 @@ static void fes_nano_owned_call(uint32_t fid, uint64_t x1, uint64_t x2,
     int usb_gate=fes_nano_usb_service_gate(&fes_nano_owned_usb);
     if (usb_gate) {
         r[0]=usb_gate<0 ? FES_EMBEDDED_USB_ERROR : INTEL_SIP_SMC_STATUS_BUSY;
+        if(fid==FES_EMBEDDED_TAPE_CALL)r[0]=usb_gate<0 ? FES_EMBEDDED_TAPE_ERROR:FES_EMBEDDED_TAPE_BUSY;
         if (fid==FES_EMBEDDED_SD_CALL) r[1]=(uint64_t)FES_EMBEDDED_SD_TAG<<32;
         if (fid==FES_EMBEDDED_BRIDGE_CALL) r[1]=(uint64_t)FES_EMBEDDED_BRIDGE_TAG<<32;
         goto out;

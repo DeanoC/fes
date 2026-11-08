@@ -16,6 +16,17 @@
 #include <stdio.h>
 #include <string.h>
 #include <sys/mman.h>
+#ifdef FES_TEST_INITIAL_TAPE
+#include "nano_tape_service.h"
+void fes_test_tape_endpoint_init(unsigned,const uint8_t[16],unsigned);
+uint32_t fes_test_tape_endpoint_read(uint32_t);
+void fes_test_tape_endpoint_write(uint32_t,uint32_t);
+unsigned fes_test_tape_endpoint_accesses(void);
+unsigned fes_test_tape_endpoint_writes(void);
+unsigned fes_test_tape_endpoint_complete(void);
+static unsigned tape_clock_expired;
+static int mixed_tape(uint64_t,uint64_t);
+#endif
 #ifdef FES_TEST_PROGRAM_ROLES
 #include "nano_rom.h"
 static uint32_t mixed_read(uintptr_t);
@@ -129,8 +140,9 @@ int fes_nano_cold_cpu_release_locked(void) { return release_locked; }
 struct fes_nano_bridges fes_nano_owned_bridges;
 struct fes_nano_sd fes_nano_owned_sd;
 struct fes_nano_usb_service fes_nano_owned_usb;
-void fes_nano_bridge_platform_lock(void) {}
-void fes_nano_bridge_platform_unlock(void) {}
+static unsigned owned_lock;
+void fes_nano_bridge_platform_lock(void) {assert(!owned_lock);owned_lock=1;}
+void fes_nano_bridge_platform_unlock(void) {assert(owned_lock);owned_lock=0;}
 #define FES_NANO_COLD_SERIAL 1
 #define INTEL_SIP_SMC_STATUS_REJECTED 2
 #define INTEL_SIP_SMC_STATUS_ERROR 4
@@ -147,7 +159,13 @@ static unsigned request_type,engine_calls;
 static struct { unsigned write_requested; } fpga_config_buffers[1];
 #if defined(FES_NANO_COLD_CONFIG) && FES_NANO_COLD_CONFIG
 #include "nano_mailbox_observe.h"
-uint64_t read_cntpct_el0(void) { static uint64_t ticks;return ticks+=100; }
+uint64_t read_cntpct_el0(void) {
+    static uint64_t ticks;
+#ifdef FES_TEST_INITIAL_TAPE
+    if(tape_clock_expired)return ticks+=400000000U;
+#endif
+    return ticks+=100;
+}
 static int max_blocks=4,current_block,fes_contained_transport_status;
 static unsigned bytes_per_block=0xffff0,send_id,blocks_submitted,fes_contained_transport_phase;
 static unsigned mailbox_observations[4];
@@ -262,6 +280,9 @@ uint32_t mmio_read_32(uintptr_t a)
     if(a>=FES_NANO_USB_BASE && a<FES_NANO_USB_BASE+0x1000)return shared_usb_read(a);
 #endif
 #ifdef FES_TEST_PROGRAM_ROLES
+#ifdef FES_TEST_INITIAL_TAPE
+    if(a>=0x20010300UL && a<0x20010320UL)return mixed_read(a);
+#endif
     if((a>=FES_NANO_CONTROL_BASE && a<FES_NANO_CONTROL_BASE+0x100) ||
        (a>=FES_NANO_ROM_CPU_BASE && a<FES_NANO_ROM_CPU_BASE+128) ||
        (a>=FES_NANO_PROBE_CPU_BASE && a<FES_NANO_PROBE_CPU_BASE+128))return mixed_read(a);
@@ -510,6 +531,9 @@ void mmio_write_32(uintptr_t a,uint32_t v) {
     if(a>=FES_NANO_USB_BASE && a<FES_NANO_USB_BASE+0x1000) {shared_usb_write(a,v);return;}
 #endif
 #ifdef FES_TEST_PROGRAM_ROLES
+#ifdef FES_TEST_INITIAL_TAPE
+    if(a>=0x20010300UL && a<0x20010320UL) {mixed_write(a,v);return;}
+#endif
     if((a>=FES_NANO_CONTROL_BASE && a<FES_NANO_CONTROL_BASE+0x100) ||
        (a>=FES_NANO_ROM_CPU_BASE && a<FES_NANO_ROM_CPU_BASE+128) ||
        (a>=FES_NANO_PROBE_CPU_BASE && a<FES_NANO_PROBE_CPU_BASE+128)) {mixed_write(a,v);return;}
@@ -671,6 +695,9 @@ static void barrier(void *p) { (void)p; }
 #endif
 #ifdef FES_TEST_PROGRAM_ROLES
 #include "nano_mixed_cold_test.inc"
+#ifdef FES_TEST_INITIAL_TAPE
+#include "nano_mixed_tape_test.inc"
+#endif
 #endif
 #ifdef FES_TEST_SHARED_USB
 #include "nano_mixed_usb_test.inc"

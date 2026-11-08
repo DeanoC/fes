@@ -39,7 +39,7 @@ class NanoTapeServiceTests(unittest.TestCase):
                 self.check(0, size)
 
     def test_service_failures_and_original_deadline(self):
-        for mode in range(101, 114):
+        for mode in range(101, 116):
             with self.subTest(mode=mode):
                 self.check(mode)
 

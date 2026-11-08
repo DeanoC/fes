@@ -19,8 +19,10 @@ cannot release a tape lease. Another tape requires a new completed program
 lease and newer generation from the same owner. The actual Go header and
 receipt codec are joined to `nano_tape_service` and the real C transfer engine
 in portable tests with injected ownership, digest and endpoint callbacks.
-The board CPU transport and strong firmware supplier still need connecting;
-these tests establish neither physical authority nor board timing.
+The strong firmware supplier and secure dispatcher now join behind an explicit
+firmware build flag, with separate real-provider/register-model tests. The board
+CPU transport and matched SDK/boot selection still need connecting; these tests
+establish neither physical authority nor board timing.
 
 The native computer path now accepts an optional game tape in each retained
 program choice. The canonical selection adds

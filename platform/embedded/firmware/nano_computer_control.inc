@@ -41,6 +41,21 @@ static int fes_nano_computer_control(uint32_t fid, uint64_t operation,
     }
     if (fes_nano_computer_phase == 1) {
         if (snapshot) return 0;
+#if defined(FES_NANO_INITIAL_TAPE) && FES_NANO_INITIAL_TAPE
+        if(fid==FES_EMBEDDED_TAPE_CALL && cookie==FES_EMBEDDED_TAPE_COOKIE) {
+            result[0]=FES_EMBEDDED_TAPE_REJECTED;
+            result[1]=(uint64_t)FES_EMBEDDED_TAPE_TAG<<32;result[2]=result[3]=0;
+            if(busy || !c || !c->bridges || !p || p->bridges!=c->bridges || owner!=c->owner ||
+               generation!=c->bridges->state.generation)return 1;
+            if(fes_nano_platform_computer_tape(operation,owner,generation,result)<0) {
+                fes_nano_computer_phase=2;
+                p->failed=1;p->bridges->failed=1;
+                if(p->io.contain)p->cleanup_error=p->io.contain(p->io.context);
+                p->active=0;
+            }
+            return 1;
+        }
+#endif
         if (!close) return 1;
         fes_nano_computer_phase = 2; /* An unknown close is never replayed. */
         if (!p || !p->active || !c || p->bridges != c->bridges) return 1;

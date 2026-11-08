@@ -28,6 +28,9 @@ int fes_nano_platform_usb_setup(void);
 int fes_nano_platform_computer_rom(struct fes_nano_configuration *,uint64_t owner,uint64_t generation);
 /* Emit a saved ROM failure once, after containment; no fresh hardware reads. */
 void fes_nano_platform_computer_rom_report(void);
+/* Explicit initial-tape profile only, under the same secure lock. Returns
+ * negative only after a selected uncertain attempt, requiring containment. */
+int fes_nano_platform_computer_tape(uint64_t operation,uint64_t owner,uint64_t generation,uint64_t result[4]);
 /* Mixed-role firmware only. Trusted platform completion callback, under the
  * shared lock, after installing the new stop/ROM inventory and before success.
  * This is never an NS command or authority supplied by descriptor capture. */

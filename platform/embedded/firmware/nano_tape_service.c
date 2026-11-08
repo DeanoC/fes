@@ -65,6 +65,8 @@ void fes_nano_tape_service_call(struct fes_nano_tape_service *s,uint64_t operati
     if (error) {fail(s,error);goto out;}
     if (!s->engine.complete ||receipt.owner!=owner ||receipt.generation!=generation ||receipt.bytes!=bytes ||receipt.crc!=crc) {fail(s,FES_TAPE_STATE);goto out;}
     if (guard(s)) goto out;
+    if (s->io.verify(s->io.context,bytes,h+FES_EMBEDDED_TAPE_SHA384_OFFSET)) {fail(s,FES_TAPE_INTEGRITY);goto out;}
+    if (guard(s)) goto out;
     s->complete=1;
     r[0]=FES_EMBEDDED_TAPE_OK;r[1]|=bytes;r[2]=generation;r[3]=receipt.gpo|((uint64_t)receipt.crc<<32);
 out:

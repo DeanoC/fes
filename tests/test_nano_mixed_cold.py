@@ -24,7 +24,10 @@ class NanoMixedColdTests(unittest.TestCase):
     def test_actual_shared_usb_provider_menu_core_and_return_cycles_and_failures(self):
         self.exercise(True)
 
-    def exercise(self, shared_usb):
+    def test_actual_initial_tape_supplier_dispatch_hash_and_return(self):
+        self.exercise(True, initial_tape=True)
+
+    def exercise(self, shared_usb, initial_tape=False):
         reference = Path(os.environ.get('FES_NANO_SHA_REFERENCE', str(
             ROOT / 'out/terasic-git-restore-tfa/plat/intel/soc/common/lib/sha/sha.c')))
         if not reference.is_file():
@@ -34,7 +37,7 @@ class NanoMixedColdTests(unittest.TestCase):
         self.assertEqual(hashlib.sha256(reference.with_name('sha.h').read_bytes()).hexdigest(),
                          '76a51a6aba59f84f754d9b8102394ff12ce0cdad1fb89cec61130543b73f66fb')
         evidence = os.environ.get('FES_NANO_MIXED_COLD_EVIDENCE')
-        target = Path(evidence + ('-shared-usb' if shared_usb else '')).absolute() if evidence else None
+        target = Path(evidence + ('-initial-tape' if initial_tape else '-shared-usb' if shared_usb else '')).absolute() if evidence else None
         if target is not None:
             self.assertTrue(target.is_relative_to(ROOT / 'out') and not target.exists())
             target.mkdir(parents=True)
@@ -105,6 +108,8 @@ class NanoMixedColdTests(unittest.TestCase):
                     '#define FES_NANO_SHARED_USB 1\n#define FES_NANO_HPS_IO_OBSERVE 1\n'
                     '#define FES_NANO_HPS_IO_REGISTERS FES_NANO_USB_BOARD_PINS\n'
                     '#define FES_NANO_HPS_IO_SHA FES_NANO_USB_BOARD_DIGEST\n')
+            if initial_tape:
+                profile += '#define FES_NANO_INITIAL_TAPE 1\n'
             (base / 'fes_nano_cold_profile.h').write_text(profile)
             sources = ('nano_cold_platform.c', 'nano_cold.c', 'nano_boot.c', 'nano_bridges.c',
                 'nano_bridge_sip.c', 'nano_sd.c', 'nano_usb_service.c', 'nano_sd_platform.c',
@@ -112,12 +117,16 @@ class NanoMixedColdTests(unittest.TestCase):
                 'nano_ddr_firewall.c', 'nano_fabric_stop.c', 'nano_probe_stop.c', 'tests/nano_cold_platform_test.c')
             if shared_usb:
                 sources += ('nano_usb_platform.c', 'nano_usb_board.c', 'nano_usb_composition.c', 'nano_hps_io.c')
+            if initial_tape:
+                sources += ('nano_tape.c', 'nano_tape_service.c', 'tests/nano_tape_endpoint_test.c')
             command = ['cc', '-std=c11', '-Wall', '-Wextra', '-Werror', '-Wno-unused-const-variable',
                 '-DFES_TEST_PROGRAM_ROLES', '-DFES_TEST_HPS_CONTEXT', '-DFES_TEST_CONFIGURATION_EPOCHS',
                 '-fsanitize=undefined', '-fno-sanitize-recover=all', '-I' + str(base), '-I' + str(FW),
                 *(str(FW / name) for name in sources), str(base / 'vendor_sha.o'), '-o', str(base / 'mixed')]
             if shared_usb:
                 command.insert(1, '-DFES_TEST_SHARED_USB')
+            if initial_tape:
+                command.insert(1, '-DFES_TEST_INITIAL_TAPE')
             result = subprocess.run(command, capture_output=True, text=True, timeout=30)
             if target is not None:
                 (target / 'compile.log').write_text(result.stdout + result.stderr)
@@ -125,6 +134,8 @@ class NanoMixedColdTests(unittest.TestCase):
             modes = (0, 1, 2, 3, 11, 12, 13, 14, 15, 16, 17, 19, 20)
             if shared_usb:
                 modes += (21, 22, 23, 24, 25, 26)
+            if initial_tape:
+                modes += (30,31,33,34,35,36,37,38,39,40,41,42,43,44,45,46,47,48,49)
             for mode in modes:
                 with self.subTest(mode=mode):
                     result = subprocess.run([base / 'mixed', str(mode)], capture_output=True, text=True, timeout=30)
@@ -141,11 +152,28 @@ class NanoMixedColdTests(unittest.TestCase):
             self.assertIn('source-bound mixed role resources and union memory', result.stderr)
             if target is not None:
                 (target / 'short-arena-rejection.log').write_text(result.stdout + result.stderr)
+            if initial_tape:
+                for name in ('FES_NANO_COLD_CONFIG', 'FES_NANO_COLD_COMPUTER', 'FES_NANO_COLD_ROM',
+                             'FES_NANO_SHARED_USB', 'FES_NANO_CONTROLLED_SD'):
+                    with self.subTest(missing_tape_prerequisite=name):
+                        (base / 'fes_nano_cold_profile.h').write_text(profile.replace(
+                            '#define ' + name + ' 1\n', '#define ' + name + ' 0\n'))
+                        rejected = subprocess.run(command, capture_output=True, text=True, timeout=30)
+                        self.assertNotEqual(rejected.returncode, 0)
+                        diagnostic = ('cold computer control requires the sealed configuration path'
+                                      if name == 'FES_NANO_COLD_CONFIG' else 'Initial_tape_requires_the_matched')
+                        self.assertIn(diagnostic, rejected.stderr)
+                        if target is not None:
+                            (target / ('missing-' + name + '.log')).write_text(rejected.stdout + rejected.stderr)
+                (base / 'fes_nano_cold_profile.h').write_text(profile)
+            if target is not None:
                 shutil.copytree(base, target / 'fixture')
                 (target / 'fixture/qualified-profile.h').write_text(profile)
                 source_files = [FW / name for name in sources] + [
                     FW / name for name in ('nano_program_control.inc', 'nano_computer_control.inc',
                         'nano_window_control.inc', 'nano_rom_platform.inc', 'tests/nano_mixed_cold_test.inc')]
+                if initial_tape:
+                    source_files += [FW / name for name in ('nano_tape_platform.inc', 'nano_tape.h', 'nano_tape_service.h', 'tests/nano_mixed_tape_test.inc', 'tests/nano_tape_test.c')]
                 if shared_usb:
                     source_files += [FW / name for name in ('nano_usb_boot.inc', 'tests/nano_mixed_usb_test.inc')]
                     source_files += [ROOT / name for name in ('platform/embedded/nano/usb_readiness.py',

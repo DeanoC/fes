@@ -3,8 +3,11 @@
 [`fes.fabric.embedded.tape`](../packages/fabric/fes_fabric_embedded_tape.yaml)
 defines the private channel between native publication and a secure initial-tape
 service. It generates C and Go constants. Call `0xc2000304` is an unused private
-experiment number, not a vendor allocation. The current Nano SiP dispatcher,
-strong platform supplier and board runtime do not select it.
+experiment number, not a vendor allocation. The owned Nano SiP export includes
+the service, with an unready default. The explicit `FES_NANO_INITIAL_TAPE` build
+flag connects the strong supplier only in a complete shared-USB/SD/held-ROM
+computer composition. Current SDK/boot profiles and board CPU transport do not
+select that flag/service.
 
 The trusted platform supplies the fixed 8 MiB arena at `0x94800000`, with the
 descriptor in its final page at `0x94fff000`. The payload begins at the arena
@@ -35,7 +38,9 @@ cookie `0x46455354`. They carry no address, timeout or selected identity.
 Decoding FID/cookie under the secure lifecycle lock remains the dispatcher's
 obligation. The service reads the fixed header twice under fresh ownership
 checks, compares it to private accepted program identity and verifies the
-fixed source digest before calling the real held-transfer engine.
+fixed source digest before calling the real held-transfer engine and again
+before successful completion. Both digest passes remain inside the original
+deadline, rejecting a late source change even after its final chunk was copied.
 
 Reply registers contain status, `(tag << 32) | bytes`, generation and
 `(crc << 32) | finalGPO`, with tag `0x46545031`. Bytes, generation and GPO/CRC
@@ -51,5 +56,7 @@ across that boundary. A request cannot supply either timer value.
 Portable tests join the actual Go arena/descriptor codec to the actual C
 service and engine with an injected endpoint, ownership and digest supplier.
 Separate captured-RTL tests cover the engine and native launch/return protocol.
-Neither establishes the missing strong supplier, physical timing or board
-acceptance.
+Joined strong-provider tests execute the actual secure dispatcher, cold/CPU/USB
+callbacks, pinned SHA and engine with modeled registers through core/menu
+load/return, failure and no-replay paths. Neither establishes physical timing,
+a matched boot/runtime selection or board acceptance.

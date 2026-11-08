@@ -901,6 +901,9 @@ static int configuration_return_generation(uint64_t owner,uint64_t generation)
 #if defined(FES_NANO_COLD_ROM) && FES_NANO_COLD_ROM
 #include "nano_rom_platform.inc"
 #endif
+#if defined(FES_NANO_INITIAL_TAPE) && FES_NANO_INITIAL_TAPE
+#include "nano_tape_platform.inc"
+#endif
 static int configuration_complete(void *context, uint64_t owner, uint64_t generation, unsigned rearmed)
 {
     struct fes_nano_bridge_snapshot current;
@@ -944,8 +947,14 @@ static int configuration_complete(void *context, uint64_t owner, uint64_t genera
                                              computer_rom_retire(owner,generation))return -1;
     if(fes_nano_program_control_activate(&configuration,&configuration_program))return -1;
     active_program_role=role;
+#if defined(FES_NANO_INITIAL_TAPE) && FES_NANO_INITIAL_TAPE
+    if(computer_tape_prepare(owner,generation,role==FES_NANO_PROGRAM_ROLE_COMPUTER))return -1;
+#endif
 #else
     if(computer_rom_prepare(owner,generation))return -1;
+#if defined(FES_NANO_INITIAL_TAPE) && FES_NANO_INITIAL_TAPE
+    if(computer_tape_prepare(owner,generation,1))return -1;
+#endif
 #endif
 #endif
 #if defined(FES_NANO_WINDOW_STORAGE_RETURN) && FES_NANO_WINDOW_STORAGE_RETURN

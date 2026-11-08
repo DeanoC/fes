@@ -6,15 +6,16 @@ adapter, and verification against actual FPGA RTL. These tools build firmware
 components; the Nano tools assemble the matched experimental boot images.
 Software tests and cross-builds remain distinct from hardware acceptance.
 
-`nano_tape` is an unbound secure-side initial-tape engine for the existing
-Avalon computer mailbox. It is not installed in TF-A, exposed by an SMC, or
-selected by the native runtime yet. Its trusted supplier must hold the secure
+`nano_tape` is a secure-side initial-tape engine for the existing
+Avalon computer mailbox. The owned TF-A export includes its service; existing
+profiles leave the channel unready. Its trusted supplier holds the secure
 lifecycle lock with non-secure execution and other CPUs stopped, and all DMA
 and data masters contained. Complete fresh ownership observations frame
 preparation, each 512-byte chunk and completion; every CSR independently checks
 live CPU/reset/access ownership before and after. These are required callbacks,
-with no permissive fallback. The intended physical supplier follows the existing
-secure ROM-step pattern; these unbound hooks alone grant no permission.
+with no permissive fallback. The explicit `FES_NANO_INITIAL_TAPE` strong supplier
+follows the existing secure ROM-step pattern. No current SDK or boot profile
+enables that build flag, and the Nano CPU transport does not select the service.
 
 The engine checks the selected full GP identity and adapter version before and
 after, the acknowledged initial Hold, stable transport snapshots, one toggled
@@ -38,15 +39,31 @@ source-memory ownership or a firmware service grant.
 `nano_tape_service` now captures the fixed-window descriptor twice, verifies its
 source digest and private accepted build, and calls that engine under one
 original one-second budget. The start and last timer samples carry across the
-service/engine boundary. A complete final ownership proof precedes publication
+service/engine boundary. A second source digest and complete final ownership
+proof precede publication
 of the receipt; failures and replays expose no success fields. The corresponding
 native arena publisher reuses only a completed configuration lease, keeps the
 entire mapping pinned and retires uncertain outcomes. Portable tests join its
 actual Go descriptor and receipt decoder to this C service and endpoint model.
 The [shared contract](../../../sources/mister-packages/docs/embedded-tape.md)
-describes the fixed header and call registers. The real Nano dispatcher,
-strong supplier and CPU transport remain disconnected; no new hardware path
-is enabled by these unbound components.
+describes the fixed header and call registers. The real Nano dispatcher and
+strong supplier now join behind the explicit build flag. Requests are confined
+to the active phase1 computer under the existing SiP lock; menu/closed/default
+profiles cannot use it. The supplier requires accepted configuration and ROM
+completion, the runtime READ phase, inactive SD, confirmed shared USB, exact
+CPU/reset/owner/generation and contained masters. Every CSR has fresh live guards;
+complete observations frame preparation, each 512-byte chunk and completion. It uses
+only the fixed descriptor/payload window and the private accepted build.
+
+Selected failures retire the computer policy and invoke its existing containment
+callback. Replays/foreign requests cannot reconstruct the service; only a newer
+trusted configuration completion can prepare a healthy new object. Unused tape
+objects do not block ordinary no-tape return/reconfiguration. Joined portable
+tests execute the actual dispatcher, strong provider, pinned SHA, tape engine,
+ROM and master-stop/SD-return path with injected registers. They cover repeated
+roles, late source/CPU/reset/USB changes, ACK loss, expiry and five incomplete
+compile selections. Physical timing, a complete BL31 link and a matched runtime
+selection remain unqualified; no new hardware path is enabled by this change.
 
 The per-load descriptor now has a version-three mixed-role prototype. A trusted
 `fes_nano_program_enable_roles` call, after installing the fixed ROM-extension

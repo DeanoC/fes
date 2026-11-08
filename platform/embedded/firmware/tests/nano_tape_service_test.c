@@ -42,11 +42,13 @@ static int verify_source(void *context,uint32_t count,const uint8_t digest[48])
     assert(!f->tape.active);
     if (count!=f->tape.size) return -1;
     if (f->mode==109) return -1;
+    if (f->mode==114 && f->verifies==2) return -1;
     /* The cryptographic supplier is injected here; engine CRC uses real bytes. */
     if (memcmp(digest,f->digest,48)) return -1;
     if (f->mode==110) f->tape.tick=1000001;
     if (f->mode==111) f->tape.image[0]^=1;
     if (f->mode==112) f->tape.tick=700000; /* prologue consumes original budget */
+    if (f->mode==115 && f->verifies==2) f->tape.tick=1000001;
     return 0;
 }
 static uint64_t service_now(void *context)
@@ -109,7 +111,7 @@ int main(int argc,char **argv)
     } else {
         assert(result[0] &&f.service.failed && !f.service.complete);
         assert(result[1]==(uint64_t)FES_EMBEDDED_TAPE_TAG<<32 && !result[2] && !result[3]);
-        if (f.mode==104 ||f.mode==105 ||f.mode==106 ||f.mode==110 ||f.mode==112 ||f.mode==113)
+        if (f.mode==104 ||f.mode==105 ||f.mode==106 ||f.mode==110 ||f.mode==112 ||f.mode==113 ||f.mode==115)
             assert(result[0]==FES_EMBEDDED_TAPE_LIMIT);
         if ((f.mode>=120 && (f.mode<156 ||f.mode>159)) ||f.mode==101 ||f.mode==102 ||f.mode==104 ||f.mode==105 ||f.mode==107 ||f.mode==108 ||f.mode==109 ||f.mode==110 ||f.mode==113)
             assert(!m->writes && !m->reads && !m->begins);

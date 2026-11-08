@@ -49,6 +49,9 @@ static void mixed_configuration_start(void)
 static uint32_t mixed_read(uintptr_t a)
 {
     assert(bridge==13 || bridge==5);
+#ifdef FES_TEST_INITIAL_TAPE
+    if(a>=0x20010300UL && a<0x20010320UL) {assert(owned_lock);return fes_test_tape_endpoint_read((uint32_t)(a-0x20010300UL));}
+#endif
     if(a>=FES_NANO_ROM_CPU_BASE && a<FES_NANO_ROM_CPU_BASE+128) {
         assert(mixed_target_role==2 && bridge==13);
         return mixed_rom[(a-FES_NANO_ROM_CPU_BASE)/4];
@@ -70,6 +73,22 @@ static uint32_t mixed_read(uintptr_t a)
 static void mixed_write(uintptr_t a,uint32_t value)
 {
     assert(bridge==13 || bridge==5);
+#ifdef FES_TEST_INITIAL_TAPE
+    if(a>=0x20010300UL && a<0x20010320UL) {
+        assert(owned_lock);
+        fes_test_tape_endpoint_write((uint32_t)(a-0x20010300UL),value);
+        unsigned writes=fes_test_tape_endpoint_writes();
+        if(writes==48) {
+            if(mixed_mode==40)sctlr=4;
+            if(mixed_mode==41)per0&=~0x80U;
+            if(mixed_mode==42)fes_nano_owned_usb.platform->generation++;
+            if(mixed_mode==44)tape_clock_expired=1;
+        }
+        unsigned commands=49+3*((917+511)/512)+(917+1)/2;
+        if(mixed_mode==46 && writes==commands)configuration_memory[0]^=1;
+        return;
+    }
+#endif
     if(a>=FES_NANO_ROM_CPU_BASE && a<FES_NANO_ROM_CPU_BASE+128) {
         assert(mixed_target_role==2 && bridge==13);mixed_rom_writes++;
         unsigned offset=(unsigned)(a-FES_NANO_ROM_CPU_BASE);
@@ -146,6 +165,8 @@ static int mixed_runtime(uint64_t owner,unsigned mode)
 #ifdef FES_TEST_SHARED_USB
     shared_usb_start(owner);
 #endif
+    fes_nano_owned_call(FES_EMBEDDED_TAPE_CALL,0,owner,FES_EMBEDDED_TAPE_COOKIE,1,reply);
+    assert(reply[0] && reply[1]==(uint64_t)FES_EMBEDDED_TAPE_TAG<<32 && !reply[2] && !reply[3]);
     uint64_t returned=1;
     for(mixed_cycle=0;mixed_cycle<5;mixed_cycle++) {
         mixed_target_role=mode==2 ? 1U:mode==3 ? 2U:((mixed_cycle+(mode==1))%2 ? 2U:1U);
@@ -206,6 +227,9 @@ static int mixed_runtime(uint64_t owner,unsigned mode)
             mixed_control[FES_EMBEDDED_REG_GENERATION_LO/4]=1;
             mixed_control[FES_EMBEDDED_REG_REQUEST_GENERATION_LO/4]=1;
         }
+#ifdef FES_TEST_INITIAL_TAPE
+        if(mixed_tape(owner,generation+1))return 0;
+#endif
 #ifdef FES_TEST_SHARED_USB
         shared_usb_observe(owner); /* Includes menu bridge=5 and an active DDR request. */
         if(mixed_target_role==1 && shared_usb_fault(owner,mode))return 0;
