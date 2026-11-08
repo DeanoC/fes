@@ -6,6 +6,8 @@
 # agent is idle with a free lease; runs c64run.py (a private FogCast host built from main, library launch of the
 # sealed fes.c64 package with the locally composed firmware and D64s) fed by SCRIPT; removes only the FogCast data
 # trees this run created; logs FREE only if the kit matches its pre-run snapshot. Halts (kit stays IN USE) otherwise.
+# The claim is logged before any probe; a failed baseline or lease probe withdraws it with the kit as found.
+# Refuses to start with less than 30 GiB free. c64run.py stops at the first failed operation.
 set -u
 KIT=$1; RUN=$2; PLAN=$3; SCRIPT=$4
 G=/home/deano/fes-scratch/c64acc; KS=/home/deano/kit-status; S=$KS/kit${KIT}-STATUS.md
@@ -28,19 +30,25 @@ named=$(grep -oE "baseline [0-9a-f]{40} overlay [0-9a-f]{64}; OS [0-9a-f]{64}" $
 read -r _ BASE_MAIN_FULL _ BASE_SW _ GOOD <<< "${named//;/}"
 [ ${#BASE_SW} = 64 ] && [ ${#GOOD} = 64 ] || { st "kit $KIT status names no baseline; not touched"; exit 4; }
 BASE_MAIN=${BASE_MAIN_FULL:0:8}
+# AGENTS.md: refuse a job under 30 GiB free (captures, WAVs and the private host tree land under $G).
+free=$(df -B1 --output=avail $G | tail -n 1)
+[ "$free" -ge $((30 * 1024 * 1024 * 1024)) ] || { st "only $free bytes free under $G; kit $KIT not claimed"; exit 6; }
+# Claim in the status file (the single source of truth) before any probe touches the kit.
+printf "\n## %s KIT %s IN USE: Claude (C64 game acceptance fes#1531, for Deano) — run %s, core-only on baseline software %s from main %s (no install, no image change, no reboot, shared host untouched): a private FogCast host built from main %s launches the sealed fes.c64 package %s as library games with locally composed firmware and D64s from Deano's C64 Forever collection, plays them through the agent's input stream, grabs HDMI/audio on Powerboat, stops. Removes the FogCast data trees this run creates before release.%s Workdir ~/fes-scratch/c64acc. Probing the baseline next.\n" \
+  "$(date "+%H:%M %Z")" "$KIT" "$RUN" "${BASE_SW:0:8}" "$BASE_MAIN" "${HOST_MAIN:-607922c6}" "$(python3 -c "import json;print(json.load(open('$PLAN'))['package_id'][:16])")" "${NOTE:+ $NOTE}" >> $S
+st "CLAIMED kit $KIT for $RUN"
+unclaim(){ printf -- "- %s %s: %s; nothing was changed on the kit.\n## %s KIT %s FREE — Claude C64 #1531 %s claim withdrawn, kit as found\n" "$(date "+%H:%M %Z")" "$RUN" "$1" "$(date "+%H:%M %Z")" "$KIT" "$RUN" >> $S; st "WITHDRAWN: $1"; }
 (cd $K && ./snap.sh c64-$RUN-probe > /dev/null 2>&1)
 keys(){ grep -oE "(state.good|state.previous|state.pending|fat_idle|launcher.json|images|cmdline_quirk|boot_id) [^ ]*" $K/logs/$1-kit.txt | sort -u; grep -o "sw gen.*" $K/logs/$1-sw.txt | sed -E 's/gen [0-9]* //; s/ previous [0-9a-f]*//'; }
 base_ok(){ grep -q "state.good \"$GOOD\"" $1-kit.txt && grep -q 'state.pending ""' $1-kit.txt && grep -q '"phase":"idle"' $1-kit.txt \
   && grep -q "active ${BASE_SW:0:8}" $1-sw.txt && grep -q no-pending $1-sw.txt \
   && { [ $QUIRK = 0 ] || grep -q "cmdline_quirk usb-storage.quirks=152d:0583:i" $1-kit.txt; }; }
-base_ok $K/logs/c64-$RUN-probe || { st "kit $KIT FREE but off baseline; not touched"; cat $K/logs/c64-$RUN-probe-sw.txt | tee -a $OUT/wrapper.log; exit 4; }
+base_ok $K/logs/c64-$RUN-probe || { cat $K/logs/c64-$RUN-probe-sw.txt | tee -a $OUT/wrapper.log; unclaim "kit is off the named baseline"; exit 4; }
 for i in $(seq 1 30); do timeout 60 python3 /home/deano/fes-scratch/acc1368/games_lease_probe.py $KIT > $OUT/lease-before.txt 2>&1 && [ "$(awk '{print $2, $4}' $OUT/lease-before.txt)" = "idle free" ] && break; sleep 3; done
-[ "$(awk '{print $2, $4}' $OUT/lease-before.txt)" = "idle free" ] || { st "kit $KIT agent not idle with a free lease; not touched"; exit 3; }
+[ "$(awk '{print $2, $4}' $OUT/lease-before.txt)" = "idle free" ] || { unclaim "agent not idle with a free lease"; exit 3; }
 FOUND=$(keys c64-$RUN-probe | tr '\n' ' ' | cut -c1-400)
 $SSH "find $DATA 2>/dev/null | sort" > $OUT/kit-find-before.txt
-printf "\n## %s KIT %s IN USE: Claude (C64 game acceptance fes#1531, for Deano) — run %s, core-only on baseline software %s from main %s (no install, no image change, no reboot, shared host untouched): a private FogCast host built from main %s launches the sealed fes.c64 package %s as library games with locally composed firmware and D64s from Deano's C64 Forever collection, plays them through the agent's input stream, grabs HDMI/audio on Powerboat, stops. Removes the FogCast data trees this run creates before release.%s Workdir ~/fes-scratch/c64acc. Restore target, as found: %s\n" \
-  "$(date "+%H:%M %Z")" "$KIT" "$RUN" "${BASE_SW:0:8}" "$BASE_MAIN" "${HOST_MAIN:-607922c6}" "$(python3 -c "import json;print(json.load(open('$PLAN'))['package_id'][:16])")" "${NOTE:+ $NOTE}" "$FOUND" >> $S
-st "CLAIMED kit $KIT for $RUN"
+printf -- "- %s %s: baseline and lease checked. Restore target, as found: %s\n" "$(date "+%H:%M %Z")" "$RUN" "$FOUND" >> $S
 # Feed the script to the driver as it runs: lines are appended one at a time, each after the previous ack.
 ( python3 - "$OUT" <<'EOF'
 import json, sys, time

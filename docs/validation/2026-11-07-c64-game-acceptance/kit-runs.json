@@ -88,6 +88,12 @@
    "6b512d75 (mw2)": "as final but the audio recorder cap is 900 s, not 1800 s",
    "8da87b83 (kik2, lode1, mw1)": "as mw2 but no ( ) ; in the BASIC key map and live-media/clear sent a {} body",
    "2f8d4585 (kik1)": "as kik2 with an earlier BASIC typing map (the shifted-LOAD bug)"
+  },
+  "tools_changes_since_runs": {
+   "note": "tools/ holds the maintained scripts for reruns; the exact driver each run used is bound by driver_sha256 (the mw3 driver is tools/c64run.py before these changes)",
+   "c64run.py": "stops at the first failed operation (halted, exit status 1) instead of acknowledging the error and continuing; a failed 'session' status read, which changes nothing, is still only recorded",
+   "run-c64.sh": "logs the IN USE claim before any probe touches the kit and withdraws it, with the kit as found, if the baseline or lease probe fails; refuses to start with less than 30 GiB free under the work directory (exit 6)",
+   "reason": "Codex review of PR #1575. In the counted runs kik4, lode1 and mw3 no operation failed; mw2's only failures were two transient 'session' status reads (503, recorded in case 3), which the new rule still tolerates. mw1's failed typing op is the harness failure recorded below; the new rule would have stopped that run there. Every run's claim was followed by passing probes, so the claim-order change alters no run's outcome"
   }
  },
  "runs": {

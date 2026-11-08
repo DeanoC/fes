@@ -134,7 +134,8 @@ The same script, mapped to VICE's input, produced the reference.
 
 The exact scripts are committed: `inputs/kit-<run>.jsonl` for the kit
 (`kik1` used the `kik2` script) and `inputs/vice-*.jsonl` for VICE. The
-driver and helpers are in [tools/](tools/). The JSON binds each run to its
+driver and helpers are in [tools/](tools/); they have changed since the runs (see the JSON's
+`tools_changes_since_runs`), and each run's exact driver is bound by hash. The JSON binds each run to its
 script hash, driver hash, event-log hash and play seeds. The seed fixes the
 sequence of joystick moves, but each hold lasts a random 0.15–0.7 s of wall
 time, so play repeats in order, not in exact timing.

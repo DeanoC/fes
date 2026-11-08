@@ -514,6 +514,11 @@ class Run:
                     status = 'error'
                 with ACKS.open('a') as a:
                     a.write(json.dumps({'op': op['op'], 'status': status, 't': time.strftime('%T')}) + '\n')
+                if status == 'error' and op['op'] != 'session':
+                    # Later steps depend on this one; stop rather than produce evidence on a broken path.
+                    # A failed 'session' status read changes nothing and is only recorded.
+                    self.result['halted'] = f"op {op['op']} failed"
+                    return
                 pos += 1
 
     def cleanup(self):
@@ -563,6 +568,8 @@ def main():
         if host:
             host.close()
         log('done')
+    if run is None or run.result.get('halted') or run.result.get('close_error'):
+        sys.exit(1)
 
 
 if __name__ == '__main__':

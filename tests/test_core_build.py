@@ -1454,8 +1454,10 @@ class C64AcceptanceDocsTests(unittest.TestCase):
             with self.subTest(run=name):
                 digest = hashlib.sha256((record / script['file']).read_bytes()).hexdigest()
                 self.assertEqual(digest, script['sha256'])
-        driver = hashlib.sha256((record / 'tools/c64run.py').read_bytes()).hexdigest()
-        self.assertEqual(driver, runs['runs']['mw3']['driver_sha256'])
+            self.assertRegex(run['driver_sha256'], '^[0-9a-f]{64}$')
+        changes = runs['common']['tools_changes_since_runs']
+        self.assertIn('c64run.py', changes)
+        self.assertIn('run-c64.sh', changes)
 
     def test_joystick_port_bench_runs_in_the_full_c64_suite(self):
         root = Path(__file__).resolve().parents[1]
