@@ -2046,9 +2046,11 @@ eight replicated hit sets.
 
 - **Self-modifying code** compares a store's or DMA write's physical line
   with the lines in flight, by bits 19:5. Under paging those lines are
-  linear, and linear and physical agree only in bits 11:0. Each fetch block,
-  and each instruction from Q to EX, therefore carries its page's physical
-  bits 19:12 from the ITLB in place of the linear ones. The compare keeps its
+  linear, and linear and physical agree only in bits 11:0. Each fetch block
+  therefore carries its page's physical bits 19:12 from the ITLB in place of
+  the linear ones. Each instruction from Q to EX carries them for its first
+  byte's page and, when it crosses a page, its last byte's, and its last
+  line is compared in that page, since the two pages need not be adjacent. The compare keeps its
   width and depth, and an alias 1 MiB apart still restarts for nothing.
 - **The store-to-load check** compares bits 11:0 and needs nothing.
 - **M2's merge** and the **memory type** use the physical page already.
@@ -2150,9 +2152,10 @@ eight replicated hit sets.
     after IRETD, a data breakpoint as a trap after the instruction. A task
     switch to a TSS with its T bit set traps too, with DR6.BT.
 - **Single step.** TF is not built yet. With TF set, #DB with DR6.BS traps
-  after each instruction, after any data breakpoint's B bits; the
-  instruction that sets TF, and the one after MOV SS or POP SS, take no
-  trap; an INT n or a delivery clears TF for its handler.
+  after each instruction, after any data breakpoint's B bits. The
+  instruction that sets TF takes no trap. MOV SS and POP SS take none
+  either; the instruction after them runs and then traps. An INT n or a
+  delivery clears TF for its handler.
 - **Cost.** Registers and MOV: about 150 ALMs. Breakpoints: four 32-bit
   compares with length masks at AG and at M1, about 250 ALMs.
 
@@ -2199,7 +2202,9 @@ A timing miss stops the slice; it never relaxes a check. Titles that need
      entry; a CR3 write mid-REP; a wrong path that must not set A or D; a
      store into a live page table; every PDE and PTE rights combination at
      CPL 0 and 3; CPL 3 executing from a supervisor page the ITLB holds; a
-     #PF on a descriptor or IDT read at CPL 3, whose U/S is 0; a PTE frame
+     #PF on a descriptor or IDT read at CPL 3, whose U/S is 0; a store into
+     the second page of an instruction that crosses into a non-adjacent
+     frame; a PTE frame
      at or above 64 MiB (a hole) and at FFFF0000h; A20M toggled
      with a paged alias at bit 20; paging toggled around a far jump, as
      CWSDPMI does.
@@ -2248,7 +2253,8 @@ A timing miss stops the slice; it never relaxes a check. Titles that need
    - **Lockstep.** Each breakpoint kind and length, RF after IRETD, a data
      breakpoint inside REP, a breakpoint in V86, and local and global
      enables across a task switch; a switch to a TSS with T set; TF over
-     each instruction class, REP strings, MOV SS, INT n and a fault.
+     each instruction class, REP strings, MOV SS (the trap after its
+     follower), INT n and a fault.
    - **Unlocks.** No title in the census; DOS debuggers.
 
 After slice 4, by the census, eight titles that stop on Phase 5 today run:
