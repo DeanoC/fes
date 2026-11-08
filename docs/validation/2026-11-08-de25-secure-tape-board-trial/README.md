@@ -36,3 +36,10 @@ needed; the spare card stays in the board and the factory card remains safe.
 Visible display, physical input and ordinary appliance/core-load acceptance are
 outside this diagnostic result and remain open. Frozen source/input hashes,
 tools, attempt counts and unchanged bounds are in [operator-source.json](operator-source.json).
+
+The first host invocation stopped at the exact USB-node check before any device
+access or attempt fuse. The shared hub had re-enumerated both adapters. No JTAG
+programming, SD write or native attempt occurred. The abort remains preserved in
+[preflight-abort.json](preflight-abort.json); fresh device admission is required
+after the user-authorized stable-connection check. The native attempt budget
+remains zero used, one allowed.
