@@ -6,6 +6,19 @@ adapter, and verification against actual FPGA RTL. These tools build firmware
 components; the Nano tools assemble the matched experimental boot images.
 Software tests and cross-builds remain distinct from hardware acceptance.
 
+`nano_firmware_mmu.py` is a hardware-independent static EL3 table prototype.
+Its `emit` command prepares a private copy of the preprocessed, separate-NOBITS
+BL31 linker script. The final linker resolves code/data boundaries and all six
+tables inside the existing 2 MiB firmware DDR exclusion; no table consumes
+OCRAM. Firmware code is read-only/executable, tables are read-only/execute-never,
+and private state is writable/execute-never. Shared DDR remains noncacheable and
+non-secure; peripheral windows remain Device memory. The supported DDR extent
+is the matched Nano's 1 GiB, rather than the vendor's generic 2 GiB range.
+Its `verify` command checks the actual ELF descriptors and section/load storage,
+plus the existing complete cold-image RAM and chain checks. This tool does not
+enable the MMU or change the current boot selection. The [static-link result](../../../docs/validation/2026-11-08-de25-el3-static-mmu/README.md)
+records the linked prototype and remaining runtime and hardware work.
+
 `nano_tape` is a secure-side initial-tape engine for the existing
 Avalon computer mailbox. The owned TF-A export includes its service; existing
 profiles leave the channel unready. Its trusted supplier holds the secure
