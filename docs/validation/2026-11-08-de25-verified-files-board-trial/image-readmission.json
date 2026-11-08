@@ -1,0 +1,57 @@
+{
+  "status": "passed",
+  "classification": "unchanged image checked for changed per-operation live admission; no hardware result",
+  "controller_source": "973dba2554eda7f41f4533ecdd1cd58622e599c5",
+  "compiled_source": "f8653867fea0dfab330a54358ddfd0ef97aadb42",
+  "native_boot_id": "aa11ddf99761b275",
+  "producer_proof_sha256": "8026d2c4a8d34fbfb24ec00b2fcfb0ed027d2d7309a74cb6ea3e0a2f75165aa6",
+  "receipt_sha256": {
+    "out/nano-menu-usb-service-20261108/native-sdk/result.json": "1309bd799284afb6dd5b6e723a3808d3c1ca72f9b94ee7b7a1cfc12ab4ea5e61",
+    "out/nano-menu-usb-service-20261108/native-entry/result.json": "b6505db6dde5874a38c0e76120098135256d6ace32fc27679c6e7e04d962a19d",
+    "out/nano-menu-usb-service-20261108/native-bl31/result.json": "0786e0984e0057d31204d21a0dc980c960929c43a3501a3ae022bb08ee459818",
+    "out/nano-menu-usb-service-20261108/native-uboot/result.json": "b6c70cb02c2086a0a02c75ebad64187a6af0538c3ec62c252757a4092557dbe4",
+    "out/nano-menu-usb-service-20261108/native-composition/result.json": "578e20282cb5554b69e69e92577cf9588ab8fdf9bf745558ef247f771616451b"
+  },
+  "artifacts": {
+    "sdk": {
+      "path": "out/nano-menu-usb-service-20261108/native-sdk/fpgaload.elf",
+      "bytes": 15700143,
+      "sha256": "81a307b96a5e232d063e84b26e1106f4d8bab3503d9c581e2dc13bcaa46f59a4"
+    },
+    "entry": {
+      "path": "out/nano-menu-usb-service-20261108/native-entry/entry.img",
+      "bytes": 7598080,
+      "sha256": "ad63088a89711eeea121ece578ee73db09745e91a64114bdb82ce1aa0cfc4bc0"
+    },
+    "BL31": {
+      "path": "out/nano-menu-usb-service-20261108/native-bl31/source/build/agilex5/release/bl31.bin",
+      "bytes": 229701,
+      "sha256": "f8ee38797bcebcb5b61b374ec62ffa6c82c4bbd4bbd9a48cb6bc94429967b1e3"
+    },
+    "FIT": {
+      "path": "out/nano-menu-usb-service-20261108/native-uboot/build/u-boot.itb",
+      "bytes": 8284720,
+      "sha256": "1e74dd7d408cf648ff075db2fb2b292c3b8d9b48078806c632c5f38dec4b9f29"
+    },
+    "SPL": {
+      "path": "out/nano-menu-usb-service-20261108/native-uboot/build/spl/u-boot-spl-dtb.hex",
+      "bytes": 461189,
+      "sha256": "67824f68d84a94c4389943f69a696f305d220897111c73ae744ea1d39199f198"
+    },
+    "SOF": {
+      "path": "out/nano-menu-usb-service-20261108/native-composition/native-hps-first.sof",
+      "bytes": 1578892,
+      "sha256": "eecd28d9ece53a9a322dbae65c34f98f489fcd2cef835a7d9d868ba090ae952d"
+    }
+  },
+  "all_selected_inputs_unchanged": true,
+  "native_rebuilt": false,
+  "prior_compiled_image_attempts": 3,
+  "max_compiled_image_attempts": 4,
+  "prior_allowance_exhausted": true,
+  "new_procedure_attempts_allowed": 1,
+  "prior_trial_result_sha256": "089f8a2147c15d6ccd15f5a1df8fa32ec811432b604a825540249694e70d2451",
+  "hardware_actions": false,
+  "full_cycle_verified": false,
+  "ordinary_admission": false
+}
