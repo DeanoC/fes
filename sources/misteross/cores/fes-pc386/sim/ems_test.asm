@@ -3,7 +3,8 @@
 ; (docs/pc386-machine-design.md, "EMS board"). scripts/sim_fes_pc386.py
 ; --suite ems runs it at the games image's prompt. Every check prints
 ; "EMS <name> ok" or "EMS <name> FAIL" and writes the same line to port E9h;
-; the run ends with "EMS DONE ok" or "EMS DONE FAIL".
+; the run ends with "EMS DONE ok" or "EMS DONE FAIL". A failure names its
+; step within the check ("EMS move FAIL step 03").
 ;
 ;   detect    the EMMXXXX0 name at INT 67h's segment:000Ah; status 0; version 4.0
 ;   frame     41h gives E000h; 58h gives the four pages at E000h-EC00h
@@ -362,6 +363,7 @@ move:   mov si, n_move
         mov ax, 0x5700
         int 0x67
         test ah, ah
+        mov byte [step], 1
         jnz .bad
         mov dx, [handle]                ; check through the frame
         mov ax, 0x4400
@@ -372,12 +374,16 @@ move:   mov si, n_move
         int 0x67
         mov es, [frame_seg]
         cmp byte [es:0x3e00], 0
+        mov byte [step], 2
         jne .bad
         cmp byte [es:0x3fff], 0xff
+        mov byte [step], 3
         jne .bad
         cmp byte [es:0x4000], 0         ; byte 512 is 0
+        mov byte [step], 4
         jne .bad
         cmp byte [es:0x4000 + 487], 999 & 0xff
+        mov byte [step], 5
         jne .bad
         ; expanded back to conventional
         push ds
@@ -388,15 +394,18 @@ move:   mov si, n_move
         rep stosb
         mov si, region
         call swap_sides
+        mov word [region + 14], target  ; into target, not source
         mov si, region
         mov ax, 0x5700
         int 0x67
         test ah, ah
+        mov byte [step], 6
         jnz .bad
         mov si, source
         mov di, target
         mov cx, 1000
         repe cmpsb
+        mov byte [step], 7
         jne .bad
         ; overlapping expanded move, 5 bytes up: 92h, and the source arrives whole
         mov dword [region], 1000
@@ -413,6 +422,7 @@ move:   mov si, n_move
         mov ax, 0x5700
         int 0x67
         cmp ah, 0x92
+        mov byte [step], 8
         jne .bad
         mov dx, [handle]
         mov ax, 0x4400
@@ -427,6 +437,7 @@ move:   mov si, n_move
         mov cx, 1000
 .ov:    mov al, [si]
         cmp al, [es:di]
+        mov byte [step], 9
         jne .bad
         inc si
         inc di
@@ -452,14 +463,17 @@ move:   mov si, n_move
         mov ax, 0x5701
         int 0x67
         test ah, ah
+        mov byte [step], 10
         jnz .bad
         mov si, source                  ; conventional now holds the old EMS bytes
         mov di, target
         mov cx, 16
         repe cmpsb
+        mov byte [step], 11
         jne .bad
         mov es, [frame_seg]
         cmp dword [es:0x3e05], 0xa5a5a5a5
+        mov byte [step], 12
         jne .bad
         call ok
         jmp errors
@@ -559,10 +573,16 @@ swap_sides:
 
 ; DS:SI a check's name: "EMS <name> " printed and sent.
 begin:  mov [current], si
+        mov byte [step], 0
         ret
 ok:     mov dx, word_ok
         jmp report
 fail:   mov byte [failed], 1
+        mov al, [step]                  ; the failed step within the check, as a digit pair
+        aam
+        add ax, '00'
+        mov [fail_step], ah
+        mov [fail_step + 1], al
         mov dx, word_fail
 report: push dx
         mov si, prefix
@@ -587,7 +607,8 @@ emm_name:   db 'EMMXXXX0'
 test_name:  db 'FESTEST', 0
 prefix:     db 'EMS ', 0
 word_ok:    db ' ok', 13, 10, 0
-word_fail:  db ' FAIL', 13, 10, 0
+word_fail:  db ' FAIL step '
+fail_step:  db '00', 13, 10, 0
 n_detect:   db 'detect', 0
 n_frame:    db 'frame', 0
 n_counts:   db 'counts', 0
@@ -605,6 +626,7 @@ n_free:     db 'free', 0
 n_done:     db 'DONE', 0
 
 failed:     db 0
+step:       db 0
 current:    dw 0
 handle:     dw 0
 frame_seg:  dw 0

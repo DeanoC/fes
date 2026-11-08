@@ -1610,7 +1610,8 @@ def run_game(args, linked: list[Path]) -> dict:
     images = firmware.images(args.download, args.jobs)
     testbench = machine_testbench(args, linked)
     wav, opl2_log = work / f'{args.game}.wav', work / f'{args.game}-opl2.log'
-    keys = [arg for seconds, text in title.get('keys', []) for arg in ('--keys', f'{seconds}:{text}')]
+    keys = [arg for seconds, text in ([key.split(':', 1) for key in args.game_keys] or title.get('keys', []))
+            for arg in ('--keys', f'{seconds}:{text}')]
     frames = work / 'frames'
     shutil.rmtree(frames, ignore_errors=True)
     frames.mkdir(parents=True)
@@ -1665,6 +1666,8 @@ def main() -> int:
                         help='game --cpu rtl: boot on the oracle and hand over to the RTL at the prompt')
     parser.add_argument('--instruction-census', action='store_true',
                         help="game: write the oracle's instruction census (machine_tb --census) to census.txt")
+    parser.add_argument('--game-keys', action='append', default=[], metavar='SECONDS:TEXT',
+                        help="game: keys after the launch in place of the drive record's ('|' is Enter); repeat")
     parser.add_argument('--boot-entry', type=int, default=1, choices=(1, 2, 3),
                         help="game: the games image's boot menu entry (3: with the EMS board's driver)")
     parser.add_argument('--oracle-profile', action='store_true',
