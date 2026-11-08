@@ -25,8 +25,8 @@
 ;             pages than the board, 84h for function 55h
 ;   os        5Dh hands out a key on its first call and 01h then refuses 59h
 ;             and 5Bh (A4h) until 00h with the key; 5B01h's save area comes
-;             back from 5B00h with the current map in it; 02h takes the key
-;             back
+;             back from 5B00h with the current map in it; 5B06h answers 9Eh
+;             (no dedicated DMA); 02h takes the key back
 ;   free      45h returns every page
 ;
 ; Assemble: nasm -f bin -o EMSTEST.COM ems_test.asm. 386 code.
@@ -585,6 +585,12 @@ os:     mov si, n_os
         test ah, ah
         jnz .bad
         mov byte [step], 9
+        mov ax, 0x5b06                  ; no dedicated DMA channels
+        xor bl, bl
+        int 0x67
+        cmp ah, 0x9e
+        jne .bad
+        mov byte [step], 10
         mov ax, 0x5d02
         mov bx, [key]
         mov cx, [key + 2]

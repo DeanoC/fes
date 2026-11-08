@@ -902,9 +902,11 @@ f5b:    mov ah, 0xa4                    ; alternate map register sets
         xor ah, ah
         ret
 .others:
-        cmp al, 4                       ; 03h, 05h allocate: none left; 04h, 06h-08h set 0 only
+        cmp al, 6                       ; 06h: no dedicated DMA channels
+        je .nodma
+        cmp al, 4                       ; 03h, 05h allocate: none left; 04h, 07h, 08h set 0 only
         je .zero
-        cmp al, 6
+        cmp al, 7
         jae .zero
         mov byte [bp + F_BX], 0
         xor ah, ah
@@ -913,6 +915,8 @@ f5b:    mov ah, 0xa4                    ; alternate map register sets
         cmp byte [bp + F_BX], 0
         jne .done
         xor ah, ah
+        ret
+.nodma: mov ah, 0x9e
         ret
 .sub:   mov ah, 0x8f
         ret
