@@ -25,3 +25,19 @@ checks and failure-injected host cleanup tests remain software evidence.
 Its result will distinguish a precondition refusal from an actual scan result.
 Neither observation establishes the historical87 cause, fixes the native tape
 deadline, or constitutes ordinary DE10-equivalent appliance acceptance.
+
+The physical observation now distinguishes the predicates: exact name matched,
+valid length44, returned chain type2. The pinned public AJI header defines
+unknown0 and JTAG1; it does not describe2. The unchanged type gate refused
+before lock/scan, so actual forced scans0. This establishes the immediate
+host-probe refusal, not the historical87 cause or a physical chain failure.
+Independent cleanup again passed, with original15MHz readback, same exact USB
+permissions, own server gone and UART unused. This reservation is consumed.
+
+Read-only inspection found matching AJI_HARDWARE conversion stores in both
+installed vendor variants (chain type output offset0x28, features0x38). This
+reduces the specific output-offset hypothesis but is not complete ABI proof.
+The installed Quartus tree exposes no AJI header at the searched locations.
+Intel's pinned jtagconfig enumeration path locks and reads/scans chains without
+rejecting the pre-scan AJI_HARDWARE.chain_type. That is relevant to a separate
+scan-only observer; the existing programming-grant gate remains unchanged.
