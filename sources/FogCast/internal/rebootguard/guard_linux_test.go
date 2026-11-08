@@ -22,6 +22,7 @@ type fakeWatchdog struct {
 	closed          bool
 	timeout, actual time.Duration
 	char            bool
+	identity        uint64
 }
 
 func (d *fakeWatchdog) Write(b []byte) (int, error) {
@@ -33,7 +34,8 @@ func (d *fakeWatchdog) SetTimeout(v time.Duration) (time.Duration, error) {
 	d.timeout = v
 	return d.actual, nil
 }
-func (d *fakeWatchdog) CharDevice() (bool, error) { return d.char, nil }
+func (d *fakeWatchdog) CharDevice() (bool, error)       { return d.char, nil }
+func (d *fakeWatchdog) DeviceIdentity() (uint64, error) { return d.identity, nil }
 
 type fakeHelper struct{ killed int }
 
@@ -42,7 +44,7 @@ func testConfig(t *testing.T, d *fakeWatchdog, h *fakeHelper) (Config, *int, *ex
 	t.Helper()
 	opened := new(int)
 	var command *exec.Cmd
-	c := Config{Marker: filepath.Join(t.TempDir(), "marker"), prepare: func() error { return nil }, open: func(string) (watchdog, error) { *opened++; return d, nil }, start: func(cmd *exec.Cmd) (helper, error) { command = cmd; return h, nil }}
+	c := Config{Marker: filepath.Join(t.TempDir(), "marker"), prepare: func() (uint64, error) { return 0, nil }, open: func(string) (watchdog, error) { *opened++; return d, nil }, start: func(cmd *exec.Cmd) (helper, error) { command = cmd; return h, nil }}
 	c.openNull = func() (*os.File, error) { return os.CreateTemp(t.TempDir(), "stdio") }
 	return c, opened, command
 }
@@ -91,7 +93,9 @@ func TestArmSkippedWatchdogKeepsFallback(t *testing.T) {
 		wantWrite string
 		wantSlept time.Duration
 	}{
-		{"prep", func(c *Config, _ *fakeWatchdog, _ *int) { c.prepare = func() error { return errors.New("prep") } }, 0, "", 0},
+		{"prep", func(c *Config, _ *fakeWatchdog, _ *int) {
+			c.prepare = func() (uint64, error) { return 0, errors.New("prep") }
+		}, 0, "", 0},
 		{"busy", func(c *Config, _ *fakeWatchdog, n *int) {
 			c.open = func(string) (watchdog, error) { *n++; return nil, unix.EBUSY }
 		}, 49, "", 12 * time.Second},

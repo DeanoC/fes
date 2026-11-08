@@ -10,6 +10,7 @@ import (
 	"log/slog"
 	"os"
 	"os/exec"
+	"runtime"
 	"strconv"
 	"sync"
 	"syscall"
@@ -43,7 +44,7 @@ type Config struct {
 	BusyWait time.Duration
 	BusyPoll time.Duration
 	sleep    func(time.Duration)
-	prepare  func() error
+	prepare  func() (uint64, error)
 	open     func(string) (watchdog, error)
 	start    func(*exec.Cmd) (helper, error)
 	openNull func() (*os.File, error)
@@ -53,6 +54,7 @@ type watchdog interface {
 	io.WriteCloser
 	SetTimeout(time.Duration) (time.Duration, error)
 	CharDevice() (bool, error)
+	DeviceIdentity() (uint64, error)
 }
 type helper interface{ KillWait() error }
 
@@ -72,6 +74,13 @@ func (d *deviceFile) CharDevice() (bool, error) {
 		return false, err
 	}
 	return st.Mode&unix.S_IFMT == unix.S_IFCHR, nil
+}
+func (d *deviceFile) DeviceIdentity() (uint64, error) {
+	var st unix.Stat_t
+	if err := unix.Fstat(int(d.Fd()), &st); err != nil {
+		return 0, err
+	}
+	return uint64(st.Rdev), nil
 }
 func openDevice(path string) (watchdog, error) {
 	fd, err := unix.Open(path, unix.O_WRONLY|unix.O_CLOEXEC|unix.O_NOFOLLOW, 0)
@@ -105,6 +114,9 @@ func startHelper(cmd *exec.Cmd) (helper, error) {
 func (c Config) defaults() Config {
 	if c.Device == "" {
 		c.Device = "/dev/watchdog"
+		if runtime.GOARCH == "arm64" {
+			c.Device = "/dev/watchdog0"
+		}
 	}
 	if c.WatchdogTimeout == 0 {
 		c.WatchdogTimeout = 180 * time.Second
@@ -145,7 +157,9 @@ func (c Config) defaults() Config {
 		c.sleep = time.Sleep
 	}
 	if c.prepare == nil {
-		c.prepare = PrepareSoCFPGAWatchdogReset
+		c.prepare = func() (uint64, error) {
+			return prepareWatchdogReset(runtime.GOARCH, "/sys", c.Device, PrepareSoCFPGAWatchdogReset)
+		}
 	}
 	if c.open == nil {
 		c.open = openDevice
@@ -281,7 +295,8 @@ func startFallback(c Config, deadline time.Duration) (helper, error) {
 // a device leaves an opened watchdog magic-closed (stopped), so a skipped
 // watchdog can never become a surprise reset later.
 func armWatchdog(c Config) (watchdog, time.Duration, string, error) {
-	if err := c.prepare(); err != nil {
+	expected, err := c.prepare()
+	if err != nil {
 		return nil, 0, "reset preparation failed", err
 	}
 	d, err := c.open(c.Device)
@@ -308,6 +323,10 @@ func armWatchdog(c Config) (watchdog, time.Duration, string, error) {
 	if err != nil || !char {
 		disarm()
 		return nil, 0, "watchdog is not a character device", errors.Join(err, errors.New("watchdog is not a character device"))
+	}
+	if err := matchWatchdogIdentity(d, expected); err != nil {
+		disarm()
+		return nil, 0, "opened watchdog identity differs", err
 	}
 	actual, err := d.SetTimeout(c.WatchdogTimeout)
 	if err != nil {
@@ -374,6 +393,11 @@ func DisarmStale(config Config, trial bool) {
 		slog.Warn("reboot watchdog marker check failed", "error", err)
 		return
 	}
+	expected, err := c.prepare()
+	if err != nil {
+		slog.Warn("stale reboot watchdog preparation failed", "error", err)
+		return
+	}
 	d, err := c.open(c.Device)
 	if errors.Is(err, unix.EBUSY) || errors.Is(err, unix.ENOENT) {
 		return
@@ -388,6 +412,13 @@ func DisarmStale(config Config, trial bool) {
 		slog.Warn("stale reboot watchdog is not a character device", "error", statErr)
 		return
 	}
+	if err := matchWatchdogIdentity(d, expected); err != nil {
+		// Opening can arm the device; do not leave an accidental timer running.
+		_, _ = io.WriteString(d, "V")
+		_ = d.Close()
+		slog.Warn("stale reboot watchdog identity differs", "error", err)
+		return
+	}
 	n, writeErr := io.WriteString(d, "V")
 	if writeErr == nil && n != 1 {
 		writeErr = io.ErrShortWrite
@@ -398,4 +429,18 @@ func DisarmStale(config Config, trial bool) {
 	} else {
 		slog.Info("stale reboot watchdog disarmed")
 	}
+}
+
+func matchWatchdogIdentity(d watchdog, expected uint64) error {
+	if expected == 0 {
+		return nil // DE10 retains its existing character-device check.
+	}
+	actual, err := d.DeviceIdentity()
+	if err != nil {
+		return err
+	}
+	if actual != expected {
+		return errors.New("opened watchdog differs from preflight device identity")
+	}
+	return nil
 }

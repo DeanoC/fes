@@ -1845,6 +1845,18 @@ only after the image's splash is on FAT, so a failed splash publish leaves the
 watchdog armed. Failure, deadline, or process death
 leaves reset armed. Known-good boots do not require the host to be online.
 
+The agent's existing managed-update reboot backstop selects its board before
+opening a watchdog. Exact ARM DE10 identity uses the Cyclone V reset preparation;
+exact AArch64 DE25 identity selects `/dev/watchdog0` and the stock `snps,dw-wdt`
+resource at `0x10d00200`, without reset-register writes. DE25 resource, driver
+and character-device identity must match sysfs, and the opened descriptor must
+retain that device identity. Stable-boot stale disarm uses the same preparation.
+Unknown/crossed boards do not open the timer. Existing fallback, timeout and
+cancellation policy stays shared. This does not arm a timer around FPGA uploads
+or qualify recovery from a blocked secure call. The separate
+[healthy-system native expiry](../../../docs/validation/2026-11-08-de25-ordinary-dev-kit/stock-watchdog-reset.json)
+establishes the stock reset path; changed-agent hardware acceptance is separate.
+
 `appliance/store` owns bounded raw-image admission, immutable publication,
 cross-process locking, checksummed state, consumed-trial selection, and
 removal of unreferenced images after an upload has been verified. When the
