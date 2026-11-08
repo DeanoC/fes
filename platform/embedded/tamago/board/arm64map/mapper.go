@@ -88,7 +88,7 @@ func (m *Mapper) inspect(ranges []Range) (Observation, error) {
 func (m *Mapper) unusedAttribute(state CPUState) error {
 	var previous [32]byte
 	for pass := 0; pass < 2; pass++ {
-		s := inspection{io: m.io, ramBase: m.ramBase, state: state, pages: make(map[uint64]bool), digest: sha256.New()}
+		s := inspection{io: m.io, ramBase: m.ramBase, state: state, digest: sha256.New()}
 		if err := s.stateOK(); err != nil {
 			return err
 		}

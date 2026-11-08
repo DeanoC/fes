@@ -97,11 +97,15 @@ func kindAttributes(k Kind) (descriptor, attribute, share uint64, err error) {
 }
 
 type inspection struct {
-	io            Access
-	ramBase       uint64
-	state         CPUState
-	pages         map[uint64]bool
-	digest        hash.Hash
+	io      Access
+	ramBase uint64
+	state   CPUState
+	pages   [5]bool
+	digest  hash.Hash
+	// Write through reusable storage: a local slice passed to hash.Hash.Write
+	// otherwise escapes once for every descriptor read on the hot CSR path.
+	record        [16]byte
+	sum           [32]byte
 	reads, probes uint32
 }
 
@@ -157,21 +161,21 @@ func (s *inspection) read(address uint64) (uint64, error) {
 	if address&7 != 0 || page < s.ramBase+0x4000 || page > s.ramBase+0x8000 || s.reads >= maxReads {
 		return 0, errors.New("page-table read outside pinned reserved pages or bound")
 	}
-	if !s.pages[page] {
+	index := (page - s.ramBase - 0x4000) >> 12
+	if !s.pages[index] {
 		if err := s.translation(page, WriteBack); err != nil {
 			return 0, err
 		}
-		s.pages[page] = true
+		s.pages[index] = true
 	}
 	v, err := s.io.TableWord(address)
 	s.reads++
 	if err != nil {
 		return 0, err
 	}
-	var raw [16]byte
-	binary.LittleEndian.PutUint64(raw[:8], address)
-	binary.LittleEndian.PutUint64(raw[8:], v)
-	_, _ = s.digest.Write(raw[:])
+	binary.LittleEndian.PutUint64(s.record[:8], address)
+	binary.LittleEndian.PutUint64(s.record[8:], v)
+	_, _ = s.digest.Write(s.record[:])
 	return v, nil
 }
 
@@ -287,8 +291,13 @@ func Inspect(io Access, ramBase, ramSize uint64, ranges []Range) (Observation, e
 		total += r.Bytes
 	}
 	result := Observation{CPU: state, Bytes: total}
+	s := inspection{io: io, ramBase: ramBase, state: state, digest: sha256.New()}
 	for pass := 0; pass < 2; pass++ {
-		s := inspection{io: io, ramBase: ramBase, state: state, pages: make(map[uint64]bool), digest: sha256.New()}
+		// Reuse storage, never an observation. Each pass rereads the tables,
+		// CPU state and translations, including the table-page translations.
+		s.pages = [5]bool{}
+		s.reads, s.probes = 0, 0
+		s.digest.Reset()
 		for _, r := range ranges {
 			for address := r.Base; address < r.Base+r.Bytes; {
 				if err = s.stateOK(); err != nil {
@@ -315,7 +324,7 @@ func Inspect(io Access, ramBase, ramSize uint64, ranges []Range) (Observation, e
 			}
 		}
 		var digest [32]byte
-		copy(digest[:], s.digest.Sum(nil))
+		copy(digest[:], s.digest.Sum(s.sum[:0]))
 		if pass == 0 {
 			result.DescriptorSHA256 = digest
 		} else if digest != result.DescriptorSHA256 {

@@ -54,6 +54,13 @@ stage 2 being disabled remains an obligation of the matched boot entry.
 See the primary [Arm memory-management guide](https://developer.arm.com/-/media/Arm%20Developer%20Community/PDF/Learn%20the%20Architecture/LearnTheArchitecture-MemoryManagement-101811_0100_00_en.pdf)
 and [Cortex-A55 register reference](https://documentation-service.arm.com/static/5e7e09f6a3736a0d2e862d2f).
 
+Inspection reuses its descriptor-hash scratch storage between reads and the
+two samples. The five table-page bookkeeping slots reset for each sample;
+this retains every table read, CPU-state check and hardware translation probe.
+The host control/exclusion benchmark fell from 108 allocations to 2 with the
+same observation. Its [software validation](../../../../../docs/validation/2026-11-08-de25-mapping-scratch/README.md)
+does not establish board latency or resolve the stopped tape-transfer deadline.
+
 `Mapper` serializes every managed mutation and observation. Before first
 assigning MAIR slot 2 it traverses the complete bounded pinned tree twice and
 requires that no active descriptor already uses that slot. It converts only
