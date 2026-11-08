@@ -60,7 +60,7 @@ lists every title with its bucket and result.
 
 ## The boot menu
 
-The games image's `FDCONFIG.SYS` has two entries. It takes entry 1 after
+The games image's `FDCONFIG.SYS` has three entries. It takes entry 1 after
 3 seconds, so runners that press nothing at boot get it
 ([games image](../cores/fes-pc386/README.md)):
 
@@ -68,10 +68,12 @@ The games image's `FDCONFIG.SYS` has two entries. It takes entry 1 after
 | --- | --- | --- | --- |
 | 1 (default) | kernel low; its data, `FILES=30`, `BUFFERS=16` and FreeCOM in upper memory | 580K (594,256 bytes) | everything, including Ultima VII |
 | 2 | `DOS=HIGH,UMB`, `FILES=30`, `BUFFERS=16` | 622K (637,104 bytes) | programs that need more, such as Falcon 3.0; not Ultima VII |
+| 3 | entry 1 with the EMS board's driver, `FESEMS.SYS`, high: 2,048K of EMS | 580K (594,256 bytes) | titles that need EMS: Ultima Underworld, Master of Orion, Darklands, Frontier; not Ultima VII, which refuses to run with an expanded memory manager |
 
-To take entry 2, press `2` while the menu shows. A simulation sends it with
-`machine_tb --keys 1.2:2`; a kit runner types it a few times just after the
-launch and clears any extra at the prompt with Esc.
+To take entry 2 or 3, press its number while the menu shows. A simulation
+sends it with `sim_fes_pc386.py --suite game --boot-entry N`
+(`machine_tb --boot-key 1.2:N`); a kit runner types it a few times just after
+the launch and clears any extra at the prompt with Esc.
 
 ## Building
 
