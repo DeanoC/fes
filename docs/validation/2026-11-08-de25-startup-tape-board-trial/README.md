@@ -1,5 +1,57 @@
 # Startup neutral-input and tape-cost board diagnostic
 
+The bounded trial stopped on the first controlled launch at the unchanged
+1-second secure tape deadline. Qualified recovery, all thirteen uploads and
+fresh SD reads, both programming operations, matched secure startup and the
+initial App Ready gate passed. Startup USB polling recorded 39 reports and
+5,581 polls before pause; no uncommanded action was observed. The sole lifecycle
+input action was the runner's UART Select. This does not deliberately qualify
+held-key suppression on physical hardware. No second command or replay followed.
+
+All seven callback-cost groups and the direct reset-attempt result were captured.
+The failed 917-byte transfer reached generation 11, opcode 8, index 186,
+offset 0x0c, 7,605 reads and 475 writes. The first 512-byte chunk had completed;
+`next=512` and frame phase one place the failure in the second chunk. The last
+cached time sample is 0.9999641925 seconds; it is not a claim that the failure
+handler completed before the deadline.
+
+| Callback | Calls | Samples | Sampled mean (microseconds) | Scaled estimate (seconds) |
+| --- | ---: | ---: | ---: | ---: |
+| guard | 9 | 9 | 420.249 | 0.003782 |
+| owns | 16,174 | 253 | 50.723 | 0.820395 |
+| read | 7,605 | 119 | 1.013 | 0.007700 |
+| write | 475 | 8 | 0.407 | 0.000193 |
+| barrier | 8,080 | 127 | 0.593 | 0.004787 |
+| image | 4 | 4 | 232.374 | 0.000929 |
+| hash | 1 | 1 | 606.640 | 0.000607 |
+
+These are sampled diagnostic estimates with instrumentation overhead, not a
+qualified performance partition or uninstrumented benchmark. Ownership checks
+are the concrete next cost target. Actual matched ELF inspection places the
+observed ownership functions in DDR (`computer_tape_state` at 0x80009400,
+`shared_valid` at 0x800112a0 and the boot binding check at 0x80006be0), while
+its live private state objects are in OCRAM. This does not identify an inner
+subcomponent cost or prove a code-placement/cache repair. No firmware source
+or live ownership checks were changed after this trial.
+
+The existing direct reset callback returned status zero: its data-bridge-held
+readback preceded the reset assertion and all bridge reset bits were observed
+afterward. Fabric ACK/drain and normal return remain unproven. Native state
+ended at RebootRequired, Held true, followed by panic with resources retained;
+normal bridge cleanup reported status four. No Running/fetch acceptance or
+successful launch/return/Park cycle was observed. The image is now consumed
+one/max one. Transport programming failures remain one/max two.
+
+Independent cleanup passes for the unchanged top USB node, exact original
+permissions, original 15 MHz readback, private-server termination and a free
+UART. The top claim remains held, spare card installed and factory restore
+waived unless needed. The bottom kit is untouched. `hardware-result.json` and
+the archived raw console are authoritative; prepared evidence below is a
+separate pre-operation level. The next step is a host-side ownership-path
+repair that preserves fresh checks and the original deadline, followed by a
+newly matched and independently bounded image if justified.
+
+
 This new one-use operator selects matched boot ID `c85f65c331fc3ab5` on the
 exclusively assigned top TRWU8CBL. Firmware/cold-chain source is 7c8f1b47f;
 exact SDK/entry artifacts from e8fe4c9a6 retain current selected source hashes
