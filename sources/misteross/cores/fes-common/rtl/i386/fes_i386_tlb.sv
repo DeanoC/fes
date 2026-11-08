@@ -65,8 +65,17 @@ module fes_i386_tlb import fes_i386_pkg::*; #(
             rr <= '0;
         end else if (fill) begin
             v[slot] <= 1'b1;
-            e[slot] <= fill_ent;
             if (same == '0 && &v) rr <= rr + IW'(1);
+        end
+    end
+
+    // Each entry loads under its own enable. Written as e[slot] <= fill_ent,
+    // the fill is a variable-index write into the packed array, which the
+    // Yosys-elaborated netlist turns into shift logic over every entry bit:
+    // about 500 ALMs in the pc386 seal (docs/validation/2026-11-08-i386-area-audit).
+    for (genvar k = 0; k < N; k++) begin : g_entry
+        always_ff @(posedge clk) begin
+            if (!flush && fill && slot == IW'(k)) e[k] <= fill_ent;
         end
     end
 endmodule
