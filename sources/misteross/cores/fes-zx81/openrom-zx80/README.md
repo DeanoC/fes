@@ -3,7 +3,7 @@
 A clean-room, GPL-2.0-or-later integer BASIC for the `fes.zx80` model, written
 for FES like the [open ZX81 ROM](../openrom). It fits the ZX80's 4 KiB ROM:
 `make zx80-openrom` (in `sources/misteross`) writes `build/zx80-openrom/`
-with 6 bytes free beside the 512-byte character set (`$0E00`), and
+with 8 bytes free beside the 512-byte character set (`$0E00`), and
 `make sim-fes-zx80-openrom` replays the recorded scripts on the RTL. Select
 the 4096-byte file as the `fes.zx80` package's `zx80-rom` like any other
 firmware.
@@ -27,7 +27,8 @@ regressions in `dev/regress.py` cover:
 - the published interface: system variables, program and variable record
   formats, character codes and keywords, `.o` images loaded through the
   core's trap at `$0207` (back at `$0203`), INT display at `$0038`;
-- the K/L cursor and the edit-time syntax check (inverse S, NEWLINE refused);
+- the K/L cursor and the edit-time syntax check (inverse S, NEWLINE refused),
+  which, as on the original, also marks nesting too deep for the stack;
 - listing with the current-line marker, EDIT, cursor left/right/up/down,
   HOME, RUBOUT; INPUT with its line after the program's output;
 - all statements; integer arithmetic with overflow (report 6); strings,
@@ -60,8 +61,8 @@ the RTL, `dev/build_probe.sh ROM.hex OUTDIR` builds `zx80_probe_tb.cpp`;
 `dev/rtl_compare.py OUTDIR/Vzx81_machine` replays every recorded script and
 types some with SHIFT pressed first, as a USB keyboard does.
 
-The fit is tight. The source asks the assembler for `floatorder 120`, the
+The fit is tight. The source asks the assembler for `floatorder 192`, the
 layout (from a seeded search) that keeps the most `jr` short and packs the
 gaps; with another seed, or a few more bytes of code, it may not fit, and
 `dev/build_dev.sh` (an 8 KiB image the harness can run whatever the size)
-still works. The search takes a few seconds.
+still works. Each seed takes about half a minute to try.

@@ -23,12 +23,10 @@ one_letter:
 ; (HL) = record type A ^ $20 with DEST's letter ($20 + 0-31) in its low
 ; bits; HL + 1. Keeps BC, DE.
 letter_byte:
-        push de
-        ld de,(DEST)
-        ex de,hl
+        push hl
+        ld hl,(DEST)
         xor (hl)
-        ex de,hl
-        pop de
+        pop hl
         ld (hl),a
         inc hl
         ret
@@ -155,8 +153,7 @@ st_run: call opt_num
         jr new_sp
 
 st_gosub:
-        ld bc,72                ; room for the record, and to show report 4
-        call test_room          ; and type RUN or NEW (editing drops it)
+        call room_deeper        ; for the record (editing drops it)
         call expr_num
         rst 0x20
         ld de,(PPC)

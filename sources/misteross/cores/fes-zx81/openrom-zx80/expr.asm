@@ -27,6 +27,8 @@ expr:   ld b,0
 
 ; Operators binding tighter than B, by precedence climbing.
 expr_b: push bc
+        call room_deeper        ; each level of ( - NOT or a function
+        jr c,syntax_err         ; uses stack: checking, too deep is wrong
         call operand
 .loop:  ex de,hl                ; DE = value so far
         rst 0x18
@@ -270,9 +272,9 @@ operand:
         jr nc,name_operand
 .num:   call parse_uint         ; a digit
         jr c,syntax_err         ; 32768 or more
-        ld (CH_ADD),hl
-        ex de,hl
         set F_NUM,(iy+Y_FLAGS)
+.end:   ld (CH_ADD),hl          ; after it; HL = the value
+        ex de,hl
         ret
 .unary: push af
         call next_ch
@@ -293,10 +295,9 @@ operand:
         inc hl
         dec a                   ; the closing quote
         jr nz,.s
-        ld (CH_ADD),hl
-        pop hl
+        pop de
         res F_NUM,(iy+Y_FLAGS)
-        ret
+        jr .end
 
 ; A function call, variable or array element.
 ; A function: the name with its "(" from fn_table, then the routine.

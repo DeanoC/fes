@@ -99,6 +99,14 @@ def main():
             got[name] = run(rom, sym, script, ram_top=ram)
         except Exception as exc:
             got[name] = {'crash': str(exc)}
+        # Nesting deeper than the stack has room for is a wrong symbol, and
+        # the edit line survives: RUBOUT it all and type another.
+        name = 'deep'
+        script = 'O ' + 'SHIFT+I ' * 150 + '1 NL ' + 'SHIFT+0 ' * 160 + 'O 7 NL'
+        try:
+            got[name] = run(rom, sym, script, ram_top=ram)
+        except Exception as exc:
+            got[name] = {'crash': str(exc)}
     path = HERE + '/regress.expected'   # JSON (the tree ignores *.json)
     if len(sys.argv) > 3 and sys.argv[3] == 'record':
         json.dump(got, open(path, 'w'), indent=1)

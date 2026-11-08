@@ -72,6 +72,10 @@ make_room:
         and a
         ret
 
+; Room to go deeper (GOSUB, each level of an expression): with some
+; to spare to show report 4 and type RUN or NEW. Keeps A.
+room_deeper:
+        ld bc,72
 ; Carry if BC more bytes would not fit below the stack: with X_DROP set;
 ; otherwise it is report 4. Keeps A and BC.
 test_room:

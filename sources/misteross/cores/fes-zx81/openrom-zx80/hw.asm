@@ -203,7 +203,7 @@ key_frame:
 ; HL = a fingerprint of the keys down: a weighted sum of the rows, so a key
 ; down or up always changes it (XOR let two keys cancel). Leaves BC $FEFE.
 keys_fp:
-        ld hl,0
+        ld l,0                  ; (H is shifted out)
         ld bc,0xfefe
 .row:   in a,(c)
         or 0xe0
