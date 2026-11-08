@@ -8,7 +8,8 @@ is tracked in [#1568](https://github.com/DeanoC/fes/issues/1568).
 The retained board now uses the pinned stock Terasic boot FIT, rather than
 the earlier diagnostic firmware. The [stock-firmware trial](#stock-terasic-firmware)
 passes native boot, ordinary ZX81 and idle/active OS reboots on the unchanged
-kernel/root/default-off software. Earlier diagnostic and physical-keyboard
+kernel/root/default-off software. Subsequent idle/active runtime-loss checks
+also recover MENU and fresh ordinary ZX81 in the same boot. Earlier diagnostic and physical-keyboard
 results below retain their original artifact identities.
 
 This waiver defers expansion hardware acceptance. It does not report a passing
@@ -240,3 +241,50 @@ broader display stress and untested peripheral capabilities remain open.
 Private approval, fresh backup, writer/model/source records, original refusals
 and frozen UART are retained under
 `/data/fes-de25-main-integration-20261105/partial-start-investigation-20261108/stock-firmware-qualification/`.
+
+
+## Stock firmware runtime-loss recovery
+
+The current stock tuple also passes two bounded process-loss cases on bottom
+TRWU8J8G: one runtime exit from idle MENU, then one from active ordinary ZX81.
+The kernel/software producer remains `ecaefd4af`; the integration head for
+this test is `0a2957388de7092f6c0ea5812f24b1943dc7ecf5`. The sealed ordinary
+package remains `3da0f1df` from producer `8af614f4`. Neither case changes the
+image, firmware, software selection or generation. Both retain boot
+`655b3ec6-d7b6-44c5-8ccc-225eb7415ccf`.
+
+Before each fault, the helper and harness authenticate the current boot,
+kernel, card, exact selected executable path/hash and process start time,
+and verify that all selected children belong to our OS software supervisor.
+One pidfd-bound SIGKILL targets only the selected runtime. The existing
+supervisor replaces the runtime, agent and launcher; there is no helper-created
+replacement, repeated signal, manual REAP, reset or recovery programming bypass.
+Transitional API/readiness failures remain in the observations. The old active
+session is discarded; no Stop is sent using its identity against the replacement.
+
+| Case | Result |
+| --- | --- |
+| Idle runtime loss | PASS all three children replaced; stable MENU and host reconciliation observed within 30.442 seconds, including ten seconds of stable native readiness |
+| Active ordinary ZX81 runtime loss | PASS fresh BASIC7 before the fault; all three children replaced, stable MENU and host reconciliation observed within 33.305 seconds, including ten seconds of stable native readiness |
+| Configuration and display ownership | PASS fresh retained MENU inode, exact RBF/overlay/build identity, advanced owner allocation generation and zero cached owner errors/underflows after each recovery |
+| Fresh session after each loss | PASS normal catalog launch, BASIC7 then edit/RUN9, inspected black-on-white HDMI, ordinary Stop and idle/lease-free MENU |
+| Final state | PASS exact stock boot files, all selected executable hashes and running runtime, original writable data volume; temporary helper removed, passive UART retired and claim released |
+
+The UART retains the existing overlay-property memory-leak warnings and USB
+Bluetooth HCI unexpected-event/command-timeout messages. It contains no captured
+panic, RCU stall or partial-call trace. These are not warning-free logs or
+Bluetooth acceptance. The process-loss proof does not cover dirty SAVE, guest
+session resumption, a crash with an exposed chooser, arbitrary failed FPGA
+uploads, repeated stress or other peripherals. Partial expansion loading stays
+unsupported/default-off under #1568. The retained development setup is not a
+main HIL baseline promotion.
+
+[Source-bound results, process/configuration/owner checks and image hashes](stock-runtime-recovery.json).
+
+![Fresh BASIC7 after active runtime loss](stock-runtime-recovered-basic7.png)
+
+![Edited BASIC9 after active runtime loss](stock-runtime-recovered-basic9.png)
+
+Private source, helper refusal tests, original observations, native logs and
+frozen UART are retained under
+`/data/fes-de25-main-integration-20261105/partial-start-investigation-20261108/stock-runtime-recovery/`.

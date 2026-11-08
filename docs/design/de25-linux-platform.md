@@ -65,7 +65,15 @@ retains exact identities, captures and the remaining boundaries. The board is
 released at healthy MENU with this user-requested development setup retained;
 no main HIL baseline is promoted. The current stock FIT passes the existing
 vendor admission checks; the earlier diagnostic FIT remains unqualified.
-Broader failure recovery and untested peripheral capabilities remain open.
+The current stock tuple also passes one idle and one active ordinary runtime
+SIGKILL recovery: all three selected software children are replaced, the
+existing programmer retires the inherited allocation and returns to fresh
+MENU in the same boot, then ordinary BASIC7/9 and Stop pass. Ten seconds of
+stable readiness, exact MENU/configuration/owner identity and host session
+reconciliation are verified. See the
+[bounded recovery record](../validation/2026-11-08-de25-ordinary-dev-kit/README.md#stock-firmware-runtime-loss-recovery).
+This covers the tested process exits; failed FPGA uploads, dirty SAVE, guest
+session resumption, broader stress and untested peripherals remain open.
 
 ## Earlier native evidence
 

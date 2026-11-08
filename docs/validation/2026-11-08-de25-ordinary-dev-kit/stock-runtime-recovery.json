@@ -1,0 +1,422 @@
+{
+  "overall": {
+    "success": true,
+    "scope": "One exact pidfd runtime SIGKILL from idle MENU and one from active ordinary ZX81; no fault replay. Existing supervisor replaced full selected group and programmer retired inherited configuration before fresh MENU. Fresh ordinary BASIC7/9 and Stop after each.",
+    "integration_source_head": "0a2957388de7092f6c0ea5812f24b1943dc7ecf5",
+    "kernel_software_source": "ecaefd4af2bf202b94b558e4f3545249c309712f",
+    "boot_id": "655b3ec6-d7b6-44c5-8ccc-225eb7415ccf",
+    "kernel_sha256": "9cec7e77f4cdb8b02d44acfd5bda5b1ee7b08801569648ab4f5ef12b6302d907",
+    "root_sha256": "0858eef044d2e4f1d3aab4ed8b88e439258075f097815eee942d70ae68222ec3",
+    "firmware_sha256": "bb6a48c77d2559a2f9710153cc616a242bfe701ff891cb5a14bddba33eaf2cf7",
+    "bundle": "61a4b0aadaeebfa927d57020870fac486e7c24bb61fb9d4c3c72f26197599962",
+    "generation": 1,
+    "runtime_sha256": "c681f166628ad39f00c89c7698e00d4c6995c97184e749b3504cae9025dd5844",
+    "helper_sha256": "1998ba96e3507a69bd031af87722334712dda8854d90d927ac6f7be96486002d",
+    "cases": {
+      "idle-runtime": {
+        "success": true,
+        "fault_count": 1,
+        "recovery_stable_seconds": 30.442
+      },
+      "active-runtime": {
+        "success": true,
+        "fault_count": 1,
+        "recovery_stable_seconds": 33.305
+      }
+    },
+    "same_boot": true,
+    "same_software_generation": true,
+    "source_and_selected_executables_authenticated": true,
+    "full_group_replaced": true,
+    "fresh_MENU_payload_and_inode": true,
+    "owner_generation_advanced": true,
+    "stable_MENU_seconds": 10,
+    "owner_zero_errors_underflows": true,
+    "host_reconciled_idle": true,
+    "fresh_HDMI_BASIC7_then9_each": true,
+    "visual_review": true,
+    "Stop_MENU_idle_free": true,
+    "helper_removed": true,
+    "UART_retired": true,
+    "stock_development_setup_retained": true,
+    "no_image_firmware_software_card_QSPI_or_power_change": true,
+    "expansions_unsupported_default_off_issue": 1568,
+    "main_HIL_baseline_promoted": false,
+    "arbitrary_failed_upload_recovery_qualified": false,
+    "dirty_SAVE_or_guest_resumption_qualified": false,
+    "physical_keyboard_or_exposed_chooser_crash_qualified": false,
+    "broader_stress_or_peripherals_qualified": false
+  },
+  "UART": {
+    "board": "TRWU8J8G",
+    "scope": "passive UART; no transmit or modem control",
+    "pid": 1768527,
+    "time_cap_seconds": 1800,
+    "state": "stopped",
+    "elapsed_seconds": 234.0,
+    "bytes_captured": 9045,
+    "port_open": false,
+    "sha256": "149177498324ffa50572a2997f7aa88999ba5594ea725a483e9a728856bd590e",
+    "no_panic_RCU_stall_or_partial_trace": true
+  },
+  "cases": {
+    "idle-runtime": {
+      "result": {
+        "success": true,
+        "case": "idle-runtime",
+        "integration_source_head": "0a2957388de7092f6c0ea5812f24b1943dc7ecf5",
+        "kernel_software_source": "ecaefd4af2bf202b94b558e4f3545249c309712f",
+        "boot_id": "655b3ec6-d7b6-44c5-8ccc-225eb7415ccf",
+        "bundle": "61a4b0aadaeebfa927d57020870fac486e7c24bb61fb9d4c3c72f26197599962",
+        "generation": 1,
+        "firmware_sha256": "bb6a48c77d2559a2f9710153cc616a242bfe701ff891cb5a14bddba33eaf2cf7",
+        "fault_count": 1,
+        "steps": [
+          "fault-intent",
+          "signal-ack",
+          "recovery-observations",
+          "recovery-observations",
+          "recovery-observations",
+          "recovery-observations",
+          "recovery-observations",
+          "recovery-observations",
+          "recovery-observations",
+          "recovery-observations",
+          "recovery-observations",
+          "recovery-observations",
+          "recovery-observations",
+          "recovery-observations",
+          "recovery-observations",
+          "recovery-observations",
+          "recovered-group",
+          "host-reconcile",
+          "after-recovery-basic7",
+          "after-recovery-basic9",
+          "stop",
+          "final-native",
+          "complete"
+        ],
+        "recovery_stable_seconds": 30.442,
+        "full_selected_group_replaced": true,
+        "same_boot": true,
+        "same_bundle_generation": true,
+        "fresh_MENU_configuration": true,
+        "owner_retirement_and_replacement": true,
+        "stable_MENU_seconds": 10,
+        "host_reconciled_idle": true,
+        "fresh_ordinary_BASIC7_9_HDMI": true,
+        "Stop_MENU_idle_free": true,
+        "no_boot_card_QSPI_image_or_software_change": true,
+        "guest_session_resumption": false,
+        "physical_keyboard_or_chooser_fault_tested": false
+      },
+      "signal-ack": {
+        "scope": "one exact owned selected role through pidfd; no other process signal",
+        "signal": "SIGKILL",
+        "signalled": {
+          "pid": 319,
+          "start": "2281",
+          "exe": "/run/fogcast/fesdata3/software-releases/releases/61a4b0aadaeebfa927d57020870fac486e7c24bb61fb9d4c3c72f26197599962/bin/mister-runtime",
+          "sha256": "c681f166628ad39f00c89c7698e00d4c6995c97184e749b3504cae9025dd5844"
+        }
+      },
+      "process-before-value": {
+        "bundle": "61a4b0aadaeebfa927d57020870fac486e7c24bb61fb9d4c3c72f26197599962",
+        "processes": {
+          "fogcast-tenfoot": {
+            "pid": 326,
+            "start": "2534",
+            "exe": "/run/fogcast/fesdata3/software-releases/releases/61a4b0aadaeebfa927d57020870fac486e7c24bb61fb9d4c3c72f26197599962/bin/fogcast-tenfoot",
+            "sha256": "aa78a5e3f770bfbc32cd086ecf3c5091f8c80ef4ebe27292804542806df8db0c"
+          },
+          "mister-agent": {
+            "pid": 325,
+            "start": "2534",
+            "exe": "/run/fogcast/fesdata3/software-releases/releases/61a4b0aadaeebfa927d57020870fac486e7c24bb61fb9d4c3c72f26197599962/bin/mister-agent",
+            "sha256": "37c0a96475ea0c2115c55f24d7cc725b72eb6cd295a4fbfe1d17417f6329c429"
+          },
+          "mister-runtime": {
+            "pid": 319,
+            "start": "2281",
+            "exe": "/run/fogcast/fesdata3/software-releases/releases/61a4b0aadaeebfa927d57020870fac486e7c24bb61fb9d4c3c72f26197599962/bin/mister-runtime",
+            "sha256": "c681f166628ad39f00c89c7698e00d4c6995c97184e749b3504cae9025dd5844"
+          }
+        },
+        "ready": true
+      },
+      "recovered-group": {
+        "bundle": "61a4b0aadaeebfa927d57020870fac486e7c24bb61fb9d4c3c72f26197599962",
+        "processes": {
+          "fogcast-tenfoot": {
+            "pid": 10471,
+            "start": "161988",
+            "exe": "/run/fogcast/fesdata3/software-releases/releases/61a4b0aadaeebfa927d57020870fac486e7c24bb61fb9d4c3c72f26197599962/bin/fogcast-tenfoot",
+            "sha256": "aa78a5e3f770bfbc32cd086ecf3c5091f8c80ef4ebe27292804542806df8db0c"
+          },
+          "mister-agent": {
+            "pid": 10452,
+            "start": "161916",
+            "exe": "/run/fogcast/fesdata3/software-releases/releases/61a4b0aadaeebfa927d57020870fac486e7c24bb61fb9d4c3c72f26197599962/bin/mister-agent",
+            "sha256": "37c0a96475ea0c2115c55f24d7cc725b72eb6cd295a4fbfe1d17417f6329c429"
+          },
+          "mister-runtime": {
+            "pid": 10447,
+            "start": "161593",
+            "exe": "/run/fogcast/fesdata3/software-releases/releases/61a4b0aadaeebfa927d57020870fac486e7c24bb61fb9d4c3c72f26197599962/bin/mister-runtime",
+            "sha256": "c681f166628ad39f00c89c7698e00d4c6995c97184e749b3504cae9025dd5844"
+          }
+        },
+        "ready": true
+      },
+      "configuration-before-value": {
+        "manager_state": "operating",
+        "overlay_sha256": "6f23fc46db9ecaf90a78cf6a6d07b071c21e2ad51053ad524eee65b65c05a59d",
+        "overlay_status": "applied",
+        "payload_inode": 106,
+        "payload_sha256": "64ee7cfca663ad0d2f864488b88a6f78644b1ec97ed0b2ba8e2b5a54a78f5dcc",
+        "payload_size": 1429504,
+        "scope": "read-only retained configuration metadata; no FPGA command"
+      },
+      "configuration-after-value": {
+        "manager_state": "operating",
+        "overlay_sha256": "6f23fc46db9ecaf90a78cf6a6d07b071c21e2ad51053ad524eee65b65c05a59d",
+        "overlay_status": "applied",
+        "payload_inode": 1632,
+        "payload_sha256": "64ee7cfca663ad0d2f864488b88a6f78644b1ec97ed0b2ba8e2b5a54a78f5dcc",
+        "payload_size": 1429504,
+        "scope": "read-only retained configuration metadata; no FPGA command"
+      },
+      "owner-before-value": {
+        "abi": 3,
+        "allocation_present": true,
+        "build_id": [
+          3727439964,
+          331026579,
+          1000719291,
+          2535805716
+        ],
+        "generation": 3,
+        "hardware_errors": 0,
+        "hardware_status": 67,
+        "outstanding": 0,
+        "scope": "cached owner metadata only; no REAP, reset or MMIO",
+        "state": 2,
+        "underflows": 0,
+        "version": 3
+      },
+      "owner-after-value": {
+        "abi": 3,
+        "allocation_present": true,
+        "build_id": [
+          3727439964,
+          331026579,
+          1000719291,
+          2535805716
+        ],
+        "generation": 4,
+        "hardware_errors": 0,
+        "hardware_status": 67,
+        "outstanding": 16,
+        "scope": "cached owner metadata only; no REAP, reset or MMIO",
+        "state": 2,
+        "underflows": 0,
+        "version": 3
+      },
+      "visual-review": {
+        "passed": true,
+        "images": [
+          "after-recovery-basic/basic7.png",
+          "after-recovery-basic/basic9.png"
+        ],
+        "observation": "Fresh HDMI captures visually show 7 then 9, black text on white, within FES ZX81 frame."
+      }
+    },
+    "active-runtime": {
+      "result": {
+        "success": true,
+        "case": "active-runtime",
+        "integration_source_head": "0a2957388de7092f6c0ea5812f24b1943dc7ecf5",
+        "kernel_software_source": "ecaefd4af2bf202b94b558e4f3545249c309712f",
+        "boot_id": "655b3ec6-d7b6-44c5-8ccc-225eb7415ccf",
+        "bundle": "61a4b0aadaeebfa927d57020870fac486e7c24bb61fb9d4c3c72f26197599962",
+        "generation": 1,
+        "firmware_sha256": "bb6a48c77d2559a2f9710153cc616a242bfe701ff891cb5a14bddba33eaf2cf7",
+        "fault_count": 1,
+        "steps": [
+          "before-fault-basic7",
+          "lost-owned-session",
+          "fault-intent",
+          "signal-ack",
+          "recovery-observations",
+          "recovery-observations",
+          "recovery-observations",
+          "recovery-observations",
+          "recovery-observations",
+          "recovery-observations",
+          "recovery-observations",
+          "recovery-observations",
+          "recovery-observations",
+          "recovery-observations",
+          "recovery-observations",
+          "recovery-observations",
+          "recovery-observations",
+          "recovery-observations",
+          "recovery-observations",
+          "recovery-observations",
+          "recovered-group",
+          "host-reconcile",
+          "after-recovery-basic7",
+          "after-recovery-basic9",
+          "stop",
+          "final-native",
+          "complete"
+        ],
+        "recovery_stable_seconds": 33.305,
+        "full_selected_group_replaced": true,
+        "same_boot": true,
+        "same_bundle_generation": true,
+        "fresh_MENU_configuration": true,
+        "owner_retirement_and_replacement": true,
+        "stable_MENU_seconds": 10,
+        "host_reconciled_idle": true,
+        "fresh_ordinary_BASIC7_9_HDMI": true,
+        "Stop_MENU_idle_free": true,
+        "no_boot_card_QSPI_image_or_software_change": true,
+        "guest_session_resumption": false,
+        "physical_keyboard_or_chooser_fault_tested": false
+      },
+      "signal-ack": {
+        "scope": "one exact owned selected role through pidfd; no other process signal",
+        "signal": "SIGKILL",
+        "signalled": {
+          "pid": 10447,
+          "start": "161593",
+          "exe": "/run/fogcast/fesdata3/software-releases/releases/61a4b0aadaeebfa927d57020870fac486e7c24bb61fb9d4c3c72f26197599962/bin/mister-runtime",
+          "sha256": "c681f166628ad39f00c89c7698e00d4c6995c97184e749b3504cae9025dd5844"
+        }
+      },
+      "process-before-value": {
+        "bundle": "61a4b0aadaeebfa927d57020870fac486e7c24bb61fb9d4c3c72f26197599962",
+        "processes": {
+          "fogcast-tenfoot": {
+            "pid": 10471,
+            "start": "161988",
+            "exe": "/run/fogcast/fesdata3/software-releases/releases/61a4b0aadaeebfa927d57020870fac486e7c24bb61fb9d4c3c72f26197599962/bin/fogcast-tenfoot",
+            "sha256": "aa78a5e3f770bfbc32cd086ecf3c5091f8c80ef4ebe27292804542806df8db0c"
+          },
+          "mister-agent": {
+            "pid": 10452,
+            "start": "161916",
+            "exe": "/run/fogcast/fesdata3/software-releases/releases/61a4b0aadaeebfa927d57020870fac486e7c24bb61fb9d4c3c72f26197599962/bin/mister-agent",
+            "sha256": "37c0a96475ea0c2115c55f24d7cc725b72eb6cd295a4fbfe1d17417f6329c429"
+          },
+          "mister-runtime": {
+            "pid": 10447,
+            "start": "161593",
+            "exe": "/run/fogcast/fesdata3/software-releases/releases/61a4b0aadaeebfa927d57020870fac486e7c24bb61fb9d4c3c72f26197599962/bin/mister-runtime",
+            "sha256": "c681f166628ad39f00c89c7698e00d4c6995c97184e749b3504cae9025dd5844"
+          }
+        },
+        "ready": true
+      },
+      "recovered-group": {
+        "bundle": "61a4b0aadaeebfa927d57020870fac486e7c24bb61fb9d4c3c72f26197599962",
+        "processes": {
+          "fogcast-tenfoot": {
+            "pid": 11595,
+            "start": "170887",
+            "exe": "/run/fogcast/fesdata3/software-releases/releases/61a4b0aadaeebfa927d57020870fac486e7c24bb61fb9d4c3c72f26197599962/bin/fogcast-tenfoot",
+            "sha256": "aa78a5e3f770bfbc32cd086ecf3c5091f8c80ef4ebe27292804542806df8db0c"
+          },
+          "mister-agent": {
+            "pid": 11575,
+            "start": "170754",
+            "exe": "/run/fogcast/fesdata3/software-releases/releases/61a4b0aadaeebfa927d57020870fac486e7c24bb61fb9d4c3c72f26197599962/bin/mister-agent",
+            "sha256": "37c0a96475ea0c2115c55f24d7cc725b72eb6cd295a4fbfe1d17417f6329c429"
+          },
+          "mister-runtime": {
+            "pid": 11570,
+            "start": "170421",
+            "exe": "/run/fogcast/fesdata3/software-releases/releases/61a4b0aadaeebfa927d57020870fac486e7c24bb61fb9d4c3c72f26197599962/bin/mister-runtime",
+            "sha256": "c681f166628ad39f00c89c7698e00d4c6995c97184e749b3504cae9025dd5844"
+          }
+        },
+        "ready": true
+      },
+      "configuration-before-value": {
+        "manager_state": "operating",
+        "overlay_sha256": "6f23fc46db9ecaf90a78cf6a6d07b071c21e2ad51053ad524eee65b65c05a59d",
+        "overlay_status": "applied",
+        "payload_inode": 1735,
+        "payload_sha256": "4750b93da22ef9ac3ae5623a42193dee5a7a7d6cdcc06286eca815047e99c4b1",
+        "payload_size": 1740800,
+        "scope": "read-only retained configuration metadata; no FPGA command"
+      },
+      "configuration-after-value": {
+        "manager_state": "operating",
+        "overlay_sha256": "6f23fc46db9ecaf90a78cf6a6d07b071c21e2ad51053ad524eee65b65c05a59d",
+        "overlay_status": "applied",
+        "payload_inode": 1760,
+        "payload_sha256": "64ee7cfca663ad0d2f864488b88a6f78644b1ec97ed0b2ba8e2b5a54a78f5dcc",
+        "payload_size": 1429504,
+        "scope": "read-only retained configuration metadata; no FPGA command"
+      },
+      "owner-before-value": {
+        "abi": 3,
+        "allocation_present": true,
+        "build_id": [
+          1899775169,
+          3237993690,
+          4033047986,
+          1225530085
+        ],
+        "generation": 7,
+        "hardware_errors": 0,
+        "hardware_status": 71,
+        "outstanding": 0,
+        "scope": "cached owner metadata only; no REAP, reset or MMIO",
+        "state": 10,
+        "underflows": 0,
+        "version": 3
+      },
+      "owner-after-value": {
+        "abi": 3,
+        "allocation_present": true,
+        "build_id": [
+          3727439964,
+          331026579,
+          1000719291,
+          2535805716
+        ],
+        "generation": 8,
+        "hardware_errors": 0,
+        "hardware_status": 67,
+        "outstanding": 0,
+        "scope": "cached owner metadata only; no REAP, reset or MMIO",
+        "state": 2,
+        "underflows": 0,
+        "version": 3
+      },
+      "visual-review": {
+        "passed": true,
+        "images": [
+          "before-fault-basic/basic7.png",
+          "after-recovery-basic/basic7.png",
+          "after-recovery-basic/basic9.png"
+        ],
+        "observation": "Fresh HDMI captures visually show pre-fault 7, then fresh post-recovery 7 and 9, black text on white within FES ZX81 frame."
+      }
+    }
+  },
+  "images": {
+    "stock-runtime-recovered-basic7.png": "85192f6efd1cb54f76dc2c16aa8ca1f3b6dbb349b87763adefe44f255de37d2f",
+    "stock-runtime-recovered-basic9.png": "5b9937d4b36a874b495bccc2f3be6c4dc0a8d896c8626fe695860e5c566a84d3"
+  },
+  "retained_log_observations": {
+    "overlay_property_memory_leak_warnings": true,
+    "Bluetooth_HCI_unexpected_events_and_command_timeouts": true,
+    "Bluetooth_qualification": false,
+    "no_captured_panic_RCU_stall_partial_trace": true,
+    "no_warning_free_claim": true
+  }
+}
