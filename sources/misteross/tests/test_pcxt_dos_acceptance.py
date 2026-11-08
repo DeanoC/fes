@@ -89,6 +89,11 @@ class SimulationProcessTest(unittest.TestCase):
 
     @unittest.skipUnless(hasattr(os, 'fork') and Path('/proc').exists(), 'POSIX process groups required')
     def test_sigterm_reaps_stubborn_simulator_and_fork(self):
+        for sig in (signal.SIGTERM, signal.SIGHUP):
+            with self.subTest(signal=sig.name):
+                self._signal_reaps_stubborn_simulator_and_fork(sig)
+
+    def _signal_reaps_stubborn_simulator_and_fork(self, sig):
         with tempfile.TemporaryDirectory() as temp:
             temp = Path(temp)
             pids = temp / 'pids'
@@ -115,7 +120,7 @@ sim.run_simulation([sys.executable, '-c', sys.argv[2], sys.argv[3]], sys.argv[4]
                     time.sleep(0.02)
                 self.assertTrue(pids.exists(), 'worker did not start')
                 pid, child = map(int, pids.read_text().split())
-                runner.send_signal(signal.SIGTERM)
+                runner.send_signal(sig)
                 runner.communicate(timeout=5)
                 self.assertNotEqual(runner.returncode, 0)
                 # A reparented child may be a zombie until init reaps it; it is
@@ -134,6 +139,54 @@ sim.run_simulation([sys.executable, '-c', sys.argv[2], sys.argv[3]], sys.argv[4]
                             os.killpg(int(pids.read_text().split()[0]), signal.SIGKILL)
                         runner.kill()
                         runner.communicate(timeout=5)
+
+    @unittest.skipUnless(sys.platform.startswith('linux'), 'PR_SET_PDEATHSIG is Linux only')
+    def test_killed_runner_takes_simulator_with_it(self):
+        with tempfile.TemporaryDirectory() as temp:
+            temp = Path(temp)
+            pids = temp / 'pids'
+            worker = '''import os, signal, sys, time
+signal.signal(signal.SIGTERM, signal.SIG_IGN)
+open(sys.argv[1], 'w').write(str(os.getpid()))
+while True:
+    time.sleep(0.1)
+'''
+            script = '''import sys
+sys.path.insert(0, sys.argv[1])
+import sim_fes_pcxt_dos as sim
+sim.run_simulation([sys.executable, '-c', sys.argv[2], sys.argv[3]], sys.argv[4], 'test', timeout=15, heartbeat=0.1, grace=0.2)
+'''
+            runner = subprocess.Popen([sys.executable, '-c', script, str(ROOT / 'scripts'), worker,
+                                       str(pids), str(temp)], stdout=subprocess.DEVNULL, stderr=subprocess.PIPE)
+            pid = None
+            try:
+                deadline = time.monotonic() + 10
+                while not pids.exists() and runner.poll() is None and time.monotonic() < deadline:
+                    time.sleep(0.02)
+                self.assertTrue(pids.exists(), 'worker did not start')
+                pid = int(pids.read_text())
+                runner.kill()
+                # wait(), not communicate(): a surviving worker would hold the
+                # inherited stderr pipe open.
+                runner.wait(timeout=5)
+                def state():
+                    try:
+                        return (Path('/proc') / str(pid) / 'stat').read_text().split(') ', 1)[1][0]
+                    except (FileNotFoundError, ProcessLookupError):
+                        return None  # gone and reaped
+                deadline = time.monotonic() + 5
+                while state() not in (None, 'Z') and time.monotonic() < deadline:
+                    time.sleep(0.02)
+                self.assertIn(state(), (None, 'Z'))
+            finally:
+                if runner.poll() is None:
+                    runner.kill()
+                    runner.communicate(timeout=5)
+                if pid is not None:
+                    try:
+                        os.kill(pid, signal.SIGKILL)
+                    except ProcessLookupError:
+                        pass
 
 
 if __name__ == '__main__':
