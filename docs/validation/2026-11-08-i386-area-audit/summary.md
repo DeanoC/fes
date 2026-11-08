@@ -109,7 +109,7 @@ The paging fit, by block. "Own" is a module's logic outside its submodules.
 | Audio (OPL2, Sound Blaster, mixer) | 1,502 | 1,881 | 2,440 | 9 | |
 | fes.computer storage and mailbox | 639 | 953 | | 3 | |
 | HPS DDR guards (board shell) | 575 | 1,348 | 339 | 0 | |
-| ROM, disk, status ring, top glue | 371 | | | 128 | |
+| ROM, disk and status ring (382); logic outside the listed modules in `pc386_system` (99) and `top` (17) | 498 | | | 128 | the rows sum to the fit's 36,794 |
 
 The CPU's own logic, 8,456 ALMs, is the largest single item. Most of its
 atoms are anonymous in the fit, so this record can't split it further. A
