@@ -41,3 +41,10 @@ parent suite passed 1,688 tests with three existing prerequisite skips on repair
 source `973dba255`. These results qualify the software preparation only.
 Native boot, the complete cycle, final Park, physical display/input, ordinary
 package admission and DE10-equivalent readiness require their own evidence.
+
+The [bounded hardware trial](hardware.md) now passes on its frozen operator
+`2e6534540`: twelve uploads and fresh reads, three computer launch/return
+cycles, four menu sessions, seven configurations and final Park at logical 7 /
+bridge 40. The native collector took 428.67 seconds within its unchanged
+450-second alarm. This is exact retained serial diagnostic evidence; ordinary
+package admission and visible/input appliance acceptance remain open.

@@ -1,0 +1,193 @@
+{
+  "format": 1,
+  "status": "bounded-paired-native-cycle-passed",
+  "classification": "exact retained hardware diagnostic; physical display/input and ordinary admission unproven",
+  "operator_source": "2e6534540e9242af4715ab3545c3d5be044e0730",
+  "compiled_source": "f8653867fea0dfab330a54358ddfd0ef97aadb42",
+  "native_boot_id": "aa11ddf99761b275",
+  "procedure_consumed": true,
+  "attempts_on_procedure": 1,
+  "prior_compiled_image_attempts": 3,
+  "total_compiled_image_attempts": 4,
+  "max_compiled_image_attempts": 4,
+  "original_attempt_passed": true,
+  "hardware_elapsed_seconds": 536.8321268719155,
+  "native_worker_limit_seconds": 480,
+  "native_collector_limit_seconds": 450,
+  "native_programming_completed": true,
+  "matched_native_boot_verified": true,
+  "twelve_uploads_and_fresh_reads_verified": true,
+  "verified_computer_launches": 3,
+  "verified_menu_returns": 3,
+  "verified_configuration_activations": 7,
+  "verified_menu_sessions": 4,
+  "final_park_verified": true,
+  "final_logical_generation": 7,
+  "final_bridge_generation": 40,
+  "full_cycle_verified": true,
+  "ordinary_admission": false,
+  "core_load_acceptance": false,
+  "physical_display_verified": false,
+  "physical_input_controls_verified": false,
+  "continuing_claim_retained": true,
+  "factory_restored": false,
+  "bottom_kit_touched": false,
+  "one_use_live_admission": {
+    "recovery": {
+      "grant_sha256": "a6ee8bfb8c2ee6d4001397123af4a66a3b1fb367fe11904ffd4d0dca5fbfaa73",
+      "scan_sha256": "938fdf1746854e9ab1c8ebcaaf33be2401da283b342403ed6145523feddd6986",
+      "trace_sha256": "b87acc902e7db65443fd763341cb2bec62b03b84f37b845361b679bba6b370b6",
+      "trace_bytes": 480350,
+      "mapped_client_libraries": [
+        "/data/altera_pro/26.3/quartus/linux64/libjtag_client.so",
+        "/data/altera_pro/26.3/quartus/linux64/libjtag_client_dcrt.so"
+      ]
+    },
+    "native": {
+      "grant_sha256": "fee1c1e7d7a0869d0c08d7b798754cf361912561ab567f53a7333fe521384915",
+      "scan_sha256": "938fdf1746854e9ab1c8ebcaaf33be2401da283b342403ed6145523feddd6986",
+      "trace_sha256": "2259017624b616dd897ff0ac2ad2402c2aa2a82fc5fdfa9d383d67c3f94c68a3",
+      "trace_bytes": 503763,
+      "mapped_client_libraries": [
+        "/data/altera_pro/26.3/quartus/linux64/libjtag_client.so",
+        "/data/altera_pro/26.3/quartus/linux64/libjtag_client_dcrt.so"
+      ]
+    }
+  },
+  "launch_identities": [
+    {
+      "PackageID": "03c8fa017f5fcfb40d23d54a449e8464d89fa9919dc6bae301fd8c833955290a",
+      "CoreID": "fes.zx81",
+      "ABI": "fes.computer",
+      "BuildID": "0792e51a2e51512bfb8fe44e93a69ddd",
+      "Platform": "de25_nano",
+      "Device": "A5EB013BB23BE4SCS",
+      "ProgrammingProfile": "de25-native-computer-v1",
+      "ActivationReceiptSHA256": "5c40790f10fc8e0a69a4048b7f9e1c735c86d9f014ad0d3142c139bc3bbb7e2c",
+      "ProgrammedSHA256": "1da457bc4afbfce297222fa8d85754fbd4533198be7dc9f706926ce21103b949",
+      "Major": 1,
+      "Minor": 0
+    },
+    {
+      "PackageID": "b32ce70af93f2ae4ff665490246e5c52fbb4d76eadb5445949e5c2b4434fba86",
+      "CoreID": "fes.zx80",
+      "ABI": "fes.computer",
+      "BuildID": "ea02ee8a9026deb05317a3e7d024adde",
+      "Platform": "de25_nano",
+      "Device": "A5EB013BB23BE4SCS",
+      "ProgrammingProfile": "de25-native-computer-v1",
+      "ActivationReceiptSHA256": "ac0cfb45e61b3ee1b6dd65868943539845b7ea8a142191dedb38888e1373bb30",
+      "ProgrammedSHA256": "826aaac1cd524136079e0b10d20a34ad75af631e5fef04f4b153849cde092e1a",
+      "Major": 1,
+      "Minor": 0
+    },
+    {
+      "PackageID": "03c8fa017f5fcfb40d23d54a449e8464d89fa9919dc6bae301fd8c833955290a",
+      "CoreID": "fes.zx81",
+      "ABI": "fes.computer",
+      "BuildID": "0792e51a2e51512bfb8fe44e93a69ddd",
+      "Platform": "de25_nano",
+      "Device": "A5EB013BB23BE4SCS",
+      "ProgrammingProfile": "de25-native-computer-v1",
+      "ActivationReceiptSHA256": "5c40790f10fc8e0a69a4048b7f9e1c735c86d9f014ad0d3142c139bc3bbb7e2c",
+      "ProgrammedSHA256": "1da457bc4afbfce297222fa8d85754fbd4533198be7dc9f706926ce21103b949",
+      "Major": 1,
+      "Minor": 0
+    }
+  ],
+  "command_windows": [
+    {
+      "request_hex": "0d",
+      "start": 50223,
+      "end": 60501,
+      "bound_seconds": 100,
+      "status": "received",
+      "elapsed_seconds": 54.089012826094404
+    },
+    {
+      "request_hex": "73",
+      "start": 60501,
+      "end": 73571,
+      "bound_seconds": 105,
+      "status": "received",
+      "elapsed_seconds": 56.73888410907239
+    },
+    {
+      "request_hex": "1b5b43",
+      "start": 73571,
+      "end": 76854,
+      "bound_seconds": 5,
+      "status": "received",
+      "elapsed_seconds": 2.6650131731294096
+    },
+    {
+      "request_hex": "0d",
+      "start": 76854,
+      "end": 87147,
+      "bound_seconds": 100,
+      "status": "received",
+      "elapsed_seconds": 53.68026151088998
+    },
+    {
+      "request_hex": "73",
+      "start": 87147,
+      "end": 100221,
+      "bound_seconds": 105,
+      "status": "received",
+      "elapsed_seconds": 56.64537008013576
+    },
+    {
+      "request_hex": "1b5b44",
+      "start": 100221,
+      "end": 103504,
+      "bound_seconds": 5,
+      "status": "received",
+      "elapsed_seconds": 2.6938008430879563
+    },
+    {
+      "request_hex": "0d",
+      "start": 103504,
+      "end": 113799,
+      "bound_seconds": 100,
+      "status": "received",
+      "elapsed_seconds": 54.099083794048056
+    },
+    {
+      "request_hex": "71",
+      "start": 113799,
+      "end": 127117,
+      "bound_seconds": 110,
+      "status": "received",
+      "elapsed_seconds": 56.568698469083756
+    }
+  ],
+  "timing": {
+    "upload_completion_to_native_collector_start_seconds": 1.38447,
+    "native_collector_seconds": 428.673757,
+    "startup_seconds": 61.59517312608659
+  },
+  "shared_usb_reports": 1493,
+  "independent_host_cleanup": {
+    "status": "passed",
+    "usb_node_unchanged": true,
+    "usb_permissions_exact": true,
+    "clock_readback": "15M",
+    "owned_private_server_gone": true,
+    "uart_owners": [],
+    "board_operations": false,
+    "native_rom_acceptance": false
+  },
+  "evidence_sha256": {
+    "out/nano-native-preflight-trial-20261108/hardware-result.json": "6f16dca2efc4be5ef69e08f6c74e88feceff43775a26f23b5b59dcb843857371",
+    "out/nano-native-preflight-trial-20261108/hardware.log": "f84f7f4662e61bac32cba73696b46f9a4810929357dd91e5050fc7b32607188a",
+    "out/nano-native-preflight-trial-20261108/cleanup-evidence.json": "7fecd92dbf5fcf639e54b7c9e3b602b1171d67c1e9529f2bf67e1ce82aedfe8c",
+    "out/nano-native-preflight-trial-20261108/trial/native-result.json": "344c494db178dba0bb9f4d660754ef50b69964c2a21b7ccce93f72e74bfc8b91",
+    "out/nano-native-preflight-trial-20261108/trial/native-console.log": "84deb5322bf5d4509844a66dcf636d2df2bc6dccfe9f500c005076d397e4c26e",
+    "out/nano-native-preflight-trial-20261108/trial/experiment-result.json": "664749b1a8107497b9ba2ca908fb3562ac6d5bcf17cece6c5be4b47486d72f45",
+    "out/nano-native-preflight-trial-20261108/trial/recovery-boot-result.json": "73d04be4fa6b43bb1c46cf9c811cc56d2ce472b3dec230d029ec89cf81a71438",
+    "out/nano-native-preflight-trial-20261108/trial/uploads/result.json": "ad316b54db53343c63a7bb02a0d2e1515418ea15b63410e76823e39f030cb35e",
+    "out/nano-native-preflight-trial-20261108/trial/preflight.json": "68995365c4eec2b55b278858ca02284a6bb9760e88f38424deafc350afa4ec72",
+    "out/nano-native-preflight-trial-20261108/analyse_pass.py": "9cdf782dda5d3c6d4145445245ab4b95f64bce809a9344da474f8881b43221b3"
+  },
+  "goal_complete": false
+}
