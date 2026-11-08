@@ -17,6 +17,13 @@ persona test, enable expansions, qualify diagnostic firmware for normal
 admission, or waive timing, DMA ownership, transfer retirement or failure
 containment. Other untested kit features retain their existing status.
 
+The later [configuration submission deadline repair](submission-deadline.md)
+adds real-clock fault-injection coverage and exact-artifact ordinary native
+acceptance of runtime `a495366c` from `644ed8017`. Its normal software trial
+needs no card swap, power cycle or boot change. Original `61a4b0aa` is restored
+at generation7 and passes a fresh BASIC7/9/7/Stop control; the board is released.
+Physical failed-upload recovery remains unqualified.
+
 ## Supported control and retained failure
 
 Source `ecaefd4af2bf202b94b558e4f3545249c309712f` produced the retained coherent-DMA

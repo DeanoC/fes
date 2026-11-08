@@ -115,5 +115,12 @@
   "physical_failed_upload_recovery_qualified": false,
   "personas_still_default_off": true,
   "compiler_version": "aarch64-buildroot-linux-gnu-g++.br_real (Buildroot 2021.02.4) 9.4.0",
-  "test_failures_retained": true
+  "test_failures_retained": true,
+  "target_condition_variable_header": {
+    "archive_member": "aarch64-buildroot-linux-gnu_sdk-buildroot/aarch64-buildroot-linux-gnu/include/c++/9.4.0/condition_variable",
+    "sha256": "6de799aa529676616b777c53b2241a72f9e7aca2ad1130c804918e0b9d812bb0",
+    "conversion_excerpt": "117: \tconst __clock_t::time_point __s_entry = __clock_t::now();\n118: \tconst auto __delta = __atime - __c_entry;\n119: \tconst auto __s_atime = __s_entry + __delta;\n121: \tif (__wait_until_impl(__lock, __s_atime) == cv_status::no_timeout)",
+    "source_sdk_archive_sha256": "2574bae19a900384e173274a0a85567385df06ada698b60fe27a26a6cf444d89",
+    "clock_type_excerpt": "68:     typedef chrono::system_clock\t__clock_t;\n69:     typedef chrono::steady_clock\t__steady_clock_t;\n211:     typedef chrono::system_clock\t__clock_t;"
+  }
 }

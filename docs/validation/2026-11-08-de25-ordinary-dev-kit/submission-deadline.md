@@ -27,10 +27,40 @@ tests and ASAN/UBSAN pass. An earlier native invocation used the wrong working
 directory and failed opening its existing relative fixture; that failed record
 is retained alongside the corrected component-directory run.
 
-[The machine-readable record](submission-deadline-software.json) binds source
-file hashes, compiler environment and preserved failures. Parent checks and
-native deployment of these changed runtime bytes are separate gates. The board
-still runs the previously verified `c681f166` runtime. This repair cannot cancel
+[The machine-readable software record](submission-deadline-software.json) binds
+source file hashes, compiler environment and preserved failures. The subsequent
+[native record](submission-deadline-native.json) tests the actual default-off
+bundle `ca85c2fd`, runtime `a495366c`, built from `644ed8017` against the retained
+normal SDK/root. One supported install and generation-CAS activation selects it
+at generation6. Every selected file and all three running executables are
+authenticated. MENU remains ready for ten seconds; the same private host and
+catalog reconnect without restart. Two fresh empty ROM prompts precede the first
+key in one ordinary ZX81 launch. LOAD7, edit/run9, reload7 and Stop/MENU pass with
+six inspected black-on-white captures across candidate and restoration controls.
+
+One supported activation restores the original `61a4b0aa` bundle at generation7,
+followed by the same ordinary 7/9/7 control. Exact durable accepted receipts,
+replaced processes, immutable kernel/root/stock FIT and original data/catalog,
+pairing and saved923-byte program are verified. The board is released at ready
+MENU, idle and lease-free. No card swap, power cycle, OS reboot, image/kernel/FIT,
+QSPI or persona operation occurs. No main baseline is promoted. The changed
+runtime inherits no earlier runtime-loss/reboot fault qualification.
+
+The board again runs the previously verified `c681f166` runtime. This repair cannot cancel
 kernel/secure calls, guarantee scheduling during a SoC-wide stall, or protect a
 lease after process death. It does not qualify physical failed-upload recovery
 or change the default-off partial-persona policy in #1568.
+
+Integration checks pass `make check`, 1,423 parent regressions with one skip,
+the selected host functional/race and UI checks, and the runtime functional
+loop through all 29 binaries. The broad coordinator is terminated with143
+during the subsequent exhaustive header-rebuild check; no final success receipt
+is written and its cause is unestablished. That interruption leaves seven
+touched header timestamps. The first independent dependency check correctly
+refuses a stale binary; the exact pre-test timestamps are then restored from
+the owned test snapshots. The corrected dependency check, version rebuild,
+archive/architecture checks and support-truth checks all pass. The last runtime
+binary is also rerun alone to confirm its otherwise unobserved terminal exit0.
+The original failed/interrupted records remain retained. This is separate
+completed check coverage, not a green result for the interrupted full runner
+or its uncompleted exhaustive recompile. [Integration receipt](submission-deadline-integration.json).

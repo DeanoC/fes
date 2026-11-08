@@ -7,7 +7,8 @@ requirements come from [the development-kit design](../../design/de25-linux-plat
 
 Current hardware: bottom TRWU8J8G, kernel `9cec7e77` / notes `b0c2f6b1`, root
 `0858eef0`, stock Terasic FIT `bb6a48c7`, normal default-off software `61a4b0aa`
-generation5 after the corrected observed-prompt rollback/restore sequence;
+generation7 after the bounded-submission candidate trial and normal restoration;
+generation5 retains the corrected observed-prompt rollback/restore sequence;
 earlier passing controls retain generation1 and the original failure retains
 its generation2/3 evidence. Ordinary package `3da0f1df` / build `490c1ae5`. Kernel/software
 producer is `ecaefd4af`; core producer is `8af614f4`. Source identities remain
@@ -48,5 +49,8 @@ full objective remains open rather than being reduced to the passing control.
 
 The [submission-deadline repair](submission-deadline.md) reproduces a separate
 off-board caller-blocking defect and tests an owned worker with retained lease
-and uncertainty. Its source-bound CPU/model results do not replace the physical
-failed-upload containment gate or the deployed runtime's artifact identity.
+and uncertainty. Its changed runtime `a495366c`, producer `644ed8017`, additionally
+passes native supported activation, one fresh ordinary BASIC7/9/7 control and
+Stop/MENU before restoring original61a4 generation7 and repeating that control.
+This ordinary acceptance does not replace the physical failed-upload containment
+gate or transfer the original runtime's reboot/runtime-loss evidence to new bytes.
