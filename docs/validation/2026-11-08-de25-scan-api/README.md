@@ -35,3 +35,29 @@ programming, HPS reset, SD/UART commands or bottom-kit operations. It does not
 boot the new native firmware or test the tape deadline. The source finding and
 any new scan outcome do not by themselves explain the historical87 or establish
 ordinary DE10-equivalent appliance acceptance.
+
+The bounded physical observation passed one explicit forced scan at6MHz:
+find/name/lock/clock/forced-scan/cached-after/unlock all returned0. Raw pre-scan
+chain type remained2. Fresh identity was count1,4362C0DD,mask0,IR10. CapturedDR
+was `(4362C0DD) [32]`, CapturedIR `(001) [10]`, and captured/normal bypass both
+`(0) [1]`, each with its explicit terminating NUL. Auto-adjust was enabled before
+and after; the after-scan clock readback stayed6000000. No vendor callbacks
+were emitted. The runtime returned0, with no programmer/reset/SD/UART commands
+and no programming grant. The observed host-probe type refusal was an extra
+assumption; type2 did not prevent this locked scan from succeeding.
+
+Independent cleanup passed: exact unchanged USB identity and owner/group/mode,
+recorded original15MHz readback, private server gone and UART free. The board
+remains last verified in recovery U-Boot; this observation did not boot native
+firmware or repeat the retired7abe procedure. The original87 cause remains
+unproven because server, discovery sequence and time differ. Do not reuse this
+diagnostic as a programming grant or claim the native tape deadline resolved.
+
+The next integration step is a source-controlled fresh programming-scan producer
+using the now observed vendor sequence, while retaining its exact cable/clock,
+fresh forced scan and post-scan identity, per-operation one-use reservation and
+first-failure stop. That producer needs controlled success/failure tests, vendor
+build identity and an independently bounded procedure before more programming.
+Only then can the finer native ownership timing experiment address the one-second
+tape-loading failure. Normal launch/return/failure, display and full appliance
+acceptance remain open.
