@@ -928,7 +928,7 @@ f5b:    mov ah, 0xa4                    ; alternate map register sets
 f5c:    xor ah, ah                      ; prepare for warm boot
         ret
 
-; The first call hands out the access key in BX:CX and does its operation;
+; The first call hands out a new, unpredictable access key in BX:CX and does its operation;
 ; later calls need the key. 00h enables 59h and 5Bh, 01h disables them, 02h
 ; enables them and takes the key back, so the next call hands out a new one.
 f5d:    cmp al, 2                       ; operating system functions
@@ -936,7 +936,7 @@ f5d:    cmp al, 2                       ; operating system functions
         cmp byte [os_given], 0
         jne .check
         mov byte [os_given], 1
-        add dword [os_key], 0x46455345  ; a different key each time it is handed out
+        call new_key
         mov cx, [os_key + 2]
         mov [bp + F_BX], cx
         mov cx, [os_key]
@@ -959,6 +959,34 @@ f5d:    cmp al, 2                       ; operating system functions
 .ok:    xor ah, ah
 .done:  ret
 .sub:   mov ah, 0x8f
+        ret
+
+; A new access key in os_key from the moment it is asked for: PIT counter 0
+; (latched, 1.19 MHz) and the BIOS tick count, mixed into the last key, so no
+; program can know it in advance. Never 0:0.
+new_key:
+        push es
+        push ax
+        push bx
+        mov al, 0
+        out 0x43, al                    ; latch counter 0
+        in al, 0x40
+        mov bl, al
+        in al, 0x40
+        mov bh, al
+        xor ax, ax
+        mov es, ax
+        mov ax, [es:0x46c]
+        rol dword [os_key], 13
+        xor [os_key], bx
+        xor [os_key + 2], ax
+        add dword [os_key], 0x9e3779b9
+        cmp dword [os_key], 0
+        jne .done
+        inc dword [os_key]
+.done:  pop bx
+        pop ax
+        pop es
         ret
 
 ; ---- 57h: move or exchange a memory region ---------------------------------
