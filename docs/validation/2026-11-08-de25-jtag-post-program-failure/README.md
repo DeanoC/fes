@@ -22,3 +22,21 @@ show the FPGA chain currently responds, while leaving the earlier programming
 failure/cause and all native keyboard/core qualification open. The user has
 clarified the kit likely has a hub with a Bluetooth adapter and keyboard; the
 next input path should remain explicitly boot-keyboard.
+
+## Result
+
+The one forced scan passed at6M: one4362C0DD device with10-bit instruction
+register, through the two expected vendor libraries and forced-scan binding.
+No image programming, CPU reset, SD write, UART open or failed-image replay
+occurred. Independent cleanup passes recorded15M, exact adapter permissions,
+owned-server exit and free UART. The FPGA chain currently responds; continuous
+stability and the earlier programming-failure cause remain unproven. Current
+configuration/native boot/Park are unproven. This scan cannot replace them.
+
+The confirmed keyboard makes a fresh matched combined keyboard/media/core
+candidate appropriate, keeping the failed standalone keyboard image closed.
+The next native program must retain the earlier programming failure in its
+attempt accounting and use a new image with complete admission and one fresh
+live programming grant. A second failure on the unchanged runtime source must
+stop further hardware tests pending a fix. Full ordinary core-load acceptance
+remains open.
