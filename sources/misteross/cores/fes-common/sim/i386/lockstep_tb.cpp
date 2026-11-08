@@ -6497,7 +6497,8 @@ int run_paging_cases(fes_i386::Oracle &oracle, OracleBus &bus, Rtl &rtl, const s
     const uint64_t gdt[GDT_ENTRIES] = {0, desc(0, 0xffff, 0x9b, false, false), desc(0, 0xffff, 0x93, false, false),
                               desc(0, 0xfffff, 0x9b, true, true), desc(0, 0xfffff, 0x93, true, true),
                               desc(0, 0xffff, 0x13, false, false), desc(LDT, 0x1f, 0x82, false, false),
-                              desc(0x2500, 0x67, 0x89, false, false), 0, 0, 0, 0, 0, 0, 0,
+                              desc(0x2500, 0x67, 0x89, false, false), desc(0, 0xff, 0x93, false, true),
+                              desc(0x10000, 0xffff, 0x93, false, false), 0, 0, 0, 0, 0,
                               desc(0, 0xfffff, 0xfb, true, true), desc(0, 0xfffff, 0xf3, true, true)};
     const uint64_t ldt[4] = {0, desc(0x5000, 0xffff, 0x93, false, false), desc(0, 0xffff, 0x9b, false, false),
                              desc(0, 0xfffff, 0xf3, true, true)};
@@ -6665,6 +6666,18 @@ int run_paging_cases(fes_i386::Oracle &oracle, OracleBus &bus, Rtl &rtl, const s
          }, -1, -1, -1, {{0x10, 0x20000 | P | W | U}, {0x11, 0x40000 | P | W | U}, {0x12, 0x23000 | P | W | U},
                          {0x13, 0x24000 | P | W | U}, {0x14, 0x41000 | P | W | U}, {0x15, 0x25000 | P | W | U}}, {},
          {{0x20ff0, {1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16}}, {0x40ff8, {21, 22, 23, 24, 25, 26, 27, 28}}}},
+        // MOVSB from a page not present to past ES's limit (40h, 256 bytes):
+        // the source's #PF, as Bochs reads first.
+        {"pg-movs-src-pf-es-limit", [=](Asm &a, uint32_t) {
+             a.op({0x66, 0xb8, 0x40, 0x00, 0x8e, 0xc0}); a.mov(ESI, 0x10000); a.mov(EDI, 0x1000); a.op({0xa4});
+         }, 14, 0, 0x10000, {}},
+        // A #GP delivered onto a 16-bit stack (48h, at 10000h, not present)
+        // at SP 0Fh, whose fourth slot wraps: the first push's #PF comes
+        // first, then #PF again, a double fault and shutdown.
+        {"pg-delivery-push-pf", [=](Asm &a, uint32_t) {
+             a.op({0x66, 0xb8, 0x48, 0x00, 0x8e, 0xd0}); a.mov(4, 0x0f);              // SS 48h; ESP 0Fh
+             a.op({0x66, 0xb8, 0x9b, 0x00, 0x8e, 0xd8});                             // MOV DS, 9Bh: #GP(98h)
+         }, -2, -1, 0x1000b, {}},
         // A PTE frame past guest RAM (a hole: FFh, stores dropped) and in
         // the reset shadow at FFFF0000h (F0000h).
         {"pg-frame-hole", [=](Asm &a, uint32_t) { a.ld32(0x10000); a.mov(EBX, 0x1234); a.op({0x89, 0x1d}); a.d(0x10004);
