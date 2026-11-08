@@ -333,7 +333,7 @@ The [7 November qualification](validation/2026-11-07-pcxt-qualification/summary.
 compared the kit against MAME `ibm5150`, and its results are partial:
 - **Passes.**
   - Paratrooper and Alley Cat ran in sustained 10-minute sessions.
-  - Paratrooper's helicopter speed matched MAME within 0.1%, its speaker
+  - Paratrooper's helicopter speed matched MAME within 0.2%, its speaker
     tones within 0.2 cents, and Alley Cat's title-tune timing within 5 ms.
   - Library Save and relaunch readback passed, with the whole saved image
     differing from its base only in the expected FAT, directory and data

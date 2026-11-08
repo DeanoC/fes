@@ -20,7 +20,7 @@ All runs used Kit B: `s1` 14:32–15:03, `s2` 15:22–15:54 and `s3` 18:23–18:
 | Rogue, play | **FAIL**: the dungeon map never draws, so the stairs objective can't be reached ([#1537](https://github.com/DeanoC/fes/issues/1537)); MAME draws it | `s3` |
 | Rogue, game save and restore across a relaunch | **PASS** | `s3` |
 | Game speed against MAME `ibm5150` | **PASS**: Paratrooper helicopters 72.8–72.9 vs 72.8 CGA px/s; Alley Cat's title tune has the same note timing | `s1`, `s2` |
-| Speaker pitch against MAME | **PASS**: Paratrooper's main tones agree within 0.2 cents; Alley Cat has the same tone set | `s1`, `s2` |
+| Speaker pitch against MAME | **PASS**: Paratrooper's main tones agree within 0.2 cents; Alley Cat shares its three main tone bins (2316, 4631, 1158 Hz); MAME also shows a 7.2 kHz bin the kit's top tones lack | `s1`, `s2` |
 | Guest reset (Ctrl+Alt+Del) | **FAIL**: the machine hangs; the next library launches warm-boot and can't boot the floppy ([#1534](https://github.com/DeanoC/fes/issues/1534)) | `s2` |
 | Recovery after that hang | **PASS** with a workaround: a launch with no floppy runs a cold POST, and the next library launch boots | `s2` |
 | Library selection through tenfoot and the shared host, then play | **PASS**: found by Library search, launched with Play, cold-booted to `A:\>`, Paratrooper played from the kit keyboard | `tf1` |
@@ -263,8 +263,8 @@ On the Rogue disk, bound as `xt1529-rogue`:
 **Alley Cat.**
 - The title tune's note onsets fall at the same intervals on both:
   0.33, 0.33, 0.33, 0.33, 0.22, 0.11, 0.22, 0.33, 0.11, 0.11, 0.11, 0.44,
-  0.66, 0.66 s. The first 15 intervals agree within 5 ms.
-- Gameplay sound gives the same tone set: 2316, 4631, 1158 and 2349 Hz bins.
+  0.66, 0.66 s. The first 14 intervals agree within 5 ms.
+- Gameplay sound shares the same main tone bins: 2316, 4631 and 1158 Hz.
   - The speaker sounds in 16.7% of the kit's windows and 15.5% of MAME's.
   - MAME has an extra 7.2 kHz bin, which the kit's HDMI audio doesn't show
     among its top tones. This is noted, not judged: the method is coarse at
@@ -410,18 +410,19 @@ The private evidence is on Powerboat under `~/fes-scratch/xt1529/`:
 - `nasm/`: the probe.
 
 
-Each run was claimed in `~/kit-status/kitB-STATUS.md` under the Kit B queue
-lock, and only after the status file read FREE, the kit was on its baseline
+The Kit B runs (`s1`–`s3`) were claimed in `~/kit-status/kitB-STATUS.md`
+under the Kit B queue lock, and the Kit A runs (`pc1`, `tf1`) in
+`~/kit-status/kitA-STATUS.md` under the Kit A lock. Each claim was made only after the status file read FREE, the kit was on its baseline
 and the agent was idle with a free lease.
 
-- Each release checked that the software was `a8cd30c4` active with nothing
+- Each Kit B release checked that the software was `a8cd30c4` active with nothing
   pending, the image was good `f904961e` and nothing was pending, the
   `usb-storage` quirk line was present, the boot ID and snapshot keys were
   unchanged, and the agent was idle with a free lease.
 - At the end of `s3`, still inside its claim, the machine was stopped and the
   7 record directories made by these runs were removed (game IDs
   `xt1529-*`, found by their record headers). `s3`'s new-path list is empty.
-- No software was installed, the image was not changed, and no reboot was
-  made.
+- No software was installed and no image was changed on either kit. The
+  only reboot was Deano's cold power cycle of Kit A in `pc1`.
 - The last PC/XT launch was a normal cold boot, so the next PC/XT user does
   not start from the #1534 warm-boot state.
