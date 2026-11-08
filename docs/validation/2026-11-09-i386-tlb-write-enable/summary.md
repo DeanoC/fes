@@ -7,8 +7,8 @@ This record covers one change to `fes_i386_tlb`, the module behind the
 The Yosys-elaborated netlist turns that into shift logic over every entry
 bit. Each entry now loads under its own enable (`!flush && fill && slot ==
 k`). The flush and fill behaviour is the same as before. The
-[area audit](../2026-11-08-i386-area-audit/summary.md)
-([#1584](https://github.com/DeanoC/fes/pull/1584)) found the cost and
+area audit ([#1584](https://github.com/DeanoC/fes/pull/1584), record
+`docs/validation/2026-11-08-i386-area-audit/`) found the cost and
 measured the saving in an analysis fit. Tracker:
 [#1548](https://github.com/DeanoC/fes/issues/1548).
 
