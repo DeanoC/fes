@@ -36,32 +36,46 @@ func (s *coreMediaSnapshot) Close() error {
 }
 
 func snapshotCoreMedia(ctx context.Context, path string) (*coreMediaSnapshot, error) {
+	return snapshotMediaFile(ctx, path, catalog.MaxCoreMediaBytes, func(int64) bool { return true }, invalidCoreMediaSnapshot())
+}
+
+// snapshotHardDisk snapshots a raw hard-disk image: 1..128 MiB in whole
+// 512-byte sectors, the host's hard-disk route limit.
+func snapshotHardDisk(ctx context.Context, path string) (*coreMediaSnapshot, error) {
+	return snapshotMediaFile(ctx, path, catalog.MaxHardDiskMediaBytes, protocol.AdmitAtaDiskSize, invalidHardDiskSnapshot())
+}
+
+func snapshotMediaFile(ctx context.Context, path string, limit int64, admit func(int64) bool, invalid error) (*coreMediaSnapshot, error) {
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
 	before, err := os.Lstat(path)
-	if err != nil || !before.Mode().IsRegular() || before.Size() < 1 || before.Size() > catalog.MaxCoreMediaBytes {
-		return nil, invalidCoreMediaSnapshot()
+	if err != nil || !before.Mode().IsRegular() || before.Size() < 1 || before.Size() > limit || !admit(before.Size()) {
+		return nil, invalid
 	}
 	source, err := os.Open(path)
 	if err != nil {
-		return nil, invalidCoreMediaSnapshot()
+		return nil, invalid
 	}
 	defer source.Close()
 	opened, err := source.Stat()
 	if err != nil || !opened.Mode().IsRegular() || !os.SameFile(before, opened) || opened.Size() != before.Size() {
-		return nil, invalidCoreMediaSnapshot()
+		return nil, invalid
 	}
-	return snapshotCoreMediaReader(ctx, source, opened.Size())
+	return snapshotMediaReader(ctx, source, opened.Size(), limit, invalid)
 }
 
 // The snapshot fixes both the upload identity and length before opening HTTP.
-func snapshotCoreMediaReader(ctx context.Context, source io.Reader, size int64) (_ *coreMediaSnapshot, err error) {
+func snapshotCoreMediaReader(ctx context.Context, source io.Reader, size int64) (*coreMediaSnapshot, error) {
+	return snapshotMediaReader(ctx, source, size, catalog.MaxCoreMediaBytes, invalidCoreMediaSnapshot())
+}
+
+func snapshotMediaReader(ctx context.Context, source io.Reader, size, limit int64, invalid error) (_ *coreMediaSnapshot, err error) {
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
-	if size < 1 || size > catalog.MaxCoreMediaBytes {
-		return nil, invalidCoreMediaSnapshot()
+	if size < 1 || size > limit {
+		return nil, invalid
 	}
 	file, err := os.CreateTemp("", "fogcast-media-snapshot-*")
 	if err != nil {
@@ -86,7 +100,7 @@ func snapshotCoreMediaReader(ctx context.Context, source io.Reader, size int64) 
 		if n > 0 {
 			total += int64(n)
 			if total > size {
-				return nil, invalidCoreMediaSnapshot()
+				return nil, invalid
 			}
 			if _, err := file.Write(buffer[:n]); err != nil {
 				return nil, err
@@ -104,7 +118,7 @@ func snapshotCoreMediaReader(ctx context.Context, source io.Reader, size int64) 
 		return nil, err
 	}
 	if total != size {
-		return nil, invalidCoreMediaSnapshot()
+		return nil, invalid
 	}
 	if _, err := file.Seek(0, io.SeekStart); err != nil {
 		return nil, err
@@ -114,5 +128,9 @@ func snapshotCoreMediaReader(ctx context.Context, source io.Reader, size int64) 
 }
 
 func invalidCoreMediaSnapshot() error {
-	return &protocol.APIError{Code: protocol.CodeBadRequest, Message: "core media must be a regular file of 1..33554432 bytes"}
+	return &protocol.APIError{Code: protocol.CodeBadRequest, Message: fmt.Sprintf("core media must be a regular file of 1..%d bytes", catalog.MaxCoreMediaBytes)}
+}
+
+func invalidHardDiskSnapshot() error {
+	return &protocol.APIError{Code: protocol.CodeBadRequest, Message: fmt.Sprintf("hard-disk image must be a regular file of %d to %d bytes in whole %d-byte sectors", protocol.AtaDiskMinBytes, catalog.MaxHardDiskMediaBytes, protocol.AtaDiskSectorBytes)}
 }

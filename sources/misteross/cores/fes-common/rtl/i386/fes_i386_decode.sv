@@ -74,6 +74,8 @@ module fes_i386_decode (
     input  logic                   wait_nm,     // CR0.MP and CR0.TS are both set: WAIT raises #NM
     input  logic                   esc_nm,      // CR0.EM or CR0.TS is set: an ESC instruction raises #NM
     input  logic                   pe,          // CR0.PE: protected mode
+    input  logic [1:0]             cpl,         // the CPL (0 in real mode)
+    input  logic [1:0]             iopl,        // EFLAGS.IOPL
     output fes_i386_pkg::uop_t     uop,
     output logic                   opsize32,
     output logic                   lea,         // address operands go to AG
@@ -148,6 +150,11 @@ module fes_i386_decode (
                    || b0 == 8'h9f || b0 == 8'hf5 || b0[7:1] == 7'b1110000         // LAHF, CMC, LOOPNE, LOOPE
                    || b0 == 8'h9c || b0 == 8'hce || b0 == 8'hd6                   // PUSHF, INTO, SALC
                    || (b0[7:5] == 3'b001 && b0[2:0] == 3'b111);                   // DAA, DAS, AAA, AAS
+
+    // IN and OUT at a CPL above IOPL take the TSS's I/O permission bitmap's
+    // check (see Faults below); INS and OUTS there are not built.
+    logic io_chk;
+    assign io_chk = pe && cpl > iopl && !two && (b0[7:2] == 6'b111001 || b0[7:2] == 6'b111011);
 
     // Where the displacement is: after the ModRM and, in 32-bit addressing
     // with r/m 100b, a SIB byte.
@@ -1665,6 +1672,27 @@ module fes_i386_decode (
             endcase
         end
 
+        // IN or OUT at a CPL above IOPL (protected mode): its port into T5
+        // (DX, or the imm8), then the ROM's check of the TSS's I/O
+        // permission bitmap and the access, which fes_i386_seq makes from
+        // this uop's ctl.cond (the direction), src_size (the size), src2 (DX)
+        // and imm (the port).
+        if (io_chk) begin
+            cond = {2'b00, io};
+            src_size = size;
+            io = 2'(fes_i386_pkg::IO_NONE);
+            op = 5'd9;  // ALU_MOV
+            size = 2'd2;
+            s1_valid = 1'b0;
+            d_valid = 1'b1;
+            d_temp = 1'b1;
+            d_t1 = 1'b1;
+            d_idx = 3'd4;  // T5
+            seq = fes_i386_pkg::SEQ_UCODE;
+            upc = fes_i386_ucode_pkg::UC_IOCHK;
+            eoi = 1'b0;
+        end
+
         // A far pointer's first uop: the selector's word into T0. LES and
         // its kin keep the register as the destination for the second.
         // In protected mode JMP m16:16/32 and LES and its kin go to the ROM
@@ -1742,12 +1770,29 @@ module fes_i386_decode (
     // ---- Faults and the uop ---------------------------------------------------
     // LOCK is checked before the 15-byte limit (Phase 0 divergence
     // lock-ud-before-length-gp).
+    // Privilege, in protected mode: the instructions only CPL 0 runs (HLT,
+    // CLTS, MOV to or from CRn and DRn, LGDT, LIDT, LMSW, LLDT, LTR) raise
+    // #GP(0) at another CPL, and CLI and STI at a CPL above IOPL, each
+    // before its operands, as Bochs checks them, after LOCK's and the
+    // form's #UD. An I/O instruction at a CPL above IOPL asks the TSS's I/O
+    // permission bitmap (io_chk), which INS and OUTS do not build
+    // (WHY_IOPERM). IOPL changes only
+    // at CPL 0, where it gates nothing here, and reaching another CPL
+    // flushes, so the IOPL D sees is the instruction's.
+    logic       priv_op, io_op, cpl_gp, io_perm;
     logic [2:0] fault;
     logic       lock_ok;
+    assign priv_op = two ? op2 == 8'h06 || op2[7:2] == 6'b001000
+                         || op2 == 8'h00 && reg_f[2:1] == 2'b01 || op2 == 8'h01 && (reg_f[2:1] == 2'b01 || reg_f == 3'd6)
+                         : b0 == 8'hf4;
+    assign io_op = !two && b0[7:2] == 6'b011011;
+    assign cpl_gp = pe && (cpl != 2'd0 && priv_op || cpl > iopl && !two && b0[7:1] == 7'b1111101);
+    assign io_perm = pe && cpl > iopl && io_op;
     assign lock_ok = lockable && mkind == 2'd3 || lock_any;
-    assign fault = !known ? 3'd4                                      // FAULT_UNIMPLEMENTED
+    assign fault = !known && !cpl_gp ? 3'd4                           // FAULT_UNIMPLEMENTED
                  : undefined || (q.prefixes.lock && !lock_ok) ? 3'd1  // FAULT_UD
-                 : q.too_long ? 3'd2                                  // FAULT_GP0
+                 : q.too_long || cpl_gp ? 3'd2                        // FAULT_GP0
+                 : io_perm ? 3'd4
                  : nm ? 3'd3 : 3'd0;                                  // FAULT_NM
     assign stop = fault != 3'd0 || (cls == C_SPECIAL && op == 5'd1);
 
@@ -1775,6 +1820,10 @@ module fes_i386_decode (
     // INT n's and INT3's first uop reads the gate's low dword.
     assign u.desc = gdesc ? 3'(fes_i386_pkg::DESC_IDT_LO) : 3'd0;
     assign u.x87p = x87p;
+    assign u.hold = 1'b0;
+    assign u.xfer = 1'b0;
+    assign u.nstk = 1'b0;
+    assign u.sflt = 2'(fes_i386_pkg::SFLT_GP);
     assign u.segchk = 4'd0;
     assign u.nwrap = nwrap;
     assign u.vmchk = b0 == 8'hcf && pe;
@@ -1827,6 +1876,6 @@ module fes_i386_decode (
     assign u.ctl.end_of_instruction = eoi;
     assign u.ctl.ilen = q.length;
     assign u.ctl.fault = fes_i386_pkg::fault_e'(fault);
-    assign u.ctl.why = fes_i386_pkg::WHY_ENCODING;
+    assign u.ctl.why = known && io_perm ? fes_i386_pkg::WHY_IOPERM : fes_i386_pkg::WHY_ENCODING;
     assign uop = u;
 endmodule

@@ -173,13 +173,15 @@ DOS and then unloads. Its documentation pairs it with UMBPCI, which turns on
 chipset shadow RAM; here the RAM is already on. By itself UMBM finds only the
 regions UMBPCI's tables list, so the games image names the range
 (`UMBM.EXE /I=C800-EFFF`); it then tests every 4 KiB of it and DOS gets all
-160K as upper memory. The games image uses `BUFFERS=16`. With the kernel kept
-out of the HMA for Ultima VII (no `DOS=HIGH`), HIMEMX and CuteMouse loaded high
-leave 575K (588,544 bytes) of conventional memory free, and FreeCOM's
-environment goes to upper memory, where Ultima VII's memory check needs it.
-That is 1,792 bytes above Serpent Isle's published 573K (586,752-byte)
-requirement; the games-image MEM simulation enforces at least 1,024 bytes of
-headroom. See the [games image profile](../cores/fes-pc386/README.md) for its
+160K as upper memory. Its boot menu takes the Ultima VII setup after 3
+seconds. That setup keeps the kernel out of the HMA (no `DOS=HIGH`) and puts
+the kernel's data, `FILES=30`, `BUFFERS=16` and FreeCOM in upper memory, with
+HIMEMX and CuteMouse loaded high. This leaves 580K (594,256 bytes) of
+conventional memory free, and FreeCOM's environment in upper memory, where
+Ultima VII's memory check needs it. A second menu entry, `DOS=HIGH,UMB`,
+leaves 622K for programs such as Falcon 3.0, but not for Ultima VII (#1526).
+The games-image MEM simulation enforces Serpent Isle's 573K plus 1,024 bytes of
+headroom, and Frontier's 594,000 bytes. See the [games image profile](../cores/fes-pc386/README.md) for its
 MEM count. Real AT clones with shadow-capable chipsets offered the same.
 
 Guest RAM is 16 MiB, the AT's DMA reach. The CPU design allows up to 64 MiB;
