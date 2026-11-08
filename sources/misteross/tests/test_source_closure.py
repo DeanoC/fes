@@ -3,6 +3,8 @@ import json
 import os
 from pathlib import Path
 import re
+import subprocess
+import sys
 import tempfile
 import unittest
 from unittest.mock import patch
@@ -198,6 +200,51 @@ class GuardTests(unittest.TestCase):
                     with self.assertRaises(ReadAuditError): os.close(os.open('out/b.v', os.O_RDONLY))
             finally:
                 os.chdir(cwd)
+
+    def test_fresh_checkout_build_dir_does_not_list_source_root(self):
+        # A producer's first run in a checkout without build/ creates it inside
+        # the guard. Without settling the import root first, the next import
+        # that misses sys.modules lists the root: "source list ... : .".
+        child = r'''
+import importlib, os, sys
+from pathlib import Path
+from unittest.mock import patch
+root, other = (Path(path).resolve() for path in sys.argv[1:3])
+sys.path[:0] = [str(root)]; sys.path.append(str(other))
+import primed  # FileFinder caches the root listing before any guard.
+from scripts import compiler_read_audit as audit, functional_execution
+from scripts.functional_execution import AuditedRoots
+
+def produce(root, identity_version=2):
+    (root / 'build').mkdir(exist_ok=True)  # As _prepare_output does.
+    return importlib.import_module(sys.argv[3]).VALUE
+
+namespace = {'PINNED_INPUTS': ('in/a.v',), 'importlib': importlib, 'sys': sys}
+producer = audit.guard_functional_source(
+    type(produce)(produce.__code__, namespace, 'produce', produce.__defaults__))
+with patch.object(functional_execution, 'producer_name', return_value='build_fake'), \
+        patch.object(functional_execution, 'source_roots_for_producer',
+                     return_value=AuditedRoots(['in'])):
+    if sys.argv[4] == 'unsettled':
+        with audit.python_source_guard(root, AuditedRoots(['in'])):
+            produce(root)
+    else:
+        print(producer(root))
+'''
+        with tempfile.TemporaryDirectory() as temp:
+            base = Path(temp)
+            for case, expected in (('unsettled', 'source list outside audited closure: .'),
+                                   ('guarded', 'late-import')):
+                root, other = base / case / 'root', base / case / 'other'
+                (root / 'in').mkdir(parents=True); other.mkdir()
+                (root / 'in/a.v').write_text('a'); (root / 'primed.py').write_text('')
+                (other / f'late_{case}.py').write_text("VALUE = 'late-import'\n")
+                result = subprocess.run(
+                    [sys.executable, '-c', child, str(root), str(other), f'late_{case}', case],
+                    cwd=ROOT, env=dict(os.environ, PYTHONPATH=str(ROOT), PYTHONDONTWRITEBYTECODE='1'),
+                    capture_output=True, text=True)
+                self.assertIn(expected, result.stdout + result.stderr, case)
+                self.assertEqual(result.returncode != 0, case == 'unsettled', result.stderr)
 
     def test_compiler_trace_open(self):
         with tempfile.TemporaryDirectory() as temp:
