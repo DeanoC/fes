@@ -1,0 +1,889 @@
+{
+ "common": {
+  "kit": "B",
+  "baseline": "main bb51f4454eb72048cefeea16aa16b28eb2aadaad, software a8cd30c49afd79eb7668af7ab7ae8a8e2ed2a90a31b25f164e28128b446274ee, OS f904961e008a972db8f06f1bb47aff9631123d67215b9f4157ea1fbee83b98d4 (core-only, nothing installed, no image change, no reboot)",
+  "host": "private FogCast host, baseline binary fogcast-api-bb51f4454eb72048cefeea16aa16b28eb2aadaad in an isolated container, targeting Kit B only",
+  "sealed_from": "607922c63d45f798dd3f6fb0ce443f346c324852, HIP, producer run outside gpu-run (it leases its own GPU); none of the 64 sealed source inputs changed on main 4b33ec559",
+  "packages": {
+   "fes-spectrum-oss": {
+    "package_id": "5013dde28746084ba6dfcfe5e2b64e3a6f7e769cd1de67081f55388ab3b13827",
+    "fcore_sha256": "c4f0757dc2bf1a7810a6c3989d5e33cd14e84702d939601ca1eb74c12c4d4f8f",
+    "build_id": "496f30507bc3c3e5983ab5b3862ef804",
+    "comb": 9451,
+    "ff": 4821,
+    "m10k": 129,
+    "rbf_sha256": "1e64c94f746be8f2a6a1e4d3ecc53ab526641dae8b9c7e3d649b2f0e186447b5",
+    "rbf_bytes": 2675247,
+    "seed": 5,
+    "achieved_mhz": {
+     "audio": 181.72,
+     "pixel": 96.92,
+     "system": 63.44
+    },
+    "target_mhz": {
+     "audio": 12.288,
+     "pixel": 74.25,
+     "system": 52.225
+    }
+   },
+   "fes-spectrum128-oss": {
+    "package_id": "85665cca9d0bc1d4d5317eac3813d64357a446961ddc1eae6c4ea41850c82c18",
+    "fcore_sha256": "d32449dc507d05a61e893e301621e712cbfea29d047ce6e541eb8e28f5432334",
+    "build_id": "91d3c00f2e741de693ac7ac46e8d4310",
+    "comb": 10554,
+    "ff": 5092,
+    "m10k": 225,
+    "rbf_sha256": "8d293a6125d0b6016e50977590857aea5a435da0e541d8ff86562f378c12197d",
+    "rbf_bytes": 2975489,
+    "seed": 5,
+    "achieved_mhz": {
+     "audio": 189.25,
+     "pixel": 94.07,
+     "system": 68.9
+    },
+    "target_mhz": {
+     "audio": 12.288,
+     "pixel": 74.25,
+     "system": 52.225
+    }
+   },
+   "fes-spectrum-plus3-oss": {
+    "package_id": "f362eb967ccb221d7aaabb1b756bd328a8f249c0c2c1e1a4a95f0c7c7ca22273",
+    "fcore_sha256": "e5a9f72420529a6adeec3f1007184a507a560bd6a83ca471279e22625ab06c8d",
+    "build_id": "b04310013c411434e1d30b3bbc2f053a",
+    "comb": 14574,
+    "ff": 6650,
+    "m10k": 257,
+    "rbf_sha256": "67dabb0ad3d748b5ef3a6653a2023dbcdc238fae23fae63ed601c28e502ac781",
+    "rbf_bytes": 3155997,
+    "seed": 2,
+    "achieved_mhz": {
+     "audio": 238.83,
+     "pixel": 77.96,
+     "system": 56.51
+    },
+    "target_mhz": {
+     "audio": 12.288,
+     "pixel": 74.25,
+     "system": 52.225
+    }
+   },
+   "fes-pentagon-oss": {
+    "package_id": "abb2f08531786d9d13d23737866cfaeab4d806661a95a7892d3e4ec0be89af74",
+    "fcore_sha256": "7a5d52e0068aad71d0c46d1347e69888739871c602f178621d7fe2643341dded",
+    "build_id": "1e0e38a377ac6e57ceca76eb3ed661f5",
+    "comb": 12141,
+    "ff": 6273,
+    "m10k": 241,
+    "rbf_sha256": "3fe72c37a03983810f6739bff45c4820cb83ebafd0d13a29be009e5efe325f6f",
+    "rbf_bytes": 3003464,
+    "seed": 5,
+    "achieved_mhz": {
+     "audio": 151.79,
+     "pixel": 93.79,
+     "system": 61.4
+    },
+    "target_mhz": {
+     "audio": 12.288,
+     "pixel": 74.25,
+     "system": 52.225
+    }
+   }
+  },
+  "reference": "Fuse 1.6.0 (libretro e997e2bc) headless, keyboard and Kempston (port 0) input, frame and per-second audio RMS dumps",
+  "capture": "Kit B 4KPRO (fes-4kpro-hil) 1920x1080; frames reduced to the 320x240 picture and the 15 Spectrum colours with BRIGHT folded; 20 s 60 fps windows stored as 480x270 grey; per-second audio RMS, floor about 97",
+  "comparison": "8x8 cells of the 256x192 paper area (a cell matches with at most 2 differing pixels), game state and input outcome; no brightness or non-black checks"
+ },
+ "c1r1": {
+  "case": "C1 Manic Miner, fes.spectrum",
+  "controls": "keyboard",
+  "claimed": "2026-11-07 15:04:09 EET",
+  "released": "2026-11-07 15:22:43 EET",
+  "package": "fes-spectrum-oss",
+  "package_id": "5013dde28746084ba6dfcfe5e2b64e3a6f7e769cd1de67081f55388ab3b13827",
+  "firmware_sha256": "d55daa439b673b0e3f5897f99ac37ecb45f974d1862b4dadb85dec34af99cb42",
+  "media_sha256": "c2fc117354d15592a42b15826cc7933fa879fa27ae9454770fd71eecd59ba21d",
+  "kit_new_paths_left": 0,
+  "play_window": "15:07:55-15:20:14 EET 7 Nov, in three legs",
+  "cadence_capture": {
+   "sha256": "ee88126cdd6112a4500fe612ff2b7ac16e77879d2a5a6c3e806c66d2aedbf074",
+   "frames": 1191,
+   "fps": 59.55,
+   "updates_per_s": 25.1,
+   "longest_static_run_frames": 5,
+   "black_frames": 0
+  },
+  "audio_rms_per_s": {
+   "load": {
+    "s": 150,
+    "median": 98,
+    "p90": 4342,
+    "max": 6292,
+    "above_floor_s": 43
+   },
+   "play1": {
+    "s": 737,
+    "median": 809,
+    "p90": 4854,
+    "max": 6483,
+    "above_floor_s": 517
+   }
+  },
+  "result": "pass",
+  "notes": "LOAD \"\" to title within 60 s; walk, jump, walk right into the guardian loses a life (2 to 1) and respawns, as in Fuse; AIR drains 2 px in about 1.4 s, as in Fuse; deaths, game over, title, restarts; in-game tune off because the loop pressed ENTER (the game's tune toggle, confirmed in Fuse); Stop then relaunch cold-booted to the (c) 1982 screen, reloaded and restarted",
+  "frame_comparisons": {
+   "title_vs_fuse_11500": "733/768 (top 16 rows 512/512)"
+  }
+ },
+ "c1r2": {
+  "case": "C1 Manic Miner, fes.spectrum",
+  "controls": "keyboard",
+  "claimed": "2026-11-07 21:31:46 EET",
+  "released": "2026-11-07 21:45:57 EET",
+  "package": "fes-spectrum-oss",
+  "package_id": "5013dde28746084ba6dfcfe5e2b64e3a6f7e769cd1de67081f55388ab3b13827",
+  "firmware_sha256": "d55daa439b673b0e3f5897f99ac37ecb45f974d1862b4dadb85dec34af99cb42",
+  "media_sha256": "c2fc117354d15592a42b15826cc7933fa879fa27ae9454770fd71eecd59ba21d",
+  "kit_new_paths_left": 0,
+  "play_window": "21:33:58-21:44:05 EET 7 Nov",
+  "cadence_capture": {
+   "sha256": "0f461953606cc2d83fb9385afb7fadf09ff0857f711159c37050b234e6b28228",
+   "frames": 1200,
+   "fps": 60.0,
+   "updates_per_s": 23.0,
+   "longest_static_run_frames": 5,
+   "black_frames": 0
+  },
+  "audio_rms_per_s": {
+   "listen": {
+    "s": 16,
+    "median": 834,
+    "p90": 849,
+    "max": 854,
+    "above_floor_s": 16
+   },
+   "load": {
+    "s": 119,
+    "median": 98,
+    "p90": 4660,
+    "max": 6363,
+    "above_floor_s": 24
+   },
+   "play1": {
+    "s": 590,
+    "median": 835,
+    "p90": 2399,
+    "max": 6284,
+    "above_floor_s": 516
+   }
+  },
+  "result": "pass",
+  "notes": "title by 100 s; ENTER tap then 15 s with no input: in-game tune steady at 753-854 RMS; deaths, game over, title, restart; Stop then relaunch cold-booted, reloaded and restarted with two spare lives",
+  "frame_comparisons": {
+   "title_vs_fuse_11500": "739/768 (top 16 rows 512/512)",
+   "retitle_vs_fuse_11500": "737/768",
+   "cavern_vs_fuse_11699_play_field": "483/512 and 479/512"
+  }
+ },
+ "c2r1": {
+  "case": "C2 Bubble Bobble, fes.spectrum",
+  "controls": "Kempston",
+  "claimed": "2026-11-07 22:21:57 EET",
+  "released": "2026-11-07 22:38:14 EET",
+  "package": "fes-spectrum-oss",
+  "package_id": "5013dde28746084ba6dfcfe5e2b64e3a6f7e769cd1de67081f55388ab3b13827",
+  "firmware_sha256": "d55daa439b673b0e3f5897f99ac37ecb45f974d1862b4dadb85dec34af99cb42",
+  "media_sha256": "bbc71c2cb7c55d7ecc2b9d4ff938d3167635e4486b9d4d840c5e0e112dd219bc",
+  "kit_new_paths_left": 0,
+  "play_window": "22:25:05-22:35:01 EET 7 Nov (9 min 56 s, 4 s short of 10 min)",
+  "cadence_capture": {
+   "sha256": "d5510e9a681f081ac1ef50ca73a16b1ecd06d93be9a1a08f00fea5e736b46653",
+   "frames": 1200,
+   "fps": 60.0,
+   "updates_per_s": 44.8,
+   "longest_static_run_frames": 40,
+   "black_frames": 30
+  },
+  "audio_rms_per_s": {
+   "load": {
+    "s": 170,
+    "median": 97,
+    "p90": 114,
+    "max": 286,
+    "above_floor_s": 3
+   },
+   "play1": {
+    "s": 596,
+    "median": 594,
+    "p90": 2018,
+    "max": 2542,
+    "above_floor_s": 370
+   }
+  },
+  "result": "fail (objective)",
+  "notes": "first blind pattern; round 1 only: pops (score to 1150), deaths, game overs, restarts; round 1 not cleared; 0.5 s black block at the cadence capture is the game-start blank (Fuse blanks while 1 is held)",
+  "frame_comparisons": {
+   "player1_menu_vs_fuse": "768/768",
+   "player2_menu_vs_fuse": "768/768",
+   "title_vs_fuse": "768/768"
+  }
+ },
+ "c2r2": {
+  "case": "C2 Bubble Bobble, fes.spectrum",
+  "controls": "Sinclair joystick 1",
+  "claimed": "2026-11-07 23:31:42 EET",
+  "released": "2026-11-07 23:48:39 EET",
+  "package": "fes-spectrum-oss",
+  "package_id": "5013dde28746084ba6dfcfe5e2b64e3a6f7e769cd1de67081f55388ab3b13827",
+  "firmware_sha256": "d55daa439b673b0e3f5897f99ac37ecb45f974d1862b4dadb85dec34af99cb42",
+  "media_sha256": "bbc71c2cb7c55d7ecc2b9d4ff938d3167635e4486b9d4d840c5e0e112dd219bc",
+  "kit_new_paths_left": 0,
+  "play_window": "23:34:54-23:45:20 EET 7 Nov",
+  "cadence_capture": {
+   "sha256": "fbd40a7f4599e820e5c7f55e6b31957a0658035908d089ee97c847946cf6b440",
+   "frames": 1200,
+   "fps": 60.0,
+   "updates_per_s": 44.8,
+   "longest_static_run_frames": 40,
+   "black_frames": 27
+  },
+  "audio_rms_per_s": {
+   "load": {
+    "s": 171,
+    "median": 98,
+    "p90": 113,
+    "max": 244,
+    "above_floor_s": 3
+   },
+   "play1": {
+    "s": 627,
+    "median": 582,
+    "p90": 2004,
+    "max": 2622,
+    "above_floor_s": 365
+   }
+  },
+  "result": "fail (objective)",
+  "notes": "first blind pattern; round 1 only, round 1 not cleared"
+ },
+ "c2r3": {
+  "case": "C2 Bubble Bobble, fes.spectrum",
+  "controls": "Kempston",
+  "claimed": "2026-11-08 07:19:24 EET",
+  "released": "2026-11-08 07:36:15 EET",
+  "package": "fes-spectrum-oss",
+  "package_id": "5013dde28746084ba6dfcfe5e2b64e3a6f7e769cd1de67081f55388ab3b13827",
+  "firmware_sha256": "d55daa439b673b0e3f5897f99ac37ecb45f974d1862b4dadb85dec34af99cb42",
+  "media_sha256": "bbc71c2cb7c55d7ecc2b9d4ff938d3167635e4486b9d4d840c5e0e112dd219bc",
+  "kit_new_paths_left": 0,
+  "play_window": "07:22:35-07:33:01 EET 8 Nov",
+  "cadence_capture": {
+   "sha256": "7b94b3a132cd7056a182e4ac1d9f8866cee08fb4e73225a3d9aebc90212765c7",
+   "frames": 1200,
+   "fps": 60.0,
+   "updates_per_s": 44.9,
+   "longest_static_run_frames": 45,
+   "black_frames": 26
+  },
+  "audio_rms_per_s": {
+   "load": {
+    "s": 171,
+    "median": 98,
+    "p90": 113,
+    "max": 247,
+    "above_floor_s": 3
+   },
+   "play1": {
+    "s": 626,
+    "median": 693,
+    "p90": 1976,
+    "max": 2593,
+    "above_floor_s": 446
+   }
+  },
+  "result": "fail (objective)",
+  "notes": "Fuse-chosen pattern 17; round 1 only for 600 s, score to 9110, game overs and restarts; round 1 not cleared"
+ },
+ "c2r4": {
+  "case": "C2 Bubble Bobble, fes.spectrum",
+  "controls": "Sinclair joystick 1",
+  "claimed": "2026-11-08 07:36:18 EET",
+  "released": "2026-11-08 07:53:07 EET",
+  "package": "fes-spectrum-oss",
+  "package_id": "5013dde28746084ba6dfcfe5e2b64e3a6f7e769cd1de67081f55388ab3b13827",
+  "firmware_sha256": "d55daa439b673b0e3f5897f99ac37ecb45f974d1862b4dadb85dec34af99cb42",
+  "media_sha256": "bbc71c2cb7c55d7ecc2b9d4ff938d3167635e4486b9d4d840c5e0e112dd219bc",
+  "kit_new_paths_left": 0,
+  "play_window": "07:39:27-07:49:52 EET 8 Nov",
+  "cadence_capture": {
+   "sha256": "08b36ce5e1d371f38e1dd4cf57f53e251dbb6ac8a4a45d993e55eddfa14eb9b5",
+   "frames": 1200,
+   "fps": 60.0,
+   "updates_per_s": 40.8,
+   "longest_static_run_frames": 50,
+   "black_frames": 49
+  },
+  "audio_rms_per_s": {
+   "load": {
+    "s": 171,
+    "median": 98,
+    "p90": 117,
+    "max": 290,
+    "above_floor_s": 3
+   },
+   "play1": {
+    "s": 626,
+    "median": 790,
+    "p90": 2098,
+    "max": 2558,
+    "above_floor_s": 454
+   }
+  },
+  "result": "pass",
+  "notes": "Fuse-chosen pattern 17; round 1 cleared about 6 min 15 s into play, round 2 played, game over in round 2, restart",
+  "frame_comparisons": {
+   "round2_seg026_vs_fuse_round2": "711/768",
+   "round2_seg025_png_sha256": "8f53e50facb117f850eb21aff03f7e00d61dde4323574c7146c72e8d93ebdc68"
+  }
+ },
+ "c2r5": {
+  "case": "C2 Bubble Bobble, fes.spectrum",
+  "controls": "Kempston",
+  "claimed": "2026-11-08 08:55:59 EET",
+  "released": "2026-11-08 09:12:50 EET",
+  "package": "fes-spectrum-oss",
+  "package_id": "5013dde28746084ba6dfcfe5e2b64e3a6f7e769cd1de67081f55388ab3b13827",
+  "firmware_sha256": "d55daa439b673b0e3f5897f99ac37ecb45f974d1862b4dadb85dec34af99cb42",
+  "media_sha256": null,
+  "kit_new_paths_left": 0,
+  "play_window": "08:59:10-09:09:36 EET 8 Nov",
+  "cadence_capture": {
+   "sha256": "0dedb26208a836a1842d74be015fa52e0329b5c5855c396f7175150ab7a78b7a",
+   "frames": 1200,
+   "fps": 60.0,
+   "updates_per_s": 0.0,
+   "longest_static_run_frames": 1199,
+   "black_frames": 0
+  },
+  "audio_rms_per_s": {
+   "load": {
+    "s": 171,
+    "median": 98,
+    "p90": 98,
+    "max": 244,
+    "above_floor_s": 2
+   },
+   "play1": {
+    "s": 626,
+    "median": 98,
+    "p90": 98,
+    "max": 98,
+    "above_floor_s": 0
+   }
+  },
+  "result": "invalid (no media)",
+  "notes": "the driver's read of the .tzx on Powerboat's local media disk failed (file not found) at 08:56; the run launched with no tape and the machine never loaded the game; the file read correctly 17 min later; not counted"
+ },
+ "c2r6": {
+  "case": "C2 Bubble Bobble, fes.spectrum",
+  "controls": "Kempston",
+  "claimed": "2026-11-08 09:13:03 EET",
+  "released": "2026-11-08 09:29:57 EET",
+  "package": "fes-spectrum-oss",
+  "package_id": "5013dde28746084ba6dfcfe5e2b64e3a6f7e769cd1de67081f55388ab3b13827",
+  "firmware_sha256": "d55daa439b673b0e3f5897f99ac37ecb45f974d1862b4dadb85dec34af99cb42",
+  "media_sha256": "bbc71c2cb7c55d7ecc2b9d4ff938d3167635e4486b9d4d840c5e0e112dd219bc",
+  "kit_new_paths_left": 0,
+  "play_window": "09:16:16-09:26:42 EET 8 Nov",
+  "cadence_capture": {
+   "sha256": "d2549749c8c8b3b74a5dfdf3a6bf899695d3d0339ca4bbfe3be13bdc976321c1",
+   "frames": 1200,
+   "fps": 60.0,
+   "updates_per_s": 44.0,
+   "longest_static_run_frames": 47,
+   "black_frames": 26
+  },
+  "audio_rms_per_s": {
+   "load": {
+    "s": 172,
+    "median": 98,
+    "p90": 114,
+    "max": 239,
+    "above_floor_s": 4
+   },
+   "play1": {
+    "s": 625,
+    "median": 796,
+    "p90": 1961,
+    "max": 2627,
+    "above_floor_s": 467
+   }
+  },
+  "result": "pass",
+  "notes": "Fuse-chosen pattern 17; round 1 cleared about 1 min 30 s into play and again near the end, round 2 played, game overs and restarts",
+  "frame_comparisons": {
+   "round2_seg006_vs_fuse_round2": "716/768",
+   "round2_seg006_png_sha256": "ddec9aa292ea45af97dfb6dd573f7a379ff2cc13f2b06e6e8d9b7ab1efba840b"
+  }
+ },
+ "c3r1": {
+  "case": "C3 Bubble Dizzy, fes.spectrum128",
+  "controls": "Sinclair joystick 1",
+  "claimed": "2026-11-07 22:43:49 EET",
+  "released": "2026-11-07 22:56:13 EET",
+  "package": "fes-spectrum128-oss",
+  "package_id": "85665cca9d0bc1d4d5317eac3813d64357a446961ddc1eae6c4ea41850c82c18",
+  "firmware_sha256": "c1ff621d7910105d4ee45c31e9fd8fd0d79a545c78b66c69a562ee1ffbae8d72",
+  "media_sha256": "46753d7663acbfeab151d60e026b39e8b19cb0d4faf93a771e1c3d67d89867af",
+  "kit_new_paths_left": 0,
+  "play_window": "22:44:42-22:55:22 EET 7 Nov",
+  "cadence_capture": {
+   "sha256": "7aa7d6334e525d7d82cde13bc5f56c10775498b4a93df7956546b569c5453fe1",
+   "frames": 1200,
+   "fps": 60.0,
+   "updates_per_s": 14.1,
+   "longest_static_run_frames": 178,
+   "black_frames": 0
+  },
+  "audio_rms_per_s": {
+   "play1": {
+    "s": 640,
+    "median": 381,
+    "p90": 4637,
+    "max": 6152,
+    "above_floor_s": 324
+   },
+   "title": {
+    "s": 35,
+    "median": 98,
+    "p90": 2678,
+    "max": 2958,
+    "above_floor_s": 15
+   }
+  },
+  "result": "pass",
+  "notes": "about 6 min 45 s of gameplay (two games, score to 77,300) and 3 min of name entry; AY title music 2678-2958 RMS (Fuse 2454-2940)"
+ },
+ "c3r2": {
+  "case": "C3 Bubble Dizzy, fes.spectrum128",
+  "controls": "Kempston",
+  "claimed": "2026-11-07 23:52:43 EET",
+  "released": "2026-11-08 00:05:21 EET",
+  "package": "fes-spectrum128-oss",
+  "package_id": "85665cca9d0bc1d4d5317eac3813d64357a446961ddc1eae6c4ea41850c82c18",
+  "firmware_sha256": "c1ff621d7910105d4ee45c31e9fd8fd0d79a545c78b66c69a562ee1ffbae8d72",
+  "media_sha256": "46753d7663acbfeab151d60e026b39e8b19cb0d4faf93a771e1c3d67d89867af",
+  "kit_new_paths_left": 0,
+  "play_window": "23:53:46-00:04:27 EET 7-8 Nov",
+  "cadence_capture": {
+   "sha256": "7607e0c4ae13dd6ffb785b9cfc95e18df63e1f3952e9677ed5dd716a0dc920e8",
+   "frames": 1194,
+   "fps": 59.7,
+   "updates_per_s": 14.4,
+   "longest_static_run_frames": 168,
+   "black_frames": 0
+  },
+  "audio_rms_per_s": {
+   "play1": {
+    "s": 641,
+    "median": 2021,
+    "p90": 5353,
+    "max": 6141,
+    "above_floor_s": 429
+   },
+   "title": {
+    "s": 35,
+    "median": 98,
+    "p90": 2704,
+    "max": 2860,
+    "above_floor_s": 15
+   }
+  },
+  "result": "inconclusive (driver)",
+  "notes": "3 min 15 s of gameplay (score to 79,400), then 6 min 30 s stuck in name entry: the pattern had no fire step, and only Sinclair fire (key 0) was in it"
+ },
+ "c3r3": {
+  "case": "C3 Bubble Dizzy, fes.spectrum128",
+  "controls": "Sinclair joystick 1",
+  "claimed": "2026-11-08 07:53:34 EET",
+  "released": "2026-11-08 08:06:02 EET",
+  "package": "fes-spectrum128-oss",
+  "package_id": "85665cca9d0bc1d4d5317eac3813d64357a446961ddc1eae6c4ea41850c82c18",
+  "firmware_sha256": "c1ff621d7910105d4ee45c31e9fd8fd0d79a545c78b66c69a562ee1ffbae8d72",
+  "media_sha256": "46753d7663acbfeab151d60e026b39e8b19cb0d4faf93a771e1c3d67d89867af",
+  "kit_new_paths_left": 0,
+  "play_window": "07:54:30-08:05:13 EET 8 Nov",
+  "cadence_capture": {
+   "sha256": "66a6191a79a03b84faa3e33187d9cde7ac4987e759faefae2cd667bc7697e8a3",
+   "frames": 1200,
+   "fps": 60.0,
+   "updates_per_s": 13.6,
+   "longest_static_run_frames": 177,
+   "black_frames": 0
+  },
+  "audio_rms_per_s": {
+   "play1": {
+    "s": 643,
+    "median": 98,
+    "p90": 4188,
+    "max": 6028,
+    "above_floor_s": 285
+   },
+   "title": {
+    "s": 37,
+    "median": 98,
+    "p90": 2690,
+    "max": 2926,
+    "above_floor_s": 16
+   }
+  },
+  "result": "pass",
+  "notes": "fire step added; about 8 min 40 s of gameplay over two games (scores to 42,400 and 151,200), 1 min 45 s of name entry; the entered name is listed in the high-score table"
+ },
+ "c3r4": {
+  "case": "C3 Bubble Dizzy, fes.spectrum128",
+  "controls": "Kempston",
+  "claimed": "2026-11-08 08:06:06 EET",
+  "released": "2026-11-08 08:18:42 EET",
+  "package": "fes-spectrum128-oss",
+  "package_id": "85665cca9d0bc1d4d5317eac3813d64357a446961ddc1eae6c4ea41850c82c18",
+  "firmware_sha256": "c1ff621d7910105d4ee45c31e9fd8fd0d79a545c78b66c69a562ee1ffbae8d72",
+  "media_sha256": "46753d7663acbfeab151d60e026b39e8b19cb0d4faf93a771e1c3d67d89867af",
+  "kit_new_paths_left": 0,
+  "play_window": "08:07:11-08:17:54 EET 8 Nov",
+  "cadence_capture": {
+   "sha256": "515b015c04bf3175414677b1b237ec29bd7a913c74165223b52efde62699aaf8",
+   "frames": 1200,
+   "fps": 60.0,
+   "updates_per_s": 13.6,
+   "longest_static_run_frames": 177,
+   "black_frames": 0
+  },
+  "audio_rms_per_s": {
+   "play1": {
+    "s": 643,
+    "median": 98,
+    "p90": 3791,
+    "max": 6118,
+    "above_floor_s": 276
+   },
+   "title": {
+    "s": 37,
+    "median": 98,
+    "p90": 2690,
+    "max": 2882,
+    "above_floor_s": 16
+   }
+  },
+  "result": "pass",
+  "notes": "fire step added; about 8 min 15 s of gameplay over two games (to 54,800 and 92,900, GAME OVER), 2 min 15 s of name entry with Kempston fire; the name is listed in the high-score table"
+ },
+ "c4r1": {
+  "case": "C4 Batman: The Caped Crusader, fes.spectrum-plus3",
+  "controls": "Kempston",
+  "claimed": "2026-11-07 22:57:11 EET",
+  "released": "2026-11-07 23:11:13 EET",
+  "package": "fes-spectrum-plus3-oss",
+  "package_id": "f362eb967ccb221d7aaabb1b756bd328a8f249c0c2c1e1a4a95f0c7c7ca22273",
+  "firmware_sha256": "ee8218fa43ecb672ed45370114294228213a82318c6d1b007ec86bee3293d1f2",
+  "media_sha256": "b40f6137cefbe277d2448eb49a06ba0333fbc08edab97e8e55340e33baf89124",
+  "kit_new_paths_left": 0,
+  "play_window": "22:58:57-23:09:28 EET 7 Nov",
+  "cadence_capture": {
+   "sha256": "f1286725f8a91f7b2aed0bbf10f49a79cfe6e6b68d7038f37c7d2747be28bd47",
+   "frames": 1200,
+   "fps": 60.0,
+   "updates_per_s": 0.0,
+   "longest_static_run_frames": 1199,
+   "black_frames": 0
+  },
+  "audio_rms_per_s": {
+   "load": {
+    "s": 77,
+    "median": 98,
+    "p90": 98,
+    "max": 254,
+    "above_floor_s": 3
+   },
+   "play1": {
+    "s": 631,
+    "median": 922,
+    "p90": 952,
+    "max": 998,
+    "above_floor_s": 625
+   }
+  },
+  "result": "inconclusive (driver)",
+  "notes": "control key sent 3 s after the part key, before the control menu appears (11 s in Fuse); the run sat at the control menu"
+ },
+ "c4r2": {
+  "case": "C4 Batman: The Caped Crusader, fes.spectrum-plus3",
+  "controls": "Sinclair joystick 1",
+  "claimed": "2026-11-08 00:05:31 EET",
+  "released": "2026-11-08 00:19:34 EET",
+  "package": "fes-spectrum-plus3-oss",
+  "package_id": "f362eb967ccb221d7aaabb1b756bd328a8f249c0c2c1e1a4a95f0c7c7ca22273",
+  "firmware_sha256": "ee8218fa43ecb672ed45370114294228213a82318c6d1b007ec86bee3293d1f2",
+  "media_sha256": "b40f6137cefbe277d2448eb49a06ba0333fbc08edab97e8e55340e33baf89124",
+  "kit_new_paths_left": 0,
+  "play_window": "00:07:17-00:17:49 EET 8 Nov",
+  "cadence_capture": {
+   "sha256": "1029f5da198ba368be85653caff863e80fcda9fdf69b8c59f5031e1f866220e5",
+   "frames": 1200,
+   "fps": 60.0,
+   "updates_per_s": 0.0,
+   "longest_static_run_frames": 1199,
+   "black_frames": 0
+  },
+  "audio_rms_per_s": {
+   "load": {
+    "s": 77,
+    "median": 98,
+    "p90": 98,
+    "max": 285,
+    "above_floor_s": 2
+   },
+   "play1": {
+    "s": 631,
+    "median": 98,
+    "p90": 98,
+    "max": 533,
+    "above_floor_s": 1
+   }
+  },
+  "result": "inconclusive (driver)",
+  "notes": "same as c4r1"
+ },
+ "c4r3": {
+  "case": "C4 Batman: The Caped Crusader, fes.spectrum-plus3",
+  "controls": "Kempston",
+  "claimed": "2026-11-08 06:51:01 EET",
+  "released": "2026-11-08 07:05:10 EET",
+  "package": "fes-spectrum-plus3-oss",
+  "package_id": "f362eb967ccb221d7aaabb1b756bd328a8f249c0c2c1e1a4a95f0c7c7ca22273",
+  "firmware_sha256": "ee8218fa43ecb672ed45370114294228213a82318c6d1b007ec86bee3293d1f2",
+  "media_sha256": "b40f6137cefbe277d2448eb49a06ba0333fbc08edab97e8e55340e33baf89124",
+  "kit_new_paths_left": 0,
+  "play_window": "06:52:57-07:03:30 EET 8 Nov",
+  "cadence_capture": {
+   "sha256": "8ab42aba7497c3c751dd39404628fb8a481e7bb9d11b9e4595587510cd68deda",
+   "frames": 1200,
+   "fps": 60.0,
+   "updates_per_s": 14.0,
+   "longest_static_run_frames": 71,
+   "black_frames": 0
+  },
+  "audio_rms_per_s": {
+   "load": {
+    "s": 77,
+    "median": 98,
+    "p90": 98,
+    "max": 282,
+    "above_floor_s": 2
+   },
+   "play1": {
+    "s": 632,
+    "median": 97,
+    "p90": 97,
+    "max": 809,
+    "above_floor_s": 4
+   }
+  },
+  "result": "pass",
+  "notes": "15 s wait for the control menu; The Batcave to the WAY OUT room in the first minute, then moving in it; play silent as in Fuse",
+  "frame_comparisons": {
+   "control_menu_vs_fuse_2550": "768/768",
+   "batcave_vs_fuse_2700": "742/768"
+  }
+ },
+ "c4r4": {
+  "case": "C4 Batman: The Caped Crusader, fes.spectrum-plus3",
+  "controls": "Sinclair joystick 1",
+  "claimed": "2026-11-08 07:05:13 EET",
+  "released": "2026-11-08 07:19:21 EET",
+  "package": "fes-spectrum-plus3-oss",
+  "package_id": "f362eb967ccb221d7aaabb1b756bd328a8f249c0c2c1e1a4a95f0c7c7ca22273",
+  "firmware_sha256": "ee8218fa43ecb672ed45370114294228213a82318c6d1b007ec86bee3293d1f2",
+  "media_sha256": "b40f6137cefbe277d2448eb49a06ba0333fbc08edab97e8e55340e33baf89124",
+  "kit_new_paths_left": 0,
+  "play_window": "07:07:09-07:17:41 EET 8 Nov",
+  "cadence_capture": {
+   "sha256": "d924ff7850fafe0b3996e851cb95d65da42bb1e35976e8926eb0967ab9446157",
+   "frames": 1200,
+   "fps": 60.0,
+   "updates_per_s": 12.2,
+   "longest_static_run_frames": 64,
+   "black_frames": 0
+  },
+  "audio_rms_per_s": {
+   "load": {
+    "s": 77,
+    "median": 98,
+    "p90": 98,
+    "max": 282,
+    "above_floor_s": 2
+   },
+   "play1": {
+    "s": 632,
+    "median": 98,
+    "p90": 98,
+    "max": 620,
+    "above_floor_s": 5
+   }
+  },
+  "result": "pass",
+  "notes": "The Batcave to the next room the other way, then moving in it; play silent as in Fuse"
+ },
+ "c5r1": {
+  "case": "C5 Bomb Jack 2, fes.pentagon",
+  "controls": "keyboard",
+  "claimed": "2026-11-07 23:16:47 EET",
+  "released": "2026-11-07 23:31:34 EET",
+  "package": "fes-pentagon-oss",
+  "package_id": "abb2f08531786d9d13d23737866cfaeab4d806661a95a7892d3e4ec0be89af74",
+  "firmware_sha256": "3ef7872a0769ddf55a207b0178277fbb39d446169886c1c2f7a8b5d662b5f16f",
+  "media_sha256": "f327b3170a01ccef7ad2750987c59e65d13b44832175fb3dd00bba7d544fb55e",
+  "kit_new_paths_left": 0,
+  "play_window": "23:18:51-23:29:25 EET 7 Nov",
+  "cadence_capture": {
+   "sha256": "4c0d5bf19d8a6c83fa9e8fc562c6ace78d6189844ae2d0d97b5f74e6c59034f8",
+   "frames": 1200,
+   "fps": 60.0,
+   "updates_per_s": 25.1,
+   "longest_static_run_frames": 18,
+   "black_frames": 0
+  },
+  "audio_rms_per_s": {
+   "load": {
+    "s": 98,
+    "median": 97,
+    "p90": 98,
+    "max": 98,
+    "above_floor_s": 0
+   },
+   "play1": {
+    "s": 633,
+    "median": 98,
+    "p90": 1285,
+    "max": 1850,
+    "above_floor_s": 288
+   }
+  },
+  "result": "pass",
+  "notes": "TR-DOS boot; Jack moves round the platforms, score to 500, lives lost, game over, high-score table, restart"
+ },
+ "c5r2": {
+  "case": "C5 Bomb Jack 2, fes.pentagon",
+  "controls": "Kempston, chosen with D",
+  "claimed": "2026-11-08 00:22:09 EET",
+  "released": "2026-11-08 00:36:57 EET",
+  "package": "fes-pentagon-oss",
+  "package_id": "abb2f08531786d9d13d23737866cfaeab4d806661a95a7892d3e4ec0be89af74",
+  "firmware_sha256": "3ef7872a0769ddf55a207b0178277fbb39d446169886c1c2f7a8b5d662b5f16f",
+  "media_sha256": "f327b3170a01ccef7ad2750987c59e65d13b44832175fb3dd00bba7d544fb55e",
+  "kit_new_paths_left": 0,
+  "play_window": "00:24:14-00:34:46 EET 8 Nov",
+  "cadence_capture": {
+   "sha256": "93487bed711b264b358d3802200758dcdb90214d9f44b6a334fcc40f1e1cbfff",
+   "frames": 1200,
+   "fps": 60.0,
+   "updates_per_s": 30.6,
+   "longest_static_run_frames": 4,
+   "black_frames": 0
+  },
+  "audio_rms_per_s": {
+   "load": {
+    "s": 99,
+    "median": 98,
+    "p90": 98,
+    "max": 98,
+    "above_floor_s": 0
+   },
+   "play1": {
+    "s": 631,
+    "median": 98,
+    "p90": 1373,
+    "max": 1847,
+    "above_floor_s": 155
+   }
+  },
+  "result": "inconclusive (driver)",
+  "notes": "D is not this release's Kempston key (J is, by a Fuse scan of 27 keys with working Kempston); Jack barely moves, as in Fuse with D"
+ },
+ "c5r3": {
+  "case": "C5 Bomb Jack 2, fes.pentagon",
+  "controls": "keyboard",
+  "claimed": "2026-11-08 08:26:08 EET",
+  "released": "2026-11-08 08:40:52 EET",
+  "package": "fes-pentagon-oss",
+  "package_id": "abb2f08531786d9d13d23737866cfaeab4d806661a95a7892d3e4ec0be89af74",
+  "firmware_sha256": "3ef7872a0769ddf55a207b0178277fbb39d446169886c1c2f7a8b5d662b5f16f",
+  "media_sha256": "f327b3170a01ccef7ad2750987c59e65d13b44832175fb3dd00bba7d544fb55e",
+  "kit_new_paths_left": 0,
+  "play_window": "08:28:14-08:38:50 EET 8 Nov",
+  "cadence_capture": {
+   "sha256": "2200071401d281019c88556aa79c7cb679f42a79f29a93da16f19473b11fe1ee",
+   "frames": 1200,
+   "fps": 60.0,
+   "updates_per_s": 28.3,
+   "longest_static_run_frames": 17,
+   "black_frames": 0
+  },
+  "audio_rms_per_s": {
+   "load": {
+    "s": 100,
+    "median": 97,
+    "p90": 98,
+    "max": 98,
+    "above_floor_s": 0
+   },
+   "play1": {
+    "s": 635,
+    "median": 98,
+    "p90": 1320,
+    "max": 1840,
+    "above_floor_s": 224
+   }
+  },
+  "result": "pass",
+  "notes": "Jack moves to the upper and right platforms, score to 500, lives lost, game over, restarts; relaunch boots to INFINITE LIVES Y/N?"
+ },
+ "c5r4": {
+  "case": "C5 Bomb Jack 2, fes.pentagon",
+  "controls": "Kempston, chosen with J",
+  "claimed": "2026-11-08 08:40:59 EET",
+  "released": "2026-11-08 08:55:39 EET",
+  "package": "fes-pentagon-oss",
+  "package_id": "abb2f08531786d9d13d23737866cfaeab4d806661a95a7892d3e4ec0be89af74",
+  "firmware_sha256": "3ef7872a0769ddf55a207b0178277fbb39d446169886c1c2f7a8b5d662b5f16f",
+  "media_sha256": "f327b3170a01ccef7ad2750987c59e65d13b44832175fb3dd00bba7d544fb55e",
+  "kit_new_paths_left": 0,
+  "play_window": "08:43:35-08:53:36 EET 8 Nov",
+  "cadence_capture": {
+   "sha256": "eef08d9593932d8481935a5e519d597850e8c32f9e7a4bb556a04953b527cde3",
+   "frames": 1199,
+   "fps": 59.95,
+   "updates_per_s": 33.0,
+   "longest_static_run_frames": 17,
+   "black_frames": 0
+  },
+  "audio_rms_per_s": {
+   "load": {
+    "s": 100,
+    "median": 98,
+    "p90": 98,
+    "max": 98,
+    "above_floor_s": 0
+   },
+   "play1": {
+    "s": 631,
+    "median": 888,
+    "p90": 1468,
+    "max": 1854,
+    "above_floor_s": 395
+   }
+  },
+  "result": "pass",
+  "notes": "Jack moves round the platforms by Kempston, score to 1200, game overs (ИГРА ОКОНЧЕНА), restarts"
+ }
+}
