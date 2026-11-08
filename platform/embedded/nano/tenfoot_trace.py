@@ -285,4 +285,4 @@ def exercise(client,settle=lambda _:None,*,during_play=None):
         returned=client.key('quit' if i==2 else 'stop')
         cycles.append({'selection':selection,'launch_generation':launch['states'][-1]['native']['Generation'],'return_generation':returned['exit_generation'] if i==2 else returned['states'][-1]['native']['Generation']})
     require(client.loads==3 and client.retired and cycles[-1]['return_generation']==6,'App cycle incomplete')
-    return dict(passed=True,cycles=cycles,fetch_activity_observed=True,shared_usb_reports=None if client.usb is None else client.usb.reports,input_controls_exercised=False,hardware_acceptance=False,ordinary_admission=False,display='serial-state-only')
+    return dict(passed=True,cycles=cycles,fetch_activity_observed=True,shared_usb_reports=None if client.usb is None else client.usb.reports,shared_usb_polls=None if client.usb is None else client.usb.polls,input_controls_exercised=False,hardware_acceptance=False,ordinary_admission=False,display='serial-state-only')

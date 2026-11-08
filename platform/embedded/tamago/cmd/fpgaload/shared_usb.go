@@ -95,6 +95,6 @@ func closeProgramUSB() error {
 	if !valid || receipt.Active || receipt.Confirmed {
 		return errors.New("shared USB stop receipt absent")
 	}
-	fmt.Printf("FES_NATIVE_SHARED_USB STOP owner=%x generation=%d reports=%d\n", receipt.Owner, receipt.Generation, sharedInputMetrics.reports)
+	fmt.Printf("FES_NATIVE_SHARED_USB STOP owner=%x generation=%d reports=%d polls=%d\n", receipt.Owner, receipt.Generation, sharedInputMetrics.reports, sharedInputMetrics.polls)
 	return nil
 }

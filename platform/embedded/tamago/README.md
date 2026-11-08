@@ -616,11 +616,18 @@ grant. A healthy idle exit closes USB through its exact receipt; uncertain core
 states keep resources retained. Hardware combined-operation acceptance is open.
 
 The shared serial diagnostic also emits the verified HPS source/pin observations,
-its exact USB Ready lease, delivered report counts at pause/resume boundaries,
+its exact USB Ready lease, delivered report and successful poll-call counts at pause/resume boundaries,
 and the final owned USB Stop receipt. These counters are local observations,
 serialized by the backend; logging adds no firmware calls or device authority.
-They distinguish continued input delivery from successful enumeration. Idle
-reports do not demonstrate physical controls or normal package admission.
+Polls advance only after a raw source call returns without error, even when it
+returns no report. Keyboard `SET_IDLE(0)` may suppress unchanged reports under
+[HID 1.11 section 7.2.4](https://www.usb.org/sites/default/files/hid1_11.pdf).
+The observer requires increasing polls before each transition and unchanged
+poll/report counts while paused; keyboard reports may remain zero. Gamepad
+report-progress checks remain. Missing counters, regression, overflow, lost
+ownership or missing pause/resume/Stop still reject. Old traces without the
+new counter cannot satisfy this observer; a matched rebuilt image is required.
+These observations do not demonstrate physical controls or normal admission.
 
 ## Secure initial tape selection on Nano
 

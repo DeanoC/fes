@@ -20,7 +20,7 @@ SHARED_BOOT=BOOT.replace(b'NOTICE:  FES_NANO_OWNED_BOOT',SETUP+b'NOTICE:  FES_NA
 
 class SharedModel(Model):
     def __init__(self,protocol='gamepad'):
-        super().__init__();self.reports=0;self.usb_fault='';self.waits=[];self.policy=copy.deepcopy(POLICY)
+        super().__init__();self.reports=0;self.polls=0;self.usb_fault='';self.waits=[];self.policy=copy.deepcopy(POLICY)
         if protocol=='boot-keyboard':self.policy.update(input=protocol,descriptor_sha256=hashlib.sha256(b'').hexdigest(),descriptor_bytes=0)
     def initial(self):
         p=self.policy
@@ -34,17 +34,21 @@ class SharedModel(Model):
         before=self.service.generation
         raw=super().exchange(key,bound,lambda _:True)
         if key in (b'\x1b[C',b'\x1b[D'):done(raw);return raw
-        self.reports+=8
+        self.reports+=8;self.polls+=8
         launch=key==b'\r'
-        a=f'FES_NATIVE_SHARED_USB INPUT phase=pause state={"ready" if launch else "running"} native_generation={before} owner={OWNER} generation=2 reports={self.reports}\n'.encode()
-        b=f'FES_NATIVE_SHARED_USB INPUT phase=resume state={"running" if launch else "ready"} native_generation={before+1} owner={OWNER} generation=2 reports={self.reports}\n'.encode()
+        a=f'FES_NATIVE_SHARED_USB INPUT phase=pause state={"ready" if launch else "running"} native_generation={before} owner={OWNER} generation=2 reports={self.reports} polls={self.polls}\n'.encode()
+        b=f'FES_NATIVE_SHARED_USB INPUT phase=resume state={"running" if launch else "ready"} native_generation={before+1} owner={OWNER} generation=2 reports={self.reports} polls={self.polls}\n'.encode()
         lines=raw.splitlines(keepends=True);raw=a+b''.join(lines[:-1])+b+lines[-1]
-        if key==b'q':raw=raw.replace(lines[-1],f'FES_NATIVE_SHARED_USB STOP owner={OWNER} generation=3 reports={self.reports+1}\n'.encode()+lines[-1])
+        if key==b'q':raw=raw.replace(lines[-1],f'FES_NATIVE_SHARED_USB STOP owner={OWNER} generation=3 reports={self.reports+1} polls={self.polls+1}\n'.encode()+lines[-1])
         f=self.usb_fault
         if f=='missing-pause':raw=raw.replace(a,b'')
         if f=='missing-resume':raw=raw.replace(b,b'')
         if f=='duplicate':raw=a+raw
-        if f=='no-reports':raw=re.sub(rb'reports=[0-9]+',b'reports=0',raw)
+        if f in ('no-reports','idle-no-polls','decreasing-polls','during-pause-poll','missing-polls','overflow-polls'):raw=re.sub(rb'reports=[0-9]+',b'reports=0',raw)
+        if f in ('no-polls','idle-no-polls','decreasing-polls'):raw=re.sub(rb'polls=[0-9]+',b'polls=0',raw)
+        if f=='during-pause-poll':raw=re.sub(rb'(phase=resume[^\n]* polls=)[0-9]+',lambda m:m[1]+str(self.polls+1).encode(),raw)
+        if f=='missing-polls':raw=re.sub(rb' polls=[0-9]+',b'',raw)
+        if f=='overflow-polls':raw=re.sub(rb'polls=[0-9]+',b'polls=18446744073709551616',raw)
         if f=='during-pause':raw=raw.replace(b,b.replace(f'reports={self.reports}'.encode(),f'reports={self.reports+1}'.encode()))
         if f=='generation':raw=raw.replace(b'generation=2 reports',b'generation=5 reports')
         if f=='owner':raw=raw.replace(b'owner='+OWNER.encode(),b'owner=1')
@@ -66,6 +70,26 @@ class SharedTenfootTraceTests(unittest.TestCase):
     def test_keyboard_uses_its_explicit_shared_scope(self):
         m=SharedModel('boot-keyboard');c=m.client();r=trace.exercise(c,settle=m.settle)
         self.assertTrue(r['passed']);self.assertEqual(r['shared_usb_reports'],49)
+
+    def test_idle_keyboard_requires_poll_progress_without_inventing_input(self):
+        m=SharedModel('boot-keyboard');m.usb_fault='no-reports';c=m.client()
+        r=trace.exercise(c,settle=m.settle)
+        self.assertTrue(r['passed']);self.assertEqual(r['shared_usb_reports'],0)
+        self.assertEqual(r['shared_usb_polls'],49)
+        self.assertFalse(r['input_controls_exercised']);self.assertFalse(r['hardware_acceptance'])
+
+    def test_idle_keyboard_missing_or_inconsistent_polls_retire_without_retry(self):
+        for fault in ('idle-no-polls','during-pause-poll','missing-polls','overflow-polls'):
+            with self.subTest(fault=fault):
+                m=SharedModel('boot-keyboard');c=m.client();m.usb_fault=fault
+                with self.assertRaises(ValueError):c.key('launch',0)
+                self.assertTrue(c.retired);sent=list(m.keys)
+                with self.assertRaises(ValueError):c.key('launch',0)
+                self.assertEqual(m.keys,sent)
+        m=SharedModel('boot-keyboard');m.usb_fault='no-reports';c=m.client();c.key('launch',0)
+        m.usb_fault='decreasing-polls'
+        with self.assertRaises(ValueError):c.key('stop')
+        self.assertTrue(c.retired)
 
     def test_old_mode_cannot_adopt_shared_startup(self):
         for kwargs in ({'usb_control':True},{'usb_control':False,'usb_shared':True},{'usb_control':True,'usb_shared':1}):

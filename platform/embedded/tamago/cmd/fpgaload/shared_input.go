@@ -13,14 +13,18 @@ import (
 )
 
 // The backend serializes report polls and transition callbacks. These local
-// counters describe delivered reports; they grant no device or core authority.
-type programUSBMetrics struct{ reports uint64 }
+// counters distinguish successful polling calls from delivered reports. An
+// idle keyboard can NAK every request. Neither counter grants authority.
+type programUSBMetrics struct{ reports, polls uint64 }
 
 var sharedInputMetrics programUSBMetrics
 
 func (m *programUSBMetrics) count(report []byte, err error) ([]byte, error) {
-	if err == nil && report != nil {
-		m.reports++
+	if err == nil {
+		m.polls++
+		if report != nil {
+			m.reports++
+		}
 	}
 	return report, err
 }
@@ -42,7 +46,7 @@ func (m *programUSBMetrics) boundary(ctx context.Context, source input.PollingCo
 		(v.State != nativefabric.ProgramReady && v.State != nativefabric.ProgramRunning) {
 		return errors.New("shared USB boundary lost owned input or native session")
 	}
-	fmt.Printf("FES_NATIVE_SHARED_USB INPUT phase=%s state=%s native_generation=%d owner=%x generation=%d reports=%d\n", phase, v.State, v.Generation, r.Owner, r.Generation, m.reports)
+	fmt.Printf("FES_NATIVE_SHARED_USB INPUT phase=%s state=%s native_generation=%d owner=%x generation=%d reports=%d polls=%d\n", phase, v.State, v.Generation, r.Owner, r.Generation, m.reports, m.polls)
 	return nil
 }
 

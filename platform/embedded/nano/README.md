@@ -1635,6 +1635,15 @@ before any remaining opening firmware or after completed App publication still
 rejects. The unchanged captured launch regression preserves the original byte
 stream and partial receive/deadline offers, alongside ownership/order mutations.
 
+Shared transition and Stop records also require successful poll-call counters.
+Polls must advance before every mutation and stay unchanged across its pause;
+report counts remain monotonic, cannot exceed polls and cannot change during
+pause. An explicitly selected keyboard can legitimately have no new reports
+after `SET_IDLE(0)`, so its poll evidence replaces a demand for key activity.
+The gamepad report-progress requirement remains. Neither count demonstrates a
+physical button action. Missing/stale counters or lost ownership retire the
+collector without retry; matching new native output is required.
+
 Launch retains the original 100-second request budget and every configuration
 retains its 20-second firmware counter bound. Return allows 5 seconds for core
 close plus 100 seconds for the independent menu restore; final quit adds 5 seconds

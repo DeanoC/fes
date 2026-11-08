@@ -487,5 +487,6 @@ def exercise(client, settle=lambda _: None, *, during_play=None):
             'paired menu/core cycle incomplete')
     return dict(passed=True, cycles=cycles, menu=client.menu.finish(), display='fpga-menu',
                 fetch_activity_observed=True, shared_usb_reports=None if client.usb is None else client.usb.reports,
+                shared_usb_polls=None if client.usb is None else client.usb.polls,
                 input_controls_exercised=False, physical_display_verified=False,
                 hardware_acceptance=False, ordinary_admission=False)

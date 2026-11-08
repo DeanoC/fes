@@ -71,6 +71,7 @@ class Model(AppModel):
         self.menu_index = 1
         self.frames = 1
         self.reports = 0
+        self.polls = 0
         self.fault = ''
         self.initial = self._initial()
 
@@ -109,9 +110,10 @@ class Model(AppModel):
     def usb(self, stage, state=None, generation=None):
         if stage == 'stop':
             self.reports += 1
-            return f'FES_NATIVE_SHARED_USB STOP owner={OWNER} generation=3 reports={self.reports}\n'.encode()
+            self.polls += 1
+            return f'FES_NATIVE_SHARED_USB STOP owner={OWNER} generation=3 reports={self.reports} polls={self.polls}\n'.encode()
         return (f'FES_NATIVE_SHARED_USB INPUT phase={stage} state={state} native_generation={generation} '
-                f'owner={OWNER} generation=2 reports={self.reports}\n').encode()
+                f'owner={OWNER} generation=2 reports={self.reports} polls={self.polls}\n').encode()
 
     def _initial(self):
         boot = BOOT
@@ -176,6 +178,7 @@ class Model(AppModel):
                 raw += self.menu_wire()
         if self.shared and key not in (b'\x1b[C', b'\x1b[D'):
             self.reports += 8
+            self.polls += 8
             raw = self.usb('pause', 'ready' if key == b'\r' else 'running', before)+raw
             if key == b'\r':
                 marker = raw.index(paired.app.FETCH)
@@ -337,6 +340,28 @@ class PairedTenfootTraceTests(unittest.TestCase):
             profile = dict(model.profile, **change)
             with self.subTest(change=change), self.assertRaises(ValueError):
                 model.client(profile=profile)
+
+    def test_idle_keyboard_completes_all_core_and_menu_cycles_with_poll_evidence(self):
+        model = Model(True, 'boot-keyboard')
+        original = model.corrupt
+        model.corrupt = lambda raw, key: re.sub(rb'reports=[0-9]+', b'reports=0', original(raw, key))
+        client = model.client(); result = paired.exercise(client)
+        self.assertTrue(result['passed']);self.assertEqual(result['shared_usb_reports'], 0)
+        self.assertEqual(result['shared_usb_polls'], 49)
+        self.assertEqual(result['menu']['menu_sessions'], 4)
+        self.assertFalse(result['input_controls_exercised']);self.assertFalse(result['hardware_acceptance'])
+
+    def test_idle_keyboard_cannot_hide_stopped_polling_or_old_missing_counter(self):
+        for missing in (False, True):
+            model = Model(True, 'boot-keyboard'); original = model.corrupt
+            def corrupt(raw, key):
+                raw = re.sub(rb'reports=[0-9]+', b'reports=0', original(raw, key))
+                return re.sub(rb' polls=[0-9]+', b'', raw) if missing else re.sub(rb'polls=[0-9]+', b'polls=0', raw)
+            model.corrupt = corrupt; client = model.client()
+            with self.subTest(missing=missing), self.assertRaises(ValueError):client.key('launch', 0)
+            self.assertTrue(client.retired); sent = list(model.keys)
+            with self.assertRaises(ValueError):client.key('launch', 0)
+            self.assertEqual(model.keys, sent)
 
     def test_restore_and_final_park_have_separate_deadlines(self):
         for phase in ('restore', 'park'):
