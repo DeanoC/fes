@@ -64,7 +64,30 @@
   "audio_path": "HDMI digital audio, 48 kHz stereo, captured by the 4KPRO (constant -88 LSB DC offset removed in measurement); no analogue measurement",
   "input_path": "host /api/v1/session/input/event: HID keyboard (positional C64 map) and gamepad player 0 = C64 port 2, player 1 = C64 port 1",
   "reference": "VICE 3.9 x64sc headless, built on Powerboat (tarball sha256 40202b63455e26b87ecc63eb5a52322c6fa3f57cab12acf0c227cf9f4daec370, binary 97f882a994288bbc97de2bda768b49065a0302fd84a02a17c4c71b1811188416), PAL, 6581 (reSID), true-drive 1541-II, same four ROM files; local binary-monitor patch (keyboard matrix set 0xa3, joystick set 0xa4) sha256 367b062175b9cce7569dae7cea2932954274760d4dbd431ea7b96ec59c9ff3d1; VICE attached private copies of the D64s",
-  "main_check_2026_11_08": "all 103 pinned C64 producer inputs in build-inputs.json hash identically after merging main 66af9a662"
+  "main_check_2026_11_08": "all 103 pinned C64 producer inputs in build-inputs.json hash identically after merging main 66af9a662",
+  "toolchain_lock_full": {
+   "yosys": "3a5accbd78c526ab7bae32640044a2e062a3cfc9",
+   "nextpnr": "5fe55f3df5d9e48d81b41ec5134a4f3e9a6c06fe",
+   "mistral": "8fcc4cb41c51f8918f1d3ad70def2febcbf20d8f",
+   "source": "sources/misteross/cores/fes-c64/toolchain.lock at main 607922c63d45f798dd3f6fb0ce443f346c324852"
+  },
+  "host_source": "main 607922c63d45f798dd3f6fb0ce443f346c324852",
+  "firmware_composition": "byte concatenation BASIC (8 KiB) || KERNAL (8 KiB) || character ROM (4 KiB) || 1541-II ROM (16 KiB), the core's 36 KiB c64-firmware layout (sources/misteross/cores/fes-c64/README.md); recomposed from the four files on 8 Nov to the same SHA-256",
+  "seal_record": {
+   "location": "Powerboat ~/fes-scratch/c64acc/pkg (private; producer outputs copied from the sealing worktree build/packages)",
+   "build_summary_json_sha256": "d9a47be4382db63911e8fa172fc98a557449232b02ea1548f7ca655269676fe3",
+   "timing_json_sha256": "6eebc8a9697df35493e89bd2e80e3d259c2fe9a2e21fa25ef3915bca150131c6",
+   "manifest_toml_sha256": "b1f4ee1c7d06ba844dd144de5dc27a54f5d7886d16369b225c3bedfd92738395"
+  },
+  "raw_artifacts": "private on Powerboat: kit frames, audio and video in ~/fes-scratch/c64acc/runs/<run>/fr, driver event logs in runs/<run>/result.json, VICE frames (.png and raw VIC colour-index .idx), audio and event logs in ~/fes-scratch/c64acc/vref/<ref>; only hashes are committed",
+  "audio_activity_method": "tools/aud.py: mono mix, DC removed, RMS per 1 s window, a window is active above -50 dBFS; no tolerance was declared in advance, so activity counts are presence evidence, not a pass criterion",
+  "input_scripts": "inputs/kit-<run>.jsonl are the exact kit scripts (kik1 used the kik2 script); inputs/vice-*.jsonl are the VICE scripts. tools/ holds the driver and helpers; wander timing is wall-clock (seeded move sequence, random 0.15-0.7 s holds), so play is reproducible in sequence, not in time",
+  "driver_versions": {
+   "90e625e4 (tools/c64run.py, kik4)": "final",
+   "6b512d75 (mw2)": "as final but the audio recorder cap is 900 s, not 1800 s",
+   "8da87b83 (kik2, lode1, mw1)": "as mw2 but no ( ) ; in the BASIC key map and live-media/clear sent a {} body",
+   "2f8d4585 (kik1)": "as kik2 with an earlier BASIC typing map (the shifted-LOAD bug)"
+  }
  },
  "runs": {
   "kik1": {
@@ -74,7 +97,19 @@
    "driver_halted": "RuntimeError: rom-kik 400: {'error': {'code': 'BAD_REQUEST', 'message': 'invalid ROM selection'}}",
    "wrapper_notes": [],
    "launches": [],
-   "result": "harness failure before launch (ROM binding sent no rom_id); kit released unchanged"
+   "result": "harness failure before launch (ROM binding sent no rom_id); kit released unchanged",
+   "driver_sha256": "2f8d45857c46cbc659c194d5d385cd5035cf45a2c6609db445d8f41f030cbdc3",
+   "input_script": {
+    "file": "inputs/kit-kik2.jsonl",
+    "sha256": "3a06273a5b2511d975eabe7dc46cb8f97fdddeb2073db943f15b3e957598d05a"
+   },
+   "event_log_sha256": "b5fdc1b8a5ca7cac37bfb69881551b9bf00af3dd71864fb8377b8225e2f47ba0",
+   "wander_seeds": [
+    11,
+    12,
+    13,
+    14
+   ]
   },
   "kik2": {
    "claimed": "2026-11-07 19:04:13 EET",
@@ -144,7 +179,9 @@
      "stop": {
       "code": 200,
       "state": "idle"
-     }
+     },
+     "audio_seconds": 899.9,
+     "audio_truncated": true
     },
     {
      "game": "kik",
@@ -181,10 +218,24 @@
      "stop": {
       "code": 200,
       "state": "idle"
-     }
+     },
+     "audio_seconds": 900.3,
+     "audio_truncated": true
     }
    ],
-   "result": "case 1 Kikstart attempt (7 Nov): launch 1 harness failure (shifted LOAD, ?SYNTAX ERROR); launches 2-3: load, trainer, high-score read, course completion and respawn match VICE (course 1 P1 72.54, course 2 79.42); two-joystick check is a HARNESS TIMING ERROR, not a core defect: presses landed in Kikstart's crash window where the game ignores both joysticks (#1542, closed not planned); in-race play ~685 s and ~535 s"
+   "result": "case 1 Kikstart attempt (7 Nov): launch 1 harness failure (shifted LOAD, ?SYNTAX ERROR); launches 2-3: load, trainer, high-score read, course completion and respawn match VICE (course 1 P1 72.54, course 2 79.42); two-joystick check is a HARNESS TIMING ERROR, not a core defect: presses landed in Kikstart's crash window where the game ignores both joysticks (#1542, closed not planned); in-race play ~685 s and ~535 s",
+   "driver_sha256": "8da87b8399e7092a5a4151184cce2970792cac9acd36ef5e788878b65c691135",
+   "input_script": {
+    "file": "inputs/kit-kik2.jsonl",
+    "sha256": "3a06273a5b2511d975eabe7dc46cb8f97fdddeb2073db943f15b3e957598d05a"
+   },
+   "event_log_sha256": "efbc1f056307d35b7ebc8693ce0d72ad120cffda4e594c330da2238caec62042",
+   "wander_seeds": [
+    11,
+    12,
+    13,
+    14
+   ]
   },
   "lode1": {
    "claimed": "2026-11-07 19:45:58 EET",
@@ -257,7 +308,22 @@
      "stop": {
       "code": 200,
       "state": "idle"
-     }
+     },
+     "audio_seconds": 764.2,
+     "audio_truncated": false,
+     "level_advance": {
+      "ctrl_u_grab": {
+       "name": "r1-06-ctrl-u",
+       "sha256": "79584e4b9c41c2ed0a96a57f89c70b1b108e48bc7103fea93dba18f761effa54",
+       "shows": "level-end wipe, MEN 004, LEVEL 001"
+      },
+      "first_play_grab": {
+       "name": "r1-p-000",
+       "sha256": "2e30371abe9af3e55aec2bad645b832ba56d76e6606a8d91fbb594d874bf0f09",
+       "shows": "level 2 layout, SCORE 0000000, MEN 004, LEVEL 002, about 39 s after Ctrl+U"
+      }
+     },
+     "play_grabs": "19 of 19 show the play field and status line (some mid-wipe after a death or game over); none at the title or attract demo"
     },
     {
      "game": "lode",
@@ -289,10 +355,34 @@
      "stop": {
       "code": 200,
       "state": "idle"
-     }
+     },
+     "audio_seconds": 764.2,
+     "audio_truncated": false,
+     "level_advance": {
+      "ctrl_u_grab": {
+       "name": "r2-06-ctrl-u",
+       "sha256": "041811fe40f20bde444a6c0c0e9a49915888b68b38ec804a4c362aa81473da5c",
+       "shows": "level-end wipe, MEN 004, LEVEL 001"
+      },
+      "first_play_grab": {
+       "name": "r2-p-000",
+       "sha256": "6de0e9c60191c81eee6ac46ce696039d6a72ac1fb9264bf6fe5fcd51734dc602",
+       "shows": "level 2 layout, SCORE 0000000, MEN 004, LEVEL 002, about 39 s after Ctrl+U"
+      }
+     },
+     "play_grabs": "19 of 19 show the play field and status line (some mid-wipe after a death or game over); none at the title or attract demo"
     }
    ],
-   "result": "launch 1 = Kikstart port isolation, superseded: its presses fell in the crash window (#1542, harness timing); launches 2-3 = case 2 Lode Runner r1/r2 PASS (attract SCORE 2125 = VICE, Ctrl+A MEN 5->4, Ctrl+U LEVEL 002 in r1 only, sustained play, game over and restart)"
+   "result": "launch 1 = Kikstart port isolation, superseded: its presses fell in the crash window (#1542, harness timing); launches 2-3 = case 2 Lode Runner r1 and r2 both PASS (attract SCORE 2125 = VICE, Ctrl+A MEN 5->4, Ctrl+U level advance in both launches: the ctrl-u grab caught the level-end wipe still showing LEVEL 001, and the first play grab 30 s later shows LEVEL 002 with MEN 004 and SCORE 0; sustained play, game over and restart). Corrected on 8 Nov: the first version of this record read the r2 wipe as a death wipe and said Ctrl+U LEVEL 002 in r1 only",
+   "driver_sha256": "8da87b8399e7092a5a4151184cce2970792cac9acd36ef5e788878b65c691135",
+   "input_script": {
+    "file": "inputs/kit-lode1.jsonl",
+    "sha256": "83dfb43981ea988ae966a07ce2f942741af77800e59874f21157687a2e96b39d"
+   },
+   "event_log_sha256": "9d44192fdff8cd8852a929b59a13fcaf8e28428c891ad175fbcde3855808cc34",
+   "wander_seeds": [
+    21
+   ]
   },
   "mw1": {
    "claimed": "2026-11-07 20:51:20 EET",
@@ -393,7 +483,9 @@
      "stop": {
       "code": 200,
       "state": "idle"
-     }
+     },
+     "audio_seconds": 869.2,
+     "audio_truncated": false
     },
     {
      "game": "mw4",
@@ -436,7 +528,9 @@
      "stop": {
       "code": 200,
       "state": "idle"
-     }
+     },
+     "audio_seconds": 869.2,
+     "audio_truncated": false
     },
     {
      "game": "kik",
@@ -474,7 +568,16 @@
      }
     }
    ],
-   "result": "launch 1 harness (probe typing failed at \"(\"); launch 2 = MW4 r1: live side-2 replacement and in-game reached (via random play); live eject not sent (harness body); launch 3 = MW4 r2 INCONCLUSIVE (script stopped at difficulty menu, random play chose CANCEL/QUIT -> clean READY.); launch 4 = CIA port probe, every value equals VICE"
+   "result": "launch 1 harness (probe typing failed at \"(\"); launch 2 = MW4 r1: live side-2 replacement and in-game reached (via random play); live eject not sent (harness body); launch 3 = MW4 r2 INCONCLUSIVE (script stopped at difficulty menu, random play chose CANCEL/QUIT -> clean READY.); launch 4 = CIA port probe, every value equals VICE",
+   "driver_sha256": "8da87b8399e7092a5a4151184cce2970792cac9acd36ef5e788878b65c691135",
+   "input_script": {
+    "file": "inputs/kit-mw1.jsonl",
+    "sha256": "420eec31e74a0e655a737b8e9234a8e99f5ae1fa038f8cc9d3b820e5310375db"
+   },
+   "event_log_sha256": "8c64a0df5a7f9b4545c09c55d6a7c76480d9078d796a0894ce518ea9af4c04f4",
+   "wander_seeds": [
+    31
+   ]
   },
   "mw2": {
    "claimed": "2026-11-07 21:46:05 EET",
@@ -541,7 +644,10 @@
      "stop": {
       "code": 200,
       "state": "idle"
-     }
+     },
+     "audio_seconds": 900.3,
+     "audio_truncated": true,
+     "play_grabs": "19 of 19 in the game (r1 includes the in-game CARRY, START/SAVE/LOAD and FISTS menus)"
     },
     {
      "game": "mw4",
@@ -591,10 +697,22 @@
      "stop": {
       "code": 200,
       "state": "idle"
-     }
+     },
+     "audio_seconds": 900.2,
+     "audio_truncated": true,
+     "play_grabs": "19 of 19 in the game (r1 includes the in-game CARRY, START/SAVE/LOAD and FISTS menus)"
     }
    ],
-   "result": "case 3 Metal Warrior 4 r1/r2 PASS: fastloader ON, live side-2 replacement (same session/generation, unit ready), side-2 load into the game, 600 s play, live eject (unit empty, same generation) in r1"
+   "result": "case 3 Metal Warrior 4 r1/r2 PASS: fastloader ON, live side-2 replacement (same session/generation, unit ready), side-2 load into the game, 600 s play; live eject (unit empty, same generation) scripted and passed in r1 only",
+   "driver_sha256": "6b512d75193ae5d353f943b0adda4bfc26c9f83a69f4aad240b968072d8a8506",
+   "input_script": {
+    "file": "inputs/kit-mw2.jsonl",
+    "sha256": "aa3814b22de2850d3b0c63fec5be8677fec4f2dcb74739333f3014072fc84aee"
+   },
+   "event_log_sha256": "9978b146f7367bb05761af5f4bb7e0ee7221711d6bd6bf93c6cfbd4a6431f9e3",
+   "wander_seeds": [
+    31
+   ]
   },
   "kik4": {
    "claimed": "2026-11-08 13:43:26 EET",
@@ -638,7 +756,19 @@
      "stop": {
       "code": 200,
       "state": "idle"
-     }
+     },
+     "audio_seconds": 1037.7,
+     "audio_truncated": false,
+     "race_time": {
+      "f7_to_course2_grab_s": 133.8,
+      "play_blocks_f7_to_end_s": [
+       155.3,
+       155.1,
+       155.2,
+       155.1
+      ]
+     },
+     "play_grabs": "16 of 16 mid-race"
     },
     {
      "game": "kik",
@@ -675,10 +805,34 @@
      "stop": {
       "code": 200,
       "state": "idle"
-     }
+     },
+     "audio_seconds": 1038.6,
+     "audio_truncated": false,
+     "race_time": {
+      "f7_to_course2_grab_s": 133.7,
+      "play_blocks_f7_to_end_s": [
+       155.1,
+       154.9,
+       154.9,
+       155.0
+      ]
+     },
+     "play_grabs": "16 of 16 mid-race"
     }
    ],
-   "result": "case 1 Kikstart r1/r2 PASS (8 Nov): two players two joysticks with port 2 held from before F7 and port 1 after race time ~15 s (outside the crash window, #1542); each port drives only its own rider; course 1 P1 72.54 / P2 59.64 on both launches = VICE; race completes; 16/16 play grabs in race (~850 s in race per launch); SID active 911/1037 and 915/1038 s (VICE 899/1015)"
+   "result": "case 1 Kikstart r1/r2 PASS (8 Nov): two players two joysticks with port 2 held from before F7 and port 1 after race time ~15 s (outside the crash window, #1542); each port drives only its own rider; course 1 P1 72.54 / P2 59.64 on both launches = VICE; race completes; 16/16 play grabs in race (about 754 s of race time per launch: 133.8 s from F7 to the course-2 grab plus 620.7 s and 620.0 s from F7 to the end of the four play blocks); SID active 911/1037 and 915/1038 s (VICE 899/1015)",
+   "driver_sha256": "90e625e485d91ab226b9cc12e4d91fc64d7f4afa5fea19819407594d37c49b7b",
+   "input_script": {
+    "file": "inputs/kit-kik4.jsonl",
+    "sha256": "17852b29bc054c42e6d9f31d7dbdf90c19edae9a3a086cd83519a4406f2665be"
+   },
+   "event_log_sha256": "bd1513c1b685197ba372aa7fd73505f07d237d21784cb9dff08bed30f358969e",
+   "wander_seeds": [
+    11,
+    12,
+    13,
+    14
+   ]
   }
  },
  "reference_observations": {
@@ -765,7 +919,8 @@
    "kik2_r1": "12 of 16 play grabs in a race (~685 s with the throttle phase)",
    "kik2_r2": "8 of 16 (~535 s)",
    "kik4_r1": "16 of 16",
-   "kik4_r2": "16 of 16"
+   "kik4_r2": "16 of 16",
+   "kik4_derivation": "race time counts from each F7 (event log) to the course-2 grab in the scripted race and to the end of each 150 s play block; the scripted race ended between the course-2 grab and the after-race grab (title), so that tail is not counted"
   },
   "video": "each launch ends with a 20 s 1920x1080 60 fps capture stored as 480x270 x264 (1200 frames); lossy, not a cadence proof"
  },
@@ -776,5 +931,145 @@
    "mw41.d64": "4530b1f1df57b0ce7e8adc9783d71a7e53e82960385f2af2e887f32f86e8ce16"
   },
   "method": "the writes were inverted (three high-score records zeroed; fastloader byte 1->0) and checked against the 64-bit SHA-256 prefixes recorded before any run; file mtimes now differ from the originals; all kit runs used read-only copies of the restored bytes"
+ },
+ "vice_runs": {
+  "note": "frames are raw VIC colour-index buffers (.idx); kit frames are 1920x1080 HDMI captures, so kit and VICE are compared semantically (screen, on-screen text, counters, course times, sprite positions under input) by inspection, not by hash; counters and course times must be equal",
+  "runs": {
+   "kikstart_kik4_script": {
+    "ref_dir": "ref-kik2j",
+    "script": "inputs/vice-kik4.jsonl",
+    "events_sha256": "6ce8da2ffc9c57597708fef9c048e55f1960df3fdcc62bfd643441d8abdfe9e0",
+    "started": "2026-11-08 13:43:20",
+    "audio_sha256": "a2c352846fffe79466070593b2267e3e33f558fb4d43cfc1fd39673dc6de61a3",
+    "frame_idx_sha256": {
+     "ref-00-basic": "f06f98440ca55986006510474724a13d059d04956fdc71141fc8e18bc1db6e9e",
+     "ref-01-loaded": "27c1e1c669f7f25ddc44a7bc82a12a61811fbd92cd4e58fb65f4f9d1fe0d103e",
+     "ref-02-trainer": "844ebbcc00fbd71082edafd01e23b9c93f72ae57397374f8c4db9ca21056a36c",
+     "ref-03-hiload": "759e6e34f8d3f3a0e834f400077d33d24ee8e554ef5203f95a66171c67ab0402",
+     "ref-04-title": "1ad55d44b86bcf3432a87a9fdb8280d123734a8d0f1ae86b8b8b893bdf8ae37b",
+     "ref-05-twojoy": "f6ec14f017348293a0339ea62f5b7dfefb8610952961c131a6b3a6288e18009f",
+     "ref-06-start-p2held": "05fcfc376674c84c2abfe1d8ffa1238b9173b839023991a4d2b334fbedb3e914",
+     "ref-07-p2held": "ad1166ae45c5199d6360a1329b2cf1eda36bb56a209b3d3a1b50c6beb29e17e0",
+     "ref-08-p1held": "f1597b55bb2ca456f1684a185f94cf47e7042c9e991571398d22561ab25c4b3f",
+     "ref-09-course1": "97bc7e3c36a37120eae039e5c287cd37cf939c63a53495491d1c19824eb93419",
+     "ref-10-course2": "b40390e8b68092300a34cdeabff12e86274ddca84a17bffd952c7885d026c288",
+     "ref-11-after-race": "dd978c76e4b6e6a717c4f371fa4d994f83d0ab85610093fc747486c54d466635",
+     "ref-12-end": "38ae06c75d46c3f064213e8621cce06ceb884d997badd57b8ee848869fedb993",
+     "ref-p0-000": "7177b0cb092f5fe6799dd45bd38d9dbdf5782c0f68caca8ec2e265337c53fa98",
+     "ref-p0-001": "c9818f958d71fa0550f63c9caa78e5350473ae4cfcb7c9df0cb61ec61e01bfd7",
+     "ref-p0-002": "85846d06bb6617daa7b914bfecbb4ff9559665c9257ba3d472c4c0f576a055e6",
+     "ref-p0-003": "aaec8ee335d389ec348a43fa428a83f84f0ae3ea4178d58fa8ce1380707ac369",
+     "ref-p1-000": "4855cc1b69c6449311ed0f504a07b78bc82d048f0c1f16f2270029998271d8bf",
+     "ref-p1-001": "e18f6fa82621752d4058dd255a4a52956f2a5751d98bcf7b5aca5023389a582a",
+     "ref-p1-002": "66823c8b02d3c67852147ebe1dcfa433910e56c0ed03c8e99a83572e460095b8",
+     "ref-p1-003": "cd7727153f34f6eb630feb4f117367373136af099eb9bce12dd01e59e9aeebd3",
+     "ref-p2-000": "8d1fc947c0418aeda365eda3620c2ea17e53c5717910097268befea7067a3fa7",
+     "ref-p2-001": "21be44aca3da192f5cf63a4398014e15e6c90716d6dec2a3439b3b90d716c14c",
+     "ref-p2-002": "75e7a75bbeec5d403ee0c56281c062d9eab8edab6618ac2df13502e04be5d50e",
+     "ref-p2-003": "daeb643b27ef2bb07851fb22b4c12c75c4cd28cd6d2a4cdbc7c6677e37afd427",
+     "ref-p3-000": "4d47d5300ad39a79897abf686174625ebf9eefa9a79c4b9ceb40bcffb548a738",
+     "ref-p3-001": "bb467dcf1dfd333d2ad71dabfe867015cf048630392f534e9d6efdf5499284d7",
+     "ref-p3-002": "171e84efd5e7899dc11d842b276b55696f51285fe259a5852115070f2c44d9d4",
+     "ref-p3-003": "2c8b2cbdc9cb6a9cefc227927023e5c6ebfb4e1779291eb9f1e1af4fb244b44e"
+    }
+   },
+   "lode_runner": {
+    "ref_dir": "ref-lode",
+    "script": "inputs/vice-lode.jsonl",
+    "events_sha256": "5d641ee7bbd880d535043cfa995baa0888b69576b61cba92282df8c4705cb663",
+    "started": "2026-11-07 15:18:12",
+    "audio_sha256": "44baa27c863e84c35ba77849ec2921129b9e99d8b396ec4981c02084e85acd6c",
+    "frame_idx_sha256": {
+     "ref-00-basic": "4c17e44d4ab8c87ed4e95fa024f180e075fce4f39d0e6ddb76acd2f25c17e80e",
+     "ref-01-loading": "6d236f9e038c836318aa4f1ba3048522d823c90b982d6b93984a65d7e10ca5bd",
+     "ref-02-attract": "8a4850814f12918a1beb2321a1bfb31090300e049a79b077fbc7b3b0cf63a0c9",
+     "ref-03-level1": "69773c26e7bd499dd79c8ab0473ec7a2f7b836786ad555d078984c82bd045922",
+     "ref-04-moved": "9be354b0fb911e6e244082532813a0375c42f50b8657b43532d78c235346feec",
+     "ref-05-ctrl-a": "bfed6e1796a81f54851ed4914aa08632d40ce39ccf3e3b47cbe93bc12b58af35",
+     "ref-06-ctrl-u": "3460b1372c675465e4ce464a6877da627244bf97b80fb27bd74c81e40cba8143",
+     "ref-07-end": "178bd330ab4465bd8b498a4b640a4a0179f00536e8d6246d1d4248f27a56133b",
+     "ref-p-000": "59973aa6be04410a65896800c0b877e35df50e6ef619c151db18a3113b78513e",
+     "ref-p-001": "be6c781d065b5d10d2167ff2cdafdcd4d13574f2ae9fc8f3fc74a98a1b66094f",
+     "ref-p-002": "46a6bb3b758923096c9772bdf9826be1ecdad48fd96513799bc3655c93be0e1f",
+     "ref-p-003": "55b99b400d7b066535154ebac1bb8d5652076521857a680818afe51fb5f772eb",
+     "ref-p-004": "741a319ff7babf7e6597f792d3e0d052dcc0de9dee8e2759ea42976d10d8082d",
+     "ref-p-005": "577e460848d668ef55c2fe36f300aab4aa0f3ddf36d8ea47847434f8d188938b",
+     "ref-p-006": "301c9c6b63cc03a8631c611f52a72cca874fcc5c2b797a9078c4bd28282f5f9f",
+     "ref-p-007": "0b1b4bc3eb30f8e00d3a82ac916881601ead738fcb0369cf950758dd8f697da3",
+     "ref-p-008": "32c6f1d951a7fb7b195f432ab6b3fffbc6d65b52a7a6bcb282a48cd80f95a428",
+     "ref-p-009": "508d0f971022446ec394889564e5d49d5ff7f891089e730c883a884a3b36beac",
+     "ref-p-010": "2a81b9c9ecb722970edfd70e2e58abe1a9865adae7d09054828865c9b565b8bc",
+     "ref-p-011": "fa52b6e0680c8bc186d4ff75f66b725265cbc866126105122be2552d9fb581a9",
+     "ref-p-012": "19599bba7c22f0b3873e96e243b7769de96bf91fc1189ddd37de0918d88e6f78",
+     "ref-p-013": "860b529d459c4a2ad799e2ac2ee85fb4c8870bc523e58c7cde12a95eed64c540",
+     "ref-p-014": "846bf24542b8d6cd8090022e728e0466b0855fa0351c998c5b55f7d7f228d9c1",
+     "ref-p-015": "2276c4ff33b50ea3f9449c21bd7c5da2be4bbb42686da4284d8da48fc2838491",
+     "ref-p-016": "736eebfa8888e7d5ba5a3806e65f5c9d515834d96810d0595acb6cbdef77e70a",
+     "ref-p-017": "d2e914d965138917f895d7402c13a1695df9e905902bee22fef4a621ca748743",
+     "ref-p-018": "e26fa89b339c97c307f89db5dfb3fb008c27efcbe2350f45a4a8f8bb1831a4a1"
+    }
+   },
+   "metal_warrior_4": {
+    "ref_dir": "ref-mw4b",
+    "script": "inputs/vice-mw4.jsonl",
+    "events_sha256": "f9665fecb9a7032cecad2e70e36e097a91f88cd8c26ae240b0c92dc0ae653766",
+    "started": "2026-11-07 21:31:48",
+    "audio_sha256": "1ba5f4db96232420fd5ccdfa38a9ec4d226d8fc588c63b9275966462c68cee9c",
+    "frame_idx_sha256": {
+     "ref-00-basic": "4c17e44d4ab8c87ed4e95fa024f180e075fce4f39d0e6ddb76acd2f25c17e80e",
+     "ref-01-config": "58f78422de8ad7aa4bb2ae5ea191039c2a6a09e346b84272ad72e1de9fb1eea0",
+     "ref-02-fastloader-on": "165203a27f3a4270ecfee7ff5de15f305bfa999934ff51734de4228606b20357",
+     "ref-03-picture": "3045fe3f5f52046b8f66b2f683829506a45d3e31cee755a83a62e463fec75f81",
+     "ref-04-side2-prompt": "0c32d0df6e12ddd7889fa885d758c9f31038f7250cf8a88663d185532a6f3bd1",
+     "ref-05-swapped": "0c32d0df6e12ddd7889fa885d758c9f31038f7250cf8a88663d185532a6f3bd1",
+     "ref-06-title": "364ac2b572896ed2d99ef2f84b493e32dd87af33a9e8d57ff30a68ddd9bd44f2",
+     "ref-07-difficulty": "ed913099bc369df6715024366f39b267ef00dfb4f2de617850726b5be00c7a4b",
+     "ref-08-ingame": "0e79998eabc747d9c40ea83915b0bf747e0cf303919d496463b8cd2a9cbf2740",
+     "ref-09-end": "21532960fc0f360b090b786e82c48656477019138f8e97dc495c43ee2f44bda3",
+     "ref-p-000": "56f5e075c0b730bbc9cca08f9df6de670599987f47506fd0c1d361e84e6adaaf",
+     "ref-p-001": "662f58f8b90ffd7e6d4171372cfbf7165ca411dfc3f6329846d3878dfe689748",
+     "ref-p-002": "706690f6164ebd1d08a11dca4de8e1456c3b583ae8de5d274834e0762ebcc781",
+     "ref-p-003": "f5fa4650224bfec167264d9e2205d3f69ac0ea2451ea163badeb070d6b748740",
+     "ref-p-004": "473b894897bcb03a3e2bd88e4f6ad30d77cacc9af0f25c4e8f7de70cde56f8db",
+     "ref-p-005": "99b233440e25b5dd71260e94975f6c455bf63efa3ff6c247eb3cef11e75e6d67",
+     "ref-p-006": "a20d996435cb901dd5893eaa69d8a7cff86f4adbbead46f1bebafbabf101790b",
+     "ref-p-007": "8fa371967b18fb60353b7da7a35f6a26095a2ea4ee39198791537dbe9f4e2869",
+     "ref-p-008": "5527843eda4782e3a674fb1d2daaea669fc47641e9ac0b8dffd36106b88c4c90",
+     "ref-p-009": "4cf9c1faada623ea0460230ecb706334bd54848b15743a60aa5ba43e6bca5dca",
+     "ref-p-010": "30d0e8f155cd9c8b7b89eb6c2a4e58b05800de97f314e24594f71e9991730b2e",
+     "ref-p-011": "1d03ce0b10d10543e13cc66996fa96a9385acc8a259ed13cf911ff9efdb09ed0",
+     "ref-p-012": "8a46bfb4fa56257ec11a4e4e85c45d07c7344bd66c3359e32c119c8c99c45364",
+     "ref-p-013": "5a734456c37f2c0927ba1f8aa60fca57b51800c84062c77cc60cba215cfe3bef",
+     "ref-p-014": "94658b32816dccbad8c5b0a7bc8e2d53fec1fc74ed5a5661c1271a2d57df1c45",
+     "ref-p-015": "2d267c682173958f7eabd344b333984eccc32e7e8450bbf03fcb1ad9063f8225",
+     "ref-p-016": "4131f766e953dc21c19c521fe88224231805bc1f54e26b990e147a48a77bcd23",
+     "ref-p-017": "33b40309cf1eb5867330590ccfb2ca8ae626f5236303ad3154d97ff49a9d6940",
+     "ref-p-018": "224222c164832de27ab2eec248c1b12a2fc9b8f8aeb02b168eaec0c1334f007d"
+    }
+   },
+   "cia1_port_probe": {
+    "ref_dir": "ref-pp",
+    "script": "inputs/vice-portprobe.jsonl",
+    "events_sha256": "914dfdf48f21cadd5a43175f088cae897411140f5936f80509b577a83d4f0e48",
+    "started": "2026-11-07 19:52:30",
+    "audio_sha256": "e269cb928a7fb3046c7a397285712b10d445b1f093594d038c9816110c2ef0d1",
+    "frame_idx_sha256": {
+     "pp-00-idle": "3ae0c4533316c709b17293069ab23cff9fb1f7e8c30c06aabe26fbc63dcad15c",
+     "pp-p1-fire-released": "dc3717d65eac994b9a870746fa7205746bff74d3cc2083dba1c4b6ab2fd416db",
+     "pp-p1-fire": "82c23f7eec89dfdba6f531df52a0d11833ead46483d5c8e17f7559c552436fc7",
+     "pp-p1-left-released": "a883e42ee2857181702e35a5a15e1f13dad04fdc7f2be53901a3b31024f60d62",
+     "pp-p1-left": "8074dbd9d7bd56afbed3af2b091fa39702788929aacae03c1ec9f9ea8dc6b760",
+     "pp-p1-right-released": "a883e42ee2857181702e35a5a15e1f13dad04fdc7f2be53901a3b31024f60d62",
+     "pp-p1-right": "9831c066fb8c8128629c2cd5ce3ff88a8242634619dab2f8dc13ca6dc3a6f2de",
+     "pp-p2-fire-released": "a883e42ee2857181702e35a5a15e1f13dad04fdc7f2be53901a3b31024f60d62",
+     "pp-p2-fire": "565438043f6d961a4865a7863ceae10f0b80d64f49baf475505fd8ccf1e1420e",
+     "pp-p2-right-released": "dc3717d65eac994b9a870746fa7205746bff74d3cc2083dba1c4b6ab2fd416db",
+     "pp-p2-right": "752a93bf0757dbda8aec1add52617a9f35b613b10b94fa70ef5b96090abf524b",
+     "pp-p2-up-released": "a883e42ee2857181702e35a5a15e1f13dad04fdc7f2be53901a3b31024f60d62",
+     "pp-p2-up": "22cb1c7c0115375758123f930019be82056d98958db18c9472bcec05649dd42e",
+     "pp-p2R-p1L": "0c1a30e2227a4dfd690b929b4753b9758749dedf0403ec8ef10c37bc24a06bca"
+    }
+   }
+  }
  }
 }

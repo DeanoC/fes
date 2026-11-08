@@ -19,21 +19,23 @@ and progress under input. No brightness or non-black checks are used.
 
 | Case | Result | Notes |
 | --- | --- | --- |
-| 1 Kikstart: KERNAL load, both ports, split-screen, collisions, SID | **PASS** | Run `kik4` (8 Nov), both launches. KERNAL load, trainer, high-score file read, two players with two joysticks: each port drives only its own rider, and course 1 times are P1 72.54 and P2 59.64 on both launches and in VICE. 850 s or more in a race per launch, and the race completes back to the title. The 7 Nov `kik2` two-joystick failure was a harness timing error ([#1542](https://github.com/DeanoC/fes/issues/1542), closed as not an FES defect). |
-| 2 Lode Runner: Brøderbund multi-file load, raw-sector level reads, joystick and keyboard | **QUALIFIED** | Both launches: the 1.5-minute original loader, the attract demo matching VICE (SCORE 2125), fire starting level 1, Ctrl+A costing a man (MEN 5→4), play scoring through input, game over and restart. Ctrl+U advanced to LEVEL 002 only in r1; in r2 it landed in the death wipe and stayed at LEVEL 001. The predeclared two-launch level-advance objective was not met. |
-| 3 Metal Warrior 4: custom IRQ fastloader with its own 1541 drive code, live side-2 replacement | **PASS** | Run `mw2`, both launches. Fastloader on, the multicolour loading picture, then the side-2 prompt answered by a live replacement in the running session (same session and generation, unit ready). Side 2 loads through the game's own drive code into the game, followed by 600 s of play and a live eject (unit empty, same generation). Every scripted screen matches VICE. `mw1` r1 also reached the game; `mw1` r2 is a harness INCONCLUSIVE (see below). |
+| 1 Kikstart: KERNAL load, both ports, split-screen, collisions, SID | **PASS** | Run `kik4` (8 Nov), both launches. KERNAL load, trainer, high-score file read, two players with two joysticks: each port drives only its own rider, and course 1 times are P1 72.54 and P2 59.64 on both launches and in VICE. About 754 s of race time per launch (derivation in case 1), and the race completes back to the title. The 7 Nov `kik2` two-joystick failure was a harness timing error ([#1542](https://github.com/DeanoC/fes/issues/1542), closed as not an FES defect). |
+| 2 Lode Runner: Brøderbund multi-file load, raw-sector level reads, joystick and keyboard | **PASS** | Run `lode1`, both launches: the 1.5-minute original loader, the attract demo matching VICE (SCORE 2125), fire starting level 1, Ctrl+A costing a man (MEN 5→4), Ctrl+U advancing to LEVEL 002 in r1 and r2 (corrected 8 Nov; see case 2), play scoring through input, game over and restart. |
+| 3 Metal Warrior 4: custom IRQ fastloader with its own 1541 drive code, live side-2 replacement | **PASS** | Run `mw2`, both launches. Fastloader on, the multicolour loading picture, then the side-2 prompt answered by a live replacement in the running session (same session and generation, unit ready). Side 2 loads through the game's own drive code into the game, followed by 600 s of play. The live eject (unit empty, same generation) was scripted and passed in r1 only. Every scripted screen matches VICE on inspection. `mw1` is a superseded attempt (see below). |
 
-This record refers to #1531 and doesn't close it. What's still owed is
-listed under [Owed](#owed).
+The [Regression checks](#regression-checks) section lists what runs in CI
+and the bounded manual procedure for the rest.
 
 ## Package and kit
 
 - **Package.** `fes.c64` 0.5.0, package
   `668a640d25bfdf7bbf464e93f879df78ecdfecb01cf3e3406ade2ab30f13d692`
   (archive `360eb61f…`, RBF `fdff714f…`, build `c8928c51534a5e75960d9da5bf25500a`).
-  - It was sealed today from main `607922c63` with the registered producer
-    (`build_fes_c64_oss.py`) and the core's lock (Yosys `3a5accbd`, nextpnr
-    `5fe55f3d`, Mistral `8fcc4cb4`).
+  - It was sealed on 7 November from main `607922c63` with the registered
+    producer (`build_fes_c64_oss.py`) and the core's lock (Yosys `3a5accbd`,
+    nextpnr `5fe55f3d`, Mistral `8fcc4cb4`; full commits in the JSON). The
+    producer's `build-summary.json`, `timing.json` and `manifest.toml` are
+    kept privately on Powerboat and hashed in the JSON (`seal_record`).
   - HIP router, placer seed 2. Seeds 5 and 4 ran out of their 600 s route
     lease, as they did for the 24 October seal.
   - Achieved against required: system 57.10/52.224 MHz, pixel
@@ -72,9 +74,10 @@ listed under [Owed](#owed).
   - Capture used Kit B's 4KPRO at 1920×1080 and 60 fps. Audio was HDMI
     digital, 48 kHz stereo, with a constant −88 LSB DC offset that the
     measurements remove. No analogue measurement was made.
-- **Firmware.** 36 KiB, `01173de9…`, composed in memory from Deano's C64
-  Forever 10 Plus ROM set. It's the same bytes as the 23 October Kit A
-  diagnostic.
+- **Firmware.** 36 KiB, `01173de9…`, from Deano's C64 Forever 10 Plus ROM
+  set: the four files below concatenated in this order (8, 8, 4 and 16 KiB),
+  the core's `c64-firmware` layout. Recomposing them on 8 November gave the
+  same SHA-256. It's the same bytes as the 23 October Kit A diagnostic.
   - BASIC 901226-01 (`89878cea…`)
   - KERNAL 901227-03, revision 3 (`83c60d47…`)
   - character ROM 901225-01 (`fd0d53b8…`)
@@ -101,6 +104,20 @@ listed under [Owed](#owed).
   reference filter is reSID's, not the kit's state-variable filter, so audio
   is compared only for presence and pattern of activity.
 
+  Each VICE run is listed in the JSON's `vice_runs` with its script, start
+  time, event-log hash, audio hash and the hash of every grabbed frame as a
+  raw VIC colour-index buffer. Kit frames are 1920×1080 HDMI captures, so kit
+  and VICE frames are compared by inspection, not by hash. The criteria are
+  the same screen and on-screen text, equal counters and course times, and
+  the same rider or player response to the same input. Counters and times
+  must be equal; there's no tolerance on them.
+
+  Audio activity (`tools/aud.py`) counts 1 s windows above −50 dBFS RMS after
+  removing DC. No tolerance was declared before the runs, so the counts are
+  evidence that the SID plays in the same pattern, not a pass criterion. The
+  largest kit-to-VICE difference in the active fraction is 2.7 points (MW4
+  r1).
+
 ## Method
 
 Each case ran from one script. A scripted part reaches the objectives:
@@ -112,6 +129,13 @@ Each case ran from one script. A scripted part reaches the objectives:
 
 Seeded pseudo-random joystick play follows, with an HDMI grab every 30 s.
 The same script, mapped to VICE's input, produced the reference.
+
+The exact scripts are committed: `inputs/kit-<run>.jsonl` for the kit
+(`kik1` used the `kik2` script) and `inputs/vice-*.jsonl` for VICE. The
+driver and helpers are in [tools/](tools/). The JSON binds each run to its
+script hash, driver hash, event-log hash and play seeds. The seed fixes the
+sequence of joystick moves, but each hold lasts a random 0.15–0.7 s of wall
+time, so play repeats in order, not in exact timing.
 
 Each case ran twice in one claim, as two library launches with a Stop
 between them; the second is the relaunch check. HDMI audio was recorded for
@@ -127,7 +151,9 @@ each launch and a 20 s 60 fps video taken at the end.
   - Lode Runner writes high scores to sector 12/7 at game over. In VICE
     that write lands in the image; on the kit, disk writes aren't
     supported, so the table doesn't persist.
-  - MW4 writes its config into file `00`.
+  - MW4 writes its config into file `00`. On the kit the game carried on to
+    the loading picture with the fastloader on and showed no error. Whether
+    the drive code attempted the write can't be seen from HDMI.
 
   None of those writes are expected to persist on the kit. Users get no
   save and reload from a D64.
@@ -163,10 +189,21 @@ VICE; see #1542's closing comment. The script therefore works outside it:
 
 **Sustained play.** After the race, four 150 s blocks of seeded play
 alternate between port 1 and port 2. Each block starts with F1 F1 F7, so
-both players have joysticks. All 16 play grabs in each launch are mid-race,
-for about 850 s in a race per launch. In the play grabs the two riders are
-at different points of the course, so each port drives only its own rider.
-Crashes and respawns happen throughout.
+both players have joysticks. All 16 play grabs in each launch are mid-race.
+
+Race time comes from the event log. Counting from each F7, the scripted race
+is in progress at the course-2 grab, 133.8 s (r1) and 133.7 s (r2) after F7.
+The four play blocks run 620.7 s (r1) and 620.0 s (r2) from their F7 to
+their end. That's about 754 s per launch. The scripted race ended somewhere
+between the course-2 grab and the after-race grab of the title; that tail
+isn't counted. The first version of this record said 850 s, which assumed
+the scripted race lasted until the after-race grab.
+
+Crashes and respawns happen throughout. The port isolation evidence is the
+scripted check above, where one held port moves only its own rider, and the
+`mw1` `pp` probe below. The simulation bench in
+[Regression checks](#regression-checks) checks the same wiring on every
+nightly run.
 
 SID music was active in 911 of 1037 and 915 of 1038 one-second windows,
 against 899 of 1015 in VICE.
@@ -206,17 +243,37 @@ play exercises the drive throughout.
 | Load and attract demo | Attract SCORE 2125, LEVEL 001 | Same | Same |
 | Fire on port 2 starts level 1 | MEN 005, LEVEL 001 | Same | Same |
 | Ctrl+A (the game's abort) | MEN 004, respawn | Same | Same |
-| Ctrl+U (the game's level advance) | LEVEL 002 | Pressed during the death wipe; stayed LEVEL 001 | LEVEL 002 |
-| Sustained play (600 s seeded port-2 play) | Gold and trapped-enemy scores; men lost; game over then restart by fire | SCORE 250 and 475 reached; game over then restart | Same pattern |
+| Ctrl+U (the game's level advance) | Level-end wipe, then LEVEL 002 | Same | Same: level-end wipe, then LEVEL 002 with MEN 004 and SCORE 0 |
+| Sustained play (600 s seeded port-2 play) | Gold and trapped-enemy scores; men lost; game over then restart by fire | SCORE 150, 250 and 475 reached; game over then restart | Same pattern |
 
+**Level advance, corrected 8 November.** The first version of this record
+said Ctrl+U reached LEVEL 002 only in r1, and that in r2 it landed in a
+death wipe and stayed at LEVEL 001. The independent review of the record
+prompted a frame-by-frame recheck, which shows the two launches behaved the
+same:
+
+- The `r1-06-ctrl-u` and `r2-06-ctrl-u` grabs, about 9 s after Ctrl+U, both
+  show the level-end wipe over level 1 with MEN 004 and LEVEL 001. No man is
+  lost, so this isn't a death wipe.
+- The first play grabs, `r1-p-000` and `r2-p-000` (30 s later), both show
+  the level 2 layout with SCORE 0000000, MEN 004 and LEVEL 002. Random play
+  can't finish level 1 without collecting gold, so SCORE 0 means Ctrl+U made
+  the change. In r2, LEVEL 002 stays on screen for the next two grabs (SCORE
+  150, MEN 002 and MEN 001).
+
+VICE shows the same sequence at its `ref-06-ctrl-u` and `ref-p-000` grabs.
+The frame hashes are in the JSON (`level_advance` and `vice_runs`). Case 2
+therefore meets its declared objective in both launches.
+
+- All 19 play grabs in each launch show the play field and status line,
+  some during the wipe after a death or a game over. None is at the title
+  or attract demo.
 - SID effects were active in 120 and 112 of 764 one-second windows, against
   124 of 756 in VICE.
 - Neither launch reached a qualifying high score, so the read-only disk
   never received a write attempt.
-- **QUALIFIED:** the loader, joystick and keyboard, death and respawn,
-  sustained play and relaunch passed in both launches. Ctrl+U reached LEVEL
-  002 only in r1; in r2 it landed during the death wipe and stayed at LEVEL
-  001, so the predeclared two-launch level-advance objective was not met.
+- **PASS:** the loader, joystick and keyboard, death and respawn, the level
+  advance, sustained play and relaunch passed in both launches.
 
 ## Case 3: Metal Warrior 4 (runs `mw1`, `mw2`)
 
@@ -241,16 +298,21 @@ play exercises the drive throughout.
 | Live eject (`live-media/clear`) | 200, same session, generation 40, unit `empty` | Not scripted | n/a |
 | Stop, then relaunch with side 1 | Idle, then a fresh generation | Idle | n/a |
 
+- All 19 play grabs in each launch are in the game. r1 includes the
+  in-game CARRY, START/SAVE/LOAD and FISTS menus.
 - SID music was active in 715 and 724 of 900 one-second windows, against
-  751 of 914 in VICE.
+  751 of 914 in VICE. Both kit recordings stop at the 900 s recorder cap;
+  the VICE recording ran to 914 s.
 - **PASS:** custom drive-code loading on the native 1541, live disk
-  replacement, eject, scrolling, sprites and raster screens, port-2 control,
-  sustained play and relaunch.
+  replacement, scrolling, sprites and raster screens, port-2 control,
+  sustained play and relaunch, in both launches. The live eject passed in
+  r1; it wasn't scripted in r2, so the eject has one passing launch, not
+  two.
 
 `mw1` r1 also loaded side 2 after a live replacement (generation 32) and
-reached the game. Two transient host-side `session` reads in `mw2` returned
-503 "Cannot uniquely find the configured kit". The launches and play
-weren't affected.
+reached the game, through random play rather than the script. Two
+transient host-side `session` reads in `mw2` returned 503 "Cannot uniquely
+find the configured kit". The launches and play weren't affected.
 
 ## Harness failures (not core defects)
 
@@ -272,16 +334,24 @@ These are kept so the attempts can be read in full.
 - `mw1` r1 and r2: the script sent two fires after the credits where three
   are needed (menu, START, EASY). The scripted part ended at the difficulty
   menu, and the random play chose the outcome: EASY into the game in r1, and
-  CANCEL then QUIT back to a clean `READY.` in r2. Those launches are
-  INCONCLUSIVE for the in-game objective. `mw2` uses the corrected script.
-- The audio recorder stops at 900 s, so runs longer than that have
-  truncated audio.
+  CANCEL then QUIT back to a clean `READY.` in r2. r1 reached the game
+  outside the script; r2 is INCONCLUSIVE. `mw1` is superseded by `mw2`,
+  which uses the corrected script.
+- `lode1` launch 1: a Kikstart port-isolation attempt made before Lode
+  Runner in the same claim. Its presses also fell in the crash window
+  (#1542). It's superseded by `kik4`.
+- The audio recorder stopped at 900 s until the 8 November driver raised
+  the cap to 1800 s. The `kik2` and `mw2` recordings are cut at 900 s; the
+  `lode1` launches ended before the cap (764 s), and `kik4` (about 1038 s)
+  ran under the new cap. Each launch's recorded seconds and a truncation
+  flag are in the JSON.
 - The 20 s videos are lossy x264. They show 60 fps capture (1200 frames)
   but don't prove frame-exact cadence.
 - VICE reference runs early on attached Deano's library D64s read-write.
   Lode Runner's high-score sector and MW4's config byte were written. Both
-  images were reconstructed exactly, verified against SHA-256s recorded
-  before any run, and restored. From then on VICE only attached private
+  images were reconstructed by inverting those writes, checked against the
+  64-bit SHA-256 prefixes recorded before any run, and restored. Their full
+  SHA-256s are in the JSON. From then on VICE only attached private
   copies. The references used here were all started from the original
   bytes.
 
@@ -304,15 +374,108 @@ Three titles are a bounded sample of the KERNAL, raw-sector and
 custom-drive-code loader classes. They aren't a general compatibility
 claim.
 
+## Regression checks
+
+**In CI.** `make -C sources/misteross sim-fes-c64-joyports` runs the real
+`c64_machine` with a RAM program that leaves CIA1 as the KERNAL does after a
+key scan (DDRA `$FF`, PA `$FF`, DDRB `$00`) and copies `$DC00` and `$DC01`
+in a loop. The bench drives the `fes.gamepad.ports` bits and checks 18
+cases:
+
+- idle
+- each of the five switches on player 0 (C64 port 2, `$DC00`) and on player
+  1 (C64 port 1, `$DC01`) alone, with the other register unchanged
+- B, Select and Start alone on each player, reaching neither port
+- both players at once with different switches, and every switch on both
+- a held key with all columns high, which reads nowhere
+- port 2 fire with a key in matrix column 4, which reads in `$DC01`, as the
+  real wired-AND matrix does
+
+The target is in `sim-fes-c64-system-group`, so it runs in the nightly full
+suite and whenever `sim-fes-c64` runs. With the two ports' bits swapped in
+`c64_machine.sv` as a negative control, it fails 13 of the 18 cases.
+Player 0 reaching the shell's port 0 is the mailbox contract
+([computer I/O](../../../sources/mister-packages/docs/computer-io.md),
+opcode 4), so together these cover the kit's "player 0 is port 2, player 1
+is port 1" path below the host.
+
+The open native-drive diagnostic (`sim-fes-c64-machine`) already covers the
+1541 GCR-to-IEC transfer in CI.
+
+**Manual, with private bytes.** The game cases need the Commodore ROMs and
+the D64s, which are licensed to Deano and can't go into CI. They stay
+bounded manual checks:
+
+- **Kit.** [tools/run-c64.sh](tools/run-c64.sh) claims a kit under the
+  kit rules, checks its baseline, runs
+  [tools/c64run.py](tools/c64run.py) with a plan naming the package,
+  firmware and D64s, cleans the FogCast data it created and releases the
+  kit. Each `inputs/kit-<run>.jsonl` is a complete run of about 30–37
+  minutes for two launches. `run-c64.sh` also calls Powerboat-only helpers
+  (the kit ssh wrappers and lease probe from the pc386 acceptance tools), so
+  it's a receipt of what ran, not a portable tool.
+- **VICE.** [tools/vref.py](tools/vref.py) runs `x64sc` with the patch in
+  this folder and an `inputs/vice-*.jsonl` script, on private copies of the
+  D64s. [tools/gen.py](tools/gen.py) generates both kit and VICE scripts
+  from one spec.
+- **What to compare.** For Kikstart, the course 1 times (P1 72.54 and P2
+  59.64 with the `kik4` script) and the two-joystick table in case 1. For
+  Lode Runner, the attract SCORE 2125, MEN 5→4 on Ctrl+A and LEVEL 002 with
+  SCORE 0 after Ctrl+U. For MW4, the side-2 prompt, the live replacement
+  keeping the session and generation, and the "WHAT'S THIS ALL ABOUT?"
+  scene.
+
+Named grabs are taken at fixed times, not when a state is detected, so a
+grab can show the screen before or after the one its label names. For
+example, `mw2` `r2-03-picture` has the same hash as `r1-05-swapped`. Read a
+label as a time in the script, not a checked state.
+
+## Independent review
+
+On 8 November a fresh reviewer was given only issue #1531, its matrix
+comment, this record, the `fes.c64` status row and the record's tests, and
+asked for gaps against the issue's closure terms, internal
+inconsistencies, claims stronger than the evidence, and anything that
+couldn't be reproduced. It found 12 issues. This revision addresses them:
+
+- **Verdicts disagreed** (the JSON said PASS for Lode Runner, while this
+  summary and the status row said QUALIFIED). Rechecking the frames showed
+  the level advance passed in both launches; see case 2.
+- **The MW4 eject was presented as covering both launches.** Now stated as
+  r1 only.
+- **Input sequences and seeds weren't recorded.** Scripts, driver,
+  event-log hashes and seeds are now committed or bound.
+- **The VICE comparison had nothing behind it.** `vice_runs` now binds it,
+  and the criteria are stated.
+- **Sustained-play grabs weren't classified.** All three cases now have
+  per-launch counts.
+- **The audio cap statement was wrong.** It now names the runs it cut.
+- **The 850 s figure couldn't be derived.** It's replaced by the 754 s
+  derivation.
+- **The `mw1` verdict was stated two ways.** Reconciled.
+- **The superseded `lode1` launch 1 wasn't listed.** Added to the harness
+  failures.
+- **The library restore was overstated.** Now says 64-bit prefixes.
+- **The status row was stronger than the record.** Qualified with the open
+  items.
+- **Bindings were missing.** Full toolchain commits, the firmware recipe,
+  the seal record hashes and where the raw artifacts live are now recorded.
+
+The reviewer's other notes, on the MW4 config write and the frame labels,
+are answered in the save paragraph under Method and under Regression
+checks. It also found that audio and video cadence was neither measured nor
+claimed; that's listed below.
+
 ## Owed
 
-- Independent review of this record, as #1531's closure requires.
-- Deterministic regression cases:
-  - The Kikstart course times and the Lode Runner attract score are
-    deterministic on the kit, so they make natural host-simulation or CI
-    candidates.
-  - The scripts and drivers are kept private on Powerboat in
-    `~/fes-scratch/c64acc`. Promoting them is follow-up work.
+- **MW4 eject in a second launch.** The matrix asks for an eject in each
+  run. It passed in `mw2` r1, and `mw1` r1's was rejected by the harness.
+  That needs one more kit launch with the eject scripted.
+- **Audio and video cadence.** The issue's work list includes audio and
+  video cadence and stability. The 20 s lossy captures don't measure it,
+  and no other check was made. It needs a lossless frame-timing capture
+  method on the 4KPRO (or a host-side frame counter) and a stated
+  tolerance.
 - Coordination with #946 (display and launcher), #593 (receipt attestation)
   and #1355 (named release-image acceptance). This record is a
   current-package hardware run and doesn't stand in for those.

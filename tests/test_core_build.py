@@ -1364,6 +1364,7 @@ class C64AcceptanceDocsTests(unittest.TestCase):
 
         self.assertIn('current 0.5.0 native-drive core', preamble)
         self.assertIn('exact-artifact game acceptance on Kit B', preamble)
+        self.assertIn('second-launch MW4 eject and an audio/video cadence check still open', preamble)
         self.assertIn('does not qualify the 0.5.0 package', preamble)
         self.assertNotIn('current 0.4.0', preamble)
         self.assertNotIn('needs hardware acceptance', preamble)
@@ -1372,27 +1373,72 @@ class C64AcceptanceDocsTests(unittest.TestCase):
             line for line in status.splitlines()
             if line.startswith('| `fes.c64` |')
         )
-        self.assertIn('two-launch level-advance objective was not met', c64_row)
+        self.assertIn('Ctrl+U reached LEVEL 002 in both launches', c64_row)
+        self.assertIn('live eject in one', c64_row)
+        self.assertNotIn('objective was not met', c64_row)
         self.assertIn('specific to the named 0.5.0 package', c64_row)
 
-    def test_lode_runner_result_is_qualified_when_level_advance_only_passed_once(self):
+    def test_lode_runner_level_advance_is_bound_to_frames_in_both_launches(self):
         root = Path(__file__).resolve().parents[1]
         record = root / 'docs/validation/2026-11-07-c64-game-acceptance'
         summary = (record / 'summary.md').read_text()
         runs = json.loads((record / 'kit-runs.json').read_text())
-        self.assertIn('Ctrl+U LEVEL 002 in r1 only', runs['runs']['lode1']['result'])
+        lode = runs['runs']['lode1']
+        self.assertIn('r1 and r2 both PASS', lode['result'])
+        self.assertNotIn('in r1 only', lode['result'].split('Corrected on 8 Nov')[0])
+        first_play = [launch['level_advance']['first_play_grab'] for launch in lode['launches'][1:]]
+        self.assertEqual(
+            [grab['sha256'][:16] for grab in first_play],
+            ['2e30371abe9af3e5', '6de0e9c60191c81e'],
+        )
+        for grab in first_play:
+            self.assertIn('LEVEL 002', grab['shows'])
+            self.assertIn('SCORE 0000000', grab['shows'])
 
         matrix_row = next(
             line for line in summary.splitlines()
             if line.startswith('| 2 Lode Runner:')
         )
-        self.assertIn('**QUALIFIED**', matrix_row)
-        self.assertIn('r1', matrix_row)
-        self.assertIn('r2', matrix_row)
-        self.assertIn('stayed at LEVEL 001', matrix_row)
+        self.assertIn('**PASS**', matrix_row)
+        self.assertIn('r1 and r2', matrix_row)
+        self.assertFalse('**QUALIFIED' in summary, 'a case verdict still says QUALIFIED')
 
         case = summary.split('## Case 2:', 1)[1].split('## Case 3:', 1)[0]
-        self.assertIn('**QUALIFIED:**', case)
-        self.assertIn(
-            'predeclared two-launch level-advance objective was not met', case
+        self.assertIn('Level advance, corrected 8 November', case)
+        self.assertIn('meets its declared objective in both launches', ' '.join(case.split()))
+
+    def test_metal_warrior_eject_is_claimed_for_one_launch_only(self):
+        root = Path(__file__).resolve().parents[1]
+        record = root / 'docs/validation/2026-11-07-c64-game-acceptance'
+        summary = (record / 'summary.md').read_text()
+        runs = json.loads((record / 'kit-runs.json').read_text())
+        launches = runs['runs']['mw2']['launches']
+        self.assertEqual(launches[0]['live_eject']['unit_after'], ['empty'])
+        self.assertNotIn('live_eject', launches[1])
+        self.assertIn('in r1 only', runs['runs']['mw2']['result'])
+        matrix_row = next(
+            line for line in summary.splitlines()
+            if line.startswith('| 3 Metal Warrior 4:')
         )
+        self.assertIn('passed in r1 only', matrix_row)
+
+    def test_record_inputs_and_tools_match_their_bound_hashes(self):
+        root = Path(__file__).resolve().parents[1]
+        record = root / 'docs/validation/2026-11-07-c64-game-acceptance'
+        runs = json.loads((record / 'kit-runs.json').read_text())
+        for name, run in runs['runs'].items():
+            script = run['input_script']
+            with self.subTest(run=name):
+                digest = hashlib.sha256((record / script['file']).read_bytes()).hexdigest()
+                self.assertEqual(digest, script['sha256'])
+        driver = hashlib.sha256((record / 'tools/c64run.py').read_bytes()).hexdigest()
+        self.assertEqual(driver, runs['runs']['kik4']['driver_sha256'])
+
+    def test_joystick_port_bench_runs_in_the_full_c64_suite(self):
+        root = Path(__file__).resolve().parents[1]
+        makefile = (root / 'sources/misteross/Makefile').read_text()
+        group = next(
+            line for line in makefile.splitlines()
+            if line.startswith('sim-fes-c64-system-group:')
+        )
+        self.assertIn(' sim-fes-c64-joyports ', group + ' ')
