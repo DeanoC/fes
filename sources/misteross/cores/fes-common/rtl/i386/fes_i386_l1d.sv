@@ -431,8 +431,14 @@ module fes_i386_l1d import fes_i386_pkg::*; (
     assign w_lines = state == W_NEXT && w_left == 4'd0;
     assign tf_valid = state == W_FILL;
     assign tf_itlb = q_ifw;
-    assign tf_e = '{lp: w_lin[31:12], pp: w_pp, at: attr({w_pp, 12'd0}, attr_upper, ram_top),
-                    u: w_pde[2] && w_pte[2], w: w_pde[1] && w_pte[1], d: w_pte[6] || w_wr};
+    always_comb begin
+        tf_e.lp = w_lin[31:12];
+        tf_e.pp = w_pp;
+        tf_e.at = attr({w_pp, 12'd0}, attr_upper, ram_top);
+        tf_e.u = w_pde[2] && w_pte[2];
+        tf_e.w = w_pde[1] && w_pte[1];
+        tf_e.d = w_pte[6] || w_wr;
+    end
 
     // The part done: on to the next dword, the fill, or the end.
     function automatic slow_e after(input logic p, input logic two, input logic fill);

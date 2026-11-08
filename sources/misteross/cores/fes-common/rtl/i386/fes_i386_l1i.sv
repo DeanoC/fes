@@ -139,7 +139,7 @@ module fes_i386_l1i import fes_i386_pkg::*; (
     logic [7:0][PA-12:0] itlb_pages;
     fes_i386_tlb #(.N(8), .P(1)) itlb (
         .clk, .flush(itlb_flush), .lk_lp(mem_block[27:8]), .hit(itlb_hit), .match(itlb_match), .q(itlb_q),
-        .pages(itlb_pages), .fill(itlb_fill), .fill_e(itlb_e)
+        .pages(itlb_pages), .fill(itlb_fill), .fill_ent(itlb_e)
     );
     assign p_new = phys({mem_block, 4'd0}, a20m);
     assign itlb_use = itlb_hit && !itlb_off;
@@ -150,7 +150,9 @@ module fes_i386_l1i import fes_i386_pkg::*; (
         if (mem_load) begin
             page <= {8{page_new}};
             at <= at_new;
-            mem_tag <= '{tm: pg && !itlb_use, ts: pg && itlb_use && !itlb_q.u, pp: page_new[7:0]};
+            mem_tag.tm <= pg && !itlb_use;
+            mem_tag.ts <= pg && itlb_use && !itlb_q.u;
+            mem_tag.pp <= page_new[7:0];
         end
     end
 

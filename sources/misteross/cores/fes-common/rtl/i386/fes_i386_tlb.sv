@@ -26,7 +26,7 @@ module fes_i386_tlb import fes_i386_pkg::*; #(
     // tags (fes_i386_l1d).
     output logic [N-1:0][PA-12:0] pages,
     input  logic                  fill,
-    input  tlb_entry_t            fill_e
+    input  tlb_entry_t            fill_ent
 );
     localparam int IW = $clog2(N);
     tlb_entry_t [N-1:0] e;
@@ -53,7 +53,7 @@ module fes_i386_tlb import fes_i386_pkg::*; #(
     logic [N-1:0] same;
     logic [IW-1:0] slot;
     always_comb begin
-        for (int k = 0; k < N; k++) same[k] = v[k] && e[k].lp == fill_e.lp;
+        for (int k = 0; k < N; k++) same[k] = v[k] && e[k].lp == fill_ent.lp;
         slot = rr;
         for (int k = N - 1; k >= 0; k--) if (!v[k]) slot = IW'(k);
         for (int k = N - 1; k >= 0; k--) if (same[k]) slot = IW'(k);
@@ -65,7 +65,7 @@ module fes_i386_tlb import fes_i386_pkg::*; #(
             rr <= '0;
         end else if (fill) begin
             v[slot] <= 1'b1;
-            e[slot] <= fill_e;
+            e[slot] <= fill_ent;
             if (same == '0 && &v) rr <= rr + IW'(1);
         end
     end

@@ -148,6 +148,8 @@ constexpr uint32_t MMIO_LO = 0xa0000, MMIO_HI = 0xc0000;  // the MMIO window, wh
 // the ROM's or the hole's shows. One slot each: a program whose stack or far
 // pointers land there runs astray (Outcome::stray).
 constexpr uint32_t MIX_LO = 0xb8000, MIX_HI = 0xbc000, ROM_LO = 0xc0000, HOLE_LO = 0xc4000, HOLE_HI = 0xc8000;
+// The random programs' page directory and its four tables (Generator::pg_tables).
+constexpr uint32_t PG_PD = 0xf00000, PG_END = PG_PD + 0x5000;
 bool mixed = false;
 uint8_t device_read(uint32_t paddr, uint8_t written) {
     return mixed && paddr >= MIX_LO && paddr < MIX_HI ? uint8_t(written ^ ((paddr * 0x9e3779b1u) >> 24 | 1)) : written;
@@ -2250,9 +2252,13 @@ Outcome lockstep(fes_i386::Oracle &oracle, OracleBus &bus, Rtl &rtl, const std::
                     if (address < RAM_BYTES && bus.ram[address] != rtl.ram[address])
                         out.add(at + "write." + hex(address), bus.ram[address], rtl.ram[address]);
             }
+            // A store into the program's code, or into the page tables of
+            // its paging blocks (Generator::pg_tables), which both TLBs may
+            // hold the old entries of, ends the run.
             if (own)
                 for (uint32_t address : oracle_writes)
-                    if (address >= own->lo && address < own->hi && !own->rewritten.count(address))
+                    if (address >= own->lo && address < own->hi && !own->rewritten.count(address)
+                        || address >= PG_PD && address < PG_END)
                         outcome.code_store = true;
         }
         // The I/O accesses, in order; a request must hold until its ack.
@@ -2346,6 +2352,7 @@ Outcome lockstep(fes_i386::Oracle &oracle, OracleBus &bus, Rtl &rtl, const std::
             // The third slice's: retirements at CPL 3, returns to an outer
             // privilege, IN and OUT at a CPL above IOPL (the bitmap).
             if (before.cpl == 3) ++summary.pm_kinds["cpl3"];
+            if (before.cr0 & 0x80000000u) ++summary.pm_kinds["paged"];
             if (oracle_state.cpl > before.cpl) ++summary.pm_kinds["outer-return"];
             if (before.cpl > ((before.eflags >> 12) & 3) && is_io(op) && !is_string(op)) ++summary.pm_kinds["io-bitmap"];
         }
@@ -4380,6 +4387,33 @@ private:
     // (selector index * 8 + 4): 0 random, 1 data RW 64K at a random base,
     // 2 flat data RW, 3 code RX 16-bit at the program's CS base, 4 data
     // read-only, 5 not present, 6 data RW DPL 3, 7 random.
+    // Paging (pg_tables): a page directory at PG_PD whose first four PDEs
+    // map 0-16 MiB through four tables after it, identity pages that a run
+    // may find not present, supervisor or read-only now and then (all but
+    // the program's code, these tables and the protected-mode tables), the
+    // rest of the 4 GiB not present. A store into them ends the run
+    // (Code's code_store), since both TLBs keep what they hold.
+    bool paged = false, pg_on = false;
+    void pg_tables() {
+        if (paged) return;
+        paged = true;
+        auto keep = [&](uint32_t page) {
+            const uint32_t a = page << 12;
+            return a + 0x1000 > (program_base & ~0xfffu) && a < program_base + 0x4000
+                || a + 0x1000 > gdt_lin && a < gdt_lin + 0x800 || a >= PG_PD && a < PG_END || page == 0
+                || page == 0x10f;
+        };
+        auto put = [&](uint32_t at, uint32_t v) {
+            for (unsigned i = 0; i < 4; ++i) image.emplace_back(at + i, uint8_t(v >> (8 * i)));
+        };
+        for (uint32_t k = 0; k < 4; ++k)
+            put(PG_PD + 4 * k, (PG_PD + 0x1000 * (k + 1)) | 0x07 | (pick(2) ? 0x20 : 0));
+        for (uint32_t page = 0; page < 0x1000; ++page) {
+            uint32_t pte = page << 12 | 0x07 | (pick(2) ? 0x20 : 0) | (pick(4) == 0 ? 0x40 : 0);
+            if (!keep(page) && pick(64) == 0) pte &= ~uint32_t(1u << pick(3));  // not present, read-only or supervisor
+            put(PG_PD + 0x1000 + 4 * page, pte);
+        }
+    }
     static constexpr uint32_t PM_LGDT = 0xe0, PM_SCRATCH = 0xe8, PM_LIDT = 0x110, PM_LIDT_REAL = 0x118, PM_IDT = 0x120,
                               PM_H32 = 0x2a0, PM_H16 = 0x2a4, PM_HRET = 0x2a8, PM_LDT = 0x2c0, PM_TSS = 0x300,
                               PM_ESP0 = 0x600, PM_ESP3 = 0x700;
@@ -4443,6 +4477,8 @@ private:
     }
     void gdt_table() {
         image.clear();
+        paged = false;
+        pg_on = false;
         gdt_lin = program_base < 0x80000 ? 0x9f000 : 0x3000;
         const uint32_t cs_base = program_base - program_eip;
         auto acc = [&]() { return uint8_t(pick(2)); };
@@ -5183,6 +5219,17 @@ private:
             emit({0xbb, 0x88, 0x00});        // MOV BX, 88h
             emit({0x0f, 0x00, 0xd3});        // LLDT BX
         }
+        if (pick(3) == 0) {  // paging on: CR3 at the tables, then PG
+            pg_tables();
+            std::vector<uint8_t> cr3{0x66, 0xb8};
+            put32(cr3, PG_PD);
+            emit(cr3);
+            emit({0x0f, 0x22, 0xd8});                                     // MOV CR3, EAX
+            emit({0x0f, 0x20, 0xc0});
+            emit({0x66, 0x0d, 0x00, 0x00, 0x00, 0x80});                   // OR EAX, 80000000h
+            emit({0x0f, 0x22, 0xc0});
+            pg_on = true;
+        }
         const unsigned ops = 1 + pick(8);
         for (unsigned n = 0; n < ops; ++n) {
             switch (pick(21)) {
@@ -5201,7 +5248,16 @@ private:
                 switch (pick(6)) {
                 case 0: emit({0x0f, 0x01, uint8_t(0xe0 | pick(8))}); break;            // SMSW r16
                 case 1: emit({0x0f, 0x20, uint8_t(0xc0 | (pick(3) ? 0 : 2 + pick(2)) << 3 | pick(8))}); break;  // MOV r32, CRn
-                case 2: emit({0x0f, 0x22, uint8_t(0xc0 | (2 + pick(2)) << 3 | pick(8))}); break;  // MOV CR2/CR3, r32
+                case 2:  // MOV CR2/CR3, r32; with paging on, CR3 the tables again (a flush)
+                    if (pg_on && pick(2)) {
+                        std::vector<uint8_t> cr3{0x66, 0xb8};
+                        put32(cr3, PG_PD);
+                        emit(cr3);
+                        emit({0x0f, 0x22, 0xd8});
+                    } else {
+                        emit({0x0f, 0x22, uint8_t(0xc0 | (pg_on ? 2 : 2 + pick(2)) << 3 | pick(8))});
+                    }
+                    break;
                 case 3: {  // SGDT or SIDT to the scratch area, then LGDT or LIDT back from it
                     flat_fs();
                     const unsigned t = pick(2);
@@ -5239,8 +5295,14 @@ private:
             default: emit(pm_instruction()); break;
             }
         }
-        // The exit: the real-mode vector table in IDTR (through the flat
-        // FS), sane segments, then PE clear and a real-mode far jump.
+        // The exit: paging off, the real-mode vector table in IDTR (through
+        // the flat FS), sane segments, then PE clear and a real-mode far jump.
+        if (pg_on) {
+            emit({0x0f, 0x20, 0xc0});
+            emit({0x66, 0x25, 0xff, 0xff, 0xff, 0x7f});                   // AND EAX, 7FFFFFFFh
+            emit({0x0f, 0x22, 0xc0});
+            pg_on = false;
+        }
         flat_fs();
         {
             std::vector<uint8_t> lidt{0x64, 0x67, 0x0f, 0x01, 0x1d};

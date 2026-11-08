@@ -1929,7 +1929,7 @@ module fes_i386_cpu #(
     fes_i386_pkg::tlb_entry_t tf_e;
     fes_i386_tlb #(.N(16), .P(2)) dtlb (
         .clk, .flush(tlb_flush), .lk_lp(dt_lp), .hit(dt_hit), .match(dt_match), .q(dt_q), .pages(dt_pages),
-        .fill(tf_valid && !tf_itlb), .fill_e(tf_e)
+        .fill(tf_valid && !tf_itlb), .fill_ent(tf_e)
     );
     function automatic logic rights(input fes_i386_pkg::tlb_entry_t e, input logic w, input logic user);
         rights = (!user || e.u && (!w || e.w)) && (!w || e.d);
