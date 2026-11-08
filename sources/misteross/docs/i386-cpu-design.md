@@ -1948,15 +1948,18 @@ select of the physical page and the tag compare in series, in M1 (+6.92 ns)
 and the L1D's wait (+3.74 ns). The DTLB instead compares in parallel:
 
 - **16 entries, fully associative, in flip-flops at M1.** Each holds the
-  linear page, the physical page (PA − 12 = 14 bits), U/S and R/W combined
+  linear page, the physical page as `phys()` gives it (PA − 12 = 14 bits
+  and the bit that marks a page above guest RAM's window, a hole; a PTE
+  frame at FFFF0000h–FFFFFFFFh becomes the F0000h shadow's page, as the
+  reset alias does now), U/S and R/W combined
   from PDE and PTE, and D. Sixteen entries miss on at most 0.47% of data
   accesses in every run (Angband), below 0.1% in seven of the twelve, and
   on 0.033% of Wolfenstein 3D's under JEMM386.
 - **The lookup.** M1 compares each entry's linear page with its address
   register. In parallel, it compares each of the four L1D tags, the M10K
   output, with each entry's physical page, bit 20 masked by A20M (a gate on
-  one input of each compare): 64 compares of 14 bits, each as
-  deep as the one compare per way M1 makes now. A way hits when an entry
+  one input of each compare; a hole page never hits): 64 compares of 14
+  bits, each as deep as the one compare per way M1 makes now. A way hits when an entry
   matches the linear page and its physical page matches the way's tag: an
   AND-OR over 16 terms, two LUT levels after the compares. Those two levels
   are what paging adds to the hit's path.
@@ -2114,7 +2117,10 @@ eight replicated hit sets.
     CR3 field, and with PG clear CR3 keeps its value. A CR3 load flushes the
     TLBs.
 
-  A TSS with VM set enters V86.
+  A 32-bit TSS whose EFLAGS image has VM set enters V86. EFLAGS loads
+  first, and the six selectors then load as V86 segments (base selector ×
+  16, limit FFFFh, V86 attributes) with no descriptor read or check, at
+  CPL 3, as in Bochs.
 - **Checks.** #TS, #NP, #GP and #SS with the 386's selectors and order. A
   fault after the commit point is raised in the new task.
 - **Microcode.** About 80–100 uops, with the 16-bit TSS as a size variant.
@@ -2193,7 +2199,8 @@ A timing miss stops the slice; it never relaxes a check. Titles that need
      entry; a CR3 write mid-REP; a wrong path that must not set A or D; a
      store into a live page table; every PDE and PTE rights combination at
      CPL 0 and 3; CPL 3 executing from a supervisor page the ITLB holds; a
-     #PF on a descriptor or IDT read at CPL 3, whose U/S is 0; A20M toggled
+     #PF on a descriptor or IDT read at CPL 3, whose U/S is 0; a PTE frame
+     at or above 64 MiB (a hole) and at FFFF0000h; A20M toggled
      with a paged alias at bit 20; paging toggled around a far jump, as
      CWSDPMI does.
    - **Exit.** test386.asm passes POSTs 08 and 09 and stops at POST 20, or
@@ -2225,7 +2232,8 @@ A timing miss stops the slice; it never relaxes a check. Titles that need
    link, NT, CR0.TS, and a switch into V86.
    - **Lockstep.** test386.asm's task cases; #PF through a task gate and
      back by IRET with NT, as Descent does, and the old task's saved NT
-     cleared; a JMP to a TSS whose EFLAGS image has NT set; far JMP to a TSS between CPL 0
+     cleared; a JMP to a TSS whose EFLAGS image has NT set; a switch into
+     a V86 task with selectors that are not valid descriptors; far JMP to a TSS between CPL 0
      and 3, as CWSDPMI does; each #TS case; a busy TSS; a fault after the
      commit point; a switch with paging off, which must leave CR3 alone; a
      switch to a 16-bit TSS from code with live FS and GS, and one out of a
