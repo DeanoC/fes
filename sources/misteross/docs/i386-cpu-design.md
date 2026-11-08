@@ -2238,7 +2238,30 @@ A timing miss stops the slice; it never relaxes a check. Titles that need
    models, and a flush on every CR3 write), so each slice reruns the record.
 1. **Paging.** CR0.PG, CR2, CR3 and their flushes; the 16-entry DTLB, the
    8-entry ITLB and the walker; A and D; #PF; physical lines for
-   self-modifying code.
+   self-modifying code. Built
+   ([record](../../../docs/validation/2026-11-08-i386-phase5-paging/summary.md);
+   the RTL README's [Paging](../cores/fes-common/rtl/i386/README.md#paging)).
+   As built, where it differs from the plan above:
+   - **The walker runs only for the oldest uop.** A uop the DTLB cannot
+     serve waits as an uncached load does and walks only as the oldest, else
+     it replays and its instruction issues alone to the end of its REP
+     element. So no walk is on a wrong path, A and D need no separate rule,
+     and no older store is in flight. After the walk the access reads memory
+     through the slow path, with no fill and nothing forwarded, and does not
+     replay.
+   - **Fetch walks go through D.** A block whose page the ITLB does not hold
+     reads as a hole with a mark; D turns the instruction that uses it, or
+     one from a supervisor page at CPL 3, into a walk uop, which fills the
+     ITLB and restarts the instruction, or raises its #PF. There is no
+     front-end walker.
+   - **Deliveries under paging issue serially,** so none replays.
+   - **Probes do not translate:** the pushes fault, as Bochs's do.
+   - **Store-to-load forwarding** compares linear addresses under paging,
+     and a load that meets a store's offset through another linear page
+     walks as the oldest (an alias). F1's next blocks, not looked up yet,
+     compare for self-modifying code by bits 11:5 alone.
+   - **The flushes** also cover a change of A20M or the attribute map, which
+     each entry's page and attribute were made with.
    - **Lockstep.** #PF inside REP MOVS and STOS; a page-crossing access
      faulting on its second page; D set by the first write through a read's
      entry; a CR3 write mid-REP; a wrong path that must not set A or D; a

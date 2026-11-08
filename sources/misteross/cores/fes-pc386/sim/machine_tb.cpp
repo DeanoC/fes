@@ -935,13 +935,22 @@ public:
         }
 
         // The CPU's ports before its edge: the retiring store, then the fetch.
+        // A store byte's physical address is its page's (trace_store_pg0, or
+        // pg1 past that page's end), which paging gives; the stale-code
+        // count follows linear fetch blocks, so with paging on it counts
+        // nothing.
         if (store && !resetting) {
             const uint32_t next = physical(cpu.arch_base[fes_i386::SEG_CS] + cpu.arch_eip, a20m);
+            const bool paging = cpu.arch_cr0 >> 31;
             for (unsigned lane = 0; lane < 8; ++lane) {
                 if (!(wmask >> lane & 1)) continue;
-                const uint32_t at = physical(waddr + lane, a20m);
+                const uint32_t lin = waddr + lane;
+                const uint32_t page = ((lin ^ waddr) >> 12) ? cpu.trace_store_pg1 : cpu.trace_store_pg0;
+                if (page & 0x4000u) continue;  // past the CPU's 64 MiB: a hole
+                const uint32_t at = (page & 0x3fffu) << 12 | (lin & 0xfff);
                 if (at >= RAM_BYTES || m.mmio_range(at)) continue;
                 dirty[at >> 12] = true;
+                if (paging) continue;
                 // Code the front end holds ahead of the next instruction.
                 if (smc_cycle.store(at, current, next)) {
                     if (smc_addresses.insert(at).second && smc_sites.size() < 24)
@@ -950,6 +959,8 @@ public:
                 }
             }
         }
+        // The page walker's A/D store.
+        if (cpu.trace_pw && !resetting && cpu.trace_pw_addr < RAM_BYTES) dirty[cpu.trace_pw_addr >> 12] = true;
         still = fetch || cpu.trace_dread || store || issued || cpu.io_ack || cpu.inta_ack || cpu.trace_retire
                 || !cpu.trace_mem_idle ? 0 : still + 1;
         if (cpu.trace_retire) {
