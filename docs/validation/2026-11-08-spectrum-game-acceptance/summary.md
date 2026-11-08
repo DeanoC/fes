@@ -208,8 +208,9 @@ rate. Fuse also cleared round 1 with
 the first blind pattern in one run: it picked up the umbrella and skipped to
 round 5.
 
-**Black frames.** Each Bubble Bobble cadence capture starts on the title, and
-each holds one black block: the game's own blank at game start. In `c2r1`,
+**Black frames.** Each Bubble Bobble cadence capture begins with the loop's "1"
+press. Each holds one black block right after it, which is the game's own
+blank at game start (`c2r1` was checked frame by frame). In `c2r1`,
 `c2r2`, `c2r3` and `c2r6` the block lasts 26–30 frames at 60 fps (0.43–0.5 s). Fuse blanks
 for exactly as long as "1" is held: 12 frames for a 0.1 s press and 23 frames
 (0.46 s) for the kit's 0.3 s press. In `c2r4` it lasts 49 frames (0.82 s). That fits a late key release, but the
