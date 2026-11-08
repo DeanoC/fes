@@ -7,8 +7,9 @@ the computer driver validates the complete source snapshot and returned
 protocol state before Run. A failed supplier cannot retry through the ordinary
 path. Without that interface, the existing model/CSR path remains selected.
 Actual C/RTL tests cover owned native launch, return and failures; Tenfoot/store
-tests inject the platform delivery. The Nano board transport does not implement
-the supplier yet, so no physical fast path is enabled.
+tests inject the platform delivery. The explicit Nano `--initial-tape` build now selects the fixed-arena supplier
+through a CPU wrapper; ordinary builds do not advertise it. Hardware timing
+and matched boot acceptance remain separate.
 
 `ConfigurationArena.PublishInitialTape` now implements the fixed publication
 lease separately. It requires a completed program lease in the pinned 8 MiB
@@ -20,9 +21,14 @@ lease and newer generation from the same owner. The actual Go header and
 receipt codec are joined to `nano_tape_service` and the real C transfer engine
 in portable tests with injected ownership, digest and endpoint callbacks.
 The strong firmware supplier and secure dispatcher now join behind an explicit
-firmware build flag, with separate real-provider/register-model tests. The board
-CPU transport and matched SDK/boot selection still need connecting; these tests
-establish neither physical authority nor board timing.
+firmware build flag, with separate real-provider/register-model tests. The board CPU wrapper and SDK/entry/cold selection now connect this path. The
+compiled board profile and linked selection must match; only the selected
+wrapper implements `InitialTapePlatform`. It requires the existing pinned
+program arena, and the SMC has full mapping guards on both sides. Mismatch,
+missing arena or uncertain response cannot fall back to per-word delivery.
+Host tests join the actual board wrapper/arena to the actual C service, with
+injected ownership/digest/endpoint callbacks. These checks establish neither
+physical authority nor board timing.
 
 The native computer path now accepts an optional game tape in each retained
 program choice. The canonical selection adds

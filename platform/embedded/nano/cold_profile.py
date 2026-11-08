@@ -71,6 +71,10 @@ def entry(entry_build):
     hps_context.checked_computer(receipt,program_key='native_program')
     hps_context.checked_rom(receipt,program_key='native_program')
     hps_context.checked_program_platform(receipt,program_key='native_program')
+    selected_tape=hps_context.initial_tape.checked(receipt,program_key='native_program')
+    if selected_tape and any(name not in (entry_build/'payload.elf').read_bytes() for name in
+            (b'initialTapeCPU.LoadInitialTape',b'ConfigurationArena).PublishInitialTape')):
+        raise ValueError('initial tape platform is absent from matched native entry')
     if context is not None and profile.name!=('sd-profile.json' if receipt.get('native_program')=='fpgaload' else 'probe-profile.json'):
         raise ValueError('HPS context diagnostic requires its source-derived serial/SD profile')
     if configuration is not None and [configuration['base'],configuration['base']+configuration['size']] not in receipt.get('staging_exclusions',[]):
@@ -81,7 +85,7 @@ def entry(entry_build):
 
 
 def sources():
-    return [HERE.parent/'entry/payload.py']+[HERE/name for name in ('cold_profile.py','fault_status.py','runtime_startup.py','loader_progress.py','call_trace.py','hps_context.py','hps_io.py','usb_selection.py','spl_cold.c','spl_console.inc','prepare_uboot.py','uboot.c','handoff.c','handoff.h','probe-profile.json','sd-profile.json','smmu-profile.json')]+[
+    return [HERE.parent/'entry/payload.py']+[HERE/name for name in ('cold_profile.py','fault_status.py','runtime_startup.py','loader_progress.py','call_trace.py','hps_context.py','hps_io.py','usb_selection.py','initial_tape.py','spl_cold.c','spl_console.inc','prepare_uboot.py','uboot.c','handoff.c','handoff.h','probe-profile.json','sd-profile.json','smmu-profile.json')]+[
         FW/name for name in ('nano_cold.h','nano_firmware_ram.h','nano_firmware_ram.py','nano_firmware_runtime.py','nano_firmware_call.py','nano_firmware_percpu.py','nano_firmware_runtime.inc','nano_firmware_entry.inc','nano_firmware_fault.inc','nano_firmware_decode.inc','nano_firmware_cache.inc','nano_firmware_exit_cache.inc','nano_cold.c','nano_cold_mmio.inc','nano_cold_platform.c','nano_boot.h',
                             'nano_sd.h','nano_sd.c','nano_sd_platform.h','nano_sd_platform.c','generated/fes_embedded_sd.h',
                             'nano_usb_service.c','nano_usb_service.h','nano_usb_platform.h','generated/fes_embedded_usb.h',
@@ -150,6 +154,7 @@ def make(entry_build, *, firmware_ram=False):
               'window_reload':build.get('window_reload',False),
               'window_service':build.get('window_service',False),
               'tenfoot_serial':build.get('tenfoot_serial',False),
+              'initial_tape':hps_context.initial_tape.checked(build,program_key='native_program'),
               'selected_programs':build.get('selected_programs',False),
               'hps_program_platform':program_platform,'hps_program_platform_sha256':hps_context.digest(program_platform) if program_platform else None,
               'hps_menu_program':companion,'hps_menu_program_sha256':hps_context.digest(companion) if companion else None,
@@ -158,10 +163,19 @@ def make(entry_build, *, firmware_ram=False):
               'computer_reload':build.get('computer_reload',False),
               'computer_storage_return':build.get('computer_storage_return',False)}
     identity['firmware_ram']=firmware_memory.selected(identity,firmware_ram)
+    if identity['initial_tape'] and not firmware_ram:
+        raise ValueError('initial tape requires the matched firmware OCRAM exclusion')
     identity['chain_sha256']=hashlib.sha256(json.dumps(identity,sort_keys=True).encode()).hexdigest()
     identity['owner_seed']=int(identity['chain_sha256'][:16],16)|1
     identity['entry_receipt_sha256']=sha(receipt)
     return identity
+
+
+def initial_tape_header(profile):
+    tape=hps_context.initial_tape.checked(dict(profile,program='fpgaload',usb_control=profile.get('usb_pio',False)))
+    if tape and profile.get('firmware_ram')!=firmware_memory.CONTRACT:
+        raise ValueError('initial tape requires the complete matched firmware OCRAM contract')
+    return '#define FES_NANO_INITIAL_TAPE '+str(int(tape))+'\n'
 
 
 def header(profile):
@@ -373,6 +387,7 @@ def header(profile):
     if type(storage_return) is not bool or storage_return and (not reload or not profile['sd_pio']):
         raise ValueError('computer storage return requires its selected two-load owned SD profile')
     extra+='#define FES_NANO_COMPUTER_STORAGE_RETURN '+str(int(storage_return))+'\n'
+    extra+=initial_tape_header(profile)
     return ('/* Generated, same source-bound diagnostic chain in SPL and BL31. */\n'
             +extra+
             '#define FES_NANO_SMMU_BOOT_OBSERVE '+str(int(smmu))+'\n'

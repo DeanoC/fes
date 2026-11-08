@@ -6,8 +6,11 @@ service. It generates C and Go constants. Call `0xc2000304` is an unused private
 experiment number, not a vendor allocation. The owned Nano SiP export includes
 the service, with an unready default. The explicit `FES_NANO_INITIAL_TAPE` build
 flag connects the strong supplier only in a complete shared-USB/SD/held-ROM
-computer composition. Current SDK/boot profiles and board CPU transport do not
-select that flag/service.
+computer composition. Explicit SDK `--initial-tape` selection binds that flag
+through native, entry and cold receipts and selects the board CPU wrapper.
+The linked request and generated board constant must agree. The firmware
+selection additionally requires the complete existing OCRAM exclusion; default
+builds leave the service unselected.
 
 The trusted platform supplies the fixed 8 MiB arena at `0x94800000`, with the
 descriptor in its final page at `0x94fff000`. The payload begins at the arena
@@ -60,3 +63,10 @@ Joined strong-provider tests execute the actual secure dispatcher, cold/CPU/USB
 callbacks, pinned SHA and engine with modeled registers through core/menu
 load/return, failure and no-replay paths. Neither establishes physical timing,
 a matched boot/runtime selection or board acceptance.
+
+The board wrapper reuses the completed program arena and issues only the fixed
+service call. Full live mapping observations frame that memory-consuming SMC;
+the publication lease also checks copied bytes and mapping before release.
+A selected uncertain outcome never falls back to ordinary per-word delivery.
+The firmware emits one cached failure-counter record after containment, without
+reading hardware or printing media payloads during that report.

@@ -20,6 +20,8 @@ HERE = Path(__file__).resolve().parent
 ROOT = HERE.parents[2]
 _usb_spec=importlib.util.spec_from_file_location('fes_hps_usb_selection',HERE/'usb_selection.py')
 usb_selection=importlib.util.module_from_spec(_usb_spec);_usb_spec.loader.exec_module(usb_selection)
+_tape_spec=importlib.util.spec_from_file_location('fes_hps_initial_tape',HERE/'initial_tape.py')
+initial_tape=importlib.util.module_from_spec(_tape_spec);_tape_spec.loader.exec_module(initial_tape)
 PROTOTYPE = ROOT/'sources/misteross/prototypes/de25_board_control'
 SCOPE = 'source-bound-hps-first-context-v1'
 ROM_PROFILE = 'de25-embedded-hps-first-rom-diagnostic-v1'
@@ -65,7 +67,7 @@ def digest(context):
 
 
 def inputs():
-    return [Path(__file__), HERE/'hps_io.py', HERE/'usb_selection.py', PROTOTYPE/'verify.py', PROTOTYPE/'seal.py', PROTOTYPE/'reader_memory.py', PROTOTYPE/'computer_model.py', PROTOTYPE/'rom_transport.py', PROTOTYPE/'build.py',
+    return [Path(__file__), HERE/'hps_io.py', HERE/'usb_selection.py',HERE/'initial_tape.py', PROTOTYPE/'verify.py', PROTOTYPE/'seal.py', PROTOTYPE/'reader_memory.py', PROTOTYPE/'computer_model.py', PROTOTYPE/'rom_transport.py', PROTOTYPE/'build.py',
             PROTOTYPE/'timing_sources.py', PROTOTYPE/'reset_domains.py', PROTOTYPE/'hdmi_control.py', PROTOTYPE/'menu_transport.py',
             ROOT/'sources/misteross/boards/de25nano/hps/build.py', ROOT/'sources/misteross/boards/de25nano/build.py',
             PROTOTYPE.parent/'embedded_control/producer.py',

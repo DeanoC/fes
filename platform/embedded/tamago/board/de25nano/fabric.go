@@ -13,7 +13,7 @@ import (
 
 // FabricCPUTransport is an unconfigured access primitive. No board aperture,
 // firmware capability, DDR reservation or containment is implied. It is not
-// constructed by the Nano boot path. Bus faults and a stuck SMC cannot be
+// selected outside qualified diagnostic startup. Bus faults and a stuck SMC cannot be
 // recovered by this transport; only a qualified platform may call it.
 type FabricCPUTransport struct{}
 
@@ -38,6 +38,13 @@ func deviceMapping(address uint64) (arm64map.Observation, error) {
 }
 func (FabricCPUTransport) Invoke(request [7]uint64) ([4]uint64, error) {
 	switch request[0] {
+	case uint64(g.FesEmbeddedTapeCall):
+		if !profileInitialTapeEnabled || request[1] != uint64(g.FesEmbeddedTapeLoad) || request[2] == 0 || request[4] == 0 ||
+			request[3] != uint64(g.FesEmbeddedTapeCookie) || request[5] != 0 || request[6] != 0 {
+			return [4]uint64{}, errors.New("DE25: initial tape call differs from selected fixed service")
+		}
+		return arm64map.WithStableMapping(configurationMapping, func() [4]uint64 { return smc(request) })
+
 	case 0xc2000300:
 		return smc(request), nil
 	case 0xc2000001, 0x42000002, 0xc2000003, 0xc2000004:
@@ -63,3 +70,10 @@ func (FabricCPUTransport) Invoke(request [7]uint64) ([4]uint64, error) {
 }
 
 var _ nativefabric.CPUTransport = FabricCPUTransport{}
+
+// ProgramCPUTransport advertises the optional loader only when the startup
+// selection matches the source-generated board profile. Other clients retain
+// the ordinary primitive and cannot infer a tape supplier from metadata.
+func ProgramCPUTransport(initialTape bool) (nativefabric.CPUTransport, error) {
+	return selectProgramCPU(FabricCPUTransport{}, initialTapeArena, initialTape, profileInitialTapeEnabled)
+}

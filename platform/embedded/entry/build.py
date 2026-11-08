@@ -266,6 +266,7 @@ def main():
     native_selected_programs = False
     native_menu_program = None
     native_tenfoot_serial = False
+    native_initial_tape = False
     native_reload = False
     native_storage_return = False
     native_window_memory = False
@@ -331,6 +332,10 @@ def main():
         native_window_reload=window_reload_option(receipt)
         native_window_service=window_service_option(receipt)
         native_tenfoot_serial=tenfoot_serial_option(receipt)
+        native_initial_tape=hps.initial_tape.linked(receipt)
+        if native_initial_tape and any(value not in payload.read_bytes() for value in
+                (b'initialTapeCPU.LoadInitialTape', b'ConfigurationArena).PublishInitialTape')):
+            raise ValueError('initial tape supplier/publication path is absent from native ELF')
         if native_tenfoot_serial and any(value not in payload.read_bytes() for value in
                 (b'FES_NATIVE_TENFOOT_BEGIN ',b'ProgramBackend).RoundTrip',b'tenfoot.RunPlatform',b'ProgramSerialPlatform).Next')):
             raise ValueError('serial Tenfoot is absent from the selected native ELF')
@@ -438,6 +443,7 @@ def main():
         files.append(nano_builder)
         files.append(HERE.parent/'nano/hps_context.py')
         files.append(HERE.parent/'nano/usb_selection.py')
+        files.append(HERE.parent/'nano/initial_tape.py')
         if native_context is not None:files.extend(hps.inputs())
     frozen = {str(path.relative_to(ROOT)): sha(path.read_bytes()) for path in files}
     payload_bytes = payload.read_bytes()
@@ -576,7 +582,7 @@ def main():
               "window_service":native_window_service,
               "hps_window_read_sha256":hps.digest(native_window_read) if native_window_read else None,
               "computer_storage_return":native_storage_return,
-              "selected_programs":native_selected_programs,"tenfoot_serial":native_tenfoot_serial,
+              "selected_programs":native_selected_programs,"tenfoot_serial":native_tenfoot_serial,"initial_tape":native_initial_tape,
               "hps_menu_project":receipt.get('hps_menu_project'),"hps_menu_program":native_menu_program,
               "hps_menu_program_sha256":hps.digest(native_menu_program) if native_menu_program else None,
               "hps_program_platform":native_program_platform,

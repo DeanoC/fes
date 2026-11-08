@@ -14,8 +14,10 @@ and data masters contained. Complete fresh ownership observations frame
 preparation, each 512-byte chunk and completion; every CSR independently checks
 live CPU/reset/access ownership before and after. These are required callbacks,
 with no permissive fallback. The explicit `FES_NANO_INITIAL_TAPE` strong supplier
-follows the existing secure ROM-step pattern. No current SDK or boot profile
-enables that build flag, and the Nano CPU transport does not select the service.
+follows the existing secure ROM-step pattern. The explicit native SDK
+`--initial-tape` selection now binds that flag through the entry and cold
+receipts and selects the Nano CPU hook. It requires the matched firmware OCRAM
+contract; the default selection leaves the channel unready.
 
 The engine checks the selected full GP identity and adapter version before and
 after, the acknowledged initial Hold, stable transport snapshots, one toggled
@@ -62,8 +64,12 @@ objects do not block ordinary no-tape return/reconfiguration. Joined portable
 tests execute the actual dispatcher, strong provider, pinned SHA, tape engine,
 ROM and master-stop/SD-return path with injected registers. They cover repeated
 roles, late source/CPU/reset/USB changes, ACK loss, expiry and five incomplete
-compile selections. Physical timing, a complete BL31 link and a matched runtime
-selection remain unqualified; no new hardware path is enabled by this change.
+compile selections. Physical timing and a freshly matched hardware boot remain unqualified. The
+native selection requires the complete held-ROM computer, shared USB, owned SD
+return and fixed arena. Mismatched compiled/link selections reject before
+firmware access. A selected failure emits one `FES_NANO_TAPE_FAILURE` record
+after containment, using only saved engine/frame counters and timer samples;
+reporting adds no hardware reads or payload logging to the timed transfer.
 
 The per-load descriptor now has a version-three mixed-role prototype. A trusted
 `fes_nano_program_enable_roles` call, after installing the fixed ROM-extension

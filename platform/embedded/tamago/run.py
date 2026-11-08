@@ -82,6 +82,7 @@ def main():
     parser.add_argument("--selected-programs", action="store_true", help="serve repeated selected-program requests over the bounded Nano serial interface (requires computer control/rearm/storage return)")
     parser.add_argument("--firmware-rom", type=Path, help="separate exact firmware image for the sealed Nano held-ROM profile")
     parser.add_argument("--rom-host-go", type=Path, help="host Go compiler for the shared retained ROM linker; required with --firmware-rom")
+    parser.add_argument("--initial-tape", action="store_true", help="select the matched secure initial-tape service; requires native computer ROM, shared USB and selected Tenfoot")
     parser.add_argument("--tenfoot-serial", action="store_true", help="run the full native Tenfoot app with explicit state-only UART output; requires --selected-programs, no HDMI grant")
     parser.add_argument("--output", required=True, type=Path)
     parser.add_argument("--module-cache", type=Path,
@@ -108,7 +109,7 @@ def main():
         return
     if args.arm64_features:
         parser.error('--arm64-features requires --board de25-nano')
-    if args.menu_project is not None or args.firmware_rom is not None or args.rom_host_go is not None or args.shared_usb_input is not None or args.usb_input is not None or args.profile is not None or args.package_id is not None or args.hps_first_project is not None or args.ddr_read or args.window_memory or args.window_read or args.window_present or args.menu_present or args.window_storage_return or args.window_reload or args.window_service or args.computer_control or args.computer_reload or args.computer_storage_return or args.selected_programs or args.tenfoot_serial:
+    if args.menu_project is not None or args.firmware_rom is not None or args.rom_host_go is not None or args.shared_usb_input is not None or args.usb_input is not None or args.profile is not None or args.package_id is not None or args.hps_first_project is not None or args.ddr_read or args.window_memory or args.window_read or args.window_present or args.menu_present or args.window_storage_return or args.window_reload or args.window_service or args.computer_control or args.computer_reload or args.computer_storage_return or args.selected_programs or args.tenfoot_serial or args.initial_tape:
         parser.error("--profile, --package-id and --hps-first-project require --board de25-nano")
     if args.program in ("fpga", "sdpackages", "bootcontext", "hpsio", "usbcheck", "fpgacontext", "fpgastatus", "fpgaload"):
         parser.error("this diagnostic requires the Nano firmware service; QEMU does not emulate it")

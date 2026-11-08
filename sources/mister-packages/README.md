@@ -91,8 +91,9 @@ for dynamic data-containment flags and retained-failure behavior.
 The experimental [initial tape handoff](docs/embedded-tape.md) generates C/Go
 constants for a fixed-window descriptor and private secure call. Its service
 and publication lease have portable joined tests. An explicit firmware build
-flag connects the Nano dispatcher and strong supplier; current boot profiles
-and CPU transport do not select it. It grants no new ABI,
+flag connects the Nano dispatcher and strong supplier. Explicit native SDK
+selection now binds the entry/cold profile and CPU hook together; defaults
+leave it unselected. It grants no new ABI,
 programming profile or hardware authority.
 
 Run `make test` with Python `jsonschema` available and Go installed.

@@ -53,7 +53,7 @@ def main():
     # Freeze the source set across compilation and execution. The generated
     # fixtures are independently built from the existing production oracle.
     files = set()
-    for directory in (HERE, TAMAGO / "board/arm64map", TAMAGO / "embeddedcontrol", TAMAGO / "fabricmodel", TAMAGO / "framefixture", TAMAGO / "nativefabriccheck", TAMAGO / "modelbackend", TAMAGO / "runtimeadmission", TAMAGO / "scanout", TAMAGO / "usbcontrol", TAMAGO / "dwc2", FIRMWARE):
+    for directory in (HERE, TAMAGO / "board/arm64map", TAMAGO / "board/de25nano", TAMAGO / "embeddedcontrol", TAMAGO / "fabricmodel", TAMAGO / "framefixture", TAMAGO / "nativefabriccheck", TAMAGO / "modelbackend", TAMAGO / "runtimeadmission", TAMAGO / "scanout", TAMAGO / "usbcontrol", TAMAGO / "dwc2", FIRMWARE):
         files.update(p for p in directory.rglob("*") if p.is_file() and p.suffix in (".go", ".py", ".cpp", ".hpp", ".h", ".c", ".inc"))
     files.update((TAMAGO / "go.mod", TAMAGO / "go.sum", FPGA / "cores/fes-common/rtl/fes_embedded_control.sv",
                   FPGA / "cores/fes-common/generated/fes_embedded_control.vh",
@@ -118,6 +118,7 @@ def main():
         native_logs = [name for name, _ in phases]
         for name, selected in phases:
             run(name, [go, "test", "-race", "-count=1", "-timeout", "90s", "-v", *selected, *native_cases], cwd=TAMAGO, extra_env=test_env)
+    run("nano-tape-cpu-tests", [go, "test", "-race", "-count=1", "-timeout", "90s", "-v", "./board/de25nano"], cwd=TAMAGO)
     tenfoot_logs = ["tenfoot-tests"]
     if nano:
         run("tenfoot-tests", [go, "test", "-race", "-count=1", "-timeout", "90s", "-v", *tenfoot_cases], cwd=TAMAGO, extra_env=test_env)

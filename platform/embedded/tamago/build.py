@@ -362,6 +362,9 @@ def build(args):
         raise ValueError('firmware ROM selection requires a sealed ROM source')
     if args.program == "fpga" and fpga is None:
         raise ValueError("fpga probe requires an explicit read-only service profile")
+    initial_tape = hps.initial_tape.checked(dict(vars(args), hps_context=context,
+        hps_computer=computer_map, hps_rom=rom_map, hps_configuration=configuration_map,
+        usb_control=usb_control, usb_shared=usb_shared, usb_input=usb_input))
     output = args.output.resolve()
     if output.exists() or not output.is_relative_to(ROOT / "out"):
         raise ValueError("output must be a fresh directory beneath this worktree's out/")
@@ -400,6 +403,7 @@ def build(args):
                          f"profileRAMStart = {start}\nprofileRAMSize = {size}\nprofileSDControlEnabled = {str(profile['sd_control'] is not None).lower()}\nprofileSDInputClockHz = {frequency}\nprofileUSBPHYClockHz = {usb_frequency}\nprofileUSBControlEnabled = {str(usb_control).lower()}\nprofileConsoleUARTBase = {uart_base}\n" +
                          f"profileFPGAProbeEnabled = {str(fpga is not None).lower()}\nprofileFPGAProbeBase = {fpga['base'] if fpga else 0}\nprofileFPGAProbeBytes = {fpga['size'] if fpga else 0}\n)\n")
     with generated.open('a') as stream:
+        stream.write('const profileInitialTapeEnabled = '+str(initial_tape).lower()+'\n')
         stream.write('const (\nprofileConfigurationBase = '+str(configuration_map['base'] if configuration_map else 0)+'\nprofileConfigurationBytes = '+str(configuration_map['size'] if configuration_map else 0)+'\n)\n')
         stream.write('const (\nprofileFabricControlBase = '+str(control_map['cpu_base'] if control_map else 0)+'\nprofileFabricControlBytes = '+str(control_map['span'] if control_map else 0)+'\n)\n')
         stream.write('const (\nprofileReaderMemoryBase = '+str(cpu_map['reader_base'] if cpu_map else 0)+'\nprofileReaderMemoryArenaBytes = '+str(cpu_map['reader_bytes'] if cpu_map else 0)+'\n)\n')
@@ -491,6 +495,7 @@ def build(args):
     if window_reload:link_flags+=' -X main.expectedWindowReload=1'
     if window_service:link_flags+=' -X main.expectedWindowService=1'
     if tenfoot_serial:link_flags+=' -X main.expectedTenfootSerial=1'
+    if initial_tape:link_flags+=' -X main.expectedInitialTape=1'
     if computer_map is not None:link_flags+=' -X main.expectedComputerMap='+base64.b64encode(hps.encode(computer_map)).decode()
     if context is not None and context['programming_profile']==hps.COMPUTER_PROFILE:link_flags+=' -X main.expectedNativeComputer=1'
     if rom_map is not None:link_flags+=' -X main.expectedROMMap='+base64.b64encode(hps.encode(rom_map)).decode()
@@ -564,7 +569,7 @@ def build(args):
               "rom_selection":rom_selection,"rom_host_go_sha256":sha(Path(rom_host_go).resolve()) if rom_map else None,
               "computer_reload":computer_reload,
               "computer_storage_return":computer_storage_return,
-              "selected_programs":selected_programs,"tenfoot_serial":tenfoot_serial,
+              "selected_programs":selected_programs,"tenfoot_serial":tenfoot_serial,"initial_tape":initial_tape,
               "hps_menu_project":str(menu_project) if menu_project else None,
               "hps_menu_program":menu_program_map,"hps_menu_program_sha256":hps.digest(menu_program_map) if menu_program_map else None,
               "menu_assets":{name:{"sha256":hashlib.sha256(raw).hexdigest(),"size":len(raw)} for name,raw in menu_assets.items()},

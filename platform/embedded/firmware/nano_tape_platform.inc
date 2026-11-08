@@ -17,6 +17,7 @@ _Static_assert(FES_NANO_CONFIG_BASE==0x94800000ULL && FES_NANO_CONFIG_ARENA_SIZE
 #define FES_NANO_TAPE_CPU_BASE 0x20010300UL
 #define FES_NANO_TAPE_CAPABILITIES 0x803U
 static struct fes_nano_tape_service computer_tape;
+static unsigned computer_tape_reported;
 static struct {
     uint64_t owner,generation,usb_generation;
     uint32_t phase,offset,next;
@@ -157,6 +158,7 @@ static int computer_tape_prepare(uint64_t owner,uint64_t generation,unsigned com
         (computer_tape.used && !computer_tape.complete) || computer_tape.engine.owner!=owner ||
         computer_tape.engine.generation>=generation+1)))return -1;
     memset(&computer_tape,0,sizeof(computer_tape));memset(&computer_tape_frame,0,sizeof(computer_tape_frame));
+    computer_tape_reported=0;
     if(!computer)return 0; /* A no-tape or menu activation still returns normally. */
     if(!configuration_program.bound || configuration_program.failed || configuration_program.owner!=owner ||
        configuration_program.generation!=generation || !configuration_program.rom_bytes)return -1;
@@ -178,4 +180,14 @@ int fes_nano_platform_computer_tape(uint64_t operation,uint64_t owner,uint64_t g
     unsigned used=computer_tape.used;
     fes_nano_tape_service_call(&computer_tape,operation,owner,generation,result);
     return !used && computer_tape.used && computer_tape.failed ? -1 : 0;
+}
+void fes_nano_platform_computer_tape_report(void)
+{
+    if(!computer_tape.failed || computer_tape_reported)return;
+    computer_tape_reported=1;
+    const struct fes_nano_tape *e=&computer_tape.engine;
+    NOTICE("FES_NANO_TAPE_FAILURE error=%d owner=%llx generation=%llu bytes=%u opcode=%u index=%u offset=%x reads=%u writes=%u frame_phase=%u next=%u frame_failed=%u complete=%u began=%llx tick=%llx hz=%u\n",
+        computer_tape.first_error,(unsigned long long)e->owner,(unsigned long long)e->generation,e->bytes,
+        e->opcode,e->index,e->offset,e->reads,e->writes,computer_tape_frame.phase,computer_tape_frame.next,
+        computer_tape_frame.failed,computer_tape.complete,(unsigned long long)e->began,(unsigned long long)e->last,e->hz);
 }

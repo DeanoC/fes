@@ -56,3 +56,12 @@ func configurationPublication() error {
 	_, err := configurationMapping()
 	return err
 }
+
+func initialTapeArena() (*nativefabric.ConfigurationArena, error) {
+	configurationMu.Lock()
+	defer configurationMu.Unlock()
+	if !profileInitialTapeEnabled || configurationArena == nil {
+		return nil, errors.New("DE25: completed pinned initial tape arena unavailable")
+	}
+	return configurationArena, nil
+}

@@ -32,6 +32,7 @@ var expectedMenuPresent, expectedMenuReadMap string
 var expectedComputerMap, expectedComputerReload string
 var expectedROMMap string
 var expectedNativeComputer string
+var expectedInitialTape string
 var expectedComputerStorageReturn string
 var expectedProgramPlatform, expectedSelectedPrograms string
 var expectedCompiledMenuProgram string
@@ -84,10 +85,17 @@ func main() {
 	if expectedComputerStorageReturn != "" && (expectedComputerStorageReturn != "1" || expectedComputerReload != "1") {
 		panic("storage return requires the selected two-load computer diagnostic")
 	}
-	cpu := de25nano.FabricCPUTransport{}
+	if expectedInitialTape != "" && (expectedInitialTape != "1" || expectedNativeComputer != "1" ||
+		expectedROMMap == "" || expectedSelectedPrograms != "1" || expectedTenfootSerial != "1" ||
+		expectedUSBControl != "owned-shared-usb-pio-v1") {
+		panic("initial tape requires matched native computer, shared USB and selected serial Tenfoot")
+	}
+	cpu, err := de25nano.ProgramCPUTransport(expectedInitialTape == "1")
+	if err != nil {
+		panic(err)
+	}
 	control, configuration := decoded(expectedControlMap, 8192), decoded(expectedConfigurationMap, 32768)
 	var v *nativefabric.HPSContextVerifier
-	var err error
 	if expectedNativeComputer != "" && (expectedNativeComputer != "1" || expectedROMMap == "" || expectedWindowMemory != "") {
 		panic("native computer requires its explicitly selected complete held-ROM resources")
 	}

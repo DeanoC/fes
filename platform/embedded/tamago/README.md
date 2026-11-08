@@ -621,3 +621,27 @@ and the final owned USB Stop receipt. These counters are local observations,
 serialized by the backend; logging adds no firmware calls or device authority.
 They distinguish continued input delivery from successful enumeration. Idle
 reports do not demonstrate physical controls or normal package admission.
+
+## Secure initial tape selection on Nano
+
+`--initial-tape` selects the fixed-window firmware service for initial game
+media in the native computer build. It requires selected computer programs,
+held ROM, shared USB, serial Tenfoot and owned SD return. A shared validator
+binds the SDK link assignment, entry receipt and cold firmware flag. Firmware
+construction additionally requires `--nano-firmware-ocram`; an incomplete
+selection rejects before use. The runtime startup checks its generated board
+constant against the linked selection and advertises `InitialTapePlatform`
+only for the selected CPU wrapper.
+
+The hook requires the existing completed pinned program arena. It publishes
+private bytes and a fixed descriptor, brackets the SMC with complete mapping
+checks and validates the exact returned protocol state before Run. Uncertain
+service or mapping results retain memory and retire the operation, without
+per-word fallback. Ordinary/model builds keep the explicit regular mailbox
+path. All original operation deadlines remain unchanged.
+
+Portable board-hook tests execute the actual C service/engine with modeled
+ownership, digest and endpoint callbacks. Separate actual strong-provider and
+captured-RTL tests retain their own evidence boundaries. A successful cross-build
+or these software checks does not establish a passing physical tape transfer or
+normal DE10-equivalent appliance behavior.

@@ -143,6 +143,8 @@ class NanoMixedColdTests(unittest.TestCase):
                         (target / ('case-' + str(mode) + '.log')).write_text(result.stdout + result.stderr)
                     self.assertEqual(result.returncode, 0, result.stderr + result.stdout[-5000:])
                     self.assertIn('PASS', result.stdout)
+                    if initial_tape and mode in (33,34,35,38,40,41,42,43,44,45,46,47,48,49):
+                        self.assertEqual(result.stdout.count('FES_NANO_TAPE_FAILURE '), 1)
             # The combined provider requires the full CPU reservation even
             # though the original computer reader remains only8KiB.
             (base / 'fes_nano_cold_profile.h').write_text(profile.replace(
