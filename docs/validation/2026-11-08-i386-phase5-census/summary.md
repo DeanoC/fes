@@ -12,11 +12,12 @@ difference from the plan's numbers. It changes no CPU behaviour, and no RTL
 ran.
 
 **Result.**
-- **The committed census reproduces the plan's numbers.** U.S. Navy
-  Fighters matches exactly on every count, including both TLBs (DTLB16 0.238,
-  ITLB8 0.695 walks per 100 accesses). Angband, Chris's benchmark and Quake
-  run the same paths: paged steps, task switches, CR3 writes, PG toggles,
-  DR accesses and page faults all match.
+- **The committed census reproduces the plan's numbers where its
+  meaning did not change.** U.S. Navy Fighters matches exactly on every
+  count, including both TLBs (DTLB16 0.238, ITLB8 0.695 walks per 100
+  accesses). Angband, Chris's benchmark and Quake run the same paths: paged
+  steps, task switches, CR3 writes, PG toggles, DR accesses and page faults
+  all match; only their TLB walks differ.
 - **Every difference has one of four causes.** Main has moved on since the
   plan's tree, which changes some runs' paths (below). The census also
   changed three things on purpose: it flushes both TLBs on a task switch, it
@@ -24,14 +25,19 @@ ran.
   delivery-only steps as instructions.
 - **The TLB sizes still hold.** With the task-switch flush, a 16-entry DTLB
   misses on at most 0.75% of accesses (NetHack), up from the plan's 0.47%.
-  An 8-entry ITLB misses on at most 0.80% (Master of Orion's DOS prompt).
-  Both stay under 1%.
+  An 8-entry ITLB misses on at most 0.80% here, at Master of Orion's DOS
+  prompt. That is lower only because the run now ends at the prompt after
+  7.75 s; the plan's 20 s at the same prompt gave 1.1%, which stays the
+  worst case.
 
 ## Method
 
 - **Tree.** This branch: main `2a22b5b65` plus the slice-0 commit
   `42d9ab140`. A copy of its `Vpc386_machine`, so other worktrees' builds
-  could not change it mid-run.
+  could not change it mid-run. Main `d6589de42` was merged after the runs,
+  and the merged head was not rerun. Of its changes, only #1556's EMS board,
+  now fitted by default at E0000h–EFFFFh, could move a row: JEMM386 probes
+  that range, so the three JEMM386 runs may take another path there.
 - **Runs.** `sim_fes_pc386.py --suite game --game <id> --cpu oracle
   --instruction-census`, Powerboat, all 13 in parallel. Each run used its
   title's launch and keys from its drive record and the plan's time limit.
@@ -90,12 +96,14 @@ and 8-entry ITLB models.
   - **Descent** reaches paging later in its 20 s: 16.6M fewer paged steps,
     with the same task switches, CR3 writes and page faults.
   - **Strike Commander and Wolfenstein 3D under JEMM386** follow a
-    different path once the keys land, so their counts differ by a few
-    percent.
+    different path once the keys land. Strike Commander makes 15% more CR3
+    writes and 33% more IOPL-sensitive V86 instructions; Wolfenstein 3D 15%
+    fewer CR3 writes and 10% more sensitive instructions. Their V86 steps
+    differ by under 2%.
   - **U.S. Navy Fighters and Master of Orion** exit to the DOS prompt, so
     the run now ends there (7.45 s and 7.75 s) instead of at the 20 s limit.
     U.S. Navy Fighters' counts all match, so its plan run did nothing more
-    that the census counts after 7.45 s. Master of Orion's run now leaves out
+    than the census counts after 7.45 s. Master of Orion's run now leaves out
     241.8M V86 steps at the prompt, so its ITLB rate falls to 0.804. That rate is still
     the highest of the 13.
 - **A task switch flushes both TLBs.** The plan flushed them only on a CR3
@@ -109,13 +117,14 @@ and 8-entry ITLB models.
   from 0.43 to 0.75.
 - **LTR is not a task switch.** The plan counted LTR (`0F00.3`) among its
   task switches. The census counts it separately (`ltr` in the rows). That
-  removes one switch from every run and 8,528 from jemm-doom. The table
+  removes one switch from every run, and from jemm-doom 8,532 in the plan
+  (8,528 LTRs in this rerun). The table
   leaves LTR out of both columns.
 - **Delivery-only steps are not instructions.** A step that only delivers
   an external interrupt or NMI runs no instruction. The census no longer
   counts such a step as an IOPL-sensitive V86 instruction, as an I/O
-  bitmap check or as an ITLB access. Where the path did not change, that
-  lowers those counts a little: pinfan's sensitive V86 instructions fall by
+  bitmap check or as an ITLB access. That lowers those counts a little (the
+  paths also shifted slightly, so these are approximate): pinfan's sensitive V86 instructions fall by
   223 and jemm-doom's by 23, and most paged runs have slightly fewer ITLB
   accesses than paged steps. The census also splits the plan's `fault`
   outcome into `int` (INT n through the IDT) and `gp=<error>`.

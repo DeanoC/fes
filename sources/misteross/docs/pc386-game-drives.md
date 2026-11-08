@@ -144,7 +144,7 @@ titles each one unlocks.
 
 | Key | Counts |
 | --- | --- |
-| `<stem>[:pm<CPL>\|:v86]` | Retired instructions by stem (the lockstep's naming), read at CS:EIP through the page tables when paging is on. MOV to and from CRn, DRn and TRn carry the register number: `0F22.3` is MOV CR3, r32; `0F21.6` is MOV r32, DR6. |
+| `<stem>[:pm<CPL>\|:v86]` | Retired instructions by stem (the lockstep's naming), read at CS:EIP through the page tables when paging is on. Bytes in MMIO (VGA memory, the EMS board's frame) read as FFh. MOV to and from CRn, DRn and TRn carry the register number: `0F22.3` is MOV CR3, r32; `0F21.6` is MOV r32, DR6. |
 | `event:<kind>:<vector>[:paged][:v86]:gate=<type>:dpl=<n>:sel=<selector>[:err=<code>]:cpl=<before>><after>` | Each event delivered with PE set, its IDT gate read through the page tables. `kind` is `exception`, `intr`, `nmi` or `int`. |
 | `cpl:<before>><after>:<stem>` | CPL changes an instruction made without an event. |
 | `cr0.pg:<stem>`, `ldtr:<sel>:<stem>`, `tr:<sel>:<stem>`, `iopl:<n>:<stem>`, `dr7:<value>:<stem>` | Stems that changed PG, loaded LDTR or TR (LTR or a task switch), changed IOPL, or changed DR7. |
