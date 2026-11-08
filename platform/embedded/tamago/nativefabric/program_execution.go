@@ -91,6 +91,21 @@ func (p *programService) startExecution(ctx context.Context, view ProgramService
 	if o.Before != o.Held {
 		return ProgramFetchObservation{}, fmt.Errorf("%w: fetches changed while held", ErrProgramExecution)
 	}
+	if p.plan != nil && p.plan.state != nil && p.plan.state.program != nil && len(p.plan.state.program.tape) != 0 {
+		// SD is contained. Only bytes privately retained and admitted before
+		// configuration reach the existing CRC/ACK media transport. A failure
+		// leaves execution held and retires the owner; no Run or replay follows.
+		if err := run(func() error { return c.LoadTape(ctx, p.plan.state.program.tape) }); err != nil {
+			return ProgramFetchObservation{}, errors.Join(ErrProgramExecution, err)
+		}
+		var held computer.FetchActivity
+		if err := sample(&held); err != nil {
+			return ProgramFetchObservation{}, errors.Join(ErrProgramExecution, err)
+		}
+		if held != o.Held {
+			return ProgramFetchObservation{}, fmt.Errorf("%w: fetches changed during held tape load", ErrProgramExecution)
+		}
+	}
 	if err := run(func() error { return c.Run(ctx) }); err != nil {
 		return ProgramFetchObservation{}, errors.Join(ErrProgramExecution, err)
 	}

@@ -13,6 +13,41 @@ IDENTITY=dict(PackageID=SPEC['identity']['package_id'],CoreID=SPEC['identity']['
 SECOND=dict(IDENTITY,PackageID='a'*64,BuildID='b'*32,ProgrammedSHA256='c'*64)
 PROGRAMS=[dict(title='ZX81',identity=IDENTITY,configuration=SPEC['configuration']),dict(title='ZX80',identity=SECOND,configuration=dict(SPEC['configuration'],package_id='a'*64,build_id='b'*32,core_sha256='c'*64))]
 
+class TapeObservationTests(unittest.TestCase):
+    def test_selected_tape_receipt_is_bound_to_live_program_and_absent_after_return(self):
+        m=Model();client=m.client()
+        state=m.state('running',1)
+        state['native']['Identity'].update(ProgrammingProfile='de25-native-computer-v1',ABI='fes.computer')
+        client.programs[0]['identity']=copy.deepcopy(state['native']['Identity'])
+        client.programs[0]['tape']=dict(sha256='d'*64,bytes=1025)
+        state['native'].update(tape_sha256='d'*64,tape_bytes=1025)
+        parsed,_,_=trace.packet(m.raw(state))
+        client._state(parsed[0],1,('running',),client.programs[0]['identity'])
+        for fault in ('missing','digest','size','unexpected'):
+            bad=copy.deepcopy(state)
+            if fault=='missing':bad['native'].pop('tape_sha256');bad['native'].pop('tape_bytes')
+            if fault=='digest':bad['native']['tape_sha256']='e'*64
+            if fault=='size':bad['native']['tape_bytes']=1024
+            expected=copy.deepcopy(client.programs)
+            if fault=='unexpected':client.programs[0].pop('tape')
+            with self.subTest(fault=fault),self.assertRaises(ValueError):
+                trace.packet(m.raw(bad));client._state(bad,1,('running',),client.programs[0]['identity'])
+            client.programs=expected
+        returned=m.state('ready',2)
+        returned['native'].update(tape_sha256='d'*64,tape_bytes=1025)
+        with self.assertRaises(ValueError):trace.packet(m.raw(returned))
+
+    def test_partial_or_invalid_tape_receipt_rejects_before_state_acceptance(self):
+        m=Model();base=m.state('running',1)
+        base['native']['Identity'].update(ProgrammingProfile='de25-native-computer-v1',ABI='fes.computer')
+        for value in (dict(tape_sha256='d'*64),dict(tape_bytes=1),dict(tape_sha256='d'*64,tape_bytes=True),dict(tape_sha256='d'*64,tape_bytes=16376),dict(tape_sha256='0'*64,tape_bytes=1)):
+            row=copy.deepcopy(base);row['native'].update(value)
+            with self.subTest(value=value),self.assertRaises(ValueError):trace.packet(m.raw(row))
+
+    def test_bad_expected_tape_is_rejected_as_content_assertion(self):
+        for value in (dict(sha256='d'*64,bytes=True),dict(sha256='d'*64,bytes=16376),dict(sha256='d'*64,bytes=0),dict(sha256='d'*64),dict(sha256='d'*64,bytes=1,unit=1)):
+            with self.subTest(value=value),self.assertRaises(ValueError):trace.program_tape(dict(tape=value))
+
 class Model:
     def __init__(self):
         self.service=ProgramModel();self.focus=0;self.selected=0;self.keys=[];self.fault=''

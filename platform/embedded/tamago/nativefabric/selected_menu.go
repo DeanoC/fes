@@ -154,6 +154,9 @@ func (l *ProgramLoader) ReserveMenuMemory(reserve func([]byte) (*Region, error))
 }
 
 func (l *ProgramLoader) preflightMenu(selection *packagestore.Selection) (*StoredConfigurationPlan, error) {
+	if len(selection.Tape()) != 0 {
+		return nil, errors.New("native fabric: menu package cannot select game tape")
+	}
 	if l.menu == nil {
 		return nil, errors.New("native fabric: no compiled menu driver")
 	}

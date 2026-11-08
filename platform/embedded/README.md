@@ -6,6 +6,15 @@ the top kit. Playable-core readiness remains open. FES owns
 the base image; FogCast owns tenfoot and its application services; the runtime
 owns FPGA programming, reset, input delivery and DMA lifetime.
 
+The [paired menu/core/menu hardware trial](../../docs/validation/2026-11-08-de25-verified-files-board-trial/hardware.md)
+now passes ZX81 → menu → ZX80 → menu → ZX81 → menu and final Park on TRWU8CBL:
+three launches/returns, four menu sessions and seven configurations. The native
+collector completes in 428.67 seconds within its original 450-second limit.
+This remains exact retained serial evidence; visible transitions and ordinary
+appliance admission remain open. The [next game-tape path](../../docs/validation/2026-11-08-de25-native-game-tape/README.md)
+retains selected SD media and delivers it before CPU release through the existing
+driver, with software tests; its changed native image has no board acceptance.
+
 The [standard-package native boot path](../../docs/validation/2026-11-06-de25-computer-runtime/README.md)
 now connects the shared Nano `fes.computer` contract to the retained-ROM loader,
 Tenfoot backend and existing owned firmware controls. Off-board tests cover

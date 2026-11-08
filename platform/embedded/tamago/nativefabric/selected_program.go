@@ -12,6 +12,7 @@ import (
 	"io"
 
 	"github.com/DeanoC/fes/platform/embedded/tamago/computer"
+	cg "github.com/DeanoC/fes/platform/embedded/tamago/computer/generated"
 	"github.com/DeanoC/fes/platform/embedded/tamago/fabricmodel"
 	"github.com/DeanoC/fes/platform/embedded/tamago/packagestore"
 	"github.com/DeanoC/fes/platform/embedded/tamago/runtimeadmission"
@@ -193,6 +194,7 @@ type selectedProgram struct {
 	computerRaw      []byte
 	rom              []byte
 	romReceipt       string
+	tape             []byte
 }
 
 // Preflight validates the selected package and its retained metadata while SD
@@ -245,6 +247,17 @@ func (l *ProgramLoader) Preflight(selection *packagestore.Selection) (*StoredCon
 	}
 	if admissionErr != nil {
 		return nil, admissionErr
+	}
+	tape := selection.Tape()
+	if len(tape) != 0 {
+		declared := false
+		for _, iface := range d.Interfaces {
+			declared = declared || iface.ID == "fes.media.zx81-tape" && iface.Major == 1 && iface.Minor == 0
+		}
+		if p.ProgrammingProfile != NativeComputerProfile || !declared ||
+			len(tape) < int(cg.FesComputerZx81TapeMinBytes) || len(tape) > int(cg.FesDe25ComputerZx81TapeMaxBytes) {
+			return nil, errors.New("native fabric: selected package and native driver must support this tape")
+		}
 	}
 	id := fabricmodel.PackageIdentity{PackageID: i.PackageID, BuildID: d.Build.ID, ProgrammedSHA256: d.Payload.SHA256,
 		CoreID: d.Core.ID, Platform: d.Target.Platform, Device: d.Target.Device, ProgrammingProfile: d.Target.ProgrammingProfile,
@@ -348,7 +361,7 @@ func (l *ProgramLoader) Preflight(selection *packagestore.Selection) (*StoredCon
 		return nil, err
 	}
 	program := &selectedProgram{loader: l, identity: id, configuration: config, computer: comp,
-		controlRaw: control, configurationRaw: configurationRaw, computerRaw: computerRaw, rom: romImage, romReceipt: romReceipt}
+		controlRaw: control, configurationRaw: configurationRaw, computerRaw: computerRaw, rom: romImage, romReceipt: romReceipt, tape: tape}
 	if l.menu != nil {
 		program.role = programRoleComputer
 	}

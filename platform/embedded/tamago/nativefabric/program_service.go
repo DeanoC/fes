@@ -3,6 +3,8 @@ package nativefabric
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"errors"
 	"fmt"
 	"math"
@@ -39,6 +41,8 @@ type ProgramServiceStatus struct {
 	Generation       uint64
 	Identity         fabricmodel.PackageIdentity
 	ROMReceiptSHA256 string `json:"rom_receipt_sha256,omitempty"`
+	TapeSHA256       string `json:"tape_sha256,omitempty"`
+	TapeBytes        int    `json:"tape_bytes,omitempty"`
 	Held             bool
 	Error            string
 }
@@ -238,6 +242,10 @@ func (s *ProgramService) Launch(ctx context.Context, generation uint64, request 
 		return ProgramSession{}, p.fail(err)
 	}
 	view.State, view.Held = ProgramRunning, false
+	if program := plan.state.program; program != nil && len(program.tape) != 0 {
+		sum := sha256.Sum256(program.tape)
+		view.TapeSHA256, view.TapeBytes = hex.EncodeToString(sum[:]), len(program.tape)
+	}
 	p.viewMu.Lock()
 	p.execution, p.view = execution, view
 	p.viewMu.Unlock()
@@ -353,6 +361,7 @@ func (s *ProgramService) finish(ctx context.Context, session ProgramSession, res
 	view.Generation++
 	view.Identity, view.Held = fabricmodel.PackageIdentity{}, true
 	view.ROMReceiptSHA256 = ""
+	view.TapeSHA256, view.TapeBytes = "", 0
 	p.rearm = true
 	p.publish(view)
 	return observed, nil

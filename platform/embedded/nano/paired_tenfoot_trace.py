@@ -143,6 +143,8 @@ class PairedTenfootClient(app.TenfootClient):
         require(all('fetch_address' not in p or number(p['fetch_address'], 65535)
                     for p in programs), 'explicit fetch address must be a 16-bit integer')
         self.programs = copy.deepcopy(programs)
+        for p in self.programs:
+            app.program_tape(p)
         self.usb = SharedInput(shared_usb) if shared_usb is not None else None
         self.input_mode = 'uart' if self.usb is None else self.usb.input_mode
         rows = observations(initial, self.input_mode, startup=True)

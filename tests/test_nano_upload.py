@@ -232,6 +232,7 @@ class NanoUploadTests(unittest.TestCase):
     def test_selected_program_files_use_fixed_destinations_and_smaller_bounds(self):
         for purpose,target,limit in (('metadata','FES/PROGRAM.JSN',16<<10),('selection','FES/CORESEL.JSN',8192),
                                     ('ui-catalog','FES/UI.JSON',8192),
+                                    ('tape','FES/GAME.P',16375),
                                     ('menu-package','FES/MENU.FCP',upload.LIMIT),
                                     ('menu-metadata','FES/MENU.JSN',16<<10),
                                     ('menu-selection','FES/MENUSEL.JSN',8192),

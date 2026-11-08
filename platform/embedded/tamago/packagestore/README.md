@@ -1,5 +1,14 @@
 # Retained packages from owned storage
 
+`Request.Tape` optionally selects one game tape by path, exact size and SHA-256,
+separately from the FPGA package and firmware ROM. The store bounds it at 16 KiB,
+closes its file and retains private bytes under the same prepared SD lease as
+the archive. `Selection.Tape` returns a copy without accessing storage. Every
+fresh selection rereads the tape; a previous selection cannot substitute after
+resume. Rejected content leaves healthy storage active. This retains content
+only: the selected native driver must admit the interface and its stricter size
+limit before containment, and hardware delivery remains a runtime operation.
+
 `Request.MetadataPath` and `MetadataSHA256` optionally select an integrity-bound
 attachment of at most 16 KiB. The store closes the file and retains private bytes
 with the same prepared SD lease; `Selection.Metadata` returns a copy. Missing,

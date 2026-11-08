@@ -46,6 +46,7 @@ type Request struct {
 	MetadataPath, MetadataSHA256   string
 	Sources                        []Source
 	Parts                          []Part
+	Tape                           TapeRequest
 }
 
 var (
@@ -70,6 +71,7 @@ type Selection struct {
 	archive    *corepackage.Archive
 	linked     *corepackage.LinkedArchive
 	metadata   []byte
+	tape       []byte
 }
 
 // Metadata is a private copy of a bounded, explicitly selected attachment. Its
@@ -325,6 +327,9 @@ func (s *Store) Retain(ctx context.Context, request Request) (selection *Selecti
 		request.MetadataPath != "" && (!pathOK(request.MetadataPath) || !digest(request.MetadataSHA256)) {
 		return nil, ErrState
 	}
+	if err := request.Tape.Validate(); err != nil {
+		return nil, err
+	}
 	for _, v := range request.Sources {
 		if !pathOK(v.Path) || !digest(v.SHA256) {
 			return nil, ErrState
@@ -352,6 +357,12 @@ func (s *Store) Retain(ctx context.Context, request Request) (selection *Selecti
 	selection = &Selection{store: s, generation: s.last.Generation, archive: archive}
 	if request.MetadataPath != "" {
 		selection.metadata, err = readInput(ctx, s.files, request.MetadataPath, 16<<10, -1, request.MetadataSHA256)
+		if err != nil {
+			return nil, err
+		}
+	}
+	if request.Tape != (TapeRequest{}) {
+		selection.tape, err = readInput(ctx, s.files, request.Tape.Path, MaxRetainedTapeBytes, request.Tape.Size, request.Tape.SHA256)
 		if err != nil {
 			return nil, err
 		}

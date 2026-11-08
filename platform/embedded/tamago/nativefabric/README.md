@@ -1,5 +1,32 @@
 # Native contained-fabric endpoint
 
+The native computer path now accepts an optional game tape in each retained
+program choice. The canonical selection adds
+`"tape":{"path":"FES/GAME.P","sha256":"<64 lowercase hex digits>","size":1025}`;
+the UI catalog still selects only the program's index and friendly game ID.
+No tape field means a launch without initial media. The store retains and closes
+the tape before SD containment. Loader preflight requires the native computer
+profile, its declared `fes.media.zx81-tape` 1.0 interface and the board driver's
+1..16,375-byte range. Menu and diagnostic packages cannot consume it.
+
+After configuration, identity and stable held-fetch samples, the service sends
+the private tape through the existing chunk/CRC/ACK driver while execution is
+held. It checks held fetches again before issuing Run. The existing operation
+and context deadlines remain in force. Uncertain tape writes, commit failure,
+ownership loss, cancellation, elapsed limits or unexpected CPU activity retire
+the service without Run or replay. A successful running status includes
+`tape_sha256`/`tape_bytes`; return clears them. Both serial observers bind that
+receipt to the selected program's optional `tape: {sha256, bytes}` expectation.
+The recovery uploader supports the fixed `tape` destination `FES/GAME.P` under
+the same card identity, RAM ownership and readback checks.
+
+Host tests cover retained file independence, boundary sizes/odd padding and
+multiple chunks, actual Tenfoot App launch/return, the real C publication
+decoder and failure paths using injected SD/secure calls and mailbox responses.
+They qualify neither a tape-consuming ROM nor physical loading on TRWU8CBL.
+The changed native code needs a rebuilt matched chain and a bounded board test;
+see the [game-tape validation record](../../../../docs/validation/2026-11-08-de25-native-game-tape/README.md).
+
 `NewProgramLoaderWithMenu` now joins the normal computer driver and a separately
 compiled menu driver under the original immutable boot verifier. Complete menu
 context/platform/control/memory/access maps must agree with the computer's six

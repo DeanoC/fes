@@ -75,7 +75,7 @@ def packet(data,*,startup=False,input_mode='uart',usb_records=None,fetch_records
             require(r['load_error']==r['launch_error']=='' and not r['retry_stop'],'App reported a failure')
             require(r['session'] in ('','idle','launching','active','stopping') and r['launch'] in ('idle','launching','ok'),'unknown/failed App phase')
             v=r['native'];native_fields={'State','Owner','Generation','Identity','Held','Error'}
-            require(type(v) is dict and native_fields<=set(v) and not set(v)-native_fields-{'rom_receipt_sha256'},'native status fields differ')
+            require(type(v) is dict and native_fields<=set(v) and not set(v)-native_fields-{'rom_receipt_sha256','tape_sha256','tape_bytes'},'native status fields differ')
             require(v['State'] in ('ready','loading','running','returning') and v['Error']=='','native service failed or retired')
             require(number(v['Owner'],(1<<64)-1) and v['Owner']>0 and number(v['Generation'],(1<<64)-1) and type(v['Held']) is bool,'invalid native ownership')
             ident=v['Identity'];require(type(ident) is dict and set(ident)==IDENTITY,'native identity fields differ')
@@ -84,6 +84,9 @@ def packet(data,*,startup=False,input_mode='uart',usb_records=None,fetch_records
             if receipt:
                 require(re.fullmatch('[0-9a-f]{64}',receipt) and int(receipt,16)>0 and v.get('rom_receipt_sha256')==receipt,'ROM identity/receipt differs')
             else:require('rom_receipt_sha256' not in v,'ROM receipt has no retained identity')
+            if 'tape_sha256' in v or 'tape_bytes' in v:
+                require(v['State'] in ('running','returning') and ident['ProgrammingProfile']=='de25-native-computer-v1' and ident['ABI']=='fes.computer','tape receipt outside native computer play')
+                require(type(v.get('tape_sha256')) is str and re.fullmatch('[0-9a-f]{64}',v['tape_sha256']) and int(v['tape_sha256'],16)>0 and number(v.get('tape_bytes'),16375) and v['tape_bytes']>0,'incomplete or invalid tape receipt')
             if v['State'] in ('ready','loading'):
                 require(v['Generation']%2==0 and v['Held'] and ident==ZERO,'inactive App has live identity or lost Hold')
             else:
@@ -121,6 +124,14 @@ def startup_checkpoints(data):
 def quiet(data):return all(row.strip() in (b'',b'NOTICE:') for row in data.splitlines())
 
 
+def program_tape(program):
+    """Expected media is a content assertion, separate from the FPGA identity."""
+    tape=program.get('tape')
+    if tape is not None:
+        require(type(tape) is dict and set(tape)=={'sha256','bytes'} and type(tape['sha256']) is str and re.fullmatch('[0-9a-f]{64}',tape['sha256']) and int(tape['sha256'],16)>0 and number(tape['bytes'],16375) and tape['bytes']>0,'invalid expected tape selection')
+    return tape
+
+
 class TenfootClient:
     """Single-use key exchanges with injectable ownership and deadline hooks.
 
@@ -132,6 +143,7 @@ class TenfootClient:
         require(all(callable(f) for f in (exchange,owns,now,record)),'owned exchange and clock hooks required')
         require(type(programs) is list and len(programs)==2 and len({p['title'] for p in programs})==2 and len({(p['identity']['PackageID'],p['identity']['ActivationReceiptSHA256']) for p in programs})==2,'two distinct titled activation choices required')
         require(all('fetch_address' not in p or number(p['fetch_address'],65535) for p in programs),'explicit fetch address must be a 16-bit integer')
+        for p in programs:program_tape(p)
         self.programs=copy.deepcopy(programs)
         self.usb=SharedInput(shared_usb) if shared_usb is not None else None
         usb_rows=[]
@@ -158,6 +170,11 @@ class TenfootClient:
         v=r['native'];require(v['Owner']==self.owner and v['Generation']==generation and v['State'] in allowed,'App ownership/generation/state changed')
         require(not r['titles'] or len(r['titles'])==2 and set(r['titles'])=={p['title'] for p in self.programs},'App catalog changed')
         if identity is not None and v['State'] in ('running','returning'):require(v['Identity']==identity,'App published wrong retained identity')
+        if v['State'] in ('running','returning'):
+            selected=next((p for p in self.programs if p['identity']==v['Identity']),None)
+            require(selected is not None,'App tape has no selected program')
+            actual=None if 'tape_sha256' not in v else dict(sha256=v['tape_sha256'],bytes=v['tape_bytes'])
+            require(actual==program_tape(selected),'App published wrong retained tape')
 
     def key(self,op,selection=None):
         require(not self.retired,'App client retired')
