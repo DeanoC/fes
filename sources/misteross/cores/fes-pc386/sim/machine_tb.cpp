@@ -129,6 +129,7 @@
 #include "Vfes_i386_cpu___024root.h"
 #include "Vpc386_audio___024root.h"
 #include "audio_link.h"
+#include "dos_prompt.h"
 #include "i386_oracle.h"
 #include "opl2_reference.h"
 #include "pc386_ddr_model.h"
@@ -1550,6 +1551,9 @@ int main(int argc, char **argv) {
                     end - (start == std::string::npos ? 0 : start + 1) + 1);
             }
         }
+        auto is_prompt_row = [&options](const std::string &row) {
+            return pc386::prompt_matches(row, options.prompt, options.game_launch);
+        };
         // Snapshots: a marker, then the second capture and the second raster.
         std::string snap_name;
         unsigned snap_frames = 0, snap_rasters = 0;
@@ -1819,7 +1823,7 @@ int main(int argc, char **argv) {
                 if (options.game_launch && game_prompt_captured && game_input_finished && !game_launch_reported &&
                     machine.cycles - game_input_finished_at >= uint64_t(0.2 * CLOCK_HZ)) {
                     const std::string last = machine.last_row();
-                    const bool at_prompt = last == options.prompt;
+                    const bool at_prompt = is_prompt_row(last);
                     std::string upper_last = last, upper_command = game_final_command;
                     std::transform(upper_last.begin(), upper_last.end(), upper_last.begin(),
                                    [](unsigned char c) { return char(std::toupper(c)); });
@@ -1886,7 +1890,7 @@ int main(int argc, char **argv) {
                 // Done when everything is typed and the prompt is back on the
                 // last line, waiting for input.
                 if (prompt_at && settled && typed == options.type.size() && keys.empty() &&
-                    machine.last_row() == options.prompt) {
+                    is_prompt_row(machine.last_row())) {
                     reason = "prompt";
                     break;
                 }

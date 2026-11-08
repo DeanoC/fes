@@ -71,6 +71,7 @@ from scripts import build_pc386_freedos_image as freedos
 from scripts import test_fes_i386_test386 as test386
 
 ROOT = freedos.ROOT
+REPOSITORY_ROOT = Path(__file__).resolve().parents[3]
 MANIFEST = ROOT / 'cores/fes-pc386/sim/game-drives.toml'
 STORE = Path(os.environ.get('FES_PC386_DRIVES', Path.home() / 'fes-drives/pc386'))
 PROFILE = 'games'
@@ -80,6 +81,23 @@ HEX = re.compile(r'^[0-9a-f]{8,64}$')
 
 class DriveError(RuntimeError):
     pass
+
+
+def checked_store(path: Path) -> Path:
+    """Resolve the private store and refuse to place game images in FES."""
+    store = path.expanduser().resolve()
+    repository = REPOSITORY_ROOT.resolve()
+    try:
+        store.relative_to(repository)
+    except ValueError:
+        return store
+    raise DriveError(f'FES_PC386_DRIVES resolves inside the repository: {store}')
+
+
+def configured_store() -> Path:
+    """The configured drive store, checked after resolving symlinks and '..'."""
+    default = Path.home() / 'fes-drives/pc386'
+    return checked_store(Path(os.environ.get('FES_PC386_DRIVES', default)))
 
 
 def sha256(path: Path) -> str:
@@ -141,7 +159,38 @@ def tree_sha256(root: Path) -> str:
     return digest.hexdigest()
 
 
-def source_files(data: dict, title: dict) -> dict:
+def relative_parts(value: str, separator: str, context: str, *, allow_empty: bool = False,
+                   allow_trailing: bool = False) -> list[str]:
+    """Split a relative path while rejecting ambiguous or traversing components."""
+    if value == '' and allow_empty:
+        return []
+    other_separator = '\\' if separator == '/' else '/'
+    if other_separator in value:
+        raise DriveError(f'{context}: unsafe path {value!r}')
+    path = value[:-1] if allow_trailing and value.endswith(separator) else value
+    parts = path.split(separator)
+    if (not path or value.startswith(separator) or
+            any(part in ('', '.', '..') for part in parts)):
+        raise DriveError(f'{context}: unsafe path {value!r}')
+    return parts
+
+
+def confined_path(root: Path, parts: list[str], context: str) -> Path:
+    """Return a path under root, rejecting dot components and symlink escapes."""
+    if not parts or any(part in ('', '.', '..') for part in parts):
+        raise DriveError(f'{context}: unsafe path components {parts!r}')
+    if root.is_symlink():
+        raise DriveError(f'{context}: staging directory {root} is a symlink')
+    base = root.resolve()
+    path = base.joinpath(*parts)
+    try:
+        path.resolve(strict=False).relative_to(base)
+    except (OSError, RuntimeError, ValueError):
+        raise DriveError(f'{context}: path escapes staging directory {root}') from None
+    return path
+
+
+def source_files(data: dict, title: dict, staging: Path) -> dict:
     """A title's source files: {relative name: (read(), time)}, its identity checked."""
     kind, root = source_root(data, title.get('source', 'exodos'))
     source = root / title['path']
@@ -150,15 +199,26 @@ def source_files(data: dict, title: dict) -> dict:
             raise DriveError(f'{source} not found; set {data["sources"][title.get("source", "exodos")]["env"]}')
         got = sha256(source)
         archive = zipfile.ZipFile(source)
-        items = {item.filename: (lambda item=item: archive.read(item),
-                                 calendar.timegm(item.date_time + (0, 0, -1)))
-                 for item in archive.infolist() if not item.is_dir()}
+        items = {}
+        for item in archive.infolist():
+            parts = relative_parts(item.filename, '/', f'{title["id"]}: unsafe archive path',
+                                   allow_trailing=item.is_dir())
+            confined_path(staging, parts, f'{title["id"]}: unsafe archive path {item.filename!r}')
+            if not item.is_dir():
+                items[item.filename] = (lambda item=item: archive.read(item),
+                                        calendar.timegm(item.date_time + (0, 0, -1)))
     else:
         if not source.is_dir():
             raise DriveError(f'{source} not found; set {data["sources"][title.get("source", "exodos")]["env"]}')
         got = tree_sha256(source)
-        items = {path.relative_to(source).as_posix(): (path.read_bytes, freedos.FILE_TIME)
-                 for path in source.rglob('*') if path.is_file()}
+        items = {}
+        for path in source.rglob('*'):
+            if not path.is_file():
+                continue
+            filename = path.relative_to(source).as_posix()
+            parts = relative_parts(filename, '/', f'{title["id"]}: unsafe source path')
+            confined_path(staging, parts, f'{title["id"]}: unsafe source path {filename!r}')
+            items[filename] = (path.read_bytes, freedos.FILE_TIME)
     if got != title['sha256']:
         raise DriveError(f'{title["id"]}: {source} hashes to {got}, the manifest pins {title["sha256"]}')
     return items
@@ -172,13 +232,17 @@ def source_root(data: dict, name: str) -> tuple[str, Path]:
 def extract(data: dict, title: dict, files: Path) -> tuple[int, int]:
     """Write a title's copy entries under files, in order; return the files
     written and the non-8.3 names skipped."""
-    items = source_files(data, title)
+    items = source_files(data, title, files)
     written, skipped = set(), 0
     for copy in title['copy']:
-        prefix = copy['from'].rstrip('/') + '/' if copy['from'] else ''
+        prefix_parts = relative_parts(copy['from'], '/', f'{title["id"]}: unsafe copy source',
+                                      allow_empty=True, allow_trailing=True)
+        prefix = '/'.join(prefix_parts) + '/' if prefix_parts else ''
         skip = {part.upper() for part in copy.get('skip', [])}
-        target = [dos_name(part) for part in copy['to'].split('\\') if part]
-        if not target or None in target:
+        target_parts = relative_parts(copy['to'], '\\', f'{title["id"]}: unsafe copy target',
+                                      allow_trailing=True)
+        target = [dos_name(part) for part in target_parts]
+        if None in target:
             raise DriveError(f'{title["id"]}: copy target {copy["to"]!r} is not a DOS directory')
         matched = 0
         for filename in sorted(items):
@@ -191,7 +255,8 @@ def extract(data: dict, title: dict, files: Path) -> tuple[int, int]:
             if None in names:
                 skipped += 1
                 continue
-            path = files.joinpath(*target, *names)
+            path = confined_path(files, [*target, *names],
+                                 f'{title["id"]}: unsafe archive path {filename!r}')
             path.parent.mkdir(parents=True, exist_ok=True)
             read, stamp = items[filename]
             path.write_bytes(read())
@@ -204,7 +269,12 @@ def extract(data: dict, title: dict, files: Path) -> tuple[int, int]:
         sidecar = STORE / 'sidecars' / config['sha256']
         if not sidecar.is_file() or sha256(sidecar) != config['sha256']:
             raise DriveError(f'{title["id"]}: sidecar {config["sha256"]} is missing from {sidecar.parent}')
-        path = files.joinpath(*(dos_name(part) or part for part in config['path'].split('\\') if part))
+        config_parts = relative_parts(config['path'], '\\', f'{title["id"]}: unsafe config target',
+                                      allow_trailing=True)
+        config_names = [dos_name(part) for part in config_parts]
+        if None in config_names:
+            raise DriveError(f'{title["id"]}: config target {config["path"]!r} is not a DOS path')
+        path = confined_path(files, config_names, f'{title["id"]}: unsafe config target {config["path"]!r}')
         if path not in written:
             raise DriveError(f'{title["id"]}: config {config["path"]} replaces no file the copy wrote')
         stamp = int(path.stat().st_mtime)
@@ -237,10 +307,11 @@ def free_bytes(volume: str, env: dict) -> int:
 
 def build(name: str, data: dict, download: bool = False, jobs: int = 4) -> Path:
     drive = data['drives'][name]
+    store = checked_store(STORE)
     # The store holds user-supplied commercial programs: private to the account.
-    STORE.mkdir(mode=0o700, parents=True, exist_ok=True)
-    os.chmod(STORE, 0o700)
-    work = STORE / '.work' / name
+    store.mkdir(mode=0o700, parents=True, exist_ok=True)
+    os.chmod(store, 0o700)
+    work = store / '.work' / name
     work.parent.mkdir(mode=0o700, exist_ok=True)
     os.chmod(work.parent, 0o700)
     try:
@@ -266,7 +337,7 @@ def build(name: str, data: dict, download: bool = False, jobs: int = 4) -> Path:
         shutil.rmtree(files, ignore_errors=True)
         free = free_bytes(volume, env)
         digest = sha256(disk)
-        image = STORE / f'{digest}.img'
+        image = store / f'{digest}.img'
         shutil.copyfile(disk, image.with_suffix('.partial'))
         image.with_suffix('.partial').rename(image)
         record = {
@@ -283,7 +354,7 @@ def build(name: str, data: dict, download: bool = False, jobs: int = 4) -> Path:
             'distribution': 'user-supplied programs: never commit, upload or distribute',
         }
         image.with_suffix('.json').write_text(json.dumps(record, indent=1) + '\n')
-        links = STORE / 'by-name'
+        links = store / 'by-name'
         links.mkdir(exist_ok=True)
         for suffix in ('.img', '.json'):
             link = links / f'{name}{suffix}'
@@ -297,7 +368,7 @@ def build(name: str, data: dict, download: bool = False, jobs: int = 4) -> Path:
 def resolve(reference: str, store: Path | None = None, verify: bool = True) -> tuple[Path, dict]:
     """A drive by path, by SHA-256 (or a unique prefix of 8+ digits) or by
     name in the store; returns the image and its record, the bytes checked."""
-    store = store or STORE
+    store = checked_store(store if store is not None else STORE)
     path = Path(reference).expanduser()
     if path.suffix == '.img' and path.is_file():
         image = path.resolve()
@@ -344,14 +415,15 @@ def main(argv=None) -> int:
     parser.add_argument('--resolve', metavar='DRIVE', help='print the image path and record of a drive')
     args = parser.parse_args(argv)
     try:
+        store = configured_store()
         if args.resolve:
-            image, record = resolve(args.resolve)
+            image, record = resolve(args.resolve, store=store)
             print(json.dumps({'image': str(image), **record}, indent=1))
             return 0
         data = manifest(args.manifest)
         if args.list:
             for name, drive in data['drives'].items():
-                built = (STORE / 'by-name' / f'{name}.img')
+                built = (store / 'by-name' / f'{name}.img')
                 print(f'{name}: {len(drive.get("titles", []))} titles, {drive["cylinders"]} cylinders, '
                       f'built {built.resolve().stem if built.exists() else "never"}')
             return 0
