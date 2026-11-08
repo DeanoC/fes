@@ -35,7 +35,7 @@ Orion. It changes no CPU behaviour, and no RTL ran. Tracker:
 - **A 16-entry DTLB and an 8-entry ITLB miss on at most 0.47% and 1.1% of
   accesses.** The worst cases are Angband for the DTLB and Master of Orion's
   DOS prompt for the ITLB. An 8-entry DTLB misses on 2.86% of Wolfenstein 3D's
-  data accesses under JEMM386; a 16-entry one on 0.033%.
+  data accesses under JEMM386; a 16-entry one on 0.035%.
 - **Strike Commander is a Phase 5 title.** The census counted it as a DOS
   setup failure (`FILES`), which the games image now fixes. On the oracle it
   then runs its own V86 monitor under paging, entered by IRETD with NT set: a
@@ -61,11 +61,8 @@ Orion. It changes no CPU behaviour, and no RTL ran. Tracker:
   - **TLB models.** Every paged step's instruction page and data pages,
     run through LRU models: fully associative DTLBs of 2, 4, 8, 16 and 32
     entries, 4-way DTLBs of 64 and 128, a 2-way of 256 and a direct-mapped
-    64, and fully associative ITLBs of 1, 2, 4, 8 and 16. A CR3 that
-    changes, or a PG toggle, flushes them. A CR3 write of the same value
-    does not, so the miss rates are low by at most the TLB's size per such
-    write: for Strike Commander, whose 18,960 CR3 writes are the most, by at
-    most 0.13 percentage points at 16 entries.
+    64, and fully associative ITLBs of 1, 2, 4, 8 and 16. Every CR3 write,
+    whatever its value, and every PG toggle flushes them, as on a 386.
 - **Runs.** 20 simulated seconds each (Wolfenstein 3D 24, Quake 25), the
   title's launch and keys from its drive record, `--cpu oracle`, Powerboat.
   - The titles on their #1533 drives: Jump 'n Bump, Angband, NetHack,
@@ -130,25 +127,25 @@ columns count instructions.
 | Angband | 22.6M | 1.124 | 0.469 | 0.240 | 0.168 | 1.82 | 0.393 | 0.182 | 0.026 |
 | NetHack | 3.3M | 0.972 | 0.429 | 0.418 | 0.417 | 1.47 | 0.215 | 0.173 | 0.159 |
 | Chris's 3D Benchmark | 123.5M | 0.757 | 0.140 | 0.034 | 0.016 | 0.29 | 0.010 | 0.001 | 0.001 |
-| Quake timedemo | 243.9M | 1.687 | 0.321 | 0.106 | 0.066 | 0.68 | 0.021 | 0.006 | 0.005 |
-| Time Circle | 155.3M | 0.038 | 0.023 | 0.017 | 0.016 | 7.71 | 0.019 | 0.008 | 0.005 |
-| Descent | 102.8M | 1.196 | 0.098 | 0.062 | 0.060 | 3.07 | 0.354 | 0.035 | 0.020 |
-| U.S. Navy Fighters | 2.3M | 0.444 | 0.219 | 0.205 | 0.202 | 2.92 | 1.067 | 0.653 | 0.508 |
-| Strike Commander | 228.1M | 0.138 | 0.033 | 0.006 | 0.002 | 0.52 | 0.107 | 0.051 | 0.011 |
-| Wolfenstein 3D, JEMM386 | 322.5M | 2.862 | 0.033 | 0.007 | 0.003 | 2.51 | 1.179 | 0.136 | 0.014 |
-| DOOM, JEMM386 | 239.7M | 0.534 | 0.091 | 0.080 | 0.080 | 3.15 | 0.454 | 0.205 | 0.068 |
-| Master of Orion, JEMM386 | 363.1M | 2.598 | 0.001 | 0.000 | 0.000 | 5.08 | 3.280 | 1.095 | 0.003 |
+| Quake timedemo | 243.9M | 1.687 | 0.321 | 0.106 | 0.066 | 0.67 | 0.021 | 0.006 | 0.005 |
+| Time Circle | 155.3M | 0.039 | 0.024 | 0.019 | 0.019 | 7.71 | 0.019 | 0.008 | 0.006 |
+| Descent | 102.8M | 1.207 | 0.117 | 0.089 | 0.088 | 3.07 | 0.357 | 0.039 | 0.025 |
+| U.S. Navy Fighters | 2.3M | 0.455 | 0.238 | 0.234 | 0.231 | 2.93 | 1.085 | 0.695 | 0.591 |
+| Strike Commander | 228.1M | 0.153 | 0.117 | 0.114 | 0.114 | 0.53 | 0.116 | 0.081 | 0.053 |
+| Wolfenstein 3D, JEMM386 | 322.5M | 2.863 | 0.035 | 0.012 | 0.012 | 2.51 | 1.180 | 0.137 | 0.015 |
+| DOOM, JEMM386 | 239.7M | 0.534 | 0.092 | 0.081 | 0.081 | 3.15 | 0.454 | 0.205 | 0.068 |
+| Master of Orion, JEMM386 | 363.1M | 2.598 | 0.001 | 0.001 | 0.000 | 5.08 | 3.280 | 1.095 | 0.003 |
 
-- **DTLB.** Sixteen entries miss on under 0.5% in every run, and under 0.1%
-  in seven of the twelve; Angband, NetHack, Chris's 3D Benchmark, Quake and
-  U.S. Navy Fighters are the five above. A 64-entry 4-way second level
+- **DTLB.** Sixteen entries miss on under 0.5% in every run, and on 0.12%
+  or less in seven of the twelve; Angband, NetHack, Chris's 3D Benchmark,
+  Quake and U.S. Navy Fighters are the five above. A 64-entry 4-way second level
   would save at most 0.3 points (Angband), a walk per about 330 data
   accesses: under 1% of Angband's clocks at 6–10 clocks a walk. So the
   second level stays a Phase 7 option, built only if walks show in a
   profile.
 - **ITLB.** One entry, the current page, misses on up to 12% of
   instructions: CWSDPMI's hot loop spans three pages. Eight entries miss on
-  at most 1.1%, at Master of Orion's idle DOS prompt, then 0.65% in U.S. Navy
+  at most 1.1%, at Master of Orion's idle DOS prompt, then 0.70% in U.S. Navy
   Fighters, and on 0.21% or less in every other run.
 
 ## test386.asm

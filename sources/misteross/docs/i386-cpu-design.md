@@ -1953,8 +1953,8 @@ and the L1D's wait (+3.74 ns). The DTLB instead compares in parallel:
   frame at FFFF0000h–FFFFFFFFh becomes the F0000h shadow's page, as the
   reset alias does now), U/S and R/W combined
   from PDE and PTE, and D. Sixteen entries miss on at most 0.47% of data
-  accesses in every run (Angband), below 0.1% in seven of the twelve, and
-  on 0.033% of Wolfenstein 3D's under JEMM386.
+  accesses in every run (Angband), 0.12% or less in seven of the twelve,
+  and 0.035% of Wolfenstein 3D's under JEMM386.
 - **The lookup.** M1 compares each entry's linear page with its address
   register. In parallel, it compares each of the four L1D tags, the M10K
   output, with each entry's physical page, bit 20 masked by A20M (a gate on
@@ -2019,7 +2019,7 @@ eight replicated hit sets.
   replicated page registers in place of today's `phys()` of the address. A current-page register alone
   would miss on up to 12% of instructions (CWSDPMI's hot loop spans three
   pages). Eight entries miss on at most 1.1% (Master of Orion's idle DOS
-  prompt), 0.65% in U.S. Navy Fighters, and 0.21% or less in every other
+  prompt), 0.70% in U.S. Navy Fighters, and 0.21% or less in every other
   run.
 - **A miss** holds F2's block as an L1I miss does, and the walker fills an
   entry.
