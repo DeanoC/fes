@@ -875,19 +875,17 @@ f5b:    mov ah, 0xa4                    ; alternate map register sets
 .set:   mov ah, 0x9c                    ; 01h: only set 0, from the caller's save area
         cmp byte [bp + F_BX], 0
         jne .done
-        mov ax, [bp + F_DI]
-        mov [alt_ptr], ax
         mov ax, [bp + F_ES]
-        mov [alt_ptr + 2], ax
         or ax, [bp + F_DI]
-        jz .ok
+        jz .keep                        ; 0:0: no save area
         push ds
         mov ds, [bp + F_ES]
         mov si, [bp + F_DI]
         mov ecx, [si]
         pop ds
-        call valid_map
+        call valid_map                  ; a rejected save area leaves the old one
         jc .done
+        call .keep
         push ecx
         mov si, sp
         push ds
@@ -899,6 +897,12 @@ f5b:    mov ah, 0xa4                    ; alternate map register sets
 .ok:    xor ah, ah
 .done:  ret
 .size:  mov word [bp + F_DX], 4
+        xor ah, ah
+        ret
+.keep:  mov ax, [bp + F_DI]             ; record the caller's ES:DI as set 0's save area
+        mov [alt_ptr], ax
+        mov ax, [bp + F_ES]
+        mov [alt_ptr + 2], ax
         xor ah, ah
         ret
 .others:

@@ -25,7 +25,8 @@
 ;             pages than the board, 84h for function 55h
 ;   os        5Dh hands out a key on its first call and 01h then refuses 59h
 ;             and 5Bh (A4h) until 00h with the key; 5B01h's save area comes
-;             back from 5B00h with the current map in it; 5B06h answers 9Eh
+;             back from 5B00h with the current map in it, and one with a bad
+;             map is refused (A3h) and not kept; 5B06h answers 9Eh
 ;             (no dedicated DMA); 02h takes the key back
 ;   free      45h returns every page
 ;
@@ -574,6 +575,24 @@ os:     mov si, n_os
         jne .bad
         cmp byte [save_area], 0xff      ; frame page 0 is mapped now
         je .bad
+        mov byte [step], 11
+        push ds                         ; a save area with a bad map is refused and not kept
+        pop es
+        mov di, bad_area
+        mov ax, 0x5b01
+        xor bl, bl
+        int 0x67
+        cmp ah, 0xa3
+        jne .bad
+        mov byte [step], 12
+        xor di, di
+        mov es, di
+        mov ax, 0x5b00
+        int 0x67
+        test ah, ah
+        jnz .bad
+        cmp di, save_area
+        jne .bad
         mov byte [step], 8
         push ds                         ; back to no save area
         pop es
@@ -726,6 +745,7 @@ current:    dw 0
 handle:     dw 0
 key:        dd 0
 save_area:  dd 0
+bad_area:   db 0x80, 0x80, 0x80, 0x80   ; board pages past a 128-page board
 frame_seg:  dw 0
 region:     times 18 db 0
 buffer:     times 64 db 0
