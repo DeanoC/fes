@@ -568,6 +568,11 @@ test('hard-disk entry shows the inferred geometry and overrides it through disk-
   assert.deepEqual(puts[1],{expected_package_id:A,expected_media_id:M,geometry:null});
   assert.match(f.controller.snapshot().message,/restored to the partition table/);
   assert.deepEqual([nodes['core-disk-cylinders'].value,nodes['core-disk-heads'].value],['130','16']);
+  // Without this visit's import response the inferred geometry is unknown,
+  // so the panel does not claim the image will launch.
+  f.controller.discardMedia();
+  assert.match(nodes['core-disk-geometry-status'].textContent,/^No override; the next launch infers geometry from the partition table and refuses the image if it cannot\./);
+  assert.doesNotMatch(nodes['core-disk-geometry-status'].textContent,/Next launch uses/);
 });
 test('media label states the host limit of the selected route',async()=>{
   const f=fixture();

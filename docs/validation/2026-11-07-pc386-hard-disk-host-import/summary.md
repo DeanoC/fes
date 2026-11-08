@@ -75,8 +75,8 @@ logged FREE. Runners are in `~/fes-scratch/hd1541`.
 
 - The panel knows the inferred geometry only for an image imported during
   this panel visit, because the host keeps no inferred geometry on the entry.
-  An entry selected later shows its override, or says it launches with the
-  partition table's geometry.
+  An entry selected later shows its override, or says its geometry is
+  unchecked until launch infers it or the image is imported again.
 - "From host drive" still stops at 32 MiB: `ui_storage.js` checks 32 MiB, and
   `storage.MaxFileBytes` sets the same limit on the server. So a disk image on
   a saved host drive cannot be imported from there. Raising that limit for

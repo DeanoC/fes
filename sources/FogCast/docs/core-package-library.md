@@ -855,8 +855,11 @@ imports it through this route, and the media label shows the route's limit.
 Once a hard-disk image is selected for the entry, the Hard-disk geometry
 fields show the entry's override or, for an image imported in this panel
 visit, the geometry its partition table implies (the host keeps no inferred
-geometry on the entry). Override disk geometry saves the fields; Use partition
-table geometry sends `geometry: null`.
+geometry on the entry). For an entry without an override whose image was not
+imported in this visit, the panel says the geometry is unchecked: launch
+infers it and refuses an image whose partition table implies none. Override
+disk geometry saves the fields; Use partition table geometry sends
+`geometry: null`.
 
 At launch the host stages the image on the kit by SHA-256 (`POST
 /v1/library/disk-images/probe` and, only when the kit lacks it,

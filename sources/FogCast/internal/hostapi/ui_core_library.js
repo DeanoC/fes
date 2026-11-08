@@ -613,8 +613,13 @@
           for (const [field, id] of Object.entries(fields)) byId(id).value = shown ? String(shown[field]) : '';
         }
         byId('core-disk-geometry-status').textContent = !disk ? 'Select an imported hard-disk image for an entry to set its geometry.' :
-          (disk.override ? 'Next launch uses the override ' + chs(disk.override) + ' (cylinders/heads/sectors).' : 'Next launch uses the geometry from the partition table.') +
-          (disk.inferred ? ' Partition table implies ' + chs(disk.inferred) + '.' : disk.error ? ' Partition table implies none: ' + disk.error + '. Set an override to launch.' : '');
+          (disk.override ? 'Next launch uses the override ' + chs(disk.override) + ' (cylinders/heads/sectors).' +
+            (disk.inferred ? ' Partition table implies ' + chs(disk.inferred) + '.' : disk.error ? ' Partition table implies none: ' + disk.error + '.' : '') :
+          disk.inferred ? 'Next launch uses the geometry from the partition table. Partition table implies ' + chs(disk.inferred) + '.' :
+          disk.error ? 'Partition table implies no geometry: ' + disk.error + '. Set an override to launch.' :
+          // The host keeps no inferred geometry on the entry, so an image not
+          // imported in this visit has not been checked.
+          'No override; the next launch infers geometry from the partition table and refuses the image if it cannot. Import the image again to check it, or set an override.');
         for (const id of [...Object.values(fields), 'core-disk-geometry-save']) byId(id).disabled = state.busy || state.loading || !disk;
         byId('core-disk-geometry-infer').disabled = state.busy || state.loading || !disk || !disk.override;
       }
