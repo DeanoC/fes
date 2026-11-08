@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/DeanoC/fes/platform/embedded/tamago/input"
+	"github.com/DeanoC/fes/platform/embedded/tamago/usb"
 )
 
 type control struct {
@@ -38,6 +39,10 @@ type controller struct {
 	request                      *control
 	address                      uint32
 	configured, protocol         bool
+	repeatIdle                   bool
+	idleRate                     time.Duration
+	nextIdle                     time.Time
+	lastBoot                     []byte
 	device, configuration        []byte
 	reportDescriptor             []byte
 	reportFetched                bool
@@ -210,7 +215,7 @@ func (c *controller) setup(data []byte) {
 			panic("invalid configuration")
 		}
 	case 11, 10:
-		if !c.configured || r.typ != 0x21 || r.index != 0 || r.value != 0 {
+		if !c.configured || r.typ != 0x21 || r.index != 0 || (r.request == 11 && r.value != 0) || (r.request == 10 && r.value != 25<<8) {
 			panic("invalid boot HID request")
 		}
 	default:
@@ -236,6 +241,9 @@ func (c *controller) finishControl() {
 	case 9:
 		c.configured = true
 		c.reportPID = 0
+	case 10:
+		c.idleRate = time.Duration(r.value>>8) * 4 * time.Millisecond
+		c.nextIdle = c.tick.Add(c.idleRate)
 	case 11:
 		c.protocol = true
 	}
@@ -246,12 +254,21 @@ func (c *controller) receive() {
 		if !c.configured || (!c.protocol && !c.reportFetched) || c.active.pid != c.reportPID {
 			panic("invalid interrupt state/toggle")
 		}
+		if len(c.reports) == 0 && c.repeatIdle && c.idleRate > 0 && !c.tick.Before(c.nextIdle) {
+			state := c.lastBoot
+			if state == nil {
+				state = make([]byte, 8)
+			}
+			c.reports = append(c.reports, bytes.Clone(state))
+		}
 		if len(c.reports) == 0 {
 			c.regs[hcint] = 1 << 4
 			return
 		}
 		data := c.reports[0]
 		c.reports = c.reports[1:]
+		c.lastBoot = bytes.Clone(data)
+		c.nextIdle = c.tick.Add(c.idleRate)
 		c.reportPID ^= 2
 		c.complete(data, true)
 		return
@@ -492,5 +509,43 @@ func TestControlNAKsAndFullSpeed64BytePackets(t *testing.T) {
 	c.reports = [][]byte{{0, 0, 4, 0, 0, 0, 0, 0}}
 	if report(t, h)[2] != 4 {
 		t.Fatal("lost input after control retries")
+	}
+}
+
+func TestKeyboardIdleDeliversRealNeutralAndHeldSnapshotsWithoutRepeatEdges(t *testing.T) {
+	c := newController()
+	c.repeatIdle = true
+	h := open(t, c)
+	if c.idleRate != 100*time.Millisecond || len(c.requests) != 8 {
+		t.Fatal("keyboard idle request missing", c.idleRate, c.requests)
+	}
+	// The device supplies its current all-up state without a synthetic host
+	// release or an initial human key press.
+	for range 10 {
+		if got, err := h.PollKeyboard(); err != nil || got != nil {
+			t.Fatal("idle snapshot arrived before its device deadline", got, err)
+		}
+	}
+	c.tick = c.nextIdle // Advance the independent device clock, not a host bound.
+	if got := report(t, h); !bytes.Equal(got, make([]byte, 8)) {
+		t.Fatal("idle device did not supply its released state", got)
+	}
+	var decoder usb.BootKeyboard
+	if _, err := decoder.Feed(make([]byte, 8)); err != nil {
+		t.Fatal(err)
+	}
+	c.reports = [][]byte{{0, 0, 40, 0, 0, 0, 0, 0}}
+	pressed := report(t, h)
+	events, err := decoder.Feed(pressed)
+	if err != nil || len(events) != 1 || !events[0].Pressed || events[0].Usage != 40 {
+		t.Fatal("first intentional press lost", events, err)
+	}
+	c.tick = c.nextIdle
+	if events, err = decoder.Feed(report(t, h)); err != nil || len(events) != 0 {
+		t.Fatal("periodic held snapshot became a repeat press", events, err)
+	}
+	c.reports = [][]byte{make([]byte, 8)}
+	if events, err = decoder.Feed(report(t, h)); err != nil || len(events) != 1 || events[0].Pressed {
+		t.Fatal("release lost", events, err)
 	}
 }

@@ -17,11 +17,14 @@ func TestProgramInputActionDistinguishesStartupSources(t *testing.T) {
 		name, uart, source string
 		report             []byte
 		buffer             bool
+		neutral            bool
 	}{
 		{name: "idle", report: make([]byte, 8)},
 		{name: "serial-return", uart: "\r", report: make([]byte, 8), source: "uart"},
-		{name: "first-usb-return", report: []byte{0, 0, 40, 0, 0, 0, 0, 0}, source: "usb-boot-keyboard"},
-		{name: "buffered-usb-return", report: []byte{0, 0, 40, 0, 0, 0, 0, 0}, source: "usb-boot-keyboard", buffer: true},
+		{name: "held-first-usb-return", report: []byte{0, 0, 40, 0, 0, 0, 0, 0}},
+		{name: "buffered-held-usb-return", report: []byte{0, 0, 40, 0, 0, 0, 0, 0}, buffer: true},
+		{name: "fresh-usb-return", report: []byte{0, 0, 40, 0, 0, 0, 0, 0}, source: "usb-boot-keyboard", neutral: true},
+		{name: "buffered-fresh-usb-return", report: []byte{0, 0, 40, 0, 0, 0, 0, 0}, source: "usb-boot-keyboard", buffer: true, neutral: true},
 		{name: "text", uart: "abxyz", report: []byte{0, 0, 4, 0, 0, 0, 0, 0}},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
@@ -40,6 +43,9 @@ func TestProgramInputActionDistinguishesStartupSources(t *testing.T) {
 				t.Fatal(err)
 			}
 			source := &programKeyboardReports{reports: [][]byte{tc.report}}
+			if tc.neutral {
+				source.reports = append([][]byte{make([]byte, 8)}, source.reports...)
+			}
 			p, err := NewProgramInputPlatform(base, b, source)
 			if err != nil {
 				t.Fatal(err)
@@ -83,7 +89,7 @@ func TestProgramInputActionGamepadAndEmissionFailure(t *testing.T) {
 		_, err := output.Write(raw)
 		return err
 	})
-	source := &programPadReports{reports: [][]byte{padReport(128, 128, 1)}}
+	source := &programPadReports{reports: [][]byte{padReport(128, 128, 0), padReport(128, 128, 1)}}
 	p, err := NewProgramGamepadPlatform(base, b, source, gamepadDescriptor(t), input.GamepadButtons{Confirm: 1, Back: 2}, gamepadKeys())
 	if err != nil {
 		t.Fatal(err)

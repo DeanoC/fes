@@ -270,7 +270,10 @@ func (h *Host) discover() (err error) {
 		if _, err := h.request(0x21, 11, 0, uint16(h.config.Interface), 0); err != nil {
 			return err
 		}
-		if _, err := h.request(0x21, 10, 0, uint16(h.config.Interface), 0); err != nil {
+		// HID idle units are4ms. Request real snapshots every100ms so a
+		// released keyboard can arm menu/core input without a discarded press.
+		// Repeated snapshots remain edges only in the higher-level decoder.
+		if _, err := h.request(0x21, 10, 25<<8, uint16(h.config.Interface), 0); err != nil {
 			return err
 		}
 	}

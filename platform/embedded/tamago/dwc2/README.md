@@ -14,7 +14,14 @@ and resets the root port, then enumerates one boot keyboard, directly or through
 tree. High-speed hubs use transaction translators for low/full-speed children. PHY and VBUS electrical operation remain untested on Nano.
 
 Control transfers perform SET_ADDRESS, descriptor discovery, SET_CONFIGURATION,
-SET_PROTOCOL and SET_IDLE. The host uses bounded, single-packet transactions
+SET_PROTOCOL and SET_IDLE. Boot keyboards use a100ms nonzero idle duration
+(25 four-millisecond units, report ID0), so the device supplies actual current
+snapshots even without a key change. The menu/core release fence can therefore
+arm from an idle keyboard without discarding a user's first press. Duplicate
+held snapshots produce no new key edge; NAK is still not a release. The endpoint
+poll interval and existing transfer/startup bounds remain. This uses the
+[HID1.11 Set_Idle contract, section7.2.4](https://www.usb.org/sites/default/files/hid1_11.pdf).
+The host uses bounded, single-packet transactions
 with endpoint data toggles and explicit channel retirement. Interrupt polling
 never waits for device input: a fixed amount of FIFO/status work advances a
 pending transfer, NAK retains the data toggle, and the endpoint interval gates

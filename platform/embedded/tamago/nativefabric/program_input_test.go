@@ -31,7 +31,7 @@ func TestProgramInputRoutesMenuAndCoreAcrossReturn(t *testing.T) {
 		t.Fatal("duplicate source owner", err)
 	}
 	ctx := context.Background()
-	source.reports = [][]byte{{0, 0, 40, 0, 0, 0, 0, 0}}
+	source.reports = [][]byte{make([]byte, 8), {0, 0, 40, 0, 0, 0, 0, 0}}
 	frame, err := p.Next(ctx)
 	if err != nil || len(frame.Commands) != 1 || frame.Commands[0] != tenfoot.CmdSelect || f.cpu.keyboardWrites != 0 {
 		t.Fatal("menu route", frame, err)

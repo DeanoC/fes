@@ -91,7 +91,9 @@ func newProgramInputPlatform(base tenfoot.Platform, backend *ProgramBackend, con
 	}
 	backend.inputAttached = true
 	backend.inputPolling = control
-	return &ProgramInputPlatform{base: base, backend: backend, menuArmed: backend.service.Status().Generation == 0}, nil
+	// A held control at boot is not a new menu press. Startup uses the same
+	// real neutral-report fence as return; a missing report never arms input.
+	return &ProgramInputPlatform{base: base, backend: backend}, nil
 }
 
 func (p *ProgramInputPlatform) Next(ctx context.Context) (tenfoot.PlatformInput, error) {

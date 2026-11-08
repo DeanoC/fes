@@ -30,6 +30,7 @@ type menuDeadlineReports struct {
 	started   time.Time
 	next      int
 	polls     int
+	initial   bool
 }
 
 func (s *menuDeadlineReports) PollKeyboard() ([]byte, error) {
@@ -39,6 +40,10 @@ func (s *menuDeadlineReports) PollKeyboard() ([]byte, error) {
 	}
 	tick := *s.now
 	s.last = &tick
+	if !s.initial {
+		s.initial = true
+		return make([]byte, 8), nil // Real initial neutral state precedes the scheduled presses.
+	}
 	if s.next >= 3 || s.now.Sub(s.started) < time.Duration(s.next+1)*300*time.Millisecond {
 		return nil, nil
 	}
@@ -112,7 +117,7 @@ func TestProgramMenuBufferedInputCannotCrossLaunchReturnOrPreflight(t *testing.T
 				t.Fatal(err)
 			}
 			ctx := context.Background()
-			source.reports = [][]byte{{0, 0, 20, 0, 0, 0, 0, 0}}
+			source.reports = [][]byte{make([]byte, 8), {0, 0, 20, 0, 0, 0, 0, 0}}
 			if err = p.serviceMenuInput(ctx); err != nil || len(p.pending) != 1 {
 				t.Fatal("menu edge not buffered", err)
 			}
@@ -149,7 +154,7 @@ func TestProgramMenuGamepadBuffersDistinctPressEdges(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	source.reports = [][]byte{padReport(128, 128, 1), padReport(128, 128, 0), padReport(128, 128, 1)}
+	source.reports = [][]byte{padReport(128, 128, 0), padReport(128, 128, 1), padReport(128, 128, 0), padReport(128, 128, 1)}
 	if err = p.serviceMenuInput(context.Background()); err != nil {
 		t.Fatal(err)
 	}
@@ -182,6 +187,7 @@ func TestProgramMenuInputFailureRetiresWithoutReplay(t *testing.T) {
 				source.err = errors.New("device disconnected")
 			}
 			if fault == "overflow" {
+				source.reports = append(source.reports, make([]byte, 8))
 				for range maxProgramMenuEvents + 1 {
 					source.reports = append(source.reports, []byte{0, 0, 40, 0, 0, 0, 0, 0}, make([]byte, 8))
 				}

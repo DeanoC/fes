@@ -899,10 +899,14 @@ qualifying the PHY/host/hub and verifying playable input remain separate work.
 `ProgramInputPlatform` now connects that binding to the actual `tenfoot.Platform`
 loop. One source supplies menu commands while Ready and complete core snapshots
 while Running. Backend ownership remains locked across classification and report
-processing; loading/returning never route reports. Return resets the menu
-reader and requires an all-keys-up report before shortcuts resume. This can
-require an extra press/release when a device sends reports only on changes;
-physical handoff behavior still needs qualification.
+processing; loading/returning never route reports. Both first startup and
+return require a valid neutral report before accepting a fresh menu press.
+A held startup control, a repeated held report, NAK, rollover or held modifier
+cannot arm shortcuts. Return resets the menu reader and uses the same fence.
+The Nano DWC2 keyboard driver requests real100ms idle snapshots so a released
+keyboard can arm without an extra user press; other change-only sources may
+still need a release report. Physical startup/handoff behavior on a rebuilt
+matched image still needs qualification.
 
 A source implementing `input.PollingControl` is drained and paused before each
 accepted launch/return and resumed afterward. The Nano owned USB sources expose

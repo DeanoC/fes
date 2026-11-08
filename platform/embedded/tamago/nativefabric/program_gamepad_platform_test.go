@@ -46,7 +46,7 @@ func TestProgramGamepadPlatformMenuCoreAndReturnFences(t *testing.T) {
 		t.Fatal("second source accepted", err)
 	}
 	ctx := context.Background()
-	source.reports = [][]byte{padReport(128, 128, 1)}
+	source.reports = [][]byte{padReport(128, 128, 0), padReport(128, 128, 1)}
 	frame, err := p.Next(ctx)
 	if err != nil || len(frame.Commands) != 1 || frame.Commands[0] != tenfoot.CmdSelect || f.cpu.keyboardWrites != 0 {
 		t.Fatal(frame, err)
