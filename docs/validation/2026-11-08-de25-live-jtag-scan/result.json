@@ -1,0 +1,189 @@
+{
+  "status": "passed",
+  "scope": "single forced live JTAG chain scan only",
+  "source_commit": "99c819275546d7e8bd12021ca42387c90420c19e",
+  "board": "TRWU8CBL",
+  "clock_hz": 6000000,
+  "jtag_id": "4362C0DD",
+  "instruction_bits": 10,
+  "forced_scans_completed": 1,
+  "original_cache_probe_passed": false,
+  "original_cache_probe_forced_scans": 0,
+  "mock_api_cases": 17,
+  "programming_attempted": false,
+  "hps_reset_attempted": false,
+  "sd_write_attempted": false,
+  "bottom_kit_touched": false,
+  "prior_image_programming_attempts": 2,
+  "programming_allowance_remaining": 0,
+  "programming_failure_explained": false,
+  "core_load_acceptance": false,
+  "clock_restored": "15M",
+  "host_cleanup_audited": true,
+  "private_servers_gone": true,
+  "uart_owners": [],
+  "claim_retained": true,
+  "primary_sources": {
+    "upstream_commit": "5d9c7824204d1de343071ec28a4363d65156e61e",
+    "files": {
+      "src/h/aji.h": {
+        "url": "https://raw.githubusercontent.com/intel/libaji_client/5d9c7824204d1de343071ec28a4363d65156e61e/src/h/aji.h",
+        "bytes": 105218,
+        "sha256": "ee15299c0bbb064c4e4768be525d07db4910306ec07e2224084d80292ba75c0f"
+      },
+      "src/jtag/jtagconfig.cpp": {
+        "url": "https://raw.githubusercontent.com/intel/libaji_client/5d9c7824204d1de343071ec28a4363d65156e61e/src/jtag/jtagconfig.cpp",
+        "bytes": 47160,
+        "sha256": "08c620bb453b7b27c535eb9b1867430bfb74875d7610101b05887e2a9e26fa10"
+      },
+      "src/jtag/jtag_client_chain.cpp": {
+        "url": "https://raw.githubusercontent.com/intel/libaji_client/5d9c7824204d1de343071ec28a4363d65156e61e/src/jtag/jtag_client_chain.cpp",
+        "bytes": 61827,
+        "sha256": "2a7b162fe237726337c29c8d871577180e5d47bf0a2454a16ae4625c73e54096"
+      },
+      "src/jtag/jtag_client_aji.cpp": {
+        "url": "https://raw.githubusercontent.com/intel/libaji_client/5d9c7824204d1de343071ec28a4363d65156e61e/src/jtag/jtag_client_aji.cpp",
+        "bytes": 26580,
+        "sha256": "3705bbbd9d0e58fe6f0e124ed4c0eb42afc67e9081db17063b9b5421784c3f77"
+      },
+      "src/h/aji_sys.h": {
+        "url": "https://raw.githubusercontent.com/intel/libaji_client/5d9c7824204d1de343071ec28a4363d65156e61e/src/h/aji_sys.h",
+        "bytes": 6551,
+        "sha256": "63969250c0c5d3bafb58ebf53ad304490fb2b6cb0882ff5570d30666652c5007"
+      },
+      "src/h/aji_macros_sys.h": {
+        "url": "https://raw.githubusercontent.com/intel/libaji_client/5d9c7824204d1de343071ec28a4363d65156e61e/src/h/aji_macros_sys.h",
+        "bytes": 18685,
+        "sha256": "66f82c69651075d800f034d47a780ff492b86eaf0764ab137a4d44faa105a1a4"
+      },
+      "src/h/aji_glibc_sys.h": {
+        "url": "https://raw.githubusercontent.com/intel/libaji_client/5d9c7824204d1de343071ec28a4363d65156e61e/src/h/aji_glibc_sys.h",
+        "bytes": 2454,
+        "sha256": "546e37136c5a84a082beaa89d97fa8c9da7c1de90dd898604829da3148e56ee3"
+      },
+      "src/h/win_type_sys.h": {
+        "url": "https://raw.githubusercontent.com/intel/libaji_client/5d9c7824204d1de343071ec28a4363d65156e61e/src/h/win_type_sys.h",
+        "bytes": 11130,
+        "sha256": "e996423055316f4d26af486256e1c7527cf1a9db1b653a03bcadcd3b8cdaff00"
+      }
+    }
+  },
+  "independent_audit": {
+    "status": "passed",
+    "classification": "independent audit of one successful forced live scan and preserved earlier cache-precondition failure",
+    "probes": [
+      {
+        "stage": "nano-jtag-live-scan-20261108",
+        "original_helper_passed": false,
+        "forced_scan_codes": [],
+        "calls": [
+          [
+            "find",
+            "0"
+          ],
+          [
+            "name",
+            "0"
+          ],
+          [
+            "lock",
+            "0"
+          ],
+          [
+            "clock",
+            "0"
+          ],
+          [
+            "cached-before",
+            "38"
+          ],
+          [
+            "unlock",
+            "0"
+          ]
+        ],
+        "loaded_library_current_sha256": {
+          "/data/altera_pro/26.3/quartus/linux64/libaji_client.so.0.0.0": "1deb012dce66d7ffd29400c204a6f44b32458d376067321157076f94dbd1dd59"
+        },
+        "evidence_sha256": {
+          "out/nano-jtag-live-scan-20261108/source.json": "9ae0793f4013f46b7add6d06f8c5a8c4898159d47aa99ad5c9bf3851953983f1",
+          "out/nano-jtag-live-scan-20261108/result.json": "8e2ee35ae2034ff8f072710b9362dd8e1d613d211439a82d2442911a48c5de20",
+          "out/nano-jtag-live-scan-20261108/trial/transport.json": "09de92c022ea0163c4ab5794c10c87a759082edefb9ef36117c4cbcdfb590cf6",
+          "out/nano-jtag-live-scan-20261108/trial/forced-scan.log": "e7278b98afa03e614410f37808c93cdc841fa884cfc9d10a0b13bb36282cad95",
+          "out/nano-jtag-live-scan-20261108/trial/clock-restored-readback.log": "21907e41f81503660da9692b0242f004cb3ab449c740885a82c4e1b357ed6b18"
+        }
+      },
+      {
+        "stage": "nano-jtag-live-scan-v2-20261108",
+        "original_helper_passed": true,
+        "forced_scan_codes": [
+          "0"
+        ],
+        "calls": [
+          [
+            "find",
+            "0"
+          ],
+          [
+            "name",
+            "0"
+          ],
+          [
+            "lock",
+            "0"
+          ],
+          [
+            "clock",
+            "0"
+          ],
+          [
+            "forced-scan",
+            "0"
+          ],
+          [
+            "cached-after",
+            "0"
+          ],
+          [
+            "unlock",
+            "0"
+          ]
+        ],
+        "loaded_library_current_sha256": {
+          "/data/altera_pro/26.3/quartus/linux64/libaji_client.so.0.0.0": "1deb012dce66d7ffd29400c204a6f44b32458d376067321157076f94dbd1dd59"
+        },
+        "evidence_sha256": {
+          "out/nano-jtag-live-scan-v2-20261108/source.json": "7204aca707efee2419c875c99b9d725ff337e55a3f573207bb2096d8e4e1835f",
+          "out/nano-jtag-live-scan-v2-20261108/result.json": "2bb05e2ef62ea9358cb22b24084ade9f5b83deeb679325c02d2875ce70ca3f77",
+          "out/nano-jtag-live-scan-v2-20261108/trial/transport.json": "7ff84572bbd9b739de5beb513a3b19b0b39fd8db4e876715b69eac900c747cc2",
+          "out/nano-jtag-live-scan-v2-20261108/trial/forced-scan.log": "9516ebe26fd59ea663e803561f279f3d6d92fe738f50c4c9c457dcb117736499",
+          "out/nano-jtag-live-scan-v2-20261108/trial/clock-restored-readback.log": "21907e41f81503660da9692b0242f004cb3ab449c740885a82c4e1b357ed6b18"
+        }
+      }
+    ],
+    "mock_cases": 17,
+    "usb_permissions_exact": true,
+    "private_servers_gone": true,
+    "uart_owners": [],
+    "clock_restoration": "15M saved readback, no additional query",
+    "audit_device_operations": false,
+    "image_programming_attempts_total": 2,
+    "programming_allowance_remaining": 0,
+    "programming_failure_explained": false,
+    "core_load_acceptance": false
+  },
+  "evidence_sha256": {
+    "out/nano-jtag-live-scan-v2-20261108/source.json": "7204aca707efee2419c875c99b9d725ff337e55a3f573207bb2096d8e4e1835f",
+    "out/nano-jtag-live-scan-v2-20261108/result.json": "2bb05e2ef62ea9358cb22b24084ade9f5b83deeb679325c02d2875ce70ca3f77",
+    "out/nano-jtag-live-scan-v2-20261108/audit-proof.json": "94040a847eff3a28f6c8b1d1b688adb38dc34ec9fcb61053364bb9870e1828cc",
+    "out/nano-jtag-live-scan-v2-20261108/probe-test-proof.json": "2e4a73d763d86f7c260541b982a1d6e0ce1747e93101363e7cdf2e18996ed186",
+    "out/nano-jtag-live-scan-v2-20261108/trial/forced-scan.log": "9516ebe26fd59ea663e803561f279f3d6d92fe738f50c4c9c457dcb117736499",
+    "out/nano-jtag-live-scan-v2-20261108/trial/transport.json": "7ff84572bbd9b739de5beb513a3b19b0b39fd8db4e876715b69eac900c747cc2"
+  },
+  "tracked_probe_sources": {
+    "audit.py": "6d873cab139f407e8e95d57440b77c597eeefe63bc9bc9d039521a112a7bf1ee",
+    "mock_aji.cpp": "0ff3725b31f11338c7f94e64be8b68d6e92de6bbc620fb997223cd21395b736c",
+    "scan_probe.cpp": "604f3c2a9c21f2e5de7c8867d62b73366f7ffc8b51369bce8088c0eb9c9139c9",
+    "test_probe.py": "6c00c0491c689eb709adfec9303e94ae22cb6adc348ff787c61b93b42b91da2d"
+  }
+}
