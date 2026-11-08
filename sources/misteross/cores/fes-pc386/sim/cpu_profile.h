@@ -58,6 +58,14 @@
 // clock Q did not issue is also counted by its reason as it happens (q),
 // whatever D did then: the bubbles D's waits hide today.
 //
+// Indirect targets: retire() keeps, for every indirect near CALL and JMP
+// site (CALL r/m, JMP r/m) since the start, the target it went to last and
+// the distinct targets it has gone to, and counts the retirements that went
+// to the site's last target again (rep): what a predictor that keeps each
+// site's last target, with room for every site, would predict. A BTB entry
+// can only do worse (two ways a set). sample() counts those the RTL's BTB
+// predicted (prof_pt) and those that redirected (prof_redir).
+//
 // A stage register is a packed pipe_t with valid in
 // its top bit, CPU_PROFILE_PIPE_MSB, which the bench build reads from the
 // Verilated model into cpu_profile_layout.h.
@@ -68,6 +76,7 @@
 #include <cstdio>
 #include <string>
 #include <unordered_map>
+#include <unordered_set>
 #include <utility>
 #include <vector>
 
@@ -159,6 +168,8 @@ struct CpuProfile {
     struct Shadow { uint8_t cls = A_NONE; bool ready = false, imm = false, w32 = false; };
     struct Counts { uint64_t n = 0, taken = 0, own = 0, next = 0; };
     struct Site { uint64_t n = 0, cycles = 0; uint8_t c = 0; };
+    struct IndLast { uint32_t last = 0; std::unordered_set<uint32_t> targets; };
+    struct IndSite { uint64_t n = 0, rep = 0; uint8_t c = 0; };
 
     uint64_t bucket[NBUCKET] = {};
     uint64_t commits = 0, flush_cycles = 0, redirects = 0, l1d_waits = 0, l1i_waits = 0, retired = 0, pm_retired = 0;
@@ -171,6 +182,10 @@ struct CpuProfile {
     // or predicted to another target).
     uint64_t br = 0, br_taken = 0, br_pt = 0, br_pt_taken = 0, fetch_replays = 0;
     uint64_t ret = 0, ret_pt = 0, ret_mis = 0;
+    // Indirect near CALLs and JMPs retired, those to their site's last
+    // target (see Indirect targets), and those the BTB predicted and those
+    // that redirected.
+    uint64_t ind_call = 0, ind_call_rep = 0, ind_jmp = 0, ind_jmp_rep = 0, ind_pt = 0, ind_mis = 0;
     uint64_t sampled = 0;   // clocks classified
     Counts cls[NCLASS];
     Agi agi[NAGI];
@@ -182,6 +197,8 @@ struct CpuProfile {
     uint8_t q_ctx = X_RD;
     bool q_jclr = false, q_l1i = false;
     std::unordered_map<uint32_t, Site> sites;  // this dump interval's, by linear start
+    std::unordered_map<uint32_t, IndLast> ind_last;   // every indirect site since the start
+    std::unordered_map<uint32_t, IndSite> ind_sites;  // this dump interval's
     CrtcFrameTracker crtc_frame;
     uint64_t last_retire = 0;
     int pending = -1;  // the class of a taken instruction whose target has not retired
@@ -257,7 +274,11 @@ struct CpuProfile {
         if (S(prof_ret)) {
             ++ret;
             ret_pt += S(prof_pt);
-            ret_mis += S(prof_ret_mis);
+            ret_mis += S(prof_redir);
+        }
+        if (S(prof_ind)) {
+            ind_pt += S(prof_pt);
+            ind_mis += S(prof_redir);
         }
         if (S(prof_frp)) ++fetch_replays;
         if (S(wb_flush)) ++flush_cycles;
@@ -435,17 +456,31 @@ struct CpuProfile {
         ++s.n;
         s.cycles += gap;
         s.c = uint8_t(c);
+        if (c == C_CALL_IND || c == C_JMP_IND) {
+            auto [it, first] = ind_last.try_emplace(start);
+            const bool rep = !first && it->second.last == next;
+            it->second.last = next;
+            it->second.targets.insert(next);
+            (c == C_CALL_IND ? ind_call : ind_jmp) += 1;
+            (c == C_CALL_IND ? ind_call_rep : ind_jmp_rep) += rep;
+            IndSite &i = ind_sites[start];
+            ++i.n;
+            i.rep += rep;
+            i.c = uint8_t(c);
+        }
     }
 
     // One snapshot: T (counters, and the uops in flight), B (buckets), A (the
     // AGI split), F (the front-end split, one per fe_bucket), Q (Q's
-    // reasons), C (one per class) and S (every site retired since the last
-    // dump) lines, each starting with the simulated time.
+    // reasons), C (one per class), S (every site retired since the last
+    // dump) and I (every indirect site retired since the last dump, with its
+    // distinct targets since the start) lines, each starting with the simulated time.
     void dump(FILE *out, uint64_t cycles, double seconds, unsigned in_flight) {
         std::fprintf(out, "T %.6f cycles=%llu sampled=%llu retired=%llu pm_retired=%llu commits=%llu flush_cycles=%llu "
                      "redirects=%llu l1d_waits=%llu l1i_waits=%llu frames=%llu polls_3da=%llu io=%llu prefixes=%llu "
                      "in_flight=%u br=%llu br_taken=%llu br_pt=%llu br_pt_taken=%llu fetch_replays=%llu "
-                     "ret=%llu ret_pt=%llu ret_mis=%llu q_taken=%llu q_tself=%llu\n",
+                     "ret=%llu ret_pt=%llu ret_mis=%llu q_taken=%llu q_tself=%llu ind_call=%llu ind_call_rep=%llu "
+                     "ind_jmp=%llu ind_jmp_rep=%llu ind_pt=%llu ind_mis=%llu\n",
                      seconds, (unsigned long long)cycles, (unsigned long long)sampled, (unsigned long long)retired,
                      (unsigned long long)pm_retired, (unsigned long long)commits, (unsigned long long)flush_cycles,
                      (unsigned long long)redirects, (unsigned long long)l1d_waits, (unsigned long long)l1i_waits,
@@ -453,7 +488,9 @@ struct CpuProfile {
                      (unsigned long long)prefixes, in_flight, (unsigned long long)br, (unsigned long long)br_taken,
                      (unsigned long long)br_pt, (unsigned long long)br_pt_taken, (unsigned long long)fetch_replays,
                      (unsigned long long)ret, (unsigned long long)ret_pt, (unsigned long long)ret_mis,
-                     (unsigned long long)q_taken, (unsigned long long)q_tself);
+                     (unsigned long long)q_taken, (unsigned long long)q_tself, (unsigned long long)ind_call,
+                     (unsigned long long)ind_call_rep, (unsigned long long)ind_jmp, (unsigned long long)ind_jmp_rep,
+                     (unsigned long long)ind_pt, (unsigned long long)ind_mis);
         std::fprintf(out, "B %.6f", seconds);
         for (int b = 0; b < NBUCKET; ++b) std::fprintf(out, " %s=%llu", bucket_name[b], (unsigned long long)bucket[b]);
         std::fprintf(out, "\n");
@@ -483,6 +520,14 @@ struct CpuProfile {
             std::fprintf(out, "S %.6f %08x %s n=%llu cycles=%llu\n", seconds, at, class_name[s.c],
                          (unsigned long long)s.n, (unsigned long long)s.cycles);
         sites.clear();
+        std::vector<std::pair<uint32_t, IndSite>> ind(ind_sites.begin(), ind_sites.end());
+        std::sort(ind.begin(), ind.end(), [](const auto &a, const auto &b) {
+            return a.second.n != b.second.n ? a.second.n > b.second.n : a.first < b.first;
+        });
+        for (const auto &[at, i] : ind)
+            std::fprintf(out, "I %.6f %08x %s n=%llu rep=%llu targets=%zu\n", seconds, at, class_name[i.c],
+                         (unsigned long long)i.n, (unsigned long long)i.rep, ind_last[at].targets.size());
+        ind_sites.clear();
         std::fflush(out);
     }
 };

@@ -1,0 +1,434 @@
+{
+ "common": {
+  "issue": 1529,
+  "kit": "B",
+  "package_id": "87fd8149c09a7e319092c56802b891039a118dfe0378d302a6543bcf841659fc",
+  "archive_sha256": "19fd34ec5d193e2e8c6b7723ea86b02bb9e8f76bd4febf2a77c88a0759b224d8",
+  "rbf_sha256": "94b3c222bee23d24fd027a8c908d90aa9f53eae9b01db648e655f8b1d7ac0222",
+  "producer_commit": "bb87b9b657bf9f1826dd1b9e001736e7bd8484ee",
+  "selected_for_main": "607922c63d45f798dd3f6fb0ce443f346c324852",
+  "selection": {
+   "toml_sha256": "8c427a5dddeda7daa1cdb5985b9021aa19b7001e42bace302ac85107d460b6f9",
+   "provenance_sha256": "979512221211417496d9881df6d44b2feaa92a42c8830a38b63a9f91b48a1a87",
+   "prepared_json_sha256": "cb9f86111709dc408b6b6ce9614c9f204ca30aba8ce56dacfd8c30ba9c7e20a9",
+   "cache": "FES_ARTIFACT_CACHE_ROOT=/data/deano-pcxt-short-smoke-b-v2/cache/core-packages (cache-only; build disabled)"
+  },
+  "baseline": {
+   "software": "a8cd30c49afd79eb7668af7ab7ae8a8e2ed2a90a31b25f164e28128b446274ee",
+   "software_main": "bb51f4454eb72048cefeea16aa16b28eb2aadaad",
+   "image": "f904961e008a972db8f06f1bb47aff9631123d67215b9f4157ea1fbee83b98d4",
+   "install": "none (core-only, no image change, no reboot)"
+  },
+  "active_interfaces": [
+   "fes.computer 1.1",
+   "fes.audio.pcm-s16-stereo-48k 1.0",
+   "fes.keyboard.hid 1.0",
+   "fes.media.pcxt-floppy 1.0",
+   "fes.media.pcxt-floppy-write 1.0",
+   "fes.video.fixed-720p60 1.0"
+  ],
+  "launch_path": "agent /v1/library/core/load + /v1/library/media/insert (game id + base SHA-256) + /v1/library/media/save + /v1/stop; no host",
+  "capture": "Kit B 4KPRO 1920x1080 60 fps (clips stored 480x270 gray); ALSA hw:CARD=D4KPRO 48 kHz",
+  "base_com_disk_sha256": "ad4783e8b4decc6859df9389d374cb60ba55b735a0694901e48e02038aa67480",
+  "disks": {
+   "para": {
+    "title": "Paratrooper (1982)",
+    "zip_sha256": "43242ed79d07b8a540b143c8bc3876d584900cb6a8b49e57a0c7758ab962f416",
+    "files": {
+     "TROOPER.COM": "d709ddec8c38d385f60a13a16514d8bdcaddbda37429ec4c8ff5df4635009342"
+    },
+    "disk_sha256": "c34409032ce29ee25debdcae63b8446527c9473a2b2657cf586ff917b48e4fb0"
+   },
+   "cat": {
+    "title": "Alley Cat (1984)",
+    "zip_sha256": "bf6c5099cb835bcac47211e3a34fd6d5af6a2d294963317f3c9c6e365fb2793a",
+    "files": {
+     "CAT.EXE": "4979c8867826e08881d1d4bec95c95d6bc1ac70fd21050ccdb4f733a50d7bfdd"
+    },
+    "disk_sha256": "188045787914ab25f99894db72d9ddf5e57c814aee31b3ad4f8f1e4c029d299e"
+   },
+   "rogue": {
+    "title": "Rogue (1983)",
+    "zip_sha256": "ac3e503ceb6fe9d9553b2d38d708debf92679bdb2ecf95095cb1e76725811d9d",
+    "files": {
+     "ROGUE.EXE": "b658b121c5308726a76558ceed57b7c7a05925c6b817d6e7f429fb96b0f3f8bc"
+    },
+    "disk_sha256": "23974a9715ed92f5e4023b8fe42b9d034e48cf6718bf3fe64d604cd6ec2e202b"
+   },
+   "sop": {
+    "title": "Sopwith (1985)",
+    "zip_sha256": "acbd93eef0eaa27da95d07952bdd28ab4fe998fec06dd91e4773efdcf67090f8",
+    "files": {
+     "SOPWITH.EXE": "1e660495e71a2f44d3d074e9417e0269f8d02263e91e074172f29002e38d7806",
+     "SOPWITH0.DTA": "ceaefe027d89bbb78e51db103f3e72d4c952ef50f74b2a37b468144d0588663c"
+    },
+    "disk_sha256": "3710362db333565f7cb1ad6d8d476fd3b038601b94be29db4d2cb0f3e8082ed7"
+   }
+  },
+  "tools_sha256": {
+   "hil_xt.py": "52d61d38006eb8f83f024bf91e785c8f989b1129b66e8b5e11190d50753f2afc",
+   "run-xt.sh": "e48131ec4e760afa4b8b1638b1bd87c98115da0bc014e1b5e383ca1a095d7e61",
+   "mame_run.py": "91db1f23912f873faba5b5c7299e510da47d9c4a447e6730c0fea99b27a2bda8",
+   "heli.py": "27ffb330aa940aa8846428dc2cf40b82476c980cc2268f8daf72516b72ba9e87",
+   "tones.py": "9451021b15cdc561ec055992e52e411f6ef0b34d5f4770930da60109b3615b05",
+   "onsets.py": "5266252e842c88a27670fbe87f4839dca77213afeff1b9d1b3ba78a5c6c4383b",
+   "para_play.py": "7ce1f22068a0577f2393cd8aac1a5bb644a74b40ae437b599e44ee0be41bba21",
+   "para_play2.py": "90c7993fc39b896d97776638a00ea66f0e2b8c65b061146a2eba63a5c8a53811",
+   "cat_play.py": "3aacf5b9c905380ae4df09d1191ccda1124d663367e61ed8afec3d41e96db523"
+  },
+  "reference": {
+   "emulator": "MAME 0.276 (Debian mame 0.276+dfsg.1-1+deb13u1)",
+   "driver": "ibm5150, isa4 empty, default keytronic_pc3270 keyboard",
+   "deb_sha256": "6de36282082c0d64ee0c60202ff7eead84e4aff7c1643ccd15e77a52cdd338d0",
+   "roms_sha256": {
+    "ibm5150.zip": "adc0786b6a6dcfcff605d0212ee93005367f391487a081a01cb033168653e848",
+    "keytronic_pc3270.zip": "edaace9c31cae1f4562322bfcdf7622b95a754ead009dac639161e20d34e7de6",
+    "kb_pcxt83.zip": "0891b07e286be000f3177a01f26df1a176ed68efda3de73a95948be8b8eec0b7"
+   },
+   "replay": "same command list as the kit, on emulated time from 110 s after power-on"
+  }
+ },
+ "s1": {
+  "claimed": "2026-11-07 14:32 EET",
+  "released": "2026-11-07 15:03 EET",
+  "kit_new_paths": 2,
+  "cases": {
+   "com": "pass",
+   "save_readback": "pass",
+   "unsaved_stop": "pass (Stop saved the bound disk)",
+   "raw_insert": "pass (Save refused 409, write gone after relaunch)",
+   "paratrooper_run1": "pass"
+  },
+  "revisions": {
+   "after_explicit_save": "fb3942ae53d74370231160f0060b333d43126eaa96f92cdc59c397f8983ae924",
+   "after_unsaved_stop": "c78845c548b60336855867ffabbd90c684a124e618d97698ad3736fe989865fb"
+  },
+  "saved_record_sha256": "c78845c548b60336855867ffabbd90c684a124e618d97698ad3736fe989865fb",
+  "saved_image_diff_sectors": {
+   "1": "FAT1 3 bytes",
+   "3": "FAT2 3 bytes (FATs identical)",
+   "5": "root dir 36 bytes",
+   "312": "cluster 152 SAVED.TXT 23 bytes",
+   "314": "cluster 153 UNSAVED.TXT 12 bytes"
+  },
+  "paratrooper": {
+   "game_id": "xt1529-para",
+   "first_script": "para_play.py 600 1: game over within the first minute, attract screen for the rest (kept as a failed play attempt; cut after 9 min)",
+   "second_script": "para_play2.py 620 2: 10 min, space every 20 s restarts after a game over",
+   "scores_seen": [
+    12,
+    52,
+    11,
+    5,
+    30
+   ],
+   "hi_score": 52,
+   "clips": {
+    "p1-v1.gray": "ac49962ad86cddd1028f0a07aae09ad91dce9b18c7111886802503a9f6d86107",
+    "p1b-v2.gray": "f0112f978863812fb2fe612764f28f1aa50fd47b7738bc9226065cb551b7915a"
+   },
+   "audio": {
+    "p1-play.wav": "c04e97e25326889c40209593011ff7743ef6d64842637e183236f0dcc4410d6c",
+    "p1b-play.wav": "2cf32e0073522ba1b7e2414b9c64a9613446284f7911d744285335b447e4fd7d"
+   },
+   "helicopter_speed_cga_px_s": {
+    "kit_clip1": [
+     72.94,
+     72.97
+    ],
+    "kit_clip2": [
+     72.81,
+     72.9
+    ],
+    "mame": [
+     72.84,
+     72.83
+    ]
+   },
+   "move_period_frames": 3,
+   "kit_clip2_frames": 3553,
+   "tones_hz_kit_vs_mame": {
+    "919": [
+     920.72,
+     920.63
+    ],
+    "1377": [
+     1380.99,
+     1380.82
+    ],
+    "330": [
+     329.61,
+     329.61
+    ],
+    "440": [
+     439.98,
+     439.98
+    ]
+   },
+   "sounding_fraction": {
+    "kit": 0.376,
+    "mame": 0.366
+   }
+  },
+  "frames_sha256": {
+   "p1-v1.gray": "ac49962ad86cddd1028f0a07aae09ad91dce9b18c7111886802503a9f6d86107",
+   "p1b-v2.gray": "f0112f978863812fb2fe612764f28f1aa50fd47b7738bc9226065cb551b7915a",
+   "p1-title.wav": "b02a321b0431a4bd223829495a5b66433d87f2453b9005fa265e4e36af33056a",
+   "p1-play.wav": "c04e97e25326889c40209593011ff7743ef6d64842637e183236f0dcc4410d6c",
+   "p1b-play.wav": "2cf32e0073522ba1b7e2414b9c64a9613446284f7911d744285335b447e4fd7d",
+   "result.json": "94571bf62daaea7850a03c993fbcae505bb50d08960e471ac897e7077aa00a08",
+   "acks.jsonl": "c6ce456d7abbc94c7e05701c903973329a982d92b77550e68c0335d1b0909e32",
+   "commands.jsonl": "7d45e02457e62f76a13f031067e0e92d4fe25b2286e6c2e11591e8f1d38f3464",
+   "fr/s1-com-ready.png": "8e3acd1d145bf3aab48f513e5408f63c0ad60bb2818d12d5ff4d1eb61070d74d",
+   "fr/s1-dir.png": "d9bce122d1271a60a7c592e5bdd84d521b2d2adbbfddec0e4eeede7f91ebe9af",
+   "fr/s1-readback.png": "f7d3b222113959ad23b97bc641777878d9a9fef2200946de2d6c41ff9efbb8dc",
+   "fr/s1-unsaved-written.png": "89ade53f85732202b9a022d95b8f307d9f9f50bbe4386c0a3bd69a6155ad6b7a",
+   "fr/s1-unsaved-after.png": "a03199da34f5985240635653901034d5b07104f9a07f926b53d9bf500771850b",
+   "fr/s1-raw-written.png": "0fb8621eef76a24e182dc407b78d79dff266ddae6550a3a2f49ee77435046b83",
+   "fr/s1-raw-after.png": "d70cca5d04fa38478cdb60dfa30420015e5457db4ba56868dd6d433c7a1ae1e9",
+   "fr/p1-instr.png": "0e81a8cbab1cd2f8d0d9c2902330074f0b71a1271706b7483463524a83fa2417",
+   "fr/p1b-play-01.png": "f9ed819bb5954a85f18506d3f9314bba222318c24c0434baba050b1a27d9b396",
+   "fr/p1b-play-02.png": "a0811757a724a47dc25dd4833db9a4f24de73c8f0bf511f2bfc5a4599505823c",
+   "fr/p1b-play-03.png": "5a1b68bdad1e7726c2b75e5fa95a8820107b5432070350be23fca8e5c411d3e2",
+   "fr/p1b-play-05.png": "478e26f5e4bddf3d20f67433a7d8b55af6ba5b2899bb29d1090338632f37566f",
+   "fr/p1b-play-06.png": "b33faee5e2ad772282578fec09ee4089b26708f2994e9aa669d616d1c8cb0995",
+   "fr/p1b-play-07.png": "e22f9e787185bd4fd7361e5b24f7400a592128fc7267c8da76e89c14219b8388",
+   "fr/p1b-play-08.png": "282fde02fc2206af2db9b591fe986cfae2275af07c8bccfcdd5d790584cd3606",
+   "fr/p1b-play-09.png": "cb392ede26654ce41c646c0426e8e7ed38fd81991df12b5991f7354cced6194e",
+   "fr/p1b-end.png": "7bd70356374fc6509891da80ae2aede9bf8533442cb34efa1ab461d7e78b5603",
+   "fr/p1-play-01.png": "50461af9d267ceaef29068b2909a90e8305dbcb55de07c9a31b8e440b5ae43e6",
+   "fr/p1-play-02.png": "50461af9d267ceaef29068b2909a90e8305dbcb55de07c9a31b8e440b5ae43e6",
+   "fr/p1-play-03.png": "da290743cf4cadc514e7b402cbd57e9a61b11c81fea0235636095e25c16074a8",
+   "fr/p1-play-04.png": "50461af9d267ceaef29068b2909a90e8305dbcb55de07c9a31b8e440b5ae43e6",
+   "fr/p1-play-05.png": "da290743cf4cadc514e7b402cbd57e9a61b11c81fea0235636095e25c16074a8",
+   "fr/p1-play-06.png": "f51636babf473865f4cfc7949e5191ecce1e50f6b850507c1119215cde0517d9",
+   "fr/p1-play-07.png": "da290743cf4cadc514e7b402cbd57e9a61b11c81fea0235636095e25c16074a8"
+  }
+ },
+ "s2": {
+  "claimed": "2026-11-07 15:22 EET",
+  "released": "2026-11-07 15:54 EET",
+  "kit_new_paths": 2,
+  "alley_cat": {
+   "game_id": "xt1529-cat",
+   "script": "cat_play.py 620 11 (10 min), then 3 min steered climbing",
+   "result": "movement, jumps, lives lost, a game over to the title and restarts; no window entered (score stayed 0), also not in MAME",
+   "audio": {
+    "c1-play.wav": "b9025c6cd9fcc279f5855a412b7e2b3d96b2caae057baad6306f4aa310e2ddaf",
+    "c1-title.wav": "f6be79d466d5b322ed94bbf8a65c1b02ed343e974bfc584cda84ea94477d104c"
+   },
+   "title_onsets_s": [
+    0.33,
+    0.33,
+    0.33,
+    0.33,
+    0.22,
+    0.11,
+    0.22,
+    0.33,
+    0.11,
+    0.11,
+    0.11,
+    0.44,
+    0.66,
+    0.66
+   ],
+   "title_onsets_match_within_s": 0.005,
+   "tones_kit": {
+    "2316": 155,
+    "4631": 104,
+    "1158": 97
+   },
+   "tones_mame": {
+    "4631": 145,
+    "2316": 140,
+    "7246": 95,
+    "1158": 59
+   },
+   "sounding_fraction": {
+    "kit": 0.167,
+    "mame": 0.155
+   }
+  },
+  "reset": {
+   "issue": 1534,
+   "ctrl_alt_del_in_game": "fail: black picture (all pixels 0, >60 s), repeating 523/698 Hz jingle",
+   "ctrl_alt_del_at_prompt": "fail: frozen screen, keys not echoed, same jingle",
+   "library_relaunch_after": "fail x3: Boot [WARM], Disk Boot Fail",
+   "saved_record_after": "a607c6d9b67e9494e82f639c197cd9f0923168cdf688ef24a617b8b0e8893559",
+   "saved_image_vs_base": "identical",
+   "recovery": "pass with workaround: no-floppy launch runs COLD POST; next library launch boots COLD",
+   "evidence_sha256": {
+    "fr/r-warm-3s.png": "4c6d2c8d8bbb3756757eacd65f2e662ac9a6f56594ea0e34760218bc21f02037",
+    "fr/r-warm-33s.png": "4c6d2c8d8bbb3756757eacd65f2e662ac9a6f56594ea0e34760218bc21f02037",
+    "fr/rr.png": "cebcd2a4a707051a356f148523485bb5b21c1b4c3a43ade43d37e3a25a8c1b44",
+    "fr/r4.png": "c629dff0bdc190c1f089cd6636608a737b47f8b7a08f6b5d36c9453974e63184",
+    "fr/r5.png": "c209ae5d6b7b21109611fe6efb999305cbdfcb627e0859b3d9fe9d8aec4a6c8f",
+    "fr/r6.png": "7202a79a6da8c50d900c294914d255678679df2361fd26b96650b109cb50f475",
+    "fr/r7c.png": "16b074e9d345453e199aa2c5a9c747a0e9e023e99c7037215f09095dbc7a5fe6",
+    "fr/r9.png": "03128b23ec36a0f423c3a642c4c43325225ccb3fa86118b0249ecbd930fcd74b",
+    "fr/r10.png": "a1a03cc7b1a953f2b297658c7371be21a91b224f9b24d3c7adc1b8923a48494b",
+    "c1-reset.wav": "4d87d95d384ace069c82e2e54a27a55959c63053687ef2b8c96df9eb34b68545",
+    "c1-reset2.wav": "7ee35a4916794c9479a3eece81f303305e5506d260328529dd6d034d2ad2d074",
+    "r8-hang.wav": "bad0bc2d5d9c3c04f88c84d92ad1c90498d5e18ab6bff3ccc7af1596821d5d03",
+    "r9.wav": "8a8cd94b2b4461d0e7757ae91711849f91b472a897e54d0033998ca6af8d82fc",
+    "r-probe-v.gray": "ffa5db132d625ec1e6427a0f028b1e7308fa62d46569b0c5429b6374c8a1f3fd"
+   }
+  }
+ },
+ "mame": {
+  "para2_session_wav": "9342fcb2b0c6a2001f80ad628a51b0c24a5ce9811d1ab5f48184a4c1adc74386",
+  "para2_clip_gray": "46a3a1b411cf587a4f867097b0929830803b25b5b9dff57966e07cb646648b1d",
+  "para1_session_wav": "5ab4a896dc4c5ba6ee21e7b2332e6fac712abc0a047eea5507c4e0bb48c9f605",
+  "cat1_session_wav": "8af4c9db9f1357b22f9ce50c519269872bc91c66e25e5b639705b93cf8f29854",
+  "cat1_clip_gray": "5f5a8f52fdb1b4eb58da3389085ae4d956b36a1c7a580795ad3d223b11b6a505"
+ },
+ "not_run": {
+  "sopwith": "optional, not run",
+  "unsaved_write_power_loss": "pc1 saved before the cycle; power loss with writes after the last Save/Stop untested",
+  "repeated_menu_relaunch": "tf1 launched from tenfoot once; repeated relaunches only through the agent library API"
+ },
+ "s3": {
+  "claimed": "2026-11-07 18:23 EET",
+  "released": "2026-11-07 18:58 EET",
+  "kit_new_paths_after_cleanup": 0,
+  "note": "Kit B agent generations restarted (9, 10, ...) after Deano power-cycled Kit B at ~17:00 for the ST session; not part of this qualification",
+  "rogue": {
+   "game_id": "xt1529-rogue",
+   "play": "fail: dungeon map never drawn (walls, floor, corridors); text, status line, player, monsters draw; MAME draws the room (#1537)",
+   "save_restore": "pass: ROGUE.SAV 40448 B written, library Save 4.02 s, Stop, relaunch, ROGUE ROGUE.SAV -> \"Welcome back\", same positions and status line",
+   "record_after_restore_sha256": "e1542dd19bdeb5e49b3c5a1b8049a6baff9f73e2cc3610211803e96d88c6801e",
+   "record_after_restore": "root entry E5 OGUE.SAV cluster 233 size 40448 (deleted by Rogue on restore); FATs equal to base; only root sector and save data sectors differ",
+   "frames_sha256": {
+    "g-l1.png": "3b4ec82fbd58eb66894ccd3707ae489d619426969c029ea75670a06e19fcfb13",
+    "m1.png": "5fe1079057fe52685b99aaa7999150f30ed56c075ffdfa3fc5b8d17088c9042c",
+    "m2.png": "cbb3e88a3f606120f5d6a4a638f27475370c4a1436cb075a0074782c68c04e19",
+    "m4.png": "6ed1d47caa02d3fc26d2b0b1b259866886f44297c40c7aae562a319a0a4bbf50",
+    "m3-redraw.png": "7ac125759bbb969ee41cbc0ec5ef06442be9cc1b94c8ae100b11f445ba0972e7",
+    "cs.png": "f3ad3c880dc5040bebafe88d1fffb8d05d6cb05b4eb76fefacd8f6b0690d4c96",
+    "cs2.png": "4c4d460418c501c54ebc873ea4592bf06f8a01bb26e9be79a12f47d4820f0e99",
+    "0002.png": "1d4556f334203de3561774f33f51a02cb596cfa1919c014323d9f893a6f2c72e",
+    "CGASTAT.COM": "a660ad994694d76f864973f5122a5730fc379cc85e04cfd23cc809c2cc2287a9",
+    "cgastat.asm": "ff79db963bcf1b1361a5812734d7bbdb21cdf91fd1577642a1a3933c6ef652e0",
+    "rogueprobe.img": "397bcd4d7a27797d4a67df800f0be0ca35207e967e6cfa8c480e63a655f87edd"
+   }
+  },
+  "cgastat_probe": {
+   "com_sha256": "a660ad994694d76f864973f5122a5730fc379cc85e04cfd23cc809c2cc2287a9",
+   "source": "nasm 2.16.03, cgastat.asm",
+   "kit": [
+    "6D16 013A 71F0 0DCE 0030",
+    "6964 013A 7003 0DB7 002F"
+   ],
+   "mame": "03A6 00BC 1153 0FDC 001C",
+   "reading": "vsync ~60 Hz on both; IN-heavy loop 39.7 us/iter kit vs 23.5 us MAME; bit0 set 43% kit vs 6.8% MAME (MAME bit0 coarse)"
+  },
+  "paratrooper_run2": {
+   "game_id": "xt1529-para2",
+   "script": "para_play2.py 620 22",
+   "scores_seen": [
+    13,
+    57,
+    30,
+    2,
+    16
+   ],
+   "hi_score": 57,
+   "result": "pass",
+   "clip_sha256": "b73590218b1f73c9c2a171059dc808079e5ebc2cab153f0d725b756e92351b7d",
+   "audio_sha256": "d872875d19dca4b4e47d72e65e70ee2a761493c926c230e5fcdf4c1051cec959",
+   "helicopter_speed_cga_px_s": [
+    72.78,
+    72.97
+   ],
+   "tones_hz": {
+    "1377": 1380.97,
+    "919": 920.72,
+    "330": 329.61,
+    "440": 439.98
+   },
+   "sounding_fraction": 0.393
+  },
+  "alley_cat_run2": {
+   "game_id": "xt1529-cat2",
+   "script": "cat_play.py 620 23",
+   "result": "movement, jumps, lives lost and restarts; no window entered",
+   "clip_sha256": "605142a25608cb5cb97b70c687601850907715e38cff06ba0c5f8c1670a7c620",
+   "audio_sha256": "96e7ed5cdedda13a216a65cd2d058a917494a3bf856c80f99aa4f6d64757e8fe"
+  },
+  "cleanup": "7 record trees of game ids xt1529-* removed inside the claim after Stop; listed in removed-records.txt"
+ },
+ "issues_filed": {
+  "1534": "Ctrl+Alt+Del hang, then warm-boot Disk Boot Fail on library relaunch",
+  "1537": "Rogue dungeon map never draws",
+  "1561": "tenfoot F12/Home can't stop a host session whose package has no session display; keyboard-only kit has no Stop"
+ },
+ "pc1": {
+  "date": "2026-11-08",
+  "kit": "A",
+  "claimed": "09:07 EET",
+  "released": "09:12 EET",
+  "baseline": {
+   "main": "4b33ec5598c1a6f86ddd883224e2e95d9282e6a7",
+   "software": "4efd34bfcb9054c9bec267a1a1e3c97079f1cb9a8947a47ee503057c95cda30d",
+   "image": "31b3906330b7b404b21f4ca888d99b860dca1d2742a7ebc3bb204e57053b73ff"
+  },
+  "package": "87fd8149c09a7e319092c56802b891039a118dfe0378d302a6543bcf841659fc",
+  "game_id": "xt1529-pcycle",
+  "disk_sha256": "c34409032ce29ee25debdcae63b8446527c9473a2b2657cf586ff917b48e4fb0",
+  "approval": "Deano OK 2026-11-07; power cycled by hand at the kit",
+  "boot_id_before": "5ac27b35-2386-4945-aabd-c6985cd0cd51",
+  "boot_id_after": "33bbb40c-c64c-456e-8f67-114b70f7c3be",
+  "save_seconds": 3.86,
+  "record_sha256_before": "60ecb83aaba44680d9ce970bd7683ca39265ef7a7d90858d76238281ee954a53",
+  "record_sha256_after": "60ecb83aaba44680d9ce970bd7683ca39265ef7a7d90858d76238281ee954a53",
+  "relaunch_revision": "60ecb83aaba44680d9ce970bd7683ca39265ef7a7d90858d76238281ee954a53",
+  "readback": "pass: COLD boot, TYPE PCYCLE.TXT -> FES1529 COLD POWER CYCLE MARKER",
+  "frames": {
+   "written": "6286c249409fd6763cfe32b36657c017028411f2d2f0ff03fe58149949614957",
+   "readback": "319057ca810708f03a79852b95d24d275727e2f60ddd98e31d29e6d1a66bed1f"
+  },
+  "kit_new_paths_after_cleanup": 0,
+  "result": "pass"
+ },
+ "tf1": {
+  "date": "2026-11-08",
+  "kit": "A",
+  "claimed": "09:20 EET",
+  "released": "09:32 EET",
+  "baseline": {
+   "software": "4efd34bfcb9054c9bec267a1a1e3c97079f1cb9a8947a47ee503057c95cda30d",
+   "image": "31b3906330b7b404b21f4ca888d99b860dca1d2742a7ebc3bb204e57053b73ff",
+   "boot_id": "33bbb40c-c64c-456e-8f67-114b70f7c3be"
+  },
+  "host": {
+   "kind": "shared Powerboat FogCast host",
+   "revision": "bb51f4454eb72048cefeea16aa16b28eb2aadaad",
+   "approval": "Deano OK 2026-11-08 for the package install and one permanent entry"
+  },
+  "package": "87fd8149c09a7e319092c56802b891039a118dfe0378d302a6543bcf841659fc",
+  "archive_sha256": "19fd34ec5d193e2e8c6b7723ea86b02bb9e8f76bd4febf2a77c88a0759b224d8",
+  "media_sha256": "c34409032ce29ee25debdcae63b8446527c9473a2b2657cf586ff917b48e4fb0",
+  "game_id": "fpga-pc-xt-dos-paratrooper-a905363ab5b8",
+  "title": "PC/XT DOS: Paratrooper",
+  "library_diff": "exactly one entry added, none removed",
+  "navigation": "Settings > About & help > Diagnostics > Show all cores ON; header Library; search 'parat' (1 title, Ready); Enter; Enter Play",
+  "launch": "pass: host session active on the entry; COLD boot to A:\\>",
+  "play": "pass: TROOPER typed on kit keyboard; ~2 min keyboard play; scores 17 then 41, HI-SCORE 17",
+  "stop_keyboard": "fail: F12 and Home swallowed, session stayed active (#1561)",
+  "stop_gamepad": "pass: Deano held Select+Start on a USB pad; session idle 09:31:15; tenfoot Home (first frame #803 Room failed: Home, cleared with Esc, Home)",
+  "restore": "Show all cores OFF, tenfoot.json sha256 6c58baafc3127eb7bc84ab1395e0e8ecaa3e2f4df1fc76e485df3d1645ed9e96 as before; hilkb removed; 2 FogCast trees removed (record c7f17d85511bb248e151951409d74d1311eba48f944477f26943db74757723cc); baseline keys unchanged; idle, lease free",
+  "frames": {
+   "selected": "fd50886dc4a5cc94b8f534249d657674eff4a5cf075d990c20911617d6b04bf3",
+   "launch_12s": "172405ad8040fdcf9f134527b474b08a54c502eed6d317043c503de510355ccb",
+   "dos": "0f1c76374de8c9dd443b90ce7de3c6d25a12243bca97ef1716f59e4a2ae45ae3",
+   "title": "510674751166a2f2a085e7fac206dd0c68be611837aa4b9489708fc562888202",
+   "play_60s": "78da8f2fd653074534ad6fcc30e374a52f29d40880b05f17ed4ac910b1a63094",
+   "play_end": "e473e336c145b4f5ec4fc00c2d748f568c281906bd99071e966af793b03de6b0",
+   "after_f12": "e9c2777e1049c08567cb1fba93edc8301d1d9b69bad05c68dd72bb6742dfb57b",
+   "after_stop": "366e7ffb3a56cd121d67ccb7e981dcd429c29f74aa6099212da4d320b5bc9c90",
+   "home": "663f462e02d75c4d0fcb0453b82b298493e50eb0e7c5c8d6cd4a193b57ad1d90"
+  },
+  "result": "pass for selection, launch, play and gamepad Stop/return; fail for keyboard Stop (#1561)"
+ }
+}

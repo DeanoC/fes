@@ -85,7 +85,7 @@ module spike_frontend (
     end
 
     // BTB writes from the stimulus, so the prediction path is real.
-    always_ff @(posedge clk) btb_wr <= noise[350:280];
+    always_ff @(posedge clk) btb_wr <= noise[352:280];
     // The return stack's restore, from the stimulus too.
     logic [3:0]  ras_set_ptr;
     logic        ras_set_wr;
@@ -100,11 +100,12 @@ module spike_frontend (
     );
 
     logic [31:0]  signature;
-    logic [159:0] observed;
+    logic [191:0] observed;
     assign observed = {15'b0, q_valid, q};
     always_ff @(posedge clk) begin
         signature <= {signature[30:0], signature[31]}
-                   ^ observed[31:0] ^ observed[63:32] ^ observed[95:64] ^ observed[127:96] ^ observed[159:128];
+                   ^ observed[31:0] ^ observed[63:32] ^ observed[95:64] ^ observed[127:96] ^ observed[159:128]
+                   ^ observed[191:160];
         LED0 <= ^signature;
     end
 endmodule

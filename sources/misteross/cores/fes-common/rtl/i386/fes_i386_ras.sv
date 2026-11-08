@@ -2,7 +2,7 @@
 // The return stack (docs/i386-cpu-design.md, "Prediction"): sixteen linear
 // return addresses in flip-flops, and a pointer to the top one.
 //
-// F2 moves it as it predicts (fes_i386_fetchbuf): a BTB entry for a CALL rel
+// F2 moves it as it predicts (fes_i386_fetchbuf): a BTB entry for a near CALL
 // pushes the address after the call's last byte, a cycle after F2 passes on
 // its block (push, push_lin); one for a RET pops, and fetch goes to the top
 // it pops (top). Both are speculative: on every redirect, which flushes

@@ -44,7 +44,10 @@ is not a timing waiver.
 
 The `fes.pcxt-dos` recipe selects `HARDWARE_DOS` and keeps the diagnostic
 profile unchanged. It includes GLaBIOS, a host HID keyboard frontend and the XT
-keyboard reset response. A 360 KiB raw floppy is delivered at
+keyboard reset response. Its CGA character ROM is the locked public-domain
+CP437 8×8 font in `firmware/cga-font-8x8.bin`, all 256 characters, so games
+that draw with box, shade and symbol characters 80h–FFh render them (#1537).
+A 360 KiB raw floppy is delivered at
 runtime through `fes.media.pcxt-floppy` and the complete ordered image is
 written into SDRAM. When an initial disk is being loaded, the guest stays in
 reset until its final physical write is committed. If the host releases
@@ -72,8 +75,8 @@ remains a separate simulation and kit acceptance check.
 
 The recipe registers `scripts/pcxt_dos_hil_acceptance.py` with preferred kit
 order B then A. It requires at least three complete captures with a meaningful
-change and glyph-matches the final CGA `A:\>` prompt against the font
-embedded in the locked BIOS ROM. It rejects a static signature and reports a
+change and glyph-matches the final CGA `A:\>` prompt against the package's locked
+CGA font. It rejects a static signature and reports a
 prompt-capture result only; it does not qualify external timing, whole-board IO,
 reset or broader PC/XT compatibility. A build or seal does not imply a kit run.
 
@@ -546,10 +549,10 @@ The runner accepts only the exact BIOS bytes in the lock. It maps that 8 KiB
 ROM to the top of the 64 KiB firmware window and fills the rest with `FF`, then
 loads the complete window through the reset-only port. `--bios` supplies a
 local copy; `--download` explicitly fetches and verifies the selected release.
-The default simulation font derives the BIOS's lower 128 8-by-8 graphics glyphs
-into a 256-by-16-byte table, with the upper characters and unused rows blank.
-This is sufficient for readable ASCII during POST, not a complete CGA font.
-`--font` instead accepts an explicit 4096-byte normalized font.
+The default simulation font is the package's locked 256-character CP437 8×8
+font, normalized into a 256-by-16-byte table with rows 8–15 blank. Its 00h–7Fh
+glyphs are byte-identical to the BIOS's graphics table. `--font` instead accepts
+an explicit 4096-byte normalized font.
 
 The optional inline XT floppy controller implements a 765-family command
 subset for one XT drive. It exposes the XT adapter registers, IRQ6 and DMA2,

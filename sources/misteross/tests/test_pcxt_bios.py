@@ -31,16 +31,13 @@ class BiosInputsTest(unittest.TestCase):
             path = work / 'rom.bin'
             path.write_bytes(rom)
             spec = {'bios': {'filename': path.name, 'size': len(rom),
-                             'sha256': hashlib.sha256(rom).hexdigest()},
-                    'ascii_font': {'rom_offset': 0}}
+                             'sha256': hashlib.sha256(rom).hexdigest()}}
             lock = work / 'bios.lock'
             lock.write_text(json.dumps(spec))
             with patch.object(bios, 'LOCK', lock):
                 bios.fixture_inputs(work, path)
                 restored = bytes.fromhex((work / 'font.hex').read_text())
-                self.assertEqual(restored[:8], rom[:8])
-                self.assertEqual(restored[8:16], bytes(8))
-                self.assertEqual(restored[2048:], bytes(2048))
+                self.assertEqual(restored, bios.sim.cga_font())
                 font = work / 'external-font.bin'
                 font.write_bytes(bytes([0x42])*4096)
                 bios.fixture_inputs(work, path, font)

@@ -1,0 +1,236 @@
+[
+ {
+  "registers": "dc0",
+  "worst_slack_ns": 1.18,
+  "from": "cpu_dfwd_ld_ex[1]~DUPLICATE",
+  "to": "cpu_dc0[405]"
+ },
+ {
+  "registers": "governor_",
+  "worst_slack_ns": 1.198,
+  "from": "cpu_governor_isa8[0]",
+  "to": "cpu_governor_s2_isa[12]"
+ },
+ {
+  "registers": "r_src",
+  "worst_slack_ns": 1.412,
+  "from": "cpu_dfwd_ld_ex[1]~DUPLICATE",
+  "to": "cpu_r_src[5]"
+ },
+ {
+  "registers": "cpu_frontend_align_",
+  "worst_slack_ns": 1.569,
+  "from": "cpu_frontend_align_start[0]",
+  "to": "cpu_frontend_align_acc_linear[16]"
+ },
+ {
+  "registers": "frontend_",
+  "worst_slack_ns": 1.569,
+  "from": "cpu_frontend_align_start[0]",
+  "to": "cpu_frontend_align_acc_linear[16]"
+ },
+ {
+  "registers": "r_dst",
+  "worst_slack_ns": 1.745,
+  "from": "cpu_dfwd_ld_ex[1]~DUPLICATE",
+  "to": "cpu_r_dst[7]"
+ },
+ {
+  "registers": "d_eip",
+  "worst_slack_ns": 1.836,
+  "from": "cpu_dfwd_ld_ex[1]~DUPLICATE",
+  "to": "cpu_d_eip[23]~DUPLICATE"
+ },
+ {
+  "registers": "r_cnt",
+  "worst_slack_ns": 1.837,
+  "from": "cpu_dfwd_ld_ex[1]~DUPLICATE",
+  "to": "cpu_r_cnt[20]"
+ },
+ {
+  "registers": "dfwd_",
+  "worst_slack_ns": 1.949,
+  "from": "cpu_dfwd_ld_ex[1]~DUPLICATE",
+  "to": "cpu_dfwd_wt[0]"
+ },
+ {
+  "registers": "decode_",
+  "worst_slack_ns": 2.028,
+  "from": "cpu_frontend_align_start[0]",
+  "to": "cpu_decode_by[7]"
+ },
+ {
+  "registers": "dops_",
+  "worst_slack_ns": 2.162,
+  "from": "cpu_dfwd_ld_ex[1]~DUPLICATE",
+  "to": "cpu_dops_left"
+ },
+ {
+  "registers": "cpu_wb_rlin",
+  "worst_slack_ns": 2.599,
+  "from": "_33116_[0]~DUPLICATE",
+  "to": "cpu_wb_rlin[16]"
+ },
+ {
+  "registers": "wb_",
+  "worst_slack_ns": 2.599,
+  "from": "_33116_[0]~DUPLICATE",
+  "to": "cpu_wb_rlin[16]"
+ },
+ {
+  "registers": "cpu_frontend_fetch_",
+  "worst_slack_ns": 2.609,
+  "from": "cpu_frontend_align_start[0]",
+  "to": "cpu_frontend_fetch_tail_ok[0]"
+ },
+ {
+  "registers": "ag_",
+  "worst_slack_ns": 2.757,
+  "from": "_31125_[77]~DUPLICATE",
+  "to": "cpu_ag_shift"
+ },
+ {
+  "registers": "dc_",
+  "worst_slack_ns": 2.917,
+  "from": "cpu_frontend_align_start[0]",
+  "to": "cpu_dc_q_reg_32_"
+ },
+ {
+  "registers": "d_first",
+  "worst_slack_ns": 2.928,
+  "from": "cpu_dfwd_ld_ex[1]~DUPLICATE",
+  "to": "cpu_d_first"
+ },
+ {
+  "registers": "rom_ok",
+  "worst_slack_ns": 3.097,
+  "from": "cpu_dfwd_ld_ex[1]~DUPLICATE",
+  "to": "cpu_rom_ok"
+ },
+ {
+  "registers": "cpu_wb_reip",
+  "worst_slack_ns": 3.156,
+  "from": "_33116_[0]~DUPLICATE",
+  "to": "cpu_wb_reip[14]"
+ },
+ {
+  "registers": "l1i_",
+  "worst_slack_ns": 3.244,
+  "from": "altsyncram:cpu_l1i_tag1_rtl_0|altsyncram_j3p1:auto_generated|ram_block1a0~PORT_B_WRITE_ENABLE_REG",
+  "to": "cpu_l1i_valid[273]"
+ },
+ {
+  "registers": "biu_",
+  "worst_slack_ns": 3.498,
+  "from": "_33372_[296]",
+  "to": "cpu_biu_drain~DUPLICATE"
+ },
+ {
+  "registers": "l1d_",
+  "worst_slack_ns": 3.933,
+  "from": "_32872_[162]",
+  "to": "altsyncram:cpu_l1d_ev3[0][31]__13|altsyncram_e0q1:auto_generated|ram_block1a0~porta_datain_reg4"
+ },
+ {
+  "registers": "cpu_frontend_fetch_pred",
+  "worst_slack_ns": 3.948,
+  "from": "altsyncram:cpu_frontend_btb_ways0_rtl_0|altsyncram_v3p1:auto_generated|ram_block1a5~PORT_B_WRITE_ENABLE_REG",
+  "to": "cpu_frontend_fetch_pred_block[0]"
+ },
+ {
+  "registers": "m2_",
+  "worst_slack_ns": 3.971,
+  "from": "_33117_[119]",
+  "to": "cpu_m2_hit_w[2]"
+ },
+ {
+  "registers": "cpu_frontend_ras_",
+  "worst_slack_ns": 4.776,
+  "from": "cpu_l1i_blk[5]~DUPLICATE",
+  "to": "cpu_frontend_ras_ptr[0]"
+ },
+ {
+  "registers": "m1_",
+  "worst_slack_ns": 4.868,
+  "from": "cpu_st_wait",
+  "to": "cpu_m1_s_reg_620_"
+ },
+ {
+  "registers": "seg_",
+  "worst_slack_ns": 4.902,
+  "from": "altshift_taps:cpu_ag_out_reg_953__rtl_0|shift_taps_8gv:auto_generated|altsyncram_hr91:altsyncram5|ram_block6a2",
+  "to": "cpu_seg_ss_big"
+ },
+ {
+  "registers": "muldiv_",
+  "worst_slack_ns": 5.01,
+  "from": "cpu_muldiv_mq[23]",
+  "to": "cpu_muldiv_sh[3]"
+ },
+ {
+  "registers": "smc_",
+  "worst_slack_ns": 5.291,
+  "from": "cpu_wb_p1[14]",
+  "to": "cpu_smc_defer"
+ },
+ {
+  "registers": "cpu_frontend_btb_",
+  "worst_slack_ns": 5.336,
+  "from": "cpu_l1i_blk[5]~DUPLICATE",
+  "to": "cpu_frontend_btb_enter[1]"
+ },
+ {
+  "registers": "int_",
+  "worst_slack_ns": 5.551,
+  "from": "cpu_st_wait",
+  "to": "cpu_int_rep"
+ },
+ {
+  "registers": "ex_",
+  "worst_slack_ns": 5.902,
+  "from": "cpu_md_busy",
+  "to": "cpu_ex_ag_result[12]"
+ },
+ {
+  "registers": "cs_fl",
+  "worst_slack_ns": 6.384,
+  "from": "cpu_st_wait",
+  "to": "cpu_cs_fl[4]"
+ },
+ {
+  "registers": "exc_",
+  "worst_slack_ns": 7.03,
+  "from": "cpu_st_wait",
+  "to": "cpu_exc_err[9]"
+ },
+ {
+  "registers": "cpu_btb_wr",
+  "worst_slack_ns": 7.798,
+  "from": "cpu_st_wait",
+  "to": "cpu_btb_wr[4]"
+ },
+ {
+  "registers": "cpu_wb_blast",
+  "worst_slack_ns": 7.845,
+  "from": "altshift_taps:_33334__rtl_0|shift_taps_shv:auto_generated|altsyncram_nu91:altsyncram4|ram_block5a88",
+  "to": "cpu_wb_blast[30]"
+ },
+ {
+  "registers": "start_linear",
+  "worst_slack_ns": 8.817,
+  "from": "cpu_arch_eip[5]",
+  "to": "cpu_start_linear[8]"
+ },
+ {
+  "registers": "cpu_ras_c",
+  "worst_slack_ns": 10.963,
+  "from": "cpu_st_wait",
+  "to": "cpu_ras_c[1]"
+ },
+ {
+  "registers": "ucode_",
+  "worst_slack_ns": 12.063,
+  "from": "_31125_[7]",
+  "to": "altsyncram:cpu_ucode_rom_rtl_0|altsyncram_fad1:auto_generated|ram_block1a10~porta_address_reg3"
+ }
+]
