@@ -180,7 +180,14 @@ int main(int argc,char** argv) {
         b.pit(1,2,100);b.idle(500);unsigned refresh=b.latch(1);
         check(refresh>0 && refresh<=100,"refresh channel count");
         b.init_pic();b.out(0x21,0xfe);b.pit(0,2,20);b.wait=5000;
-        b.bus(0,0x1234);check(b.d.intr,"PIT did not run during memory wait");
+        // INT follows IRQ0 as on an 8259, so the wait can end inside the
+        // mode-2 low PIT clock; INT must return once OUT0 rises again.
+        b.bus(0,0x1234);
+        if(!b.d.intr) {
+            for(unsigned n=0;!(b.d.pit_out&1)&&n<2000;n++)b.tick();
+            b.idle(4);
+        }
+        check(b.d.intr,"PIT did not run during memory wait");
         // Mode 2 deliberately lowers IRQ for a clock. Acknowledge just after
         // the next rising edge, avoiding a legitimate spurious IRQ7 window.
         for(unsigned n=0;(b.d.pit_out&1)&&n<2000;n++)b.tick();

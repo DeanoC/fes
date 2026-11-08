@@ -539,6 +539,10 @@ module KF8259_Control_Logic (
             interrupt_to_cpu <= 1'b0;
         else if (end_of_poll_command == 1'b1)
             interrupt_to_cpu <= 1'b0;
+        else if ((control_state == CTL_READY) && (next_control_state == CTL_READY))
+            // Before an acknowledge or poll starts, INT follows the unmasked
+            // requests: masking them all or ICW1 clearing IRR withdraws it.
+            interrupt_to_cpu <= 1'b0;
         else
             interrupt_to_cpu <= interrupt_to_cpu;
     end

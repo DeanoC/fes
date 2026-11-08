@@ -361,7 +361,10 @@ An issued write may commit during reset and is never retried. RAM, firmware
 and physical SDRAM refresh remain live. A new CPU request waits for the drain;
 old motherboard VALID must be cancelled by that same reset. An accepted loader
 write retires independently of warm reset; keep reset asserted until it does.
-Cold reset does not establish a storage-retention guarantee.
+Cold reset does not establish a storage-retention guarantee. SDRAM does keep
+RAM across an FPGA reconfiguration, so before it accepts firmware a cold reset
+zeroes the BIOS warm-boot word at `0040:0072`. A library launch after a guest
+Ctrl+Alt+Del therefore runs the BIOS's full cold POST rather than its warm path.
 
 The controller uses its conservative CAS-2 100 MHz rate-3 path, single-rank
 refresh and the established additional fabric stage after input capture.
@@ -598,7 +601,11 @@ through DMA2, the DOS prompt and `DIR` output in text memory and the captured
 display. Rendered directory text is checked against the selected font and
 attributes. It compares uploaded and returned disk bytes with the selected
 image, checks warm and cold reset behavior, and exercises eject, an abandoned
-partial transfer and reload during a DOS session. The runner validates the
+partial transfer and reload during a DOS session. `--scenario reboot` presses
+Ctrl+Alt+Del at the DOS prompt through the host keyboard mailbox and requires
+GLaBIOS to finish its warm POST, including its masked-PIC interrupt test, and
+boot the floppy again. `--scenario relaunch` leaves the `1234h` warm-boot flag in
+SDRAM before a cold reset and requires a cold POST and floppy boot. The runner validates the
 selected disk's boot code, FAT12 layout and file contents against the lock and
 records the disk hash. `make sim-fes-pcxt-media` covers runtime loading and the
 diagnostic; `make sim-fes-pcxt-mailbox` covers identity and mailbox handshake.
