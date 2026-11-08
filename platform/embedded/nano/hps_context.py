@@ -5,8 +5,12 @@ SPL and BL31 bind its digest through the existing cold chain. This is a local
 source-bound diagnostic assertion, not measured/signed boot or admission.
 """
 import hashlib
+from contextlib import contextmanager
+from contextvars import ContextVar
+from copy import deepcopy
 import importlib.util
 import json
+import os
 import re
 from pathlib import Path
 import subprocess
@@ -78,7 +82,39 @@ def inputs():
             ROOT/'sources/misteross/scripts/source_repository.py']
 
 
+_derivation = ContextVar('hps_build_derivation', default=None)
+
+
+@contextmanager
+def worker_scope(projects, snapshot):
+    """Internal file-guarded reuse for one synchronous build derivation.
+
+    The caller supplies the complete source_snapshot closure. No scope survives
+    the call, no failed worker is cached, and returned JSON never aliases the
+    private cache. Workers retain their isolated producer imports and bounds.
+    """
+    if _derivation.get() is not None:
+        raise ValueError('nested HPS derivation scope is unsupported')
+    before = snapshot()
+    token = _derivation.set(({str(Path(p).absolute()) for p in projects}, {}))
+    try:
+        yield
+        if snapshot() != before:
+            raise ValueError('HPS derivation source inputs changed')
+    finally:
+        _derivation.reset(token)
+
+
 def _worker(project, mode=None, rom_receipt_sha256=None):
+    scope = _derivation.get()
+    key = (str(project), mode, rom_receipt_sha256, sys.executable, str(Path.cwd()),
+           tuple(sorted(os.environ.items())))
+    if scope is not None:
+        projects, cache = scope
+        if str(Path(project).absolute()) not in projects:
+            raise ValueError('HPS worker project is outside the source snapshot')
+        if key in cache:
+            return deepcopy(cache[key])
     # The FPGA producer imports private modules named seal/scripts/verify and
     # adjusts sys.path. Isolate those imports from the firmware builders, whose
     # own verify module must remain authoritative after this call returns.
@@ -87,7 +123,10 @@ def _worker(project, mode=None, rom_receipt_sha256=None):
                             stdout=subprocess.PIPE, stderr=subprocess.PIPE, timeout=120)
     if result.returncode:
         raise ValueError('sealed HPS context verification failed: '+result.stderr.decode(errors='replace')[-4096:])
-    return json.loads(result.stdout)
+    value = json.loads(result.stdout)
+    if scope is not None:
+        cache[key] = deepcopy(value)
+    return value
 
 
 def derive(project):

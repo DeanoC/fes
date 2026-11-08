@@ -85,7 +85,7 @@ def entry(entry_build):
 
 
 def sources():
-    return [HERE.parent/'entry/payload.py']+[HERE/name for name in ('cold_profile.py','fault_status.py','runtime_startup.py','loader_progress.py','call_trace.py','hps_context.py','hps_io.py','usb_selection.py','initial_tape.py','spl_cold.c','spl_console.inc','prepare_uboot.py','uboot.c','handoff.c','handoff.h','probe-profile.json','sd-profile.json','smmu-profile.json')]+[
+    return [HERE.parent/'entry/payload.py']+[HERE/name for name in ('cold_profile.py','native_admission.py','fault_status.py','runtime_startup.py','loader_progress.py','call_trace.py','hps_context.py','hps_io.py','usb_selection.py','initial_tape.py','spl_cold.c','spl_console.inc','prepare_uboot.py','uboot.c','handoff.c','handoff.h','probe-profile.json','sd-profile.json','smmu-profile.json')]+[
         FW/name for name in ('nano_cold.h','nano_firmware_ram.h','nano_firmware_ram.py','nano_firmware_runtime.py','nano_firmware_call.py','nano_firmware_percpu.py','nano_firmware_runtime.inc','nano_firmware_entry.inc','nano_firmware_fault.inc','nano_firmware_decode.inc','nano_firmware_cache.inc','nano_firmware_exit_cache.inc','nano_cold.c','nano_cold_mmio.inc','nano_cold_platform.c','nano_boot.h',
                             'nano_sd.h','nano_sd.c','nano_sd_platform.h','nano_sd_platform.c','generated/fes_embedded_sd.h',
                             'nano_usb_service.c','nano_usb_service.h','nano_usb_platform.h','generated/fes_embedded_usb.h',
@@ -107,6 +107,40 @@ def sources():
 
 
 def make(entry_build, *, firmware_ram=False):
+    if type(firmware_ram) is not bool:raise ValueError('explicit firmware RAM selection required')
+    # Only immutable derivation results are reused. Each call brackets all
+    # original validators with a complete current file/tree snapshot, and the
+    # compiler's independent pre/post calls each get a new empty scope.
+    spec=importlib.util.spec_from_file_location('fes_cold_source_snapshot',HERE/'native_admission.py')
+    admission=importlib.util.module_from_spec(spec);spec.loader.exec_module(admission)
+    entry_build=admission._plain(entry_build,directory=True)
+    if not entry_build.is_relative_to(ROOT/'out'):
+        raise ValueError('private cold entry required')
+    receipt_path=entry_build/'result.json';record=admission._json(receipt_path)
+    if record.get('hps_project') is None:
+        return _make(entry_build,firmware_ram=firmware_ram)
+    projects=[record['hps_project']]
+    if record.get('hps_menu_project') is not None:
+        projects.append(record['hps_menu_project'])
+    files=[]
+    for key in ('native_build_sources','sources'):
+        mapping=record.get(key)
+        if not isinstance(mapping,dict) or not mapping:
+            raise ValueError('complete cold source mapping required')
+        files.extend(admission._relative(ROOT,name) for name in mapping)
+    def snapshot():
+        if admission._json(receipt_path)!=record:
+            raise ValueError('cold entry receipt changed during derivation')
+        value=admission.source_snapshot(ROOT,projects,files,
+            extra_trees=(entry_build,ROOT/'platform/embedded/tamago'))
+        if admission._json(receipt_path)!=record:
+            raise ValueError('cold entry receipt changed during derivation')
+        return value
+    with hps_context.worker_scope(projects,snapshot):
+        return _make(entry_build,firmware_ram=firmware_ram)
+
+
+def _make(entry_build, *, firmware_ram=False):
     if type(firmware_ram) is not bool:raise ValueError('explicit firmware RAM selection required')
     image,receipt=entry(entry_build)
     build=json.loads(receipt.read_text());profile=selected_profile(build)

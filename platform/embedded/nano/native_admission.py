@@ -115,7 +115,6 @@ def snapshot(root, uboot, entry, extra_inputs=(), *, scope=SCOPE):
     root, uboot, entry = _selection(root, uboot, entry)
     u = _json(uboot/'result.json'); e = _json(entry/'result.json')
     projects = _projects(root, u, e, scope)
-    trees = {root/name for name in CODE_TREES} | projects
     files = set(_paths(root, uboot, entry, scope)) | {uboot/'result.json', entry/'result.json',
             uboot/'build/.config', entry/'payload.elf', Path(__file__).absolute(), _usb_path.absolute(),
             Path(sys.executable).resolve(strict=True), Path(shutil.which('git') or '').resolve(strict=True)}
@@ -127,6 +126,29 @@ def snapshot(root, uboot, entry, extra_inputs=(), *, scope=SCOPE):
             if _sha(path) != expected:
                 raise ValueError('selected native source changed: '+name)
             files.add(path)
+    state = source_snapshot(root, projects, (*files, *extra_inputs))
+    return dict(selection=dict(root=str(root), uboot=str(uboot), entry=str(entry)), **state)
+
+
+def source_snapshot(root, projects, extra_inputs=(), *, extra_trees=()):
+    """Complete file-only closure used by checked build-time derivations.
+
+    Include checker roots, sealed projects and their declared source roots;
+    detect membership changes as well as byte changes. This is not a native
+    artifact receipt or a live permission. Callers still run their validators.
+    """
+    root = _plain(root, directory=True)
+    projects = {_plain(p, directory=True) for p in projects}
+    if not projects or any(not p.is_relative_to(root/'out') for p in projects):
+        raise ValueError('private sealed projects required for source snapshot')
+    trees = {root/name for name in CODE_TREES} | projects
+    for path in extra_trees:
+        path = _plain(path, directory=True)
+        if not path.is_relative_to(root):
+            raise ValueError('extra source trees must be inside the workspace')
+        trees.add(path)
+    files = {_plain(p) for p in extra_inputs} | {Path(__file__).absolute(), _usb_path.absolute(),
+            Path(sys.executable).resolve(strict=True), Path(shutil.which('git') or '').resolve(strict=True)}
     for project in projects:
         record = _json(project/'board/hps/build-inputs.json')
         roots = record.get('source_roots')
@@ -136,9 +158,6 @@ def snapshot(root, uboot, entry, extra_inputs=(), *, scope=SCOPE):
             path = _relative(root, name)
             if path.is_dir(): trees.add(_plain(path, directory=True))
             else: files.add(_plain(path))
-    for p in extra_inputs:
-        path = _plain(p)
-        files.add(path)
     directory_entries = {}
     for tree in sorted(trees):
         tree = _plain(tree, directory=True)
@@ -152,8 +171,7 @@ def snapshot(root, uboot, entry, extra_inputs=(), *, scope=SCOPE):
             else:
                 files.add(_plain(path)); entries.append(str(path.relative_to(tree)))
         directory_entries[str(tree)] = entries
-    return dict(selection=dict(root=str(root), uboot=str(uboot), entry=str(entry)),
-                trees=directory_entries, files={str(p):_sha(p) for p in sorted(files)})
+    return dict(trees=directory_entries, files={str(p):_sha(p) for p in sorted(files)})
 
 
 def _value(root, uboot, entry, checked, scope=SCOPE):

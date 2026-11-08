@@ -949,6 +949,14 @@ over the card's root `u-boot.itb`, which belongs to recovery.
 
 ## Compose the HPS-first FPGA diagnostic with native SPL
 
+`cold_profile.make` reuses identical isolated HPS worker results only within
+one build-time derivation. Complete source-tree membership and file hashes,
+sealed projects and declared source roots, entry files and native Go sources
+are checked before and after that call. Results are copied for each caller;
+failed workers are never cached. Separate calls before and after compilation
+start empty, and callers outside this scope still run fresh workers. This
+does not reuse live device, ownership, programming or boot observations.
+
 `hps_boot.py` prepares regular files from the sealed
 [HPS-first FPGA diagnostic producer](../../../sources/misteross/prototypes/de25_board_control/README.md)
 and an existing matched native SPL/FIT/entry build:
