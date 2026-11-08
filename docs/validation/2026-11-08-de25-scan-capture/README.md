@@ -37,3 +37,16 @@ not native launch, fabric drain, physical display or ordinary appliance proof.
 Source and operator/input bytes are retained before scanning, with archive
 readback and a verified Git update bundle referring to the retained preceding
 board result. Hardware results and cleanup evidence will be recorded separately.
+
+The reserved diagnostic stopped before locking or scanning: Intel find/name
+calls returned0, then the exact-name/chain-type predicate refused. The first
+probe did not report the two predicate values, so their individual outcomes
+remain unknown. Actual forced scans0, programmer/reset/SD/UART operations0.
+Independent host cleanup passed: original15MHz readback, exact USB permissions,
+private service gone and UART free. Its single diagnostic reservation remains
+consumed. The historical87 is still unexplained. Improve predicate reporting
+before another bounded observational experiment; keep the identity gate intact.
+
+The first host invocation failed opening the user-owned shared lock as root,
+before the operator ran or reserved an attempt. The following invocation acquired
+the same unchanged lock as its owner and then ran the bounded root operator.
