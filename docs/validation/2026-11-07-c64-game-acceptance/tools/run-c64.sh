@@ -7,7 +7,8 @@
 # sealed fes.c64 package with the locally composed firmware and D64s) fed by SCRIPT; removes only the FogCast data
 # trees this run created; logs FREE only if the kit matches its pre-run snapshot. Halts (kit stays IN USE) otherwise.
 # The claim is logged before any probe; a failed baseline or lease probe withdraws it with the kit as found.
-# Refuses to start with less than 30 GiB free. c64run.py stops at the first failed operation.
+# Refuses to start with less than 30 GiB free. c64run.py stops at the first failed operation, and the wrapper
+# then exits 7 after restoring and releasing the kit.
 set -u
 KIT=$1; RUN=$2; PLAN=$3; SCRIPT=$4
 G=/home/deano/fes-scratch/c64acc; KS=/home/deano/kit-status; S=$KS/kit${KIT}-STATUS.md
@@ -66,7 +67,8 @@ EOF
 ) > $OUT/feeder.log 2>&1 &
 FEED=$!
 C64_RUN_LIMIT=${C64_RUN_LIMIT:-7200} timeout 9000 python3 $OUT/c64run.py $KIT $OUT $PLAN > $OUT/hil.log 2>&1
-st "HIL rc=$?"
+HIL_RC=$?
+st "HIL rc=$HIL_RC"
 kill $FEED 2>/dev/null
 sleep 5
 $SSH "find $DATA 2>/dev/null | sort" > $OUT/kit-find-after.txt
@@ -88,6 +90,8 @@ halted=$(python3 -c "import json; d=json.load(open('$OUT/result.json')); print(d
 if [ "$agent" = "idle free" ] && [ $rmok = 1 ] && base_ok $K/logs/c64-$RUN-post && cmp -s <(keys c64-$RUN-probe) <(keys c64-$RUN-post); then
   printf -- "- %s: run done%s (see ~/fes-scratch/c64acc/runs/%s/result.json). Removed the %s FogCast data trees the run created; data dirs match the pre-run listing. Baseline unchanged: software %s active, no pending; post snapshot has the same image/previous/pending/idle/launcher/images/quirk/boot_id keys as the probe (no reboot); agent idle, lease free.\n## %s KIT %s FREE — Claude C64 #1531 %s done, baseline restored\n" "$RUN" "${halted:+ (driver stopped early: ${halted:0:100})}" "$RUN" "$(wc -l < $OUT/remove.txt)" "${BASE_SW:0:8}" "$(date "+%H:%M %Z")" "$KIT" "$RUN" >> $S
   st "RELEASED kit $KIT"
+  # The kit is restored, but a driver that halted (failed op, limit) makes the run itself a failure.
+  [ $HIL_RC = 0 ] || { st "driver failed (rc $HIL_RC); kit restored"; exit 7; }
 else
   printf -- "- %s %s HALTED: halted=%s agent=%s rmok=%s; post snapshot differs, off baseline or data not cleaned. NO further recovery attempted; kit %s stays IN USE.\n" "$(date "+%H:%M %Z")" "$RUN" "${halted:0:120}" "$agent" "$rmok" "$KIT" >> $S
   st "HALTED kit $KIT stays IN USE"
