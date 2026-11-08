@@ -15,9 +15,11 @@ void aji_register_output_callback(void (*fn)(void *,DWORD,const char *),void *co
 }
 AJI_ERROR aji_find_hardware(const char *name,AJI_HARDWARE *hw,DWORD limit) {
     if(limit!=2000)std::abort();
-    cable=name;hw->chain_id=reinterpret_cast<AJI_CHAIN_ID>(1);hw->chain_type=AJI_CHAIN_JTAG;return call("find");
+    cable=name;hw->chain_id=reinterpret_cast<AJI_CHAIN_ID>(1);
+    hw->chain_type=mode("unknown-chain") ? AJI_CHAIN_UNKNOWN:AJI_CHAIN_JTAG;return call("find");
 }
 AJI_ERROR aji_print_hardware_name(AJI_CHAIN_ID,char *out,DWORD size) {
+    if(mode("unterminated-name")) {std::memset(out,'X',size);return call("name");}
     std::snprintf(out,size,"%s",mode("wrong-name") ? "bottom":cable.c_str());return call("name");
 }
 AJI_ERROR aji_lock_chain(AJI_CHAIN_ID,DWORD limit) {if(limit!=2000)std::abort();return call("lock");}

@@ -96,5 +96,17 @@ class JtagDiagnosticTests(unittest.TestCase):
                 self.assertIn('rc=87 value=',result.stdout)
                 self.assertIn('programming=0 cpu_reset=0 grant=0',result.stdout)
 
+    def test_name_and_chain_refusal_report_predicates_without_locking(self):
+        for mode,shape in (
+            ('wrong-name','valid_length=1 matches=0 chain_type=1'),
+            ('unknown-chain','valid_length=1 matches=1 chain_type=0'),
+            ('unterminated-name','bytes=512 valid_length=0 matches=0 chain_type=1')):
+            with self.subTest(mode=mode):
+                result=self.run_case(mode)
+                self.assertEqual(result.returncode,1,result.stdout+result.stderr)
+                self.assertIn(shape,result.stdout)
+                self.assertEqual(re.findall(r'^MOCK_CALL (.+)$',result.stdout,re.M),['register','find','name'])
+                self.assertNotIn('FES_JTAG_DIAG CABLE ',result.stdout)
+
 
 if __name__=='__main__':unittest.main()

@@ -76,8 +76,18 @@ int main(int argc,char **argv)
     AJI_HARDWARE hw{};
     if(!checked("find",aji_find_hardware(argv[1],&hw,2000)))return 1;
     char found[512]{};
-    if(!checked("name",aji_print_hardware_name(hw.chain_id,found,sizeof(found))) ||
-        std::strcmp(found,argv[1]) || hw.chain_type!=AJI_CHAIN_JTAG)return 1;
+    if(!checked("name",aji_print_hardware_name(hw.chain_id,found,sizeof(found))))return 1;
+    const size_t name_length=strnlen(found,sizeof(found));
+    const bool name_matches=name_length<sizeof(found) && name_length==std::strlen(argv[1]) &&
+        !std::memcmp(found,argv[1],name_length);
+    // Report both admission predicates before refusing. An adapter-only
+    // discovery must not silently hide which condition blocked the scan.
+    flockfile(stdout);
+    std::printf("FES_JTAG_DIAG NAME bytes=%zu valid_length=%u matches=%u chain_type=%u hex=",
+        name_length,unsigned(name_length<sizeof(found)),unsigned(name_matches),unsigned(hw.chain_type));
+    hex(reinterpret_cast<const BYTE *>(found),name_length);std::putchar('\n');
+    funlockfile(stdout);
+    if(!name_matches || hw.chain_type!=AJI_CHAIN_JTAG)return 1;
     std::printf("FES_JTAG_DIAG CABLE %s\n",found);
     if(!checked("lock",aji_lock_chain(hw.chain_id,2000)))return 1;
     bool attempted=false,scan_ok=false,identity_ok=false;
