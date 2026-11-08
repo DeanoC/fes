@@ -48,3 +48,33 @@ stability passed60s. The updated
 actual Go-emitter join, both full collector cycles, negative receipts and the
 1,733-test parent suite(three existing skips). Fresh live admission and retained
 corrected procedure still precede programming; no hardware result is claimed.
+
+
+The corrected21f02b648 procedure has now consumed the one allowed69a image
+attempt. Qualified recovery, all13 uploads/write/readbacks and13 fresh reads
+passed. Both fresh-scan-gated programming operations completed. Matched secure
+cold boot, keyboard Ready and initial App Ready with presented menu frames
+passed. The controller issued one ZX81 launch; the single input diagnostic
+confirms UART Select under Ready generation0. No unsolicited startup action
+was observed. USB paused with zero reports and5,624 successful polls.
+
+The first FPGA transfer completed1,654,784 bytes. Secure initial tape then
+exhausted its original1s budget while delivering the917-byte fixture:
+error-6, opcode8, word index199, frame phase1, next512,7,818 reads/488 writes,
+complete0. Its last cached counter interval is0.9999933625s. The service
+reported reboot_required generation1/Held=true and panicked with resources
+retained; failure cleanup also reported bridge firmware status4. There was no
+Running or fetch observation and no completed launch/tape/return/final Park.
+The last Held flag is cached status; final independent fabric closure is
+unproven. The previous unexplained76cd startup launch was not reproduced here;
+its original cause remains unproven.
+
+The first failure stopped the controller, with no subsequent App command and
+no replay. Both programming operations completed, so transport failures remain
+1/max2. Independent host cleanup passed: original15M clock readback, exact USB
+permissions, owned private server gone and UART free. The top claim remains
+held, spare installed and factory restoration waived unless needed; bottom kit
+was untouched. The image is consumed1/max1. Further work must repair and test
+the secure tape performance/failure path without widening the1s bound, then
+prepare a newly matched image. This remains diagnostic evidence; ordinary
+core-load, physical input/HDMI and appliance acceptance are not established.
