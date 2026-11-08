@@ -1013,6 +1013,10 @@ package fes_i386_pkg;
         logic [PA-12:0] pg_t1;
         logic [31:0]    pf_lin;
         logic [2:0]     pf_err;
+        // txr: M2, the uop replays because the walker would have walked for
+        // it as not the oldest, so the serial issue after it ends with its
+        // REP element, not its instruction.
+        logic           txr;
     } pipe_t;
 
 endpackage

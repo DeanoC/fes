@@ -6614,6 +6614,14 @@ int run_paging_cases(fes_i386::Oracle &oracle, OracleBus &bus, Rtl &rtl, const s
              a.ldr(EBX, 0x11ffc); a.ldr(EDX, 0x12000); a.ldr(EBP, pte(0x12));
          }, -1, -1, -1, {{0x10, 0x20000 | P | W | U}, {0x11, 0x40000 | P | W | U}, {0x12, 0x23000 | P | W | U}}, {},
          {{0x20ffc, {1, 2, 3, 4}}, {0x40000, {5, 6, 7, 8, 9, 10, 11, 12}}}},
+        // A long REP MOVSD across three source and three destination pages,
+        // each walked once, the string running on between the walks.
+        {"pg-rep-movs-long", [=](Asm &a, uint32_t) {
+             a.mov(ESI, 0x10800); a.mov(EDI, 0x13c00); a.mov(ECX, 0x500); a.op({0xfc, 0xf3, 0xa5});  // REP MOVSD
+             a.ldr(EBX, 0x14ffc); a.ldr(EDX, 0x15000); a.ldr(EBP, pte(0x15));
+         }, -1, -1, -1, {{0x10, 0x20000 | P | W | U}, {0x11, 0x40000 | P | W | U}, {0x12, 0x23000 | P | W | U},
+                         {0x13, 0x24000 | P | W | U}, {0x14, 0x41000 | P | W | U}, {0x15, 0x25000 | P | W | U}}, {},
+         {{0x20ff0, {1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16}}, {0x40ff8, {21, 22, 23, 24, 25, 26, 27, 28}}}},
         // A PTE frame past guest RAM (a hole: FFh, stores dropped) and in
         // the reset shadow at FFFF0000h (F0000h).
         {"pg-frame-hole", [=](Asm &a, uint32_t) { a.ld32(0x10000); a.mov(EBX, 0x1234); a.op({0x89, 0x1d}); a.d(0x10004);

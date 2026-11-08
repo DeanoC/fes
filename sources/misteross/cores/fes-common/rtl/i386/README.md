@@ -1202,8 +1202,10 @@ as Bochs's `translate_linear_legacy` at CPU level 3.
   translates as a write (`wx`, Bochs's `tickle_write_virtual`).
 - **The walker** (`fes_i386_l1d`) runs only for the oldest uop, as an
   uncached load reads (`L_UNC`, then `oldest`), else the uop replays and
-  issues alone. So it never runs on a wrong path, and nothing older has a
-  store to make. For each page the uop uses, in Bochs's order (the operand,
+  its instruction issues alone, up to the end of the REP element it was in
+  (`txr`), so a REP string that crosses into a page the DTLB does not hold
+  runs on pipelined after that page's walk. So the walker never runs on a
+  wrong path, and nothing older has a store to make. For each page the uop uses, in Bochs's order (the operand,
   its next page, a st2 store's, its next), it reads the PDE at CR3 plus
   bits 31:22 times 4 and the PTE at the PDE's frame plus bits 21:12 times
   4, each a dword through the bus interface once no write-buffer entry

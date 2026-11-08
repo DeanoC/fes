@@ -2145,8 +2145,10 @@ module fes_i386_cpu #(
     // uop takes its physical pages from the L1D (M1's, or the walker's).
     always_comb begin
         m2_cap = capture(m2_s, 3'd2, wb_s.result);
-        if (l1d_replay && m2_cap.uop.ctl.fault == fes_i386_pkg::FAULT_NONE)
+        if (l1d_replay && m2_cap.uop.ctl.fault == fes_i386_pkg::FAULT_NONE) begin
             m2_cap.uop.ctl.fault = fes_i386_pkg::FAULT_REPLAY;
+            m2_cap.txr = l1d_walked;
+        end
         if (l1d_pf && m2_cap.uop.ctl.fault == fes_i386_pkg::FAULT_NONE) begin
             m2_cap.uop.ctl.fault = fes_i386_pkg::FAULT_PF;
             m2_cap.pf_lin = l1d_pf_lin;
@@ -3175,11 +3177,16 @@ module fes_i386_cpu #(
     end
 
     // Serial issue after a replay for an uncached load, until its
-    // instruction ends or anything else flushes.
+    // instruction ends or anything else flushes; after one for the walker
+    // (txr), until its REP element ends, so a REP string that crosses into a
+    // page the DTLB does not hold runs on pipelined once that page's walk is
+    // done.
+    logic serial_el;
     always_ff @(posedge clk) begin
         if (reset || wb_flush && !rp_go) serial <= 1'b0;
         else if (rp_go) serial <= !wb_smc && !wb_frp && !wb_s.ifw;
-        else if (wb_commit && wb_eoi) serial <= 1'b0;
+        else if (wb_commit && (wb_eoi || serial_el && wb_s.uop.str_cx)) serial <= 1'b0;
+        if (rp_go) serial_el <= wb_s.txr;
     end
 
     // ---- Memory: L1I, L1D and the bus interface -------------------------------------
