@@ -96,6 +96,56 @@
     "sides": 1,
     "sectors": 720
    }
+  },
+  "night_shift": {
+   "title": "Night Shift (Europe)",
+   "disk_1": {
+    "ipf_sha256": "c7fc7f4e376b19d162c33fb1e4f999aaecc0c4141b6751cbec657043d9962287",
+    "st_sha256": "08f7f2309c8a0f1c5e0222a3c943d6f417483e954516e886d728305d382121f5",
+    "st_bytes": 737280,
+    "bpb": {
+     "bps": 512,
+     "spt": 9,
+     "sides": 2,
+     "sectors": 1440
+    }
+   },
+   "disk_2": {
+    "ipf_sha256": "a46cfc94251b780f799d26d3ead3006a85810089a403ca3fae3eec70b3a132eb",
+    "st_sha256": "5cebcbfc5a5f8e36f775c4fd6c62eb26f05e53ebaacc7a05543759e140081106",
+    "st_bytes": 737280,
+    "bpb": {
+     "bps": 512,
+     "spt": 9,
+     "sides": 2,
+     "sectors": 1440
+    }
+   }
+  },
+  "terramex": {
+   "title": "Terramex (Europe)",
+   "disk_1": {
+    "ipf_sha256": "34d43f0a979356a6a4a411eeb724ce1e7f7065f67abe4bb0a08bb2e98e1b6b4f",
+    "st_sha256": "793a9da23c13ef35c6a7ea301b3f90d7a4b3b03640d6733bbc6f9c5cb068eda6",
+    "st_bytes": 409600,
+    "bpb": {
+     "bps": 512,
+     "spt": 10,
+     "sides": 1,
+     "sectors": 800
+    }
+   },
+   "disk_2": {
+    "ipf_sha256": "ad8f3648073fcc94f88fadc3f6aa053cf4e08b576a79e68eff3e537431c1487a",
+    "st_sha256": "5fe2bb14254e20d3678e406c4f5625d2ff9daa89c660215f38d2410582ebf794",
+    "st_bytes": 409600,
+    "bpb": {
+     "bps": 512,
+     "spt": 10,
+     "sides": 1,
+     "sectors": 800
+    }
+   }
   }
  },
  "hatari_lurking_horror": {
@@ -119,7 +169,33 @@
     "disk_sha256": "ada29e35b4edfda19737b27b1e142f2e2a5e7e2fb0b9cb40dbf6597fcc9d92a5"
    }
   },
-  "end_state": "Terminal Room, Score 5, 19 moves, 'Okay.' after SAVE"
+  "end_state": "Terminal Room, Score 5, 19 moves, 'Okay.' after SAVE",
+  "seed_runs": {
+   "note": "8 Nov: TOS 1.04 XBIOS Random() (ROM fc1c76) breakpoint; one call per boot, by LURKING.PRG at startup; seed = _hz_200 at that call",
+   "sd0": {
+    "hz_200": "0x0f2e",
+    "save_sha256": "56ffdcd353006f515a3023f08c45fd66c8dbf492f4845226df9c487c527a2cf6",
+    "urchin_room": "Infinite Corridor (object 218)"
+   },
+   "sd1": {
+    "hz_200": "0x0f30",
+    "forced_seed": "0x0c22384e",
+    "save_sha256": "56ffdcd353006f515a3023f08c45fd66c8dbf492f4845226df9c487c527a2cf6",
+    "urchin_room": "Infinite Corridor (object 218)"
+   },
+   "sd2": {
+    "hz_200": "0x0f4b",
+    "save_sha256": "d52277561dc7200ebfc3d0ebb246c2ea2957aa502fd653eb781b7c3e3a0e10d9",
+    "disk_sha256": "d15967597a9d452b560f6dc2e3e4e14fd8725582d847340f1392f9a3f2ba41fe",
+    "urchin_room": "Stairway (object 35)",
+    "vs_x4_disk": "one byte, the FES1528.SAV directory time"
+   },
+   "sd3": {
+    "hz_200": "0x0f30",
+    "save_sha256": "d52277561dc7200ebfc3d0ebb246c2ea2957aa502fd653eb781b7c3e3a0e10d9",
+    "urchin_room": "Stairway (object 35)"
+   }
+  }
  },
  "runs": {
   "x1": {
@@ -249,7 +325,8 @@
      "h2-played": "efff94434ab1c7705e24206f41ac0777731896a4ba2faf54666b67e599dc89cb",
      "h2-warmreset": "bd09294b11a2294dccb8140a13c54e904f5cdfc6351aba66aaa40044e2e1b381"
     }
-   }
+   },
+   "lurking_horror_save_explained": "8 Nov: the 4 bytes move the urchin (object 100) to Stairway; a natural Hatari run (sd2, _hz_200 0x0f4b) gives a byte-identical save; expected game randomness, no core defect"
   },
   "g1": {
    "kit": "A",
@@ -355,6 +432,91 @@
     },
     "audio_sha256": "78c51cc751ee62aa43e56d612f7c0549119d7e5270ef55f5815236ad9b1b41b6"
    }
+  },
+  "n1": {
+   "kit": "B",
+   "claimed": "09:46 EET 8 Nov",
+   "released": "10:40 EET",
+   "case": "4, disk replacement during play (Night Shift, then the declared fallback Terramex)",
+   "result": "PASS (Terramex, two launches); Night Shift swap ran but play is gated by a manual fruit code",
+   "swap_method": "POST /api/v1/session/disk/insert (fogcast insert-library-disk), disk 2 as its own library entry on the same package",
+   "library_entries": {
+    "night_shift_disk_1": "fpga-night-shift-1528-n1-dcf0376c448c",
+    "night_shift_disk_2": "fpga-night-shift-1528-n1-disk-2-b3e9e9869932",
+    "terramex_disk_1": "fpga-terramex-1528-n1-152a2c318ab7",
+    "terramex_disk_2": "fpga-terramex-1528-n1-disk-2-552f13e53ea2"
+   },
+   "session_id": "7ba075cf-942d-4e10-89e3-c389eaba3f9a",
+   "launches": [
+    {
+     "title": "Night Shift",
+     "generation": 100,
+     "launch_s": 48.9,
+     "insert_s": 17.4,
+     "unit0_before": "night shift disk 1 entry",
+     "unit0_after": "night shift disk 2 entry",
+     "outcome": "job application screen, worker chosen by joystick, then a four-symbol fruit code (manual check)"
+    },
+    {
+     "title": "Night Shift relaunch",
+     "generation": 101,
+     "launch_s": 49.4,
+     "unit0": "night shift disk 1 entry",
+     "outcome": "prompt frame identical to the first launch"
+    },
+    {
+     "title": "Terramex",
+     "generation": 102,
+     "launch_s": 44.6,
+     "insert_s": 10.1,
+     "outcome": "title after swap; two games 10:03-10:06 and 10:15-10:26; score 50; game over returns to the title without a disk 1 request"
+    },
+    {
+     "title": "Terramex relaunch",
+     "generation": 103,
+     "launch_s": 45.5,
+     "insert_s": 10.7,
+     "unit0_before": "terramex disk 1 entry",
+     "unit0_after": "terramex disk 2 entry",
+     "outcome": "prompt frame identical to launch 1 at 60 s; three games 10:29-10:40; score 50; a second screen reached"
+    }
+   ],
+   "records_after": {
+    "27fa0ad72538f80cc2b3e64a2cf138364a43ba92885f6a93378ba343f516ca9f": {
+     "record_sha256": "37993fcd80f953a7353886fb67158f20bbc393f245c5c0e6678287a53f3e9722",
+     "payload": "night shift disk 1, byte-identical"
+    },
+    "8aa48de5fc137990abe377703f6cc2455863c4ae9cc378c773dc35ec198247e5": {
+     "record_sha256_prefix": "d06b3005cfb29889",
+     "payload": "night shift disk 2, byte-identical"
+    },
+    "93d0a5b239cb95e1fd3b0c8d1610fde8ecb8d95d9cc30ec8d81d542a1498db30": {
+     "record_sha256_prefix": "604f4bfb9b059193",
+     "payload": "terramex disk 1, byte-identical"
+    },
+    "c4aa7e2f0198f7293c8af29f55fd492f7d319a2e24bb139a715fcaeabd679809": {
+     "record_sha256_prefix": "114992ebf97a10cd",
+     "payload": "terramex disk 2, byte-identical"
+    }
+   },
+   "frames": {
+    "ns-prompt": "6ebcc02bc1fbe0a1da0098f6bb193c27ac58116449233ca5f93bd46fa6ecb198",
+    "ns-job-application": "4e378c57bcdb7bf198e0a89307647512275f98e01ec1d075133f67badac209d2",
+    "ns-fruit-code-rejected": "9fac6fdf5dca4eb751525811118ece6c37b838018f83e9ae3ad20eca4437ed74",
+    "ns-relaunch-prompt": "6ebcc02bc1fbe0a1da0098f6bb193c27ac58116449233ca5f93bd46fa6ecb198",
+    "tm-prompt-60s": "92fc75a732155c9d764eec130296e2382d85aec6e3fc69c4f5435fcf6249ac9e",
+    "tm-prompt-100s": "a7956e0600577fcf5dae50383f3ba7553036b67ea6d61261b6bf182f52b25d52",
+    "tm-title-after-swap": "1a6d9ac95d7fb838bd58043e6de66cc4ebf0792e1b0bb17f1d9cf305432de471",
+    "tm-play-start": "0146df60220fa2fdbe98c45ee378a6ab210b2fea9815075233752fdef0a25171",
+    "tm-l1-end": "39d8796978407ee5676aa884c4c3f6758767b737c4895cde453f83c506cb92cb",
+    "tm-relaunch-prompt-60s": "92fc75a732155c9d764eec130296e2382d85aec6e3fc69c4f5435fcf6249ac9e",
+    "tm-l2-title-after-swap": "c93e51eaa38e0944c9740592d8c33cf015ad0a5a376a6ea4cd9548fa6e7e53d7",
+    "tm-l2-play-start": "d820cf244ce859fcdcaf2db3e46be64e51df84e2791af38fccd0647d79e7b5fd",
+    "tm-l2-second-screen": "a24add07b5f24b903fd2092b213a53ec9aa4ff49e2567a2f2d88ddfe86af7f86",
+    "tm-l2-end": "f575d5ca829cb9b0db7e447cdc1a61b91d42cf977614311aa65fbeb9f91d88d6"
+   },
+   "audio_sha256": "fe1555623cd5089e76e4f2dfbe5fcdd6c25d1ae7e6869a70969a5463a07adc08",
+   "housekeeping": "removed the four disk-record trees the run created; post-run file listing equals the pre-run listing; baseline unchanged (software a8cd30c4, no reboot)"
   }
  }
 }

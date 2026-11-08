@@ -284,7 +284,7 @@ Full current-image acceptance remains separate; opened-region RGB still crops
 to ordinary 320×200, and later demo sections/audio fidelity remain unqualified.
 
 The [game acceptance record](validation/2026-11-07-atari-st-game-acceptance/summary.md)
-(#1528) ran three real 520ST games on Kit B. They used factory package
+(#1528) ran real 520ST games on Kits A and B. They used factory package
 `2dd2271c` (fes `f53eba76`), TOS 1.04 and normal library Play through a private
 host. Results:
 
@@ -292,16 +292,24 @@ host. Results:
   restarts, Stop and relaunch.
 - **The Lurking Horror (keyboard).** Passes two runs: an explicit SAVE, Stop,
   library relaunch and RESTORE. Each saved disk matches a Hatari 2.4.1 run of
-  the same script except one directory time byte. One earlier Kit B attempt,
-  with 4 differing save bytes, is kept as INCONCLUSIVE.
+  the same script except one directory time byte. One earlier Kit B attempt
+  saved 4 different bytes: the game seeds its random numbers from the timer
+  when it starts, so a wandering character ended in another room. Hatari
+  reproduces that save byte for byte, so the bytes are not a core defect.
 - **Gomoku and Renju (mouse).** Passes two Kit A runs: launched from the GEM
   desktop with the mouse, then three games won to "Game won by White" in each.
 - **Logical (mouse).** Launches from the GEM desktop with the mouse, but play
   was never started, so the case is INCONCLUSIVE.
+- **Terramex (disk swap, joystick).** Passes two launches on Kit B. At the
+  game's "Please Insert Disk 2" prompt, the host's library disk insert put the
+  second disk's library entry into the running session, and the game went on
+  to play. Stop and relaunch boots disk 1 again. Neither disk record changed.
+  Night Shift's swap also ran, but its fruit-code manual check stops play.
 
 Still owed:
 
-- Disk replacement during play.
+- A disk swap from tenfoot. The ST package has no session display, so today
+  an ST disk is swapped only through the host API.
 - Runs on a seal of main's ST tree. The ST producer stopped at its source read
   audit on 7 November.
 

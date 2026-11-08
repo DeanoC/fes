@@ -6,7 +6,8 @@ matrix was [published on the issue](https://github.com/DeanoC/fes/issues/1528#is
 before any kit run. A mouse case, 2b, was [added on the issue](https://github.com/DeanoC/fes/issues/1528#issuecomment-6711833775)
 before its own runs.
 
-- **Kit B** ran five claims, `x1` to `x4` (`x3` launched nothing).
+- **Kit B** ran five claims, `x1` to `x4` (`x3` launched nothing), and on
+  8 November a sixth, `n1`, for case 4.
 - **Kit A** ran three claims: `g1` and `g2` for case 2b, and `h3` for a second
   full Lurking Horror run.
 
@@ -17,22 +18,23 @@ disks. Hashes are in [`kit-runs.json`](kit-runs.json).
 each, with at least 10 minutes of play per run and a declared objective:
 joystick (Xenon), mouse (Gomoku) and keyboard with a disk save (The Lurking
 Horror). Both Lurking Horror passes match Hatari's saved disk except one
-directory time byte. Items below are still open, so this PR refers to #1528
-and leaves closing it to review.
+directory time byte. On 8 November, case 4 added a disk swap inside a running
+session (Terramex, two launches), and the 4 differing `x4` save bytes were
+traced to the game's own randomness. Items below are still open, so this PR
+refers to #1528 and leaves closing it to review.
 
 | Case | Run 1 | Run 2 | Case |
 | --- | --- | --- | --- |
 | 1. Xenon (joystick) | **PASS** (`x2`); `x1` stopped early by a physical kit fault, kept as INCONCLUSIVE | **PASS** (`x4`) | **PASS** |
 | 2. Logical (mouse) | **INCONCLUSIVE** (`x2`): launched by mouse from the desktop, but play was never started | **INCONCLUSIVE** (`x4`): same | **INCONCLUSIVE**, replaced by 2b |
 | 2b. Gomoku and Renju (mouse) | **PASS** (`g1`): three games won to "Game won by White" | **PASS** (`g2`): three games won | **PASS** |
-| 3. The Lurking Horror (keyboard, save) | **PASS** (`x2`): the saved disk matches Hatari except one directory time byte | **PASS** (`h3`, Kit A): same match; `x4` (Kit B) kept as INCONCLUSIVE, with 4 differing save bytes and about 8 minutes of play | **PASS** |
+| 3. The Lurking Horror (keyboard, save) | **PASS** (`x2`): the saved disk matches Hatari except one directory time byte | **PASS** (`h3`, Kit A): same match. `x4` (Kit B): its 4 differing save bytes are an expected random outcome that Hatari reproduces byte for byte; INCONCLUSIVE only for its 8 minutes of play | **PASS** |
+| 4. Terramex (disk swap, joystick) | **PASS** (`n1`, launch 1): disk 2 inserted into the running session at the game's prompt; about 14 minutes of play | **PASS** (`n1`, launch 2, after Stop and relaunch): disk 1 back in the drive, swapped again; about 11 minutes of play | **PASS** |
 
 Still owed on #1528:
 
-- An explanation of the 4 save bytes that differed in `x4`. `x2` and `h3`
-  match Hatari.
-- Disk replacement during play. None of the titles needs it, and the
-  multi-disk candidates were rejected (see below).
+- A swap from tenfoot. Case 4 swaps through the host API, because the ST
+  package has no session display and tenfoot has no ST swap control.
 - Runs on a package sealed from main. The only sealed ST package is from
   `f53eba76` (see Package).
 - A gameplay reference for Xenon and Gomoku. Hatari's command interface has
@@ -85,6 +87,12 @@ pass that check. Nothing from a disk, ROM or frame is committed.
 | Logical | `dddc9f4a…` | `f340bf07…` | `da73eb0e…` | 80×1×10, 409,600 B |
 | The Lurking Horror r203 | `70ad9232…` | `06b3820a…` | `287ff5d0…` | 80×1×9, 368,640 B |
 | Gomoku and Renju | `3c9d80bf…` | `0dc360f7…` | `0805b45c…` | 80×1×9, 368,640 B |
+| Night Shift, disk 1 | none | `c7fc7f4e…` | `08f7f230…` | 80×2×9, 737,280 B |
+| Night Shift, disk 2 | none | `a46cfc94…` | `5cebcbfc…` | 80×2×9, 737,280 B |
+| Terramex, disk 1 | none | `34d43f0a…` | `793a9da2…` | 80×1×10, 409,600 B |
+| Terramex, disk 2 | none | `ad8f3648…` | `5fe2bb14…` | 80×1×10, 409,600 B |
+
+The four case 4 disks were held as bare IPFs, without zips.
 
 ### Selection
 
@@ -94,6 +102,8 @@ Candidates were triaged in Hatari as a 520ST: 68000 at 8 MHz, 512 KiB,
 - **Copy check.** "This disc is a copy" once decoded to `.st`: Bomb Jack,
   Overlander, Thrust, Warhawk, Wanderer 3D, Metro-Cross and others.
 - **Manual or code-wheel check.** Elite, Balance of Power, Another World.
+  Night Shift asks for a four-symbol fruit code after its disk 2 prompt; it
+  was found on the kit during case 4, after its swap had run.
 - **Dongle.** Leader Board.
 - **1 MiB from the desktop.** Battle Chess.
 - **Black after launch in Hatari itself.** Déjà Vu, Shadowgate.
@@ -107,7 +117,9 @@ set up as the 520ST above with TOS 1.04.
   typed into Hatari gives `FES1528.SAV` `56ffdcd3…` and the whole disk
   `0833c310…`. Two independent runs match byte for byte. Two more runs started
   17 and 33 seconds later also give the same save; only the directory time
-  differs.
+  differs. Those delays came after the game had started, so its random seed
+  did not change. A different game start time can move one character; see
+  [The `x4` save bytes](#the-x4-save-bytes).
 - **Xenon and Logical.** Both boot, without input, to the same title and
   attract screens in Hatari and on the kit. Gameplay is judged on the kit by
   outcomes: response to the inputs sent, lives, score and restarts.
@@ -236,12 +248,86 @@ The runs differ in what the saved disk shows:
   - The game showed the same text, score and moves as `x2` throughout.
   - Hatari restoring the `x4` disk and the reference disk prints the same
     text for inventory, look, a move and a second look.
-  - So the 4 bytes are game state these probes don't show. Whether they come
-    from the core is not established. That, and about 8 minutes of play, make
-    this run INCONCLUSIVE.
+  - **Explained (8 November): an expected guest outcome, not a core
+    defect.** See [The `x4` save bytes](#the-x4-save-bytes). The save itself
+    passes. The run stays INCONCLUSIVE as a run only because it had about 8
+    minutes of play, short of the 10-minute minimum.
 - **Warm-reset frame.** The desktop after the warm reset in `x4` is
   byte-identical to `x2`'s first desktop frame (`bd09294b…`). The
   after-restore frames of the two runs are also identical (`21bd46da…`).
+
+### The `x4` save bytes
+
+Checked on 8 November against the story file and the interpreter on the disk:
+
+- **What the bytes are.** `FES1528.SAV` holds a 512-byte stack block, then
+  the Z-machine's dynamic memory (story release 203, serial 870506, dynamic
+  memory up to `0x2c92`). The 4 bytes are object-table links that move one
+  object, the wandering **urchin** (object 100). In `x4` it is in Stairway
+  (object 35). In the reference it is in Infinite Corridor (object 218),
+  ahead of the plastic container. Every global matches, including the score
+  (5) and the move count (19). The stack matches too.
+- **Why it can differ.** `LURKING.PRG` calls XBIOS `Random()` once at
+  startup and keeps the result as its own random seed. TOS 1.04 seeds
+  `Random()` from the 200 Hz timer `_hz_200` on its first call. A Hatari
+  breakpoint on TOS's `Random()` shows a single call per boot, made by the
+  game, with no earlier seed. So the seed is the timer value when the game
+  starts. On the kit, that moment depends on mouse clicks sent over HTTP.
+  The urchin's moves use the game's random numbers.
+- **Reproduced in Hatari.** Four more Hatari 2.4.1 runs of the same script
+  (`sd0` to `sd3`) started the game at `_hz_200` = `0x0f2e`, a forced seed,
+  `0x0f4b` and `0x0f30`. `sd0` and `sd1` give the reference save
+  (`56ffdcd3…`). `sd2` and `sd3` give a save **byte-identical to `x4`'s**
+  (`d5227756…`). `sd2`'s whole disk differs from `x4`'s only in the same
+  directory time byte as every kit run. A host Z-machine (dfrotz) with
+  different seeds also moves the urchin.
+
+So both outcomes are the game's own randomness, and both reproduce in the
+reference emulator. No issue is filed. The Hatari runner with the breakpoint
+is [`lh-seed.sh`](lh-seed.sh). Note that Hatari's debugger `w` command reads
+bare values as decimal, which is why only `sd1`'s forced seed took.
+
+## Case 4: Disk replacement during play (Terramex)
+
+The case was [declared on the issue](https://github.com/DeanoC/fes/issues/1528#issuecomment-6718888958)
+before its run, with Night Shift first and Terramex as the fallback if Night
+Shift turned out to need a manual check. Both ran in one Kit B claim, `n1`
+(8 November, 09:46–10:40 EET).
+
+**How a disk is swapped.** Each disk is its own library entry on the same
+package with TOS 1.04: `Terramex 1528 n1` (disk 1) and `Terramex 1528 n1 Disk
+2`. Library Play launches disk 1. At the game's prompt, the host's library disk
+insert (`POST /api/v1/session/disk/insert`, the same call as
+`fogcast insert-library-disk <game-id> <base-media-id>`) puts the disk 2 entry
+into unit 0 of the running session. The ST package has no session display, and
+tenfoot has no ST swap control, so this host API call is the only way to swap
+an ST disk today.
+
+**Reference.** In Hatari, disk 1 shows "Please Insert Disk 2". After disk 2
+goes in and a key is pressed, it shows the character title screen (Help,
+Fortisque-Smithe, Herr Krusche, Big John Caine, Wu Pong, Henri Beaucoup), and
+choosing a character starts play.
+
+| Launch | Swap | Play | Result |
+| --- | --- | --- | --- |
+| 1 (generation 102) | Prompt at 60 s; insert accepted in 10.1 s; same session; unit 0 rebound from the disk 1 entry to the disk 2 entry; the title screen follows | Two games, 10:03–10:06 and 10:15–10:26 (about 14 minutes): joystick moves the menu pointer and the explorer, banana picked up (score 50), lives lost, game over returns to the title without asking for disk 1 | **PASS** |
+| 2, after Stop and library relaunch (generation 103) | Relaunch boots disk 1: the prompt frame is byte-identical to launch 1's (`92fc75a7…`). Insert accepted in 10.7 s; unit 0 rebound to disk 2; the title follows | Three games, 10:29–10:40 (about 11 minutes): score 50 each, lives lost, two restarts from the title, and a second screen reached | **PASS** |
+
+- **Disks after the run.** The kit kept one durable record per library disk.
+  Each record's payload is byte-identical to its base disk (Terramex
+  `793a9da2…` and `5fe2bb14…`), so the swaps wrote nothing to either disk.
+  The run removed all four record trees it created before release.
+- **Night Shift first.** Launched from its disk 1 entry, it showed "INSERT
+  'IML' DISK 2 AND PRESS ANY KEY". The insert was accepted in 17.4 s
+  (generation 100, same session, unit 0 rebound to the disk 2 entry). A key
+  then took it to the job application screen Hatari shows, and the joystick
+  chose Fred Fixit. The next screen asks for a four-symbol fruit code; a wrong
+  code is crossed out. That is a manual check, so Night Shift was not played.
+  Stop and relaunch booted disk 1 again (generation 101), and the prompt frame
+  was byte-identical to the first launch (`6ebcc02b…`). Each disk record held
+  exactly its base disk (`08f7f230…` and `5cebcbfc…`).
+- **Not covered.** Ejecting the disk, swapping back to disk 1 mid-game (neither
+  title asks), and a swap from tenfoot.
 
 ## Other observations
 
@@ -270,8 +356,13 @@ The runs differ in what the saved disk shows:
 - **Kit A, `g1`, `g2` and `h3`.** Each removed the two trees it created (an empty
   `core-data` namespace directory and its disk record) before its file
   listing.
+- **`n1` (8 November).** Night Shift and Terramex ran in one claim, with a
+  line in `kitB-STATUS.md` when the run moved to the fallback. It removed the
+  four disk-record trees it created; the post-run file listing equals the
+  pre-run one.
 - **Final state.** Kit B was left FREE at 20:51 on software `a8cd30c4` and
   image `f904961e`, with the `usb-storage.quirks` line intact. Kit A was left
-  FREE at 22:25 on its recovery baseline.
+  FREE at 22:25 on its recovery baseline. After `n1`, Kit B was left FREE at
+  10:40 on 8 November, on the same baseline with no reboot.
 - **What stays on Powerboat.** Captures (`.mkv`, `.wav`, frames), disk records,
   the Hatari runs and the tools are in `~/fes-scratch/st1528`.
