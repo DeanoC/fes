@@ -1,4 +1,4 @@
-# C64 PAL game acceptance, 7 November 2026
+# C64 PAL game acceptance, 7–8 November 2026
 
 Issue [#1531](https://github.com/DeanoC/fes/issues/1531): repeatable,
 representative real-game acceptance for the C64 core, in PAL scope only, on
@@ -10,7 +10,7 @@ before the first kit claim. It has three titles, two independent library
 launches each, at least 10 minutes of active play per case, and a declared
 objective per case.
 
-All runs were on Kit B. Kit A stayed held by Lander's #1490 restore all day.
+All runs were on Kit B. On 7 November Kit A stayed held by Lander's #1490 restore; the 8 November Kikstart rerun also used Kit B.
 Each case is compared with VICE 3.9 `x64sc` using the same ROMs and disks,
 on semantic outcomes: screens reached, on-screen counters and course times,
 and progress under input. No brightness or non-black checks are used.
@@ -19,7 +19,7 @@ and progress under input. No brightness or non-black checks are used.
 
 | Case | Result | Notes |
 | --- | --- | --- |
-| 1 Kikstart: KERNAL load, both ports, split-screen, collisions, SID | **FAIL** (two-port objective) | Load, trainer, high-score file read, course completion and respawn all match VICE: course 1 Player 1 72.54 and course 2 79.42 on both kit and VICE, identical across launches. In two-joystick mode, though, both riders follow either port, which VICE doesn't do: [#1542](https://github.com/DeanoC/fes/issues/1542). |
+| 1 Kikstart: KERNAL load, both ports, split-screen, collisions, SID | **PASS** | Run `kik4` (8 Nov), both launches. KERNAL load, trainer, high-score file read, two players with two joysticks: each port drives only its own rider, and course 1 times are P1 72.54 and P2 59.64 on both launches and in VICE. 850 s or more in a race per launch, and the race completes back to the title. The 7 Nov `kik2` two-joystick failure was a harness timing error ([#1542](https://github.com/DeanoC/fes/issues/1542), closed as not an FES defect). |
 | 2 Lode Runner: Brøderbund multi-file load, raw-sector level reads, joystick and keyboard | **PASS** | Both launches: the 1.5-minute original loader, the attract demo matching VICE (SCORE 2125), fire starting level 1, Ctrl+A costing a man (MEN 5→4), play scoring through input, game over and restart. Ctrl+U advanced to LEVEL 002 in r1 and in VICE; in r2 it landed in the death wipe (script timing). |
 | 3 Metal Warrior 4: custom IRQ fastloader with its own 1541 drive code, live side-2 replacement | **PASS** | Run `mw2`, both launches. Fastloader on, the multicolour loading picture, then the side-2 prompt answered by a live replacement in the running session (same session and generation, unit ready). Side 2 loads through the game's own drive code into the game, followed by 600 s of play and a live eject (unit empty, same generation). Every scripted screen matches VICE. `mw1` r1 also reached the game; `mw1` r2 is a harness INCONCLUSIVE (see below). |
 
@@ -38,6 +38,9 @@ listed under [Owed](#owed).
     lease, as they did for the 24 October seal.
   - Achieved against required: system 57.10/52.224 MHz, pixel
     74.84/74.25 MHz, audio 186.32/12.288 MHz.
+  - On 8 November, after merging main `66af9a662`, all 103 pinned producer
+    inputs in `build-inputs.json` still hash identically, so the seal still
+    stands for main.
   - The 24 October package `3d5bfc91…` isn't main's tree any more: `top.v`
     and the producer have changed since then, and its archive no longer
     exists on Powerboat.
@@ -129,7 +132,7 @@ each launch and a 20 s 60 fps video taken at the end.
   None of those writes are expected to persist on the kit. Users get no
   save and reload from a D64.
 
-## Case 1: Kikstart (run `kik2`)
+## Case 1: Kikstart (runs `kik4`, then the earlier `kik2`)
 
 **Path.** KERNAL `LOAD"*",8,1` loads the cracked one-file version through
 the native 1541 (about 55 s to `READY.`). Then:
@@ -142,51 +145,53 @@ the native 1541 (about 55 s to `READY.`). Then:
 
 Every one of those screens matched VICE.
 
-**Course times.** These are the race's own counters. Both kit launches gave
-identical times:
+**Two joysticks (`kik4`, 8 Nov, both launches).** Kikstart ignores both
+joysticks while the riders crash at the first wall and recover, about 6–14 s
+into the race. A press inside that window does nothing on the kit or in
+VICE; see #1542's closing comment. The script therefore works outside it:
 
-| | Kit `kik2` r1 | Kit `kik2` r2 | VICE (twice) |
+1. Port 2 is held Right from before F7, through the start, for 14 s.
+2. Port 1 is held Right for 8 s, starting at race time ~15 s.
+3. Both ports are then held until the race ends.
+
+| | Kit r1 | Kit r2 | VICE |
 | --- | --- | --- | --- |
-| Player 1, course 1 | 72.54 | 72.54 | 72.54 |
-| Player 2, course 1 | 71.66 | 71.66 | 62.56 |
-| Course 2, both riders | 79.42 | 79.42 | 79.42 |
+| Port 2 held 14 s | Player 2 at the Mr. Chip lorry; Player 1 coasts to the tyres | Same | Same |
+| Then port 1 held 8 s | Player 1 reaches the lorry; Player 2 is ahead at the fence | Same | Same |
+| Course 1: Player 1 / Player 2 | 72.54 / 59.64 | 72.54 / 59.64 | 72.54 / 59.64 |
+| Race completes, back to the title | Yes | Yes | Yes |
 
-Player 1's course 1 and both riders' course 2 match exactly. Player 2's
-course 1 differs because of the two-port fault below. In both games, crashes
-on obstacles were followed by respawn and the riders went on to the next
-course.
+**Sustained play.** After the race, four 150 s blocks of seeded play
+alternate between port 1 and port 2. Each block starts with F1 F1 F7, so
+both players have joysticks. All 16 play grabs in each launch are mid-race,
+for about 850 s in a race per launch. In the play grabs the two riders are
+at different points of the course, so each port drives only its own rider.
+Crashes and respawns happen throughout.
 
-**Two-joystick fault ([#1542](https://github.com/DeanoC/fes/issues/1542)).**
-The isolation test, in run `lode1` (prefix `iso`), held each port Right for
-8 s.
+SID music was active in 911 of 1037 and 915 of 1038 one-second windows,
+against 899 of 1015 in VICE.
 
-- In VICE, port 2 drives only Player 2 and port 1 only Player 1.
-- On the kit, both riders follow either port.
+Both launches are fresh library launches with a Stop between them. Kit B
+was claimed at 13:43 and released at 14:20 on 8 November, with the baseline
+verified.
 
-A BASIC loop printing `PEEK(56320);PEEK(56321)` on the same claim and
-package (run `mw1`, prefix `pp`) matched VICE for every port, direction and
-fire combination. That rules out host routing, agent port mapping and a lost
-first gamepad event. At the moments VICE was sampled, the game's CIA1 setup
-matches the KERNAL's (`7f ff ff 00`). So the fault depends on how the game
-accesses the ports during play, and the mechanism is still open in the
-issue. The two-port objective fails. Single-port play is unaffected.
+**The earlier attempt (`kik2`, 7 Nov).**
 
-**Sustained play and audio.**
+- Course times matched VICE where the inputs reached the game at the same
+  game time: Player 1 course 1 72.54, course 2 79.42.
+- The two-joystick check pressed each port at a fixed delay after F7. On
+  the kit the race starts about 1.4 s sooner after F7 than in VICE, so the
+  presses landed in the crash window, where Kikstart ignores both
+  joysticks. The riders then looked as if they followed the same input.
+- A BASIC `PEEK(56320);PEEK(56321)` probe on the same package (run `mw1`,
+  prefix `pp`) matched VICE for every port and direction.
+- The fix session traced the game's port reads and the RTL, then reproduced
+  VICE's course times with corrected timing. It closed #1542 as not an FES
+  defect.
 
-- `kik2` r1: 685 s in a race (about 235 s of held throttle, then three of
-  four 150 s play blocks).
-- `kik2` r2: about 535 s in a race. The first play block of each run sat on
-  the title screen, because F7 was pressed while race 3 was still running,
-  and r2 lost one more block the same way.
-- SID music was present in 779 and 778 of the first 900 one-second windows,
-  against 875 of 987 in VICE. The recorder's 900 s cap cut both kit
-  recordings short.
-
-A rerun with the fixed play script (hold the throttle until the race ends,
-then F1 F1 F7 before each block) was queued and then cancelled to free Kit B
-for the other sessions. The case fails on the two-port objective either way,
-and #1542 needs a Kikstart rerun once it's fixed. So `kik2` r2 stays at
-about 535 s of in-race play, under the 10-minute target.
+`kik2` is kept as a harness timing error. It also had shorter sustained play
+(about 685 s and 535 s in a race), because the old play script pressed F7
+while race 3 was still running.
 
 ## Case 2: Lode Runner (run `lode1`, launches r1 and r2)
 
@@ -249,6 +254,8 @@ weren't affected.
 
 These are kept so the attempts can be read in full.
 
+- `kik2` two-joystick check (7 Nov): presses landed in Kikstart's crash
+  window. See case 1 and #1542.
 - `kik1` (18:22–18:23): the ROM binding sent no ROM id and was rejected
   before launch. The kit was released unchanged.
 - `kik2`, first launch: the driver typed `LOAD` with Shift held, which
@@ -297,9 +304,6 @@ claim.
 
 ## Owed
 
-- The two-joystick fault, [#1542](https://github.com/DeanoC/fes/issues/1542).
-- A Kikstart rerun with the fixed play script once #1542 is fixed, for two
-  launches with at least 10 minutes in a race.
 - Independent review of this record, as #1531's closure requires.
 - Deterministic regression cases:
   - The Kikstart course times and the Lode Runner attract score are

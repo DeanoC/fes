@@ -1,7 +1,7 @@
 {
  "common": {
   "issue": "fes#1531 (C64 PAL real-game acceptance); matrix published first at https://github.com/DeanoC/fes/issues/1531#issuecomment-6707439997",
-  "kit": "B (Kit A was held by Lander fes#1490 throughout)",
+  "kit": "B (7 Nov: Kit A held by Lander fes#1490; 8 Nov rerun also on Kit B)",
   "package": "668a640d25bfdf7bbf464e93f879df78ecdfecb01cf3e3406ade2ab30f13d692",
   "package_file_sha256": "360eb61f74398d75d76b82fcb49a2fcfa631558caf2d2b0f1f1cbc96886b815c",
   "build_id": "c8928c51534a5e75960d9da5bf25500a",
@@ -63,7 +63,8 @@
   "video_path": "native 384x272 PAL frame scaled into fixed 720p60 HDMI; Kit B 4KPRO capture at 1920x1080",
   "audio_path": "HDMI digital audio, 48 kHz stereo, captured by the 4KPRO (constant -88 LSB DC offset removed in measurement); no analogue measurement",
   "input_path": "host /api/v1/session/input/event: HID keyboard (positional C64 map) and gamepad player 0 = C64 port 2, player 1 = C64 port 1",
-  "reference": "VICE 3.9 x64sc headless, built on Powerboat (tarball sha256 40202b63455e26b87ecc63eb5a52322c6fa3f57cab12acf0c227cf9f4daec370, binary 97f882a994288bbc97de2bda768b49065a0302fd84a02a17c4c71b1811188416), PAL, 6581 (reSID), true-drive 1541-II, same four ROM files; local binary-monitor patch (keyboard matrix set 0xa3, joystick set 0xa4) sha256 367b062175b9cce7569dae7cea2932954274760d4dbd431ea7b96ec59c9ff3d1; VICE attached private copies of the D64s"
+  "reference": "VICE 3.9 x64sc headless, built on Powerboat (tarball sha256 40202b63455e26b87ecc63eb5a52322c6fa3f57cab12acf0c227cf9f4daec370, binary 97f882a994288bbc97de2bda768b49065a0302fd84a02a17c4c71b1811188416), PAL, 6581 (reSID), true-drive 1541-II, same four ROM files; local binary-monitor patch (keyboard matrix set 0xa3, joystick set 0xa4) sha256 367b062175b9cce7569dae7cea2932954274760d4dbd431ea7b96ec59c9ff3d1; VICE attached private copies of the D64s",
+  "main_check_2026_11_08": "all 103 pinned C64 producer inputs in build-inputs.json hash identically after merging main 66af9a662"
  },
  "runs": {
   "kik1": {
@@ -183,7 +184,7 @@
      }
     }
    ],
-   "result": "case 1 Kikstart: launch 1 harness failure (shifted LOAD, ?SYNTAX ERROR); launches 2-3 = r1/r2: load, trainer, high-score file read, course completion and respawn PASS (course 1 P1 72.54, course 2 79.42 = VICE); two-joystick objective FAIL (#1542, P2 course 1 71.66 vs VICE 62.56); in-race play r1 ~685 s, r2 ~535 s"
+   "result": "case 1 Kikstart attempt (7 Nov): launch 1 harness failure (shifted LOAD, ?SYNTAX ERROR); launches 2-3: load, trainer, high-score read, course completion and respawn match VICE (course 1 P1 72.54, course 2 79.42); two-joystick check is a HARNESS TIMING ERROR, not a core defect: presses landed in Kikstart's crash window where the game ignores both joysticks (#1542, closed not planned); in-race play ~685 s and ~535 s"
   },
   "lode1": {
    "claimed": "2026-11-07 19:45:58 EET",
@@ -291,7 +292,7 @@
      }
     }
    ],
-   "result": "launch 1 = Kikstart port isolation (both riders follow either port; VICE separates them; #1542); launches 2-3 = case 2 Lode Runner r1/r2 PASS (attract SCORE 2125 = VICE, Ctrl+A MEN 5->4, Ctrl+U LEVEL 002 in r1 only, sustained play, game over and restart)"
+   "result": "launch 1 = Kikstart port isolation, superseded: its presses fell in the crash window (#1542, harness timing); launches 2-3 = case 2 Lode Runner r1/r2 PASS (attract SCORE 2125 = VICE, Ctrl+A MEN 5->4, Ctrl+U LEVEL 002 in r1 only, sustained play, game over and restart)"
   },
   "mw1": {
    "claimed": "2026-11-07 20:51:20 EET",
@@ -594,6 +595,90 @@
     }
    ],
    "result": "case 3 Metal Warrior 4 r1/r2 PASS: fastloader ON, live side-2 replacement (same session/generation, unit ready), side-2 load into the game, 600 s play, live eject (unit empty, same generation) in r1"
+  },
+  "kik4": {
+   "claimed": "2026-11-08 13:43:26 EET",
+   "released": "2026-11-08 14:20:25 EET",
+   "release": "RELEASED",
+   "driver_halted": null,
+   "wrapper_notes": [],
+   "launches": [
+    {
+     "game": "kik",
+     "disk": "kik",
+     "error": null,
+     "generation": 8,
+     "state": "active",
+     "build_id": "c8928c51534a5e75960d9da5bf25500a",
+     "launch_seconds": 18.53,
+     "media_unit_0": [
+      "ready"
+     ],
+     "scripted_play_seconds": 600,
+     "input_events": 1418,
+     "frames": {
+      "r1-00-basic": "123caade0a039d03d0ff7b695ed4a89e4b23870b47deb05168df1bd4266d354b",
+      "r1-01-loaded": "dab07375818ef1f56f296d40865c107f69fac0d19dbc00222fb91f0cb7369495",
+      "r1-02-trainer": "6cee32ac7d0ece22d5c026e3062f82b66475459d80e2f94b71c5b9da13e400a0",
+      "r1-03-hiload": "022323db3d9c0f2cd32462b4345634dfd371d7c62adcb8e9aeec0bc8a0ea092b",
+      "r1-04-title": "6f4d669636f7e57013320188fa68c5ade059b4ecc900003b6de06ca2f888135b",
+      "r1-05-twojoy": "eb7fe6a0cc0d5b8748d9d0e3f4b65c4f5089012874248e27a1e8a16d2381819f",
+      "r1-06-start-p2held": "c5b0a866745a2ab50e009c5625aa106186431195d1636d2b3ced211701f3be9c",
+      "r1-07-p2held": "69a7621ad3d75ef09c9e7fee332afb1c619487c89f0a96675a6bf97ea226168a",
+      "r1-08-p1held": "017b79775a8688da207064dc4a2082460e2d7220402ece9ff94545a96d1cde86",
+      "r1-09-course1": "b10954c20560e8f7fc7326e7cc83c72f992b86b4d8318bfb0a3ba1170163229a",
+      "r1-10-course2": "b6b8130053ff6916ab6d84b46f722cde4b65e801c77a4ae7227e1b7a42479ec7",
+      "r1-11-after-race": "0644c6d6c19bea879ea755f5aa01b7d9da8a5c96908c0fea589cf31469a94351",
+      "r1-12-end": "b9e27554335a1b57f1de3b725950c5d8f6c23defd98427a5d229f121cfc550dc"
+     },
+     "play_frames": 16,
+     "audio_sha256": "2b6319c2348c5e3246ffc85e83eb790015ed9d88f98c93c912c936a1e1981822",
+     "audio_bytes": 199229440,
+     "video_sha256": "eae21ebf8ced6c30e7c797b9da46ba904688bd423af9f389a1fea9f6e89dfda8",
+     "stop": {
+      "code": 200,
+      "state": "idle"
+     }
+    },
+    {
+     "game": "kik",
+     "disk": "kik",
+     "error": null,
+     "generation": 9,
+     "state": "active",
+     "build_id": "c8928c51534a5e75960d9da5bf25500a",
+     "launch_seconds": 18.25,
+     "media_unit_0": [
+      "ready"
+     ],
+     "scripted_play_seconds": 600,
+     "input_events": 1424,
+     "frames": {
+      "r2-00-basic": "004b3b4ee71db49b8540256a70eee090fe57d3437604de546a94ae9c287a9e67",
+      "r2-01-loaded": "440cb3132c332a8fc161858d1370fb7055dab162e00ff42d578d7477e5062fd9",
+      "r2-02-trainer": "6cee32ac7d0ece22d5c026e3062f82b66475459d80e2f94b71c5b9da13e400a0",
+      "r2-03-hiload": "022323db3d9c0f2cd32462b4345634dfd371d7c62adcb8e9aeec0bc8a0ea092b",
+      "r2-04-title": "97cbcd75df0d00d503d76fe82fd15460f85651f7d8d682c3c6a2117a4c5d28fe",
+      "r2-05-twojoy": "552441cd1073b6540b44c31ff5cccc3d993e523bdd00a88df08c5da92af37c56",
+      "r2-06-start-p2held": "fe6afd5f76118d9e936f64eca32e97be496ee2edf03743565a096fc89cb47ed9",
+      "r2-07-p2held": "8671d7ff4eec54aa16bdafb2e81b7d80c530bfd66ecf0f181de1a00ce4575ae8",
+      "r2-08-p1held": "aed708885d48fb3e897ad4ce7f7639c3b59166026ad2baf7b80bcd51be9feed6",
+      "r2-09-course1": "5f6488a617c8586f363ca3e071fdd74712b8447ed2044cd249ef98b609b78676",
+      "r2-10-course2": "301deb58eb6f9754863e90967b0468ed26641225cad6c0d2562a4803082c0464",
+      "r2-11-after-race": "d6370ca17ae392a4caf8bb34ba2383524ae956d55199813b8786fbb5b973765b",
+      "r2-12-end": "efb81bb37c1e351a74e1aa3c9e73103566c206134aac30973005e3f5f036ee54"
+     },
+     "play_frames": 16,
+     "audio_sha256": "69e26b0b8cd87e1029fb37883c57d255b534ec90690d32c094ce330b123e186f",
+     "audio_bytes": 199419950,
+     "video_sha256": "c5bb1b7ddeaa8e5cf2a5963125d2fc026d4644c1ed41453ec6e677b07f077e9a",
+     "stop": {
+      "code": 200,
+      "state": "idle"
+     }
+    }
+   ],
+   "result": "case 1 Kikstart r1/r2 PASS (8 Nov): two players two joysticks with port 2 held from before F7 and port 1 after race time ~15 s (outside the crash window, #1542); each port drives only its own rider; course 1 P1 72.54 / P2 59.64 on both launches = VICE; race completes; 16/16 play grabs in race (~850 s in race per launch); SID active 911/1037 and 915/1038 s (VICE 899/1015)"
   }
  },
  "reference_observations": {
@@ -612,6 +697,18 @@
     "p1_course1": 72.54,
     "p2_course1": 62.56,
     "course2": 79.42
+   },
+   "kit_kik4_r1": {
+    "p1_course1": 72.54,
+    "p2_course1": 59.64
+   },
+   "kit_kik4_r2": {
+    "p1_course1": 72.54,
+    "p2_course1": 59.64
+   },
+   "vice_kik4_script": {
+    "p1_course1": 72.54,
+    "p2_course1": 59.64
    }
   },
   "cia1_port_probe_dc00_dc01": {
@@ -659,11 +756,16 @@
    "vice_lode": "124/756",
    "mw2_r1": "715/900",
    "mw2_r2": "724/900",
-   "vice_mw4": "751/914"
+   "vice_mw4": "751/914",
+   "kik4_r1": "911/1037",
+   "kik4_r2": "915/1038",
+   "vice_kik4_script": "899/1015"
   },
   "kikstart_in_race_play_grabs": {
    "kik2_r1": "12 of 16 play grabs in a race (~685 s with the throttle phase)",
-   "kik2_r2": "8 of 16 (~535 s)"
+   "kik2_r2": "8 of 16 (~535 s)",
+   "kik4_r1": "16 of 16",
+   "kik4_r2": "16 of 16"
   },
   "video": "each launch ends with a 20 s 1920x1080 60 fps capture stored as 480x270 x264 (1200 frames); lossy, not a cadence proof"
  },
