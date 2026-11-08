@@ -1,0 +1,363 @@
+{
+ "common": {
+  "issue": "https://github.com/DeanoC/fes/issues/1528",
+  "scope": "Atari 520ST: 8 MHz 68000, 512 KiB, DE10-Nano; reruns the cases of docs/validation/2026-11-07-atari-st-game-acceptance on main's package",
+  "package": "2b54eb672a057cc13bdaa0af12dda30bae657772e3ae4ae465afa9deba8957b4",
+  "package_fcore_sha256": "d1558723706688c5c70edeec7feb75758a05ac52170c0b9a427d3e199e73c42b",
+  "package_build": {
+   "core": "fes.atari-st 0.2.0",
+   "build_id": "15f63d4f3fa0477295133328f5e3dea7",
+   "fes": "25204901da8fc48aa731b873e1df954639d11706",
+   "toolchain": "mistral 8fcc4cb4, nextpnr-mistral 5fe55f3d, yosys 3a5accbd, gpu-router HIP",
+   "video": "built-in Direct",
+   "route": "placer seed 4, pass",
+   "timing_mhz": {
+    "system": [
+     58.75,
+     52.22
+    ],
+    "pixel": [
+     83.06,
+     74.25
+    ],
+    "audio": [
+     139.08,
+     12.29
+    ]
+   },
+   "producer": "scripts/build_fes_atari_st_oss.py --gpu-router HIP --video-output direct, run outside gpu-run (it leases a GPU per nextpnr call), 17:11-17:54 EET 8 Nov"
+  },
+  "firmware": {
+   "name": "TOS 1.04 UK",
+   "bytes": 196608,
+   "sha256": "c005b0ae8ccd5bf2569add2a0d0a42583b2fb70eec3e1202d82311e96664a88e"
+  },
+  "disks": "same .st images as the 7 Nov record's kit-runs.json (Xenon 660e544f, Gomoku 0805b45c, Lurking Horror 287ff5d0, Terramex disk 1 793a9da2 and disk 2 5fe2bb14)",
+  "host": "private Powerboat fogcast-api bb51f4454eb72048cefeea16aa16b28eb2aadaad (promoted binary), private HOME, Kit A dev target only; library title, POST /api/v1/session/launch, /api/v1/session/input/event, /api/v1/session/disk/insert, /api/v1/session/stop",
+  "kits": {
+   "A": {
+    "baseline": {
+     "software": "4efd34bfcb9054c9bec267a1a1e3c97079f1cb9a8947a47ee503057c95cda30d",
+     "image": "31b3906330b7b404b21f4ca888d99b860dca1d2742a7ebc3bb204e57053b73ff",
+     "mode": "core-only: no install, no image change, no reboot"
+    },
+    "host_target": "dev (http://fes-kit-a:8182)",
+    "capture": "ShadowCast (fes-shadowcast-hil) via live.png 960x540 at 2 fps, play recordings 640x360 h264; audio hw:CARD=S3 stereo 48 kHz",
+    "runs": [
+     "m1",
+     "m2"
+    ]
+   }
+  },
+  "play_time": "time in the game: from the first game frame (or first board frame for Gomoku) to the last input of that game or session, summed; boots, desktop launches and idle gaps are not counted",
+  "input_latency_issue": "https://github.com/DeanoC/fes/issues/1582"
+ },
+ "runs": {
+  "m1": {
+   "kit": "A",
+   "claimed": "17:56 EET 8 Nov",
+   "released": "20:18 EET",
+   "removed_trees": 7,
+   "xenon": {
+    "result": "PASS",
+    "game_id": "fpga-xenon-1528-m1-c51c5dc1bc71",
+    "play": "18:01:12 to 18:12:14 (11:02)",
+    "outcomes": "moves and fire respond; score 250; lives 3 to 2",
+    "record": {
+     "record_sha256": "49ebe08f0283a0a75d6d4720a907f7cf10ec68cf26c6337e96bf47b932f6d84e",
+     "payload_sha256": "660e544ffa7eb8e0f9201614711f5d4b2a935870bb89f5ea707fed314e056f9e",
+     "disk": "unchanged xenon base"
+    }
+   },
+   "gomoku": {
+    "result": "PASS",
+    "game_id": "fpga-gomoku-1528-m1-d1a1d4d6baa2",
+    "games": [
+     {
+      "first_board": "18:14:46",
+      "last_move": "18:29:48",
+      "white_moves": 82,
+      "result": "no result: player script cap at 82 White moves, no five in a row on the board"
+     },
+     {
+      "first_board": "18:31:35",
+      "last_move": "18:33:39",
+      "white_moves": 11,
+      "result": "Game won by White"
+     },
+     {
+      "first_board": "18:35:48",
+      "last_move": "18:40:31",
+      "white_moves": 28,
+      "result": "Game won by White"
+     },
+     {
+      "first_board": "18:42:38",
+      "last_move": "18:44:25",
+      "white_moves": 9,
+      "result": "Game won by White"
+     },
+     {
+      "first_board": "18:46:36",
+      "last_move": "18:47:51",
+      "white_moves": 6,
+      "result": "Game won by White"
+     },
+     {
+      "first_board": "18:50:01",
+      "last_move": "18:56:16",
+      "white_moves": 34,
+      "result": "Game won by White"
+     },
+     {
+      "first_board": "18:58:24",
+      "last_move": "19:03:04",
+      "white_moves": 23,
+      "result": "Game won by White"
+     },
+     {
+      "first_board": "19:05:16",
+      "last_move": "19:09:14",
+      "white_moves": 18,
+      "result": "Game won by White"
+     }
+    ],
+    "board_play_seconds": 2384,
+    "note": "board play is long because the player script ran 10-15 s per move under Powerboat load 55-66; on screen Black replies within about 1 s on both packages (stone counts from the recordings)",
+    "first_board_frames": [
+     "4db2dd70a7de7d88714f63a6b81effe449e881003553d92ca4435aacbe27c29c"
+    ],
+    "record": {
+     "record_sha256": "0c39c15603843154cb193da7e796e582cfe237993c67e802b843e6daaddc91ca",
+     "payload_sha256": "0805b45c30766924df4195c73e9b66169160d2d9dd657b81684347a4deb974fa",
+     "disk": "unchanged gomoku base"
+    }
+   },
+   "lurking_horror": {
+    "result": "PASS (entry m1b)",
+    "game_id": "fpga-lurking-horror-1528-m1b-0e52ae1fd4c6",
+    "sessions": [
+     "s1 game frame 19:32:07, script to SAVE at 5/19 (Okay.)",
+     "s2 game frame 19:38:03 (window listed FES1528.SAV, LURKING.PRG, STORY.DAT), RESTORE (Okay., 5/20, stone), play to 5/47",
+     "s3 game frame 19:45:58, RESTORE, play to 5/35"
+    ],
+    "play": "about 11 min over three sessions",
+    "save_vs_hatari": "equals Hatari sd2.st and sd3.st except offset 5686 (FES1528.SAV directory time); differs from lhref1-4/sd0/sd1 in that byte plus 4 bytes, the urchin's room set by the game's start-time RNG seed (explained in the 7 Nov record)",
+    "record": {
+     "record_sha256": "c8e6eec2bc85de9ddeda431d936fcb1062255d0c6f1a2bbdba25252e4c9d68cf",
+     "payload_sha256": "d862eb769d133124598b417759174f45b1e6873749ce185f2e2bee8ef5f91eaf",
+     "disk": "lurking horror after SAVE"
+    },
+    "harness_invalid": {
+     "game_id": "fpga-lurking-horror-1528-m1-e625024857d2",
+     "cause": "late key-ups (#1582) made TOS auto-repeat keys ('sit on ccccccchair'); the script went off course and its SAVE wrote a different game state; not counted",
+     "record": {
+      "record_sha256": "9a44cc127e3e781c45e3c1388f19a0d0d52035408c23dc54009e22c5f7e14a50",
+      "payload_sha256": "df404392a72bf844da1bc3e9bfe771ef535cb5dc16c59ab8a36abd026377945a",
+      "disk": "lurking horror, garbled session"
+     }
+    }
+   },
+   "terramex": {
+    "result": "PASS (two launches)",
+    "game_id": "fpga-terramex-1528-m1-6f71992e4b5a",
+    "disk_2_game_id": "fpga-terramex-1528-m1-disk-2-2449d3ac4a71",
+    "launches": [
+     {
+      "swap": "19:51:26, rc 0, 10.1 s; unit 0 rebound to the disk 2 entry, generation 38",
+      "play": "19:52:20 to 20:03:24 (11:04), score 50, two returns to the title"
+     },
+     {
+      "relaunch": "20:04:30, unit 0 back on the disk 1 entry",
+      "prompt_frames": "60 s and 100 s frames byte-identical to launch 1",
+      "swap": "20:06:20, rc 0, 9.9 s",
+      "play": "20:06:45 to 20:17:47 (11:02), one return to the title"
+     }
+    ],
+    "records": {
+     "disk_1": {
+      "record_sha256": "12be24c30cf5f2a87bb0b280556ce2a40548355f25cf9e96b3286b797a51abc2",
+      "payload_sha256": "793a9da23c13ef35c6a7ea301b3f90d7a4b3b03640d6733bbc6f9c5cb068eda6",
+      "disk": "unchanged terramex disk 1"
+     },
+     "disk_2": {
+      "record_sha256": "0ed1afa63571a3a8ddf7e9f199ca1ed4af797de76106f7981822d7a43dd6788f",
+      "payload_sha256": "5fe2bb14254e20d3678e406c4f5625d2ff9daa89c660215f38d2410582ebf794",
+      "disk": "unchanged terramex disk 2"
+     }
+    }
+   },
+   "frames": {
+    "x-start": "90f8ca09eb1b302e69785b34776165af1d998f5ace50a40de6e43a1ec8e30cf3",
+    "x-p05": "55bbcc0ab6e0a2f72b244cce9fa9732041115f6e09f9b886f523fbefc08072d6",
+    "x-p11": "3d46a83d973a47d7e8d4b3e5ba64e23a8d42bf5fc1c8be766a355dd08b16fd45",
+    "lh-game": "f7514ffcdf451a780e93a9c086c6f0e0bf80585bec67158817fd4c7fe1304b9d",
+    "m1b-game": "64b28ecb229ba7f50950d03526d36568da68f3686850b3f1f321f918b1eba081",
+    "m1b-saved": "48b55d6e42ba49217320b6d44a9abcd924ac26134fa8f84df3003844df6f9fd1",
+    "m1b-relaunch-window": "1a9a6aa9b6136ce129def6cd94ecc5effeb5859a0532aabd89dd3f978d1fe465",
+    "m1b-relaunch-game": "f7514ffcdf451a780e93a9c086c6f0e0bf80585bec67158817fd4c7fe1304b9d",
+    "m1b-s3-game": "64b28ecb229ba7f50950d03526d36568da68f3686850b3f1f321f918b1eba081",
+    "m1b-s3-end": "498e0dfdc1b811c705cb289e463603e26df4d558895557e611c0ea15ed0240c2",
+    "tm-prompt60": "ab32153d12885b412cc938c3308a0c9e4d026b4be85406c60a3b0802a253ab55",
+    "tm-prompt100": "ab32153d12885b412cc938c3308a0c9e4d026b4be85406c60a3b0802a253ab55",
+    "tm-after-swap": "33ff08852f61f738c775f4234abc6535ffb8de7370ae4e40445ffc94d7eed1f8",
+    "tm2-prompt60": "ab32153d12885b412cc938c3308a0c9e4d026b4be85406c60a3b0802a253ab55",
+    "tm2-prompt100": "ab32153d12885b412cc938c3308a0c9e4d026b4be85406c60a3b0802a253ab55",
+    "tm2-after-swap": "33ff08852f61f738c775f4234abc6535ffb8de7370ae4e40445ffc94d7eed1f8"
+   },
+   "captures": {
+    "m1-play.mkv": "7fcebc587017b97e21d7d706739e58b5c00fe0a58fe4f9042ba44c6dc8dc97ea",
+    "m1-play2.mkv": "11b806be71e6057227b4cff54b59246d0dc82740636c1b92ba82b3caf1a7ffbf",
+    "m1-audio.wav": "42b0d3bc8eb1a5f8a88cbec2086b6bdbeadd63f393169b0e555e606e00263c7a",
+    "m1-audio2.wav": "5d9b7a268f2b53d14e0318f77bc48c5b99b01833900f316c691e30e9a9f7cd4a"
+   }
+  },
+  "m2": {
+   "kit": "A",
+   "claimed": "20:19 EET 8 Nov",
+   "released": "22:15 EET",
+   "removed_trees": 7,
+   "xenon": {
+    "result": "PASS",
+    "game_id": "fpga-xenon-1528-m2-7bd792771df5",
+    "play": "20:23:14 to 20:34:14 (11:00)",
+    "outcomes": "moves and fire respond; score 500, then 750",
+    "record": {
+     "record_sha256": "11699012e9a57048faed06b298b364c197bcb35441bc3b1f97c477ba68e55448",
+     "payload_sha256": "660e544ffa7eb8e0f9201614711f5d4b2a935870bb89f5ea707fed314e056f9e",
+     "disk": "unchanged xenon base"
+    }
+   },
+   "gomoku": {
+    "result": "PASS",
+    "game_id": "fpga-gomoku-1528-m2-e1cd89883900",
+    "games": [
+     {
+      "first_board": "20:35:55",
+      "last_move": "20:37:30",
+      "white_moves": 13,
+      "result": "Game won by White"
+     },
+     {
+      "first_board": "20:39:36",
+      "last_move": "20:41:41",
+      "white_moves": 16,
+      "result": "Game won by White"
+     },
+     {
+      "first_board": "20:43:48",
+      "last_move": "20:44:47",
+      "white_moves": 8,
+      "result": "Game won by White"
+     },
+     {
+      "first_board": "20:46:55",
+      "last_move": "20:49:43",
+      "white_moves": 24,
+      "result": "Game won by White"
+     },
+     {
+      "first_board": "20:51:51",
+      "last_move": "20:55:18",
+      "white_moves": 26,
+      "result": "Game won by White"
+     },
+     {
+      "first_board": "20:57:26",
+      "last_move": "21:00:53",
+      "white_moves": 25,
+      "result": "Game won by White"
+     }
+    ],
+    "board_play_seconds": 861,
+    "first_board_frames": [
+     "4db2dd70a7de7d88714f63a6b81effe449e881003553d92ca4435aacbe27c29c"
+    ],
+    "record": {
+     "record_sha256": "b523da6fd9fbe8f3a97c3c92b5bffe6d7a3cd0f61bf6307cbb04d9864734b443",
+     "payload_sha256": "0805b45c30766924df4195c73e9b66169160d2d9dd657b81684347a4deb974fa",
+     "disk": "unchanged gomoku base"
+    }
+   },
+   "lurking_horror": {
+    "result": "PASS (entry m2b, checked launch and typing)",
+    "game_id": "fpga-lurking-horror-1528-m2b-82d639b15621",
+    "sessions": [
+     "s1 status bar 1.00 at 21:26:47 (2-item window, first icon); script with every command length-checked; SAVE at 5/22 through the GEM file selector, field read FES1528 by eye (selname.py then counted the text cursor bar; fixed), Okay.",
+     "s2 status bar 1.00 at 21:34:26 (3-item window, second icon); RESTORE through the checked selector (rc 0); play to 5/55",
+     "s3 status bar 1.00 at 21:42:12; RESTORE (rc 0); play to 5/38, stone in inventory"
+    ],
+    "play": "about 13.5 min over three sessions",
+    "save_vs_hatari": "not byte-compared: saved at 5/22, three moves past the reference script's 5/19 (cause not isolated; the typing log shows the script's commands in order, retries only before Enter); differs from the Hatari 5/19 saves by 23-24 bytes",
+    "record": {
+     "record_sha256": "d0f518012b142a0ebf168d4c154ead6263dce081ab223b804fe24d689b7f48ff",
+     "payload_sha256": "28c1c9e6cecbdfcdb0822536ef70252cb373079eae9498710cc4d8a21269e4f4",
+     "disk": "lurking horror after SAVE"
+    },
+    "harness_invalid": {
+     "game_id": "fpga-lurking-horror-1528-m2-37e82fd75d55",
+     "cause": "session 1 (game opened about 21:03) had its save line garbled by key repeats ('savvve', 'FEES1555555528'), so no FES1528.SAV was written; sessions 2 and 3 then clicked the second icon blind and opened STORY.DAT in the GEM viewer (21:08:02 and 21:15:11); Deano saw it; runner stopped 21:16:22; not counted",
+     "record": {
+      "record_sha256": "9fe98e3535edd87fc3f223d6b2ce4a14a8b81813f99d9e69b72a2583995ac427",
+      "payload_sha256": "287ff5d0a1069cb1ece93929004bf25a776b9291211c3cabe27b5a609efbebb4",
+      "disk": "unchanged lurking horror base (no save written)"
+     }
+    }
+   },
+   "terramex": {
+    "result": "PASS (two launches)",
+    "game_id": "fpga-terramex-1528-m2-ad28344909dc",
+    "disk_2_game_id": "fpga-terramex-1528-m2-disk-2-dae8f1c8c660",
+    "launches": [
+     {
+      "play": "21:48:44 to 21:59:53 (11:09), two returns to the title",
+      "prompt_frame_100s": "byte-identical to m1 launch 1"
+     },
+     {
+      "play": "22:03:01 to 22:14:14 (11:13), one return to the title",
+      "prompt_frame_100s": "byte-identical to m2 launch 1"
+     }
+    ],
+    "records": {
+     "disk_1": {
+      "record_sha256": "5751fbe7c0acc427d72bb36c0fbca452200cbe1cbf892d88eb9f4b9d4eb092d6",
+      "payload_sha256": "793a9da23c13ef35c6a7ea301b3f90d7a4b3b03640d6733bbc6f9c5cb068eda6",
+      "disk": "unchanged terramex disk 1"
+     },
+     "disk_2": {
+      "record_sha256": "5edae2ce5750ec02232af2c5f47686c348a0ad6f8c1472b31899eda621216a19",
+      "payload_sha256": "5fe2bb14254e20d3678e406c4f5625d2ff9daa89c660215f38d2410582ebf794",
+      "disk": "unchanged terramex disk 2"
+     }
+    }
+   },
+   "frames": {
+    "x-start": "f5fa3a0b6fc8b302a91db80f6e90fdb73bed9bae7e316833d66b8cf9360ffd0d",
+    "x-p05": "2dee16ac0786045453bffdec8ec66943600dad1e98a41403f078e10fe0fb9389",
+    "x-p11": "6451b4c7555c6323eeb49b7ed777f902625c3252238fb92afedb874cb34c3d5e",
+    "lh-s2-window": "51c74c2caddf78f288ce94dad28dc569b0c7240b8b793b17ce64999d7d9ba354",
+    "lh-s3-window": "51c74c2caddf78f288ce94dad28dc569b0c7240b8b793b17ce64999d7d9ba354",
+    "s1-game": "f7514ffcdf451a780e93a9c086c6f0e0bf80585bec67158817fd4c7fe1304b9d",
+    "s1-saved": "2eb0da144ea9fd542fe8ae8dda2148339c3ba71d0f844c90ae3670b66b48ce21",
+    "s2-window": "1a9a6aa9b6136ce129def6cd94ecc5effeb5859a0532aabd89dd3f978d1fe465",
+    "s2-game": "f7514ffcdf451a780e93a9c086c6f0e0bf80585bec67158817fd4c7fe1304b9d",
+    "s2-end": "de64352e8d052095be87a22d19a1041fd08e35e68f76c08819bc8818ae7d2253",
+    "s3-window": "1a9a6aa9b6136ce129def6cd94ecc5effeb5859a0532aabd89dd3f978d1fe465",
+    "s3-game": "f7514ffcdf451a780e93a9c086c6f0e0bf80585bec67158817fd4c7fe1304b9d",
+    "s3-end": "d64a1955743bb069ce71934c5ff6e819555e6a3ce4733959c756f379ecaeb4d2",
+    "tm1-prompt60": "ab32153d12885b412cc938c3308a0c9e4d026b4be85406c60a3b0802a253ab55",
+    "tm1-prompt100": "ab32153d12885b412cc938c3308a0c9e4d026b4be85406c60a3b0802a253ab55",
+    "tm1-after-swap": "33ff08852f61f738c775f4234abc6535ffb8de7370ae4e40445ffc94d7eed1f8",
+    "tm2-prompt60": "ab32153d12885b412cc938c3308a0c9e4d026b4be85406c60a3b0802a253ab55",
+    "tm2-prompt100": "ab32153d12885b412cc938c3308a0c9e4d026b4be85406c60a3b0802a253ab55",
+    "tm2-after-swap": "33ff08852f61f738c775f4234abc6535ffb8de7370ae4e40445ffc94d7eed1f8"
+   },
+   "captures": {
+    "m2-play.mkv": "df0ab612ad1b1c5e6f745ea337905b77ed70e61570cc7db6152eaf1a2cbe0cd6",
+    "m2-play-tm.mkv": "db4eb70fd1c10376f30da7ff2240f6a9a70d8387aca5a8694ff71ce1c1329ba0",
+    "m2-audio.wav": "b717f5bdf9233e153812139df4fdf1f3e04fd5c57e0a0c72c4f3cd6a6214bc87",
+    "m2-audio-tm.wav": "73501480ed13129faee7e17b81d1dad605722eda70f964c45539e44286020267"
+   }
+  }
+ }
+}
