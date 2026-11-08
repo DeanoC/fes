@@ -27,15 +27,16 @@ Toolchain follow-up: [#1581](https://github.com/DeanoC/fes/issues/1581).
 - **The Yosys front end's other losses are small.** Quartus ignores Yosys's
   `parallel_case` attribute on 613 one-hot muxes, but a fit with Quartus's
   own `// synthesis parallel_case` directive gives identical synthesis:
-  56,331 ALUTs and 36,751 ALMs both times. Keeping the hierarchy instead of
+  56,331 ALUTs, 32,350 registers and 36,751 ALMs both times. Keeping the hierarchy instead of
   flattening it moves the total by 43 ALMs. The M4 record's two memories that
   Quartus "could not infer" (warning 10999) are now M10K, split per byte.
   What Yosys still turns into flip-flops is 30 small memories of about
   2,500 bits in all, mostly in the machine.
 - **Slices 2–5 need about 2,000 ALMs (high 2,650, pessimistic 3,600).**
-  With the TLB fix the design would sit at about 38,000 ALMs (91%), and at
-  about 38,750 (92.5%) without it. The high case is about 38,650 (92%)
-  after the fix. Quartus closes at 88% today with
+  Without wins the design would sit at about 38,750 ALMs (92.5%). The TLB
+  fix saves 744 ALMs in the CPU and 500 in the whole fit (the machine moved
+  +244 by noise). Counting the conservative 500, the estimate lands at about
+  38,250 (91.3%) and the high case at about 38,900 (92.8%). Quartus closes at 88% today with
   +0.620 ns of setup slack and "Low" packing difficulty. It has never been
   run above 88%, so anything past about 92% is untested. The plan fits if
   the TLB fix lands. More wins are listed [below](#options-if-the-slices-run-over)
@@ -57,8 +58,9 @@ figures need a fit without the flatten.
 | parallel_case | `93928cea2` | the seal's netlist, the 613 Yosys `$pmux` `casez` functions marked `// synthesis parallel_case` | 36,751 | 32,350 | +0.843 ns |
 | TLB write enable | `93928cea2` + scratch commit | per-module, `fes_i386_tlb` writing each entry under its own enable | 36,294 | 32,520 | +0.832 ns |
 
-- Every fit is Quartus 17.0.2, seed 1, the producer's settings. All five met
-  every timing analysis. None of the analysis fits is a seal; their packages
+- Every fit is Quartus 17.0.2, seed 1, the producer's settings. All five had
+  positive slack on every setup and hold analysis in `top.sta.summary`; the
+  worst was hold, +0.076 to +0.118 ns. None of the analysis fits is a seal; their packages
   are scratch.
 - The per-module fits change only the Yosys script: the producer's
   `machine_program` without `flatten; `, and with a `stat` before
@@ -177,7 +179,7 @@ The misses have three causes:
 
 | Item | ALMs | Evidence |
 | --- | ---: | --- |
-| `$pmux` as `casez` without a parallel_case Quartus honours | 0 | The fit with Quartus's directive gives identical synthesis (56,331 ALUTs, 36,751 ALMs). Quartus warns that the directive overrides the attribute, so it read the attribute already. |
+| `$pmux` as `casez`, its `parallel_case` attribute reported unrecognised | 0 | The fit with Quartus's own directive gives identical synthesis (56,331 ALUTs, 32,350 registers, 36,751 ALMs). |
 | `flatten` before Quartus | about 0 (−43) | The per-module fit totals 36,794 against the seal's 36,751. |
 | Variable-index write into a packed array (`e[slot] <= x`) | 744 in the TLBs | the scratch fit; the same idiom elsewhere is [below](#other-findings) |
 | Multi-write-port memories as flip-flops | about 250–400 | The return stack is 289 ALMs and would be about 20 in two MLABs; the KBC RAM and VGA CRTC are a few tens each. The rest are register files that stay registers either way. |
@@ -249,11 +251,15 @@ Measured control slices are the better guide for that kind of work:
   was, so this record doesn't expect that. It's the bound to plan the
   options against.
 
-| Case | Slices 2–5 | Without the TLB fix | With it (−744) |
-| --- | ---: | ---: | ---: |
-| Estimate | 2,000 | 38,750 (92.5%) | 38,000 (90.7%) |
-| High | 2,650 | 39,400 (94.0%) | 38,650 (92.2%) |
-| Pessimistic | 3,600 | 40,350 (96.3%) | 39,600 (94.5%) |
+| Case | Slices 2–5 | Without the TLB fix | With it, fit total (−500) | With it, CPU delta (−744) |
+| --- | ---: | ---: | ---: | ---: |
+| Estimate | 2,000 | 38,750 (92.5%) | 38,250 (91.3%) | 38,000 (90.7%) |
+| High | 2,650 | 39,400 (94.0%) | 38,900 (92.8%) | 38,650 (92.2%) |
+| Pessimistic | 3,600 | 40,350 (96.3%) | 39,850 (95.1%) | 39,600 (94.5%) |
+
+The TLB fit's total fell by 500. The CPU fell by 744 and the unchanged
+machine rose by 244, which is within the [noise](#method). The conservative
+column counts 500.
 
 **Headroom for timing.** At 36,751 ALMs the seal reports 97% of LABs partly
 used and "Low" packing difficulty. It reports 2,335 ALMs recoverable by
@@ -265,9 +271,11 @@ packing starts merging unrelated logic into shared LABs, and the critical
 paths' placement gets worse.
 
 **So:**
-- With the TLB fix, the estimate fits under that ceiling with about 500 ALMs
-  to spare. The high case sits on it.
-- Without the fix, even the estimate is over it.
+- With the TLB fix, the estimate fits under that ceiling with 250–500 ALMs
+  to spare.
+- The high case is over the ceiling, by 150–400 ALMs, unless a second win
+  lands too. The HID keyboard is the largest one.
+- Without the fix, even the estimate is over the ceiling.
 - The TLB fix should land before slice 2. Each slice's seal should be
   checked against the estimate here; a slice that comes in 30% over is the
   signal to take the next option.
@@ -276,7 +284,7 @@ paths' placement gets worse.
 
 | Option | ALMs | Cost or risk |
 | --- | ---: | --- |
-| Per-entry write enable in `fes_i386_tlb` | −744 (measured) | none; five lines; lockstep and seal as any RTL change. Needs #1579 merged. |
+| Per-entry write enable in `fes_i386_tlb` | −500 to −744 (measured) | Five lines; lockstep and seal as any RTL change. Needs #1579 merged. The scratch form also loads an entry when a fill and a flush coincide; the flush's cleared valid bit hides that, but the real change should keep `!flush` in the enable so it matches today's RTL exactly. |
 | Fill reuses the lookup's `match` (drop `same`) | about −100 | a small change to the walker's fill; timing-neutral |
 | HID keyboard state vectors in M10K/MLAB | about −800 to −1,000 | machine RTL, independent of the CPU; keyboard tests and a kit check |
 | Return stack as a single-write-port memory in MLAB | about −250 | needs its two writes (push and repair) on one port; #1581's primitive |
@@ -285,8 +293,8 @@ paths' placement gets worse.
 | DTLB 16 → 8 entries with a 64-entry MLAB second level (the plan's own fallback) | about −400 | the plan's fallback for timing; 8 entries alone miss 2.86% under JEMM386, so the second level is needed |
 | OPL2's four small register memories as MLAB | about −150 | vendor code |
 
-Even the pessimistic case fits under the ceiling with the first three rows
-together (about −1,650).
+With the first three rows together (−1,400 to −1,850), even the pessimistic
+case comes back to 38,500–38,950 ALMs (92–93%): at the ceiling or just over it.
 
 ## AlphaMister
 
@@ -307,5 +315,10 @@ The scripts are on Powerboat in `~/fes-scratch/area1548`:
 - `atoms.tcl` dumps every post-fit atom (type, location, name);
 - `cmp.py` and `grp.py` make the entity table and group atoms by name.
 
-Each fit takes 20–40 minutes on Powerboat. The seal `416e332f` is in
+`run_hier_area1548.sh TAG` expects a detached worktree at `wt-TAG` with
+the pc386 firmware copied into its `build/firmware/pc386`. Each fit
+takes 20–40 minutes on Powerboat. The worktrees have been removed. The fit,
+map and timing reports of all four analysis fits are kept in `reports/`
+(`pg`, `base`, `tlb`, `exp`), with the TLB change as
+`reports/tlb/tlb-write-enable.diff`. The seal `416e332f`'s project is in
 `~/fes-scratch/p5pg/seal-s1`.
