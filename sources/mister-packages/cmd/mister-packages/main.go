@@ -178,8 +178,15 @@ func emitCPath(path string) (string, error) {
 	if err != nil {
 		return "", err
 	}
+	if kind == "abi" {
+		abi, err := pack.LoadABI(path)
+		if err != nil {
+			return "", err
+		}
+		return emitc.GenerateABI(abi)
+	}
 	if kind != "fabric" {
-		return "", fmt.Errorf("%s: emit-c expects kind fabric, got %q", path, kind)
+		return "", fmt.Errorf("%s: emit-c expects kind fabric or abi, got %q", path, kind)
 	}
 	fabric, err := pack.LoadFabric(path)
 	if err != nil {
@@ -320,7 +327,7 @@ func usage() {
 Commands:
   validate [package.yaml]
   report [package.yaml]
-  emit-c <fabric.yaml>
+  emit-c <fabric-or-abi.yaml>
   emit-cpp [package.yaml]
   emit-go [abi.yaml|fabric.yaml|programming.yaml]
 	emit-verilog [abi.yaml|fabric.yaml]

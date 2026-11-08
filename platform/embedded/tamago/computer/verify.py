@@ -20,6 +20,7 @@ import uuid
 HERE = Path(__file__).resolve().parent
 ROOT = HERE.parents[3]
 BOARD = ROOT / "sources/misteross/prototypes/de25_board_control"
+FIRMWARE = ROOT / "platform/embedded/firmware"
 SOURCES = ("fes_de25_computer.v", "fes_computer_mailbox.v", "zx81_machine.sv",
            "zx81_machine_clock.v", "zx81_keyboard.v", "zx81_dpram_de25.v",
            "zx81_tape_store_de25.v", "fes_z80_nmos.sv", "fes_z80_engine.sv",
@@ -59,6 +60,8 @@ def main():
         raise ValueError("this test supports the internal-RAM computer only")
     probe = HERE / "testdata/probe.cpp"
     files = list(HERE.glob("*.go")) + list((HERE / "generated").glob("*.go")) + [probe, HERE / "verify.py"]
+    files += [FIRMWARE / name for name in ('nano_tape.c', 'nano_tape.h',
+              'generated/fes_computer.h', 'generated/fes_de25_computer.h')]
     files += list((HERE.parent / "nativefabric").glob("*.go"))
     files += list((HERE.parent / "nativefabric/testdata").glob("hps*.json"))
     files += list((HERE.parent / "embeddedcontrol").rglob("*.go"))
@@ -115,12 +118,18 @@ def main():
         print(label + ": PASS", flush=True)
 
     obj = output / "obj"
+    secure_object = output / 'nano_tape.o'
+    run('secure-engine', ['cc', '-std=c11', '-Os', '-Wall', '-Wextra', '-Werror',
+                         '-fsanitize=undefined', '-fno-sanitize-recover=all',
+                         '-I' + str(FIRMWARE), '-c', FIRMWARE / 'nano_tape.c', '-o', secure_object], ROOT, 30)
     run("build", [paths["verilator"], "--cc", "--exe", "--build", "--public-flat-rw",
                   "--top-module", "fes_de25_computer", "-Wno-fatal", "--Mdir", obj,
                   "-I" + str(sim), "-I" + str(sim / "generated"),
                   "-DFES_DE25_COMPUTER_BUILD_ID=128'h" + computer["build_id"],
                   *('-D' + macro for macro in computer_model.macros(inputs.get('computer_model', 'zx81'))),
-                  "-CFLAGS", "-std=c++17 -O2", *(sim / name for name in SOURCES), probe], sim, 120)
+                  "-CFLAGS", "-std=c++17 -O2 -I" + str(FIRMWARE),
+                  "-LDFLAGS", str(secure_object) + " -fsanitize=undefined -fno-sanitize-recover=all",
+                  *(sim / name for name in SOURCES), probe], sim, 120)
     executable = obj / "Vfes_de25_computer"
     env.update(FES_COMPUTER_MODEL=str(executable), FES_COMPUTER_MODEL_DIRECTORY=str(sim),
                FES_COMPUTER_BUILD_ID=computer["build_id"])

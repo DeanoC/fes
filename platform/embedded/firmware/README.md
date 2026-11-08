@@ -6,6 +6,33 @@ adapter, and verification against actual FPGA RTL. These tools build firmware
 components; the Nano tools assemble the matched experimental boot images.
 Software tests and cross-builds remain distinct from hardware acceptance.
 
+`nano_tape` is an unbound secure-side initial-tape engine for the existing
+Avalon computer mailbox. It is not installed in TF-A, exposed by an SMC, or
+selected by the native runtime yet. Its trusted supplier must hold the secure
+lifecycle lock with non-secure execution and other CPUs stopped, and all DMA
+and data masters contained. Complete fresh ownership observations frame
+preparation, each 512-byte chunk and completion; every CSR independently checks
+live CPU/reset/access ownership before and after. These are required callbacks,
+with no permissive fallback. The intended physical supplier follows the existing
+secure ROM-step pattern; these unbound hooks alone grant no permission.
+
+The engine checks the selected full GP identity and adapter version before and
+after, the acknowledged initial Hold, stable transport snapshots, one toggled
+write per command, bounded ACKs, chunk ordinals/odd padding, CRC before begin and
+commit, final media readiness and unchanged instruction-fetch observations.
+It keeps one 512-byte scratch buffer, uses a qualified timer with a fixed
+one-second operation limit, and never issues Hold/Run, reset or recovery. Failure
+consumes its frame, retires the object and leaves the receipt untouched; the
+caller still owns physical containment. Success returns the new GPO so the
+caller's next command can continue the same protocol epoch.
+
+Portable tests execute the C engine with injected MMIO, ownership and time.
+The captured-computer RTL verifier also links the actual C object: it compares
+all tape bytes and held fetch counts and checks a subsequent native Go Run.
+The test-only receipt adapter is not a production firmware/native connection.
+These checks establish protocol behavior, not physical timing, source-memory
+ownership or a firmware service grant.
+
 The per-load descriptor now has a version-three mixed-role prototype. A trusted
 `fes_nano_program_enable_roles` call, after installing the fixed ROM-extension
 reader and before the first capture, selects it instead of fixed version one or

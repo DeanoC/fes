@@ -38,11 +38,14 @@ definition supplies matching C and Verilog constants for the relative ROM FIFO
 endpoint. It describes identity, held state, exact byte counts and CRC; it names
 no physical address, SMC operation or accepted programming profile.
 
-The fabric-only `emit-c` command supplies standalone constant headers for C
-consumers such as the DE25 kernel diagnostic. From this module:
+The `emit-c` command supplies standalone numeric constant headers for fabric
+and ABI consumers such as the DE25 firmware diagnostics. ABI output contains
+only declared constants; it does not expand identity/interface metadata into
+additional macros. From this module:
 
 ```sh
 go run ./cmd/mister-packages emit-c packages/fabric/fes_fabric_de25_ddr_probe.yaml
+go run ./cmd/mister-packages emit-c packages/abi/fes_computer.yaml
 ```
 
 The guarded header contains unsigned 32-bit `#define` constants with the same
