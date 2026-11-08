@@ -123,8 +123,10 @@ int main(int argc,char** argv) {
         b.pit(2,4,16);check(falls(WRAP)==1 && (b.d.pit_out&4),"PIT mode4 strobes once per count");
         b.out(0x61,0x40);b.pit(2,5,16);check(falls(WRAP)==0,"PIT mode5 no strobe before trigger");
         b.out(0x61,0x41);check(falls(WRAP)==1 && (b.d.pit_out&4),"PIT mode5 strobes once per trigger");
+        // The trigger can take OUT low within the port 61h write itself.
         b.out(0x61,0x40);b.pit(2,1,16);b.idle(3000);b.out(0x61,0x41);
-        check(falls(WRAP)==1 && (b.d.pit_out&4),"PIT mode1 output stays high through the wrap");
+        unsigned high=b.d.pit_out&4;
+        check(falls(WRAP)+!high==1 && (b.d.pit_out&4),"PIT mode1 output stays high through the wrap");
         // A control word resets the byte pointers even when it repeats the
         // RW field (#1471); a counter-latch command between the bytes does
         // not. Gated mode 3 takes about 10 off 0533h in 500 clocks.
