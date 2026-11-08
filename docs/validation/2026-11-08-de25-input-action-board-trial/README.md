@@ -35,3 +35,16 @@ prior trial remains unproven. This document records preparation only; no new
 programming, SD write, native boot, physical key action or HDMI acceptance is
 claimed. Current read-only admission, source publication and retention are still
 required before the single attempt.
+
+
+The original169a10634 procedure was superseded before any hardware attempt.
+Its decoder treated the Go input-action diagnostics as firmware work. The
+corrected collector/source contract is in `operator-source-collector-v2.json`
+and `image-readmission-collector-v2.json`, with the same compiled69a image,
+original fuse paths and unused0/max1 total allowance. No native byte was
+rebuilt or replayed. The user has confirmed the keyboard returned; connection
+stability passed60s. The updated
+[collector validation](../2026-11-08-de25-input-collector-fix/README.md) passes the
+actual Go-emitter join, both full collector cycles, negative receipts and the
+1,733-test parent suite(three existing skips). Fresh live admission and retained
+corrected procedure still precede programming; no hardware result is claimed.

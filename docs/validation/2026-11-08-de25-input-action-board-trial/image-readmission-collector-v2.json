@@ -1,0 +1,62 @@
+{
+  "status": "passed",
+  "native_rebuilt_for_controller_correction": false,
+  "compiled_image_attempts_before_controller_correction": 0,
+  "max_total_compiled_image_attempts": 1,
+  "superseded_unstarted_controller": "169a106345d1f1a7ec58eea04feef0d2267d36f7",
+  "classification": "same unused matched69a image; host collectors corrected before programming; no hardware result",
+  "controller_source": "b064df41e5dcba2820e0eddea3391198b67ad6b0",
+  "compiled_source": "930775b1d9ff9700776502c7db9bbb7b8955fb81",
+  "native_boot_id": "69a03065693442b5",
+  "producer_proof_sha256": "e3a37fe2c3245d435793497c391de6689fc37251b6d4a79d2fcb6cc7dab21655",
+  "receipt_sha256": {
+    "out/nano-input-action-runtime-20261108/native-sdk/result.json": "4d076637e58e5104871861b82d0796b36c7c1a48c9ea96d91cb6e601cd958c3a",
+    "out/nano-input-action-runtime-20261108/native-entry/result.json": "fd2e3957f4e17cfe5bb839f0fd02eda2426b7069ff6ed9e3c96655d488a15e04",
+    "out/nano-input-action-runtime-20261108/native-bl31/result.json": "e39d9f380d7af314428f156abdfd6d1e16d31f6b52d6ba5303ef23bb4115e3c4",
+    "out/nano-input-action-runtime-20261108/native-uboot/result.json": "61cdff4477c11782803a51ccd93d52fac0c84628fdcc42e6a2b1fe158059dc3c",
+    "out/nano-input-action-runtime-20261108/native-composition/result.json": "5a89372bc3b5772f9bdb8b13d93c4369c513274e7a6926dd7248066f82763cc8"
+  },
+  "artifacts": {
+    "sdk": {
+      "path": "out/nano-input-action-runtime-20261108/native-sdk/fpgaload.elf",
+      "bytes": 15745199,
+      "sha256": "11579551715d459878dfee5d31cbaa7db79ccd5b8351567440f7cd0682e27ae7"
+    },
+    "entry": {
+      "path": "out/nano-input-action-runtime-20261108/native-entry/entry.img",
+      "bytes": 7614464,
+      "sha256": "16b193404940245a913886cabfd4545b8826c2b9c6dd12e58c8992e94f07e3aa"
+    },
+    "BL31": {
+      "path": "out/nano-input-action-runtime-20261108/native-bl31/source/build/agilex5/release/bl31.bin",
+      "bytes": 237893,
+      "sha256": "cfc1db2ef5c9beb22a802f799a517fed13ef75b3bfabf2e25b3a8568c530f4bc"
+    },
+    "FIT": {
+      "path": "out/nano-input-action-runtime-20261108/native-uboot/build/u-boot.itb",
+      "bytes": 8309296,
+      "sha256": "e87d90d80af171cd31f64ddae8d114bcac1430a52d49dd97280ad15aa505bb80"
+    },
+    "SPL": {
+      "path": "out/nano-input-action-runtime-20261108/native-uboot/build/spl/u-boot-spl-dtb.hex",
+      "bytes": 461189,
+      "sha256": "bcf499490b153819b092000fd5c3002cb8ab70cad414367a573559491477c14e"
+    },
+    "SOF": {
+      "path": "out/nano-input-action-runtime-20261108/native-composition/native-hps-first.sof",
+      "bytes": 1578899,
+      "sha256": "d184dd13a8147787d2b63f3b778312a59304b61c60f36da0c8735f9e9d6723d0"
+    }
+  },
+  "all_selected_inputs_unchanged": true,
+  "native_rebuilt": true,
+  "prior_compiled_image_attempts": 0,
+  "max_compiled_image_attempts": 1,
+  "preceding_compiled_image_attempts": 1,
+  "prior_allowance_exhausted": true,
+  "new_procedure_attempts_allowed": 1,
+  "prior_trial_result_sha256": "9a4a8b3d5666ceaddde2beaca85d553c2bcfdce40136b5b28c9f9af40d7aabe5",
+  "hardware_actions": false,
+  "full_cycle_verified": false,
+  "ordinary_admission": false
+}
