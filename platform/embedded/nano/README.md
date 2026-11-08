@@ -9,6 +9,10 @@ four named captured-data queries and clock/auto-adjust context help investigate
 failures. Its output cannot satisfy the programming-scan grant decoder, and it
 has no FPGA programming or HPS CPU-reset call. An owned operator must restore
 clock, exact USB permissions and its private service independently.
+The raw pre-scan chain type is observational: the installed vendor client has
+reported a value absent from its public header. Like Intel's `jtagconfig`, this
+separate diagnostic uses the locked scan API to establish scan availability,
+then checks the fresh device identity. The programming-grant gate is unchanged.
 
 Scan-only discovery uses `jtagconfig --listhardware`. Intel's `--enum` path can
 request automatic chain scans before the selected clock is established; it is

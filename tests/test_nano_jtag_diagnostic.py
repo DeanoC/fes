@@ -96,10 +96,9 @@ class JtagDiagnosticTests(unittest.TestCase):
                 self.assertIn('rc=87 value=',result.stdout)
                 self.assertIn('programming=0 cpu_reset=0 grant=0',result.stdout)
 
-    def test_name_and_chain_refusal_report_predicates_without_locking(self):
+    def test_name_refusal_reports_predicates_without_locking(self):
         for mode,shape in (
             ('wrong-name','valid_length=1 matches=0 chain_type=1'),
-            ('unknown-chain','valid_length=1 matches=1 chain_type=0'),
             ('unterminated-name','bytes=512 valid_length=0 matches=0 chain_type=1')):
             with self.subTest(mode=mode):
                 result=self.run_case(mode)
@@ -107,6 +106,18 @@ class JtagDiagnosticTests(unittest.TestCase):
                 self.assertIn(shape,result.stdout)
                 self.assertEqual(re.findall(r'^MOCK_CALL (.+)$',result.stdout,re.M),['register','find','name'])
                 self.assertNotIn('FES_JTAG_DIAG CABLE ',result.stdout)
+
+    def test_raw_chain_type_is_observation_and_never_a_programming_grant(self):
+        for mode,value in [('unknown-chain',0),('unrecognized-chain',2)]:
+            with self.subTest(mode=mode):
+                result=self.run_case(mode)
+                self.assertEqual(result.returncode,0,result.stdout+result.stderr)
+                self.assertIn('matches=1 chain_type='+str(value),result.stdout)
+                self.assertEqual(result.stdout.count('MOCK_CALL forced-scan'),1)
+                self.assertIn('grant=0',result.stdout)
+                spec=importlib.util.spec_from_file_location('diagnostic_gate',ROOT/'platform/embedded/nano/jtag_programming.py')
+                gate=importlib.util.module_from_spec(spec);spec.loader.exec_module(gate)
+                with self.assertRaises(ValueError):gate.live_scan(result.stdout.encode(),CABLE)
 
 
 if __name__=='__main__':unittest.main()

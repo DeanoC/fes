@@ -16,7 +16,8 @@ void aji_register_output_callback(void (*fn)(void *,DWORD,const char *),void *co
 AJI_ERROR aji_find_hardware(const char *name,AJI_HARDWARE *hw,DWORD limit) {
     if(limit!=2000)std::abort();
     cable=name;hw->chain_id=reinterpret_cast<AJI_CHAIN_ID>(1);
-    hw->chain_type=mode("unknown-chain") ? AJI_CHAIN_UNKNOWN:AJI_CHAIN_JTAG;return call("find");
+    hw->chain_type=mode("unknown-chain") ? AJI_CHAIN_UNKNOWN:
+        mode("unrecognized-chain") ? AJI_CHAIN_UNRECOGNIZED_FIXTURE:AJI_CHAIN_JTAG;return call("find");
 }
 AJI_ERROR aji_print_hardware_name(AJI_CHAIN_ID,char *out,DWORD size) {
     if(mode("unterminated-name")) {std::memset(out,'X',size);return call("name");}

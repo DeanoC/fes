@@ -80,14 +80,21 @@ int main(int argc,char **argv)
     const size_t name_length=strnlen(found,sizeof(found));
     const bool name_matches=name_length<sizeof(found) && name_length==std::strlen(argv[1]) &&
         !std::memcmp(found,argv[1],name_length);
+    DWORD chain_type=0;
+    static_assert(sizeof(chain_type)==sizeof(hw.chain_type));
+    std::memcpy(&chain_type,&hw.chain_type,sizeof(chain_type));
     // Report both admission predicates before refusing. An adapter-only
     // discovery must not silently hide which condition blocked the scan.
     flockfile(stdout);
     std::printf("FES_JTAG_DIAG NAME bytes=%zu valid_length=%u matches=%u chain_type=%u hex=",
-        name_length,unsigned(name_length<sizeof(found)),unsigned(name_matches),unsigned(hw.chain_type));
+        name_length,unsigned(name_length<sizeof(found)),unsigned(name_matches),unsigned(chain_type));
     hex(reinterpret_cast<const BYTE *>(found),name_length);std::putchar('\n');
     funlockfile(stdout);
-    if(!name_matches || hw.chain_type!=AJI_CHAIN_JTAG)return 1;
+    // Intel's jtagconfig locks/scans without a pre-scan chain-type gate.
+    // The installed client can report a type absent from its public header.
+    // Preserve that raw observation; the scan API decides scan availability.
+    // This diagnostic still cannot create a programming grant.
+    if(!name_matches)return 1;
     std::printf("FES_JTAG_DIAG CABLE %s\n",found);
     if(!checked("lock",aji_lock_chain(hw.chain_id,2000)))return 1;
     bool attempted=false,scan_ok=false,identity_ok=false;
