@@ -28,11 +28,10 @@ Toolchain follow-up: [#1581](https://github.com/DeanoC/fes/issues/1581).
   one-hot muxes as `casez` with a `parallel_case` attribute. A fit that adds
   Quartus's own `// synthesis parallel_case` directive gives identical
   synthesis: 56,331 ALUTs, 32,350 registers and 36,751 ALMs both times. So
-  the attribute form costs nothing.
-  Quartus's messages on whether it honours the attribute disagree:
-  - the seal's map report calls those 613 attributes unrecognised (10335);
-  - the experiment's report says the directive overrides an existing value
-    (10890). Keeping the hierarchy instead of
+  the attribute form costs nothing. Quartus reports those 613 attributes
+  unrecognised (10335), and the directive removes exactly those 613
+  warnings. Quartus works out the muxes' exclusivity itself, or doesn't need
+  it. Keeping the hierarchy instead of
   flattening it moves the total by 43 ALMs. The M4 record's two memories that
   Quartus "could not infer" (warning 10999) are now M10K, split per byte.
   What Yosys still turns into flip-flops is 30 small memories of about
@@ -184,7 +183,7 @@ The misses have three causes:
 
 | Item | ALMs | Evidence |
 | --- | ---: | --- |
-| `$pmux` as `casez` with a `parallel_case` attribute | 0 | The fit with Quartus's own directive added gives identical synthesis (56,331 ALUTs, 32,350 registers, 36,751 ALMs). The seal's map report flags those 613 attributes unrecognised (10335); the experiment's says the directive overrides an existing value (10890). Either way, they cost nothing. |
+| `$pmux` as `casez` with a `parallel_case` attribute | 0 | The fit with Quartus's own directive added gives identical synthesis (56,331 ALUTs, 32,350 registers, 36,751 ALMs). The seal's map report flags those 613 attributes unrecognised (10335), and the directive removes exactly those 613 warnings. Both reports also carry the same 30 10890 warnings, where Yosys writes `parallel_case` twice on one case. |
 | `flatten` before Quartus | about 0 (−43) | The per-module fit totals 36,794 against the seal's 36,751. |
 | Variable-index write into a packed array (`e[slot] <= x`) | 744 in the TLBs | the scratch fit; the same idiom elsewhere is [below](#other-findings) |
 | Multi-write-port memories as flip-flops | about 250–400 | The return stack is 289 ALMs and would be about 20 in two MLABs; the KBC RAM and VGA CRTC are a few tens each. The rest are register files that stay registers either way. |
@@ -324,19 +323,31 @@ the Yosys-to-Quartus route came out at zero. So a Quartus backend wouldn't
 have paid for itself in this audit. It's worth reconsidering after Phase 5
 only if #1581's primitives leave a measurable gap.
 
-## Reproducing
+## Evidence and reproducing
 
-The scripts are on Powerboat in `~/fes-scratch/area1548`:
-- `run_hier_area1548.sh TAG` runs the producer without `flatten` in the
-  worktree `wt-TAG`, through `hier_build_area1548.py`;
-- `run_exp_area1548.sh` is the parallel_case fit;
-- `atoms.tcl` dumps every post-fit atom (type, location, name);
-- `cmp.py` and `grp.py` make the entity table and group atoms by name.
+[`evidence/`](evidence/) holds what the conclusions rest on:
+- **Each fit** (`seal` = `416e332f`, `pg`, `base`, `tlb`, `exp` = parallel_case)
+  has its `top.fit.summary`, its `top.sta.summary` (every setup and hold
+  slack) and its fit report's "Resource Utilization by Entity" table
+  (`entities.rpt`).
+- **`seal/map-messages.txt` and `exp/map-messages.txt`** hold the Quartus
+  map messages this record cites: the 10335 counts by attribute, 10890,
+  10999, and the RAM inference messages 276004, 276007, 276014 and 276020.
+- **`seal/yosys-memory-map.txt`** lists the 30 memories Yosys maps to
+  flip-flops.
+- **`pg/yosys-stat.txt`** is Yosys's per-module cell count.
+- **`tlb-write-enable.diff`** is the scratch TLB change, on top of
+  `93928cea2`.
+- **`scripts/`**:
+  - `hier_build_area1548.py` and `run_hier_area1548.sh TAG` run the
+    producer without `flatten` in a detached worktree `wt-TAG`, with the
+    pc386 firmware copied into its `build/firmware/pc386`;
+  - `run_exp_area1548.sh` runs Quartus on the seal's netlist with the
+    `casez` directive added;
+  - `atoms.tcl` dumps every post-fit atom (type, location, name) through
+    `quartus_cdb`;
+  - `ent.py`, `cmp.py` and `grp.py` make the entity table and group atoms by
+    name.
 
-`run_hier_area1548.sh TAG` expects a detached worktree at `wt-TAG` with
-the pc386 firmware copied into its `build/firmware/pc386`. Each fit
-takes 20–40 minutes on Powerboat. The worktrees have been removed. The fit,
-map and timing reports of all four analysis fits are kept in `reports/`
-(`pg`, `base`, `tlb`, `exp`), with the TLB change as
-`reports/tlb/tlb-write-enable.diff`. The seal `416e332f`'s project is in
-`~/fes-scratch/p5pg/seal-s1`.
+Each fit takes 20–40 minutes on Powerboat. The full reports are also on
+Powerboat in `~/fes-scratch/area1548/reports/`.
