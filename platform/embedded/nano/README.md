@@ -1,5 +1,21 @@
 # Nano recovery uploads and cold serial boot
 
+`jtag_diagnostic.cpp` is a separate scan-only host diagnostic, built against
+the pinned Intel AJI headers and selected vendor client. It accepts only an
+explicit private top-kit cable/configuration, checks 6 MHz and issues one
+forced scan. A successful scan can have one non-scanning identity read; a
+failed scan never uses a cached identity. Bounded, hex-encoded vendor messages,
+four named captured-data queries and clock/auto-adjust context help investigate
+failures. Its output cannot satisfy the programming-scan grant decoder, and it
+has no FPGA programming or HPS CPU-reset call. An owned operator must restore
+clock, exact USB permissions and its private service independently.
+
+Scan-only discovery uses `jtagconfig --listhardware`. Intel's `--enum` path can
+request automatic chain scans before the selected clock is established; it is
+unsuitable for a diagnostic promising just one controlled scan. Removing that
+implicit request does not by itself establish the cause of a previous chain
+failure. Programming still needs its own fresh verified scan and one-use grant.
+
 The experimental `--menu-project` option on native `tamago/run.py fpgaload`
 adds a separately sealed menu companion to the normal selected-computer boot.
 It requires `--selected-programs` and its computer/rearm/SD-return selections;
