@@ -68,6 +68,12 @@ int fes_nano_tape_init(struct fes_nano_tape *,struct fes_nano_tape_ops,
  */
 int fes_nano_tape_load(struct fes_nano_tape *,uint64_t owner,uint64_t generation,
     uint32_t initial_gpo,uint32_t bytes,uint32_t crc,struct fes_nano_tape_receipt *);
+/* Trusted service-only origin from this same qualified timer. Includes its
+ * descriptor/hash prologue in the original one-second bound; never an NS
+ * deadline or extra allowance. previous preserves the last prologue sample;
+ * backwards time across the service/engine boundary also rejects. */
+int fes_nano_tape_load_started(struct fes_nano_tape *,uint64_t owner,uint64_t generation,
+    uint32_t initial_gpo,uint32_t bytes,uint32_t crc,struct fes_nano_tape_receipt *,uint64_t origin,uint64_t previous);
 #ifdef __cplusplus
 }
 #endif

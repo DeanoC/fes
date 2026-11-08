@@ -13,14 +13,16 @@ import (
 // this type establishes neither physical ownership nor bridge permission.
 // Only a successful transfer's Release permits overwriting the previous lease.
 type ConfigurationArena struct {
-	mu       sync.Mutex
-	address  uint64
-	memory   []byte
-	metadata []byte
-	barrier  func() error
-	active   *Region
-	ready    bool
-	failed   bool
+	mu                        sync.Mutex
+	address                   uint64
+	memory                    []byte
+	metadata                  []byte
+	barrier                   func() error
+	active                    *Region
+	ready                     bool
+	failed                    bool
+	tapeOwner, tapeGeneration uint64
+	tapeRegion                *Region
 }
 
 // NewProgramArena reserves the final page for the fixed secure descriptor.

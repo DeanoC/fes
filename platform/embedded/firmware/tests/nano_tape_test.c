@@ -214,4 +214,5 @@ int main(int argc,char **argv)
     if (m.mode!=22) assert(fes_nano_tape_load(&m.engine,17,9,initial,m.size,expected,&receipt));
     assert(accesses==m.reads+m.writes+m.owns+m.images+m.begins+m.ends+m.aborts);
     printf("PASS secure tape mode=%u bytes=%u writes=%u reads=%u frames=%u crc=%08x result=%d\n",m.mode,m.size,m.writes,m.reads,m.begins,expected,error);
+    return 0;
 }

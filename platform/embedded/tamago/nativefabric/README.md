@@ -8,7 +8,19 @@ protocol state before Run. A failed supplier cannot retry through the ordinary
 path. Without that interface, the existing model/CSR path remains selected.
 Actual C/RTL tests cover owned native launch, return and failures; Tenfoot/store
 tests inject the platform delivery. The Nano board transport does not implement
-the supplier or fixed publication lease yet, so no physical fast path is enabled.
+the supplier yet, so no physical fast path is enabled.
+
+`ConfigurationArena.PublishInitialTape` now implements the fixed publication
+lease separately. It requires a completed program lease in the pinned 8 MiB
+arena, checks the live mapping before/after publication and completion, and
+validates the secure tag, generation, byte count, CRC and exact final GPO.
+Uncertain results retain and retire the arena; stale configuration callbacks
+cannot release a tape lease. Another tape requires a new completed program
+lease and newer generation from the same owner. The actual Go header and
+receipt codec are joined to `nano_tape_service` and the real C transfer engine
+in portable tests with injected ownership, digest and endpoint callbacks.
+The board CPU transport and strong firmware supplier still need connecting;
+these tests establish neither physical authority nor board timing.
 
 The native computer path now accepts an optional game tape in each retained
 program choice. The canonical selection adds

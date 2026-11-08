@@ -168,8 +168,8 @@ int fes_nano_tape_init(struct fes_nano_tape *s,struct fes_nano_tape_ops io,
     s->io=io;s->owner=owner;s->generation=generation;s->hz=hz;
     memcpy(s->identity,words,sizeof(s->identity));return 0;
 }
-int fes_nano_tape_load(struct fes_nano_tape *s,uint64_t owner,uint64_t generation,
-    uint32_t gpo,uint32_t bytes,uint32_t crc,struct fes_nano_tape_receipt *receipt)
+static int load(struct fes_nano_tape *s,uint64_t owner,uint64_t generation,
+    uint32_t gpo,uint32_t bytes,uint32_t crc,struct fes_nano_tape_receipt *receipt,unsigned started,uint64_t origin,uint64_t previous)
 {
     if (!s || !s->initialized || s->failed || !receipt || !owner ||
         owner!=s->owner || generation!=s->generation || bytes<FES_COMPUTER_ZX81_TAPE_MIN_BYTES ||
@@ -179,7 +179,8 @@ int fes_nano_tape_load(struct fes_nano_tape *s,uint64_t owner,uint64_t generatio
     if (s->busy) return FES_TAPE_BUSY;
     if (s->used) return FES_TAPE_ARGUMENT;
     s->busy=s->used=1;s->gpo=gpo;s->bytes=bytes;s->crc=crc;
-    s->began=s->last=s->io.now(s->io.context);
+    s->last=s->io.now(s->io.context);s->began=started ? origin : s->last;
+    if (s->last<s->began || (started && (previous<origin || s->last<previous)) || s->last-s->began>=s->hz) {fail(s,FES_TAPE_LIMIT);goto out;}
     if (begin(s,FES_TAPE_PREPARE,0)) goto out;
     struct snapshot initial;
     if (stable(s,&initial) || initial.gpo!=gpo || !acknowledged(&initial) ||
@@ -229,3 +230,9 @@ out:
     s->busy=0;
     return s->failed ? s->first_error : 0;
 }
+int fes_nano_tape_load(struct fes_nano_tape *s,uint64_t owner,uint64_t generation,
+    uint32_t gpo,uint32_t bytes,uint32_t crc,struct fes_nano_tape_receipt *receipt)
+{return load(s,owner,generation,gpo,bytes,crc,receipt,0,0,0);}
+int fes_nano_tape_load_started(struct fes_nano_tape *s,uint64_t owner,uint64_t generation,
+    uint32_t gpo,uint32_t bytes,uint32_t crc,struct fes_nano_tape_receipt *receipt,uint64_t origin,uint64_t previous)
+{return load(s,owner,generation,gpo,bytes,crc,receipt,1,origin,previous);}

@@ -61,13 +61,17 @@ def main():
     probe = HERE / "testdata/probe.cpp"
     files = list(HERE.glob("*.go")) + list((HERE / "generated").glob("*.go")) + [probe, HERE / "verify.py"]
     files += [FIRMWARE / name for name in ('nano_tape.c', 'nano_tape.h',
-              'generated/fes_computer.h', 'generated/fes_de25_computer.h')]
+              'nano_tape_service.c', 'nano_tape_service.h',
+              'tests/nano_tape_service_test.c', 'tests/nano_tape_test.c',
+              'generated/fes_computer.h', 'generated/fes_de25_computer.h',
+              'generated/fes_embedded_tape.h')]
     files += list((HERE.parent / "nativefabric").glob("*.go"))
     files += list((HERE.parent / "nativefabric/testdata").glob("hps*.json"))
     files += list((HERE.parent / "embeddedcontrol").rglob("*.go"))
     files += list((HERE.parent / "fabricmodel").glob("*.go"))
     files += [ROOT / "sources/mister-packages/packages/abi/fes_computer.yaml",
               ROOT / "sources/mister-packages/packages/fabric/fes_fabric_de25_computer.yaml",
+              ROOT / "sources/mister-packages/packages/fabric/fes_fabric_embedded_tape.yaml",
               HERE.parent / "go.mod", HERE.parent / "go.sum", BOARD / "verify.py", BOARD / "computer_model.py"]
     hashes = {str(p.relative_to(ROOT)): sha(p) for p in files}
     sim = output / "simulation-source"

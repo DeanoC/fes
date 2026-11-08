@@ -19,6 +19,7 @@ DE25_DDR_PROBE_DEFINITION = 'sources/mister-packages/packages/fabric/fes_fabric_
 # They change no deployed ABI, FPGA endpoint or Linux image/video consumer.
 EMBEDDED_FIRMWARE_CONTRACT_INPUTS = frozenset({
     'sources/mister-packages/packages/fabric/fes_fabric_embedded_sd.yaml',
+    'sources/mister-packages/packages/fabric/fes_fabric_embedded_tape.yaml',
     'sources/mister-packages/testdata/oracles/fes-embedded-sd.json',
     'sources/mister-packages/packages/fabric/fes_fabric_embedded_bridges.yaml',
     'sources/mister-packages/testdata/oracles/fes-embedded-bridges.json',

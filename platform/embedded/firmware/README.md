@@ -32,9 +32,21 @@ all tape bytes and held fetch counts and checks a subsequent native Go Run.
 The actual native computer driver now accepts and validates that receipt through
 its explicit initial-tape loader, and the native session frames the injected
 platform call with live ownership observations. The manual test-only GPO update
-is gone. The Nano source-window lease and firmware supplier remain unbound;
-these checks establish protocol/native behavior, not physical timing,
+is gone. These checks establish protocol/native behavior, not physical timing,
 source-memory ownership or a firmware service grant.
+
+`nano_tape_service` now captures the fixed-window descriptor twice, verifies its
+source digest and private accepted build, and calls that engine under one
+original one-second budget. The start and last timer samples carry across the
+service/engine boundary. A complete final ownership proof precedes publication
+of the receipt; failures and replays expose no success fields. The corresponding
+native arena publisher reuses only a completed configuration lease, keeps the
+entire mapping pinned and retires uncertain outcomes. Portable tests join its
+actual Go descriptor and receipt decoder to this C service and endpoint model.
+The [shared contract](../../../sources/mister-packages/docs/embedded-tape.md)
+describes the fixed header and call registers. The real Nano dispatcher,
+strong supplier and CPU transport remain disconnected; no new hardware path
+is enabled by these unbound components.
 
 The per-load descriptor now has a version-three mixed-role prototype. A trusted
 `fes_nano_program_enable_roles` call, after installing the fixed ROM-extension

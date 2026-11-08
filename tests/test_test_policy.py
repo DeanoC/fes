@@ -25,6 +25,17 @@ RACE = ['go', 'test', '-race', '-short', '-timeout', '30m']
 
 
 class SelectTestModesTests(unittest.TestCase):
+    def test_private_tape_contract_keeps_routine_consumer_checks(self):
+        path = 'sources/mister-packages/packages/fabric/fes_fabric_embedded_tape.yaml'
+        self.assertEqual(test_policy.select_test_modes([path]), ALL_FALSE)
+        for neighbor in ('sources/mister-packages/packages/fabric/fes_fabric_embedded_tape_other.yaml',
+                         'sources/mister-packages/packages/abi/fes_computer.yaml', 'unknown/new.bin'):
+            self.assertEqual(test_policy.select_test_modes([path, neighbor]), ALL_TRUE)
+        self.assertEqual(test_policy.select_test_modes([path, 'scripts/factory_video_parts.py']),
+                         {'video': True, 'media': False, 'full_race': False})
+        self.assertEqual(test_policy.select_test_modes([path, 'image/Makefile']),
+                         {'video': False, 'media': True, 'full_race': False})
+
     def test_native_computer_contract_selects_only_its_actual_consumers(self):
         paths = sorted(test_policy.NATIVE_COMPUTER_CONTRACT_INPUTS)
         self.assertEqual(test_policy.select_test_modes(paths), ALL_FALSE)

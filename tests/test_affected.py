@@ -12,6 +12,30 @@ from scripts.affected import (changed_paths, plan, LANES, CORES, MODULE_ROOTS,
 
 
 class AffectedTests(unittest.TestCase):
+    def test_embedded_tape_contract_has_only_private_c_and_go_consumers(self):
+        from scripts.affected import EMBEDDED_TAPE_INPUTS, embedded_control_input, native_fabric_input
+        definition = 'packages/fabric/fes_fabric_embedded_tape.yaml'
+        source = Path(__file__).resolve().parents[1] / 'scripts/consistency.py'
+        registry = next(node.value for node in ast.parse(source.read_text()).body
+                        if isinstance(node, ast.Assign) and
+                        any(isinstance(name, ast.Name) and name.id == 'GENERATED' for name in node.targets))
+        self.assertEqual({(module, path) for _, item, module, path in ast.literal_eval(registry)
+                          if item == definition}, {
+            ('FES', 'platform/embedded/firmware/generated/fes_embedded_tape.h'),
+            ('FES', 'platform/embedded/tamago/embeddedcontrol/generated/fes_embedded_tape.go'),
+        })
+        for path in EMBEDDED_TAPE_INPUTS:
+            with self.subTest(path=path):
+                result = plan([path])
+                self.assertEqual(result['cores'], [])
+                self.assertEqual({k for k, v in result['lanes'].items() if v},
+                                 {'parent', 'fpga', 'contracts'} if path.startswith('sources/')
+                                 else {'parent', 'fpga'})
+                self.assertTrue(embedded_control_input(path))
+                self.assertTrue(native_fabric_input(path))
+        self.assertEqual(set(plan([*EMBEDDED_TAPE_INPUTS,
+            'sources/mister-packages/packages/fabric/unknown.yaml'])['cores']), set(CORES))
+
     def test_embedded_rom_definition_has_only_private_firmware_and_prototype_consumers(self):
         from scripts.affected import EMBEDDED_ROM_INPUTS, embedded_board_control_check_input
         definition = 'packages/fabric/fes_fabric_embedded_rom.yaml'

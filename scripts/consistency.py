@@ -5,6 +5,8 @@ import tempfile
 from environment import build_environment
 
 GENERATED = (
+    ('emit-c', 'packages/fabric/fes_fabric_embedded_tape.yaml', 'FES', 'platform/embedded/firmware/generated/fes_embedded_tape.h'),
+    ('emit-go', 'packages/fabric/fes_fabric_embedded_tape.yaml', 'FES', 'platform/embedded/tamago/embeddedcontrol/generated/fes_embedded_tape.go'),
     ('emit-go', 'packages/abi/fes_simple_game.yaml', 'FES', 'platform/embedded/tamago/runtimeadmission/generated/fes_simple_game.go'),
     ('emit-go', 'packages/abi/fes_simple_computer.yaml', 'FES', 'platform/embedded/tamago/runtimeadmission/generated/fes_simple_computer.go'),
     ('emit-go', 'packages/abi/fes_application.yaml', 'FES', 'platform/embedded/tamago/runtimeadmission/generated/fes_application.go'),

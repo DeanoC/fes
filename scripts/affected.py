@@ -45,11 +45,16 @@ EMBEDDED_ROM_INPUTS = frozenset({
     'platform/embedded/firmware/nano_bridge_platform.h',
     'platform/embedded/firmware/prepare_nano_owned.py',
 })
+EMBEDDED_TAPE_INPUTS = frozenset({
+    'sources/mister-packages/packages/fabric/fes_fabric_embedded_tape.yaml',
+    'platform/embedded/firmware/generated/fes_embedded_tape.h',
+    'platform/embedded/tamago/embeddedcontrol/generated/fes_embedded_tape.go',
+})
 
 
 def embedded_control_input(path):
     return (path in EMBEDDED_CONTROL_INPUTS or path in EMBEDDED_BRIDGE_INPUTS or
-            path in EMBEDDED_ROM_INPUTS or
+            path in EMBEDDED_ROM_INPUTS or path in EMBEDDED_TAPE_INPUTS or
             path.startswith('platform/embedded/firmware/'))
 
 

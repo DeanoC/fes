@@ -23,6 +23,29 @@ type InitialTapeRequest struct {
 type InitialTapeReceipt struct{ GPO, Bytes, CRC32 uint32 }
 type InitialTapeLoader func(context.Context, InitialTapeRequest) (InitialTapeReceipt, error)
 
+// ValidateInitialTapeReceipt checks metadata only; it grants no physical
+// completion or ownership. A trusted supplier must obtain its receipt from
+// the actual bounded engine before releasing a publication lease.
+func ValidateInitialTapeReceipt(request InitialTapeRequest, receipt InitialTapeReceipt) error {
+	if len(request.Image) < int(g.FesComputerZx81TapeMinBytes) || len(request.Image) > int(g.FesDe25ComputerZx81TapeMaxBytes) ||
+		request.Identity.Minor != 0 || request.Identity.Build == [16]byte{} || request.Identity.Capabilities>>16 != 0 ||
+		request.Identity.Capabilities&g.FesComputerCapabilityMediaZx81Tape == 0 ||
+		request.GPO & ^g.FesComputerRequestMask != g.FesComputerOpcodeExecution<<24|g.FesComputerControlIndex<<16|g.FesComputerExecutionHoldReset ||
+		crc32.ChecksumIEEE(request.Image) != request.CRC32 {
+		return ErrArgument
+	}
+	commands := 2*int(g.FesComputerIdentityWordCount) + 12 + 4 + 1 + 3*((len(request.Image)+int(g.FesComputerMediaChunkMaxBytes)-1)/int(g.FesComputerMediaChunkMaxBytes)) + (len(request.Image)+1)/2
+	bit := request.GPO & g.FesComputerRequestMask
+	if commands%2 != 0 {
+		bit ^= g.FesComputerRequestMask
+	}
+	want := bit | g.FesComputerOpcodeIdentity<<24 | (g.FesComputerIdentityWordCount-1)<<16
+	if receipt.GPO != want || receipt.Bytes != uint32(len(request.Image)) || receipt.CRC32 != request.CRC32 {
+		return ErrProtocol
+	}
+	return nil
+}
+
 // LoadInitialTape uses only an explicitly selected secure loader, or the
 // ordinary protocol when no loader was selected at construction. It requires
 // the acknowledged Hold established by the caller; it never issues Hold/Run.
@@ -87,13 +110,7 @@ func (c *Computer) loadTape(ctx context.Context, data []byte, initial bool) (err
 		}
 		// The secure engine queries 16 identity words at both ends, six media
 		// words at both ends, four begin words, three per chunk, data and commit.
-		commands := 49 + 3*((len(image)+int(g.FesComputerMediaChunkMaxBytes)-1)/int(g.FesComputerMediaChunkMaxBytes)) + (len(image)+1)/2
-		requestBit := c.gpo & g.FesComputerRequestMask
-		if commands%2 != 0 {
-			requestBit ^= g.FesComputerRequestMask
-		}
-		want := requestBit | g.FesComputerOpcodeIdentity<<24 | (g.FesComputerIdentityWordCount-1)<<16
-		if receipt.GPO != want || receipt.Bytes != uint32(len(image)) || receipt.CRC32 != request.CRC32 || !bytes.Equal(request.Image, image) {
+		if ValidateInitialTapeReceipt(request, receipt) != nil || !bytes.Equal(request.Image, image) {
 			return ErrProtocol
 		}
 		c.gpo = receipt.GPO
