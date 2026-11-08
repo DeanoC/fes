@@ -316,10 +316,17 @@ was found. Typed input through the host can arrive with late key-ups that make
 TOS auto-repeat keys (#1582). That spoiled two Lurking Horror attempts, so the
 second counted run checks each typed command on screen before Enter.
 
-Still owed:
+The [gameplay references](validation/2026-11-08-atari-st-hatari-references/summary.md)
+compare Xenon and Gomoku with Hatari 2.4.1, driven by xdotool on its own X
+display.
 
-- A disk swap from tenfoot. The ST package has no session display, so today
-  an ST disk is swapped only through the host API.
+- **Xenon.** Its fixed-length events take the same time on the kit and in
+  Hatari: launch bay to plating takes 8.0 s, and bay to idle static takes
+  115.2–115.5 s.
+- **Gomoku.** Three kit games end on final boards identical to Hatari games.
+
+A disk swap from tenfoot needs the ST session-display plane, so it moved to
+#946's ST slice. Until then, an ST disk is swapped only through the host API.
 
 ## PC/XT development packages
 

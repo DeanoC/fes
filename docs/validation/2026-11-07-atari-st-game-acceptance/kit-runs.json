@@ -363,16 +363,16 @@
     "session": "launch 21:16:24; game 1 ends 21:22:00; stop 21:28:13, relaunch 21:28:52, game 2 ends 21:31:15; game 3 (program Restart) ends 21:33:01; stop 21:33:21",
     "games": [
      {
-      "white_moves": 14,
-      "result": "Game won by White"
+      "result": "Game won by White",
+      "white_stones_final_board": 16
      },
      {
-      "white_moves": 12,
-      "result": "Game won by White"
+      "result": "Game won by White",
+      "white_stones_final_board": 12
      },
      {
-      "white_moves": 7,
-      "result": "Game won by White"
+      "result": "Game won by White",
+      "white_stones_final_board": 7
      }
     ],
     "disk_record_payload_sha256": "0805b45c30766924df4195c73e9b66169160d2d9dd657b81684347a4deb974fa (unchanged base)",
@@ -388,7 +388,8 @@
     },
     "play_video_sha256": "144c20c7b26e2d2c7e3f96d521e971e70ceb4d5a08a5ac76f23d23a8a9d72220",
     "audio_sha256": "c60d535f21b4a9a9c6573011e12dec122d4e6e34ca70c918143a660f9bf2d430",
-    "play_time": "about 14 min in the program: first board frame 21:17:44 to game 3's last move 21:32:38, less the Stop and relaunch (21:28:13 to the board at 21:29:41); about 8.5 min of that is stone play, the rest Game menu and alert mouse work"
+    "play_time": "about 14 min in the program: first board frame 21:17:44 to game 3's last move 21:32:38, less the Stop and relaunch (21:28:13 to the board at 21:29:41); about 8.5 min of that is stone play, the rest Game menu and alert mouse work",
+    "count_method": "White stones counted on each game's final board, where the winner's five in a row is checked (corrected 8 Nov; the first figures were the player log's last move index)"
    }
   },
   "g2": {
@@ -403,16 +404,16 @@
     "session": "launches 21:35:22, 21:38:11, 21:41:57; games end 21:37:18, 21:41:08, 21:45:10; stop 21:45:29",
     "games": [
      {
-      "white_moves": 7,
-      "result": "Game won by White"
+      "result": "Game won by White",
+      "white_stones_final_board": 7
      },
      {
-      "white_moves": 18,
-      "result": "Game won by White"
+      "result": "Game won by White",
+      "white_stones_final_board": 18
      },
      {
-      "white_moves": 20,
-      "result": "Game won by White"
+      "result": "Game won by White",
+      "white_stones_final_board": 20
      }
     ],
     "disk_record_payload_sha256": "0805b45c30766924df4195c73e9b66169160d2d9dd657b81684347a4deb974fa (unchanged base)",
@@ -427,7 +428,8 @@
     },
     "play_video_sha256": "7daf3af0352fe2a905661cda08b7b63e8bab319c3a0f3dd59988ad3e1aafc77e",
     "audio_sha256": "92f40feb9dfbe412774ec4dd57122ba48fed5423173e13d27decffa09c9a7b94",
-    "play_time": "first board frame to last move per game 0:46, 1:47, 2:02 (4:35); launch to game end 1:56, 2:57, 3:13 (8:06, boot included). The earlier 'about 10 minutes' was the claim's wall clock (Codex review of PR #1540)"
+    "play_time": "first board frame to last move per game 0:46, 1:47, 2:02 (4:35); launch to game end 1:56, 2:57, 3:13 (8:06, boot included). The earlier 'about 10 minutes' was the claim's wall clock (Codex review of PR #1540)",
+    "count_method": "White stones counted on each game's final board, where the winner's five in a row is checked (corrected 8 Nov; the first figures were the player log's last move index)"
    }
   },
   "g3": {
@@ -445,56 +447,56 @@
      {
       "first_board": "15:04:59",
       "last_move": "15:05:37",
-      "white_moves": 5,
-      "result": "Game won by White"
+      "result": "Game won by White",
+      "white_stones_final_board": 6
      },
      {
       "first_board": "15:07:38",
       "last_move": "15:09:23",
-      "white_moves": 16,
-      "result": "Game won by White"
+      "result": "Game won by White",
+      "white_stones_final_board": 17
      },
      {
       "first_board": "15:11:37",
       "last_move": "15:12:51",
-      "white_moves": 11,
-      "result": "Game won by White"
+      "result": "Game won by White",
+      "white_stones_final_board": 12
      },
      {
       "first_board": "15:14:51",
       "last_move": "15:16:06",
-      "white_moves": 11,
-      "result": "Game won by White"
+      "result": "Game won by White",
+      "white_stones_final_board": 12
      },
      {
       "first_board": "15:18:07",
       "last_move": "15:19:03",
-      "white_moves": 8,
-      "result": "Game won by White"
+      "result": "Game won by White",
+      "white_stones_final_board": 9
      },
      {
       "first_board": "15:21:03",
       "last_move": "15:22:05",
-      "white_moves": 9,
-      "result": "Game won by White"
+      "result": "Game won by White",
+      "white_stones_final_board": 10
      },
      {
       "first_board": "15:36:00",
       "last_move": "15:39:04",
-      "white_moves": 30,
-      "result": "Game won by Black"
+      "result": "Game won by Black",
+      "white_stones_final_board": 30
      },
      {
       "first_board": "15:41:05",
       "last_move": "15:42:06",
-      "white_moves": 9,
-      "result": "Game won by White"
+      "result": "Game won by White",
+      "white_stones_final_board": 10
      },
      {
       "first_board": "15:44:07",
       "last_move": "15:45:02",
-      "white_moves": 8,
-      "result": "Game won by White"
+      "result": "Game won by White",
+      "white_stones_final_board": 9
      }
     ],
     "board_play": "11 min 50 s (first board frame to last move, summed); about 15.5 min to the result screens",
@@ -527,7 +529,8 @@
     "audio_sha256": {
      "g3-audio": "1a4b8fd9596fac3f0ad83b945993e6b324b5c5ea6a1220274a5f8e34c233c9e2",
      "g3-audio2": "5d9f05d265585bb0277a1791f5ac6f3c234531a2189b80dded8bcecef9b9bdec"
-    }
+    },
+    "count_method": "White stones counted on each game's final board, where the winner's five in a row is checked (corrected 8 Nov; the first figures were the player log's last move index)"
    }
   },
   "g4": {
@@ -545,62 +548,62 @@
      {
       "first_board": "15:56:37",
       "last_move": "15:58:15",
-      "white_moves": 15,
-      "result": "Game won by Black"
+      "result": "Game won by Black",
+      "white_stones_final_board": 15
      },
      {
       "first_board": "16:00:16",
       "last_move": "16:01:02",
-      "white_moves": 6,
-      "result": "Game won by White"
+      "result": "Game won by White",
+      "white_stones_final_board": 7
      },
      {
       "first_board": "16:03:04",
       "last_move": "16:03:44",
-      "white_moves": 5,
-      "result": "Game won by White"
+      "result": "Game won by White",
+      "white_stones_final_board": 6
      },
      {
       "first_board": "16:05:46",
       "last_move": "16:09:34",
-      "white_moves": 34,
-      "result": "Game won by Black"
+      "result": "Game won by Black",
+      "white_stones_final_board": 34
      },
      {
       "first_board": "16:11:36",
       "last_move": "16:12:30",
-      "white_moves": 7,
-      "result": "Game won by White"
+      "result": "Game won by White",
+      "white_stones_final_board": 8
      },
      {
       "first_board": "16:14:33",
       "last_move": "16:15:29",
-      "white_moves": 8,
-      "result": "Game won by White"
+      "result": "Game won by White",
+      "white_stones_final_board": 9
      },
      {
       "first_board": "16:17:32",
       "last_move": "16:18:31",
-      "white_moves": 8,
-      "result": "Game won by White"
+      "result": "Game won by White",
+      "white_stones_final_board": 9
      },
      {
       "first_board": "16:20:33",
       "last_move": "16:23:29",
-      "white_moves": 28,
-      "result": "Game won by White"
+      "result": "Game won by White",
+      "white_stones_final_board": 29
      },
      {
       "first_board": "16:25:32",
       "last_move": "16:26:51",
-      "white_moves": 11,
-      "result": "Game won by Black"
+      "result": "Game won by Black",
+      "white_stones_final_board": 11
      },
      {
       "first_board": "16:28:54",
       "last_move": "16:32:23",
-      "white_moves": 33,
-      "result": "Game won by Black"
+      "result": "Game won by Black",
+      "white_stones_final_board": 33
      }
     ],
     "board_play": "17 min 25 s (first board frame to last move, summed)",
@@ -629,7 +632,8 @@
      "g4-game9-start": "4db2dd70a7de7d88714f63a6b81effe449e881003553d92ca4435aacbe27c29c"
     },
     "play_video_sha256": "2dc1ee9d1a8ea53a165a7d404410d7e3ca5125f30b3c6453cedc2bbad6eedab4",
-    "audio_sha256": "d5906d6959f2abed04c32a1a2bf3bc62ccf84a62b734b6d4e31373fdf668641e"
+    "audio_sha256": "d5906d6959f2abed04c32a1a2bf3bc62ccf84a62b734b6d4e31373fdf668641e",
+    "count_method": "White stones counted on each game's final board, where the winner's five in a row is checked (corrected 8 Nov; the first figures were the player log's last move index)"
    }
   },
   "h3": {

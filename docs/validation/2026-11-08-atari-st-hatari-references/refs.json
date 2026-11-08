@@ -1,0 +1,203 @@
+{
+ "common": {
+  "issue": "https://github.com/DeanoC/fes/issues/1528",
+  "hatari": {
+   "version": "Hatari 2.4.1 (Debian 2.4.1+dfsg-2)",
+   "binary_sha256": "dab1d8a0aae8cfc13584e916c4a3e66955621f6a36a0f9a12de177ed7575900d",
+   "options": "--machine st --memsize 0 --cpuclock 8 --cpulevel 0 --compatible on --patch-tos off --fast-boot off --fastfdc off --monitor rgb --tos-res low --borders off --zoom 1; Xenon adds --joy1 keys --joy0 none",
+   "display": "Xvfb :9 1024x768x24 in a container (hatari-x11.Dockerfile: Debian 12 Hatari image plus xvfb 2:21.1.7-3+deb12u13 and xdotool 1:3.20160805.1-5); window 640x400",
+   "input": "xdotool: relative host mouse moves of 2 px per ST count and button 1; host keys for the keyboard joystick (cursor keys, fire Right Ctrl)",
+   "frames": "hatari-debug screenshot through --cmd-fifo (640x400)"
+  },
+  "firmware": {
+   "name": "TOS 1.04 UK",
+   "sha256": "c005b0ae8ccd5bf2569add2a0d0a42583b2fb70eec3e1202d82311e96664a88e"
+  },
+  "disks": {
+   "xenon_st_sha256": "660e544ffa7eb8e0f9201614711f5d4b2a935870bb89f5ea707fed314e056f9e",
+   "gomoku_st_sha256": "0805b45c30766924df4195c73e9b66169160d2d9dd657b81684347a4deb974fa"
+  },
+  "kit_package": "2b54eb672a057cc13bdaa0af12dda30bae657772e3ae4ae465afa9deba8957b4 (main 25204901d); the counted kit runs are in docs/validation/2026-11-07-atari-st-game-acceptance and docs/validation/2026-11-08-atari-st-main-package"
+ },
+ "xenon": {
+  "tolerances": {
+   "timing": "bay to plain plating and bay to the idle static must agree within 1 s (samples every 0.25-0.5 s)",
+   "play": "score values are multiples of 50; a hit costs a life; the third loss shows GAME OVER PRESS FIRE TO START and fire starts a new game with 3 lives; level structures scroll in during play. Score totals are compared as ranges only, because the level advances with the player's input (with no input it never leaves the plating) and kit input goes through the host's HTTP path"
+  },
+  "kit_r1": {
+   "kit": "A",
+   "claimed": "22:58 EET 8 Nov",
+   "released": "23:08 EET",
+   "package": "2b54eb67",
+   "game_id": "fpga-xenon-1528-m2-7bd792771df5 (reused m2 entry; a fresh entry returned STALE_REVISION)",
+   "launches": [
+    {
+     "fire": "23:01:28",
+     "bay_video_s": 76.2,
+     "static_video_s": 191.5,
+     "bay_to_static_s": 115.3
+    },
+    {
+     "fire": "23:05:20",
+     "bay_video_s": 308.0,
+     "bay_breaks_s": [
+      3.0,
+      5.5
+     ],
+     "bay_to_plating_s": 8.0,
+     "static_video_s": 423.2,
+     "bay_to_static_s": 115.2
+    }
+   ],
+   "video_sha256": "0b43d0cf0f1ad39b34e3827634901d7cfe4cdb65f1e61d9b70a3f5232a996d29",
+   "record": "xenon disk record unchanged (payload 660e544f), removed with its namespace directory"
+  },
+  "kit_with_input": {
+   "m1": {
+    "bay_to_plating_s": 8.0
+   },
+   "m2": {
+    "bay_to_plating_s": 8.0
+   },
+   "max_scores": {
+    "x2": 850,
+    "x4": 600,
+    "m1": 250,
+    "m2": 750
+   },
+   "game_overs_per_11_min": "1-2"
+  },
+  "hatari_idle": {
+   "i1": {
+    "bay_s": 0.5,
+    "bay_breaks_s": [
+     3.5,
+     6.0
+    ],
+    "plating_s": 8.5,
+    "static_s": 116.0,
+    "bay_to_plating_s": 8.0,
+    "bay_to_static_s": 115.5,
+    "timeline_sha256": "cd7cdc8fa393e1f9932499e73eb76069e1228e424d7952ccd039b566fcd6af95"
+   },
+   "i2": {
+    "bay_s": 0.5,
+    "bay_breaks_s": [
+     3.5,
+     6.0
+    ],
+    "plating_s": 8.5,
+    "static_s": 115.5,
+    "bay_to_plating_s": 8.0,
+    "bay_to_static_s": 115.0,
+    "timeline_sha256": "4cd52ef8a4dd9a38accf1e12ed7ad64f92dcd3a57643757f0c98e3cdfc84ac05"
+   }
+  },
+  "hatari_play": {
+   "r1": {
+    "per_minute_scores": [
+     0,
+     0,
+     null,
+     250,
+     500,
+     null,
+     0,
+     500,
+     2200,
+     2200,
+     3050
+    ],
+    "game_overs": 2,
+    "structures": "reached (turrets and buildings at minute 11)"
+   },
+   "r2": {
+    "per_minute_scores": [
+     0,
+     950,
+     950,
+     500,
+     750,
+     null,
+     500,
+     500,
+     500,
+     500
+    ],
+    "game_overs": 2,
+    "bay_to_plating_s": 8.0,
+    "timeline_sha256": "43057e658de9c8ca5fae1a6578568d826a519e25d9081860c76c3fd292cbcff4"
+   }
+  },
+  "result": "PASS: bay to plating 8.0 s on kit and Hatari; bay to idle static 115.2-115.3 s on the kit and 115.0-115.5 s on Hatari; the same play outcomes on both (multiples of 50, lives, GAME OVER and restart, structures)"
+ },
+ "gomoku": {
+  "tolerances": "Black opens at the centre; every declared result has the winner's five in a row on the final board; White's win share agrees within 20 points; at least one final board is identical between kit and Hatari",
+  "hatari": {
+   "games": [
+    {
+     "white_stones": 19,
+     "result": "White"
+    },
+    {
+     "white_stones": 20,
+     "result": "White"
+    },
+    {
+     "white_stones": 10,
+     "result": "White"
+    },
+    {
+     "white_stones": 10,
+     "result": "White"
+    },
+    {
+     "white_stones": 7,
+     "result": "White"
+    },
+    {
+     "white_stones": 9,
+     "result": "White"
+    },
+    {
+     "white_stones": 15,
+     "result": "Black"
+    },
+    {
+     "white_stones": 45,
+     "result": "White"
+    }
+   ],
+   "board_play_seconds": 918,
+   "log_sha256": "e6e40414a4c47f070f47fc48adad647946f9ebe902a2e655a8fc4c899f1b0bef",
+   "end_frames": {
+    "game1": "8f9d67e09f0198818a7315ccd6ff4ba7a8d4b97308f51b1193dc8f93c4cede29",
+    "game2": "e6ad37edf444499c8f48758047146f91db11f0eafe6011a489353db9c6ab72db",
+    "game3": "c5396642418fcf17494e17dd696c03cf919810233e1667022368d6925d17d18a",
+    "game4": "ed523c7c3d1656e3dc8ac4a1fe6ff2b226beb742891af536aa9568299b9220b7",
+    "game5": "83df437384eac89c17cfbb4c222d2ed98758565a221c49a13fa346e89cb34042",
+    "game6": "876fd6debc7626e37384a7e19ebe6a59dc1dd8a10afaadf7a6a44c97f1bb0e3f",
+    "game7": "0aeddc3d1b49a6bbc8bff1adcd3275028453a23ab03a5439e9eadac8b5e0c21f",
+    "game8": "9cbc5ce5a7f478938e31d5d465512372107170ada1251c91358d76bcf872758d"
+   }
+  },
+  "kit_pool": {
+   "runs": "g3, g4 (7 Nov record) and m1, m2 (main package)",
+   "decided_games": 32,
+   "white_wins": 27,
+   "black_wins": 5,
+   "undecided": "m1 game 1, stopped by the player script's cap"
+  },
+  "identical_final_boards": {
+   "hatari game 6 (White win, 9 White stones)": [
+    "g3 game 5",
+    "g3 game 9"
+   ],
+   "hatari game 7 (Black win, 15 White stones)": [
+    "g4 game 1"
+   ]
+  },
+  "observation": "at boot the kit opens the A:\\ window that the disk's DESKTOP.INF saves; Hatari 2.4.1 did not in three boots (with and without fast floppy timing), so its runner opens drive A by File > Open",
+  "result": "PASS: Black opens at the centre on both; every result matches a five on the board; White wins 84% on the kit and 88% on Hatari; three kit games end on boards identical to two Hatari games"
+ }
+}
