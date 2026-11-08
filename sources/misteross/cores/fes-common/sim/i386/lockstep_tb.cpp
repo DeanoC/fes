@@ -2418,7 +2418,8 @@ void check_halt_quiet(Rtl &rtl, const std::string &label, Mismatches &out) {
 
 // A directed case runs its code with the vector table's #DE, #SS and #GP
 // entries at a HLT. A fault case must deliver its vector (#GP(0) unless
-// given), pushing the faulting instruction's IP and CS, then halt in the
+// given), pushing the faulting instruction's IP (the code's start unless
+// fault_ip gives it, with SP as it started) and CS, then halt in the
 // handler and stay stopped. A nested case must stop at a fault in its
 // delivery, with nothing written. The divergence list applies, so a #DE's
 // pushed FLAGS follow the 386EX.
@@ -2428,7 +2429,7 @@ void run_fault_case(fes_i386::Oracle &oracle, OracleBus &bus, Rtl &rtl, const st
                     Summary &summary, const std::string &label, const std::vector<uint8_t> &code, State state,
                     bool nested, uint32_t stack_address = 0, const std::array<uint8_t, 4> *stack_value = nullptr,
                     int expected = 13, bool allow_divergences = false, uint32_t forbidden_dmem_read = UINT32_MAX,
-                    uint32_t forbidden_mmio_read = UINT32_MAX) {
+                    uint32_t forbidden_mmio_read = UINT32_MAX, int64_t fault_ip = -1, uint64_t retire_limit = 64) {
     const uint32_t code_base = state.seg[fes_i386::SEG_CS].base + state.eip;
     std::vector<std::pair<uint32_t, uint8_t>> image;
     for (size_t i = 0; i < code.size(); ++i) image.emplace_back(code_base + uint32_t(i), code[i]);
@@ -2451,7 +2452,7 @@ void run_fault_case(fes_i386::Oracle &oracle, OracleBus &bus, Rtl &rtl, const st
     try {
         const std::vector<Entry> no_divergences;
         const std::vector<Entry> &directed_entries = allow_divergences ? entries : no_divergences;
-        outcome = lockstep(oracle, bus, rtl, directed_entries, Fields{}, 64, false, summary, out,
+        outcome = lockstep(oracle, bus, rtl, directed_entries, Fields{}, retire_limit, false, summary, out,
                            code_base + uint32_t(code.size()));
     } catch (const std::exception &error) {
         out.add(label + ".oracle-error:" + error.what(), 0, 1);
@@ -2468,7 +2469,8 @@ void run_fault_case(fes_i386::Oracle &oracle, OracleBus &bus, Rtl &rtl, const st
         const uint32_t frame = state.seg[fes_i386::SEG_SS].base + sp;
         const uint32_t ip = rtl.ram[frame] | uint32_t(rtl.ram[frame + 1]) << 8;
         const uint32_t cs = rtl.ram[frame + 2] | uint32_t(rtl.ram[frame + 3]) << 8;
-        if (ip != (state.eip & 0xffff)) out.add(label + ".pushed-ip", state.eip & 0xffff, ip);
+        const uint32_t want_ip = fault_ip >= 0 ? uint32_t(fault_ip) : state.eip & 0xffff;
+        if (ip != want_ip) out.add(label + ".pushed-ip", want_ip, ip);
         if (cs != state.seg[fes_i386::SEG_CS].selector) out.add(label + ".pushed-cs", state.seg[fes_i386::SEG_CS].selector, cs);
         if ((rtl.state().gpr[fes_i386::REG_ESP] & 0xffff) != sp)
             out.add(label + ".esp", sp, rtl.state().gpr[fes_i386::REG_ESP] & 0xffff);
@@ -3281,6 +3283,84 @@ void run_ras_cases(fes_i386::Oracle &oracle, OracleBus &bus, Rtl &rtl, const std
     limit.resize(0x800, 0x90);
     limit.insert(limit.end(), {0x68, 0x04, 0x00, 0xc3, 0x4a, 0x75, 0xf9});
     run_nop_case(oracle, bus, rtl, entries, summary, "ras-limit", limit, state, 600);
+}
+
+// The indirect near JMP and CALL cases (JMP r/m, CALL r/m), from CS:0 at
+// linear 1000h in real mode, in lockstep with the oracle. Each loops so the
+// BTB learns its indirect sites' last targets, then breaks the prediction;
+// every JMP and CALL must go where its operand says.
+//   ind-change    a CALL BX whose target changes once it is learned
+//   ind-alt       a CALL BX and a JMP CX whose targets alternate every time
+//   ind-call-ret  CALL [mem] to a function that CALLs BX; both RET, so each
+//                 RET's prediction comes from an indirect CALL's push
+//   ind-table     JMP [mem] through a slot a store rewrites
+//   ind-sizes     CALL EBX and a 32-bit RET (66h), CALL [BX+SI], and JMP BX
+//                 with EBX's upper half set, which JMP r/m16 drops
+//   ind-int       an interrupt handler's frame, PUSHF and a far CALL, then
+//                 IRET, around a CALL BX in the handler
+//   ind-store     a store turns a learned CALL BX into INC SI; INC SI: its
+//                 entry now ends where no CALL ends (the fetch check)
+//   ind-limit     a learned JMP EBX whose target moves past CS's limit:
+//                 #GP(0) at the JMP, though the BTB predicts it
+//   ind-fault     a learned CALL [SI] whose operand load faults (a word at
+//                 offset FFFFh): #GP(0) at the CALL, before its push
+void run_ind_cases(fes_i386::Oracle &oracle, OracleBus &bus, Rtl &rtl, const std::vector<Entry> &entries,
+                   Summary &summary) {
+    State state;
+    for (int k = 0; k < 6; ++k) state.seg[k] = fes_i386::real_mode_segment(0x100);
+    state.eip = 0;
+    state.gpr[fes_i386::REG_ESP] = 0x8000;
+    // mov dx, 10; o:  mov bx, f; cmp dx, 4; ja c; mov bx, g; c:  call bx; dec dx; jnz o; jmp done; f:
+    // inc si; ret; g:  inc di; ret; done:
+    run_nop_case(oracle, bus, rtl, entries, summary, "ind-change",
+                 {0xba, 0x0a, 0x00, 0xbb, 0x15, 0x00, 0x83, 0xfa, 0x04, 0x77, 0x03, 0xbb, 0x17, 0x00, 0xff, 0xd3,
+                  0x4a, 0x75, 0xf0, 0xeb, 0x04, 0x46, 0xc3, 0x47, 0xc3}, state, 600);
+    // mov dx, 8; mov bx, f; mov cx, a; o:  call bx; xor bx, f ^ g; jmp cx; a:  inc bp;
+    // xor cx, a ^ b; jmp n; b:  inc sp; dec sp; xor cx, a ^ b; n:  dec dx;
+    // jnz o; jmp done; f:  inc si; ret; g:  inc di; ret; done:
+    run_nop_case(oracle, bus, rtl, entries, summary, "ind-alt",
+                 {0xba, 0x08, 0x00, 0xbb, 0x20, 0x00, 0xb9, 0x10, 0x00, 0xff, 0xd3, 0x83, 0xf3, 0x02, 0xff, 0xe1,
+                  0x45, 0x83, 0xf1, 0x06, 0xeb, 0x05, 0x44, 0x4c, 0x83, 0xf1, 0x06, 0x4a, 0x75, 0xeb, 0xeb, 0x04,
+                  0x46, 0xc3, 0x47, 0xc3}, state, 600);
+    // mov word [0x4000], f; mov bx, g; mov dx, 6; o:  call [0x4000]; dec dx; jnz o; jmp done; f:  call
+    // bx; inc si; ret; g:  inc di; ret; done:
+    run_nop_case(oracle, bus, rtl, entries, summary, "ind-call-ret",
+                 {0xc7, 0x06, 0x00, 0x40, 0x15, 0x00, 0xbb, 0x19, 0x00, 0xba, 0x06, 0x00, 0xff, 0x16, 0x00, 0x40,
+                  0x4a, 0x75, 0xf9, 0xeb, 0x06, 0xff, 0xd3, 0x46, 0xc3, 0x47, 0xc3}, state, 600);
+    // mov word [0x4000], a; mov dx, 8; o:  jmp [0x4000]; a:  inc si; cmp dx, 4; jne n; mov word
+    // [0x4000], b; jmp n; b:  inc di; n:  dec dx; jnz o; jmp done; done:
+    run_nop_case(oracle, bus, rtl, entries, summary, "ind-table",
+                 {0xc7, 0x06, 0x00, 0x40, 0x0d, 0x00, 0xba, 0x08, 0x00, 0xff, 0x26, 0x00, 0x40, 0x46, 0x83, 0xfa,
+                  0x04, 0x75, 0x09, 0xc7, 0x06, 0x00, 0x40, 0x1b, 0x00, 0xeb, 0x01, 0x47, 0x4a, 0x75, 0xea, 0xeb,
+                  0x00}, state, 600);
+    // mov word [0x4000], g; mov dx, 4; o:  mov ebx, f; call ebx; mov bx, 0x4000; xor si, si; call
+    // [bx+si]; mov ebx, 0x12340000 + n; jmp bx; n:  dec dx; jnz o; jmp done; f:  inc bp; o32 ret; g:
+    // inc di; ret; done:
+    run_nop_case(oracle, bus, rtl, entries, summary, "ind-sizes",
+                 {0xc7, 0x06, 0x00, 0x40, 0x29, 0x00, 0xba, 0x04, 0x00, 0x66, 0xbb, 0x26, 0x00, 0x00, 0x00, 0x66,
+                  0xff, 0xd3, 0xbb, 0x00, 0x40, 0x31, 0xf6, 0xff, 0x10, 0x66, 0xbb, 0x21, 0x00, 0x34, 0x12, 0xff,
+                  0xe3, 0x4a, 0x75, 0xe5, 0xeb, 0x05, 0x45, 0x66, 0xc3, 0x47, 0xc3}, state, 600);
+    // mov dx, 4; mov bx, g; o:  pushf; call 0x0100:h; dec dx; jnz o; jmp done; h:  call bx; iret; g:
+    // inc si; ret; done:
+    run_nop_case(oracle, bus, rtl, entries, summary, "ind-int",
+                 {0xba, 0x04, 0x00, 0xbb, 0x14, 0x00, 0x9c, 0x9a, 0x11, 0x00, 0x00, 0x01, 0x4a, 0x75, 0xf7, 0xeb,
+                  0x05, 0xff, 0xd3, 0xcf, 0x46, 0xc3}, state, 600);
+    // mov dx, 6; o:  mov bx, f; cmp dx, 3; jne c; mov word [cs:c], 0x4646; c:  call bx; dec dx; jnz o;
+    // jmp done; f:  inc di; ret; done:
+    run_nop_case(oracle, bus, rtl, entries, summary, "ind-store",
+                 {0xba, 0x06, 0x00, 0xbb, 0x19, 0x00, 0x83, 0xfa, 0x03, 0x75, 0x07, 0x2e, 0xc7, 0x06, 0x12, 0x00,
+                  0x46, 0x46, 0xff, 0xd3, 0x4a, 0x75, 0xec, 0xeb, 0x02, 0x47, 0xc3}, state, 600);
+    // mov dx, 4; o:  mov ebx, n; cmp dx, 1; jne j; mov ebx, 0x10000; j:  jmp ebx; n:  dec dx; jnz o
+    run_fault_case(oracle, bus, rtl, entries, summary, "ind-limit",
+                   {0xba, 0x04, 0x00, 0x66, 0xbb, 0x17, 0x00, 0x00, 0x00, 0x83, 0xfa, 0x01, 0x75, 0x06, 0x66, 0xbb,
+                  0x00, 0x00, 0x01, 0x00, 0x66, 0xff, 0xe3, 0x4a, 0x75, 0xe9}, state,
+                   false, 0, nullptr, 13, false, UINT32_MAX, UINT32_MAX, 0x14, 200);
+    // mov word [0x4000], f; mov dx, 4; o:  mov si, 0x4000; cmp dx, 1; jne c; mov si, 0xffff; c:  call
+    // [si]; dec dx; jnz o; f:  ret
+    run_fault_case(oracle, bus, rtl, entries, summary, "ind-fault",
+                   {0xc7, 0x06, 0x00, 0x40, 0x19, 0x00, 0xba, 0x04, 0x00, 0xbe, 0x00, 0x40, 0x83, 0xfa, 0x01, 0x75,
+                  0x03, 0xbe, 0xff, 0xff, 0xff, 0x14, 0x4a, 0x75, 0xf0, 0xc3}, state,
+                   false, 0, nullptr, 13, false, UINT32_MAX, UINT32_MAX, 0x14, 200);
 }
 
 // ---- SingleStepTests mode ---------------------------------------------------------------
@@ -7984,6 +8064,7 @@ int main(int argc, char **argv) {
         run_smc_cases(*oracle, bus, rtl, entries, summary);
         run_btb_cases(*oracle, bus, rtl, entries, summary);
         run_ras_cases(*oracle, bus, rtl, entries, summary);
+        run_ind_cases(*oracle, bus, rtl, entries, summary);
         run_stld_cases(*oracle, bus, rtl, entries, summary);
         run_ealu_cases(*oracle, bus, rtl, entries, summary);
         run_ldfwd_cases(*oracle, bus, rtl, entries, summary);

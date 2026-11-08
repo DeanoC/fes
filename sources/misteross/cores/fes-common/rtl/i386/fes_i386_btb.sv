@@ -4,7 +4,8 @@
 // linear bits 11:4 of a 16-byte fetch block and tagged with bits 31:12.
 // An entry describes the branch whose last byte is in the block
 // (btb_entry_t): where it ends, its target's linear address, a 2-bit
-// counter, and whether it is a JMP or CALL rel, which is always taken.
+// counter, and whether it is always taken: a JMP or CALL rel, a RET, or a
+// JMP or CALL r/m, whose target is the one it last went to.
 //
 // F1 loads the fetch block into the address registers with the L1I's; every
 // array re-reads the block F2 holds on every other edge, as the L1I's do, so
@@ -17,8 +18,9 @@
 // count, one predicted taken wins, and of two the one that ends first. So
 // the two ways can hold two branches of one block.
 //
-// WB writes one set a cycle (btb_write_t): an entry on a direct branch's
-// retirement, or both ways cleared when a fetch check replays.
+// WB writes one set a cycle (btb_write_t): an entry on a direct branch's,
+// a near RET's or an indirect near JMP's or CALL's retirement, or both
+// ways cleared when a fetch check replays.
 // The arrays start as M10K content does, zero: no entry valid. Nothing
 // clears them at a reset: an entry is only a prediction, which D and WB
 // check (fes_i386_cpu, "Branch prediction").
