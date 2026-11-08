@@ -1364,7 +1364,7 @@ class C64AcceptanceDocsTests(unittest.TestCase):
 
         self.assertIn('current 0.5.0 native-drive core', preamble)
         self.assertIn('exact-artifact game acceptance on Kit B', preamble)
-        self.assertIn('second-launch MW4 eject and an audio/video cadence check still open', preamble)
+        self.assertIn('live eject in two launches and measured audio/video cadence', preamble)
         self.assertIn('does not qualify the 0.5.0 package', preamble)
         self.assertNotIn('current 0.4.0', preamble)
         self.assertNotIn('needs hardware acceptance', preamble)
@@ -1374,7 +1374,8 @@ class C64AcceptanceDocsTests(unittest.TestCase):
             if line.startswith('| `fes.c64` |')
         )
         self.assertIn('Ctrl+U reached LEVEL 002 in both launches', c64_row)
-        self.assertIn('live eject in one', c64_row)
+        self.assertIn('live eject in both launches of the 8 Nov rerun `mw3`', c64_row)
+        self.assertIn('no audio dropouts', c64_row)
         self.assertNotIn('objective was not met', c64_row)
         self.assertIn('specific to the named 0.5.0 package', c64_row)
 
@@ -1407,20 +1408,42 @@ class C64AcceptanceDocsTests(unittest.TestCase):
         self.assertIn('Level advance, corrected 8 November', case)
         self.assertIn('meets its declared objective in both launches', ' '.join(case.split()))
 
-    def test_metal_warrior_eject_is_claimed_for_one_launch_only(self):
+    def test_metal_warrior_eject_passes_in_both_mw3_launches(self):
         root = Path(__file__).resolve().parents[1]
         record = root / 'docs/validation/2026-11-07-c64-game-acceptance'
         summary = (record / 'summary.md').read_text()
         runs = json.loads((record / 'kit-runs.json').read_text())
-        launches = runs['runs']['mw2']['launches']
-        self.assertEqual(launches[0]['live_eject']['unit_after'], ['empty'])
-        self.assertNotIn('live_eject', launches[1])
-        self.assertIn('in r1 only', runs['runs']['mw2']['result'])
+        mw2 = runs['runs']['mw2']['launches']
+        self.assertEqual(mw2[0]['live_eject']['unit_after'], ['empty'])
+        self.assertNotIn('live_eject', mw2[1])
+        for launch in runs['runs']['mw3']['launches']:
+            self.assertEqual(launch['live_replacement']['code'], 200)
+            self.assertTrue(launch['live_replacement']['same_session'])
+            self.assertEqual(launch['live_eject']['code'], 200)
+            self.assertTrue(launch['live_eject']['same_session'])
+            self.assertEqual(launch['live_eject']['unit_after'], ['empty'])
         matrix_row = next(
             line for line in summary.splitlines()
             if line.startswith('| 3 Metal Warrior 4:')
         )
-        self.assertIn('passed in r1 only', matrix_row)
+        self.assertIn('both launches of the 8 Nov rerun `mw3`', matrix_row)
+
+    def test_cadence_and_audio_continuity_meet_the_declared_tolerances(self):
+        root = Path(__file__).resolve().parents[1]
+        record = root / 'docs/validation/2026-11-07-c64-game-acceptance'
+        runs = json.loads((record / 'kit-runs.json').read_text())
+        for launch in runs['runs']['mw3']['launches']:
+            cadence = launch['cadence_capture']
+            self.assertLessEqual(abs(cadence['fps'] - 60), 0.5)
+            self.assertEqual(cadence['black_frames'], 0)
+            self.assertLessEqual(cadence['picture_updates_per_s'], 50.1)
+            self.assertLessEqual(cadence['walking_150_240s']['picture_updates_per_s'], 50.1)
+            self.assertLessEqual(abs(cadence['steady_scroll']['picture_changes_per_s'] - 50.125), 0.5)
+            audio = launch['audio_continuity']
+            self.assertEqual(audio['dropouts'], 0)
+            self.assertLessEqual(abs(audio['samples_vs_wall_percent']), 0.2)
+        self.assertIn('before its captures were analysed', runs['cadence_and_audio']['tolerances_declared'])
+        self.assertIn('Nothing from #1531', (record / 'summary.md').read_text())
 
     def test_record_inputs_and_tools_match_their_bound_hashes(self):
         root = Path(__file__).resolve().parents[1]
@@ -1432,7 +1455,7 @@ class C64AcceptanceDocsTests(unittest.TestCase):
                 digest = hashlib.sha256((record / script['file']).read_bytes()).hexdigest()
                 self.assertEqual(digest, script['sha256'])
         driver = hashlib.sha256((record / 'tools/c64run.py').read_bytes()).hexdigest()
-        self.assertEqual(driver, runs['runs']['kik4']['driver_sha256'])
+        self.assertEqual(driver, runs['runs']['mw3']['driver_sha256'])
 
     def test_joystick_port_bench_runs_in_the_full_c64_suite(self):
         root = Path(__file__).resolve().parents[1]

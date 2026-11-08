@@ -83,7 +83,8 @@
   "audio_activity_method": "tools/aud.py: mono mix, DC removed, RMS per 1 s window, a window is active above -50 dBFS; no tolerance was declared in advance, so activity counts are presence evidence, not a pass criterion",
   "input_scripts": "inputs/kit-<run>.jsonl are the exact kit scripts (kik1 used the kik2 script); inputs/vice-*.jsonl are the VICE scripts. tools/ holds the driver and helpers; wander timing is wall-clock (seeded move sequence, random 0.15-0.7 s holds), so play is reproducible in sequence, not in time",
   "driver_versions": {
-   "90e625e4 (tools/c64run.py, kik4)": "final",
+   "5f4390e6 (tools/c64run.py, mw3)": "final: adds cadence_start (raw 480x270 gray capture)",
+   "90e625e4 (kik4)": "as mw3 without cadence_start",
    "6b512d75 (mw2)": "as final but the audio recorder cap is 900 s, not 1800 s",
    "8da87b83 (kik2, lode1, mw1)": "as mw2 but no ( ) ; in the BASIC key map and live-media/clear sent a {} body",
    "2f8d4585 (kik1)": "as kik2 with an earlier BASIC typing map (the shifted-LOAD bug)"
@@ -833,6 +834,210 @@
     13,
     14
    ]
+  },
+  "mw3": {
+   "claimed": "2026-11-08 17:34:13 EET",
+   "released": "2026-11-08 18:06:53 EET",
+   "release": "RELEASED",
+   "driver_halted": null,
+   "wrapper_notes": [],
+   "launches": [
+    {
+     "game": "mw4",
+     "disk": "mw4a",
+     "error": null,
+     "generation": 18,
+     "state": "active",
+     "build_id": "c8928c51534a5e75960d9da5bf25500a",
+     "launch_seconds": 18.49,
+     "media_unit_0": [
+      "ready"
+     ],
+     "scripted_play_seconds": 600,
+     "input_events": 1347,
+     "frames": {
+      "r1-00-basic": "edf3f4474e25898fa12b15cf70bff37e66c41494fe84d8e0de8bc8201bb31b3e",
+      "r1-01-config": "e9ee85de318358d0913adac46c74053f200b33b772f3b5fec35f77531ee74d0e",
+      "r1-02-fastloader-on": "db9baf6c70caf86df711717121da57eeb1633bd0a33ab956194b318e2bd96ad1",
+      "r1-03-picture": "3ea0902cffbaf89e1f33a98e4bd15a3cbf153119462a77891014006a306dc115",
+      "r1-04-side2-prompt": "3b7acaed525a339078a9fa031118884f29b8585a7ac089c3fc731858ea0713fd",
+      "r1-05-swapped": "eb1f81b4dc8d5108b6b0e73da1ef431390a1432a5a87481e2540b260c680f648",
+      "r1-06-title": "2836ce28129b56a5934d4000e0f585e81d4626908e1a841f8f6b909bf18f68ab",
+      "r1-07-difficulty": "d4120284913473f7c3bf132bba852a7933d0e4c60b8bc18a654f01500f43f94b",
+      "r1-08-ingame": "424462b82e59a1539e597ed4e5fd7d9bf07c12db647cee9020c4a6d59063f0bd",
+      "r1-09-end": "5bbc62b548b398f5b17a84258bf58dc543d1b8fde386fad39e90305a846462a1",
+      "r1-10-ejected": "adab5e6ac3b2696628d7bf18e59b651102ac7b1afee8c64a7b39f83cec3670fd"
+     },
+     "play_frames": 11,
+     "live_replacement": {
+      "code": 200,
+      "same_session": true,
+      "generation_before": 18,
+      "generation_after": 18,
+      "error": null,
+      "unit_after": [
+       "ready"
+      ]
+     },
+     "video_sha256": "eea0bfbb7698f3e53468ac13dd85e42531e60f4617a7ef630195ee8c7fde49e1",
+     "audio_sha256": "c379405bcbc21ba699a88e3f1862308afcd4e1a24f3acaeb97ef5d2123010a04",
+     "audio_bytes": 177225798,
+     "live_eject": {
+      "code": 200,
+      "same_session": true,
+      "generation_after": 18,
+      "error": null,
+      "unit_after": [
+       "empty"
+      ]
+     },
+     "stop": {
+      "code": 200,
+      "state": "idle"
+     },
+     "audio_seconds": 923.1,
+     "audio_truncated": false,
+     "play_grabs": "11 of 11 in the game; the 240 s cadence capture precedes them",
+     "cadence_capture": {
+      "sha256": "eea0bfbb7698f3e53468ac13dd85e42531e60f4617a7ef630195ee8c7fde49e1",
+      "capture_frames": 14385,
+      "fps": 59.94,
+      "black_frames": 0,
+      "updates_per_s": 16.0,
+      "longest_static_run_frames": 1902,
+      "picture_updates_per_s": 16.2,
+      "longest_picture_static_run_frames": 1902,
+      "walking_150_240s": {
+       "updates_per_s": 34.2,
+       "longest_static_run_frames": 368,
+       "picture_updates_per_s": 34.5,
+       "longest_picture_static_run_frames": 368
+      },
+      "steady_scroll": {
+       "stretches": 15,
+       "frames": 1517,
+       "seconds": 25.3,
+       "picture_changes_per_s": 49.71,
+       "repeat_spacing_frames": {
+        "2": 6,
+        "3": 6,
+        "4": 1,
+        "5": 2,
+        "6": 209,
+        "7": 20
+       },
+       "irregular_gaps_inside_steady_scroll": 4,
+       "irregular_gaps_explained": "all four at a scroll direction reversal (background shift -1 to +1 capture pixels per update); none shows a double step"
+      }
+     },
+     "audio_continuity": {
+      "dropouts": 0,
+      "active_windows": "749/923",
+      "samples_vs_wall_percent": -0.051
+     }
+    },
+    {
+     "game": "mw4",
+     "disk": "mw4a",
+     "error": null,
+     "generation": 19,
+     "state": "active",
+     "build_id": "c8928c51534a5e75960d9da5bf25500a",
+     "launch_seconds": 19.05,
+     "media_unit_0": [
+      "ready"
+     ],
+     "scripted_play_seconds": 600,
+     "input_events": 1340,
+     "frames": {
+      "r2-00-basic": "a1d847d2b238d0e8995536401aaefd26ea6a41573d169db04363c7e63bc66159",
+      "r2-01-config": "0208e235a83ccd7012e75c32f7ed81dfcd265dad443b54d89f44769d1cc36a3d",
+      "r2-02-fastloader-on": "db9baf6c70caf86df711717121da57eeb1633bd0a33ab956194b318e2bd96ad1",
+      "r2-03-picture": "4e39c2d91f4eadb349265aba94fe5acdb869fdeeae15fbe2364374b97487e0d1",
+      "r2-04-side2-prompt": "3ea0902cffbaf89e1f33a98e4bd15a3cbf153119462a77891014006a306dc115",
+      "r2-05-swapped": "eb1f81b4dc8d5108b6b0e73da1ef431390a1432a5a87481e2540b260c680f648",
+      "r2-06-title": "2836ce28129b56a5934d4000e0f585e81d4626908e1a841f8f6b909bf18f68ab",
+      "r2-07-difficulty": "742a0849262ce641bd58a5bac8dc78d171aac5a42e157314f8ea491d41d9b24a",
+      "r2-08-ingame": "48d5406bc2c6e505b4c336936e408bdb6d0181ce804884083712d56b89d27350",
+      "r2-09-end": "2d7ce6121c3f7e82e6e70fc9ea163454d8a6a74a383a8042e1bfcf2b68254fe5",
+      "r2-10-ejected": "21636f610d5fefbe4948865b0fdcb66842bb28e66fe2a2bef4fee9f701ce268d"
+     },
+     "play_frames": 11,
+     "live_replacement": {
+      "code": 200,
+      "same_session": true,
+      "generation_before": 19,
+      "generation_after": 19,
+      "error": null,
+      "unit_after": [
+       "ready"
+      ]
+     },
+     "video_sha256": "b8ac0801dd7e732d32eb7c675252b9491645525462092448496dbeee2b0c64a7",
+     "audio_sha256": "c82dd8ab559a94052063de28f6bf5813c53b3392f8bc12e88d9f76e3527f6c68",
+     "audio_bytes": 177524342,
+     "live_eject": {
+      "code": 200,
+      "same_session": true,
+      "generation_after": 19,
+      "error": null,
+      "unit_after": [
+       "empty"
+      ]
+     },
+     "stop": {
+      "code": 200,
+      "state": "idle"
+     },
+     "audio_seconds": 924.6,
+     "audio_truncated": false,
+     "play_grabs": "11 of 11 in the game; the 240 s cadence capture precedes them",
+     "cadence_capture": {
+      "sha256": "b8ac0801dd7e732d32eb7c675252b9491645525462092448496dbeee2b0c64a7",
+      "capture_frames": 14397,
+      "fps": 59.99,
+      "black_frames": 0,
+      "updates_per_s": 8.5,
+      "longest_static_run_frames": 2161,
+      "picture_updates_per_s": 9.5,
+      "longest_picture_static_run_frames": 2161,
+      "walking_150_240s": {
+       "updates_per_s": 14.6,
+       "longest_static_run_frames": 986,
+       "picture_updates_per_s": 17.0,
+       "longest_picture_static_run_frames": 871
+      },
+      "steady_scroll": {
+       "stretches": 4,
+       "frames": 398,
+       "seconds": 6.6,
+       "picture_changes_per_s": 50.2,
+       "repeat_spacing_frames": {
+        "4": 1,
+        "6": 55,
+        "7": 5
+       },
+       "irregular_gaps_inside_steady_scroll": 0
+      }
+     },
+     "audio_continuity": {
+      "dropouts": 0,
+      "active_windows": "749/924",
+      "samples_vs_wall_percent": -0.082
+     }
+    }
+   ],
+   "result": "case 3 Metal Warrior 4 rerun (8 Nov), r1/r2 PASS: fastloader ON, live side-2 replacement (same session/generation, unit ready), side-2 load into the game, 600 s play (240 s under the cadence capture, then 360 s with grabs), live eject (200, same session and generation, unit empty) in both launches; cadence and audio continuity within the declared tolerances",
+   "driver_sha256": "5f4390e6c9b4b22a8daef306340dd6ad43d00ba45442391c25f6163f18acbc77",
+   "input_script": {
+    "file": "inputs/kit-mw3.jsonl",
+    "sha256": "e89c0258f61e7732fdad67e0d871d9f79d360c8c15eb11d81597ca995d6062e7"
+   },
+   "event_log_sha256": "a9ef3b3962e816cfe30243a833dd1576b7ad450025e3237acd69ed0030ec0cbf",
+   "wander_seeds": [
+    31,
+    32
+   ]
   }
  },
  "reference_observations": {
@@ -1071,5 +1276,22 @@
     }
    }
   }
+ },
+ "cadence_and_audio": {
+  "tolerances_declared": "2026-11-08 17:39 EET, during run mw3 and before its captures were analysed",
+  "video_tolerances": [
+   "capture rate 60 +/- 0.5 fps",
+   "no black frames",
+   "picture updates at most 50.1/s over the capture and the walking segment (complete 50 Hz PAL frames)",
+   "inside continuous scrolling, a static run of 2 or more frames counts as a dropped PAL frame unless the frames show the game itself stopped"
+  ],
+  "audio_tolerances": [
+   "0 dropouts by tools/audiogap.py (VICE MW4 reference: 0)",
+   "recorded samples within 0.2 % of the recorder wall time",
+   "active 1 s windows within 5 points of VICE 751/914 (82.2 %)"
+  ],
+  "audio_rule_refinements_after_declaration": "the dropout rule was tightened twice after inspecting flagged events, all of them waveform features: (1) a 1-LSB-per-step quiet tail; (2) the SID or its output network settling onto its silence level. The final rule needs a fast-moving signal (mean step > 32 LSB over 8 samples) and an entry step > 8 LSB; on 10 injected 5 ms freezes in 60 s of mw2 music it finds 8 (the 2 misses froze a slowly moving signal)",
+  "method": "tools/cadence.py (fes#1530 cad1 metrics plus a noise-tolerant picture rule: any pixel differs by more than 4 levels; the 4KPRO path adds +/-1), tools/scrollgap.py (per-frame changed pixels in the playfield; scroll frames change more than 1500 sampled pixels), tools/audiogap.py",
+  "result": "within tolerance: 59.94 and 59.99 fps, 0 black frames, at most 34.5 picture updates/s; in steady scrolling the 50-in-60 repeat appears every 6 or 7 output frames and pictures change 49.7 and 50.2 times/s (C64 PAL is 50.125 Hz); the 32 and 36 s static runs are the opening dialogue, which waits for fire. Audio 0 dropouts in both launches, samples -0.05 % and -0.08 % from wall time, 749/923 and 749/924 active (81.1 %)"
  }
 }

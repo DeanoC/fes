@@ -25,6 +25,7 @@ finished one appends a line to OUT/acks.jsonl:
   wander port seconds [fire] [seed] [grab_every]  pseudo-random joystick play
   grab name
   video_start name s / video_stop
+  cadence_start name seconds  raw gray capture for cadence; video_stop waits for it
   audio_start name / audio_stop
   session                 GET /api/v1/session (recorded)
   sleep s
@@ -382,6 +383,15 @@ class Run:
                                         '-c:v', 'libx264', '-preset', 'veryfast', '-crf', '23', str(dest)]), dest)
         return {'video': name}
 
+    def cadence_start(self, name, seconds):
+        """Lossless 480x270 gray raw capture at the capture's own frame rate, for cadence (as fes#1530's cad1)."""
+        dest = OUT / 'fr' / f'{name}.gray'
+        self.video = (subprocess.Popen(['timeout', '-k', '5', str(seconds + 30), 'ffmpeg', '-loglevel', 'error', '-y',
+                                        '-f', 'v4l2', '-i', VIDEO, '-t', str(seconds), '-vf',
+                                        'scale=480:270,format=gray', '-fps_mode', 'passthrough', '-f', 'rawvideo',
+                                        str(dest)], stderr=(OUT / f'{name}-ffmpeg.txt').open('w')), dest)
+        return {'cadence': name, 'seconds': seconds, 'wall': time.time()}
+
     def video_stop(self):
         if not self.video:
             return {}
@@ -455,6 +465,8 @@ class Run:
             return self.grab(op['name'])
         if c == 'video_start':
             return self.video_start(op['name'], op['seconds'])
+        if c == 'cadence_start':
+            return self.cadence_start(op['name'], op['seconds'])
         if c == 'video_stop':
             return self.video_stop()
         if c == 'audio_start':

@@ -21,8 +21,10 @@ and progress under input. No brightness or non-black checks are used.
 | --- | --- | --- |
 | 1 Kikstart: KERNAL load, both ports, split-screen, collisions, SID | **PASS** | Run `kik4` (8 Nov), both launches. KERNAL load, trainer, high-score file read, two players with two joysticks: each port drives only its own rider, and course 1 times are P1 72.54 and P2 59.64 on both launches and in VICE. About 754 s of race time per launch (derivation in case 1), and the race completes back to the title. The 7 Nov `kik2` two-joystick failure was a harness timing error ([#1542](https://github.com/DeanoC/fes/issues/1542), closed as not an FES defect). |
 | 2 Lode Runner: Brøderbund multi-file load, raw-sector level reads, joystick and keyboard | **PASS** | Run `lode1`, both launches: the 1.5-minute original loader, the attract demo matching VICE (SCORE 2125), fire starting level 1, Ctrl+A costing a man (MEN 5→4), Ctrl+U advancing to LEVEL 002 in r1 and r2 (corrected 8 Nov; see case 2), play scoring through input, game over and restart. |
-| 3 Metal Warrior 4: custom IRQ fastloader with its own 1541 drive code, live side-2 replacement | **PASS** | Run `mw2`, both launches. Fastloader on, the multicolour loading picture, then the side-2 prompt answered by a live replacement in the running session (same session and generation, unit ready). Side 2 loads through the game's own drive code into the game, followed by 600 s of play. The live eject (unit empty, same generation) was scripted and passed in r1 only. Every scripted screen matches VICE on inspection. `mw1` is a superseded attempt (see below). |
+| 3 Metal Warrior 4: custom IRQ fastloader with its own 1541 drive code, live side-2 replacement | **PASS** | Run `mw2`, both launches. Fastloader on, the multicolour loading picture, then the side-2 prompt answered by a live replacement in the running session (same session and generation, unit ready). Side 2 loads through the game's own drive code into the game, followed by 600 s of play. The live eject (unit empty, same generation) passed in `mw2` r1 and in both launches of the 8 Nov rerun `mw3`, which repeated the whole case and carried the cadence captures. Every scripted screen matches VICE on inspection. `mw1` is a superseded attempt (see below). |
 
+Audio and video cadence passed within tolerances declared before the
+analysis ([Cadence and audio continuity](#cadence-and-audio-continuity)).
 The [Regression checks](#regression-checks) section lists what runs in CI
 and the bounded manual procedure for the rest.
 
@@ -275,7 +277,7 @@ therefore meets its declared objective in both launches.
 - **PASS:** the loader, joystick and keyboard, death and respawn, the level
   advance, sustained play and relaunch passed in both launches.
 
-## Case 3: Metal Warrior 4 (runs `mw1`, `mw2`)
+## Case 3: Metal Warrior 4 (runs `mw1`, `mw2`, `mw3`)
 
 **Path.**
 
@@ -306,8 +308,18 @@ therefore meets its declared objective in both launches.
 - **PASS:** custom drive-code loading on the native 1541, live disk
   replacement, scrolling, sprites and raster screens, port-2 control,
   sustained play and relaunch, in both launches. The live eject passed in
-  r1; it wasn't scripted in r2, so the eject has one passing launch, not
-  two.
+  r1; it wasn't scripted in r2.
+
+**Rerun `mw3` (8 Nov, Kit B, 17:34–18:07).** The `mw2` script with the eject
+added to r2 and the play split into 240 s under a lossless cadence capture
+and 360 s with grabs (`inputs/kit-mw3.jsonl`). Both launches went BASIC,
+configuration menu, fastloader ON, loading picture, side-2 prompt, live
+replacement (200, same session, generation 18 and 19 kept, unit `ready`),
+credits, difficulty, EASY and into the game. All 22 play grabs are in the
+game. After play, `live-media/clear` returned 200 in the same session and
+generation with unit `empty` in **both** launches, then Stop went idle. So
+the eject now passes in three launches (`mw2` r1, `mw3` r1 and r2), and
+case 3 meets every per-run item in two independent launches of one run.
 
 `mw1` r1 also loaded side 2 after a live replacement (generation 32) and
 reached the game, through random play rather than the script. Two
@@ -346,7 +358,8 @@ These are kept so the attempts can be read in full.
   ran under the new cap. Each launch's recorded seconds and a truncation
   flag are in the JSON.
 - The 20 s videos are lossy x264. They show 60 fps capture (1200 frames)
-  but don't prove frame-exact cadence.
+  but don't prove frame-exact cadence. Run `mw3` measures cadence from
+  lossless captures instead.
 - VICE reference runs early on attached Deano's library D64s read-write.
   Lode Runner's high-score sector and MW4's config byte were written. Both
   images were reconstructed by inverting those writes, checked against the
@@ -373,6 +386,68 @@ These matrix exclusions stand, and nothing here extrapolates to them:
 Three titles are a bounded sample of the KERNAL, raw-sector and
 custom-drive-code loader classes. They aren't a general compatibility
 claim.
+
+## Cadence and audio continuity
+
+Measured in run `mw3`, both launches, during MW4 play. The tolerances were
+written down at 17:39 on 8 November, while the run was in progress and
+before any capture was analysed (they're in the JSON's `cadence_and_audio`).
+
+**Video.** Each launch has a 240 s lossless capture: Kit B's 4KPRO HDMI
+input scaled to 480×270 gray and written raw at its own frame rate, as
+#1530's `cad1`. [tools/cadence.py](tools/cadence.py) gives #1530's metrics.
+It adds a picture rule (any pixel more than 4 levels from the previous
+frame), because the capture path adds ±1 level of noise, so almost every
+frame differs at the byte level.
+
+| | r1 | r2 | Tolerance |
+| --- | --- | --- | --- |
+| Frames, fps | 14385, 59.94 | 14397, 59.99 | 60 ± 0.5 |
+| Black frames | 0 | 0 | 0 |
+| Updates/s, #1530 rule (whole capture / walking 150–240 s) | 16.0 / 34.2 | 8.5 / 14.6 | — |
+| Picture updates/s (whole / walking) | 16.2 / 34.5 | 9.5 / 17.0 | at most 50.1 |
+| Longest static run, frames (whole / walking) | 1902 / 368 | 2161 / 871 | game states only |
+| Steady scrolling: time, picture changes/s | 25.3 s, 49.7 | 6.6 s, 50.2 | C64 PAL 50.125 Hz |
+| Repeat spacing in steady scrolling, output frames | 6 (209), 7 (20), 2–5 (15) | 6 (55), 7 (5), 4 (1) | — |
+
+- The long static runs are the opening dialogue, which waits for fire
+  between lines. The 12 frames sampled every 20 s show it, then walking.
+- The core shows complete 50 Hz frames in 60 Hz output. While the
+  background scrolls, the picture changes in a `11112` pattern: one repeat
+  every 6 output frames, with an occasional 7 because PAL runs at 50.125 Hz
+  against 60 Hz. [tools/scrollgap.py](tools/scrollgap.py) finds those
+  stretches from the per-frame changed-pixel count.
+- Inside steady scrolling, r1 has 4 longer gaps, of 3 to 6 frames, and r2
+  has none. The background shift around each of those 4 goes from −1 to +1
+  capture pixels per update: the player turned round and the game stopped
+  scrolling. None shows the double step a dropped PAL frame would leave.
+- Video **PASS** in both launches.
+
+**Audio.** [tools/audiogap.py](tools/audiogap.py) counts dropouts in each
+whole launch recording. A dropout is a run of at least 1 ms of identical
+stereo samples, inside an active second, cutting into a signal that was
+moving fast (mean step over the 8 samples before it above 32 LSB, and a
+step into the run above 8 LSB).
+
+| | `mw3` r1 | `mw3` r2 | VICE MW4 | Tolerance |
+| --- | --- | --- | --- | --- |
+| Dropouts | 0 | 0 | 0 | 0 |
+| Samples against recorder wall time | −0.05 % | −0.08 % | — | within 0.2 % |
+| Active 1 s windows | 749/923 (81.1 %) | 749/924 (81.1 %) | 751/914 (82.2 %) | within 5 points |
+
+- Unlike reSID, the kit's digital SID holds an exactly constant value when
+  no voice sounds. The first version of the rule flagged that, so the rule
+  was tightened twice after the tolerances were declared:
+  - Pass 1: a quiet tail stepping 1 LSB every few milliseconds was flagged.
+    Mostly fixed by requiring a fast-moving signal before the run.
+  - Pass 2: one event at 209 s in r1 remained, the output ringing down onto
+    its silence level. Fixed by requiring a large step into the run.
+
+  Every flagged event was inspected. With 10 injected 5 ms freezes in 60 s
+  of `mw2` music, the final rule finds 8. The 2 it misses froze a slowly
+  moving signal. `mw2` r1 also has 0 dropouts.
+- Audio **PASS** in both launches, as digital HDMI audio. Analogue output
+  isn't measured.
 
 ## Regression checks
 
@@ -441,8 +516,8 @@ couldn't be reproduced. It found 12 issues. This revision addresses them:
 - **Verdicts disagreed** (the JSON said PASS for Lode Runner, while this
   summary and the status row said QUALIFIED). Rechecking the frames showed
   the level advance passed in both launches; see case 2.
-- **The MW4 eject was presented as covering both launches.** Now stated as
-  r1 only.
+- **The MW4 eject was presented as covering both launches.** It's now
+  stated per launch, and the rerun `mw3` ejected in both launches.
 - **Input sequences and seeds weren't recorded.** Scripts, driver,
   event-log hashes and seeds are now committed or bound.
 - **The VICE comparison had nothing behind it.** `vice_runs` now binds it,
@@ -464,18 +539,15 @@ couldn't be reproduced. It found 12 issues. This revision addresses them:
 The reviewer's other notes, on the MW4 config write and the frame labels,
 are answered in the save paragraph under Method and under Regression
 checks. It also found that audio and video cadence was neither measured nor
-claimed; that's listed below.
+claimed. Run `mw3` measured it (see
+[Cadence and audio continuity](#cadence-and-audio-continuity)).
 
 ## Owed
 
-- **MW4 eject in a second launch.** The matrix asks for an eject in each
-  run. It passed in `mw2` r1, and `mw1` r1's was rejected by the harness.
-  That needs one more kit launch with the eject scripted.
-- **Audio and video cadence.** The issue's work list includes audio and
-  video cadence and stability. The 20 s lossy captures don't measure it,
-  and no other check was made. It needs a lossless frame-timing capture
-  method on the 4KPRO (or a host-side frame counter) and a stated
-  tolerance.
-- Coordination with #946 (display and launcher), #593 (receipt attestation)
-  and #1355 (named release-image acceptance). This record is a
-  current-package hardware run and doesn't stand in for those.
+Nothing from #1531's matrix. The MW4 eject and the audio/video cadence,
+which the first revision of this PR listed here, passed in `mw3`. These
+stay with their own issues, and this record doesn't stand in for them:
+
+- #946 (display and launcher)
+- #593 (receipt attestation)
+- #1355 (named release-image acceptance)
