@@ -141,7 +141,38 @@ def tree_sha256(root: Path) -> str:
     return digest.hexdigest()
 
 
-def source_files(data: dict, title: dict) -> dict:
+def relative_parts(value: str, separator: str, context: str, *, allow_empty: bool = False,
+                   allow_trailing: bool = False) -> list[str]:
+    """Split a relative path while rejecting ambiguous or traversing components."""
+    if value == '' and allow_empty:
+        return []
+    other_separator = '\\' if separator == '/' else '/'
+    if other_separator in value:
+        raise DriveError(f'{context}: unsafe path {value!r}')
+    path = value[:-1] if allow_trailing and value.endswith(separator) else value
+    parts = path.split(separator)
+    if (not path or value.startswith(separator) or
+            any(part in ('', '.', '..') for part in parts)):
+        raise DriveError(f'{context}: unsafe path {value!r}')
+    return parts
+
+
+def confined_path(root: Path, parts: list[str], context: str) -> Path:
+    """Return a path under root, rejecting dot components and symlink escapes."""
+    if not parts or any(part in ('', '.', '..') for part in parts):
+        raise DriveError(f'{context}: unsafe path components {parts!r}')
+    if root.is_symlink():
+        raise DriveError(f'{context}: staging directory {root} is a symlink')
+    base = root.resolve()
+    path = base.joinpath(*parts)
+    try:
+        path.resolve(strict=False).relative_to(base)
+    except (OSError, RuntimeError, ValueError):
+        raise DriveError(f'{context}: path escapes staging directory {root}') from None
+    return path
+
+
+def source_files(data: dict, title: dict, staging: Path) -> dict:
     """A title's source files: {relative name: (read(), time)}, its identity checked."""
     kind, root = source_root(data, title.get('source', 'exodos'))
     source = root / title['path']
@@ -150,15 +181,26 @@ def source_files(data: dict, title: dict) -> dict:
             raise DriveError(f'{source} not found; set {data["sources"][title.get("source", "exodos")]["env"]}')
         got = sha256(source)
         archive = zipfile.ZipFile(source)
-        items = {item.filename: (lambda item=item: archive.read(item),
-                                 calendar.timegm(item.date_time + (0, 0, -1)))
-                 for item in archive.infolist() if not item.is_dir()}
+        items = {}
+        for item in archive.infolist():
+            parts = relative_parts(item.filename, '/', f'{title["id"]}: unsafe archive path',
+                                   allow_trailing=item.is_dir())
+            confined_path(staging, parts, f'{title["id"]}: unsafe archive path {item.filename!r}')
+            if not item.is_dir():
+                items[item.filename] = (lambda item=item: archive.read(item),
+                                        calendar.timegm(item.date_time + (0, 0, -1)))
     else:
         if not source.is_dir():
             raise DriveError(f'{source} not found; set {data["sources"][title.get("source", "exodos")]["env"]}')
         got = tree_sha256(source)
-        items = {path.relative_to(source).as_posix(): (path.read_bytes, freedos.FILE_TIME)
-                 for path in source.rglob('*') if path.is_file()}
+        items = {}
+        for path in source.rglob('*'):
+            if not path.is_file():
+                continue
+            filename = path.relative_to(source).as_posix()
+            parts = relative_parts(filename, '/', f'{title["id"]}: unsafe source path')
+            confined_path(staging, parts, f'{title["id"]}: unsafe source path {filename!r}')
+            items[filename] = (path.read_bytes, freedos.FILE_TIME)
     if got != title['sha256']:
         raise DriveError(f'{title["id"]}: {source} hashes to {got}, the manifest pins {title["sha256"]}')
     return items
@@ -172,13 +214,17 @@ def source_root(data: dict, name: str) -> tuple[str, Path]:
 def extract(data: dict, title: dict, files: Path) -> tuple[int, int]:
     """Write a title's copy entries under files, in order; return the files
     written and the non-8.3 names skipped."""
-    items = source_files(data, title)
+    items = source_files(data, title, files)
     written, skipped = set(), 0
     for copy in title['copy']:
-        prefix = copy['from'].rstrip('/') + '/' if copy['from'] else ''
+        prefix_parts = relative_parts(copy['from'], '/', f'{title["id"]}: unsafe copy source',
+                                      allow_empty=True, allow_trailing=True)
+        prefix = '/'.join(prefix_parts) + '/' if prefix_parts else ''
         skip = {part.upper() for part in copy.get('skip', [])}
-        target = [dos_name(part) for part in copy['to'].split('\\') if part]
-        if not target or None in target:
+        target_parts = relative_parts(copy['to'], '\\', f'{title["id"]}: unsafe copy target',
+                                      allow_trailing=True)
+        target = [dos_name(part) for part in target_parts]
+        if None in target:
             raise DriveError(f'{title["id"]}: copy target {copy["to"]!r} is not a DOS directory')
         matched = 0
         for filename in sorted(items):
@@ -191,7 +237,8 @@ def extract(data: dict, title: dict, files: Path) -> tuple[int, int]:
             if None in names:
                 skipped += 1
                 continue
-            path = files.joinpath(*target, *names)
+            path = confined_path(files, [*target, *names],
+                                 f'{title["id"]}: unsafe archive path {filename!r}')
             path.parent.mkdir(parents=True, exist_ok=True)
             read, stamp = items[filename]
             path.write_bytes(read())
@@ -204,7 +251,12 @@ def extract(data: dict, title: dict, files: Path) -> tuple[int, int]:
         sidecar = STORE / 'sidecars' / config['sha256']
         if not sidecar.is_file() or sha256(sidecar) != config['sha256']:
             raise DriveError(f'{title["id"]}: sidecar {config["sha256"]} is missing from {sidecar.parent}')
-        path = files.joinpath(*(dos_name(part) or part for part in config['path'].split('\\') if part))
+        config_parts = relative_parts(config['path'], '\\', f'{title["id"]}: unsafe config target',
+                                      allow_trailing=True)
+        config_names = [dos_name(part) for part in config_parts]
+        if None in config_names:
+            raise DriveError(f'{title["id"]}: config target {config["path"]!r} is not a DOS path')
+        path = confined_path(files, config_names, f'{title["id"]}: unsafe config target {config["path"]!r}')
         if path not in written:
             raise DriveError(f'{title["id"]}: config {config["path"]} replaces no file the copy wrote')
         stamp = int(path.stat().st_mtime)

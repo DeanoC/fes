@@ -103,6 +103,58 @@ class NameTest(unittest.TestCase):
         self.assertIsNone(drives.dos_name('toolongname.exe'))
 
 
+class ExtractionPathTest(unittest.TestCase):
+    def setUp(self):
+        self.directory = tempfile.TemporaryDirectory()
+        self.root = Path(self.directory.name)
+        self.zip_path = self.root / 'game.zip'
+
+    def tearDown(self):
+        self.directory.cleanup()
+
+    def write_archive(self, entries):
+        with zipfile.ZipFile(self.zip_path, 'w') as archive:
+            for name, data in entries:
+                archive.writestr(name, data)
+        return {
+            'sources': {'exodos': {'kind': 'zip', 'env': 'TEST_PC386_ZIP', 'default': str(self.root)}},
+        }, {
+            'id': 'game', 'path': self.zip_path.name, 'sha256': drives.sha256(self.zip_path),
+            'copy': [{'from': 'Game', 'to': 'GAME'}],
+        }
+
+    def test_zip_dot_components_are_rejected_before_copying(self):
+        data, title = self.write_archive([
+            ('Game/GAME.EXE', b'MZgame'),
+            ('Game/../../../TARGET', b'escape'),
+        ])
+
+        with self.assertRaisesRegex(drives.DriveError, 'unsafe archive path'):
+            drives.extract(data, title, self.root / 'staging')
+
+        self.assertFalse((self.root.parent / 'TARGET').exists())
+
+    def test_copy_target_dot_components_are_rejected(self):
+        data, title = self.write_archive([('Game/GAME.EXE', b'MZgame')])
+        title['copy'][0]['to'] = r'GAME\..\outside'
+
+        with self.assertRaisesRegex(drives.DriveError, 'unsafe copy target'):
+            drives.extract(data, title, self.root / 'staging')
+
+    def test_copy_target_symlinks_cannot_escape_the_staging_directory(self):
+        data, title = self.write_archive([('Game/GAME.EXE', b'MZgame')])
+        staging = self.root / 'staging'
+        staging.mkdir()
+        outside = self.root / 'outside'
+        outside.mkdir()
+        (staging / 'GAME').symlink_to(outside, target_is_directory=True)
+
+        with self.assertRaisesRegex(drives.DriveError, 'path escapes staging directory'):
+            drives.extract(data, title, staging)
+
+        self.assertFalse((outside / 'GAME.EXE').exists())
+
+
 @unittest.skipUnless(MTOOLS, 'mtools is not installed')
 class BuildTest(unittest.TestCase):
     def setUp(self):
