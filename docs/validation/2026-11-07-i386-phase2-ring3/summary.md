@@ -32,7 +32,19 @@ what those DPMI hosts use on the Bochs CPU.
 - **Seal** ([below](#quartus-seal)): Quartus 17.0.2 meets every analysis:
   worst setup +0.914 ns (main +0.853), hold +0.082 ns (main +0.117), 33,313
   ALMs (main 33,118).
-- **Kit B**: KIT-RESULT
+- **Kit B** ([below](#kit)): Jazz Jackrabbit, Tyrian and Cyberdogs
+  play: each reaches its title and menus and runs a level for several
+  seconds of play, with its DPMI host at CPL 3. They stopped at their IRET
+  to CPL 3 before. The six Phase-5 titles still stop (Time Circle shown).
+  DOOM v1.9 `-timedemo demo3` gives 39.7 fps (main 39.8, −0.09%), and the
+  five acceptance games and the benchmark pack show no regression.
+- **Machine sim**: the three titles run 12 simulated seconds each on the
+  RTL with no instruction handed to Bochs (Jazz 590 million instructions,
+  Tyrian 174 million, Cyberdogs 304 million); on main they stopped 5,409,
+  27,258 and (in the census's kit run) at their first IRET to CPL 3.
+- **So 3 of the 9 ring-3 titles now run.** The other six need Phase 5:
+  paging and task switches (CWSDPMI's five, 32RTM's Time Circle), and Quake
+  an x87 too.
 
 ## Inputs
 
@@ -258,7 +270,70 @@ took them off it.
 
 ## Kit
 
-KIT
+Kit B, core-only on its named baseline (software `a8cd30c4`, OS
+`f904961e`): the sealed package `657245c2…` through the agent's library
+launch, with no install, image change, reboot or host change, and Kit B's
+`usb-storage.quirks=152d:0583:i` line untouched. Each run claimed the kit
+in `~/kit-status/kitB-STATUS.md`, checked the baseline before and after (the
+same image, previous, pending, idle, launcher, images, quirk and boot ID
+keys; agent idle, lease free) and logged it FREE, and a housekeeping run
+then removed the FogCast data trees it made. Kit A was held by another
+session's restore throughout. r1 (its package file misnamed, no launch)
+and r7 (the 134 MB `pmode` drive, which did not stage) ran nothing.
+
+| Run | Disk | Title | Result |
+| --- | --- | --- | --- |
+| r11 | `dpmi` | Tyrian | Title, Players, 1 Player Arcade, episode, Game Menu, then level 1: the level scrolls with enemies through several seconds of flying and firing ([frames](kit-r11-tyrian-play.jpg)) |
+| r11 | `dpmi` | Cyberdogs | Title, hero, menu, Start Mission, the briefing, the Armoury, then mission 1: its clock runs 0:05 to 0:15 while the player moves ([frames](kit-r11-cyberdogs-play.jpg)) |
+| r12 | `real` | Jazz Jackrabbit | Gameplay Options, the title, difficulty, episode, Get Ready, then level 1: its clock runs 7:59 to 7:44 while Jazz runs and fires ([frames](kit-r12-jazz-play.jpg)) |
+| r2 | `dpmi` | Time Circle | Its password screen, then nothing: 32RTM turns paging on, Phase 5 ([frames](kit-r2-tcircle.jpg)) |
+| r5 | `real` | Wolfenstein 3D | Title, menu ([frames](kit-r5-wolf3d.jpg)) |
+| r5 | `real` | Ultima VI | Its intro ([frames](kit-r5-ultima6.jpg)) |
+| r6 | `xms` | Ultima VII: The Black Gate | Its intro, the Guardian ([frames](kit-r6-ultima7.jpg)) |
+| r8 | #1368's Serpent Isle disk | Serpent Isle | Its intro ([frames](kit-r8-u7si.jpg)) |
+| r10 | #1368's DOOM disk | DOOM v1.9 | DOS/4GW, the title, its demos under the menu ([frames](kit-r10-doom.jpg)) |
+| r9 | Phase 4's `bench.img` | The benchmark pass | [timedemos](kit-r9-doom-timedemos.png), [log](kit-r9-bench.log) |
+
+The CPU status ring read after each title showed it running, neither
+halted nor stopped; after Tyrian and Cyberdogs the last delivery's code
+selector was 0237h and 0247h, RPL 3, and after Jazz 01E7h.
+
+**The benchmark pass** (r9, max), against Phase 4 slice 6b's Kit A run
+`u1` (package `c89d6b0c`, main):
+
+| Benchmark | Main | This slice |
+| --- | --- | --- |
+| DOOM v1.9 `-timedemo demo3` | 3,863 gametics in 3,399 realtics, 39.8 fps | 3,863 in 3,402, 39.7 fps |
+| Pack DOOM, maximum detail | 2,134 in 2,077, 36.0 fps | 2,134 in 2,079, 35.9 fps |
+| Pack DOOM, minimum detail | 2,134 in 754, 99.1 fps | 2,134 in 756, 98.8 fps |
+| 3DBench | 76.9 | 76.9 |
+| PCPBench | 13.3 | 13.2 |
+| TopBench | 309 | 309 |
+
+The differences are within a run's noise (a few realtics), as the
+lockstep's CPU-0 cost (a protected-mode IRET's and delivery's not-taken
+uops, about 430 of them a second in DOOM) predicts.
+
+## Machine sim
+
+`sim_fes_pc386.py --suite game --game ID --cpu rtl --rtl-at-prompt
+--limit-seconds 12` on #1533's game suite with this branch's RTL: the RTL
+takes over at the DOS prompt and runs to 12 simulated seconds.
+
+| Title | Instructions on the RTL | With PE set | Protected-mode entries | Handed to Bochs |
+| --- | ---: | ---: | ---: | ---: |
+| Jazz Jackrabbit ([report](machine-jazz-rtl-report.json)) | 589,976,493 | 543,149,250 | 1,210 | 0 |
+| Tyrian ([report](machine-tyrian-rtl-report.json)) | 174,063,510 | 85,580,117 | 48,839 | 0 |
+| Cyberdogs ([report](machine-cyberdogs-rtl-report.json)) | 304,436,296 | 248,424,133 | 2,213 | 0 |
+
+Each ends on the screen Bochs shows at the same time in its census run
+(Jazz's Gameplay Options, which the census keys do not leave).
+
+**pc386 suites** (this tree): `--suite system` and `--suite devices`
+pass. `--suite boot --cpu rtl` stops at the Bochs BIOS's `IDE time out`
+without booting the disk, exactly as main's RTL does (113,614,545
+instructions to 3 simulated seconds on both); the oracle boots the same
+disk. Filed as [#1551](https://github.com/DeanoC/fes/issues/1551).
 
 ## Not in this record
 
@@ -272,3 +347,4 @@ KIT
   386 takes longer for an IRET to an outer privilege and a delivery to an
   inner one.
 - **Quake** also needs an x87, which the design's empty socket lacks.
+- **#1551**, `--suite boot --cpu rtl`'s IDE time out, which main has too.
