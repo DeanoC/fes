@@ -276,7 +276,11 @@ the acceptance disks of #1368.
 
 The seal, lockstep and test386 runs are from `93928cea2`. After it, only
 documentation and the bench's comments changed (the RTL README, the design
-doc, `lockstep_tb.cpp`'s mode list, the sim README); no RTL file differs.
+doc, `lockstep_tb.cpp`'s mode list, the sim README); no CPU RTL file
+differs. Main was then merged in (`5b9e98016`), bringing the pc386 EMS
+board (#1556) into the machine's RTL; the CPU's RTL is unchanged by it, and
+`machine_tb` keeps this branch's physical store pages beside main's MMIO
+range check.
 
 ## Commands
 
