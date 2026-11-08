@@ -25,6 +25,19 @@ static unsigned computer_tape_reported;
 enum tape_cost_kind { TAPE_COST_GUARD,TAPE_COST_OWNS,TAPE_COST_READ,TAPE_COST_WRITE,
     TAPE_COST_BARRIER,TAPE_COST_IMAGE,TAPE_COST_HASH,TAPE_COST_COUNT };
 static struct { uint64_t ticks,max;unsigned calls,samples,clock_invalid; } tape_cost[TAPE_COST_COUNT];
+enum tape_owns_part { TAPE_OWNS_BEFORE,TAPE_OWNS_USB,TAPE_OWNS_REGISTERS,TAPE_OWNS_AFTER,TAPE_OWNS_PARTS };
+/* Sample only the same outer owns invocations selected above. Partial/failed
+ * paths can have fewer samples; these counters never supply an owns result. */
+static struct { uint64_t ticks,max;unsigned samples,clock_invalid; } tape_owns_cost[TAPE_OWNS_PARTS];
+static void tape_owns_cost_end(unsigned part,uint64_t began)
+{
+    uint64_t now=read_cntpct_el0();
+    tape_owns_cost[part].samples++;
+    if(now<began) {tape_owns_cost[part].clock_invalid=1;return;}
+    uint64_t ticks=now-began;
+    tape_owns_cost[part].ticks+=ticks;
+    if(ticks>tape_owns_cost[part].max)tape_owns_cost[part].max=ticks;
+}
 static unsigned tape_cost_mask(unsigned kind)
 {return kind>=TAPE_COST_OWNS && kind<=TAPE_COST_BARRIER ? 63U : 0U;}
 static uint64_t tape_cost_begin(unsigned kind)
@@ -92,7 +105,33 @@ static int computer_tape_guard(void *context,uint64_t owner,uint64_t generation)
     int status=computer_tape_frame_guard(context,owner,generation);
     tape_cost_end(TAPE_COST_GUARD,began);return status;
 }
-static int computer_tape_owned(void *context,uint64_t owner,uint64_t generation)
+static int computer_tape_sample_state(void *context,uint64_t owner,uint64_t generation,unsigned part,unsigned sampled)
+{
+    if(!sampled)return computer_tape_state(context,owner,generation);
+    uint64_t began=read_cntpct_el0();
+    int status=computer_tape_state(context,owner,generation);
+    tape_owns_cost_end(part,began);return status;
+}
+static int computer_tape_sample_usb(unsigned sampled)
+{
+    uint64_t began=sampled ? read_cntpct_el0() : 0;
+    int status=fes_nano_usb_master_service_valid(&usb_master,&fes_nano_owned_bridges,&usb_platform);
+    if(sampled)tape_owns_cost_end(TAPE_OWNS_USB,began);
+    return status;
+}
+static int computer_tape_sample_registers(unsigned sampled)
+{
+    uint64_t began=sampled ? read_cntpct_el0() : 0;
+    dsbsy();
+    uint32_t reset=mmio_read_32(FES_NANO_COLD_RSTMGR+0x2c);
+    uint32_t per0=mmio_read_32(FES_NANO_COLD_RSTMGR+0x24);
+    dsbsy();
+    int status=(reset&FES_NANO_BRIDGES_ALL)==FES_NANO_BRIDGES_DATA &&
+        (per0&FES_NANO_MASTER_RESET)==(FES_NANO_MASTER_RESET&~FES_NANO_COLD_USB_RESET);
+    if(sampled)tape_owns_cost_end(TAPE_OWNS_REGISTERS,began);
+    return status;
+}
+static int computer_tape_owned(void *context,uint64_t owner,uint64_t generation,unsigned sampled)
 {
     struct fes_nano_tape *e=&computer_tape.engine;
     if(!computer_tape_frame.active || computer_tape_frame.failed || !computer_tape.used || computer_tape.failed ||
@@ -100,20 +139,16 @@ static int computer_tape_owned(void *context,uint64_t owner,uint64_t generation)
        computer_tape_frame.owner!=owner || computer_tape_frame.generation!=generation ||
        computer_tape_frame.phase!=e->phase || computer_tape_frame.offset!=e->frame_offset ||
        usb_platform.generation!=computer_tape_frame.usb_generation ||
-       !computer_tape_state(context,owner,generation) ||
-       fes_nano_usb_master_service_valid(&usb_master,&fes_nano_owned_bridges,&usb_platform)!=1)return 0;
-    dsbsy();
-    uint32_t reset=mmio_read_32(FES_NANO_COLD_RSTMGR+0x2c);
-    uint32_t per0=mmio_read_32(FES_NANO_COLD_RSTMGR+0x24);
-    dsbsy();
-    return (reset&FES_NANO_BRIDGES_ALL)==FES_NANO_BRIDGES_DATA &&
-        (per0&FES_NANO_MASTER_RESET)==(FES_NANO_MASTER_RESET&~FES_NANO_COLD_USB_RESET) &&
-        computer_tape_state(context,owner,generation);
+       !computer_tape_sample_state(context,owner,generation,TAPE_OWNS_BEFORE,sampled) ||
+       computer_tape_sample_usb(sampled)!=1)return 0;
+    return computer_tape_sample_registers(sampled) &&
+        computer_tape_sample_state(context,owner,generation,TAPE_OWNS_AFTER,sampled);
 }
 static int computer_tape_owns(void *context,uint64_t owner,uint64_t generation)
 {
     uint64_t began=tape_cost_begin(TAPE_COST_OWNS);
-    int status=computer_tape_owned(context,owner,generation);
+    unsigned sampled=((tape_cost[TAPE_COST_OWNS].calls-1)&tape_cost_mask(TAPE_COST_OWNS))==0;
+    int status=computer_tape_owned(context,owner,generation,sampled);
     tape_cost_end(TAPE_COST_OWNS,began);return status;
 }
 static int computer_tape_begin(void *context,uint64_t owner,uint64_t generation,unsigned phase,uint32_t offset)
@@ -224,6 +259,7 @@ static int computer_tape_prepare(uint64_t owner,uint64_t generation,unsigned com
         computer_tape.engine.generation>=generation+1)))return -1;
     memset(&computer_tape,0,sizeof(computer_tape));memset(&computer_tape_frame,0,sizeof(computer_tape_frame));
     computer_tape_reported=0;memset(tape_cost,0,sizeof(tape_cost));
+    memset(tape_owns_cost,0,sizeof(tape_owns_cost));
     if(!computer)return 0; /* A no-tape or menu activation still returns normally. */
     if(!configuration_program.bound || configuration_program.failed || configuration_program.owner!=owner ||
        configuration_program.generation!=generation || !configuration_program.rom_bytes)return -1;
@@ -260,6 +296,13 @@ void fes_nano_platform_computer_tape_report(unsigned containment_attempted,int c
             (unsigned long long)e->owner,(unsigned long long)e->generation,names[i],tape_cost[i].calls,
             tape_cost[i].samples,tape_cost_mask(i)+1,(unsigned long long)tape_cost[i].ticks,
             (unsigned long long)tape_cost[i].max,tape_cost[i].clock_invalid,computer_tape.complete,e->hz);
+    static const char *const parts[]={"before","usb","registers","after"};
+    for(unsigned i=0;i<TAPE_OWNS_PARTS;i++)
+        NOTICE("FES_NANO_TAPE_OWNERSHIP_COST owner=%llx generation=%llu kind=%s samples=%u period=64 ticks=%llx max=%llx clock_invalid=%u complete=%u hz=%u parent_calls=%u parent_samples=%u\n",
+            (unsigned long long)e->owner,(unsigned long long)e->generation,parts[i],tape_owns_cost[i].samples,
+            (unsigned long long)tape_owns_cost[i].ticks,(unsigned long long)tape_owns_cost[i].max,
+            tape_owns_cost[i].clock_invalid,computer_tape.complete,e->hz,
+            tape_cost[TAPE_COST_OWNS].calls,tape_cost[TAPE_COST_OWNS].samples);
     /* Emit the terminal failure marker last: collectors stop at that marker. */
     NOTICE("FES_NANO_TAPE_FAILURE error=%d owner=%llx generation=%llu bytes=%u opcode=%u index=%u offset=%x reads=%u writes=%u frame_phase=%u next=%u frame_failed=%u complete=%u began=%llx tick=%llx hz=%u\n",
         computer_tape.first_error,(unsigned long long)e->owner,(unsigned long long)e->generation,e->bytes,

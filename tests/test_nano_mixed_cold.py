@@ -15,6 +15,7 @@ ROOT = Path(__file__).resolve().parents[1]
 FW = ROOT / 'platform/embedded/firmware'
 sys.path.insert(0, str(ROOT / 'platform/embedded/nano'))
 import usb_readiness
+import tape_ownership_cost
 
 
 class NanoMixedColdTests(unittest.TestCase):
@@ -162,8 +163,50 @@ class NanoMixedColdTests(unittest.TestCase):
                                 self.assertGreaterEqual(int(ticks, 16), int(maximum, 16))
                                 self.assertEqual((invalid, hz), ('0', '400000000'))
                                 self.assertIn(complete, ('0', '1'))
+                        details = re.findall(r'FES_NANO_TAPE_OWNERSHIP_COST owner=([0-9a-f]+) generation=(\d+) '
+                            r'kind=(\w+) samples=(\d+) period=(\d+) ticks=([0-9a-f]+) max=([0-9a-f]+) '
+                            r'clock_invalid=(\d+) complete=(\d+) hz=(\d+) parent_calls=(\d+) parent_samples=(\d+)', result.stdout)
+                        self.assertEqual(len(details), len(costs)//7*4)
+                        for start in range(0, len(details), 4):
+                            group = details[start:start+4]
+                            parent = costs[start//4*7+1]
+                            self.assertEqual([row[2] for row in group], ['before', 'usb', 'registers', 'after'])
+                            remaining = int(parent[4])
+                            for owner, generation, kind, samples, period, ticks, maximum, invalid, complete, hz, calls, parent_samples in group:
+                                self.assertEqual((owner, generation), parent[:2])
+                                self.assertEqual((calls, parent_samples), parent[3:5])
+                                self.assertEqual((period, invalid, complete, hz), ('64', '0', parent[9], parent[10]))
+                                self.assertLessEqual(int(samples), remaining)
+                                self.assertGreaterEqual(int(ticks, 16), int(maximum, 16))
+                                if not int(samples):self.assertEqual((int(ticks, 16), int(maximum, 16)), (0, 0))
+                                remaining = int(samples)
                         if mode in (44, 50, 51):
                             self.assertTrue(costs)
+                            parent = costs[1]
+                            lines = result.stdout.splitlines()
+                            ownership_profile = dict(status='diagnostic-profile-observed', owner=int(parent[0], 16),
+                                generation=int(parent[1]), failure=dict(line=next(i+1 for i, line in enumerate(lines)
+                                    if 'FES_NANO_TAPE_FAILURE ' in line)),
+                                costs=[dict(kind='owns', owner=int(parent[0], 16), generation=int(parent[1]),
+                                    calls=int(parent[3]), samples=int(parent[4]), period=int(parent[5]),
+                                    ticks=int(parent[6], 16), line=next(i+1 for i, line in enumerate(lines)
+                                        if 'FES_NANO_TAPE_COST ' in line and ' kind=owns ' in line),
+                                    clock_invalid=int(parent[8]), complete=int(parent[9]), hz=int(parent[10]))])
+                            decoded = tape_ownership_cost.decode(result.stdout.encode(), ownership_profile)
+                            self.assertFalse(decoded['performance_qualified'])
+                            self.assertFalse(decoded['hardware_authority'])
+                            self.assertEqual([v['kind'] for v in decoded['parts']], list(tape_ownership_cost.PARTS))
+                            # Execute malformed/foreign/replayed records from the
+                            # real C output, not a separately assembled fixture.
+                            raw = result.stdout.encode()
+                            marker = b'FES_NANO_TAPE_OWNERSHIP_COST'
+                            row = next(v for v in raw.splitlines() if marker in v)
+                            for changed in (raw.replace(row, row.replace(b'period=64', b'period=1'), 1),
+                                    raw.replace(row, row.replace(('owner='+parent[0]).encode(), b'owner=0'), 1),
+                                    raw.replace(row, row.replace(b'clock_invalid=0', b'clock_invalid=1'), 1),
+                                    raw.replace(row, row.replace(b'parent_calls=', b'wrong_calls='), 1),
+                                    raw+row+b'\n', raw.replace(row+b'\n', b'', 1)):
+                                with self.assertRaises(ValueError):tape_ownership_cost.decode(changed, ownership_profile)
                         contained = re.findall(r'FES_NANO_TAPE_CONTAINMENT owner=([0-9a-f]+) '
                             r'generation=(\d+) attempted=(\d+) status=(-?\d+)', result.stdout)
                         if mode in (31,33,34,35,38,40,41,42,43,44,45,46,47,48,49,50,51):
@@ -173,6 +216,7 @@ class NanoMixedColdTests(unittest.TestCase):
                             self.assertEqual(int(contained[0][3]), -1 if mode in (50, 51) else 0)
                             self.assertTrue(all(row[9] == '0' for row in costs))
                             self.assertLess(result.stdout.rindex('FES_NANO_TAPE_COST '), result.stdout.index('FES_NANO_TAPE_FAILURE '))
+                            self.assertLess(result.stdout.rindex('FES_NANO_TAPE_OWNERSHIP_COST '), result.stdout.index('FES_NANO_TAPE_FAILURE '))
                             self.assertLess(result.stdout.index('FES_NANO_TAPE_CONTAINMENT '), result.stdout.index('FES_NANO_TAPE_FAILURE '))
                         else:
                             self.assertFalse(contained)

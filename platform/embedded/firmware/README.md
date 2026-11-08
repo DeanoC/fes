@@ -83,6 +83,15 @@ changes protocol behavior. After a failed load and its containment attempt, seve
 the terminal failure marker. Successful loads do not print these records. Reporting
 uses cached values and emits only once; an invalid clock sample remains labelled.
 
+The next diagnostic also separates the selected ownership samples into the
+first private-state check, shared-USB binding check, paired reset-register reads
+and final private-state check. The existing checks and their short-circuit
+order remain. These four `FES_NANO_TAPE_OWNERSHIP_COST` records count only the
+same once-per64 outer samples; a failed prefix can leave fewer inner samples.
+They retain the outer call/sample counts and report only after failure and
+containment, before the terminal marker. They add timer overhead within the
+original limit and provide no cached permission or hardware timing acceptance.
+
 A containment status of zero records the existing direct control-reset callback's
 successful readback: data reset bits were already set and all bridge reset bits
 were set afterward. It does not prove fabric acknowledgement, producer drain or a
