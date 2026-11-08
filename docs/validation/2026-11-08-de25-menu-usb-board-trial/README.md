@@ -42,3 +42,7 @@ is recorded as uncertain; host cleanup does not prove the CPU is parked.
 This frozen procedure is pre-device evidence. No hardware result, physical
 HDMI/input acceptance, ordinary admission or DE10-equivalent readiness is claimed.
 Stage: `out/nano-menu-usb-board-20261108`.
+
+The subsequent [hardware attempt](hardware.md) reached the complete launcher
+and a running ZX81, then stopped on the host observer's USB/fetch ordering check.
+This procedure is consumed; full return and shutdown remain untested.
