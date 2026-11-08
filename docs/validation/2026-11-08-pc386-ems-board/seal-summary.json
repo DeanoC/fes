@@ -1,5 +1,5 @@
 {
-  "build_id": "646bb6670ad38042aedb7fc2ab91a9c4",
+  "build_id": "01f2c9f1d2262d9e26e9cfd55437e604",
   "device": "5CSEBA6U23I7",
   "firmware": {
     "bios": "26b37cca11e390175cc3c9ccb7755f806e5ceb3aaf24aae157b5d01b73e1b4b0",
@@ -93,11 +93,11 @@
     "cores/fes-pc386/rtl/pc386_ata.sv": "8e4f8fa3508acec046d3e76afc00efb3014030bd0522248b59acd846883dfc15",
     "cores/fes-pc386/rtl/pc386_audio.sv": "3e3d1f4f7e872b9c8e99356099ed110f7040928c32c5ba91a981276cc2a4993a",
     "cores/fes-pc386/rtl/pc386_disk.sv": "e2c2a27bec76e935c8071acc0b9a612884f118c011e5ccdc0750fcdac2db2883",
-    "cores/fes-pc386/rtl/pc386_ems.sv": "e9dbc4886a4cce5322143ca44cd23a181119c3fbd7863f7b501b7483319f1fd2",
+    "cores/fes-pc386/rtl/pc386_ems.sv": "02a7afbc6b901a9e418ce36675d0b43aa42ce362e18dd89d6a989475ab1262c3",
     "cores/fes-pc386/rtl/pc386_hid_keyboard.sv": "14686f4abe494a8d37f327f0f127e5ed3f989e87c5d081e03d731b34021c284d",
     "cores/fes-pc386/rtl/pc386_io.sv": "4ae84cced9c83f8e13b8811a6fcd43130f23f10e38931214d9505b4f19296ece",
     "cores/fes-pc386/rtl/pc386_kbc.sv": "5ee9a563cde4a2054c9913bc11a9f0b359cb89503e85a2a4ffb4d91b6a65cb5d",
-    "cores/fes-pc386/rtl/pc386_machine.sv": "b5c14f1f7ffebf78d519b047db525259c58733867162468bc01f41d619ebce2a",
+    "cores/fes-pc386/rtl/pc386_machine.sv": "393f1c3640d7cc8922e0369f96122f21886d933ffd4e26e27fba0e2a8d64db8f",
     "cores/fes-pc386/rtl/pc386_mixer.sv": "6cf73e73456398105aa8eb2a221405d11540c90d4e5133b34a23330d72bd67d8",
     "cores/fes-pc386/rtl/pc386_opl2.sv": "562407033afcf45ea015bfe211ba00c3a57255d29ba21dcc3e688a3acc9e03de",
     "cores/fes-pc386/rtl/pc386_pic.sv": "46ac29f0f685a4a02cf3eaa157d758ec195a07fccdbf4e0475968d518360bc7e",
@@ -145,13 +145,13 @@
     "scripts/source_provenance.py": "4ea875fb576bbe00d833fb2a78fcf938367bda0a6cb49f65b9c1735fcf832155"
   },
   "rbf": {
-    "sha256": "7d3981ed9d9fb0d2891b8ed4d1b61d2bbe16158d648ca2e50e3bbb0b798b3421",
-    "size": 3749524
+    "sha256": "88efe6fe4b77374d4349428b1f531a09df413dec8a6ef476fb1d1c21396294b7",
+    "size": 3750684
   },
   "resources": {
     "alms": {
       "available": 41910,
-      "used": 32867
+      "used": 32928
     },
     "block_memory_bits": {
       "available": 5662720,
@@ -166,7 +166,7 @@
       "used": 265
     },
     "registers": {
-      "used": 29939
+      "used": 29913
     }
   },
   "seed": 1,
@@ -175,7 +175,7 @@
     "analyses": {
       "hold": {
         "tns_ns": 0.0,
-        "worst_slack_ns": 0.038
+        "worst_slack_ns": 0.105
       },
       "minimum_pulse_width": {
         "tns_ns": 0.0,
@@ -183,15 +183,15 @@
       },
       "recovery": {
         "tns_ns": 0.0,
-        "worst_slack_ns": 7.476
+        "worst_slack_ns": 6.635
       },
       "removal": {
         "tns_ns": 0.0,
-        "worst_slack_ns": 0.526
+        "worst_slack_ns": 0.274
       },
       "setup": {
         "tns_ns": 0.0,
-        "worst_slack_ns": 0.43
+        "worst_slack_ns": 0.879
       }
     },
     "clocks": {

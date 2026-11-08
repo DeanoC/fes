@@ -24,7 +24,8 @@
 ;             overlapping expanded move (92h, data correct), an exchange,
 ;             and 94h for a conventional side inside the page frame
 ;   errors    83h for a bad handle, 8Ah for a page past the end, 87h for more
-;             pages than the board, 84h for function 55h
+;             pages than the board, 84h for function 55h, A3h for 4F00h with
+;             more segments than the frame
 ;   os        5Dh hands out a key on its first call and 01h then refuses 59h
 ;             and 5Bh (A4h) until 00h with the key; 5B01h's save area comes
 ;             back from 5B00h with the current map in it, and one with a bad
@@ -526,6 +527,15 @@ errors: mov si, n_errors
         mov ax, 0x5500
         int 0x67
         cmp ah, 0x84
+        jne .bad
+        mov word [buffer], 5            ; 4F00h for five segments: A3h
+        mov si, buffer
+        push ds
+        pop es
+        mov di, buffer + 16
+        mov ax, 0x4f00
+        int 0x67
+        cmp ah, 0xa3
         jne .bad
         call ok
         jmp os

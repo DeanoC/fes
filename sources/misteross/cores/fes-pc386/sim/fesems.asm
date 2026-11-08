@@ -542,7 +542,7 @@ f4f:    cmp al, 2                       ; partial page map
         lodsw
         mov cx, ax
         pop ds
-        mov ah, 0x8b
+        mov ah, 0xa3                    ; more segments than the frame has
         cmp cx, 4
         ja .done
         mov al, cl
