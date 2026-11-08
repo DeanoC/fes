@@ -3278,8 +3278,8 @@ void run_ind_cases(fes_i386::Oracle &oracle, OracleBus &bus, Rtl &rtl, const std
     run_nop_case(oracle, bus, rtl, entries, summary, "ind-change",
                  {0xba, 0x0a, 0x00, 0xbb, 0x15, 0x00, 0x83, 0xfa, 0x04, 0x77, 0x03, 0xbb, 0x17, 0x00, 0xff, 0xd3,
                   0x4a, 0x75, 0xf0, 0xeb, 0x04, 0x46, 0xc3, 0x47, 0xc3}, state, 600);
-    // mov dx, 8; mov bx, f; mov cx, a; o:  call bx; xor bx, (f - $$) ^ (g - $$); jmp cx; a:  inc bp;
-    // xor cx, (a - $$) ^ (b - $$); jmp n; b:  inc sp; dec sp; xor cx, (a - $$) ^ (b - $$); n:  dec dx;
+    // mov dx, 8; mov bx, f; mov cx, a; o:  call bx; xor bx, f ^ g; jmp cx; a:  inc bp;
+    // xor cx, a ^ b; jmp n; b:  inc sp; dec sp; xor cx, a ^ b; n:  dec dx;
     // jnz o; jmp done; f:  inc si; ret; g:  inc di; ret; done:
     run_nop_case(oracle, bus, rtl, entries, summary, "ind-alt",
                  {0xba, 0x08, 0x00, 0xbb, 0x20, 0x00, 0xb9, 0x10, 0x00, 0xff, 0xd3, 0x83, 0xf3, 0x02, 0xff, 0xe1,

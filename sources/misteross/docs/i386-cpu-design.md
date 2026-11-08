@@ -1840,7 +1840,8 @@ it runs uncapped.
      of the time, so it gains nothing.
    - **Result.** Kit A's DOOM `demo3` goes from 39.7 to 40.05 fps (+0.8%), and
      the Pack's DOOM by 0.8–1.1%. A CALL r/m's target retires 13.29 clocks
-     after it, from 23.04; most of the rest is its jump waiting at D for T1.
+     after it, from 23.04; the rest, against a CALL rel's 2.44, is its jump
+     waiting at D for T1.
    - **Risk.** None beyond slice 2: the seal's setup slack is +1.180 ns.
 6. **Early ALU.**
    - **First step.** Split the AGI counter by producer: a load, or a late ALU

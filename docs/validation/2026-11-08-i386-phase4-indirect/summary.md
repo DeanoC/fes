@@ -130,8 +130,10 @@ change:
   its own block, and it gains. Real code spaces its CALLs further apart,
   as the DOOM window shows.
 - **`loop`'s 20 clocks** come from the way choice, as in slice 3.
-- **What is left.** Most of `call_ind1`'s 9 clocks is the CALL's jump
-  waiting at D for T1, which the profile below finds in DOOM too.
+- **What is left.** A predicted JMP BX costs 2 clocks and a predicted RET
+  about 2.5, so the predicted CALL BX itself costs about 6.5, against 2.44
+  for a CALL rel in DOOM. The difference is the CALL r/m's push and its
+  jump's wait at D for T1 (below).
 
 ## Lockstep
 
@@ -279,10 +281,12 @@ their 93.9–94.2% accuracy, and direct branches their 94.1%.
 target costs what no prediction did, so 3DBench neither gains nor loses.
 
 **What is left of a CALL r/m.** Its target still retires 13.29 clocks
-after it, against 2.44 for a CALL rel. Most of that is the CALL's jump
-waiting at D for T1's load to retire (`b_t1`, SEQ_CALLI). The TEMP bucket
-holds 387,005 clocks of the window, about 9 per CALL r/m. A predicted jump
-needs T1 only for EX's compare, so it could issue without that wait.
+after it, against 2.44 for a CALL rel. The difference is the CALL's jump
+waiting at D for T1's load to retire (`b_t1`, SEQ_CALLI). The TEMP bucket,
+which also holds the other T1 sequences (PUSH m, POP m, XCHG m, BT m), is
+387,005 clocks of the window, at most 9 per CALL r/m. A predicted jump
+needs T1 only for EX's compare, so it could issue without that wait: a
+follow-up for #1488.
 
 ## What this record does not cover
 
@@ -290,6 +294,22 @@ needs T1 only for EX's compare, so it could issue without that wait.
   is held at 30 fps.
 - PCPBench's and TopBench's bench windows were not rerun. The kit scores
   above stand for them.
+
+## Changes after the seal
+
+The seal and every run above are from `3321e416e`. After it:
+- `e4b6ce8f9` adds this record and the design document's text.
+- `bfc7b76cc` fixes two unit tests: the latency test's synthetic cycles
+  assumed eight cases a loop, and the lockstep run test still expected 40
+  directed and 26 memory cases, which main had already passed.
+- The merge of main (`2a22b5b65`: #1544's source guard and #1564's tenfoot
+  change) touches none of the seal's inputs.
+
+- The commit after the merge tidies this record's wording and one
+  directed case's comment in `lockstep_tb.cpp` (its code is unchanged).
+
+None changes the RTL, a sealed input or a bench's code, so neither the seal
+nor lockstep was rerun.
 
 ## Commands
 
