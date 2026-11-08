@@ -39,6 +39,22 @@ Callers must not mutate supplied slices concurrently with a call; tape bytes
 are copied before CRC and transfer. These are command operations, not a runtime
 launch/return transaction, package ROM linking or persistent save support.
 
+`OpenWithInitialTape` explicitly selects a trusted platform loader for
+`LoadInitialTape`. That operation requires the caller's existing Hold, sends a
+private source/identity snapshot, checks returned size/CRC and the exact final
+identity-query GPO (including toggle parity), then updates protocol state only
+after all checks pass. Context, clock, altered-source and malformed-receipt
+failures retire without Run, replay or per-CSR fallback. The original `Open`
+keeps the ordinary protocol; ordinary `LoadTape` remains execution-preserving
+even when an initial loader is selected. The native service uses this initial
+operation between its independent held-fetch observations and Run.
+
+The captured RTL check now executes the actual secure-side C engine through
+this API and the native session's injected platform hook. It verifies all bytes,
+held fetches, subsequent native Run and owned return, including failure paths.
+The Nano transport still lacks the fixed publication lease and real firmware
+supplier; these tests do not enable a physical fast path or qualify its timing.
+
 `Activity` observes the actual Z80 instruction-fetch bus count and its sampled
 last address, using read-only offsets 24/28. The count wraps modulo 2^32 and
 survives Hold and transport faults; only FPGA configuration initializes it.

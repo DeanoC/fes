@@ -7,6 +7,7 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"errors"
+	"fmt"
 	"hash/crc32"
 	"net/http"
 	"strings"
@@ -142,10 +143,21 @@ func addGameTape(t *testing.T, f *serviceFixture, request *packagestore.Request,
 }
 
 func TestProgramTapeLaunchRetainsExactMediaBeforeRunAndClearsReturnedStatus(t *testing.T) {
+	for _, initial := range []bool{false, true} {
+		t.Run(fmt.Sprint("platform=", initial), func(t *testing.T) { testProgramTapeLaunch(t, initial) })
+	}
+}
+
+func testProgramTapeLaunch(t *testing.T, initial bool) {
 	r := romProgramTestFor(t, NativeComputerProfile)
 	f := r.f
 	port := &tapeCPU{CPUTransport: f.loader.boot.cpu.(CPUTransport), base: f.cpu.computerCPU, files: f.files}
 	f.loader.boot.cpu = port
+	var platform *serviceInitialTapeCPU
+	if initial {
+		platform = &serviceInitialTapeCPU{tapeCPU: port}
+		f.loader.boot.cpu = platform
+	}
 	for cycle, size := range []int{1025, 1, int(cg.FesDe25ComputerZx81TapeMaxBytes)} {
 		request, _, _ := addROMProgram(t, r, cycle, 8192)
 		image := bytes.Repeat([]byte{byte(7 + cycle)}, size)
@@ -176,6 +188,9 @@ func TestProgramTapeLaunchRetainsExactMediaBeforeRunAndClearsReturnedStatus(t *t
 			t.Fatal("returned tape remained active", view)
 		}
 		port.mediaOpens = 0
+	}
+	if platform != nil && platform.calls != 3 {
+		t.Fatal("platform initial tape was bypassed", platform.calls)
 	}
 }
 
@@ -236,6 +251,12 @@ func TestProgramTapeContentRejectionKeepsReadyGenerationAndStorage(t *testing.T)
 }
 
 func TestProgramTapeSelectionsReachActualTenfootBackendByCatalogID(t *testing.T) {
+	for _, initial := range []bool{false, true} {
+		t.Run(fmt.Sprint("platform=", initial), func(t *testing.T) { testProgramTapeApp(t, initial) })
+	}
+}
+
+func testProgramTapeApp(t *testing.T, initial bool) {
 	r := romProgramTestFor(t, NativeComputerProfile)
 	f := r.f
 	request, _, _ := addROMProgram(t, r, 0, 8192)
@@ -253,6 +274,11 @@ func TestProgramTapeSelectionsReachActualTenfootBackendByCatalogID(t *testing.T)
 	}
 	port := &tapeCPU{CPUTransport: f.loader.boot.cpu.(CPUTransport), base: f.cpu.computerCPU, files: f.files}
 	f.loader.boot.cpu = port
+	var secure *serviceInitialTapeCPU
+	if initial {
+		secure = &serviceInitialTapeCPU{tapeCPU: port}
+		f.loader.boot.cpu = secure
+	}
 	backend, err := NewProgramBackend(f.s, entries)
 	if err != nil {
 		t.Fatal(err)
@@ -283,6 +309,9 @@ func TestProgramTapeSelectionsReachActualTenfootBackendByCatalogID(t *testing.T)
 	if platform.cycles != 3 || !platform.pixels || port.starts != 4 || port.commits != 4 || port.runs != 4 || f.s.Status().TapeSHA256 != "" || !f.lease.r.Active {
 		t.Fatal("App tape launch/return did not complete", platform.cycles, port.starts, port.runs, f.s.Status())
 	}
+	if secure != nil && secure.calls != 4 {
+		t.Fatal("App bypassed initial tape platform", secure.calls)
+	}
 }
 
 func TestMenuTapeSelectionRejectsBeforeAnyFirmwareOrContainment(t *testing.T) {
@@ -300,12 +329,24 @@ func TestMenuTapeSelectionRejectsBeforeAnyFirmwareOrContainment(t *testing.T) {
 }
 
 func TestProgramTapeFailureReachesTenfootWithoutReleasingExecution(t *testing.T) {
+	for _, initial := range []bool{false, true} {
+		t.Run(fmt.Sprint("platform=", initial), func(t *testing.T) { testProgramTapeAppFailure(t, initial) })
+	}
+}
+
+func testProgramTapeAppFailure(t *testing.T, initial bool) {
 	r := romProgramTestFor(t, NativeComputerProfile)
 	f := r.f
 	request, _, _ := addROMProgram(t, r, 0, 8192)
 	addGameTape(t, f, &request, []byte{1, 2, 3})
 	port := &tapeCPU{CPUTransport: f.loader.boot.cpu.(CPUTransport), base: f.cpu.computerCPU, files: f.files, fault: "commit"}
 	f.loader.boot.cpu = port
+	var secure *serviceInitialTapeCPU
+	if initial {
+		port.fault = ""
+		secure = &serviceInitialTapeCPU{tapeCPU: port, hookFault: "error"}
+		f.loader.boot.cpu = secure
+	}
 	backend, err := NewProgramBackend(f.s, []ProgramEntry{{ID: "game", Title: "Tape game", Request: request}})
 	if err != nil {
 		t.Fatal(err)
@@ -327,6 +368,9 @@ func TestProgramTapeFailureReachesTenfootWithoutReleasingExecution(t *testing.T)
 	}
 	if !platform.sawFailure || port.runs != 0 || port.commits != 1 || f.lease.r.Active || f.s.Status().State != ProgramRebootRequired {
 		t.Fatal("App hid a failed tape launch or retried it", platform.sawFailure, port.runs, port.commits, f.s.Status())
+	}
+	if secure != nil && secure.calls != 1 {
+		t.Fatal("App retried or bypassed failed initial hook", secure.calls)
 	}
 }
 

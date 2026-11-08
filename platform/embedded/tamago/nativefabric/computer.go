@@ -91,6 +91,47 @@ type computerIO struct {
 	lastTiming computer.AccessTiming
 }
 
+// InitialTapePlatform is a trusted optional CPU-platform service. Its supplier
+// owns the fixed publication lease and secure execution; no address comes from
+// package data. It must implement the complete initial-tape engine contract.
+// Absence keeps the ordinary model path; a selected service never falls back.
+type InitialTapePlatform interface {
+	LoadInitialTape(context.Context, BridgeSnapshot, computer.InitialTapeRequest) (computer.InitialTapeReceipt, error)
+}
+
+func (c *computerIO) loadInitialTape(ctx context.Context, request computer.InitialTapeRequest) (computer.InitialTapeReceipt, error) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	var zero computer.InitialTapeReceipt
+	platform, ok := c.cpu.(InitialTapePlatform)
+	if !ok || c.retired || c.closing {
+		return zero, errors.New("native fabric: initial tape platform unavailable or retired")
+	}
+	if err := ctx.Err(); err != nil {
+		return zero, err
+	}
+	before, err := c.bridges.ObserveBridges()
+	if err != nil || before != c.want {
+		c.retired = true
+		return zero, errors.Join(errors.New("native fabric: initial tape lost control-only ownership"), err)
+	}
+	receipt, err := platform.LoadInitialTape(ctx, c.want, request)
+	if err != nil {
+		c.retired = true
+		return zero, err
+	}
+	if err = ctx.Err(); err != nil {
+		c.retired = true
+		return zero, err
+	}
+	after, err := c.bridges.ObserveBridges()
+	if err != nil || after != c.want {
+		c.retired = true
+		return zero, errors.Join(errors.New("native fabric: initial tape ownership changed during transfer"), err)
+	}
+	return receipt, nil
+}
+
 func (c *computerIO) LastAccessTiming() computer.AccessTiming {
 	c.mu.Lock()
 	defer c.mu.Unlock()
@@ -256,7 +297,11 @@ func (v *HPSContextVerifier) OpenComputer(ctx context.Context, control, raw []by
 		return nil, errors.New("native fabric: computer build encoding invalid")
 	}
 	copy(wantID.Build[:], build)
-	s.control, err = computer.Open(ctx, s.port, limits, wantID)
+	if _, secure := cpu.(InitialTapePlatform); secure {
+		s.control, err = computer.OpenWithInitialTape(ctx, s.port, limits, wantID, s.port.loadInitialTape)
+	} else {
+		s.control, err = computer.Open(ctx, s.port, limits, wantID)
+	}
 	if err != nil {
 		_, cleanup := s.Close(ctx)
 		return nil, errors.Join(err, cleanup)

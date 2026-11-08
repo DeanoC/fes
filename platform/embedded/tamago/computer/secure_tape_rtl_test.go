@@ -3,18 +3,33 @@ package computer
 
 import (
 	"context"
+	"errors"
 	"fmt"
-	"hash/crc32"
 	"testing"
 
 	g "github.com/DeanoC/fes/platform/embedded/tamago/computer/generated"
 )
 
+func rtlInitialTape(r *rtlIO, mode int, calls *int) InitialTapeLoader {
+	return func(_ context.Context, request InitialTapeRequest) (InitialTapeReceipt, error) {
+		*calls++
+		v, err := r.call("secure %x %x %x %x %x %x %x 11 9", len(request.Image), request.GPO, request.Identity.Capabilities, request.Identity.Build, request.CRC32, mode, request.Image)
+		if err != nil {
+			return InitialTapeReceipt{}, err
+		}
+		if len(v) != 12 || v[0] != 0 || v[1] != 1 || v[10] != 17 || v[11] != 9 {
+			return InitialTapeReceipt{}, ErrProtocol
+		}
+		return InitialTapeReceipt{GPO: uint32(v[2]), Bytes: uint32(v[3]), CRC32: uint32(v[4])}, nil
+	}
+}
+
 func TestSecureTapeEngineUsesActualComputerAndSynchronizesReturn(t *testing.T) {
 	for _, size := range []int{1, 917, 1025, 16375} {
 		t.Run(fmt.Sprint(size), func(t *testing.T) {
 			r, want := startRTL(t)
-			c, err := Open(context.Background(), r, limits(), want)
+			calls := 0
+			c, err := OpenWithInitialTape(context.Background(), r, limits(), want, rtlInitialTape(r, 0, &calls))
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -30,15 +45,9 @@ func TestSecureTapeEngineUsesActualComputerAndSynchronizesReturn(t *testing.T) {
 			for i := range image {
 				image[i] = byte(i*37 + 11)
 			}
-			checksum := crc32.ChecksumIEEE(image)
-			v, err := r.call("secure %x %x %x %x %x 0", size, c.gpo, want.Capabilities, want.Build, checksum)
-			if err != nil || len(v) != 10 || v[0] != 0 || v[1] != 1 || v[3] != uint64(size) ||
-				v[4] != uint64(checksum) || v[8] != uint64(before.Cycles) || v[9] != 0 {
-				t.Fatalf("secure receipt: %v %v", v, err)
+			if err := c.LoadInitialTape(ctx, image); err != nil || calls != 1 {
+				t.Fatal("secure hook", err, calls)
 			}
-			// Prototype adapter only: the production Go backend does not yet
-			// expose a secure tape hook. Copy only a verified successful GPO.
-			c.gpo = uint32(v[2])
 			state := inspect(t, r)
 			if state[0] != 1 || state[4] != uint64(g.FesComputerMediaStateReady) {
 				t.Fatal("tape did not stay held and ready", state)
@@ -61,6 +70,9 @@ func TestSecureTapeEngineUsesActualComputerAndSynchronizesReturn(t *testing.T) {
 			if err != nil || active.Cycles == after.Cycles {
 				t.Fatal("CPU did not fetch after caller Run", active, err)
 			}
+			if err := c.LoadTape(ctx, []byte{1, 2, 3}); err != nil || calls != 1 || inspect(t, r)[0] != 0 {
+				t.Fatal("ordinary media change used initial hook or reset execution", err, calls)
+			}
 		})
 	}
 }
@@ -69,7 +81,8 @@ func TestSecureTapeEngineFailuresLeaveActualCPUHeldAndNeverReplay(t *testing.T) 
 	for mode := 1; mode <= 5; mode++ {
 		t.Run(fmt.Sprint(mode), func(t *testing.T) {
 			r, want := startRTL(t)
-			c, err := Open(context.Background(), r, limits(), want)
+			calls := 0
+			c, err := OpenWithInitialTape(context.Background(), r, limits(), want, rtlInitialTape(r, mode, &calls))
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -80,13 +93,12 @@ func TestSecureTapeEngineFailuresLeaveActualCPUHeldAndNeverReplay(t *testing.T) 
 			for i := range image {
 				image[i] = byte(i*37 + 11)
 			}
-			v, err := r.call("secure %x %x %x %x %x %x", len(image), c.gpo, want.Capabilities, want.Build, crc32.ChecksumIEEE(image), mode)
-			if err != nil || len(v) != 10 || v[0] == 0 || v[1] != 0 || v[2] != 0 || v[3] != 0 || inspect(t, r)[0] != 1 {
-				t.Fatalf("failed secure transfer: %v %v", v, err)
+			if err := c.LoadInitialTape(context.Background(), image); err == nil || calls != 1 || inspect(t, r)[0] != 1 {
+				t.Fatal("failed secure hook", err, calls)
 			}
-			again, err := r.call("secure %x %x %x %x %x %x", len(image), c.gpo, want.Capabilities, want.Build, crc32.ChecksumIEEE(image), mode)
-			if err != nil || len(again) != 10 || again[0] == 0 || again[5] != v[5] || again[6] != v[6] || again[7] != v[7] {
-				t.Fatal("failed secure transfer replayed I/O", again, v, err)
+			writes := r.writes
+			if !errors.Is(c.Run(context.Background()), ErrRetired) || !errors.Is(c.LoadInitialTape(context.Background(), image), ErrRetired) || r.writes != writes || calls != 1 {
+				t.Fatal("failed hook replayed or issued Run", calls, r.writes)
 			}
 		})
 	}

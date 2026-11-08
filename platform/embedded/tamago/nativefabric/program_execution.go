@@ -95,7 +95,7 @@ func (p *programService) startExecution(ctx context.Context, view ProgramService
 		// SD is contained. Only bytes privately retained and admitted before
 		// configuration reach the existing CRC/ACK media transport. A failure
 		// leaves execution held and retires the owner; no Run or replay follows.
-		if err := run(func() error { return c.LoadTape(ctx, p.plan.state.program.tape) }); err != nil {
+		if err := run(func() error { return c.LoadInitialTape(ctx, p.plan.state.program.tape) }); err != nil {
 			return ProgramFetchObservation{}, errors.Join(ErrProgramExecution, err)
 		}
 		var held computer.FetchActivity

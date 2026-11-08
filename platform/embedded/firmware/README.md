@@ -29,9 +29,12 @@ caller's next command can continue the same protocol epoch.
 Portable tests execute the C engine with injected MMIO, ownership and time.
 The captured-computer RTL verifier also links the actual C object: it compares
 all tape bytes and held fetch counts and checks a subsequent native Go Run.
-The test-only receipt adapter is not a production firmware/native connection.
-These checks establish protocol behavior, not physical timing, source-memory
-ownership or a firmware service grant.
+The actual native computer driver now accepts and validates that receipt through
+its explicit initial-tape loader, and the native session frames the injected
+platform call with live ownership observations. The manual test-only GPO update
+is gone. The Nano source-window lease and firmware supplier remain unbound;
+these checks establish protocol/native behavior, not physical timing,
+source-memory ownership or a firmware service grant.
 
 The per-load descriptor now has a version-three mixed-role prototype. A trusted
 `fes_nano_program_enable_roles` call, after installing the fixed ROM-extension

@@ -75,12 +75,13 @@ type FetchActivity struct {
 }
 
 type Computer struct {
-	io       IO
-	limits   Limits
-	identity Identity
-	active   atomic.Bool
-	retired  bool
-	gpo      uint32
+	io          IO
+	limits      Limits
+	identity    Identity
+	active      atomic.Bool
+	retired     bool
+	gpo         uint32
+	initialTape InitialTapeLoader
 }
 
 type operation struct {
@@ -313,12 +314,26 @@ func (c *Computer) Activity(ctx context.Context) (activity FetchActivity, err er
 // must contain/reconfigure the platform on failure; Open must not be retried on
 // the same uncertain epoch.
 func Open(ctx context.Context, io IO, limits Limits, want Identity) (_ *Computer, err error) {
+	return open(ctx, io, limits, want, nil)
+}
+
+// OpenWithInitialTape explicitly selects a trusted bounded platform transfer
+// for initial media while held. Failure never falls back to per-CSR loading.
+// Ordinary LoadTape retains its existing execution-preserving protocol.
+func OpenWithInitialTape(ctx context.Context, io IO, limits Limits, want Identity, load InitialTapeLoader) (*Computer, error) {
+	if load == nil || want.Minor != 0 {
+		return nil, ErrArgument
+	}
+	return open(ctx, io, limits, want, load)
+}
+
+func open(ctx context.Context, io IO, limits Limits, want Identity, load InitialTapeLoader) (_ *Computer, err error) {
 	if io == nil || limits.Now == nil || limits.Yield == nil || limits.Timeout <= 0 || limits.MaxPolls == 0 ||
 		want.Minor > 1 || (want.Minor == 0 && want.Capabilities>>16 != 0) || want.Build == [16]byte{} ||
 		want.Capabilities&g.FesComputerCapabilityVideoFixed720p60 == 0 {
 		return nil, ErrArgument
 	}
-	c := &Computer{io: io, limits: limits, identity: want}
+	c := &Computer{io: io, limits: limits, identity: want, initialTape: load}
 	o, err := c.begin(ctx, "open")
 	if err != nil {
 		return nil, err

@@ -1,5 +1,15 @@
 # Native contained-fabric endpoint
 
+An optional trusted `InitialTapePlatform` now connects the secure-side initial
+media engine to `OpenComputer` and the existing native launch owner. Each call
+is serialized against closure and framed by matching live bridge observations;
+the computer driver validates the complete source snapshot and returned
+protocol state before Run. A failed supplier cannot retry through the ordinary
+path. Without that interface, the existing model/CSR path remains selected.
+Actual C/RTL tests cover owned native launch, return and failures; Tenfoot/store
+tests inject the platform delivery. The Nano board transport does not implement
+the supplier or fixed publication lease yet, so no physical fast path is enabled.
+
 The native computer path now accepts an optional game tape in each retained
 program choice. The canonical selection adds
 `"tape":{"path":"FES/GAME.P","sha256":"<64 lowercase hex digits>","size":1025}`;
