@@ -47,9 +47,12 @@ results remain in `out/nano-menu-usb-service-20261108`.
 
 The last physical candidate remains the failed paired trial. This repair has no
 hardware acceptance and does not establish visible output, physical input or
-ordinary core-load readiness. Rebuild the source-matched SDK, entry, secure
-firmware, SPL/FIT and composed programming image before freezing a fresh bounded
-top-board procedure. The previous attempt is consumed and must not be replayed.
+ordinary core-load readiness. The source-matched SDK, entry, secure firmware,
+SPL/FIT and composed programming image have now been rebuilt and independently
+checked; [boot-result.json](boot-result.json) records their identities and bounds.
+The [fresh bounded procedure](../2026-11-08-de25-menu-usb-board-trial/README.md)
+still needs read-only device admission before its one attempt. The previous
+physical attempt is consumed and must not be replayed.
 
 These hooks cover bounded menu publication; arbitrary blocking application work
 still has no general USB latency guarantee. No board command, card write or
