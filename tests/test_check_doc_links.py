@@ -19,6 +19,10 @@ I386_ARTICLE = " ".join(
     .read_text()
     .split()
 )
+I386_DESIGN = (
+    Path(__file__).resolve().parents[1]
+    / "sources/misteross/docs/i386-cpu-design.md"
+).read_text()
 
 
 class CheckDocLinksTests(unittest.TestCase):
@@ -182,6 +186,32 @@ class I386ArchitectureSemanticsDocsTests(unittest.TestCase):
             "either profile",
             section,
         )
+
+
+class I386Phase5PlanDocsTests(unittest.TestCase):
+    def test_phase2_milestone_matches_phase5_ownership(self):
+        phase2 = next(
+            line for line in I386_DESIGN.splitlines() if line.startswith("| Phase 2 |")
+        )
+        phase2_scope = phase2.split("|", 3)[2]
+        self.assertIn(
+            "interrupt and trap gates, exceptions, and MOV DRn privilege checks",
+            phase2_scope,
+        )
+        self.assertNotIn("debug registers", phase2_scope)
+        self.assertIn(
+            "Privilege transitions through interrupt and trap gates, IOPL and the "
+            "I/O bitmap for IN and OUT remain (a third slice)",
+            phase2,
+        )
+        self.assertIn("MOV DRn there gets only its CPL check", phase2)
+        self.assertIn(
+            "debug-register behavior, inner call gates, INS/OUTS bitmap checks, "
+            "and task gates and task switches are Phase 5",
+            phase2,
+        )
+        self.assertNotIn("call and task gates", phase2)
+        self.assertNotIn("debug registers remain (a third slice)", phase2)
 
 
 if __name__ == '__main__':

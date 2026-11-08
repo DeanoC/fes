@@ -24,7 +24,45 @@ from scripts import synth_fes_pc386 as synthesis
 VERILATOR = shutil.which(os.environ.get('VERILATOR', 'verilator'))
 
 
+def speedsys_bios_vendor(rom: bytes):
+    """SpeedSys 4.78's BIOS-vendor scan (#1557), from its code at 1348h-13A0h.
+
+    With DS = F000h it reads a dword at SI and steps SI on by one, up to FFFAh
+    times, looking for '198' or '199'. The byte four on from the match must be
+    ',', '-' or a space; then an A-Z within the next 12 bytes starts the vendor
+    name, up to 30 bytes and ending at a full stop. Returns the name, '' when a
+    year matched but no name followed (DS is restored), or None when no year
+    matched: that path leaves DS at F000h and SpeedSys's speed test never
+    finishes."""
+    si = 0
+    for _ in range(0xfffa):
+        found = rom[si:si + 3]
+        si += 4
+        if found in (b'198', b'199') and rom[si:si + 1] in (b',', b'-', b' '):
+            for _ in range(12):
+                if 0x41 <= rom[si] <= 0x5a:
+                    name = rom[si:si + 30]
+                    end = name.find(b'.')
+                    return name[:end if end >= 0 else 30].decode('ascii')
+                si += 1
+            return ''
+        si -= 3
+    return None
+
+
 class FirmwareTest(unittest.TestCase):
+    def test_bios_identification_line_names_the_vendor_for_speedsys(self):
+        source = (firmware.FIRMWARE / 'rombios/rombios.c').read_text()
+        line = re.search(r'#define BIOS_AT_IDENTITY_STRING "([^"]*)"', source).group(1)
+        self.assertIn('.ascii BIOS_AT_IDENTITY_STRING', source)
+        self.assertEqual(speedsys_bios_vendor(bytes(16) + line.encode('ascii') + bytes(64)), 'FES pc386 BIOS')
+        # The upstream copyright line alone has no 198x/199x year.
+        self.assertIsNone(speedsys_bios_vendor(b'(c) 2001-2026  The Bochs Project' + bytes(64)))
+        image = firmware.BUILD / 'pc386-bios.bin'
+        if image.exists() and hashlib.sha256(image.read_bytes()).hexdigest() == \
+                firmware.read_lock()['images']['bios']['sha256']:
+            self.assertEqual(speedsys_bios_vendor(image.read_bytes() + bytes(64)), 'FES pc386 BIOS')
+
     def test_vendored_sources_match_their_manifests(self):
         for name in ('rombios', 'vgabios'):
             firmware.verify_sources(name)

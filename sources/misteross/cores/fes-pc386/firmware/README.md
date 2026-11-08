@@ -83,6 +83,16 @@ a modified library:
   in KF8253's reset state (mode 0, MSB-only counts), and those games' speaker
   effects played no tones ([#1457](https://github.com/DeanoC/fes/issues/1457)).
   `rombios.h` names port 42h `PORT_PIT_COUNTER2`.
+- `rombios.c`: after the copyright line the ROM carries a BIOS identification
+  line, `Compatible: IBM PC/AT 1984, FES pc386 BIOS.`, in the shape of a period
+  AT BIOS's copyright line. That shape is a 198x year, then a comma, dash or
+  space, then a capitalised name ending in a full stop. 1984 is the PC/AT's
+  year. Programs find the BIOS vendor by such a year, and every AT BIOS of the
+  time has one; the upstream ROM's only year is 2001-2026. SpeedSys 4.78's scan
+  leaves DS at F000h when it finds no year, so its speed test then sorted the
+  VGA ROM for ever ([#1557](https://github.com/DeanoC/fes/issues/1557)).
+  `tests/test_pc386_machine.py` replays that scan on the line and on a built
+  image.
 
 The boot order and disk-only boot need no patch: the machine writes CMOS 2Dh,
 38h, 3Dh and 3Fh. The floppy POST and INT 13h floppy paths stay; CMOS 10h says
