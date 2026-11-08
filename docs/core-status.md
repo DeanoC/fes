@@ -348,8 +348,13 @@ compared the kit against MAME `ibm5150`, and its results are partial:
 - **Cold power cycle.** On 8 November (Kit A), a saved disk record was
   byte-identical after Deano's power cycle, and the relaunch read the file
   back.
-- **Not run.** Menu selection through tenfoot, losing unsaved writes to a
-  power loss, and external interface timing remain unassessed.
+- **Menu selection.** On 8 November (Kit A), the title was found in
+  tenfoot's Library through the shared host and launched, then played from
+  the kit keyboard and stopped with a gamepad's Select+Start. A keyboard
+  can't stop it: F12 and Home do nothing, because the package has no
+  session display ([#1561](https://github.com/DeanoC/fes/issues/1561)).
+- **Not run.** Losing unsaved writes to a power loss, and external
+  interface timing, remain unassessed.
 The [reviewed 29 October Quartus diagnostic](validation/2026-10-29-pcxt-quartus-package/review-followup.json)
 passes three seeds and a byte-identical independent rebuild at producer `38ef151bfa`.
 Independent review found four package/acceptance defects, now fixed and re-reviewed.

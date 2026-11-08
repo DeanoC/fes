@@ -284,9 +284,9 @@
   "cat1_clip_gray": "5f5a8f52fdb1b4eb58da3389085ae4d956b36a1c7a580795ad3d223b11b6a505"
  },
  "not_run": {
-  "menu_selection_tenfoot": "shared host paired with Kit A (held all day) and has no fes.pcxt-dos entry; adding one is permanent",
   "sopwith": "optional, not run",
-  "unsaved_write_power_loss": "pc1 saved before the cycle; power loss with writes after the last Save/Stop untested"
+  "unsaved_write_power_loss": "pc1 saved before the cycle; power loss with writes after the last Save/Stop untested",
+  "repeated_menu_relaunch": "tf1 launched from tenfoot once; repeated relaunches only through the agent library API"
  },
  "s3": {
   "claimed": "2026-11-07 18:23 EET",
@@ -360,7 +360,8 @@
  },
  "issues_filed": {
   "1534": "Ctrl+Alt+Del hang, then warm-boot Disk Boot Fail on library relaunch",
-  "1537": "Rogue dungeon map never draws"
+  "1537": "Rogue dungeon map never draws",
+  "1561": "tenfoot F12/Home can't stop a host session whose package has no session display; keyboard-only kit has no Stop"
  },
  "pc1": {
   "date": "2026-11-08",
@@ -389,5 +390,45 @@
   },
   "kit_new_paths_after_cleanup": 0,
   "result": "pass"
+ },
+ "tf1": {
+  "date": "2026-11-08",
+  "kit": "A",
+  "claimed": "09:20 EET",
+  "released": "09:32 EET",
+  "baseline": {
+   "software": "4efd34bfcb9054c9bec267a1a1e3c97079f1cb9a8947a47ee503057c95cda30d",
+   "image": "31b3906330b7b404b21f4ca888d99b860dca1d2742a7ebc3bb204e57053b73ff",
+   "boot_id": "33bbb40c-c64c-456e-8f67-114b70f7c3be"
+  },
+  "host": {
+   "kind": "shared Powerboat FogCast host",
+   "revision": "bb51f4454eb72048cefeea16aa16b28eb2aadaad",
+   "approval": "Deano OK 2026-11-08 for the package install and one permanent entry"
+  },
+  "package": "87fd8149c09a7e319092c56802b891039a118dfe0378d302a6543bcf841659fc",
+  "archive_sha256": "19fd34ec5d193e2e8c6b7723ea86b02bb9e8f76bd4febf2a77c88a0759b224d8",
+  "media_sha256": "c34409032ce29ee25debdcae63b8446527c9473a2b2657cf586ff917b48e4fb0",
+  "game_id": "fpga-pc-xt-dos-paratrooper-a905363ab5b8",
+  "title": "PC/XT DOS: Paratrooper",
+  "library_diff": "exactly one entry added, none removed",
+  "navigation": "Settings > About & help > Diagnostics > Show all cores ON; header Library; search 'parat' (1 title, Ready); Enter; Enter Play",
+  "launch": "pass: host session active on the entry; COLD boot to A:\\>",
+  "play": "pass: TROOPER typed on kit keyboard; ~2 min keyboard play; scores 17 then 41, HI-SCORE 17",
+  "stop_keyboard": "fail: F12 and Home swallowed, session stayed active (#1561)",
+  "stop_gamepad": "pass: Deano held Select+Start on a USB pad; session idle 09:31:15; tenfoot Home (first frame #803 Room failed: Home, cleared with Esc, Home)",
+  "restore": "Show all cores OFF, tenfoot.json sha256 6c58baafc3127eb7bc84ab1395e0e8ecaa3e2f4df1fc76e485df3d1645ed9e96 as before; hilkb removed; 2 FogCast trees removed (record c7f17d85511bb248e151951409d74d1311eba48f944477f26943db74757723cc); baseline keys unchanged; idle, lease free",
+  "frames": {
+   "selected": "fd50886dc4a5cc94b8f534249d657674eff4a5cf075d990c20911617d6b04bf3",
+   "launch_12s": "172405ad8040fdcf9f134527b474b08a54c502eed6d317043c503de510355ccb",
+   "dos": "0f1c76374de8c9dd443b90ce7de3c6d25a12243bca97ef1716f59e4a2ae45ae3",
+   "title": "510674751166a2f2a085e7fac206dd0c68be611837aa4b9489708fc562888202",
+   "play_60s": "78da8f2fd653074534ad6fcc30e374a52f29d40880b05f17ed4ac910b1a63094",
+   "play_end": "e473e336c145b4f5ec4fc00c2d748f568c281906bd99071e966af793b03de6b0",
+   "after_f12": "e9c2777e1049c08567cb1fba93edc8301d1d9b69bad05c68dd72bb6742dfb57b",
+   "after_stop": "366e7ffb3a56cd121d67ccb7e981dcd429c29f74aa6099212da4d320b5bc9c90",
+   "home": "663f462e02d75c4d0fcb0453b82b298493e50eb0e7c5c8d6cd4a193b57ad1d90"
+  },
+  "result": "pass for selection, launch, play and gamepad Stop/return; fail for keyboard Stop (#1561)"
  }
 }

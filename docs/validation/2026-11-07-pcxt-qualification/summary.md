@@ -5,7 +5,7 @@ objectives and reference were published in [selection.md](selection.md),
 commit `cf7f07a0e`, before the first kit run. Hashes and measurements are in
 [kit-runs.json](kit-runs.json). Nothing from the games is committed.
 
-All runs used Kit B: `s1` 14:32–15:03, `s2` 15:22–15:54 and `s3` 18:23–18:58 EET. Kit A was held by Lander's #1490 restore all day. Between `s2` and `s3`, Deano power-cycled Kit B for the Atari ST session. That was not part of this qualification. The cold power-cycle case ran on 8 November as `pc1` on Kit A, 09:07–09:12 EET.
+All runs used Kit B: `s1` 14:32–15:03, `s2` 15:22–15:54 and `s3` 18:23–18:58 EET. Kit A was held by Lander's #1490 restore all day. Between `s2` and `s3`, Deano power-cycled Kit B for the Atari ST session. That was not part of this qualification. The cold power-cycle case ran on 8 November as `pc1` on Kit A, 09:07–09:12 EET. Menu selection through tenfoot ran the same morning as `tf1` on Kit A, 09:20–09:32 EET.
 
 ## Result
 
@@ -23,7 +23,8 @@ All runs used Kit B: `s1` 14:32–15:03, `s2` 15:22–15:54 and `s3` 18:23–18:
 | Speaker pitch against MAME | **PASS**: Paratrooper's main tones agree within 0.2 cents; Alley Cat has the same tone set | `s1`, `s2` |
 | Guest reset (Ctrl+Alt+Del) | **FAIL**: the machine hangs; the next library launches warm-boot and can't boot the floppy ([#1534](https://github.com/DeanoC/fes/issues/1534)) | `s2` |
 | Recovery after that hang | **PASS** with a workaround: a launch with no floppy runs a cold POST, and the next library launch boots | `s2` |
-| Library or menu selection through tenfoot and a host | **Not run** (see below) | none |
+| Library selection through tenfoot and the shared host, then play | **PASS**: found by Library search, launched with Play, cold-booted to `A:\>`, Paratrooper played from the kit keyboard | `tf1` |
+| Stop and return to the menu from the TV | **PASS** with a gamepad (Select+Start). **FAIL** with a keyboard: F12 and Home do nothing for this package ([#1561](https://github.com/DeanoC/fes/issues/1561)) | `tf1` |
 | Cold power cycle after a Save | **PASS**: the saved record is byte-identical after the cycle, and the relaunch cold-boots and reads the file back | `pc1` |
 
 #1529 stays open. This record refers to it and doesn't close it.
@@ -331,17 +332,65 @@ was on its recovery baseline: software `4efd34bf`, image `31b39063`, main
    data directories matched the pre-run listing. Apart from the boot ID,
    the kit was on the same baseline when it was released.
 
+## Menu selection through tenfoot (`tf1`, 8 November)
+
+Deano approved the one lasting change this needs: installing the package on
+the shared Powerboat FogCast host (`bb51f445`), which tenfoot on Kit A is
+paired with, and adding one library entry. FogCast can't delete entries, so
+the entry stays. Kit A was on its recovery baseline: software `4efd34bf`,
+image `31b39063`. Nothing was installed on the kit.
+
+1. **Host.** The test imported package `87fd8149` (archive `19fd34ec…`).
+   Compatibility for target `dev` was `compatible`. It then imported the
+   Paratrooper disk `c3440903…` and created the entry
+   `fpga-pc-xt-dos-paratrooper-a905363ab5b8` ("PC/XT DOS: Paratrooper",
+   media role `disk`). Before and after lists of the library differ by that
+   one entry.
+2. **Input.** A temporary uinput keyboard (Lander's `hilkb`) was the only
+   input until the Stop. HDMI was grabbed from the ShadowCast.
+3. **Finding the title.**
+   - Home starts in release-only mode, which shows four computer families
+     and only Settings in its header.
+   - PC/XT is not a registered family in this kit software, so no Home
+     tile or Recently played card shows the entry.
+   - Settings → About & help → Diagnostics → Show all cores adds Library
+     to the header. In Library, a search for `parat` gave one title, shown
+     as Ready.
+4. **Launch.** Play started a host session on that entry, which went
+   `active`. The machine booted COLD (GLaBIOS, FreeDOS) to `A:\>`.
+5. **Play.** `TROOPER` typed on the kit's keyboard reached the guest, which
+   shows that tenfoot forwards keys. About 2 minutes of keyboard play
+   followed. The first game ended at 17 points, and the restart reached 41
+   with HI-SCORE 17.
+6. **Stop and return.**
+   - F12 and Home did nothing, and the session stayed `active`.
+   - This package has no session-display plane, so on this menu-display
+     kit tenfoot can't open a playing room. Both keys are swallowed, even
+     though the launch hint promises F12
+     ([#1561](https://github.com/DeanoC/fes/issues/1561)).
+   - Deano plugged a USB pad into Kit A and held Select+Start. The session
+     went idle at 09:31:15 and tenfoot returned to Home.
+   - Home first showed the known #803 "Room failed: Home" draw-budget
+     error. Esc then Home cleared it.
+7. **Restore.**
+   - Show all cores was set back to Off. `tenfoot.json` is byte-identical
+     to before (`6c58baaf…`).
+   - `hilkb` was removed.
+   - The two FogCast trees the session created (its floppy record
+     `c7f17d85…` and an empty directory) were removed. The data directories
+     match the pre-run listing.
+   - Image, software, `boot_id` and the other baseline keys are unchanged,
+     and Kit A was released idle with a free lease. Deano's pad was left
+     plugged in.
+
 ## Not done, and why
 
-- **Menu selection through tenfoot and a host.**
-  - The shared Powerboat host is paired with Kit A, which was held all day,
-    and it has no `fes.pcxt-dos` entry. Adding one is a permanent library
-    change.
-  - These runs used the agent's library API, which is the call the host
-    makes after selection. They are not labelled as menu selection.
-  - The host-path evidence for these package and software bytes is still the
-    5 November smoke, which used a private host: import, launch, session
-    disk Save, Stop and relaunch.
+- **Repeated relaunch from the menu.** `tf1` launched from tenfoot once.
+  Repeated relaunches were exercised through the agent's library API
+  (`s1`–`s3`, `pc1`), which is the call the host makes after selection.
+- **A home tile for PC/XT.** PC/XT isn't a registered family in this kit
+  software, so the Library route through Show all cores was the only way to
+  reach it.
 - **Unsaved writes on power loss.** `pc1` saved before the cycle. Cutting
   power during a session, with writes made after the last Save or Stop, was
   not tested.
@@ -355,7 +404,7 @@ was on its recovery baseline: software `4efd34bf`, image `31b39063`, main
 ## Kit use and cleanup
 
 The private evidence is on Powerboat under `~/fes-scratch/xt1529/`:
-- `runs/s1`–`s3` and `runs/pc1`: commands, acks, frames, clips and WAVs;
+- `runs/s1`–`s3`, `runs/pc1` and `runs/tf1`: commands, acks, frames, clips and WAVs;
 - `records/`: the pulled floppy records;
 - `mame/`: the reference sessions;
 - `nasm/`: the probe.
