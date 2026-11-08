@@ -22,6 +22,7 @@
 //                                           less the clocks a VGA port write waited for FIFO space
 //   IOWAIT <class> <size> <clocks> <count>  those waits, for the accesses that had one
 //   INTA <cycles> <count>
+//   GAME-LAUNCH seconds=<simulated> evidence=<screen|frame>  typed game command made visible progress
 //   SNAP <name> <width> <height> <file>     a captured frame written at a marker
 //   PRESENT <name> <file> <mismatches>      the 720p frame at a marker against the presenter model
 //   VGA <counter> <value>                   scanout and capture counters at the end
@@ -35,7 +36,7 @@
 //        [--mouse S:DX,DY,BUTTONS]...
 //        [--census F] [--profile F] [--profile-from S] [--profile-to S]
 //        [--cpu-profile F] [--cpu-profile-every S] [--rtl-from S] [--rtl-at-flip N] [--rtl-for S]
-//        [--rtl-at-prompt 1] [--keys-after-type 1] [--frame-every S]
+//        [--rtl-at-prompt 1] [--keys-after-type 1] [--frame-every S] [--game-launch 1]
 // A program on the disk marks a picture by writing "SNAP <name>" and a newline
 // to port E9h, then holding it; the bench takes the second capture after the
 // marker, runs the pixel clock for two 720p frames and compares the second
@@ -130,6 +131,7 @@
 #include "cpu_profile.h"
 
 #include <algorithm>
+#include <cctype>
 #include <cstdint>
 #include <cstdio>
 #include <cstdlib>
@@ -1209,7 +1211,7 @@ struct Options {
     std::string wav, opl2_log, cpu = "oracle", census, profile, cpu_profile;
     double cpu_profile_every = 1.0, rtl_from = 0, rtl_for = -1;
     unsigned rtl_at_flip = 0;
-    bool rtl_at_prompt = false, keys_after_type = false;
+    bool rtl_at_prompt = false, keys_after_type = false, game_launch = false;
     double frame_every = 0;
     double limit_seconds = 120, pixel_from = -1, type_at = -1, key_gap = 0.03, profile_from = 0, profile_to = -1;
     unsigned preset = 0, frequency = 0, turbo = 0;  // --cpu rtl's governor settings
@@ -1319,6 +1321,7 @@ Options parse(int argc, char **argv) {
         else if (flag == "--rtl-at-prompt") options.rtl_at_prompt = std::stoul(value) != 0;
         else if (flag == "--keys-after-type") options.keys_after_type = std::stoul(value) != 0;
         else if (flag == "--frame-every") options.frame_every = std::stod(value);
+        else if (flag == "--game-launch") options.game_launch = std::stoul(value) != 0;
         else if (flag == "--profile-from") options.profile_from = std::stod(value);
         else if (flag == "--profile-to") options.profile_to = std::stod(value);
         else if (flag == "--preset") options.preset = unsigned(std::stoul(value));
@@ -1503,6 +1506,19 @@ int main(int argc, char **argv) {
         size_t scheduled = 0;
         std::string last_screen;
         uint64_t screen_checked = 0;
+        std::string game_prompt_screen, game_echo_screen, game_final_command;
+        pc386::Frame game_prompt_frame, game_input_frame;
+        bool game_prompt_captured = false, game_input_finished = false, game_echo_captured = false;
+        bool game_launch_reported = false;
+        uint64_t game_input_finished_at = 0, game_frame_checked_at = 0;
+        if (options.game_launch) {
+            size_t end = options.type.find_last_not_of('\n');
+            if (end != std::string::npos) {
+                size_t start = options.type.find_last_of('\n', end);
+                game_final_command = options.type.substr(start == std::string::npos ? 0 : start + 1,
+                    end - (start == std::string::npos ? 0 : start + 1) + 1);
+            }
+        }
         // Snapshots: a marker, then the second capture and the second raster.
         std::string snap_name;
         unsigned snap_frames = 0, snap_rasters = 0;
@@ -1734,6 +1750,11 @@ int main(int argc, char **argv) {
                 keys.pop_front();
                 if (typing && keys.empty()) { keys_base = machine.cycles; typing = false; }
             }
+            if (options.game_launch && !game_input_finished && typed == options.type.size() && keys.empty()) {
+                game_input_finished = true;
+                game_input_finished_at = machine.cycles;
+                game_input_frame = machine.captured();
+            }
             // Keep each scheduled packet pending until one ready handshake edge.
             if (mouse_pending || mouse_due()) {
                 const Options::Mouse &packet = options.mouse[mouse_sent];
@@ -1746,10 +1767,68 @@ int main(int argc, char **argv) {
                 std::string now = machine.screen();
                 if (!prompt_at && now.find(options.prompt) != std::string::npos) {
                     prompt_at = machine.cycles;
+                    if (options.game_launch && !game_prompt_captured) {
+                        game_prompt_screen = now;
+                        game_prompt_frame = machine.captured();
+                        game_prompt_captured = true;
+                    }
                     std::printf("PROMPT %llu\n", (unsigned long long)machine.cycles);
                 }
                 if (now != last_screen) { last_screen = now; settled_at = machine.cycles; }
                 bool settled = machine.cycles - settled_at >= uint64_t(0.5 * CLOCK_HZ);
+                if (options.game_launch && game_prompt_captured && game_input_finished && !game_launch_reported &&
+                    machine.cycles - game_input_finished_at >= uint64_t(0.2 * CLOCK_HZ)) {
+                    const std::string last = machine.last_row();
+                    const bool at_prompt = last == options.prompt;
+                    std::string upper_last = last, upper_command = game_final_command;
+                    std::transform(upper_last.begin(), upper_last.end(), upper_last.begin(),
+                                   [](unsigned char c) { return char(std::toupper(c)); });
+                    std::transform(upper_command.begin(), upper_command.end(), upper_command.begin(),
+                                   [](unsigned char c) { return char(std::toupper(c)); });
+                    const std::string echo_suffix = ">" + upper_command;
+                    const bool command_echo = upper_last.size() >= echo_suffix.size() &&
+                        upper_last.compare(upper_last.size() - echo_suffix.size(), echo_suffix.size(), echo_suffix) == 0;
+                    std::string upper = now;
+                    std::transform(upper.begin(), upper.end(), upper.begin(),
+                                   [](unsigned char c) { return char(std::toupper(c)); });
+                    const bool command_error = upper.find("BAD COMMAND OR FILENAME") != std::string::npos ||
+                                               upper.find("ILLEGAL COMMAND") != std::string::npos;
+                    if (!game_echo_captured) {
+                        game_echo_screen = now;
+                        game_echo_captured = true;
+                    }
+                    size_t prompt_text_changes = 0, echo_text_changes = 0;
+                    for (size_t n = 0; n < std::min(now.size(), game_prompt_screen.size()); ++n)
+                        prompt_text_changes += now[n] != game_prompt_screen[n];
+                    for (size_t n = 0; n < std::min(now.size(), game_echo_screen.size()); ++n)
+                        echo_text_changes += now[n] != game_echo_screen[n];
+                    const char *evidence = nullptr;
+                    if (!at_prompt && !command_error &&
+                        (echo_text_changes >= 8 || (!command_echo && prompt_text_changes >= 8)))
+                        evidence = "screen";
+                    if (!evidence && !at_prompt && !command_error &&
+                        machine.cycles - game_frame_checked_at >= uint64_t(0.5 * CLOCK_HZ)) {
+                        game_frame_checked_at = machine.cycles;
+                        const pc386::Frame frame = machine.captured();
+                        if (frame.width == game_prompt_frame.width && frame.height == game_prompt_frame.height &&
+                            frame.pixels.size() == game_prompt_frame.pixels.size() &&
+                            frame.pixels.size() == game_input_frame.pixels.size()) {
+                            size_t prompt_changes = 0, input_changes = 0;
+                            for (size_t n = 0; n < frame.pixels.size(); ++n) {
+                                prompt_changes += frame.pixels[n] != game_prompt_frame.pixels[n];
+                                input_changes += frame.pixels[n] != game_input_frame.pixels[n];
+                            }
+                            if (prompt_changes > std::max<size_t>(1024, frame.pixels.size() / 10) ||
+                                input_changes > std::max<size_t>(1024, frame.pixels.size() / 100))
+                                evidence = "frame";
+                        }
+                    }
+                    if (evidence) {
+                        game_launch_reported = true;
+                        std::printf("GAME-LAUNCH seconds=%.3f evidence=%s\n",
+                                    double(machine.cycles) / CLOCK_HZ, evidence);
+                    }
+                }
                 bool type_now = options.type_at >= 0 ? machine.cycles >= uint64_t(options.type_at * CLOCK_HZ)
                                                      : prompt_at && settled;
                 if (type_now && typed < options.type.size() && keys.empty()) {

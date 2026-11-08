@@ -126,7 +126,9 @@ python3 scripts/sim_fes_pc386.py --suite game --game duke3d --cpu rtl --rtl-at-p
 The report goes to `build/sim/fes-pc386/game-<id>[-rtl]/report.json`. With
 `--cpu rtl`, its `rtl` section lists the stops and the protected-mode
 stretches the oracle ran. Wolfenstein 3D and Ultima VI, the acceptance titles,
-must also play the OPL2.
+must also play the OPL2. A game passes only after `machine_tb` records screen
+or VGA-frame progress beyond the typed command; neither reaching the time limit
+nor returning to the DOS prompt counts as a pass without that evidence.
 
 ## Kit runs
 
