@@ -1,11 +1,12 @@
-"""A pending KF8259 INT that the CPU never acknowledged follows the mask (#1534).
+"""KF8259 INT survives a short edge pulse and follows mask changes (#1534).
 
 GLaBIOS's warm reboot (Ctrl+Alt+Del) runs with interrupts disabled while the
 timer keeps requesting IRQ0. Its POST then re-initialises the PIC, masks every
 IRQ and executes STI, and halts with a 5-short/3-long beep code if any
-interrupt arrives. An 8259 drives INT from the unmasked requests, so masking
-them or ICW1 withdraws it. The imported KF8259 latched INT until an acknowledge,
-so the warm POST took a stale interrupt and halted.
+interrupt arrives. An 8259 lets a pending INT reach INTA after an edge pulse
+ends, returning default IRQ7 if the request is gone; ICW1 and an IMR update can
+withdraw it. The imported KF8259 latched INT until an acknowledge even after it
+was masked, so the warm POST took a stale interrupt and halted.
 """
 import os
 from pathlib import Path
@@ -33,8 +34,7 @@ static void write(unsigned address, unsigned value) {
     d.write_enable_n = 1; tick(); d.chip_select_n = 1; tick();
 }
 static void init() { write(0, 0x13); write(1, 0x08); write(1, 0x09); }
-// Edge mode needs the request low, then held high until the acknowledge,
-// as the PIT's square wave holds IRQ0.
+// Edge mode requires a low level before each new rising edge.
 static void request(bool high) { d.interrupt_request = high ? 1 : 0; for (int i = 0; i < 4; ++i) tick(); }
 static unsigned acknowledge() {
     unsigned vector = 0;
@@ -54,6 +54,12 @@ int main(int argc, char **argv) {
     // An acknowledged request still delivers its vector and drops INT.
     request(true); check(d.interrupt_to_cpu, "unmasked IRQ0 raises INT");
     check(acknowledge() == 0x08, "IRQ0 vector"); check(!d.interrupt_to_cpu, "acknowledge drops INT");
+    // A short edge-triggered pulse cannot be withdrawn before INTA. The PIC
+    // acknowledges a missing request as the default IRQ7 vector.
+    write(0, 0x20); request(false); request(true); request(false);
+    check(d.interrupt_to_cpu, "INT remains asserted after an edge request ends before INTA");
+    check(acknowledge() == 0x0f, "withdrawn request is acknowledged as default IRQ7");
+    check(!d.interrupt_to_cpu, "default IRQ7 acknowledge drops INT");
     write(0, 0x20); request(false);
     // The CPU has interrupts disabled: IRQ0 stays pending. Masking it withdraws
     // INT, and unmasking the still-requesting IRQ0 raises INT again.
