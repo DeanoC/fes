@@ -42,3 +42,27 @@ Top-only private JTAG temporarily uses6M/restores15M, with exact USB permission,
 owned-server and UART cleanup checks. Claim remains held, spare stays, factory
 restore is waived unless needed and bottom TRWU8J8G is untouched. This document
 records preparation; no new hardware result is claimed.
+
+
+The one allowed attempt is now consumed and failed at the initial paired App/
+frame 100s bound. Qualified recovery, all 13 uploads/write/readbacks and 13 fresh
+SD reads passed. Both fresh-scan-gated programming operations completed. Matched
+secure cold boot and shared boot-keyboard Ready passed. The menu presented two
+frames (sequences 1/2, slots 0/1, reported underflows zero).
+
+Before the controller accepted initial App Ready, the application began a launch
+and paused USB at one report/1,890 successful polls. The collector sent only
+`fesboot` followed by CR; it sent no App launch/stop/quit command. The last state
+was Loading generation zero, followed by core-transfer arm. The cause of the
+launch is unproven. The user subsequently reported borrowing the keyboard for
+the other kit; its timing relative to this trace is unknown. No completed core
+launch, initial-tape completion, USB resume/Stop or final native Park is proved.
+The current native board state is unproven. This failed image is not replayed.
+
+Independent host cleanup passed: unchanged USB node, exact original permissions,
+15M clock readback, owned private server gone and no UART owner. There remains
+one prior transport-programming failure out of the maximum two; this trial added
+none. Top claim remains held, the spare stays installed, factory restoration is
+waived unless needed and the bottom kit was untouched. The result and byte-level
+evidence joins are in `hardware-result.json`; none establish normal appliance
+acceptance or physical HDMI/input operation.
