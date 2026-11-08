@@ -2093,8 +2093,11 @@ eight replicated hit sets.
   32-bit TSS, but test386.asm checks both.
 - **The switch** saves EIP, EFLAGS, the GPRs and the selectors into the
   old TSS, in the old TSS's format: a 32-bit TSS takes all six selectors, a
-  16-bit one 16-bit fields and only ES, CS, SS and DS. It clears the old busy bit (JMP, IRET) and sets the new one (JMP,
-  CALL, gates), writes the back link and sets NT for CALL and gates, then
+  16-bit one 16-bit fields and only ES, CS, SS and DS. It clears the old
+  busy bit for JMP and IRET and sets the new one for every form but IRET.
+  A nesting switch, CALL or an interrupt or exception through a task gate,
+  writes the back link and sets NT; JMP, through a task gate too, does
+  neither. Then it
   loads LDTR, EFLAGS, EIP, the GPRs and the selectors from the new TSS,
   loads their descriptors, sets CR0.TS and clears DR7's local enables
   (L0–L3 and LE), keeping the global ones. As in Bochs (`tasking.cc`):
@@ -2121,7 +2124,8 @@ eight replicated hit sets.
 - **Registers.** MOV to and from DR0–DR3, DR6 and DR7 at CPL 0; #GP(0) at
   CPL > 0 and in V86. DR4 and DR5 follow the reference results, as the
   compatibility contract says. DR6's and DR7's fixed bits read as the 386
-  sets them. DR7.GD makes the next MOV DRn raise #DB with DR6.BD. This is all
+  sets them. DR7.GD makes the next MOV DRn raise #DB with DR6.BD and clear
+  GD, so the handler can read and write the registers. This is all
   CWSDPMI, U.S. Navy Fighters and Strike Commander use.
 - **Breakpoints.** DR7's enables, R/W and LEN fields arm four breakpoints.
   - Instruction breakpoints compare the instruction's linear address at AG,
@@ -2132,6 +2136,10 @@ eight replicated hit sets.
     DR6's B bits: an instruction breakpoint as a fault, which RF suppresses
     after IRETD, a data breakpoint as a trap after the instruction. A task
     switch to a TSS with its T bit set traps too.
+- **Single step.** TF is not built yet. With TF set, #DB with DR6.BS traps
+  after each instruction, after any data breakpoint's B bits; the
+  instruction that sets TF, and the one after MOV SS or POP SS, take no
+  trap; an INT n or a delivery clears TF for its handler.
 - **Cost.** Registers and MOV: about 150 ALMs. Breakpoints: four 32-bit
   compares with length masks at AG and at M1, about 250 ALMs.
 
@@ -2146,8 +2154,8 @@ eight replicated hit sets.
 | V86 | 400 | 0 | Low: CPL and VM checks beside today's |
 | Task switches | 300 | 3 | Low: cold microcode |
 | Debug registers and MOV | 150 | 0 | None |
-| Breakpoints | 250 | 0 | Low-moderate: AG (+4.73 ns) and M1, off the freeze |
-| Phase 5 | about 2,400 | 3 | |
+| Breakpoints and single step | 300 | 0 | Low-moderate: AG (+4.73 ns) and M1, off the freeze |
+| Phase 5 | about 2,450 | 3 | |
 
 The pc386 seal of Phase 4's slice 6b used 33,118 of 41,910 ALMs; Phase 5
 takes it to about 35,500 (85%).
@@ -2185,7 +2193,7 @@ A timing miss stops the slice; it never relaxes a check. Titles that need
      Paging off keeps DOOM's demo3 rate.
    - **Unlocks.** Time Circle (32RTM), with #1535.
 2. **Debug register file.** MOV DRn, DR6 and DR7's fixed bits, GD.
-   - **Lockstep.** Every DRn at CPL 0 and 3, and GD.
+   - **Lockstep.** Every DRn at CPL 0 and 3, and GD with its clear on #DB.
    - **Unlocks.** U.S. Navy Fighters to its CD-ROM check, with slice 1 and
      #1535.
 3. **V86.** Entry by IRETD, the V86 delivery to CPL 0, IOPL-sensitive
@@ -2216,11 +2224,13 @@ A timing miss stops the slice; it never relaxes a check. Titles that need
      Phase 5's exit with slice 3.
    - **Unlocks.** Descent; Jump 'n Bump, Angband, NetHack and Chris's 3D
      Benchmark, with #1535; Quake to its x87 stop; Strike Commander.
-5. **Breakpoints.** DR7's instruction and data breakpoints, RF, DR6's B
-   bits and the T bit's trap, for the compatibility contract.
+5. **Breakpoints and single step.** DR7's instruction and data
+   breakpoints, RF, DR6's B and BS bits, the T bit's trap and TF's single
+   step, for the compatibility contract.
    - **Lockstep.** Each breakpoint kind and length, RF after IRETD, a data
      breakpoint inside REP, a breakpoint in V86, and local and global
-     enables across a task switch.
+     enables across a task switch; TF over each instruction class, REP
+     strings, MOV SS, INT n and a fault.
    - **Unlocks.** No title in the census; DOS debuggers.
 
 After slice 4, by the census, eight titles that stop on Phase 5 today run:
