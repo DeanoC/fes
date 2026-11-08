@@ -818,6 +818,8 @@ def anneal_order(sections, sizes, edges, free, steps=60000, seed=1):
             if not -128 <= to - (at[i] + offset + 2) <= 127:
                 far += weight
         return over * 1000 + far
+    if len(sections) < 2:                       # nothing to order
+        return list(sections)
     best, best_order = None, None
     for run in range(2):                        # two searches, the better kept
         rng = random.Random(seed + run)

@@ -156,6 +156,18 @@ b:      ret
         """, 0x200)
         self.assertNotIn(0xc3, image[3:0x100])                      # jr b stayed a jr
 
+    def test_floatorder_with_one_section(self):
+        image = assemble("""
+        floatorder
+        org 0
+        jp a
+        autofloat
+a:      ret
+        endautofloat
+        """)
+        self.assertEqual(image[:3], bytes([0xc3, 0x03, 0x00]))
+        self.assertEqual(image[3], 0xc9)
+
     def test_far_jr_goes_by_a_jump_to_the_same_place(self):
         image = assemble("""
         floatorder
