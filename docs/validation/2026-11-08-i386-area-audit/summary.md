@@ -213,10 +213,15 @@ One-hot muxes come out the same either way.
   per-entry enables it still holds 870 registers. This is the fitter's call,
   not the RTL's.
 - **The HID keyboard model is 1,313 ALMs.** It holds four 144-bit key-state
-  vectors (`queued`, `stable`, `observed`, `sent`) in flip-flops and indexes
-  them one bit a clock. In an M10K or MLAB, read by its existing one-bit-a-clock
-  scan, it should come to about 300–500 ALMs. That's a machine change,
-  independent of the CPU.
+  vectors (`queued`, `stable`, `observed`, `sent`) in flip-flops. Its diff
+  scan indexes them a bit a clock. But it also compares and copies whole
+  vectors (the rows' stability check, snapshot and reconcile), which
+  limited-port memory can't do in one clock. Putting them in memory
+  therefore means redesigning it around a serial snapshot and diff, and some
+  compare and control logic stays. The saving is not measured. It could be
+  anywhere from a few hundred ALMs to about half the module, and needs an
+  analysis fit of a redesign before the budget counts it. It's a machine
+  change, independent of the CPU.
 - **The L1 valid bits** cost 559 flip-flops and 714 ALUTs in the L1D, and
   706 and 1,257 in the L1I. They are flip-flops so that a flush clears them
   in one clock. A generation-count scheme could put them in MLAB, but it
@@ -282,7 +287,10 @@ paths' placement gets worse.
 - With the TLB fix, the estimate fits under that ceiling with 250–500 ALMs
   to spare.
 - The high case is over the ceiling, by 150–400 ALMs, unless a second win
-  lands too. The HID keyboard is the largest one.
+  lands too. The measured candidates are the fill compare (about −100) and
+  the return stack in MLAB (about −250). Leaving breakpoints out of slice 5
+  is a scope choice worth about −300. The HID keyboard redesign may be
+  larger, but it is unmeasured.
 - Without the fix, even the estimate is over the ceiling.
 - The TLB fix should land before slice 2. Each slice's seal should be
   checked against the estimate here; a slice that comes in 30% over is the
@@ -294,15 +302,17 @@ paths' placement gets worse.
 | --- | ---: | --- |
 | Per-entry write enable in `fes_i386_tlb` | −500 to −744 (measured) | Five lines; lockstep and seal as any RTL change. Needs #1579 merged. The scratch form also loads an entry when a fill and a flush coincide; the flush's cleared valid bit hides that, but the real change should keep `!flush` in the enable so it matches today's RTL exactly. |
 | Fill reuses the lookup's `match` (drop `same`) | about −100 | a small change to the walker's fill; timing-neutral |
-| HID keyboard state vectors in M10K/MLAB | about −800 to −1,000 | machine RTL, independent of the CPU; keyboard tests and a kit check |
+| HID keyboard redesigned around a serial snapshot and diff, its vectors in M10K/MLAB | unmeasured; up to about −650 | machine RTL, independent of the CPU. Whole-vector compares and copies have to become serial passes, so an analysis fit of the redesign must come before the budget counts it; keyboard tests and a kit check. |
 | Return stack as a single-write-port memory in MLAB | about −250 | needs its two writes (push and repair) on one port; #1581's primitive |
 | Breakpoints left out of slice 5 (MOV DRn, GD and TF kept) | about −300 | no census title arms DR7 or raises #DB; test386 doesn't touch the debug registers. A breakpoint would silently never fire, a compatibility gap to record |
 | Return stack 16 → 8 entries | about −150 | Phase 4's measured hit rate drops; a DOOM rerun decides |
 | DTLB 16 → 8 entries with a 64-entry MLAB second level (the plan's own fallback) | about −400 | the plan's fallback for timing; 8 entries alone miss 2.86% under JEMM386, so the second level is needed |
 | OPL2's four small register memories as MLAB | about −150 | vendor code |
 
-With the first three rows together (−1,400 to −1,850), even the pessimistic
-case comes back to 38,500–38,950 ALMs (92–93%): at the ceiling or just over it.
+The measured TLB fix plus the estimated fill-compare and return-stack rows
+come to −850 to −1,100. That leaves the pessimistic case at 39,250–39,500
+ALMs (94%), over the ceiling. It needs breakpoints left out or the keyboard
+redesign as well.
 
 ## AlphaMister
 
