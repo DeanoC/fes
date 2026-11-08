@@ -66,6 +66,34 @@ class ManifestTest(unittest.TestCase):
                 drives.manifest(path)
 
 
+class GamePassTest(unittest.TestCase):
+    def test_the_game_report_parses_positive_launch_evidence(self):
+        report = sim.parse_boot('GAME-LAUNCH seconds=1.250 evidence=screen\n')
+        self.assertEqual(report['game_launch'], {'seconds': 1.25, 'evidence': 'screen'})
+
+    def test_a_time_limit_without_launch_evidence_fails(self):
+        report = {'failures': ['machine_tb exited 1: limit'], 'end': {'reason': 'limit'},
+                  'game_launch': None, 'opl2': None}
+        failures = sim.game_failures(report, 'oracle', opl2_expected=False)
+        self.assertIn('machine_tb exited 1: limit', failures)
+        self.assertIn('the game produced no screen or VGA progress after its launch command', failures)
+
+    def test_a_time_limit_is_accepted_only_after_launch_progress(self):
+        report = {'failures': ['machine_tb exited 1: limit'], 'end': {'reason': 'limit'},
+                  'game_launch': {'seconds': 1.25, 'evidence': 'frame'}, 'opl2': None}
+        self.assertEqual(sim.game_failures(report, 'oracle', opl2_expected=False), [])
+
+    def test_returning_to_the_prompt_without_launch_evidence_fails(self):
+        report = {'failures': [], 'end': {'reason': 'prompt'}, 'game_launch': None, 'opl2': None}
+        self.assertIn('the game produced no screen or VGA progress after its launch command',
+                      sim.game_failures(report, 'oracle', opl2_expected=False))
+
+    def test_returning_to_the_prompt_is_accepted_after_launch_progress(self):
+        report = {'failures': [], 'end': {'reason': 'prompt'},
+                  'game_launch': {'seconds': 1.25, 'evidence': 'screen'}, 'opl2': None}
+        self.assertEqual(sim.game_failures(report, 'oracle', opl2_expected=False), [])
+
+
 class NameTest(unittest.TestCase):
     def test_dos_names(self):
         self.assertEqual(drives.dos_name('wolf3d.exe'), 'WOLF3D.EXE')

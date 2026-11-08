@@ -315,7 +315,7 @@ def verilate(verilator: str, name: str, top: str, rtl: tuple[Path, ...], testben
 def parse_boot(text: str) -> dict:
     report = {'post': [], 'debug': [], 'panic': [], 'io': {}, 'io_wait': {}, 'inta': {}, 'screen': [], 'end': None,
               'prompt_cycle': None, 'cpu_resets': 0, 'snaps': {}, 'present': {}, 'vga': {}, 'marks': {},
-              'opl2': None, 'opl2_mismatch': None, 'audio_samples': None, 'sb': None, 'mouse': None,
+              'game_launch': None, 'opl2': None, 'opl2_mismatch': None, 'audio_samples': None, 'sb': None, 'mouse': None,
               'ems': None, 'rtl_begin': None}
     rtl = {'stops': [], 'pmode': [], 'gaps': [], 'smc': [], 'notes': [], 'counters': None}
     for line in text.splitlines():
@@ -363,6 +363,9 @@ def parse_boot(text: str) -> dict:
             report['screen'].append(rest.partition('|')[2][:-1])
         elif kind == 'PROMPT':
             report['prompt_cycle'] = int(rest)
+        elif kind == 'GAME-LAUNCH':
+            fields = dict(field.split('=', 1) for field in rest.split())
+            report['game_launch'] = {'seconds': float(fields['seconds']), 'evidence': fields['evidence']}
         elif kind == 'CPU-RESET':
             report['cpu_resets'] += 1
         elif kind == 'SNAP':
@@ -1590,10 +1593,13 @@ def game_drive(args) -> tuple[Path, dict, dict]:
 
 
 def game_failures(report: dict, cpu: str, opl2_expected: bool = True) -> list[str]:
-    """The game checks, allowing the expected simulation time-limit exit."""
+    """The game checks, allowing a time-limit exit only after observed launch progress."""
     failures = list(report['failures'])
-    if (report.get('end') or {}).get('reason') == 'limit':
+    launched = bool(report.get('game_launch'))
+    if (report.get('end') or {}).get('reason') == 'limit' and launched:
         failures = [failure for failure in failures if not failure.startswith('machine_tb exited 1')]
+    if not launched:
+        failures.append('the game produced no screen or VGA progress after its launch command')
     opl2 = report['opl2'] or {}
     if opl2_expected and (not opl2.get('writes') or not opl2.get('nonzero')):
         failures.append(f'the game did not play the OPL2: {opl2}')
@@ -1631,12 +1637,12 @@ def run_game(args, linked: list[Path]) -> dict:
     report = run_machine(testbench, suite, ['--disk', str(disk), '--limit-seconds', str(args.limit_seconds),
                                             '--type', args.type, '--keys-after-type', '1', '--wav', str(wav),
                                             '--opl2-log', str(opl2_log), '--frames', str(frames), *keys, *extra,
-                                            '--cpu', args.cpu, *governor_arguments(args)], images)
+                                            '--cpu', args.cpu, '--game-launch', '1', *governor_arguments(args)], images)
     report['game'] = {'name': args.game, 'drive': record.get('drive'), 'drive_sha256': record['sha256'],
                       'title': title['title'], 'bucket': title['bucket'], 'zip_sha256': title['sha256']}
     report['work'] = str(work)
     # A program that ends at the prompt ends the run there; that is not a bench failure.
-    if (report.get('end') or {}).get('reason') == 'prompt':
+    if (report.get('end') or {}).get('reason') == 'prompt' and report.get('game_launch'):
         report['failures'] = [failure for failure in report['failures'] if not failure.startswith('machine_tb exited')]
     report['failures'] = game_failures(report, args.cpu, title.get('opl2', False))
     if wav.exists():
