@@ -498,7 +498,7 @@ class LatencyTest(unittest.TestCase):
             self.assertRegex(program, rf'(?m)^\s*mark {n}$')
 
     def test_per_case_takes_the_bare_loop_out(self):
-        cycles = {name: 12 * iterations + 8 * 11 * iterations * bool(cases) for name, iterations, cases in latency.LOOPS}
+        cycles = {name: 12 * iterations + cases * 11 * iterations for name, iterations, cases in latency.LOOPS}
         rows = latency.measure(cycles)
         self.assertEqual(rows[0]['per_iteration'], 12.0)
         self.assertNotIn('per_case', rows[0])
