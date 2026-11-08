@@ -2026,7 +2026,10 @@ eight replicated hit sets.
 - **Rights.** Each entry keeps U/S combined from PDE and PTE, and each
   fetch block carries its entry's bit. D checks it for every instruction at
   CPL 3 or in V86, so an entry CPL 0 filled for a supervisor page raises #PF
-  when CPL 3 executes from it, on a hit as on a walk.
+  when CPL 3 executes from it, on a hit as on a walk. An instruction whose
+  bytes come from two blocks, across a page, takes both blocks' bits and
+  fault marks, and faults on the second page's, with CR2 that page's first
+  byte; the lockstep checks CR2 against Bochs.
 - **Faults wait for execution.** A fetch whose walk faults, or would set A,
   marks the block. D raises the #PF, or the replay, only for an instruction
   that would execute, as the CS-limit check does now.
@@ -2207,7 +2210,8 @@ A timing miss stops the slice; it never relaxes a check. Titles that need
      CPL 0 and 3; CPL 3 executing from a supervisor page the ITLB holds; a
      #PF on a descriptor or IDT read at CPL 3, whose U/S is 0; a store into
      the second page of an instruction that crosses into a non-adjacent
-     frame; a PTE frame
+     frame; an instruction at CPL 3 whose tail is in a supervisor or
+     not-present page; a PTE frame
      at or above 64 MiB (a hole) and at FFFF0000h; A20M toggled
      with a paged alias at bit 20; paging toggled around a far jump, as
      CWSDPMI does.
