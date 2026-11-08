@@ -17,7 +17,8 @@
 ;   save      47h, a different map, then 48h puts the first back; 4E00h and
 ;             4E01h do the same through a buffer
 ;   multiple  50h01h maps two pages by segment
-;   realloc   51h to 70 then 60 pages, with 42h following
+;   realloc   51h to 70 then 60 pages, with 42h following; past the board
+;             87h with BX the unchanged count
 ;   names     53h names the handle, 54h01h finds it
 ;   move      57h conventional to expanded across a page boundary, back, an
 ;             overlapping expanded move (92h, data correct), an exchange,
@@ -318,6 +319,14 @@ realloc:
         int 0x67
         mov es, [frame_seg]
         cmp dword [es:4], (59 << 16) + 1
+        jne .bad
+        mov dx, [handle]                ; past the board: 87h, BX the unchanged count
+        mov ah, 0x51
+        mov bx, 200
+        int 0x67
+        cmp ah, 0x87
+        jne .bad
+        cmp bx, 60
         jne .bad
         call ok
         jmp names

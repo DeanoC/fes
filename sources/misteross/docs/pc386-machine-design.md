@@ -173,8 +173,9 @@ without V86, which the Ultima VII games forbid. UMBM from the Jemm package
 DOS and then unloads. Its documentation pairs it with UMBPCI, which turns on
 chipset shadow RAM; here the RAM is already on. By itself UMBM finds only the
 regions UMBPCI's tables list, so the games image names the range
-(`UMBM.EXE /I=C800-EFFF`); it then tests every 4 KiB of it and DOS gets all
-160K as upper memory. Its boot menu takes the Ultima VII setup after 3
+(`UMBM.EXE /I=C800-DFFF`, stopping below the [EMS board](#ems-board)'s frame
+at E0000h); it then tests every 4 KiB of it and DOS gets all 96K as upper
+memory. Its boot menu takes the Ultima VII setup after 3
 seconds. That setup keeps the kernel out of the HMA (no `DOS=HIGH`) and puts
 the kernel's data, `FILES=30`, `BUFFERS=16` and FreeCOM in upper memory, with
 HIMEMX and CuteMouse loaded high. This leaves 580K (594,256 bytes) of

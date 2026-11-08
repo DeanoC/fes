@@ -660,12 +660,12 @@ f51:    call check_handle               ; reallocate pages
         sub cx, ax
         call grow
         test ah, ah
-        jnz .done
+        jnz .count                      ; refused: BX is the unchanged count
         jmp .ok
 .less:  call shrink
-.ok:    movzx ax, byte [h_count + si]
-        mov [bp + F_BX], ax
-        xor ah, ah
+.ok:    xor ah, ah
+.count: movzx cx, byte [h_count + si]
+        mov [bp + F_BX], cx
 .done:  ret
 
 f52:    cmp al, 2                       ; handle attributes: volatile only
