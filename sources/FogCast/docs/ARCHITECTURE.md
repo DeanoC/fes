@@ -1850,7 +1850,9 @@ opening a watchdog. Exact ARM DE10 identity uses the Cyclone V reset preparation
 exact AArch64 DE25 identity selects `/dev/watchdog0` and the stock `snps,dw-wdt`
 resource at `0x10d00200`, without reset-register writes. DE25 resource, driver
 and character-device identity must match sysfs, and the opened descriptor must
-retain that device identity. Stable-boot stale disarm uses the same preparation.
+retain that device identity. Stable-boot stale disarm shares board/device
+validation without writing DE10 reset registers; those writes remain confined
+to reset arming.
 Unknown/crossed boards do not open the timer. Existing fallback, timeout and
 cancellation policy stays shared. This does not arm a timer around FPGA uploads
 or qualify recovery from a blocked secure call. The separate

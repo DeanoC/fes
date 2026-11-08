@@ -64,3 +64,11 @@ passes native supported activation, one fresh ordinary BASIC7/9/7 control and
 Stop/MENU before restoring original61a4 generation7 and repeating that control.
 This ordinary acceptance does not replace the physical failed-upload containment
 gate or transfer the original runtime's reboot/runtime-loss evidence to new bytes.
+
+The later [managed reboot-backstop trial](managed-reboot-backstop.json) qualifies
+source5c bundle d554 generation8 for ordinary7/9/7, an OS reboot and fresh7,
+then verifies original61a restoration at generation9 and fresh7. Its actual
+rebootguard Arm/Cancel function diagnostic also passes180s readback and375s
+post-cancel survival. These strengthen requirements1,5 and8 for those named
+artifacts. The final stale-disarm correction requires a new matched bundle
+trial; neither it nor requirement2's failed-upload gate inherits these passes.

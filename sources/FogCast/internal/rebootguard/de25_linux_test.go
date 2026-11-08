@@ -171,6 +171,24 @@ func TestStaleDisarmRequiresPreparation(t *testing.T) {
 	}
 }
 
+func TestStaleDisarmUsesIdentityPreparationWithoutResetWrites(t *testing.T) {
+	d := &fakeWatchdog{char: true, identity: unix.Mkdev(246, 0)}
+	c, opened, _ := testConfig(t, d, &fakeHelper{})
+	resetCalls, identityCalls := 0, 0
+	c.prepare = func() (uint64, error) {
+		resetCalls++
+		return 0, errors.New("reset-register preparation must not run")
+	}
+	c.prepareDisarm = func() (uint64, error) {
+		identityCalls++
+		return d.identity, nil
+	}
+	DisarmStale(c, false)
+	if resetCalls != 0 || identityCalls != 1 || *opened != 1 || !d.closed || string(d.writes) != "V" {
+		t.Fatalf("stale disarm changed reset policy: reset=%d identity=%d opened=%d device=%+v", resetCalls, identityCalls, *opened, d)
+	}
+}
+
 // Opt in on a claimed native DE25 only. Reads metadata; never opens the timer.
 func TestNativeDe25RebootWatchdogPreflight(t *testing.T) {
 	if os.Getenv("FES_DE25_REBOOT_WATCHDOG_PREFLIGHT") != "1" {
@@ -186,6 +204,10 @@ func TestNativeDe25RebootWatchdogPreflight(t *testing.T) {
 	id, err := c.prepare()
 	if err != nil {
 		t.Fatal(err)
+	}
+	staleID, err := c.prepareDisarm()
+	if err != nil || staleID != id {
+		t.Fatalf("stale-disarm identity differs: %d %v", staleID, err)
 	}
 	t.Logf("qualified stock DW watchdog0 %d:%d, not opened", unix.Major(id), unix.Minor(id))
 }

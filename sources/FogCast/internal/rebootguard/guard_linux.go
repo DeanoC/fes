@@ -41,13 +41,14 @@ type Config struct {
 	// BusyWait bounds how long Arm waits for the fes-boot trial guard to
 	// release /dev/watchdog. Confirm reopens update admission immediately, but
 	// the guard only notices durable confirmation on its next 5 s heartbeat.
-	BusyWait time.Duration
-	BusyPoll time.Duration
-	sleep    func(time.Duration)
-	prepare  func() (uint64, error)
-	open     func(string) (watchdog, error)
-	start    func(*exec.Cmd) (helper, error)
-	openNull func() (*os.File, error)
+	BusyWait      time.Duration
+	BusyPoll      time.Duration
+	sleep         func(time.Duration)
+	prepare       func() (uint64, error)
+	prepareDisarm func() (uint64, error)
+	open          func(string) (watchdog, error)
+	start         func(*exec.Cmd) (helper, error)
+	openNull      func() (*os.File, error)
 }
 
 type watchdog interface {
@@ -160,6 +161,16 @@ func (c Config) defaults() Config {
 		c.prepare = func() (uint64, error) {
 			return prepareWatchdogReset(runtime.GOARCH, "/sys", c.Device, PrepareSoCFPGAWatchdogReset)
 		}
+		if c.prepareDisarm == nil {
+			c.prepareDisarm = func() (uint64, error) {
+				// Stable-boot cleanup validates identity without changing DE10's
+				// Boot ROM policy. Those writes belong only to reset arming.
+				return prepareWatchdogReset(runtime.GOARCH, "/sys", c.Device, func() error { return nil })
+			}
+		}
+	}
+	if c.prepareDisarm == nil {
+		c.prepareDisarm = c.prepare
 	}
 	if c.open == nil {
 		c.open = openDevice
@@ -393,7 +404,7 @@ func DisarmStale(config Config, trial bool) {
 		slog.Warn("reboot watchdog marker check failed", "error", err)
 		return
 	}
-	expected, err := c.prepare()
+	expected, err := c.prepareDisarm()
 	if err != nil {
 		slog.Warn("stale reboot watchdog preparation failed", "error", err)
 		return

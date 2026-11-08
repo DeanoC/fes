@@ -62,6 +62,27 @@ change is used. The [exact helper and guard tests](stock-watchdog-reset/README.m
 are published. This is healthy-system reset evidence; failed-upload/secure-call
 containment and any new automatic recovery policy remain unqualified.
 
+The [managed reboot-backstop record](managed-reboot-backstop.json) additionally
+binds source `5c6f5b077` to actual AArch64 metadata/unit checks and one real
+existing Arm/Cancel diagnostic: timeout180s, fallback killed/reaped, magic-close,
+marker removal and375s same-boot survival with storage read-only. A separate
+ordinary reboot restores services and mounts; it is not an expiry pass.
+Its compatible default-off bundle `d5542713`, runtime `2680d7ae` and agent
+`6fdc5a28` then pass supported installation/activation at generation8,
+prompt-gated BASIC7/9/7/Stop, one ordinary OS reboot and fresh BASIC7/Stop.
+One supported original61a restore at generation9 and fresh BASIC7/Stop pass.
+All selected files and actual three-process hashes, stock kernel/root/FIT,
+card/data/pairing, own host/catalog/SAVE bytes and stable MENU are authenticated.
+Five fresh black-on-white captures are retained in that record. The board is
+released in boot `e015640c-a436-49f7-b399-79ad444d53f8`, original61a generation9.
+No card, power, boot/image, QSPI, USB power or persona change occurs.
+
+The subsequent source correction confines DE10 reset-register preparation to
+arming. Stable stale-disarm shares board/device validation without those writes.
+The5c evidence above does not qualify a bundle rebuilt after that correction.
+Managed-image activation's actual Arm/expiry path and failed-upload/secure-call
+recovery remain separate gates.
+
 ## Supported control and retained failure
 
 Source `ecaefd4af2bf202b94b558e4f3545249c309712f` produced the retained coherent-DMA
