@@ -105,7 +105,7 @@ MACHINE_SOURCES = (
     *(f"cores/fes-pc386/rtl/{name}.sv" for name in (
         "pc386_rate", "pc386_io", "pc386_pic", "pc386_sysctl", "pc386_hid_keyboard", "pc386_kbc", "pc386_rtc",
         "pc386_ata", "pc386_at_core", "pc386_ram", "pc386_vga", "pc386_vga_scanout", "pc386_presenter",
-        "pc386_plane_bridge", "pc386_port2", "pc386_machine")),
+        "pc386_plane_bridge", "pc386_ems", "pc386_port2", "pc386_machine")),
     "cores/fes-common/rtl/fes_display_plane.v",
     "cores/fes-common/rtl/fes_display_cdc.v",
     "cores/fes-menu/rtl/fes_menu_control.v",

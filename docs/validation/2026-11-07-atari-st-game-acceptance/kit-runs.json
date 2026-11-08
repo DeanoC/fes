@@ -1,0 +1,749 @@
+{
+ "common": {
+  "issue": "https://github.com/DeanoC/fes/issues/1528",
+  "scope": "Atari 520ST: 8 MHz 68000, 512 KiB, DE10-Nano",
+  "matrix_published": "https://github.com/DeanoC/fes/issues/1528#issuecomment-6707411136",
+  "kits": {
+   "B": {
+    "baseline": {
+     "software": "a8cd30c49afd79eb7668af7ab7ae8a8e2ed2a90a31b25f164e28128b446274ee",
+     "image": "f904961e008a972db8f06f1bb47aff9631123d67215b9f4157ea1fbee83b98d4",
+     "mode": "core-only: no install, no image change"
+    },
+    "host_target": "kit2",
+    "capture": "4KPRO (fes-4kpro-hil) 1920x1080 frames; play recordings 640x360 h264; audio hw:CARD=D4KPRO stereo 48 kHz",
+    "runs": [
+     "x1",
+     "x2",
+     "x3",
+     "x4",
+     "n1"
+    ]
+   },
+   "A": {
+    "baseline": {
+     "software": "4efd34bfcb9054c9bec267a1a1e3c97079f1cb9a8947a47ee503057c95cda30d",
+     "image": "31b3906330b7b404b21f4ca888d99b860dca1d2742a7ebc3bb204e57053b73ff",
+     "source": "Lander recovery baseline 20:53 EET (main 4b33ec5598c1a6f86ddd883224e2e95d9282e6a7)",
+     "mode": "core-only"
+    },
+    "host_target": "dev (http://fes-kit-a:8182)",
+    "capture": "ShadowCast (fes-shadowcast-hil) 1920x1080 frames; play recordings 640x360 h264; audio hw:CARD=S3 stereo 48 kHz",
+    "runs": [
+     "g1",
+     "g2",
+     "g3",
+     "g4",
+     "h3"
+    ]
+   }
+  },
+  "package": "2dd2271c816ad3eb83fb73be9e47b08431eaadd9a4d12484c4d684259090bdb7",
+  "package_file_sha256": "9549c98891c36f156b68ac1ab0d43f8141f762ca71ff3e0bdd289dc8a1a7a6e9",
+  "package_build": "fes.atari-st 0.2.0, build b6f137e9f6602bfbd2f35c9eb92361e4, fes f53eba7614eb98a3103e9d946b86bcefbebed5e6; nextpnr 9128800f, mistral 8fcc4cb4, yosys 5391eeb1, HIP; built-in Direct video",
+  "main_seal_attempt": "fes 607922c63d45f798dd3f6fb0ce443f346c324852, HIP: producer stopped after synthesis with 'source list outside audited closure: .'; the check was not relaxed",
+  "firmware": {
+   "name": "TOS 1.04 UK",
+   "bytes": 196608,
+   "sha256": "c005b0ae8ccd5bf2569add2a0d0a42583b2fb70eec3e1202d82311e96664a88e"
+  },
+  "host": "private Powerboat fogcast-api bb51f4454eb72048cefeea16aa16b28eb2aadaad (promoted binary), private HOME, one kit target per claim (see kits); library title, POST /api/v1/session/launch, /api/v1/session/input/event, /api/v1/session/stop",
+  "converter": {
+   "script": "ipf2st.py",
+   "script_sha256": "89a9e9888ed3e872f1c55a00c621c94322366aadac2b7cf38cfa19a901f650bd",
+   "decoder": "FrodeSolheim/capsimg ed4cb0912fb1a2a0d5203111c6f6abd50d411b56, private build",
+   "decoder_sha256": "9e702ffa36aa5ffc990c8db569133b16ae0aec045e41fc2dc459521d6d7c6623",
+   "triage": "166 of 408 IPFs give a BPB-consistent .st with every sector CRC-good",
+   "duplicate_rule": "any sector ID seen twice on a track is a problem, identical data or not (8 Nov); rerunning all 408 IPFs gives the same 166 images with the same hashes"
+  },
+  "reference": {
+   "emulator": "Hatari 2.4.1 (Debian 2.4.1+dfsg-2)",
+   "binary_sha256": "dab1d8a0aae8cfc13584e916c4a3e66955621f6a36a0f9a12de177ed7575900d",
+   "options": "--machine st --memsize 0 --cpuclock 8 --cpulevel 0 --compatible on --patch-tos off --fast-boot off --fastfdc off --monitor rgb --tos-res low, TOS 1.04"
+  },
+  "matrix_amendment": "https://github.com/DeanoC/fes/issues/1528#issuecomment-6711833775",
+  "gomoku_player": {
+   "script": "gomoku.py",
+   "sha256": "c14ba56e128c56f69d2f2b470243a5b88470d31b74c66aceec2f060d6a02e4cd"
+  }
+ },
+ "disks": {
+  "xenon": {
+   "title": "Xenon (Europe) (Budget - 16 Blitz)",
+   "zip_sha256": "dbdcaad19c3de3c3f872382f7816e2254752135b30d47635d1d64e6e4b8c57e7",
+   "ipf_sha256": "7462077f5c9df88c8f64f8fbc5b2cdc622c51937a4e7a3e2f445215a97543fe6",
+   "st_sha256": "660e544ffa7eb8e0f9201614711f5d4b2a935870bb89f5ea707fed314e056f9e",
+   "st_bytes": 409600,
+   "bpb": {
+    "bps": 512,
+    "spt": 10,
+    "sides": 1,
+    "sectors": 800
+   }
+  },
+  "logical": {
+   "title": "Logical (Europe)",
+   "zip_sha256": "dddc9f4a5eaefd6a6aadebc7404850d8d7b0dcebc235b88f03c9344322e96e37",
+   "ipf_sha256": "f340bf07e41a3f2a0c5ceb01b095812795b4aafa30838c664d5f4af117a791fc",
+   "st_sha256": "da73eb0eb5797b620074143c17b9fae40c955102d5b801ca821dd43c358ee924",
+   "st_bytes": 409600,
+   "bpb": {
+    "bps": 512,
+    "spt": 10,
+    "sides": 1,
+    "sectors": 800
+   }
+  },
+  "lurking_horror": {
+   "title": "Lurking Horror, The (Europe) (r203)",
+   "zip_sha256": "70ad92322f673ac35c73ed8822f7ba2b6d42356f6054a8cb080b8f32dc609613",
+   "ipf_sha256": "06b3820a2d2a1a6fa1e2b3a5e1649d76565d351002bcb4c36dbaeb531f0169c7",
+   "st_sha256": "287ff5d0a1069cb1ece93929004bf25a776b9291211c3cabe27b5a609efbebb4",
+   "st_bytes": 368640,
+   "bpb": {
+    "bps": 512,
+    "spt": 9,
+    "sides": 1,
+    "sectors": 720
+   }
+  },
+  "gomoku": {
+   "title": "Go-Moku + Renju (Europe)",
+   "zip_sha256": "3c9d80bffa85e2a0c4495d33ce179432de65170ca1725d1a672120c070f32fdd",
+   "ipf_sha256": "0dc360f71b6365ebd84a433049ab3ed4b42e7c95e321a0d88c78bb73527a0f8c",
+   "st_sha256": "0805b45c30766924df4195c73e9b66169160d2d9dd657b81684347a4deb974fa",
+   "st_bytes": 368640,
+   "bpb": {
+    "bps": 512,
+    "spt": 9,
+    "sides": 1,
+    "sectors": 720
+   }
+  },
+  "night_shift": {
+   "title": "Night Shift (Europe)",
+   "disk_1": {
+    "ipf_sha256": "c7fc7f4e376b19d162c33fb1e4f999aaecc0c4141b6751cbec657043d9962287",
+    "st_sha256": "08f7f2309c8a0f1c5e0222a3c943d6f417483e954516e886d728305d382121f5",
+    "st_bytes": 737280,
+    "bpb": {
+     "bps": 512,
+     "spt": 9,
+     "sides": 2,
+     "sectors": 1440
+    }
+   },
+   "disk_2": {
+    "ipf_sha256": "a46cfc94251b780f799d26d3ead3006a85810089a403ca3fae3eec70b3a132eb",
+    "st_sha256": "5cebcbfc5a5f8e36f775c4fd6c62eb26f05e53ebaacc7a05543759e140081106",
+    "st_bytes": 737280,
+    "bpb": {
+     "bps": 512,
+     "spt": 9,
+     "sides": 2,
+     "sectors": 1440
+    }
+   }
+  },
+  "terramex": {
+   "title": "Terramex (Europe)",
+   "disk_1": {
+    "ipf_sha256": "34d43f0a979356a6a4a411eeb724ce1e7f7065f67abe4bb0a08bb2e98e1b6b4f",
+    "st_sha256": "793a9da23c13ef35c6a7ea301b3f90d7a4b3b03640d6733bbc6f9c5cb068eda6",
+    "st_bytes": 409600,
+    "bpb": {
+     "bps": 512,
+     "spt": 10,
+     "sides": 1,
+     "sectors": 800
+    }
+   },
+   "disk_2": {
+    "ipf_sha256": "ad8f3648073fcc94f88fadc3f6aa053cf4e08b576a79e68eff3e537431c1487a",
+    "st_sha256": "5fe2bb14254e20d3678e406c4f5625d2ff9daa89c660215f38d2410582ebf794",
+    "st_bytes": 409600,
+    "bpb": {
+     "bps": 512,
+     "spt": 10,
+     "sides": 1,
+     "sectors": 800
+    }
+   }
+  }
+ },
+ "hatari_lurking_horror": {
+  "script": "lh-script.txt",
+  "script_sha256": "794dcc664da7241c2d33a507c174aa1edd0048e1430d318ec668b3b6beffbb11",
+  "runs": {
+   "lhref1": {
+    "save_sha256": "56ffdcd353006f515a3023f08c45fd66c8dbf492f4845226df9c487c527a2cf6",
+    "disk_sha256": "0833c310ff81650eaf8b9cdb2936bb94acf12e9f4f018dfb3493a2103a6ae197"
+   },
+   "lhref2": {
+    "save_sha256": "56ffdcd353006f515a3023f08c45fd66c8dbf492f4845226df9c487c527a2cf6",
+    "disk_sha256": "0833c310ff81650eaf8b9cdb2936bb94acf12e9f4f018dfb3493a2103a6ae197"
+   },
+   "lhref3_start_plus_17s": {
+    "save_sha256": "56ffdcd353006f515a3023f08c45fd66c8dbf492f4845226df9c487c527a2cf6",
+    "disk_sha256": "6b7e829aa42e51ca5b479d4fa145c1ee08b02de8cac4c5a707caa917b56e57d8"
+   },
+   "lhref4_start_plus_33s": {
+    "save_sha256": "56ffdcd353006f515a3023f08c45fd66c8dbf492f4845226df9c487c527a2cf6",
+    "disk_sha256": "ada29e35b4edfda19737b27b1e142f2e2a5e7e2fb0b9cb40dbf6597fcc9d92a5"
+   }
+  },
+  "end_state": "Terminal Room, Score 5, 19 moves, 'Okay.' after SAVE",
+  "seed_runs": {
+   "note": "8 Nov: TOS 1.04 XBIOS Random() (ROM fc1c76) breakpoint; one call per boot, by LURKING.PRG at startup; seed = _hz_200 at that call",
+   "sd0": {
+    "hz_200": "0x0f2e",
+    "save_sha256": "56ffdcd353006f515a3023f08c45fd66c8dbf492f4845226df9c487c527a2cf6",
+    "urchin_room": "Infinite Corridor (object 218)"
+   },
+   "sd1": {
+    "hz_200": "0x0f30",
+    "forced_seed": "0x0c22384e",
+    "save_sha256": "56ffdcd353006f515a3023f08c45fd66c8dbf492f4845226df9c487c527a2cf6",
+    "urchin_room": "Infinite Corridor (object 218)"
+   },
+   "sd2": {
+    "hz_200": "0x0f4b",
+    "save_sha256": "d52277561dc7200ebfc3d0ebb246c2ea2957aa502fd653eb781b7c3e3a0e10d9",
+    "disk_sha256": "d15967597a9d452b560f6dc2e3e4e14fd8725582d847340f1392f9a3f2ba41fe",
+    "urchin_room": "Stairway (object 35)",
+    "vs_x4_disk": "one byte, the FES1528.SAV directory time"
+   },
+   "sd3": {
+    "hz_200": "0x0f30",
+    "save_sha256": "d52277561dc7200ebfc3d0ebb246c2ea2957aa502fd653eb781b7c3e3a0e10d9",
+    "urchin_room": "Stairway (object 35)"
+   }
+  }
+ },
+ "runs": {
+  "x1": {
+   "claimed": "15:54 EET",
+   "released": "17:00 EET (after Deano's power cycle; baseline verified, boot_id changed)",
+   "case": "xenon run 1 (first attempt)",
+   "result": "INCONCLUSIVE",
+   "events": "launch 16:00:46 (45.5 s); fire 16:01:33; play to 16:05:37 (score 250, lives 3 to 2); YM audio stopped and Kit B left the network at 16:05:37 (physical fault per Deano)",
+   "frames": {
+    "x1-boot10": "9184f944b2e00b02cf55fe66d36427e8b304c7baf74b92d6342f4f3507316976",
+    "x1-title25": "ce52807d9260edd6ca8d4a657d547a92ca354c4d989a6dfbbb4ffe6400f6eb46",
+    "x1-start": "5130b56a7c7bf512a359d7d675a8b35784908e936244123c8da3ed5cb04ef57e",
+    "x1-t90": "c1b0e3a4cd20efcd5325f61bf3bbddbcf83b176e71effaa85a44a9d0db94bfc9",
+    "x1-after-drop": "afb0e538dec8cfe6d215596b037c7944e7d9189e9dad7225bc20b1c8b1566971"
+   },
+   "play_video_sha256": "9adc550ce256228347d498dc404f36410ed04e3b33dfbc0d5da54272a292f81b",
+   "audio_sha256": "63b055fa1324a46a735cc1d05e88a757faa019f36ae4fdc937442bc6e602b3de"
+  },
+  "x2": {
+   "claimed": "17:04 EET",
+   "released": "17:47 EET",
+   "removed_trees": 3,
+   "xenon": {
+    "case": "xenon run 1",
+    "result": "PASS",
+    "game_id": "fpga-xenon-1528-r1b-0e6477de741c",
+    "launch_seconds": 39.2,
+    "play": "17:07 to 17:18 EET, about 11.5 min",
+    "outcomes": "moves and fire respond; several games: lives 3/2/1, game over, fire restarts at 3 lives; best score 850; Ctrl+Alt+Del ignored; Stop, relaunch to 'GAME OVER PRESS FIRE TO START', fire starts a game",
+    "frames": {
+     "x2-title": "b283e13b844eee16ee3113e67dd0afe7d37becb0c3bbfbcad3fc86fd01340fcb",
+     "x2-p1": "5e2f6261ead672f93c9c6011410c4214e39dfe5e6b36d8764bef3280db862371",
+     "x2-p5": "f77f8e27c5589b86e2d1070660d794bd94659930d90f89a7b2f5327d67643bf9",
+     "x2-after-cad": "c4d4c2015b02ab15a4896977c0df8649c3cb37dd9f4a8fbf3da7912e49a1c843",
+     "x2-relaunch": "613df0dc17fc950ed389e2dd3e4d281f98d9383fdd11f4fb5b10fc070631d18f",
+     "x2-relaunch-play": "6562f9260c383d78cbc376856dea8ec93b8c05f229c19e64f6dd27091efdf98b"
+    },
+    "play_video_sha256": "17e661aaad7d56a710ca50b2a009de44693a2ab27c88b28ab99fe86ad2786d32",
+    "audio_sha256": "db75cca781b04d128c67b6f8830e6940b67d4cd922192a9ed1cf245619a3b911"
+   },
+   "logical": {
+    "case": "logical attempt 1",
+    "result": "INCONCLUSIVE",
+    "game_id": "fpga-logical-1528-r1-30cd6d49e9cc",
+    "outcomes": "GEM desktop, mouse select LOGICAL.PRG + File > Open starts it; title/options/high-score attract cycles; joystick fire (ports 1 and 0), Space, Return, F1, S and mouse clicks did not start play",
+    "frames": {
+     "l1-desktop": "8ae643a49f1eb95821ff9d2a8efdb155d5a98e5d5d03313149a6dc08975be121",
+     "l1-title": "608281a2365741d41998d70144fb311d8b1d79dd9e54a42bcf20cdf0b90e6515"
+    },
+    "video_sha256": "c6ccdc527c31d9da6c7a01885ea63cdcd9078f0ceb41728c17bdbf8ff5f0f88f",
+    "audio_sha256": "d0fddd8eafce04ecc9983e13078a7957af7d181b2c47822e5a344a249a157adc"
+   },
+   "lurking_horror": {
+    "case": "lurking horror run 1",
+    "result": "PASS",
+    "game_id": "fpga-lurking-horror-1528-r1-8c052ded6a6c",
+    "session": "launch 17:35:07, stop 17:40:24, relaunch 17:41:07, stop 17:46:47",
+    "outcomes": "script reaches Score 5/19, SAVE 'Okay.'; relaunch lists FES1528.SAV; RESTORE 'Okay.', inventory stone + assignment at 5/20; play to 5/29; Ctrl+Alt+Del to desktop",
+    "saved_disk_sha256": "f9a5babdad437d0f2074b0bbe4a67fe6e2159c113bd4df4e7326acc465de80f3",
+    "saved_disk_after_restore_session_sha256": "f9a5babdad437d0f2074b0bbe4a67fe6e2159c113bd4df4e7326acc465de80f3",
+    "save_file_sha256": "56ffdcd353006f515a3023f08c45fd66c8dbf492f4845226df9c487c527a2cf6",
+    "vs_hatari_disk": "1 byte differs: offset 5686 (sector 11, FES1528.SAV directory time 0:04 vs 0:03)",
+    "vs_hatari_save": "identical",
+    "frames": {
+     "h1-desktop": "bd09294b11a2294dccb8140a13c54e904f5cdfc6351aba66aaa40044e2e1b381",
+     "h1-game": "646a462dee4abfc8751a7bdbfd491da129b95385f9d6fcb77d9778d712c3c1f7",
+     "h1-saved": "cf4d755a4b7fae560b66c40ad90efc955aa1e19b7417ca206731f3ec1bdc9d2e",
+     "h1-relaunch-desktop": "25ca8879e4442a1ecc6c17bc048ee9d26d537ccdc4c071605235691b0f6021e2",
+     "h1-back": "6c289f991cff94e37067c9ea458491e30400e1836d630a2b4c96bf779f8dd9f0",
+     "h1-restored": "21bd46dac1ca314fd3b3f4faee8386e57066f906b9d5fdc2612872656e7c9f77",
+     "h1-played": "5934ebd98d628929dad0b6460d983a47d93d358ab9176166fa93e9e7cefad346",
+     "h1-warmreset": "24e1a88a8f5845687723374c34202c93a1bc7ef6c63abe54d12042e8e5ed5228"
+    },
+    "audio_sha256": "cff588232902b5c194db86382d5249d6e6666077b48a3f14bd348cd71e76d30b"
+   }
+  },
+  "x3": {
+   "claimed": "17:52 EET",
+   "released": "18:22 EET",
+   "result": "no launch (library entry step failed before launch); nothing left on the kit"
+  },
+  "x4": {
+   "claimed": "20:20 EET",
+   "released": "20:51 EET",
+   "removed_trees": 3,
+   "logical": {
+    "case": "logical attempt 2",
+    "result": "INCONCLUSIVE",
+    "game_id": "fpga-logical-1528-r2-738d422dc682",
+    "outcomes": "same as attempt 1; joystick down/fire and clicks on title and options do not start play",
+    "frames": {
+     "l2-desktop": "9a831e2c03d6ae178466f469664566944e75c6f92559db53d765f5e34d618f7f",
+     "l2-title": "baa682d9ffa2abf96ad7ae8394691b29bda823abe039d04f8f229383dbd889eb"
+    },
+    "video_sha256": "6c10ee044678c18bb83d54359e182df315f7141f7c00c48766ff33e377167b94",
+    "audio_sha256": "0df05c39fd812993edf12d181f3017db9190d095794f1fa153a4df64b6f07770"
+   },
+   "xenon": {
+    "case": "xenon run 2",
+    "result": "PASS",
+    "game_id": "fpga-xenon-1528-r2-917142002290",
+    "launch_seconds": 40.3,
+    "play": "20:27:39 to 20:38:33 EET, about 11 min",
+    "outcomes": "moves and fire respond; lives 3/2/1 and restarts; best score 600; Stop, relaunch and fire start a game",
+    "frames": {
+     "x4-title": "25bbcbd2c3e1a22dc4bf3c76804112d5d51173a352cbec1a6a3b66e66031e13a",
+     "x4-p1": "2e3eced184b6411d54e3aafdee41a09df56ad4a78b3ec15ecf7157d2e438301e",
+     "x4-p5": "3f97fecc7d8f920ff97582bdd971c7f0dfcae3beaee69d074223148297888810",
+     "x4-relaunch-play": "0bdf514fd574194cd0bab0a574c867c4573b49b83e66ffd9261e8e679cac210e"
+    },
+    "play_video_sha256": "f512487ea7b2ce00c1d8fb4f8e322995320caf17eef95baa408638ff7c19fbf0"
+   },
+   "lurking_horror": {
+    "case": "lurking horror run 2",
+    "result": "INCONCLUSIVE",
+    "game_id": "fpga-lurking-horror-1528-r2-6e0612581463",
+    "session": "launch 20:41:27, stop 20:46:22, relaunch 20:47:05, stop 20:50:35 (about 8 min of play)",
+    "outcomes": "same text, score and moves as run 1: 5/19 SAVE 'Okay.', RESTORE 'Okay.' 5/20, play to 5/29, Ctrl+Alt+Del to desktop",
+    "saved_disk_sha256": "37355bc1f4ad741ee1ff2925911ab4e3bd2fd28478ff50a5547d2ea7817815f2",
+    "save_file_sha256": "d52277561dc7200ebfc3d0ebb246c2ea2957aa502fd653eb781b7c3e3a0e10d9",
+    "vs_hatari_disk": "5 bytes differ: directory time at 5686, and FES1528.SAV offsets 1579, 2162, 2163, 3226",
+    "cross_check": "Hatari restoring this disk and the reference disk prints the same inventory, look, move and look text",
+    "frames": {
+     "h2-game": "96b187ab27c6f2c4e6a375caefc31c65279353671b58c75a0589444f4109333d",
+     "h2-saved": "4ad7842a4708b09b2c1497cc8aff50998104e821749488b9383ee2a11c7b957a",
+     "h2-restored": "21bd46dac1ca314fd3b3f4faee8386e57066f906b9d5fdc2612872656e7c9f77",
+     "h2-played": "efff94434ab1c7705e24206f41ac0777731896a4ba2faf54666b67e599dc89cb",
+     "h2-warmreset": "bd09294b11a2294dccb8140a13c54e904f5cdfc6351aba66aaa40044e2e1b381"
+    }
+   },
+   "lurking_horror_save_explained": "8 Nov: the 4 bytes move the urchin (object 100) to Stairway; a natural Hatari run (sd2, _hz_200 0x0f4b) gives a byte-identical save; expected game randomness, no core defect"
+  },
+  "g1": {
+   "kit": "A",
+   "claimed": "21:15 EET",
+   "released": "21:33 EET",
+   "removed_trees": 2,
+   "gomoku": {
+    "case": "gomoku run 1",
+    "result": "INCONCLUSIVE (about 8.5 min of stone play, short of the 10-minute minimum; replaced by g4)",
+    "game_id": "fpga-gomoku-1528-r1-3ffffb498ed0",
+    "session": "launch 21:16:24; game 1 ends 21:22:00; stop 21:28:13, relaunch 21:28:52, game 2 ends 21:31:15; game 3 (program Restart) ends 21:33:01; stop 21:33:21",
+    "games": [
+     {
+      "white_moves": 14,
+      "result": "Game won by White"
+     },
+     {
+      "white_moves": 12,
+      "result": "Game won by White"
+     },
+     {
+      "white_moves": 7,
+      "result": "Game won by White"
+     }
+    ],
+    "disk_record_payload_sha256": "0805b45c30766924df4195c73e9b66169160d2d9dd657b81684347a4deb974fa (unchanged base)",
+    "mouse_observation": "zero-motion button packets did not select the Game menu Restart item or the YES button of its alert; a press packet carrying a one-count move was accepted by the alert",
+    "frames": {
+     "g1-desktop": "deeddd2b74bec30b14a96ba3ffc71f5cd69087ce5d295610991c37f484e55780",
+     "g1-game": "954758e93e81f63e43d13f43cabef0ede01c5be6084dbc7a88885e60de76a867",
+     "g1-game1-end": "cfe8a07bc9aa3bdef460aec560fa28bfb10891eff906fe550a5662645a54e8de",
+     "g1-game2-start": "4db2dd70a7de7d88714f63a6b81effe449e881003553d92ca4435aacbe27c29c",
+     "g1-game2-end": "33037a132d14118fa5cda5b111a932acb2dbc508197070492b0f983282e64823",
+     "g1-game3-start": "8928efe144e5932c73afb77b7698528a521dd1d45f135d0990586e94128f933e",
+     "g1-game3-end": "9973934ad94877cd5ca4ed0dbf749096cdce9f28f3d28e86434872e555ec2308"
+    },
+    "play_video_sha256": "144c20c7b26e2d2c7e3f96d521e971e70ceb4d5a08a5ac76f23d23a8a9d72220",
+    "audio_sha256": "c60d535f21b4a9a9c6573011e12dec122d4e6e34ca70c918143a660f9bf2d430",
+    "play_time": "about 14 min in the program: first board frame 21:17:44 to game 3's last move 21:32:38, less the Stop and relaunch (21:28:13 to the board at 21:29:41); about 8.5 min of that is stone play, the rest Game menu and alert mouse work"
+   }
+  },
+  "g2": {
+   "kit": "A",
+   "claimed": "21:34 EET",
+   "released": "21:45 EET",
+   "removed_trees": 2,
+   "gomoku": {
+    "case": "gomoku run 2",
+    "result": "INCONCLUSIVE (short of the 10-minute minimum; replaced by g3)",
+    "game_id": "fpga-gomoku-1528-r2-ac2a978d5673",
+    "session": "launches 21:35:22, 21:38:11, 21:41:57; games end 21:37:18, 21:41:08, 21:45:10; stop 21:45:29",
+    "games": [
+     {
+      "white_moves": 7,
+      "result": "Game won by White"
+     },
+     {
+      "white_moves": 18,
+      "result": "Game won by White"
+     },
+     {
+      "white_moves": 20,
+      "result": "Game won by White"
+     }
+    ],
+    "disk_record_payload_sha256": "0805b45c30766924df4195c73e9b66169160d2d9dd657b81684347a4deb974fa (unchanged base)",
+    "first_board_frame_after_each_launch": "4db2dd70a7de7d88714f63a6b81effe449e881003553d92ca4435aacbe27c29c (same in g1 game 2 and all three g2 launches)",
+    "frames": {
+     "g2-game1-start": "4db2dd70a7de7d88714f63a6b81effe449e881003553d92ca4435aacbe27c29c",
+     "g2-game1-end": "4e1838dfd0912a05af49777dd5ec6d4c7aec941f338ddc1145c0ddb2a94f4ae7",
+     "g2-game2-start": "4db2dd70a7de7d88714f63a6b81effe449e881003553d92ca4435aacbe27c29c",
+     "g2-game2-end": "b2b1cf68c9a14bd405673ac7ef195c2ffbb69d99e801ecd81d463da9def0a9f7",
+     "g2-game3-start": "4db2dd70a7de7d88714f63a6b81effe449e881003553d92ca4435aacbe27c29c",
+     "g2-game3-end": "1bec116c3e3221e05512a779ff86115f30a53c6346955ac593e42b615ea51d3b"
+    },
+    "play_video_sha256": "7daf3af0352fe2a905661cda08b7b63e8bab319c3a0f3dd59988ad3e1aafc77e",
+    "audio_sha256": "92f40feb9dfbe412774ec4dd57122ba48fed5423173e13d27decffa09c9a7b94",
+    "play_time": "first board frame to last move per game 0:46, 1:47, 2:02 (4:35); launch to game end 1:56, 2:57, 3:13 (8:06, boot included). The earlier 'about 10 minutes' was the claim's wall clock (Codex review of PR #1540)"
+   }
+  },
+  "g3": {
+   "kit": "A",
+   "date": "2026-11-08",
+   "claimed": "15:02 EET",
+   "released": "15:46 EET",
+   "removed_trees": 2,
+   "gomoku": {
+    "case": "gomoku run 2 (replaces g2)",
+    "result": "PASS",
+    "game_id": "fpga-gomoku-1528-r3-b13871f717bd",
+    "session": "audio and video from 15:03:29; nine Stop + library launch + desktop launch cycles; idle 15:22:30 to 15:34:24 (runner wait-loop slip, not counted); stop 15:45:56",
+    "games": [
+     {
+      "first_board": "15:04:59",
+      "last_move": "15:05:37",
+      "white_moves": 5,
+      "result": "Game won by White"
+     },
+     {
+      "first_board": "15:07:38",
+      "last_move": "15:09:23",
+      "white_moves": 16,
+      "result": "Game won by White"
+     },
+     {
+      "first_board": "15:11:37",
+      "last_move": "15:12:51",
+      "white_moves": 11,
+      "result": "Game won by White"
+     },
+     {
+      "first_board": "15:14:51",
+      "last_move": "15:16:06",
+      "white_moves": 11,
+      "result": "Game won by White"
+     },
+     {
+      "first_board": "15:18:07",
+      "last_move": "15:19:03",
+      "white_moves": 8,
+      "result": "Game won by White"
+     },
+     {
+      "first_board": "15:21:03",
+      "last_move": "15:22:05",
+      "white_moves": 9,
+      "result": "Game won by White"
+     },
+     {
+      "first_board": "15:36:00",
+      "last_move": "15:39:04",
+      "white_moves": 30,
+      "result": "Game won by Black"
+     },
+     {
+      "first_board": "15:41:05",
+      "last_move": "15:42:06",
+      "white_moves": 9,
+      "result": "Game won by White"
+     },
+     {
+      "first_board": "15:44:07",
+      "last_move": "15:45:02",
+      "white_moves": 8,
+      "result": "Game won by White"
+     }
+    ],
+    "board_play": "11 min 50 s (first board frame to last move, summed); about 15.5 min to the result screens",
+    "disk_record_payload_sha256": "0805b45c30766924df4195c73e9b66169160d2d9dd657b81684347a4deb974fa (unchanged base)",
+    "first_board_frame_after_each_launch": "4db2dd70a7de7d88714f63a6b81effe449e881003553d92ca4435aacbe27c29c (all nine)",
+    "frames": {
+     "g3-game1-end": "529ad89624dadc57e5a2f1d1257899e0382df1380c00e7bbfd3ca91d9ca970a6",
+     "g3-game1-start": "4db2dd70a7de7d88714f63a6b81effe449e881003553d92ca4435aacbe27c29c",
+     "g3-game2-end": "91c69d0cbede872d21e88ac7509f990358303990a48f7e5255817b7597bff78f",
+     "g3-game2-start": "4db2dd70a7de7d88714f63a6b81effe449e881003553d92ca4435aacbe27c29c",
+     "g3-game3-end": "35229f12375a835ed926ecdad14ff2c0c93bef2f5d058ee2c2980cdcbdcb336a",
+     "g3-game3-start": "4db2dd70a7de7d88714f63a6b81effe449e881003553d92ca4435aacbe27c29c",
+     "g3-game4-end": "35229f12375a835ed926ecdad14ff2c0c93bef2f5d058ee2c2980cdcbdcb336a",
+     "g3-game4-start": "4db2dd70a7de7d88714f63a6b81effe449e881003553d92ca4435aacbe27c29c",
+     "g3-game5-end": "557d632d013da4c0469fda33d8693765729692cd9f492e55bf7aa29401e6ce93",
+     "g3-game5-start": "4db2dd70a7de7d88714f63a6b81effe449e881003553d92ca4435aacbe27c29c",
+     "g3-game6-end": "268dd98b1a919166eb508134d1b955acd09469fc945bc88ceddfd87354619326",
+     "g3-game6-start": "4db2dd70a7de7d88714f63a6b81effe449e881003553d92ca4435aacbe27c29c",
+     "g3-game7-end": "31aaa7983cdd5f93f434dc6fff38253b4c7b14024d45a9641ea26ee1fc1ea0f0",
+     "g3-game7-start": "4db2dd70a7de7d88714f63a6b81effe449e881003553d92ca4435aacbe27c29c",
+     "g3-game8-end": "7a5addf47c5e727238643966604b3d3ef605c37bb0bae482130c9e7f00d1e756",
+     "g3-game8-start": "4db2dd70a7de7d88714f63a6b81effe449e881003553d92ca4435aacbe27c29c",
+     "g3-game9-end": "557d632d013da4c0469fda33d8693765729692cd9f492e55bf7aa29401e6ce93",
+     "g3-game9-start": "4db2dd70a7de7d88714f63a6b81effe449e881003553d92ca4435aacbe27c29c"
+    },
+    "play_video_sha256": {
+     "g3-play": "503a76254ffcae04423313deee66088ef237f85c817cd4863c9ab4314b3800f1",
+     "g3-play2": "367684bc416be29bfd43c8c2bd945520f305674f5cdd542178068d67a771b4ff"
+    },
+    "audio_sha256": {
+     "g3-audio": "1a4b8fd9596fac3f0ad83b945993e6b324b5c5ea6a1220274a5f8e34c233c9e2",
+     "g3-audio2": "5d9f05d265585bb0277a1791f5ac6f3c234531a2189b80dded8bcecef9b9bdec"
+    }
+   }
+  },
+  "g4": {
+   "kit": "A",
+   "date": "2026-11-08",
+   "claimed": "15:54 EET",
+   "released": "16:33 EET",
+   "removed_trees": 2,
+   "gomoku": {
+    "case": "gomoku run 1 (replaces g1)",
+    "result": "PASS",
+    "game_id": "fpga-gomoku-1528-r4-35687309c9ce",
+    "session": "audio and video from 15:55:07; ten Stop + library launch + desktop launch cycles; stop 16:33:02",
+    "games": [
+     {
+      "first_board": "15:56:37",
+      "last_move": "15:58:15",
+      "white_moves": 15,
+      "result": "Game won by Black"
+     },
+     {
+      "first_board": "16:00:16",
+      "last_move": "16:01:02",
+      "white_moves": 6,
+      "result": "Game won by White"
+     },
+     {
+      "first_board": "16:03:04",
+      "last_move": "16:03:44",
+      "white_moves": 5,
+      "result": "Game won by White"
+     },
+     {
+      "first_board": "16:05:46",
+      "last_move": "16:09:34",
+      "white_moves": 34,
+      "result": "Game won by Black"
+     },
+     {
+      "first_board": "16:11:36",
+      "last_move": "16:12:30",
+      "white_moves": 7,
+      "result": "Game won by White"
+     },
+     {
+      "first_board": "16:14:33",
+      "last_move": "16:15:29",
+      "white_moves": 8,
+      "result": "Game won by White"
+     },
+     {
+      "first_board": "16:17:32",
+      "last_move": "16:18:31",
+      "white_moves": 8,
+      "result": "Game won by White"
+     },
+     {
+      "first_board": "16:20:33",
+      "last_move": "16:23:29",
+      "white_moves": 28,
+      "result": "Game won by White"
+     },
+     {
+      "first_board": "16:25:32",
+      "last_move": "16:26:51",
+      "white_moves": 11,
+      "result": "Game won by Black"
+     },
+     {
+      "first_board": "16:28:54",
+      "last_move": "16:32:23",
+      "white_moves": 33,
+      "result": "Game won by Black"
+     }
+    ],
+    "board_play": "17 min 25 s (first board frame to last move, summed)",
+    "disk_record_payload_sha256": "0805b45c30766924df4195c73e9b66169160d2d9dd657b81684347a4deb974fa (unchanged base)",
+    "first_board_frame_after_each_launch": "4db2dd70a7de7d88714f63a6b81effe449e881003553d92ca4435aacbe27c29c (all ten)",
+    "frames": {
+     "g4-game1-end": "a1ff4d175c0ef2ee37bd3cfb957e323b9954b8d6330c37cd8c1403b545df9cae",
+     "g4-game1-start": "4db2dd70a7de7d88714f63a6b81effe449e881003553d92ca4435aacbe27c29c",
+     "g4-game10-end": "40a6803081872178828ca45e24f1206df677fe5b23bcf36fc7bf9d37afeb93db",
+     "g4-game10-start": "4db2dd70a7de7d88714f63a6b81effe449e881003553d92ca4435aacbe27c29c",
+     "g4-game2-end": "ae00306214f4fe75437bcf688761c2d3338f431cca2824ae3967941eae2098bd",
+     "g4-game2-start": "4db2dd70a7de7d88714f63a6b81effe449e881003553d92ca4435aacbe27c29c",
+     "g4-game3-end": "e1c63793ea58619da0d60dc37a5a2662363febeaea41ce48cfbc8abe5c38232a",
+     "g4-game3-start": "4db2dd70a7de7d88714f63a6b81effe449e881003553d92ca4435aacbe27c29c",
+     "g4-game4-end": "65edf20c12f80ded96f2bd8e6506801a0ed4643b2ffe10c97b2cc396a2d146b4",
+     "g4-game4-start": "4db2dd70a7de7d88714f63a6b81effe449e881003553d92ca4435aacbe27c29c",
+     "g4-game5-end": "ab1d542cbcffca406c2f86e511611ee8db437a744b4261b1f2cf83d2dd790cdb",
+     "g4-game5-start": "4db2dd70a7de7d88714f63a6b81effe449e881003553d92ca4435aacbe27c29c",
+     "g4-game6-end": "6d769f24561af92b629974b48fdc8ec90906c11008a6915cff20830ae64c9c2d",
+     "g4-game6-start": "4db2dd70a7de7d88714f63a6b81effe449e881003553d92ca4435aacbe27c29c",
+     "g4-game7-end": "f035ea7ff08c755f860b51cd1ac084641c99b7d7977c3286d95e313162340d13",
+     "g4-game7-start": "4db2dd70a7de7d88714f63a6b81effe449e881003553d92ca4435aacbe27c29c",
+     "g4-game8-end": "ccc66e4d52abe265a17646d4f59f8f6ceb946123e83d4b3ba158b13d17821acd",
+     "g4-game8-start": "4db2dd70a7de7d88714f63a6b81effe449e881003553d92ca4435aacbe27c29c",
+     "g4-game9-end": "841fa9c120c9c17cba0dca1721f9a4ad00b5c5bf6d0950eec594d478094e5502",
+     "g4-game9-start": "4db2dd70a7de7d88714f63a6b81effe449e881003553d92ca4435aacbe27c29c"
+    },
+    "play_video_sha256": "2dc1ee9d1a8ea53a165a7d404410d7e3ca5125f30b3c6453cedc2bbad6eedab4",
+    "audio_sha256": "d5906d6959f2abed04c32a1a2bf3bc62ccf84a62b734b6d4e31373fdf668641e"
+   }
+  },
+  "h3": {
+   "kit": "A",
+   "claimed": "22:07 EET",
+   "released": "22:25 EET",
+   "removed_trees": 2,
+   "lurking_horror": {
+    "case": "lurking horror run 2 (replaces x4)",
+    "result": "PASS",
+    "game_id": "fpga-lurking-horror-1528-r3-82f39247e725",
+    "session": "launch 22:09:01; SAVE 5/19; stop 22:13:47; relaunch 22:14:43; RESTORE 5/20; play to 5/37; Ctrl+Alt+Del to desktop; stop 22:19:39; relaunch 22:20:32; RESTORE; play to 5/32; stop 22:24:47",
+    "saved_disk_sha256": "a34565fdbf0e36002970465c83d839e748aa274f4aa952991f3d19167682bbe9",
+    "saved_disk_after_restore_sessions_sha256": "a34565fdbf0e36002970465c83d839e748aa274f4aa952991f3d19167682bbe9",
+    "save_file_sha256": "56ffdcd353006f515a3023f08c45fd66c8dbf492f4845226df9c487c527a2cf6",
+    "vs_hatari_disk": "1 byte differs: offset 5686 (FES1528.SAV directory time 0:04 vs 0:03)",
+    "vs_hatari_save": "identical",
+    "frames": {
+     "h3-desktop": "49820cd39007ed976c30cc0ed129393d2e0d46ae99ad02998b02d993270126ab",
+     "h3-game": "951127f0bc8232d4db0dadb8efa4619557977bfdbb65ec596466d88d4a7d8784",
+     "h3-saved": "dbaa74ea2f7fe9ef66e20efe1e3e7c2e306de25db13a94f52131f22d0aae8622",
+     "h3-relaunch-window": "39a5572a10a59c6fb7e473a6a13ac736272d6b253c1eabc46033d72e1e39f19d",
+     "h3-restored": "ea79b99888dc296d5d1f8f1c6eea10230f061b07497a93d3a2fe84e4ce6aa44e",
+     "h3-played": "9b8e523b6238cf19f11f4094257949e63388016f6f96c983da9122db58ef5d67",
+     "h3-warmreset": "49820cd39007ed976c30cc0ed129393d2e0d46ae99ad02998b02d993270126ab",
+     "h3-played2": "1b5db20717339b1d5c795227f7ff735a86813067f267378a721a1c638fcd1fa0"
+    },
+    "audio_sha256": "78c51cc751ee62aa43e56d612f7c0549119d7e5270ef55f5815236ad9b1b41b6"
+   }
+  },
+  "n1": {
+   "kit": "B",
+   "claimed": "09:46 EET 8 Nov",
+   "released": "10:40 EET",
+   "case": "4, disk replacement during play (Night Shift, then the declared fallback Terramex)",
+   "result": "PASS (Terramex, two launches); Night Shift swap ran but play is gated by a manual fruit code",
+   "swap_method": "POST /api/v1/session/disk/insert (fogcast insert-library-disk), disk 2 as its own library entry on the same package",
+   "library_entries": {
+    "night_shift_disk_1": "fpga-night-shift-1528-n1-dcf0376c448c",
+    "night_shift_disk_2": "fpga-night-shift-1528-n1-disk-2-b3e9e9869932",
+    "terramex_disk_1": "fpga-terramex-1528-n1-152a2c318ab7",
+    "terramex_disk_2": "fpga-terramex-1528-n1-disk-2-552f13e53ea2"
+   },
+   "session_id": "7ba075cf-942d-4e10-89e3-c389eaba3f9a",
+   "launches": [
+    {
+     "title": "Night Shift",
+     "generation": 100,
+     "launch_s": 48.9,
+     "insert_s": 17.4,
+     "unit0_before": "night shift disk 1 entry",
+     "unit0_after": "night shift disk 2 entry",
+     "outcome": "job application screen, worker chosen by joystick, then a four-symbol fruit code (manual check)"
+    },
+    {
+     "title": "Night Shift relaunch",
+     "generation": 101,
+     "launch_s": 49.4,
+     "unit0": "night shift disk 1 entry",
+     "outcome": "prompt frame identical to the first launch"
+    },
+    {
+     "title": "Terramex",
+     "generation": 102,
+     "launch_s": 44.6,
+     "insert_s": 10.1,
+     "outcome": "title after swap; two games 10:03-10:06 and 10:15-10:26; score 50; game over returns to the title without a disk 1 request"
+    },
+    {
+     "title": "Terramex relaunch",
+     "generation": 103,
+     "launch_s": 45.5,
+     "insert_s": 10.7,
+     "unit0_before": "terramex disk 1 entry",
+     "unit0_after": "terramex disk 2 entry",
+     "outcome": "prompt frame identical to launch 1 at 60 s; three games 10:29-10:40; score 50; a second screen reached"
+    }
+   ],
+   "records_after": {
+    "27fa0ad72538f80cc2b3e64a2cf138364a43ba92885f6a93378ba343f516ca9f": {
+     "record_sha256": "37993fcd80f953a7353886fb67158f20bbc393f245c5c0e6678287a53f3e9722",
+     "payload": "night shift disk 1, byte-identical"
+    },
+    "8aa48de5fc137990abe377703f6cc2455863c4ae9cc378c773dc35ec198247e5": {
+     "record_sha256_prefix": "d06b3005cfb29889",
+     "payload": "night shift disk 2, byte-identical"
+    },
+    "93d0a5b239cb95e1fd3b0c8d1610fde8ecb8d95d9cc30ec8d81d542a1498db30": {
+     "record_sha256_prefix": "604f4bfb9b059193",
+     "payload": "terramex disk 1, byte-identical"
+    },
+    "c4aa7e2f0198f7293c8af29f55fd492f7d319a2e24bb139a715fcaeabd679809": {
+     "record_sha256_prefix": "114992ebf97a10cd",
+     "payload": "terramex disk 2, byte-identical"
+    }
+   },
+   "frames": {
+    "ns-prompt": "6ebcc02bc1fbe0a1da0098f6bb193c27ac58116449233ca5f93bd46fa6ecb198",
+    "ns-job-application": "4e378c57bcdb7bf198e0a89307647512275f98e01ec1d075133f67badac209d2",
+    "ns-fruit-code-rejected": "9fac6fdf5dca4eb751525811118ece6c37b838018f83e9ae3ad20eca4437ed74",
+    "ns-relaunch-prompt": "6ebcc02bc1fbe0a1da0098f6bb193c27ac58116449233ca5f93bd46fa6ecb198",
+    "tm-prompt-60s": "92fc75a732155c9d764eec130296e2382d85aec6e3fc69c4f5435fcf6249ac9e",
+    "tm-prompt-100s": "a7956e0600577fcf5dae50383f3ba7553036b67ea6d61261b6bf182f52b25d52",
+    "tm-title-after-swap": "1a6d9ac95d7fb838bd58043e6de66cc4ebf0792e1b0bb17f1d9cf305432de471",
+    "tm-play-start": "0146df60220fa2fdbe98c45ee378a6ab210b2fea9815075233752fdef0a25171",
+    "tm-l1-end": "39d8796978407ee5676aa884c4c3f6758767b737c4895cde453f83c506cb92cb",
+    "tm-relaunch-prompt-60s": "92fc75a732155c9d764eec130296e2382d85aec6e3fc69c4f5435fcf6249ac9e",
+    "tm-l2-title-after-swap": "c93e51eaa38e0944c9740592d8c33cf015ad0a5a376a6ea4cd9548fa6e7e53d7",
+    "tm-l2-play-start": "d820cf244ce859fcdcaf2db3e46be64e51df84e2791af38fccd0647d79e7b5fd",
+    "tm-l2-second-screen": "a24add07b5f24b903fd2092b213a53ec9aa4ff49e2567a2f2d88ddfe86af7f86",
+    "tm-l2-end": "f575d5ca829cb9b0db7e447cdc1a61b91d42cf977614311aa65fbeb9f91d88d6"
+   },
+   "audio_sha256": "fe1555623cd5089e76e4f2dfbe5fcdd6c25d1ae7e6869a70969a5463a07adc08",
+   "housekeeping": "removed the four disk-record trees the run created; post-run file listing equals the pre-run listing; baseline unchanged (software a8cd30c4, no reboot)"
+  }
+ }
+}
