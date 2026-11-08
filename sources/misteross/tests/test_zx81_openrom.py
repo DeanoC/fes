@@ -168,6 +168,25 @@ a:      ret
         self.assertEqual(image[:3], bytes([0xc3, 0x03, 0x00]))
         self.assertEqual(image[3], 0xc9)
 
+    def test_floatorder_picks_a_layout_where_djnz_reaches(self):
+        # Largest first puts c between a's djnz and b; the order layout does not.
+        image = assemble("""
+        floatlimit 0x100
+        floatorder
+        org 0
+        jp a
+        autofloat
+a:      djnz b
+        ds 98
+c:      ds 90
+        ret
+b:      ds 9
+        ret
+        endautofloat
+        """, 0x200)
+        a = image[1] | image[2] << 8
+        self.assertEqual(image[a], 0x10)                            # djnz b
+
     def test_far_jr_goes_by_a_jump_to_the_same_place(self):
         image = assemble("""
         floatorder

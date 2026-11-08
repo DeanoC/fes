@@ -303,6 +303,8 @@ class Assembler:
         if m == 'ret':
             return [0xc0 | CC[lows[0]] << 3] if ops else [0xc9]
         if m == 'djnz':
+            if not -128 <= self.value(ops[0]) - (self.pc + 2) <= 127:
+                self.far_djnz = True            # this layout cannot be used
             if self.in_float is not None:
                 index = self.in_float[0]
                 self.jr_sites.append((index, self.pc - self.float_pc[index], self.value(ops[0]), 1000))
@@ -481,11 +483,12 @@ class Assembler:
                 continue
             over = sum(n for i, n in self.float_size.items() if self.float_at.get(i, size) >= size)
             total = sum(self.float_size.values())
-            if best is None or (over, total) < best[0]:
-                best = ((over, total), strategy, dict(self.float_at), dict(self.float_size))
+            far = self.far_djnz                 # (from the pass with this placement)
+            if best is None or (far, over, total) < best[0]:
+                best = ((far, over, total), strategy, dict(self.float_at), dict(self.float_size))
         if best is None:
             raise AsmError('layout did not settle')
-        (over, total), self.strategy, self.float_at, self.float_size = best
+        (_, over, total), self.strategy, self.float_at, self.float_size = best
         self.relax(lines, size, fill)
         if over:
             raise AsmError(f'floating code does not fit: {total} bytes in '
@@ -629,6 +632,7 @@ class Assembler:
             self.in_float = None
             self.float_count = 0
             self.float_pc = {}                  # section index -> address this pass
+            self.far_djnz = False
             self.jr_edges = set()               # (section, jr target address)
             self.jr_sites = []                  # (section, offset, target, cost if out of range)
             self.jumps_before, self.jumps = self.jumps, {}  # target -> addresses of direct jumps
