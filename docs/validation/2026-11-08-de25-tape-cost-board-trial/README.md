@@ -35,3 +35,20 @@ TRWU8J8G is untouched. There is no new hardware result at preparation time.
 A sampled profile or direct reset readback cannot promote a failed launch into
 Running, drain, normal return or ordinary core-load acceptance. The goal of
 DE10-equivalent core loading remains open.
+
+The single4489 attempt has now terminated before initial App Ready. Qualified
+recovery, all13 writes/readbacks and13 fresh reads passed; both programming
+phases and matched secure cold boot passed. Startup received one USB boot-keyboard
+Select under Ready generation0 (one report,1,849 polls). No App command was sent.
+The safety gate stopped at that marker, with no retry or replay. The failure
+tail contains menu return and a native Loading status; subsequent autonomous
+activity was not observed. Tape costs and direct-reset status were not captured.
+
+The user reports there may have been an object or unintended pressure on the
+keyboard, now cleared. This is consistent with the action source but does not
+prove a physical key press or a driver fault. Startup held-key handling should
+be inspected before a new image/test; this image remains consumed1/max1.
+Transport programming failures remain1/max2. Independent host cleanup passed:
+original15M clock readback, exact USB permissions, owned server gone and UART
+free. The board claim remains held and its final fabric state is unproven.
+No new command or longer failure observation was used to bypass the failed gate.
