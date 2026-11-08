@@ -287,7 +287,7 @@ def run_paging(testbench: str, env: dict) -> dict:
     return {'summary': summary, 'failures': failures}
 
 
-PAGING_CASES = 47
+PAGING_CASES = 48
 
 
 def run_no387(testbench: str, env: dict) -> dict:
