@@ -98,6 +98,7 @@ python3 scripts/sim_fes_pc386.py --suite rtl-stops        # the RTL's stop path 
 python3 scripts/sim_fes_pc386.py --suite a20 --download   # A20TEST.COM: A20 off at boot, INT 15h 24xx/87h, a shutdown resume, HIMEMX's method and XMS 03h-06h
 python3 scripts/sim_fes_pc386.py --suite c2xx --download  # C2TEST.COM: INT 15h C205h with key and aux bytes at the 8042, and while keys are typed
 python3 scripts/sim_fes_pc386.py --suite ems --download   # EMSTEST.COM on boot menu entry 3: the EMS board through FESEMS.SYS's INT 67h
+python3 scripts/sim_fes_pc386.py --suite ems --cpu rtl    # the same with fes_i386_cpu from the prompt (the oracle boots)
 python3 scripts/sim_fes_pc386.py --suite wait --download  # WAITTEST.COM: INT 15h AH=86h waits from 0 us to 300 ms return in their time
 python3 scripts/sim_fes_pc386.py --suite speaker --download  # SPKTEST.COM: PIT counter 2 in mode 3 from POST; a count-only write gives the speaker carrier
 python3 scripts/sim_fes_pc386.py --suite cpu-profile --download  # CPUPROF.COM on the oracle, then a 20 ms machine_tb --cpu-profile window on the RTL
@@ -548,7 +549,8 @@ expanded memory manager is resident.
 - Functions: 40h-48h, 4Bh-4Fh, 50h (map multiple, by page number or
   segment), 51h, 52h (volatile only; non-volatile answers 91h), 53h, 54h,
   57h (move and exchange, overlapping moves in the safe direction), 58h,
-  59h, 5Ah, 5Bh (no alternate register sets), 5Ch and 5Dh. 49h, 4Ah, 55h and
+  59h, 5Ah, 5Bh (register set 0 only, with the OS/E's save area), 5Ch and
+  5Dh (its key disables and enables 59h and 5Bh). 49h, 4Ah, 55h and
   56h answer 84h and write `FESEMS: function <AX>` to port E9h.
 
 ## Not built yet

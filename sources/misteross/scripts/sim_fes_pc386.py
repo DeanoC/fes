@@ -809,7 +809,8 @@ EMS_CHECKS = ('detect', 'frame', 'counts', 'allocate', 'pattern', 'alias', 'unma
 
 
 def run_ems(args, linked: list[Path]) -> dict:
-    """EMSTEST.COM at the prompt of the games image's entry 3: the EMS board through FESEMS.SYS."""
+    """EMSTEST.COM at the prompt of the games image's entry 3: the EMS board through FESEMS.SYS. With
+    --cpu rtl the oracle boots and fes_i386_cpu runs from the prompt."""
     images = firmware.images(args.download, args.jobs)
     testbench = machine_testbench(args, linked)
     rtl = '-rtl' if args.cpu == 'rtl' else ''
@@ -818,7 +819,10 @@ def run_ems(args, linked: list[Path]) -> dict:
     print(f'Running EMSTEST.COM on the games image on the {args.cpu} CPU', flush=True)
     run = run_machine(testbench, f'ems{rtl}', ['--disk', str(disk), '--limit-seconds', str(args.limit_seconds),
                                                '--type', 'emstest|', '--expect', 'EMS DONE ok', '--cpu', args.cpu,
-                                               '--boot-key', f'{BOOT_MENU_KEY_SECONDS}:3'], images)
+                                               '--boot-key', f'{BOOT_MENU_KEY_SECONDS}:3',
+                                               # The RTL takes over at the prompt, so EMSTEST.COM and the
+                                               # driver's INT 67h run on it; the boot is the oracle's.
+                                               *(['--rtl-at-prompt', '1'] if rtl else [])], images)
     lines = [entry['text'] for entry in run['debug'] if entry['port'] == '0e9']
     failures = list(run['failures'])
     checks = [line for line in lines if line.startswith('EMS ')]

@@ -40,7 +40,8 @@ default entry carry the driver, gated by CMOS.
   the shell's aux master. The machine mirrors it into CMOS 63h-65h.
 - **Driver** ([`fesems.asm`](../../../sources/misteross/cores/fes-pc386/sim/fesems.asm)),
   `FESEMS.SYS`, MIT, NASM, about 4.1 KiB resident: LIM 4.0 40h-48h, 4Bh-54h,
-  57h-5Dh; 49h, 4Ah, 55h and 56h answer 84h and name themselves on port E9h.
+  57h-5Dh (5Bh with register set 0 only); 49h, 4Ah, 55h and 56h answer 84h
+  and name themselves on port E9h.
   No open-licensed driver for this interface exists: Lo-tech's LTEMM is
   Tsourikov's BSD driver patched under the Standard Lo-tech Licence, which is
   not open source, and karcherm's TOPEMM inherits those terms.
@@ -76,14 +77,18 @@ default entry carry the driver, gated by CMOS.
   a full 1 MiB pattern through all four frame pages, alias, unmap, save and
   restore (47h/48h and 4Eh), map multiple by segment, reallocate, names,
   57h moves across a page boundary both ways, an overlapping expanded move
-  (92h, data intact) and an exchange, error codes 83h, 8Ah, 87h and 84h, and
-  free: **all 15 pass** (265,430 frame reads, 788,962 writes, no DMA into the
-  frame). Its first two runs found three driver bugs, fixed before the seal's
+  (92h, data intact) and an exchange, error codes 83h, 8Ah, 87h and 84h, the
+  OS/E functions (5Dh's key and disable, 5B01h's save area returned by
+  5B00h), and free: **all 16 pass** (265,430 frame reads, 788,962 writes, no
+  DMA into the frame). Its first two runs found three driver bugs, fixed before the seal's
   driver was used on the kit: `set_register` wrote its map shadow through DS
   (4E01h and 5B01h call it with DS = SS), map errors returned the function
   number instead of 8Ah, and 57h's overlap direction read EAX after AH was
   overwritten (correct only by luck). A third failure was the test's own
-  destination offset.
+  destination offset. Codex's review then found two LIM 4.0 gaps in the OS/E
+  functions, also fixed: 5B00h did not return 5B01h's save area, and 5Dh's
+  disable did not stop 59h and 5Bh. No title calls 5Bh or 5Dh, so the kit
+  runs below, made with the driver before that fix, are unaffected.
 - **Titles** (`--suite game --oracle-profile`, 20 simulated seconds, the
   driver on the default entry before entry 3 existed, census keys):
 
@@ -98,10 +103,6 @@ default entry carry the driver, gated by CMOS.
   Every function the titles called is implemented; no `FESEMS: function`
   line appeared. No title made a DMA cycle into the frame, so the recorded
   deviation (the 8237 cannot reach the board) costs these titles nothing.
-
-### RTL
-
-See [the RTL runs](#rtl-runs) below.
 
 ### Seal
 
@@ -144,7 +145,14 @@ data trees it created (26 and 7: staged drives, game records and disk deltas).
 
 ## RTL runs
 
-PENDING
+`sim_fes_pc386.py --suite ems --cpu rtl`: the oracle boots the games image on
+entry 3 and `fes_i386_cpu` takes the prompt (`--rtl-at-prompt`), so
+EMSTEST.COM and the driver's INT 67h handler run on the RTL CPU against the
+RTL board. **All 16 checks pass**; the RTL retired 51,530,712 instructions
+with no oracle steps, no protected-mode steps and no stops, and the board saw
+the same 265,430 reads and 788,962 writes as on the oracle. A first attempt
+with the RTL booting FreeDOS itself was still booting after 90 minutes at
+this host's load and was stopped.
 
 ## Follow-ups
 
