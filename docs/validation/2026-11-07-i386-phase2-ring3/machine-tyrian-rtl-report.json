@@ -1,0 +1,234 @@
+{
+  "post": [
+    {
+      "code": "00",
+      "cycle": 11741
+    },
+    {
+      "code": "21",
+      "cycle": 2471323
+    },
+    {
+      "code": "31",
+      "cycle": 2571519
+    },
+    {
+      "code": "41",
+      "cycle": 2971719
+    },
+    {
+      "code": "71",
+      "cycle": 3074323
+    },
+    {
+      "code": "77",
+      "cycle": 3174349
+    }
+  ],
+  "debug": [
+    {
+      "port": "402",
+      "text": "BIOS BUILD DATE: 11/03/26"
+    },
+    {
+      "port": "500",
+      "text": "VGABios ID: vgabios.c 2026-08-07"
+    },
+    {
+      "port": "402",
+      "text": "ata0-0: PCHS=260/16/63 translation=none LCHS=260/16/63"
+    },
+    {
+      "port": "402",
+      "text": "IDE time out"
+    },
+    {
+      "port": "402",
+      "text": "Booting from 0000:7c00"
+    },
+    {
+      "port": "402",
+      "text": "*** int 15h function AX=c300, BX=1091 not yet supported!"
+    }
+  ],
+  "panic": [],
+  "io": {
+    "isa16 2": {
+      "38": 945408
+    },
+    "isa8 1": {
+      "74": 216781
+    },
+    "vga-in 1": {
+      "6": 11672629
+    },
+    "vga-out 1": {
+      "4": 101662
+    },
+    "vga-out 2": {
+      "7": 3841
+    }
+  },
+  "io_wait": {},
+  "inta": {
+    "146": 515
+  },
+  "screen": [
+    "                   eeffbbb        bbccc                     ghgceeeeccb bc bbdd ",
+    "                     ihfeeeeccb cc   bb                       igeeeecccbcc    b ",
+    "                      igeeeecccccb                             geeeecccbdb      ",
+    "                         eeedccbdb                                eefccbdb      ",
+    "                          eeecccdbc                                eecccccc  bcb",
+    "                            ecgcccc                                   eccccb    ",
+    "                              eccdcb                                   ecdb     ",
+    "                               eccb                                     ccb     ",
+    "                                ccb                                     ccc     ",
+    "                                bcc                                     bcc     ",
+    "                                bcb                                      bbb    ",
+    "                                bb b                                    bbbb    ",
+    "                                 ccb                                     ceb    ",
+    "                                 cdbb                                     cbb   ",
+    "                                  cbb                                    bcbb   ",
+    "                                 bbbb                                           ",
+    "                                 e                                       d      ",
+    "                                                                                ",
+    "                                                                                ",
+    "                                                                                ",
+    "                                           !                                   b",
+    "                                                                                ",
+    "                                                                                ",
+    "                                        b                                       ",
+    "b                                       c  !                                   c"
+  ],
+  "end": {
+    "reason": "limit",
+    "steps": 295213116,
+    "cycles": 1200000033,
+    "seconds": 12.0
+  },
+  "prompt_cycle": 500006490,
+  "cpu_resets": 0,
+  "snaps": {
+    "final": {
+      "width": 320,
+      "height": 400,
+      "file": "/home/deano/fes-scratch/ring3/game/sources/misteross/build/sim/fes-pc386/game-tyrian-rtl/frames/final.ppm"
+    }
+  },
+  "present": {},
+  "vga": {
+    "frames": 10857,
+    "scanout_underflows": 0,
+    "capture_drops": 0,
+    "present_underflows": 0,
+    "plane_underflows": 0,
+    "frames_shown": 0,
+    "port1_commands": 45360066,
+    "port2_commands": 6166289
+  },
+  "marks": {},
+  "opl2": {
+    "samples": 596590,
+    "exact": 596590,
+    "nonzero": 0,
+    "writes": 120
+  },
+  "opl2_mismatch": null,
+  "audio_samples": 576000,
+  "sb": {
+    "resets": 1,
+    "commands": 1030,
+    "dma": 53328,
+    "irqs": 1
+  },
+  "mouse": {
+    "sent": 0,
+    "scheduled": 0
+  },
+  "rtl_begin": {
+    "cycle": 500006497,
+    "flips": 2
+  },
+  "rtl": {
+    "stops": [],
+    "pmode": [],
+    "gaps": [],
+    "smc": [
+      {
+        "event": "store",
+        "cycle": 550120285,
+        "site": "0eae:00002bae",
+        "instruction": "0001168e",
+        "address": "000116b0"
+      }
+    ],
+    "notes": [],
+    "counters": {
+      "retired": 174063510,
+      "oracle_steps": 0,
+      "protected_steps": 0,
+      "parked_clocks": 22889351,
+      "tf_retired": 0,
+      "pe_retired": 85580117,
+      "pe_entries": 48839,
+      "vga_loads": 24963,
+      "replays": 312,
+      "port0_reads": 5999012,
+      "port0_writes": 44831286,
+      "smc_stores": 50,
+      "smc_addresses": 1,
+      "smc_executed": 0,
+      "smc_restarts": 483871
+    }
+  },
+  "command": [
+    "build/sim/fes-pc386/machine/obj/Vpc386_machine",
+    "--bios",
+    "build/firmware/pc386/pc386-bios.bin",
+    "--vgabios",
+    "build/firmware/pc386/pc386-vgabios.bin",
+    "--disk",
+    "/home/deano/fes-drives/pc386/48ab29728f39cf86310c12b1f3a15d50b7420ce763d6062e85047c96ae4af147.img",
+    "--limit-seconds",
+    "12.0",
+    "--type",
+    "cd \\tyrian|tyrian|",
+    "--keys-after-type",
+    "1",
+    "--wav",
+    "build/sim/fes-pc386/game-tyrian-rtl/tyrian.wav",
+    "--opl2-log",
+    "build/sim/fes-pc386/game-tyrian-rtl/tyrian-opl2.log",
+    "--frames",
+    "build/sim/fes-pc386/game-tyrian-rtl/frames",
+    "--keys",
+    "6.0:|",
+    "--keys",
+    "9.0: ",
+    "--keys",
+    "12.0:|",
+    "--frame-every",
+    "1.0",
+    "--rtl-at-prompt",
+    "1",
+    "--cpu",
+    "rtl"
+  ],
+  "exit": 1,
+  "failures": [],
+  "game": {
+    "name": "tyrian",
+    "drive": "dpmi",
+    "drive_sha256": "48ab29728f39cf86310c12b1f3a15d50b7420ce763d6062e85047c96ae4af147",
+    "title": "Tyrian (1995)",
+    "bucket": "dpmi3",
+    "zip_sha256": "f46e75bf41f06b305fc734c78a6960bd9f2e81bf97f76673624d7d0d029f8718"
+  },
+  "work": "/home/deano/fes-scratch/ring3/game/sources/misteross/build/sim/fes-pc386/game-tyrian-rtl",
+  "audio": {
+    "hz": 0.0,
+    "rms": 0.0,
+    "peak": 0,
+    "samples": 576000
+  }
+}

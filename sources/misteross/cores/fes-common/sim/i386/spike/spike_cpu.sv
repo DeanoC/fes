@@ -137,6 +137,7 @@ module spike_cpu (
     logic [15:0]      arch_ldtr_sel, arch_ldtr_ar, arch_tr_sel, arch_tr_ar;
     logic [31:0]      arch_ldtr_base, arch_ldtr_limit, arch_tr_base, arch_tr_limit;
     logic             arch_ldtr_valid;
+    logic [1:0]       arch_cpl;
 
     fes_i386_cpu dut (
         .clk, .cold_reset(reset), .reset, .init_gpr, .init_eflags, .init_eip, .init_cr0, .init_cr2, .init_cr3,
@@ -154,7 +155,7 @@ module spike_cpu (
         .trace_store_mask, .arch_gpr, .arch_eflags, .arch_eip, .arch_sel, .arch_base, .arch_limit, .arch_ar,
         .trace_dread_addr, .trace_ex_store, .trace_gov_hold, .trace_gov_debt, .trace_gov_charge, .arch_cr0, .arch_cr2,
         .arch_cr3, .arch_gdtr_base, .arch_gdtr_limit, .arch_idtr_base, .arch_idtr_limit, .arch_ldtr_sel, .arch_ldtr_base,
-        .arch_ldtr_limit, .arch_ldtr_ar, .arch_ldtr_valid, .arch_tr_sel, .arch_tr_base, .arch_tr_limit, .arch_tr_ar
+        .arch_ldtr_limit, .arch_ldtr_ar, .arch_ldtr_valid, .arch_tr_sel, .arch_tr_base, .arch_tr_limit, .arch_tr_ar, .arch_cpl
     );
 
     logic [31:0] signature, observed;
@@ -172,7 +173,7 @@ module spike_cpu (
         for (int n = 0; n < 8; n++) observed ^= arch_gpr[n];
         for (int n = 0; n < 6; n++) observed ^= arch_base[n] ^ arch_limit[n] ^ {arch_sel[n], arch_ar[n]};
         observed ^= arch_ldtr_base ^ arch_ldtr_limit ^ {arch_ldtr_sel, arch_ldtr_ar} ^ {31'd0, arch_ldtr_valid}
-                  ^ arch_tr_base ^ arch_tr_limit ^ {arch_tr_sel, arch_tr_ar};
+                  ^ arch_tr_base ^ arch_tr_limit ^ {arch_tr_sel, arch_tr_ar} ^ {30'd0, arch_cpl};
     end
     always_ff @(posedge clk) begin
         signature <= {signature[30:0], signature[31]} ^ observed;

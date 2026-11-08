@@ -477,7 +477,7 @@ module pc386_system #(
         .arch_eflags(), .arch_cr0(), .arch_cr2(), .arch_cr3(), .arch_gdtr_base(), .arch_gdtr_limit(),
         .arch_idtr_base(), .arch_idtr_limit(), .arch_eip(cpu_eip), .arch_sel(cpu_sel),
         .arch_base(), .arch_limit(), .arch_ar(), .arch_ldtr_sel(), .arch_ldtr_base(), .arch_ldtr_limit(),
-        .arch_ldtr_ar(), .arch_ldtr_valid(), .arch_tr_sel(), .arch_tr_base(), .arch_tr_limit(), .arch_tr_ar()
+        .arch_ldtr_ar(), .arch_ldtr_valid(), .arch_tr_sel(), .arch_tr_base(), .arch_tr_limit(), .arch_tr_ar(), .arch_cpl()
     );
     /* verilator lint_on PINCONNECTEMPTY */
 
