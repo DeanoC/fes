@@ -19,8 +19,11 @@ one owned host restart and fresh saved-program LOAD9/edit7/reload9; normal
 media CAS restores the original entry and Stop returns idle/free. A later
 software rollback/restore trial accepts both API transitions and restores the
 same normal bundle at generation3, but its factory-bundle BASIC control fails
-with0/0 and no7. That failure remains open; no postrestore BASIC rerun or full
-functional rollback acceptance is claimed. Partial-persona loading remains unsupported under #1568, explicitly
+with0/0 and no7. The original failure remains retained. A later observed-empty-ROM-prompt
+fixture passes one factory generation4 and one restored normal generation5
+LOAD/RUN7/Stop control with exact accepted transitions and retained data. This
+adds bounded functional rollback/restore evidence without establishing the
+original failure's cause or arbitrary failed-upload recovery. Partial-persona loading remains unsupported under #1568, explicitly
 waived only as an ordinary development-milestone blocker.
 
 | Capability | Software coverage | Hardware acceptance |

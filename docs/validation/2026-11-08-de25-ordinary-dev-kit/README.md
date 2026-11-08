@@ -347,7 +347,7 @@ and full capture records are retained under
 
 ## Stock software rollback trial and retained failure
 
-The failed functional proof is tracked in [#1572](https://github.com/DeanoC/fes/issues/1572).
+The initial failed functional proof is tracked in [#1572](https://github.com/DeanoC/fes/issues/1572); the later [corrected live trial](#observed-rom-prompt-rollback-and-restore) passes without reclassifying this failure.
 
 At integration head `2eb2873c1efdb06586820e21d746b40f238a3c5b`, the installed
 previous factory release `77e80dff` and normal release `61a4b0aa` match board,
@@ -387,8 +387,9 @@ with the same boot `655b3ec6`, kernel `9cec7e77`, root `0858eef0`, stock FIT
 card swap, image/kernel/FIT/QSPI change or persona attempt occurs.
 
 The software API rollback and restore operations pass their named identity,
-CAS, durable-receipt and stable-readiness checks. **Full functional rollback
-acceptance remains open because the factory BASIC control failed.** Successful
+CAS, durable-receipt and stable-readiness checks. At this stage functional rollback
+acceptance remained open because the factory BASIC control failed. The later
+[observed-prompt trial](#observed-rom-prompt-rollback-and-restore) adds its own passing evidence; this original result remains failed. Successful
 ordinary/SAVE/reboot/runtime-loss evidence above remains bound to generation1
 of the same normal bundle bytes; it is not rewritten as a generation3 run.
 
@@ -409,3 +410,55 @@ producer, programming or DMA gate is relaxed.
 Original scripts, both path-check versions, exact receipts and observations,
 failed input/capture/cleanup records and off-board prompt-gate source remain in
 `/data/fes-de25-main-integration-20261105/partial-start-investigation-20261108/stock-software-rollback/`.
+
+
+## Observed ROM-prompt rollback and restore
+
+The corrected live fixture at integration head
+`965733460ea9c57daa2076ec728e62d8df3d8db4` requires two consecutive fresh fanout
+captures showing the inverse OpenROM K cursor and an empty program body in the
+same owned session **before any key or LOAD command**. The actual helper/font
+and six-vector off-board receipt are hash-bound before the trial. Expected7,
+programming admission, DMA retirement, numerical timing and deadlines stay
+unchanged. This repairs the fixture's missing guest-input precondition; a new
+documentation head alone does not reset failure counts or justify replaying the
+unchanged failed fixture.
+
+| Stage | Selected release | Generation | Result |
+| --- | --- | --- | --- |
+| Authenticated starting state | Normal default-off61a4 | 3 | PASS exact native files/processes, same boot, original entry and saved program |
+| One normal rollback activation | Retained factory77e | 4 | PASS exact generation-CAS/durable accepted receipt, all three new process identities/file hashes,10s stable MENU, same host/catalog/data |
+| One ordinary factory ZX81 launch | Factory77e | 4 | PASS two observed empty-K captures, then LOAD/RUN7, inspected black-on-white HDMI and normal Stop/MENU/idle/free |
+| One normal restore activation | Normal default-off61a4 | 5 | PASS exact generation-CAS/durable accepted receipt, all three new process identities/file hashes,10s stable MENU, same host/catalog/data |
+| One ordinary normal ZX81 launch | Normal61a4 | 5 | PASS two observed empty-K captures, then LOAD/RUN7, inspected black-on-white HDMI and normal Stop/MENU/idle/free |
+
+The original failed0/0 capture and initial wrong-factory-path observation remain
+in their original receipts. This corrected case does not establish which
+startup/input/media condition caused the earlier failure, and changes no
+production runtime or FPGA bytes. It establishes one working rollback/restore
+sequence with the explicit observed guest prompt. No stress, early-boot typing,
+dirty-SAVE crash or failed-upload recovery claim follows from it.
+
+Both operations retain boot `655b3ec6`, kernel `9cec7e77`, root `0858eef0`, stock
+FIT `bb6a48c7`, original card/data UUID/geometry, original `e506e8a7` launch medium,
+saved923-byte program `0874cf79`, pairing/catalog and private host PID1823444.
+The prior factory manifest keeps its original provenance. There is no host
+restart, board reboot, power pull, card swap, image/kernel/FIT/QSPI update or
+persona attempt. Final authentication verifies the normal bundle61a4/runtime
+c681 at generation5 and healthy MENU/idle/free; the claim is released without
+promoting a main HIL baseline.
+
+[Source-bound fixture, exact operations, prompt observations and both controls](stock-software-rollback-prompt-v2.json).
+
+![Factory bundle: observed empty K before input](stock-rollback-prompt-v2-prompt.png)
+
+![Factory bundle: LOAD/RUN7 after observed K](stock-rollback-prompt-v2-basic7.png)
+
+![Restored normal bundle: observed empty K before input](stock-restore-prompt-v2-prompt.png)
+
+![Restored normal bundle: LOAD/RUN7 after observed K](stock-restore-prompt-v2-basic7.png)
+
+Private frozen fixture/source hashes, all four prompt captures, native file and
+process authentication, original operation observations and final release are
+retained in
+`/data/fes-de25-main-integration-20261105/partial-start-investigation-20261108/stock-software-rollback-prompt-v2/`.

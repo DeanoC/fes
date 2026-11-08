@@ -42,10 +42,10 @@ full development-kit acceptance remains open as described below.
 
 The retained development setup now uses kernel `9cec7e77`, managed root
 `0858eef0`, pinned stock Terasic FIT `bb6a48c7` and default-off bundle `61a4b0aa`,
-generation 3 after the rollback trial below. The successful ordinary, SAVE,
+generation 5 after the corrected rollback/restore trial below. The original ordinary, SAVE,
 reboot and runtime-loss controls ran at generation1 of these same bundle bytes;
-restoration at generation3 authenticates MENU and selected processes, without
-a further BASIC trial. Normal software install/activation and native executable
+the corrected factory generation4 and normal generation5 controls add observed
+ROM-prompt LOAD/RUN7 and Stop/MENU evidence. Normal software install/activation and native executable
 authentication pass. Standard ZX81 `3da0f1df` passes Play, RAMTOP128, BASIC
 7/9/7, fresh HDMI, Stop/MENU and relaunch. One idle and one active-session OS
 reboot pass without physical intervention, preserving pairing, software,
@@ -92,9 +92,12 @@ to normal61a4 at generation3, with exact receipts, ten seconds of stable MENU,
 selected executable identities and retained catalog/data. Its factory BASIC
 control fails with0/0 and no7; cleanup Stop and normal restore pass. The failure
 is retained, no repeated core control occurs, and full functional rollback
-remains unqualified. An observed-empty-ROM-prompt guard passes six retained
-capture checks off-board; its live use and the original failure's cause remain
-unverified.
+remained unqualified at that stage. The later
+[corrected live fixture](../validation/2026-11-08-de25-ordinary-dev-kit/README.md#observed-rom-prompt-rollback-and-restore)
+requires two observed empty-K frames before the first key. One factory
+generation4 control and one restored normal generation5 control each pass
+LOAD/RUN7 and Stop/MENU, with exact software transitions and retained data. The
+old failed result remains failed; its original cause is unproven.
 
 The [acceptance audit](../validation/2026-11-08-de25-ordinary-dev-kit/acceptance-audit.md)
 keeps the eight workflow requirements separate from remaining failure,
