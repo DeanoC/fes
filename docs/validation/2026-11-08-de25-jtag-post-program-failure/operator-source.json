@@ -1,0 +1,33 @@
+{
+  "checkout": "6fdcd59d55a178f464ad03b581cf73d436143fad",
+  "files": {
+    "diagnose.py": "7da02b090ff610d42b2aa79acd5ccfcc3e0f18ffc87e905aefc86f62f41f7746",
+    "probe-test-proof.json": "2e4a73d763d86f7c260541b982a1d6e0ce1747e93101363e7cdf2e18996ed186",
+    "scan-probe": "cc4fb96daf6dac990453534f5dcff6bf18267d54b512361c2e1d92e05abff29d",
+    "audit_cleanup.py": "61cd32d843f05331f150c65bf26febfa84f7e7fffec4fa13023409fa6b11c883",
+    "run.py": "aad77010810e5caa0a10cb570e37157334ef02a915073e8480fa8c561cc4460e",
+    "trial/private_jtag.py": "c9b36356faf133d4a734d46743bf586eb0c74006c535a869e6a1fb36856e4023",
+    "trial/transport_guards.py": "021900ce7d4e0f024adabf1033867ca8e148ec77408fceca7a503ec2240fcc2d",
+    "trial/common.py": "e655f0187fe6e8b89eec722510c0d7cbf294edb426b8576b1710100f944fe6f1",
+    "trial/clock_policy.py": "082ea1a2646bf9dbfecf0b378274801576600265282827cce48bbbaea8a6c4f5"
+  },
+  "usb_node": "/dev/bus/usb/003/071",
+  "prior_trial_sha256": "a1656f1c800a643b5ad93300470763367b54681ce6872e1752e5847ba4b1f5d1",
+  "tool_sha256": {
+    "/usr/bin/strace": "69f88291a4e47f258b8e32b089c919a247509f063ef3d6afe5389939051102b3",
+    "/data/altera_pro/26.3/quartus/bin/quartus_pgm": "06c1bd805bc078d9636015c472e09a054160c405f3f06b7c555e7a4b6f7d3f14",
+    "/data/altera_pro/26.3/quartus/bin/jtagconfig": "06c1bd805bc078d9636015c472e09a054160c405f3f06b7c555e7a4b6f7d3f14",
+    "/data/altera_pro/26.3/quartus/bin/jtagd": "06c1bd805bc078d9636015c472e09a054160c405f3f06b7c555e7a4b6f7d3f14",
+    "/data/altera_pro/26.3/quartus/linux64/quartus_pgm": "32f5511101a9dad0dd029a6b52ac68af56947411d0ba85312fed8403bb5a85e5",
+    "/data/altera_pro/26.3/quartus/linux64/jtagconfig": "31ce723bdedc9a599d034a0f4d65e595cba4e65f7c99399a93e46feb9ddbbfac",
+    "/data/altera_pro/26.3/quartus/linux64/jtagd": "5cb7ee2332bcd93a666442c10917908ecce36e9a383c13005c5c9495e8e383d4",
+    "/data/altera_pro/26.3/quartus/linux64/libjtag_client.so": "83894ac5bb2e3e18809372e32940ccaf834a4de790e0c240b4068cab0de42fd9",
+    "/data/altera_pro/26.3/quartus/linux64/libjtag_client_dcrt.so": "03c1733b7fa5e87c64e0d83ff7796d67deed0b303b1eb9649a9de98a182505d5",
+    "/data/altera_pro/26.3/quartus/linux64/libaji_client.so.0.0.0": "1deb012dce66d7ffd29400c204a6f44b32458d376067321157076f94dbd1dd59",
+    "/data/altera_pro/26.3/quartus/adm/qenv.sh": "5882e7efb52de260a35ceff9bf207136bac28fd9b4e6ca20b0a7cb993e7c86a6"
+  },
+  "scope": "One forced scan at6M and restored15M; no programming, CPU reset, SD write or UART open",
+  "prior_native_image_attempts": 1,
+  "replay_previous_native_allowed": false,
+  "hardware_actions": false
+}
