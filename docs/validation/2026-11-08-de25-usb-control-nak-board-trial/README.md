@@ -35,3 +35,25 @@ The spare card remains in the top board, factory restoration is waived unless
 needed, and bottom TRWU8J8G remains untouched. The controller replug may have
 flickered power; the application state is unproven. See operator-source.json
 for all exact sources, inputs, tools, bounds and attempt accounting.
+
+## Hardware result
+
+One attempt is consumed. Qualified recovery, boot FIT write/readback/fresh read,
+both live programming grants, matched cold boot, nine entry checkpoints and
+canonical source/pin observations pass. The controller now completes hub and
+HID discovery, configuration and a complete 53-byte report-descriptor read.
+The prior control-IN completion conflict did not recur on this path.
+
+The selected non-boot HID descriptor contains System Control and Consumer
+Control applications, not Joystick/Game Pad. The existing report policy
+correctly rejects it before USB confirmation/Ready. No gamepad report, Stop,
+physical action or core load is established. The actual device model and
+complete interface inventory were not printed, so their identity is unproven.
+Raw bytes and SHA-256 are in hardware-result.json; no policy is broadened.
+
+The test stopped without another native command or reprogramming. Independent
+cleanup passes exact adapter permissions, recorded 15M, owned private-server
+exit and a free UART. Native halt/Park is unproven. Claim stays held, spare
+remains and bottom is untouched. This image is not replayable. Next is input
+selection/topology diagnosis and a captured-descriptor regression, while the
+physical device models are clarified.
