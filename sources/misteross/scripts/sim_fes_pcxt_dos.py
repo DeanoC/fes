@@ -39,7 +39,8 @@ def run_simulation(cmd, cwd, scenario, *, timeout=3 * 60 * 60, heartbeat=30, gra
     A process group is owned by this invocation. SIGTERM, SIGINT and SIGHUP
     take the same bounded cleanup path as a timeout or other exception,
     including when the simulator does not exit after TERM. If the runner itself
-    is killed outright, the kernel sends the simulator SIGKILL.
+    is killed outright, the kernel sends the simulator SIGKILL, and the
+    simulator's forked control worker sets the same signal for itself.
     """
     proc = None
     interrupted = 0
@@ -233,7 +234,8 @@ def verify_snapshot(build):
 
 
 # SHA-256 of exact 1280x720 PPM output from the independently reviewed,
-# deterministic simulation, reproduced on 30595667. The fixture itself is not redistributed.
+# deterministic simulation. The game runner and these hashes came in with
+# 3d2e17f84 (#1387). The fixture itself is not redistributed.
 GAME_FRAME_SHA256 = {
     'title-before-start': '6f7509b3c08e4dc08be1dec004e1259de90651494a2f7eadf545e5d9c847c7c8',
     'start-control': '04726527ce90309a946bf5a05a8332c138911b1be54c7106ee8cac1d71129c18',
@@ -257,7 +259,7 @@ def verify_game(build):
     result = json.loads(pending.read_text())
     result['classification'] = 'host simulation only; reviewed game-frame reference matched'
     result['frame_sha256'] = hashes
-    result['frame_reference_source'] = '305956672189b5c97df5465e9f6007b49842694f'
+    result['frame_reference_source'] = '3d2e17f84b26b45197e579aff7e43898360650e1'
     pending.write_text(json.dumps(result, indent=2) + '\n')
     pending.replace(build / 'result.json')
     print('PASS Digger title, Enter start and right movement vs reviewed frames', flush=True)

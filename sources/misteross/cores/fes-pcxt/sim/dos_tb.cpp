@@ -10,6 +10,8 @@
 #include <fstream>
 #include <string>
 #include <vector>
+#include <csignal>
+#include <sys/prctl.h>
 #include <sys/types.h>
 #include <sys/wait.h>
 #include <unistd.h>
@@ -341,9 +343,14 @@ int main(int argc, char **argv) {
                             uint64_t hold,uint64_t settle) {
             std::cout.flush();std::cerr.flush();
             const uint64_t start=cycles;
+            const pid_t parent=getpid();
             const pid_t child=fork();
             require(child>=0,"fork paired control",cycles);
             if(child==0) {
+                // fork() clears the parent-death signal the runner gave the
+                // simulator; set it again so a killed simulator takes this
+                // control worker with it.
+                if(prctl(PR_SET_PDEATHSIG,SIGKILL)!=0 || getppid()!=parent)_exit(1);
                 while(cycles<start+hold+settle)step();
                 capture_to(name+"-control");
                 _exit(0);

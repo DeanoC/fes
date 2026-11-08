@@ -142,52 +142,72 @@ sim.run_simulation([sys.executable, '-c', sys.argv[2], sys.argv[3]], sys.argv[4]
 
     @unittest.skipUnless(sys.platform.startswith('linux'), 'PR_SET_PDEATHSIG is Linux only')
     def test_killed_runner_takes_simulator_with_it(self):
+        # The forking worker mirrors dos_tb.cpp's paired control worker, which
+        # sets PR_SET_PDEATHSIG again after fork().
+        for forks in (False, True):
+            with self.subTest(forks=forks):
+                self._killed_runner_takes_simulator_with_it(forks)
+
+    def _killed_runner_takes_simulator_with_it(self, forks):
         with tempfile.TemporaryDirectory() as temp:
             temp = Path(temp)
             pids = temp / 'pids'
-            worker = '''import os, signal, sys, time
+            worker = '''import ctypes, os, signal, sys, time
 signal.signal(signal.SIGTERM, signal.SIG_IGN)
-open(sys.argv[1], 'w').write(str(os.getpid()))
+ids = [os.getpid()]
+if sys.argv[2] == '1':
+    parent = os.getpid()
+    child = os.fork()
+    if child == 0:
+        if ctypes.CDLL(None).prctl(1, signal.SIGKILL, 0, 0, 0) or os.getppid() != parent:
+            os._exit(1)
+        while True:
+            time.sleep(0.1)
+    ids.append(child)
+open(sys.argv[1], 'w').write(' '.join(map(str, ids)))
 while True:
     time.sleep(0.1)
 '''
             script = '''import sys
 sys.path.insert(0, sys.argv[1])
 import sim_fes_pcxt_dos as sim
-sim.run_simulation([sys.executable, '-c', sys.argv[2], sys.argv[3]], sys.argv[4], 'test', timeout=15, heartbeat=0.1, grace=0.2)
+sim.run_simulation([sys.executable, '-c', sys.argv[2], sys.argv[3], sys.argv[5]], sys.argv[4], 'test', timeout=15, heartbeat=0.1, grace=0.2)
 '''
             runner = subprocess.Popen([sys.executable, '-c', script, str(ROOT / 'scripts'), worker,
-                                       str(pids), str(temp)], stdout=subprocess.DEVNULL, stderr=subprocess.PIPE)
-            pid = None
+                                       str(pids), str(temp), '1' if forks else '0'],
+                                      stdout=subprocess.DEVNULL, stderr=subprocess.PIPE)
+            ids = []
             try:
                 deadline = time.monotonic() + 10
                 while not pids.exists() and runner.poll() is None and time.monotonic() < deadline:
                     time.sleep(0.02)
                 self.assertTrue(pids.exists(), 'worker did not start')
-                pid = int(pids.read_text())
+                time.sleep(0.05)
+                ids = [int(x) for x in pids.read_text().split()]
+                self.assertEqual(len(ids), 2 if forks else 1)
                 runner.kill()
                 # wait(), not communicate(): a surviving worker would hold the
                 # inherited stderr pipe open.
                 runner.wait(timeout=5)
-                def state():
+                def state(pid):
                     try:
                         return (Path('/proc') / str(pid) / 'stat').read_text().split(') ', 1)[1][0]
                     except (FileNotFoundError, ProcessLookupError):
                         return None  # gone and reaped
                 deadline = time.monotonic() + 5
-                while state() not in (None, 'Z') and time.monotonic() < deadline:
+                while any(state(pid) not in (None, 'Z') for pid in ids) and time.monotonic() < deadline:
                     time.sleep(0.02)
-                self.assertIn(state(), (None, 'Z'))
+                for pid in ids:
+                    self.assertIn(state(pid), (None, 'Z'))
             finally:
                 if runner.poll() is None:
                     runner.kill()
-                    runner.communicate(timeout=5)
-                if pid is not None:
+                    runner.wait(timeout=5)
+                for pid in ids:
                     try:
                         os.kill(pid, signal.SIGKILL)
                     except ProcessLookupError:
                         pass
-
 
 if __name__ == '__main__':
     unittest.main()

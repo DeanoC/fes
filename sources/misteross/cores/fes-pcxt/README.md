@@ -1132,8 +1132,8 @@ must match the SHA-256 references from the previously independently reviewed
 title, playfield and player movement captures; an unexpected frame fails for
 review rather than treating a pixel change alone as proof. These exact hashes
 are tied to the pinned game, BIOS and calibrated timing and may need independent
-review if the display pipeline changes. The references were reproduced on source
-`305956672189b5c97df5465e9f6007b49842694f` with the game disk SHA-256
+review if the display pipeline changes. The game runner and the references came
+in with `3d2e17f84b26b45197e579aff7e43898360650e1` (#1387), for the game disk SHA-256
 `8621217fce4d72cf0ec976d34b9dd302be136b21e5ff15197fee4d499b923fa3`.
 The individually named frame hashes in `sim_fes_pcxt_dos.py` correspond to a
 reviewed title, no-input title, Enter playfield, no-input player position and
