@@ -469,12 +469,12 @@ with HIMEMX 3.38, UMBM from Jemm 5.85, CuteMouse 2.1b4 and MEM 1.12 from their
 FreeDOS 1.4 package archives in `C:\FDOS\BIN`, pinned in
 [`sim/freedos.lock`](sim/freedos.lock).
 - `FDCONFIG.SYS` loads UMBM with `/I=C800-DFFF`, `DOS=UMB`, then HIMEMX high
-  with all extended memory as XMS (15,360K on a 16 MiB machine), then the
-  [EMS driver](#ems-driver) high. UMBM hands the machine's upper RAM to DOS
-  as upper memory blocks without V86 and then unloads; it finds only UMBPCI's
-  tables by itself, so the range is named. All 96K of C8000-DFFFF becomes
-  upper memory; E0000-EFFFF is the EMS board's frame. Entry 3 of the boot
-  menu (below) also loads the driver.
+  with all extended memory as XMS (15,360K on a 16 MiB machine). UMBM hands
+  the machine's upper RAM to DOS as upper memory blocks without V86 and then
+  unloads; it finds only UMBPCI's tables by itself, so the range is named.
+  All 96K of C8000-DFFFF becomes upper memory; E0000-EFFFF is the EMS board's
+  frame. Only boot menu entry 3 (below) then loads the
+  [EMS driver](#ems-driver) high; entries 1 and 2 have no EMS.
 - `AUTOEXEC.BAT` runs [`FESENV.COM`](sim/fesenv.asm) into
   `C:\FDOS\FESENV.BAT` and calls it, so `BLASTER` follows the Sound Blaster
   setting in CMOS 60h-62h at every boot, then loads CuteMouse high and runs
