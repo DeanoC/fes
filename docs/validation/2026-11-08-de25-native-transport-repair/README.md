@@ -47,3 +47,35 @@ and vendor build proof. New source, file admission, artifact/input closure and
 prepared/result evidence are retained with archive readback and Git bundle
 verification before/after hardware. Full DE10-equivalent core-load acceptance
 remains the goal and is not replaced by this timing diagnostic.
+
+The repaired host path passed both programming operations. Recovery boot,
+thirteen uploads/fresh readbacks, matched secure7abe native boot and initial
+App/menu Ready all passed. One controlled UART Select triggered the original
+1s tape failure. No uncommanded startup action was observed. The trace contains
+all four inner timing groups: before-state13.702us, USB19.801us,
+registers0.703us and after-state13.857us sampled means (249 samples each).
+Outer owns15878 calls/249 samples averaged57.554us, with a scaled0.9138s
+estimate; inner state+USB estimates total0.7520s and reset registers0.0112s.
+These are sample estimates including instrumentation, not a disjoint timing
+partition or performance qualification. Direct MMIO reads averaged1.013us.
+
+The failure was error-6 at generation11/opcode8/index177/offset0x10,
+reads7466/writes466/next512/complete0. The direct reset callback returned0;
+normal fabric drain and normal return remain unverified. Native service ended
+RebootRequired/Held with resources retained. The operation stopped at that first
+failure and recorded the bounded passive tail; it was not replayed.
+
+Independent host cleanup passed, restoring exact USB permissions and original
+15MHz, stopping the owned private service and releasing the UART. Prior native
+reservation bytes remain exact. This new repaired-host procedure is consumed1/
+max1. Both actual programmers completed, so transport programming failures
+remain1/max2. The board is left in its contained native failure state; factory
+restore remains waived. The other kit was untouched.
+
+The measurements identify private software validation as the next optimization
+target; the two reset-register reads are comparatively small. Retained ELF
+inspection shows out-of-line computer_tape_state, computer_tape_sample_state,
+shared_valid and composition snapshot functions. A bounded inlining candidate
+can preserve their complete predicates and live checks while testing whether
+fewer nested stack frames/reloads reduce cost. No deadline, memory mapping,
+ownership grant, MMIO width/barrier or native acceptance gate should be relaxed.
