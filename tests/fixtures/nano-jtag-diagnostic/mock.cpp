@@ -45,13 +45,13 @@ AJI_ERROR aji_get_parameter(AJI_CHAIN_ID,const char *name,BYTE *data,DWORD *size
     const BYTE sample[]={'0','1',0,'\n'};std::memcpy(data,sample,sizeof(sample));*size=sizeof(sample);return AJI_NO_ERROR;
 }
 AJI_ERROR aji_scan_device_chain(AJI_CHAIN_ID) {
-    if(mode("forced-scan"))message(nullptr,0,"raw chain failure\nFES_JTAG_SCAN RESULT pass=1");
+    if(mode("forced-scan") && message)message(nullptr,0,"raw chain failure\nFES_JTAG_SCAN RESULT pass=1");
     if(mode("messages")) {std::string text(640,'X');for(unsigned i=0;i<20;i++)message(nullptr,3,text.c_str());}
     return call("forced-scan");
 }
 AJI_ERROR aji_read_device_chain(AJI_CHAIN_ID,DWORD *count,AJI_DEVICE *dev,bool automatic) {
     if(*count!=1 || automatic)std::abort();
     *count=mode("wrong-count") ? 2:1;
-    dev->device_id=mode("wrong-id") ? 0x12345679:0x4362C0DD;dev->mask=0;
+    dev->device_id=mode("wrong-id") ? 0x12345679:0x4362C0DD;dev->mask=mode("wrong-mask") ? 1:0;
     dev->instruction_length=mode("wrong-ir") ? 0:10;return call("cached-after");
 }

@@ -1,5 +1,19 @@
 # Nano recovery uploads and cold serial boot
 
+`jtag_scan.cpp` is the source-controlled fresh programming-scan producer.
+Build it against the pinned Intel AJI headers and selected vendor libraries.
+It accepts one explicit private top-kit cable, checks the locked 6 MHz clock,
+performs one forced scan and only then one non-scanning identity read. Its exact
+count1/4362C0DD/mask0/IR10 result is consumed by the unchanged
+`jtag_programming.ProgramAttempt` policy. A failed API call or identity stops
+before further reads, unlocks an acquired chain and cannot authorize programming.
+The caller must still hash-bind the probe/client bytes, recheck the live
+claim/server/config/clock and durably reserve each operation before scanning.
+Adapter discovery uses `--listhardware`; it performs no preliminary `--enum`.
+Raw pre-scan chain type is not a device identity check; the locked scan API and
+fresh exact device result provide that proof. This producer performs no FPGA
+programming or CPU reset itself. Scan diagnostics remain a separate format.
+
 `jtag_diagnostic.cpp` is a separate scan-only host diagnostic, built against
 the pinned Intel AJI headers and selected vendor client. It accepts only an
 explicit private top-kit cable/configuration, checks 6 MHz and issues one
