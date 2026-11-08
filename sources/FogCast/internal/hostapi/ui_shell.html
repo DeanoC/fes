@@ -238,7 +238,7 @@
     </fieldset>
     <fieldset>
       <legend>Optional immutable media</legend>
-      <label for="core-media-file">Media file (host storage up to 32 MiB; core limits may be smaller)</label>
+      <label id="core-media-file-label" for="core-media-file">Media file (core limits may be smaller)</label>
       <input id="core-media-file" type="file">
       <button id="core-media-drive" class="button secondary" type="button">From host drive</button>
       <button id="core-media-import" class="button" type="button">Import media</button>
@@ -252,6 +252,18 @@
       <p id="core-blank-disk-status" role="status"></p>
       <button id="core-entry-media-save" class="button" type="button">Select imported media for entry</button>
       <button id="core-entry-media-clear" class="button secondary" type="button">Clear entry media</button>
+    </fieldset>
+    <fieldset>
+      <legend>Hard-disk geometry</legend>
+      <p id="core-disk-geometry-status" role="status"></p>
+      <label for="core-disk-cylinders">Cylinders</label>
+      <input id="core-disk-cylinders" type="number" min="1" step="1" inputmode="numeric">
+      <label for="core-disk-heads">Heads</label>
+      <input id="core-disk-heads" type="number" min="1" step="1" inputmode="numeric">
+      <label for="core-disk-sectors">Sectors per track</label>
+      <input id="core-disk-sectors" type="number" min="1" step="1" inputmode="numeric">
+      <button id="core-disk-geometry-save" class="button" type="button">Override disk geometry</button>
+      <button id="core-disk-geometry-infer" class="button secondary" type="button">Use partition table geometry</button>
     </fieldset>
     <fieldset>
       <legend>Create a new title</legend>
