@@ -315,7 +315,11 @@ func (a *App) roomSessionMatchesLocked(action rooms.Action) bool {
 }
 
 // Physical Home remains a single-key chrome route even when a described
-// keyboard is attached. The letter h keeps its ordinary core meaning.
+// keyboard is attached. The letter h keeps its ordinary core meaning. When no
+// playing room can open (for example a menu-display kit running a package
+// without the session-display plane), Home and F12 stop the session as the
+// Select+Start hold does, so a keyboard alone can always stop play (#1561).
+// A Coleco session keeps its selector status instead.
 func (a *App) handlePlayingRoomKey(name string, down bool, now time.Time) bool {
 	if a == nil || !strings.EqualFold(strings.TrimSpace(name), "home") {
 		return false
@@ -326,15 +330,49 @@ func (a *App) handlePlayingRoomKey(name string, down bool, now time.Time) bool {
 		return false
 	}
 	if !a.playingHardwareRoomAvailableLocked() {
-		if down && a.colecoSessionLocked() {
-			a.noteActivityLocked(now)
-			a.status = colecoSelectorUnavailableStatus
+		if a.colecoSessionLocked() {
+			if down {
+				a.noteActivityLocked(now)
+				a.status = colecoSelectorUnavailableStatus
+			}
+			return true
 		}
-		return a.colecoSessionLocked()
+		return a.stopWithoutRoomLocked(down, now)
 	}
 	if down {
 		a.noteActivityLocked(now)
 		a.openPlayingHardwareRoomLocked()
+	}
+	return true
+}
+
+// RequestRoomlessStop is a pad Guide press on a host session no playing room
+// can open. It takes the Select+Start exit, as Home and F12 do there (#1561).
+// It reports whether the press was used.
+func (a *App) RequestRoomlessStop(now time.Time) bool {
+	if a == nil {
+		return false
+	}
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	if a.session.State != "active" || a.sessionDisplayBusy || a.stopPhase == "stopping" || a.retryStopLock || a.tapePickerOpen || a.roomDuringPlay {
+		return false
+	}
+	if a.playingHardwareRoomAvailableLocked() || a.colecoSessionLocked() {
+		return false
+	}
+	return a.stopWithoutRoomLocked(true, now)
+}
+
+// stopWithoutRoomLocked stops an active host session that has no playing room
+// on the down edge, releasing the kit lease like the Select+Start hold.
+func (a *App) stopWithoutRoomLocked(down bool, now time.Time) bool {
+	if a.firmwarePickerOpen || a.localCoreBusyLocked() {
+		return false
+	}
+	if down {
+		a.noteActivityLocked(now)
+		a.startReleaseStopLocked()
 	}
 	return true
 }
