@@ -24,7 +24,7 @@ timing, rules and outcomes, never on brightness.
 - **Gomoku.**
   - The computer opens at the centre on both.
   - Every result matches a five in a row on the final board.
-  - White wins 84% of kit games and 88% of Hatari games.
+  - White wins 84% of kit games and 88% of Hatari games (14 of 16).
   - Three kit games end on final boards identical to two of Hatari's.
 
 Nothing else is owed on #1528. Work that continues elsewhere:
@@ -121,18 +121,30 @@ further into the level, which depends on input timing.
 - The computer (Black) opens at the centre.
 - Every declared result has the winner's five in a row on the final board.
 - White's win share agrees within 20 points.
-- At least one final board is identical between kit and Hatari.
+- Identical final boards are supporting evidence, not a requirement, because
+  the computer's choice varies between launches.
 
-**Hatari.** [`hgomoku.py`](hgomoku.py) played eight games. Each one is a cold
+**Hatari.** [`hgomoku.py`](hgomoku.py) played two runs of eight games. Each one is a cold
 reset, then File > Open of drive A and `GOMOKU.PRG` with the mouse. Then
 [`gomoku_h.py`](gomoku_h.py) plays White: it is the kit's `gomoku.py` with
 the same board reader and move rule, taking frames from Hatari and moving
 Hatari's mouse.
 
-- Seven games ended in "Game won by White", with 19, 20, 10, 10, 7, 9 and 45
-  White stones.
-- Game 7 ended in "Game won by Black", with 15 White stones.
-- Board play totals 15:18.
+- **First run, `gx` (22:35–23:02).**
+  - Seven games ended in "Game won by White", with 19, 20, 10, 10, 7, 9 and
+    45 White stones.
+  - Game 7 ended in "Game won by Black", with 15 White stones.
+  - Board play totals 15:18.
+- **Rerun, `gy` (23:19–23:45).** The first run's helper could hand back the
+  previous screenshot, because it reused one file name (Codex review). The
+  fixed helper deletes the file before each screenshot.
+  - Seven games ended in "Game won by White", with 7, 25, 20, 13, 8, 6 and 8
+    White stones.
+  - Game 5 ended in "Game won by Black", with 15 White stones.
+  - Board play totals 12:12.
+- **Why the first run still counts.** In the first run, each end frame was
+  taken 20 s or more after the last stone. A stale read could only be an
+  earlier frame of the same finished board, so its boards still count.
 
 **Comparison.** The kit pool is `g3` and `g4` from the 7 November record and
 `m1` and `m2` from the main-package record: 32 decided games.
@@ -140,15 +152,16 @@ Hatari's mouse.
 | | White wins | Black wins |
 | --- | --- | --- |
 | Kit | 27 (84%) | 5 |
-| Hatari | 7 (88%) | 1 |
+| Hatari, both runs | 14 (88%) | 2 |
 
-- **Identical final boards.** Hatari's game 6 ended on exactly the same board
-  as kit games `g3` #5 and #9. Hatari's game 7, a Black win, ended on exactly
-  the same board as kit game `g4` #1. So the program on the kit chose the
-  same moves as in Hatari.
+- **Identical final boards.** In the first run, Hatari's game 6 ended on
+  exactly the same board as kit games `g3` #5 and #9. Its game 7, a Black win,
+  ended on exactly the same board as kit game `g4` #1. So the program on the
+  kit chose the same moves as in Hatari. The rerun's eight boards have no
+  exact kit match.
 - **Opening.** Black opens at the centre (7,7) on both.
-- **Results.** Every result reads as a five in a row of the winner's colour
-  on the final board.
+- **Results.** In all 16 Hatari games and the 32 decided kit games, every
+  result reads as a five in a row of the winner's colour on the final board.
 
 **Observation.** At boot the kit opens the `A:\` window that the disk's
 `DESKTOP.INF` saves (`#W … A:\*.*`). Hatari 2.4.1 didn't, in three boots with

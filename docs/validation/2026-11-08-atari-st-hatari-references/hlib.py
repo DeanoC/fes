@@ -3,18 +3,22 @@
   (240,105) on a white 960x540 canvas, so the kit's 960x540 readers (gomoku.py board(), st_xy) apply unchanged.
 - goto(N, fx, fy, tx, ty, click): relative host mouse moves of 2 px per ST count (Hatari window zoom 2), then a click.
 - key(N, keysym, hold): host key down/up (joystick 1 = cursor keys, fire = Right Ctrl with --joy1 keys)."""
-import subprocess, time
+import os, subprocess, time
 H = '/home/deano/fes-scratch/st1528/hat'
 def sh(n, *cmd): return subprocess.run(['docker', 'exec', f'st1528-x-{n}', *cmd], capture_output=True, text=True).stdout
 def fifo(n, line): open(f'{H}/{n}/fifo', 'w').write(line + '\n')
 def shot(n, name):
-    p = f'{H}/{n}/{name}.png'; fifo(n, f'hatari-debug screenshot /w/hat/{n}/{name}.png')
-    for _ in range(50):
-        time.sleep(0.1)
+    # Remove the target first, so the wait below only accepts the screenshot just requested (Codex review, PR #1585).
+    p = f'{H}/{n}/{name}.png'
+    try: os.remove(p)
+    except FileNotFoundError: pass
+    fifo(n, f'hatari-debug screenshot /w/hat/{n}/{name}.png')
+    for _ in range(100):
+        time.sleep(0.05)
         try:
             if open(p, 'rb').read()[-8:-4] == b'IEND': return p
         except OSError: pass
-    return p
+    raise RuntimeError(f'no screenshot {p}')
 def live(n):
     p = shot(n, 'live-src'); out = f'{H}/{n}/live.png'
     subprocess.run(['ffmpeg', '-loglevel', 'error', '-y', '-i', p, '-vf', 'scale=480:300:flags=neighbor,pad=960:540:240:105:white', out])
