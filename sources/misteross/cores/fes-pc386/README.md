@@ -27,7 +27,7 @@ Quartus 17.0.2.
 | [`rtl/pc386_vga_scanout.sv`](rtl/pc386_vga_scanout.sv) | CRTC raster at the guest dot clock, line prefetch, attribute controller, DAC, capture writer |
 | [`rtl/pc386_presenter.sv`](rtl/pc386_presenter.sv) | Area-weighted scaling of the newest capture to 960 x 720 in the 720p raster |
 | [`rtl/pc386_plane_bridge.sv`](rtl/pc386_plane_bridge.sv) | The display plane's reads on port 2: clock crossing, 128-to-64-bit beats, the plane's port guard |
-| [`rtl/pc386_ems.sv`](rtl/pc386_ems.sv) | The [EMS board](../../docs/pc386-machine-design.md#ems-board): four write-only page registers (260h-263h) and the E0000h frame's single beats into board memory at window offset 20 MiB on port 2 |
+| [`rtl/pc386_ems.sv`](rtl/pc386_ems.sv) | The [EMS board](../../docs/pc386-machine-design.md#ems-board): four write-only page registers (260h-263h), and the E0000h frame's CPU accesses and 8237 cycles as single beats into board memory at window offset 20 MiB on port 2 |
 | [`rtl/pc386_port2.sv`](rtl/pc386_port2.sv) | DDR port 2 arbiter: plane, presenter, capture, the EMS board, then the shell's reads and single-beat writes |
 | [`rtl/pc386_machine.sv`](rtl/pc386_machine.sv) | The machine without the CPU: AT core, VGA, EMS board, presenter, port 2, display plane |
 | [`rtl/pc386_ram.sv`](rtl/pc386_ram.sv) | Inferred RAMs and FIFOs: one clock, two clocks, show-ahead |
@@ -51,7 +51,7 @@ Quartus 17.0.2.
 | [`sim/system_tb.cpp`](sim/system_tb.cpp) | `pc386_system` with all three DDR ports on one window model, and a host that launches and stops it as libmister-runtime does, through the mailbox and the window |
 | [`sim/rtl_stop_test.asm`](sim/rtl_stop_test.asm) | The stop test disk: SMSW and MOV CR0 stops, LMSW, and the protected-mode oracle stretch for `--cpu rtl` |
 | [`sim/devices_tb.cpp`](sim/devices_tb.cpp) | Directed checks of the AT core through its I/O port |
-| [`sim/ems_tb.cpp`](sim/ems_tb.cpp) | The EMS board alone on the port 2 model: directed cases and a random run against a reference board (`benches` suite) |
+| [`sim/ems_tb.cpp`](sim/ems_tb.cpp) | The EMS board alone on the port 2 model: directed cases, DMA cycles and a random run against a reference board (`benches` suite) |
 | [`sim/fesems.asm`](sim/fesems.asm) | FESEMS.SYS, the EMS board's LIM 4.0 driver ([EMS driver](#ems-driver)) |
 | [`sim/ems_test.asm`](sim/ems_test.asm) | EMSTEST.COM, the `ems` suite's check of the board and driver through INT 67h on boot menu entry 3 |
 | [`sim/keyboard_tb.cpp`](sim/keyboard_tb.cpp) | The host keyboard model alone: every usage, the order of a change, the 1 ms rule, typematic timing |

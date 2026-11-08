@@ -55,10 +55,9 @@
 // PC386_TRACE_IO=1 prints every I/O but port 80h to stderr.
 // --ems-pages is the EMS board's size in 16 KiB pages, 128 (2 MiB, the
 // machine's) by default and 0 for no board. With a board, E0000h-EFFFFh is
-// MMIO into the RTL board for either CPU, whose memory is port 2's model, and
-// an 8237 cycle there reads FFh and writes nothing, as the CPU's DMA port does
-// outside RAM. It prints at the end:
-//   EMS pages=<n> reads=<n> writes=<n> dma=<n>   frame accesses and DMA cycles into the frame
+// MMIO into the RTL board for either CPU, whose memory is port 2's model; the
+// machine itself sends 8237 cycles there to the board. It prints at the end:
+//   EMS pages=<n> reads=<n> writes=<n>   the CPU's frame accesses
 // --preset, --frequency and --turbo are --cpu rtl's governor settings
 // (fes_i386_governor; fes.pc386.machine words 0, 1 and 3), max by default.
 //
@@ -282,7 +281,7 @@ public:
     fes_i386::PageMemory rom_vga{0x8000};
     std::vector<uint8_t> image;
     unsigned ems_pages;
-    uint64_t ems_reads = 0, ems_writes = 0, ems_dma = 0;  // frame accesses; DMA cycles into the frame
+    uint64_t ems_reads = 0, ems_writes = 0;  // the CPU's frame accesses
     uint16_t cylinders = 0;
     uint8_t heads = 0, spt = 0;
     uint64_t cycles = 0;
@@ -375,10 +374,7 @@ public:
             if (top.dma_valid && !top.dma_done) {
                 dma_pending = true;
                 uint32_t address = top.dma_address & (RAM_BYTES - 1);
-                if (in_frame(address)) {
-                    ++ems_dma;
-                    top.dma_rdata = 0xff;
-                } else if (top.dma_write) ram[address] = top.dma_wdata;
+                if (top.dma_write) ram[address] = top.dma_wdata;
                 else top.dma_rdata = ram[address];
             }
             top.flush_done = top.flush_request;
@@ -923,7 +919,6 @@ public:
         // Attribute a DMA write like the lockstep harness: when WB is open,
         // it must restart the next instruction; during an instruction that
         // instruction is allowed to finish.
-        if (cpu.dma_done && m.in_frame(physical(dma_address, a20m))) ++m.ems_dma;
         if (cpu.dma_done && dma_write && !resetting) {
             const uint32_t at = physical(dma_address, a20m);
             if (smc_cycle.store(at, dma_owner, current)) {
@@ -1890,9 +1885,8 @@ int main(int argc, char **argv) {
         if (snap_failures) reason = "presenter-mismatch";
         if (!options.wav.empty()) write_wav(options.wav, machine.link.samples);
         std::printf("MOUSE sent=%zu scheduled=%zu\n", mouse_sent, options.mouse.size());
-        std::printf("EMS pages=%u reads=%llu writes=%llu dma=%llu\n", machine.ems_pages,
-                    (unsigned long long)machine.ems_reads, (unsigned long long)machine.ems_writes,
-                    (unsigned long long)machine.ems_dma);
+        std::printf("EMS pages=%u reads=%llu writes=%llu\n", machine.ems_pages,
+                    (unsigned long long)machine.ems_reads, (unsigned long long)machine.ems_writes);
         std::printf("END %s steps=%llu cycles=%llu seconds=%.3f\n", reason, steps,
                     (unsigned long long)machine.cycles, seconds);
         if (!options.disk_out.empty())

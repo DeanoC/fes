@@ -159,6 +159,18 @@ module pc386_machine #(
     wire ems_reg_write;
     wire [1:0] ems_reg_index;
     wire [7:0] ems_reg_wdata;
+    // The 8237's memory cycles: into the EMS board's frame when it is fitted,
+    // else to the CPU's DMA port.
+    wire at_dma_valid, at_dma_write, at_dma_done, ems_dma_done;
+    wire [23:0] at_dma_address;
+    wire [7:0] at_dma_wdata, at_dma_rdata, ems_dma_rdata;
+    wire dma_in_frame = ems_pages != 8'd0 && at_dma_address[23:16] == 8'h0e;
+    assign dma_valid = at_dma_valid && !dma_in_frame;
+    assign dma_write = at_dma_write;
+    assign dma_address = at_dma_address;
+    assign dma_wdata = at_dma_wdata;
+    assign at_dma_done = dma_in_frame ? ems_dma_done : dma_done;
+    assign at_dma_rdata = dma_in_frame ? ems_dma_rdata : dma_rdata;
     pc386_at_core #(
         .ISA_N(ISA_N), .ISA_D(ISA_D), .PIT_N(PIT_N), .PIT_D(PIT_D), .RTC_N(RTC_N), .RTC_D(RTC_D),
         .US_N(US_N), .US_D(US_D), .DMA_N(DMA_N), .DMA_D(DMA_D), .ATA_RESET_CLOCKS(ATA_RESET_CLOCKS)
@@ -168,8 +180,8 @@ module pc386_machine #(
         .inta_valid(inta_valid), .io_busy(io_busy), .io_done(io_done), .inta_done(inta_done),
         .io_rdata(io_rdata), .inta_vector(inta_vector), .intr(intr), .a20m(a20m),
         .cpu_shutdown(cpu_shutdown), .flush_request(flush_request), .flush_done(flush_done), .cpu_reset(cpu_reset),
-        .dma_valid(dma_valid), .dma_write(dma_write), .dma_address(dma_address), .dma_wdata(dma_wdata),
-        .dma_done(dma_done), .dma_rdata(dma_rdata), .dma_drq(dma_drq),
+        .dma_valid(at_dma_valid), .dma_write(at_dma_write), .dma_address(at_dma_address),
+        .dma_wdata(at_dma_wdata), .dma_done(at_dma_done), .dma_rdata(at_dma_rdata), .dma_drq(dma_drq),
         .dma_ack_valid(dma_ack_valid), .dma_ack_write(dma_ack_write), .dma_ack_tc(dma_ack_tc),
         .dma_ack_channel(dma_ack_channel), .dma_ack_wdata(dma_ack_wdata), .dma_ack_done(dma_ack_done),
         .dma_ack_rdata(dma_ack_rdata),
@@ -220,6 +232,8 @@ module pc386_machine #(
         .mem_valid(mem_valid && ems_select), .mem_write(mem_write), .mem_address(mem_address[15:2]),
         .mem_byteenable(mem_byteenable), .mem_wdata(mem_wdata), .mem_ready(ems_ready),
         .mem_rvalid(ems_rvalid), .mem_rdata(ems_rdata),
+        .dma_valid(at_dma_valid && dma_in_frame), .dma_write(at_dma_write), .dma_address(at_dma_address[15:0]),
+        .dma_wdata(at_dma_wdata), .dma_done(ems_dma_done), .dma_rdata(ems_dma_rdata),
         .p2_address(ems_address), .p2_read(ems_read), .p2_write(ems_write), .p2_writedata(ems_writedata),
         .p2_byteenable(ems_byteenable), .p2_waitrequest(ems_waitrequest), .p2_readdata(p2_readdata),
         .p2_readdatavalid(ems_readdatavalid)

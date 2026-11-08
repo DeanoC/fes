@@ -1,7 +1,8 @@
 // SPDX-License-Identifier: MIT
 // pc386 EMS board bench: rtl/pc386_ems.sv on pc386_ddr_model.h's port 2.
 //
-// Directed cases, then a random run against a reference board: page
+// Directed cases, DMA cycles into the frame, then a random run against a
+// reference board: page
 // registers written at random (in and out of range), frame reads and writes
 // with random byte enables, each read compared with the reference, and the
 // DDR window compared byte for byte at the end. The window outside the
@@ -50,6 +51,25 @@ public:
         top.eval();
         top.reg_write = 0;
         top.mem_valid = 0;
+    }
+    // One 8237 memory cycle: valid held until done, as pc386_at_core holds it.
+    uint8_t dma(bool write, uint32_t offset, uint8_t value = 0) {
+        top.dma_valid = 1;
+        top.dma_write = write;
+        top.dma_address = offset & 0xffff;
+        top.dma_wdata = value;
+        for (uint64_t start = cycles;;) {
+            top.clk = 0;
+            top.eval();
+            const bool done = top.dma_done;
+            const uint8_t data = top.dma_rdata;
+            step();
+            if (done) {
+                top.dma_valid = 0;
+                return data;
+            }
+            if (cycles - start > 10000) throw std::runtime_error("DMA cycle not done");
+        }
     }
     void set_register(unsigned index, uint8_t value) {
         top.reg_write = 1;
@@ -156,6 +176,25 @@ void directed() {
     check(b.access(false, 0x0010, 0xf) == 0xffffffffu, "machine reset returns every register to FFh");
 }
 
+void dma() {
+    Bench b(128);
+    b.set_register(1, 7);
+    b.dma(true, 0x4013, 0xab);
+    b.dma(true, 0x4016, 0xcd);
+    b.drain();
+    const bool bytes = b.board(7, 0x13) == 0xab && b.board(7, 0x16) == 0xcd && b.board(7, 0x12) == 0 &&
+                       b.board(7, 0x14) == 0 && b.board(7, 0x17) == 0;
+    check(bytes, "DMA writes into the frame land as single bytes on the mapped board page");
+    check(b.dma(false, 0x4013) == 0xab && b.dma(false, 0x4016) == 0xcd &&
+              b.access(false, 0x4014, 0xf) == 0x00cd0000,
+          "DMA reads return the byte, and the CPU sees the DMA's bytes");
+    const uint64_t before = b.ddr.commands;
+    const uint8_t value = b.dma(false, 0xc000);
+    b.dma(true, 0xc000, 0x55);
+    b.drain();
+    check(value == 0xff && b.ddr.commands == before, "DMA into an unmapped frame page reads FFh, writes nothing");
+}
+
 void not_fitted() {
     Bench b(0);
     for (unsigned n = 0; n < 4; ++n) b.set_register(n, uint8_t(n));
@@ -226,6 +265,7 @@ int main(int argc, char **argv) {
     Verilated::commandArgs(argc, argv);
     try {
         directed();
+        dma();
         not_fitted();
         random_run(128, 0x0e350001, 40000);
         random_run(255, 0x0e350002, 40000);

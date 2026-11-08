@@ -835,8 +835,8 @@ def run_ems(args, linked: list[Path]) -> dict:
     if unsupported != ['FESEMS: function 5500']:
         failures.append(f'unexpected FESEMS lines: {unsupported}')
     ems = run.get('ems') or {}
-    if not ems.get('reads') or not ems.get('writes') or ems.get('dma'):
-        failures.append(f'the board saw no frame traffic, or DMA into the frame: {ems}')
+    if not ems.get('reads') or not ems.get('writes'):
+        failures.append(f'the board saw no frame traffic: {ems}')
     if rtl:
         failures += rtl_failures(run, 'EMS run')
     return {'run': run, 'checks': checks + [f'EMS board: {ems}'], 'failures': failures}

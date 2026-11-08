@@ -1380,16 +1380,14 @@ its defaults (E000h, 260h, pages from 0).
   function returns 84h and writes `FESEMS: function <AX>` to port E9h, so a
   bench run names it.
 
+**DMA.** An ISA DMA cycle to E0000h–EFFFFh on an AT reaches the board, so a
+Sound Blaster can play straight from a mapped EMS page. The machine sends the
+8237's memory cycles in the frame to the board, one byte each, instead of to
+the CPU's DMA port (which would treat the MMIO frame as a hole); the rest go
+to the CPU as before. The frame is uncached, so no cache holds a stale copy.
+
 ### Deviations
 
-- **DMA into the frame.** An ISA DMA cycle to E0000h–EFFFFh on an AT reaches
-  the board. Here the 8237's memory cycles go through the CPU's DMA port,
-  which reads FFh and drops writes outside RAM, so DMA into or out of the
-  frame does not work. The oracle bench counts DMA cycles into the frame and
-  prints them; none of the four titles makes one
-  ([record](../../../docs/validation/2026-11-08-pc386-ems-board/summary.md)).
-  A title that needs it would move the board's frame decode into the CPU's
-  DMA path.
 - **Timing.** The board's DDR round trip, not an 8-bit ISA memory cycle, sets
   a frame access's device time. The governor's ISA charge under a preset is
   the period behaviour software can time.

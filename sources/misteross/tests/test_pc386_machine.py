@@ -319,7 +319,7 @@ class EmsTestTest(unittest.TestCase):
         def run_machine(testbench, name, arguments, images):
             captured['arguments'] = arguments
             return {'debug': [{'port': '0e9', 'text': line} for line in lines], 'failures': [],
-                    'ems': ems if ems is not None else {'pages': 128, 'reads': 10, 'writes': 10, 'dma': 0},
+                    'ems': ems if ems is not None else {'pages': 128, 'reads': 10, 'writes': 10},
                     'rtl': {'counters': {'retired': 1000, 'oracle_steps': 0, 'protected_steps': 0},
                             'stops': [], 'gaps': []}}
         args = mock.Mock(cpu=cpu, download=False, jobs=1, limit_seconds=12)
@@ -336,13 +336,13 @@ class EmsTestTest(unittest.TestCase):
         self.assertEqual(failures, [])
         self.assertIn(f'{sim.BOOT_MENU_KEY_SECONDS}:3', arguments)
 
-    def test_failures_dma_and_other_unsupported_functions_fail(self):
+    def test_failures_idle_boards_and_other_unsupported_functions_fail(self):
         lines = [f'EMS {name} ok' for name in sim.EMS_CHECKS] + ['FESEMS: function 5500']
         lines[3] = 'EMS allocate FAIL step 01'
         self.assertIn('EMS allocate FAIL step 01', self.run_suite(lines)[0])
         good = [f'EMS {name} ok' for name in sim.EMS_CHECKS] + ['FESEMS: function 5500']
         self.assertTrue(self.run_suite(good + ['FESEMS: function 5600'])[0])
-        self.assertTrue(self.run_suite(good, ems={'pages': 128, 'reads': 10, 'writes': 10, 'dma': 3})[0])
+        self.assertTrue(self.run_suite(good, ems={'pages': 128, 'reads': 0, 'writes': 10})[0])
 
 
 class C2xxTestTest(unittest.TestCase):
@@ -705,7 +705,7 @@ class PresenterBenchTest(unittest.TestCase):
 
     def test_ems_board_matches_its_reference(self):
         report = self.bench('ems', 'pc386_ems', sim.EMS_RTL, sim.CORE / 'sim/ems_tb.cpp')
-        self.assertEqual(len(report['checks']), 11)
+        self.assertEqual(len(report['checks']), 14)
 
 
 class Port2SynthesisHarnessTest(unittest.TestCase):
