@@ -149,7 +149,7 @@ constexpr uint32_t MMIO_LO = 0xa0000, MMIO_HI = 0xc0000;  // the MMIO window, wh
 // pointers land there runs astray (Outcome::stray).
 constexpr uint32_t MIX_LO = 0xb8000, MIX_HI = 0xbc000, ROM_LO = 0xc0000, HOLE_LO = 0xc4000, HOLE_HI = 0xc8000;
 // The random programs' page directory and its four tables (Generator::pg_tables).
-constexpr uint32_t PG_PD = 0xf00000, PG_END = PG_PD + 0x5000;
+constexpr uint32_t PG_PD = 0xf00000, PG_END = PG_PD + 0x5000, PG_ARENA = 0x200000;
 bool mixed = false;
 uint8_t device_read(uint32_t paddr, uint8_t written) {
     return mixed && paddr >= MIX_LO && paddr < MIX_HI ? uint8_t(written ^ ((paddr * 0x9e3779b1u) >> 24 | 1)) : written;
@@ -4410,7 +4410,13 @@ private:
             put(PG_PD + 4 * k, (PG_PD + 0x1000 * (k + 1)) | 0x07 | (pick(2) ? 0x20 : 0));
         for (uint32_t page = 0; page < 0x1000; ++page) {
             uint32_t pte = page << 12 | 0x07 | (pick(2) ? 0x20 : 0) | (pick(4) == 0 ? 0x40 : 0);
-            if (!keep(page) && pick(64) == 0) pte &= ~uint32_t(1u << pick(3));  // not present, read-only or supervisor
+            if (!keep(page) && pick(8) == 0) pte &= ~uint32_t(1u << pick(3));  // not present, read-only or supervisor
+            // The arena (PG_ARENA, which descriptor 1 reaches a third of the
+            // time): 16 pages over 8 frames, so two linear pages often
+            // alias, each present three times in four, its R/W and U/S at
+            // random.
+            if (page >= (PG_ARENA >> 12) && page < (PG_ARENA >> 12) + 16)
+                pte = ((PG_ARENA >> 12) + pick(8)) << 12 | (pick(4) ? 1 : 0) | pick(4) << 1 | pick(4) << 5;
             put(PG_PD + 0x1000 + 4 * page, pte);
         }
     }
@@ -4484,7 +4490,7 @@ private:
         auto acc = [&]() { return uint8_t(pick(2)); };
         auto rnd_base = [&]() { return uint32_t(pick(0x10000)) << 4; };
         gdt[0] = Desc{0, 0, false, false, 0};
-        gdt[1] = Desc{rnd_base(), 0xffff, false, false, uint8_t(0x92 | acc())};
+        gdt[1] = Desc{pick(3) ? rnd_base() : PG_ARENA + uint32_t(pick(0x8000)), 0xffff, false, false, uint8_t(0x92 | acc())};
         gdt[2] = Desc{0, 0xfffff, true, false, uint8_t(0x92 | acc())};
         gdt[3] = Desc{0, 0xfffff, true, true, uint8_t(0x92 | acc())};
         gdt[4] = Desc{rnd_base(), pick(2) ? 0xffffu : pick(0x10000), pick(4) == 0, false, uint8_t(0x90 | acc())};
@@ -4604,6 +4610,64 @@ private:
     }
     // FS as the flat data segment, for the scratch area.
     void flat_fs() { load_seg(4, 0x10); }
+    // Paging on: accesses into the arena (PG_ARENA) through the flat FS (and
+    // ES), often across a page's end: loads, stores and read-modify-writes
+    // of each size, REP STOS and MOVS, and CR3 written again (a flush).
+    void pg_burst() {
+        flat_fs();
+        for (unsigned n = 2 + pick(6); n > 0; --n) {
+            const uint32_t a = pick(3) ? PG_ARENA + pick(0x10000) : PG_ARENA + 0x1000 * pick(16) + 0xffc + pick(4);
+            const uint8_t reg = uint8_t(std::array<unsigned, 4>{0, 1, 2, 3}[pick(4)]);
+            std::vector<uint8_t> op;
+            bool str = false;
+            switch (pick(7)) {
+            case 0: case 1:  // MOV r, FS:[a] or MOV FS:[a], r, 16 or 32 bits, or a byte
+                if (pick(2)) op.push_back(0x66);
+                op.insert(op.end(), {0x64, 0x67, uint8_t((pick(2) ? 0x8a : 0x88) | (pick(3) ? 1 : 0)), uint8_t(reg << 3 | 5)});
+                put32(op, a);
+                break;
+            case 2:  // INC or NOT FS:[a]
+                if (pick(2)) op.push_back(0x66);
+                op.insert(op.end(), {0x64, 0x67, uint8_t(pick(2) ? 0xff : 0xf7), uint8_t(pick(2) ? 0x05 : 0x15)});
+                put32(op, a);
+                break;
+            case 3: case 4: {  // REP STOS or MOVS of a few elements, ES and the source FS's
+                load_seg(0, 0x10);
+                std::vector<uint8_t> setup{0x66, 0xbf};
+                put32(setup, a);
+                setup.insert(setup.end(), {0x66, 0xbe});
+                put32(setup, PG_ARENA + pick(0x10000));
+                setup.insert(setup.end(), {0x66, 0xb9});
+                put32(setup, 1 + pick(12));
+                setup.push_back(pick(2) ? 0xfc : 0xfd);  // CLD or STD
+                emit(setup);
+                if (pick(2)) op = {0xf3, 0x67, uint8_t(pick(2) ? 0xaa : 0xab)};
+                else op = {0x64, 0xf3, 0x67, uint8_t(pick(2) ? 0xa4 : 0xa5)};
+                if (pick(3) == 0) op.insert(op.begin(), 0x66);
+                str = true;
+                break;
+            }
+            case 5: {  // CR3 again
+                std::vector<uint8_t> cr3{0x66, 0xb8};
+                put32(cr3, PG_PD);
+                emit(cr3);
+                op = {0x0f, 0x22, 0xd8};
+                break;
+            }
+            default:  // PUSH FS:[a], POP FS:[a]
+                if (pick(2)) {
+                    op = {0x64, 0x67, 0xff, 0x35};
+                } else {
+                    emit({0x6a, 0x00});  // PUSH 0: a slot to pop
+                    op = {0x64, 0x67, 0x8f, 0x05};
+                }
+                put32(op, a);
+                break;
+            }
+            emit(op);
+            if (str) emit({0xfc});  // CLD
+        }
+    }
     // The scratch area's dword at k, through FS: 64h 67h, ModRM mod 00
     // r/m 101 and a 32-bit displacement.
     void scratch_modrm(std::vector<uint8_t> &out, uint8_t op, unsigned reg, unsigned k) {
@@ -5219,7 +5283,7 @@ private:
             emit({0xbb, 0x88, 0x00});        // MOV BX, 88h
             emit({0x0f, 0x00, 0xd3});        // LLDT BX
         }
-        if (pick(3) == 0) {  // paging on: CR3 at the tables, then PG
+        if (pick(2) == 0) {  // paging on: CR3 at the tables, then PG
             pg_tables();
             std::vector<uint8_t> cr3{0x66, 0xb8};
             put32(cr3, PG_PD);
@@ -5243,7 +5307,10 @@ private:
                 else load_seg(pick(2) ? 3 : 0, uint16_t((1 + pick(6)) << 3 | 4));
                 break;
             case 0: case 1: case 2: case 3: pm_seg_load(); break;
-            case 4: case 5: pm_access(); break;
+            case 4: case 5:
+                if (pg_on && pick(3)) pg_burst();
+                else pm_access();
+                break;
             case 6: {  // CR and table reads and writes
                 switch (pick(6)) {
                 case 0: emit({0x0f, 0x01, uint8_t(0xe0 | pick(8))}); break;            // SMSW r16
