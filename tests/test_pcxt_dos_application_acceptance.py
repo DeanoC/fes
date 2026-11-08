@@ -429,8 +429,13 @@ class InputSafetyTest(unittest.TestCase):
     def test_persistent_empty_selection_expires_without_input(self):
         self.runner.api.health['target']['software']['selected'] = ''
         clock = [0.0]
+        # Exercise the observation phase with one fake clock. Forking copies
+        # that clock and lets parent cleanup polling advance it independently;
+        # HardDeadlineTest covers real child retirement and its separate bound.
         with mock.patch.object(app.time, 'monotonic', side_effect=lambda: clock[0]), \
-             mock.patch.object(app.time, 'sleep', side_effect=lambda delay: clock.__setitem__(0, clock[0] + delay)):
+             mock.patch.object(app.time, 'sleep', side_effect=lambda delay: clock.__setitem__(0, clock[0] + delay)), \
+             mock.patch.object(app, '_hard_deadline_observation',
+                               side_effect=lambda observe, seconds=5.0: observe(app.time.monotonic() + seconds)):
             with self.assertRaisesRegex(app.pa.AcceptanceError, 'deadline'):
                 app.type_keys(self.runner, self.owned, self.args, self.disk_sha, 'input-1', [], (0x0e,))
         self.assertLessEqual(clock[0], 5.000001)
