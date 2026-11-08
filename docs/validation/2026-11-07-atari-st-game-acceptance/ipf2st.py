@@ -90,7 +90,8 @@ for ipf in sys.argv[3:]:
                 for idt, d, a, b in secs:
                     if not (a and b) or idt[0] != cyl or idt[1] != head or idt[3] != 2 or not 1 <= idt[2] <= spt:
                         problems.append(f'odd sector c{cyl}h{head} id{idt} idcrc={a} datacrc={b}'); continue
-                    if idt[2] in got and got[idt[2]] != d: problems.append(f'conflicting dup c{cyl}h{head}r{idt[2]}')
+                    if idt[2] in got:
+                        problems.append(f'duplicate sector c{cyl}h{head}r{idt[2]}' + ('' if got[idt[2]] == d else ' with different data')); continue
                     got[idt[2]] = d
                 for r in range(1, spt + 1):
                     if r not in got: problems.append(f'missing c{cyl}h{head}r{r}'); img += bytes(512)

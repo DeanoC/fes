@@ -297,7 +297,10 @@ host. Results:
   when it starts, so a wandering character ended in another room. Hatari
   reproduces that save byte for byte, so the bytes are not a core defect.
 - **Gomoku and Renju (mouse).** Passes two Kit A runs: launched from the GEM
-  desktop with the mouse, then three games won to "Game won by White" in each.
+  desktop with the mouse, then complete games played to their result (three
+  in the first run, nine in the second). An earlier second run won its games
+  but had only about 6 minutes of play, so it is INCONCLUSIVE and was
+  replaced.
 - **Logical (mouse).** Launches from the GEM desktop with the mouse, but play
   was never started, so the case is INCONCLUSIVE.
 - **Terramex (disk swap, joystick).** Passes two launches on Kit B. At the
@@ -311,8 +314,8 @@ Still owed:
 - A disk swap from tenfoot. The ST package has no session display, so today
   an ST disk is swapped only through the host API.
 - Runs on a seal of main's ST tree. The ST producer stopped at its source read
-  audit on 7 November; the open PR #1544 fixes it and seals main's tree as
-  `1f3b21b7…`.
+  audit on 7 November; #1544 (merged 8 November) fixed it and sealed main's
+  tree as `1f3b21b7…`, so only the rerun remains.
 
 ## PC/XT development packages
 

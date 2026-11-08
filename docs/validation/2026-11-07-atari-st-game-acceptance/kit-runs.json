@@ -3,11 +3,39 @@
   "issue": "https://github.com/DeanoC/fes/issues/1528",
   "scope": "Atari 520ST: 8 MHz 68000, 512 KiB, DE10-Nano",
   "matrix_published": "https://github.com/DeanoC/fes/issues/1528#issuecomment-6707411136",
-  "kit": "B",
-  "baseline": {
-   "software": "a8cd30c49afd79eb7668af7ab7ae8a8e2ed2a90a31b25f164e28128b446274ee",
-   "image": "f904961e008a972db8f06f1bb47aff9631123d67215b9f4157ea1fbee83b98d4",
-   "mode": "core-only: no install, no image change"
+  "kits": {
+   "B": {
+    "baseline": {
+     "software": "a8cd30c49afd79eb7668af7ab7ae8a8e2ed2a90a31b25f164e28128b446274ee",
+     "image": "f904961e008a972db8f06f1bb47aff9631123d67215b9f4157ea1fbee83b98d4",
+     "mode": "core-only: no install, no image change"
+    },
+    "host_target": "kit2",
+    "capture": "4KPRO (fes-4kpro-hil) 1920x1080 frames; play recordings 640x360 h264; audio hw:CARD=D4KPRO stereo 48 kHz",
+    "runs": [
+     "x1",
+     "x2",
+     "x3",
+     "x4",
+     "n1"
+    ]
+   },
+   "A": {
+    "baseline": {
+     "software": "4efd34bfcb9054c9bec267a1a1e3c97079f1cb9a8947a47ee503057c95cda30d",
+     "image": "31b3906330b7b404b21f4ca888d99b860dca1d2742a7ebc3bb204e57053b73ff",
+     "source": "Lander recovery baseline 20:53 EET (main 4b33ec5598c1a6f86ddd883224e2e95d9282e6a7)",
+     "mode": "core-only"
+    },
+    "host_target": "dev (http://fes-kit-a:8182)",
+    "capture": "ShadowCast (fes-shadowcast-hil) 1920x1080 frames; play recordings 640x360 h264; audio hw:CARD=S3 stereo 48 kHz",
+    "runs": [
+     "g1",
+     "g2",
+     "g3",
+     "h3"
+    ]
+   }
   },
   "package": "2dd2271c816ad3eb83fb73be9e47b08431eaadd9a4d12484c4d684259090bdb7",
   "package_file_sha256": "9549c98891c36f156b68ac1ab0d43f8141f762ca71ff3e0bdd289dc8a1a7a6e9",
@@ -18,14 +46,14 @@
    "bytes": 196608,
    "sha256": "c005b0ae8ccd5bf2569add2a0d0a42583b2fb70eec3e1202d82311e96664a88e"
   },
-  "host": "private Powerboat fogcast-api bb51f4454eb72048cefeea16aa16b28eb2aadaad (promoted binary), private HOME, single kit2 target; library title, POST /api/v1/session/launch, /api/v1/session/input/event, /api/v1/session/stop",
-  "capture": "Kit B 4KPRO (fes-4kpro-hil) 1920x1080 frames; play recordings 640x360 h264; audio hw:CARD=D4KPRO stereo 48 kHz",
+  "host": "private Powerboat fogcast-api bb51f4454eb72048cefeea16aa16b28eb2aadaad (promoted binary), private HOME, one kit target per claim (see kits); library title, POST /api/v1/session/launch, /api/v1/session/input/event, /api/v1/session/stop",
   "converter": {
    "script": "ipf2st.py",
-   "script_sha256": "ed2bd6903463fd88c491f5480d9abcf8e53302039dee417a84b34a35264a66f7",
+   "script_sha256": "89a9e9888ed3e872f1c55a00c621c94322366aadac2b7cf38cfa19a901f650bd",
    "decoder": "FrodeSolheim/capsimg ed4cb0912fb1a2a0d5203111c6f6abd50d411b56, private build",
    "decoder_sha256": "9e702ffa36aa5ffc990c8db569133b16ae0aec045e41fc2dc459521d6d7c6623",
-   "triage": "166 of 408 IPFs give a BPB-consistent .st with every sector CRC-good"
+   "triage": "166 of 408 IPFs give a BPB-consistent .st with every sector CRC-good",
+   "duplicate_rule": "any sector ID seen twice on a track is a problem, identical data or not (8 Nov); rerunning all 408 IPFs gives the same 166 images with the same hashes"
   },
   "reference": {
    "emulator": "Hatari 2.4.1 (Debian 2.4.1+dfsg-2)",
@@ -33,12 +61,6 @@
    "options": "--machine st --memsize 0 --cpuclock 8 --cpulevel 0 --compatible on --patch-tos off --fast-boot off --fastfdc off --monitor rgb --tos-res low, TOS 1.04"
   },
   "matrix_amendment": "https://github.com/DeanoC/fes/issues/1528#issuecomment-6711833775",
-  "kit_a_baseline": {
-   "software": "4efd34bfcb9054c9bec267a1a1e3c97079f1cb9a8947a47ee503057c95cda30d",
-   "image": "31b3906330b7b404b21f4ca888d99b860dca1d2742a7ebc3bb204e57053b73ff",
-   "source": "Lander recovery baseline 20:53 EET (main 4b33ec5598c1a6f86ddd883224e2e95d9282e6a7)",
-   "mode": "core-only"
-  },
   "gomoku_player": {
    "script": "gomoku.py",
    "sha256": "c14ba56e128c56f69d2f2b470243a5b88470d31b74c66aceec2f060d6a02e4cd"
@@ -364,7 +386,8 @@
      "g1-game3-end": "9973934ad94877cd5ca4ed0dbf749096cdce9f28f3d28e86434872e555ec2308"
     },
     "play_video_sha256": "144c20c7b26e2d2c7e3f96d521e971e70ceb4d5a08a5ac76f23d23a8a9d72220",
-    "audio_sha256": "c60d535f21b4a9a9c6573011e12dec122d4e6e34ca70c918143a660f9bf2d430"
+    "audio_sha256": "c60d535f21b4a9a9c6573011e12dec122d4e6e34ca70c918143a660f9bf2d430",
+    "play_time": "about 14 min in the program: first board frame 21:17:44 to game 3's last move 21:32:38, less the Stop and relaunch (21:28:13 to the board at 21:29:41); about 8.5 min of that is stone play, the rest Game menu and alert mouse work"
    }
   },
   "g2": {
@@ -374,7 +397,7 @@
    "removed_trees": 2,
    "gomoku": {
     "case": "gomoku run 2",
-    "result": "PASS",
+    "result": "INCONCLUSIVE (short of the 10-minute minimum; replaced by g3)",
     "game_id": "fpga-gomoku-1528-r2-ac2a978d5673",
     "session": "launches 21:35:22, 21:38:11, 21:41:57; games end 21:37:18, 21:41:08, 21:45:10; stop 21:45:29",
     "games": [
@@ -402,7 +425,108 @@
      "g2-game3-end": "1bec116c3e3221e05512a779ff86115f30a53c6346955ac593e42b615ea51d3b"
     },
     "play_video_sha256": "7daf3af0352fe2a905661cda08b7b63e8bab319c3a0f3dd59988ad3e1aafc77e",
-    "audio_sha256": "92f40feb9dfbe412774ec4dd57122ba48fed5423173e13d27decffa09c9a7b94"
+    "audio_sha256": "92f40feb9dfbe412774ec4dd57122ba48fed5423173e13d27decffa09c9a7b94",
+    "play_time": "first board frame to last move per game 0:46, 1:47, 2:02 (4:35); launch to game end 1:56, 2:57, 3:13 (8:06, boot included). The earlier 'about 10 minutes' was the claim's wall clock (Codex review of PR #1540)"
+   }
+  },
+  "g3": {
+   "kit": "A",
+   "date": "2026-11-08",
+   "claimed": "15:02 EET",
+   "released": "15:46 EET",
+   "removed_trees": 2,
+   "gomoku": {
+    "case": "gomoku run 2 (replaces g2)",
+    "result": "PASS",
+    "game_id": "fpga-gomoku-1528-r3-b13871f717bd",
+    "session": "audio and video from 15:03:29; nine Stop + library launch + desktop launch cycles; idle 15:22:30 to 15:34:24 (runner wait-loop slip, not counted); stop 15:45:56",
+    "games": [
+     {
+      "first_board": "15:04:59",
+      "last_move": "15:05:37",
+      "white_moves": 5,
+      "result": "Game won by White"
+     },
+     {
+      "first_board": "15:07:38",
+      "last_move": "15:09:23",
+      "white_moves": 16,
+      "result": "Game won by White"
+     },
+     {
+      "first_board": "15:11:37",
+      "last_move": "15:12:51",
+      "white_moves": 11,
+      "result": "Game won by White"
+     },
+     {
+      "first_board": "15:14:51",
+      "last_move": "15:16:06",
+      "white_moves": 11,
+      "result": "Game won by White"
+     },
+     {
+      "first_board": "15:18:07",
+      "last_move": "15:19:03",
+      "white_moves": 8,
+      "result": "Game won by White"
+     },
+     {
+      "first_board": "15:21:03",
+      "last_move": "15:22:05",
+      "white_moves": 9,
+      "result": "Game won by White"
+     },
+     {
+      "first_board": "15:36:00",
+      "last_move": "15:39:04",
+      "white_moves": 30,
+      "result": "Game won by Black"
+     },
+     {
+      "first_board": "15:41:05",
+      "last_move": "15:42:06",
+      "white_moves": 9,
+      "result": "Game won by White"
+     },
+     {
+      "first_board": "15:44:07",
+      "last_move": "15:45:02",
+      "white_moves": 8,
+      "result": "Game won by White"
+     }
+    ],
+    "board_play": "11 min 50 s (first board frame to last move, summed); about 15.5 min to the result screens",
+    "disk_record_payload_sha256": "0805b45c30766924df4195c73e9b66169160d2d9dd657b81684347a4deb974fa (unchanged base)",
+    "first_board_frame_after_each_launch": "4db2dd70a7de7d88714f63a6b81effe449e881003553d92ca4435aacbe27c29c (all nine)",
+    "frames": {
+     "g3-game1-end": "529ad89624dadc57e5a2f1d1257899e0382df1380c00e7bbfd3ca91d9ca970a6",
+     "g3-game1-start": "4db2dd70a7de7d88714f63a6b81effe449e881003553d92ca4435aacbe27c29c",
+     "g3-game2-end": "91c69d0cbede872d21e88ac7509f990358303990a48f7e5255817b7597bff78f",
+     "g3-game2-start": "4db2dd70a7de7d88714f63a6b81effe449e881003553d92ca4435aacbe27c29c",
+     "g3-game3-end": "35229f12375a835ed926ecdad14ff2c0c93bef2f5d058ee2c2980cdcbdcb336a",
+     "g3-game3-start": "4db2dd70a7de7d88714f63a6b81effe449e881003553d92ca4435aacbe27c29c",
+     "g3-game4-end": "35229f12375a835ed926ecdad14ff2c0c93bef2f5d058ee2c2980cdcbdcb336a",
+     "g3-game4-start": "4db2dd70a7de7d88714f63a6b81effe449e881003553d92ca4435aacbe27c29c",
+     "g3-game5-end": "557d632d013da4c0469fda33d8693765729692cd9f492e55bf7aa29401e6ce93",
+     "g3-game5-start": "4db2dd70a7de7d88714f63a6b81effe449e881003553d92ca4435aacbe27c29c",
+     "g3-game6-end": "268dd98b1a919166eb508134d1b955acd09469fc945bc88ceddfd87354619326",
+     "g3-game6-start": "4db2dd70a7de7d88714f63a6b81effe449e881003553d92ca4435aacbe27c29c",
+     "g3-game7-end": "31aaa7983cdd5f93f434dc6fff38253b4c7b14024d45a9641ea26ee1fc1ea0f0",
+     "g3-game7-start": "4db2dd70a7de7d88714f63a6b81effe449e881003553d92ca4435aacbe27c29c",
+     "g3-game8-end": "7a5addf47c5e727238643966604b3d3ef605c37bb0bae482130c9e7f00d1e756",
+     "g3-game8-start": "4db2dd70a7de7d88714f63a6b81effe449e881003553d92ca4435aacbe27c29c",
+     "g3-game9-end": "557d632d013da4c0469fda33d8693765729692cd9f492e55bf7aa29401e6ce93",
+     "g3-game9-start": "4db2dd70a7de7d88714f63a6b81effe449e881003553d92ca4435aacbe27c29c"
+    },
+    "play_video_sha256": {
+     "g3-play": "503a76254ffcae04423313deee66088ef237f85c817cd4863c9ab4314b3800f1",
+     "g3-play2": "dc5c6697fa87f707cf0f8a14568ed78eb17b55d2b8499f33d773d736f267a50c"
+    },
+    "audio_sha256": {
+     "g3-audio": "1a4b8fd9596fac3f0ad83b945993e6b324b5c5ea6a1220274a5f8e34c233c9e2",
+     "g3-audio2": "5d9f05d265585bb0277a1791f5ac6f3c234531a2189b80dded8bcecef9b9bdec"
+    }
    }
   },
   "h3": {

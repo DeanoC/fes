@@ -9,7 +9,8 @@ before its own runs.
 - **Kit B** ran five claims, `x1` to `x4` (`x3` launched nothing), and on
   8 November a sixth, `n1`, for case 4.
 - **Kit A** ran three claims: `g1` and `g2` for case 2b, and `h3` for a second
-  full Lurking Horror run.
+  full Lurking Horror run. On 8 November a fourth, `g3`, replaced `g2`, which
+  had too little play.
 
 All of them used the same sealed package, user-supplied TOS 1.04 and private
 disks. Hashes are in [`kit-runs.json`](kit-runs.json).
@@ -18,7 +19,8 @@ disks. Hashes are in [`kit-runs.json`](kit-runs.json).
 each, with at least 10 minutes of play per run and a declared objective:
 joystick (Xenon), mouse (Gomoku) and keyboard with a disk save (The Lurking
 Horror). Both Lurking Horror passes match Hatari's saved disk except one
-directory time byte. On 8 November, case 4 added a disk swap inside a running
+directory time byte. On 8 November, `g3` replaced a Gomoku run that had too
+little play, case 4 added a disk swap inside a running
 session (Terramex, two launches), and the 4 differing `x4` save bytes were
 traced to the game's own randomness. Items below are still open, so this PR
 refers to #1528 and leaves closing it to review.
@@ -27,7 +29,7 @@ refers to #1528 and leaves closing it to review.
 | --- | --- | --- | --- |
 | 1. Xenon (joystick) | **PASS** (`x2`); `x1` stopped early by a physical kit fault, kept as INCONCLUSIVE | **PASS** (`x4`) | **PASS** |
 | 2. Logical (mouse) | **INCONCLUSIVE** (`x2`): launched by mouse from the desktop, but play was never started | **INCONCLUSIVE** (`x4`): same | **INCONCLUSIVE**, replaced by 2b |
-| 2b. Gomoku and Renju (mouse) | **PASS** (`g1`): three games won to "Game won by White" | **PASS** (`g2`): three games won | **PASS** |
+| 2b. Gomoku and Renju (mouse) | **PASS** (`g1`): three games won to "Game won by White" | **PASS** (`g3`, 8 November): nine complete games, 11 min 50 s of board play. `g2`: three games won, but only about 6 minutes of play, so INCONCLUSIVE | **PASS** |
 | 3. The Lurking Horror (keyboard, save) | **PASS** (`x2`): the saved disk matches Hatari except one directory time byte | **PASS** (`h3`, Kit A): same match. `x4` (Kit B): its 4 differing save bytes are an expected random outcome that Hatari reproduces byte for byte; INCONCLUSIVE only for its 8 minutes of play | **PASS** |
 | 4. Terramex (disk swap, joystick) | **PASS** (`n1`, launch 1): disk 2 inserted into the running session at the game's prompt; about 14 minutes of play | **PASS** (`n1`, launch 2, after Stop and relaunch): disk 1 back in the drive, swapped again; about 11 minutes of play | **PASS** |
 
@@ -35,10 +37,10 @@ Still owed on #1528:
 
 - A swap from tenfoot. Case 4 swaps through the host API, because the ST
   package has no session display and tenfoot has no ST swap control.
-- Runs on a package sealed from main. The open PR
-  [#1544](https://github.com/DeanoC/fes/pull/1544) fixes the producer's read
-  audit and seals main's ST tree as `1f3b21b7…`. The rerun waits for it to
-  merge.
+- Runs on a package sealed from main. Its prerequisite,
+  [#1544](https://github.com/DeanoC/fes/pull/1544), merged on 8 November as
+  `2a22b5b6`: it fixes the producer's read audit and sealed main's ST tree as
+  `1f3b21b7…`. Only the rerun remains, and it goes in a later PR.
 - A gameplay reference for Xenon and Gomoku. Hatari's command interface has
   no joystick or mouse-move events, so only the no-input boot was compared.
 - Protected originals. Most of the IPF library can't be flattened to `.st`;
@@ -57,9 +59,9 @@ Still owed on #1528:
   after synthesis with `source list outside audited closure: .`. The same
   message stopped a Spectrum seal that day. The read audit was left as it is.
   When these runs were made, no other sealed ST package existed, so this
-  record doesn't accept main's ST bytes. The open PR
-  [#1544](https://github.com/DeanoC/fes/pull/1544) fixes the audit and seals
-  main's tree as `1f3b21b7…`.
+  record doesn't accept main's ST bytes.
+  [#1544](https://github.com/DeanoC/fes/pull/1544) has since fixed the audit
+  (merged 8 November as `2a22b5b6`) and sealed main's tree as `1f3b21b7…`.
 - **Firmware.** TOS 1.04 UK, 192 KiB, SHA-256 `c005b0ae…`, the ROM late
   520STFMs shipped with. It is selected per title through the library ROM
   slot. 512 KiB RAM; the core has no other RAM size.
@@ -69,11 +71,16 @@ Still owed on #1528:
   - Kit A was on the recovery baseline Lander recorded at 20:53: software
     `4efd34bf` with factory image `31b39063` (from main `4b33ec55`).
 - **Host.** A private Powerboat FogCast host, the promoted `bb51f445`
-  `fogcast-api`, with a private HOME and a single Kit B target. It used the
+  `fogcast-api`, with a private HOME and one kit target per claim: Kit B's
+  `kit2` target, or Kit A's `dev` target (`http://fes-kit-a:8182`). It used the
   normal library path: package, ROM and disk media installed, a library title
   created, `POST /api/v1/session/launch`, `/api/v1/session/input/event` and
   `/api/v1/session/stop`. The shared host was not used. Tenfoot menu
   navigation was not exercised.
+- **Capture.** Both kits were captured on Powerboat at 1920×1080, with play
+  recordings scaled to 640×360 h264 and stereo 48 kHz audio. Kit B used its
+  4KPRO grabber (`fes-4kpro-hil`, audio `hw:CARD=D4KPRO`); Kit A used its
+  ShadowCast grabber (`fes-shadowcast-hil`, audio `hw:CARD=S3`).
 
 ## Disks
 
@@ -82,8 +89,10 @@ Every disk comes from Deano's IPF dumps of the original disks
 converter decoded each IPF with the SPS decoder library (capsimg
 `ed4cb091`, a private build used under its non-commercial licence). It keeps an
 image only when every sector the boot-sector BPB describes is present once,
-with good ID and data CRCs, and no other sectors exist. 166 of the 408 IPFs
-pass that check. Nothing from a disk, ROM or frame is committed.
+with good ID and data CRCs, and no other sectors exist. A sector ID seen twice
+on a track fails the check even when both copies hold the same data. 166 of
+the 408 IPFs pass. That duplicate rule was tightened on 8 November; rerunning
+all 408 IPFs gave the same 166 images with the same hashes. Nothing from a disk, ROM or frame is committed.
 
 | Title | Zip SHA-256 | IPF SHA-256 | `.st` SHA-256 | Shape |
 | --- | --- | --- | --- | --- |
@@ -190,14 +199,35 @@ The panel then reads "Next to play White (that's you.)", as in Hatari.
      after 12 White moves.
   3. Game 3 was started from the program's own Restart (see below) and won
      after 7 moves.
-  4. About 14 minutes of play in all.
+  4. About 14 minutes in the program, from the first board frame
+     (21:17:44) to game 3's last move (21:32:38), less the Stop and relaunch.
+     About 8.5 minutes of that was stone play. The rest was mouse work in the
+     Game menu and its alert, which found the button behaviour below.
 - **`g2` (Kit A, 21:35–21:45 EET).** Three games, each from a Stop and library
   relaunch. All three ended in "Game won by White", after 7, 18 and 20 White
-  moves. About 10 minutes of play.
+  moves. The record first called this about 10 minutes of play, but that was
+  the claim's wall clock. From each first board frame to that game's last move
+  it is 0:46, 1:47 and 2:02, about 4.5 minutes. Even counting from each launch
+  to its game end, it is 8:06, boot and desktop launch included. So `g2` is
+  INCONCLUSIVE: short of the 10-minute minimum, like `x4`.
+- **`g3` (Kit A, 8 November, 15:03–15:46 EET).** It replaces `g2` as run 2.
+  1. Nine games, each from a Stop and library relaunch and the desktop
+     launch.
+  2. Eight ended in "Game won by White", after 5, 16, 11, 11, 8, 9, 9 and 8
+     White moves. Game 7 ended in "Game won by Black" after 30 White moves.
+     The declared objective counts a loss as a result.
+  3. Board play is 11 min 50 s: the sum, over the nine games, of the time
+     from the first board frame to the last move. First board frame to result
+     screen is about 15.5 minutes.
+  4. Between games 6 and 7 the kit sat idle from 15:22 to 15:36 because of a
+     wait-loop slip in the runner. That time is not counted.
+  5. The capture is in two segments, `g3-play`/`g3-audio` and
+     `g3-play2`/`g3-audio2`.
 - **What matches across runs.** The first board frame after each library
-  launch is byte-identical in the four launches captured the same way: `g1`
-  game 2 and all three `g2` games (`4db2dd70…`). Each run's disk record still holds the unchanged base image:
-  the program writes nothing.
+  launch is byte-identical in the 13 launches captured the same way: `g1`
+  game 2, all three `g2` games and all nine `g3` games (`4db2dd70…`). Each
+  run's disk record still holds the unchanged base image: the program writes
+  nothing.
 
 Mouse buttons in GEM dialogs and menus:
 
@@ -363,8 +393,8 @@ happens mid-level.
   created before its file listing.
 - **`x3`.** Its library-entry step failed before any launch, so it launched
   nothing and left nothing.
-- **Kit A, `g1`, `g2` and `h3`.** Each removed the two trees it created (an empty
-  `core-data` namespace directory and its disk record) before its file
+- **Kit A, `g1`, `g2`, `h3` and `g3`.** Each removed the two trees it created (an
+  empty `core-data` namespace directory and its disk record) before its file
   listing.
 - **`n1` (8 November).** Night Shift and Terramex ran in one claim, with a
   line in `kitB-STATUS.md` when the run moved to the fallback. It removed the
@@ -373,6 +403,8 @@ happens mid-level.
 - **Final state.** Kit B was left FREE at 20:51 on software `a8cd30c4` and
   image `f904961e`, with the `usb-storage.quirks` line intact. Kit A was left
   FREE at 22:25 on its recovery baseline. After `n1`, Kit B was left FREE at
-  10:40 on 8 November, on the same baseline with no reboot.
+  10:40 on 8 November, on the same baseline with no reboot. After `g3`, Kit A
+  was left FREE at 15:46 on 8 November, on software `4efd34bf` and image
+  `31b39063` with no reboot.
 - **What stays on Powerboat.** Captures (`.mkv`, `.wav`, frames), disk records,
   the Hatari runs and the tools are in `~/fes-scratch/st1528`.
