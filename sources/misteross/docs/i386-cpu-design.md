@@ -2109,15 +2109,18 @@ eight replicated hit sets.
   writes the back link and sets NT in the new task. JMP, through a task gate
   too, writes no back link and loads NT from the new TSS unchanged. IRET
   clears NT in the EFLAGS image it saves into the old TSS. These are the 386
-  manual's task-linking rules and Bochs's (`tasking.cc`). Then it
-  loads LDTR, EFLAGS, EIP, the GPRs and the selectors from the new TSS,
-  loads their descriptors, sets CR0.TS and clears DR7's local enables
-  (L0–L3 and LE), keeping the global ones. As in Bochs (`tasking.cc`):
-  - a 32-bit TSS gives all six selectors; a 16-bit one gives ES, CS, SS and
-    DS, and FS and GS become null;
-  - CR3 loads from a 32-bit TSS only while paging is on; a 16-bit TSS has no
-    CR3 field, and with PG clear CR3 keeps its value. A CR3 load flushes the
-    TLBs.
+  manual's task-linking rules and Bochs's (`tasking.cc`). Then, in Bochs's
+  order:
+  - it reads the new TSS's fields, loads TR, sets CR0.TS and clears DR7's
+    local enables (L0–L3 and LE), keeping the global ones;
+  - it loads CR3 from a 32-bit TSS, only while paging is on, and flushes the
+    TLBs. A 16-bit TSS has no CR3 field, and with PG clear CR3 keeps its
+    value. This comes before any descriptor load, so the new task's GDT and
+    LDT are read through its own address space;
+  - it loads EFLAGS, EIP, the GPRs and the selectors, then LDTR's
+    descriptor and the segments' descriptors with their checks. A 32-bit
+    TSS gives all six selectors; a 16-bit one gives ES, CS, SS and DS, and
+    FS and GS become null.
 
   A 32-bit TSS whose EFLAGS image has VM set enters V86. EFLAGS loads
   first, and the six selectors then load as V86 segments (base selector ×
@@ -2237,7 +2240,8 @@ A timing miss stops the slice; it never relaxes a check. Titles that need
    link, NT, CR0.TS, and a switch into V86.
    - **Lockstep.** test386.asm's task cases; #PF through a task gate and
      back by IRET with NT, as Descent does, and the old task's saved NT
-     cleared; a JMP to a TSS whose EFLAGS image has NT set; a switch into
+     cleared; a JMP to a TSS whose EFLAGS image has NT set; a switch whose
+     new CR3 maps the GDT or LDT differently; a switch into
      a V86 task with selectors that are not valid descriptors; far JMP to a TSS between CPL 0
      and 3, as CWSDPMI does; each #TS case; a busy TSS; a fault after the
      commit point; a switch with paging off, which must leave CR3 alone; a
