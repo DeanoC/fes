@@ -6612,13 +6612,13 @@ int run_paging_cases(fes_i386::Oracle &oracle, OracleBus &bus, Rtl &rtl, const s
          {{0x15, 0x30000 | P | W | U}, {0x16, 0x30000 | P | W | U}}, {},
          {{0x30000, {0xc6, 0x05, 0x0a, 0x60, 0x01, 0x00, 0x40, 0x90, 0x90, 0x90, 0x90, 0xf4}}}},  // MOV byte [1600Ah], 40h
         // A load right behind a store to the same frame through another
-        // linear page (pages 15h and 16h alias): it must take the store's
-        // bytes, whole and in part.
+        // linear page (pages 15h and 16h alias, A and D set, so the store
+        // does not walk): it must take the store's bytes, whole and in part.
         {"pg-fwd-alias", [=](Asm &a, uint32_t) {
              a.ld32(0x16100); a.ld32(0x15100);                                       // both pages in the DTLB
              a.mov(EAX, 0x11223344); a.st32(0x15100); a.ldr(EBX, 0x16100);
              a.mov(EAX, 0x99); a.st8(0x16102); a.ldr(ECX, 0x15100); a.op({0x8a, 0x15}); a.d(0x16102);  // MOV DL, [16102h]
-         }, -1, -1, -1, {{0x15, 0x30000 | P | W | U}, {0x16, 0x30000 | P | W | U}}, {}, {{0x30100, {1, 2, 3, 4}}}},
+         }, -1, -1, -1, {{0x15, 0x30000 | P | W | U | A | D}, {0x16, 0x30000 | P | W | U | A | D}}, {}, {{0x30100, {1, 2, 3, 4}}}},
         // The same through a store into the instruction right after the
         // storing one, whose block the fetch buffer has dropped behind six
         // 10-byte instructions: only the instruction's own physical page
